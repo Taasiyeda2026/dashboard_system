@@ -3392,8 +3392,13 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     finishBtn.disabled = true;
     try {
       const finishMod = await import('./payroll-control-finish.js?v=20261005-manager-pdf-decouple-v1');
+      // Revalidate against the database immediately before final approval. A correction
+      // (or another session) can bump attendance_records.updated_at and invalidate a
+      // review after the screen was loaded.
+      await loadRecordReviews();
+      paintResults();
       if (finishMod.payrollEmployeeHasUnresolvedEntries(result, employeeId)) {
-        setStatusMessage('לא ניתן לאשר את החודש: יש רשומות שעדיין לא אושרו על ידי מנהל הצוות.', { error: true });
+        setStatusMessage('לא ניתן לאשר את החודש: יש רשומות שלא אושרו או שהשתנו מאז האישור האחרון. הרשימה רועננה — יש לאשר את הרשומות המסומנות ולנסות שוב.', { error: true });
         return;
       }
       const signed = await askForSignature(finishMod);
@@ -3430,7 +3435,13 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         setStatusMessage('אישור המנהל נשמר בהצלחה, החודש ננעל והדוח נשלח לעובד.');
       }
     } catch (error) {
-      setStatusMessage(error?.message || 'שמירת האישור נכשלה.', { error: true });
+      if (txt(error?.message).includes('attendance_records_not_fully_approved')) {
+        await loadRecordReviews();
+        paintResults();
+        setStatusMessage('האישור נעצר כי לפחות רשומת נוכחות אחת חסרה אישור תקף או השתנתה מאז האישור. הרשימה רועננה — יש לאשר אותה מחדש ולנסות שוב.', { error: true });
+      } else {
+        setStatusMessage(error?.message || 'שמירת האישור נכשלה.', { error: true });
+      }
     } finally {
       finishBtn.disabled = false;
     }
