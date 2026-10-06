@@ -693,7 +693,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
       ? 'לדוגמה: פגישת צוות, הכנת ציוד או עבודה תפעולית'
       : 'שם התוכנית';
 
-    meetField.wrap.hidden = !isCourse;
+    meetField.wrap.hidden = !isCourse || record.course_dashboard_sources?.length > 1;
     if (!isCourse) meetField.input.value = '';
     trainingModeField.wrap.hidden = reportType !== 'הכשרה';
     trainingModeField.input.disabled = isScheduledTraining;
@@ -744,7 +744,8 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
 
     const startTime  = startTimeField.getValue();
     const endTime    = endTimeField.getValue();
-    const totalHours = calcHours(startTime, endTime);
+    const totalHours = record.course_business_identity && typeField.input.value === COURSE_REPORT_TYPE
+      ? Number(record.total_hours) : calcHours(startTime, endTime);
     const reportType = typeField.input.value;
     const isOperations = reportType === OPERATIONS_REPORT_TYPE;
     const isZoom = reportType === ONLINE_REPORT_TYPE;
@@ -780,6 +781,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
         start_time:              startTime,
         end_time:                endTime,
         total_hours:             totalHours,
+        course_business_identity: isCourse ? record.course_business_identity ?? null : null,
         activity_type:           reportType,
         training_mode:           reportType === 'הכשרה' ? (isOnlineTraining ? 'online' : 'physical') : null,
         training_schedule_id:    reportType === 'הכשרה' ? (record.training_schedule_id ?? null) : null,

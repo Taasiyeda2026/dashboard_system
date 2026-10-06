@@ -206,6 +206,96 @@ export function instructorActivitySelectOptions(activities = [], { reportType = 
     });
 }
 
+function courseText(value) {
+  return String(value ?? '').trim();
+}
+
+/** Business identity only; a dashboard row id is never a picker value. */
+export function dashboardCourseChoiceKey(row = {}) {
+  const schoolId = courseText(row.school_id) || courseText(row.single_school_id);
+  return `dashboard-course:${JSON.stringify([
+    courseText(row.activity_name || row.program_name),
+    schoolId ? ['id', schoolId] : ['name', courseText(row.single_school_name || row.school_name || row.school)],
+  ])}`;
+}
+
+export function buildDashboardCourseOptions(rows = []) {
+  const groups = new Map();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    if (normalizeDbActivityType(row?.activity_type) !== 'course') continue;
+    const name = courseText(row.activity_name || row.program_name);
+    if (!name || !courseText(row.row_id || row.id)) continue;
+    const value = dashboardCourseChoiceKey(row);
+    if (!groups.has(value)) {
+      const school = courseText(row.single_school_name || row.school_name || row.school);
+      const authority = courseText(row.authority_name || row.authority);
+      groups.set(value, {
+        value,
+        label: [name, school].filter(Boolean).join(' — '),
+        meta: authority,
+        searchText: [name, school, authority].filter(Boolean).join(' ').toLowerCase(),
+        candidateRows: [],
+      });
+    }
+    groups.get(value).candidateRows.push(row);
+  }
+  return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label, 'he'));
+}
+
+/** Paid work is calculated per distinct teaching session. Simultaneous classes
+ * share instructional time; adjacent sessions retain their own 45-minute bonus.
+ * Preparation intervals may overlap, but their earned minutes must not be lost.
+ */
+export function dashboardCourseWork(rows = []) {
+  const intervals = rows.map(row => [parseClockMinutes(row.start_time), parseClockMinutes(row.end_time)])
+    .filter(([start, end]) => start != null && end != null && end > start)
+    .sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  if (intervals.length !== rows.length || !intervals.length) return null;
+  const sessions = [];
+  for (const [start, end] of intervals) {
+    const previous = sessions.at(-1);
+    if (previous && start < previous[1]) previous[1] = Math.max(previous[1], end);
+    else sessions.push([start, end]);
+  }
+  const paid = sessions.map(([start, end]) => {
+    const blocks = Math.floor((end - start) / 45);
+    return [Math.max(0, start - Math.ceil(blocks / 2) * 15), Math.min(1439, end + Math.floor(blocks / 2) * 15)];
+  });
+  const paidMinutes = paid.reduce((sum, [start, end]) => sum + end - start, 0);
+  return { startTime: formatClockMinutes(Math.min(...paid.map(row => row[0]))),
+    endTime: formatClockMinutes(Math.max(...paid.map(row => row[1]))),
+    paidMinutes, totalHours: Math.round(paidMinutes / 60 * 100) / 100 };
+}
+
+/** Resolve a business activity to ALL sources in a fresh authorized date snapshot.
+ * A legacy row hint locates the business choice; it never truncates its sources.
+ */
+export function resolveDashboardCourseChoice(choice, rows = [], hints = {}) {
+  const candidates = (Array.isArray(rows) ? rows : []).filter(row =>
+    normalizeDbActivityType(row?.activity_type) === 'course' && dashboardCourseChoiceKey(row) === choice?.value);
+  const unique = [...new Map(candidates.map(row => [courseText(row.row_id || row.id), row])).values()]
+    .sort((a, b) => courseText(a.row_id).localeCompare(courseText(b.row_id)));
+  if (!unique.length || hints.activityRowId && !unique.some(row => courseText(row.row_id) === courseText(hints.activityRowId))) {
+    return { status: 'unavailable', activity: null, candidateRows: [] };
+  }
+  const work = dashboardCourseWork(unique);
+  if (!work) return { status: 'invalid_schedule', activity: null, candidateRows: unique };
+  const common = key => unique.every(row => row[key] === unique[0][key]) ? unique[0][key] : null;
+  const activity = Object.fromEntries(Object.keys(unique[0]).map(key => [key, common(key)]));
+  if (unique.length > 1) {
+    for (const key of ['id', 'row_id', 'activity_no', 'meeting_no', 'grade', 'class_group']) activity[key] = null;
+  }
+  const identity = JSON.parse(choice.value.slice('dashboard-course:'.length));
+  activity.school_id = identity[1][0] === 'id' ? Number(identity[1][1]) : null;
+  activity.single_school_id = activity.school_id;
+  activity.single_school_name = unique.map(row => courseText(row.single_school_name || row.school_name || row.school)).sort()[0];
+  activity.school_link_status = activity.school_id ? 'single_school' : 'no_school';
+  activity.__dashboardCourseSources = unique;
+  activity.__dashboardCourseIdentity = identity;
+  activity.__dashboardCourseWork = work;
+  return { status: 'resolved', activity, candidateRows: unique };
+}
+
 export function deriveAuthoritySchoolListFromActivities(activities = []) {
   const authorities = new Map();
 
@@ -316,6 +406,7 @@ function formatClockMinutes(totalMinutes) {
  * Course extensions are balanced around the dashboard meeting in 15-minute blocks.
  */
 export function attendanceTimesFromActivity(activity, reportType = '') {
+  if (activity?.__dashboardCourseWork) return activity.__dashboardCourseWork;
   const startMinutes = parseClockMinutes(activity?.start_time);
   const endMinutes = parseClockMinutes(activity?.end_time);
   if (startMinutes == null || endMinutes == null || endMinutes <= startMinutes) {

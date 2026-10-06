@@ -67,7 +67,20 @@ async function loadSourceRecord(recordId, sourceDate) {
   return Array.isArray(data) ? (data[0] || null) : data;
 }
 
-async function loadCourseSchedule(record) {
+export async function loadCourseSchedule(record) {
+  if (record.course_business_identity && record.course_dashboard_sources?.length) {
+    const schedules = await Promise.all(record.course_dashboard_sources.map(source => loadCourseSchedule({
+      ...record, course_business_identity: null, course_dashboard_sources: null,
+      activity_row_id: source.row_id, meeting_no: source.meeting_no,
+    })));
+    const dates = new Map();
+    for (const meeting of schedules.flat()) {
+      const current = dates.get(meeting.date);
+      dates.set(meeting.date, { date: meeting.date, meeting_no: null,
+        assigned_to_current: current?.assigned_to_current === true || meeting.assigned_to_current !== false });
+    }
+    return [...dates.values()].sort((a,b) => a.date.localeCompare(b.date));
+  }
   if (isAdminPreviewRequested()) {
     const sourceMeeting = Math.max(1, Number(record?.meeting_no) || 1);
     const totalMeetings = Math.max(sourceMeeting, 10);
@@ -106,14 +119,18 @@ async function loadExistingCourseReports(record, schedule) {
       const [year, month] = monthKey.split('-').map(Number);
       rows.push(...getPreviewRecords(year, month));
     }
-    return rows.filter((row) => clean(row.activity_row_id) === clean(record.activity_row_id));
+    return rows.filter(row => record.course_business_identity
+      ? JSON.stringify(row.course_business_identity) === JSON.stringify(record.course_business_identity)
+      : clean(row.activity_row_id) === clean(record.activity_row_id));
   }
 
-  const { data, error } = await supabase
-    .from('attendance_records')
-    .select('id,report_date,meeting_no,activity_row_id')
-    .eq('emp_id', Number(record.emp_id))
-    .eq('activity_row_id', clean(record.activity_row_id));
+  let query = supabase.from('attendance_records')
+    .select('id,report_date,meeting_no,activity_row_id,course_business_identity')
+    .eq('emp_id', Number(record.emp_id));
+  query = record.course_business_identity
+    ? query.eq('course_business_identity', JSON.stringify(record.course_business_identity))
+    : query.eq('activity_row_id', clean(record.activity_row_id));
+  const { data, error } = await query;
   if (error) throw error;
   return Array.isArray(data) ? data : [];
 }
@@ -212,7 +229,7 @@ async function enhanceDuplicateCourseForm() {
 
   try {
     const sourceRecord = await loadSourceRecord(recordId, dateInput.value);
-    if (!sourceRecord || clean(sourceRecord.activity_type) !== COURSE_REPORT_TYPE || !clean(sourceRecord.activity_row_id)) {
+    if (!sourceRecord || clean(sourceRecord.activity_type) !== COURSE_REPORT_TYPE || (!clean(sourceRecord.activity_row_id) && !sourceRecord.course_business_identity)) {
       form.setAttribute(ENHANCED_ATTR, 'skipped');
       try { sessionStorage.removeItem(DUPLICATE_RECORD_KEY); } catch {}
       return;
@@ -234,7 +251,8 @@ async function enhanceDuplicateCourseForm() {
     const usedDates = new Set(existingReports.map((row) => clean(row.report_date)).filter(Boolean));
 
     const sourceMeetingNo = Number(sourceRecord.meeting_no) || 0;
-    const nextMeeting = schedule.find((item) => item.meeting_no > sourceMeetingNo) || null;
+    const nextMeeting = schedule.find(item => sourceRecord.course_business_identity
+      ? item.date > sourceRecord.report_date : item.meeting_no > sourceMeetingNo) || null;
     const nextMeetingAssignedToCurrent = !!nextMeeting && nextMeeting.assigned_to_current !== false;
     const nextMeetingAlreadyReported = !!nextMeeting && (
       usedKeys.has(`${nextMeeting.meeting_no}|${nextMeeting.date}`)
@@ -282,7 +300,8 @@ async function enhanceDuplicateCourseForm() {
       const option = document.createElement('option');
       option.value = item.date;
       option.dataset.meetingNo = String(item.meeting_no);
-      option.textContent = `מפגש ${item.meeting_no} — ${formatDateHe(item.date)}`;
+      option.textContent = sourceRecord.course_business_identity ? formatDateHe(item.date)
+        : `מפגש ${item.meeting_no} — ${formatDateHe(item.date)}`;
       dateSelect.append(option);
     }
 

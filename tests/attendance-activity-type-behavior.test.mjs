@@ -80,13 +80,13 @@ test('Course reporting uses the selected date dashboard row and does not add a c
   assert.match(courseChoiceMigration, /'grade', a\.grade/);
   assert.match(courseChoiceMigration, /'class_group', a\.class_group/);
   assert.match(courseDashboardRuntimeSource, /av2_get_current_instructor_activity_choices_for_date/);
-  assert.match(courseDashboardRuntimeSource, /ambiguousAtSchool && cls/);
-  assert.match(courseDashboardRuntimeSource, /`כיתה \$\{cls\}`/);
-  assert.match(courseDashboardRuntimeSource, /ambiguousAtSchool && time/);
-  assert.match(courseDashboardRuntimeSource, /av2:set-options/);
+  assert.match(courseDashboardRuntimeSource, /buildDashboardCourseOptions/);
+  assert.match(courseDashboardRuntimeSource, /resolveDashboardCourseChoice/);
+  assert.match(newReportSource, /applyDashboardCourseChoice/);
+  assert.doesNotMatch(courseDashboardRuntimeSource, /ambiguousAtSchool|כיתה/);
   assert.match(searchableSelectSource, /wrap\.addEventListener\('av2:set-options'/);
   assert.doesNotMatch(courseDashboardRuntimeSource, /createSelectField|createInputField/);
-  assert.match(indexSource, /course-dashboard-choice-runtime\.js\?v=109/);
+  assert.match(indexSource, /course-dashboard-choice-runtime\.js\?v=111/);
 });
 
 test('Legacy Zoom data remains normalized while the current UI removes Zoom from activity-type choices', () => {
@@ -102,11 +102,11 @@ test('Legacy Zoom data remains normalized while the current UI removes Zoom from
   assert.match(trainingRuntimeSource, /const ZOOM_LABEL = 'זום'/);
   assert.match(trainingRuntimeSource, /option\.value === 'online'/);
   assert.match(trainingRuntimeSource, /removeZoomAsActivityType/);
-  assert.match(indexSource, /training-report-ui-runtime\.js\?v=109/);
+  assert.match(indexSource, /training-report-ui-runtime\.js\?v=111/);
 });
 
 test('Attendance cache is synchronized for the training and dashboard-choice release', () => {
-  assert.match(swSource, /const CACHE_VERSION = 109;/);
-  assert.match(indexSource, /\?v=109/);
+  assert.match(swSource, /const CACHE_VERSION = 111;/);
+  assert.match(indexSource, /\?v=111/);
   assert.doesNotMatch(indexSource, /\?v=106/);
 });

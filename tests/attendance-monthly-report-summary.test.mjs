@@ -89,3 +89,11 @@ test('mobile expanded report explicitly exposes activity type', async () => {
   assert.match(enhancer, /setMobileLabel\(typeCell, 'סוג פעילות'\)/);
   assert.match(css, /is-mobile-expanded > \.av2-rr__type/);
 });
+
+test('grouped course monthly and daily totals use earned hours rather than elapsed display envelope', () => {
+  const course={id:'alex',report_date:'2026-10-11',activity_type:'קורס',start_time:'07:45',end_time:'14:15',total_hours:7.5};
+  const cancellation={id:'travel',report_date:course.report_date,activity_type:'ביטול זמן',total_hours:0.5,
+    generation_kind:'travel_time_cancellation',source_attendance_record_id:course.id};
+  assert.equal(buildDailyHoursByDate([course,cancellation]).get(course.report_date),8);
+  assert.equal(buildMonthlySummaryItems([course,cancellation]).find(item=>item.label==='סה״כ שעות קורס').value,'7:30');
+});

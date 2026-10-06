@@ -369,3 +369,7 @@ config.HOTFIX_VERSION = `attendance-control-workflow-unify-20261005-v1-${config.
 config.HOTFIX_VERSION = `admin-attendance-badge-stability-20261005-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `admin-attendance-compact-hebrew-pdf-20261005-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `scheduling-preflight-fenced-cooperative-runtime-20261006-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `attendance-grouped-dashboard-course-choice-20261006-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `attendance-course-business-sources-20261006-v1-${config.HOTFIX_VERSION}`;
