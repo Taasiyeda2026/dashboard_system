@@ -677,11 +677,14 @@ Deno.serve(async (req) => {
       ? body.approvedSnapshot as Record<string, unknown>
       : {};
     const wantsRetry = body?.retry === true || body?.retry === "true" || body?.mode === "retry";
+    const wantsForceRegenerate = body?.forceRegenerate === true || body?.force_regenerate === true;
+    const suppressEmail = body?.suppressEmail === true || body?.suppress_email === true;
     const bearerToken = authorization.replace(/^Bearer\s+/i, "").trim();
     const isServiceCaller = bearerToken === supabaseServiceRole;
     const isSecretRetry = wantsRetry && await verifyTriggerSecret(req, supabaseUrl, supabaseServiceRole);
     const isRetryCaller = wantsRetry && (isSecretRetry || isServiceCaller);
     if (wantsRetry && !isRetryCaller) throw new Error("not_authorized");
+    if ((wantsForceRegenerate || suppressEmail) && !isRetryCaller) throw new Error("not_authorized");
 
     if (!employeeId || !monthKey) throw new Error("employee_id_and_month_required");
 
@@ -751,7 +754,7 @@ Deno.serve(async (req) => {
     managerApprovalAt = managerApprovalAt || new Date().toISOString();
 
     // Idempotent retry: never upload a second PDF once metadata is attached.
-    if (isLockedApproval && existingPdfUrl && existingPdfFileName) {
+    if (isLockedApproval && existingPdfUrl && existingPdfFileName && !wantsForceRegenerate) {
       return json({
         employeeId,
         employeeName: safeFileNamePart(employeeNameInput || clean((approvedSnapshot as { employeeName?: string })?.employeeName) || `עובד ${employeeId}`, `עובד ${employeeId}`),
@@ -835,7 +838,10 @@ Deno.serve(async (req) => {
 
     let attachedToApproval = false;
     if (isLockedApproval) {
-      const attached = await restRpcService(supabaseUrl, supabaseServiceRole, "attach_manager_attendance_month_pdf", {
+      const attachRpc = wantsForceRegenerate
+        ? "replace_manager_attendance_month_pdf"
+        : "attach_manager_attendance_month_pdf";
+      const attached = await restRpcService(supabaseUrl, supabaseServiceRole, attachRpc, {
         p_employee_id: employeeId,
         p_month_key: monthKey,
         p_manager_pdf_sharepoint_url: uploaded.sharepointWebUrl,
@@ -844,7 +850,7 @@ Deno.serve(async (req) => {
         p_manager_pdf_version: uploaded.version,
       });
       attachedToApproval = attached?.attached === true || attached?.already_attached === true;
-      if (attached?.already_attached === true && clean(attached?.manager_pdf_sharepoint_url)) {
+      if (!wantsForceRegenerate && attached?.already_attached === true && clean(attached?.manager_pdf_sharepoint_url)) {
         return json({
           employeeId,
           employeeName,
@@ -865,10 +871,19 @@ Deno.serve(async (req) => {
     }
 
     // Email delivery is best-effort and must not invalidate approval or PDF.
+    // Forced regenerations may explicitly suppress delivery so repaired artifacts
+    // can be verified before any employee receives a replacement.
     let mailedAt = "";
     let mailError = "";
+    const mailSuppressed = suppressEmail;
     const sender = clean(currentUser?.auth_email || currentUser?.email).toLowerCase();
-    if (!sender) {
+    if (mailSuppressed) {
+      console.info("[payroll-attendance-pdf-dispatch] email suppressed for PDF regeneration", {
+        employeeId,
+        monthKey,
+        managerPdfVersion: uploaded.version,
+      });
+    } else if (!sender) {
       mailError = "approver_email_missing";
     } else {
       try {
@@ -929,7 +944,8 @@ Deno.serve(async (req) => {
       sharepointFolderWebUrl: monthFolder.webUrl,
       employeeEmail,
       reusedExistingPdf: false,
-      mailSent: !mailError,
+      mailSent: !mailSuppressed && !mailError,
+      mailSuppressed,
       mailError: mailError ? mailError.split(":").slice(0, 2).join(":") : "",
       mailedAt,
       attachedToApproval,
