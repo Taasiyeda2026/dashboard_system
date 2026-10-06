@@ -382,3 +382,4 @@ config.HOTFIX_VERSION = `scheduling-staged-rescue-shortlist-20261006-v1-${config
 config.HOTFIX_VERSION = `stale-dynamic-import-auto-recovery-20261006-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `admin-attendance-super-control-preview-20261006-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `scheduling-certified-planning-outcomes-20261006-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `admin-attendance-compact-action-icons-20261006-v1-${config.HOTFIX_VERSION}`;

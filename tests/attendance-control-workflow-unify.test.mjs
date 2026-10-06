@@ -243,8 +243,12 @@ test('admin final approval refreshes pending badge and keeps payroll transfer se
 });
 
 test('admin super-control previews the immutable approved snapshot inline with expenses', () => {
-  assert.match(adminStandalone, /data-admin-attendance-records=/);
-  assert.match(adminStandalone, /צפייה ברשומות שאושרו/);
+  assert.match(adminStandalone, /attr: 'data-admin-attendance-records'/);
+  assert.match(adminStandalone, /iconActionButton\(\{ label: 'צפייה ברשומות שאושרו', icon: 'view'/);
+  assert.match(adminStandalone, /iconActionButton\(\{ label: 'פתיחת PDF', icon: 'pdf'/);
+  assert.match(adminStandalone, /title="\$\{escapeHtml\(label\)\}" aria-label="\$\{escapeHtml\(label\)\}"/);
+  assert.match(adminStandalone, /admin-attendance-icon-action/);
+  assert.match(adminStandalone, /flex-wrap:nowrap/);
   assert.match(adminStandalone, /approvedSnapshotPreviewHtml/);
   assert.match(adminStandalone, /הוצאות ופירוט/);
   assert.match(adminStandalone, /אסמכתאות/);

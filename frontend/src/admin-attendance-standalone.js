@@ -106,8 +106,10 @@ function ensureStyles() {
     .admin-attendance-approval-popover dl { display:grid; grid-template-columns:auto 1fr; gap:4px 8px; margin:0; font-size:12px; }
     .admin-attendance-approval-popover dt { color:var(--color-text-secondary,#64748b); }
     .admin-attendance-approval-popover dd { margin:0; }
-    .admin-attendance-actions { display:flex; gap:6px; flex-wrap:wrap; }
+    .admin-attendance-actions { display:flex; align-items:center; gap:6px; flex-wrap:nowrap; }
     .admin-attendance-actions button { border:1px solid var(--color-border,#dbe3ec); border-radius:8px; padding:6px 9px; background:var(--color-surface,#fff); color:var(--color-text,#172033); cursor:pointer; font:inherit; font-size:11px; white-space:nowrap; }
+    .admin-attendance-actions .admin-attendance-icon-action { width:34px; height:34px; padding:0; display:inline-flex; align-items:center; justify-content:center; flex:0 0 34px; }
+    .admin-attendance-icon-action svg { width:18px; height:18px; display:block; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; pointer-events:none; }
     .admin-attendance-actions button.is-primary { background:var(--color-primary,#2563eb); border-color:var(--color-primary,#2563eb); color:#fff; }
     .admin-attendance-actions button:disabled { opacity:.55; cursor:wait; }
     .admin-attendance-preview-row > td { padding:0 10px 12px; background:#f8fafc; }
@@ -319,25 +321,37 @@ function groupEmployees(employees) {
   return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b, 'he'));
 }
 
+function actionIcon(kind) {
+  if (kind === 'approve') return '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 2.6 2.6L16.5 9"/></svg>';
+  if (kind === 'payroll') return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12"/><path d="m7.5 10.5 4.5 4.5 4.5-4.5"/><path d="M5 20h14"/></svg>';
+  if (kind === 'view') return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.6"/></svg>';
+  if (kind === 'pdf') return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2.5h8l4 4V21H6Z"/><path d="M14 2.5v4h4"/><path d="M9 12h6M9 16h6"/></svg>';
+  return '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M9 10V7a4 4 0 0 1 7.6-1.7"/><path d="M12 14v2"/></svg>';
+}
+
+function iconActionButton({ label, icon, attr, empId, primary = false, expanded = false }) {
+  return `<button type="button" class="admin-attendance-icon-action${primary ? ' is-primary' : ''}" ${attr}="${escapeHtml(empId)}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}"${expanded ? ' aria-expanded="false"' : ''}>${actionIcon(icon)}</button>`;
+}
+
 function actionButtons(empId, workflowRow, finalApproval, monthKey, priorDispatch) {
   const status = workflowStatus(workflowRow, finalApproval, monthKey, priorDispatch);
   const canApprove = monthMode(monthKey).key === 'closed';
   const finalButton = canApprove && status.raw === 'manager_approved' && !finalApproval
-    ? `<button type="button" class="is-primary" data-admin-attendance-final="${escapeHtml(empId)}">אישור סופי</button>`
+    ? iconActionButton({ label: 'אישור סופי', icon: 'approve', attr: 'data-admin-attendance-final', empId, primary: true })
     : '';
   const sendButton = canApprove && text(finalApproval?.status) === 'admin_approved'
-    ? `<button type="button" class="is-primary" data-admin-attendance-send-payroll="${escapeHtml(empId)}">העבר לשכר</button>`
+    ? iconActionButton({ label: 'העבר לשכר', icon: 'payroll', attr: 'data-admin-attendance-send-payroll', empId, primary: true })
     : '';
   const managerPdfUrl = text(workflowRow.manager_pdf_sharepoint_url);
   const finalPdfPath = text(finalApproval?.pdf_path);
   const recordsButton = ['manager_approved', 'admin_approved', 'sent_to_payroll'].includes(status.raw)
-    ? `<button type="button" data-admin-attendance-records="${escapeHtml(empId)}" aria-expanded="false">צפייה ברשומות שאושרו</button>`
+    ? iconActionButton({ label: 'צפייה ברשומות שאושרו', icon: 'view', attr: 'data-admin-attendance-records', empId, expanded: true })
     : '';
   const pdfButton = managerPdfUrl || finalPdfPath
-    ? `<button type="button" data-admin-attendance-pdf="${escapeHtml(empId)}">פתיחת PDF</button>`
+    ? iconActionButton({ label: 'פתיחת PDF', icon: 'pdf', attr: 'data-admin-attendance-pdf', empId })
     : (status.raw === 'manager_approved' ? '<span class="admin-attendance-status is-pending">PDF ממתין</span>' : '');
   const releaseButton = canApprove && ['submitted', 'manager_approved', 'admin_approved', 'sent_to_payroll'].includes(status.raw)
-    ? `<button type="button" data-admin-attendance-release="${escapeHtml(empId)}">${status.raw === 'sent_to_payroll' ? 'פתח לעדכון' : 'שחרור נעילה'}</button>`
+    ? iconActionButton({ label: status.raw === 'sent_to_payroll' ? 'פתח לעדכון' : 'שחרור נעילה', icon: 'unlock', attr: 'data-admin-attendance-release', empId })
     : '';
   return `<div class="admin-attendance-actions">${finalButton}${sendButton}${recordsButton}${pdfButton}${releaseButton}</div>`;
 }
@@ -569,8 +583,8 @@ async function toggleApprovedSnapshot(root, button, empId) {
   if (!result) {
     if (cell) cell.innerHTML = '<div class="admin-attendance-preview__empty">טוען את ה-snapshot שאושר על ידי המנהל…</div>';
     button.disabled = true;
-    const originalLabel = button.textContent;
-    button.textContent = 'טוען…';
+    const originalHtml = button.innerHTML;
+    button.innerHTML = '<span aria-hidden="true">…</span>';
     try {
       result = await api.adminAttendanceApprovedSnapshot({ employee_id: empId, month_key: context.monthKey });
       if (!result) throw new Error('לא נמצא snapshot מאושר לעובד ולחודש שנבחרו.');
@@ -580,7 +594,7 @@ async function toggleApprovedSnapshot(root, button, empId) {
       return;
     } finally {
       button.disabled = false;
-      button.textContent = originalLabel;
+      button.innerHTML = originalHtml;
     }
   }
   const employee = (context.employees || []).find((item) => employeeId(item) === empId) || {};
