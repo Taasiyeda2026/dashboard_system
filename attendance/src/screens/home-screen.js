@@ -186,7 +186,9 @@ function buildActionStrip({ approval, year, month, instructor, records, sourceRe
     submitBtn.type = 'button';
     submitBtn.className = 'av2-btn av2-btn--primary av2-home__action-btn av2-home__month-submit';
     const submitLabel = document.createElement('span');
-    submitLabel.textContent = status === 'reopened' ? 'הגשה מחדש' : 'סיום ואישור';
+    submitLabel.textContent = status === 'reopened'
+      ? `הגשה מחדש · ${formatMonthLabel(year, month)}`
+      : 'סיום ואישור';
     submitBtn.append(createIcon('check-circle', { size: 14 }), submitLabel);
     submitBtn.addEventListener('click', () => handleSubmit({ submitBtn, instructor, year, month, sourceRecords, strip }));
     actions.append(submitBtn);
