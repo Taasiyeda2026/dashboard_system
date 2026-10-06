@@ -99,7 +99,8 @@ test('screen orchestration gates heavy work before snapshot load, preserves incr
   const run=source.slice(source.indexOf('const runCoursePlanning = async'),source.indexOf('const clonePlanningOption'));
   assert.ok(run.indexOf('await runPlanningPreflight')<run.indexOf('await loadSharedPlanningWorkspace'));
   assert.ok(run.indexOf("preflight.decision === 'no-op'")<run.indexOf('await loadSharedPlanningWorkspace'));
-  assert.ok(!run.includes('loadSchedulingTravelCacheRows('));
+  assert.ok(run.indexOf('await loadSchedulingTravelCacheRows()')>run.indexOf('await loadSharedPlanningWorkspace'));
+  assert.match(run,/if \(fullRun && !resumeValidatedCommit\) \{[\s\S]*?await loadSchedulingTravelCacheRows\(\)/);
   assert.match(run,/addEventListener\?\.\('pagehide'/);assert.match(run,/finally[\s\S]*releaseSchedulingPlanningRunLease/);
   const retry=source.slice(source.indexOf("root.querySelector('[data-run-course-planning]')"),source.indexOf("root.querySelector('[data-refresh-shared-planning]')"));
   assert.ok(retry.includes('runCoursePlanning({ forceFull: false, reuseSnapshot })'));
