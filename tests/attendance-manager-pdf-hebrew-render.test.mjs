@@ -33,6 +33,8 @@ async function buildHebrewFixture({ regularBytes, boldBytes, subset = true }) {
     ['תעשיידע — דוח נוכחות חודשי', bold, 15],
     ['ורד עליאן  |  ספטמבר 2026', bold, 12],
     ['עובד: 1530  |  חודש דיווח: ספטמבר', regular, 10],
+    ['1. 15.09.2026  |  הדרכה', bold, 11],
+    ['12:00–12:05  |  4.08 שעות', regular, 10],
     ['הכשרת בסיס — תעשיידע', bold, 11],
     ['מיקום / בית ספר: מרכז הדרכה תעשיידע', regular, 10],
     ['שעת התחלה 10:00  |  שעת סיום 15:00', regular, 10],
@@ -47,9 +49,9 @@ async function buildHebrewFixture({ regularBytes, boldBytes, subset = true }) {
   ];
   let y = 790;
   for (const [logical, font, size] of lines) {
-    const visual = rtlVisual(logical, bidi);
-    const width = font.widthOfTextAtSize(visual, size);
-    page.drawText(visual, {
+    const pdfText = pdfRtlText(logical, bidi);
+    const width = font.widthOfTextAtSize(pdfText, size);
+    page.drawText(pdfText, {
       x: Math.max(40, 555 - width),
       y,
       size,
@@ -131,6 +133,10 @@ function rtlVisual(source, bidi) {
   return chars.join('');
 }
 
+function pdfRtlText(source, bidi) {
+  return Array.from(rtlVisual(source, bidi)).reverse().join('');
+}
+
 test('SharePoint Forms/view.aspx folder URLs normalize to canonical folder paths', () => {
   const formsUrl = 'https://think365orgil.sharepoint.com/sites/taasiyeda2027/Shared%20Documents/Forms/view.aspx?id=%2Fsites%2Ftaasiyeda2027%2FShared%20Documents%2F%D7%AA%D7%99%D7%A7%D7%99%D7%9D%20%D7%90%D7%99%D7%A9%D7%99%D7%99%D7%9D%2F%D7%90%D7%99%D7%9C%D7%A0%D7%94%20%D7%98%D7%99%D7%98%D7%99%D7%99%D7%91%D7%A1%D7%A7%D7%99&viewid=20f573d0-1255-4a8a-bbf6-c9c914f04e1b';
   const canonical = 'https://think365orgil.sharepoint.com/sites/taasiyeda2027/Shared%20Documents/%D7%AA%D7%99%D7%A7%D7%99%D7%9D%20%D7%90%D7%99%D7%A9%D7%99%D7%99%D7%9D/%D7%90%D7%A4%D7%A8%D7%AA%20%D7%90%D7%95%D7%97%D7%99%D7%95%D7%9F';
@@ -172,6 +178,11 @@ test('Alef-subset attendance fixture renders complete Hebrew while reproducing b
   for (const ch of ['ת', 'ע', 'ש', 'י', 'ד', 'ו', 'ר', 'ל', 'א', 'נ']) {
     assert.ok(rendered.extracted.includes(ch), `expected Hebrew glyph ${ch} in rendered PDF text layer`);
   }
+  assert.match(rendered.extracted, /תעשיידע — דוח נוכחות חודשי/, 'Hebrew heading must render in logical reading order');
+  assert.match(rendered.extracted, /15\.09\.2026/, 'dates must not be reversed');
+  assert.match(rendered.extracted, /4\.08 שעות/, 'decimal hours must not be reversed');
+  assert.match(rendered.extracted, /1530/, 'employee IDs must not be reversed');
+  assert.doesNotMatch(rendered.extracted, /6202\.90\.51|80\.4|0351/, 'known reversed numeric forms must never render');
   const outDir = '/tmp/attendance-pdf-artifacts';
   await mkdir(outDir, { recursive: true });
   await writeFile(join(outDir, 'attendance-hebrew-alef-subset.pdf'), alefBytes);
@@ -185,6 +196,8 @@ test('production attendance PDF uses Alef subset fonts and preserves one byte st
   assert.match(handler, /Alef-Bold\.ttf/);
   assert.doesNotMatch(handler, /ARIMO_(?:REGULAR|BOLD)_URL/);
   assert.equal((handler.match(/embedFont\([^\n]+\{ subset: true \}\)/g) || []).length, 2);
+  assert.match(handler, /function pdfRtlText\(value: unknown\)/);
+  assert.match(handler, /Array\.from\(visual\)\.reverse\(\)\.join\(""\)/);
   assert.match(handler, /const pdfBytes = await buildPdfBytes/);
   assert.match(handler, /uploadUniquePdf\([\s\S]*?pdfBytes/);
   assert.match(handler, /attachments:[\s\S]*?contentBytes: toBase64\(pdfBytes\)/);
