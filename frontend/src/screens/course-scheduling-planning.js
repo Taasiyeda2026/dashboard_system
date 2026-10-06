@@ -126,8 +126,8 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_VALIDATION_VERSION = 'planning-validation-v2-20261006-certified-outcomes';
-export const PLANNING_ENGINE_VERSION = 'planning-v29-20261006-certified-outcomes';
+export const PLANNING_VALIDATION_VERSION = 'planning-validation-v2-20261006-self-invalidation-certified-outcomes';
+export const PLANNING_ENGINE_VERSION = 'planning-v29-20261006-self-invalidation-certified-outcomes';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
