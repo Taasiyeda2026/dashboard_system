@@ -14,7 +14,8 @@ import {
 import {
   PlanningCancelledError,
   optimizeSchoolDayPackingPassCooperatively,
-  createPlanningCheckpoint
+  createPlanningCheckpoint,
+  shouldUsePlanningSharedRescueBudget
 } from '../frontend/src/screens/course-scheduling-planning.js';
 import {
   planningEngineUpgradeAffectedCourseIds,
@@ -54,6 +55,41 @@ test('v30 school-packing certification upgrade skips valid proposals and certifi
     currentEngineVersion: 'planning-v30-20261006-self-invalidation-certified-school-packing'
   });
   assert.deepEqual(affected.sort(), ['legacy-recruitment', 'missing']);
+});
+
+test('v31 bounded bulk rescue revisits only unresolved outcomes', () => {
+  const affected = planningEngineUpgradeAffectedCourseIds({
+    shared: {
+      rows: [
+        { activityId: 'proposal', row: { courseId: 'proposal', kind: 'proposal' } },
+        { activityId: 'uncertified', row: { courseId: 'uncertified', kind: 'recruitment', diagnostics: { recruitmentCertified: false } } },
+        { activityId: 'certified', row: { courseId: 'certified', kind: 'recruitment', diagnostics: { recruitmentCertified: true } } },
+        { activityId: 'missing', row: { courseId: 'missing', kind: 'missing' } },
+        { activityId: 'live', row: { courseId: 'live', kind: 'live' } }
+      ]
+    },
+    storedEngineVersion: 'planning-v30-20261006-self-invalidation-certified-school-packing',
+    currentEngineVersion: 'planning-v31-20261006-self-invalidation-bounded-bulk-rescue'
+  });
+  assert.deepEqual(affected.sort(), ['missing', 'uncertified']);
+});
+
+test('bulk incremental planning shares one rescue budget while single-row updates keep deep rescue', () => {
+  assert.equal(shouldUsePlanningSharedRescueBudget({
+    planningProfile: 'fast',
+    allowGlobalRepair: false,
+    incrementalCount: 57
+  }), true);
+  assert.equal(shouldUsePlanningSharedRescueBudget({
+    planningProfile: 'fast',
+    allowGlobalRepair: false,
+    incrementalCount: 1
+  }), false);
+  assert.equal(shouldUsePlanningSharedRescueBudget({
+    planningProfile: 'fast',
+    allowGlobalRepair: true,
+    incrementalCount: 0
+  }), true);
 });
 
 test('lease-loss errors never leak the internal planning_cancelled message', () => {

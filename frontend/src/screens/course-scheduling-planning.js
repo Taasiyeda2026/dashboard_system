@@ -91,6 +91,14 @@ export const FAST_RESCUE_BUDGET_MS = 12_000;
 export const FAST_FULL_RESCUE_ACTIVITY_BUDGET_MS = 2_000;
 export const FAST_FULL_RESCUE_TOTAL_BUDGET_MS = 20_000;
 const FAST_FULL_RESCUE_MAX_SCENARIOS = 24;
+export function shouldUsePlanningSharedRescueBudget({
+  allowGlobalRepair = false,
+  planningProfile = 'fast',
+  incrementalCount = 0
+} = {}) {
+  return text(planningProfile).toLowerCase() === 'fast'
+    && (allowGlobalRepair === true || Number(incrementalCount) >= 12);
+}
 class PlanningRescueBudgetExceededError extends Error {
   constructor() {
     super('planning_rescue_budget_exceeded');
@@ -127,7 +135,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   stability: 10
 });
 export const PLANNING_VALIDATION_VERSION = 'planning-validation-v2-20261006-self-invalidation-certified-outcomes';
-export const PLANNING_ENGINE_VERSION = 'planning-v30-20261006-self-invalidation-certified-school-packing';
+export const PLANNING_ENGINE_VERSION = 'planning-v31-20261006-self-invalidation-bounded-bulk-rescue';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -2291,14 +2299,22 @@ function recruitmentPlacementScore(profile, row, schedule) {
 }
 
 function* assignRecruitmentProfileSteps(rows = []) {
-  const result = (rows || []).map((row) => ({
-    ...row,
-    meetings: (row.meetings || []).map((meeting) => ({ ...meeting })),
-    scheduleOptions: (row.scheduleOptions || []).map((option) => ({
-      ...option,
-      meetings: (option.meetings || []).map((meeting) => ({ ...meeting }))
-    }))
-  }));
+  const result = (rows || []).map((row) => {
+    const cloned = {
+      ...row,
+      meetings: (row.meetings || []).map((meeting) => ({ ...meeting })),
+      scheduleOptions: (row.scheduleOptions || []).map((option) => ({
+        ...option,
+        meetings: (option.meetings || []).map((meeting) => ({ ...meeting }))
+      }))
+    };
+    if (text(cloned.kind) !== 'recruitment') {
+      delete cloned.recruitmentProfileId;
+      delete cloned.recruitmentProfileLabel;
+      delete cloned.recruitmentProfileSize;
+    }
+    return cloned;
+  });
   const candidates = result
     .filter((row) => row.kind === 'recruitment')
     .sort((a, b) =>
@@ -5565,8 +5581,11 @@ export async function buildDynamicCoursePlan({
   // fast: use the normal fast scenario breadth and defer expensive soft gap
   // polishing. Hard whole-plan validation still runs before anything is saved.
   // Day-to-day incremental runs retain the richer soft-optimization passes.
-  const fastFullMaintenance = allowGlobalRepair === true
-    && text(planningProfile).toLowerCase() === 'fast';
+  const fastMaintenanceRun = shouldUsePlanningSharedRescueBudget({
+    allowGlobalRepair,
+    planningProfile,
+    incrementalCount: incrementalIds === null ? 0 : incrementalIds.size
+  });
   const fixedUnassigned = [];
   const missingSchedule = [];
 
@@ -5729,7 +5748,7 @@ export async function buildDynamicCoursePlan({
     const candidatePreparedContext = schoolContext?.prepared || basePreparedContext;
     const candidateTravelContext = schoolContext?.travel || travelContext;
     const schoolFirstScenarioLimit = useIndependentSchoolCandidatePool
-      ? (fastFullMaintenance ? 12 : Math.max(Number(limits.maxScenarios) || 0, 24))
+      ? (fastMaintenanceRun ? 12 : Math.max(Number(limits.maxScenarios) || 0, 24))
       : limits.maxScenarios;
     await report('בדיקת מדריכים', completed, queue.length, idOf(activity));
     await report('בדיקת נסיעות', completed, queue.length, idOf(activity));
@@ -5932,7 +5951,7 @@ export async function buildDynamicCoursePlan({
           && evaluation.recruitmentNeeded === true
           && evaluationInstructors.length > 0
         ) {
-          if (fastFullMaintenance) {
+          if (fastMaintenanceRun) {
             deferredFullMaintenanceRescues.push({
               activity,
               activityPeriodKey,
@@ -6037,7 +6056,7 @@ export async function buildDynamicCoursePlan({
     await report('בניית תוכנית', completed, queue.length, idOf(activity), rowsById.get(idOf(activity)) || null);
   }
 
-  if (fastFullMaintenance && deferredFullMaintenanceRescues.length) {
+  if (fastMaintenanceRun && deferredFullMaintenanceRescues.length) {
     let remainingRescueBudgetMs = FAST_FULL_RESCUE_TOTAL_BUDGET_MS;
     const rescueQueue = [...deferredFullMaintenanceRescues]
       .sort((first, second) => first.candidateCount - second.candidateCount || idOf(first.activity).localeCompare(idOf(second.activity)));
@@ -6246,7 +6265,7 @@ export async function buildDynamicCoursePlan({
           maxFinalOptions: 8,
           runGlobalRepair: false
         },
-        maxPasses: fastFullMaintenance ? 0 : 3,
+        maxPasses: fastMaintenanceRun ? 0 : 3,
         report
       });
       await report('צמצום חלונות הושלם', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);

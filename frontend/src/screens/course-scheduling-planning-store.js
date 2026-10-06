@@ -945,6 +945,26 @@ export function planningEngineUpgradeAffectedCourseIds({
       .filter(Boolean);
   }
 
+  // v31 bounds expensive rescue work once an incremental/upgrade run contains
+  // many unresolved rows. Revisit only unresolved or uncertified outcomes; the
+  // planner itself applies one shared rescue budget for the whole batch.
+  const boundedBulkRescueV31Upgrade = currentMajor === 31
+    && previousMajor >= 29
+    && previousMajor < 31;
+  if (boundedBulkRescueV31Upgrade) {
+    return (shared?.rows || [])
+      .filter((entry) => {
+        const row = entry?.row || {};
+        const kind = text(row?.kind);
+        if (kind !== 'missing' && kind !== 'recruitment') return false;
+        if (kind === 'recruitment' && row?.diagnostics?.recruitmentCertified === true) return false;
+        if (entry?.lockedOption || row?.planningLocked === true) return false;
+        return !!text(entry?.activityId || row?.courseId);
+      })
+      .map((entry) => text(entry?.activityId || entry?.row?.courseId))
+      .filter(Boolean);
+  }
+
   const skippedStructuralUpgrade = currentMajor >= 27 && previousMajor > 0 && previousMajor < 27;
   if (skippedStructuralUpgrade) {
     return (shared?.rows || [])
