@@ -2498,6 +2498,13 @@ export const courseSchedulingScreen = {
             ...(entry.row || {}),
             schoolId: text(entry.row?.schoolId || currentCourseById.get(text(entry.activityId))?.school_id)
           };
+          // Dependency closure is computed from live activity versions/resources
+          // before display. A proposal in that affected scope cannot be certified
+          // against the current assignments even when only the directly edited
+          // activity carries the persisted needs_recalc flag.
+          if (affectedIds.includes(text(entry.activityId)) && text(row.kind) !== 'live') {
+            return stalePlanningRowForDisplay(row);
+          }
           if (entry.needsRecalc === true) return stalePlanningRowForDisplay(row);
           if (entry.lockedOption) return applyPlanningLockToRow(row, entry.lockedOption, scope.periodKey);
           return row;

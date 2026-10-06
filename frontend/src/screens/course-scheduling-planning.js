@@ -126,8 +126,8 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_VALIDATION_VERSION = 'planning-validation-v1-20260927-self-invalidation';
-export const PLANNING_ENGINE_VERSION = 'planning-v28-20261004-anchor-safe-global-reassignment-self-invalidation';
+export const PLANNING_VALIDATION_VERSION = 'planning-validation-v2-20261006-certified-outcomes';
+export const PLANNING_ENGINE_VERSION = 'planning-v29-20261006-certified-outcomes';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -2405,8 +2405,29 @@ export function assignRecruitmentProfilesCooperatively(rows = [], checkpoint = a
   return drainPlanningStepsCooperatively(assignRecruitmentProfileSteps(rows), checkpoint);
 }
 
+export function planningOutcomeClassification(option = null, diagnostics = {}) {
+  if (option) {
+    return {
+      kind: 'proposal',
+      status: 'מועד מומלץ לבית הספר',
+      searchIncomplete: false,
+      recruitmentCertified: false
+    };
+  }
+  const searchIncomplete = diagnostics.searchIncomplete === true || diagnostics.rescueBudgetExceeded === true;
+  const recruitmentCertified = diagnostics.recruitmentNeeded === true && !searchIncomplete;
+  return {
+    kind: recruitmentCertified ? 'recruitment' : 'missing',
+    status: recruitmentCertified ? 'נדרש גיוס' : (searchIncomplete ? 'בדיקת התאמה נמשכת' : 'נדרש טיפול'),
+    searchIncomplete,
+    recruitmentCertified
+  };
+}
+
 function planRowFromOption(activity, option, options, startRange, spec, diagnostics = {}) {
-  const recruitmentNeeded = !option && diagnostics.recruitmentNeeded === true;
+  const outcome = planningOutcomeClassification(option, diagnostics);
+  const searchIncomplete = outcome.searchIncomplete;
+  const recruitmentNeeded = outcome.recruitmentCertified;
   const scheduleOptions = diagnostics.scheduleOptions || [];
   const scheduleOnly = scheduleOptions[0] || null;
   return {
@@ -2433,8 +2454,8 @@ function planRowFromOption(activity, option, options, startRange, spec, diagnost
       : [],
     previousDraftInstructorName: text(activity.draft_instructor_name || activity.draft_emp_id),
     sessions: spec?.sessions || meetingCount(activity),
-    kind: option ? 'proposal' : (recruitmentNeeded ? 'recruitment' : 'missing'),
-    status: option ? 'מועד מומלץ לבית הספר' : (recruitmentNeeded ? 'נדרש גיוס' : 'נדרש טיפול'),
+    kind: outcome.kind,
+    status: outcome.status,
     startDate: option?.startDate || scheduleOnly?.startDate || '',
     endDate: option?.endDate || scheduleOnly?.endDate || '',
     startTime: option?.startTime || scheduleOnly?.startTime || '',
@@ -2452,11 +2473,18 @@ function planRowFromOption(activity, option, options, startRange, spec, diagnost
       routedAttemptCount: Number(diagnostics.routedAttemptCount) || 0,
       finalEvaluationCount: Number(diagnostics.finalEvaluationCount) || 0,
       routeVerified: diagnostics.routeVerified === true,
-      routeEvaluationVersion: 2
+      routeEvaluationVersion: 2,
+      searchIncomplete,
+      recruitmentCertified: recruitmentNeeded,
+      rescueDeferred: diagnostics.rescueDeferred === true,
+      rescuePass: diagnostics.rescuePass === true,
+      rescueBudgetExceeded: diagnostics.rescueBudgetExceeded === true
     },
     reason: option?.reason
       || (recruitmentNeeded
         ? 'לא נמצא אף מדריך פעיל שעומד בתנאי הסף בכל חלונות התכנון שנבדקו — רק בשלב זה נדרש גיוס'
+        : searchIncomplete
+          ? 'קיימים מועמדים בצוות, אך בדיקת ההתאמה המלאה טרם הסתיימה — הפעילות אינה מסומנת לגיוס'
         : diagnostics.routeVerified === false && Number(diagnostics.preliminaryCount) > 0
           ? 'נמצאו מדריכים אפשריים לפי הזמינות, אך לא ניתן עדיין לאמת את הנסיעות — לא מסומן לגיוס'
           : 'לא נמצאה עדיין התאמה מאומתת; נדרשת בדיקה נוספת לפני החלטה על גיוס')
@@ -5861,6 +5889,7 @@ export async function buildDynamicCoursePlan({
           text(planningProfile).toLowerCase() === 'fast'
           && !(evaluation.options || []).length
           && evaluation.recruitmentNeeded === true
+          && evaluationInstructors.length > 0
         ) {
           if (fastFullMaintenance) {
             deferredFullMaintenanceRescues.push({
@@ -5869,6 +5898,12 @@ export async function buildDynamicCoursePlan({
               fastEvaluation: evaluation,
               candidateCount: evaluationInstructors.length
             });
+            evaluation = {
+              ...evaluation,
+              recruitmentNeeded: false,
+              searchIncomplete: true,
+              rescueDeferred: true
+            };
             planningPerfCount('rescueDeferred');
           } else {
             await report('מיצוי צוות קיים לפני גיוס', completed, queue.length, idOf(activity));
@@ -5911,6 +5946,8 @@ export async function buildDynamicCoursePlan({
                 });
                 evaluation = {
                   ...deepEvaluation,
+                  recruitmentNeeded: false,
+                  searchIncomplete: !(deepEvaluation.options || []).length,
                   rescuePass: true,
                   fastPreliminaryCount: Number(evaluation.preliminaryCount) || 0,
                   fastRoutedAttemptCount: Number(evaluation.routedAttemptCount) || 0
@@ -5925,6 +5962,8 @@ export async function buildDynamicCoursePlan({
             if (rescueBudgetExceeded) {
               evaluation = {
                 ...evaluation,
+                recruitmentNeeded: false,
+                searchIncomplete: true,
                 rescuePass: true,
                 rescueBudgetExceeded: true,
                 fastPreliminaryCount: Number(evaluation.preliminaryCount) || 0,
@@ -5960,7 +5999,7 @@ export async function buildDynamicCoursePlan({
   if (fastFullMaintenance && deferredFullMaintenanceRescues.length) {
     let remainingRescueBudgetMs = FAST_FULL_RESCUE_TOTAL_BUDGET_MS;
     const rescueQueue = [...deferredFullMaintenanceRescues]
-      .sort((first, second) => second.candidateCount - first.candidateCount || idOf(first.activity).localeCompare(idOf(second.activity)));
+      .sort((first, second) => first.candidateCount - second.candidateCount || idOf(first.activity).localeCompare(idOf(second.activity)));
     for (const rescueItem of rescueQueue) {
       const activity = rescueItem.activity;
       const activityId = idOf(activity);
@@ -5968,7 +6007,16 @@ export async function buildDynamicCoursePlan({
         const current = rowsById.get(activityId);
         rowsById.set(activityId, {
           ...current,
-          diagnostics: { ...(current?.diagnostics || {}), rescuePass: true, rescueBudgetExceeded: true, rescueDeferred: true }
+          status: 'בדיקת התאמה נמשכת',
+          reason: 'קיימים מועמדים בצוות, אך בדיקת ההתאמה המלאה טרם הסתיימה — הפעילות אינה מסומנת לגיוס',
+          diagnostics: {
+            ...(current?.diagnostics || {}),
+            searchIncomplete: true,
+            recruitmentCertified: false,
+            rescuePass: true,
+            rescueBudgetExceeded: true,
+            rescueDeferred: true
+          }
         });
         planningPerfCount('rescueBudgetExceeded');
         continue;
@@ -6048,6 +6096,21 @@ export async function buildDynamicCoursePlan({
               await rememberVirtualPlan(blockingVirtualActivity(activity, chosen));
               planningPerfCount('rescueRecovered');
               await report('מיצוי צוות קיים לפני גיוס', completed, queue.length, activityId, rescuedRow);
+            } else {
+              const current = rowsById.get(activityId);
+              rowsById.set(activityId, {
+                ...current,
+                kind: 'missing',
+                status: 'בדיקת התאמה נמשכת',
+                reason: 'הסריקה המורחבת לא מצאה שיבוץ מאומת, אך קיימים מועמדים בצוות — לא מסומן לגיוס',
+                diagnostics: {
+                  ...(current?.diagnostics || {}),
+                  searchIncomplete: true,
+                  recruitmentCertified: false,
+                  rescuePass: true,
+                  rescueDeferred: true
+                }
+              });
             }
           }
         }
@@ -6066,7 +6129,17 @@ export async function buildDynamicCoursePlan({
         const current = rowsById.get(activityId);
         rowsById.set(activityId, {
           ...current,
-          diagnostics: { ...(current?.diagnostics || {}), rescuePass: true, rescueBudgetExceeded: true, rescueDeferred: true }
+          kind: 'missing',
+          status: 'בדיקת התאמה נמשכת',
+          reason: 'קיימים מועמדים בצוות, אך בדיקת ההתאמה המלאה טרם הסתיימה — הפעילות אינה מסומנת לגיוס',
+          diagnostics: {
+            ...(current?.diagnostics || {}),
+            searchIncomplete: true,
+            recruitmentCertified: false,
+            rescuePass: true,
+            rescueBudgetExceeded: true,
+            rescueDeferred: true
+          }
         });
       }
     }

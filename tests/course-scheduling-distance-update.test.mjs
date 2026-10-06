@@ -27,6 +27,7 @@ const schemaUrl = new URL('../supabase/migrations/20260802220000_course_scheduli
 const readinessMigrationUrl = new URL('../supabase/migrations/20260803193000_course_scheduling_travel_cache_production_readiness.sql', import.meta.url);
 const edgeFunctionUrl = new URL('../supabase/functions/scheduling-route/index.ts', import.meta.url);
 const durableRouteMigrationUrl = new URL('../supabase/migrations/20260809170000_keep_usable_scheduling_routes.sql', import.meta.url);
+const correctnessContractMigrationUrl = new URL('../supabase/migrations/20261006172932_planning_correctness_contract.sql', import.meta.url);
 const schedulingScreenUrl = new URL('../frontend/src/screens/course-scheduling.js', import.meta.url);
 
 test('maintenance card exposes scheduling coverage, refresh, and one build action', async () => {
@@ -374,6 +375,17 @@ test('durable-route migration keeps usable expired rows and validates route metr
   assert.match(sql, /duration_minutes is not null/);
   assert.match(sql, /distance_km >= 0/);
   assert.match(sql, /duration_minutes >= 0/);
+});
+
+test('SQL scheduling validators share the route builder same-place and entity-zero contract', async () => {
+  const sql = await readFile(correctnessContractMigrationUrl, 'utf8');
+  assert.match(sql, /create or replace function public\.scheduling_cached_travel_route/);
+  assert.match(sql, /scheduling_locations_same_place\(p_origin, p_destination\)/);
+  assert.match(sql, /origin_entity_key/);
+  assert.match(sql, /destination_entity_key/);
+  assert.match(sql, /stc\.distance_km = 0[\s\S]*stc\.duration_minutes = 0/);
+  assert.match(sql, /create or replace function public\.scheduling_cached_travel_distance_km/);
+  assert.match(sql, /create or replace function public\.scheduling_cached_travel_minutes/);
 });
 
 test('edge function responses do not include instructor street addresses in failures', async () => {

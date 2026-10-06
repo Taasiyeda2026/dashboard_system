@@ -908,6 +908,25 @@ export function planningEngineUpgradeAffectedCourseIds({
 
   const previousMajor = Number(previous.match(/planning-v(\d+)/)?.[1]) || 0;
   const currentMajor = Number(current.match(/planning-v(\d+)/)?.[1]) || 0;
+
+  // v29 changes outcome semantics, not the schedule of already-valid proposals:
+  // recruitment is now a certified terminal result, while timed-out / bounded
+  // searches remain unresolved. Re-evaluate only rows whose terminal outcome can
+  // change instead of forcing a national rebuild of valid proposals and live rows.
+  const certifiedOutcomeV29Upgrade = current.includes('planning-v29-20261006-certified-outcomes')
+    && !previous.includes('planning-v29-20261006-certified-outcomes');
+  if (certifiedOutcomeV29Upgrade) {
+    return (shared?.rows || [])
+      .filter((entry) => {
+        const row = entry?.row || {};
+        if (!['recruitment', 'missing'].includes(text(row?.kind))) return false;
+        if (entry?.lockedOption || row?.planningLocked === true) return false;
+        return !!text(entry?.activityId || row?.courseId);
+      })
+      .map((entry) => text(entry?.activityId || entry?.row?.courseId))
+      .filter(Boolean);
+  }
+
   const skippedStructuralUpgrade = currentMajor >= 27 && previousMajor > 0 && previousMajor < 27;
   if (skippedStructuralUpgrade) {
     return (shared?.rows || [])
