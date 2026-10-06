@@ -422,7 +422,7 @@ export function renderNewReportScreen(container, {
   function syncMeetingFieldState() {
     if (!meetingWrap || !meetingField?.select) return;
     const course = isCourseReportType();
-    meetingWrap.hidden = !course;
+    meetingWrap.hidden = !course || (selectedActivity?.__dashboardCourseSources?.length > 1);
     meetingField.select.disabled = !course || !hasSelectedAuthority() || !hasSelectedSchool();
     if (!course) clearMeetingSelection();
   }
@@ -646,8 +646,8 @@ export function renderNewReportScreen(container, {
     clearLinkedActivity();
     const choice = dashboardCourses.choice;
     if (choice) activityNameSel.setValue(choice.value, choice.label);
-    setDashboardMismatchWarning([resolution.status === 'ambiguous'
-      ? 'השיבוץ לקורס ולבית הספר אינו חד־משמעי. נדרשת בדיקת נתוני השיבוץ על ידי הרכז/ת'
+    setDashboardMismatchWarning([resolution.status === 'invalid_schedule'
+      ? 'נתוני שעות הקורס בדשבורד דורשים תיקון על ידי הרכז/ת'
       : 'לא נמצא מפגש משובץ למדריך בתאריך שנבחר']);
   }
 
@@ -662,8 +662,10 @@ export function renderNewReportScreen(container, {
       const options = await dashboardCourses.load(date);
       if (!options || token !== courseLoadToken || !isCourseReportType() || getReportDate() !== date) return;
       activityNameSel.setOptions(options);
-      if (hints.activityRowId) {
-        const choice = options.find((option) => option.candidateRows.some((row) => activityRowId(row) === String(hints.activityRowId)));
+      if (hints.activityRowId || hints.businessIdentity) {
+        const choice = options.find((option) => hints.businessIdentity
+          ? option.value === `dashboard-course:${JSON.stringify(hints.businessIdentity)}`
+          : option.candidateRows.some((row) => activityRowId(row) === String(hints.activityRowId)));
         if (choice) await applyDashboardCourseChoice(choice.value, hints);
       }
     } catch (error) {
@@ -737,9 +739,11 @@ export function renderNewReportScreen(container, {
       if (getReportDate() !== date || selectedActivity !== activity || !isCourseReportType()) {
         return { mismatch: true, reasons: ['בחירת הפעילות השתנתה'], unresolved: true };
       }
-      const expected = rows.find(
-        (row) => activityRowId(row) === activityRowId(selectedActivity),
-      );
+      const resolved = resolveDashboardCourseChoice(dashboardCourses.choice, rows);
+      const expected = resolved.activity;
+      if (JSON.stringify(expected?.__dashboardCourseSources) !== JSON.stringify(activity.__dashboardCourseSources)) {
+        reasons.push('השיבוץ בדשבורד השתנה. יש לבחור שוב את הקורס');
+      }
 
       if (!expected) {
         reasons.push('התאריך או הפעילות אינם מופיעים כמפגש משובץ בדשבורד');
@@ -784,7 +788,7 @@ export function renderNewReportScreen(container, {
     const resolution = resolveDashboardCourseChoice(dashboardCourses.choice, rows, {
       activityRowId: activityRowId(selectedActivity),
     });
-    return { mismatch: reasons.length > 0, reasons, unresolved: resolution.status !== 'resolved' };
+    return { mismatch: reasons.length > 0, reasons, unresolved: resolution.status !== 'resolved' || reasons.length > 0 };
   }
 
   async function syncMeetingForSelectedDate() {
@@ -792,6 +796,7 @@ export function renderNewReportScreen(container, {
     if (!isCourseReportType() || !selectedActivity || !hasSelectedAuthority() || !hasSelectedSchool()) return;
     const activity = selectedActivity;
     const date = getReportDate();
+    if (activity.__dashboardCourseSources?.length > 1) { clearMeetingSelection(); return; }
     const meetingNo = activity.meeting_no ?? await getMeetingNoForActivityOnDate(
       instructor.empId,
       activityRowId(selectedActivity),
@@ -1031,7 +1036,7 @@ export function renderNewReportScreen(container, {
   }
 
   function updateHoursDisplay() {
-  const h = calcHours(startPicker.getValue(), endPicker.getValue());
+  const h = selectedActivity?.__dashboardCourseWork?.totalHours ?? calcHours(startPicker.getValue(), endPicker.getValue());
   hoursVal.textContent = h > 0 ? formatTravelMinutes(Math.round(h * 60)) : '—';
 }
 
@@ -1041,8 +1046,9 @@ export function renderNewReportScreen(container, {
     courseLoadToken += 1;
     reportDateToken += 1;
     dashboardCourses.invalidate();
-    coursePrefill = prefill?.activity_type === COURSE_REPORT_TYPE && prefill.activity_row_id
-      ? { activityRowId: String(prefill.activity_row_id) } : null;
+    coursePrefill = prefill?.activity_type === COURSE_REPORT_TYPE
+      ? (prefill.course_business_identity ? { businessIdentity: prefill.course_business_identity }
+        : prefill.activity_row_id ? { activityRowId: String(prefill.activity_row_id) } : null) : null;
     pendingFiles.length = 0;
     activityTimesAutoFilled = false;
     previousReportType = prefill?.activity_type || '';
@@ -1380,7 +1386,8 @@ export function renderNewReportScreen(container, {
       const priorRowId = activityRowId(selectedActivity) || prefill?.activity_row_id;
       if (detail.date) dateField.input.value = String(detail.date);
       if (isCourseReportType()) {
-        void refreshDashboardCourseOptions({ activityRowId: priorRowId });
+        void refreshDashboardCourseOptions({ activityRowId: priorRowId,
+          businessIdentity: selectedActivity?.__dashboardCourseIdentity || prefill?.course_business_identity });
         return;
       }
       if (detail.meeting_no) meetingField.setValue(String(detail.meeting_no));
@@ -1560,13 +1567,13 @@ export function renderNewReportScreen(container, {
         return;
       }
       if (isCourseReportType() && (!selectedActivity || dashboardValidation.unresolved)) {
-        errorEl.textContent = 'לא ניתן לשמור ללא שיוך חד־משמעי למפגש בדשבורד. יש לבדוק את נתוני השיבוץ עם הרכז/ת.';
+        errorEl.textContent = 'השיבוץ לקורס אינו עדכני. יש לבחור שוב את הקורס ובית הספר לאחר טעינת הדשבורד.';
         errorEl.hidden = false;
         return;
       }
       const startTime = startPicker.getValue();
       const endTime = endPicker.getValue();
-      const totalHours = calcHours(startTime, endTime);
+      const totalHours = selectedActivity?.__dashboardCourseWork?.totalHours ?? calcHours(startTime, endTime);
       const activity = selectedActivity;
       const reportType = getReportType();
       const isNoActivity = isNoActivityNameType(reportType);
@@ -1661,6 +1668,7 @@ export function renderNewReportScreen(container, {
           start_time: startTime,
           end_time: endTime,
           total_hours: totalHours,
+          course_business_identity: isCourseReportType() ? activity?.__dashboardCourseIdentity ?? null : null,
           activity_type: reportType,
           training_mode: reportType === TRAINING_REPORT_TYPE
             ? (isOnlineTraining() ? 'online' : 'physical')

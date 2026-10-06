@@ -350,7 +350,8 @@ test('Attendance desktop row data uses the activity-name font size everywhere', 
 });
 
 test('Course reports are dashboard-driven and expose mismatch notices', () => {
-  assert.match(newReportSource, /getInstructorActivitiesForDate/);
+  assert.match(newReportSource, /loadDashboardCourseRows/);
+  assert.match(newReportSource, /course_business_identity/);
   assert.match(newReportSource, /function validateCourseAgainstDashboard/);
   assert.match(newReportSource, /אי התאמה לנתוני הדשבורד – נדרשת בדיקה/);
   assert.match(newReportSource, /function syncCourseDashboardLocks/);
@@ -364,7 +365,8 @@ test('Course reports are dashboard-driven and expose mismatch notices', () => {
 });
 
 test('Course duplication targets only the immediate next dashboard meeting, including across months', () => {
-  assert.match(duplicateCourseSource, /const nextMeeting = schedule\.find\(\(item\) => item\.meeting_no > sourceMeetingNo\) \|\| null/);
+  assert.match(duplicateCourseSource, /const nextMeeting = schedule\.find\(item => sourceRecord\.course_business_identity/);
+  assert.match(duplicateCourseSource, /item\.date > sourceRecord\.report_date : item\.meeting_no > sourceMeetingNo/);
   assert.match(duplicateCourseSource, /const nextMeetingAssignedToCurrent = !!nextMeeting && nextMeeting\.assigned_to_current !== false/);
   assert.match(duplicateCourseSource, /const available = nextMeeting && nextMeetingAssignedToCurrent && !nextMeetingAlreadyReported \? \[nextMeeting\] : \[\]/);
   assert.match(duplicateCourseSource, /גם אם הוא בחודש הבא/);

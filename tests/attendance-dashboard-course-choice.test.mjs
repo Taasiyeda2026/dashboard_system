@@ -38,34 +38,37 @@ test('school_id takes precedence and school names are a fallback only without id
   assert.equal(buildDashboardCourseOptions(fallback).length, 1);
   assert.equal(buildDashboardCourseOptions([...fallback, base]).length, 2);
 });
-test('meeting and dashboard work times resolve the exact candidate and preserve all its metadata', () => {
-  const rows = fourRows.map((row, i) => ({ ...row, meeting_no: i + 1, start_time: `${8 + i}:30`, end_time: `${10 + i}:00` }));
-  const choice = buildDashboardCourseOptions(rows)[0];
-  const times = attendanceTimesFromActivity(rows[2], 'קורס');
-  const resolved = resolveDashboardCourseChoice(choice, rows, { meetingNo: 3, ...times });
+test('all meetings resolve automatically, preserving each source metadata and paid work', () => {
+  const rows = fourRows.map((row, i) => ({ ...row, meeting_no: i + 1, start_time: `${8 + i * 2}:00`, end_time: `${10 + i * 2}:00` }));
+  const resolved = resolveDashboardCourseChoice(buildDashboardCourseOptions(rows)[0], rows);
   assert.equal(resolved.status, 'resolved');
-  assert.equal(resolved.activity, rows[2]);
-  assert.equal(resolved.activity.class_group, 'ה3');
+  assert.equal(resolved.activity.row_id, null);
+  assert.equal(resolved.activity.meeting_no, null);
+  assert.deepEqual(resolved.activity.__dashboardCourseSources, rows);
+  assert.equal(resolved.activity.__dashboardCourseWork.totalHours, 10);
   assert.equal(resolved.activity.authority_id, 5);
 });
-test('existing row identity resolves a duplicate/edit only when still authorized on that date', () => {
+test('legacy row hints locate a whole business activity, never discard other authorized sources', () => {
   const choice = buildDashboardCourseOptions(fourRows)[0];
-  assert.equal(resolveDashboardCourseChoice(choice, fourRows, { activityRowId: 'c3' }).activity, fourRows[2]);
+  assert.equal(resolveDashboardCourseChoice(choice, fourRows, { activityRowId: 'c3' }).candidateRows.length, 4);
   assert.equal(resolveDashboardCourseChoice(choice, [fourRows[0]], { activityRowId: 'c3' }).status, 'unavailable');
 });
-test('genuine dashboard ambiguity and contradictory hints fail without choosing an arbitrary row', () => {
-  const choice = buildDashboardCourseOptions(fourRows)[0];
-  const unresolved = resolveDashboardCourseChoice(choice, fourRows);
-  assert.equal(unresolved.status, 'ambiguous');
-  assert.equal(unresolved.activity, null);
-  assert.equal(resolveDashboardCourseChoice(choice, fourRows, { meetingNo: 99 }).status, 'unavailable');
+test('simultaneous classes share instructional work without losing any source link', () => {
+  const resolved = resolveDashboardCourseChoice(buildDashboardCourseOptions(fourRows)[0], fourRows);
+  assert.equal(resolved.status, 'resolved');
+  assert.equal(resolved.candidateRows.length, 4);
+  assert.equal(resolved.activity.__dashboardCourseWork.totalHours, 2);
 });
 test('resolution uses the fresh snapshot, including one-time substitute ownership', () => {
   const original = { ...base, resolved_emp_id: 1 };
   const substitute = { ...base, row_id: 'sub', meeting_no: 4, resolved_emp_id: 2, assignment_kind: 'single_meeting_substitution' };
   const choice = buildDashboardCourseOptions([original, substitute])[0];
-  assert.equal(resolveDashboardCourseChoice(choice, [substitute]).activity, substitute);
+  assert.equal(resolveDashboardCourseChoice(choice, [substitute]).activity.row_id, 'sub');
   assert.equal(resolveDashboardCourseChoice(choice, []).status, 'unavailable');
+});
+test('missing schedule data is a source-data error, rather than multi-row ambiguity', () => {
+  const rows = [{ ...base, start_time: null }, ...fourRows.slice(1)];
+  assert.equal(resolveDashboardCourseChoice(buildDashboardCourseOptions(rows)[0], rows).status, 'invalid_schedule');
 });
 
 const dom = new JSDOM('<main id="app"></main>', { url: 'https://example.test/attendance/' });
@@ -79,12 +82,14 @@ let historicalRows = fourRows;
 let saved = [];
 let rpcCalls = [];
 let failDashboard = false;
+let meetingSchedules = new Map();
 const client = {
   async rpc(name, args) {
     rpcCalls.push({ name, args });
     if (name === 'av2_get_current_instructor_activity_choices_for_date') {
       return failDashboard ? { error: { message: 'offline' } } : { data: dateRows.get(args.p_date) || [] };
     }
+    if (name === 'av2_get_activity_meeting_dates') return {data:meetingSchedules.get(args.p_activity_row_id)||[]};
     if (name === 'av2_get_instructor_activities') return { data: historicalRows };
     if (name === 'av2_get_all_authority_school_list') return { data: [{ authority_id: 5, authority_name: 'תל אביב', schools: [{ id: 101, name: 'הרצל' }] }] };
     return { data: [] };
@@ -139,15 +144,17 @@ test('changing dates invalidates selection, refreshes groups, and ignores a late
   assert.equal(state.choice, null);
   assert.deepEqual(state.options, []);
 });
-test('real picker shows one option for four rows and refuses an ambiguous save without technical fields', async () => {
+test('real picker shows one option for four rows and saves one business report without technical fields', async () => {
   await render(fourRows);
   const buttons = options();
   assert.equal(buttons.length, 1);
   assert.match(buttons[0].textContent, /ביומימיקרי — הרצל/);
   buttons[0].click(); await flush();
   document.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await flush();
-  assert.equal(saved.length, 0);
-  assert.match(document.querySelector('.av2-report__error').textContent, /שיוך חד־משמעי/);
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].activity_row_id, null);
+  assert.deepEqual(saved[0].course_business_identity, ['ביומימיקרי', ['id', '101']]);
+  assert.equal(saved[0].total_hours, 2);
   assert.doesNotMatch(document.querySelector('form').textContent, /כיתה|ה1|ה2|ה3|ה4|row_id/);
 });
 test('real grouped selection saves exact dashboard row, meeting, school, authority and paid course times', async () => {
@@ -186,9 +193,51 @@ test('lost assignment or failed fresh dashboard validation blocks save', async (
   document.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await flush();
   assert.equal(saved.length, 0);
 });
-test('duplicated course resolves its existing internal identity inside a group without exposing rows', async () => {
+test('duplicated legacy course selects its entire business group without exposing rows', async () => {
   await render(fourRows, { activity_type: 'קורס', report_date: today, activity_row_id: 'c3', meeting_no: 3 });
   assert.match(document.getElementById('av2-activity-name-trigger').textContent, /ביומימיקרי — הרצל/);
   document.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); await flush();
-  assert.equal(saved[0]?.activity_row_id, 'c3');
+  assert.equal(saved[0]?.activity_row_id, null);
+  assert.ok(saved[0]?.course_business_identity);
+});
+
+test('Alex-shaped three adjacent meetings save all work without ambiguity or padding-overlap loss', async () => {
+  const rows = [8,10,12].map((start,i) => ({...base,row_id:`school_2027_0${59-i}`,id:59-i,
+    single_school_id:2648,meeting_no:i+2,start_time:`${String(start).padStart(2,'0')}:00`,end_time:`${start+2}:00`}));
+  await render(rows); assert.equal(options().length,1); options()[0].click(); await flush();
+  assert.equal(document.querySelector('.av2-report__hours-value').textContent,'7:30');
+  document.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); await flush();
+  assert.equal(saved.length,1);
+  assert.equal(saved[0].total_hours,7.5);
+  assert.equal(saved[0].start_time,'07:45'); assert.equal(saved[0].end_time,'14:15');
+  assert.equal(saved[0].activity_row_id,null); assert.equal(saved[0].meeting_no,null);
+  assert.deepEqual(saved[0].course_business_identity,['ביומימיקרי',['id','2648']]);
+});
+test('editing a saved business activity restores the group by business identity', async () => {
+  await render(fourRows,{activity_type:'קורס',report_date:today,course_business_identity:['ביומימיקרי',['id','101']]});
+  document.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); await flush();
+  assert.equal(saved.length,1); assert.equal(saved[0].total_hours,2);
+});
+test('changed source hours or added meetings require refreshing the business choice before saving', async () => {
+  await render(fourRows); options()[0].click(); await flush();
+  dateRows.set(today,[...fourRows,{...base,row_id:'new',start_time:'11:00',end_time:'12:30'}]);
+  document.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); await flush();
+  assert.equal(saved.length,0);
+});
+
+test('business duplication combines all source schedules and keeps immediate substituted dates visible', async () => {
+  const {loadCourseSchedule}=await import('../attendance/src/duplicate-course-runtime.js');
+  meetingSchedules=new Map([
+    ['c1',[{meeting_no:1,date:'2026-10-01'},{meeting_no:2,date:'2026-10-08',assigned_to_current:false},{meeting_no:3,date:'2026-10-15'}]],
+    ['c2',[{meeting_no:6,date:'2026-10-01'},{meeting_no:7,date:'2026-10-08',assigned_to_current:true}]],
+  ]);
+  const schedule=await loadCourseSchedule({emp_id:17,report_date:'2026-10-01',
+    course_business_identity:['ביומימיקרי',['id','101']],course_dashboard_sources:[{row_id:'c1',meeting_no:1},{row_id:'c2',meeting_no:6}]});
+  assert.deepEqual(schedule.map(item=>item.date),['2026-10-01','2026-10-08','2026-10-15']);
+  assert.equal(schedule[1].assigned_to_current,true);
+  meetingSchedules.get('c2')[1].assigned_to_current=false;
+  const substituted=await loadCourseSchedule({emp_id:17,report_date:'2026-10-01',
+    course_business_identity:['ביומימיקרי',['id','101']],course_dashboard_sources:[{row_id:'c1'},{row_id:'c2'}]});
+  assert.equal(substituted[1].date,'2026-10-08'); assert.equal(substituted[1].assigned_to_current,false);
+  assert.ok(substituted.every(item=>item.meeting_no===null));
 });
