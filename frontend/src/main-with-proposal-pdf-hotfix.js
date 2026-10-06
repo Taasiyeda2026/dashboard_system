@@ -2,6 +2,7 @@
  * Minimal application bootstrap.
  * Screen/feature modules load on demand via feature-route-loader.
  */
+import './stale-build-recovery.js';
 import './network-request-dedupe.js';
 import './activity-performance-runtime.js';
 import './completion-approval-performance-runtime.js';
