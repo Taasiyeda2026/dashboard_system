@@ -32,15 +32,17 @@ test('planning store exposes incremental snapshot RPC', async () => {
   assert.match(source, /p_removed_activity_ids/);
 });
 
-test('planning preflight precedes snapshots and bulk travel cache is never preloaded', async () => {
+test('planning preflight precedes snapshots and bulk travel cache is preloaded only for full runs', async () => {
   const source = await readFile(screenUrl, 'utf8');
   const run = source.slice(source.indexOf('const runCoursePlanning = async'), source.indexOf('const clonePlanningOption'));
   const preflight = run.indexOf('await runPlanningPreflight');
   const noOp = run.indexOf("preflight.decision === 'no-op'");
   const snapshot = run.indexOf('await loadSharedPlanningWorkspace');
+  const routePreload = run.indexOf('await loadSchedulingTravelCacheRows()');
   assert.ok(preflight >= 0 && noOp > preflight && snapshot > noOp);
-  assert.doesNotMatch(run, /loadSchedulingTravelCacheRows\(/);
-  assert.match(run, /const routeCacheRows = \[\]/);
+  assert.ok(routePreload > snapshot);
+  assert.match(run, /if \(fullRun && !resumeValidatedCommit\) \{[\s\S]*?await loadSchedulingTravelCacheRows\(\)/);
+  assert.match(run, /catch \(error\) \{[\s\S]*?routeCacheRows = \[\]/);
 });
 
 test('planning persistence SQL is set-based rather than row-loop based', async () => {
