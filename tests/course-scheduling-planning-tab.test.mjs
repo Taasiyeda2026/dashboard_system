@@ -2472,6 +2472,23 @@ test('recruitment packing reuses one hiring model for compatible activities inst
   assert.ok(rows.every((row) => row.startDate && row.startTime));
 });
 
+test('non-recruitment rows never keep stale recruitment profile metadata', () => {
+  const [row] = assignRecruitmentProfiles([{
+    courseId: 'unresolved',
+    kind: 'missing',
+    status: 'בדיקת התאמה נמשכת',
+    reason: 'נדרשת בדיקה נוספת',
+    recruitmentProfileId: 'recruitment-מרכז-1',
+    recruitmentProfileLabel: 'תקן גיוס מרכז 1',
+    recruitmentProfileSize: 4,
+    scheduleOptions: []
+  }]);
+  assert.equal(row.recruitmentProfileId, undefined);
+  assert.equal(row.recruitmentProfileLabel, undefined);
+  assert.equal(row.recruitmentProfileSize, undefined);
+  assert.equal(row.reason, 'נדרשת בדיקה נוספת');
+});
+
 
 test('recruitment capacity reuses a district slot for a later January activity and never mixes districts', () => {
   const rows = assignRecruitmentProfiles([
