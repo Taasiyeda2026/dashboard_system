@@ -2,7 +2,7 @@
  * new-report-screen.js — Add a new attendance record
  *
  * Flow: date → activity type → activity name (filtered by canonical DB type).
- * Instructor assignments load once (not per date). Extended search is lazy.
+ * Courses use date-specific dashboard choices; other assignments load once.
  */
 
 import { createIcon } from '../components/icon.js';
@@ -12,7 +12,6 @@ import { createCompactSelect } from '../components/compact-select.js';
 import { createTimePicker } from '../components/time-picker.js';
 import {
   getInstructorActivities,
-  getInstructorActivitiesForDate,
   getTrainingScheduleForDate,
   getMeetingNoForActivityOnDate,
   getSchoolOptions,
@@ -44,6 +43,12 @@ import { uploadAttachment } from '../services/storage.service.js';
 import { attendanceDateWarning } from '../services/activity-date-warning.js';
 import { formatTravelMinutes } from '../components/report-summary-row.js';
 import { scheduledTrainingReportFields } from '../services/training-schedule.helpers.js';
+import {
+  createDashboardCourseChoiceState,
+  loadDashboardCourseRows,
+  resolveDashboardCourseChoice,
+} from '../course-dashboard-choice-runtime.js';
+import { dashboardCourseChoiceKey } from '../services/activities-report.helpers.js';
 
 const TIME_MINUTE_STEP = 5;
 const COURSE_REPORT_TYPE = 'קורס';
@@ -145,6 +150,10 @@ export function renderNewReportScreen(container, {
   container.append(wrap);
 
   let selectedActivity = null;
+  const dashboardCourses = createDashboardCourseChoiceState();
+  let courseLoadToken = 0;
+  let reportDateToken = 0;
+  let coursePrefill = null;
   let instructorActivities = [];
   /** @type {Map<string, object>} */
   const extendedActivityByRowId = new Map();
@@ -293,6 +302,7 @@ export function renderNewReportScreen(container, {
   }
 
   function activityOptionsForReportType(activities = [], reportType = getReportType(), query = '') {
+    if (reportType === COURSE_REPORT_TYPE) return dashboardCourses.options;
     let source = Array.isArray(activities) ? [...activities] : [];
     if (reportType === TRAINING_REPORT_TYPE) {
       if (!isBaseTrainingDate()) {
@@ -620,10 +630,50 @@ export function renderNewReportScreen(container, {
 
     if (current && options.some((opt) => opt.value === current)) {
       const match = options.find((opt) => opt.value === current);
-      selectedActivity = findActivityByRowId(current);
-      activityNameSel.setValue(current, selectedActivityName(selectedActivity, match?.label));
+      if (!isCourseReportType()) selectedActivity = findActivityByRowId(current);
+      activityNameSel.setValue(current, isCourseReportType() ? match.label : selectedActivityName(selectedActivity, match?.label));
     } else if (preserveSelection && current) {
       clearLinkedActivity();
+    }
+  }
+
+  async function applyDashboardCourseChoice(value, hints = {}) {
+    const resolution = dashboardCourses.select(value, hints);
+    if (resolution.status === 'resolved') {
+      await applySelectedActivity(resolution.activity);
+      return;
+    }
+    clearLinkedActivity();
+    const choice = dashboardCourses.choice;
+    if (choice) activityNameSel.setValue(choice.value, choice.label);
+    setDashboardMismatchWarning([resolution.status === 'ambiguous'
+      ? 'השיבוץ לקורס ולבית הספר אינו חד־משמעי. נדרשת בדיקת נתוני השיבוץ על ידי הרכז/ת'
+      : 'לא נמצא מפגש משובץ למדריך בתאריך שנבחר']);
+  }
+
+  async function refreshDashboardCourseOptions(hints = {}) {
+    const token = ++courseLoadToken;
+    const date = getReportDate();
+    dashboardCourses.invalidate();
+    clearLinkedActivity();
+    activityNameSel.setOptions([]);
+    setActivityNameEnabled(false);
+    try {
+      const options = await dashboardCourses.load(date);
+      if (!options || token !== courseLoadToken || !isCourseReportType() || getReportDate() !== date) return;
+      activityNameSel.setOptions(options);
+      if (hints.activityRowId) {
+        const choice = options.find((option) => option.candidateRows.some((row) => activityRowId(row) === String(hints.activityRowId)));
+        if (choice) await applyDashboardCourseChoice(choice.value, hints);
+      }
+    } catch (error) {
+      if (token !== courseLoadToken || !isCourseReportType() || getReportDate() !== date) return;
+      setDashboardMismatchWarning(['טעינת השיבוץ מהדשבורד נכשלה. יש לנסות שוב']);
+      console.warn('dashboard course choice load failed:', error?.message || error);
+    } finally {
+      if (token === courseLoadToken && isCourseReportType() && getReportDate() === date) {
+        setActivityNameEnabled(!formLocked);
+      }
     }
   }
 
@@ -671,13 +721,22 @@ export function renderNewReportScreen(container, {
 
   async function validateCourseAgainstDashboard() {
     if (!isCourseReportType() || !selectedActivity || !getReportDate()) {
+      if (isCourseReportType() && dashboardCourses.choice && !selectedActivity) {
+        return { mismatch: true, reasons: [], unresolved: true };
+      }
       setDashboardMismatchWarning([]);
       return { mismatch: false, reasons: [] };
     }
 
     const reasons = [];
+    let rows = [];
     try {
-      const rows = await getInstructorActivitiesForDate(instructor.empId, getReportDate());
+      const date = getReportDate();
+      const activity = selectedActivity;
+      rows = await loadDashboardCourseRows(date);
+      if (getReportDate() !== date || selectedActivity !== activity || !isCourseReportType()) {
+        return { mismatch: true, reasons: ['בחירת הפעילות השתנתה'], unresolved: true };
+      }
       const expected = rows.find(
         (row) => activityRowId(row) === activityRowId(selectedActivity),
       );
@@ -717,22 +776,28 @@ export function renderNewReportScreen(container, {
         }
       }
     } catch {
-      // A temporary validation failure must not block reporting.
-      return { mismatch: false, reasons: [] };
+      setDashboardMismatchWarning(['טעינת השיבוץ מהדשבורד נכשלה. יש לנסות שוב']);
+      return { mismatch: true, reasons: [], unresolved: true };
     }
 
     setDashboardMismatchWarning(reasons);
-    return { mismatch: reasons.length > 0, reasons };
+    const resolution = resolveDashboardCourseChoice(dashboardCourses.choice, rows, {
+      activityRowId: activityRowId(selectedActivity),
+    });
+    return { mismatch: reasons.length > 0, reasons, unresolved: resolution.status !== 'resolved' };
   }
 
   async function syncMeetingForSelectedDate() {
     syncMeetingFieldState();
     if (!isCourseReportType() || !selectedActivity || !hasSelectedAuthority() || !hasSelectedSchool()) return;
-    const meetingNo = await getMeetingNoForActivityOnDate(
+    const activity = selectedActivity;
+    const date = getReportDate();
+    const meetingNo = activity.meeting_no ?? await getMeetingNoForActivityOnDate(
       instructor.empId,
       activityRowId(selectedActivity),
       getReportDate(),
     );
+    if (selectedActivity !== activity || getReportDate() !== date || !isCourseReportType()) return;
     if (meetingNo != null) {
       meetingField.setValue(String(meetingNo));
       meetingField.select.disabled = true;
@@ -773,17 +838,17 @@ export function renderNewReportScreen(container, {
       trainingModeField.input.disabled = activity.__attendanceTrainingSchedule === true;
     }
 
-    const rowId = activityRowId(activity);
+    const rowId = isCourseReportType() ? dashboardCourseChoiceKey(activity) : activityRowId(activity);
     const reportType = getReportType();
     const options = activityOptionsForReportType(instructorActivities, reportType);
     const match = options.find((opt) => opt.value === rowId)
-      || activityOptionsForReportType([activity], reportType)[0];
+      || (!isCourseReportType() ? activityOptionsForReportType([activity], reportType)[0] : null);
     if (match) {
       activityNameSel.setOptions([
         ...options.filter((opt) => opt.value !== rowId),
         match,
       ].sort((a, b) => a.label.localeCompare(b.label, 'he')));
-      activityNameSel.setValue(rowId, selectedActivityName(activity, match.label));
+      activityNameSel.setValue(rowId, isCourseReportType() ? match.label : selectedActivityName(activity, match.label));
     }
 
     if (isScheduledTraining(activity)) {
@@ -816,11 +881,13 @@ export function renderNewReportScreen(container, {
     void validateCourseAgainstDashboard();
   }
 
-  function onActivityTypeChange() {
+  function onActivityTypeChange({ loadCourses = true } = {}) {
     const newType = getReportType();
     const prevType = previousReportType;
     previousReportType = newType;
     canonicalLoadToken += 1;
+    courseLoadToken += 1;
+    dashboardCourses.invalidate();
 
     if (newType !== prevType) clearLinkedActivity();
     syncMeetingFieldState();
@@ -865,6 +932,10 @@ export function renderNewReportScreen(container, {
     authSel?.setOptions(defaultAuthorityOptions());
     refreshActivityNameOptions({ preserveSelection: true });
     setActivityNameEnabled(!!newType);
+    if (newType === COURSE_REPORT_TYPE && loadCourses) {
+      void refreshDashboardCourseOptions(coursePrefill || {});
+      coursePrefill = null;
+    }
     if (ALL_CANONICAL_REPORT_TYPES.has(newType)) {
       void loadAllCanonicalActivityOptions(newType);
     }
@@ -880,7 +951,12 @@ export function renderNewReportScreen(container, {
   }
 
   async function onReportDateChange() {
+    const dateToken = ++reportDateToken;
     const dateStr = getReportDate();
+    if (isCourseReportType()) {
+      void refreshDashboardCourseOptions(coursePrefill || {});
+      coursePrefill = null;
+    }
     if (!dateStr) return;
     const today = localIsoDate();
     if (dateStr > today) {
@@ -897,6 +973,7 @@ export function renderNewReportScreen(container, {
     const monthKey = getMonthKey(y, m);
     try {
       const approval = await getMonthApproval(instructor.empId, monthKey);
+      if (dateToken !== reportDateToken || getReportDate() !== dateStr) return;
       if (!canEditMonth(y, m, approval)) {
         lockBanner.innerHTML = `<p>${editBlockReason(y, m, approval)}</p>`;
         lockBanner.hidden = false;
@@ -907,6 +984,8 @@ export function renderNewReportScreen(container, {
         return;
       }
     } catch {}
+
+    if (dateToken !== reportDateToken || getReportDate() !== dateStr) return;
 
     lockBanner.hidden = true;
     formLocked = false;
@@ -923,6 +1002,7 @@ export function renderNewReportScreen(container, {
     }
     try {
       const scheduled = await getTrainingScheduleForDate(instructor.empId, dateStr);
+      if (dateToken !== reportDateToken || getReportDate() !== dateStr) return;
       instructorActivities = instructorActivities.filter((item) => !scheduledTrainingIds.has(activityRowId(item)));
       scheduledTrainingIds = new Set(scheduled.map(activityRowId));
       instructorActivities.push(...scheduled);
@@ -930,6 +1010,7 @@ export function renderNewReportScreen(container, {
     } catch (error) {
       console.warn('training schedule load failed:', error?.message || error);
     }
+    if (dateToken !== reportDateToken || getReportDate() !== dateStr) return;
     refreshActivityNameOptions({ preserveSelection: true });
     syncTravelMode();
     syncLocationDependencies();
@@ -957,6 +1038,11 @@ export function renderNewReportScreen(container, {
   function buildForm(prefill = null, preservedDate = '') {
     formArea.innerHTML = '';
     selectedActivity = null;
+    courseLoadToken += 1;
+    reportDateToken += 1;
+    dashboardCourses.invalidate();
+    coursePrefill = prefill?.activity_type === COURSE_REPORT_TYPE && prefill.activity_row_id
+      ? { activityRowId: String(prefill.activity_row_id) } : null;
     pendingFiles.length = 0;
     activityTimesAutoFilled = false;
     previousReportType = prefill?.activity_type || '';
@@ -1009,6 +1095,10 @@ export function renderNewReportScreen(container, {
       extendedSearch: {
         label: 'חיפוש מורחב',
         loadOptions: async (query) => {
+          if (isCourseReportType()) {
+            const q = query.trim().toLowerCase();
+            return dashboardCourses.options.filter((option) => !q || option.searchText.includes(q));
+          }
           const rows = await searchCanonicalActivities({
             query,
             reportType: getReportType(),
@@ -1021,6 +1111,10 @@ export function renderNewReportScreen(container, {
       onChange(value) {
         if (!value) {
           clearLinkedActivity();
+          return;
+        }
+        if (isCourseReportType()) {
+          void applyDashboardCourseChoice(value);
           return;
         }
         const activity = findActivityByRowId(value);
@@ -1283,7 +1377,12 @@ export function renderNewReportScreen(container, {
     dateField.input.addEventListener('change', () => { void onReportDateChange(); });
     form.addEventListener('av2:dashboard-duplicate-meeting', (event) => {
       const detail = event.detail || {};
+      const priorRowId = activityRowId(selectedActivity) || prefill?.activity_row_id;
       if (detail.date) dateField.input.value = String(detail.date);
+      if (isCourseReportType()) {
+        void refreshDashboardCourseOptions({ activityRowId: priorRowId });
+        return;
+      }
       if (detail.meeting_no) meetingField.setValue(String(detail.meeting_no));
       if (detail.start_time && detail.end_time) {
         const expectedTimes = attendanceTimesFromActivity({
@@ -1328,7 +1427,7 @@ export function renderNewReportScreen(container, {
     syncTravelMode();
 
     if (initialReportType) {
-      onActivityTypeChange();
+      onActivityTypeChange({ loadCourses: false });
     } else {
       setActivityNameVisible(false);
       setTrainingDescVisible(false);
@@ -1373,7 +1472,7 @@ export function renderNewReportScreen(container, {
       && isBaseTrainingDate(prefill.report_date)
     ) {
       void applySelectedActivity(BASE_TRAINING_ACTIVITY, { autoFillTimes: false });
-    } else if (prefill.activity_row_id) {
+    } else if (prefill.activity_row_id && !isCourseReportType()) {
         const match = findActivityByRowId(prefill.activity_row_id);
         if (match) {
           void (async () => {
@@ -1452,7 +1551,19 @@ export function renderNewReportScreen(container, {
       }
 
       const dateStr = getReportDate();
-      await validateCourseAgainstDashboard();
+      const courseBeforeValidation = isCourseReportType() ? selectedActivity : null;
+      const validatingCourse = isCourseReportType();
+      const dashboardValidation = await validateCourseAgainstDashboard();
+      if (validatingCourse && (getReportDate() !== dateStr || !isCourseReportType() || selectedActivity !== courseBeforeValidation)) {
+        errorEl.textContent = 'התאריך או בחירת הקורס השתנו. יש לבדוק את הבחירה לפני השמירה.';
+        errorEl.hidden = false;
+        return;
+      }
+      if (isCourseReportType() && (!selectedActivity || dashboardValidation.unresolved)) {
+        errorEl.textContent = 'לא ניתן לשמור ללא שיוך חד־משמעי למפגש בדשבורד. יש לבדוק את נתוני השיבוץ עם הרכז/ת.';
+        errorEl.hidden = false;
+        return;
+      }
       const startTime = startPicker.getValue();
       const endTime = endPicker.getValue();
       const totalHours = calcHours(startTime, endTime);

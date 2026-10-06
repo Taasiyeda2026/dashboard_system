@@ -206,6 +206,62 @@ export function instructorActivitySelectOptions(activities = [], { reportType = 
     });
 }
 
+function courseText(value) {
+  return String(value ?? '').trim();
+}
+
+/** Business identity only; a dashboard row id is never a picker value. */
+export function dashboardCourseChoiceKey(row = {}) {
+  const schoolId = courseText(row.school_id) || courseText(row.single_school_id);
+  return `dashboard-course:${JSON.stringify([
+    courseText(row.activity_name || row.program_name),
+    schoolId ? ['id', schoolId] : ['name', courseText(row.single_school_name || row.school_name || row.school)],
+  ])}`;
+}
+
+export function buildDashboardCourseOptions(rows = []) {
+  const groups = new Map();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    if (normalizeDbActivityType(row?.activity_type) !== 'course') continue;
+    const name = courseText(row.activity_name || row.program_name);
+    if (!name || !courseText(row.row_id || row.id)) continue;
+    const value = dashboardCourseChoiceKey(row);
+    if (!groups.has(value)) {
+      const school = courseText(row.single_school_name || row.school_name || row.school);
+      const authority = courseText(row.authority_name || row.authority);
+      groups.set(value, {
+        value,
+        label: [name, school].filter(Boolean).join(' — '),
+        meta: authority,
+        searchText: [name, school, authority].filter(Boolean).join(' ').toLowerCase(),
+        candidateRows: [],
+      });
+    }
+    groups.get(value).candidateRows.push(row);
+  }
+  return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label, 'he'));
+}
+
+/** Resolve within a fresh authorized date snapshot. Never choose the first row. */
+export function resolveDashboardCourseChoice(choice, rows = [], hints = {}) {
+  const candidates = (Array.isArray(rows) ? rows : []).filter((row) => {
+    if (normalizeDbActivityType(row?.activity_type) !== 'course'
+      || dashboardCourseChoiceKey(row) !== choice?.value) return false;
+    if (hints.activityRowId && courseText(row.row_id || row.id) !== courseText(hints.activityRowId)) return false;
+    if (hints.meetingNo != null && Number(row.meeting_no) !== Number(hints.meetingNo)) return false;
+    const times = attendanceTimesFromActivity(row, 'קורס');
+    if (hints.startTime && times.startTime !== hints.startTime.slice(0, 5)) return false;
+    if (hints.endTime && times.endTime !== hints.endTime.slice(0, 5)) return false;
+    return true;
+  });
+  const unique = [...new Map(candidates.map((row) => [courseText(row.row_id || row.id), row])).values()];
+  return {
+    status: unique.length === 1 ? 'resolved' : unique.length ? 'ambiguous' : 'unavailable',
+    activity: unique.length === 1 ? unique[0] : null,
+    candidateRows: unique,
+  };
+}
+
 export function deriveAuthoritySchoolListFromActivities(activities = []) {
   const authorities = new Map();
 
