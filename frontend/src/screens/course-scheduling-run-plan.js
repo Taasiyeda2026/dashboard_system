@@ -23,6 +23,11 @@ export const PLANNING_RUN_PHASES = Object.freeze({
 });
 
 export const CHECKPOINT_META_KEY = '__planningRunMeta';
+export const PLANNING_ROUTE_CACHE_PRELOAD_MIN_IDS = 12;
+
+function shouldPreloadPlanningRouteCache(ids = []) {
+  return [...new Set((ids || []).map(text).filter(Boolean))].length >= PLANNING_ROUTE_CACHE_PRELOAD_MIN_IDS;
+}
 
 export function encodeCheckpointRows(rows = [], meta = null) {
   const list = Array.isArray(rows) ? rows.filter((row) => row && row[CHECKPOINT_META_KEY] !== true) : [];
@@ -294,7 +299,10 @@ export function resolvePlanningRunPlan({
       gapCompactionCourseIds: baseRecalculationIds,
       affectedIds: [...new Set([...baseRecalculationIds, ...upgradeOptimizationIds])],
       persistServerCheckpoints: true,
-      preloadRouteCache: false,
+      preloadRouteCache: shouldPreloadPlanningRouteCache([
+        ...baseRecalculationIds,
+        ...upgradeOptimizationIds
+      ]),
       engineChanged: true,
       advanceEngineMarker: false,
       resume: resumeFromCheckpoint({
@@ -340,7 +348,7 @@ export function resolvePlanningRunPlan({
     gapCompactionCourseIds: regular,
     affectedIds: regular,
     persistServerCheckpoints: false,
-    preloadRouteCache: false,
+    preloadRouteCache: shouldPreloadPlanningRouteCache(regular),
     engineChanged: false,
     advanceEngineMarker: false,
     resume: null

@@ -91,6 +91,7 @@ export const FAST_RESCUE_BUDGET_MS = 12_000;
 export const FAST_FULL_RESCUE_ACTIVITY_BUDGET_MS = 2_000;
 export const FAST_FULL_RESCUE_TOTAL_BUDGET_MS = 20_000;
 const FAST_FULL_RESCUE_MAX_SCENARIOS = 24;
+export const FAST_BULK_OPTIMIZATION_BUDGET_MS = 15_000;
 export function shouldUsePlanningSharedRescueBudget({
   allowGlobalRepair = false,
   planningProfile = 'fast',
@@ -106,6 +107,13 @@ class PlanningRescueBudgetExceededError extends Error {
   }
 }
 
+class PlanningOptimizationBudgetExceededError extends Error {
+  constructor() {
+    super('planning_optimization_budget_exceeded');
+    this.code = 'planning_optimization_budget_exceeded';
+  }
+}
+
 export function createPlanningDeadlineCheckpoint({
   checkpoint = async () => {},
   budgetMs = FAST_RESCUE_BUDGET_MS,
@@ -115,6 +123,18 @@ export function createPlanningDeadlineCheckpoint({
   return async (...args) => {
     await checkpoint(...args);
     if (now() >= deadline) throw new PlanningRescueBudgetExceededError();
+  };
+}
+
+export function createPlanningOptimizationDeadlineCheckpoint({
+  checkpoint = async () => {},
+  budgetMs = FAST_BULK_OPTIMIZATION_BUDGET_MS,
+  now = () => (typeof performance !== 'undefined' && typeof performance.now === 'function' ? performance.now() : Date.now())
+} = {}) {
+  const deadline = now() + Math.max(0, Number(budgetMs) || 0);
+  return async (...args) => {
+    await checkpoint(...args);
+    if (now() >= deadline) throw new PlanningOptimizationBudgetExceededError();
   };
 }
 const DEEP_PLANNING_LIMITS = Object.freeze({
@@ -5581,7 +5601,7 @@ export async function buildDynamicCoursePlan({
   // fast: use the normal fast scenario breadth and defer expensive soft gap
   // polishing. Hard whole-plan validation still runs before anything is saved.
   // Day-to-day incremental runs retain the richer soft-optimization passes.
-  const fastMaintenanceRun = shouldUsePlanningSharedRescueBudget({
+  const fastMaintenanceRun = _finalValidationRepairPass > 0 || shouldUsePlanningSharedRescueBudget({
     allowGlobalRepair,
     planningProfile,
     incrementalCount: incrementalIds === null ? 0 : incrementalIds.size
@@ -6206,45 +6226,65 @@ export async function buildDynamicCoursePlan({
   }
 
   if (!_repairPass) {
+    const optimizationCheckpoint = fastMaintenanceRun
+      ? createPlanningOptimizationDeadlineCheckpoint({ checkpoint })
+      : checkpoint;
+    let optimizationBudgetExceeded = false;
+    const runOptimizationPass = async (operation) => {
+      if (optimizationBudgetExceeded) return null;
+      try {
+        return await operation();
+      } catch (error) {
+        if (error?.code !== 'planning_optimization_budget_exceeded') throw error;
+        optimizationBudgetExceeded = true;
+        planningPerfCount('optimizationBudgetExceeded');
+        return null;
+      }
+    };
+
     if (!optimizationOnlyIds || upgradeOptimizationScopes) {
-      await optimizeSchoolDayPackingPassCooperatively({
+      await runOptimizationPass(() => optimizeSchoolDayPackingPassCooperatively({
+          rowsById,
+          activities: targets,
+          targetCourseIds: schoolPackingTargetIds ? [...schoolPackingTargetIds] : null,
+          beamWidth: 96,
+          routeClient,
+          checkpoint: optimizationCheckpoint
+        }));
+      if (!optimizationBudgetExceeded) {
+        await report('אריזת בתי ספר הושלמה', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
+      }
+    }
+    if (!optimizationOnlyIds || upgradeOptimizationScopes) {
+      await runOptimizationPass(() => consolidateInstructorWorkdaysPass({
         rowsById,
-        activities: targets,
-        targetCourseIds: schoolPackingTargetIds ? [...schoolPackingTargetIds] : null,
-        beamWidth: 96,
+        targetCourseIds: workdayConsolidationTargetIds ? [...workdayConsolidationTargetIds] : null,
+        targets,
+        catalog,
+        instructors,
+        profiles,
+        rules,
+        exceptions,
+        schoolCalendar,
+        today,
         routeClient,
-        checkpoint
-      });
-      await report('אריזת בתי ספר הושלמה', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
+        preparedContextFor,
+        travelContext,
+        currentContextActivities,
+        checkpoint: optimizationCheckpoint,
+        signal,
+        limits: {
+          ...FAST_PLANNING_LIMITS,
+          maxFinalOptions: 2,
+          runGlobalRepair: false
+        },
+        report
+      }));
+      if (!optimizationBudgetExceeded) {
+        await report('ריכוז ימי עבודה הושלם', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
+      }
     }
-    if (!optimizationOnlyIds || upgradeOptimizationScopes) await consolidateInstructorWorkdaysPass({
-      rowsById,
-      targetCourseIds: workdayConsolidationTargetIds ? [...workdayConsolidationTargetIds] : null,
-      targets,
-      catalog,
-      instructors,
-      profiles,
-      rules,
-      exceptions,
-      schoolCalendar,
-      today,
-      routeClient,
-      preparedContextFor,
-      travelContext,
-      currentContextActivities,
-      checkpoint,
-      signal,
-      limits: {
-        ...FAST_PLANNING_LIMITS,
-        maxFinalOptions: 2,
-        runGlobalRepair: false
-      },
-      report
-    });
-    if (!optimizationOnlyIds || upgradeOptimizationScopes) {
-      await report('ריכוז ימי עבודה הושלם', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
-    }
-    if (gapCompactionTargetIds === null || gapCompactionTargetIds.size > 0) {
+    if (!optimizationBudgetExceeded && (gapCompactionTargetIds === null || gapCompactionTargetIds.size > 0)) {
       await compactInstructorDayGapsPass({
         rowsById,
         targetCourseIds: gapCompactionTargetIds ? [...gapCompactionTargetIds] : null,
@@ -6258,7 +6298,7 @@ export async function buildDynamicCoursePlan({
         today,
         routeClient,
         currentContextActivities,
-        checkpoint,
+        checkpoint: optimizationCheckpoint,
         signal,
         limits: {
           ...FAST_PLANNING_LIMITS,

@@ -3104,12 +3104,12 @@ export const courseSchedulingScreen = {
           runPlan.baseRecalculationIds?.length || 0,
           runPlan.upgradeOptimizationIds?.length || 0
         );
-        // A full maintenance pass reuses thousands of route pairs. Loading the
-        // durable cache once is much cheaper than repeatedly round-tripping to
-        // scheduling-route for entries that are already cached. Incremental and
-        // validated-resume runs keep the lightweight on-demand path.
+        // Bulk runs reuse many route pairs. Loading the durable cache once is
+        // much cheaper than repeatedly round-tripping to scheduling-route for
+        // entries that are already cached. Small incrementals keep the
+        // lightweight on-demand path through runPlan.preloadRouteCache=false.
         let routeCacheRows = [];
-        if (fullRun && !resumeValidatedCommit) {
+        if (runPlan.preloadRouteCache && !resumeValidatedCommit) {
           try {
             routeCacheRows = await loadSchedulingTravelCacheRows();
             planningPerfEvent('route-cache-preloaded', { rows: routeCacheRows.length });
