@@ -211,6 +211,26 @@ test('production attendance PDF uses Alef subset fonts and preserves one byte st
   assert.match(handler, /\(wantsForceRegenerate \|\| suppressEmail\) && !isRetryCaller/);
 });
 
+test('production attendance PDF sizes rows from rendered content and keeps normal months compact', async () => {
+  const handler = await readFile(new URL('../supabase/functions/payroll-attendance-pdf-dispatch/handler.ts', import.meta.url), 'utf8');
+
+  assert.match(handler, /const primaryLines = wrapLogical\(/);
+  assert.match(handler, /const details = \[place, secondary\]\.filter\(Boolean\)\.join\(" \| "\)/);
+  assert.match(handler, /const detailLines = details \? wrapLogical/);
+  assert.match(handler, /const blockHeight = ROW_TOP_AND_BOTTOM[\s\S]*primaryLines\.length \* PRIMARY_STEP[\s\S]*detailLines\.length \+ noteLines\.length/);
+  assert.match(handler, /const ROW_GAP = 2\.5/);
+  assert.doesNotMatch(handler, /const blockHeight = 49 \+/);
+  assert.doesNotMatch(handler, /y -= blockHeight \+ 9/);
+
+  // One primary line + one detail line is the normal case. At 32 PDF
+  // points per record, 17 records fit in the first-page attendance area,
+  // so a 20-record month plus approvals stays within two A4 pages.
+  const typicalRowAdvance = 10 + 10 + 9.5 + 2.5;
+  const firstPageAttendanceHeight = 594 - 48;
+  assert.ok(Math.floor(firstPageAttendanceHeight / typicalRowAdvance) >= 17);
+  assert.ok(20 - Math.floor(firstPageAttendanceHeight / typicalRowAdvance) <= 3);
+});
+
 test('manager PDF replacement is service-role-only for controlled regeneration', async () => {
   const migration = await readFile(regenerationMigrationUrl, 'utf8');
 
