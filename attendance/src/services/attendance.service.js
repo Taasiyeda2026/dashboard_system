@@ -357,6 +357,27 @@ export async function deleteRecord(recordId, empId) {
 // ─── Month Approvals ─────────────────────────────────────────────────────────
 
 /**
+ * Returns the newest month explicitly reopened for this instructor, if any.
+ * Reopened corrections take precedence over the calendar default so an instructor
+ * cannot accidentally submit the current month while a prior month awaits resubmission.
+ */
+export async function getLatestReopenedMonth(empId) {
+  if (isAdminPreviewRequested()) return null;
+
+  const { data, error } = await supabase
+    .from('attendance_month_approvals')
+    .select('month_key')
+    .eq('emp_id', empId)
+    .eq('status', 'reopened')
+    .order('month_key', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new Error(`שגיאה בבדיקת חודש שנפתח מחדש: ${error.message}`);
+  return data?.month_key || null;
+}
+
+/**
  * Returns the approval row for a month_key ("YYYY-MM"), or null if not yet created (= open).
  */
 export async function getMonthApproval(empId, monthKey, { force = false } = {}) {

@@ -5,6 +5,7 @@ import { renderMyReportsScreen } from './screens/my-reports-screen.js';
 import { createBottomNav } from './components/bottom-nav.js';
 import { signInWithUsername, signOut, getExistingSession } from './auth/auth.service.js';
 import { resolveInstructorIdentity, resolveAdminPreviewIdentity } from './auth/identity.service.js';
+import { getLatestReopenedMonth } from './services/attendance.service.js';
 import {
   getPreviewApprovalStatus,
   isAdminPreviewRequested,
@@ -75,6 +76,20 @@ function openNewReport(dateStr = '') {
   navigate('new-report');
 }
 
+async function focusLatestReopenedMonth() {
+  if (state.previewMode || !state.instructor?.empId) return;
+  try {
+    const monthKey = await getLatestReopenedMonth(state.instructor.empId);
+    const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(String(monthKey || ''));
+    if (!match) return;
+    state.currentYear = Number(match[1]);
+    state.currentMonth = Number(match[2]);
+  } catch (error) {
+    // A focus hint must never block sign-in; normal month navigation remains available.
+    console.warn('[Attendance] reopened month focus unavailable', error);
+  }
+}
+
 // ── Auth handlers ────────────────────────────────────────────────────────────
 
 async function resolveCurrentIdentity() {
@@ -98,6 +113,7 @@ async function handleLoginSubmit({ username, code }) {
   const now = new Date();
   state.currentYear  = now.getFullYear();
   state.currentMonth = now.getMonth() + 1;
+  await focusLatestReopenedMonth();
   renderScreen();
 }
 
@@ -324,6 +340,7 @@ async function bootstrap() {
     try {
       state.instructor = await resolveCurrentIdentity();
       state.loggedIn   = true;
+      await focusLatestReopenedMonth();
     } catch {
       if (!state.previewMode) await signOut().catch(() => {});
     }
