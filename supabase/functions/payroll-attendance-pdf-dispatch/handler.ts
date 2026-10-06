@@ -426,6 +426,15 @@ function rtlVisual(value: unknown) {
   return chars.join("");
 }
 
+function pdfRtlText(value: unknown) {
+  const visual = rtlVisual(value);
+  if (!visual) return "";
+  // pdf-lib/fontkit applies RTL glyph ordering for the embedded Hebrew font.
+  // Feed it the reverse of the Unicode visual order so the final PDF renders
+  // the intended RTL order while keeping LTR runs (dates, times, IDs) intact.
+  return Array.from(visual).reverse().join("");
+}
+
 function formatDate(value: unknown) {
   const source = clean(value);
   const match = source.match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -489,9 +498,9 @@ async function buildPdfBytes(payload: {
   };
 
   const drawRtl = (logicalText: unknown, xRight: number, yPos: number, size: number, font = regular, color = rgb(0.13, 0.16, 0.22)) => {
-    const visual = rtlVisual(logicalText);
-    const width = font.widthOfTextAtSize(visual, size);
-    page.drawText(visual, { x: Math.max(LEFT, xRight - width), y: yPos, size, font, color });
+    const pdfText = pdfRtlText(logicalText);
+    const width = font.widthOfTextAtSize(pdfText, size);
+    page.drawText(pdfText, { x: Math.max(LEFT, xRight - width), y: yPos, size, font, color });
   };
 
   const wrapLogical = (logicalText: unknown, font = regular, size = 9, maxWidth = CONTENT_W) => {
@@ -502,7 +511,7 @@ async function buildPdfBytes(payload: {
     let current = "";
     for (const word of words) {
       const candidate = current ? `${current} ${word}` : word;
-      const width = font.widthOfTextAtSize(rtlVisual(candidate), size);
+      const width = font.widthOfTextAtSize(pdfRtlText(candidate), size);
       if (current && width > maxWidth) {
         lines.push(current);
         current = word;
