@@ -1520,7 +1520,9 @@ export function renderNewReportScreen(container, {
       const failedFiles = [];
       for (const file of queue) {
         try {
-          const storagePath = await uploadAttachment(file, instructor.empId, recordId);
+          const storagePath = await uploadAttachment(file, instructor.empId, recordId, {
+            employeeEmail: instructor.email || ''
+          });
           await createAttachmentRecord(instructor.empId, recordId, {
             storagePath,
             fileName: file.name,
