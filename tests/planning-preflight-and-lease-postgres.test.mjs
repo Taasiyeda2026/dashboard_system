@@ -57,7 +57,7 @@ before(async () => {
   const v26=await sqlFile('../supabase/migrations/20261003170000_planning_v26_coherent_school_first.sql');
   const instructorHelperStart=v26.indexOf('create or replace function public.scheduling_planning_row_instructor_ids(');
   await client.query(v26.slice(instructorHelperStart,v26.indexOf('$$;',instructorHelperStart)+3));
-  for (const file of ['20260924145500_shared_incremental_course_planning.sql','20260926195500_planning_silent_checkpoints.sql','20261004193000_optimize_planning_persistence.sql','20261005193000_scheduling_planning_run_leases.sql','20261005234644_planning_preflight_and_fenced_runs.sql','20261006030853_prevent_planning_route_cache_self_invalidation.sql']) {
+  for (const file of ['20260924145500_shared_incremental_course_planning.sql','20260926195500_planning_silent_checkpoints.sql','20261004193000_optimize_planning_persistence.sql','20261005193000_scheduling_planning_run_leases.sql','20261005234644_planning_preflight_and_fenced_runs.sql','20261006030853_prevent_planning_route_cache_self_invalidation.sql','20261006035447_tolerate_background_planning_heartbeats.sql']) {
     await client.query(await sqlFile('../supabase/migrations/'+file));
   }
   // Exercise the new epoch/commit fence with the deployed granular triggers.
@@ -130,10 +130,14 @@ test('PostgreSQL leases: different owners and simultaneous acquire serialize',as
   } finally {await other.end();}
 });
 
-test('PostgreSQL leases: stale and expired takeover fence old heartbeat, commit and checkpoint clearing',async t=>{
+test('PostgreSQL leases: a one-minute background gap stays owned; expiry fences old heartbeat and commits',async t=>{
   if(!required(t))return;
   await acquire();
   await client.query("update public.scheduling_planning_run_leases set heartbeat_at=clock_timestamp()-interval '61 seconds'");
+  assert.ok((await facts()).activeLease);assert.equal((await acquire(runB)).acquired,false);
+  const recoveredHeartbeat=(await client.query("select public.heartbeat_scheduling_planning_run_lease('year','center',$1,120) value",[runA])).rows[0].value;
+  assert.equal(recoveredHeartbeat.ok,true);
+  await client.query("update public.scheduling_planning_run_leases set expires_at=clock_timestamp()-interval '1 second'");
   assert.equal((await facts()).activeLease,null);assert.equal((await acquire(runB)).acquired,true);
   const heartbeat=(await client.query("select public.heartbeat_scheduling_planning_run_lease('year','center',$1,120) value",[runA])).rows[0].value;
   assert.equal(heartbeat.ok,false);
@@ -158,7 +162,7 @@ test('PostgreSQL checkpoints: fenced saves never advance the engine; lost owners
   const rows=[{__planningRunMeta:true,workspaceRevision:f.workspace.revision,phase:'running',sourceRevision:f.sourceRevision},{courseId:'one'}];
   await client.query(`select public.save_scheduling_planning_checkpoint('year','center','future','data','context',1,2,'["one"]',$1,$2,$3)`,[JSON.stringify(rows),runA,f.sourceRevision]);
   const checkpoint=(await facts()).checkpoint;assert.equal(checkpoint.completedCount,1);assert.equal(checkpoint.phase,'running');assert.equal((await facts()).workspace.engineVersion,'current');
-  await client.query("update public.scheduling_planning_run_leases set heartbeat_at=clock_timestamp()-interval '61 seconds'");await acquire(runB);
+  await client.query("update public.scheduling_planning_run_leases set expires_at=clock_timestamp()-interval '1 second'");await acquire(runB);
   await assert.rejects(client.query(`select public.save_scheduling_planning_checkpoint('year','center','future','data','context',2,2,'["one","two"]',$1,$2,$3)`,[JSON.stringify(rows),runA,f.sourceRevision]),/planning_run_ownership_lost/);
   assert.equal((await facts()).checkpoint.completedCount,1);
 });
@@ -240,7 +244,7 @@ test('PostgreSQL canonical full save validates source and revision and cannot be
   const rows=(await client.query(`select jsonb_build_object('activityId',a.row_id,'activityUpdatedAt',a.updated_at,'row',r.row_data) item from public.activities a join public.scheduling_planning_rows r on r.activity_id=a.row_id`)).rows.map(r=>r.item);
   const commit=(id,revision=f.workspace.revision)=>client.query(`select public.save_scheduling_planning_snapshot('year','center','future','data','context',$1,$2,$3,$4)`,[JSON.stringify(rows),revision,id,f.sourceRevision]);
   await commit(runA);const saved=await facts();assert.equal(saved.workspace.revision,f.workspace.revision+1);assert.equal(saved.workspace.engineVersion,'future');assert.equal(saved.workspace.validatedSourceRevision,f.sourceRevision);
-  await client.query("update public.scheduling_planning_run_leases set heartbeat_at=clock_timestamp()-interval '61 seconds'");await acquire(runB);
+  await client.query("update public.scheduling_planning_run_leases set expires_at=clock_timestamp()-interval '1 second'");await acquire(runB);
   await assert.rejects(commit(runA,saved.workspace.revision),/ownership_lost/);
 });
 
@@ -273,7 +277,7 @@ test('PostgreSQL real heartbeat remains responsive during CPU-heavy candidates a
   const preparedContext=prepareSchedulingRunContext(input);const controller=new AbortController();let renewals=0;
   const heartbeat=startPlanningLeaseHeartbeat({intervalMs:2,renew:async()=>{
     renewals++;
-    if(renewals===3){await other.query("update public.scheduling_planning_run_leases set heartbeat_at=clock_timestamp()-interval '61 seconds'");await acquire(runB,other);}
+    if(renewals===3){await other.query("update public.scheduling_planning_run_leases set expires_at=clock_timestamp()-interval '1 second'");await acquire(runB,other);}
     return (await client.query("select public.heartbeat_scheduling_planning_run_lease('year','center',$1,120) value",[runA])).rows[0].value;
   },onLost:()=>controller.abort()});
   try {
