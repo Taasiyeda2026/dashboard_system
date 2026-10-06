@@ -8,7 +8,7 @@ const launcher = await readFile(new URL('../frontend/src/screens/shared/payroll-
 const index = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
 const version = '20261005-manager-reopen-hierarchy-v1';
-const adminVersion = '20261006-super-control-preview-v1';
+const adminVersion = '20261006-compact-action-icons-v1';
 
 test('manager workspace imports the attendance control with the current cache-busting version', () => {
   assert.match(workspace, new RegExp(`attendance-control\\.js\\?v=${version}`));
