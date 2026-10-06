@@ -18,6 +18,10 @@ const migration = await readFile(
   new URL('../supabase/migrations/20261005210000_admin_pending_attendance_by_month.sql', import.meta.url),
   'utf8'
 );
+const approvedSnapshotMigration = await readFile(
+  new URL('../supabase/migrations/20261006171217_admin_attendance_approved_snapshot_preview.sql', import.meta.url),
+  'utf8'
+);
 const control = await readFile(new URL('../frontend/src/screens/attendance-control.js', import.meta.url), 'utf8');
 
 const payload = {
@@ -236,6 +240,23 @@ test('admin final approval refreshes pending badge and keeps payroll transfer se
   assert.match(adminStandalone, /<col style="width:25%">/);
   assert.match(adminStandalone, /background:transparent; color:#166534/);
   assert.doesNotMatch(adminStandalone, /await api\.adminSendAttendanceMonthToPayroll\(\{[\s\S]*adminFinalize/);
+});
+
+test('admin super-control previews the immutable approved snapshot inline with expenses', () => {
+  assert.match(adminStandalone, /data-admin-attendance-records=/);
+  assert.match(adminStandalone, /צפייה ברשומות שאושרו/);
+  assert.match(adminStandalone, /approvedSnapshotPreviewHtml/);
+  assert.match(adminStandalone, /הוצאות ופירוט/);
+  assert.match(adminStandalone, /אסמכתאות/);
+  assert.match(adminStandalone, /approvedRowsChronological/);
+  assert.match(adminStandalone, /data-admin-attendance-preview-row/);
+  assert.match(apiSource, /adminAttendanceApprovedSnapshot/);
+  assert.match(apiSource, /admin_get_attendance_approved_snapshot/);
+  assert.match(approvedSnapshotMigration, /security definer/i);
+  assert.match(approvedSnapshotMigration, /v_role <> 'admin'/);
+  assert.match(approvedSnapshotMigration, /manager_approved_snapshot/);
+  assert.match(approvedSnapshotMigration, /revoke all[\s\S]*from public, anon/i);
+  assert.match(approvedSnapshotMigration, /grant execute[\s\S]*to authenticated/i);
 });
 
 test('plus add-record button label from PR 2115 remains', () => {
