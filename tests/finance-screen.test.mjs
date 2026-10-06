@@ -102,7 +102,7 @@ function activity(overrides = {}) {
   };
 }
 
-function mockApi({ activities = [], tracking = [], approvals = [], employees = [] } = {}) {
+function mockApi({ activities = [], tracking = [], approvals = [], employees = [], attendanceRecords = [] } = {}) {
   const counts = {
     allActivities: 0,
     listPayrollControlApprovals: 0,
@@ -112,7 +112,7 @@ function mockApi({ activities = [], tracking = [], approvals = [], employees = [
     upsertFinanceCollectionTracking: 0
   };
   const store = [...tracking];
-  const lastArgs = { allActivities: null };
+  const lastArgs = { allActivities: null, attendanceControlRecords: null, attachmentPath: '' };
   return {
     counts,
     store,
@@ -130,9 +130,14 @@ function mockApi({ activities = [], tracking = [], approvals = [], employees = [
       counts.attendanceControlTeams += 1;
       return employees;
     },
-    attendanceControlRecords: async () => {
+    attendanceControlRecords: async (params = {}) => {
       counts.attendanceControlRecords += 1;
-      return [];
+      lastArgs.attendanceControlRecords = params;
+      return attendanceRecords;
+    },
+    attendanceControlAttachmentSignedUrl: async (path) => {
+      lastArgs.attachmentPath = path;
+      return { signedUrl: 'https://files.example/signed-receipt.pdf' };
     },
     listFinanceCollectionTracking: async () => {
       counts.listFinanceCollectionTracking += 1;
@@ -250,6 +255,7 @@ test('collection tracking always requests and shows school_2027 activities even 
 test('attendance is not loaded until the attendance card is clicked', async () => {
   const api = mockApi({ approvals: [approval()] });
   const data = createFinanceVisitState();
+  data.attendanceMonth = '2026-10';
   const { host } = mount(data, { api });
   assert.equal(api.counts.listPayrollControlApprovals, 0);
   host.querySelector('[data-finance-open="collection"]').click();
@@ -258,11 +264,19 @@ test('attendance is not loaded until the attendance card is clicked', async () =
   host.querySelector('[data-finance-open="hub"]').click();
   host.querySelector('[data-finance-open="attendance"]').click();
   await flush();
+  await flush();
   assert.equal(api.counts.listPayrollControlApprovals, 1);
+  assert.equal(api.counts.attendanceControlRecords, 1);
+  assert.deepEqual(api.lastArgs.attendanceControlRecords, {
+    employeeIds: ['1001'],
+    fromDate: `${data.attendanceMonth}-01`,
+    toDate: `${data.attendanceMonth}-31`
+  });
   host.querySelector('[data-finance-open="hub"]').click();
   host.querySelector('[data-finance-open="attendance"]').click();
   await flush();
   assert.equal(api.counts.listPayrollControlApprovals, 1);
+  assert.equal(api.counts.attendanceControlRecords, 1);
 });
 
 test('only final admin payroll approvals enter the attendance table', () => {
@@ -316,6 +330,49 @@ test('one employee appears once with hours, unique work days, km, and file icon 
   assert.match(html, /data-finance-file="1001"/);
   assert.doesNotMatch(html, /https:\/\/files\.example\/report\.pdf/);
   assert.doesNotMatch(html, /data-finance-file="1002"/);
+});
+
+test('attendance payroll table shows clock hours, expense totals, and opens receipt evidence from Storage', async () => {
+  const approved = approval({
+    employee_id: '1001',
+    employee_name: 'עובד א',
+    rows: [snapshotRow({
+      recordId: 'rec-expense-1',
+      team: 'הילה רוזן',
+      workHours: 2.55,
+      expenses: 80,
+      expenseDetails: 'חניה',
+      attachmentsNames: 'receipt.pdf'
+    })]
+  });
+  const attendanceRecords = [{
+    recordId: 'rec-expense-1',
+    attachments: [{ fileName: 'receipt.pdf', storagePath: '1001/rec-expense-1/receipt.pdf' }]
+  }];
+  const summarized = summarizeFinanceAttendance([approved], { attendanceRecords });
+  assert.equal(summarized.rows[0].expenses, 80);
+  assert.equal(summarized.rows[0].expenseItems[0].attachments[0].storagePath, '1001/rec-expense-1/receipt.pdf');
+
+  const data = createFinanceVisitState();
+  data.view = 'attendance';
+  data.attendanceByMonth[data.attendanceMonth] = { approvals: [approved], attendanceRecords };
+  const api = mockApi({ approvals: [approved], attendanceRecords });
+  const { host, window } = mount(data, { api });
+  assert.match(host.textContent, /02:33/);
+  assert.match(host.textContent, /מנהל צוות/);
+  assert.match(host.textContent, /הוצאות/);
+  assert.match(host.textContent, /₪80/);
+  assert.match(host.innerHTML, /data-finance-expenses="1001"/);
+
+  host.querySelector('[data-finance-expenses="1001"]').click();
+  const dialog = host.querySelector('[data-finance-expenses-dialog="1001"]');
+  assert.ok(dialog.hasAttribute('open'));
+  let opened = '';
+  window.open = (url) => { opened = url; };
+  dialog.querySelector('[data-finance-expense-attachment]').click();
+  await flush();
+  assert.equal(api.lastArgs.attachmentPath, '1001/rec-expense-1/receipt.pdf');
+  assert.equal(opened, 'https://files.example/signed-receipt.pdf');
 });
 
 function attendanceHtml(rows) {
