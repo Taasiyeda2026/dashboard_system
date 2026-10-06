@@ -23,7 +23,7 @@ test('fast preflight: no-op and active lease skip acquisition; changed source, d
   await assert.rejects(runPlanningPreflight({scope,load:async()=>({}),acquire:()=>assert.fail()}),/migration_required/);
 });
 
-test('heartbeat is serialized; a rejected renewal loses ownership; stop prevents later renewals',async()=>{
+test('heartbeat is serialized; authoritative lease loss stops ownership; transport errors remain retryable',async()=>{
   let callback,finish,renewals=0,lost=0,cleared=false;
   const heartbeat=startPlanningLeaseHeartbeat({renew:()=>{renewals++;return new Promise(resolve=>{finish=resolve;});},onLost:()=>lost++,setTimer:cb=>{callback=cb;return 1;},clearTimer:()=>{cleared=true;}});
   callback();callback();await Promise.resolve();assert.equal(renewals,1);
@@ -31,7 +31,7 @@ test('heartbeat is serialized; a rejected renewal loses ownership; stop prevents
   heartbeat.stop();callback();assert.equal(renewals,1);assert.equal(cleared,true);
   let errors=0;
   const rejected=startPlanningLeaseHeartbeat({renew:async()=>{throw Error('transport');},onLost:()=>errors++,setTimer:()=>1,clearTimer:()=>{}});
-  await rejected.heartbeat();assert.equal(errors,1);rejected.stop();
+  await rejected.heartbeat();assert.equal(errors,0);rejected.stop();
 });
 
 test('lease wait message derives its duration from server retry time',()=>{
@@ -111,9 +111,18 @@ test('checkpoint errors abort immediately on source/revision/ownership loss and 
   assert.doesNotThrow(()=>throwIfPlanningRunInvalidated({message:'network timeout'}));
 });
 
-test('a hung renewal loses ownership within its deadline instead of renewing indefinitely',async()=>{
+test('a hung renewal times out locally without falsely cancelling server ownership',async()=>{
   let lost=0;const heartbeat=startPlanningLeaseHeartbeat({renew:()=>new Promise(()=>{}),onLost:()=>lost++,timeoutMs:5,setTimer:()=>1,clearTimer:()=>{}});
-  try{await heartbeat.heartbeat();assert.equal(lost,1);}finally{heartbeat.stop();}
+  try{await heartbeat.heartbeat();assert.equal(lost,0);}finally{heartbeat.stop();}
+});
+
+test('fast rescue deadline interrupts pathological per-activity work without cancelling the planning run',async()=>{
+  const {createPlanningDeadlineCheckpoint}=await import('../frontend/src/screens/course-scheduling-planning.js');
+  let now=0;let baseCalls=0;
+  const checkpoint=createPlanningDeadlineCheckpoint({budgetMs:12,now:()=>now,checkpoint:async()=>{baseCalls+=1;now+=5;}});
+  await checkpoint();await checkpoint();
+  await assert.rejects(checkpoint(),error=>error?.code==='planning_rescue_budget_exceeded');
+  assert.equal(baseCalls,3);
 });
 
 
