@@ -180,3 +180,69 @@ test('planning perf harness: five dirty activities with warm routes', async () =
   assert.ok(measuredResult.report.counters.scheduleCalls >= 5);
   assert.ok(measuredResult.report.counters.candidateEvals > 0);
 });
+
+test('planning fast search prunes hard-ineligible instructors before scenario evaluation', async () => {
+  const instructors = instructorRows(24);
+  const profiles = profileRows(instructors);
+  for (const instructor of instructors.slice(1)) {
+    profiles[instructor.emp_id] = { emp_id: instructor.emp_id, instruction_languages: ['ar'], gender: 'male' };
+  }
+  const target = { ...activity('static-shortlist'), date_1: '', required_instructor_gender: 'female' };
+  const routeClient = createRouteClient({
+    preloadedRows: warmRows(instructors),
+    invoke: async () => { throw new Error('warm-cache scenario must not call route service'); }
+  });
+  const measuredResult = await measured('static-shortlist', () => buildDynamicCoursePlan({
+    activities: [target],
+    instructors,
+    profiles,
+    rules: ruleRows(instructors),
+    exceptions: {},
+    schoolCalendar: [],
+    catalog: [{ activity_name: 'ביומימיקרי', meetings_count: 1, hours_count: 1.5 }],
+    today: '2026-09-29',
+    routeClient,
+    targetCourseIds: ['static-shortlist'],
+    existingRows: [],
+    allowGlobalRepair: false,
+    planningProfile: 'fast'
+  }));
+  assert.equal(measuredResult.value.rows.length, 1);
+  assert.equal(measuredResult.report.counters.staticCandidatePruned, 23);
+  assert.ok(measuredResult.report.counters.candidateEvals < 24, 'the 23 impossible instructors must not enter expensive candidate evaluation');
+});
+
+test('full maintenance defers recruitment rescue until the fast base plan is complete', async () => {
+  const instructors = instructorRows(8);
+  const profiles = Object.fromEntries(instructors.map((instructor) => [
+    instructor.emp_id,
+    { emp_id: instructor.emp_id, instruction_languages: ['ar'], gender: 'male' }
+  ]));
+  const target = { ...activity('deferred-rescue'), date_1: '', required_instructor_gender: 'female' };
+  const routeClient = createRouteClient({
+    preloadedRows: warmRows(instructors),
+    invoke: async () => { throw new Error('warm-cache scenario must not call route service'); }
+  });
+  const phases = [];
+  const measuredResult = await measured('deferred-full-rescue', () => buildDynamicCoursePlan({
+    activities: [target],
+    instructors,
+    profiles,
+    rules: ruleRows(instructors),
+    exceptions: {},
+    schoolCalendar: [],
+    catalog: [{ activity_name: 'ביומימיקרי', meetings_count: 1, hours_count: 1.5 }],
+    today: '2026-09-29',
+    routeClient,
+    existingRows: [],
+    allowGlobalRepair: true,
+    planningProfile: 'fast',
+    onProgress: async ({ phase }) => phases.push(phase)
+  }));
+  const baseDone = phases.indexOf('בניית תוכנית');
+  const rescueStarted = phases.indexOf('מיצוי צוות קיים לפני גיוס');
+  assert.ok(baseDone >= 0 && rescueStarted > baseDone, 'full maintenance rescue must run after the base activity loop');
+  assert.equal(measuredResult.report.counters.rescueDeferred, 1);
+  assert.equal(measuredResult.report.counters.rescueProcessed, 1);
+  assert.equal(measuredResult.value.rows[0].kind, 'recruitment');
+});

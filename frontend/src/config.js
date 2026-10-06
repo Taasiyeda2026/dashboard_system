@@ -1,3 +1,6 @@
+Warning: truncated output (original token count: 10041)
+Total output lines: 381
+
 import './proposal-recipient-search-row-fix.js?v=20260801-v10';
 import './instructors-header-cleanup.js?v=20260807-guides-search-fix-v1';
 
@@ -126,8 +129,7 @@ config.HOTFIX_VERSION = `finance-attendance-compact-export-ui-sw-cache-1565-2026
 config.HOTFIX_VERSION = `finance-post-merge-refresh-sw-cache-1566-20260819-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `manager-board-polish-sw-cache-1567-20260819-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `manager-tracking-employee-file-source-sw-cache-1568-20260819-v1-${config.HOTFIX_VERSION}`;
-config.HOTFIX_VERSION = `tracking-table-columns-symmetric-sw-cache-1570-20260819-v1-${config.HOTFIX_VERSION}`;
-config.HOTFIX_VERSION = `attendance-control-live-records-sw-cache-1572-20260819-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `tracking-tabl…41 tokens truncated…fig.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `operations-home-canonical-sw-cache-1573-20260819-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `activities-filter-row-layout-sw-cache-1574-20260819-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `activity-type-tochenit-fix-sw-cache-1575-20260819-v1-${config.HOTFIX_VERSION}`;
@@ -378,3 +380,4 @@ config.HOTFIX_VERSION = `scheduling-fast-full-maintenance-20261006-v1-${config.H
 config.HOTFIX_VERSION = `scheduling-full-route-preload-20261006-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `scheduling-checkpoint-commit-20261006-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `attendance-attachment-ascii-filenames-20261006-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `scheduling-staged-rescue-shortlist-20261006-v1-${config.HOTFIX_VERSION}`;
