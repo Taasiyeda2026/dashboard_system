@@ -144,6 +144,9 @@ function hubIcon(name) {
   if (name === 'file') {
     return `<svg ${common}><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/></svg>`;
   }
+  if (name === 'receipt') {
+    return `<svg ${common}><path d="M6 3h12v18l-2-1.5L14 21l-2-1.5L10 21l-2-1.5L6 21z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>`;
+  }
   if (name === 'transaction') {
     return `<svg ${common}><path d="M6 3h9l4 4v14H6z"/><path d="M15 3v5h5"/><path d="M9 13h7M9 17h5"/></svg>`;
   }
@@ -203,45 +206,90 @@ function backBarHtml(title) {
 
 function formatHours(value) {
   const n = Number(value) || 0;
-  if (!n) return '0';
-  return String(Number(n.toFixed(2)));
+  const totalMinutes = Math.max(0, Math.round(n * 60));
+  return `${String(Math.floor(totalMinutes / 60)).padStart(2, '0')}:${String(totalMinutes % 60).padStart(2, '0')}`;
+}
+
+function formatExpenseMoney(value) {
+  const amount = Number(value) || 0;
+  return `₪${amount.toLocaleString('he-IL', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+}
+
+function expenseDialogHtml(entry = {}) {
+  if (!(entry.expenses > 0)) return '';
+  const items = (entry.expenseItems || []).map((item) => {
+    const files = (item.attachments || []).map((attachment, index) => {
+      const fileName = attachment.fileName || `אסמכתא ${index + 1}`;
+      if (!attachment.storagePath) {
+        return `<span class="ds-fin-expense-dialog__file is-missing" title="הקובץ מופיע באישור אך נתיב הצפייה אינו זמין">${hubIcon('receipt')}<span>${escapeHtml(fileName)}</span></span>`;
+      }
+      return `<button type="button" class="ds-fin-expense-dialog__file" data-finance-expense-attachment="${escapeHtml(attachment.storagePath)}" title="פתיחת ${escapeHtml(fileName)}">${hubIcon('receipt')}<span>${escapeHtml(fileName)}</span></button>`;
+    }).join('') || '<span class="ds-fin-expense-dialog__empty">לא צורפה אסמכתא להוצאה זו</span>';
+    return `<div class="ds-fin-expense-dialog__item">
+      <div class="ds-fin-expense-dialog__meta">
+        <strong>${escapeHtml(formatExpenseMoney(item.amount))}</strong>
+        <span>${escapeHtml(item.date || '')}</span>
+        ${item.details ? `<span>${escapeHtml(item.details)}</span>` : ''}
+      </div>
+      <div class="ds-fin-expense-dialog__files">${files}</div>
+    </div>`;
+  }).join('');
+  return `<dialog class="ds-fin-expense-dialog" data-finance-expenses-dialog="${escapeHtml(entry.employeeId)}" dir="rtl">
+    <div class="ds-fin-expense-dialog__head">
+      <div><strong>הוצאות ואסמכתאות</strong><span>${escapeHtml(entry.employeeName || entry.employeeId || '')} · ${escapeHtml(formatExpenseMoney(entry.expenses))}</span></div>
+      <button type="button" class="ds-fin-expense-dialog__close" data-finance-expenses-close aria-label="סגירה">×</button>
+    </div>
+    <div class="ds-fin-expense-dialog__body">${items || '<span class="ds-fin-expense-dialog__empty">לא נמצאו פרטי הוצאה</span>'}</div>
+  </dialog>`;
 }
 
 function attendanceTableHtml(entries = []) {
   if (!entries.length) return dsEmptyState('אין דיווחי נוכחות מאושרים להעברה לשכר בחודש זה.');
   const hourHeaders = FINANCE_HOUR_CATEGORIES.map((item) => `<th class="ds-fin-num">${escapeHtml(item.label)}</th>`).join('');
+  const dialogs = entries.map(expenseDialogHtml).join('');
   const body = entries.map((entry) => {
     const hourCells = FINANCE_HOUR_CATEGORIES.map((item) => `<td class="ds-fin-num">${escapeHtml(formatHours(entry.hours?.[item.key]))}</td>`).join('');
     const fileCell = entry.hasFile
       ? `<button type="button" class="ds-fin-file" data-finance-file="${escapeHtml(entry.employeeId)}" title="פתיחת קובץ" aria-label="פתיחת קובץ">${hubIcon('file')}</button>`
       : '';
+    const receiptCount = (entry.expenseItems || []).reduce((sum, item) => sum + (item.attachments || []).filter((attachment) => attachment.storagePath).length, 0);
+    const expenseCell = entry.expenses > 0
+      ? `<div class="ds-fin-expense-cell"><strong>${escapeHtml(formatExpenseMoney(entry.expenses))}</strong><button type="button" class="ds-fin-expense-open" data-finance-expenses="${escapeHtml(entry.employeeId)}" title="צפייה בהוצאות ובאסמכתאות" aria-label="צפייה בהוצאות ובאסמכתאות">${hubIcon('receipt')}${receiptCount ? `<span>${receiptCount}</span>` : ''}</button></div>`
+      : '<span class="ds-fin-expense-zero">—</span>';
     return `<tr>
-      <td>${escapeHtml(entry.team || '—')}</td>
+      <td class="ds-fin-att-team">${escapeHtml(entry.team || '—')}</td>
       <td>${escapeHtml(entry.employeeName || '—')}</td>
       <td>${escapeHtml(entry.employmentType || '—')}</td>
       <td class="ds-fin-num">${entry.workDays || 0}</td>
       ${hourCells}
-      <td class="ds-fin-num">${escapeHtml(formatHours(entry.kilometers))}</td>
+      <td class="ds-fin-num">${escapeHtml(String(Number(entry.kilometers) || 0))}</td>
+      <td class="ds-fin-expense-cell-wrap">${expenseCell}</td>
       <td class="ds-fin-file-cell">${fileCell}</td>
-      <td>${escapeHtml(entry.notes || '')}</td>
+      <td class="ds-fin-att-notes"><span title="${escapeHtml(entry.notes || '')}">${escapeHtml(entry.notes || '')}</span></td>
     </tr>`;
   }).join('');
-  return dsTableWrap(`<table class="ds-table ds-fin-att-table" dir="rtl">
+  return `${dsTableWrap(`<table class="ds-table ds-fin-att-table" dir="rtl">
+    <colgroup>
+      <col class="ds-fin-col-team"><col class="ds-fin-col-employee"><col class="ds-fin-col-employment"><col class="ds-fin-col-days">
+      ${FINANCE_HOUR_CATEGORIES.map(() => '<col class="ds-fin-col-hour">').join('')}
+      <col class="ds-fin-col-km"><col class="ds-fin-col-expenses"><col class="ds-fin-col-file"><col class="ds-fin-col-notes">
+    </colgroup>
     <thead>
       <tr>
-        <th rowspan="2">צוות</th>
+        <th rowspan="2">מנהל צוות</th>
         <th rowspan="2">שם העובד</th>
         <th rowspan="2">סוג העסקה</th>
         <th rowspan="2" class="ds-fin-num">ימי עבודה</th>
         <th colspan="6">סה״כ שעות</th>
         <th rowspan="2" class="ds-fin-num">סה״כ ק״מ</th>
+        <th rowspan="2">הוצאות</th>
         <th rowspan="2">קובץ</th>
         <th rowspan="2">הערות</th>
       </tr>
       <tr>${hourHeaders}</tr>
     </thead>
     <tbody>${body}</tbody>
-  </table>`);
+  </table>`)}${dialogs}`;
 }
 
 function attendanceViewHtml(data, { state } = {}) {
@@ -249,7 +297,8 @@ function attendanceViewHtml(data, { state } = {}) {
   const monthCache = data.attendanceByMonth?.[month];
   const exportType = normalizeFinanceAttendanceExportType(data.attendanceExportType);
   const summarized = summarizeFinanceAttendance(monthCache?.approvals || [], {
-    employees: data.employees || []
+    employees: data.employees || [],
+    attendanceRecords: monthCache?.attendanceRecords || []
   });
   const loading = data.attendanceLoading;
   const error = data.attendanceError;
@@ -273,6 +322,7 @@ function attendanceViewHtml(data, { state } = {}) {
         </label>
         <button type="button" class="ds-btn ds-btn--primary" data-finance-attendance-export>ייצוא לאקסל</button>
       </div>
+      ${monthCache?.evidenceError ? `<div class="ds-fin-att-evidence-warning" role="status">הנתונים המאושרים נטענו, אך לא ניתן היה לטעון קישורים לאסמכתאות ההוצאות.</div>` : ''}
       ${body}
     </div>
   `);
@@ -540,7 +590,32 @@ async function ensureAttendanceLoaded(data, api, monthKey) {
       employeesPromise
     ]);
     if (!data.employees) data.employees = Array.isArray(employees) ? employees : [];
-    const payload = { approvals: Array.isArray(approvals) ? approvals : [] };
+    const normalizedApprovals = Array.isArray(approvals) ? approvals : [];
+    const employeeIds = [...new Set(normalizedApprovals.map((row) => String(row.employee_id || '').trim()).filter(Boolean))];
+    let attendanceRecords = [];
+    let evidenceError = '';
+    if (employeeIds.length && typeof api?.attendanceControlRecords === 'function') {
+      const match = month.match(/^(\d{4})-(0[1-9]|1[0-2])$/);
+      if (match) {
+        const year = Number(match[1]);
+        const monthNumber = Number(match[2]);
+        const lastDay = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+        try {
+          attendanceRecords = await api.attendanceControlRecords({
+            employeeIds,
+            fromDate: `${month}-01`,
+            toDate: `${month}-${String(lastDay).padStart(2, '0')}`
+          });
+        } catch (error) {
+          evidenceError = error?.message || 'attendance_evidence_load_failed';
+        }
+      }
+    }
+    const payload = {
+      approvals: normalizedApprovals,
+      attendanceRecords: Array.isArray(attendanceRecords) ? attendanceRecords : [],
+      evidenceError
+    };
     data.attendanceByMonth = { ...(data.attendanceByMonth || {}), [month]: payload };
     return payload;
   } catch (error) {
@@ -681,7 +756,8 @@ export const financeScreen = {
         const month = visit.attendanceMonth || currentFinanceMonthKey();
         const monthCache = visit.attendanceByMonth?.[month];
         const summarized = summarizeFinanceAttendance(monthCache?.approvals || [], {
-          employees: visit.employees || []
+          employees: visit.employees || [],
+          attendanceRecords: monthCache?.attendanceRecords || []
         });
         try {
           downloadFinanceAttendanceExcel(summarized.rows, month, {
@@ -709,6 +785,43 @@ export const financeScreen = {
           }
         }
         if (url) window.open(url, '_blank', 'noopener');
+        return;
+      }
+
+      const expensesBtn = ev.target.closest('[data-finance-expenses]');
+      if (expensesBtn) {
+        const employeeId = String(expensesBtn.dataset.financeExpenses || '');
+        const dialog = [...root.querySelectorAll('[data-finance-expenses-dialog]')]
+          .find((item) => String(item.dataset.financeExpensesDialog || '') === employeeId);
+        if (!dialog) return;
+        if (typeof dialog.showModal === 'function') dialog.showModal();
+        else dialog.setAttribute('open', '');
+        return;
+      }
+
+      const closeExpensesBtn = ev.target.closest('[data-finance-expenses-close]');
+      if (closeExpensesBtn) {
+        const dialog = closeExpensesBtn.closest('[data-finance-expenses-dialog]');
+        if (typeof dialog?.close === 'function') dialog.close();
+        else dialog?.removeAttribute('open');
+        return;
+      }
+
+      const expenseAttachmentBtn = ev.target.closest('[data-finance-expense-attachment]');
+      if (expenseAttachmentBtn) {
+        const path = String(expenseAttachmentBtn.dataset.financeExpenseAttachment || '').trim();
+        if (!path || typeof api?.attendanceControlAttachmentSignedUrl !== 'function') return;
+        expenseAttachmentBtn.disabled = true;
+        try {
+          const signed = await api.attendanceControlAttachmentSignedUrl(path);
+          const url = String(signed?.signedUrl || '').trim();
+          if (!url) throw new Error('לא התקבל קישור לצפייה באסמכתא.');
+          window.open(url, '_blank', 'noopener');
+        } catch (error) {
+          window.alert(error?.message || 'פתיחת אסמכתת ההוצאה נכשלה.');
+        } finally {
+          expenseAttachmentBtn.disabled = false;
+        }
       }
     };
 

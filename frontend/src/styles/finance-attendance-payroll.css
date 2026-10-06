@@ -1,0 +1,201 @@
+.ds-fin-att-shell {
+  box-sizing: border-box;
+  width: min(100%, 1440px);
+}
+
+.ds-fin-att-shell .ds-table-wrap {
+  overflow-x: auto;
+  border: 1px solid #d5e9ef;
+  border-radius: 14px;
+  background: var(--ds-surface);
+  box-shadow: 0 10px 28px rgba(16, 42, 67, 0.06);
+}
+
+.ds-fin-att-table {
+  min-width: 1220px;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.ds-fin-att-table col.ds-fin-col-team { width: 144px; }
+.ds-fin-att-table col.ds-fin-col-employee { width: 132px; }
+.ds-fin-att-table col.ds-fin-col-employment { width: 92px; }
+.ds-fin-att-table col.ds-fin-col-days { width: 72px; }
+.ds-fin-att-table col.ds-fin-col-hour { width: 66px; }
+.ds-fin-att-table col.ds-fin-col-km { width: 72px; }
+.ds-fin-att-table col.ds-fin-col-expenses { width: 104px; }
+.ds-fin-att-table col.ds-fin-col-file { width: 58px; }
+.ds-fin-att-table col.ds-fin-col-notes { width: 136px; }
+
+.ds-fin-att-table th,
+.ds-fin-att-table td {
+  box-sizing: border-box;
+  padding: 8px 7px;
+  vertical-align: middle;
+  border-bottom-color: #e5eef2;
+}
+
+.ds-fin-att-table thead th {
+  color: #164e63;
+  font-weight: 800;
+  text-align: center;
+  background: #edf8fb;
+  border-bottom: 1px solid #c9e4ec;
+}
+
+.ds-fin-att-table thead tr:first-child th { background: #e2f3f7; }
+.ds-fin-att-table tbody tr:nth-child(even) { background: #fbfdfe; }
+.ds-fin-att-table tbody tr:hover { background: #f0f9fb; }
+
+.ds-fin-att-table .ds-fin-num {
+  text-align: center;
+  direction: ltr;
+  white-space: nowrap;
+}
+
+.ds-fin-att-team {
+  white-space: nowrap;
+  font-weight: 700;
+  color: #23485a;
+}
+
+.ds-fin-att-notes > span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  line-height: 1.35;
+  color: var(--ds-text-secondary);
+}
+
+.ds-fin-expense-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+  direction: ltr;
+}
+
+.ds-fin-expense-cell > strong {
+  font-size: 0.78rem;
+  color: #0f5b6e;
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-fin-expense-open {
+  appearance: none;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  border: 1px solid #b7dce5;
+  border-radius: 8px;
+  background: #f0fafc;
+  color: #08738a;
+  cursor: pointer;
+}
+
+.ds-fin-expense-open:hover { background: #def3f7; }
+.ds-fin-expense-open svg { width: 16px; height: 16px; }
+.ds-fin-expense-open span { font-size: 0.68rem; font-weight: 800; }
+.ds-fin-expense-zero { color: #94a3b8; }
+
+.ds-fin-att-evidence-warning {
+  margin: -2px 0 12px;
+  padding: 9px 12px;
+  border: 1px solid #f4d79a;
+  border-radius: 10px;
+  background: #fffaf0;
+  color: #8a5a0a;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.ds-fin-expense-dialog {
+  width: min(560px, calc(100vw - 28px));
+  max-height: min(72vh, 640px);
+  padding: 0;
+  border: 1px solid #cfe4ea;
+  border-radius: 16px;
+  background: #fff;
+  color: var(--ds-text);
+  box-shadow: 0 24px 70px rgba(15, 52, 66, 0.22);
+}
+
+.ds-fin-expense-dialog::backdrop { background: rgba(15, 23, 42, 0.42); }
+
+.ds-fin-expense-dialog__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 16px;
+  border-bottom: 1px solid #dcebef;
+  background: #f3fafc;
+}
+
+.ds-fin-expense-dialog__head > div { display: flex; flex-direction: column; gap: 2px; }
+.ds-fin-expense-dialog__head strong { font-size: 1rem; color: #164e63; }
+.ds-fin-expense-dialog__head span { font-size: 0.76rem; color: var(--ds-text-muted); }
+
+.ds-fin-expense-dialog__close {
+  appearance: none;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #cfe4ea;
+  border-radius: 9px;
+  background: #fff;
+  color: #475569;
+  font: 700 1.2rem/1 Arial, sans-serif;
+  cursor: pointer;
+}
+
+.ds-fin-expense-dialog__body {
+  max-height: calc(72vh - 68px);
+  padding: 12px 16px 16px;
+  overflow: auto;
+}
+
+.ds-fin-expense-dialog__item {
+  display: grid;
+  grid-template-columns: minmax(155px, 0.8fr) minmax(0, 1.2fr);
+  gap: 12px;
+  padding: 11px 0;
+  border-bottom: 1px solid #edf2f4;
+}
+
+.ds-fin-expense-dialog__item:last-child { border-bottom: 0; }
+.ds-fin-expense-dialog__meta { display: flex; flex-direction: column; gap: 3px; }
+.ds-fin-expense-dialog__meta span { color: var(--ds-text-muted); font-size: 0.76rem; }
+.ds-fin-expense-dialog__files { display: flex; align-items: flex-start; flex-wrap: wrap; gap: 6px; }
+
+.ds-fin-expense-dialog__file {
+  appearance: none;
+  max-width: 100%;
+  padding: 6px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #c8e1e7;
+  border-radius: 8px;
+  background: #f7fcfd;
+  color: #0b6478;
+  font: inherit;
+  font-size: 0.74rem;
+  cursor: pointer;
+}
+
+.ds-fin-expense-dialog__file svg { width: 15px; height: 15px; flex: 0 0 auto; }
+.ds-fin-expense-dialog__file span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ds-fin-expense-dialog__file.is-missing { color: #64748b; cursor: default; }
+.ds-fin-expense-dialog__empty { color: var(--ds-text-muted); font-size: 0.76rem; }
+
+@media (max-width: 640px) {
+  .ds-fin-expense-dialog__item { grid-template-columns: 1fr; }
+}

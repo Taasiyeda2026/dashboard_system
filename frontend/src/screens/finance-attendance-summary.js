@@ -13,12 +13,13 @@ export const FINANCE_HOUR_CATEGORIES = [
 ];
 
 export const FINANCE_ATTENDANCE_COLUMNS = [
-  'צוות',
+  'מנהל צוות',
   'שם העובד',
   'סוג העסקה',
   'ימי עבודה',
   ...FINANCE_HOUR_CATEGORIES.map((item) => item.label),
   'סה״כ ק״מ',
+  'הוצאות',
   'קובץ',
   'הערות'
 ];
@@ -60,6 +61,23 @@ function roundHours(value) {
 
 function emptyHours() {
   return Object.fromEntries(FINANCE_HOUR_CATEGORIES.map((item) => [item.key, 0]));
+}
+
+function recordIdOf(value = {}) {
+  return txt(value.recordId || value.record_id || value.ID || value.Id || value.id);
+}
+
+function normalizeFinanceAttachments(value = [], fallbackNames = '') {
+  const raw = Array.isArray(value) ? value : [];
+  const normalized = raw.map((item) => ({
+    fileName: txt(item?.fileName || item?.file_name || item?.name),
+    storagePath: txt(item?.storagePath || item?.storage_path || item?.path)
+  })).filter((item) => item.fileName || item.storagePath);
+  if (normalized.length) return normalized;
+  return txt(fallbackNames).split(',').map((name) => txt(name)).filter(Boolean).map((fileName) => ({
+    fileName,
+    storagePath: ''
+  }));
 }
 
 function employeeIdOf(value) {
@@ -286,8 +304,11 @@ export function unmappedFinanceActivityTypes(approvals = []) {
   return [...found].sort((a, b) => a.localeCompare(b, 'he'));
 }
 
-export function summarizeFinanceAttendance(approvals = [], { employees = [], employeeSearch = '' } = {}) {
+export function summarizeFinanceAttendance(approvals = [], { employees = [], employeeSearch = '', attendanceRecords = [] } = {}) {
   const teamByEmployee = buildEmployeeTeamMap(employees);
+  const liveRecordById = new Map((attendanceRecords || [])
+    .map((row) => [recordIdOf(row), row])
+    .filter(([id]) => id));
   const byEmployee = new Map();
   for (const approval of approvals || []) {
     if (!isFinalPayrollApproval(approval)) continue;
@@ -304,6 +325,8 @@ export function summarizeFinanceAttendance(approvals = [], { employees = [], emp
         workDates: new Set(),
         hours: emptyHours(),
         kilometers: 0,
+        expenses: 0,
+        expenseItems: [],
         notes: [],
         fileUrl: '',
         fileName: '',
@@ -327,6 +350,23 @@ export function summarizeFinanceAttendance(approvals = [], { employees = [], emp
       if (category) entry.hours[category] = roundHours(entry.hours[category] + hours);
       else if (txt(row.activityType || row.ActivityType)) entry.unmappedTypes.push(txt(row.activityType || row.ActivityType));
       entry.kilometers = roundHours(entry.kilometers + num(row.kilometers ?? row.Kilometers ?? row.km));
+      const expenseAmount = num(row.expenses ?? row.totalExpenses ?? row.TotalExpenses);
+      entry.expenses = roundHours(entry.expenses + expenseAmount);
+      if (expenseAmount > 0) {
+        const recordId = recordIdOf(row);
+        const liveRow = liveRecordById.get(recordId) || {};
+        const snapshotAttachments = normalizeFinanceAttachments(row.attachments, row.attachmentsNames || row.AttachmentsNames);
+        const attachments = snapshotAttachments.some((item) => item.storagePath)
+          ? snapshotAttachments
+          : normalizeFinanceAttachments(liveRow.attachments, row.attachmentsNames || row.AttachmentsNames || liveRow.attachmentsNames);
+        entry.expenseItems.push({
+          recordId,
+          date,
+          amount: roundHours(expenseAmount),
+          details: txt(row.expenseDetails || row.expensesDetails || row.ExpensesDetails),
+          attachments
+        });
+      }
       const note = txt(row.notes || row.Notes);
       if (note && !entry.notes.includes(note)) entry.notes.push(note);
       if (!entry.employmentType) entry.employmentType = txt(row.employmentType);
@@ -345,6 +385,8 @@ export function summarizeFinanceAttendance(approvals = [], { employees = [], emp
       workDays: entry.workDates.size,
       hours: entry.hours,
       kilometers: roundHours(entry.kilometers),
+      expenses: roundHours(entry.expenses),
+      expenseItems: entry.expenseItems,
       notes: entry.notes.join(' · '),
       fileUrl: entry.fileUrl,
       fileName: entry.fileName,
@@ -363,7 +405,7 @@ export function summarizeFinanceAttendance(approvals = [], { employees = [], emp
 export function financeAttendanceDisplayRow(entry = {}) {
   const hours = entry.hours || emptyHours();
   return {
-    'צוות': entry.team || '',
+    'מנהל צוות': entry.team || '',
     'שם העובד': entry.employeeName || '',
     'סוג העסקה': entry.employmentType || '',
     'ימי עבודה': entry.workDays || 0,
@@ -374,6 +416,7 @@ export function financeAttendanceDisplayRow(entry = {}) {
     תפעול: hours.operations || 0,
     'ביטול זמן': hours.time_cancel || 0,
     'סה״כ ק״מ': entry.kilometers || 0,
+    הוצאות: entry.expenses || 0,
     קובץ: entry.hasFile ? (entry.fileUrl || entry.fileName || 'קובץ') : '',
     הערות: entry.notes || ''
   };
