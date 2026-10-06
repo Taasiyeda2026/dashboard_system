@@ -6,12 +6,26 @@ const css = await readFile(new URL('../attendance/src/styles/mobile-final-contra
 const index = await readFile(new URL('../attendance/index.html', import.meta.url), 'utf8');
 const sw = await readFile(new URL('../attendance/sw.js', import.meta.url), 'utf8');
 const mobileTheme = await readFile(new URL('../attendance/src/styles/mobile-app-theme.css', import.meta.url), 'utf8');
+const storageService = await readFile(new URL('../attendance/src/services/storage.service.js', import.meta.url), 'utf8');
+const identityService = await readFile(new URL('../attendance/src/auth/identity.service.js', import.meta.url), 'utf8');
+const newReportScreen = await readFile(new URL('../attendance/src/screens/new-report-screen.js', import.meta.url), 'utf8');
 
-test('Attendance final mobile contract is loaded last and uses cache version 112', () => {
-  assert.match(index, /mobile-final-contract\.css\?v=112/);
-  assert.ok(index.indexOf('mobile-final-contract.css?v=112') > index.indexOf('new-report-accessibility.css?v=112'));
+test('Attendance final mobile contract is loaded last and uses cache version 113', () => {
+  assert.match(index, /mobile-final-contract\.css\?v=113/);
+  assert.ok(index.indexOf('mobile-final-contract.css?v=113') > index.indexOf('new-report-accessibility.css?v=113'));
   assert.doesNotMatch(index, /v=92/);
-  assert.match(sw, /const CACHE_VERSION = 112/);
+  assert.match(sw, /const CACHE_VERSION = 113/);
+});
+
+test('Attendance attachments use ASCII employee/date/sequence storage keys and keep original metadata', () => {
+  assert.match(storageService, /buildAttachmentStorageFileName/);
+  assert.match(storageService, /attachmentEmployeeStorageLabel/);
+  assert.match(storageService, /attachmentUploadDateLabel/);
+  assert.match(storageService, /nextAttachmentSequence/);
+  assert.doesNotMatch(storageService, /\\u0590-\\u05FF/);
+  assert.match(identityService, /emp_id,full_name,email/);
+  assert.match(newReportScreen, /employeeEmail:\s*instructor\.email/);
+  assert.match(newReportScreen, /fileName:\s*file\.name/);
 });
 
 test('Attendance mobile contract prevents squeezed desktop layouts', () => {
