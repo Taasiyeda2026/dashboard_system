@@ -240,6 +240,13 @@ test('admin final approval refreshes pending badge and keeps payroll transfer se
   assert.match(adminStandalone, /<col style="width:25%">/);
   assert.match(adminStandalone, /background:transparent; color:#166534/);
   assert.doesNotMatch(adminStandalone, /await api\.adminSendAttendanceMonthToPayroll\(\{[\s\S]*adminFinalize/);
+  assert.match(adminStandalone, /window\.setTimeout\(\(\) => void handleBatchPayroll\(root\), 0\)/);
+  assert.match(adminStandalone, /window\.setTimeout\(\(\) => void handleAction\(action, root\), 0\)/);
+  assert.match(adminStandalone, /refreshAdminAttendanceEmployeeRow\(root, finalEmpId\)/);
+  assert.match(adminStandalone, /refreshAdminAttendanceEmployeeRow\(root, sendPayrollEmpId\)/);
+  assert.match(adminStandalone, /refreshAdminAttendanceSummary\(root\)/);
+  assert.doesNotMatch(adminStandalone, /renderData\(root, monthKey, 'האישור הסופי נשמר\. החודש מוכן לשכר\.'\)/);
+  assert.doesNotMatch(adminStandalone, /renderData\(root, monthKey, 'העובד הועבר לשכר\.'\)/);
 });
 
 test('admin super-control previews the immutable approved snapshot inline with expenses', () => {

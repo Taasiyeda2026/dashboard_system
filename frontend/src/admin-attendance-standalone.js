@@ -482,6 +482,22 @@ function summaryHtml(employees, workflowByEmployee, finalByEmployee, dispatchByE
   </div><button type="button" class="admin-attendance-standalone__batch" data-admin-attendance-send-all${counts.admin_approved ? '' : ' disabled'}>העבר את כלל המוכנים לשכר</button></div>`;
 }
 
+function employeeMainRowHtml(employee, workflowByEmployee, finalByEmployee, dispatchByEmployee, monthKey) {
+  const id = employeeId(employee);
+  const workflow = workflowByEmployee.get(id) || {};
+  const finalApproval = finalByEmployee.get(id) || null;
+  const priorDispatch = dispatchByEmployee.get(id) || null;
+  const status = workflowStatus(workflow, finalApproval, monthKey, priorDispatch);
+  return `<tr data-admin-attendance-row="${escapeHtml(id)}">
+    <td class="admin-attendance-person"><strong>${escapeHtml(text(employee.full_name) || id)}</strong><small>${escapeHtml(id)}${text(employee.employment_type) ? ` · ${escapeHtml(text(employee.employment_type))}` : ''}</small></td>
+    <td>${approvalCell('employee', workflow.submitted_by_name, workflow.submitted_at)}</td>
+    <td>${approvalCell('manager', workflow.manager_approved_by_name, workflow.manager_approved_at)}</td>
+    <td>${approvalCell('admin', finalApproval?.approved_by_name, finalApproval?.approved_at)}</td>
+    <td><span class="admin-attendance-status ${status.cls}">${escapeHtml(status.label)}</span></td>
+    <td>${actionButtons(id, workflow, finalApproval, monthKey, priorDispatch)}</td>
+  </tr>`;
+}
+
 function groupsHtml(employees, workflowByEmployee, finalByEmployee, dispatchByEmployee, monthKey) {
   return groupEmployees(employees).map(([manager, rows]) => {
     const body = rows.map((employee) => {
@@ -490,14 +506,7 @@ function groupsHtml(employees, workflowByEmployee, finalByEmployee, dispatchByEm
       const finalApproval = finalByEmployee.get(id) || null;
       const priorDispatch = dispatchByEmployee.get(id) || null;
       const status = workflowStatus(workflow, finalApproval, monthKey, priorDispatch);
-      const mainRow = `<tr data-admin-attendance-row="${escapeHtml(id)}">
-        <td class="admin-attendance-person"><strong>${escapeHtml(text(employee.full_name) || id)}</strong><small>${escapeHtml(id)}${text(employee.employment_type) ? ` · ${escapeHtml(text(employee.employment_type))}` : ''}</small></td>
-        <td>${approvalCell('employee', workflow.submitted_by_name, workflow.submitted_at)}</td>
-        <td>${approvalCell('manager', workflow.manager_approved_by_name, workflow.manager_approved_at)}</td>
-        <td>${approvalCell('admin', finalApproval?.approved_by_name, finalApproval?.approved_at)}</td>
-        <td><span class="admin-attendance-status ${status.cls}">${escapeHtml(status.label)}</span></td>
-        <td>${actionButtons(id, workflow, finalApproval, monthKey, priorDispatch)}</td>
-      </tr>`;
+      const mainRow = employeeMainRowHtml(employee, workflowByEmployee, finalByEmployee, dispatchByEmployee, monthKey);
       const previewRow = ['manager_approved', 'admin_approved', 'sent_to_payroll'].includes(status.raw)
         ? `<tr class="admin-attendance-preview-row" data-admin-attendance-preview-row="${escapeHtml(id)}" hidden><td colspan="6"><div class="admin-attendance-preview__empty">טוען את הרשומות שאושרו…</div></td></tr>`
         : '';
@@ -512,6 +521,42 @@ function groupsHtml(employees, workflowByEmployee, finalByEmployee, dispatchByEm
       </table></div>
     </section>`;
   }).join('');
+}
+
+function replaceHtmlElement(current, html) {
+  if (!current) return null;
+  const template = document.createElement('template');
+  template.innerHTML = String(html || '').trim();
+  const replacement = template.content.firstElementChild;
+  if (!replacement) return null;
+  current.replaceWith(replacement);
+  return replacement;
+}
+
+function refreshAdminAttendanceEmployeeRow(root, empId) {
+  const context = root.__adminAttendanceContext || {};
+  const employee = (context.employees || []).find((item) => employeeId(item) === empId);
+  if (!employee) return;
+  const current = root.querySelector(`[data-admin-attendance-row="${CSS.escape(empId)}"]`);
+  replaceHtmlElement(current, employeeMainRowHtml(
+    employee,
+    context.workflowByEmployee || new Map(),
+    context.finalByEmployee || new Map(),
+    context.dispatchByEmployee || new Map(),
+    context.monthKey
+  ));
+}
+
+function refreshAdminAttendanceSummary(root) {
+  const context = root.__adminAttendanceContext || {};
+  const current = root.querySelector('.admin-attendance-standalone__summary-row');
+  replaceHtmlElement(current, summaryHtml(
+    context.employees || [],
+    context.workflowByEmployee || new Map(),
+    context.finalByEmployee || new Map(),
+    context.dispatchByEmployee || new Map(),
+    context.monthKey
+  ));
 }
 
 function setMessage(root, message = '', isError = false) {
@@ -650,23 +695,35 @@ async function handleAction(button, root) {
   try {
     if (finalEmpId) {
       setMessage(root, 'שומר אישור סופי…');
-      await api.adminFinalizeAttendanceMonthPayroll({
+      const saved = await api.adminFinalizeAttendanceMonthPayroll({
         employee_id: finalEmpId,
         month_key: monthKey,
         final_approved_by_name: text(state?.user?.full_name || state?.user?.name || state?.user?.username)
       });
-      await renderData(root, monthKey, 'האישור הסופי נשמר. החודש מוכן לשכר.');
+      root.__adminAttendanceContext?.finalByEmployee?.set(finalEmpId, saved);
+      refreshAdminAttendanceEmployeeRow(root, finalEmpId);
+      refreshAdminAttendanceSummary(root);
+      setMessage(root, 'האישור הסופי נשמר. החודש מוכן לשכר.');
       await refreshPendingBadge(true);
       return;
     }
     if (sendPayrollEmpId) {
       setMessage(root, 'מעביר לשכר…');
-      await api.adminSendAttendanceMonthToPayroll({
+      const saved = await api.adminSendAttendanceMonthToPayroll({
         employee_id: sendPayrollEmpId,
         month_key: monthKey,
         sent_by_name: text(state?.user?.full_name || state?.user?.name || state?.user?.username)
       });
-      await renderData(root, monthKey, 'העובד הועבר לשכר.');
+      root.__adminAttendanceContext?.finalByEmployee?.set(sendPayrollEmpId, saved);
+      root.__adminAttendanceContext?.dispatchByEmployee?.set(sendPayrollEmpId, {
+        employee_id: sendPayrollEmpId,
+        month_key: monthKey,
+        dispatched_at: saved?.payroll_dispatched_at || '',
+        dispatched_by_name: saved?.payroll_dispatched_by_name || ''
+      });
+      refreshAdminAttendanceEmployeeRow(root, sendPayrollEmpId);
+      refreshAdminAttendanceSummary(root);
+      setMessage(root, 'העובד הועבר לשכר.');
       await refreshPendingBadge(true);
       return;
     }
@@ -708,7 +765,27 @@ async function handleBatchPayroll(root) {
       sent_by_name: text(state?.user?.full_name || state?.user?.name || state?.user?.username)
     });
     const sent = Number(result?.sent_count) || 0;
-    await renderData(root, monthKey, `${sent} עובדים הועברו לשכר.`);
+    if (sent === readyIds.length) {
+      const sentAt = new Date().toISOString();
+      const sentByName = text(state?.user?.full_name || state?.user?.name || state?.user?.username);
+      for (const id of readyIds) {
+        const currentFinal = context.finalByEmployee?.get(id) || {};
+        context.finalByEmployee?.set(id, {
+          ...currentFinal,
+          status: 'approved_for_payroll',
+          payroll_dispatched_at: sentAt,
+          payroll_dispatched_by_name: sentByName
+        });
+        context.dispatchByEmployee?.set(id, { employee_id: id, month_key: monthKey, dispatched_at: sentAt, dispatched_by_name: sentByName });
+        refreshAdminAttendanceEmployeeRow(root, id);
+      }
+      refreshAdminAttendanceSummary(root);
+      setMessage(root, `${sent} עובדים הועברו לשכר.`);
+    } else {
+      // A concurrent change altered the ready set while the RPC was running;
+      // only then reconcile from the server instead of showing stale state.
+      await renderData(root, monthKey, `${sent} עובדים הועברו לשכר.`);
+    }
   } catch (error) {
     setMessage(root, error?.message || 'העברת העובדים לשכר נכשלה.', true);
   } finally {
@@ -905,11 +982,14 @@ function handleClick(event) {
     return;
   }
   if (target.closest('[data-admin-attendance-send-all]')) {
-    void handleBatchPayroll(root);
+    // The shared system confirm dialog records the triggering element later in
+    // the same click dispatch. Defer work one task so confirmation can replay
+    // this exact button instead of a stale/previous activation.
+    window.setTimeout(() => void handleBatchPayroll(root), 0);
     return;
   }
   const action = target.closest('[data-admin-attendance-final], [data-admin-attendance-send-payroll], [data-admin-attendance-release], [data-admin-attendance-records], [data-admin-attendance-pdf]');
-  if (action) void handleAction(action, root);
+  if (action) window.setTimeout(() => void handleAction(action, root), 0);
 }
 
 function handleKeydown(event) {
