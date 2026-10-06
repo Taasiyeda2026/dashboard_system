@@ -57,7 +57,7 @@ before(async () => {
   const v26=await sqlFile('../supabase/migrations/20261003170000_planning_v26_coherent_school_first.sql');
   const instructorHelperStart=v26.indexOf('create or replace function public.scheduling_planning_row_instructor_ids(');
   await client.query(v26.slice(instructorHelperStart,v26.indexOf('$$;',instructorHelperStart)+3));
-  for (const file of ['20260924145500_shared_incremental_course_planning.sql','20260926195500_planning_silent_checkpoints.sql','20261004193000_optimize_planning_persistence.sql','20261005193000_scheduling_planning_run_leases.sql','20261005234644_planning_preflight_and_fenced_runs.sql','20261006030853_prevent_planning_route_cache_self_invalidation.sql','20261006035447_tolerate_background_planning_heartbeats.sql','20261006132323_commit_validated_planning_checkpoint.sql']) {
+  for (const file of ['20260924145500_shared_incremental_course_planning.sql','20260926195500_planning_silent_checkpoints.sql','20261004193000_optimize_planning_persistence.sql','20261005193000_scheduling_planning_run_leases.sql','20261005234644_planning_preflight_and_fenced_runs.sql','20261006030853_prevent_planning_route_cache_self_invalidation.sql','20261006035447_tolerate_background_planning_heartbeats.sql','20261006132323_commit_validated_planning_checkpoint.sql','20261006135000_ignore_non_planning_instructor_contact_updates.sql']) {
     await client.query(await sqlFile('../supabase/migrations/'+file));
   }
   // Exercise the new epoch/commit fence with the deployed granular triggers.
@@ -100,6 +100,16 @@ test('PostgreSQL preflight: activity-sensitive changes are granular and notes ar
   assert.equal((await facts()).sourceRevision,original.sourceRevision);
   await client.query("update public.activities set education_level='Changed' where row_id='one'");
   const changed=await facts();assert.equal(changed.dirtyCount,1);assert.notEqual(changed.sourceRevision,original.sourceRevision);
+});
+
+test('PostgreSQL preflight: non-planning instructor contact edits do not fence planning',async t=>{
+  if(!required(t))return;
+  await client.query("insert into public.contacts_instructors(emp_id,full_name,active,address) values (1551,'Before','yes','Home')");
+  const original=await facts();
+  await client.query("update public.contacts_instructors set full_name='After' where emp_id=1551");
+  assert.equal((await facts()).sourceRevision,original.sourceRevision);
+  await client.query("update public.contacts_instructors set address='New home' where emp_id=1551");
+  assert.notEqual((await facts()).sourceRevision,original.sourceRevision);
 });
 
 test('PostgreSQL preflight: every snapshot source has transactional invalidation',async t=>{
