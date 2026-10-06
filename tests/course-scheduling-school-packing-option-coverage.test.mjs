@@ -101,6 +101,7 @@ test('school-first packs recruitment timetable with existing-staff activity befo
       kind: 'recruitment',
       instructorEmpId: '',
       instructorName: '',
+      diagnostics: { recruitmentCertified: true, searchIncomplete: false },
       startDate: '2026-10-12',
       endDate: '2026-12-21',
       startTime: '08:00',
@@ -201,7 +202,7 @@ test('school-first stores several feasible school timetable alternatives instead
   assert.deepEqual(new Set(planning.alternatives.map((alt) => alt.weekdays[0])), new Set([0, 1]));
 });
 
-test('five-row school conflict never leaves overlapping proposals when existing staff cannot cover the full bundle', () => {
+test('five-row school conflict never invents recruitment when existing staff cannot cover the full bundle', () => {
   const ids = ['a', 'b', 'c', 'd', 'e'];
   const activities = ids.map((row_id) => ({
     row_id, school_id: 'school-379', school: 'מקיף ערבי', activity_type: 'course'
@@ -233,9 +234,16 @@ test('five-row school conflict never leaves overlapping proposals when existing 
   optimizeSchoolDayPackingPass({ rowsById, activities });
   const proposals = [...rowsById.values()].filter((row) => row.kind === 'proposal');
   const recruitments = [...rowsById.values()].filter((row) => row.kind === 'recruitment');
-  assert.ok(recruitments.length >= 1);
+  const incomplete = [...rowsById.values()].filter((row) => row.kind === 'missing');
+  assert.equal(recruitments.length, 0);
+  assert.ok(incomplete.length >= 1);
+  for (const row of incomplete) {
+    assert.equal(row.status, 'בדיקת התאמה נמשכת');
+    assert.equal(row.diagnostics?.searchIncomplete, true);
+    assert.equal(row.diagnostics?.recruitmentCertified, false);
+  }
   assert.equal(rowsById.get('a').schoolPlanning.staffBundleComplete, false);
-  assert.equal(rowsById.get('a').schoolPlanning.staffConflictFallbackCount, recruitments.length);
+  assert.equal(rowsById.get('a').schoolPlanning.staffConflictFallbackCount, incomplete.length);
 
   for (let i = 0; i < proposals.length; i += 1) {
     for (let j = i + 1; j < proposals.length; j += 1) {

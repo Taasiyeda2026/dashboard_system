@@ -913,13 +913,31 @@ export function planningEngineUpgradeAffectedCourseIds({
   // recruitment is now a certified terminal result, while timed-out / bounded
   // searches remain unresolved. Re-evaluate only rows whose terminal outcome can
   // change instead of forcing a national rebuild of valid proposals and live rows.
-  const certifiedOutcomeV29Upgrade = current.includes('planning-v29-20261006-certified-outcomes')
-    && !previous.includes('planning-v29-20261006-certified-outcomes');
+  const certifiedOutcomeV29Upgrade = currentMajor === 29 && previousMajor > 0 && previousMajor < 29;
   if (certifiedOutcomeV29Upgrade) {
     return (shared?.rows || [])
       .filter((entry) => {
         const row = entry?.row || {};
         if (!['recruitment', 'missing'].includes(text(row?.kind))) return false;
+        if (entry?.lockedOption || row?.planningLocked === true) return false;
+        return !!text(entry?.activityId || row?.courseId);
+      })
+      .map((entry) => text(entry?.activityId || entry?.row?.courseId))
+      .filter(Boolean);
+  }
+
+  // v30 closes the remaining outcome hole in school-first packing. The packing
+  // optimizer is allowed to improve dates/instructor combinations, but it may
+  // never manufacture a terminal recruitment result. Re-run only unresolved
+  // rows and legacy recruitment rows that lack an explicit certification.
+  const certifiedSchoolPackingV30Upgrade = currentMajor === 30 && previousMajor === 29;
+  if (certifiedSchoolPackingV30Upgrade) {
+    return (shared?.rows || [])
+      .filter((entry) => {
+        const row = entry?.row || {};
+        const kind = text(row?.kind);
+        if (kind !== 'missing' && kind !== 'recruitment') return false;
+        if (kind === 'recruitment' && row?.diagnostics?.recruitmentCertified === true) return false;
         if (entry?.lockedOption || row?.planningLocked === true) return false;
         return !!text(entry?.activityId || row?.courseId);
       })

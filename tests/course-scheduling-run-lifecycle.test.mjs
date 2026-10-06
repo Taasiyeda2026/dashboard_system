@@ -39,6 +39,23 @@ test('v29 certified-outcome upgrade touches only unresolved/recruitment rows', (
   assert.deepEqual(affected.sort(), ['missing', 'recruitment']);
 });
 
+test('v30 school-packing certification upgrade skips valid proposals and certified recruitment', () => {
+  const affected = planningEngineUpgradeAffectedCourseIds({
+    shared: {
+      rows: [
+        { activityId: 'proposal', row: { courseId: 'proposal', kind: 'proposal' } },
+        { activityId: 'legacy-recruitment', row: { courseId: 'legacy-recruitment', kind: 'recruitment', diagnostics: { recruitmentCertified: false } } },
+        { activityId: 'certified-recruitment', row: { courseId: 'certified-recruitment', kind: 'recruitment', diagnostics: { recruitmentCertified: true } } },
+        { activityId: 'missing', row: { courseId: 'missing', kind: 'missing', diagnostics: { searchIncomplete: true } } },
+        { activityId: 'live', row: { courseId: 'live', kind: 'live' } }
+      ]
+    },
+    storedEngineVersion: 'planning-v29-20261006-self-invalidation-certified-outcomes',
+    currentEngineVersion: 'planning-v30-20261006-self-invalidation-certified-school-packing'
+  });
+  assert.deepEqual(affected.sort(), ['legacy-recruitment', 'missing']);
+});
+
 test('lease-loss errors never leak the internal planning_cancelled message', () => {
   const leaseLost = Object.assign(new Error('lease_missing'), { code: 'planning_run_ownership_lost' });
   assert.match(planningStoreErrorMessage(leaseLost, 'חישוב התכנון נכשל'), /איבדה בעלות/);
