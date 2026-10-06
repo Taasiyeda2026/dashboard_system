@@ -387,3 +387,4 @@ config.HOTFIX_VERSION = `scheduling-certified-school-packing-20261006-v1-${confi
 config.HOTFIX_VERSION = `admin-attendance-payroll-confirm-replay-20261006-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `scheduling-bounded-bulk-rescue-20261006-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `finance-attendance-expenses-receipts-ui-20261006-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `scheduling-bulk-route-preload-bounded-optimizer-20261006-v1-${config.HOTFIX_VERSION}`;

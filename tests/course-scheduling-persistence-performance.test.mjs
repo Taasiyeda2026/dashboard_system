@@ -47,7 +47,7 @@ test('validated full checkpoints commit in-database without re-uploading snapsho
   assert.doesNotMatch(sql, /jsonb_array_elements/);
 });
 
-test('planning preflight precedes snapshots and bulk travel cache is preloaded only for full runs', async () => {
+test('planning preflight precedes snapshots and bulk travel cache follows the run plan', async () => {
   const source = await readFile(screenUrl, 'utf8');
   const run = source.slice(source.indexOf('const runCoursePlanning = async'), source.indexOf('const clonePlanningOption'));
   const preflight = run.indexOf('await runPlanningPreflight');
@@ -56,7 +56,7 @@ test('planning preflight precedes snapshots and bulk travel cache is preloaded o
   const routePreload = run.indexOf('await loadSchedulingTravelCacheRows()');
   assert.ok(preflight >= 0 && noOp > preflight && snapshot > noOp);
   assert.ok(routePreload > snapshot);
-  assert.match(run, /if \(fullRun && !resumeValidatedCommit\) \{[\s\S]*?await loadSchedulingTravelCacheRows\(\)/);
+  assert.match(run, /if \(runPlan\.preloadRouteCache && !resumeValidatedCommit\) \{[\s\S]*?await loadSchedulingTravelCacheRows\(\)/);
   assert.match(run, /catch \(error\) \{[\s\S]*?routeCacheRows = \[\]/);
 });
 

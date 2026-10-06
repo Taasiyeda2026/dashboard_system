@@ -15,6 +15,7 @@ import {
   PlanningCancelledError,
   optimizeSchoolDayPackingPassCooperatively,
   createPlanningCheckpoint,
+  createPlanningOptimizationDeadlineCheckpoint,
   shouldUsePlanningSharedRescueBudget
 } from '../frontend/src/screens/course-scheduling-planning.js';
 import {
@@ -90,6 +91,20 @@ test('bulk incremental planning shares one rescue budget while single-row update
     allowGlobalRepair: true,
     incrementalCount: 0
   }), true);
+});
+
+test('bulk optimization deadline stops soft optimization without weakening the base checkpoint', async () => {
+  let clock = 0;
+  let checkpoints = 0;
+  const bounded = createPlanningOptimizationDeadlineCheckpoint({
+    checkpoint: async () => { checkpoints += 1; },
+    budgetMs: 10,
+    now: () => clock
+  });
+  await bounded();
+  clock = 10;
+  await assert.rejects(bounded(), (error) => error?.code === 'planning_optimization_budget_exceeded');
+  assert.equal(checkpoints, 2);
 });
 
 test('lease-loss errors never leak the internal planning_cancelled message', () => {
@@ -283,6 +298,20 @@ test('run plan: one dirty activity stays incremental and does not preload routes
   assert.equal(plan.preloadRouteCache, false);
 });
 
+test('run plan: bulk incremental work preloads the durable route cache once', () => {
+  const dirty = Array.from({ length: 12 }, (_, index) => `dirty-${index + 1}`);
+  const plan = resolvePlanningRunPlan({
+    shared: { workspace: { engineVersion: 'planning-v31-x', revision: 1 }, rows: dirty.map((activityId) => ({ activityId })) },
+    currentCourseIds: dirty,
+    regularAffectedIds: dirty,
+    engineUpgradeAffectedIds: [],
+    storedEngineVersion: 'planning-v31-x',
+    currentEngineVersion: 'planning-v31-x'
+  });
+  assert.equal(plan.runType, PLANNING_RUN_TYPES.INCREMENTAL);
+  assert.equal(plan.preloadRouteCache, true);
+});
+
 test('run plan: v27→v28 is engine-upgrade without base rebuild', () => {
   const fixture = workspaceScaleFixture();
   const scopes = planningEngineUpgradeOptimizationScopes({
@@ -312,7 +341,7 @@ test('run plan: v27→v28 is engine-upgrade without base rebuild', () => {
   assert.ok(plan.schoolPackingCourseIds.length >= 6);
   assert.ok(plan.affectedIds.length < fixture.activities.length);
   assert.equal(plan.persistServerCheckpoints, true);
-  assert.equal(plan.preloadRouteCache, false);
+  assert.equal(plan.preloadRouteCache, true);
 });
 
 test('checkpoint envelope resume requires matching revision/engine/phase', () => {
@@ -808,7 +837,7 @@ test('production recovery from v27/rev11741/dirty113 rejects stale checkpoint an
   assert.ok(plan.baseRecalculationIds.length >= 1, 'dirty rows must drive incremental base work');
   assert.ok(plan.baseRecalculationIds.length <= dirtyIds.length);
   assert.ok(plan.affectedIds.length < fixture.activities.length, 'recovery must not become national rebuild');
-  assert.equal(plan.preloadRouteCache, false);
+  assert.equal(plan.preloadRouteCache, true);
 
   const afterSuccess = resolvePlanningRunPlan({
     shared: {
