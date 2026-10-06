@@ -441,6 +441,17 @@ function formatDate(value: unknown) {
   return match ? `${match[3]}.${match[2]}.${match[1]}` : source;
 }
 
+function attendanceDateSortKey(value: unknown) {
+  const source = clean(value);
+  const iso = source.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const display = source.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})/);
+  if (display) {
+    return `${display[3]}-${display[2].padStart(2, "0")}-${display[1].padStart(2, "0")}`;
+  }
+  return "9999-99-99";
+}
+
 function formatApprovalTime(value: unknown) {
   const source = clean(value);
   if (!source) return "—";
@@ -549,9 +560,22 @@ async function buildPdfBytes(payload: {
 
   drawHeader(true);
 
-  const rows = Array.isArray(payload.approvedSnapshot?.rows)
+  const snapshotRows = Array.isArray(payload.approvedSnapshot?.rows)
     ? payload.approvedSnapshot.rows as Record<string, unknown>[]
     : [];
+  const rows = snapshotRows
+    .map((row, sourceIndex) => ({ row, sourceIndex }))
+    .sort((left, right) => {
+      const dateCompare = attendanceDateSortKey(left.row.date).localeCompare(attendanceDateSortKey(right.row.date));
+      if (dateCompare) return dateCompare;
+      // Generated rows such as travel-time cancellation have no start time;
+      // keep them after the timed activity for the same calendar day.
+      const leftTime = clean(left.row.startTime) || "99:99";
+      const rightTime = clean(right.row.startTime) || "99:99";
+      const timeCompare = leftTime.localeCompare(rightTime);
+      return timeCompare || left.sourceIndex - right.sourceIndex;
+    })
+    .map(({ row }) => row);
   const totalHours = rows.reduce((sum, row) => sum + toNumber(row.workHours), 0);
   const totalKm = rows.reduce((sum, row) => {
     const usesPt = row.publicTransport === true || row.publicTransport === "true" || row.publicTransport === 1;

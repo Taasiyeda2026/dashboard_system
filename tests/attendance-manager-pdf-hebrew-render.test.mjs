@@ -231,6 +231,37 @@ test('production attendance PDF sizes rows from rendered content and keeps norma
   assert.ok(20 - Math.floor(firstPageAttendanceHeight / typicalRowAdvance) <= 3);
 });
 
+test('production attendance PDF orders rows by calendar date and time', async () => {
+  const handler = await readFile(new URL('../supabase/functions/payroll-attendance-pdf-dispatch/handler.ts', import.meta.url), 'utf8');
+
+  assert.match(handler, /function attendanceDateSortKey\(value: unknown\)/);
+  assert.match(handler, /attendanceDateSortKey\(left\.row\.date\)\.localeCompare\(attendanceDateSortKey\(right\.row\.date\)\)/);
+  assert.match(handler, /clean\(left\.row\.startTime\) \|\| "99:99"/);
+  assert.match(handler, /timeCompare \|\| left\.sourceIndex - right\.sourceIndex/);
+
+  const dateKey = (value) => {
+    const source = String(value || '').trim();
+    const iso = source.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+    const display = source.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})/);
+    return display ? `${display[3]}-${display[2].padStart(2, '0')}-${display[1].padStart(2, '0')}` : '9999-99-99';
+  };
+  const rows = [
+    { date: '30.09.2026', startTime: '09:45', id: '30' },
+    { date: '2026-09-15', startTime: '', id: '15-cancel' },
+    { date: '2026-09-17', startTime: '08:00', id: '17' },
+    { date: '2026-09-15', startTime: '08:00', id: '15-work' },
+    { date: '2026-09-14', startTime: '16:00', id: '14' },
+  ];
+  const ordered = rows.map((row, sourceIndex) => ({ row, sourceIndex })).sort((left, right) => {
+    const byDate = dateKey(left.row.date).localeCompare(dateKey(right.row.date));
+    if (byDate) return byDate;
+    const byTime = (left.row.startTime || '99:99').localeCompare(right.row.startTime || '99:99');
+    return byTime || left.sourceIndex - right.sourceIndex;
+  }).map(({ row }) => row.id);
+  assert.deepEqual(ordered, ['14', '15-work', '15-cancel', '17', '30']);
+});
+
 test('manager PDF replacement is service-role-only for controlled regeneration', async () => {
   const migration = await readFile(regenerationMigrationUrl, 'utf8');
 
