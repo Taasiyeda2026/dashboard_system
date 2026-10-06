@@ -598,10 +598,28 @@ async function buildPdfBytes(payload: {
         toNumber(row.expenses) ? `₪${toNumber(row.expenses).toFixed(2)} הוצאות` : "",
       ].filter(Boolean).join(" | ");
       const notes = clean(row.notes);
-      const placeLines = wrapLogical(place, regular, 8.5, CONTENT_W - 28);
-      const noteLines = notes ? wrapLogical(`הערה: ${notes}`, regular, 8.2, CONTENT_W - 28) : [];
-      const blockHeight = 49 + Math.max(0, placeLines.length - 1) * 12 + noteLines.length * 12;
-      ensureSpace(blockHeight + 12);
+
+      // Keep the attendance list dense enough for real monthly reports while
+      // sizing every row from the lines it will actually draw. The previous
+      // fixed base height omitted the secondary line, so expense/travel text
+      // could fall below the box and be overdrawn by the next record.
+      const primaryLines = wrapLogical(
+        `${index + 1}. ${date}  |  ${activity}  |  ${time}  |  ${hours} שעות`,
+        bold,
+        8.6,
+        CONTENT_W - 24,
+      );
+      const details = [place, secondary].filter(Boolean).join(" | ");
+      const detailLines = details ? wrapLogical(details, regular, 7.8, CONTENT_W - 24) : [];
+      const noteLines = notes ? wrapLogical(`הערה: ${notes}`, regular, 7.6, CONTENT_W - 24) : [];
+      const PRIMARY_STEP = 10;
+      const DETAIL_STEP = 9.5;
+      const ROW_TOP_AND_BOTTOM = 10;
+      const ROW_GAP = 2.5;
+      const blockHeight = ROW_TOP_AND_BOTTOM
+        + primaryLines.length * PRIMARY_STEP
+        + (detailLines.length + noteLines.length) * DETAIL_STEP;
+      ensureSpace(blockHeight + ROW_GAP);
 
       page.drawRectangle({
         x: LEFT,
@@ -612,22 +630,21 @@ async function buildPdfBytes(payload: {
         borderWidth: 0.6,
         color: index % 2 === 0 ? rgb(1, 1, 1) : rgb(0.992, 0.995, 1),
       });
-      drawRtl(`${index + 1}. ${date}  |  ${activity}`, RIGHT - 12, y - 16, 9.5, bold);
-      drawRtl(`${time}  |  ${hours} שעות`, RIGHT - 12, y - 32, 8.7, regular, rgb(0.28, 0.34, 0.44));
-      let localY = y - 47;
-      for (const line of placeLines) {
-        drawRtl(line, RIGHT - 12, localY, 8.5, regular, rgb(0.28, 0.34, 0.44));
-        localY -= 12;
+
+      let localY = y - 10;
+      for (const line of primaryLines) {
+        drawRtl(line, RIGHT - 10, localY, 8.6, bold);
+        localY -= PRIMARY_STEP;
       }
-      if (secondary) {
-        drawRtl(secondary, RIGHT - 12, localY, 8.2, regular, rgb(0.42, 0.46, 0.54));
-        localY -= 12;
+      for (const line of detailLines) {
+        drawRtl(line, RIGHT - 10, localY, 7.8, regular, rgb(0.28, 0.34, 0.44));
+        localY -= DETAIL_STEP;
       }
       for (const line of noteLines) {
-        drawRtl(line, RIGHT - 12, localY, 8.2, regular, rgb(0.42, 0.46, 0.54));
-        localY -= 12;
+        drawRtl(line, RIGHT - 10, localY, 7.6, regular, rgb(0.42, 0.46, 0.54));
+        localY -= DETAIL_STEP;
       }
-      y -= blockHeight + 9;
+      y -= blockHeight + ROW_GAP;
     }
   }
 
