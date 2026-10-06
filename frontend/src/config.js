@@ -379,3 +379,4 @@ config.HOTFIX_VERSION = `scheduling-full-route-preload-20261006-v1-${config.HOTF
 config.HOTFIX_VERSION = `scheduling-checkpoint-commit-20261006-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `attendance-attachment-ascii-filenames-20261006-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `scheduling-staged-rescue-shortlist-20261006-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `stale-dynamic-import-auto-recovery-20261006-v1-${config.HOTFIX_VERSION}`;
