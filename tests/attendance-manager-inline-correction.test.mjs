@@ -96,6 +96,19 @@ test('reload path restores only still-valid record approvals', () => {
   assert.match(recordReviewMigration, /review\.approved_record_updated_at = ar\.updated_at/);
 });
 
+test('final manager approval refreshes current record reviews before finalize', () => {
+  const finishClick = control.indexOf("const finishBtn = clickEl.closest('[data-payroll-finish]')");
+  const refresh = control.indexOf('await loadRecordReviews();', finishClick);
+  const unresolved = control.indexOf('finishMod.payrollEmployeeHasUnresolvedEntries(result, employeeId)', finishClick);
+  const finalize = control.indexOf('finishMod.approvePayrollControlEmployee({', finishClick);
+  assert.ok(finishClick >= 0);
+  assert.ok(refresh > finishClick);
+  assert.ok(unresolved > refresh);
+  assert.ok(finalize > unresolved);
+  assert.match(control, /attendance_records_not_fully_approved/);
+  assert.match(control, /השתנתה מאז האישור/);
+});
+
 test('month with an unapproved attendance record blocks manager finalize', () => {
   assert.match(finalizeGuardMigration, /create or replace function public\.manager_finalize_attendance_month_review/);
   assert.match(finalizeGuardMigration, /security definer/);
