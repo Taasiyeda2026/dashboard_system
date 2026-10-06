@@ -3412,6 +3412,20 @@ export const courseSchedulingScreen = {
           run.leaseHeartbeatTimer?.stop();
           run.controller.abort(error);
         }
+        if (run.leaseError) {
+          state.courseSchedulingPlanningError = planningStoreErrorMessage(run.leaseError, 'חישוב התכנון נכשל');
+          state.courseSchedulingPlanningRunDiagnostics = {
+            ...state.courseSchedulingPlanningRunDiagnostics,
+            phase: PLANNING_RUN_PHASES.FAILED_RESUMABLE,
+            status: 'failed',
+            error: text(run.leaseError?.code || run.leaseError?.message)
+          };
+          planningPerfEvent('run-failed', {
+            code: text(run.leaseError?.code || run.leaseError?.message),
+            runType: state.courseSchedulingPlanningRunDiagnostics?.runType || ''
+          });
+          return;
+        }
         if (!run.leaseError && (isPlanningCancellationError(error) || !ownsRun())) {
           planningPerfEvent('run-cancelled', { runType: state.courseSchedulingPlanningRunDiagnostics?.runType || '' });
           return;
@@ -3427,7 +3441,6 @@ export const courseSchedulingScreen = {
           code: text(error?.code || error?.message),
           runType: state.courseSchedulingPlanningRunDiagnostics?.runType || ''
         });
-        if (run.leaseError) return;
         try {
           await reloadSharedPlanningState({ isCurrent: ownsRun });
         } catch {
