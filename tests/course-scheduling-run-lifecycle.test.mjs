@@ -17,10 +17,27 @@ import {
   createPlanningCheckpoint
 } from '../frontend/src/screens/course-scheduling-planning.js';
 import {
+  planningEngineUpgradeAffectedCourseIds,
   planningEngineUpgradeExecutionScopes,
   planningEngineUpgradeOptimizationScopes,
   planningStoreErrorMessage
 } from '../frontend/src/screens/course-scheduling-planning-store.js';
+
+test('v29 certified-outcome upgrade touches only unresolved/recruitment rows', () => {
+  const affected = planningEngineUpgradeAffectedCourseIds({
+    shared: {
+      rows: [
+        { activityId: 'proposal', row: { courseId: 'proposal', kind: 'proposal' } },
+        { activityId: 'recruitment', row: { courseId: 'recruitment', kind: 'recruitment' } },
+        { activityId: 'missing', row: { courseId: 'missing', kind: 'missing' } },
+        { activityId: 'live', row: { courseId: 'live', kind: 'live' } }
+      ]
+    },
+    storedEngineVersion: 'planning-v28-20261004-anchor-safe-global-reassignment-self-invalidation',
+    currentEngineVersion: 'planning-v29-20261006-certified-outcomes'
+  });
+  assert.deepEqual(affected.sort(), ['missing', 'recruitment']);
+});
 
 test('lease-loss errors never leak the internal planning_cancelled message', () => {
   const leaseLost = Object.assign(new Error('lease_missing'), { code: 'planning_run_ownership_lost' });

@@ -27,6 +27,7 @@ import {
   planningHomeDistanceKm,
   planningLocalityTier,
   planningPairCompare,
+  planningOutcomeClassification,
   optionCompare,
   planningEffectivePeriod,
   planningPeriodKeyForActivity,
@@ -1984,6 +1985,30 @@ test('fast planning performs a deep rescue pass before declaring recruitment', a
   assert.match(source, /maxScenarios: DEEP_PLANNING_LIMITS\.maxScenarios/);
   assert.match(source, /limits: DEEP_PLANNING_LIMITS/);
   assert.match(source, /rescuePass: true/);
+});
+
+test('bounded or timed-out staff search is unresolved, never certified recruitment', () => {
+  assert.deepEqual(planningOutcomeClassification(null, {
+    recruitmentNeeded: true,
+    searchIncomplete: true
+  }), {
+    kind: 'missing',
+    status: 'בדיקת התאמה נמשכת',
+    searchIncomplete: true,
+    recruitmentCertified: false
+  });
+  assert.equal(planningOutcomeClassification(null, {
+    recruitmentNeeded: true,
+    rescueBudgetExceeded: true
+  }).kind, 'missing');
+  assert.equal(planningOutcomeClassification(null, {
+    recruitmentNeeded: true
+  }).kind, 'recruitment');
+});
+
+test('stale planning context blocks every saved non-live proposal until recalculation', async () => {
+  const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+  assert.match(source, /if \(affectedIds\.includes\(text\(entry\.activityId\)\) && text\(row\.kind\) !== 'live'\)/);
 });
 
 test('screen does not force full planning solely because engine version or generic contextChanged flipped', async () => {

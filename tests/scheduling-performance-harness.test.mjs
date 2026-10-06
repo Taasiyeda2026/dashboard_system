@@ -214,11 +214,18 @@ test('planning fast search prunes hard-ineligible instructors before scenario ev
 
 test('full maintenance defers recruitment rescue until the fast base plan is complete', async () => {
   const instructors = instructorRows(8);
-  const profiles = Object.fromEntries(instructors.map((instructor) => [
+  const profiles = profileRows(instructors);
+  const unavailableRules = Object.fromEntries(instructors.map((instructor) => [
     instructor.emp_id,
-    { emp_id: instructor.emp_id, instruction_languages: ['ar'], gender: 'male' }
+    Array.from({ length: 7 }, (_, weekday) => ({
+      emp_id: instructor.emp_id,
+      weekday,
+      available: false,
+      start_time: '08:00',
+      end_time: '18:00'
+    }))
   ]));
-  const target = { ...activity('deferred-rescue'), date_1: '', required_instructor_gender: 'female' };
+  const target = { ...activity('deferred-rescue'), date_1: '' };
   const routeClient = createRouteClient({
     preloadedRows: warmRows(instructors),
     invoke: async () => { throw new Error('warm-cache scenario must not call route service'); }
@@ -228,7 +235,7 @@ test('full maintenance defers recruitment rescue until the fast base plan is com
     activities: [target],
     instructors,
     profiles,
-    rules: ruleRows(instructors),
+    rules: unavailableRules,
     exceptions: {},
     schoolCalendar: [],
     catalog: [{ activity_name: 'ביומימיקרי', meetings_count: 1, hours_count: 1.5 }],
@@ -244,5 +251,7 @@ test('full maintenance defers recruitment rescue until the fast base plan is com
   assert.ok(baseDone >= 0 && rescueStarted > baseDone, 'full maintenance rescue must run after the base activity loop');
   assert.equal(measuredResult.report.counters.rescueDeferred, 1);
   assert.equal(measuredResult.report.counters.rescueProcessed, 1);
-  assert.equal(measuredResult.value.rows[0].kind, 'recruitment');
+  assert.equal(measuredResult.value.rows[0].kind, 'missing');
+  assert.equal(measuredResult.value.rows[0].diagnostics.recruitmentCertified, false);
+  assert.equal(measuredResult.value.rows[0].diagnostics.searchIncomplete, true);
 });
