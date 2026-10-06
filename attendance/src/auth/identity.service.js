@@ -37,7 +37,7 @@ export async function resolveInstructorIdentity() {
 
   const { data: contact, error: contactError } = await supabase
     .from('contacts_instructors')
-    .select('emp_id,full_name')
+    .select('emp_id,full_name,email')
     .eq('emp_id', empId)
     .maybeSingle();
   if (contactError) throw new AttendanceIdentityError('שגיאה באיתור פרטי המדריך');
@@ -46,6 +46,7 @@ export async function resolveInstructorIdentity() {
   return {
     userId: userRow.user_id,
     name: contact.full_name || userRow.full_name || userRow.name || '',
+    email: contact.email || userRow.email || '',
     empId: contact.emp_id
   };
 }

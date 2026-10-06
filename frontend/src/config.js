@@ -377,3 +377,4 @@ config.HOTFIX_VERSION = `attendance-course-business-sources-20261006-v1-${config
 config.HOTFIX_VERSION = `scheduling-fast-full-maintenance-20261006-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `scheduling-full-route-preload-20261006-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `scheduling-checkpoint-commit-20261006-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `attendance-attachment-ascii-filenames-20261006-v1-${config.HOTFIX_VERSION}`;
