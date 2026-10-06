@@ -6,6 +6,9 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
+const regenerationMigrationUrl = new URL('supabase/migrations/20261006155202_manager_pdf_safe_regeneration_replace.sql', new URL('../', import.meta.url));
+
+
 function loadPdfLibs() {
   try {
     return {
@@ -201,6 +204,22 @@ test('production attendance PDF uses Alef subset fonts and preserves one byte st
   assert.match(handler, /const pdfBytes = await buildPdfBytes/);
   assert.match(handler, /uploadUniquePdf\([\s\S]*?pdfBytes/);
   assert.match(handler, /attachments:[\s\S]*?contentBytes: toBase64\(pdfBytes\)/);
+  assert.match(handler, /wantsForceRegenerate/);
+  assert.match(handler, /suppressEmail/);
+  assert.match(handler, /replace_manager_attendance_month_pdf/);
+  assert.match(handler, /mailSent: !mailSuppressed && !mailError/);
+  assert.match(handler, /\(wantsForceRegenerate \|\| suppressEmail\) && !isRetryCaller/);
+});
+
+test('manager PDF replacement is service-role-only for controlled regeneration', async () => {
+  const migration = await readFile(regenerationMigrationUrl, 'utf8');
+
+  assert.match(migration, /create or replace function public\.replace_manager_attendance_month_pdf/);
+  assert.match(migration, /v_jwt_role <> 'service_role'/);
+  assert.match(migration, /manager_pdf_version = v_version/);
+  assert.match(migration, /revoke all on function public\.replace_manager_attendance_month_pdf[\s\S]*from anon, authenticated/i);
+  assert.match(migration, /grant execute on function public\.replace_manager_attendance_month_pdf[\s\S]*to service_role/i);
+  assert.doesNotMatch(migration, /grant execute[\s\S]*to authenticated/i);
 });
 
 test('manager approval PDF artifact migration decouples finalize from PDF and reuses av2 retry', async () => {
