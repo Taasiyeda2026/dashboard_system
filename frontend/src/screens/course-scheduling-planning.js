@@ -4957,6 +4957,7 @@ async function compactInstructorDayGapsPass({
   checkpoint = async () => {},
   signal = null,
   limits = FAST_PLANNING_LIMITS,
+  maxPasses = 3,
   report = async () => {}
 } = {}) {
   const activityById = new Map((targets || []).map((activity) => [idOf(activity), activity]));
@@ -4964,10 +4965,10 @@ async function compactInstructorDayGapsPass({
   const targetIds = Array.isArray(targetCourseIds)
     ? new Set(targetCourseIds.map((value) => text(value)).filter(Boolean))
     : null;
-  const maxPasses = 3;
+  const passLimit = Math.max(0, Number(maxPasses) || 0);
   let moved = 0;
 
-  for (let pass = 0; pass < maxPasses; pass += 1) {
+  for (let pass = 0; pass < passLimit; pass += 1) {
     let movedThisPass = 0;
     let processedThisPass = 0;
     const gapRows = [...rowsById.values()];
@@ -5469,6 +5470,13 @@ export async function buildDynamicCoursePlan({
   const gapCompactionTargetIds = incrementalIds === null
     ? null
     : new Set(incrementalIds);
+  // A national rebuild is exceptional and already finishes with the same hard
+  // whole-plan validation as an incremental run. Keep the first full result
+  // fast: use the normal fast scenario breadth and defer expensive soft gap
+  // polishing. Hard whole-plan validation still runs before anything is saved.
+  // Day-to-day incremental runs retain the richer soft-optimization passes.
+  const fastFullMaintenance = allowGlobalRepair === true
+    && text(planningProfile).toLowerCase() === 'fast';
   const fixedUnassigned = [];
   const missingSchedule = [];
 
@@ -5631,7 +5639,7 @@ export async function buildDynamicCoursePlan({
     const candidatePreparedContext = schoolContext?.prepared || basePreparedContext;
     const candidateTravelContext = schoolContext?.travel || travelContext;
     const schoolFirstScenarioLimit = useIndependentSchoolCandidatePool
-      ? Math.max(Number(limits.maxScenarios) || 0, 24)
+      ? (fastFullMaintenance ? 12 : Math.max(Number(limits.maxScenarios) || 0, 24))
       : limits.maxScenarios;
     await report('בדיקת מדריכים', completed, queue.length, idOf(activity));
     await report('בדיקת נסיעות', completed, queue.length, idOf(activity));
@@ -5966,6 +5974,7 @@ export async function buildDynamicCoursePlan({
           maxFinalOptions: 8,
           runGlobalRepair: false
         },
+        maxPasses: fastFullMaintenance ? 0 : 3,
         report
       });
       await report('צמצום חלונות הושלם', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
