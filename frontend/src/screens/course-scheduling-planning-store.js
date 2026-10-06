@@ -609,6 +609,32 @@ export async function saveSharedPlanningSnapshot({
   return data || null;
 }
 
+export async function commitSharedPlanningCheckpoint({
+  periodKey = 'year',
+  district = '',
+  engineVersion = '',
+  dataFingerprint = '',
+  contextFingerprint = '',
+  expectedRevision = null,
+  runId = null,
+  sourceRevision = null
+} = {}) {
+  const { data, error } = await planningRpc('commit_scheduling_planning_checkpoint', {
+    p_period_key: text(periodKey) || 'year',
+    p_district: text(district),
+    p_engine_version: text(engineVersion),
+    p_data_fingerprint: text(dataFingerprint),
+    p_context_fingerprint: text(contextFingerprint),
+    p_expected_revision: expectedRevision == null
+      ? null
+      : (Number.isFinite(Number(expectedRevision)) ? Number(expectedRevision) : null),
+    p_run_id: runId || null,
+    p_source_revision: sourceRevision == null ? null : String(sourceRevision)
+  });
+  if (error) throw error;
+  return data || null;
+}
+
 export async function saveSharedPlanningLock({
   periodKey = 'year',
   district = '',
