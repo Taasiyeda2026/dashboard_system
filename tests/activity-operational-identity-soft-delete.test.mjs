@@ -5,6 +5,7 @@ import { readFile } from 'node:fs/promises';
 const ROOT = new URL('../', import.meta.url);
 const provenanceMigrationUrl = new URL('supabase/migrations/20260914105000_activity_operational_identity_and_soft_delete.sql', ROOT);
 const permanentDeleteMigrationUrl = new URL('supabase/migrations/20260924101500_activity_delete_planning_meetings.sql', ROOT);
+const israDeletePermissionMigrationUrl = new URL('supabase/migrations/20261006145905_grant_israa_activity_delete_permission.sql', ROOT);
 const apiUrl = new URL('frontend/src/api.js', ROOT);
 
 test('proposal linkage remains provenance after creation so operational catalog edits are not reverted', async () => {
@@ -47,4 +48,15 @@ test('authorized activity deletion is permanent but blocked when operational rec
   // The client keeps using the existing authorized delete signal. The database
   // trigger converts only an eligible draft/unfinalized activity into a hard delete.
   assert.match(api, /deleteActivity:\s*async\s*\(source_row_id\)[\s\S]*\.from\('activities'\)[\s\S]*\.update\(\{ status: DELETED_STATUS \}\)/i);
+});
+
+test('Israa receives only the explicit activity-delete capability', async () => {
+  const migration = await readFile(israDeletePermissionMigrationUrl, 'utf8');
+
+  assert.match(migration, /create or replace function public\.app_can_delete_activity\(\)/i);
+  assert.match(migration, /public\.app_current_role\(\) in \('admin', 'operation_manager'\)/i);
+  assert.match(migration, /public\.app_has_permission\('can_delete_activity'\)/i);
+  assert.match(migration, /jsonb_set\([\s\S]*\{can_delete_activity\}[\s\S]*"yes"/i);
+  assert.match(migration, /where emp_id = '3030'[\s\S]*username = 'esraaa'[\s\S]*is_active = true/i);
+  assert.doesNotMatch(migration, /set\s+role\s*=/i, 'the migration must not broaden Israa by changing her application role');
 });
