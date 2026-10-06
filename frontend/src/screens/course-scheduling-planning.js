@@ -127,7 +127,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   stability: 10
 });
 export const PLANNING_VALIDATION_VERSION = 'planning-validation-v2-20261006-self-invalidation-certified-outcomes';
-export const PLANNING_ENGINE_VERSION = 'planning-v29-20261006-self-invalidation-certified-outcomes';
+export const PLANNING_ENGINE_VERSION = 'planning-v30-20261006-self-invalidation-certified-school-packing';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -3640,6 +3640,12 @@ function schoolPackingCurrentOption(row = {}) {
   });
 }
 
+function planningRowRecruitmentCertified(row = {}) {
+  return text(row?.kind) === 'recruitment'
+    && row?.diagnostics?.recruitmentCertified === true
+    && row?.diagnostics?.searchIncomplete !== true;
+}
+
 function schoolPackingOptions(row = {}, candidateDays = new Set()) {
   const current = schoolPackingCurrentOption(row);
   const source = text(row?.kind) === 'recruitment'
@@ -4010,7 +4016,6 @@ function schoolPackingConflictFallback({
   const allowedDays = new Set(candidateDays);
   const selectedChoices = [];
   let moved = 0;
-  let recruitmentCount = 0;
 
   const items = [...(group.movableRows || [])]
     .map((row) => ({
@@ -4083,8 +4088,8 @@ function schoolPackingConflictFallback({
     };
     rowsById.set(text(row.courseId), {
       ...row,
-      kind: 'recruitment',
-      status: 'נדרש גיוס',
+      kind: 'missing',
+      status: 'בדיקת התאמה נמשכת',
       instructorEmpId: '',
       instructorName: '',
       ...selectedSchedule,
@@ -4099,15 +4104,16 @@ function schoolPackingConflictFallback({
         schoolDayPacking: true,
         schoolFirstOptimized: true,
         schoolConflictFallback: true,
-        staffBundleComplete: false
+        staffBundleComplete: false,
+        searchIncomplete: true,
+        recruitmentCertified: false
       },
-      reason: 'לא נמצאה חבילת צוות קיים ללא חפיפה לכל פעילויות בית הספר; לוח בית הספר נשמר ונדרשת השלמת מדריך.'
+      reason: 'לא נמצאה חבילת צוות קיים ללא חפיפה לכל פעילויות בית הספר; הפעילות נשארת לבדיקה ואינה מסומנת לגיוס.'
     });
-    recruitmentCount += 1;
     moved += 1;
   }
 
-  return { moved, recruitmentCount };
+  return { moved };
 }
 
 export function optimizeSchoolDayPackingPass({
@@ -4215,6 +4221,8 @@ export function optimizeSchoolDayPackingPass({
     if (shouldApply) {
       for (const { row, option } of solution.choices) {
         const isRecruitment = !text(option?.instructorEmpId);
+        const recruitmentCertified = isRecruitment && planningRowRecruitmentCertified(row);
+        const searchIncomplete = isRecruitment && !recruitmentCertified;
         const selectedSchedule = {
           startDate: text(option.startDate || option.meetings?.[0]?.date),
           endDate: text(option.endDate || option.meetings?.at?.(-1)?.date),
@@ -4224,8 +4232,10 @@ export function optimizeSchoolDayPackingPass({
         };
         const replacement = {
           ...row,
-          kind: isRecruitment ? 'recruitment' : 'proposal',
-          status: isRecruitment ? 'נדרש גיוס' : 'מועד מומלץ לבית הספר',
+          kind: isRecruitment ? (recruitmentCertified ? 'recruitment' : 'missing') : 'proposal',
+          status: isRecruitment
+            ? (recruitmentCertified ? 'נדרש גיוס' : 'בדיקת התאמה נמשכת')
+            : 'מועד מומלץ לבית הספר',
           instructorEmpId: isRecruitment ? '' : text(option.instructorEmpId),
           instructorName: isRecruitment ? '' : text(option.instructorName),
           ...selectedSchedule,
@@ -4241,7 +4251,12 @@ export function optimizeSchoolDayPackingPass({
             ...(row.diagnostics || {}),
             schoolDayPacking: true,
             schoolFirstOptimized: true,
-            ...(isRecruitment ? { schoolConflictFallback: true, staffBundleComplete: false } : {})
+            ...(isRecruitment ? {
+              schoolConflictFallback: true,
+              staffBundleComplete: false,
+              searchIncomplete,
+              recruitmentCertified
+            } : {})
           }
         };
         const currentOption = schoolPackingCurrentOption(row);
@@ -4263,7 +4278,10 @@ export function optimizeSchoolDayPackingPass({
     const schoolRowsAfter = [...rowsById.values()]
       .filter((row) => text(row?.schoolId) === text(originalGroup.schoolId));
     const staffConflictFallbackCount = schoolRowsAfter
-      .filter((row) => text(row?.kind) === 'recruitment')
+      .filter((row) =>
+        ['missing', 'recruitment'].includes(text(row?.kind))
+        && row?.diagnostics?.schoolConflictFallback === true
+      )
       .length;
     const proposalRowsAfter = schoolRowsAfter.filter((row) => text(row?.kind) === 'proposal');
     const hasOverlappingProposals = proposalRowsAfter.some((first, index) =>
@@ -4287,7 +4305,7 @@ export function optimizeSchoolDayPackingPass({
   }
   if (!_recoveryPass) {
     const needsRecruitmentRecovery = [...rowsById.values()].some((row) =>
-      text(row?.kind) === 'recruitment'
+      ['missing', 'recruitment'].includes(text(row?.kind))
       && row?.diagnostics?.schoolConflictFallback === true
       && [...(row?.packingOptions || []), ...(row?.options || [])]
         .some((option) => text(option?.instructorEmpId))
@@ -4578,6 +4596,8 @@ export async function optimizeSchoolDayPackingPassCooperatively({
     if (shouldApply) {
       for (const { row, option } of solution.choices) {
         const isRecruitment = !text(option?.instructorEmpId);
+        const recruitmentCertified = isRecruitment && planningRowRecruitmentCertified(row);
+        const searchIncomplete = isRecruitment && !recruitmentCertified;
         const selectedSchedule = {
           startDate: text(option.startDate || option.meetings?.[0]?.date),
           endDate: text(option.endDate || option.meetings?.at?.(-1)?.date),
@@ -4587,8 +4607,10 @@ export async function optimizeSchoolDayPackingPassCooperatively({
         };
         const replacement = {
           ...row,
-          kind: isRecruitment ? 'recruitment' : 'proposal',
-          status: isRecruitment ? 'נדרש גיוס' : 'מועד מומלץ לבית הספר',
+          kind: isRecruitment ? (recruitmentCertified ? 'recruitment' : 'missing') : 'proposal',
+          status: isRecruitment
+            ? (recruitmentCertified ? 'נדרש גיוס' : 'בדיקת התאמה נמשכת')
+            : 'מועד מומלץ לבית הספר',
           instructorEmpId: isRecruitment ? '' : text(option.instructorEmpId),
           instructorName: isRecruitment ? '' : text(option.instructorName),
           ...selectedSchedule,
@@ -4604,7 +4626,12 @@ export async function optimizeSchoolDayPackingPassCooperatively({
             ...(row.diagnostics || {}),
             schoolDayPacking: true,
             schoolFirstOptimized: true,
-            ...(isRecruitment ? { schoolConflictFallback: true, staffBundleComplete: false } : {})
+            ...(isRecruitment ? {
+              schoolConflictFallback: true,
+              staffBundleComplete: false,
+              searchIncomplete,
+              recruitmentCertified
+            } : {})
           }
         };
         const currentOption = schoolPackingCurrentOption(row);
@@ -4623,7 +4650,10 @@ export async function optimizeSchoolDayPackingPassCooperatively({
     const schoolRowsAfter = [...rowsById.values()]
       .filter((row) => text(row?.schoolId) === text(originalGroup.schoolId));
     const staffConflictFallbackCount = schoolRowsAfter
-      .filter((row) => text(row?.kind) === 'recruitment')
+      .filter((row) =>
+        ['missing', 'recruitment'].includes(text(row?.kind))
+        && row?.diagnostics?.schoolConflictFallback === true
+      )
       .length;
     const proposalRowsAfter = schoolRowsAfter.filter((row) => text(row?.kind) === 'proposal');
     const hasOverlappingProposals = proposalRowsAfter.some((first, index) =>
@@ -4651,7 +4681,7 @@ export async function optimizeSchoolDayPackingPassCooperatively({
 
   if (!_recoveryPass) {
     const needsRecruitmentRecovery = [...rowsById.values()].some((row) =>
-      text(row?.kind) === 'recruitment'
+      ['missing', 'recruitment'].includes(text(row?.kind))
       && row?.diagnostics?.schoolConflictFallback === true
       && [...(row?.packingOptions || []), ...(row?.options || [])]
         .some((option) => text(option?.instructorEmpId))
@@ -5724,6 +5754,7 @@ export async function buildDynamicCoursePlan({
       const options = evaluation.options || [];
       const chosen = options[0] || null;
       const recruitmentNeeded = !chosen && evaluation.recruitmentNeeded === true;
+      const searchIncomplete = !chosen && !recruitmentNeeded && evaluation.fixedScheduleInvalid !== true;
       const fixedLive = liveRow(activity, activityPeriodKey, { rules, exceptions, schoolCalendar });
       const row = {
         ...fixedLive,
@@ -5758,7 +5789,9 @@ export async function buildDynamicCoursePlan({
           preliminaryCount: Number(evaluation.preliminaryCount) || 0,
           routedAttemptCount: Number(evaluation.routedAttemptCount) || 0,
           routeVerified: evaluation.routeVerified === true,
-          routeEvaluationVersion: 2
+          routeEvaluationVersion: 2,
+          searchIncomplete,
+          recruitmentCertified: recruitmentNeeded
         },
         reason: chosen?.reason
           || (evaluation.fixedScheduleInvalid
@@ -5831,6 +5864,11 @@ export async function buildDynamicCoursePlan({
           const existing = existingById.get(idOf(activity));
           rowsById.set(idOf(activity), {
             ...existing,
+            kind: 'missing',
+            status: 'בדיקת התאמה נמשכת',
+            instructorEmpId: '',
+            instructorName: '',
+            reason: 'קיימים מועמדים בצוות, אך בדיקת ההצלה לא מצאה עדיין שיבוץ מאומת — הפעילות אינה מסומנת לגיוס',
             schoolId: text(existing.schoolId || activity.school_id),
             planningLocked: false,
             diagnostics: {
@@ -5838,7 +5876,10 @@ export async function buildDynamicCoursePlan({
               fastRecruitmentRescue: true,
               rescueCandidateCount: rescue.candidateEmpIds.length,
               rescueScheduleCount: rescue.schedules.length,
-              rescueRouteVerified: rescueEvaluation.routeVerified === true
+              rescueRouteVerified: rescueEvaluation.routeVerified === true,
+              searchIncomplete: true,
+              recruitmentCertified: false,
+              rescuePass: true
             }
           });
         }
