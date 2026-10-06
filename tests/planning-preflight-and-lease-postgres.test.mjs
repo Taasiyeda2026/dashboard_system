@@ -57,7 +57,7 @@ before(async () => {
   const v26=await sqlFile('../supabase/migrations/20261003170000_planning_v26_coherent_school_first.sql');
   const instructorHelperStart=v26.indexOf('create or replace function public.scheduling_planning_row_instructor_ids(');
   await client.query(v26.slice(instructorHelperStart,v26.indexOf('$$;',instructorHelperStart)+3));
-  for (const file of ['20260924145500_shared_incremental_course_planning.sql','20260926195500_planning_silent_checkpoints.sql','20261004193000_optimize_planning_persistence.sql','20261005193000_scheduling_planning_run_leases.sql','20261005234644_planning_preflight_and_fenced_runs.sql']) {
+  for (const file of ['20260924145500_shared_incremental_course_planning.sql','20260926195500_planning_silent_checkpoints.sql','20261004193000_optimize_planning_persistence.sql','20261005193000_scheduling_planning_run_leases.sql','20261005234644_planning_preflight_and_fenced_runs.sql','20261006030853_prevent_planning_route_cache_self_invalidation.sql']) {
     await client.query(await sqlFile('../supabase/migrations/'+file));
   }
   // Exercise the new epoch/commit fence with the deployed granular triggers.
@@ -201,7 +201,7 @@ test('PostgreSQL permissions and missing fencing metadata fail closed',async t=>
 });
 
 
-test('PostgreSQL route currency: warming rescues missing rows; identical renewals do not invalidate; changed facts invalidate proposals',async t=>{
+test('PostgreSQL route currency: Edge route upserts do not fence their own run; direct changed facts still invalidate',async t=>{
   if(!required(t))return;
   const before=await facts();
   await client.query(`update public.scheduling_planning_rows set row_data=jsonb_set(row_data,'{kind}','"missing"') where activity_id='one';
@@ -210,8 +210,17 @@ test('PostgreSQL route currency: warming rescues missing rows; identical renewal
   await client.query('update public.scheduling_planning_rows set needs_recalc=false');
   await client.query('update public.scheduling_travel_cache set updated_at=clock_timestamp()');
   assert.equal((await facts()).sourceRevision,before.sourceRevision);
+  await acquire();const running=await facts();
+  await client.query(`select set_config('request.jwt.claims','{"role":"service_role"}',false);
+    insert into public.scheduling_travel_cache(id,origin_address,destination_address,distance_km,duration_minutes)
+      values (1,'home','Address 1',25,40)
+      on conflict(id) do update set distance_km=excluded.distance_km,duration_minutes=excluded.duration_minutes`);
+  await client.query("select set_config('request.jwt.claims','',false)");
+  const edgeRefresh=await facts();assert.equal(edgeRefresh.sourceRevision,running.sourceRevision);assert.equal(edgeRefresh.dirtyCount,1);
+  await assert.doesNotReject(save(runA,running.workspace.revision,running.sourceRevision));
+  await client.query('update public.scheduling_planning_rows set needs_recalc=false');
   await client.query('update public.scheduling_travel_cache set distance_km=50');
-  const changed=await facts();assert.notEqual(changed.sourceRevision,before.sourceRevision);assert.equal(changed.dirtyCount,1);
+  const changed=await facts();assert.notEqual(changed.sourceRevision,running.sourceRevision);assert.equal(changed.dirtyCount,1);
 });
 
 test('PostgreSQL joined sources invalidate comma-separated completion IDs and school-name address fallbacks',async t=>{
