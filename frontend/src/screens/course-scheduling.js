@@ -10,7 +10,8 @@ import { activityMeetings, schedulingCalendarMeetings } from './instructor-sched
 import { calculateCourseSchedule, preliminaryCourseCandidates } from './course-scheduling-engine.js';
 import {
   calculateCandidateTravel,
-  createRouteClient
+  createRouteClient,
+  loadSchedulingTravelCacheRows
 } from './course-scheduling-travel.js';
 import {
   attachCancelledMeetingsToActivities,
@@ -3010,11 +3011,6 @@ export const courseSchedulingScreen = {
           return;
         }
 
-        // The durable route cache is large and is not part of the decision whether
-        // planning needs to run. Incremental runs can query exact routes on
-        // demand through scheduling-route, which itself reads the durable cache
-        // before calling Google. Preload the bulk cache only for genuinely broad runs.
-        const routeCacheRows = [];
         assertRunOwnership();
 
         const silentCheckpoint = runPlan.resume || null;
@@ -3100,6 +3096,21 @@ export const courseSchedulingScreen = {
           runPlan.baseRecalculationIds?.length || 0,
           runPlan.upgradeOptimizationIds?.length || 0
         );
+        // A full maintenance pass reuses thousands of route pairs. Loading the
+        // durable cache once is much cheaper than repeatedly round-tripping to
+        // scheduling-route for entries that are already cached. Incremental and
+        // validated-resume runs keep the lightweight on-demand path.
+        let routeCacheRows = [];
+        if (fullRun && !resumeValidatedCommit) {
+          try {
+            routeCacheRows = await loadSchedulingTravelCacheRows();
+            planningPerfEvent('route-cache-preloaded', { rows: routeCacheRows.length });
+          } catch (error) {
+            planningPerfEvent('route-cache-preload-failed', { reason: text(error?.message || error) });
+            routeCacheRows = [];
+          }
+          assertRunOwnership();
+        }
         const routeClient = createRouteClient({
           preloadedRows: routeCacheRows,
           concurrency: runPlan.runType === PLANNING_RUN_TYPES.ENGINE_UPGRADE && scopedRoutePairs > 40 ? 8 : 6,
