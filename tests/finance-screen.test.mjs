@@ -359,6 +359,7 @@ test('attendance payroll table shows clock hours, expense totals, and opens rece
   const api = mockApi({ approvals: [approved], attendanceRecords });
   const { host, window } = mount(data, { api });
   assert.match(host.textContent, /02:33/);
+  assert.doesNotMatch(host.textContent, /00:00/, 'zero-hour payroll categories should render as empty cells');
   assert.match(host.textContent, /מנהל צוות/);
   assert.match(host.textContent, /הוצאות/);
   assert.match(host.textContent, /₪80/);
