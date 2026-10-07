@@ -207,7 +207,7 @@ function showTimeCancelEditField(row, preferredForm = null) {
     if (!hoursDisplay) return;
 
     const wrap = document.createElement('div');
-    wrap.className = 'av2-time-cancel-edit';
+    wrap.className = 'av2-field av2-time-cancel-edit';
     wrap.dataset.av2TimeCancelEdit = '1';
 
     // Keep duration entry independent of the device keyboard. Some Android
