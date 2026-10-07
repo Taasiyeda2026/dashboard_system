@@ -11,12 +11,12 @@ export function manualCandidateWarnings(candidate = {}) {
   ].map(text).filter(Boolean))];
 }
 
-const MANUAL_NON_OVERRIDABLE_REASON = /(?:חסרים נתוני התאמה מלאים|חפיפה|סיור תופס יום עבודה מלא|כבר משובץ סיור שתופס יום עבודה מלא|המדריך אינו פעיל|שפת ההדרכה אינה תואמת|לא ניתן לאמת שפת הדרכה|נדרשת (?:עברית|ערבית)|מגדר|הקורס דורש מדריכה|הקורס דורש מדריך|המדריך ביקש שלא לעבוד ברשות זו|רשות חסומה|שבת|יום שישי אינו מאושר|הזמינות המוגדרת אינה מכסה|היום הקבוע חסום|לא ניתן לאמת זמן מעבר|מרחק בין הפעילויות|המרחק (?:אחרי|לפני).*גדול מ־?\d+(?:\.\d+)?\s*ק[״\"]?מ|אין זמן מעבר מספיק|מסלול נסיעה אמין|חסרה כתובת(?: מדריך)?|כתובת בית הספר)/;
+const MANUAL_NON_OVERRIDABLE_REASON = /(?:חסרים נתוני התאמה מלאים|חפיפה|סיור תופס יום עבודה מלא|כבר משובץ סיור שתופס יום עבודה מלא|המדריך אינו פעיל|שפת ההדרכה אינה תואמת|לא ניתן לאמת שפת הדרכה|נדרשת (?:עברית|ערבית)|מגדר|הקורס דורש מדריכה|הקורס דורש מדריך|המדריך ביקש שלא לעבוד ברשות זו|רשות חסומה|שבת|יום שישי אינו מאושר|הזמינות המוגדרת אינה מכסה|היום הקבוע חסום|לא ניתן לאמת זמן מעבר|אין זמן מעבר מספיק|מסלול נסיעה אמין|חסרה כתובת(?: מדריך)?|כתובת בית הספר)/;
 
 export function manualCandidateBlocked(candidate = {}) {
   // Manual choice may override recommendation-quality signals (for example a
-  // known home distance above the automatic 40 km preference, subject to the
-  // existing manager-approval policy), but it may not bypass feasibility:
+  // known home distance above the automatic 40 km preference or a verified
+  // transition above 20 km, subject to admin approval), but it may not bypass feasibility:
   // language/gender identity, real overlap, explicit unavailability, unknown
   // routes, impossible transitions, or Friday/Saturday policy.
   return manualCandidateWarnings(candidate).some((reason) => MANUAL_NON_OVERRIDABLE_REASON.test(reason));
