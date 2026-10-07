@@ -985,6 +985,29 @@ export function planningEngineUpgradeAffectedCourseIds({
       .filter(Boolean);
   }
 
+  const manualExceptionHandlingV33Upgrade = currentMajor === 33
+    && previousMajor > 0
+    && previousMajor < 33;
+  if (manualExceptionHandlingV33Upgrade) {
+    return (shared?.rows || [])
+      .filter((entry) => {
+        const row = entry?.row || {};
+        const kind = text(row?.kind);
+        if (!['proposal', 'fixed-proposal', 'recruitment', 'missing', 'fixed'].includes(kind)) return false;
+        if (entry?.lockedOption || row?.planningLocked === true) return false;
+        if (kind === 'recruitment' || kind === 'missing' || kind === 'fixed') return true;
+        if ((row?.singleMeetingSubstitutions || []).length) return true;
+        if ((row?.unresolvedInstructorExceptionDates || []).length) return true;
+        return (row?.meetings || []).some((meeting) =>
+          !!text(meeting?.substituteEmpId)
+          || text(meeting?.constraintKind) === 'instructor_exception'
+          || text(meeting?.constraintKind) === 'instructor_exception_manual'
+        );
+      })
+      .map((entry) => text(entry?.activityId || entry?.row?.courseId))
+      .filter(Boolean);
+  }
+
   const skippedStructuralUpgrade = currentMajor >= 27 && previousMajor > 0 && previousMajor < 27;
   if (skippedStructuralUpgrade) {
     return (shared?.rows || [])

@@ -436,9 +436,11 @@ export function validatePlanningMeetingsForInstructors({
   instructorContexts = {},
   activity = {},
   schoolCalendar = [],
-  allowSaturday = false
+  allowSaturday = false,
+  allowedUnresolvedExceptionDates = []
 } = {}) {
   const blockedDates = blockedSchoolDates(schoolCalendar);
+  const unresolvedExceptionDates = new Set((allowedUnresolvedExceptionDates || []).map((date) => text(date)).filter(Boolean));
   const failures = [];
   for (const meeting of meetings) {
     const date = text(meeting?.date);
@@ -471,8 +473,10 @@ export function validatePlanningMeetingsForInstructors({
     const exception = exceptionMap.get(date);
     if (exception) {
       if (exceptionBlocksMeeting(row, exception)) {
-        failures.push({ date, empId, reason: 'availability_exception' });
-        continue;
+        if (!(empId === text(mainInstructorEmpId) && unresolvedExceptionDates.has(date))) {
+          failures.push({ date, empId, reason: 'availability_exception' });
+          continue;
+        }
       }
     } else if (!weeklyAllows(row, rules)) {
       failures.push({ date, empId, reason: 'weekly_unavailable' });
@@ -712,7 +716,8 @@ export function auditPlanningOptionHardGates(option = {}, {
     instructorContexts,
     activity,
     schoolCalendar: sectorCalendar,
-    allowSaturday: sectorForAudit.toLowerCase() === 'arab'
+    allowSaturday: sectorForAudit.toLowerCase() === 'arab',
+    allowedUnresolvedExceptionDates: option?.unresolvedInstructorExceptionDates || []
   });
   failures.push(...(meetingValidation.failures || []));
 

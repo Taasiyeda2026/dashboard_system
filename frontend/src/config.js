@@ -394,3 +394,5 @@ config.HOTFIX_VERSION = `scheduling-bulk-route-preload-bounded-optimizer-2026100
 config.HOTFIX_VERSION = `scheduling-static-shortlist-once-per-activity-20261007-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `scheduling-maximize-staff-utilization-20261007-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `scheduling-manual-exception-handling-20261007-v1-${config.HOTFIX_VERSION}`;
