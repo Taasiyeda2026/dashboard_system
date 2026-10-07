@@ -472,3 +472,23 @@ test('v32 utilization upgrade recalculates all movable outcomes but preserves us
   }).sort();
   assert.deepEqual(ids, ['anchored', 'flex', 'missing', 'recruit']);
 });
+
+
+test('v33 manual exception upgrade revisits unresolved and auto-recovery rows only', () => {
+  const shared = { rows: [
+    { activityId: 'live', row: { courseId: 'live', kind: 'live' } },
+    { activityId: 'clean', row: { courseId: 'clean', kind: 'proposal', meetings: [{ date: '2026-11-01' }] } },
+    { activityId: 'sub', row: { courseId: 'sub', kind: 'proposal', singleMeetingSubstitutions: [{ substituteEmpId: '9' }] } },
+    { activityId: 'moved-ex', row: { courseId: 'moved-ex', kind: 'proposal', meetings: [{ date: '2026-11-01', constraintKind: 'instructor_exception' }] } },
+    { activityId: 'missing', row: { courseId: 'missing', kind: 'missing' } },
+    { activityId: 'recruit', row: { courseId: 'recruit', kind: 'recruitment' } },
+    { activityId: 'locked', lockedOption: { instructorEmpId: '1' }, row: { courseId: 'locked', kind: 'proposal', planningLocked: true } }
+  ] };
+  const ids = planningEngineUpgradeAffectedCourseIds({
+    shared,
+    activities: [],
+    storedEngineVersion: 'planning-v32-20261007-self-invalidation-maximize-staff-utilization',
+    currentEngineVersion: 'planning-v33-20261007-self-invalidation-manual-exception-handling'
+  }).sort();
+  assert.deepEqual(ids, ['missing', 'moved-ex', 'recruit', 'sub']);
+});

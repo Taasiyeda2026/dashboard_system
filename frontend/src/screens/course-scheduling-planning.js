@@ -155,7 +155,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   stability: 10
 });
 export const PLANNING_VALIDATION_VERSION = 'planning-validation-v2-20261006-self-invalidation-certified-outcomes';
-export const PLANNING_ENGINE_VERSION = 'planning-v32-20261007-self-invalidation-maximize-staff-utilization';
+export const PLANNING_ENGINE_VERSION = 'planning-v33-20261007-self-invalidation-manual-exception-handling';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -1450,9 +1450,11 @@ function optionFromCandidate(course, candidate, { routeVerified = true, startRan
       : activityMeetings(course));
   const meetings = adjustedMeetings;
   const planningOptimization = planningOptimizationScore(candidate);
-  const singleMeetingSubstitutions = Array.isArray(candidate.singleMeetingSubstitutions)
-    ? candidate.singleMeetingSubstitutions
-    : (candidate.dateAdjustment?.singleMeetingSubstitutions || []);
+  const singleMeetingSubstitutions = [];
+  const unresolvedInstructorExceptionDates = Array.isArray(candidate.unresolvedInstructorExceptionDates)
+    ? candidate.unresolvedInstructorExceptionDates.map((date) => text(date).slice(0, 10)).filter(Boolean)
+    : [];
+  const unresolvedInstructorExceptionDateSet = new Set(unresolvedInstructorExceptionDates);
   return {
     instructorEmpId: empOf(candidate),
     instructorName: text(candidate.instructor?.full_name) || empOf(candidate),
@@ -1469,10 +1471,13 @@ function optionFromCandidate(course, candidate, { routeVerified = true, startRan
       original_date: text(meeting.original_date || meeting.date).slice(0, 10),
       moved: meeting.moved === true,
       substituteEmpId: text(meeting.substituteEmpId) || undefined,
-      substituteName: text(meeting.substituteName) || undefined,
-      constraintKind: text(meeting.constraintKind) || undefined
+      substituteName: undefined,
+      constraintKind: unresolvedInstructorExceptionDateSet.has(text(meeting.date).slice(0, 10))
+        ? 'instructor_exception_manual'
+        : (text(meeting.constraintKind) || undefined)
     })),
     singleMeetingSubstitutions,
+    unresolvedInstructorExceptionDates,
     routeVerified,
     startRange,
     planningOptimization,
@@ -1494,7 +1499,9 @@ function optionFromCandidate(course, candidate, { routeVerified = true, startRan
       workload: text(candidate.scoreBreakdown?.actualWorkload?.note),
       travel: text(candidate.scoreBreakdown?.travelDistance?.note),
       scheduleSource: idOf(course).startsWith('planning:') ? 'מועד שנבנה לפי מערכת צוות ההדרכה' : 'מועד קבוע שהתקבל מבית הספר',
-      hardGates: 'זמינות, שפה, מגדר, חפיפות, חגים ומעברים נבדקו'
+      hardGates: unresolvedInstructorExceptionDates.length
+        ? `כל תנאי הסף נבדקו · ${unresolvedInstructorExceptionDates.length} חריגי זמינות נשארו לטיפול ידני`
+        : 'זמינות, שפה, מגדר, חפיפות, חגים ומעברים נבדקו'
     },
     reason: planningOperationalReason(course, candidate, planningOptimization)
       || text(candidate.recommendationReason)
@@ -1503,6 +1510,14 @@ function optionFromCandidate(course, candidate, { routeVerified = true, startRan
 }
 
 export function optionCompare(first, second) {
+  const firstManualExceptions = Array.isArray(first?.unresolvedInstructorExceptionDates)
+    ? first.unresolvedInstructorExceptionDates.length
+    : 0;
+  const secondManualExceptions = Array.isArray(second?.unresolvedInstructorExceptionDates)
+    ? second.unresolvedInstructorExceptionDates.length
+    : 0;
+  if (firstManualExceptions !== secondManualExceptions) return firstManualExceptions - secondManualExceptions;
+
   const firstWeek = planningStartWeekKey(first.startDate);
   const secondWeek = planningStartWeekKey(second.startDate);
   if (firstWeek !== secondWeek) return firstWeek.localeCompare(secondWeek);
@@ -1587,7 +1602,9 @@ async function evaluateScenarioOptions({
       schoolCalendar,
       referenceDate: today,
       preparedContext,
-      candidateInstructorIds: staticCandidateInstructorIds
+      candidateInstructorIds: staticCandidateInstructorIds,
+      allowSubstitutes: false,
+      allowUnresolvedInstructorExceptions: true
     }, checkpoint)).map((item) => item.candidate).filter(Boolean)
       .map((candidate) => {
         const cachedHome = routeClient?.peek?.(candidate?.instructor?.address, course?.school_address);
@@ -1694,7 +1711,9 @@ async function evaluateScenarioOptions({
           routeMatrix: routed.routeMatrix,
           travelUnavailableReason: routed.unavailableReason || '',
           preparedContext,
-          candidateInstructorIds
+          candidateInstructorIds,
+          allowSubstitutes: false,
+          allowUnresolvedInstructorExceptions: true
         }, checkpoint))[0]);
       }
       const finalResult = finalResultsByScenario.get(scenarioId);
@@ -1808,7 +1827,9 @@ async function evaluateFixedCourse({
     schoolCalendar,
     referenceDate: today,
     preparedContext,
-    candidateInstructorIds: (instructors || []).map((row) => text(row?.emp_id)).filter(Boolean)
+    candidateInstructorIds: staticCandidateInstructorIds,
+    allowSubstitutes: false,
+    allowUnresolvedInstructorExceptions: true
   }, checkpoint)).map((item) => item.candidate).filter(Boolean)
     .map((candidate) => {
       const cachedHome = routeClient?.peek?.(candidate?.instructor?.address, activity?.school_address);
@@ -1883,7 +1904,9 @@ async function evaluateFixedCourse({
       routeMatrix: routed.routeMatrix,
       travelUnavailableReason: routed.unavailableReason || '',
       preparedContext,
-      candidateInstructorIds: batch.map((item) => empOf(item.candidate)).filter(Boolean)
+      candidateInstructorIds: batch.map((item) => empOf(item.candidate)).filter(Boolean),
+      allowSubstitutes: false,
+      allowUnresolvedInstructorExceptions: true
     }, checkpoint))[0];
 
     for (const finalist of batch) {
@@ -2659,7 +2682,8 @@ export function planningOptionPassesFinalValidation(option = {}, {
     instructorContexts,
     activity,
     schoolCalendar: filterSchoolCalendarRowsBySector(schoolCalendar, activity?.calendar_sector),
-    allowSaturday: normalizeCalendarSector(activity?.calendar_sector) === 'arab'
+    allowSaturday: normalizeCalendarSector(activity?.calendar_sector) === 'arab',
+    allowedUnresolvedExceptionDates: option?.unresolvedInstructorExceptionDates || []
   });
   failures.push(...(meetingValidation.failures || []));
   return { valid: failures.length === 0, failures };

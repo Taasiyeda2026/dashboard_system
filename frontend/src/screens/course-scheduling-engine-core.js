@@ -630,9 +630,16 @@ function evaluateCandidate({
   const classification = classifyMeetingAvailabilityBlocks(adjustmentInput);
   const tooManyExceptions = classification.instructorExceptionCount > MAX_RECOVERABLE_EXCEPTION_MEETINGS;
   const allowAdjustments = input.allowDateAdjustments !== false;
+  const allowUnresolvedInstructorExceptions = input.allowUnresolvedInstructorExceptions === true
+    && !tooManyExceptions
+    && classification.instructorExceptionCount > 0;
+  const unresolvedInstructorExceptionDates = allowUnresolvedInstructorExceptions
+    ? classification.instructorExceptionMeetings.map((meeting) => text(meeting.date)).filter(Boolean)
+    : [];
+  const unresolvedInstructorExceptionDateSet = new Set(unresolvedInstructorExceptionDates);
 
   let adjustment = null;
-  if (allowAdjustments && !tooManyExceptions) {
+  if (allowAdjustments && !tooManyExceptions && !allowUnresolvedInstructorExceptions) {
     const findSubstitute = input.allowSubstitutes === false
       ? null
       : (meeting) => tryFindSingleMeetingSubstitute({
@@ -718,11 +725,14 @@ function evaluateCandidate({
   const allMeetingsCourse = adjustment?.valid ? mainTeachingCourse : { ...course, meetings: allMeetings };
   const gateTravel = dynamicTravel(allMeetingsCourse, instructor, plannerAllMeetings, input);
   const travel = dynamicTravel(periodCourse, instructor, persistedPeriodMeetings, input);
+  const gateExceptions = unresolvedInstructorExceptionDateSet.size
+    ? (exceptions[empId] || []).filter((row) => !unresolvedInstructorExceptionDateSet.has(text(row?.exception_date)))
+    : (exceptions[empId] || []);
   const gate = evaluateInstructor({
     instructor,
     profile: profiles[empId],
     rules: rules[empId] || [],
-    exceptions: exceptions[empId] || [],
+    exceptions: gateExceptions,
     activity: allMeetingsCourse,
     existingActivities: plannerAllMeetings,
     travel: gateTravel,
@@ -766,6 +776,7 @@ function evaluateCandidate({
     dateAdjustment: adjustment?.valid ? adjustment : null,
     proposedMeetings: adjustment?.valid ? adjustment.meetings : null,
     singleMeetingSubstitutions: adjustment?.valid ? (adjustment.singleMeetingSubstitutions || []) : [],
+    unresolvedInstructorExceptionDates,
     instructorExceptionCount: classification.instructorExceptionCount,
     currentHalfHours: persistedBaselineLoad.hours,
     projectedHalfHours: persistedProjectedLoad.hours,
