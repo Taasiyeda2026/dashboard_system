@@ -2808,7 +2808,64 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     }
   });
   const update = () => { run.disabled = !employees || !attendanceMonthLabel(monthInput.value) || !teamInput.value; };
-  monthInput.addEventListener('change', update);
+  const applyTeamRoster = (loaded, { preserveSelection = false } = {}) => {
+    const previousTeam = preserveSelection ? teamInput.value : '';
+    const previousInstructor = preserveSelection ? txt(instructorInput?.value) : '';
+    employees = Array.isArray(loaded) ? loaded : [];
+    const teams = attendanceTeams(employees);
+    teamIds = teams.map((team) => team.id);
+    // Manager roster RPCs are already server-scoped by direct_manager and do not
+    // include the manager as an employee row. Use returned teams as-is.
+    const options = canChooseTeam
+      ? [{ id: '__all__', managerName: 'כל המערכת' }, ...teams]
+      : teams;
+    teamInput.innerHTML = `<option value="">בחר צוות</option>${options.map((team) => `<option value="${escapeHtml(team.id)}">${escapeHtml(team.managerName)}</option>`).join('')}`;
+
+    if (isManager) {
+      if (teams.length === 1) {
+        teamInput.value = teams[0].id;
+        teamInput.disabled = true;
+      } else {
+        teamInput.disabled = teams.length === 0;
+        if (previousTeam && teams.some((team) => team.id === previousTeam)) teamInput.value = previousTeam;
+      }
+    } else {
+      teamInput.disabled = !canChooseTeam;
+      if (canChooseTeam && previousTeam && options.some((team) => team.id === previousTeam)) teamInput.value = previousTeam;
+    }
+
+    if (instructorWrap && instructorInput) {
+      instructorWrap.hidden = !canChooseTeam;
+      instructorInput.disabled = !canChooseTeam;
+      if (canChooseTeam) {
+        fillInstructorOptions(teamInput.value);
+        if (previousInstructor && [...instructorInput.options].some((option) => option.value === previousInstructor)) {
+          instructorInput.value = previousInstructor;
+        }
+      }
+    }
+    status.textContent = options.length ? '' : 'לא נמצא צוות המשויך למשתמש המחובר.';
+    update();
+  };
+  const refreshTeamRoster = async ({ preserveSelection = true } = {}) => {
+    if (!standalone || !api?.attendanceControlTeams) {
+      update();
+      return;
+    }
+    status.textContent = 'טוען את רשימת הצוותים…';
+    try {
+      const loaded = await api.attendanceControlTeams({ monthKey: monthInput.value });
+      applyTeamRoster(loaded, { preserveSelection });
+    } catch {
+      employees = null;
+      status.textContent = 'טעינת נתוני מערכת הנוכחות נכשלה.';
+      update();
+    }
+  };
+  monthInput.addEventListener('change', () => {
+    if (standalone) refreshTeamRoster({ preserveSelection: true });
+    else update();
+  });
   teamInput.addEventListener('change', () => {
     if (canChooseTeam) fillInstructorOptions(teamInput.value);
     update();
@@ -2818,37 +2875,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     try { openAttendanceControlWindow(api, state); } catch (error) { window.alert(error.message); }
   });
   panel.querySelector('[data-attendance-close]')?.addEventListener('click', () => standalone ? root.ownerDocument.defaultView.close() : (panel.hidden = true));
-  if (standalone) {
-    status.textContent = 'טוען את רשימת הצוותים…';
-    api?.attendanceControlTeams?.().then((loaded) => {
-      employees = loaded;
-      const teams = attendanceTeams(employees);
-      teamIds = teams.map((team) => team.id);
-      // Manager roster RPCs are already server-scoped by direct_manager and do not
-      // include the manager as an employee row. Use returned teams as-is.
-      const options = canChooseTeam
-        ? [{ id: '__all__', managerName: 'כל המערכת' }, ...teams]
-        : teams;
-      teamInput.innerHTML = `<option value="">בחר צוות</option>${options.map((team) => `<option value="${escapeHtml(team.id)}">${escapeHtml(team.managerName)}</option>`).join('')}`;
-      if (isManager) {
-        if (teams.length === 1) {
-          teamInput.value = teams[0].id;
-          teamInput.disabled = true;
-        } else {
-          teamInput.disabled = teams.length === 0;
-        }
-      } else {
-        teamInput.disabled = !canChooseTeam;
-      }
-      if (instructorWrap && instructorInput) {
-        instructorWrap.hidden = !canChooseTeam;
-        instructorInput.disabled = !canChooseTeam;
-        if (canChooseTeam) fillInstructorOptions(teamInput.value);
-      }
-      status.textContent = options.length ? '' : 'לא נמצא צוות המשויך למשתמש המחובר.';
-      update();
-    }).catch(() => { status.textContent = 'טעינת נתוני מערכת הנוכחות נכשלה.'; });
-  }
+  if (standalone) refreshTeamRoster({ preserveSelection: false });
   const loadAttendanceReview = async ({ successMessage = '' } = {}) => {
     run.disabled = true; status.textContent = 'טוען את נתוני הנוכחות והדשבורד ומבצע בקרת נוכחות…';
     try {

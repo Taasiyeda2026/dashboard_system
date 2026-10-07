@@ -5,9 +5,11 @@ import { readFile } from 'node:fs/promises';
 const bridgeSource = await readFile(new URL('../frontend/src/payroll-attendance-v2-bridge.js', import.meta.url), 'utf8');
 const migrationSource = await readFile(new URL('../supabase/migrations/20260828223936_attendance_retention_foundation.sql', import.meta.url), 'utf8');
 
-test('attendance-control team discovery does not scan accumulated attendance history', () => {
-  assert.match(bridgeSource, /attendanceControlTeams\s*=\s*async function[\s\S]*get_payroll_attendance_team_roster/);
-  const teamsFunction = bridgeSource.match(/api\.attendanceControlTeams\s*=\s*async function\s*\(\)\s*\{([\s\S]*?)\n\};/)?.[1] || '';
+test('attendance-control team discovery uses a month-aware roster without client-side history scans', () => {
+  assert.match(bridgeSource, /attendanceControlTeams\s*=\s*async function\s*\(\{\s*monthKey\s*=\s*''\s*\}\s*=\s*\{\}\)/);
+  assert.match(bridgeSource, /get_payroll_attendance_team_roster_for_month/);
+  assert.match(bridgeSource, /get_payroll_attendance_team_roster/);
+  const teamsFunction = bridgeSource.match(/api\.attendanceControlTeams\s*=\s*async function\s*\([^)]*\)\s*\{([\s\S]*?)\n\};/)?.[1] || '';
   assert.doesNotMatch(teamsFunction, /attendanceControlRecords\s*\(/);
   assert.doesNotMatch(teamsFunction, /get_payroll_attendance_records/);
 });
