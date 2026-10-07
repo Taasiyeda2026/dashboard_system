@@ -667,6 +667,45 @@ function maofApproval(rows, overrides = {}) {
   });
 }
 
+test('finance attendance workbooks store hours as Excel durations and leave zero hours blank', () => {
+  const approved = approval({
+    employee_id: '1001',
+    employee_name: 'עובד א',
+    rows: [snapshotRow({
+      employeeId: '1001',
+      employeeName: 'עובד א',
+      employmentType: 'תעשיידע',
+      activityType: 'קורס',
+      workHours: 2.55
+    })]
+  });
+  const entries = summarizeFinanceAttendance([approved]).rows;
+  const workbook = buildFinanceAttendanceWorkbook(entries, { approvals: [approved] });
+  const sheet = workbook.Sheets[FINANCE_ATTENDANCE_GENERAL_SHEET];
+  const courseCol = FINANCE_ATTENDANCE_COLUMNS.indexOf('קורס');
+  const trainingCol = FINANCE_ATTENDANCE_COLUMNS.indexOf('הכשרה');
+  const courseRef = XLSX.utils.encode_cell({ r: 1, c: courseCol });
+  const trainingRef = XLSX.utils.encode_cell({ r: 1, c: trainingCol });
+  assert.ok(Math.abs(sheet[courseRef].v - (2.55 / 24)) < 1e-10);
+  assert.equal(sheet[courseRef].z, '[h]:mm');
+  assert.equal(sheet[trainingRef], undefined);
+});
+
+test('Maof workbook stores total hours as an Excel duration', () => {
+  const approvals = [
+    maofApproval([
+      maofRow({ startTime: '10:00', endTime: '12:00', workHours: 2, kilometers: 10 }),
+      maofRow({ startTime: '12:00', endTime: '15:00', workHours: 3, kilometers: 32 })
+    ])
+  ];
+  const workbook = buildFinanceAttendanceWorkbook([], { approvals, exportType: FINANCE_ATTENDANCE_EXPORT_MAOF });
+  const sheet = workbook.Sheets[FINANCE_MAOF_SHEET];
+  const totalHoursCol = FINANCE_MAOF_DAILY_COLUMNS.indexOf('סה״כ שעות');
+  const ref = XLSX.utils.encode_cell({ r: 1, c: totalHoursCol });
+  assert.ok(Math.abs(sheet[ref].v - (5 / 24)) < 1e-10);
+  assert.equal(sheet[ref].z, '[h]:mm');
+});
+
 test('Maof Excel merges the same instructor date authority and activity type', () => {
   const rows = buildMaofDailyExcelRows([
     maofApproval([
