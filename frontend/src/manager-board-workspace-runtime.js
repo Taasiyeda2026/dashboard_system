@@ -43,6 +43,12 @@ function text(value) {
   return String(value ?? '').trim().replace(/\s+/g, ' ');
 }
 
+function normalizedName(value) {
+  return text(value)
+    .replace(/[״"'׳']/g, '')
+    .toLocaleLowerCase('he-IL');
+}
+
 function currentMonthKey() {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
