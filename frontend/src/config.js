@@ -398,3 +398,5 @@ config.HOTFIX_VERSION = `scheduling-maximize-staff-utilization-20261007-v1-${con
 config.HOTFIX_VERSION = `scheduling-manual-exception-handling-20261007-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `scheduling-weekly-exception-shift-20261007-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `scheduling-incumbent-fallback-validated-commit-20261007-v1-${config.HOTFIX_VERSION}`;

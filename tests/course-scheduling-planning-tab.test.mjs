@@ -48,7 +48,8 @@ import {
   planningQualityAuditHtml,
   planningRowsHtml,
   planningTabHtml,
-  planningWorkspaceCourses
+  planningWorkspaceCourses,
+  preserveValidIncumbentRowsAfterIncompleteSearch
 } from '../frontend/src/screens/course-scheduling-planning.js';
 import { buildPlanningWorkbook, planningExportFilename, planningWorkbookRows } from '../frontend/src/screens/course-scheduling-planning-export.js';
 import { courseSchedulingScreen, planningJointChoiceModel } from '../frontend/src/screens/course-scheduling.js';
@@ -2859,4 +2860,103 @@ test('Planning runs behind the single scheduling workboard instead of a separate
   assert.match(screen, /courseSchedulingPlanningLocks/);
   assert.match(screen, /proposal_activity_pricing/);
   assert.doesNotMatch(planning, /supabase\.rpc|save_course_assignment|assign_activity_instructor|update\s+public\.activities/i);
+});
+
+
+test('incomplete replacement search preserves a still-valid incumbent proposal', () => {
+  const activity = {
+    ...baseCourse,
+    row_id: 'incumbent-fallback',
+    sessions: 2,
+    start_time: '09:00',
+    end_time: '10:30'
+  };
+  const incumbent = {
+    courseId: 'incumbent-fallback',
+    kind: 'proposal',
+    status: 'מועד מומלץ לבית הספר',
+    instructorEmpId: '1',
+    instructorName: 'מדריך',
+    startDate: '2026-10-12',
+    endDate: '2026-10-19',
+    startTime: '09:00',
+    endTime: '10:30',
+    meetings: [
+      { date: '2026-10-12', start_time: '09:00', end_time: '10:30' },
+      { date: '2026-10-19', start_time: '09:00', end_time: '10:30' }
+    ],
+    diagnostics: { routeVerified: true }
+  };
+  const rowsById = new Map([[
+    'incumbent-fallback',
+    {
+      courseId: 'incumbent-fallback',
+      kind: 'missing',
+      status: 'בדיקת התאמה נמשכת',
+      instructorEmpId: '',
+      instructorName: '',
+      meetings: [],
+      diagnostics: { searchIncomplete: true, recruitmentCertified: false }
+    }
+  ]]);
+
+  const preserved = preserveValidIncumbentRowsAfterIncompleteSearch({
+    rowsById,
+    existingRows: [incumbent],
+    activities: [activity],
+    instructors: [instructor],
+    profiles: profileMap,
+    rules: ruleMap,
+    exceptions: {},
+    schoolCalendar: []
+  });
+
+  assert.deepEqual(preserved, ['incumbent-fallback']);
+  const result = rowsById.get('incumbent-fallback');
+  assert.equal(result.kind, 'proposal');
+  assert.equal(result.instructorEmpId, '1');
+  assert.equal(result.diagnostics.incumbentPreserved, true);
+  assert.equal(result.diagnostics.replacementSearchIncomplete, true);
+});
+
+test('incomplete replacement search does not preserve an incumbent that is no longer available', () => {
+  const activity = {
+    ...baseCourse,
+    row_id: 'incumbent-invalid',
+    sessions: 1,
+    start_time: '09:00',
+    end_time: '10:30'
+  };
+  const incumbent = {
+    courseId: 'incumbent-invalid',
+    kind: 'proposal',
+    instructorEmpId: '1',
+    instructorName: 'מדריך',
+    meetings: [{ date: '2026-10-12', start_time: '09:00', end_time: '10:30' }],
+    diagnostics: { routeVerified: true }
+  };
+  const rowsById = new Map([[
+    'incumbent-invalid',
+    {
+      courseId: 'incumbent-invalid',
+      kind: 'missing',
+      instructorEmpId: '',
+      instructorName: '',
+      diagnostics: { searchIncomplete: true }
+    }
+  ]]);
+
+  const preserved = preserveValidIncumbentRowsAfterIncompleteSearch({
+    rowsById,
+    existingRows: [incumbent],
+    activities: [activity],
+    instructors: [instructor],
+    profiles: profileMap,
+    rules: ruleMap,
+    exceptions: { 1: [{ exception_date: '2026-10-12', available: false }] },
+    schoolCalendar: []
+  });
+
+  assert.deepEqual(preserved, []);
+  assert.equal(rowsById.get('incumbent-invalid').kind, 'missing');
 });

@@ -3022,6 +3022,7 @@ export const courseSchedulingScreen = {
         assertRunOwnership();
 
         const silentCheckpoint = runPlan.resume || null;
+        const durableCheckpointRun = runPlan.persistServerCheckpoints === true;
         const checkpointCompletedIds = new Set(
           (silentCheckpoint?.completedActivityIds || [])
             .map((value) => text(value))
@@ -3029,6 +3030,11 @@ export const courseSchedulingScreen = {
         );
         const resumableRows = (silentCheckpoint?.rows || [])
           .filter((row) => currentCourseIds.includes(text(row?.courseId)));
+        const persistedCheckpointRows = new Map(
+          resumableRows
+            .map((row) => [text(row?.courseId), row])
+            .filter(([courseId]) => !!courseId)
+        );
         const resumeValidatedCommit = canCommitValidatedCheckpoint({
           sourceRevision: run.sourceRevision,
           checkpoint: silentCheckpoint,
@@ -3037,7 +3043,7 @@ export const courseSchedulingScreen = {
           dataFingerprint: startFingerprint,
           contextFingerprint: startContextStorage,
           runType: runPlan.runType,
-          requiredCourseIds: fullRun ? currentCourseIds : affectedIds,
+          requiredCourseIds: durableCheckpointRun ? currentCourseIds : affectedIds,
           expectedScope: {
             baseRecalculationIds: runPlan.baseRecalculationIds,
             schoolPackingCourseIds: runPlan.schoolPackingCourseIds,
@@ -3066,7 +3072,7 @@ export const courseSchedulingScreen = {
         // Durable checkpoints are for full maintenance and engine upgrades only.
         // Ordinary incremental updates stay in-memory so a one-row change cannot
         // rewrite a multi-megabyte national checkpoint.
-        const persistServerCheckpoints = runPlan.persistServerCheckpoints === true;
+        const persistServerCheckpoints = durableCheckpointRun;
         const checkpointMetaBase = {
           sourceRevision: run.sourceRevision,
           runType: runPlan.runType,
@@ -3212,6 +3218,7 @@ export const courseSchedulingScreen = {
                   stopCheckpointSave();
                   planningPerfCount('checkpointSaves');
                   planningPerfCount('checkpointPayloadBytes', new TextEncoder().encode(JSON.stringify(snapshotRows)).length);
+                  for (const row of snapshotRows) persistedCheckpointRows.set(text(row?.courseId), row);
                   pendingCheckpointRows.clear();
                   lastSilentCheckpointCount = checkpointCompletedIds.size;
                   lastSilentCheckpointAt = Date.now();
@@ -3268,6 +3275,7 @@ export const courseSchedulingScreen = {
                 stopCheckpointSave();
                 planningPerfCount('checkpointSaves');
                 planningPerfCount('checkpointPayloadBytes', new TextEncoder().encode(JSON.stringify(checkpointRows)).length);
+                for (const row of checkpointRows) persistedCheckpointRows.set(text(row?.courseId), row);
                 pendingCheckpointRows.clear();
                 lastSilentCheckpointCount = checkpointCompletedIds.size;
                 lastSilentCheckpointAt = Date.now();
@@ -3294,47 +3302,82 @@ export const courseSchedulingScreen = {
         const endFingerprint = startFingerprint;
         const endContextStorage = startContextStorage;
         assertRunOwnership();
-        // Source is still valid → mark VALIDATED, then commit atomically. A resumed
-        // VALIDATED checkpoint is already durable, so do not upload its ~1MB rows again.
+        // Source is still valid → synchronize only final checkpoint deltas, then
+        // flip the already-complete checkpoint to VALIDATED with a metadata-only
+        // request. This avoids re-uploading the entire national snapshot at commit.
+        const finalRows = result.rows || [];
+        const finalIds = new Set(finalRows.map((row) => text(row?.courseId)).filter(Boolean));
+        const checkpointSnapshotComplete = persistServerCheckpoints
+          && finalRows.length === currentCourseIds.length
+          && currentCourseIds.every((courseId) => finalIds.has(courseId));
         let validatedCheckpointReady = resumeValidatedCommit === true;
-        if (!resumeValidatedCommit && persistServerCheckpoints && Array.isArray(result?.rows) && result.rows.length) {
-          try {
+        if (!resumeValidatedCommit && checkpointSnapshotComplete) {
+          const finalCheckpointDeltaRows = finalRows.filter((row) => {
+            const courseId = text(row?.courseId);
+            const persisted = persistedCheckpointRows.get(courseId);
+            return !persisted || canonicalPlanningJson(persisted) !== canonicalPlanningJson(row);
+          });
+
+          if (finalCheckpointDeltaRows.length) {
             await saveSharedPlanningCheckpoint({
-                    assertActive: assertRunOwnership,
-                  runId: run.runId, sourceRevision: run.sourceRevision,
+              assertActive: assertRunOwnership,
+              runId: run.runId,
+              sourceRevision: run.sourceRevision,
               periodKey: scope.periodKey,
               district: scope.district,
               engineVersion: PLANNING_ENGINE_VERSION,
               dataFingerprint: endFingerprint,
               contextFingerprint: endContextStorage,
-              completedCount: result.rows.length,
-              totalCount: result.rows.length,
-              completedActivityIds: result.rows.map((row) => text(row?.courseId)).filter(Boolean),
-              rows: result.rows,
+              completedCount: finalRows.length,
+              totalCount: finalRows.length,
+              completedActivityIds: [...finalIds],
+              rows: finalCheckpointDeltaRows,
               meta: {
                 ...checkpointMetaBase,
                 dataFingerprint: endFingerprint,
                 contextFingerprint: endContextStorage,
-                phase: PLANNING_RUN_PHASES.VALIDATED,
-                validatedAt: new Date().toISOString()
+                phase: PLANNING_RUN_PHASES.RUNNING
               }
             });
-            validatedCheckpointReady = true;
-            state.courseSchedulingPlanningRunDiagnostics = {
-              ...state.courseSchedulingPlanningRunDiagnostics,
-              phase: PLANNING_RUN_PHASES.VALIDATED
-            };
-          } catch (error) {
-            throwIfPlanningRunInvalidated(error);
-            // Validation checkpoint is best-effort; commit may still succeed.
+            for (const row of finalCheckpointDeltaRows) {
+              persistedCheckpointRows.set(text(row?.courseId), row);
+            }
           }
+
+          // Metadata-only validation is fenced in SQL and additionally proves
+          // that the durable checkpoint row count equals the complete scope.
+          await saveSharedPlanningCheckpoint({
+            assertActive: assertRunOwnership,
+            runId: run.runId,
+            sourceRevision: run.sourceRevision,
+            periodKey: scope.periodKey,
+            district: scope.district,
+            engineVersion: PLANNING_ENGINE_VERSION,
+            dataFingerprint: endFingerprint,
+            contextFingerprint: endContextStorage,
+            completedCount: finalRows.length,
+            totalCount: finalRows.length,
+            completedActivityIds: [...finalIds],
+            rows: [],
+            meta: {
+              ...checkpointMetaBase,
+              dataFingerprint: endFingerprint,
+              contextFingerprint: endContextStorage,
+              phase: PLANNING_RUN_PHASES.VALIDATED,
+              validatedAt: new Date().toISOString()
+            }
+          });
+          validatedCheckpointReady = true;
+          state.courseSchedulingPlanningRunDiagnostics = {
+            ...state.courseSchedulingPlanningRunDiagnostics,
+            phase: PLANNING_RUN_PHASES.VALIDATED
+          };
         }
 
         assertRunOwnership();
         const stopWorkspaceSave = planningPerfTimer('workspaceSave');
-        const finalRows = result.rows || [];
         const commitExpectedRevision = Number(shared?.workspace?.revision) || 0;
-        const saved = fullRun && validatedCheckpointReady
+        const saved = checkpointSnapshotComplete && validatedCheckpointReady
           ? await commitSharedPlanningCheckpoint({
               runId: run.runId, sourceRevision: run.sourceRevision,
               periodKey: scope.periodKey,

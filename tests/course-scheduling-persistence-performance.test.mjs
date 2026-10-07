@@ -9,7 +9,8 @@ const checkpointCommitMigrationUrl = new URL('../supabase/migrations/20261006132
 
 test('local planning repairs do not upload whole-workspace checkpoints at every stage', async () => {
   const source = await readFile(screenUrl, 'utf8');
-  assert.match(source, /const persistServerCheckpoints = runPlan\.persistServerCheckpoints === true/);
+  assert.match(source, /const durableCheckpointRun = runPlan\.persistServerCheckpoints === true/);
+  assert.match(source, /const persistServerCheckpoints = durableCheckpointRun/);
   assert.match(source, /if \(!persistServerCheckpoints\) return;[\s\S]*?saveSharedPlanningCheckpoint/);
   assert.match(source, /checkpointPayloadBytes/);
   assert.match(source, /PLANNING_RUN_TYPES\.ENGINE_UPGRADE/);
@@ -42,7 +43,9 @@ test('validated full checkpoints commit in-database without re-uploading snapsho
   assert.match(store, /export async function commitSharedPlanningCheckpoint/);
   assert.match(store, /commit_scheduling_planning_checkpoint/);
   assert.match(screen, /let validatedCheckpointReady = resumeValidatedCommit === true/);
-  assert.match(screen, /fullRun && validatedCheckpointReady[\s\S]*?commitSharedPlanningCheckpoint/);
+  assert.match(screen, /checkpointSnapshotComplete && validatedCheckpointReady[\s\S]*?commitSharedPlanningCheckpoint/);
+  assert.match(screen, /finalCheckpointDeltaRows/);
+  assert.match(screen, /rows:\s*\[\][\s\S]*?phase:\s*PLANNING_RUN_PHASES\.VALIDATED/);
   assert.match(sql, /from public\.scheduling_planning_checkpoint_rows r/);
   assert.doesNotMatch(sql, /jsonb_array_elements/);
 });
@@ -65,4 +68,15 @@ test('planning persistence SQL is set-based rather than row-loop based', async (
   assert.match(sql, /save_scheduling_planning_incremental_snapshot/);
   assert.match(sql, /insert into public\.scheduling_planning_rows[\s\S]*?select[\s\S]*?jsonb_array_elements/);
   assert.doesNotMatch(sql, /for item in select value/);
+});
+
+
+test('durable engine-upgrade checkpoint validates by delta plus metadata instead of full snapshot re-upload', async () => {
+  const source = await readFile(screenUrl, 'utf8');
+  assert.match(source, /requiredCourseIds:\s*durableCheckpointRun \? currentCourseIds : affectedIds/);
+  assert.match(source, /persistedCheckpointRows/);
+  assert.match(source, /canonicalPlanningJson\(persisted\) !== canonicalPlanningJson\(row\)/);
+  assert.match(source, /rows:\s*finalCheckpointDeltaRows/);
+  assert.match(source, /rows:\s*\[\]/);
+  assert.match(source, /checkpointSnapshotComplete/);
 });
