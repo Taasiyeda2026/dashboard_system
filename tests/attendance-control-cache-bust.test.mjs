@@ -22,6 +22,6 @@ test('other attendance entry points use the same attendance control module versi
 });
 
 test('direct index entrypoints are also cache-busted for the release', () => {
-  assert.match(index, /manager-board-workspace-runtime\\.js\\?v=20261007-inactive-attendance-roster-v1/);
+  assert.match(index, /manager-board-workspace-runtime\\.js\\?v=20261007-inactive-attendance-roster-v2/);
   assert.match(index, new RegExp(`admin-attendance-standalone\\.js\\?v=${adminVersion}`));
 });
