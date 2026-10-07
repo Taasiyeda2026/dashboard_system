@@ -8,6 +8,8 @@ const migration = await readFile(
 );
 const bridge = await readFile(new URL('../frontend/src/payroll-attendance-v2-bridge.js', import.meta.url), 'utf8');
 const control = await readFile(new URL('../frontend/src/screens/attendance-control.js', import.meta.url), 'utf8');
+const adminAttendance = await readFile(new URL('../frontend/src/admin-attendance-standalone.js', import.meta.url), 'utf8');
+const managerWorkspace = await readFile(new URL('../frontend/src/manager-board-workspace-runtime.js', import.meta.url), 'utf8');
 
 test('inactive instructors remain visible only in months with attendance or workflow history', () => {
   assert.match(migration, /get_payroll_attendance_team_roster_for_month/);
@@ -32,4 +34,19 @@ test('attendance control refreshes roster for the selected month', () => {
   assert.match(bridge, /get_payroll_attendance_team_roster_for_month/);
   assert.match(control, /attendanceControlTeams\(\{ monthKey: monthInput\.value \}\)/);
   assert.match(control, /monthInput\.addEventListener\('change',[\s\S]*refreshTeamRoster/);
+});
+
+
+test('admin attendance board uses the month-aware roster instead of active-only contacts', () => {
+  assert.match(adminAttendance, /get_payroll_attendance_team_roster_for_month/);
+  assert.match(adminAttendance, /loadEmployees\(monthKey\)/);
+  assert.doesNotMatch(adminAttendance, /if \(!id \|\| !isActiveEmployee\(row\)/);
+});
+
+test('manager attendance and admin payroll tabs use the selected-month roster while tracking keeps active team roster', () => {
+  assert.match(managerWorkspace, /function loadAttendanceRosterForMonth\(/);
+  assert.match(managerWorkspace, /get_payroll_attendance_team_roster_for_month/);
+  assert.match(managerWorkspace, /activeTab === 'attendance'[\s\S]*loadAttendanceRosterForMonth\(context\.manager, context\.ym/);
+  assert.match(managerWorkspace, /activeTab === 'payroll-attendance'[\s\S]*loadAttendanceRosterForMonth\('', context\.ym/);
+  assert.match(managerWorkspace, /await loadRoster\(context\.manager, context\.schoolYear, force && activeTab === 'tracking'\)/);
 });

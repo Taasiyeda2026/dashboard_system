@@ -207,6 +207,35 @@ async function loadRoster(manager, schoolYear, force = false) {
   return rows;
 }
 
+async function loadAttendanceRosterForMonth(manager, monthKey, force = false) {
+  if (!supabase) throw new Error('חיבור הנתונים אינו זמין.');
+  const month = text(monthKey);
+  if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(month)) throw new Error('חודש נוכחות אינו תקין.');
+  const managerName = text(manager);
+  const key = `attendance:${managerName || '__all__'}|${month}`;
+  const cached = rosterCache.get(key);
+  if (!force && cached && Date.now() - cached.loadedAt < TEAM_ROSTER_TTL_MS) return cached.rows;
+
+  await ensureAuthSession();
+  const { data, error } = await supabase.rpc('get_payroll_attendance_team_roster_for_month', {
+    p_month_key: month
+  });
+  if (error) throw new Error(error.message || 'טעינת צוות הנוכחות נכשלה.');
+
+  const rows = (Array.isArray(data) ? data : [])
+    .map((row) => ({
+      emp_id: text(row.employee_id),
+      full_name: text(row.employee_name),
+      employment_type: text(row.employment_type),
+      direct_manager: text(row.team)
+    }))
+    .filter((row) => row.emp_id && (!managerName || normalizedName(row.direct_manager) === normalizedName(managerName)))
+    .sort((a, b) => text(a.full_name).localeCompare(text(b.full_name), 'he') || text(a.emp_id).localeCompare(text(b.emp_id), 'he'));
+
+  rosterCache.set(key, { rows, loadedAt: Date.now() });
+  return rows;
+}
+
 async function distinctDirectManagerNames() {
   await ensureAuthSession();
   const { data, error } = await supabase
@@ -440,7 +469,7 @@ function managementAlertsHtml(roster, summary) {
   const error = summary.recordsError || summary.approvalsError || summary.workflowError;
   return `<div class="manager-workspace-alert-strip" dir="rtl">
     <div class="manager-workspace-alert-strip__title"><strong>דיווחים חשובים</strong><span>לפי צוות המנהל והחודש הנבחר</span></div>
-    <article><span>צוות פעיל</span><strong>${roster.length}</strong></article>
+    <article><span>מדריכים בחודש</span><strong>${roster.length}</strong></article>
     <article class="${reportMissing ? 'is-warning' : ''}"><span>ללא דיווח נוכחות</span><strong>${reportMissing}</strong></article>
     <article class="${awaitingApproval ? 'is-warning' : ''}"><span>טרם אושר ע״י העובד</span><strong>${awaitingApproval}</strong></article>
     <article class="is-ok"><span>אושר ע״י העובד</span><strong>${employeeApproved}</strong></article>
@@ -462,7 +491,7 @@ function attendanceReopenActionHtml(empId, overview) {
 }
 
 function attendanceSummaryTableHtml(roster, summary, ym) {
-  if (!roster.length) return '<div class="manager-workspace-empty">אין מדריכים פעילים המשויכים למנהל.</div>';
+  if (!roster.length) return '<div class="manager-workspace-empty">אין מדריכים להצגה בחודש שנבחר.</div>';
   const rows = roster.map((row) => {
     const empId = text(row.emp_id);
     const count = summary.recordCounts.get(empId) || 0;
@@ -1001,9 +1030,11 @@ async function renderWorkspace(force = false) {
   if (view) view.innerHTML = '<div class="manager-workspace-loading">טוען נתוני צוות…</div>';
 
   try {
-    const roster = activeTab === 'payroll-attendance'
-      ? await loadAllTeamRosters(context.schoolYear)
-      : await loadRoster(context.manager, context.schoolYear, force && activeTab === 'tracking');
+    const roster = activeTab === 'attendance'
+      ? await loadAttendanceRosterForMonth(context.manager, context.ym, force)
+      : activeTab === 'payroll-attendance'
+        ? await loadAttendanceRosterForMonth('', context.ym, force)
+        : await loadRoster(context.manager, context.schoolYear, force && activeTab === 'tracking');
     if (renderToken !== currentRenderToken || !boardRoot.isConnected) return;
     if (activeTab === 'attendance') await renderAttendance(boardRoot, context, roster, renderToken);
     else if (activeTab === 'payroll-attendance') await renderPayrollAttendanceAdmin(boardRoot, context, roster, renderToken);

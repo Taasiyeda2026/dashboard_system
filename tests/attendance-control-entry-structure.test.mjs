@@ -63,10 +63,12 @@ test('activities_manager cannot pick another manager on the board', () => {
   assert.match(boardSource, /if \(isSelfManager\(\)\) \{\s*return `<div class="manager-board-manager-fixed"/);
 });
 
-test('admin attendance control loads every manager team from the existing roster RPC', () => {
-  assert.match(workspaceSource, /function loadAllTeamRosters\(/);
-  assert.match(workspaceSource, /activeTab === 'payroll-attendance'\s*\? await loadAllTeamRosters\(context\.schoolYear\)/);
-  assert.match(workspaceSource, /loadRoster\(name, schoolYear, force\)/);
+test('admin and manager attendance tabs load the selected-month roster while tracking keeps the manager roster RPC', () => {
+  assert.match(workspaceSource, /function loadAttendanceRosterForMonth\(/);
+  assert.match(workspaceSource, /get_payroll_attendance_team_roster_for_month/);
+  assert.match(workspaceSource, /activeTab === 'attendance'[\s\S]*loadAttendanceRosterForMonth\(context\.manager, context\.ym/);
+  assert.match(workspaceSource, /activeTab === 'payroll-attendance'[\s\S]*loadAttendanceRosterForMonth\('', context\.ym/);
+  assert.match(workspaceSource, /loadRoster\(context\.manager, context\.schoolYear, force && activeTab === 'tracking'\)/);
   assert.match(workspaceSource, /adminFinalizeAttendanceMonthPayroll/);
   assert.match(workspaceSource, /adminReopenAttendanceMonthForCorrection/);
   assert.match(workspaceSource, /canUsePayrollAttendanceAdminTab\(\) \{\n  return role\(\) === 'admin';/);
