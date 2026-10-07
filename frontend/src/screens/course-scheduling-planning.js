@@ -154,8 +154,8 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_VALIDATION_VERSION = 'planning-validation-v2-20261006-self-invalidation-certified-outcomes';
-export const PLANNING_ENGINE_VERSION = 'planning-v33-20261007-self-invalidation-manual-exception-handling';
+export const PLANNING_VALIDATION_VERSION = 'planning-validation-v3-20261007-self-invalidation-weekly-exception-shift';
+export const PLANNING_ENGINE_VERSION = 'planning-v34-20261007-self-invalidation-weekly-exception-shift';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -1604,7 +1604,8 @@ async function evaluateScenarioOptions({
       preparedContext,
       candidateInstructorIds: staticCandidateInstructorIds,
       allowSubstitutes: false,
-      allowUnresolvedInstructorExceptions: true
+      shiftInstructorExceptionsByWeek: true,
+      allowUnresolvedInstructorExceptions: false
     }, checkpoint)).map((item) => item.candidate).filter(Boolean)
       .map((candidate) => {
         const cachedHome = routeClient?.peek?.(candidate?.instructor?.address, course?.school_address);
@@ -1713,7 +1714,8 @@ async function evaluateScenarioOptions({
           preparedContext,
           candidateInstructorIds,
           allowSubstitutes: false,
-          allowUnresolvedInstructorExceptions: true
+          shiftInstructorExceptionsByWeek: true,
+          allowUnresolvedInstructorExceptions: false
         }, checkpoint))[0]);
       }
       const finalResult = finalResultsByScenario.get(scenarioId);
@@ -1829,7 +1831,8 @@ async function evaluateFixedCourse({
     preparedContext,
     candidateInstructorIds: staticCandidateInstructorIds,
     allowSubstitutes: false,
-    allowUnresolvedInstructorExceptions: true
+    shiftInstructorExceptionsByWeek: true,
+    allowUnresolvedInstructorExceptions: false
   }, checkpoint)).map((item) => item.candidate).filter(Boolean)
     .map((candidate) => {
       const cachedHome = routeClient?.peek?.(candidate?.instructor?.address, activity?.school_address);
@@ -1906,7 +1909,8 @@ async function evaluateFixedCourse({
       preparedContext,
       candidateInstructorIds: batch.map((item) => empOf(item.candidate)).filter(Boolean),
       allowSubstitutes: false,
-      allowUnresolvedInstructorExceptions: true
+      shiftInstructorExceptionsByWeek: true,
+      allowUnresolvedInstructorExceptions: false
     }, checkpoint))[0];
 
     for (const finalist of batch) {

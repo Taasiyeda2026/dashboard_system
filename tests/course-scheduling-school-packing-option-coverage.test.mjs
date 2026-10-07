@@ -492,3 +492,23 @@ test('v33 manual exception upgrade revisits unresolved and auto-recovery rows on
   }).sort();
   assert.deepEqual(ids, ['missing', 'moved-ex', 'recruit', 'sub']);
 });
+
+
+test('v34 weekly exception shift upgrade recalculates all non-live non-user-locked planning outcomes', () => {
+  const shared = { rows: [
+    { activityId: 'live', row: { courseId: 'live', kind: 'live' } },
+    { activityId: 'proposal', row: { courseId: 'proposal', kind: 'proposal' } },
+    { activityId: 'anchored', row: { courseId: 'anchored', kind: 'fixed-proposal', schoolDateAnchored: true } },
+    { activityId: 'missing', row: { courseId: 'missing', kind: 'missing' } },
+    { activityId: 'recruit', row: { courseId: 'recruit', kind: 'recruitment' } },
+    { activityId: 'fixed', row: { courseId: 'fixed', kind: 'fixed' } },
+    { activityId: 'locked', lockedOption: { instructorEmpId: '1' }, row: { courseId: 'locked', kind: 'proposal', planningLocked: true } }
+  ] };
+  const ids = planningEngineUpgradeAffectedCourseIds({
+    shared,
+    activities: [],
+    storedEngineVersion: 'planning-v30-20261005-certified-school-packing',
+    currentEngineVersion: 'planning-v34-20261007-self-invalidation-weekly-exception-shift'
+  }).sort();
+  assert.deepEqual(ids, ['anchored', 'fixed', 'missing', 'proposal', 'recruit']);
+});
