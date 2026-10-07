@@ -1,6 +1,7 @@
 import { supabase } from './api/client.js';
 import { reconcileTravelCompensation, overrideTravelCompensation, resetTravelCompensationOverride } from './services/attendance.service.js';
 import { parseAutomaticCancellationLabel, reconcileChangedTravelContext } from './services/time-cancellation.helpers.js';
+import { createTimePicker } from './components/time-picker.js';
 
 const ENHANCED_HEADER = 'av2TimeCancelHeader';
 const ENHANCED_ROW = 'av2TimeCancelRow';
@@ -209,17 +210,10 @@ function showTimeCancelEditField(row, preferredForm = null) {
     wrap.className = 'av2-field av2-time-cancel-edit';
     wrap.dataset.av2TimeCancelEdit = '1';
 
-    const label = document.createElement('label');
-    label.className = 'av2-field__label';
-    label.textContent = 'ביטול זמן';
-
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'av2-field__input';
-    input.inputMode = 'numeric';
-    input.value = state.label;
-    input.placeholder = '0:00';
-    input.setAttribute('aria-label', 'ביטול זמן בשעות ודקות');
+    // Keep duration entry independent of the device keyboard. Some Android
+    // numeric keyboards do not expose ":" at all, so use the same custom
+    // hour/minute picker as attendance start/end times.
+    const timePicker = createTimePicker('av2-time-cancel-edit', 'ביטול זמן', state.label, 1);
 
     const note = document.createElement('small');
     note.className = 'av2-time-cancel-edit__note';
@@ -229,7 +223,7 @@ function showTimeCancelEditField(row, preferredForm = null) {
     error.className = 'av2-time-cancel-edit__error';
     error.hidden = true;
 
-    wrap.append(label, input, note, error);
+    wrap.append(timePicker.wrap, note, error);
     if (state.original) {
       const reset = document.createElement('button');
       reset.type = 'button';
@@ -267,13 +261,13 @@ function showTimeCancelEditField(row, preferredForm = null) {
     const oldRow = row;
     const initialRouteContext = routeContextSnapshot(form);
     form.addEventListener('submit', (event) => {
-      const desired = parseClockMinutes(input.value);
+      const desired = parseClockMinutes(timePicker.getValue());
       if (desired == null) {
         event.preventDefault();
         event.stopImmediatePropagation();
         error.textContent = 'יש להזין ביטול זמן בפורמט שעות:דקות, לדוגמה 1:45.';
         error.hidden = false;
-        input.focus();
+        timePicker.hourSel.focus();
         return;
       }
       error.hidden = true;
