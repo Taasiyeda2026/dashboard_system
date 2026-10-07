@@ -50,3 +50,9 @@ test('manager attendance and admin payroll tabs use the selected-month roster wh
   assert.match(managerWorkspace, /activeTab === 'payroll-attendance'[\s\S]*loadAttendanceRosterForMonth\('', context\.ym/);
   assert.match(managerWorkspace, /await loadRoster\(context\.manager, context\.schoolYear, force && activeTab === 'tracking'\)/);
 });
+
+
+test('manager attendance month roster has a local normalizedName helper', () => {
+  assert.match(managerWorkspace, /function normalizedName\(value\)[\s\S]*toLocaleLowerCase\('he-IL'\)/);
+  assert.match(managerWorkspace, /normalizedName\(row\.direct_manager\) === normalizedName\(managerName\)/);
+});
