@@ -1556,6 +1556,22 @@ async function evaluateScenarioOptions({
   planningPerfCount('scenarioCount', scenarios.length);
   planningPerfCount('scenarioEvaluations', scenarios.length);
   const stopTimer = planningPerfTimer('evaluateScenarioOptions');
+  const staticCandidateInstructorIds = staticPlanningCandidateInstructors(
+    activity,
+    instructors,
+    profiles,
+    routeClient
+  ).map((row) => text(row?.emp_id)).filter(Boolean);
+  if (!staticCandidateInstructorIds.length) {
+    stopTimer();
+    return {
+      options: [],
+      preliminaryCount: 0,
+      routedAttemptCount: 0,
+      routeVerified: true,
+      recruitmentNeeded: true
+    };
+  }
   const preliminaries = [];
   for (let index = 0; index < scenarios.length; index += 1) {
     const course = scenarioCourse(activity, scenarios[index], index);
@@ -1571,7 +1587,7 @@ async function evaluateScenarioOptions({
       schoolCalendar,
       referenceDate: today,
       preparedContext,
-      candidateInstructorIds: (instructors || []).map((row) => text(row?.emp_id)).filter(Boolean)
+      candidateInstructorIds: staticCandidateInstructorIds
     }, checkpoint)).map((item) => item.candidate).filter(Boolean)
       .map((candidate) => {
         const cachedHome = routeClient?.peek?.(candidate?.instructor?.address, course?.school_address);
@@ -1774,6 +1790,12 @@ async function evaluateFixedCourse({
     };
   }
 
+  const staticCandidateInstructorIds = staticPlanningCandidateInstructors(
+    activity,
+    instructors,
+    profiles,
+    routeClient
+  ).map((row) => text(row?.emp_id)).filter(Boolean);
   const candidates = (await preliminaryCourseCandidatesCooperatively({
     activities: [activity],
     targetCourse: activity,
