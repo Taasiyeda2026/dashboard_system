@@ -465,6 +465,38 @@ function filterApprovalsForExportType(approvals = [], exportType = FINANCE_ATTEN
   });
 }
 
+function setExcelDurationCell(sheet, rowIndex, columnIndex, decimalHours) {
+  const hours = num(decimalHours);
+  const ref = XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex });
+  if (!(hours > 0)) {
+    delete sheet[ref];
+    return;
+  }
+  const cell = sheet[ref] || {};
+  cell.t = 'n';
+  cell.v = hours / 24;
+  cell.z = '[h]:mm';
+  sheet[ref] = cell;
+}
+
+function applyFinanceAttendanceDurationFormats(sheet, entries = []) {
+  (entries || []).forEach((entry, index) => {
+    for (const item of FINANCE_HOUR_CATEGORIES) {
+      const columnIndex = FINANCE_ATTENDANCE_COLUMNS.indexOf(item.label);
+      if (columnIndex < 0) continue;
+      setExcelDurationCell(sheet, index + 1, columnIndex, entry?.hours?.[item.key]);
+    }
+  });
+}
+
+function applyMaofDurationFormats(sheet, rows = []) {
+  const columnIndex = FINANCE_MAOF_DAILY_COLUMNS.indexOf('סה״כ שעות');
+  if (columnIndex < 0) return;
+  (rows || []).forEach((row, index) => {
+    setExcelDurationCell(sheet, index + 1, columnIndex, row?.['סה״כ שעות']);
+  });
+}
+
 function appendFinanceAttendanceSheet(workbook, sheetName, entries = []) {
   const rows = buildFinanceAttendanceExcelRows(entries);
   const sheetRows = [
@@ -472,6 +504,7 @@ function appendFinanceAttendanceSheet(workbook, sheetName, entries = []) {
     ...rows.map((row) => FINANCE_ATTENDANCE_COLUMNS.map((header) => row[header] ?? ''))
   ];
   const sheet = XLSX.utils.aoa_to_sheet(sheetRows);
+  applyFinanceAttendanceDurationFormats(sheet, entries);
   const fileCol = FINANCE_ATTENDANCE_COLUMNS.indexOf('קובץ');
   (entries || []).forEach((entry, index) => {
     if (!entry?.hasFile || !entry.fileUrl || fileCol < 0) return;
@@ -490,7 +523,9 @@ function appendMaofDailySheet(workbook, approvals = []) {
     FINANCE_MAOF_DAILY_COLUMNS,
     ...rows.map((row) => FINANCE_MAOF_DAILY_COLUMNS.map((header) => row[header] ?? ''))
   ];
-  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(sheetRows), FINANCE_MAOF_SHEET);
+  const sheet = XLSX.utils.aoa_to_sheet(sheetRows);
+  applyMaofDurationFormats(sheet, rows);
+  XLSX.utils.book_append_sheet(workbook, sheet, FINANCE_MAOF_SHEET);
 }
 
 export function buildFinanceAttendanceWorkbook(entries = [], { approvals = [], exportType = FINANCE_ATTENDANCE_EXPORT_FULL } = {}) {
