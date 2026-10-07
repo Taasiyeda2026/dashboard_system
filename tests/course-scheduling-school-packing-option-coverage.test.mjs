@@ -512,3 +512,23 @@ test('v34 weekly exception shift upgrade recalculates all non-live non-user-lock
   }).sort();
   assert.deepEqual(ids, ['anchored', 'fixed', 'missing', 'proposal', 'recruit']);
 });
+
+
+test('v35 incumbent fallback upgrade recalculates all movable planning outcomes', () => {
+  const shared = { rows: [
+    { activityId: 'live', row: { courseId: 'live', kind: 'live' } },
+    { activityId: 'proposal', row: { courseId: 'proposal', kind: 'proposal' } },
+    { activityId: 'fixed-proposal', row: { courseId: 'fixed-proposal', kind: 'fixed-proposal' } },
+    { activityId: 'missing', row: { courseId: 'missing', kind: 'missing' } },
+    { activityId: 'recruit', row: { courseId: 'recruit', kind: 'recruitment' } },
+    { activityId: 'fixed', row: { courseId: 'fixed', kind: 'fixed' } },
+    { activityId: 'locked', lockedOption: { instructorEmpId: '1' }, row: { courseId: 'locked', kind: 'proposal', planningLocked: true } }
+  ] };
+  const ids = planningEngineUpgradeAffectedCourseIds({
+    shared,
+    activities: [],
+    storedEngineVersion: 'planning-v34-20261007-self-invalidation-weekly-exception-shift',
+    currentEngineVersion: 'planning-v35-20261007-self-invalidation-incumbent-fallback'
+  }).sort();
+  assert.deepEqual(ids, ['fixed', 'fixed-proposal', 'missing', 'proposal', 'recruit']);
+});

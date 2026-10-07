@@ -1027,6 +1027,25 @@ export function planningEngineUpgradeAffectedCourseIds({
       .filter(Boolean);
   }
 
+  // v35 preserves still-valid incumbent proposals whenever a replacement
+  // search is bounded/incomplete. Revisit all movable outcomes once so older
+  // engine snapshots cannot retain the v34 coverage-loss behavior.
+  const incumbentFallbackV35Upgrade = currentMajor === 35
+    && previousMajor > 0
+    && previousMajor < 35;
+  if (incumbentFallbackV35Upgrade) {
+    return (shared?.rows || [])
+      .filter((entry) => {
+        const row = entry?.row || {};
+        const kind = text(row?.kind);
+        if (!['proposal', 'fixed-proposal', 'recruitment', 'missing', 'fixed'].includes(kind)) return false;
+        if (entry?.lockedOption || row?.planningLocked === true) return false;
+        return !!text(entry?.activityId || row?.courseId);
+      })
+      .map((entry) => text(entry?.activityId || entry?.row?.courseId))
+      .filter(Boolean);
+  }
+
   const skippedStructuralUpgrade = currentMajor >= 27 && previousMajor > 0 && previousMajor < 27;
   if (skippedStructuralUpgrade) {
     return (shared?.rows || [])

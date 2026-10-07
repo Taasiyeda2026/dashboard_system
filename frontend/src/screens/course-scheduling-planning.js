@@ -154,8 +154,8 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_VALIDATION_VERSION = 'planning-validation-v3-20261007-self-invalidation-weekly-exception-shift';
-export const PLANNING_ENGINE_VERSION = 'planning-v34-20261007-self-invalidation-weekly-exception-shift';
+export const PLANNING_VALIDATION_VERSION = 'planning-validation-v4-20261007-self-invalidation-incumbent-fallback';
+export const PLANNING_ENGINE_VERSION = 'planning-v35-20261007-self-invalidation-incumbent-fallback';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -2576,6 +2576,75 @@ function planRowFromOption(activity, option, options, startRange, spec, diagnost
   };
 }
 
+
+
+/**
+ * A bounded/timeout replacement search must never erase a still-valid incumbent
+ * proposal. This is a fallback only: a complete new search may replace the
+ * incumbent normally. The final whole-plan coherence guard still owns
+ * cross-proposal overlap/travel validation and can repair other movable rows
+ * around the preserved incumbent.
+ */
+export function preserveValidIncumbentRowsAfterIncompleteSearch({
+  rowsById = new Map(),
+  existingRows = [],
+  activities = [],
+  instructors = [],
+  profiles = {},
+  rules = {},
+  exceptions = {},
+  schoolCalendar = []
+} = {}) {
+  const existingById = new Map((existingRows || [])
+    .map((row) => [text(row?.courseId) || idOf(row), row])
+    .filter(([courseId]) => !!courseId));
+  const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
+  const liveAssignments = planningBlockingAssignmentsByInstructor(activities);
+  const preservedIds = [];
+
+  for (const [courseId, current] of rowsById.entries()) {
+    if (text(current?.kind) !== 'missing' || current?.diagnostics?.searchIncomplete !== true) continue;
+    const incumbent = existingById.get(courseId);
+    if (!['proposal', 'fixed-proposal'].includes(text(incumbent?.kind))) continue;
+    if (!text(incumbent?.instructorEmpId) || !(incumbent?.meetings || []).length) continue;
+
+    const activity = activityById.get(courseId) || {};
+    const validation = planningOptionPassesFinalValidation({
+      instructorEmpId: incumbent.instructorEmpId,
+      instructorName: incumbent.instructorName,
+      meetings: incumbent.meetings,
+      startDate: incumbent.startDate,
+      endDate: incumbent.endDate,
+      startTime: incumbent.startTime,
+      endTime: incumbent.endTime,
+      unresolvedInstructorExceptionDates: incumbent.unresolvedInstructorExceptionDates || []
+    }, {
+      activity,
+      instructors,
+      profiles,
+      rules,
+      exceptions,
+      assignments: liveAssignments,
+      schoolCalendar
+    });
+    if (!validation.valid) continue;
+
+    rowsById.set(courseId, {
+      ...incumbent,
+      schoolId: text(incumbent.schoolId || activity?.school_id),
+      planningLocked: false,
+      diagnostics: {
+        ...(incumbent?.diagnostics || {}),
+        incumbentPreserved: true,
+        replacementSearchIncomplete: true
+      },
+      reason: incumbent.reason
+        || 'החיפוש החדש לא הושלם; נשמר השיבוץ הקיים שעבר מחדש את כל תנאי הסף'
+    });
+    preservedIds.push(courseId);
+  }
+  return preservedIds;
+}
 
 export function normalizePlanningLockedOption(option = {}, periodKey = DEFAULT_PLANNING_PERIOD_KEY) {
   const period = planningEffectivePeriod(periodKey);
@@ -6370,6 +6439,28 @@ export async function buildDynamicCoursePlan({
     await report('בקרת תקינות סופית', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
   }
 
+  const preservedIncumbentIds = new Set(preserveValidIncumbentRowsAfterIncompleteSearch({
+    rowsById,
+    existingRows,
+    activities: targets,
+    instructors,
+    profiles,
+    rules,
+    exceptions,
+    schoolCalendar
+  }));
+  if (preservedIncumbentIds.size) {
+    planningPerfCount('incumbentFallbackPreserved', preservedIncumbentIds.size);
+    await report(
+      'שימור שיבוצים קיימים תקינים',
+      preservedIncumbentIds.size,
+      preservedIncumbentIds.size,
+      '',
+      null,
+      [...rowsById.values()]
+    );
+  }
+
   const rows = await assignRecruitmentProfilesCooperatively(
     targets.map((activity) => rowsById.get(idOf(activity)) || missingOverviewRow(activity, catalog)), checkpoint
   );
@@ -6384,7 +6475,8 @@ export async function buildDynamicCoursePlan({
     routeClient
   }, checkpoint);
   if (!finalPlanValidation.valid) {
-    const repairIds = finalValidationRepairCourseIds(finalPlanValidation.failures, rows);
+    const repairIds = finalValidationRepairCourseIds(finalPlanValidation.failures, rows)
+      .filter((courseId) => !preservedIncumbentIds.has(text(courseId)));
     if (_finalValidationRepairPass < 2 && repairIds.length) {
       await report('תיקון מקומי לאחר בקרת תקינות', 0, repairIds.length);
       return buildDynamicCoursePlan({
