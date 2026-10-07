@@ -206,6 +206,7 @@ function backBarHtml(title) {
 
 function formatHours(value) {
   const n = Number(value) || 0;
+  if (!(n > 0)) return '';
   const totalMinutes = Math.max(0, Math.round(n * 60));
   return `${String(Math.floor(totalMinutes / 60)).padStart(2, '0')}:${String(totalMinutes % 60).padStart(2, '0')}`;
 }
