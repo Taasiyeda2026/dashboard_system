@@ -209,6 +209,13 @@ test('production attendance PDF uses Alef subset fonts and preserves one byte st
   assert.match(handler, /replace_manager_attendance_month_pdf/);
   assert.match(handler, /mailSent: !mailSuppressed && !mailError/);
   assert.match(handler, /\(wantsForceRegenerate \|\| suppressEmail\) && !isRetryCaller/);
+  assert.match(handler, /function formatDurationHours\(value: unknown\)/);
+  assert.match(handler, /formatDurationHours\(totalHours\)/);
+  assert.match(handler, /const hours = formatDurationHours\(row\.workHours\)/);
+  assert.match(handler, /אסמכתאות:/);
+  assert.match(handler, /expenseDetails/);
+  assert.doesNotMatch(handler, /totalHours\.toFixed\(2\)/);
+  assert.doesNotMatch(handler, /const hours = toNumber\(row\.workHours\)\.toFixed\(2\)/);
 });
 
 test('production attendance PDF sizes rows from rendered content and keeps normal months compact', async () => {
