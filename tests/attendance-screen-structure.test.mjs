@@ -21,6 +21,8 @@ const duplicateCourseSource = await readFile(new URL('../attendance/src/duplicat
 const dashboardAlignmentMigration = await readFile(new URL('../supabase/migrations/20260921205240_attendance_dashboard_alignment_validation.sql', import.meta.url), 'utf8');
 const attendanceSwSource = await readFile(new URL('../attendance/sw.js', import.meta.url), 'utf8');
 const attendanceIndexSource = await readFile(new URL('../attendance/index.html', import.meta.url), 'utf8');
+const attendanceSwRegistrationSource = await readFile(new URL('../attendance/src/services/sw-registration.service.js', import.meta.url), 'utf8');
+const attendanceCacheVersion = attendanceSwSource.match(/const CACHE_VERSION = (\\d+);/)?.[1];
 const calSource     = await readFile(new URL('../attendance/src/components/mini-calendar.js', import.meta.url), 'utf8');
 const calendarDayDrawerSource = await readFile(new URL('../attendance/src/components/calendar-day-drawer.js', import.meta.url), 'utf8');
 const excelServiceSource = await readFile(new URL('../attendance/src/services/excel.service.js', import.meta.url), 'utf8');
@@ -116,6 +118,23 @@ test('shared Attendance time picker uses compact numeric placeholders and suppor
   assert.match(newReportStyles, /\.av2-time-picker__sep\s*\{[^}]*justify-content:\s*center/);
 });
 
+test('Attendance time entry is keyboard-independent on mobile and cancellation uses the shared picker', () => {
+  assert.match(timePickerSource, /createCompactSelect/);
+  assert.doesNotMatch(timePickerSource, /createElement\(['"]input['"]\)|type\s*=\s*['"]time['"]/);
+  assert.match(attendanceFollowupRuntime, /createTimePicker\('av2-time-cancel-edit', 'ביטול זמן', state\.label, 1\)/);
+  assert.doesNotMatch(attendanceFollowupRuntime, /input\.inputMode\s*=\s*['"]numeric['"]/);
+  assert.match(attendanceFollowupRuntime, /parseClockMinutes\(timePicker\.getValue\(\)\)/);
+});
+
+test('Attendance PWA actively replaces stale installed-app code after a deploy', () => {
+  assert.match(attendanceSwRegistrationSource, /updateViaCache:\s*'none'/);
+  assert.match(attendanceSwRegistrationSource, /reg\.update\(\)/);
+  assert.match(attendanceSwRegistrationSource, /visibilitychange/);
+  assert.match(attendanceSwRegistrationSource, /controllerchange/);
+  assert.match(attendanceSwRegistrationSource, /window\.location\.reload\(\)/);
+  assert.match(attendanceSwRegistrationSource, /const hadController = !!navigator\.serviceWorker\.controller/);
+});
+
 test('Attendance calendar shows TODAY highlight plus separate activity and attendance indicators', () => {
   assert.match(calSource, /av2-cal__cell--today/);
   assert.match(calSource, /av2-cal__activity-dot/);
@@ -175,8 +194,8 @@ test('Attendance New Report uses two compact desktop cards and instructor activi
   assert.match(activitiesServiceSource, /instructorActivitySelectOptions/);
   assert.match(newReportSource, /תחבורה ציבורית/);
   assert.match(newReportSource, /public_transport_cost/);
-  assert.match(attendanceSwSource, /const CACHE_VERSION = 101;/);
-  assert.match(attendanceIndexSource, /\?v=101/);
+  assert.ok(attendanceCacheVersion, 'Attendance SW cache version missing');
+  assert.match(attendanceIndexSource, new RegExp(`\\?v=${attendanceCacheVersion}`));
 });
 
 test('Attendance New Report keeps mobile fields inside padded page gutters', () => {
@@ -302,8 +321,8 @@ test('New Report accessibility layer is scoped, color-only and loaded last', () 
   assert.match(newReportAccessibilityStyles, /#2563EB/i);
   assert.doesNotMatch(newReportAccessibilityStyles, /(?:^|[;{]\s*)(?:width|height|min-width|max-width|min-height|max-height|padding|margin|gap|border-radius|font-size|font-family|grid-template-columns|display|position)\s*:/m);
 
-  const fitIndex = attendanceIndexSource.indexOf('report-table-fit-fix.css?v=101');
-  const accessibilityIndex = attendanceIndexSource.indexOf('new-report-accessibility.css?v=101');
+  const fitIndex = attendanceIndexSource.indexOf(`report-table-fit-fix.css?v=${attendanceCacheVersion}`);
+  const accessibilityIndex = attendanceIndexSource.indexOf(`new-report-accessibility.css?v=${attendanceCacheVersion}`);
   assert.notEqual(fitIndex, -1);
   assert.notEqual(accessibilityIndex, -1);
   assert.ok(accessibilityIndex > fitIndex, 'New Report accessibility CSS must load last');
