@@ -22,7 +22,7 @@ const dashboardAlignmentMigration = await readFile(new URL('../supabase/migratio
 const attendanceSwSource = await readFile(new URL('../attendance/sw.js', import.meta.url), 'utf8');
 const attendanceIndexSource = await readFile(new URL('../attendance/index.html', import.meta.url), 'utf8');
 const attendanceSwRegistrationSource = await readFile(new URL('../attendance/src/services/sw-registration.service.js', import.meta.url), 'utf8');
-const attendanceCacheVersion = attendanceSwSource.match(/const CACHE_VERSION = (\\d+);/)?.[1];
+const attendanceCacheVersion = attendanceSwSource.match(/const CACHE_VERSION = (\d+);/)?.[1];
 const calSource     = await readFile(new URL('../attendance/src/components/mini-calendar.js', import.meta.url), 'utf8');
 const calendarDayDrawerSource = await readFile(new URL('../attendance/src/components/calendar-day-drawer.js', import.meta.url), 'utf8');
 const excelServiceSource = await readFile(new URL('../attendance/src/services/excel.service.js', import.meta.url), 'utf8');
