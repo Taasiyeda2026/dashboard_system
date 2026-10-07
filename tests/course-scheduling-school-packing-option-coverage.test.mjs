@@ -454,3 +454,21 @@ test('planning progress names the current phase instead of presenting phase rese
   assert.match(block, /זה שלב בתוך אותה ריצה; החישוב לא התחיל מחדש/);
   assert.doesNotMatch(block, /pending > 0 && !\/מלא\//);
 });
+
+test('v32 utilization upgrade recalculates all movable outcomes but preserves user locks/live rows', () => {
+  const shared = { rows: [
+    { activityId: 'live', row: { courseId: 'live', kind: 'live', schoolDateAnchored: true } },
+    { activityId: 'anchored', row: { courseId: 'anchored', kind: 'fixed-proposal', schoolDateAnchored: true } },
+    { activityId: 'flex', row: { courseId: 'flex', kind: 'proposal' } },
+    { activityId: 'missing', row: { courseId: 'missing', kind: 'missing' } },
+    { activityId: 'recruit', row: { courseId: 'recruit', kind: 'recruitment' } },
+    { activityId: 'locked', lockedOption: { instructorEmpId: '1' }, row: { courseId: 'locked', kind: 'proposal', planningLocked: true } }
+  ] };
+  const ids = planningEngineUpgradeAffectedCourseIds({
+    shared,
+    activities: [],
+    storedEngineVersion: 'planning-v31-20261006-self-invalidation-bounded-bulk-rescue',
+    currentEngineVersion: 'planning-v32-20261007-self-invalidation-maximize-staff-utilization'
+  }).sort();
+  assert.deepEqual(ids, ['anchored', 'flex', 'missing', 'recruit']);
+});

@@ -262,8 +262,8 @@ test('workload uses actual hours including approved, draft, planning state and c
   assert.equal(equal.points, 20);
   const low = scoreActualWorkload({ projectedHalfHours: 2, peerProjectedHours: [2, 10], currentHalfHours: 1, activeWorkDays: 1 });
   const high = scoreActualWorkload({ projectedHalfHours: 10, peerProjectedHours: [2, 10], currentHalfHours: 9, activeWorkDays: 3 });
-  assert.equal(low.points, 20);
-  assert.equal(high.points, 0);
+  assert.equal(low.points, 0);
+  assert.equal(high.points, 20);
   const capacityBalanced = scoreActualWorkload({
     projectedHalfHours: 12,
     peerProjectedHours: [8, 12],
@@ -282,8 +282,8 @@ test('workload uses actual hours including approved, draft, planning state and c
     currentCourseCount: 1,
     availabilityHours: 16
   });
-  assert.equal(capacityBalanced.points, 20, 'lower utilization wins even with more raw hours');
-  assert.equal(capacityBusy.points, 0, 'higher utilization loses even with fewer raw hours');
+  assert.equal(capacityBalanced.points, 0, 'lower utilization loses because the objective is to fill existing availability');
+  assert.equal(capacityBusy.points, 20, 'higher utilization wins even with fewer raw hours');
   // Internal planner hours can drive soft fairness without changing user-facing projected hours.
   const plannerBalanced = scoreActualWorkload({
     projectedHalfHours: 2,
@@ -293,7 +293,7 @@ test('workload uses actual hours including approved, draft, planning state and c
     currentHalfHours: 1,
     activeWorkDays: 1
   });
-  assert.equal(plannerBalanced.points, 0);
+  assert.equal(plannerBalanced.points, 20);
   assert.equal(plannerBalanced.projectedHalfHours, 2);
 
   const openA = course('plan-a', '2026-09-06');

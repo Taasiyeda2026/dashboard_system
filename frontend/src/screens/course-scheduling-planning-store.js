@@ -965,6 +965,26 @@ export function planningEngineUpgradeAffectedCourseIds({
       .filter(Boolean);
   }
 
+  // v32 changes the objective from workload balancing to maximum use of
+  // each instructor's declared availability. Re-evaluate every non-live,
+  // non-user-locked outcome. Rows with source dates are included: their dates
+  // remain hard anchors while instructor allocation is recalculated around them.
+  const maximizeAvailabilityV32Upgrade = currentMajor === 32
+    && previousMajor > 0
+    && previousMajor < 32;
+  if (maximizeAvailabilityV32Upgrade) {
+    return (shared?.rows || [])
+      .filter((entry) => {
+        const row = entry?.row || {};
+        const kind = text(row?.kind);
+        if (!['proposal', 'fixed-proposal', 'recruitment', 'missing', 'fixed'].includes(kind)) return false;
+        if (entry?.lockedOption || row?.planningLocked === true) return false;
+        return !!text(entry?.activityId || row?.courseId);
+      })
+      .map((entry) => text(entry?.activityId || entry?.row?.courseId))
+      .filter(Boolean);
+  }
+
   const skippedStructuralUpgrade = currentMajor >= 27 && previousMajor > 0 && previousMajor < 27;
   if (skippedStructuralUpgrade) {
     return (shared?.rows || [])
