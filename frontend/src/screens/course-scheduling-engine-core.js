@@ -630,7 +630,9 @@ function evaluateCandidate({
   const classification = classifyMeetingAvailabilityBlocks(adjustmentInput);
   const tooManyExceptions = classification.instructorExceptionCount > MAX_RECOVERABLE_EXCEPTION_MEETINGS;
   const allowAdjustments = input.allowDateAdjustments !== false;
+  const shiftInstructorExceptionsByWeek = input.shiftInstructorExceptionsByWeek === true;
   const allowUnresolvedInstructorExceptions = input.allowUnresolvedInstructorExceptions === true
+    && !shiftInstructorExceptionsByWeek
     && !tooManyExceptions
     && classification.instructorExceptionCount > 0;
   const unresolvedInstructorExceptionDates = allowUnresolvedInstructorExceptions
@@ -655,7 +657,8 @@ function evaluateCandidate({
       });
     adjustment = buildExceptionRecoveryPlan({
       ...adjustmentInput,
-      findSubstitute
+      findSubstitute,
+      cascadeInstructorExceptions: shiftInstructorExceptionsByWeek
     });
     if (adjustment?.valid) {
       const destination = placeOf(course);
@@ -674,7 +677,12 @@ function evaluateCandidate({
           constraintKind: row.constraintKind
         }])
       );
-      adjustment = proposeDateAdjustments({ ...adjustmentInput, transitions, substitutionsByDate });
+      adjustment = proposeDateAdjustments({
+        ...adjustmentInput,
+        transitions,
+        substitutionsByDate,
+        cascadeInstructorExceptions: shiftInstructorExceptionsByWeek
+      });
       if (adjustment?.valid) {
         adjustment = {
           ...adjustment,

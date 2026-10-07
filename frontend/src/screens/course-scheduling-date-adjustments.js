@@ -185,7 +185,8 @@ export function proposeDateAdjustments({
   allowSaturday = false,
   skipDates = [],
   substitutionsByDate = {},
-  fullDayBlocking = false
+  fullDayBlocking = false,
+  cascadeInstructorExceptions = false
 } = {}) {
   const exceptionMap = new Map(exceptions.map((row) => [text(row.exception_date), row]));
   const blockedDates = blockedSchoolDates(schoolCalendar);
@@ -197,22 +198,105 @@ export function proposeDateAdjustments({
   const hasEndTimeCap = ordered.some((m, i) => m.end_time !== String(meetings[i]?.end_time || ''));
 
   const blockedIndexes = [];
+  const blockedKindByIndex = new Map();
   for (let index = 0; index < ordered.length; index += 1) {
     const meeting = ordered[index];
     if (skip.has(meeting.date) || substitutionsByDate[meeting.date]) continue;
     if (blockedDates.has(meeting.date)) {
       blockedIndexes.push(index);
+      blockedKindByIndex.set(index, 'school_calendar');
       continue;
     }
     const exception = exceptionMap.get(meeting.date);
     if (exception && weeklyAllows(meeting, rules) && exceptionBlocksMeeting(meeting, exception)) {
       blockedIndexes.push(index);
+      blockedKindByIndex.set(index, 'instructor_exception');
     }
   }
 
   if (!blockedIndexes.length && !hasEndTimeCap) {
     const hasSubstitutions = Object.keys(substitutionsByDate || {}).length > 0;
     if (!hasSubstitutions) return null;
+  }
+
+  const firstInstructorExceptionIndex = blockedIndexes.find((index) =>
+    blockedKindByIndex.get(index) === 'instructor_exception'
+  );
+  const hasAutomaticSubstitutions = Object.keys(substitutionsByDate || {}).length > 0;
+  if (
+    cascadeInstructorExceptions
+    && firstInstructorExceptionIndex != null
+    && !hasAutomaticSubstitutions
+  ) {
+    // Keep the course sequence intact. Once an instructor exception forces a
+    // weekly move, later meetings are never pulled earlier than their original
+    // date. If the moved meeting occupies the next session's slot, the tail
+    // cascades forward one weekly slot at a time.
+    const cascadeStartIndex = Math.min(
+      firstInstructorExceptionIndex,
+      ...blockedIndexes.filter((index) => index <= firstInstructorExceptionIndex)
+    );
+    const proposed = [];
+    let previousScheduledDate = '';
+    for (let index = 0; index < ordered.length; index += 1) {
+      const original = ordered[index];
+      const nominalEndTime = meetings[index]?.end_time || original.end_time;
+      if (index < cascadeStartIndex) {
+        const kept = {
+          ...original,
+          original_date: original.original_date || original.date,
+          moved: false
+        };
+        proposed.push(kept);
+        previousScheduledDate = kept.date;
+        continue;
+      }
+
+      const originalFloorAnchor = addDays(original.date, -7);
+      const anchor = index === cascadeStartIndex
+        ? original.date
+        : [previousScheduledDate, originalFloorAnchor].filter(Boolean).sort().at(-1);
+      const slot = findNextWeeklySlot({
+        meeting: original,
+        afterDate: anchor,
+        rules,
+        exceptionMap,
+        blockedDates,
+        schoolCalendar,
+        allowSaturday,
+        nominalEndTime
+      });
+      if (!slot) return { valid: false, reason: 'adjustment_search_exhausted', meetings: [] };
+
+      const moved = slot.date !== original.date;
+      const originalKind = blockedKindByIndex.get(index);
+      proposed.push({
+        ...original,
+        original_date: original.original_date || original.date,
+        date: slot.date,
+        end_time: slot.end_time,
+        moved,
+        constraintKind: moved
+          ? (originalKind || 'instructor_exception_cascade')
+          : (original.constraintKind || undefined)
+      });
+      previousScheduledDate = slot.date;
+    }
+
+    const err = validateProposedMeetings(proposed, { existingActivities, transitions, fullDayBlocking });
+    if (err) return err;
+    const newEndDate = proposed.at(-1)?.date || '';
+    return {
+      valid: true,
+      kind: 'weekly_exception_cascade',
+      label: 'מתאים בכפוף להזזת מועד בשבוע',
+      reason: 'חריג זמינות נקודתי דוחה את המפגש לשבוע הבא הזמין ושומר על רצף הסדרה',
+      meetings: proposed,
+      movedCount: proposed.filter((row) => row.moved).length,
+      newEndDate,
+      exceedsHalf: !!halfEnd && newEndDate > halfEnd,
+      singleMeetingSubstitutions: []
+    };
   }
 
   if (!blockedIndexes.length) {
@@ -337,8 +421,9 @@ export function proposeDateAdjustments({
 }
 
 /**
- * Resolve 1–2 instructor exception meetings: prefer a one-off substitute on the
- * original date; otherwise append only that meeting to the end of the series.
+ * Resolve 1–2 instructor exception meetings. Callers may either prefer a
+ * one-off substitute, append blocked meetings, or cascade the weekly series
+ * forward from the first blocked instructor date.
  */
 export function buildExceptionRecoveryPlan({
   meetings = [],
@@ -350,7 +435,8 @@ export function buildExceptionRecoveryPlan({
   halfEnd = '',
   allowSaturday = false,
   findSubstitute = null,
-  fullDayBlocking = false
+  fullDayBlocking = false,
+  cascadeInstructorExceptions = false
 } = {}) {
   const classification = classifyMeetingAvailabilityBlocks({
     meetings,
@@ -394,7 +480,8 @@ export function buildExceptionRecoveryPlan({
     halfEnd,
     allowSaturday,
     substitutionsByDate,
-    fullDayBlocking
+    fullDayBlocking,
+    cascadeInstructorExceptions
   });
 
   if (!adjustment) {

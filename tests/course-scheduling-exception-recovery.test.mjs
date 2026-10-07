@@ -385,3 +385,105 @@ test('planning final validation accepts only explicitly marked <=2 manual except
   });
   assert.equal(result.valid, true);
 });
+
+
+test('planning weekly-shift mode moves a blocked meeting one week and cascades the remaining series', () => {
+  const target = course('weekly-shift-one', [
+    { date: '2027-01-03', start_time: '10:00', end_time: '11:00' },
+    { date: '2027-01-10', start_time: '10:00', end_time: '11:00' },
+    { date: '2027-01-17', start_time: '10:00', end_time: '11:00' },
+    { date: '2027-01-24', start_time: '10:00', end_time: '11:00' }
+  ]);
+  const result = calculateCourseSchedule({
+    activities: [target],
+    instructors: [instructor(1)],
+    profiles: { 1: profile },
+    rules: { 1: sundayRules },
+    exceptions: { 1: [{ exception_date: '2027-01-10', available: false }] },
+    travel: { 'weekly-shift-one': { 1: { home: { distance_km: 3, duration_minutes: 6 } } } },
+    routeMatrix: {},
+    periodKey: 'first',
+    referenceDate: '2026-12-01',
+    allowSubstitutes: false,
+    shiftInstructorExceptionsByWeek: true
+  })[0];
+
+  const candidate = result.checked[0];
+  assert.equal(candidate.eligible, true);
+  assert.equal(candidate.instructorExceptionCount, 1);
+  assert.equal((candidate.singleMeetingSubstitutions || []).length, 0);
+  assert.deepEqual(candidate.proposedMeetings.map((row) => row.date), [
+    '2027-01-03', '2027-01-17', '2027-01-24', '2027-01-31'
+  ]);
+  assert.deepEqual(candidate.proposedMeetings.map((row) => row.original_date), [
+    '2027-01-03', '2027-01-10', '2027-01-17', '2027-01-24'
+  ]);
+  assert.equal(candidate.movedMeetingsCount, 3);
+});
+
+test('planning weekly-shift mode skips a second blocked date and keeps the same permanent instructor', () => {
+  const target = course('weekly-shift-two', [
+    { date: '2027-01-03', start_time: '10:00', end_time: '11:00' },
+    { date: '2027-01-10', start_time: '10:00', end_time: '11:00' },
+    { date: '2027-01-17', start_time: '10:00', end_time: '11:00' },
+    { date: '2027-01-24', start_time: '10:00', end_time: '11:00' }
+  ]);
+  const result = calculateCourseSchedule({
+    activities: [target],
+    instructors: [instructor(1)],
+    profiles: { 1: profile },
+    rules: { 1: sundayRules },
+    exceptions: {
+      1: [
+        { exception_date: '2027-01-10', available: false },
+        { exception_date: '2027-01-24', available: false }
+      ]
+    },
+    travel: { 'weekly-shift-two': { 1: { home: { distance_km: 3, duration_minutes: 6 } } } },
+    routeMatrix: {},
+    periodKey: 'first',
+    referenceDate: '2026-12-01',
+    allowSubstitutes: false,
+    shiftInstructorExceptionsByWeek: true
+  })[0];
+
+  const candidate = result.checked[0];
+  assert.equal(candidate.eligible, true);
+  assert.equal(candidate.instructorExceptionCount, 2);
+  assert.equal((candidate.singleMeetingSubstitutions || []).length, 0);
+  assert.deepEqual(candidate.proposedMeetings.map((row) => row.date), [
+    '2027-01-03', '2027-01-17', '2027-01-31', '2027-02-07'
+  ]);
+});
+
+test('planning weekly-shift mode still rejects a permanent instructor with three blocked dates', () => {
+  const target = course('weekly-shift-three', [
+    { date: '2027-01-03', start_time: '10:00', end_time: '11:00' },
+    { date: '2027-01-10', start_time: '10:00', end_time: '11:00' },
+    { date: '2027-01-17', start_time: '10:00', end_time: '11:00' },
+    { date: '2027-01-24', start_time: '10:00', end_time: '11:00' }
+  ]);
+  const result = calculateCourseSchedule({
+    activities: [target],
+    instructors: [instructor(1)],
+    profiles: { 1: profile },
+    rules: { 1: sundayRules },
+    exceptions: {
+      1: [
+        { exception_date: '2027-01-10', available: false },
+        { exception_date: '2027-01-17', available: false },
+        { exception_date: '2027-01-24', available: false }
+      ]
+    },
+    travel: { 'weekly-shift-three': { 1: { home: { distance_km: 3, duration_minutes: 6 } } } },
+    routeMatrix: {},
+    periodKey: 'first',
+    referenceDate: '2026-12-01',
+    allowSubstitutes: false,
+    shiftInstructorExceptionsByWeek: true
+  })[0];
+
+  const candidate = result.checked[0];
+  assert.equal(candidate.eligible, false);
+  assert.ok(candidate.failures.includes('too_many_availability_exceptions'));
+});

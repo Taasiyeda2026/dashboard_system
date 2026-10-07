@@ -1008,6 +1008,25 @@ export function planningEngineUpgradeAffectedCourseIds({
       .filter(Boolean);
   }
 
+  // v34 replaces manual exception handling with weekly cascade recovery.
+  // Revisit every non-live, non-user-locked planning outcome once so skipped
+  // v32/v33 upgrades also inherit the utilization objective and the new date rule.
+  const weeklyExceptionShiftV34Upgrade = currentMajor === 34
+    && previousMajor > 0
+    && previousMajor < 34;
+  if (weeklyExceptionShiftV34Upgrade) {
+    return (shared?.rows || [])
+      .filter((entry) => {
+        const row = entry?.row || {};
+        const kind = text(row?.kind);
+        if (!['proposal', 'fixed-proposal', 'recruitment', 'missing', 'fixed'].includes(kind)) return false;
+        if (entry?.lockedOption || row?.planningLocked === true) return false;
+        return !!text(entry?.activityId || row?.courseId);
+      })
+      .map((entry) => text(entry?.activityId || entry?.row?.courseId))
+      .filter(Boolean);
+  }
+
   const skippedStructuralUpgrade = currentMajor >= 27 && previousMajor > 0 && previousMajor < 27;
   if (skippedStructuralUpgrade) {
     return (shared?.rows || [])
