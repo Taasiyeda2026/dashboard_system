@@ -11,17 +11,25 @@ const migration = await readFile(
   'utf8'
 );
 
-test('contextual previous/next >20km transition warnings stay non-overridable', () => {
+test('verified previous/next >20km transitions can be selected for admin review', () => {
   for (const warning of [
     'המרחק אחרי ביומימיקרי בבית ספר שמש גבולות ביום 15.10.2026 גדול מ־20 ק״מ - משפיע על 8 מפגשים',
     'המרחק לפני בינה מלאכותית בבית ספר דוד בן גוריון גדול מ־20 ק״מ'
   ]) {
     assert.equal(
       manualCandidateBlocked({ failures: [warning] }),
-      true,
+      false,
       warning
     );
   }
+});
+
+test('a distance exception does not hide overlap, unavailability or insufficient travel time', () => {
+  const distance = 'המרחק אחרי ביומימיקרי גדול מ־20 ק״מ';
+  for (const blocker of ['קיימת חפיפה', 'הזמינות המוגדרת אינה מכסה את המפגש', 'אין זמן מעבר מספיק', 'לא ניתן לאמת זמן מעבר']) {
+    assert.equal(manualCandidateBlocked({ failures: [distance, blocker] }), true, blocker);
+  }
+  assert.equal(manualCandidateBlocked({ failures: ['מרחק בין הפעילויות גדול מ־20 ק״מ'] }), false);
 });
 
 test('manual draft and approval submission both enforce authoritative hard violations', () => {
