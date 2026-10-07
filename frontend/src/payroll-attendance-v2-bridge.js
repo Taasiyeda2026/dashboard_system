@@ -252,9 +252,15 @@ api.managerAttendanceReviewSnapshot = async function ({ employeeId = '', monthKe
   };
 };
 
-api.attendanceControlTeams = async function () {
+api.attendanceControlTeams = async function ({ monthKey = '' } = {}) {
   await waitForSupabaseAuthSession({ timeoutMs: 7000 }).catch(() => null);
-  const { data, error } = await supabase.rpc('get_payroll_attendance_team_roster');
+  const month = text(monthKey);
+  const hasMonth = /^20\d{2}-(0[1-9]|1[0-2])$/.test(month);
+  const rpcName = hasMonth
+    ? 'get_payroll_attendance_team_roster_for_month'
+    : 'get_payroll_attendance_team_roster';
+  const params = hasMonth ? { p_month_key: month } : undefined;
+  const { data, error } = await supabase.rpc(rpcName, params);
   if (error) throw new Error(error.message || 'attendance_team_roster_supabase_load_failed');
   return syntheticEmployeesFromRecords((Array.isArray(data) ? data : []).map(rosterRecord));
 };
