@@ -472,6 +472,11 @@ function toNumber(value: unknown) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function formatDurationHours(value: unknown) {
+  const totalMinutes = Math.max(0, Math.round(toNumber(value) * 60));
+  return `${String(Math.floor(totalMinutes / 60)).padStart(2, "0")}:${String(totalMinutes % 60).padStart(2, "0")}`;
+}
+
 async function buildPdfBytes(payload: {
   employeeName: string;
   employeeId: string;
@@ -589,7 +594,7 @@ async function buildPdfBytes(payload: {
 
   page.drawRectangle({ x: LEFT, y: y - 68, width: CONTENT_W, height: 68, borderColor: rgb(0.88, 0.9, 0.94), borderWidth: 0.7, color: rgb(0.99, 0.995, 1) });
   drawRtl(`${rows.length} דיווחים`, RIGHT - 22, y - 22, 10, bold);
-  drawRtl(`${totalHours.toFixed(2)} שעות`, RIGHT - 150, y - 22, 10, bold);
+  drawRtl(`${formatDurationHours(totalHours)} שעות`, RIGHT - 150, y - 22, 10, bold);
   drawRtl(`${totalKm.toFixed(0)} ק״מ`, RIGHT - 290, y - 22, 10, bold);
   drawRtl(`₪${totalExpenses.toFixed(2)} הוצאות`, RIGHT - 405, y - 22, 10, bold);
   const hasPublicTransport = rows.some((row) => row.publicTransport === true || row.publicTransport === "true" || row.publicTransport === 1);
@@ -610,16 +615,26 @@ async function buildPdfBytes(payload: {
       const activity = clean(row.activityType) || "פעילות";
       const date = formatDate(row.date) || "—";
       const time = `${clean(row.startTime) || "—"}–${clean(row.endTime) || "—"}`;
-      const hours = toNumber(row.workHours).toFixed(2);
+      const hours = formatDurationHours(row.workHours);
       const place = [clean(row.program), clean(row.school), clean(row.authority)].filter(Boolean).join(" | ");
       const usesPublicTransport = row.publicTransport === true || row.publicTransport === "true" || row.publicTransport === 1;
       const travelLabel = usesPublicTransport
         ? `תחבורה ציבורית${toNumber(row.publicTransportCost) ? ` ₪${toNumber(row.publicTransportCost).toFixed(2)}` : ""}`
         : (toNumber(row.kilometers) ? `${toNumber(row.kilometers).toFixed(0)} ק״מ` : "");
+      const expenseAmount = toNumber(row.expenses);
+      const expenseDetails = clean(row.expenseDetails || row.expensesDetails);
+      const attachmentNames = clean(row.attachmentsNames);
+      const expenseLabel = expenseAmount
+        ? [
+          `הוצאות ₪${expenseAmount.toFixed(2)}`,
+          expenseDetails ? `פירוט: ${expenseDetails}` : "",
+          attachmentNames ? `אסמכתאות: ${attachmentNames}` : "",
+        ].filter(Boolean).join(" · ")
+        : "";
       const secondary = [
         clean(row.meetingNo) ? `מפגש ${clean(row.meetingNo)}` : "",
         travelLabel,
-        toNumber(row.expenses) ? `₪${toNumber(row.expenses).toFixed(2)} הוצאות` : "",
+        expenseLabel,
       ].filter(Boolean).join(" | ");
       const notes = clean(row.notes);
 
