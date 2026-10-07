@@ -2280,18 +2280,42 @@ test('plan-quality comparison follows approved repair priorities after existing-
   assert.ok(comparePlanningPlanQuality(lessTravel, moreTravel) < 0);
 });
 
-test('global objective uses the approved 35/20/18/15/7/3/2 priorities', () => {
+test('global objective uses coverage, packing and staff-utilization priorities', () => {
   assert.deepEqual(GLOBAL_PLANNING_OBJECTIVE_WEIGHTS, {
     recruitmentCoverage: 35,
     newWorkDays: 20,
     continuityGeography: 18,
     travel: 15,
     gaps: 7,
-    workloadBalance: 3,
+    staffUtilization: 3,
     stability: 2
   });
   assert.equal(Object.values(GLOBAL_PLANNING_OBJECTIVE_WEIGHTS).reduce((sum, value) => sum + value, 0), 100);
   assert.equal(GLOBAL_OPTIMIZATION_MIN_GAIN, 5);
+});
+
+test('global objective prefers concentrating valid work into available instructor capacity', () => {
+  const row = (id, emp, ratio) => ({
+    courseId: id,
+    kind: 'proposal',
+    instructorEmpId: emp,
+    meetings: [{ date: '2026-10-12', start_time: '08:00', end_time: '09:30' }],
+    options: [{
+      instructorEmpId: emp,
+      planningOptimization: { total: 80 },
+      operationalMetrics: {
+        projectedUtilizationRatio: ratio,
+        continuityMeetingCount: 1,
+        existingWorkDayMeetingCount: 1,
+        newWorkDayMeetingCount: 0,
+        relevantTravelDistance: 5
+      }
+    }]
+  });
+  const fuller = [row('a', '1', 0.8), row('b', '1', 0.9)];
+  const spread = [row('a', '1', 0.4), row('b', '2', 0.4)];
+  assert.ok(planningGlobalObjective(fuller).ratios.staffUtilization > planningGlobalObjective(spread).ratios.staffUtilization);
+  assert.ok(planningGlobalObjective(fuller).total > planningGlobalObjective(spread).total);
 });
 
 test('global objective rewards fewer new work days and more packed continuity', () => {

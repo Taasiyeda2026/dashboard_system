@@ -367,13 +367,13 @@ export function scoreActualWorkload({
     const maxRatio = Math.max(...utilizationPeers);
     points = minRatio === maxRatio
       ? max
-      : roundPoints(max * ((maxRatio - projectedRatio) / (maxRatio - minRatio)), max);
+      : roundPoints(max * ((projectedRatio - minRatio) / (maxRatio - minRatio)), max);
   } else if (effectiveHourPeers.length && Number.isFinite(effectiveProjectedHours)) {
     const minHours = Math.min(...effectiveHourPeers);
     const maxHours = Math.max(...effectiveHourPeers);
     points = minHours === maxHours
       ? max
-      : roundPoints(max * ((maxHours - effectiveProjectedHours) / (maxHours - minHours)), max);
+      : roundPoints(max * ((effectiveProjectedHours - minHours) / (maxHours - minHours)), max);
   }
 
   const projectedRounded = Number.isFinite(projected) ? Math.round(projected * 100) / 100 : 0;

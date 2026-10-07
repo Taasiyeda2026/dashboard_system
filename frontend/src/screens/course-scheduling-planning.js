@@ -155,7 +155,7 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   stability: 10
 });
 export const PLANNING_VALIDATION_VERSION = 'planning-validation-v2-20261006-self-invalidation-certified-outcomes';
-export const PLANNING_ENGINE_VERSION = 'planning-v31-20261006-self-invalidation-bounded-bulk-rescue';
+export const PLANNING_ENGINE_VERSION = 'planning-v32-20261007-self-invalidation-maximize-staff-utilization';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -2871,7 +2871,7 @@ export const GLOBAL_PLANNING_OBJECTIVE_WEIGHTS = Object.freeze({
   continuityGeography: 18,
   travel: 15,
   gaps: 7,
-  workloadBalance: 3,
+  staffUtilization: 3,
   stability: 2
 });
 export const GLOBAL_OPTIMIZATION_MIN_GAIN = 5;
@@ -2903,12 +2903,18 @@ export function planningGlobalObjective(rows = []) {
     );
   }
 
-  const hours = (audit.instructorLoads || []).map((item) => Number(item.hours)).filter((value) => Number.isFinite(value) && value >= 0);
-  const meanHours = hours.length ? hours.reduce((sum, value) => sum + value, 0) / hours.length : 0;
-  const variance = meanHours > 0 && hours.length
-    ? hours.reduce((sum, value) => sum + ((value - meanHours) ** 2), 0) / hours.length
+  const utilizationByInstructor = new Map();
+  for (const row of source) {
+    const option = planningRowPrimaryOption(row);
+    const empId = text(option?.instructorEmpId || row?.instructorEmpId);
+    const ratio = Number(option?.operationalMetrics?.projectedUtilizationRatio);
+    if (!empId || !Number.isFinite(ratio) || ratio < 0) continue;
+    utilizationByInstructor.set(empId, Math.max(utilizationByInstructor.get(empId) || 0, clamp01(ratio)));
+  }
+  const utilizationValues = [...utilizationByInstructor.values()];
+  const staffUtilizationRatio = utilizationValues.length
+    ? utilizationValues.reduce((sum, value) => sum + value, 0) / utilizationValues.length
     : 0;
-  const coefficientOfVariation = meanHours > 0 ? Math.sqrt(variance) / meanHours : 0;
   const draftRows = source.filter((row) => row.sourceHadDraft === true).length;
 
   const ratios = {
@@ -2917,7 +2923,7 @@ export function planningGlobalObjective(rows = []) {
     continuityGeography: continuityTotal ? clamp01(continuityWeighted / continuityTotal) : 1,
     travel: 1 - clamp01(quality.averageTravelKm / 40),
     gaps: audit.workDays ? clamp01(audit.packedDays / audit.workDays) : 1,
-    workloadBalance: 1 - clamp01(coefficientOfVariation),
+    staffUtilization: clamp01(staffUtilizationRatio),
     stability: draftRows ? 1 - clamp01(quality.changedDrafts / draftRows) : 1
   };
 
@@ -2945,7 +2951,7 @@ export function planningGlobalObjective(rows = []) {
     packedDays: audit.packedDays,
     workDays: audit.workDays,
     singletonDays: audit.singletonDays,
-    workloadCoefficientOfVariation: Math.round(coefficientOfVariation * 1000) / 1000
+    staffUtilizationRatio: Math.round(staffUtilizationRatio * 1000) / 1000
   };
 }
 
