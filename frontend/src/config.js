@@ -400,3 +400,5 @@ config.HOTFIX_VERSION = `scheduling-manual-exception-handling-20261007-v1-${conf
 config.HOTFIX_VERSION = `scheduling-weekly-exception-shift-20261007-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `scheduling-incumbent-fallback-validated-commit-20261007-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `inactive-instructor-admin-manager-attendance-20261007-v1-${config.HOTFIX_VERSION}`;
