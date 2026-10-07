@@ -268,22 +268,33 @@ async function ensureAuth() {
   await waitForSupabaseAuthSession({ timeoutMs: 7000 }).catch(() => null);
 }
 
-async function loadEmployees() {
+async function loadEmployees(monthKey) {
   if (!supabase) throw new Error('חיבור הנתונים אינו זמין.');
+  const month = text(monthKey);
+  if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(month)) throw new Error('חודש נוכחות אינו תקין.');
   await ensureAuth();
-  const { data, error } = await supabase
-    .from('contacts_instructors')
-    .select('emp_id,full_name,direct_manager,active,employment_type')
-    .order('direct_manager', { ascending: true, nullsFirst: false })
-    .order('full_name', { ascending: true, nullsFirst: false });
+  const { data, error } = await supabase.rpc('get_payroll_attendance_team_roster_for_month', {
+    p_month_key: month
+  });
   if (error) throw new Error(error.message || 'טעינת העובדים נכשלה.');
   const byId = new Map();
   for (const row of Array.isArray(data) ? data : []) {
-    const id = employeeId(row);
-    if (!id || !isActiveEmployee(row) || byId.has(id)) continue;
-    byId.set(id, row);
+    const normalized = {
+      emp_id: text(row.employee_id),
+      full_name: text(row.employee_name),
+      employment_type: text(row.employment_type),
+      direct_manager: text(row.team),
+      active: 'yes'
+    };
+    const id = employeeId(normalized);
+    if (!id || byId.has(id)) continue;
+    byId.set(id, normalized);
   }
-  return [...byId.values()];
+  return [...byId.values()].sort((a, b) => {
+    const managerCmp = text(a.direct_manager).localeCompare(text(b.direct_manager), 'he');
+    if (managerCmp) return managerCmp;
+    return text(a.full_name).localeCompare(text(b.full_name), 'he') || employeeId(a).localeCompare(employeeId(b), 'he');
+  });
 }
 
 function workflowStatus(row = {}, finalApproval = null, monthKey = '', priorDispatch = null) {
@@ -575,7 +586,7 @@ async function renderData(root, monthKey, message = '') {
   setMessage(root, message, false);
   try {
     const previousContext = root.__adminAttendanceContext || {};
-    const employees = await loadEmployees();
+    const employees = await loadEmployees(monthKey);
     const ids = employees.map(employeeId).filter(Boolean);
     const [workflowRows, finalRows, dispatchRows] = await Promise.all([
       api.attendanceControlMonthWorkflowStatuses({ monthKey, employeeIds: ids }),
@@ -600,7 +611,7 @@ async function renderData(root, monthKey, message = '') {
     if (modeEl) modeEl.textContent = monthMode(monthKey).label;
     if (body) body.innerHTML = employees.length
       ? `${summaryHtml(employees, workflowByEmployee, finalByEmployee, dispatchByEmployee, monthKey)}${groupsHtml(employees, workflowByEmployee, finalByEmployee, dispatchByEmployee, monthKey)}`
-      : '<div class="admin-attendance-empty">לא נמצאו עובדים פעילים להצגה.</div>';
+      : '<div class="admin-attendance-empty">לא נמצאו עובדים להצגה בחודש שנבחר.</div>';
   } catch (error) {
     if (token !== renderToken || !root.isConnected) return;
     if (body) body.innerHTML = '<div class="admin-attendance-empty">לא ניתן לטעון את בקרת הנוכחות כרגע.</div>';
