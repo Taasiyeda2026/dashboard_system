@@ -72,8 +72,8 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  min-height: 28px;
-  padding: 3px 7px;
+  min-height: 25px;
+  padding: 2px 5px;
   border: 0;
   border-radius: 7px;
   background: transparent;
@@ -90,7 +90,7 @@
 .ifb-filter-toggle:focus-visible { background: #eef2f8; outline: none; color: #26324f; }
 .ifb-filter-toggle svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 .ifb-filter-toggle small { color: var(--ifb-a-muted); font-size: 11px; font-weight: 650; }
-.ifb-filter-disclosure > .ifb-filter-panel { margin-top: 5px; }
+.ifb-filter-disclosure > .ifb-filter-panel { margin-top: 3px; }
 .ifb-filter-panel { padding: 9px 10px 7px; border: 1px solid var(--ifb-a-line); border-radius: 12px; background: var(--ifb-a-card); box-shadow: 0 1px 2px rgba(25, 34, 58, .03); }
 .ifb-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
 .ifb-filters--primary { display: grid; grid-template-columns: minmax(210px, 1.6fr) repeat(4, minmax(135px, 1fr)) auto; align-items: end; }
