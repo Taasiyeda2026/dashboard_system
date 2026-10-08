@@ -294,6 +294,7 @@ async function main() {
     const page = await ctx.newPage();
     await page.goto(links.instructor);
     assert.match(await page.locator('.ifb-hero__hello').textContent(), /שלום דנה לוי/);
+    assert.equal(await page.locator('.ifb-rate__opt.is-emoji').count(), 0, 'instructor rating scale must not render smileys');
     const n = await fillQuestionnaire(page, { rating: 4, text: 'שלב הדגמים עבד מצוין' });
     assert.equal(n, 20);
     await page.screenshot({ path: `${SHOTS}/06-instructor-mobile.png`, fullPage: true });
@@ -316,6 +317,9 @@ async function main() {
     const ctx = await student();
     const page = await ctx.newPage();
     await page.goto(links.staff);
+    assert.equal(await page.locator('.ifb-rate__opt.is-emoji').count(), 0, 'educational staff rating scale must not render smileys');
+    const firstScale = page.locator('.ifb-rate').first();
+    assert.deepEqual(await firstScale.locator('.ifb-rate__face').allTextContents(), ['1', '2', '3', '4', '5']);
     await fillQuestionnaire(page, { rating: 3 });
     await page.locator('[data-submit]').click();
     await page.locator('.ifb-message__title').waitFor();
