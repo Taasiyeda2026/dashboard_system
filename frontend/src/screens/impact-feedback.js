@@ -477,7 +477,6 @@ function slotCardHtml(group, slot) {
       <div><dt>נפתח</dt><dd>${fmtDate(campaign.opens_at)}</dd></div>
       <div><dt>תוקף</dt><dd>${campaign.expires_at ? fmtDate(campaign.expires_at) : 'ללא'}</dd></div>
       <div><dt>תשובות</dt><dd>${Number(campaign.responses) || 0}</dd></div>
-      <div><dt>גרסת שאלון</dt><dd>v${esc(String(campaign.version_no || ''))}${campaign.template_is_current === false ? ' <span class="ifb-chip ifb-chip--muted" title="המשוב נשאר על הגרסה שהייתה בתוקף בפתיחתו">גרסה קודמת</span>' : ''}</dd></div>
       ${!isStudent && recipient ? `<div class="ifb-meta__wide"><dt>נמען</dt><dd>${esc(recipient.display_name || '—')}${recipient.phone ? ` · <span dir="ltr">${esc(recipient.phone)}</span>` : ''}${recipient.email ? ` · ${esc(recipient.email)}` : ''}</dd></div>` : ''}
       ${!isStudent && recipient?.completed_at ? `<div class="ifb-meta__wide"><dt>מולא</dt><dd>${fmtDate(recipient.completed_at)}</dd></div>` : ''}
       ${!isStudent && recipient?.last_shared_at && !recipient?.completed_at ? `<div class="ifb-meta__wide"><dt>נשלח לאחרונה</dt><dd>${fmtDate(recipient.last_shared_at)} (${esc({ whatsapp: 'WhatsApp', email: 'מייל', copy: 'העתקה' }[recipient.last_shared_channel] || '')})</dd></div>` : ''}
