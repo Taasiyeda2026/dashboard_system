@@ -407,4 +407,5 @@ config.HOTFIX_VERSION = `inactive-instructor-admin-manager-attendance-20261007-v
 
 config.HOTFIX_VERSION = `manager-attendance-normalized-name-runtime-20261007-v1-${config.HOTFIX_VERSION}`;
 
+config.HOTFIX_VERSION = `impact-feedback-ui-admin-only-20261008-v2-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `impact-feedback-module-20261008-v1-${config.HOTFIX_VERSION}`;
