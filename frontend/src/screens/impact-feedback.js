@@ -687,6 +687,110 @@ function groupViewHtml(group) {
 }
 
 // ---------------------------------------------------------------------------
+// Instructor feedback — once per instructor + program + academic year
+// ---------------------------------------------------------------------------
+
+function instructorAssignmentKey(row) {
+  return `${row.instructor_emp_id}|${row.program_key}|${row.academic_year}`;
+}
+
+function instructorCampaignActionsHtml(row) {
+  const campaign = row.campaign;
+  const key = instructorAssignmentKey(row);
+  if (!campaign) {
+    if (!ui.instructorOpenForms.has(key)) {
+      return `<button type="button" class="ifb-btn ifb-btn--primary ifb-btn--sm" data-ifb-instructor-open="${esc(key)}">צור משוב</button>`;
+    }
+    return `
+      <form class="ifb-instructor-open-form" data-ifb-instructor-open-form
+        data-emp="${esc(row.instructor_emp_id)}" data-program="${esc(row.program_key)}" data-year="${esc(row.academic_year)}" data-key="${esc(key)}">
+        <label class="ifb-field"><span>פתיחה</span><input type="date" name="opens" value="${isoDay(Date.now())}" required></label>
+        <label class="ifb-field"><span>תוקף עד</span><input type="date" name="expires" value="${isoDay(Date.now() + (14 * DAY_MS))}" min="${isoDay(Date.now() + DAY_MS)}"></label>
+        <div class="ifb-slot__actions">
+          <button type="submit" class="ifb-btn ifb-btn--primary ifb-btn--sm">יצירת קישור</button>
+          <button type="button" class="ifb-btn ifb-btn--ghost ifb-btn--sm" data-ifb-instructor-cancel="${esc(key)}">ביטול</button>
+        </div>
+      </form>`;
+  }
+
+  const status = campaignUiStatus(campaign);
+  if (status.key === 'completed') return '<span class="ifb-muted">המשוב הושלם ונעול</span>';
+  const links = personalShareLinks(campaign, { programTitle: programTitle(row.program_key), schoolName: '' });
+  const live = status.key === 'active' || status.key === 'collecting' || status.key === 'scheduled';
+  return `<div class="ifb-slot__actions">
+    <a class="ifb-btn ifb-btn--whatsapp ifb-btn--sm${live ? '' : ' is-disabled'}" href="${esc(links.whatsapp)}" target="_blank" rel="noopener" data-ifb-share="whatsapp" data-campaign="${esc(campaign.id)}">WhatsApp</a>
+    <a class="ifb-btn ifb-btn--sm${live && links.hasEmail ? '' : ' is-disabled'}" href="${esc(links.email)}" data-ifb-share="email" data-campaign="${esc(campaign.id)}">מייל</a>
+    <button type="button" class="ifb-btn ifb-btn--sm" data-ifb-copy="${esc(campaign.id)}">העתק קישור</button>
+    ${campaign.status === 'active'
+      ? `<button type="button" class="ifb-btn ifb-btn--danger ifb-btn--sm" data-ifb-close="${esc(campaign.id)}">סגור</button>`
+      : `<button type="button" class="ifb-btn ifb-btn--sm" data-ifb-reopen="${esc(campaign.id)}">פתח מחדש</button>`}
+  </div>`;
+}
+
+function instructorAssignmentsHtml() {
+  const all = ui.instructorAssignments || [];
+  const filters = ui.instructorFilters;
+  const search = filters.search.trim().toLowerCase();
+  const rows = all.filter((row) => {
+    if (filters.program && row.program_key !== filters.program) return false;
+    const status = campaignUiStatus(row.campaign).key;
+    if (filters.status === 'not_opened' && row.campaign) return false;
+    if (filters.status === 'pending' && !['active', 'collecting', 'scheduled'].includes(status)) return false;
+    if (filters.status === 'completed' && status !== 'completed') return false;
+    if (filters.status === 'expired' && status !== 'expired') return false;
+    if (search) {
+      const hay = `${row.instructor_name || ''} ${programTitle(row.program_key)} ${row.instructor_emp_id || ''}`.toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+
+  const totalPrograms = all.length;
+  const opened = all.filter((row) => row.campaign).length;
+  const completed = all.filter((row) => row.campaign?.recipient?.status === 'completed').length;
+  return `
+    <section class="ifb-panel ifb-instructor-intro">
+      <div>
+        <h2>משובי מדריכים</h2>
+        <p class="ifb-note">כל מדריך ממלא משוב אחד בלבד לכל תוכנית שבה הוא משובץ בשנת הפעילות — לא משוב נפרד לכל קבוצה.</p>
+      </div>
+      <div class="ifb-inline-stats">
+        <span><strong>${totalPrograms}</strong> צירופי מדריך–תוכנית</span>
+        <span><strong>${opened}</strong> נפתחו</span>
+        <span><strong>${completed}</strong> הושלמו</span>
+      </div>
+    </section>
+    <section class="ifb-filter-panel">
+      <div class="ifb-filters ifb-filters--instructors">
+        <label class="ifb-field ifb-field--search"><span>חיפוש מדריך</span><input type="search" data-i="search" value="${esc(filters.search)}" placeholder="שם מדריך…"></label>
+        <label class="ifb-field"><span>תוכנית</span><select data-i="program">${optionList(ui.programs.map((p) => p.key), filters.program, 'כל התוכניות', programTitle)}</select></label>
+        <label class="ifb-field"><span>סטטוס</span><select data-i="status">
+          ${[['', 'הכל'], ['not_opened', 'טרם נפתח'], ['pending', 'ממתין למילוי'], ['completed', 'הושלם'], ['expired', 'פג תוקף']]
+            .map(([v, l]) => `<option value="${v}"${v === filters.status ? ' selected' : ''}>${l}</option>`).join('')}
+        </select></label>
+        <button type="button" class="ifb-btn ifb-btn--ghost" data-ifb-clear="instructors">ניקוי</button>
+      </div>
+    </section>
+    <div class="ifb-list-head"><h2>מדריכים <span class="ifb-list-count">(${rows.length})</span></h2></div>
+    ${rows.length ? `<div class="ifb-table-wrap">
+      <table class="ifb-table ifb-instructor-table">
+        <thead><tr><th>מדריך</th><th>תוכנית</th><th>שיבוצים</th><th>בתי ספר</th><th>תקופה</th><th>סטטוס</th><th>פעולות</th></tr></thead>
+        <tbody>${rows.map((row) => `
+          <tr data-instructor-feedback="${esc(instructorAssignmentKey(row))}">
+            <td data-label="מדריך"><strong>${esc(row.instructor_name || row.instructor_emp_id)}</strong><span class="ifb-muted ifb-cell-sub">#${esc(row.instructor_emp_id)}</span></td>
+            <td data-label="תוכנית">${esc(programTitle(row.program_key))}</td>
+            <td data-label="שיבוצים" class="ifb-center"><strong>${Number(row.assignment_count) || 0}</strong></td>
+            <td data-label="בתי ספר" class="ifb-center">${Number(row.school_count) || 0}</td>
+            <td data-label="תקופה" class="ifb-nowrap">${fmtDate(row.first_start_date)}–${fmtDate(row.last_end_date)}</td>
+            <td data-label="סטטוס">${tableStatusHtml(row.campaign)}</td>
+            <td data-label="פעולות">${instructorCampaignActionsHtml(row)}</td>
+          </tr>`).join('')}</tbody>
+      </table>
+    </div>` : '<div class="ifb-empty"><p>לא נמצאו שיבוצי מדריכים התואמים לסינון.</p></div>'}
+  `;
+}
+
+// ---------------------------------------------------------------------------
 // Results dashboard
 // ---------------------------------------------------------------------------
 
