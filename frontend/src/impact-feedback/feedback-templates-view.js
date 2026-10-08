@@ -63,7 +63,6 @@ function listHtml(ui) {
   const byProgram = new Map(ui.programs.map((p) => [p.key, []]));
   for (const t of tpl.list) byProgram.get(t.program_key)?.push(t);
   return `
-    <p class="ifb-note">כל תבנית מורכבת משאלות ליבה ומשאלות ייחודיות לתוכנית, עם ניסוחים מותאמי גיל. שינוי תבנית יוצר גרסה חדשה – משובים שכבר נפתחו נשארים על הגרסה שלהם.</p>
     <div class="ifb-programs">${ui.programs.map((program) => `
       <section class="ifb-program-card">
         <h3>${esc(program.title)}</h3>
