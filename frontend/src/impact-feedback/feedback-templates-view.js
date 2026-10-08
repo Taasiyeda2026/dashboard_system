@@ -5,7 +5,7 @@
  */
 import { escapeHtml as esc } from '../screens/shared/html.js';
 import { showToast } from '../screens/shared/toast.js';
-import { AGE_BANDS, QUESTION_TYPES, SLOTS } from './feedback-domain.js';
+import { QUESTION_TYPES, SLOTS } from './feedback-domain.js';
 import {
   addBankQuestionToDraft,
   createQuestionInDraft,
@@ -46,6 +46,18 @@ function fmtDate(value) {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit' });
 }
 
+function educationLevelLabel(level) {
+  return level === 'elementary' ? 'יסודי' : level === 'secondary' ? 'חטיבת ביניים ותיכון' : '';
+}
+
+function programMeta(program) {
+  const parts = [
+    educationLevelLabel(program?.education_level),
+    ...(Array.isArray(program?.gefen_numbers) ? program.gefen_numbers.map((n) => `גפ״ן ${n}`) : [])
+  ].filter(Boolean);
+  return parts.join(' · ');
+}
+
 function optionsToText(options) {
   return (Array.isArray(options) ? options : []).map((o) => `${o.value}|${o.label}`).join('\n');
 }
@@ -66,6 +78,7 @@ function listHtml(ui) {
     <div class="ifb-programs">${ui.programs.map((program) => `
       <section class="ifb-program-card">
         <h3>${esc(program.title)}</h3>
+        <p class="ifb-program-card__meta">${esc(programMeta(program))}</p>
         <div class="ifb-program-card__tiles">${SLOTS.map((slot) => {
           const template = (byProgram.get(program.key) || []).find((t) => t.audience === slot.audience && t.stage === slot.stage);
           if (!template) return '';
@@ -100,7 +113,6 @@ function readOnlyQuestionHtml(q, index, ui) {
       ${q.required ? '' : '<span class="ifb-chip ifb-chip--muted">לא חובה</span>'}
     </div>
     <p class="ifb-tq__text">${esc(q.wording?.default || '')}</p>
-    ${AGE_BANDS.filter((b) => q.wording?.[b.key]).map((b) => `<p class="ifb-tq__variant"><span>${esc(b.label)}:</span> ${esc(q.wording[b.key])}</p>`).join('')}
     ${SELECT_TYPES.has(q.question_type) ? `<p class="ifb-tq__variant"><span>אפשרויות:</span> ${esc((q.options || []).map((o) => o.label).join(' · '))}</p>` : ''}
   </li>`;
 }
@@ -118,10 +130,7 @@ function editableQuestionHtml(q, index, total, ui) {
       </span>
     </div>
     <label class="ifb-field"><span>ניסוח (ברירת מחדל)</span><textarea rows="2" data-tq-field="wording.default">${esc(q.wording?.default || '')}</textarea></label>
-    <details class="ifb-tq__variants"><summary>ניסוחים מותאמי גיל (אופציונלי)</summary>
-      ${AGE_BANDS.map((b) => `<label class="ifb-field"><span>${esc(b.label)}</span><input type="text" data-tq-field="wording.${b.key}" value="${esc(q.wording?.[b.key] || '')}" placeholder="ריק = ניסוח ברירת המחדל"></label>`).join('')}
-      <p class="ifb-muted">אפשר להשתמש ב־{topic} כדי לשלב את נושא התוכנית.</p>
-    </details>
+    <p class="ifb-muted">אפשר להשתמש ב־{topic} כדי לשלב את נושא התוכנית.</p>
     <div class="ifb-tq__row">
       <label class="ifb-field"><span>סוג תשובה</span><select data-tq-field="question_type">${typeOptions(q.question_type)}</select></label>
       <label class="ifb-field"><span>מדד</span><select data-tq-field="metric_key">${metricOptions(ui, q.metric_key)}</select></label>
@@ -165,12 +174,11 @@ function editorHtml(ui) {
     <button type="button" class="ifb-back" data-tpl-back>→ חזרה לכל התבניות</button>
     <section class="ifb-group-head">
       <div>
-        <p class="ifb-kicker">${esc(program?.title || '')}</p>
+        <p class="ifb-kicker">${esc(program?.title || '')}${programMeta(program) ? ` · ${esc(programMeta(program))}` : ''}</p>
         <h2 class="ifb-group-head__title">${esc(slot?.label || '')}</h2>
         <p class="ifb-muted">${ed.published ? `גרסה מפורסמת: ${ed.published.version_no} (${fmtDate(ed.published.published_at)})` : 'אין גרסה מפורסמת'}${editing ? ` · טיוטה ${ed.draft.version_no} בעריכה` : ''}</p>
       </div>
       <div class="ifb-slot__actions">
-        <label class="ifb-field ifb-field--inline"><span>תצוגה לגיל</span><select data-tpl-preview-band>${AGE_BANDS.map((b) => `<option value="${b.key}"${b.key === (ui.templates.previewBand || program?.default_age_band) ? ' selected' : ''}>${esc(b.label)}</option>`).join('')}</select></label>
         <button type="button" class="ifb-btn" data-tpl-preview>תצוגה מקדימה</button>
         ${editing
           ? `<button type="button" class="ifb-btn ifb-btn--primary" data-tpl-publish>פרסום גרסה חדשה</button>
@@ -232,7 +240,7 @@ async function loadEditor(ui, repaint) {
 function openPreview(ui) {
   const ed = tpl.editor;
   const program = ui.programs.find((p) => p.key === ed.template.program_key);
-  const band = ui.templates.previewBand || program?.default_age_band || 'd_f';
+  const band = program?.default_age_band || 'd_f';
   const source = ed.draft ? ed.draftQuestions : ed.publishedQuestions;
   const payload = {
     audience: ed.template.audience,
@@ -244,7 +252,7 @@ function openPreview(ui) {
     questions: source.map((q) => ({
       id: q.id,
       type: q.question_type,
-      text: String(q.wording?.[band] || q.wording?.default || '').replaceAll('{topic}', program?.topic || ''),
+      text: String(q.wording?.default || '').replaceAll('{topic}', program?.topic || ''),
       options: q.options || [],
       required: q.required
     }))
@@ -287,15 +295,13 @@ async function saveQuestionField(ui, repaint, row, field, input) {
   let needsRepaint = false;
   if (field.startsWith('wording.')) {
     const key = field.slice(8);
-    const wording = { ...(q.wording || {}) };
     const value = input.value.trim();
     if (key === 'default' && !value) {
-      showToast('ניסוח ברירת המחדל הוא חובה', 'error');
+      showToast('ניסוח השאלה הוא חובה', 'error');
       input.value = q.wording?.default || '';
       return;
     }
-    if (value) wording[key] = value; else delete wording[key];
-    patch = { wording };
+    patch = { wording: { default: value } };
   } else if (field === 'required') {
     patch = { required: input.checked };
   } else if (field === 'question_type') {
@@ -398,7 +404,6 @@ export function bindTemplatesView(host, ui, repaint) {
 
   root.addEventListener('change', async (event) => {
     const input = event.target;
-    if (input.matches('[data-tpl-preview-band]')) { ui.templates.previewBand = input.value; return; }
     if (input.matches('[data-tpl-intro]')) {
       await withSave(() => updateVersionIntro(tpl.editor.draft.id, input.value.trim()), repaint, { ui });
       tpl.editor.draft.intro_text = input.value.trim();
