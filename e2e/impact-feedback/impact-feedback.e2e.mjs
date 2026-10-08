@@ -584,6 +584,16 @@ async function main() {
       ['תלמידים (התחלה)', 'תלמידים (סיום)', 'צוות חינוכי', 'מדריך (התחלה)', 'מדריך (סיום)']
     );
     assert.equal(
+      await firstProgramTiles.first().evaluate((el) => getComputedStyle(el).textAlign),
+      'center',
+      'template button text is visually centered'
+    );
+    assert.equal(
+      await firstProgramTiles.first().evaluate((el) => Math.round(el.getBoundingClientRect().width)),
+      await admin.locator('.ifb-program-card').first().locator('.ifb-tile').first().evaluate((el) => Math.round(el.getBoundingClientRect().width - 16)),
+      'template label spans the usable button width for true centering'
+    );
+    assert.equal(
       await admin.locator('.ifb-program-card').first().locator('.ifb-program-card__tiles').evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length),
       1,
       'each course card stacks all five survey types vertically'
