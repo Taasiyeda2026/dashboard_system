@@ -12,6 +12,10 @@ if (connectionString) {
     throw new Error('Use a disposable localhost database');
   }
 }
+// CI sets PLANNING_INVALIDATION_REQUIRE_DB=1 so a missing database fails the job instead of skipping.
+if (!connectionString && process.env.PLANNING_INVALIDATION_REQUIRE_DB === '1') {
+  throw new Error('PLANNING_INVALIDATION_TEST_DATABASE_URL is required in CI');
+}
 const client = connectionString ? new pg.Client({ connectionString }) : null;
 const required = (t) => {
   if (client) return true;
@@ -31,6 +35,9 @@ create table public.scheduling_planning_rows (
   needs_recalc boolean not null default false, primary key (workspace_id, activity_id));
 create table public.scheduling_planning_workspaces (id uuid primary key, period_key text, district text, engine_version text, data_fingerprint text,
   context_fingerprint text, calculated_at timestamptz, updated_at timestamptz, updated_by uuid, revision bigint not null default 0);
+create table public.scheduling_planning_run_leases (period_key text not null, district text not null default '', run_id uuid not null,
+  owner_id uuid not null, acquired_at timestamptz not null default now(), heartbeat_at timestamptz not null default now(),
+  expires_at timestamptz not null, primary key (period_key, district));
 create table public.activities (row_id text primary key, school_id text, authority_id text, school text, authority text);
 create table public.contacts_instructors (emp_id bigint primary key, active text, address text, seniority_years int, phone text);
 create table public.instructor_scheduling_profiles (emp_id bigint primary key, default_start_time time not null default '08:00',
@@ -126,6 +133,33 @@ test('every needs_recalc flag records when it was set; saves that clear it keep 
   const cleared = (await client.query(`select needs_recalc, needs_recalc_marked_at from public.scheduling_planning_rows where activity_id='proposal-1'`)).rows[0];
   assert.equal(cleared.needs_recalc, false);
   assert.equal(cleared.needs_recalc_marked_at.getTime(), second.getTime());
+});
+
+test('a run never clears flags set after it started (route-cache insert without revision bump)', async (t) => {
+  if (!required(t)) return;
+  await resetRows();
+  await client.query(`delete from public.scheduling_planning_workspaces; delete from public.scheduling_planning_run_leases`);
+  await client.query(`insert into public.scheduling_planning_workspaces(id, period_key, district) values ($1, 'year', '')`, [ws]);
+  // missing-1: flagged before this migration (no flag time). recruit-1: flagged before the run.
+  await client.query(`alter table public.scheduling_planning_rows disable trigger scheduling_planning_rows_stamp_recalc`);
+  await client.query(`update public.scheduling_planning_rows set needs_recalc=true where activity_id='missing-1'`);
+  await client.query(`alter table public.scheduling_planning_rows enable trigger scheduling_planning_rows_stamp_recalc`);
+  await client.query(`update public.scheduling_planning_rows set needs_recalc=true where activity_id='recruit-1'`);
+  await client.query(`select pg_sleep(0.01)`);
+  await client.query(`insert into public.scheduling_planning_run_leases(period_key, district, run_id, owner_id, acquired_at, expires_at)
+    values ('year', '', gen_random_uuid(), gen_random_uuid(), clock_timestamp(), clock_timestamp() + interval '2 minutes')`);
+  await client.query(`select pg_sleep(0.01)`);
+  // While the run calculates, a new route lands in the cache and flags proposal-1.
+  await client.query(`update public.scheduling_planning_rows set needs_recalc=true where activity_id='proposal-1'`);
+  const revisionBefore = await revision();
+  // The run's commit writes every row with needs_recalc=false.
+  await client.query(`update public.scheduling_planning_rows set needs_recalc=false`);
+  assert.deepEqual(await dirtyIds(), ['proposal-1'], 'only the flag raised during the run survives');
+  assert.equal(await revision(), revisionBefore, 'no source revision involved');
+  // Without an active run (lease expired), an ordinary save clears normally.
+  await client.query(`update public.scheduling_planning_run_leases set expires_at = clock_timestamp() - interval '1 second'`);
+  await client.query(`update public.scheduling_planning_rows set needs_recalc=false`);
+  assert.deepEqual(await dirtyIds(), []);
 });
 
 test('migration is additive and exposes the flag time to the planning workspace', () => {

@@ -180,3 +180,9 @@ jobs:
         run: |
           npm ci --ignore-scripts --no-audit --no-fund
           node --test tests/course-scheduling-planning-invalidation-postgres.test.mjs
+      # Runs after the step above, never in parallel: both rebuild the public schema.
+      - name: Run precise planning invalidation against PostgreSQL 16
+        env:
+          PLANNING_INVALIDATION_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dashboard_test
+          PLANNING_INVALIDATION_REQUIRE_DB: '1'
+        run: node --test tests/planning-precise-invalidation-postgres.test.mjs

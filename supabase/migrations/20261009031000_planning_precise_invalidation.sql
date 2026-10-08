@@ -8,6 +8,10 @@
 -- 2. Instructor edits flag missing/recruitment rows only when the edit can add
 --    capacity, instead of on every profile/availability/contact change.
 --
+-- 3. A run's save/commit no longer clears flags set after that run started
+--    (row trigger, see below). Route-cache INSERTs flag rows without bumping
+--    the source revision, so before this the commit silently cleared them.
+--
 -- Additive only: one nullable column, one row trigger, one pure helper, and
 -- two function bodies replaced. No row is deleted or rewritten, the saved plan
 -- and any checkpoint are untouched, and the source revision fence is
@@ -16,11 +20,31 @@
 alter table public.scheduling_planning_rows
   add column if not exists needs_recalc_marked_at timestamptz;
 
+-- Stamp every flag. And while a planning run holds the lease for this
+-- workspace, a flag set after that run started is never cleared by the run's
+-- save/commit: the run computed that row before the change (e.g. a route-cache
+-- INSERT, which deliberately does not bump the source revision so that a run's
+-- own lookups do not fence it). The row stays dirty for the next incremental
+-- run instead of being stored as current.
 create or replace function public.scheduling_planning_rows_stamp_recalc()
-returns trigger language plpgsql set search_path = public as $$
+returns trigger language plpgsql security definer set search_path = public as $$
+declare
+  run_started_at timestamptz;
 begin
   if new.needs_recalc is true then
     new.needs_recalc_marked_at := clock_timestamp();
+  elsif TG_OP = 'UPDATE' and old.needs_recalc is true then
+    select l.acquired_at into run_started_at
+    from public.scheduling_planning_workspaces w
+    join public.scheduling_planning_run_leases l
+      on l.period_key = w.period_key and l.district = w.district
+    where w.id = new.workspace_id and l.expires_at > clock_timestamp();
+    -- A null flag time predates this migration, hence any run started after
+    -- it (apply only while no planning lease is active), and may be cleared.
+    if run_started_at is not null and old.needs_recalc_marked_at >= run_started_at then
+      new.needs_recalc := true;
+      new.needs_recalc_marked_at := old.needs_recalc_marked_at;
+    end if;
   end if;
   return new;
 end $$;
