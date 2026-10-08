@@ -32,7 +32,11 @@ export default defineConfig(() => {
       cssCodeSplit: false,
       sourcemap: false,
       rollupOptions: {
-        input: resolve(__dirname, 'index.html'),
+        input: {
+          index: resolve(__dirname, 'index.html'),
+          // Standalone public feedback form (no app shell / login).
+          feedback: resolve(__dirname, 'feedback.html')
+        },
         output: {
           // Do not inline dynamic imports: feature/screen bundles must stay async chunks.
           entryFileNames: 'assets/[name]-[hash].js',
