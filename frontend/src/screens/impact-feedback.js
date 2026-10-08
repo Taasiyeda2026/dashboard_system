@@ -269,8 +269,10 @@ function kpiHtml(groups, instructorAssignments = []) {
 }
 function overviewFiltersHtml(groups) {
   const f = ui.filters;
-  const activeCount = Object.values(f).filter(Boolean).length + (ui.showAll ? 1 : 0);
-  const advancedCount = [f.instructor, f.ageBand, f.from, f.to].filter(Boolean).length + (ui.showAll ? 1 : 0);
+  // "הצגת קבוצות ללא משובים" היא ברירת המחדל ולכן אינה נחשבת מסנן פעיל.
+  // כך גם מעטפת הסינון וגם "סינון נוסף" נשארים סגורים בכניסה למסך.
+  const activeCount = Object.values(f).filter(Boolean).length;
+  const advancedCount = [f.instructor, f.ageBand, f.from, f.to].filter(Boolean).length;
   return `
     <details class="ifb-filter-disclosure"${activeCount ? ' open' : ''} data-ifb-filter-disclosure="overview">
       <summary class="ifb-filter-toggle" data-ifb-filter-toggle="overview">

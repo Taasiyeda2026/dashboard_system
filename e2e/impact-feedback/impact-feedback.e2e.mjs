@@ -124,6 +124,7 @@ async function main() {
     assert.equal(await admin.locator('.ifb-col-results').count(), 0, 'overview does not render a Results column');
     const filterDisclosure = admin.locator('[data-ifb-filter-disclosure="overview"]');
     assert.equal(await filterDisclosure.getAttribute('open'), null, 'overview filters are collapsed by default');
+    assert.equal(await filterDisclosure.locator('.ifb-filter-more').getAttribute('open'), null, 'advanced filters are collapsed by default');
     assert.equal(await admin.locator('.ifb-list-head').count(), 0, 'overview has no redundant Groups count heading');
     await filterDisclosure.locator('summary').click();
     await filterDisclosure.locator('.ifb-filter-more > summary').click();
