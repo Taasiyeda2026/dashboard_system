@@ -810,16 +810,15 @@ function instructorAssignmentsHtml() {
         </div>
       </section>
     </details>
-    ${rows.length ? `<div class="ifb-table-wrap">
+    ${rows.length ? `<div class="ifb-table-wrap ifb-instructor-table-wrap">
       <table class="ifb-table ifb-instructor-table ifb-instructor-table--two-stages">
-        <thead><tr><th>מדריך</th><th>תוכנית</th><th>שיבוצים</th><th>בתי ספר</th><th>תקופה</th><th>פתיחה – אחרי הכשרה</th><th>סיום הקורס</th></tr></thead>
+        <colgroup><col class="ifb-iw-instructor"><col class="ifb-iw-program"><col class="ifb-iw-groups"><col class="ifb-iw-first-end"><col class="ifb-iw-stage"><col class="ifb-iw-stage"></colgroup><thead><tr><th>מדריך</th><th>תוכנית</th><th>קבוצות</th><th>סיום הקורס הראשון</th><th>פתיחה – אחרי הכשרה</th><th>סיום הקורס</th></tr></thead>
         <tbody>${rows.map((row) => `
           <tr data-instructor-feedback="${esc(instructorAssignmentKey(row))}">
             <td data-label="מדריך"><strong>${esc(row.instructor_name || row.instructor_emp_id)}</strong><span class="ifb-muted ifb-instructor-id">#${esc(row.instructor_emp_id)}</span></td>
             <td data-label="תוכנית">${esc(programTitle(row.program_key))}</td>
-            <td data-label="שיבוצים" class="ifb-center"><strong>${Number(row.assignment_count) || 0}</strong></td>
-            <td data-label="בתי ספר" class="ifb-center">${Number(row.school_count) || 0}</td>
-            <td data-label="תקופה" class="ifb-nowrap">${fmtDate(row.first_start_date)}–${fmtDate(row.last_end_date)}</td>
+            <td data-label="קבוצות" class="ifb-center"><strong>${Number(row.assignment_count) || 0}</strong></td>
+            <td data-label="סיום הקורס הראשון" class="ifb-center ifb-nowrap">${fmtDate(row.first_course_end_date) || '—'}</td>
             <td data-label="פתיחה – אחרי הכשרה" class="ifb-instructor-stage-cell">${instructorCampaignActionsHtml(row, 'pre')}</td>
             <td data-label="סיום הקורס" class="ifb-instructor-stage-cell">${instructorCampaignActionsHtml(row, 'final')}</td>
           </tr>`).join('')}</tbody>
