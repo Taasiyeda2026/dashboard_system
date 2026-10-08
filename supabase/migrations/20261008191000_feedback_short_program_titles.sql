@@ -5,7 +5,7 @@ with short_names(program_key, short_title) as (
   values
     ('biomimicry', 'ביומימיקרי'),
     ('green_leadership', 'מנהיגות ירוקה'),
-    ('space_technologies', 'טכנולוגיות החלל'),
+    ('space_tech', 'טכנולוגיות החלל'),
     ('ai_applications', 'יישומי AI'),
     ('pharma', 'רוקחים עולם'),
     ('ofek', 'אופק פרימיום'),
