@@ -51,6 +51,7 @@ const BOARD_CACHE_TTL_MS = 90 * 1000;
 const monthFormatter = new Intl.DateTimeFormat('he-IL', { month: 'long', year: 'numeric' });
 const shortDateFormatter = new Intl.DateTimeFormat('he-IL', { day: '2-digit', month: '2-digit' });
 const fullDateFormatter = new Intl.DateTimeFormat('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const plannedHourFormatter = new Intl.NumberFormat('he-IL', { maximumFractionDigits: 2 });
 
 let managerBoardOpen = false;
 let autoOpenedSessionKey = '';
@@ -565,7 +566,7 @@ function renderImportantDates(entries) {
   if (!entries.length) {
     return '<div class="manager-board-empty manager-board-empty--compact">אין תאריכים חשובים להצגה בחודש זה.</div>';
   }
-  return entries.slice(0, 20).map((entry) => `
+  return entries.map((entry) => `
     <div class="manager-board-school-event${entry.blocksScheduling ? ' is-blocking' : ''}${entry.isBirthday ? ' is-birthday' : ''}">
       <time datetime="${escapeAttr(entry.iso)}">${escapeHtml(formatShortDate(entry.iso))}</time>
       <span>${entry.isBirthday ? '🎂 ' : ''}${escapeHtml(entry.title)}</span>
@@ -761,31 +762,25 @@ function renderBoardMarkup(data, manager, ym) {
         </section>
 
         <aside class="manager-board-side">
-          <section class="manager-board-panel">
+          <section class="manager-board-panel" data-manager-board-control-points-current>
             <div class="manager-board-panel__head">
-              <div>
-                <h2>נקודות בקרה</h2>
-              </div>
+              <h2>נקודות בקרה</h2>
             </div>
-            <div class="manager-board-milestones-group">
-              <div class="manager-board-milestones-group__part">
-                <p class="manager-board-milestones-group__label">נקודות בקרה – החודש</p>
-                <div class="manager-board-milestones">${renderMilestones(meetings)}</div>
-              </div>
-              <div class="manager-board-milestones-group__part">
-                <p class="manager-board-milestones-group__label">נקודות בקרה – חודש הבא</p>
-                <div class="manager-board-milestones">${renderMilestones(nextMonthMeetings)}</div>
-              </div>
-            </div>
+            <div class="manager-board-milestones">${renderMilestones(meetings)}</div>
           </section>
 
-          <section class="manager-board-panel">
+          <section class="manager-board-panel" data-manager-board-important-dates-panel>
             <div class="manager-board-panel__head">
-              <div>
-                <h2>תאריכים חשובים</h2>
-              </div>
+              <h2>תאריכים חשובים</h2>
             </div>
             <div class="manager-board-school-events" data-manager-board-important-dates>${renderImportantDates(importantDateEntries(schoolEvents, data.birthdays, ym))}</div>
+          </section>
+
+          <section class="manager-board-panel" data-manager-board-control-points-next>
+            <div class="manager-board-panel__head">
+              <h2>נקודות בקרה – חודש הבא</h2>
+            </div>
+            <div class="manager-board-milestones">${renderMilestones(nextMonthMeetings)}</div>
           </section>
         </aside>
       </div>
@@ -850,11 +845,11 @@ function instructorAttentionItems(details) {
   return fields.filter(([key]) => !completed.has(key)).map(([, label]) => label);
 }
 
-function renderInstructorCenter(region, { instructor, activities, meetings, ym, details, loading = false, error = '' }) {
+export function renderInstructorCenter(region, { instructor, activities, meetings, ym, details, loading = false, error = '' }) {
   const summary = instructorCenterSummary(activities, meetings, instructor.empId);
   const milestones = instructorCenterMilestones(summary.assignedMeetings);
   const percent = Math.round(summary.managerShare * 10) / 10;
-  const hours = summary.knownHourMeetings ? `${plannedHoursText(summary.hours, summary.knownHourMeetings)} ש׳` : '—';
+  const hours = summary.knownHourMeetings ? `${plannedHourFormatter.format(summary.hours)} ש׳` : '—';
   const contact = details || instructor;
   const attention = details ? instructorAttentionItems(details) : [];
   region.innerHTML = `<div class="manager-instructor-center" data-manager-instructor-center data-instructor-id="${escapeAttr(instructor.empId)}">

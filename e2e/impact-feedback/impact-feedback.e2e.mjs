@@ -120,8 +120,14 @@ async function main() {
     assert.equal(await admin.locator('.ifb-table [data-status="not_opened"]').count(), 18);
     assert.match(await admin.locator('tr[data-row="ACT-9"]').textContent(), /אופק פרימיום/, 'Gefen 52279 is identified as Ofek automatically');
     assert.match(await admin.locator('tr[data-row="ACT-10"]').textContent(), /פורצות דרך/, 'Gefen 3604 is identified as Trailblazers automatically');
-    assert.equal(await admin.locator('.ifb-unresolved .ifb-chip').count(), 2);
-    assert.equal((await admin.locator('.ifb-unresolved .ifb-chip').first().textContent()).trim(), 'תוכנית לא זוהתה');
+    assert.equal(await admin.locator('.ifb-unresolved .ifb-status').count(), 2);
+    assert.equal((await admin.locator('.ifb-unresolved .ifb-status__label').first().textContent()).trim(), 'תוכנית לא זוהתה');
+    assert.equal(await admin.locator('[data-ifb-admin] .ifb-chip').count(), 0, 'no chip/pill elements in the feedback module');
+    assert.deepEqual(
+      await admin.locator('.ifb-status, .ifb-kpi__warning').evaluateAll((els) => [...new Set(els.map((el) => getComputedStyle(el).borderRadius === '0px' && getComputedStyle(el).backgroundColor === 'rgba(0, 0, 0, 0)'))]),
+      [true],
+      'status/warning texts have no capsule background or rounded shape'
+    );
     assert.equal(await admin.locator('.ifb-col-results').count(), 0, 'overview does not render a Results column');
     const filterDisclosure = admin.locator('[data-ifb-filter-disclosure="overview"]');
     assert.equal(await filterDisclosure.getAttribute('open'), null, 'overview filters are collapsed by default');
@@ -200,7 +206,7 @@ async function main() {
     await card.locator('[data-ifb-show-open]').click();
     await card.locator('form [type="submit"]').click();
     await card.locator('[data-ifb-qr]').waitFor();
-    assert.match(await card.locator('.ifb-chip').first().textContent(), /פעיל/);
+    assert.match(await card.locator('.ifb-status__label').first().textContent(), /פעיל/);
     await card.locator('[data-ifb-qr]').click();
     await admin.locator('.ifb-qr__code svg').waitFor();
     links.pre = (await admin.locator('.ifb-qr__url').textContent()).trim();
@@ -277,7 +283,7 @@ async function main() {
     const card = admin.locator('[data-slot="student:pre"]');
     await admin.waitForFunction(() => {
       const slot = document.querySelector('[data-slot="student:pre"]');
-      return (slot?.querySelector('.ifb-chip')?.textContent || '').trim() === 'פעיל'
+      return (slot?.querySelector('.ifb-status__label')?.textContent || '').trim() === 'פעיל'
         && /תשובות\s*4/.test(slot?.textContent || '');
     });
     await admin.locator('.ifb-angle--students .ifb-note').first().waitFor();
@@ -409,8 +415,8 @@ async function main() {
 
     await admin.locator('[data-ifb-refresh]').click();
     const refreshed = admin.locator('.ifb-instructor-table tbody tr', { hasText: 'דנה לוי' }).filter({ hasText: 'פורצות דרך' }).first();
-    assert.equal((await refreshed.locator('td[data-label="פתיחה – אחרי הכשרה"] .ifb-chip').first().textContent()).trim(), 'הושלם');
-    assert.equal((await refreshed.locator('td[data-label="סיום הקורס"] .ifb-chip').first().textContent()).trim(), 'הושלם');
+    assert.equal((await refreshed.locator('td[data-label="פתיחה – אחרי הכשרה"] .ifb-status__label').first().textContent()).trim(), 'הושלם');
+    assert.equal((await refreshed.locator('td[data-label="סיום הקורס"] .ifb-status__label').first().textContent()).trim(), 'הושלם');
     assert.equal((await refreshed.locator('td[data-label="סטטוס"]').textContent()).trim(), 'הושלם');
   });
 
@@ -448,8 +454,8 @@ async function main() {
     await admin.locator('.ifb-angle--students [data-ifb-drill="knowledge"]').click();
     await admin.locator('.ifb-drill').waitFor();
     assert.match(await admin.locator('.ifb-drill').textContent(), /השאלות שהרכיבו את המדד/);
-    for (const slot of ['student:pre', 'student:post']) assert.equal((await admin.locator(`[data-slot="${slot}"] .ifb-chip`).first().textContent()).trim(), 'פעיל');
-    assert.equal((await admin.locator('[data-slot="educational_staff:final"] .ifb-chip').first().textContent()).trim(), 'הושלם');
+    for (const slot of ['student:pre', 'student:post']) assert.equal((await admin.locator(`[data-slot="${slot}"] .ifb-status__label`).first().textContent()).trim(), 'פעיל');
+    assert.equal((await admin.locator('[data-slot="educational_staff:final"] .ifb-status__label').first().textContent()).trim(), 'הושלם');
     await admin.screenshot({ path: `${SHOTS}/07-group-two-perspectives-desktop.png`, fullPage: true });
   });
 
@@ -486,6 +492,50 @@ async function main() {
       ['סקירה', 'משובי מדריכים', 'תוצאות', 'תבניות']
     );
     assert.equal(await admin.locator('[data-ifb-tab="answers"]').count(), 0, 'open answers is no longer a standalone tab');
+    for (const [tab, ready] of [['overview', '.ifb-overview-table'], ['instructors', '.ifb-instructor-table, .ifb-empty'], ['templates', '.ifb-program-card'], ['results', '.ifb-angles, .ifb-empty']]) {
+      await admin.locator(`[data-ifb-tab="${tab}"]`).click();
+      await admin.locator(ready).first().waitFor();
+      assert.equal(await admin.locator('[data-ifb-filters="answers"], [data-ifb-filter-disclosure="answers"]').count(), 0, `${tab}: no leftover open-answers view`);
+      assert.equal(await admin.locator('[data-ifb-admin] .ifb-chip').count(), 0, `${tab}: no chip/pill elements`);
+      const overflow = await admin.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+      assert.ok(overflow <= 1, `${tab}: no horizontal overflow on desktop`);
+      const filters = admin.locator('details[data-ifb-filter-disclosure]');
+      // Filters stay collapsed unless one is active (then the panel opens by design).
+      if (await filters.count() && !/פעילים/.test(await filters.first().locator('summary').textContent())) {
+        assert.equal(await filters.first().getAttribute('open'), null, `${tab}: filters start collapsed`);
+      }
+    }
+    // Desktop (1440) and mobile (390) render the same markup: same fields, order, statuses and actions.
+    const snapshot = async (tab) => {
+      await admin.locator(`[data-ifb-tab="${tab}"]`).click();
+      const table = tab === 'overview' ? '.ifb-overview-table' : '.ifb-instructor-table';
+      await admin.locator(`${table} tbody tr`).first().waitFor();
+      return admin.evaluate((sel) => ({
+        labels: [...document.querySelector(`${sel} tbody tr`).children].map((td) => td.dataset.label),
+        statuses: [...document.querySelectorAll(`${sel} .ifb-status__label`)].map((el) => el.textContent.trim()),
+        actions: document.querySelectorAll(`${sel} button, ${sel} a`).length,
+        hiddenActions: [...document.querySelectorAll(`${sel} button, ${sel} a`)].filter((el) => !el.getClientRects().length).length,
+        clipped: [...document.querySelectorAll(`${sel} td, ${sel} td *`)].filter((el) => getComputedStyle(el).textOverflow === 'ellipsis' && el.scrollWidth > el.clientWidth + 1).length,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        chips: document.querySelectorAll('[data-ifb-admin] .ifb-chip').length
+      }), table);
+    };
+    for (const tab of ['overview', 'instructors']) {
+      const desktop = await snapshot(tab);
+      await admin.setViewportSize({ width: 390, height: 844 });
+      const mobile = await snapshot(tab);
+      await admin.screenshot({ path: `${SHOTS}/13-${tab}-mobile.png`, fullPage: true });
+      await admin.setViewportSize({ width: 1440, height: 1000 });
+      for (const [name, view] of [['desktop', desktop], ['mobile', mobile]]) {
+        assert.ok(view.overflow <= 1, `${tab} ${name}: no horizontal overflow`);
+        assert.equal(view.chips, 0, `${tab} ${name}: no chips`);
+        assert.equal(view.hiddenActions, 0, `${tab} ${name}: every action is visible`);
+      }
+      assert.equal(mobile.clipped, 0, `${tab} mobile: no truncated text`);
+      assert.deepEqual(mobile.labels, desktop.labels, `${tab}: same fields in the same order on mobile`);
+      assert.deepEqual(mobile.statuses, desktop.statuses, `${tab}: same statuses on mobile`);
+      assert.equal(mobile.actions, desktop.actions, `${tab}: same actions on mobile`);
+    }
 
     await admin.locator('[data-ifb-tab="results"]').click();
     await admin.locator('.ifb-angles').waitFor();
@@ -554,7 +604,7 @@ async function main() {
     await admin.locator('tr[data-row="ACT-1"] [data-ifb-open-group]').click();
     admin.once('dialog', (d) => d.accept());
     await admin.locator('[data-slot="student:post"] [data-ifb-close]').click();
-    await admin.waitForFunction(() => /נסגר/.test(document.querySelector('[data-slot="student:post"] .ifb-chip')?.textContent || ''));
+    await admin.waitForFunction(() => /נסגר/.test(document.querySelector('[data-slot="student:post"] .ifb-status__label')?.textContent || ''));
     const ctx = await student();
     const page = await ctx.newPage();
     await page.goto(links.post);
@@ -576,12 +626,12 @@ async function main() {
     await ctx.close();
     await admin.locator('[data-ifb-back]').click();
     await admin.locator('tr[data-row="ACT-1"] [data-ifb-open-group]').click();
-    assert.match(await admin.locator('[data-slot="student:pre"] .ifb-chip').first().textContent(), /פג תוקף/);
+    assert.match(await admin.locator('[data-slot="student:pre"] .ifb-status__label').first().textContent(), /פג תוקף/);
     await admin.locator('[data-slot="student:pre"] details.ifb-extend summary').click();
     const nextWeek = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
     await admin.locator('[data-slot="student:pre"] [data-ifb-extend] input').fill(nextWeek);
     await admin.locator('[data-slot="student:pre"] [data-ifb-extend] button').click();
-    await admin.waitForFunction(() => (document.querySelector('[data-slot="student:pre"] .ifb-chip')?.textContent || '').trim() === 'פעיל');
+    await admin.waitForFunction(() => (document.querySelector('[data-slot="student:pre"] .ifb-status__label')?.textContent || '').trim() === 'פעיל');
   });
 
   await step('RLS/public access: anon cannot read tables or call admin RPCs', async () => {
@@ -638,7 +688,9 @@ async function main() {
       assert.equal((await head.locator('.ifb-tpl-head__program').textContent()).trim(), 'ביומימיקרי');
       assert.match(await head.locator('.ifb-tpl-head__meta').textContent(), /יסודי.*גפ״ן 6089/);
       assert.equal((await head.locator('.ifb-tpl-head__title').textContent()).trim(), label);
-      assert.equal(await admin.locator('.ifb-tq-list .ifb-chip').count(), 0, `${label}: no chips/pills inside question cards`);
+      assert.equal(await admin.locator('[data-ifb-templates] .ifb-chip').count(), 0, `${label}: no chips/pills in the template view`);
+      assert.match(await admin.locator('.ifb-tq-summary').textContent(), /\d+ שאלות/, `${label}: shared traits are stated once above the list`);
+      assert.equal(await admin.locator('.ifb-tq.is-readonly').first().evaluate((el) => getComputedStyle(el).borderTopWidth), '0px', `${label}: the first question is a list row, not a framed card`);
       const cards = admin.locator('.ifb-tq.is-readonly');
       const count = await cards.count();
       assert.ok(count > 0);
@@ -646,12 +698,39 @@ async function main() {
         const card = cards.nth(i);
         assert.equal((await card.locator('.ifb-tq__num').textContent()).trim(), `שאלה ${i + 1}`);
         assert.ok((await card.locator('.ifb-tq__text').textContent()).trim().length > 0, `${label} #${i + 1}: wording inside card`);
-        assert.match(await card.locator('.ifb-tq__meta').textContent(), /סוג שאלה: .+ · תחום: .+ · סוג פריט: /, `${label} #${i + 1}: metadata inside card`);
-        assert.notEqual(await card.locator('.ifb-tq__num').evaluate((el) => getComputedStyle(el).borderRadius), '50%');
+        const meta = await card.locator('.ifb-tq__meta').textContent();
+        assert.match(meta, /\S+ · \S+/, `${label} #${i + 1}: metric · type inside the row`);
+        assert.doesNotMatch(meta, /סוג שאלה:|סוג פריט:|השוואה:/, `${label} #${i + 1}: no repeated field labels`);
+        if (i > 0) assert.equal(await card.evaluate((el) => getComputedStyle(el).borderTopStyle), 'solid', `${label} #${i + 1}: rows are separated by a divider`);
       }
       await admin.locator('[data-tpl-back]').click();
       await admin.locator('.ifb-program-card').first().waitFor();
     }
+    // Same template hierarchy on mobile, stacked vertically: program → template → intro → question → metadata.
+    const templateView = async () => {
+      await admin.locator('.ifb-program-card').first().locator('.ifb-tile', { hasText: 'תלמידים (התחלה)' }).click();
+      await admin.locator('.ifb-tq.is-readonly').first().waitFor();
+      const view = await admin.evaluate(() => ({
+        order: ['.ifb-tpl-head__program', '.ifb-tpl-head__title', '.ifb-tpl-head__intro', '.ifb-tq__text', '.ifb-tq__meta']
+          .map((sel) => document.querySelector(sel)?.getBoundingClientRect().top ?? null),
+        rows: [...document.querySelectorAll('.ifb-tq')].map((li) => li.textContent.replace(/\s+/g, ' ').trim()),
+        actions: [...document.querySelectorAll('[data-tpl-preview], [data-tpl-edit]')].filter((el) => el.getClientRects().length).length,
+        overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth
+      }));
+      await admin.locator('[data-tpl-back]').click();
+      await admin.locator('.ifb-program-card').first().waitFor();
+      return view;
+    };
+    const desktopTemplate = await templateView();
+    await admin.setViewportSize({ width: 390, height: 844 });
+    const mobileTemplate = await templateView();
+    await admin.setViewportSize({ width: 1440, height: 1000 });
+    for (const view of [desktopTemplate, mobileTemplate]) {
+      assert.ok(view.order.every((top, i) => top !== null && (i === 0 || top >= view.order[i - 1])), 'template hierarchy order is kept');
+      assert.equal(view.actions, 2);
+      assert.ok(view.overflow <= 1);
+    }
+    assert.deepEqual(mobileTemplate.rows, desktopTemplate.rows, 'mobile shows the same questions and metadata as desktop');
     const tile = admin.locator('.ifb-program-card', { hasText: 'פורצות דרך' }).locator('.ifb-tile', { hasText: 'תלמידים (התחלה)' });
     await tile.click();
     await admin.locator('.ifb-tq.is-readonly').first().waitFor();
