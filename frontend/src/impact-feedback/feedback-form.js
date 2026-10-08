@@ -1,7 +1,7 @@
 /**
  * Questionnaire renderer shared by the public page (feedback.html) and the admin preview.
- * Mobile-first, RTL. Values are always stored on a 1–5 scale; young age bands only see
- * smileys instead of numbers.
+ * Mobile-first, RTL. Values are always stored on a 1–5 scale. Smileys are reserved
+ * for young student questionnaires only; adult audiences always see a professional numeric scale.
  */
 import {
   RATING_EMOJI,
@@ -100,7 +100,7 @@ export function messageCardHtml({ title, body, logoUrl = '', extra = '' }) {
  */
 export function mountFeedbackForm(container, payload, options = {}) {
   const questions = Array.isArray(payload.questions) ? payload.questions : [];
-  const young = payload.age_band === 'a_c';
+  const young = payload.audience === 'student' && payload.age_band === 'a_c';
   const answers = { ...(options.initialAnswers || {}) };
   const logoUrl = options.logoUrl || '';
 
