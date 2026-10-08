@@ -476,7 +476,13 @@ async function main() {
     assert.ok(openAnswersSheet.slice(1).filter((r) => r[openAudienceCol] === 'תלמידים').every((r) => !r[openNameCol]));
   });
 
-  await step('Results dashboard: filters, PRE/POST, scores, drill-down; open answers tab', async () => {
+  await step('Feedback tabs are simplified; Results keeps PRE/POST analysis', async () => {
+    assert.deepEqual(
+      (await admin.locator('[data-ifb-tab]').allTextContents()).map((x) => x.trim()),
+      ['סקירה', 'משובי מדריכים', 'תוצאות', 'תבניות']
+    );
+    assert.equal(await admin.locator('[data-ifb-tab="answers"]').count(), 0, 'open answers is no longer a standalone tab');
+
     await admin.locator('[data-ifb-tab="results"]').click();
     await admin.locator('.ifb-angles').waitFor();
     assert.match(await admin.locator('.ifb-angle--students table').textContent(), /עלה מ-/);
@@ -485,13 +491,6 @@ async function main() {
     await admin.locator('[data-r="program"]').selectOption('');
     await admin.locator('.ifb-angles').waitFor();
     await admin.screenshot({ path: `${SHOTS}/08-results-desktop.png`, fullPage: true });
-    await admin.locator('[data-ifb-tab="answers"]').click();
-    await admin.locator('.ifb-answer').first().waitFor();
-    await admin.locator('[data-a="audience"]').selectOption('instructor');
-    assert.ok((await admin.locator('.ifb-answer').count()) >= 1);
-    assert.match(await admin.locator('.ifb-answers').textContent(), /דנה לוי/);
-    await admin.locator('[data-a="audience"]').selectOption('student');
-    assert.doesNotMatch(await admin.locator('.ifb-answers').textContent(), /דנה לוי|רונית/);
   });
 
   await step('Group without contact shows a clear reason; instructor feedback is not a group slot', async () => {
