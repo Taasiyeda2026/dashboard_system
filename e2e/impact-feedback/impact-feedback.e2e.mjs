@@ -300,6 +300,12 @@ async function main() {
   await step('Instructor gets opening-after-training and final feedback once per program', async () => {
     await db.query("update activities set instructor_assignment_locked=true, instructor_assignment_status='שובץ' where row_id='ACT-1'");
     await admin.locator('[data-ifb-tab="instructors"]').click();
+    assert.equal(await admin.locator('[data-i="search"]').count(), 0, 'instructor filter must not be free text');
+    const instructorSelect = admin.locator('select[data-i="instructor"]');
+    await instructorSelect.waitFor();
+    assert.ok((await instructorSelect.locator('option').allTextContents()).some((x) => /דנה לוי/.test(x)));
+    await instructorSelect.selectOption('1501');
+    assert.ok(await admin.locator('.ifb-instructor-table tbody tr').count() >= 1);
     const row = admin.locator('.ifb-instructor-table tbody tr', { hasText: 'דנה לוי' }).filter({ hasText: 'פורצות דרך' }).first();
     await row.waitFor();
     assert.match(await row.textContent(), /1/);
