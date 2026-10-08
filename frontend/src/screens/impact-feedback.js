@@ -64,7 +64,7 @@ const ui = {
   results: { program: '', authority: '', school: '', ageBand: '', group: '', instructor: '', from: '', to: '', drill: '' },
   answers: { program: '', audience: '', question: '', school: '', search: '' },
   templates: { templateId: null, versionId: null, previewBand: '' },
-  instructorFilters: { instructor: '', program: '', status: '' },
+  instructorFilters: { instructor: '', program: '', manager: '', status: '' },
   groups: null,
   groupsYear: null,
   instructorAssignments: null,
@@ -757,6 +757,32 @@ function instructorFilterMatches(row, statusFilter) {
   return true;
 }
 
+function instructorOverallStatus(row) {
+  const pre = campaignUiStatus(row.pre_campaign);
+  const final = campaignUiStatus(row.final_campaign);
+  if (pre.key === 'completed' && final.key === 'completed') return { label: 'הושלם', tone: 'success' };
+  if (row.final_campaign) {
+    if (final.key === 'completed') return { label: 'סיום הושלם', tone: 'success' };
+    if (final.key === 'scheduled') return { label: 'סיום מתוזמן', tone: 'scheduled' };
+    if (final.key === 'expired') return { label: 'סיום פג תוקף', tone: 'warning' };
+    if (final.key === 'closed') return { label: 'סיום נסגר', tone: 'closed' };
+    return { label: 'סיום פתוח', tone: 'pending' };
+  }
+  if (row.pre_campaign) {
+    if (pre.key === 'completed') return { label: 'פתיחה הושלמה', tone: 'success' };
+    if (pre.key === 'scheduled') return { label: 'פתיחה מתוזמנת', tone: 'scheduled' };
+    if (pre.key === 'expired') return { label: 'פתיחה פג תוקף', tone: 'warning' };
+    if (pre.key === 'closed') return { label: 'פתיחה נסגרה', tone: 'closed' };
+    return { label: 'פתיחה פתוחה', tone: 'pending' };
+  }
+  return { label: 'לא נפתח', tone: 'muted' };
+}
+
+function instructorOverallStatusHtml(row) {
+  const status = instructorOverallStatus(row);
+  return `<span class="ifb-chip ifb-chip--${status.tone} ifb-instructor-overall-status">${esc(status.label)}</span>`;
+}
+
 function instructorAssignmentsHtml() {
   const all = ui.instructorAssignments || [];
   const filters = ui.instructorFilters;
@@ -766,12 +792,20 @@ function instructorAssignmentsHtml() {
       .map((row) => [String(row.instructor_emp_id), row.instructor_name || row.instructor_emp_id])
   ).entries()]
     .sort((a, b) => String(a[1]).localeCompare(String(b[1]), 'he'));
+  const managers = uniqueSorted(all.flatMap((row) => Array.isArray(row.activity_managers) ? row.activity_managers : []));
 
   const rows = all.filter((row) => {
     if (filters.instructor && String(row.instructor_emp_id) !== filters.instructor) return false;
     if (filters.program && row.program_key !== filters.program) return false;
+    if (filters.manager && !(Array.isArray(row.activity_managers) && row.activity_managers.includes(filters.manager))) return false;
     if (!instructorFilterMatches(row, filters.status)) return false;
     return true;
+  }).sort((a, b) => {
+    const aEnd = String(a.first_course_end_date || '9999-12-31');
+    const bEnd = String(b.first_course_end_date || '9999-12-31');
+    return aEnd.localeCompare(bEnd)
+      || String(a.instructor_name || '').localeCompare(String(b.instructor_name || ''), 'he')
+      || String(a.program_key || '').localeCompare(String(b.program_key || ''));
   });
 
   const preCompleted = all.filter((row) => row.pre_campaign?.recipient?.status === 'completed').length;
@@ -797,6 +831,7 @@ function instructorAssignmentsHtml() {
             ${instructors.map(([id, name]) => `<option value="${esc(id)}"${id === filters.instructor ? ' selected' : ''}>${esc(name)}</option>`).join('')}
           </select></label>
           <label class="ifb-field"><span>תוכנית</span><select data-i="program">${optionList(ui.programs.map((p) => p.key), filters.program, 'כל התוכניות', programOptionLabel)}</select></label>
+          <label class="ifb-field"><span>מנהל פעילות</span><select data-i="manager">${optionList(managers, filters.manager, 'כל מנהלי הפעילות')}</select></label>
           <label class="ifb-field"><span>סטטוס</span><select data-i="status">
             ${[
               ['', 'הכל'],
@@ -814,13 +849,14 @@ function instructorAssignmentsHtml() {
     </details>
     ${rows.length ? `<div class="ifb-table-wrap ifb-instructor-table-wrap">
       <table class="ifb-table ifb-instructor-table ifb-instructor-table--two-stages">
-        <colgroup><col class="ifb-iw-instructor"><col class="ifb-iw-program"><col class="ifb-iw-groups"><col class="ifb-iw-first-end"><col class="ifb-iw-stage"><col class="ifb-iw-stage"></colgroup><thead><tr><th>מדריך</th><th>תוכנית</th><th>קבוצות</th><th>סיום הקורס הראשון</th><th>פתיחה – אחרי הכשרה</th><th>סיום הקורס</th></tr></thead>
+        <colgroup><col class="ifb-iw-instructor"><col class="ifb-iw-program"><col class="ifb-iw-groups"><col class="ifb-iw-first-end"><col class="ifb-iw-status"><col class="ifb-iw-stage"><col class="ifb-iw-stage"></colgroup><thead><tr><th>מדריך</th><th>תוכנית</th><th>קבוצות</th><th>סיום הקורס הראשון</th><th>סטטוס</th><th>פתיחה – אחרי הכשרה</th><th>סיום הקורס</th></tr></thead>
         <tbody>${rows.map((row) => `
           <tr data-instructor-feedback="${esc(instructorAssignmentKey(row))}">
             <td data-label="מדריך"><strong>${esc(row.instructor_name || row.instructor_emp_id)}</strong><span class="ifb-muted ifb-instructor-id">#${esc(row.instructor_emp_id)}</span></td>
             <td data-label="תוכנית">${esc(programTitle(row.program_key))}</td>
             <td data-label="קבוצות" class="ifb-center"><strong>${Number(row.assignment_count) || 0}</strong></td>
             <td data-label="סיום הקורס הראשון" class="ifb-center ifb-nowrap">${fmtDate(row.first_course_end_date) || '—'}</td>
+            <td data-label="סטטוס" class="ifb-center">${instructorOverallStatusHtml(row)}</td>
             <td data-label="פתיחה – אחרי הכשרה" class="ifb-instructor-stage-cell">${instructorCampaignActionsHtml(row, 'pre')}</td>
             <td data-label="סיום הקורס" class="ifb-instructor-stage-cell">${instructorCampaignActionsHtml(row, 'final')}</td>
           </tr>`).join('')}</tbody>
