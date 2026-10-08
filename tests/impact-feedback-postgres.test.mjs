@@ -14,7 +14,8 @@ const MIGRATIONS = [
   '../supabase/migrations/20261008124500_instructor_feedback_per_program.sql',
   '../supabase/migrations/20261008141500_fix_feedback_instructor_program_key_ambiguity.sql',
   '../supabase/migrations/20261008153500_instructor_feedback_pre_and_final.sql',
-  '../supabase/migrations/20261008191000_feedback_short_program_titles.sql'
+  '../supabase/migrations/20261008191000_feedback_short_program_titles.sql',
+  '../supabase/migrations/20261008193000_feedback_canonical_11_programs_and_levels.sql'
 ];
 
 async function asRole(client, role, uid = '') {
@@ -290,19 +291,36 @@ test('impact feedback DB contract: program fallback, manual mapping, catalog lim
       ('M-6','school_2027','course','משחקי קופסה',null,'בית ספר ו',null,'מדריכה','1'),
       ('M-7','school_2027','workshop','סדנת רובוטיקה',null,'בית ספר ז','ה','מדריכה','1')`);
 
-    // --- Catalog limits & mapping corrections ----------------------------------------------------
-    assert.equal((await one("select default_age_band b from feedback_programs where key='ai_foundations'")).b, 'g_i');
+    // --- Canonical course catalog + school levels ----------------------------------------------
+    assert.equal((await one("select default_age_band b from feedback_programs where key='ai_foundations'")).b, null, 'school level is not encoded as an artificial age-band fallback');
     const shortTitles = Object.fromEntries((await client.query('select key, title from feedback_programs order by sort_order')).rows.map((r) => [r.key, r.title]));
     assert.deepEqual(shortTitles, {
       biomimicry: 'ביומימיקרי',
+      board_games: 'משחקי קופסה',
       green_leadership: 'מנהיגות ירוקה',
       space_tech: 'טכנולוגיות החלל',
+      sky_limit: 'השמיים אינם הגבול',
       ai_applications: 'יישומי AI',
+      biomimicry_secondary: 'ביומימיקרי',
       pharma: 'רוקחים עולם',
       ofek: 'אופק פרימיום',
       ai_foundations: 'סודות ויסודות AI',
       trailblazers: 'פורצות דרך'
-    }, 'feedback UI uses short course titles only');
+    }, 'feedback UI uses the canonical 11 short course titles');
+    const levels = Object.fromEntries((await client.query('select key, education_level from feedback_programs order by sort_order')).rows.map((r) => [r.key, r.education_level]));
+    assert.deepEqual(levels, {
+      biomimicry: 'elementary',
+      board_games: 'elementary',
+      green_leadership: 'elementary',
+      space_tech: 'elementary',
+      sky_limit: 'secondary',
+      ai_applications: 'secondary',
+      biomimicry_secondary: 'secondary',
+      pharma: 'secondary',
+      ofek: 'secondary',
+      ai_foundations: 'secondary',
+      trailblazers: 'secondary'
+    }, 'each course has one canonical school level');
     const tooMany = (await client.query(`select t.program_key, t.stage, count(*)::int n from feedback_templates t
       join feedback_template_questions q on q.version_id = t.current_version_id and q.section = 'course'
       where t.audience = 'student' group by 1, 2 having count(*) > 5`)).rows;
@@ -322,12 +340,21 @@ test('impact feedback DB contract: program fallback, manual mapping, catalog lim
     assert.deepEqual([groups['M-10'].program_key, groups['M-10'].program_source], [null, null], 'ids outside the final catalog are not auto-matched');
     const gefen = Object.fromEntries((await client.query('select key, gefen_numbers from feedback_programs')).rows.map((r) => [r.key, r.gefen_numbers]));
     assert.deepEqual(gefen, {
-      biomimicry: ['6089'], green_leadership: ['67867'], space_tech: ['57651'], ai_applications: ['53819'],
-      pharma: ['46091'], ofek: ['52279'], ai_foundations: ['9545'], trailblazers: ['3604']
-    }, 'Gefen numbers match the final catalog');
-    assert.deepEqual([groups['M-4'].program_key, groups['M-4'].program_source, groups['M-4'].age_band], ['ai_foundations', 'gefen', 'g_i'], 'Gefen number resolves; no grade -> program default (ז׳–ח׳)');
+      biomimicry: ['6089'],
+      board_games: ['27342'],
+      green_leadership: ['67867'],
+      space_tech: ['57651'],
+      sky_limit: ['57646'],
+      ai_applications: ['53819'],
+      biomimicry_secondary: ['53828'],
+      pharma: ['46091'],
+      ofek: ['52279'],
+      ai_foundations: ['9545'],
+      trailblazers: ['3604']
+    }, 'Gefen numbers match the canonical 11-course catalog');
+    assert.deepEqual([groups['M-4'].program_key, groups['M-4'].program_source, groups['M-4'].age_band], ['ai_foundations', 'gefen', null], 'Gefen resolves the course; missing grade does not invent an age band');
     assert.deepEqual([groups['M-5'].program_key, groups['M-5'].age_band], ['trailblazers', 'j_l'], 'grade י׳ in a ז׳–י׳ program resolves to the י׳–י״ב band');
-    assert.deepEqual([groups['M-6'].program_key, groups['M-6'].age_band], [null, null], 'no grade and no program -> no age band');
+    assert.deepEqual([groups['M-6'].program_key, groups['M-6'].age_band], ['board_games', null], 'board games resolves by course name without inventing a grade band');
     await assert.rejects(client.query("select feedback_admin_open_campaign('M-1','student','pre')"), /feedback_program_unresolved/);
 
     // --- Manual mapping (feedback-only; master data untouched) ---------------------------------------
@@ -357,18 +384,19 @@ test('impact feedback DB contract: program fallback, manual mapping, catalog lim
     await client.query('reset role');
     const after = (await client.query('select to_jsonb(a) j from activities a order by row_id')).rows;
     assert.deepEqual(after, before, 'manual program choice never modifies activities master data');
-    assert.equal((await one('select count(*)::int n from feedback_programs')).n, 8, 'no course master data was created');
+    assert.equal((await one('select count(*)::int n from feedback_programs')).n, 11, 'feedback catalog contains the canonical 11 courses');
 
-    // --- Age-band wording reaches the public form -----------------------------------------------------
+    // --- Course wording is canonical; grade remains metadata only -------------------------------------
     await client.query("select set_config('test.uid', $1, false)", [ADMIN]);
     await client.query('set role authenticated');
     const senior = (await one("select feedback_admin_open_campaign('M-5','student','pre') c")).c;
-    assert.equal(senior.age_band, 'j_l');
+    assert.equal(senior.age_band, 'j_l', 'grade remains available for reporting');
     await client.query('set role anon');
     const form = (await one('select feedback_public_get($1) r', [senior.public_token])).r;
     assert.equal(form.age_band, 'j_l');
-    assert.match(form.questions[0].text, /^אני מבין\/ה את העקרונות של התחום/, 'j_l variant is used when it exists');
-    assert.equal(form.questions[1].text, 'אני מאמין/ה שאני מסוגל/ת לפתח רעיון לפתרון של בעיה אמיתית', 'falls back to default wording');
+    assert.equal(form.questions[0].text, 'אני מבין/ה מה לומדים בתחום פורצות דרך ואיך משתמשים בו בעולם האמיתי', 'public form always uses the canonical course wording');
+    const ageVariantKeys = (await client.query(`select count(*)::int n from feedback_questions where wording ?| array['a_c','d_f','g_i','j_l']`)).rows[0].n;
+    assert.equal(ageVariantKeys, 0, 'active question bank has no age-specific wording variants');
   } finally {
     await client.query('reset role').catch(() => {});
     await client.end();

@@ -300,6 +300,9 @@ async function main() {
   await step('Instructor gets opening-after-training and final feedback once per program', async () => {
     await db.query("update activities set instructor_assignment_locked=true, instructor_assignment_status='שובץ' where row_id='ACT-1'");
     await admin.locator('[data-ifb-tab="instructors"]').click();
+    assert.equal(await admin.locator('.ifb-admin__sub').count(), 0, 'global feedback subtitle is removed');
+    assert.equal(await admin.locator('.ifb-instructor-summary h2').count(), 0, 'no duplicate inner instructor title');
+    assert.equal(await admin.locator('.ifb-list-head').count(), 0, 'no redundant instructor list heading/count');
     assert.equal(await admin.locator('[data-i="search"]').count(), 0, 'instructor filter must not be free text');
     const instructorSelect = admin.locator('select[data-i="instructor"]');
     await instructorSelect.waitFor();
@@ -311,6 +314,9 @@ async function main() {
     assert.match(await row.textContent(), /1/);
 
     const preCell = row.locator('td[data-label="פתיחה – אחרי הכשרה"]');
+    assert.equal(await preCell.locator('[aria-label="טרם נפתח"]').count(), 1);
+    assert.equal(await preCell.locator('[aria-label="פתיחת משוב"]').count(), 1);
+    assert.doesNotMatch(await preCell.textContent(), /טרם נפתח|פתיחת משוב/, 'unopened state uses icons instead of text pills');
     await preCell.locator('[data-ifb-instructor-open]').click();
     await preCell.locator('[data-ifb-instructor-open-form] [type="submit"]').click();
     const preWa = preCell.locator('[data-ifb-share="whatsapp"]');
@@ -543,11 +549,13 @@ async function main() {
   await step('Templates: edit wording in a draft, preview, publish v2; existing campaign stays on v1', async () => {
     await admin.locator('[data-ifb-tab="templates"]').click();
     await admin.locator('.ifb-program-card').first().waitFor();
-    assert.equal(await admin.locator('.ifb-program-card').count(), 8);
-    assert.equal(await admin.locator('.ifb-tile').count(), 40);
+    assert.equal(await admin.locator('.ifb-program-card').count(), 11);
+    assert.equal(await admin.locator('.ifb-tile').count(), 55);
     assert.doesNotMatch(await admin.locator('[data-ifb-templates]').textContent(), /כל תבנית מורכבת משאלות ליבה/);
     assert.equal((await admin.locator('.ifb-program-card').first().locator('h3').textContent()).trim(), 'ביומימיקרי');
+    assert.match(await admin.locator('.ifb-program-card').first().locator('.ifb-program-card__meta').textContent(), /יסודי.*6089/);
     assert.doesNotMatch(await admin.locator('[data-ifb-templates]').textContent(), /ביומימיקרי – המצאות בהשראה מן הטבע/);
+    assert.equal(await admin.locator('[data-tpl-preview-band]').count(), 0, 'templates no longer create age-specific wording previews');
     const tile = admin.locator('.ifb-program-card', { hasText: 'פורצות דרך' }).locator('.ifb-tile', { hasText: 'תלמידים – פתיחה' });
     await tile.click();
     await admin.locator('.ifb-tq.is-readonly').first().waitFor();
