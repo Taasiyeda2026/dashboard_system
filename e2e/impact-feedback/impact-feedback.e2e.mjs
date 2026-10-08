@@ -133,6 +133,9 @@ async function main() {
     assert.equal(await showAll.evaluate((el) => el.closest('[data-ifb-filter-disclosure="overview"]') !== null), true);
     const authorityCell = admin.locator('.ifb-overview-table tbody tr .ifb-col-authority').first();
     assert.equal(await authorityCell.evaluate((el) => getComputedStyle(el).whiteSpace), 'nowrap', 'authority stays on one line');
+    assert.equal(await authorityCell.evaluate((el) => getComputedStyle(el).borderInlineStartWidth), '1px', 'overview columns use subtle vertical dividers');
+    const firstKpi = admin.locator('.ifb-kpi').first();
+    assert.ok(await firstKpi.evaluate((el) => el.getBoundingClientRect().height <= 62), 'overview KPI cards stay compact');
     const tableFits = await admin.locator('.ifb-overview-wrap').evaluate((el) => el.scrollWidth <= el.clientWidth + 1);
     assert.equal(tableFits, true, 'all overview columns fit the desktop width without horizontal scrolling');
     await admin.locator('[data-f="search"]').fill('הגפן');
