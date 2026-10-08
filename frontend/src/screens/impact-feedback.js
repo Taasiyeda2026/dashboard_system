@@ -231,10 +231,10 @@ function errorHtml(message) {
 
 function kpiHtml(groups, instructorAssignments = []) {
   const k = dashboardKpis(groups);
-  const instructorCampaigns = instructorAssignments.map((row) => row.campaign).filter(Boolean);
+  const instructorCampaigns = instructorAssignments.flatMap((row) => [row.pre_campaign, row.final_campaign]).filter(Boolean);
   const pendingInstructor = instructorCampaigns.filter((campaign) => {
     const key = campaignUiStatus(campaign).key;
-    return key === 'active' || key === 'collecting';
+    return key === 'active' || key === 'collecting' || key === 'scheduled';
   }).length;
   const instructorCompleted = instructorCampaigns.filter((campaign) => campaign?.recipient?.status === 'completed').length;
   const staffCampaigns = groups.flatMap((group) => (group.campaigns || []).filter((campaign) => campaign.audience === 'educational_staff'));
@@ -245,7 +245,7 @@ function kpiHtml(groups, instructorAssignments = []) {
     ['קבוצות עם משובים', k.withFeedback, `מתוך ${groups.length} קבוצות`, k.unresolved ? `${k.unresolved} דורשות שיוך` : ''],
     ['משובי פתיחה פעילים', k.activePre, 'תלמידים', ''],
     ['משובי סיום פעילים', k.activePost, 'תלמידים', ''],
-    ['ממתינים למדריך', pendingInstructor, 'משוב חד־פעמי לפי תוכנית', ''],
+    ['ממתינים למדריך', pendingInstructor, 'פתיחה וסיום לפי תוכנית', ''],
     ['ממתינים לאיש קשר', k.pendingContact, 'קישורים שטרם מולאו', ''],
     ['שיעור מענה', responseRate === null ? '—' : `${responseRate}%`, responseRate === null ? 'אין עדיין נתונים' : `צוות ומדריכים · ${k.studentResponses} תשובות תלמידים`, '']
   ];
@@ -995,7 +995,9 @@ function campaignById(id) {
     if (campaign) return { group, instructorAssignment: null, campaign };
   }
   for (const row of ui.instructorAssignments || []) {
-    if (row.campaign?.id === id) return { group: null, instructorAssignment: row, campaign: row.campaign };
+    for (const campaign of [row.pre_campaign, row.final_campaign]) {
+      if (campaign?.id === id) return { group: null, instructorAssignment: row, campaign };
+    }
   }
   return { group: null, instructorAssignment: null, campaign: null };
 }
@@ -1153,12 +1155,12 @@ async function handleSubmit(host, event) {
     const button = form.querySelector('[type="submit"]');
     button.disabled = true;
     try {
-      await openInstructorCampaign(form.dataset.emp, form.dataset.program, form.dataset.year, {
+      await openInstructorCampaign(form.dataset.emp, form.dataset.program, form.dataset.year, form.dataset.stage, {
         opensAt: openingIso(String(data.get('opens') || '')),
         expiresAt: expiryIso(String(data.get('expires') || ''))
       });
       ui.instructorOpenForms.delete(form.dataset.key);
-      showToast('נוצר משוב חד־פעמי למדריך עבור התוכנית');
+      showToast(form.dataset.stage === 'pre' ? 'נוצר משוב פתיחה למדריך' : 'נוצר משוב סיום למדריך');
       await afterInstructorCampaignChange(host);
     } catch (error) {
       button.disabled = false;
