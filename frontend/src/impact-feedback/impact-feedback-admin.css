@@ -59,7 +59,6 @@
   border: 1px solid var(--ifb-a-line);
   border-radius: 12px;
   background: var(--ifb-a-card);
-  box-shadow: 0 1px 2px rgba(25, 34, 58, .04);
 }
 .ifb-kpi__label { color: var(--ifb-a-muted); font-size: 12px; font-weight: 750; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ifb-kpi__value { grid-column: 2; grid-row: 1 / span 2; font-size: 24px; font-weight: 850; line-height: 1; font-variant-numeric: tabular-nums; }
@@ -187,68 +186,67 @@
 .ifb-table--compact td, .ifb-table--compact th { padding: 7px 10px; }
 
 .ifb-overview-wrap {
-  border: 0;
-  border-radius: 16px;
-  background: transparent;
+  border: 1px solid var(--ifb-a-line);
+  border-radius: 12px;
+  background: var(--ifb-a-card);
   box-shadow: none;
-  padding: 0 1px 2px;
+  padding: 0;
 }
 .ifb-overview-table {
   width: 100%;
   min-width: 0;
   table-layout: fixed;
-  border-collapse: separate;
-  border-spacing: 0 6px;
+  border-collapse: collapse;
+  font-size: 12px;
 }
 .ifb-overview-table thead th {
   position: sticky;
   top: 0;
   z-index: 2;
-  background: #f5f7fb;
-  border-bottom: 0;
-  padding-top: 6px;
-  padding-bottom: 7px;
-  color: #747f95;
+  padding: 7px 6px;
+  background: var(--ifb-a-bg);
+  border-bottom: 1px solid var(--ifb-a-line);
+  color: var(--ifb-a-muted);
+  font-size: 10.5px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
-.ifb-overview-table tbody tr { background: transparent; }
 .ifb-overview-table tbody td {
-  background: #fff;
-  border-top: 1px solid #e8ebf2;
-  border-bottom: 1px solid #e8ebf2;
-  box-shadow: 0 1px 2px rgba(27, 36, 61, .025);
+  padding: 5px 7px;
+  background: transparent;
+  border-bottom: 1px solid #edf0f5;
+  vertical-align: middle;
 }
-.ifb-overview-table tbody td:first-child {
-  border-inline-start: 1px solid #e8ebf2;
-  border-start-start-radius: 12px;
-  border-end-start-radius: 12px;
+.ifb-overview-table tbody tr:last-child td { border-bottom: 0; }
+.ifb-overview-table tbody tr:hover td { background: var(--ifb-a-bg); }
+.ifb-school-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  color: var(--ifb-a-ink);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
 }
-.ifb-overview-table tbody td:last-child {
-  border-inline-end: 1px solid #e8ebf2;
-  border-start-end-radius: 12px;
-  border-end-end-radius: 12px;
-}
-.ifb-overview-table tbody tr:hover td {
-  background: #fcfdff;
-  border-color: #dfe5f0;
-}
-.ifb-school-name { display: block; color: #26324f; font-size: 12px; line-height: 1.2; }
 
-.ifb-overview-table col.ifb-w-school { width: 13%; }
+/* Width hierarchy: school wide; authority/program/instructor medium; grade, dates, statuses narrow; actions narrowest. */
+.ifb-overview-table col.ifb-w-school { width: 15%; }
 .ifb-overview-table col.ifb-w-authority { width: 12%; }
 .ifb-overview-table col.ifb-w-program { width: 12%; }
-.ifb-overview-table col.ifb-w-grade { width: 5%; }
-.ifb-overview-table col.ifb-w-instructor { width: 9%; }
-.ifb-overview-table col.ifb-w-date { width: 7%; }
-.ifb-overview-table col.ifb-w-status { width: 8.5%; }
-.ifb-overview-table col.ifb-w-actions { width: 6%; }
+.ifb-overview-table col.ifb-w-grade { width: 4.5%; }
+.ifb-overview-table col.ifb-w-instructor { width: 10%; }
+.ifb-overview-table col.ifb-w-date { width: 6.5%; }
+.ifb-overview-table col.ifb-w-status { width: 9.5%; }
+.ifb-overview-table col.ifb-w-actions { width: 5%; }
+.ifb-overview-table thead th.ifb-col-status { white-space: normal; line-height: 1.25; }
 
 .ifb-overview-table .ifb-col-school,
-.ifb-overview-table .ifb-col-authority,
 .ifb-overview-table .ifb-col-program,
 .ifb-overview-table .ifb-col-instructor {
   overflow-wrap: anywhere;
-  line-height: 1.2;
-  font-size: 11.5px;
+  line-height: 1.3;
 }
 .ifb-overview-table .ifb-col-grade,
 .ifb-overview-table .ifb-col-date,
@@ -258,28 +256,34 @@
   text-align: center;
 }
 .ifb-overview-table .ifb-col-authority { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.ifb-overview-table .ifb-col-date { white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 11px; }
-.ifb-overview-table th.ifb-col-status { background: #f5f7fb; }
-.ifb-overview-table td.ifb-col-status { background: #fff; }
-.ifb-overview-table tbody tr:hover td.ifb-col-status { background: #fcfdff; }
+.ifb-overview-table .ifb-col-date { white-space: nowrap; font-variant-numeric: tabular-nums; font-size: 11.5px; }
+.ifb-overview-table .ifb-col-actions { padding-inline: 3px; }
 
-.ifb-status-cell { display: grid; justify-items: center; gap: 2px; min-width: 0; }
-.ifb-status-cell .ifb-chip { max-width: 100%; padding: 2px 5px; font-size: 9.5px; font-weight: 750; white-space: nowrap; }
-.ifb-status-cell__count { color: #778096; font-size: 10px; font-weight: 650; white-space: nowrap; }
+.ifb-status-cell { display: grid; justify-items: center; gap: 1px; min-width: 0; }
+.ifb-status-cell .ifb-chip { display: inline-flex; align-items: center; height: 18px; max-width: 100%; padding: 0 6px; overflow: hidden; text-overflow: ellipsis; font-size: 10px; font-weight: 700; line-height: 1; white-space: nowrap; }
+.ifb-status-cell .ifb-chip--pending { background: var(--ifb-a-warn-soft); color: var(--ifb-a-warn); }
+.ifb-status-cell__count { color: var(--ifb-a-muted); font-size: 10px; font-weight: 600; white-space: nowrap; }
 
 .ifb-row-action {
-  min-height: 26px;
-  padding: 3px 7px;
-  border: 1px solid #d7dce7;
-  border-radius: 999px;
-  background: #fbfcfe;
-  color: #46516b;
+  min-height: 22px;
+  padding: 1px 7px;
+  border: 1px solid var(--ifb-a-line);
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ifb-a-muted);
   font: inherit;
-  font-size: 11px;
-  font-weight: 750;
+  font-size: 10.5px;
+  font-weight: 700;
   cursor: pointer;
 }
-.ifb-row-action:hover { border-color: var(--ifb-a-blue); color: var(--ifb-a-blue); background: #f7f9ff; }
+.ifb-row-action:hover,
+.ifb-row-action:focus-visible { border-color: var(--ifb-a-blue); color: var(--ifb-a-blue); background: var(--ifb-a-card); }
+
+@media (min-width: 761px) {
+  /* Thin, very light vertical separators between overview columns. */
+  .ifb-overview-table thead th + th,
+  .ifb-overview-table tbody td + td { border-inline-start: 1px solid #edf0f5; }
+}
 
 .ifb-instructor-intro { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .ifb-instructor-intro h2 { margin: 0; font-size: 19px; }
@@ -673,17 +677,26 @@
 /* Desktop compact overview: six metrics and all primary filters on single rows.
    Override the old 1250px breakpoint, which unnecessarily stacked both sections. */
 @media (min-width: 1000px) {
-  .ifb-kpis { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
-  .ifb-kpi { min-height: 54px; padding: 7px 9px; gap: 2px 5px; }
-  .ifb-kpi__label { font-size: 11px; }
-  .ifb-kpi__value { font-size: 21px; }
-  .ifb-kpi__hint { font-size: 10px; }
+  /* One compact information strip instead of six content cards. */
+  .ifb-kpis { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0; border: 1px solid var(--ifb-a-line); border-radius: 12px; background: var(--ifb-a-card); }
+  .ifb-kpi { min-height: 44px; padding: 5px 10px; gap: 0 6px; border: 0; border-radius: 0; background: transparent; }
+  .ifb-kpi + .ifb-kpi { border-inline-start: 1px solid #edf0f5; }
+  .ifb-kpi__label { font-size: 10.5px; font-weight: 700; }
+  .ifb-kpi__value { font-size: 19px; }
+  .ifb-kpi__hint { font-size: 9.5px; }
   .ifb-kpi__warning { margin-top: 0; font-size: 9px; padding: 1px 5px; }
   .ifb-filter-panel { padding: 7px 9px; }
   .ifb-filters--primary {
-    grid-template-columns: minmax(155px, 1.5fr) repeat(4, minmax(100px, 1fr)) auto;
+    grid-template-columns: minmax(170px, 250px) repeat(4, minmax(110px, 165px)) auto;
+    justify-content: start;
     gap: 6px;
   }
+  .ifb-filters--more { grid-template-columns: repeat(4, minmax(110px, 165px)) auto; justify-content: start; gap: 6px; }
+  .ifb-filter-panel .ifb-field input,
+  .ifb-filter-panel .ifb-field select,
+  .ifb-filter-panel .ifb-clear-btn { min-height: 32px; height: 32px; padding-block: 3px; font-size: 13px; }
+  /* Closed filter: a slim toggle line without a large gap above the table. */
+  .ifb-filter-disclosure:not([open]) { margin-block: -4px; }
   .ifb-filters--primary .ifb-field { min-width: 0; }
   .ifb-filters--primary input,
   .ifb-filters--primary select { min-width: 0; width: 100%; }

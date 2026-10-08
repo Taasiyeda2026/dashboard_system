@@ -135,6 +135,11 @@ async function main() {
     assert.equal(await authorityCell.evaluate((el) => getComputedStyle(el).whiteSpace), 'nowrap', 'authority stays on one line');
     const tableFits = await admin.locator('.ifb-overview-wrap').evaluate((el) => el.scrollWidth <= el.clientWidth + 1);
     assert.equal(tableFits, true, 'all overview columns fit the desktop width without horizontal scrolling');
+    const separator = await admin.locator('.ifb-overview-table tbody tr').first().locator('td').nth(1).evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return { width: cs.borderInlineStartWidth, color: cs.borderInlineStartColor, style: cs.borderInlineStartStyle };
+    });
+    assert.deepEqual(separator, { width: '1px', color: 'rgb(237, 240, 245)', style: 'solid' }, 'overview columns have a thin light vertical separator');
     await admin.locator('[data-f="search"]').fill('הגפן');
     await admin.waitForFunction(() => document.querySelectorAll('.ifb-table tbody tr').length === 1);
     await admin.locator('[data-ifb-clear="overview"]').click();
