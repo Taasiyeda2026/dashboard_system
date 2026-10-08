@@ -13,7 +13,8 @@ const MIGRATIONS = [
   '../supabase/migrations/20261008120500_impact_feedback_seed.sql',
   '../supabase/migrations/20261008124500_instructor_feedback_per_program.sql',
   '../supabase/migrations/20261008141500_fix_feedback_instructor_program_key_ambiguity.sql',
-  '../supabase/migrations/20261008153500_instructor_feedback_pre_and_final.sql'
+  '../supabase/migrations/20261008153500_instructor_feedback_pre_and_final.sql',
+  '../supabase/migrations/20261008191000_feedback_short_program_titles.sql'
 ];
 
 async function asRole(client, role, uid = '') {
@@ -291,6 +292,17 @@ test('impact feedback DB contract: program fallback, manual mapping, catalog lim
 
     // --- Catalog limits & mapping corrections ----------------------------------------------------
     assert.equal((await one("select default_age_band b from feedback_programs where key='ai_foundations'")).b, 'g_i');
+    const shortTitles = Object.fromEntries((await client.query('select key, title from feedback_programs order by sort_order')).rows.map((r) => [r.key, r.title]));
+    assert.deepEqual(shortTitles, {
+      biomimicry: 'ביומימיקרי',
+      green_leadership: 'מנהיגות ירוקה',
+      space_tech: 'טכנולוגיות החלל',
+      ai_applications: 'יישומי AI',
+      pharma: 'רוקחים עולם',
+      ofek: 'אופק פרימיום',
+      ai_foundations: 'סודות ויסודות AI',
+      trailblazers: 'פורצות דרך'
+    }, 'feedback UI uses short course titles only');
     const tooMany = (await client.query(`select t.program_key, t.stage, count(*)::int n from feedback_templates t
       join feedback_template_questions q on q.version_id = t.current_version_id and q.section = 'course'
       where t.audience = 'student' group by 1, 2 having count(*) > 5`)).rows;
