@@ -351,7 +351,8 @@
 /* Templates */
 .ifb-programs { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
 .ifb-program-card { padding: 14px; border: 1px solid var(--ifb-a-line); border-radius: 16px; background: var(--ifb-a-card); }
-.ifb-program-card h3 { margin: 0 0 10px; font-size: 15px; line-height: 1.25; white-space: nowrap; }
+.ifb-program-card h3 { margin: 0 0 3px; font-size: 15px; line-height: 1.25; white-space: nowrap; }
+.ifb-program-card__meta { margin: 0 0 10px; color: var(--ifb-a-muted); font-size: 11px; line-height: 1.25; white-space: nowrap; }
 .ifb-program-card__tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .ifb-tile { display: grid; gap: 4px; justify-items: start; text-align: start; padding: 10px; border: 1px solid var(--ifb-a-line); border-radius: 12px; background: var(--ifb-a-bg); font: inherit; cursor: pointer; color: inherit; }
 .ifb-tile:hover { border-color: var(--ifb-a-accent); }
