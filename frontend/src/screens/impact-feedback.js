@@ -639,7 +639,7 @@ function openAnswersListHtml(items, { showContext = true } = {}) {
     <li class="ifb-answer">
       <p class="ifb-answer__text">${esc(a.text)}</p>
       <p class="ifb-answer__meta">
-        <span class="ifb-chip ifb-chip--muted">${esc(AUDIENCE_LABELS[a.audience] || '')}${a.audience === 'student' ? ` · ${a.stage === 'pre' ? 'פתיחה' : 'סיום'}` : ''}</span>
+        <span class="ifb-chip ifb-chip--muted">${esc(AUDIENCE_LABELS[a.audience] || '')}${(a.audience === 'student' || a.audience === 'instructor') ? ` · ${a.stage === 'pre' ? 'פתיחה' : 'סיום'}` : ''}</span>
         <span>${esc(a.question_text)}</span>
         ${showContext ? `<span>${esc(programTitle(a.program_key))}${a.school_name ? ` · ${esc(a.school_name)}` : ''}${a.grade ? ` · ${esc(a.grade)}` : ''}</span>` : ''}
         ${a.respondent_name ? `<span>${esc(a.respondent_name)}</span>` : ''}
