@@ -104,13 +104,14 @@ export function mountFeedbackForm(container, payload, options = {}) {
   const answers = { ...(options.initialAnswers || {}) };
   const logoUrl = options.logoUrl || '';
 
+  const audienceClass = payload.audience === 'student' ? ' is-student' : ' is-adult';
   container.innerHTML = `
-    <div class="ifb-shell${young ? ' is-young' : ''}">
+    <div class="ifb-shell${young ? ' is-young' : ''}${audienceClass}">
       <header class="ifb-hero">
         ${logoUrl ? `<img class="ifb-logo" src="${esc(logoUrl)}" alt="תעשיידע">` : ''}
         <p class="ifb-hero__kicker">${esc(headline(payload))}</p>
         <h1 class="ifb-hero__title">${esc(payload.program_title || '')}</h1>
-        ${payload.recipient_name ? `<p class="ifb-hero__hello">שלום ${esc(payload.recipient_name)} 👋</p>` : ''}
+        ${payload.recipient_name ? `<p class="ifb-hero__hello">שלום ${esc(payload.recipient_name)}</p>` : ''}
         ${payload.intro_text ? `<p class="ifb-hero__intro">${esc(payload.intro_text)}</p>` : ''}
       </header>
       <div class="ifb-progress" aria-hidden="true">
