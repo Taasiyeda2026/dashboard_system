@@ -40,12 +40,6 @@ function versionsOf(template) {
   return Array.isArray(template.feedback_template_versions) ? template.feedback_template_versions : [];
 }
 
-function fmtDate(value) {
-  if (!value) return '';
-  const d = new Date(value);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit' });
-}
-
 function educationLevelLabel(level) {
   return level === 'elementary' ? 'יסודי' : level === 'secondary' ? 'חטיבת ביניים ותיכון' : '';
 }
@@ -87,8 +81,8 @@ function listHtml(ui) {
           const draft = versions.find((v) => v.status === 'draft');
           return `<button type="button" class="ifb-tile" data-tpl-open="${esc(template.id)}">
             <strong>${esc(slot.label)}</strong>
-            <span>${current ? `גרסה ${current.version_no} · ${fmtDate(current.published_at)}` : 'אין גרסה מפורסמת'}</span>
-            ${draft ? `<span class="ifb-chip ifb-chip--info">טיוטה v${draft.version_no}</span>` : ''}
+            ${!current ? '<span>טרם פורסם</span>' : ''}
+            ${draft ? '<span class="ifb-chip ifb-chip--info">טיוטה בעריכה</span>' : ''}
           </button>`;
         }).join('')}</div>
       </section>`).join('')}</div>`;
@@ -176,7 +170,8 @@ function editorHtml(ui) {
       <div>
         <p class="ifb-kicker">${esc(program?.title || '')}${programMeta(program) ? ` · ${esc(programMeta(program))}` : ''}</p>
         <h2 class="ifb-group-head__title">${esc(slot?.label || '')}</h2>
-        <p class="ifb-muted">${ed.published ? `גרסה מפורסמת: ${ed.published.version_no} (${fmtDate(ed.published.published_at)})` : 'אין גרסה מפורסמת'}${editing ? ` · טיוטה ${ed.draft.version_no} בעריכה` : ''}</p>
+        ${!ed.published ? '<p class="ifb-muted">טרם פורסם</p>' : ''}
+        ${editing ? '<p class="ifb-muted">טיוטה בעריכה</p>' : ''}
       </div>
       <div class="ifb-slot__actions">
         <button type="button" class="ifb-btn" data-tpl-preview>תצוגה מקדימה</button>
