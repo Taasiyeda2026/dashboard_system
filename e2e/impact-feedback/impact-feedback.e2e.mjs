@@ -117,7 +117,7 @@ async function main() {
     const rows = await admin.locator('.ifb-table tbody tr').count();
     assert.equal(rows, 8, 'six recognised program groups + two unrecognised course groups');
     assert.equal(await admin.locator('.ifb-table [data-status="not_opened"]').count(), 18);
-    assert.match(await admin.locator('tr[data-row="ACT-9"]').textContent(), /אופק – יזמות פרימיום לתעשייה/, 'Gefen 52279 is identified as Ofek automatically');
+    assert.match(await admin.locator('tr[data-row="ACT-9"]').textContent(), /אופק פרימיום/, 'Gefen 52279 is identified as Ofek automatically');
     assert.match(await admin.locator('tr[data-row="ACT-10"]').textContent(), /פורצות דרך/, 'Gefen 3604 is identified as Trailblazers automatically');
     assert.equal(await admin.locator('.ifb-unresolved .ifb-chip').count(), 2);
     assert.equal((await admin.locator('.ifb-unresolved .ifb-chip').first().textContent()).trim(), 'תוכנית לא זוהתה');
@@ -545,6 +545,9 @@ async function main() {
     await admin.locator('.ifb-program-card').first().waitFor();
     assert.equal(await admin.locator('.ifb-program-card').count(), 8);
     assert.equal(await admin.locator('.ifb-tile').count(), 40);
+    assert.doesNotMatch(await admin.locator('[data-ifb-templates]').textContent(), /כל תבנית מורכבת משאלות ליבה/);
+    assert.equal((await admin.locator('.ifb-program-card').first().locator('h3').textContent()).trim(), 'ביומימיקרי');
+    assert.doesNotMatch(await admin.locator('[data-ifb-templates]').textContent(), /ביומימיקרי – המצאות בהשראה מן הטבע/);
     const tile = admin.locator('.ifb-program-card', { hasText: 'פורצות דרך' }).locator('.ifb-tile', { hasText: 'תלמידים – פתיחה' });
     await tile.click();
     await admin.locator('.ifb-tq.is-readonly').first().waitFor();
