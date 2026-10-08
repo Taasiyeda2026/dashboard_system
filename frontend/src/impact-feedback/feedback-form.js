@@ -22,7 +22,7 @@ function esc(value) {
 }
 
 function headline(payload) {
-  if (payload.audience === 'instructor') return 'משוב מדריך';
+  if (payload.audience === 'instructor') return payload.stage === 'pre' ? 'משוב מדריך – פתיחה' : 'משוב מדריך – סיום';
   if (payload.audience === 'educational_staff') return 'משוב צוות חינוכי';
   return `שאלון ${STAGE_LABELS[payload.stage] || ''}`.trim();
 }
