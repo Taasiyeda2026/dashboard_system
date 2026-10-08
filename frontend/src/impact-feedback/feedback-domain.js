@@ -252,10 +252,13 @@ export function mailtoUrl(email, subject, body) {
   return `mailto:${encodeURIComponent(String(email || '').trim()).replace(/%40/g, '@')}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
-export function shareMessage({ audience, recipientName = '', programTitle = '', schoolName = '', url }) {
+export function shareMessage({ audience, stage = '', recipientName = '', programTitle = '', schoolName = '', url }) {
   const greeting = recipientName ? `שלום ${recipientName},` : 'שלום,';
   if (audience === 'instructor') {
-    return `${greeting}\nתודה על ההדרכה בתוכנית "${programTitle}".\nנשמח מאוד לשמוע מה את/ה חושב/ת על התוכן, על ההדרכה ועל התפעול – משוב חד־פעמי על התוכנית שלוקח כ־5 דקות:\n${url}\nתודה רבה, צוות תעשיידע`;
+    if (stage === 'pre') {
+      return `${greeting}\nאחרי ההכשרה לתוכנית "${programTitle}", נשמח לשמוע עד כמה את/ה מרגיש/ה מוכן/ה להתחיל להדריך ומה עדיין חסר לך. זהו משוב פתיחה קצר ופנימי:\n${url}\nתודה רבה, צוות תעשיידע`;
+    }
+    return `${greeting}\nלאחר סיום ההדרכה בתוכנית "${programTitle}", נשמח לשמוע מה עבד בפועל, מה דורש שיפור ומה דעתך על התוכן והתפעול. זהו משוב סיום קצר ופנימי:\n${url}\nתודה רבה, צוות תעשיידע`;
   }
   if (audience === 'educational_staff') {
     return `${greeting}\nהתוכנית "${programTitle}"${schoolName ? ` ב${schoolName}` : ''} מתקרבת לסיומה.\nנשמח מאוד לשמוע את הערכתכם – המשוב קצר ועוזר לנו להשתפר:\n${url}\nתודה רבה, צוות תעשיידע`;
@@ -263,8 +266,8 @@ export function shareMessage({ audience, recipientName = '', programTitle = '', 
   return `משוב התוכנית "${programTitle}" – ממלאים כאן:\n${url}`;
 }
 
-export function shareSubject(audience, programTitle) {
-  if (audience === 'instructor') return `משוב מדריך – ${programTitle}`;
+export function shareSubject(audience, programTitle, stage = '') {
+  if (audience === 'instructor') return `משוב מדריך – ${stage === 'pre' ? 'פתיחה' : 'סיום'} – ${programTitle}`;
   if (audience === 'educational_staff') return `משוב צוות חינוכי – ${programTitle}`;
   return `משוב – ${programTitle}`;
 }
@@ -406,6 +409,8 @@ export function factsFor(facts, audience, stage) {
 export function threePerspectives(facts = [], metrics = []) {
   const studentsPre = factsFor(facts, 'student', 'pre');
   const studentsPost = factsFor(facts, 'student', 'post');
+  const instructorPre = summarizePopulation(factsFor(facts, 'instructor', 'pre'));
+  const instructorFinal = summarizePopulation(factsFor(facts, 'instructor', 'final'));
   return {
     students: {
       comparison: comparePrePost(studentsPre, studentsPost, metrics.filter((m) => m.kind === 'impact')),
@@ -413,7 +418,9 @@ export function threePerspectives(facts = [], metrics = []) {
       pre: summarizePopulation(studentsPre)
     },
     staff: summarizePopulation(factsFor(facts, 'educational_staff')),
-    instructor: summarizePopulation(factsFor(facts, 'instructor'))
+    instructor: instructorFinal,
+    instructorPre,
+    instructorFinal
   };
 }
 
@@ -546,7 +553,8 @@ export function summaryExportRows(perspectives, metrics = []) {
   };
   pushPopulation('תלמידים – סיום (כל השאלות)', perspectives.students.post);
   pushPopulation('צוות חינוכי', perspectives.staff);
-  pushPopulation('מדריך', perspectives.instructor);
+  pushPopulation('מדריך – פתיחה לאחר הכשרה', perspectives.instructorPre || { byMetric: {} });
+  pushPopulation('מדריך – סיום הקורס', perspectives.instructorFinal || perspectives.instructor);
   return rows;
 }
 

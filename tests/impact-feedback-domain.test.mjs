@@ -15,6 +15,8 @@ import {
   perspectiveGap,
   publicFeedbackUrl,
   rawExportRows,
+  shareMessage,
+  shareSubject,
   threePerspectives
 } from '../frontend/src/impact-feedback/feedback-domain.js';
 
@@ -95,16 +97,19 @@ test('PRE/POST is group vs group, only on comparison questions, with Δ and Δ%'
   assert.match(describeGroupChange(3, null), /טרם התקבלו נתוני סיום/);
 });
 
-test('three perspectives stay separate and gaps are flagged', () => {
+test('three perspectives stay separate and instructor opening/final are not blended', () => {
   const facts = [
     fact('s1', 'student', 'post', 'knowledge', 5),
     fact('t1', 'educational_staff', 'final', 'knowledge', 3),
-    fact('i1', 'instructor', 'final', 'content', 4)
+    fact('ipre', 'instructor', 'pre', 'content', 2),
+    fact('ifinal', 'instructor', 'final', 'content', 4)
   ];
   const p = threePerspectives(facts, METRICS);
   assert.equal(p.students.post.byMetric.knowledge.score, 100);
   assert.equal(p.staff.byMetric.knowledge.score, 50);
-  assert.equal(p.instructor.byMetric.content.score, 75);
+  assert.equal(p.instructorPre.byMetric.content.score, 25);
+  assert.equal(p.instructorFinal.byMetric.content.score, 75);
+  assert.equal(p.instructor.byMetric.content.score, 75, 'legacy instructor perspective means final only');
   assert.equal(p.instructor.byMetric.knowledge, undefined, 'no cross-population blending');
   assert.equal(perspectiveGap([100, 50]).key, 'gap');
   assert.equal(perspectiveGap([80, 85, 78]).key, 'aligned');
@@ -125,6 +130,17 @@ test('public links, WhatsApp numbers, required validation', () => {
   assert.equal(normalizeWhatsappPhone('+972 50 1234567'), '972501234567');
   const questions = [{ id: 'a', type: 'rating_1_5', required: true }, { id: 'b', type: 'free_text', required: false }, { id: 'c', type: 'multi_select', required: true }];
   assert.deepEqual(missingRequired(questions, { a: 3, c: [] }), ['c']);
+});
+
+test('instructor share copy distinguishes opening after training from end-of-course', () => {
+  const pre = shareMessage({ audience: 'instructor', stage: 'pre', recipientName: 'דנה', programTitle: 'פורצות דרך', url: 'https://x.test/pre' });
+  const final = shareMessage({ audience: 'instructor', stage: 'final', recipientName: 'דנה', programTitle: 'פורצות דרך', url: 'https://x.test/final' });
+  assert.match(pre, /אחרי ההכשרה/);
+  assert.match(pre, /משוב פתיחה/);
+  assert.match(final, /לאחר סיום ההדרכה/);
+  assert.match(final, /משוב סיום/);
+  assert.match(shareSubject('instructor', 'פורצות דרך', 'pre'), /פתיחה/);
+  assert.match(shareSubject('instructor', 'פורצות דרך', 'final'), /סיום/);
 });
 
 test('raw export never names students and maps option labels', () => {

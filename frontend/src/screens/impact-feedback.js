@@ -231,10 +231,10 @@ function errorHtml(message) {
 
 function kpiHtml(groups, instructorAssignments = []) {
   const k = dashboardKpis(groups);
-  const instructorCampaigns = instructorAssignments.map((row) => row.campaign).filter(Boolean);
+  const instructorCampaigns = instructorAssignments.flatMap((row) => [row.pre_campaign, row.final_campaign]).filter(Boolean);
   const pendingInstructor = instructorCampaigns.filter((campaign) => {
     const key = campaignUiStatus(campaign).key;
-    return key === 'active' || key === 'collecting';
+    return key === 'active' || key === 'collecting' || key === 'scheduled';
   }).length;
   const instructorCompleted = instructorCampaigns.filter((campaign) => campaign?.recipient?.status === 'completed').length;
   const staffCampaigns = groups.flatMap((group) => (group.campaigns || []).filter((campaign) => campaign.audience === 'educational_staff'));
@@ -245,7 +245,7 @@ function kpiHtml(groups, instructorAssignments = []) {
     ['קבוצות עם משובים', k.withFeedback, `מתוך ${groups.length} קבוצות`, k.unresolved ? `${k.unresolved} דורשות שיוך` : ''],
     ['משובי פתיחה פעילים', k.activePre, 'תלמידים', ''],
     ['משובי סיום פעילים', k.activePost, 'תלמידים', ''],
-    ['ממתינים למדריך', pendingInstructor, 'משוב חד־פעמי לפי תוכנית', ''],
+    ['ממתינים למדריך', pendingInstructor, 'פתיחה וסיום לפי תוכנית', ''],
     ['ממתינים לאיש קשר', k.pendingContact, 'קישורים שטרם מולאו', ''],
     ['שיעור מענה', responseRate === null ? '—' : `${responseRate}%`, responseRate === null ? 'אין עדיין נתונים' : `צוות ומדריכים · ${k.studentResponses} תשובות תלמידים`, '']
   ];
@@ -639,7 +639,7 @@ function openAnswersListHtml(items, { showContext = true } = {}) {
     <li class="ifb-answer">
       <p class="ifb-answer__text">${esc(a.text)}</p>
       <p class="ifb-answer__meta">
-        <span class="ifb-chip ifb-chip--muted">${esc(AUDIENCE_LABELS[a.audience] || '')}${a.audience === 'student' ? ` · ${a.stage === 'pre' ? 'פתיחה' : 'סיום'}` : ''}</span>
+        <span class="ifb-chip ifb-chip--muted">${esc(AUDIENCE_LABELS[a.audience] || '')}${(a.audience === 'student' || a.audience === 'instructor') ? ` · ${a.stage === 'pre' ? 'פתיחה' : 'סיום'}` : ''}</span>
         <span>${esc(a.question_text)}</span>
         ${showContext ? `<span>${esc(programTitle(a.program_key))}${a.school_name ? ` · ${esc(a.school_name)}` : ''}${a.grade ? ` · ${esc(a.grade)}` : ''}</span>` : ''}
         ${a.respondent_name ? `<span>${esc(a.respondent_name)}</span>` : ''}
@@ -687,23 +687,33 @@ function groupViewHtml(group) {
 }
 
 // ---------------------------------------------------------------------------
-// Instructor feedback — once per instructor + program + academic year
+// Instructor feedback — two checkpoints per instructor + program + academic year
 // ---------------------------------------------------------------------------
 
-function instructorAssignmentKey(row) {
-  return `${row.instructor_emp_id}|${row.program_key}|${row.academic_year}`;
+function instructorCampaignFor(row, stage) {
+  return stage === 'pre' ? row.pre_campaign : row.final_campaign;
 }
 
-function instructorCampaignActionsHtml(row) {
-  const campaign = row.campaign;
-  const key = instructorAssignmentKey(row);
+function instructorAssignmentKey(row, stage = '') {
+  return [row.instructor_emp_id, row.program_key, row.academic_year, stage].filter(Boolean).join('|');
+}
+
+function instructorCampaignActionsHtml(row, stage) {
+  const campaign = instructorCampaignFor(row, stage);
+  const key = instructorAssignmentKey(row, stage);
+  const stageLabel = stage === 'pre' ? 'פתיחה – אחרי הכשרה' : 'סיום הקורס';
   if (!campaign) {
     if (!ui.instructorOpenForms.has(key)) {
-      return `<button type="button" class="ifb-btn ifb-btn--primary ifb-btn--sm" data-ifb-instructor-open="${esc(key)}">צור משוב</button>`;
+      return `<div class="ifb-instructor-stage">
+        <span class="ifb-chip ifb-chip--muted">טרם נפתח</span>
+        <button type="button" class="ifb-btn ifb-btn--primary ifb-btn--sm" data-ifb-instructor-open="${esc(key)}">פתיחת משוב</button>
+      </div>`;
     }
     return `
       <form class="ifb-instructor-open-form" data-ifb-instructor-open-form
-        data-emp="${esc(row.instructor_emp_id)}" data-program="${esc(row.program_key)}" data-year="${esc(row.academic_year)}" data-key="${esc(key)}">
+        data-emp="${esc(row.instructor_emp_id)}" data-program="${esc(row.program_key)}" data-year="${esc(row.academic_year)}"
+        data-stage="${stage}" data-key="${esc(key)}">
+        <p class="ifb-note ifb-instructor-stage__label">${esc(stageLabel)}</p>
         <label class="ifb-field"><span>פתיחה</span><input type="date" name="opens" value="${isoDay(Date.now())}" required></label>
         <label class="ifb-field"><span>תוקף עד</span><input type="date" name="expires" value="${isoDay(Date.now() + (14 * DAY_MS))}" min="${isoDay(Date.now() + DAY_MS)}"></label>
         <div class="ifb-slot__actions">
@@ -714,17 +724,34 @@ function instructorCampaignActionsHtml(row) {
   }
 
   const status = campaignUiStatus(campaign);
-  if (status.key === 'completed') return '<span class="ifb-muted">המשוב הושלם ונעול</span>';
+  if (status.key === 'completed') {
+    return `<div class="ifb-instructor-stage"><span class="ifb-chip ifb-chip--success">הושלם</span><span class="ifb-muted">המשוב נעול</span></div>`;
+  }
   const links = personalShareLinks(campaign, { programTitle: programTitle(row.program_key), schoolName: '' });
   const live = status.key === 'active' || status.key === 'collecting' || status.key === 'scheduled';
-  return `<div class="ifb-slot__actions">
-    <a class="ifb-btn ifb-btn--whatsapp ifb-btn--sm${live ? '' : ' is-disabled'}" href="${esc(links.whatsapp)}" target="_blank" rel="noopener" data-ifb-share="whatsapp" data-campaign="${esc(campaign.id)}">WhatsApp</a>
-    <a class="ifb-btn ifb-btn--sm${live && links.hasEmail ? '' : ' is-disabled'}" href="${esc(links.email)}" data-ifb-share="email" data-campaign="${esc(campaign.id)}">מייל</a>
-    <button type="button" class="ifb-btn ifb-btn--sm" data-ifb-copy="${esc(campaign.id)}">העתק קישור</button>
-    ${campaign.status === 'active'
-      ? `<button type="button" class="ifb-btn ifb-btn--danger ifb-btn--sm" data-ifb-close="${esc(campaign.id)}">סגור</button>`
-      : `<button type="button" class="ifb-btn ifb-btn--sm" data-ifb-reopen="${esc(campaign.id)}">פתח מחדש</button>`}
+  return `<div class="ifb-instructor-stage">
+    ${tableStatusHtml(campaign)}
+    <div class="ifb-slot__actions">
+      <a class="ifb-btn ifb-btn--whatsapp ifb-btn--sm${live ? '' : ' is-disabled'}" href="${esc(links.whatsapp)}" target="_blank" rel="noopener" data-ifb-share="whatsapp" data-campaign="${esc(campaign.id)}">WhatsApp</a>
+      <a class="ifb-btn ifb-btn--sm${live && links.hasEmail ? '' : ' is-disabled'}" href="${esc(links.email)}" data-ifb-share="email" data-campaign="${esc(campaign.id)}">מייל</a>
+      <button type="button" class="ifb-btn ifb-btn--sm" data-ifb-copy="${esc(campaign.id)}">העתק קישור</button>
+      ${campaign.status === 'active'
+        ? `<button type="button" class="ifb-btn ifb-btn--danger ifb-btn--sm" data-ifb-close="${esc(campaign.id)}">סגור</button>`
+        : `<button type="button" class="ifb-btn ifb-btn--sm" data-ifb-reopen="${esc(campaign.id)}">פתח מחדש</button>`}
+    </div>
   </div>`;
+}
+
+function instructorFilterMatches(row, statusFilter) {
+  if (!statusFilter) return true;
+  const [stage, wanted] = statusFilter.split(':');
+  const campaign = instructorCampaignFor(row, stage);
+  const status = campaignUiStatus(campaign).key;
+  if (wanted === 'not_opened') return !campaign;
+  if (wanted === 'pending') return ['active', 'collecting', 'scheduled'].includes(status);
+  if (wanted === 'completed') return status === 'completed';
+  if (wanted === 'expired') return status === 'expired';
+  return true;
 }
 
 function instructorAssignmentsHtml() {
@@ -733,11 +760,7 @@ function instructorAssignmentsHtml() {
   const search = filters.search.trim().toLowerCase();
   const rows = all.filter((row) => {
     if (filters.program && row.program_key !== filters.program) return false;
-    const status = campaignUiStatus(row.campaign).key;
-    if (filters.status === 'not_opened' && row.campaign) return false;
-    if (filters.status === 'pending' && !['active', 'collecting', 'scheduled'].includes(status)) return false;
-    if (filters.status === 'completed' && status !== 'completed') return false;
-    if (filters.status === 'expired' && status !== 'expired') return false;
+    if (!instructorFilterMatches(row, filters.status)) return false;
     if (search) {
       const hay = `${row.instructor_name || ''} ${programTitle(row.program_key)} ${row.instructor_emp_id || ''}`.toLowerCase();
       if (!hay.includes(search)) return false;
@@ -745,19 +768,18 @@ function instructorAssignmentsHtml() {
     return true;
   });
 
-  const totalPrograms = all.length;
-  const opened = all.filter((row) => row.campaign).length;
-  const completed = all.filter((row) => row.campaign?.recipient?.status === 'completed').length;
+  const preCompleted = all.filter((row) => row.pre_campaign?.recipient?.status === 'completed').length;
+  const finalCompleted = all.filter((row) => row.final_campaign?.recipient?.status === 'completed').length;
   return `
     <section class="ifb-panel ifb-instructor-intro">
       <div>
         <h2>משובי מדריכים</h2>
-        <p class="ifb-note">כל מדריך ממלא משוב אחד בלבד לכל תוכנית שבה הוא משובץ בשנת הפעילות — לא משוב נפרד לכל קבוצה.</p>
+        <p class="ifb-note">לכל מדריך יש שני משובים לכל תוכנית שבה הוא משובץ: <strong>פתיחה</strong> לאחר ההכשרה, במועד פנימי שנבחר כאן, ו<strong>סיום</strong> לאחר סיום הקורס. המשובים הם לפי מדריך–תוכנית ולא לפי קבוצה.</p>
       </div>
       <div class="ifb-inline-stats">
-        <span><strong>${totalPrograms}</strong> צירופי מדריך–תוכנית</span>
-        <span><strong>${opened}</strong> נפתחו</span>
-        <span><strong>${completed}</strong> הושלמו</span>
+        <span><strong>${all.length}</strong> צירופי מדריך–תוכנית</span>
+        <span><strong>${preCompleted}</strong> פתיחה הושלמו</span>
+        <span><strong>${finalCompleted}</strong> סיום הושלמו</span>
       </div>
     </section>
     <section class="ifb-filter-panel">
@@ -765,16 +787,23 @@ function instructorAssignmentsHtml() {
         <label class="ifb-field ifb-field--search"><span>חיפוש מדריך</span><input type="search" data-i="search" value="${esc(filters.search)}" placeholder="שם מדריך…"></label>
         <label class="ifb-field"><span>תוכנית</span><select data-i="program">${optionList(ui.programs.map((p) => p.key), filters.program, 'כל התוכניות', programTitle)}</select></label>
         <label class="ifb-field"><span>סטטוס</span><select data-i="status">
-          ${[['', 'הכל'], ['not_opened', 'טרם נפתח'], ['pending', 'ממתין למילוי'], ['completed', 'הושלם'], ['expired', 'פג תוקף']]
-            .map(([v, l]) => `<option value="${v}"${v === filters.status ? ' selected' : ''}>${l}</option>`).join('')}
+          ${[
+            ['', 'הכל'],
+            ['pre:not_opened', 'פתיחה – טרם נפתח'],
+            ['pre:pending', 'פתיחה – ממתין למילוי'],
+            ['pre:completed', 'פתיחה – הושלם'],
+            ['final:not_opened', 'סיום – טרם נפתח'],
+            ['final:pending', 'סיום – ממתין למילוי'],
+            ['final:completed', 'סיום – הושלם']
+          ].map(([v, l]) => `<option value="${v}"${v === filters.status ? ' selected' : ''}>${l}</option>`).join('')}
         </select></label>
         <button type="button" class="ifb-btn ifb-btn--ghost" data-ifb-clear="instructors">ניקוי</button>
       </div>
     </section>
     <div class="ifb-list-head"><h2>מדריכים <span class="ifb-list-count">(${rows.length})</span></h2></div>
     ${rows.length ? `<div class="ifb-table-wrap">
-      <table class="ifb-table ifb-instructor-table">
-        <thead><tr><th>מדריך</th><th>תוכנית</th><th>שיבוצים</th><th>בתי ספר</th><th>תקופה</th><th>סטטוס</th><th>פעולות</th></tr></thead>
+      <table class="ifb-table ifb-instructor-table ifb-instructor-table--two-stages">
+        <thead><tr><th>מדריך</th><th>תוכנית</th><th>שיבוצים</th><th>בתי ספר</th><th>תקופה</th><th>פתיחה – אחרי הכשרה</th><th>סיום הקורס</th></tr></thead>
         <tbody>${rows.map((row) => `
           <tr data-instructor-feedback="${esc(instructorAssignmentKey(row))}">
             <td data-label="מדריך"><strong>${esc(row.instructor_name || row.instructor_emp_id)}</strong><span class="ifb-muted ifb-cell-sub">#${esc(row.instructor_emp_id)}</span></td>
@@ -782,8 +811,8 @@ function instructorAssignmentsHtml() {
             <td data-label="שיבוצים" class="ifb-center"><strong>${Number(row.assignment_count) || 0}</strong></td>
             <td data-label="בתי ספר" class="ifb-center">${Number(row.school_count) || 0}</td>
             <td data-label="תקופה" class="ifb-nowrap">${fmtDate(row.first_start_date)}–${fmtDate(row.last_end_date)}</td>
-            <td data-label="סטטוס">${tableStatusHtml(row.campaign)}</td>
-            <td data-label="פעולות">${instructorCampaignActionsHtml(row)}</td>
+            <td data-label="פתיחה – אחרי הכשרה" class="ifb-instructor-stage-cell">${instructorCampaignActionsHtml(row, 'pre')}</td>
+            <td data-label="סיום הקורס" class="ifb-instructor-stage-cell">${instructorCampaignActionsHtml(row, 'final')}</td>
           </tr>`).join('')}</tbody>
       </table>
     </div>` : '<div class="ifb-empty"><p>לא נמצאו שיבוצי מדריכים התואמים לסינון.</p></div>'}
@@ -966,7 +995,9 @@ function campaignById(id) {
     if (campaign) return { group, instructorAssignment: null, campaign };
   }
   for (const row of ui.instructorAssignments || []) {
-    if (row.campaign?.id === id) return { group: null, instructorAssignment: row, campaign: row.campaign };
+    for (const campaign of [row.pre_campaign, row.final_campaign]) {
+      if (campaign?.id === id) return { group: null, instructorAssignment: row, campaign };
+    }
   }
   return { group: null, instructorAssignment: null, campaign: null };
 }
@@ -1124,12 +1155,12 @@ async function handleSubmit(host, event) {
     const button = form.querySelector('[type="submit"]');
     button.disabled = true;
     try {
-      await openInstructorCampaign(form.dataset.emp, form.dataset.program, form.dataset.year, {
+      await openInstructorCampaign(form.dataset.emp, form.dataset.program, form.dataset.year, form.dataset.stage, {
         opensAt: openingIso(String(data.get('opens') || '')),
         expiresAt: expiryIso(String(data.get('expires') || ''))
       });
       ui.instructorOpenForms.delete(form.dataset.key);
-      showToast('נוצר משוב חד־פעמי למדריך עבור התוכנית');
+      showToast(form.dataset.stage === 'pre' ? 'נוצר משוב פתיחה למדריך' : 'נוצר משוב סיום למדריך');
       await afterInstructorCampaignChange(host);
     } catch (error) {
       button.disabled = false;

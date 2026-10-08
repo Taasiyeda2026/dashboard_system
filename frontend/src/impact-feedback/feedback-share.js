@@ -40,12 +40,12 @@ export async function copyText(text) {
 export function personalShareLinks(campaign, { programTitle, schoolName }) {
   const url = campaignLink(campaign);
   const recipient = campaign?.recipient || {};
-  const text = shareMessage({ audience: campaign.audience, recipientName: recipient.display_name, programTitle, schoolName, url });
+  const text = shareMessage({ audience: campaign.audience, stage: campaign.stage, recipientName: recipient.display_name, programTitle, schoolName, url });
   return {
     url,
     text,
     whatsapp: whatsappUrl(recipient.phone, text),
-    email: mailtoUrl(recipient.email, shareSubject(campaign.audience, programTitle), text),
+    email: mailtoUrl(recipient.email, shareSubject(campaign.audience, programTitle, campaign.stage), text),
     hasPhone: Boolean(String(recipient.phone || '').replace(/\D/g, '')),
     hasEmail: Boolean(String(recipient.email || '').includes('@'))
   };

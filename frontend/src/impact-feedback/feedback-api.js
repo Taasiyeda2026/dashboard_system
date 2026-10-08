@@ -67,11 +67,12 @@ export async function fetchInstructorAssignments(academicYear = null) {
   return Array.isArray(rows) ? rows : [];
 }
 
-export async function openInstructorCampaign(instructorEmpId, programKey, academicYear, { opensAt = null, expiresAt = null } = {}) {
+export async function openInstructorCampaign(instructorEmpId, programKey, academicYear, stage, { opensAt = null, expiresAt = null } = {}) {
   return unwrap(client().rpc('feedback_admin_open_instructor_campaign', {
     p_instructor_emp_id: String(instructorEmpId || ''),
     p_program_key: programKey,
     p_academic_year: academicYear,
+    p_stage: stage,
     p_opens_at: opensAt,
     p_expires_at: expiresAt
   }));
