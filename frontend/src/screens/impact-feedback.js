@@ -64,7 +64,7 @@ const ui = {
   results: { program: '', authority: '', school: '', ageBand: '', group: '', instructor: '', from: '', to: '', drill: '' },
   answers: { program: '', audience: '', question: '', school: '', search: '' },
   templates: { templateId: null, versionId: null, previewBand: '' },
-  instructorFilters: { search: '', program: '', status: '' },
+  instructorFilters: { instructor: '', program: '', status: '' },
   groups: null,
   groupsYear: null,
   instructorAssignments: null,
@@ -757,34 +757,39 @@ function instructorFilterMatches(row, statusFilter) {
 function instructorAssignmentsHtml() {
   const all = ui.instructorAssignments || [];
   const filters = ui.instructorFilters;
-  const search = filters.search.trim().toLowerCase();
+  const instructors = [...new Map(
+    all
+      .filter((row) => row.instructor_emp_id)
+      .map((row) => [String(row.instructor_emp_id), row.instructor_name || row.instructor_emp_id])
+  ).entries()]
+    .sort((a, b) => String(a[1]).localeCompare(String(b[1]), 'he'));
+
   const rows = all.filter((row) => {
+    if (filters.instructor && String(row.instructor_emp_id) !== filters.instructor) return false;
     if (filters.program && row.program_key !== filters.program) return false;
     if (!instructorFilterMatches(row, filters.status)) return false;
-    if (search) {
-      const hay = `${row.instructor_name || ''} ${programTitle(row.program_key)} ${row.instructor_emp_id || ''}`.toLowerCase();
-      if (!hay.includes(search)) return false;
-    }
     return true;
   });
 
   const preCompleted = all.filter((row) => row.pre_campaign?.recipient?.status === 'completed').length;
   const finalCompleted = all.filter((row) => row.final_campaign?.recipient?.status === 'completed').length;
   return `
-    <section class="ifb-panel ifb-instructor-intro">
-      <div>
-        <h2>משובי מדריכים</h2>
-        <p class="ifb-note">לכל מדריך יש שני משובים לכל תוכנית שבה הוא משובץ: <strong>פתיחה</strong> לאחר ההכשרה, במועד פנימי שנבחר כאן, ו<strong>סיום</strong> לאחר סיום הקורס. המשובים הם לפי מדריך–תוכנית ולא לפי קבוצה.</p>
-      </div>
-      <div class="ifb-inline-stats">
+    <section class="ifb-instructor-summary">
+      <h2>משובי מדריכים</h2>
+      <div class="ifb-inline-stats" aria-label="סיכום משובי מדריכים">
         <span><strong>${all.length}</strong> צירופי מדריך–תוכנית</span>
+        <span aria-hidden="true">·</span>
         <span><strong>${preCompleted}</strong> פתיחה הושלמו</span>
+        <span aria-hidden="true">·</span>
         <span><strong>${finalCompleted}</strong> סיום הושלמו</span>
       </div>
     </section>
-    <section class="ifb-filter-panel">
+    <section class="ifb-filter-panel ifb-filter-panel--instructors">
       <div class="ifb-filters ifb-filters--instructors">
-        <label class="ifb-field ifb-field--search"><span>חיפוש מדריך</span><input type="search" data-i="search" value="${esc(filters.search)}" placeholder="שם מדריך…"></label>
+        <label class="ifb-field"><span>מדריך</span><select data-i="instructor">
+          <option value="">כל המדריכים</option>
+          ${instructors.map(([id, name]) => `<option value="${esc(id)}"${id === filters.instructor ? ' selected' : ''}>${esc(name)}</option>`).join('')}
+        </select></label>
         <label class="ifb-field"><span>תוכנית</span><select data-i="program">${optionList(ui.programs.map((p) => p.key), filters.program, 'כל התוכניות', programTitle)}</select></label>
         <label class="ifb-field"><span>סטטוס</span><select data-i="status">
           ${[

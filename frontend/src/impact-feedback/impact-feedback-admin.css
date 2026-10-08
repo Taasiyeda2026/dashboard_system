@@ -253,10 +253,29 @@
 
 .ifb-instructor-intro { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
 .ifb-instructor-intro h2 { margin: 0; font-size: 19px; }
-.ifb-inline-stats { display: flex; flex-wrap: wrap; gap: 8px; }
-.ifb-inline-stats span { padding: 6px 10px; border-radius: 999px; background: #f4f6fb; color: var(--ifb-a-muted); font-size: 12px; white-space: nowrap; }
-.ifb-inline-stats strong { color: #26324f; font-size: 14px; }
-.ifb-filters--instructors { display: grid; grid-template-columns: minmax(220px, 1.5fr) minmax(180px, 1fr) minmax(150px, .8fr) auto; align-items: end; }
+
+.ifb-instructor-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 2px 2px 0;
+}
+.ifb-instructor-summary h2 { margin: 0; font-size: 19px; }
+.ifb-inline-stats { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; color: var(--ifb-a-muted); font-size: 12px; }
+.ifb-inline-stats span { padding: 0; border: 0; border-radius: 0; background: transparent; color: inherit; font-size: inherit; white-space: nowrap; }
+.ifb-inline-stats strong { color: #26324f; font-size: 13px; }
+
+.ifb-filter-panel--instructors { width: fit-content; max-width: 100%; }
+.ifb-filters--instructors {
+  display: grid;
+  grid-template-columns: repeat(3, 180px) auto;
+  align-items: end;
+  justify-content: start;
+  gap: 8px;
+}
+.ifb-filters--instructors .ifb-field { width: 180px; }
+.ifb-filters--instructors .ifb-btn { min-width: 64px; }
 .ifb-instructor-table { min-width: 1240px; }
 .ifb-instructor-table th:nth-child(1) { width: 160px; }
 .ifb-instructor-table th:nth-child(2) { width: 190px; }
@@ -435,8 +454,11 @@
 }
 
 @media (max-width: 760px) {
-  .ifb-instructor-intro { align-items: flex-start; flex-direction: column; }
-  .ifb-filters--instructors { grid-template-columns: 1fr; }
+  .ifb-instructor-intro,
+  .ifb-instructor-summary { align-items: flex-start; flex-direction: column; }
+  .ifb-filter-panel--instructors { width: 100%; }
+  .ifb-filters--instructors { grid-template-columns: 1fr; width: 100%; }
+  .ifb-filters--instructors .ifb-field { width: 100%; }
   .ifb-instructor-open-form { grid-template-columns: 1fr; min-width: 0; }
   .ifb-instructor-table { min-width: 0; }
   .ifb-instructor-stage { justify-items: stretch; width: 100%; }
