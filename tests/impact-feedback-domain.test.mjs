@@ -46,10 +46,18 @@ test('campaign UI statuses cover every lifecycle state in Hebrew', () => {
   assert.equal(campaignUiStatus(null, NOW).label, 'טרם נפתח');
   const base = { audience: 'student', status: 'active', opens_at: '2026-10-01T00:00:00Z', expires_at: '2026-12-01T00:00:00Z', responses: 0 };
   assert.equal(campaignUiStatus(base, NOW).label, 'פעיל');
-  assert.equal(campaignUiStatus({ ...base, responses: 7 }, NOW).label, 'התקבלו 7 תשובות');
-  assert.equal(campaignUiStatus({ ...base, opens_at: '2026-11-05T00:00:00Z' }, NOW).key, 'scheduled');
+  assert.deepEqual(
+    [campaignUiStatus({ ...base, responses: 7 }, NOW).label, campaignUiStatus({ ...base, responses: 7 }, NOW).responses],
+    ['פעיל', 7]
+  );
+  assert.deepEqual(
+    [campaignUiStatus({ ...base, opens_at: '2026-11-05T00:00:00Z' }, NOW).key, campaignUiStatus({ ...base, opens_at: '2026-11-05T00:00:00Z' }, NOW).label],
+    ['scheduled', 'מתוזמן']
+  );
   assert.equal(campaignUiStatus({ ...base, expires_at: '2026-10-20T00:00:00Z' }, NOW).label, 'פג תוקף');
   assert.equal(campaignUiStatus({ ...base, status: 'closed' }, NOW).label, 'נסגר');
+  const pendingPersonal = { ...base, audience: 'instructor', recipient: { status: 'pending' } };
+  assert.equal(campaignUiStatus(pendingPersonal, NOW).label, 'ממתין למילוי');
   const personal = { ...base, audience: 'instructor', recipient: { status: 'completed' }, responses: 1 };
   assert.equal(campaignUiStatus(personal, NOW).label, 'הושלם');
 });
