@@ -563,6 +563,7 @@ async function main() {
     await admin.locator('.ifb-program-card').first().waitFor();
     assert.equal(await admin.locator('.ifb-program-card').count(), 11);
     assert.equal(await admin.locator('.ifb-tile').count(), 55);
+    assert.doesNotMatch(await admin.locator('[data-ifb-templates]').textContent(), /גרסה \d|v\d|\d{2}\.\d{2}\.\d{2}/, 'template cards do not show version numbers or publish dates');
     assert.doesNotMatch(await admin.locator('[data-ifb-templates]').textContent(), /כל תבנית מורכבת משאלות ליבה/);
     assert.equal((await admin.locator('.ifb-program-card').first().locator('h3').textContent()).trim(), 'ביומימיקרי');
     assert.match(await admin.locator('.ifb-program-card').first().locator('.ifb-program-card__meta').textContent(), /יסודי.*6089/);
@@ -592,14 +593,14 @@ async function main() {
     admin.once('dialog', (d) => d.accept());
     await admin.locator('[data-tpl-publish]').click();
     await admin.locator('[data-tpl-edit]').waitFor();
-    assert.match(await admin.locator('.ifb-group-head').textContent(), /גרסה מפורסמת: 2/);
+    assert.doesNotMatch(await admin.locator('.ifb-group-head').textContent(), /גרסה|v2|08\.10\.26/, 'version number and publish date are hidden from the frontend');
     const versions = (await db.query("select v.version_no, v.status from feedback_template_versions v join feedback_templates t on t.id=v.template_id where t.program_key='trailblazers' and t.audience='student' and t.stage='pre' order by 1")).rows;
     assert.deepEqual(versions, [{ version_no: 1, status: 'archived' }, { version_no: 2, status: 'published' }]);
     await admin.screenshot({ path: `${SHOTS}/12-templates-desktop.png`, fullPage: true });
 
     await admin.locator('[data-ifb-tab="overview"]').click();
     await admin.locator('tr[data-row="ACT-1"] [data-ifb-open-group]').click();
-    assert.match(await admin.locator('[data-slot="student:pre"]').textContent(), /v1\s*גרסה קודמת/);
+    assert.doesNotMatch(await admin.locator('[data-slot="student:pre"]').textContent(), /גרסת שאלון|גרסה קודמת|\bv1\b/, 'campaign cards do not expose questionnaire version metadata');
     const ctx = await student();
     const page = await ctx.newPage();
     await page.goto(links.pre);
