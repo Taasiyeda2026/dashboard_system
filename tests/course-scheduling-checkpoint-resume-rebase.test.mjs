@@ -374,7 +374,7 @@ test('run wiring: planner completion is recorded explicitly and resume keeps opt
   assert.match(run, /optimizationScopeCourseIds: resumeOptimizationScopeIds/);
   assert.match(run, /planningResumeReopenIds\(resumableRows\)/);
   const plannedMark = run.indexOf('checkpointMetaBase.planningStage = PLANNING_RUN_STAGES.PLANNED;\n          if (persistServerCheckpoints');
-  const mainPlanner = run.indexOf('result = await buildDynamicCoursePlan({');
+  const mainPlanner = run.indexOf('result = await buildDynamicPlanWithCommittedRecovery({');
   const endGate = run.indexOf('const endFacts = await loadSchedulingPlanningPreflight(scope);');
   const validated = run.indexOf('phase: PLANNING_RUN_PHASES.VALIDATED,');
   assert.ok(mainPlanner > 0 && plannedMark > mainPlanner, 'planned stage only after the planner returns');
