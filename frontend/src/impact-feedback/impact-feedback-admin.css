@@ -645,3 +645,139 @@
   .ifb-filters--primary input,
   .ifb-filters--primary select { min-width: 0; width: 100%; }
 }
+
+/* ---------------------------------------------------------------------------
+   Five-tab layout (סקירה כללית · תלמידים · מדריכים · צוות חינוכי · ניתוח והשוואה)
+   --------------------------------------------------------------------------- */
+.ifb-sr { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.ifb-num { font-variant-numeric: tabular-nums; }
+.ifb-kicker { margin: 0; }
+
+.ifb-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.ifb-toolbar .ifb-field select { min-width: 150px; }
+.ifb-field--course select { min-width: 200px; }
+.ifb-icon-btn--lg { width: 34px; height: 34px; display: inline-grid; place-items: center; border-color: var(--ifb-a-control); }
+.ifb-icon-btn svg, .ifb-btn__icon { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.ifb-tab:focus-visible,
+.ifb-btn:focus-visible,
+.ifb-icon-btn:focus-visible,
+.ifb-row-action:focus-visible,
+.ifb-field select:focus-visible,
+.ifb-field input:focus-visible,
+.ifb-disclosure > summary:focus-visible,
+.ifb-filter-toggle:focus-visible {
+  outline: 2px solid var(--ifb-a-accent);
+  outline-offset: 2px;
+}
+.ifb-tab:hover { color: var(--ifb-a-ink); }
+.ifb-view:focus { outline: none; }
+
+/* KPI strip as a definition list (label → value → hint). */
+.ifb-kpis { margin: 0; }
+.ifb-kpis--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.ifb-kpis dd { margin: 0; }
+@media (min-width: 1000px) {
+  .ifb-kpis--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+.ifb-filters--inline { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+.ifb-filters--inline .ifb-field { min-width: 160px; }
+
+.ifb-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.ifb-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.ifb-panel--tight { padding: 12px 14px; gap: 8px; align-content: start; }
+.ifb-subhead { margin: 6px 0 0; font-size: 14.5px; font-weight: 700; color: var(--ifb-a-ink); }
+
+/* Magnitude bars: one hue, value printed as text, rounded data end. */
+.ifb-barlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.ifb-barlist li { display: grid; grid-template-columns: minmax(70px, 1fr) minmax(60px, 2fr) auto; align-items: center; gap: 10px; font-size: 13px; }
+.ifb-barlist--compact li { grid-template-columns: minmax(80px, 1.4fr) minmax(40px, 1fr) auto; gap: 8px; font-size: 12px; }
+.ifb-barlist__label { min-width: 0; overflow-wrap: anywhere; }
+.ifb-barlist__value { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ifb-bar { display: block; height: 8px; border-radius: 4px; background: var(--ifb-a-divider); overflow: hidden; }
+.ifb-bar > span { display: block; height: 100%; border-radius: 4px; background: var(--ifb-a-accent); }
+
+/* 1–5 distribution: five thin columns sharing one baseline. */
+.ifb-dist5 { display: inline-grid; grid-template-columns: repeat(5, 10px); gap: 2px; align-items: end; height: 26px; vertical-align: middle; }
+.ifb-dist5__col { position: relative; display: flex; align-items: flex-end; height: 100%; background: var(--ifb-a-divider); border-radius: 2px; }
+.ifb-dist5__col > span { display: block; width: 100%; background: var(--ifb-a-accent); border-radius: 2px 2px 0 0; }
+
+/* Row headers inside data tables (course / school / question). */
+.ifb-table tbody th {
+  position: static;
+  z-index: auto;
+  background: transparent;
+  color: var(--ifb-a-ink);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: normal;
+  text-align: start;
+  padding: 8px;
+  border-bottom: 1px solid var(--ifb-a-divider);
+  vertical-align: middle;
+}
+.ifb-table tbody tr:last-child th,
+.ifb-table tbody tr:last-child td { border-bottom: 0; }
+.ifb-q-text { display: block; font-weight: 600; line-height: 1.45; overflow-wrap: anywhere; }
+.ifb-course-name { display: block; }
+.ifb-courses-table td, .ifb-courses-table th { line-height: 1.35; }
+.ifb-q-table th[scope="row"] { min-width: 260px; }
+.ifb-cross-table th.is-selected, .ifb-cross-table td.is-selected { background: var(--ifb-a-accent-soft); }
+.ifb-table-wrap--scroll { overflow-x: auto; }
+.ifb-tpl-table td, .ifb-tpl-table th { vertical-align: middle; }
+
+.ifb-disclosure { border: 1px solid var(--ifb-a-line); border-radius: 12px; background: var(--ifb-a-card); }
+.ifb-disclosure > summary { padding: 10px 14px; cursor: pointer; font-size: 14px; font-weight: 650; list-style-position: inside; }
+.ifb-disclosure[open] > summary { border-bottom: 1px solid var(--ifb-a-divider); }
+.ifb-disclosure > .ifb-table-wrap,
+.ifb-disclosure > .ifb-answers,
+.ifb-disclosure > .ifb-empty { border: 0; border-radius: 0 0 12px 12px; }
+.ifb-disclosure > .ifb-muted { margin: 10px 14px; }
+
+.ifb-insights { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.ifb-insights li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; padding-bottom: 8px; border-bottom: 1px solid var(--ifb-a-divider); }
+.ifb-insights li:last-child { border-bottom: 0; padding-bottom: 0; }
+.ifb-insight__text { grid-column: 1; font-size: 13px; font-weight: 600; line-height: 1.4; }
+.ifb-insight__meta { grid-column: 1; font-size: 11.5px; color: var(--ifb-a-muted); }
+.ifb-insight__value { grid-column: 2; grid-row: 1 / span 2; align-self: center; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.ifb-groups-table th[scope="row"] { min-width: 150px; }
+
+@media (max-width: 1000px) {
+  .ifb-grid-3 { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 760px) {
+  .ifb-admin__head { flex-direction: column; align-items: stretch; }
+  .ifb-toolbar { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto; align-items: end; }
+  .ifb-toolbar .ifb-field--inline { display: grid; gap: 4px; }
+  .ifb-toolbar .ifb-field select, .ifb-field--course select { min-width: 0; width: 100%; }
+  .ifb-kpis--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ifb-grid-2 { grid-template-columns: 1fr; }
+  .ifb-filters--inline .ifb-field { flex: 1 1 calc(50% - 8px); min-width: 0; }
+  /* Tables become cards: the row header is the card title, every cell keeps its label. */
+  .ifb-table tbody th { display: block; width: 100%; padding: 2px 0 8px; border-bottom: 1px solid var(--ifb-a-divider); font-size: 14px; }
+  .ifb-q-table th[scope="row"], .ifb-groups-table th[scope="row"] { min-width: 0; }
+  .ifb-table td.ifb-center { text-align: end; }
+  .ifb-table caption { display: none; }
+  .ifb-table-wrap--scroll { overflow: visible; }
+  .ifb-cross-table th.is-selected, .ifb-cross-table td.is-selected { background: transparent; font-weight: 700; }
+  .ifb-barlist--compact { width: 100%; }
+  .ifb-table td .ifb-barlist--compact li { grid-template-columns: minmax(0, 1.4fr) minmax(40px, 1fr) auto; }
+  .ifb-table td:has(.ifb-barlist) { display: grid; gap: 6px; }
+  .ifb-table td:has(.ifb-barlist) > * { text-align: start; }
+  .ifb-instructor-table { min-width: 0; }
+  .ifb-tpl-table td .ifb-row-action { min-height: 32px; padding-inline: 12px; }
+}
+
+/* Phones: all five tabs stay visible (wrap) instead of a horizontally scrolling strip. */
+@media (max-width: 760px) {
+  .ifb-tabs { flex-wrap: wrap; overflow: visible; gap: 2px 16px; }
+}
+@media (max-width: 760px) {
+  /* Card cells: label at the start, every value part grouped at the end (not spread apart). */
+  .ifb-admin .ifb-table td { justify-content: flex-start; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; }
+  .ifb-admin .ifb-table td::before { margin-inline-end: auto; padding-inline-end: 10px; }
+  .ifb-admin .ifb-table td > .ifb-cell-sub { flex-basis: 100%; text-align: end; }
+}

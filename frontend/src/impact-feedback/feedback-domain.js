@@ -299,6 +299,11 @@ export function factNumericValue(fact) {
   return null;
 }
 
+/** "לא רלוונטי / לא הייתה אפשרות להעריך" answer (rating question with the N/A option). */
+export function isNaFact(fact) {
+  return fact?.question_type === 'rating_1_5' && fact.value_number === null && Array.isArray(fact.value_options) && fact.value_options.includes('na');
+}
+
 function round1(value) {
   return value === null || value === undefined ? null : Math.round(value * 10) / 10;
 }
@@ -350,8 +355,15 @@ export function summarizePopulation(facts = []) {
  * in both stages). There is no student matching: these are two independent samples.
  */
 export function comparePrePost(preFacts = [], postFacts = [], metrics = []) {
-  const preComparable = preFacts.filter((f) => f.is_comparison);
-  const postComparable = postFacts.filter((f) => f.is_comparison);
+  let preComparable = preFacts.filter((f) => f.is_comparison);
+  let postComparable = postFacts.filter((f) => f.is_comparison);
+  // When both stages exist, a metric is compared only over question concepts asked in both,
+  // so the PRE and POST averages are built from the same questions.
+  if (preComparable.length && postComparable.length) {
+    const shared = new Set(preComparable.map((f) => f.question_id).filter((id) => postComparable.some((f) => f.question_id === id)));
+    preComparable = preComparable.filter((f) => shared.has(f.question_id));
+    postComparable = postComparable.filter((f) => shared.has(f.question_id));
+  }
   const pre = summarizePopulation(preComparable);
   const post = summarizePopulation(postComparable);
   const nPre = new Set(preFacts.map((f) => f.response_id)).size;
@@ -484,6 +496,328 @@ export function filterFacts(facts = [], filters = {}) {
 }
 
 // ---------------------------------------------------------------------------
+// Course-level analysis (unit = course + respondent population, never a single group)
+// ---------------------------------------------------------------------------
+
+export const AUDIENCE_STAGES = Object.freeze({
+  student: ['pre', 'post'],
+  instructor: ['pre', 'final'],
+  educational_staff: ['final']
+});
+
+export const AUDIENCE_ORDER = Object.freeze(['student', 'instructor', 'educational_staff']);
+
+/** Measurement phase used by the overview: opening (student pre, instructor pre) vs end (the rest). */
+export function stagePhase(audience, stage) {
+  return stage === 'pre' ? 'pre' : 'end';
+}
+
+export const PHASE_LABELS = Object.freeze({ pre: 'פתיחה', end: 'סיום' });
+
+export function stageLabelFor(audience, stage) {
+  if (audience === 'instructor') return stage === 'pre' ? 'פתיחה (אחרי הכשרה)' : 'סיום';
+  if (audience === 'educational_staff') return 'סיום';
+  return stage === 'pre' ? 'פתיחה' : 'סיום';
+}
+
+/**
+ * Display label that never lets two catalog courses share a name (e.g. the elementary 6089 and
+ * the secondary 53828 Biomimicry): when titles collide, the school level and Gefen number are added.
+ */
+export function courseLabel(program, programs = []) {
+  if (!program) return '';
+  const twins = programs.filter((p) => p.title === program.title);
+  if (twins.length < 2) return program.title;
+  const level = program.education_level === 'elementary' ? 'יסודי' : program.education_level === 'secondary' ? 'חטיבה' : '';
+  const gefen = Array.isArray(program.gefen_numbers) && program.gefen_numbers.length ? program.gefen_numbers.join('/') : '';
+  return `${program.title} (${[level, gefen].filter(Boolean).join(' · ')})`;
+}
+
+function summaryRow(rows, programKey, audience, stage) {
+  return rows.find((r) => r.program_key === programKey && r.audience === audience && r.stage === stage) || null;
+}
+
+function num(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function pct(part, whole) {
+  return whole > 0 ? Math.round((part / whole) * 100) : null;
+}
+
+/**
+ * Collection figures for one course and audience, read from feedback_admin_course_summary rows.
+ * Questionnaires come from feedback_responses; unique respondents only where identity is reliable
+ * (instructor / staff); students are anonymous so no unique count is ever reported for them.
+ */
+export function courseCollection(rows = [], programKey, audience) {
+  const stages = AUDIENCE_STAGES[audience] || [];
+  const byStage = {};
+  for (const stage of stages) {
+    const r = summaryRow(rows, programKey, audience, stage);
+    const responses = num(r?.responses);
+    const base = { stage, campaigns: num(r?.campaigns), groups: num(r?.groups), responses };
+    if (audience === 'student') {
+      const participants = num(r?.participants_total);
+      const covered = num(r?.participants_campaigns);
+      base.participants = participants;
+      base.participantsCampaigns = covered;
+      base.responseRate = participants > 0 ? pct(num(r?.responses_with_participants), participants) : null;
+      base.rateCoverage = base.campaigns ? `${covered}/${base.campaigns}` : '';
+    } else {
+      base.invited = num(r?.invited);
+      base.completed = num(r?.completed);
+      base.responseRate = pct(base.completed, base.invited);
+    }
+    byStage[stage] = base;
+  }
+  const all = summaryRow(rows, programKey, audience, 'all');
+  return {
+    audience,
+    byStage,
+    campaigns: num(all?.campaigns),
+    responses: num(all?.responses),
+    uniqueRespondents: audience === 'student' || all?.unique_respondents === null || all?.unique_respondents === undefined
+      ? null : num(all.unique_respondents),
+    unidentified: audience === 'student' ? null : num(all?.unidentified_responses),
+    anonymous: audience === 'student'
+  };
+}
+
+/** Totals across courses for the overview, without double counting a course or a response. */
+export function overviewTotals(rows = [], { programKey = '', audience = '', phase = '' } = {}) {
+  const stageRows = rows.filter((r) => r.stage !== 'all'
+    && (!programKey || r.program_key === programKey)
+    && (!audience || r.audience === audience)
+    && (!phase || stagePhase(r.audience, r.stage) === phase));
+  const courses = new Set(stageRows.filter((r) => num(r.campaigns) > 0).map((r) => r.program_key));
+  const byAudience = Object.fromEntries(AUDIENCE_ORDER.map((a) => [a, 0]));
+  const byPhase = { pre: 0, end: 0 };
+  let responses = 0;
+  for (const r of stageRows) {
+    const n = num(r.responses);
+    responses += n;
+    byAudience[r.audience] = (byAudience[r.audience] || 0) + n;
+    byPhase[stagePhase(r.audience, r.stage)] += n;
+  }
+  // Unique people: per course+audience "all" rows (PRE and FINAL by the same instructor = one person).
+  // A phase filter would split the same person across rows, so it is reported per stage instead.
+  let identified = 0;
+  if (!phase) {
+    for (const r of rows) {
+      if (r.stage !== 'all' || r.audience === 'student') continue;
+      if (programKey && r.program_key !== programKey) continue;
+      if (audience && r.audience !== audience) continue;
+      identified += num(r.unique_respondents);
+    }
+  } else {
+    identified = null;
+  }
+  return { courses: courses.size, responses, byAudience, byPhase, identifiedRespondents: identified };
+}
+
+function normalizeWording(text) {
+  return String(text ?? '').replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Per-question statistics computed directly from every valid answer (never an average of
+ * group averages). N/A answers are counted separately and excluded from the mean.
+ */
+export function questionStats(facts = []) {
+  const map = new Map();
+  for (const f of facts) {
+    if (!map.has(f.question_id)) {
+      map.set(f.question_id, {
+        question_id: f.question_id,
+        question_key: f.question_key,
+        text: f.question_text,
+        wordings: new Set(),
+        metric_key: f.metric_key,
+        section: f.section,
+        question_type: f.question_type,
+        sort_order: f.sort_order ?? 0,
+        options: Array.isArray(f.question_options) ? f.question_options : [],
+        values: [],
+        responses: new Set(),
+        na: 0,
+        dist: [0, 0, 0, 0, 0],
+        optionCounts: new Map(),
+        yes: 0,
+        no: 0,
+        texts: 0
+      });
+    }
+    const q = map.get(f.question_id);
+    q.wordings.add(normalizeWording(f.question_text));
+    if (isNaFact(f)) { q.na += 1; continue; }
+    if (f.question_type === 'rating_1_5') {
+      const n = Number(f.value_number);
+      if (n >= 1 && n <= 5) {
+        q.values.push(n);
+        q.responses.add(f.response_id);
+        q.dist[Math.round(n) - 1] += 1;
+      }
+    } else if (f.question_type === 'yes_no') {
+      if (f.value_bool === true) q.yes += 1;
+      if (f.value_bool === false) q.no += 1;
+      if (typeof f.value_bool === 'boolean') q.responses.add(f.response_id);
+    } else if (f.question_type === 'single_select' || f.question_type === 'multi_select') {
+      if ((f.value_options || []).length) q.responses.add(f.response_id);
+      for (const v of f.value_options || []) q.optionCounts.set(v, (q.optionCounts.get(v) || 0) + 1);
+    } else if (f.question_type === 'free_text') {
+      if (String(f.value_text || '').trim()) { q.texts += 1; q.responses.add(f.response_id); }
+    }
+  }
+  return [...map.values()]
+    .sort((a, b) => (a.sort_order - b.sort_order) || String(a.text).localeCompare(String(b.text), 'he'))
+    .map((q) => {
+      const avg = mean(q.values);
+      return {
+        question_id: q.question_id,
+        question_key: q.question_key,
+        text: q.text,
+        wordingChanged: q.wordings.size > 1,
+        metric_key: q.metric_key,
+        section: q.section,
+        question_type: q.question_type,
+        options: q.options,
+        n: q.responses.size,
+        valid: q.values.length,
+        na: q.na,
+        avg: round1(avg),
+        score: avg === null ? null : ratingToScore(avg),
+        dist: q.dist,
+        yes: q.yes,
+        no: q.no,
+        optionCounts: Object.fromEntries(q.optionCounts),
+        texts: q.texts
+      };
+    });
+}
+
+/**
+ * PRE vs POST (students) or PRE vs FINAL (instructors) on identical question concepts only.
+ * These are population averages, not matched individual change: respondents are not linked.
+ * A question whose wording differs between the two stages is listed but not compared.
+ */
+export function comparePrePostByQuestion(preFacts = [], postFacts = []) {
+  const pre = new Map(questionStats(preFacts).map((q) => [q.question_id, q]));
+  const post = new Map(questionStats(postFacts).map((q) => [q.question_id, q]));
+  const rows = [];
+  for (const [id, a] of pre) {
+    const b = post.get(id);
+    if (!b || a.question_type !== 'rating_1_5') continue;
+    const sameWording = normalizeWording(a.text) === normalizeWording(b.text) && !a.wordingChanged && !b.wordingChanged;
+    const delta = sameWording && a.avg !== null && b.avg !== null ? round1(b.avg - a.avg) : null;
+    rows.push({
+      question_id: id,
+      text: b.text,
+      metric_key: b.metric_key,
+      section: b.section,
+      preAvg: a.avg,
+      postAvg: b.avg,
+      nPre: a.valid,
+      nPost: b.valid,
+      delta,
+      comparable: sameWording
+    });
+  }
+  return {
+    nPre: new Set(preFacts.map((f) => f.response_id)).size,
+    nPost: new Set(postFacts.map((f) => f.response_id)).size,
+    rows
+  };
+}
+
+/** Each population is scored separately per metric; nothing is merged into one cross-audience score. */
+export function audienceMetricScores(facts = [], metrics = [], { minN = 3 } = {}) {
+  const populations = {
+    student: summarizePopulation(factsFor(facts, 'student', 'post')),
+    instructor: summarizePopulation(factsFor(facts, 'instructor', 'final')),
+    educational_staff: summarizePopulation(factsFor(facts, 'educational_staff'))
+  };
+  return metrics.map((m) => {
+    const cells = Object.fromEntries(AUDIENCE_ORDER.map((a) => {
+      const s = populations[a].byMetric[m.key];
+      return [a, s ? { avg: s.avg, score: s.score, n: s.n } : null];
+    }));
+    const eligible = AUDIENCE_ORDER.map((a) => cells[a]).filter((c) => c && c.n >= minN).map((c) => c.score);
+    return { metric_key: m.key, label: m.label, kind: m.kind, cells, gap: perspectiveGap(eligible) };
+  }).filter((row) => AUDIENCE_ORDER.some((a) => row.cells[a]));
+}
+
+/** Core (shared) questions across courses: same question concept, per course, per population. */
+export function crossCourseCore(facts = [], { audience = 'student', stage = '' } = {}) {
+  const core = facts.filter((f) => f.section === 'core' && f.audience === audience && (!stage || f.stage === stage) && f.question_type === 'rating_1_5');
+  const questions = new Map();
+  for (const f of core) {
+    if (!questions.has(f.question_id)) questions.set(f.question_id, { question_id: f.question_id, text: f.question_text, metric_key: f.metric_key, sort_order: f.sort_order ?? 0, facts: [] });
+    questions.get(f.question_id).facts.push(f);
+  }
+  const programKeys = uniqueSorted(core.map((f) => f.program_key));
+  const rows = [...questions.values()].sort((a, b) => a.sort_order - b.sort_order).map((q) => {
+    const byProgram = {};
+    for (const key of programKeys) {
+      const stats = questionStats(q.facts.filter((f) => f.program_key === key))[0];
+      byProgram[key] = stats ? { avg: stats.avg, n: stats.valid } : null;
+    }
+    // Wording may embed the course topic ({topic}); show the generic concept once.
+    return { question_id: q.question_id, text: q.text, metric_key: q.metric_key, byProgram };
+  });
+  return { programKeys, rows };
+}
+
+/** Strengths / improvement areas: rating questions with enough valid answers, by pooled mean. */
+export function strengthsAndGaps(stats = [], { minN = 5, count = 3 } = {}) {
+  const eligible = stats.filter((q) => q.question_type === 'rating_1_5' && q.valid >= minN && q.avg !== null);
+  const values = eligible.map((q) => q.avg);
+  // Identical means do not distinguish anything; report no strengths or gaps rather than an arbitrary pick.
+  if (!eligible.length || Math.max(...values) === Math.min(...values)) {
+    return { strengths: [], gaps: [], eligible: eligible.length, minN, flat: eligible.length > 1 };
+  }
+  const strengths = [...eligible].sort((a, b) => b.avg - a.avg || b.valid - a.valid).slice(0, count);
+  const floor = Math.min(...strengths.map((q) => q.avg));
+  const gaps = [...eligible].sort((a, b) => a.avg - b.avg || b.valid - a.valid)
+    .filter((q) => q.avg < floor).slice(0, count);
+  return { strengths, gaps, eligible: eligible.length, minN, flat: false };
+}
+
+export const QUESTION_EXPORT_HEADERS = [
+  'קורס', 'קהל', 'שלב', 'סעיף', 'מדד', 'שאלה', 'סוג', 'N תשובות תקפות', 'לא רלוונטי', 'ממוצע (1–5)',
+  '1', '2', '3', '4', '5', 'ניסוח השתנה בין גרסאות'
+];
+
+export function questionExportRows(facts = [], { programs = [], metrics = [] } = {}) {
+  const rows = [];
+  const metricLabel = (key) => metrics.find((m) => m.key === key)?.label || key;
+  const keys = uniqueSorted(facts.map((f) => `${f.program_key}|${f.audience}|${f.stage}`));
+  for (const key of keys) {
+    const [programKey, audience, stage] = key.split('|');
+    const program = programs.find((p) => p.key === programKey);
+    const subset = facts.filter((f) => f.program_key === programKey && f.audience === audience && f.stage === stage);
+    for (const q of questionStats(subset)) {
+      rows.push([
+        courseLabel(program, programs) || programKey,
+        AUDIENCE_LABELS[audience] || audience,
+        stageLabelFor(audience, stage),
+        q.section === 'course' ? 'ייחודית לקורס' : 'ליבה',
+        metricLabel(q.metric_key),
+        q.text || '',
+        QUESTION_TYPES.find((t) => t.key === q.question_type)?.label || q.question_type,
+        q.question_type === 'rating_1_5' ? q.valid : q.n,
+        q.na || '',
+        q.avg ?? '',
+        ...(q.question_type === 'rating_1_5' ? q.dist : ['', '', '', '', '']),
+        q.wordingChanged ? 'כן' : ''
+      ]);
+    }
+  }
+  return rows;
+}
+
+// ---------------------------------------------------------------------------
 // Export
 // ---------------------------------------------------------------------------
 
@@ -492,7 +826,7 @@ function answerDisplayValue(fact, optionLabels = {}) {
   for (const option of Array.isArray(fact.question_options) ? fact.question_options : []) {
     if (option?.value) labels[option.value] = option.label || option.value;
   }
-  if (fact.question_type === 'rating_1_5') return fact.value_number ?? '';
+  if (fact.question_type === 'rating_1_5') return isNaFact(fact) ? 'לא רלוונטי' : (fact.value_number ?? '');
   if (fact.question_type === 'yes_no') return fact.value_bool === true ? 'כן' : fact.value_bool === false ? 'לא' : '';
   if (fact.question_type === 'single_select' || fact.question_type === 'multi_select') {
     return (fact.value_options || []).map((v) => labels[v] || v).join(', ');

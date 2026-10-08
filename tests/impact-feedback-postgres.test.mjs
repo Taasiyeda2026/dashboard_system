@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 
+// DATE columns as plain YYYY-MM-DD text (no local-timezone Date objects).
+pg.types.setTypeParser(1082, (value) => value);
+
 // Disposable database only: the test drops and recreates the public schema.
 const connectionString = process.env.IMPACT_FEEDBACK_TEST_DATABASE_URL;
 
@@ -20,7 +23,8 @@ const MIGRATIONS = [
   '../supabase/migrations/20261008205000_feedback_instructor_first_course_end.sql',
   '../supabase/migrations/20261008210000_feedback_instructor_first_started_course_end.sql',
   '../supabase/migrations/20261008235500_feedback_instructor_manager_status_sort.sql',
-  '../supabase/migrations/20261009002000_feedback_remove_sky_limit.sql'
+  '../supabase/migrations/20261009002000_feedback_remove_sky_limit.sql',
+  '../supabase/migrations/20261009120000_feedback_course_analysis_and_na.sql'
 ];
 
 async function asRole(client, role, uid = '') {
@@ -61,16 +65,17 @@ test('impact feedback DB contract: admin-only management, token-only public flow
   const rpc = async (sql, params = []) => (await client.query(sql, params)).rows[0];
   try {
     await resetSchema(client);
-    // Idempotent re-run must not duplicate content or fail.
-    for (const file of MIGRATIONS) await client.query(await readFile(new URL(file, import.meta.url), 'utf8'));
+    // Idempotent re-run must not duplicate content or fail. Earlier migrations (seed, superseded function signatures) predate the
+    // education_level NOT NULL column and is never re-applied in production, so the re-run starts after it.
+    for (const file of MIGRATIONS.slice(5)) await client.query(await readFile(new URL(file, import.meta.url), 'utf8'));
 
     await client.query(`insert into users values ('admin',$1,'admin',true,'{}'),('ops',$2,'operation_manager',true,'{}')`, [ADMIN, MANAGER]);
     await client.query(`insert into contacts_schools (id, school, contact_name, phone, mobile, email) values (7, 'בית ספר אלון', 'רונית כהן', '03-5555555', '050-1234567', 'ronit@example.test')`);
     await client.query(`insert into contacts_instructors values (1501, 'דנה לוי', '052-7654321', 'dana@example.test', 'פעיל')`);
     await client.query(`insert into activities (row_id, activity_season, activity_type, activity_name, authority, authority_id, school, school_id, grade, emp_id, instructor_name, instructor_assignment_locked, instructor_assignment_status, start_date, end_date, school_contact_id, activity_manager)
       values ('ACT-1','school_2027','course','פורצות דרך וצועדות קדימה','חיפה',10,'בית ספר אלון',20,'ח''','1501','דנה לוי',true,'שובץ','2026-10-01','2027-03-01',7,'הילה רוזן'),
-             ('ACT-2','school_2027','course','סודות ויסודות הבינה המלאכותית','חיפה',10,'בית ספר אורן',21,'ב׳',null,null,'2026-10-01','',null,null),
-             ('ACT-3','school_2027','course','סדנת פיזיקה',null,null,'בית ספר',22,'ה',null,null,null,null,null,null)`);
+             ('ACT-2','school_2027','course','סודות ויסודות הבינה המלאכותית','חיפה',10,'בית ספר אורן',21,'ב׳',null,null,false,null,'2026-10-01','',null,null),
+             ('ACT-3','school_2027','course','סדנת פיזיקה',null,null,'בית ספר',22,'ה',null,null,null,null,null,null,null,null)`);
 
     // --- Permissions -------------------------------------------------------
     await asRole(client, 'anon');
@@ -83,6 +88,10 @@ test('impact feedback DB contract: admin-only management, token-only public flow
     await assert.rejects(client.query('select * from feedback_admin_groups()'), /feedback_forbidden/);
     await assert.rejects(client.query("select * from feedback_admin_instructor_assignments('school_2027')"), /feedback_forbidden/);
     assert.equal((await client.query('select count(*)::int n from feedback_templates')).rows[0].n, 0, 'RLS hides templates from non-admin');
+    await assert.rejects(client.query("select * from feedback_admin_course_summary('school_2027')"), /feedback_forbidden/);
+    await asRole(client, 'anon');
+    await assert.rejects(client.query("select * from feedback_admin_course_summary('school_2027')"), /permission denied/);
+    await asRole(client, 'authenticated', MANAGER);
 
     // --- Admin opens student PRE ---------------------------------------------
     await asRole(client, 'authenticated', ADMIN);
@@ -253,6 +262,24 @@ test('impact feedback DB contract: admin-only management, token-only public flow
     assert.equal(instructorRowAfter.pre_campaign.recipient.status, 'completed');
     assert.equal(instructorRowAfter.final_campaign.recipient.status, 'completed');
 
+    // --- Course-level summary: no double counting, identity only where reliable ---------------
+    await asRole(client, 'postgres');
+    await client.query("update activities set participants_count='25' where row_id='ACT-1'");
+    await asRole(client, 'authenticated', ADMIN);
+    const summary = (await client.query("select * from feedback_admin_course_summary('school_2027') where program_key='trailblazers'")).rows;
+    const sRow = (audience, stage) => summary.find((r) => r.audience === audience && r.stage === stage);
+    assert.deepEqual(
+      [sRow('student', 'pre').campaigns, sRow('student', 'pre').responses, sRow('student', 'pre').invited, sRow('student', 'pre').unique_respondents],
+      [1, 3, null, null], 'anonymous students: submitted questionnaires only, never an invented unique-respondent count');
+    assert.deepEqual([sRow('student', 'post').responses, sRow('student', 'all').responses, sRow('student', 'all').unique_respondents], [2, 5, null]);
+    assert.deepEqual([sRow('student', 'pre').participants_total, sRow('student', 'pre').participants_campaigns, sRow('student', 'pre').responses_with_participants], [25, 1, 3],
+      'response rate basis comes only from groups with a recorded participants count');
+    assert.deepEqual([sRow('educational_staff', 'final').invited, sRow('educational_staff', 'final').completed, sRow('educational_staff', 'final').unique_respondents], [1, 1, 1]);
+    assert.deepEqual([sRow('instructor', 'pre').responses, sRow('instructor', 'final').responses], [1, 1]);
+    assert.deepEqual([sRow('instructor', 'all').campaigns, sRow('instructor', 'all').responses, sRow('instructor', 'all').unique_respondents], [2, 2, 1],
+      'one instructor answering PRE and FINAL is one unique respondent, two questionnaires');
+    assert.equal(sRow('instructor', 'all').unidentified_responses, 0);
+
     // --- Versioning ---------------------------------------------------------
     const template = await rpc("select id, current_version_id from feedback_templates where program_key='trailblazers' and audience='student' and stage='pre'");
     await assert.rejects(client.query("update feedback_template_questions set wording='{\"default\":\"x\"}' where version_id=$1", [template.current_version_id]), /feedback_version_locked/);
@@ -274,6 +301,32 @@ test('impact feedback DB contract: admin-only management, token-only public flow
     assert.equal(refreshedPre.version_no, 1);
     await asRole(client, 'postgres');
     await assert.rejects(client.query('delete from feedback_template_versions where template_id=$1 and version_no=1', [template.id]), /feedback_version_locked/);
+
+    // --- "Not applicable" answers: opt-in per question via a new published version ----------------
+    await asRole(client, 'authenticated', ADMIN);
+    const postTemplate = await rpc("select id from feedback_templates where program_key='trailblazers' and audience='student' and stage='post'");
+    const naDraft = (await rpc('select feedback_admin_get_draft($1) id', [postTemplate.id])).id;
+    const naQuestion = (await rpc("select id from feedback_template_questions where version_id=$1 and question_type='rating_1_5' order by sort_order limit 1", [naDraft])).id;
+    await client.query(`update feedback_template_questions set scoring = scoring || '{"allow_na":true}' where id=$1`, [naQuestion]);
+    await rpc('select feedback_admin_publish_draft($1) id', [naDraft]);
+    const postNa = (await rpc("select feedback_admin_open_campaign('ACT-4','student','post') c")).c;
+    await asRole(client, 'anon');
+    const naForm = (await rpc('select feedback_public_get($1) r', [postNa.public_token])).r;
+    const naQ = naForm.questions.find((q) => q.allow_na);
+    assert.ok(naQ, 'allow_na is exposed to the public form');
+    assert.equal(naForm.questions.filter((q) => q.allow_na).length, 1);
+    const otherRating = naForm.questions.find((q) => q.type === 'rating_1_5' && !q.allow_na);
+    const naBad = (await rpc('select feedback_public_submit($1,$2,$3) r', [postNa.public_token, uuid(300), JSON.stringify(answerAll(naForm.questions, { [otherRating.id]: 'na' }))])).r;
+    assert.deepEqual([naBad.state, naBad.invalid], ['invalid_answers', [otherRating.id]], 'N/A is rejected where the version does not allow it');
+    const naOk = (await rpc('select feedback_public_submit($1,$2,$3) r', [postNa.public_token, uuid(301), JSON.stringify(answerAll(naForm.questions, { [naQ.id]: 'na' }))])).r;
+    assert.equal(naOk.state, 'submitted');
+    await asRole(client, 'authenticated', ADMIN);
+    const naFact = (await client.query(`select * from feedback_admin_answer_facts('{"activity_row_id":"ACT-4"}')`)).rows.find((f) => f.value_options?.includes('na'));
+    assert.ok(naFact, 'N/A answer is stored');
+    assert.equal(naFact.value_number, null, 'N/A never carries a numeric value');
+    assert.equal(naFact.scoring.allow_na, true);
+    await asRole(client, 'anon');
+    assert.equal((await rpc('select feedback_public_get($1) r', [post.public_token])).r.questions.some((q) => q.allow_na), false, 'campaigns pinned to the old version are unchanged');
   } finally {
     await client.query('reset role').catch(() => {});
     await client.end();
@@ -307,6 +360,14 @@ test('impact feedback DB contract: program fallback, manual mapping, catalog lim
       ('M-12','school_2027','course','בינה מלאכותית','9545','חטיבה ב',null,'מדריכה','1'),
       ('M-13','school_2027','course','ביומימיקרי','6089','יסודי ג',null,'מדריכה','1'),
       ('M-14','school_2027','course','השמיים אינם הגבול','57646','חטיבה ד',null,'מדריכה','1')`);
+    await client.query(`insert into activities (row_id, activity_season, activity_type, activity_name, school, grade, instructor_name, emp_id) values
+      ('L-1','school_2027','course','ביומימיקרי – חדר בריחה','יסודי א','ד','מדריכה','1'),
+      ('L-2','school_2027','course','ביומימיקרי','יסודי ב','ד','מדריכה','1'),
+      ('L-3','school_2027','course','ביומימיקרי','חטיבה ב','ח','מדריכה','1'),
+      ('L-4','school_2027','course','יישומי AI','חטיבה ג','ח','מדריכה','1'),
+      ('L-5','school_2027','course','סודות ויסודות הבינה המלאכותית','חטיבה ד','ז','מדריכה','1'),
+      ('L-6','school_2027','course','רוקחים עולם','חטיבה ה','ט','מדריכה','1'),
+      ('L-7','school_2027','course','אופקים חדשים בטכנולוגיה','חטיבה ו','ט','מדריכה','1')`);
 
     // --- Canonical course catalog + school levels ----------------------------------------------
     assert.equal((await one("select default_age_band b from feedback_programs where key='ai_foundations'")).b, null, 'school level is not encoded as an artificial age-band fallback');
@@ -360,6 +421,12 @@ test('impact feedback DB contract: program fallback, manual mapping, catalog lim
     assert.deepEqual([groups['M-11'].program_key, groups['M-11'].program_source], ['biomimicry_secondary', 'activity_no'], 'legacy activity_no 82835 resolves to canonical Biomimicry 53828');
     assert.deepEqual([groups['M-12'].program_key, groups['M-12'].program_source], ['ai_foundations', 'activity_no'], 'activity_no 9545 resolves even when gefen_number is empty');
     assert.deepEqual([groups['M-13'].program_key, groups['M-13'].program_source], ['biomimicry', 'activity_no'], 'activity_no 6089 resolves elementary Biomimicry');
+    assert.deepEqual(['L-1', 'L-2', 'L-3', 'L-4', 'L-5', 'L-6', 'L-7'].map((id) => groups[id]?.program_key ?? null),
+      [null, 'biomimicry', 'biomimicry_secondary', 'ai_applications', 'ai_foundations', 'pharma', null],
+      'look-alike names never mix: escape-room Biomimicry and "אופקים" stay unresolved; AI courses stay separate');
+    const catalogIds = Object.fromEntries((await client.query("select key, catalog_program_ids from feedback_programs where key like 'biomimicry%'")).rows.map((r) => [r.key, r.catalog_program_ids]));
+    assert.deepEqual(catalogIds, { biomimicry: ['program-01'], biomimicry_secondary: ['program-11', 'biomimicry-middle'] }, 'the two Biomimicry courses never share a catalog id');
+    assert.ok(groups['L-1'] && groups['L-7'], 'unresolved course activities without a catalog number remain visible');
     assert.equal(groups['M-14'], undefined, '"השמיים אינם הגבול" is removed from the feedback interface rather than shown unresolved');
     const gefen = Object.fromEntries((await client.query('select key, gefen_numbers from feedback_programs')).rows.map((r) => [r.key, r.gefen_numbers]));
     assert.deepEqual(gefen, {
@@ -417,7 +484,8 @@ test('impact feedback DB contract: program fallback, manual mapping, catalog lim
     await client.query('set role anon');
     const form = (await one('select feedback_public_get($1) r', [senior.public_token])).r;
     assert.equal(form.age_band, 'j_l');
-    assert.equal(form.questions[0].text, 'אני מבין/ה מה לומדים בתחום פורצות דרך ואיך משתמשים בו בעולם האמיתי', 'public form always uses the canonical course wording');
+    assert.equal(form.questions[0].text, 'אני מבין/ה מה לומדים בתחום יזמות וטכנולוגיה ואיך משתמשים בו בעולם האמיתי', 'public form always uses the canonical course wording');
+    await client.query('reset role');
     const ageVariantKeys = (await client.query(`select count(*)::int n from feedback_questions where wording ?| array['a_c','d_f','g_i','j_l']`)).rows[0].n;
     assert.equal(ageVariantKeys, 0, 'active question bank has no age-specific wording variants');
   } finally {

@@ -242,3 +242,8 @@
 }
 
 .ifb-preview .ifb-shell { min-height: 0; padding-bottom: 24px; }
+
+/* Optional "not applicable" answer under a rating scale (enabled per question version). */
+.ifb-rate__na { display: inline-flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 14px; color: var(--ifb-muted, #5b6478); cursor: pointer; }
+.ifb-rate__na input { width: 18px; height: 18px; margin: 0; accent-color: var(--ifb-accent); }
+.ifb-rate__na input:focus-visible { outline: 3px solid var(--ifb-focus); outline-offset: 2px; }
