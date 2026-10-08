@@ -589,8 +589,9 @@ async function main() {
   await step('Templates: edit wording in a draft, preview, publish v2; existing campaign stays on v1', async () => {
     await admin.locator('[data-ifb-tab="templates"]').click();
     await admin.locator('.ifb-program-card').first().waitFor();
-    assert.equal(await admin.locator('.ifb-program-card').count(), 11);
-    assert.equal(await admin.locator('.ifb-tile').count(), 55);
+    assert.equal(await admin.locator('.ifb-program-card').count(), 10);
+    assert.equal(await admin.locator('.ifb-tile').count(), 50);
+    assert.equal(await admin.locator('.ifb-program-card', { hasText: 'השמיים אינם הגבול' }).count(), 0);
     const firstProgramTiles = admin.locator('.ifb-program-card').first().locator('.ifb-tile strong');
     assert.deepEqual(
       (await firstProgramTiles.allTextContents()).map((x) => x.trim()),
