@@ -315,7 +315,7 @@ async function main() {
   });
 
   await step('Instructor gets opening-after-training and final feedback once per program', async () => {
-    await db.query("update activities set instructor_assignment_locked=true, instructor_assignment_status='שובץ' where row_id='ACT-1'");
+    await db.query("update activities set instructor_assignment_locked=true, instructor_assignment_status='שובץ', activity_manager='הילה רוזן' where row_id='ACT-1'");
     await admin.locator('[data-ifb-tab="instructors"]').click();
     assert.equal(await admin.locator('.ifb-admin__sub').count(), 0, 'global feedback subtitle is removed');
     assert.equal(await admin.locator('.ifb-instructor-summary h2').count(), 0, 'no duplicate inner instructor title');
@@ -325,20 +325,32 @@ async function main() {
     assert.equal(await instructorDisclosure.getAttribute('open'), null, 'instructor filters are collapsed by default');
     await instructorDisclosure.locator('summary').click();
     const instructorSelect = admin.locator('select[data-i="instructor"]');
+    const managerSelect = admin.locator('select[data-i="manager"]');
     await instructorSelect.waitFor();
     assert.ok((await instructorSelect.locator('option').allTextContents()).some((x) => /דנה לוי/.test(x)));
+    assert.ok((await managerSelect.locator('option').allTextContents()).some((x) => /הילה רוזן/.test(x)), 'activity manager filter is populated from live assignments');
+    await managerSelect.selectOption({ label: 'הילה רוזן' });
     await instructorSelect.selectOption('1501');
     assert.ok(await admin.locator('.ifb-instructor-table tbody tr').count() >= 1);
     assert.deepEqual(
       (await admin.locator('.ifb-instructor-table thead th').allTextContents()).map((x) => x.trim()),
-      ['מדריך', 'תוכנית', 'קבוצות', 'סיום הקורס הראשון', 'פתיחה – אחרי הכשרה', 'סיום הקורס']
+      ['מדריך', 'תוכנית', 'קבוצות', 'סיום הקורס הראשון', 'סטטוס', 'פתיחה – אחרי הכשרה', 'סיום הקורס']
     );
     assert.doesNotMatch(await admin.locator('.ifb-instructor-table').textContent(), /בתי ספר|תקופה/);
+    const visibleDates = (await admin.locator('.ifb-instructor-table td[data-label="סיום הקורס הראשון"]').allTextContents())
+      .map((x) => x.trim())
+      .filter((x) => /^\d{2}\.\d{2}\.\d{2}$/.test(x))
+      .map((x) => {
+        const [d, m, y] = x.split('.');
+        return `20${y}-${m}-${d}`;
+      });
+    assert.deepEqual(visibleDates, [...visibleDates].sort(), 'instructor rows are sorted by first course end date ascending');
     const instructorTableWidth = await admin.locator('.ifb-instructor-table-wrap').evaluate((el) => el.getBoundingClientRect().width);
-    assert.ok(instructorTableWidth <= 982, `instructor table should stay compact, got ${instructorTableWidth}`);
+    assert.ok(instructorTableWidth <= 1062, `instructor table should stay compact, got ${instructorTableWidth}`);
     const row = admin.locator('.ifb-instructor-table tbody tr', { hasText: 'דנה לוי' }).filter({ hasText: 'פורצות דרך' }).first();
     await row.waitFor();
     assert.match(await row.textContent(), /1/);
+    assert.equal((await row.locator('td[data-label="סטטוס"]').textContent()).trim(), 'לא נפתח');
 
     const preCell = row.locator('td[data-label="פתיחה – אחרי הכשרה"]');
     assert.equal(await preCell.locator('[aria-label="טרם נפתח"]').count(), 1);
@@ -395,6 +407,7 @@ async function main() {
     const refreshed = admin.locator('.ifb-instructor-table tbody tr', { hasText: 'דנה לוי' }).filter({ hasText: 'פורצות דרך' }).first();
     assert.equal((await refreshed.locator('td[data-label="פתיחה – אחרי הכשרה"] .ifb-chip').first().textContent()).trim(), 'הושלם');
     assert.equal((await refreshed.locator('td[data-label="סיום הקורס"] .ifb-chip').first().textContent()).trim(), 'הושלם');
+    assert.equal((await refreshed.locator('td[data-label="סטטוס"]').textContent()).trim(), 'הושלם');
   });
 
   await step('Personal educational-staff link → contact fills', async () => {

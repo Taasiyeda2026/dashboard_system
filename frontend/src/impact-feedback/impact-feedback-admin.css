@@ -298,39 +298,49 @@
 .ifb-filter-panel--instructors { width: fit-content; max-width: 100%; }
 .ifb-filters--instructors {
   display: grid;
-  grid-template-columns: repeat(3, 180px) auto;
+  grid-template-columns: repeat(4, 165px) auto;
   align-items: end;
   justify-content: start;
   gap: 8px;
 }
-.ifb-filters--instructors .ifb-field { width: 180px; }
+.ifb-filters--instructors .ifb-field { width: 165px; }
 .ifb-filters--instructors .ifb-btn { min-width: 64px; }
 .ifb-instructor-table-wrap {
-  width: min(100%, 980px);
+  width: min(100%, 1060px);
   justify-self: start;
   border-radius: 12px;
   overflow-x: auto;
 }
 .ifb-instructor-table {
   width: 100%;
-  min-width: 900px;
+  min-width: 940px;
   table-layout: fixed;
 }
-.ifb-instructor-table col.ifb-iw-instructor { width: 17%; }
-.ifb-instructor-table col.ifb-iw-program { width: 17%; }
-.ifb-instructor-table col.ifb-iw-groups { width: 8%; }
-.ifb-instructor-table col.ifb-iw-first-end { width: 14%; }
-.ifb-instructor-table col.ifb-iw-stage { width: 22%; }
+.ifb-instructor-table col.ifb-iw-instructor { width: 16%; }
+.ifb-instructor-table col.ifb-iw-program { width: 16%; }
+.ifb-instructor-table col.ifb-iw-groups { width: 7%; }
+.ifb-instructor-table col.ifb-iw-first-end { width: 13%; }
+.ifb-instructor-table col.ifb-iw-status { width: 12%; }
+.ifb-instructor-table col.ifb-iw-stage { width: 18%; }
 .ifb-instructor-table th:nth-child(3),
 .ifb-instructor-table th:nth-child(4),
 .ifb-instructor-table th:nth-child(5),
-.ifb-instructor-table th:nth-child(6) { text-align: center; }
+.ifb-instructor-table th:nth-child(6),
+.ifb-instructor-table th:nth-child(7) { text-align: center; }
 .ifb-instructor-table th,
 .ifb-instructor-table td { padding: 6px 8px; line-height: 1.2; }
 .ifb-instructor-table th + th,
 .ifb-instructor-table td + td { border-inline-start: 1px solid #edf0f5; }
 .ifb-instructor-table thead th { background: #fafbfe; }
 .ifb-instructor-table tbody tr:last-child td { border-bottom: 0; }
+.ifb-instructor-overall-status {
+  display: inline-flex;
+  justify-content: center;
+  min-width: 82px;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
 .ifb-instructor-stage-cell { vertical-align: middle !important; }
 .ifb-instructor-stage { display: grid; justify-items: center; gap: 6px; min-width: 0; }
 .ifb-instructor-stage--compact { display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 26px; }
