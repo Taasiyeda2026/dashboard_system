@@ -292,7 +292,7 @@ test('impact feedback DB contract: program fallback, manual mapping, catalog lim
       ('M-7','school_2027','workshop','סדנת רובוטיקה',null,'בית ספר ז','ה','מדריכה','1')`);
 
     // --- Canonical course catalog + school levels ----------------------------------------------
-    assert.equal((await one("select default_age_band b from feedback_programs where key='ai_foundations'")).b, 'g_i');
+    assert.equal((await one("select default_age_band b from feedback_programs where key='ai_foundations'")).b, null, 'school level is not encoded as an artificial age-band fallback');
     const shortTitles = Object.fromEntries((await client.query('select key, title from feedback_programs order by sort_order')).rows.map((r) => [r.key, r.title]));
     assert.deepEqual(shortTitles, {
       biomimicry: 'ביומימיקרי',
@@ -352,9 +352,9 @@ test('impact feedback DB contract: program fallback, manual mapping, catalog lim
       ai_foundations: ['9545'],
       trailblazers: ['3604']
     }, 'Gefen numbers match the canonical 11-course catalog');
-    assert.deepEqual([groups['M-4'].program_key, groups['M-4'].program_source, groups['M-4'].age_band], ['ai_foundations', 'gefen', 'g_i'], 'Gefen number resolves; no grade -> program default (ז׳–ח׳)');
+    assert.deepEqual([groups['M-4'].program_key, groups['M-4'].program_source, groups['M-4'].age_band], ['ai_foundations', 'gefen', null], 'Gefen resolves the course; missing grade does not invent an age band');
     assert.deepEqual([groups['M-5'].program_key, groups['M-5'].age_band], ['trailblazers', 'j_l'], 'grade י׳ in a ז׳–י׳ program resolves to the י׳–י״ב band');
-    assert.deepEqual([groups['M-6'].program_key, groups['M-6'].age_band], ['board_games', 'd_f'], 'board games resolves to the elementary course and its fixed fallback level');
+    assert.deepEqual([groups['M-6'].program_key, groups['M-6'].age_band], ['board_games', null], 'board games resolves by course name without inventing a grade band');
     await assert.rejects(client.query("select feedback_admin_open_campaign('M-1','student','pre')"), /feedback_program_unresolved/);
 
     // --- Manual mapping (feedback-only; master data untouched) ---------------------------------------
