@@ -566,7 +566,7 @@ function renderImportantDates(entries) {
   if (!entries.length) {
     return '<div class="manager-board-empty manager-board-empty--compact">אין תאריכים חשובים להצגה בחודש זה.</div>';
   }
-  return entries.slice(0, 20).map((entry) => `
+  return entries.map((entry) => `
     <div class="manager-board-school-event${entry.blocksScheduling ? ' is-blocking' : ''}${entry.isBirthday ? ' is-birthday' : ''}">
       <time datetime="${escapeAttr(entry.iso)}">${escapeHtml(formatShortDate(entry.iso))}</time>
       <span>${entry.isBirthday ? '🎂 ' : ''}${escapeHtml(entry.title)}</span>
@@ -762,31 +762,25 @@ function renderBoardMarkup(data, manager, ym) {
         </section>
 
         <aside class="manager-board-side">
-          <section class="manager-board-panel">
+          <section class="manager-board-panel" data-manager-board-control-points-current>
             <div class="manager-board-panel__head">
-              <div>
-                <h2>נקודות בקרה</h2>
-              </div>
+              <h2>נקודות בקרה</h2>
             </div>
-            <div class="manager-board-milestones-group">
-              <div class="manager-board-milestones-group__part">
-                <p class="manager-board-milestones-group__label">נקודות בקרה – החודש</p>
-                <div class="manager-board-milestones">${renderMilestones(meetings)}</div>
-              </div>
-              <div class="manager-board-milestones-group__part">
-                <p class="manager-board-milestones-group__label">נקודות בקרה – חודש הבא</p>
-                <div class="manager-board-milestones">${renderMilestones(nextMonthMeetings)}</div>
-              </div>
-            </div>
+            <div class="manager-board-milestones">${renderMilestones(meetings)}</div>
           </section>
 
-          <section class="manager-board-panel">
+          <section class="manager-board-panel" data-manager-board-important-dates-panel>
             <div class="manager-board-panel__head">
-              <div>
-                <h2>תאריכים חשובים</h2>
-              </div>
+              <h2>תאריכים חשובים</h2>
             </div>
             <div class="manager-board-school-events" data-manager-board-important-dates>${renderImportantDates(importantDateEntries(schoolEvents, data.birthdays, ym))}</div>
+          </section>
+
+          <section class="manager-board-panel" data-manager-board-control-points-next>
+            <div class="manager-board-panel__head">
+              <h2>נקודות בקרה – חודש הבא</h2>
+            </div>
+            <div class="manager-board-milestones">${renderMilestones(nextMonthMeetings)}</div>
           </section>
         </aside>
       </div>
