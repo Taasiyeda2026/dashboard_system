@@ -89,7 +89,8 @@ import {
   planningDataFingerprint,
   planningOptionPassesFinalValidation,
   planningTabHtml,
-  planningWorkspaceCourses
+  planningWorkspaceCourses,
+  validateResumedPlanningRows
 } from './course-scheduling-planning.js';
 import {
   clearSharedPlanningWorkspace,
@@ -109,6 +110,7 @@ import {
   saveSharedPlanningSnapshot,
   upgradeSharedPlanningContextFingerprint,
   sharedPlanningAffectedCourseIds,
+  planningRebaseAffectedCourseIds,
   sharedPlanningLocks,
   applyLocalPlanningNeedsRecalc,
   applyStoredPlanningValidityAudit,
@@ -125,6 +127,7 @@ import {
   PLANNING_RUN_PHASES,
   PLANNING_RUN_TYPES,
   canCommitValidatedCheckpoint,
+  canValidateCompletedRunningCheckpoint,
   resolvePlanningRunPlan
 } from './course-scheduling-run-plan.js';
 
@@ -3051,7 +3054,29 @@ export const courseSchedulingScreen = {
             workdayConsolidationCourseIds: runPlan.workdayConsolidationCourseIds
           }
         }) && resumableRows.length > 0;
+        // 253/253 RUNNING: every row exists already. Validate it and repair only
+        // failing rows instead of re-running every planning/optimization pass.
+        const resumeCompletedRunning = !resumeValidatedCommit
+          && durableCheckpointRun
+          && canValidateCompletedRunningCheckpoint({
+            sourceRevision: run.sourceRevision,
+            checkpoint: silentCheckpoint,
+            workspaceRevision: Number(shared?.workspace?.revision) || 0,
+            engineVersion: PLANNING_ENGINE_VERSION,
+            dataFingerprint: startFingerprint,
+            contextFingerprint: startContextStorage,
+            runType: runPlan.runType,
+            requiredCourseIds: currentCourseIds,
+            expectedScope: {
+              baseRecalculationIds: runPlan.baseRecalculationIds,
+              schoolPackingCourseIds: runPlan.schoolPackingCourseIds,
+              recruitmentRecoveryCourseIds: runPlan.recruitmentRecoveryCourseIds,
+              workdayConsolidationCourseIds: runPlan.workdayConsolidationCourseIds
+            }
+          })
+          && resumableRows.length > 0;
         const resumeFromCheckpoint = !resumeValidatedCommit
+          && !resumeCompletedRunning
           && checkpointCompletedIds.size > 0
           && resumableRows.length > 0;
         const incrementalBaseIds = runPlan.baseRecalculationIds;
@@ -3062,7 +3087,7 @@ export const courseSchedulingScreen = {
           : (resumeFromCheckpoint
               ? incrementalBaseIds.filter((courseId) => !checkpointCompletedIds.has(courseId))
               : incrementalBaseIds);
-        const planningExistingRows = resumeFromCheckpoint || resumeValidatedCommit
+        const planningExistingRows = resumeFromCheckpoint || resumeValidatedCommit || resumeCompletedRunning
           ? (fullRun ? resumableRows : mergePlanningResumeRows(existingRows, resumableRows))
           : existingRows;
         let lastSilentCheckpointCount = checkpointCompletedIds.size;
@@ -3073,6 +3098,11 @@ export const courseSchedulingScreen = {
         // Ordinary incremental updates stay in-memory so a one-row change cannot
         // rewrite a multi-megabyte national checkpoint.
         const persistServerCheckpoints = durableCheckpointRun;
+        // A mid-run source change must not abort the calculation: checkpoint
+        // writes stop, and the end of the run rebases only the changed delta.
+        let checkpointSourceStale = false;
+        const isSourceRevisionConflict = (error) => `${error?.code || ''}|${error?.message || ''}`
+          .includes('planning_source_revision_conflict');
         const checkpointMetaBase = {
           sourceRevision: run.sourceRevision,
           runType: runPlan.runType,
@@ -3137,8 +3167,184 @@ export const courseSchedulingScreen = {
         });
         const lockedOptions = sharedPlanningLocks(shared);
 
+        const onPlanningProgress = async (progress) => {
+          if (!ownsRun()) return;
+          state.courseSchedulingPlanningProgress = {
+            phase: progress.phase,
+            completed: progress.completed,
+            total: progress.total
+          };
+
+          const snapshotRows = Array.isArray(progress.snapshotRows)
+            ? progress.snapshotRows.filter((row) => text(row?.courseId))
+            : null;
+          if (snapshotRows?.length) {
+            const snapshotIds = snapshotRows.map((row) => text(row.courseId)).filter(Boolean);
+            for (const courseId of snapshotIds) checkpointCompletedIds.add(courseId);
+            state.courseSchedulingPlanningRows = snapshotRows;
+            if (runUiVisible()) run.ui?.update?.();
+            if (!persistServerCheckpoints || checkpointSourceStale) return;
+            try {
+              const stopCheckpointSave = planningPerfTimer('checkpointSave');
+              await saveSharedPlanningCheckpoint({
+                assertActive: assertRunOwnership,
+              runId: run.runId, sourceRevision: run.sourceRevision,
+                periodKey: scope.periodKey,
+                district: scope.district,
+                engineVersion: PLANNING_ENGINE_VERSION,
+                dataFingerprint: startFingerprint,
+                contextFingerprint: startContextStorage,
+                completedCount: checkpointCompletedIds.size,
+                totalCount: currentCourseIds.length,
+                completedActivityIds: [...checkpointCompletedIds],
+                rows: snapshotRows,
+                meta: {
+                  ...checkpointMetaBase,
+                  phase: PLANNING_RUN_PHASES.RUNNING
+                }
+              });
+              stopCheckpointSave();
+              planningPerfCount('checkpointSaves');
+              planningPerfCount('checkpointPayloadBytes', new TextEncoder().encode(JSON.stringify(snapshotRows)).length);
+              for (const row of snapshotRows) persistedCheckpointRows.set(text(row?.courseId), row);
+              pendingCheckpointRows.clear();
+              lastSilentCheckpointCount = checkpointCompletedIds.size;
+              lastSilentCheckpointAt = Date.now();
+            } catch (error) {
+              if (isSourceRevisionConflict(error)) { checkpointSourceStale = true; return; }
+              throwIfPlanningRunInvalidated(error);
+              // Stage checkpoints are resilience-only. A save failure must not abort planning.
+            }
+            return;
+          }
+
+          const progressCourseId = text(progress.courseId);
+          if (progressCourseId && progress.row) {
+            pendingCheckpointRows.set(progressCourseId, progress.row);
+            const currentRows = new Map(
+              (state.courseSchedulingPlanningRows || [])
+                .map((row) => [text(row?.courseId), row])
+                .filter(([courseId]) => !!courseId)
+            );
+            currentRows.set(progressCourseId, progress.row);
+            state.courseSchedulingPlanningRows = [...currentRows.values()];
+          }
+          if (runUiVisible()) run.ui?.update?.();
+
+          if (progress.phase !== 'בניית תוכנית' || !progressCourseId || !progress.row) return;
+          if (!persistServerCheckpoints) return;
+
+          checkpointCompletedIds.add(progressCourseId);
+          if (checkpointSourceStale) return;
+          const finishedThisPass = Number(progress.completed) >= Number(progress.total) && Number(progress.total) > 0;
+          const shouldSaveCheckpoint = checkpointCompletedIds.size - lastSilentCheckpointCount >= checkpointBatchSize
+            || Date.now() - lastSilentCheckpointAt >= 15_000
+            || finishedThisPass;
+          if (!shouldSaveCheckpoint) return;
+
+          const checkpointRows = [...pendingCheckpointRows.values()];
+          try {
+            const stopCheckpointSave = planningPerfTimer('checkpointSave');
+            await saveSharedPlanningCheckpoint({
+                assertActive: assertRunOwnership,
+              runId: run.runId, sourceRevision: run.sourceRevision,
+              periodKey: scope.periodKey,
+              district: scope.district,
+              engineVersion: PLANNING_ENGINE_VERSION,
+              dataFingerprint: startFingerprint,
+              contextFingerprint: startContextStorage,
+              completedCount: checkpointCompletedIds.size,
+              totalCount: checkpointCompletedIds.size + Math.max(0, Number(progress.total) - Number(progress.completed)),
+              completedActivityIds: [...checkpointCompletedIds],
+              rows: checkpointRows,
+              meta: {
+                ...checkpointMetaBase,
+                phase: PLANNING_RUN_PHASES.RUNNING
+              }
+            });
+            stopCheckpointSave();
+            planningPerfCount('checkpointSaves');
+            planningPerfCount('checkpointPayloadBytes', new TextEncoder().encode(JSON.stringify(checkpointRows)).length);
+            for (const row of checkpointRows) persistedCheckpointRows.set(text(row?.courseId), row);
+            pendingCheckpointRows.clear();
+            lastSilentCheckpointCount = checkpointCompletedIds.size;
+            lastSilentCheckpointAt = Date.now();
+          } catch (error) {
+            if (isSourceRevisionConflict(error)) { checkpointSourceStale = true; return; }
+            throwIfPlanningRunInvalidated(error);
+            // Checkpointing is resilience-only and deliberately silent.
+          }
+        };
+
+        const planningBuildInput = (snapshot) => ({
+          activities: snapshot.activities || [],
+          instructors: snapshot.instructors || [],
+          profiles: Object.fromEntries((snapshot.scheduling?.profiles || []).map((row) => [text(row.emp_id), row])),
+          rules: group(snapshot.scheduling?.rules || [], 'emp_id'),
+          exceptions: group(snapshot.scheduling?.exceptions || [], 'emp_id'),
+          schoolCalendar: snapshot.schoolCalendar || [],
+          catalog: snapshot.planningCatalog || [],
+          district: scope.district,
+          periodKey: scope.periodKey
+        });
+        // Bounded delta replan over an otherwise complete plan. Valid rows are
+        // reused as fixed context; only targetIds are recalculated.
+        const runDeltaRepair = (snapshot, existing, targetIds, onProgress) => buildDynamicCoursePlan({
+          ...planningBuildInput(snapshot),
+          today: today(),
+          routeClient,
+          lockedOptions,
+          existingRows: existing,
+          targetCourseIds: targetIds,
+          optimizationOnlyCourseIds: null,
+          upgradeOptimizationScopes: null,
+          resumeFromCheckpoint: false,
+          allowGlobalRepair: false,
+          planningProfile: 'fast',
+          signal: run.controller.signal,
+          checkpoint,
+          onProgress
+        });
+
         let result;
-        if (resumeValidatedCommit) {
+        if (resumeCompletedRunning) {
+          const stopResumeValidation = planningPerfTimer('resumeCompletedValidation');
+          state.courseSchedulingPlanningProgress = {
+            phase: 'השלמת חישוב שנעצר · בקרת תקינות',
+            completed: resumableRows.length,
+            total: currentCourseIds.length
+          };
+          if (runUiVisible()) run.ui?.update?.();
+          const resumed = await validateResumedPlanningRows({
+            ...planningBuildInput(freshStart),
+            rows: resumableRows,
+            routeClient,
+            checkpoint
+          });
+          stopResumeValidation();
+          assertRunOwnership();
+          planningPerfEvent('resume-completed-running', {
+            rows: resumed.rows.length,
+            valid: resumed.valid,
+            repairCount: resumed.repairCourseIds.length,
+            runType: runPlan.runType
+          });
+          if (resumed.valid) {
+            result = {
+              rows: resumed.rows,
+              total: resumed.rows.length,
+              planned: resumed.rows.filter((row) => ['proposal', 'fixed-proposal', 'planning-locked'].includes(text(row?.kind)) && row?.instructorEmpId).length,
+              routeStats: { googleCalls: Number(routeClient.googleCalls) || 0, cacheHits: Number(routeClient.cacheHits) || 0, resumedCompletedCheckpoint: true }
+            };
+          } else if (resumed.repairCourseIds.length) {
+            result = await runDeltaRepair(freshStart, resumed.rows, resumed.repairCourseIds, onPlanningProgress);
+          } else {
+            const error = new Error('planning_final_validation_failed');
+            error.code = 'planning_final_validation_failed';
+            error.failures = resumed.failures;
+            throw error;
+          }
+        } else if (resumeValidatedCommit) {
           planningPerfEvent('resume-validated-commit', {
             rows: resumableRows.length,
             runType: runPlan.runType
@@ -3179,128 +3385,113 @@ export const courseSchedulingScreen = {
             planningProfile: 'fast',
             signal: run.controller.signal,
             checkpoint,
-            onProgress: async (progress) => {
-              if (!ownsRun()) return;
-              state.courseSchedulingPlanningProgress = {
-                phase: progress.phase,
-                completed: progress.completed,
-                total: progress.total
-              };
-
-              const snapshotRows = Array.isArray(progress.snapshotRows)
-                ? progress.snapshotRows.filter((row) => text(row?.courseId))
-                : null;
-              if (snapshotRows?.length) {
-                const snapshotIds = snapshotRows.map((row) => text(row.courseId)).filter(Boolean);
-                for (const courseId of snapshotIds) checkpointCompletedIds.add(courseId);
-                state.courseSchedulingPlanningRows = snapshotRows;
-                if (runUiVisible()) run.ui?.update?.();
-                if (!persistServerCheckpoints) return;
-                try {
-                  const stopCheckpointSave = planningPerfTimer('checkpointSave');
-                  await saveSharedPlanningCheckpoint({
-                    assertActive: assertRunOwnership,
-                  runId: run.runId, sourceRevision: run.sourceRevision,
-                    periodKey: scope.periodKey,
-                    district: scope.district,
-                    engineVersion: PLANNING_ENGINE_VERSION,
-                    dataFingerprint: startFingerprint,
-                    contextFingerprint: startContextStorage,
-                    completedCount: checkpointCompletedIds.size,
-                    totalCount: currentCourseIds.length,
-                    completedActivityIds: [...checkpointCompletedIds],
-                    rows: snapshotRows,
-                    meta: {
-                      ...checkpointMetaBase,
-                      phase: PLANNING_RUN_PHASES.RUNNING
-                    }
-                  });
-                  stopCheckpointSave();
-                  planningPerfCount('checkpointSaves');
-                  planningPerfCount('checkpointPayloadBytes', new TextEncoder().encode(JSON.stringify(snapshotRows)).length);
-                  for (const row of snapshotRows) persistedCheckpointRows.set(text(row?.courseId), row);
-                  pendingCheckpointRows.clear();
-                  lastSilentCheckpointCount = checkpointCompletedIds.size;
-                  lastSilentCheckpointAt = Date.now();
-                } catch (error) {
-                  throwIfPlanningRunInvalidated(error);
-                  // Stage checkpoints are resilience-only. A save failure must not abort planning.
-                }
-                return;
-              }
-
-              const progressCourseId = text(progress.courseId);
-              if (progressCourseId && progress.row) {
-                pendingCheckpointRows.set(progressCourseId, progress.row);
-                const currentRows = new Map(
-                  (state.courseSchedulingPlanningRows || [])
-                    .map((row) => [text(row?.courseId), row])
-                    .filter(([courseId]) => !!courseId)
-                );
-                currentRows.set(progressCourseId, progress.row);
-                state.courseSchedulingPlanningRows = [...currentRows.values()];
-              }
-              if (runUiVisible()) run.ui?.update?.();
-
-              if (progress.phase !== 'בניית תוכנית' || !progressCourseId || !progress.row) return;
-              if (!persistServerCheckpoints) return;
-
-              checkpointCompletedIds.add(progressCourseId);
-              const finishedThisPass = Number(progress.completed) >= Number(progress.total) && Number(progress.total) > 0;
-              const shouldSaveCheckpoint = checkpointCompletedIds.size - lastSilentCheckpointCount >= checkpointBatchSize
-                || Date.now() - lastSilentCheckpointAt >= 15_000
-                || finishedThisPass;
-              if (!shouldSaveCheckpoint) return;
-
-              const checkpointRows = [...pendingCheckpointRows.values()];
-              try {
-                const stopCheckpointSave = planningPerfTimer('checkpointSave');
-                await saveSharedPlanningCheckpoint({
-                    assertActive: assertRunOwnership,
-                  runId: run.runId, sourceRevision: run.sourceRevision,
-                  periodKey: scope.periodKey,
-                  district: scope.district,
-                  engineVersion: PLANNING_ENGINE_VERSION,
-                  dataFingerprint: startFingerprint,
-                  contextFingerprint: startContextStorage,
-                  completedCount: checkpointCompletedIds.size,
-                  totalCount: checkpointCompletedIds.size + Math.max(0, Number(progress.total) - Number(progress.completed)),
-                  completedActivityIds: [...checkpointCompletedIds],
-                  rows: checkpointRows,
-                  meta: {
-                    ...checkpointMetaBase,
-                    phase: PLANNING_RUN_PHASES.RUNNING
-                  }
-                });
-                stopCheckpointSave();
-                planningPerfCount('checkpointSaves');
-                planningPerfCount('checkpointPayloadBytes', new TextEncoder().encode(JSON.stringify(checkpointRows)).length);
-                for (const row of checkpointRows) persistedCheckpointRows.set(text(row?.courseId), row);
-                pendingCheckpointRows.clear();
-                lastSilentCheckpointCount = checkpointCompletedIds.size;
-                lastSilentCheckpointAt = Date.now();
-              } catch (error) {
-                throwIfPlanningRunInvalidated(error);
-                // Checkpointing is resilience-only and deliberately silent.
-              }
-            }
+            onProgress: onPlanningProgress
           });
         }
 
         assertRunOwnership();
         // Authoritative end validation MUST happen before VALIDATED. Engine-upgrade
         // checks the source token and workspace revision before every commit.
-        const endFacts = await loadSchedulingPlanningPreflight(scope);
-        assertRunOwnership();
-        if (String(endFacts.sourceRevision) !== String(run.sourceRevision)) {
-          throw new Error('planning_source_revision_conflict');
+        let freshEnd = freshStart;
+        let endFingerprint = startFingerprint;
+        let endContextStorage = startContextStorage;
+        let endCourseIds = currentCourseIds;
+        const rebaseMandatoryIds = new Set();
+        let rebaseBaseShared = shared;
+        for (let rebaseAttempt = 0; ; rebaseAttempt += 1) {
+          const endFacts = await loadSchedulingPlanningPreflight(scope);
+          assertRunOwnership();
+          if (Number(endFacts.workspace?.revision || 0) !== Number(shared?.workspace?.revision || 0)) {
+            throw new Error('planning_revision_conflict');
+          }
+          if (String(endFacts.sourceRevision) === String(run.sourceRevision)) break;
+          // Global source revision moved during the run. Keep the calculated plan
+          // and recalculate only the dependency closure of what actually changed.
+          if (rebaseAttempt >= 2) throw new Error('planning_source_revision_conflict');
+          const stopRebase = planningPerfTimer('sourceRebase');
+          const [rebaseSnapshot, rebaseShared] = await Promise.all([
+            data.reloadPlanningSnapshot(),
+            loadSharedPlanningWorkspace({ periodKey: scope.periodKey, district: scope.district })
+          ]);
+          assertRunOwnership();
+          const rebaseFacts = await loadSchedulingPlanningPreflight(scope);
+          assertRunOwnership();
+          if (String(rebaseFacts.sourceRevision) !== String(endFacts.sourceRevision)
+            || Number(rebaseShared?.workspace?.revision || 0) !== Number(shared?.workspace?.revision || 0)
+            || Number(rebaseFacts.workspace?.revision || 0) !== Number(shared?.workspace?.revision || 0)) {
+            // Snapshot raced another mutation; take a fresh reading.
+            stopRebase();
+            continue;
+          }
+          const rebaseInput = planningInputFromSnapshot(rebaseSnapshot, scope.periodKey);
+          const rebaseContext = resolvePlanningContextChange({
+            storedFingerprint: endContextStorage,
+            currentInput: rebaseInput,
+            engineChanged: false
+          });
+          if (rebaseContext?.unrecoverableGlobalContextChange === true) {
+            stopRebase();
+            throw new Error('planning_source_revision_conflict');
+          }
+          const rebaseCourseIds = planningWorkspaceCourses(
+            rebaseSnapshot.activities || [],
+            scope.district,
+            scope.periodKey
+          ).map((course) => idOf(course));
+          const rebaseCourseIdSet = new Set(rebaseCourseIds);
+          const priorRows = (result.rows || []).filter((row) => rebaseCourseIdSet.has(text(row?.courseId)));
+          const deltaIds = planningRebaseAffectedCourseIds({
+            resultRows: priorRows,
+            startActivities: freshEnd.activities || [],
+            activities: rebaseSnapshot.activities || [],
+            currentCourseIds: rebaseCourseIds,
+            contextDiff: rebaseContext?.contextDiff || null,
+            startShared: rebaseBaseShared,
+            currentShared: rebaseShared
+          });
+          planningPerfEvent('source-rebase', {
+            fromSourceRevision: run.sourceRevision,
+            toSourceRevision: endFacts.sourceRevision,
+            deltaCount: deltaIds.length,
+            total: rebaseCourseIds.length
+          });
+          if (deltaIds.length) {
+            state.courseSchedulingPlanningProgress = {
+              phase: `נתונים השתנו בזמן החישוב · עדכון ${deltaIds.length} פעילויות בלבד`,
+              completed: 0,
+              total: deltaIds.length
+            };
+            if (runUiVisible()) run.ui?.update?.();
+            result = await runDeltaRepair(rebaseSnapshot, priorRows, deltaIds, async (progress) => {
+              if (!ownsRun()) return;
+              state.courseSchedulingPlanningProgress = {
+                phase: progress.phase,
+                completed: progress.completed,
+                total: progress.total
+              };
+              if (runUiVisible()) run.ui?.update?.();
+            });
+            assertRunOwnership();
+          } else {
+            result = { ...result, rows: priorRows };
+          }
+          for (const courseId of deltaIds) rebaseMandatoryIds.add(text(courseId));
+          run.sourceRevision = endFacts.sourceRevision;
+          rebaseSnapshot._planningSourceRevision = run.sourceRevision;
+          freshEnd = rebaseSnapshot;
+          endFingerprint = planningDataFingerprint(rebaseInput);
+          endContextStorage = serializePlanningContextFingerprint(rebaseInput);
+          endCourseIds = rebaseCourseIds;
+          rebaseBaseShared = rebaseShared;
+          checkpointMetaBase.sourceRevision = run.sourceRevision;
+          checkpointMetaBase.dataFingerprint = endFingerprint;
+          checkpointMetaBase.contextFingerprint = endContextStorage;
+          // The SQL writer discards a checkpoint whose source/fingerprint
+          // changed, so every final row must be uploaded again.
+          persistedCheckpointRows.clear();
+          checkpointSourceStale = false;
+          stopRebase();
         }
-        if (Number(endFacts.workspace?.revision || 0) !== Number(shared?.workspace?.revision || 0)) {
-          throw new Error('planning_revision_conflict');
-        }
-        const freshEnd = freshStart;
-        const endFingerprint = startFingerprint;
-        const endContextStorage = startContextStorage;
         assertRunOwnership();
         // Source is still valid → synchronize only final checkpoint deltas, then
         // flip the already-complete checkpoint to VALIDATED with a metadata-only
@@ -3308,8 +3499,8 @@ export const courseSchedulingScreen = {
         const finalRows = result.rows || [];
         const finalIds = new Set(finalRows.map((row) => text(row?.courseId)).filter(Boolean));
         const checkpointSnapshotComplete = persistServerCheckpoints
-          && finalRows.length === currentCourseIds.length
-          && currentCourseIds.every((courseId) => finalIds.has(courseId));
+          && finalRows.length === endCourseIds.length
+          && endCourseIds.every((courseId) => finalIds.has(courseId));
         let validatedCheckpointReady = resumeValidatedCommit === true;
         if (!resumeValidatedCommit && checkpointSnapshotComplete) {
           const finalCheckpointDeltaRows = finalRows.filter((row) => {
@@ -3407,6 +3598,7 @@ export const courseSchedulingScreen = {
               // optimization rows are saved when an optimization actually changed
               // them, which keeps a v28 migration from rewriting a national snapshot.
               const mandatoryIds = new Set(incrementalBaseIds.map(text).filter(Boolean));
+              for (const courseId of rebaseMandatoryIds) mandatoryIds.add(courseId);
               const finalIds = new Set(finalRows.map((row) => text(row?.courseId)).filter(Boolean));
               const incrementalRows = finalRows.filter((row) => {
                 const courseId = text(row?.courseId);
@@ -3804,17 +3996,29 @@ export const courseSchedulingScreen = {
         rerender();
       }
     });
-    root.querySelector('[data-planning-period-filter]')?.addEventListener('change', (event) => {
-      state.courseSchedulingPlanningPeriodKey = event.target.value || DEFAULT_PLANNING_PERIOD_KEY;
+    // Filters only change the view. When they resolve to the already loaded
+    // shared scope, keep the saved plan (and any active run) on screen instead
+    // of blanking it and re-downloading the same workspace.
+    const onPlanningScopeFilterChange = () => {
+      const scope = planningScope();
+      if (
+        state.courseSchedulingPlanningLoading
+        || (state.courseSchedulingPlanningSharedLoaded && data._planningSharedLoadedKey === scope.key)
+      ) {
+        rerenderPreservingWorkboardScroll();
+        return;
+      }
       clearCoursePlanning({ clearSharedMeta: true });
       data._planningSharedLoadedKey = '';
       rerender();
+    };
+    root.querySelector('[data-planning-period-filter]')?.addEventListener('change', (event) => {
+      state.courseSchedulingPlanningPeriodKey = event.target.value || DEFAULT_PLANNING_PERIOD_KEY;
+      onPlanningScopeFilterChange();
     });
     root.querySelector('[data-planning-district-filter]')?.addEventListener('change', (event) => {
       state.courseSchedulingPlanningDistrict = event.target.value;
-      clearCoursePlanning({ clearSharedMeta: true });
-      data._planningSharedLoadedKey = '';
-      rerender();
+      onPlanningScopeFilterChange();
     });
 
     const clearDistrictSimulation = () => {

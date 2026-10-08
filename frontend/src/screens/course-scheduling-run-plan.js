@@ -100,11 +100,7 @@ export function isCheckpointResumable({
     || phase === PLANNING_RUN_PHASES.RUNNING;
 }
 
-/**
- * Validated checkpoints may skip recalculation and go straight to canonical commit
- * only when they still match the live run and contain every required row.
- */
-export function canCommitValidatedCheckpoint({
+function checkpointMatchesRunScope({
   checkpoint = null,
   workspaceRevision = 0,
   engineVersion = '',
@@ -113,7 +109,8 @@ export function canCommitValidatedCheckpoint({
   sourceRevision = null,
   runType = '',
   requiredCourseIds = null,
-  expectedScope = null
+  expectedScope = null,
+  phase = ''
 } = {}) {
   if (!isCheckpointResumable({
     checkpoint,
@@ -125,7 +122,7 @@ export function canCommitValidatedCheckpoint({
     runType
   })) return false;
   const meta = checkpoint?.meta || null;
-  if (!meta || text(meta.phase) !== PLANNING_RUN_PHASES.VALIDATED) return false;
+  if (!meta || text(meta.phase) !== phase) return false;
   if (runType && text(meta.runType) !== text(runType)) return false;
 
   const haveIds = new Set(checkpointRowIds(checkpoint));
@@ -152,6 +149,29 @@ export function canCommitValidatedCheckpoint({
     }
   }
   return true;
+}
+
+/**
+ * Validated checkpoints may skip recalculation and go straight to canonical commit
+ * only when they still match the live run and contain every required row.
+ */
+export function canCommitValidatedCheckpoint(input = {}) {
+  return checkpointMatchesRunScope({ ...input, phase: PLANNING_RUN_PHASES.VALIDATED });
+}
+
+/**
+ * A RUNNING checkpoint that already holds a row for every required activity
+ * (e.g. 253/253 after the tab closed during the optimization passes) must not
+ * restart planning. It may only proceed to whole-plan validation, and from
+ * there to a fenced commit or a delta repair of the failing rows. It is never
+ * committed directly: the caller must validate it first.
+ */
+export function canValidateCompletedRunningCheckpoint({ requiredCourseIds = null, ...input } = {}) {
+  const required = [...new Set((requiredCourseIds || []).map(text).filter(Boolean))];
+  if (!required.length) return false;
+  const completed = new Set((input.checkpoint?.completedActivityIds || []).map(text).filter(Boolean));
+  if (required.some((courseId) => !completed.has(courseId))) return false;
+  return checkpointMatchesRunScope({ ...input, requiredCourseIds: required, phase: PLANNING_RUN_PHASES.RUNNING });
 }
 
 function resumeFromCheckpoint({

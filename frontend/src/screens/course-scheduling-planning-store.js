@@ -399,6 +399,51 @@ export function sharedPlanningAffectedCourseIds({
   });
 }
 
+/**
+ * Source changed while a planning run was calculating. Instead of discarding
+ * the whole result, derive the minimal dependency closure of what changed
+ * between the run's start snapshot and the current one: activity versions,
+ * instructor/availability/calendar/catalog context diff, and rows the database
+ * newly flagged needs_recalc after the run started. Rows that were already
+ * dirty at start were recalculated by this run from the start inputs.
+ */
+export function planningRebaseAffectedCourseIds({
+  resultRows = [],
+  startActivities = [],
+  activities = [],
+  currentCourseIds = [],
+  contextDiff = null,
+  startShared = null,
+  currentShared = null
+} = {}) {
+  const startVersionById = new Map((startActivities || []).map((activity) => [idOf(activity), activityVersion(activity)]));
+  const startDirty = new Set((startShared?.rows || [])
+    .filter((entry) => entry?.needsRecalc === true)
+    .map((entry) => text(entry.activityId)));
+  const currentEntryById = new Map((currentShared?.rows || []).map((entry) => [text(entry?.activityId), entry]));
+  const rows = (resultRows || [])
+    .map((row) => {
+      const activityId = text(row?.courseId);
+      if (!activityId || !startVersionById.has(activityId)) return null;
+      const current = currentEntryById.get(activityId);
+      return {
+        activityId,
+        row,
+        activityUpdatedAt: startVersionById.get(activityId),
+        lockedOption: current?.lockedOption || null,
+        needsRecalc: current?.needsRecalc === true && !startDirty.has(activityId)
+      };
+    })
+    .filter(Boolean);
+  return sharedPlanningAffectedCourseIds({
+    shared: { workspace: currentShared?.workspace || null, rows },
+    activities,
+    currentCourseIds,
+    contextDiff,
+    unrecoverableGlobalContextChange: false
+  });
+}
+
 export function expandPlanningAffectedIdsBySchool({
   affectedIds = [],
   shared = {},

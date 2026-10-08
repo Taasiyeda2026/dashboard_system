@@ -5558,6 +5558,51 @@ export async function validatePlanningPlanCoherenceCooperatively(input = {}, che
   return next.value;
 }
 
+/**
+ * Final validation for a checkpoint whose planning passes already produced a
+ * row per activity. Re-runs only the hard whole-plan validation (the same gate
+ * buildDynamicCoursePlan applies before returning) and reports the bounded
+ * delta that must be repaired when it fails. Never re-plans valid rows.
+ */
+export async function validateResumedPlanningRows({
+  rows = [],
+  activities = [],
+  instructors = [],
+  profiles = {},
+  rules = {},
+  exceptions = {},
+  schoolCalendar = [],
+  catalog = [],
+  district = '',
+  periodKey = DEFAULT_PLANNING_PERIOD_KEY,
+  routeClient = createRouteClient(),
+  checkpoint = async () => {}
+} = {}) {
+  const targets = planningWorkspaceCourses(activities, district, periodKey);
+  const rowById = new Map((rows || []).map((row) => [text(row?.courseId), row]).filter(([courseId]) => !!courseId));
+  const ordered = await assignRecruitmentProfilesCooperatively(
+    targets.map((activity) => rowById.get(idOf(activity)) || missingOverviewRow(activity, catalog)),
+    checkpoint
+  );
+  const validation = await validatePlanningPlanCoherenceCooperatively({
+    rows: ordered,
+    activities: targets,
+    instructors,
+    profiles,
+    rules,
+    exceptions,
+    schoolCalendar,
+    routeClient
+  }, checkpoint);
+  return {
+    valid: validation.valid === true,
+    rows: ordered,
+    failures: validation.failures || [],
+    repairCourseIds: validation.valid === true ? [] : finalValidationRepairCourseIds(validation.failures, ordered),
+    validation
+  };
+}
+
 export function finalValidationRepairCourseIds(failures = [], rows = [], maxIds = 24) {
   const direct = new Set();
   const instructorDates = new Set();
