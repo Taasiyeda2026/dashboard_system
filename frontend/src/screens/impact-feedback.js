@@ -11,6 +11,7 @@ import {
   AGE_BANDS,
   AUDIENCE_LABELS,
   RAW_EXPORT_HEADERS,
+  PROGRAM_SOURCE_LABELS,
   SLOTS,
   SUMMARY_EXPORT_HEADERS,
   academicYearLabel,
@@ -23,6 +24,7 @@ import {
   filterFacts,
   filterGroups,
   groupHasFeedback,
+  isProgramUnresolved,
   multiSelectDistribution,
   openAnswers,
   perspectiveGap,
@@ -38,6 +40,7 @@ import {
   fetchMetrics,
   fetchPrograms,
   openCampaign,
+  setActivityProgram,
   translateFeedbackError,
   updateCampaign
 } from '../impact-feedback/feedback-api.js';
@@ -206,7 +209,7 @@ function errorHtml(message) {
 function kpiHtml(groups) {
   const k = dashboardKpis(groups);
   const items = [
-    ['קבוצות עם משובים', k.withFeedback, `מתוך ${groups.length} קבוצות בתוכניות`],
+    ['קבוצות עם משובים', k.withFeedback, `מתוך ${groups.length} קבוצות${k.unresolved ? ` · ${k.unresolved} ללא תוכנית מזוהה` : ''}`],
     ['משובי פתיחה פעילים', k.activePre, 'תלמידים'],
     ['משובי סיום פעילים', k.activePost, 'תלמידים'],
     ['ממתינים למדריך', k.pendingInstructor, 'קישורים פעילים שטרם מולאו'],
@@ -230,7 +233,7 @@ function overviewFiltersHtml(groups) {
       <label class="ifb-field"><span>התחלה מ־</span><input type="date" data-f="from" value="${esc(f.from)}"></label>
       <label class="ifb-field"><span>עד</span><input type="date" data-f="to" value="${esc(f.to)}"></label>
       <label class="ifb-field"><span>סטטוס</span><select data-f="status">
-        ${[['', 'הכל'], ['has_feedback', 'יש משובים'], ['no_feedback', 'ללא משובים'], ['any_live', 'משוב פעיל'], ['pending_instructor', 'ממתין למדריך'], ['pending_contact', 'ממתין לאיש קשר'], ['expired', 'פג תוקף'], ['completed_all', 'הושלם (4 משובים)']]
+        ${[['', 'הכל'], ['unresolved', 'תוכנית לא זוהתה'], ['has_feedback', 'יש משובים'], ['no_feedback', 'ללא משובים'], ['any_live', 'משוב פעיל'], ['pending_instructor', 'ממתין למדריך'], ['pending_contact', 'ממתין לאיש קשר'], ['expired', 'פג תוקף'], ['completed_all', 'הושלם (4 משובים)'], ['excluded', 'הוסתרו (לא רלוונטי)']]
           .map(([v, l]) => `<option value="${v}"${v === f.status ? ' selected' : ''}>${esc(l)}</option>`).join('')}
       </select></label>
       <button type="button" class="ifb-btn ifb-btn--ghost" data-ifb-clear="overview">ניקוי</button>
@@ -247,6 +250,53 @@ function resultsCellHtml(group) {
   return `<button type="button" class="ifb-link" data-ifb-results-group="${esc(group.row_id)}">פתיחה ${nPre} · סיום ${nPost}${personalDone ? ` · אישי ${personalDone}/2` : ''}</button>`;
 }
 
+function programOptionsHtml(selected = '') {
+  return `<option value="">בחירת תוכנית…</option>${ui.programs.map((p) => `<option value="${esc(p.key)}"${p.key === selected ? ' selected' : ''}>${esc(p.title)}</option>`).join('')}`;
+}
+
+/** Inline picker in the table row: status + choose one of the 8 programs. */
+function programQuickPickHtml(group) {
+  return `<div class="ifb-unresolved">
+    <span class="ifb-chip ifb-chip--warning">תוכנית לא זוהתה</span>
+    <span class="ifb-muted ifb-unresolved__name">${esc(group.activity_name || '')}</span>
+    <form class="ifb-unresolved__form" data-ifb-set-program="${esc(group.row_id)}">
+      <select name="program" aria-label="בחירת תוכנית ידנית" required>${programOptionsHtml()}</select>
+      <button type="submit" class="ifb-btn ifb-btn--sm">שמירה</button>
+    </form>
+  </div>`;
+}
+
+/** Group screen card: manual program choice (feedback mapping only; activity data untouched). */
+function programCardHtml(group) {
+  const locked = groupHasFeedback(group);
+  const unresolved = isProgramUnresolved(group);
+  if (locked) {
+    return `<p class="ifb-note">תוכנית: <strong>${esc(programTitle(group.program_key))}</strong> · ${esc(PROGRAM_SOURCE_LABELS[group.program_source] || '')} · נעולה לאחר פתיחת משוב.</p>`;
+  }
+  const form = `
+    <form class="ifb-program-form" data-ifb-set-program="${esc(group.row_id)}">
+      <label class="ifb-field"><span>תוכנית</span><select name="program" required>${programOptionsHtml(group.program_key || '')}</select></label>
+      <label class="ifb-check"><input type="checkbox" name="apply_to_name"> להחיל על כל הפעילויות בשם „${esc(group.activity_name || '')}”</label>
+      <div class="ifb-slot__actions">
+        <button type="submit" class="ifb-btn ifb-btn--primary">שמירת תוכנית</button>
+        ${group.program_source === 'manual' || group.program_source === 'manual_name' || group.feedback_excluded
+          ? '<button type="button" class="ifb-btn ifb-btn--ghost" data-ifb-program-auto>חזרה לזיהוי אוטומטי</button>' : ''}
+        ${group.feedback_excluded ? '' : '<button type="button" class="ifb-btn ifb-btn--ghost" data-ifb-program-exclude>לא רלוונטי למשובים</button>'}
+      </div>
+    </form>`;
+  if (unresolved || group.feedback_excluded) {
+    return `<section class="ifb-panel ifb-program-card--pick" data-ifb-program-card>
+      <h3>${group.feedback_excluded ? 'הפעילות סומנה כלא רלוונטית למשובים' : '⚠️ תוכנית לא זוהתה'}</h3>
+      <p class="ifb-note">שם הפעילות „${esc(group.activity_name || '')}” לא זוהה כאחת מ־8 התוכניות. בחרו תוכנית – הבחירה נשמרת למודול המשובים בלבד ואינה משנה את נתוני הפעילות.</p>
+      ${form}
+    </section>`;
+  }
+  return `<details class="ifb-program-change" data-ifb-program-card>
+    <summary>תוכנית: <strong>${esc(programTitle(group.program_key))}</strong> · ${esc(PROGRAM_SOURCE_LABELS[group.program_source] || '')} · שינוי</summary>
+    ${form}
+  </details>`;
+}
+
 function overviewTableHtml(groups) {
   if (!groups.length) {
     return `<div class="ifb-empty"><p>לא נמצאו קבוצות התואמות לסינון.</p><p class="ifb-muted">המודול מציג פעילויות של 8 התוכניות לפי שם הפעילות בשנת הפעילות שנבחרה.</p></div>`;
@@ -255,12 +305,16 @@ function overviewTableHtml(groups) {
     <tr data-row="${esc(g.row_id)}">
       <td data-label="בית ספר"><strong>${esc(g.school || '—')}</strong>${g.class_group ? `<span class="ifb-muted"> · ${esc(g.class_group)}</span>` : ''}</td>
       <td data-label="רשות">${esc(g.authority || '—')}</td>
-      <td data-label="תוכנית">${esc(programTitle(g.program_key))}</td>
+      <td data-label="תוכנית">${g.program_key
+        ? esc(programTitle(g.program_key))
+        : g.feedback_excluded
+          ? '<span class="ifb-chip ifb-chip--muted">לא רלוונטי למשובים</span>'
+          : programQuickPickHtml(g)}</td>
       <td data-label="שכבה">${esc(g.grade || ageBandLabel(g.age_band) || '—')}</td>
       <td data-label="מדריך">${esc(g.instructor_name || '—')}</td>
       <td data-label="התחלה">${fmtDate(g.start_date)}</td>
       <td data-label="סיום">${fmtDate(g.end_date)}</td>
-      ${SLOTS.map((slot) => `<td data-label="${esc(slot.label)}">${statusChip(slotCampaign(g, slot))}</td>`).join('')}
+      ${SLOTS.map((slot) => `<td data-label="${esc(slot.label)}">${g.program_key ? statusChip(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}</td>`).join('')}
       <td data-label="תוצאות">${resultsCellHtml(g)}</td>
       <td data-label="פעולות"><button type="button" class="ifb-btn ifb-btn--primary ifb-btn--sm" data-ifb-open-group="${esc(g.row_id)}">משובים</button></td>
     </tr>`).join('');
@@ -310,6 +364,7 @@ function slotMissingReason(group, slot) {
 
 function openFormHtml(group, slot) {
   const key = `${group.row_id}|${slot.key}`;
+  if (!group.program_key) return '<p class="ifb-warning">יש לבחור תוכנית לפני פתיחת משוב.</p>';
   const missing = slotMissingReason(group, slot);
   if (missing) return `<p class="ifb-warning">${esc(missing)}</p>`;
   if (!ui.openForms.has(key)) {
@@ -532,7 +587,7 @@ function groupViewHtml(group) {
     <button type="button" class="ifb-back" data-ifb-back>→ חזרה לכל הקבוצות</button>
     <section class="ifb-group-head">
       <div>
-        <p class="ifb-kicker">${esc(programTitle(group.program_key))}</p>
+        <p class="ifb-kicker">${group.program_key ? esc(programTitle(group.program_key)) : 'תוכנית לא זוהתה'}</p>
         <h2 class="ifb-group-head__title">${esc(group.school || '—')}${group.grade ? ` · שכבה ${esc(group.grade)}` : ''}</h2>
         <p class="ifb-muted">${esc(group.activity_name)}</p>
       </div>
@@ -546,6 +601,7 @@ function groupViewHtml(group) {
         <div><dt>שכבת גיל לניסוח</dt><dd>${esc(ageBandLabel(group.age_band) || 'ברירת מחדל')}</dd></div>
       </dl>
     </section>
+    ${programCardHtml(group)}
     <div class="ifb-slots">${SLOTS.map((slot) => slotCardHtml(group, slot)).join('')}</div>
     <section class="ifb-section">
       <div class="ifb-section__head"><h2>שלוש נקודות מבט</h2>${facts ? exportButtonsHtml(`group:${group.row_id}`) : ''}</div>
@@ -820,12 +876,41 @@ async function handleClick(host, event) {
     }
     return;
   }
+  const auto = t.closest('[data-ifb-program-auto]');
+  const exclude = t.closest('[data-ifb-program-exclude]');
+  if (auto || exclude) {
+    const rowId = (auto || exclude).closest('[data-ifb-set-program]')?.dataset.ifbSetProgram;
+    if (!rowId) return;
+    if (exclude && !window.confirm('להסתיר את הפעילות ממודול המשובים? ניתן להחזיר דרך הסינון "הוסתרו".')) return;
+    await saveProgram(host, rowId, null, { excluded: Boolean(exclude) });
+    return;
+  }
   const exp = t.closest('[data-ifb-export]');
   if (exp) { runExport(exp.dataset.ifbExport, exp.dataset.scope); }
 }
 
+async function saveProgram(host, rowId, programKey, options = {}) {
+  try {
+    await setActivityProgram(rowId, programKey, options);
+    showToast(options.excluded ? 'הפעילות הוסתרה ממודול המשובים' : programKey ? 'התוכנית נשמרה' : 'הוחזר זיהוי אוטומטי');
+    await refreshGroup(rowId);
+    if (options.applyToName) await ensureGroups(true);
+    paint(host);
+  } catch (error) {
+    showToast(translateFeedbackError(error), 'error', 5000);
+  }
+}
+
 async function handleSubmit(host, event) {
   const form = event.target;
+  if (form.matches('[data-ifb-set-program]')) {
+    event.preventDefault();
+    const data = new FormData(form);
+    const program = String(data.get('program') || '');
+    if (!program) return;
+    await saveProgram(host, form.dataset.ifbSetProgram, program, { applyToName: data.get('apply_to_name') === 'on' });
+    return;
+  }
   if (form.matches('[data-ifb-open-form]')) {
     event.preventDefault();
     const [rowId, slotKey] = form.dataset.ifbOpenForm.split('|');

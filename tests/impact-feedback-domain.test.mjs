@@ -131,3 +131,19 @@ test('raw export never names students and maps option labels', () => {
   const csv = buildCsv(['a', 'b'], [['x,y', 'q"t']]);
   assert.equal(csv, '﻿a,b\r\n"x,y","q""t"');
 });
+
+test('unresolved programs stay visible; excluded groups only under their own filter', async () => {
+  const { isProgramUnresolved, PROGRAM_SOURCE_LABELS } = await import('../frontend/src/impact-feedback/feedback-domain.js');
+  const groups = [
+    { row_id: 'a', program_key: 'ofek', campaigns: [] },
+    { row_id: 'b', program_key: null, campaigns: [] },
+    { row_id: 'c', program_key: null, feedback_excluded: true, campaigns: [] }
+  ];
+  assert.deepEqual(filterGroups(groups, {}).map((g) => g.row_id), ['a', 'b']);
+  assert.deepEqual(filterGroups(groups, { status: 'unresolved' }).map((g) => g.row_id), ['b']);
+  assert.deepEqual(filterGroups(groups, { status: 'excluded' }).map((g) => g.row_id), ['c']);
+  assert.equal(isProgramUnresolved(groups[1]), true);
+  assert.equal(isProgramUnresolved(groups[2]), false);
+  assert.equal(dashboardKpis(groups, NOW).unresolved, 1);
+  assert.equal(PROGRAM_SOURCE_LABELS.manual_name, 'נבחרה ידנית לפי שם הפעילות');
+});

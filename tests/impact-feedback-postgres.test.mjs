@@ -35,6 +35,12 @@ function answerAll(questions, overrides = {}) {
   return { ...answers, ...overrides };
 }
 
+async function resetSchema(client) {
+  await client.query('drop schema if exists public cascade; drop schema if exists private cascade; drop schema if exists auth cascade; create schema public;');
+  await client.query(await readFile(new URL('./fixtures/impact-feedback-stub-schema.sql', import.meta.url), 'utf8'));
+  for (const file of MIGRATIONS) await client.query(await readFile(new URL(file, import.meta.url), 'utf8'));
+}
+
 test('impact feedback DB contract: admin-only management, token-only public flow, versioning', async (t) => {
   if (!connectionString) {
     t.skip('set IMPACT_FEEDBACK_TEST_DATABASE_URL to a disposable Postgres database to run the impact feedback contract');
@@ -44,9 +50,7 @@ test('impact feedback DB contract: admin-only management, token-only public flow
   await client.connect();
   const rpc = async (sql, params = []) => (await client.query(sql, params)).rows[0];
   try {
-    await client.query('drop schema if exists public cascade; drop schema if exists private cascade; drop schema if exists auth cascade; create schema public;');
-    await client.query(await readFile(new URL('./fixtures/impact-feedback-stub-schema.sql', import.meta.url), 'utf8'));
-    for (const file of MIGRATIONS) await client.query(await readFile(new URL(file, import.meta.url), 'utf8'));
+    await resetSchema(client);
     // Idempotent re-run must not duplicate content or fail.
     for (const file of MIGRATIONS) await client.query(await readFile(new URL(file, import.meta.url), 'utf8'));
 
@@ -72,7 +76,11 @@ test('impact feedback DB contract: admin-only management, token-only public flow
     // --- Admin opens student PRE ---------------------------------------------
     await asRole(client, 'authenticated', ADMIN);
     const groups = (await client.query("select * from feedback_admin_groups('school_2027')")).rows;
-    assert.deepEqual(groups.map((g) => [g.row_id, g.program_key, g.age_band]).sort(), [['ACT-1', 'trailblazers', 'g_i'], ['ACT-2', 'ai_foundations', 'a_c']]);
+    assert.deepEqual(groups.map((g) => [g.row_id, g.program_key, g.program_source, g.age_band]).sort(), [
+      ['ACT-1', 'trailblazers', 'name', 'g_i'],
+      ['ACT-2', 'ai_foundations', 'name', 'a_c'],
+      ['ACT-3', null, null, 'd_f']
+    ], 'unrecognised course activities stay visible with program_key = null');
     const pre = (await rpc("select feedback_admin_open_campaign('ACT-1','student','pre') c")).c;
     assert.equal(pre.program_key, 'trailblazers');
     assert.equal(pre.age_band, 'g_i');
@@ -201,6 +209,92 @@ test('impact feedback DB contract: admin-only management, token-only public flow
     assert.equal(refreshedPre.version_no, 1);
     await asRole(client, 'postgres');
     await assert.rejects(client.query('delete from feedback_template_versions where template_id=$1 and version_no=1', [template.id]), /feedback_version_locked/);
+  } finally {
+    await client.query('reset role').catch(() => {});
+    await client.end();
+  }
+});
+
+test('impact feedback DB contract: program fallback, manual mapping, catalog limits and age bands', async (t) => {
+  if (!connectionString) {
+    t.skip('set IMPACT_FEEDBACK_TEST_DATABASE_URL to a disposable Postgres database to run the impact feedback contract');
+    return;
+  }
+  const client = new pg.Client({ connectionString });
+  await client.connect();
+  const one = async (sql, params = []) => (await client.query(sql, params)).rows[0];
+  try {
+    await resetSchema(client);
+    await client.query(`insert into users values ('admin',$1,'admin',true,'{}'),('ops',$2,'operation_manager',true,'{}')`, [ADMIN, MANAGER]);
+    await client.query(`insert into activities (row_id, activity_season, activity_type, activity_name, gefen_number, school, grade, instructor_name, emp_id) values
+      ('M-1','school_2027','course','קורס יזמות מיוחד',null,'בית ספר א','ט','מדריכה','1'),
+      ('M-2','school_2027','course','קורס יזמות מיוחד',null,'בית ספר ב','ח','מדריכה','1'),
+      ('M-3','school_2027','course','אופק לתעשייה',null,'בית ספר ג','ט','מדריכה','1'),
+      ('M-4','school_2027','course','תוכנית AI לבית הספר','9545','בית ספר ד','','מדריכה','1'),
+      ('M-5','school_2027','course','פורצות דרך',null,'תיכון ה','י','מדריכה','1'),
+      ('M-6','school_2027','course','משחקי קופסה',null,'בית ספר ו',null,'מדריכה','1'),
+      ('M-7','school_2027','workshop','סדנת רובוטיקה',null,'בית ספר ז','ה','מדריכה','1')`);
+
+    // --- Catalog limits & mapping corrections ----------------------------------------------------
+    assert.equal((await one("select default_age_band b from feedback_programs where key='ai_foundations'")).b, 'g_i');
+    const tooMany = (await client.query(`select t.program_key, t.stage, count(*)::int n from feedback_templates t
+      join feedback_template_questions q on q.version_id = t.current_version_id and q.section = 'course'
+      where t.audience = 'student' group by 1, 2 having count(*) > 5`)).rows;
+    assert.deepEqual(tooMany, [], 'at most 5 course-specific questions per student questionnaire');
+    const greenAi = (await client.query(`select question_key from feedback_questions
+      where program_key = 'green_leadership' and (wording::text ilike '%AI%' or wording::text like '%בינה מלאכותית%')`)).rows;
+    assert.deepEqual(greenAi, [], 'green leadership questions must not target AI');
+
+    await client.query("select set_config('test.uid', $1, false)", [ADMIN]);
+    await client.query('set role authenticated');
+    const groups = Object.fromEntries((await client.query("select * from feedback_admin_groups('school_2027')")).rows.map((g) => [g.row_id, g]));
+    assert.equal(groups['M-7'], undefined, 'non-course activities without a program are not listed');
+    assert.deepEqual([groups['M-1'].program_key, groups['M-1'].program_source], [null, null], 'unknown name stays visible as unresolved');
+    assert.deepEqual([groups['M-3'].program_key, groups['M-3'].program_source], [null, null], '"אופק לתעשייה" (52279) is not auto-mapped to Ofek Premium (960)');
+    assert.deepEqual([groups['M-4'].program_key, groups['M-4'].program_source, groups['M-4'].age_band], ['ai_foundations', 'gefen', 'g_i'], 'Gefen number resolves; no grade -> program default (ז׳–ח׳)');
+    assert.deepEqual([groups['M-5'].program_key, groups['M-5'].age_band], ['trailblazers', 'j_l'], 'grade י׳ in a ז׳–י׳ program resolves to the י׳–י״ב band');
+    assert.deepEqual([groups['M-6'].program_key, groups['M-6'].age_band], [null, null], 'no grade and no program -> no age band');
+    await assert.rejects(client.query("select feedback_admin_open_campaign('M-1','student','pre')"), /feedback_program_unresolved/);
+
+    // --- Manual mapping (feedback-only; master data untouched) ---------------------------------------
+    await client.query('reset role');
+    const before = (await client.query('select to_jsonb(a) j from activities a order by row_id')).rows;
+    await client.query("select set_config('test.uid', $1, false)", [MANAGER]);
+    await client.query('set role authenticated');
+    await assert.rejects(client.query("select feedback_admin_set_program('M-1','ofek')"), /feedback_forbidden/);
+    await client.query("select set_config('test.uid', $1, false)", [ADMIN]);
+    await assert.rejects(client.query("select feedback_admin_set_program('M-1','nope')"), /feedback_invalid_program/);
+    const set1 = (await one("select feedback_admin_set_program('M-1','ofek', true) r")).r;
+    assert.deepEqual(set1, { program_key: 'ofek', source: 'manual', excluded: false });
+    const sameName = (await one("select * from feedback_admin_groups(null,'M-2')"));
+    assert.deepEqual([sameName.program_key, sameName.program_source], ['ofek', 'manual_name'], 'name-level mapping applies to the same activity name');
+    const opened = (await one("select feedback_admin_open_campaign('M-1','student','pre') c")).c;
+    assert.equal(opened.program_key, 'ofek');
+    await assert.rejects(client.query("select feedback_admin_set_program('M-1','pharma')"), /feedback_program_locked/, 'program is locked once feedback was opened');
+    await client.query("select feedback_admin_set_program('M-2','pharma')");
+    assert.equal((await one("select program_key from feedback_admin_groups(null,'M-2')")).program_key, 'pharma', 'activity-level choice overrides the name mapping');
+    await client.query("select feedback_admin_set_program('M-3', null, false, true)");
+    const excluded = await one("select * from feedback_admin_groups(null,'M-3')");
+    assert.equal(excluded.feedback_excluded, true);
+    await assert.rejects(client.query("select feedback_admin_open_campaign('M-3','student','pre')"), /feedback_activity_excluded/);
+    await client.query("select feedback_admin_set_program('M-3', null)");
+    assert.deepEqual(Object.values(await one("select program_key, feedback_excluded from feedback_admin_groups(null,'M-3')")), [null, false], 'manual choice can be cleared');
+    await assert.rejects(client.query('insert into feedback_program_mappings(scope, activity_row_id, program_key) values ($1,$2,$3)', ['activity', 'M-6', 'ofek']), /permission denied/);
+    await client.query('reset role');
+    const after = (await client.query('select to_jsonb(a) j from activities a order by row_id')).rows;
+    assert.deepEqual(after, before, 'manual program choice never modifies activities master data');
+    assert.equal((await one('select count(*)::int n from feedback_programs')).n, 8, 'no course master data was created');
+
+    // --- Age-band wording reaches the public form -----------------------------------------------------
+    await client.query("select set_config('test.uid', $1, false)", [ADMIN]);
+    await client.query('set role authenticated');
+    const senior = (await one("select feedback_admin_open_campaign('M-5','student','pre') c")).c;
+    assert.equal(senior.age_band, 'j_l');
+    await client.query('set role anon');
+    const form = (await one('select feedback_public_get($1) r', [senior.public_token])).r;
+    assert.equal(form.age_band, 'j_l');
+    assert.match(form.questions[0].text, /^אני מבין\/ה את העקרונות של התחום/, 'j_l variant is used when it exists');
+    assert.equal(form.questions[1].text, 'אני מאמין/ה שאני מסוגל/ת לפתח רעיון לפתרון של בעיה אמיתית', 'falls back to default wording');
   } finally {
     await client.query('reset role').catch(() => {});
     await client.end();

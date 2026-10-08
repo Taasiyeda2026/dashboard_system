@@ -111,8 +111,10 @@ async function main() {
     await admin.locator('.ifb-table tbody tr').first().waitFor();
     assert.equal(await admin.locator('.ifb-kpi').count(), 6);
     const rows = await admin.locator('.ifb-table tbody tr').count();
-    assert.equal(rows, 4, 'four 2027 groups belong to the 8 programs (non-program activity excluded)');
+    assert.equal(rows, 6, 'four recognised program groups + two unrecognised course groups');
     assert.equal(await admin.locator('.ifb-table [data-status="not_opened"]').count(), 16);
+    assert.equal(await admin.locator('.ifb-unresolved .ifb-chip').count(), 2);
+    assert.equal((await admin.locator('.ifb-unresolved .ifb-chip').first().textContent()).trim(), 'תוכנית לא זוהתה');
     await admin.locator('[data-f="search"]').fill('הגפן');
     await admin.waitForFunction(() => document.querySelectorAll('.ifb-table tbody tr').length === 1);
     await admin.locator('[data-ifb-clear="overview"]').click();
@@ -120,6 +122,43 @@ async function main() {
     assert.equal(await admin.locator('.ifb-table tbody tr').count(), 1);
     await admin.locator('[data-ifb-clear="overview"]').click();
     await admin.screenshot({ path: `${SHOTS}/01-dashboard-desktop.png`, fullPage: true });
+  });
+
+  await step('Unrecognised program stays visible; admin maps it manually; mapping persists; master data untouched', async () => {
+    const before = (await db.query("select to_jsonb(a) j from activities a where row_id in ('ACT-5','ACT-7') order by row_id")).rows;
+    await admin.locator('[data-f="status"]').selectOption('unresolved');
+    assert.equal(await admin.locator('.ifb-table tbody tr').count(), 2);
+    const row = admin.locator('tr[data-row="ACT-7"]');
+    assert.match(await row.textContent(), /אופק לתעשייה/);
+    await row.locator('select[name="program"]').selectOption('ofek');
+    await row.locator('[data-ifb-set-program] [type="submit"]').click();
+    await admin.waitForFunction(() => document.querySelectorAll('.ifb-table tbody tr').length === 1);
+    await admin.locator('[data-f="status"]').selectOption('');
+    await admin.waitForFunction(() => /אופק – יזמות פרימיום/.test(document.querySelector('tr[data-row="ACT-7"]')?.textContent || ''));
+    assert.equal(await admin.locator('tr[data-row="ACT-7"] [data-status="not_opened"]').count(), 4);
+    // ACT-5 via the group screen: mark as not relevant, then bring it back and choose a program.
+    await admin.locator('tr[data-row="ACT-5"] [data-ifb-open-group]').click();
+    await admin.locator('[data-ifb-program-card]').waitFor();
+    assert.match(await admin.locator('[data-ifb-program-card]').textContent(), /תוכנית לא זוהתה/);
+    assert.match(await admin.locator('[data-slot="student:pre"]').textContent(), /יש לבחור תוכנית/);
+    admin.once('dialog', (d) => d.accept());
+    await admin.locator('[data-ifb-program-exclude]').click();
+    await admin.waitForFunction(() => /לא רלוונטית/.test(document.querySelector('[data-ifb-program-card]')?.textContent || ''));
+    await admin.locator('[data-ifb-program-card] select[name="program"]').selectOption('space_tech');
+    await admin.locator('[data-ifb-program-card] [type="submit"]').click();
+    await admin.waitForFunction(() => /טכנולוגיות החלל/.test(document.querySelector('.ifb-kicker')?.textContent || ''));
+    assert.match(await admin.locator('[data-ifb-program-card]').textContent(), /נבחרה ידנית/);
+    await admin.goto(`${APP}/e2e/impact-feedback/harness.html`);
+    await admin.locator('tr[data-row="ACT-7"]').waitFor();
+    assert.match(await admin.locator('tr[data-row="ACT-7"]').textContent(), /אופק – יזמות פרימיום/, 'mapping persists after reload');
+    const after = (await db.query("select to_jsonb(a) j from activities a where row_id in ('ACT-5','ACT-7') order by row_id")).rows;
+    assert.deepEqual(after, before, 'activities master data unchanged');
+    const mappings = (await db.query("select activity_row_id, program_key, excluded from feedback_program_mappings order by activity_row_id")).rows;
+    assert.deepEqual(mappings, [{ activity_row_id: 'ACT-5', program_key: 'space_tech', excluded: false }, { activity_row_id: 'ACT-7', program_key: 'ofek', excluded: false }]);
+    // Return both to "unrecognised" so the remaining scenarios run on the original data set.
+    await db.query('delete from feedback_program_mappings');
+    await admin.goto(`${APP}/e2e/impact-feedback/harness.html`);
+    await admin.locator('.ifb-table tbody tr').first().waitFor();
   });
 
   await step('Admin opens student PRE feedback → QR + link', async () => {

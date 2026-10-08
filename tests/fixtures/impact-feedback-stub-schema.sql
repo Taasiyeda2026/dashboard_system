@@ -54,6 +54,7 @@ create table public.activities (
   activity_manager text,
   activity_type text,
   activity_name text,
+  gefen_number text,
   authority text,
   authority_id bigint,
   school text,

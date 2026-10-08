@@ -8,6 +8,10 @@ const ERROR_MESSAGES = {
   feedback_forbidden: 'אין הרשאה – רק אדמין מנהל את מודול המשובים',
   feedback_activity_not_found: 'הפעילות לא נמצאה',
   feedback_program_unresolved: 'לא זוהתה תוכנית משובים עבור הפעילות. בחרו תוכנית ידנית.',
+  feedback_program_locked: 'לא ניתן לשנות תוכנית לאחר שנפתח משוב לקבוצה',
+  feedback_activity_excluded: 'הפעילות סומנה כלא רלוונטית למשובים',
+  feedback_invalid_program: 'תוכנית לא תקינה',
+  feedback_activity_name_missing: 'לפעילות אין שם – לא ניתן להחיל לפי שם',
   feedback_template_not_published: 'אין גרסה מפורסמת לתבנית הזו',
   feedback_contact_missing: 'לא מוגדר איש קשר לקבוצה. יש להגדיר איש קשר בפעילות.',
   feedback_instructor_missing: 'לא משובץ מדריך לקבוצה.',
@@ -53,15 +57,24 @@ export async function fetchGroups(academicYear = null, activityRowId = null) {
   return Array.isArray(rows) ? rows : [];
 }
 
-export async function openCampaign(activityRowId, audience, stage, { opensAt = null, expiresAt = null, programKey = null, ageBand = null } = {}) {
+export async function openCampaign(activityRowId, audience, stage, { opensAt = null, expiresAt = null, ageBand = null } = {}) {
   return unwrap(client().rpc('feedback_admin_open_campaign', {
     p_activity_row_id: activityRowId,
     p_audience: audience,
     p_stage: stage,
     p_opens_at: opensAt,
     p_expires_at: expiresAt,
-    p_program_key: programKey,
     p_age_band: ageBand
+  }));
+}
+
+/** Manual program choice for an activity (feedback mapping only; activities are not modified). */
+export async function setActivityProgram(activityRowId, programKey, { applyToName = false, excluded = false } = {}) {
+  return unwrap(client().rpc('feedback_admin_set_program', {
+    p_activity_row_id: activityRowId,
+    p_program_key: programKey || null,
+    p_apply_to_name: Boolean(applyToName),
+    p_excluded: Boolean(excluded)
   }));
 }
 

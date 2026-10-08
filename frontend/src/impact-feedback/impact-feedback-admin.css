@@ -260,3 +260,14 @@
   .ifb-meta--head { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ifb-program-card__tiles { grid-template-columns: 1fr; }
 }
+
+/* Program fallback ("תוכנית לא זוהתה") */
+.ifb-unresolved { display: grid; gap: 4px; justify-items: start; }
+.ifb-unresolved__name { font-size: 12px; }
+.ifb-unresolved__form { display: flex; gap: 6px; flex-wrap: wrap; }
+.ifb-unresolved__form select { max-width: 200px; padding: 4px 8px; border: 1px solid #cfd5e3; border-radius: 8px; font: inherit; font-size: 13px; background: #fff; }
+.ifb-program-card--pick { border-color: #f3c27a; background: #fffaf1; }
+.ifb-program-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.ifb-program-change { padding: 10px 14px; border: 1px solid var(--ifb-a-line); border-radius: 14px; background: var(--ifb-a-card); }
+.ifb-program-change summary { cursor: pointer; font-size: 14px; }
+.ifb-program-change .ifb-program-form { margin-top: 10px; }

@@ -119,7 +119,9 @@ export function dashboardKpis(groups = [], now = Date.now()) {
   let personalTotal = 0;
   let personalCompleted = 0;
   let studentResponses = 0;
+  let unresolved = 0;
   for (const group of groups) {
+    if (isProgramUnresolved(group)) unresolved += 1;
     if (groupHasFeedback(group)) withFeedback += 1;
     for (const campaign of group.campaigns || []) {
       const live = isCampaignLive(campaign, now);
@@ -143,6 +145,7 @@ export function dashboardKpis(groups = [], now = Date.now()) {
     pendingInstructor,
     pendingContact,
     studentResponses,
+    unresolved,
     personalTotal,
     personalCompleted,
     responseRate: personalTotal ? Math.round((personalCompleted / personalTotal) * 100) : null
@@ -154,7 +157,22 @@ function normalizeText(value) {
 }
 
 /** status filter keys: any_live | pending_instructor | pending_contact | no_feedback | has_feedback | completed_all */
+export const PROGRAM_SOURCE_LABELS = Object.freeze({
+  campaign: 'נקבעה בפתיחת המשוב',
+  manual: 'נבחרה ידנית',
+  manual_name: 'נבחרה ידנית לפי שם הפעילות',
+  gefen: 'זוהתה לפי מספר גפ״ן',
+  name: 'זוהתה לפי שם הפעילות'
+});
+
+export function isProgramUnresolved(group) {
+  return !group?.program_key && !group?.feedback_excluded;
+}
+
 export function groupMatchesStatus(group, statusKey, now = Date.now()) {
+  if (statusKey === 'excluded') return Boolean(group.feedback_excluded);
+  if (group.feedback_excluded) return false;
+  if (statusKey === 'unresolved') return isProgramUnresolved(group);
   if (!statusKey) return true;
   const campaigns = group.campaigns || [];
   const statuses = campaigns.map((c) => ({ c, s: campaignUiStatus(c, now).key }));

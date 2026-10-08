@@ -103,6 +103,8 @@ create table if not exists public.feedback_programs (
   title text not null,
   topic text not null,
   catalog_program_ids text[] not null default '{}',
+  -- Gefen catalog numbers (frontend/public/catalog/appendices/<number>.pdf); matched against activities.gefen_number.
+  gefen_numbers text[] not null default '{}',
   activity_name_patterns text[] not null default '{}',
   exclude_patterns text[] not null default '{}',
   default_age_band text check (default_age_band in ('a_c', 'd_f', 'g_i', 'j_l')),
@@ -415,6 +417,102 @@ $$;
 revoke all on function private.feedback_resolve_program(text) from public, anon;
 grant execute on function private.feedback_resolve_program(text) to authenticated;
 
+create or replace function private.feedback_name_key(p_name text)
+returns text
+language sql immutable set search_path = ''
+as $$ select lower(regexp_replace(btrim(coalesce(p_name, '')), '\s+', ' ', 'g')) $$;
+revoke all on function private.feedback_name_key(text) from public, anon;
+
+-- Admin's manual program choice for an activity (or for every activity with the same name).
+-- Feedback-only mapping: activities / catalog master data are never modified.
+create table if not exists public.feedback_program_mappings (
+  id uuid primary key default gen_random_uuid(),
+  scope text not null check (scope in ('activity', 'activity_name')),
+  activity_row_id text references public.activities(row_id) on delete cascade,
+  activity_name_key text,
+  program_key text references public.feedback_programs(key) on delete restrict,
+  excluded boolean not null default false,
+  set_by uuid default auth.uid(),
+  set_at timestamptz not null default now(),
+  constraint feedback_program_mappings_activity_scope check ((scope = 'activity') = (activity_row_id is not null)),
+  constraint feedback_program_mappings_name_scope check ((scope = 'activity_name') = (activity_name_key is not null and activity_name_key <> '')),
+  constraint feedback_program_mappings_target check (excluded or program_key is not null)
+);
+create unique index if not exists feedback_program_mappings_activity_uidx
+  on public.feedback_program_mappings(activity_row_id) where scope = 'activity';
+create unique index if not exists feedback_program_mappings_name_uidx
+  on public.feedback_program_mappings(activity_name_key) where scope = 'activity_name';
+alter table public.feedback_program_mappings enable row level security;
+revoke all on public.feedback_program_mappings from anon, public, authenticated;
+grant all on public.feedback_program_mappings to service_role;
+grant select on public.feedback_program_mappings to authenticated;
+drop policy if exists feedback_program_mappings_admin_select on public.feedback_program_mappings;
+create policy feedback_program_mappings_admin_select on public.feedback_program_mappings
+  for select to authenticated using ((select private.feedback_is_admin()));
+
+-- Program resolution for one activity row (as jsonb), highest priority first:
+--   campaign (already collected; locked) > manual (activity) > manual (activity name)
+--   > Gefen catalog number > activity-name pattern. No row = "תוכנית לא זוהתה".
+create or replace function private.feedback_activity_program(p_activity jsonb)
+returns table (program_key text, source text, excluded boolean)
+language sql stable security definer set search_path = ''
+as $$
+  select r.program_key, r.source, r.excluded
+  from (
+    select 1 as prio, c.program_key, 'campaign'::text as source, false as excluded
+    from public.feedback_campaigns c
+    where c.activity_row_id = p_activity->>'row_id'
+    order by c.created_at
+    limit 1
+  ) r
+  union all
+  select * from (
+    select m.program_key, 'manual'::text, m.excluded
+    from public.feedback_program_mappings m
+    where not exists (select 1 from public.feedback_campaigns c where c.activity_row_id = p_activity->>'row_id')
+      and m.scope = 'activity' and m.activity_row_id = p_activity->>'row_id'
+    union all
+    select m.program_key, 'manual_name'::text, m.excluded
+    from public.feedback_program_mappings m
+    where not exists (select 1 from public.feedback_campaigns c where c.activity_row_id = p_activity->>'row_id')
+      and not exists (select 1 from public.feedback_program_mappings ma where ma.scope = 'activity' and ma.activity_row_id = p_activity->>'row_id')
+      and m.scope = 'activity_name' and m.activity_name_key = private.feedback_name_key(p_activity->>'activity_name')
+  ) manual
+  union all
+  select * from (
+    select p.key, 'gefen'::text, false
+    from public.feedback_programs p
+    where p.is_active
+      and nullif(btrim(coalesce(p_activity->>'gefen_number', '')), '') = any(p.gefen_numbers)
+      and not exists (select 1 from public.feedback_campaigns c where c.activity_row_id = p_activity->>'row_id')
+      and not exists (select 1 from public.feedback_program_mappings ma where ma.scope = 'activity' and ma.activity_row_id = p_activity->>'row_id')
+      and not exists (select 1 from public.feedback_program_mappings mn where mn.scope = 'activity_name' and mn.activity_name_key = private.feedback_name_key(p_activity->>'activity_name'))
+    order by p.sort_order
+    limit 1
+  ) gefen
+  union all
+  select * from (
+    select private.feedback_resolve_program(p_activity->>'activity_name'), 'name'::text, false
+    where private.feedback_resolve_program(p_activity->>'activity_name') is not null
+      and not exists (select 1 from public.feedback_campaigns c where c.activity_row_id = p_activity->>'row_id')
+      and not exists (select 1 from public.feedback_program_mappings ma where ma.scope = 'activity' and ma.activity_row_id = p_activity->>'row_id')
+      and not exists (select 1 from public.feedback_program_mappings mn where mn.scope = 'activity_name' and mn.activity_name_key = private.feedback_name_key(p_activity->>'activity_name'))
+      and not exists (select 1 from public.feedback_programs p where p.is_active
+        and nullif(btrim(coalesce(p_activity->>'gefen_number', '')), '') = any(p.gefen_numbers))
+  ) by_name;
+$$;
+revoke all on function private.feedback_activity_program(jsonb) from public, anon, authenticated;
+
+-- A course-like activity is "relevant" to the module even when its program is not recognised.
+create or replace function private.feedback_is_course_activity(p_activity jsonb)
+returns boolean
+language sql immutable set search_path = ''
+as $$
+  select coalesce(p_activity->>'activity_type', '') in ('course', 'after_school', 'קורס', 'חוג', 'תוכנית')
+      or coalesce(p_activity->>'activity_family', '') = 'program';
+$$;
+revoke all on function private.feedback_is_course_activity(jsonb) from public, anon;
+
 -- Builds a draft version of a template: Core questions + Course-specific questions of the
 -- template's program, filtered by audience and stage, ordered by the bank sort order.
 create or replace function private.feedback_compose_draft(p_template_id uuid)
@@ -579,7 +677,6 @@ create or replace function public.feedback_admin_open_campaign(
   p_stage text,
   p_opens_at timestamptz default null,
   p_expires_at timestamptz default null,
-  p_program_key text default null,
   p_age_band text default null
 )
 returns jsonb
@@ -599,6 +696,7 @@ declare
   v_phone text;
   v_email text;
   v_age text;
+  v_excluded boolean;
   v_opens timestamptz := coalesce(p_opens_at, now());
 begin
   if not private.feedback_is_admin() then raise exception 'feedback_forbidden' using errcode = '42501'; end if;
@@ -617,11 +715,8 @@ begin
     return private.feedback_campaign_json(v_existing);
   end if;
 
-  v_program := coalesce(
-    nullif(p_program_key, ''),
-    (select program_key from public.feedback_campaigns where activity_row_id = p_activity_row_id order by created_at limit 1),
-    private.feedback_resolve_program(a->>'activity_name')
-  );
+  select r.program_key, r.excluded into v_program, v_excluded from private.feedback_activity_program(a) r;
+  if coalesce(v_excluded, false) then raise exception 'feedback_activity_excluded'; end if;
   if v_program is null or not exists (select 1 from public.feedback_programs where key = v_program) then
     raise exception 'feedback_program_unresolved';
   end if;
@@ -691,8 +786,66 @@ begin
 
   return private.feedback_campaign_json(v_campaign);
 end $$;
-revoke all on function public.feedback_admin_open_campaign(text, text, text, timestamptz, timestamptz, text, text) from public, anon;
-grant execute on function public.feedback_admin_open_campaign(text, text, text, timestamptz, timestamptz, text, text) to authenticated;
+revoke all on function public.feedback_admin_open_campaign(text, text, text, timestamptz, timestamptz, text) from public, anon;
+grant execute on function public.feedback_admin_open_campaign(text, text, text, timestamptz, timestamptz, text) to authenticated;
+
+-- Admin: choose the program of an activity manually (or exclude it / return to automatic).
+-- p_program_key null + p_excluded false = remove the manual choice.
+create or replace function public.feedback_admin_set_program(
+  p_activity_row_id text,
+  p_program_key text,
+  p_apply_to_name boolean default false,
+  p_excluded boolean default false
+)
+returns jsonb
+language plpgsql security definer set search_path = ''
+as $$
+declare
+  a jsonb;
+  v_name_key text;
+  v_campaign_program text;
+  r record;
+begin
+  if not private.feedback_is_admin() then raise exception 'feedback_forbidden' using errcode = '42501'; end if;
+  select to_jsonb(x) into a from public.activities x where x.row_id = p_activity_row_id;
+  if a is null then raise exception 'feedback_activity_not_found'; end if;
+  if not coalesce(p_excluded, false) and p_program_key is not null
+     and not exists (select 1 from public.feedback_programs where key = p_program_key and is_active) then
+    raise exception 'feedback_invalid_program';
+  end if;
+
+  select program_key into v_campaign_program from public.feedback_campaigns
+  where activity_row_id = p_activity_row_id order by created_at limit 1;
+  if v_campaign_program is not null and (coalesce(p_excluded, false) or v_campaign_program is distinct from p_program_key) then
+    raise exception 'feedback_program_locked';
+  end if;
+
+  v_name_key := private.feedback_name_key(a->>'activity_name');
+  if coalesce(p_apply_to_name, false) and v_name_key = '' then raise exception 'feedback_activity_name_missing'; end if;
+
+  if p_program_key is null and not coalesce(p_excluded, false) then
+    delete from public.feedback_program_mappings where scope = 'activity' and activity_row_id = p_activity_row_id;
+    if coalesce(p_apply_to_name, false) then
+      delete from public.feedback_program_mappings where scope = 'activity_name' and activity_name_key = v_name_key;
+    end if;
+  else
+    insert into public.feedback_program_mappings (scope, activity_row_id, program_key, excluded, set_by, set_at)
+    values ('activity', p_activity_row_id, case when coalesce(p_excluded, false) then null else p_program_key end, coalesce(p_excluded, false), auth.uid(), now())
+    on conflict (activity_row_id) where scope = 'activity'
+    do update set program_key = excluded.program_key, excluded = excluded.excluded, set_by = excluded.set_by, set_at = excluded.set_at;
+    if coalesce(p_apply_to_name, false) and not coalesce(p_excluded, false) then
+      insert into public.feedback_program_mappings (scope, activity_name_key, program_key, excluded, set_by, set_at)
+      values ('activity_name', v_name_key, p_program_key, false, auth.uid(), now())
+      on conflict (activity_name_key) where scope = 'activity_name'
+      do update set program_key = excluded.program_key, excluded = false, set_by = excluded.set_by, set_at = excluded.set_at;
+    end if;
+  end if;
+
+  select * into r from private.feedback_activity_program(a) limit 1;
+  return jsonb_build_object('program_key', r.program_key, 'source', r.source, 'excluded', coalesce(r.excluded, false));
+end $$;
+revoke all on function public.feedback_admin_set_program(text, text, boolean, boolean) from public, anon;
+grant execute on function public.feedback_admin_set_program(text, text, boolean, boolean) to authenticated;
 
 -- p_action: close | reopen | update_window | rotate_token | mark_shared
 create or replace function public.feedback_admin_update_campaign(
@@ -756,6 +909,9 @@ create or replace function public.feedback_admin_groups(
 returns table (
   row_id text,
   program_key text,
+  program_source text,
+  feedback_excluded boolean,
+  gefen_number text,
   activity_name text,
   activity_type text,
   academic_year text,
@@ -786,18 +942,21 @@ begin
   shaped as (
     select
       j->>'row_id' as row_id,
-      coalesce(
-        (select c.program_key from public.feedback_campaigns c where c.activity_row_id = j->>'row_id' order by c.created_at limit 1),
-        private.feedback_resolve_program(j->>'activity_name')
-      ) as program_key,
+      res.program_key,
+      res.source as program_source,
+      coalesce(res.excluded, false) as excluded,
       j
     from acts
+    left join lateral (select * from private.feedback_activity_program(acts.j) limit 1) res on true
     where p_academic_year is null or coalesce(nullif(j->>'activity_season', ''), 'regular') = p_academic_year
        or exists (select 1 from public.feedback_campaigns c where c.activity_row_id = j->>'row_id' and c.academic_year = p_academic_year)
   )
   select
     s.row_id,
     s.program_key,
+    s.program_source,
+    s.excluded,
+    nullif(btrim(coalesce(s.j->>'gefen_number', '')), ''),
     coalesce(s.j->>'activity_name', ''),
     coalesce(s.j->>'activity_type', ''),
     coalesce(nullif(s.j->>'activity_season', ''), 'regular'),
@@ -822,7 +981,8 @@ begin
       from public.feedback_campaigns c where c.activity_row_id = s.row_id
     ), '[]'::jsonb)
   from shaped s
-  where s.program_key is not null;
+  -- Unrecognised course activities stay visible (program_key null = "תוכנית לא זוהתה").
+  where s.program_key is not null or s.program_source is not null or private.feedback_is_course_activity(s.j);
 end $$;
 revoke all on function public.feedback_admin_groups(text, text) from public, anon;
 grant execute on function public.feedback_admin_groups(text, text) to authenticated;
