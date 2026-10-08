@@ -16,7 +16,7 @@ update public.feedback_programs
 set title = 'ביומימיקרי',
     gefen_numbers = array['6089'],
     education_level = 'elementary',
-    default_age_band = 'd_f',
+    default_age_band = null,
     sort_order = 10,
     updated_at = now()
 where key = 'biomimicry';
@@ -25,7 +25,7 @@ update public.feedback_programs
 set title = 'מנהיגות ירוקה',
     gefen_numbers = array['67867'],
     education_level = 'elementary',
-    default_age_band = 'd_f',
+    default_age_band = null,
     sort_order = 30,
     updated_at = now()
 where key = 'green_leadership';
@@ -34,7 +34,7 @@ update public.feedback_programs
 set title = 'טכנולוגיות החלל',
     gefen_numbers = array['57651'],
     education_level = 'elementary',
-    default_age_band = 'd_f',
+    default_age_band = null,
     sort_order = 40,
     updated_at = now()
 where key = 'space_tech';
@@ -43,7 +43,7 @@ update public.feedback_programs
 set title = 'יישומי AI',
     gefen_numbers = array['53819'],
     education_level = 'secondary',
-    default_age_band = 'g_i',
+    default_age_band = null,
     sort_order = 60,
     updated_at = now()
 where key = 'ai_applications';
@@ -52,7 +52,7 @@ update public.feedback_programs
 set title = 'רוקחים עולם',
     gefen_numbers = array['46091'],
     education_level = 'secondary',
-    default_age_band = 'g_i',
+    default_age_band = null,
     sort_order = 80,
     updated_at = now()
 where key = 'pharma';
@@ -61,7 +61,7 @@ update public.feedback_programs
 set title = 'אופק פרימיום',
     gefen_numbers = array['52279'],
     education_level = 'secondary',
-    default_age_band = 'g_i',
+    default_age_band = null,
     sort_order = 90,
     updated_at = now()
 where key = 'ofek';
@@ -70,7 +70,7 @@ update public.feedback_programs
 set title = 'סודות ויסודות AI',
     gefen_numbers = array['9545'],
     education_level = 'secondary',
-    default_age_band = 'g_i',
+    default_age_band = null,
     sort_order = 100,
     updated_at = now()
 where key = 'ai_foundations';
@@ -79,7 +79,7 @@ update public.feedback_programs
 set title = 'פורצות דרך',
     gefen_numbers = array['3604'],
     education_level = 'secondary',
-    default_age_band = 'g_i',
+    default_age_band = null,
     sort_order = 110,
     updated_at = now()
 where key = 'trailblazers';
@@ -93,19 +93,19 @@ insert into public.feedback_programs (
     'board_games', 'משחקי קופסה', 'פיתוח משחקי קופסה, אסטרטגיה ותכנון משחק',
     array['program-02','board-games'], array['27342'],
     array['%משחקי קופסה%','%פיתוח ופיצוח משחקי לוח%'], array[]::text[],
-    'd_f', 'elementary', 20, true
+    null, 'elementary', 20, true
   ),
   (
     'sky_limit', 'השמיים אינם הגבול', 'חלל, לוויינים וטכנולוגיות חלל',
     array['program-7','sky-is-not-the-limit'], array['57646'],
     array['%השמיים אינם הגבול%'], array[]::text[],
-    'g_i', 'secondary', 50, true
+    null, 'secondary', 50, true
   ),
   (
     'biomimicry_secondary', 'ביומימיקרי', 'ביומימיקרי, קיימות וחדשנות טכנולוגית',
     array['biomimicry-middle'], array['53828'],
     array['%ביומימיקרי לחטיבה%','%ביומימיקרי חטיבה%','%חדשנות סביבתית%בהשראה מן הטבע%'],
-    array[]::text[], 'g_i', 'secondary', 70, true
+    array[]::text[], null, 'secondary', 70, true
   )
 on conflict (key) do update set
   title = excluded.title,
