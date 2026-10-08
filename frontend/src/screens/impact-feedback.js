@@ -88,6 +88,17 @@ function programTitle(key) {
   return ui.programs.find((p) => p.key === key)?.title || key || '';
 }
 
+function educationLevelLabel(level) {
+  return level === 'elementary' ? 'יסודי' : level === 'secondary' ? 'חטיבת ביניים ותיכון' : '';
+}
+
+function programOptionLabel(key) {
+  const program = ui.programs.find((p) => p.key === key);
+  if (!program) return key || '';
+  const gefen = Array.isArray(program.gefen_numbers) ? program.gefen_numbers.join(', ') : '';
+  return [program.title, educationLevelLabel(program.education_level), gefen ? `גפ״ן ${gefen}` : ''].filter(Boolean).join(' · ');
+}
+
 function metricLabel(key) {
   return ui.metrics.find((m) => m.key === key)?.label || key;
 }
@@ -264,7 +275,7 @@ function overviewFiltersHtml(groups) {
     <section class="ifb-filter-panel">
       <div class="ifb-filters ifb-filters--primary" data-ifb-filters="overview">
         <label class="ifb-field ifb-field--search"><span>חיפוש</span><input type="search" data-f="search" value="${esc(f.search)}" placeholder="בית ספר, רשות, מדריך…"></label>
-        <label class="ifb-field"><span>תוכנית</span><select data-f="program">${optionList(ui.programs.map((p) => p.key), f.program, 'כל התוכניות', programTitle)}</select></label>
+        <label class="ifb-field"><span>תוכנית</span><select data-f="program">${optionList(ui.programs.map((p) => p.key), f.program, 'כל התוכניות', programOptionLabel)}</select></label>
         <label class="ifb-field"><span>רשות</span><select data-f="authority">${optionList(uniqueSorted(groups.map((g) => g.authority)), f.authority, 'כל הרשויות')}</select></label>
         <label class="ifb-field"><span>בית ספר</span><select data-f="school">${optionList(uniqueSorted(groups.map((g) => g.school)), f.school, 'כל בתי הספר')}</select></label>
         <label class="ifb-field"><span>סטטוס</span><select data-f="status">
@@ -295,7 +306,7 @@ function resultsCellHtml(group) {
 }
 
 function programOptionsHtml(selected = '') {
-  return `<option value="">בחירת תוכנית…</option>${ui.programs.map((p) => `<option value="${esc(p.key)}"${p.key === selected ? ' selected' : ''}>${esc(p.title)}</option>`).join('')}`;
+  return `<option value="">בחירת תוכנית…</option>${ui.programs.map((p) => `<option value="${esc(p.key)}"${p.key === selected ? ' selected' : ''}>${esc(programOptionLabel(p.key))}</option>`).join('')}`;
 }
 
 /** Inline picker in the table row: status + choose one of the 8 programs. */
@@ -674,7 +685,6 @@ function groupViewHtml(group) {
         <div><dt>שנת פעילות</dt><dd>${esc(academicYearLabel(group.academic_year))}</dd></div>
         <div><dt>התחלה</dt><dd>${fmtDate(group.start_date)}</dd></div>
         <div><dt>סיום</dt><dd>${fmtDate(group.end_date)}</dd></div>
-        <div><dt>שכבת גיל לניסוח</dt><dd>${esc(ageBandLabel(group.age_band) || 'ברירת מחדל')}</dd></div>
       </dl>
     </section>
     ${programCardHtml(group)}
@@ -790,7 +800,7 @@ function instructorAssignmentsHtml() {
           <option value="">כל המדריכים</option>
           ${instructors.map(([id, name]) => `<option value="${esc(id)}"${id === filters.instructor ? ' selected' : ''}>${esc(name)}</option>`).join('')}
         </select></label>
-        <label class="ifb-field"><span>תוכנית</span><select data-i="program">${optionList(ui.programs.map((p) => p.key), filters.program, 'כל התוכניות', programTitle)}</select></label>
+        <label class="ifb-field"><span>תוכנית</span><select data-i="program">${optionList(ui.programs.map((p) => p.key), filters.program, 'כל התוכניות', programOptionLabel)}</select></label>
         <label class="ifb-field"><span>סטטוס</span><select data-i="status">
           ${[
             ['', 'הכל'],
@@ -846,7 +856,7 @@ function resultsHtml() {
     <div class="ifb-filters" data-ifb-filters="results">
       <label class="ifb-field"><span>מתאריך</span><input type="date" data-r="from" value="${esc(r.from)}"></label>
       <label class="ifb-field"><span>עד תאריך</span><input type="date" data-r="to" value="${esc(r.to)}"></label>
-      <label class="ifb-field"><span>תוכנית</span><select data-r="program">${optionList(ui.programs.map((p) => p.key), r.program, 'כל התוכניות', programTitle)}</select></label>
+      <label class="ifb-field"><span>תוכנית</span><select data-r="program">${optionList(ui.programs.map((p) => p.key), r.program, 'כל התוכניות', programOptionLabel)}</select></label>
       <label class="ifb-field"><span>רשות</span><select data-r="authority">${optionList(uniqueSorted(facts.map((f) => f.authority_name)), r.authority, 'כל הרשויות')}</select></label>
       <label class="ifb-field"><span>בית ספר</span><select data-r="school">${optionList(uniqueSorted(facts.map((f) => f.school_name)), r.school, 'כל בתי הספר')}</select></label>
       <label class="ifb-field"><span>שכבה</span><select data-r="ageBand">${optionList(AGE_BANDS.map((b) => b.key), r.ageBand, 'כל השכבות', ageBandLabel)}</select></label>
@@ -879,7 +889,7 @@ function answersHtml() {
   return `
     <div class="ifb-filters" data-ifb-filters="answers">
       <label class="ifb-field ifb-field--search"><span>חיפוש בטקסט</span><input type="search" data-a="search" value="${esc(a.search)}"></label>
-      <label class="ifb-field"><span>תוכנית</span><select data-a="program">${optionList(ui.programs.map((p) => p.key), a.program, 'כל התוכניות', programTitle)}</select></label>
+      <label class="ifb-field"><span>תוכנית</span><select data-a="program">${optionList(ui.programs.map((p) => p.key), a.program, 'כל התוכניות', programOptionLabel)}</select></label>
       <label class="ifb-field"><span>קהל</span><select data-a="audience">${optionList(Object.keys(AUDIENCE_LABELS), a.audience, 'כל הקהלים', (k) => AUDIENCE_LABELS[k])}</select></label>
       <label class="ifb-field"><span>שאלה</span><select data-a="question">${optionList(uniqueSorted(all.map((x) => x.question_text)), a.question, 'כל השאלות')}</select></label>
       <label class="ifb-field"><span>בית ספר</span><select data-a="school">${optionList(uniqueSorted(all.map((x) => x.school_name)), a.school, 'כל בתי הספר')}</select></label>
