@@ -128,6 +128,8 @@ import {
   PLANNING_RUN_TYPES,
   canCommitValidatedCheckpoint,
   canValidateCompletedRunningCheckpoint,
+  PLANNING_RUN_STAGES,
+  planningResumeReopenIds,
   resolvePlanningRunPlan
 } from './course-scheduling-run-plan.js';
 
@@ -3080,6 +3082,10 @@ export const courseSchedulingScreen = {
           && checkpointCompletedIds.size > 0
           && resumableRows.length > 0;
         const incrementalBaseIds = runPlan.baseRecalculationIds;
+        // Interrupted run: assigned rows are reused, but unassigned rows go back
+        // through base planning so the deferred existing-staff rescue runs.
+        const resumeReopenIds = new Set(resumeFromCheckpoint ? planningResumeReopenIds(resumableRows) : []);
+        for (const courseId of resumeReopenIds) checkpointCompletedIds.delete(courseId);
         const targetCourseIds = fullRun
           ? (resumeFromCheckpoint
               ? currentCourseIds.filter((courseId) => !checkpointCompletedIds.has(courseId))
@@ -3087,6 +3093,11 @@ export const courseSchedulingScreen = {
           : (resumeFromCheckpoint
               ? incrementalBaseIds.filter((courseId) => !checkpointCompletedIds.has(courseId))
               : incrementalBaseIds);
+        // Optimization passes always cover the original scope, never only the
+        // rows that happened to be unfinished when the run was interrupted.
+        const resumeOptimizationScopeIds = resumeFromCheckpoint
+          ? (fullRun ? null : incrementalBaseIds)
+          : undefined;
         const planningExistingRows = resumeFromCheckpoint || resumeValidatedCommit || resumeCompletedRunning
           ? (fullRun ? resumableRows : mergePlanningResumeRows(existingRows, resumableRows))
           : existingRows;
@@ -3104,6 +3115,7 @@ export const courseSchedulingScreen = {
         const isSourceRevisionConflict = (error) => `${error?.code || ''}|${error?.message || ''}`
           .includes('planning_source_revision_conflict');
         const checkpointMetaBase = {
+          planningStage: resumeCompletedRunning ? PLANNING_RUN_STAGES.PLANNED : PLANNING_RUN_STAGES.ROWS,
           sourceRevision: run.sourceRevision,
           runType: runPlan.runType,
           workspaceRevision: Number(shared?.workspace?.revision) || 0,
@@ -3289,7 +3301,13 @@ export const courseSchedulingScreen = {
         });
         // Bounded delta replan over an otherwise complete plan. Valid rows are
         // reused as fixed context; only targetIds are recalculated.
-        const runDeltaRepair = (snapshot, existing, targetIds, onProgress) => buildDynamicCoursePlan({
+        const runDeltaRepair = async (snapshot, existing, targetIds, onProgress) => {
+          checkpointMetaBase.planningStage = PLANNING_RUN_STAGES.ROWS;
+          const repaired = await runDeltaRepairPlan(snapshot, existing, targetIds, onProgress);
+          checkpointMetaBase.planningStage = PLANNING_RUN_STAGES.PLANNED;
+          return repaired;
+        };
+        const runDeltaRepairPlan = (snapshot, existing, targetIds, onProgress) => buildDynamicCoursePlan({
           ...planningBuildInput(snapshot),
           today: today(),
           routeClient,
@@ -3371,6 +3389,7 @@ export const courseSchedulingScreen = {
             lockedOptions,
             existingRows: planningExistingRows,
             targetCourseIds,
+            optimizationScopeCourseIds: resumeOptimizationScopeIds,
             optimizationOnlyCourseIds: optimizationOnlyUpgrade ? targetCourseIds : null,
             upgradeOptimizationScopes: !fullRun && runPlan.runType === PLANNING_RUN_TYPES.ENGINE_UPGRADE
               ? {
@@ -3390,6 +3409,45 @@ export const courseSchedulingScreen = {
         }
 
         assertRunOwnership();
+        // The planner returned: rows, rescue, every optimization pass, recruitment
+        // profiles and hard validation are complete. Only now may the durable
+        // checkpoint say so; a resume of anything earlier re-runs those passes.
+        if (!resumeValidatedCommit) {
+          checkpointMetaBase.planningStage = PLANNING_RUN_STAGES.PLANNED;
+          if (persistServerCheckpoints && !checkpointSourceStale) {
+            const plannedRows = (result.rows || []).filter((row) => text(row?.courseId));
+            const plannedDeltaRows = plannedRows.filter((row) => {
+              const persisted = persistedCheckpointRows.get(text(row.courseId));
+              return !persisted || canonicalPlanningJson(persisted) !== canonicalPlanningJson(row);
+            });
+            try {
+              await saveSharedPlanningCheckpoint({
+                assertActive: assertRunOwnership,
+                runId: run.runId,
+                sourceRevision: run.sourceRevision,
+                periodKey: scope.periodKey,
+                district: scope.district,
+                engineVersion: PLANNING_ENGINE_VERSION,
+                dataFingerprint: startFingerprint,
+                contextFingerprint: startContextStorage,
+                completedCount: plannedRows.length,
+                totalCount: plannedRows.length,
+                completedActivityIds: plannedRows.map((row) => text(row.courseId)),
+                rows: plannedDeltaRows,
+                meta: { ...checkpointMetaBase, phase: PLANNING_RUN_PHASES.RUNNING }
+              });
+              for (const row of plannedDeltaRows) persistedCheckpointRows.set(text(row.courseId), row);
+            } catch (error) {
+              if (isSourceRevisionConflict(error)) checkpointSourceStale = true;
+              else throwIfPlanningRunInvalidated(error);
+            }
+          }
+          state.courseSchedulingPlanningRunDiagnostics = {
+            ...state.courseSchedulingPlanningRunDiagnostics,
+            planningStage: PLANNING_RUN_STAGES.PLANNED
+          };
+        }
+        assertRunOwnership();
         // Authoritative end validation MUST happen before VALIDATED. Engine-upgrade
         // checks the source token and workspace revision before every commit.
         let freshEnd = freshStart;
@@ -3398,6 +3456,7 @@ export const courseSchedulingScreen = {
         let endCourseIds = currentCourseIds;
         const rebaseMandatoryIds = new Set();
         let rebaseBaseShared = shared;
+        let rebaseBaseStartedAt = text(preflight.facts?.serverTime);
         for (let rebaseAttempt = 0; ; rebaseAttempt += 1) {
           const endFacts = await loadSchedulingPlanningPreflight(scope);
           assertRunOwnership();
@@ -3447,7 +3506,8 @@ export const courseSchedulingScreen = {
             currentCourseIds: rebaseCourseIds,
             contextDiff: rebaseContext?.contextDiff || null,
             startShared: rebaseBaseShared,
-            currentShared: rebaseShared
+            currentShared: rebaseShared,
+            runStartedAt: rebaseBaseStartedAt
           });
           planningPerfEvent('source-rebase', {
             fromSourceRevision: run.sourceRevision,
@@ -3483,6 +3543,7 @@ export const courseSchedulingScreen = {
           endContextStorage = serializePlanningContextFingerprint(rebaseInput);
           endCourseIds = rebaseCourseIds;
           rebaseBaseShared = rebaseShared;
+          rebaseBaseStartedAt = text(endFacts.serverTime);
           checkpointMetaBase.sourceRevision = run.sourceRevision;
           checkpointMetaBase.dataFingerprint = endFingerprint;
           checkpointMetaBase.contextFingerprint = endContextStorage;

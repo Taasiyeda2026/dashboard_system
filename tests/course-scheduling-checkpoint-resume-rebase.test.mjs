@@ -4,12 +4,17 @@ import { readFile } from 'node:fs/promises';
 import { performance } from 'node:perf_hooks';
 import {
   PLANNING_RUN_PHASES,
+  PLANNING_RUN_STAGES,
   PLANNING_RUN_TYPES,
   canCommitValidatedCheckpoint,
-  canValidateCompletedRunningCheckpoint
+  canValidateCompletedRunningCheckpoint,
+  planningResumeReopenIds
 } from '../frontend/src/screens/course-scheduling-run-plan.js';
-import { validateResumedPlanningRows } from '../frontend/src/screens/course-scheduling-planning.js';
-import { planningRebaseAffectedCourseIds } from '../frontend/src/screens/course-scheduling-planning-store.js';
+import { buildDynamicCoursePlan, validateResumedPlanningRows } from '../frontend/src/screens/course-scheduling-planning.js';
+import {
+  planningRebaseAffectedCourseIds,
+  planningRowReflaggedDuringRun
+} from '../frontend/src/screens/course-scheduling-planning-store.js';
 
 const screenSource = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
 
@@ -29,13 +34,19 @@ const live = {
   runType: PLANNING_RUN_TYPES.ENGINE_UPGRADE
 };
 
-function checkpoint({ phase = PLANNING_RUN_PHASES.RUNNING, completed = ids, sourceRevision = 239 } = {}) {
+function checkpoint({
+  phase = PLANNING_RUN_PHASES.RUNNING,
+  completed = ids,
+  sourceRevision = 239,
+  planningStage = PLANNING_RUN_STAGES.PLANNED
+} = {}) {
   return {
     completedActivityIds: completed,
     rows: completed.map((courseId) => ({ courseId, kind: 'proposal' })),
     meta: {
       ...scope,
       phase,
+      planningStage,
       runType: PLANNING_RUN_TYPES.ENGINE_UPGRADE,
       sourceRevision,
       workspaceRevision: 11946,
@@ -54,6 +65,29 @@ test('253/253 RUNNING checkpoint goes to validation instead of a fresh run, neve
   // A VALIDATED checkpoint keeps the existing direct-commit path.
   assert.equal(canCommitValidatedCheckpoint({ ...input, checkpoint: checkpoint({ phase: PLANNING_RUN_PHASES.VALIDATED }) }), true);
   assert.equal(canValidateCompletedRunningCheckpoint({ ...input, checkpoint: checkpoint({ phase: PLANNING_RUN_PHASES.VALIDATED }) }), false);
+});
+
+test('253/253 rows alone never skip unfinished optimization passes', () => {
+  const input = { ...live, requiredCourseIds: ids, expectedScope: scope };
+  // Production shape: every row present, but no proof the planner finished.
+  assert.equal(canValidateCompletedRunningCheckpoint({ ...input, checkpoint: checkpoint({ planningStage: null }) }), false);
+  assert.equal(canValidateCompletedRunningCheckpoint({ ...input, checkpoint: checkpoint({ planningStage: PLANNING_RUN_STAGES.ROWS }) }), false);
+  assert.equal(canValidateCompletedRunningCheckpoint({ ...input, checkpoint: checkpoint({ planningStage: PLANNING_RUN_STAGES.PLANNED }) }), true);
+});
+
+test('partial resume re-opens unassigned rows so the existing-staff rescue runs again', () => {
+  const reopened = planningResumeReopenIds([
+    { courseId: 'p', kind: 'proposal', instructorEmpId: '1' },
+    { courseId: 'fp', kind: 'fixed-proposal', instructorEmpId: '1' },
+    { courseId: 'lock', kind: 'planning-locked', instructorEmpId: '1' },
+    { courseId: 'live', kind: 'live', instructorEmpId: '1' },
+    { courseId: 'm', kind: 'missing' },
+    { courseId: 'r', kind: 'recruitment' },
+    { courseId: 'f', kind: 'fixed' },
+    { courseId: 'deferred', kind: 'missing', diagnostics: { rescueDeferred: true } },
+    { courseId: 'incomplete', kind: 'proposal', diagnostics: { searchIncomplete: true } }
+  ]);
+  assert.deepEqual(reopened.sort(), ['deferred', 'f', 'incomplete', 'm', 'r']);
 });
 
 test('partial or stale RUNNING checkpoints are not treated as complete', () => {
@@ -124,7 +158,11 @@ test('rebase includes rows newly flagged needs_recalc but not rows already dirty
     activities: acts,
     currentCourseIds: ['a', 'b', 'c'],
     startShared: { rows: [{ activityId: 'a', needsRecalc: true }] },
-    currentShared: { rows: [{ activityId: 'a', needsRecalc: true }, { activityId: 'c', needsRecalc: true }] }
+    currentShared: { rows: [
+      { activityId: 'a', needsRecalc: true, needsRecalcMarkedAt: '2026-10-08T20:00:00.000Z' },
+      { activityId: 'c', needsRecalc: true, needsRecalcMarkedAt: '2026-10-09T01:10:00.000Z' }
+    ] },
+    runStartedAt: '2026-10-09T01:00:00.000Z'
   });
   assert.deepEqual(delta, ['c']);
 });
@@ -141,6 +179,46 @@ test('instructor availability change during a run rebases only rows that depend 
     currentShared: { rows: [] }
   });
   assert.deepEqual(delta, ['b']);
+});
+
+test('a row dirty at start and flagged again during the run is rechecked', () => {
+  const acts = [activity('a'), activity('b'), activity('c')];
+  const startedAt = '2026-10-09T01:00:00.000Z';
+  const base = {
+    resultRows: [proposal('a', '1'), proposal('b', '2'), proposal('c', '3', '2026-12-07')],
+    startActivities: acts,
+    activities: acts,
+    currentCourseIds: ['a', 'b', 'c'],
+    startShared: { rows: ['a', 'b', 'c'].map((activityId) => ({ activityId, needsRecalc: true })) },
+    runStartedAt: startedAt
+  };
+  const delta = planningRebaseAffectedCourseIds({
+    ...base,
+    currentShared: { rows: [
+      // route / substitution / approval stamp after the run started
+      { activityId: 'a', needsRecalc: true, needsRecalcMarkedAt: '2026-10-09T01:20:00.000Z' },
+      // flagged long before the run: this run already recalculated it
+      { activityId: 'b', needsRecalc: true, needsRecalcMarkedAt: '2026-10-08T20:00:00.000Z' },
+      { activityId: 'c', needsRecalc: true, needsRecalcMarkedAt: '' }
+    ] }
+  });
+  assert.deepEqual(delta, ['a']);
+  // Server without flag times: cannot prove freshness, so every still-dirty row is rechecked.
+  const conservative = planningRebaseAffectedCourseIds({
+    ...base,
+    currentShared: { rows: ['a', 'b', 'c'].map((activityId) => ({ activityId, needsRecalc: true, needsRecalcMarkedAt: null })) }
+  });
+  assert.deepEqual(conservative.sort(), ['a', 'b', 'c']);
+});
+
+test('flag-time comparison keeps a safety margin and fails closed', () => {
+  const startedAt = '2026-10-09T01:00:00.000Z';
+  assert.equal(planningRowReflaggedDuringRun({ needsRecalc: false, needsRecalcMarkedAt: null }, startedAt), false);
+  assert.equal(planningRowReflaggedDuringRun({ needsRecalc: true, needsRecalcMarkedAt: null }, startedAt), true);
+  assert.equal(planningRowReflaggedDuringRun({ needsRecalc: true, needsRecalcMarkedAt: '' }, startedAt), false);
+  assert.equal(planningRowReflaggedDuringRun({ needsRecalc: true, needsRecalcMarkedAt: '2026-10-09T00:59:00.000Z' }, startedAt), true);
+  assert.equal(planningRowReflaggedDuringRun({ needsRecalc: true, needsRecalcMarkedAt: '2026-10-09T00:50:00.000Z' }, startedAt), false);
+  assert.equal(planningRowReflaggedDuringRun({ needsRecalc: true, needsRecalcMarkedAt: '2026-10-09T00:50:00.000Z' }, ''), true);
 });
 
 test('no detected change keeps the whole calculated plan (empty delta)', () => {
@@ -226,6 +304,47 @@ test('resumed checkpoint with a hard conflict reports only a bounded repair delt
   assert.ok(resumed.failures.some((failure) => failure.reason === 'overlap'));
   assert.deepEqual(resumed.repairCourseIds.sort(), ['a', 'b']);
   assert.ok(!resumed.repairCourseIds.includes('c'), 'unrelated activity must not be replanned');
+});
+
+test('resume with no unfinished rows still runs gap compaction over the original scope', async () => {
+  const rows = [
+    resumedProposal('a', '1', '2026-11-02', '2026-11-09'),
+    resumedProposal('b', '2', '2026-11-02', '2026-11-09'),
+    resumedProposal('c', '2', '2026-12-07', '2026-12-14')
+  ];
+  const phasesFor = async (extra) => {
+    const phases = [];
+    await buildDynamicCoursePlan({
+      ...resumeBase,
+      today: '2026-10-06',
+      routeClient: routeClient(),
+      existingRows: rows,
+      targetCourseIds: [],
+      planningProfile: 'fast',
+      allowGlobalRepair: false,
+      onProgress: ({ phase }) => { phases.push(phase); },
+      ...extra
+    });
+    return phases;
+  };
+  // Old resume: the scope collapsed to the unfinished rows, so the pass vanished.
+  assert.equal((await phasesFor({})).includes('צמצום חלונות הושלם'), false);
+  // Resume now keeps the original scope for every optimization pass.
+  assert.equal((await phasesFor({ optimizationScopeCourseIds: ['a', 'b'] })).includes('צמצום חלונות הושלם'), true);
+});
+
+test('run wiring: planner completion is recorded explicitly and resume keeps optimization scope', () => {
+  const run = screenSource.slice(screenSource.indexOf('const runCoursePlanning = async'), screenSource.indexOf('const clonePlanningOption'));
+  assert.match(run, /planningStage: resumeCompletedRunning \? PLANNING_RUN_STAGES\.PLANNED : PLANNING_RUN_STAGES\.ROWS/);
+  assert.match(run, /optimizationScopeCourseIds: resumeOptimizationScopeIds/);
+  assert.match(run, /planningResumeReopenIds\(resumableRows\)/);
+  const plannedMark = run.indexOf('checkpointMetaBase.planningStage = PLANNING_RUN_STAGES.PLANNED;\n          if (persistServerCheckpoints');
+  const mainPlanner = run.indexOf('result = await buildDynamicCoursePlan({');
+  const endGate = run.indexOf('const endFacts = await loadSchedulingPlanningPreflight(scope);');
+  const validated = run.indexOf('phase: PLANNING_RUN_PHASES.VALIDATED,');
+  assert.ok(mainPlanner > 0 && plannedMark > mainPlanner, 'planned stage only after the planner returns');
+  assert.ok(endGate > plannedMark && validated > endGate, 'stage → end validation → VALIDATED → commit');
+  assert.match(run, /runStartedAt: rebaseBaseStartedAt/);
 });
 
 test('run wiring: completed RUNNING checkpoint skips the planner and source conflicts rebase instead of aborting', () => {

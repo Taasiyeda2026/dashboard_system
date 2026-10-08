@@ -22,6 +22,38 @@ export const PLANNING_RUN_PHASES = Object.freeze({
   FAILED_RESUMABLE: 'failed-resumable'
 });
 
+/**
+ * Progress inside one RUNNING checkpoint. Phase says where the run is in its
+ * lifecycle (running → validated → committed); stage says how far planning
+ * itself got. Row count alone is never proof that planning finished:
+ * 253/253 rows exist long before the existing-staff rescue, school packing,
+ * workday consolidation, gap compaction and final validation have run.
+ *   rows    – base rows are being produced / optimization passes in flight
+ *   planned – buildDynamicCoursePlan returned: every pass, recruitment
+ *             profiles, hard validation and local repair have completed
+ */
+export const PLANNING_RUN_STAGES = Object.freeze({
+  ROWS: 'rows',
+  PLANNED: 'planned'
+});
+
+const ASSIGNED_PLANNING_KINDS = new Set(['proposal', 'fixed-proposal', 'planning-locked', 'live']);
+
+/**
+ * Rows of an interrupted checkpoint that must re-enter base planning on resume.
+ * Unassigned rows may still be waiting for the deferred existing-staff rescue
+ * (instructor-hours maximisation), so they are never accepted as finished.
+ */
+export function planningResumeReopenIds(rows = []) {
+  return [...new Set((rows || [])
+    .filter((row) => {
+      if (!text(row?.courseId)) return false;
+      if (row?.diagnostics?.rescueDeferred === true || row?.diagnostics?.searchIncomplete === true) return true;
+      return !ASSIGNED_PLANNING_KINDS.has(text(row?.kind));
+    })
+    .map((row) => text(row.courseId)))];
+}
+
 export const CHECKPOINT_META_KEY = '__planningRunMeta';
 export const PLANNING_ROUTE_CACHE_PRELOAD_MIN_IDS = 12;
 
@@ -160,15 +192,18 @@ export function canCommitValidatedCheckpoint(input = {}) {
 }
 
 /**
- * A RUNNING checkpoint that already holds a row for every required activity
- * (e.g. 253/253 after the tab closed during the optimization passes) must not
- * restart planning. It may only proceed to whole-plan validation, and from
- * there to a fenced commit or a delta repair of the failing rows. It is never
- * committed directly: the caller must validate it first.
+ * A RUNNING checkpoint whose planner already finished (stage=planned: rows,
+ * rescue, every optimization pass and final validation) and that holds a row
+ * for every required activity must not restart planning — e.g. the tab closed
+ * between the planner returning and the VALIDATED write. It may only proceed
+ * to whole-plan validation, and from there to a fenced commit. It is never
+ * committed directly. A checkpoint that merely reached 253/253 rows without
+ * stage=planned is NOT eligible: its optimization passes may be unfinished.
  */
 export function canValidateCompletedRunningCheckpoint({ requiredCourseIds = null, ...input } = {}) {
   const required = [...new Set((requiredCourseIds || []).map(text).filter(Boolean))];
   if (!required.length) return false;
+  if (text(input.checkpoint?.meta?.planningStage) !== PLANNING_RUN_STAGES.PLANNED) return false;
   const completed = new Set((input.checkpoint?.completedActivityIds || []).map(text).filter(Boolean));
   if (required.some((courseId) => !completed.has(courseId))) return false;
   return checkpointMatchesRunScope({ ...input, requiredCourseIds: required, phase: PLANNING_RUN_PHASES.RUNNING });

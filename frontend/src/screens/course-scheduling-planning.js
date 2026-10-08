@@ -5659,6 +5659,10 @@ export async function buildDynamicCoursePlan({
   lockedOptions = {},
   existingRows = [],
   targetCourseIds = null,
+  // Resume only: the original run's optimization scope. Base planning is
+  // limited to unfinished rows, but packing/consolidation/gap passes must
+  // still cover everything the uninterrupted run would have optimized.
+  optimizationScopeCourseIds = undefined,
   optimizationOnlyCourseIds = null,
   upgradeOptimizationScopes = null,
   onProgress = null,
@@ -5753,9 +5757,14 @@ export async function buildDynamicCoursePlan({
   const upgradeWorkdayConsolidationIds = upgradeOptimizationScopes
     ? new Set((upgradeOptimizationScopes.workdayConsolidationCourseIds || []).map(text).filter(Boolean))
     : null;
-  const withIncrementalIds = (upgradeIds) => incrementalIds === null
+  const optimizationScopeIds = optimizationScopeCourseIds === undefined
+    ? incrementalIds
+    : Array.isArray(optimizationScopeCourseIds)
+      ? new Set(optimizationScopeCourseIds.map((value) => text(value)).filter(Boolean))
+      : null;
+  const withIncrementalIds = (upgradeIds) => optimizationScopeIds === null
     ? null
-    : new Set([...incrementalIds, ...(upgradeIds || [])]);
+    : new Set([...optimizationScopeIds, ...(upgradeIds || [])]);
   const schoolPackingTargetIds = withIncrementalIds(upgradeSchoolPackingIds);
   const workdayConsolidationTargetIds = withIncrementalIds(upgradeWorkdayConsolidationIds);
   // Gap compaction predates v28 and is already reflected in a valid v27
@@ -5763,9 +5772,9 @@ export async function buildDynamicCoursePlan({
   // turns a snapshot upgrade into another multi-pass planning run. Keep this
   // pass strictly scoped to genuine source/context dirty rows; v28's own
   // school packing and workday passes already validate the options they move.
-  const gapCompactionTargetIds = incrementalIds === null
+  const gapCompactionTargetIds = optimizationScopeIds === null
     ? null
-    : new Set(incrementalIds);
+    : new Set(optimizationScopeIds);
   // A national rebuild is exceptional and already finishes with the same hard
   // whole-plan validation as an incremental run. Keep the first full result
   // fast: use the normal fast scenario breadth and defer expensive soft gap

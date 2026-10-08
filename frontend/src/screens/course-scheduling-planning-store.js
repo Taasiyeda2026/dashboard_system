@@ -234,7 +234,11 @@ export async function loadSharedPlanningWorkspace({ periodKey = 'year', district
       lockedOption: item?.lockedOption && typeof item.lockedOption === 'object' ? item.lockedOption : null,
       lockedAt: text(item?.lockedAt),
       lockedBy: text(item?.lockedBy),
-      needsRecalc: item?.needsRecalc === true
+      needsRecalc: item?.needsRecalc === true,
+      // null = server does not report flag time (pre-migration); '' = never stamped.
+      needsRecalcMarkedAt: Object.prototype.hasOwnProperty.call(item || {}, 'needsRecalcMarkedAt')
+        ? text(item.needsRecalcMarkedAt)
+        : null
     })).filter((item) => item.activityId)
   };
 }
@@ -399,13 +403,33 @@ export function sharedPlanningAffectedCourseIds({
   });
 }
 
+// Flags stamped this long before the run's server start time still count as
+// "during the run": covers transactions that began before the preflight read.
+export const PLANNING_REBASE_FLAG_MARGIN_MS = 120_000;
+
+/**
+ * True when a row that was already dirty at run start was flagged again while
+ * the run was calculating (route change, meeting substitution, approval upload,
+ * cancellation, school change…). Without a server flag time this cannot be
+ * proven either way, so the row is treated as re-flagged.
+ */
+export function planningRowReflaggedDuringRun(entry = null, runStartedAt = '') {
+  if (entry?.needsRecalc !== true) return false;
+  if (entry?.needsRecalcMarkedAt == null) return true;
+  const markedAt = Date.parse(entry.needsRecalcMarkedAt);
+  if (!Number.isFinite(markedAt)) return false;
+  const startedAt = Date.parse(text(runStartedAt));
+  if (!Number.isFinite(startedAt)) return true;
+  return markedAt >= startedAt - PLANNING_REBASE_FLAG_MARGIN_MS;
+}
+
 /**
  * Source changed while a planning run was calculating. Instead of discarding
  * the whole result, derive the minimal dependency closure of what changed
  * between the run's start snapshot and the current one: activity versions,
- * instructor/availability/calendar/catalog context diff, and rows the database
- * newly flagged needs_recalc after the run started. Rows that were already
- * dirty at start were recalculated by this run from the start inputs.
+ * instructor/availability/calendar/catalog context diff, rows the database
+ * newly flagged needs_recalc, and rows that were dirty at start but flagged
+ * again during the run (their result was built from inputs that are now stale).
  */
 export function planningRebaseAffectedCourseIds({
   resultRows = [],
@@ -414,7 +438,8 @@ export function planningRebaseAffectedCourseIds({
   currentCourseIds = [],
   contextDiff = null,
   startShared = null,
-  currentShared = null
+  currentShared = null,
+  runStartedAt = ''
 } = {}) {
   const startVersionById = new Map((startActivities || []).map((activity) => [idOf(activity), activityVersion(activity)]));
   const startDirty = new Set((startShared?.rows || [])
@@ -431,7 +456,8 @@ export function planningRebaseAffectedCourseIds({
         row,
         activityUpdatedAt: startVersionById.get(activityId),
         lockedOption: current?.lockedOption || null,
-        needsRecalc: current?.needsRecalc === true && !startDirty.has(activityId)
+        needsRecalc: current?.needsRecalc === true
+          && (!startDirty.has(activityId) || planningRowReflaggedDuringRun(current, runStartedAt))
       };
     })
     .filter(Boolean);
