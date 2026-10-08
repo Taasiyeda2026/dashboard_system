@@ -10,7 +10,8 @@ const ADMIN = '11111111-1111-1111-1111-111111111111';
 const MANAGER = '22222222-2222-2222-2222-222222222222';
 const MIGRATIONS = [
   '../supabase/migrations/20261008120000_impact_feedback_schema.sql',
-  '../supabase/migrations/20261008120500_impact_feedback_seed.sql'
+  '../supabase/migrations/20261008120500_impact_feedback_seed.sql',
+  '../supabase/migrations/20261008124500_instructor_feedback_per_program.sql'
 ];
 
 async function asRole(client, role, uid = '') {
@@ -57,8 +58,8 @@ test('impact feedback DB contract: admin-only management, token-only public flow
     await client.query(`insert into users values ('admin',$1,'admin',true,'{}'),('ops',$2,'operation_manager',true,'{}')`, [ADMIN, MANAGER]);
     await client.query(`insert into contacts_schools (id, school, contact_name, phone, mobile, email) values (7, 'בית ספר אלון', 'רונית כהן', '03-5555555', '050-1234567', 'ronit@example.test')`);
     await client.query(`insert into contacts_instructors values (1501, 'דנה לוי', '052-7654321', 'dana@example.test', 'פעיל')`);
-    await client.query(`insert into activities (row_id, activity_season, activity_type, activity_name, authority, authority_id, school, school_id, grade, emp_id, instructor_name, start_date, end_date, school_contact_id)
-      values ('ACT-1','school_2027','course','פורצות דרך וצועדות קדימה','חיפה',10,'בית ספר אלון',20,'ח''','1501','דנה לוי','2026-10-01','2027-03-01',7),
+    await client.query(`insert into activities (row_id, activity_season, activity_type, activity_name, authority, authority_id, school, school_id, grade, emp_id, instructor_name, instructor_assignment_locked, instructor_assignment_status, start_date, end_date, school_contact_id)
+      values ('ACT-1','school_2027','course','פורצות דרך וצועדות קדימה','חיפה',10,'בית ספר אלון',20,'ח''','1501','דנה לוי',true,'שובץ','2026-10-01','2027-03-01',7),
              ('ACT-2','school_2027','course','סודות ויסודות הבינה המלאכותית','חיפה',10,'בית ספר אורן',21,'ב׳',null,null,'2026-10-01','',null),
              ('ACT-3','school_2027','course','סדנת פיזיקה',null,null,'בית ספר',22,'ה',null,null,null,null,null)`);
 
@@ -71,6 +72,7 @@ test('impact feedback DB contract: admin-only management, token-only public flow
     await asRole(client, 'authenticated', MANAGER);
     await assert.rejects(client.query("select feedback_admin_open_campaign('ACT-1','student','pre')"), /feedback_forbidden/);
     await assert.rejects(client.query('select * from feedback_admin_groups()'), /feedback_forbidden/);
+    await assert.rejects(client.query("select * from feedback_admin_instructor_assignments('school_2027')"), /feedback_forbidden/);
     assert.equal((await client.query('select count(*)::int n from feedback_templates')).rows[0].n, 0, 'RLS hides templates from non-admin');
 
     // --- Admin opens student PRE ---------------------------------------------
@@ -148,16 +150,39 @@ test('impact feedback DB contract: admin-only management, token-only public flow
       await rpc('select feedback_public_submit($1,$2,$3) r', [post.public_token, uuid(i), JSON.stringify(answerAll(postForm.questions, { [postForm.questions[0].id]: 5 }))]);
     }
 
-    // --- Educational staff & instructor personal links ----------------------
+    // --- Educational staff is group-scoped; instructor is once per program/year assignment scope ---
     await asRole(client, 'authenticated', ADMIN);
     const staff = (await rpc("select feedback_admin_open_campaign('ACT-1','educational_staff','final') c")).c;
     assert.equal(staff.recipient.display_name, 'רונית כהן');
     assert.equal(staff.recipient.phone, '050-1234567');
     assert.equal(staff.public_token, null);
-    const instructor = (await rpc("select feedback_admin_open_campaign('ACT-1','instructor','final') c")).c;
-    assert.equal(instructor.recipient.display_name, 'דנה לוי');
     await assert.rejects(client.query("select feedback_admin_open_campaign('ACT-2','educational_staff','final')"), /feedback_contact_missing/);
-    await assert.rejects(client.query("select feedback_admin_open_campaign('ACT-2','instructor','final')"), /feedback_instructor_missing/);
+
+    await asRole(client, 'postgres');
+    await client.query(`insert into activities
+      (row_id, activity_season, activity_type, activity_name, authority, school, school_id, grade, emp_id, instructor_name, instructor_assignment_locked, instructor_assignment_status, start_date, end_date)
+      values ('ACT-4','school_2027','course','פורצות דרך – קבוצה נוספת','חיפה','בית ספר נוסף',23,'ט','1501','דנה לוי',true,'שובץ','2026-10-15','2027-03-15')`);
+    await asRole(client, 'authenticated', ADMIN);
+    const instructorRows = (await client.query("select * from feedback_admin_instructor_assignments('school_2027') where instructor_emp_id='1501' and program_key='trailblazers'")).rows;
+    assert.equal(instructorRows.length, 1, 'same instructor + program appears once regardless of number of groups');
+    assert.deepEqual([instructorRows[0].assignment_count, instructorRows[0].school_count], [2, 2]);
+    assert.equal(instructorRows[0].campaign, null);
+
+    await assert.rejects(
+      client.query("select feedback_admin_open_campaign('ACT-1','instructor','final')"),
+      /feedback_instructor_scope_program/,
+      'activity-scoped instructor feedback is blocked'
+    );
+    const instructor = (await rpc("select feedback_admin_open_instructor_campaign('1501','trailblazers','school_2027') c")).c;
+    assert.equal(instructor.recipient.display_name, 'דנה לוי');
+    assert.equal(instructor.activity_row_id, null);
+    const instructorAgain = (await rpc("select feedback_admin_open_instructor_campaign('1501','trailblazers','school_2027') c")).c;
+    assert.equal(instructorAgain.id, instructor.id, 'instructor campaign is idempotent per instructor + program + academic year');
+    assert.equal((await rpc("select count(*)::int n from feedback_campaigns where audience='instructor' and instructor_emp_id='1501' and program_key='trailblazers' and academic_year='school_2027'")).n, 1);
+    await assert.rejects(
+      client.query("select feedback_admin_open_instructor_campaign('9999','trailblazers','school_2027')"),
+      /feedback_instructor_not_assigned/
+    );
     await rpc("select feedback_admin_update_campaign($1,'mark_shared',null,null,'whatsapp') c", [staff.id]);
 
     await asRole(client, 'anon');
@@ -178,15 +203,22 @@ test('impact feedback DB contract: admin-only management, token-only public flow
     assert.equal(new Set(byAudience('student', 'pre').map((f) => f.response_id)).size, 3);
     assert.equal(new Set(byAudience('student', 'post').map((f) => f.response_id)).size, 2);
     assert.ok(byAudience('student', 'pre').every((f) => f.respondent_name === null), 'students are never identified');
-    assert.ok(byAudience('instructor', 'final').every((f) => f.respondent_name === 'דנה לוי'));
+    assert.equal(byAudience('instructor', 'final').length, 0, 'group facts do not attach the instructor survey to one activity');
+    const instructorFacts = (await client.query(`select * from feedback_admin_answer_facts('{"academic_year":"school_2027","program":"trailblazers","instructor":"דנה לוי"}')`)).rows
+      .filter((f) => f.audience === 'instructor');
+    assert.ok(instructorFacts.length > 0);
+    assert.ok(instructorFacts.every((f) => f.activity_row_id === null && f.respondent_name === 'דנה לוי'));
     const preComparisonIds = new Set(byAudience('student', 'pre').filter((f) => f.is_comparison).map((f) => f.question_id));
     const postComparisonIds = new Set(byAudience('student', 'post').filter((f) => f.is_comparison).map((f) => f.question_id));
     assert.deepEqual([...preComparisonIds].sort(), [...postComparisonIds].sort(), 'PRE and POST share the comparison question concepts');
 
     const groupRow = (await client.query("select * from feedback_admin_groups(null, 'ACT-1')")).rows[0];
-    assert.equal(groupRow.campaigns.length, 4);
+    assert.equal(groupRow.campaigns.length, 3);
     assert.deepEqual(groupRow.campaigns.map((c) => [c.audience, c.stage, Number(c.responses)]),
-      [['educational_staff', 'final', 1], ['instructor', 'final', 1], ['student', 'post', 2], ['student', 'pre', 3]]);
+      [['educational_staff', 'final', 1], ['student', 'post', 2], ['student', 'pre', 3]]);
+    const instructorRowAfter = (await client.query("select * from feedback_admin_instructor_assignments('school_2027') where instructor_emp_id='1501' and program_key='trailblazers'")).rows[0];
+    assert.equal(instructorRowAfter.campaign.id, instructor.id);
+    assert.equal(instructorRowAfter.campaign.recipient.status, 'completed');
 
     // --- Versioning ---------------------------------------------------------
     const template = await rpc("select id, current_version_id from feedback_templates where program_key='trailblazers' and audience='student' and stage='pre'");
