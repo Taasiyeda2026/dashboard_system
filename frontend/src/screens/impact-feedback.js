@@ -269,8 +269,8 @@ function kpiHtml(groups, instructorAssignments = []) {
 }
 function overviewFiltersHtml(groups) {
   const f = ui.filters;
-  const activeCount = Object.values(f).filter(Boolean).length;
-  const advancedCount = [f.instructor, f.ageBand, f.from, f.to].filter(Boolean).length;
+  const activeCount = Object.values(f).filter(Boolean).length + (ui.showAll ? 1 : 0);
+  const advancedCount = [f.instructor, f.ageBand, f.from, f.to].filter(Boolean).length + (ui.showAll ? 1 : 0);
   return `
     <details class="ifb-filter-disclosure"${activeCount ? ' open' : ''} data-ifb-filter-disclosure="overview">
       <summary class="ifb-filter-toggle" data-ifb-filter-toggle="overview">
@@ -297,6 +297,7 @@ function overviewFiltersHtml(groups) {
             <label class="ifb-field"><span>שכבה</span><select data-f="ageBand">${optionList(AGE_BANDS.map((b) => b.key), f.ageBand, 'כל השכבות', ageBandLabel)}</select></label>
             <label class="ifb-field"><span>התחלה מ־</span><input type="date" data-f="from" value="${esc(f.from)}"></label>
             <label class="ifb-field"><span>עד</span><input type="date" data-f="to" value="${esc(f.to)}"></label>
+            <label class="ifb-check ifb-check--filter"><input type="checkbox" data-ifb-show-all${ui.showAll ? ' checked' : ''}> הצגת קבוצות ללא משובים</label>
           </div>
         </details>
       </section>
@@ -409,17 +410,9 @@ function overviewHtml() {
   const filtered = filterGroups(scoped, ui.filters).sort((a, b) =>
     Number(groupHasFeedback(b)) - Number(groupHasFeedback(a))
     || String(a.school).localeCompare(String(b.school), 'he'));
-  const unresolved = groups.filter(isProgramUnresolved).length;
   return `
     ${kpiHtml(groups, ui.instructorAssignments || [])}
     ${overviewFiltersHtml(groups)}
-    <div class="ifb-list-head">
-      <div class="ifb-list-head__title">
-        <h2>קבוצות <span class="ifb-list-count">(${filtered.length})</span></h2>
-        ${unresolved ? `<button type="button" class="ifb-chip ifb-chip--warning ifb-unresolved-filter" data-ifb-show-unresolved>${unresolved} דורשות שיוך תוכנית</button>` : ''}
-      </div>
-      <label class="ifb-check"><input type="checkbox" data-ifb-show-all${ui.showAll ? ' checked' : ''}> הצגת קבוצות ללא משובים</label>
-    </div>
     ${overviewTableHtml(filtered)}`;
 }
 
