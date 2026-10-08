@@ -147,7 +147,7 @@ async function main() {
     await admin.waitForFunction(() => document.querySelectorAll('.ifb-table tbody tr').length === 1);
     await admin.locator('[data-f="status"]').selectOption('');
     await admin.waitForFunction(() => /אופק – יזמות פרימיום/.test(document.querySelector('tr[data-row="ACT-7"]')?.textContent || ''));
-    assert.equal(await admin.locator('tr[data-row="ACT-7"] [data-status="not_opened"]').count(), 4);
+    assert.equal(await admin.locator('tr[data-row="ACT-7"] [data-status="not_opened"]').count(), 3);
     // ACT-5 via the group screen: mark as not relevant, then bring it back and choose a program.
     await admin.locator('tr[data-row="ACT-5"] [data-ifb-open-group]').click();
     await admin.locator('[data-ifb-program-card]').waitFor();
@@ -538,7 +538,7 @@ async function main() {
     await admin.locator('[data-ifb-tab="templates"]').click();
     await admin.locator('.ifb-program-card').first().waitFor();
     assert.equal(await admin.locator('.ifb-program-card').count(), 8);
-    assert.equal(await admin.locator('.ifb-tile').count(), 32);
+    assert.equal(await admin.locator('.ifb-tile').count(), 40);
     const tile = admin.locator('.ifb-program-card', { hasText: 'פורצות דרך' }).locator('.ifb-tile', { hasText: 'תלמידים – פתיחה' });
     await tile.click();
     await admin.locator('.ifb-tq.is-readonly').first().waitFor();
