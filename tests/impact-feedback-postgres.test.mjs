@@ -17,7 +17,8 @@ const MIGRATIONS = [
   '../supabase/migrations/20261008191000_feedback_short_program_titles.sql',
   '../supabase/migrations/20261008193000_feedback_canonical_11_programs_and_levels.sql',
   '../supabase/migrations/20261008200500_feedback_resolve_activity_number_aliases.sql',
-  '../supabase/migrations/20261008205000_feedback_instructor_first_course_end.sql'
+  '../supabase/migrations/20261008205000_feedback_instructor_first_course_end.sql',
+  '../supabase/migrations/20261008210000_feedback_instructor_first_started_course_end.sql'
 ];
 
 async function asRole(client, role, uid = '') {
@@ -167,12 +168,12 @@ test('impact feedback DB contract: admin-only management, token-only public flow
     await asRole(client, 'postgres');
     await client.query(`insert into activities
       (row_id, activity_season, activity_type, activity_name, authority, school, school_id, grade, emp_id, instructor_name, instructor_assignment_locked, instructor_assignment_status, start_date, end_date)
-      values ('ACT-4','school_2027','course','פורצות דרך – קבוצה נוספת','חיפה','בית ספר נוסף',23,'ט','1501','דנה לוי',true,'שובץ','2026-10-15','2027-03-15')`);
+      values ('ACT-4','school_2027','course','פורצות דרך – קבוצה נוספת','חיפה','בית ספר נוסף',23,'ט','1501','דנה לוי',true,'שובץ','2026-10-15','2027-02-15')`);
     await asRole(client, 'authenticated', ADMIN);
     const instructorRows = (await client.query("select * from feedback_admin_instructor_assignments('school_2027') where instructor_emp_id='1501' and program_key='trailblazers'")).rows;
     assert.equal(instructorRows.length, 1, 'same instructor + program appears once regardless of number of groups');
     assert.deepEqual([instructorRows[0].assignment_count, instructorRows[0].school_count], [2, 2]);
-    assert.equal(String(instructorRows[0].first_course_end_date).slice(0, 10), '2027-03-01', 'first course end is the earliest end date for this instructor + program');
+    assert.equal(String(instructorRows[0].first_course_end_date).slice(0, 10), '2027-03-01', 'first course end belongs to the earliest-starting group, even when a later group ends sooner');
     assert.equal(instructorRows[0].pre_campaign, null);
     assert.equal(instructorRows[0].final_campaign, null);
 
