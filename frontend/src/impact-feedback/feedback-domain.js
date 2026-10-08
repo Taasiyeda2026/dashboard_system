@@ -170,6 +170,7 @@ export const PROGRAM_SOURCE_LABELS = Object.freeze({
   manual: 'נבחרה ידנית',
   manual_name: 'נבחרה ידנית לפי שם הפעילות',
   gefen: 'זוהתה לפי מספר גפ״ן',
+  activity_no: 'זוהתה לפי מספר תוכנית',
   name: 'זוהתה לפי שם הפעילות'
 });
 

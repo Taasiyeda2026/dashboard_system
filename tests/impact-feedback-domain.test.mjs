@@ -170,4 +170,5 @@ test('unresolved programs stay visible; excluded groups only under their own fil
   assert.equal(isProgramUnresolved(groups[2]), false);
   assert.equal(dashboardKpis(groups, NOW).unresolved, 1);
   assert.equal(PROGRAM_SOURCE_LABELS.manual_name, 'נבחרה ידנית לפי שם הפעילות');
+  assert.equal(PROGRAM_SOURCE_LABELS.activity_no, 'זוהתה לפי מספר תוכנית');
 });
