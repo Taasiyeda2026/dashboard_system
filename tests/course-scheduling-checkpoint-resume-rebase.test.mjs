@@ -199,10 +199,11 @@ test('a row dirty at start and flagged again during the run is rechecked', () =>
       { activityId: 'a', needsRecalc: true, needsRecalcMarkedAt: '2026-10-09T01:20:00.000Z' },
       // flagged long before the run: this run already recalculated it
       { activityId: 'b', needsRecalc: true, needsRecalcMarkedAt: '2026-10-08T20:00:00.000Z' },
+      // no flag time at all: cannot be proven current, so it is rechecked
       { activityId: 'c', needsRecalc: true, needsRecalcMarkedAt: '' }
     ] }
   });
-  assert.deepEqual(delta, ['a']);
+  assert.deepEqual(delta.sort(), ['a', 'c']);
   // Server without flag times: cannot prove freshness, so every still-dirty row is rechecked.
   const conservative = planningRebaseAffectedCourseIds({
     ...base,
@@ -215,7 +216,9 @@ test('flag-time comparison keeps a safety margin and fails closed', () => {
   const startedAt = '2026-10-09T01:00:00.000Z';
   assert.equal(planningRowReflaggedDuringRun({ needsRecalc: false, needsRecalcMarkedAt: null }, startedAt), false);
   assert.equal(planningRowReflaggedDuringRun({ needsRecalc: true, needsRecalcMarkedAt: null }, startedAt), true);
-  assert.equal(planningRowReflaggedDuringRun({ needsRecalc: true, needsRecalcMarkedAt: '' }, startedAt), false);
+  assert.equal(planningRowReflaggedDuringRun({ needsRecalc: true, needsRecalcMarkedAt: '' }, startedAt), true);
+  assert.equal(planningRowReflaggedDuringRun({ needsRecalc: true, needsRecalcMarkedAt: 'not-a-date' }, startedAt), true);
+  assert.equal(planningRowReflaggedDuringRun({ needsRecalc: true }, startedAt), true);
   assert.equal(planningRowReflaggedDuringRun({ needsRecalc: true, needsRecalcMarkedAt: '2026-10-09T00:59:00.000Z' }, startedAt), true);
   assert.equal(planningRowReflaggedDuringRun({ needsRecalc: true, needsRecalcMarkedAt: '2026-10-09T00:50:00.000Z' }, startedAt), false);
   assert.equal(planningRowReflaggedDuringRun({ needsRecalc: true, needsRecalcMarkedAt: '2026-10-09T00:50:00.000Z' }, ''), true);
@@ -331,6 +334,38 @@ test('resume with no unfinished rows still runs gap compaction over the original
   assert.equal((await phasesFor({})).includes('צמצום חלונות הושלם'), false);
   // Resume now keeps the original scope for every optimization pass.
   assert.equal((await phasesFor({ optimizationScopeCourseIds: ['a', 'b'] })).includes('צמצום חלונות הושלם'), true);
+});
+
+test('interrupted run: unassigned rows re-enter base planning (staff rescue) and every optimization pass runs on the original scope', async () => {
+  const interrupted = [
+    resumedProposal('a', '1', '2026-11-02', '2026-11-09'),
+    resumedProposal('b', '2', '2026-11-02', '2026-11-09'),
+    { courseId: 'c', kind: 'missing', schoolId: 'school-c', diagnostics: { rescueDeferred: true, searchIncomplete: true } }
+  ];
+  const reopened = planningResumeReopenIds(interrupted);
+  assert.deepEqual(reopened, ['c']);
+  const evaluated = new Set();
+  const phases = [];
+  await buildDynamicCoursePlan({
+    ...resumeBase,
+    today: '2026-10-06',
+    routeClient: routeClient(),
+    existingRows: interrupted,
+    targetCourseIds: reopened,
+    optimizationScopeCourseIds: ['a', 'b', 'c'],
+    planningProfile: 'fast',
+    allowGlobalRepair: false,
+    onProgress: ({ phase, courseId }) => {
+      phases.push(phase);
+      if (phase === 'בדיקת מדריכים' && courseId) evaluated.add(courseId);
+    }
+  });
+  // Instructor-hours path: the unassigned row is searched again; assigned rows are reused.
+  assert.deepEqual([...evaluated], ['c']);
+  // Utilization passes are not skipped by the interruption.
+  for (const phase of ['אריזת בתי ספר הושלמה', 'ריכוז ימי עבודה הושלם', 'צמצום חלונות הושלם', 'בקרת תקינות סופית']) {
+    assert.ok(phases.includes(phase), `missing pass: ${phase}`);
+  }
 });
 
 test('run wiring: planner completion is recorded explicitly and resume keeps optimization scope', () => {
