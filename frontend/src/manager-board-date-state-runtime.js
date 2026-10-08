@@ -38,27 +38,43 @@ function makePastDetails(rows, kind) {
   return details;
 }
 
-function enhanceContainer(container, selector, kind) {
-  if (!(container instanceof HTMLElement) || container.dataset.managerBoardDateState === '1') return;
-  const rows = directRows(container, selector);
+export function enhanceContainer(container, selector, kind, today = todayIso()) {
+  if (!(container instanceof HTMLElement)) return;
+
+  const previousGroups = [...container.children].filter((child) => child.matches?.('.manager-board-past-details'));
+  const direct = directRows(container, selector);
+  if (!direct.length && !previousGroups.length) return;
+
+  // Async birthday hydration replaces innerHTML on the same container, retaining its dataset.
+  // Reprocess newly rendered rows while leaving already processed lists untouched.
+  if (container.dataset.managerBoardDateState === '1' &&
+      direct.every((row) => row.dataset.managerBoardDateState === '1')) return;
+
+  const wasExpanded = previousGroups.some((group) => group.open);
+  previousGroups.forEach((group) => {
+    const list = group.querySelector('.manager-board-past-details__list');
+    [...(list?.children || [])].filter((row) => row.matches?.(selector)).forEach((row) => container.append(row));
+    group.remove();
+  });
+
+  const rows = directRows(container, selector).sort((a, b) => rowIso(a).localeCompare(rowIso(b)));
   if (!rows.length) return;
-
-  container.dataset.managerBoardDateState = '1';
-  const today = todayIso();
+  rows.forEach((row) => container.append(row));
   const past = [];
-
   rows.forEach((row) => {
     const iso = rowIso(row);
-    if (!iso) return;
+    row.dataset.managerBoardDateState = '1';
     row.classList.toggle('is-today', iso === today);
-    row.classList.toggle('is-past', iso < today);
-    if (iso < today) past.push(row);
+    row.classList.toggle('is-past', !!iso && iso < today);
+    if (iso && iso < today) past.push(row);
   });
 
   if (past.length) {
     const details = makePastDetails(past, kind);
+    details.open = wasExpanded;
     container.prepend(details);
   }
+  container.dataset.managerBoardDateState = '1';
 }
 
 function enhanceAll(root = document) {
