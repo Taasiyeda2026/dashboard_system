@@ -518,7 +518,7 @@ const screenLabels = {
   'israa-management': 'ניהול איסראא',
   'operations-management': 'תפעול',
   certificates: 'תעודות',
-  'impact-feedback': 'משובים והערכת השפעה'
+  'impact-feedback': 'משובים'
 };
 
 function navLabelForRoute(route) {
@@ -746,6 +746,15 @@ function instructorBottomNavHtml(currentRoute) {
   return `<nav class="instructor-bottom-nav" aria-label="ניווט מדריך">${buttons}</nav>`;
 }
 
+function isAdminRole(user = state?.user || {}) {
+  return String(user?.role || '').trim().toLowerCase() === 'admin';
+}
+
+function routeAllowedByRole(route, user = state?.user || {}) {
+  if (route === 'impact-feedback') return isAdminRole(user);
+  return true;
+}
+
 function applySettingsToRoutes(routes, settings = state.clientSettings) {
   if (String(state?.user?.role || '').trim() === 'instructor') return instructorOnlyRoutes();
   if (SUPABASE_READONLY_CUTOVER) {
@@ -764,6 +773,7 @@ function applySettingsToRoutes(routes, settings = state.clientSettings) {
     .map((route) => (route === 'orders' ? 'invitations' : route))
     .filter((route) => {
       if (!route || blocked.has(route) || (route === 'invitations' && blocked.has('orders')) || seen.has(route)) return false;
+      if (!routeAllowedByRole(route)) return false;
       if (!screenLoaders[route]) return false;
       seen.add(route);
       return true;
@@ -813,6 +823,7 @@ function redirectIfDisabledRoute() {
 
 function isAllowedRoute(route) {
   if (PERMANENTLY_DISABLED_ROUTES.has(route)) return false;
+  if (!routeAllowedByRole(route)) return false;
   if (route === 'activities' && hasActivitiesRouteAccess()) return true;
   return !!route && effectiveRoutes().includes(route);
 }
@@ -870,7 +881,7 @@ function resolveAllowedDefaultRoute(preferred, routes) {
   if (SUPABASE_READONLY_CUTOVER) {
     return SUPABASE_READONLY_ROUTES[0];
   }
-  const knownRoutes = Array.isArray(routes) ? routes.filter((r) => !!screenLoaders[r] && !PERMANENTLY_DISABLED_ROUTES.has(r)) : [];
+  const knownRoutes = Array.isArray(routes) ? routes.filter((r) => !!screenLoaders[r] && !PERMANENTLY_DISABLED_ROUTES.has(r) && routeAllowedByRole(r)) : [];
   if (preferred && screenLoaders[preferred] && knownRoutes.includes(preferred)) return preferred;
   return knownRoutes[0] || 'my-data';
 }
@@ -885,7 +896,7 @@ function resolveInitialAuthenticatedRoute(preferred, routes) {
 
 function resolveAuthenticatedRoute(preferred, routes = effectiveRoutes()) {
   const knownRoutes = Array.isArray(routes)
-    ? routes.filter((r) => !!screenLoaders[r] && !PERMANENTLY_DISABLED_ROUTES.has(r))
+    ? routes.filter((r) => !!screenLoaders[r] && !PERMANENTLY_DISABLED_ROUTES.has(r) && routeAllowedByRole(r))
     : [];
   if (preferred && preferred !== 'login' && knownRoutes.includes(preferred)) return preferred;
   if (knownRoutes.includes('dashboard')) return 'dashboard';
@@ -1061,8 +1072,14 @@ function enforceCourseSchedulingRoute() {
 
 // Impact feedback module is admin-only (server enforces the same rule via RLS/RPC checks).
 function enforceImpactFeedbackRoute() {
-  if (!state.token || String(state?.user?.role || '').trim().toLowerCase() !== 'admin') return;
-  if (!(state.effectiveRoutes || []).includes('impact-feedback')) state.effectiveRoutes = [...(state.effectiveRoutes || []), 'impact-feedback'];
+  const current = Array.isArray(state.effectiveRoutes) ? state.effectiveRoutes : [];
+  if (!state.token || !isAdminRole()) {
+    const withoutFeedback = current.filter((route) => route !== 'impact-feedback');
+    state.effectiveRoutes = withoutFeedback;
+    state.routes = withoutFeedback;
+    return;
+  }
+  if (!current.includes('impact-feedback')) state.effectiveRoutes = [...current, 'impact-feedback'];
   state.routes = state.effectiveRoutes;
 }
 
@@ -1093,7 +1110,8 @@ function shell(content) {
       !contextualSet.has(route) &&
       !ACTIVITIES_CHILD_ROUTES.has(route) &&
       !ADMIN_SIDEBAR_HIDDEN_ROUTES.has(route) &&
-      !adminSidebarExclude.has(route)
+      !adminSidebarExclude.has(route) &&
+      routeAllowedByRole(route)
     )
     .map(
       (route) =>
@@ -1126,7 +1144,7 @@ function shell(content) {
   const hasUnifiedClientFile = effectiveRoutes().includes('proposals-agreements');
   const headerNavHtml = headerNavGridHtml({
     route: state.route,
-    routes: effectiveRoutes().filter((r) => !adminHeaderExclude.has(r) && !HEADER_ALWAYS_EXCLUDE.has(r) && !(hasUnifiedClientFile && r === 'contacts')),
+    routes: effectiveRoutes().filter((r) => routeAllowedByRole(r) && !adminHeaderExclude.has(r) && !HEADER_ALWAYS_EXCLUDE.has(r) && !(hasUnifiedClientFile && r === 'contacts')),
     operationsManagement: state.operationsManagement
   }, { exceptions: exceptionsNavCount(), editRequests: Number(state.openEditRequestsCount) || 0 });
   const headerTechHtml = '';
