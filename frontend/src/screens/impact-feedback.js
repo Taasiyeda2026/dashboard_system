@@ -212,7 +212,6 @@ function shellHtml(inner) {
     <div class="ifb-admin__head">
       <div>
         <h1 class="ifb-admin__title">משובים</h1>
-        <p class="ifb-admin__sub">מדידת למידה, התקדמות והשפעה בתוכניות תעשיידע</p>
       </div>
       <div class="ifb-slot__actions">
       <button type="button" class="ifb-btn" data-ifb-refresh title="טעינה מחדש של הנתונים">↻ רענון</button>
@@ -714,9 +713,13 @@ function instructorCampaignActionsHtml(row, stage) {
   const stageLabel = stage === 'pre' ? 'פתיחה – אחרי הכשרה' : 'סיום הקורס';
   if (!campaign) {
     if (!ui.instructorOpenForms.has(key)) {
-      return `<div class="ifb-instructor-stage">
-        <span class="ifb-chip ifb-chip--muted">טרם נפתח</span>
-        <button type="button" class="ifb-btn ifb-btn--primary ifb-btn--sm" data-ifb-instructor-open="${esc(key)}">פתיחת משוב</button>
+      return `<div class="ifb-instructor-stage ifb-instructor-stage--compact">
+        <span class="ifb-stage-icon ifb-stage-icon--pending" title="טרם נפתח" aria-label="טרם נפתח">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><path d="M12 8v4l2.5 1.5"></path></svg>
+        </span>
+        <button type="button" class="ifb-icon-action" data-ifb-instructor-open="${esc(key)}" title="פתיחת משוב" aria-label="פתיחת משוב">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
+        </button>
       </div>`;
     }
     return `
@@ -784,16 +787,13 @@ function instructorAssignmentsHtml() {
   const preCompleted = all.filter((row) => row.pre_campaign?.recipient?.status === 'completed').length;
   const finalCompleted = all.filter((row) => row.final_campaign?.recipient?.status === 'completed').length;
   return `
-    <section class="ifb-instructor-summary">
-      <h2>משובי מדריכים</h2>
-      <div class="ifb-inline-stats" aria-label="סיכום משובי מדריכים">
-        <span><strong>${all.length}</strong> צירופי מדריך–תוכנית</span>
-        <span aria-hidden="true">·</span>
-        <span><strong>${preCompleted}</strong> פתיחה הושלמו</span>
-        <span aria-hidden="true">·</span>
-        <span><strong>${finalCompleted}</strong> סיום הושלמו</span>
-      </div>
-    </section>
+    <div class="ifb-inline-stats ifb-inline-stats--instructors" aria-label="סיכום משובי מדריכים">
+      <span><strong>${all.length}</strong> צירופי מדריך–תוכנית</span>
+      <span aria-hidden="true">·</span>
+      <span><strong>${preCompleted}</strong> פתיחה הושלמו</span>
+      <span aria-hidden="true">·</span>
+      <span><strong>${finalCompleted}</strong> סיום הושלמו</span>
+    </div>
     <section class="ifb-filter-panel ifb-filter-panel--instructors">
       <div class="ifb-filters ifb-filters--instructors">
         <label class="ifb-field"><span>מדריך</span><select data-i="instructor">
@@ -815,7 +815,6 @@ function instructorAssignmentsHtml() {
         <button type="button" class="ifb-btn ifb-btn--ghost" data-ifb-clear="instructors">ניקוי</button>
       </div>
     </section>
-    <div class="ifb-list-head"><h2>מדריכים <span class="ifb-list-count">(${rows.length})</span></h2></div>
     ${rows.length ? `<div class="ifb-table-wrap">
       <table class="ifb-table ifb-instructor-table ifb-instructor-table--two-stages">
         <thead><tr><th>מדריך</th><th>תוכנית</th><th>שיבוצים</th><th>בתי ספר</th><th>תקופה</th><th>פתיחה – אחרי הכשרה</th><th>סיום הקורס</th></tr></thead>
