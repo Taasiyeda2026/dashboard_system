@@ -230,6 +230,9 @@ test('impact feedback DB contract: program fallback, manual mapping, catalog lim
       ('M-1','school_2027','course','קורס יזמות מיוחד',null,'בית ספר א','ט','מדריכה','1'),
       ('M-2','school_2027','course','קורס יזמות מיוחד',null,'בית ספר ב','ח','מדריכה','1'),
       ('M-3','school_2027','course','אופק לתעשייה',null,'בית ספר ג','ט','מדריכה','1'),
+      ('M-8','school_2027','course','קורס יזמות לתעשייה','52279','בית ספר ח','ח','מדריכה','1'),
+      ('M-9','school_2027','course','תוכנית העצמה לבנות','3604','בית ספר ט','ט','מדריכה','1'),
+      ('M-10','school_2027','course','קורס ללא שם מוכר','67861','בית ספר י','ט','מדריכה','1'),
       ('M-4','school_2027','course','תוכנית AI לבית הספר','9545','בית ספר ד','','מדריכה','1'),
       ('M-5','school_2027','course','פורצות דרך',null,'תיכון ה','י','מדריכה','1'),
       ('M-6','school_2027','course','משחקי קופסה',null,'בית ספר ו',null,'מדריכה','1'),
@@ -250,7 +253,15 @@ test('impact feedback DB contract: program fallback, manual mapping, catalog lim
     const groups = Object.fromEntries((await client.query("select * from feedback_admin_groups('school_2027')")).rows.map((g) => [g.row_id, g]));
     assert.equal(groups['M-7'], undefined, 'non-course activities without a program are not listed');
     assert.deepEqual([groups['M-1'].program_key, groups['M-1'].program_source], [null, null], 'unknown name stays visible as unresolved');
-    assert.deepEqual([groups['M-3'].program_key, groups['M-3'].program_source], [null, null], '"אופק לתעשייה" (52279) is not auto-mapped to Ofek Premium (960)');
+    assert.deepEqual([groups['M-3'].program_key, groups['M-3'].program_source], ['ofek', 'name'], '"אופק לתעשייה" is Ofek – יזמות פרימיום (52279)');
+    assert.deepEqual([groups['M-8'].program_key, groups['M-8'].program_source], ['ofek', 'gefen'], 'Gefen 52279 resolves to Ofek automatically');
+    assert.deepEqual([groups['M-9'].program_key, groups['M-9'].program_source], ['trailblazers', 'gefen'], 'Gefen 3604 resolves to Trailblazers automatically');
+    assert.deepEqual([groups['M-10'].program_key, groups['M-10'].program_source], [null, null], 'ids outside the final catalog are not auto-matched');
+    const gefen = Object.fromEntries((await client.query('select key, gefen_numbers from feedback_programs')).rows.map((r) => [r.key, r.gefen_numbers]));
+    assert.deepEqual(gefen, {
+      biomimicry: ['6089'], green_leadership: ['67867'], space_tech: ['57651'], ai_applications: ['53819'],
+      pharma: ['46091'], ofek: ['52279'], ai_foundations: ['9545'], trailblazers: ['3604']
+    }, 'Gefen numbers match the final catalog');
     assert.deepEqual([groups['M-4'].program_key, groups['M-4'].program_source, groups['M-4'].age_band], ['ai_foundations', 'gefen', 'g_i'], 'Gefen number resolves; no grade -> program default (ז׳–ח׳)');
     assert.deepEqual([groups['M-5'].program_key, groups['M-5'].age_band], ['trailblazers', 'j_l'], 'grade י׳ in a ז׳–י׳ program resolves to the י׳–י״ב band');
     assert.deepEqual([groups['M-6'].program_key, groups['M-6'].age_band], [null, null], 'no grade and no program -> no age band');
@@ -278,7 +289,7 @@ test('impact feedback DB contract: program fallback, manual mapping, catalog lim
     assert.equal(excluded.feedback_excluded, true);
     await assert.rejects(client.query("select feedback_admin_open_campaign('M-3','student','pre')"), /feedback_activity_excluded/);
     await client.query("select feedback_admin_set_program('M-3', null)");
-    assert.deepEqual(Object.values(await one("select program_key, feedback_excluded from feedback_admin_groups(null,'M-3')")), [null, false], 'manual choice can be cleared');
+    assert.deepEqual(Object.values(await one("select program_key, feedback_excluded from feedback_admin_groups(null,'M-3')")), ['ofek', false], 'clearing the manual choice returns to automatic identification');
     await assert.rejects(client.query('insert into feedback_program_mappings(scope, activity_row_id, program_key) values ($1,$2,$3)', ['activity', 'M-6', 'ofek']), /permission denied/);
     await client.query('reset role');
     const after = (await client.query('select to_jsonb(a) j from activities a order by row_id')).rows;

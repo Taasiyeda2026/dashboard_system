@@ -103,7 +103,7 @@ create table if not exists public.feedback_programs (
   title text not null,
   topic text not null,
   catalog_program_ids text[] not null default '{}',
-  -- Gefen catalog numbers (frontend/public/catalog/appendices/<number>.pdf); matched against activities.gefen_number.
+  -- Gefen numbers from the final program catalog; matched against activities.gefen_number.
   gefen_numbers text[] not null default '{}',
   activity_name_patterns text[] not null default '{}',
   exclude_patterns text[] not null default '{}',

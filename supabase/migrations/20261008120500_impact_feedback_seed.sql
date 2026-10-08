@@ -20,16 +20,17 @@ insert into public.feedback_metrics (key, label, kind, sort_order, description) 
   ('operations',     'תפעול, ציוד ותמיכה',  'program', 130, 'חומרי הדרכה, ערכות, הכשרה ותמיכה מתעשיידע')
 on conflict (key) do nothing;
 
--- Program mapping audited against the catalog pages (frontend/public/catalog/appendices/<gefen>.pdf):
---   ביומימיקרי 6089 (ד׳–ו׳) + 53828 (ז׳–י׳) · מנהיגות ירוקה 67867 (ד׳–ו׳) · טכנולוגיות החלל 57651 (ד׳–ו׳)
---   יישומי הבינה המלאכותית 53819 (ז׳–י׳) · סודות ויסודות הבינה המלאכותית 9545 (ז׳–ח׳)
---   רוקחים עולם 46091 (ז׳–י׳) · אופק – יזמות פרימיום 960 (ז׳–י׳) · פורצות דרך 67861 (ז׳–י׳)
--- "אופק לתעשייה" (52279, career/industry exposure) is a different catalog program and is NOT matched
--- automatically; an admin can still map such an activity manually.
+-- Program mapping per the FINAL catalog of the 8 programs ("קטלוג התוכניות החינוכיות של תעשיידע"),
+-- which is the source of truth for this module (Gefen number · grades):
+--   ביומימיקרי 6089 · מנהיגות ירוקה 67867 · טכנולוגיות החלל 57651 · יישומי AI 53819
+--   רוקחים עולם 46091 · אופק – יזמות פרימיום לתעשייה 52279 (ז׳–י׳)
+--   סודות ויסודות הבינה המלאכותית 9545 (ז׳–ח׳) · פורצות דרך 3604 (ז׳–י׳)
+-- Ids that are not in the final catalog are not used for automatic matching; unknown activities fall
+-- back to "תוכנית לא זוהתה" and an admin maps them manually.
 -- default_age_band is used only when the activity has no parsable grade.
 insert into public.feedback_programs (key, title, topic, catalog_program_ids, gefen_numbers, activity_name_patterns, exclude_patterns, default_age_band, sort_order) values
   ('biomimicry', 'ביומימיקרי – המצאות בהשראה מן הטבע', 'ביומימיקרי – המצאות בהשראת הטבע',
-    array['program-01', 'program-11'], array['6089', '53828'], array['%ביומימיקרי%', '%ביומימקרי%'], array['%חדר בריחה%', '%הקסום%'], 'd_f', 10),
+    array['program-01', 'program-11'], array['6089'], array['%ביומימיקרי%', '%ביומימקרי%'], array['%חדר בריחה%', '%הקסום%'], 'd_f', 10),
   ('green_leadership', 'מנהיגות ירוקה', 'קיימות ומנהיגות סביבתית',
     array['program-04'], array['67867'], array['%מנהיגות ירוקה%'], array[]::text[], 'd_f', 20),
   ('space_tech', 'טכנולוגיות החלל', 'טכנולוגיות החלל',
@@ -39,11 +40,11 @@ insert into public.feedback_programs (key, title, topic, catalog_program_ids, ge
   ('pharma', 'רוקחים עולם', 'פיתוח תרופות ועולם הפרמצבטיקה',
     array['program-06'], array['46091'], array['%רוקחים עולם%', '%רוקחים%'], array[]::text[], 'g_i', 50),
   ('ofek', 'אופק – יזמות פרימיום לתעשייה', 'יזמות ותעשייה',
-    array['program-07'], array['960'], array['%אופק%פרימיום%', '%יזמות פרימיום%', '%אופק יזמות%'], array[]::text[], 'g_i', 60),
+    array['program-07'], array['52279'], array['%אופק%'], array[]::text[], 'g_i', 60),
   ('ai_foundations', 'סודות ויסודות הבינה המלאכותית', 'בינה מלאכותית',
     array['program-09'], array['9545'], array['%סודות ויסודות%', '%סודות%יסודות%'], array[]::text[], 'g_i', 70),
   ('trailblazers', 'פורצות דרך', 'יזמות וטכנולוגיה',
-    array['program-05'], array['67861'], array['%פורצות דרך%'], array[]::text[], 'g_i', 80)
+    array['program-05'], array['3604'], array['%פורצות דרך%'], array[]::text[], 'g_i', 80)
 on conflict (key) do nothing;
 
 -- Question bank. Fields: key, program (null = core), metric, type, audiences, stages,
@@ -277,23 +278,23 @@ from jsonb_to_recordset($json$[
    "wording":{"default":"שלב פיתוח המיזם והמשוב מהמומחים התאימו לרמת התלמידים"}},
 
   {"key":"ofek_need","program":"ofek","metric":"skills","audiences":["student"],"stages":["pre","post"],"comparison":true,"sort":100,
-   "src":"960: בוחנים אתגר אמיתי ומגדירים צורך",
+   "src":"52279 · סילבוס program-07: זיהוי אתגר – איתור צורך אמיתי והגדרת אתגר ממוקד",
    "wording":{"default":"אני יודע/ת לזהות צורך אמיתי ולהפוך אותו לאתגר שאפשר לפתח לו פתרון"}},
   {"key":"ofek_audience","program":"ofek","metric":"skills","audiences":["student"],"stages":["pre","post"],"comparison":true,"sort":110,
-   "src":"960 מיומנויות: חקר שוק, הגדרת קהל יעד, איסוף משוב",
+   "src":"52279 · סילבוס program-07: חקר שוק; בחירת כיוון – הגדרת קהל יעד",
    "wording":{"default":"אני יודע/ת להגדיר קהל יעד ולבדוק בעזרת חקר שוק אם הרעיון מתאים לו"}},
   {"key":"ofek_decisions","program":"ofek","metric":"self_efficacy","audiences":["student"],"stages":["post"],"sort":300,
-   "src":"960: קבלת החלטות, השוואת כיוונים, נקודות עצירה לבחירה ודיוק",
+   "src":"52279 · סילבוס program-07: בחירת כיוון ורעיון מוביל (קבלת החלטות)",
    "wording":{"default":"אני מרגיש/ה בטוח/ה יותר לקבל החלטות בצוות לגבי הכיוון של מיזם"}},
   {"key":"ofek_industry_feedback","program":"ofek","metric":"knowledge","audiences":["student"],"stages":["post"],"sort":310,
-   "src":"960: ליווי חברה מאמצת, משוב מקצועי מהשטח, הבנה כיצד רעיון מתפתח בסביבה תעשייתית",
-   "wording":{"default":"הליווי והמשוב מהחברה המאמצת עזרו לי להבין איך רעיון מתפתח בתעשייה"}},
+   "src":"52279 · סילבוס program-07: מנטורינג מקצועי – קבלת משוב מאנשי מקצוע; החיבור לתעשייה",
+   "wording":{"default":"המשוב מאנשי המקצוע עזר לי לשפר את הרעיון ולהבין איך הוא מתחבר לעולם התעשייה"}},
   {"key":"ofek_staff","program":"ofek","metric":"skills","audiences":["educational_staff"],"stages":["final"],"sort":500,
-   "src":"960: מצורך אמיתי לפתרון בעל ערך בתהליך מדורג",
+   "src":"52279 · סילבוס program-07: פיתוח רעיון מצורך ועד פתרון",
    "wording":{"default":"התלמידים למדו לעבור מצורך לפתרון בתהליך יזמי מסודר"}},
   {"key":"ofek_instructor","program":"ofek","metric":"delivery","audiences":["instructor"],"stages":["final"],"sort":500,
-   "src":"960: חברה מאמצת, משוב מקצועי, מסגרת המדמה אקסלרטור תעשייתי",
-   "wording":{"default":"ליווי החברה המאמצת והמשוב המקצועי תרמו לתהליך של הקבוצה"}},
+   "src":"52279 · סילבוס program-07: מנטורינג מקצועי, חיבור לתעשייה",
+   "wording":{"default":"המנטורינג המקצועי והחיבור לתעשייה תרמו לתהליך של הקבוצה"}},
 
   {"key":"aifound_prompts","program":"ai_foundations","metric":"skills","audiences":["student"],"stages":["pre","post"],"comparison":true,"sort":100,
    "src":"9545: כוחו של הפרומפט – ניסוח נכון משפיע על התוצאה; שימוש מדויק ואחראי בכלי AI",
@@ -315,22 +316,22 @@ from jsonb_to_recordset($json$[
    "wording":{"default":"הפעילויות המעשיות (למידת מכונה, ראייה ממוחשבת, פרומפטיאדה) עבדו היטב בכיתה"}},
 
   {"key":"trail_stem","program":"trailblazers","metric":"self_efficacy","audiences":["student"],"stages":["pre","post"],"comparison":true,"sort":100,
-   "src":"67861: תחושת מסוגלות לפעול בעולמות הטכנולוגיה; גישת STEM",
+   "src":"3604 · מסוגלות בעולמות המדע והטכנולוגיה (STEM)",
    "wording":{"default":"אני מאמינה שאני יכולה להצליח בתחומי מדע, טכנולוגיה והנדסה"}},
   {"key":"trail_leadership","program":"trailblazers","metric":"self_efficacy","audiences":["student"],"stages":["pre","post"],"comparison":true,"sort":110,
-   "src":"67861: זהות מובילה, מנהיגות נשית, יכולת להוביל שינוי",
+   "src":"3604 · סילבוס program-05: בונות הנהגה – יוזמה והובלה",
    "wording":{"default":"אני רואה את עצמי כמי שיכולה להוביל, ליזום ולהשפיע"}},
   {"key":"trail_barriers","program":"trailblazers","metric":"attitudes","audiences":["student"],"stages":["pre","post"],"comparison":true,"sort":120,
-   "src":"67861: התבוננות ביקורתית על חסמים, פריצת מחסומים",
+   "src":"3604 · התמודדות עם חסמים בדרך לעולמות הטכנולוגיה",
    "wording":{"default":"חסמים לא יעצרו אותי מלבחור לפעול בתחום טכנולוגי"}},
   {"key":"trail_voice","program":"trailblazers","metric":"skills","audiences":["student"],"stages":["post"],"sort":300,
-   "src":"67861: קול אישי, עמידה מול קהל · תוצרים: פיץ׳ ופרזנטציה",
+   "src":"3604 · סילבוס program-05: מציגות ומשכנעות – עמידה מול קהל; קול אישי",
    "wording":{"default":"אני מרגישה בנוח להשמיע את הקול שלי ולהציג את הרעיונות שלי מול קהל"}},
   {"key":"trail_staff","program":"trailblazers","metric":"self_efficacy","audiences":["educational_staff"],"stages":["final"],"sort":500,
-   "src":"67861: מסוגלות ומנהיגות",
+   "src":"3604 · מסוגלות ומנהיגות",
    "wording":{"default":"ניכרת אצל המשתתפות עלייה בביטחון העצמי ובמנהיגות"}},
   {"key":"trail_instructor","program":"trailblazers","metric":"overall_impact","audiences":["instructor"],"stages":["final"],"sort":500,
-   "src":"67861: מפגש עם השראה נשית ותהליך תיכון הנדסי מלא לפיתוח מיזם",
+   "src":"3604 · סילבוס program-05: נושמות השראה, פוגשות תעשייה, מעצבות אב־טיפוס",
    "wording":{"default":"המפגש עם השראה נשית מהתעשייה ועבודת המיזם תרמו להעצמת המשתתפות"}}
 ]$json$::jsonb) as q(
   key text, program text, metric text, audiences text[], stages text[], comparison boolean, sort int, wording jsonb
