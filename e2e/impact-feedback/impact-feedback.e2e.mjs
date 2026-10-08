@@ -449,23 +449,31 @@ async function main() {
     await admin.screenshot({ path: `${SHOTS}/07-group-two-perspectives-desktop.png`, fullPage: true });
   });
 
-  await step('Admin downloads Excel and CSV (raw + summary); students are anonymous', async () => {
+  await step('Admin downloads one Excel workbook with summary, raw data and open answers; students are anonymous', async () => {
+    assert.equal(await admin.locator('[data-ifb-export="raw"]').count(), 0, 'CSV raw export is removed');
+    assert.equal(await admin.locator('[data-ifb-export="summary"]').count(), 0, 'CSV summary export is removed');
+    assert.equal((await admin.locator('[data-ifb-export="xlsx"]').first().textContent()).trim(), '⬇ ייצוא ל-Excel');
+
     const [xlsxDownload] = await Promise.all([admin.waitForEvent('download'), admin.locator('[data-ifb-export="xlsx"]').first().click()]);
     const wb = XLSX.read(await readFile(await xlsxDownload.path()));
-    assert.deepEqual(wb.SheetNames, ['Summary', 'Raw data']);
-    const raw = XLSX.utils.sheet_to_json(wb.Sheets['Raw data'], { header: 1 });
+    assert.deepEqual(wb.SheetNames, ['סיכום', 'נתונים גולמיים', 'תשובות פתוחות']);
+
+    const raw = XLSX.utils.sheet_to_json(wb.Sheets['נתונים גולמיים'], { header: 1 });
     const header = raw[0];
     const audienceCol = header.indexOf('קהל');
     const nameCol = header.indexOf('שם הממלא/ת');
     assert.ok(raw.slice(1).filter((r) => r[audienceCol] === 'תלמידים').every((r) => !r[nameCol]));
     assert.ok(raw.slice(1).every((r) => r[audienceCol] !== 'מדריך'), 'group export does not attach program-level instructor feedback to one group');
     assert.ok(raw.slice(1).some((r) => r[audienceCol] === 'צוות חינוכי' && r[nameCol] === 'רונית כהן'));
-    const [rawCsv] = await Promise.all([admin.waitForEvent('download'), admin.locator('[data-ifb-export="raw"]').first().click()]);
-    const csvText = await readFile(await rawCsv.path(), 'utf8');
-    assert.ok(csvText.startsWith('﻿'));
-    assert.ok(csvText.split('\r\n').length > 100);
-    const [summaryCsv] = await Promise.all([admin.waitForEvent('download'), admin.locator('[data-ifb-export="summary"]').first().click()]);
-    assert.match(await readFile(await summaryCsv.path(), 'utf8'), /ממוצע הקבוצה עלה/);
+
+    const summary = XLSX.utils.sheet_to_json(wb.Sheets['סיכום'], { header: 1 });
+    assert.match(summary.flat().join(' '), /ממוצע הקבוצה עלה/);
+
+    const openAnswersSheet = XLSX.utils.sheet_to_json(wb.Sheets['תשובות פתוחות'], { header: 1 });
+    assert.deepEqual(openAnswersSheet[0], ['תאריך מילוי', 'קהל', 'שלב', 'תוכנית', 'רשות', 'בית ספר', 'שכבה', 'שם הפעילות', 'שם הממלא/ת', 'שאלה', 'תשובה']);
+    const openAudienceCol = openAnswersSheet[0].indexOf('קהל');
+    const openNameCol = openAnswersSheet[0].indexOf('שם הממלא/ת');
+    assert.ok(openAnswersSheet.slice(1).filter((r) => r[openAudienceCol] === 'תלמידים').every((r) => !r[openNameCol]));
   });
 
   await step('Results dashboard: filters, PRE/POST, scores, drill-down; open answers tab', async () => {

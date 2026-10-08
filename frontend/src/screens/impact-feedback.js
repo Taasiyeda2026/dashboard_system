@@ -17,7 +17,6 @@ import {
   SUMMARY_EXPORT_HEADERS,
   academicYearLabel,
   ageBandLabel,
-  buildCsv,
   campaignUiStatus,
   dashboardKpis,
   describeGroupChange,
@@ -650,9 +649,7 @@ function openAnswersListHtml(items, { showContext = true } = {}) {
 
 function exportButtonsHtml(scope) {
   return `<div class="ifb-export">
-    <button type="button" class="ifb-btn" data-ifb-export="xlsx" data-scope="${esc(scope)}">⬇ Excel (נתונים + סיכום)</button>
-    <button type="button" class="ifb-btn" data-ifb-export="raw" data-scope="${esc(scope)}">⬇ CSV נתונים גולמיים</button>
-    <button type="button" class="ifb-btn" data-ifb-export="summary" data-scope="${esc(scope)}">⬇ CSV סיכום</button>
+    <button type="button" class="ifb-btn" data-ifb-export="xlsx" data-scope="${esc(scope)}">⬇ ייצוא ל-Excel</button>
   </div>`;
 }
 
@@ -969,30 +966,61 @@ function exportFacts(scope) {
   return resultsFilteredFacts();
 }
 
-function runExport(kind, scope) {
+function openAnswersExportRows(facts) {
+  return openAnswers(facts).map((a) => [
+    String(a.submitted_at || '').slice(0, 16).replace('T', ' '),
+    AUDIENCE_LABELS[a.audience] || a.audience || '',
+    a.stage === 'pre' ? 'פתיחה' : 'סיום',
+    programTitle(a.program_key),
+    a.authority_name || '',
+    a.school_name || '',
+    a.grade || '',
+    a.activity_name || '',
+    a.respondent_name || '',
+    a.question_text || '',
+    a.text || ''
+  ]);
+}
+
+function setExportSheetLayout(sheet, widths) {
+  sheet['!cols'] = widths.map((wch) => ({ wch }));
+  if (sheet['!ref']) sheet['!autofilter'] = { ref: sheet['!ref'] };
+}
+
+function runExport(_kind, scope) {
   const facts = exportFacts(scope);
   if (!facts.length) {
     showToast('אין נתונים לייצוא', 'info');
     return;
   }
+
   const raw = rawExportRows(facts, { programs: ui.programs, metrics: ui.metrics });
   const summary = summaryExportRows(threePerspectives(facts, ui.metrics), ui.metrics);
+  const openRows = openAnswersExportRows(facts);
+  const openHeaders = ['תאריך מילוי', 'קהל', 'שלב', 'תוכנית', 'רשות', 'בית ספר', 'שכבה', 'שם הפעילות', 'שם הממלא/ת', 'שאלה', 'תשובה'];
+
   const stamp = isoDay(Date.now());
   const base = scope.startsWith('group:')
     ? `משובים-${(facts[0]?.school_name || 'קבוצה').replace(/[\\/?%*:|"<>]/g, '_')}-${stamp}`
     : `משובים-${stamp}`;
-  if (kind === 'raw') downloadBlob(new Blob([buildCsv(RAW_EXPORT_HEADERS, raw)], { type: 'text/csv;charset=utf-8' }), `${base}-raw.csv`);
-  else if (kind === 'summary') downloadBlob(new Blob([buildCsv(SUMMARY_EXPORT_HEADERS, summary)], { type: 'text/csv;charset=utf-8' }), `${base}-summary.csv`);
-  else {
-    const wb = XLSX.utils.book_new();
-    wb.Workbook = { Views: [{ RTL: true }] };
-    const rawSheet = XLSX.utils.aoa_to_sheet([RAW_EXPORT_HEADERS, ...raw]);
-    const summarySheet = XLSX.utils.aoa_to_sheet([SUMMARY_EXPORT_HEADERS, ...summary]);
-    XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary');
-    XLSX.utils.book_append_sheet(wb, rawSheet, 'Raw data');
-    const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-    downloadBlob(new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `${base}.xlsx`);
-  }
+
+  const wb = XLSX.utils.book_new();
+  wb.Workbook = { Views: [{ RTL: true }] };
+
+  const summarySheet = XLSX.utils.aoa_to_sheet([SUMMARY_EXPORT_HEADERS, ...summary]);
+  const rawSheet = XLSX.utils.aoa_to_sheet([RAW_EXPORT_HEADERS, ...raw]);
+  const openSheet = XLSX.utils.aoa_to_sheet([openHeaders, ...openRows]);
+
+  setExportSheetLayout(summarySheet, [26, 24, 18, 18, 16, 16, 12, 12, 14, 34]);
+  setExportSheetLayout(rawSheet, [18, 18, 18, 14, 22, 18, 18, 22, 12, 14, 18, 28, 20, 22, 14, 18, 18, 14, 42, 34]);
+  setExportSheetLayout(openSheet, [18, 18, 14, 22, 18, 22, 12, 28, 22, 42, 56]);
+
+  XLSX.utils.book_append_sheet(wb, summarySheet, 'סיכום');
+  XLSX.utils.book_append_sheet(wb, rawSheet, 'נתונים גולמיים');
+  XLSX.utils.book_append_sheet(wb, openSheet, 'תשובות פתוחות');
+
+  const out = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  downloadBlob(new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `${base}.xlsx`);
 }
 
 // ---------------------------------------------------------------------------
