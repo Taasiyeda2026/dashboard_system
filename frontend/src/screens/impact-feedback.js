@@ -358,7 +358,7 @@ function overviewTableHtml(groups) {
   const rows = groups.map((g) => `
     <tr data-row="${esc(g.row_id)}">
       <td class="ifb-col-school" data-label="בית ספר"><strong class="ifb-school-name">${esc(g.school || '—')}</strong>${g.class_group ? `<span class="ifb-muted ifb-cell-sub">${esc(g.class_group)}</span>` : ''}</td>
-      <td class="ifb-col-authority" data-label="רשות">${esc(g.authority || '—')}</td>
+      <td class="ifb-col-authority" data-label="רשות" title="${esc(g.authority || '')}">${esc(g.authority || '—')}</td>
       <td class="ifb-col-program" data-label="תוכנית">${g.program_key
         ? esc(programTitle(g.program_key))
         : g.feedback_excluded
