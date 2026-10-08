@@ -121,13 +121,26 @@ begin
   end loop;
 end $$;
 
--- Existing final instructor versions have not yet been used in production at the time of this migration.
-update public.feedback_template_versions v
-set intro_text = 'לאחר סיום הקורס נשמח לשמוע מה עבד בפועל, מה דורש שיפור ומה דעתך על התוכן, החומרים, התפעול וההשפעה על התלמידים.'
-from public.feedback_templates t
-where v.id = t.current_version_id
-  and t.audience = 'instructor'
-  and t.stage = 'final';
+-- Publish a fresh FINAL version with an explicit end-of-course intro.
+-- Existing campaigns, if any, remain pinned to their historical version.
+do $
+declare
+  t record;
+  v_version uuid;
+begin
+  for t in
+    select tp.*
+    from public.feedback_templates tp
+    where tp.audience = 'instructor' and tp.stage = 'final'
+  loop
+    v_version := private.feedback_compose_draft(t.id);
+    update public.feedback_template_versions
+    set intro_text = 'לאחר סיום הקורס נשמח לשמוע מה עבד בפועל, מה דורש שיפור ומה דעתך על התוכן, החומרים, התפעול וההשפעה על התלמידים.',
+        notes = 'גרסת ברירת מחדל – משוב מדריך סיום הקורס'
+    where id = v_version;
+    perform private.feedback_publish_version(v_version);
+  end loop;
+end $;
 
 -- Recreate assignment listing with two distinct instructor checkpoints.
 drop function if exists public.feedback_admin_instructor_assignments(text);
@@ -290,7 +303,7 @@ begin
   if nullif(btrim(coalesce(p_instructor_emp_id, '')), '') is null then
     raise exception 'feedback_instructor_missing';
   end if;
-  if p_stage not in ('pre', 'final') then
+  if p_stage is null or p_stage not in ('pre', 'final') then
     raise exception 'feedback_invalid_stage';
   end if;
   if nullif(btrim(coalesce(p_program_key, '')), '') is null
