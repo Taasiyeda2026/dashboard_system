@@ -409,6 +409,8 @@ export function factsFor(facts, audience, stage) {
 export function threePerspectives(facts = [], metrics = []) {
   const studentsPre = factsFor(facts, 'student', 'pre');
   const studentsPost = factsFor(facts, 'student', 'post');
+  const instructorPre = summarizePopulation(factsFor(facts, 'instructor', 'pre'));
+  const instructorFinal = summarizePopulation(factsFor(facts, 'instructor', 'final'));
   return {
     students: {
       comparison: comparePrePost(studentsPre, studentsPost, metrics.filter((m) => m.kind === 'impact')),
@@ -416,7 +418,9 @@ export function threePerspectives(facts = [], metrics = []) {
       pre: summarizePopulation(studentsPre)
     },
     staff: summarizePopulation(factsFor(facts, 'educational_staff')),
-    instructor: summarizePopulation(factsFor(facts, 'instructor', 'final'))
+    instructor: instructorFinal,
+    instructorPre,
+    instructorFinal
   };
 }
 
@@ -549,7 +553,8 @@ export function summaryExportRows(perspectives, metrics = []) {
   };
   pushPopulation('תלמידים – סיום (כל השאלות)', perspectives.students.post);
   pushPopulation('צוות חינוכי', perspectives.staff);
-  pushPopulation('מדריך', perspectives.instructor);
+  pushPopulation('מדריך – פתיחה לאחר הכשרה', perspectives.instructorPre || { byMetric: {} });
+  pushPopulation('מדריך – סיום הקורס', perspectives.instructorFinal || perspectives.instructor);
   return rows;
 }
 
