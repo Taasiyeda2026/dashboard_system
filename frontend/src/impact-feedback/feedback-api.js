@@ -120,7 +120,7 @@ export async function fetchAnswerFacts(filters = {}) {
 export async function fetchTemplates() {
   return unwrap(client()
     .from('feedback_templates')
-    .select('id,program_key,audience,stage,title,current_version_id,feedback_template_versions!feedback_template_versions_template_id_fkey(id,version_no,status,published_at,created_at)')
+    .select('id,program_key,audience,stage,title,current_version_id,feedback_template_versions!feedback_template_versions_template_id_fkey(id,status)')
     .order('program_key'));
 }
 
@@ -133,7 +133,7 @@ export async function fetchVersionQuestions(versionId) {
 }
 
 export async function fetchVersion(versionId) {
-  return unwrap(client().from('feedback_template_versions').select('id,template_id,version_no,status,intro_text,notes,published_at,created_at').eq('id', versionId).single());
+  return unwrap(client().from('feedback_template_versions').select('id,template_id,status,intro_text,notes').eq('id', versionId).single());
 }
 
 export async function fetchBankQuestions(programKey, audience, stage) {
