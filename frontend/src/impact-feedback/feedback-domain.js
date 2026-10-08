@@ -83,22 +83,26 @@ function toTime(value) {
 /**
  * UI status for one campaign slot.
  * keys: not_opened | scheduled | active | collecting | completed | expired | closed
+ *
+ * Keep the label itself short and stable. Student response counts are rendered
+ * separately in the overview table/card so the status remains scannable.
  */
 export function campaignUiStatus(campaign, now = Date.now()) {
-  if (!campaign) return { key: 'not_opened', label: 'טרם נפתח', tone: 'muted' };
+  if (!campaign) return { key: 'not_opened', label: 'טרם נפתח', tone: 'muted', responses: 0 };
   const responses = Number(campaign.responses) || 0;
   const personal = campaign.audience !== 'student';
   const completed = personal && campaign.recipient?.status === 'completed';
   if (completed) return { key: 'completed', label: 'הושלם', tone: 'success', responses };
-  if (campaign.status === 'closed') return { key: 'closed', label: 'נסגר', tone: 'muted', responses };
+  if (campaign.status === 'closed') return { key: 'closed', label: 'נסגר', tone: 'closed', responses };
   const opens = toTime(campaign.opens_at);
   const expires = toTime(campaign.expires_at);
-  if (opens !== null && opens > now) return { key: 'scheduled', label: 'טרם נפתח', tone: 'muted', responses };
+  if (opens !== null && opens > now) return { key: 'scheduled', label: 'מתוזמן', tone: 'scheduled', responses };
   if (expires !== null && expires <= now) return { key: 'expired', label: 'פג תוקף', tone: 'warning', responses };
   if (!personal && responses > 0) {
-    return { key: 'collecting', label: `התקבלו ${responses} תשובות`, tone: 'info', responses };
+    return { key: 'collecting', label: 'פעיל', tone: 'active', responses };
   }
-  return { key: 'active', label: personal ? 'פעיל – ממתין למילוי' : 'פעיל', tone: 'active', responses };
+  if (personal) return { key: 'active', label: 'ממתין למילוי', tone: 'pending', responses };
+  return { key: 'active', label: 'פעיל', tone: 'active', responses };
 }
 
 export function isCampaignLive(campaign, now = Date.now()) {

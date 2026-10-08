@@ -110,6 +110,10 @@ async function main() {
     await admin.goto(`${APP}/e2e/impact-feedback/harness.html`);
     await admin.locator('.ifb-table tbody tr').first().waitFor();
     assert.equal(await admin.locator('.ifb-kpi').count(), 6);
+    assert.deepEqual(
+      (await admin.locator('.ifb-overview-table thead th').allTextContents()).map((x) => x.trim()),
+      ['בית ספר', 'רשות', 'תוכנית', 'שכבה', 'מדריך', 'התחלה', 'סיום', 'תלמידים – פתיחה', 'תלמידים – סיום', 'צוות חינוכי', 'מדריך', 'תוצאות', 'פעולות']
+    );
     const rows = await admin.locator('.ifb-table tbody tr').count();
     assert.equal(rows, 8, 'six recognised program groups + two unrecognised course groups');
     assert.equal(await admin.locator('.ifb-table [data-status="not_opened"]').count(), 24);
@@ -237,7 +241,11 @@ async function main() {
     await admin.locator('[data-ifb-back]').click();
     await admin.locator('tr[data-row="ACT-1"] [data-ifb-open-group]').click();
     const card = admin.locator('[data-slot="student:pre"]');
-    await admin.waitForFunction(() => /התקבלו 4 תשובות/.test(document.querySelector('[data-slot="student:pre"] .ifb-chip')?.textContent || ''));
+    await admin.waitForFunction(() => {
+      const slot = document.querySelector('[data-slot="student:pre"]');
+      return (slot?.querySelector('.ifb-chip')?.textContent || '').trim() === 'פעיל'
+        && /תשובות\s*4/.test(slot?.textContent || '');
+    });
     await admin.locator('.ifb-angle--students .ifb-note').first().waitFor();
     assert.match(await admin.locator('.ifb-angle--students').textContent(), /יש רק נתוני פתיחה/);
     assert.match(await card.textContent(), /4/);
@@ -339,7 +347,7 @@ async function main() {
     await admin.locator('.ifb-angle--students [data-ifb-drill="knowledge"]').click();
     await admin.locator('.ifb-drill').waitFor();
     assert.match(await admin.locator('.ifb-drill').textContent(), /השאלות שהרכיבו את המדד/);
-    for (const slot of ['student:pre', 'student:post']) assert.match(await admin.locator(`[data-slot="${slot}"] .ifb-chip`).first().textContent(), /התקבלו/);
+    for (const slot of ['student:pre', 'student:post']) assert.equal((await admin.locator(`[data-slot="${slot}"] .ifb-chip`).first().textContent()).trim(), 'פעיל');
     for (const slot of ['instructor:final', 'educational_staff:final']) assert.equal((await admin.locator(`[data-slot="${slot}"] .ifb-chip`).first().textContent()).trim(), 'הושלם');
     await admin.screenshot({ path: `${SHOTS}/07-group-three-perspectives-desktop.png`, fullPage: true });
   });
@@ -465,7 +473,7 @@ async function main() {
     const nextWeek = new Date(Date.now() + 7 * 864e5).toISOString().slice(0, 10);
     await admin.locator('[data-slot="student:pre"] [data-ifb-extend] input').fill(nextWeek);
     await admin.locator('[data-slot="student:pre"] [data-ifb-extend] button').click();
-    await admin.waitForFunction(() => /התקבלו/.test(document.querySelector('[data-slot="student:pre"] .ifb-chip')?.textContent || ''));
+    await admin.waitForFunction(() => (document.querySelector('[data-slot="student:pre"] .ifb-chip')?.textContent || '').trim() === 'פעיל');
   });
 
   await step('RLS/public access: anon cannot read tables or call admin RPCs', async () => {

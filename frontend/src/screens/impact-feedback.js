@@ -115,6 +115,15 @@ function statusChip(campaign) {
   return `<span class="ifb-chip ifb-chip--${status.tone}" data-status="${status.key}">${esc(status.label)}</span>`;
 }
 
+function tableStatusHtml(campaign) {
+  const status = campaignUiStatus(campaign);
+  const studentResponses = campaign?.audience === 'student' ? Number(status.responses || 0) : 0;
+  return `<div class="ifb-status-cell">
+    <span class="ifb-chip ifb-chip--${status.tone}" data-status="${status.key}">${esc(status.label)}</span>
+    ${studentResponses > 0 ? `<span class="ifb-status-cell__count">${studentResponses} תשובות</span>` : ''}
+  </div>`;
+}
+
 function optionList(values, selected, emptyLabel, labelFn = (v) => v) {
   return `<option value="">${esc(emptyLabel)}</option>${values.map((v) => `<option value="${esc(v)}"${v === selected ? ' selected' : ''}>${esc(labelFn(v))}</option>`).join('')}`;
 }
@@ -315,34 +324,58 @@ function overviewTableHtml(groups) {
   }
   const rows = groups.map((g) => `
     <tr data-row="${esc(g.row_id)}">
-      <td data-label="בית ספר"><strong>${esc(g.school || '—')}</strong>${g.class_group ? `<span class="ifb-muted"> · ${esc(g.class_group)}</span>` : ''}</td>
-      <td data-label="רשות">${esc(g.authority || '—')}</td>
-      <td data-label="תוכנית">${g.program_key
+      <td class="ifb-col-school" data-label="בית ספר"><strong>${esc(g.school || '—')}</strong>${g.class_group ? `<span class="ifb-muted"> · ${esc(g.class_group)}</span>` : ''}</td>
+      <td class="ifb-col-authority" data-label="רשות">${esc(g.authority || '—')}</td>
+      <td class="ifb-col-program" data-label="תוכנית">${g.program_key
         ? esc(programTitle(g.program_key))
         : g.feedback_excluded
           ? '<span class="ifb-chip ifb-chip--muted">לא רלוונטי למשובים</span>'
           : programQuickPickHtml(g)}</td>
-      <td data-label="שכבה">${esc(g.grade || ageBandLabel(g.age_band) || '—')}</td>
-      <td data-label="מדריך">${esc(g.instructor_name || '—')}</td>
-      <td data-label="התחלה">${fmtDate(g.start_date)}</td>
-      <td data-label="סיום">${fmtDate(g.end_date)}</td>
-      ${SLOTS.map((slot) => `<td data-label="${esc(slot.label)}">${g.program_key ? statusChip(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}</td>`).join('')}
-      <td data-label="תוצאות">${resultsCellHtml(g)}</td>
-      <td data-label="פעולות"><button type="button" class="ifb-btn ifb-btn--primary ifb-btn--sm" data-ifb-open-group="${esc(g.row_id)}">משובים</button></td>
+      <td class="ifb-col-grade" data-label="שכבה">${esc(g.grade || ageBandLabel(g.age_band) || '—')}</td>
+      <td class="ifb-col-instructor" data-label="מדריך">${esc(g.instructor_name || '—')}</td>
+      <td class="ifb-col-date" data-label="התחלה">${fmtDate(g.start_date)}</td>
+      <td class="ifb-col-date" data-label="סיום">${fmtDate(g.end_date)}</td>
+      ${SLOTS.map((slot) => `<td class="ifb-col-status" data-label="${esc(slot.label)}">${g.program_key ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}</td>`).join('')}
+      <td class="ifb-col-results" data-label="תוצאות">${resultsCellHtml(g)}</td>
+      <td class="ifb-col-actions" data-label="פעולות"><button type="button" class="ifb-row-action" data-ifb-open-group="${esc(g.row_id)}" title="ניהול משובי הקבוצה">ניהול</button></td>
     </tr>`).join('');
   return `
     <div class="ifb-table-wrap">
-      <table class="ifb-table">
+      <table class="ifb-table ifb-overview-table">
+        <colgroup>
+          <col class="ifb-w-school">
+          <col class="ifb-w-authority">
+          <col class="ifb-w-program">
+          <col class="ifb-w-grade">
+          <col class="ifb-w-instructor">
+          <col class="ifb-w-date">
+          <col class="ifb-w-date">
+          <col class="ifb-w-status">
+          <col class="ifb-w-status">
+          <col class="ifb-w-status">
+          <col class="ifb-w-status">
+          <col class="ifb-w-results">
+          <col class="ifb-w-actions">
+        </colgroup>
         <thead><tr>
-          <th>בית ספר</th><th>רשות</th><th>תוכנית</th><th>שכבה</th><th>מדריך</th><th>התחלה</th><th>סיום</th>
-          ${SLOTS.map((s) => `<th>${esc(s.label)}</th>`).join('')}
-          <th>תוצאות</th><th>פעולות</th>
+          <th class="ifb-col-school">בית ספר</th>
+          <th class="ifb-col-authority">רשות</th>
+          <th class="ifb-col-program">תוכנית</th>
+          <th class="ifb-col-grade">שכבה</th>
+          <th class="ifb-col-instructor">מדריך</th>
+          <th class="ifb-col-date">התחלה</th>
+          <th class="ifb-col-date">סיום</th>
+          <th class="ifb-col-status">תלמידים – פתיחה</th>
+          <th class="ifb-col-status">תלמידים – סיום</th>
+          <th class="ifb-col-status">צוות חינוכי</th>
+          <th class="ifb-col-status">מדריך</th>
+          <th class="ifb-col-results">תוצאות</th>
+          <th class="ifb-col-actions">פעולות</th>
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
     </div>`;
 }
-
 function overviewHtml() {
   const groups = ui.groups || [];
   const scoped = ui.showAll ? groups : groups.filter(groupHasFeedback);
