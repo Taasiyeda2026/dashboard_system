@@ -19,7 +19,8 @@ const MIGRATIONS = [
   '../supabase/migrations/20261008200500_feedback_resolve_activity_number_aliases.sql',
   '../supabase/migrations/20261008205000_feedback_instructor_first_course_end.sql',
   '../supabase/migrations/20261008210000_feedback_instructor_first_started_course_end.sql',
-  '../supabase/migrations/20261008235500_feedback_instructor_manager_status_sort.sql'
+  '../supabase/migrations/20261008235500_feedback_instructor_manager_status_sort.sql',
+  '../supabase/migrations/20261009002000_feedback_remove_sky_limit.sql'
 ];
 
 async function asRole(client, role, uid = '') {
@@ -304,24 +305,27 @@ test('impact feedback DB contract: program fallback, manual mapping, catalog lim
     await client.query(`insert into activities (row_id, activity_season, activity_type, activity_name, activity_no, school, grade, instructor_name, emp_id) values
       ('M-11','school_2027','course','ביומימיקרי','82835','חטיבה א',null,'מדריכה','1'),
       ('M-12','school_2027','course','בינה מלאכותית','9545','חטיבה ב',null,'מדריכה','1'),
-      ('M-13','school_2027','course','ביומימיקרי','6089','יסודי ג',null,'מדריכה','1')`);
+      ('M-13','school_2027','course','ביומימיקרי','6089','יסודי ג',null,'מדריכה','1'),
+      ('M-14','school_2027','course','השמיים אינם הגבול','57646','חטיבה ד',null,'מדריכה','1')`);
 
     // --- Canonical course catalog + school levels ----------------------------------------------
     assert.equal((await one("select default_age_band b from feedback_programs where key='ai_foundations'")).b, null, 'school level is not encoded as an artificial age-band fallback');
-    const shortTitles = Object.fromEntries((await client.query('select key, title from feedback_programs order by sort_order')).rows.map((r) => [r.key, r.title]));
+    const allPrograms = Object.fromEntries((await client.query('select key, title, is_active from feedback_programs order by sort_order')).rows.map((r) => [r.key, r]));
+    assert.equal(allPrograms.sky_limit.title, 'השמיים אינם הגבול', 'the definition is retained for history');
+    assert.equal(allPrograms.sky_limit.is_active, false, 'Sky Limit is disabled in the feedback module only');
+    const shortTitles = Object.fromEntries((await client.query('select key, title from feedback_programs where is_active order by sort_order')).rows.map((r) => [r.key, r.title]));
     assert.deepEqual(shortTitles, {
       biomimicry: 'ביומימיקרי',
       board_games: 'משחקי קופסה',
       green_leadership: 'מנהיגות ירוקה',
       space_tech: 'טכנולוגיות החלל',
-      sky_limit: 'השמיים אינם הגבול',
       ai_applications: 'יישומי AI',
       biomimicry_secondary: 'ביומימיקרי',
       pharma: 'רוקחים עולם',
       ofek: 'אופק פרימיום',
       ai_foundations: 'סודות ויסודות AI',
       trailblazers: 'פורצות דרך'
-    }, 'feedback UI uses the canonical 11 short course titles');
+    }, 'feedback UI exposes only the 10 active programs');
     const levels = Object.fromEntries((await client.query('select key, education_level from feedback_programs order by sort_order')).rows.map((r) => [r.key, r.education_level]));
     assert.deepEqual(levels, {
       biomimicry: 'elementary',
@@ -356,6 +360,7 @@ test('impact feedback DB contract: program fallback, manual mapping, catalog lim
     assert.deepEqual([groups['M-11'].program_key, groups['M-11'].program_source], ['biomimicry_secondary', 'activity_no'], 'legacy activity_no 82835 resolves to canonical Biomimicry 53828');
     assert.deepEqual([groups['M-12'].program_key, groups['M-12'].program_source], ['ai_foundations', 'activity_no'], 'activity_no 9545 resolves even when gefen_number is empty');
     assert.deepEqual([groups['M-13'].program_key, groups['M-13'].program_source], ['biomimicry', 'activity_no'], 'activity_no 6089 resolves elementary Biomimicry');
+    assert.equal(groups['M-14'], undefined, '"השמיים אינם הגבול" is removed from the feedback interface rather than shown unresolved');
     const gefen = Object.fromEntries((await client.query('select key, gefen_numbers from feedback_programs')).rows.map((r) => [r.key, r.gefen_numbers]));
     assert.deepEqual(gefen, {
       biomimicry: ['6089'],
