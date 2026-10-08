@@ -68,8 +68,8 @@ test('impact feedback DB contract: admin-only management, token-only public flow
     await client.query(`insert into contacts_instructors values (1501, 'דנה לוי', '052-7654321', 'dana@example.test', 'פעיל')`);
     await client.query(`insert into activities (row_id, activity_season, activity_type, activity_name, authority, authority_id, school, school_id, grade, emp_id, instructor_name, instructor_assignment_locked, instructor_assignment_status, start_date, end_date, school_contact_id, activity_manager)
       values ('ACT-1','school_2027','course','פורצות דרך וצועדות קדימה','חיפה',10,'בית ספר אלון',20,'ח''','1501','דנה לוי',true,'שובץ','2026-10-01','2027-03-01',7,'הילה רוזן'),
-             ('ACT-2','school_2027','course','סודות ויסודות הבינה המלאכותית','חיפה',10,'בית ספר אורן',21,'ב׳',null,null,'2026-10-01','',null),
-             ('ACT-3','school_2027','course','סדנת פיזיקה',null,null,'בית ספר',22,'ה',null,null,null,null,null)`);
+             ('ACT-2','school_2027','course','סודות ויסודות הבינה המלאכותית','חיפה',10,'בית ספר אורן',21,'ב׳',null,null,'2026-10-01','',null,null),
+             ('ACT-3','school_2027','course','סדנת פיזיקה',null,null,'בית ספר',22,'ה',null,null,null,null,null,null)`);
 
     // --- Permissions -------------------------------------------------------
     await asRole(client, 'anon');
