@@ -364,7 +364,6 @@ function overviewTableHtml(groups) {
         : g.feedback_excluded
           ? '<span class="ifb-chip ifb-chip--muted">לא רלוונטי למשובים</span>'
           : programQuickPickHtml(g)}</td>
-      <td class="ifb-col-grade" data-label="שכבה">${esc(g.grade || ageBandLabel(g.age_band) || '—')}</td>
       <td class="ifb-col-instructor" data-label="מדריך">${esc(g.instructor_name || '—')}</td>
       <td class="ifb-col-date" data-label="התחלה">${fmtDate(g.start_date)}</td>
       <td class="ifb-col-date" data-label="סיום">${fmtDate(g.end_date)}</td>
@@ -378,7 +377,6 @@ function overviewTableHtml(groups) {
           <col class="ifb-w-school">
           <col class="ifb-w-authority">
           <col class="ifb-w-program">
-          <col class="ifb-w-grade">
           <col class="ifb-w-instructor">
           <col class="ifb-w-date">
           <col class="ifb-w-date">
@@ -391,7 +389,6 @@ function overviewTableHtml(groups) {
           <th class="ifb-col-school">בית ספר</th>
           <th class="ifb-col-authority">רשות</th>
           <th class="ifb-col-program">תוכנית</th>
-          <th class="ifb-col-grade">שכבה</th>
           <th class="ifb-col-instructor">מדריך</th>
           <th class="ifb-col-date">התחלה</th>
           <th class="ifb-col-date">סיום</th>

@@ -112,8 +112,9 @@ async function main() {
     assert.equal(await admin.locator('.ifb-kpi').count(), 6);
     assert.deepEqual(
       (await admin.locator('.ifb-overview-table thead th').allTextContents()).map((x) => x.trim()),
-      ['בית ספר', 'רשות', 'תוכנית', 'שכבה', 'מדריך', 'התחלה', 'סיום', 'תלמידים – פתיחה', 'תלמידים – סיום', 'צוות חינוכי', 'פעולות']
+      ['בית ספר', 'רשות', 'תוכנית', 'מדריך', 'התחלה', 'סיום', 'תלמידים – פתיחה', 'תלמידים – סיום', 'צוות חינוכי', 'פעולות']
     );
+    assert.equal(await admin.locator('.ifb-overview-table .ifb-col-grade').count(), 0, 'grade is not shown in the overview frontend');
     const rows = await admin.locator('.ifb-table tbody tr').count();
     assert.equal(rows, 8, 'six recognised program groups + two unrecognised course groups');
     assert.equal(await admin.locator('.ifb-table [data-status="not_opened"]').count(), 18);
