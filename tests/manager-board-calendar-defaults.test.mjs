@@ -52,6 +52,7 @@ async function loadInteractiveRuntimes() {
       window: dom.window,
       document: dom.window.document,
       Element: dom.window.Element,
+      HTMLElement: dom.window.HTMLElement,
       MutationObserver: dom.window.MutationObserver,
       CustomEvent: dom.window.CustomEvent,
       localStorage: dom.window.localStorage,
@@ -139,6 +140,48 @@ test('instructor center renders planned teaching hours and still works when hour
     meetings: [{ ...meeting, durationHours: null }]
   }));
   assert.match(region.querySelector('.manager-instructor-center__kpis').textContent, /—/);
+});
+
+test('elapsed important dates collapse but remain accessible after asynchronous list refresh', async () => {
+  await loadInteractiveRuntimes();
+  const { enhanceContainer } = await viteServer.ssrLoadModule('/frontend/src/manager-board-date-state-runtime.js');
+  const container = document.createElement('div');
+  container.className = 'manager-board-school-events';
+  const row = (iso, label) => `<div class="manager-board-school-event"><time datetime="${iso}">${iso}</time><span>${label}</span></div>`;
+  const dateSelector = '.manager-board-school-event';
+
+  container.innerHTML = row('2026-10-05', 'אירוע עבר') + row('2026-10-09', 'אירוע היום') + row('2026-10-15', 'אירוע עתידי');
+  enhanceContainer(container, dateSelector, 'date', '2026-10-09');
+  let pastGroup = container.querySelector('details.manager-board-past-details');
+  assert.ok(pastGroup && !pastGroup.open);
+  assert.equal(pastGroup.querySelectorAll(dateSelector).length, 1);
+  assert.match(pastGroup.querySelector('summary').textContent, /פתח 1 תאריכים שחלפו/);
+  assert.equal([...container.children].filter((element) => element.matches(dateSelector)).length, 2);
+  assert.equal(container.querySelector('.is-today').textContent.includes('אירוע היום'), true);
+
+  // Same container, but new rows from the asynchronous birthday loader.
+  // The old data-manager-board-date-state marker must not prevent recalculation.
+  container.innerHTML = row('2026-10-02', 'יום הולדת שכבר חלף') +
+    row('2026-10-06', 'אירוע עבר') + row('2026-10-15', 'אירוע עתידי');
+  enhanceContainer(container, dateSelector, 'date', '2026-10-09');
+  pastGroup = container.querySelector('details.manager-board-past-details');
+  assert.ok(pastGroup && !pastGroup.open);
+  assert.equal(pastGroup.querySelectorAll(dateSelector).length, 2);
+  assert.match(pastGroup.querySelector('summary').textContent, /פתח 2 תאריכים שחלפו/);
+  assert.equal([...container.children].filter((element) => element.matches(dateSelector)).length, 1);
+  pastGroup.open = true;
+  assert.match(pastGroup.textContent, /יום הולדת שכבר חלף/);
+
+  // A newly appended date must also re-apply the grouping without losing expansion.
+  container.insertAdjacentHTML('beforeend', row('2026-10-01', 'תוספת מאוחרת'));
+  enhanceContainer(container, dateSelector, 'date', '2026-10-09');
+  pastGroup = container.querySelector('details.manager-board-past-details');
+  assert.equal(pastGroup.open, true);
+  assert.equal(pastGroup.querySelectorAll(dateSelector).length, 3);
+});
+
+test('important dates are not capped at 20 so later dates are not silently hidden', () => {
+  assert.doesNotMatch(boardRuntime, /entries\.slice\(0,\s*20\)/);
 });
 
 function createBoardDataClient({ gate = Promise.resolve(), failFirstActivities = false } = {}) {
