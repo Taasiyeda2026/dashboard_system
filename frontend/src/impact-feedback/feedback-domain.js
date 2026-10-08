@@ -22,7 +22,8 @@ export const SLOTS = Object.freeze([
   { key: 'student:pre', audience: 'student', stage: 'pre', label: 'תלמידים – פתיחה', short: 'פתיחה' },
   { key: 'student:post', audience: 'student', stage: 'post', label: 'תלמידים – סיום', short: 'סיום' },
   { key: 'educational_staff:final', audience: 'educational_staff', stage: 'final', label: 'צוות חינוכי', short: 'צוות' },
-  { key: 'instructor:final', audience: 'instructor', stage: 'final', label: 'מדריך', short: 'מדריך' }
+  { key: 'instructor:pre', audience: 'instructor', stage: 'pre', label: 'מדריך – פתיחה', short: 'מדריך פתיחה' },
+  { key: 'instructor:final', audience: 'instructor', stage: 'final', label: 'מדריך – סיום', short: 'מדריך סיום' }
 ]);
 
 // Activity/group feedback only. Instructor feedback is intentionally NOT group-scoped:
