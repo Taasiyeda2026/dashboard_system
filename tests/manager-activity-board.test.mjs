@@ -88,9 +88,19 @@ test('active team strip renders inside the workspace shell, filtered by manager 
   assert.ok(runtimeSrc.includes('INACTIVE_INSTRUCTOR_VALUES'));
 });
 
-test('control points panel covers the selected month and the next month in one frame', () => {
-  assert.ok(runtimeSrc.includes('נקודות בקרה – החודש'));
-  assert.ok(runtimeSrc.includes('נקודות בקרה – חודש הבא'));
+test('sidebar shows current control points, important dates, then next-month control points as three panels', () => {
+  const sideStart = runtimeSrc.indexOf('<aside class="manager-board-side">');
+  const sideEnd = runtimeSrc.indexOf('</aside>', sideStart);
+  assert.ok(sideStart >= 0 && sideEnd > sideStart);
+  const sideMarkup = runtimeSrc.slice(sideStart, sideEnd);
+  const currentIndex = sideMarkup.indexOf('data-manager-board-control-points-current');
+  const datesIndex = sideMarkup.indexOf('data-manager-board-important-dates-panel');
+  const nextIndex = sideMarkup.indexOf('data-manager-board-control-points-next');
+  assert.ok(currentIndex >= 0 && currentIndex < datesIndex && datesIndex < nextIndex);
+  assert.equal((sideMarkup.match(/class="manager-board-panel"/g) || []).length, 3);
+  assert.match(sideMarkup, /<h2>נקודות בקרה<\/h2>/);
+  assert.match(sideMarkup, /<h2>תאריכים חשובים<\/h2>/);
+  assert.match(sideMarkup, /<h2>נקודות בקרה – חודש הבא<\/h2>/);
   assert.ok(runtimeSrc.includes('shiftMonth(ym, 1)'));
 });
 

@@ -51,6 +51,6 @@ test('manager board highlights today and collapses elapsed items into a mini exp
 test('new attendance and manager follow-up assets are loaded with cache-busting versions', () => {
   assert.match(attendanceIndex, /attendance-followup\.css\?v=57/);
   assert.match(attendanceIndex, /attendance-followup-runtime\.js\?v=57/);
-  assert.match(rootIndex, /manager-board-date-state\.css\?v=20260908-date-state-v1/);
-  assert.match(rootIndex, /manager-board-date-state-runtime\.js\?v=20260908-date-state-v1/);
+  assert.match(rootIndex, /manager-board-date-state\.css\?v=20260910-pr1776-final-fixes-v1/);
+  assert.match(rootIndex, /manager-board-date-state-runtime\.js\?v=20261009-manager-board-date-refresh-v1/);
 });
