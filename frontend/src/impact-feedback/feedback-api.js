@@ -19,7 +19,10 @@ const ERROR_MESSAGES = {
   feedback_invalid_stage: 'שלב מדידה לא תקין',
   feedback_version_locked: 'גרסה שפורסמה נעולה לעריכה – יש ליצור טיוטה',
   feedback_version_empty: 'לא ניתן לפרסם גרסה ללא שאלות',
-  feedback_version_not_draft: 'ניתן לפרסם רק טיוטה'
+  feedback_version_not_draft: 'ניתן לפרסם רק טיוטה',
+  feedback_instructor_scope_program: 'משוב מדריך נפתח לפי מדריך ותוכנית, לא לפי קבוצה',
+  feedback_instructor_not_assigned: 'לא נמצא שיבוץ פעיל של המדריך לתוכנית הזו',
+  feedback_invalid_academic_year: 'שנת הפעילות אינה תקינה'
 };
 
 export function translateFeedbackError(error) {
@@ -55,6 +58,23 @@ export async function fetchGroups(academicYear = null, activityRowId = null) {
     p_activity_row_id: activityRowId || null
   }));
   return Array.isArray(rows) ? rows : [];
+}
+
+export async function fetchInstructorAssignments(academicYear = null) {
+  const rows = await unwrap(client().rpc('feedback_admin_instructor_assignments', {
+    p_academic_year: academicYear || null
+  }));
+  return Array.isArray(rows) ? rows : [];
+}
+
+export async function openInstructorCampaign(instructorEmpId, programKey, academicYear, { opensAt = null, expiresAt = null } = {}) {
+  return unwrap(client().rpc('feedback_admin_open_instructor_campaign', {
+    p_instructor_emp_id: String(instructorEmpId || ''),
+    p_program_key: programKey,
+    p_academic_year: academicYear,
+    p_opens_at: opensAt,
+    p_expires_at: expiresAt
+  }));
 }
 
 export async function openCampaign(activityRowId, audience, stage, { opensAt = null, expiresAt = null, ageBand = null } = {}) {
