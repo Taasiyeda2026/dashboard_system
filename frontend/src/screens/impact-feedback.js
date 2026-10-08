@@ -820,7 +820,7 @@ function instructorAssignmentsHtml() {
         <thead><tr><th>מדריך</th><th>תוכנית</th><th>שיבוצים</th><th>בתי ספר</th><th>תקופה</th><th>פתיחה – אחרי הכשרה</th><th>סיום הקורס</th></tr></thead>
         <tbody>${rows.map((row) => `
           <tr data-instructor-feedback="${esc(instructorAssignmentKey(row))}">
-            <td data-label="מדריך"><strong>${esc(row.instructor_name || row.instructor_emp_id)}</strong><span class="ifb-muted ifb-cell-sub">#${esc(row.instructor_emp_id)}</span></td>
+            <td data-label="מדריך"><strong>${esc(row.instructor_name || row.instructor_emp_id)}</strong><span class="ifb-muted ifb-instructor-id">#${esc(row.instructor_emp_id)}</span></td>
             <td data-label="תוכנית">${esc(programTitle(row.program_key))}</td>
             <td data-label="שיבוצים" class="ifb-center"><strong>${Number(row.assignment_count) || 0}</strong></td>
             <td data-label="בתי ספר" class="ifb-center">${Number(row.school_count) || 0}</td>
