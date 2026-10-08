@@ -16,7 +16,8 @@ const MIGRATIONS = [
   '../supabase/migrations/20261008153500_instructor_feedback_pre_and_final.sql',
   '../supabase/migrations/20261008191000_feedback_short_program_titles.sql',
   '../supabase/migrations/20261008193000_feedback_canonical_11_programs_and_levels.sql',
-  '../supabase/migrations/20261008200500_feedback_resolve_activity_number_aliases.sql'
+  '../supabase/migrations/20261008200500_feedback_resolve_activity_number_aliases.sql',
+  '../supabase/migrations/20261008205000_feedback_instructor_first_course_end.sql'
 ];
 
 async function asRole(client, role, uid = '') {
@@ -171,6 +172,7 @@ test('impact feedback DB contract: admin-only management, token-only public flow
     const instructorRows = (await client.query("select * from feedback_admin_instructor_assignments('school_2027') where instructor_emp_id='1501' and program_key='trailblazers'")).rows;
     assert.equal(instructorRows.length, 1, 'same instructor + program appears once regardless of number of groups');
     assert.deepEqual([instructorRows[0].assignment_count, instructorRows[0].school_count], [2, 2]);
+    assert.equal(String(instructorRows[0].first_course_end_date).slice(0, 10), '2027-03-01', 'first course end is the earliest end date for this instructor + program');
     assert.equal(instructorRows[0].pre_campaign, null);
     assert.equal(instructorRows[0].final_campaign, null);
 
