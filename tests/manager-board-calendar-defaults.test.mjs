@@ -115,6 +115,32 @@ test('rendered instructor controls carry emp_id and directly open the instructor
   assert.deepEqual(opened, ['731', '731']);
 });
 
+test('instructor center renders planned teaching hours and still works when hours are unavailable', async () => {
+  const [, { renderInstructorCenter }] = await loadInteractiveRuntimes();
+  const region = document.createElement('section');
+  const activity = { row_id: 'course-731', emp_id: '731', activity_name: 'קורס לדוגמה', school: 'בית ספר לדוגמה' };
+  const meeting = { activity, iso: '2026-10-12', meetingNo: 1, isMidpoint: false, isEnd: false, durationHours: 1.5 };
+  const params = {
+    instructor: { empId: '731', name: 'מדריכה פעילה' },
+    activities: [activity],
+    meetings: [meeting],
+    ym: '2026-10',
+    details: { full_name: 'מדריכה פעילה', mobile: '050-1234567', statuses: [] }
+  };
+
+  assert.doesNotThrow(() => renderInstructorCenter(region, params));
+  assert.ok(region.querySelector('[data-manager-instructor-center][data-instructor-id="731"]'));
+  assert.match(region.textContent, /1\.5 ש׳/);
+  assert.match(region.textContent, /050-1234567/);
+  assert.match(region.textContent, /מועדים מרכזיים בחודש/);
+
+  assert.doesNotThrow(() => renderInstructorCenter(region, {
+    ...params,
+    meetings: [{ ...meeting, durationHours: null }]
+  }));
+  assert.match(region.querySelector('.manager-instructor-center__kpis').textContent, /—/);
+});
+
 function createBoardDataClient({ gate = Promise.resolve(), failFirstActivities = false } = {}) {
   const counts = new Map();
   const client = {
