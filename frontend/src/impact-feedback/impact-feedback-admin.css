@@ -317,6 +317,7 @@
 .ifb-instructor-stage .ifb-slot__actions { justify-content: center; }
 .ifb-instructor-stage__label { grid-column: 1 / -1; text-align: center; }
 .ifb-cell-sub { display: block; margin-top: 3px; font-size: 10.5px; line-height: 1.2; }
+.ifb-instructor-id { display: inline; margin-inline-start: 5px; font-size: 10.5px; white-space: nowrap; }
 .ifb-center { text-align: center; }
 .ifb-nowrap { white-space: nowrap; }
 .ifb-instructor-open-form { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(110px, 1fr); gap: 6px; min-width: 260px; }
