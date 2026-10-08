@@ -123,7 +123,7 @@ end $$;
 
 -- Publish a fresh FINAL version with an explicit end-of-course intro.
 -- Existing campaigns, if any, remain pinned to their historical version.
-do $
+do $$
 declare
   t record;
   v_version uuid;
@@ -140,7 +140,7 @@ begin
     where id = v_version;
     perform private.feedback_publish_version(v_version);
   end loop;
-end $;
+end $$;
 
 -- Recreate assignment listing with two distinct instructor checkpoints.
 drop function if exists public.feedback_admin_instructor_assignments(text);
