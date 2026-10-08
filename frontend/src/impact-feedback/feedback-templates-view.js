@@ -52,6 +52,14 @@ function programMeta(program) {
   return parts.join(' · ');
 }
 
+function templateSlotLabel(slot) {
+  if (slot.key === 'student:pre') return 'תלמידים (התחלה)';
+  if (slot.key === 'student:post') return 'תלמידים (סיום)';
+  if (slot.key === 'instructor:pre') return 'מדריך (התחלה)';
+  if (slot.key === 'instructor:final') return 'מדריך (סיום)';
+  return slot.label;
+}
+
 function optionsToText(options) {
   return (Array.isArray(options) ? options : []).map((o) => `${o.value}|${o.label}`).join('\n');
 }
@@ -80,7 +88,7 @@ function listHtml(ui) {
           const current = versions.find((v) => v.id === template.current_version_id);
           const draft = versions.find((v) => v.status === 'draft');
           return `<button type="button" class="ifb-tile" data-tpl-open="${esc(template.id)}">
-            <strong>${esc(slot.label)}</strong>
+            <strong>${esc(templateSlotLabel(slot))}</strong>
             ${!current ? '<span>טרם פורסם</span>' : ''}
             ${draft ? '<span class="ifb-chip ifb-chip--info">טיוטה בעריכה</span>' : ''}
           </button>`;
@@ -169,7 +177,7 @@ function editorHtml(ui) {
     <section class="ifb-group-head">
       <div>
         <p class="ifb-kicker">${esc(program?.title || '')}${programMeta(program) ? ` · ${esc(programMeta(program))}` : ''}</p>
-        <h2 class="ifb-group-head__title">${esc(slot?.label || '')}</h2>
+        <h2 class="ifb-group-head__title">${esc(slot ? templateSlotLabel(slot) : '')}</h2>
         ${!ed.published ? '<p class="ifb-muted">טרם פורסם</p>' : ''}
         ${editing ? '<p class="ifb-muted">טיוטה בעריכה</p>' : ''}
       </div>
