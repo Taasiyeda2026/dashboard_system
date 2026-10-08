@@ -641,7 +641,7 @@ function openAnswersListHtml(items, { showContext = true } = {}) {
       <p class="ifb-answer__meta">
         <span class="ifb-chip ifb-chip--muted">${esc(AUDIENCE_LABELS[a.audience] || '')}${a.audience === 'student' ? ` · ${a.stage === 'pre' ? 'פתיחה' : 'סיום'}` : ''}</span>
         <span>${esc(a.question_text)}</span>
-        ${showContext ? `<span>${esc(programTitle(a.program_key))} · ${esc(a.school_name)}${a.grade ? ` · ${esc(a.grade)}` : ''}</span>` : ''}
+        ${showContext ? `<span>${esc(programTitle(a.program_key))}${a.school_name ? ` · ${esc(a.school_name)}` : ''}${a.grade ? ` · ${esc(a.grade)}` : ''}</span>` : ''}
         ${a.respondent_name ? `<span>${esc(a.respondent_name)}</span>` : ''}
         <span>${fmtDate(a.submitted_at)}</span>
       </p>
@@ -821,7 +821,7 @@ function resultsHtml() {
       <button type="button" class="ifb-btn ifb-btn--ghost" data-ifb-clear="results">ניקוי</button>
     </div>
     <div class="ifb-section__head">
-      <p class="ifb-muted">${new Set(filtered.map((f) => f.response_id)).size} משובים · ${new Set(filtered.map((f) => f.activity_row_id)).size} קבוצות</p>
+      <p class="ifb-muted">${new Set(filtered.map((f) => f.response_id)).size} משובים · ${new Set(filtered.map((f) => f.activity_row_id).filter(Boolean)).size} קבוצות · ${new Set(filtered.filter((f) => f.audience === 'instructor').map((f) => f.instructor_name).filter(Boolean)).size} מדריכים</p>
       ${exportButtonsHtml('results')}
     </div>
     ${filtered.length ? perspectivesHtml(filtered, 'results') : '<div class="ifb-empty"><p>אין עדיין תשובות התואמות לסינון.</p></div>'}`;
