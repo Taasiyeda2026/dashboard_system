@@ -88,6 +88,7 @@ import {
   serializePlanningContextFingerprint,
   planningDataFingerprint,
   planningOptionPassesFinalValidation,
+  recoverPlanningOverlapFromCommittedProposals,
   planningTabHtml,
   planningWorkspaceCourses,
   validateResumedPlanningRows
@@ -3301,13 +3302,48 @@ export const courseSchedulingScreen = {
         });
         // Bounded delta replan over an otherwise complete plan. Valid rows are
         // reused as fixed context; only targetIds are recalculated.
+        // A failed local-repair pass must not invalidate 253 otherwise-valid
+        // proposals if the committed schedule has a safe incumbent for the
+        // conflicting activities. Restore only a movable prior proposal and
+        // revalidate the ENTIRE resulting plan before accepting the result.
+        const buildDynamicPlanWithCommittedRecovery = async (input) => {
+          try {
+            return await buildDynamicCoursePlan(input);
+          } catch (error) {
+            if (error?.code !== 'planning_final_validation_failed') throw error;
+            const recovered = await recoverPlanningOverlapFromCommittedProposals({
+              ...input,
+              error,
+              committedRows: existingRows
+            });
+            if (!recovered) throw error;
+            planningPerfEvent('planning-committed-incumbent-recovery', {
+              restoredCourseIds: recovered.restoredCourseIds,
+              totalRows: recovered.rows.length
+            });
+            return {
+              rows: recovered.rows,
+              total: recovered.rows.length,
+              planned: recovered.rows.filter((row) =>
+                ['proposal', 'fixed-proposal', 'planning-locked'].includes(text(row?.kind))
+                && text(row?.instructorEmpId)
+              ).length,
+              routeStats: {
+                googleCalls: Number(routeClient.googleCalls) || 0,
+                cacheHits: Number(routeClient.cacheHits) || 0,
+                committedIncumbentRecovery: true
+              }
+            };
+          }
+        };
+
         const runDeltaRepair = async (snapshot, existing, targetIds, onProgress) => {
           checkpointMetaBase.planningStage = PLANNING_RUN_STAGES.ROWS;
           const repaired = await runDeltaRepairPlan(snapshot, existing, targetIds, onProgress);
           checkpointMetaBase.planningStage = PLANNING_RUN_STAGES.PLANNED;
           return repaired;
         };
-        const runDeltaRepairPlan = (snapshot, existing, targetIds, onProgress) => buildDynamicCoursePlan({
+        const runDeltaRepairPlan = (snapshot, existing, targetIds, onProgress) => buildDynamicPlanWithCommittedRecovery({
           ...planningBuildInput(snapshot),
           today: today(),
           routeClient,
@@ -3374,7 +3410,7 @@ export const courseSchedulingScreen = {
             routeStats: { googleCalls: 0, cacheHits: 0, resumedValidatedCommit: true }
           };
         } else {
-          result = await buildDynamicCoursePlan({
+          result = await buildDynamicPlanWithCommittedRecovery({
             activities: freshStart.activities || [],
             instructors: freshStart.instructors || [],
             profiles,
