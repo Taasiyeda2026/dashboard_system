@@ -328,6 +328,13 @@ async function main() {
     assert.ok((await instructorSelect.locator('option').allTextContents()).some((x) => /דנה לוי/.test(x)));
     await instructorSelect.selectOption('1501');
     assert.ok(await admin.locator('.ifb-instructor-table tbody tr').count() >= 1);
+    assert.deepEqual(
+      (await admin.locator('.ifb-instructor-table thead th').allTextContents()).map((x) => x.trim()),
+      ['מדריך', 'תוכנית', 'קבוצות', 'סיום הקורס הראשון', 'פתיחה – אחרי הכשרה', 'סיום הקורס']
+    );
+    assert.doesNotMatch(await admin.locator('.ifb-instructor-table').textContent(), /בתי ספר|תקופה/);
+    const instructorTableWidth = await admin.locator('.ifb-instructor-table-wrap').evaluate((el) => el.getBoundingClientRect().width);
+    assert.ok(instructorTableWidth <= 982, `instructor table should stay compact, got ${instructorTableWidth}`);
     const row = admin.locator('.ifb-instructor-table tbody tr', { hasText: 'דנה לוי' }).filter({ hasText: 'פורצות דרך' }).first();
     await row.waitFor();
     assert.match(await row.textContent(), /1/);
