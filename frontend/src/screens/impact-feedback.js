@@ -12,6 +12,7 @@ import {
   AUDIENCE_LABELS,
   RAW_EXPORT_HEADERS,
   PROGRAM_SOURCE_LABELS,
+  GROUP_SLOTS,
   SLOTS,
   SUMMARY_EXPORT_HEADERS,
   academicYearLabel,
@@ -37,9 +38,11 @@ import {
 import {
   fetchAnswerFacts,
   fetchGroups,
+  fetchInstructorAssignments,
   fetchMetrics,
   fetchPrograms,
   openCampaign,
+  openInstructorCampaign,
   setActivityProgram,
   translateFeedbackError,
   updateCampaign
@@ -61,14 +64,18 @@ const ui = {
   results: { program: '', authority: '', school: '', ageBand: '', group: '', instructor: '', from: '', to: '', drill: '' },
   answers: { program: '', audience: '', question: '', school: '', search: '' },
   templates: { templateId: null, versionId: null, previewBand: '' },
+  instructorFilters: { search: '', program: '', status: '' },
   groups: null,
   groupsYear: null,
+  instructorAssignments: null,
+  instructorAssignmentsYear: null,
   metrics: [],
   programs: [],
   facts: null,
   factsYear: null,
   groupFacts: new Map(),
   openForms: new Set(),
+  instructorOpenForms: new Set(),
   loading: false,
   error: ''
 };
@@ -145,6 +152,12 @@ async function ensureGroups(force = false) {
   ui.groupsYear = ui.year;
 }
 
+async function ensureInstructorAssignments(force = false) {
+  if (!force && ui.instructorAssignments && ui.instructorAssignmentsYear === ui.year) return;
+  ui.instructorAssignments = await fetchInstructorAssignments(ui.year);
+  ui.instructorAssignmentsYear = ui.year;
+}
+
 async function ensureFacts(force = false) {
   if (!force && ui.facts && ui.factsYear === ui.year) return;
   ui.facts = await fetchAnswerFacts({ academic_year: ui.year });
@@ -177,6 +190,7 @@ function findGroup(rowId) {
 
 const TABS = [
   { key: 'overview', label: 'סקירה' },
+  { key: 'instructors', label: 'משובי מדריכים' },
   { key: 'results', label: 'תוצאות והשפעה' },
   { key: 'answers', label: 'תשובות פתוחות' },
   { key: 'templates', label: 'תבניות ושאלות' }
@@ -215,15 +229,25 @@ function errorHtml(message) {
 // Overview
 // ---------------------------------------------------------------------------
 
-function kpiHtml(groups) {
+function kpiHtml(groups, instructorAssignments = []) {
   const k = dashboardKpis(groups);
+  const instructorCampaigns = instructorAssignments.map((row) => row.campaign).filter(Boolean);
+  const pendingInstructor = instructorCampaigns.filter((campaign) => {
+    const key = campaignUiStatus(campaign).key;
+    return key === 'active' || key === 'collecting';
+  }).length;
+  const instructorCompleted = instructorCampaigns.filter((campaign) => campaign?.recipient?.status === 'completed').length;
+  const staffCampaigns = groups.flatMap((group) => (group.campaigns || []).filter((campaign) => campaign.audience === 'educational_staff'));
+  const staffCompleted = staffCampaigns.filter((campaign) => campaign?.recipient?.status === 'completed').length;
+  const personalTotal = instructorCampaigns.length + staffCampaigns.length;
+  const responseRate = personalTotal ? Math.round(((instructorCompleted + staffCompleted) / personalTotal) * 100) : null;
   const items = [
     ['קבוצות עם משובים', k.withFeedback, `מתוך ${groups.length} קבוצות`, k.unresolved ? `${k.unresolved} דורשות שיוך` : ''],
     ['משובי פתיחה פעילים', k.activePre, 'תלמידים', ''],
     ['משובי סיום פעילים', k.activePost, 'תלמידים', ''],
-    ['ממתינים למדריך', k.pendingInstructor, 'קישורים שטרם מולאו', ''],
+    ['ממתינים למדריך', pendingInstructor, 'משוב חד־פעמי לפי תוכנית', ''],
     ['ממתינים לאיש קשר', k.pendingContact, 'קישורים שטרם מולאו', ''],
-    ['שיעור מענה', k.responseRate === null ? '—' : `${k.responseRate}%`, k.responseRate === null ? 'אין עדיין נתונים' : `צוות ומדריכים · ${k.studentResponses} תשובות תלמידים`, '']
+    ['שיעור מענה', responseRate === null ? '—' : `${responseRate}%`, responseRate === null ? 'אין עדיין נתונים' : `צוות ומדריכים · ${k.studentResponses} תשובות תלמידים`, '']
   ];
   return `<div class="ifb-kpis">${items.map(([label, value, hint, warning]) => `
     <div class="ifb-kpi${warning ? ' ifb-kpi--warning' : ''}">
@@ -233,7 +257,6 @@ function kpiHtml(groups) {
       ${warning ? `<span class="ifb-kpi__warning">${esc(warning)}</span>` : ''}
     </div>`).join('')}</div>`;
 }
-
 function overviewFiltersHtml(groups) {
   const f = ui.filters;
   const advancedCount = [f.instructor, f.ageBand, f.from, f.to].filter(Boolean).length;
@@ -245,7 +268,7 @@ function overviewFiltersHtml(groups) {
         <label class="ifb-field"><span>רשות</span><select data-f="authority">${optionList(uniqueSorted(groups.map((g) => g.authority)), f.authority, 'כל הרשויות')}</select></label>
         <label class="ifb-field"><span>בית ספר</span><select data-f="school">${optionList(uniqueSorted(groups.map((g) => g.school)), f.school, 'כל בתי הספר')}</select></label>
         <label class="ifb-field"><span>סטטוס</span><select data-f="status">
-          ${[['', 'הכל'], ['unresolved', 'תוכנית לא זוהתה'], ['has_feedback', 'יש משובים'], ['no_feedback', 'ללא משובים'], ['any_live', 'משוב פעיל'], ['pending_instructor', 'ממתין למדריך'], ['pending_contact', 'ממתין לאיש קשר'], ['expired', 'פג תוקף'], ['completed_all', 'הושלם (4 משובים)'], ['excluded', 'הוסתרו (לא רלוונטי)']]
+          ${[['', 'הכל'], ['unresolved', 'תוכנית לא זוהתה'], ['has_feedback', 'יש משובים'], ['no_feedback', 'ללא משובים'], ['any_live', 'משוב פעיל'], ['pending_contact', 'ממתין לאיש קשר'], ['expired', 'פג תוקף'], ['completed_all', 'הושלם (3 משובים)'], ['excluded', 'הוסתרו (לא רלוונטי)']]
             .map(([v, l]) => `<option value="${v}"${v === f.status ? ' selected' : ''}>${esc(l)}</option>`).join('')}
         </select></label>
         <button type="button" class="ifb-btn ifb-btn--ghost ifb-clear-btn" data-ifb-clear="overview">ניקוי</button>
@@ -266,9 +289,9 @@ function resultsCellHtml(group) {
   const post = slotCampaign(group, SLOTS[1]);
   const nPre = Number(pre?.responses) || 0;
   const nPost = Number(post?.responses) || 0;
-  const personalDone = (group.campaigns || []).filter((c) => c.audience !== 'student' && c.recipient?.status === 'completed').length;
-  if (!nPre && !nPost && !personalDone) return '<span class="ifb-muted">—</span>';
-  return `<button type="button" class="ifb-link" data-ifb-results-group="${esc(group.row_id)}">פתיחה ${nPre} · סיום ${nPost}${personalDone ? ` · אישי ${personalDone}/2` : ''}</button>`;
+  const staffDone = (group.campaigns || []).some((c) => c.audience === 'educational_staff' && c.recipient?.status === 'completed');
+  if (!nPre && !nPost && !staffDone) return '<span class="ifb-muted">—</span>';
+  return `<button type="button" class="ifb-link" data-ifb-results-group="${esc(group.row_id)}">פתיחה ${nPre} · סיום ${nPost}${staffDone ? ' · צוות הושלם' : ''}</button>`;
 }
 
 function programOptionsHtml(selected = '') {
@@ -335,7 +358,7 @@ function overviewTableHtml(groups) {
       <td class="ifb-col-instructor" data-label="מדריך">${esc(g.instructor_name || '—')}</td>
       <td class="ifb-col-date" data-label="התחלה">${fmtDate(g.start_date)}</td>
       <td class="ifb-col-date" data-label="סיום">${fmtDate(g.end_date)}</td>
-      ${SLOTS.map((slot) => `<td class="ifb-col-status" data-label="${esc(slot.label)}">${g.program_key ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}</td>`).join('')}
+      ${GROUP_SLOTS.map((slot) => `<td class="ifb-col-status" data-label="${esc(slot.label)}">${g.program_key ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}</td>`).join('')}
       <td class="ifb-col-results" data-label="תוצאות">${resultsCellHtml(g)}</td>
       <td class="ifb-col-actions" data-label="פעולות"><button type="button" class="ifb-row-action" data-ifb-open-group="${esc(g.row_id)}" title="ניהול משובי הקבוצה">ניהול</button></td>
     </tr>`).join('');
@@ -353,7 +376,6 @@ function overviewTableHtml(groups) {
           <col class="ifb-w-status">
           <col class="ifb-w-status">
           <col class="ifb-w-status">
-          <col class="ifb-w-status">
           <col class="ifb-w-results">
           <col class="ifb-w-actions">
         </colgroup>
@@ -368,7 +390,6 @@ function overviewTableHtml(groups) {
           <th class="ifb-col-status">תלמידים – פתיחה</th>
           <th class="ifb-col-status">תלמידים – סיום</th>
           <th class="ifb-col-status">צוות חינוכי</th>
-          <th class="ifb-col-status">מדריך</th>
           <th class="ifb-col-results">תוצאות</th>
           <th class="ifb-col-actions">פעולות</th>
         </tr></thead>
@@ -384,7 +405,7 @@ function overviewHtml() {
     || String(a.school).localeCompare(String(b.school), 'he'));
   const unresolved = groups.filter(isProgramUnresolved).length;
   return `
-    ${kpiHtml(groups)}
+    ${kpiHtml(groups, ui.instructorAssignments || [])}
     ${overviewFiltersHtml(groups)}
     <div class="ifb-list-head">
       <div class="ifb-list-head__title">
@@ -651,10 +672,10 @@ function groupViewHtml(group) {
       </dl>
     </section>
     ${programCardHtml(group)}
-    <div class="ifb-slots">${SLOTS.map((slot) => slotCardHtml(group, slot)).join('')}</div>
+    <div class="ifb-slots">${GROUP_SLOTS.map((slot) => slotCardHtml(group, slot)).join('')}</div>
     <section class="ifb-section">
-      <div class="ifb-section__head"><h2>שלוש נקודות מבט</h2>${facts ? exportButtonsHtml(`group:${group.row_id}`) : ''}</div>
-      ${facts ? perspectivesHtml(facts, `group:${group.row_id}`) : loadingHtml('טוען תוצאות…')}
+      <div class="ifb-section__head"><h2>תלמידים וצוות חינוכי</h2>${facts ? exportButtonsHtml(`group:${group.row_id}`) : ''}</div>
+      ${facts ? perspectivesHtml(facts, `group:${group.row_id}`, { includeInstructor: false }) : loadingHtml('טוען תוצאות…')}
     </section>
     ${facts ? `<section class="ifb-section"><h2>תשובות פתוחות</h2>${openAnswersListHtml(openAnswers(facts), { showContext: false })}</section>` : ''}`;
 }
