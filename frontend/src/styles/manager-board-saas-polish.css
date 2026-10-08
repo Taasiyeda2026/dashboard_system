@@ -612,7 +612,7 @@
   }
 
   .manager-board-screen[data-manager-board-root] .manager-board-side {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
   }
 
   .manager-board-screen[data-manager-board-root] .manager-instructor-center__kpis {
