@@ -61,7 +61,6 @@ const ui = {
   showAll: true,
   filters: { program: '', authority: '', school: '', instructor: '', ageBand: '', from: '', to: '', status: '', search: '' },
   results: { program: '', authority: '', school: '', ageBand: '', group: '', instructor: '', from: '', to: '', drill: '' },
-  answers: { program: '', audience: '', question: '', school: '', search: '' },
   templates: { templateId: null, versionId: null, previewBand: '' },
   instructorFilters: { instructor: '', program: '', manager: '', status: '' },
   groups: null,
@@ -127,16 +126,23 @@ function expiryIso(day) {
   return new Date(`${day}T23:59:00`).toISOString();
 }
 
-function statusChip(campaign) {
+const STATUS_ICONS = { muted: '○', scheduled: '◷', active: '●', pending: '◷', success: '✓', warning: '!', closed: '–', info: '●' };
+
+/** The single status representation in the module: small icon + semantic-colour text (no capsule). */
+function statusText(label, tone = 'muted', key = '') {
+  return `<span class="ifb-status ifb-status--${tone}"${key ? ` data-status="${esc(key)}"` : ''}><span class="ifb-status__icon" aria-hidden="true">${STATUS_ICONS[tone] || '●'}</span><span class="ifb-status__label">${esc(label)}</span></span>`;
+}
+
+function campaignStatusHtml(campaign) {
   const status = campaignUiStatus(campaign);
-  return `<span class="ifb-chip ifb-chip--${status.tone}" data-status="${status.key}">${esc(status.label)}</span>`;
+  return statusText(status.label, status.tone, status.key);
 }
 
 function tableStatusHtml(campaign) {
   const status = campaignUiStatus(campaign);
   const studentResponses = campaign?.audience === 'student' ? Number(status.responses || 0) : 0;
   return `<div class="ifb-status-cell">
-    <span class="ifb-chip ifb-chip--${status.tone}" data-status="${status.key}">${esc(status.label)}</span>
+    ${statusText(status.label, status.tone, status.key)}
     ${studentResponses > 0 ? `<span class="ifb-status-cell__count">${studentResponses} תשובות</span>` : ''}
   </div>`;
 }
@@ -262,7 +268,7 @@ function kpiHtml(groups, instructorAssignments = []) {
       <span class="ifb-kpi__label">${esc(label)}</span>
       <strong class="ifb-kpi__value">${esc(String(value))}</strong>
       <span class="ifb-kpi__hint">${esc(hint)}</span>
-      ${warning ? `<span class="ifb-kpi__warning">${esc(warning)}</span>` : ''}
+      ${warning ? `<span class="ifb-kpi__warning">${statusText(warning, 'warning')}</span>` : ''}
     </div>`).join('')}</div>`;
 }
 function overviewFiltersHtml(groups) {
@@ -311,7 +317,7 @@ function programOptionsHtml(selected = '') {
 /** Inline picker in the table row: status + choose one of the canonical programs. */
 function programQuickPickHtml(group) {
   return `<div class="ifb-unresolved">
-    <span class="ifb-chip ifb-chip--warning">תוכנית לא זוהתה</span>
+    ${statusText('תוכנית לא זוהתה', 'warning')}
     <span class="ifb-muted ifb-unresolved__name">${esc(group.activity_name || '')}</span>
     <form class="ifb-unresolved__form" data-ifb-set-program="${esc(group.row_id)}">
       <select name="program" aria-label="בחירת תוכנית ידנית" required>${programOptionsHtml()}</select>
@@ -357,12 +363,12 @@ function overviewTableHtml(groups) {
   }
   const rows = groups.map((g) => `
     <tr data-row="${esc(g.row_id)}">
-      <td class="ifb-col-school" data-label="בית ספר"><strong class="ifb-school-name">${esc(g.school || '—')}</strong>${g.class_group ? `<span class="ifb-muted ifb-cell-sub">${esc(g.class_group)}</span>` : ''}</td>
+      <td class="ifb-col-school" data-label="בית ספר"><strong class="ifb-school-name" title="${esc(g.school || '')}">${esc(g.school || '—')}</strong>${g.class_group ? `<span class="ifb-muted ifb-cell-sub">${esc(g.class_group)}</span>` : ''}</td>
       <td class="ifb-col-authority" data-label="רשות" title="${esc(g.authority || '')}">${esc(g.authority || '—')}</td>
       <td class="ifb-col-program" data-label="תוכנית">${g.program_key
         ? esc(programTitle(g.program_key))
         : g.feedback_excluded
-          ? '<span class="ifb-chip ifb-chip--muted">לא רלוונטי למשובים</span>'
+          ? statusText('לא רלוונטי למשובים', 'muted')
           : programQuickPickHtml(g)}</td>
       <td class="ifb-col-instructor" data-label="מדריך">${esc(g.instructor_name || '—')}</td>
       <td class="ifb-col-date" data-label="התחלה">${fmtDate(g.start_date)}</td>
@@ -453,7 +459,7 @@ function slotCardHtml(group, slot) {
   const title = `<h3 class="ifb-slot__title">${esc(slot.label)}</h3>`;
   if (!campaign) {
     return `<article class="ifb-slot" data-slot="${slot.key}">
-      <div class="ifb-slot__head">${title}${statusChip(null)}</div>
+      <div class="ifb-slot__head">${title}${campaignStatusHtml(null)}</div>
       ${slot.audience === 'educational_staff' && group.contact_name ? `<p class="ifb-muted">איש קשר: ${esc(group.contact_name)}</p>` : ''}
       ${slot.audience === 'instructor' && group.instructor_name ? `<p class="ifb-muted">מדריך: ${esc(group.instructor_name)}</p>` : ''}
       ${openFormHtml(group, slot)}
@@ -494,7 +500,7 @@ function slotCardHtml(group, slot) {
         <button type="submit" class="ifb-btn ifb-btn--sm">שמירה</button></form></details>`
     : '';
   return `<article class="ifb-slot" data-slot="${slot.key}" data-campaign="${id}">
-    <div class="ifb-slot__head">${title}${statusChip(campaign)}</div>
+    <div class="ifb-slot__head">${title}${campaignStatusHtml(campaign)}</div>
     ${meta}
     <div class="ifb-slot__actions">${actions}</div>
     ${extendForm}
@@ -588,7 +594,7 @@ function alignmentHtml(perspectives, { includeInstructor = true } = {}) {
       <td data-label="קול התלמידים">${s ?? '—'}</td>
       <td data-label="צוות חינוכי">${st ?? '—'}</td>
       ${includeInstructor ? `<td data-label="מדריך">${ins ?? '—'}</td>` : ''}
-      <td data-label="התאמה">${gap ? `<span class="ifb-chip ifb-chip--${gap.key === 'aligned' ? 'success' : gap.key === 'partial' ? 'info' : 'warning'}">${esc(gap.label)} (${gap.gap})</span>` : '<span class="ifb-muted">אין מספיק זוויות</span>'}</td>
+      <td data-label="התאמה">${gap ? statusText(`${gap.label} (${gap.gap})`, gap.key === 'aligned' ? 'success' : gap.key === 'partial' ? 'muted' : 'warning') : '<span class="ifb-muted">אין מספיק זוויות</span>'}</td>
     </tr>`;
   }).join('');
   if (!rows) return '';
@@ -634,7 +640,7 @@ function openAnswersListHtml(items, { showContext = true } = {}) {
     <li class="ifb-answer">
       <p class="ifb-answer__text">${esc(a.text)}</p>
       <p class="ifb-answer__meta">
-        <span class="ifb-chip ifb-chip--muted">${esc(AUDIENCE_LABELS[a.audience] || '')}${(a.audience === 'student' || a.audience === 'instructor') ? ` · ${a.stage === 'pre' ? 'פתיחה' : 'סיום'}` : ''}</span>
+        <span class="ifb-answer__audience">${esc(AUDIENCE_LABELS[a.audience] || '')}${(a.audience === 'student' || a.audience === 'instructor') ? ` · ${a.stage === 'pre' ? 'פתיחה' : 'סיום'}` : ''}</span>
         <span>${esc(a.question_text)}</span>
         ${showContext ? `<span>${esc(programTitle(a.program_key))}${a.school_name ? ` · ${esc(a.school_name)}` : ''}${a.grade ? ` · ${esc(a.grade)}` : ''}</span>` : ''}
         ${a.respondent_name ? `<span>${esc(a.respondent_name)}</span>` : ''}
@@ -656,7 +662,6 @@ function groupViewHtml(group) {
     <button type="button" class="ifb-back" data-ifb-back>→ חזרה לכל הקבוצות</button>
     <section class="ifb-group-head">
       <div>
-        <p class="ifb-kicker">${group.program_key ? esc(programTitle(group.program_key)) : 'תוכנית לא זוהתה'}</p>
         <h2 class="ifb-group-head__title">${esc(group.school || '—')}${group.grade ? ` · שכבה ${esc(group.grade)}` : ''}</h2>
         <p class="ifb-muted">${esc(group.activity_name)}</p>
       </div>
@@ -693,13 +698,10 @@ function instructorAssignmentKey(row, stage = '') {
 function instructorCampaignActionsHtml(row, stage) {
   const campaign = instructorCampaignFor(row, stage);
   const key = instructorAssignmentKey(row, stage);
-  const stageLabel = stage === 'pre' ? 'פתיחה – אחרי הכשרה' : 'סיום הקורס';
   if (!campaign) {
     if (!ui.instructorOpenForms.has(key)) {
       return `<div class="ifb-instructor-stage ifb-instructor-stage--compact">
-        <span class="ifb-stage-icon ifb-stage-icon--pending" title="טרם נפתח" aria-label="טרם נפתח">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"></circle><path d="M12 8v4l2.5 1.5"></path></svg>
-        </span>
+        ${campaignStatusHtml(null)}
         <button type="button" class="ifb-icon-action" data-ifb-instructor-open="${esc(key)}" title="פתיחת משוב" aria-label="פתיחת משוב">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg>
         </button>
@@ -709,7 +711,6 @@ function instructorCampaignActionsHtml(row, stage) {
       <form class="ifb-instructor-open-form" data-ifb-instructor-open-form
         data-emp="${esc(row.instructor_emp_id)}" data-program="${esc(row.program_key)}" data-year="${esc(row.academic_year)}"
         data-stage="${stage}" data-key="${esc(key)}">
-        <p class="ifb-note ifb-instructor-stage__label">${esc(stageLabel)}</p>
         <label class="ifb-field"><span>פתיחה</span><input type="date" name="opens" value="${isoDay(Date.now())}" required></label>
         <label class="ifb-field"><span>תוקף עד</span><input type="date" name="expires" value="${isoDay(Date.now() + (14 * DAY_MS))}" min="${isoDay(Date.now() + DAY_MS)}"></label>
         <div class="ifb-slot__actions">
@@ -721,19 +722,19 @@ function instructorCampaignActionsHtml(row, stage) {
 
   const status = campaignUiStatus(campaign);
   if (status.key === 'completed') {
-    return `<div class="ifb-instructor-stage"><span class="ifb-chip ifb-chip--success">הושלם</span><span class="ifb-muted">המשוב נעול</span></div>`;
+    return `<div class="ifb-instructor-stage">${statusText('הושלם', 'success', 'completed')}<span class="ifb-muted ifb-instructor-stage__note">המשוב נעול</span></div>`;
   }
   const links = personalShareLinks(campaign, { programTitle: programTitle(row.program_key), schoolName: '' });
   const live = status.key === 'active' || status.key === 'collecting' || status.key === 'scheduled';
   return `<div class="ifb-instructor-stage">
     ${tableStatusHtml(campaign)}
-    <div class="ifb-slot__actions">
-      <a class="ifb-btn ifb-btn--whatsapp ifb-btn--sm${live ? '' : ' is-disabled'}" href="${esc(links.whatsapp)}" target="_blank" rel="noopener" data-ifb-share="whatsapp" data-campaign="${esc(campaign.id)}">WhatsApp</a>
-      <a class="ifb-btn ifb-btn--sm${live && links.hasEmail ? '' : ' is-disabled'}" href="${esc(links.email)}" data-ifb-share="email" data-campaign="${esc(campaign.id)}">מייל</a>
-      <button type="button" class="ifb-btn ifb-btn--sm" data-ifb-copy="${esc(campaign.id)}">העתק קישור</button>
+    <div class="ifb-text-actions">
+      <a class="ifb-text-action ifb-text-action--whatsapp${live ? '' : ' is-disabled'}" href="${esc(links.whatsapp)}" target="_blank" rel="noopener" data-ifb-share="whatsapp" data-campaign="${esc(campaign.id)}">WhatsApp</a>
+      <a class="ifb-text-action${live && links.hasEmail ? '' : ' is-disabled'}" href="${esc(links.email)}" data-ifb-share="email" data-campaign="${esc(campaign.id)}">מייל</a>
+      <button type="button" class="ifb-text-action" data-ifb-copy="${esc(campaign.id)}">העתקה</button>
       ${campaign.status === 'active'
-        ? `<button type="button" class="ifb-btn ifb-btn--danger ifb-btn--sm" data-ifb-close="${esc(campaign.id)}">סגור</button>`
-        : `<button type="button" class="ifb-btn ifb-btn--sm" data-ifb-reopen="${esc(campaign.id)}">פתח מחדש</button>`}
+        ? `<button type="button" class="ifb-text-action ifb-text-action--danger" data-ifb-close="${esc(campaign.id)}">סגירה</button>`
+        : `<button type="button" class="ifb-text-action" data-ifb-reopen="${esc(campaign.id)}">פתיחה מחדש</button>`}
     </div>
   </div>`;
 }
@@ -773,7 +774,7 @@ function instructorOverallStatus(row) {
 
 function instructorOverallStatusHtml(row) {
   const status = instructorOverallStatus(row);
-  return `<span class="ifb-chip ifb-chip--${status.tone} ifb-instructor-overall-status">${esc(status.label)}</span>`;
+  return statusText(status.label, status.tone);
 }
 
 function instructorAssignmentsHtml() {
@@ -906,43 +907,6 @@ function resultsHtml() {
 }
 
 // ---------------------------------------------------------------------------
-// Open answers
-// ---------------------------------------------------------------------------
-
-function answersHtml() {
-  const a = ui.answers;
-  const all = openAnswers(ui.facts || []);
-  const search = a.search.trim().toLowerCase();
-  const items = all.filter((item) =>
-    (!a.program || item.program_key === a.program)
-    && (!a.audience || item.audience === a.audience)
-    && (!a.question || item.question_text === a.question)
-    && (!a.school || item.school_name === a.school)
-    && (!search || item.text.toLowerCase().includes(search)))
-    .sort((x, y) => String(y.submitted_at).localeCompare(String(x.submitted_at)));
-  const activeFilters = [a.program, a.audience, a.question, a.school, a.search].filter(Boolean).length;
-  return `
-    <details class="ifb-filter-disclosure"${activeFilters ? ' open' : ''} data-ifb-filter-disclosure="answers">
-      <summary class="ifb-filter-toggle">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
-        <span>סינון וחיפוש</span>
-        ${activeFilters ? `<small>· ${activeFilters} פעילים</small>` : ''}
-      </summary>
-      <section class="ifb-filter-panel">
-        <div class="ifb-filters" data-ifb-filters="answers">
-          <label class="ifb-field ifb-field--search"><span>חיפוש בטקסט</span><input type="search" data-a="search" value="${esc(a.search)}"></label>
-          <label class="ifb-field"><span>תוכנית</span><select data-a="program">${optionList(ui.programs.map((p) => p.key), a.program, 'כל התוכניות', programOptionLabel)}</select></label>
-          <label class="ifb-field"><span>קהל</span><select data-a="audience">${optionList(Object.keys(AUDIENCE_LABELS), a.audience, 'כל הקהלים', (k) => AUDIENCE_LABELS[k])}</select></label>
-          <label class="ifb-field"><span>שאלה</span><select data-a="question">${optionList(uniqueSorted(all.map((x) => x.question_text)), a.question, 'כל השאלות')}</select></label>
-          <label class="ifb-field"><span>בית ספר</span><select data-a="school">${optionList(uniqueSorted(all.map((x) => x.school_name)), a.school, 'כל בתי הספר')}</select></label>
-        </div>
-      </section>
-    </details>
-    <p class="ifb-muted">${items.length} תשובות · ניתוח AI (סיכום, נושאים, סנטימנט) ייתמך בהמשך – מבנה הנתונים כבר מוכן לכך.</p>
-    ${openAnswersListHtml(items)}`;
-}
-
-// ---------------------------------------------------------------------------
 // Export
 // ---------------------------------------------------------------------------
 
@@ -1026,11 +990,10 @@ function runExport(_kind, scope) {
 function viewHtml() {
   if (ui.error) return errorHtml(ui.error);
   if (ui.tab === 'templates') return renderTemplatesView(ui);
-  if (ui.loading || !ui.groups || !ui.instructorAssignments || ((ui.tab === 'results' || ui.tab === 'answers') && !ui.facts)) return loadingHtml();
+  if (ui.loading || !ui.groups || !ui.instructorAssignments || (ui.tab === 'results' && !ui.facts)) return loadingHtml();
   if (ui.tab === 'overview' && ui.groupRowId) return groupViewHtml(findGroup(ui.groupRowId));
   if (ui.tab === 'instructors') return instructorAssignmentsHtml();
   if (ui.tab === 'results') return resultsHtml();
-  if (ui.tab === 'answers') return answersHtml();
   return overviewHtml();
 }
 
@@ -1039,7 +1002,7 @@ function paint(host) {
   const scrollY = window.scrollY;
   const active = document.activeElement;
   const focusKey = active && host.contains(active)
-    ? ['data-f', 'data-i', 'data-r', 'data-a'].map((attr) => active.getAttribute(attr) && `[${attr}="${active.getAttribute(attr)}"]`).find(Boolean)
+    ? ['data-f', 'data-i', 'data-r'].map((attr) => active.getAttribute(attr) && `[${attr}="${active.getAttribute(attr)}"]`).find(Boolean)
     : null;
   host.innerHTML = shellHtml(viewHtml());
   if (focusKey) {
@@ -1062,7 +1025,7 @@ async function load(host, { force = false } = {}) {
     if (ui.tab !== 'templates') {
       await Promise.all([ensureGroups(force), ensureInstructorAssignments(force)]);
     }
-    if (ui.tab === 'results' || ui.tab === 'answers') await ensureFacts(force);
+    if (ui.tab === 'results') await ensureFacts(force);
     if (ui.tab === 'overview' && ui.groupRowId) {
       // Always show live counts for the opened group.
       await refreshGroup(ui.groupRowId);
@@ -1129,12 +1092,6 @@ async function handleClick(host, event) {
     return;
   }
   if (t.closest('[data-ifb-back]')) { ui.groupRowId = null; await load(host, { force: true }); return; }
-  const unresolvedFilter = t.closest('[data-ifb-show-unresolved]');
-  if (unresolvedFilter) {
-    ui.filters.status = 'unresolved';
-    paint(host);
-    return;
-  }
   const clear = t.closest('[data-ifb-clear]');
   if (clear) {
     const target = clear.dataset.ifbClear === 'overview'
@@ -1311,7 +1268,7 @@ function handleFilterInput(host, event) {
     return;
   }
   if (el.matches('[data-ifb-show-all]')) { ui.showAll = el.checked; paint(host); return; }
-  const map = [['f', ui.filters], ['i', ui.instructorFilters], ['r', ui.results], ['a', ui.answers]];
+  const map = [['f', ui.filters], ['i', ui.instructorFilters], ['r', ui.results]];
   for (const [attr, target] of map) {
     const key = el.getAttribute(`data-${attr}`);
     if (key) {

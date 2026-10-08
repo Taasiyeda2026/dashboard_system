@@ -90,7 +90,7 @@ function listHtml(ui) {
           return `<button type="button" class="ifb-tile" data-tpl-open="${esc(template.id)}">
             <strong>${esc(templateSlotLabel(slot))}</strong>
             ${!current ? '<span>טרם פורסם</span>' : ''}
-            ${draft ? '<span class="ifb-chip ifb-chip--info">טיוטה בעריכה</span>' : ''}
+            ${draft ? '<span class="ifb-tile__draft">טיוטה בעריכה</span>' : ''}
           </button>`;
         }).join('')}</div>
       </section>`).join('')}</div>`;
@@ -104,13 +104,13 @@ function typeOptions(selected) {
   return QUESTION_TYPES.map((t) => `<option value="${t.key}"${t.key === selected ? ' selected' : ''}>${esc(t.label)}</option>`).join('');
 }
 
-function metaItem(label, value, title = '') {
-  return value ? `<span${title ? ` title="${esc(title)}"` : ''}>${esc(label)}: ${esc(value)}</span>` : '';
-}
-
 function questionMetaHtml(items) {
   const parts = items.filter(Boolean);
   return parts.length ? `<p class="ifb-tq__meta">${parts.join('<span class="ifb-tq__sep" aria-hidden="true"> · </span>')}</p>` : '';
+}
+
+function metaPart(text, title = '') {
+  return text ? `<span${title ? ` title="${esc(title)}"` : ''}>${esc(text)}</span>` : '';
 }
 
 function sectionLabel(q) {
@@ -119,27 +119,62 @@ function sectionLabel(q) {
 
 const COMPARISON_TITLE = 'אותה שאלה בפתיחה ובסיום – משמשת להשוואת PRE/POST';
 
-function readOnlyQuestionHtml(q, index, ui) {
+function mostCommon(values) {
+  const counts = new Map();
+  for (const v of values) counts.set(v, (counts.get(v) || 0) + 1);
+  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+}
+
+/**
+ * Exception-first metadata: traits shared by most questions (section, comparison, required)
+ * are stated once above the list; a row only names a trait where it differs.
+ */
+function templateDefaults(questions) {
+  return {
+    section: mostCommon(questions.map((q) => (q.section === 'course' ? 'course' : 'core'))),
+    comparison: mostCommon(questions.map((q) => Boolean(q.is_comparison))),
+    required: mostCommon(questions.map((q) => Boolean(q.required)))
+  };
+}
+
+function exceptionParts(q, defaults) {
+  return [
+    (q.section === 'course' ? 'course' : 'core') !== defaults.section ? metaPart(sectionLabel(q)) : '',
+    Boolean(q.is_comparison) !== defaults.comparison ? metaPart(q.is_comparison ? 'השוואת פתיחה–סיום' : 'ללא השוואה', q.is_comparison ? COMPARISON_TITLE : '') : '',
+    Boolean(q.required) !== defaults.required ? metaPart(q.required ? 'חובה' : 'לא חובה') : ''
+  ];
+}
+
+function listSummaryHtml(questions, defaults) {
+  if (!questions.length) return '<p class="ifb-tq-summary">אין שאלות בתבנית.</p>';
+  const parts = [
+    `${questions.length} שאלות`,
+    defaults.section === 'course' ? 'ייחודיות לתוכנית' : 'ליבה',
+    defaults.comparison ? 'השוואת פתיחה–סיום' : '',
+    defaults.required ? 'חובה' : 'לא חובה'
+  ].filter(Boolean);
+  return `<p class="ifb-tq-summary"${defaults.comparison ? ` title="${esc(COMPARISON_TITLE)}"` : ''}>${esc(parts.join(' · '))}<span class="ifb-muted"> — חריגים מצוינים ליד השאלה</span></p>`;
+}
+
+function readOnlyQuestionHtml(q, index, ui, defaults) {
   const metric = ui.metrics.find((m) => m.key === q.metric_key)?.label || q.metric_key;
   return `<li class="ifb-tq is-readonly">
     <span class="ifb-tq__num">שאלה ${index + 1}</span>
     <p class="ifb-tq__text">${esc(q.wording?.default || '')}</p>
     ${questionMetaHtml([
-      metaItem('סוג שאלה', QUESTION_TYPES.find((t) => t.key === q.question_type)?.label || ''),
-      metaItem('תחום', metric),
-      metaItem('סוג פריט', sectionLabel(q)),
-      q.is_comparison ? metaItem('השוואה', 'פתיחה–סיום', COMPARISON_TITLE) : '',
-      q.required ? '' : metaItem('חובה', 'לא')
+      metaPart(metric),
+      metaPart(QUESTION_TYPES.find((t) => t.key === q.question_type)?.label || ''),
+      ...exceptionParts(q, defaults)
     ])}
-    ${SELECT_TYPES.has(q.question_type) ? `<p class="ifb-tq__variant"><span>אפשרויות:</span> ${esc((q.options || []).map((o) => o.label).join(' · '))}</p>` : ''}
+    ${SELECT_TYPES.has(q.question_type) ? `<p class="ifb-tq__variant">אפשרויות: ${esc((q.options || []).map((o) => o.label).join(' · '))}</p>` : ''}
   </li>`;
 }
 
-function editableQuestionHtml(q, index, total, ui) {
+function editableQuestionHtml(q, index, total, ui, defaults) {
   return `<li class="ifb-tq" data-tq="${esc(q.id)}">
     <div class="ifb-tq__head">
       <span class="ifb-tq__num">שאלה ${index + 1}</span>
-      ${questionMetaHtml([metaItem('סוג פריט', sectionLabel(q)), q.is_comparison ? metaItem('השוואה', 'פתיחה–סיום', COMPARISON_TITLE) : ''])}
+      ${questionMetaHtml(exceptionParts(q, defaults).slice(0, 2))}
       <span class="ifb-tq__tools">
         <button type="button" class="ifb-icon-btn" data-tpl-move="-1" ${index === 0 ? 'disabled' : ''} aria-label="העברה למעלה">↑</button>
         <button type="button" class="ifb-icon-btn" data-tpl-move="1" ${index === total - 1 ? 'disabled' : ''} aria-label="העברה למטה">↓</button>
@@ -187,6 +222,7 @@ function editorHtml(ui) {
   const slot = slotOf(ed.template);
   const editing = Boolean(ed.draft);
   const questions = editing ? ed.draftQuestions : ed.publishedQuestions;
+  const defaults = templateDefaults(questions);
   return `
     <button type="button" class="ifb-back" data-tpl-back>→ חזרה לכל התבניות</button>
     <section class="ifb-group-head ifb-tpl-head">
@@ -195,19 +231,22 @@ function editorHtml(ui) {
         ${programMeta(program) ? `<p class="ifb-tpl-head__meta">${esc(programMeta(program))}</p>` : ''}
         <h2 class="ifb-tpl-head__title">${esc(slot ? templateSlotLabel(slot) : '')}</h2>
         ${!ed.published ? '<p class="ifb-tpl-head__status">טרם פורסם</p>' : ''}
-        ${editing ? '<p class="ifb-tpl-head__status">טיוטה בעריכה</p>' : ''}
+        ${editing ? '<p class="ifb-tpl-head__status is-draft">טיוטה בעריכה</p>' : ''}
       </div>
       <div class="ifb-slot__actions ifb-tpl-head__actions">
         <button type="button" class="ifb-btn" data-tpl-preview>תצוגה מקדימה</button>
         ${editing
           ? `<button type="button" class="ifb-btn ifb-btn--primary" data-tpl-publish>פרסום גרסה חדשה</button>
              <button type="button" class="ifb-btn ifb-btn--danger" data-tpl-discard>ביטול הטיוטה</button>`
-          : '<button type="button" class="ifb-btn ifb-btn--primary" data-tpl-edit>עריכה (יצירת טיוטה)</button>'}
+          : '<button type="button" class="ifb-btn ifb-btn--primary" data-tpl-edit title="יצירת טיוטה לעריכה">עריכה</button>'}
       </div>
       ${editing ? `<label class="ifb-field ifb-field--wide ifb-tpl-head__intro"><span>טקסט פתיחה בשאלון</span><textarea rows="2" data-tpl-intro>${esc(ed.draft.intro_text || '')}</textarea></label>`
         : (ed.published?.intro_text ? `<div class="ifb-tpl-head__intro"><span>טקסט פתיחה</span><p>${esc(ed.published.intro_text)}</p></div>` : '')}
     </section>
-    <ol class="ifb-tq-list">${questions.map((q, i) => (editing ? editableQuestionHtml(q, i, questions.length, ui) : readOnlyQuestionHtml(q, i, ui))).join('')}</ol>
+    <section class="ifb-tq-block">
+      ${listSummaryHtml(questions, defaults)}
+      ${questions.length ? `<ol class="ifb-tq-list">${questions.map((q, i) => (editing ? editableQuestionHtml(q, i, questions.length, ui, defaults) : readOnlyQuestionHtml(q, i, ui, defaults))).join('')}</ol>` : ''}
+    </section>
     ${editing ? addFormHtml(ed, ui) : ''}`;
 }
 
