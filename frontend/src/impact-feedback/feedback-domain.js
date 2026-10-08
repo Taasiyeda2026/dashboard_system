@@ -25,6 +25,10 @@ export const SLOTS = Object.freeze([
   { key: 'instructor:final', audience: 'instructor', stage: 'final', label: 'מדריך', short: 'מדריך' }
 ]);
 
+// Activity/group feedback only. Instructor feedback is intentionally NOT group-scoped:
+// one instructor fills once per program and academic year, based on confirmed assignments.
+export const GROUP_SLOTS = Object.freeze(SLOTS.filter((slot) => slot.audience !== 'instructor'));
+
 export const QUESTION_TYPES = Object.freeze([
   { key: 'rating_1_5', label: 'דירוג 1–5' },
   { key: 'yes_no', label: 'כן / לא' },
@@ -184,10 +188,9 @@ export function groupMatchesStatus(group, statusKey, now = Date.now()) {
     case 'no_feedback': return campaigns.length === 0;
     case 'has_feedback': return campaigns.length > 0;
     case 'any_live': return statuses.some(({ s }) => s === 'active' || s === 'collecting');
-    case 'pending_instructor': return statuses.some(({ c, s }) => c.audience === 'instructor' && s === 'active');
     case 'pending_contact': return statuses.some(({ c, s }) => c.audience === 'educational_staff' && s === 'active');
     case 'expired': return statuses.some(({ s }) => s === 'expired');
-    case 'completed_all': return SLOTS.every((slot) => {
+    case 'completed_all': return GROUP_SLOTS.every((slot) => {
       const campaign = slotCampaign(group, slot);
       if (!campaign) return false;
       const s = campaignUiStatus(campaign, now).key;
@@ -252,7 +255,7 @@ export function mailtoUrl(email, subject, body) {
 export function shareMessage({ audience, recipientName = '', programTitle = '', schoolName = '', url }) {
   const greeting = recipientName ? `שלום ${recipientName},` : 'שלום,';
   if (audience === 'instructor') {
-    return `${greeting}\nתודה על ההדרכה בתוכנית "${programTitle}"${schoolName ? ` ב${schoolName}` : ''}.\nנשמח מאוד לשמוע מה את/ה חושב/ת על התוכן, על הקבוצה ועל התפעול – זה לוקח כ־5 דקות:\n${url}\nתודה רבה, צוות תעשיידע`;
+    return `${greeting}\nתודה על ההדרכה בתוכנית "${programTitle}".\nנשמח מאוד לשמוע מה את/ה חושב/ת על התוכן, על ההדרכה ועל התפעול – משוב חד־פעמי על התוכנית שלוקח כ־5 דקות:\n${url}\nתודה רבה, צוות תעשיידע`;
   }
   if (audience === 'educational_staff') {
     return `${greeting}\nהתוכנית "${programTitle}"${schoolName ? ` ב${schoolName}` : ''} מתקרבת לסיומה.\nנשמח מאוד לשמוע את הערכתכם – המשוב קצר ועוזר לנו להשתפר:\n${url}\nתודה רבה, צוות תעשיידע`;

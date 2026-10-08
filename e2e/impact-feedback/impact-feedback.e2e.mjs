@@ -103,7 +103,7 @@ async function main() {
     assert.equal(nav.route, 'impact-feedback');
     await admin.locator('.ifb-group-head').waitFor();
     assert.match(await admin.locator('.ifb-group-head__title').textContent(), /בית ספר אלון/);
-    assert.equal(await admin.locator('.ifb-slot').count(), 4);
+    assert.equal(await admin.locator('.ifb-slot').count(), 3);
   });
 
   await step('Dashboard: KPIs, table, filters and search (desktop)', async () => {
@@ -112,11 +112,11 @@ async function main() {
     assert.equal(await admin.locator('.ifb-kpi').count(), 6);
     assert.deepEqual(
       (await admin.locator('.ifb-overview-table thead th').allTextContents()).map((x) => x.trim()),
-      ['בית ספר', 'רשות', 'תוכנית', 'שכבה', 'מדריך', 'התחלה', 'סיום', 'תלמידים – פתיחה', 'תלמידים – סיום', 'צוות חינוכי', 'מדריך', 'תוצאות', 'פעולות']
+      ['בית ספר', 'רשות', 'תוכנית', 'שכבה', 'מדריך', 'התחלה', 'סיום', 'תלמידים – פתיחה', 'תלמידים – סיום', 'צוות חינוכי', 'תוצאות', 'פעולות']
     );
     const rows = await admin.locator('.ifb-table tbody tr').count();
     assert.equal(rows, 8, 'six recognised program groups + two unrecognised course groups');
-    assert.equal(await admin.locator('.ifb-table [data-status="not_opened"]').count(), 24);
+    assert.equal(await admin.locator('.ifb-table [data-status="not_opened"]').count(), 18);
     assert.match(await admin.locator('tr[data-row="ACT-9"]').textContent(), /אופק – יזמות פרימיום לתעשייה/, 'Gefen 52279 is identified as Ofek automatically');
     assert.match(await admin.locator('tr[data-row="ACT-10"]').textContent(), /פורצות דרך/, 'Gefen 3604 is identified as Trailblazers automatically');
     assert.equal(await admin.locator('.ifb-unresolved .ifb-chip').count(), 2);
@@ -284,20 +284,28 @@ async function main() {
     assert.match(await admin.locator('.ifb-angle--students').textContent(), /N פתיחה: 4 · N סיום: 3/);
   });
 
-  await step('Personal instructor link: WhatsApp/mail/copy → instructor fills → locked', async () => {
-    const card = admin.locator('[data-slot="instructor:final"]');
-    await card.locator('[data-ifb-show-open]').click();
-    await card.locator('form [type="submit"]').click();
-    const wa = card.locator('[data-ifb-share="whatsapp"]');
+  await step('Instructor feedback is once per instructor + program, based on scheduling assignments', async () => {
+    await db.query("update activities set instructor_assignment_locked=true, instructor_assignment_status='שובץ' where row_id='ACT-1'");
+    await admin.locator('[data-ifb-tab="instructors"]').click();
+    const row = admin.locator('.ifb-instructor-table tbody tr', { hasText: 'דנה לוי' }).filter({ hasText: 'פורצות דרך' }).first();
+    await row.waitFor();
+    assert.match(await row.textContent(), /1/);
+    await row.locator('[data-ifb-instructor-open]').click();
+    await row.locator('[data-ifb-instructor-open-form] [type="submit"]').click();
+    const wa = row.locator('[data-ifb-share="whatsapp"]');
     await wa.waitFor();
     const href = await wa.getAttribute('href');
     assert.match(href, /^https:\/\/wa\.me\/972527654321\?text=/);
     const message = decodeURIComponent(href.split('text=')[1]);
     assert.match(message, /שלום דנה לוי/);
+    assert.match(message, /משוב חד־פעמי על התוכנית/);
     links.instructor = message.match(/https?:\/\/\S+feedback\.html\?t=\S+/)[0];
-    assert.match(await card.locator('[data-ifb-share="email"]').getAttribute('href'), /^mailto:dana@example\.test\?subject=/);
-    await card.locator('[data-ifb-copy]').click();
+    assert.match(await row.locator('[data-ifb-share="email"]').getAttribute('href'), /^mailto:dana@example\.test\?subject=/);
+    await row.locator('[data-ifb-copy]').click();
     assert.equal(await admin.evaluate(() => navigator.clipboard.readText()), links.instructor);
+    assert.equal(await count("select count(*) n from feedback_campaigns where audience='instructor' and instructor_emp_id='1501' and program_key='trailblazers' and academic_year='school_2027'"), 1);
+    assert.equal(await count("select count(*) n from feedback_campaigns where audience='instructor' and activity_row_id is not null"), 0);
+
     const ctx = await student();
     const page = await ctx.newPage();
     await page.goto(links.instructor);
@@ -312,9 +320,15 @@ async function main() {
     await page.locator('.ifb-message__title').waitFor();
     assert.equal(await page.locator('.ifb-message__title').textContent(), 'המשוב כבר מולא');
     await ctx.close();
+
+    await admin.locator('[data-ifb-refresh]').click();
+    const refreshed = admin.locator('.ifb-instructor-table tbody tr', { hasText: 'דנה לוי' }).filter({ hasText: 'פורצות דרך' }).first();
+    assert.equal((await refreshed.locator('.ifb-chip').first().textContent()).trim(), 'הושלם');
   });
 
   await step('Personal educational-staff link → contact fills', async () => {
+    await admin.locator('[data-ifb-tab="overview"]').click();
+    await admin.locator('tr[data-row="ACT-1"] [data-ifb-open-group]').click();
     const card = admin.locator('[data-slot="educational_staff:final"]');
     await card.locator('[data-ifb-show-open]').click();
     await card.locator('form [type="submit"]').click();
@@ -334,22 +348,21 @@ async function main() {
     await ctx.close();
   });
 
-  await step('Three perspectives are shown separately in the group screen', async () => {
+  await step('Group screen shows only group-scoped perspectives: students + educational staff', async () => {
     await admin.locator('[data-ifb-back]').click();
     await admin.locator('tr[data-row="ACT-1"] [data-ifb-open-group]').click();
-    await admin.locator('.ifb-angle--instructor .ifb-score').first().waitFor();
+    await admin.locator('.ifb-angle--staff .ifb-score').first().waitFor();
     assert.ok(await admin.locator('.ifb-angle--students .ifb-score').count() >= 5);
     assert.ok(await admin.locator('.ifb-angle--staff .ifb-score').count() >= 5);
-    assert.ok(await admin.locator('.ifb-angle--instructor .ifb-score').count() >= 5);
+    assert.equal(await admin.locator('.ifb-angle--instructor').count(), 0);
+    assert.equal(await admin.locator('[data-slot="instructor:final"]').count(), 0);
     assert.match(await admin.locator('.ifb-angle--staff').textContent(), /באילו תחומים הבחינו בשינוי/);
-    assert.match(await admin.locator('.ifb-angle--instructor').textContent(), /רמת העומס/);
-    assert.match(await admin.locator('.ifb-section').last().textContent(), /שלב הדגמים עבד מצוין/);
     await admin.locator('.ifb-angle--students [data-ifb-drill="knowledge"]').click();
     await admin.locator('.ifb-drill').waitFor();
     assert.match(await admin.locator('.ifb-drill').textContent(), /השאלות שהרכיבו את המדד/);
     for (const slot of ['student:pre', 'student:post']) assert.equal((await admin.locator(`[data-slot="${slot}"] .ifb-chip`).first().textContent()).trim(), 'פעיל');
-    for (const slot of ['instructor:final', 'educational_staff:final']) assert.equal((await admin.locator(`[data-slot="${slot}"] .ifb-chip`).first().textContent()).trim(), 'הושלם');
-    await admin.screenshot({ path: `${SHOTS}/07-group-three-perspectives-desktop.png`, fullPage: true });
+    assert.equal((await admin.locator('[data-slot="educational_staff:final"] .ifb-chip').first().textContent()).trim(), 'הושלם');
+    await admin.screenshot({ path: `${SHOTS}/07-group-two-perspectives-desktop.png`, fullPage: true });
   });
 
   await step('Admin downloads Excel and CSV (raw + summary); students are anonymous', async () => {
@@ -361,7 +374,7 @@ async function main() {
     const audienceCol = header.indexOf('קהל');
     const nameCol = header.indexOf('שם הממלא/ת');
     assert.ok(raw.slice(1).filter((r) => r[audienceCol] === 'תלמידים').every((r) => !r[nameCol]));
-    assert.ok(raw.slice(1).some((r) => r[audienceCol] === 'מדריך' && r[nameCol] === 'דנה לוי'));
+    assert.ok(raw.slice(1).every((r) => r[audienceCol] !== 'מדריך'), 'group export does not attach program-level instructor feedback to one group');
     assert.ok(raw.slice(1).some((r) => r[audienceCol] === 'צוות חינוכי' && r[nameCol] === 'רונית כהן'));
     const [rawCsv] = await Promise.all([admin.waitForEvent('download'), admin.locator('[data-ifb-export="raw"]').first().click()]);
     const csvText = await readFile(await rawCsv.path(), 'utf8');
@@ -389,12 +402,12 @@ async function main() {
     assert.doesNotMatch(await admin.locator('.ifb-answers').textContent(), /דנה לוי|רונית/);
   });
 
-  await step('Group without contact / without instructor shows a clear reason; zero responses state', async () => {
+  await step('Group without contact shows a clear reason; instructor feedback is not a group slot', async () => {
     await admin.locator('[data-ifb-tab="overview"]').click();
     await admin.locator('tr[data-row="ACT-2"] [data-ifb-open-group]').click();
     await admin.locator('.ifb-group-head').waitFor();
     assert.match(await admin.locator('[data-slot="educational_staff:final"]').textContent(), /לא מוגדר איש קשר/);
-    assert.match(await admin.locator('[data-slot="instructor:final"]').textContent(), /לא משובץ מדריך/);
+    assert.equal(await admin.locator('[data-slot="instructor:final"]').count(), 0);
     assert.match(await admin.locator('.ifb-angle--students').textContent(), /טרם התקבלו תשובות/);
     const card = admin.locator('[data-slot="student:pre"]');
     await card.locator('[data-ifb-show-open]').click();
