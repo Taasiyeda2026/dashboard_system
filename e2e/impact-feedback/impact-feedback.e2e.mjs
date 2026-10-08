@@ -297,47 +297,65 @@ async function main() {
     assert.match(await admin.locator('.ifb-angle--students').textContent(), /N פתיחה: 4 · N סיום: 3/);
   });
 
-  await step('Instructor feedback is once per instructor + program, based on scheduling assignments', async () => {
+  await step('Instructor gets opening-after-training and final feedback once per program', async () => {
     await db.query("update activities set instructor_assignment_locked=true, instructor_assignment_status='שובץ' where row_id='ACT-1'");
     await admin.locator('[data-ifb-tab="instructors"]').click();
     const row = admin.locator('.ifb-instructor-table tbody tr', { hasText: 'דנה לוי' }).filter({ hasText: 'פורצות דרך' }).first();
     await row.waitFor();
     assert.match(await row.textContent(), /1/);
-    await row.locator('[data-ifb-instructor-open]').click();
-    await row.locator('[data-ifb-instructor-open-form] [type="submit"]').click();
-    const wa = row.locator('[data-ifb-share="whatsapp"]');
-    await wa.waitFor();
-    const href = await wa.getAttribute('href');
-    assert.match(href, /^https:\/\/wa\.me\/972527654321\?text=/);
-    const message = decodeURIComponent(href.split('text=')[1]);
-    assert.match(message, /שלום דנה לוי/);
-    assert.match(message, /משוב חד־פעמי על התוכנית/);
-    links.instructor = message.match(/https?:\/\/\S+feedback\.html\?t=\S+/)[0];
-    assert.match(await row.locator('[data-ifb-share="email"]').getAttribute('href'), /^mailto:dana@example\.test\?subject=/);
-    await row.locator('[data-ifb-copy]').click();
-    assert.equal(await admin.evaluate(() => navigator.clipboard.readText()), links.instructor);
-    assert.equal(await count("select count(*) n from feedback_campaigns where audience='instructor' and instructor_emp_id='1501' and program_key='trailblazers' and academic_year='school_2027'"), 1);
-    assert.equal(await count("select count(*) n from feedback_campaigns where audience='instructor' and activity_row_id is not null"), 0);
+
+    const preCell = row.locator('td[data-label="פתיחה – אחרי הכשרה"]');
+    await preCell.locator('[data-ifb-instructor-open]').click();
+    await preCell.locator('[data-ifb-instructor-open-form] [type="submit"]').click();
+    const preWa = preCell.locator('[data-ifb-share="whatsapp"]');
+    await preWa.waitFor();
+    const preHref = await preWa.getAttribute('href');
+    assert.match(preHref, /^https:\/\/wa\.me\/972527654321\?text=/);
+    const preMessage = decodeURIComponent(preHref.split('text=')[1]);
+    assert.match(preMessage, /אחרי ההכשרה/);
+    assert.match(preMessage, /משוב פתיחה/);
+    links.instructorPre = preMessage.match(/https?:\/\/\S+feedback\.html\?t=\S+/)[0];
+
+    const finalCell = row.locator('td[data-label="סיום הקורס"]');
+    await finalCell.locator('[data-ifb-instructor-open]').click();
+    await finalCell.locator('[data-ifb-instructor-open-form] [type="submit"]').click();
+    const finalWa = finalCell.locator('[data-ifb-share="whatsapp"]');
+    await finalWa.waitFor();
+    const finalHref = await finalWa.getAttribute('href');
+    assert.match(finalHref, /^https:\/\/wa\.me\/972527654321\?text=/);
+    const finalMessage = decodeURIComponent(finalHref.split('text=')[1]);
+    assert.match(finalMessage, /לאחר סיום ההדרכה/);
+    assert.match(finalMessage, /משוב סיום/);
+    links.instructorFinal = finalMessage.match(/https?:\/\/\S+feedback\.html\?t=\S+/)[0];
+
+    assert.equal(await count("select count(*) n from feedback_campaigns where audience='instructor' and instructor_emp_id='1501' and program_key='trailblazers' and academic_year='school_2027'"), 2);
+    assert.equal(await count("select count(*) n from feedback_campaigns where audience='instructor' and stage='pre' and activity_row_id is null"), 1);
+    assert.equal(await count("select count(*) n from feedback_campaigns where audience='instructor' and stage='final' and activity_row_id is null"), 1);
 
     const ctx = await student();
     const page = await ctx.newPage();
-    await page.goto(links.instructor);
+
+    await page.goto(links.instructorPre);
+    assert.match(await page.locator('.ifb-hero__kicker').textContent(), /משוב מדריך – פתיחה/);
     assert.match(await page.locator('.ifb-hero__hello').textContent(), /שלום דנה לוי/);
-    assert.equal(await page.locator('.ifb-rate__opt.is-emoji').count(), 0, 'instructor rating scale must not render smileys');
-    assert.doesNotMatch(await page.locator('.ifb-hero__hello').textContent(), /👋/);
-    const n = await fillQuestionnaire(page, { rating: 4, text: 'שלב הדגמים עבד מצוין' });
-    assert.equal(n, 20);
-    await page.screenshot({ path: `${SHOTS}/06-instructor-mobile.png`, fullPage: true });
+    assert.equal(await page.locator('.ifb-rate__opt.is-emoji').count(), 0);
+    const preCount = await fillQuestionnaire(page, { rating: 4, text: 'אני צריך/ה חיזוק קטן בחלק המעשי' });
+    assert.equal(preCount, 8);
     await page.locator('[data-submit]').click();
     await page.locator('.ifb-message__title').waitFor();
-    await page.goto(links.instructor);
+
+    await page.goto(links.instructorFinal);
+    assert.match(await page.locator('.ifb-hero__kicker').textContent(), /משוב מדריך – סיום/);
+    const finalCount = await fillQuestionnaire(page, { rating: 4, text: 'התוכנית עבדה היטב' });
+    assert.equal(finalCount, 20);
+    await page.locator('[data-submit]').click();
     await page.locator('.ifb-message__title').waitFor();
-    assert.equal(await page.locator('.ifb-message__title').textContent(), 'המשוב כבר מולא');
     await ctx.close();
 
     await admin.locator('[data-ifb-refresh]').click();
     const refreshed = admin.locator('.ifb-instructor-table tbody tr', { hasText: 'דנה לוי' }).filter({ hasText: 'פורצות דרך' }).first();
-    assert.equal((await refreshed.locator('.ifb-chip').first().textContent()).trim(), 'הושלם');
+    assert.equal((await refreshed.locator('td[data-label="פתיחה – אחרי הכשרה"] .ifb-chip').first().textContent()).trim(), 'הושלם');
+    assert.equal((await refreshed.locator('td[data-label="סיום הקורס"] .ifb-chip').first().textContent()).trim(), 'הושלם');
   });
 
   await step('Personal educational-staff link → contact fills', async () => {
