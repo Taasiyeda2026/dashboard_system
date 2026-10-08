@@ -790,27 +790,34 @@ function instructorAssignmentsHtml() {
       <span aria-hidden="true">·</span>
       <span><strong>${finalCompleted}</strong> סיום הושלמו</span>
     </div>
-    <section class="ifb-filter-panel ifb-filter-panel--instructors">
-      <div class="ifb-filters ifb-filters--instructors">
-        <label class="ifb-field"><span>מדריך</span><select data-i="instructor">
-          <option value="">כל המדריכים</option>
-          ${instructors.map(([id, name]) => `<option value="${esc(id)}"${id === filters.instructor ? ' selected' : ''}>${esc(name)}</option>`).join('')}
-        </select></label>
-        <label class="ifb-field"><span>תוכנית</span><select data-i="program">${optionList(ui.programs.map((p) => p.key), filters.program, 'כל התוכניות', programOptionLabel)}</select></label>
-        <label class="ifb-field"><span>סטטוס</span><select data-i="status">
-          ${[
-            ['', 'הכל'],
-            ['pre:not_opened', 'פתיחה – טרם נפתח'],
-            ['pre:pending', 'פתיחה – ממתין למילוי'],
-            ['pre:completed', 'פתיחה – הושלם'],
-            ['final:not_opened', 'סיום – טרם נפתח'],
-            ['final:pending', 'סיום – ממתין למילוי'],
-            ['final:completed', 'סיום – הושלם']
-          ].map(([v, l]) => `<option value="${v}"${v === filters.status ? ' selected' : ''}>${l}</option>`).join('')}
-        </select></label>
-        <button type="button" class="ifb-btn ifb-btn--ghost" data-ifb-clear="instructors">ניקוי</button>
-      </div>
-    </section>
+    <details class="ifb-filter-disclosure ifb-filter-disclosure--instructors"${Object.values(filters).filter(Boolean).length ? ' open' : ''} data-ifb-filter-disclosure="instructors">
+      <summary class="ifb-filter-toggle" data-ifb-filter-toggle="instructors">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
+        <span>סינון</span>
+        ${Object.values(filters).filter(Boolean).length ? `<small>· ${Object.values(filters).filter(Boolean).length} פעילים</small>` : ''}
+      </summary>
+      <section class="ifb-filter-panel ifb-filter-panel--instructors">
+        <div class="ifb-filters ifb-filters--instructors">
+          <label class="ifb-field"><span>מדריך</span><select data-i="instructor">
+            <option value="">כל המדריכים</option>
+            ${instructors.map(([id, name]) => `<option value="${esc(id)}"${id === filters.instructor ? ' selected' : ''}>${esc(name)}</option>`).join('')}
+          </select></label>
+          <label class="ifb-field"><span>תוכנית</span><select data-i="program">${optionList(ui.programs.map((p) => p.key), filters.program, 'כל התוכניות', programOptionLabel)}</select></label>
+          <label class="ifb-field"><span>סטטוס</span><select data-i="status">
+            ${[
+              ['', 'הכל'],
+              ['pre:not_opened', 'פתיחה – טרם נפתח'],
+              ['pre:pending', 'פתיחה – ממתין למילוי'],
+              ['pre:completed', 'פתיחה – הושלם'],
+              ['final:not_opened', 'סיום – טרם נפתח'],
+              ['final:pending', 'סיום – ממתין למילוי'],
+              ['final:completed', 'סיום – הושלם']
+            ].map(([v, l]) => `<option value="${v}"${v === filters.status ? ' selected' : ''}>${l}</option>`).join('')}
+          </select></label>
+          <button type="button" class="ifb-btn ifb-btn--ghost" data-ifb-clear="instructors">ניקוי</button>
+        </div>
+      </section>
+    </details>
     ${rows.length ? `<div class="ifb-table-wrap">
       <table class="ifb-table ifb-instructor-table ifb-instructor-table--two-stages">
         <thead><tr><th>מדריך</th><th>תוכנית</th><th>שיבוצים</th><th>בתי ספר</th><th>תקופה</th><th>פתיחה – אחרי הכשרה</th><th>סיום הקורס</th></tr></thead>
