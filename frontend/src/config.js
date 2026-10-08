@@ -407,6 +407,7 @@ config.HOTFIX_VERSION = `inactive-instructor-admin-manager-attendance-20261007-v
 
 config.HOTFIX_VERSION = `manager-attendance-normalized-name-runtime-20261007-v1-${config.HOTFIX_VERSION}`;
 
+config.HOTFIX_VERSION = `impact-feedback-responsive-polish-20261008-v6-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `impact-feedback-instructor-program-scope-20261008-v5-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `impact-feedback-table-statuses-20261008-v4-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `impact-feedback-adult-rating-ui-20261008-v3-${config.HOTFIX_VERSION}`;

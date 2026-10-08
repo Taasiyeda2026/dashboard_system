@@ -191,6 +191,19 @@ async function main() {
     await admin.locator('[data-qr-close]').click();
   });
 
+  await step('Public questionnaire opens cleanly on desktop without overflow', async () => {
+    const ctx = await browser.newContext({ viewport: { width: 1366, height: 900 }, locale: 'he-IL' });
+    const page = await ctx.newPage();
+    await page.goto(links.pre);
+    await page.locator('.ifb-form').waitFor();
+    await noHorizontalOverflow(page);
+    const shell = await page.locator('.ifb-shell').boundingBox();
+    assert.ok(shell && shell.width <= 762, `questionnaire shell too wide: ${shell?.width}`);
+    assert.ok(await page.locator('.ifb-q').count() > 0);
+    await page.screenshot({ path: `${SHOTS}/03-student-pre-desktop.png`, fullPage: true });
+    await ctx.close();
+  });
+
   await step('Student opens the link on a phone without login, fills and submits', async () => {
     const ctx = await student();
     const page = await ctx.newPage();
@@ -311,6 +324,7 @@ async function main() {
     await page.goto(links.instructor);
     assert.match(await page.locator('.ifb-hero__hello').textContent(), /שלום דנה לוי/);
     assert.equal(await page.locator('.ifb-rate__opt.is-emoji').count(), 0, 'instructor rating scale must not render smileys');
+    assert.doesNotMatch(await page.locator('.ifb-hero__hello').textContent(), /👋/);
     const n = await fillQuestionnaire(page, { rating: 4, text: 'שלב הדגמים עבד מצוין' });
     assert.equal(n, 20);
     await page.screenshot({ path: `${SHOTS}/06-instructor-mobile.png`, fullPage: true });

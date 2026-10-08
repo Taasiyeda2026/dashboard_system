@@ -347,7 +347,7 @@ function overviewTableHtml(groups) {
   }
   const rows = groups.map((g) => `
     <tr data-row="${esc(g.row_id)}">
-      <td class="ifb-col-school" data-label="בית ספר"><strong>${esc(g.school || '—')}</strong>${g.class_group ? `<span class="ifb-muted"> · ${esc(g.class_group)}</span>` : ''}</td>
+      <td class="ifb-col-school" data-label="בית ספר"><strong class="ifb-school-name">${esc(g.school || '—')}</strong>${g.class_group ? `<span class="ifb-muted ifb-cell-sub">${esc(g.class_group)}</span>` : ''}</td>
       <td class="ifb-col-authority" data-label="רשות">${esc(g.authority || '—')}</td>
       <td class="ifb-col-program" data-label="תוכנית">${g.program_key
         ? esc(programTitle(g.program_key))
@@ -363,7 +363,7 @@ function overviewTableHtml(groups) {
       <td class="ifb-col-actions" data-label="פעולות"><button type="button" class="ifb-row-action" data-ifb-open-group="${esc(g.row_id)}" title="ניהול משובי הקבוצה">ניהול</button></td>
     </tr>`).join('');
   return `
-    <div class="ifb-table-wrap">
+    <div class="ifb-table-wrap ifb-overview-wrap">
       <table class="ifb-table ifb-overview-table">
         <colgroup>
           <col class="ifb-w-school">
