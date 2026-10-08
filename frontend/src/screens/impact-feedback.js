@@ -201,9 +201,8 @@ function findGroup(rowId) {
 const TABS = [
   { key: 'overview', label: 'סקירה' },
   { key: 'instructors', label: 'משובי מדריכים' },
-  { key: 'results', label: 'תוצאות והשפעה' },
-  { key: 'answers', label: 'תשובות פתוחות' },
-  { key: 'templates', label: 'תבניות ושאלות' }
+  { key: 'results', label: 'תוצאות' },
+  { key: 'templates', label: 'תבניות' }
 ];
 
 function shellHtml(inner) {
