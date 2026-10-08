@@ -124,9 +124,16 @@ async function main() {
     assert.equal(await admin.locator('.ifb-col-results').count(), 0, 'overview does not render a Results column');
     const filterDisclosure = admin.locator('[data-ifb-filter-disclosure="overview"]');
     assert.equal(await filterDisclosure.getAttribute('open'), null, 'overview filters are collapsed by default');
+    assert.equal(await admin.locator('.ifb-list-head').count(), 0, 'overview has no redundant Groups count heading');
+    await filterDisclosure.locator('summary').click();
+    await filterDisclosure.locator('.ifb-filter-more > summary').click();
+    const showAll = admin.locator('[data-ifb-show-all]');
+    assert.equal(await showAll.count(), 1, 'show groups without feedback lives inside the collapsed filter panel');
+    assert.equal(await showAll.evaluate((el) => el.closest('[data-ifb-filter-disclosure="overview"]') !== null), true);
+    const authorityCell = admin.locator('.ifb-overview-table tbody tr .ifb-col-authority').first();
+    assert.equal(await authorityCell.evaluate((el) => getComputedStyle(el).whiteSpace), 'nowrap', 'authority stays on one line');
     const tableFits = await admin.locator('.ifb-overview-wrap').evaluate((el) => el.scrollWidth <= el.clientWidth + 1);
     assert.equal(tableFits, true, 'all overview columns fit the desktop width without horizontal scrolling');
-    await filterDisclosure.locator('summary').click();
     await admin.locator('[data-f="search"]').fill('הגפן');
     await admin.waitForFunction(() => document.querySelectorAll('.ifb-table tbody tr').length === 1);
     await admin.locator('[data-ifb-clear="overview"]').click();
@@ -321,6 +328,13 @@ async function main() {
     assert.ok((await instructorSelect.locator('option').allTextContents()).some((x) => /דנה לוי/.test(x)));
     await instructorSelect.selectOption('1501');
     assert.ok(await admin.locator('.ifb-instructor-table tbody tr').count() >= 1);
+    assert.deepEqual(
+      (await admin.locator('.ifb-instructor-table thead th').allTextContents()).map((x) => x.trim()),
+      ['מדריך', 'תוכנית', 'קבוצות', 'סיום הקורס הראשון', 'פתיחה – אחרי הכשרה', 'סיום הקורס']
+    );
+    assert.doesNotMatch(await admin.locator('.ifb-instructor-table').textContent(), /בתי ספר|תקופה/);
+    const instructorTableWidth = await admin.locator('.ifb-instructor-table-wrap').evaluate((el) => el.getBoundingClientRect().width);
+    assert.ok(instructorTableWidth <= 982, `instructor table should stay compact, got ${instructorTableWidth}`);
     const row = admin.locator('.ifb-instructor-table tbody tr', { hasText: 'דנה לוי' }).filter({ hasText: 'פורצות דרך' }).first();
     await row.waitFor();
     assert.match(await row.textContent(), /1/);

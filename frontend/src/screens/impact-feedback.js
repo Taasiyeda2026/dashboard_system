@@ -269,8 +269,8 @@ function kpiHtml(groups, instructorAssignments = []) {
 }
 function overviewFiltersHtml(groups) {
   const f = ui.filters;
-  const activeCount = Object.values(f).filter(Boolean).length;
-  const advancedCount = [f.instructor, f.ageBand, f.from, f.to].filter(Boolean).length;
+  const activeCount = Object.values(f).filter(Boolean).length + (ui.showAll ? 1 : 0);
+  const advancedCount = [f.instructor, f.ageBand, f.from, f.to].filter(Boolean).length + (ui.showAll ? 1 : 0);
   return `
     <details class="ifb-filter-disclosure"${activeCount ? ' open' : ''} data-ifb-filter-disclosure="overview">
       <summary class="ifb-filter-toggle" data-ifb-filter-toggle="overview">
@@ -297,6 +297,7 @@ function overviewFiltersHtml(groups) {
             <label class="ifb-field"><span>שכבה</span><select data-f="ageBand">${optionList(AGE_BANDS.map((b) => b.key), f.ageBand, 'כל השכבות', ageBandLabel)}</select></label>
             <label class="ifb-field"><span>התחלה מ־</span><input type="date" data-f="from" value="${esc(f.from)}"></label>
             <label class="ifb-field"><span>עד</span><input type="date" data-f="to" value="${esc(f.to)}"></label>
+            <label class="ifb-check ifb-check--filter"><input type="checkbox" data-ifb-show-all${ui.showAll ? ' checked' : ''}> הצגת קבוצות ללא משובים</label>
           </div>
         </details>
       </section>
@@ -357,7 +358,7 @@ function overviewTableHtml(groups) {
   const rows = groups.map((g) => `
     <tr data-row="${esc(g.row_id)}">
       <td class="ifb-col-school" data-label="בית ספר"><strong class="ifb-school-name">${esc(g.school || '—')}</strong>${g.class_group ? `<span class="ifb-muted ifb-cell-sub">${esc(g.class_group)}</span>` : ''}</td>
-      <td class="ifb-col-authority" data-label="רשות">${esc(g.authority || '—')}</td>
+      <td class="ifb-col-authority" data-label="רשות" title="${esc(g.authority || '')}">${esc(g.authority || '—')}</td>
       <td class="ifb-col-program" data-label="תוכנית">${g.program_key
         ? esc(programTitle(g.program_key))
         : g.feedback_excluded
@@ -409,17 +410,9 @@ function overviewHtml() {
   const filtered = filterGroups(scoped, ui.filters).sort((a, b) =>
     Number(groupHasFeedback(b)) - Number(groupHasFeedback(a))
     || String(a.school).localeCompare(String(b.school), 'he'));
-  const unresolved = groups.filter(isProgramUnresolved).length;
   return `
     ${kpiHtml(groups, ui.instructorAssignments || [])}
     ${overviewFiltersHtml(groups)}
-    <div class="ifb-list-head">
-      <div class="ifb-list-head__title">
-        <h2>קבוצות <span class="ifb-list-count">(${filtered.length})</span></h2>
-        ${unresolved ? `<button type="button" class="ifb-chip ifb-chip--warning ifb-unresolved-filter" data-ifb-show-unresolved>${unresolved} דורשות שיוך תוכנית</button>` : ''}
-      </div>
-      <label class="ifb-check"><input type="checkbox" data-ifb-show-all${ui.showAll ? ' checked' : ''}> הצגת קבוצות ללא משובים</label>
-    </div>
     ${overviewTableHtml(filtered)}`;
 }
 
@@ -817,16 +810,15 @@ function instructorAssignmentsHtml() {
         </div>
       </section>
     </details>
-    ${rows.length ? `<div class="ifb-table-wrap">
+    ${rows.length ? `<div class="ifb-table-wrap ifb-instructor-table-wrap">
       <table class="ifb-table ifb-instructor-table ifb-instructor-table--two-stages">
-        <thead><tr><th>מדריך</th><th>תוכנית</th><th>שיבוצים</th><th>בתי ספר</th><th>תקופה</th><th>פתיחה – אחרי הכשרה</th><th>סיום הקורס</th></tr></thead>
+        <colgroup><col class="ifb-iw-instructor"><col class="ifb-iw-program"><col class="ifb-iw-groups"><col class="ifb-iw-first-end"><col class="ifb-iw-stage"><col class="ifb-iw-stage"></colgroup><thead><tr><th>מדריך</th><th>תוכנית</th><th>קבוצות</th><th>סיום הקורס הראשון</th><th>פתיחה – אחרי הכשרה</th><th>סיום הקורס</th></tr></thead>
         <tbody>${rows.map((row) => `
           <tr data-instructor-feedback="${esc(instructorAssignmentKey(row))}">
             <td data-label="מדריך"><strong>${esc(row.instructor_name || row.instructor_emp_id)}</strong><span class="ifb-muted ifb-instructor-id">#${esc(row.instructor_emp_id)}</span></td>
             <td data-label="תוכנית">${esc(programTitle(row.program_key))}</td>
-            <td data-label="שיבוצים" class="ifb-center"><strong>${Number(row.assignment_count) || 0}</strong></td>
-            <td data-label="בתי ספר" class="ifb-center">${Number(row.school_count) || 0}</td>
-            <td data-label="תקופה" class="ifb-nowrap">${fmtDate(row.first_start_date)}–${fmtDate(row.last_end_date)}</td>
+            <td data-label="קבוצות" class="ifb-center"><strong>${Number(row.assignment_count) || 0}</strong></td>
+            <td data-label="סיום הקורס הראשון" class="ifb-center ifb-nowrap">${fmtDate(row.first_course_end_date) || '—'}</td>
             <td data-label="פתיחה – אחרי הכשרה" class="ifb-instructor-stage-cell">${instructorCampaignActionsHtml(row, 'pre')}</td>
             <td data-label="סיום הקורס" class="ifb-instructor-stage-cell">${instructorCampaignActionsHtml(row, 'final')}</td>
           </tr>`).join('')}</tbody>
