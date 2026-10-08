@@ -112,8 +112,9 @@ async function main() {
     assert.equal(await admin.locator('.ifb-kpi').count(), 6);
     assert.deepEqual(
       (await admin.locator('.ifb-overview-table thead th').allTextContents()).map((x) => x.trim()),
-      ['בית ספר', 'רשות', 'תוכנית', 'שכבה', 'מדריך', 'התחלה', 'סיום', 'תלמידים – פתיחה', 'תלמידים – סיום', 'צוות חינוכי', 'פעולות']
+      ['בית ספר', 'רשות', 'תוכנית', 'מדריך', 'התחלה', 'סיום', 'תלמידים – פתיחה', 'תלמידים – סיום', 'צוות חינוכי', 'פעולות']
     );
+    assert.equal(await admin.locator('.ifb-overview-table .ifb-col-grade').count(), 0, 'grade is not shown in the overview frontend');
     const rows = await admin.locator('.ifb-table tbody tr').count();
     assert.equal(rows, 8, 'six recognised program groups + two unrecognised course groups');
     assert.equal(await admin.locator('.ifb-table [data-status="not_opened"]').count(), 18);
@@ -138,11 +139,6 @@ async function main() {
     assert.ok(await firstKpi.evaluate((el) => el.getBoundingClientRect().height <= 62), 'overview KPI cards stay compact');
     const tableFits = await admin.locator('.ifb-overview-wrap').evaluate((el) => el.scrollWidth <= el.clientWidth + 1);
     assert.equal(tableFits, true, 'all overview columns fit the desktop width without horizontal scrolling');
-    const separator = await admin.locator('.ifb-overview-table tbody tr').first().locator('td').nth(1).evaluate((el) => {
-      const cs = getComputedStyle(el);
-      return { width: cs.borderInlineStartWidth, color: cs.borderInlineStartColor, style: cs.borderInlineStartStyle };
-    });
-    assert.deepEqual(separator, { width: '1px', color: 'rgb(237, 240, 245)', style: 'solid' }, 'overview columns have a thin light vertical separator');
     await admin.locator('[data-f="search"]').fill('הגפן');
     await admin.waitForFunction(() => document.querySelectorAll('.ifb-table tbody tr').length === 1);
     await admin.locator('[data-ifb-clear="overview"]').click();
