@@ -578,15 +578,25 @@ async function main() {
     await admin.locator('.ifb-program-card').first().waitFor();
     assert.equal(await admin.locator('.ifb-program-card').count(), 11);
     assert.equal(await admin.locator('.ifb-tile').count(), 55);
+    const firstProgramTiles = admin.locator('.ifb-program-card').first().locator('.ifb-tile strong');
+    assert.deepEqual(
+      (await firstProgramTiles.allTextContents()).map((x) => x.trim()),
+      ['תלמידים (התחלה)', 'תלמידים (סיום)', 'צוות חינוכי', 'מדריך (התחלה)', 'מדריך (סיום)']
+    );
+    assert.equal(
+      await admin.locator('.ifb-program-card').first().locator('.ifb-program-card__tiles').evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length),
+      1,
+      'each course card stacks all five survey types vertically'
+    );
     assert.doesNotMatch(await admin.locator('[data-ifb-templates]').textContent(), /גרסה \d|v\d|\d{2}\.\d{2}\.\d{2}/, 'template cards do not show version numbers or publish dates');
     assert.doesNotMatch(await admin.locator('[data-ifb-templates]').textContent(), /כל תבנית מורכבת משאלות ליבה/);
     assert.equal((await admin.locator('.ifb-program-card').first().locator('h3').textContent()).trim(), 'ביומימיקרי');
     assert.match(await admin.locator('.ifb-program-card').first().locator('.ifb-program-card__meta').textContent(), /יסודי.*6089/);
     assert.doesNotMatch(await admin.locator('[data-ifb-templates]').textContent(), /ביומימיקרי – המצאות בהשראה מן הטבע/);
     assert.equal(await admin.locator('[data-tpl-preview-band]').count(), 0, 'templates no longer create age-specific wording previews');
-    const instructorTile = admin.locator('.ifb-tile', { hasText: 'מדריך – פתיחה' }).first().locator('strong');
+    const instructorTile = admin.locator('.ifb-tile', { hasText: 'מדריך (התחלה)' }).first().locator('strong');
     assert.equal(await instructorTile.evaluate((el) => getComputedStyle(el).whiteSpace), 'nowrap', 'instructor opening/final tile labels stay on one line');
-    const tile = admin.locator('.ifb-program-card', { hasText: 'פורצות דרך' }).locator('.ifb-tile', { hasText: 'תלמידים – פתיחה' });
+    const tile = admin.locator('.ifb-program-card', { hasText: 'פורצות דרך' }).locator('.ifb-tile', { hasText: 'תלמידים (התחלה)' });
     await tile.click();
     await admin.locator('.ifb-tq.is-readonly').first().waitFor();
     await admin.locator('[data-tpl-edit]').click();
