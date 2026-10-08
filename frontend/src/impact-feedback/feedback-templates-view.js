@@ -129,7 +129,7 @@ function editableQuestionHtml(q, index, total, ui) {
         <button type="button" class="ifb-icon-btn ifb-icon-btn--danger" data-tpl-remove aria-label="הסרת השאלה">✕</button>
       </span>
     </div>
-    <label class="ifb-field"><span>ניסוח (ברירת מחדל)</span><textarea rows="2" data-tq-field="wording.default">${esc(q.wording?.default || '')}</textarea></label>
+    <label class="ifb-field"><span>ניסוח השאלה</span><textarea rows="2" data-tq-field="wording.default">${esc(q.wording?.default || '')}</textarea></label>
     <p class="ifb-muted">אפשר להשתמש ב־{topic} כדי לשלב את נושא התוכנית.</p>
     <div class="ifb-tq__row">
       <label class="ifb-field"><span>סוג תשובה</span><select data-tq-field="question_type">${typeOptions(q.question_type)}</select></label>
@@ -240,12 +240,11 @@ async function loadEditor(ui, repaint) {
 function openPreview(ui) {
   const ed = tpl.editor;
   const program = ui.programs.find((p) => p.key === ed.template.program_key);
-  const band = program?.default_age_band || 'd_f';
   const source = ed.draft ? ed.draftQuestions : ed.publishedQuestions;
   const payload = {
     audience: ed.template.audience,
     stage: ed.template.stage,
-    age_band: band,
+    age_band: null,
     program_title: program?.title || '',
     recipient_name: ed.template.audience === 'student' ? '' : 'שם הנמען',
     intro_text: (ed.draft || ed.published)?.intro_text || '',
