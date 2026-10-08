@@ -4,12 +4,12 @@
   --ifb-muted: #5f6684;
   --ifb-line: #e3e6f2;
   --ifb-card: #ffffff;
-  --ifb-accent: #e6237e;
-  --ifb-accent-soft: #fde7f1;
+  --ifb-accent: var(--ds-accent, #1a3358);
+  --ifb-accent-soft: var(--ds-accent-soft, #e8eef6);
   --ifb-teal: #2bb5a3;
   --ifb-sky: #aee7fb;
   --ifb-sun: #ffc56b;
-  --ifb-focus: #3b6fe0;
+  --ifb-focus: var(--ds-accent, #1a3358);
   direction: rtl;
   color: var(--ifb-ink);
   font-family: "Assistant", "Rubik", "Segoe UI", Arial, sans-serif;
@@ -37,7 +37,7 @@
   padding: 4px 12px;
   border-radius: 999px;
   background: var(--ifb-accent-soft);
-  color: #a3135a;
+  color: var(--ifb-accent);
   font-size: 13px;
   font-weight: 750;
 }
