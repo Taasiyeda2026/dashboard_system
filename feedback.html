@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f6f7fc" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="referrer" content="no-referrer" />
+  <link rel="icon" href="./frontend/assets/favicon.ico" sizes="any" />
+  <title>משוב – תעשיידע</title>
+  <style>
+    /* Standalone page: guard against global app rules that share the built stylesheet. */
+    html, html body.ifb-public { margin: 0 !important; padding: 0 !important; background: #f6f7fc !important; min-height: 100%; }
+    html body.ifb-public { color: #1f2440 !important; font-size: 16px !important; line-height: 1.5 !important; text-align: right; -webkit-text-size-adjust: 100%; }
+    .ifb-boot { display: grid; place-items: center; min-height: 70vh; color: #5f6684; font: 18px "Assistant", "Segoe UI", Arial, sans-serif; }
+  </style>
+</head>
+<body class="ifb-public">
+  <main id="feedback-root" aria-busy="true" aria-live="polite">
+    <div class="ifb-boot">טוען את המשוב…</div>
+  </main>
+  <noscript><p style="text-align:center;font-family:Arial,sans-serif">כדי למלא את המשוב יש לאפשר JavaScript בדפדפן.</p></noscript>
+  <script type="module" src="./frontend/src/impact-feedback/feedback-public.js?v=20261008-impact-feedback-v1"></script>
+</body>
+</html>

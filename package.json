@@ -47,6 +47,7 @@
     "@azure/msal-browser": "^4.30.0",
     "@react-pdf/renderer": "^4.6.0",
     "@supabase/supabase-js": "^2.105.3",
+    "qrcode": "^1.5.4",
     "react": "^19.1.1"
   }
 }

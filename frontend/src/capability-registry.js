@@ -71,7 +71,8 @@ export const CAPABILITY_REGISTRY = Object.freeze([
   { id: 'admin.team_board', parent: 'admin.home', label: 'לוח מנהל צוות', type: 'tool', adminOnly: true },
   { id: 'admin.messages', parent: 'admin.home', label: 'הודעות לעובדים', type: 'tool', adminOnly: true },
   { id: 'admin.data', parent: 'admin.home', label: 'כלי נתונים', type: 'tool', adminOnly: true },
-  { id: 'admin.summer_feedback', parent: 'admin.home', label: 'משוב קיץ', type: 'external_app', adminOnly: true }
+  { id: 'admin.summer_feedback', parent: 'admin.home', label: 'משוב קיץ', type: 'external_app', adminOnly: true },
+  { id: 'admin.impact_feedback', parent: 'admin.home', label: 'משובים והערכת השפעה', type: 'page', adminOnly: true, route: 'impact-feedback' }
 ]);
 
 export const capabilityById = new Map(CAPABILITY_REGISTRY.map((item) => [item.id, item]));

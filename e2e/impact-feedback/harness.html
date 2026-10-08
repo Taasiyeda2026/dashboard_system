@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Impact feedback – local E2E harness</title>
+  <link rel="stylesheet" href="/frontend/src/styles/main.css" />
+</head>
+<body>
+  <!-- Manual/local E2E only: mounts the real admin screen + drawer button runtime without the full app login. -->
+  <main id="app" style="padding:16px"><div id="screenRoot"></div></main>
+  <form data-drawer-form data-row-id="ACT-1" data-activity-season="school_2027" class="activity-drawer__form" id="fakeDrawer" hidden>
+    <div class="activity-drawer__view-footer" data-mode="view"><button type="button" class="activity-drawer__action">✏ עריכה</button></div>
+  </form>
+  <script type="module">
+    import { state } from '/frontend/src/state.js';
+    import { impactFeedbackScreen } from '/frontend/src/screens/impact-feedback.js';
+    // Links are built relative to the app entry (site root), exactly like index.html in production.
+    history.replaceState(null, '', '/' + location.search);
+    state.user = { role: 'admin', user_id: 'admin' };
+    state.token = 'e2e';
+    const root = document.getElementById('screenRoot');
+    function mountScreen() {
+      root.innerHTML = impactFeedbackScreen.render({}, { state });
+      impactFeedbackScreen.bind({ root, state });
+    }
+    document.addEventListener('app:navigate', (event) => {
+      window.__lastNavigate = event.detail;
+      if (event.detail?.route === 'impact-feedback') mountScreen();
+    });
+    if (new URLSearchParams(location.search).get('drawer') === '1') {
+      document.getElementById('fakeDrawer').hidden = false;
+      await import('/frontend/src/impact-feedback/activity-feedback-button.js');
+    } else {
+      mountScreen();
+    }
+    window.__harnessReady = true;
+  </script>
+</body>
+</html>

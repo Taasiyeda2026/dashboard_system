@@ -477,6 +477,7 @@ function applyBootstrapFromLoginData(data) {
   state.effectiveRoutes = effectiveRoutes;
   enforceProposalsAgreementsRoute();
   enforceCourseSchedulingRoute();
+  enforceImpactFeedbackRoute();
   state.route = resolveInitialAuthenticatedRoute(data.default_route, state.effectiveRoutes);
   saveRoutesToStorage(state.routes, state.route, state.clientSettings);
   consumePendingRouteFromUrlOrSession();
@@ -516,7 +517,8 @@ const screenLabels = {
   'personal-reports': 'דוחות אישיים',
   'israa-management': 'ניהול איסראא',
   'operations-management': 'תפעול',
-  certificates: 'תעודות'
+  certificates: 'תעודות',
+  'impact-feedback': 'משובים והערכת השפעה'
 };
 
 function navLabelForRoute(route) {
@@ -671,7 +673,8 @@ const screenLoaders = {
   'personal-reports': () => import('./screens/personal-reports.js').then((m) => m.personalReportsScreen),
   'israa-management': () => import('./screens/israa-management.js').then((m) => m.israaManagementScreen),
   'operations-management': () => import('./screens/operations-management.js').then((m) => m.operationsManagementScreen),
-  certificates: () => import('./screens/certificates.js').then((m) => m.certificatesScreen)
+  certificates: () => import('./screens/certificates.js').then((m) => m.certificatesScreen),
+  'impact-feedback': () => import('./screens/impact-feedback.js').then((m) => m.impactFeedbackScreen)
 };
 const loadedScreens = new Map();
 const loadingScreens = new Map();
@@ -1056,12 +1059,20 @@ function enforceCourseSchedulingRoute() {
   state.routes = state.effectiveRoutes;
 }
 
+// Impact feedback module is admin-only (server enforces the same rule via RLS/RPC checks).
+function enforceImpactFeedbackRoute() {
+  if (!state.token || String(state?.user?.role || '').trim().toLowerCase() !== 'admin') return;
+  if (!(state.effectiveRoutes || []).includes('impact-feedback')) state.effectiveRoutes = [...(state.effectiveRoutes || []), 'impact-feedback'];
+  state.routes = state.effectiveRoutes;
+}
+
 // מסכי ניהול — נגישים למי שיש לו הרשאה, אך לא מוצגים בסרגל הצד
 const ADMIN_SIDEBAR_HIDDEN_ROUTES = new Set(['admin-home', 'admin-settings', 'admin-lists', 'invitations', 'catalog', 'certificates', 'operations-management']);
 
 function shell(content) {
   enforceProposalsAgreementsRoute();
   enforceCourseSchedulingRoute();
+  enforceImpactFeedbackRoute();
   const hiddenSet = navSidebarHiddenRoutesSet();
   const contextualSet = navContextualRoutesSet();
   const isAdminUser = state?.user?.role === 'admin';
@@ -1790,6 +1801,7 @@ function tryRestoreRoutesInstant() {
     state.effectiveRoutes = effectiveR;
     enforceProposalsAgreementsRoute();
     enforceCourseSchedulingRoute();
+    enforceImpactFeedbackRoute();
     state.route = resolveInitialAuthenticatedRoute(saved.defaultRoute || '', state.effectiveRoutes);
     restoreScreenCacheFromStorage();
     return true;
@@ -1851,6 +1863,7 @@ function applyBootstrapRoutes(bootstrap) {
   state.effectiveRoutes = normalizedRoutes;
   enforceProposalsAgreementsRoute();
   enforceCourseSchedulingRoute();
+  enforceImpactFeedbackRoute();
   const newDefault = resolveAllowedDefaultRoute(bootstrap.default_route, state.effectiveRoutes);
   saveRoutesToStorage(state.routes, newDefault, state.clientSettings);
   applyBootstrapUserFlags(bootstrap);

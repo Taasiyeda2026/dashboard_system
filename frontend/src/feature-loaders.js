@@ -168,7 +168,8 @@ export function ensureFeature(name) {
         import('./styles/activity-drawer-edit-header-polish.css'),
         import('./styles/activity-drawer-floating-actions.css'),
         import('./activity-drawer-edit-dedup.js'),
-        import('./activity-drawer-floating-actions.js?v=20260731-floating-overlay-v3')
+        import('./activity-drawer-floating-actions.js?v=20260731-floating-overlay-v3'),
+        import('./impact-feedback/activity-feedback-button.js')
       ]));
 
     case 'endDates':
