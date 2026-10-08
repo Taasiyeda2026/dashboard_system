@@ -462,3 +462,22 @@
   .ifb-kpis { grid-template-columns: 1fr; }
   .ifb-filters--primary, .ifb-filters--more { grid-template-columns: 1fr; }
 }
+
+/* Desktop compact overview: six metrics and all primary filters on single rows.
+   Override the old 1250px breakpoint, which unnecessarily stacked both sections. */
+@media (min-width: 1000px) {
+  .ifb-kpis { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+  .ifb-kpi { min-height: 54px; padding: 7px 9px; gap: 2px 5px; }
+  .ifb-kpi__label { font-size: 11px; }
+  .ifb-kpi__value { font-size: 21px; }
+  .ifb-kpi__hint { font-size: 10px; }
+  .ifb-kpi__warning { margin-top: 0; font-size: 9px; padding: 1px 5px; }
+  .ifb-filter-panel { padding: 7px 9px; }
+  .ifb-filters--primary {
+    grid-template-columns: minmax(155px, 1.5fr) repeat(4, minmax(100px, 1fr)) auto;
+    gap: 6px;
+  }
+  .ifb-filters--primary .ifb-field { min-width: 0; }
+  .ifb-filters--primary input,
+  .ifb-filters--primary select { min-width: 0; width: 100%; }
+}
