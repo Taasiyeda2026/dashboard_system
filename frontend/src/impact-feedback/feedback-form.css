@@ -15,6 +15,7 @@
   font-family: "Assistant", "Rubik", "Segoe UI", Arial, sans-serif;
   width: 100%;
   max-width: 720px;
+  min-height: 100vh;
   min-height: 100dvh;
   margin: 0 auto;
   padding: 0 18px 40px;
@@ -58,6 +59,7 @@
   margin: 0 -4px;
   padding: 10px 4px;
   background: rgba(246, 247, 252, .94);
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
   box-shadow: 0 7px 12px -10px rgba(31, 36, 64, .26);
 }
