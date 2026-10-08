@@ -1895,6 +1895,9 @@ test('background planning keeps the workboard scroll stable instead of rerenderi
   const planningSrc = await readFile(new URL('../frontend/src/screens/course-scheduling-planning.js', import.meta.url), 'utf8');
   // Resume-validated commits skip rebuild; the live planning call may assign without `const`.
   const planningRunStart = (() => {
+    // The progress callback is shared by the planner and the delta repair.
+    const sharedProgress = screen.indexOf('const onPlanningProgress = async (progress) =>');
+    if (sharedProgress >= 0) return sharedProgress;
     const withConst = screen.indexOf('const result = await buildDynamicCoursePlan({');
     if (withConst >= 0) return withConst;
     return screen.indexOf('result = await buildDynamicCoursePlan({');
@@ -1921,7 +1924,8 @@ test('background planning keeps the workboard scroll stable instead of rerenderi
   assert.doesNotMatch(ownsRun, /state\.route === 'course-scheduling'/);
   assert.doesNotMatch(ownsRun, /schedulingScreenActive/);
   assert.doesNotMatch(ownsRun, /root\.isConnected/);
-  assert.match(planningRun, /onProgress:\s*async\s*\(progress\)\s*=>/);
+  assert.match(planningRun, /(onProgress:\s*async\s*\(progress\)\s*=>|const onPlanningProgress = async \(progress\) =>)/);
+  assert.match(planningRun, /onProgress: onPlanningProgress/);
   assert.match(planningRun, /if \(runUiVisible\(\)\) run\.ui\?\.update\?\.\(\)/);
   assert.doesNotMatch(planningRun, /\brerender\(\)/);
   assert.doesNotMatch(planningRun, /run\.ui\?\.rerender\?\.\(\)/);
