@@ -579,31 +579,37 @@ function singleSelectHtml(facts) {
   }).join('')}</ul></div>`).join('');
 }
 
-function alignmentHtml(perspectives) {
+function alignmentHtml(perspectives, { includeInstructor = true } = {}) {
   const impact = ui.metrics.filter((m) => m.kind === 'impact');
   const rows = impact.map((m) => {
     const s = perspectives.students.post.byMetric[m.key]?.score ?? null;
     const st = perspectives.staff.byMetric[m.key]?.score ?? null;
-    const ins = perspectives.instructor.byMetric[m.key]?.score ?? null;
+    const ins = includeInstructor ? (perspectives.instructor.byMetric[m.key]?.score ?? null) : null;
     if (s === null && st === null && ins === null) return '';
-    const gap = perspectiveGap([s, st, ins]);
-    return `<tr><td data-label="מדד"><strong>${esc(m.label)}</strong></td><td data-label="קול התלמידים">${s ?? '—'}</td><td data-label="צוות חינוכי">${st ?? '—'}</td><td data-label="מדריך">${ins ?? '—'}</td>
-      <td data-label="התאמה">${gap ? `<span class="ifb-chip ifb-chip--${gap.key === 'aligned' ? 'success' : gap.key === 'partial' ? 'info' : 'warning'}">${esc(gap.label)} (${gap.gap})</span>` : '<span class="ifb-muted">אין מספיק זוויות</span>'}</td></tr>`;
+    const scores = includeInstructor ? [s, st, ins] : [s, st];
+    const gap = perspectiveGap(scores);
+    return `<tr>
+      <td data-label="מדד"><strong>${esc(m.label)}</strong></td>
+      <td data-label="קול התלמידים">${s ?? '—'}</td>
+      <td data-label="צוות חינוכי">${st ?? '—'}</td>
+      ${includeInstructor ? `<td data-label="מדריך">${ins ?? '—'}</td>` : ''}
+      <td data-label="התאמה">${gap ? `<span class="ifb-chip ifb-chip--${gap.key === 'aligned' ? 'success' : gap.key === 'partial' ? 'info' : 'warning'}">${esc(gap.label)} (${gap.gap})</span>` : '<span class="ifb-muted">אין מספיק זוויות</span>'}</td>
+    </tr>`;
   }).join('');
   if (!rows) return '';
-  return `<section class="ifb-panel"><h3>האם שלוש הזוויות מצביעות על אותה מגמה?</h3>
-    <p class="ifb-note">ציוני 0–100 של כל אוכלוסייה בנפרד (תלמידים – משוב סיום). אין ממוצע משולב בין האוכלוסיות.</p>
-    <div class="ifb-table-wrap"><table class="ifb-table ifb-table--compact"><thead><tr><th>מדד</th><th>קול התלמידים</th><th>צוות חינוכי</th><th>מדריך</th><th>התאמה</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+  return `<section class="ifb-panel"><h3>${includeInstructor ? 'האם שלוש הזוויות מצביעות על אותה מגמה?' : 'האם התלמידים והצוות החינוכי מצביעים על אותה מגמה?'}</h3>
+    <p class="ifb-note">ציוני 0–100 של כל אוכלוסייה בנפרד. אין ממוצע משולב בין האוכלוסיות.</p>
+    <div class="ifb-table-wrap"><table class="ifb-table ifb-table--compact"><thead><tr><th>מדד</th><th>קול התלמידים</th><th>צוות חינוכי</th>${includeInstructor ? '<th>מדריך</th>' : ''}<th>התאמה</th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
 }
 
-function perspectivesHtml(facts, scopeKey) {
+function perspectivesHtml(facts, scopeKey, { includeInstructor = true } = {}) {
   const perspectives = threePerspectives(facts, ui.metrics);
   const impactKeys = ui.metrics.filter((m) => m.kind === 'impact').map((m) => m.key);
   const programKeys = ui.metrics.filter((m) => m.kind === 'program').map((m) => m.key);
   const drill = ui.results.drill && ui.results.drill.startsWith(`${scopeKey}|`) ? ui.results.drill.split('|') : [];
   const drillFor = (who, population) => (drill[1] === who ? drillHtml(population, drill[2]) : '');
   return `
-    <div class="ifb-angles" data-ifb-scope="${esc(scopeKey)}">
+    <div class="ifb-angles${includeInstructor ? '' : ' ifb-angles--two'}" data-ifb-scope="${esc(scopeKey)}">
       <section class="ifb-panel ifb-angle ifb-angle--students" data-ifb-who="students">
         <h3>🎒 קול התלמידים</h3>
         ${prePostTableHtml(perspectives.students.comparison)}
@@ -617,14 +623,14 @@ function perspectivesHtml(facts, scopeKey) {
         ${drillFor('staff', perspectives.staff)}
         ${distributionHtml(factsFor(facts, 'educational_staff'), 'באילו תחומים הבחינו בשינוי')}
       </section>
-      <section class="ifb-panel ifb-angle ifb-angle--instructor" data-ifb-who="instructor">
+      ${includeInstructor ? `<section class="ifb-panel ifb-angle ifb-angle--instructor" data-ifb-who="instructor">
         <h3>🧑‍🏫 הערכת המדריך</h3>
         ${metricTilesHtml(perspectives.instructor, [...programKeys, ...impactKeys], 'טרם התקבל משוב מהמדריך.')}
         ${drillFor('instructor', perspectives.instructor)}
         ${singleSelectHtml(factsFor(facts, 'instructor'))}
-      </section>
+      </section>` : ''}
     </div>
-    ${alignmentHtml(perspectives)}`;
+    ${alignmentHtml(perspectives, { includeInstructor })}`;
 }
 
 function openAnswersListHtml(items, { showContext = true } = {}) {
