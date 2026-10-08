@@ -525,12 +525,27 @@
   color: var(--ifb-a-muted);
   white-space: nowrap;
 }
-.ifb-tq-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
-.ifb-tq { display: grid; gap: 8px; padding: 12px 14px; border: 1px solid var(--ifb-a-line); border-radius: 14px; background: var(--ifb-a-card); }
-.ifb-tq__head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
-.ifb-tq__num { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--ifb-a-bg); font-weight: 800; font-size: 13px; }
+.ifb-tq-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.ifb-tq { display: grid; gap: 6px; padding: 14px 16px; border: 1px solid var(--ifb-a-line); border-radius: 14px; background: var(--ifb-a-card); min-width: 0; }
+.ifb-tq__head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; }
+/* Template question cards: plain-text number and metadata, no chips/bubbles. */
+.ifb-tq__num { color: var(--ifb-a-muted); font-size: 12px; font-weight: 700; }
 .ifb-tq__tools { margin-inline-start: auto; display: flex; gap: 4px; }
-.ifb-tq__text { margin: 0; font-weight: 700; }
+.ifb-tq__text { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.55; color: var(--ifb-a-ink); overflow-wrap: anywhere; }
+.ifb-tq__meta { margin: 0; color: var(--ifb-a-muted); font-size: 12.5px; font-weight: 500; line-height: 1.6; }
+.ifb-tq__sep { opacity: .55; }
+
+/* Opened template header: program → program details → template type → actions → intro. */
+.ifb-tpl-head { display: grid; justify-content: stretch; gap: 14px; padding: 16px 18px; }
+.ifb-tpl-head__titles { display: grid; gap: 2px; min-width: 0; }
+.ifb-tpl-head__program { margin: 0; font-size: 19px; font-weight: 800; color: var(--ifb-a-ink); }
+.ifb-tpl-head__meta { margin: 0; font-size: 13px; color: var(--ifb-a-muted); }
+.ifb-tpl-head__title { margin: 8px 0 0; font-size: 16px; font-weight: 800; color: var(--ifb-a-accent); }
+.ifb-tpl-head__status { margin: 0; font-size: 12.5px; color: var(--ifb-a-muted); }
+.ifb-tpl-head__actions { align-items: center; }
+.ifb-tpl-head__intro { display: grid; gap: 4px; padding-top: 12px; border-top: 1px solid var(--ifb-a-line); }
+.ifb-tpl-head__intro > span { font-size: 12px; font-weight: 700; color: var(--ifb-a-muted); }
+.ifb-tpl-head__intro p { margin: 0; font-size: 14px; line-height: 1.65; color: var(--ifb-a-muted); }
 .ifb-tq__variant { margin: 0; font-size: 13px; color: var(--ifb-a-muted); }
 .ifb-tq__variant span { font-weight: 700; }
 .ifb-tq__row { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
