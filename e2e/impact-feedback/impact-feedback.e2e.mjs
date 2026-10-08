@@ -112,7 +112,7 @@ async function main() {
     assert.equal(await admin.locator('.ifb-kpi').count(), 6);
     assert.deepEqual(
       (await admin.locator('.ifb-overview-table thead th').allTextContents()).map((x) => x.trim()),
-      ['בית ספר', 'רשות', 'תוכנית', 'שכבה', 'מדריך', 'התחלה', 'סיום', 'תלמידים – פתיחה', 'תלמידים – סיום', 'צוות חינוכי', 'תוצאות', 'פעולות']
+      ['בית ספר', 'רשות', 'תוכנית', 'שכבה', 'מדריך', 'התחלה', 'סיום', 'תלמידים – פתיחה', 'תלמידים – סיום', 'צוות חינוכי', 'פעולות']
     );
     const rows = await admin.locator('.ifb-table tbody tr').count();
     assert.equal(rows, 8, 'six recognised program groups + two unrecognised course groups');
@@ -121,9 +121,16 @@ async function main() {
     assert.match(await admin.locator('tr[data-row="ACT-10"]').textContent(), /פורצות דרך/, 'Gefen 3604 is identified as Trailblazers automatically');
     assert.equal(await admin.locator('.ifb-unresolved .ifb-chip').count(), 2);
     assert.equal((await admin.locator('.ifb-unresolved .ifb-chip').first().textContent()).trim(), 'תוכנית לא זוהתה');
+    assert.equal(await admin.locator('.ifb-col-results').count(), 0, 'overview does not render a Results column');
+    const filterDisclosure = admin.locator('[data-ifb-filter-disclosure="overview"]');
+    assert.equal(await filterDisclosure.getAttribute('open'), null, 'overview filters are collapsed by default');
+    const tableFits = await admin.locator('.ifb-overview-wrap').evaluate((el) => el.scrollWidth <= el.clientWidth + 1);
+    assert.equal(tableFits, true, 'all overview columns fit the desktop width without horizontal scrolling');
+    await filterDisclosure.locator('summary').click();
     await admin.locator('[data-f="search"]').fill('הגפן');
     await admin.waitForFunction(() => document.querySelectorAll('.ifb-table tbody tr').length === 1);
     await admin.locator('[data-ifb-clear="overview"]').click();
+    await admin.locator('[data-ifb-filter-disclosure="overview"] summary').click();
     await admin.locator('[data-f="program"]').selectOption('ofek');
     assert.equal(await admin.locator('.ifb-table tbody tr').count(), 2);
     await admin.locator('[data-ifb-clear="overview"]').click();
@@ -138,6 +145,8 @@ async function main() {
 
   await step('Unrecognised program stays visible; admin maps it manually; mapping persists; master data untouched', async () => {
     const before = (await db.query("select to_jsonb(a) j from activities a where row_id in ('ACT-5','ACT-7') order by row_id")).rows;
+    const overviewDisclosure = admin.locator('[data-ifb-filter-disclosure="overview"]');
+    if (!(await overviewDisclosure.getAttribute('open'))) await overviewDisclosure.locator('summary').click();
     await admin.locator('[data-f="status"]').selectOption('unresolved');
     assert.equal(await admin.locator('.ifb-table tbody tr').count(), 2);
     const row = admin.locator('tr[data-row="ACT-7"]');
@@ -146,7 +155,7 @@ async function main() {
     await row.locator('[data-ifb-set-program] [type="submit"]').click();
     await admin.waitForFunction(() => document.querySelectorAll('.ifb-table tbody tr').length === 1);
     await admin.locator('[data-f="status"]').selectOption('');
-    await admin.waitForFunction(() => /אופק – יזמות פרימיום/.test(document.querySelector('tr[data-row="ACT-7"]')?.textContent || ''));
+    await admin.waitForFunction(() => /אופק פרימיום/.test(document.querySelector('tr[data-row="ACT-7"]')?.textContent || ''));
     assert.equal(await admin.locator('tr[data-row="ACT-7"] [data-status="not_opened"]').count(), 3);
     // ACT-5 via the group screen: mark as not relevant, then bring it back and choose a program.
     await admin.locator('tr[data-row="ACT-5"] [data-ifb-open-group]').click();
@@ -162,7 +171,7 @@ async function main() {
     assert.match(await admin.locator('[data-ifb-program-card]').textContent(), /נבחרה ידנית/);
     await admin.goto(`${APP}/e2e/impact-feedback/harness.html`);
     await admin.locator('tr[data-row="ACT-7"]').waitFor();
-    assert.match(await admin.locator('tr[data-row="ACT-7"]').textContent(), /אופק – יזמות פרימיום/, 'mapping persists after reload');
+    assert.match(await admin.locator('tr[data-row="ACT-7"]').textContent(), /אופק פרימיום/, 'mapping persists after reload');
     const after = (await db.query("select to_jsonb(a) j from activities a where row_id in ('ACT-5','ACT-7') order by row_id")).rows;
     assert.deepEqual(after, before, 'activities master data unchanged');
     const mappings = (await db.query("select activity_row_id, program_key, excluded from feedback_program_mappings order by activity_row_id")).rows;
@@ -304,6 +313,9 @@ async function main() {
     assert.equal(await admin.locator('.ifb-instructor-summary h2').count(), 0, 'no duplicate inner instructor title');
     assert.equal(await admin.locator('.ifb-list-head').count(), 0, 'no redundant instructor list heading/count');
     assert.equal(await admin.locator('[data-i="search"]').count(), 0, 'instructor filter must not be free text');
+    const instructorDisclosure = admin.locator('[data-ifb-filter-disclosure="instructors"]');
+    assert.equal(await instructorDisclosure.getAttribute('open'), null, 'instructor filters are collapsed by default');
+    await instructorDisclosure.locator('summary').click();
     const instructorSelect = admin.locator('select[data-i="instructor"]');
     await instructorSelect.waitFor();
     assert.ok((await instructorSelect.locator('option').allTextContents()).some((x) => /דנה לוי/.test(x)));
@@ -556,6 +568,8 @@ async function main() {
     assert.match(await admin.locator('.ifb-program-card').first().locator('.ifb-program-card__meta').textContent(), /יסודי.*6089/);
     assert.doesNotMatch(await admin.locator('[data-ifb-templates]').textContent(), /ביומימיקרי – המצאות בהשראה מן הטבע/);
     assert.equal(await admin.locator('[data-tpl-preview-band]').count(), 0, 'templates no longer create age-specific wording previews');
+    const instructorTile = admin.locator('.ifb-tile', { hasText: 'מדריך – פתיחה' }).first().locator('strong');
+    assert.equal(await instructorTile.evaluate((el) => getComputedStyle(el).whiteSpace), 'nowrap', 'instructor opening/final tile labels stay on one line');
     const tile = admin.locator('.ifb-program-card', { hasText: 'פורצות דרך' }).locator('.ifb-tile', { hasText: 'תלמידים – פתיחה' });
     await tile.click();
     await admin.locator('.ifb-tq.is-readonly').first().waitFor();

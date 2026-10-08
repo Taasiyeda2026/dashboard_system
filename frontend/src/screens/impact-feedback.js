@@ -269,46 +269,45 @@ function kpiHtml(groups, instructorAssignments = []) {
 }
 function overviewFiltersHtml(groups) {
   const f = ui.filters;
+  const activeCount = Object.values(f).filter(Boolean).length;
   const advancedCount = [f.instructor, f.ageBand, f.from, f.to].filter(Boolean).length;
   return `
-    <section class="ifb-filter-panel">
-      <div class="ifb-filters ifb-filters--primary" data-ifb-filters="overview">
-        <label class="ifb-field ifb-field--search"><span>חיפוש</span><input type="search" data-f="search" value="${esc(f.search)}" placeholder="בית ספר, רשות, מדריך…"></label>
-        <label class="ifb-field"><span>תוכנית</span><select data-f="program">${optionList(ui.programs.map((p) => p.key), f.program, 'כל התוכניות', programOptionLabel)}</select></label>
-        <label class="ifb-field"><span>רשות</span><select data-f="authority">${optionList(uniqueSorted(groups.map((g) => g.authority)), f.authority, 'כל הרשויות')}</select></label>
-        <label class="ifb-field"><span>בית ספר</span><select data-f="school">${optionList(uniqueSorted(groups.map((g) => g.school)), f.school, 'כל בתי הספר')}</select></label>
-        <label class="ifb-field"><span>סטטוס</span><select data-f="status">
-          ${[['', 'הכל'], ['unresolved', 'תוכנית לא זוהתה'], ['has_feedback', 'יש משובים'], ['no_feedback', 'ללא משובים'], ['any_live', 'משוב פעיל'], ['pending_contact', 'ממתין לאיש קשר'], ['expired', 'פג תוקף'], ['completed_all', 'הושלם (3 משובים)'], ['excluded', 'הוסתרו (לא רלוונטי)']]
-            .map(([v, l]) => `<option value="${v}"${v === f.status ? ' selected' : ''}>${esc(l)}</option>`).join('')}
-        </select></label>
-        <button type="button" class="ifb-btn ifb-btn--ghost ifb-clear-btn" data-ifb-clear="overview">ניקוי</button>
-      </div>
-      <details class="ifb-filter-more"${advancedCount ? ' open' : ''}>
-        <summary>סינון נוסף${advancedCount ? ` <span class="ifb-filter-count">${advancedCount}</span>` : ''}</summary>
-        <div class="ifb-filters ifb-filters--more">
-          <label class="ifb-field"><span>מדריך</span><select data-f="instructor">${optionList(uniqueSorted(groups.map((g) => g.instructor_name)), f.instructor, 'כל המדריכים')}</select></label>
-          <label class="ifb-field"><span>שכבה</span><select data-f="ageBand">${optionList(AGE_BANDS.map((b) => b.key), f.ageBand, 'כל השכבות', ageBandLabel)}</select></label>
-          <label class="ifb-field"><span>התחלה מ־</span><input type="date" data-f="from" value="${esc(f.from)}"></label>
-          <label class="ifb-field"><span>עד</span><input type="date" data-f="to" value="${esc(f.to)}"></label>
+    <details class="ifb-filter-disclosure"${activeCount ? ' open' : ''} data-ifb-filter-disclosure="overview">
+      <summary class="ifb-filter-toggle" data-ifb-filter-toggle="overview">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
+        <span>סינון וחיפוש</span>
+        ${activeCount ? `<small>· ${activeCount} פעילים</small>` : ''}
+      </summary>
+      <section class="ifb-filter-panel">
+        <div class="ifb-filters ifb-filters--primary" data-ifb-filters="overview">
+          <label class="ifb-field ifb-field--search"><span>חיפוש</span><input type="search" data-f="search" value="${esc(f.search)}" placeholder="בית ספר, רשות, מדריך…"></label>
+          <label class="ifb-field"><span>תוכנית</span><select data-f="program">${optionList(ui.programs.map((p) => p.key), f.program, 'כל התוכניות', programOptionLabel)}</select></label>
+          <label class="ifb-field"><span>רשות</span><select data-f="authority">${optionList(uniqueSorted(groups.map((g) => g.authority)), f.authority, 'כל הרשויות')}</select></label>
+          <label class="ifb-field"><span>בית ספר</span><select data-f="school">${optionList(uniqueSorted(groups.map((g) => g.school)), f.school, 'כל בתי הספר')}</select></label>
+          <label class="ifb-field"><span>סטטוס</span><select data-f="status">
+            ${[['', 'הכל'], ['unresolved', 'תוכנית לא זוהתה'], ['has_feedback', 'יש משובים'], ['no_feedback', 'ללא משובים'], ['any_live', 'משוב פעיל'], ['pending_contact', 'ממתין לאיש קשר'], ['expired', 'פג תוקף'], ['completed_all', 'הושלם (3 משובים)'], ['excluded', 'הוסתרו (לא רלוונטי)']]
+              .map(([v, l]) => `<option value="${v}"${v === f.status ? ' selected' : ''}>${esc(l)}</option>`).join('')}
+          </select></label>
+          <button type="button" class="ifb-btn ifb-btn--ghost ifb-clear-btn" data-ifb-clear="overview">ניקוי</button>
         </div>
-      </details>
-    </section>`;
-}
-function resultsCellHtml(group) {
-  const pre = slotCampaign(group, SLOTS[0]);
-  const post = slotCampaign(group, SLOTS[1]);
-  const nPre = Number(pre?.responses) || 0;
-  const nPost = Number(post?.responses) || 0;
-  const staffDone = (group.campaigns || []).some((c) => c.audience === 'educational_staff' && c.recipient?.status === 'completed');
-  if (!nPre && !nPost && !staffDone) return '<span class="ifb-muted">—</span>';
-  return `<button type="button" class="ifb-link" data-ifb-results-group="${esc(group.row_id)}">פתיחה ${nPre} · סיום ${nPost}${staffDone ? ' · צוות הושלם' : ''}</button>`;
+        <details class="ifb-filter-more"${advancedCount ? ' open' : ''}>
+          <summary>סינון נוסף${advancedCount ? ` · ${advancedCount} פעילים` : ''}</summary>
+          <div class="ifb-filters ifb-filters--more">
+            <label class="ifb-field"><span>מדריך</span><select data-f="instructor">${optionList(uniqueSorted(groups.map((g) => g.instructor_name)), f.instructor, 'כל המדריכים')}</select></label>
+            <label class="ifb-field"><span>שכבה</span><select data-f="ageBand">${optionList(AGE_BANDS.map((b) => b.key), f.ageBand, 'כל השכבות', ageBandLabel)}</select></label>
+            <label class="ifb-field"><span>התחלה מ־</span><input type="date" data-f="from" value="${esc(f.from)}"></label>
+            <label class="ifb-field"><span>עד</span><input type="date" data-f="to" value="${esc(f.to)}"></label>
+          </div>
+        </details>
+      </section>
+    </details>`;
 }
 
 function programOptionsHtml(selected = '') {
   return `<option value="">בחירת תוכנית…</option>${ui.programs.map((p) => `<option value="${esc(p.key)}"${p.key === selected ? ' selected' : ''}>${esc(programOptionLabel(p.key))}</option>`).join('')}`;
 }
 
-/** Inline picker in the table row: status + choose one of the 8 programs. */
+/** Inline picker in the table row: status + choose one of the canonical programs. */
 function programQuickPickHtml(group) {
   return `<div class="ifb-unresolved">
     <span class="ifb-chip ifb-chip--warning">תוכנית לא זוהתה</span>
@@ -341,7 +340,7 @@ function programCardHtml(group) {
   if (unresolved || group.feedback_excluded) {
     return `<section class="ifb-panel ifb-program-card--pick" data-ifb-program-card>
       <h3>${group.feedback_excluded ? 'הפעילות סומנה כלא רלוונטית למשובים' : '⚠️ תוכנית לא זוהתה'}</h3>
-      <p class="ifb-note">שם הפעילות „${esc(group.activity_name || '')}” לא זוהה כאחת מ־8 התוכניות. בחרו תוכנית – הבחירה נשמרת למודול המשובים בלבד ואינה משנה את נתוני הפעילות.</p>
+      <p class="ifb-note">שם הפעילות „${esc(group.activity_name || '')}” לא זוהה כאחת מ־11 התוכניות. בחרו תוכנית – הבחירה נשמרת למודול המשובים בלבד ואינה משנה את נתוני הפעילות.</p>
       ${form}
     </section>`;
   }
@@ -353,7 +352,7 @@ function programCardHtml(group) {
 
 function overviewTableHtml(groups) {
   if (!groups.length) {
-    return `<div class="ifb-empty"><p>לא נמצאו קבוצות התואמות לסינון.</p><p class="ifb-muted">המודול מציג פעילויות של 8 התוכניות לפי שם הפעילות בשנת הפעילות שנבחרה.</p></div>`;
+    return `<div class="ifb-empty"><p>לא נמצאו קבוצות התואמות לסינון.</p><p class="ifb-muted">המודול מציג פעילויות של 11 התוכניות לפי שם הפעילות בשנת הפעילות שנבחרה.</p></div>`;
   }
   const rows = groups.map((g) => `
     <tr data-row="${esc(g.row_id)}">
@@ -369,7 +368,6 @@ function overviewTableHtml(groups) {
       <td class="ifb-col-date" data-label="התחלה">${fmtDate(g.start_date)}</td>
       <td class="ifb-col-date" data-label="סיום">${fmtDate(g.end_date)}</td>
       ${GROUP_SLOTS.map((slot) => `<td class="ifb-col-status" data-label="${esc(slot.label)}">${g.program_key ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}</td>`).join('')}
-      <td class="ifb-col-results" data-label="תוצאות">${resultsCellHtml(g)}</td>
       <td class="ifb-col-actions" data-label="פעולות"><button type="button" class="ifb-row-action" data-ifb-open-group="${esc(g.row_id)}" title="ניהול משובי הקבוצה">ניהול</button></td>
     </tr>`).join('');
   return `
@@ -386,7 +384,6 @@ function overviewTableHtml(groups) {
           <col class="ifb-w-status">
           <col class="ifb-w-status">
           <col class="ifb-w-status">
-          <col class="ifb-w-results">
           <col class="ifb-w-actions">
         </colgroup>
         <thead><tr>
@@ -400,7 +397,6 @@ function overviewTableHtml(groups) {
           <th class="ifb-col-status">תלמידים – פתיחה</th>
           <th class="ifb-col-status">תלמידים – סיום</th>
           <th class="ifb-col-status">צוות חינוכי</th>
-          <th class="ifb-col-results">תוצאות</th>
           <th class="ifb-col-actions">פעולות</th>
         </tr></thead>
         <tbody>${rows}</tbody>
@@ -794,27 +790,34 @@ function instructorAssignmentsHtml() {
       <span aria-hidden="true">·</span>
       <span><strong>${finalCompleted}</strong> סיום הושלמו</span>
     </div>
-    <section class="ifb-filter-panel ifb-filter-panel--instructors">
-      <div class="ifb-filters ifb-filters--instructors">
-        <label class="ifb-field"><span>מדריך</span><select data-i="instructor">
-          <option value="">כל המדריכים</option>
-          ${instructors.map(([id, name]) => `<option value="${esc(id)}"${id === filters.instructor ? ' selected' : ''}>${esc(name)}</option>`).join('')}
-        </select></label>
-        <label class="ifb-field"><span>תוכנית</span><select data-i="program">${optionList(ui.programs.map((p) => p.key), filters.program, 'כל התוכניות', programOptionLabel)}</select></label>
-        <label class="ifb-field"><span>סטטוס</span><select data-i="status">
-          ${[
-            ['', 'הכל'],
-            ['pre:not_opened', 'פתיחה – טרם נפתח'],
-            ['pre:pending', 'פתיחה – ממתין למילוי'],
-            ['pre:completed', 'פתיחה – הושלם'],
-            ['final:not_opened', 'סיום – טרם נפתח'],
-            ['final:pending', 'סיום – ממתין למילוי'],
-            ['final:completed', 'סיום – הושלם']
-          ].map(([v, l]) => `<option value="${v}"${v === filters.status ? ' selected' : ''}>${l}</option>`).join('')}
-        </select></label>
-        <button type="button" class="ifb-btn ifb-btn--ghost" data-ifb-clear="instructors">ניקוי</button>
-      </div>
-    </section>
+    <details class="ifb-filter-disclosure ifb-filter-disclosure--instructors"${Object.values(filters).filter(Boolean).length ? ' open' : ''} data-ifb-filter-disclosure="instructors">
+      <summary class="ifb-filter-toggle" data-ifb-filter-toggle="instructors">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
+        <span>סינון</span>
+        ${Object.values(filters).filter(Boolean).length ? `<small>· ${Object.values(filters).filter(Boolean).length} פעילים</small>` : ''}
+      </summary>
+      <section class="ifb-filter-panel ifb-filter-panel--instructors">
+        <div class="ifb-filters ifb-filters--instructors">
+          <label class="ifb-field"><span>מדריך</span><select data-i="instructor">
+            <option value="">כל המדריכים</option>
+            ${instructors.map(([id, name]) => `<option value="${esc(id)}"${id === filters.instructor ? ' selected' : ''}>${esc(name)}</option>`).join('')}
+          </select></label>
+          <label class="ifb-field"><span>תוכנית</span><select data-i="program">${optionList(ui.programs.map((p) => p.key), filters.program, 'כל התוכניות', programOptionLabel)}</select></label>
+          <label class="ifb-field"><span>סטטוס</span><select data-i="status">
+            ${[
+              ['', 'הכל'],
+              ['pre:not_opened', 'פתיחה – טרם נפתח'],
+              ['pre:pending', 'פתיחה – ממתין למילוי'],
+              ['pre:completed', 'פתיחה – הושלם'],
+              ['final:not_opened', 'סיום – טרם נפתח'],
+              ['final:pending', 'סיום – ממתין למילוי'],
+              ['final:completed', 'סיום – הושלם']
+            ].map(([v, l]) => `<option value="${v}"${v === filters.status ? ' selected' : ''}>${l}</option>`).join('')}
+          </select></label>
+          <button type="button" class="ifb-btn ifb-btn--ghost" data-ifb-clear="instructors">ניקוי</button>
+        </div>
+      </section>
+    </details>
     ${rows.length ? `<div class="ifb-table-wrap">
       <table class="ifb-table ifb-instructor-table ifb-instructor-table--two-stages">
         <thead><tr><th>מדריך</th><th>תוכנית</th><th>שיבוצים</th><th>בתי ספר</th><th>תקופה</th><th>פתיחה – אחרי הכשרה</th><th>סיום הקורס</th></tr></thead>
@@ -851,18 +854,28 @@ function resultsHtml() {
     const sample = facts.find((f) => f.activity_row_id === rowId) || groups.find((g) => g.row_id === rowId);
     return sample ? `${sample.school_name || sample.school} · ${sample.grade || ''} · ${programTitle(sample.program_key)}` : rowId;
   };
+  const activeFilters = [r.program, r.authority, r.school, r.ageBand, r.group, r.instructor, r.from, r.to].filter(Boolean).length;
   return `
-    <div class="ifb-filters" data-ifb-filters="results">
-      <label class="ifb-field"><span>מתאריך</span><input type="date" data-r="from" value="${esc(r.from)}"></label>
-      <label class="ifb-field"><span>עד תאריך</span><input type="date" data-r="to" value="${esc(r.to)}"></label>
-      <label class="ifb-field"><span>תוכנית</span><select data-r="program">${optionList(ui.programs.map((p) => p.key), r.program, 'כל התוכניות', programOptionLabel)}</select></label>
-      <label class="ifb-field"><span>רשות</span><select data-r="authority">${optionList(uniqueSorted(facts.map((f) => f.authority_name)), r.authority, 'כל הרשויות')}</select></label>
-      <label class="ifb-field"><span>בית ספר</span><select data-r="school">${optionList(uniqueSorted(facts.map((f) => f.school_name)), r.school, 'כל בתי הספר')}</select></label>
-      <label class="ifb-field"><span>שכבה</span><select data-r="ageBand">${optionList(AGE_BANDS.map((b) => b.key), r.ageBand, 'כל השכבות', ageBandLabel)}</select></label>
-      <label class="ifb-field"><span>קבוצה</span><select data-r="group">${optionList(groupOptions, r.group, 'כל הקבוצות', groupLabel)}</select></label>
-      <label class="ifb-field"><span>מדריך</span><select data-r="instructor">${optionList(uniqueSorted(facts.map((f) => f.instructor_name)), r.instructor, 'כל המדריכים')}</select></label>
-      <button type="button" class="ifb-btn ifb-btn--ghost" data-ifb-clear="results">ניקוי</button>
-    </div>
+    <details class="ifb-filter-disclosure"${activeFilters ? ' open' : ''} data-ifb-filter-disclosure="results">
+      <summary class="ifb-filter-toggle">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
+        <span>סינון</span>
+        ${activeFilters ? `<small>· ${activeFilters} פעילים</small>` : ''}
+      </summary>
+      <section class="ifb-filter-panel">
+        <div class="ifb-filters" data-ifb-filters="results">
+          <label class="ifb-field"><span>מתאריך</span><input type="date" data-r="from" value="${esc(r.from)}"></label>
+          <label class="ifb-field"><span>עד תאריך</span><input type="date" data-r="to" value="${esc(r.to)}"></label>
+          <label class="ifb-field"><span>תוכנית</span><select data-r="program">${optionList(ui.programs.map((p) => p.key), r.program, 'כל התוכניות', programOptionLabel)}</select></label>
+          <label class="ifb-field"><span>רשות</span><select data-r="authority">${optionList(uniqueSorted(facts.map((f) => f.authority_name)), r.authority, 'כל הרשויות')}</select></label>
+          <label class="ifb-field"><span>בית ספר</span><select data-r="school">${optionList(uniqueSorted(facts.map((f) => f.school_name)), r.school, 'כל בתי הספר')}</select></label>
+          <label class="ifb-field"><span>שכבה</span><select data-r="ageBand">${optionList(AGE_BANDS.map((b) => b.key), r.ageBand, 'כל השכבות', ageBandLabel)}</select></label>
+          <label class="ifb-field"><span>קבוצה</span><select data-r="group">${optionList(groupOptions, r.group, 'כל הקבוצות', groupLabel)}</select></label>
+          <label class="ifb-field"><span>מדריך</span><select data-r="instructor">${optionList(uniqueSorted(facts.map((f) => f.instructor_name)), r.instructor, 'כל המדריכים')}</select></label>
+          <button type="button" class="ifb-btn ifb-btn--ghost" data-ifb-clear="results">ניקוי</button>
+        </div>
+      </section>
+    </details>
     <div class="ifb-section__head">
       <p class="ifb-muted">${new Set(filtered.map((f) => f.response_id)).size} משובים · ${new Set(filtered.map((f) => f.activity_row_id).filter(Boolean)).size} קבוצות · ${new Set(filtered.filter((f) => f.audience === 'instructor').map((f) => f.instructor_name).filter(Boolean)).size} מדריכים</p>
       ${exportButtonsHtml('results')}
@@ -885,14 +898,24 @@ function answersHtml() {
     && (!a.school || item.school_name === a.school)
     && (!search || item.text.toLowerCase().includes(search)))
     .sort((x, y) => String(y.submitted_at).localeCompare(String(x.submitted_at)));
+  const activeFilters = [a.program, a.audience, a.question, a.school, a.search].filter(Boolean).length;
   return `
-    <div class="ifb-filters" data-ifb-filters="answers">
-      <label class="ifb-field ifb-field--search"><span>חיפוש בטקסט</span><input type="search" data-a="search" value="${esc(a.search)}"></label>
-      <label class="ifb-field"><span>תוכנית</span><select data-a="program">${optionList(ui.programs.map((p) => p.key), a.program, 'כל התוכניות', programOptionLabel)}</select></label>
-      <label class="ifb-field"><span>קהל</span><select data-a="audience">${optionList(Object.keys(AUDIENCE_LABELS), a.audience, 'כל הקהלים', (k) => AUDIENCE_LABELS[k])}</select></label>
-      <label class="ifb-field"><span>שאלה</span><select data-a="question">${optionList(uniqueSorted(all.map((x) => x.question_text)), a.question, 'כל השאלות')}</select></label>
-      <label class="ifb-field"><span>בית ספר</span><select data-a="school">${optionList(uniqueSorted(all.map((x) => x.school_name)), a.school, 'כל בתי הספר')}</select></label>
-    </div>
+    <details class="ifb-filter-disclosure"${activeFilters ? ' open' : ''} data-ifb-filter-disclosure="answers">
+      <summary class="ifb-filter-toggle">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
+        <span>סינון וחיפוש</span>
+        ${activeFilters ? `<small>· ${activeFilters} פעילים</small>` : ''}
+      </summary>
+      <section class="ifb-filter-panel">
+        <div class="ifb-filters" data-ifb-filters="answers">
+          <label class="ifb-field ifb-field--search"><span>חיפוש בטקסט</span><input type="search" data-a="search" value="${esc(a.search)}"></label>
+          <label class="ifb-field"><span>תוכנית</span><select data-a="program">${optionList(ui.programs.map((p) => p.key), a.program, 'כל התוכניות', programOptionLabel)}</select></label>
+          <label class="ifb-field"><span>קהל</span><select data-a="audience">${optionList(Object.keys(AUDIENCE_LABELS), a.audience, 'כל הקהלים', (k) => AUDIENCE_LABELS[k])}</select></label>
+          <label class="ifb-field"><span>שאלה</span><select data-a="question">${optionList(uniqueSorted(all.map((x) => x.question_text)), a.question, 'כל השאלות')}</select></label>
+          <label class="ifb-field"><span>בית ספר</span><select data-a="school">${optionList(uniqueSorted(all.map((x) => x.school_name)), a.school, 'כל בתי הספר')}</select></label>
+        </div>
+      </section>
+    </details>
     <p class="ifb-muted">${items.length} תשובות · ניתוח AI (סיכום, נושאים, סנטימנט) ייתמך בהמשך – מבנה הנתונים כבר מוכן לכך.</p>
     ${openAnswersListHtml(items)}`;
 }
