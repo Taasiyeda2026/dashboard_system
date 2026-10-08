@@ -1,5 +1,5 @@
 /**
- * "משובים והערכת השפעה" — admin-only module.
+ * "משובים" — admin-only module.
  * Isolated screen: owns its own data loading and sub-views inside the route root.
  * Server enforces admin access (RLS + admin-checked RPCs); the client check is only UX.
  */
@@ -167,18 +167,18 @@ function findGroup(rowId) {
 // ---------------------------------------------------------------------------
 
 const TABS = [
-  { key: 'overview', label: 'סקירה וקבוצות' },
+  { key: 'overview', label: 'סקירה' },
   { key: 'results', label: 'תוצאות והשפעה' },
   { key: 'answers', label: 'תשובות פתוחות' },
-  { key: 'templates', label: 'הגדרות · תבניות ושאלות' }
+  { key: 'templates', label: 'תבניות ושאלות' }
 ];
 
 function shellHtml(inner) {
   return `
     <div class="ifb-admin__head">
       <div>
-        <h1 class="ifb-admin__title">משובים והערכת השפעה</h1>
-        <p class="ifb-admin__sub">מדידת למידה, התקדמות והשפעה של התוכניות – תלמידים, צוות חינוכי ומדריכים</p>
+        <h1 class="ifb-admin__title">משובים</h1>
+        <p class="ifb-admin__sub">מדידת למידה, התקדמות והשפעה בתוכניות תעשיידע</p>
       </div>
       <div class="ifb-slot__actions">
       <button type="button" class="ifb-btn" data-ifb-refresh title="טעינה מחדש של הנתונים">↻ רענון</button>
@@ -209,37 +209,49 @@ function errorHtml(message) {
 function kpiHtml(groups) {
   const k = dashboardKpis(groups);
   const items = [
-    ['קבוצות עם משובים', k.withFeedback, `מתוך ${groups.length} קבוצות${k.unresolved ? ` · ${k.unresolved} ללא תוכנית מזוהה` : ''}`],
-    ['משובי פתיחה פעילים', k.activePre, 'תלמידים'],
-    ['משובי סיום פעילים', k.activePost, 'תלמידים'],
-    ['ממתינים למדריך', k.pendingInstructor, 'קישורים פעילים שטרם מולאו'],
-    ['ממתינים לאיש קשר', k.pendingContact, 'קישורים פעילים שטרם מולאו'],
-    ['שיעור מענה', k.responseRate === null ? '—' : `${k.responseRate}%`, `צוות ומדריכים · ${k.studentResponses} תשובות תלמידים`]
+    ['קבוצות עם משובים', k.withFeedback, `מתוך ${groups.length} קבוצות`, k.unresolved ? `${k.unresolved} דורשות שיוך` : ''],
+    ['משובי פתיחה פעילים', k.activePre, 'תלמידים', ''],
+    ['משובי סיום פעילים', k.activePost, 'תלמידים', ''],
+    ['ממתינים למדריך', k.pendingInstructor, 'קישורים שטרם מולאו', ''],
+    ['ממתינים לאיש קשר', k.pendingContact, 'קישורים שטרם מולאו', ''],
+    ['שיעור מענה', k.responseRate === null ? '—' : `${k.responseRate}%`, k.responseRate === null ? 'אין עדיין נתונים' : `צוות ומדריכים · ${k.studentResponses} תשובות תלמידים`, '']
   ];
-  return `<div class="ifb-kpis">${items.map(([label, value, hint]) => `
-    <div class="ifb-kpi"><span class="ifb-kpi__label">${esc(label)}</span><strong class="ifb-kpi__value">${esc(String(value))}</strong><span class="ifb-kpi__hint">${esc(hint)}</span></div>`).join('')}</div>`;
+  return `<div class="ifb-kpis">${items.map(([label, value, hint, warning]) => `
+    <div class="ifb-kpi${warning ? ' ifb-kpi--warning' : ''}">
+      <span class="ifb-kpi__label">${esc(label)}</span>
+      <strong class="ifb-kpi__value">${esc(String(value))}</strong>
+      <span class="ifb-kpi__hint">${esc(hint)}</span>
+      ${warning ? `<span class="ifb-kpi__warning">${esc(warning)}</span>` : ''}
+    </div>`).join('')}</div>`;
 }
 
 function overviewFiltersHtml(groups) {
   const f = ui.filters;
+  const advancedCount = [f.instructor, f.ageBand, f.from, f.to].filter(Boolean).length;
   return `
-    <div class="ifb-filters" data-ifb-filters="overview">
-      <label class="ifb-field ifb-field--search"><span>חיפוש</span><input type="search" data-f="search" value="${esc(f.search)}" placeholder="בית ספר, רשות, מדריך…"></label>
-      <label class="ifb-field"><span>תוכנית</span><select data-f="program">${optionList(ui.programs.map((p) => p.key), f.program, 'כל התוכניות', programTitle)}</select></label>
-      <label class="ifb-field"><span>רשות</span><select data-f="authority">${optionList(uniqueSorted(groups.map((g) => g.authority)), f.authority, 'כל הרשויות')}</select></label>
-      <label class="ifb-field"><span>בית ספר</span><select data-f="school">${optionList(uniqueSorted(groups.map((g) => g.school)), f.school, 'כל בתי הספר')}</select></label>
-      <label class="ifb-field"><span>מדריך</span><select data-f="instructor">${optionList(uniqueSorted(groups.map((g) => g.instructor_name)), f.instructor, 'כל המדריכים')}</select></label>
-      <label class="ifb-field"><span>שכבה</span><select data-f="ageBand">${optionList(AGE_BANDS.map((b) => b.key), f.ageBand, 'כל השכבות', ageBandLabel)}</select></label>
-      <label class="ifb-field"><span>התחלה מ־</span><input type="date" data-f="from" value="${esc(f.from)}"></label>
-      <label class="ifb-field"><span>עד</span><input type="date" data-f="to" value="${esc(f.to)}"></label>
-      <label class="ifb-field"><span>סטטוס</span><select data-f="status">
-        ${[['', 'הכל'], ['unresolved', 'תוכנית לא זוהתה'], ['has_feedback', 'יש משובים'], ['no_feedback', 'ללא משובים'], ['any_live', 'משוב פעיל'], ['pending_instructor', 'ממתין למדריך'], ['pending_contact', 'ממתין לאיש קשר'], ['expired', 'פג תוקף'], ['completed_all', 'הושלם (4 משובים)'], ['excluded', 'הוסתרו (לא רלוונטי)']]
-          .map(([v, l]) => `<option value="${v}"${v === f.status ? ' selected' : ''}>${esc(l)}</option>`).join('')}
-      </select></label>
-      <button type="button" class="ifb-btn ifb-btn--ghost" data-ifb-clear="overview">ניקוי</button>
-    </div>`;
+    <section class="ifb-filter-panel">
+      <div class="ifb-filters ifb-filters--primary" data-ifb-filters="overview">
+        <label class="ifb-field ifb-field--search"><span>חיפוש</span><input type="search" data-f="search" value="${esc(f.search)}" placeholder="בית ספר, רשות, מדריך…"></label>
+        <label class="ifb-field"><span>תוכנית</span><select data-f="program">${optionList(ui.programs.map((p) => p.key), f.program, 'כל התוכניות', programTitle)}</select></label>
+        <label class="ifb-field"><span>רשות</span><select data-f="authority">${optionList(uniqueSorted(groups.map((g) => g.authority)), f.authority, 'כל הרשויות')}</select></label>
+        <label class="ifb-field"><span>בית ספר</span><select data-f="school">${optionList(uniqueSorted(groups.map((g) => g.school)), f.school, 'כל בתי הספר')}</select></label>
+        <label class="ifb-field"><span>סטטוס</span><select data-f="status">
+          ${[['', 'הכל'], ['unresolved', 'תוכנית לא זוהתה'], ['has_feedback', 'יש משובים'], ['no_feedback', 'ללא משובים'], ['any_live', 'משוב פעיל'], ['pending_instructor', 'ממתין למדריך'], ['pending_contact', 'ממתין לאיש קשר'], ['expired', 'פג תוקף'], ['completed_all', 'הושלם (4 משובים)'], ['excluded', 'הוסתרו (לא רלוונטי)']]
+            .map(([v, l]) => `<option value="${v}"${v === f.status ? ' selected' : ''}>${esc(l)}</option>`).join('')}
+        </select></label>
+        <button type="button" class="ifb-btn ifb-btn--ghost ifb-clear-btn" data-ifb-clear="overview">ניקוי</button>
+      </div>
+      <details class="ifb-filter-more"${advancedCount ? ' open' : ''}>
+        <summary>סינון נוסף${advancedCount ? ` <span class="ifb-filter-count">${advancedCount}</span>` : ''}</summary>
+        <div class="ifb-filters ifb-filters--more">
+          <label class="ifb-field"><span>מדריך</span><select data-f="instructor">${optionList(uniqueSorted(groups.map((g) => g.instructor_name)), f.instructor, 'כל המדריכים')}</select></label>
+          <label class="ifb-field"><span>שכבה</span><select data-f="ageBand">${optionList(AGE_BANDS.map((b) => b.key), f.ageBand, 'כל השכבות', ageBandLabel)}</select></label>
+          <label class="ifb-field"><span>התחלה מ־</span><input type="date" data-f="from" value="${esc(f.from)}"></label>
+          <label class="ifb-field"><span>עד</span><input type="date" data-f="to" value="${esc(f.to)}"></label>
+        </div>
+      </details>
+    </section>`;
 }
-
 function resultsCellHtml(group) {
   const pre = slotCampaign(group, SLOTS[0]);
   const post = slotCampaign(group, SLOTS[1]);
@@ -337,12 +349,16 @@ function overviewHtml() {
   const filtered = filterGroups(scoped, ui.filters).sort((a, b) =>
     Number(groupHasFeedback(b)) - Number(groupHasFeedback(a))
     || String(a.school).localeCompare(String(b.school), 'he'));
+  const unresolved = groups.filter(isProgramUnresolved).length;
   return `
     ${kpiHtml(groups)}
     ${overviewFiltersHtml(groups)}
-    <div class="ifb-toolbar">
-      <span class="ifb-muted">${filtered.length} קבוצות</span>
-      <label class="ifb-check"><input type="checkbox" data-ifb-show-all${ui.showAll ? ' checked' : ''}> הצגת כל קבוצות התוכניות (גם ללא משובים)</label>
+    <div class="ifb-list-head">
+      <div class="ifb-list-head__title">
+        <h2>קבוצות <span class="ifb-list-count">(${filtered.length})</span></h2>
+        ${unresolved ? `<button type="button" class="ifb-chip ifb-chip--warning ifb-unresolved-filter" data-ifb-show-unresolved>${unresolved} דורשות שיוך תוכנית</button>` : ''}
+      </div>
+      <label class="ifb-check"><input type="checkbox" data-ifb-show-all${ui.showAll ? ' checked' : ''}> הצגת קבוצות ללא משובים</label>
     </div>
     ${overviewTableHtml(filtered)}`;
 }
@@ -705,7 +721,7 @@ function runExport(kind, scope) {
   const stamp = isoDay(Date.now());
   const base = scope.startsWith('group:')
     ? `משובים-${(facts[0]?.school_name || 'קבוצה').replace(/[\\/?%*:|"<>]/g, '_')}-${stamp}`
-    : `משובים-והערכת-השפעה-${stamp}`;
+    : `משובים-${stamp}`;
   if (kind === 'raw') downloadBlob(new Blob([buildCsv(RAW_EXPORT_HEADERS, raw)], { type: 'text/csv;charset=utf-8' }), `${base}-raw.csv`);
   else if (kind === 'summary') downloadBlob(new Blob([buildCsv(SUMMARY_EXPORT_HEADERS, summary)], { type: 'text/csv;charset=utf-8' }), `${base}-summary.csv`);
   else {
@@ -816,6 +832,12 @@ async function handleClick(host, event) {
     return;
   }
   if (t.closest('[data-ifb-back]')) { ui.groupRowId = null; await load(host, { force: true }); return; }
+  const unresolvedFilter = t.closest('[data-ifb-show-unresolved]');
+  if (unresolvedFilter) {
+    ui.filters.status = 'unresolved';
+    paint(host);
+    return;
+  }
   const clear = t.closest('[data-ifb-clear]');
   if (clear) {
     const target = clear.dataset.ifbClear === 'overview' ? ui.filters : ui.results;
