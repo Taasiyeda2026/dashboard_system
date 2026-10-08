@@ -49,7 +49,13 @@ export async function fetchMetrics() {
 }
 
 export async function fetchPrograms() {
-  return unwrap(client().from('feedback_programs').select('key,title,topic,catalog_program_ids,gefen_numbers,education_level,default_age_band,sort_order,is_active').order('sort_order'));
+  return unwrap(
+    client()
+      .from('feedback_programs')
+      .select('key,title,topic,catalog_program_ids,gefen_numbers,education_level,default_age_band,sort_order,is_active')
+      .eq('is_active', true)
+      .order('sort_order')
+  );
 }
 
 export async function fetchGroups(academicYear = null, activityRowId = null) {
