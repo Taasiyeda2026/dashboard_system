@@ -21,7 +21,7 @@ function createButton(form) {
   button.type = 'button';
   button.className = 'activity-drawer__action activity-drawer__view-footer__btn';
   button.setAttribute(BUTTON_ATTR, 'true');
-  button.title = 'משובים והערכת השפעה לקבוצה הזו';
+  button.title = 'משובים לקבוצה הזו';
   button.textContent = '💬 משובים';
   button.addEventListener('click', (event) => {
     event.preventDefault();
