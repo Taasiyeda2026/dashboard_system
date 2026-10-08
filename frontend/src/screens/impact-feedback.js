@@ -907,8 +907,9 @@ function runExport(kind, scope) {
 function viewHtml() {
   if (ui.error) return errorHtml(ui.error);
   if (ui.tab === 'templates') return renderTemplatesView(ui);
-  if (ui.loading || !ui.groups || ((ui.tab === 'results' || ui.tab === 'answers') && !ui.facts)) return loadingHtml();
+  if (ui.loading || !ui.groups || !ui.instructorAssignments || ((ui.tab === 'results' || ui.tab === 'answers') && !ui.facts)) return loadingHtml();
   if (ui.tab === 'overview' && ui.groupRowId) return groupViewHtml(findGroup(ui.groupRowId));
+  if (ui.tab === 'instructors') return instructorAssignmentsHtml();
   if (ui.tab === 'results') return resultsHtml();
   if (ui.tab === 'answers') return answersHtml();
   return overviewHtml();
@@ -919,7 +920,7 @@ function paint(host) {
   const scrollY = window.scrollY;
   const active = document.activeElement;
   const focusKey = active && host.contains(active)
-    ? ['data-f', 'data-r', 'data-a'].map((attr) => active.getAttribute(attr) && `[${attr}="${active.getAttribute(attr)}"]`).find(Boolean)
+    ? ['data-f', 'data-i', 'data-r', 'data-a'].map((attr) => active.getAttribute(attr) && `[${attr}="${active.getAttribute(attr)}"]`).find(Boolean)
     : null;
   host.innerHTML = shellHtml(viewHtml());
   if (focusKey) {
@@ -939,7 +940,9 @@ async function load(host, { force = false } = {}) {
   paint(host);
   try {
     await ensureDefinitions();
-    if (ui.tab !== 'templates') await ensureGroups(force);
+    if (ui.tab !== 'templates') {
+      await Promise.all([ensureGroups(force), ensureInstructorAssignments(force)]);
+    }
     if (ui.tab === 'results' || ui.tab === 'answers') await ensureFacts(force);
     if (ui.tab === 'overview' && ui.groupRowId) {
       // Always show live counts for the opened group.
@@ -960,13 +963,22 @@ async function load(host, { force = false } = {}) {
 function campaignById(id) {
   for (const group of ui.groups || []) {
     const campaign = (group.campaigns || []).find((c) => c.id === id);
-    if (campaign) return { group, campaign };
+    if (campaign) return { group, instructorAssignment: null, campaign };
   }
-  return { group: null, campaign: null };
+  for (const row of ui.instructorAssignments || []) {
+    if (row.campaign?.id === id) return { group: null, instructorAssignment: row, campaign: row.campaign };
+  }
+  return { group: null, instructorAssignment: null, campaign: null };
 }
 
 async function afterCampaignChange(host, rowId) {
   await refreshGroup(rowId);
+  ui.facts = null;
+  paint(host);
+}
+
+async function afterInstructorCampaignChange(host) {
+  await ensureInstructorAssignments(true);
   ui.facts = null;
   paint(host);
 }
@@ -1004,7 +1016,11 @@ async function handleClick(host, event) {
   }
   const clear = t.closest('[data-ifb-clear]');
   if (clear) {
-    const target = clear.dataset.ifbClear === 'overview' ? ui.filters : ui.results;
+    const target = clear.dataset.ifbClear === 'overview'
+      ? ui.filters
+      : clear.dataset.ifbClear === 'instructors'
+        ? ui.instructorFilters
+        : ui.results;
     for (const key of Object.keys(target)) target[key] = '';
     paint(host);
     return;
@@ -1013,6 +1029,10 @@ async function handleClick(host, event) {
   if (showOpen) { ui.openForms.add(showOpen.dataset.ifbShowOpen); paint(host); return; }
   const cancelOpen = t.closest('[data-ifb-cancel-open]');
   if (cancelOpen) { ui.openForms.delete(cancelOpen.dataset.ifbCancelOpen); paint(host); return; }
+  const instructorOpen = t.closest('[data-ifb-instructor-open]');
+  if (instructorOpen) { ui.instructorOpenForms.add(instructorOpen.dataset.ifbInstructorOpen); paint(host); return; }
+  const instructorCancel = t.closest('[data-ifb-instructor-cancel]');
+  if (instructorCancel) { ui.instructorOpenForms.delete(instructorCancel.dataset.ifbInstructorCancel); paint(host); return; }
   const drill = t.closest('[data-ifb-drill]');
   if (drill) {
     const scope = drill.closest('[data-ifb-scope]')?.dataset.ifbScope || 'results';
@@ -1051,12 +1071,13 @@ async function handleClick(host, event) {
   const reopen = t.closest('[data-ifb-reopen]');
   if (close || reopen) {
     const id = (close || reopen).dataset[close ? 'ifbClose' : 'ifbReopen'];
-    const { group } = campaignById(id);
+    const { group, instructorAssignment } = campaignById(id);
     if (close && !window.confirm('לסגור את המשוב? לא יתקבלו תשובות נוספות (ניתן לפתוח מחדש).')) return;
     try {
       await updateCampaign(id, close ? 'close' : 'reopen');
       showToast(close ? 'המשוב נסגר' : 'המשוב נפתח מחדש');
-      await afterCampaignChange(host, group.row_id);
+      if (instructorAssignment) await afterInstructorCampaignChange(host);
+      else if (group) await afterCampaignChange(host, group.row_id);
     } catch (error) {
       showToast(translateFeedbackError(error), 'error', 5000);
     }
@@ -1095,6 +1116,25 @@ async function handleSubmit(host, event) {
     const program = String(data.get('program') || '');
     if (!program) return;
     await saveProgram(host, form.dataset.ifbSetProgram, program, { applyToName: data.get('apply_to_name') === 'on' });
+    return;
+  }
+  if (form.matches('[data-ifb-instructor-open-form]')) {
+    event.preventDefault();
+    const data = new FormData(form);
+    const button = form.querySelector('[type="submit"]');
+    button.disabled = true;
+    try {
+      await openInstructorCampaign(form.dataset.emp, form.dataset.program, form.dataset.year, {
+        opensAt: openingIso(String(data.get('opens') || '')),
+        expiresAt: expiryIso(String(data.get('expires') || ''))
+      });
+      ui.instructorOpenForms.delete(form.dataset.key);
+      showToast('נוצר משוב חד־פעמי למדריך עבור התוכנית');
+      await afterInstructorCampaignChange(host);
+    } catch (error) {
+      button.disabled = false;
+      showToast(translateFeedbackError(error), 'error', 6000);
+    }
     return;
   }
   if (form.matches('[data-ifb-open-form]')) {
@@ -1143,11 +1183,14 @@ function handleFilterInput(host, event) {
     ui.year = el.value;
     ui.groupRowId = null;
     ui.groupFacts.clear();
+    ui.instructorAssignments = null;
+    ui.instructorAssignmentsYear = null;
+    ui.instructorOpenForms.clear();
     load(host);
     return;
   }
   if (el.matches('[data-ifb-show-all]')) { ui.showAll = el.checked; paint(host); return; }
-  const map = [['f', ui.filters], ['r', ui.results], ['a', ui.answers]];
+  const map = [['f', ui.filters], ['i', ui.instructorFilters], ['r', ui.results], ['a', ui.answers]];
   for (const [attr, target] of map) {
     const key = el.getAttribute(`data-${attr}`);
     if (key) {
