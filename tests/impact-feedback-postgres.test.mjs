@@ -18,7 +18,8 @@ const MIGRATIONS = [
   '../supabase/migrations/20261008193000_feedback_canonical_11_programs_and_levels.sql',
   '../supabase/migrations/20261008200500_feedback_resolve_activity_number_aliases.sql',
   '../supabase/migrations/20261008205000_feedback_instructor_first_course_end.sql',
-  '../supabase/migrations/20261008210000_feedback_instructor_first_started_course_end.sql'
+  '../supabase/migrations/20261008210000_feedback_instructor_first_started_course_end.sql',
+  '../supabase/migrations/20261008235500_feedback_instructor_manager_status_sort.sql'
 ];
 
 async function asRole(client, role, uid = '') {
@@ -65,8 +66,8 @@ test('impact feedback DB contract: admin-only management, token-only public flow
     await client.query(`insert into users values ('admin',$1,'admin',true,'{}'),('ops',$2,'operation_manager',true,'{}')`, [ADMIN, MANAGER]);
     await client.query(`insert into contacts_schools (id, school, contact_name, phone, mobile, email) values (7, 'בית ספר אלון', 'רונית כהן', '03-5555555', '050-1234567', 'ronit@example.test')`);
     await client.query(`insert into contacts_instructors values (1501, 'דנה לוי', '052-7654321', 'dana@example.test', 'פעיל')`);
-    await client.query(`insert into activities (row_id, activity_season, activity_type, activity_name, authority, authority_id, school, school_id, grade, emp_id, instructor_name, instructor_assignment_locked, instructor_assignment_status, start_date, end_date, school_contact_id)
-      values ('ACT-1','school_2027','course','פורצות דרך וצועדות קדימה','חיפה',10,'בית ספר אלון',20,'ח''','1501','דנה לוי',true,'שובץ','2026-10-01','2027-03-01',7),
+    await client.query(`insert into activities (row_id, activity_season, activity_type, activity_name, authority, authority_id, school, school_id, grade, emp_id, instructor_name, instructor_assignment_locked, instructor_assignment_status, start_date, end_date, school_contact_id, activity_manager)
+      values ('ACT-1','school_2027','course','פורצות דרך וצועדות קדימה','חיפה',10,'בית ספר אלון',20,'ח''','1501','דנה לוי',true,'שובץ','2026-10-01','2027-03-01',7,'הילה רוזן'),
              ('ACT-2','school_2027','course','סודות ויסודות הבינה המלאכותית','חיפה',10,'בית ספר אורן',21,'ב׳',null,null,'2026-10-01','',null),
              ('ACT-3','school_2027','course','סדנת פיזיקה',null,null,'בית ספר',22,'ה',null,null,null,null,null)`);
 
@@ -167,13 +168,19 @@ test('impact feedback DB contract: admin-only management, token-only public flow
 
     await asRole(client, 'postgres');
     await client.query(`insert into activities
-      (row_id, activity_season, activity_type, activity_name, authority, school, school_id, grade, emp_id, instructor_name, instructor_assignment_locked, instructor_assignment_status, start_date, end_date)
-      values ('ACT-4','school_2027','course','פורצות דרך – קבוצה נוספת','חיפה','בית ספר נוסף',23,'ט','1501','דנה לוי',true,'שובץ','2026-10-15','2027-02-15')`);
+      (row_id, activity_season, activity_type, activity_name, authority, school, school_id, grade, emp_id, instructor_name, instructor_assignment_locked, instructor_assignment_status, start_date, end_date, activity_manager)
+      values ('ACT-4','school_2027','course','פורצות דרך – קבוצה נוספת','חיפה','בית ספר נוסף',23,'ט','1501','דנה לוי',true,'שובץ','2026-10-15','2027-02-15','גיל נאמן')`);
     await asRole(client, 'authenticated', ADMIN);
     const instructorRows = (await client.query("select * from feedback_admin_instructor_assignments('school_2027') where instructor_emp_id='1501' and program_key='trailblazers'")).rows;
     assert.equal(instructorRows.length, 1, 'same instructor + program appears once regardless of number of groups');
     assert.deepEqual([instructorRows[0].assignment_count, instructorRows[0].school_count], [2, 2]);
+    assert.deepEqual(instructorRows[0].activity_managers, ['גיל נאמן', 'הילה רוזן'], 'manager metadata aggregates live activities for filtering');
     assert.equal(String(instructorRows[0].first_course_end_date).slice(0, 10), '2027-03-01', 'first course end belongs to the earliest-starting group, even when a later group ends sooner');
+    await asRole(client, 'postgres');
+    await client.query("update activities set end_date='2027-01-20' where row_id='ACT-1'");
+    await asRole(client, 'authenticated', ADMIN);
+    const refreshedInstructorRow = (await client.query("select * from feedback_admin_instructor_assignments('school_2027') where instructor_emp_id='1501' and program_key='trailblazers'")).rows[0];
+    assert.equal(String(refreshedInstructorRow.first_course_end_date).slice(0, 10), '2027-01-20', 'activity end-date changes flow through live to instructor feedback overview');
     assert.equal(instructorRows[0].pre_campaign, null);
     assert.equal(instructorRows[0].final_campaign, null);
 
