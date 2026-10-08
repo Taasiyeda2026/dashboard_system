@@ -51,6 +51,7 @@ const BOARD_CACHE_TTL_MS = 90 * 1000;
 const monthFormatter = new Intl.DateTimeFormat('he-IL', { month: 'long', year: 'numeric' });
 const shortDateFormatter = new Intl.DateTimeFormat('he-IL', { day: '2-digit', month: '2-digit' });
 const fullDateFormatter = new Intl.DateTimeFormat('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const plannedHourFormatter = new Intl.NumberFormat('he-IL', { maximumFractionDigits: 2 });
 
 let managerBoardOpen = false;
 let autoOpenedSessionKey = '';
@@ -850,11 +851,11 @@ function instructorAttentionItems(details) {
   return fields.filter(([key]) => !completed.has(key)).map(([, label]) => label);
 }
 
-function renderInstructorCenter(region, { instructor, activities, meetings, ym, details, loading = false, error = '' }) {
+export function renderInstructorCenter(region, { instructor, activities, meetings, ym, details, loading = false, error = '' }) {
   const summary = instructorCenterSummary(activities, meetings, instructor.empId);
   const milestones = instructorCenterMilestones(summary.assignedMeetings);
   const percent = Math.round(summary.managerShare * 10) / 10;
-  const hours = summary.knownHourMeetings ? `${plannedHoursText(summary.hours, summary.knownHourMeetings)} ש׳` : '—';
+  const hours = summary.knownHourMeetings ? `${plannedHourFormatter.format(summary.hours)} ש׳` : '—';
   const contact = details || instructor;
   const attention = details ? instructorAttentionItems(details) : [];
   region.innerHTML = `<div class="manager-instructor-center" data-manager-instructor-center data-instructor-id="${escapeAttr(instructor.empId)}">
