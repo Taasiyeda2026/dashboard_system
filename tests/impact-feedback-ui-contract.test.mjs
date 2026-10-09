@@ -173,3 +173,35 @@ test('feedback uses fresh activity data on entry and while active without a dupl
   assert.match(screen, /activitySyncController\?\.abort\(\)/);
   assert.match(screen, /installActivityDateSync\(host\)/);
 });
+
+
+test('group management shows activity data as read-only identity, without a course assignment UI', () => {
+  const group = screen.slice(screen.indexOf('function groupViewHtml(group)'), screen.indexOf('// Export', screen.indexOf('function groupViewHtml(group)')));
+  assert.match(group, /const activityTitle = group\.activity_name \|\|/);
+  assert.match(group, /<h2 class="ifb-group-head__title">\$\{esc\(group\.school/);
+  assert.match(group, /<p class="ifb-group-head__program">\$\{esc\(activityTitle\)\}<\/p>/);
+  assert.match(group, /<dt>רשות<\/dt>/);
+  assert.match(group, /<dt>מדריך\/ה<\/dt>/);
+  assert.match(group, /<dt>איש\/אשת קשר<\/dt>/);
+  assert.match(group, /<dt>תחילת קורס<\/dt>/);
+  assert.match(group, /<dt>סיום קורס<\/dt>/);
+  assert.match(group, /fmtDate\(group\.start_date\)/);
+  assert.match(group, /fmtDate\(group\.end_date\)/);
+  assert.doesNotMatch(group, /שנת לימודים|academicYearLabel|programCardHtml|data-ifb-set-program/);
+  assert.doesNotMatch(screen, /programQuickPickHtml|programCardHtml|data-ifb-set-program|data-ifb-program-auto|data-ifb-program-exclude|setActivityProgram|programOptionsHtml/);
+});
+
+test('missing feedback templates are handled internally without exposing course selection', () => {
+  assert.match(screen, /ממתין להתאמת משוב/);
+  assert.match(screen, /לתוכנית זו טרם הותאמה תבנית משוב/);
+  assert.match(screen, /if \(!group\.program_key\)/);
+  assert.doesNotMatch(screen, /בחירת קורס ידנית|שמירת קורס|חזרה לזיהוי אוטומטי/);
+  assert.match(screen, /GROUP_SLOTS\.map\(\(slot\) => slotCardHtml\(group, slot\)\)/);
+});
+
+test('group identity has one heading and a responsive, compact metadata grid', () => {
+  assert.match(styles, /\.ifb-group-head__identity \{[\s\S]*?border-bottom: 1px solid var\(--ifb-a-divider\)/);
+  assert.match(styles, /\.ifb-meta--head \{\s*display: grid;\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.ifb-group-head__date dt,\s*\.ifb-group-head__date dd \{/);
+  assert.match(styles, /@media \(max-width: 760px\) \{[\s\S]*?\.ifb-meta--head \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+});
