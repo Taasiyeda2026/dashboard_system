@@ -120,6 +120,9 @@ import {
   planningEngineUpgradeAffectedCourseIds,
   planningEngineUpgradeOptimizationScopes,
   planningEngineUpgradeExecutionScopes,
+  planningBaseStageEngineVersion,
+  isPlanningBaseStagePending,
+  shouldStageLargePlanningUpgrade,
   AUTO_PLANNING_REFRESH_MAX_IDS
 } from './course-scheduling-planning-store.js';
 import { exportPlanningWorkbook } from './course-scheduling-planning-export.js';
@@ -2898,12 +2901,34 @@ export const courseSchedulingScreen = {
           currentEngineVersion: PLANNING_ENGINE_VERSION
         });
 
+        // Save a large engine migration in two hard-gate-validated transactions.
+        // The baseline can commit before optional packing / day consolidation,
+        // which gets its own follow-up run from this committed snapshot.
+        const baseStage = !forceFull
+          && !!shared?.workspace && !unrecoverableGlobalContextChange
+          && preflight.facts.workspace?.validatedSourceRevision != null
+          && shouldStageLargePlanningUpgrade({
+            engineChanged,
+            storedEngineVersion,
+            currentEngineVersion: PLANNING_ENGINE_VERSION,
+            runType: PLANNING_RUN_TYPES.ENGINE_UPGRADE,
+            baseRecalculationCount: upgradeExecution.baseRecalculationIds.length
+          });
+        const runEngineVersion = baseStage
+          ? planningBaseStageEngineVersion(PLANNING_ENGINE_VERSION)
+          : PLANNING_ENGINE_VERSION;
+        const optimizationStage = isPlanningBaseStagePending(storedEngineVersion, PLANNING_ENGINE_VERSION);
+        planningPerfEvent('run-phase', {
+          phase: baseStage ? 'validated-base' : optimizationStage ? 'soft-optimization' : 'normal',
+          baseScope: upgradeExecution.baseRecalculationIds.length
+        });
+
         let loadedCheckpoint = null;
         try {
           loadedCheckpoint = await loadSharedPlanningCheckpoint({
             periodKey: scope.periodKey,
             district: scope.district,
-            engineVersion: PLANNING_ENGINE_VERSION,
+            engineVersion: runEngineVersion,
             dataFingerprint: startFingerprint,
             contextFingerprint: startContextStorage
           });
@@ -2922,7 +2947,7 @@ export const courseSchedulingScreen = {
           upgradeExecution,
           unrecoverableGlobalContextChange,
           storedEngineVersion,
-          currentEngineVersion: PLANNING_ENGINE_VERSION,
+          currentEngineVersion: runEngineVersion,
           sourceRevision: run.sourceRevision,
           currentDataFingerprint: startFingerprint,
           currentContextFingerprint: startContextStorage,
@@ -2947,7 +2972,7 @@ export const courseSchedulingScreen = {
           runType: runPlan.runType,
           workspaceRevision: Number(shared?.workspace?.revision) || 0,
           engineFrom: storedEngineVersion,
-          engineTo: PLANNING_ENGINE_VERSION,
+          engineTo: runEngineVersion,
           dirtyCount: regularAffectedIds.length,
           baseScopeCount: runPlan.baseRecalculationIds.length,
           packingScopeCount: runPlan.schoolPackingCourseIds.length,
@@ -2961,7 +2986,7 @@ export const courseSchedulingScreen = {
           runType: runPlan.runType,
           workspaceRevision: Number(shared?.workspace?.revision) || 0,
           engineFrom: storedEngineVersion,
-          engineTo: PLANNING_ENGINE_VERSION,
+          engineTo: runEngineVersion,
           dirtyCount: regularAffectedIds.length,
           baseScopeCount: runPlan.baseRecalculationIds.length,
           packingScopeCount: runPlan.schoolPackingCourseIds.length,
@@ -2979,14 +3004,14 @@ export const courseSchedulingScreen = {
             // engine string once so the next entry is a true matching no-op.
             planningPerfEvent('engine-marker-only', {
               engineFrom: storedEngineVersion,
-              engineTo: PLANNING_ENGINE_VERSION,
+              engineTo: runEngineVersion,
               workspaceRevision: Number(shared?.workspace?.revision) || 0
             });
             const markerSaved = await saveSharedPlanningIncrementalSnapshot({
                   runId: run.runId, sourceRevision: run.sourceRevision,
               periodKey: scope.periodKey,
               district: scope.district,
-              engineVersion: PLANNING_ENGINE_VERSION,
+              engineVersion: runEngineVersion,
               dataFingerprint: startFingerprint,
               contextFingerprint: startContextStorage,
               rows: [],
@@ -3057,7 +3082,7 @@ export const courseSchedulingScreen = {
           sourceRevision: run.sourceRevision,
           checkpoint: silentCheckpoint,
           workspaceRevision: Number(shared?.workspace?.revision) || 0,
-          engineVersion: PLANNING_ENGINE_VERSION,
+          engineVersion: runEngineVersion,
           dataFingerprint: startFingerprint,
           contextFingerprint: startContextStorage,
           runType: runPlan.runType,
@@ -3077,7 +3102,7 @@ export const courseSchedulingScreen = {
             sourceRevision: run.sourceRevision,
             checkpoint: silentCheckpoint,
             workspaceRevision: Number(shared?.workspace?.revision) || 0,
-            engineVersion: PLANNING_ENGINE_VERSION,
+            engineVersion: runEngineVersion,
             dataFingerprint: startFingerprint,
             contextFingerprint: startContextStorage,
             runType: runPlan.runType,
@@ -3133,7 +3158,7 @@ export const courseSchedulingScreen = {
           runType: runPlan.runType,
           workspaceRevision: Number(shared?.workspace?.revision) || 0,
           engineFrom: storedEngineVersion,
-          engineTo: PLANNING_ENGINE_VERSION,
+          engineTo: runEngineVersion,
           dataFingerprint: startFingerprint,
           contextFingerprint: startContextStorage,
           baseRecalculationIds: runPlan.baseRecalculationIds,
@@ -3230,7 +3255,7 @@ export const courseSchedulingScreen = {
               runId: run.runId, sourceRevision: run.sourceRevision,
                 periodKey: scope.periodKey,
                 district: scope.district,
-                engineVersion: PLANNING_ENGINE_VERSION,
+                engineVersion: runEngineVersion,
                 dataFingerprint: startFingerprint,
                 contextFingerprint: startContextStorage,
                 completedCount: checkpointCompletedIds.size,
@@ -3290,7 +3315,7 @@ export const courseSchedulingScreen = {
               runId: run.runId, sourceRevision: run.sourceRevision,
               periodKey: scope.periodKey,
               district: scope.district,
-              engineVersion: PLANNING_ENGINE_VERSION,
+              engineVersion: runEngineVersion,
               dataFingerprint: startFingerprint,
               contextFingerprint: startContextStorage,
               completedCount: checkpointCompletedIds.size,
@@ -3453,6 +3478,7 @@ export const courseSchedulingScreen = {
           targetCourseIds: targetIds,
           optimizationOnlyCourseIds: null,
           upgradeOptimizationScopes: null,
+          skipSoftOptimization: baseStage,
           resumeFromCheckpoint: false,
           allowGlobalRepair: false,
           planningProfile: 'fast',
@@ -3528,6 +3554,7 @@ export const courseSchedulingScreen = {
             targetCourseIds,
             optimizationScopeCourseIds: resumeOptimizationScopeIds,
             optimizationOnlyCourseIds: optimizationOnlyUpgrade ? targetCourseIds : null,
+            skipSoftOptimization: baseStage,
             upgradeOptimizationScopes: !fullRun && runPlan.runType === PLANNING_RUN_TYPES.ENGINE_UPGRADE
               ? {
                   schoolPackingCourseIds: runPlan.schoolPackingCourseIds,
@@ -3564,7 +3591,7 @@ export const courseSchedulingScreen = {
                 sourceRevision: run.sourceRevision,
                 periodKey: scope.periodKey,
                 district: scope.district,
-                engineVersion: PLANNING_ENGINE_VERSION,
+                engineVersion: runEngineVersion,
                 dataFingerprint: startFingerprint,
                 contextFingerprint: startContextStorage,
                 completedCount: plannedRows.length,
@@ -3714,7 +3741,7 @@ export const courseSchedulingScreen = {
               sourceRevision: run.sourceRevision,
               periodKey: scope.periodKey,
               district: scope.district,
-              engineVersion: PLANNING_ENGINE_VERSION,
+              engineVersion: runEngineVersion,
               dataFingerprint: endFingerprint,
               contextFingerprint: endContextStorage,
               completedCount: finalRows.length,
@@ -3741,7 +3768,7 @@ export const courseSchedulingScreen = {
             sourceRevision: run.sourceRevision,
             periodKey: scope.periodKey,
             district: scope.district,
-            engineVersion: PLANNING_ENGINE_VERSION,
+            engineVersion: runEngineVersion,
             dataFingerprint: endFingerprint,
             contextFingerprint: endContextStorage,
             completedCount: finalRows.length,
@@ -3771,7 +3798,7 @@ export const courseSchedulingScreen = {
               runId: run.runId, sourceRevision: run.sourceRevision,
               periodKey: scope.periodKey,
               district: scope.district,
-              engineVersion: PLANNING_ENGINE_VERSION,
+              engineVersion: runEngineVersion,
               dataFingerprint: endFingerprint,
               contextFingerprint: endContextStorage,
               expectedRevision: commitExpectedRevision
@@ -3781,7 +3808,7 @@ export const courseSchedulingScreen = {
                   runId: run.runId, sourceRevision: run.sourceRevision,
               periodKey: scope.periodKey,
               district: scope.district,
-              engineVersion: PLANNING_ENGINE_VERSION,
+              engineVersion: runEngineVersion,
               dataFingerprint: endFingerprint,
               contextFingerprint: endContextStorage,
               rows: finalRows,
@@ -3817,7 +3844,7 @@ export const courseSchedulingScreen = {
                   runId: run.runId, sourceRevision: run.sourceRevision,
                 periodKey: scope.periodKey,
                 district: scope.district,
-                engineVersion: PLANNING_ENGINE_VERSION,
+                engineVersion: runEngineVersion,
                 dataFingerprint: endFingerprint,
                 contextFingerprint: endContextStorage,
                 rows: incrementalRows,
@@ -3862,7 +3889,9 @@ export const courseSchedulingScreen = {
         });
         if (runUiVisible()) {
           showToast(
-            fullRun
+            baseStage
+              ? 'שלב א׳ נשמר ואומת. שיפור ריכוז השעות ממתין להרצה נפרדת.'
+              : fullRun
               ? `התכנון המשותף נשמר: ${currentCourseIds.length} פעילויות נבדקו.`
               : runPlan.runType === PLANNING_RUN_TYPES.ENGINE_UPGRADE
                 ? 'התכנון הקיים הותאם למנוע השיבוץ החדש ללא בנייה מחדש.'
