@@ -172,3 +172,20 @@ test('unresolved programs stay visible; excluded groups only under their own fil
   assert.equal(PROGRAM_SOURCE_LABELS.manual_name, 'נבחרה ידנית לפי שם הפעילות');
   assert.equal(PROGRAM_SOURCE_LABELS.activity_no, 'זוהתה לפי מספר תוכנית');
 });
+
+
+test('educational staff share message is warm and concise without naming the school', () => {
+  const url = 'https://taasiyeda2026.github.io/dashboard_system/feedback.html?t=TEST_TOKEN';
+  const message = shareMessage({
+    audience: 'educational_staff', stage: 'final', recipientName: 'מיכל',
+    programTitle: 'ביומימיקרי', schoolName: 'בית הספר אוסישקין',
+    url
+  });
+  assert.match(message, /שלום מיכל/);
+  assert.match(message, /משוב קצר/);
+  assert.match(message, /חשוב לנו/);
+  assert.match(message, /תודה רבה/);
+  assert.ok(message.includes(url), 'the original valid token URL is preserved in the invitation');
+  assert.doesNotMatch(message, /בית הספר אוסישקין/);
+  assert.equal(message.split(url).length - 1, 1, 'the URL appears only once');
+});
