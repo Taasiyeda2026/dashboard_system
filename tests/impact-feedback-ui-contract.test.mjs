@@ -13,14 +13,28 @@ test('feedback year is taken from the dashboard, without an independent year sel
   assert.match(screen, /fetchGroups\(ui\.year\)|ensureGroups/);
 });
 
-test('all feedback filters begin closed and remain user controlled on rerender', () => {
-  assert.match(screen, /filterExpanded: \{ global: false, overview: false, students: false, staff: false, instructors: false, analysis: false \}/);
+test('all feedback tabs use one collapsed filter panel (including course), not an extra header filter', () => {
+  assert.match(screen, /filterExpanded: \{ overview: false, students: false, staff: false, instructors: false, analysis: false, templates: false \}/);
   assert.match(screen, /filterDisclosureHtml\('overview'/);
   assert.match(screen, /filterDisclosureHtml\('analysis'/);
-  assert.match(screen, /filterDisclosureHtml\('global'/);
+  assert.match(screen, /courseOnlyFiltersHtml\('templates'\)/);
+  assert.match(screen, /\$\{courseFilterFieldHtml\(\)\}/);
+  assert.doesNotMatch(screen, /filterDisclosureHtml\('global'/);
+  const shell = screen.slice(screen.indexOf('function shellHtml('), screen.indexOf('function loadingHtml('));
+  assert.doesNotMatch(shell, /\$\{courseFilter\}|data-ifb-course|data-ifb-filter-disclosure/);
   assert.match(screen, /ui\.filterExpanded\[scope\] \? ' open'/);
   assert.match(screen, /ui\.filterExpanded\.instructors \? ' open'/);
   assert.match(screen, /ui\.filterExpanded\[disclosure\.dataset\.ifbFilterDisclosure\] = !disclosure\.open/);
+});
+
+test('overview status is right aligned and its five audience columns are centered in heading and cells', () => {
+  assert.match(screen, /<td data-label="מצב" class="ifb-col-state">/);
+  assert.match(screen, /<th scope="col" class="ifb-col-state">מצב<\/th>/);
+  assert.match(screen, /<th scope="col" class="ifb-col-audience ifb-center">/);
+  assert.match(screen, /<td data-label="\$\{esc\(col\.label\)\}" class="ifb-col-audience ifb-center">/);
+  assert.match(styles, /\.ifb-courses-table thead th\.ifb-col-state,/);
+  assert.match(styles, /\.ifb-courses-table thead th\.ifb-col-audience,/);
+  assert.match(styles, /\.ifb-courses-table tbody td\.ifb-col-audience \{[\s\S]*?text-align: center;/);
 });
 
 test('group manager filter applies to the actual activity manager, not the instructor', () => {
