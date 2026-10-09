@@ -606,7 +606,7 @@ test('unresolved cohort clashes remain unassigned rather than being wrongly cert
   assert.equal(chosen.get('b').instructorEmpId,'');
   assert.equal(chosen.get('b').diagnostics.recruitmentCertified,false);
   assert.equal(chosen.get('b').diagnostics.searchIncomplete,true);
-  assert.match(plannerSource,/const reconciled = reconcileSelectedPlanningOverlaps\(\{ rowsById, committedRows \}\);/);
+  assert.match(plannerSource,/const reconciled = reconcileSelectedPlanningOverlaps\(\{\s*rowsById, committedRows:/);
 });
 
 test('committed fixed and locked activities are never replaced to resolve a provisional conflict', () => {
