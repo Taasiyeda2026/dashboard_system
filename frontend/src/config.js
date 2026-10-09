@@ -418,6 +418,7 @@ config.HOTFIX_VERSION = `scheduling-plan-preserve-resume-rebase-20261009-v2-${co
 config.HOTFIX_VERSION = `scheduling-overlap-incumbent-recovery-20261009-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `scheduling-bounded-local-repair-20261009-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `scheduling-poisoned-checkpoint-overlap-20261009-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `scheduling-school-cohort-overlap-guard-20261009-v2-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `impact-feedback-pdf-rtl-onepage-20261009-v31-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `impact-feedback-templates-five-cards-20261009-v30-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `impact-feedback-paper-pdf-hebrew-acrobat-20261009-v29-${config.HOTFIX_VERSION}`;
