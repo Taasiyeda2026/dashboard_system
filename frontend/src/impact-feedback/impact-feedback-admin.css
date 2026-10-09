@@ -963,3 +963,186 @@
   .ifb-template-card { padding: 8px; }
   .ifb-template-card__inner { padding: 11px 8px 8px; }
 }
+
+
+/* Compact filters: every section starts closed and opens only by explicit user action.
+   Selected filters stay visible in the summary; controls keep their values while re-rendering. */
+.ifb-toolbar > .ifb-filter-disclosure { min-width: 0; flex: 0 1 auto; }
+.ifb-toolbar > .ifb-filter-disclosure[open] { flex-basis: min(360px, 100%); }
+.ifb-toolbar .ifb-filter-panel { padding: 10px; min-width: min(290px, 100%); }
+.ifb-toolbar .ifb-field--course { width: 100%; }
+.ifb-filter-toggle { min-height: 32px; padding: 5px 8px; gap: 7px; border: 1px solid transparent; }
+.ifb-filter-toggle:hover, .ifb-filter-toggle:focus-visible { border-color: var(--ifb-a-line); }
+.ifb-filter-toggle small { display: inline-block; max-width: min(32ch, 45vw); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ifb-filter-disclosure[open] .ifb-filter-toggle { color: var(--ifb-a-accent); }
+.ifb-filter-disclosure .ifb-filter-panel { margin-top: 5px; }
+
+/* Discreet table grid: clear vertical dividers and room for meaningful names.
+   Keep the existing mobile table-as-cards presentation free from grid lines. */
+@media (min-width: 761px) {
+  .ifb-table thead tr > * + *,
+  .ifb-table tbody tr > * + * { border-inline-start: 1px solid var(--ifb-a-divider); }
+  .ifb-groups-table { min-width: 840px; table-layout: fixed; }
+  .ifb-groups-table thead th:first-child { width: 18%; }
+  .ifb-groups-table thead th:last-child { width: 55px; }
+  .ifb-groups-table thead th:nth-child(2) { width: 13%; }
+  .ifb-groups-table thead th:nth-last-child(4) { width: 10%; }
+  .ifb-courses-table { table-layout: fixed; }
+  .ifb-courses-table thead th:first-child { width: 24%; }
+  .ifb-courses-table thead th:nth-child(2) { width: 12%; }
+  .ifb-courses-table thead th:last-child { width: 56px; }
+  .ifb-instructor-table thead th:nth-child(1) { width: 17%; }
+  .ifb-instructor-table thead th:nth-child(2) { width: 18%; }
+  .ifb-instructor-table thead th:nth-child(3) { width: 8%; }
+  .ifb-instructor-table thead th:nth-child(4) { width: 12%; }
+  .ifb-instructor-table thead th:nth-child(5) { width: 13%; }
+  .ifb-instructor-table thead th:nth-child(6),
+  .ifb-instructor-table thead th:nth-child(7) { width: 16%; }
+}
+
+/* Accessible icon-only row actions instead of repetitive long text. */
+.ifb-row-action {
+  width: 30px;
+  height: 30px;
+  min-height: 30px;
+  display: inline-grid;
+  place-items: center;
+  padding: 4px;
+}
+.ifb-row-action svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Use one light frame per course card instead of a thick, coloured frame within a frame. */
+.ifb-template-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr)); gap: 12px; }
+.ifb-template-card {
+  max-width: none;
+  padding: 0;
+  border: 1px solid var(--ifb-a-line);
+  background: var(--ifb-a-card);
+  border-radius: 10px;
+}
+.ifb-template-card__inner { padding: 14px 12px 12px; background: transparent; border-radius: inherit; }
+.ifb-template-card__slots { gap: 6px; }
+.ifb-template-card__title { font-size: 14px; }
+
+@media (max-width: 760px) {
+  .ifb-toolbar { display: flex; justify-content: flex-start; gap: 6px; align-items: center; }
+  .ifb-toolbar > .ifb-filter-disclosure[open] { flex-basis: 100%; }
+  .ifb-toolbar .ifb-filter-panel { min-width: 0; width: 100%; }
+  .ifb-table tbody tr > * + * { border-inline-start: 0; }
+  .ifb-template-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
+}
+
+
+/* Final UI review: responsive filter grids, consistent readable tables, and compact actions. */
+@media (min-width: 1121px) {
+  .ifb-filters--primary {
+    grid-template-columns: minmax(200px, 1.55fr) repeat(5, minmax(118px, 1fr)) auto;
+  }
+}
+@media (min-width: 761px) and (max-width: 1120px) {
+  .ifb-filters--primary, .ifb-filters--more { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ifb-filters--instructors { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ifb-filters--instructors .ifb-field { width: auto; }
+}
+.ifb-instructor-table-wrap { width: 100%; max-width: none; }
+.ifb-table-wrap { min-width: 0; }
+.ifb-table th, .ifb-table td { line-height: 1.35; }
+.ifb-groups-table th[scope="row"], .ifb-groups-table td { overflow-wrap: anywhere; }
+.ifb-groups-table .ifb-status, .ifb-courses-table .ifb-status { white-space: normal; }
+.ifb-groups-table .ifb-col-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ifb-instructor-table .ifb-col-date { font-variant-numeric: tabular-nums; }
+.ifb-instructor-table th, .ifb-instructor-table td { vertical-align: middle; }
+.ifb-icon-actions { display: flex; flex-wrap: nowrap; justify-content: center; align-items: center; gap: 2px; }
+.ifb-icon-actions .ifb-text-action {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 28px;
+  min-width: 26px;
+  border-radius: 6px;
+}
+.ifb-icon-actions .ifb-text-action svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.ifb-icon-actions .ifb-text-action:hover,
+.ifb-icon-actions .ifb-text-action:focus-visible {
+  background: var(--ifb-a-accent-soft);
+  outline: 2px solid var(--ifb-a-control);
+  outline-offset: 1px;
+  text-decoration: none;
+}
+.ifb-icon-actions .is-disabled { opacity: .33; pointer-events: none; }
+.ifb-instructor-stage { gap: 1px; }
+
+/* Three comfortably sized template cards rather than four crowded ones. */
+@media (min-width: 1081px) {
+  .ifb-template-grid { max-width: min(100%, 1120px); grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 621px) and (max-width: 1080px) {
+  .ifb-template-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .ifb-template-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .ifb-filters--primary,
+  .ifb-filters--more,
+  .ifb-filters--instructors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ifb-filters--instructors .ifb-field { width: auto; }
+  .ifb-filters--primary .ifb-field--search { grid-column: 1 / -1; }
+  .ifb-filter-panel { max-width: 100%; }
+  .ifb-toolbar .ifb-filter-panel .ifb-field { min-width: 0; }
+  .ifb-icon-actions .ifb-text-action { width: 32px; height: 32px; }
+}
+@media (max-width: 420px) {
+  .ifb-filters--primary,
+  .ifb-filters--more,
+  .ifb-filters--instructors { grid-template-columns: minmax(0, 1fr); }
+  .ifb-filters--primary .ifb-field--search { grid-column: auto; }
+}
+
+
+/* Proportional widths for actual student/staff columns (the course column is optional). */
+@media (min-width: 761px) {
+  .ifb-groups-table col.ifb-gw-school { width: 25%; }
+  .ifb-groups-table col.ifb-gw-authority { width: 14%; }
+  .ifb-groups-table col.ifb-gw-person { width: 20%; }
+  .ifb-groups-table col.ifb-gw-date { width: 11%; }
+  .ifb-groups-table col.ifb-gw-stage { width: 12%; }
+  .ifb-groups-table col.ifb-gw-actions { width: 6%; }
+  .ifb-groups-table--with-program col.ifb-gw-school { width: 21%; }
+  .ifb-groups-table--with-program col.ifb-gw-authority { width: 11%; }
+  .ifb-groups-table--with-program col.ifb-gw-course { width: 17%; }
+  .ifb-groups-table--with-program col.ifb-gw-person { width: 12%; }
+  .ifb-groups-table--with-program col.ifb-gw-date { width: 10%; }
+  .ifb-groups-table--with-program col.ifb-gw-stage { width: 11%; }
+  .ifb-groups-table--with-program col.ifb-gw-actions { width: 7%; }
+  .ifb-groups-table--staff col.ifb-gw-school { width: 29%; }
+  .ifb-groups-table--staff col.ifb-gw-authority { width: 15%; }
+  .ifb-groups-table--staff col.ifb-gw-person { width: 22%; }
+  .ifb-groups-table--staff col.ifb-gw-date { width: 12%; }
+  .ifb-groups-table--staff col.ifb-gw-stage { width: 15%; }
+  .ifb-groups-table--staff col.ifb-gw-actions { width: 7%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-school { width: 24%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-authority { width: 12%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-course { width: 20%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-person { width: 18%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-date { width: 11%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-stage { width: 9%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-actions { width: 6%; }
+  .ifb-groups-table thead th { width: auto !important; }
+}

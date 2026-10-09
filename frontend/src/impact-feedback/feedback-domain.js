@@ -209,12 +209,13 @@ export function filterGroups(groups = [], filters = {}, now = Date.now()) {
     if (filters.authority && group.authority !== filters.authority) return false;
     if (filters.school && group.school !== filters.school) return false;
     if (filters.instructor && group.instructor_name !== filters.instructor) return false;
+    if (filters.manager && group.activity_manager !== filters.manager) return false;
     if (filters.ageBand && group.age_band !== filters.ageBand) return false;
     if (filters.from && group.start_date && group.start_date < filters.from) return false;
     if (filters.to && group.start_date && group.start_date > filters.to) return false;
     if (!groupMatchesStatus(group, filters.status, now)) return false;
     if (search) {
-      const hay = [group.school, group.authority, group.activity_name, group.instructor_name, group.grade, group.contact_name, group.row_id]
+      const hay = [group.school, group.authority, group.activity_name, group.instructor_name, group.activity_manager, group.grade, group.contact_name, group.row_id]
         .map(normalizeText).join(' ');
       if (!hay.includes(search)) return false;
     }
@@ -756,8 +757,12 @@ export function crossCourseCore(facts = [], { audience = 'student', stage = '' }
     if (!questions.has(f.question_id)) questions.set(f.question_id, { question_id: f.question_id, text: f.question_text, metric_key: f.metric_key, sort_order: f.sort_order ?? 0, facts: [] });
     questions.get(f.question_id).facts.push(f);
   }
-  const programKeys = uniqueSorted(core.map((f) => f.program_key));
-  const rows = [...questions.values()].sort((a, b) => a.sort_order - b.sort_order).map((q) => {
+  // A question contributes to a cross-course comparison only when the same question ID
+  // was answered in at least two different courses. Course-specific ratings remain local.
+  const comparableQuestions = [...questions.values()].filter((q) =>
+    new Set(q.facts.map((f) => f.program_key)).size >= 2);
+  const programKeys = uniqueSorted(comparableQuestions.flatMap((q) => q.facts.map((f) => f.program_key)));
+  const rows = comparableQuestions.sort((a, b) => a.sort_order - b.sort_order).map((q) => {
     const byProgram = {};
     for (const key of programKeys) {
       const stats = questionStats(q.facts.filter((f) => f.program_key === key))[0];

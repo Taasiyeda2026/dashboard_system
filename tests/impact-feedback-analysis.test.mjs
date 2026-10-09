@@ -145,3 +145,17 @@ test('question export lists every course/audience/stage separately with distribu
   const pharma = rows.find((r) => r[0] === 'רוקחים עולם');
   assert.deepEqual(pharma.slice(7, 15), [2, '', 4.5, 0, 0, 0, 1, 1]);
 });
+
+
+test('cross-course comparison hides core questions seen in only one course', () => {
+  const facts = [
+    answer('r1', 5, { program_key: 'pharma', question_id: 'pharma-only', question_text: 'ייחודי לקורס' }),
+    answer('r2', 4, { program_key: 'pharma', question_id: 'shared', question_text: 'משותפת' }),
+    answer('r3', 3, { program_key: 'ofek', question_id: 'shared', question_text: 'משותפת' }),
+    answer('r4', 1, { program_key: 'ofek', question_id: 'ofek-only', section: 'course' })
+  ];
+  const actual = crossCourseCore(facts, { audience: 'student', stage: 'post' });
+  assert.deepEqual(actual.programKeys, ['ofek', 'pharma']);
+  assert.deepEqual(actual.rows.map((r) => r.question_id), ['shared']);
+  assert.deepEqual(crossCourseCore([facts[0]], { audience: 'student', stage: 'post' }), { programKeys: [], rows: [] });
+});

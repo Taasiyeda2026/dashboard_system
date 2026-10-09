@@ -1,6 +1,6 @@
 /**
  * "משובים" — admin-only module.
- * Five tabs that share one academic year and one selected course:
+ * Six tabs that share the dashboard academic year and one selected course:
  *   סקירה כללית · תלמידים · מדריכים · צוות חינוכי · ניתוח והשוואה
  * The unit of analysis is a course + respondent population. Results are computed from every valid
  * answer (feedback_admin_answer_facts), collection figures from feedback_admin_course_summary.
@@ -9,7 +9,7 @@
 import * as XLSX from 'xlsx';
 import { escapeHtml as esc } from './shared/html.js';
 import { showToast } from './shared/toast.js';
-import { ACTIVE_ACTIVITY_SEASON } from './shared/summer-activity.js';
+import { ACTIVE_ACTIVITY_SEASON, normalizeGlobalActivityPeriod } from './shared/summer-activity.js';
 import {
   AUDIENCE_LABELS,
   AUDIENCE_ORDER,
@@ -64,7 +64,6 @@ import { renderTemplatesView, bindTemplatesView } from '../impact-feedback/feedb
 import '../impact-feedback/feedback-form.css';
 import '../impact-feedback/impact-feedback-admin.css';
 
-const YEAR_OPTIONS = ['school_2027', 'regular'];
 const DAY_MS = 24 * 60 * 60 * 1000;
 /** Minimum valid answers before a question is ranked as a strength / improvement area. */
 const MIN_N_RANKING = 5;
@@ -98,11 +97,12 @@ const ui = {
   course: '',
   showAll: true,
   overview: { audience: '', phase: '' },
-  filters: { authority: '', school: '', instructor: '', status: '', search: '' },
+  filters: { authority: '', school: '', instructor: '', manager: '', status: '', search: '' },
   analysis: { audience: 'student', stage: 'post' },
   results: { drill: '' },
   templates: { templateId: null, versionId: null, previewBand: '' },
   instructorFilters: { instructor: '', manager: '', status: '' },
+  filterExpanded: { global: false, overview: false, students: false, staff: false, instructors: false, analysis: false },
   groups: null,
   groupsYear: null,
   instructorAssignments: null,
@@ -201,10 +201,10 @@ function campaignStatusHtml(campaign) {
 
 function tableStatusHtml(campaign) {
   const status = campaignUiStatus(campaign);
-  const studentResponses = campaign?.audience === 'student' ? Number(status.responses || 0) : 0;
+  const responseCount = Number(status.responses || 0);
   return `<div class="ifb-status-cell">
     ${statusText(status.label, status.tone, status.key)}
-    ${studentResponses > 0 ? `<span class="ifb-status-cell__count">${studentResponses} שאלונים</span>` : ''}
+    ${responseCount > 0 ? `<span class="ifb-status-cell__count">${responseCount} שאלונים</span>` : ''}
   </div>`;
 }
 
@@ -314,20 +314,30 @@ function courseScopedGroups() {
 // Shell
 // ---------------------------------------------------------------------------
 
+/** Compact, user-controlled filters. Re-renders must never open filters just because a value was selected. */
+function filterDisclosureHtml(scope, fieldsHtml, active = 0, label = 'סינון', detail = '') {
+  const selected = active ? `<small>${esc(detail || `${active} פעילים`)}</small>` : '';
+  return `<details class="ifb-filter-disclosure" data-ifb-filter-disclosure="${esc(scope)}"${ui.filterExpanded[scope] ? ' open' : ''}>
+    <summary class="ifb-filter-toggle">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
+      <span>${esc(label)}</span>${selected}
+    </summary>
+    <div class="ifb-filter-panel">${fieldsHtml}</div>
+  </details>`;
+}
+
 function shellHtml(inner) {
   const activeTab = TABS.find((t) => t.key === ui.tab) || TABS[0];
+  const courseFilter = filterDisclosureHtml('global', `
+    <label class="ifb-field ifb-field--course">
+      <span>קורס</span>
+      <select data-ifb-course>${optionList(ui.programs.map((p) => p.key), ui.course, 'כל הקורסים', programTitle)}</select>
+    </label>`, ui.course ? 1 : 0, 'סינון קורס', ui.course ? programTitle(ui.course) : '');
   return `
     <div class="ifb-admin__head">
       <h1 class="ifb-admin__title">משובים</h1>
-      <div class="ifb-toolbar" role="group" aria-label="בחירת שנה וקורס – משותפת לכל הלשוניות">
-        <label class="ifb-field ifb-field--inline">
-          <span>שנת לימודים</span>
-          <select data-ifb-year>${YEAR_OPTIONS.map((y) => `<option value="${y}"${y === ui.year ? ' selected' : ''}>${esc(academicYearLabel(y))}</option>`).join('')}</select>
-        </label>
-        <label class="ifb-field ifb-field--inline ifb-field--course">
-          <span>קורס</span>
-          <select data-ifb-course>${optionList(ui.programs.map((p) => p.key), ui.course, 'כל הקורסים', programTitle)}</select>
-        </label>
+      <div class="ifb-toolbar" role="group" aria-label="סינון קורס ורענון נתונים">
+        ${courseFilter}
         <button type="button" class="ifb-icon-btn ifb-icon-btn--lg" data-ifb-refresh title="טעינה מחדש של הנתונים" aria-label="טעינה מחדש של הנתונים">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"></path></svg>
         </button>
@@ -368,10 +378,11 @@ function selectCourseHint(what) {
 
 function overviewFiltersHtml() {
   const o = ui.overview;
-  return `<div class="ifb-filters ifb-filters--inline" data-ifb-filters="overview">
+  const active = Number(Boolean(o.audience)) + Number(Boolean(o.phase));
+  return filterDisclosureHtml('overview', `<div class="ifb-filters ifb-filters--inline" data-ifb-filters="overview">
     <label class="ifb-field"><span>קהל יעד</span><select data-o="audience">${optionList(AUDIENCE_ORDER, o.audience, 'כל הקהלים', (a) => AUDIENCE_LABELS[a])}</select></label>
     <label class="ifb-field"><span>שלב המשוב</span><select data-o="phase">${optionList(['pre', 'end'], o.phase, 'פתיחה וסיום', (p) => PHASE_LABELS[p])}</select></label>
-  </div>`;
+  </div>`, active);
 }
 
 function overviewFacts() {
@@ -451,8 +462,8 @@ function coursesTableHtml() {
     return `<tr data-course-row="${esc(program.key)}">
       <th scope="row" data-label="קורס"><span class="ifb-course-name">${esc(programTitle(program.key))}</span></th>
       <td data-label="מצב" class="ifb-center"><span class="ifb-course-status ${statusClass}">${label}</span></td>
-      ${columns.map((col, index) => `<td data-label="${esc(col.label)}" class="ifb-center"><span class="ifb-num">${stages[index].campaigns ? stages[index].responses : '—'}</span></td>`).join('')}
-      <td data-label="פעולות" class="ifb-col-actions"><button type="button" class="ifb-row-action" data-ifb-analyze="${esc(program.key)}" aria-label="ניתוח הקורס ${esc(programTitle(program.key))}">ניתוח</button></td>
+      ${columns.map((col, index) => `<td data-label="${esc(col.label)}" class="ifb-center"><span class="ifb-num" title="${stages[index].campaigns ? 'שאלונים שהתקבלו' : 'משוב טרם נפתח'}">${stages[index].campaigns ? stages[index].responses : '—'}</span></td>`).join('')}
+      <td data-label="פעולות" class="ifb-col-actions"><button type="button" class="ifb-row-action" data-ifb-analyze="${esc(program.key)}" aria-label="ניתוח הקורס ${esc(programTitle(program.key))}" title="ניתוח הקורס"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V11M10 20V4M16 20v-8M22 20v-5"></path></svg></button></td>
     </tr>`;
   }).join('');
 
@@ -516,12 +527,12 @@ function overviewHtml() {
     (!o.audience || campaign.audience === o.audience) && (!o.phase || stagePhase(campaign.audience, campaign.stage) === o.phase);
   const groups = courseScopedGroups().filter((g) =>
     g.program_key && groupHasFeedback(g) && g.campaigns.some(matchesScope));
-  const answered = groups.filter((g) => g.campaigns.some((c) => matchesScope(c) && Number(c.responses) > 0)).length;
+  const withoutResponses = groups.filter((g) => g.campaigns.some((c) => matchesScope(c) && Number(c.responses || 0) === 0)).length;
   const kpis = [
     ['קורסים במעקב', ui.course ? 1 : ui.programs.length, ''],
     ['קבוצות עם שאלון', groups.length, ''],
     ['שאלונים שהוגשו', totals.responses, ''],
-    ['קבוצות שהשיבו', answered, '']
+    ['קבוצות ללא תשובות', withoutResponses, 'לאחר פתיחת משוב']
   ];
   const audienceEntries = AUDIENCE_ORDER.filter((a) => (!o.audience || o.audience === a) && (totals.byAudience[a] || 0) > 0)
     .map((a) => [AUDIENCE_LABELS[a], totals.byAudience[a]]);
@@ -547,7 +558,7 @@ function groupFiltersHtml(groups, scope) {
   const f = ui.filters;
   const active = Object.values(f).filter(Boolean).length;
   return `
-    <details class="ifb-filter-disclosure"${active ? ' open' : ''} data-ifb-filter-disclosure="${scope}">
+    <details class="ifb-filter-disclosure"${ui.filterExpanded[scope] ? ' open' : ''} data-ifb-filter-disclosure="${scope}">
       <summary class="ifb-filter-toggle">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
         <span>סינון קבוצות</span>
@@ -555,10 +566,11 @@ function groupFiltersHtml(groups, scope) {
       </summary>
       <section class="ifb-filter-panel">
         <div class="ifb-filters ifb-filters--primary" data-ifb-filters="${scope}">
-          <label class="ifb-field ifb-field--search"><span>חיפוש</span><input type="search" data-f="search" value="${esc(f.search)}" placeholder="בית ספר, רשות, מדריך…"></label>
+          <label class="ifb-field ifb-field--search"><span>חיפוש</span><input type="search" data-f="search" value="${esc(f.search)}" placeholder="בית ספר, קורס, מדריך, מנהל פעילות…"></label>
           <label class="ifb-field"><span>רשות</span><select data-f="authority">${optionList(uniqueSorted(groups.map((g) => g.authority)), f.authority, 'כל הרשויות')}</select></label>
           <label class="ifb-field"><span>בית ספר</span><select data-f="school">${optionList(uniqueSorted(groups.map((g) => g.school)), f.school, 'כל בתי הספר')}</select></label>
           <label class="ifb-field"><span>מדריך</span><select data-f="instructor">${optionList(uniqueSorted(groups.map((g) => g.instructor_name)), f.instructor, 'כל המדריכים')}</select></label>
+          <label class="ifb-field"><span>מנהל פעילות</span><select data-f="manager">${optionList(uniqueSorted(groups.map((g) => g.activity_manager)), f.manager, 'כל מנהלי הפעילות')}</select></label>
           <label class="ifb-field"><span>סטטוס</span><select data-f="status">
             ${[['', 'הכל'], ['unresolved', 'קורס לא זוהה'], ['has_feedback', 'יש משובים'], ['no_feedback', 'ללא משובים'], ['any_live', 'משוב פעיל'], ['pending_contact', 'ממתין לאיש קשר'], ['expired', 'פג תוקף'], ['completed_all', 'כל המשובים הושלמו'], ['excluded', 'הוסתרו (לא רלוונטי)']]
               .map(([v, l]) => `<option value="${v}"${v === f.status ? ' selected' : ''}>${esc(l)}</option>`).join('')}
@@ -590,14 +602,21 @@ function groupsTableHtml(slots, scope) {
   const showCourse = !ui.course || filtered.some((g) => !g.program_key);
   const body = filtered.length ? `
     <div class="ifb-table-wrap">
-      <table class="ifb-table ifb-groups-table">
+      <table class="ifb-table ifb-groups-table ifb-groups-table--${scope}${showCourse ? ' ifb-groups-table--with-program' : ''}">
         <caption class="ifb-sr">קבוצות לימוד – הפצה ומעקב</caption>
+        <colgroup>
+          <col class="ifb-gw-school"><col class="ifb-gw-authority">
+          ${showCourse ? '<col class="ifb-gw-course">' : ''}
+          <col class="ifb-gw-person"><col class="ifb-gw-date">
+          ${slots.map(() => '<col class="ifb-gw-stage">').join('')}
+          <col class="ifb-gw-actions">
+        </colgroup>
         <thead><tr>
           <th scope="col">בית ספר</th>
           <th scope="col">רשות</th>
           ${showCourse ? '<th scope="col">קורס</th>' : ''}
           <th scope="col">${scope === 'staff' ? 'איש קשר' : 'מדריך'}</th>
-          <th scope="col" class="ifb-center">סיום הקבוצה</th>
+          <th scope="col" class="ifb-center ifb-col-date">סיום הקבוצה</th>
           ${slots.map((slot) => `<th scope="col" class="ifb-center">${esc(slot.label)}</th>`).join('')}
           <th scope="col"><span class="ifb-sr">פעולות</span></th>
         </tr></thead>
@@ -608,10 +627,10 @@ function groupsTableHtml(slots, scope) {
             ${showCourse ? `<td data-label="קורס">${g.program_key
               ? esc(programTitle(g.program_key))
               : g.feedback_excluded ? statusText('לא רלוונטי למשובים', 'muted') : programQuickPickHtml(g)}</td>` : ''}
-            <td data-label="${scope === 'staff' ? 'איש קשר' : 'מדריך'}">${esc((scope === 'staff' ? g.contact_name : g.instructor_name) || '—')}</td>
-            <td data-label="סיום הקבוצה" class="ifb-center ifb-nowrap">${fmtDate(g.end_date)}</td>
+            <td data-label="${scope === 'staff' ? 'איש קשר' : 'מדריך'}">${scope === 'staff' ? (g.contact_name ? esc(g.contact_name) : '<span class="ifb-muted" title="טרם הוגדר שם של איש קשר">לא הוגדר</span>') : esc(g.instructor_name || 'לא שובץ')}</td>
+            <td data-label="סיום הקבוצה" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(g.end_date)}</td>
             ${slots.map((slot) => `<td class="ifb-center" data-label="${esc(slot.label)}">${g.program_key ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}</td>`).join('')}
-            <td data-label="פעולות" class="ifb-col-actions"><button type="button" class="ifb-row-action" data-ifb-open-group="${esc(g.row_id)}" aria-label="ניהול משובי הקבוצה ${esc(g.school || '')}">ניהול</button></td>
+            <td data-label="פעולות" class="ifb-col-actions"><button type="button" class="ifb-row-action" data-ifb-open-group="${esc(g.row_id)}" aria-label="ניהול משובי הקבוצה ${esc(g.school || '')}" title="ניהול משובי הקבוצה"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="2"></rect><path d="M7 3v4M17 3v4M3 10h18"></path></svg></button></td>
           </tr>`).join('')}</tbody>
       </table>
     </div>` : emptyHtml('לא נמצאו קבוצות התואמות לסינון.', 'מוצגות קבוצות של קורסי המשובים בשנת הלימודים שנבחרה.');
@@ -791,13 +810,13 @@ function instructorCampaignActionsHtml(row, stage) {
   const live = status.key === 'active' || status.key === 'collecting' || status.key === 'scheduled';
   return `<div class="ifb-instructor-stage">
     ${tableStatusHtml(campaign)}
-    <div class="ifb-text-actions">
-      <a class="ifb-text-action ifb-text-action--whatsapp${live ? '' : ' is-disabled'}" href="${esc(links.whatsapp)}" target="_blank" rel="noopener" data-ifb-share="whatsapp" data-campaign="${esc(campaign.id)}"${live ? '' : ' aria-disabled="true"'}>WhatsApp</a>
-      <a class="ifb-text-action${live && links.hasEmail ? '' : ' is-disabled'}" href="${esc(links.email)}" data-ifb-share="email" data-campaign="${esc(campaign.id)}"${live && links.hasEmail ? '' : ' aria-disabled="true"'}>מייל</a>
-      <button type="button" class="ifb-text-action" data-ifb-copy="${esc(campaign.id)}">העתקה</button>
+    <div class="ifb-text-actions ifb-icon-actions" role="group" aria-label="פעולות לשיתוף וניהול משוב ${esc(stageName)}">
+      <a class="ifb-text-action ifb-text-action--whatsapp${live ? '' : ' is-disabled'}" href="${esc(links.whatsapp)}" target="_blank" rel="noopener" data-ifb-share="whatsapp" data-campaign="${esc(campaign.id)}" title="שיתוף ב־WhatsApp" aria-label="שיתוף ב־WhatsApp"${live ? '' : ' aria-disabled="true"'}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.2 19.8 5 16.4a8 8 0 1 1 3 2.6Z"></path><path d="M9 9c.8 2.4 2.5 4 5 5"></path></svg></a>
+      <a class="ifb-text-action${live && links.hasEmail ? '' : ' is-disabled'}" href="${esc(links.email)}" data-ifb-share="email" data-campaign="${esc(campaign.id)}" title="שליחה במייל" aria-label="שליחה במייל"${live && links.hasEmail ? '' : ' aria-disabled="true"'}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m4 7 8 6 8-6"></path></svg></a>
+      <button type="button" class="ifb-text-action" data-ifb-copy="${esc(campaign.id)}" aria-label="העתקת קישור" title="העתקת קישור"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"></rect><path d="M5 16H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
       ${campaign.status === 'active'
-        ? `<button type="button" class="ifb-text-action ifb-text-action--danger" data-ifb-close="${esc(campaign.id)}">סגירה</button>`
-        : `<button type="button" class="ifb-text-action" data-ifb-reopen="${esc(campaign.id)}">פתיחה מחדש</button>`}
+        ? `<button type="button" class="ifb-text-action ifb-text-action--danger" data-ifb-close="${esc(campaign.id)}" aria-label="סגירת משוב" title="סגירת משוב"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 18 18M18 6 6 18"></path></svg></button>`
+        : `<button type="button" class="ifb-text-action" data-ifb-reopen="${esc(campaign.id)}" aria-label="פתיחת משוב מחדש" title="פתיחת משוב מחדש"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2-5.3M4 4v5h5"></path></svg></button>`}
     </div>
   </div>`;
 }
@@ -858,7 +877,7 @@ function instructorAssignmentsHtml() {
       <span><strong>${preCompleted}</strong> פתיחה הושלמו</span><span aria-hidden="true">·</span>
       <span><strong>${finalCompleted}</strong> סיום הושלמו</span>
     </p>
-    <details class="ifb-filter-disclosure"${activeFilters ? ' open' : ''} data-ifb-filter-disclosure="instructors">
+    <details class="ifb-filter-disclosure"${ui.filterExpanded.instructors ? ' open' : ''} data-ifb-filter-disclosure="instructors">
       <summary class="ifb-filter-toggle">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"></path></svg>
         <span>סינון</span>${activeFilters ? `<small>· ${activeFilters} פעילים</small>` : ''}
@@ -882,7 +901,7 @@ function instructorAssignmentsHtml() {
     ${rows.length ? `<div class="ifb-table-wrap">
       <table class="ifb-table ifb-instructor-table">
         <caption class="ifb-sr">משובי מדריכים לפי מדריך וקורס</caption>
-        <thead><tr><th scope="col">מדריך</th><th scope="col">קורס</th><th scope="col" class="ifb-center">קבוצות</th><th scope="col" class="ifb-center">סיום הקורס הראשון</th><th scope="col" class="ifb-center">סטטוס</th><th scope="col" class="ifb-center">פתיחה – אחרי הכשרה</th><th scope="col" class="ifb-center">סיום הקורס</th></tr></thead>
+        <thead><tr><th scope="col">מדריך</th><th scope="col">קורס</th><th scope="col" class="ifb-center">קבוצות</th><th scope="col" class="ifb-center" title="מועד הסיום הראשון מבין קבוצות המדריך בקורס">סיום ראשון</th><th scope="col" class="ifb-center">סטטוס</th><th scope="col" class="ifb-center">פתיחה – אחרי הכשרה</th><th scope="col" class="ifb-center">סיום הקורס</th></tr></thead>
         <tbody>${rows.map((row) => `
           <tr data-instructor-feedback="${esc(instructorAssignmentKey(row))}">
             <th scope="row" data-label="מדריך"><span>${esc(row.instructor_name || row.instructor_emp_id)}</span><span class="ifb-muted ifb-instructor-id">#${esc(row.instructor_emp_id)}</span></th>
@@ -993,10 +1012,10 @@ function crossCourseHtml() {
   const stageOptions = AUDIENCE_STAGES[a.audience] || ['post'];
   const stage = stageOptions.includes(a.stage) ? a.stage : stageOptions[stageOptions.length - 1];
   const { programKeys, rows } = crossCourseCore(ui.facts || [], { audience: a.audience, stage });
-  const controls = `<div class="ifb-filters ifb-filters--inline">
+  const controls = filterDisclosureHtml('analysis', `<div class="ifb-filters ifb-filters--inline">
     <label class="ifb-field"><span>קהל</span><select data-a="audience">${AUDIENCE_ORDER.map((x) => `<option value="${x}"${x === a.audience ? ' selected' : ''}>${esc(AUDIENCE_LABELS[x])}</option>`).join('')}</select></label>
     <label class="ifb-field"><span>שלב</span><select data-a="stage">${stageOptions.map((s) => `<option value="${s}"${s === stage ? ' selected' : ''}>${esc(stageLabelFor(a.audience, s))}</option>`).join('')}</select></label>
-  </div>`;
+  </div>`, Number(a.audience !== 'student') + Number(Boolean(a.stage && a.stage !== 'post')));
   if (!rows.length) return `${controls}${emptyHtml('אין עדיין תשובות לשאלות הליבה המשותפות בקהל ובשלב שנבחרו.')}`;
   return `${controls}<div class="ifb-table-wrap ifb-table-wrap--scroll"><table class="ifb-table ifb-cross-table">
     <caption class="ifb-sr">השוואה בין קורסים בשאלות הליבה</caption>
@@ -1377,7 +1396,7 @@ function paint(host, { focusTab = false } = {}) {
   let focusKey = null;
   if (active && host.contains(active)) {
     focusKey = FOCUS_ATTRS.map((attr) => active.getAttribute(attr) && `[${attr}="${active.getAttribute(attr)}"]`).find(Boolean)
-      || (active.matches('[data-ifb-course]') ? '[data-ifb-course]' : active.matches('[data-ifb-year]') ? '[data-ifb-year]' : null);
+      || (active.matches('[data-ifb-course]') ? '[data-ifb-course]' : null);
   }
   host.innerHTML = shellHtml(viewHtml());
   if (focusTab) host.querySelector(`[data-ifb-tab="${ui.tab}"]`)?.focus();
@@ -1662,12 +1681,6 @@ function resetYearScopedState() {
 
 function handleFilterInput(host, event) {
   const el = event.target;
-  if (el.matches('[data-ifb-year]')) {
-    ui.year = el.value;
-    resetYearScopedState();
-    load(host);
-    return;
-  }
   if (el.matches('[data-ifb-course]')) {
     ui.course = el.value;
     ui.templates.templateId = null;
@@ -1690,19 +1703,25 @@ function mount(host, state) {
     host.innerHTML = '<div class="ifb-empty ifb-empty--error" role="alert"><p>מודול המשובים זמין לאדמין בלבד.</p></div>';
     return;
   }
+  // The dashboard owns the year; feedback never exposes an independent year selector.
+  const dashboardYear = normalizeGlobalActivityPeriod(state?.activityPeriodTab || ACTIVE_ACTIVITY_SEASON);
+  if (ui.year !== dashboardYear) {
+    ui.year = dashboardYear;
+    resetYearScopedState();
+  }
   const entry = state.impactFeedback;
   if (entry?.groupRowId) {
     ui.tab = 'students';
     ui.groupReturnTab = 'students';
     ui.groupRowId = entry.groupRowId;
-    if (entry.academicYear && YEAR_OPTIONS.includes(entry.academicYear) && entry.academicYear !== ui.year) {
-      ui.year = entry.academicYear;
-      resetYearScopedState();
-      ui.groupRowId = entry.groupRowId;
-    }
     state.impactFeedback = null;
   }
-  host.addEventListener('click', (event) => { handleClick(host, event); });
+  host.addEventListener('click', (event) => {
+    // Store the user's explicit filter toggle before the browser changes <details>.open.
+    const disclosure = event.target.closest('summary.ifb-filter-toggle')?.closest('details[data-ifb-filter-disclosure]');
+    if (disclosure) ui.filterExpanded[disclosure.dataset.ifbFilterDisclosure] = !disclosure.open;
+    handleClick(host, event);
+  });
   host.addEventListener('keydown', (event) => { handleTabKeys(host, event); });
   host.addEventListener('submit', (event) => { handleSubmit(host, event); });
   host.addEventListener('change', (event) => {
