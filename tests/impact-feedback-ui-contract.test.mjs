@@ -205,7 +205,8 @@ test('missing feedback templates are handled internally without exposing course 
   assert.match(screen, /לתוכנית זו טרם הותאמה תבנית משוב/);
   assert.match(screen, /if \(!group\.program_key\)/);
   assert.doesNotMatch(screen, /בחירת קורס ידנית|שמירת קורס|חזרה לזיהוי אוטומטי/);
-  assert.match(screen, /GROUP_SLOTS\.map\(\(slot\) => slotCardHtml\(group, slot\)\)/);
+  assert.match(screen, /visibleSlots\.map\(\(slot\) => slotCardHtml\(group, slot\)\)/);
+  assert.match(screen, /const visibleSlots = staffView \? GROUP_SLOTS\.filter\(\(slot\) => slot\.audience === 'educational_staff'\) : GROUP_SLOTS;/);
 });
 
 test('group identity has one heading and a responsive, compact metadata grid', () => {
