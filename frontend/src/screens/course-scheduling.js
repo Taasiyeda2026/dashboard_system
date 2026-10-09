@@ -1,4 +1,4 @@
-import { runPlanningPreflight, startPlanningLeaseHeartbeat, planningLeaseWaitMessage, throwIfPlanningRunInvalidated } from './course-scheduling-preflight.js';
+import { runPlanningPreflight, createPlanningRunDeadlineCheckpoint, startPlanningLeaseHeartbeat, planningLeaseWaitMessage, throwIfPlanningRunInvalidated } from './course-scheduling-preflight.js';
 import { readSchedulingSessionCache, writeSchedulingSessionCache, schedulingSessionIdentity } from './course-scheduling-session-cache.js';
 import { supabase } from '../supabase-client.js';
 import { hasPermission } from '../permission-policy.js';
@@ -2752,9 +2752,12 @@ export const courseSchedulingScreen = {
         if (run.leaseError) throw run.leaseError;
         if (!ownsRun()) throw new PlanningCancelledError();
       };
-      const checkpoint = createPlanningCheckpoint({
-        signal: run.controller.signal,
-        isOwner: ownsRun
+      const checkpoint = createPlanningRunDeadlineCheckpoint({
+        checkpoint: createPlanningCheckpoint({
+          signal: run.controller.signal,
+          isOwner: ownsRun
+        }),
+        maxMs: 5 * 60_000
       });
       const scope = planningScope();
       const onPageHide = () => {
@@ -3267,7 +3270,9 @@ export const courseSchedulingScreen = {
               dataFingerprint: startFingerprint,
               contextFingerprint: startContextStorage,
               completedCount: checkpointCompletedIds.size,
-              totalCount: checkpointCompletedIds.size + Math.max(0, Number(progress.total) - Number(progress.completed)),
+              // This is the complete persisted workspace, not the size of the
+              // partial activity search (which can be 131 of 253 on resume).
+              totalCount: currentCourseIds.length,
               completedActivityIds: [...checkpointCompletedIds],
               rows: checkpointRows,
               meta: {
