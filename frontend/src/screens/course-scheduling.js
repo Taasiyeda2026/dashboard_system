@@ -131,7 +131,8 @@ import {
   canValidateCompletedRunningCheckpoint,
   PLANNING_RUN_STAGES,
   planningResumeReopenIds,
-  resolvePlanningRunPlan
+  resolvePlanningRunPlan,
+  planSafeRestartFromCommittedWorkspace
 } from './course-scheduling-run-plan.js';
 
 export { formatWorkloadHours, MAX_HOME_DISTANCE_KM, formatAffectedMeetingsPhrase };
@@ -3337,13 +3338,50 @@ export const courseSchedulingScreen = {
                   rows: rescuedCheckpoint.rows.length
                 });
               } else {
-                // Never carry conflicting persisted rows into the next search
-                // as valid incumbent reservations. The committed workspace is
-                // safe to retain; abort this run without modifying it.
-                const invalid = new Error('planning_checkpoint_overlap_unrecoverable');
-                invalid.code = 'planning_checkpoint_overlap_unrecoverable';
-                invalid.failures = checkpointValidation.failures;
-                throw invalid;
+                // Checkpoint rows have no authority to replace the committed
+                // workspace. An unsuccessful attempt to repair their collisions
+                // must not permanently brick every subsequent engine upgrade.
+                // Restart ONLY the original base dirty scope from committed rows
+                // and retain original upgrade optimization scopes.
+                const restart = planSafeRestartFromCommittedWorkspace({
+                  committedRows: existingRows,
+                  currentCourseIds,
+                  baseRecalculationIds: runPlan.baseRecalculationIds,
+                  fullRun
+                });
+                if (!restart) {
+                  const invalid = new Error('planning_checkpoint_overlap_unrecoverable');
+                  invalid.code = 'planning_checkpoint_overlap_unrecoverable';
+                  invalid.failures = checkpointValidation.failures;
+                  throw invalid;
+                }
+                preparedInput = {
+                  ...input,
+                  ...restart
+                };
+                // These counters refer only to the poisoned checkpoint; do not
+                // use them to claim progress or to skip writing fresh rows.
+                checkpointCompletedIds.clear();
+                persistedCheckpointRows.clear();
+                pendingCheckpointRows.clear();
+                lastSilentCheckpointCount = 0;
+                lastSilentCheckpointAt = Date.now();
+                state.courseSchedulingPlanningRows = restart.existingRows;
+                planningPerfEvent('planning-checkpoint-discarded-in-memory', {
+                  reason: 'overlap_unrecoverable',
+                  failedValidationCount: checkpointValidation.failures.length,
+                  resumedRows: input.existingRows.length,
+                  recalculationCount: restart.targetCourseIds.length,
+                  optimizationScope: runPlan.upgradeOptimizationIds?.length || 0
+                });
+                if (runUiVisible()) {
+                  state.courseSchedulingPlanningProgress = {
+                    phase: 'שחזור בטוח מהתכנון השמור — חישוב שינויים בלבד',
+                    completed: 0,
+                    total: restart.targetCourseIds.length
+                  };
+                  run.ui?.update?.();
+                }
               }
             }
           }
