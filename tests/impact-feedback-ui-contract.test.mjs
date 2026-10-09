@@ -9,6 +9,8 @@ const styles = readFileSync(new URL('../frontend/src/impact-feedback/impact-feed
 const migration = readFileSync(new URL('../supabase/migrations/20261009162000_feedback_groups_activity_manager_filter.sql', import.meta.url), 'utf8');
 const templates = readFileSync(new URL('../frontend/src/impact-feedback/feedback-templates-view.js', import.meta.url), 'utf8');
 const publicPage = readFileSync(new URL('../frontend/src/impact-feedback/feedback-public.js', import.meta.url), 'utf8');
+const publicForm = readFileSync(new URL('../frontend/src/impact-feedback/feedback-form.js', import.meta.url), 'utf8');
+const publicCss = readFileSync(new URL('../frontend/src/impact-feedback/feedback-form.css', import.meta.url), 'utf8');
 const shareUi = readFileSync(new URL('../frontend/src/impact-feedback/feedback-share.js', import.meta.url), 'utf8');
 
 test('feedback year is taken from the dashboard, without an independent year selection', () => {
@@ -581,4 +583,47 @@ test('instructor last course end is the maximum end among groups started in the 
   assert.match(sql, /g\.last_end_in_half,/);
   assert.match(sql, /g\.first_course_end_date,/);
   assert.doesNotMatch(sql, /drop function if exists public\.feedback_admin_course_summary/);
+});
+
+
+test('every valid public feedback token starts with equal-weight bilingual language choice', () => {
+  assert.match(publicPage, /function showLanguageChoice\(root, \{ onHebrew, onArabic \}\)/);
+  assert.match(publicPage, /באיזו שפה נוח לך למלא את המשוב\?/);
+  assert.match(publicPage, /ما اللغة الأنسب لك لتعبئة الاستبيان\؟/);
+  assert.match(publicPage, /class="ifb-language-card__question" lang="he" dir="rtl"/);
+  assert.match(publicPage, /class="ifb-language-card__question" lang="ar" dir="rtl"/);
+  assert.match(publicPage, /data-ifb-lang="he" lang="he">עברית/);
+  assert.match(publicPage, /data-ifb-lang="ar" lang="ar">العربية/);
+  assert.match(publicPage, /root\.querySelector\('\[data-ifb-lang="he"\]'\)\.addEventListener\('click', onHebrew\)/);
+  assert.match(publicPage, /root\.querySelector\('\[data-ifb-lang="ar"\]'\)\.addEventListener\('click', onArabic\)/);
+  assert.match(publicPage, /if \(!payload \|\| payload\.state !== 'ok'\) \{/);
+  assert.match(publicPage, /if \(isStudent && local\?\.getItem\(doneKey\)\) \{\s*showThanks\(root\);\s*return;/);
+  assert.match(publicPage, /const renderLanguageChoice = \(\) => showLanguageChoice\(root, \{/);
+  assert.match(publicPage, /renderLanguageChoice\(\);\s*\}\s*start\(\)/);
+});
+
+test('Arabic is clearly pending and never silently serves unapproved Hebrew questionnaire', () => {
+  assert.match(publicPage, /function showArabicPending\(root, onBack\)/);
+  assert.match(publicPage, /الاستبيان باللغة العربية قيد الإعداد/);
+  assert.match(publicPage, /ستتوفر النسخة العربية بعد اعتماد أسئلة الاستبيان/);
+  assert.match(publicPage, /العودة لاختيار اللغة/);
+  assert.match(publicPage, /onArabic: \(\) => showArabicPending\(root, renderLanguageChoice\)/);
+  assert.match(publicPage, /onHebrew: renderForm/);
+  assert.doesNotMatch(publicPage, /onArabic: renderForm/);
+  assert.match(publicPage, /document\.documentElement\.lang = 'ar'/);
+  assert.match(publicPage, /document\.documentElement\.lang = 'he'/);
+  assert.match(publicPage, /mountFeedbackForm\(root, payload/);
+  assert.doesNotMatch(publicPage, /translate\(/);
+});
+
+test('survey language change preserves draft and equal bilingual styling on mobile', () => {
+  assert.match(publicForm, /options\.onChooseLanguage \? '<button type="button" class="ifb-hero__change-language"/);
+  assert.match(publicForm, /options\.onChange\?\.\(\{ \.\.\.answers \}\)/);
+  assert.match(publicForm, /options\.onChooseLanguage\?\.\(\)/);
+  assert.match(publicPage, /onChooseLanguage: renderLanguageChoice/);
+  assert.match(publicPage, /session\?\.setItem\(draftKey, JSON\.stringify\(answers\)\)/);
+  assert.match(publicPage, /session\?\.getItem\(draftKey\)/);
+  assert.match(publicCss, /\.ifb-language-card__question \{[\s\S]*?font-size: clamp\(21px, 4vw, 26px\);[\s\S]*?font-weight: 750;/);
+  assert.match(publicCss, /\.ifb-language-card__choices \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(publicCss, /@media \(max-width: 480px\) \{[\s\S]*?\.ifb-language-card__question \{ font-size: 21px; \}/);
 });
