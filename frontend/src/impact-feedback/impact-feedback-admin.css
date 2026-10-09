@@ -1409,3 +1409,22 @@
   .ifb-student-semester { flex: 1 1 110px; justify-content: center; }
   .ifb-student-semesters__note { flex-basis: 100%; margin-inline-start: 0; }
 }
+
+
+/* Instructor feedback: earliest start and earliest end are independent calendar columns. */
+@media (min-width: 761px) {
+  .ifb-instructor-table {
+    min-width: 1080px;
+    table-layout: fixed;
+  }
+  .ifb-instructor-table col.ifb-iw-instructor { width: 13%; }
+  .ifb-instructor-table col.ifb-iw-program { width: 14%; }
+  .ifb-instructor-table col.ifb-iw-groups { width: 7%; }
+  .ifb-instructor-table col.ifb-iw-first-start,
+  .ifb-instructor-table col.ifb-iw-first-end { width: 11%; }
+  .ifb-instructor-table col.ifb-iw-status { width: 12%; }
+  .ifb-instructor-table col.ifb-iw-stage { width: 16%; }
+  .ifb-instructor-table thead th { width: auto !important; }
+  .ifb-instructor-table th.ifb-col-date,
+  .ifb-instructor-table td.ifb-col-date { text-align: center; white-space: nowrap; }
+}
