@@ -5,7 +5,7 @@
  */
 import { escapeHtml as esc } from '../screens/shared/html.js';
 import { showToast } from '../screens/shared/toast.js';
-import { QUESTION_TYPES, SLOTS } from './feedback-domain.js';
+import { QUESTION_TYPES, SLOTS, courseLabel } from './feedback-domain.js';
 import {
   addBankQuestionToDraft,
   createQuestionInDraft,
@@ -53,11 +53,15 @@ function programMeta(program) {
 }
 
 function templateSlotLabel(slot) {
-  if (slot.key === 'student:pre') return 'תלמידים (התחלה)';
-  if (slot.key === 'student:post') return 'תלמידים (סיום)';
-  if (slot.key === 'instructor:pre') return 'מדריך (התחלה)';
-  if (slot.key === 'instructor:final') return 'מדריך (סיום)';
-  return slot.label;
+  if (slot.key === 'student:pre') return 'תלמידים – פתיחה';
+  if (slot.key === 'student:post') return 'תלמידים – סיום';
+  if (slot.key === 'instructor:pre') return 'מדריכים – פתיחה (אחרי הכשרה)';
+  if (slot.key === 'instructor:final') return 'מדריכים – סיום';
+  return 'צוות חינוכי – הערכת תוכנית';
+}
+
+function allowsNa(q) {
+  return q.question_type === 'rating_1_5' && Boolean(q.scoring && q.scoring.allow_na);
 }
 
 function optionsToText(options) {
@@ -72,28 +76,43 @@ function textToOptions(text) {
   });
 }
 
-function listHtml(ui) {
-  if (!tpl.list) return '<div class="ifb-empty"><div class="ds-spinner"></div><p>טוען תבניות…</p></div>';
-  const byProgram = new Map(ui.programs.map((p) => [p.key, []]));
-  for (const t of tpl.list) byProgram.get(t.program_key)?.push(t);
-  return `
-    <div class="ifb-programs">${ui.programs.map((program) => `
-      <section class="ifb-program-card">
-        <h3>${esc(program.title)}</h3>
-        <p class="ifb-program-card__meta">${esc(programMeta(program))}</p>
-        <div class="ifb-program-card__tiles">${SLOTS.map((slot) => {
-          const template = (byProgram.get(program.key) || []).find((t) => t.audience === slot.audience && t.stage === slot.stage);
-          if (!template) return '';
-          const versions = versionsOf(template);
-          const current = versions.find((v) => v.id === template.current_version_id);
-          const draft = versions.find((v) => v.status === 'draft');
-          return `<button type="button" class="ifb-tile" data-tpl-open="${esc(template.id)}">
-            <strong>${esc(templateSlotLabel(slot))}</strong>
-            ${!current ? '<span>טרם פורסם</span>' : ''}
-            ${draft ? '<span class="ifb-tile__draft">טיוטה בעריכה</span>' : ''}
-          </button>`;
-        }).join('')}</div>
-      </section>`).join('')}</div>`;
+function fmtDay(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit' });
+}
+
+/**
+ * Questionnaire list for one audience (and the selected course, when one is chosen).
+ * One row per course × stage; the shared editor opens from here.
+ */
+function listHtml(ui, audience) {
+  if (!tpl.list) return '<div class="ifb-empty" role="status"><div class="ds-spinner" aria-hidden="true"></div><p>טוען שאלונים…</p></div>';
+  const slots = SLOTS.filter((slot) => !audience || slot.audience === audience);
+  const programs = ui.programs.filter((p) => !ui.course || p.key === ui.course);
+  const rows = [];
+  for (const program of programs) {
+    for (const slot of slots) {
+      const template = tpl.list.find((t) => t.program_key === program.key && t.audience === slot.audience && t.stage === slot.stage);
+      if (!template) continue;
+      const versions = versionsOf(template);
+      const current = versions.find((v) => v.id === template.current_version_id);
+      const draft = versions.find((v) => v.status === 'draft');
+      rows.push(`<tr data-template-row="${esc(template.id)}">
+        <td data-label="קורס"><strong>${esc(courseLabel(program, ui.programs))}</strong></td>
+        <td data-label="שאלון">${esc(templateSlotLabel(slot))}</td>
+        <td data-label="גרסה מפורסמת">${current ? `גרסה ${esc(String(current.version_no ?? ''))}${current.published_at ? ` <span class="ifb-muted">· ${esc(fmtDay(current.published_at))}</span>` : ''}` : '<span class="ifb-status ifb-status--warning"><span class="ifb-status__icon" aria-hidden="true">!</span><span class="ifb-status__label">טרם פורסם</span></span>'}</td>
+        <td data-label="טיוטה">${draft ? '<span class="ifb-status ifb-status--pending"><span class="ifb-status__icon" aria-hidden="true">◷</span><span class="ifb-status__label">טיוטה בעריכה</span></span>' : '<span class="ifb-muted">—</span>'}</td>
+        <td data-label="פעולות" class="ifb-col-actions"><button type="button" class="ifb-row-action" data-tpl-open="${esc(template.id)}" aria-label="פתיחת השאלון ${esc(`${program.title} – ${templateSlotLabel(slot)}`)}">צפייה ועריכה</button></td>
+      </tr>`);
+    }
+  }
+  if (!rows.length) return '<div class="ifb-empty"><p>לא נמצאו שאלונים לקורס ולקהל שנבחרו.</p></div>';
+  return `<div class="ifb-table-wrap"><table class="ifb-table ifb-table--compact ifb-tpl-table">
+    <caption class="ifb-sr">שאלונים${audience ? '' : ''}</caption>
+    <thead><tr><th scope="col">קורס</th><th scope="col">שאלון</th><th scope="col">גרסה מפורסמת</th><th scope="col">טיוטה</th><th scope="col"><span class="ifb-sr">פעולות</span></th></tr></thead>
+    <tbody>${rows.join('')}</tbody>
+  </table></div>`;
 }
 
 function metricOptions(ui, selected) {
@@ -164,6 +183,7 @@ function readOnlyQuestionHtml(q, index, ui, defaults) {
     ${questionMetaHtml([
       metaPart(metric),
       metaPart(QUESTION_TYPES.find((t) => t.key === q.question_type)?.label || ''),
+      allowsNa(q) ? metaPart('כולל „לא רלוונטי”') : '',
       ...exceptionParts(q, defaults)
     ])}
     ${SELECT_TYPES.has(q.question_type) ? `<p class="ifb-tq__variant">אפשרויות: ${esc((q.options || []).map((o) => o.label).join(' · '))}</p>` : ''}
@@ -187,6 +207,7 @@ function editableQuestionHtml(q, index, total, ui, defaults) {
       <label class="ifb-field"><span>סוג תשובה</span><select data-tq-field="question_type">${typeOptions(q.question_type)}</select></label>
       <label class="ifb-field"><span>מדד</span><select data-tq-field="metric_key">${metricOptions(ui, q.metric_key)}</select></label>
       <label class="ifb-check"><input type="checkbox" data-tq-field="required"${q.required ? ' checked' : ''}> חובה</label>
+      ${q.question_type === 'rating_1_5' ? `<label class="ifb-check" title="מוסיף לשאלה את האפשרות „לא רלוונטי / לא הייתה אפשרות להעריך”. תשובה כזו אינה נכללת בממוצע."><input type="checkbox" data-tq-field="allow_na"${allowsNa(q) ? ' checked' : ''}> אפשרות „לא רלוונטי”</label>` : ''}
     </div>
     ${SELECT_TYPES.has(q.question_type) ? `<label class="ifb-field"><span>אפשרויות (שורה לכל אפשרות: ערך|תווית)</span><textarea rows="3" data-tq-field="options">${esc(optionsToText(q.options))}</textarea></label>` : ''}
   </li>`;
@@ -224,13 +245,13 @@ function editorHtml(ui) {
   const questions = editing ? ed.draftQuestions : ed.publishedQuestions;
   const defaults = templateDefaults(questions);
   return `
-    <button type="button" class="ifb-back" data-tpl-back>→ חזרה לכל התבניות</button>
+    <button type="button" class="ifb-back" data-tpl-back>→ חזרה לרשימת השאלונים</button>
     <section class="ifb-group-head ifb-tpl-head">
       <div class="ifb-tpl-head__titles">
-        <p class="ifb-tpl-head__program">${esc(program?.title || '')}</p>
+        <p class="ifb-tpl-head__program">${esc(courseLabel(program, ui.programs))}</p>
         ${programMeta(program) ? `<p class="ifb-tpl-head__meta">${esc(programMeta(program))}</p>` : ''}
         <h2 class="ifb-tpl-head__title">${esc(slot ? templateSlotLabel(slot) : '')}</h2>
-        ${!ed.published ? '<p class="ifb-tpl-head__status">טרם פורסם</p>' : ''}
+        ${!ed.published ? '<p class="ifb-tpl-head__status">טרם פורסם</p>' : `<p class="ifb-tpl-head__status">גרסה מפורסמת: ${esc(String(versionsOf(ed.template).find((v) => v.id === ed.published.id)?.version_no ?? ''))} · משובים שכבר נפתחו נשארים על הגרסה שלהם</p>`}
         ${editing ? '<p class="ifb-tpl-head__status is-draft">טיוטה בעריכה</p>' : ''}
       </div>
       <div class="ifb-slot__actions ifb-tpl-head__actions">
@@ -250,9 +271,14 @@ function editorHtml(ui) {
     ${editing ? addFormHtml(ed, ui) : ''}`;
 }
 
-export function renderTemplatesView(ui) {
-  if (tpl.error) return `<div class="ifb-empty ifb-empty--error"><p>${esc(tpl.error)}</p><button type="button" class="ifb-btn" data-tpl-reload>נסו שוב</button></div>`;
-  return `<div data-ifb-templates>${ui.templates.templateId ? editorHtml(ui) : listHtml(ui)}</div>`;
+export function renderTemplatesView(ui, { audience = '' } = {}) {
+  if (tpl.error) return `<div class="ifb-empty ifb-empty--error" role="alert"><p>${esc(tpl.error)}</p><button type="button" class="ifb-btn" data-tpl-reload>נסו שוב</button></div>`;
+  return `<div data-ifb-templates>${ui.templates.templateId ? editorHtml(ui) : listHtml(ui, audience)}</div>`;
+}
+
+/** True while a questionnaire editor is open (the hosting tab then shows only the editor). */
+export function isTemplateEditorOpen(ui) {
+  return Boolean(ui.templates.templateId);
 }
 
 async function loadList(repaint, force = false) {
@@ -311,7 +337,8 @@ function openPreview(ui) {
       type: q.question_type,
       text: String(q.wording?.default || '').replaceAll('{topic}', program?.topic || ''),
       options: q.options || [],
-      required: q.required
+      required: q.required,
+      allow_na: allowsNa(q)
     }))
   };
   const overlay = document.createElement('div');
@@ -366,6 +393,11 @@ async function saveQuestionField(ui, repaint, row, field, input) {
     if (SELECT_TYPES.has(input.value) && !(q.options || []).length) patch.options = [{ value: 'option_1', label: 'אפשרות 1' }, { value: 'option_2', label: 'אפשרות 2' }];
     patch.scoring = input.value === 'rating_1_5' ? { include_in_score: true } : { include_in_score: false };
     needsRepaint = true;
+  } else if (field === 'allow_na') {
+    const scoring = { ...(q.scoring || {}) };
+    if (input.checked) scoring.allow_na = true;
+    else delete scoring.allow_na;
+    patch = { scoring };
   } else if (field === 'metric_key') {
     patch = { metric_key: input.value };
   } else if (field === 'options') {

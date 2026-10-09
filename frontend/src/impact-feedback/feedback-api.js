@@ -66,6 +66,14 @@ export async function fetchGroups(academicYear = null, activityRowId = null) {
   return Array.isArray(rows) ? rows : [];
 }
 
+/** Course × audience × stage collection figures (questionnaires, invited, unique respondents). */
+export async function fetchCourseSummary(academicYear = null) {
+  const rows = await unwrap(client().rpc('feedback_admin_course_summary', {
+    p_academic_year: academicYear || null
+  }));
+  return Array.isArray(rows) ? rows : [];
+}
+
 export async function fetchInstructorAssignments(academicYear = null) {
   const rows = await unwrap(client().rpc('feedback_admin_instructor_assignments', {
     p_academic_year: academicYear || null
@@ -126,7 +134,7 @@ export async function fetchAnswerFacts(filters = {}) {
 export async function fetchTemplates() {
   return unwrap(client()
     .from('feedback_templates')
-    .select('id,program_key,audience,stage,title,current_version_id,feedback_template_versions!feedback_template_versions_template_id_fkey(id,status)')
+    .select('id,program_key,audience,stage,title,current_version_id,feedback_template_versions!feedback_template_versions_template_id_fkey(id,status,version_no,published_at)')
     .order('program_key'));
 }
 

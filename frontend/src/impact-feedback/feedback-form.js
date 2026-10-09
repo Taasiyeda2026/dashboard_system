@@ -27,6 +27,8 @@ function headline(payload) {
   return `שאלון ${STAGE_LABELS[payload.stage] || ''}`.trim();
 }
 
+const NA_LABEL = 'לא רלוונטי / לא הייתה אפשרות להעריך';
+
 function ratingHtml(q, value, young) {
   const name = `q-${q.id}`;
   const buttons = [1, 2, 3, 4, 5].map((n) => `
@@ -36,9 +38,15 @@ function ratingHtml(q, value, young) {
       <span class="ifb-sr">${n} – ${esc(RATING_LABELS[n - 1])}</span>
       ${young ? `<span class="ifb-rate__caption" aria-hidden="true">${esc(RATING_LABELS[n - 1])}</span>` : ''}
     </label>`).join('');
+  const na = q.allow_na ? `
+    <label class="ifb-rate__na">
+      <input type="radio" name="${esc(name)}" value="na" data-qid="${esc(q.id)}" data-kind="rating"${value === 'na' ? ' checked' : ''}>
+      <span>${esc(NA_LABEL)}</span>
+    </label>` : '';
   return `
     <div class="ifb-rate" role="radiogroup" aria-label="${esc(q.text)}">${buttons}</div>
-    ${young ? '' : `<div class="ifb-rate__ends" aria-hidden="true"><span>${esc(RATING_LABELS[0])}</span><span>${esc(RATING_LABELS[4])}</span></div>`}`;
+    ${young ? '' : `<div class="ifb-rate__ends" aria-hidden="true"><span>${esc(RATING_LABELS[0])}</span><span>${esc(RATING_LABELS[4])}</span></div>`}
+    ${na}`;
 }
 
 function choiceHtml(q, value, multiple) {
@@ -157,7 +165,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
     const qid = input?.dataset?.qid;
     if (!qid) return;
     const kind = input.dataset.kind;
-    if (kind === 'rating') answers[qid] = Number(input.value);
+    if (kind === 'rating') answers[qid] = input.value === 'na' ? 'na' : Number(input.value);
     else if (kind === 'bool') answers[qid] = input.value === 'true';
     else if (kind === 'single') answers[qid] = input.value;
     else if (kind === 'multi') {

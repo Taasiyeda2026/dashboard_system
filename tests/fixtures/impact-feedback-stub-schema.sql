@@ -55,6 +55,8 @@ create table public.activities (
   activity_type text,
   activity_name text,
   gefen_number text,
+  activity_no text,
+  participants_count text,
   authority text,
   authority_id bigint,
   school text,
