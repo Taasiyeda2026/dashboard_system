@@ -1,0 +1,23 @@
+name: Temporary feedback template no-horizontal-scroll UI check
+on:
+  push:
+    branches:
+      - fix/feedback-template-grid-no-horizontal-overflow-20261009
+jobs:
+  responsive-templates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Verify responsive template layout in Chromium
+        run: npx playwright test -c e2e/playwright.smoke.config.mjs e2e/smoke/feedback-templates-responsive.spec.mjs
+      - name: Check saved-PDF controls and build
+        run: |
+          node --test tests/impact-feedback-paper-pdf.test.mjs
+          npm run build
