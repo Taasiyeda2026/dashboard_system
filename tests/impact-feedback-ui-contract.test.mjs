@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { filterGroups } from '../frontend/src/impact-feedback/feedback-domain.js';
+import { filterGroups, hasCourseStartDate } from '../frontend/src/impact-feedback/feedback-domain.js';
 
 const screen = readFileSync(new URL('../frontend/src/screens/impact-feedback.js', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../frontend/src/impact-feedback/impact-feedback-admin.css', import.meta.url), 'utf8');
@@ -135,4 +135,41 @@ test('all five template controls remain centered and aligned with missing option
   assert.match(templates, /ifb-template-card__delete-placeholder/);
   assert.match(templates, /ifb-template-card__slots/);
   assert.match(styles, /\.ifb-template-card__delete-placeholder \{/);
+});
+
+
+test('student group visibility follows the canonical start date (including removal and addition)', () => {
+  const course = { row_id: 'A', start_date: null };
+  assert.equal(hasCourseStartDate(course), false);
+  assert.equal(hasCourseStartDate({ ...course, start_date: '' }), false);
+  assert.equal(hasCourseStartDate({ ...course, start_date: '2026-02-30' }), false);
+  assert.equal(hasCourseStartDate({ ...course, start_date: '2026-10-19' }), true);
+  assert.equal(hasCourseStartDate({ ...course, start_date: '2026-10-26' }), true);
+  assert.equal(hasCourseStartDate({ ...course, start_date: null }), false);
+  assert.equal(hasCourseStartDate({ row_id: 'new', start_date: '2027-01-04' }), true);
+});
+
+test('student table filters groups without start dates without hiding staff groups or erasing answers', () => {
+  const table = screen.slice(screen.indexOf('function groupsTableHtml('), screen.indexOf('function optionBarsHtml('));
+  assert.match(table, /scope === 'students'\s*\? courseScopedGroups\(\)\.filter\(hasCourseStartDate\)/);
+  assert.match(table, /: courseScopedGroups\(\);/);
+  assert.match(table, /fmtDate\(g\.start_date\)/);
+  assert.match(table, /fmtDate\(g\.end_date\)/);
+  assert.match(table, /בלשונית תלמידים מוצגות רק קבוצות שנקבע להן תאריך התחלה בכל הפעילויות/);
+  assert.doesNotMatch(table, /updateCampaign|delete.*feedback_campaigns/);
+});
+
+test('feedback uses fresh activity data on entry and while active without a duplicate date store', () => {
+  assert.match(screen, /load\(host, \{ force: true \}\)/);
+  assert.match(screen, /async function ensureGroups\(force = false\)/);
+  assert.match(screen, /ui\.groups = await fetchGroups\(ui\.year\)/);
+  assert.match(screen, /ACTIVITY_SYNC_INTERVAL_MS = 60 \* 1000/);
+  assert.match(screen, /const groups = await fetchGroups\(year\)/);
+  assert.match(screen, /window\.addEventListener\('focus', check/);
+  assert.match(screen, /document\.addEventListener\('visibilitychange'/);
+  assert.match(screen, /window\.addEventListener\('israa-activities-changed'/);
+  assert.match(screen, /if \(JSON\.stringify\(groups\) !== JSON\.stringify\(ui\.groups\)\)/);
+  assert.match(screen, /if \(!host\.isConnected\) \{/);
+  assert.match(screen, /activitySyncController\?\.abort\(\)/);
+  assert.match(screen, /installActivityDateSync\(host\)/);
 });

@@ -115,6 +115,20 @@ export function isCampaignLive(campaign, now = Date.now()) {
   return status === 'active' || status === 'collecting';
 }
 
+/**
+ * A student group is eligible for feedback tracking only after a real course start
+ * was scheduled in the canonical activities table.
+ * Missing/cleared dates keep prior responses but remove the row from the student list.
+ */
+export function hasCourseStartDate(group) {
+  const value = String(group?.start_date ?? '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.getUTCFullYear() === year &&
+    date.getUTCMonth() + 1 === month && date.getUTCDate() === day;
+}
+
 export function groupHasFeedback(group) {
   return Array.isArray(group?.campaigns) && group.campaigns.length > 0;
 }
