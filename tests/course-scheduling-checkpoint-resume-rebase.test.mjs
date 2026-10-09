@@ -861,6 +861,8 @@ test('stage progress checkpoints upload changed rows only with a 120s cooldown, 
   assert.match(screenSource, /planningStageCheckpointDelta\(\{/);
   assert.match(screenSource, /rows: stageDeltaRows,/);
   assert.match(screenSource, /minIntervalMs: 120_000/);
+  assert.match(screenSource, /const rememberPersistedCheckpointRow = \(row\) => \{/);
+  assert.match(screenSource, /persistedCheckpointRows\.set\(courseId, JSON\.parse\(JSON\.stringify\(row\)\)\)/);
   const stagePos=screenSource.indexOf('const stageDeltaRows = planningStageCheckpointDelta(');
   const finalPos=screenSource.indexOf('const finalCheckpointDeltaRows = finalRows.filter(');
   assert.ok(stagePos>=0 && finalPos>stagePos);
