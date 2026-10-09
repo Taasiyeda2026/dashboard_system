@@ -13,6 +13,10 @@ import {
   discardDraft,
   fetchBankQuestions,
   fetchTemplates,
+  fetchSavedPaperPdfs,
+  uploadSavedPaperPdf,
+  downloadSavedPaperPdf,
+  deleteSavedPaperPdf,
   fetchVersion,
   fetchVersionQuestions,
   getDraft,
@@ -26,6 +30,8 @@ import { mountFeedbackForm } from './feedback-form.js';
 const SELECT_TYPES = new Set(['single_select', 'multi_select']);
 const tpl = {
   list: null,
+  paperPdfs: null,
+  loadingPaperPdfs: false,
   loadingList: false,
   editor: null, // { template, published, publishedQuestions, draft, draftQuestions, bank }
   loadingEditor: false,
@@ -106,9 +112,15 @@ function listHtml(ui) {
         'instructor:pre': 'מדריכים (התחלה)',
         'instructor:final': 'מדריכים (סיום)'
       })[slot.key] || templateSlotLabel(slot);
+      const file = tpl.paperPdfs?.find((p) => p.template_id === template.id);
+      const outdated = Boolean(file && file.version_id !== template.current_version_id);
+      const upToDate = Boolean(file && !outdated);
       return `<div class="ifb-template-card__slot">
         <button type="button" class="ifb-template-card__open" data-tpl-open="${esc(template.id)}" title="${esc(name)}" aria-label="צפייה ועריכת ${esc(name)}">${esc(short)}${draft ? '<span class="ifb-sr"> – טיוטה בעריכה</span>' : ''}</button>
-        <button type="button" class="ifb-template-card__pdf" data-tpl-pdf="${esc(template.id)}" ${published ? '' : 'disabled'} title="הפקת PDF להדפסה" aria-label="הפקת PDF להדפסה: ${esc(name)}">PDF</button>
+        <button type="button" class="ifb-template-card__pdf" data-tpl-pdf="${esc(template.id)}" ${upToDate ? '' : 'disabled'} title="${upToDate ? 'הורדת PDF שמור' : outdated ? 'הקובץ אינו עדכני' : 'טרם הועלה PDF'}" aria-label="הורדת PDF: ${esc(name)}">PDF</button>
+        ${outdated ? '<span class="ifb-template-card__warning" role="status" title="השאלון עודכן. יש להחליף PDF">!</span>' : ''}
+        <button type="button" class="ifb-template-card__upload" data-tpl-upload="${esc(template.id)}" ${published ? '' : 'disabled'} title="${file ? 'החלפת PDF שמור' : 'העלאת PDF'}" aria-label="${file ? 'החלפת' : 'העלאת'} PDF: ${esc(name)}">${file ? 'החלף' : 'העלה'}</button>
+        ${file ? `<button type="button" class="ifb-template-card__delete" data-tpl-delete="${esc(template.id)}" aria-label="מחיקת PDF: ${esc(name)}" title="מחיקת PDF">×</button>` : ''}
       </div>`;
     }).join('');
     return `<article class="ifb-template-card" data-template-course="${esc(program.key)}">
@@ -291,7 +303,9 @@ async function loadList(repaint, force = false) {
   if ((tpl.list && !force) || tpl.loadingList) return;
   tpl.loadingList = true;
   try {
-    tpl.list = await fetchTemplates();
+    const [templates, paperPdfs] = await Promise.all([fetchTemplates(), fetchSavedPaperPdfs()]);
+    tpl.list = templates;
+    tpl.paperPdfs = paperPdfs;
     tpl.error = '';
   } catch (error) {
     tpl.error = translateFeedbackError(error);
@@ -436,21 +450,57 @@ export function bindTemplatesView(host, ui, repaint) {
     const pdf = t.closest('[data-tpl-pdf]');
     if (pdf) {
       const template = tpl.list?.find((item) => item.id === pdf.dataset.tplPdf);
-      if (!template?.current_version_id || pdf.disabled) return;
-      const program = ui.programs.find((p) => p.key === template.program_key);
-      if (!program) return;
+      const record = tpl.paperPdfs?.find((item) => item.template_id === template?.id);
+      if (!record || record.version_id !== template?.current_version_id || pdf.disabled) return;
       pdf.disabled = true;
       try {
-        const [version, questions, module] = await Promise.all([
-          fetchVersion(template.current_version_id),
-          fetchVersionQuestions(template.current_version_id),
-          import('./feedback-print-pdf.js')
-        ]);
-        await module.downloadQuestionnairePdf({ program, template, version, questions });
+        await downloadSavedPaperPdf(record);
       } catch (error) {
-        showToast('לא ניתן להפיק PDF. נסו שוב.', 'error', 5000);
+        showToast(translateFeedbackError(error), 'error', 5000);
       } finally {
         pdf.disabled = false;
+      }
+      return;
+    }
+    const upload = t.closest('[data-tpl-upload]');
+    if (upload) {
+      const template = tpl.list?.find((item) => item.id === upload.dataset.tplUpload);
+      if (!template?.current_version_id || upload.disabled) return;
+      const picker = document.createElement('input');
+      picker.type = 'file';
+      picker.accept = '.pdf,application/pdf';
+      picker.style.display = 'none';
+      document.body.append(picker);
+      picker.addEventListener('change', async () => {
+        const file = picker.files?.[0];
+        picker.remove();
+        if (!file) return;
+        upload.disabled = true;
+        try {
+          await uploadSavedPaperPdf(template, file);
+          await loadList(repaint, true);
+          showToast('ה־PDF נשמר בהצלחה', 'success');
+        } catch (error) {
+          showToast(translateFeedbackError(error), 'error', 6000);
+          upload.disabled = false;
+        }
+      }, { once: true });
+      picker.click();
+      return;
+    }
+    const remove = t.closest('[data-tpl-delete]');
+    if (remove) {
+      const template = tpl.list?.find((item) => item.id === remove.dataset.tplDelete);
+      const record = tpl.paperPdfs?.find((item) => item.template_id === template?.id);
+      if (!record || !window.confirm('למחוק את קובץ ה־PDF השמור?')) return;
+      remove.disabled = true;
+      try {
+        await deleteSavedPaperPdf(record);
+        await loadList(repaint, true);
+        showToast('ה־PDF נמחק', 'success');
+      } catch (error) {
+        showToast(translateFeedbackError(error), 'error', 5000);
+        remove.disabled = false;
       }
       return;
     }
