@@ -9,7 +9,8 @@ import {
   canCommitValidatedCheckpoint,
   canValidateCompletedRunningCheckpoint,
   planningResumeReopenIds,
-  planSafeRestartFromCommittedWorkspace
+  planSafeRestartFromCommittedWorkspace,
+  planningCheckpointChunks
 } from '../frontend/src/screens/course-scheduling-run-plan.js';
 import { buildDynamicCoursePlan, createPlanningLocalRepairDeadlineCheckpoint, filterPlanningOptionsAgainstChosenRows, reconcileSelectedPlanningOverlaps, recoverPlanningOverlapFromCommittedProposals, validateResumedPlanningRows } from '../frontend/src/screens/course-scheduling-planning.js';
 import { createPlanningRunDeadlineCheckpoint } from '../frontend/src/screens/course-scheduling-preflight.js';
@@ -685,4 +686,142 @@ test('unrecoverable checkpoint never silently launches a full country rebuild', 
   assert.equal(planSafeRestartFromCommittedWorkspace({...base,fullRun:true}),null);
   assert.equal(planSafeRestartFromCommittedWorkspace({...base,committedRows:[]}),null);
   assert.equal(planSafeRestartFromCommittedWorkspace({...base,currentCourseIds:[]}),null);
+});
+
+
+/**
+ * Production-shape isolated acceptance replay (no production access/writes).
+ * Read-only audit 2026-10-09: 253 committed records =
+ * 101 live, 79 proposals, 6 fixed-proposals, 50 missing, 17 recruitment.
+ * Corrupt checkpoint: 76 course pairs / 13 instructors overlap.
+ * 173 base-scope rows, of which 104 are flagged dirty, and 152 school-packing.
+ * This executes the real scope-restart and checkpoint-chunking implementations.
+ */
+test('253-row production-shape acceptance: recover corrupted checkpoint, preserve 101 live, serialize validated full save', () => {
+  const groups = [6,5,5,5,4,4,4,4,3,2,2,2,2];
+  assert.equal(groups.length,13);
+  const dateFor = index => {
+    const date = new Date(Date.UTC(2026,10,1+index));
+    return date.toISOString().slice(0,10);
+  };
+  const slot = (date) => ({date,start_time:'09:00',end_time:'10:30'});
+  const makeRow = (kind,index) => {
+    const courseId = 'course-'+String(index).padStart(3,'0');
+    const date=dateFor(index);
+    return {
+      courseId,
+      kind,
+      schoolId: 'school-'+String(Math.floor(index/5)),
+      instructorEmpId: ['proposal','fixed-proposal','live'].includes(kind)?'instructor-'+index:'',
+      sessions: 2,
+      startDate: date,
+      meetings: ['proposal','fixed-proposal'].includes(kind)?[slot(date)]:[]
+    };
+  };
+  const kinds = [
+    ...Array(101).fill('live'),
+    ...Array(79).fill('proposal'),
+    ...Array(6).fill('fixed-proposal'),
+    ...Array(50).fill('missing'),
+    ...Array(17).fill('recruitment')
+  ];
+  assert.equal(kinds.length,253);
+  const committedRows=kinds.map((kind,index)=>makeRow(kind,index));
+  const initialSerialized=JSON.stringify(committedRows);
+  const provisionalRows=committedRows.map(r=>({...r,meetings:r.meetings.map(m=>({...m}))}));
+  let cursor=101;
+  let group=0;
+  for (const size of groups) {
+    for (let i=0;i<size;i+=1) {
+      const row=provisionalRows[cursor++];
+      row.instructorEmpId='instructor-overlap-'+group;
+      row.schoolId='school-overlap-'+group;
+      row.startDate='2026-10-12';
+      row.meetings=[slot('2026-10-12')];
+    }
+    group++;
+  }
+  const overlappingPairs = rows => {
+    const pairs=new Set(), instructorIds=new Set();
+    const byGroup=new Map();
+    for(const row of rows) {
+      if(!['proposal','fixed-proposal'].includes(row.kind))continue;
+      for(const m of row.meetings||[]){
+        const key=[row.instructorEmpId,m.date,m.start_time,m.end_time].join('|');
+        if(!byGroup.has(key))byGroup.set(key,[]);
+        byGroup.get(key).push(row);
+      }
+    }
+    for(const groupRows of byGroup.values()){
+      for(let i=0;i<groupRows.length;i++){
+        for(let j=i+1;j<groupRows.length;j++){
+          pairs.add([groupRows[i].courseId,groupRows[j].courseId].sort().join('|'));
+          instructorIds.add(groupRows[i].instructorEmpId);
+          assert.equal(groupRows[i].schoolId,groupRows[j].schoolId);
+        }
+      }
+    }
+    return{pairs:pairs.size,instructors:instructorIds.size};
+  };
+  assert.deepEqual(overlappingPairs(provisionalRows),{pairs:76,instructors:13});
+  assert.deepEqual(overlappingPairs(committedRows),{pairs:0,instructors:0});
+
+  const currentCourseIds=committedRows.map(r=>r.courseId);
+  const baseRecalculationIds=currentCourseIds.slice(0,173);
+  const dirtyIds=[...currentCourseIds.slice(0,80),...currentCourseIds.slice(101,125)];
+  assert.equal(dirtyIds.length,104);
+  assert.equal(dirtyIds.every(id=>baseRecalculationIds.includes(id)),true);
+  const idSet=new Set(dirtyIds);
+  const partial=provisionalRows.map(row=>idSet.has(row.courseId)
+    ? committedRows.find(saved=>saved.courseId===row.courseId):row);
+  assert.ok(overlappingPairs(partial).pairs>0,
+    'restoring the 104 dirty rows alone cannot repair all checkpoint overlaps');
+  const baseIds=new Set(baseRecalculationIds);
+  const restored=provisionalRows.map(row=>baseIds.has(row.courseId)
+    ? committedRows.find(saved=>saved.courseId===row.courseId):row);
+  assert.equal(overlappingPairs(restored).pairs,0,
+    'restoring original 173-row scope repairs every provisional overlap');
+
+  const restarted=planSafeRestartFromCommittedWorkspace({
+    committedRows,currentCourseIds,baseRecalculationIds,fullRun:false
+  });
+  assert.ok(restarted);
+  assert.equal(restarted.existingRows.length,253);
+  assert.deepEqual(restarted.targetCourseIds,baseRecalculationIds);
+  assert.equal(restarted.resumeFromCheckpoint,false);
+  assert.equal(restarted.missingFromCommittedIds.length,0);
+  assert.equal(restarted.existingRows.filter(r=>r.kind==='live').length,101);
+  assert.equal(JSON.stringify(committedRows),initialSerialized);
+
+  const meta={
+    __planningRunMeta:true,
+    phase:'validated',planningStage:'planned',
+    workspaceRevision:11946,sourceRevision:239
+  };
+  const payloads=[...planningCheckpointChunks({
+    rows:restored,
+    meta,
+    rpcArgs:{
+      p_period_key:'year',p_district:'',
+      p_engine_version:'planning-v35-test',
+      p_total_count:253,p_completed_count:253,
+      p_completed_activity_ids:currentCourseIds
+    }
+  })];
+  assert.ok(payloads.length>=26, '253 saved rows must be split into bounded chunks');
+  const aggregated=new Map();
+  for(let i=0;i<payloads.length;i++){
+    const chunk=payloads[i].p_rows;
+    assert.ok(chunk.length<=11,'one meta row and <=10 course rows per RPC');
+    const envelope=chunk.find(r=>r.__planningRunMeta===true);
+    assert.equal(envelope.phase,i===payloads.length-1?'validated':'running');
+    for(const row of chunk.filter(r=>r.__planningRunMeta!==true)){
+      assert.ok(!aggregated.has(row.courseId),'no repeated course');
+      aggregated.set(row.courseId,row);
+    }
+  }
+  assert.equal(aggregated.size,253);
+  assert.deepEqual([...aggregated.keys()].sort(),currentCourseIds.slice().sort());
+  assert.equal(overlappingPairs([...aggregated.values()]).pairs,0);
+  assert.equal(JSON.stringify(committedRows),initialSerialized);
 });
