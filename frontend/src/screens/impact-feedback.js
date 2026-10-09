@@ -32,6 +32,7 @@ import {
   factsFor,
   filterGroups,
   groupHasFeedback,
+  hasCourseStartDate,
   isProgramUnresolved,
   openAnswers,
   overviewTotals,
@@ -65,6 +66,10 @@ import '../impact-feedback/feedback-form.css';
 import '../impact-feedback/impact-feedback-admin.css';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const ACTIVITY_SYNC_INTERVAL_MS = 60 * 1000;
+const ACTIVITY_SYNC_MIN_GAP_MS = 12 * 1000;
+let activitySyncController = null;
+let activitySyncTimer = null;
 /** Minimum valid answers before a question is ranked as a strength / improvement area. */
 const MIN_N_RANKING = 5;
 /** Minimum respondents per population before a gap between populations is described. */
@@ -602,7 +607,11 @@ function programQuickPickHtml(group) {
 }
 
 function groupsTableHtml(slots, scope) {
-  const all = courseScopedGroups();
+  // The activities table is authoritative; groups without a start date are not
+  // ready to receive a student questionnaire. Other audiences are unchanged.
+  const all = scope === 'students'
+    ? courseScopedGroups().filter(hasCourseStartDate)
+    : courseScopedGroups();
   const filtered = filterGroups(all, ui.filters).sort((a, b) =>
     Number(groupHasFeedback(b)) - Number(groupHasFeedback(a))
     || String(a.school).localeCompare(String(b.school), 'he'));
@@ -645,7 +654,7 @@ function groupsTableHtml(slots, scope) {
             <td data-label="פעולות" class="ifb-col-actions"><button type="button" class="ifb-row-action" data-ifb-open-group="${esc(g.row_id)}" aria-label="ניהול משובי הקבוצה ${esc(g.school || '')}" title="ניהול משובי הקבוצה"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="2"></rect><path d="M7 3v4M17 3v4M3 10h18"></path></svg></button></td>
           </tr>`).join('')}</tbody>
       </table>
-    </div>` : emptyHtml('לא נמצאו קבוצות התואמות לסינון.', 'מוצגות קבוצות של קורסי המשובים בשנת הלימודים שנבחרה.');
+    </div>` : emptyHtml('לא נמצאו קבוצות התואמות לסינון.', scope === 'students' ? 'בלשונית תלמידים מוצגות רק קבוצות שנקבע להן תאריך התחלה בכל הפעילויות.' : 'מוצגות קבוצות של קורסי המשובים בשנת הלימודים שנבחרה.');
   return `${groupFiltersHtml(all, scope)}${body}`;
 }
 
@@ -1721,6 +1730,62 @@ function handleFilterInput(host, event) {
   }
 }
 
+/**
+ * Keep the feedback activity view in sync with the canonical activities table.
+ * Opening the feedback screen and switching tabs already perform a forced read.
+ * While students/staff remain open, re-read in the foreground every minute and
+ * when the browser regains focus; deletions and cleared dates are reflected too.
+ * No second date store, database triggers, or persistent polling in the background.
+ */
+function installActivityDateSync(host) {
+  activitySyncController?.abort();
+  if (activitySyncTimer !== null) window.clearInterval(activitySyncTimer);
+  const controller = new AbortController();
+  activitySyncController = controller;
+  let lastCheckedAt = 0;
+  let pending = false;
+  const check = async () => {
+    if (!host.isConnected) {
+      controller.abort();
+      window.clearInterval(activitySyncTimer);
+      activitySyncTimer = null;
+      return;
+    }
+    if (pending || ui.loading || ui.groupRowId ||
+        !['students', 'staff'].includes(ui.tab) ||
+        document.visibilityState === 'hidden') return;
+    const now = Date.now();
+    if (now - lastCheckedAt < ACTIVITY_SYNC_MIN_GAP_MS) return;
+    lastCheckedAt = now;
+    pending = true;
+    const year = ui.year;
+    try {
+      const groups = await fetchGroups(year);
+      if (controller.signal.aborted || !host.isConnected || year !== ui.year ||
+          !['students', 'staff'].includes(ui.tab) || ui.groupRowId) return;
+      if (JSON.stringify(groups) !== JSON.stringify(ui.groups)) {
+        ui.groups = groups;
+        ui.groupsYear = year;
+        paint(host);
+      }
+    } catch (error) {
+      // A temporary refresh failure must not clear the current table.
+      console.warn('[impact-feedback:activity-sync]', translateFeedbackError(error));
+    } finally {
+      pending = false;
+    }
+  };
+  window.addEventListener('focus', check, { signal: controller.signal });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') check();
+  }, { signal: controller.signal });
+  window.addEventListener('israa-activities-changed', () => {
+    lastCheckedAt = 0;
+    check();
+  }, { signal: controller.signal });
+  activitySyncTimer = window.setInterval(check, ACTIVITY_SYNC_INTERVAL_MS);
+}
+
 function mount(host, state) {
   if (!isAdmin(state)) {
     host.innerHTML = '<div class="ifb-empty ifb-empty--error" role="alert"><p>מודול המשובים זמין לאדמין בלבד.</p></div>';
@@ -1755,6 +1820,7 @@ function mount(host, state) {
   host.addEventListener('input', (event) => {
     if (event.target.matches('input[type="search"]')) handleFilterInput(host, event);
   });
+  installActivityDateSync(host);
   load(host, { force: true });
 }
 
