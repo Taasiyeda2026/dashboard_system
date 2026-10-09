@@ -209,12 +209,13 @@ export function filterGroups(groups = [], filters = {}, now = Date.now()) {
     if (filters.authority && group.authority !== filters.authority) return false;
     if (filters.school && group.school !== filters.school) return false;
     if (filters.instructor && group.instructor_name !== filters.instructor) return false;
+    if (filters.manager && group.activity_manager !== filters.manager) return false;
     if (filters.ageBand && group.age_band !== filters.ageBand) return false;
     if (filters.from && group.start_date && group.start_date < filters.from) return false;
     if (filters.to && group.start_date && group.start_date > filters.to) return false;
     if (!groupMatchesStatus(group, filters.status, now)) return false;
     if (search) {
-      const hay = [group.school, group.authority, group.activity_name, group.instructor_name, group.grade, group.contact_name, group.row_id]
+      const hay = [group.school, group.authority, group.activity_name, group.instructor_name, group.activity_manager, group.grade, group.contact_name, group.row_id]
         .map(normalizeText).join(' ');
       if (!hay.includes(search)) return false;
     }
