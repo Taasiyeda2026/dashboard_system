@@ -98,6 +98,6 @@ begin
   from camp
   group by grouping sets ((camp.pk, camp.aud, camp.stg), (camp.pk, camp.aud))
   order by 1, 2, 3;
-end $;
+end $$;
 revoke all on function public.feedback_admin_course_summary_for_half(text,text) from public, anon;
 grant execute on function public.feedback_admin_course_summary_for_half(text,text) to authenticated;
