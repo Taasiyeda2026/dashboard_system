@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { filterGroups, hasCourseStartDate, hasCourseEndDate, studentFeedbackPeriodForGroup, studentFeedbackHasResponses, sortStudentFeedbackGroups, filterFeedbackFactsForHalf } from '../frontend/src/impact-feedback/feedback-domain.js';
+import { filterGroups, hasCourseStartDate, hasCourseEndDate, studentFeedbackPeriodForGroup, studentFeedbackHasResponses, sortStudentFeedbackGroups, sortEducationalStaffFeedbackGroups, filterFeedbackFactsForHalf } from '../frontend/src/impact-feedback/feedback-domain.js';
 import { COURSE_SCHEDULING_PERIODS } from '../frontend/src/screens/course-scheduling-periods.js';
 
 const screen = readFileSync(new URL('../frontend/src/screens/impact-feedback.js', import.meta.url), 'utf8');
@@ -407,4 +407,31 @@ test('semester-specific collection RPC keeps per-year RPC unchanged and respects
   assert.match(migration, /grant execute on function public\.feedback_admin_course_summary_for_half\(text,text\) to authenticated/);
   assert.match(api, /rpc\('feedback_admin_course_summary_for_half'/);
   assert.doesNotMatch(migration, /DROP FUNCTION IF EXISTS public\.feedback_admin_course_summary\(/i);
+});
+
+
+test('educational staff list orders ended courses earliest-first independently of responses', () => {
+  const rows = [
+    { row_id: 'latest', school: 'כרמל', end_date: '2027-06-01', campaigns: [] },
+    { row_id: 'second', school: 'דקל', end_date: '2027-01-18', campaigns: [{ audience: 'educational_staff', responses: 2 }] },
+    { row_id: 'same-date-last', school: 'ברוש', end_date: '2027-01-05', campaigns: [] },
+    { row_id: 'earliest', school: 'אלון', end_date: '2026-12-01', campaigns: [{ audience: 'educational_staff', responses: 1 }] },
+    { row_id: 'same-date-first', school: 'אורן', end_date: '2027-01-05', campaigns: [] }
+  ];
+  const actual = sortEducationalStaffFeedbackGroups(rows);
+  assert.deepEqual(actual.map((r) => r.row_id), ['earliest', 'same-date-first', 'same-date-last', 'second', 'latest']);
+  assert.equal(rows[0].row_id, 'latest', 'original server array is unchanged');
+  const table = screen.slice(screen.indexOf('function groupsTableHtml('), screen.indexOf('function optionBarsHtml('));
+  assert.match(table, /scope === 'staff'\s*\? sortEducationalStaffFeedbackGroups\(matching\)/);
+  assert.match(table, /scope === 'staff'\s*\? courseScopedGroups\(\)\.filter\(hasCourseEndDate\)/);
+  assert.match(table, /const inHalf = all\.filter\(\(g\) => studentFeedbackPeriodForGroup\(g\) === ui\.feedbackHalf\)/);
+});
+
+test('staff feedback column heading and cells align right without changing student columns', () => {
+  const table = screen.slice(screen.indexOf('function groupsTableHtml('), screen.indexOf('function optionBarsHtml('));
+  assert.match(table, /scope === 'staff'[\s\S]*?<th scope="col" class="ifb-col-stage ifb-col-staff">\$\{esc\(slot\.label\)\}<\/th>/);
+  assert.match(table, /scope === 'staff'[\s\S]*?<td class="ifb-col-stage ifb-col-staff" data-label="\$\{esc\(slot\.label\)\}">/);
+  assert.match(table, /<th scope="col" class="ifb-center ifb-col-stage">\$\{esc\(slot\.label\)\}<\/th>/);
+  assert.match(table, /<td class="ifb-center ifb-col-stage" data-label="\$\{esc\(slot\.label\)\}">/);
+  assert.match(styles, /\.ifb-admin \.ifb-groups-table--staff thead th\.ifb-col-staff,\s*\.ifb-admin \.ifb-groups-table--staff tbody td\.ifb-col-staff \{\s*text-align: right;/);
 });
