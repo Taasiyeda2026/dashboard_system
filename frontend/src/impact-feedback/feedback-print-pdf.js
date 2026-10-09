@@ -138,7 +138,21 @@ export async function buildQuestionnairePdf({ program, template, version, questi
     }
     drawRight(page, bold, 'תעשיידע', 14, 788);
     drawRight(page, bold, title, 18, 758);
-    drawRight(page, regular, [stage, gefen ? `גפ״ן ${gefen}` : ''].filter(Boolean).join(' · '), 10, 734, RIGHT, MUTED);
+    // Split the right-to-left labels from the LTR digits; mixed-direction
+    // drawing in a single PDF text run reverses identifiers in Acrobat.
+    drawRight(page, regular, stage, 10, 734, RIGHT, MUTED);
+    if (gefen) {
+      const fontSize = 10;
+      const stageWidth = regular.widthOfTextAtSize(stage, fontSize);
+      const dotWidth = regular.widthOfTextAtSize('·', fontSize);
+      const labelWidth = regular.widthOfTextAtSize('גפ״ן', fontSize);
+      let cursor = RIGHT - stageWidth - 12;
+      page.drawText('·', { x: cursor - dotWidth, y: 734, size: fontSize, font: regular, color: MUTED });
+      cursor -= dotWidth + 10;
+      drawRight(page, regular, 'גפ״ן', fontSize, 734, cursor, MUTED);
+      cursor -= labelWidth + 7;
+      page.drawText(gefen, { x: cursor - regular.widthOfTextAtSize(gefen, fontSize), y: 734, size: fontSize, font: regular, color: MUTED });
+    }
     page.drawLine({ start: { x: LEFT, y: 720 }, end: { x: RIGHT, y: 720 }, thickness: 1, color: LINE });
     y = 699;
   }
@@ -163,7 +177,7 @@ export async function buildQuestionnairePdf({ program, template, version, questi
     const headingLines = wrapText(heading, bold, 11, CONTENT_WIDTH);
     const answerHeight = questionAnswerHeight(question, regular);
     ensureSpace(headingLines.length * 16 + answerHeight + 26);
-    page.drawLine({ start: { x: LEFT, y: y + 6 }, end: { x: RIGHT, y: y + 6 }, thickness: 0.5, color: LINE });
+    page.drawLine({ start: { x: LEFT, y: y + 15 }, end: { x: RIGHT, y: y + 15 }, thickness: 0.5, color: LINE });
     for (const line of headingLines) {
       drawRight(page, bold, line, 11, y);
       y -= 16;
