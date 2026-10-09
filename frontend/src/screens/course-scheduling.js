@@ -3307,8 +3307,43 @@ export const courseSchedulingScreen = {
         // conflicting activities. Restore only a movable prior proposal and
         // revalidate the ENTIRE resulting plan before accepting the result.
         const buildDynamicPlanWithCommittedRecovery = async (input) => {
+          let preparedInput = input;
+          // A persisted "rows" checkpoint is NOT a validated plan. Before
+          // resuming optimizations, reconcile cross-course overlaps against
+          // the separately committed workspace, not against checkpoint rows.
+          if (input.resumeFromCheckpoint && (input.existingRows || []).length > 1) {
+            const checkpointValidation = await validateResumedPlanningRows({
+              ...input, rows: input.existingRows
+            });
+            if (!checkpointValidation.valid && checkpointValidation.failures.some((f) => f.reason === 'overlap')) {
+              const rescuedCheckpoint = await recoverPlanningOverlapFromCommittedProposals({
+                ...input,
+                error: {
+                  code: 'planning_final_validation_failed',
+                  rows: checkpointValidation.rows,
+                  failures: checkpointValidation.failures
+                },
+                committedRows: existingRows
+              });
+              if (rescuedCheckpoint) {
+                preparedInput = { ...input, existingRows: rescuedCheckpoint.rows };
+                planningPerfEvent('planning-checkpoint-overlap-sanitized', {
+                  restored: rescuedCheckpoint.restoredCourseIds.length,
+                  rows: rescuedCheckpoint.rows.length
+                });
+              } else {
+                // Never carry conflicting persisted rows into the next search
+                // as valid incumbent reservations. The committed workspace is
+                // safe to retain; abort this run without modifying it.
+                const invalid = new Error('planning_checkpoint_overlap_unrecoverable');
+                invalid.code = 'planning_checkpoint_overlap_unrecoverable';
+                invalid.failures = checkpointValidation.failures;
+                throw invalid;
+              }
+            }
+          }
           try {
-            return await buildDynamicCoursePlan({ ...input, committedRows: existingRows });
+            return await buildDynamicCoursePlan({ ...preparedInput, committedRows: existingRows });
           } catch (error) {
             if (error?.code !== 'planning_final_validation_failed') throw error;
             const recovered = await recoverPlanningOverlapFromCommittedProposals({

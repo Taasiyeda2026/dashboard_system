@@ -489,7 +489,52 @@ test('on whole-plan overlap, saved incumbent is verified before 75s nested repai
   assert.match(section, /_finalValidationRepairDeadlineAt: deadlineAt/);
   assert.match(section, /checkpoint: repairCheckpoint/);
   const screen = screenSource.slice(screenSource.indexOf('const buildDynamicPlanWithCommittedRecovery'), screenSource.indexOf('const runDeltaRepair = async'));
-  assert.match(screen, /buildDynamicCoursePlan\(\{ \.\.\.input, committedRows: existingRows \}\)/);
+  assert.match(screen, /buildDynamicCoursePlan\(\{ \.\.\.preparedInput, committedRows: existingRows \}\)/);
   assert.match(section, /if \(error\?\.code !== 'planning_local_repair_timeout'\) throw error/);
   assert.match(section, /const error = new Error\('planning_final_validation_failed'\)/);
+});
+
+
+test('checkpoint recovery covers more than eight intersecting courses and can safely fall back to committed missing rows', async () => {
+  const courseIds = Array.from({ length: 12 }, (_, index) => 'collision-' + index);
+  const conflictingRows = courseIds.map((id) =>
+    resumedProposal(id, '1', '2026-11-02', '2026-11-09')
+  );
+  const committedRows = conflictingRows.map((row, index) => index === 0
+    ? row
+    : { courseId: row.courseId, kind: 'missing', schoolId: row.schoolId, meetings: [], instructorEmpId: '' });
+  const failures = [];
+  for (let i = 0; i < courseIds.length; i += 1) {
+    for (let j = i + 1; j < courseIds.length; j += 1) {
+      failures.push({
+        reason: 'overlap', date: '2026-11-02', empId: '1',
+        firstCourseId: courseIds[i], secondCourseId: courseIds[j]
+      });
+    }
+  }
+  const saved = await recoverPlanningOverlapFromCommittedProposals({
+    ...resumeBase,
+    activities: courseIds.map((id) => activity(id)),
+    error: { code: 'planning_final_validation_failed', rows: conflictingRows, failures },
+    committedRows,
+    routeClient: routeClient()
+  });
+  assert.ok(saved, 'the whole conflicting checkpoint must be recoverable');
+  assert.equal(saved.rows.length, courseIds.length);
+  assert.equal(saved.restoredCourseIds.length, 11, 'keep the one valid assigned incumbent');
+  assert.equal(saved.rows.filter((row) => row.kind === 'proposal').length, 1);
+  assert.equal(saved.rows.find((row) => row.courseId === courseIds[0]).instructorEmpId, '1');
+});
+
+test('a dirty rows checkpoint is checked for overlap before any resumed planning can trust its incumbents', () => {
+  const screen = screenSource.slice(
+    screenSource.indexOf('const buildDynamicPlanWithCommittedRecovery = async'),
+    screenSource.indexOf('const runDeltaRepair = async')
+  );
+  const validationAt = screen.indexOf('const checkpointValidation = await validateResumedPlanningRows');
+  const recoveryAt = screen.indexOf('const rescuedCheckpoint = await recoverPlanningOverlapFromCommittedProposals');
+  const planningAt = screen.indexOf('return await buildDynamicCoursePlan');
+  assert.ok(validationAt > 0 && recoveryAt > validationAt && planningAt > recoveryAt);
+  assert.match(screen, /preparedInput = \{ \.\.\.input, existingRows: rescuedCheckpoint.rows \}/);
+  assert.match(screen, /planning_checkpoint_overlap_unrecoverable/);
 });
