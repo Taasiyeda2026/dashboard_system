@@ -309,7 +309,8 @@ export function shareMessage({ audience, stage = '', recipientName = '', program
     return `${greeting}\nלאחר סיום ההדרכה בתוכנית "${programTitle}", נשמח לשמוע מה עבד בפועל, מה דורש שיפור ומה דעתך על התוכן והתפעול. זהו משוב סיום קצר ופנימי:\n${url}\nתודה רבה, צוות תעשיידע`;
   }
   if (audience === 'educational_staff') {
-    return `${greeting}\nהתוכנית "${programTitle}"${schoolName ? ` ב${schoolName}` : ''} מתקרבת לסיומה.\nנשמח מאוד לשמוע את הערכתכם – המשוב קצר ועוזר לנו להשתפר:\n${url}\nתודה רבה, צוות תעשיידע`;
+    // The link is already individual; do not repeat the recipient's school or technical details.
+    return `${greeting}\nנשמח לקבל ממך משוב קצר על התוכנית "${programTitle}".\nהמשוב חשוב לנו כדי ללמוד מהניסיון שלך, לדייק ולשפר את התוכניות שלנו.\nלמילוי המשוב:\n${url}\nתודה רבה,\nצוות תעשיידע`;
   }
   return `משוב התוכנית "${programTitle}" – ממלאים כאן:\n${url}`;
 }
