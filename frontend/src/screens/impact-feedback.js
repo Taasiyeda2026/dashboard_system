@@ -1705,7 +1705,7 @@ function handleFilterInput(host, event) {
 /**
  * Keep the feedback activity view in sync with the canonical activities table.
  * Opening the feedback screen and switching tabs already perform a forced read.
- * While students/staff remain open, re-read in the foreground every minute and
+ * While student/staff/instructor tabs remain open, re-read in the foreground every minute and
  * when the browser regains focus; deletions and cleared dates are reflected too.
  * No second date store, database triggers, or persistent polling in the background.
  */
@@ -1724,21 +1724,33 @@ function installActivityDateSync(host) {
       return;
     }
     if (pending || ui.loading || ui.groupRowId ||
-        !['students', 'staff'].includes(ui.tab) ||
+        !['students', 'staff', 'instructors'].includes(ui.tab) ||
         document.visibilityState === 'hidden') return;
     const now = Date.now();
     if (now - lastCheckedAt < ACTIVITY_SYNC_MIN_GAP_MS) return;
     lastCheckedAt = now;
     pending = true;
     const year = ui.year;
+    const tab = ui.tab;
     try {
-      const groups = await fetchGroups(year);
-      if (controller.signal.aborted || !host.isConnected || year !== ui.year ||
-          !['students', 'staff'].includes(ui.tab) || ui.groupRowId) return;
-      if (JSON.stringify(groups) !== JSON.stringify(ui.groups)) {
-        ui.groups = groups;
-        ui.groupsYear = year;
-        paint(host);
+      if (tab === 'instructors') {
+        const assignments = await fetchInstructorAssignments(year);
+        if (controller.signal.aborted || !host.isConnected || year !== ui.year ||
+            tab !== ui.tab || ui.groupRowId) return;
+        if (JSON.stringify(assignments) !== JSON.stringify(ui.instructorAssignments)) {
+          ui.instructorAssignments = assignments;
+          ui.instructorAssignmentsYear = year;
+          paint(host);
+        }
+      } else {
+        const groups = await fetchGroups(year);
+        if (controller.signal.aborted || !host.isConnected || year !== ui.year ||
+            tab !== ui.tab || ui.groupRowId) return;
+        if (JSON.stringify(groups) !== JSON.stringify(ui.groups)) {
+          ui.groups = groups;
+          ui.groupsYear = year;
+          paint(host);
+        }
       }
     } catch (error) {
       // A temporary refresh failure must not clear the current table.
