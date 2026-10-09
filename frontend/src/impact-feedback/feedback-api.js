@@ -253,11 +253,12 @@ export async function downloadSavedPaperPdf(record) {
 
 export async function uploadSavedPaperPdf(template, file) {
   if (!template?.id || !template.current_version_id) throw new Error('יש לפרסם את התבנית לפני העלאת PDF');
-  if (!(file instanceof File) || file.type !== 'application/pdf' || file.size < 10 || file.size > 10485760) {
+  if (!(file instanceof File) || !/\.pdf$/i.test(file.name) || (file.type && file.type !== 'application/pdf') || file.size < 10 || file.size > 10485760) {
     throw new Error('ניתן להעלות PDF בלבד, עד 10MB');
   }
   const signature = new Uint8Array(await file.slice(0, 5).arrayBuffer());
   if (String.fromCharCode(...signature) !== '%PDF-') throw new Error('הקובץ אינו PDF תקין');
+  const existing = await unwrap(client().from('feedback_template_pdfs').select('storage_path').eq('template_id', template.id).maybeSingle());
   const path = `${template.id}/${crypto.randomUUID()}.pdf`;
   const storage = client().storage.from(PAPER_PDF_BUCKET);
   const { error } = await storage.upload(path, file, { contentType: 'application/pdf', upsert: false, cacheControl: '0' });
@@ -273,8 +274,10 @@ export async function uploadSavedPaperPdf(template, file) {
     await storage.remove([path]).catch(() => {});
     throw error;
   }
-  // Older objects can be reclaimed separately after verification; never delete
-  // the previously referenced file before metadata points at the new upload.
+  // Delete the previous object only AFTER the metadata references the new file.
+  if (existing?.storage_path && existing.storage_path !== path) {
+    await storage.remove([existing.storage_path]);
+  }
 }
 
 export async function deleteSavedPaperPdf(record) {
