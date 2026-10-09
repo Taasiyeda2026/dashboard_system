@@ -34,6 +34,7 @@ import {
   hasCourseStartDate,
   hasCourseEndDate,
   studentFeedbackPeriodForGroup,
+  filterFeedbackFactsForHalf,
   studentFeedbackHasResponses,
   sortStudentFeedbackGroups,
   isProgramUnresolved,
@@ -88,11 +89,12 @@ const TABS = [
 
 /** Data each tab needs; loaded per academic year and cached until refresh or a mutation. */
 const TAB_NEEDS = {
-  overview: ['summary', 'facts', 'groups'],
-  students: ['groups', 'facts'],
-  instructors: ['assignments', 'facts'],
-  staff: ['groups', 'facts'],
-  analysis: ['summary', 'facts'],
+  // Every tab's results are scoped to the same activities and instructor cohorts.
+  overview: ['summary', 'facts', 'groups', 'assignments'],
+  students: ['summary', 'groups', 'assignments', 'facts'],
+  instructors: ['summary', 'assignments', 'groups', 'facts'],
+  staff: ['summary', 'groups', 'assignments', 'facts'],
+  analysis: ['summary', 'groups', 'assignments', 'facts'],
   templates: []
 };
 
@@ -100,8 +102,7 @@ const ui = {
   tab: 'overview',
   groupRowId: null,
   groupReturnTab: 'students',
-  studentHalf: 'first',
-  staffHalf: 'first',
+  feedbackHalf: 'first',
   year: ACTIVE_ACTIVITY_SEASON,
   course: '',
   showAll: true,
@@ -118,6 +119,7 @@ const ui = {
   instructorAssignmentsYear: null,
   summary: null,
   summaryYear: null,
+  summaryHalf: null,
   metrics: [],
   programs: [],
   facts: null,
@@ -263,9 +265,14 @@ async function ensureInstructorAssignments(force = false) {
 }
 
 async function ensureSummary(force = false) {
-  if (!force && ui.summary && ui.summaryYear === ui.year) return;
-  ui.summary = await fetchCourseSummary(ui.year);
-  ui.summaryYear = ui.year;
+  if (!force && ui.summary && ui.summaryYear === ui.year && ui.summaryHalf === ui.feedbackHalf) return;
+  const year = ui.year;
+  const half = ui.feedbackHalf;
+  const rows = await fetchCourseSummary(year, half);
+  if (year !== ui.year || half !== ui.feedbackHalf) return;
+  ui.summary = rows;
+  ui.summaryYear = year;
+  ui.summaryHalf = half;
 }
 
 async function ensureFacts(force = false) {
@@ -304,9 +311,14 @@ function needsReady() {
   })[need]);
 }
 
-/** Facts of the selected course (all courses when none is selected). */
+/** The half-year view has one source of truth for facts on every tab. */
+function semesterFacts() {
+  return filterFeedbackFactsForHalf(ui.facts || [], ui.groups || [], ui.instructorAssignments || [], ui.feedbackHalf);
+}
+
+/** Facts of the selected course and selected scheduling half. */
 function courseFacts() {
-  const facts = ui.facts || [];
+  const facts = semesterFacts();
   return ui.course ? facts.filter((f) => f.program_key === ui.course) : facts;
 }
 
@@ -358,6 +370,7 @@ function shellHtml(inner) {
     <nav class="ifb-tabs" role="tablist" aria-label="לשוניות מודול המשובים">
       ${TABS.map((t) => `<button type="button" role="tab" id="ifb-tab-${t.key}" class="ifb-tab${ui.tab === t.key ? ' is-active' : ''}" aria-selected="${ui.tab === t.key}" aria-controls="ifb-panel" tabindex="${ui.tab === t.key ? '0' : '-1'}" data-ifb-tab="${t.key}">${esc(t.label)}</button>`).join('')}
     </nav>
+    ${ui.groupRowId || ui.tab === 'templates' ? '' : feedbackSemesterTabsHtml()}
     <div class="ifb-view" role="tabpanel" id="ifb-panel" aria-labelledby="ifb-tab-${activeTab.key}" tabindex="-1">${inner}</div>`;
 }
 
@@ -425,7 +438,7 @@ function barListHtml(title, entries) {
 
 /** Student PRE→POST on identical questions, pooled over all of the course's answers. */
 function studentChangeFor(programKey) {
-  const facts = (ui.facts || []).filter((f) => f.program_key === programKey && f.audience === 'student');
+  const facts = semesterFacts().filter((f) => f.program_key === programKey && f.audience === 'student');
   const result = comparePrePostByQuestion(factsFor(facts, 'student', 'pre'), factsFor(facts, 'student', 'post'));
   const rows = result.rows.filter((r) => r.comparable);
   if (!rows.length) return null;
@@ -539,6 +552,7 @@ function overviewHtml() {
   const matchesScope = (campaign) =>
     (!o.audience || campaign.audience === o.audience) && (!o.phase || stagePhase(campaign.audience, campaign.stage) === o.phase);
   const groups = courseScopedGroups().filter((g) =>
+    studentFeedbackPeriodForGroup(g) === ui.feedbackHalf &&
     g.program_key && groupHasFeedback(g) && g.campaigns.some(matchesScope));
   const withoutResponses = groups.filter((g) => g.campaigns.some((c) => matchesScope(c) && Number(c.responses || 0) === 0)).length;
   const kpis = [
@@ -596,24 +610,18 @@ function groupFiltersHtml(groups, scope) {
 }
 
 
-function groupSemesterTabsHtml(groups, scope) {
-  // Both audiences use the course's scheduling semester (start date).
-  // School staff are additionally gated by a known end date below.
-  const isStaff = scope === 'staff';
-  const selectedHalf = isStaff ? ui.staffHalf : ui.studentHalf;
+function feedbackSemesterTabsHtml() {
   const halves = [
     { key: 'first', label: "מחצית א׳" },
     { key: 'second', label: "מחצית ב׳" }
   ];
-  return `<div class="ifb-student-semesters" role="group" aria-label="בחירת מחצית ${isStaff ? 'לצוות חינוכי' : 'לתלמידים'}">
-    ${halves.map(({ key, label }) => {
-      const count = groups.filter((g) => studentFeedbackPeriodForGroup(g) === key).length;
-      return `<button type="button" class="ifb-student-semester${selectedHalf === key ? ' is-active' : ''}"
-        data-ifb-group-half="${key}" data-ifb-group-scope="${scope}" aria-pressed="${selectedHalf === key}">
-        ${label}<span class="ifb-student-semester__count">${count}</span>
-      </button>`;
-    }).join('')}
-    <span class="ifb-student-semesters__note">לפי מחצית הקורס בממשק השיבוצים</span>
+  // One control across the whole feedback module. Templates are intentionally
+  // shared and therefore do not need an additional half-specific copy.
+  return `<div class="ifb-student-semesters" role="group" aria-label="בחירת מחצית בממשק המשובים">
+    ${halves.map(({ key, label }) => `<button type="button"
+      class="ifb-student-semester${ui.feedbackHalf === key ? ' is-active' : ''}"
+      data-ifb-group-half="${key}" aria-pressed="${ui.feedbackHalf === key}">${label}</button>`).join('')}
+    <span class="ifb-student-semesters__note">לפי תאריך תחילת הקורס בממשק השיבוצים</span>
   </div>`;
 }
 
@@ -625,9 +633,7 @@ function groupsTableHtml(slots, scope) {
     : scope === 'staff'
       ? courseScopedGroups().filter(hasCourseEndDate)
       : courseScopedGroups();
-  const inHalf = (scope === 'students' || scope === 'staff')
-    ? all.filter((g) => studentFeedbackPeriodForGroup(g) === (scope === 'staff' ? ui.staffHalf : ui.studentHalf))
-    : all;
+  const inHalf = all.filter((g) => studentFeedbackPeriodForGroup(g) === ui.feedbackHalf);
   const matching = filterGroups(inHalf, ui.filters);
   const filtered = scope === 'students'
     ? sortStudentFeedbackGroups(matching)
@@ -674,7 +680,7 @@ function groupsTableHtml(slots, scope) {
           </tr>`).join('')}</tbody>
       </table>
     </div>` : emptyHtml('לא נמצאו קבוצות התואמות לסינון.', scope === 'students' ? 'בלשונית תלמידים מוצגות רק קבוצות שנקבע להן תאריך התחלה בכל הפעילויות.' : 'בלשונית צוות חינוכי מוצגות רק קבוצות שנקבע להן תאריך סיום בכל הפעילויות.');
-  return `${scope === 'students' || scope === 'staff' ? groupSemesterTabsHtml(all, scope) : ''}${groupFiltersHtml(inHalf, scope)}${body}`;
+  return `${groupFiltersHtml(inHalf, scope)}${body}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -895,7 +901,9 @@ function instructorOverallStatus(row) {
 }
 
 function instructorAssignmentsHtml() {
-  const all = (ui.instructorAssignments || []).filter((row) => row.first_start_date && (!ui.course || row.program_key === ui.course));
+  const all = (ui.instructorAssignments || []).filter((row) =>
+    studentFeedbackPeriodForGroup({ start_date: row.first_start_date }) === ui.feedbackHalf &&
+    (!ui.course || row.program_key === ui.course));
   const filters = ui.instructorFilters;
   const instructors = [...new Map(
     all.filter((row) => row.instructor_emp_id).map((row) => [String(row.instructor_emp_id), row.instructor_name || row.instructor_emp_id])
@@ -1070,7 +1078,7 @@ function crossCourseHtml() {
   const a = ui.analysis;
   const stageOptions = AUDIENCE_STAGES[a.audience] || ['post'];
   const stage = stageOptions.includes(a.stage) ? a.stage : stageOptions[stageOptions.length - 1];
-  const { programKeys, rows } = crossCourseCore(ui.facts || [], { audience: a.audience, stage });
+  const { programKeys, rows } = crossCourseCore(semesterFacts(), { audience: a.audience, stage });
   if (!rows.length) return emptyHtml('אין עדיין תשובות לשאלות הליבה המשותפות בקהל ובשלב שנבחרו.');
   return `<div class="ifb-table-wrap ifb-table-wrap--scroll"><table class="ifb-table ifb-cross-table">
     <caption class="ifb-sr">השוואה בין קורסים בשאלות הליבה</caption>
@@ -1107,7 +1115,7 @@ function analysisHtml() {
   const facts = courseFacts();
   return `
     ${analysisFiltersHtml()}
-    ${sectionHtml(`סיכום מצטבר – ${programTitle(ui.course)}`, cumulativeSummaryHtml(), { actions: exportButtonHtml('analysis', 'הפקת דוח מסכם (Excel)'), note: 'כל המשובים מכל קבוצות הלימוד של הקורס בשנת הלימודים שנבחרה.' })}
+    ${sectionHtml(`סיכום מצטבר – ${programTitle(ui.course)}`, cumulativeSummaryHtml(), { actions: exportButtonHtml('analysis', 'הפקת דוח מסכם (Excel)'), note: 'הנתונים מתייחסים רק למחצית הנבחרת, לפי תאריך תחילת הקורס.' })}
     ${sectionHtml('השוואה בין תלמידים, מדריכים וצוות חינוכי', audienceComparisonHtml(facts))}
     ${sectionHtml('פתיחה–סיום: תלמידים', prePostQuestionTableHtml(factsFor(facts, 'student', 'pre'), factsFor(facts, 'student', 'post'), { audience: 'student' }))}
     ${sectionHtml('פתיחה–סיום: מדריכים', prePostQuestionTableHtml(factsFor(facts, 'instructor', 'pre'), factsFor(facts, 'instructor', 'final'), { audience: 'instructor' }))}
@@ -1394,7 +1402,7 @@ function runExport(scope) {
     const cross = [];
     for (const audience of AUDIENCE_ORDER) {
       for (const stage of AUDIENCE_STAGES[audience]) {
-        const { programKeys, rows } = crossCourseCore(ui.facts || [], { audience, stage });
+        const { programKeys, rows } = crossCourseCore(semesterFacts(), { audience, stage });
         for (const r of rows) {
           for (const k of programKeys) {
             if (r.byProgram[k]) cross.push([AUDIENCE_LABELS[audience], stageLabelFor(audience, stage), neutralCoreText(r.text), programTitle(k), r.byProgram[k].avg ?? '', r.byProgram[k].n]);
@@ -1434,7 +1442,7 @@ function viewHtml() {
   if (ui.tab === 'instructors') return instructorsHtml();
   if (ui.tab === 'staff') return staffHtml();
   if (ui.tab === 'analysis') return analysisHtml();
-  if (ui.tab === 'templates') return `${courseOnlyFiltersHtml('templates')}${renderTemplatesView(ui)}`;
+  if (ui.tab === 'templates') return `<p class="ifb-template-semester-note">תבניות השאלונים משותפות למחצית א׳ ולמחצית ב׳ ואין צורך לשכפל אותן.</p>${courseOnlyFiltersHtml('templates')}${renderTemplatesView(ui)}`;
   return overviewHtml();
 }
 
@@ -1561,11 +1569,11 @@ async function handleClick(host, event) {
   const groupHalf = t.closest('[data-ifb-group-half]');
   if (groupHalf) {
     const next = groupHalf.dataset.ifbGroupHalf;
-    const scope = groupHalf.dataset.ifbGroupScope;
-    if ((next === 'first' || next === 'second') && (scope === 'students' || scope === 'staff')) {
-      if (scope === 'staff') ui.staffHalf = next;
-      else ui.studentHalf = next;
-      paint(host);
+    if ((next === 'first' || next === 'second') && ui.feedbackHalf !== next) {
+      ui.feedbackHalf = next;
+      ui.summary = null;
+      ui.summaryHalf = null;
+      await load(host);
     }
     return;
   }
@@ -1707,6 +1715,8 @@ function resetYearScopedState() {
   ui.instructorAssignments = null;
   ui.summary = null;
   ui.facts = null;
+  ui.summaryHalf = null;
+  ui.feedbackHalf = 'first';
   ui.instructorOpenForms.clear();
   ui.openForms.clear();
 }
