@@ -1,0 +1,328 @@
+{
+  "sourceCommit": "206b45fe57c0d529720c1f2ef400b65997aa98ea",
+  "fixtureSha256": "b1c075c4e6c56017324f3e9f622856012fc9c00917d6439a0b2bd9aaf90d37e1",
+  "notes": [
+    "Synthetic feasibility only, not full application acceptance or deployed job service.",
+    "Browser callback p95 is not an end-to-end user paint metric.",
+    "performance.memory sampled from window is diagnostic and not an isolated worker RSS peak.",
+    "Cold workers are fresh for each run; resident warm samples reuse identical source data.",
+    "National runtime has one sample per placement; no percentile runtime claim.",
+    "All runtimes tested sequentially; no build or other calculation ran concurrently."
+  ],
+  "browser": {
+    "synthetic": true,
+    "fixtureBytes": 8867991,
+    "browser": "151.0.7922.173",
+    "samples": [
+      {
+        "mode": "point",
+        "place": "main",
+        "wallMs": 868.3999999985099,
+        "postMessageSyncMs": 0,
+        "clickCount": 16,
+        "clickLagP95Ms": 18.600000001490116,
+        "clickLagMaxMs": 18.600000001490116,
+        "frameGapP95Ms": 33.299999999999955,
+        "frameGapMaxMs": 50,
+        "progressMessages": 5,
+        "mainHeapSampledBytes": 42802341,
+        "cancelAckMs": null,
+        "result": {
+          "computeMs": 868.3999999985099,
+          "total": 253,
+          "uncovered": 0,
+          "valid": true,
+          "failures": 0,
+          "warnings": 0
+        }
+      },
+      {
+        "mode": "point",
+        "place": "main",
+        "wallMs": 644.6999999992549,
+        "postMessageSyncMs": 0,
+        "clickCount": 12,
+        "clickLagP95Ms": 19.199999999254942,
+        "clickLagMaxMs": 19.199999999254942,
+        "frameGapP95Ms": 16.799999999999955,
+        "frameGapMaxMs": 16.800000000000182,
+        "progressMessages": 5,
+        "mainHeapSampledBytes": 49982193,
+        "cancelAckMs": null,
+        "result": {
+          "computeMs": 644.6999999992549,
+          "total": 253,
+          "uncovered": 0,
+          "valid": true,
+          "failures": 0,
+          "warnings": 0
+        }
+      },
+      {
+        "mode": "point",
+        "place": "main",
+        "wallMs": 665.5999999977648,
+        "postMessageSyncMs": 0,
+        "clickCount": 12,
+        "clickLagP95Ms": 13,
+        "clickLagMaxMs": 13,
+        "frameGapP95Ms": 16.700000000000273,
+        "frameGapMaxMs": 16.800000000000182,
+        "progressMessages": 5,
+        "mainHeapSampledBytes": 56872193,
+        "cancelAckMs": null,
+        "result": {
+          "computeMs": 665.5,
+          "total": 253,
+          "uncovered": 0,
+          "valid": true,
+          "failures": 0,
+          "warnings": 0
+        }
+      },
+      {
+        "mode": "point",
+        "place": "worker",
+        "wallMs": 994.6999999992549,
+        "postMessageSyncMs": 23,
+        "clickCount": 19,
+        "clickLagP95Ms": 6.199999999254942,
+        "clickLagMaxMs": 6.199999999254942,
+        "frameGapP95Ms": 16.700000000000273,
+        "frameGapMaxMs": 16.800000000000182,
+        "progressMessages": 5,
+        "mainHeapSampledBytes": 38855069,
+        "cancelAckMs": null,
+        "result": {
+          "done": true,
+          "computeMs": 786.6999999992549,
+          "total": 253,
+          "uncovered": 0,
+          "valid": true,
+          "failures": 0,
+          "warnings": 0
+        }
+      },
+      {
+        "mode": "point",
+        "place": "worker",
+        "wallMs": 1040.5,
+        "postMessageSyncMs": 34.80000000074506,
+        "clickCount": 20,
+        "clickLagP95Ms": 8.199999999254942,
+        "clickLagMaxMs": 8.199999999254942,
+        "frameGapP95Ms": 16.799999999999272,
+        "frameGapMaxMs": 16.799999999999727,
+        "progressMessages": 5,
+        "mainHeapSampledBytes": 38898661,
+        "cancelAckMs": null,
+        "result": {
+          "done": true,
+          "computeMs": 815.8999999985099,
+          "total": 253,
+          "uncovered": 0,
+          "valid": true,
+          "failures": 0,
+          "warnings": 0
+        }
+      },
+      {
+        "mode": "point",
+        "place": "worker",
+        "wallMs": 962.2999999970198,
+        "postMessageSyncMs": 23.300000000745058,
+        "clickCount": 19,
+        "clickLagP95Ms": 7.599999997764826,
+        "clickLagMaxMs": 7.599999997764826,
+        "frameGapP95Ms": 16.800000000000182,
+        "frameGapMaxMs": 16.800000000000182,
+        "progressMessages": 5,
+        "mainHeapSampledBytes": 38929481,
+        "cancelAckMs": null,
+        "result": {
+          "done": true,
+          "computeMs": 763.5,
+          "total": 253,
+          "uncovered": 0,
+          "valid": true,
+          "failures": 0,
+          "warnings": 0
+        }
+      },
+      {
+        "mode": "national",
+        "place": "main",
+        "wallMs": 71374.80000000075,
+        "postMessageSyncMs": 0,
+        "clickCount": 1426,
+        "clickLagP95Ms": 18.900000002235174,
+        "clickLagMaxMs": 61.100000001490116,
+        "frameGapP95Ms": 16.79999999998836,
+        "frameGapMaxMs": 33.400000000001455,
+        "progressMessages": 761,
+        "mainHeapSampledBytes": 582553121,
+        "cancelAckMs": null,
+        "result": {
+          "computeMs": 71374.80000000075,
+          "total": 253,
+          "uncovered": 0,
+          "valid": true,
+          "failures": 0,
+          "warnings": 0
+        }
+      },
+      {
+        "mode": "national",
+        "place": "worker",
+        "wallMs": 71607.29999999702,
+        "postMessageSyncMs": 28,
+        "clickCount": 1431,
+        "clickLagP95Ms": 4.300000000745058,
+        "clickLagMaxMs": 35,
+        "frameGapP95Ms": 16.70000000001164,
+        "frameGapMaxMs": 66.70000000001164,
+        "progressMessages": 761,
+        "mainHeapSampledBytes": 561789101,
+        "cancelAckMs": null,
+        "result": {
+          "done": true,
+          "computeMs": 71334.39999999851,
+          "total": 253,
+          "uncovered": 0,
+          "valid": true,
+          "failures": 0,
+          "warnings": 0
+        }
+      }
+    ],
+    "cancellation": {
+      "mode": "national",
+      "place": "worker",
+      "wallMs": 1032,
+      "postMessageSyncMs": 27.699999999254942,
+      "clickCount": 20,
+      "clickLagP95Ms": 5.399999998509884,
+      "clickLagMaxMs": 5.399999998509884,
+      "frameGapP95Ms": 16.70000000001164,
+      "frameGapMaxMs": 16.800000000017462,
+      "progressMessages": 13,
+      "mainHeapSampledBytes": 18486337,
+      "cancelAckMs": 3.899999998509884,
+      "result": {
+        "done": true,
+        "error": "planning_cancelled",
+        "computeMs": 814.3000000007451
+      }
+    },
+    "closePageWorkersBefore": 1,
+    "closePageWorkersAfter": 0
+  },
+  "residentWorker": {
+    "synthetic": true,
+    "fixtureBytes": 8867991,
+    "browser": "151.0.7922.173",
+    "samples": [
+      {
+        "mode": "point",
+        "place": "resident",
+        "wallMs": 1077.300000000745,
+        "postMessageSyncMs": 23.199999999254942,
+        "clickCount": 21,
+        "clickLagP95Ms": 5.199999999254942,
+        "clickLagMaxMs": 5.700000002980232,
+        "frameGapP95Ms": 16.700000000000045,
+        "frameGapMaxMs": 16.799999999999955,
+        "progressMessages": 5,
+        "mainHeapSampledBytes": 25314985,
+        "cancelAckMs": null,
+        "result": {
+          "done": true,
+          "computeMs": 825.1000000014901,
+          "total": 253,
+          "uncovered": 0,
+          "valid": true,
+          "failures": 0,
+          "warnings": 0
+        }
+      },
+      {
+        "mode": "point",
+        "place": "resident",
+        "wallMs": 663.8999999985099,
+        "postMessageSyncMs": 0,
+        "clickCount": 13,
+        "clickLagP95Ms": 6,
+        "clickLagMaxMs": 6,
+        "frameGapP95Ms": 16.700000000000273,
+        "frameGapMaxMs": 16.700000000000273,
+        "progressMessages": 5,
+        "mainHeapSampledBytes": 25374237,
+        "cancelAckMs": null,
+        "result": {
+          "done": true,
+          "computeMs": 663.6999999992549,
+          "total": 253,
+          "uncovered": 0,
+          "valid": true,
+          "failures": 0,
+          "warnings": 0
+        }
+      },
+      {
+        "mode": "point",
+        "place": "resident",
+        "wallMs": 647,
+        "postMessageSyncMs": 0.10000000149011612,
+        "clickCount": 12,
+        "clickLagP95Ms": 4.199999999254942,
+        "clickLagMaxMs": 4.199999999254942,
+        "frameGapP95Ms": 16.800000000000182,
+        "frameGapMaxMs": 16.800000000000182,
+        "progressMessages": 5,
+        "mainHeapSampledBytes": 25398393,
+        "cancelAckMs": null,
+        "result": {
+          "done": true,
+          "computeMs": 646.5999999977648,
+          "total": 253,
+          "uncovered": 0,
+          "valid": true,
+          "failures": 0,
+          "warnings": 0
+        }
+      }
+    ]
+  },
+  "standaloneNode": {
+    "runtime": "v24.19.0",
+    "synthetic": true,
+    "wallMs": 44204.183102,
+    "cpuMs": 49386.438,
+    "memoryBefore": {
+      "rss": 82386944,
+      "heapTotal": 108314624,
+      "heapUsed": 39420536,
+      "external": 4357656,
+      "arrayBuffers": 146559
+    },
+    "memoryAfter": {
+      "rss": 1164484608,
+      "heapTotal": 1088430080,
+      "heapUsed": 960128832,
+      "external": 3763636,
+      "arrayBuffers": 146575
+    },
+    "peakRssSampled": 1165443072,
+    "eventLoopHeartbeatMaxLagMs": 225.2941869999995,
+    "heartbeatTicks": 3024,
+    "total": 253,
+    "uncovered": 0,
+    "valid": true,
+    "failures": 0,
+    "warnings": 0,
+    "dbRequests": 0,
+    "networkRequests": 0,
+    "writes": 0,
+    "notes": "Standalone Node runtime only; no HTTP job API, queue or process-restart recovery tested."
+  }
+}

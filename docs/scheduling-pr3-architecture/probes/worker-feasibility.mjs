@@ -1,0 +1,34 @@
+// Isolated feasibility measurements only; no application implementation or writes.
+import {createServer} from './repo/node_modules/vite/dist/node/index.js';
+import {chromium} from './repo/node_modules/playwright/index.mjs';
+import {readFile,writeFile} from 'node:fs/promises';
+const fixture=await readFile(new URL('./isolated-fixture.json',import.meta.url),'utf8');
+const engine=`import {buildDynamicCoursePlan,createPlanningCheckpoint} from '/frontend/src/screens/course-scheduling-planning.js';
+import {createRouteClient} from '/frontend/src/screens/course-scheduling-travel.js';
+export async function compute(f,mode,signal,onProgress){
+ const routeClient=createRouteClient({preloadedRows:f.routes,invoke:async()=>{throw Error('External routes blocked')}});
+ return buildDynamicCoursePlan({activities:f.activities,instructors:f.instructors,profiles:f.profiles,rules:f.rules,exceptions:{},schoolCalendar:[],catalog:[{activity_name:'ביומימיקרי',meetings_count:8,hours_count:1.5}],today:'2026-10-09',routeClient,targetCourseIds:mode==='point'?['synthetic-110']:f.activities.map(a=>a.row_id),existingRows:mode==='point'?f.existing:[],committedRows:mode==='point'?f.existing:[],allowGlobalRepair:false,planningProfile:'fast',skipSoftOptimization:true,checkpoint:createPlanningCheckpoint({signal}),onProgress});
+}`;
+const worker=`import {compute} from '/probe-engine.js';let controller;
+self.onmessage=async({data})=>{if(data.cancel){controller?.abort();return;}controller=new AbortController();const start=performance.now();try{const result=await compute(data.fixture,data.mode,controller.signal,p=>postMessage({progress:true,phase:p.phase,completed:p.completed}));postMessage({done:true,computeMs:performance.now()-start,total:result.total,uncovered:result.rows.filter(r=>!r.instructorEmpId).length,valid:result.finalPlanValidation.valid,failures:result.finalPlanValidation.failures.length,warnings:result.finalPlanValidation.warnings.length});}catch(e){postMessage({done:true,error:e.code||e.message,computeMs:performance.now()-start});}};`;
+const page=`<button id="search">search/navigation/edit</button><input id="edit"><script type="module">
+import {compute} from '/probe-engine.js';
+window.fixture=await(await fetch('/probe-fixture')).json();window.ready=true;
+window.run=async(mode,place,cancelAfter=null)=>{let worker=null;let progress=0;let clickLags=[];let frameGaps=[];let last=performance.now();let stopped=false;let peakHeap=performance.memory?.usedJSHeapSize||null;let cancelStart=null;
+ const raf=now=>{if(stopped)return;frameGaps.push(now-last);last=now;peakHeap=Math.max(peakHeap||0,performance.memory?.usedJSHeapSize||0);requestAnimationFrame(raf)};requestAnimationFrame(raf);
+ document.querySelector('button').onclick=()=>{clickLags.push(performance.now()-window.clickStart);document.querySelector('input').value='edited';};
+ const timer=setInterval(()=>{window.clickStart=performance.now();setTimeout(()=>document.querySelector('button').click(),0);},50);
+ const start=performance.now();let postMs=0;let result;
+ if(place==='worker'){worker=new Worker('/probe-worker.js',{type:'module'});window.currentWorker=worker;result=await new Promise((resolve,reject)=>{worker.onerror=e=>reject(Error(e.message));worker.onmessage=({data})=>{if(data.progress){progress++;return;}if(data.done)resolve(data);};const before=performance.now();worker.postMessage({fixture:window.fixture,mode});postMs=performance.now()-before;if(cancelAfter!=null)setTimeout(()=>{cancelStart=performance.now();worker.postMessage({cancel:true});},cancelAfter);});worker.terminate();}
+ else {const resultStart=performance.now();const r=await compute(window.fixture,mode,null,()=>progress++);result={computeMs:performance.now()-resultStart,total:r.total,uncovered:r.rows.filter(x=>!x.instructorEmpId).length,valid:r.finalPlanValidation.valid,failures:r.finalPlanValidation.failures.length,warnings:r.finalPlanValidation.warnings.length};}
+ stopped=true;clearInterval(timer);const wallMs=performance.now()-start;const q=(a,p)=>{const s=a.slice().sort((a,b)=>a-b);return s.length?s[Math.min(s.length-1,Math.floor(p*s.length))]:null};
+ return{mode,place,wallMs,postMessageSyncMs:postMs,clickCount:clickLags.length,clickLagP95Ms:q(clickLags,.95),clickLagMaxMs:Math.max(0,...clickLags),frameGapP95Ms:q(frameGaps,.95),frameGapMaxMs:Math.max(0,...frameGaps),progressMessages:progress,mainHeapSampledBytes:peakHeap,cancelAckMs:cancelStart==null?null:performance.now()-cancelStart,result};};
+</script>`;
+const server=await createServer({configFile:false,root:new URL('./repo/',import.meta.url).pathname,server:{host:'127.0.0.1',port:5179,strictPort:true},plugins:[{name:'isolated-probe',configureServer(s){s.middlewares.use((req,res,next)=>{let content,type='text/javascript';if(req.url==='/probe') {content=page;type='text/html'}else if(req.url==='/probe-fixture'){content=fixture;type='application/json'}else if(req.url==='/probe-worker.js')content=worker;else if(req.url==='/probe-engine.js')content=engine;else return next();res.setHeader('Content-Type',type);res.end(content);});}}]});
+await server.listen();const browser=await chromium.launch({executablePath:'/usr/bin/chromium',headless:true,args:['--no-sandbox']});const context=await browser.newContext();await context.route('**/*',route=>new URL(route.request().url()).hostname==='127.0.0.1'?route.continue():route.abort());const output={synthetic:true,fixtureBytes:Buffer.byteLength(fixture),browser:await browser.version(),samples:[]};
+try{const p=await context.newPage();p.on('pageerror',e=>console.log('pageerror',e.message));await p.goto('http://127.0.0.1:5179/probe');await p.waitForFunction(()=>window.ready,{timeout:60000});
+ for(const [mode,place,count]of[['point','main',3],['point','worker',3],['national','main',1],['national','worker',1]])for(let n=0;n<count;n++){const result=await p.evaluate(([mode,place])=>window.run(mode,place),[mode,place]);output.samples.push(result);await writeFile(new URL('./worker-feasibility-results.json',import.meta.url),JSON.stringify(output,null,2));console.log(JSON.stringify(result));}
+ output.cancellation=await p.evaluate(()=>window.run('national','worker',1000));console.log(JSON.stringify({cancellation:output.cancellation}));
+ await p.evaluate(()=>{window.run('national','worker').catch(()=>{});});await p.waitForTimeout(1500);const cdp=await browser.newBrowserCDPSession();output.closePageWorkersBefore=(await cdp.send('Target.getTargets')).targetInfos.filter(x=>x.type==='worker').length;await p.close();await new Promise(r=>setTimeout(r,500));output.closePageWorkersAfter=(await cdp.send('Target.getTargets')).targetInfos.filter(x=>x.type==='worker').length;
+ await writeFile(new URL('./worker-feasibility-results.json',import.meta.url),JSON.stringify(output,null,2));console.log(JSON.stringify({closePageWorkersBefore:output.closePageWorkersBefore,closePageWorkersAfter:output.closePageWorkersAfter}));
+}finally{await browser.close();await server.close();}
