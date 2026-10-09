@@ -887,7 +887,7 @@ function instructorOverallStatus(row) {
 }
 
 function instructorAssignmentsHtml() {
-  const all = (ui.instructorAssignments || []).filter((row) => !ui.course || row.program_key === ui.course);
+  const all = (ui.instructorAssignments || []).filter((row) => row.first_start_date && (!ui.course || row.program_key === ui.course));
   const filters = ui.instructorFilters;
   const instructors = [...new Map(
     all.filter((row) => row.instructor_emp_id).map((row) => [String(row.instructor_emp_id), row.instructor_name || row.instructor_emp_id])
@@ -897,7 +897,7 @@ function instructorAssignmentsHtml() {
     if (filters.instructor && String(row.instructor_emp_id) !== filters.instructor) return false;
     if (filters.manager && !(Array.isArray(row.activity_managers) && row.activity_managers.includes(filters.manager))) return false;
     return instructorFilterMatches(row, filters.status);
-  }).sort((a, b) => String(a.first_course_end_date || '9999-12-31').localeCompare(String(b.first_course_end_date || '9999-12-31'))
+  }).sort((a, b) => String(a.first_start_date).localeCompare(String(b.first_start_date))
     || String(a.instructor_name || '').localeCompare(String(b.instructor_name || ''), 'he')
     || String(a.program_key || '').localeCompare(String(b.program_key || '')));
   const preCompleted = all.filter((row) => row.pre_campaign?.recipient?.status === 'completed').length;
@@ -934,19 +934,25 @@ function instructorAssignmentsHtml() {
     ${rows.length ? `<div class="ifb-table-wrap">
       <table class="ifb-table ifb-instructor-table">
         <caption class="ifb-sr">משובי מדריכים לפי מדריך וקורס</caption>
-        <thead><tr><th scope="col">מדריך</th><th scope="col">קורס</th><th scope="col" class="ifb-center">קבוצות</th><th scope="col" class="ifb-center ifb-col-date" title="מועד הסיום הראשון מבין קבוצות המדריך בקורס">סיום ראשון</th><th scope="col" class="ifb-col-status">סטטוס</th><th scope="col" class="ifb-center">פתיחה – אחרי הכשרה</th><th scope="col" class="ifb-center">סיום הקורס</th></tr></thead>
+        <colgroup>
+          <col class="ifb-iw-instructor"><col class="ifb-iw-program"><col class="ifb-iw-groups">
+          <col class="ifb-iw-first-start"><col class="ifb-iw-first-end">
+          <col class="ifb-iw-status"><col class="ifb-iw-stage"><col class="ifb-iw-stage">
+        </colgroup>
+        <thead><tr><th scope="col">מדריך</th><th scope="col">קורס</th><th scope="col" class="ifb-center">קבוצות</th><th scope="col" class="ifb-center ifb-col-date" title="תאריך ההתחלה המוקדם ביותר מכל קבוצות המדריך בקורס">תחילת קורס ראשון</th><th scope="col" class="ifb-center ifb-col-date" title="תאריך הסיום המוקדם ביותר מכל קבוצות המדריך בקורס, ללא תלות בקבוצת ההתחלה הראשונה">סיום קורס ראשון</th><th scope="col" class="ifb-col-status">סטטוס</th><th scope="col" class="ifb-center">פתיחה – אחרי הכשרה</th><th scope="col" class="ifb-center">סיום הקורס</th></tr></thead>
         <tbody>${rows.map((row) => `
           <tr data-instructor-feedback="${esc(instructorAssignmentKey(row))}">
             <th scope="row" data-label="מדריך"><span>${esc(row.instructor_name || row.instructor_emp_id)}</span><span class="ifb-muted ifb-instructor-id">#${esc(row.instructor_emp_id)}</span></th>
             <td data-label="קורס">${esc(programTitle(row.program_key))}</td>
             <td data-label="קבוצות" class="ifb-center"><span class="ifb-num">${Number(row.assignment_count) || 0}</span></td>
-            <td data-label="סיום הקורס הראשון" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(row.first_course_end_date)}</td>
+            <td data-label="תחילת קורס ראשון" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(row.first_start_date)}</td>
+            <td data-label="סיום קורס ראשון" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(row.first_course_end_date)}</td>
             <td data-label="סטטוס" class="ifb-col-status">${(() => { const s = instructorOverallStatus(row); return statusText(s.label, s.tone); })()}</td>
             <td data-label="פתיחה – אחרי הכשרה" class="ifb-instructor-stage-cell">${instructorCampaignActionsHtml(row, 'pre')}</td>
             <td data-label="סיום הקורס" class="ifb-instructor-stage-cell">${instructorCampaignActionsHtml(row, 'final')}</td>
           </tr>`).join('')}</tbody>
       </table>
-    </div>` : emptyHtml('לא נמצאו שיבוצי מדריכים התואמים לסינון.', 'משוב מדריך נפתח פעם אחת לכל מדריך, קורס ושנת לימודים, לפי שיבוצים נעולים.')}`;
+    </div>` : emptyHtml('לא נמצאו שיבוצי מדריכים התואמים לסינון.', 'מוצגים רק שיבוצי מדריך–קורס עם תאריך התחלה. המשוב נפתח פעם אחת לכל מדריך וקורס בשנת הלימודים.')}`;
 }
 
 function instructorsHtml() {
