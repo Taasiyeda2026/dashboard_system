@@ -1653,12 +1653,13 @@
 }
 
 
-/* Templates: four balanced cards on desktop and compact, centered document actions.
-   Scoped to the feedback template list; questionnaire editor layout is unchanged. */
+
+/* Templates: approved three-card desktop grid with tight Hebrew/Arabic PDF columns.
+   Only the template LIST changes; editors and public questionnaires are untouched. */
 .ifb-admin .ifb-template-grid {
   width: 100%;
-  max-width: min(100%, 1280px);
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  max-width: min(100%, 1320px);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-auto-rows: 1fr;
   justify-items: stretch;
   align-items: stretch;
@@ -1672,64 +1673,106 @@
   height: 100%;
   margin: 0;
   padding: 0;
-  border-radius: 11px;
+  border: 1px solid var(--ifb-a-line);
+  border-radius: 12px;
+  background: var(--ifb-a-card);
 }
 .ifb-admin .ifb-template-card__inner {
   display: grid;
-  grid-template-rows: minmax(37px, auto) minmax(18px, auto) 1fr;
+  grid-template-rows: minmax(31px, auto) minmax(17px, auto) 1fr;
   align-content: start;
   justify-items: center;
-  gap: 5px;
+  min-width: 0;
   min-height: 100%;
-  padding: 13px 10px 12px;
+  gap: 3px;
+  padding: 12px 9px;
 }
 .ifb-admin .ifb-template-card__title {
+  width: 100%;
   min-width: 0;
-  align-self: center;
-  font-size: 14px;
-  line-height: 1.28;
+  margin: 0;
+  align-self: end;
+  font-size: 16px;
+  font-weight: 750;
+  line-height: 1.3;
   text-align: center;
 }
 .ifb-admin .ifb-template-card__gefen {
+  width: 100%;
   align-self: start;
+  min-height: 17px;
   margin: 0;
-  min-height: 18px;
+  color: var(--ifb-a-muted);
+  font-size: 10.5px;
   line-height: 1.35;
   text-align: center;
 }
 .ifb-admin .ifb-template-card__slots {
-  width: min(100%, 310px);
+  width: min(100%, 400px);
+  max-width: 100%;
   min-width: 0;
   margin-inline: auto;
   align-self: start;
+  display: grid;
+  justify-items: stretch;
   gap: 5px;
 }
+.ifb-admin .ifb-template-card__language-headings,
 .ifb-admin .ifb-template-card__slot {
   width: 100%;
   min-width: 0;
-  grid-template-columns: minmax(0, 1fr) 44px 34px 28px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.37fr) repeat(2, minmax(0, .85fr));
+  align-items: center;
   justify-items: stretch;
-  gap: 4px;
+  column-gap: 3px;
+  margin-inline: auto;
 }
-.ifb-admin .ifb-template-card__open,
+.ifb-admin .ifb-template-card__language-headings {
+  color: var(--ifb-a-muted);
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.3;
+  text-align: center;
+  padding-block: 2px 3px;
+}
+.ifb-admin .ifb-template-card__slot { row-gap: 0; }
+.ifb-admin .ifb-template-card__open {
+  width: 100%;
+  min-width: 0;
+  min-height: 32px;
+  padding: 4px 3px;
+  font-size: 10.5px;
+  font-weight: 650;
+  line-height: 1.18;
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+.ifb-admin .ifb-template-card__lang-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+  position: relative;
+}
 .ifb-admin .ifb-template-card__pdf,
 .ifb-admin .ifb-template-card__upload,
 .ifb-admin .ifb-template-card__delete {
+  flex: 0 0 auto;
+  width: 24px;
   min-width: 0;
-  min-height: 36px;
-  border-radius: 6px;
-}
-.ifb-admin .ifb-template-card__open {
-  padding: 4px 5px;
-  font-size: 11.5px;
-  font-weight: 650;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
+  min-height: 30px;
+  height: 30px;
+  padding: 2px 0;
+  border-radius: 5px;
 }
 .ifb-admin .ifb-template-card__pdf {
-  font-size: 10px;
+  font-size: 9px;
   font-weight: 800;
-  letter-spacing: .015em;
+  letter-spacing: 0;
 }
 .ifb-admin .ifb-template-card__pdf.is-ready {
   color: var(--ifb-a-accent);
@@ -1737,21 +1780,21 @@
   border-color: color-mix(in srgb, var(--ifb-a-accent) 45%, var(--ifb-a-line));
 }
 .ifb-admin .ifb-template-card__pdf:disabled {
-  opacity: .75;
+  opacity: .65;
   color: var(--ifb-a-muted);
   background: var(--ifb-a-card);
   border-color: var(--ifb-a-line);
   cursor: not-allowed;
 }
 .ifb-admin .ifb-template-card__pdf.is-stale:disabled {
-  color: var(--ifb-a-warn);
-  border-color: color-mix(in srgb, var(--ifb-a-warn) 35%, var(--ifb-a-line));
+  color: #a33b00;
+  border-color: #e3a468;
 }
 .ifb-admin .ifb-template-card__upload {
   display: grid;
   place-items: center;
-  background: var(--ifb-a-accent-soft);
   color: var(--ifb-a-accent);
+  background: var(--ifb-a-accent-soft);
   border-color: color-mix(in srgb, var(--ifb-a-accent) 40%, var(--ifb-a-line));
 }
 .ifb-admin .ifb-template-card__upload:disabled {
@@ -1761,11 +1804,12 @@
 .ifb-admin .ifb-template-card__delete {
   display: grid;
   place-items: center;
+  width: 20px;
 }
 .ifb-admin .ifb-template-card__upload svg,
 .ifb-admin .ifb-template-card__delete svg {
-  width: 17px;
-  height: 17px;
+  width: 14px;
+  height: 14px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.9;
@@ -1773,21 +1817,26 @@
   stroke-linejoin: round;
 }
 .ifb-admin .ifb-template-card__delete-placeholder {
-  width: 28px;
-  height: 36px;
+  display: block;
+  flex: 0 0 20px;
+  width: 20px;
+  height: 30px;
+  visibility: hidden;
+  pointer-events: none;
 }
 .ifb-admin .ifb-template-card__warning {
-  /* Keep the stale marker over the PDF button, not over the upload icon. */
-  inset-inline-end: 94px;
+  position: absolute;
+  top: -6px;
+  left: -4px;
+  right: auto;
+  inset-inline-end: auto;
+  z-index: 1;
 }
-@media (min-width: 980px) and (max-width: 1299px) {
-  .ifb-admin .ifb-template-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-@media (min-width: 621px) and (max-width: 979px) {
+@media (min-width: 681px) and (max-width: 999px) {
   .ifb-admin .ifb-template-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
-@media (max-width: 620px) {
+@media (max-width: 680px) {
   .ifb-admin .ifb-template-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
-  .ifb-admin .ifb-template-card__inner { padding: 13px 12px 12px; }
-  .ifb-admin .ifb-template-card__slots { max-width: 310px; }
+  .ifb-admin .ifb-template-card__inner { padding: 12px 9px; }
+  .ifb-admin .ifb-template-card__slots { width: min(100%, 400px); max-width: 100%; }
 }

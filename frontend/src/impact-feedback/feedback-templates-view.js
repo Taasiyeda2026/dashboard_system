@@ -112,24 +112,44 @@ function listHtml(ui) {
         'instructor:pre': 'מדריכים (התחלה)',
         'instructor:final': 'מדריכים (סיום)'
       })[slot.key] || templateSlotLabel(slot);
-      const file = tpl.paperPdfs?.find((p) => p.template_id === template.id);
-      const outdated = Boolean(file && file.version_id !== template.current_version_id);
-      const upToDate = Boolean(file && !outdated);
-      const pdfState = upToDate ? 'is-ready' : outdated ? 'is-stale' : 'is-missing';
+      const languageControls = (language) => {
+        const file = tpl.paperPdfs?.find((p) => p.template_id === template.id && p.language === language);
+        const outdated = Boolean(file && file.version_id !== template.current_version_id);
+        const upToDate = Boolean(file && !outdated);
+        const pdfState = upToDate ? 'is-ready' : outdated ? 'is-stale' : 'is-missing';
+        const langName = language === 'he' ? 'עברית' : 'ערבית';
+        return `<div class="ifb-template-card__lang-actions" data-pdf-language="${language}" aria-label="קובצי PDF בשפה ${langName}">
+          <button type="button" class="ifb-template-card__pdf ${pdfState}" data-tpl-pdf="${esc(template.id)}" data-tpl-lang="${language}" ${upToDate ? '' : 'disabled'}
+            title="${upToDate ? 'הורדת PDF שמור – ' + langName : outdated ? 'הקובץ אינו עדכני – יש להחליף PDF ' + langName : 'טרם הועלה PDF – ' + langName}"
+            aria-label="${upToDate ? 'הורדת' : outdated ? 'PDF לא עדכני עבור' : 'PDF חסר עבור'} ${esc(name)} – ${langName}">PDF</button>
+          <button type="button" class="ifb-template-card__upload" data-tpl-upload="${esc(template.id)}" data-tpl-lang="${language}" ${published ? '' : 'disabled'}
+            title="${file ? 'החלפת PDF שמור – ' : 'העלאת PDF – '}${langName}"
+            aria-label="${file ? 'החלפת' : 'העלאת'} PDF: ${esc(name)} – ${langName}">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+          </button>
+          ${file ? `<button type="button" class="ifb-template-card__delete" data-tpl-delete="${esc(template.id)}" data-tpl-lang="${language}"
+            aria-label="מחיקת PDF: ${esc(name)} – ${langName}" title="מחיקת PDF – ${langName}">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h16M10 4h4m-7 3 1 13h8l1-13M10 11v6m4-6v6"/></svg>
+          </button>` : '<span class="ifb-template-card__delete-placeholder" aria-hidden="true"></span>'}
+          ${outdated ? '<span class="ifb-template-card__warning" role="img" aria-label="PDF לא עדכני" title="השאלון עודכן. יש להחליף PDF">!</span>' : ''}
+        </div>`;
+      };
       return `<div class="ifb-template-card__slot">
         <button type="button" class="ifb-template-card__open" data-tpl-open="${esc(template.id)}" title="${esc(name)}" aria-label="צפייה ועריכת ${esc(name)}">${esc(short)}${draft ? '<span class="ifb-sr"> – טיוטה בעריכה</span>' : ''}</button>
-        <button type="button" class="ifb-template-card__pdf ${pdfState}" data-tpl-pdf="${esc(template.id)}" ${upToDate ? '' : 'disabled'} title="${upToDate ? 'הורדת PDF שמור' : outdated ? 'הקובץ אינו עדכני — יש להחליף PDF' : 'טרם הועלה PDF'}" aria-label="${upToDate ? 'הורדת' : outdated ? 'PDF לא עדכני עבור' : 'PDF חסר עבור'} ${esc(name)}">PDF</button>
-        ${outdated ? '<span class="ifb-template-card__warning" role="img" aria-label="PDF לא עדכני" title="השאלון עודכן. יש להחליף PDF">!</span>' : ''}
-        <button type="button" class="ifb-template-card__upload" data-tpl-upload="${esc(template.id)}" ${published ? '' : 'disabled'} title="${file ? 'החלפת PDF שמור' : 'העלאת PDF'}" aria-label="${file ? 'החלפת' : 'העלאת'} PDF: ${esc(name)}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></button>
-        ${file ? `<button type="button" class="ifb-template-card__delete" data-tpl-delete="${esc(template.id)}" aria-label="מחיקת PDF: ${esc(name)}" title="מחיקת PDF"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h16M10 4h4m-7 3 1 13h8l1-13M10 11v6m4-6v6"/></svg></button>` : '<span class="ifb-template-card__delete-placeholder" aria-hidden="true"></span>'}
-        ${outdated ? '<span class="ifb-template-card__stale-text">יש להחליף PDF</span>' : ''}
+        ${languageControls('he')}
+        ${languageControls('ar')}
       </div>`;
     }).join('');
     return `<article class="ifb-template-card" data-template-course="${esc(program.key)}">
       <div class="ifb-template-card__inner">
         <h3 class="ifb-template-card__title">${esc(program.title)}</h3>
         <p class="ifb-template-card__gefen">${gefen ? esc(gefen) : ''}${esc(educationLevelLabel(program.education_level)) ? ` · ${esc(educationLevelLabel(program.education_level))}` : ''}</p>
-        <div class="ifb-template-card__slots">${buttons}</div>
+        <div class="ifb-template-card__slots">
+          <div class="ifb-template-card__language-headings" aria-label="שפות מסמכי PDF">
+            <span>סוג המשוב</span><span lang="he">עברית</span><span lang="ar">ערבית</span>
+          </div>
+          ${buttons}
+        </div>
       </div>
     </article>`;
   }).join('');
@@ -452,7 +472,7 @@ export function bindTemplatesView(host, ui, repaint) {
     const pdf = t.closest('[data-tpl-pdf]');
     if (pdf) {
       const template = tpl.list?.find((item) => item.id === pdf.dataset.tplPdf);
-      const record = tpl.paperPdfs?.find((item) => item.template_id === template?.id);
+      const record = tpl.paperPdfs?.find((item) => item.template_id === template?.id && item.language === pdf.dataset.tplLang);
       if (!record || record.version_id !== template?.current_version_id || pdf.disabled) return;
       pdf.disabled = true;
       try {
@@ -479,7 +499,7 @@ export function bindTemplatesView(host, ui, repaint) {
         if (!file) return;
         upload.disabled = true;
         try {
-          await uploadSavedPaperPdf(template, file);
+          await uploadSavedPaperPdf(template, file, upload.dataset.tplLang);
           await loadList(repaint, true);
           showToast('ה־PDF נשמר בהצלחה', 'success');
         } catch (error) {
@@ -493,8 +513,8 @@ export function bindTemplatesView(host, ui, repaint) {
     const remove = t.closest('[data-tpl-delete]');
     if (remove) {
       const template = tpl.list?.find((item) => item.id === remove.dataset.tplDelete);
-      const record = tpl.paperPdfs?.find((item) => item.template_id === template?.id);
-      if (!record || !window.confirm('למחוק את קובץ ה־PDF השמור?')) return;
+      const record = tpl.paperPdfs?.find((item) => item.template_id === template?.id && item.language === remove.dataset.tplLang);
+      if (!record || !window.confirm(`למחוק את קובץ ה־PDF השמור בשפה ${record.language === 'ar' ? 'ערבית' : 'עברית'}?`)) return;
       remove.disabled = true;
       try {
         await deleteSavedPaperPdf(record);
