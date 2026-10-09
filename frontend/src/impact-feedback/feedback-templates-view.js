@@ -120,7 +120,7 @@ function listHtml(ui) {
         <button type="button" class="ifb-template-card__pdf" data-tpl-pdf="${esc(template.id)}" ${upToDate ? '' : 'disabled'} title="${upToDate ? 'הורדת PDF שמור' : outdated ? 'הקובץ אינו עדכני' : 'טרם הועלה PDF'}" aria-label="הורדת PDF: ${esc(name)}">PDF</button>
         ${outdated ? '<span class="ifb-template-card__warning" role="img" aria-label="PDF לא עדכני" title="השאלון עודכן. יש להחליף PDF">!</span>' : ''}
         <button type="button" class="ifb-template-card__upload" data-tpl-upload="${esc(template.id)}" ${published ? '' : 'disabled'} title="${file ? 'החלפת PDF שמור' : 'העלאת PDF'}" aria-label="${file ? 'החלפת' : 'העלאת'} PDF: ${esc(name)}">↑</button>
-        ${file ? `<button type="button" class="ifb-template-card__delete" data-tpl-delete="${esc(template.id)}" aria-label="מחיקת PDF: ${esc(name)}" title="מחיקת PDF">×</button>` : ''}
+        ${file ? `<button type="button" class="ifb-template-card__delete" data-tpl-delete="${esc(template.id)}" aria-label="מחיקת PDF: ${esc(name)}" title="מחיקת PDF">×</button>` : '<span class="ifb-template-card__delete-placeholder" aria-hidden="true"></span>'}
         ${outdated ? '<span class="ifb-template-card__stale-text">יש להחליף PDF</span>' : ''}
       </div>`;
     }).join('');
