@@ -286,13 +286,15 @@
 }
 .ifb-instructor-table {
   width: 100%;
-  min-width: 940px;
+  min-width: 0;
   table-layout: fixed;
 }
-.ifb-instructor-table col.ifb-iw-instructor { width: 18%; }
-.ifb-instructor-table col.ifb-iw-program { width: 14%; }
-.ifb-instructor-table col.ifb-iw-groups { width: 8%; }
-.ifb-instructor-table col.ifb-iw-equal { width: 10%; }
+.ifb-instructor-table col.ifb-iw-instructor { width: 15%; }
+.ifb-instructor-table col.ifb-iw-program { width: 21%; }
+.ifb-instructor-table col.ifb-iw-groups { width: 6%; }
+.ifb-instructor-table col.ifb-iw-date { width: 13%; }
+.ifb-instructor-table col.ifb-iw-action { width: 7%; }
+.ifb-instructor-table col.ifb-iw-status { width: 9%; }
 .ifb-instructor-table th:nth-child(3),
 .ifb-instructor-table th:nth-child(4),
 .ifb-instructor-table th:nth-child(5),
@@ -1405,23 +1407,67 @@
 }
 
 
-/* Instructor feedback: 3 identity columns + six exactly equal stage/date/status
-   columns. Dates and stage status are independently sourced per instructor-course. */
+/* Instructor feedback: compact nine-column layout fits its container, with
+   symmetric widths per pair: dates 13%, actions 7%, statuses 9%.
+   Name and course may wrap rather than forcing horizontal scrolling. */
 @media (min-width: 761px) {
   .ifb-instructor-table {
-    min-width: 1380px;
+    width: 100%;
+    min-width: 0;
     table-layout: fixed;
   }
-  .ifb-instructor-table col.ifb-iw-instructor { width: 18%; }
-  .ifb-instructor-table col.ifb-iw-program { width: 14%; }
-  .ifb-instructor-table col.ifb-iw-groups { width: 8%; }
-  .ifb-instructor-table col.ifb-iw-equal { width: 10%; }
+  .ifb-instructor-table-wrap {
+    width: 100%;
+    overflow-x: clip;
+  }
+  .ifb-instructor-table col.ifb-iw-instructor { width: 15%; }
+  .ifb-instructor-table col.ifb-iw-program { width: 21%; }
+  .ifb-instructor-table col.ifb-iw-groups { width: 6%; }
+  .ifb-instructor-table col.ifb-iw-date { width: 13%; }
+  .ifb-instructor-table col.ifb-iw-action { width: 7%; }
+  .ifb-instructor-table col.ifb-iw-status { width: 9%; }
   .ifb-instructor-table thead th { width: auto !important; }
+  .ifb-instructor-table th, .ifb-instructor-table td {
+    padding-inline: 4px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .ifb-instructor-table tbody th[scope="row"],
+  .ifb-instructor-table tbody td:nth-child(2) {
+    white-space: normal;
+  }
   .ifb-instructor-table th.ifb-col-date,
-  .ifb-instructor-table td.ifb-col-date { text-align: center; white-space: nowrap; }
+  .ifb-instructor-table td.ifb-col-date {
+    text-align: center;
+    white-space: nowrap;
+    overflow-wrap: normal;
+    font-size: 11.5px;
+  }
   .ifb-instructor-table th.ifb-col-status,
   .ifb-instructor-table td.ifb-col-status { text-align: right; }
-  .ifb-instructor-table td.ifb-col-status .ifb-status-cell { justify-items: start; }
+  .ifb-instructor-table td.ifb-col-status .ifb-status-cell {
+    justify-items: start;
+    font-size: 10.5px;
+  }
+  .ifb-instructor-table .ifb-status-cell .ifb-status {
+    white-space: normal;
+    font-size: 10.5px;
+    line-height: 1.15;
+  }
+  .ifb-instructor-table .ifb-icon-actions {
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 2px;
+  }
+  .ifb-instructor-table .ifb-icon-actions .ifb-text-action {
+    width: 22px;
+    min-width: 22px;
+    height: 24px;
+  }
+  .ifb-instructor-table .ifb-icon-actions .ifb-text-action svg {
+    width: 15px;
+    height: 15px;
+  }
 }
 
 
