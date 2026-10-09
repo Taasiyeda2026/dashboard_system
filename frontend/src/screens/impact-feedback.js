@@ -16,7 +16,6 @@ import {
   AUDIENCE_STAGES,
   GROUP_SLOTS,
   PHASE_LABELS,
-  PROGRAM_SOURCE_LABELS,
   QUESTION_EXPORT_HEADERS,
   RAW_EXPORT_HEADERS,
   SLOTS,
@@ -56,7 +55,6 @@ import {
   fetchPrograms,
   openCampaign,
   openInstructorCampaign,
-  setActivityProgram,
   translateFeedbackError,
   updateCampaign
 } from '../impact-feedback/feedback-api.js';
@@ -217,9 +215,6 @@ function optionList(values, selected, emptyLabel, labelFn = (v) => v) {
   return `<option value="">${esc(emptyLabel)}</option>${values.map((v) => `<option value="${esc(v)}"${v === selected ? ' selected' : ''}>${esc(labelFn(v))}</option>`).join('')}`;
 }
 
-function programOptionsHtml(selected = '') {
-  return `<option value="">בחירת קורס…</option>${ui.programs.map((p) => `<option value="${esc(p.key)}"${p.key === selected ? ' selected' : ''}>${esc(programOptionLabel(p.key))}</option>`).join('')}`;
-}
 
 /** Single-hue magnitude bar; the value is always printed as text next to it. */
 function barHtml(value, max, label = '') {
@@ -594,17 +589,6 @@ function groupFiltersHtml(groups, scope) {
     </details>`;
 }
 
-/** Inline picker in the table row: status + choose one of the canonical courses. */
-function programQuickPickHtml(group) {
-  return `<div class="ifb-unresolved">
-    ${statusText('קורס לא זוהה', 'warning')}
-    <span class="ifb-muted ifb-unresolved__name">${esc(group.activity_name || '')}</span>
-    <form class="ifb-unresolved__form" data-ifb-set-program="${esc(group.row_id)}">
-      <select name="program" aria-label="בחירת קורס ידנית עבור ${esc(group.school || group.activity_name || '')}" required>${programOptionsHtml()}</select>
-      <button type="submit" class="ifb-btn ifb-btn--sm">שמירה</button>
-    </form>
-  </div>`;
-}
 
 function groupsTableHtml(slots, scope) {
   // The activities table is authoritative; groups without a start date are not
@@ -615,7 +599,7 @@ function groupsTableHtml(slots, scope) {
   const filtered = filterGroups(all, ui.filters).sort((a, b) =>
     Number(groupHasFeedback(b)) - Number(groupHasFeedback(a))
     || String(a.school).localeCompare(String(b.school), 'he'));
-  // The course column is shown for "all courses", or when unresolved rows need a course picker.
+  // The course column is shown for all courses or when the source activity has no matching feedback template.
   const showCourse = !ui.course || filtered.some((g) => !g.program_key);
   const body = filtered.length ? `
     <div class="ifb-table-wrap">
@@ -646,7 +630,7 @@ function groupsTableHtml(slots, scope) {
             <td data-label="רשות">${esc(g.authority || '—')}</td>
             ${showCourse ? `<td data-label="קורס">${g.program_key
               ? esc(programTitle(g.program_key))
-              : g.feedback_excluded ? statusText('לא רלוונטי למשובים', 'muted') : programQuickPickHtml(g)}</td>` : ''}
+              : g.feedback_excluded ? statusText('לא רלוונטי למשובים', 'muted') : `<span title="נדרש טיפול בהתאמת תבנית המשוב לקורס. השיוך מנוהל במערכת ולא במסך זה.">${statusText('ממתין להתאמת משוב', 'warning')}</span>`}</td>` : ''}
             <td data-label="${scope === 'staff' ? 'איש קשר' : 'מדריך'}">${scope === 'staff' ? (g.contact_name ? esc(g.contact_name) : '<span class="ifb-muted" title="טרם הוגדר שם של איש קשר">לא הוגדר</span>') : esc(g.instructor_name || 'לא שובץ')}</td>
             ${scope === 'students' ? `<td data-label="תחילת קורס" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(g.start_date)}</td>` : ''}
             <td data-label="${scope === 'students' ? 'סיום קורס' : 'סיום הקבוצה'}" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(g.end_date)}</td>
@@ -1095,32 +1079,6 @@ function analysisHtml() {
 // Group view (opened from the students / staff tabs)
 // ---------------------------------------------------------------------------
 
-function programCardHtml(group) {
-  const locked = groupHasFeedback(group);
-  const unresolved = isProgramUnresolved(group);
-  if (locked) return '';
-  const form = `
-    <form class="ifb-program-form" data-ifb-set-program="${esc(group.row_id)}">
-      <label class="ifb-field"><span>קורס</span><select name="program" required>${programOptionsHtml(group.program_key || '')}</select></label>
-      <label class="ifb-check"><input type="checkbox" name="apply_to_name"> להחיל על כל הפעילויות בשם „${esc(group.activity_name || '')}”</label>
-      <div class="ifb-slot__actions">
-        <button type="submit" class="ifb-btn ifb-btn--primary">שמירת קורס</button>
-        ${group.program_source === 'manual' || group.program_source === 'manual_name' || group.feedback_excluded
-          ? '<button type="button" class="ifb-btn ifb-btn--ghost" data-ifb-program-auto>חזרה לזיהוי אוטומטי</button>' : ''}
-        ${group.feedback_excluded ? '' : '<button type="button" class="ifb-btn ifb-btn--ghost" data-ifb-program-exclude>לא רלוונטי למשובים</button>'}
-      </div>
-    </form>`;
-  if (unresolved || group.feedback_excluded) {
-    return `<section class="ifb-panel ifb-program-card--pick" data-ifb-program-card>
-      <h3>${group.feedback_excluded ? 'הפעילות סומנה כלא רלוונטית למשובים' : statusText('קורס לא זוהה', 'warning')}</h3>
-      ${form}
-    </section>`;
-  }
-  return `<details class="ifb-program-change" data-ifb-program-card>
-    <summary>קורס: <strong>${esc(programTitle(group.program_key))}</strong> · ${esc(PROGRAM_SOURCE_LABELS[group.program_source] || '')} · שינוי</summary>
-    ${form}
-  </details>`;
-}
 
 function defaultExpiry(slot) {
   const days = slot.audience === 'student' ? 14 : 21;
@@ -1134,7 +1092,7 @@ function slotMissingReason(group, slot) {
 
 function openFormHtml(group, slot) {
   const key = `${group.row_id}|${slot.key}`;
-  if (!group.program_key) return '<p class="ifb-warning">יש לבחור קורס לפני פתיחת משוב.</p>';
+  if (!group.program_key) return '<p class="ifb-warning">לתוכנית זו טרם הותאמה תבנית משוב. ההתאמה מטופלת בניהול המערכת.</p>';
   const missing = slotMissingReason(group, slot);
   if (missing) return `<p class="ifb-warning">${esc(missing)}</p>`;
   if (!ui.openForms.has(key)) {
@@ -1242,23 +1200,25 @@ function groupViewHtml(group) {
   if (!group) return errorHtml('הקבוצה לא נמצאה בשנת הלימודים שנבחרה');
   const facts = ui.groupFacts.get(group.row_id);
   const back = TABS.find((t) => t.key === ui.groupReturnTab)?.label || 'תלמידים';
+  // The activity is the single source of truth for course, school, grade and dates.
+  const activityTitle = group.activity_name || (group.program_key ? programTitle(group.program_key) : 'שם תוכנית לא הוגדר');
+  const groupLevel = [group.grade, group.class_group].filter(Boolean).join(' · ');
   return `
     <button type="button" class="ifb-back" data-ifb-back>→ חזרה ללשונית ${esc(back)}</button>
-    <section class="ifb-group-head">
-      <div>
-        <h2 class="ifb-group-head__title">${esc(group.school || '—')}${group.grade ? ` · שכבה ${esc(group.grade)}` : ''}</h2>
-        <p class="ifb-muted ifb-kicker">${esc(group.program_key ? programTitle(group.program_key) : group.activity_name)}</p>
-      </div>
+    <section class="ifb-group-head" aria-label="פרטי הקבוצה">
+      <header class="ifb-group-head__identity">
+        <h2 class="ifb-group-head__title">${esc(group.school || 'בית הספר לא הוגדר')}</h2>
+        <p class="ifb-group-head__program">${esc(activityTitle)}</p>
+      </header>
       <dl class="ifb-meta ifb-meta--head">
-        <div><dt>רשות</dt><dd>${esc(group.authority || '—')}</dd></div>
-        <div><dt>מדריך</dt><dd>${esc(group.instructor_name || 'לא משובץ')}</dd></div>
-        <div><dt>איש קשר</dt><dd>${esc(group.contact_name || (group.has_contact ? 'מוגדר' : 'לא מוגדר'))}</dd></div>
-        <div><dt>שנת לימודים</dt><dd>${esc(academicYearLabel(group.academic_year))}</dd></div>
-        <div><dt>התחלה</dt><dd>${fmtDate(group.start_date)}</dd></div>
-        <div><dt>סיום</dt><dd>${fmtDate(group.end_date)}</dd></div>
+        <div><dt>רשות</dt><dd>${esc(group.authority || 'לא הוגדרה')}</dd></div>
+        <div><dt>${group.grade && group.class_group ? 'שכבה / קבוצה' : group.class_group ? 'קבוצה' : 'שכבה'}</dt><dd>${esc(groupLevel || 'לא הוגדרה')}</dd></div>
+        <div><dt>מדריך/ה</dt><dd>${esc(group.instructor_name || 'לא שובץ/ה')}</dd></div>
+        <div><dt>איש/אשת קשר</dt><dd>${esc(group.contact_name || (group.has_contact ? 'מוגדר/ת' : 'לא הוגדר/ה'))}</dd></div>
+        <div class="ifb-group-head__date"><dt>תחילת קורס</dt><dd>${fmtDate(group.start_date)}</dd></div>
+        <div class="ifb-group-head__date"><dt>סיום קורס</dt><dd>${fmtDate(group.end_date)}</dd></div>
       </dl>
     </section>
-    ${programCardHtml(group)}
     <div class="ifb-slots">${GROUP_SLOTS.map((slot) => slotCardHtml(group, slot)).join('')}</div>
     ${sectionHtml('תוצאות הקבוצה', facts ? groupResultsHtml(facts) : loadingHtml('טוען תוצאות…'), {
       note: 'לצורך מעקב תפעולי בלבד. ניתוח התוצאות נעשה ברמת הקורס, מכלל קבוצות הקורס.',
@@ -1604,43 +1564,13 @@ async function handleClick(host, event) {
     }
     return;
   }
-  const auto = t.closest('[data-ifb-program-auto]');
-  const exclude = t.closest('[data-ifb-program-exclude]');
-  if (auto || exclude) {
-    const rowId = (auto || exclude).closest('[data-ifb-set-program]')?.dataset.ifbSetProgram;
-    if (!rowId) return;
-    if (exclude && !window.confirm('להסתיר את הפעילות ממודול המשובים? ניתן להחזיר דרך הסינון "הוסתרו".')) return;
-    await saveProgram(host, rowId, null, { excluded: Boolean(exclude) });
-    return;
-  }
   const exp = t.closest('[data-ifb-export]');
   if (exp) runExport(exp.dataset.scope);
-}
-
-async function saveProgram(host, rowId, programKey, options = {}) {
-  try {
-    await setActivityProgram(rowId, programKey, options);
-    showToast(options.excluded ? 'הפעילות הוסתרה ממודול המשובים' : programKey ? 'הקורס נשמר' : 'הוחזר זיהוי אוטומטי');
-    await refreshGroup(rowId);
-    if (options.applyToName) await ensureGroups(true);
-    invalidateAggregates();
-    paint(host);
-  } catch (error) {
-    showToast(translateFeedbackError(error), 'error', 5000);
-  }
 }
 
 async function handleSubmit(host, event) {
   const form = event.target;
   if (form.closest('[data-ifb-templates]')) return;
-  if (form.matches('[data-ifb-set-program]')) {
-    event.preventDefault();
-    const data = new FormData(form);
-    const program = String(data.get('program') || '');
-    if (!program) return;
-    await saveProgram(host, form.dataset.ifbSetProgram, program, { applyToName: data.get('apply_to_name') === 'on' });
-    return;
-  }
   if (form.matches('[data-ifb-instructor-open-form]')) {
     event.preventDefault();
     const data = new FormData(form);
