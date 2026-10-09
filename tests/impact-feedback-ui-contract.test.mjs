@@ -285,9 +285,9 @@ test('instructor list shows only scheduled instructor-courses sorted by earliest
   assert.equal((list.match(/<col class="ifb-iw-action">/g) || []).length, 2, 'stage actions have identical widths');
   assert.equal((list.match(/<col class="ifb-iw-status">/g) || []).length, 2, 'stage statuses have identical widths');
   assert.match(list, /תחילת קורס ראשון/);
-  assert.match(list, /סיום קורס ראשון/);
+  assert.match(list, /סיום קורס אחרון/);
   assert.match(list, /fmtDate\(row\.first_start_date\)/);
-  assert.match(list, /fmtDate\(row\.first_course_end_date\)/);
+  assert.match(list, /fmtDate\(row\.last_end_date\)/);
   assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-date \{ width: 13%; \}/);
   assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-action \{ width: 7%; \}/);
   assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-status \{ width: 9%; \}/);
@@ -542,4 +542,43 @@ test('the two action and status pairs are symmetrical and do not force a desktop
   assert.doesNotMatch(list, /data-label="פתיחה – אחרי הכשרה"/);
   assert.doesNotMatch(list, /data-label="סיום הקורס"/);
   assert.match(styles, /\.ifb-instructor-table-wrap \{\s*width: 100%;\s*min-width: 0;/);
+});
+
+
+test('student table interleaves each survey with its corresponding course date', () => {
+  const list = screen.slice(screen.indexOf('function groupsTableHtml('), screen.indexOf('function optionBarsHtml('));
+  const colGroup = list.slice(list.indexOf('<colgroup>'), list.indexOf('</colgroup>'));
+  assert.match(colGroup, /scope === 'students'[\s\S]*?ifb-gw-date--start[^']*<col class="ifb-gw-stage">[^']*ifb-gw-date--end[^']*<col class="ifb-gw-stage">/);
+  const head = list.slice(list.indexOf('<thead><tr>'), list.indexOf('</thead>'));
+  const startIndex = head.indexOf('תחילת קורס');
+  const preIndex = head.indexOf("slot.stage === 'pre'");
+  const endIndex = head.indexOf('סיום קורס');
+  const postIndex = head.indexOf("slot.stage === 'post'");
+  assert.ok(startIndex >= 0 && preIndex > startIndex && endIndex > preIndex && postIndex > endIndex,
+    'header sequence is course start, student pre, course end, student post');
+  const tbody = list.slice(list.indexOf('<tbody>'), list.indexOf('</tbody>'));
+  const bodyStart = tbody.indexOf('data-label="תחילת קורס"');
+  const bodyPre = tbody.indexOf("slots.find((s) => s.stage === 'pre')");
+  const bodyEnd = tbody.indexOf('data-label="${scope === \'students\' ? \'סיום קורס\'');
+  const bodyPost = tbody.indexOf("slots.find((s) => s.stage === 'post')");
+  assert.ok(bodyStart >= 0 && bodyPre > bodyStart && bodyEnd > bodyPre && bodyPost > bodyEnd,
+    'cell sequence is course start, student pre, course end, student post');
+  assert.match(list, /scope === 'staff'[\s\S]*?<col class="ifb-gw-date ifb-gw-date--end">/);
+  assert.match(list, /scope === 'staff'[\s\S]*?ifb-col-stage ifb-col-staff/);
+});
+
+test('instructor last course end is the maximum end among groups started in the relevant semester', () => {
+  const table = screen.slice(screen.indexOf('function instructorAssignmentsHtml('), screen.indexOf('function instructorsHtml('));
+  assert.match(table, /title="תאריך הסיום המאוחר ביותר של קבוצות המדריך בקורס שהתחילו במחצית הרלוונטית">סיום קורס אחרון<\/th>/);
+  assert.match(table, /data-label="סיום קורס אחרון" class="ifb-center ifb-nowrap ifb-col-date">\$\{fmtDate\(row\.last_end_date\)\}/);
+  assert.doesNotMatch(table, /fmtDate\(row\.first_course_end_date\)/);
+  const sql = readFileSync(new URL('../supabase/migrations/20261010010500_feedback_instructor_latest_end_in_semester.sql', import.meta.url), 'utf8');
+  assert.match(sql, /select max\(a2\.end_date\)/);
+  assert.match(sql, /a2\.start_date >=/);
+  assert.match(sql, /a2\.start_date </);
+  assert.match(sql, /g\.first_date >= date '2027-01-31'/);
+  assert.match(sql, /then date '2027-07-01' else date '2027-01-31'/);
+  assert.match(sql, /g\.last_end_in_half,/);
+  assert.match(sql, /g\.first_course_end_date,/);
+  assert.doesNotMatch(sql, /drop function if exists public\.feedback_admin_course_summary/);
 });
