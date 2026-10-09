@@ -176,6 +176,9 @@ test('feedback uses fresh activity data on entry and while active without a dupl
   assert.match(screen, /if \(!host\.isConnected\) \{/);
   assert.match(screen, /activitySyncController\?\.abort\(\)/);
   assert.match(screen, /installActivityDateSync\(host\)/);
+  assert.match(screen, /\['students', 'staff', 'instructors'\]\.includes\(ui\.tab\)/);
+  assert.match(screen, /const assignments = await fetchInstructorAssignments\(year\)/);
+  assert.match(screen, /ui\.instructorAssignments = assignments/);
 });
 
 
