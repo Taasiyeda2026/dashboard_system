@@ -8,7 +8,8 @@ import {
   PLANNING_RUN_TYPES,
   canCommitValidatedCheckpoint,
   canValidateCompletedRunningCheckpoint,
-  planningResumeReopenIds
+  planningResumeReopenIds,
+  planSafeRestartFromCommittedWorkspace
 } from '../frontend/src/screens/course-scheduling-run-plan.js';
 import { buildDynamicCoursePlan, createPlanningLocalRepairDeadlineCheckpoint, filterPlanningOptionsAgainstChosenRows, reconcileSelectedPlanningOverlaps, recoverPlanningOverlapFromCommittedProposals, validateResumedPlanningRows } from '../frontend/src/screens/course-scheduling-planning.js';
 import { createPlanningRunDeadlineCheckpoint } from '../frontend/src/screens/course-scheduling-preflight.js';
@@ -633,4 +634,55 @@ test('browser planning deadline ends an otherwise infinite computation without c
   assert.match(screenSource, /createPlanningRunDeadlineCheckpoint\(\{/);
   assert.match(screenSource, /maxMs: 5 \* 60_000/);
   assert.match(screenSource, /totalCount: currentCourseIds\.length/);
+});
+
+
+test('unrecoverable checkpoint falls back to original dirty scope and separately committed data', () => {
+  const committedRows = ids.map((courseId) => ({ courseId, kind: 'proposal', instructorEmpId: '1549' }));
+  const original = JSON.stringify(committedRows);
+  const scoped = planSafeRestartFromCommittedWorkspace({
+    committedRows,
+    currentCourseIds: ids,
+    baseRecalculationIds: scope.baseRecalculationIds,
+    fullRun: false
+  });
+  assert.ok(scoped);
+  assert.equal(scoped.resumeFromCheckpoint, false);
+  assert.equal(scoped.targetCourseIds.length, 104);
+  assert.deepEqual(scoped.targetCourseIds, scope.baseRecalculationIds);
+  assert.equal(scoped.optimizationScopeCourseIds, undefined, 'original upgrade scopes may run normally');
+  assert.equal(scoped.existingRows.length, 253);
+  assert.equal(scoped.existingRows[0], committedRows[0]);
+  assert.equal(JSON.stringify(committedRows), original, 'restart cannot mutate saved workspace');
+  const screen = screenSource.slice(
+    screenSource.indexOf('const buildDynamicPlanWithCommittedRecovery = async'),
+    screenSource.indexOf('const runDeltaRepair = async')
+  );
+  assert.match(screen, /planSafeRestartFromCommittedWorkspace\(\{/);
+  assert.match(screen, /baseRecalculationIds: runPlan\.baseRecalculationIds/);
+  assert.match(screen, /preparedInput = \{\s*\.\.\.input,\s*\.\.\.restart/);
+  assert.match(screen, /checkpointCompletedIds\.clear\(\)/);
+  assert.match(screen, /persistedCheckpointRows\.clear\(\)/);
+  assert.match(screen, /return await buildDynamicCoursePlan\(\{ \.\.\.preparedInput, committedRows: existingRows \}\)/);
+});
+
+test('safe restart adds newly created courses while keeping unrelated saved proposals', () => {
+  const committedRows = [{courseId: 'fixed',kind:'planning-locked'},{courseId:'old',kind:'proposal'}];
+  const scoped = planSafeRestartFromCommittedWorkspace({
+    committedRows,
+    currentCourseIds:['fixed','old','new'],
+    baseRecalculationIds:['old','removed'],
+    fullRun:false
+  });
+  assert.deepEqual(scoped.targetCourseIds,['old','new']);
+  assert.deepEqual(scoped.missingFromCommittedIds,['new']);
+  assert.deepEqual(scoped.existingRows, committedRows);
+  assert.equal(committedRows[0].kind,'planning-locked');
+});
+
+test('unrecoverable checkpoint never silently launches a full country rebuild', () => {
+  const base={committedRows:[{courseId:'a',kind:'proposal'}],currentCourseIds:['a'],baseRecalculationIds:['a']};
+  assert.equal(planSafeRestartFromCommittedWorkspace({...base,fullRun:true}),null);
+  assert.equal(planSafeRestartFromCommittedWorkspace({...base,committedRows:[]}),null);
+  assert.equal(planSafeRestartFromCommittedWorkspace({...base,currentCourseIds:[]}),null);
 });
