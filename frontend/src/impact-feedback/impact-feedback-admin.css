@@ -1146,3 +1146,47 @@
   .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-actions { width: 6%; }
   .ifb-groups-table thead th { width: auto !important; }
 }
+
+
+/* One filter panel per tab, never a separate filter in the page header. */
+.ifb-admin__head {
+  min-height: 40px;
+  align-items: center;
+}
+.ifb-view > .ifb-filter-disclosure {
+  max-width: 100%;
+  justify-self: stretch;
+  width: 100%;
+}
+.ifb-view > .ifb-filter-disclosure:not([open]) {
+  justify-self: start;
+  width: fit-content;
+}
+.ifb-view > .ifb-filter-disclosure > .ifb-filter-panel {
+  max-width: 100%;
+  width: 100%;
+}
+.ifb-view .ifb-filters--inline .ifb-field--course {
+  min-width: min(100%, 210px);
+}
+
+/* Overview: state on the right, and all five audience columns (head + values) centered. */
+.ifb-courses-table thead th.ifb-col-state,
+.ifb-courses-table tbody td.ifb-col-state {
+  text-align: right;
+  vertical-align: middle;
+}
+.ifb-courses-table thead th.ifb-col-audience,
+.ifb-courses-table tbody td.ifb-col-audience {
+  text-align: center;
+  vertical-align: middle;
+}
+.ifb-courses-table tbody td.ifb-col-audience .ifb-num {
+  display: inline-block;
+  min-width: 1.5ch;
+  text-align: center;
+}
+@media (max-width: 760px) {
+  .ifb-courses-table tbody td.ifb-col-state { text-align: right; }
+  .ifb-courses-table tbody td.ifb-col-audience { text-align: center; }
+}

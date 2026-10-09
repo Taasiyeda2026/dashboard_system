@@ -102,7 +102,7 @@ const ui = {
   results: { drill: '' },
   templates: { templateId: null, versionId: null, previewBand: '' },
   instructorFilters: { instructor: '', manager: '', status: '' },
-  filterExpanded: { global: false, overview: false, students: false, staff: false, instructors: false, analysis: false },
+  filterExpanded: { overview: false, students: false, staff: false, instructors: false, analysis: false, templates: false },
   groups: null,
   groupsYear: null,
   instructorAssignments: null,
@@ -326,22 +326,28 @@ function filterDisclosureHtml(scope, fieldsHtml, active = 0, label = 'סינון
   </details>`;
 }
 
+/** Every tab owns exactly one compact filter panel. The course selection is shared state. */
+function courseFilterFieldHtml() {
+  return `<label class="ifb-field ifb-field--course">
+    <span>קורס</span>
+    <select data-ifb-course>${optionList(ui.programs.map((p) => p.key), ui.course, 'כל הקורסים', programTitle)}</select>
+  </label>`;
+}
+
+function courseOnlyFiltersHtml(scope) {
+  return filterDisclosureHtml(scope,
+    `<div class="ifb-filters ifb-filters--inline">${courseFilterFieldHtml()}</div>`,
+    Number(Boolean(ui.course)), 'סינון', ui.course ? programTitle(ui.course) : '');
+}
+
 function shellHtml(inner) {
   const activeTab = TABS.find((t) => t.key === ui.tab) || TABS[0];
-  const courseFilter = filterDisclosureHtml('global', `
-    <label class="ifb-field ifb-field--course">
-      <span>קורס</span>
-      <select data-ifb-course>${optionList(ui.programs.map((p) => p.key), ui.course, 'כל הקורסים', programTitle)}</select>
-    </label>`, ui.course ? 1 : 0, 'סינון קורס', ui.course ? programTitle(ui.course) : '');
   return `
     <div class="ifb-admin__head">
       <h1 class="ifb-admin__title">משובים</h1>
-      <div class="ifb-toolbar" role="group" aria-label="סינון קורס ורענון נתונים">
-        ${courseFilter}
-        <button type="button" class="ifb-icon-btn ifb-icon-btn--lg" data-ifb-refresh title="טעינה מחדש של הנתונים" aria-label="טעינה מחדש של הנתונים">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"></path></svg>
-        </button>
-      </div>
+      <button type="button" class="ifb-icon-btn ifb-icon-btn--lg" data-ifb-refresh title="טעינה מחדש של הנתונים" aria-label="טעינה מחדש של הנתונים">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"></path></svg>
+      </button>
     </div>
     <nav class="ifb-tabs" role="tablist" aria-label="לשוניות מודול המשובים">
       ${TABS.map((t) => `<button type="button" role="tab" id="ifb-tab-${t.key}" class="ifb-tab${ui.tab === t.key ? ' is-active' : ''}" aria-selected="${ui.tab === t.key}" aria-controls="ifb-panel" tabindex="${ui.tab === t.key ? '0' : '-1'}" data-ifb-tab="${t.key}">${esc(t.label)}</button>`).join('')}
@@ -378,8 +384,9 @@ function selectCourseHint(what) {
 
 function overviewFiltersHtml() {
   const o = ui.overview;
-  const active = Number(Boolean(o.audience)) + Number(Boolean(o.phase));
+  const active = Number(Boolean(ui.course)) + Number(Boolean(o.audience)) + Number(Boolean(o.phase));
   return filterDisclosureHtml('overview', `<div class="ifb-filters ifb-filters--inline" data-ifb-filters="overview">
+    ${courseFilterFieldHtml()}
     <label class="ifb-field"><span>קהל יעד</span><select data-o="audience">${optionList(AUDIENCE_ORDER, o.audience, 'כל הקהלים', (a) => AUDIENCE_LABELS[a])}</select></label>
     <label class="ifb-field"><span>שלב המשוב</span><select data-o="phase">${optionList(['pre', 'end'], o.phase, 'פתיחה וסיום', (p) => PHASE_LABELS[p])}</select></label>
   </div>`, active);
@@ -461,15 +468,15 @@ function coursesTableHtml() {
     const statusClass = !launched ? 'is-idle' : submitted ? 'is-received' : 'is-waiting';
     return `<tr data-course-row="${esc(program.key)}">
       <th scope="row" data-label="קורס"><span class="ifb-course-name">${esc(programTitle(program.key))}</span></th>
-      <td data-label="מצב" class="ifb-center"><span class="ifb-course-status ${statusClass}">${label}</span></td>
-      ${columns.map((col, index) => `<td data-label="${esc(col.label)}" class="ifb-center"><span class="ifb-num" title="${stages[index].campaigns ? 'שאלונים שהתקבלו' : 'משוב טרם נפתח'}">${stages[index].campaigns ? stages[index].responses : '—'}</span></td>`).join('')}
+      <td data-label="מצב" class="ifb-col-state"><span class="ifb-course-status ${statusClass}">${label}</span></td>
+      ${columns.map((col, index) => `<td data-label="${esc(col.label)}" class="ifb-col-audience ifb-center"><span class="ifb-num" title="${stages[index].campaigns ? 'שאלונים שהתקבלו' : 'משוב טרם נפתח'}">${stages[index].campaigns ? stages[index].responses : '—'}</span></td>`).join('')}
       <td data-label="פעולות" class="ifb-col-actions"><button type="button" class="ifb-row-action" data-ifb-analyze="${esc(program.key)}" aria-label="ניתוח הקורס ${esc(programTitle(program.key))}" title="ניתוח הקורס"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V11M10 20V4M16 20v-8M22 20v-5"></path></svg></button></td>
     </tr>`;
   }).join('');
 
   return `<div class="ifb-table-wrap"><table class="ifb-table ifb-courses-table">
     <caption class="ifb-sr">מצב משובים לפי קורס</caption>
-    <thead><tr><th scope="col">קורס</th><th scope="col" class="ifb-center">מצב</th>${columns.map((col) => `<th scope="col" class="ifb-center">${esc(col.label)}</th>`).join('')}<th scope="col">פעולות</th></tr></thead>
+    <thead><tr><th scope="col">קורס</th><th scope="col" class="ifb-col-state">מצב</th>${columns.map((col) => `<th scope="col" class="ifb-col-audience ifb-center">${esc(col.label)}</th>`).join('')}<th scope="col">פעולות</th></tr></thead>
     <tbody>${rows}</tbody>
   </table></div>`;
 }
@@ -556,7 +563,7 @@ function overviewHtml() {
 
 function groupFiltersHtml(groups, scope) {
   const f = ui.filters;
-  const active = Object.values(f).filter(Boolean).length;
+  const active = Object.values(f).filter(Boolean).length + Number(Boolean(ui.course));
   return `
     <details class="ifb-filter-disclosure"${ui.filterExpanded[scope] ? ' open' : ''} data-ifb-filter-disclosure="${scope}">
       <summary class="ifb-filter-toggle">
@@ -566,6 +573,7 @@ function groupFiltersHtml(groups, scope) {
       </summary>
       <section class="ifb-filter-panel">
         <div class="ifb-filters ifb-filters--primary" data-ifb-filters="${scope}">
+          ${courseFilterFieldHtml()}
           <label class="ifb-field ifb-field--search"><span>חיפוש</span><input type="search" data-f="search" value="${esc(f.search)}" placeholder="בית ספר, קורס, מדריך, מנהל פעילות…"></label>
           <label class="ifb-field"><span>רשות</span><select data-f="authority">${optionList(uniqueSorted(groups.map((g) => g.authority)), f.authority, 'כל הרשויות')}</select></label>
           <label class="ifb-field"><span>בית ספר</span><select data-f="school">${optionList(uniqueSorted(groups.map((g) => g.school)), f.school, 'כל בתי הספר')}</select></label>
@@ -870,7 +878,7 @@ function instructorAssignmentsHtml() {
     || String(a.program_key || '').localeCompare(String(b.program_key || '')));
   const preCompleted = all.filter((row) => row.pre_campaign?.recipient?.status === 'completed').length;
   const finalCompleted = all.filter((row) => row.final_campaign?.recipient?.status === 'completed').length;
-  const activeFilters = Object.values(filters).filter(Boolean).length;
+  const activeFilters = Object.values(filters).filter(Boolean).length + Number(Boolean(ui.course));
   return `
     <p class="ifb-inline-stats" aria-label="סיכום משובי מדריכים">
       <span><strong>${all.length}</strong> שיבוצי מדריך–קורס</span><span aria-hidden="true">·</span>
@@ -884,6 +892,7 @@ function instructorAssignmentsHtml() {
       </summary>
       <section class="ifb-filter-panel">
         <div class="ifb-filters ifb-filters--instructors">
+          ${courseFilterFieldHtml()}
           <label class="ifb-field"><span>מדריך</span><select data-i="instructor">
             <option value="">כל המדריכים</option>
             ${instructors.map(([id, name]) => `<option value="${esc(id)}"${id === filters.instructor ? ' selected' : ''}>${esc(name)}</option>`).join('')}
@@ -1007,17 +1016,25 @@ function neutralCoreText(text) {
   return out;
 }
 
+function analysisFiltersHtml() {
+  const a = ui.analysis;
+  const stageOptions = AUDIENCE_STAGES[a.audience] || ['post'];
+  const stage = stageOptions.includes(a.stage) ? a.stage : stageOptions[stageOptions.length - 1];
+  const active = Number(Boolean(ui.course)) + Number(a.audience !== 'student') + Number(Boolean(a.stage && a.stage !== 'post'));
+  return filterDisclosureHtml('analysis', `<div class="ifb-filters ifb-filters--inline">
+    ${courseFilterFieldHtml()}
+    <label class="ifb-field"><span>קהל</span><select data-a="audience">${AUDIENCE_ORDER.map((x) => `<option value="${x}"${x === a.audience ? ' selected' : ''}>${esc(AUDIENCE_LABELS[x])}</option>`).join('')}</select></label>
+    <label class="ifb-field"><span>שלב</span><select data-a="stage">${stageOptions.map((s) => `<option value="${s}"${s === stage ? ' selected' : ''}>${esc(stageLabelFor(a.audience, s))}</option>`).join('')}</select></label>
+  </div>`, active);
+}
+
 function crossCourseHtml() {
   const a = ui.analysis;
   const stageOptions = AUDIENCE_STAGES[a.audience] || ['post'];
   const stage = stageOptions.includes(a.stage) ? a.stage : stageOptions[stageOptions.length - 1];
   const { programKeys, rows } = crossCourseCore(ui.facts || [], { audience: a.audience, stage });
-  const controls = filterDisclosureHtml('analysis', `<div class="ifb-filters ifb-filters--inline">
-    <label class="ifb-field"><span>קהל</span><select data-a="audience">${AUDIENCE_ORDER.map((x) => `<option value="${x}"${x === a.audience ? ' selected' : ''}>${esc(AUDIENCE_LABELS[x])}</option>`).join('')}</select></label>
-    <label class="ifb-field"><span>שלב</span><select data-a="stage">${stageOptions.map((s) => `<option value="${s}"${s === stage ? ' selected' : ''}>${esc(stageLabelFor(a.audience, s))}</option>`).join('')}</select></label>
-  </div>`, Number(a.audience !== 'student') + Number(Boolean(a.stage && a.stage !== 'post')));
-  if (!rows.length) return `${controls}${emptyHtml('אין עדיין תשובות לשאלות הליבה המשותפות בקהל ובשלב שנבחרו.')}`;
-  return `${controls}<div class="ifb-table-wrap ifb-table-wrap--scroll"><table class="ifb-table ifb-cross-table">
+  if (!rows.length) return emptyHtml('אין עדיין תשובות לשאלות הליבה המשותפות בקהל ובשלב שנבחרו.');
+  return `<div class="ifb-table-wrap ifb-table-wrap--scroll"><table class="ifb-table ifb-cross-table">
     <caption class="ifb-sr">השוואה בין קורסים בשאלות הליבה</caption>
     <thead><tr><th scope="col">שאלת ליבה</th>${programKeys.map((k) => `<th scope="col" class="ifb-center${k === ui.course ? ' is-selected' : ''}">${esc(programTitle(k))}</th>`).join('')}</tr></thead>
     <tbody>${rows.map((r) => `<tr>
@@ -1045,11 +1062,13 @@ function populationResultsHtml(facts, { section }) {
 function analysisHtml() {
   if (!ui.course) {
     return `
+      ${analysisFiltersHtml()}
       ${selectCourseHint('סיכום מצטבר, השוואה בין אוכלוסיות, פתיחה–סיום ותוצאות לכל שאלה')}
       ${sectionHtml('השוואה בין קורסים במדדי ליבה', crossCourseHtml(), { actions: exportButtonHtml('analysis', 'דוח כל הקורסים (Excel)') })}`;
   }
   const facts = courseFacts();
   return `
+    ${analysisFiltersHtml()}
     ${sectionHtml(`סיכום מצטבר – ${programTitle(ui.course)}`, cumulativeSummaryHtml(), { actions: exportButtonHtml('analysis', 'הפקת דוח מסכם (Excel)'), note: 'כל המשובים מכל קבוצות הלימוד של הקורס בשנת הלימודים שנבחרה.' })}
     ${sectionHtml('השוואה בין תלמידים, מדריכים וצוות חינוכי', audienceComparisonHtml(facts))}
     ${sectionHtml('פתיחה–סיום: תלמידים', prePostQuestionTableHtml(factsFor(facts, 'student', 'pre'), factsFor(facts, 'student', 'post'), { audience: 'student' }))}
@@ -1383,7 +1402,7 @@ function viewHtml() {
   if (ui.tab === 'instructors') return instructorsHtml();
   if (ui.tab === 'staff') return staffHtml();
   if (ui.tab === 'analysis') return analysisHtml();
-  if (ui.tab === 'templates') return renderTemplatesView(ui);
+  if (ui.tab === 'templates') return `${courseOnlyFiltersHtml('templates')}${renderTemplatesView(ui)}`;
   return overviewHtml();
 }
 
