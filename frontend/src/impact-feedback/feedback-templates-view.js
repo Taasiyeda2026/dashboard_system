@@ -86,33 +86,40 @@ function fmtDay(value) {
  * Questionnaire list for one audience (and the selected course, when one is chosen).
  * One row per course × stage; the shared editor opens from here.
  */
-function listHtml(ui, audience) {
+function listHtml(ui) {
   if (!tpl.list) return '<div class="ifb-empty" role="status"><div class="ds-spinner" aria-hidden="true"></div><p>טוען שאלונים…</p></div>';
-  const slots = SLOTS.filter((slot) => !audience || slot.audience === audience);
   const programs = ui.programs.filter((p) => !ui.course || p.key === ui.course);
-  const rows = [];
-  for (const program of programs) {
-    for (const slot of slots) {
+  if (!programs.length) return '<div class="ifb-empty">לא נמצאו קורסים.</div>';
+  const cards = programs.map((program) => {
+    const gefen = Array.isArray(program.gefen_numbers) ? program.gefen_numbers.join(', ') : '';
+    const buttons = SLOTS.map((slot) => {
       const template = tpl.list.find((t) => t.program_key === program.key && t.audience === slot.audience && t.stage === slot.stage);
-      if (!template) continue;
+      if (!template) return '';
       const versions = versionsOf(template);
-      const current = versions.find((v) => v.id === template.current_version_id);
+      const published = versions.find((v) => v.id === template.current_version_id);
       const draft = versions.find((v) => v.status === 'draft');
-      rows.push(`<tr data-template-row="${esc(template.id)}">
-        <td data-label="קורס"><strong>${esc(courseLabel(program, ui.programs))}</strong></td>
-        <td data-label="שאלון">${esc(templateSlotLabel(slot))}</td>
-        <td data-label="גרסה מפורסמת">${current ? `גרסה ${esc(String(current.version_no ?? ''))}${current.published_at ? ` <span class="ifb-muted">· ${esc(fmtDay(current.published_at))}</span>` : ''}` : '<span class="ifb-status ifb-status--warning"><span class="ifb-status__icon" aria-hidden="true">!</span><span class="ifb-status__label">טרם פורסם</span></span>'}</td>
-        <td data-label="טיוטה">${draft ? '<span class="ifb-status ifb-status--pending"><span class="ifb-status__icon" aria-hidden="true">◷</span><span class="ifb-status__label">טיוטה בעריכה</span></span>' : '<span class="ifb-muted">—</span>'}</td>
-        <td data-label="פעולות" class="ifb-col-actions"><button type="button" class="ifb-row-action" data-tpl-open="${esc(template.id)}" aria-label="פתיחת השאלון ${esc(`${program.title} – ${templateSlotLabel(slot)}`)}">צפייה ועריכה</button></td>
-      </tr>`);
-    }
-  }
-  if (!rows.length) return '<div class="ifb-empty"><p>לא נמצאו שאלונים לקורס ולקהל שנבחרו.</p></div>';
-  return `<div class="ifb-table-wrap"><table class="ifb-table ifb-table--compact ifb-tpl-table">
-    <caption class="ifb-sr">שאלונים${audience ? '' : ''}</caption>
-    <thead><tr><th scope="col">קורס</th><th scope="col">שאלון</th><th scope="col">גרסה מפורסמת</th><th scope="col">טיוטה</th><th scope="col"><span class="ifb-sr">פעולות</span></th></tr></thead>
-    <tbody>${rows.join('')}</tbody>
-  </table></div>`;
+      const name = `${program.title} – ${templateSlotLabel(slot)}`;
+      const short = ({
+        'student:pre': 'תלמידים (התחלה)',
+        'student:post': 'תלמידים (סיום)',
+        'educational_staff:final': 'צוות חינוכי',
+        'instructor:pre': 'מדריכים (התחלה)',
+        'instructor:final': 'מדריכים (סיום)'
+      })[slot.key] || templateSlotLabel(slot);
+      return `<div class="ifb-template-card__slot">
+        <button type="button" class="ifb-template-card__open" data-tpl-open="${esc(template.id)}" title="${esc(name)}" aria-label="צפייה ועריכת ${esc(name)}">${esc(short)}${draft ? '<span class="ifb-sr"> – טיוטה בעריכה</span>' : ''}</button>
+        <button type="button" class="ifb-template-card__pdf" data-tpl-pdf="${esc(template.id)}" ${published ? '' : 'disabled'} title="הפקת PDF להדפסה" aria-label="הפקת PDF להדפסה: ${esc(name)}">PDF</button>
+      </div>`;
+    }).join('');
+    return `<article class="ifb-template-card" data-template-course="${esc(program.key)}">
+      <div class="ifb-template-card__inner">
+        <h3 class="ifb-template-card__title">${esc(program.title)}</h3>
+        <p class="ifb-template-card__gefen">${gefen ? esc(gefen) : ''}${esc(educationLevelLabel(program.education_level)) ? ` · ${esc(educationLevelLabel(program.education_level))}` : ''}</p>
+        <div class="ifb-template-card__slots">${buttons}</div>
+      </div>
+    </article>`;
+  }).join('');
+  return `<div class="ifb-template-grid" aria-label="תבניות משוב לפי קורס">${cards}</div>`;
 }
 
 function metricOptions(ui, selected) {
@@ -172,7 +179,7 @@ function listSummaryHtml(questions, defaults) {
     defaults.comparison ? 'השוואת פתיחה–סיום' : '',
     defaults.required ? 'חובה' : 'לא חובה'
   ].filter(Boolean);
-  return `<p class="ifb-tq-summary"${defaults.comparison ? ` title="${esc(COMPARISON_TITLE)}"` : ''}>${esc(parts.join(' · '))}<span class="ifb-muted"> — חריגים מצוינים ליד השאלה</span></p>`;
+  return `<p class="ifb-tq-summary"${defaults.comparison ? ` title="${esc(COMPARISON_TITLE)}"` : ''}>${esc(parts.join(' · '))}</p>`;
 }
 
 function readOnlyQuestionHtml(q, index, ui, defaults) {
@@ -202,7 +209,6 @@ function editableQuestionHtml(q, index, total, ui, defaults) {
       </span>
     </div>
     <label class="ifb-field"><span>ניסוח השאלה</span><textarea rows="2" data-tq-field="wording.default">${esc(q.wording?.default || '')}</textarea></label>
-    <p class="ifb-muted">אפשר להשתמש ב־{topic} כדי לשלב את נושא התוכנית.</p>
     <div class="ifb-tq__row">
       <label class="ifb-field"><span>סוג תשובה</span><select data-tq-field="question_type">${typeOptions(q.question_type)}</select></label>
       <label class="ifb-field"><span>מדד</span><select data-tq-field="metric_key">${metricOptions(ui, q.metric_key)}</select></label>
@@ -251,7 +257,7 @@ function editorHtml(ui) {
         <p class="ifb-tpl-head__program">${esc(courseLabel(program, ui.programs))}</p>
         ${programMeta(program) ? `<p class="ifb-tpl-head__meta">${esc(programMeta(program))}</p>` : ''}
         <h2 class="ifb-tpl-head__title">${esc(slot ? templateSlotLabel(slot) : '')}</h2>
-        ${!ed.published ? '<p class="ifb-tpl-head__status">טרם פורסם</p>' : `<p class="ifb-tpl-head__status">גרסה מפורסמת: ${esc(String(versionsOf(ed.template).find((v) => v.id === ed.published.id)?.version_no ?? ''))} · משובים שכבר נפתחו נשארים על הגרסה שלהם</p>`}
+        ${!ed.published ? '<p class="ifb-tpl-head__status">טרם פורסם</p>' : `<p class="ifb-tpl-head__status">גרסה מפורסמת: ${esc(String(versionsOf(ed.template).find((v) => v.id === ed.published.id)?.version_no ?? ''))}</p>`}
         ${editing ? '<p class="ifb-tpl-head__status is-draft">טיוטה בעריכה</p>' : ''}
       </div>
       <div class="ifb-slot__actions ifb-tpl-head__actions">
@@ -271,9 +277,9 @@ function editorHtml(ui) {
     ${editing ? addFormHtml(ed, ui) : ''}`;
 }
 
-export function renderTemplatesView(ui, { audience = '' } = {}) {
+export function renderTemplatesView(ui) {
   if (tpl.error) return `<div class="ifb-empty ifb-empty--error" role="alert"><p>${esc(tpl.error)}</p><button type="button" class="ifb-btn" data-tpl-reload>נסו שוב</button></div>`;
-  return `<div data-ifb-templates>${ui.templates.templateId ? editorHtml(ui) : listHtml(ui, audience)}</div>`;
+  return `<div data-ifb-templates>${ui.templates.templateId ? editorHtml(ui) : listHtml(ui)}</div>`;
 }
 
 /** True while a questionnaire editor is open (the hosting tab then shows only the editor). */
@@ -427,6 +433,27 @@ export function bindTemplatesView(host, ui, repaint) {
 
   root.addEventListener('click', async (event) => {
     const t = event.target;
+    const pdf = t.closest('[data-tpl-pdf]');
+    if (pdf) {
+      const template = tpl.list?.find((item) => item.id === pdf.dataset.tplPdf);
+      if (!template?.current_version_id || pdf.disabled) return;
+      const program = ui.programs.find((p) => p.key === template.program_key);
+      if (!program) return;
+      pdf.disabled = true;
+      try {
+        const [version, questions, module] = await Promise.all([
+          fetchVersion(template.current_version_id),
+          fetchVersionQuestions(template.current_version_id),
+          import('./feedback-print-pdf.js')
+        ]);
+        await module.downloadQuestionnairePdf({ program, template, version, questions });
+      } catch (error) {
+        showToast('לא ניתן להפיק PDF. נסו שוב.', 'error', 5000);
+      } finally {
+        pdf.disabled = false;
+      }
+      return;
+    }
     const open = t.closest('[data-tpl-open]');
     if (open) {
       ui.templates.templateId = open.dataset.tplOpen;
