@@ -6658,36 +6658,35 @@ export async function buildDynamicCoursePlan({
       await report('תיקון מקומי לאחר בקרת תקינות', 0, repairIds.length);
       try {
         return await buildDynamicCoursePlan({
-        activities,
-        instructors,
-        profiles,
-        rules,
-        exceptions,
-        schoolCalendar,
-        catalog,
-        district,
-        periodKey,
-        today,
-        routeClient,
-        lockedOptions,
-        existingRows: rows,
-        targetCourseIds: repairIds,
-        optimizationOnlyCourseIds: null,
-        upgradeOptimizationScopes: null,
-        onProgress: typeof onProgress === 'function'
-          ? (progress) => onProgress({ ...progress, phase: `תיקון מקומי · ${progress.phase}` })
-          : null,
-        signal,
-        checkpoint,
-        resumeFromCheckpoint: false,
-        allowGlobalRepair: false,
-        _repairPass: false,
-        _repairPriorityIds: repairIds,
-        _finalValidationRepairPass: _finalValidationRepairPass + 1,
-        _finalValidationRepairDeadlineAt: deadlineAt,
-        committedRows,
-        planningProfile: 'fast',
-        checkpoint: repairCheckpoint
+          activities,
+          instructors,
+          profiles,
+          rules,
+          exceptions,
+          schoolCalendar,
+          catalog,
+          district,
+          periodKey,
+          today,
+          routeClient,
+          lockedOptions,
+          existingRows: rows,
+          targetCourseIds: repairIds,
+          optimizationOnlyCourseIds: null,
+          upgradeOptimizationScopes: null,
+          onProgress: typeof onProgress === 'function'
+            ? (progress) => onProgress({ ...progress, phase: `תיקון מקומי · ${progress.phase}` })
+            : null,
+          signal,
+          resumeFromCheckpoint: false,
+          allowGlobalRepair: false,
+          _repairPass: false,
+          _repairPriorityIds: repairIds,
+          _finalValidationRepairPass: _finalValidationRepairPass + 1,
+          _finalValidationRepairDeadlineAt: deadlineAt,
+          committedRows,
+          planningProfile: 'fast',
+          checkpoint: repairCheckpoint
         });
       } catch (error) {
         // A slow bounded repair must not keep the lease alive indefinitely.
