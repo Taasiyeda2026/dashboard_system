@@ -118,8 +118,8 @@ test('every date header and date cell share the centered date class', () => {
   assert.match(instructor, /class="ifb-center ifb-col-date" title="תאריך ההתחלה המוקדם ביותר/);
   assert.match(instructor, /class="ifb-center ifb-col-date" title="תאריך הסיום המאוחר ביותר/);
   assert.match(instructor, /data-label="תחילת קורס ראשון" class="ifb-center ifb-nowrap ifb-col-date">\$\{fmtDate\(row\.first_start_date\)\}/);
-  assert.match(instructor, /data-label="סיום קורס אחרון" class="ifb-center ifb-nowrap ifb-col-date">\$\{fmtDate\(row\.last_end_date\)\}/);
-  assert.match(instructor, /class="ifb-center ifb-nowrap ifb-col-date">\$\{fmtDate\(row\.last_end_date\)\}/);
+  assert.match(instructor, /data-label="סיום אחרון א׳" class="ifb-center ifb-nowrap ifb-col-date">\$\{row\.last_end_a \? fmtDate\(row\.last_end_a\) : ''\}/);
+  assert.match(instructor, /class="ifb-center ifb-nowrap ifb-col-date">\$\{row\.last_end_a \? fmtDate\(row\.last_end_a\) : ''\}/);
   assert.match(styles, /\.ifb-admin \.ifb-table thead th\.ifb-col-date,/);
   assert.match(styles, /\.ifb-admin \.ifb-table tbody td\.ifb-col-date,/);
 });
@@ -128,7 +128,7 @@ test('actual status headings and values are right-aligned without changing stage
   const instructor = screen.slice(screen.indexOf('function instructorAssignmentsHtml('), screen.indexOf('function instructorsHtml('));
   assert.match(instructor, /<th scope="col" class="ifb-col-status">סטטוס<\/th>/);
   assert.match(instructor, /<td data-label="סטטוס פתיחה" class="ifb-col-status">/);
-  assert.match(instructor, /<td data-label="סטטוס סיום" class="ifb-col-status">/);
+  assert.match(instructor, /<td data-label="סטטוס סיום א׳" class="ifb-col-status">/);
   assert.match(screen, /<th scope="col" class="ifb-col-state">מצב<\/th>/);
   assert.match(styles, /\.ifb-admin \.ifb-table thead th\.ifb-col-status,/);
   assert.match(styles, /\.ifb-admin \.ifb-table tbody td\.ifb-col-status,/);
@@ -269,7 +269,7 @@ test('one shared half-year switch controls all operational feedback tabs without
   assert.match(control, /\{ key: 'second', label: "מחצית ב׳" \}/);
   assert.match(control, /data-ifb-group-half="\$\{key\}"/);
   assert.match(control, /aria-pressed="\$\{ui\.feedbackHalf === key\}"/);
-  assert.match(screen, /ui\.groupRowId \|\| ui\.tab === 'templates' \? '' : feedbackSemesterTabsHtml\(\)/);
+  assert.match(screen, /ui\.groupRowId \|\| ui\.tab === 'templates' \|\| ui\.tab === 'instructors' \? '' : feedbackSemesterTabsHtml\(\)/);
   assert.match(screen, /ui\.feedbackHalf = next;/);
   assert.match(screen, /ui\.summaryHalf = null;/);
   assert.match(screen, /await load\(host\)/);
@@ -278,24 +278,18 @@ test('one shared half-year switch controls all operational feedback tabs without
 });
 
 
-test('instructor list shows only scheduled instructor-courses sorted by earliest start date', () => {
+test('instructor tab shows one year-wide row per instructor and program', () => {
   const list = screen.slice(screen.indexOf('function instructorAssignmentsHtml('), screen.indexOf('function instructorsHtml('));
-  assert.match(list, /studentFeedbackPeriodForGroup\(\{ start_date: row\.first_start_date \}\) === ui\.feedbackHalf/);
+  assert.match(list, /row\.first_start_date && \(!ui\.course \|\| row\.program_key === ui\.course\)/);
+  assert.doesNotMatch(list, /studentFeedbackPeriodForGroup\(\{ start_date: row\.first_start_date \}\) === ui\.feedbackHalf/);
   assert.match(list, /\.sort\(\(a, b\) => String\(a\.first_start_date\)\.localeCompare\(String\(b\.first_start_date\)\)/);
-  assert.match(list, /<col class="ifb-iw-instructor"><col class="ifb-iw-program"><col class="ifb-iw-groups">/);
-  assert.equal((list.match(/<col class="ifb-iw-date">/g) || []).length, 2, 'dates have identical widths');
-  assert.equal((list.match(/<col class="ifb-iw-action">/g) || []).length, 2, 'stage actions have identical widths');
-  assert.equal((list.match(/<col class="ifb-iw-status">/g) || []).length, 2, 'stage statuses have identical widths');
-  assert.match(list, /תחילת קורס ראשון/);
-  assert.match(list, /סיום קורס אחרון/);
-  assert.match(list, /fmtDate\(row\.first_start_date\)/);
-  assert.match(list, /fmtDate\(row\.last_end_date\)/);
-  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-date \{ width: 13%; \}/);
-  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-action \{ width: 7%; \}/);
-  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-status \{ width: 9%; \}/);
-  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-instructor \{ width: 15%; \}/);
-  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-program \{ width: 21%; \}/);
-  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-groups \{ width: 6%; \}/);
+  assert.equal((list.match(/<col class="ifb-iw-date">/g) || []).length, 3);
+  assert.equal((list.match(/<col class="ifb-iw-action">/g) || []).length, 3);
+  assert.equal((list.match(/<col class="ifb-iw-status">/g) || []).length, 3);
+  assert.match(list, /סיום אחרון א׳/);
+  assert.match(list, /סיום אחרון ב׳/);
+  assert.match(list, /row\.last_end_a \? fmtDate\(row\.last_end_a\) : ''/);
+  assert.match(list, /row\.last_end_b \? fmtDate\(row\.last_end_b\) : ''/);
 });
 
 test('SQL instructor feedback aggregates the two earliest dates independently', () => {
@@ -486,66 +480,50 @@ test('feedback semester control has no extraneous scheduling explanation anywher
   assert.doesNotMatch(switcher, /ifb-student-semesters__note/);
 });
 
-test('instructor table uses requested nine headings in exact RTL order with independent stage statuses', () => {
+test('instructor yearly table has twelve correctly ordered headings and independent final stages', () => {
   const list = screen.slice(screen.indexOf('function instructorAssignmentsHtml('), screen.indexOf('function instructorsHtml('));
   const header = list.slice(list.indexOf('<thead><tr>'), list.indexOf('</thead>'));
-  const headings = [...header.matchAll(/<th scope="col"[^>]*>([^<]+)<\/th>/g)].map((match) => match[1]);
+  const headings = [...header.matchAll(/<th scope="col"[^>]*>([^<]+)<\/th>/g)].map((m) => m[1]);
   assert.deepEqual(headings, [
-    'מדריך', 'קורס', 'קבוצות', 'תחילת קורס ראשון',
-    'פתיחה', 'סטטוס', 'סיום קורס אחרון',
-    'סיום', 'סטטוס'
+    'מדריך','קורס','קבוצות','תחילת קורס ראשון','פתיחה','סטטוס',
+    'סיום אחרון א׳','סיום','סטטוס','סיום אחרון ב׳','סיום','סטטוס'
   ]);
   const body = list.slice(list.indexOf('<tbody>'), list.indexOf('</tbody>'));
-  const fields = [...body.matchAll(/<td data-label="([^"]+)"[^>]*>/g)].map((match) => match[1]);
+  const fields = [...body.matchAll(/<td data-label="([^"]+)"[^>]*>/g)].map((m) => m[1]);
   assert.deepEqual(fields, [
-    'קורס', 'קבוצות', 'תחילת קורס ראשון',
-    'פתיחה', 'סטטוס פתיחה',
-    'סיום קורס אחרון', 'סיום', 'סטטוס סיום'
+    'קורס','קבוצות','תחילת קורס ראשון','פתיחה','סטטוס פתיחה',
+    'סיום אחרון א׳','סיום','סטטוס סיום א׳','סיום אחרון ב׳','סיום ב׳','סטטוס סיום ב׳'
   ]);
-  assert.match(list, /instructorStageStatusHtml\(row, 'pre'\)/);
-  assert.match(list, /instructorStageStatusHtml\(row, 'final'\)/);
-  assert.match(screen, /function instructorStageStatusHtml\(row, stage\) \{\s*return tableStatusHtml\(instructorCampaignFor\(row, stage\)\);/);
-  assert.doesNotMatch(screen, /function instructorOverallStatus/);
-  const actionFn = screen.slice(screen.indexOf('function instructorCampaignActionsHtml('), screen.indexOf('function instructorFilterMatches('));
-  assert.doesNotMatch(actionFn, /tableStatusHtml\(campaign\)/);
-  assert.match(actionFn, /data-ifb-instructor-open=/);
-  assert.match(actionFn, /data-ifb-copy=/);
-  assert.match(actionFn, /data-ifb-share=/);
-  assert.match(actionFn, /data-ifb-close=/);
-  assert.match(actionFn, /data-ifb-reopen=/);
+  assert.match(screen, /return stage === 'pre' \? row\.pre_campaign : stage === 'final_b' \? row\.final_b_campaign : row\.final_campaign/);
+  assert.match(screen, /if \(stage === 'final_b' && !row\.last_end_b\) return ''/);
+  assert.match(screen, /for \(const campaign of \[row\.pre_campaign, row\.final_campaign, row\.final_b_campaign\]\)/);
+  assert.match(list, /instructorCampaignActionsHtml\(row, 'final_b'\)/);
 });
 
-test('compact instructor columns prevent forced horizontal scrolling while preserving mobile cards', () => {
-  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-date \{ width: 13%; \}/);
-  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-action \{ width: 7%; \}/);
-  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-status \{ width: 9%; \}/);
-  assert.match(styles, /\.ifb-instructor-table th\.ifb-col-status,\s*\.ifb-instructor-table td\.ifb-col-status \{ text-align: right; \}/);
-  assert.match(styles, /\.ifb-instructor-table td\.ifb-col-status \.ifb-status-cell \{\s*justify-items: start;/);
-  assert.match(styles, /\.ifb-instructor-table \{\s*width: 100%;\s*min-width: 0;\s*table-layout: fixed;/);
-  assert.doesNotMatch(styles, /\.ifb-instructor-table \{\s*min-width: 1380px;/);
-  assert.match(styles, /\.ifb-instructor-table \.ifb-icon-actions \{\s*flex-wrap: wrap;/);
+test('annual instructor table fits the desktop container and remains responsive on mobile', () => {
+  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-date \{ width: 10%; \}/);
+  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-action \{ width: 6%; \}/);
+  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-status \{ width: 7%; \}/);
+  assert.match(styles, /\.ifb-instructor-table \{\s*width: 100%;\s*min-width: 0;/);
   assert.match(styles, /@media \(max-width: 760px\) \{[\s\S]*?\.ifb-instructor-table \{ min-width: 0; \}/);
 });
 
-
-test('the two action and status pairs are symmetrical and do not force a desktop min-width', () => {
+test('twelve instructor columns sum to exactly 100 percent and missing B dates remain blank', () => {
   const list = screen.slice(screen.indexOf('function instructorAssignmentsHtml('), screen.indexOf('function instructorsHtml('));
   const cols = [...list.matchAll(/<col class="(ifb-iw-[^"]+)">/g)].map((m) => m[1]);
   assert.deepEqual(cols, [
-    'ifb-iw-instructor', 'ifb-iw-program', 'ifb-iw-groups',
-    'ifb-iw-date', 'ifb-iw-action', 'ifb-iw-status',
-    'ifb-iw-date', 'ifb-iw-action', 'ifb-iw-status'
+    'ifb-iw-instructor','ifb-iw-program','ifb-iw-groups',
+    'ifb-iw-date','ifb-iw-action','ifb-iw-status',
+    'ifb-iw-date','ifb-iw-action','ifb-iw-status',
+    'ifb-iw-date','ifb-iw-action','ifb-iw-status'
   ]);
-  const widths = { 'ifb-iw-instructor': 15, 'ifb-iw-program': 21, 'ifb-iw-groups': 6,
-    'ifb-iw-date': 13, 'ifb-iw-action': 7, 'ifb-iw-status': 9 };
-  assert.equal(cols.reduce((sum, name) => sum + widths[name], 0), 100);
-  assert.match(list, /title="משוב פתיחה – אחרי הכשרה">פתיחה<\/th>/);
-  assert.match(list, /title="משוב סיום הקורס">סיום<\/th>/);
-  assert.doesNotMatch(list, /data-label="פתיחה – אחרי הכשרה"/);
-  assert.doesNotMatch(list, /data-label="סיום הקורס"/);
-  assert.match(styles, /\.ifb-instructor-table-wrap \{\s*width: 100%;\s*min-width: 0;/);
+  const widths = { 'ifb-iw-instructor':12, 'ifb-iw-program':15, 'ifb-iw-groups':4,
+    'ifb-iw-date':10, 'ifb-iw-action':6, 'ifb-iw-status':7 };
+  assert.equal(cols.reduce((sum,name) => sum + widths[name], 0), 100);
+  assert.match(list, /row\.last_end_b \? fmtDate\(row\.last_end_b\) : ''/);
+  assert.match(list, /row\.last_end_b \? instructorStageStatusHtml\(row, 'final_b'\) : ''/);
+  assert.match(styles, /\.ifb-instructor-table-wrap \{\s*width: 100%;\s*max-width: 100%;\s*min-width: 0;/);
 });
-
 
 test('student table interleaves each survey with its corresponding course date', () => {
   const list = screen.slice(screen.indexOf('function groupsTableHtml('), screen.indexOf('function optionBarsHtml('));
@@ -569,22 +547,19 @@ test('student table interleaves each survey with its corresponding course date',
   assert.match(list, /scope === 'staff'[\s\S]*?ifb-col-stage ifb-col-staff/);
 });
 
-test('instructor last course end is the maximum end among groups started in the relevant semester', () => {
-  const table = screen.slice(screen.indexOf('function instructorAssignmentsHtml('), screen.indexOf('function instructorsHtml('));
-  assert.match(table, /title="תאריך הסיום המאוחר ביותר של קבוצות המדריך בקורס שהתחילו במחצית הרלוונטית">סיום קורס אחרון<\/th>/);
-  assert.match(table, /data-label="סיום קורס אחרון" class="ifb-center ifb-nowrap ifb-col-date">\$\{fmtDate\(row\.last_end_date\)\}/);
-  assert.doesNotMatch(table, /fmtDate\(row\.first_course_end_date\)/);
-  const sql = readFileSync(new URL('../supabase/migrations/20261010010500_feedback_instructor_latest_end_in_semester.sql', import.meta.url), 'utf8');
-  assert.match(sql, /select max\(a2\.end_date\)/);
-  assert.match(sql, /a2\.start_date >=/);
-  assert.match(sql, /a2\.start_date </);
-  assert.match(sql, /g\.first_date >= date '2027-01-31'/);
-  assert.match(sql, /then date '2027-07-01' else date '2027-01-31'/);
-  assert.match(sql, /g\.last_end_in_half,/);
-  assert.match(sql, /g\.first_course_end_date,/);
-  assert.doesNotMatch(sql, /drop function if exists public\.feedback_admin_course_summary/);
+test('second half uses a separate campaign and the existing final questionnaire', () => {
+  const sql = readFileSync(new URL('../supabase/migrations/20261010103000_feedback_instructor_second_half_final.sql', import.meta.url), 'utf8');
+  assert.match(sql, /and fc\.stage = 'final_b'/);
+  assert.match(sql, /max\(a2\.end_date\)/);
+  assert.match(sql, /a2\.start_date >= date '2027-01-31'/);
+  assert.match(sql, /a2\.start_date <= date '2027-06-30'/);
+  assert.match(sql, /if p_stage = 'final_b' and a\.last_end_b is null then/);
+  assert.match(sql, /case when p_stage = 'final_b' then 'final' else p_stage end/);
+  assert.match(sql, /stage in \('pre','final','final_b'\)/);
+  assert.match(screen, /factsFor\(facts, 'instructor', 'final_b'\)/);
+  assert.match(screen, /if \(scope === 'instructor-all'\)/);
+  assert.match(screen, /ui\.summary && scope !== 'instructor-all'/);
 });
-
 
 test('every valid public feedback token starts with equal-weight bilingual language choice', () => {
   assert.match(publicPage, /function showLanguageChoice\(root, \{ onHebrew, onArabic \}\)/);
