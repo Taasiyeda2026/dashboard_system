@@ -602,8 +602,15 @@ function groupsTableHtml(slots, scope) {
   const showCourse = !ui.course || filtered.some((g) => !g.program_key);
   const body = filtered.length ? `
     <div class="ifb-table-wrap">
-      <table class="ifb-table ifb-groups-table">
+      <table class="ifb-table ifb-groups-table ifb-groups-table--${scope}${showCourse ? ' ifb-groups-table--with-program' : ''}">
         <caption class="ifb-sr">קבוצות לימוד – הפצה ומעקב</caption>
+        <colgroup>
+          <col class="ifb-gw-school"><col class="ifb-gw-authority">
+          ${showCourse ? '<col class="ifb-gw-course">' : ''}
+          <col class="ifb-gw-person"><col class="ifb-gw-date">
+          ${slots.map(() => '<col class="ifb-gw-stage">').join('')}
+          <col class="ifb-gw-actions">
+        </colgroup>
         <thead><tr>
           <th scope="col">בית ספר</th>
           <th scope="col">רשות</th>
