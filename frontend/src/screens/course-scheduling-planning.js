@@ -5603,6 +5603,73 @@ export async function validateResumedPlanningRows({
   };
 }
 
+/**
+ * Last-resort recovery when bounded replanning repeatedly produces a new
+ * overlap. A previously committed proposal may be retained, but only if the
+ * COMPLETE resulting plan passes the same hard validation as normal planning.
+ * Never restore over a live, fixed or locked row, and never bypass validation.
+ */
+export async function recoverPlanningOverlapFromCommittedProposals({
+  error = null,
+  committedRows = [],
+  activities = [],
+  instructors = [],
+  profiles = {},
+  rules = {},
+  exceptions = {},
+  schoolCalendar = [],
+  catalog = [],
+  district = '',
+  periodKey = DEFAULT_PLANNING_PERIOD_KEY,
+  routeClient = createRouteClient(),
+  checkpoint = async () => {}
+} = {}) {
+  if (error?.code !== 'planning_final_validation_failed' || !Array.isArray(error?.rows)) return null;
+  const collisions = (error.failures || []).filter((failure) =>
+    failure?.reason === 'overlap' && text(failure.firstCourseId) && text(failure.secondCourseId)
+  );
+  if (!collisions.length) return null;
+
+  const committedById = new Map((committedRows || [])
+    .map((row) => [text(row?.courseId), row])
+    .filter(([id]) => !!id));
+  const computedById = new Map(error.rows.map((row) => [text(row?.courseId), row]));
+  const eligible = [...new Set(collisions.flatMap((failure) =>
+    [text(failure.firstCourseId), text(failure.secondCourseId)]
+  ))].filter((courseId) => {
+    const prior = committedById.get(courseId);
+    const current = computedById.get(courseId);
+    return text(prior?.kind) === 'proposal'
+      && text(current?.kind) === 'proposal'
+      && !!text(prior?.instructorEmpId)
+      && Array.isArray(prior?.meetings) && prior.meetings.length > 0
+      && JSON.stringify(prior) !== JSON.stringify(current);
+  }).slice(0, 8);
+  if (!eligible.length) return null;
+
+  const checkRestoration = async (courseIds) => {
+    const restore = new Set(courseIds);
+    const candidateRows = error.rows.map((row) => restore.has(text(row?.courseId))
+      ? { ...committedById.get(text(row.courseId)), diagnostics: {
+          ...(committedById.get(text(row.courseId))?.diagnostics || {}),
+          committedProposalRecoveredAfterOverlap: true
+        } }
+      : row);
+    const checked = await validateResumedPlanningRows({
+      rows: candidateRows, activities, instructors, profiles, rules, exceptions,
+      schoolCalendar, catalog, district, periodKey, routeClient, checkpoint
+    });
+    return checked.valid ? { rows: checked.rows, restoredCourseIds: [...restore] } : null;
+  };
+
+  // Prefer restoring a SINGLE incumbent rather than undoing both improvements.
+  for (const courseId of eligible.slice(0, 4)) {
+    const recovered = await checkRestoration([courseId]);
+    if (recovered) return recovered;
+  }
+  return eligible.length > 1 ? checkRestoration(eligible) : null;
+}
+
 export function finalValidationRepairCourseIds(failures = [], rows = [], maxIds = 24) {
   const direct = new Set();
   const instructorDates = new Set();

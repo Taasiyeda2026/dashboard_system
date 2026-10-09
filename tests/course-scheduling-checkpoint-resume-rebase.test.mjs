@@ -10,7 +10,7 @@ import {
   canValidateCompletedRunningCheckpoint,
   planningResumeReopenIds
 } from '../frontend/src/screens/course-scheduling-run-plan.js';
-import { buildDynamicCoursePlan, validateResumedPlanningRows } from '../frontend/src/screens/course-scheduling-planning.js';
+import { buildDynamicCoursePlan, recoverPlanningOverlapFromCommittedProposals, validateResumedPlanningRows } from '../frontend/src/screens/course-scheduling-planning.js';
 import {
   planningRebaseAffectedCourseIds,
   planningRowReflaggedDuringRun
@@ -374,7 +374,7 @@ test('run wiring: planner completion is recorded explicitly and resume keeps opt
   assert.match(run, /optimizationScopeCourseIds: resumeOptimizationScopeIds/);
   assert.match(run, /planningResumeReopenIds\(resumableRows\)/);
   const plannedMark = run.indexOf('checkpointMetaBase.planningStage = PLANNING_RUN_STAGES.PLANNED;\n          if (persistServerCheckpoints');
-  const mainPlanner = run.indexOf('result = await buildDynamicCoursePlan({');
+  const mainPlanner = run.indexOf('result = await buildDynamicPlanWithCommittedRecovery({');
   const endGate = run.indexOf('const endFacts = await loadSchedulingPlanningPreflight(scope);');
   const validated = run.indexOf('phase: PLANNING_RUN_PHASES.VALIDATED,');
   assert.ok(mainPlanner > 0 && plannedMark > mainPlanner, 'planned stage only after the planner returns');
@@ -407,4 +407,50 @@ test('period/district filter change keeps the loaded shared plan and an active r
   );
   assert.match(handler, /state\.courseSchedulingPlanningLoading\s*\|\| \(state\.courseSchedulingPlanningSharedLoaded && data\._planningSharedLoadedKey === scope\.key\)/);
   assert.match(handler, /rerenderPreservingWorkboardScroll\(\);\s*return;/);
+});
+
+
+test('real-world overlap recovery keeps the prior conflict-free instructor instead of discarding all 253 proposals', async () => {
+  const dates = ['2026-11-02', '2026-11-09'];
+  const a = resumedProposal('a', '1', ...dates);
+  const b = resumedProposal('b', '1', ...dates);
+  const c = resumedProposal('c', '2', '2026-12-07', '2026-12-14');
+  const failure = {
+    code: 'planning_final_validation_failed',
+    rows: [a, b, c],
+    failures: [{ reason: 'overlap', date: dates[0], empId: '1', firstCourseId: 'a', secondCourseId: 'b' }]
+  };
+  const committedRows = [a, resumedProposal('b', '2', ...dates), c];
+  const fixed = await recoverPlanningOverlapFromCommittedProposals({
+    ...resumeBase, error: failure, committedRows, routeClient: routeClient()
+  });
+  assert.ok(fixed, 'a validated saved proposal should resolve the new overlap');
+  assert.deepEqual(fixed.restoredCourseIds, ['b'], 'only the conflicting changed proposal should be restored');
+  assert.equal(fixed.rows.find((row) => row.courseId === 'a').instructorEmpId, '1');
+  assert.equal(fixed.rows.find((row) => row.courseId === 'b').instructorEmpId, '2');
+  assert.equal(fixed.rows.length, 3, 'unrelated rows are retained');
+});
+
+test('overlap recovery never overrides a locked plan or invents an unverified alternative', async () => {
+  const dates = ['2026-11-02', '2026-11-09'];
+  const a = resumedProposal('a', '1', ...dates);
+  const lockedB = { ...resumedProposal('b', '1', ...dates), kind: 'planning-locked' };
+  const result = await recoverPlanningOverlapFromCommittedProposals({
+    ...resumeBase,
+    routeClient: routeClient(),
+    error: {
+      code: 'planning_final_validation_failed',
+      rows: [a, lockedB],
+      failures: [{ reason: 'overlap', empId: '1', date: dates[0], firstCourseId: 'a', secondCourseId: 'b' }]
+    },
+    committedRows: [a, resumedProposal('b', '2', ...dates)]
+  });
+  assert.equal(result, null, 'a locked proposal must not be replaced by a previous movable option');
+});
+
+test('screen uses the whole-plan validated fallback for both normal and delta planning', () => {
+  const run = screenSource.slice(screenSource.indexOf('const runCoursePlanning = async'), screenSource.indexOf('const clonePlanningOption'));
+  assert.match(run, /recoverPlanningOverlapFromCommittedProposals\(/);
+  assert.match(run, /const runDeltaRepairPlan = [\s\S]*?buildDynamicPlanWithCommittedRecovery\(/);
+  assert.match(run, /result = await buildDynamicPlanWithCommittedRecovery\(/);
 });

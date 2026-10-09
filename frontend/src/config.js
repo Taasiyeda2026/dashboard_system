@@ -415,4 +415,5 @@ config.HOTFIX_VERSION = `impact-feedback-adult-rating-ui-20261008-v3-${config.HO
 config.HOTFIX_VERSION = `impact-feedback-ui-admin-only-20261008-v2-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `impact-feedback-module-20261008-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `scheduling-plan-preserve-resume-rebase-20261009-v2-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `scheduling-overlap-incumbent-recovery-20261009-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `impact-feedback-five-tabs-course-analysis-20261009-v27-${config.HOTFIX_VERSION}`;
