@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import { PDFDocument } from 'pdf-lib';
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { buildQuestionnairePdf } from '../frontend/src/impact-feedback/feedback-print-pdf.js';
 
 const assets = new URL('../frontend/assets/fonts/', import.meta.url);
@@ -24,7 +25,7 @@ test('printable feedback PDF is a real A4 document using the published version',
     { question_type: 'free_text', wording: { default: 'מה היית משנה או משפר/ת?' }, required: false }
   ];
   const bytes = await buildQuestionnairePdf({
-    program: { title: 'ביומימיקרי', topic: 'ביומימיקרי – המצאות בהשראת הטבע', gefen_numbers: ['6089'] },
+    program: { title: 'מנהיגות ירוקה', topic: 'מנהיגות ירוקה – אחריות סביבתית', gefen_numbers: ['67867'] },
     template,
     version: { id: 'published-v2', intro_text: 'משוב סיום על התוכנית' },
     questions,
@@ -35,9 +36,6 @@ test('printable feedback PDF is a real A4 document using the published version',
   // Both complete embedded TrueType fonts must be present, not Acrobat-fragile
   // fontkit subsets (which yielded the scrambled Hebrew reported by users).
   assert.ok(bytes.length > 25_000, 'Embedded Hebrew fonts must be present in the PDF');
-  if (process.env.IFB_PDF_SMOKE_OUTPUT) {
-    await writeFile(process.env.IFB_PDF_SMOKE_OUTPUT, bytes);
-  }
   const pdf = await PDFDocument.load(bytes);
   assert.ok(pdf.getPageCount() >= 1);
   for (const page of pdf.getPages()) {
@@ -68,7 +66,7 @@ test('the dedicated templates tab does not duplicate templates on audience tabs'
   assert.match(templates, /data-tpl-pdf/);
   assert.match(templates, /fetchVersionQuestions\(template\.current_version_id\)/);
   assert.match(templates, /ifb-template-card__slot/);
-  assert.match(styles, /grid-template-columns: repeat\(auto-fill, minmax\(140px, 156px\)\)/);
+  assert.match(styles, /grid-template-columns: repeat\(auto-fill, minmax\(min\(100%, 180px\), 1fr\)\)/);
   assert.match(styles, /var\(--ifb-a-accent\)/);
   assert.match(screen, /data-ifb-share="whatsapp"/);
   assert.match(screen, /data-ifb-share="email"/);
@@ -76,9 +74,52 @@ test('the dedicated templates tab does not duplicate templates on audience tabs'
   assert.match(screen, /data-ifb-analyze/);
 });
 
-test('Hebrew questionnaire text uses full fonts with correct bidi punctuation mirroring', async () => {
+test('Hebrew questionnaire text uses full fonts and retains logical Unicode character order', async () => {
   const source = await readFile(new URL('../frontend/src/impact-feedback/feedback-print-pdf.js', import.meta.url), 'utf8');
   assert.match(source, /pdf\.embedFont\(regularData, \{ subset: false \}\)/);
   assert.match(source, /pdf\.embedFont\(boldData, \{ subset: false \}\)/);
-  assert.match(source, /getMirroredCharactersMap\(source, levels\)/);
+  assert.doesNotMatch(source, /getReorderSegments|getMirroredCharactersMap|rightToLeft\(/);
+  assert.match(source, /const rendered = clean\(text\);/);
+});
+
+test('nine actual green-leadership PRE rating questions fit on one printable A4 page', async () => {
+  const [regularData, boldData] = await Promise.all([
+    readFile(new URL('Alef-Regular.ttf', assets)),
+    readFile(new URL('Alef-Bold.ttf', assets))
+  ]);
+  // Questions match the published green leadership PRE syllabus at migration time.
+  const wording = [
+    'אני מבין/ה מה לומדים בתחום {topic} ואיך משתמשים בו בעולם האמיתי',
+    'אני מאמין/ה שאני מסוגל/ת לפתח רעיון לפתרון של בעיה אמיתית',
+    'התחום של {topic} מעניין אותי',
+    'אני אוהב/ת לשאול שאלות ולחקור איך דברים עובדים',
+    'אני יודע/ת לעבוד בצוות כדי לפתח רעיון משותף',
+    'אני חושב/ת שמדע וטכנולוגיה יכולים לעזור לפתור בעיות אמיתיות בעולם',
+    'הייתי רוצה להמשיך ללמוד ולהתנסות בתחום {topic} גם בעתיד',
+    'אני מרגיש/ה אחריות לשמור על הסביבה בבית הספר ובקהילה שלי',
+    'אני מרגיש/ה שאני יכול/ה להוביל יוזמה סביבתית ולהשפיע בבית הספר או בקהילה'
+  ];
+  const bytes = await buildQuestionnairePdf({
+    program: { title: 'מנהיגות ירוקה', topic: 'מנהיגות ירוקה – אחריות סביבתית', gefen_numbers: ['67867'] },
+    template: { audience: 'student', stage: 'pre', current_version_id: 'published-pre-green' },
+    version: { id: 'published-pre-green', intro_text: 'משוב פתיחה על התוכנית' },
+    questions: wording.map((text) => ({ question_type: 'rating_1_5', wording: { default: text }, required: true, scoring: { include_in_score: true } })),
+    regularData,
+    boldData
+  });
+  const pdf = await PDFDocument.load(bytes);
+  assert.equal(pdf.getPageCount(), 1, 'A nine-item rating questionnaire must not spill onto a second sheet');
+  assert.equal(pdf.getPages()[0].getWidth(), 595.28);
+  // Check actual PDF text extraction: do not accept a visually plausible
+  // document with mirrored Hebrew words or reversed Gefen identifiers.
+  // PDF.js transfers/detaches its input; pass a copy so the bytes remain downloadable.
+  const pdfLoadTask = getDocument({ data: new Uint8Array(bytes) });
+  const extractedPdf = await pdfLoadTask.promise;
+  const content = await (await extractedPdf.getPage(1)).getTextContent();
+  const extractedText = content.items.map((item) => item.str).join(' ');
+  assert.match(extractedText, /מנהיגות ירוקה/, 'Hebrew words must remain readable');
+  assert.match(extractedText, /67867/, 'Geffen code must retain left-to-right digit order');
+  assert.doesNotMatch(extractedText, /76876/, 'Reversed Gefen number must never be printed');
+  await pdfLoadTask.destroy();
+  if (process.env.IFB_PDF_SMOKE_OUTPUT) await writeFile(process.env.IFB_PDF_SMOKE_OUTPUT, bytes);
 });

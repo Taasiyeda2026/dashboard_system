@@ -4,7 +4,6 @@
  */
 import { PDFDocument, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import bidiFactory from 'bidi-js';
 
 const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
@@ -14,7 +13,6 @@ const CONTENT_WIDTH = RIGHT - LEFT;
 const INK = rgb(0.12, 0.15, 0.21);
 const MUTED = rgb(0.36, 0.40, 0.46);
 const LINE = rgb(0.78, 0.81, 0.84);
-const bidi = bidiFactory();
 
 export const PAPER_SLOT_NAMES = Object.freeze({
   'student:pre': 'תלמידים – פתיחה',
@@ -28,25 +26,12 @@ function clean(value) {
   return String(value ?? '').replace(/[\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-function rightToLeft(text) {
-  const source = clean(text);
-  const chars = source.split('');
-  const levels = bidi.getEmbeddingLevels(source, 'rtl');
-  // Reorder visual runs after mirroring directional punctuation. Do not
-  // reverse digits or Latin abbreviations independently of Unicode BiDi.
-  for (const [at, mirrored] of bidi.getMirroredCharactersMap(source, levels)) {
-    chars[at] = mirrored;
-  }
-  for (const [start, end] of bidi.getReorderSegments(source, levels)) {
-    for (let a = start, b = end; a < b; a += 1, b -= 1) {
-      [chars[a], chars[b]] = [chars[b], chars[a]];
-    }
-  }
-  return chars.join('');
-}
+// fontkit shapes Hebrew from its original logical Unicode order.
+// Passing manually reversed "visual order" strings causes a second reversal
+// in PDF viewers such as Adobe Acrobat. Never reorder letters here.
 
 function lineWidth(font, text, size) {
-  return font.widthOfTextAtSize(rightToLeft(text), size);
+  return font.widthOfTextAtSize(clean(text), size);
 }
 
 function wrapText(text, font, size, width) {
@@ -75,7 +60,7 @@ function wrapText(text, font, size, width) {
 }
 
 function drawRight(page, font, text, size, y, right = RIGHT, color = INK) {
-  const rendered = rightToLeft(text);
+  const rendered = clean(text);
   page.drawText(rendered, {
     x: right - font.widthOfTextAtSize(rendered, size),
     y,
@@ -92,7 +77,8 @@ function drawBox(page, x, y) {
 function questionAnswerHeight(question, font) {
   const type = question.question_type;
   const na = type === 'rating_1_5' && question.scoring?.allow_na === true;
-  if (type === 'rating_1_5') return na ? 73 : 53;
+  // Compact one-row ratings: 9-question student PRE surveys fit on one A4 sheet.
+  if (type === 'rating_1_5') return na ? 37 : 20;
   if (type === 'yes_no') return 31;
   if (type === 'free_text') return 105;
   if (type === 'single_select' || type === 'multi_select') {
@@ -152,7 +138,21 @@ export async function buildQuestionnairePdf({ program, template, version, questi
     }
     drawRight(page, bold, 'תעשיידע', 14, 788);
     drawRight(page, bold, title, 18, 758);
-    drawRight(page, regular, [stage, gefen ? `גפ״ן ${gefen}` : ''].filter(Boolean).join(' · '), 10, 734, RIGHT, MUTED);
+    // Split the right-to-left labels from the LTR digits; mixed-direction
+    // drawing in a single PDF text run reverses identifiers in Acrobat.
+    drawRight(page, regular, stage, 10, 734, RIGHT, MUTED);
+    if (gefen) {
+      const fontSize = 10;
+      const stageWidth = regular.widthOfTextAtSize(stage, fontSize);
+      const dotWidth = regular.widthOfTextAtSize('·', fontSize);
+      const labelWidth = regular.widthOfTextAtSize('גפ״ן', fontSize);
+      let cursor = RIGHT - stageWidth - 12;
+      page.drawText('·', { x: cursor - dotWidth, y: 734, size: fontSize, font: regular, color: MUTED });
+      cursor -= dotWidth + 10;
+      drawRight(page, regular, 'גפ״ן', fontSize, 734, cursor, MUTED);
+      cursor -= labelWidth + 7;
+      page.drawText(gefen, { x: cursor - regular.widthOfTextAtSize(gefen, fontSize), y: 734, size: fontSize, font: regular, color: MUTED });
+    }
     page.drawLine({ start: { x: LEFT, y: 720 }, end: { x: RIGHT, y: 720 }, thickness: 1, color: LINE });
     y = 699;
   }
@@ -177,12 +177,12 @@ export async function buildQuestionnairePdf({ program, template, version, questi
     const headingLines = wrapText(heading, bold, 11, CONTENT_WIDTH);
     const answerHeight = questionAnswerHeight(question, regular);
     ensureSpace(headingLines.length * 16 + answerHeight + 26);
-    page.drawLine({ start: { x: LEFT, y: y + 6 }, end: { x: RIGHT, y: y + 6 }, thickness: 0.5, color: LINE });
+    page.drawLine({ start: { x: LEFT, y: y + 15 }, end: { x: RIGHT, y: y + 15 }, thickness: 0.5, color: LINE });
     for (const line of headingLines) {
       drawRight(page, bold, line, 11, y);
       y -= 16;
     }
-    y -= 10;
+    y -= 5;
 
     if (question.question_type === 'rating_1_5') {
       for (let n = 1; n <= 5; n += 1) {
@@ -190,14 +190,14 @@ export async function buildQuestionnairePdf({ program, template, version, questi
         drawBox(page, x, y - 1);
         drawRight(page, bold, String(n), 10, y + 1, x - 7);
       }
-      y -= 22;
+      y -= 18;
       drawRight(page, regular, '1 – בכלל לא', 9, y, RIGHT, MUTED);
       drawRight(page, regular, '5 – במידה רבה מאוד', 9, y, RIGHT - 333, MUTED);
-      y -= 21;
+      y -= 15;
       if (question.scoring?.allow_na === true) {
         drawBox(page, RIGHT - 14, y - 1);
         drawRight(page, regular, 'לא רלוונטי / לא הייתה אפשרות להעריך', 9, y, RIGHT - 20);
-        y -= 21;
+        y -= 17;
       }
     } else if (question.question_type === 'yes_no') {
       for (const [n, label] of ['כן', 'לא'].entries()) {
@@ -225,7 +225,7 @@ export async function buildQuestionnairePdf({ program, template, version, questi
     } else {
       y -= 35;
     }
-    y -= 15;
+    y -= 8;
   }
 
   for (const [i, p] of pdf.getPages().entries()) {
