@@ -37,7 +37,8 @@ test('actual validated-checkpoint SQL commits 253 entries and all 104 dirty flag
       "insert into public.scheduling_planning_rows(workspace_id,activity_id,row_data,needs_recalc) select $1,'activity-'||n,jsonb_build_object('courseId','activity-'||n,'kind',case when n<101 then 'live' when n<180 then 'proposal' when n<186 then 'fixed-proposal' when n<236 then 'missing' else 'recruitment' end,'instructorEmpId',case when n<186 then 'staff-'||n else '' end),n<104 from generate_series(0,252) n;",
       "insert into public.scheduling_planning_checkpoint_rows(period_key,district,activity_id,row_data) select 'year','',activity_id,case when activity_id='activity-110' then jsonb_set(row_data,'{instructorEmpId}',to_jsonb('replanned-staff'::text)) else row_data end from public.scheduling_planning_rows;",
       "insert into public.scheduling_planning_checkpoints(period_key,district,phase,engine_version,data_fingerprint,context_fingerprint,completed_count,total_count,rows_data) values ('year','','running','planning-v35','data-fp','context-fp',253,253,jsonb_build_array(jsonb_build_object('__planningRunMeta',true,'planningStage','planned','sourceRevision','239','workspaceRevision','11946')));"
-    ].join('\n'),[workspaceId]);
+    ].map(statement => statement.replaceAll('$1', "'"+workspaceId+"'")).join('\n'));
+
     const call="select public.commit_scheduling_planning_checkpoint('year','','planning-v35','data-fp','context-fp',$1,$2,239) payload";
     const blocked=async(message,revision=11946,id=runId)=>{
       await assert.rejects(client.query(call,[revision,id]),err=>String(err.message).includes(message));
