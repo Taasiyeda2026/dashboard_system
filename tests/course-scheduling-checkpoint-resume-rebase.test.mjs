@@ -481,7 +481,7 @@ test('nested local overlap repairs have one cooperative deadline that cannot res
 });
 
 test('on whole-plan overlap, saved incumbent is verified before 75s nested repair', () => {
-  const start = plannerSource.indexOf('const finalPlanValidation = await validatePlanningPlanCoherenceCooperatively');
+  const start = plannerSource.indexOf('let finalPlanValidation = await validatePlanningPlanCoherenceCooperatively');
   const end = plannerSource.indexOf('const summarize = (selectedRows', start);
   const section = plannerSource.slice(start, end);
   assert.ok(start > 0 && end > start);

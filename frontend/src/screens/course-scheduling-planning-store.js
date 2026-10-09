@@ -520,24 +520,40 @@ export function expandPlanningAffectedIdsBySchool({
   const activityById = new Map((activities || []).map((activity) => [idOf(activity), activity]));
   const entryById = new Map((shared?.rows || []).map((entry) => [text(entry?.activityId), entry]));
   const result = new Set((affectedIds || []).map(text).filter((id) => id && (!allowed || allowed.has(id))));
-  const schoolIds = new Set();
-  for (const courseId of result) {
-    const activity = activityById.get(courseId);
-    const entry = entryById.get(courseId);
-    const schoolId = text(activity?.school_id || entry?.row?.schoolId);
-    if (schoolId) schoolIds.add(schoolId);
+  // Close school + instructor/date edges transitively. A school peer may
+  // introduce a different instructor whose activities are in another school.
+  const metadata = new Map(), schools = new Map(), resources = new Map();
+  const index = (map, key, id) => { if (!map.has(key)) map.set(key, new Set()); map.get(key).add(id); };
+  for (const courseId of new Set([...entryById.keys(), ...activityById.keys()])) {
+    const entry = entryById.get(courseId) || {};
+    if (allowed && !allowed.has(courseId)) continue;
+    const activity = activityById.get(courseId), row = entry.row || {};
+    const school = text(activity?.school_id || row.schoolId);
+    const ids = new Set([...instructorIdsFromActivity(activity), ...instructorIdsFromPlanningEntry(entry)]);
+    const dates = new Set(meetingsFromPlanningEntry(entry, activity).map(m => m.date));
+    const immutable = !!entry.lockedOption || row.planningLocked === true || row.schoolDateAnchored === true
+      || ['live', 'fixed', 'fixed-proposal'].includes(text(row.kind));
+    const keys = [...ids].flatMap(id => dates.size ? [...dates].map(date => id + '|' + date) : [id + '|*']);
+    metadata.set(courseId, { school, keys, immutable });
+    if (school) index(schools, school, courseId);
+    for (const key of keys) index(resources, key, courseId);
+    for (const id of ids) index(resources, id + '|all', courseId);
   }
-  if (!schoolIds.size) return [...result];
-  for (const entry of shared?.rows || []) {
-    const courseId = text(entry?.activityId);
-    if (!courseId || (allowed && !allowed.has(courseId))) continue;
-    const activity = activityById.get(courseId);
-    const row = entry?.row || {};
-    const schoolId = text(activity?.school_id || row?.schoolId);
-    if (!schoolId || !schoolIds.has(schoolId)) continue;
-    if (entry?.lockedOption || row?.planningLocked === true || row?.schoolDateAnchored === true) continue;
-    if (['live', 'fixed', 'fixed-proposal'].includes(text(row?.kind))) continue;
-    result.add(courseId);
+  const queue = [...result];
+  const include = (id) => {
+    if (result.has(id) || metadata.get(id)?.immutable) return;
+    result.add(id); queue.push(id);
+  };
+  for (let cursor = 0; cursor < queue.length; cursor++) {
+    const item = metadata.get(queue[cursor]);
+    if (!item) continue;
+    for (const id of schools.get(item.school) || []) include(id);
+    for (const key of item.keys) {
+      const empId = key.split('|')[0];
+      const matches = key.endsWith('|*') ? resources.get(empId + '|all') : resources.get(key);
+      for (const id of matches || []) include(id);
+      for (const id of resources.get(empId + '|*') || []) include(id);
+    }
   }
   return [...result];
 }
@@ -1090,6 +1106,26 @@ export function planningEngineUpgradeAffectedCourseIds({
 
   const previousMajor = Number(previous.match(/planning-v(\d+)/)?.[1]) || 0;
   const currentMajor = Number(current.match(/planning-v(\d+)/)?.[1]) || 0;
+
+  // v36 repairs proven fixed-date drift. Valid incumbents require an explicit
+  // validation-only marker upgrade, not a fresh national candidate search.
+  if (currentMajor === 36 && previousMajor > 0 && previousMajor < 36) {
+    const byId = new Map(activities.map(a => [idOf(a), a]));
+    const affected = [];
+    for (const entry of shared.rows || []) {
+      const row = entry.row || {}, id = text(entry.activityId || row.courseId);
+      if (row.kind !== 'fixed-proposal' || entry.lockedOption || row.planningLocked) continue;
+      const activity = byId.get(id);
+      if (!activity) continue;
+      for (let number = 1; number <= 35; number++) {
+        const date = text(activity['date_' + number]).slice(0, 10);
+        if (!date) continue;
+        const meeting = (row.meetings || []).find((m,i) => (Number(m.meeting_no) || i+1) === number);
+        if (!meeting || text(meeting.date).slice(0,10) !== date) { affected.push(id); break; }
+      }
+    }
+    return expandPlanningAffectedIdsBySchool({ affectedIds: affected, shared, activities });
+  }
 
   // v29 changes outcome semantics, not the schedule of already-valid proposals:
   // recruitment is now a certified terminal result, while timed-out / bounded

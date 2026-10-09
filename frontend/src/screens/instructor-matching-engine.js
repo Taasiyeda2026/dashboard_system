@@ -34,6 +34,16 @@ export function exceedsTransitionDistanceLimit(distanceKm) {
   return Number.isFinite(km) && km > MAX_TRANSITION_DISTANCE_KM;
 }
 
+/** Shared hard transition policy; unknown routes never become zero-minute trips. */
+export function schedulingTransitionFailure({ sameSchool = false, gapMinutes, route } = {}) {
+  if (sameSchool) return null;
+  if (route?.distance_km == null || route?.duration_minutes == null
+    || !Number.isFinite(Number(route.distance_km)) || !Number.isFinite(Number(route.duration_minutes))) return 'travel_unverified';
+  if (transitionDistanceCapApplies(gapMinutes) && exceedsTransitionDistanceLimit(route.distance_km)) return 'transition_distance_exceeded';
+  if (Number(gapMinutes) < Number(route.duration_minutes) + transitionBufferMinutes(route.distance_km)) return 'transition_insufficient';
+  return null;
+}
+
 export const DEFAULT_SCHEDULING_PROFILE = Object.freeze({
   gender: null,
   instruction_languages: [],
@@ -392,22 +402,22 @@ export function evaluateInstructor({
       const label = direction === 'previous' ? 'מהפעילות הקודמת' : 'לפעילות הבאה';
       const neighborRef = formatPersistedActivityReference(neighbor, neighbor.date || meeting.date);
       const sameLocation = sameSchoolLocation(neighbor, activity);
-      if ((required == null || distance == null
-        || !Number.isFinite(Number(required)) || !Number.isFinite(Number(distance))) && !sameLocation) {
+      const transitionFailure = schedulingTransitionFailure({ sameSchool: sameLocation, gapMinutes: gap, route: leg });
+      if (transitionFailure === 'travel_unverified') {
         const message = neighborRef
           ? (direction === 'previous'
             ? `לא ניתן לאמת זמן מעבר לאחר ${neighborRef}`
             : `לא ניתן לאמת זמן מעבר לפני ${neighborRef}`)
           : `לא ניתן לאמת זמן מעבר ${label}`;
         addIssue('unverified_transition', direction, message, meeting.date);
-      } else if (!sameLocation && transitionDistanceCapApplies(gap) && exceedsTransitionDistanceLimit(distance)) {
+      } else if (transitionFailure === 'transition_distance_exceeded') {
         const message = neighborRef
           ? (direction === 'previous'
             ? `המרחק אחרי ${neighborRef} גדול מ־${MAX_TRANSITION_DISTANCE_KM} ק״מ`
             : `המרחק לפני ${neighborRef} גדול מ־${MAX_TRANSITION_DISTANCE_KM} ק״מ`)
           : `המרחק בין הפעילויות גדול מ־${MAX_TRANSITION_DISTANCE_KM} ק״מ`;
         addIssue('transition_distance_exceeded', `${direction}-${distance}`, message, meeting.date);
-      } else if (!sameLocation && gap < Number(required) + transitionBufferMinutes(distance)) {
+      } else if (transitionFailure === 'transition_insufficient') {
         const needed = Number(required) + transitionBufferMinutes(distance);
         const message = neighborRef
           ? (direction === 'previous'

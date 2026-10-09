@@ -334,6 +334,7 @@ function* rebuildPreparedInstructorContextSteps(context, empId) {
 function rebuildPreparedInstructorContext(...args) { return drainSchedulingSteps(rebuildPreparedInstructorContextSteps(...args)); }
 
 function* prepareSchedulingRunContextSteps(input = {}) {
+  const stop = planningPerfTimer('contextPreparation');
   planningPerfCount('contextRebuilds');
   const activities = input.activities || [];
   const periodKey = input.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY;
@@ -381,6 +382,7 @@ function* prepareSchedulingRunContextSteps(input = {}) {
     yield* rebuildPreparedInstructorContextSteps(context, instructor?.emp_id);
     yield;
   }
+  stop();
   return context;
 }
 
