@@ -4,7 +4,6 @@
  */
 import { PDFDocument, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
-import bidiFactory from 'bidi-js';
 
 const PAGE_WIDTH = 595.28;
 const PAGE_HEIGHT = 841.89;
@@ -14,7 +13,6 @@ const CONTENT_WIDTH = RIGHT - LEFT;
 const INK = rgb(0.12, 0.15, 0.21);
 const MUTED = rgb(0.36, 0.40, 0.46);
 const LINE = rgb(0.78, 0.81, 0.84);
-const bidi = bidiFactory();
 
 export const PAPER_SLOT_NAMES = Object.freeze({
   'student:pre': 'תלמידים – פתיחה',
@@ -28,25 +26,12 @@ function clean(value) {
   return String(value ?? '').replace(/[\u0000-\u001f]+/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-function rightToLeft(text) {
-  const source = clean(text);
-  const chars = source.split('');
-  const levels = bidi.getEmbeddingLevels(source, 'rtl');
-  // Reorder visual runs after mirroring directional punctuation. Do not
-  // reverse digits or Latin abbreviations independently of Unicode BiDi.
-  for (const [at, mirrored] of bidi.getMirroredCharactersMap(source, levels)) {
-    chars[at] = mirrored;
-  }
-  for (const [start, end] of bidi.getReorderSegments(source, levels)) {
-    for (let a = start, b = end; a < b; a += 1, b -= 1) {
-      [chars[a], chars[b]] = [chars[b], chars[a]];
-    }
-  }
-  return chars.join('');
-}
+// fontkit shapes Hebrew from its original logical Unicode order.
+// Passing manually reversed "visual order" strings causes a second reversal
+// in PDF viewers such as Adobe Acrobat. Never reorder letters here.
 
 function lineWidth(font, text, size) {
-  return font.widthOfTextAtSize(rightToLeft(text), size);
+  return font.widthOfTextAtSize(clean(text), size);
 }
 
 function wrapText(text, font, size, width) {
@@ -75,7 +60,7 @@ function wrapText(text, font, size, width) {
 }
 
 function drawRight(page, font, text, size, y, right = RIGHT, color = INK) {
-  const rendered = rightToLeft(text);
+  const rendered = clean(text);
   page.drawText(rendered, {
     x: right - font.widthOfTextAtSize(rendered, size),
     y,

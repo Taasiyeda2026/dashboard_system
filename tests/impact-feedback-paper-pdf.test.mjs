@@ -24,7 +24,7 @@ test('printable feedback PDF is a real A4 document using the published version',
     { question_type: 'free_text', wording: { default: 'מה היית משנה או משפר/ת?' }, required: false }
   ];
   const bytes = await buildQuestionnairePdf({
-    program: { title: 'ביומימיקרי', topic: 'ביומימיקרי – המצאות בהשראת הטבע', gefen_numbers: ['6089'] },
+    program: { title: 'מנהיגות ירוקה', topic: 'מנהיגות ירוקה – אחריות סביבתית', gefen_numbers: ['67867'] },
     template,
     version: { id: 'published-v2', intro_text: 'משוב סיום על התוכנית' },
     questions,
@@ -68,7 +68,7 @@ test('the dedicated templates tab does not duplicate templates on audience tabs'
   assert.match(templates, /data-tpl-pdf/);
   assert.match(templates, /fetchVersionQuestions\(template\.current_version_id\)/);
   assert.match(templates, /ifb-template-card__slot/);
-  assert.match(styles, /grid-template-columns: repeat\(auto-fill, minmax\(140px, 156px\)\)/);
+  assert.match(styles, /grid-template-columns: repeat\(auto-fill, minmax\(min\(100%, 180px\), 1fr\)\)/);
   assert.match(styles, /var\(--ifb-a-accent\)/);
   assert.match(screen, /data-ifb-share="whatsapp"/);
   assert.match(screen, /data-ifb-share="email"/);
@@ -76,9 +76,10 @@ test('the dedicated templates tab does not duplicate templates on audience tabs'
   assert.match(screen, /data-ifb-analyze/);
 });
 
-test('Hebrew questionnaire text uses full fonts with correct bidi punctuation mirroring', async () => {
+test('Hebrew questionnaire text uses full fonts and retains logical Unicode character order', async () => {
   const source = await readFile(new URL('../frontend/src/impact-feedback/feedback-print-pdf.js', import.meta.url), 'utf8');
   assert.match(source, /pdf\.embedFont\(regularData, \{ subset: false \}\)/);
   assert.match(source, /pdf\.embedFont\(boldData, \{ subset: false \}\)/);
-  assert.match(source, /getMirroredCharactersMap\(source, levels\)/);
+  assert.doesNotMatch(source, /getReorderSegments|getMirroredCharactersMap|rightToLeft\(/);
+  assert.match(source, /const rendered = clean\(text\);/);
 });
