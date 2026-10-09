@@ -1506,3 +1506,78 @@
 .ifb-qr-overlay:fullscreen .ifb-qr__title {
   font-size: clamp(24px, 4vw, 44px);
 }
+
+
+/* Focused school-staff feedback detail: one operational card, clear results,
+   and no unrelated student cards or permanently expanded open answers. */
+.ifb-group-detail {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.ifb-group-detail > .ifb-back {
+  justify-self: start;
+  margin-bottom: 0;
+}
+.ifb-group-detail--staff .ifb-group-head {
+  gap: 10px;
+  padding: 14px 18px;
+}
+.ifb-group-detail--staff .ifb-group-head__identity {
+  padding-bottom: 9px;
+}
+.ifb-group-detail--staff .ifb-meta--head {
+  gap: 8px 16px;
+}
+.ifb-slots--staff {
+  display: grid;
+  grid-template-columns: minmax(0, 540px);
+  justify-content: start;
+  gap: 0;
+}
+.ifb-slots--staff .ifb-slot {
+  gap: 10px;
+  padding: 14px 16px;
+  align-content: start;
+}
+.ifb-slots--staff .ifb-slot .ifb-meta {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 14px;
+  margin: 2px 0;
+}
+.ifb-slots--staff .ifb-slot__actions {
+  align-items: center;
+  gap: 6px;
+}
+.ifb-group-detail--staff > .ifb-section {
+  gap: 8px;
+}
+.ifb-group-detail--staff .ifb-q-table th[scope="row"] {
+  width: 40%;
+  min-width: 210px;
+}
+.ifb-group-detail--staff .ifb-q-table th,
+.ifb-group-detail--staff .ifb-q-table td {
+  vertical-align: middle;
+}
+.ifb-staff-results-empty {
+  margin: 0;
+  padding: 16px;
+  border: 1px solid var(--ifb-a-line);
+  border-radius: 10px;
+  background: var(--ifb-a-card);
+  color: var(--ifb-a-muted);
+  font-size: 13px;
+}
+.ifb-group-answers > summary {
+  font-weight: 650;
+}
+@media (max-width: 760px) {
+  .ifb-group-detail--staff .ifb-group-head { padding: 12px; }
+  .ifb-slots--staff { grid-template-columns: minmax(0, 1fr); }
+  .ifb-slots--staff .ifb-slot { padding: 12px; }
+  .ifb-group-detail--staff .ifb-q-table th[scope="row"] {
+    width: 100%;
+    min-width: 0;
+  }
+}
