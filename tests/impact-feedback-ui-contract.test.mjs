@@ -1,7 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { filterGroups, hasCourseStartDate } from '../frontend/src/impact-feedback/feedback-domain.js';
+import { filterGroups, hasCourseStartDate, studentFeedbackPeriodForGroup, studentFeedbackHasResponses, sortStudentFeedbackGroups } from '../frontend/src/impact-feedback/feedback-domain.js';
+import { COURSE_SCHEDULING_PERIODS } from '../frontend/src/screens/course-scheduling-periods.js';
 
 const screen = readFileSync(new URL('../frontend/src/screens/impact-feedback.js', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../frontend/src/impact-feedback/impact-feedback-admin.css', import.meta.url), 'utf8');
@@ -172,4 +173,93 @@ test('feedback uses fresh activity data on entry and while active without a dupl
   assert.match(screen, /if \(!host\.isConnected\) \{/);
   assert.match(screen, /activitySyncController\?\.abort\(\)/);
   assert.match(screen, /installActivityDateSync\(host\)/);
+});
+
+
+test('group management shows activity data as read-only identity, without a course assignment UI', () => {
+  const group = screen.slice(screen.indexOf('function groupViewHtml(group)'), screen.indexOf('// Export', screen.indexOf('function groupViewHtml(group)')));
+  assert.match(group, /const activityTitle = group\.activity_name \|\|/);
+  assert.match(group, /<h2 class="ifb-group-head__title">\$\{esc\(group\.school/);
+  assert.match(group, /<p class="ifb-group-head__program">\$\{esc\(activityTitle\)\}<\/p>/);
+  assert.match(group, /<dt>רשות<\/dt>/);
+  assert.match(group, /<dt>מדריך\/ה<\/dt>/);
+  assert.match(group, /<dt>איש\/אשת קשר<\/dt>/);
+  assert.match(group, /<dt>תחילת קורס<\/dt>/);
+  assert.match(group, /<dt>סיום קורס<\/dt>/);
+  assert.match(group, /fmtDate\(group\.start_date\)/);
+  assert.match(group, /fmtDate\(group\.end_date\)/);
+  assert.doesNotMatch(group, /שנת לימודים|academicYearLabel|programCardHtml|data-ifb-set-program/);
+  assert.doesNotMatch(screen, /programQuickPickHtml|programCardHtml|data-ifb-set-program|data-ifb-program-auto|data-ifb-program-exclude|setActivityProgram|programOptionsHtml/);
+});
+
+test('missing feedback templates are handled internally without exposing course selection', () => {
+  assert.match(screen, /ממתין להתאמת משוב/);
+  assert.match(screen, /לתוכנית זו טרם הותאמה תבנית משוב/);
+  assert.match(screen, /if \(!group\.program_key\)/);
+  assert.doesNotMatch(screen, /בחירת קורס ידנית|שמירת קורס|חזרה לזיהוי אוטומטי/);
+  assert.match(screen, /GROUP_SLOTS\.map\(\(slot\) => slotCardHtml\(group, slot\)\)/);
+});
+
+test('group identity has one heading and a responsive, compact metadata grid', () => {
+  assert.match(styles, /\.ifb-group-head__identity \{[\s\S]*?border-bottom: 1px solid var\(--ifb-a-divider\)/);
+  assert.match(styles, /\.ifb-meta--head \{\s*display: grid;\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.ifb-group-head__date dt,\s*\.ifb-group-head__date dd \{/);
+  assert.match(styles, /@media \(max-width: 760px\) \{[\s\S]*?\.ifb-meta--head \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+});
+
+
+test('student feedback reuses the scheduling-board dates and allocates each started group to one half', () => {
+  assert.equal(COURSE_SCHEDULING_PERIODS.first.start, '2026-09-01');
+  assert.equal(COURSE_SCHEDULING_PERIODS.first.end, '2027-01-29');
+  assert.equal(COURSE_SCHEDULING_PERIODS.second.start, '2027-01-31');
+  assert.equal(COURSE_SCHEDULING_PERIODS.second.end, '2027-06-30');
+  const cases = [
+    [null, null], ['2026-08-31', null], ['2026-09-01', 'first'],
+    ['2027-01-29', 'first'], ['2027-01-30', 'first'],
+    ['2027-01-31', 'second'], ['2027-06-30', 'second'],
+    ['2027-07-01', null]
+  ];
+  for (const [start_date, expected] of cases) {
+    assert.equal(studentFeedbackPeriodForGroup({ start_date }), expected, String(start_date));
+  }
+  assert.equal(studentFeedbackPeriodForGroup({
+    start_date: '2027-01-20',
+    end_date: '2027-02-22'
+  }), 'first', 'a first-half course that ends in February must not move to second half');
+  assert.equal(studentFeedbackPeriodForGroup({ start_date: '2027-01-31' }), 'second');
+});
+
+test('student list is sorted by course start date with groups already answered at the bottom', () => {
+  const group = (row_id, start_date, responses = 0, audience = 'student') => ({
+    row_id, school: row_id, start_date,
+    campaigns: responses ? [{ audience, stage: 'pre', responses }] : []
+  });
+  const groups = [
+    group('answered-early', '2026-09-02', 11),
+    group('upcoming-late', '2026-12-12'),
+    group('upcoming-early', '2026-10-12'),
+    group('answered-later', '2026-11-01', 1),
+    group('staff-responded', '2026-10-20', 1, 'educational_staff')
+  ];
+  assert.deepEqual(sortStudentFeedbackGroups(groups).map((g) => g.row_id), [
+    'upcoming-early', 'staff-responded', 'upcoming-late',
+    'answered-early', 'answered-later'
+  ]);
+  assert.equal(studentFeedbackHasResponses(groups[0]), true);
+  assert.equal(studentFeedbackHasResponses(groups[4]), false);
+  assert.equal(studentFeedbackHasResponses(group('opened-no-answers', '2026-09-02')), false);
+});
+
+test('the students tab has two real semester buttons, each with an exclusive group partition', () => {
+  const table = screen.slice(screen.indexOf('function studentSemesterTabsHtml('), screen.indexOf('function optionBarsHtml('));
+  assert.match(screen, /studentHalf: 'first'/);
+  assert.match(table, /\{ key: 'first', label: "מחצית א׳" \}/);
+  assert.match(table, /\{ key: 'second', label: "מחצית ב׳" \}/);
+  assert.match(table, /data-ifb-student-half="\$\{key\}"/);
+  assert.match(table, /aria-pressed="\$\{ui\.studentHalf === key\}"/);
+  assert.match(table, /all\.filter\(\(g\) => studentFeedbackPeriodForGroup\(g\) === ui\.studentHalf\)/);
+  assert.match(table, /sortStudentFeedbackGroups\(matching\)/);
+  assert.match(table, /scope === 'students' \? studentSemesterTabsHtml\(all\) : ''/);
+  assert.match(screen, /const studentHalf = t\.closest\('\[data-ifb-student-half\]'\)/);
+  assert.match(styles, /\.ifb-student-semester\.is-active \{/);
 });

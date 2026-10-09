@@ -1,3 +1,4 @@
+import { COURSE_SCHEDULING_PERIODS } from '../screens/course-scheduling-periods.js';
 /**
  * Impact feedback — pure domain logic (no DOM, no network).
  * Shared by the admin screen, the public form and node tests.
@@ -127,6 +128,36 @@ export function hasCourseStartDate(group) {
   const date = new Date(Date.UTC(year, month - 1, day));
   return date.getUTCFullYear() === year &&
     date.getUTCMonth() + 1 === month && date.getUTCDate() === day;
+}
+
+/**
+ * Keep student-feedback semesters identical to the scheduling board.
+ * Assign each course to exactly one semester by its first activity date,
+ * not by its end date (a first-half course may continue into February).
+ * The one-day 30 January gap follows the planning engine: starts before
+ * the second-half start belong to the first half.
+ */
+export function studentFeedbackPeriodForGroup(group) {
+  if (!hasCourseStartDate(group)) return null;
+  const day = group.start_date;
+  const { first, second } = COURSE_SCHEDULING_PERIODS;
+  if (day < first.start || day > second.end) return null;
+  return day >= second.start ? 'second' : 'first';
+}
+
+/** Submitted student answers are evidence that feedback has already been performed. */
+export function studentFeedbackHasResponses(group) {
+  return (group?.campaigns || []).some((campaign) =>
+    campaign.audience === 'student' && Number(campaign.responses || 0) > 0);
+}
+
+/** Upcoming work is listed by earliest course start; answered feedback goes last. */
+export function sortStudentFeedbackGroups(groups = []) {
+  return [...groups].sort((a, b) =>
+    Number(studentFeedbackHasResponses(a)) - Number(studentFeedbackHasResponses(b)) ||
+    String(a.start_date).localeCompare(String(b.start_date)) ||
+    String(a.school || '').localeCompare(String(b.school || ''), 'he') ||
+    String(a.row_id || '').localeCompare(String(b.row_id || '')));
 }
 
 export function groupHasFeedback(group) {
