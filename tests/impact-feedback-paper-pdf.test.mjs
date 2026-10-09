@@ -21,12 +21,12 @@ test('admin can upload, replace and remove private PDFs, without creating digita
   const [view, api] = await Promise.all([readFile(viewUrl, 'utf8'), readFile(apiUrl, 'utf8')]);
   assert.match(view, /data-tpl-upload=/);
   assert.match(view, /data-tpl-delete=/);
-  assert.match(view, /await uploadSavedPaperPdf\(template, file\)/);
+  assert.match(view, /await uploadSavedPaperPdf\(template, file, upload\.dataset\.tplLang\)/);
   assert.match(view, /await deleteSavedPaperPdf\(record\)/);
   assert.match(api, /application\/pdf/);
   assert.match(api, /String\.fromCharCode\(\.\.\.signature\) !== '%PDF-'/);
   assert.match(api, /upsert\(\{/);
-  assert.match(api, /onConflict: 'template_id'/);
+  assert.match(api, /onConflict: 'template_id,language'/);
   assert.doesNotMatch(api, /feedback_public_submit/);
 });
 
@@ -63,4 +63,33 @@ test('saved PDF behavior does not change the six feedback tabs or WhatsApp and e
   assert.match(css, /\.ifb-template-card__slot\s*\{[^}]*width: 100%/s);
   assert.match(css, /\.ifb-template-card__open,[\s\S]*?text-align: center/);
   assert.match(css, /ifb-template-card__upload/);
+});
+
+
+test('printable Hebrew and Arabic PDFs are keyed independently, and existing Hebrew records are preserved', async () => {
+  const sql = await readFile(new URL('../supabase/migrations/20261010114500_feedback_template_pdfs_two_languages.sql', import.meta.url), 'utf8');
+  const [view, api, css] = await Promise.all([
+    readFile(viewUrl, 'utf8'),
+    readFile(apiUrl, 'utf8'),
+    readFile(new URL('../frontend/src/impact-feedback/impact-feedback-admin.css', import.meta.url), 'utf8')
+  ]);
+  assert.match(sql, /add column if not exists language text not null default 'he'/);
+  assert.match(sql, /check \(language in \('he', 'ar'\)\)/);
+  assert.match(sql, /primary key \(template_id, language\)/);
+  assert.doesNotMatch(sql, /drop table|delete from public\.feedback_template_pdfs/i);
+  assert.match(api, /select\('template_id,language,version_id,storage_path,file_name,uploaded_at'\)/);
+  assert.match(api, /export async function uploadSavedPaperPdf\(template, file, language = 'he'\)/);
+  assert.match(api, /\.eq\('template_id', template\.id\)\.eq\('language', language\)\.maybeSingle\(\)/);
+  assert.match(api, /onConflict: 'template_id,language'/);
+  assert.match(api, /\.eq\('template_id', record\.template_id\)\.eq\('language', record\.language\)/);
+  assert.match(view, /data-tpl-lang="\$\{language\}"/);
+  assert.match(view, /item\.template_id === template\?\.id && item\.language === pdf\.dataset\.tplLang/);
+  assert.match(view, /item\.template_id === template\?\.id && item\.language === remove\.dataset\.tplLang/);
+  assert.match(view, /languageControls\('he'\)/);
+  assert.match(view, /languageControls\('ar'\)/);
+  assert.match(view, /<span lang="he">עברית<\/span><span lang="ar">ערבית<\/span>/);
+  assert.match(css, /\.ifb-admin \.ifb-template-grid \{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
+  assert.match(css, /\.ifb-admin \.ifb-template-card__language-headings,[\s\S]*?column-gap: 3px;/);
+  assert.match(css, /@media \(max-width: 680px\) \{\s*\.ifb-admin \.ifb-template-grid \{ grid-template-columns: minmax\(0, 1fr\);/);
+  assert.doesNotMatch(api, /feedback_public_submit/);
 });
