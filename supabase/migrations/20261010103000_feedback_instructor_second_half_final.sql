@@ -378,7 +378,7 @@ begin
         when c.audience = 'educational_staff' then rc.contact_id::text
       end as identity_key,
       case
-        when c.audience = 'student' and btrim(coalesce(to_jsonb(a)->>'participants_count', '')) ~ '^[0-9]{1,4}
+        when c.audience = 'student' and btrim(coalesce(to_jsonb(a)->>'participants_count', '')) ~ '^[0-9]{1,4}$'
           then nullif(btrim(to_jsonb(a)->>'participants_count')::int, 0)
       end as participants,
       rs.n as n_resp,
