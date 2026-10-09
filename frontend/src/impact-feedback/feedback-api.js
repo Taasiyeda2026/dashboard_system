@@ -67,9 +67,11 @@ export async function fetchGroups(academicYear = null, activityRowId = null) {
 }
 
 /** Course × audience × stage collection figures (questionnaires, invited, unique respondents). */
-export async function fetchCourseSummary(academicYear = null) {
-  const rows = await unwrap(client().rpc('feedback_admin_course_summary', {
-    p_academic_year: academicYear || null
+export async function fetchCourseSummary(academicYear = null, half = 'first') {
+  // Collection metrics must use the same course cohort as the visible facts.
+  const rows = await unwrap(client().rpc('feedback_admin_course_summary_for_half', {
+    p_academic_year: academicYear || null,
+    p_half: half
   }));
   return Array.isArray(rows) ? rows : [];
 }
