@@ -289,17 +289,17 @@
   min-width: 940px;
   table-layout: fixed;
 }
-.ifb-instructor-table col.ifb-iw-instructor { width: 16%; }
-.ifb-instructor-table col.ifb-iw-program { width: 16%; }
-.ifb-instructor-table col.ifb-iw-groups { width: 7%; }
-.ifb-instructor-table col.ifb-iw-first-end { width: 13%; }
-.ifb-instructor-table col.ifb-iw-status { width: 12%; }
-.ifb-instructor-table col.ifb-iw-stage { width: 18%; }
+.ifb-instructor-table col.ifb-iw-instructor { width: 18%; }
+.ifb-instructor-table col.ifb-iw-program { width: 14%; }
+.ifb-instructor-table col.ifb-iw-groups { width: 8%; }
+.ifb-instructor-table col.ifb-iw-equal { width: 10%; }
 .ifb-instructor-table th:nth-child(3),
 .ifb-instructor-table th:nth-child(4),
 .ifb-instructor-table th:nth-child(5),
+.ifb-instructor-table th:nth-child(7),
+.ifb-instructor-table th:nth-child(8) { text-align: center; }
 .ifb-instructor-table th:nth-child(6),
-.ifb-instructor-table th:nth-child(7) { text-align: center; }
+.ifb-instructor-table th:nth-child(9) { text-align: right; }
 .ifb-instructor-table th,
 .ifb-instructor-table td { padding: 6px 8px; line-height: 1.2; }
 .ifb-instructor-table tbody tr:last-child td { border-bottom: 0; }
@@ -991,13 +991,7 @@
   .ifb-courses-table thead th:first-child { width: 24%; }
   .ifb-courses-table thead th:nth-child(2) { width: 12%; }
   .ifb-courses-table thead th:last-child { width: 56px; }
-  .ifb-instructor-table thead th:nth-child(1) { width: 17%; }
-  .ifb-instructor-table thead th:nth-child(2) { width: 18%; }
-  .ifb-instructor-table thead th:nth-child(3) { width: 8%; }
-  .ifb-instructor-table thead th:nth-child(4) { width: 12%; }
-  .ifb-instructor-table thead th:nth-child(5) { width: 13%; }
-  .ifb-instructor-table thead th:nth-child(6),
-  .ifb-instructor-table thead th:nth-child(7) { width: 16%; }
+  /* Explicit column widths are set by the colgroup; no positional overrides. */
 }
 
 /* Accessible icon-only row actions instead of repetitive long text. */
@@ -1411,23 +1405,25 @@
 }
 
 
-/* Instructor feedback: earliest start and earliest end are independent calendar columns. */
+/* Instructor feedback: 3 identity columns + six exactly equal stage/date/status
+   columns. Dates and stage status are independently sourced per instructor-course. */
 @media (min-width: 761px) {
   .ifb-instructor-table {
-    min-width: 1080px;
+    min-width: 1380px;
     table-layout: fixed;
   }
-  .ifb-instructor-table col.ifb-iw-instructor { width: 13%; }
+  .ifb-instructor-table col.ifb-iw-instructor { width: 18%; }
   .ifb-instructor-table col.ifb-iw-program { width: 14%; }
-  .ifb-instructor-table col.ifb-iw-groups { width: 7%; }
-  .ifb-instructor-table col.ifb-iw-first-start,
-  .ifb-instructor-table col.ifb-iw-first-end { width: 11%; }
-  .ifb-instructor-table col.ifb-iw-status { width: 12%; }
-  .ifb-instructor-table col.ifb-iw-stage { width: 16%; }
+  .ifb-instructor-table col.ifb-iw-groups { width: 8%; }
+  .ifb-instructor-table col.ifb-iw-equal { width: 10%; }
   .ifb-instructor-table thead th { width: auto !important; }
   .ifb-instructor-table th.ifb-col-date,
   .ifb-instructor-table td.ifb-col-date { text-align: center; white-space: nowrap; }
+  .ifb-instructor-table th.ifb-col-status,
+  .ifb-instructor-table td.ifb-col-status { text-align: right; }
+  .ifb-instructor-table td.ifb-col-status .ifb-status-cell { justify-items: start; }
 }
+
 
 
 /* QR share dialog: compact first view; projection remains deliberately larger.
