@@ -37,6 +37,7 @@ import {
   filterFeedbackFactsForHalf,
   studentFeedbackHasResponses,
   sortStudentFeedbackGroups,
+  sortEducationalStaffFeedbackGroups,
   isProgramUnresolved,
   openAnswers,
   overviewTotals,
@@ -649,11 +650,7 @@ function groupsTableHtml(slots, scope) {
   const filtered = scope === 'students'
     ? sortStudentFeedbackGroups(matching)
     : scope === 'staff'
-      // Valid course end dates only, already filtered above: nearest end first.
-      ? matching.sort((a, b) =>
-        String(a.end_date).slice(0, 10).localeCompare(String(b.end_date).slice(0, 10)) ||
-        String(a.school || '').localeCompare(String(b.school || ''), 'he') ||
-        String(a.row_id || '').localeCompare(String(b.row_id || '')))
+      ? sortEducationalStaffFeedbackGroups(matching)
       : matching.sort((a, b) =>
         Number(groupHasFeedback(b)) - Number(groupHasFeedback(a)) ||
         String(a.school).localeCompare(String(b.school), 'he'));
