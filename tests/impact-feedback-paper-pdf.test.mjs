@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, writeFile } from 'node:fs/promises';
 import { PDFDocument } from 'pdf-lib';
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { buildQuestionnairePdf } from '../frontend/src/impact-feedback/feedback-print-pdf.js';
 
 const assets = new URL('../frontend/assets/fonts/', import.meta.url);
@@ -109,5 +110,14 @@ test('nine actual green-leadership PRE rating questions fit on one printable A4 
   const pdf = await PDFDocument.load(bytes);
   assert.equal(pdf.getPageCount(), 1, 'A nine-item rating questionnaire must not spill onto a second sheet');
   assert.equal(pdf.getPages()[0].getWidth(), 595.28);
+  // Check actual PDF text extraction: do not accept a visually plausible
+  // document with mirrored Hebrew words or reversed Gefen identifiers.
+  const extractedPdf = await getDocument({ data: bytes }).promise;
+  const content = await (await extractedPdf.getPage(1)).getTextContent();
+  const extractedText = content.items.map((item) => item.str).join(' ');
+  assert.match(extractedText, /מנהיגות ירוקה/, 'Hebrew words must remain readable');
+  assert.match(extractedText, /67867/, 'Geffen code must retain left-to-right digit order');
+  assert.doesNotMatch(extractedText, /76876/, 'Reversed Gefen number must never be printed');
+  await extractedPdf.destroy();
   if (process.env.IFB_PDF_SMOKE_OUTPUT) await writeFile(process.env.IFB_PDF_SMOKE_OUTPUT, bytes);
 });
