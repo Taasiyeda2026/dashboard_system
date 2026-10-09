@@ -2531,6 +2531,143 @@ export function planningOutcomeClassification(option = null, diagnostics = {}) {
   };
 }
 
+/**
+ * Independent school-cohort searching intentionally leaves peer courses free
+ * for packing, but must never place two classes with the same instructor at
+ * overlapping times. Filter provisional choices against ALREADY chosen rows
+ * before inserting the blocking virtual activity.
+ * Final whole-plan validation remains authoritative for every other hard gate.
+ */
+export function filterPlanningOptionsAgainstChosenRows({
+  activity = {},
+  options = [],
+  rowsById = new Map()
+} = {}) {
+  if (!Array.isArray(options) || !options.length) return [];
+  const courseId = idOf(activity);
+  const activityLookup = new Map([[courseId, activity]]);
+  const occupied = new Map();
+  for (const row of rowsById?.values?.() || []) {
+    if (text(row?.courseId) === courseId
+      || !['proposal', 'fixed-proposal', 'planning-locked', 'live'].includes(text(row?.kind))) continue;
+    for (const meeting of planningRowMeetingAssignments(row)) {
+      const key = meeting.empId + '|' + meeting.date;
+      if (!occupied.has(key)) occupied.set(key, []);
+      occupied.get(key).push(meeting);
+    }
+  }
+  return options.filter((option) => {
+    if (!text(option?.instructorEmpId) || !Array.isArray(option?.meetings) || !option.meetings.length) return false;
+    const virtual = {
+      ...option,
+      courseId,
+      schoolId: text(activity?.school_id),
+      kind: 'proposal',
+      fullDayBlocking: isFullDaySchedulingActivity(activity)
+    };
+    const meetings = planningRowMeetingAssignments(virtual, activityLookup);
+    if (!meetings.length || meetings.length !== option.meetings.length) return false;
+    return meetings.every((meeting) => {
+      const blocked = occupied.get(meeting.empId + '|' + meeting.date) || [];
+      const begin = timeMinutes(meeting.startTime);
+      const finish = timeMinutes(meeting.endTime);
+      return blocked.every((other) => {
+        if (meeting.fullDayBlocking || other.fullDayBlocking) return false;
+        const otherBegin = timeMinutes(other.startTime);
+        const otherFinish = timeMinutes(other.endTime);
+        return begin == null || finish == null || otherBegin == null || otherFinish == null
+          ? false
+          : !(begin < otherFinish && otherBegin < finish);
+      });
+    });
+  });
+}
+
+/**
+ * Reconcile tentative same-school choices AFTER joint school packing had its
+ * chance to move all classes together. A fast isolated "first option" filter
+ * during candidate generation loses feasible multi-course packing solutions.
+ * Prioritize live/locked commitments, anchored proposals and existing staff
+ * commitments. When the current provisional choice conflicts, try its ranked
+ * alternatives (and a validated incumbent at the final hard gate) before
+ * leaving this one course unassigned. Never move a live or manually locked row.
+ */
+export function reconcileSelectedPlanningOverlaps({
+  rowsById = new Map(),
+  committedRows = []
+} = {}) {
+  const currentRows = [...(rowsById?.values?.() || [])];
+  const committedById = new Map(committedRows.map((r) => [text(r?.courseId), r]));
+  const live = currentRows.filter(r => ['live', 'planning-locked'].includes(text(r?.kind)));
+  const assigned = currentRows.filter(r => ['proposal', 'fixed-proposal'].includes(text(r?.kind))
+    && text(r?.instructorEmpId) && Array.isArray(r?.meetings) && r.meetings.length > 0);
+  const rank = row => {
+    const incumbent = committedById.get(text(row?.courseId));
+    const sameAssignment = incumbent && text(incumbent.instructorEmpId) === text(row.instructorEmpId)
+      && text(incumbent.startDate) === text(row.startDate);
+    return (text(row.kind) === 'fixed-proposal' ? 1_000_000 : 0)
+      + (sameAssignment ? 100_000 : 0)
+      + Math.max(0, Number(row.sessions) || 0) * 100;
+  };
+  assigned.sort((a,b) => rank(b) - rank(a) || text(a.courseId).localeCompare(text(b.courseId)));
+  const accepted = new Map(live.map((row) => [text(row.courseId), row]));
+  const repairs = [];
+  for (const row of assigned) {
+    const courseId = text(row.courseId);
+    const activity = {
+      row_id: courseId, school_id: text(row.schoolId),
+      activity_type: text(row.activityType),
+      school: text(row.school)
+    };
+    const currentOption = {
+      instructorEmpId: row.instructorEmpId, instructorName: row.instructorName,
+      meetings: row.meetings,
+      startDate: row.startDate, endDate: row.endDate,
+      startTime: row.startTime, endTime: row.endTime
+    };
+    const incumbent = committedById.get(courseId);
+    const incumbentOption = ['proposal','fixed-proposal'].includes(text(incumbent?.kind))
+      ? {
+          instructorEmpId: incumbent.instructorEmpId, instructorName: incumbent.instructorName,
+          meetings: incumbent.meetings, startDate: incumbent.startDate, endDate: incumbent.endDate,
+          startTime: incumbent.startTime, endTime: incumbent.endTime
+        } : null;
+    const options = [currentOption, incumbentOption, ...(row.options || []), ...(row.packingOptions || [])]
+      .filter((option) => option && text(option.instructorEmpId) && (option.meetings || []).length);
+    const found = filterPlanningOptionsAgainstChosenRows({ activity, options, rowsById: accepted })[0] || null;
+    if (!found) {
+      accepted.set(courseId, {
+        ...row, kind: 'missing', status: 'ממתין להצעה ללא חפיפה',
+        instructorEmpId: '', instructorName: '',
+        reason: 'נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.',
+        diagnostics: {
+          ...(row.diagnostics || {}), searchIncomplete: true,
+          recruitmentCertified: false, clashDeferred: true
+        }
+      });
+      repairs.push({ courseId, action: 'unassigned' });
+      continue;
+    }
+    const matchesCurrent = text(found.instructorEmpId) === text(row.instructorEmpId)
+      && JSON.stringify(found.meetings) === JSON.stringify(row.meetings);
+    if (matchesCurrent) {
+      accepted.set(courseId, row);
+      continue;
+    }
+    accepted.set(courseId, {
+      ...row, instructorEmpId: found.instructorEmpId,
+      instructorName: found.instructorName,
+      meetings: found.meetings,
+      startDate: found.startDate, endDate: found.endDate,
+      startTime: found.startTime, endTime: found.endTime,
+      diagnostics: { ...(row.diagnostics || {}), overlapChoiceRepaired: true }
+    });
+    repairs.push({ courseId, action: 'alternate' });
+  }
+  for (const item of repairs) rowsById.set(item.courseId, accepted.get(item.courseId));
+  return repairs;
+}
+
 function planRowFromOption(activity, option, options, startRange, spec, diagnostics = {}) {
   const outcome = planningOutcomeClassification(option, diagnostics);
   const searchIncomplete = outcome.searchIncomplete;
@@ -6668,6 +6805,17 @@ export async function buildDynamicCoursePlan({
       null,
       [...rowsById.values()]
     );
+  }
+
+  // Packing was allowed to reshape the whole school cohort. Resolve only
+  // residual conflicting tentative choices in one linear pass, before the
+  // costly whole-plan hard validation and nested repair. Never persist overlaps.
+  const reconciled = reconcileSelectedPlanningOverlaps({
+    rowsById, committedRows: committedRows.length ? committedRows : existingRows
+  });
+  if (reconciled.length) {
+    planningPerfCount('schoolCohortOverlapReconciled', reconciled.length);
+    await report('מניעת חפיפות בין כיתות', reconciled.length, reconciled.length);
   }
 
   const rows = await assignRecruitmentProfilesCooperatively(

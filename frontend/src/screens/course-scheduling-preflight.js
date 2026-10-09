@@ -3,6 +3,31 @@ import { planningPerfCount, planningPerfEvent, planningPerfTimer } from './cours
 export const PLANNING_LEASE_HEARTBEAT_MS = 15_000;
 export const PLANNING_LEASE_TTL_SECONDS = 120;
 
+// One absolute limit for a browser-owned national planning run. A stalled or
+// repeatedly repairing run must relinquish its lease instead of retrying for
+// tens of minutes. It does not alter the committed workspace or checkpoint.
+export function createPlanningRunDeadlineCheckpoint({
+  checkpoint = async () => {},
+  maxMs = 5 * 60_000,
+  now = () => Date.now()
+} = {}) {
+  const startedAt = now();
+  const deadline = startedAt + Math.max(1, Number(maxMs) || 1);
+  const assertBudget = () => {
+    if (now() >= deadline) {
+      const error = new Error('planning_run_deadline_exceeded');
+      error.code = 'planning_run_deadline_exceeded';
+      throw error;
+    }
+  };
+  return async (...args) => {
+    assertBudget();
+    const result = await checkpoint(...args);
+    assertBudget();
+    return result;
+  };
+}
+
 export class PlanningLeaseLostError extends Error {
   constructor(reason = 'planning_run_ownership_lost') {
     super(reason);
