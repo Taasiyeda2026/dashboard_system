@@ -1225,3 +1225,77 @@
   .ifb-groups-table--students.ifb-groups-table--with-program col.ifb-gw-stage { width: 10%; }
   .ifb-groups-table--students.ifb-groups-table--with-program col.ifb-gw-actions { width: 5%; }
 }
+
+
+/* Unified feedback table headers: the same quiet cyan emphasis on every tab. */
+.ifb-admin .ifb-table thead th {
+  background: color-mix(in srgb, var(--ifb-a-accent) 9%, var(--ifb-a-card));
+  color: var(--ifb-a-ink);
+  font-weight: 700;
+  border-bottom: 2px solid color-mix(in srgb, var(--ifb-a-accent) 24%, var(--ifb-a-line));
+}
+/* Keep selected comparison column distinguishable even after the universal tint. */
+.ifb-admin .ifb-cross-table thead th.is-selected {
+  background: var(--ifb-a-accent-soft);
+}
+
+/* True date columns (headings and values), including the instructor first end date. */
+.ifb-admin .ifb-table thead th.ifb-col-date,
+.ifb-admin .ifb-table tbody td.ifb-col-date,
+.ifb-admin .ifb-table thead th[class~="ifb-col-date"],
+.ifb-admin .ifb-table tbody td[class~="ifb-col-date"] {
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Only real status/state columns align right; student pre/post stage columns remain centered. */
+.ifb-admin .ifb-table thead th.ifb-col-status,
+.ifb-admin .ifb-table tbody td.ifb-col-status,
+.ifb-admin .ifb-table thead th.ifb-col-state,
+.ifb-admin .ifb-table tbody td.ifb-col-state {
+  text-align: right;
+}
+.ifb-admin .ifb-overview-table td.ifb-col-status .ifb-status-cell {
+  justify-items: start;
+}
+
+/* Center the entire five-row template control group within its own card frame. */
+.ifb-template-card__inner {
+  justify-items: center;
+}
+.ifb-template-card__title,
+.ifb-template-card__gefen {
+  width: 100%;
+  text-align: center;
+}
+.ifb-template-card__slots {
+  width: min(100%, 310px);
+  margin-inline: auto;
+  justify-items: center;
+}
+.ifb-template-card__slot {
+  width: 100%;
+  max-width: 100%;
+  grid-template-columns: minmax(0, 1fr) 36px 27px 20px;
+  justify-content: center;
+  justify-items: stretch;
+  margin-inline: auto;
+}
+.ifb-template-card__delete-placeholder {
+  display: block;
+  width: 20px;
+  height: 32px;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Mobile is a label/value card layout: preserve the right-aligned label and center
+   date values inside their flex space without bringing back a table header. */
+@media (max-width: 760px) {
+  .ifb-admin .ifb-table tbody td.ifb-col-date {
+    text-align: center;
+  }
+  .ifb-template-card__slots {
+    max-width: 100%;
+  }
+}
