@@ -1246,9 +1246,11 @@ function groupViewHtml(group) {
   const staffFacts = staffView && facts ? factsFor(facts, 'educational_staff') : [];
   const staffOpenAnswers = staffView && facts ? openAnswers(staffFacts) : [];
   const results = staffView
-    ? (staffFacts.length
-      ? questionTableHtml(staffFacts, { caption: 'תוצאות משוב הצוות החינוכי' })
-      : '<p class="ifb-staff-results-empty">עדיין לא התקבלו תשובות מהצוות החינוכי בקבוצה זו.</p>')
+    ? (!facts
+      ? loadingHtml('טוען תוצאות…')
+      : staffFacts.length
+        ? questionTableHtml(staffFacts, { caption: 'תוצאות משוב הצוות החינוכי' })
+        : '<p class="ifb-staff-results-empty">עדיין לא התקבלו תשובות מהצוות החינוכי בקבוצה זו.</p>')
     : facts ? groupResultsHtml(facts) : loadingHtml('טוען תוצאות…');
   return `
     <div class="ifb-group-detail${staffView ? ' ifb-group-detail--staff' : ''}">
@@ -1269,7 +1271,7 @@ function groupViewHtml(group) {
       </section>
       <div class="ifb-slots${staffView ? ' ifb-slots--staff' : ''}">${visibleSlots.map((slot) => slotCardHtml(group, slot)).join('')}</div>
       ${sectionHtml(staffView ? 'תוצאות משוב הצוות החינוכי' : 'תוצאות הקבוצה', results, {
-        actions: facts ? exportButtonHtml(`group:${group.row_id}`, 'ייצוא הקבוצה (Excel)') : ''
+        actions: facts ? (staffView ? (staffFacts.length ? exportButtonHtml(`group-staff:${group.row_id}`, 'ייצוא צוות חינוכי (Excel)') : '') : exportButtonHtml(`group:${group.row_id}`, 'ייצוא הקבוצה (Excel)')) : ''
       })}
       ${facts && (!staffView || staffOpenAnswers.length) ? `<details class="ifb-disclosure ifb-group-answers">
         <summary>תשובות פתוחות <span class="ifb-muted">(${staffView ? staffOpenAnswers.length : openAnswers(facts).length})</span></summary>
@@ -1294,6 +1296,7 @@ function downloadBlob(blob, filename) {
 }
 
 function exportFacts(scope) {
+  if (scope.startsWith('group-staff:')) return factsFor(ui.groupFacts.get(scope.slice(12)) || [], 'educational_staff');
   if (scope.startsWith('group:')) return ui.groupFacts.get(scope.slice(6)) || [];
   if (scope.startsWith('audience:')) return courseFacts().filter((f) => f.audience === scope.slice(9));
   return courseFacts();
@@ -1351,7 +1354,7 @@ function appendSheet(wb, name, headers, rows, widths) {
 
 function runExport(scope) {
   const facts = exportFacts(scope);
-  const isGroup = scope.startsWith('group:');
+  const isGroup = scope.startsWith('group:') || scope.startsWith('group-staff:');
   if (!facts.length && isGroup) {
     showToast('אין נתונים לייצוא', 'info');
     return;
