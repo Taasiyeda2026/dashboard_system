@@ -1,0 +1,61 @@
+[
+  {
+    "variant": "migration",
+    "count": 253,
+    "detailEqual": true,
+    "staleRejected": false,
+    "sheets": [
+      "סידור עבודה",
+      "אפשרויות תכנון",
+      "מערכת לפי מדריך"
+    ],
+    "exportCounts": {
+      "activities": 253,
+      "options": 759,
+      "instructorMeetings": 2024
+    },
+    "xlsxBytes": 1687391
+  },
+  {
+    "uiRevisionRace": {
+      "lateOldDetailsDiscarded": true,
+      "revision": 11947
+    }
+  },
+  {
+    "existingExcelHandlerWithInjectedControl": {
+      "result": "PASS",
+      "sheets": [
+        {
+          "sheet": "סידור עבודה",
+          "rows": 253
+        },
+        {
+          "sheet": "אפשרויות תכנון",
+          "rows": 759
+        },
+        {
+          "sheet": "מערכת לפי מדריך",
+          "rows": 2024
+        }
+      ]
+    }
+  },
+  {
+    "variant": "fallback",
+    "count": 253,
+    "detailEqual": true,
+    "staleRejected": true,
+    "sheets": [
+      "סידור עבודה",
+      "אפשרויות תכנון",
+      "מערכת לפי מדריך"
+    ],
+    "exportCounts": {
+      "activities": 253,
+      "options": 759,
+      "instructorMeetings": 2024
+    },
+    "xlsxBytes": 1687391
+  }
+]
