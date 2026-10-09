@@ -894,6 +894,8 @@ function instructorCampaignActionsHtml(row, stage) {
 function instructorFilterMatches(row, statusFilter) {
   if (!statusFilter) return true;
   const [stage, wanted] = statusFilter.split(':');
+  if (stage === 'final' && !row.last_end_a) return false;
+  if (stage === 'final_b' && !row.last_end_b) return false;
   const campaign = instructorCampaignFor(row, stage);
   const status = campaignUiStatus(campaign).key;
   if (wanted === 'not_opened') return !campaign;
@@ -957,7 +959,7 @@ function instructorAssignmentsHtml() {
         </div>
       </section>
     </details>
-    ${rows.length ? `<div class="ifb-table-wrap">
+    ${rows.length ? `<div class="ifb-table-wrap ifb-instructor-table-wrap">
       <table class="ifb-table ifb-instructor-table">
         <caption class="ifb-sr">משובי מדריכים לפי מדריך וקורס</caption>
         <colgroup>
@@ -1408,7 +1410,7 @@ function runExport(scope) {
   const wb = XLSX.utils.book_new();
   wb.Workbook = { Views: [{ RTL: true }] };
 
-  if (!isGroup && ui.summary) {
+  if (!isGroup && ui.summary && scope !== 'instructor-all') {
     const keys = ui.course ? [ui.course] : ui.programs.map((p) => p.key);
     appendSheet(wb, 'איסוף והיענות', ['קורס', 'קהל', 'שלב', 'משובים שנפתחו', 'שאלונים שהוגשו', 'נשלחו', 'הושלמו', 'היענות', 'בסיס ההיענות', 'משיבים ייחודיים'],
       collectionExportRows(keys), [24, 14, 20, 14, 14, 10, 10, 10, 30, 16]);
