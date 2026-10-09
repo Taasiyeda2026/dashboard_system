@@ -366,9 +366,13 @@ test('9. legacy simulation state falls back to the main scheduling workboard', (
     state,
     rerender: () => { renders += 1; }
   });
+  const listBeforeOpen = root.querySelector('[data-course-list]');
   root.querySelector('[data-course-card="open-detail"]').click();
   assert.equal(state.courseSchedulingSelectedId, 'open-detail');
-  assert.ok(renders >= 1);
+  assert.equal(renders, 0);
+  assert.equal(root.querySelector('[data-course-list]'), listBeforeOpen);
+  assert.ok(root.querySelector('[data-course-detail]').classList.contains('is-open'));
+  assert.ok(root.querySelector('[data-course-detail]').textContent.includes(open.activity_name));
   delete globalThis.window;
   delete globalThis.document;
 });

@@ -73,6 +73,10 @@ Node באותה מכונה, 20 ריצות חמות לכל גרסה: wall p95 404
 - קיימות שלוש בדיקות source-text ישנות שנכשלות גם ב־main fd3f6a8: auto-refresh/label/route-concurrency. לוג בסיס מצורף. לא שונו כדי להסתיר כשל, ואינן הוכחת רגרסיה ב־Worker.
 - Build ראשון נכשל בגלל פורמט IIFE; לאחר תיקון worker.format ל־es הבנייה עברה. אזהרות xlsx/chunks קיימות מפורטות בלוג. לא הוכנסו assets/archives לרשימת precache.
 
+## CI ובדיקת תאימות ניווט
+
+[הרצת CI הראשונה](https://github.com/Taasiyeda2026/dashboard_system/actions/runs/37997187988): 380/381 בדיקות שיבוצים עברו; הבדיקה היחידה שנכשלה דרשה rerender מלא בעת פתיחת פרטים ממצב simulation ישן. זהו שינוי תצוגה מכוון. הבדיקה עודכנה לדרוש חלונית קורס פתוחה עם תוכן, שמירת אותו DOM של הרשימה, selectedId נכון ואפס rerenders. קוד המנוע או פעולות השמירה לא שונו עקב הכשל. תוצאת ההרצה המקומית המעודכנת מצורפת ב־final-legacy-navigation.log. עבודת PostgreSQL 16 ב־CI הראשון עברה: invalidation, precise invalidation ו־validated checkpoint commit.
+
 ## מגבלות והחלטת ביקורת
 
 ה־Worker אינו שורד סגירת לשונית, קריסת דפדפן או כיבוי מכשיר. הנתונים השמורים נשמרים וניתן להתחיל מחדש; אין טענה להמשך ריצה נקודתית לאחר סגירה. checkpoints ותכנון קודמים אינם נמחקים בבדיקות.
