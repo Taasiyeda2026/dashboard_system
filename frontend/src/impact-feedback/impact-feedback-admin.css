@@ -25,6 +25,7 @@
   direction: rtl;
   color: var(--ifb-a-ink);
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 10px;
   min-width: 0;
   max-width: 100%;
@@ -51,7 +52,9 @@
   cursor: pointer;
 }
 .ifb-tab.is-active { color: var(--ifb-a-accent); border-bottom-color: var(--ifb-a-accent); }
-.ifb-view { display: grid; gap: 10px; min-width: 0; }
+.ifb-view { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; max-width: 100%; }
+/* Keep the templates tab inside the dashboard column, not its content's intrinsic width. */
+.ifb-view > [data-ifb-templates] { min-width: 0; width: 100%; max-width: 100%; }
 
 .ifb-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); border: 1px solid var(--ifb-a-line); border-radius: 12px; background: var(--ifb-a-card); }
 .ifb-kpi {
@@ -785,19 +788,20 @@
 /* Feedback templates — compact course grid (2026-10) */
 .ifb-template-grid {
   display: grid;
-  /* Five tracks at most: six 225px cards plus gaps exceed the 1300px cap. */
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 225px), 1fr));
+  /* 5 tracks maximum, based on the actual available space after the sidebar. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
   width: 100%;
-  max-width: 1300px;
+  max-width: min(100%, 1320px);
+  min-width: 0;
   margin-inline: auto;
   justify-content: center;
   justify-items: center;
   align-items: start;
-  gap: 16px;
+  gap: 14px;
 }
 .ifb-template-card {
   width: 100%;
-  max-width: 255px;
+  max-width: 260px;
   min-width: 0;
   margin-inline: auto;
   box-sizing: border-box;

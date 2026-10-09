@@ -55,9 +55,11 @@ test('saved PDF behavior does not change the six feedback tabs or WhatsApp and e
   assert.match(screen, /data-ifb-share="email"/);
   assert.match(screen, /data-ifb-qr/);
   assert.match(view, /ifb-template-card__warning/);
-  assert.match(css, /max-width: 1300px/);
-  assert.match(css, /grid-template-columns: repeat\(auto-fill, minmax\(min\(100%, 225px\), 1fr\)\)/);
+  assert.match(css, /max-width: min\(100%, 1320px\)/);
+  assert.match(css, /grid-template-columns: repeat\(auto-fit, minmax\(min\(100%, 240px\), 1fr\)\)/);
   assert.match(css, /\.ifb-template-grid\s*\{[^}]*margin-inline: auto/s);
+  assert.match(css, /\.ifb-view \{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(css, /\.ifb-view > \[data-ifb-templates\]/);
   assert.match(css, /\.ifb-template-card__slot\s*\{[^}]*width: 100%/s);
   assert.match(css, /\.ifb-template-card__open,[\s\S]*?text-align: center/);
   assert.match(css, /ifb-template-card__upload/);
