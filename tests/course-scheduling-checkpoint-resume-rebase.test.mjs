@@ -10,7 +10,8 @@ import {
   canValidateCompletedRunningCheckpoint,
   planningResumeReopenIds
 } from '../frontend/src/screens/course-scheduling-run-plan.js';
-import { buildDynamicCoursePlan, createPlanningLocalRepairDeadlineCheckpoint, recoverPlanningOverlapFromCommittedProposals, validateResumedPlanningRows } from '../frontend/src/screens/course-scheduling-planning.js';
+import { buildDynamicCoursePlan, createPlanningLocalRepairDeadlineCheckpoint, filterPlanningOptionsAgainstChosenRows, recoverPlanningOverlapFromCommittedProposals, validateResumedPlanningRows } from '../frontend/src/screens/course-scheduling-planning.js';
+import { createPlanningRunDeadlineCheckpoint } from '../frontend/src/screens/course-scheduling-preflight.js';
 import {
   planningRebaseAffectedCourseIds,
   planningRowReflaggedDuringRun
@@ -537,4 +538,66 @@ test('a dirty rows checkpoint is checked for overlap before any resumed planning
   assert.ok(validationAt > 0 && recoveryAt > validationAt && planningAt > recoveryAt);
   assert.match(screen, /preparedInput = \{ \.\.\.input, existingRows: rescuedCheckpoint.rows \}/);
   assert.match(screen, /planning_checkpoint_overlap_unrecoverable/);
+});
+
+
+test('school-cohort choices reject same-instructor overlaps and prefer next valid instructor without delaying course', () => {
+  const occupied = new Map([['school_2027_067', {
+    courseId: 'school_2027_067', schoolId: 'same-school', kind: 'proposal',
+    instructorEmpId: '1549',
+    meetings: [{ date: '2026-10-12', start_time: '14:00', end_time: '15:30' }]
+  }]]);
+  const activity = { row_id: 'school_2027_064', school_id: 'same-school', activity_type: 'קורס' };
+  const options = [
+    { instructorEmpId: '1549', meetings: [{ date: '2026-10-12', start_time: '14:00', end_time: '15:30' }] },
+    { instructorEmpId: '1509', meetings: [{ date: '2026-10-12', start_time: '14:00', end_time: '15:30' }] },
+    { instructorEmpId: '1549', meetings: [{ date: '2026-10-12', start_time: '16:00', end_time: '17:30' }] }
+  ];
+  const selected = filterPlanningOptionsAgainstChosenRows({ activity, options, rowsById: occupied });
+  assert.deepEqual(selected, options.slice(1), 'alternate instructor and non-overlapping slot remain eligible');
+  assert.equal(occupied.get('school_2027_067').instructorEmpId, '1549', 'existing proposal never mutated');
+});
+
+test('school-cohort choices honor meeting substitutes and full-day instructor blockers', () => {
+  const base = { courseId:'a', kind:'proposal', schoolId:'s', instructorEmpId:'1549',
+    meetings: [{ date:'2026-10-12', start_time:'08:00', end_time:'09:30', substituteEmpId:'1509' }] };
+  const occupied = new Map([['a',base],['tour',{ courseId:'tour',kind:'live',
+    instructorEmpId:'1539',fullDayBlocking:true,meetings:[{date:'2026-10-12',start_time:'09:00',end_time:'14:00'}]
+  }]]);
+  const activity = {row_id:'b',school_id:'s',activity_type:'קורס'};
+  const blockedSubstitute = {instructorEmpId:'1509',meetings:[{date:'2026-10-12',start_time:'08:30',end_time:'09:00'}]};
+  const blockedFullDay = {instructorEmpId:'1539',meetings:[{date:'2026-10-12',start_time:'15:00',end_time:'16:00'}]};
+  const safe = {instructorEmpId:'1549',meetings:[{date:'2026-10-12',start_time:'08:30',end_time:'09:00'}]};
+  assert.deepEqual(
+    filterPlanningOptionsAgainstChosenRows({activity,options:[blockedSubstitute,blockedFullDay,safe],rowsById:occupied}),
+    [safe]
+  );
+});
+
+test('school-cohort conflicts cannot silently become a false recruitment result', () => {
+  const activity={row_id:'b',school_id:'s'};
+  const occupied=new Map([['a',{courseId:'a',kind:'proposal',schoolId:'s',instructorEmpId:'1549',
+    meetings:[{date:'2026-10-12',start_time:'14:00',end_time:'15:30'}]}]]);
+  const incompatible=[{instructorEmpId:'1549', meetings:[{date:'2026-10-12',start_time:'14:00',end_time:'15:30'}]}];
+  assert.deepEqual(filterPlanningOptionsAgainstChosenRows({activity,options:incompatible,rowsById:occupied}),[]);
+  assert.equal((plannerSource.match(/filterPlanningOptionsAgainstChosenRows\(\{/g)||[]).length, 4,
+    'all four planner paths must be covered: fixed, recruitment rescue, base and deferred rescue');
+  assert.match(plannerSource, /choiceConflictDeferred: true/);
+  assert.match(plannerSource, /evaluation = \{ \.\.\.evaluation, recruitmentNeeded: false, searchIncomplete: true/);
+});
+
+test('browser planning deadline ends an otherwise infinite computation without committing', async () => {
+  let clock=0, calls=0;
+  const bounded=createPlanningRunDeadlineCheckpoint({
+    checkpoint:async()=>{calls+=1;clock+=3;},
+    maxMs:10, now:()=>clock
+  });
+  await bounded();
+  await bounded();
+  await bounded();
+  await assert.rejects(bounded(), e=>e?.code==='planning_run_deadline_exceeded');
+  assert.equal(calls,4);
+  assert.match(screenSource, /createPlanningRunDeadlineCheckpoint\(\{/);
+  assert.match(screenSource, /maxMs: 5 \* 60_000/);
+  assert.match(screenSource, /totalCount: currentCourseIds\.length/);
 });
