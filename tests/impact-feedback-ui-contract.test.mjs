@@ -442,14 +442,14 @@ test('staff feedback column heading and cells align right without changing stude
 });
 
 
-test('template cards use four equal desktop columns and responsive layouts without overflow', () => {
-  assert.match(styles, /\.ifb-admin \.ifb-template-grid \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/);
+test('template cards use three desktop columns with tight language spacing and responsive layouts', () => {
+  assert.match(styles, /\.ifb-admin \.ifb-template-grid \{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
   assert.match(styles, /\.ifb-admin \.ifb-template-grid \{[\s\S]*?grid-auto-rows: 1fr;/);
-  assert.match(styles, /@media \(min-width: 980px\) and \(max-width: 1299px\) \{\s*\.ifb-admin \.ifb-template-grid \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\); \}/);
-  assert.match(styles, /@media \(min-width: 621px\) and \(max-width: 979px\) \{\s*\.ifb-admin \.ifb-template-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}/);
-  assert.match(styles, /@media \(max-width: 620px\) \{\s*\.ifb-admin \.ifb-template-grid \{ grid-template-columns: minmax\(0, 1fr\);/);
-  assert.match(styles, /\.ifb-admin \.ifb-template-card__slots \{[\s\S]*?width: min\(100%, 310px\);[\s\S]*?margin-inline: auto;/);
-  assert.match(styles, /\.ifb-admin \.ifb-template-card__slot \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) 44px 34px 28px;/);
+  assert.match(styles, /\.ifb-admin \.ifb-template-card__language-headings,[\s\S]*?column-gap: 3px;/);
+  assert.match(styles, /@media \(min-width: 681px\) and \(max-width: 999px\) \{\s*\.ifb-admin \.ifb-template-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}/);
+  assert.match(styles, /@media \(max-width: 680px\) \{\s*\.ifb-admin \.ifb-template-grid \{ grid-template-columns: minmax\(0, 1fr\);/);
+  assert.match(styles, /\.ifb-admin \.ifb-template-card__slots \{[\s\S]*?width: min\(100%, 400px\);[\s\S]*?margin-inline: auto;/);
+  assert.match(styles, /\.ifb-admin \.ifb-template-card__slot \{[\s\S]*?grid-template-columns: minmax\(0, 1.37fr\) repeat\(2, minmax\(0, \.85fr\)\);/);
   assert.match(styles, /\.ifb-admin \.ifb-template-card__inner \{[\s\S]*?min-height: 100%;/);
 });
 
@@ -457,7 +457,7 @@ test('each saved template PDF is visually distinct and upload/download actions r
   assert.match(templates, /const pdfState = upToDate \? 'is-ready' : outdated \? 'is-stale' : 'is-missing';/);
   assert.match(templates, /class="ifb-template-card__pdf \$\{pdfState\}" data-tpl-pdf="/);
   assert.match(templates, /\$\{upToDate \? '' : 'disabled'\}/);
-  assert.match(templates, /data-tpl-upload="\$\{esc\(template\.id\)\}" \$\{published \? '' : 'disabled'\}/);
+  assert.match(templates, /data-tpl-upload="\$\{esc\(template\.id\)\}" data-tpl-lang="\$\{language\}" \$\{published \? '' : 'disabled'\}/);
   assert.match(templates, /data-tpl-delete="\$\{esc\(template\.id\)\}"/);
   assert.match(templates, /ifb-template-card__delete-placeholder/);
   assert.match(templates, /ifb-template-card__upload[^<]*[\s\S]*?<svg viewBox="0 0 24 24" aria-hidden="true"/);
@@ -467,7 +467,7 @@ test('each saved template PDF is visually distinct and upload/download actions r
   assert.match(styles, /\.ifb-admin \.ifb-template-card__pdf\.is-stale:disabled \{/);
   assert.match(styles, /\.ifb-admin \.ifb-template-card__upload svg,/);
   assert.match(templates, /await downloadSavedPaperPdf\(record\)/);
-  assert.match(templates, /await uploadSavedPaperPdf\(template, file\)/);
+  assert.match(templates, /await uploadSavedPaperPdf\(template, file, upload\.dataset\.tplLang\)/);
   assert.match(templates, /await deleteSavedPaperPdf\(record\)/);
 });
 
