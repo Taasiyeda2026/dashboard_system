@@ -2013,7 +2013,7 @@ test('bounded or timed-out staff search is unresolved, never certified recruitme
 
 test('stale planning context blocks every saved non-live proposal until recalculation', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
-  assert.match(source, /if \(affectedIds\.includes\(text\(entry\.activityId\)\) && text\(row\.kind\) !== 'live'\)/);
+  assert.match(source, /if \(\(snapshot\._is_stale \|\| affectedIds\.includes\(text\(entry\.activityId\)\)\) && text\(row\.kind\) !== 'live'\)/);
 });
 
 test('screen does not force full planning solely because engine version or generic contextChanged flipped', async () => {

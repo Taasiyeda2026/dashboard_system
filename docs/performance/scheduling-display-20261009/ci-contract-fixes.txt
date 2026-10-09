@@ -1,0 +1,22 @@
+TAP version 13
+# Subtest: list search filters in place without calling full workboard rerender
+ok 1 - list search filters in place without calling full workboard rerender
+  ---
+  duration_ms: 3.469589
+  type: 'test'
+  ...
+# Subtest: stale planning context blocks every saved non-live proposal until recalculation
+ok 2 - stale planning context blocks every saved non-live proposal until recalculation
+  ---
+  duration_ms: 3.796028
+  type: 'test'
+  ...
+1..2
+# tests 2
+# suites 0
+# pass 2
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 196.281291

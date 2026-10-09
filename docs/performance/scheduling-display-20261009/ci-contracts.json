@@ -1,0 +1,18 @@
+{
+  "firstCiUrl": "https://github.com/Taasiyeda2026/dashboard_system/actions/runs/37958193372",
+  "localReproduction": {
+    "cases": 381,
+    "passed": 379,
+    "failed": 2
+  },
+  "focusedFixValidation": {
+    "cases": 2,
+    "passed": 2,
+    "failed": 0
+  },
+  "failures": [
+    "list search filters in place without calling full workboard rerender",
+    "stale planning context blocks every saved non-live proposal until recalculation"
+  ],
+  "cause": "Old source assertions require the previous helper name and exact previous stale expression. Updated to list-only rendering and the stronger cached-snapshot OR affected-scope stale guard. Behavioral DOM tests remain enabled."
+}

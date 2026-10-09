@@ -513,7 +513,7 @@ test('list search filters in place without calling full workboard rerender', () 
     source.indexOf("root.querySelector('[data-course-list-search]')?.addEventListener('input'"),
     source.indexOf("root.querySelector('[data-clear-course-list-search]')?.addEventListener('click'")
   );
-  assert.match(inputHandler, /applyCourseListSearchInPlace/);
+  assert.match(inputHandler, /updateCourseListInPlace/);
   assert.doesNotMatch(inputHandler, /rerenderPreservingWorkboardScroll/);
   assert.doesNotMatch(inputHandler, /rerender\(\)/);
 
