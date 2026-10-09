@@ -54,6 +54,41 @@ export function planningResumeReopenIds(rows = []) {
     .map((row) => text(row.courseId)))];
 }
 
+/**
+ * A "rows" checkpoint can be internally inconsistent. If it cannot pass the
+ * hard whole-plan validator, never keep using those proposals as incumbents.
+ * Restart a NON-FULL run from the separately committed workspace, recomputing
+ * the original dirty base scope plus any newly added courses. Existing engine
+ * upgrade optimization scopes are retained by the caller. No DB reset/write.
+ *
+ * A requested full-maintenance run must not be secretly restarted over the
+ * entire country: the caller should fail closed and request explicit action.
+ */
+export function planSafeRestartFromCommittedWorkspace({
+  committedRows = [],
+  currentCourseIds = [],
+  baseRecalculationIds = [],
+  fullRun = false
+} = {}) {
+  if (fullRun || !Array.isArray(committedRows) || !committedRows.length) return null;
+  const currentIds = [...new Set((currentCourseIds || []).map(text).filter(Boolean))];
+  if (!currentIds.length) return null;
+  const currentSet = new Set(currentIds);
+  const cleanRows = committedRows.filter((row) => currentSet.has(text(row?.courseId)));
+  if (!cleanRows.length) return null;
+  const savedIds = new Set(cleanRows.map((row) => text(row.courseId)));
+  const scope = new Set((baseRecalculationIds || []).map(text).filter((id) => currentSet.has(id)));
+  for (const id of currentIds) if (!savedIds.has(id)) scope.add(id);
+  return {
+    existingRows: cleanRows,
+    targetCourseIds: [...scope],
+    // Restore original, not the reduced resume-only, optimization scope.
+    optimizationScopeCourseIds: undefined,
+    resumeFromCheckpoint: false,
+    missingFromCommittedIds: currentIds.filter((id) => !savedIds.has(id))
+  };
+}
+
 export const CHECKPOINT_META_KEY = '__planningRunMeta';
 export const PLANNING_ROUTE_CACHE_PRELOAD_MIN_IDS = 12;
 
