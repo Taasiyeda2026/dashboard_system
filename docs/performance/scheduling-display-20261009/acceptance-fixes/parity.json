@@ -1,0 +1,188 @@
+{
+  "253 saved rows": {
+    "result": "PASS",
+    "rows": 253
+  },
+  "edge": {
+    "result": "PASS",
+    "rows": 1
+  },
+  "edgeDetails": {
+    "kind": "proposal",
+    "reason": "8 מפגשים פותחים יום עבודה חדש · 10 ק״מ וכ-20 דקות מעבר · ניצול חזוי 1% · סדרה יציבה של 8 מפגשים באותו יום ושעה · ציון תפעולי 68.5/100",
+    "school": "Synthetic school 0",
+    "status": "מועד מומלץ לבית הספר",
+    "endDate": "2026-11-30",
+    "endTime": "08:30",
+    "options": [
+      {
+        "meetings": [
+          {
+            "date": "2026-10-12",
+            "end_time": "09:00",
+            "start_time": "08:00",
+            "substituteEmpId": "sub"
+          }
+        ],
+        "startDate": "2026-10-12",
+        "startTime": "08:00",
+        "instructorEmpId": "first"
+      },
+      {
+        "meetings": [],
+        "startDate": "2026-10-12",
+        "startTime": "08:00",
+        "instructorEmpId": "shared"
+      },
+      {
+        "meetings": [
+          {
+            "date": "2026-10-13",
+            "end_time": "10:00",
+            "start_time": "09:00"
+          }
+        ],
+        "startDate": "2026-10-12",
+        "startTime": "08:00",
+        "instructorEmpId": "shared"
+      }
+    ],
+    "courseId": "synthetic-edge",
+    "district": "מרכז",
+    "meetings": [
+      {
+        "date": "2026-10-12",
+        "moved": false,
+        "end_time": "08:30",
+        "meeting_no": 1,
+        "start_time": "08:00",
+        "original_date": "2026-10-12"
+      },
+      {
+        "date": "2026-10-19",
+        "moved": false,
+        "end_time": "08:30",
+        "meeting_no": 2,
+        "start_time": "08:00",
+        "original_date": "2026-10-19"
+      },
+      {
+        "date": "2026-10-26",
+        "moved": false,
+        "end_time": "08:30",
+        "meeting_no": 3,
+        "start_time": "08:00",
+        "original_date": "2026-10-26"
+      },
+      {
+        "date": "2026-11-02",
+        "moved": false,
+        "end_time": "08:30",
+        "meeting_no": 4,
+        "start_time": "08:00",
+        "original_date": "2026-11-02"
+      },
+      {
+        "date": "2026-11-09",
+        "moved": false,
+        "end_time": "08:30",
+        "meeting_no": 5,
+        "start_time": "08:00",
+        "original_date": "2026-11-09"
+      },
+      {
+        "date": "2026-11-16",
+        "moved": false,
+        "end_time": "08:30",
+        "meeting_no": 6,
+        "start_time": "08:00",
+        "original_date": "2026-11-16"
+      },
+      {
+        "date": "2026-11-23",
+        "moved": false,
+        "end_time": "08:30",
+        "meeting_no": 7,
+        "start_time": "08:00",
+        "original_date": "2026-11-23"
+      },
+      {
+        "date": "2026-11-30",
+        "moved": false,
+        "end_time": "08:30",
+        "meeting_no": 8,
+        "start_time": "08:00",
+        "original_date": "2026-11-30"
+      }
+    ],
+    "schoolId": "1",
+    "sessions": 8,
+    "authority": "Synthetic authority",
+    "startDate": "2026-10-12",
+    "startTime": "08:00",
+    "courseName": "ביומימיקרי",
+    "startRange": {
+      "max": "2027-01-10",
+      "min": "2026-10-12"
+    },
+    "diagnostics": {
+      "rescuePass": false,
+      "routeVerified": true,
+      "rescueDeferred": false,
+      "preliminaryCount": 36,
+      "searchIncomplete": false,
+      "routedAttemptCount": 6,
+      "finalEvaluationCount": 3,
+      "recruitmentCertified": false,
+      "rescueBudgetExceeded": false,
+      "routeEvaluationVersion": 2
+    },
+    "optionCount": 3,
+    "activityType": "קורס",
+    "instructorName": "Synthetic 1",
+    "packingOptions": [],
+    "requiredGender": "any",
+    "sourceHadDraft": false,
+    "dependencySlots": [
+      {
+        "date": "2026-10-12",
+        "end_time": "09:00",
+        "start_time": "08:00"
+      },
+      {
+        "date": "2026-10-13",
+        "end_time": "10:00",
+        "start_time": "09:00"
+      }
+    ],
+    "fullDayBlocking": false,
+    "instructorEmpId": "shared",
+    "scheduleOptions": [],
+    "_detailsDeferred": true,
+    "requiredLanguage": "he",
+    "schoolDateAnchored": false,
+    "scheduleOptionCount": 12,
+    "draftInstructorEmpId": "draft",
+    "previousDraftMeetings": [],
+    "dependencyInstructorIds": [
+      "draft",
+      "first",
+      "locked",
+      "locked-draft",
+      "locked-single",
+      "locked-sub",
+      "packed",
+      "shared",
+      "single",
+      "sub",
+      "sub2"
+    ],
+    "singleMeetingSubstitutions": [
+      {
+        "substituteEmpId": "single"
+      }
+    ],
+    "previousDraftInstructorName": "",
+    "previousDraftInstructorEmpId": ""
+  }
+}

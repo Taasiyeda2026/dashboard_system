@@ -1,0 +1,57 @@
+{
+  "result": "PASS",
+  "before": {
+    "activities": {
+      "rows": 1,
+      "hash": "bcf0a11712ecc75e33e416fd4a2d0e2b"
+    },
+    "activity_completion_approval_uploads": {
+      "rows": 1,
+      "hash": "298a259b584a9f5639815436f061116d"
+    },
+    "attendance_month_approvals": {
+      "rows": 1,
+      "hash": "f0fcb9bcb637704b217eb56326f63052"
+    },
+    "payroll_control_approvals": {
+      "rows": 1,
+      "hash": "ba924eeaefbe36b92351608e319a2913"
+    },
+    "scheduling_planning_workspaces": {
+      "rows": 2,
+      "hash": "07af83e56bc2f866e9c4f35c9f12dc0a"
+    },
+    "scheduling_planning_rows": {
+      "rows": 506,
+      "hash": "5cb1a8557a926658ed4c65c056374061"
+    }
+  },
+  "after": {
+    "activities": {
+      "rows": 1,
+      "hash": "bcf0a11712ecc75e33e416fd4a2d0e2b"
+    },
+    "activity_completion_approval_uploads": {
+      "rows": 1,
+      "hash": "298a259b584a9f5639815436f061116d"
+    },
+    "attendance_month_approvals": {
+      "rows": 1,
+      "hash": "f0fcb9bcb637704b217eb56326f63052"
+    },
+    "payroll_control_approvals": {
+      "rows": 1,
+      "hash": "ba924eeaefbe36b92351608e319a2913"
+    },
+    "scheduling_planning_workspaces": {
+      "rows": 2,
+      "hash": "07af83e56bc2f866e9c4f35c9f12dc0a"
+    },
+    "scheduling_planning_rows": {
+      "rows": 506,
+      "hash": "5cb1a8557a926658ed4c65c056374061"
+    }
+  },
+  "requests": 9,
+  "scope": "Nonempty synthetic fixtures; read-path preservation only. Approval creation/update workflows, triggers and external storage not exercised."
+}

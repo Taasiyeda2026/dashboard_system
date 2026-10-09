@@ -1,0 +1,1782 @@
+[
+  {
+    "variant": "before",
+    "clients": 8,
+    "independentEventLoops": true,
+    "offeredDisplayRequestsPerSecond": 5.9880239520958085,
+    "offeredDetailsRequestsPerSecond": 5.9880239520958085,
+    "samples": [
+      {
+        "kind": "details",
+        "ms": 18.73661100000004,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=8.0, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 359.15964499999995,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=316.9, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 23.006658000000243,
+        "driftMs": 24,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.8, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 547.7716330000003,
+        "driftMs": 13,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=538.6, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 16.96036499999991,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=12.0, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 302.27698899999996,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=292.7, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 8.407007000000704,
+        "driftMs": 11,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.4, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 234.78492800000004,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=222.6, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 5.309532999999647,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.0, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 221.8703289999994,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=206.2, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 6.032936999999947,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=3.0, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 288.10490200000095,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=277.0, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 22.67153499999995,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=9.7, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 435.4592220000002,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=382.3, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 20.402478999999857,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=16.5, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 553.1648220000002,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=500.9, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 24.05236000000059,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=16.8, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 279.5522860000001,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=267.3, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 7.769739999999729,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.5, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 236.93966499999988,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=226.9, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 5.652337999999872,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.2, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 219.7347209999998,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=208.3, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 19.88377600000058,
+        "driftMs": 13,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=7.6, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 305.5523720000001,
+        "driftMs": 2,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=288.0, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 33.61829399999988,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=3.8, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 468.17519600000014,
+        "driftMs": 10,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=407.5, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 43.599005000000034,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=8.9, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 500.86444600000004,
+        "driftMs": 2,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=468.2, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 5.889428000000407,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.2, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 252.2137470000007,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=243.1, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 5.950395999999273,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.4, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 247.59886300000016,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=235.1, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 5.830459999999221,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.2, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 228.93115299999954,
+        "driftMs": 2,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=213.3, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 10.508445999999822,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.5, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 267.8061109999999,
+        "driftMs": 2,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=246.1, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 62.94502199999988,
+        "driftMs": 5,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=52.1, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 495.584073,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=398.6, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 11.46670400000039,
+        "driftMs": 23,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=3.8, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 442.4908019999998,
+        "driftMs": 8,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=429.2, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 6.48308999999972,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.6, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 296.22125700000015,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=285.7, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 5.729371000000356,
+        "driftMs": 3,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.2, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 288.77123200000005,
+        "driftMs": 2,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=272.9, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 17.27618799999982,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=7.7, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 246.35775300000023,
+        "driftMs": 2,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=231.6, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 9.31913799999893,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.7, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 233.2032569999992,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=226.1, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 24.18888599999991,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=15.5, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 503.9057850000004,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=417.4, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 14.670744999999897,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=9.7, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 461.8117010000001,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=409.6, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 9.45006100000046,
+        "driftMs": 21,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.2, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 257.0189390000005,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=241.8, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 9.180945000000065,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.3, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 314.92774999999983,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=290.2, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 9.519107000000076,
+        "driftMs": -1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.4, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 247.04148199999963,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=225.9, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 6.245349999999235,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.3, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 218.85590899999988,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=210.1, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 27.38005000000021,
+        "driftMs": 25,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.6, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 564.9584510000004,
+        "driftMs": 9,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=507.2, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 11.871959999999945,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=8.1, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 411.72557499999994,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=402.8, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 11.285799000000225,
+        "driftMs": 2,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=6.3, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 223.73776999999973,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.9, parse;dur=0.0, plan;dur=0.0, transaction;dur=210.9, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 12.496067999999468,
+        "driftMs": 17,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.2, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 303.5918709999996,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=272.8, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 7.727582999999868,
+        "driftMs": -1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.6, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 246.21181200000046,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=231.8, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 6.002421999999569,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.3, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 264.7885320000005,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=236.9, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 13.814796000000115,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=7.1, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 663.9118159999998,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=571.0, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 14.721889999999803,
+        "driftMs": 22,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=3.6, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 323.7776130000002,
+        "driftMs": 6,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=307.4, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 7.960181000000375,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.0, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 236.1314769999999,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=226.0, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 11.577057000000423,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.3, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.9, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 245.96796900000027,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=235.9, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 9.171009000000595,
+        "driftMs": -1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.6, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 242.46878000000015,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=227.0, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 19.987527999999656,
+        "driftMs": 3,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.7, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 242.50672599999962,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=218.4, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 18.39454799999976,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=7.1, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 520.977699,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=469.6, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 10.496329000000514,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=6.8, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 312.1358399999999,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=301.7, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 12.9810209999996,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=3.8, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 243.9435650000005,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=235.3, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 9.652197999999771,
+        "driftMs": -1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.2, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 234.7259899999999,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=225.1, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 10.624245000000883,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=6.7, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 269.5115539999997,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=257.1, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 12.548564000000624,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=9.1, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 232.10445700000128,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=224.8, response;dur=0.0"
+      }
+    ],
+    "metrics": [
+      {
+        "at": 1791567009559,
+        "anonBytes": 7479296,
+        "fileBytes": 104214528,
+        "cpuUs": 186921083
+      },
+      {
+        "at": 1791567009738,
+        "anonBytes": 7479296,
+        "fileBytes": 104214528,
+        "cpuUs": 186942556
+      },
+      {
+        "at": 1791567009895,
+        "anonBytes": 7483392,
+        "fileBytes": 104214528,
+        "cpuUs": 186961119
+      },
+      {
+        "at": 1791567010052,
+        "anonBytes": 7483392,
+        "fileBytes": 104214528,
+        "cpuUs": 186979268
+      },
+      {
+        "at": 1791567010213,
+        "anonBytes": 7483392,
+        "fileBytes": 104214528,
+        "cpuUs": 187001641
+      },
+      {
+        "at": 1791567010371,
+        "anonBytes": 7483392,
+        "fileBytes": 104214528,
+        "cpuUs": 187019689
+      },
+      {
+        "at": 1791567010527,
+        "anonBytes": 7479296,
+        "fileBytes": 104214528,
+        "cpuUs": 187039345
+      },
+      {
+        "at": 1791567010704,
+        "anonBytes": 29708288,
+        "fileBytes": 104214528,
+        "cpuUs": 187163199
+      },
+      {
+        "at": 1791567010946,
+        "anonBytes": 50708480,
+        "fileBytes": 104214528,
+        "cpuUs": 187460720
+      },
+      {
+        "at": 1791567011226,
+        "anonBytes": 66813952,
+        "fileBytes": 104214528,
+        "cpuUs": 187824450
+      },
+      {
+        "at": 1791567011436,
+        "anonBytes": 75108352,
+        "fileBytes": 104214528,
+        "cpuUs": 188092823
+      },
+      {
+        "at": 1791567011709,
+        "anonBytes": 87396352,
+        "fileBytes": 104214528,
+        "cpuUs": 188458405
+      },
+      {
+        "at": 1791567011931,
+        "anonBytes": 101576704,
+        "fileBytes": 104214528,
+        "cpuUs": 188789977
+      },
+      {
+        "at": 1791567012161,
+        "anonBytes": 115027968,
+        "fileBytes": 104214528,
+        "cpuUs": 189169820
+      },
+      {
+        "at": 1791567012448,
+        "anonBytes": 121552896,
+        "fileBytes": 104214528,
+        "cpuUs": 189592412
+      },
+      {
+        "at": 1791567012653,
+        "anonBytes": 115232768,
+        "fileBytes": 104214528,
+        "cpuUs": 189903854
+      },
+      {
+        "at": 1791567012876,
+        "anonBytes": 109006848,
+        "fileBytes": 104214528,
+        "cpuUs": 190232614
+      },
+      {
+        "at": 1791567013110,
+        "anonBytes": 118857728,
+        "fileBytes": 104214528,
+        "cpuUs": 190591083
+      },
+      {
+        "at": 1791567013360,
+        "anonBytes": 111878144,
+        "fileBytes": 104214528,
+        "cpuUs": 190980365
+      },
+      {
+        "at": 1791567013566,
+        "anonBytes": 104239104,
+        "fileBytes": 104214528,
+        "cpuUs": 191295771
+      },
+      {
+        "at": 1791567013810,
+        "anonBytes": 111976448,
+        "fileBytes": 104214528,
+        "cpuUs": 191662209
+      },
+      {
+        "at": 1791567014019,
+        "anonBytes": 115027968,
+        "fileBytes": 104214528,
+        "cpuUs": 191929523
+      },
+      {
+        "at": 1791567014205,
+        "anonBytes": 106663936,
+        "fileBytes": 104214528,
+        "cpuUs": 192177393
+      },
+      {
+        "at": 1791567014377,
+        "anonBytes": 103395328,
+        "fileBytes": 104214528,
+        "cpuUs": 192401366
+      },
+      {
+        "at": 1791567014546,
+        "anonBytes": 105590784,
+        "fileBytes": 104214528,
+        "cpuUs": 192617553
+      },
+      {
+        "at": 1791567014755,
+        "anonBytes": 110350336,
+        "fileBytes": 104214528,
+        "cpuUs": 192885045
+      },
+      {
+        "at": 1791567014920,
+        "anonBytes": 107999232,
+        "fileBytes": 104214528,
+        "cpuUs": 193084488
+      },
+      {
+        "at": 1791567015138,
+        "anonBytes": 108814336,
+        "fileBytes": 104214528,
+        "cpuUs": 193326985
+      },
+      {
+        "at": 1791567015317,
+        "anonBytes": 111886336,
+        "fileBytes": 104214528,
+        "cpuUs": 193609813
+      },
+      {
+        "at": 1791567015524,
+        "anonBytes": 118210560,
+        "fileBytes": 104214528,
+        "cpuUs": 193900437
+      },
+      {
+        "at": 1791567015730,
+        "anonBytes": 101384192,
+        "fileBytes": 104214528,
+        "cpuUs": 194213416
+      },
+      {
+        "at": 1791567015895,
+        "anonBytes": 105508864,
+        "fileBytes": 104214528,
+        "cpuUs": 194454314
+      },
+      {
+        "at": 1791567016064,
+        "anonBytes": 106356736,
+        "fileBytes": 104214528,
+        "cpuUs": 194672735
+      },
+      {
+        "at": 1791567016230,
+        "anonBytes": 103174144,
+        "fileBytes": 104214528,
+        "cpuUs": 194880879
+      },
+      {
+        "at": 1791567016389,
+        "anonBytes": 105234432,
+        "fileBytes": 104214528,
+        "cpuUs": 195082145
+      },
+      {
+        "at": 1791567016574,
+        "anonBytes": 103739392,
+        "fileBytes": 104214528,
+        "cpuUs": 195308902
+      },
+      {
+        "at": 1791567016758,
+        "anonBytes": 102363136,
+        "fileBytes": 104214528,
+        "cpuUs": 195562685
+      },
+      {
+        "at": 1791567016937,
+        "anonBytes": 108019712,
+        "fileBytes": 104214528,
+        "cpuUs": 195801925
+      },
+      {
+        "at": 1791567017121,
+        "anonBytes": 110051328,
+        "fileBytes": 104214528,
+        "cpuUs": 196051642
+      },
+      {
+        "at": 1791567017306,
+        "anonBytes": 107380736,
+        "fileBytes": 104214528,
+        "cpuUs": 196294634
+      },
+      {
+        "at": 1791567017534,
+        "anonBytes": 111755264,
+        "fileBytes": 104214528,
+        "cpuUs": 196577376
+      },
+      {
+        "at": 1791567017728,
+        "anonBytes": 101801984,
+        "fileBytes": 104214528,
+        "cpuUs": 196874994
+      },
+      {
+        "at": 1791567017894,
+        "anonBytes": 104452096,
+        "fileBytes": 104214528,
+        "cpuUs": 197111407
+      },
+      {
+        "at": 1791567018065,
+        "anonBytes": 103575552,
+        "fileBytes": 104214528,
+        "cpuUs": 197344998
+      },
+      {
+        "at": 1791567018233,
+        "anonBytes": 103432192,
+        "fileBytes": 104214528,
+        "cpuUs": 197541392
+      },
+      {
+        "at": 1791567018410,
+        "anonBytes": 105443328,
+        "fileBytes": 104214528,
+        "cpuUs": 197787649
+      },
+      {
+        "at": 1791567018579,
+        "anonBytes": 102305792,
+        "fileBytes": 104214528,
+        "cpuUs": 198018403
+      },
+      {
+        "at": 1791567018739,
+        "anonBytes": 93171712,
+        "fileBytes": 104214528,
+        "cpuUs": 198096685
+      }
+    ]
+  },
+  {
+    "variant": "after",
+    "clients": 8,
+    "independentEventLoops": true,
+    "offeredDisplayRequestsPerSecond": 5.9880239520958085,
+    "offeredDetailsRequestsPerSecond": 5.9880239520958085,
+    "samples": [
+      {
+        "kind": "details",
+        "ms": 18.860822000000553,
+        "driftMs": -1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=7.8, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 221.5291079999988,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=176.1, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 14.265787999998793,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.3, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 160.79787399999987,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=150.1, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 4.92263500000081,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.5, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 155.13229599999977,
+        "driftMs": 2,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=139.5, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 8.607963000000382,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.3, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 173.62823000000026,
+        "driftMs": 2,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=153.2, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 6.730132000000594,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.8, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 153.57873499999914,
+        "driftMs": 2,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=141.8, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 11.813493000001472,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.2, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 156.97591300000204,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=148.3, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 18.554535999999644,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=8.2, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 243.76453000000038,
+        "driftMs": 2,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=202.8, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 7.247858000000633,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.7, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 180.16908599999988,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=171.3, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 7.561939999999595,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=3.5, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 151.06792300000052,
+        "driftMs": 2,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=140.8, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 5.4761989999988145,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.9, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 192.0853590000006,
+        "driftMs": 2,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=180.8, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 4.8782199999986915,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.6, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 190.99941200000103,
+        "driftMs": 2,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=176.0, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 12.153362999997626,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=7.3, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 161.29378899999938,
+        "driftMs": 2,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=149.0, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 14.113623999999618,
+        "driftMs": -1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.2, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 200.5116909999997,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=153.5, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 6.526472999999896,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.3, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 167.93515500000103,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=157.8, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 6.765053999999509,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.5, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 184.62900600000103,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=156.0, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 7.773455000000467,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=3.4, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 180.67812699999922,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=167.1, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 8.430330999999569,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.8, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 175.13132399999813,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=158.0, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 7.724013999999443,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.0, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 181.9310779999978,
+        "driftMs": 2,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=163.3, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 9.433755999998539,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.6, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 236.32431999999972,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=171.7, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 9.157670000000508,
+        "driftMs": 2,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.1, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 174.52659700000004,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=165.3, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 7.326488999999128,
+        "driftMs": 2,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.0, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 176.36213099999986,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=161.3, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 14.925368000000162,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.7, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 217.6468649999988,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=202.4, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 5.463230000001204,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.4, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 183.72268799999802,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=172.7, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 4.476760000001377,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.5, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 171.19335099999807,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=162.6, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 7.482567999999446,
+        "driftMs": -1,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.7, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 192.47825400000147,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=151.0, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 5.6885610000008455,
+        "driftMs": 4,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.0, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 152.07940899999994,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=139.4, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 4.7448330000006536,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.5, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 173.63766000000032,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=154.3, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 8.894382999998925,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.0, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 169.71981500000038,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=158.9, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 8.730121999997209,
+        "driftMs": 3,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.0, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 175.26020900000003,
+        "driftMs": 2,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=156.5, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 10.804990999997244,
+        "driftMs": 3,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=7.5, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 188.7252550000012,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=171.2, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 12.384878000000754,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.2, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 242.90705399999933,
+        "driftMs": 2,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=181.6, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 5.301762999999482,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.4, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 172.52491100000043,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=156.1, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 5.150499999999738,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.1, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 160.59966800000075,
+        "driftMs": 5,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=151.1, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 5.129840000001423,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.8, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 170.5661590000018,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=158.1, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 10.071564000001672,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.6, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 164.29168700000082,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=155.4, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 4.698135999999067,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.6, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 158.22701700000107,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=145.0, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 22.844080999999278,
+        "driftMs": 13,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=7.7, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 229.93513800000073,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=161.8, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 6.25800899999922,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.7, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 160.32941500000015,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=150.6, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 9.857137999999395,
+        "driftMs": -1,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.2, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 190.07326300000022,
+        "driftMs": 2,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=177.5, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 7.372777000000497,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=3.5, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 155.49912700000095,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=146.3, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 11.278978999998799,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=6.2, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 193.80879800000184,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=177.8, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 4.754729000000225,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.6, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 191.90884399999777,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=175.8, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 10.77989499999967,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.6, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 203.7606909999995,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.2, parse;dur=0.0, plan;dur=0.0, transaction;dur=163.8, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 4.9538009999996575,
+        "driftMs": -1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.4, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 165.08606700000018,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=155.5, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 6.133225000001403,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.9, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 158.92959999999948,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=148.6, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 11.092628999998851,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.1, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 166.09849699999904,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=157.1, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 7.208645000002434,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.9, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 175.75277700000152,
+        "driftMs": 1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=161.9, response;dur=0.0"
+      },
+      {
+        "kind": "details",
+        "ms": 5.321371999998519,
+        "driftMs": -1,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.8, response;dur=0.0"
+      },
+      {
+        "kind": "display",
+        "ms": 169.72949900000094,
+        "driftMs": 0,
+        "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=153.2, response;dur=0.0"
+      }
+    ],
+    "metrics": [
+      {
+        "at": 1791567019306,
+        "anonBytes": 7602176,
+        "fileBytes": 104214528,
+        "cpuUs": 198174280
+      },
+      {
+        "at": 1791567019482,
+        "anonBytes": 7606272,
+        "fileBytes": 104214528,
+        "cpuUs": 198191315
+      },
+      {
+        "at": 1791567019638,
+        "anonBytes": 7602176,
+        "fileBytes": 104214528,
+        "cpuUs": 198208616
+      },
+      {
+        "at": 1791567019801,
+        "anonBytes": 7606272,
+        "fileBytes": 104214528,
+        "cpuUs": 198227402
+      },
+      {
+        "at": 1791567019968,
+        "anonBytes": 7606272,
+        "fileBytes": 104214528,
+        "cpuUs": 198246136
+      },
+      {
+        "at": 1791567020137,
+        "anonBytes": 7610368,
+        "fileBytes": 104214528,
+        "cpuUs": 198266307
+      },
+      {
+        "at": 1791567020296,
+        "anonBytes": 7610368,
+        "fileBytes": 104214528,
+        "cpuUs": 198284249
+      },
+      {
+        "at": 1791567020461,
+        "anonBytes": 34402304,
+        "fileBytes": 104214528,
+        "cpuUs": 198417035
+      },
+      {
+        "at": 1791567020662,
+        "anonBytes": 51744768,
+        "fileBytes": 104214528,
+        "cpuUs": 198610734
+      },
+      {
+        "at": 1791567020837,
+        "anonBytes": 57868288,
+        "fileBytes": 104214528,
+        "cpuUs": 198814453
+      },
+      {
+        "at": 1791567021028,
+        "anonBytes": 57458688,
+        "fileBytes": 104214528,
+        "cpuUs": 198975891
+      },
+      {
+        "at": 1791567021219,
+        "anonBytes": 45580288,
+        "fileBytes": 104214528,
+        "cpuUs": 199176647
+      },
+      {
+        "at": 1791567021426,
+        "anonBytes": 45625344,
+        "fileBytes": 104214528,
+        "cpuUs": 199374412
+      },
+      {
+        "at": 1791567021609,
+        "anonBytes": 51109888,
+        "fileBytes": 104214528,
+        "cpuUs": 199578528
+      },
+      {
+        "at": 1791567021778,
+        "anonBytes": 57200640,
+        "fileBytes": 104214528,
+        "cpuUs": 199783256
+      },
+      {
+        "at": 1791567021957,
+        "anonBytes": 55836672,
+        "fileBytes": 104214528,
+        "cpuUs": 199961138
+      },
+      {
+        "at": 1791567022126,
+        "anonBytes": 54398976,
+        "fileBytes": 104214528,
+        "cpuUs": 200145210
+      },
+      {
+        "at": 1791567022304,
+        "anonBytes": 58060800,
+        "fileBytes": 104214528,
+        "cpuUs": 200322131
+      },
+      {
+        "at": 1791567022477,
+        "anonBytes": 45613056,
+        "fileBytes": 104214528,
+        "cpuUs": 200488390
+      },
+      {
+        "at": 1791567022653,
+        "anonBytes": 45608960,
+        "fileBytes": 104214528,
+        "cpuUs": 200656186
+      },
+      {
+        "at": 1791567022824,
+        "anonBytes": 45613056,
+        "fileBytes": 104214528,
+        "cpuUs": 200826083
+      },
+      {
+        "at": 1791567022995,
+        "anonBytes": 45608960,
+        "fileBytes": 104214528,
+        "cpuUs": 200987538
+      },
+      {
+        "at": 1791567023166,
+        "anonBytes": 45617152,
+        "fileBytes": 104214528,
+        "cpuUs": 201146782
+      },
+      {
+        "at": 1791567023349,
+        "anonBytes": 45645824,
+        "fileBytes": 104214528,
+        "cpuUs": 201301425
+      },
+      {
+        "at": 1791567023535,
+        "anonBytes": 45682688,
+        "fileBytes": 104214528,
+        "cpuUs": 201483796
+      },
+      {
+        "at": 1791567023713,
+        "anonBytes": 46850048,
+        "fileBytes": 104214528,
+        "cpuUs": 201662856
+      },
+      {
+        "at": 1791567023888,
+        "anonBytes": 48091136,
+        "fileBytes": 104214528,
+        "cpuUs": 201832966
+      },
+      {
+        "at": 1791567024072,
+        "anonBytes": 47620096,
+        "fileBytes": 104214528,
+        "cpuUs": 202009396
+      },
+      {
+        "at": 1791567024240,
+        "anonBytes": 50667520,
+        "fileBytes": 104214528,
+        "cpuUs": 202187284
+      },
+      {
+        "at": 1791567024398,
+        "anonBytes": 48766976,
+        "fileBytes": 104214528,
+        "cpuUs": 202330842
+      },
+      {
+        "at": 1791567024564,
+        "anonBytes": 48295936,
+        "fileBytes": 104214528,
+        "cpuUs": 202498827
+      },
+      {
+        "at": 1791567024735,
+        "anonBytes": 48779264,
+        "fileBytes": 104214528,
+        "cpuUs": 202678397
+      },
+      {
+        "at": 1791567024914,
+        "anonBytes": 48177152,
+        "fileBytes": 104214528,
+        "cpuUs": 202858544
+      },
+      {
+        "at": 1791567025092,
+        "anonBytes": 52207616,
+        "fileBytes": 104214528,
+        "cpuUs": 203063984
+      },
+      {
+        "at": 1791567025263,
+        "anonBytes": 52965376,
+        "fileBytes": 104214528,
+        "cpuUs": 203240650
+      },
+      {
+        "at": 1791567025426,
+        "anonBytes": 54091776,
+        "fileBytes": 104214528,
+        "cpuUs": 203409371
+      },
+      {
+        "at": 1791567025595,
+        "anonBytes": 52977664,
+        "fileBytes": 104214528,
+        "cpuUs": 203568808
+      },
+      {
+        "at": 1791567025761,
+        "anonBytes": 53731328,
+        "fileBytes": 104214528,
+        "cpuUs": 203738282
+      },
+      {
+        "at": 1791567025939,
+        "anonBytes": 52482048,
+        "fileBytes": 104214528,
+        "cpuUs": 203908295
+      },
+      {
+        "at": 1791567026114,
+        "anonBytes": 54538240,
+        "fileBytes": 104214528,
+        "cpuUs": 204084938
+      },
+      {
+        "at": 1791567026283,
+        "anonBytes": 53952512,
+        "fileBytes": 104214528,
+        "cpuUs": 204257821
+      },
+      {
+        "at": 1791567026447,
+        "anonBytes": 55603200,
+        "fileBytes": 104214528,
+        "cpuUs": 204424831
+      },
+      {
+        "at": 1791567026624,
+        "anonBytes": 57548800,
+        "fileBytes": 104214528,
+        "cpuUs": 204605912
+      },
+      {
+        "at": 1791567026804,
+        "anonBytes": 55816192,
+        "fileBytes": 104214528,
+        "cpuUs": 204781285
+      },
+      {
+        "at": 1791567026971,
+        "anonBytes": 59039744,
+        "fileBytes": 104214528,
+        "cpuUs": 204967072
+      },
+      {
+        "at": 1791567027137,
+        "anonBytes": 58077184,
+        "fileBytes": 104214528,
+        "cpuUs": 205142658
+      },
+      {
+        "at": 1791567027306,
+        "anonBytes": 58339328,
+        "fileBytes": 104214528,
+        "cpuUs": 205310747
+      },
+      {
+        "at": 1791567027479,
+        "anonBytes": 58347520,
+        "fileBytes": 104214528,
+        "cpuUs": 205482505
+      },
+      {
+        "at": 1791567027645,
+        "anonBytes": 57556992,
+        "fileBytes": 104214528,
+        "cpuUs": 205653380
+      },
+      {
+        "at": 1791567027812,
+        "anonBytes": 56975360,
+        "fileBytes": 104214528,
+        "cpuUs": 205816974
+      },
+      {
+        "at": 1791567027989,
+        "anonBytes": 45883392,
+        "fileBytes": 104214528,
+        "cpuUs": 206005336
+      },
+      {
+        "at": 1791567028178,
+        "anonBytes": 45887488,
+        "fileBytes": 104214528,
+        "cpuUs": 206189391
+      },
+      {
+        "at": 1791567028340,
+        "anonBytes": 45887488,
+        "fileBytes": 104214528,
+        "cpuUs": 206345878
+      }
+    ]
+  }
+]

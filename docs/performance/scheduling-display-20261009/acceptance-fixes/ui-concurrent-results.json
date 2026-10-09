@@ -1,0 +1,773 @@
+{
+  "results": [
+    {
+      "device": "concurrent-user-3",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "cpuRate": 1,
+      "coldNavigationMs": 11355.427168,
+      "warmNavigationMs": null,
+      "searchMs": 98.95783599999959,
+      "cards": 25,
+      "excel": [
+        {
+          "sheet": "סידור עבודה",
+          "rows": 253
+        },
+        {
+          "sheet": "אפשרויות תכנון",
+          "rows": 759
+        },
+        {
+          "sheet": "מערכת לפי מדריך",
+          "rows": 2024
+        }
+      ],
+      "excelBytes": 385182,
+      "heap": {
+        "used": 96292248,
+        "total": 140038600
+      }
+    },
+    {
+      "device": "concurrent-user-0",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "cpuRate": 1,
+      "coldNavigationMs": 11705.487019,
+      "warmNavigationMs": null,
+      "searchMs": 98.7408460000006,
+      "cards": 25,
+      "excel": [
+        {
+          "sheet": "סידור עבודה",
+          "rows": 253
+        },
+        {
+          "sheet": "אפשרויות תכנון",
+          "rows": 759
+        },
+        {
+          "sheet": "מערכת לפי מדריך",
+          "rows": 2024
+        }
+      ],
+      "excelBytes": 385182,
+      "heap": {
+        "used": 96318756,
+        "total": 141611464
+      }
+    },
+    {
+      "device": "concurrent-user-1",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "cpuRate": 1,
+      "coldNavigationMs": 11888.7578,
+      "warmNavigationMs": null,
+      "searchMs": 130.54444200000034,
+      "cards": 25,
+      "excel": [
+        {
+          "sheet": "סידור עבודה",
+          "rows": 253
+        },
+        {
+          "sheet": "אפשרויות תכנון",
+          "rows": 759
+        },
+        {
+          "sheet": "מערכת לפי מדריך",
+          "rows": 2024
+        }
+      ],
+      "excelBytes": 385182,
+      "heap": {
+        "used": 96395388,
+        "total": 139252168
+      }
+    },
+    {
+      "device": "concurrent-user-2",
+      "viewport": {
+        "width": 1440,
+        "height": 900
+      },
+      "cpuRate": 1,
+      "coldNavigationMs": 12000.429156999999,
+      "warmNavigationMs": null,
+      "searchMs": 126.8589150000007,
+      "cards": 25,
+      "excel": [
+        {
+          "sheet": "סידור עבודה",
+          "rows": 253
+        },
+        {
+          "sheet": "אפשרויות תכנון",
+          "rows": 759
+        },
+        {
+          "sheet": "מערכת לפי מדריך",
+          "rows": 2024
+        }
+      ],
+      "excelBytes": 385182,
+      "heap": {
+        "used": 96294092,
+        "total": 140300744
+      }
+    }
+  ],
+  "requests": [
+    {
+      "method": "GET",
+      "path": "/lists",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/settings",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/proposal_gefen_courses",
+      "real": false
+    },
+    {
+      "method": "POST",
+      "path": "/rpc/get_current_app_user",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/lists",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/settings",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/employee_birthdays",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/proposal_gefen_courses",
+      "real": false
+    },
+    {
+      "method": "POST",
+      "path": "/rpc/get_current_app_user",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/lists",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/lists",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/settings",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/proposal_gefen_courses",
+      "real": false
+    },
+    {
+      "method": "POST",
+      "path": "/rpc/get_current_app_user",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/settings",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/proposal_gefen_courses",
+      "real": false
+    },
+    {
+      "method": "POST",
+      "path": "/rpc/get_current_app_user",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/employee_birthdays",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/employee_birthdays",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/employee_birthdays",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/activities",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/activities",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/activities",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_scheduling_profiles",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_availability_rules",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_scheduling_profiles",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/activities",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_availability_exceptions",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_availability_rules",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_availability_exceptions",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_scheduling_profiles",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_availability_rules",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_scheduling_profiles",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_availability_rules",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_availability_exceptions",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_availability_exceptions",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/activities",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/activity_completion_approval_uploads",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/course_meeting_cancellations",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/activities",
+      "real": false
+    },
+    {
+      "method": "POST",
+      "path": "/rpc/scheduling_authority_school_locations",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/activity_completion_approval_uploads",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/course_meeting_cancellations",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/proposal_activity_pricing",
+      "real": false
+    },
+    {
+      "method": "POST",
+      "path": "/rpc/scheduling_authority_school_locations",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/proposal_activity_pricing",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_scheduling_profiles",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_scheduling_profiles",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_availability_rules",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_availability_rules",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_availability_exceptions",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_availability_exceptions",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/school_calendar",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/school_calendar",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/activities",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/activity_completion_approval_uploads",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/course_meeting_cancellations",
+      "real": false
+    },
+    {
+      "method": "POST",
+      "path": "/rpc/scheduling_authority_school_locations",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/proposal_activity_pricing",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/activities",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_scheduling_profiles",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_availability_rules",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_availability_exceptions",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/school_calendar",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/activity_completion_approval_uploads",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/course_meeting_cancellations",
+      "real": false
+    },
+    {
+      "method": "POST",
+      "path": "/rpc/scheduling_authority_school_locations",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_scheduling_profiles",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/proposal_activity_pricing",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_availability_rules",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/instructor_availability_exceptions",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/contacts_instructors",
+      "real": false
+    },
+    {
+      "method": "GET",
+      "path": "/school_calendar",
+      "real": false
+    },
+    {
+      "method": "POST",
+      "path": "/rpc/get_scheduling_planning_display_workspace",
+      "real": true
+    },
+    {
+      "method": "POST",
+      "path": "/rpc/get_scheduling_planning_display_workspace",
+      "real": true
+    },
+    {
+      "method": "POST",
+      "path": "/rpc/get_scheduling_planning_display_workspace",
+      "real": true
+    },
+    {
+      "method": "POST",
+      "path": "/rpc/get_scheduling_planning_display_workspace",
+      "real": true
+    },
+    {
+      "method": "POST",
+      "path": "/rpc/get_scheduling_planning_row_details",
+      "real": true
+    },
+    {
+      "method": "POST",
+      "path": "/rpc/get_scheduling_planning_row_details",
+      "real": true
+    },
+    {
+      "method": "POST",
+      "path": "/rpc/get_scheduling_planning_row_details",
+      "real": true
+    },
+    {
+      "method": "POST",
+      "path": "/rpc/get_scheduling_planning_row_details",
+      "real": true
+    },
+    {
+      "method": "POST",
+      "path": "/rpc/get_scheduling_planning_workspace",
+      "real": true
+    },
+    {
+      "method": "POST",
+      "path": "/rpc/get_scheduling_planning_workspace",
+      "real": true
+    },
+    {
+      "method": "POST",
+      "path": "/rpc/get_scheduling_planning_workspace",
+      "real": true
+    },
+    {
+      "method": "POST",
+      "path": "/rpc/get_scheduling_planning_workspace",
+      "real": true
+    },
+    {
+      "method": "GET",
+      "path": "/scheduling_planning_workspaces",
+      "real": true
+    },
+    {
+      "method": "GET",
+      "path": "/scheduling_planning_workspaces",
+      "real": true
+    },
+    {
+      "method": "GET",
+      "path": "/scheduling_planning_workspaces",
+      "real": true
+    },
+    {
+      "method": "GET",
+      "path": "/scheduling_planning_workspaces",
+      "real": true
+    }
+  ],
+  "mutations": [],
+  "errors": [],
+  "scope": "Four authorized users concurrently; no list navigation permission added; cold load/search/details/export only. Real index.html shell, navigation and scheduling UI; real Auth/planning RPC/RLS, unrelated source tables synthetic HTTP fixtures. No injected export button. CPU4 is emulation."
+}

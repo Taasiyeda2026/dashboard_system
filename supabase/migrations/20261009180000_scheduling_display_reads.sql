@@ -2,6 +2,7 @@
 CREATE OR REPLACE FUNCTION public.get_scheduling_planning_display_workspace(p_period_key text, p_district text DEFAULT ''::text)
  RETURNS jsonb
  LANGUAGE plpgsql
+ STABLE
  SECURITY DEFINER
  SET search_path TO 'public'
 AS $function$
@@ -31,6 +32,22 @@ begin
   where u.auth_user_id = workspace.updated_by
   limit 1;
 
+  with source as not materialized (
+    select r.workspace_id, r.activity_id, payload.row_data,
+      r.activity_updated_at, r.locked_option, r.locked_by, r.locked_at,
+      r.updated_at, r.needs_recalc, r.needs_recalc_marked_at
+    from (
+      -- Sort TOAST references before expanding large JSON payloads. Keep this
+      -- boundary so the aggregate can consume ordered rows without a disk sort
+      -- of every full alternatives payload.
+      select r.* from public.scheduling_planning_rows r
+      where r.workspace_id = workspace.id
+      order by r.activity_id offset 0
+    ) r
+    -- Per-row optimizer fence: expand the payload once, reusing it for all JSON
+    -- access and the existing dependency helper. No workspace-wide tuplestore.
+    cross join lateral (select r.row_data || '{}'::jsonb as row_data offset 0) payload
+  )
   select coalesce(
     jsonb_agg(
       jsonb_build_object(
@@ -43,7 +60,7 @@ begin
               and coalesce(o->>'startTime','') = coalesce(r.row_data->>'startTime','') limit 1), '[]'::jsonb)
             else '[]'::jsonb end,
           'scheduleOptions', '[]'::jsonb, 'packingOptions', '[]'::jsonb,
-          'dependencyInstructorIds', to_jsonb(public.scheduling_planning_row_instructor_ids(r)),
+          'dependencyInstructorIds', to_jsonb(public.scheduling_planning_row_instructor_ids(r::public.scheduling_planning_rows)),
           'dependencySlots', coalesce((select jsonb_agg(distinct jsonb_build_object('date', m->>'date', 'start_time', m->>'start_time', 'end_time', m->>'end_time'))
             from jsonb_array_elements(coalesce(r.row_data->'options','[]'::jsonb) || coalesce(r.row_data->'packingOptions','[]'::jsonb)) o
             cross join lateral jsonb_array_elements(coalesce(o->'meetings','[]'::jsonb)) m), '[]'::jsonb),
@@ -61,8 +78,7 @@ begin
     ),
     '[]'::jsonb
   ) into rows_json
-  from public.scheduling_planning_rows r
-  where r.workspace_id = workspace.id;
+  from source r;
 
   return jsonb_build_object(
     'workspace', jsonb_build_object(
@@ -87,18 +103,26 @@ $function$
 
 CREATE OR REPLACE FUNCTION public.get_scheduling_planning_row_details(
   p_workspace_id uuid, p_activity_id text, p_expected_revision bigint
-) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
-DECLARE result jsonb;
+) RETURNS jsonb LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = public AS $$
+DECLARE result jsonb; actual_revision bigint;
 BEGIN
   IF NOT coalesce(public.app_has_permission('view_operations_scheduling'), false) THEN
     RAISE EXCEPTION 'scheduling_permission_denied' USING ERRCODE='42501';
   END IF;
-  PERFORM 1 FROM public.scheduling_planning_workspaces WHERE id=p_workspace_id AND revision=p_expected_revision FOR SHARE;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'planning_revision_conflict' USING ERRCODE='40001';
+  -- Read revision and payload from one MVCC snapshot. A display read must not
+  -- lock the workspace or wait behind a planning writer. STABLE also keeps the
+  -- permission lookup and this statement in the calling query's snapshot.
+  SELECT w.revision, r.row_data INTO actual_revision, result
+  FROM public.scheduling_planning_workspaces w
+  LEFT JOIN public.scheduling_planning_rows r
+    ON r.workspace_id=w.id AND r.activity_id=p_activity_id
+  WHERE w.id=p_workspace_id;
+  IF NOT FOUND OR actual_revision IS DISTINCT FROM p_expected_revision THEN
+    -- A domain revision conflict cannot be resolved by transaction retries.
+    -- 40001 is reserved for real serialization failures: Hasql retries it forever.
+    RAISE EXCEPTION 'planning_revision_conflict' USING ERRCODE='PT409';
   END IF;
-  SELECT row_data INTO result FROM public.scheduling_planning_rows WHERE workspace_id=p_workspace_id AND activity_id=p_activity_id;
-  IF NOT FOUND THEN RAISE EXCEPTION 'planning_row_not_found'; END IF;
+  IF result IS NULL THEN RAISE EXCEPTION 'planning_row_not_found'; END IF;
   RETURN result;
 END $$;
 REVOKE ALL ON FUNCTION public.get_scheduling_planning_display_workspace(text,text) FROM PUBLIC, anon;

@@ -104,6 +104,7 @@ import {
   loadSharedPlanningWorkspace,
   loadSharedPlanningDisplayWorkspace,
   loadSharedPlanningRowDetails,
+  assertSharedPlanningWorkspaceRevision,
   loadSchedulingPlanningPreflight,
   acquireSchedulingPlanningRunLease,
   heartbeatSchedulingPlanningRunLease,
@@ -1163,7 +1164,7 @@ export function courseListHtml(rowModels, selectedId, state = {}) {
 }
 
 
-export function schedulingPlanningStatusHtml(state = {}) {
+export function schedulingPlanningStatusHtml(state = {}, { snapshotStale = false } = {}) {
   const loading = !!state.courseSchedulingPlanningLoading;
   const pendingRecalc = Math.max(0, Number((state.courseSchedulingPlanningAffectedIds || []).length) || 0);
   const hardGateInvalid = Math.max(0, Number(state.courseSchedulingPlanningHardGateInvalidCount) || 0);
@@ -1216,6 +1217,8 @@ export function schedulingPlanningStatusHtml(state = {}) {
   }
   return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
     <span data-planning-status-message><strong>הכול מעודכן</strong></span>
+    ${!snapshotStale && (state.courseSchedulingPlanningRows || []).length
+      ? '<button type="button" class="course-scheduling-workboard-secondary" data-export-course-planning>ייצוא Excel</button>' : ''}
   </div>`;
 }
 
@@ -2224,7 +2227,7 @@ export const courseSchedulingScreen = {
         ? maintenanceTabHtml(state)
         : `${schedulingScopeHtml(allInterfaceCourses, state, data.activities || [])}
       ${data._is_stale ? '<p role="status" class="course-scheduling-alert">מוצג מידע שמור שטרם אומת מול השרת. מרענן נתונים; פעולות שמירה חסומות עד לסיום.</p>' : ''}
-      ${schedulingPlanningStatusHtml(state)}
+      ${schedulingPlanningStatusHtml(state, { snapshotStale: data._is_stale === true })}
       <section class="course-scheduling-summary" aria-label="סיכום פעילויות לפי מצב">${summaryCardsHtml(rowModels, state)}</section>
       ${state.courseSchedulingPlanningSharedLoaded && !state.courseSchedulingPlanningLoading && !state.courseSchedulingPlanningStale
         ? completionCache.html
@@ -4276,13 +4279,18 @@ export const courseSchedulingScreen = {
         rerender();
       }
     });
-    root.querySelector('[data-export-course-planning]')?.addEventListener('click', async () => {
-      if (data._is_stale) return;
+    root.querySelector('[data-export-course-planning]')?.addEventListener('click', async (event) => {
+      if (data._is_stale || data._planningExportPending) return;
+      const button = event.currentTarget;
+      const workspaceId = state.courseSchedulingPlanningShared?.workspace?.id;
+      const expectedRevision = Number(state.courseSchedulingPlanningSharedRevision);
       let rows = state.courseSchedulingPlanningRows || [];
       if (!state.courseSchedulingPlanningCalculatedAt || !rows.length) {
         showToast('קודם יש לבנות את מערכת ההדרכות המלאה.', 'info');
         return;
       }
+      data._planningExportPending = true;
+      button.disabled = true;
       try {
         // The workbook includes alternatives: never export a display projection as a full plan.
         if (rows.some(row => row._detailsDeferred)) {
@@ -4297,10 +4305,21 @@ export const courseSchedulingScreen = {
             return entry.needsRecalc ? stalePlanningRowForDisplay(row) : row;
           });
         }
+        // The legacy full RPC uses multiple SELECTs. A monotonic revision check
+        // after its payload prevents a writer from producing a mixed-version file.
+        // Also validate already-hydrated rows rather than exporting a stale view.
+        await assertSharedPlanningWorkspaceRevision({ workspaceId, expectedRevision });
+        if (data._is_stale || workspaceId !== state.courseSchedulingPlanningShared?.workspace?.id
+          || expectedRevision !== Number(state.courseSchedulingPlanningSharedRevision)) {
+          throw new Error('planning_revision_conflict');
+        }
         const filename = exportPlanningWorkbook(rows);
         showToast(`קובץ Excel נוצר: ${filename}`);
       } catch (error) {
-        showToast(error?.message || 'ייצוא Excel נכשל.', 'error');
+        showToast(planningStoreErrorMessage(error, 'ייצוא Excel נכשל.'), 'error');
+      } finally {
+        data._planningExportPending = false;
+        if (button.isConnected) button.disabled = false;
       }
     });
     root.querySelector('[data-clear-course-planning]')?.addEventListener('click', async (event) => {

@@ -258,6 +258,12 @@ export async function loadSharedPlanningDisplayWorkspace({ periodKey = 'year', d
   }
   return { ...data, displayOnly: true };
 }
+/** Read the RLS-protected version; use after a multi-request snapshot load. */
+export async function assertSharedPlanningWorkspaceRevision({ workspaceId, expectedRevision } = {}) {
+  const result = await supabase.from('scheduling_planning_workspaces').select('revision').eq('id', workspaceId).single();
+  if (result.error) throw result.error;
+  if (Number(result.data?.revision) !== Number(expectedRevision)) throw new Error('planning_revision_conflict');
+}
 export async function loadSharedPlanningRowDetails({ workspaceId, activityId, expectedRevision } = {}) {
   const { data, error } = await planningRpc('get_scheduling_planning_row_details', {
     p_workspace_id: workspaceId, p_activity_id: text(activityId), p_expected_revision: Number(expectedRevision)
@@ -265,11 +271,7 @@ export async function loadSharedPlanningRowDetails({ workspaceId, activityId, ex
   if (error) {
     if (!['PGRST202', '42883'].includes(error.code)) throw error;
     // RLS-protected fallback; verify the workspace revision before and after.
-    const revision = async () => {
-      const result = await supabase.from('scheduling_planning_workspaces').select('revision').eq('id', workspaceId).single();
-      if (result.error) throw result.error;
-      if (Number(result.data?.revision) !== Number(expectedRevision)) throw new Error('planning_revision_conflict');
-    };
+    const revision = () => assertSharedPlanningWorkspaceRevision({ workspaceId, expectedRevision });
     await revision();
     const result = await supabase.from('scheduling_planning_rows').select('row_data').eq('workspace_id', workspaceId).eq('activity_id', text(activityId)).single();
     if (result.error) throw result.error;
