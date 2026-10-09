@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { filterGroups, hasCourseStartDate, hasCourseEndDate, studentFeedbackPeriodForGroup, studentFeedbackHasResponses, sortStudentFeedbackGroups } from '../frontend/src/impact-feedback/feedback-domain.js';
+import { filterGroups, hasCourseStartDate, hasCourseEndDate, studentFeedbackPeriodForGroup, studentFeedbackHasResponses, sortStudentFeedbackGroups, filterFeedbackFactsForHalf } from '../frontend/src/impact-feedback/feedback-domain.js';
 import { COURSE_SCHEDULING_PERIODS } from '../frontend/src/screens/course-scheduling-periods.js';
 
 const screen = readFileSync(new URL('../frontend/src/screens/impact-feedback.js', import.meta.url), 'utf8');
@@ -259,26 +259,25 @@ test('student list is sorted by course start date with groups already answered a
   assert.equal(studentFeedbackHasResponses(group('opened-no-answers', '2026-09-02')), false);
 });
 
-test('student and staff tabs have exclusive, independent semester selectors sourced from scheduling', () => {
-  const table = screen.slice(screen.indexOf('function groupSemesterTabsHtml('), screen.indexOf('function optionBarsHtml('));
-  assert.match(screen, /studentHalf: 'first'/);
-  assert.match(screen, /staffHalf: 'first'/);
-  assert.match(table, /\{ key: 'first', label: "מחצית א׳" \}/);
-  assert.match(table, /\{ key: 'second', label: "מחצית ב׳" \}/);
-  assert.match(table, /data-ifb-group-half="\$\{key\}" data-ifb-group-scope="\$\{scope\}"/);
-  assert.match(table, /aria-pressed="\$\{selectedHalf === key\}"/);
-  assert.match(table, /studentFeedbackPeriodForGroup\(g\) === \(scope === 'staff' \? ui\.staffHalf : ui\.studentHalf\)/);
-  assert.match(table, /groupSemesterTabsHtml\(all, scope\)/);
-  assert.match(table, /groupFiltersHtml\(inHalf, scope\)/);
-  assert.match(screen, /const groupHalf = t\.closest\('\[data-ifb-group-half\]'\)/);
-  assert.match(screen, /if \(scope === 'staff'\) ui\.staffHalf = next;/);
-  assert.match(screen, /else ui\.studentHalf = next;/);
+test('one shared half-year switch controls all operational feedback tabs without changing templates', () => {
+  const control = screen.slice(screen.indexOf('function feedbackSemesterTabsHtml('), screen.indexOf('function groupsTableHtml('));
+  assert.match(screen, /feedbackHalf: 'first'/);
+  assert.match(control, /\{ key: 'first', label: "מחצית א׳" \}/);
+  assert.match(control, /\{ key: 'second', label: "מחצית ב׳" \}/);
+  assert.match(control, /data-ifb-group-half="\$\{key\}"/);
+  assert.match(control, /aria-pressed="\$\{ui\.feedbackHalf === key\}"/);
+  assert.match(screen, /ui\.groupRowId \|\| ui\.tab === 'templates' \? '' : feedbackSemesterTabsHtml\(\)/);
+  assert.match(screen, /ui\.feedbackHalf = next;/);
+  assert.match(screen, /ui\.summaryHalf = null;/);
+  assert.match(screen, /await load\(host\)/);
   assert.match(styles, /\.ifb-student-semester\.is-active \{/);
+  assert.match(screen, /תבניות השאלונים משותפות למחצית א׳ ולמחצית ב׳/);
 });
+
 
 test('instructor list shows only scheduled instructor-courses sorted by earliest start date', () => {
   const list = screen.slice(screen.indexOf('function instructorAssignmentsHtml('), screen.indexOf('function instructorsHtml('));
-  assert.match(list, /\(ui\.instructorAssignments \|\| \[\]\)\.filter\(\(row\) => row\.first_start_date &&/);
+  assert.match(list, /studentFeedbackPeriodForGroup\(\{ start_date: row\.first_start_date \}\) === ui\.feedbackHalf/);
   assert.match(list, /\.sort\(\(a, b\) => String\(a\.first_start_date\)\.localeCompare\(String\(b\.first_start_date\)\)/);
   assert.match(list, /<col class="ifb-iw-first-start"><col class="ifb-iw-first-end">/);
   assert.match(list, /תחילת קורס ראשון/);
@@ -353,4 +352,59 @@ test('staff Excel export excludes student answers', () => {
   assert.match(screen, /exportButtonHtml\(\`group-staff:\$\{group\.row_id\}\`, 'ייצוא צוות חינוכי \(Excel\)'\)/);
   assert.match(screen, /scope\.startsWith\('group-staff:'\)\) return factsFor\(ui\.groupFacts\.get\(scope\.slice\(12\)\) \|\| \[\], 'educational_staff'\)/);
   assert.match(screen, /const isGroup = scope\.startsWith\('group:'\) \|\| scope\.startsWith\('group-staff:'\)/);
+});
+
+
+test('all feedback reporting uses the same cohort in facts, summaries and exports', () => {
+  assert.match(screen, /const facts = semesterFacts\(\);/);
+  assert.match(screen, /filterFeedbackFactsForHalf\(ui\.facts \|\| \[\], ui\.groups \|\| \[\], ui\.instructorAssignments \|\| \[\], ui\.feedbackHalf\)/);
+  assert.match(screen, /fetchCourseSummary\(year, half\)/);
+  assert.match(screen, /ui\.summaryHalf === ui\.feedbackHalf/);
+  assert.match(screen, /const groups = courseScopedGroups\(\)\.filter\(\(g\) =>\s*studentFeedbackPeriodForGroup\(g\) === ui\.feedbackHalf/);
+  assert.match(screen, /crossCourseCore\(semesterFacts\(\), \{ audience: a\.audience, stage \}\)/);
+  assert.match(screen, /crossCourseCore\(semesterFacts\(\), \{ audience, stage \}\)/);
+  assert.match(screen, /return courseFacts\(\);/);
+  assert.match(screen, /const inHalf = all\.filter\(\(g\) => studentFeedbackPeriodForGroup\(g\) === ui\.feedbackHalf\)/);
+});
+
+test('no fact appears in both semesters, and yearly instructor campaigns remain single-cohort', () => {
+  const group = (row_id, start_date, end_date) => ({ row_id, start_date, end_date });
+  const groups = [
+    group('first-student', '2026-10-20', '2027-02-15'),
+    group('second-student', '2027-02-01', '2027-05-01'),
+    group('first-staff-no-end', '2026-11-01', null)
+  ];
+  const instructorAssignments = [
+    { instructor_emp_id: '1502', program_key: 'biomimicry',
+      first_start_date: '2026-10-20', pre_campaign: { id: 'pre-instructor' },
+      final_campaign: { id: 'final-instructor' } }
+  ];
+  const facts = [
+    { audience: 'student', activity_row_id: 'first-student', campaign_id: 'st1' },
+    { audience: 'student', activity_row_id: 'second-student', campaign_id: 'st2' },
+    { audience: 'educational_staff', activity_row_id: 'first-student', campaign_id: 'staff1' },
+    { audience: 'educational_staff', activity_row_id: 'first-staff-no-end', campaign_id: 'staff2' },
+    { audience: 'instructor', activity_row_id: null, campaign_id: 'pre-instructor' },
+    { audience: 'instructor', activity_row_id: null, campaign_id: 'final-instructor' },
+    { audience: 'instructor', activity_row_id: null, campaign_id: 'unknown' }
+  ];
+  const first = filterFeedbackFactsForHalf(facts, groups, instructorAssignments, 'first');
+  const second = filterFeedbackFactsForHalf(facts, groups, instructorAssignments, 'second');
+  assert.deepEqual(first.map((f) => f.campaign_id), ['st1', 'staff1', 'pre-instructor', 'final-instructor']);
+  assert.deepEqual(second.map((f) => f.campaign_id), ['st2']);
+  assert.equal(first.some((f) => second.includes(f)), false);
+});
+
+test('semester-specific collection RPC keeps per-year RPC unchanged and respects source activity dates', () => {
+  const migration = readFileSync(new URL('../supabase/migrations/20261009233000_feedback_course_summary_by_semester.sql', import.meta.url), 'utf8');
+  const api = readFileSync(new URL('../frontend/src/impact-feedback/feedback-api.js', import.meta.url), 'utf8');
+  assert.match(migration, /create or replace function public\.feedback_admin_course_summary_for_half\(p_academic_year text, p_half text\)/i);
+  assert.match(migration, /private\.feedback_is_admin\(\)/);
+  assert.match(migration, /feedback_admin_instructor_assignments\(p_academic_year\)/);
+  assert.match(migration, /ia\.first_start_date/);
+  assert.match(migration, /a\.start_date/);
+  assert.match(migration, /c\.audience <> 'educational_staff' or a\.end_date is not null/);
+  assert.match(migration, /grant execute on function public\.feedback_admin_course_summary_for_half\(text,text\) to authenticated/);
+  assert.match(api, /rpc\('feedback_admin_course_summary_for_half'/);
+  assert.doesNotMatch(migration, /DROP FUNCTION IF EXISTS public\.feedback_admin_course_summary\(/i);
 });

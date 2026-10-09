@@ -154,6 +154,36 @@ export function studentFeedbackPeriodForGroup(group) {
   return day >= second.start ? 'second' : 'first';
 }
 
+/**
+ * Match each submitted answer to exactly one scheduling semester.
+ * Groups are mapped by the course's start (staff also need a known end date).
+ * An instructor's single yearly campaign is mapped by the earliest start of
+ * its instructor/program/year assignment. Never duplicate yearly responses
+ * across halves, and never derive cohort from submission date.
+ */
+export function filterFeedbackFactsForHalf(facts = [], groups = [], instructorAssignments = [], half = 'first') {
+  if (!['first', 'second'].includes(half)) return [];
+  const groupHalf = new Map((groups || []).filter((g) => g.row_id)
+    .map((g) => [String(g.row_id), studentFeedbackPeriodForGroup(g)]));
+  const staffEligible = new Set((groups || []).filter((g) => g.row_id && hasCourseEndDate(g))
+    .map((g) => String(g.row_id)));
+  const instructorCampaignHalf = new Map();
+  for (const assignment of instructorAssignments || []) {
+    const cohort = studentFeedbackPeriodForGroup({ start_date: assignment.first_start_date });
+    for (const campaign of [assignment.pre_campaign, assignment.final_campaign]) {
+      if (campaign?.id && cohort) instructorCampaignHalf.set(String(campaign.id), cohort);
+    }
+  }
+  return (facts || []).filter((fact) => {
+    if (fact.audience === 'instructor') {
+      return instructorCampaignHalf.get(String(fact.campaign_id || '')) === half;
+    }
+    const key = String(fact.activity_row_id || '');
+    return groupHalf.get(key) === half &&
+      (fact.audience !== 'educational_staff' || staffEligible.has(key));
+  });
+}
+
 /** Submitted student answers are evidence that feedback has already been performed. */
 export function studentFeedbackHasResponses(group) {
   return (group?.campaigns || []).some((campaign) =>

@@ -1581,3 +1581,19 @@
     min-width: 0;
   }
 }
+
+
+/* One persistent half-year switch across feedback tabs; no duplicate per-table controls. */
+.ifb-admin > .ifb-student-semesters {
+  padding: 12px 1px 5px;
+  margin-bottom: 2px;
+  border-bottom: 1px solid var(--ifb-a-divider);
+}
+.ifb-template-semester-note {
+  margin: 4px 0 12px;
+  color: var(--ifb-a-muted);
+  font-size: 13px;
+}
+@media (max-width: 760px) {
+  .ifb-admin > .ifb-student-semesters { padding-top: 10px; gap: 6px; }
+}
