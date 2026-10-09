@@ -91,3 +91,81 @@
 ℹ skipped 0
 ℹ todo 0
 ℹ duration_ms 352.355191
+
+--- Date-only official schedule: final focused rerun after relevant validation correction ---
+✔ 253/253 RUNNING checkpoint goes to validation instead of a fresh run, never straight to commit (2.337274ms)
+✔ 253/253 rows alone never skip unfinished optimization passes (0.52445ms)
+✔ partial resume re-opens unassigned rows so the existing-staff rescue runs again (0.702933ms)
+✔ partial or stale RUNNING checkpoints are not treated as complete (1.676834ms)
+✔ mid-run source change rebases only the changed activity and its instructor/date dependents (1.755069ms)
+✔ rebase includes rows newly flagged needs_recalc but not rows already dirty when the run started (0.328333ms)
+✔ instructor availability change during a run rebases only rows that depend on that instructor (0.32003ms)
+✔ a row dirty at start and flagged again during the run is rechecked (0.384575ms)
+✔ flag-time comparison keeps a safety margin and fails closed (0.173926ms)
+✔ no detected change keeps the whole calculated plan (empty delta) (0.323866ms)
+✔ resumed complete checkpoint is validated without re-planning and keeps every row (3.318746ms)
+✔ resumed checkpoint with a hard conflict reports only a bounded repair delta (1.29958ms)
+✔ resume with no unfinished rows still runs gap compaction over the original scope (20.006938ms)
+✔ interrupted run: unassigned rows re-enter base planning (staff rescue) and every optimization pass runs on the original scope (6.3431ms)
+✔ run wiring: planner completion is recorded explicitly and resume keeps optimization scope (0.412416ms)
+✔ run wiring: completed RUNNING checkpoint skips the planner and source conflicts rebase instead of aborting (0.377295ms)
+✔ period/district filter change keeps the loaded shared plan and an active run on screen (0.277508ms)
+✔ real-world overlap recovery keeps the prior conflict-free instructor instead of discarding all 253 proposals (1.188046ms)
+✔ overlap recovery never overrides a locked plan or invents an unverified alternative (0.209829ms)
+✔ screen uses the whole-plan validated fallback for both normal and delta planning (0.258279ms)
+✔ nested local overlap repairs have one cooperative deadline that cannot restart (0.472124ms)
+✔ on whole-plan overlap, saved incumbent is verified before 75s nested repair (0.356434ms)
+✔ checkpoint recovery covers more than eight intersecting courses and can safely fall back to committed missing rows (1.731284ms)
+✔ a dirty rows checkpoint is checked for overlap before any resumed planning can trust its incumbents (0.308984ms)
+✔ school-cohort choices reject same-instructor overlaps and prefer next valid instructor without delaying course (0.313541ms)
+✔ school-cohort choices honor meeting substitutes and full-day instructor blockers (0.20424ms)
+✔ residual school-cohort collision is reconciled after packing, preferring a valid alternate to lost hours (0.312059ms)
+✔ unresolved cohort clashes remain unassigned rather than being wrongly certified as recruitment (0.811742ms)
+✔ committed fixed and locked activities are never replaced to resolve a provisional conflict (0.151012ms)
+✔ browser planning deadline ends an otherwise infinite computation without committing (0.468749ms)
+✔ unrecoverable checkpoint falls back to original dirty scope and separately committed data (0.717694ms)
+✔ safe restart adds newly created courses while keeping unrelated saved proposals (0.12197ms)
+✔ unrecoverable checkpoint never silently launches a full country rebuild (0.103312ms)
+✔ 253-row production-shape acceptance: recover corrupted checkpoint, preserve 101 live, serialize validated full save (17.788017ms)
+✔ stage progress checkpoints upload changed rows only with a 120s cooldown, never repeat whole 253-row snapshot (2.232951ms)
+✔ stage snapshots persist fresh rows if previous checkpoint cache was discarded for unsafe overlap (0.272911ms)
+PLANNING_PERF_SCENARIO {"label":"noop-reopen","wallMs":0.2,"counters":{"preliminaryCalls":0,"scheduleCalls":0,"activitiesComputed":0,"upgradeActivitiesComputed":0,"candidateEvals":0,"candidateEvaluations":0,"instructorScans":0,"scenarioCount":0,"scenarioEvaluations":0,"travelRequests":0,"routeCacheRequests":0,"cacheHits":0,"googleCalls":0,"finalValidations":0,"contextRebuilds":0,"progressUiUpdates":0,"checkpointSaves":0,"checkpointPayloadBytes":0},"timers":{}}
+✔ planning perf harness: no-op reopen does zero engine work (0.706919ms)
+PLANNING_PERF_SCENARIO {"label":"single-dirty","wallMs":37.8,"counters":{"preliminaryCalls":10,"scheduleCalls":3,"activitiesComputed":1,"upgradeActivitiesComputed":0,"candidateEvals":89,"candidateEvaluations":89,"instructorScans":13,"scenarioCount":10,"scenarioEvaluations":10,"travelRequests":2,"routeCacheRequests":2,"cacheHits":2,"googleCalls":0,"finalValidations":3,"contextRebuilds":1,"progressUiUpdates":9,"checkpointSaves":0,"checkpointPayloadBytes":0,"staticCandidatePruned":0,"cooperativeYields":8},"timers":{"run:setup":{"calls":1,"totalMs":0.8434489999999926,"maxMs":0.8434489999999926},"cooperativeCpuStep":{"calls":231,"totalMs":17.811565999999885,"maxMs":2.483699999999999},"contextPreparation":{"calls":1,"totalMs":0.3815699999999822,"maxMs":0.3815699999999822},"scenarioGeneration":{"calls":1,"totalMs":4.27012400000001,"maxMs":4.27012400000001},"candidateEvaluation":{"calls":13,"totalMs":15.95932099999996,"maxMs":5.899578999999989},"calculateCourseSchedule":{"calls":3,"totalMs":1.5785199999999975,"maxMs":1.0193179999999984},"evaluateScenarioOptions":{"calls":1,"totalMs":29.229250000000008,"maxMs":29.229250000000008},"run:base":{"calls":1,"totalMs":35.73486799999998,"maxMs":35.73486799999998},"wholePlanValidation":{"calls":2,"totalMs":0.14462299999999573,"maxMs":0.08086900000000696},"run:optimization":{"calls":1,"totalMs":0.6511270000000025,"maxMs":0.6511270000000025},"run:validation":{"calls":1,"totalMs":0.2849679999999921,"maxMs":0.2849679999999921}}}
+✔ planning perf harness: one dirty activity with warm routes (38.992815ms)
+PLANNING_PERF_SCENARIO {"label":"five-dirty-warm-cache","wallMs":125.2,"counters":{"preliminaryCalls":50,"scheduleCalls":120,"activitiesComputed":5,"upgradeActivitiesComputed":0,"candidateEvals":760,"candidateEvaluations":760,"instructorScans":170,"scenarioCount":50,"scenarioEvaluations":50,"travelRequests":60,"routeCacheRequests":60,"cacheHits":6,"googleCalls":0,"finalValidations":120,"contextRebuilds":1,"progressUiUpdates":21,"checkpointSaves":0,"checkpointPayloadBytes":0,"contextForks":1,"staticCandidatePruned":0,"cooperativeYields":13},"timers":{"run:setup":{"calls":1,"totalMs":0.7219909999999743,"maxMs":0.7219909999999743},"cooperativeCpuStep":{"calls":1606,"totalMs":65.03241600000129,"maxMs":1.4490389999999707},"contextPreparation":{"calls":1,"totalMs":0.3223639999999932,"maxMs":0.3223639999999932},"scenarioGeneration":{"calls":5,"totalMs":7.4943830000000276,"maxMs":3.5653689999999756},"candidateEvaluation":{"calls":170,"totalMs":60.55754400000046,"maxMs":2.3693409999999915},"calculateCourseSchedule":{"calls":120,"totalMs":34.286811000000085,"maxMs":1.9016140000000519},"evaluateScenarioOptions":{"calls":5,"totalMs":106.48441000000003,"maxMs":26.029196000000013},"run:base":{"calls":1,"totalMs":116.93550700000003,"maxMs":116.93550700000003},"wholePlanValidation":{"calls":2,"totalMs":1.6611909999999739,"maxMs":1.3937579999999912},"run:optimization":{"calls":1,"totalMs":4.834923000000003,"maxMs":4.834923000000003},"run:validation":{"calls":1,"totalMs":2.46712500000001,"maxMs":2.46712500000001}}}
+✔ planning perf harness: five dirty activities with warm routes (125.80519ms)
+PLANNING_PERF_SCENARIO {"label":"static-shortlist","wallMs":25.9,"counters":{"preliminaryCalls":12,"scheduleCalls":3,"activitiesComputed":1,"upgradeActivitiesComputed":0,"candidateEvals":15,"candidateEvaluations":15,"instructorScans":15,"scenarioCount":12,"scenarioEvaluations":12,"travelRequests":2,"routeCacheRequests":2,"cacheHits":2,"googleCalls":0,"finalValidations":3,"contextRebuilds":1,"progressUiUpdates":11,"checkpointSaves":0,"checkpointPayloadBytes":0,"cooperativeYields":2,"staticCandidatePruned":23},"timers":{"run:setup":{"calls":1,"totalMs":0.1950870000000009,"maxMs":0.1950870000000009},"cooperativeCpuStep":{"calls":112,"totalMs":2.0983220000001666,"maxMs":0.17897299999998495},"contextPreparation":{"calls":1,"totalMs":0.3974939999999947,"maxMs":0.3974939999999947},"scenarioGeneration":{"calls":1,"totalMs":20.73646500000001,"maxMs":20.73646500000001},"candidateEvaluation":{"calls":15,"totalMs":1.2057530000000725,"maxMs":0.1825680000000034},"calculateCourseSchedule":{"calls":3,"totalMs":0.3814409999999384,"maxMs":0.15076199999998607},"evaluateScenarioOptions":{"calls":1,"totalMs":2.8526019999999903,"maxMs":2.8526019999999903},"run:base":{"calls":1,"totalMs":24.472595000000013,"maxMs":24.472595000000013},"wholePlanValidation":{"calls":2,"totalMs":0.17046100000004571,"maxMs":0.11545000000000982},"run:optimization":{"calls":1,"totalMs":0.8433689999999956,"maxMs":0.8433689999999956},"run:validation":{"calls":1,"totalMs":0.20693399999998974,"maxMs":0.20693399999998974}}}
+✔ planning fast search prunes hard-ineligible instructors before scenario evaluation (26.523729ms)
+PLANNING_PERF_SCENARIO {"label":"deferred-full-rescue","wallMs":28.7,"counters":{"preliminaryCalls":36,"scheduleCalls":0,"activitiesComputed":1,"upgradeActivitiesComputed":0,"candidateEvals":192,"candidateEvaluations":192,"instructorScans":36,"scenarioCount":36,"scenarioEvaluations":36,"travelRequests":0,"routeCacheRequests":0,"cacheHits":0,"googleCalls":0,"finalValidations":0,"contextRebuilds":1,"progressUiUpdates":10,"checkpointSaves":0,"checkpointPayloadBytes":0,"staticCandidatePruned":0,"cooperativeYields":3,"rescueDeferred":1,"rescueProcessed":1},"timers":{"run:setup":{"calls":1,"totalMs":0.21662900000001173,"maxMs":0.21662900000001173},"cooperativeCpuStep":{"calls":406,"totalMs":12.248563000000502,"maxMs":1.3813800000000356},"contextPreparation":{"calls":1,"totalMs":0.19916200000000117,"maxMs":0.19916200000000117},"scenarioGeneration":{"calls":2,"totalMs":10.726961999999958,"maxMs":5.9066589999999906},"candidateEvaluation":{"calls":36,"totalMs":13.103856999999948,"maxMs":1.7073690000000283},"evaluateScenarioOptions":{"calls":2,"totalMs":14.194935999999927,"maxMs":7.520318999999972},"run:base":{"calls":1,"totalMs":25.706241999999975,"maxMs":25.706241999999975},"wholePlanValidation":{"calls":2,"totalMs":0.06495599999999513,"maxMs":0.04355399999997189},"run:optimization":{"calls":1,"totalMs":1.1272659999999632,"maxMs":1.1272659999999632},"run:validation":{"calls":1,"totalMs":0.0658470000000193,"maxMs":0.0658470000000193}}}
+✔ full maintenance defers recruitment rescue until the fast base plan is complete (29.157764ms)
+✔ chosen candidates and authoritative validation reject the same short travel gap; legal alternative survives (1.005718ms)
+✔ transition boundaries, unknown routes, direction and same-school adjacency are explicit (0.297748ms)
+✔ reconciliation repairs a zero-gap school transition while immutable and unrelated rows stay identical (0.288664ms)
+✔ fixed-point dependencies cross schools via school peers and candidate/substitute instructors, excluding unrelated dates and immutable peers (0.897589ms)
+✔ optional optimizer error preserves a hard-validated base, without pretending optimization succeeded (3.914251ms)
+✔ cancellation and ownership loss during optional optimization still abort, never silently save the base (2.680328ms)
+✔ no suitable instructor or blocked fixed date yields no unsafe assignment and never moves the official date (1.36734ms)
+✔ final guard rejects a fixed proposal moved off its official date (0.274093ms)
+✔ synchronous and async self-route views agree while different missing addresses remain unknown (0.197049ms)
+✔ v36 upgrades recheck only known fixed-date drift; valid snapshots do not generate national targets (0.590628ms)
+✔ dependency closure traverses locked and approved bridges without targeting or mutating either, including compact rows (0.623346ms)
+ℹ {"case":"immutable-bridge","compact":false,"elapsedMs":0.10046800000003486,"targets":["seed","peer","end"],"immutableTargets":0}
+ℹ {"case":"immutable-bridge","compact":true,"elapsedMs":0.06285199999996394,"targets":["seed","peer","end"],"immutableTargets":0}
+ℹ {"case":"immutable-bridge","compact":true,"elapsedMs":0.04787000000004582,"targets":["seed","peer","end"],"immutableTargets":0}
+✔ previous engine versions keep needs_recalc work scoped and reject an old checkpoint while preserving saved proposals and official dates (1.378285ms)
+✔ valid previous-version snapshot requires validation-only marker advancement and never resumes the old checkpoint (0.18402ms)
+✔ v36 detects official date and time drift in fixed and legacy proposal rows, without targeting locks or approvals (0.290337ms)
+✔ old validated and legacy checkpoints cannot resume or commit as v36 under the current source revision (0.1429ms)
+✔ explicit saved-row validation rejects legacy proposal drift before any version marker may advance (0.427428ms)
+ℹ {"case":"stale-official-date","elapsedMs":0.29564400000003843,"valid":false}
+✔ scoped v36 repair restores official dates and retains an existing unaffected proposal and source data (3.829496ms)
+✔ official date without official hours allows a legal proposed time while still forbidding a changed date (0.713638ms)
+ℹ tests 59
+ℹ suites 0
+ℹ pass 59
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 412.210883

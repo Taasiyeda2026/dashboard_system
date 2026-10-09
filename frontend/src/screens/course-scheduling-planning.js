@@ -2931,9 +2931,11 @@ export function planningOptionPassesFinalValidation(option = {}, {
     for (const [index, original] of activityMeetings(activity).entries()) {
       const number = Number(original.meeting_no) || index + 1;
       const planned = meetings.find((meeting, i) => (Number(meeting.meeting_no) || i + 1) === number);
+      const officialStart = text(original.start_time || activity.start_time).slice(0, 5);
+      const officialEnd = text(original.end_time || activity.end_time).slice(0, 5);
       if (!planned || text(planned.date).slice(0, 10) !== text(original.date).slice(0, 10)
-        || text(planned.start_time || option.startTime).slice(0, 5) !== text(original.start_time || activity.start_time).slice(0, 5)
-        || text(planned.end_time || option.endTime).slice(0, 5) !== text(original.end_time || activity.end_time).slice(0, 5)) {
+        || (officialStart && text(planned.start_time || option.startTime).slice(0, 5) !== officialStart)
+        || (officialEnd && text(planned.end_time || option.endTime).slice(0, 5) !== officialEnd)) {
         failures.push({ reason: 'official_schedule_changed', meetingNo: number });
       }
     }

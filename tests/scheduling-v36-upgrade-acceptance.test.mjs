@@ -65,3 +65,10 @@ test('scoped v36 repair restores official dates and retains an existing unaffect
  const before=JSON.stringify({activities:input.activities,existing});const result=await buildDynamicCoursePlan(input);
  assert.equal(result.finalPlanValidation.valid,true);assert.equal(result.rows.find(r=>r.courseId==='a').meetings[0].date,date);const retained=result.rows.find(r=>r.courseId==='other');assert.deepEqual(retained.meetings,existing[1].meetings);assert.equal(retained.instructorEmpId,existing[1].instructorEmpId);assert.equal(JSON.stringify({activities:input.activities,existing}),before);
 });
+
+test('official date without official hours allows a legal proposed time while still forbidding a changed date',async()=>{
+ const a={...activity('date-only'),start_time:null,end_time:null};
+ const saved=row('date-only');
+ const checked=await validateResumedPlanningRows({activities:[a],rows:[saved],instructors,profiles,rules,checkpoint:async()=>{}});assert.equal(checked.valid,true);
+ saved.meetings=[meeting('2026-10-19')];const moved=await validateResumedPlanningRows({activities:[a],rows:[saved],instructors,profiles,rules,checkpoint:async()=>{}});assert.equal(moved.valid,false);assert.ok(moved.failures.some(f=>f.reason==='official_schedule_changed'));
+});
