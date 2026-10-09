@@ -33,7 +33,7 @@ async function measured(label,fn,{iterations=1,dbRequests=0,detail={}}={}) {
  clearInterval(sample);clearInterval(hb);delay.disable();peakRss=Math.max(peakRss,memoryAfter.rss);
  const row={label,iterations,wallMs,perIterationMs:wallMs/iterations,cpuMs:(used.user+used.system)/1000,cpuWallRatio:(used.user+used.system)/1000/wallMs,dbRequests,memoryBefore,memoryAfter,peakRssSampled:peakRss,heapDeltaBytes:memoryAfter.heapUsed-memoryBefore.heapUsed,eventLoopMaxMs:delay.max/1e6,maxHeartbeatLagMs:maxHeartbeatLag,heartbeatTicks:ticks,perf:flushPlanningPerfReport({log:false}),detail,error};
  out.samples.push(row);setPlanningPerfEnabled(false);console.log(JSON.stringify({label,wallMs,cpuMs:row.cpuMs,counters:row.perf.counters,error}));
- 
+
  return value;
 }
 const mode=process.env.BENCH_CASE||'point';

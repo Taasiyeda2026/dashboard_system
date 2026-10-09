@@ -9,22 +9,22 @@ frontend/src/screens/attendance-control.js?v=20261005-manager-reopen-hierarchy-v
 frontend/src/screens/attendance-control.js (117:37): "default" is not exported by "../../scheduling-pr1/repo/node_modules/xlsx/xlsx.mjs", imported by "frontend/src/screens/attendance-control.js".
 ✓ 807 modules transformed.
 rendering chunks...
-[plugin vite:reporter] 
+[plugin vite:reporter]
 (!) /workspace/work/scheduling-pr2/repo/frontend/src/activity-drawer-inline-layout.js is dynamically imported by /workspace/work/scheduling-pr2/repo/frontend/src/feature-loaders.js but also statically imported by /workspace/work/scheduling-pr2/repo/frontend/src/activity-drawer-layout-pipeline.js, dynamic import will not move module into another chunk.
 
-[plugin vite:reporter] 
+[plugin vite:reporter]
 (!) /workspace/work/scheduling-pr2/repo/frontend/src/activity-drawer-edit-dedup.js is dynamically imported by /workspace/work/scheduling-pr2/repo/frontend/src/feature-loaders.js but also statically imported by /workspace/work/scheduling-pr2/repo/frontend/src/activity-drawer-layout-pipeline.js, /workspace/work/scheduling-pr2/repo/frontend/src/screens/shared/bind-activity-edit-form.js, dynamic import will not move module into another chunk.
 
-[plugin vite:reporter] 
+[plugin vite:reporter]
 (!) /workspace/work/scheduling-pr2/repo/frontend/src/screens/activities.js is dynamically imported by /workspace/work/scheduling-pr2/repo/frontend/src/dashboard-drilldown-runtime.js?v=20260821-v1, /workspace/work/scheduling-pr2/repo/frontend/src/feature-loaders.js, /workspace/work/scheduling-pr2/repo/frontend/src/main.js but also statically imported by /workspace/work/scheduling-pr2/repo/frontend/src/activities-tabs-corrections.js, /workspace/work/scheduling-pr2/repo/frontend/src/activity-performance-runtime.js, /workspace/work/scheduling-pr2/repo/frontend/src/israa-activities-main-workspace.js?v=20260926-v7, /workspace/work/scheduling-pr2/repo/frontend/src/israa-management-activities-ux-fix.js?v=20260824-v1, dynamic import will not move module into another chunk.
 
-[plugin vite:reporter] 
+[plugin vite:reporter]
 (!) /workspace/work/scheduling-pr2/repo/frontend/src/feature-loaders.js is dynamically imported by /workspace/work/scheduling-pr2/repo/frontend/src/main.js but also statically imported by /workspace/work/scheduling-pr2/repo/frontend/src/feature-route-loader.js, /workspace/work/scheduling-pr2/repo/frontend/src/manager-board-interactions-runtime.js?v=20260910-manager-board-direct-interactions-v1, /workspace/work/scheduling-pr2/repo/frontend/src/progressive-route-warmup.js, /workspace/work/scheduling-pr2/repo/frontend/src/screens/proposals-agreements.js, /workspace/work/scheduling-pr2/repo/frontend/src/screens/proposals-agreements.js?v=20260912-client-drawer-cleanup-v1, dynamic import will not move module into another chunk.
 
-[plugin vite:reporter] 
+[plugin vite:reporter]
 (!) /workspace/work/scheduling-pr2/repo/frontend/src/birthday-calendar.js is dynamically imported by /workspace/work/scheduling-pr2/repo/frontend/src/feature-loaders.js, /workspace/work/scheduling-pr2/repo/frontend/src/feature-loaders.js but also statically imported by /workspace/work/scheduling-pr2/repo/frontend/src/manager-board-runtime.js?v=20261009-manager-board-side-panels-v1, /workspace/work/scheduling-pr2/repo/frontend/src/screens/instructor-portal/calendar.js, dynamic import will not move module into another chunk.
 
-[plugin vite:reporter] 
+[plugin vite:reporter]
 (!) /workspace/work/scheduling-pr2/repo/frontend/src/screens/attendance-control.js?v=20261005-manager-reopen-hierarchy-v1 is dynamically imported by /workspace/work/scheduling-pr2/repo/frontend/src/admin-attendance-standalone.js?v=20261007-inactive-attendance-roster-v1, /workspace/work/scheduling-pr2/repo/frontend/src/manager-board-workspace-runtime.js?v=20261007-inactive-attendance-roster-v2, /workspace/work/scheduling-pr2/repo/frontend/src/payroll-control-test-mode.js?v=20260817-v4, /workspace/work/scheduling-pr2/repo/frontend/src/screens/shared/payroll-control-launcher.js but also statically imported by /workspace/work/scheduling-pr2/repo/frontend/src/admin-attendance-standalone.js?v=20261007-inactive-attendance-roster-v1, /workspace/work/scheduling-pr2/repo/frontend/src/manager-board-workspace-runtime.js?v=20261007-inactive-attendance-roster-v2, dynamic import will not move module into another chunk.
 
 computing gzip size...
