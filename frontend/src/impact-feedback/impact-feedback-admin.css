@@ -1114,3 +1114,35 @@
   .ifb-filters--instructors { grid-template-columns: minmax(0, 1fr); }
   .ifb-filters--primary .ifb-field--search { grid-column: auto; }
 }
+
+
+/* Proportional widths for actual student/staff columns (the course column is optional). */
+@media (min-width: 761px) {
+  .ifb-groups-table col.ifb-gw-school { width: 25%; }
+  .ifb-groups-table col.ifb-gw-authority { width: 14%; }
+  .ifb-groups-table col.ifb-gw-person { width: 20%; }
+  .ifb-groups-table col.ifb-gw-date { width: 11%; }
+  .ifb-groups-table col.ifb-gw-stage { width: 12%; }
+  .ifb-groups-table col.ifb-gw-actions { width: 6%; }
+  .ifb-groups-table--with-program col.ifb-gw-school { width: 21%; }
+  .ifb-groups-table--with-program col.ifb-gw-authority { width: 11%; }
+  .ifb-groups-table--with-program col.ifb-gw-course { width: 17%; }
+  .ifb-groups-table--with-program col.ifb-gw-person { width: 12%; }
+  .ifb-groups-table--with-program col.ifb-gw-date { width: 10%; }
+  .ifb-groups-table--with-program col.ifb-gw-stage { width: 11%; }
+  .ifb-groups-table--with-program col.ifb-gw-actions { width: 7%; }
+  .ifb-groups-table--staff col.ifb-gw-school { width: 29%; }
+  .ifb-groups-table--staff col.ifb-gw-authority { width: 15%; }
+  .ifb-groups-table--staff col.ifb-gw-person { width: 22%; }
+  .ifb-groups-table--staff col.ifb-gw-date { width: 12%; }
+  .ifb-groups-table--staff col.ifb-gw-stage { width: 15%; }
+  .ifb-groups-table--staff col.ifb-gw-actions { width: 7%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-school { width: 24%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-authority { width: 12%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-course { width: 20%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-person { width: 18%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-date { width: 11%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-stage { width: 9%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-actions { width: 6%; }
+  .ifb-groups-table thead th { width: auto !important; }
+}
