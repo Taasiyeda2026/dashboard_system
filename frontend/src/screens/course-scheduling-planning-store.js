@@ -786,6 +786,7 @@ export function planningStoreErrorMessage(error, fallback = 'שמירת התכנ
   }
   if (raw.includes('planning_snapshot_incomplete') || raw.includes('school_calendar_unavailable') || raw.includes('school_calendar_session_missing')) return 'לא ניתן היה לקרוא את כל נתוני השיבוץ. יש לרענן את הנתונים ולנסות שוב.';
   if (raw.includes('planning_preflight_migration_required') || raw.includes('get_scheduling_planning_preflight')) return 'נדרשת התקנת עדכון מסד הנתונים של מנוע התכנון לפני הריצה.';
+  if (raw.includes('planning_run_deadline_exceeded')) return 'חישוב התכנון חרג מחמש דקות ונעצר באופן בטוח. ההצעות השמורות לא נמחקו; נדרש טיפול ממוקד לפני הרצה נוספת.';
   if (raw.includes('planning_run_ownership_lost')) return 'הריצה איבדה בעלות על התכנון. התוצאה לא נשמרה; ניתן לבדוק שוב את מצב התכנון.';
   if (raw.includes('planning_source_revision_conflict')) return 'נתוני השיבוץ השתנו בזמן החישוב. התוצאה לא נשמרה; יש לעדכן את השינויים.';
   if (raw.includes('planning_revision_conflict')) return 'התכנון עודכן במקביל על ידי משתמש אחר. רעננו את התכנון המשותף ונסו שוב.';
