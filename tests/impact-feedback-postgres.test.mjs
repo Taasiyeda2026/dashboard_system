@@ -185,12 +185,37 @@ test('impact feedback DB contract: admin-only management, token-only public flow
     assert.equal(instructorRows.length, 1, 'same instructor + program appears once regardless of number of groups');
     assert.deepEqual([instructorRows[0].assignment_count, instructorRows[0].school_count], [2, 2]);
     assert.deepEqual(instructorRows[0].activity_managers, ['גיל נאמן', 'הילה רוזן'], 'manager metadata aggregates live activities for filtering');
-    assert.equal(String(instructorRows[0].first_course_end_date).slice(0, 10), '2027-03-01', 'first course end belongs to the earliest-starting group, even when a later group ends sooner');
+    assert.equal(String(instructorRows[0].first_start_date).slice(0, 10), '2026-10-01', 'earliest course start comes from ACT-1');
+    assert.equal(String(instructorRows[0].first_course_end_date).slice(0, 10), '2027-02-15', 'earliest course end comes from ACT-4 at a different school');
     await asRole(client, 'postgres');
     await client.query("update activities set end_date='2027-01-20' where row_id='ACT-1'");
     await asRole(client, 'authenticated', ADMIN);
     const refreshedInstructorRow = (await client.query("select * from feedback_admin_instructor_assignments('school_2027') where instructor_emp_id='1501' and program_key='trailblazers'")).rows[0];
     assert.equal(String(refreshedInstructorRow.first_course_end_date).slice(0, 10), '2027-01-20', 'activity end-date changes flow through live to instructor feedback overview');
+    // A locked instructor-course with no scheduled start is not yet eligible for the instructor tab.
+    await asRole(client, 'postgres');
+    await client.query(`insert into activities
+      (row_id, activity_season, activity_type, activity_name, school, school_id, emp_id, instructor_name,
+       instructor_assignment_locked, instructor_assignment_status, start_date, end_date)
+      values ('ACT-5','school_2027','course','פורצות דרך','בית ספר ללא תאריך',24,
+        '1502','מורה נוסף',true,'שובץ',null,'2027-01-10')`);
+    await asRole(client, 'authenticated', ADMIN);
+    assert.equal((await client.query("select count(*)::int n from feedback_admin_instructor_assignments('school_2027') where instructor_emp_id='1502' and program_key='trailblazers'")).rows[0].n, 0,
+      'undated instructor-course is not shown, even if its end date is set');
+    await asRole(client, 'postgres');
+    await client.query("update activities set start_date='2026-12-01' where row_id='ACT-5'");
+    await asRole(client, 'authenticated', ADMIN);
+    const newlyDated = (await client.query("select * from feedback_admin_instructor_assignments('school_2027') where instructor_emp_id='1502' and program_key='trailblazers'")).rows;
+    assert.equal(newlyDated.length, 1, 'adding a start date reveals the instructor-course');
+    assert.equal(String(newlyDated[0].first_start_date).slice(0, 10), '2026-12-01');
+    await asRole(client, 'postgres');
+    await client.query("update activities set start_date=null where row_id='ACT-5'");
+    await asRole(client, 'authenticated', ADMIN);
+    assert.equal((await client.query("select count(*)::int n from feedback_admin_instructor_assignments('school_2027') where instructor_emp_id='1502'")).rows[0].n, 0,
+      'removing the start date hides the instructor-course again');
+    await asRole(client, 'postgres');
+    await client.query("delete from activities where row_id='ACT-5'");
+    await asRole(client, 'authenticated', ADMIN);
     assert.equal(instructorRows[0].pre_campaign, null);
     assert.equal(instructorRows[0].final_campaign, null);
 
