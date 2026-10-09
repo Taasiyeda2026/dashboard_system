@@ -472,7 +472,7 @@ export function bindTemplatesView(host, ui, repaint) {
     const pdf = t.closest('[data-tpl-pdf]');
     if (pdf) {
       const template = tpl.list?.find((item) => item.id === pdf.dataset.tplPdf);
-      const record = tpl.paperPdfs?.find((item) => item.template_id === template?.id);
+      const record = tpl.paperPdfs?.find((item) => item.template_id === template?.id && item.language === pdf.dataset.tplLang);
       if (!record || record.version_id !== template?.current_version_id || pdf.disabled) return;
       pdf.disabled = true;
       try {
@@ -499,7 +499,7 @@ export function bindTemplatesView(host, ui, repaint) {
         if (!file) return;
         upload.disabled = true;
         try {
-          await uploadSavedPaperPdf(template, file);
+          await uploadSavedPaperPdf(template, file, upload.dataset.tplLang);
           await loadList(repaint, true);
           showToast('ה־PDF נשמר בהצלחה', 'success');
         } catch (error) {
@@ -513,8 +513,8 @@ export function bindTemplatesView(host, ui, repaint) {
     const remove = t.closest('[data-tpl-delete]');
     if (remove) {
       const template = tpl.list?.find((item) => item.id === remove.dataset.tplDelete);
-      const record = tpl.paperPdfs?.find((item) => item.template_id === template?.id);
-      if (!record || !window.confirm('למחוק את קובץ ה־PDF השמור?')) return;
+      const record = tpl.paperPdfs?.find((item) => item.template_id === template?.id && item.language === remove.dataset.tplLang);
+      if (!record || !window.confirm(`למחוק את קובץ ה־PDF השמור בשפה ${record.language === 'ar' ? 'ערבית' : 'עברית'}?`)) return;
       remove.disabled = true;
       try {
         await deleteSavedPaperPdf(record);
