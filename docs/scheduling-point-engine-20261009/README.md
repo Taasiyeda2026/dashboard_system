@@ -65,11 +65,11 @@ CPU הוא חציון זמן התהליך, ויכול לעלות על זמן ה�
 
 השוואה לתכנון השמור אישרה שאין שינוי בתאריכים, בשעות או במדריך הראשי של 252 הפעילויות שלא חושבו. חלק משדות הנרמול, כגון `planningLocked: false` במקום שדה חסר, נוצרים גם במסלול הקיים; אלה אינם שינוי שיבוץ. ה־fixture במסד נשאר ללא כתיבה.
 
-**73 בדיקות עברו, 0 נכשלו** בסבב הסיום, מתוך שבעה קבצים ממוקדים. הלוג כולל שמות ומספר מקרים שבוצעו בפועל: [acceptance-tests.log](acceptance-tests.log). נבדקו מעבר חוקי/לא חוקי וכיוון נסיעה, גבולות מרחק ובאפר, מסלול חסר, תלויות עקיפות ונתונים קומפקטיים, מדריך לא מתאים או חסום, תאריך רשמי, חלופה תקינה, עוגנים, בסיס לאחר כשל אופטימיזציה, ביטול ואובדן בעלות, checkpoint פגום, חידוש/rebase, שימוש חוזר בהקשר, two-phase commit ועידן אימות, ו־PWA.
+**78 בדיקות עברו, 0 נכשלו** בשני סבבי סיום ממוקדים: 73 מתוך שבעה קבצים, ועוד חמש בדיקות invalidation/status לאחר התאמת בדיקת contract ישנה. הלוג כולל שמות ומספר מקרים שבוצעו בפועל: [acceptance-tests.log](acceptance-tests.log). נבדקו מעבר חוקי/לא חוקי וכיוון נסיעה, גבולות מרחק ובאפר, מסלול חסר, תלויות עקיפות ונתונים קומפקטיים, מדריך לא מתאים או חסום, תאריך רשמי, חלופה תקינה, עוגנים, בסיס לאחר כשל אופטימיזציה, ביטול ואובדן בעלות, checkpoint פגום, חידוש/rebase, שימוש חוזר בהקשר, two-phase commit ועידן אימות, ו־PWA.
 
 בדיקת DOM מפעילה בפועל חיפוש, דפדוף, פתיחת קורס וחזרה למסך עם 253 פעילויות שמורות: `activitiesComputed=0`, `contextRebuilds=0`, `scheduleCalls=0`, ללא בקשות כתיבה. שלוש בקשות קריאת מצב אישור נעשו ל־`course_assignment_manager_approval_state`; זהו RPC קריאה למרות שיטת HTTP POST. הרשת בחסימה במבחן, ולכן זו הוכחת אי־הפעלת חישוב/כתיבה, ולא בדיקת Auth/שרת חיה.
 
-`npm run build` עבר, 9.57 שניות; נותרה אזהרת גודל chunks קיימת. [build.log](build.log). HOTFIX_VERSION קיבל סמן חדש ו־frontend CACHE_VERSION הועלה ל־1979. בדיקות חזרו כאשר קוד רלוונטי השתנה; מדידה שחפפה לבנייה הושלכה ונמדדה מחדש. לא הורצה חבילת legacy מלאה או נוספה תשתית CI כבדה.
+`npm run build` עבר, 9.57 שניות; נותרה אזהרת גודל chunks קיימת. [build.log](build.log). HOTFIX_VERSION קיבל סמן חדש ו־frontend CACHE_VERSION הועלה ל־1979. בדיקות חזרו כאשר קוד רלוונטי השתנה; מדידה שחפפה לבנייה הושלכה ונמדדה מחדש. לא הורצה חבילת legacy מלאה או נוספה תשתית CI כבדה. CI הראשון עצר על רווחים בסופי שורות בראיות, שתוקנו; בסבב הבא בדיקת מקור ישנה ציפתה לטקסט HTML קבוע, שהפך לבחירה בין מצב מעודכן לבסיס מאומת עם שיפור לא גמור. הבדיקה הוחלפה באימות הפלט המרונדר של שני המצבים, בלי שינוי קוד המוצר. בדיקות PostgreSQL האוטומטיות עברו בשני הסבבים.
 
 ## קבצים ופונקציות מרכזיים
 
@@ -82,7 +82,7 @@ CPU הוא חציון זמן התהליך, ויכול לעלות על זמן ה�
 | `course-scheduling-travel.js` | התאמת `peek`/`request` למסלול עצמי |
 | `course-scheduling.js` | מצב שיפור לא גמור, גרסה ישנה, אימות marker-only מפורש |
 | `config.js`, `frontend/sw.js` | סמני עדכון |
-| `tests/scheduling-point-*.test.mjs` | 12 בדיקות חדשות; שלוש בדיקות contract קיימות הותאמו לסמן ול־let במקום const |
+| `tests/scheduling-point-*.test.mjs` | 12 בדיקות חדשות; ארבע בדיקות contract קיימות הותאמו לסמן ול־let במקום const |
 
 ## מגבלות והמלצה
 
@@ -107,5 +107,5 @@ node --expose-gc scripts/benchmarks/scheduling-point-engine-acceptance.mjs
 להוסיף `BASE_ONLY=1` לבסיס בלבד; `BENCH_CASE=school5`, `cohorts25`, `national` לשאר התרחישים (3, 3, 1 דגימות בהתאמה). `ENGINE_ROOT=/absolute/path/to/baseline` מפנה לעותק בסיס. הסקריפט קורא SQL אחד, אינו כותב למסד וחוסם רשת למסלולים/חישוב. לצורך פירוק שלבי הבסיס יש להוסיף לשם את אותם טיימרים בלבד; מדידת זמן כולל אינה מחייבת זאת. להריץ גרסאות ברצף, ללא build או בדיקות במקביל, ולמחוק את המכולה הזמנית בסיום.
 
 ```sh
-node --test --test-isolation=none tests/scheduling-point-navigation.test.mjs tests/scheduling-point-engine-acceptance.test.mjs tests/scheduling-prepared-context-reuse.test.mjs tests/course-scheduling-planning-self-invalidation.test.mjs tests/course-scheduling-two-phase-commit.test.mjs tests/course-scheduling-checkpoint-resume-rebase.test.mjs tests/service-worker-pwa-cache.test.mjs
+node --test --test-isolation=none tests/scheduling-point-navigation.test.mjs tests/scheduling-point-engine-acceptance.test.mjs tests/scheduling-prepared-context-reuse.test.mjs tests/course-scheduling-planning-self-invalidation.test.mjs tests/course-scheduling-two-phase-commit.test.mjs tests/course-scheduling-checkpoint-resume-rebase.test.mjs tests/service-worker-pwa-cache.test.mjs tests/course-scheduling-planning-invalidate.test.mjs
 ```

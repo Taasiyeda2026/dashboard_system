@@ -93,3 +93,18 @@
 ℹ skipped 0
 ℹ todo 0
 ℹ duration_ms 1225.993623
+
+--- Focused status contract update: five cases after CI source assertion failure ---
+✔ scheduling field helper treats gender/language/dates as planning-sensitive and notes as not (0.848398ms)
+✔ local planning invalidation marks only the provided activity ids as pending (1.605701ms)
+✔ planning status distinguishes pending work from an active auto-refresh run (116.491682ms)
+✔ activity requirement and saveActivity paths explicitly invalidate planning after scheduling edits (5.381483ms)
+✔ olpanat bari gender any->female is treated as pending planning work for one activity (0.260313ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 198.722829

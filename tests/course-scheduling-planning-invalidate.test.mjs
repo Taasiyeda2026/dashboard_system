@@ -108,7 +108,12 @@ test('planning status distinguishes pending work from an active auto-refresh run
   assert.match(screen, /hardGateInvalid/);
   assert.match(screen, /pendingRecalc > 0 \|\| hardGateInvalid > 0/);
   assert.match(screen, /נדרש עדכון · \$\{count\} פעילויות/);
-  assert.match(screen, /<strong>הכול מעודכן<\/strong>/);
+  const { schedulingPlanningStatusHtml } = await import(screenUrl);
+  const ready = { courseSchedulingPlanningSharedLoaded: true, courseSchedulingPlanningCalculatedAt: '2026-10-09' };
+  assert.match(schedulingPlanningStatusHtml(ready), /<strong>הכול מעודכן<\/strong>/);
+  const incomplete = schedulingPlanningStatusHtml({ ...ready, courseSchedulingPlanningRows: [{ diagnostics: { softOptimizationIncomplete: true } }] });
+  assert.match(incomplete, /בסיס התכנון נבדק; השיפור הנוסף לא הושלם/);
+  assert.doesNotMatch(incomplete, /הכול מעודכן/);
   assert.match(screen, /app:planning-needs-recalc/);
   assert.match(screen, /applyLocalPlanningNeedsRecalc/);
   assert.match(screen, /autoRefresh !== true/);
