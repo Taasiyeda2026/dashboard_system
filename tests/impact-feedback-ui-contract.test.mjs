@@ -281,15 +281,19 @@ test('instructor list shows only scheduled instructor-courses sorted by earliest
   assert.match(list, /studentFeedbackPeriodForGroup\(\{ start_date: row\.first_start_date \}\) === ui\.feedbackHalf/);
   assert.match(list, /\.sort\(\(a, b\) => String\(a\.first_start_date\)\.localeCompare\(String\(b\.first_start_date\)\)/);
   assert.match(list, /<col class="ifb-iw-instructor"><col class="ifb-iw-program"><col class="ifb-iw-groups">/);
-  assert.equal((list.match(/<col class="ifb-iw-equal">/g) || []).length, 6, 'six columns have exactly equal widths');
+  assert.equal((list.match(/<col class="ifb-iw-date">/g) || []).length, 2, 'dates have identical widths');
+  assert.equal((list.match(/<col class="ifb-iw-action">/g) || []).length, 2, 'stage actions have identical widths');
+  assert.equal((list.match(/<col class="ifb-iw-status">/g) || []).length, 2, 'stage statuses have identical widths');
   assert.match(list, /תחילת קורס ראשון/);
   assert.match(list, /סיום קורס ראשון/);
   assert.match(list, /fmtDate\(row\.first_start_date\)/);
   assert.match(list, /fmtDate\(row\.first_course_end_date\)/);
-  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-equal \{ width: 10%; \}/);
-  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-instructor \{ width: 18%; \}/);
-  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-program \{ width: 14%; \}/);
-  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-groups \{ width: 8%; \}/);
+  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-date \{ width: 13%; \}/);
+  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-action \{ width: 7%; \}/);
+  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-status \{ width: 9%; \}/);
+  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-instructor \{ width: 15%; \}/);
+  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-program \{ width: 21%; \}/);
+  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-groups \{ width: 6%; \}/);
 });
 
 test('SQL instructor feedback aggregates the two earliest dates independently', () => {
@@ -486,15 +490,15 @@ test('instructor table uses requested nine headings in exact RTL order with inde
   const headings = [...header.matchAll(/<th scope="col"[^>]*>([^<]+)<\/th>/g)].map((match) => match[1]);
   assert.deepEqual(headings, [
     'מדריך', 'קורס', 'קבוצות', 'תחילת קורס ראשון',
-    'פתיחה – אחרי הכשרה', 'סטטוס', 'סיום קורס ראשון',
-    'סיום הקורס', 'סטטוס'
+    'פתיחה', 'סטטוס', 'סיום קורס ראשון',
+    'סיום', 'סטטוס'
   ]);
   const body = list.slice(list.indexOf('<tbody>'), list.indexOf('</tbody>'));
   const fields = [...body.matchAll(/<td data-label="([^"]+)"[^>]*>/g)].map((match) => match[1]);
   assert.deepEqual(fields, [
     'קורס', 'קבוצות', 'תחילת קורס ראשון',
-    'פתיחה – אחרי הכשרה', 'סטטוס פתיחה',
-    'סיום קורס ראשון', 'סיום הקורס', 'סטטוס סיום'
+    'פתיחה', 'סטטוס פתיחה',
+    'סיום קורס ראשון', 'סיום', 'סטטוס סיום'
   ]);
   assert.match(list, /instructorStageStatusHtml\(row, 'pre'\)/);
   assert.match(list, /instructorStageStatusHtml\(row, 'final'\)/);
@@ -509,10 +513,33 @@ test('instructor table uses requested nine headings in exact RTL order with inde
   assert.match(actionFn, /data-ifb-reopen=/);
 });
 
-test('equal instructor column widths and right aligned stage status on desktop retain mobile cards', () => {
-  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-equal \{ width: 10%; \}/);
+test('compact instructor columns prevent forced horizontal scrolling while preserving mobile cards', () => {
+  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-date \{ width: 13%; \}/);
+  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-action \{ width: 7%; \}/);
+  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-status \{ width: 9%; \}/);
   assert.match(styles, /\.ifb-instructor-table th\.ifb-col-status,\s*\.ifb-instructor-table td\.ifb-col-status \{ text-align: right; \}/);
-  assert.match(styles, /\.ifb-instructor-table td\.ifb-col-status \.ifb-status-cell \{ justify-items: start; \}/);
-  assert.match(styles, /\.ifb-instructor-table \{\s*min-width: 1380px;/);
+  assert.match(styles, /\.ifb-instructor-table td\.ifb-col-status \.ifb-status-cell \{\s*justify-items: start;/);
+  assert.match(styles, /\.ifb-instructor-table \{\s*width: 100%;\s*min-width: 0;\s*table-layout: fixed;/);
+  assert.doesNotMatch(styles, /\.ifb-instructor-table \{\s*min-width: 1380px;/);
+  assert.match(styles, /\.ifb-instructor-table \.ifb-icon-actions \{\s*flex-wrap: wrap;/);
   assert.match(styles, /@media \(max-width: 760px\) \{[\s\S]*?\.ifb-instructor-table \{ min-width: 0; \}/);
+});
+
+
+test('the two action and status pairs are symmetrical and do not force a desktop min-width', () => {
+  const list = screen.slice(screen.indexOf('function instructorAssignmentsHtml('), screen.indexOf('function instructorsHtml('));
+  const cols = [...list.matchAll(/<col class="(ifb-iw-[^"]+)">/g)].map((m) => m[1]);
+  assert.deepEqual(cols, [
+    'ifb-iw-instructor', 'ifb-iw-program', 'ifb-iw-groups',
+    'ifb-iw-date', 'ifb-iw-action', 'ifb-iw-status',
+    'ifb-iw-date', 'ifb-iw-action', 'ifb-iw-status'
+  ]);
+  const widths = { 'ifb-iw-instructor': 15, 'ifb-iw-program': 21, 'ifb-iw-groups': 6,
+    'ifb-iw-date': 13, 'ifb-iw-action': 7, 'ifb-iw-status': 9 };
+  assert.equal(cols.reduce((sum, name) => sum + widths[name], 0), 100);
+  assert.match(list, /title="משוב פתיחה – אחרי הכשרה">פתיחה<\/th>/);
+  assert.match(list, /title="משוב סיום הקורס">סיום<\/th>/);
+  assert.doesNotMatch(list, /data-label="פתיחה – אחרי הכשרה"/);
+  assert.doesNotMatch(list, /data-label="סיום הקורס"/);
+  assert.match(styles, /\.ifb-instructor-table-wrap \{\s*width: 100%;\s*min-width: 0;/);
 });
