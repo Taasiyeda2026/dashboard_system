@@ -101,6 +101,7 @@ const ui = {
   groupRowId: null,
   groupReturnTab: 'students',
   studentHalf: 'first',
+  staffHalf: 'first',
   year: ACTIVE_ACTIVITY_SEASON,
   course: '',
   showAll: true,
@@ -595,20 +596,24 @@ function groupFiltersHtml(groups, scope) {
 }
 
 
-function studentSemesterTabsHtml(groups) {
+function groupSemesterTabsHtml(groups, scope) {
+  // Both audiences use the course's scheduling semester (start date).
+  // School staff are additionally gated by a known end date below.
+  const isStaff = scope === 'staff';
+  const selectedHalf = isStaff ? ui.staffHalf : ui.studentHalf;
   const halves = [
     { key: 'first', label: "מחצית א׳" },
     { key: 'second', label: "מחצית ב׳" }
   ];
-  return `<div class="ifb-student-semesters" role="group" aria-label="בחירת מחצית לתלמידים">
+  return `<div class="ifb-student-semesters" role="group" aria-label="בחירת מחצית ${isStaff ? 'לצוות חינוכי' : 'לתלמידים'}">
     ${halves.map(({ key, label }) => {
       const count = groups.filter((g) => studentFeedbackPeriodForGroup(g) === key).length;
-      return `<button type="button" class="ifb-student-semester${ui.studentHalf === key ? ' is-active' : ''}"
-        data-ifb-student-half="${key}" aria-pressed="${ui.studentHalf === key}">
+      return `<button type="button" class="ifb-student-semester${selectedHalf === key ? ' is-active' : ''}"
+        data-ifb-group-half="${key}" data-ifb-group-scope="${scope}" aria-pressed="${selectedHalf === key}">
         ${label}<span class="ifb-student-semester__count">${count}</span>
       </button>`;
     }).join('')}
-    <span class="ifb-student-semesters__note">לפי תאריך תחילת הקורס</span>
+    <span class="ifb-student-semesters__note">לפי מחצית הקורס בממשק השיבוצים</span>
   </div>`;
 }
 
@@ -620,8 +625,8 @@ function groupsTableHtml(slots, scope) {
     : scope === 'staff'
       ? courseScopedGroups().filter(hasCourseEndDate)
       : courseScopedGroups();
-  const inHalf = scope === 'students'
-    ? all.filter((g) => studentFeedbackPeriodForGroup(g) === ui.studentHalf)
+  const inHalf = (scope === 'students' || scope === 'staff')
+    ? all.filter((g) => studentFeedbackPeriodForGroup(g) === (scope === 'staff' ? ui.staffHalf : ui.studentHalf))
     : all;
   const matching = filterGroups(inHalf, ui.filters);
   const filtered = scope === 'students'
@@ -669,7 +674,7 @@ function groupsTableHtml(slots, scope) {
           </tr>`).join('')}</tbody>
       </table>
     </div>` : emptyHtml('לא נמצאו קבוצות התואמות לסינון.', scope === 'students' ? 'בלשונית תלמידים מוצגות רק קבוצות שנקבע להן תאריך התחלה בכל הפעילויות.' : 'בלשונית צוות חינוכי מוצגות רק קבוצות שנקבע להן תאריך סיום בכל הפעילויות.');
-  return `${scope === 'students' ? studentSemesterTabsHtml(all) : ''}${groupFiltersHtml(inHalf, scope)}${body}`;
+  return `${scope === 'students' || scope === 'staff' ? groupSemesterTabsHtml(all, scope) : ''}${groupFiltersHtml(inHalf, scope)}${body}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1553,11 +1558,13 @@ async function handleClick(host, event) {
     window.scrollTo({ top: 0 });
     return;
   }
-  const studentHalf = t.closest('[data-ifb-student-half]');
-  if (studentHalf) {
-    const next = studentHalf.dataset.ifbStudentHalf;
-    if (next === 'first' || next === 'second') {
-      ui.studentHalf = next;
+  const groupHalf = t.closest('[data-ifb-group-half]');
+  if (groupHalf) {
+    const next = groupHalf.dataset.ifbGroupHalf;
+    const scope = groupHalf.dataset.ifbGroupScope;
+    if ((next === 'first' || next === 'second') && (scope === 'students' || scope === 'staff')) {
+      if (scope === 'staff') ui.staffHalf = next;
+      else ui.studentHalf = next;
       paint(host);
     }
     return;
