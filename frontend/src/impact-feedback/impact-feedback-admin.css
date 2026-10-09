@@ -1731,7 +1731,8 @@
   height: 36px;
 }
 .ifb-admin .ifb-template-card__warning {
-  inset-inline-end: 51px;
+  /* Keep the stale marker over the PDF button, not over the upload icon. */
+  inset-inline-end: 94px;
 }
 @media (min-width: 980px) and (max-width: 1299px) {
   .ifb-admin .ifb-template-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
