@@ -3308,7 +3308,7 @@ export const courseSchedulingScreen = {
         // revalidate the ENTIRE resulting plan before accepting the result.
         const buildDynamicPlanWithCommittedRecovery = async (input) => {
           try {
-            return await buildDynamicCoursePlan(input);
+            return await buildDynamicCoursePlan({ ...input, committedRows: existingRows });
           } catch (error) {
             if (error?.code !== 'planning_final_validation_failed') throw error;
             const recovered = await recoverPlanningOverlapFromCommittedProposals({

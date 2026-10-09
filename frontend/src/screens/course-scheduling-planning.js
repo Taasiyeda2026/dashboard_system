@@ -126,6 +126,28 @@ export function createPlanningDeadlineCheckpoint({
   };
 }
 
+/**
+ * A single cooperative wall-clock deadline shared by nested conflict repairs.
+ * Unlike a per-activity budget, nested calls do not reset this deadline.
+ */
+export function createPlanningLocalRepairDeadlineCheckpoint({
+  checkpoint = async () => {},
+  deadlineAt,
+  now = () => Date.now()
+} = {}) {
+  if (!Number.isFinite(Number(deadlineAt)) || Number(deadlineAt) <= 0) {
+    throw new Error('planning_local_repair_deadline_missing');
+  }
+  return async (...args) => {
+    await checkpoint(...args);
+    if (now() >= Number(deadlineAt)) {
+      const timeout = new Error('planning_local_repair_timeout');
+      timeout.code = 'planning_local_repair_timeout';
+      throw timeout;
+    }
+  };
+}
+
 export function createPlanningOptimizationDeadlineCheckpoint({
   checkpoint = async () => {},
   budgetMs = FAST_BULK_OPTIMIZATION_BUDGET_MS,
@@ -5740,6 +5762,8 @@ export async function buildDynamicCoursePlan({
   _repairPass = false,
   _repairPriorityIds = [],
   _finalValidationRepairPass = 0,
+  _finalValidationRepairDeadlineAt = 0,
+  committedRows = [],
   planningProfile = 'deep'
 } = {}) {
   const limits = planningLimits(planningProfile);
@@ -6596,39 +6620,95 @@ export async function buildDynamicCoursePlan({
     routeClient
   }, checkpoint);
   if (!finalPlanValidation.valid) {
+    // Try a previously committed, individually movable proposal first.
+    // It is often enough to resolve a collision created by an optimizer, and
+    // avoids two expensive deep-repair runs over the same school/instructor.
+    // Never accept it without the full authoritative whole-plan validator.
+    if (_finalValidationRepairPass === 0 && committedRows.length) {
+      const safe = await recoverPlanningOverlapFromCommittedProposals({
+        error: {
+          code: 'planning_final_validation_failed',
+          rows,
+          failures: finalPlanValidation.failures
+        },
+        committedRows,
+        activities: targets, instructors, profiles, rules, exceptions,
+        schoolCalendar, catalog, district, periodKey, routeClient, checkpoint
+      });
+      if (safe) {
+        await report('שימור הצעות תקינות במקום חישוב חוזר', rows.length, rows.length);
+        const finalRows = safe.rows;
+        return {
+          rows: finalRows,
+          total: finalRows.length,
+          planned: finalRows.filter((row) =>
+            ['proposal', 'fixed-proposal', 'planning-locked'].includes(text(row.kind))
+            && !!text(row.instructorEmpId)
+          ).length,
+          locked: finalRows.filter((row) => text(row.kind) === 'planning-locked').length,
+          live: finalRows.filter((row) => text(row.kind) === 'live').length,
+          drafts: finalRows.filter((row) => text(row.kind) === 'draft').length,
+          missing: finalRows.filter((row) => ['missing', 'fixed'].includes(text(row.kind))).length,
+          recruitment: finalRows.filter((row) => text(row.kind) === 'recruitment').length,
+          quality: planningPlanQuality(finalRows),
+          routeStats: {
+            googleCalls: Number(routeClient.googleCalls) || 0,
+            cacheHits: Number(routeClient.cacheHits) || 0,
+            committedIncumbentRecovery: true
+          },
+          recoveredCommittedCourseIds: safe.restoredCourseIds
+        };
+      }
+    }
     const repairIds = finalValidationRepairCourseIds(finalPlanValidation.failures, rows)
       .filter((courseId) => !preservedIncumbentIds.has(text(courseId)));
     if (_finalValidationRepairPass < 2 && repairIds.length) {
+      // One wall-clock budget for BOTH nested local repair attempts. Each
+      // cooperative checkpoint enforces it, preserving the original plan if
+      // the bounded repair cannot be verified within a reasonable time.
+      const deadlineAt = _finalValidationRepairDeadlineAt > 0
+        ? _finalValidationRepairDeadlineAt
+        : Date.now() + 75_000;
+      const repairCheckpoint = createPlanningLocalRepairDeadlineCheckpoint({ checkpoint, deadlineAt });
       await report('תיקון מקומי לאחר בקרת תקינות', 0, repairIds.length);
-      return buildDynamicCoursePlan({
-        activities,
-        instructors,
-        profiles,
-        rules,
-        exceptions,
-        schoolCalendar,
-        catalog,
-        district,
-        periodKey,
-        today,
-        routeClient,
-        lockedOptions,
-        existingRows: rows,
-        targetCourseIds: repairIds,
-        optimizationOnlyCourseIds: null,
-        upgradeOptimizationScopes: null,
-        onProgress: typeof onProgress === 'function'
-          ? (progress) => onProgress({ ...progress, phase: `תיקון מקומי · ${progress.phase}` })
-          : null,
-        signal,
-        checkpoint,
-        resumeFromCheckpoint: false,
-        allowGlobalRepair: false,
-        _repairPass: false,
-        _repairPriorityIds: repairIds,
-        _finalValidationRepairPass: _finalValidationRepairPass + 1,
-        planningProfile: 'fast'
-      });
+      try {
+        return await buildDynamicCoursePlan({
+          activities,
+          instructors,
+          profiles,
+          rules,
+          exceptions,
+          schoolCalendar,
+          catalog,
+          district,
+          periodKey,
+          today,
+          routeClient,
+          lockedOptions,
+          existingRows: rows,
+          targetCourseIds: repairIds,
+          optimizationOnlyCourseIds: null,
+          upgradeOptimizationScopes: null,
+          onProgress: typeof onProgress === 'function'
+            ? (progress) => onProgress({ ...progress, phase: `תיקון מקומי · ${progress.phase}` })
+            : null,
+          signal,
+          resumeFromCheckpoint: false,
+          allowGlobalRepair: false,
+          _repairPass: false,
+          _repairPriorityIds: repairIds,
+          _finalValidationRepairPass: _finalValidationRepairPass + 1,
+          _finalValidationRepairDeadlineAt: deadlineAt,
+          committedRows,
+          planningProfile: 'fast',
+          checkpoint: repairCheckpoint
+        });
+      } catch (error) {
+        // A slow bounded repair must not keep the lease alive indefinitely.
+        // Propagate cancellation/ownership loss and other genuine failures.
+        if (error?.code !== 'planning_local_repair_timeout') throw error;
+        planningPerfCount('localRepairTimeout');
+      }
     }
     const error = new Error('planning_final_validation_failed');
     error.code = 'planning_final_validation_failed';

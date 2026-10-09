@@ -10,13 +10,14 @@ import {
   canValidateCompletedRunningCheckpoint,
   planningResumeReopenIds
 } from '../frontend/src/screens/course-scheduling-run-plan.js';
-import { buildDynamicCoursePlan, recoverPlanningOverlapFromCommittedProposals, validateResumedPlanningRows } from '../frontend/src/screens/course-scheduling-planning.js';
+import { buildDynamicCoursePlan, createPlanningLocalRepairDeadlineCheckpoint, recoverPlanningOverlapFromCommittedProposals, validateResumedPlanningRows } from '../frontend/src/screens/course-scheduling-planning.js';
 import {
   planningRebaseAffectedCourseIds,
   planningRowReflaggedDuringRun
 } from '../frontend/src/screens/course-scheduling-planning-store.js';
 
 const screenSource = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
+const plannerSource = await readFile(new URL('../frontend/src/screens/course-scheduling-planning.js', import.meta.url), 'utf8');
 
 const ids = Array.from({ length: 253 }, (_, index) => `course-${index + 1}`);
 const scope = {
@@ -453,4 +454,42 @@ test('screen uses the whole-plan validated fallback for both normal and delta pl
   assert.match(run, /recoverPlanningOverlapFromCommittedProposals\(/);
   assert.match(run, /const runDeltaRepairPlan = [\s\S]*?buildDynamicPlanWithCommittedRecovery\(/);
   assert.match(run, /result = await buildDynamicPlanWithCommittedRecovery\(/);
+});
+
+
+test('nested local overlap repairs have one cooperative deadline that cannot restart', async () => {
+  let time = 0;
+  const checkpoint = () => { time += 24; };
+  const bounded = createPlanningLocalRepairDeadlineCheckpoint({
+    checkpoint,
+    deadlineAt: 75,
+    now: () => time
+  });
+  await bounded();
+  await bounded();
+  await bounded();
+  await assert.rejects(bounded(), (error) => error?.code === 'planning_local_repair_timeout');
+  assert.equal(time, 96);
+  assert.throws(
+    () => createPlanningLocalRepairDeadlineCheckpoint({ checkpoint, deadlineAt: 0, now: () => time }),
+    /planning_local_repair_deadline_missing/
+  );
+});
+
+test('on whole-plan overlap, saved incumbent is verified before 75s nested repair', () => {
+  const start = plannerSource.indexOf('const finalPlanValidation = await validatePlanningPlanCoherenceCooperatively');
+  const end = plannerSource.indexOf('const summarize = (selectedRows', start);
+  const section = plannerSource.slice(start, end);
+  assert.ok(start > 0 && end > start);
+  const firstRecovery = section.indexOf('recoverPlanningOverlapFromCommittedProposals({');
+  const nestedRetry = section.indexOf('return await buildDynamicCoursePlan({');
+  assert.ok(firstRecovery > 0 && nestedRetry > firstRecovery, 'try validated saved proposal first');
+  assert.match(section, /if \(safe\) \{[\s\S]*?return \{[\s\S]*?recoveredCommittedCourseIds:/);
+  assert.match(section, /Date\.now\(\) \+ 75_000/);
+  assert.match(section, /_finalValidationRepairDeadlineAt: deadlineAt/);
+  assert.match(section, /checkpoint: repairCheckpoint/);
+  const screen = screenSource.slice(screenSource.indexOf('const buildDynamicPlanWithCommittedRecovery'), screenSource.indexOf('const runDeltaRepair = async'));
+  assert.match(screen, /buildDynamicCoursePlan\(\{ \.\.\.input, committedRows: existingRows \}\)/);
+  assert.match(section, /if \(error\?\.code !== 'planning_local_repair_timeout'\) throw error/);
+  assert.match(section, /const error = new Error\('planning_final_validation_failed'\)/);
 });
