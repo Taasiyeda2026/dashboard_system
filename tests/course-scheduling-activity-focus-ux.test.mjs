@@ -156,9 +156,9 @@ test('local course list search filters by activity, school, authority, instructo
   });
   assert.match(html, /data-course-list-search/);
   assert.match(html, /data-clear-course-list-search/);
-  // Full list stays mounted; search filters in place so typing never rebuilds the workboard.
+  // Search selects matching models before the bounded page is rendered.
   assert.match(html, /data-course-card="b2"/);
-  assert.match(html, /data-course-card="a1"/);
+  assert.doesNotMatch(html, /data-course-card="a1"/);
   assert.match(html, /data-search-text=/);
 });
 

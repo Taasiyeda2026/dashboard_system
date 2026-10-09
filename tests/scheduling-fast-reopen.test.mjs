@@ -7,10 +7,11 @@ test('large scheduling snapshot restores only in its authenticated session witho
   const store = new Map();
   const storage = { getItem: k => store.get(k), setItem: (k, v) => store.set(k, v) };
   const identity = { userId: 'user', sessionId: 'session' };
-  const data = { activities: [{ row_id: 'one' }], _planningShared: { rows: ['x'.repeat(2300000)] }, _planningSharedLoadedKey: 'year|', reloadPlanningSnapshot: () => {} };
+  const data = { activities: [{ row_id: 'one' }], _planningShared: { rows: [{activityId:'one',row:{courseId:'one',syntheticPadding:'x'.repeat(2300000)}}] }, _planningSharedLoadedKey: 'year|', reloadPlanningSnapshot: () => {} };
   writeSchedulingSessionCache(identity, data, storage, 100);
   const restored = readSchedulingSessionCache(identity, storage, 200);
-  assert.equal(restored._planningShared.rows[0].length, 2300000);
+  assert.equal(restored._planningShared, undefined);
+  assert.deepEqual(restored.activities, [{ row_id: 'one' }]);
   assert.equal(restored._planningSharedLoadedKey, undefined);
   assert.equal(restored.reloadPlanningSnapshot, undefined);
   assert.equal(readSchedulingSessionCache({ ...identity, sessionId: 'another' }, storage, 200), null);

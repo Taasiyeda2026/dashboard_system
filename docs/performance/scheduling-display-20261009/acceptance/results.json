@@ -1,0 +1,143 @@
+{
+  "checks": [
+    "without migration: admin full RPC + RLS",
+    "fallback endpoints admin",
+    "without migration: manager full RPC + RLS",
+    "fallback endpoints manager",
+    "without migration: unauthorized full RPC + RLS",
+    "with migration: admin full RPC + RLS",
+    "admin display + details RPC",
+    "with migration: manager full RPC + RLS",
+    "manager display + details RPC",
+    "with migration: unauthorized full RPC + RLS",
+    "unauthorized display + details RPC",
+    "missing parent permission rejected",
+    "all saved row fields and locks unchanged"
+  ],
+  "samples": [
+    {
+      "variant": "workspace",
+      "sqlMs": 191.722,
+      "responseBytes": 7173404,
+      "httpBodyLoadMs": 281.6953819999999,
+      "jsonParseMs": 49.924222000001464,
+      "requests": 1
+    },
+    {
+      "variant": "display_workspace",
+      "sqlMs": 292.526,
+      "responseBytes": 1658878,
+      "httpBodyLoadMs": 237.42617900000005,
+      "jsonParseMs": 5.936104000000341,
+      "requests": 1
+    },
+    {
+      "variant": "workspace",
+      "sqlMs": 181.809,
+      "responseBytes": 7173404,
+      "httpBodyLoadMs": 267.39669799999865,
+      "jsonParseMs": 32.20287500000086,
+      "requests": 1
+    },
+    {
+      "variant": "display_workspace",
+      "sqlMs": 237.55,
+      "responseBytes": 1658878,
+      "httpBodyLoadMs": 253.92168500000116,
+      "jsonParseMs": 9.642030000000887,
+      "requests": 1
+    },
+    {
+      "variant": "workspace",
+      "sqlMs": 147.807,
+      "responseBytes": 7173404,
+      "httpBodyLoadMs": 227.52545999999893,
+      "jsonParseMs": 49.58624200000122,
+      "requests": 1
+    },
+    {
+      "variant": "display_workspace",
+      "sqlMs": 250.534,
+      "responseBytes": 1658878,
+      "httpBodyLoadMs": 240.04912400000103,
+      "jsonParseMs": 8.461525000002439,
+      "requests": 1
+    },
+    {
+      "variant": "workspace",
+      "sqlMs": 161.127,
+      "responseBytes": 7173404,
+      "httpBodyLoadMs": 321.21315200000026,
+      "jsonParseMs": 68.12592699999732,
+      "requests": 1
+    },
+    {
+      "variant": "display_workspace",
+      "sqlMs": 232.466,
+      "responseBytes": 1658878,
+      "httpBodyLoadMs": 279.9004390000009,
+      "jsonParseMs": 11.689743999999337,
+      "requests": 1
+    },
+    {
+      "variant": "workspace",
+      "sqlMs": 174.562,
+      "responseBytes": 7173404,
+      "httpBodyLoadMs": 299.0941860000021,
+      "jsonParseMs": 37.855170999999245,
+      "requests": 1
+    },
+    {
+      "variant": "display_workspace",
+      "sqlMs": 237.679,
+      "responseBytes": 1658878,
+      "httpBodyLoadMs": 288.04249400000117,
+      "jsonParseMs": 7.488133999999263,
+      "requests": 1
+    },
+    {
+      "variant": "workspace",
+      "sqlMs": 168.155,
+      "responseBytes": 7173404,
+      "httpBodyLoadMs": 269.60296700000254,
+      "jsonParseMs": 31.066780999997718,
+      "requests": 1
+    },
+    {
+      "variant": "display_workspace",
+      "sqlMs": 216.312,
+      "responseBytes": 1658878,
+      "httpBodyLoadMs": 258.6705809999985,
+      "jsonParseMs": 11.405260999999882,
+      "requests": 1
+    },
+    {
+      "variant": "workspace",
+      "sqlMs": 211.772,
+      "responseBytes": 7173404,
+      "httpBodyLoadMs": 244.66344499999832,
+      "jsonParseMs": 27.553060999998706,
+      "requests": 1
+    },
+    {
+      "variant": "display_workspace",
+      "sqlMs": 256.087,
+      "responseBytes": 1658878,
+      "httpBodyLoadMs": 301.073257,
+      "jsonParseMs": 6.722759000000224,
+      "requests": 1
+    }
+  ],
+  "staleRevision": {
+    "result": "FAIL",
+    "error": "TimeoutError",
+    "timeoutMs": 10000
+  },
+  "environment": {
+    "rows": 253,
+    "auth": "GoTrue v2.196.0",
+    "rest": "PostgREST v14.17",
+    "database": "PostgreSQL 17.11 (Debian 17.11-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+    "synthetic": true
+  }
+}

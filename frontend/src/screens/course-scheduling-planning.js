@@ -7349,7 +7349,37 @@ function planningRecruitmentGenderLabel(value) {
 
 const PLANNING_WEEKDAY_LABELS = PLANNING_WEEKDAY_SHORT_LABELS;
 
-export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, schoolYearTotal = null } = {}) {
+function instructorCompletionDetailHtml(item) {
+  const courseNames = (item.programs || []).filter(Boolean);
+  return `          <td colspan="7">
+            <div class="course-planning-completion-detail-panel">
+              <p><strong>קורסים:</strong> ${escapeHtml(courseNames.join(' · ') || 'ללא תוכנית')}</p>
+              <div class="course-planning-completion-activity-list">
+                ${item.activities.map((activity) => {
+                  const scheduleBits = [
+                    text(activity.weekdayLabel),
+                    text(activity.timeRangeLabel),
+                    Number(activity.meetingCount) > 0 ? `${Number(activity.meetingCount)} מפגשים` : ''
+                  ].filter(Boolean);
+                  return `<div class="course-planning-completion-activity-row">
+                  <strong>${escapeHtml(activity.courseName || 'פעילות')}</strong>
+                  <span>${escapeHtml(activity.school || 'ללא בית ספר')}${activity.authority ? ` · ${escapeHtml(activity.authority)}` : ''}</span>
+                  <span>${escapeHtml(activity.status || '')}</span>
+                  <span class="course-planning-completion-activity-schedule">${scheduleBits.length ? escapeHtml(scheduleBits.join(' · ')) : 'שעות טרם נקבעו'}</span>
+                  <span>${activity.startDate ? `<bdi dir="ltr">${escapeHtml(formatDateHe(activity.startDate))}</bdi>` : 'ללא מועד'}${activity.endDate ? `–<bdi dir="ltr">${escapeHtml(formatDateHe(activity.endDate))}</bdi>` : ''}</span>
+                </div>`;
+                }).join('')}
+              </div>
+            </div>
+          </td>`;
+}
+export function planningCompletionInstructorDetailsHtml(rows, detailKey) {
+  const item = planningInstructorCompletionOverview((rows || []).filter(planningRowIsFirstHalf))
+    .find(item => text(item.empId || item.name) === text(detailKey));
+  return item ? instructorCompletionDetailHtml(item) : '<td colspan="7"></td>';
+}
+
+export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, schoolYearTotal = null, expandedInstructorIds = null } = {}) {
   const firstHalfRows = (rows || []).filter(planningRowIsFirstHalf);
   const overview = planningInstructorCompletionOverview(firstHalfRows);
   if (!firstHalfRows.length) return '';
@@ -7503,7 +7533,7 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
             <strong>${escapeHtml(item.name)}</strong>
             <button type="button" class="course-planning-completion-detail-toggle"
               data-planning-instructor-details-toggle="${escapeHtml(detailKey)}"
-              aria-expanded="false">פעילויות וקורסים</button>
+              aria-expanded="${expandedInstructorIds?.includes(detailKey) ? 'true' : 'false'}">פעילויות וקורסים</button>
           </td>
           <td class="course-planning-completion-cell is-live">${item.liveCount}</td>
           <td class="course-planning-completion-cell is-draft">${item.draftCount}</td>
@@ -7512,28 +7542,8 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
           <td class="course-planning-completion-cell is-start">${item.firstStart ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.firstStart))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
           <td class="course-planning-completion-cell is-end ${item.overflowCount ? 'is-warning' : ''}">${item.lastEnd ? `<bdi dir="ltr">${escapeHtml(formatDateHe(item.lastEnd))}</bdi>` : '<span class="course-planning-completion-missing">חסר מועד</span>'}</td>
         </tr>
-        <tr class="course-planning-completion-detail-row" data-planning-instructor-details="${escapeHtml(detailKey)}" hidden>
-          <td colspan="7">
-            <div class="course-planning-completion-detail-panel">
-              <p><strong>קורסים:</strong> ${escapeHtml(courseNames.join(' · ') || 'ללא תוכנית')}</p>
-              <div class="course-planning-completion-activity-list">
-                ${item.activities.map((activity) => {
-                  const scheduleBits = [
-                    text(activity.weekdayLabel),
-                    text(activity.timeRangeLabel),
-                    Number(activity.meetingCount) > 0 ? `${Number(activity.meetingCount)} מפגשים` : ''
-                  ].filter(Boolean);
-                  return `<div class="course-planning-completion-activity-row">
-                  <strong>${escapeHtml(activity.courseName || 'פעילות')}</strong>
-                  <span>${escapeHtml(activity.school || 'ללא בית ספר')}${activity.authority ? ` · ${escapeHtml(activity.authority)}` : ''}</span>
-                  <span>${escapeHtml(activity.status || '')}</span>
-                  <span class="course-planning-completion-activity-schedule">${scheduleBits.length ? escapeHtml(scheduleBits.join(' · ')) : 'שעות טרם נקבעו'}</span>
-                  <span>${activity.startDate ? `<bdi dir="ltr">${escapeHtml(formatDateHe(activity.startDate))}</bdi>` : 'ללא מועד'}${activity.endDate ? `–<bdi dir="ltr">${escapeHtml(formatDateHe(activity.endDate))}</bdi>` : ''}</span>
-                </div>`;
-                }).join('')}
-              </div>
-            </div>
-          </td>
+        <tr class="course-planning-completion-detail-row" data-planning-instructor-details="${escapeHtml(detailKey)}"${expandedInstructorIds?.includes(detailKey) ? '' : ' hidden'}>
+          ${expandedInstructorIds === null || expandedInstructorIds.includes(detailKey) ? instructorCompletionDetailHtml(item) : '<td colspan="7"></td>'}
         </tr>`;
         }).join('')}</tbody>
       </table>

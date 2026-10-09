@@ -1,0 +1,20 @@
+{
+  "result": "PASS",
+  "before": {
+    "activities": "55556ede85d26af3e1e154d304775806",
+    "activity_completion_approval_uploads": "28946b4180568df83f3d3440d5ce061d",
+    "attendance_month_approvals": "079fd807bdb6b91b71b62808fd860745",
+    "payroll_control_approvals": "b393295b4d763f3788e2a722b4b952c1",
+    "scheduling_planning_workspaces": "5af9db7848e545d241a0863939e05e21",
+    "scheduling_planning_rows": "c98f5437cf220f751ed3a6ed05c86b47"
+  },
+  "after": {
+    "activities": "55556ede85d26af3e1e154d304775806",
+    "activity_completion_approval_uploads": "28946b4180568df83f3d3440d5ce061d",
+    "attendance_month_approvals": "079fd807bdb6b91b71b62808fd860745",
+    "payroll_control_approvals": "b393295b4d763f3788e2a722b4b952c1",
+    "scheduling_planning_workspaces": "5af9db7848e545d241a0863939e05e21",
+    "scheduling_planning_rows": "c98f5437cf220f751ed3a6ed05c86b47"
+  },
+  "scope": "Read-path preservation only. Approval creation/update workflows, triggers and external storage not exercised."
+}

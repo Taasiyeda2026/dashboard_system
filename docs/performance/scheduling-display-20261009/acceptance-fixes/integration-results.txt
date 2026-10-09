@@ -1,0 +1,27 @@
+▶ isolated display detail RPC: bounded conflicts and coherent reads with a writer
+  ✔ obsolete revision returns PT409 promptly on repeated real HTTP requests (84.267982ms)
+  ✔ uncommitted writer does not block current snapshot reads or future revision rejection (9.918897ms)
+  ✔ after writer commit the obsolete revision is rejected and new revision succeeds (8.88656ms)
+✔ isolated display detail RPC: bounded conflicts and coherent reads with a writer (122.882085ms)
+ℹ {"revision":11945,"status":409,"code":"PT409","ms":37.05914299999999}
+ℹ {"revision":11945,"status":409,"code":"PT409","ms":6.28941300000001}
+ℹ {"revision":11945,"status":409,"code":"PT409","ms":6.134435999999994}
+ℹ {"revision":11945,"status":409,"code":"PT409","ms":10.255461999999994}
+ℹ {"revision":11945,"status":409,"code":"PT409","ms":3.5626560000000183}
+ℹ {"revision":11945,"status":409,"code":"PT409","ms":4.344524999999976}
+ℹ {"revision":11945,"status":409,"code":"PT409","ms":3.973990000000015}
+ℹ {"revision":11945,"status":409,"code":"PT409","ms":3.899249999999995}
+ℹ {"revision":11945,"status":409,"code":"PT409","ms":3.495227}
+ℹ {"revision":11945,"status":409,"code":"PT409","ms":4.12590400000002}
+ℹ {"revision":11946,"status":200,"ms":4.595794000000012}
+ℹ {"revision":11947,"status":409,"code":"PT409","ms":3.17296300000001}
+ℹ {"revision":11946,"status":409,"code":"PT409","ms":3.353849000000025}
+ℹ {"revision":11947,"status":200,"ms":4.054248000000001}
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 150.377694

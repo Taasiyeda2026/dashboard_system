@@ -1,0 +1,21 @@
+{
+  "passed": 16,
+  "checks": [
+    "admin: get_scheduling_planning_workspace",
+    "admin: get_scheduling_planning_display_workspace",
+    "admin: get_scheduling_planning_row_details",
+    "admin: RLS",
+    "manager: get_scheduling_planning_workspace",
+    "manager: get_scheduling_planning_display_workspace",
+    "manager: get_scheduling_planning_row_details",
+    "manager: RLS",
+    "unauthorized: get_scheduling_planning_workspace",
+    "unauthorized: get_scheduling_planning_display_workspace",
+    "unauthorized: get_scheduling_planning_row_details",
+    "unauthorized: RLS",
+    "anon execute denied on both RPCs",
+    "missing parent denied",
+    "inactive admin denied",
+    "tampered JWT denied"
+  ]
+}

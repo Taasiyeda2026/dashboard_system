@@ -1,0 +1,34 @@
+[course-scheduling] stylesheet load failed TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension ".css" for /workspace/work/scheduling-fix/repo/frontend/src/screens/course-scheduling.css
+    at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:243:9)
+    at defaultGetFormat (node:internal/modules/esm/get_format:283:36)
+    at defaultLoadSync (node:internal/modules/esm/load:161:16)
+    at #loadAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:802:12)
+    at #loadSync (node:internal/modules/esm/loader:834:53)
+    at ModuleLoader.load (node:internal/modules/esm/loader:783:26)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:494:31)
+    at #getOrCreateModuleJobAfterResolve (node:internal/modules/esm/loader:560:36)
+    at afterResolve (node:internal/modules/esm/loader:607:52)
+    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:613:12) {
+  code: 'ERR_UNKNOWN_FILE_EXTENSION'
+}
+✔ display projection preserves current proposal, selected and first choices and full dependency footprint (2.024705ms)
+✔ display projection preserves hard-gate audit and dependency closure results (2.507726ms)
+✔ 253 rows mount at most 25 cards and all pages expose every activity (4.088368ms)
+✔ cache compacts large alternatives, isolates sessions and never persists credentials (2.641542ms)
+✔ quota/disabled/corrupt storage never interrupts display or restores obsolete data (0.321433ms)
+✔ oversize source snapshot is not cached and old cache is removed (13.312554ms)
+✔ instructor details remain absent until opened and memoized overview invalidates on a new plan (3.172963ms)
+✔ list search/paging preserve the detail DOM and selection; delegated actions reach unseen rows (968.901844ms)
+✔ display aggregate cache is reused across page changes and invalidated when rows change (14.347335ms)
+✔ async cache fails safely when a worker fails and discards the previous snapshot (2.14978ms)
+✔ async cache only accepts the latest write and excludes credentials/runtime functions (0.684606ms)
+✔ compact valid and invalid proposals produce the same hard-gate decisions (0.779165ms)
+✔ hidden or stale completion overview is never constructed (0.487837ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1237.022333

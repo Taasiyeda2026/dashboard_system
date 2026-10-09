@@ -1,0 +1,12 @@
+dist/assets/proposals-agreements-0BvJ-xVK.js                         328.22 kB │ gzip:  90.59 kB
+dist/assets/proposals-agreements-DNrciI21.js                         328.22 kB │ gzip:  90.59 kB
+dist/assets/course-scheduling-DROt7PQP.js                            417.46 kB │ gzip: 115.12 kB
+dist/assets/outlook-D00fYvi-.js                                    1,377.67 kB │ gzip: 490.77 kB
+dist/assets/index-C6rEWu5S.js                                      1,672.41 kB │ gzip: 469.28 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 9.50s
+[postbuild-dist] precache entries: 5

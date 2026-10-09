@@ -1,0 +1,2909 @@
+{
+  "runs": [
+    {
+      "variant": "before",
+      "clients": 1,
+      "wallMs": 1743.4287450000002,
+      "requests": 12,
+      "samples": [
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=228.8, response;dur=0.0",
+          "ms": 271.163141,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.2, response;dur=0.0",
+          "ms": 12.000035000000025,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=236.9, response;dur=0.0",
+          "ms": 247.15147600000012,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.8, response;dur=0.0",
+          "ms": 12.958924000000025,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=221.4, response;dur=0.0",
+          "ms": 231.94233099999997,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.6, response;dur=0.0",
+          "ms": 11.170245999999906,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=279.3, response;dur=0.0",
+          "ms": 290.19464500000004,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.1, response;dur=0.0",
+          "ms": 5.3791949999999815,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=301.4, response;dur=0.0",
+          "ms": 316.258462,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=23.5, response;dur=0.0",
+          "ms": 27.77120100000002,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=244.9, response;dur=0.0",
+          "ms": 256.870103,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.1, response;dur=0.0",
+          "ms": 6.83772799999997,
+          "bytes": 28233,
+          "status": 200
+        }
+      ],
+      "telemetry": {
+        "scope": "sampled isolated PostgreSQL container cgroup; includes filesystem cache; not peak RSS",
+        "samples": [
+          {
+            "at": 536.681915,
+            "memoryBytes": 118472704,
+            "cpuUs": 144603255
+          },
+          {
+            "at": 710.270486,
+            "memoryBytes": 142573568,
+            "cpuUs": 144749006
+          },
+          {
+            "at": 888.134871,
+            "memoryBytes": 138645504,
+            "cpuUs": 144913832
+          },
+          {
+            "at": 1057.133663,
+            "memoryBytes": 148647936,
+            "cpuUs": 145097937
+          },
+          {
+            "at": 1229.466504,
+            "memoryBytes": 145145856,
+            "cpuUs": 145259709
+          },
+          {
+            "at": 1436.536288,
+            "memoryBytes": 140845056,
+            "cpuUs": 145441910
+          },
+          {
+            "at": 1630.85249,
+            "memoryBytes": 150855680,
+            "cpuUs": 145615010
+          },
+          {
+            "at": 1837.484445,
+            "memoryBytes": 145129472,
+            "cpuUs": 145793516
+          },
+          {
+            "at": 2030.001664,
+            "memoryBytes": 136069120,
+            "cpuUs": 145937714
+          },
+          {
+            "at": 2255.113426,
+            "memoryBytes": 152838144,
+            "cpuUs": 146140865
+          },
+          {
+            "at": 2423.890071,
+            "memoryBytes": 136069120,
+            "cpuUs": 146167603
+          }
+        ],
+        "cpuMs": 1564.348,
+        "maxSampledMemoryBytes": 152838144
+      },
+      "clientHeapBytes": 14669576
+    },
+    {
+      "variant": "before",
+      "clients": 4,
+      "wallMs": 4001.035411,
+      "requests": 48,
+      "samples": [
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=700.9, response;dur=0.0",
+          "ms": 714.4769229999997,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.8, response;dur=0.0",
+          "ms": 5.907881999999972,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=731.5, response;dur=0.0",
+          "ms": 742.1327550000001,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=733.6, response;dur=0.0",
+          "ms": 761.8886560000001,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=737.6, response;dur=0.0",
+          "ms": 820.803895,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=10.4, response;dur=0.0",
+          "ms": 19.783894000000146,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=8.1, response;dur=0.0",
+          "ms": 48.482628000000204,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=8.2, response;dur=0.0",
+          "ms": 96.99152400000003,
+          "bytes": 27971,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=385.7, response;dur=0.0",
+          "ms": 394.58613400000013,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=518.5, response;dur=0.0",
+          "ms": 529.737185,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=7.5, response;dur=0.0",
+          "ms": 48.58223300000009,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.2, parse;dur=0.0, plan;dur=0.0, transaction;dur=59.7, response;dur=0.0",
+          "ms": 75.31916499999988,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=787.2, response;dur=0.0",
+          "ms": 800.2520589999995,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=9.0, response;dur=0.0",
+          "ms": 56.481321999999636,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=894.4, response;dur=0.0",
+          "ms": 905.7122180000001,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=439.5, response;dur=0.0",
+          "ms": 456.2625700000003,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=41.9, response;dur=0.0",
+          "ms": 45.74279100000058,
+          "bytes": 27971,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.9, response;dur=0.0",
+          "ms": 6.031692999999905,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=720.5, response;dur=0.0",
+          "ms": 729.019659,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=16.5, response;dur=0.0",
+          "ms": 69.12013600000046,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=352.4, response;dur=0.0",
+          "ms": 360.6798209999997,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=8.8, response;dur=0.0",
+          "ms": 27.35886500000015,
+          "bytes": 27971,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=601.8, response;dur=0.0",
+          "ms": 608.1342269999996,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=534.3, response;dur=0.0",
+          "ms": 544.4271159999998,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.9, parse;dur=0.0, plan;dur=0.0, transaction;dur=7.2, response;dur=0.0",
+          "ms": 29.845079000000624,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.3, response;dur=0.0",
+          "ms": 42.69257899999957,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=407.8, response;dur=0.0",
+          "ms": 429.5691769999994,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=6.7, response;dur=0.0",
+          "ms": 16.577511999999842,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=450.0, response;dur=0.0",
+          "ms": 456.23469399999976,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.8, response;dur=0.0",
+          "ms": 35.57289700000001,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=681.6, response;dur=0.0",
+          "ms": 696.5121280000003,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.2, parse;dur=0.0, plan;dur=0.0, transaction;dur=10.5, response;dur=0.0",
+          "ms": 19.488800000000083,
+          "bytes": 27971,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=598.8, response;dur=0.0",
+          "ms": 642.8698460000005,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=6.6, response;dur=0.0",
+          "ms": 12.330610999999408,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=429.3, response;dur=0.0",
+          "ms": 440.54620200000045,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.6, response;dur=0.0",
+          "ms": 8.754605000000083,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=718.0, response;dur=0.0",
+          "ms": 735.3199620000005,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.2, response;dur=0.0",
+          "ms": 31.627658999999767,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=419.1, response;dur=0.0",
+          "ms": 426.67625900000075,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.6, response;dur=0.0",
+          "ms": 8.367056000000048,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.2, parse;dur=0.0, plan;dur=0.0, transaction;dur=643.1, response;dur=0.0",
+          "ms": 652.2970949999999,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=8.2, response;dur=0.0",
+          "ms": 11.487752,
+          "bytes": 27971,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=336.0, response;dur=0.0",
+          "ms": 345.5193650000001,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=3.1, response;dur=0.0",
+          "ms": 40.24099800000022,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=402.5, response;dur=0.0",
+          "ms": 408.91204500000003,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.3, response;dur=0.0",
+          "ms": 7.426703999999518,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=336.3, response;dur=0.0",
+          "ms": 345.9538729999995,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.0, response;dur=0.0",
+          "ms": 10.783215999999811,
+          "bytes": 27971,
+          "status": 200
+        }
+      ],
+      "telemetry": {
+        "scope": "sampled isolated PostgreSQL container cgroup; includes filesystem cache; not peak RSS",
+        "samples": [
+          {
+            "at": 2500.893326,
+            "memoryBytes": 136097792,
+            "cpuUs": 146190873
+          },
+          {
+            "at": 2949.91533,
+            "memoryBytes": 224530432,
+            "cpuUs": 146866092
+          },
+          {
+            "at": 3334.143642,
+            "memoryBytes": 231084032,
+            "cpuUs": 147214169
+          },
+          {
+            "at": 3712.723924,
+            "memoryBytes": 222846976,
+            "cpuUs": 147786263
+          },
+          {
+            "at": 3961.5524,
+            "memoryBytes": 211361792,
+            "cpuUs": 148153117
+          },
+          {
+            "at": 4224.771623,
+            "memoryBytes": 223297536,
+            "cpuUs": 148580921
+          },
+          {
+            "at": 4450.64894,
+            "memoryBytes": 221990912,
+            "cpuUs": 148977200
+          },
+          {
+            "at": 4729.769992,
+            "memoryBytes": 215511040,
+            "cpuUs": 149385022
+          },
+          {
+            "at": 4940.315223,
+            "memoryBytes": 204447744,
+            "cpuUs": 149728962
+          },
+          {
+            "at": 5306.289024,
+            "memoryBytes": 225579008,
+            "cpuUs": 150280492
+          },
+          {
+            "at": 5547.551174,
+            "memoryBytes": 202821632,
+            "cpuUs": 150688093
+          },
+          {
+            "at": 5817.451821,
+            "memoryBytes": 239996928,
+            "cpuUs": 151146617
+          },
+          {
+            "at": 6050.637613,
+            "memoryBytes": 209616896,
+            "cpuUs": 151545733
+          },
+          {
+            "at": 6316.387892,
+            "memoryBytes": 204058624,
+            "cpuUs": 151920815
+          },
+          {
+            "at": 6491.671303,
+            "memoryBytes": 187260928,
+            "cpuUs": 152161147
+          },
+          {
+            "at": 6654.264991,
+            "memoryBytes": 187355136,
+            "cpuUs": 152180040
+          }
+        ],
+        "cpuMs": 5989.167,
+        "maxSampledMemoryBytes": 239996928
+      },
+      "clientHeapBytes": 11193376
+    },
+    {
+      "variant": "before",
+      "clients": 8,
+      "wallMs": 7494.117994,
+      "requests": 96,
+      "samples": [
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=512.8, response;dur=0.0",
+          "ms": 526.5340879999994,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.8, response;dur=0.0",
+          "ms": 51.228267999999844,
+          "bytes": 28061,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1010.6, response;dur=0.0",
+          "ms": 1019.6907590000001,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.4, response;dur=0.0",
+          "ms": 5.414206999999806,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=505.9, response;dur=0.0",
+          "ms": 535.3283819999997,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1130.0, response;dur=0.0",
+          "ms": 1144.4896989999997,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.6, response;dur=0.0",
+          "ms": 62.24694600000021,
+          "bytes": 28061,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1191.9, response;dur=0.0",
+          "ms": 1211.3713770000004,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=13.2, response;dur=0.0",
+          "ms": 52.685403999999835,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=58.2, response;dur=0.0",
+          "ms": 68.42510499999935,
+          "bytes": 28047,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1394.0, response;dur=0.0",
+          "ms": 1399.869208,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1431.6, response;dur=0.0",
+          "ms": 1441.9737519999999,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=30.5, response;dur=0.0",
+          "ms": 81.90256200000022,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1431.6, response;dur=0.0",
+          "ms": 1505.547990000001,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.8, response;dur=0.0",
+          "ms": 80.06042399999933,
+          "bytes": 27971,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1500.2, response;dur=0.0",
+          "ms": 1545.355770000001,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.5, response;dur=0.0",
+          "ms": 70.85030000000006,
+          "bytes": 28157,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=8.1, response;dur=0.0",
+          "ms": 10.72245699999985,
+          "bytes": 28173,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=606.1, response;dur=0.0",
+          "ms": 613.5029949999998,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.4, response;dur=0.0",
+          "ms": 9.997140999999829,
+          "bytes": 28061,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1051.3, response;dur=0.0",
+          "ms": 1063.1779869999991,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=6.3, response;dur=0.0",
+          "ms": 12.511316000000079,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=408.4, response;dur=0.0",
+          "ms": 416.84505700000045,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.3, response;dur=0.0",
+          "ms": 5.448997999999847,
+          "bytes": 28061,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.3, parse;dur=0.0, plan;dur=0.0, transaction;dur=1012.4, response;dur=0.0",
+          "ms": 1172.1229819999999,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1007.1, response;dur=0.0",
+          "ms": 1122.0638149999995,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=9.7, response;dur=0.0",
+          "ms": 29.33357700000124,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=8.4, response;dur=0.0",
+          "ms": 71.9211720000003,
+          "bytes": 28047,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=437.0, response;dur=0.0",
+          "ms": 493.2315269999999,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=671.4, response;dur=0.0",
+          "ms": 681.2069200000005,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=15.3, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.5, response;dur=0.0",
+          "ms": 61.04025299999921,
+          "bytes": 28061,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=7.5, response;dur=0.0",
+          "ms": 9.128866000000926,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=1580.3, response;dur=0.0",
+          "ms": 1626.499416999999,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=14.2, response;dur=0.0",
+          "ms": 17.7071219999998,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1685.1, response;dur=0.0",
+          "ms": 1692.3151770000004,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1711.3, response;dur=0.0",
+          "ms": 1783.1119100000014,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=6.7, response;dur=0.0",
+          "ms": 25.453686000000744,
+          "bytes": 28173,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=1725.8, response;dur=0.0",
+          "ms": 1734.292947,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=51.7, response;dur=0.0",
+          "ms": 71.32043000000158,
+          "bytes": 27971,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=43.4, response;dur=0.0",
+          "ms": 52.673837999998796,
+          "bytes": 28157,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=579.9, response;dur=0.0",
+          "ms": 590.605485,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=10.1, response;dur=0.0",
+          "ms": 46.2225269999999,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1117.8, response;dur=0.0",
+          "ms": 1164.629997,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=793.6, response;dur=0.0",
+          "ms": 827.0285199999998,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=6.3, response;dur=0.0",
+          "ms": 100.07979400000113,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=17.9, response;dur=0.0",
+          "ms": 25.74854899999991,
+          "bytes": 28061,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1220.0, response;dur=0.0",
+          "ms": 1238.7785949999998,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=6.0, response;dur=0.0",
+          "ms": 9.652495000000272,
+          "bytes": 28047,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=435.1, response;dur=0.0",
+          "ms": 446.57585800000015,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.6, response;dur=0.0",
+          "ms": 152.77660000000105,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=979.4, response;dur=0.0",
+          "ms": 1007.6800590000003,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=42.6, response;dur=0.0",
+          "ms": 46.58725299999969,
+          "bytes": 28173,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=915.1, response;dur=0.0",
+          "ms": 927.0499770000006,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=894.1, response;dur=0.0",
+          "ms": 904.2633509999996,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=17.6, response;dur=0.0",
+          "ms": 35.492809000001216,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=14.2, response;dur=0.0",
+          "ms": 23.98155300000144,
+          "bytes": 28047,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1672.9, response;dur=0.0",
+          "ms": 1686.4538899999989,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.5, response;dur=0.0",
+          "ms": 41.56192799999917,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1543.6, response;dur=0.0",
+          "ms": 1551.0782149999995,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1600.3, response;dur=0.0",
+          "ms": 1608.880255,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=800.7, response;dur=0.0",
+          "ms": 817.5603810000011,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=34.3, response;dur=0.0",
+          "ms": 80.72446899999886,
+          "bytes": 27971,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=6.3, response;dur=0.0",
+          "ms": 10.417239000000336,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=26.3, response;dur=0.0",
+          "ms": 32.693505000001096,
+          "bytes": 28157,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=712.4, response;dur=0.0",
+          "ms": 723.6255469999996,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.4, response;dur=0.0",
+          "ms": 4.470039000001634,
+          "bytes": 28173,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=509.2, response;dur=0.0",
+          "ms": 566.6018230000009,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.4, response;dur=0.0",
+          "ms": 17.405219000000216,
+          "bytes": 28047,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=590.3, response;dur=0.0",
+          "ms": 599.8745500000005,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=10.2, response;dur=0.0",
+          "ms": 49.25361200000043,
+          "bytes": 28157,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=912.9, response;dur=0.0",
+          "ms": 931.1583550000014,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=1113.4, response;dur=0.0",
+          "ms": 1165.0893250000008,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=3.5, response;dur=0.0",
+          "ms": 7.229735000000801,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=64.7, response;dur=0.0",
+          "ms": 80.81273799999872,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=875.7, response;dur=0.0",
+          "ms": 884.1252939999995,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=8.3, response;dur=0.0",
+          "ms": 26.1064750000005,
+          "bytes": 27971,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1078.4, response;dur=0.0",
+          "ms": 1181.8925880000006,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=957.3, response;dur=0.0",
+          "ms": 992.2957529999985,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.1, response;dur=0.0",
+          "ms": 87.25094999999965,
+          "bytes": 28173,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.2, parse;dur=0.0, plan;dur=0.0, transaction;dur=15.3, response;dur=0.0",
+          "ms": 18.306422999999995,
+          "bytes": 28047,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=541.2, response;dur=0.0",
+          "ms": 548.8592379999991,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.7, response;dur=0.0",
+          "ms": 8.400064999999813,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1026.3, response;dur=0.0",
+          "ms": 1034.078716,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=9.5, response;dur=0.0",
+          "ms": 58.56041000000005,
+          "bytes": 28157,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=940.0, response;dur=0.0",
+          "ms": 946.4597689999991,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=9.6, response;dur=0.0",
+          "ms": 14.653950000001714,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=523.8, response;dur=0.0",
+          "ms": 533.1237569999994,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=36.6, response;dur=0.0",
+          "ms": 39.45478600000024,
+          "bytes": 28173,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1036.6, response;dur=0.0",
+          "ms": 1052.5987370000003,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.3, response;dur=0.0",
+          "ms": 11.901863999999478,
+          "bytes": 27971,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=462.0, response;dur=0.0",
+          "ms": 515.0343789999988,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=10.2, response;dur=0.0",
+          "ms": 19.40911899999992,
+          "bytes": 28157,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=483.8, response;dur=0.0",
+          "ms": 494.07884100000047,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=3.8, response;dur=0.0",
+          "ms": 19.053357000000688,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=459.2, response;dur=0.0",
+          "ms": 464.95610300000044,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.4, response;dur=0.0",
+          "ms": 4.982033000000229,
+          "bytes": 27971,
+          "status": 200
+        }
+      ],
+      "telemetry": {
+        "scope": "sampled isolated PostgreSQL container cgroup; includes filesystem cache; not peak RSS",
+        "samples": [
+          {
+            "at": 6715.978934,
+            "memoryBytes": 187097088,
+            "cpuUs": 152200231
+          },
+          {
+            "at": 6946.821593,
+            "memoryBytes": 265666560,
+            "cpuUs": 152657748
+          },
+          {
+            "at": 7208.452127,
+            "memoryBytes": 303443968,
+            "cpuUs": 153077109
+          },
+          {
+            "at": 7436.593711,
+            "memoryBytes": 319537152,
+            "cpuUs": 153485120
+          },
+          {
+            "at": 7709.595966,
+            "memoryBytes": 354025472,
+            "cpuUs": 153967406
+          },
+          {
+            "at": 8020.957854,
+            "memoryBytes": 313159680,
+            "cpuUs": 154366283
+          },
+          {
+            "at": 8305.275298,
+            "memoryBytes": 281296896,
+            "cpuUs": 154801040
+          },
+          {
+            "at": 8540.869489,
+            "memoryBytes": 297365504,
+            "cpuUs": 155286563
+          },
+          {
+            "at": 8933.431561,
+            "memoryBytes": 302206976,
+            "cpuUs": 155991109
+          },
+          {
+            "at": 9348.19182,
+            "memoryBytes": 318599168,
+            "cpuUs": 156655929
+          },
+          {
+            "at": 9633.269631,
+            "memoryBytes": 331087872,
+            "cpuUs": 157113500
+          },
+          {
+            "at": 9917.473098,
+            "memoryBytes": 337137664,
+            "cpuUs": 157589208
+          },
+          {
+            "at": 10310.520333,
+            "memoryBytes": 305795072,
+            "cpuUs": 158153647
+          },
+          {
+            "at": 10621.030879,
+            "memoryBytes": 287805440,
+            "cpuUs": 158680251
+          },
+          {
+            "at": 10925.531013,
+            "memoryBytes": 302821376,
+            "cpuUs": 159115301
+          },
+          {
+            "at": 11308.166056,
+            "memoryBytes": 326705152,
+            "cpuUs": 159879389
+          },
+          {
+            "at": 11559.889306,
+            "memoryBytes": 309628928,
+            "cpuUs": 160302726
+          },
+          {
+            "at": 11840.109448,
+            "memoryBytes": 274923520,
+            "cpuUs": 160713154
+          },
+          {
+            "at": 12154.689814,
+            "memoryBytes": 300756992,
+            "cpuUs": 161268332
+          },
+          {
+            "at": 12448.438383,
+            "memoryBytes": 303538176,
+            "cpuUs": 161765391
+          },
+          {
+            "at": 12661.306605,
+            "memoryBytes": 282763264,
+            "cpuUs": 162075067
+          },
+          {
+            "at": 13114.873735,
+            "memoryBytes": 289251328,
+            "cpuUs": 162769586
+          },
+          {
+            "at": 13344.735158,
+            "memoryBytes": 301875200,
+            "cpuUs": 163223208
+          },
+          {
+            "at": 13663.700213,
+            "memoryBytes": 287956992,
+            "cpuUs": 163647341
+          },
+          {
+            "at": 13937.075676,
+            "memoryBytes": 285204480,
+            "cpuUs": 164107846
+          },
+          {
+            "at": 14158.17763,
+            "memoryBytes": 268951552,
+            "cpuUs": 164400900
+          },
+          {
+            "at": 14318.833413,
+            "memoryBytes": 256937984,
+            "cpuUs": 164470587
+          }
+        ],
+        "cpuMs": 12270.356,
+        "maxSampledMemoryBytes": 354025472
+      },
+      "clientHeapBytes": 16243120
+    },
+    {
+      "variant": "after",
+      "clients": 1,
+      "wallMs": 1146.9110930000006,
+      "requests": 12,
+      "samples": [
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=192.2, response;dur=0.0",
+          "ms": 201.325734,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.3, response;dur=0.0",
+          "ms": 4.727579999998852,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=162.5, response;dur=0.0",
+          "ms": 173.58314599999903,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.8, response;dur=0.0",
+          "ms": 4.788419000000431,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=177.2, response;dur=0.0",
+          "ms": 183.15891499999998,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.6, response;dur=0.0",
+          "ms": 4.59204999999929,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=158.4, response;dur=0.0",
+          "ms": 165.533406999999,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.8, response;dur=0.0",
+          "ms": 4.301096999999572,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=169.8, response;dur=0.0",
+          "ms": 175.42042100000072,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.0, response;dur=0.0",
+          "ms": 4.560663000000204,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=167.4, response;dur=0.0",
+          "ms": 177.83169499999894,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.6, response;dur=0.0",
+          "ms": 6.983825999999681,
+          "bytes": 28233,
+          "status": 200
+        }
+      ],
+      "telemetry": {
+        "scope": "sampled isolated PostgreSQL container cgroup; includes filesystem cache; not peak RSS",
+        "samples": [
+          {
+            "at": 14796.917934,
+            "memoryBytes": 118480896,
+            "cpuUs": 164554027
+          },
+          {
+            "at": 14971.897372,
+            "memoryBytes": 147722240,
+            "cpuUs": 164733175
+          },
+          {
+            "at": 15139.150902,
+            "memoryBytes": 147988480,
+            "cpuUs": 164908079
+          },
+          {
+            "at": 15315.755323,
+            "memoryBytes": 145149952,
+            "cpuUs": 165078579
+          },
+          {
+            "at": 15489.78498,
+            "memoryBytes": 143802368,
+            "cpuUs": 165247368
+          },
+          {
+            "at": 15651.946401,
+            "memoryBytes": 141000704,
+            "cpuUs": 165412159
+          },
+          {
+            "at": 15817.452668,
+            "memoryBytes": 139329536,
+            "cpuUs": 165580163
+          },
+          {
+            "at": 15989.028327,
+            "memoryBytes": 138436608,
+            "cpuUs": 165708278
+          }
+        ],
+        "cpuMs": 1154.251,
+        "maxSampledMemoryBytes": 147988480
+      },
+      "clientHeapBytes": 33227200
+    },
+    {
+      "variant": "after",
+      "clients": 4,
+      "wallMs": 3229.468500000001,
+      "requests": 48,
+      "samples": [
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=340.5, response;dur=0.0",
+          "ms": 349.44979799999965,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.9, response;dur=0.0",
+          "ms": 4.8471150000004855,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=363.9, response;dur=0.0",
+          "ms": 375.97880299999815,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=15.5, response;dur=0.0",
+          "ms": 79.19293900000048,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=564.1, response;dur=0.0",
+          "ms": 577.4046460000009,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=583.9, response;dur=0.0",
+          "ms": 595.934408000001,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=3.9, response;dur=0.0",
+          "ms": 23.349997000001167,
+          "bytes": 27971,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=7.0, response;dur=0.0",
+          "ms": 45.82584600000337,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=502.0, response;dur=0.0",
+          "ms": 511.053103000002,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=42.1, response;dur=0.0",
+          "ms": 53.28783900000053,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=469.3, response;dur=0.0",
+          "ms": 489.4092720000008,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=3.9, response;dur=0.0",
+          "ms": 5.503069000002142,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=505.7, response;dur=0.0",
+          "ms": 545.5005270000001,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=509.8, response;dur=0.0",
+          "ms": 528.1062139999995,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.1, response;dur=0.0",
+          "ms": 4.278629000000365,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.1, response;dur=0.0",
+          "ms": 25.975813000000926,
+          "bytes": 27971,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=315.5, response;dur=0.0",
+          "ms": 322.702358999999,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.7, response;dur=0.0",
+          "ms": 40.494032999999035,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=550.6, response;dur=0.0",
+          "ms": 556.5703580000009,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.3, response;dur=0.0",
+          "ms": 40.57835200000045,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=367.5, response;dur=0.0",
+          "ms": 373.2277419999991,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.0, response;dur=0.0",
+          "ms": 4.583746000000247,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=352.7, response;dur=0.0",
+          "ms": 359.6774030000015,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=7.1, response;dur=0.0",
+          "ms": 44.82484300000215,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=584.5, response;dur=0.0",
+          "ms": 595.7332650000026,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=3.8, response;dur=0.0",
+          "ms": 6.368489000000409,
+          "bytes": 27971,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=407.8, response;dur=0.0",
+          "ms": 422.7233390000001,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.3, response;dur=0.0",
+          "ms": 39.494800000000396,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.4, parse;dur=0.0, plan;dur=0.0, transaction;dur=305.3, response;dur=0.0",
+          "ms": 312.54450599999836,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=15.0, response;dur=0.0",
+          "ms": 37.43339999999807,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=554.2, response;dur=0.0",
+          "ms": 598.4642089999979,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.0, response;dur=0.0",
+          "ms": 11.299465000000055,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=655.5, response;dur=0.0",
+          "ms": 661.9840550000008,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=7.5, response;dur=0.0",
+          "ms": 11.867338999996718,
+          "bytes": 27971,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=439.8, response;dur=0.0",
+          "ms": 450.09417699999904,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.3, response;dur=0.0",
+          "ms": 5.782086999999592,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.2, parse;dur=0.0, plan;dur=0.0, transaction;dur=436.0, response;dur=0.0",
+          "ms": 496.2260649999989,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.1, response;dur=0.0",
+          "ms": 11.320145000001503,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=521.8, response;dur=0.0",
+          "ms": 528.0029280000017,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.2, response;dur=0.0",
+          "ms": 38.12887299999784,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.5, parse;dur=0.0, plan;dur=0.0, transaction;dur=391.4, response;dur=0.0",
+          "ms": 400.55661899999905,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.0, response;dur=0.0",
+          "ms": 6.697282000000996,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=432.4, response;dur=0.0",
+          "ms": 492.3202249999995,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.5, response;dur=0.0",
+          "ms": 5.692445000000589,
+          "bytes": 27971,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=310.2, response;dur=0.0",
+          "ms": 318.6020819999976,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=6.7, response;dur=0.0",
+          "ms": 9.42399899999873,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=206.6, response;dur=0.0",
+          "ms": 212.20107700000153,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.6, response;dur=0.0",
+          "ms": 13.93172400000185,
+          "bytes": 27971,
+          "status": 200
+        }
+      ],
+      "telemetry": {
+        "scope": "sampled isolated PostgreSQL container cgroup; includes filesystem cache; not peak RSS",
+        "samples": [
+          {
+            "at": 16057.177577,
+            "memoryBytes": 138207232,
+            "cpuUs": 165727091
+          },
+          {
+            "at": 16342.020346,
+            "memoryBytes": 221052928,
+            "cpuUs": 166309403
+          },
+          {
+            "at": 16666.867124,
+            "memoryBytes": 196132864,
+            "cpuUs": 166759839
+          },
+          {
+            "at": 16963.372516,
+            "memoryBytes": 201641984,
+            "cpuUs": 167215463
+          },
+          {
+            "at": 17252.160243,
+            "memoryBytes": 202797056,
+            "cpuUs": 167651296
+          },
+          {
+            "at": 17551.850597,
+            "memoryBytes": 224743424,
+            "cpuUs": 168208152
+          },
+          {
+            "at": 17816.003626,
+            "memoryBytes": 208297984,
+            "cpuUs": 168565270
+          },
+          {
+            "at": 18055.122479,
+            "memoryBytes": 221642752,
+            "cpuUs": 169004579
+          },
+          {
+            "at": 18341.87438,
+            "memoryBytes": 208486400,
+            "cpuUs": 169390517
+          },
+          {
+            "at": 18618.086378,
+            "memoryBytes": 214687744,
+            "cpuUs": 169799004
+          },
+          {
+            "at": 18832.770393,
+            "memoryBytes": 204136448,
+            "cpuUs": 170150984
+          },
+          {
+            "at": 19052.455276,
+            "memoryBytes": 205729792,
+            "cpuUs": 170508283
+          },
+          {
+            "at": 19224.085731,
+            "memoryBytes": 205615104,
+            "cpuUs": 170694761
+          },
+          {
+            "at": 19387.104957,
+            "memoryBytes": 197083136,
+            "cpuUs": 170755593
+          }
+        ],
+        "cpuMs": 5028.502,
+        "maxSampledMemoryBytes": 224743424
+      },
+      "clientHeapBytes": 11645768
+    },
+    {
+      "variant": "after",
+      "clients": 8,
+      "wallMs": 5283.326284999999,
+      "requests": 96,
+      "samples": [
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=662.9, response;dur=0.0",
+          "ms": 671.479288999999,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=3.7, response;dur=0.0",
+          "ms": 12.176933999999164,
+          "bytes": 28047,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=684.8, response;dur=0.0",
+          "ms": 697.9987490000021,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=707.9, response;dur=0.0",
+          "ms": 759.4623439999996,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=708.0, response;dur=0.0",
+          "ms": 769.8083469999983,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.1, response;dur=0.0",
+          "ms": 80.56597599999805,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=757.8, response;dur=0.0",
+          "ms": 794.0576330000004,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=776.9, response;dur=0.0",
+          "ms": 807.2314680000018,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=794.7, response;dur=0.0",
+          "ms": 821.2617060000011,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=8.3, response;dur=0.0",
+          "ms": 95.50109899999734,
+          "bytes": 28157,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=41.3, response;dur=0.0",
+          "ms": 59.08526899999924,
+          "bytes": 28061,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=812.6, response;dur=0.0",
+          "ms": 886.8109939999995,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=12.7, response;dur=0.0",
+          "ms": 53.87024499999825,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=7.9, response;dur=0.0",
+          "ms": 94.06584400000065,
+          "bytes": 27971,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=19.8, response;dur=0.0",
+          "ms": 130.39823199999955,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.2, parse;dur=0.0, plan;dur=0.0, transaction;dur=54.7, response;dur=0.0",
+          "ms": 73.35382799999934,
+          "bytes": 28173,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=399.9, response;dur=0.0",
+          "ms": 443.9823060000017,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.1, response;dur=0.0",
+          "ms": 12.306626000001415,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.3, parse;dur=0.0, plan;dur=0.0, transaction;dur=742.4, response;dur=0.0",
+          "ms": 808.0635360000015,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.4, response;dur=0.0",
+          "ms": 53.71051200000147,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=800.6, response;dur=0.0",
+          "ms": 819.1173159999998,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=777.3, response;dur=0.0",
+          "ms": 794.197285000002,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=7.5, response;dur=0.0",
+          "ms": 21.09138499999972,
+          "bytes": 28157,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=984.4, response;dur=0.0",
+          "ms": 1023.9011909999972,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=807.1, response;dur=0.0",
+          "ms": 896.2527100000007,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=3.1, response;dur=0.0",
+          "ms": 68.51301299999977,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=14.9, response;dur=0.0",
+          "ms": 43.546933999998146,
+          "bytes": 28047,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=23.3, response;dur=0.0",
+          "ms": 28.61557200000243,
+          "bytes": 28061,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.2, parse;dur=0.0, plan;dur=0.0, transaction;dur=901.8, response;dur=0.0",
+          "ms": 944.6581740000001,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.9, response;dur=0.0",
+          "ms": 13.801471999999194,
+          "bytes": 27971,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1086.1, response;dur=0.0",
+          "ms": 1097.9623729999985,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.7, response;dur=0.0",
+          "ms": 5.864709999998013,
+          "bytes": 28173,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=781.0, response;dur=0.0",
+          "ms": 789.2709190000023,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.0, response;dur=0.0",
+          "ms": 8.033486000000266,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=595.3, response;dur=0.0",
+          "ms": 602.5337330000002,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.5, response;dur=0.0",
+          "ms": 10.510016999996878,
+          "bytes": 28157,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=605.3, response;dur=0.0",
+          "ms": 610.9028309999994,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=3.0, response;dur=0.0",
+          "ms": 5.561893000001874,
+          "bytes": 28047,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=555.0, response;dur=0.0",
+          "ms": 563.3339120000019,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=474.4, response;dur=0.0",
+          "ms": 520.6751140000015,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.9, response;dur=0.0",
+          "ms": 5.298837999998796,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=393.6, response;dur=0.0",
+          "ms": 415.21439499999906,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.8, response;dur=0.0",
+          "ms": 7.586629999997967,
+          "bytes": 28157,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=5.8, response;dur=0.0",
+          "ms": 120.84769299999971,
+          "bytes": 28173,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1177.7, response;dur=0.0",
+          "ms": 1232.4666490000018,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=35.2, response;dur=0.0",
+          "ms": 40.31201399999918,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=496.3, response;dur=0.0",
+          "ms": 502.452828999998,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=3.0, response;dur=0.0",
+          "ms": 6.085192999998981,
+          "bytes": 28047,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1282.0, response;dur=0.0",
+          "ms": 1287.7752680000012,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1318.1, response;dur=0.0",
+          "ms": 1327.2572589999982,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.4, response;dur=0.0",
+          "ms": 42.85085500000059,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=53.8, response;dur=0.0",
+          "ms": 56.09458900000027,
+          "bytes": 28061,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1305.8, response;dur=0.0",
+          "ms": 1311.7202949999992,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.7, response;dur=0.0",
+          "ms": 21.13246799999979,
+          "bytes": 27971,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=507.9, response;dur=0.0",
+          "ms": 516.1359739999971,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.1, response;dur=0.0",
+          "ms": 42.56194099999993,
+          "bytes": 28157,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=523.5, response;dur=0.0",
+          "ms": 529.495461999999,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.5, response;dur=0.0",
+          "ms": 4.021298999999999,
+          "bytes": 28047,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=878.2, response;dur=0.0",
+          "ms": 917.1162129999975,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=872.6, response;dur=0.0",
+          "ms": 956.9075320000011,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=752.9, response;dur=0.0",
+          "ms": 839.0305799999987,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.6, response;dur=0.0",
+          "ms": 81.60564100000192,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.2, response;dur=0.0",
+          "ms": 19.30895800000144,
+          "bytes": 28173,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.3, response;dur=0.0",
+          "ms": 5.7757889999993495,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=490.3, response;dur=0.0",
+          "ms": 498.5457549999992,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.0, response;dur=0.0",
+          "ms": 7.489567000000534,
+          "bytes": 28157,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=747.4, response;dur=0.0",
+          "ms": 756.6300789999987,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=3.6, response;dur=0.0",
+          "ms": 7.641159000002517,
+          "bytes": 27971,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=507.7, response;dur=0.0",
+          "ms": 552.5032539999993,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=911.9, response;dur=0.0",
+          "ms": 928.9382900000019,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=7.6, response;dur=0.0",
+          "ms": 41.405391000000236,
+          "bytes": 28047,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=960.6, response;dur=0.0",
+          "ms": 993.9476119999999,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.5, response;dur=0.0",
+          "ms": 55.15773199999967,
+          "bytes": 28061,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=7.9, response;dur=0.0",
+          "ms": 15.628138000000035,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=603.9, response;dur=0.0",
+          "ms": 609.8466750000007,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.5, response;dur=0.0",
+          "ms": 4.607260999997379,
+          "bytes": 28318,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=309.5, response;dur=0.0",
+          "ms": 321.1269289999982,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.7, response;dur=0.0",
+          "ms": 5.602062999998452,
+          "bytes": 28061,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=418.2, response;dur=0.0",
+          "ms": 424.98971000000165,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.6, response;dur=0.0",
+          "ms": 5.146753000000899,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=845.1, response;dur=0.0",
+          "ms": 856.3510489999971,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=848.6, response;dur=0.0",
+          "ms": 867.4437010000001,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=689.1, response;dur=0.0",
+          "ms": 696.0433430000012,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.7, response;dur=0.0",
+          "ms": 26.17216399999961,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=4.8, response;dur=0.0",
+          "ms": 8.004103000002942,
+          "bytes": 27971,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=7.1, response;dur=0.0",
+          "ms": 18.80216300000029,
+          "bytes": 28173,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=392.5, response;dur=0.0",
+          "ms": 398.6376019999989,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=3.0, response;dur=0.0",
+          "ms": 5.408587999998417,
+          "bytes": 28061,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=301.8, response;dur=0.0",
+          "ms": 318.6733029999996,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=3.1, response;dur=0.0",
+          "ms": 5.49999299999763,
+          "bytes": 27957,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=471.1, response;dur=0.0",
+          "ms": 477.51103800000055,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.1, parse;dur=0.0, plan;dur=0.0, transaction;dur=2.1, response;dur=0.0",
+          "ms": 4.910487000001012,
+          "bytes": 28173,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=609.8, response;dur=0.0",
+          "ms": 619.272438,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=3.5, response;dur=0.0",
+          "ms": 7.108185999997659,
+          "bytes": 28233,
+          "status": 200
+        },
+        {
+          "kind": "display",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=568.5, response;dur=0.0",
+          "ms": 573.0026879999969,
+          "bytes": 1658878,
+          "status": 200
+        },
+        {
+          "kind": "details",
+          "serverTiming": "jwt;dur=0.0, parse;dur=0.0, plan;dur=0.0, transaction;dur=1.7, response;dur=0.0",
+          "ms": 4.20780399999785,
+          "bytes": 27971,
+          "status": 200
+        }
+      ],
+      "telemetry": {
+        "scope": "sampled isolated PostgreSQL container cgroup; includes filesystem cache; not peak RSS",
+        "samples": [
+          {
+            "at": 19450.228239,
+            "memoryBytes": 197115904,
+            "cpuUs": 170773047
+          },
+          {
+            "at": 19810.935968,
+            "memoryBytes": 288514048,
+            "cpuUs": 171437208
+          },
+          {
+            "at": 20114.224296,
+            "memoryBytes": 343547904,
+            "cpuUs": 172012841
+          },
+          {
+            "at": 20416.668844,
+            "memoryBytes": 272330752,
+            "cpuUs": 172326447
+          },
+          {
+            "at": 20637.692459,
+            "memoryBytes": 289611776,
+            "cpuUs": 172791991
+          },
+          {
+            "at": 20947.434571,
+            "memoryBytes": 320028672,
+            "cpuUs": 173341797
+          },
+          {
+            "at": 21246.231819,
+            "memoryBytes": 300363776,
+            "cpuUs": 173746548
+          },
+          {
+            "at": 21549.563704,
+            "memoryBytes": 292941824,
+            "cpuUs": 174252919
+          },
+          {
+            "at": 21815.298184,
+            "memoryBytes": 300498944,
+            "cpuUs": 174673688
+          },
+          {
+            "at": 22223.886642,
+            "memoryBytes": 322523136,
+            "cpuUs": 175275964
+          },
+          {
+            "at": 22611.671655,
+            "memoryBytes": 308875264,
+            "cpuUs": 175976228
+          },
+          {
+            "at": 22926.851017,
+            "memoryBytes": 316297216,
+            "cpuUs": 176493922
+          },
+          {
+            "at": 23251.023315,
+            "memoryBytes": 309870592,
+            "cpuUs": 176963921
+          },
+          {
+            "at": 23560.335405,
+            "memoryBytes": 300736512,
+            "cpuUs": 177450379
+          },
+          {
+            "at": 23852.467952,
+            "memoryBytes": 321970176,
+            "cpuUs": 178000745
+          },
+          {
+            "at": 24105.155664,
+            "memoryBytes": 314273792,
+            "cpuUs": 178336811
+          },
+          {
+            "at": 24316.559378,
+            "memoryBytes": 290844672,
+            "cpuUs": 178702412
+          },
+          {
+            "at": 24556.595988,
+            "memoryBytes": 294875136,
+            "cpuUs": 179087348
+          },
+          {
+            "at": 24813.459371,
+            "memoryBytes": 275664896,
+            "cpuUs": 179311937
+          }
+        ],
+        "cpuMs": 8538.89,
+        "maxSampledMemoryBytes": 343547904
+      },
+      "clientHeapBytes": 29069840
+    }
+  ],
+  "revisionRace": {
+    "readers": 8,
+    "commits": 6,
+    "samples": [
+      {
+        "displayMs": 596.1276529999996,
+        "detailsMs": 19.589363999999478,
+        "detailsStatus": 409,
+        "coherent": true
+      },
+      {
+        "displayMs": 613.0864660000007,
+        "detailsMs": 4.895895000001474,
+        "detailsStatus": 409,
+        "coherent": true
+      },
+      {
+        "displayMs": 695.7831759999972,
+        "detailsMs": 24.007281999998668,
+        "detailsStatus": 409,
+        "coherent": true
+      },
+      {
+        "displayMs": 900.2644910000017,
+        "detailsMs": 27.40773999999874,
+        "detailsStatus": 409,
+        "coherent": true
+      },
+      {
+        "displayMs": 889.5652269999991,
+        "detailsMs": 41.05497699999978,
+        "detailsStatus": 409,
+        "coherent": true
+      },
+      {
+        "displayMs": 915.0897089999999,
+        "detailsMs": 69.52985400000034,
+        "detailsStatus": 409,
+        "coherent": true
+      },
+      {
+        "displayMs": 994.4044140000005,
+        "detailsMs": 9.788055000000895,
+        "detailsStatus": 409,
+        "coherent": true
+      },
+      {
+        "displayMs": 298.78123400000186,
+        "detailsMs": 80.4638440000017,
+        "detailsStatus": 409,
+        "coherent": true
+      },
+      {
+        "displayMs": 941.0564410000006,
+        "detailsMs": 60.67374900000141,
+        "detailsStatus": 409,
+        "coherent": true
+      },
+      {
+        "displayMs": 715.6693180000002,
+        "detailsMs": 6.850486999999703,
+        "detailsStatus": 409,
+        "coherent": true
+      },
+      {
+        "displayMs": 689.6884190000019,
+        "detailsMs": 4.165821999999025,
+        "detailsStatus": 409,
+        "coherent": true
+      },
+      {
+        "displayMs": 553.6153799999993,
+        "detailsMs": 15.872126000002027,
+        "detailsStatus": 200,
+        "coherent": true
+      },
+      {
+        "displayMs": 492.1260629999997,
+        "detailsMs": 7.8511579999976675,
+        "detailsStatus": 200,
+        "coherent": true
+      },
+      {
+        "displayMs": 689.9072830000005,
+        "detailsMs": 10.60722899999746,
+        "detailsStatus": 409,
+        "coherent": true
+      },
+      {
+        "displayMs": 770.6500959999976,
+        "detailsMs": 4.305818000000727,
+        "detailsStatus": 409,
+        "coherent": true
+      },
+      {
+        "displayMs": 911.4664550000016,
+        "detailsMs": 12.815363999998226,
+        "detailsStatus": 409,
+        "coherent": true
+      },
+      {
+        "displayMs": 941.0642240000016,
+        "detailsMs": 4.2838750000009895,
+        "detailsStatus": 409,
+        "coherent": true
+      },
+      {
+        "displayMs": 584.9039029999985,
+        "detailsMs": 10.00242999999682,
+        "detailsStatus": 409,
+        "coherent": true
+      },
+      {
+        "displayMs": 693.0366099999992,
+        "detailsMs": 17.32520199999999,
+        "detailsStatus": 409,
+        "coherent": true
+      },
+      {
+        "displayMs": 844.7221539999991,
+        "detailsMs": 3.9421430000002147,
+        "detailsStatus": 409,
+        "coherent": true
+      },
+      {
+        "displayMs": 859.1204350000007,
+        "detailsMs": 20.837963999998465,
+        "detailsStatus": 409,
+        "coherent": true
+      },
+      {
+        "displayMs": 592.7454370000014,
+        "detailsMs": 10.308460000000196,
+        "detailsStatus": 409,
+        "coherent": true
+      },
+      {
+        "displayMs": 599.3011719999995,
+        "detailsMs": 3.6275109999987762,
+        "detailsStatus": 409,
+        "coherent": true
+      },
+      {
+        "displayMs": 466.82330600000205,
+        "detailsMs": 3.874363999999332,
+        "detailsStatus": 409,
+        "coherent": true
+      }
+    ]
+  }
+}

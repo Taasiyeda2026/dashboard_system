@@ -1,0 +1,20 @@
+[
+  {
+    "rate": 1,
+    "synchronousAckMs": 1,
+    "loading": true,
+    "listPreserved": true,
+    "detailRequests": 1,
+    "artificialRpcDelayMs": 250,
+    "scope": "Synchronous pending indicator, not full hydration/paint INP"
+  },
+  {
+    "rate": 4,
+    "synchronousAckMs": 7.899999998509884,
+    "loading": true,
+    "listPreserved": true,
+    "detailRequests": 1,
+    "artificialRpcDelayMs": 250,
+    "scope": "Synchronous pending indicator, not full hydration/paint INP"
+  }
+]

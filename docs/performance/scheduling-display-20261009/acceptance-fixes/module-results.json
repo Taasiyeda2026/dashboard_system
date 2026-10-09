@@ -1,0 +1,60 @@
+[
+  {
+    "role": "admin",
+    "stage": "migration",
+    "allowed": true,
+    "details": true,
+    "staleRejected": true,
+    "staleCode": "PT409",
+    "staleMs": 20.299999997019768,
+    "totalMs": 608.3000000007451,
+    "requests": 4
+  },
+  {
+    "role": "manager",
+    "stage": "migration",
+    "allowed": true,
+    "details": true,
+    "staleRejected": true,
+    "staleCode": "PT409",
+    "staleMs": 12,
+    "totalMs": 589,
+    "requests": 4
+  },
+  {
+    "role": "unauthorized",
+    "stage": "migration",
+    "allowed": false,
+    "deniedCode": "42501",
+    "requests": 1
+  },
+  {
+    "role": "admin",
+    "stage": "fallback",
+    "allowed": true,
+    "details": true,
+    "staleRejected": true,
+    "staleCode": "client_revision_guard",
+    "staleMs": 24.5,
+    "totalMs": 810.6000000014901,
+    "requests": 9
+  },
+  {
+    "role": "manager",
+    "stage": "fallback",
+    "allowed": true,
+    "details": true,
+    "staleRejected": true,
+    "staleCode": "client_revision_guard",
+    "staleMs": 23.5,
+    "totalMs": 801.5,
+    "requests": 9
+  },
+  {
+    "role": "unauthorized",
+    "stage": "fallback",
+    "allowed": false,
+    "deniedCode": "42501",
+    "requests": 2
+  }
+]

@@ -1,0 +1,6 @@
+{
+  "checks": [
+    "inactive admin denied despite valid JWT",
+    "tampered JWT cannot impersonate admin"
+  ]
+}

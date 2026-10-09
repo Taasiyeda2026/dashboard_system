@@ -1,0 +1,18 @@
+[
+  {
+    "code": "40001",
+    "error": "TimeoutError",
+    "ms": 4005.0017119999998
+  },
+  {
+    "code": "P0001",
+    "status": 400,
+    "body": {
+      "code": "P0001",
+      "details": null,
+      "hint": null,
+      "message": "planning_revision_conflict"
+    },
+    "ms": 12.232453999999962
+  }
+]

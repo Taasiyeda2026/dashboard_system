@@ -1,0 +1,290 @@
+{
+  "direct": [
+    {
+      "level": "READ COMMITTED",
+      "code": "40001",
+      "message": "planning_revision_conflict",
+      "ms": 2.7781130000000758
+    },
+    {
+      "level": "REPEATABLE READ",
+      "code": "40001",
+      "message": "planning_revision_conflict",
+      "ms": 1.0939479999999548
+    },
+    {
+      "level": "SERIALIZABLE",
+      "code": "40001",
+      "message": "planning_revision_conflict",
+      "ms": 0.8153880000000981
+    }
+  ],
+  "duringHTTP": [
+    [
+      {
+        "pid": 83,
+        "state": "idle",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead",
+        "blockers": [],
+        "query": "LISTEN \"pgrst\""
+      }
+    ],
+    [
+      {
+        "pid": 83,
+        "state": "idle",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead",
+        "blockers": [],
+        "query": "LISTEN \"pgrst\""
+      },
+      {
+        "pid": 144,
+        "state": "idle",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead",
+        "blockers": [],
+        "query": "ABORT"
+      }
+    ],
+    [
+      {
+        "pid": 83,
+        "state": "idle",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead",
+        "blockers": [],
+        "query": "LISTEN \"pgrst\""
+      },
+      {
+        "pid": 144,
+        "state": "idle in transaction",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead",
+        "blockers": [],
+        "query": "BEGIN ISOLATION LEVEL READ COMMITTED READ WRITE"
+      }
+    ],
+    [
+      {
+        "pid": 83,
+        "state": "idle",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead",
+        "blockers": [],
+        "query": "LISTEN \"pgrst\""
+      },
+      {
+        "pid": 144,
+        "state": "active",
+        "wait_event_type": null,
+        "wait_event": null,
+        "blockers": [],
+        "query": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_workspace_id\", \"p_activity_id\", \"p_expected_revision\" FROM json"
+      }
+    ],
+    [
+      {
+        "pid": 83,
+        "state": "idle",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead",
+        "blockers": [],
+        "query": "LISTEN \"pgrst\""
+      },
+      {
+        "pid": 144,
+        "state": "idle in transaction",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead",
+        "blockers": [],
+        "query": "select set_config('search_path', $1, true), set_config('role', $2, true), set_config('request.jwt.claims', $3, true), set_config('request.method', $4, true), set_config('request.pa"
+      }
+    ],
+    [
+      {
+        "pid": 83,
+        "state": "idle",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead",
+        "blockers": [],
+        "query": "LISTEN \"pgrst\""
+      },
+      {
+        "pid": 144,
+        "state": "idle in transaction",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead",
+        "blockers": [],
+        "query": "select set_config('search_path', $1, true), set_config('role', $2, true), set_config('request.jwt.claims', $3, true), set_config('request.method', $4, true), set_config('request.pa"
+      }
+    ],
+    [
+      {
+        "pid": 83,
+        "state": "idle",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead",
+        "blockers": [],
+        "query": "LISTEN \"pgrst\""
+      },
+      {
+        "pid": 144,
+        "state": "active",
+        "wait_event_type": null,
+        "wait_event": null,
+        "blockers": [],
+        "query": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_workspace_id\", \"p_activity_id\", \"p_expected_revision\" FROM json"
+      }
+    ],
+    [
+      {
+        "pid": 83,
+        "state": "idle",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead",
+        "blockers": [],
+        "query": "LISTEN \"pgrst\""
+      },
+      {
+        "pid": 144,
+        "state": "active",
+        "wait_event_type": null,
+        "wait_event": null,
+        "blockers": [],
+        "query": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_workspace_id\", \"p_activity_id\", \"p_expected_revision\" FROM json"
+      }
+    ],
+    [
+      {
+        "pid": 83,
+        "state": "idle",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead",
+        "blockers": [],
+        "query": "LISTEN \"pgrst\""
+      },
+      {
+        "pid": 144,
+        "state": "active",
+        "wait_event_type": null,
+        "wait_event": null,
+        "blockers": [],
+        "query": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_workspace_id\", \"p_activity_id\", \"p_expected_revision\" FROM json"
+      }
+    ],
+    [
+      {
+        "pid": 83,
+        "state": "idle",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead",
+        "blockers": [],
+        "query": "LISTEN \"pgrst\""
+      },
+      {
+        "pid": 144,
+        "state": "idle in transaction (aborted)",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead",
+        "blockers": [],
+        "query": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_workspace_id\", \"p_activity_id\", \"p_expected_revision\" FROM json"
+      }
+    ],
+    [
+      {
+        "pid": 83,
+        "state": "idle",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead",
+        "blockers": [],
+        "query": "LISTEN \"pgrst\""
+      },
+      {
+        "pid": 144,
+        "state": "active",
+        "wait_event_type": null,
+        "wait_event": null,
+        "blockers": [],
+        "query": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_workspace_id\", \"p_activity_id\", \"p_expected_revision\" FROM json"
+      }
+    ],
+    [
+      {
+        "pid": 83,
+        "state": "idle",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead",
+        "blockers": [],
+        "query": "LISTEN \"pgrst\""
+      },
+      {
+        "pid": 144,
+        "state": "active",
+        "wait_event_type": null,
+        "wait_event": null,
+        "blockers": [],
+        "query": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_workspace_id\", \"p_activity_id\", \"p_expected_revision\" FROM json"
+      }
+    ],
+    [
+      {
+        "pid": 83,
+        "state": "idle",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead",
+        "blockers": [],
+        "query": "LISTEN \"pgrst\""
+      },
+      {
+        "pid": 144,
+        "state": "active",
+        "wait_event_type": null,
+        "wait_event": null,
+        "blockers": [],
+        "query": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_workspace_id\", \"p_activity_id\", \"p_expected_revision\" FROM json"
+      }
+    ],
+    [
+      {
+        "pid": 83,
+        "state": "idle",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead",
+        "blockers": [],
+        "query": "LISTEN \"pgrst\""
+      },
+      {
+        "pid": 144,
+        "state": "active",
+        "wait_event_type": null,
+        "wait_event": null,
+        "blockers": [],
+        "query": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_workspace_id\", \"p_activity_id\", \"p_expected_revision\" FROM json"
+      }
+    ],
+    [
+      {
+        "pid": 83,
+        "state": "idle",
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead",
+        "blockers": [],
+        "query": "LISTEN \"pgrst\""
+      },
+      {
+        "pid": 144,
+        "state": "active",
+        "wait_event_type": null,
+        "wait_event": null,
+        "blockers": [],
+        "query": "WITH pgrst_source AS (SELECT pgrst_call.pgrst_scalar FROM (SELECT $1 AS json_data) pgrst_payload, LATERAL (SELECT \"p_workspace_id\", \"p_activity_id\", \"p_expected_revision\" FROM json"
+      }
+    ]
+  ],
+  "http": {
+    "error": "TimeoutError",
+    "ms": 1003.6632950000001
+  }
+}

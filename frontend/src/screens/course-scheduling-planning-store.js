@@ -1,3 +1,4 @@
+import { compactPlanningWorkspace } from './course-scheduling-display-data.js';
 import { planningPerfCount, planningPerfTimer } from './course-scheduling-perf.js';
 import { supabase } from '../supabase-client.js';
 import { schedulingCalendarMeetings } from './instructor-scheduling-load.js';
@@ -78,6 +79,7 @@ function instructorIdsFromPlanningEntry(entry = {}) {
   };
   add(entry?.lockedOption?.instructorEmpId);
   add(entry?.row?.instructorEmpId);
+  for (const id of entry?.row?.dependencyInstructorIds || []) add(id);
   for (const meeting of entry?.lockedOption?.meetings || []) add(meeting?.substituteEmpId);
   for (const meeting of entry?.row?.meetings || []) add(meeting?.substituteEmpId);
   for (const option of entry?.row?.options || []) {
@@ -116,6 +118,7 @@ function meetingsFromPlanningEntry(entry = {}, activity = null) {
   };
   push(entry?.lockedOption?.meetings);
   push(entry?.row?.meetings);
+  push(entry?.row?.dependencySlots);
   for (const option of entry?.row?.options || []) push(option?.meetings);
   for (const option of entry?.row?.packingOptions || []) push(option?.meetings);
   if (!meetings.length && activity) {
@@ -241,6 +244,41 @@ export async function loadSharedPlanningWorkspace({ periodKey = 'year', district
         : null
     })).filter((item) => item.activityId)
   };
+}
+
+/** Display reads use a read-only RPC; calculations always retain the full loader above. */
+export async function loadSharedPlanningDisplayWorkspace({ periodKey = 'year', district = '' } = {}) {
+  const { data, error } = await planningRpc('get_scheduling_planning_display_workspace', {
+    p_period_key: text(periodKey) || 'year', p_district: text(district)
+  });
+  if (error) {
+    // Safe compatibility before separately-approved migration deployment.
+    if (!['PGRST202', '42883'].includes(error.code)) throw error;
+    return compactPlanningWorkspace(await loadSharedPlanningWorkspace({ periodKey, district }));
+  }
+  return { ...data, displayOnly: true };
+}
+/** Read the RLS-protected version; use after a multi-request snapshot load. */
+export async function assertSharedPlanningWorkspaceRevision({ workspaceId, expectedRevision } = {}) {
+  const result = await supabase.from('scheduling_planning_workspaces').select('revision').eq('id', workspaceId).single();
+  if (result.error) throw result.error;
+  if (Number(result.data?.revision) !== Number(expectedRevision)) throw new Error('planning_revision_conflict');
+}
+export async function loadSharedPlanningRowDetails({ workspaceId, activityId, expectedRevision } = {}) {
+  const { data, error } = await planningRpc('get_scheduling_planning_row_details', {
+    p_workspace_id: workspaceId, p_activity_id: text(activityId), p_expected_revision: Number(expectedRevision)
+  });
+  if (error) {
+    if (!['PGRST202', '42883'].includes(error.code)) throw error;
+    // RLS-protected fallback; verify the workspace revision before and after.
+    const revision = () => assertSharedPlanningWorkspaceRevision({ workspaceId, expectedRevision });
+    await revision();
+    const result = await supabase.from('scheduling_planning_rows').select('row_data').eq('workspace_id', workspaceId).eq('activity_id', text(activityId)).single();
+    if (result.error) throw result.error;
+    await revision();
+    return result.data.row_data;
+  }
+  return data;
 }
 
 export function sharedPlanningLocks(shared = {}) {

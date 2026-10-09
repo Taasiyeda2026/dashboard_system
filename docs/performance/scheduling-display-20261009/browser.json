@@ -1,0 +1,589 @@
+{
+  "baselineCommit": "35b12ec232023458cb37b581afc861fd19e66801",
+  "fixtureSha256": "72dd384ab269196e1df4d2f195b701939f609f7fb36fca4e820da90c41ca3c8f",
+  "results": [
+    {
+      "device": "desktop",
+      "cpuThrottle": 1,
+      "variant": "before",
+      "coldLoadMs": 233.80000000074506,
+      "warmLoadMs": 18.800000000745058,
+      "apiRequests": 4,
+      "samples": [
+        {
+          "htmlMs": 45.30000000074506,
+          "domBindMs": 71.60000000149012,
+          "cards": 253,
+          "nodes": 6490,
+          "height": 6875
+        },
+        {
+          "htmlMs": 35,
+          "domBindMs": 56.80000000074506,
+          "cards": 253,
+          "nodes": 6490,
+          "height": 6875
+        },
+        {
+          "htmlMs": 30.600000001490116,
+          "domBindMs": 87.59999999776483,
+          "cards": 253,
+          "nodes": 6490,
+          "height": 42956
+        },
+        {
+          "htmlMs": 22.800000000745058,
+          "domBindMs": 68.69999999925494,
+          "cards": 253,
+          "nodes": 6490,
+          "height": 42956
+        },
+        {
+          "htmlMs": 18.599999997764826,
+          "domBindMs": 73,
+          "cards": 253,
+          "nodes": 6490,
+          "height": 42956
+        },
+        {
+          "htmlMs": 17.699999999254942,
+          "domBindMs": 66.20000000298023,
+          "cards": 253,
+          "nodes": 6490,
+          "height": 42956
+        },
+        {
+          "htmlMs": 18.099999997764826,
+          "domBindMs": 67.20000000298023,
+          "cards": 253,
+          "nodes": 6490,
+          "height": 42956
+        }
+      ],
+      "cacheConcurrency": [
+        {
+          "queuedCallbackDelayMs": 31.699999999254942,
+          "totalWriteMs": 31.800000000745058
+        },
+        {
+          "queuedCallbackDelayMs": 27.899999998509884,
+          "totalWriteMs": 27.899999998509884
+        },
+        {
+          "queuedCallbackDelayMs": 28.800000000745058,
+          "totalWriteMs": 28.800000000745058
+        },
+        {
+          "queuedCallbackDelayMs": 27,
+          "totalWriteMs": 27
+        },
+        {
+          "queuedCallbackDelayMs": 25,
+          "totalWriteMs": 25
+        },
+        {
+          "queuedCallbackDelayMs": 26.100000001490116,
+          "totalWriteMs": 26.100000001490116
+        },
+        {
+          "queuedCallbackDelayMs": 24.5,
+          "totalWriteMs": 24.5
+        }
+      ],
+      "cache": {
+        "writeMs": 27.5,
+        "readMs": 0.19999999925494194,
+        "restored": false,
+        "hasPlanning": false,
+        "bytes": 0
+      },
+      "interactions": [
+        {
+          "name": "search-last",
+          "ms": 7.5,
+          "matched": 1
+        },
+        {
+          "name": "open-course-and-hydrate",
+          "ms": 132.69999999925494,
+          "loaded": true
+        },
+        {
+          "name": "open-loaded-alternatives",
+          "ms": 117.39999999850988,
+          "loaded": true
+        },
+        {
+          "name": "search-with-running-flag",
+          "ms": 17,
+          "selected": "synthetic-0",
+          "filter": "open"
+        }
+      ],
+      "longtasks": [
+        1274,
+        117,
+        106,
+        129,
+        103,
+        103,
+        96,
+        97,
+        171,
+        106
+      ],
+      "heap": {
+        "used": 68607179,
+        "total": 105639855
+      },
+      "networkRequests": 18,
+      "blocked": 0,
+      "mutations": [],
+      "errors": []
+    },
+    {
+      "device": "mobile-throttled",
+      "cpuThrottle": 4,
+      "variant": "before",
+      "coldLoadMs": 1190.699999999255,
+      "warmLoadMs": 46.399999998509884,
+      "apiRequests": 4,
+      "samples": [
+        {
+          "htmlMs": 213.69999999925494,
+          "domBindMs": 378.1000000014901,
+          "cards": 253,
+          "nodes": 6490,
+          "height": 6875
+        },
+        {
+          "htmlMs": 131.20000000298023,
+          "domBindMs": 344.5,
+          "cards": 253,
+          "nodes": 6490,
+          "height": 6875
+        },
+        {
+          "htmlMs": 83.10000000149012,
+          "domBindMs": 433,
+          "cards": 253,
+          "nodes": 6490,
+          "height": 42983
+        },
+        {
+          "htmlMs": 77.19999999925494,
+          "domBindMs": 420.1000000014901,
+          "cards": 253,
+          "nodes": 6490,
+          "height": 42983
+        },
+        {
+          "htmlMs": 69.19999999925494,
+          "domBindMs": 321,
+          "cards": 253,
+          "nodes": 6490,
+          "height": 42983
+        },
+        {
+          "htmlMs": 96.09999999776483,
+          "domBindMs": 382.70000000298023,
+          "cards": 253,
+          "nodes": 6490,
+          "height": 42983
+        },
+        {
+          "htmlMs": 105.90000000223517,
+          "domBindMs": 356.29999999701977,
+          "cards": 253,
+          "nodes": 6490,
+          "height": 42983
+        }
+      ],
+      "cacheConcurrency": [
+        {
+          "queuedCallbackDelayMs": 165.69999999925494,
+          "totalWriteMs": 165.69999999925494
+        },
+        {
+          "queuedCallbackDelayMs": 147.20000000298023,
+          "totalWriteMs": 147.20000000298023
+        },
+        {
+          "queuedCallbackDelayMs": 139.5,
+          "totalWriteMs": 139.5
+        },
+        {
+          "queuedCallbackDelayMs": 122.09999999776483,
+          "totalWriteMs": 122.09999999776483
+        },
+        {
+          "queuedCallbackDelayMs": 142,
+          "totalWriteMs": 142
+        },
+        {
+          "queuedCallbackDelayMs": 134.19999999925494,
+          "totalWriteMs": 134.19999999925494
+        },
+        {
+          "queuedCallbackDelayMs": 141.70000000298023,
+          "totalWriteMs": 141.70000000298023
+        }
+      ],
+      "cache": {
+        "writeMs": 139,
+        "readMs": 0.5,
+        "restored": false,
+        "hasPlanning": false,
+        "bytes": 0
+      },
+      "interactions": [
+        {
+          "name": "search-last",
+          "ms": 63.80000000074506,
+          "matched": 1
+        },
+        {
+          "name": "open-course-and-hydrate",
+          "ms": 600.5,
+          "loaded": true
+        },
+        {
+          "name": "open-loaded-alternatives",
+          "ms": 621.1000000014901,
+          "loaded": true
+        },
+        {
+          "name": "search-with-running-flag",
+          "ms": 39.5,
+          "selected": "synthetic-0",
+          "filter": "open"
+        }
+      ],
+      "longtasks": [
+        63,
+        6201,
+        596,
+        97,
+        563,
+        573,
+        566,
+        444,
+        550,
+        522,
+        159,
+        53,
+        250,
+        830,
+        614,
+        204,
+        165,
+        142,
+        138,
+        121,
+        141,
+        133,
+        141
+      ],
+      "heap": {
+        "used": 71289472,
+        "total": 109213860
+      },
+      "networkRequests": 18,
+      "blocked": 0,
+      "mutations": [],
+      "errors": []
+    },
+    {
+      "device": "desktop",
+      "cpuThrottle": 1,
+      "variant": "after",
+      "coldLoadMs": 248.10000000149012,
+      "warmLoadMs": 2.399999998509884,
+      "apiRequests": 2,
+      "samples": [
+        {
+          "htmlMs": 40.5,
+          "domBindMs": 44.30000000074506,
+          "cards": 25,
+          "nodes": 1311,
+          "height": 2108
+        },
+        {
+          "htmlMs": 11.700000002980232,
+          "domBindMs": 20.099999997764826,
+          "cards": 25,
+          "nodes": 1311,
+          "height": 2108
+        },
+        {
+          "htmlMs": 7.899999998509884,
+          "domBindMs": 39.19999999925494,
+          "cards": 25,
+          "nodes": 1311,
+          "height": 5133
+        },
+        {
+          "htmlMs": 8.400000002235174,
+          "domBindMs": 24.399999998509884,
+          "cards": 25,
+          "nodes": 1311,
+          "height": 5133
+        },
+        {
+          "htmlMs": 9.199999999254942,
+          "domBindMs": 26.699999999254942,
+          "cards": 25,
+          "nodes": 1311,
+          "height": 5133
+        },
+        {
+          "htmlMs": 7.299999997019768,
+          "domBindMs": 23.100000001490116,
+          "cards": 25,
+          "nodes": 1311,
+          "height": 5133
+        },
+        {
+          "htmlMs": 7,
+          "domBindMs": 32.900000002235174,
+          "cards": 25,
+          "nodes": 1311,
+          "height": 5133
+        }
+      ],
+      "cacheConcurrency": [
+        {
+          "queuedCallbackDelayMs": 4.700000002980232,
+          "totalWriteMs": 43.5
+        },
+        {
+          "queuedCallbackDelayMs": 5.5,
+          "totalWriteMs": 45.900000002235174
+        },
+        {
+          "queuedCallbackDelayMs": 5,
+          "totalWriteMs": 45.599999997764826
+        },
+        {
+          "queuedCallbackDelayMs": 7.400000002235174,
+          "totalWriteMs": 45.100000001490116
+        },
+        {
+          "queuedCallbackDelayMs": 9.300000000745058,
+          "totalWriteMs": 45.899999998509884
+        },
+        {
+          "queuedCallbackDelayMs": 6.200000002980232,
+          "totalWriteMs": 44.80000000074506
+        },
+        {
+          "queuedCallbackDelayMs": 6.5,
+          "totalWriteMs": 55.30000000074506
+        }
+      ],
+      "cache": {
+        "writeMs": 43,
+        "readMs": 3,
+        "restored": true,
+        "hasPlanning": true,
+        "bytes": 999984
+      },
+      "interactions": [
+        {
+          "name": "search-last",
+          "ms": 20.599999997764826,
+          "matched": 1
+        },
+        {
+          "name": "all-pages",
+          "unique": 253
+        },
+        {
+          "name": "open-course-and-hydrate",
+          "ms": 91.80000000074506,
+          "loaded": true
+        },
+        {
+          "name": "open-loaded-alternatives",
+          "ms": 52.5,
+          "loaded": true
+        },
+        {
+          "name": "search-with-running-flag",
+          "ms": 14.5,
+          "selected": "synthetic-0",
+          "filter": "open"
+        }
+      ],
+      "longtasks": [
+        1296,
+        85,
+        53,
+        63,
+        51
+      ],
+      "heap": {
+        "used": 90485515,
+        "total": 123652111
+      },
+      "networkRequests": 10,
+      "blocked": 0,
+      "mutations": [],
+      "errors": []
+    },
+    {
+      "device": "mobile-throttled",
+      "cpuThrottle": 4,
+      "variant": "after",
+      "coldLoadMs": 1173.300000000745,
+      "warmLoadMs": 15.699999999254942,
+      "apiRequests": 2,
+      "samples": [
+        {
+          "htmlMs": 195.60000000149012,
+          "domBindMs": 202.09999999776483,
+          "cards": 25,
+          "nodes": 1311,
+          "height": 2108
+        },
+        {
+          "htmlMs": 46.30000000074506,
+          "domBindMs": 115.30000000074506,
+          "cards": 25,
+          "nodes": 1311,
+          "height": 2108
+        },
+        {
+          "htmlMs": 43.5,
+          "domBindMs": 170.10000000149012,
+          "cards": 25,
+          "nodes": 1311,
+          "height": 5160
+        },
+        {
+          "htmlMs": 40.69999999925494,
+          "domBindMs": 130.10000000149012,
+          "cards": 25,
+          "nodes": 1311,
+          "height": 5160
+        },
+        {
+          "htmlMs": 39.5,
+          "domBindMs": 112.80000000074506,
+          "cards": 25,
+          "nodes": 1311,
+          "height": 5160
+        },
+        {
+          "htmlMs": 40.19999999925494,
+          "domBindMs": 110.5,
+          "cards": 25,
+          "nodes": 1311,
+          "height": 5160
+        },
+        {
+          "htmlMs": 44.69999999925494,
+          "domBindMs": 142.30000000074506,
+          "cards": 25,
+          "nodes": 1311,
+          "height": 5160
+        }
+      ],
+      "cacheConcurrency": [
+        {
+          "queuedCallbackDelayMs": 38,
+          "totalWriteMs": 157.69999999925494
+        },
+        {
+          "queuedCallbackDelayMs": 28.200000002980232,
+          "totalWriteMs": 129.30000000074506
+        },
+        {
+          "queuedCallbackDelayMs": 39.100000001490116,
+          "totalWriteMs": 147.69999999925494
+        },
+        {
+          "queuedCallbackDelayMs": 24.600000001490116,
+          "totalWriteMs": 97.80000000074506
+        },
+        {
+          "queuedCallbackDelayMs": 22.300000000745058,
+          "totalWriteMs": 95.30000000074506
+        },
+        {
+          "queuedCallbackDelayMs": 19.600000001490116,
+          "totalWriteMs": 93.39999999850988
+        },
+        {
+          "queuedCallbackDelayMs": 29.5,
+          "totalWriteMs": 105.30000000074506
+        }
+      ],
+      "cache": {
+        "writeMs": 133.80000000074506,
+        "readMs": 14.600000001490116,
+        "restored": true,
+        "hasPlanning": true,
+        "bytes": 999984
+      },
+      "interactions": [
+        {
+          "name": "search-last",
+          "ms": 42.80000000074506,
+          "matched": 1
+        },
+        {
+          "name": "all-pages",
+          "unique": 253
+        },
+        {
+          "name": "open-course-and-hydrate",
+          "ms": 511.69999999925494,
+          "loaded": true
+        },
+        {
+          "name": "open-loaded-alternatives",
+          "ms": 217.30000000074506,
+          "loaded": true
+        },
+        {
+          "name": "search-with-running-flag",
+          "ms": 59.899999998509884,
+          "selected": "synthetic-0",
+          "filter": "open"
+        }
+      ],
+      "longtasks": [
+        6386,
+        401,
+        192,
+        250,
+        205,
+        181,
+        182,
+        243,
+        83,
+        70,
+        446,
+        260,
+        202,
+        191,
+        85,
+        91,
+        79,
+        60,
+        53,
+        63
+      ],
+      "heap": {
+        "used": 80030366,
+        "total": 111026002
+      },
+      "networkRequests": 10,
+      "blocked": 0,
+      "mutations": [],
+      "errors": []
+    }
+  ],
+  "scope": "Actual courseSchedulingScreen render/bind; cold source load with synthetic API/Supabase replies, planning snapshot injected for paired render tests. Separate restore-entry-results tests the real read RPC restoration path. Physical devices and complete dashboard startup not measured."
+}
