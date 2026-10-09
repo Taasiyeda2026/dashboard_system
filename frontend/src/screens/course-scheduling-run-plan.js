@@ -448,6 +448,36 @@ export function resolvePlanningRunPlan({
 /** Bound checkpoint requests by both activity count and encoded request bytes.
  * A single large activity may use up to 1 MiB; larger payloads fail explicitly.
  * Only the last chunk can expose the requested final phase. */
+/**
+ * Stage snapshots are unvalidated, best-effort crash recovery. The same
+ * 253-row national snapshot used to be re-uploaded once per optimization
+ * phase (26+ RPC calls each), even when only one row changed. Persist the
+ * first eligible stage and, subsequently, only changed rows at a bounded
+ * interval; the mandatory PLANNED/VALIDATED final flush is not throttled.
+ *
+ * Returns rows, not a boolean, so callers cannot accidentally upload the
+ * full snapshot after a successful throttle decision.
+ */
+export function planningStageCheckpointDelta({
+  rows = [],
+  persistedRows = new Map(),
+  lastSavedAt = 0,
+  now = Date.now(),
+  minIntervalMs = 120_000,
+  serialize = JSON.stringify
+} = {}) {
+  const alreadySaved = persistedRows instanceof Map && persistedRows.size > 0;
+  if (alreadySaved && now - lastSavedAt < minIntervalMs) return [];
+  const changed = [];
+  for (const row of rows || []) {
+    const id = text(row?.courseId);
+    if (!id) continue;
+    const previous = persistedRows?.get?.(id);
+    if (!previous || serialize(previous) !== serialize(row)) changed.push(row);
+  }
+  return changed;
+}
+
 export function* planningCheckpointChunks({rows = [], meta = null, rpcArgs = {}, maxRows = 10, maxBytes = 256 * 1024} = {}) {
   const list = Array.isArray(rows) ? rows : [];
   const encoder = new TextEncoder();

@@ -10,7 +10,8 @@ import {
   canValidateCompletedRunningCheckpoint,
   planningResumeReopenIds,
   planSafeRestartFromCommittedWorkspace,
-  planningCheckpointChunks
+  planningCheckpointChunks,
+  planningStageCheckpointDelta
 } from '../frontend/src/screens/course-scheduling-run-plan.js';
 import { buildDynamicCoursePlan, createPlanningLocalRepairDeadlineCheckpoint, filterPlanningOptionsAgainstChosenRows, reconcileSelectedPlanningOverlaps, recoverPlanningOverlapFromCommittedProposals, validateResumedPlanningRows } from '../frontend/src/screens/course-scheduling-planning.js';
 import { createPlanningRunDeadlineCheckpoint } from '../frontend/src/screens/course-scheduling-preflight.js';
@@ -833,4 +834,53 @@ test('253-row production-shape acceptance: recover corrupted checkpoint, preserv
   assert.deepEqual([...aggregated.keys()].sort(),currentCourseIds.slice().sort());
   assert.equal(overlappingPairs([...aggregated.values()]).pairs,0);
   assert.equal(JSON.stringify(committedRows),initialSerialized);
+});
+
+
+test('stage progress checkpoints upload changed rows only with a 120s cooldown, never repeat whole 253-row snapshot', () => {
+  const rows=Array.from({length:253},(_,i)=>({courseId:'course-'+i,kind:'proposal',instructorEmpId:'emp-'+i,meetings:[{date:'2026-11-02',start_time:'10:00',end_time:'11:30'}]}));
+  const persisted=new Map();
+  const select=(snapshot,now,lastSavedAt)=>planningStageCheckpointDelta({
+    rows:snapshot,persistedRows:persisted,lastSavedAt,now,minIntervalMs:120_000,
+    serialize:JSON.stringify
+  });
+  const first=select(rows,1_000,0);
+  assert.equal(first.length,253,'first national stage is durable after an in-memory checkpoint reset');
+  for(const row of first)persisted.set(row.courseId,row);
+  assert.equal(select(rows,12_000,1_000).length,0,'same-phase duplicate is not uploaded');
+  assert.equal(select(rows,119_000,1_000).length,0,'subsequent optimization phase is throttled');
+  const slightlyChanged=rows.map((row,i)=>i<3?{...row,instructorEmpId:'replacement-'+i}:row);
+  assert.equal(select(slightlyChanged,121_000,1_000).length,3,'expired stage sends only changed courses, not 253');
+  const changes=select(slightlyChanged,121_000,1_000);
+  for(const row of changes)persisted.set(row.courseId,row);
+  assert.equal(select(slightlyChanged,241_500,121_000).length,0,'no changed rows means no requests even after cooldown');
+  const final=[...slightlyChanged];
+  final[252]={...final[252],instructorEmpId:'last-change'};
+  const finalDelta=final.filter(row=>JSON.stringify(persisted.get(row.courseId))!==JSON.stringify(row));
+  assert.equal(finalDelta.length,1,'final PLANNED stage can flush all outstanding changes independent of throttle');
+  assert.match(screenSource, /planningStageCheckpointDelta\(\{/);
+  assert.match(screenSource, /rows: stageDeltaRows,/);
+  assert.match(screenSource, /minIntervalMs: 120_000/);
+  assert.match(screenSource, /const rememberPersistedCheckpointRow = \(row\) => \{/);
+  assert.match(screenSource, /persistedCheckpointRows\.set\(courseId, JSON\.parse\(JSON\.stringify\(row\)\)\)/);
+  const stagePos=screenSource.indexOf('const stageDeltaRows = planningStageCheckpointDelta(');
+  const finalPos=screenSource.indexOf('const finalCheckpointDeltaRows = finalRows.filter(');
+  assert.ok(stagePos>=0 && finalPos>stagePos);
+  const finalSection=screenSource.slice(finalPos,finalPos+1500);
+  assert.doesNotMatch(finalSection,/planningStageCheckpointDelta/,'final validation cannot be throttled');
+});
+
+test('stage snapshots persist fresh rows if previous checkpoint cache was discarded for unsafe overlap', () => {
+  const rows=Array.from({length:253},(_,i)=>({courseId:'activity-'+i,kind:'proposal',instructorEmpId:'1549'}));
+  const stale=new Map(rows.map(row=>[row.courseId,row]));
+  const changed=[...rows];
+  changed[0]={...changed[0],instructorEmpId:'1509'};
+  const throttled=planningStageCheckpointDelta({
+    rows:changed,persistedRows:stale,now:30_000,lastSavedAt:20_000,minIntervalMs:120_000
+  });
+  assert.deepEqual(throttled,[],'active progress within cooldown is not spammed');
+  stale.clear();
+  assert.equal(planningStageCheckpointDelta({
+    rows:changed,persistedRows:stale,now:30_000,lastSavedAt:20_000,minIntervalMs:120_000
+  }).length,253,'after poison reset, all rows are durable once');
 });

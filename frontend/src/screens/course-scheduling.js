@@ -132,7 +132,8 @@ import {
   PLANNING_RUN_STAGES,
   planningResumeReopenIds,
   resolvePlanningRunPlan,
-  planSafeRestartFromCommittedWorkspace
+  planSafeRestartFromCommittedWorkspace,
+  planningStageCheckpointDelta
 } from './course-scheduling-run-plan.js';
 
 export { formatWorkloadHours, MAX_HOME_DISTANCE_KM, formatAffectedMeetingsPhrase };
@@ -3042,9 +3043,16 @@ export const courseSchedulingScreen = {
           .filter((row) => currentCourseIds.includes(text(row?.courseId)));
         const persistedCheckpointRows = new Map(
           resumableRows
-            .map((row) => [text(row?.courseId), row])
+            .map((row) => [text(row?.courseId), JSON.parse(JSON.stringify(row))])
             .filter(([courseId]) => !!courseId)
         );
+        // Checkpoint cache is a record of what the SERVER saw, not a reference
+        // to mutable optimizer rows. Otherwise in-place candidate edits can
+        // make a changed proposal falsely compare equal at the final flush.
+        const rememberPersistedCheckpointRow = (row) => {
+          const courseId = text(row?.courseId);
+          if (courseId) persistedCheckpointRows.set(courseId, JSON.parse(JSON.stringify(row)));
+        };
         const resumeValidatedCommit = canCommitValidatedCheckpoint({
           sourceRevision: run.sourceRevision,
           checkpoint: silentCheckpoint,
@@ -3201,6 +3209,20 @@ export const courseSchedulingScreen = {
             state.courseSchedulingPlanningRows = snapshotRows;
             if (runUiVisible()) run.ui?.update?.();
             if (!persistServerCheckpoints || checkpointSourceStale) return;
+            // A national optimization phase can report the same full 253-row
+            // draft repeatedly. Persist stage changes at most once per 120s.
+            // The final PLANNED/VALIDATED checkpoint is ALWAYS flushed below.
+            const stageDeltaRows = planningStageCheckpointDelta({
+              rows: snapshotRows,
+              persistedRows: persistedCheckpointRows,
+              lastSavedAt: lastSilentCheckpointAt,
+              minIntervalMs: 120_000,
+              serialize: canonicalPlanningJson
+            });
+            if (!stageDeltaRows.length) {
+              planningPerfCount('stageCheckpointSkipped');
+              return;
+            }
             try {
               const stopCheckpointSave = planningPerfTimer('checkpointSave');
               await saveSharedPlanningCheckpoint({
@@ -3214,7 +3236,7 @@ export const courseSchedulingScreen = {
                 completedCount: checkpointCompletedIds.size,
                 totalCount: currentCourseIds.length,
                 completedActivityIds: [...checkpointCompletedIds],
-                rows: snapshotRows,
+                rows: stageDeltaRows,
                 meta: {
                   ...checkpointMetaBase,
                   phase: PLANNING_RUN_PHASES.RUNNING
@@ -3222,8 +3244,9 @@ export const courseSchedulingScreen = {
               });
               stopCheckpointSave();
               planningPerfCount('checkpointSaves');
-              planningPerfCount('checkpointPayloadBytes', new TextEncoder().encode(JSON.stringify(snapshotRows)).length);
-              for (const row of snapshotRows) persistedCheckpointRows.set(text(row?.courseId), row);
+              planningPerfCount('stageCheckpointRowsSaved', stageDeltaRows.length);
+              planningPerfCount('checkpointPayloadBytes', new TextEncoder().encode(JSON.stringify(stageDeltaRows)).length);
+              for (const row of stageDeltaRows) rememberPersistedCheckpointRow(row);
               pendingCheckpointRows.clear();
               lastSilentCheckpointCount = checkpointCompletedIds.size;
               lastSilentCheckpointAt = Date.now();
@@ -3284,7 +3307,7 @@ export const courseSchedulingScreen = {
             stopCheckpointSave();
             planningPerfCount('checkpointSaves');
             planningPerfCount('checkpointPayloadBytes', new TextEncoder().encode(JSON.stringify(checkpointRows)).length);
-            for (const row of checkpointRows) persistedCheckpointRows.set(text(row?.courseId), row);
+            for (const row of checkpointRows) rememberPersistedCheckpointRow(row);
             pendingCheckpointRows.clear();
             lastSilentCheckpointCount = checkpointCompletedIds.size;
             lastSilentCheckpointAt = Date.now();
@@ -3550,7 +3573,7 @@ export const courseSchedulingScreen = {
                 rows: plannedDeltaRows,
                 meta: { ...checkpointMetaBase, phase: PLANNING_RUN_PHASES.RUNNING }
               });
-              for (const row of plannedDeltaRows) persistedCheckpointRows.set(text(row.courseId), row);
+              for (const row of plannedDeltaRows) rememberPersistedCheckpointRow(row);
             } catch (error) {
               if (isSourceRevisionConflict(error)) checkpointSourceStale = true;
               else throwIfPlanningRunInvalidated(error);
@@ -3706,7 +3729,7 @@ export const courseSchedulingScreen = {
               }
             });
             for (const row of finalCheckpointDeltaRows) {
-              persistedCheckpointRows.set(text(row?.courseId), row);
+              rememberPersistedCheckpointRow(row);
             }
           }
 
