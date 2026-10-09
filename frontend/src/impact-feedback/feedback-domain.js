@@ -184,6 +184,14 @@ export function filterFeedbackFactsForHalf(facts = [], groups = [], instructorAs
   });
 }
 
+/** Staff groups are ordered by their actual course end: nearest first, regardless of survey status. */
+export function sortEducationalStaffFeedbackGroups(groups = []) {
+  return [...groups].sort((a, b) =>
+    String(a.end_date || '9999-12-31').slice(0, 10).localeCompare(String(b.end_date || '9999-12-31').slice(0, 10)) ||
+    String(a.school || '').localeCompare(String(b.school || ''), 'he') ||
+    String(a.row_id || '').localeCompare(String(b.row_id || '')));
+}
+
 /** Submitted student answers are evidence that feedback has already been performed. */
 export function studentFeedbackHasResponses(group) {
   return (group?.campaigns || []).some((campaign) =>
