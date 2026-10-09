@@ -371,7 +371,7 @@ function shellHtml(inner) {
     <nav class="ifb-tabs" role="tablist" aria-label="לשוניות מודול המשובים">
       ${TABS.map((t) => `<button type="button" role="tab" id="ifb-tab-${t.key}" class="ifb-tab${ui.tab === t.key ? ' is-active' : ''}" aria-selected="${ui.tab === t.key}" aria-controls="ifb-panel" tabindex="${ui.tab === t.key ? '0' : '-1'}" data-ifb-tab="${t.key}">${esc(t.label)}</button>`).join('')}
     </nav>
-    ${ui.groupRowId || ui.tab === 'templates' ? '' : feedbackSemesterTabsHtml()}
+    ${ui.groupRowId || ui.tab === 'templates' || ui.tab === 'instructors' ? '' : feedbackSemesterTabsHtml()}
     <div class="ifb-view" role="tabpanel" id="ifb-panel" aria-labelledby="ifb-tab-${activeTab.key}" tabindex="-1">${inner}</div>`;
 }
 
@@ -839,7 +839,7 @@ function studentsHtml() {
 // ---------------------------------------------------------------------------
 
 function instructorCampaignFor(row, stage) {
-  return stage === 'pre' ? row.pre_campaign : row.final_campaign;
+  return stage === 'pre' ? row.pre_campaign : stage === 'final_b' ? row.final_b_campaign : row.final_campaign;
 }
 
 function instructorAssignmentKey(row, stage = '') {
@@ -849,7 +849,9 @@ function instructorAssignmentKey(row, stage = '') {
 function instructorCampaignActionsHtml(row, stage) {
   const campaign = instructorCampaignFor(row, stage);
   const key = instructorAssignmentKey(row, stage);
-  const stageName = stage === 'pre' ? 'פתיחה' : 'סיום';
+  const stageName = stage === 'pre' ? 'פתיחה' : stage === 'final_b' ? 'סיום מחצית ב׳' : 'סיום מחצית א׳';
+  if (stage === 'final' && !row.last_end_a) return '';
+  if (stage === 'final_b' && !row.last_end_b) return '';
   if (!campaign) {
     if (!ui.instructorOpenForms.has(key)) {
       return `<div class="ifb-instructor-stage ifb-instructor-stage--compact">
@@ -892,6 +894,8 @@ function instructorCampaignActionsHtml(row, stage) {
 function instructorFilterMatches(row, statusFilter) {
   if (!statusFilter) return true;
   const [stage, wanted] = statusFilter.split(':');
+  if (stage === 'final' && !row.last_end_a) return false;
+  if (stage === 'final_b' && !row.last_end_b) return false;
   const campaign = instructorCampaignFor(row, stage);
   const status = campaignUiStatus(campaign).key;
   if (wanted === 'not_opened') return !campaign;
@@ -908,8 +912,7 @@ function instructorStageStatusHtml(row, stage) {
 
 function instructorAssignmentsHtml() {
   const all = (ui.instructorAssignments || []).filter((row) =>
-    studentFeedbackPeriodForGroup({ start_date: row.first_start_date }) === ui.feedbackHalf &&
-    (!ui.course || row.program_key === ui.course));
+    row.first_start_date && (!ui.course || row.program_key === ui.course));
   const filters = ui.instructorFilters;
   const instructors = [...new Map(
     all.filter((row) => row.instructor_emp_id).map((row) => [String(row.instructor_emp_id), row.instructor_name || row.instructor_emp_id])
@@ -924,12 +927,14 @@ function instructorAssignmentsHtml() {
     || String(a.program_key || '').localeCompare(String(b.program_key || '')));
   const preCompleted = all.filter((row) => row.pre_campaign?.recipient?.status === 'completed').length;
   const finalCompleted = all.filter((row) => row.final_campaign?.recipient?.status === 'completed').length;
+  const finalBCompleted = all.filter((row) => row.final_b_campaign?.recipient?.status === 'completed').length;
   const activeFilters = Object.values(filters).filter(Boolean).length + Number(Boolean(ui.course));
   return `
     <p class="ifb-inline-stats" aria-label="סיכום משובי מדריכים">
       <span><strong>${all.length}</strong> שיבוצי מדריך–קורס</span><span aria-hidden="true">·</span>
       <span><strong>${preCompleted}</strong> פתיחה הושלמו</span><span aria-hidden="true">·</span>
-      <span><strong>${finalCompleted}</strong> סיום הושלמו</span>
+      <span><strong>${finalCompleted}</strong> סיום א׳ הושלמו</span><span aria-hidden="true">·</span>
+      <span><strong>${finalBCompleted}</strong> סיום ב׳ הושלמו</span>
     </p>
     <details class="ifb-filter-disclosure"${ui.filterExpanded.instructors ? ' open' : ''} data-ifb-filter-disclosure="instructors">
       <summary class="ifb-filter-toggle">
@@ -946,18 +951,20 @@ function instructorAssignmentsHtml() {
           <label class="ifb-field"><span>מנהל פעילות</span><select data-i="manager">${optionList(managers, filters.manager, 'כל מנהלי הפעילות')}</select></label>
           <label class="ifb-field"><span>סטטוס</span><select data-i="status">
             ${[['', 'הכל'], ['pre:not_opened', 'פתיחה – טרם נפתח'], ['pre:pending', 'פתיחה – ממתין למילוי'], ['pre:completed', 'פתיחה – הושלם'],
-              ['final:not_opened', 'סיום – טרם נפתח'], ['final:pending', 'סיום – ממתין למילוי'], ['final:completed', 'סיום – הושלם']]
+              ['final:not_opened', 'סיום א׳ – טרם נפתח'], ['final:pending', 'סיום א׳ – ממתין למילוי'], ['final:completed', 'סיום א׳ – הושלם'],
+              ['final_b:not_opened', 'סיום ב׳ – טרם נפתח'], ['final_b:pending', 'סיום ב׳ – ממתין למילוי'], ['final_b:completed', 'סיום ב׳ – הושלם']]
               .map(([v, l]) => `<option value="${v}"${v === filters.status ? ' selected' : ''}>${l}</option>`).join('')}
           </select></label>
           <button type="button" class="ifb-btn ifb-btn--ghost" data-ifb-clear="instructors">ניקוי</button>
         </div>
       </section>
     </details>
-    ${rows.length ? `<div class="ifb-table-wrap">
+    ${rows.length ? `<div class="ifb-table-wrap ifb-instructor-table-wrap">
       <table class="ifb-table ifb-instructor-table">
         <caption class="ifb-sr">משובי מדריכים לפי מדריך וקורס</caption>
         <colgroup>
           <col class="ifb-iw-instructor"><col class="ifb-iw-program"><col class="ifb-iw-groups">
+          <col class="ifb-iw-date"><col class="ifb-iw-action"><col class="ifb-iw-status">
           <col class="ifb-iw-date"><col class="ifb-iw-action"><col class="ifb-iw-status">
           <col class="ifb-iw-date"><col class="ifb-iw-action"><col class="ifb-iw-status">
         </colgroup>
@@ -968,8 +975,11 @@ function instructorAssignmentsHtml() {
           <th scope="col" class="ifb-center ifb-col-date" title="תאריך ההתחלה המוקדם ביותר מכל קבוצות המדריך בקורס">תחילת קורס ראשון</th>
           <th scope="col" class="ifb-center" title="משוב פתיחה – אחרי הכשרה">פתיחה</th>
           <th scope="col" class="ifb-col-status">סטטוס</th>
-          <th scope="col" class="ifb-center ifb-col-date" title="תאריך הסיום המאוחר ביותר של קבוצות המדריך בקורס שהתחילו במחצית הרלוונטית">סיום קורס אחרון</th>
-          <th scope="col" class="ifb-center" title="משוב סיום הקורס">סיום</th>
+          <th scope="col" class="ifb-center ifb-col-date" title="תאריך הסיום המאוחר ביותר של קבוצות הקורס שהתחילו במחצית א׳">סיום אחרון א׳</th>
+          <th scope="col" class="ifb-center" title="משוב סיום מחצית א׳">סיום</th>
+          <th scope="col" class="ifb-col-status">סטטוס</th>
+          <th scope="col" class="ifb-center ifb-col-date" title="תאריך הסיום המאוחר ביותר של קבוצות הקורס שהתחילו במחצית ב׳">סיום אחרון ב׳</th>
+          <th scope="col" class="ifb-center" title="משוב סיום מחצית ב׳">סיום</th>
           <th scope="col" class="ifb-col-status">סטטוס</th>
         </tr></thead>
         <tbody>${rows.map((row) => `
@@ -980,29 +990,34 @@ function instructorAssignmentsHtml() {
             <td data-label="תחילת קורס ראשון" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(row.first_start_date)}</td>
             <td data-label="פתיחה" class="ifb-instructor-stage-cell">${instructorCampaignActionsHtml(row, 'pre')}</td>
             <td data-label="סטטוס פתיחה" class="ifb-col-status">${instructorStageStatusHtml(row, 'pre')}</td>
-            <td data-label="סיום קורס אחרון" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(row.last_end_date)}</td>
+            <td data-label="סיום אחרון א׳" class="ifb-center ifb-nowrap ifb-col-date">${row.last_end_a ? fmtDate(row.last_end_a) : ''}</td>
             <td data-label="סיום" class="ifb-instructor-stage-cell">${instructorCampaignActionsHtml(row, 'final')}</td>
-            <td data-label="סטטוס סיום" class="ifb-col-status">${instructorStageStatusHtml(row, 'final')}</td>
+            <td data-label="סטטוס סיום א׳" class="ifb-col-status">${row.last_end_a ? instructorStageStatusHtml(row, 'final') : ''}</td>
+            <td data-label="סיום אחרון ב׳" class="ifb-center ifb-nowrap ifb-col-date">${row.last_end_b ? fmtDate(row.last_end_b) : ''}</td>
+            <td data-label="סיום ב׳" class="ifb-instructor-stage-cell">${instructorCampaignActionsHtml(row, 'final_b')}</td>
+            <td data-label="סטטוס סיום ב׳" class="ifb-col-status">${row.last_end_b ? instructorStageStatusHtml(row, 'final_b') : ''}</td>
           </tr>`).join('')}</tbody>
       </table>
-    </div>` : emptyHtml('לא נמצאו שיבוצי מדריכים התואמים לסינון.', 'מוצגים רק שיבוצי מדריך–קורס עם תאריך התחלה. המשוב נפתח פעם אחת לכל מדריך וקורס בשנת הלימודים.')}`;
+    </div>` : emptyHtml('לא נמצאו שיבוצי מדריכים התואמים לסינון.', 'מוצגים רק מדריכים המשויכים לקורס עם תאריך התחלה. סיום א׳ וסיום ב׳ מנוהלים בנפרד.')}`;
 }
 
 function instructorsHtml() {
-  const facts = courseFacts().filter((f) => f.audience === 'instructor');
+  const facts = (ui.facts || []).filter((f) => f.audience === 'instructor' && (!ui.course || f.program_key === ui.course));
   const results = ui.course
-    ? `${collectionLineHtml('instructor')}
+    ? `
        <h3 class="ifb-subhead">שאלון מוכנות – פתיחה (אחרי הכשרה)</h3>
        ${questionTableHtml(factsFor(facts, 'instructor', 'pre'), { caption: 'מדריכים – פתיחה' })}
        <h3 class="ifb-subhead">שאלון סיום – תוכן, הדרכה, חומרים, ציוד ותפעול</h3>
        ${questionTableHtml(factsFor(facts, 'instructor', 'final'), { caption: 'מדריכים – סיום' })}
-       <h3 class="ifb-subhead">פתיחה–סיום</h3>
+       <h3 class="ifb-subhead">שאלון סיום – מחצית ב׳</h3>
+       ${questionTableHtml(factsFor(facts, 'instructor', 'final_b'), { caption: 'מדריכים – סיום מחצית ב׳' })}
+       <h3 class="ifb-subhead">פתיחה–סיום מחצית א׳</h3>
        ${prePostQuestionTableHtml(factsFor(facts, 'instructor', 'pre'), factsFor(facts, 'instructor', 'final'), { audience: 'instructor' })}
        ${openAnswersDisclosure(facts)}`
     : selectCourseHint('תוצאות לכל שאלה');
   return `
-    ${sectionHtml('הפצה ומעקב', instructorAssignmentsHtml(), { note: 'משוב מדריך הוא אחד לכל מדריך וקורס בשנה, ומשויך למחצית של תאריך ההתחלה הראשון.' })}
-    ${sectionHtml('תוצאות', results, { actions: ui.course ? exportButtonHtml('audience:instructor') : '' })}`;
+    ${sectionHtml('הפצה ומעקב', instructorAssignmentsHtml(), { note: 'טבלה שנתית אחת: משוב פתיחה ואחריו משובי סיום נפרדים למחצית א׳ ולמחצית ב׳.' })}
+    ${sectionHtml('תוצאות', results, { actions: ui.course ? exportButtonHtml('instructor-all') : '' })}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1326,6 +1341,8 @@ function downloadBlob(blob, filename) {
 }
 
 function exportFacts(scope) {
+  if (scope === 'instructor-all') return (ui.facts || []).filter((f) =>
+    f.audience === 'instructor' && (!ui.course || f.program_key === ui.course));
   if (scope.startsWith('group-staff:')) return factsFor(ui.groupFacts.get(scope.slice(12)) || [], 'educational_staff');
   if (scope.startsWith('group:')) return ui.groupFacts.get(scope.slice(6)) || [];
   if (scope.startsWith('audience:')) return courseFacts().filter((f) => f.audience === scope.slice(9));
@@ -1393,7 +1410,7 @@ function runExport(scope) {
   const wb = XLSX.utils.book_new();
   wb.Workbook = { Views: [{ RTL: true }] };
 
-  if (!isGroup && ui.summary) {
+  if (!isGroup && ui.summary && scope !== 'instructor-all') {
     const keys = ui.course ? [ui.course] : ui.programs.map((p) => p.key);
     appendSheet(wb, 'איסוף והיענות', ['קורס', 'קהל', 'שלב', 'משובים שנפתחו', 'שאלונים שהוגשו', 'נשלחו', 'הושלמו', 'היענות', 'בסיס ההיענות', 'משיבים ייחודיים'],
       collectionExportRows(keys), [24, 14, 20, 14, 14, 10, 10, 10, 30, 16]);
@@ -1522,7 +1539,7 @@ function campaignById(id) {
     if (campaign) return { group, instructorAssignment: null, campaign };
   }
   for (const row of ui.instructorAssignments || []) {
-    for (const campaign of [row.pre_campaign, row.final_campaign]) {
+    for (const campaign of [row.pre_campaign, row.final_campaign, row.final_b_campaign]) {
       if (campaign?.id === id) return { group: null, instructorAssignment: row, campaign };
     }
   }
@@ -1677,7 +1694,7 @@ async function handleSubmit(host, event) {
         expiresAt: expiryIso(String(data.get('expires') || ''))
       });
       ui.instructorOpenForms.delete(form.dataset.key);
-      showToast(form.dataset.stage === 'pre' ? 'נוצר משוב פתיחה למדריך' : 'נוצר משוב סיום למדריך');
+      showToast(form.dataset.stage === 'pre' ? 'נוצר משוב פתיחה למדריך' : form.dataset.stage === 'final_b' ? 'נוצר משוב סיום מחצית ב׳' : 'נוצר משוב סיום מחצית א׳');
       await afterInstructorCampaignChange(host);
     } catch (error) {
       button.disabled = false;

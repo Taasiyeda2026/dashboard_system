@@ -27,7 +27,8 @@ const MIGRATIONS = [
   '../supabase/migrations/20261009120000_feedback_course_analysis_and_na.sql',
   '../supabase/migrations/20261009223000_feedback_instructor_earliest_dates.sql',
   '../supabase/migrations/20261009233000_feedback_course_summary_by_semester.sql',
-  '../supabase/migrations/20261010010500_feedback_instructor_latest_end_in_semester.sql'
+  '../supabase/migrations/20261010010500_feedback_instructor_latest_end_in_semester.sql',
+  '../supabase/migrations/20261010103000_feedback_instructor_second_half_final.sql'
 ];
 
 async function asRole(client, role, uid = '') {
@@ -337,6 +338,45 @@ test('impact feedback DB contract: admin-only management, token-only public flow
     await asRole(client, 'authenticated', MANAGER);
     await assert.rejects(client.query("select * from feedback_admin_course_summary_for_half('school_2027','first')"), /feedback_forbidden/);
     await asRole(client, 'authenticated', ADMIN);
+
+    // --- Distinct second-semester final without overwriting the first-semester survey ---
+    const noB = (await client.query("select * from feedback_admin_instructor_assignments('school_2027') where instructor_emp_id='1501' and program_key='trailblazers'")).rows[0];
+    assert.equal(noB.last_end_b, null, 'no second-semester end means a blank date');
+    await assert.rejects(client.query("select feedback_admin_open_instructor_campaign('1501','trailblazers','school_2027','final_b')"),
+      /feedback_second_half_not_scheduled/, 'no second-half survey link until a corresponding course is scheduled');
+    await asRole(client, 'postgres');
+    await client.query("insert into activities (row_id, activity_season, activity_type, activity_name, school, school_id, emp_id, instructor_name, instructor_assignment_locked, instructor_assignment_status, start_date, end_date) values ('ACT-B','school_2027','course','פורצות דרך','בית ספר מחצית ב',99,'1501','דנה לוי',true,'שובץ','2027-02-03','2027-06-18')");
+    await asRole(client, 'authenticated', ADMIN);
+    const withB = (await client.query("select * from feedback_admin_instructor_assignments('school_2027') where instructor_emp_id='1501' and program_key='trailblazers'")).rows[0];
+    assert.equal(String(withB.last_end_a).slice(0,10), '2027-02-15', 'semester A can finish in semester B');
+    assert.equal(String(withB.last_end_b).slice(0,10), '2027-06-18', 'semester B independently tracks its own final course');
+    assert.equal(String(withB.last_end_date).slice(0,10), '2027-02-15', 'legacy field remains unchanged');
+    const finalB = (await rpc("select feedback_admin_open_instructor_campaign('1501','trailblazers','school_2027','final_b') c")).c;
+    assert.equal(finalB.stage, 'final_b');
+    assert.notEqual(finalB.id, instructorFinal.id);
+    assert.notEqual(finalB.recipient.token, instructorFinal.recipient.token);
+    assert.equal(finalB.template_version_id, instructorFinal.template_version_id, 'same published final template');
+    assert.equal((await rpc("select feedback_admin_open_instructor_campaign('1501','trailblazers','school_2027','final_b') c")).c.id, finalB.id);
+    await asRole(client, 'authenticated', MANAGER);
+    await assert.rejects(client.query("select feedback_admin_open_instructor_campaign('1501','trailblazers','school_2027','final_b')"), /feedback_forbidden/);
+    await asRole(client, 'anon');
+    const secondForm = (await rpc('select feedback_public_get($1) r', [finalB.recipient.token])).r;
+    assert.equal(secondForm.state, 'ok');
+    assert.equal(secondForm.stage, 'final_b');
+    assert.ok(secondForm.questions.length > 0);
+    assert.deepEqual((await rpc('select feedback_public_submit($1,$2,$3) r',
+      [finalB.recipient.token, uuid(500), JSON.stringify(answerAll(secondForm.questions))])).r,
+      { ok: true, state: 'submitted' });
+    await asRole(client, 'authenticated', ADMIN);
+    const afterB = (await client.query("select * from feedback_admin_instructor_assignments('school_2027') where instructor_emp_id='1501' and program_key='trailblazers'")).rows[0];
+    assert.equal(afterB.final_b_campaign.id, finalB.id);
+    assert.equal(afterB.final_b_campaign.recipient.status, 'completed');
+    assert.equal(afterB.final_campaign.id, instructorFinal.id);
+    assert.equal(afterB.final_campaign.recipient.status, 'completed');
+    const sumB = (await client.query("select * from feedback_admin_course_summary_for_half('school_2027','second') where program_key='trailblazers' and audience='instructor' and stage='final_b'")).rows;
+    assert.equal(sumB[0].responses, 1, 'second-half final belongs only to semester B');
+    const sumA = (await client.query("select * from feedback_admin_course_summary_for_half('school_2027','first') where program_key='trailblazers' and audience='instructor' and stage='final_b'")).rows;
+    assert.equal(sumA.length, 0, 'first-half summary excludes semester-B final');
 
     // --- Versioning ---------------------------------------------------------
     const template = await rpc("select id, current_version_id from feedback_templates where program_key='trailblazers' and audience='student' and stage='pre'");

@@ -173,6 +173,7 @@ export function filterFeedbackFactsForHalf(facts = [], groups = [], instructorAs
     for (const campaign of [assignment.pre_campaign, assignment.final_campaign]) {
       if (campaign?.id && cohort) instructorCampaignHalf.set(String(campaign.id), cohort);
     }
+    if (assignment.final_b_campaign?.id) instructorCampaignHalf.set(String(assignment.final_b_campaign.id), 'second');
   }
   return (facts || []).filter((fact) => {
     if (fact.audience === 'instructor') {
@@ -595,7 +596,7 @@ export function filterFacts(facts = [], filters = {}) {
 
 export const AUDIENCE_STAGES = Object.freeze({
   student: ['pre', 'post'],
-  instructor: ['pre', 'final'],
+  instructor: ['pre', 'final', 'final_b'],
   educational_staff: ['final']
 });
 
@@ -609,7 +610,7 @@ export function stagePhase(audience, stage) {
 export const PHASE_LABELS = Object.freeze({ pre: 'פתיחה', end: 'סיום' });
 
 export function stageLabelFor(audience, stage) {
-  if (audience === 'instructor') return stage === 'pre' ? 'פתיחה (אחרי הכשרה)' : 'סיום';
+  if (audience === 'instructor') return stage === 'pre' ? 'פתיחה (אחרי הכשרה)' : stage === 'final_b' ? 'סיום מחצית ב׳' : 'סיום מחצית א׳';
   if (audience === 'educational_staff') return 'סיום';
   return stage === 'pre' ? 'פתיחה' : 'סיום';
 }
