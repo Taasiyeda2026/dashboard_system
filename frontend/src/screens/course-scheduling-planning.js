@@ -2531,6 +2531,58 @@ export function planningOutcomeClassification(option = null, diagnostics = {}) {
   };
 }
 
+/**
+ * Independent school-cohort searching intentionally leaves peer courses free
+ * for packing, but must never place two classes with the same instructor at
+ * overlapping times. Filter provisional choices against ALREADY chosen rows
+ * before inserting the blocking virtual activity.
+ * Final whole-plan validation remains authoritative for every other hard gate.
+ */
+export function filterPlanningOptionsAgainstChosenRows({
+  activity = {},
+  options = [],
+  rowsById = new Map()
+} = {}) {
+  if (!Array.isArray(options) || !options.length) return [];
+  const courseId = idOf(activity);
+  const activityLookup = new Map([[courseId, activity]]);
+  const occupied = new Map();
+  for (const row of rowsById?.values?.() || []) {
+    if (text(row?.courseId) === courseId
+      || !['proposal', 'fixed-proposal', 'planning-locked', 'live'].includes(text(row?.kind))) continue;
+    for (const meeting of planningRowMeetingAssignments(row)) {
+      const key = meeting.empId + '|' + meeting.date;
+      if (!occupied.has(key)) occupied.set(key, []);
+      occupied.get(key).push(meeting);
+    }
+  }
+  return options.filter((option) => {
+    if (!text(option?.instructorEmpId) || !Array.isArray(option?.meetings) || !option.meetings.length) return false;
+    const virtual = {
+      ...option,
+      courseId,
+      schoolId: text(activity?.school_id),
+      kind: 'proposal',
+      fullDayBlocking: isFullDaySchedulingActivity(activity)
+    };
+    const meetings = planningRowMeetingAssignments(virtual, activityLookup);
+    if (!meetings.length || meetings.length !== option.meetings.length) return false;
+    return meetings.every((meeting) => {
+      const blocked = occupied.get(meeting.empId + '|' + meeting.date) || [];
+      const begin = timeMinutes(meeting.startTime);
+      const finish = timeMinutes(meeting.endTime);
+      return blocked.every((other) => {
+        if (meeting.fullDayBlocking || other.fullDayBlocking) return false;
+        const otherBegin = timeMinutes(other.startTime);
+        const otherFinish = timeMinutes(other.endTime);
+        return begin == null || finish == null || otherBegin == null || otherFinish == null
+          ? false
+          : !(begin < otherFinish && otherBegin < finish);
+      });
+    });
+  });
+}
+
 function planRowFromOption(activity, option, options, startRange, spec, diagnostics = {}) {
   const outcome = planningOutcomeClassification(option, diagnostics);
   const searchIncomplete = outcome.searchIncomplete;
@@ -6124,9 +6176,12 @@ export async function buildDynamicCoursePlan({
         travelContext,
         limits
       });
-      const options = evaluation.options || [];
+      const options = filterPlanningOptionsAgainstChosenRows({
+        activity, options: evaluation.options || [], rowsById
+      });
       const chosen = options[0] || null;
-      const recruitmentNeeded = !chosen && evaluation.recruitmentNeeded === true;
+      const recruitmentNeeded = !chosen && evaluation.recruitmentNeeded === true
+        && !(evaluation.options || []).length;
       const searchIncomplete = !chosen && !recruitmentNeeded && evaluation.fixedScheduleInvalid !== true;
       const fixedLive = liveRow(activity, activityPeriodKey, { rules, exceptions, schoolCalendar });
       const row = {
@@ -6214,7 +6269,9 @@ export async function buildDynamicCoursePlan({
             runGlobalRepair: false
           }
         });
-        const rescueOptions = rescueEvaluation.options || [];
+        const rescueOptions = filterPlanningOptionsAgainstChosenRows({
+          activity, options: rescueEvaluation.options || [], rowsById
+        });
         const rescued = rescueOptions[0] || null;
         if (rescued) {
           const spec = inferPlanningCourseSpec(activity, catalog);
@@ -6387,8 +6444,14 @@ export async function buildDynamicCoursePlan({
           }
         }
 
-        const options = evaluation.options || [];
+        const options = filterPlanningOptionsAgainstChosenRows({
+          activity, options: evaluation.options || [], rowsById
+        });
         const chosen = options[0] || null;
+        if (!chosen && (evaluation.options || []).length) {
+          evaluation = { ...evaluation, recruitmentNeeded: false, searchIncomplete: true,
+            choiceConflictDeferred: true, packingOptions: options };
+        }
         rowsById.set(idOf(activity), planRowFromOption(
           activity,
           chosen,
@@ -6488,7 +6551,9 @@ export async function buildDynamicCoursePlan({
               limits: { ...DEEP_PLANNING_LIMITS, maxScenarios: FAST_FULL_RESCUE_MAX_SCENARIOS },
               packingCoverage: schoolPackingCoverageCourseIds.has(activityId)
             });
-            const options = deepEvaluation.options || [];
+            const options = filterPlanningOptionsAgainstChosenRows({
+              activity, options: deepEvaluation.options || [], rowsById
+            });
             const chosen = options[0] || null;
             if (chosen) {
               const rescuedRow = planRowFromOption(
