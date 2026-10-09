@@ -23,9 +23,9 @@ const MIGRATIONS = [
   '../supabase/migrations/20261008205000_feedback_instructor_first_course_end.sql',
   '../supabase/migrations/20261008210000_feedback_instructor_first_started_course_end.sql',
   '../supabase/migrations/20261008235500_feedback_instructor_manager_status_sort.sql',
-  '../supabase/migrations/20261009223000_feedback_instructor_earliest_dates.sql',
   '../supabase/migrations/20261009002000_feedback_remove_sky_limit.sql',
-  '../supabase/migrations/20261009120000_feedback_course_analysis_and_na.sql'
+  '../supabase/migrations/20261009120000_feedback_course_analysis_and_na.sql',
+  '../supabase/migrations/20261009223000_feedback_instructor_earliest_dates.sql'
 ];
 
 async function asRole(client, role, uid = '') {
