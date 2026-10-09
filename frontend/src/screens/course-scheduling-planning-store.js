@@ -879,6 +879,34 @@ function planningActivityHasSourceDate(activity = {}) {
   );
 }
 
+/**
+ * A large engine upgrade is saved in two independently validated commits:
+ * a hard-gate-valid base plan, then optional workload optimizations.
+ * The engine marker is intentionally NOT current until stage two commits,
+ * and must not be treated as a v35 -> v35 no-op.
+ */
+export const PLANNING_BASE_STAGE_PENDING_SUFFIX = '--base-saved-opt-pending';
+export function planningBaseStageEngineVersion(currentEngineVersion = '') {
+  return text(currentEngineVersion) + PLANNING_BASE_STAGE_PENDING_SUFFIX;
+}
+export function isPlanningBaseStagePending(storedEngineVersion = '', currentEngineVersion = '') {
+  return !!text(currentEngineVersion)
+    && text(storedEngineVersion) === planningBaseStageEngineVersion(currentEngineVersion);
+}
+export function shouldStageLargePlanningUpgrade({
+  engineChanged = false,
+  storedEngineVersion = '',
+  currentEngineVersion = '',
+  runType = '',
+  baseRecalculationCount = 0,
+  minCourses = 40
+} = {}) {
+  return engineChanged === true
+    && runType === 'engine-upgrade'
+    && !isPlanningBaseStagePending(storedEngineVersion, currentEngineVersion)
+    && Number(baseRecalculationCount) >= minCourses;
+}
+
 export function planningEngineUpgradeOptimizationScopes({
   shared = {},
   activities = [],
@@ -887,6 +915,49 @@ export function planningEngineUpgradeOptimizationScopes({
 } = {}) {
   const previous = text(storedEngineVersion);
   const current = text(currentEngineVersion);
+  if (isPlanningBaseStagePending(previous, current)) {
+    // Only movable rows are eligible for stage-two improvements. This is
+    // deliberately a separate transaction over the VALIDATED saved base.
+    // Already-live, anchored and manually locked classes are immutable.
+    const activityById = new Map((activities || []).map((a) => [idOf(a), a]));
+    const flexible = (shared?.rows || []).filter((entry) => {
+      const row = entry?.row || {};
+      const kind = text(row.kind);
+      const activity = activityById.get(text(entry?.activityId)) || {};
+      return ['proposal','missing','recruitment'].includes(kind)
+        && !entry?.lockedOption && row?.planningLocked !== true
+        && row?.schoolDateAnchored !== true
+        && !planningActivityHasSourceDate(activity);
+    });
+    const bySchool = new Map();
+    const schoolPackingCourseIds = new Set();
+    const recruitmentRecoveryCourseIds = new Set();
+    const workdayConsolidationCourseIds = new Set();
+    for (const entry of flexible) {
+      const row = entry.row || {};
+      const id = text(entry.activityId || row.courseId);
+      if (!id) continue;
+      const schoolId = text(row.schoolId || activityById.get(id)?.school_id);
+      if (schoolId) {
+        if (!bySchool.has(schoolId)) bySchool.set(schoolId, []);
+        bySchool.get(schoolId).push(id);
+      }
+      if (['missing','recruitment'].includes(text(row.kind))) recruitmentRecoveryCourseIds.add(id);
+      if (text(row.kind) === 'proposal' && text(row.instructorEmpId)) workdayConsolidationCourseIds.add(id);
+    }
+    for (const ids of bySchool.values()) if (ids.length > 1) {
+      for (const id of ids) schoolPackingCourseIds.add(id);
+    }
+    const affectedIds = new Set([
+      ...schoolPackingCourseIds, ...recruitmentRecoveryCourseIds, ...workdayConsolidationCourseIds
+    ]);
+    return {
+      affectedIds: [...affectedIds],
+      schoolPackingCourseIds: [...schoolPackingCourseIds],
+      recruitmentRecoveryCourseIds: [...recruitmentRecoveryCourseIds],
+      workdayConsolidationCourseIds: [...workdayConsolidationCourseIds]
+    };
+  }
   const v28FromV27 = current.includes('planning-v28-20261004-anchor-safe-global-reassignment')
     && previous.includes('planning-v27-20261004-school-first-economic-alternatives');
   if (!v28FromV27) return null;
@@ -1255,8 +1326,9 @@ export function planningEngineUpgradeExecutionScopes({
   const affectedIds = [...new Set([...regular, ...upgrade])];
   const previous = text(storedEngineVersion);
   const current = text(currentEngineVersion);
-  const v28OptimizationUpgrade = current.includes('planning-v28-20261004-anchor-safe-global-reassignment')
-    && previous.includes('planning-v27-20261004-school-first-economic-alternatives');
+  const v28OptimizationUpgrade = isPlanningBaseStagePending(previous, current)
+    || (current.includes('planning-v28-20261004-anchor-safe-global-reassignment')
+      && previous.includes('planning-v27-20261004-school-first-economic-alternatives'));
 
   // v28 changed optimization passes over an already valid snapshot. Treating
   // those rows as ordinary dirty activities would regenerate every proposal
