@@ -77,7 +77,8 @@ function drawBox(page, x, y) {
 function questionAnswerHeight(question, font) {
   const type = question.question_type;
   const na = type === 'rating_1_5' && question.scoring?.allow_na === true;
-  if (type === 'rating_1_5') return na ? 73 : 53;
+  // Compact one-row ratings: 9-question student PRE surveys fit on one A4 sheet.
+  if (type === 'rating_1_5') return na ? 37 : 20;
   if (type === 'yes_no') return 31;
   if (type === 'free_text') return 105;
   if (type === 'single_select' || type === 'multi_select') {
@@ -167,7 +168,7 @@ export async function buildQuestionnairePdf({ program, template, version, questi
       drawRight(page, bold, line, 11, y);
       y -= 16;
     }
-    y -= 10;
+    y -= 5;
 
     if (question.question_type === 'rating_1_5') {
       for (let n = 1; n <= 5; n += 1) {
@@ -175,14 +176,14 @@ export async function buildQuestionnairePdf({ program, template, version, questi
         drawBox(page, x, y - 1);
         drawRight(page, bold, String(n), 10, y + 1, x - 7);
       }
-      y -= 22;
+      y -= 18;
       drawRight(page, regular, '1 – בכלל לא', 9, y, RIGHT, MUTED);
       drawRight(page, regular, '5 – במידה רבה מאוד', 9, y, RIGHT - 333, MUTED);
-      y -= 21;
+      y -= 15;
       if (question.scoring?.allow_na === true) {
         drawBox(page, RIGHT - 14, y - 1);
         drawRight(page, regular, 'לא רלוונטי / לא הייתה אפשרות להעריך', 9, y, RIGHT - 20);
-        y -= 21;
+        y -= 17;
       }
     } else if (question.question_type === 'yes_no') {
       for (const [n, label] of ['כן', 'לא'].entries()) {
@@ -210,7 +211,7 @@ export async function buildQuestionnairePdf({ program, template, version, questi
     } else {
       y -= 35;
     }
-    y -= 15;
+    y -= 8;
   }
 
   for (const [i, p] of pdf.getPages().entries()) {

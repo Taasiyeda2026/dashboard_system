@@ -35,9 +35,6 @@ test('printable feedback PDF is a real A4 document using the published version',
   // Both complete embedded TrueType fonts must be present, not Acrobat-fragile
   // fontkit subsets (which yielded the scrambled Hebrew reported by users).
   assert.ok(bytes.length > 25_000, 'Embedded Hebrew fonts must be present in the PDF');
-  if (process.env.IFB_PDF_SMOKE_OUTPUT) {
-    await writeFile(process.env.IFB_PDF_SMOKE_OUTPUT, bytes);
-  }
   const pdf = await PDFDocument.load(bytes);
   assert.ok(pdf.getPageCount() >= 1);
   for (const page of pdf.getPages()) {
@@ -82,4 +79,35 @@ test('Hebrew questionnaire text uses full fonts and retains logical Unicode char
   assert.match(source, /pdf\.embedFont\(boldData, \{ subset: false \}\)/);
   assert.doesNotMatch(source, /getReorderSegments|getMirroredCharactersMap|rightToLeft\(/);
   assert.match(source, /const rendered = clean\(text\);/);
+});
+
+test('nine actual green-leadership PRE rating questions fit on one printable A4 page', async () => {
+  const [regularData, boldData] = await Promise.all([
+    readFile(new URL('Alef-Regular.ttf', assets)),
+    readFile(new URL('Alef-Bold.ttf', assets))
+  ]);
+  // Questions match the published green leadership PRE syllabus at migration time.
+  const wording = [
+    'אני מבין/ה מה לומדים בתחום {topic} ואיך משתמשים בו בעולם האמיתי',
+    'אני מאמין/ה שאני מסוגל/ת לפתח רעיון לפתרון של בעיה אמיתית',
+    'התחום של {topic} מעניין אותי',
+    'אני אוהב/ת לשאול שאלות ולחקור איך דברים עובדים',
+    'אני יודע/ת לעבוד בצוות כדי לפתח רעיון משותף',
+    'אני חושב/ת שמדע וטכנולוגיה יכולים לעזור לפתור בעיות אמיתיות בעולם',
+    'הייתי רוצה להמשיך ללמוד ולהתנסות בתחום {topic} גם בעתיד',
+    'אני מרגיש/ה אחריות לשמור על הסביבה בבית הספר ובקהילה שלי',
+    'אני מרגיש/ה שאני יכול/ה להוביל יוזמה סביבתית ולהשפיע בבית הספר או בקהילה'
+  ];
+  const bytes = await buildQuestionnairePdf({
+    program: { title: 'מנהיגות ירוקה', topic: 'מנהיגות ירוקה – אחריות סביבתית', gefen_numbers: ['67867'] },
+    template: { audience: 'student', stage: 'pre', current_version_id: 'published-pre-green' },
+    version: { id: 'published-pre-green', intro_text: 'משוב פתיחה על התוכנית' },
+    questions: wording.map((text) => ({ question_type: 'rating_1_5', wording: { default: text }, required: true, scoring: { include_in_score: true } })),
+    regularData,
+    boldData
+  });
+  const pdf = await PDFDocument.load(bytes);
+  assert.equal(pdf.getPageCount(), 1, 'A nine-item rating questionnaire must not spill onto a second sheet');
+  assert.equal(pdf.getPages()[0].getWidth(), 595.28);
+  if (process.env.IFB_PDF_SMOKE_OUTPUT) await writeFile(process.env.IFB_PDF_SMOKE_OUTPUT, bytes);
 });
