@@ -5965,6 +5965,7 @@ export async function buildDynamicCoursePlan({
   _finalValidationRepairPass = 0,
   _finalValidationRepairDeadlineAt = 0,
   committedRows = [],
+  skipSoftOptimization = false,
   planningProfile = 'deep'
 } = {}) {
   const limits = planningLimits(planningProfile);
@@ -6075,7 +6076,11 @@ export async function buildDynamicCoursePlan({
   const fastMaintenanceRun = _finalValidationRepairPass > 0 || shouldUsePlanningSharedRescueBudget({
     allowGlobalRepair,
     planningProfile,
-    incrementalCount: incrementalIds === null ? 0 : incrementalIds.size
+    incrementalCount: Math.max(
+      incrementalIds === null ? 0 : incrementalIds.size,
+      upgradeSchoolPackingIds?.size || 0,
+      upgradeWorkdayConsolidationIds?.size || 0
+    )
   });
   const fixedUnassigned = [];
   const missingSchedule = [];
@@ -6696,7 +6701,10 @@ export async function buildDynamicCoursePlan({
     }
   }
 
-  if (!_repairPass) {
+  // Phase one commits a verified base BEFORE any optional school packing,
+  // workload consolidation or gap polishing. They run on the SAVED base
+  // in stage two, with their own lease/deadline and protected transaction.
+  if (!_repairPass && !skipSoftOptimization) {
     const optimizationCheckpoint = fastMaintenanceRun
       ? createPlanningOptimizationDeadlineCheckpoint({ checkpoint })
       : checkpoint;
@@ -6912,6 +6920,7 @@ export async function buildDynamicCoursePlan({
           _finalValidationRepairPass: _finalValidationRepairPass + 1,
           _finalValidationRepairDeadlineAt: deadlineAt,
           committedRows,
+          skipSoftOptimization,
           planningProfile: 'fast',
           checkpoint: repairCheckpoint
         });
