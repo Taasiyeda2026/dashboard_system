@@ -435,3 +435,33 @@ test('staff feedback column heading and cells align right without changing stude
   assert.match(table, /<td class="ifb-center ifb-col-stage" data-label="\$\{esc\(slot\.label\)\}">/);
   assert.match(styles, /\.ifb-admin \.ifb-groups-table--staff thead th\.ifb-col-staff,\s*\.ifb-admin \.ifb-groups-table--staff tbody td\.ifb-col-staff \{\s*text-align: right;/);
 });
+
+
+test('template cards use four equal desktop columns and responsive layouts without overflow', () => {
+  assert.match(styles, /\.ifb-admin \.ifb-template-grid \{[\s\S]*?grid-template-columns: repeat\(4, minmax\(0, 1fr\)\);/);
+  assert.match(styles, /\.ifb-admin \.ifb-template-grid \{[\s\S]*?grid-auto-rows: 1fr;/);
+  assert.match(styles, /@media \(min-width: 980px\) and \(max-width: 1299px\) \{\s*\.ifb-admin \.ifb-template-grid \{ grid-template-columns: repeat\(3, minmax\(0, 1fr\)\); \}/);
+  assert.match(styles, /@media \(min-width: 621px\) and \(max-width: 979px\) \{\s*\.ifb-admin \.ifb-template-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}/);
+  assert.match(styles, /@media \(max-width: 620px\) \{\s*\.ifb-admin \.ifb-template-grid \{ grid-template-columns: minmax\(0, 1fr\);/);
+  assert.match(styles, /\.ifb-admin \.ifb-template-card__slots \{[\s\S]*?width: min\(100%, 310px\);[\s\S]*?margin-inline: auto;/);
+  assert.match(styles, /\.ifb-admin \.ifb-template-card__slot \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) 44px 34px 28px;/);
+  assert.match(styles, /\.ifb-admin \.ifb-template-card__inner \{[\s\S]*?min-height: 100%;/);
+});
+
+test('each saved template PDF is visually distinct and upload/download actions retain permissions and selectors', () => {
+  assert.match(templates, /const pdfState = upToDate \? 'is-ready' : outdated \? 'is-stale' : 'is-missing';/);
+  assert.match(templates, /class="ifb-template-card__pdf \$\{pdfState\}" data-tpl-pdf="/);
+  assert.match(templates, /\$\{upToDate \? '' : 'disabled'\}/);
+  assert.match(templates, /data-tpl-upload="\$\{esc\(template\.id\)\}" \$\{published \? '' : 'disabled'\}/);
+  assert.match(templates, /data-tpl-delete="\$\{esc\(template\.id\)\}"/);
+  assert.match(templates, /ifb-template-card__delete-placeholder/);
+  assert.match(templates, /ifb-template-card__upload[^<]*[\s\S]*?<svg viewBox="0 0 24 24" aria-hidden="true"/);
+  assert.match(templates, /ifb-template-card__delete[^<]*[\s\S]*?<svg viewBox="0 0 24 24" aria-hidden="true"/);
+  assert.match(styles, /\.ifb-admin \.ifb-template-card__pdf\.is-ready \{/);
+  assert.match(styles, /\.ifb-admin \.ifb-template-card__pdf:disabled \{/);
+  assert.match(styles, /\.ifb-admin \.ifb-template-card__pdf\.is-stale:disabled \{/);
+  assert.match(styles, /\.ifb-admin \.ifb-template-card__upload svg,/);
+  assert.match(templates, /await downloadSavedPaperPdf\(record\)/);
+  assert.match(templates, /await uploadSavedPaperPdf\(template, file\)/);
+  assert.match(templates, /await deleteSavedPaperPdf\(record\)/);
+});
