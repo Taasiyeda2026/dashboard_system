@@ -914,14 +914,14 @@ function instructorAssignmentsHtml() {
     ${rows.length ? `<div class="ifb-table-wrap">
       <table class="ifb-table ifb-instructor-table">
         <caption class="ifb-sr">משובי מדריכים לפי מדריך וקורס</caption>
-        <thead><tr><th scope="col">מדריך</th><th scope="col">קורס</th><th scope="col" class="ifb-center">קבוצות</th><th scope="col" class="ifb-center" title="מועד הסיום הראשון מבין קבוצות המדריך בקורס">סיום ראשון</th><th scope="col" class="ifb-center">סטטוס</th><th scope="col" class="ifb-center">פתיחה – אחרי הכשרה</th><th scope="col" class="ifb-center">סיום הקורס</th></tr></thead>
+        <thead><tr><th scope="col">מדריך</th><th scope="col">קורס</th><th scope="col" class="ifb-center">קבוצות</th><th scope="col" class="ifb-center ifb-col-date" title="מועד הסיום הראשון מבין קבוצות המדריך בקורס">סיום ראשון</th><th scope="col" class="ifb-col-status">סטטוס</th><th scope="col" class="ifb-center">פתיחה – אחרי הכשרה</th><th scope="col" class="ifb-center">סיום הקורס</th></tr></thead>
         <tbody>${rows.map((row) => `
           <tr data-instructor-feedback="${esc(instructorAssignmentKey(row))}">
             <th scope="row" data-label="מדריך"><span>${esc(row.instructor_name || row.instructor_emp_id)}</span><span class="ifb-muted ifb-instructor-id">#${esc(row.instructor_emp_id)}</span></th>
             <td data-label="קורס">${esc(programTitle(row.program_key))}</td>
             <td data-label="קבוצות" class="ifb-center"><span class="ifb-num">${Number(row.assignment_count) || 0}</span></td>
-            <td data-label="סיום הקורס הראשון" class="ifb-center ifb-nowrap">${fmtDate(row.first_course_end_date)}</td>
-            <td data-label="סטטוס" class="ifb-center">${(() => { const s = instructorOverallStatus(row); return statusText(s.label, s.tone); })()}</td>
+            <td data-label="סיום הקורס הראשון" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(row.first_course_end_date)}</td>
+            <td data-label="סטטוס" class="ifb-col-status">${(() => { const s = instructorOverallStatus(row); return statusText(s.label, s.tone); })()}</td>
             <td data-label="פתיחה – אחרי הכשרה" class="ifb-instructor-stage-cell">${instructorCampaignActionsHtml(row, 'pre')}</td>
             <td data-label="סיום הקורס" class="ifb-instructor-stage-cell">${instructorCampaignActionsHtml(row, 'final')}</td>
           </tr>`).join('')}</tbody>
