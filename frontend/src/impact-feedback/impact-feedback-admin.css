@@ -1605,3 +1605,142 @@
 .ifb-admin .ifb-groups-table--staff tbody td.ifb-col-staff {
   text-align: right;
 }
+
+
+/* Templates: four balanced cards on desktop and compact, centered document actions.
+   Scoped to the feedback template list; questionnaire editor layout is unchanged. */
+.ifb-admin .ifb-template-grid {
+  width: 100%;
+  max-width: min(100%, 1280px);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  justify-items: stretch;
+  align-items: stretch;
+  gap: 12px;
+  margin-inline: auto;
+}
+.ifb-admin .ifb-template-card {
+  width: 100%;
+  min-width: 0;
+  max-width: none;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  border-radius: 11px;
+}
+.ifb-admin .ifb-template-card__inner {
+  display: grid;
+  grid-template-rows: minmax(37px, auto) minmax(18px, auto) 1fr;
+  align-content: start;
+  justify-items: center;
+  gap: 5px;
+  min-height: 100%;
+  padding: 13px 10px 12px;
+}
+.ifb-admin .ifb-template-card__title {
+  min-width: 0;
+  align-self: center;
+  font-size: 14px;
+  line-height: 1.28;
+  text-align: center;
+}
+.ifb-admin .ifb-template-card__gefen {
+  align-self: start;
+  margin: 0;
+  min-height: 18px;
+  line-height: 1.35;
+  text-align: center;
+}
+.ifb-admin .ifb-template-card__slots {
+  width: min(100%, 310px);
+  min-width: 0;
+  margin-inline: auto;
+  align-self: start;
+  gap: 5px;
+}
+.ifb-admin .ifb-template-card__slot {
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) 44px 34px 28px;
+  justify-items: stretch;
+  gap: 4px;
+}
+.ifb-admin .ifb-template-card__open,
+.ifb-admin .ifb-template-card__pdf,
+.ifb-admin .ifb-template-card__upload,
+.ifb-admin .ifb-template-card__delete {
+  min-width: 0;
+  min-height: 36px;
+  border-radius: 6px;
+}
+.ifb-admin .ifb-template-card__open {
+  padding: 4px 5px;
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+.ifb-admin .ifb-template-card__pdf {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .015em;
+}
+.ifb-admin .ifb-template-card__pdf.is-ready {
+  color: var(--ifb-a-accent);
+  background: var(--ifb-a-accent-soft);
+  border-color: color-mix(in srgb, var(--ifb-a-accent) 45%, var(--ifb-a-line));
+}
+.ifb-admin .ifb-template-card__pdf:disabled {
+  opacity: .75;
+  color: var(--ifb-a-muted);
+  background: var(--ifb-a-card);
+  border-color: var(--ifb-a-line);
+  cursor: not-allowed;
+}
+.ifb-admin .ifb-template-card__pdf.is-stale:disabled {
+  color: var(--ifb-a-warn);
+  border-color: color-mix(in srgb, var(--ifb-a-warn) 35%, var(--ifb-a-line));
+}
+.ifb-admin .ifb-template-card__upload {
+  display: grid;
+  place-items: center;
+  background: var(--ifb-a-accent-soft);
+  color: var(--ifb-a-accent);
+  border-color: color-mix(in srgb, var(--ifb-a-accent) 40%, var(--ifb-a-line));
+}
+.ifb-admin .ifb-template-card__upload:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+.ifb-admin .ifb-template-card__delete {
+  display: grid;
+  place-items: center;
+}
+.ifb-admin .ifb-template-card__upload svg,
+.ifb-admin .ifb-template-card__delete svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.ifb-admin .ifb-template-card__delete-placeholder {
+  width: 28px;
+  height: 36px;
+}
+.ifb-admin .ifb-template-card__warning {
+  inset-inline-end: 51px;
+}
+@media (min-width: 980px) and (max-width: 1299px) {
+  .ifb-admin .ifb-template-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 621px) and (max-width: 979px) {
+  .ifb-admin .ifb-template-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .ifb-admin .ifb-template-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .ifb-admin .ifb-template-card__inner { padding: 13px 12px 12px; }
+  .ifb-admin .ifb-template-card__slots { max-width: 310px; }
+}
