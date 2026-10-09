@@ -32,6 +32,11 @@ function rightToLeft(text) {
   const source = clean(text);
   const chars = source.split('');
   const levels = bidi.getEmbeddingLevels(source, 'rtl');
+  // Reorder visual runs after mirroring directional punctuation. Do not
+  // reverse digits or Latin abbreviations independently of Unicode BiDi.
+  for (const [at, mirrored] of bidi.getMirroredCharactersMap(source, levels)) {
+    chars[at] = mirrored;
+  }
   for (const [start, end] of bidi.getReorderSegments(source, levels)) {
     for (let a = start, b = end; a < b; a += 1, b -= 1) {
       [chars[a], chars[b]] = [chars[b], chars[a]];
@@ -127,8 +132,11 @@ export async function buildQuestionnairePdf({ program, template, version, questi
   if (!regularData || !boldData) throw new Error('font_required');
   const pdf = await PDFDocument.create();
   pdf.registerFontkit(fontkit);
-  const regular = await pdf.embedFont(regularData, { subset: true });
-  const bold = await pdf.embedFont(boldData, { subset: true });
+  // Fontkit's subset CID encoding renders scrambled Hebrew in Adobe Acrobat.
+  // Embed the complete TrueType fonts so Acrobat and other readers use stable
+  // Unicode glyph mappings. Keep selectable vector text (never screenshot).
+  const regular = await pdf.embedFont(regularData, { subset: false });
+  const bold = await pdf.embedFont(boldData, { subset: false });
   const logo = logoData ? await pdf.embedPng(logoData) : null;
 
   const stage = PAPER_SLOT_NAMES[`${template.audience}:${template.stage}`] || 'שאלון משוב';
