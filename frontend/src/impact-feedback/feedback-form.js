@@ -117,6 +117,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
     <div class="ifb-shell${young ? ' is-young' : ''}${audienceClass}">
       <header class="ifb-hero">
         ${logoUrl ? `<img class="ifb-logo" src="${esc(logoUrl)}" alt="תעשיידע">` : ''}
+        ${options.onChooseLanguage ? '<button type="button" class="ifb-hero__change-language" data-ifb-change-language>בחירת שפה / اختيار اللغة</button>' : ''}
         <p class="ifb-hero__kicker">${esc(headline(payload))}</p>
         <h1 class="ifb-hero__title">${esc(payload.program_title || '')}</h1>
         ${payload.recipient_name ? `<p class="ifb-hero__hello">שלום ${esc(payload.recipient_name)}</p>` : ''}
@@ -140,6 +141,11 @@ export function mountFeedbackForm(container, payload, options = {}) {
   const label = container.querySelector('[data-progress-label]');
   const submitBtn = container.querySelector('[data-submit]');
   const submitError = container.querySelector('[data-submit-error]');
+  container.querySelector('[data-ifb-change-language]')?.addEventListener('click', () => {
+    // onChange persists any draft answer before the user leaves the questionnaire.
+    options.onChange?.({ ...answers });
+    options.onChooseLanguage?.();
+  });
 
   function updateProgress() {
     const pct = formProgress(questions, answers);
