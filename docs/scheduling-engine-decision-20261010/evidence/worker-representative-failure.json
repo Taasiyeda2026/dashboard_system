@@ -1,0 +1,27 @@
+{
+  "code": "planning_final_validation_failed",
+  "message": "planning_final_validation_failed",
+  "failures": [
+    {
+      "date": "2027-01-28",
+      "empId": "12",
+      "reason": "availability_exception",
+      "courseId": "activity-000116"
+    }
+  ],
+  "timings": [
+    {
+      "name": "direct",
+      "ms": 460.32635600000003
+    },
+    {
+      "name": "worker-cold",
+      "ms": 843.7532190000001
+    },
+    {
+      "name": "worker-warm",
+      "ms": 308.4164230000001
+    }
+  ],
+  "inputUnchanged": true
+}

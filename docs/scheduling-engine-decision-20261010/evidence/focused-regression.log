@@ -1,0 +1,39 @@
+✔ one instructor reassignment refreshes only true date/resource dependents (3.989319ms)
+✔ point planning invalidation queues automatic scoped refresh without a manual update button (3.959003ms)
+[course-scheduling] stylesheet load failed TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension ".css" for /workspace/work/scheduling-engine-decision-20261010/repo/frontend/src/screens/course-scheduling.css
+    at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:243:9)
+    at defaultGetFormat (node:internal/modules/esm/get_format:283:36)
+    at defaultLoadSync (node:internal/modules/esm/load:161:16)
+    at #loadAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:802:12)
+    at #loadSync (node:internal/modules/esm/loader:834:53)
+    at ModuleLoader.load (node:internal/modules/esm/loader:783:26)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:494:31)
+    at #getOrCreateModuleJobAfterResolve (node:internal/modules/esm/loader:560:36)
+    at afterResolve (node:internal/modules/esm/loader:607:52)
+    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:613:12) {
+  code: 'ERR_UNKNOWN_FILE_EXTENSION'
+}
+✔ 253 saved activities: real search, paging, course opening and re-entry never start engine computation or writes (452.275722ms)
+ℹ {"activities":253,"activitiesComputed":0,"contextRebuilds":0,"scheduleCalls":0,"requests":[{"path":"/rest/v1/rpc/course_assignment_manager_approval_state","method":"POST"},{"path":"/rest/v1/rpc/course_assignment_manager_approval_state","method":"POST"}],"writes":0}
+✔ saved validated base with incomplete optimization is disclosed after reload and remains exportable (0.267042ms)
+✔ draft date/time/instructor edits during compute replace one course card and retain other rows, focus, plan and run state (82.079456ms)
+✔ opening loaded courses keeps the list and binds draft approval once to the current activity (48.913406ms)
+✔ start feedback paints before preflight and cancellation during the paint yield prevents any lease or calculation (67.33879ms)
+✔ row deltas reconstruct exact results without cloning unchanged alternatives or mutating previous plan (1.082812ms)
+✔ real isolated worker equals direct engine; warm context sends no entries and availability delta only changes relevant input (99.727092ms)
+✔ worker rejects national scope and unsupported construction instead of main-thread fallback (1.328983ms)
+✔ logout/owner change replaces resident context; lease loss rejects the result (173.939172ms)
+✔ cancellation and worker crash reject without changing saved rows; cancellation acknowledged within one second (98.391953ms)
+✔ committed point refresh reloads only changed full rows, preserves alternatives, locks and flags, and fences concurrent revisions (1.623897ms)
+✔ non-cooperative worker is terminated on cancel within one second, without commit or main-thread fallback (540.738401ms)
+✔ route broker performs authorized callbacks on the caller and progress never transfers rows or credentials (64.889214ms)
+✔ immutable stored payload hashes survive revision changes; dirty view markers clone frozen input instead of corrupting the context (61.019656ms)
+✔ worker rechecks a saved fixed proposal against changed availability and empty instructor set without moving official dates (92.322522ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4641.250366

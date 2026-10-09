@@ -1,0 +1,41 @@
+{
+  "scope": "PostgreSQL 17 actual checkpoint/lease/commit functions with focused schema and explicitly modeled identity; not a full Supabase Auth deployment or server semantic validator",
+  "sourceRevision": "911",
+  "results": [
+    {
+      "case": "running checkpoint cannot commit",
+      "pass": true
+    },
+    {
+      "case": "national checkpoint actual SQL atomic commit/load parity",
+      "pass": true,
+      "rows": 253,
+      "saveMs": 20.19850500000007,
+      "revision": 1
+    },
+    {
+      "case": "cancel/release prevents commit",
+      "pass": true
+    },
+    {
+      "case": "corrupt missing checkpoint row prevents commit",
+      "pass": true
+    },
+    {
+      "case": "old engine checkpoint cannot commit as v36",
+      "pass": true
+    },
+    {
+      "case": "crashed/expired owner cannot commit",
+      "pass": true
+    },
+    {
+      "case": "denied modeled permission blocks acquire",
+      "pass": true
+    },
+    {
+      "case": "failed canceled/corrupt/old/expired saves leave stored result unchanged",
+      "pass": true
+    }
+  ]
+}

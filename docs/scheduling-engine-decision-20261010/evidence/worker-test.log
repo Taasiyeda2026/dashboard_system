@@ -1,0 +1,27 @@
+✖ PR2229 representative source: worker/direct point parity and protected official assignments survive availability delta (13492.217336ms)
+✔ PR2229 representative source: actual worker crash and cancellation keep all saved rows unchanged (1123.834145ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 1
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 14698.267454
+
+✖ failing tests:
+
+test at tests/scheduling-point-worker-representative.test.mjs:9:1
+✖ PR2229 representative source: worker/direct point parity and protected official assignments survive availability delta (13492.217336ms)
+  Error: planning_final_validation_failed
+      at planningWorkerError (file:///workspace/work/scheduling-engine-decision-20261010/repo/frontend/src/screens/course-scheduling-worker-protocol.js:4:24)
+      at SchedulingPointWorker.receive (file:///workspace/work/scheduling-engine-decision-20261010/repo/frontend/src/screens/course-scheduling-worker-client.js:51:40)
+      at worker.onmessage (file:///workspace/work/scheduling-engine-decision-20261010/repo/frontend/src/screens/course-scheduling-worker-client.js:22:46)
+      at Worker.<anonymous> (file:///workspace/work/scheduling-engine-decision-20261010/repo/tests/scheduling-point-worker-representative.test.mjs:8:555)
+      at Worker.emit (node:events:509:28)
+      at MessagePort.<anonymous> (node:internal/worker:350:14)
+      at [nodejs.internal.kHybridDispatch] (node:internal/event_target:856:20)
+      at MessagePort.<anonymous> (node:internal/per_context/messageport:23:28) {
+    code: 'planning_final_validation_failed',
+    failures: [ { date: '2027-01-28', empId: '12', reason: 'availability_exception', courseId: 'activity-000116' } ]
+  }

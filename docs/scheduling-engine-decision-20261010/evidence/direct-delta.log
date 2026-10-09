@@ -1,0 +1,1 @@
+{"target":"activity-000116","date":"2027-01-28","affectedCount":58,"success":false,"code":"planning_final_validation_failed","failures":[{"date":"2027-01-28","empId":"12","reason":"availability_exception","courseId":"activity-000116"}],"ms":11173.635319}

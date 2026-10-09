@@ -1,0 +1,20 @@
+{
+  "notification": {
+    "checkpointWritten": true,
+    "completed": 12
+  },
+  "signal": "SIGKILL",
+  "interruptedMs": 655.956802,
+  "checkpointRows": 12,
+  "checkpointInternalValidation": true,
+  "partialCommitAttempted": false,
+  "resumedMs": 43698.323965999996,
+  "reopened": 7,
+  "resumedTargets": 248,
+  "rows": 253,
+  "internalValidation": {
+    "valid": true,
+    "failures": [],
+    "warnings": []
+  }
+}

@@ -1,0 +1,551 @@
+{
+  "scope": "Each witness is a separate +1 experiment on the cleaned tentative base. Existing protected findings remain; not simultaneous improvements or a global optimum proof.",
+  "results": [
+    {
+      "courseId": "activity-000214",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 0,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43
+      },
+      "independentNewAssignmentsPass": true
+    },
+    {
+      "courseId": "activity-000589",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 0,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43
+      },
+      "independentNewAssignmentsPass": true
+    },
+    {
+      "courseId": "activity-000609",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 10,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43,
+        "generated:transition": 10
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000587",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 10,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43,
+        "generated:transition": 10
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000585",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 10,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "generated:transition": 10,
+        "protected-source:transition": 43
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000168",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 10,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43,
+        "generated:transition": 10
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000542",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 0,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43
+      },
+      "independentNewAssignmentsPass": true
+    },
+    {
+      "courseId": "activity-000620",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 0,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43
+      },
+      "independentNewAssignmentsPass": true
+    },
+    {
+      "courseId": "activity-000143",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 10,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43,
+        "generated:transition": 10
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000622",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 0,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43
+      },
+      "independentNewAssignmentsPass": true
+    },
+    {
+      "courseId": "activity-000528",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 0,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43
+      },
+      "independentNewAssignmentsPass": true
+    },
+    {
+      "courseId": "activity-000241",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 8,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43,
+        "generated:transition": 8
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000242",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 8,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43,
+        "generated:transition": 8
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000239",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 8,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43,
+        "generated:transition": 8
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000240",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 8,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43,
+        "generated:transition": 8
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000518",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 10,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "generated:transition": 10,
+        "protected-source:transition": 43
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000584",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 10,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "generated:transition": 10,
+        "protected-source:transition": 43
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000510",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 8,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43,
+        "generated:transition": 8
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000523",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 8,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43,
+        "generated:transition": 8
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000224",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 8,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43,
+        "generated:transition": 8
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000588",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 10,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43,
+        "generated:transition": 10
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000277",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 10,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "generated:friday_not_allowed": 10,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000278",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 10,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "generated:friday_not_allowed": 10,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000495",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 0,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43
+      },
+      "independentNewAssignmentsPass": true
+    },
+    {
+      "courseId": "activity-000263",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 0,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43
+      },
+      "independentNewAssignmentsPass": true
+    },
+    {
+      "courseId": "activity-000264",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 0,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43
+      },
+      "independentNewAssignmentsPass": true
+    },
+    {
+      "courseId": "activity-000515",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 11,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "generated:transition": 11,
+        "protected-source:transition": 43
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000539",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 9,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "generated:transition": 9,
+        "protected-source:transition": 43
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000282",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 8,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "generated:friday_not_allowed": 8,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000517",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 10,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43,
+        "generated:transition": 10
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000043",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 8,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43,
+        "generated:transition": 8
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000082",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 8,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43,
+        "generated:transition": 8
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000275",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 10,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "generated:friday_not_allowed": 10,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000276",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 10,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "generated:friday_not_allowed": 10,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000279",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 10,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "generated:friday_not_allowed": 10,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000280",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 8,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "generated:friday_not_allowed": 8,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43
+      },
+      "independentNewAssignmentsPass": false
+    },
+    {
+      "courseId": "activity-000281",
+      "coverageDelta": 1,
+      "internalValidation": true,
+      "generatedViolations": 8,
+      "counts": {
+        "protected-source:home_distance_exceeded": 16,
+        "protected-source:official_schedule_changed": 37,
+        "protected-source:availability": 20,
+        "generated:friday_not_allowed": 8,
+        "protected-source:calendar_end_time": 1,
+        "protected-source:transition": 43
+      },
+      "independentNewAssignmentsPass": false
+    }
+  ]
+}

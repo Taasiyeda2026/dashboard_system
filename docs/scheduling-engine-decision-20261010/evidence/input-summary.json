@@ -1,0 +1,19 @@
+{
+  "engineVersion": "planning-v36-20261009-point-context-transition-guard-v2",
+  "snapshotAt": "2026-10-09T22:22:22.675535+00:00",
+  "inputSha256": "ecdd221dec476d20e9cb1ae64cb8cc7417a404e2dd1a89afe9aa04995ed780bd",
+  "allSourceActivities": 910,
+  "engineActivities": 256,
+  "canonicalSchoolLocations": true,
+  "targets": 253,
+  "locked": 109,
+  "missingSchoolAddress": 3,
+  "missingSchoolSector": 3,
+  "instructors": 24,
+  "profiles": 35,
+  "rules": 210,
+  "exceptions": 52,
+  "routes": 12473,
+  "catalog": 68,
+  "holidays": 67
+}

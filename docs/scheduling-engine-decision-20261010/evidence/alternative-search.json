@@ -1,0 +1,923 @@
+{
+  "scope": "One-point replan per uncovered activity, same national base; not exhaustive/global optimality proof",
+  "elapsedMs": 18729.800417000002,
+  "total": 61,
+  "checked": 61,
+  "results": [
+    {
+      "courseId": "activity-000214",
+      "beforeKind": "missing",
+      "beforeReason": "Independent hard-gate rejection in isolated recovery fixture",
+      "kind": "proposal",
+      "empId": "32",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 488.220865
+    },
+    {
+      "courseId": "activity-000551",
+      "beforeKind": "recruitment",
+      "beforeReason": "לאחר מיצוי אפשרויות הצוות הקיים: נדרש גיוס. הפעילות משויכת לתקן גיוס דרום 2, שמרכז 1 פעילויות לאורך התקופה ללא חפיפה.",
+      "kind": "recruitment",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 83.66946200000007
+    },
+    {
+      "courseId": "activity-000502",
+      "beforeKind": "recruitment",
+      "beforeReason": "לאחר מיצוי אפשרויות הצוות הקיים: נדרש גיוס. הפעילות משויכת לתקן גיוס צפון 1, שמרכז 9 פעילויות לאורך התקופה ללא חפיפה.",
+      "kind": "recruitment",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 76.45099200000004
+    },
+    {
+      "courseId": "activity-000589",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "10",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 299.7518019999999
+    },
+    {
+      "courseId": "activity-000530",
+      "beforeKind": "recruitment",
+      "beforeReason": "לאחר מיצוי אפשרויות הצוות הקיים: נדרש גיוס. הפעילות משויכת לתקן גיוס צפון 1, שמרכז 9 פעילויות לאורך התקופה ללא חפיפה.",
+      "kind": "recruitment",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 74.61353600000007
+    },
+    {
+      "courseId": "activity-000609",
+      "beforeKind": "missing",
+      "beforeReason": "הסריקה המורחבת לא מצאה שיבוץ מאומת, אך קיימים מועמדים בצוות — לא מסומן לגיוס",
+      "kind": "proposal",
+      "empId": "3",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 543.6464020000001
+    },
+    {
+      "courseId": "activity-000260",
+      "beforeKind": "recruitment",
+      "beforeReason": "לאחר מיצוי אפשרויות הצוות הקיים: נדרש גיוס. הפעילות משויכת לתקן גיוס צפון 2, שמרכז 2 פעילויות לאורך התקופה ללא חפיפה.",
+      "kind": "recruitment",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 68.88121699999988
+    },
+    {
+      "courseId": "activity-000261",
+      "beforeKind": "recruitment",
+      "beforeReason": "לאחר מיצוי אפשרויות הצוות הקיים: נדרש גיוס. הפעילות משויכת לתקן גיוס צפון 2, שמרכז 2 פעילויות לאורך התקופה ללא חפיפה.",
+      "kind": "recruitment",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 77.02785100000006
+    },
+    {
+      "courseId": "activity-000587",
+      "beforeKind": "missing",
+      "beforeReason": "Independent hard-gate rejection in isolated recovery fixture",
+      "kind": "proposal",
+      "empId": "3",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 654.8829460000002
+    },
+    {
+      "courseId": "activity-000585",
+      "beforeKind": "missing",
+      "beforeReason": "הסריקה המורחבת לא מצאה שיבוץ מאומת, אך קיימים מועמדים בצוות — לא מסומן לגיוס",
+      "kind": "proposal",
+      "empId": "46",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 543.35599
+    },
+    {
+      "courseId": "activity-000552",
+      "beforeKind": "recruitment",
+      "beforeReason": "לאחר מיצוי אפשרויות הצוות הקיים: נדרש גיוס. הפעילות משויכת לתקן גיוס צפון 1, שמרכז 9 פעילויות לאורך התקופה ללא חפיפה.",
+      "kind": "recruitment",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 68.23885299999984
+    },
+    {
+      "courseId": "activity-000168",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "3",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 319.9102740000003
+    },
+    {
+      "courseId": "activity-000542",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "3",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 291.4936280000002
+    },
+    {
+      "courseId": "activity-000614",
+      "beforeKind": "recruitment",
+      "beforeReason": "לאחר מיצוי אפשרויות הצוות הקיים: נדרש גיוס. הפעילות משויכת לתקן גיוס צפון 1, שמרכז 9 פעילויות לאורך התקופה ללא חפיפה.",
+      "kind": "recruitment",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 72.06729900000028
+    },
+    {
+      "courseId": "activity-000594",
+      "beforeKind": "missing",
+      "beforeReason": "הסריקה המורחבת לא מצאה שיבוץ מאומת, אך קיימים מועמדים בצוות — לא מסומן לגיוס",
+      "kind": "missing",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 467.44732399999975
+    },
+    {
+      "courseId": "activity-000592",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "missing",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 272.6381059999994
+    },
+    {
+      "courseId": "activity-000620",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "3",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 327.771608
+    },
+    {
+      "courseId": "activity-000143",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "3",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 372.81823499999973
+    },
+    {
+      "courseId": "activity-000599",
+      "beforeKind": "recruitment",
+      "beforeReason": "לאחר מיצוי אפשרויות הצוות הקיים: נדרש גיוס. הפעילות משויכת לתקן גיוס דרום 1, שמרכז 2 פעילויות לאורך התקופה ללא חפיפה.",
+      "kind": "recruitment",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 90.31654200000048
+    },
+    {
+      "courseId": "activity-000622",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "3",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 324.7777879999994
+    },
+    {
+      "courseId": "activity-000533",
+      "beforeKind": "recruitment",
+      "beforeReason": "לאחר מיצוי אפשרויות הצוות הקיים: נדרש גיוס. הפעילות משויכת לתקן גיוס דרום 1, שמרכז 2 פעילויות לאורך התקופה ללא חפיפה.",
+      "kind": "recruitment",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 73.54626400000052
+    },
+    {
+      "courseId": "activity-000528",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "4",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 326.9327510000003
+    },
+    {
+      "courseId": "activity-000241",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "37",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 331.90836899999977
+    },
+    {
+      "courseId": "activity-000242",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "37",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 317.6193030000004
+    },
+    {
+      "courseId": "activity-000239",
+      "beforeKind": "missing",
+      "beforeReason": "Independent hard-gate rejection in isolated recovery fixture",
+      "kind": "proposal",
+      "empId": "37",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 357.8755090000004
+    },
+    {
+      "courseId": "activity-000240",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "37",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 326.28307700000005
+    },
+    {
+      "courseId": "activity-000518",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "46",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 403.6454540000004
+    },
+    {
+      "courseId": "activity-000584",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "46",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 557.9430750000001
+    },
+    {
+      "courseId": "activity-000607",
+      "beforeKind": "missing",
+      "beforeReason": "המועד שקבע בית הספר מתנגש בחופשה או בשעת סיום מותרת — נדרש טיפול במועד לפני גיוס",
+      "kind": "missing",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 98.31018100000074
+    },
+    {
+      "courseId": "activity-000550",
+      "beforeKind": "missing",
+      "beforeReason": "הסריקה המורחבת לא מצאה שיבוץ מאומת, אך קיימים מועמדים בצוות — לא מסומן לגיוס",
+      "kind": "missing",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 334.24161300000014
+    },
+    {
+      "courseId": "activity-000549",
+      "beforeKind": "missing",
+      "beforeReason": "הסריקה המורחבת לא מצאה שיבוץ מאומת, אך קיימים מועמדים בצוות — לא מסומן לגיוס",
+      "kind": "missing",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 378.9862859999994
+    },
+    {
+      "courseId": "activity-000547",
+      "beforeKind": "missing",
+      "beforeReason": "הסריקה המורחבת לא מצאה שיבוץ מאומת, אך קיימים מועמדים בצוות — לא מסומן לגיוס",
+      "kind": "missing",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 306.7409800000005
+    },
+    {
+      "courseId": "activity-000548",
+      "beforeKind": "missing",
+      "beforeReason": "הסריקה המורחבת לא מצאה שיבוץ מאומת, אך קיימים מועמדים בצוות — לא מסומן לגיוס",
+      "kind": "missing",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 319.01334599999973
+    },
+    {
+      "courseId": "activity-000510",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "37",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 285.2486259999987
+    },
+    {
+      "courseId": "activity-000553",
+      "beforeKind": "recruitment",
+      "beforeReason": "לאחר מיצוי אפשרויות הצוות הקיים: נדרש גיוס. הפעילות משויכת לתקן גיוס צפון 1, שמרכז 9 פעילויות לאורך התקופה ללא חפיפה.",
+      "kind": "recruitment",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 68.13977800000066
+    },
+    {
+      "courseId": "activity-000523",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "37",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 302.2457830000003
+    },
+    {
+      "courseId": "activity-000094",
+      "beforeKind": "recruitment",
+      "beforeReason": "לאחר מיצוי אפשרויות הצוות הקיים: נדרש גיוס. הפעילות משויכת לתקן גיוס צפון 1, שמרכז 9 פעילויות לאורך התקופה ללא חפיפה.",
+      "kind": "recruitment",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 71.78226100000029
+    },
+    {
+      "courseId": "activity-000045",
+      "beforeKind": "missing",
+      "beforeReason": "הסריקה המורחבת לא מצאה שיבוץ מאומת, אך קיימים מועמדים בצוות — לא מסומן לגיוס",
+      "kind": "missing",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 500.08701699999983
+    },
+    {
+      "courseId": "activity-000224",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "37",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 300.77055400000063
+    },
+    {
+      "courseId": "activity-000588",
+      "beforeKind": "missing",
+      "beforeReason": "הסריקה המורחבת לא מצאה שיבוץ מאומת, אך קיימים מועמדים בצוות — לא מסומן לגיוס",
+      "kind": "proposal",
+      "empId": "3",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 411.1005409999998
+    },
+    {
+      "courseId": "activity-000613",
+      "beforeKind": "recruitment",
+      "beforeReason": "לאחר מיצוי אפשרויות הצוות הקיים: נדרש גיוס. הפעילות משויכת לתקן גיוס צפון 1, שמרכז 9 פעילויות לאורך התקופה ללא חפיפה.",
+      "kind": "recruitment",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 67.39537299999938
+    },
+    {
+      "courseId": "activity-000277",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "41",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 291.7555940000002
+    },
+    {
+      "courseId": "activity-000278",
+      "beforeKind": "missing",
+      "beforeReason": "Independent hard-gate rejection in isolated recovery fixture",
+      "kind": "proposal",
+      "empId": "41",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 310.7177040000006
+    },
+    {
+      "courseId": "activity-000495",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "3",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 336.41655999999966
+    },
+    {
+      "courseId": "activity-000263",
+      "beforeKind": "missing",
+      "beforeReason": "Independent hard-gate rejection in isolated recovery fixture",
+      "kind": "proposal",
+      "empId": "48",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 331.37648699999954
+    },
+    {
+      "courseId": "activity-000264",
+      "beforeKind": "missing",
+      "beforeReason": "Independent hard-gate rejection in isolated recovery fixture",
+      "kind": "proposal",
+      "empId": "48",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 362.05863299999874
+    },
+    {
+      "courseId": "activity-000519",
+      "beforeKind": "recruitment",
+      "beforeReason": "לאחר מיצוי אפשרויות הצוות הקיים: נדרש גיוס. הפעילות משויכת לתקן גיוס צפון 1, שמרכז 9 פעילויות לאורך התקופה ללא חפיפה.",
+      "kind": "recruitment",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 124.35809100000006
+    },
+    {
+      "courseId": "activity-000515",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "46",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 404.3333390000007
+    },
+    {
+      "courseId": "activity-000539",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "46",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 353.985858
+    },
+    {
+      "courseId": "activity-000061",
+      "beforeKind": "missing",
+      "beforeReason": "הסריקה המורחבת לא מצאה שיבוץ מאומת, אך קיימים מועמדים בצוות — לא מסומן לגיוס",
+      "kind": "missing",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 392.5234080000009
+    },
+    {
+      "courseId": "activity-000500",
+      "beforeKind": "recruitment",
+      "beforeReason": "לאחר מיצוי אפשרויות הצוות הקיים: נדרש גיוס. הפעילות משויכת לתקן גיוס צפון 1, שמרכז 9 פעילויות לאורך התקופה ללא חפיפה.",
+      "kind": "recruitment",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 76.85121099999924
+    },
+    {
+      "courseId": "activity-000282",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "41",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 308.07602100000076
+    },
+    {
+      "courseId": "activity-000517",
+      "beforeKind": "missing",
+      "beforeReason": "הסריקה המורחבת לא מצאה שיבוץ מאומת, אך קיימים מועמדים בצוות — לא מסומן לגיוס",
+      "kind": "proposal",
+      "empId": "3",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 611.9052080000001
+    },
+    {
+      "courseId": "activity-000535",
+      "beforeKind": "missing",
+      "beforeReason": "הסריקה המורחבת לא מצאה שיבוץ מאומת, אך קיימים מועמדים בצוות — לא מסומן לגיוס",
+      "kind": "missing",
+      "empId": "",
+      "coverageDelta": 0,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": false,
+      "elapsedMs": 430.7407430000003
+    },
+    {
+      "courseId": "activity-000043",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "37",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 331.6103920000023
+    },
+    {
+      "courseId": "activity-000082",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "37",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 329.53030000000217
+    },
+    {
+      "courseId": "activity-000275",
+      "beforeKind": "missing",
+      "beforeReason": "Independent hard-gate rejection in isolated recovery fixture",
+      "kind": "proposal",
+      "empId": "34",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 329.52767999999924
+    },
+    {
+      "courseId": "activity-000276",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "34",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 336.1139809999986
+    },
+    {
+      "courseId": "activity-000279",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "41",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 304.5607600000003
+    },
+    {
+      "courseId": "activity-000280",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "41",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 314.12939499999993
+    },
+    {
+      "courseId": "activity-000281",
+      "beforeKind": "missing",
+      "beforeReason": "נמצאו אפשרויות למדריך, אך כולן חופפות לשיבוצים אחרים. נשמרו ההצעות התקינות של יתר הפעילויות.",
+      "kind": "proposal",
+      "empId": "41",
+      "coverageDelta": 1,
+      "validation": {
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "legalAlternative": true,
+      "elapsedMs": 311.3590469999981
+    }
+  ]
+}

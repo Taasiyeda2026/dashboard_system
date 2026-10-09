@@ -1,0 +1,47 @@
+{
+  "scope": "Actual engine optimizer fault; local checkpoint decode/version/source gates; corrupted checkpoint timing. Database process restart recorded separately.",
+  "removedInvalidTentativeActivityIds": [
+    "activity-000214",
+    "activity-000278",
+    "activity-000263",
+    "activity-000264",
+    "activity-000275",
+    "activity-000587",
+    "activity-000239"
+  ],
+  "results": [
+    {
+      "case": "optimizer injected failure returns internally validated base",
+      "injected": true,
+      "pass": true,
+      "optimization": {
+        "completed": false,
+        "failure": "isolated_optimizer_fault",
+        "basePreserved": true
+      },
+      "elapsedMs": 553.9599559999999
+    },
+    {
+      "case": "matching saved checkpoint is resumable",
+      "pass": true
+    },
+    {
+      "case": "old checkpoint engine cannot resume",
+      "pass": true
+    },
+    {
+      "case": "source change prevents stale resume",
+      "pass": true
+    },
+    {
+      "case": "corrupt timing cannot pass resumed validation",
+      "pass": true,
+      "repairCourseIds": [
+        "activity-000116",
+        "activity-000122",
+        "activity-000027",
+        "activity-000173"
+      ]
+    }
+  ]
+}

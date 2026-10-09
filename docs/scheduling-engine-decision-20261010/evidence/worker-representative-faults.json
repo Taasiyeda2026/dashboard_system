@@ -1,0 +1,14 @@
+[
+  {
+    "scenario": "crash",
+    "pass": true,
+    "cancelMs": null,
+    "savedRowsUnchanged": true
+  },
+  {
+    "scenario": "cancel",
+    "pass": true,
+    "cancelMs": 17.225344000000405,
+    "savedRowsUnchanged": true
+  }
+]

@@ -1,0 +1,8 @@
+{
+  "scope": "Preserved recovery base; new tentative assignments independently audited, preserved legacy findings require separate approval review. Local DB only.",
+  "rows": 253,
+  "assigned": 192,
+  "saveMs": 23.175761999999963,
+  "loadParity": true,
+  "generatedViolations": 0
+}

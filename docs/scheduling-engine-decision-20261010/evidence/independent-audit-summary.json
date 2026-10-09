@@ -1,0 +1,26 @@
+{
+  "scope": "Independent arithmetic audit. Course restriction/employment semantics and approved exceptions require additional contract checks; protected-source findings are not newly introduced engine changes.",
+  "period": {
+    "key": "year",
+    "label": "שנת הלימודים",
+    "start": "2026-09-01",
+    "end": "2027-06-30"
+  },
+  "assignedActivities": 198,
+  "meetingHours": 3250.3333333333326,
+  "violations": 186,
+  "generatedViolations": 69,
+  "protectedSourceViolations": 117,
+  "counts": {
+    "protected-source:home_distance_exceeded": 16,
+    "generated:friday_not_allowed": 41,
+    "protected-source:official_schedule_changed": 37,
+    "protected-source:availability": 20,
+    "generated:saturday_not_allowed": 10,
+    "protected-source:calendar_end_time": 1,
+    "generated:transition": 18,
+    "protected-source:transition": 43
+  },
+  "travelObservations": 506,
+  "travelKm": 8138.280000000013
+}

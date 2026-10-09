@@ -1,0 +1,147 @@
+{
+  "elapsedMs": 41624.066947,
+  "cpuMs": 41036.433,
+  "memoryBefore": {
+    "rss": 127799296,
+    "heapTotal": 133877760,
+    "heapUsed": 80764608,
+    "external": 2747232,
+    "arrayBuffers": 685499
+  },
+  "memoryAfter": {
+    "rss": 538275840,
+    "heapTotal": 425234432,
+    "heapUsed": 242624032,
+    "external": 12139169,
+    "arrayBuffers": 143627
+  },
+  "peakRssSampled": 587538432,
+  "routeMissRequests": 0,
+  "perf": {
+    "label": "representative-national",
+    "startedAt": 1791586274363,
+    "finishedAt": 1791586315987,
+    "counters": {
+      "preliminaryCalls": 1922,
+      "scheduleCalls": 1016,
+      "activitiesComputed": 144,
+      "upgradeActivitiesComputed": 0,
+      "candidateEvals": 7346,
+      "candidateEvaluations": 7346,
+      "instructorScans": 2830,
+      "scenarioCount": 2059,
+      "scenarioEvaluations": 2059,
+      "travelRequests": 2453,
+      "routeCacheRequests": 2453,
+      "cacheHits": 620,
+      "googleCalls": 0,
+      "finalValidations": 689,
+      "contextRebuilds": 2,
+      "progressUiUpdates": 471,
+      "checkpointSaves": 0,
+      "checkpointPayloadBytes": 0,
+      "cooperativeYields": 3754,
+      "staticCandidatePruned": 3398,
+      "contextForks": 38,
+      "rescueDeferred": 24,
+      "rescueProcessed": 24,
+      "rescueRecovered": 10,
+      "optimizationBudgetExceeded": 1,
+      "optimizationBaseFallback": 1,
+      "incumbentFallbackPreserved": 13,
+      "schoolCohortOverlapReconciled": 26
+    },
+    "timers": {
+      "run:setup": {
+        "calls": 1,
+        "totalMs": 62.453119000000015,
+        "maxMs": 62.453119000000015
+      },
+      "cooperativeCpuStep": {
+        "calls": 1272748,
+        "totalMs": 6942.171526999015,
+        "maxMs": 6.840783999999985
+      },
+      "contextPreparation": {
+        "calls": 2,
+        "totalMs": 68.24255399999998,
+        "maxMs": 49.94423499999999
+      },
+      "candidateEvaluation": {
+        "calls": 2830,
+        "totalMs": 3517.2990719999984,
+        "maxMs": 10.931752000000415
+      },
+      "calculateCourseSchedule": {
+        "calls": 1016,
+        "totalMs": 758.1523090000128,
+        "maxMs": 3.800420999999915
+      },
+      "scenarioGeneration": {
+        "calls": 160,
+        "totalMs": 17262.994804999995,
+        "maxMs": 226.7269070000002
+      },
+      "evaluateScenarioOptions": {
+        "calls": 160,
+        "totalMs": 4177.943875000015,
+        "maxMs": 135.7102530000011
+      },
+      "run:base": {
+        "calls": 1,
+        "totalMs": 26206.622384000002,
+        "maxMs": 26206.622384000002
+      },
+      "wholePlanValidation": {
+        "calls": 2,
+        "totalMs": 76.5119220000015,
+        "maxMs": 44.918313999998645
+      },
+      "run:optimization": {
+        "calls": 1,
+        "totalMs": 15212.328304999995,
+        "maxMs": 15212.328304999995
+      },
+      "run:validation": {
+        "calls": 1,
+        "totalMs": 126.9064090000029,
+        "maxMs": 126.9064090000029
+      }
+    },
+    "events": []
+  },
+  "quality": {
+    "uncovered": 55,
+    "missing": 41,
+    "recruitmentProfiles": 4,
+    "recruitment": 14,
+    "changedDrafts": 0,
+    "newWorkDayMeetings": 785,
+    "totalTravelKm": 3940.4,
+    "averageTravelKm": 33.7,
+    "averageOperationalScore": 54.5,
+    "schoolCount": 106,
+    "schoolsWithMultipleFlexibleActivities": 26,
+    "fragmentedSchools": 26,
+    "totalSchoolWeekdays": 68,
+    "avoidableSchoolDaySplits": 0,
+    "maxSchoolWeekdays": 5
+  },
+  "validation": {
+    "valid": true,
+    "failures": [],
+    "warnings": []
+  },
+  "finalPlanValidation": {
+    "valid": true,
+    "failures": [],
+    "warnings": []
+  },
+  "kinds": {
+    "proposal": 84,
+    "fixed-proposal": 5,
+    "live": 109,
+    "missing": 41,
+    "recruitment": 14
+  }
+}
