@@ -32,6 +32,9 @@ import {
   filterGroups,
   groupHasFeedback,
   hasCourseStartDate,
+  studentFeedbackPeriodForGroup,
+  studentFeedbackHasResponses,
+  sortStudentFeedbackGroups,
   isProgramUnresolved,
   openAnswers,
   overviewTotals,
@@ -96,6 +99,7 @@ const ui = {
   tab: 'overview',
   groupRowId: null,
   groupReturnTab: 'students',
+  studentHalf: 'first',
   year: ACTIVE_ACTIVITY_SEASON,
   course: '',
   showAll: true,
@@ -590,15 +594,38 @@ function groupFiltersHtml(groups, scope) {
 }
 
 
+function studentSemesterTabsHtml(groups) {
+  const halves = [
+    { key: 'first', label: "מחצית א׳" },
+    { key: 'second', label: "מחצית ב׳" }
+  ];
+  return `<div class="ifb-student-semesters" role="group" aria-label="בחירת מחצית לתלמידים">
+    ${halves.map(({ key, label }) => {
+      const count = groups.filter((g) => studentFeedbackPeriodForGroup(g) === key).length;
+      return `<button type="button" class="ifb-student-semester${ui.studentHalf === key ? ' is-active' : ''}"
+        data-ifb-student-half="${key}" aria-pressed="${ui.studentHalf === key}">
+        ${label}<span class="ifb-student-semester__count">${count}</span>
+      </button>`;
+    }).join('')}
+    <span class="ifb-student-semesters__note">לפי תאריך תחילת הקורס</span>
+  </div>`;
+}
+
 function groupsTableHtml(slots, scope) {
   // The activities table is authoritative; groups without a start date are not
   // ready to receive a student questionnaire. Other audiences are unchanged.
   const all = scope === 'students'
     ? courseScopedGroups().filter(hasCourseStartDate)
     : courseScopedGroups();
-  const filtered = filterGroups(all, ui.filters).sort((a, b) =>
-    Number(groupHasFeedback(b)) - Number(groupHasFeedback(a))
-    || String(a.school).localeCompare(String(b.school), 'he'));
+  const inHalf = scope === 'students'
+    ? all.filter((g) => studentFeedbackPeriodForGroup(g) === ui.studentHalf)
+    : all;
+  const matching = filterGroups(inHalf, ui.filters);
+  const filtered = scope === 'students'
+    ? sortStudentFeedbackGroups(matching)
+    : matching.sort((a, b) =>
+      Number(groupHasFeedback(b)) - Number(groupHasFeedback(a)) ||
+      String(a.school).localeCompare(String(b.school), 'he'));
   // The course column is shown for all courses or when the source activity has no matching feedback template.
   const showCourse = !ui.course || filtered.some((g) => !g.program_key);
   const body = filtered.length ? `
@@ -639,7 +666,7 @@ function groupsTableHtml(slots, scope) {
           </tr>`).join('')}</tbody>
       </table>
     </div>` : emptyHtml('לא נמצאו קבוצות התואמות לסינון.', scope === 'students' ? 'בלשונית תלמידים מוצגות רק קבוצות שנקבע להן תאריך התחלה בכל הפעילויות.' : 'מוצגות קבוצות של קורסי המשובים בשנת הלימודים שנבחרה.');
-  return `${groupFiltersHtml(all, scope)}${body}`;
+  return `${scope === 'students' ? studentSemesterTabsHtml(all) : ''}${groupFiltersHtml(inHalf, scope)}${body}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1497,6 +1524,15 @@ async function handleClick(host, event) {
     ui.course = analyze.dataset.ifbAnalyze;
     await switchTab(host, 'analysis');
     window.scrollTo({ top: 0 });
+    return;
+  }
+  const studentHalf = t.closest('[data-ifb-student-half]');
+  if (studentHalf) {
+    const next = studentHalf.dataset.ifbStudentHalf;
+    if (next === 'first' || next === 'second') {
+      ui.studentHalf = next;
+      paint(host);
+    }
     return;
   }
   const openGroup = t.closest('[data-ifb-open-group]');
