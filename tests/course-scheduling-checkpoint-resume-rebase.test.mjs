@@ -10,7 +10,7 @@ import {
   canValidateCompletedRunningCheckpoint,
   planningResumeReopenIds
 } from '../frontend/src/screens/course-scheduling-run-plan.js';
-import { buildDynamicCoursePlan, createPlanningLocalRepairDeadlineCheckpoint, filterPlanningOptionsAgainstChosenRows, recoverPlanningOverlapFromCommittedProposals, validateResumedPlanningRows } from '../frontend/src/screens/course-scheduling-planning.js';
+import { buildDynamicCoursePlan, createPlanningLocalRepairDeadlineCheckpoint, filterPlanningOptionsAgainstChosenRows, reconcileSelectedPlanningOverlaps, recoverPlanningOverlapFromCommittedProposals, validateResumedPlanningRows } from '../frontend/src/screens/course-scheduling-planning.js';
 import { createPlanningRunDeadlineCheckpoint } from '../frontend/src/screens/course-scheduling-preflight.js';
 import {
   planningRebaseAffectedCourseIds,
@@ -574,16 +574,49 @@ test('school-cohort choices honor meeting substitutes and full-day instructor bl
   );
 });
 
-test('school-cohort conflicts cannot silently become a false recruitment result', () => {
-  const activity={row_id:'b',school_id:'s'};
-  const occupied=new Map([['a',{courseId:'a',kind:'proposal',schoolId:'s',instructorEmpId:'1549',
-    meetings:[{date:'2026-10-12',start_time:'14:00',end_time:'15:30'}]}]]);
-  const incompatible=[{instructorEmpId:'1549', meetings:[{date:'2026-10-12',start_time:'14:00',end_time:'15:30'}]}];
-  assert.deepEqual(filterPlanningOptionsAgainstChosenRows({activity,options:incompatible,rowsById:occupied}),[]);
-  assert.equal((plannerSource.match(/filterPlanningOptionsAgainstChosenRows\(\{/g)||[]).length, 4,
-    'all four planner paths must be covered: fixed, recruitment rescue, base and deferred rescue');
-  assert.match(plannerSource, /choiceConflictDeferred: true/);
-  assert.match(plannerSource, /evaluation = \{ \.\.\.evaluation, recruitmentNeeded: false, searchIncomplete: true/);
+test('residual school-cohort collision is reconciled after packing, preferring a valid alternate to lost hours', () => {
+  const meeting = (start_time,end_time) => ({date:'2026-10-12',start_time,end_time});
+  const incumbent = {
+    courseId:'a',schoolId:'school-s',kind:'proposal',instructorEmpId:'1549',
+    instructorName:'A',sessions:12, meetings:[meeting('14:00','15:30')]
+  };
+  const second = {
+    courseId:'b',schoolId:'school-s',kind:'proposal',instructorEmpId:'1549',
+    instructorName:'A',sessions:10,meetings:[meeting('14:00','15:30')],
+    options:[
+      {instructorEmpId:'1549',instructorName:'A', meetings:[meeting('14:00','15:30')]},
+      {instructorEmpId:'1509',instructorName:'B',meetings:[meeting('14:00','15:30')]}
+    ]
+  };
+  const chosen = new Map([['a',incumbent],['b',second]]);
+  assert.deepEqual(reconcileSelectedPlanningOverlaps({rowsById:chosen}),[{courseId:'b',action:'alternate'}]);
+  assert.equal(chosen.get('a').instructorEmpId,'1549');
+  assert.equal(chosen.get('b').instructorEmpId,'1509');
+  assert.equal(chosen.get('b').diagnostics.overlapChoiceRepaired,true);
+});
+
+test('unresolved cohort clashes remain unassigned rather than being wrongly certified as recruitment', () => {
+  const meeting={date:'2026-10-12',start_time:'14:00',end_time:'15:30'};
+  const a={courseId:'a',kind:'proposal',schoolId:'s',instructorEmpId:'1549',meetings:[meeting],sessions:12};
+  const b={courseId:'b',kind:'proposal',schoolId:'s',instructorEmpId:'1549',meetings:[meeting],sessions:5,
+    options:[{instructorEmpId:'1549',meetings:[meeting]}]};
+  const chosen=new Map([['a',a],['b',b]]);
+  assert.deepEqual(reconcileSelectedPlanningOverlaps({rowsById:chosen}),[{courseId:'b',action:'unassigned'}]);
+  assert.equal(chosen.get('b').kind,'missing');
+  assert.equal(chosen.get('b').instructorEmpId,'');
+  assert.equal(chosen.get('b').diagnostics.recruitmentCertified,false);
+  assert.equal(chosen.get('b').diagnostics.searchIncomplete,true);
+  assert.match(plannerSource,/const reconciled = reconcileSelectedPlanningOverlaps\(\{ rowsById, committedRows \}\);/);
+});
+
+test('committed fixed and locked activities are never replaced to resolve a provisional conflict', () => {
+  const meeting={date:'2026-10-12',start_time:'14:00',end_time:'15:30'};
+  const fixed={courseId:'fix',kind:'planning-locked',schoolId:'s',instructorEmpId:'1549',meetings:[meeting]};
+  const proposed={courseId:'proposal',kind:'proposal',schoolId:'s',instructorEmpId:'1549',meetings:[meeting]};
+  const rowsById=new Map([['fix',fixed],['proposal',proposed]]);
+  reconcileSelectedPlanningOverlaps({rowsById});
+  assert.equal(rowsById.get('fix'),fixed);
+  assert.equal(rowsById.get('proposal').kind,'missing');
 });
 
 test('browser planning deadline ends an otherwise infinite computation without committing', async () => {
