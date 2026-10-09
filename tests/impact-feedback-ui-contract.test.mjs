@@ -6,6 +6,7 @@ import { filterGroups } from '../frontend/src/impact-feedback/feedback-domain.js
 const screen = readFileSync(new URL('../frontend/src/screens/impact-feedback.js', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../frontend/src/impact-feedback/impact-feedback-admin.css', import.meta.url), 'utf8');
 const migration = readFileSync(new URL('../supabase/migrations/20261009162000_feedback_groups_activity_manager_filter.sql', import.meta.url), 'utf8');
+const templates = readFileSync(new URL('../frontend/src/impact-feedback/feedback-templates-view.js', import.meta.url), 'utf8');
 
 test('feedback year is taken from the dashboard, without an independent year selection', () => {
   assert.doesNotMatch(screen, /data-ifb-year|YEAR_OPTIONS/);
@@ -91,4 +92,47 @@ test('student table heading is gently colored without coloring every row or chan
   assert.match(styles, /border-bottom: 2px solid color-mix\(/);
   assert.match(styles, /@media \(min-width: 761px\)/);
   assert.match(styles, /@media \(max-width: 760px\)/);
+});
+
+
+test('all feedback tables share a subtle highlighted header without losing comparison selection', () => {
+  assert.match(styles, /\.ifb-admin \.ifb-table thead th \{\s*background: color-mix\(/);
+  assert.match(styles, /\.ifb-admin \.ifb-table thead th \{[\s\S]*?font-weight: 700;/);
+  assert.match(styles, /\.ifb-admin \.ifb-cross-table thead th\.is-selected \{/);
+  for (const cls of ['ifb-courses-table', 'ifb-groups-table', 'ifb-instructor-table', 'ifb-q-table', 'ifb-prepost-table', 'ifb-cross-table']) {
+    assert.match(screen, new RegExp('class="ifb-table ' + cls));
+  }
+});
+
+test('every date header and date cell share the centered date class', () => {
+  const groups = screen.slice(screen.indexOf('function groupsTableHtml('), screen.indexOf('function optionBarsHtml('));
+  const instructor = screen.slice(screen.indexOf('function instructorAssignmentsHtml('), screen.indexOf('function instructorsHtml('));
+  assert.match(groups, /<th scope="col" class="ifb-center ifb-col-date">/);
+  assert.match(groups, /<td data-label="תחילת קורס" class="ifb-center ifb-nowrap ifb-col-date">/);
+  assert.match(groups, /class="ifb-center ifb-nowrap ifb-col-date">\$\{fmtDate\(g\.end_date\)\}/);
+  assert.match(instructor, /class="ifb-center ifb-col-date" title="מועד הסיום הראשון/);
+  assert.match(instructor, /class="ifb-center ifb-nowrap ifb-col-date">\$\{fmtDate\(row\.first_course_end_date\)\}/);
+  assert.match(styles, /\.ifb-admin \.ifb-table thead th\.ifb-col-date,/);
+  assert.match(styles, /\.ifb-admin \.ifb-table tbody td\.ifb-col-date,/);
+});
+
+test('actual status headings and values are right-aligned without changing stage columns', () => {
+  const instructor = screen.slice(screen.indexOf('function instructorAssignmentsHtml('), screen.indexOf('function instructorsHtml('));
+  assert.match(instructor, /<th scope="col" class="ifb-col-status">סטטוס<\/th>/);
+  assert.match(instructor, /<td data-label="סטטוס" class="ifb-col-status">/);
+  assert.match(screen, /<th scope="col" class="ifb-col-state">מצב<\/th>/);
+  assert.match(styles, /\.ifb-admin \.ifb-table thead th\.ifb-col-status,/);
+  assert.match(styles, /\.ifb-admin \.ifb-table tbody td\.ifb-col-status,/);
+  assert.match(styles, /\.ifb-admin \.ifb-table thead th\.ifb-col-state,/);
+  assert.match(styles, /\.ifb-admin \.ifb-table tbody td\.ifb-col-state \{\s*text-align: right;/);
+  assert.match(screen, /class="ifb-center ifb-col-stage"/);
+});
+
+test('all five template controls remain centered and aligned with missing optional PDFs', () => {
+  assert.match(styles, /\.ifb-template-card__inner \{\s*justify-items: center;/);
+  assert.match(styles, /\.ifb-template-card__slots \{\s*width: min\(100%, 310px\);\s*margin-inline: auto;\s*justify-items: center;/);
+  assert.match(styles, /\.ifb-template-card__slot \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) 36px 27px 20px;/);
+  assert.match(templates, /ifb-template-card__delete-placeholder/);
+  assert.match(templates, /ifb-template-card__slots/);
+  assert.match(styles, /\.ifb-template-card__delete-placeholder \{/);
 });
