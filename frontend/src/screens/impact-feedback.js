@@ -60,7 +60,7 @@ import {
   updateCampaign
 } from '../impact-feedback/feedback-api.js';
 import { campaignLink, copyText, openQrProjection, personalShareLinks } from '../impact-feedback/feedback-share.js';
-import { renderTemplatesView, bindTemplatesView, isTemplateEditorOpen } from '../impact-feedback/feedback-templates-view.js';
+import { renderTemplatesView, bindTemplatesView } from '../impact-feedback/feedback-templates-view.js';
 import '../impact-feedback/feedback-form.css';
 import '../impact-feedback/impact-feedback-admin.css';
 
@@ -76,7 +76,8 @@ const TABS = [
   { key: 'students', label: 'תלמידים' },
   { key: 'instructors', label: 'מדריכים' },
   { key: 'staff', label: 'צוות חינוכי' },
-  { key: 'analysis', label: 'ניתוח והשוואה' }
+  { key: 'analysis', label: 'ניתוח והשוואה' },
+  { key: 'templates', label: 'תבניות' }
 ];
 
 /** Data each tab needs; loaded per academic year and cached until refresh or a mutation. */
@@ -85,7 +86,8 @@ const TAB_NEEDS = {
   students: ['groups', 'facts'],
   instructors: ['assignments', 'facts'],
   staff: ['groups', 'facts'],
-  analysis: ['summary', 'facts']
+  analysis: ['summary', 'facts'],
+  templates: []
 };
 
 const ui = {
@@ -352,13 +354,12 @@ function emptyHtml(text, sub = '') {
 function sectionHtml(title, body, { actions = '', id = '', note = '' } = {}) {
   return `<section class="ifb-section"${id ? ` id="${esc(id)}"` : ''}>
     <div class="ifb-section__head"><h2>${esc(title)}</h2>${actions}</div>
-    ${note ? `<p class="ifb-note">${esc(note)}</p>` : ''}
     ${body}
   </section>`;
 }
 
 function selectCourseHint(what) {
-  return emptyHtml(`בחרו קורס בראש המסך כדי לראות ${what}.`, 'התוצאות מחושבות לכל קורס בנפרד, מכל התשובות התקפות של כל קבוצות הקורס.');
+  return emptyHtml(`בחרו קורס להצגת ${what}.`);
 }
 
 // ---------------------------------------------------------------------------
@@ -431,50 +432,35 @@ function studentRateCell(collection) {
 function coursesTableHtml() {
   const o = ui.overview;
   const programs = ui.programs.filter((p) => !ui.course || p.key === ui.course);
-  const show = (audience, stage) => (!o.audience || o.audience === audience) && (!o.phase || stagePhase(audience, stage) === o.phase);
-  const cols = [
-    show('student', 'pre') && { key: 'sp', label: 'תלמידים – פתיחה', title: 'שאלונים שהוגשו' },
-    show('student', 'post') && { key: 'so', label: 'תלמידים – סיום', title: 'שאלונים שהוגשו' },
-    (show('student', 'pre') || show('student', 'post')) && { key: 'sr', label: 'היענות תלמידים', title: 'שאלונים ביחס למספר המשתתפים הרשום בקבוצות' },
-    show('instructor', 'pre') && { key: 'ip', label: 'מדריכים – פתיחה', title: 'הושלמו / נשלחו' },
-    show('instructor', 'final') && { key: 'if', label: 'מדריכים – סיום', title: 'הושלמו / נשלחו' },
-    show('educational_staff', 'final') && { key: 'st', label: 'צוות חינוכי', title: 'הושלמו / נשלחו' },
-    (!o.audience || o.audience === 'student') && !o.phase && { key: 'ch', label: 'תלמידים פתיחה→סיום', title: 'ממוצע בשאלות זהות בלבד, כלל המשיבים' }
-  ].filter(Boolean);
-  const hasCampaigns = (key) => AUDIENCE_ORDER.some((a) => courseCollection(ui.summary || [], key, a).campaigns > 0);
-  const idle = programs.filter((p) => !hasCampaigns(p.key));
-  const idleNote = idle.length
-    ? `<p class="ifb-note" data-ifb-idle-courses>טרם נפתחו משובים${ui.course ? '' : ` (${idle.length} קורסים)`}: ${idle.map((p) => esc(programTitle(p.key))).join(' · ')}</p>`
-    : '';
-  const active = programs.filter((p) => hasCampaigns(p.key));
-  if (!active.length) return `${emptyHtml('טרם נפתחו משובים בשנת הלימודים שנבחרה.')}${idleNote}`;
-  const rows = active.map((p) => {
-    const st = courseCollection(ui.summary || [], p.key, 'student');
-    const ins = courseCollection(ui.summary || [], p.key, 'instructor');
-    const staff = courseCollection(ui.summary || [], p.key, 'educational_staff');
-    const groups = Math.max(st.byStage.pre?.groups || 0, st.byStage.post?.groups || 0, staff.byStage.final?.groups || 0);
-    const change = studentChangeFor(p.key);
-    const cells = {
-      sp: `<span class="ifb-num">${st.byStage.pre.responses}</span>`,
-      so: `<span class="ifb-num">${st.byStage.post.responses}</span>`,
-      sr: studentRateCell(st),
-      ip: personalCell(ins.byStage.pre),
-      if: personalCell(ins.byStage.final),
-      st: personalCell(staff.byStage.final),
-      ch: change ? `<span class="ifb-num">${fmtNum(change.pre)} → ${fmtNum(change.post)}</span> <strong class="${deltaClass(change.delta)}">${fmtDelta(change.delta)}</strong>` : '<span class="ifb-muted">—</span>'
-    };
-    return `<tr data-course-row="${esc(p.key)}">
-      <th scope="row" data-label="קורס"><span class="ifb-course-name">${esc(programTitle(p.key))}</span></th>
-      <td data-label="קבוצות עם משוב" class="ifb-center"><span class="ifb-num">${groups}</span></td>
-      ${cols.map((c) => `<td data-label="${esc(c.label)}" class="ifb-center">${cells[c.key]}</td>`).join('')}
-      <td data-label="פעולות" class="ifb-col-actions"><button type="button" class="ifb-row-action" data-ifb-analyze="${esc(p.key)}" aria-label="ניתוח הקורס ${esc(programTitle(p.key))}">ניתוח</button></td>
+  if (!programs.length) return emptyHtml('לא נמצאו קורסים.');
+  const columns = [
+    { audience: 'student', stage: 'pre', label: 'תלמידים – פתיחה' },
+    { audience: 'student', stage: 'post', label: 'תלמידים – סיום' },
+    { audience: 'instructor', stage: 'pre', label: 'מדריכים – פתיחה' },
+    { audience: 'instructor', stage: 'final', label: 'מדריכים – סיום' },
+    { audience: 'educational_staff', stage: 'final', label: 'צוות חינוכי' }
+  ].filter((c) => (!o.audience || c.audience === o.audience)
+    && (!o.phase || stagePhase(c.audience, c.stage) === o.phase));
+
+  const rows = programs.map((program) => {
+    const stages = columns.map((col) => courseCollection(ui.summary || [], program.key, col.audience).byStage[col.stage]);
+    const launched = stages.reduce((n, stage) => n + (stage.campaigns || 0), 0);
+    const submitted = stages.reduce((n, stage) => n + (stage.responses || 0), 0);
+    const label = !launched ? 'טרם נפתח' : submitted ? 'התקבלו תשובות' : 'ממתין לתשובות';
+    const statusClass = !launched ? 'is-idle' : submitted ? 'is-received' : 'is-waiting';
+    return `<tr data-course-row="${esc(program.key)}">
+      <th scope="row" data-label="קורס"><span class="ifb-course-name">${esc(programTitle(program.key))}</span></th>
+      <td data-label="מצב" class="ifb-center"><span class="ifb-course-status ${statusClass}">${label}</span></td>
+      ${columns.map((col, index) => `<td data-label="${esc(col.label)}" class="ifb-center"><span class="ifb-num">${stages[index].campaigns ? stages[index].responses : '—'}</span></td>`).join('')}
+      <td data-label="פעולות" class="ifb-col-actions"><button type="button" class="ifb-row-action" data-ifb-analyze="${esc(program.key)}" aria-label="ניתוח הקורס ${esc(programTitle(program.key))}">ניתוח</button></td>
     </tr>`;
   }).join('');
+
   return `<div class="ifb-table-wrap"><table class="ifb-table ifb-courses-table">
-    <caption class="ifb-sr">נתוני משובים לפי קורס</caption>
-    <thead><tr><th scope="col">קורס</th><th scope="col" class="ifb-center">קבוצות עם משוב</th>${cols.map((c) => `<th scope="col" class="ifb-center" title="${esc(c.title)}">${esc(c.label)}</th>`).join('')}<th scope="col"><span class="ifb-sr">פעולות</span></th></tr></thead>
+    <caption class="ifb-sr">מצב משובים לפי קורס</caption>
+    <thead><tr><th scope="col">קורס</th><th scope="col" class="ifb-center">מצב</th>${columns.map((col) => `<th scope="col" class="ifb-center">${esc(col.label)}</th>`).join('')}<th scope="col">פעולות</th></tr></thead>
     <tbody>${rows}</tbody>
-  </table></div>${idleNote}`;
+  </table></div>`;
 }
 
 /**
@@ -511,6 +497,7 @@ function insightsHtml(facts) {
   const notEnough = flat
     ? 'הממוצעים בכל השאלות זהים – אין חוזקות או פערים בולטים.'
     : `אין עדיין שאלות סיום עם לפחות ${MIN_N_RANKING} תשובות תקפות.`;
+  if (!all.some((q) => q.valid >= MIN_N_RANKING) && !trends.length) return '';
   return `<div class="ifb-grid-3">
     <section class="ifb-panel ifb-panel--tight"><h3>חוזקות</h3>${list(strengths.map(item), notEnough)}</section>
     <section class="ifb-panel ifb-panel--tight"><h3>תחומים הדורשים שיפור</h3>${list(gaps.map(item), notEnough)}</section>
@@ -519,36 +506,37 @@ function insightsHtml(facts) {
       <span class="ifb-insight__meta">${esc(programTitle(t.programKey))} · ${esc(AUDIENCE_LABELS[t.audience])} · שינוי בממוצע האוכלוסייה</span>
       <span class="ifb-insight__value"><span class="ifb-num">${fmtNum(t.preAvg)} → ${fmtNum(t.postAvg)}</span> <strong class="${deltaClass(t.delta)}">${fmtDelta(t.delta)}</strong></span>
     </li>`), `אין עדיין שאלות זהות עם לפחות ${MIN_N_RANKING} תשובות בפתיחה ובסיום.`)}</section>
-  </div>
-  <p class="ifb-note">חוזקות ותחומים לשיפור: דירוג שאלות הסיום לפי ממוצע כלל התשובות התקפות (1–5), בתוך כל קורס וקהל בנפרד. שינוי פתיחה→סיום הוא הפרש בין ממוצעי אוכלוסיות המשיבים ואינו מדידה של שינוי אישי.</p>`;
+  </div>`;
 }
 
 function overviewHtml() {
   const o = ui.overview;
   const totals = overviewTotals(ui.summary || [], { programKey: ui.course, audience: o.audience, phase: o.phase });
-  const groups = ui.groups || [];
-  const unresolved = groups.filter(isProgramUnresolved).length;
-  const groupsWithFeedback = courseScopedGroups().filter((g) => g.program_key && groupHasFeedback(g)).length;
-  const studentAnonymous = !o.audience || o.audience === 'student';
+  const matchesScope = (campaign) =>
+    (!o.audience || campaign.audience === o.audience) && (!o.phase || stagePhase(campaign.audience, campaign.stage) === o.phase);
+  const groups = courseScopedGroups().filter((g) =>
+    g.program_key && groupHasFeedback(g) && g.campaigns.some(matchesScope));
+  const answered = groups.filter((g) => g.campaigns.some((c) => matchesScope(c) && Number(c.responses) > 0)).length;
   const kpis = [
-    ['קורסים פעילים במעקב', totals.courses, `מתוך ${ui.course ? 1 : ui.programs.length} קורסים`],
-    ['שאלונים שהוגשו', totals.responses, 'כל שאלון נספר פעם אחת'],
-    ['משיבים ייחודיים מזוהים', totals.identifiedRespondents === null ? '—' : totals.identifiedRespondents,
-      totals.identifiedRespondents === null ? 'מוצג ללא סינון שלב' : studentAnonymous ? 'מדריכים וצוות · תלמידים אנונימיים' : 'לפי מזהה מדריך / איש קשר'],
-    ['קבוצות עם משוב', groupsWithFeedback, ui.course ? programTitle(ui.course) : 'בכל הקורסים']
+    ['קורסים במעקב', ui.course ? 1 : ui.programs.length, ''],
+    ['קבוצות עם שאלון', groups.length, ''],
+    ['שאלונים שהוגשו', totals.responses, ''],
+    ['קבוצות שהשיבו', answered, '']
   ];
-  const audienceEntries = AUDIENCE_ORDER.filter((a) => !o.audience || a === o.audience).map((a) => [AUDIENCE_LABELS[a], totals.byAudience[a] || 0]);
-  const phaseEntries = ['pre', 'end'].filter((p) => !o.phase || p === o.phase).map((p) => [PHASE_LABELS[p], totals.byPhase[p] || 0]);
+  const audienceEntries = AUDIENCE_ORDER.filter((a) => (!o.audience || o.audience === a) && (totals.byAudience[a] || 0) > 0)
+    .map((a) => [AUDIENCE_LABELS[a], totals.byAudience[a]]);
+  const phaseEntries = ['pre', 'end'].filter((p) => (!o.phase || o.phase === p) && (totals.byPhase[p] || 0) > 0)
+    .map((p) => [PHASE_LABELS[p], totals.byPhase[p]]);
+  const insights = totals.responses ? insightsHtml(overviewFacts()) : '';
   return `
     ${overviewFiltersHtml()}
     ${kpiStripHtml(kpis)}
-    ${unresolved ? `<p class="ifb-warning" role="note">${unresolved} קבוצות קורס טרם שויכו לקורס ואינן נספרות. השיוך מתבצע בלשונית „תלמידים”.</p>` : ''}
-    <div class="ifb-grid-2">
-      ${barListHtml('שאלונים לפי קהל יעד', audienceEntries)}
-      ${barListHtml('שאלונים לפי שלב המשוב', phaseEntries)}
-    </div>
-    ${sectionHtml('קורסים', coursesTableHtml(), { note: 'תלמידים: מספר שאלונים שהוגשו (המשוב אנונימי, ולכן אין ספירת משיבים ייחודיים). מדריכים וצוות חינוכי: הושלמו מתוך קישורים אישיים שנשלחו. היענות תלמידים מחושבת רק בקבוצות שבהן רשום מספר משתתפים.' })}
-    ${sectionHtml('מגמות, חוזקות ותחומים לשיפור', insightsHtml(overviewFacts()))}`;
+    ${sectionHtml('מעקב משובים לפי קורס', coursesTableHtml())}
+    ${totals.responses && (audienceEntries.length > 1 || phaseEntries.length > 1) ? `<div class="ifb-grid-2">
+      ${audienceEntries.length > 1 ? barListHtml('לפי קהל יעד', audienceEntries) : ''}
+      ${phaseEntries.length > 1 ? barListHtml('לפי שלב המשוב', phaseEntries) : ''}
+    </div>` : ''}
+    ${insights ? sectionHtml('ממצאים מרכזיים', insights) : ''}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -676,14 +664,13 @@ function prePostQuestionTableHtml(preFacts, postFacts, { audience }) {
   const cmp = comparePrePostByQuestion(preFacts, postFacts);
   const preLabel = stageLabelFor(audience, 'pre');
   const postLabel = 'סיום';
-  const counts = `<p class="ifb-note">שאלונים: ${esc(preLabel)} ${cmp.nPre} · ${esc(postLabel)} ${cmp.nPost}. ההשוואה היא בין ממוצעי אוכלוסיות המשיבים (המשיבים אינם מותאמים אישית), ורק בשאלות זהות בשני השלבים.</p>`;
   if (!cmp.nPre && !cmp.nPost) return emptyHtml('טרם התקבלו שאלונים.');
   if (!cmp.rows.length) {
-    return `${counts}${emptyHtml(audience === 'instructor'
+    return `${emptyHtml(audience === 'instructor'
       ? 'שאלוני הפתיחה והסיום של המדריכים אינם כוללים שאלות זהות, ולכן לא מוצגת השוואת פתיחה–סיום.'
       : !cmp.nPre || !cmp.nPost ? 'יש נתונים לשלב אחד בלבד – ההשוואה תוצג לאחר שיתקבלו שאלונים בשני השלבים.' : 'אין שאלות זהות בשני השלבים.')}`;
   }
-  return `${counts}<div class="ifb-table-wrap"><table class="ifb-table ifb-prepost-table">
+  return `<div class="ifb-table-wrap"><table class="ifb-table ifb-prepost-table">
     <caption class="ifb-sr">השוואת פתיחה–סיום לפי שאלה</caption>
     <thead><tr><th scope="col">שאלה</th><th scope="col" class="ifb-center">${esc(preLabel)}</th><th scope="col" class="ifb-center">${esc(postLabel)}</th><th scope="col" class="ifb-center">שינוי</th></tr></thead>
     <tbody>${cmp.rows.map((r) => `<tr>
@@ -754,7 +741,6 @@ function studentsHtml() {
        ${openAnswersDisclosure(facts)}`
     : selectCourseHint('תוצאות לכל שאלה');
   return `
-    ${sectionHtml('שאלוני תלמידים', renderTemplatesView(ui, { audience: 'student' }), { note: 'שאלון פתיחה ושאלון סיום לכל קורס. עריכה נעשית בטיוטה ומתפרסמת כגרסה חדשה; משובים שכבר נפתחו נשארים על הגרסה שלהם.' })}
     ${sectionHtml('הפצה ומעקב לפי קבוצה', groupsTableHtml(STUDENT_SLOTS, 'students'))}
     ${sectionHtml('תוצאות', results, { actions: ui.course ? exportButtonHtml('audience:student') : '' })}`;
 }
@@ -924,7 +910,6 @@ function instructorsHtml() {
        ${openAnswersDisclosure(facts)}`
     : selectCourseHint('תוצאות לכל שאלה');
   return `
-    ${sectionHtml('שאלוני מדריכים', renderTemplatesView(ui, { audience: 'instructor' }), { note: 'שאלון מוכנות לאחר ההכשרה ולפני תחילת ההדרכה, ושאלון סיום הקורס. המשוב משויך למדריך, לקורס ולשנת הלימודים.' })}
     ${sectionHtml('הפצה ומעקב', instructorAssignmentsHtml())}
     ${sectionHtml('תוצאות', results, { actions: ui.course ? exportButtonHtml('audience:instructor') : '' })}`;
 }
@@ -941,7 +926,6 @@ function staffHtml() {
        ${openAnswersDisclosure(facts, 'הערות פתוחות')}`
     : selectCourseHint('תוצאות לכל שאלה');
   return `
-    ${sectionHtml('שאלוני צוות חינוכי', renderTemplatesView(ui, { audience: 'educational_staff' }), { note: 'הערכת תוכנית: איכות ההדרכה, מעורבות התלמידים והשגת המטרות. קישור אישי לאיש הקשר של כל קבוצה.' })}
     ${sectionHtml('הפצה ומעקב לפי קבוצה', groupsTableHtml(STAFF_SLOTS, 'staff'))}
     ${sectionHtml('תוצאות', results, { actions: ui.course ? exportButtonHtml('audience:educational_staff') : '' })}`;
 }
@@ -992,10 +976,9 @@ function audienceComparisonHtml(facts) {
       <td data-label="תלמידים (סיום)" class="ifb-center">${cell(r.cells.student)}</td>
       <td data-label="מדריכים (סיום)" class="ifb-center">${cell(r.cells.instructor)}</td>
       <td data-label="צוות חינוכי" class="ifb-center">${cell(r.cells.educational_staff)}</td>
-      <td data-label="הבדל בין נקודות המבט" class="ifb-center">${r.gap ? statusText(`${r.gap.label} (${r.gap.gap} נק׳)`, r.gap.key === 'aligned' ? 'success' : r.gap.key === 'partial' ? 'muted' : 'warning') : `<span class="ifb-muted">דרושות לפחות 2 אוכלוסיות עם ${MIN_N_GAP}+ משיבים</span>`}</td>
+      <td data-label="הבדל בין נקודות המבט" class="ifb-center">${r.gap ? statusText(`${r.gap.label} (${r.gap.gap} נק׳)`, r.gap.key === 'aligned' ? 'success' : r.gap.key === 'partial' ? 'muted' : 'warning') : '<span class="ifb-muted">—</span>'}</td>
     </tr>`).join('')}</tbody>
-  </table></div>
-  <p class="ifb-note">ממוצע 1–5 של כל אוכלוסייה בנפרד, מתוך השאלות שלה במדד. אין ציון משולב: כל קהל נשאל שאלות שונות, ולכן ההבדל הוא אינדיקציה בלבד (מחושב על סולם 0–100).</p>`;
+  </table></div>`;
 }
 
 /** Core wording embeds each course's topic ({topic}); show the shared concept once, topic-neutral. */
@@ -1022,8 +1005,7 @@ function crossCourseHtml() {
       <th scope="row" data-label="שאלת ליבה"><span class="ifb-q-text">${esc(neutralCoreText(r.text))}</span><span class="ifb-cell-sub ifb-muted">${esc(metricLabel(r.metric_key))}</span></th>
       ${programKeys.map((k) => `<td data-label="${esc(programTitle(k))}" class="ifb-center${k === ui.course ? ' is-selected' : ''}">${r.byProgram[k] ? `<span class="ifb-num">${fmtNum(r.byProgram[k].avg)}</span> <span class="ifb-muted">N=${r.byProgram[k].n}</span>` : '<span class="ifb-muted">—</span>'}</td>`).join('')}
     </tr>`).join('')}</tbody>
-  </table></div>
-  <p class="ifb-note">רק שאלות ליבה זהות המשותפות לכל הקורסים (באותו קהל ושלב). „[נושא הקורס]” מוחלף בשאלון בנושא של כל קורס.</p>`;
+  </table></div>`;
 }
 
 function populationResultsHtml(facts, { section }) {
@@ -1065,9 +1047,7 @@ function analysisHtml() {
 function programCardHtml(group) {
   const locked = groupHasFeedback(group);
   const unresolved = isProgramUnresolved(group);
-  if (locked) {
-    return `<p class="ifb-note">קורס: <strong>${esc(programTitle(group.program_key))}</strong> · ${esc(PROGRAM_SOURCE_LABELS[group.program_source] || '')} · נעול לאחר פתיחת משוב.</p>`;
-  }
+  if (locked) return '';
   const form = `
     <form class="ifb-program-form" data-ifb-set-program="${esc(group.row_id)}">
       <label class="ifb-field"><span>קורס</span><select name="program" required>${programOptionsHtml(group.program_key || '')}</select></label>
@@ -1082,7 +1062,6 @@ function programCardHtml(group) {
   if (unresolved || group.feedback_excluded) {
     return `<section class="ifb-panel ifb-program-card--pick" data-ifb-program-card>
       <h3>${group.feedback_excluded ? 'הפעילות סומנה כלא רלוונטית למשובים' : statusText('קורס לא זוהה', 'warning')}</h3>
-      <p class="ifb-note">שם הפעילות „${esc(group.activity_name || '')}” לא זוהה כאחד מקורסי המשובים. הבחירה נשמרת למודול המשובים בלבד ואינה משנה את נתוני הפעילות.</p>
       ${form}
     </section>`;
   }
@@ -1177,10 +1156,9 @@ function slotCardHtml(group, slot) {
 
 function prePostMetricTableHtml(comparison) {
   if (!comparison.nPre && !comparison.nPost) return '<p class="ifb-muted">טרם התקבלו תשובות תלמידים.</p>';
-  const note = !comparison.nPre ? '<p class="ifb-note">יש רק נתוני סיום – אין השוואה לפתיחה.</p>'
-    : !comparison.nPost ? '<p class="ifb-note">יש רק נתוני פתיחה – ההשוואה תוצג לאחר משוב הסיום.</p>' : '';
+  const note = !comparison.nPre ? '<p class="ifb-muted">אין שאלוני פתיחה.</p>'
+    : !comparison.nPost ? '<p class="ifb-muted">אין שאלוני סיום.</p>' : '';
   return `${note}
-    <p class="ifb-note">השוואה בין ממוצע הקבוצה בפתיחה לממוצע הקבוצה בסיום (אין התאמה בין תלמידים). N פתיחה: ${comparison.nPre} · N סיום: ${comparison.nPost}</p>
     <div class="ifb-table-wrap"><table class="ifb-table ifb-table--compact">
       <thead><tr><th scope="col">מדד</th><th scope="col">פתיחה</th><th scope="col">סיום</th><th scope="col">שינוי</th><th scope="col">מגמה</th></tr></thead>
       <tbody>${comparison.rows.map((r) => `
@@ -1381,14 +1359,12 @@ function viewHtml() {
     if (ui.loading || !ui.groups) return loadingHtml();
     return groupViewHtml(findGroup(ui.groupRowId));
   }
-  if (isTemplateEditorOpen(ui) && ['students', 'instructors', 'staff'].includes(ui.tab)) {
-    return renderTemplatesView(ui);
-  }
   if (ui.loading || !ui.programs.length || !needsReady()) return loadingHtml();
   if (ui.tab === 'students') return studentsHtml();
   if (ui.tab === 'instructors') return instructorsHtml();
   if (ui.tab === 'staff') return staffHtml();
   if (ui.tab === 'analysis') return analysisHtml();
+  if (ui.tab === 'templates') return renderTemplatesView(ui);
   return overviewHtml();
 }
 
