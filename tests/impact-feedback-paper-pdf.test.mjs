@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { PDFDocument } from 'pdf-lib';
 import { buildQuestionnairePdf } from '../frontend/src/impact-feedback/feedback-print-pdf.js';
 
@@ -32,6 +32,12 @@ test('printable feedback PDF is a real A4 document using the published version',
     boldData
   });
   assert.equal(Buffer.from(bytes.subarray(0, 5)).toString(), '%PDF-');
+  // Both complete embedded TrueType fonts must be present, not Acrobat-fragile
+  // fontkit subsets (which yielded the scrambled Hebrew reported by users).
+  assert.ok(bytes.length > 160_000, 'Full embedded Hebrew fonts should not be reduced to tiny CID subsets');
+  if (process.env.IFB_PDF_SMOKE_OUTPUT) {
+    await writeFile(process.env.IFB_PDF_SMOKE_OUTPUT, bytes);
+  }
   const pdf = await PDFDocument.load(bytes);
   assert.ok(pdf.getPageCount() >= 1);
   for (const page of pdf.getPages()) {
@@ -68,4 +74,11 @@ test('the dedicated templates tab does not duplicate templates on audience tabs'
   assert.match(screen, /data-ifb-share="email"/);
   assert.match(screen, /data-ifb-qr/);
   assert.match(screen, /data-ifb-analyze/);
+});
+
+test('Hebrew questionnaire text uses full fonts with correct bidi punctuation mirroring', async () => {
+  const source = await readFile(new URL('../frontend/src/impact-feedback/feedback-print-pdf.js', import.meta.url), 'utf8');
+  assert.match(source, /pdf\.embedFont\(regularData, \{ subset: false \}\)/);
+  assert.match(source, /pdf\.embedFont\(boldData, \{ subset: false \}\)/);
+  assert.match(source, /getMirroredCharactersMap\(source, levels\)/);
 });
