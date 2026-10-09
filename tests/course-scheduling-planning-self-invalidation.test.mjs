@@ -256,8 +256,8 @@ test('13) confirm validation blocks invalid stale row', () => {
 });
 
 test('validation version exists and engine bump does not imply full-workspace dirty SQL', () => {
-  assert.match(PLANNING_VALIDATION_VERSION, /self-invalidation/);
-  assert.match(PLANNING_ENGINE_VERSION, /self-invalidation/);
+  assert.match(PLANNING_VALIDATION_VERSION, /official-date-transition-guard/);
+  assert.match(PLANNING_ENGINE_VERSION, /point-context-transition-guard/);
   assert.match(screen, /isPlanningValidationCurrent/);
   assert.doesNotMatch(screen, /\.includes\(PLANNING_VALIDATION_VERSION\)/);
   assert.match(migration, /instructor_scheduling_profiles_invalidate_planning/);

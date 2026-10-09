@@ -1,0 +1,110 @@
+✔ 253/253 RUNNING checkpoint goes to validation instead of a fresh run, never straight to commit (2.664776ms)
+✔ 253/253 rows alone never skip unfinished optimization passes (0.418945ms)
+✔ partial resume re-opens unassigned rows so the existing-staff rescue runs again (0.814827ms)
+✔ partial or stale RUNNING checkpoints are not treated as complete (0.477011ms)
+✔ mid-run source change rebases only the changed activity and its instructor/date dependents (1.888165ms)
+✔ rebase includes rows newly flagged needs_recalc but not rows already dirty when the run started (0.322093ms)
+✔ instructor availability change during a run rebases only rows that depend on that instructor (0.286922ms)
+✔ a row dirty at start and flagged again during the run is rechecked (0.455039ms)
+✔ flag-time comparison keeps a safety margin and fails closed (0.187395ms)
+✔ no detected change keeps the whole calculated plan (empty delta) (0.263477ms)
+✔ resumed complete checkpoint is validated without re-planning and keeps every row (2.983364ms)
+✔ resumed checkpoint with a hard conflict reports only a bounded repair delta (1.168297ms)
+✔ resume with no unfinished rows still runs gap compaction over the original scope (16.237542ms)
+✔ interrupted run: unassigned rows re-enter base planning (staff rescue) and every optimization pass runs on the original scope (5.782167ms)
+✔ run wiring: planner completion is recorded explicitly and resume keeps optimization scope (0.422371ms)
+✔ run wiring: completed RUNNING checkpoint skips the planner and source conflicts rebase instead of aborting (0.715151ms)
+✔ period/district filter change keeps the loaded shared plan and an active run on screen (0.286692ms)
+✔ real-world overlap recovery keeps the prior conflict-free instructor instead of discarding all 253 proposals (1.237688ms)
+✔ overlap recovery never overrides a locked plan or invents an unverified alternative (0.237469ms)
+✔ screen uses the whole-plan validated fallback for both normal and delta planning (0.550348ms)
+✔ nested local overlap repairs have one cooperative deadline that cannot restart (0.528206ms)
+✔ on whole-plan overlap, saved incumbent is verified before 75s nested repair (0.294383ms)
+✔ checkpoint recovery covers more than eight intersecting courses and can safely fall back to committed missing rows (1.430022ms)
+✔ a dirty rows checkpoint is checked for overlap before any resumed planning can trust its incumbents (0.266031ms)
+✔ school-cohort choices reject same-instructor overlaps and prefer next valid instructor without delaying course (0.353679ms)
+✔ school-cohort choices honor meeting substitutes and full-day instructor blockers (0.203139ms)
+✔ residual school-cohort collision is reconciled after packing, preferring a valid alternate to lost hours (0.376823ms)
+✔ unresolved cohort clashes remain unassigned rather than being wrongly certified as recruitment (0.592431ms)
+✔ committed fixed and locked activities are never replaced to resolve a provisional conflict (0.145364ms)
+✔ browser planning deadline ends an otherwise infinite computation without committing (0.363544ms)
+✔ unrecoverable checkpoint falls back to original dirty scope and separately committed data (0.664616ms)
+✔ safe restart adds newly created courses while keeping unrelated saved proposals (0.118324ms)
+✔ unrecoverable checkpoint never silently launches a full country rebuild (0.096402ms)
+✔ 253-row production-shape acceptance: recover corrupted checkpoint, preserve 101 live, serialize validated full save (15.709025ms)
+✔ stage progress checkpoints upload changed rows only with a 120s cooldown, never repeat whole 253-row snapshot (1.913392ms)
+✔ stage snapshots persist fresh rows if previous checkpoint cache was discarded for unsafe overlap (0.256727ms)
+✔ 1) INSERT exception blocked dirties only instructor-linked planning rows (SQL scoped) (0.237048ms)
+✔ 2) UPDATE exception marks relevant rows dirty (0.094629ms)
+✔ 3) DELETE exception marks relevant rows dirty (0.135069ms)
+✔ 4) activity gender change dirties its planning row (0.07489ms)
+✔ 5) activity language change dirties its planning row (0.061911ms)
+✔ 6) sessions change dirties its planning row (0.056693ms)
+✔ 7) stored row with exception violation + needs_recalc=false is invalid in audit (0.739336ms)
+✔ 8) הכול מעודכן is blocked when audit finds invalid rows (0.539723ms)
+✔ 9) 1–2 availability exceptions keep permanent instructor via recovery plan (1.007861ms)
+✔ 10) 3+ availability exceptions reject permanent instructor (0.14258ms)
+✔ 11) meeting count mismatch marks row dirty via audit (0.416823ms)
+✔ 12) instructor availability change is scoped (not full workspace / not 248) (0.245902ms)
+✔ 13) confirm validation blocks invalid stale row (0.102241ms)
+✔ validation version exists and engine bump does not imply full-workspace dirty SQL (0.233634ms)
+✔ 173-course national upgrade saves a separately validated pending base; no soft passes before this commit (0.612831ms)
+✔ optimization phase starts from the saved plan, never repeating 173-course base scope (1.053348ms)
+✔ pending optimization with only locked/live records becomes safe marker-only finalization (0.154527ms)
+✔ chosen candidates and authoritative validation reject the same short travel gap; legal alternative survives (0.720899ms)
+✔ transition boundaries, unknown routes, direction and same-school adjacency are explicit (0.327992ms)
+✔ reconciliation repairs a zero-gap school transition while immutable and unrelated rows stay identical (0.26581ms)
+✔ fixed-point dependencies cross schools via school peers and candidate/substitute instructors, excluding unrelated dates and immutable peers (0.797292ms)
+✔ optional optimizer error preserves a hard-validated base, without pretending optimization succeeded (13.861872ms)
+✔ cancellation and ownership loss during optional optimization still abort, never silently save the base (4.079304ms)
+✔ no suitable instructor or blocked fixed date yields no unsafe assignment and never moves the official date (2.045606ms)
+✔ final guard rejects a fixed proposal moved off its official date (0.365937ms)
+✔ synchronous and async self-route views agree while different missing addresses remain unknown (0.196229ms)
+✔ v36 upgrades recheck only known fixed-date drift; valid snapshots do not generate national targets (0.638819ms)
+[course-scheduling] stylesheet load failed TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension ".css" for /workspace/work/scheduling-pr2/repo/frontend/src/screens/course-scheduling.css
+    at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:243:9)
+    at defaultGetFormat (node:internal/modules/esm/get_format:283:36)
+    at defaultLoadSync (node:internal/modules/esm/load:161:16)
+    at #loadAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:802:12)
+    at #loadSync (node:internal/modules/esm/loader:834:53)
+    at ModuleLoader.load (node:internal/modules/esm/loader:783:26)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:494:31)
+    at #getOrCreateModuleJobAfterResolve (node:internal/modules/esm/loader:560:36)
+    at afterResolve (node:internal/modules/esm/loader:607:52)
+    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:613:12) {
+  code: 'ERR_UNKNOWN_FILE_EXTENSION'
+}
+✔ 253 saved activities: real search, paging, course opening and re-entry never start engine computation or writes (465.089586ms)
+ℹ {"activities":253,"activitiesComputed":0,"contextRebuilds":0,"scheduleCalls":0,"requests":[{"path":"/rest/v1/rpc/course_assignment_manager_approval_state","method":"POST"},{"path":"/rest/v1/rpc/course_assignment_manager_approval_state","method":"POST"},{"path":"/rest/v1/rpc/course_assignment_manager_approval_state","method":"POST"}],"writes":0}
+✔ saved validated base with incomplete optimization is disclosed after reload and remains exportable (0.221866ms)
+✔ prepared scheduling context is built once and reused across targeted evaluations (3.765153ms)
+✔ preliminary shortlist reuses prepared context without running the full schedule pipeline (1.179773ms)
+✔ service worker entry imports the implementation without a second manual version (0.900503ms)
+✔ service worker removes old dashboard caches during activate without interrupting open tabs (0.413268ms)
+✔ service worker fetches app shell and manifest fresh after deploy (0.348873ms)
+✔ PWA manifest and icon files still point to existing dashboard assets (0.42197ms)
+✔ PWA guardrails keep cache versioning and catalog registration centralized (2.984976ms)
+✔ PWA guardrails prevent wholesale catalog and bulky-file precache (0.597398ms)
+ℹ tests 73
+ℹ suites 0
+ℹ pass 73
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1225.993623
+
+--- Focused status contract update: five cases after CI source assertion failure ---
+✔ scheduling field helper treats gender/language/dates as planning-sensitive and notes as not (0.848398ms)
+✔ local planning invalidation marks only the provided activity ids as pending (1.605701ms)
+✔ planning status distinguishes pending work from an active auto-refresh run (116.491682ms)
+✔ activity requirement and saveActivity paths explicitly invalidate planning after scheduling edits (5.381483ms)
+✔ olpanat bari gender any->female is treated as pending planning work for one activity (0.260313ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 198.722829

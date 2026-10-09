@@ -267,6 +267,7 @@ export function createRouteClient({
     planningPerfCount('routeCacheRequests');
     if (signal?.aborted) return Promise.reject(cancelledError());
     if (!text(origin) || !text(destination)) return Promise.resolve(null);
+    if (normalizePlace(origin) === normalizePlace(destination)) return Promise.resolve({ distance_km: 0, duration_minutes: 0, cached: true });
     const normalizedContext = normalizedRouteContext(context);
     const cacheKey = routeRequestKey(origin, destination, normalizedContext);
     if (cache.has(cacheKey)) return cache.get(cacheKey);
@@ -324,6 +325,9 @@ export function createRouteClient({
 
   const peek = (origin, destination) => {
     if (!text(origin) || !text(destination)) return null;
+    // routeLeg already treats an identical normalized address as a
+    // known zero-length leg. The synchronous validation view must agree.
+    if (normalizePlace(origin) === normalizePlace(destination)) return { distance_km: 0, duration_minutes: 0, cached: true };
     const hit = persistentCache.get(routeMatrixKey(origin, destination));
     return hit ? { ...hit, cached: true } : null;
   };

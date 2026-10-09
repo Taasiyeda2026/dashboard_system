@@ -30,7 +30,8 @@ import {
   NEARBY_TRANSITION_BUFFER_MINUTES,
   exceedsTransitionDistanceLimit,
   transitionDistanceCapApplies,
-  transitionBufferMinutes
+  transitionBufferMinutes,
+  schedulingTransitionFailure
 } from './instructor-matching-engine.js';
 import {
   isSchedulingActivityActive,
@@ -176,8 +177,8 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_VALIDATION_VERSION = 'planning-validation-v4-20261007-self-invalidation-incumbent-fallback';
-export const PLANNING_ENGINE_VERSION = 'planning-v35-20261007-self-invalidation-incumbent-fallback';
+export const PLANNING_VALIDATION_VERSION = 'planning-validation-v5-20261009-official-date-transition-guard-v2';
+export const PLANNING_ENGINE_VERSION = 'planning-v36-20261009-point-context-transition-guard-v2';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -242,13 +243,20 @@ export function createPlanningCheckpoint({
   };
 }
 
+const minuteCache = new Map();
+const weekdayCache = new Map();
 function timeMinutes(value) {
-  const match = text(value).match(/^(\d{1,2}):(\d{2})/);
+  const key = text(value);
+  if (minuteCache.has(key)) return minuteCache.get(key);
+  const match = key.match(/^(\d{1,2}):(\d{2})/);
   if (!match) return null;
   const hours = Number(match[1]);
   const minutes = Number(match[2]);
   if (!Number.isInteger(hours) || hours < 0 || hours > 23 || !Number.isInteger(minutes) || minutes < 0 || minutes > 59) return null;
-  return hours * 60 + minutes;
+  const result = hours * 60 + minutes;
+  if (minuteCache.size >= 256) minuteCache.clear();
+  minuteCache.set(key, result);
+  return result;
 }
 
 function formatMinutes(total) {
@@ -265,8 +273,13 @@ function addDays(value, days) {
 }
 
 function weekday(value) {
-  const date = new Date(`${text(value).slice(0, 10)}T12:00:00Z`);
-  return Number.isNaN(date.getTime()) ? null : date.getUTCDay();
+  const key = text(value).slice(0, 10);
+  if (weekdayCache.has(key)) return weekdayCache.get(key);
+  const date = new Date(`${key}T12:00:00Z`);
+  const result = Number.isNaN(date.getTime()) ? null : date.getUTCDay();
+  if (weekdayCache.size >= 1024) weekdayCache.clear();
+  weekdayCache.set(key, result);
+  return result;
 }
 
 const PLANNING_WEEKDAY_SHORT_LABELS = Object.freeze(['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'שבת']);
@@ -893,7 +906,7 @@ function dynamicTimesForWeekday({
     .map(([slot]) => slot);
 }
 
-function candidateStartDates({ activity, targetWeekday, sessions, startTime, durationMinutes, schoolCalendar = [], today, activities = [], blockingActivityRows = null, periodKey = DEFAULT_PLANNING_PERIOD_KEY } = {}) {
+function candidateStartDates({ activity, targetWeekday, sessions, startTime, durationMinutes, schoolCalendar = [], today, activities = [], blockingActivityRows = null, blockingReleaseDates = null, periodKey = DEFAULT_PLANNING_PERIOD_KEY } = {}) {
   const activityPeriodKey = planningPeriodKeyForActivity(activity, periodKey);
   const period = planningEffectivePeriod(activityPeriodKey);
   const fixedStart = text(activityMeetings(activity)
@@ -922,12 +935,12 @@ function candidateStartDates({ activity, targetWeekday, sessions, startTime, dur
   const values = new Set();
   if (earliest && earliest <= period.end) values.add(earliest);
 
-  const releaseDates = (blockingActivityRows || blockingActivities(activities))
+  const releaseDates = (blockingReleaseDates || (blockingActivityRows || blockingActivities(activities))
     .flatMap((activity) => {
       const meetings = schedulingCalendarMeetings(activity);
       const last = meetings.map((meeting) => text(meeting.date).slice(0, 10)).filter(Boolean).sort().at(-1);
       return last ? [last] : [];
-    })
+    }))
     .filter((date) => date >= floor && date <= period.end)
     .sort();
 
@@ -1030,13 +1043,23 @@ function* generatePlanningScenarioSteps({
   const scenarioActiveIds = activeInstructorIds(instructors);
   const scenarioBlockingActivities = blockingActivities(activities);
   const scenarioBlockingMeetings = blockingMeetings(scenarioBlockingActivities);
+  const blockingReleaseDates = scenarioBlockingActivities.flatMap((row) => {
+    const last = schedulingCalendarMeetings(row).map(m => text(m.date).slice(0, 10)).filter(Boolean).sort().at(-1);
+    return last ? [last] : [];
+  });
+  const blockingMeetingsByWeekday = new Map();
+  for (const meeting of scenarioBlockingMeetings) {
+    const day = weekday(meeting.date);
+    if (!blockingMeetingsByWeekday.has(day)) blockingMeetingsByWeekday.set(day, []);
+    blockingMeetingsByWeekday.get(day).push(meeting);
+  }
   // Heuristic uses weekday and times, never the absolute start date. Different
   // weekly start series with those same values reuse an identical score.
   const heuristicScores = new Map();
   function* heuristicFor(built) {
     const key = `${weekday(built.startDate)}|${built.startTime}|${built.endTime}`;
     if (!heuristicScores.has(key)) {
-      heuristicScores.set(key, yield* scenarioHeuristicSteps({ scenario: { ...built, __activity: activity }, instructors, profiles, rules, activities, activeIds: scenarioActiveIds, blockingMeetingRows: scenarioBlockingMeetings, routeClient }));
+      heuristicScores.set(key, yield* scenarioHeuristicSteps({ scenario: { ...built, __activity: activity }, instructors, profiles, rules, activities, activeIds: scenarioActiveIds, blockingMeetingRows: blockingMeetingsByWeekday.get(weekday(built.startDate)) || [], routeClient }));
     }
     return heuristicScores.get(key);
   }
@@ -1117,7 +1140,7 @@ function* generatePlanningScenarioSteps({
       const starts = [...new Set(times.flatMap((startTime) => candidateStartDates({
         activity, targetWeekday: day, sessions: spec.sessions, startTime,
         durationMinutes: spec.durationMinutes, schoolCalendar, today, activities,
-        blockingActivityRows: scenarioBlockingActivities, periodKey
+        blockingActivityRows: scenarioBlockingActivities, blockingReleaseDates, periodKey
       })))];
       for (const startDate of starts) {
         for (const startTime of times) {
@@ -1255,12 +1278,14 @@ export function generatePlanningScenarios(options = {}) {
 }
 
 async function generatePlanningScenariosCooperatively(options = {}, checkpoint = async () => {}) {
+  const stop = planningPerfTimer('scenarioGeneration');
   const steps = generatePlanningScenarioSteps(options);
   let next = steps.next();
   while (!next.done) {
     await checkpoint();
     next = steps.next();
   }
+  stop();
   return next.value;
 }
 
@@ -1853,7 +1878,8 @@ async function evaluateFixedCourse({
     preparedContext,
     candidateInstructorIds: staticCandidateInstructorIds,
     allowSubstitutes: false,
-    shiftInstructorExceptionsByWeek: true,
+    allowDateAdjustments: false,
+    shiftInstructorExceptionsByWeek: false,
     allowUnresolvedInstructorExceptions: false
   }, checkpoint)).map((item) => item.candidate).filter(Boolean)
     .map((candidate) => {
@@ -1931,7 +1957,8 @@ async function evaluateFixedCourse({
       preparedContext,
       candidateInstructorIds: batch.map((item) => empOf(item.candidate)).filter(Boolean),
       allowSubstitutes: false,
-      shiftInstructorExceptionsByWeek: true,
+      allowDateAdjustments: false,
+    shiftInstructorExceptionsByWeek: false,
       allowUnresolvedInstructorExceptions: false
     }, checkpoint))[0];
 
@@ -1946,6 +1973,7 @@ async function evaluateFixedCourse({
       if (!option) continue;
       planningPerfCount('finalValidations');
       const validation = planningOptionPassesFinalValidation(option, {
+        preserveOfficialSchedule: true,
         activity,
         instructors,
         profiles,
@@ -2541,16 +2569,19 @@ export function planningOutcomeClassification(option = null, diagnostics = {}) {
 export function filterPlanningOptionsAgainstChosenRows({
   activity = {},
   options = [],
-  rowsById = new Map()
+  rowsById = new Map(),
+  occupiedIndex = null,
+  activityById = new Map(),
+  routeClient = null
 } = {}) {
   if (!Array.isArray(options) || !options.length) return [];
   const courseId = idOf(activity);
   const activityLookup = new Map([[courseId, activity]]);
-  const occupied = new Map();
-  for (const row of rowsById?.values?.() || []) {
+  const occupied = occupiedIndex || new Map();
+  for (const row of occupiedIndex ? [] : rowsById?.values?.() || []) {
     if (text(row?.courseId) === courseId
       || !['proposal', 'fixed-proposal', 'planning-locked', 'live'].includes(text(row?.kind))) continue;
-    for (const meeting of planningRowMeetingAssignments(row)) {
+    for (const meeting of planningRowMeetingAssignments(row, activityById)) {
       const key = meeting.empId + '|' + meeting.date;
       if (!occupied.has(key)) occupied.set(key, []);
       occupied.get(key).push(meeting);
@@ -2571,14 +2602,21 @@ export function filterPlanningOptionsAgainstChosenRows({
       const blocked = occupied.get(meeting.empId + '|' + meeting.date) || [];
       const begin = timeMinutes(meeting.startTime);
       const finish = timeMinutes(meeting.endTime);
-      return blocked.every((other) => {
+      const peers = blocked.filter(other => other.courseId !== courseId);
+      if (!peers.every((other) => {
         if (meeting.fullDayBlocking || other.fullDayBlocking) return false;
         const otherBegin = timeMinutes(other.startTime);
         const otherFinish = timeMinutes(other.endTime);
-        return begin == null || finish == null || otherBegin == null || otherFinish == null
-          ? false
-          : !(begin < otherFinish && otherBegin < finish);
-      });
+        return begin != null && finish != null && otherBegin != null && otherFinish != null
+          && !(begin < otherFinish && otherBegin < finish);
+      })) return false;
+      if (!routeClient) return true;
+      const previous = peers.filter(other => timeMinutes(other.endTime) <= begin)
+        .sort((a,b) => timeMinutes(b.endTime) - timeMinutes(a.endTime))[0];
+      const next = peers.filter(other => timeMinutes(other.startTime) >= finish)
+        .sort((a,b) => timeMinutes(a.startTime) - timeMinutes(b.startTime))[0];
+      return [previous, next].filter(Boolean)
+        .every(other => !planningMeetingsTransitionFailure(meeting, other, routeClient));
     });
   });
 }
@@ -2594,12 +2632,19 @@ export function filterPlanningOptionsAgainstChosenRows({
  */
 export function reconcileSelectedPlanningOverlaps({
   rowsById = new Map(),
-  committedRows = []
+  committedRows = [],
+  activities = [],
+  routeClient = null,
+  targetCourseIds = null
 } = {}) {
+  const targetIds = Array.isArray(targetCourseIds) ? new Set(targetCourseIds.map(text)) : null;
+  const activityById = new Map(activities.map(a => [idOf(a), a]));
   const currentRows = [...(rowsById?.values?.() || [])];
   const committedById = new Map(committedRows.map((r) => [text(r?.courseId), r]));
-  const live = currentRows.filter(r => ['live', 'planning-locked'].includes(text(r?.kind)));
-  const assigned = currentRows.filter(r => ['proposal', 'fixed-proposal'].includes(text(r?.kind))
+  const live = currentRows.filter(r => ['live', 'planning-locked'].includes(text(r?.kind))
+    || (targetIds && !targetIds.has(text(r.courseId))));
+  const assigned = currentRows.filter(r => (!targetIds || targetIds.has(text(r.courseId)))
+    && ['proposal', 'fixed-proposal'].includes(text(r?.kind))
     && text(r?.instructorEmpId) && Array.isArray(r?.meetings) && r.meetings.length > 0);
   const rank = row => {
     const incumbent = committedById.get(text(row?.courseId));
@@ -2612,9 +2657,19 @@ export function reconcileSelectedPlanningOverlaps({
   assigned.sort((a,b) => rank(b) - rank(a) || text(a.courseId).localeCompare(text(b.courseId)));
   const accepted = new Map(live.map((row) => [text(row.courseId), row]));
   const repairs = [];
+  const occupiedIndex = new Map();
+  const occupy = (row) => {
+    for (const meeting of planningRowMeetingAssignments(row, activityById)) {
+      const key = meeting.empId + '|' + meeting.date;
+      if (!occupiedIndex.has(key)) occupiedIndex.set(key, []);
+      occupiedIndex.get(key).push(meeting);
+    }
+  };
+  live.forEach(occupy);
   for (const row of assigned) {
     const courseId = text(row.courseId);
     const activity = {
+      ...activityById.get(courseId),
       row_id: courseId, school_id: text(row.schoolId),
       activity_type: text(row.activityType),
       school: text(row.school)
@@ -2634,7 +2689,7 @@ export function reconcileSelectedPlanningOverlaps({
         } : null;
     const options = [currentOption, incumbentOption, ...(row.options || []), ...(row.packingOptions || [])]
       .filter((option) => option && text(option.instructorEmpId) && (option.meetings || []).length);
-    const found = filterPlanningOptionsAgainstChosenRows({ activity, options, rowsById: accepted })[0] || null;
+    const found = filterPlanningOptionsAgainstChosenRows({ activity, options, rowsById: accepted, occupiedIndex, activityById, routeClient })[0] || null;
     if (!found) {
       accepted.set(courseId, {
         ...row, kind: 'missing', status: 'ממתין להצעה ללא חפיפה',
@@ -2652,6 +2707,7 @@ export function reconcileSelectedPlanningOverlaps({
       && JSON.stringify(found.meetings) === JSON.stringify(row.meetings);
     if (matchesCurrent) {
       accepted.set(courseId, row);
+      occupy(row);
       continue;
     }
     accepted.set(courseId, {
@@ -2662,6 +2718,7 @@ export function reconcileSelectedPlanningOverlaps({
       startTime: found.startTime, endTime: found.endTime,
       diagnostics: { ...(row.diagnostics || {}), overlapChoiceRepaired: true }
     });
+    occupy(accepted.get(courseId));
     repairs.push({ courseId, action: 'alternate' });
   }
   for (const item of repairs) rowsById.set(item.courseId, accepted.get(item.courseId));
@@ -2859,7 +2916,8 @@ export function planningOptionPassesFinalValidation(option = {}, {
   rules = {},
   exceptions = {},
   assignments = {},
-  schoolCalendar = []
+  schoolCalendar = [],
+  preserveOfficialSchedule = false
 } = {}) {
   const mainEmpId = text(option?.instructorEmpId);
   const meetings = Array.isArray(option?.meetings) ? option.meetings : [];
@@ -2869,6 +2927,19 @@ export function planningOptionPassesFinalValidation(option = {}, {
     ? profiles
     : Object.fromEntries((profiles || []).map((row) => [text(row?.emp_id), row]).filter(([id]) => id));
   const failures = [];
+  if (preserveOfficialSchedule) {
+    for (const [index, original] of activityMeetings(activity).entries()) {
+      const number = Number(original.meeting_no) || index + 1;
+      const planned = meetings.find((meeting, i) => (Number(meeting.meeting_no) || i + 1) === number);
+      const officialStart = text(original.start_time || activity.start_time).slice(0, 5);
+      const officialEnd = text(original.end_time || activity.end_time).slice(0, 5);
+      if (!planned || text(planned.date).slice(0, 10) !== text(original.date).slice(0, 10)
+        || (officialStart && text(planned.start_time || option.startTime).slice(0, 5) !== officialStart)
+        || (officialEnd && text(planned.end_time || option.endTime).slice(0, 5) !== officialEnd)) {
+        failures.push({ reason: 'official_schedule_changed', meetingNo: number });
+      }
+    }
+  }
   const requiredGender = normalizedGenderRequirement(activity?.required_instructor_gender);
   const requiredLanguage = normalizedLanguageRequirement(activity?.instruction_language);
   const mainProfile = planningProfileFor(profileMap, mainEmpId);
@@ -5070,12 +5141,18 @@ function refreshSchoolPlanningDiagnostics(rowsById, activities = []) {
  * scoring the next row against stale virtual proposals.
  */
 
-function optimizationContextFactory({ instructors, profiles, rules, exceptions, schoolCalendar, checkpoint }) {
+function optimizationContextFactory({ instructors, profiles, rules, exceptions, schoolCalendar, checkpoint, preparedContextFor }) {
   const contexts = new Map();
   return async (activities, periodKey, candidateInstructors) => {
     let context = contexts.get(periodKey);
     if (!context) {
-      context = await prepareSchedulingRunContextCooperatively({ activities, instructors, profiles, rules, exceptions, schoolCalendar, periodKey }, checkpoint);
+      if (preparedContextFor) {
+        const seed = await preparedContextFor(periodKey);
+        context = await forkSchedulingRunContextCooperatively(seed, () => false, 'optimization', checkpoint);
+        await updateSchedulingRunContextCooperatively(context, activities, checkpoint);
+      } else {
+        context = await prepareSchedulingRunContextCooperatively({ activities, instructors, profiles, rules, exceptions, schoolCalendar, periodKey }, checkpoint);
+      }
       contexts.set(periodKey, context);
     } else {
       await updateSchedulingRunContextCooperatively(context, activities, checkpoint);
@@ -5097,6 +5174,7 @@ export async function consolidateInstructorWorkdaysPass({
   schoolCalendar = [],
   today = '',
   routeClient = null,
+  preparedContextFor = null,
   currentContextActivities = [],
   checkpoint = async () => {},
   signal = null,
@@ -5104,7 +5182,7 @@ export async function consolidateInstructorWorkdaysPass({
   report = async () => {}
 } = {}) {
   const activityById = new Map((targets || []).map((activity) => [idOf(activity), activity]));
-  const preparedForOptimization = optimizationContextFactory({ instructors, profiles, rules, exceptions, schoolCalendar, checkpoint });
+  const preparedForOptimization = optimizationContextFactory({ instructors, profiles, rules, exceptions, schoolCalendar, checkpoint, preparedContextFor });
   const targetIds = Array.isArray(targetCourseIds)
     ? new Set(targetCourseIds.map((value) => text(value)).filter(Boolean))
     : null;
@@ -5362,6 +5440,7 @@ async function compactInstructorDayGapsPass({
   schoolCalendar = [],
   today = '',
   routeClient = null,
+  preparedContextFor = null,
   currentContextActivities = [],
   checkpoint = async () => {},
   signal = null,
@@ -5370,7 +5449,7 @@ async function compactInstructorDayGapsPass({
   report = async () => {}
 } = {}) {
   const activityById = new Map((targets || []).map((activity) => [idOf(activity), activity]));
-  const preparedForOptimization = optimizationContextFactory({ instructors, profiles, rules, exceptions, schoolCalendar, checkpoint });
+  const preparedForOptimization = optimizationContextFactory({ instructors, profiles, rules, exceptions, schoolCalendar, checkpoint, preparedContextFor });
   const targetIds = Array.isArray(targetCourseIds)
     ? new Set(targetCourseIds.map((value) => text(value)).filter(Boolean))
     : null;
@@ -5547,6 +5626,14 @@ function planningRowMeetingAssignments(row = {}, activityById = new Map()) {
   );
 }
 
+function planningMeetingsTransitionFailure(first, second, routeClient) {
+  const previous = timeMinutes(first.endTime) <= timeMinutes(second.startTime) ? first : second;
+  const next = previous === first ? second : first;
+  const sameSchool = !!previous.schoolId && previous.schoolId === next.schoolId;
+  const route = routeClient?.peek?.(previous.schoolAddress, next.schoolAddress);
+  return schedulingTransitionFailure({ sameSchool, gapMinutes: timeMinutes(next.startTime) - timeMinutes(previous.endTime), route });
+}
+
 /**
  * Final whole-plan guard after all packing/consolidation passes.
  * Individual options are rechecked against live availability; then the complete
@@ -5583,6 +5670,7 @@ function* validatePlanningPlanCoherenceSteps({
       endTime: row.endTime
     };
     const result = planningOptionPassesFinalValidation(option, {
+      preserveOfficialSchedule: ['proposal', 'fixed-proposal'].includes(text(row.kind)),
       activity,
       instructors,
       profiles,
@@ -5667,28 +5755,13 @@ function* validatePlanningPlanCoherenceSteps({
         continue;
       }
       const route = routeClient.peek(previous.schoolAddress, next.schoolAddress);
-      const km = Number(route?.distance_km);
-      const travelMinutes = Number(route?.duration_minutes);
-      if (!Number.isFinite(km) || !Number.isFinite(travelMinutes)) {
-        warnings.push({ reason: 'travel_unverified', empId, date, firstCourseId: previous.courseId, secondCourseId: next.courseId });
-        continue;
-      }
-      const availableGap = nextStart - previousEnd;
-      if (transitionDistanceCapApplies(availableGap) && exceedsTransitionDistanceLimit(km)) {
-        failures.push({ reason: 'transition_distance_exceeded', empId, date, firstCourseId: previous.courseId, secondCourseId: next.courseId, distanceKm: km, availableMinutes: availableGap });
-        continue;
-      }
-      const requiredGap = travelMinutes + transitionBufferMinutes(km);
-      if (availableGap < requiredGap) {
-        failures.push({
-          reason: 'transition_insufficient',
-          empId,
-          date,
-          firstCourseId: previous.courseId,
-          secondCourseId: next.courseId,
-          requiredMinutes: requiredGap,
-          availableMinutes: availableGap
-        });
+      const failure = planningMeetingsTransitionFailure(previous, next, routeClient);
+      if (failure === 'travel_unverified') {
+        warnings.push({ reason: failure, empId, date, firstCourseId: previous.courseId, secondCourseId: next.courseId });
+      } else if (failure) {
+        failures.push({ reason: failure, empId, date, firstCourseId: previous.courseId, secondCourseId: next.courseId,
+          requiredMinutes: Number(route?.duration_minutes) + transitionBufferMinutes(route?.distance_km),
+          availableMinutes: nextStart - previousEnd, distanceKm: Number(route?.distance_km) });
       }
     }
   }
@@ -5711,9 +5784,11 @@ export function validatePlanningPlanCoherence(input = {}) {
 }
 
 export async function validatePlanningPlanCoherenceCooperatively(input = {}, checkpoint = async () => {}) {
+  const stop = planningPerfTimer('wholePlanValidation');
   const steps = validatePlanningPlanCoherenceSteps(input);
   let next = steps.next();
   while (!next.done) { await checkpoint(); next = steps.next(); }
+  stop();
   return next.value;
 }
 
@@ -5968,6 +6043,7 @@ export async function buildDynamicCoursePlan({
   skipSoftOptimization = false,
   planningProfile = 'deep'
 } = {}) {
+  const stopSetup = planningPerfTimer('run:setup');
   const limits = planningLimits(planningProfile);
   const report = async (phase, completed = 0, total = 0, courseId = '', row = null, snapshotRows = null) => {
     planningPerfCount('progressUiUpdates');
@@ -6212,6 +6288,8 @@ export async function buildDynamicCoursePlan({
       return idOf(a.activity).localeCompare(idOf(b.activity));
     });
   }
+  stopSetup();
+  const stopBase = planningPerfTimer('run:base');
   let completed = 0;
   await report('יצירת אפשרויות', 0, queue.length);
 
@@ -6701,10 +6779,26 @@ export async function buildDynamicCoursePlan({
     }
   }
 
+  stopBase();
+  const stopOptimization = planningPerfTimer('run:optimization');
   // Phase one commits a verified base BEFORE any optional school packing,
   // workload consolidation or gap polishing. They run on the SAVED base
   // in stage two, with their own lease/deadline and protected transaction.
+  let verifiedBase = null;
+  let optimizationFailure = null;
+  const reconciliationIds = optimizationScopeIds === null ? null
+    : [...new Set([...schoolPackingTargetIds, ...workdayConsolidationTargetIds, ...gapCompactionTargetIds])];
   if (!_repairPass && !skipSoftOptimization) {
+    // Capture a hard-validated base before optional passes mutate their working
+    // map. Never fall back to an unverified checkpoint or a partial optimizer.
+    const baseMap = new Map([...rowsById].map(([id, row]) => [id, structuredClone(row)]));
+    reconcileSelectedPlanningOverlaps({ rowsById: baseMap, committedRows, activities: targets,
+      routeClient, targetCourseIds: reconciliationIds });
+    const baseRows = await assignRecruitmentProfilesCooperatively([...baseMap.values()], checkpoint);
+    const validation = await validatePlanningPlanCoherenceCooperatively({ rows: baseRows,
+      activities: targets, instructors, profiles, rules, exceptions, schoolCalendar, routeClient }, checkpoint);
+    if (validation.valid) verifiedBase = { rows: baseRows, validation };
+    try {
     const optimizationCheckpoint = fastMaintenanceRun
       ? createPlanningOptimizationDeadlineCheckpoint({ checkpoint })
       : checkpoint;
@@ -6766,6 +6860,7 @@ export async function buildDynamicCoursePlan({
     if (!optimizationBudgetExceeded && (gapCompactionTargetIds === null || gapCompactionTargetIds.size > 0)) {
       await compactInstructorDayGapsPass({
         rowsById,
+        preparedContextFor,
         targetCourseIds: gapCompactionTargetIds ? [...gapCompactionTargetIds] : null,
         targets,
         catalog,
@@ -6789,10 +6884,29 @@ export async function buildDynamicCoursePlan({
       });
       await report('צמצום חלונות הושלם', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
     }
+    if (optimizationBudgetExceeded) {
+      optimizationFailure = 'planning_optimization_budget_exceeded';
+      if (verifiedBase) {
+        rowsById.clear();
+        for (const row of verifiedBase.rows) rowsById.set(text(row.courseId), row);
+        planningPerfCount('optimizationBaseFallback');
+      }
+    }
     refreshSchoolPlanningDiagnostics(rowsById, targets);
     await report('בקרת תקינות סופית', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
+    } catch (error) {
+      // Cancellation/lease loss must never turn into a successful save.
+      if (!verifiedBase || isPlanningCancellationError(error)
+        || /planning_(run_|checkpoint_|permission|revision|rebase)/.test(String(error?.code || error?.message || ''))) throw error;
+      optimizationFailure = String(error?.code || 'optimization_failed');
+      rowsById.clear();
+      for (const row of verifiedBase.rows) rowsById.set(text(row.courseId), row);
+      planningPerfCount('optimizationBaseFallback');
+    }
   }
 
+  stopOptimization();
+  const stopValidation = planningPerfTimer('run:validation');
   const preservedIncumbentIds = new Set(preserveValidIncumbentRowsAfterIncompleteSearch({
     rowsById,
     existingRows,
@@ -6819,17 +6933,18 @@ export async function buildDynamicCoursePlan({
   // residual conflicting tentative choices in one linear pass, before the
   // costly whole-plan hard validation and nested repair. Never persist overlaps.
   const reconciled = reconcileSelectedPlanningOverlaps({
-    rowsById, committedRows: committedRows.length ? committedRows : existingRows
+    rowsById, committedRows: committedRows.length ? committedRows : existingRows,
+    activities: targets, routeClient, targetCourseIds: reconciliationIds
   });
   if (reconciled.length) {
     planningPerfCount('schoolCohortOverlapReconciled', reconciled.length);
     await report('מניעת חפיפות בין כיתות', reconciled.length, reconciled.length);
   }
 
-  const rows = await assignRecruitmentProfilesCooperatively(
+  let rows = await assignRecruitmentProfilesCooperatively(
     targets.map((activity) => rowsById.get(idOf(activity)) || missingOverviewRow(activity, catalog)), checkpoint
   );
-  const finalPlanValidation = await validatePlanningPlanCoherenceCooperatively({
+  let finalPlanValidation = await validatePlanningPlanCoherenceCooperatively({
     rows,
     activities: targets,
     instructors,
@@ -6839,6 +6954,12 @@ export async function buildDynamicCoursePlan({
     schoolCalendar,
     routeClient
   }, checkpoint);
+  if (!finalPlanValidation.valid && verifiedBase) {
+    optimizationFailure = 'planning_optimization_validation_failed';
+    rows = verifiedBase.rows;
+    finalPlanValidation = verifiedBase.validation;
+    planningPerfCount('optimizationBaseFallback');
+  }
   if (!finalPlanValidation.valid) {
     // Try a previously committed, individually movable proposal first.
     // It is often enough to resolve a collision created by an optimizer, and
@@ -6938,6 +7059,21 @@ export async function buildDynamicCoursePlan({
     error.repairCourseIds = repairIds;
     throw error;
   }
+  // Persist a truthful optimization state with the validated geometry. This
+  // survives reload, without relabeling a partial optimizer as completed.
+  if (!skipSoftOptimization) rows = rows.map(row => {
+    if (reconciliationIds && !reconciliationIds.includes(text(row.courseId))) return row;
+    if (!optimizationFailure && !row.diagnostics?.softOptimizationIncomplete) return row;
+    const diagnostics = { ...(row.diagnostics || {}) };
+    delete diagnostics.softOptimizationIncomplete;
+    delete diagnostics.softOptimizationFailure;
+    if (optimizationFailure) {
+      diagnostics.softOptimizationIncomplete = true;
+      diagnostics.softOptimizationFailure = optimizationFailure;
+    }
+    return { ...row, diagnostics };
+  });
+  stopValidation();
   const summarize = (selectedRows, extra = {}) => ({
     rows: selectedRows,
     total: selectedRows.length,
@@ -6957,7 +7093,8 @@ export async function buildDynamicCoursePlan({
 
   const initialResult = summarize(rows, {
     repairApplied: _repairPass,
-    finalPlanValidation
+    finalPlanValidation,
+    optimization: { completed: !optimizationFailure, failure: optimizationFailure, basePreserved: !!optimizationFailure }
   });
   // Checkpointing changes progress, not scope. A resumed targeted run must not
   // turn into a national pass; a resumed full run may still repair coverage.
@@ -6992,7 +7129,9 @@ export async function buildDynamicCoursePlan({
   };
 
   await report('אופטימיזציה ארצית', 0, repairPriorityIds.length);
-  const repaired = await buildDynamicCoursePlan({
+  let repaired;
+  try {
+  repaired = await buildDynamicCoursePlan({
     activities,
     instructors,
     profiles,
@@ -7017,6 +7156,20 @@ export async function buildDynamicCoursePlan({
     _repairPriorityIds: repairPriorityIds,
     planningProfile
   });
+
+  } catch (error) {
+    if (isPlanningCancellationError(error)
+      || /planning_(run_|checkpoint_|permission|revision|rebase)/.test(String(error?.code || error?.message || ''))) throw error;
+    const failure = String(error?.code || 'optimization_failed');
+    const objective = planningGlobalObjective(rows);
+    return {
+      ...initialResult,
+      rows: rows.map(row => ({ ...row, diagnostics: { ...(row.diagnostics || {}),
+        softOptimizationIncomplete: true, softOptimizationFailure: failure } })),
+      optimization: { completed: false, failure, basePreserved: true },
+      globalOptimization: { applied: false, before: objective, after: objective, gain: 0 }
+    };
+  }
 
   const beforeObjective = planningGlobalObjective(rows);
   const afterObjective = planningGlobalObjective(repaired.rows);

@@ -1216,7 +1216,7 @@ export function schedulingPlanningStatusHtml(state = {}, { snapshotStale = false
     </div>`;
   }
   return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
-    <span data-planning-status-message><strong>הכול מעודכן</strong></span>
+    <span data-planning-status-message><strong>${(state.courseSchedulingPlanningRows || []).some(row => row?.diagnostics?.softOptimizationIncomplete) ? 'בסיס התכנון נבדק; השיפור הנוסף לא הושלם' : 'הכול מעודכן'}</strong></span>
     ${!snapshotStale && (state.courseSchedulingPlanningRows || []).length
       ? '<button type="button" class="course-scheduling-workboard-secondary" data-export-course-planning>ייצוא Excel</button>' : ''}
   </div>`;
@@ -2568,12 +2568,12 @@ export const courseSchedulingScreen = {
           if (entry.lockedOption) return applyPlanningLockToRow(row, entry.lockedOption, scope.periodKey);
           return row;
         });
-      state.courseSchedulingPlanningStale = inputChanged;
+      state.courseSchedulingPlanningStale = inputChanged || engineChanged;
       state.courseSchedulingPlanningStaleReason = inputChanged
         ? (unrecoverableGlobalContextChange
           ? 'נתוני ההקשר השתנו באופן רוחבי ולכן נדרש חישוב מלא'
           : 'נתוני הפעילויות, הזמינות או כללי התכנון השתנו מאז החישוב האחרון')
-        : '';
+        : engineChanged ? 'כללי האימות עודכנו; נדרש אימות מפורש של התכנון השמור לפני אישורו כעדכני' : '';
       state.courseSchedulingPlanningShared = shared || { workspace: null, rows: [] };
       const profiles = snapshot?.scheduling?.profiles || state.courseSchedulingProfiles || state.profiles || {};
       const rules = snapshot?.scheduling?.rules || state.courseSchedulingRules || state.rules || {};
@@ -3091,7 +3091,26 @@ export const courseSchedulingScreen = {
         if (runPlan.runType === PLANNING_RUN_TYPES.NO_OP) {
           applySharedPlanningState(shared, freshStart);
           if (runPlan.advanceEngineMarker === true || String(preflight.facts.workspace?.validatedSourceRevision) !== String(run.sourceRevision)) {
-            // Marker-only path: no packing/recalc/routes. Advance the canonical
+            if (runPlan.advanceEngineMarker && !isPlanningValidationCurrent(storedEngineVersion)) {
+              // A validation-era upgrade must not certify old rows by changing
+              // a version string. This explicit action validates only; no engine
+              // planning, optimizer or automatic national run on screen entry.
+              const cachedRoutes = await loadSchedulingTravelCacheRows();
+              assertRunOwnership();
+              const checked = await validateResumedPlanningRows({
+                ...planningBuildInput(freshStart),
+                rows: (shared.rows || []).map(entry => entry.row),
+                routeClient: createRouteClient({ preloadedRows: cachedRoutes }),
+                checkpoint
+              });
+              if (!checked.valid || checked.validation?.warnings?.some(w => w.reason === 'travel_unverified')) {
+                const error = new Error('planning_final_validation_failed');
+                error.code = 'planning_final_validation_failed';
+                error.failures = checked.failures;
+                throw error;
+              }
+            }
+            // Marker-only path: no packing or candidate recalculation. Advance the canonical
             // engine string once so the next entry is a true matching no-op.
             planningPerfEvent('engine-marker-only', {
               engineFrom: storedEngineVersion,
@@ -3980,14 +3999,16 @@ export const courseSchedulingScreen = {
         });
         if (runUiVisible()) {
           showToast(
-            baseStage
+            result.optimization?.basePreserved
+              ? 'בסיס תכנון תקין נשמר ואומת. השיפור הנוסף לא הושלם; השיבוצים התקינים נשמרו.'
+              : baseStage
               ? 'שלב א׳ נשמר ואומת. שיפור ריכוז השעות ממתין להרצה נפרדת.'
               : fullRun
               ? `התכנון המשותף נשמר: ${currentCourseIds.length} פעילויות נבדקו.`
               : runPlan.runType === PLANNING_RUN_TYPES.ENGINE_UPGRADE
                 ? 'התכנון הקיים הותאם למנוע השיבוץ החדש ללא בנייה מחדש.'
               : `התכנון המשותף עודכן: חושבו מחדש רק ${updatedCount} פעילויות שהושפעו.`,
-            'success'
+            result.optimization?.basePreserved ? 'warning' : 'success'
           );
         }
       } catch (error) {

@@ -35,9 +35,9 @@ test('173-course national upgrade saves a separately validated pending base; no 
   assert.match(screen,/engineVersion: runEngineVersion/);
   assert.match(screen,/שלב א׳ נשמר ואומת/);
   assert.match(planner,/if \(!_repairPass && !skipSoftOptimization\)/);
-  assert.match(planner,/const finalPlanValidation = await validatePlanningPlanCoherenceCooperatively/);
+  assert.match(planner,/let finalPlanValidation = await validatePlanningPlanCoherenceCooperatively/);
   assert.ok(planner.indexOf('if (!_repairPass && !skipSoftOptimization)') <
-    planner.indexOf('const finalPlanValidation = await validatePlanningPlanCoherenceCooperatively'));
+    planner.indexOf('let finalPlanValidation = await validatePlanningPlanCoherenceCooperatively'));
 });
 
 test('optimization phase starts from the saved plan, never repeating 173-course base scope',()=>{
