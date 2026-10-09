@@ -98,7 +98,7 @@ function showArabicPending(root, onBack) {
   document.documentElement.lang = 'ar';
   root.innerHTML = `<div class="ifb-shell ifb-shell--language" lang="ar" dir="rtl">
     <section class="ifb-language-card" aria-labelledby="ifb-ar-pending-title">
-      <img class="ifb-logo ifb-logo--center" src="${logoUrl}" alt="تعيصيدا">
+      <img class="ifb-logo ifb-logo--center" src="${logoUrl}" alt="תעשיידע">
       <h1 class="ifb-language-card__question" id="ifb-ar-pending-title">الاستبيان باللغة العربية قيد الإعداد</h1>
       <p class="ifb-language-card__explanation">ستتوفر النسخة العربية بعد اعتماد أسئلة الاستبيان. يمكنك حاليًا تعبئة الاستبيان باللغة العبرية.</p>
       <button type="button" class="ifb-language-card__choice" data-ifb-lang-back>العودة لاختيار اللغة</button>
