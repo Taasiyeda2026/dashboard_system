@@ -1418,7 +1418,7 @@
   }
   .ifb-instructor-table-wrap {
     width: 100%;
-    overflow-x: clip;
+    min-width: 0;
   }
   .ifb-instructor-table col.ifb-iw-instructor { width: 15%; }
   .ifb-instructor-table col.ifb-iw-program { width: 21%; }
