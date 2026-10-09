@@ -5647,49 +5647,113 @@ export async function recoverPlanningOverlapFromCommittedProposals({
   checkpoint = async () => {}
 } = {}) {
   if (error?.code !== 'planning_final_validation_failed' || !Array.isArray(error?.rows)) return null;
-  const collisions = (error.failures || []).filter((failure) =>
+  const overlapFailures = (failures) => (failures || []).filter((failure) =>
     failure?.reason === 'overlap' && text(failure.firstCourseId) && text(failure.secondCourseId)
   );
-  if (!collisions.length) return null;
+  const initialCollisions = overlapFailures(error.failures);
+  if (!initialCollisions.length) return null;
 
   const committedById = new Map((committedRows || [])
     .map((row) => [text(row?.courseId), row])
     .filter(([id]) => !!id));
-  const computedById = new Map(error.rows.map((row) => [text(row?.courseId), row]));
-  const eligible = [...new Set(collisions.flatMap((failure) =>
-    [text(failure.firstCourseId), text(failure.secondCourseId)]
-  ))].filter((courseId) => {
+  // Only movable newly-generated proposals may be rolled back. A committed
+  // missing/recruitment row is also safe to restore as a LAST RESORT: it drops
+  // one provisional assignment rather than accepting an instructor collision.
+  // A committed live/locked/fixed row is never used to overwrite a draft.
+  const placement = (row) => JSON.stringify([
+    text(row?.kind), text(row?.instructorEmpId), text(row?.startDate),
+    (row?.meetings || []).map((m) => [
+      text(m?.date), text(m?.start_time), text(m?.end_time), text(m?.substituteEmpId)
+    ])
+  ]);
+  const restorable = (courseId, computed) => {
     const prior = committedById.get(courseId);
-    const current = computedById.get(courseId);
-    return text(prior?.kind) === 'proposal'
-      && text(current?.kind) === 'proposal'
-      && !!text(prior?.instructorEmpId)
-      && Array.isArray(prior?.meetings) && prior.meetings.length > 0
-      && JSON.stringify(prior) !== JSON.stringify(current);
-  }).slice(0, 8);
-  if (!eligible.length) return null;
-
-  const checkRestoration = async (courseIds) => {
-    const restore = new Set(courseIds);
-    const candidateRows = error.rows.map((row) => restore.has(text(row?.courseId))
-      ? { ...committedById.get(text(row.courseId)), diagnostics: {
-          ...(committedById.get(text(row.courseId))?.diagnostics || {}),
-          committedProposalRecoveredAfterOverlap: true
-        } }
-      : row);
-    const checked = await validateResumedPlanningRows({
-      rows: candidateRows, activities, instructors, profiles, rules, exceptions,
-      schoolCalendar, catalog, district, periodKey, routeClient, checkpoint
-    });
-    return checked.valid ? { rows: checked.rows, restoredCourseIds: [...restore] } : null;
+    if (text(computed?.kind) !== 'proposal') return false;
+    if (!['proposal', 'missing', 'recruitment'].includes(text(prior?.kind))) return false;
+    if (text(prior?.kind) === 'proposal'
+      && (!text(prior.instructorEmpId) || !(prior.meetings || []).length)) return false;
+    return placement(prior) !== placement(computed);
   };
+  const restore = (rows, ids) => rows.map((row) => {
+    if (!ids.has(text(row?.courseId))) return row;
+    const incumbent = committedById.get(text(row.courseId));
+    return {
+      ...incumbent,
+      diagnostics: {
+        ...(incumbent?.diagnostics || {}),
+        committedProposalRecoveredAfterOverlap: true
+      }
+    };
+  });
 
-  // Prefer restoring a SINGLE incumbent rather than undoing both improvements.
-  for (const courseId of eligible.slice(0, 4)) {
-    const recovered = await checkRestoration([courseId]);
-    if (recovered) return recovered;
+  const startedAt = Date.now();
+  const budgetedCheckpoint = async (...args) => {
+    await checkpoint(...args);
+    if (Date.now() - startedAt > 15_000) {
+      const timeout = new Error('planning_overlap_recovery_budget_exceeded');
+      timeout.code = 'planning_overlap_recovery_budget_exceeded';
+      throw timeout;
+    }
+  };
+  const verify = async (rows) => validateResumedPlanningRows({
+    rows, activities, instructors, profiles, rules, exceptions,
+    schoolCalendar, catalog, district, periodKey, routeClient,
+    checkpoint: budgetedCheckpoint
+  });
+
+  try {
+    // On a small collision, prefer one original proposal over broad rollback.
+    const initialIds = [...new Set(initialCollisions.flatMap((f) =>
+      [text(f.firstCourseId), text(f.secondCourseId)]
+    ))];
+    if (initialCollisions.length <= 3) {
+      for (const courseId of initialIds.slice(0, 4)) {
+        const computed = error.rows.find((row) => text(row?.courseId) === courseId);
+        if (!restorable(courseId, computed)) continue;
+        const checked = await verify(restore(error.rows, new Set([courseId])));
+        if (checked.valid) return { rows: checked.rows, restoredCourseIds: [courseId] };
+      }
+    }
+
+    // 253/253 checkpoints can have MANY collisions, not just the first pair
+    // displayed to the user. Reconsider conflicts after EACH batch: restoring
+    // the first set may expose an overlap with a third, previously unconflicted
+    // row. Never accept an unchecked intermediate checkpoint as an incumbent.
+    let candidateRows = error.rows;
+    let failures = error.failures || [];
+    const restoredIds = new Set();
+    const MAX_RESTORED = 64;
+    for (let pass = 0; pass < 12 && restoredIds.size < MAX_RESTORED; pass += 1) {
+      const collisions = overlapFailures(failures);
+      if (!collisions.length) break;
+      const currentById = new Map(candidateRows.map((r) => [text(r?.courseId), r]));
+      const batch = new Set();
+      for (const failure of collisions) {
+        const choices = [text(failure.firstCourseId), text(failure.secondCourseId)]
+          .filter((id) => !restoredIds.has(id) && restorable(id, currentById.get(id)));
+        if (!choices.length) continue;
+        choices.sort((a, b) => {
+          const aIsProposal = text(committedById.get(a)?.kind) === 'proposal';
+          const bIsProposal = text(committedById.get(b)?.kind) === 'proposal';
+          return Number(bIsProposal) - Number(aIsProposal) || a.localeCompare(b);
+        });
+        batch.add(choices[0]);
+        if (batch.size + restoredIds.size >= MAX_RESTORED) break;
+      }
+      if (!batch.size) break;
+      candidateRows = restore(candidateRows, batch);
+      for (const id of batch) restoredIds.add(id);
+      const checked = await verify(candidateRows);
+      if (checked.valid) {
+        return { rows: checked.rows, restoredCourseIds: [...restoredIds] };
+      }
+      failures = checked.failures;
+    }
+    return null;
+  } catch (error) {
+    if (error?.code === 'planning_overlap_recovery_budget_exceeded') return null;
+    throw error;
   }
-  return eligible.length > 1 ? checkRestoration(eligible) : null;
 }
 
 export function finalValidationRepairCourseIds(failures = [], rows = [], maxIds = 24) {
