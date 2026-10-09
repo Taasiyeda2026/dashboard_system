@@ -32,6 +32,7 @@ import {
   filterGroups,
   groupHasFeedback,
   hasCourseStartDate,
+  hasCourseEndDate,
   studentFeedbackPeriodForGroup,
   studentFeedbackHasResponses,
   sortStudentFeedbackGroups,
@@ -100,6 +101,7 @@ const ui = {
   groupRowId: null,
   groupReturnTab: 'students',
   studentHalf: 'first',
+  staffHalf: 'first',
   year: ACTIVE_ACTIVITY_SEASON,
   course: '',
   showAll: true,
@@ -594,31 +596,37 @@ function groupFiltersHtml(groups, scope) {
 }
 
 
-function studentSemesterTabsHtml(groups) {
+function groupSemesterTabsHtml(groups, scope) {
+  // Both audiences use the course's scheduling semester (start date).
+  // School staff are additionally gated by a known end date below.
+  const isStaff = scope === 'staff';
+  const selectedHalf = isStaff ? ui.staffHalf : ui.studentHalf;
   const halves = [
     { key: 'first', label: "מחצית א׳" },
     { key: 'second', label: "מחצית ב׳" }
   ];
-  return `<div class="ifb-student-semesters" role="group" aria-label="בחירת מחצית לתלמידים">
+  return `<div class="ifb-student-semesters" role="group" aria-label="בחירת מחצית ${isStaff ? 'לצוות חינוכי' : 'לתלמידים'}">
     ${halves.map(({ key, label }) => {
       const count = groups.filter((g) => studentFeedbackPeriodForGroup(g) === key).length;
-      return `<button type="button" class="ifb-student-semester${ui.studentHalf === key ? ' is-active' : ''}"
-        data-ifb-student-half="${key}" aria-pressed="${ui.studentHalf === key}">
+      return `<button type="button" class="ifb-student-semester${selectedHalf === key ? ' is-active' : ''}"
+        data-ifb-group-half="${key}" data-ifb-group-scope="${scope}" aria-pressed="${selectedHalf === key}">
         ${label}<span class="ifb-student-semester__count">${count}</span>
       </button>`;
     }).join('')}
-    <span class="ifb-student-semesters__note">לפי תאריך תחילת הקורס</span>
+    <span class="ifb-student-semesters__note">לפי מחצית הקורס בממשק השיבוצים</span>
   </div>`;
 }
 
 function groupsTableHtml(slots, scope) {
-  // The activities table is authoritative; groups without a start date are not
-  // ready to receive a student questionnaire. Other audiences are unchanged.
+  // The activities table is authoritative. Students need a course start date,
+  // while school staff need an end date. Other audiences and stored replies are unchanged.
   const all = scope === 'students'
     ? courseScopedGroups().filter(hasCourseStartDate)
-    : courseScopedGroups();
-  const inHalf = scope === 'students'
-    ? all.filter((g) => studentFeedbackPeriodForGroup(g) === ui.studentHalf)
+    : scope === 'staff'
+      ? courseScopedGroups().filter(hasCourseEndDate)
+      : courseScopedGroups();
+  const inHalf = (scope === 'students' || scope === 'staff')
+    ? all.filter((g) => studentFeedbackPeriodForGroup(g) === (scope === 'staff' ? ui.staffHalf : ui.studentHalf))
     : all;
   const matching = filterGroups(inHalf, ui.filters);
   const filtered = scope === 'students'
@@ -665,8 +673,8 @@ function groupsTableHtml(slots, scope) {
             <td data-label="פעולות" class="ifb-col-actions"><button type="button" class="ifb-row-action" data-ifb-open-group="${esc(g.row_id)}" aria-label="ניהול משובי הקבוצה ${esc(g.school || '')}" title="ניהול משובי הקבוצה"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="2"></rect><path d="M7 3v4M17 3v4M3 10h18"></path></svg></button></td>
           </tr>`).join('')}</tbody>
       </table>
-    </div>` : emptyHtml('לא נמצאו קבוצות התואמות לסינון.', scope === 'students' ? 'בלשונית תלמידים מוצגות רק קבוצות שנקבע להן תאריך התחלה בכל הפעילויות.' : 'מוצגות קבוצות של קורסי המשובים בשנת הלימודים שנבחרה.');
-  return `${scope === 'students' ? studentSemesterTabsHtml(all) : ''}${groupFiltersHtml(inHalf, scope)}${body}`;
+    </div>` : emptyHtml('לא נמצאו קבוצות התואמות לסינון.', scope === 'students' ? 'בלשונית תלמידים מוצגות רק קבוצות שנקבע להן תאריך התחלה בכל הפעילויות.' : 'בלשונית צוות חינוכי מוצגות רק קבוצות שנקבע להן תאריך סיום בכל הפעילויות.');
+  return `${scope === 'students' || scope === 'staff' ? groupSemesterTabsHtml(all, scope) : ''}${groupFiltersHtml(inHalf, scope)}${body}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1233,31 +1241,48 @@ function groupViewHtml(group) {
   if (!group) return errorHtml('הקבוצה לא נמצאה בשנת הלימודים שנבחרה');
   const facts = ui.groupFacts.get(group.row_id);
   const back = TABS.find((t) => t.key === ui.groupReturnTab)?.label || 'תלמידים';
+  const staffView = ui.groupReturnTab === 'staff';
   // The activity is the single source of truth for course, school, grade and dates.
   const activityTitle = group.activity_name || (group.program_key ? programTitle(group.program_key) : 'שם תוכנית לא הוגדר');
   const groupLevel = [group.grade, group.class_group].filter(Boolean).join(' · ');
+  // The staff tab is for managing school-contact feedback, not for showing
+  // unrelated student questionnaires/results on the same operational screen.
+  const visibleSlots = staffView ? GROUP_SLOTS.filter((slot) => slot.audience === 'educational_staff') : GROUP_SLOTS;
+  const staffFacts = staffView && facts ? factsFor(facts, 'educational_staff') : [];
+  const staffOpenAnswers = staffView && facts ? openAnswers(staffFacts) : [];
+  const results = staffView
+    ? (!facts
+      ? loadingHtml('טוען תוצאות…')
+      : staffFacts.length
+        ? questionTableHtml(staffFacts, { caption: 'תוצאות משוב הצוות החינוכי' })
+        : '<p class="ifb-staff-results-empty">עדיין לא התקבלו תשובות מהצוות החינוכי בקבוצה זו.</p>')
+    : facts ? groupResultsHtml(facts) : loadingHtml('טוען תוצאות…');
   return `
-    <button type="button" class="ifb-back" data-ifb-back>→ חזרה ללשונית ${esc(back)}</button>
-    <section class="ifb-group-head" aria-label="פרטי הקבוצה">
-      <header class="ifb-group-head__identity">
-        <h2 class="ifb-group-head__title">${esc(group.school || 'בית הספר לא הוגדר')}</h2>
-        <p class="ifb-group-head__program">${esc(activityTitle)}</p>
-      </header>
-      <dl class="ifb-meta ifb-meta--head">
-        <div><dt>רשות</dt><dd>${esc(group.authority || 'לא הוגדרה')}</dd></div>
-        <div><dt>${group.grade && group.class_group ? 'שכבה / קבוצה' : group.class_group ? 'קבוצה' : 'שכבה'}</dt><dd>${esc(groupLevel || 'לא הוגדרה')}</dd></div>
-        <div><dt>מדריך/ה</dt><dd>${esc(group.instructor_name || 'לא שובץ/ה')}</dd></div>
-        <div><dt>איש/אשת קשר</dt><dd>${esc(group.contact_name || (group.has_contact ? 'מוגדר/ת' : 'לא הוגדר/ה'))}</dd></div>
-        <div class="ifb-group-head__date"><dt>תחילת קורס</dt><dd>${fmtDate(group.start_date)}</dd></div>
-        <div class="ifb-group-head__date"><dt>סיום קורס</dt><dd>${fmtDate(group.end_date)}</dd></div>
-      </dl>
-    </section>
-    <div class="ifb-slots">${GROUP_SLOTS.map((slot) => slotCardHtml(group, slot)).join('')}</div>
-    ${sectionHtml('תוצאות הקבוצה', facts ? groupResultsHtml(facts) : loadingHtml('טוען תוצאות…'), {
-      note: 'לצורך מעקב תפעולי בלבד. ניתוח התוצאות נעשה ברמת הקורס, מכלל קבוצות הקורס.',
-      actions: facts ? exportButtonHtml(`group:${group.row_id}`, 'ייצוא הקבוצה (Excel)') : ''
-    })}
-    ${facts ? sectionHtml('תשובות פתוחות', openAnswersListHtml(openAnswers(facts), { showContext: false })) : ''}`;
+    <div class="ifb-group-detail${staffView ? ' ifb-group-detail--staff' : ''}">
+      <button type="button" class="ifb-back" data-ifb-back>→ חזרה ללשונית ${esc(back)}</button>
+      <section class="ifb-group-head" aria-label="פרטי הקבוצה">
+        <header class="ifb-group-head__identity">
+          <h2 class="ifb-group-head__title">${esc(group.school || 'בית הספר לא הוגדר')}</h2>
+          <p class="ifb-group-head__program">${esc(activityTitle)}</p>
+        </header>
+        <dl class="ifb-meta ifb-meta--head">
+          <div><dt>רשות</dt><dd>${esc(group.authority || 'לא הוגדרה')}</dd></div>
+          <div><dt>${group.grade && group.class_group ? 'שכבה / קבוצה' : group.class_group ? 'קבוצה' : 'שכבה'}</dt><dd>${esc(groupLevel || 'לא הוגדרה')}</dd></div>
+          <div><dt>מדריך/ה</dt><dd>${esc(group.instructor_name || 'לא שובץ/ה')}</dd></div>
+          <div><dt>איש/אשת קשר</dt><dd>${esc(group.contact_name || (group.has_contact ? 'מוגדר/ת' : 'לא הוגדר/ה'))}</dd></div>
+          <div class="ifb-group-head__date"><dt>תחילת קורס</dt><dd>${fmtDate(group.start_date)}</dd></div>
+          <div class="ifb-group-head__date"><dt>סיום קורס</dt><dd>${fmtDate(group.end_date)}</dd></div>
+        </dl>
+      </section>
+      <div class="ifb-slots${staffView ? ' ifb-slots--staff' : ''}">${visibleSlots.map((slot) => slotCardHtml(group, slot)).join('')}</div>
+      ${sectionHtml(staffView ? 'תוצאות משוב הצוות החינוכי' : 'תוצאות הקבוצה', results, {
+        actions: facts ? (staffView ? (staffFacts.length ? exportButtonHtml(`group-staff:${group.row_id}`, 'ייצוא צוות חינוכי (Excel)') : '') : exportButtonHtml(`group:${group.row_id}`, 'ייצוא הקבוצה (Excel)')) : ''
+      })}
+      ${facts && (!staffView || staffOpenAnswers.length) ? `<details class="ifb-disclosure ifb-group-answers">
+        <summary>תשובות פתוחות <span class="ifb-muted">(${staffView ? staffOpenAnswers.length : openAnswers(facts).length})</span></summary>
+        ${openAnswersListHtml(staffView ? staffOpenAnswers : openAnswers(facts), { showContext: false })}
+      </details>` : ''}
+    </div>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1276,6 +1301,7 @@ function downloadBlob(blob, filename) {
 }
 
 function exportFacts(scope) {
+  if (scope.startsWith('group-staff:')) return factsFor(ui.groupFacts.get(scope.slice(12)) || [], 'educational_staff');
   if (scope.startsWith('group:')) return ui.groupFacts.get(scope.slice(6)) || [];
   if (scope.startsWith('audience:')) return courseFacts().filter((f) => f.audience === scope.slice(9));
   return courseFacts();
@@ -1333,7 +1359,7 @@ function appendSheet(wb, name, headers, rows, widths) {
 
 function runExport(scope) {
   const facts = exportFacts(scope);
-  const isGroup = scope.startsWith('group:');
+  const isGroup = scope.startsWith('group:') || scope.startsWith('group-staff:');
   if (!facts.length && isGroup) {
     showToast('אין נתונים לייצוא', 'info');
     return;
@@ -1532,11 +1558,13 @@ async function handleClick(host, event) {
     window.scrollTo({ top: 0 });
     return;
   }
-  const studentHalf = t.closest('[data-ifb-student-half]');
-  if (studentHalf) {
-    const next = studentHalf.dataset.ifbStudentHalf;
-    if (next === 'first' || next === 'second') {
-      ui.studentHalf = next;
+  const groupHalf = t.closest('[data-ifb-group-half]');
+  if (groupHalf) {
+    const next = groupHalf.dataset.ifbGroupHalf;
+    const scope = groupHalf.dataset.ifbGroupScope;
+    if ((next === 'first' || next === 'second') && (scope === 'students' || scope === 'staff')) {
+      if (scope === 'staff') ui.staffHalf = next;
+      else ui.studentHalf = next;
       paint(host);
     }
     return;

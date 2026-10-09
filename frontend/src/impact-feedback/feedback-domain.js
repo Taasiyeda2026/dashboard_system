@@ -131,6 +131,15 @@ export function hasCourseStartDate(group) {
 }
 
 /**
+ * Staff surveys are eligible only after their actual activity has an end date.
+ * Reuse the date validator already used for students; do not infer one from the
+ * program duration, scheduled start, or existing survey campaign.
+ */
+export function hasCourseEndDate(group) {
+  return hasCourseStartDate({ start_date: group?.end_date });
+}
+
+/**
  * Keep student-feedback semesters identical to the scheduling board.
  * Assign each course to exactly one semester by its first activity date,
  * not by its end date (a first-half course may continue into February).

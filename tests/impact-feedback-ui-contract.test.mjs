@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { filterGroups, hasCourseStartDate, studentFeedbackPeriodForGroup, studentFeedbackHasResponses, sortStudentFeedbackGroups } from '../frontend/src/impact-feedback/feedback-domain.js';
+import { filterGroups, hasCourseStartDate, hasCourseEndDate, studentFeedbackPeriodForGroup, studentFeedbackHasResponses, sortStudentFeedbackGroups } from '../frontend/src/impact-feedback/feedback-domain.js';
 import { COURSE_SCHEDULING_PERIODS } from '../frontend/src/screens/course-scheduling-periods.js';
 
 const screen = readFileSync(new URL('../frontend/src/screens/impact-feedback.js', import.meta.url), 'utf8');
@@ -205,7 +205,8 @@ test('missing feedback templates are handled internally without exposing course 
   assert.match(screen, /לתוכנית זו טרם הותאמה תבנית משוב/);
   assert.match(screen, /if \(!group\.program_key\)/);
   assert.doesNotMatch(screen, /בחירת קורס ידנית|שמירת קורס|חזרה לזיהוי אוטומטי/);
-  assert.match(screen, /GROUP_SLOTS\.map\(\(slot\) => slotCardHtml\(group, slot\)\)/);
+  assert.match(screen, /visibleSlots\.map\(\(slot\) => slotCardHtml\(group, slot\)\)/);
+  assert.match(screen, /const visibleSlots = staffView \? GROUP_SLOTS\.filter\(\(slot\) => slot\.audience === 'educational_staff'\) : GROUP_SLOTS;/);
 });
 
 test('group identity has one heading and a responsive, compact metadata grid', () => {
@@ -258,20 +259,22 @@ test('student list is sorted by course start date with groups already answered a
   assert.equal(studentFeedbackHasResponses(group('opened-no-answers', '2026-09-02')), false);
 });
 
-test('the students tab has two real semester buttons, each with an exclusive group partition', () => {
-  const table = screen.slice(screen.indexOf('function studentSemesterTabsHtml('), screen.indexOf('function optionBarsHtml('));
+test('student and staff tabs have exclusive, independent semester selectors sourced from scheduling', () => {
+  const table = screen.slice(screen.indexOf('function groupSemesterTabsHtml('), screen.indexOf('function optionBarsHtml('));
   assert.match(screen, /studentHalf: 'first'/);
+  assert.match(screen, /staffHalf: 'first'/);
   assert.match(table, /\{ key: 'first', label: "מחצית א׳" \}/);
   assert.match(table, /\{ key: 'second', label: "מחצית ב׳" \}/);
-  assert.match(table, /data-ifb-student-half="\$\{key\}"/);
-  assert.match(table, /aria-pressed="\$\{ui\.studentHalf === key\}"/);
-  assert.match(table, /all\.filter\(\(g\) => studentFeedbackPeriodForGroup\(g\) === ui\.studentHalf\)/);
-  assert.match(table, /sortStudentFeedbackGroups\(matching\)/);
-  assert.match(table, /scope === 'students' \? studentSemesterTabsHtml\(all\) : ''/);
-  assert.match(screen, /const studentHalf = t\.closest\('\[data-ifb-student-half\]'\)/);
+  assert.match(table, /data-ifb-group-half="\$\{key\}" data-ifb-group-scope="\$\{scope\}"/);
+  assert.match(table, /aria-pressed="\$\{selectedHalf === key\}"/);
+  assert.match(table, /studentFeedbackPeriodForGroup\(g\) === \(scope === 'staff' \? ui\.staffHalf : ui\.studentHalf\)/);
+  assert.match(table, /groupSemesterTabsHtml\(all, scope\)/);
+  assert.match(table, /groupFiltersHtml\(inHalf, scope\)/);
+  assert.match(screen, /const groupHalf = t\.closest\('\[data-ifb-group-half\]'\)/);
+  assert.match(screen, /if \(scope === 'staff'\) ui\.staffHalf = next;/);
+  assert.match(screen, /else ui\.studentHalf = next;/);
   assert.match(styles, /\.ifb-student-semester\.is-active \{/);
 });
-
 
 test('instructor list shows only scheduled instructor-courses sorted by earliest start date', () => {
   const list = screen.slice(screen.indexOf('function instructorAssignmentsHtml('), screen.indexOf('function instructorsHtml('));
@@ -313,4 +316,41 @@ test('QR share dialog fits without scroll and does not expose the long token on 
   assert.match(styles, /\.ifb-qr \{[\s\S]*?max-height: calc\(100dvh - 32px\);\s*overflow: hidden;/);
   assert.match(styles, /\.ifb-qr__code \{[\s\S]*?39dvh/);
   assert.match(styles, /\.ifb-qr-overlay:fullscreen \.ifb-qr__code/);
+});
+
+
+test('staff tab displays only groups with a valid scheduled end date', () => {
+  const sample = [
+    [null, false], ['', false], ['2026-02-30', false],
+    ['2027-01-04', true], ['2027-06-30', true]
+  ];
+  for (const [end_date, valid] of sample) {
+    assert.equal(hasCourseEndDate({ end_date, start_date: '2026-10-20' }), valid, String(end_date));
+  }
+  assert.equal(hasCourseEndDate({ end_date: '2027-01-04', start_date: null }), true,
+    'eligibility is determined by the end date, not inferred from the start date');
+  const groupTable = screen.slice(screen.indexOf('function groupsTableHtml('), screen.indexOf('function optionBarsHtml('));
+  assert.match(groupTable, /scope === 'staff'\s*\? courseScopedGroups\(\)\.filter\(hasCourseEndDate\)/);
+  assert.match(groupTable, /scope === 'students'\s*\? courseScopedGroups\(\)\.filter\(hasCourseStartDate\)/);
+  assert.match(groupTable, /בלשונית צוות חינוכי מוצגות רק קבוצות שנקבע להן תאריך סיום/);
+  assert.match(screen, /const groups = await fetchGroups\(year\)/);
+});
+
+test('staff group detail focuses on staff questionnaires, data and open answers', () => {
+  const groupView = screen.slice(screen.indexOf('function groupViewHtml('), screen.indexOf('// Export', screen.indexOf('function groupViewHtml(')));
+  assert.match(groupView, /const staffView = ui\.groupReturnTab === 'staff'/);
+  assert.match(groupView, /visibleSlots = staffView \? GROUP_SLOTS\.filter\(\(slot\) => slot\.audience === 'educational_staff'\)/);
+  assert.match(groupView, /staffFacts = staffView && facts \? factsFor\(facts, 'educational_staff'\) : \[\]/);
+  assert.match(groupView, /questionTableHtml\(staffFacts, \{ caption: 'תוצאות משוב הצוות החינוכי' \}\)/);
+  assert.match(groupView, /staffOpenAnswers = staffView && facts \? openAnswers\(staffFacts\) : \[\]/);
+  assert.match(groupView, /visibleSlots\.map\(\(slot\) => slotCardHtml\(group, slot\)\)/);
+  assert.match(groupView, /ifb-slots--staff/);
+  assert.match(groupView, /ifb-group-answers/);
+  assert.match(styles, /\.ifb-slots--staff \{\s*display: grid;\s*grid-template-columns: minmax\(0, 540px\)/);
+});
+
+test('staff Excel export excludes student answers', () => {
+  assert.match(screen, /exportButtonHtml\(\`group-staff:\$\{group\.row_id\}\`, 'ייצוא צוות חינוכי \(Excel\)'\)/);
+  assert.match(screen, /scope\.startsWith\('group-staff:'\)\) return factsFor\(ui\.groupFacts\.get\(scope\.slice\(12\)\) \|\| \[\], 'educational_staff'\)/);
+  assert.match(screen, /const isGroup = scope\.startsWith\('group:'\) \|\| scope\.startsWith\('group-staff:'\)/);
 });
