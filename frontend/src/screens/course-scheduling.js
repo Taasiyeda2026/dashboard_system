@@ -3043,9 +3043,16 @@ export const courseSchedulingScreen = {
           .filter((row) => currentCourseIds.includes(text(row?.courseId)));
         const persistedCheckpointRows = new Map(
           resumableRows
-            .map((row) => [text(row?.courseId), row])
+            .map((row) => [text(row?.courseId), JSON.parse(JSON.stringify(row))])
             .filter(([courseId]) => !!courseId)
         );
+        // Checkpoint cache is a record of what the SERVER saw, not a reference
+        // to mutable optimizer rows. Otherwise in-place candidate edits can
+        // make a changed proposal falsely compare equal at the final flush.
+        const rememberPersistedCheckpointRow = (row) => {
+          const courseId = text(row?.courseId);
+          if (courseId) persistedCheckpointRows.set(courseId, JSON.parse(JSON.stringify(row)));
+        };
         const resumeValidatedCommit = canCommitValidatedCheckpoint({
           sourceRevision: run.sourceRevision,
           checkpoint: silentCheckpoint,
@@ -3239,7 +3246,7 @@ export const courseSchedulingScreen = {
               planningPerfCount('checkpointSaves');
               planningPerfCount('stageCheckpointRowsSaved', stageDeltaRows.length);
               planningPerfCount('checkpointPayloadBytes', new TextEncoder().encode(JSON.stringify(stageDeltaRows)).length);
-              for (const row of stageDeltaRows) persistedCheckpointRows.set(text(row?.courseId), row);
+              for (const row of stageDeltaRows) rememberPersistedCheckpointRow(row);
               pendingCheckpointRows.clear();
               lastSilentCheckpointCount = checkpointCompletedIds.size;
               lastSilentCheckpointAt = Date.now();
@@ -3300,7 +3307,7 @@ export const courseSchedulingScreen = {
             stopCheckpointSave();
             planningPerfCount('checkpointSaves');
             planningPerfCount('checkpointPayloadBytes', new TextEncoder().encode(JSON.stringify(checkpointRows)).length);
-            for (const row of checkpointRows) persistedCheckpointRows.set(text(row?.courseId), row);
+            for (const row of checkpointRows) rememberPersistedCheckpointRow(row);
             pendingCheckpointRows.clear();
             lastSilentCheckpointCount = checkpointCompletedIds.size;
             lastSilentCheckpointAt = Date.now();
@@ -3566,7 +3573,7 @@ export const courseSchedulingScreen = {
                 rows: plannedDeltaRows,
                 meta: { ...checkpointMetaBase, phase: PLANNING_RUN_PHASES.RUNNING }
               });
-              for (const row of plannedDeltaRows) persistedCheckpointRows.set(text(row.courseId), row);
+              for (const row of plannedDeltaRows) rememberPersistedCheckpointRow(row);
             } catch (error) {
               if (isSourceRevisionConflict(error)) checkpointSourceStale = true;
               else throwIfPlanningRunInvalidated(error);
@@ -3722,7 +3729,7 @@ export const courseSchedulingScreen = {
               }
             });
             for (const row of finalCheckpointDeltaRows) {
-              persistedCheckpointRows.set(text(row?.courseId), row);
+              rememberPersistedCheckpointRow(row);
             }
           }
 
