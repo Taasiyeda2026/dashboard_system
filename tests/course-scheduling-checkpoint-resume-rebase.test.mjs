@@ -700,8 +700,8 @@ test('unrecoverable checkpoint never silently launches a full country rebuild', 
 test('253-row production-shape acceptance: recover corrupted checkpoint, preserve 101 live, serialize validated full save', () => {
   const groups = [6,5,5,5,4,4,4,4,3,2,2,2,2];
   assert.equal(groups.length,13);
-  const dateFor = index => {
-    const date = new Date(Date.UTC(2026,10,1+index));
+  const dateFor = (index,week=0) => {
+    const date = new Date(Date.UTC(2026,10,1+index+week*7));
     return date.toISOString().slice(0,10);
   };
   const slot = (date) => ({date,start_time:'09:00',end_time:'10:30'});
@@ -715,7 +715,11 @@ test('253-row production-shape acceptance: recover corrupted checkpoint, preserv
       instructorEmpId: ['proposal','fixed-proposal','live'].includes(kind)?'instructor-'+index:'',
       sessions: 2,
       startDate: date,
-      meetings: ['proposal','fixed-proposal'].includes(kind)?[slot(date)]:[]
+      meetings: ['live','proposal','fixed-proposal'].includes(kind)
+        ? [
+            ...Array.from({length:10},(_,week)=>slot(dateFor(index,week))),
+            ...(index<48?[slot(dateFor(index,10))]:[])
+          ] : []
     };
   };
   const kinds = [
@@ -727,6 +731,10 @@ test('253-row production-shape acceptance: recover corrupted checkpoint, preserv
   ];
   assert.equal(kinds.length,253);
   const committedRows=kinds.map((kind,index)=>makeRow(kind,index));
+  const originalAssignedMeetings=committedRows.reduce((sum,row)=>
+    sum+(['live','proposal','fixed-proposal'].includes(row.kind)?row.meetings.length:0),0);
+  assert.equal(originalAssignedMeetings,1908,'match all 1,908 assigned meetings observed in production, including live');
+  assert.equal(committedRows.filter(row=>row.kind==='live'&&row.meetings.length>0).length,101);
   const initialSerialized=JSON.stringify(committedRows);
   const provisionalRows=committedRows.map(r=>({...r,meetings:r.meetings.map(m=>({...m}))}));
   let cursor=101;
@@ -737,7 +745,7 @@ test('253-row production-shape acceptance: recover corrupted checkpoint, preserv
       row.instructorEmpId='instructor-overlap-'+group;
       row.schoolId='school-overlap-'+group;
       row.startDate='2026-10-12';
-      row.meetings=[slot('2026-10-12')];
+      row.meetings[0]=slot('2026-10-12');
     }
     group++;
   }
@@ -745,7 +753,7 @@ test('253-row production-shape acceptance: recover corrupted checkpoint, preserv
     const pairs=new Set(), instructorIds=new Set();
     const byGroup=new Map();
     for(const row of rows) {
-      if(!['proposal','fixed-proposal'].includes(row.kind))continue;
+      if(!['live','proposal','fixed-proposal'].includes(row.kind))continue;
       for(const m of row.meetings||[]){
         const key=[row.instructorEmpId,m.date,m.start_time,m.end_time].join('|');
         if(!byGroup.has(key))byGroup.set(key,[]);
@@ -763,6 +771,7 @@ test('253-row production-shape acceptance: recover corrupted checkpoint, preserv
     }
     return{pairs:pairs.size,instructors:instructorIds.size};
   };
+  assert.equal(provisionalRows.reduce((n,r)=>n+(['live','proposal','fixed-proposal'].includes(r.kind)?r.meetings.length:0),0),1908);
   assert.deepEqual(overlappingPairs(provisionalRows),{pairs:76,instructors:13});
   assert.deepEqual(overlappingPairs(committedRows),{pairs:0,instructors:0});
 
