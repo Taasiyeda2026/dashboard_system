@@ -111,7 +111,10 @@ test('every date header and date cell share the centered date class', () => {
   assert.match(groups, /<th scope="col" class="ifb-center ifb-col-date">/);
   assert.match(groups, /<td data-label="תחילת קורס" class="ifb-center ifb-nowrap ifb-col-date">/);
   assert.match(groups, /class="ifb-center ifb-nowrap ifb-col-date">\$\{fmtDate\(g\.end_date\)\}/);
-  assert.match(instructor, /class="ifb-center ifb-col-date" title="מועד הסיום הראשון/);
+  assert.match(instructor, /class="ifb-center ifb-col-date" title="תאריך ההתחלה המוקדם ביותר/);
+  assert.match(instructor, /class="ifb-center ifb-col-date" title="תאריך הסיום המוקדם ביותר/);
+  assert.match(instructor, /data-label="תחילת קורס ראשון" class="ifb-center ifb-nowrap ifb-col-date">\$\{fmtDate\(row\.first_start_date\)\}/);
+  assert.match(instructor, /data-label="סיום קורס ראשון" class="ifb-center ifb-nowrap ifb-col-date">\$\{fmtDate\(row\.first_course_end_date\)\}/);
   assert.match(instructor, /class="ifb-center ifb-nowrap ifb-col-date">\$\{fmtDate\(row\.first_course_end_date\)\}/);
   assert.match(styles, /\.ifb-admin \.ifb-table thead th\.ifb-col-date,/);
   assert.match(styles, /\.ifb-admin \.ifb-table tbody td\.ifb-col-date,/);
@@ -262,4 +265,26 @@ test('the students tab has two real semester buttons, each with an exclusive gro
   assert.match(table, /scope === 'students' \? studentSemesterTabsHtml\(all\) : ''/);
   assert.match(screen, /const studentHalf = t\.closest\('\[data-ifb-student-half\]'\)/);
   assert.match(styles, /\.ifb-student-semester\.is-active \{/);
+});
+
+
+test('instructor list shows only scheduled instructor-courses sorted by earliest start date', () => {
+  const list = screen.slice(screen.indexOf('function instructorAssignmentsHtml('), screen.indexOf('function instructorsHtml('));
+  assert.match(list, /\(ui\.instructorAssignments \|\| \[\]\)\.filter\(\(row\) => row\.first_start_date &&/);
+  assert.match(list, /\.sort\(\(a, b\) => String\(a\.first_start_date\)\.localeCompare\(String\(b\.first_start_date\)\)/);
+  assert.match(list, /<col class="ifb-iw-first-start"><col class="ifb-iw-first-end">/);
+  assert.match(list, /תחילת קורס ראשון/);
+  assert.match(list, /סיום קורס ראשון/);
+  assert.match(list, /fmtDate\(row\.first_start_date\)/);
+  assert.match(list, /fmtDate\(row\.first_course_end_date\)/);
+  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-first-start,\s*\.ifb-instructor-table col\.ifb-iw-first-end \{ width: 11%; \}/);
+});
+
+test('SQL instructor feedback aggregates the two earliest dates independently', () => {
+  const migration = readFileSync(new URL('../supabase/migrations/20261009223000_feedback_instructor_earliest_dates.sql', import.meta.url), 'utf8');
+  assert.match(migration, /min\(a\.start_date\) as first_date/);
+  assert.match(migration, /min\(a\.end_date\) as first_course_end_date/);
+  assert.match(migration, /having min\(a\.start_date\) is not null/);
+  assert.doesNotMatch(migration, /array_agg\(a\.end_date order by a\.start_date/);
+  assert.match(migration, /g\.first_date asc/);
 });
