@@ -2599,7 +2599,8 @@ export function reconcileSelectedPlanningOverlaps({
   const currentRows = [...(rowsById?.values?.() || [])];
   const committedById = new Map(committedRows.map((r) => [text(r?.courseId), r]));
   const live = currentRows.filter(r => ['live', 'planning-locked'].includes(text(r?.kind)));
-  const assigned = currentRows.filter(r => ['proposal', 'fixed-proposal'].includes(text(r?.kind)));
+  const assigned = currentRows.filter(r => ['proposal', 'fixed-proposal'].includes(text(r?.kind))
+    && text(r?.instructorEmpId) && Array.isArray(r?.meetings) && r.meetings.length > 0);
   const rank = row => {
     const incumbent = committedById.get(text(row?.courseId));
     const sameAssignment = incumbent && text(incumbent.instructorEmpId) === text(row.instructorEmpId)
@@ -6809,7 +6810,9 @@ export async function buildDynamicCoursePlan({
   // Packing was allowed to reshape the whole school cohort. Resolve only
   // residual conflicting tentative choices in one linear pass, before the
   // costly whole-plan hard validation and nested repair. Never persist overlaps.
-  const reconciled = reconcileSelectedPlanningOverlaps({ rowsById, committedRows });
+  const reconciled = reconcileSelectedPlanningOverlaps({
+    rowsById, committedRows: committedRows.length ? committedRows : existingRows
+  });
   if (reconciled.length) {
     planningPerfCount('schoolCohortOverlapReconciled', reconciled.length);
     await report('מניעת חפיפות בין כיתות', reconciled.length, reconciled.length);
