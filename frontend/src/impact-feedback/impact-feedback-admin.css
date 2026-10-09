@@ -1190,3 +1190,38 @@
   .ifb-courses-table tbody td.ifb-col-state { text-align: right; }
   .ifb-courses-table tbody td.ifb-col-audience { text-align: center; }
 }
+
+
+/* Student feedback tracking: two equal-width course dates and a lightly tinted table header. */
+.ifb-groups-table--students thead th {
+  background: color-mix(in srgb, var(--ifb-a-accent) 9%, var(--ifb-a-card));
+  color: var(--ifb-a-ink);
+  border-bottom: 2px solid color-mix(in srgb, var(--ifb-a-accent) 24%, var(--ifb-a-line));
+  font-weight: 700;
+}
+.ifb-groups-table--students thead th.ifb-col-date,
+.ifb-groups-table--students thead th.ifb-col-stage,
+.ifb-groups-table--students tbody td.ifb-col-date,
+.ifb-groups-table--students tbody td.ifb-col-stage {
+  text-align: center;
+}
+@media (min-width: 761px) {
+  .ifb-groups-table--students { min-width: 960px; }
+  /* All percentages add to 100% in either table variant; both dates are identical. */
+  .ifb-groups-table--students col.ifb-gw-school { width: 23%; }
+  .ifb-groups-table--students col.ifb-gw-authority { width: 12%; }
+  .ifb-groups-table--students col.ifb-gw-person { width: 16%; }
+  .ifb-groups-table--students col.ifb-gw-date--start,
+  .ifb-groups-table--students col.ifb-gw-date--end { width: 11%; }
+  .ifb-groups-table--students col.ifb-gw-stage { width: 11%; }
+  .ifb-groups-table--students col.ifb-gw-actions { width: 5%; }
+
+  .ifb-groups-table--students.ifb-groups-table--with-program col.ifb-gw-school { width: 20%; }
+  .ifb-groups-table--students.ifb-groups-table--with-program col.ifb-gw-authority { width: 9%; }
+  .ifb-groups-table--students.ifb-groups-table--with-program col.ifb-gw-course { width: 15%; }
+  .ifb-groups-table--students.ifb-groups-table--with-program col.ifb-gw-person { width: 11%; }
+  .ifb-groups-table--students.ifb-groups-table--with-program col.ifb-gw-date--start,
+  .ifb-groups-table--students.ifb-groups-table--with-program col.ifb-gw-date--end { width: 10%; }
+  .ifb-groups-table--students.ifb-groups-table--with-program col.ifb-gw-stage { width: 10%; }
+  .ifb-groups-table--students.ifb-groups-table--with-program col.ifb-gw-actions { width: 5%; }
+}
