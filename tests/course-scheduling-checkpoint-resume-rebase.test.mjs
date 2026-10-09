@@ -8,6 +8,7 @@ import {
   PLANNING_RUN_TYPES,
   canCommitValidatedCheckpoint,
   canValidateCompletedRunningCheckpoint,
+  resolvePlanningRunPlan,
   planningResumeReopenIds,
   planSafeRestartFromCommittedWorkspace,
   planningCheckpointChunks,
@@ -17,7 +18,12 @@ import { buildDynamicCoursePlan, createPlanningLocalRepairDeadlineCheckpoint, fi
 import { createPlanningRunDeadlineCheckpoint } from '../frontend/src/screens/course-scheduling-preflight.js';
 import {
   planningRebaseAffectedCourseIds,
-  planningRowReflaggedDuringRun
+  planningRowReflaggedDuringRun,
+  planningBaseStageEngineVersion,
+  isPlanningBaseStagePending,
+  shouldStageLargePlanningUpgrade,
+  planningEngineUpgradeOptimizationScopes,
+  planningEngineUpgradeExecutionScopes
 } from '../frontend/src/screens/course-scheduling-planning-store.js';
 
 const screenSource = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
@@ -883,4 +889,107 @@ test('stage snapshots persist fresh rows if previous checkpoint cache was discar
   assert.equal(planningStageCheckpointDelta({
     rows:changed,persistedRows:stale,now:30_000,lastSavedAt:20_000,minIntervalMs:120_000
   }).length,253,'after poison reset, all rows are durable once');
+});
+
+
+test('large 173-course upgrade splits into two separately committed engine phases without dropping saved work', () => {
+  const current='planning-v35-test';
+  const pending=planningBaseStageEngineVersion(current);
+  assert.equal(isPlanningBaseStagePending(pending,current),true);
+  assert.equal(isPlanningBaseStagePending(current,current),false);
+  assert.equal(shouldStageLargePlanningUpgrade({
+    engineChanged:true,storedEngineVersion:'planning-v31-old',
+    currentEngineVersion:current,runType:PLANNING_RUN_TYPES.ENGINE_UPGRADE,
+    baseRecalculationCount:173
+  }),true);
+  assert.equal(shouldStageLargePlanningUpgrade({
+    engineChanged:true,storedEngineVersion:pending,
+    currentEngineVersion:current,runType:PLANNING_RUN_TYPES.ENGINE_UPGRADE,
+    baseRecalculationCount:173
+  }),false,'already saved base cannot be redone just to reach soft optimization');
+  assert.equal(shouldStageLargePlanningUpgrade({
+    engineChanged:true,storedEngineVersion:'planning-v31-old',
+    currentEngineVersion:current,runType:PLANNING_RUN_TYPES.ENGINE_UPGRADE,
+    baseRecalculationCount:20
+  }),false,'small incremental changes still commit normally');
+  const section=screenSource.slice(screenSource.indexOf('const baseStage = '),
+    screenSource.indexOf('let loadedCheckpoint = null;'));
+  assert.match(section,/runEngineVersion = baseStage/);
+  assert.match(section,/planningBaseStageEngineVersion\(PLANNING_ENGINE_VERSION\)/);
+  assert.match(screenSource,/skipSoftOptimization: baseStage,/);
+  assert.match(screenSource,/engineVersion: runEngineVersion,/);
+  assert.match(screenSource,/שלב א׳ נשמר ואומת/);
+  assert.match(plannerSource,/if \(!_repairPass && !skipSoftOptimization\)/);
+  assert.match(plannerSource,/skipSoftOptimization,\s*planningProfile: 'fast'/);
+});
+
+test('stage-two planning computes soft scopes over saved proposals without repeating 173-course base search', () => {
+  const current='planning-v35-test';
+  const pending=planningBaseStageEngineVersion(current);
+  const courses=[
+    {row_id:'a',school_id:'s'},
+    {row_id:'b',school_id:'s'},
+    {row_id:'c',school_id:'other'},
+    {row_id:'d',school_id:'s'},
+    {row_id:'e',school_id:'other'}
+  ];
+  const shared={workspace:{revision:11947,engineVersion:pending},
+    rows:[
+      {activityId:'a',row:{courseId:'a',kind:'proposal',schoolId:'s',instructorEmpId:'1'}},
+      {activityId:'b',row:{courseId:'b',kind:'proposal',schoolId:'s',instructorEmpId:'2'}},
+      {activityId:'c',row:{courseId:'c',kind:'recruitment',schoolId:'other'}},
+      {activityId:'d',row:{courseId:'d',kind:'live',schoolId:'s',instructorEmpId:'4'}},
+      {activityId:'e',row:{courseId:'e',kind:'proposal',schoolId:'other',instructorEmpId:'5'},lockedOption:{instructorEmpId:'5'}}
+    ]};
+  const scopes=planningEngineUpgradeOptimizationScopes({
+    shared,activities:courses,storedEngineVersion:pending,currentEngineVersion:current
+  });
+  assert.deepEqual(scopes.schoolPackingCourseIds.sort(),['a','b']);
+  assert.deepEqual(scopes.recruitmentRecoveryCourseIds,['c']);
+  assert.deepEqual(scopes.workdayConsolidationCourseIds.sort(),['a','b']);
+  assert.deepEqual(scopes.affectedIds.sort(),['a','b','c']);
+  const execution=planningEngineUpgradeExecutionScopes({
+    regularAffectedIds:[],engineUpgradeAffectedIds:scopes.affectedIds,
+    storedEngineVersion:pending,currentEngineVersion:current
+  });
+  assert.equal(execution.v28OptimizationUpgrade,true);
+  assert.deepEqual(execution.baseRecalculationIds,[]);
+  assert.deepEqual(execution.upgradeOptimizationIds.sort(),['a','b','c']);
+  const plan=resolvePlanningRunPlan({
+    shared,storedEngineVersion:pending,currentEngineVersion:current,
+    currentCourseIds:courses.map(c=>c.row_id),
+    regularAffectedIds:[],engineUpgradeAffectedIds:scopes.affectedIds,
+    upgradeOptimizationScopes:scopes,upgradeExecution:execution
+  });
+  assert.equal(plan.runType,PLANNING_RUN_TYPES.ENGINE_UPGRADE);
+  assert.deepEqual(plan.baseRecalculationIds,[]);
+  assert.deepEqual(plan.upgradeOptimizationIds.sort(),['a','b','c']);
+  assert.equal(plan.persistServerCheckpoints,true);
+  assert.equal(shouldStageLargePlanningUpgrade({
+    engineChanged:true,storedEngineVersion:pending,currentEngineVersion:current,
+    runType:plan.runType,baseRecalculationCount:plan.baseRecalculationIds.length
+  }),false);
+  assert.match(plannerSource,/upgradeSchoolPackingIds\?\.size \|\| 0/);
+  assert.match(plannerSource,/upgradeWorkdayConsolidationIds\?\.size \|\| 0/);
+});
+
+test('a valid saved baseline with no flexible courses can advance its engine marker without a new national run', () => {
+  const current='planning-v35-test';
+  const pending=planningBaseStageEngineVersion(current);
+  const shared={workspace:{revision:11947,engineVersion:pending},
+    rows:[{activityId:'live',row:{courseId:'live',kind:'live'}}]};
+  const scopes=planningEngineUpgradeOptimizationScopes({
+    shared,activities:[{row_id:'live'}],storedEngineVersion:pending,currentEngineVersion:current
+  });
+  assert.deepEqual(scopes.affectedIds,[]);
+  const execution=planningEngineUpgradeExecutionScopes({
+    storedEngineVersion:pending,currentEngineVersion:current,
+    engineUpgradeAffectedIds:[],regularAffectedIds:[]
+  });
+  const run=resolvePlanningRunPlan({shared,currentCourseIds:['live'],
+    storedEngineVersion:pending,currentEngineVersion:current,
+    engineUpgradeAffectedIds:[],regularAffectedIds:[],
+    upgradeExecution:execution,upgradeOptimizationScopes:scopes});
+  assert.equal(run.runType,PLANNING_RUN_TYPES.NO_OP);
+  assert.equal(run.advanceEngineMarker,true);
 });
