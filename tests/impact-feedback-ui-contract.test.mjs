@@ -125,7 +125,8 @@ test('every date header and date cell share the centered date class', () => {
 test('actual status headings and values are right-aligned without changing stage columns', () => {
   const instructor = screen.slice(screen.indexOf('function instructorAssignmentsHtml('), screen.indexOf('function instructorsHtml('));
   assert.match(instructor, /<th scope="col" class="ifb-col-status">סטטוס<\/th>/);
-  assert.match(instructor, /<td data-label="סטטוס" class="ifb-col-status">/);
+  assert.match(instructor, /<td data-label="סטטוס פתיחה" class="ifb-col-status">/);
+  assert.match(instructor, /<td data-label="סטטוס סיום" class="ifb-col-status">/);
   assert.match(screen, /<th scope="col" class="ifb-col-state">מצב<\/th>/);
   assert.match(styles, /\.ifb-admin \.ifb-table thead th\.ifb-col-status,/);
   assert.match(styles, /\.ifb-admin \.ifb-table tbody td\.ifb-col-status,/);
@@ -279,12 +280,16 @@ test('instructor list shows only scheduled instructor-courses sorted by earliest
   const list = screen.slice(screen.indexOf('function instructorAssignmentsHtml('), screen.indexOf('function instructorsHtml('));
   assert.match(list, /studentFeedbackPeriodForGroup\(\{ start_date: row\.first_start_date \}\) === ui\.feedbackHalf/);
   assert.match(list, /\.sort\(\(a, b\) => String\(a\.first_start_date\)\.localeCompare\(String\(b\.first_start_date\)\)/);
-  assert.match(list, /<col class="ifb-iw-first-start"><col class="ifb-iw-first-end">/);
+  assert.match(list, /<col class="ifb-iw-instructor"><col class="ifb-iw-program"><col class="ifb-iw-groups">/);
+  assert.equal((list.match(/<col class="ifb-iw-equal">/g) || []).length, 6, 'six columns have exactly equal widths');
   assert.match(list, /תחילת קורס ראשון/);
   assert.match(list, /סיום קורס ראשון/);
   assert.match(list, /fmtDate\(row\.first_start_date\)/);
   assert.match(list, /fmtDate\(row\.first_course_end_date\)/);
-  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-first-start,\s*\.ifb-instructor-table col\.ifb-iw-first-end \{ width: 11%; \}/);
+  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-equal \{ width: 10%; \}/);
+  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-instructor \{ width: 18%; \}/);
+  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-program \{ width: 14%; \}/);
+  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-groups \{ width: 8%; \}/);
 });
 
 test('SQL instructor feedback aggregates the two earliest dates independently', () => {
@@ -464,4 +469,50 @@ test('each saved template PDF is visually distinct and upload/download actions r
   assert.match(templates, /await downloadSavedPaperPdf\(record\)/);
   assert.match(templates, /await uploadSavedPaperPdf\(template, file\)/);
   assert.match(templates, /await deleteSavedPaperPdf\(record\)/);
+});
+
+
+test('feedback semester control has no extraneous scheduling explanation anywhere', () => {
+  assert.doesNotMatch(screen, /לפי תאריך תחילת הקורס בממשק השיבוצים/);
+  const switcher = screen.slice(screen.indexOf('function feedbackSemesterTabsHtml('), screen.indexOf('function groupsTableHtml('));
+  assert.match(switcher, /מחצית א׳/);
+  assert.match(switcher, /מחצית ב׳/);
+  assert.doesNotMatch(switcher, /ifb-student-semesters__note/);
+});
+
+test('instructor table uses requested nine headings in exact RTL order with independent stage statuses', () => {
+  const list = screen.slice(screen.indexOf('function instructorAssignmentsHtml('), screen.indexOf('function instructorsHtml('));
+  const header = list.slice(list.indexOf('<thead><tr>'), list.indexOf('</thead>'));
+  const headings = [...header.matchAll(/<th scope="col"[^>]*>([^<]+)<\/th>/g)].map((match) => match[1]);
+  assert.deepEqual(headings, [
+    'מדריך', 'קורס', 'קבוצות', 'תחילת קורס ראשון',
+    'פתיחה – אחרי הכשרה', 'סטטוס', 'סיום קורס ראשון',
+    'סיום הקורס', 'סטטוס'
+  ]);
+  const body = list.slice(list.indexOf('<tbody>'), list.indexOf('</tbody>'));
+  const fields = [...body.matchAll(/<td data-label="([^"]+)"[^>]*>/g)].map((match) => match[1]);
+  assert.deepEqual(fields, [
+    'קורס', 'קבוצות', 'תחילת קורס ראשון',
+    'פתיחה – אחרי הכשרה', 'סטטוס פתיחה',
+    'סיום קורס ראשון', 'סיום הקורס', 'סטטוס סיום'
+  ]);
+  assert.match(list, /instructorStageStatusHtml\(row, 'pre'\)/);
+  assert.match(list, /instructorStageStatusHtml\(row, 'final'\)/);
+  assert.match(screen, /function instructorStageStatusHtml\(row, stage\) \{\s*return tableStatusHtml\(instructorCampaignFor\(row, stage\)\);/);
+  assert.doesNotMatch(screen, /function instructorOverallStatus/);
+  const actionFn = screen.slice(screen.indexOf('function instructorCampaignActionsHtml('), screen.indexOf('function instructorFilterMatches('));
+  assert.doesNotMatch(actionFn, /tableStatusHtml\(campaign\)/);
+  assert.match(actionFn, /data-ifb-instructor-open=/);
+  assert.match(actionFn, /data-ifb-copy=/);
+  assert.match(actionFn, /data-ifb-share=/);
+  assert.match(actionFn, /data-ifb-close=/);
+  assert.match(actionFn, /data-ifb-reopen=/);
+});
+
+test('equal instructor column widths and right aligned stage status on desktop retain mobile cards', () => {
+  assert.match(styles, /\.ifb-instructor-table col\.ifb-iw-equal \{ width: 10%; \}/);
+  assert.match(styles, /\.ifb-instructor-table th\.ifb-col-status,\s*\.ifb-instructor-table td\.ifb-col-status \{ text-align: right; \}/);
+  assert.match(styles, /\.ifb-instructor-table td\.ifb-col-status \.ifb-status-cell \{ justify-items: start; \}/);
+  assert.match(styles, /\.ifb-instructor-table \{\s*min-width: 1380px;/);
+  assert.match(styles, /@media \(max-width: 760px\) \{[\s\S]*?\.ifb-instructor-table \{ min-width: 0; \}/);
 });
