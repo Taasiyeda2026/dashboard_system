@@ -223,3 +223,67 @@ export async function createQuestionInDraft(versionId, { programKey, audience, s
   await addBankQuestionToDraft(versionId, bank, sortOrder);
   return bank;
 }
+
+
+// --- Admin-managed printable PDF files (separate from digital submissions) ---
+const PAPER_PDF_BUCKET = 'feedback-template-pdfs';
+
+export async function fetchSavedPaperPdfs() {
+  return unwrap(client().from('feedback_template_pdfs')
+    .select('template_id,version_id,storage_path,file_name,uploaded_at'));
+}
+
+export async function downloadSavedPaperPdf(record) {
+  if (!record?.storage_path) throw new Error('לא נשמר PDF לתבנית זו');
+  const { data, error } = await client().storage.from(PAPER_PDF_BUCKET).createSignedUrl(record.storage_path, 60);
+  if (error || !data?.signedUrl) throw error || new Error('קישור להורדה אינו זמין');
+  const response = await fetch(data.signedUrl);
+  if (!response.ok) throw new Error('הורדת ה־PDF נכשלה');
+  const file = await response.blob();
+  if (!file.size) throw new Error('קובץ PDF ריק');
+  const url = URL.createObjectURL(file);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = record.file_name || 'feedback.pdf';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30000);
+}
+
+export async function uploadSavedPaperPdf(template, file) {
+  if (!template?.id || !template.current_version_id) throw new Error('יש לפרסם את התבנית לפני העלאת PDF');
+  if (!(file instanceof File) || !/\.pdf$/i.test(file.name) || (file.type && file.type !== 'application/pdf') || file.size < 10 || file.size > 10485760) {
+    throw new Error('ניתן להעלות PDF בלבד, עד 10MB');
+  }
+  const signature = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+  if (String.fromCharCode(...signature) !== '%PDF-') throw new Error('הקובץ אינו PDF תקין');
+  const existing = await unwrap(client().from('feedback_template_pdfs').select('storage_path').eq('template_id', template.id).maybeSingle());
+  const path = `${template.id}/${crypto.randomUUID()}.pdf`;
+  const storage = client().storage.from(PAPER_PDF_BUCKET);
+  const { error } = await storage.upload(path, file, { contentType: 'application/pdf', upsert: false, cacheControl: '0' });
+  if (error) throw error;
+  try {
+    await unwrap(client().from('feedback_template_pdfs').upsert({
+      template_id: template.id,
+      version_id: template.current_version_id,
+      storage_path: path,
+      file_name: file.name.slice(0, 255)
+    }, { onConflict: 'template_id' }));
+  } catch (error) {
+    await storage.remove([path]).catch(() => {});
+    throw error;
+  }
+  // Delete the previous object only AFTER the metadata references the new file.
+  if (existing?.storage_path && existing.storage_path !== path) {
+    await storage.remove([existing.storage_path]);
+  }
+}
+
+export async function deleteSavedPaperPdf(record) {
+  if (!record?.template_id) throw new Error('לא נמצא קובץ למחיקה');
+  await unwrap(client().from('feedback_template_pdfs').delete().eq('template_id', record.template_id));
+  if (record.storage_path) {
+    await client().storage.from(PAPER_PDF_BUCKET).remove([record.storage_path]);
+  }
+}
