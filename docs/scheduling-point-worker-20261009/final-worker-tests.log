@@ -1,0 +1,32 @@
+[course-scheduling] stylesheet load failed TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension ".css" for /workspace/work/scheduling-pr3-worker/repo/frontend/src/screens/course-scheduling.css
+    at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:243:9)
+    at defaultGetFormat (node:internal/modules/esm/get_format:283:36)
+    at defaultLoadSync (node:internal/modules/esm/load:161:16)
+    at #loadAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:802:12)
+    at #loadSync (node:internal/modules/esm/loader:834:53)
+    at ModuleLoader.load (node:internal/modules/esm/loader:783:26)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:494:31)
+    at #getOrCreateModuleJobAfterResolve (node:internal/modules/esm/loader:560:36)
+    at afterResolve (node:internal/modules/esm/loader:607:52)
+    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:613:12) {
+  code: 'ERR_UNKNOWN_FILE_EXTENSION'
+}
+✔ draft date/time/instructor edits during compute replace one course card and retain other rows, focus, plan and run state (211.777484ms)
+✔ opening loaded courses keeps the list and binds draft approval once to the current activity (77.008235ms)
+✔ row deltas reconstruct exact results without cloning unchanged alternatives or mutating previous plan (1.477332ms)
+✔ real isolated worker equals direct engine; warm context sends no entries and availability delta only changes relevant input (124.192336ms)
+✔ worker rejects national scope and unsupported construction instead of main-thread fallback (1.177161ms)
+✔ logout/owner change replaces resident context; lease loss rejects the result (192.126053ms)
+✔ cancellation and worker crash reject without changing saved rows; cancellation acknowledged within one second (120.282397ms)
+✔ committed point refresh reloads only changed full rows, preserves alternatives, locks and flags, and fences concurrent revisions (1.943018ms)
+✔ non-cooperative worker is terminated on cancel within one second, without commit or main-thread fallback (550.685257ms)
+✔ route broker performs authorized callbacks on the caller and progress never transfers rows or credentials (74.487298ms)
+✔ immutable stored payload hashes survive revision changes; dirty view markers clone frozen input instead of corrupting the context (107.036237ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4539.286

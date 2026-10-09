@@ -1,0 +1,6673 @@
+{
+  "workerBuiltUrl": null,
+  "availabilityChanged": false,
+  "revisionChurn": false,
+  "coldOnly": false,
+  "variant": "after",
+  "browser": "151.0.7922.173",
+  "fixtureSha256": "b1c075c4e6c56017324f3e9f622856012fc9c00917d6439a0b2bd9aaf90d37e1",
+  "fixtureBytes": 8867991,
+  "samples": [
+    {
+      "device": "desktop",
+      "rate": 1,
+      "warm": false,
+      "wallMs": 804,
+      "frameGaps": [
+        0.9940000000000282,
+        0.005999999999971806,
+        16.700000000000045,
+        16.59999999999991,
+        16.700000000000045,
+        16.700000000000045,
+        33.299999999999955,
+        33.40000000000009,
+        16.59999999999991,
+        16.59999999999991,
+        16.700000000000045,
+        16.700000000000045,
+        16.700000000000045,
+        16.700000000000045,
+        16.59999999999991,
+        16.700000000000045,
+        16.59999999999991,
+        16.700000000000045,
+        16.700000000000045,
+        16.59999999999991,
+        16.700000000000045,
+        16.700000000000045,
+        16.59999999999991,
+        16.700000000000045,
+        16.59999999999991,
+        16.700000000000045,
+        16.700000000000045,
+        16.59999999999991,
+        16.700000000000045,
+        16.700000000000045,
+        16.59999999999991,
+        16.700000000000045,
+        16.700000000000045,
+        16.59999999999991,
+        16.700000000000045,
+        16.600000000000136,
+        16.799999999999955,
+        16.59999999999991,
+        16.700000000000045,
+        16.59999999999991,
+        16.700000000000045,
+        16.700000000000045,
+        16.59999999999991,
+        16.700000000000045,
+        16.700000000000045,
+        16.700000000000045,
+        16.59999999999991,
+        16.600000000000136
+      ],
+      "eventLags": [
+        0,
+        0.19999999552965164,
+        0.30000000447034836,
+        0.10000000149011612,
+        0,
+        12.800000004470348,
+        10.299999997019768,
+        10.300000004470348,
+        4.600000001490116,
+        4,
+        14.5,
+        4.0999999940395355,
+        4.0999999940395355,
+        4.0999999940395355,
+        4.0999999940395355,
+        4.100000001490116,
+        4.199999995529652,
+        4.0999999940395355,
+        4.0999999940395355
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 11.200000002980232
+        },
+        {
+          "action": "search",
+          "ms": 7.5
+        },
+        {
+          "action": "search",
+          "ms": 6.799999997019768
+        },
+        {
+          "action": "search",
+          "ms": 9.199999995529652
+        },
+        {
+          "action": "search",
+          "ms": 6.100000001490116
+        },
+        {
+          "action": "search",
+          "ms": 15.399999998509884
+        },
+        {
+          "action": "search",
+          "ms": 10.399999998509884
+        },
+        {
+          "action": "search",
+          "ms": 10.800000004470348
+        },
+        {
+          "action": "search",
+          "ms": 2.5
+        },
+        {
+          "action": "search",
+          "ms": 13.599999994039536
+        },
+        {
+          "action": "search",
+          "ms": 2
+        },
+        {
+          "action": "search",
+          "ms": 2
+        },
+        {
+          "action": "search",
+          "ms": 10.200000002980232
+        },
+        {
+          "action": "search",
+          "ms": 4
+        },
+        {
+          "action": "search",
+          "ms": 13.600000001490116
+        },
+        {
+          "action": "search",
+          "ms": 7
+        },
+        {
+          "action": "search",
+          "ms": 3.600000001490116
+        },
+        {
+          "action": "search",
+          "ms": 10.200000002980232
+        },
+        {
+          "action": "search",
+          "ms": 3.5
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 68228612,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 1,
+        "changedEntries": 10554,
+        "messages": 187,
+        "maxPostMs": 0.5,
+        "runs": 1,
+        "progressMessages": 1,
+        "computeMs": 261.29999999701977,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581331602,
+          "finishedAt": 1791581331863,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 20
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 15.800000004470348,
+              "maxMs": 15.800000004470348
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 73.90000000596046,
+              "maxMs": 3.899999998509884
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 119.10000000149012,
+              "maxMs": 119.10000000149012
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0.5,
+              "maxMs": 0.5
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 120.5,
+              "maxMs": 120.5
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0.09999999403953552,
+              "maxMs": 0.09999999403953552
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 79.79999999701977,
+              "maxMs": 79.79999999701977
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 93.60000000149012,
+              "maxMs": 93.60000000149012
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "desktop",
+      "rate": 1,
+      "warm": true,
+      "wallMs": 197.39999999850988,
+      "frameGaps": [
+        -12.100000002980323,
+        16.700000000000045,
+        16.700000000000045,
+        16.700000000000045,
+        16.59999999999991,
+        16.700000000000045,
+        16.59999999999991,
+        16.700000000000045,
+        16.600000000000136,
+        16.699999999999818,
+        16.700000000000045,
+        16.600000000000136,
+        16.799999999999955
+      ],
+      "eventLags": [
+        0.10000000149011612,
+        0,
+        0,
+        0.10000000149011612
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 14.700000002980232
+        },
+        {
+          "action": "search",
+          "ms": 7.799999997019768
+        },
+        {
+          "action": "search",
+          "ms": 3
+        },
+        {
+          "action": "search",
+          "ms": 14.5
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 74557408,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 2,
+        "changedEntries": 10554,
+        "messages": 190,
+        "maxPostMs": 0.5,
+        "runs": 2,
+        "progressMessages": 2,
+        "computeMs": 172.69999999552965,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581331911,
+          "finishedAt": 1791581332084,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 14
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 10.699999995529652,
+              "maxMs": 10.699999995529652
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 55.19999999552965,
+              "maxMs": 2.100000001490116
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 76.60000000149012,
+              "maxMs": 76.60000000149012
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 76.80000000447035,
+              "maxMs": 76.80000000447035
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 56.29999999701977,
+              "maxMs": 56.29999999701977
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 63.20000000298023,
+              "maxMs": 63.20000000298023
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "desktop",
+      "rate": 1,
+      "warm": true,
+      "wallMs": 195.10000000149012,
+      "frameGaps": [
+        -14.200000000000045,
+        16.600000000000136,
+        16.699999999999818,
+        16.700000000000273,
+        16.59999999999991,
+        16.799999999999727,
+        16.600000000000364,
+        16.59999999999991,
+        16.699999999999818,
+        16.700000000000273,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364
+      ],
+      "eventLags": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 12.5
+        },
+        {
+          "action": "search",
+          "ms": 5.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 15.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 9.399999998509884
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 48897938,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 3,
+        "changedEntries": 10554,
+        "messages": 193,
+        "maxPostMs": 0.5,
+        "runs": 3,
+        "progressMessages": 3,
+        "computeMs": 176.60000000149012,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581332127,
+          "finishedAt": 1791581332303,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 14
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 11.699999995529652,
+              "maxMs": 11.699999995529652
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 56.40000006556511,
+              "maxMs": 2
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 78,
+              "maxMs": 78
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 78.10000000149012,
+              "maxMs": 78.10000000149012
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 56.100000001490116,
+              "maxMs": 56.100000001490116
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 63.70000000298023,
+              "maxMs": 63.70000000298023
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "desktop",
+      "rate": 1,
+      "warm": true,
+      "wallMs": 190.29999999701977,
+      "frameGaps": [
+        -11.899999998509884,
+        16.59999999999991,
+        16.700000000000273,
+        16.699999999999818,
+        16.59999999999991,
+        16.59999999999991,
+        16.800000000000182,
+        16.59999999999991,
+        16.700000000000273,
+        16.699999999999818,
+        16.59999999999991,
+        16.700000000000273,
+        16.699999999999818
+      ],
+      "eventLags": [
+        0.10000000149011612,
+        0,
+        0.10000000149011612,
+        0.10000000149011612
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 16.299999997019768
+        },
+        {
+          "action": "search",
+          "ms": 8.100000001490116
+        },
+        {
+          "action": "search",
+          "ms": 2.6999999955296516
+        },
+        {
+          "action": "search",
+          "ms": 11.299999997019768
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 55605066,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 4,
+        "changedEntries": 10554,
+        "messages": 196,
+        "maxPostMs": 0.5,
+        "runs": 4,
+        "progressMessages": 4,
+        "computeMs": 172,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581332341,
+          "finishedAt": 1791581332513,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 14
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 9,
+              "maxMs": 9
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 57.5,
+              "maxMs": 2
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 78.19999999552965,
+              "maxMs": 78.19999999552965
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 78.29999999701977,
+              "maxMs": 78.29999999701977
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 54.600000001490116,
+              "maxMs": 54.600000001490116
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 61.899999998509884,
+              "maxMs": 61.899999998509884
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "desktop",
+      "rate": 1,
+      "warm": true,
+      "wallMs": 222.39999999850988,
+      "frameGaps": [
+        -4.100000002980323,
+        16.700000000000273,
+        16.59999999999991,
+        16.699999999999818,
+        16.700000000000273,
+        16.59999999999991,
+        16.699999999999818,
+        16.59999999999991,
+        16.800000000000182,
+        16.59999999999991,
+        16.59999999999991,
+        16.700000000000273,
+        16.699999999999818,
+        16.700000000000273
+      ],
+      "eventLags": [
+        0,
+        0,
+        0.10000000149011612,
+        0,
+        0.09999999403953552
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 6
+        },
+        {
+          "action": "search",
+          "ms": 20.5
+        },
+        {
+          "action": "search",
+          "ms": 10.100000001490116
+        },
+        {
+          "action": "search",
+          "ms": 2.7000000029802322
+        },
+        {
+          "action": "search",
+          "ms": 12.700000002980232
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 62787814,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 5,
+        "changedEntries": 10554,
+        "messages": 199,
+        "maxPostMs": 0.5,
+        "runs": 5,
+        "progressMessages": 5,
+        "computeMs": 195.39999999850988,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581332551,
+          "finishedAt": 1791581332746,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 15
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 9.100000001490116,
+              "maxMs": 9.100000001490116
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 65.19999995827675,
+              "maxMs": 2.5999999940395355
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 92.10000000149012,
+              "maxMs": 92.10000000149012
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0.8999999985098839,
+              "maxMs": 0.8999999985098839
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 93.10000000149012,
+              "maxMs": 93.10000000149012
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 58,
+              "maxMs": 58
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 72.79999999701977,
+              "maxMs": 72.79999999701977
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "desktop",
+      "rate": 1,
+      "warm": true,
+      "wallMs": 199.39999999850988,
+      "frameGaps": [
+        -10.399999998509884,
+        16.59999999999991,
+        16.59999999999991,
+        16.700000000000273,
+        16.699999999999818,
+        16.59999999999991,
+        16.800000000000182,
+        16.59999999999991,
+        16.700000000000273,
+        16.59999999999991,
+        16.699999999999818,
+        16.700000000000273,
+        16.59999999999991
+      ],
+      "eventLags": [
+        0,
+        0,
+        0.20000000298023224,
+        0.10000000149011612
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 16.299999997019768
+        },
+        {
+          "action": "search",
+          "ms": 9.600000001490116
+        },
+        {
+          "action": "search",
+          "ms": 2.1999999955296516
+        },
+        {
+          "action": "search",
+          "ms": 12.799999997019768
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 68959150,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 6,
+        "changedEntries": 10554,
+        "messages": 202,
+        "maxPostMs": 1.3999999985098839,
+        "runs": 6,
+        "progressMessages": 6,
+        "computeMs": 179.60000000149012,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581332791,
+          "finishedAt": 1791581332971,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 14
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 9.299999997019768,
+              "maxMs": 9.299999997019768
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 60.40000004321337,
+              "maxMs": 4
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 82.90000000596046,
+              "maxMs": 82.90000000596046
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0.09999999403953552,
+              "maxMs": 0.09999999403953552
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 83.10000000149012,
+              "maxMs": 83.10000000149012
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 58.899999998509884,
+              "maxMs": 58.899999998509884
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 65.70000000298023,
+              "maxMs": 65.70000000298023
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "desktop",
+      "rate": 1,
+      "warm": true,
+      "wallMs": 183.39999999850988,
+      "frameGaps": [
+        -11.000000001490207,
+        16.700000000000273,
+        16.59999999999991,
+        16.699999999999818,
+        16.59999999999991,
+        16.700000000000273,
+        16.699999999999818,
+        16.700000000000273,
+        16.59999999999991,
+        16.699999999999818,
+        16.700000000000273,
+        16.699999999999818
+      ],
+      "eventLags": [
+        0,
+        0,
+        0.10000000149011612,
+        0
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 15.799999997019768
+        },
+        {
+          "action": "search",
+          "ms": 9.199999995529652
+        },
+        {
+          "action": "search",
+          "ms": 2.399999998509884
+        },
+        {
+          "action": "search",
+          "ms": 12.899999998509884
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 49168506,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 7,
+        "changedEntries": 10554,
+        "messages": 205,
+        "maxPostMs": 1.3999999985098839,
+        "runs": 7,
+        "progressMessages": 7,
+        "computeMs": 169.10000000149012,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581333002,
+          "finishedAt": 1791581333171,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 13
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 9.5,
+              "maxMs": 9.5
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 54.60000002384186,
+              "maxMs": 2.100000001490116
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 70.60000000149012,
+              "maxMs": 70.60000000149012
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0.10000000149011612,
+              "maxMs": 0.10000000149011612
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 70.70000000298023,
+              "maxMs": 70.70000000298023
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 58.29999999701977,
+              "maxMs": 58.29999999701977
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 65.69999999552965,
+              "maxMs": 65.69999999552965
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "desktop",
+      "rate": 1,
+      "warm": true,
+      "wallMs": 183.70000000298023,
+      "frameGaps": [
+        -10.299999998509975,
+        16.700000000000273,
+        16.59999999999991,
+        16.699999999999818,
+        16.59999999999991,
+        16.700000000000273,
+        16.699999999999818,
+        16.59999999999991,
+        16.700000000000273,
+        16.699999999999818,
+        16.59999999999991,
+        16.700000000000273
+      ],
+      "eventLags": [
+        0.10000000149011612,
+        0,
+        0.10000000149011612,
+        0
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 16.5
+        },
+        {
+          "action": "search",
+          "ms": 9.599999994039536
+        },
+        {
+          "action": "search",
+          "ms": 2.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 13
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 55886562,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 8,
+        "changedEntries": 10554,
+        "messages": 208,
+        "maxPostMs": 1.3999999985098839,
+        "runs": 8,
+        "progressMessages": 8,
+        "computeMs": 166.40000000596046,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581333202,
+          "finishedAt": 1791581333369,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 13
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 9.200000002980232,
+              "maxMs": 9.200000002980232
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 55.599999971687794,
+              "maxMs": 1.8999999985098839
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 70,
+              "maxMs": 70
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0.10000000149011612,
+              "maxMs": 0.10000000149011612
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 70.20000000298023,
+              "maxMs": 70.20000000298023
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 58,
+              "maxMs": 58
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 66,
+              "maxMs": 66
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "desktop",
+      "rate": 1,
+      "warm": true,
+      "wallMs": 197.10000000149012,
+      "frameGaps": [
+        -11.299999998509975,
+        16.700000000000273,
+        16.59999999999991,
+        16.699999999999818,
+        16.59999999999991,
+        16.700000000000273,
+        16.59999999999991,
+        16.800000000000182,
+        16.59999999999991,
+        16.699999999999818,
+        16.700000000000273,
+        16.59999999999991,
+        16.699999999999818
+      ],
+      "eventLags": [
+        0,
+        0,
+        0,
+        0.10000000149011612
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 15.399999998509884
+        },
+        {
+          "action": "search",
+          "ms": 8.799999997019768
+        },
+        {
+          "action": "search",
+          "ms": 16.5
+        },
+        {
+          "action": "search",
+          "ms": 13.899999998509884
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 62468214,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 9,
+        "changedEntries": 10554,
+        "messages": 211,
+        "maxPostMs": 1.3999999985098839,
+        "runs": 9,
+        "progressMessages": 9,
+        "computeMs": 181.80000000447035,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581333404,
+          "finishedAt": 1791581333586,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 14
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 11.200000002980232,
+              "maxMs": 11.200000002980232
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 57.29999998956919,
+              "maxMs": 2.100000001490116
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 78,
+              "maxMs": 78
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 78.19999999552965,
+              "maxMs": 78.19999999552965
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 60.899999998509884,
+              "maxMs": 60.899999998509884
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 67.70000000298023,
+              "maxMs": 67.70000000298023
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "desktop",
+      "rate": 1,
+      "warm": true,
+      "wallMs": 217.19999999552965,
+      "frameGaps": [
+        -8.400000001490298,
+        16.700000000000273,
+        16.699999999999818,
+        16.59999999999991,
+        16.700000000000273,
+        16.699999999999818,
+        16.59999999999991,
+        16.700000000000273,
+        16.59999999999991,
+        16.699999999999818,
+        16.700000000000273,
+        16.59999999999991,
+        16.699999999999818,
+        16.700000000000273
+      ],
+      "eventLags": [
+        0,
+        0,
+        0.09999999403953552,
+        0.09999999403953552,
+        0
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 4.299999997019768
+        },
+        {
+          "action": "search",
+          "ms": 11.800000004470348
+        },
+        {
+          "action": "search",
+          "ms": 5.100000001490116
+        },
+        {
+          "action": "search",
+          "ms": 15.100000001490116
+        },
+        {
+          "action": "search",
+          "ms": 8.400000005960464
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 69076830,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 10,
+        "changedEntries": 10554,
+        "messages": 214,
+        "maxPostMs": 1.3999999985098839,
+        "runs": 10,
+        "progressMessages": 10,
+        "computeMs": 198.69999999552965,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581333617,
+          "finishedAt": 1791581333815,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 16
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 10.599999994039536,
+              "maxMs": 10.599999994039536
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 64.30000002682209,
+              "maxMs": 2.399999998509884
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 92.39999999850988,
+              "maxMs": 92.39999999850988
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 92.5,
+              "maxMs": 92.5
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 67.20000000298023,
+              "maxMs": 67.20000000298023
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 75.20000000298023,
+              "maxMs": 75.20000000298023
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "desktop",
+      "rate": 1,
+      "warm": true,
+      "wallMs": 204.89999999850988,
+      "frameGaps": [
+        -8.100000001490116,
+        16.699999999999818,
+        16.700000000000273,
+        16.699999999999818,
+        16.59999999999991,
+        16.700000000000273,
+        16.699999999999818,
+        16.59999999999991,
+        16.700000000000273,
+        16.59999999999991,
+        16.800000000000182,
+        16.59999999999991,
+        16.59999999999991
+      ],
+      "eventLags": [
+        0,
+        0,
+        0,
+        0.10000000149011612,
+        0.10000000149011612
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 3.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 12
+        },
+        {
+          "action": "search",
+          "ms": 5.800000004470348
+        },
+        {
+          "action": "search",
+          "ms": 15.200000002980232
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 49563574,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 11,
+        "changedEntries": 10554,
+        "messages": 217,
+        "maxPostMs": 1.3999999985098839,
+        "runs": 11,
+        "progressMessages": 11,
+        "computeMs": 185,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581333855,
+          "finishedAt": 1791581334040,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 15
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 9.5,
+              "maxMs": 9.5
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 67.09999999403954,
+              "maxMs": 2.2000000029802322
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 92.39999999850988,
+              "maxMs": 92.39999999850988
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0.10000000149011612,
+              "maxMs": 0.10000000149011612
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 92.60000000149012,
+              "maxMs": 92.60000000149012
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 55.600000001490116,
+              "maxMs": 55.600000001490116
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 62.899999998509884,
+              "maxMs": 62.899999998509884
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "desktop",
+      "rate": 1,
+      "warm": true,
+      "wallMs": 187.30000000447035,
+      "frameGaps": [
+        -3.499999998509793,
+        16.59999999999991,
+        16.699999999999818,
+        16.700000000000273,
+        16.59999999999991,
+        16.699999999999818,
+        16.699999999999818,
+        16.700000000000728,
+        16.699999999999818,
+        16.599999999999454,
+        16.600000000000364,
+        16.699999999999818
+      ],
+      "eventLags": [
+        0,
+        0.10000000149011612,
+        0,
+        0.10000000149011612
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 6.5
+        },
+        {
+          "action": "search",
+          "ms": 16.600000001490116
+        },
+        {
+          "action": "search",
+          "ms": 9.799999997019768
+        },
+        {
+          "action": "search",
+          "ms": 3.2999999970197678
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 56701622,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 12,
+        "changedEntries": 10554,
+        "messages": 220,
+        "maxPostMs": 1.3999999985098839,
+        "runs": 12,
+        "progressMessages": 12,
+        "computeMs": 169.19999999552965,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581334082,
+          "finishedAt": 1791581334251,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 14
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 11.5,
+              "maxMs": 11.5
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 55.299999974668026,
+              "maxMs": 2.100000001490116
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 76.10000000149012,
+              "maxMs": 76.10000000149012
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 76.19999999552965,
+              "maxMs": 76.19999999552965
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 54.899999998509884,
+              "maxMs": 54.899999998509884
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 61.20000000298023,
+              "maxMs": 61.20000000298023
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "desktop",
+      "rate": 1,
+      "warm": true,
+      "wallMs": 188.80000000447035,
+      "frameGaps": [
+        -6.599999998509702,
+        16.699999999999818,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818,
+        16.699999999999818
+      ],
+      "eventLags": [
+        0.10000000149011612,
+        0,
+        0,
+        0
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 3.600000001490116
+        },
+        {
+          "action": "search",
+          "ms": 16.5
+        },
+        {
+          "action": "search",
+          "ms": 6.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 2.7999999970197678
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 63282294,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 13,
+        "changedEntries": 10554,
+        "messages": 223,
+        "maxPostMs": 1.3999999985098839,
+        "runs": 13,
+        "progressMessages": 13,
+        "computeMs": 174.19999999552965,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581334282,
+          "finishedAt": 1791581334456,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 14
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 9,
+              "maxMs": 9
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 56.900000013411045,
+              "maxMs": 2.3000000044703484
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 80.5,
+              "maxMs": 80.5
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0.10000000149011612,
+              "maxMs": 0.10000000149011612
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 80.69999999552965,
+              "maxMs": 80.69999999552965
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 55,
+              "maxMs": 55
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 62.20000000298023,
+              "maxMs": 62.20000000298023
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "desktop",
+      "rate": 1,
+      "warm": true,
+      "wallMs": 172.69999999552965,
+      "frameGaps": [
+        -11.20000000149048,
+        16.600000000000364,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        16.600000000000364,
+        16.699999999999818,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818
+      ],
+      "eventLags": [
+        0.10000000149011612,
+        0,
+        0,
+        0.10000000149011612
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 15.300000004470348
+        },
+        {
+          "action": "search",
+          "ms": 8.700000002980232
+        },
+        {
+          "action": "search",
+          "ms": 2.5
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 69284270,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 14,
+        "changedEntries": 10554,
+        "messages": 226,
+        "maxPostMs": 1.3999999985098839,
+        "runs": 14,
+        "progressMessages": 14,
+        "computeMs": 154.79999999701977,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581334490,
+          "finishedAt": 1791581334645,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 12
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 9.699999995529652,
+              "maxMs": 9.699999995529652
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 52.900000013411045,
+              "maxMs": 2.3000000044703484
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 69.10000000149012,
+              "maxMs": 69.10000000149012
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 69.10000000149012,
+              "maxMs": 69.10000000149012
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 49.29999999701977,
+              "maxMs": 49.29999999701977
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 57.399999998509884,
+              "maxMs": 57.399999998509884
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "desktop",
+      "rate": 1,
+      "warm": true,
+      "wallMs": 220.5,
+      "frameGaps": [
+        -3.900000004470712,
+        16.700000000000728,
+        16.599999999999454,
+        16.600000000000364,
+        16.699999999999818,
+        16.699999999999818,
+        16.699999999999818,
+        16.700000000000728,
+        16.599999999999454,
+        16.600000000000364,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818
+      ],
+      "eventLags": [
+        0,
+        0,
+        0.10000000149011612,
+        0,
+        0
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 6.100000001490116
+        },
+        {
+          "action": "search",
+          "ms": 16.200000002980232
+        },
+        {
+          "action": "search",
+          "ms": 9.100000001490116
+        },
+        {
+          "action": "search",
+          "ms": 2.7999999970197678
+        },
+        {
+          "action": "search",
+          "ms": 12.899999998509884
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 48633782,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 15,
+        "changedEntries": 10554,
+        "messages": 229,
+        "maxPostMs": 2.3000000044703484,
+        "runs": 15,
+        "progressMessages": 15,
+        "computeMs": 200.79999999701977,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581334680,
+          "finishedAt": 1791581334881,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 16
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 9.399999998509884,
+              "maxMs": 9.399999998509884
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 62,
+              "maxMs": 4.5
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 90.5,
+              "maxMs": 90.5
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 90.60000000149012,
+              "maxMs": 90.60000000149012
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 73.59999999403954,
+              "maxMs": 73.59999999403954
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 80.09999999403954,
+              "maxMs": 80.09999999403954
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "desktop",
+      "rate": 1,
+      "warm": true,
+      "wallMs": 181.39999999850988,
+      "frameGaps": [
+        -9.699999998510066,
+        16.600000000000364,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        16.800000000000182,
+        16.5,
+        16.799999999999272,
+        16.600000000000364,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818
+      ],
+      "eventLags": [
+        0.10000000149011612,
+        0,
+        0,
+        0
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 2.399999998509884
+        },
+        {
+          "action": "search",
+          "ms": 10.399999998509884
+        },
+        {
+          "action": "search",
+          "ms": 3.6999999955296516
+        },
+        {
+          "action": "search",
+          "ms": 14.700000002980232
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 50964554,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 16,
+        "changedEntries": 10554,
+        "messages": 232,
+        "maxPostMs": 2.3000000044703484,
+        "runs": 16,
+        "progressMessages": 16,
+        "computeMs": 166.89999999850988,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581334918,
+          "finishedAt": 1791581335084,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 14
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 9.799999997019768,
+              "maxMs": 9.799999997019768
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 57.39999997615814,
+              "maxMs": 2.7000000029802322
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 76.90000000596046,
+              "maxMs": 76.90000000596046
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0.09999999403953552,
+              "maxMs": 0.09999999403953552
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 77,
+              "maxMs": 77
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 54.600000001490116,
+              "maxMs": 54.600000001490116
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 61.600000001490116,
+              "maxMs": 61.600000001490116
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "desktop",
+      "rate": 1,
+      "warm": true,
+      "wallMs": 188.70000000298023,
+      "frameGaps": [
+        -7.699999998510066,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        16.600000000000364,
+        16.699999999999818,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818
+      ],
+      "eventLags": [
+        0,
+        0.10000000149011612,
+        0,
+        0
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 2.2999999970197678
+        },
+        {
+          "action": "search",
+          "ms": 12.399999998509884
+        },
+        {
+          "action": "search",
+          "ms": 5.699999995529652
+        },
+        {
+          "action": "search",
+          "ms": 15.799999997019768
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 57548510,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 17,
+        "changedEntries": 10554,
+        "messages": 235,
+        "maxPostMs": 2.3000000044703484,
+        "runs": 17,
+        "progressMessages": 17,
+        "computeMs": 168.10000000149012,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581335122,
+          "finishedAt": 1791581335290,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 13
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 8.600000001490116,
+              "maxMs": 8.600000001490116
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 53.400000013411045,
+              "maxMs": 2
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 69.69999999552965,
+              "maxMs": 69.69999999552965
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0.10000000149011612,
+              "maxMs": 0.10000000149011612
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 69.79999999701977,
+              "maxMs": 69.79999999701977
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 59.099999994039536,
+              "maxMs": 59.099999994039536
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 65.79999999701977,
+              "maxMs": 65.79999999701977
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "desktop",
+      "rate": 1,
+      "warm": true,
+      "wallMs": 205,
+      "frameGaps": [
+        4.800000000000182,
+        16.699999999999818,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        16.600000000000364,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364
+      ],
+      "eventLags": [
+        0,
+        0,
+        0,
+        0,
+        0.10000000149011612
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 14.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 8.199999995529652
+        },
+        {
+          "action": "search",
+          "ms": 3
+        },
+        {
+          "action": "search",
+          "ms": 11.599999994039536
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 64132510,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 18,
+        "changedEntries": 10554,
+        "messages": 238,
+        "maxPostMs": 2.3000000044703484,
+        "runs": 18,
+        "progressMessages": 18,
+        "computeMs": 188.89999999850988,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581335322,
+          "finishedAt": 1791581335511,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 15
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 10.5,
+              "maxMs": 10.5
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 64.30000000447035,
+              "maxMs": 2.100000001490116
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 89.69999999552965,
+              "maxMs": 89.69999999552965
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 89.79999999701977,
+              "maxMs": 89.79999999701977
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 61.79999999701977,
+              "maxMs": 61.79999999701977
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 69.10000000149012,
+              "maxMs": 69.10000000149012
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "desktop",
+      "rate": 1,
+      "warm": true,
+      "wallMs": 209,
+      "frameGaps": [
+        -3.100000001490116,
+        16.699999999999818,
+        16.699999999999818,
+        16.5,
+        16.700000000000728,
+        16.699999999999818,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        16.599999999999454,
+        16.700000000000728,
+        16.699999999999818,
+        16.699999999999818
+      ],
+      "eventLags": [
+        0.09999999403953552,
+        0.09999999403953552,
+        0,
+        0,
+        0.09999999403953552
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 7
+        },
+        {
+          "action": "search",
+          "ms": 3.7000000029802322
+        },
+        {
+          "action": "search",
+          "ms": 8.799999997019768
+        },
+        {
+          "action": "search",
+          "ms": 3.9000000059604645
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 70132334,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 19,
+        "changedEntries": 10554,
+        "messages": 241,
+        "maxPostMs": 2.3000000044703484,
+        "runs": 19,
+        "progressMessages": 19,
+        "computeMs": 189.90000000596046,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581335549,
+          "finishedAt": 1791581335739,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 15
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 8.700000002980232,
+              "maxMs": 8.700000002980232
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 62.200000025331974,
+              "maxMs": 1.8999999985098839
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 82.89999999850988,
+              "maxMs": 82.89999999850988
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 83,
+              "maxMs": 83
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 72.20000000298023,
+              "maxMs": 72.20000000298023
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 78.60000000149012,
+              "maxMs": 78.60000000149012
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "desktop",
+      "rate": 1,
+      "warm": true,
+      "wallMs": 227.29999999701977,
+      "frameGaps": [
+        -3.4000000029800503,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        16.599999999999454,
+        16.700000000000728,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818,
+        16.599999999999454
+      ],
+      "eventLags": [
+        0,
+        0,
+        0,
+        0.10000000149011612,
+        0
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 6.700000002980232
+        },
+        {
+          "action": "search",
+          "ms": 20.900000005960464
+        },
+        {
+          "action": "search",
+          "ms": 10.100000001490116
+        },
+        {
+          "action": "search",
+          "ms": 4.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 13.399999998509884
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 51616962,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 20,
+        "changedEntries": 10554,
+        "messages": 244,
+        "maxPostMs": 2.3000000044703484,
+        "runs": 20,
+        "progressMessages": 20,
+        "computeMs": 210.29999999701977,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581335780,
+          "finishedAt": 1791581335990,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 16
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 19.399999998509884,
+              "maxMs": 19.399999998509884
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 65.19999998062849,
+              "maxMs": 2
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 95.39999999850988,
+              "maxMs": 95.39999999850988
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 95.5,
+              "maxMs": 95.5
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 61.5,
+              "maxMs": 61.5
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 70,
+              "maxMs": 70
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "desktop",
+      "rate": 1,
+      "warm": true,
+      "wallMs": 223.19999999552965,
+      "frameGaps": [
+        0.19999999851006578,
+        16.599999999999454,
+        16.700000000000728,
+        16.699999999999818,
+        16.599999999999454,
+        16.700000000000728,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818,
+        16.599999999999454,
+        16.700000000000728,
+        16.699999999999818,
+        16.699999999999818
+      ],
+      "eventLags": [
+        0,
+        0,
+        0,
+        0,
+        0
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 10.600000001490116
+        },
+        {
+          "action": "search",
+          "ms": 3.8000000044703484
+        },
+        {
+          "action": "search",
+          "ms": 13.799999997019768
+        },
+        {
+          "action": "search",
+          "ms": 6.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 3
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 58708990,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 21,
+        "changedEntries": 10554,
+        "messages": 247,
+        "maxPostMs": 2.3000000044703484,
+        "runs": 21,
+        "progressMessages": 21,
+        "computeMs": 204,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581336030,
+          "finishedAt": 1791581336234,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 16
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 12.399999998509884,
+              "maxMs": 12.399999998509884
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 67.70000002533197,
+              "maxMs": 2.2999999970197678
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 97.29999999701977,
+              "maxMs": 97.29999999701977
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 97.5,
+              "maxMs": 97.5
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 61.899999998509884,
+              "maxMs": 61.899999998509884
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 70.70000000298023,
+              "maxMs": 70.70000000298023
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "mobile-cpu4",
+      "rate": 4,
+      "warm": false,
+      "wallMs": 5485.39999999851,
+      "frameGaps": [
+        8.59599999403963,
+        33.403999999999996,
+        16.699999999999818,
+        33.30000000000018,
+        16.59999999999991,
+        116.70000000000005,
+        16.59999999999991,
+        50,
+        16.700000000000045,
+        16.59999999999991,
+        33.40000000000009,
+        16.59999999999991,
+        33.40000000000009,
+        16.59999999999991,
+        16.700000000000273,
+        33.399999999999636,
+        16.700000000000273,
+        49.90000000000009,
+        16.699999999999818,
+        16.699999999999818,
+        33.30000000000018,
+        16.699999999999818,
+        33.30000000000018,
+        50,
+        66.69999999999982,
+        16.600000000000364,
+        33.399999999999636,
+        49.90000000000009,
+        16.700000000000273,
+        16.59999999999991,
+        33.40000000000009,
+        16.699999999999818,
+        16.59999999999991,
+        33.40000000000009,
+        16.59999999999991,
+        33.30000000000018,
+        16.799999999999727,
+        33.20000000000027,
+        50,
+        16.699999999999818,
+        33.30000000000018,
+        50.09999999999991,
+        33.30000000000018,
+        33.29999999999973,
+        16.700000000000273,
+        16.59999999999991,
+        33.40000000000009,
+        16.59999999999991,
+        16.699999999999818,
+        33.30000000000018,
+        16.699999999999818,
+        16.700000000000273,
+        33.29999999999973,
+        16.700000000000273,
+        33.399999999999636,
+        16.5,
+        16.800000000000182,
+        33.30000000000018,
+        16.59999999999991,
+        33.29999999999973,
+        16.800000000000182,
+        33.30000000000018,
+        16.699999999999818,
+        33.30000000000018,
+        16.59999999999991,
+        16.799999999999727,
+        33.20000000000027,
+        33.40000000000009,
+        16.59999999999991,
+        33.40000000000009,
+        16.699999999999818,
+        16.59999999999991,
+        33.30000000000018,
+        16.699999999999818,
+        16.700000000000273,
+        33.29999999999973,
+        16.700000000000273,
+        16.59999999999991,
+        33.29999999999973,
+        16.700000000000273,
+        16.699999999999818,
+        33.30000000000018,
+        16.699999999999818,
+        16.59999999999991,
+        33.30000000000018,
+        16.800000000000182,
+        33.29999999999973,
+        16.700000000000273,
+        33.30000000000018,
+        16.599999999999454,
+        16.699999999999818,
+        16.600000000000364,
+        16.800000000000182,
+        16.599999999999454,
+        16.700000000000728,
+        33.399999999999636,
+        16.600000000000364,
+        66.69999999999982,
+        16.599999999999454,
+        50,
+        16.700000000000728,
+        50,
+        50,
+        33.29999999999927,
+        33.30000000000018,
+        16.699999999999818,
+        33.30000000000018,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818,
+        33.30000000000018,
+        33.399999999999636,
+        16.600000000000364,
+        33.399999999999636,
+        16.700000000000728,
+        33.29999999999927,
+        16.700000000000728,
+        16.599999999999454,
+        16.699999999999818,
+        16.700000000000728,
+        16.599999999999454,
+        16.699999999999818,
+        16.600000000000364,
+        33.399999999999636,
+        16.600000000000364,
+        16.800000000000182,
+        16.599999999999454,
+        33.30000000000018,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818,
+        33.400000000000546,
+        33.29999999999927,
+        16.600000000000364,
+        16.699999999999818,
+        16.699999999999818,
+        33.30000000000018,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818,
+        16.600000000000364,
+        16.800000000000182,
+        33.19999999999982,
+        16.699999999999818,
+        16.699999999999818,
+        33.400000000000546,
+        16.599999999999454,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        33.30000000000018,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        50,
+        16.699999999999818,
+        33.399999999999636,
+        16.600000000000364,
+        33.399999999999636,
+        16.600000000000364,
+        16.699999999999818,
+        50,
+        16.699999999999818,
+        33.30000000000018,
+        16.600000000000364,
+        33.399999999999636,
+        16.699999999999818,
+        16.600000000000364,
+        33.30000000000018,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818,
+        33.30000000000018,
+        33.30000000000018,
+        50.099999999999454,
+        33.20000000000073,
+        16.699999999999818,
+        33.30000000000018,
+        50,
+        33.399999999999636,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        16.600000000000364,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        50,
+        16.799999999999272,
+        16.600000000000364,
+        50,
+        16.600000000000364,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        16.699999999999818,
+        50,
+        16.699999999999818,
+        16.699999999999818,
+        16.600000000000364,
+        33.399999999999636,
+        16.699999999999818,
+        16.600000000000364,
+        33.30000000000018,
+        50,
+        16.699999999999818
+      ],
+      "eventLags": [
+        4.399999998509884,
+        35,
+        8.700000002980232,
+        2.4000000059604645,
+        0,
+        4.600000001490116,
+        13.5,
+        14.700000002980232,
+        8.799999997019768,
+        41.899999998509884,
+        45,
+        41.70000000298023,
+        45.600000001490116,
+        42.20000000298023,
+        11,
+        10.100000001490116,
+        43.899999998509884,
+        45.69999999552965,
+        43.5,
+        41.5,
+        39.79999999701977,
+        40.899999998509884,
+        12.100000001490116,
+        11.600000001490116,
+        10.299999997019768,
+        11.399999998509884,
+        10.600000001490116,
+        41.100000001490116,
+        43.5,
+        40.899999998509884,
+        10,
+        4.5999999940395355,
+        10.5,
+        13.400000005960464,
+        11,
+        11.5,
+        10.700000002980232,
+        11.100000001490116,
+        4,
+        4.699999995529652,
+        5.100000001490116,
+        30.80000000447035,
+        4.199999995529652,
+        36.100000001490116,
+        47.100000001490116,
+        61.79999999701977,
+        8,
+        8.200000002980232,
+        8.899999998509884,
+        7.299999997019768,
+        4.5,
+        4.899999998509884,
+        4.100000001490116,
+        27.600000001490116,
+        5,
+        27.100000001490116,
+        7.200000002980232,
+        31.69999999552965,
+        4.5,
+        30.80000000447035,
+        29.700000002980232,
+        5.5999999940395355,
+        4.5,
+        4.399999998509884,
+        5.5,
+        4.299999997019768,
+        5.799999997019768,
+        5.200000002980232,
+        5.5,
+        5,
+        13.100000001490116,
+        13.799999997019768,
+        33.30000000447035,
+        35.80000000447035,
+        37.399999998509884,
+        34.5,
+        32.79999999701977,
+        42.5,
+        10.700000002980232,
+        10.299999997019768,
+        15.5,
+        10.399999998509884,
+        10.300000004470348,
+        10.5,
+        33.70000000298023,
+        31.80000000447035,
+        31,
+        33,
+        30.900000005960464,
+        40.400000005960464,
+        29.19999999552965,
+        4.9000000059604645,
+        27.299999997019768,
+        4,
+        34.19999999552965,
+        4.399999998509884,
+        36.5,
+        4.200000002980232,
+        4.299999997019768,
+        4.300000004470348,
+        4.600000001490116,
+        4.200000002980232,
+        45.600000001490116,
+        40.600000001490116
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 3.2999999970197678
+        },
+        {
+          "action": "search",
+          "ms": 18.30000000447035
+        },
+        {
+          "action": "search",
+          "ms": 18.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 20.19999999552965
+        },
+        {
+          "action": "search",
+          "ms": 11.100000001490116
+        },
+        {
+          "action": "search",
+          "ms": 11.300000004470348
+        },
+        {
+          "action": "search",
+          "ms": 19.700000002980232
+        },
+        {
+          "action": "search",
+          "ms": 10.199999995529652
+        },
+        {
+          "action": "search",
+          "ms": 21.5
+        },
+        {
+          "action": "search",
+          "ms": 10.799999997019768
+        },
+        {
+          "action": "search",
+          "ms": 11.399999998509884
+        },
+        {
+          "action": "search",
+          "ms": 9.799999997019768
+        },
+        {
+          "action": "search",
+          "ms": 11.700000002980232
+        },
+        {
+          "action": "search",
+          "ms": 11.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 10.200000002980232
+        },
+        {
+          "action": "search",
+          "ms": 11
+        },
+        {
+          "action": "search",
+          "ms": 10.100000001490116
+        },
+        {
+          "action": "search",
+          "ms": 10.800000004470348
+        },
+        {
+          "action": "search",
+          "ms": 9.199999995529652
+        },
+        {
+          "action": "search",
+          "ms": 10.100000001490116
+        },
+        {
+          "action": "search",
+          "ms": 11.300000004470348
+        },
+        {
+          "action": "search",
+          "ms": 17.30000000447035
+        },
+        {
+          "action": "search",
+          "ms": 12.599999994039536
+        },
+        {
+          "action": "search",
+          "ms": 9.600000001490116
+        },
+        {
+          "action": "search",
+          "ms": 11.700000002980232
+        },
+        {
+          "action": "search",
+          "ms": 9.600000001490116
+        },
+        {
+          "action": "search",
+          "ms": 9.600000001490116
+        },
+        {
+          "action": "search",
+          "ms": 11
+        },
+        {
+          "action": "search",
+          "ms": 10.399999998509884
+        },
+        {
+          "action": "search",
+          "ms": 12.200000002980232
+        },
+        {
+          "action": "search",
+          "ms": 11.5
+        },
+        {
+          "action": "search",
+          "ms": 19.80000000447035
+        },
+        {
+          "action": "search",
+          "ms": 12.300000004470348
+        },
+        {
+          "action": "search",
+          "ms": 11.099999994039536
+        },
+        {
+          "action": "search",
+          "ms": 10.700000002980232
+        },
+        {
+          "action": "search",
+          "ms": 10
+        },
+        {
+          "action": "search",
+          "ms": 10.600000001490116
+        },
+        {
+          "action": "search",
+          "ms": 8.900000005960464
+        },
+        {
+          "action": "search",
+          "ms": 11.5
+        },
+        {
+          "action": "search",
+          "ms": 10.100000001490116
+        },
+        {
+          "action": "search",
+          "ms": 14.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 12.199999995529652
+        },
+        {
+          "action": "search",
+          "ms": 48.400000005960464
+        },
+        {
+          "action": "search",
+          "ms": 17.599999994039536
+        },
+        {
+          "action": "search",
+          "ms": 22.100000001490116
+        },
+        {
+          "action": "search",
+          "ms": 13.100000001490116
+        },
+        {
+          "action": "search",
+          "ms": 19.5
+        },
+        {
+          "action": "search",
+          "ms": 16.5
+        },
+        {
+          "action": "search",
+          "ms": 15.5
+        },
+        {
+          "action": "search",
+          "ms": 10.400000005960464
+        },
+        {
+          "action": "search",
+          "ms": 11.300000004470348
+        },
+        {
+          "action": "search",
+          "ms": 11.399999998509884
+        },
+        {
+          "action": "search",
+          "ms": 12.699999995529652
+        },
+        {
+          "action": "search",
+          "ms": 12
+        },
+        {
+          "action": "search",
+          "ms": 11.299999997019768
+        },
+        {
+          "action": "search",
+          "ms": 10.799999997019768
+        },
+        {
+          "action": "search",
+          "ms": 14
+        },
+        {
+          "action": "search",
+          "ms": 10.399999998509884
+        },
+        {
+          "action": "search",
+          "ms": 14
+        },
+        {
+          "action": "search",
+          "ms": 4.699999995529652
+        },
+        {
+          "action": "search",
+          "ms": 9.5
+        },
+        {
+          "action": "search",
+          "ms": 22
+        },
+        {
+          "action": "search",
+          "ms": 6.699999995529652
+        },
+        {
+          "action": "search",
+          "ms": 13.200000002980232
+        },
+        {
+          "action": "search",
+          "ms": 17
+        },
+        {
+          "action": "search",
+          "ms": 9.700000002980232
+        },
+        {
+          "action": "search",
+          "ms": 23.80000000447035
+        },
+        {
+          "action": "search",
+          "ms": 9.100000001490116
+        },
+        {
+          "action": "search",
+          "ms": 10.700000002980232
+        },
+        {
+          "action": "search",
+          "ms": 4
+        },
+        {
+          "action": "search",
+          "ms": 15.299999997019768
+        },
+        {
+          "action": "search",
+          "ms": 9.600000001490116
+        },
+        {
+          "action": "search",
+          "ms": 9.699999995529652
+        },
+        {
+          "action": "search",
+          "ms": 11
+        },
+        {
+          "action": "search",
+          "ms": 9.399999998509884
+        },
+        {
+          "action": "search",
+          "ms": 10.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 9.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 9.700000002980232
+        },
+        {
+          "action": "search",
+          "ms": 9.099999994039536
+        },
+        {
+          "action": "search",
+          "ms": 11.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 9.199999995529652
+        },
+        {
+          "action": "search",
+          "ms": 8.399999998509884
+        },
+        {
+          "action": "search",
+          "ms": 8.399999998509884
+        },
+        {
+          "action": "search",
+          "ms": 10.799999997019768
+        },
+        {
+          "action": "search",
+          "ms": 10.299999997019768
+        },
+        {
+          "action": "search",
+          "ms": 9.799999997019768
+        },
+        {
+          "action": "search",
+          "ms": 11.799999997019768
+        },
+        {
+          "action": "search",
+          "ms": 13
+        },
+        {
+          "action": "search",
+          "ms": 11.199999995529652
+        },
+        {
+          "action": "search",
+          "ms": 9
+        },
+        {
+          "action": "search",
+          "ms": 10
+        },
+        {
+          "action": "search",
+          "ms": 11.799999997019768
+        },
+        {
+          "action": "search",
+          "ms": 11.399999998509884
+        },
+        {
+          "action": "search",
+          "ms": 12.200000002980232
+        },
+        {
+          "action": "search",
+          "ms": 10.200000002980232
+        },
+        {
+          "action": "search",
+          "ms": 10.5
+        },
+        {
+          "action": "search",
+          "ms": 14.799999997019768
+        },
+        {
+          "action": "search",
+          "ms": 14.699999995529652
+        },
+        {
+          "action": "search",
+          "ms": 14.5
+        },
+        {
+          "action": "search",
+          "ms": 14.399999998509884
+        },
+        {
+          "action": "search",
+          "ms": 15.5
+        },
+        {
+          "action": "search",
+          "ms": 13
+        },
+        {
+          "action": "search",
+          "ms": 10.700000002980232
+        },
+        {
+          "action": "search",
+          "ms": 16.299999997019768
+        }
+      ],
+      "longtasks": [
+        80,
+        51,
+        54
+      ],
+      "peakHeap": 68912377,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 1,
+        "changedEntries": 10554,
+        "messages": 187,
+        "maxPostMs": 3.399999998509884,
+        "runs": 1,
+        "progressMessages": 1,
+        "computeMs": 274.80000000447035,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581350822,
+          "finishedAt": 1791581351097,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 21
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 23,
+              "maxMs": 23
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 84.10000000149012,
+              "maxMs": 4.299999997019768
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 135,
+              "maxMs": 135
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0.5,
+              "maxMs": 0.5
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 136,
+              "maxMs": 136
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0.10000000149011612,
+              "maxMs": 0.10000000149011612
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 69.69999999552965,
+              "maxMs": 69.69999999552965
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 81.19999999552965,
+              "maxMs": 81.19999999552965
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "mobile-cpu4",
+      "rate": 4,
+      "warm": true,
+      "wallMs": 303.3999999985099,
+      "frameGaps": [
+        -26.699999999999818,
+        66.59999999999945,
+        16.700000000000728,
+        33.399999999999636,
+        16.600000000000364,
+        16.699999999999818,
+        33.30000000000018,
+        16.699999999999818,
+        16.599999999999454,
+        16.700000000000728,
+        16.599999999999454,
+        16.699999999999818,
+        16.700000000000728
+      ],
+      "eventLags": [
+        0.20000000298023224,
+        6.799999997019768,
+        1,
+        5.100000001490116,
+        0.10000000149011612
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 7.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 10.200000002980232
+        },
+        {
+          "action": "search",
+          "ms": 10.800000004470348
+        },
+        {
+          "action": "search",
+          "ms": 10.200000002980232
+        },
+        {
+          "action": "search",
+          "ms": 15.399999998509884
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 47962806,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 2,
+        "changedEntries": 10554,
+        "messages": 190,
+        "maxPostMs": 3.399999998509884,
+        "runs": 2,
+        "progressMessages": 2,
+        "computeMs": 202.10000000149012,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581351348,
+          "finishedAt": 1791581351550,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 16
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 13.5,
+              "maxMs": 13.5
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 60.90000003576279,
+              "maxMs": 2.100000001490116
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 88.10000000149012,
+              "maxMs": 88.10000000149012
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 88.20000000298023,
+              "maxMs": 88.20000000298023
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 66.40000000596046,
+              "maxMs": 66.40000000596046
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 75.10000000149012,
+              "maxMs": 75.10000000149012
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "mobile-cpu4",
+      "rate": 4,
+      "warm": true,
+      "wallMs": 293.29999999701977,
+      "frameGaps": [
+        -9.770000001490189,
+        33.27000000000044,
+        33.399999999999636,
+        33.30000000000018,
+        16.699999999999818,
+        33.30000000000018,
+        16.599999999999454,
+        33.400000000000546,
+        16.599999999999454,
+        33.30000000000018,
+        16.699999999999818
+      ],
+      "eventLags": [
+        1.5,
+        0.10000000149011612,
+        0,
+        0.09999999403953552,
+        0,
+        4.5
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 18.100000001490116
+        },
+        {
+          "action": "search",
+          "ms": 8.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 16
+        },
+        {
+          "action": "search",
+          "ms": 18.5
+        },
+        {
+          "action": "search",
+          "ms": 7.5999999940395355
+        },
+        {
+          "action": "search",
+          "ms": 9.799999997019768
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 55738214,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 3,
+        "changedEntries": 10554,
+        "messages": 193,
+        "maxPostMs": 3.399999998509884,
+        "runs": 3,
+        "progressMessages": 3,
+        "computeMs": 209.10000000149012,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581351723,
+          "finishedAt": 1791581351932,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 16
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 12.700000002980232,
+              "maxMs": 12.700000002980232
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 60.79999998211861,
+              "maxMs": 2.2999999970197678
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 87.89999999850988,
+              "maxMs": 87.89999999850988
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 88.09999999403954,
+              "maxMs": 88.09999999403954
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 71.39999999850988,
+              "maxMs": 71.39999999850988
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 80.80000000447035,
+              "maxMs": 80.80000000447035
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "mobile-cpu4",
+      "rate": 4,
+      "warm": true,
+      "wallMs": 269.8999999985099,
+      "frameGaps": [
+        -4.170000004470239,
+        33.26999999999953,
+        16.700000000000728,
+        33.29999999999927,
+        16.700000000000728,
+        16.600000000000364,
+        16.69999999999891,
+        33.30000000000109,
+        16.799999999999272,
+        33.20000000000073,
+        16.69999999999891
+      ],
+      "eventLags": [
+        1.2999999970197678,
+        0,
+        0,
+        0,
+        0.19999999552965164
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 8.100000001490116
+        },
+        {
+          "action": "search",
+          "ms": 10.600000001490116
+        },
+        {
+          "action": "search",
+          "ms": 11
+        },
+        {
+          "action": "search",
+          "ms": 10.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 12.200000002980232
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 62912114,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 4,
+        "changedEntries": 10554,
+        "messages": 196,
+        "maxPostMs": 3.399999998509884,
+        "runs": 4,
+        "progressMessages": 4,
+        "computeMs": 212,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581352099,
+          "finishedAt": 1791581352311,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 16
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 11.899999998509884,
+              "maxMs": 11.899999998509884
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 65.50000000745058,
+              "maxMs": 4
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 91.20000000298023,
+              "maxMs": 91.20000000298023
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 91.20000000298023,
+              "maxMs": 91.20000000298023
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 69.79999999701977,
+              "maxMs": 69.79999999701977
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 78.29999999701977,
+              "maxMs": 78.29999999701977
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "mobile-cpu4",
+      "rate": 4,
+      "warm": true,
+      "wallMs": 274.79999999701977,
+      "frameGaps": [
+        -11.23600000298029,
+        33.33599999999933,
+        16.600000000000364,
+        16.700000000000728,
+        16.69999999999891,
+        16.600000000000364,
+        33.399999999999636,
+        16.600000000000364,
+        16.700000000000728,
+        16.600000000000364,
+        33.399999999999636,
+        16.69999999999891
+      ],
+      "eventLags": [
+        0,
+        0.3999999985098839,
+        0.8000000044703484,
+        0,
+        0
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 11.900000005960464
+        },
+        {
+          "action": "search",
+          "ms": 12
+        },
+        {
+          "action": "search",
+          "ms": 10.699999995529652
+        },
+        {
+          "action": "search",
+          "ms": 10.399999998509884
+        },
+        {
+          "action": "search",
+          "ms": 14.100000001490116
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 70084654,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 5,
+        "changedEntries": 10554,
+        "messages": 199,
+        "maxPostMs": 3.399999998509884,
+        "runs": 5,
+        "progressMessages": 5,
+        "computeMs": 221.89999999850988,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581352434,
+          "finishedAt": 1791581352656,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 17
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 10.100000001490116,
+              "maxMs": 10.100000001490116
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 70.59999997913837,
+              "maxMs": 3.7000000029802322
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 94.29999999701977,
+              "maxMs": 94.29999999701977
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0.10000000149011612,
+              "maxMs": 0.10000000149011612
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 94.39999999850988,
+              "maxMs": 94.39999999850988
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 78.29999999701977,
+              "maxMs": 78.29999999701977
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 86.60000000149012,
+              "maxMs": 86.60000000149012
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "mobile-cpu4",
+      "rate": 4,
+      "warm": true,
+      "wallMs": 240.60000000149012,
+      "frameGaps": [
+        -8.43600000447077,
+        33.33600000000115,
+        16.69999999999891,
+        33.30000000000109,
+        16.69999999999891,
+        33.30000000000109,
+        16.69999999999891,
+        16.700000000000728,
+        33.29999999999927,
+        16.700000000000728
+      ],
+      "eventLags": [
+        0,
+        0.19999999552965164,
+        0,
+        0,
+        0.09999999403953552
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 15.299999997019768
+        },
+        {
+          "action": "search",
+          "ms": 11
+        },
+        {
+          "action": "search",
+          "ms": 13.599999994039536
+        },
+        {
+          "action": "search",
+          "ms": 9
+        },
+        {
+          "action": "search",
+          "ms": 9.300000004470348
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 50771098,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 6,
+        "changedEntries": 10554,
+        "messages": 202,
+        "maxPostMs": 3.399999998509884,
+        "runs": 6,
+        "progressMessages": 6,
+        "computeMs": 190.39999999850988,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581352779,
+          "finishedAt": 1791581352969,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 15
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 14.100000001490116,
+              "maxMs": 14.100000001490116
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 62.099999979138374,
+              "maxMs": 3.2999999970197678
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 89.69999999552965,
+              "maxMs": 89.69999999552965
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 89.89999999850988,
+              "maxMs": 89.89999999850988
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 59.5,
+              "maxMs": 59.5
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 66,
+              "maxMs": 66
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "mobile-cpu4",
+      "rate": 4,
+      "warm": true,
+      "wallMs": 248.5,
+      "frameGaps": [
+        -4.7700000044696935,
+        33.36999999999898,
+        16.600000000000364,
+        16.799999999999272,
+        16.600000000000364,
+        16.600000000000364,
+        16.700000000000728,
+        16.69999999999891,
+        33.30000000000109,
+        16.599999999998545,
+        16.700000000000728,
+        16.700000000000728
+      ],
+      "eventLags": [
+        0,
+        0.10000000149011612,
+        0,
+        0,
+        0
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 8.900000005960464
+        },
+        {
+          "action": "search",
+          "ms": 11.700000002980232
+        },
+        {
+          "action": "search",
+          "ms": 10.100000001490116
+        },
+        {
+          "action": "search",
+          "ms": 14
+        },
+        {
+          "action": "search",
+          "ms": 8.200000002980232
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 57980986,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 7,
+        "changedEntries": 10554,
+        "messages": 205,
+        "maxPostMs": 3.399999998509884,
+        "runs": 7,
+        "progressMessages": 7,
+        "computeMs": 185.89999999850988,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581353091,
+          "finishedAt": 1791581353277,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 15
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 10.100000001490116,
+              "maxMs": 10.100000001490116
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 62.20000000298023,
+              "maxMs": 2.2000000029802322
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 87.60000000149012,
+              "maxMs": 87.60000000149012
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0.10000000149011612,
+              "maxMs": 0.10000000149011612
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 87.70000000298023,
+              "maxMs": 87.70000000298023
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 55.70000000298023,
+              "maxMs": 55.70000000298023
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 63.399999998509884,
+              "maxMs": 63.399999998509884
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "mobile-cpu4",
+      "rate": 4,
+      "warm": true,
+      "wallMs": 280.59999999403954,
+      "frameGaps": [
+        -12.036000004471134,
+        49.93600000000151,
+        16.599999999998545,
+        16.80000000000109,
+        16.600000000000364,
+        16.599999999998545,
+        16.700000000000728,
+        33.399999999999636,
+        16.600000000000364,
+        33.399999999999636,
+        16.600000000000364
+      ],
+      "eventLags": [
+        0.09999999403953552,
+        0.29999999701976776,
+        0,
+        0,
+        0
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 14.700000002980232
+        },
+        {
+          "action": "search",
+          "ms": 6.700000002980232
+        },
+        {
+          "action": "search",
+          "ms": 10.799999997019768
+        },
+        {
+          "action": "search",
+          "ms": 11.600000001490116
+        },
+        {
+          "action": "search",
+          "ms": 17.599999994039536
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 65277594,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 8,
+        "changedEntries": 10554,
+        "messages": 208,
+        "maxPostMs": 3.399999998509884,
+        "runs": 8,
+        "progressMessages": 8,
+        "computeMs": 204,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581353420,
+          "finishedAt": 1791581353624,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 16
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 10.800000004470348,
+              "maxMs": 10.800000004470348
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 60.9999999627471,
+              "maxMs": 2.2999999970197678
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 87.10000000149012,
+              "maxMs": 87.10000000149012
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0.09999999403953552,
+              "maxMs": 0.09999999403953552
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 87.19999999552965,
+              "maxMs": 87.19999999552965
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 70.39999999850988,
+              "maxMs": 70.39999999850988
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 79,
+              "maxMs": 79
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "mobile-cpu4",
+      "rate": 4,
+      "warm": true,
+      "wallMs": 254.79999999701977,
+      "frameGaps": [
+        -2.104000001490931,
+        33.40400000000045,
+        16.600000000000364,
+        33.399999999999636,
+        33.30000000000109,
+        33.399999999999636,
+        16.600000000000364,
+        33.29999999999927,
+        16.700000000000728
+      ],
+      "eventLags": [
+        4.299999997019768,
+        0.09999999403953552,
+        1.5,
+        0,
+        0
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 16
+        },
+        {
+          "action": "search",
+          "ms": 21
+        },
+        {
+          "action": "search",
+          "ms": 8
+        },
+        {
+          "action": "search",
+          "ms": 11.100000001490116
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 70241678,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 9,
+        "changedEntries": 10554,
+        "messages": 211,
+        "maxPostMs": 3.399999998509884,
+        "runs": 9,
+        "progressMessages": 9,
+        "computeMs": 199.30000000447035,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581353797,
+          "finishedAt": 1791581353997,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 15
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 10.200000002980232,
+              "maxMs": 10.200000002980232
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 61.79999999701977,
+              "maxMs": 2.399999998509884
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 82.39999999850988,
+              "maxMs": 82.39999999850988
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0.10000000149011612,
+              "maxMs": 0.10000000149011612
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 82.5,
+              "maxMs": 82.5
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 70.60000000149012,
+              "maxMs": 70.60000000149012
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 81.39999999850988,
+              "maxMs": 81.39999999850988
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "mobile-cpu4",
+      "rate": 4,
+      "warm": true,
+      "wallMs": 268.70000000298023,
+      "frameGaps": [
+        -70.60000000446962,
+        100,
+        16.599999999998545,
+        16.700000000000728,
+        16.700000000000728,
+        16.599999999998545,
+        16.700000000000728,
+        16.700000000000728,
+        16.599999999998545,
+        16.700000000000728,
+        50,
+        16.700000000000728
+      ],
+      "eventLags": [
+        0,
+        0,
+        0,
+        0,
+        0.09999999403953552
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 9.800000004470348
+        },
+        {
+          "action": "search",
+          "ms": 27.30000000447035
+        },
+        {
+          "action": "search",
+          "ms": 9.600000001490116
+        },
+        {
+          "action": "search",
+          "ms": 8.800000004470348
+        },
+        {
+          "action": "search",
+          "ms": 14.5
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 54225414,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 10,
+        "changedEntries": 10554,
+        "messages": 214,
+        "maxPostMs": 3.399999998509884,
+        "runs": 10,
+        "progressMessages": 10,
+        "computeMs": 208.20000000298023,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581354128,
+          "finishedAt": 1791581354336,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 17
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 13.799999997019768,
+              "maxMs": 13.799999997019768
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 64.20000000298023,
+              "maxMs": 2.4000000059604645
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 95.70000000298023,
+              "maxMs": 95.70000000298023
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 95.80000000447035,
+              "maxMs": 95.80000000447035
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 66.69999999552965,
+              "maxMs": 66.69999999552965
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 76.29999999701977,
+              "maxMs": 76.29999999701977
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "mobile-cpu4",
+      "rate": 4,
+      "warm": true,
+      "wallMs": 335.70000000298023,
+      "frameGaps": [
+        -9.170000000000073,
+        49.969999999999345,
+        16.700000000000728,
+        50,
+        16.700000000000728,
+        33.29999999999927,
+        16.600000000000364,
+        33.399999999999636,
+        16.700000000000728,
+        33.29999999999927,
+        16.700000000000728,
+        33.29999999999927,
+        16.600000000000364
+      ],
+      "eventLags": [
+        0.19999999552965164,
+        0,
+        0.29999999701976776,
+        0.5,
+        1.2999999970197678,
+        4.699999995529652
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 15.100000001490116
+        },
+        {
+          "action": "search",
+          "ms": 16.19999999552965
+        },
+        {
+          "action": "search",
+          "ms": 13.100000001490116
+        },
+        {
+          "action": "search",
+          "ms": 12.299999997019768
+        },
+        {
+          "action": "search",
+          "ms": 12.300000004470348
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 61365562,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 11,
+        "changedEntries": 10554,
+        "messages": 217,
+        "maxPostMs": 3.399999998509884,
+        "runs": 11,
+        "progressMessages": 11,
+        "computeMs": 262.59999999403954,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581354503,
+          "finishedAt": 1791581354765,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 21
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 20.69999999552965,
+              "maxMs": 20.69999999552965
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 87.30000004917383,
+              "maxMs": 3.5
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 132.30000000447035,
+              "maxMs": 132.30000000447035
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 132.5,
+              "maxMs": 132.5
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 79.19999999552965,
+              "maxMs": 79.19999999552965
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 91,
+              "maxMs": 91
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "mobile-cpu4",
+      "rate": 4,
+      "warm": true,
+      "wallMs": 314.40000000596046,
+      "frameGaps": [
+        -70.20000000298023,
+        100,
+        16.700000000000728,
+        33.29999999999927,
+        33.29999999999927,
+        50,
+        16.700000000000728,
+        49.899999999999636,
+        16.80000000000109,
+        49.899999999999636
+      ],
+      "eventLags": [
+        1.1000000014901161,
+        2.1999999955296516,
+        0.10000000149011612,
+        0,
+        0,
+        5.199999995529652
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 17.5
+        },
+        {
+          "action": "search",
+          "ms": 12.900000005960464
+        },
+        {
+          "action": "search",
+          "ms": 23.5
+        },
+        {
+          "action": "search",
+          "ms": 25.399999998509884
+        },
+        {
+          "action": "search",
+          "ms": 14.5
+        }
+      ],
+      "longtasks": [
+        58
+      ],
+      "peakHeap": 67372086,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 12,
+        "changedEntries": 10554,
+        "messages": 220,
+        "maxPostMs": 3.399999998509884,
+        "runs": 12,
+        "progressMessages": 12,
+        "computeMs": 239,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581354936,
+          "finishedAt": 1791581355175,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 19
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 17.200000002980232,
+              "maxMs": 17.200000002980232
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 76.19999998062849,
+              "maxMs": 4.100000001490116
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 120.39999999850988,
+              "maxMs": 120.39999999850988
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0.10000000149011612,
+              "maxMs": 0.10000000149011612
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 120.60000000149012,
+              "maxMs": 120.60000000149012
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 70.5,
+              "maxMs": 70.5
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 78.5,
+              "maxMs": 78.5
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "mobile-cpu4",
+      "rate": 4,
+      "warm": true,
+      "wallMs": 277,
+      "frameGaps": [
+        -78.5,
+        116.70000000000073,
+        16.599999999998545,
+        16.700000000000728,
+        16.700000000000728,
+        33.19999999999891,
+        16.700000000000728,
+        16.69999999999891,
+        16.700000000000728,
+        33.29999999999927,
+        16.600000000000364,
+        33.399999999999636,
+        16.700000000000728
+      ],
+      "eventLags": [
+        0.20000000298023224,
+        0.10000000149011612,
+        0,
+        1,
+        0
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 12.5
+        },
+        {
+          "action": "search",
+          "ms": 10.200000002980232
+        },
+        {
+          "action": "search",
+          "ms": 16.099999994039536
+        },
+        {
+          "action": "search",
+          "ms": 4.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 15.100000001490116
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 51819618,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 13,
+        "changedEntries": 10554,
+        "messages": 223,
+        "maxPostMs": 3.399999998509884,
+        "runs": 13,
+        "progressMessages": 13,
+        "computeMs": 212.10000000149012,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581355332,
+          "finishedAt": 1791581355544,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 16
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 9.600000001490116,
+              "maxMs": 9.600000001490116
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 65.69999996572733,
+              "maxMs": 2.2999999970197678
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 92.79999999701977,
+              "maxMs": 92.79999999701977
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0.10000000149011612,
+              "maxMs": 0.10000000149011612
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 92.89999999850988,
+              "maxMs": 92.89999999850988
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 71.30000000447035,
+              "maxMs": 71.30000000447035
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 83.20000000298023,
+              "maxMs": 83.20000000298023
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "mobile-cpu4",
+      "rate": 4,
+      "warm": true,
+      "wallMs": 271.80000000447035,
+      "frameGaps": [
+        -9.336000001490902,
+        50.03600000000006,
+        16.600000000000364,
+        33.399999999999636,
+        16.600000000000364,
+        16.700000000000728,
+        16.600000000000364,
+        33.5,
+        16.5,
+        16.69999999999891,
+        16.700000000000728
+      ],
+      "eventLags": [
+        0.10000000149011612,
+        0,
+        0.10000000149011612,
+        0,
+        0.10000000149011612
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 21.299999997019768
+        },
+        {
+          "action": "search",
+          "ms": 9.600000001490116
+        },
+        {
+          "action": "search",
+          "ms": 8.799999997019768
+        },
+        {
+          "action": "search",
+          "ms": 15.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 2.399999998509884
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 58915166,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 14,
+        "changedEntries": 10554,
+        "messages": 226,
+        "maxPostMs": 3.399999998509884,
+        "runs": 14,
+        "progressMessages": 14,
+        "computeMs": 192.79999999701977,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581355691,
+          "finishedAt": 1791581355884,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 14
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 10.299999997019768,
+              "maxMs": 10.299999997019768
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 60.00000002980232,
+              "maxMs": 2.2000000029802322
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 79.30000000447035,
+              "maxMs": 79.30000000447035
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0.09999999403953552,
+              "maxMs": 0.09999999403953552
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 79.5,
+              "maxMs": 79.5
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 61.399999998509884,
+              "maxMs": 61.399999998509884
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 69.30000000447035,
+              "maxMs": 69.30000000447035
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "mobile-cpu4",
+      "rate": 4,
+      "warm": true,
+      "wallMs": 216.60000000149012,
+      "frameGaps": [
+        -10.270000000000437,
+        49.970000000001164,
+        16.69999999999891,
+        16.700000000000728,
+        16.69999999999891,
+        33.30000000000109,
+        16.69999999999891,
+        33.30000000000109,
+        16.600000000000364
+      ],
+      "eventLags": [
+        0.10000000149011612,
+        0,
+        0,
+        0
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 11.399999998509884
+        },
+        {
+          "action": "search",
+          "ms": 10.299999997019768
+        },
+        {
+          "action": "search",
+          "ms": 12.100000001490116
+        },
+        {
+          "action": "search",
+          "ms": 14.5
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 65438910,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 15,
+        "changedEntries": 10554,
+        "messages": 229,
+        "maxPostMs": 3.399999998509884,
+        "runs": 15,
+        "progressMessages": 15,
+        "computeMs": 161.29999999701977,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581356039,
+          "finishedAt": 1791581356200,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 13
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 8.899999998509884,
+              "maxMs": 8.899999998509884
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 53.70000000298023,
+              "maxMs": 2.100000001490116
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 69.69999999552965,
+              "maxMs": 69.69999999552965
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0.10000000149011612,
+              "maxMs": 0.10000000149011612
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 69.89999999850988,
+              "maxMs": 69.89999999850988
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 55.80000000447035,
+              "maxMs": 55.80000000447035
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 63.20000000298023,
+              "maxMs": 63.20000000298023
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "mobile-cpu4",
+      "rate": 4,
+      "warm": true,
+      "wallMs": 256.29999999701977,
+      "frameGaps": [
+        -12.136000002979927,
+        33.33599999999933,
+        16.700000000000728,
+        16.600000000000364,
+        16.69999999999891,
+        16.700000000000728,
+        16.600000000000364,
+        16.799999999999272,
+        33.29999999999927,
+        16.700000000000728,
+        16.600000000000364,
+        16.600000000000364,
+        33.399999999999636
+      ],
+      "eventLags": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        4.100000001490116
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 13.699999995529652
+        },
+        {
+          "action": "search",
+          "ms": 26.400000005960464
+        },
+        {
+          "action": "search",
+          "ms": 10.5
+        },
+        {
+          "action": "search",
+          "ms": 10.199999995529652
+        },
+        {
+          "action": "search",
+          "ms": 9.5
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 69750534,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 16,
+        "changedEntries": 10554,
+        "messages": 232,
+        "maxPostMs": 3.399999998509884,
+        "runs": 16,
+        "progressMessages": 16,
+        "computeMs": 203.59999999403954,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581356315,
+          "finishedAt": 1791581356519,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 16
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 11.299999997019768,
+              "maxMs": 11.299999997019768
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 64.10000002384186,
+              "maxMs": 2.5
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 89.10000000149012,
+              "maxMs": 89.10000000149012
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 89.29999999701977,
+              "maxMs": 89.29999999701977
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 68.69999999552965,
+              "maxMs": 68.69999999552965
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 77.10000000149012,
+              "maxMs": 77.10000000149012
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "mobile-cpu4",
+      "rate": 4,
+      "warm": true,
+      "wallMs": 291.3999999985099,
+      "frameGaps": [
+        -78.89999999999964,
+        100,
+        16.600000000000364,
+        16.69999999999891,
+        50,
+        33.30000000000109,
+        16.69999999999891,
+        33.30000000000109,
+        16.69999999999891,
+        33.30000000000109
+      ],
+      "eventLags": [
+        0.3999999985098839,
+        1.6000000014901161,
+        0.19999999552965164,
+        0,
+        0.29999999701976776
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 15.299999997019768
+        },
+        {
+          "action": "search",
+          "ms": 12.699999995529652
+        },
+        {
+          "action": "search",
+          "ms": 8.399999998509884
+        },
+        {
+          "action": "search",
+          "ms": 12.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 10.300000004470348
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 53620590,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 17,
+        "changedEntries": 10554,
+        "messages": 235,
+        "maxPostMs": 3.399999998509884,
+        "runs": 17,
+        "progressMessages": 17,
+        "computeMs": 228.90000000596046,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581356684,
+          "finishedAt": 1791581356913,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 18
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 14.600000001490116,
+              "maxMs": 14.600000001490116
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 79.4999999627471,
+              "maxMs": 3.2000000029802322
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 115.5,
+              "maxMs": 115.5
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 115.5,
+              "maxMs": 115.5
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 67.29999999701977,
+              "maxMs": 67.29999999701977
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 78.79999999701977,
+              "maxMs": 78.79999999701977
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "mobile-cpu4",
+      "rate": 4,
+      "warm": true,
+      "wallMs": 293.20000000298023,
+      "frameGaps": [
+        -3.8360000044704066,
+        33.236000000000786,
+        16.69999999999891,
+        33.30000000000109,
+        16.69999999999891,
+        33.30000000000109,
+        16.69999999999891,
+        33.30000000000109,
+        16.69999999999891,
+        16.600000000000364,
+        33.29999999999927
+      ],
+      "eventLags": [
+        0,
+        0,
+        0.10000000149011612,
+        0,
+        0.09999999403953552
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 8.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 11.800000004470348
+        },
+        {
+          "action": "search",
+          "ms": 13.399999998509884
+        },
+        {
+          "action": "search",
+          "ms": 14.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 17.100000001490116
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 60696570,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 18,
+        "changedEntries": 10554,
+        "messages": 238,
+        "maxPostMs": 3.399999998509884,
+        "runs": 18,
+        "progressMessages": 18,
+        "computeMs": 204.60000000149012,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581357055,
+          "finishedAt": 1791581357260,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 16
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 10.699999995529652,
+              "maxMs": 10.699999995529652
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 62.799999974668026,
+              "maxMs": 2.100000001490116
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 91.39999999850988,
+              "maxMs": 91.39999999850988
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 91.60000000149012,
+              "maxMs": 91.60000000149012
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 70.10000000149012,
+              "maxMs": 70.10000000149012
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 78,
+              "maxMs": 78
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "mobile-cpu4",
+      "rate": 4,
+      "warm": true,
+      "wallMs": 246.5,
+      "frameGaps": [
+        -3.8700000059598096,
+        33.36999999999898,
+        16.700000000000728,
+        16.69999999999891,
+        16.600000000000364,
+        33.30000000000109,
+        16.599999999998545,
+        16.80000000000109,
+        16.600000000000364,
+        16.69999999999891,
+        16.600000000000364,
+        16.700000000000728
+      ],
+      "eventLags": [
+        0.10000000149011612,
+        0,
+        0,
+        0,
+        0
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 7.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 10
+        },
+        {
+          "action": "search",
+          "ms": 9.600000001490116
+        },
+        {
+          "action": "search",
+          "ms": 8.5
+        },
+        {
+          "action": "search",
+          "ms": 13.699999995529652
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 67847206,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 19,
+        "changedEntries": 10554,
+        "messages": 241,
+        "maxPostMs": 3.399999998509884,
+        "runs": 19,
+        "progressMessages": 19,
+        "computeMs": 165.09999999403954,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581357413,
+          "finishedAt": 1791581357578,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 14
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 9.299999997019768,
+              "maxMs": 9.299999997019768
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 55.000000044703484,
+              "maxMs": 2
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 71.39999999850988,
+              "maxMs": 71.39999999850988
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0.10000000149011612,
+              "maxMs": 0.10000000149011612
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 75.60000000149012,
+              "maxMs": 75.60000000149012
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 53.900000005960464,
+              "maxMs": 53.900000005960464
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 61.600000001490116,
+              "maxMs": 61.600000001490116
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "mobile-cpu4",
+      "rate": 4,
+      "warm": true,
+      "wallMs": 305.19999999552965,
+      "frameGaps": [
+        -4.070000002981033,
+        33.3700000000008,
+        16.700000000000728,
+        16.69999999999891,
+        16.600000000000364,
+        33.29999999999927,
+        16.700000000000728,
+        16.700000000000728,
+        16.599999999998545,
+        16.80000000000109,
+        16.600000000000364,
+        16.69999999999891,
+        16.600000000000364,
+        16.700000000000728,
+        16.69999999999891
+      ],
+      "eventLags": [
+        1.1000000014901161,
+        0,
+        0.09999999403953552,
+        0.6999999955296516,
+        0,
+        5.899999998509884
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 11.299999997019768
+        },
+        {
+          "action": "search",
+          "ms": 6.899999998509884
+        },
+        {
+          "action": "search",
+          "ms": 10.800000004470348
+        },
+        {
+          "action": "search",
+          "ms": 10.700000002980232
+        },
+        {
+          "action": "search",
+          "ms": 13
+        },
+        {
+          "action": "search",
+          "ms": 12.5
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 72715190,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 20,
+        "changedEntries": 10554,
+        "messages": 244,
+        "maxPostMs": 3.399999998509884,
+        "runs": 20,
+        "progressMessages": 20,
+        "computeMs": 208.5,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581357740,
+          "finishedAt": 1791581357949,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 16
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 11.399999998509884,
+              "maxMs": 11.399999998509884
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 67.7999999821186,
+              "maxMs": 2.7999999970197678
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 105.5,
+              "maxMs": 105.5
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 105.69999999552965,
+              "maxMs": 105.69999999552965
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 57.099999994039536,
+              "maxMs": 57.099999994039536
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 69.89999999850988,
+              "maxMs": 69.89999999850988
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    },
+    {
+      "device": "mobile-cpu4",
+      "rate": 4,
+      "warm": true,
+      "wallMs": 232.5,
+      "frameGaps": [
+        -2.3040000000000873,
+        33.30400000000009,
+        16.700000000000728,
+        16.69999999999891,
+        16.600000000000364,
+        33.399999999999636,
+        16.600000000000364,
+        33.399999999999636,
+        16.600000000000364,
+        33.29999999999927
+      ],
+      "eventLags": [
+        0.10000000149011612,
+        1.3999999985098839,
+        0,
+        0,
+        0
+      ],
+      "interactions": [
+        {
+          "action": "search",
+          "ms": 7.399999998509884
+        },
+        {
+          "action": "search",
+          "ms": 10
+        },
+        {
+          "action": "search",
+          "ms": 9.100000001490116
+        },
+        {
+          "action": "search",
+          "ms": 10.299999997019768
+        }
+      ],
+      "longtasks": [],
+      "peakHeap": 53740778,
+      "result": {
+        "total": 253,
+        "covered": 252,
+        "hours": 1008,
+        "valid": true,
+        "failures": [],
+        "warnings": []
+      },
+      "worker": {
+        "snapshots": 21,
+        "changedEntries": 10554,
+        "messages": 247,
+        "maxPostMs": 3.399999998509884,
+        "runs": 21,
+        "progressMessages": 21,
+        "computeMs": 171.60000000149012,
+        "perf": {
+          "label": "point-worker",
+          "startedAt": 1791581358128,
+          "finishedAt": 1791581358300,
+          "counters": {
+            "preliminaryCalls": 0,
+            "scheduleCalls": 0,
+            "activitiesComputed": 1,
+            "upgradeActivitiesComputed": 0,
+            "candidateEvals": 0,
+            "candidateEvaluations": 0,
+            "instructorScans": 0,
+            "scenarioCount": 0,
+            "scenarioEvaluations": 0,
+            "travelRequests": 0,
+            "routeCacheRequests": 0,
+            "cacheHits": 0,
+            "googleCalls": 0,
+            "finalValidations": 0,
+            "contextRebuilds": 1,
+            "progressUiUpdates": 5,
+            "checkpointSaves": 0,
+            "checkpointPayloadBytes": 0,
+            "cooperativeYields": 14
+          },
+          "timers": {
+            "run:setup": {
+              "calls": 1,
+              "totalMs": 9.399999998509884,
+              "maxMs": 9.399999998509884
+            },
+            "cooperativeCpuStep": {
+              "calls": 11139,
+              "totalMs": 56.99999997764826,
+              "maxMs": 1.9000000059604645
+            },
+            "contextPreparation": {
+              "calls": 1,
+              "totalMs": 76.90000000596046,
+              "maxMs": 76.90000000596046
+            },
+            "scenarioGeneration": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "run:base": {
+              "calls": 1,
+              "totalMs": 77,
+              "maxMs": 77
+            },
+            "run:optimization": {
+              "calls": 1,
+              "totalMs": 0,
+              "maxMs": 0
+            },
+            "wholePlanValidation": {
+              "calls": 1,
+              "totalMs": 57.80000000447035,
+              "maxMs": 57.80000000447035
+            },
+            "run:validation": {
+              "calls": 1,
+              "totalMs": 64.90000000596046,
+              "maxMs": 64.90000000596046
+            }
+          },
+          "events": []
+        }
+      },
+      "progress": 1
+    }
+  ],
+  "acceptance": [
+    {
+      "device": "desktop",
+      "startAckMs": 2.600000001490116,
+      "searchMs": 11,
+      "running": true,
+      "cancelMs": 72.20000000298023,
+      "commits": 0,
+      "savedUnchanged": true,
+      "rpcNames": [
+        "get_scheduling_planning_preflight",
+        "acquire_scheduling_planning_run_lease",
+        "get_scheduling_planning_workspace",
+        "get_scheduling_planning_preflight",
+        "get_scheduling_planning_checkpoint",
+        "release_scheduling_planning_run_lease"
+      ],
+      "error": "",
+      "diagnostics": {
+        "runType": "incremental",
+        "workspaceRevision": 10,
+        "engineFrom": "planning-v36-20261009-point-context-transition-guard-v2",
+        "engineTo": "planning-v36-20261009-point-context-transition-guard-v2",
+        "dirtyCount": 253,
+        "baseScopeCount": 253,
+        "packingScopeCount": 253,
+        "recruitmentScopeCount": 253,
+        "workdayScopeCount": 253,
+        "reasons": [
+          {
+            "code": "dirty_rows",
+            "detail": "253 affected activities",
+            "ids": [
+              "synthetic-110",
+              "synthetic-11",
+              "synthetic-109",
+              "synthetic-111",
+              "synthetic-112",
+              "synthetic-113",
+              "synthetic-107",
+              "synthetic-108",
+              "synthetic-196",
+              "synthetic-197",
+              "synthetic-198",
+              "synthetic-199",
+              "synthetic-2",
+              "synthetic-20",
+              "synthetic-200",
+              "synthetic-201",
+              "synthetic-114",
+              "synthetic-115",
+              "synthetic-202",
+              "synthetic-203"
+            ]
+          }
+        ],
+        "resume": false,
+        "phase": "running"
+      },
+      "errors": []
+    },
+    {
+      "device": "mobile-cpu4",
+      "startAckMs": 17.200000002980232,
+      "searchMs": 9.5,
+      "running": true,
+      "cancelMs": 352.3999999985099,
+      "commits": 0,
+      "savedUnchanged": true,
+      "rpcNames": [
+        "get_scheduling_planning_preflight",
+        "acquire_scheduling_planning_run_lease",
+        "get_scheduling_planning_workspace",
+        "get_scheduling_planning_preflight",
+        "get_scheduling_planning_checkpoint",
+        "release_scheduling_planning_run_lease"
+      ],
+      "error": "",
+      "diagnostics": {
+        "runType": "incremental",
+        "workspaceRevision": 10,
+        "engineFrom": "planning-v36-20261009-point-context-transition-guard-v2",
+        "engineTo": "planning-v36-20261009-point-context-transition-guard-v2",
+        "dirtyCount": 253,
+        "baseScopeCount": 253,
+        "packingScopeCount": 253,
+        "recruitmentScopeCount": 253,
+        "workdayScopeCount": 253,
+        "reasons": [
+          {
+            "code": "dirty_rows",
+            "detail": "253 affected activities",
+            "ids": [
+              "synthetic-110",
+              "synthetic-11",
+              "synthetic-109",
+              "synthetic-111",
+              "synthetic-112",
+              "synthetic-113",
+              "synthetic-107",
+              "synthetic-108",
+              "synthetic-196",
+              "synthetic-197",
+              "synthetic-198",
+              "synthetic-199",
+              "synthetic-2",
+              "synthetic-20",
+              "synthetic-200",
+              "synthetic-201",
+              "synthetic-114",
+              "synthetic-115",
+              "synthetic-202",
+              "synthetic-203"
+            ]
+          }
+        ],
+        "resume": false,
+        "phase": "running"
+      },
+      "errors": []
+    }
+  ],
+  "scope": "Real screen render/bind with isolated RPC stub; point benchmark calls engine transport directly; end-to-end run button tested separately. No actual Supabase auth/RLS/SQL or national service test."
+}

@@ -1,0 +1,18 @@
+✔ row deltas reconstruct exact results without cloning unchanged alternatives or mutating previous plan (1.549728ms)
+✔ real isolated worker equals direct engine; warm context sends no entries and availability delta only changes relevant input (87.710097ms)
+✔ worker rejects national scope and unsupported construction instead of main-thread fallback (0.950607ms)
+✔ logout/owner change replaces resident context; lease loss rejects the result (167.838126ms)
+✔ cancellation and worker crash reject without changing saved rows; cancellation acknowledged within one second (112.236201ms)
+✔ committed point refresh reloads only changed full rows, preserves alternatives, locks and flags, and fences concurrent revisions (2.992921ms)
+✔ non-cooperative worker is terminated on cancel within one second, without commit or main-thread fallback (541.936898ms)
+✔ route broker performs authorized callbacks on the caller and progress never transfers rows or credentials (56.965499ms)
+✔ immutable stored payload hashes survive revision changes; dirty view markers clone frozen input instead of corrupting the context (131.296445ms)
+✔ worker rechecks a saved fixed proposal against changed availability and empty instructor set without moving official dates (71.53185ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1203.363973

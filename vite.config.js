@@ -25,6 +25,9 @@ export default defineConfig(() => {
     publicDir: 'frontend/public',
     appType: 'spa',
     plugins: [manifestLinkPlugin()],
+    // The resident module worker uses async imports for the authenticated route
+    // fallback; Rollup's default IIFE worker output cannot split that graph.
+    worker: { format: 'es' },
     build: {
       outDir: 'dist',
       emptyOutDir: true,

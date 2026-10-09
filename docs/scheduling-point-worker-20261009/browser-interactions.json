@@ -1,0 +1,2812 @@
+{
+  "workerBuiltUrl": null,
+  "availabilityChanged": false,
+  "revisionChurn": false,
+  "coldOnly": false,
+  "variant": "after",
+  "browser": "151.0.7922.173",
+  "fixtureSha256": "b1c075c4e6c56017324f3e9f622856012fc9c00917d6439a0b2bd9aaf90d37e1",
+  "fixtureBytes": 8867991,
+  "samples": [],
+  "acceptance": [
+    {
+      "device": "desktop",
+      "actions": [
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 49.03738599999997
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 77.75141699999949
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 72.00206900000012
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 96.9390629999998
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 55.9552249999997
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 30.536818999999014
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 100.47334800000135
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 17.3390789999994
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 65.32933000000048
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 57.72123600000123
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 64.18070699999953
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 70.50582000000031
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 37.62782399999924
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 38.42948299999989
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 65.04740100000163
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 71.16303599999992
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 15.989144000001033
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 46.23186199999873
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 70.03190899999936
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 68.59742000000006
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 32.911646000000474
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 61.54384100000061
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 116.36381699999947
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 71.0687229999985
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 13.779747000000498
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 48.55160700000124
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 68.68829800000094
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 68.03761699999995
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 36.491353000001254
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 45.46263100000033
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 81.30014200000005
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 71.61051900000166
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 28.393057999999655
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 50.04570799999965
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 85.64588099999855
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 71.1580840000006
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 29.84150799999952
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 46.74739899999986
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 83.07170700000097
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 76.30050300000039
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 24.11180499999864
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 49.57384400000046
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 86.50811900000008
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 81.75126099999943
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 36.793336999999156
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 47.01878399999987
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 80.98656699999992
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 73.14238599999953
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 10.131863999999041
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 54.746928999999
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 64.01678600000014
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 85.8859339999999
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 37.50847799999974
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 44.91138000000137
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 113.40222399999948
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 67.32055300000138
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 15.598939999999857
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 55.284279000001334
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 67.95281199999954
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 62.69184900000073
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 33.195308000000296
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 47.69145699999899
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 83.19682099999955
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 73.25951800000075
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 9.982705000000351
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 50.395692000000054
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 66.32932600000095
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 71.39086599999973
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 42.508489000001646
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 42.42638799999986
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 98.87604000000101
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 65.02495799999997
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 20.172873999999865
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 44.947783999999956
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 71.92525100000057
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 68.24737600000117
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 24.593912999998793
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 49.86636499999986
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 99.91416599999866
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 71.56729500000074
+        }
+      ],
+      "running": true,
+      "cancelMs": 566.2000000029802,
+      "commits": 0,
+      "runs": 1,
+      "detailsRead": 3,
+      "nativePaints": [
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 3.7000000029802322,
+          "inputToPaintMs": 33.5
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 1.3000000044703484,
+          "inputToPaintMs": 29.30000000447035
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 0.7000000029802322,
+          "inputToPaintMs": 43.20000000298023
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 39.399999998509884
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 39.29999999701977
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.6000000014901161,
+          "inputToPaintMs": 17.100000001490116
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 32.399999998509884
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 4.300000004470348,
+          "inputToPaintMs": 34.600000001490116
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.3999999985098839,
+          "inputToPaintMs": 23.600000001490116
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 29
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 1.7999999970197678,
+          "inputToPaintMs": 29.69999999552965
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 29.399999998509884
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 29.299999997019768
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 2.5,
+          "inputToPaintMs": 30
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 1.8999999985098839,
+          "inputToPaintMs": 29.299999997019768
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 0.8999999985098839,
+          "inputToPaintMs": 36.79999999701977
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 23.600000001490116
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 23.600000001490116
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.30000000447034836,
+          "inputToPaintMs": 27.600000001490116
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 38
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 3.6999999955296516,
+          "inputToPaintMs": 38.29999999701977
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.5,
+          "inputToPaintMs": 20.700000002980232
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 30.200000002980232
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 1.2000000029802322,
+          "inputToPaintMs": 30.5
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 0.8999999985098839,
+          "inputToPaintMs": 31.299999997019768
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 31
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 30.899999998509884
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 2.5999999940395355,
+          "inputToPaintMs": 31.69999999552965
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 2.600000001490116,
+          "inputToPaintMs": 31.600000001490116
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 1.5999999940395355,
+          "inputToPaintMs": 30.099999994039536
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 22.700000002980232
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 22.700000002980232
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.5,
+          "inputToPaintMs": 57.80000000447035
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 34
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 4.200000002980232,
+          "inputToPaintMs": 34.80000000447035
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.6000000014901161,
+          "inputToPaintMs": 23.100000001490116
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 22.5
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 0.5,
+          "inputToPaintMs": 21.299999997019768
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 1.1000000014901161,
+          "inputToPaintMs": 32
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 29.899999998509884
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 30
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 2.399999998509884,
+          "inputToPaintMs": 30.099999994039536
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 1.2999999970197678,
+          "inputToPaintMs": 32.899999998509884
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 0.8000000044703484,
+          "inputToPaintMs": 32.100000001490116
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 20.399999998509884
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 20.299999997019768
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.3999999985098839,
+          "inputToPaintMs": 31.299999997019768
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 34.29999999701977
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 2.5,
+          "inputToPaintMs": 34.69999999552965
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.3999999985098839,
+          "inputToPaintMs": 22.200000002980232
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 29.600000001490116
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 1.7999999970197678,
+          "inputToPaintMs": 30.200000002980232
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 0.8999999985098839,
+          "inputToPaintMs": 33.899999998509884
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 21.899999998509884
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 21.899999998509884
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 3.1999999955296516,
+          "inputToPaintMs": 31.399999998509884
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 2.1999999955296516,
+          "inputToPaintMs": 32.600000001490116
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 0.7999999970197678,
+          "inputToPaintMs": 32.29999999701977
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 26.30000000447035
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 26.30000000447035
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.30000000447034836,
+          "inputToPaintMs": 32.100000001490116
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 31.899999998509884
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 3.2000000029802322,
+          "inputToPaintMs": 32.600000001490116
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.3999999985098839,
+          "inputToPaintMs": 28.399999998509884
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 29.69999999552965
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 0.3999999985098839,
+          "inputToPaintMs": 28.899999998509884
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 0.29999999701976776,
+          "inputToPaintMs": 31.899999998509884
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 28.5
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 28.399999998509884
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 4,
+          "inputToPaintMs": 29.5
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 1.6999999955296516,
+          "inputToPaintMs": 32.69999999552965
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 1.0999999940395355,
+          "inputToPaintMs": 32.19999999552965
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0.09999999403953552,
+          "inputToPaintMs": 21.599999994039536
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 21.5
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.3999999985098839,
+          "inputToPaintMs": 28.899999998509884
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.09999999403953552,
+          "inputToPaintMs": 37.69999999552965
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 3.100000001490116,
+          "inputToPaintMs": 37.5
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.6000000014901161,
+          "inputToPaintMs": 17.700000002980232
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 30.200000002980232
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 1.3999999985098839,
+          "inputToPaintMs": 30.5
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 0.8999999985098839,
+          "inputToPaintMs": 36.79999999701977
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 22.69999999552965
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 22.599999994039536
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 2.399999998509884,
+          "inputToPaintMs": 31.200000002980232
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 0.29999999701976776,
+          "inputToPaintMs": 29.5
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 1.1000000014901161,
+          "inputToPaintMs": 32.30000000447035
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 19.100000001490116
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 19
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.3999999985098839,
+          "inputToPaintMs": 28.19999999552965
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 29.600000001490116
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 4,
+          "inputToPaintMs": 30.299999997019768
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.3999999985098839,
+          "inputToPaintMs": 29.700000002980232
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 32.899999998509884
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 2,
+          "inputToPaintMs": 33.5
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 0.8999999985098839,
+          "inputToPaintMs": 30.80000000447035
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 19.399999998509884
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 19.399999998509884
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 3.100000001490116,
+          "inputToPaintMs": 29.30000000447035
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 1.3999999985098839,
+          "inputToPaintMs": 32.600000001490116
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 0.8999999985098839,
+          "inputToPaintMs": 32.70000000298023
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 19.799999997019768
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 19.799999997019768
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.3999999985098839,
+          "inputToPaintMs": 27.299999997019768
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.09999999403953552,
+          "inputToPaintMs": 34
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 3.100000001490116,
+          "inputToPaintMs": 34.5
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.3999999985098839,
+          "inputToPaintMs": 25.19999999552965
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 29.600000001490116
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 1.7000000029802322,
+          "inputToPaintMs": 30.399999998509884
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 0.8999999985098839,
+          "inputToPaintMs": 30.5
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 24.600000001490116
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 24.600000001490116
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 2.5,
+          "inputToPaintMs": 31.30000000447035
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 1.8999999985098839,
+          "inputToPaintMs": 32.30000000447035
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 1.0999999940395355,
+          "inputToPaintMs": 31.299999997019768
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 35.899999998509884
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 35.79999999701977
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.3999999985098839,
+          "inputToPaintMs": 30.600000001490116
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 33.100000001490116
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 3.3000000044703484,
+          "inputToPaintMs": 33.70000000298023
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.6000000014901161,
+          "inputToPaintMs": 25.299999997019768
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 29.100000001490116
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 1.5,
+          "inputToPaintMs": 29.700000002980232
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 1.2000000029802322,
+          "inputToPaintMs": 33.600000001490116
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 20.30000000447035
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 20.30000000447035
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 3,
+          "inputToPaintMs": 30
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 2,
+          "inputToPaintMs": 34.600000001490116
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 1,
+          "inputToPaintMs": 36.29999999701977
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 26.100000001490116
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 26.100000001490116
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.5,
+          "inputToPaintMs": 30.299999997019768
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 36.79999999701977
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 3,
+          "inputToPaintMs": 37.20000000298023
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.4000000059604645,
+          "inputToPaintMs": 19.100000001490116
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 29
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 1.6000000014901161,
+          "inputToPaintMs": 29.5
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 0.8999999985098839,
+          "inputToPaintMs": 34.80000000447035
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 21.399999998509884
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 21.299999997019768
+        }
+      ],
+      "choiceDrafts": {
+        "synthetic-25": {
+          "date": "2026-10-13",
+          "timeKey": "",
+          "instructorEmpId": ""
+        },
+        "synthetic-50": {
+          "date": "2026-10-15",
+          "timeKey": "",
+          "instructorEmpId": ""
+        }
+      },
+      "errors": "",
+      "pageErrors": []
+    },
+    {
+      "device": "mobile-cpu4",
+      "actions": [
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 133.28060499999992
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 133.0585229999997
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 171.98703399999795
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 227.08590999999797
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 82.04574700000012
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 125.44224299999769
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 236.85337499999878
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 71.00745800000004
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 67.99847499999669
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 100.35466199999792
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 183.3073030000014
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 148.8542439999983
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 106.48745399999825
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 94.87004199999865
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 216.8128199999992
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 157.978489000001
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 55.143535999999585
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 97.99034100000063
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 138.81750699999975
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 165.52762799999982
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 122.03878799999802
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 87.36127399999896
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 240.81706199999826
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 165.61671900000147
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 39.692628999997396
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 95.1858030000003
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 183.14195599999948
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 157.6205680000021
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 99.76966700000048
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 81.78714800000307
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 227.25340000000142
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 151.05602199999703
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 66.07181700000001
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 100.47511900000245
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 199.73923300000024
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 155.8958070000008
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 126.41850799999884
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 93.68288300000131
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 239.88639899999907
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 160.43719399999827
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 39.39847599999848
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 85.96123600000283
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 175.4773959999984
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 123.02194299999974
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 89.80144099999961
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 110.426746000001
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 266.3893879999996
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 160.61055300000226
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 59.71002200000294
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 95.97221400000126
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 149.60800700000254
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 156.03998199999842
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 96.53420000000187
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 99.22490599999946
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 215.14986299999873
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 137.08920200000284
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 63.13605999999709
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 83.66942700000072
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 152.6400050000011
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 163.3524529999995
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 87.38388799999666
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 96.94901100000425
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 221.06308600000193
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 145.5009480000008
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 65.35133700000006
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 100.02371999999741
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 184.40646600000036
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 149.68765300000086
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 96.17356999999902
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 86.35965199999919
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 250.0221109999984
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 168.70854799999506
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 66.36590799999976
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 99.01878299999953
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 210.73577400000067
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 177.71556899999996
+        },
+        {
+          "action": "search",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 100.81938999999693
+        },
+        {
+          "action": "open-course",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 130.71558199999708
+        },
+        {
+          "action": "navigate-page",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 212.77490199999738
+        },
+        {
+          "action": "edit-choice",
+          "executed": true,
+          "inputToPaintUpperBoundMs": 193.9981719999996
+        }
+      ],
+      "running": true,
+      "cancelMs": 787.5,
+      "commits": 0,
+      "runs": 1,
+      "detailsRead": 3,
+      "nativePaints": [
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 14.5,
+          "inputToPaintMs": 74.80000000447035
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 6,
+          "inputToPaintMs": 72
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 5.700000002980232,
+          "inputToPaintMs": 63.900000005960464
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0.09999999403953552,
+          "inputToPaintMs": 30.099999994039536
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 30
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.5,
+          "inputToPaintMs": 51.599999994039536
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 29.100000001490116
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 14.399999998509884,
+          "inputToPaintMs": 32.5
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 2.4000000059604645,
+          "inputToPaintMs": 57.100000001490116
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.6000000014901161,
+          "inputToPaintMs": 53.899999998509884
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 8.399999998509884,
+          "inputToPaintMs": 58.100000001490116
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 32.399999998509884
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 32.29999999701977
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 19,
+          "inputToPaintMs": 45.600000001490116
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 7.5,
+          "inputToPaintMs": 65.10000000149012
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 3.399999998509884,
+          "inputToPaintMs": 43.5
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 34
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 33.899999998509884
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 2.2000000029802322,
+          "inputToPaintMs": 67.70000000298023
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 39.19999999552965
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 12.099999994039536,
+          "inputToPaintMs": 41.099999994039536
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.6000000014901161,
+          "inputToPaintMs": 51.80000000447035
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 47.900000005960464
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 5.799999997019768,
+          "inputToPaintMs": 50.100000001490116
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 3.600000001490116,
+          "inputToPaintMs": 43.5
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 31.399999998509884
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 31.399999998509884
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 7.800000004470348,
+          "inputToPaintMs": 50.20000000298023
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 6.199999995529652,
+          "inputToPaintMs": 63.19999999552965
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 5.399999998509884,
+          "inputToPaintMs": 54.600000001490116
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 42.600000001490116
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 42.600000001490116
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.6000000014901161,
+          "inputToPaintMs": 82.89999999850988
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 38
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 17.5,
+          "inputToPaintMs": 42.80000000447035
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 2.7999999970197678,
+          "inputToPaintMs": 71.79999999701977
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 77
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 8.399999998509884,
+          "inputToPaintMs": 80.5
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 6.4000000059604645,
+          "inputToPaintMs": 43.600000001490116
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 44.29999999701977
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 44.29999999701977
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 8.600000001490116,
+          "inputToPaintMs": 34.100000001490116
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 7.799999997019768,
+          "inputToPaintMs": 58.399999998509884
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 5,
+          "inputToPaintMs": 55.5
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 36.29999999701977
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 36.29999999701977
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 2.2999999970197678,
+          "inputToPaintMs": 51.599999994039536
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 34.899999998509884
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 10.600000001490116,
+          "inputToPaintMs": 37.899999998509884
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.5,
+          "inputToPaintMs": 54
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 51.899999998509884
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 6.399999998509884,
+          "inputToPaintMs": 54.399999998509884
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 3.899999998509884,
+          "inputToPaintMs": 37.100000001490116
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 29.200000002980232
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 29
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 5.800000004470348,
+          "inputToPaintMs": 41.30000000447035
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 8.700000002980232,
+          "inputToPaintMs": 75.90000000596046
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 3.7000000029802322,
+          "inputToPaintMs": 60
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0.7999999970197678,
+          "inputToPaintMs": 28.799999997019768
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 28
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 2.7000000029802322,
+          "inputToPaintMs": 73.20000000298023
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 26.80000000447035
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 13,
+          "inputToPaintMs": 28.900000005960464
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.5,
+          "inputToPaintMs": 68.10000000149012
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.4000000059604645,
+          "inputToPaintMs": 51.20000000298023
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 6.399999998509884,
+          "inputToPaintMs": 54.100000001490116
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 3.600000001490116,
+          "inputToPaintMs": 48.20000000298023
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0.6999999955296516,
+          "inputToPaintMs": 24.19999999552965
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 23.5
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 6.299999997019768,
+          "inputToPaintMs": 31.5
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 7,
+          "inputToPaintMs": 54.29999999701977
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 3.3000000044703484,
+          "inputToPaintMs": 32
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 33.5
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 33.399999998509884
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 1.7999999970197678,
+          "inputToPaintMs": 62.69999999552965
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.3999999985098839,
+          "inputToPaintMs": 52.5
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 13.5,
+          "inputToPaintMs": 54.70000000298023
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.5,
+          "inputToPaintMs": 72.60000000149012
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 61.100000001490116
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 10.100000001490116,
+          "inputToPaintMs": 67.30000000447035
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 4.299999997019768,
+          "inputToPaintMs": 41.19999999552965
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 35.399999998509884
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 35.29999999701977
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 6.799999997019768,
+          "inputToPaintMs": 34
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 5.899999998509884,
+          "inputToPaintMs": 63
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 11.199999995529652,
+          "inputToPaintMs": 42.600000001490116
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 29.19999999552965
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 28
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.3999999985098839,
+          "inputToPaintMs": 55.19999999552965
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.19999999552965164,
+          "inputToPaintMs": 33.29999999701977
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 13.799999997019768,
+          "inputToPaintMs": 38.79999999701977
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.3999999985098839,
+          "inputToPaintMs": 63.20000000298023
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 58.5
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 7.600000001490116,
+          "inputToPaintMs": 62.399999998509884
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 3.100000001490116,
+          "inputToPaintMs": 35.5
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 31.5
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 31.399999998509884
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 6.200000002980232,
+          "inputToPaintMs": 34.20000000298023
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 19.5,
+          "inputToPaintMs": 71.10000000149012
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 11.100000001490116,
+          "inputToPaintMs": 39.29999999701977
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 33.5
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 33.5
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 1.7000000029802322,
+          "inputToPaintMs": 67.39999999850988
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 47.70000000298023
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 13.899999998509884,
+          "inputToPaintMs": 52.100000001490116
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.6000000014901161,
+          "inputToPaintMs": 71.5
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 71.10000000149012
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 7.899999998509884,
+          "inputToPaintMs": 75
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 5.0999999940395355,
+          "inputToPaintMs": 43.599999994039536
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 30.399999998509884
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 30.299999997019768
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 8.299999997019768,
+          "inputToPaintMs": 48.29999999701977
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 8.700000002980232,
+          "inputToPaintMs": 68.10000000149012
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 4,
+          "inputToPaintMs": 41.899999998509884
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 31.599999994039536
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 31.299999997019768
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 2.7000000029802322,
+          "inputToPaintMs": 48.5
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.6000000014901161,
+          "inputToPaintMs": 27.399999998509884
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 14,
+          "inputToPaintMs": 29.5
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 1.7000000029802322,
+          "inputToPaintMs": 60
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.10000000149011612,
+          "inputToPaintMs": 82.70000000298023
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 10,
+          "inputToPaintMs": 86.60000000149012
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 4.699999995529652,
+          "inputToPaintMs": 40.69999999552965
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 42.79999999701977
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 42.70000000298023
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 5.9000000059604645,
+          "inputToPaintMs": 36.80000000447035
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 6.699999995529652,
+          "inputToPaintMs": 76.69999999552965
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 5,
+          "inputToPaintMs": 39.399999998509884
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0.09999999403953552,
+          "inputToPaintMs": 25.299999997019768
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 25.100000001490116
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 2.8000000044703484,
+          "inputToPaintMs": 62.600000001490116
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0.6000000014901161,
+          "inputToPaintMs": 70.5
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 12,
+          "inputToPaintMs": 72
+        },
+        {
+          "type": "input",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 1.8999999985098839,
+          "inputToPaintMs": 60.29999999701977
+        },
+        {
+          "type": "change",
+          "isTrusted": true,
+          "target": "INPUT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 72.29999999701977
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "BUTTON",
+          "dispatchDelayMs": 6.200000002980232,
+          "inputToPaintMs": 75.39999999850988
+        },
+        {
+          "type": "click",
+          "isTrusted": true,
+          "target": "DIV",
+          "dispatchDelayMs": 4.299999997019768,
+          "inputToPaintMs": 56
+        },
+        {
+          "type": "input",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 28.19999999552965
+        },
+        {
+          "type": "change",
+          "isTrusted": false,
+          "target": "SELECT",
+          "dispatchDelayMs": 0,
+          "inputToPaintMs": 28.19999999552965
+        }
+      ],
+      "choiceDrafts": {
+        "synthetic-25": {
+          "date": "2026-10-13",
+          "timeKey": "",
+          "instructorEmpId": ""
+        },
+        "synthetic-50": {
+          "date": "2026-10-15",
+          "timeKey": "",
+          "instructorEmpId": ""
+        }
+      },
+      "errors": "",
+      "pageErrors": []
+    }
+  ],
+  "scope": "Real screen render/bind with isolated RPC stub; point benchmark calls engine transport directly; end-to-end run button tested separately. No actual Supabase auth/RLS/SQL or national service test."
+}

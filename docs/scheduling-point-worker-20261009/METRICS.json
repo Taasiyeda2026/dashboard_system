@@ -1,0 +1,139 @@
+{
+  "fixtureSha256": "b1c075c4e6c56017324f3e9f622856012fc9c00917d6439a0b2bd9aaf90d37e1",
+  "units": "ms unless explicitly named MiB",
+  "devices": {
+    "desktop": {
+      "saved-point": {
+        "samplesPerVariant": 20,
+        "beforeP95Ms": 240.30000000447035,
+        "afterP95Ms": 223.19999999552965,
+        "beforeQuality": {
+          "total": 253,
+          "covered": 252,
+          "hours": 1008,
+          "valid": true,
+          "failures": [],
+          "warnings": []
+        },
+        "afterQuality": {
+          "total": 253,
+          "covered": 252,
+          "hours": 1008,
+          "valid": true,
+          "failures": [],
+          "warnings": []
+        }
+      },
+      "blocked-availability": {
+        "samplesPerVariant": 20,
+        "beforeP95Ms": 452.59999999403954,
+        "afterP95Ms": 430.09999999403954,
+        "beforeQuality": {
+          "total": 253,
+          "covered": 251,
+          "hours": 1004,
+          "valid": true,
+          "failures": [],
+          "warnings": []
+        },
+        "afterQuality": {
+          "total": 253,
+          "covered": 251,
+          "hours": 1004,
+          "valid": true,
+          "failures": [],
+          "warnings": []
+        }
+      },
+      "revisionChurnP95Ms": 248.20000000298023,
+      "coldWorkerP95Ms": 798.3000000044703,
+      "peakMainHeapMiBWarm": 71.10348510742188,
+      "browser-start-feedback-before-fixP95Ms": 34,
+      "browser-start-feedbackP95Ms": 33.600000001490116,
+      "trustedInputPaintP95Ms": 37.69999999552965,
+      "syntheticSelectPaintP95Ms": 35.899999998509884,
+      "stressCancelMs": 566.2000000029802,
+      "uiActionsExecuted": 80
+    },
+    "mobile-cpu4": {
+      "saved-point": {
+        "samplesPerVariant": 20,
+        "beforeP95Ms": 4045.7999999970198,
+        "afterP95Ms": 314.40000000596046,
+        "beforeQuality": {
+          "total": 253,
+          "covered": 252,
+          "hours": 1008,
+          "valid": true,
+          "failures": [],
+          "warnings": []
+        },
+        "afterQuality": {
+          "total": 253,
+          "covered": 252,
+          "hours": 1008,
+          "valid": true,
+          "failures": [],
+          "warnings": []
+        }
+      },
+      "blocked-availability": {
+        "samplesPerVariant": 20,
+        "beforeP95Ms": 6879.29999999702,
+        "afterP95Ms": 547.7000000029802,
+        "beforeQuality": {
+          "total": 253,
+          "covered": 251,
+          "hours": 1004,
+          "valid": true,
+          "failures": [],
+          "warnings": []
+        },
+        "afterQuality": {
+          "total": 253,
+          "covered": 251,
+          "hours": 1004,
+          "valid": true,
+          "failures": [],
+          "warnings": []
+        }
+      },
+      "revisionChurnP95Ms": 482,
+      "coldWorkerP95Ms": 6724.39999999851,
+      "peakMainHeapMiBWarm": 69.34660911560059,
+      "browser-start-feedback-before-fixP95Ms": 182.5,
+      "browser-start-feedbackP95Ms": 47.79999999701977,
+      "trustedInputPaintP95Ms": 77,
+      "syntheticSelectPaintP95Ms": 42.79999999701977,
+      "stressCancelMs": 787.5,
+      "uiActionsExecuted": 80
+    }
+  },
+  "scope": "Synthetic data; browser page CPU throttling does not prove physical Worker CPU performance. p95 nearest rank.",
+  "node": {
+    "before": {
+      "wallP95Ms": 404.0496619999999,
+      "cpuP95Ms": 543.43,
+      "peakRssSampledMiB": 257.44921875,
+      "quality": {
+        "covered": 253,
+        "hours": 1012,
+        "failures": [],
+        "warnings": []
+      },
+      "rowDigest": "a6cd2d592aebe6459bf7b75ab54d7c31ea7d438fd381824d4ea6ba74c837a6cd"
+    },
+    "after": {
+      "wallP95Ms": 417.55319300000156,
+      "cpuP95Ms": 468.449,
+      "peakRssSampledMiB": 527.0078125,
+      "quality": {
+        "covered": 253,
+        "hours": 1012,
+        "failures": [],
+        "warnings": []
+      },
+      "rowDigest": "a6cd2d592aebe6459bf7b75ab54d7c31ea7d438fd381824d4ea6ba74c837a6cd"
+    }
+  }
+}

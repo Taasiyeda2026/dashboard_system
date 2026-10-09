@@ -1,0 +1,48 @@
+{
+  "workerBuiltUrl": "/dist/assets/course-scheduling-point.worker-B5qRd0To.js",
+  "availabilityChanged": false,
+  "revisionChurn": false,
+  "coldOnly": false,
+  "variant": "after",
+  "browser": "151.0.7922.173",
+  "fixtureSha256": "b1c075c4e6c56017324f3e9f622856012fc9c00917d6439a0b2bd9aaf90d37e1",
+  "fixtureBytes": 8867991,
+  "samples": [],
+  "acceptance": [
+    {
+      "device": "desktop",
+      "offline": {
+        "requests": 1,
+        "valid": true,
+        "covered": 0,
+        "commits": 0
+      },
+      "online": {
+        "requests": 1,
+        "valid": true,
+        "covered": 1,
+        "commits": 0
+      },
+      "savedUnchanged": true,
+      "scope": "Actual offline/online browser fetch in Main route broker; synthetic 5km/10min route reply, no Supabase request or saved commit."
+    },
+    {
+      "device": "mobile-cpu4",
+      "offline": {
+        "requests": 1,
+        "valid": true,
+        "covered": 0,
+        "commits": 0
+      },
+      "online": {
+        "requests": 1,
+        "valid": true,
+        "covered": 1,
+        "commits": 0
+      },
+      "savedUnchanged": true,
+      "scope": "Actual offline/online browser fetch in Main route broker; synthetic 5km/10min route reply, no Supabase request or saved commit."
+    }
+  ],
+  "scope": "Real screen render/bind with isolated RPC stub; point benchmark calls engine transport directly; end-to-end run button tested separately. No actual Supabase auth/RLS/SQL or national service test."
+}
