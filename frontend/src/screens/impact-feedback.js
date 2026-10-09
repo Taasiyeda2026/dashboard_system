@@ -663,9 +663,9 @@ function groupsTableHtml(slots, scope) {
           <col class="ifb-gw-school"><col class="ifb-gw-authority">
           ${showCourse ? '<col class="ifb-gw-course">' : ''}
           <col class="ifb-gw-person">
-          ${scope === 'students' ? '<col class="ifb-gw-date ifb-gw-date--start">' : ''}
-          <col class="ifb-gw-date ifb-gw-date--end">
-          ${slots.map(() => '<col class="ifb-gw-stage">').join('')}
+          ${scope === 'students'
+            ? '<col class="ifb-gw-date ifb-gw-date--start"><col class="ifb-gw-stage"><col class="ifb-gw-date ifb-gw-date--end"><col class="ifb-gw-stage">'
+            : '<col class="ifb-gw-date ifb-gw-date--end">' + slots.map(() => '<col class="ifb-gw-stage">').join('')}
           <col class="ifb-gw-actions">
         </colgroup>
         <thead><tr>
@@ -674,10 +674,11 @@ function groupsTableHtml(slots, scope) {
           ${showCourse ? '<th scope="col">קורס</th>' : ''}
           <th scope="col">${scope === 'staff' ? 'איש קשר' : 'מדריך'}</th>
           ${scope === 'students' ? '<th scope="col" class="ifb-center ifb-col-date">תחילת קורס</th>' : ''}
+          ${scope === 'students' ? `<th scope="col" class="ifb-center ifb-col-stage">${esc(slots.find((slot) => slot.stage === 'pre')?.label || 'תלמידים – פתיחה')}</th>` : ''}
           <th scope="col" class="ifb-center ifb-col-date">${scope === 'students' ? 'סיום קורס' : 'סיום הקבוצה'}</th>
-          ${slots.map((slot) => scope === 'staff'
-            ? `<th scope="col" class="ifb-col-stage ifb-col-staff">${esc(slot.label)}</th>`
-            : `<th scope="col" class="ifb-center ifb-col-stage">${esc(slot.label)}</th>`).join('')}
+          ${scope === 'students'
+            ? `<th scope="col" class="ifb-center ifb-col-stage">${esc(slots.find((slot) => slot.stage === 'post')?.label || 'תלמידים – סיום')}</th>`
+            : slots.map((slot) => `<th scope="col" class="ifb-col-stage ifb-col-staff">${esc(slot.label)}</th>`).join('')}
           <th scope="col"><span class="ifb-sr">פעולות</span></th>
         </tr></thead>
         <tbody>${filtered.map((g) => `
@@ -689,10 +690,16 @@ function groupsTableHtml(slots, scope) {
               : g.feedback_excluded ? statusText('לא רלוונטי למשובים', 'muted') : `<span title="נדרש טיפול בהתאמת תבנית המשוב לקורס. השיוך מנוהל במערכת ולא במסך זה.">${statusText('ממתין להתאמת משוב', 'warning')}</span>`}</td>` : ''}
             <td data-label="${scope === 'staff' ? 'איש קשר' : 'מדריך'}">${scope === 'staff' ? (g.contact_name ? esc(g.contact_name) : '<span class="ifb-muted" title="טרם הוגדר שם של איש קשר">לא הוגדר</span>') : esc(g.instructor_name || 'לא שובץ')}</td>
             ${scope === 'students' ? `<td data-label="תחילת קורס" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(g.start_date)}</td>` : ''}
+            ${scope === 'students' ? (() => {
+              const slot = slots.find((s) => s.stage === 'pre');
+              return `<td class="ifb-center ifb-col-stage" data-label="${esc(slot?.label || 'תלמידים – פתיחה')}">${g.program_key && slot ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}</td>`;
+            })() : ''}
             <td data-label="${scope === 'students' ? 'סיום קורס' : 'סיום הקבוצה'}" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(g.end_date)}</td>
-            ${slots.map((slot) => scope === 'staff'
-              ? `<td class="ifb-col-stage ifb-col-staff" data-label="${esc(slot.label)}">${g.program_key ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}</td>`
-              : `<td class="ifb-center ifb-col-stage" data-label="${esc(slot.label)}">${g.program_key ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}</td>`).join('')}
+            ${scope === 'students' ? (() => {
+              const slot = slots.find((s) => s.stage === 'post');
+              return `<td class="ifb-center ifb-col-stage" data-label="${esc(slot?.label || 'תלמידים – סיום')}">${g.program_key && slot ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}</td>`;
+            })() : slots.map((slot) =>
+              `<td class="ifb-col-stage ifb-col-staff" data-label="${esc(slot.label)}">${g.program_key ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}</td>`).join('')}
             <td data-label="פעולות" class="ifb-col-actions"><button type="button" class="ifb-row-action" data-ifb-open-group="${esc(g.row_id)}" aria-label="ניהול משובי הקבוצה ${esc(g.school || '')}" title="ניהול משובי הקבוצה"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="2"></rect><path d="M7 3v4M17 3v4M3 10h18"></path></svg></button></td>
           </tr>`).join('')}</tbody>
       </table>
@@ -961,7 +968,7 @@ function instructorAssignmentsHtml() {
           <th scope="col" class="ifb-center ifb-col-date" title="תאריך ההתחלה המוקדם ביותר מכל קבוצות המדריך בקורס">תחילת קורס ראשון</th>
           <th scope="col" class="ifb-center" title="משוב פתיחה – אחרי הכשרה">פתיחה</th>
           <th scope="col" class="ifb-col-status">סטטוס</th>
-          <th scope="col" class="ifb-center ifb-col-date" title="תאריך הסיום המוקדם ביותר מכל קבוצות המדריך בקורס, ללא תלות בקבוצת ההתחלה הראשונה">סיום קורס ראשון</th>
+          <th scope="col" class="ifb-center ifb-col-date" title="תאריך הסיום המאוחר ביותר של קבוצות המדריך בקורס שהתחילו במחצית הרלוונטית">סיום קורס אחרון</th>
           <th scope="col" class="ifb-center" title="משוב סיום הקורס">סיום</th>
           <th scope="col" class="ifb-col-status">סטטוס</th>
         </tr></thead>
@@ -973,7 +980,7 @@ function instructorAssignmentsHtml() {
             <td data-label="תחילת קורס ראשון" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(row.first_start_date)}</td>
             <td data-label="פתיחה" class="ifb-instructor-stage-cell">${instructorCampaignActionsHtml(row, 'pre')}</td>
             <td data-label="סטטוס פתיחה" class="ifb-col-status">${instructorStageStatusHtml(row, 'pre')}</td>
-            <td data-label="סיום קורס ראשון" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(row.first_course_end_date)}</td>
+            <td data-label="סיום קורס אחרון" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(row.last_end_date)}</td>
             <td data-label="סיום" class="ifb-instructor-stage-cell">${instructorCampaignActionsHtml(row, 'final')}</td>
             <td data-label="סטטוס סיום" class="ifb-col-status">${instructorStageStatusHtml(row, 'final')}</td>
           </tr>`).join('')}</tbody>
