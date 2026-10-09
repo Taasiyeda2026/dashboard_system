@@ -25,7 +25,8 @@ const MIGRATIONS = [
   '../supabase/migrations/20261008235500_feedback_instructor_manager_status_sort.sql',
   '../supabase/migrations/20261009002000_feedback_remove_sky_limit.sql',
   '../supabase/migrations/20261009120000_feedback_course_analysis_and_na.sql',
-  '../supabase/migrations/20261009223000_feedback_instructor_earliest_dates.sql'
+  '../supabase/migrations/20261009223000_feedback_instructor_earliest_dates.sql',
+  '../supabase/migrations/20261009233000_feedback_course_summary_by_semester.sql'
 ];
 
 async function asRole(client, role, uid = '') {
@@ -305,6 +306,19 @@ test('impact feedback DB contract: admin-only management, token-only public flow
     assert.deepEqual([sRow('instructor', 'all').campaigns, sRow('instructor', 'all').responses, sRow('instructor', 'all').unique_respondents], [2, 2, 1],
       'one instructor answering PRE and FINAL is one unique respondent, two questionnaires');
     assert.equal(sRow('instructor', 'all').unidentified_responses, 0);
+    const firstHalf = (await client.query("select * from feedback_admin_course_summary_for_half('school_2027','first') where program_key='trailblazers'")).rows;
+    const secondHalf = (await client.query("select * from feedback_admin_course_summary_for_half('school_2027','second') where program_key='trailblazers'")).rows;
+    assert.equal(firstHalf.find((r) => r.audience === 'student' && r.stage === 'pre').responses, 3,
+      'first semester includes students from its own activity only');
+    assert.equal(firstHalf.find((r) => r.audience === 'instructor' && r.stage === 'pre').responses, 1,
+      'yearly instructor feedback is counted once in the first-start semester');
+    assert.equal(firstHalf.find((r) => r.audience === 'educational_staff' && r.stage === 'final').responses, 1,
+      'staff feedback is linked to the source activity with an end date');
+    assert.equal(secondHalf.length, 0, 'first-half course responses do not leak into the second half');
+    await assert.rejects(client.query("select * from feedback_admin_course_summary_for_half('school_2027','all')"), /feedback_invalid_semester/);
+    await asRole(client, 'authenticated', MANAGER);
+    await assert.rejects(client.query("select * from feedback_admin_course_summary_for_half('school_2027','first')"), /feedback_forbidden/);
+    await asRole(client, 'authenticated', ADMIN);
 
     // --- Versioning ---------------------------------------------------------
     const template = await rpc("select id, current_version_id from feedback_templates where program_key='trailblazers' and audience='student' and stage='pre'");
