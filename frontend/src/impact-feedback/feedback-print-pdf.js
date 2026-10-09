@@ -239,8 +239,8 @@ export async function buildQuestionnairePdf({ program, template, version, questi
 /** Download the currently published questionnaire as a paper-only PDF. */
 export async function downloadQuestionnairePdf({ program, template, version, questions }) {
   const [regularData, boldData] = await Promise.all([
-    loadAsset(new URL('../../assets/fonts/Arimo-Regular.ttf', import.meta.url)),
-    loadAsset(new URL('../../assets/fonts/Arimo-Bold.ttf', import.meta.url))
+    loadAsset(new URL('../../assets/fonts/Alef-Regular.ttf', import.meta.url)),
+    loadAsset(new URL('../../assets/fonts/Alef-Bold.ttf', import.meta.url))
   ]);
   let logoData = null;
   try {

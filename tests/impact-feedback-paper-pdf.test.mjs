@@ -8,8 +8,8 @@ const assets = new URL('../frontend/assets/fonts/', import.meta.url);
 
 test('printable feedback PDF is a real A4 document using the published version', async () => {
   const [regularData, boldData] = await Promise.all([
-    readFile(new URL('Arimo-Regular.ttf', assets)),
-    readFile(new URL('Arimo-Bold.ttf', assets))
+    readFile(new URL('Alef-Regular.ttf', assets)),
+    readFile(new URL('Alef-Bold.ttf', assets))
   ]);
   const template = {
     audience: 'student',
