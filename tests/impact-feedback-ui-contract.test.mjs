@@ -8,6 +8,8 @@ const screen = readFileSync(new URL('../frontend/src/screens/impact-feedback.js'
 const styles = readFileSync(new URL('../frontend/src/impact-feedback/impact-feedback-admin.css', import.meta.url), 'utf8');
 const migration = readFileSync(new URL('../supabase/migrations/20261009162000_feedback_groups_activity_manager_filter.sql', import.meta.url), 'utf8');
 const templates = readFileSync(new URL('../frontend/src/impact-feedback/feedback-templates-view.js', import.meta.url), 'utf8');
+const publicPage = readFileSync(new URL('../frontend/src/impact-feedback/feedback-public.js', import.meta.url), 'utf8');
+const shareUi = readFileSync(new URL('../frontend/src/impact-feedback/feedback-share.js', import.meta.url), 'utf8');
 
 test('feedback year is taken from the dashboard, without an independent year selection', () => {
   assert.doesNotMatch(screen, /data-ifb-year|YEAR_OPTIONS/);
@@ -290,4 +292,25 @@ test('SQL instructor feedback aggregates the two earliest dates independently', 
   assert.match(migration, /having min\(a\.start_date\) is not null/);
   assert.doesNotMatch(migration, /array_agg\(a\.end_date order by a\.start_date/);
   assert.match(migration, /g\.first_date asc/);
+});
+
+
+test('public survey thanks screen never offers another form or resets completion on this device', () => {
+  assert.match(publicPage, /function showThanks\(root\)/);
+  assert.match(publicPage, /if \(isStudent && local\?\.getItem\(doneKey\)\)/);
+  assert.match(publicPage, /local\?\.setItem\(doneKey, new Date\(\)\.toISOString\(\)\)/);
+  assert.doesNotMatch(publicPage, /data-another|allowAnother|onAnother|removeItem\(doneKey\)/);
+  assert.match(publicPage, /showThanks\(root\)/);
+});
+
+test('QR share dialog fits without scroll and does not expose the long token on screen', () => {
+  assert.doesNotMatch(shareUi, /class="ifb-qr__url"/);
+  assert.match(shareUi, /QRCode\.toString\(url/);
+  assert.match(shareUi, /copyText\(url\)/);
+  assert.match(shareUi, /QRCode\.toDataURL\(url/);
+  assert.match(shareUi, /requestFullscreen\?\.\(\)/);
+  assert.match(styles, /QR share dialog: compact first view/);
+  assert.match(styles, /\.ifb-qr \{[\s\S]*?max-height: calc\(100dvh - 32px\);\s*overflow: hidden;/);
+  assert.match(styles, /\.ifb-qr__code \{[\s\S]*?39dvh/);
+  assert.match(styles, /\.ifb-qr-overlay:fullscreen \.ifb-qr__code/);
 });

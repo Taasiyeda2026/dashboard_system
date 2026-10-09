@@ -62,14 +62,10 @@ function showMessage(root, stateKey, extra = '') {
   root.setAttribute('aria-busy', 'false');
 }
 
-function showThanks(root, { allowAnother = false, onAnother } = {}) {
-  root.innerHTML = `<div class="ifb-shell">${messageCardHtml({
-    ...THANK_YOU,
-    logoUrl,
-    extra: allowAnother ? '<button type="button" class="ifb-message__link" data-another>מישהו נוסף רוצה למלא במכשיר הזה?</button>' : ''
-  })}</div>`;
+function showThanks(root) {
+  // After submission there is no public reset/restart action on this device.
+  root.innerHTML = `<div class="ifb-shell">${messageCardHtml({ ...THANK_YOU, logoUrl })}</div>`;
   root.setAttribute('aria-busy', 'false');
-  root.querySelector('[data-another]')?.addEventListener('click', () => onAnother?.());
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -140,10 +136,7 @@ async function start() {
           session?.removeItem(draftKey);
           session?.removeItem(submissionKey);
           local?.setItem(doneKey, new Date().toISOString());
-          showThanks(root, {
-            allowAnother: isStudent,
-            onAnother: () => { local?.removeItem(doneKey); renderForm(); window.scrollTo({ top: 0 }); }
-          });
+          showThanks(root);
           return result;
         }
         if (result?.state === 'invalid_answers') return result;
@@ -155,10 +148,7 @@ async function start() {
   };
 
   if (isStudent && local?.getItem(doneKey)) {
-    showThanks(root, {
-      allowAnother: true,
-      onAnother: () => { local?.removeItem(doneKey); renderForm(); }
-    });
+    showThanks(root);
     return;
   }
   renderForm();

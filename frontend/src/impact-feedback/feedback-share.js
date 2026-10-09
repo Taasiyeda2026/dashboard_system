@@ -69,7 +69,6 @@ export async function openQrProjection(campaign, { programTitle, schoolName, gra
       <p class="ifb-qr__meta">${esc([schoolName, grade ? `שכבה ${grade}` : ''].filter(Boolean).join(' · '))}</p>
       <div class="ifb-qr__code">${svg}</div>
       <p class="ifb-qr__hint">אין צורך בהתחברות · השאלון אנונימי</p>
-      <p class="ifb-qr__url" dir="ltr">${esc(url)}</p>
       <div class="ifb-qr__actions">
         <button type="button" class="ifb-btn" data-qr-copy>העתק קישור</button>
         <button type="button" class="ifb-btn" data-qr-download>הורדת תמונת QR</button>
