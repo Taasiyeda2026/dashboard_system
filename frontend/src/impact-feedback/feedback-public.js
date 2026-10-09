@@ -69,6 +69,45 @@ function showThanks(root) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+/**
+ * All valid public links (direct, email, WhatsApp, QR) share this same entry step.
+ * Arabic questionnaire wording is deliberately NOT enabled until the Hebrew
+ * templates have been approved and Arabic translations are published.
+ */
+function showLanguageChoice(root, { onHebrew, onArabic }) {
+  document.documentElement.lang = 'he';
+  root.innerHTML = `<div class="ifb-shell ifb-shell--language">
+    <section class="ifb-language-card" aria-label="בחירת שפה / اختيار اللغة">
+      <img class="ifb-logo ifb-logo--center" src="${logoUrl}" alt="תעשיידע">
+      <div class="ifb-language-card__questions">
+        <h1 class="ifb-language-card__question" lang="he" dir="rtl">באיזו שפה נוח לך למלא את המשוב?</h1>
+        <p class="ifb-language-card__question" lang="ar" dir="rtl">ما اللغة الأنسب لك لتعبئة الاستبيان؟</p>
+      </div>
+      <div class="ifb-language-card__choices">
+        <button type="button" class="ifb-language-card__choice" data-ifb-lang="he" lang="he">עברית</button>
+        <button type="button" class="ifb-language-card__choice" data-ifb-lang="ar" lang="ar">العربية</button>
+      </div>
+    </section>
+  </div>`;
+  root.querySelector('[data-ifb-lang="he"]').addEventListener('click', onHebrew);
+  root.querySelector('[data-ifb-lang="ar"]').addEventListener('click', onArabic);
+  root.setAttribute('aria-busy', 'false');
+}
+
+function showArabicPending(root, onBack) {
+  document.documentElement.lang = 'ar';
+  root.innerHTML = `<div class="ifb-shell ifb-shell--language" lang="ar" dir="rtl">
+    <section class="ifb-language-card" aria-labelledby="ifb-ar-pending-title">
+      <img class="ifb-logo ifb-logo--center" src="${logoUrl}" alt="תעשיידע">
+      <h1 class="ifb-language-card__question" id="ifb-ar-pending-title">الاستبيان باللغة العربية قيد الإعداد</h1>
+      <p class="ifb-language-card__explanation">ستتوفر النسخة العربية بعد اعتماد أسئلة الاستبيان. يمكنك حاليًا تعبئة الاستبيان باللغة العبرية.</p>
+      <button type="button" class="ifb-language-card__choice" data-ifb-lang-back>العودة لاختيار اللغة</button>
+    </section>
+  </div>`;
+  root.querySelector('[data-ifb-lang-back]').addEventListener('click', onBack);
+  root.setAttribute('aria-busy', 'false');
+}
+
 async function rpc(name, args) {
   if (!publicClient) throw new Error('missing_config');
   const { data, error } = await publicClient.rpc(name, args);
@@ -105,12 +144,14 @@ async function start() {
   const submissionKey = storageKey('submission', token);
 
   const renderForm = () => {
+    document.documentElement.lang = 'he';
     let initialAnswers = {};
     try { initialAnswers = JSON.parse(session?.getItem(draftKey) || '{}') || {}; } catch { initialAnswers = {}; }
     const startedAt = Date.now();
     mountFeedbackForm(root, payload, {
       logoUrl,
       initialAnswers,
+      onChooseLanguage: renderLanguageChoice,
       onChange(answers) {
         try { session?.setItem(draftKey, JSON.stringify(answers)); } catch { /* ignore */ }
       },
@@ -151,7 +192,11 @@ async function start() {
     showThanks(root);
     return;
   }
-  renderForm();
+  const renderLanguageChoice = () => showLanguageChoice(root, {
+    onHebrew: renderForm,
+    onArabic: () => showArabicPending(root, renderLanguageChoice)
+  });
+  renderLanguageChoice();
 }
 
 start();
