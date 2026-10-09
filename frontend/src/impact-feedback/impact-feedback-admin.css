@@ -785,13 +785,17 @@
 /* Feedback templates — compact course grid (2026-10) */
 .ifb-template-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 156px));
+  /* At most five tracks: six 180px columns cannot fit within 1040px. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 180px), 1fr));
+  width: 100%;
+  max-width: 1040px;
   justify-content: start;
   align-items: start;
-  gap: 12px;
+  gap: 14px;
 }
 .ifb-template-card {
   width: 100%;
+  max-width: 220px;
   min-width: 0;
   padding: 10px;
   border-radius: 12px;
