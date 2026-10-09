@@ -37,6 +37,7 @@ import {
   filterFeedbackFactsForHalf,
   studentFeedbackHasResponses,
   sortStudentFeedbackGroups,
+  sortEducationalStaffFeedbackGroups,
   isProgramUnresolved,
   openAnswers,
   overviewTotals,
@@ -648,9 +649,11 @@ function groupsTableHtml(slots, scope) {
   const matching = filterGroups(inHalf, ui.filters);
   const filtered = scope === 'students'
     ? sortStudentFeedbackGroups(matching)
-    : matching.sort((a, b) =>
-      Number(groupHasFeedback(b)) - Number(groupHasFeedback(a)) ||
-      String(a.school).localeCompare(String(b.school), 'he'));
+    : scope === 'staff'
+      ? sortEducationalStaffFeedbackGroups(matching)
+      : matching.sort((a, b) =>
+        Number(groupHasFeedback(b)) - Number(groupHasFeedback(a)) ||
+        String(a.school).localeCompare(String(b.school), 'he'));
   // The course column is shown for all courses or when the source activity has no matching feedback template.
   const showCourse = !ui.course || filtered.some((g) => !g.program_key);
   const body = filtered.length ? `
@@ -673,7 +676,9 @@ function groupsTableHtml(slots, scope) {
           <th scope="col">${scope === 'staff' ? 'איש קשר' : 'מדריך'}</th>
           ${scope === 'students' ? '<th scope="col" class="ifb-center ifb-col-date">תחילת קורס</th>' : ''}
           <th scope="col" class="ifb-center ifb-col-date">${scope === 'students' ? 'סיום קורס' : 'סיום הקבוצה'}</th>
-          ${slots.map((slot) => `<th scope="col" class="ifb-center ifb-col-stage">${esc(slot.label)}</th>`).join('')}
+          ${slots.map((slot) => scope === 'staff'
+            ? `<th scope="col" class="ifb-col-stage ifb-col-staff">${esc(slot.label)}</th>`
+            : `<th scope="col" class="ifb-center ifb-col-stage">${esc(slot.label)}</th>`).join('')}
           <th scope="col"><span class="ifb-sr">פעולות</span></th>
         </tr></thead>
         <tbody>${filtered.map((g) => `
@@ -686,7 +691,9 @@ function groupsTableHtml(slots, scope) {
             <td data-label="${scope === 'staff' ? 'איש קשר' : 'מדריך'}">${scope === 'staff' ? (g.contact_name ? esc(g.contact_name) : '<span class="ifb-muted" title="טרם הוגדר שם של איש קשר">לא הוגדר</span>') : esc(g.instructor_name || 'לא שובץ')}</td>
             ${scope === 'students' ? `<td data-label="תחילת קורס" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(g.start_date)}</td>` : ''}
             <td data-label="${scope === 'students' ? 'סיום קורס' : 'סיום הקבוצה'}" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(g.end_date)}</td>
-            ${slots.map((slot) => `<td class="ifb-center ifb-col-stage" data-label="${esc(slot.label)}">${g.program_key ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}</td>`).join('')}
+            ${slots.map((slot) => scope === 'staff'
+              ? `<td class="ifb-col-stage ifb-col-staff" data-label="${esc(slot.label)}">${g.program_key ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}</td>`
+              : `<td class="ifb-center ifb-col-stage" data-label="${esc(slot.label)}">${g.program_key ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}</td>`).join('')}
             <td data-label="פעולות" class="ifb-col-actions"><button type="button" class="ifb-row-action" data-ifb-open-group="${esc(g.row_id)}" aria-label="ניהול משובי הקבוצה ${esc(g.school || '')}" title="ניהול משובי הקבוצה"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="2"></rect><path d="M7 3v4M17 3v4M3 10h18"></path></svg></button></td>
           </tr>`).join('')}</tbody>
       </table>
