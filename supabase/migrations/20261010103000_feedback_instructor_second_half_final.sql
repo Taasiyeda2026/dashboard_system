@@ -354,7 +354,7 @@ returns table (
   last_response_at timestamptz
 )
 language plpgsql stable security definer set search_path = ''
-as $
+as $$
 #variable_conflict use_column
 begin
   if not private.feedback_is_admin() then raise exception 'feedback_forbidden' using errcode = '42501'; end if;
@@ -430,7 +430,7 @@ begin
   from camp
   group by grouping sets ((camp.pk, camp.aud, camp.stg), (camp.pk, camp.aud))
   order by 1, 2, 3;
-end $;
+end $$;
 revoke all on function public.feedback_admin_course_summary_for_half(text,text) from public, anon;
 grant execute on function public.feedback_admin_course_summary_for_half(text,text) to authenticated;
 
