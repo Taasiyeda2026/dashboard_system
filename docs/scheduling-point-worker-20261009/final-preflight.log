@@ -1,0 +1,25 @@
+✔ fast preflight: no-op and active lease skip acquisition; changed source, dirty row and forceFull acquire (1.998786ms)
+✔ heartbeat is serialized; authoritative lease loss stops ownership; transport errors remain retryable (0.628189ms)
+✔ lease wait message derives its duration from server retry time (0.248057ms)
+✔ school forks isolate provisional assignments and accept other-school deltas without leaking to their base (3.046535ms)
+✔ context deltas produce the same candidates and projected loads as a fresh rebuild (7.628112ms)
+✔ CPU-heavy preparation yields inside one instructor history and cancellation interrupts that history (16.176315ms)
+✔ CPU-heavy candidate loop continues heartbeat and observes lost ownership before a result (19.414033ms)
+✔ resume after reload requires source, workspace revision, engine, fingerprints, phase and complete scope (0.465579ms)
+✔ screen orchestration gates heavy work before snapshot load, preserves incremental retry and releases on pagehide (3.641797ms)
+✔ checkpoint errors abort immediately on source/revision/ownership loss and preserve retryable transport failures (0.31127ms)
+✔ a hung renewal times out locally without falsely cancelling server ownership (5.180533ms)
+✔ fast rescue deadline interrupts pathological per-activity work without cancelling the planning run (0.377759ms)
+✔ checkpoint chunks bound UTF-8 wire bytes and rows, preserve every row, and validate only the complete final chunk (29.159167ms)
+✔ default browser yield services timers even when scheduler continuations resolve immediately (1.37893ms)
+✔ recruitment rescue cancellation is observed inside one instructor and one schedule history (7.267519ms)
+✔ an existing workspace without a source cursor needs one bootstrap validation; verified one-row changes stay incremental (0.387303ms)
+✔ candidate load projection preserves proposed draft dates in instructor history (1.436465ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 124.588074

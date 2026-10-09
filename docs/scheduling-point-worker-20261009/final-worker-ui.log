@@ -1,0 +1,24 @@
+[course-scheduling] stylesheet load failed TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension ".css" for /workspace/work/scheduling-pr3-worker/repo/frontend/src/screens/course-scheduling.css
+    at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:243:9)
+    at defaultGetFormat (node:internal/modules/esm/get_format:283:36)
+    at defaultLoadSync (node:internal/modules/esm/load:161:16)
+    at #loadAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:802:12)
+    at #loadSync (node:internal/modules/esm/loader:834:53)
+    at ModuleLoader.load (node:internal/modules/esm/loader:783:26)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:494:31)
+    at #getOrCreateModuleJobAfterResolve (node:internal/modules/esm/loader:560:36)
+    at afterResolve (node:internal/modules/esm/loader:607:52)
+    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:613:12) {
+  code: 'ERR_UNKNOWN_FILE_EXTENSION'
+}
+✔ draft date/time/instructor edits during compute replace one course card and retain other rows, focus, plan and run state (196.934518ms)
+✔ opening loaded courses keeps the list and binds draft approval once to the current activity (68.828832ms)
+✔ start feedback paints before preflight and cancellation during the paint yield prevents any lease or calculation (68.68471ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4341.100625

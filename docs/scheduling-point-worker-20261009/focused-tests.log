@@ -1,0 +1,166 @@
+✔ shared planning persists separately from live activities with scheduling RLS (5.988751ms)
+✔ course planning screen loads and saves the shared workspace and only recalculates affected rows (1.59179ms)
+✔ post-optimization snapshots are persisted so final validation failures do not force a full rebuild (2.446837ms)
+✔ full and incremental planning silently checkpoint and can resume (2.165633ms)
+✖ entering shared planning never recalculates automatically; point mutations auto-refresh via needs-recalc (1.736903ms)
+✔ successful planning persistence does not invalidate the scheduling screen cache (0.898641ms)
+✔ shared planning UI communicates targeted refresh and shared workspace reload (1.050534ms)
+✖ current shared planning has no incremental rerun button and click handler never promotes an empty update to full run (1.30635ms)
+✖ shared planning uses bounded route concurrency without treating it as the primary fix (1.074459ms)
+✔ fast planning parallelizes independent cached route legs and uses six routed pairs per batch (1.288934ms)
+✔ Liron stale Monday 13:30–15:00 recommendation is contextual only and cannot be selected (5.607071ms)
+✔ Liron stale proposal after range_max is also blocked (0.504621ms)
+✔ pending status says update is required until an actual planning run starts (0.192333ms)
+✔ successful replacement row becomes actionable again without the stale snapshot (0.901295ms)
+✔ explicit update remains incremental, screen entry stays passive, and point mutation auto-refresh remains enabled (1.499664ms)
+✔ fast preflight: no-op and active lease skip acquisition; changed source, dirty row and forceFull acquire (1.262345ms)
+✔ heartbeat is serialized; authoritative lease loss stops ownership; transport errors remain retryable (0.720398ms)
+✔ lease wait message derives its duration from server retry time (0.234955ms)
+✔ school forks isolate provisional assignments and accept other-school deltas without leaking to their base (3.050914ms)
+✔ context deltas produce the same candidates and projected loads as a fresh rebuild (8.487184ms)
+✔ CPU-heavy preparation yields inside one instructor history and cancellation interrupts that history (19.512648ms)
+✔ CPU-heavy candidate loop continues heartbeat and observes lost ownership before a result (26.029532ms)
+✔ resume after reload requires source, workspace revision, engine, fingerprints, phase and complete scope (0.690995ms)
+✔ screen orchestration gates heavy work before snapshot load, preserves incremental retry and releases on pagehide (1.461308ms)
+✔ checkpoint errors abort immediately on source/revision/ownership loss and preserve retryable transport failures (0.267593ms)
+✔ a hung renewal times out locally without falsely cancelling server ownership (5.359988ms)
+✔ fast rescue deadline interrupts pathological per-activity work without cancelling the planning run (0.392297ms)
+✔ checkpoint chunks bound UTF-8 wire bytes and rows, preserve every row, and validate only the complete final chunk (33.0806ms)
+✔ default browser yield services timers even when scheduler continuations resolve immediately (1.519623ms)
+✔ recruitment rescue cancellation is observed inside one instructor and one schedule history (8.944586ms)
+✔ an existing workspace without a source cursor needs one bootstrap validation; verified one-row changes stay incremental (0.410203ms)
+✔ candidate load projection preserves proposed draft dates in instructor history (1.247864ms)
+✔ chosen candidates and authoritative validation reject the same short travel gap; legal alternative survives (2.107297ms)
+✔ transition boundaries, unknown routes, direction and same-school adjacency are explicit (0.390224ms)
+✔ reconciliation repairs a zero-gap school transition while immutable and unrelated rows stay identical (0.712257ms)
+✔ fixed-point dependencies cross schools via school peers and candidate/substitute instructors, excluding unrelated dates and immutable peers (1.682973ms)
+✔ optional optimizer error preserves a hard-validated base, without pretending optimization succeeded (10.891308ms)
+✔ cancellation and ownership loss during optional optimization still abort, never silently save the base (3.57236ms)
+✔ no suitable instructor or blocked fixed date yields no unsafe assignment and never moves the official date (2.415019ms)
+✔ final guard rejects a fixed proposal moved off its official date (0.350204ms)
+✔ synchronous and async self-route views agree while different missing addresses remain unknown (0.196319ms)
+✔ v36 upgrades recheck only known fixed-date drift; valid snapshots do not generate national targets (0.932286ms)
+✔ row deltas reconstruct exact results without cloning unchanged alternatives or mutating previous plan (0.515267ms)
+✔ real isolated worker equals direct engine; warm context sends no entries and availability delta only changes relevant input (79.81363ms)
+✔ worker rejects national scope and unsupported construction instead of main-thread fallback (0.765344ms)
+✔ logout/owner change replaces resident context; lease loss rejects the result (187.232804ms)
+✔ cancellation and worker crash reject without changing saved rows; cancellation acknowledged within one second (102.725014ms)
+✔ committed point refresh reloads only changed full rows, preserves alternatives, locks and flags, and fences concurrent revisions (0.957618ms)
+✔ dependency closure traverses locked and approved bridges without targeting or mutating either, including compact rows (0.957117ms)
+ℹ {"case":"immutable-bridge","compact":false,"elapsedMs":0.12498300000004292,"targets":["seed","peer","end"],"immutableTargets":0}
+ℹ {"case":"immutable-bridge","compact":true,"elapsedMs":0.09668199999998706,"targets":["seed","peer","end"],"immutableTargets":0}
+ℹ {"case":"immutable-bridge","compact":true,"elapsedMs":0.04862100000002556,"targets":["seed","peer","end"],"immutableTargets":0}
+✔ previous engine versions keep needs_recalc work scoped and reject an old checkpoint while preserving saved proposals and official dates (2.045797ms)
+✔ valid previous-version snapshot requires validation-only marker advancement and never resumes the old checkpoint (0.134788ms)
+✔ v36 detects official date and time drift in fixed and legacy proposal rows, without targeting locks or approvals (0.284368ms)
+✔ old validated and legacy checkpoints cannot resume or commit as v36 under the current source revision (0.192683ms)
+✔ explicit saved-row validation rejects legacy proposal drift before any version marker may advance (0.680581ms)
+ℹ {"case":"stale-official-date","elapsedMs":0.5502690000000712,"valid":false}
+✔ scoped v36 repair restores official dates and retains an existing unaffected proposal and source data (10.160183ms)
+✔ official date without official hours allows a legal proposed time while still forbidding a changed date (0.471392ms)
+✔ service worker entry imports the implementation without a second manual version (0.99696ms)
+✔ service worker removes old dashboard caches during activate without interrupting open tabs (0.513535ms)
+✔ service worker fetches app shell and manifest fresh after deploy (0.34006ms)
+✔ PWA manifest and icon files still point to existing dashboard assets (0.460006ms)
+✔ PWA guardrails keep cache versioning and catalog registration centralized (3.283406ms)
+✔ PWA guardrails prevent wholesale catalog and bulky-file precache (0.456331ms)
+ℹ tests 62
+ℹ suites 0
+ℹ pass 59
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 793.538796
+
+✖ failing tests:
+
+test at tests/course-scheduling-shared-planning.test.mjs:90:1
+✖ entering shared planning never recalculates automatically; point mutations auto-refresh via needs-recalc (1.736903ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /reloadSharedPlanningState\(\{ refreshData: false \}\)/. Input:
+
+  'const currentPlanningScope = planningScope();\n' +
+    '    if (\n' +
+    "      activeTab(state) !== 'maintenance'\n" +
+    '      && data._planningSharedLoadedKey !== currentPlanningScope.key\n' +
+    '      && !state.courseSchedulingPlanningLoading\n' +
+    '    ) {\n' +
+    '      data._planningSharedLoadedKey = currentPlanningScope.key;\n' +
+    '      const restore = data._is_stale && data._planningShared\n' +
+    '        ? Promise.resolve().then(() => {\n' +
+    '            applySharedPlanningState(data._planningShared, data);\n' +
+    '            rerenderPreservingWorkboardScroll();\n' +
+    '            return reloadSharedPlanningState({ refreshData: true, displayOnly: true });\n' +
+    '          })\n' +
+    '        : reloadSharedPlanningState({ refreshData: !!data._is_stale, displayOnly: true });\n' +
+    '      restore.then(() => {\n' +
+    "          if (!schedulingScreenActive || state.route !== 'course-scheduling' || !root.isConnected) return;\n" +
+    '          // Entering the screen only restores the shared plan. Recalculation is always explicit.\n' +
+    '          rerenderPreservingWorkboardScroll();\n' +
+    '        })\n' +
+    '        .catch((error) => {\n' +
+    "          if (!schedulingScreenActive || state.route !== 'course-scheduling' || !root.isConnected) return;\n" +
+    "          data._planningSharedLoadedKey = '';\n" +
+    '          data._planningAutoStartedKey = currentPlanningScope.key;\n' +
+    '          state.courseSchedulingPlanningSharedLoaded = true;\n' +
+    "          state.courseSchedulingPlanningError = planningStoreErrorMessage(error, 'טעינת הצעות השיבוץ נכשלה');\n" +
+    '          rerender();\n' +
+    '        });\n' +
+    '    }\n' +
+    '\n' +
+    '    '
+
+      at TestContext.<anonymous> (file:///workspace/work/scheduling-pr3-worker/repo/tests/course-scheduling-shared-planning.test.mjs:95:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: "const currentPlanningScope = planningScope();\n    if (\n      activeTab(state) !== 'maintenance'\n      && data._planningSharedLoadedKey !== currentPlanningScope.key\n      && !state.courseSchedulingPlanningLoading\n    ) {\n      data._planningSharedLoadedKey = currentPlanningScope.key;\n      const restore = data._is_stale && data._planningShared\n        ? Promise.resolve().then(() => {\n            applySharedPlanningState(data._planningShared, data);\n...",
+    expected: /reloadSharedPlanningState\(\{ refreshData: false \}\)/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at tests/course-scheduling-shared-planning.test.mjs:120:1
+✖ current shared planning has no incremental rerun button and click handler never promotes an empty update to full run (1.30635ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /<strong>הכול מעודכן<\/strong>/. Input:
+
+  '\n'
+
+      at TestContext.<anonymous> (file:///workspace/work/scheduling-pr3-worker/repo/tests/course-scheduling-shared-planning.test.mjs:128:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '\n',
+    expected: /<strong>הכול מעודכן<\/strong>/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at tests/course-scheduling-shared-planning.test.mjs:146:1
+✖ shared planning uses bounded route concurrency without treating it as the primary fix (1.074459ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /concurrency:\s*\d+/. Input:
+
+  'const routeClient = createRouteClient({\n' +
+    '          preloadedRows: routeCacheRows,\n' +
+    '          concurrency: runPlan.runType === PLANNING_RUN_TYPES.ENGINE_UPGRADE && scopedRoutePairs > 40 ? 8 : 6,\n' +
+    '          batchSize: runPlan.runType === PLANNING_RUN_TYPES.INCREMENTAL\n' +
+    '            ? 48\n' +
+    '            : scopedRoutePairs > 120\n' +
+    '              ? 80\n' +
+    '              : 64,\n' +
+    '          signal: run.controller.signal\n' +
+    '        });\n' +
+    '        '
+
+      at TestContext.<anonymous> (file:///workspace/work/scheduling-pr3-worker/repo/tests/course-scheduling-shared-planning.test.mjs:151:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'const routeClient = createRouteClient({\n          preloadedRows: routeCacheRows,\n          concurrency: runPlan.runType === PLANNING_RUN_TYPES.ENGINE_UPGRADE && scopedRoutePairs > 40 ? 8 : 6,\n          batchSize: runPlan.runType === PLANNING_RUN_TYPES.INCREMENTAL\n            ? 48\n            : scopedRoutePairs > 120\n              ? 80\n              : 64,\n          signal: run.controller.signal\n        });\n...',
+    expected: /concurrency:\s*\d+/,
+    operator: 'match',
+    diff: 'simple'
+  }

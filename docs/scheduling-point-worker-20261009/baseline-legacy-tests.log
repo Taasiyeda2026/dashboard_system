@@ -1,0 +1,110 @@
+✔ shared planning persists separately from live activities with scheduling RLS (5.504819ms)
+✔ course planning screen loads and saves the shared workspace and only recalculates affected rows (2.881243ms)
+✔ post-optimization snapshots are persisted so final validation failures do not force a full rebuild (4.085604ms)
+✔ full and incremental planning silently checkpoint and can resume (2.53831ms)
+✖ entering shared planning never recalculates automatically; point mutations auto-refresh via needs-recalc (1.906221ms)
+✔ successful planning persistence does not invalidate the scheduling screen cache (1.042342ms)
+✔ shared planning UI communicates targeted refresh and shared workspace reload (1.505422ms)
+✖ current shared planning has no incremental rerun button and click handler never promotes an empty update to full run (0.982553ms)
+✖ shared planning uses bounded route concurrency without treating it as the primary fix (1.216438ms)
+✔ fast planning parallelizes independent cached route legs and uses six routed pairs per batch (4.522685ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 7
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 44.07844
+
+✖ failing tests:
+
+test at tests/course-scheduling-shared-planning.test.mjs:90:1
+✖ entering shared planning never recalculates automatically; point mutations auto-refresh via needs-recalc (1.906221ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /reloadSharedPlanningState\(\{ refreshData: false \}\)/. Input:
+
+  'const currentPlanningScope = planningScope();\n' +
+    '    if (\n' +
+    "      activeTab(state) !== 'maintenance'\n" +
+    '      && data._planningSharedLoadedKey !== currentPlanningScope.key\n' +
+    '      && !state.courseSchedulingPlanningLoading\n' +
+    '    ) {\n' +
+    '      data._planningSharedLoadedKey = currentPlanningScope.key;\n' +
+    '      const restore = data._is_stale && data._planningShared\n' +
+    '        ? Promise.resolve().then(() => {\n' +
+    '            applySharedPlanningState(data._planningShared, data);\n' +
+    '            rerenderPreservingWorkboardScroll();\n' +
+    '            return reloadSharedPlanningState({ refreshData: true, displayOnly: true });\n' +
+    '          })\n' +
+    '        : reloadSharedPlanningState({ refreshData: !!data._is_stale, displayOnly: true });\n' +
+    '      restore.then(() => {\n' +
+    "          if (!schedulingScreenActive || state.route !== 'course-scheduling' || !root.isConnected) return;\n" +
+    '          // Entering the screen only restores the shared plan. Recalculation is always explicit.\n' +
+    '          rerenderPreservingWorkboardScroll();\n' +
+    '        })\n' +
+    '        .catch((error) => {\n' +
+    "          if (!schedulingScreenActive || state.route !== 'course-scheduling' || !root.isConnected) return;\n" +
+    "          data._planningSharedLoadedKey = '';\n" +
+    '          data._planningAutoStartedKey = currentPlanningScope.key;\n' +
+    '          state.courseSchedulingPlanningSharedLoaded = true;\n' +
+    "          state.courseSchedulingPlanningError = planningStoreErrorMessage(error, 'טעינת הצעות השיבוץ נכשלה');\n" +
+    '          rerender();\n' +
+    '        });\n' +
+    '    }\n' +
+    '\n' +
+    '    '
+
+      at TestContext.<anonymous> (file:///workspace/work/scheduling-pr3-worker/baseline/tests/course-scheduling-shared-planning.test.mjs:95:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: "const currentPlanningScope = planningScope();\n    if (\n      activeTab(state) !== 'maintenance'\n      && data._planningSharedLoadedKey !== currentPlanningScope.key\n      && !state.courseSchedulingPlanningLoading\n    ) {\n      data._planningSharedLoadedKey = currentPlanningScope.key;\n      const restore = data._is_stale && data._planningShared\n        ? Promise.resolve().then(() => {\n            applySharedPlanningState(data._planningShared, data);\n...",
+    expected: /reloadSharedPlanningState\(\{ refreshData: false \}\)/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at tests/course-scheduling-shared-planning.test.mjs:120:1
+✖ current shared planning has no incremental rerun button and click handler never promotes an empty update to full run (0.982553ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /<strong>הכול מעודכן<\/strong>/. Input:
+
+  '\n'
+
+      at TestContext.<anonymous> (file:///workspace/work/scheduling-pr3-worker/baseline/tests/course-scheduling-shared-planning.test.mjs:128:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '\n',
+    expected: /<strong>הכול מעודכן<\/strong>/,
+    operator: 'match',
+    diff: 'simple'
+  }
+
+test at tests/course-scheduling-shared-planning.test.mjs:146:1
+✖ shared planning uses bounded route concurrency without treating it as the primary fix (1.216438ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /concurrency:\s*\d+/. Input:
+
+  'const routeClient = createRouteClient({\n' +
+    '          preloadedRows: routeCacheRows,\n' +
+    '          concurrency: runPlan.runType === PLANNING_RUN_TYPES.ENGINE_UPGRADE && scopedRoutePairs > 40 ? 8 : 6,\n' +
+    '          batchSize: runPlan.runType === PLANNING_RUN_TYPES.INCREMENTAL\n' +
+    '            ? 48\n' +
+    '            : scopedRoutePairs > 120\n' +
+    '              ? 80\n' +
+    '              : 64,\n' +
+    '          signal: run.controller.signal\n' +
+    '        });\n' +
+    '        '
+
+      at TestContext.<anonymous> (file:///workspace/work/scheduling-pr3-worker/baseline/tests/course-scheduling-shared-planning.test.mjs:151:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'const routeClient = createRouteClient({\n          preloadedRows: routeCacheRows,\n          concurrency: runPlan.runType === PLANNING_RUN_TYPES.ENGINE_UPGRADE && scopedRoutePairs > 40 ? 8 : 6,\n          batchSize: runPlan.runType === PLANNING_RUN_TYPES.INCREMENTAL\n            ? 48\n            : scopedRoutePairs > 120\n              ? 80\n              : 64,\n          signal: run.controller.signal\n        });\n...',
+    expected: /concurrency:\s*\d+/,
+    operator: 'match',
+    diff: 'simple'
+  }

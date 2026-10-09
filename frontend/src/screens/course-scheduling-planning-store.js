@@ -815,6 +815,8 @@ export function planningStoreErrorMessage(error, fallback = 'שמירת התכנ
   const code = text(error?.code);
   const message = text(error?.message || error);
   const raw = code ? `${code}|${message}` : message;
+  if (raw.includes('planning_worker_national_required')) return 'נדרש חישוב מלא מפורש. לא הופעל חישוב ארצי בעקבות עדכון נקודתי.';
+  if (raw.includes('planning_worker_')) return 'החישוב הנקודתי נעצר. התכנון השמור נשמר; ניתן לנסות שוב.';
   if (raw.includes('planning_final_validation_failed')) {
     const failure = Array.isArray(error?.failures) ? error.failures[0] : null;
     const reasonLabels = {
@@ -876,8 +878,11 @@ export function applyLocalPlanningNeedsRecalc(targetState = null, { activityIds 
   }
 
   if (Array.isArray(localState.courseSchedulingPlanningRows)) {
-    for (const row of localState.courseSchedulingPlanningRows) {
+    for (let index = 0; index < localState.courseSchedulingPlanningRows.length; index += 1) {
+      let row = localState.courseSchedulingPlanningRows[index];
       if (!ids.includes(text(row?.courseId))) continue;
+      // A retained Worker input is immutable; dirty markers belong to the view.
+      if (Object.isFrozen(row)) localState.courseSchedulingPlanningRows[index] = row = { ...row };
       row.needsRecalc = true;
       row.planningLocked = false;
       row.kind = row.kind || 'proposal';

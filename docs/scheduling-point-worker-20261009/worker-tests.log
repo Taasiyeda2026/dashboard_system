@@ -1,0 +1,36 @@
+✔ scheduling field helper treats gender/language/dates as planning-sensitive and notes as not (1.387951ms)
+✔ local planning invalidation marks only the provided activity ids as pending (1.683987ms)
+✔ planning status distinguishes pending work from an active auto-refresh run (146.388483ms)
+✔ activity requirement and saveActivity paths explicitly invalidate planning after scheduling edits (2.229278ms)
+✔ olpanat bari gender any->female is treated as pending planning work for one activity (0.275556ms)
+✔ 1) INSERT exception blocked dirties only instructor-linked planning rows (SQL scoped) (0.276377ms)
+✔ 2) UPDATE exception marks relevant rows dirty (0.113287ms)
+✔ 3) DELETE exception marks relevant rows dirty (0.122811ms)
+✔ 4) activity gender change dirties its planning row (0.202718ms)
+✔ 5) activity language change dirties its planning row (0.634954ms)
+✔ 6) sessions change dirties its planning row (0.180396ms)
+✔ 7) stored row with exception violation + needs_recalc=false is invalid in audit (1.077395ms)
+✔ 8) הכול מעודכן is blocked when audit finds invalid rows (0.445024ms)
+✔ 9) 1–2 availability exceptions keep permanent instructor via recovery plan (1.400429ms)
+✔ 10) 3+ availability exceptions reject permanent instructor (0.136691ms)
+✔ 11) meeting count mismatch marks row dirty via audit (0.337016ms)
+✔ 12) instructor availability change is scoped (not full workspace / not 248) (0.245401ms)
+✔ 13) confirm validation blocks invalid stale row (0.107228ms)
+✔ validation version exists and engine bump does not imply full-workspace dirty SQL (0.144713ms)
+✔ row deltas reconstruct exact results without cloning unchanged alternatives or mutating previous plan (0.553864ms)
+✔ real isolated worker equals direct engine; warm context sends no entries and availability delta only changes relevant input (91.090381ms)
+✔ worker rejects national scope and unsupported construction instead of main-thread fallback (1.261836ms)
+✔ logout/owner change replaces resident context; lease loss rejects the result (186.443931ms)
+✔ cancellation and worker crash reject without changing saved rows; cancellation acknowledged within one second (105.194651ms)
+✔ committed point refresh reloads only changed full rows, preserves alternatives, locks and flags, and fences concurrent revisions (1.270388ms)
+✔ non-cooperative worker is terminated on cancel within one second, without commit or main-thread fallback (545.410765ms)
+✔ route broker performs authorized callbacks on the caller and progress never transfers rows or credentials (61.771412ms)
+✔ immutable stored payload hashes survive revision changes; dirty view markers clone frozen input instead of corrupting the context (65.312733ms)
+ℹ tests 28
+ℹ suites 0
+ℹ pass 28
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1318.452033
