@@ -1,3 +1,4 @@
+import './course-scheduling-two-phase-commit.test.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
