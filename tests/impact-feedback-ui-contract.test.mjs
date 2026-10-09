@@ -77,14 +77,14 @@ test('desktop and mobile layouts keep templates and filters usable without creat
 
 test('students have two course dates with matching widths and centered feedback columns', () => {
   const groupTable = screen.slice(screen.indexOf('function groupsTableHtml('), screen.indexOf('function optionBarsHtml('));
-  assert.match(groupTable, /scope === 'students' \? '<col class="ifb-gw-date ifb-gw-date--start">'/);
+  assert.match(groupTable, /scope === 'students'[\s\S]*?ifb-gw-date--start[^']*<col class="ifb-gw-stage">[^']*ifb-gw-date--end/);
   assert.match(groupTable, /<col class="ifb-gw-date ifb-gw-date--end">/);
   assert.match(groupTable, /scope === 'students' \? '<th scope="col" class="ifb-center ifb-col-date">תחילת קורס<\/th>'/);
   assert.match(groupTable, /scope === 'students' \? 'סיום קורס' : 'סיום הקבוצה'/);
   assert.match(groupTable, /fmtDate\(g\.start_date\)/);
   assert.match(groupTable, /fmtDate\(g\.end_date\)/);
-  assert.match(groupTable, /class="ifb-center ifb-col-stage">\$\{esc\(slot\.label\)\}/);
-  assert.match(groupTable, /class="ifb-center ifb-col-stage" data-label="\$\{esc\(slot\.label\)\}"/);
+  assert.match(groupTable, /class="ifb-center ifb-col-stage">\$\{esc\(slots\.find\(\(slot\) => slot\.stage === 'pre'\)\?\.label \|\| 'תלמידים – פתיחה'\)\}/);
+  assert.match(groupTable, /class="ifb-center ifb-col-stage" data-label="\$\{esc\(slot\?\.label \|\| 'תלמידים – פתיחה'\)\}"/);
   assert.match(styles, /\.ifb-groups-table--students col\.ifb-gw-date--start,\s*\.ifb-groups-table--students col\.ifb-gw-date--end \{ width: 11%; \}/);
   assert.match(styles, /\.ifb-groups-table--students\.ifb-groups-table--with-program col\.ifb-gw-date--start,\s*\.ifb-groups-table--students\.ifb-groups-table--with-program col\.ifb-gw-date--end \{ width: 10%; \}/);
   assert.match(styles, /\.ifb-groups-table--students thead th\.ifb-col-stage,/);
@@ -114,10 +114,10 @@ test('every date header and date cell share the centered date class', () => {
   assert.match(groups, /<td data-label="תחילת קורס" class="ifb-center ifb-nowrap ifb-col-date">/);
   assert.match(groups, /class="ifb-center ifb-nowrap ifb-col-date">\$\{fmtDate\(g\.end_date\)\}/);
   assert.match(instructor, /class="ifb-center ifb-col-date" title="תאריך ההתחלה המוקדם ביותר/);
-  assert.match(instructor, /class="ifb-center ifb-col-date" title="תאריך הסיום המוקדם ביותר/);
+  assert.match(instructor, /class="ifb-center ifb-col-date" title="תאריך הסיום המאוחר ביותר/);
   assert.match(instructor, /data-label="תחילת קורס ראשון" class="ifb-center ifb-nowrap ifb-col-date">\$\{fmtDate\(row\.first_start_date\)\}/);
-  assert.match(instructor, /data-label="סיום קורס ראשון" class="ifb-center ifb-nowrap ifb-col-date">\$\{fmtDate\(row\.first_course_end_date\)\}/);
-  assert.match(instructor, /class="ifb-center ifb-nowrap ifb-col-date">\$\{fmtDate\(row\.first_course_end_date\)\}/);
+  assert.match(instructor, /data-label="סיום קורס אחרון" class="ifb-center ifb-nowrap ifb-col-date">\$\{fmtDate\(row\.last_end_date\)\}/);
+  assert.match(instructor, /class="ifb-center ifb-nowrap ifb-col-date">\$\{fmtDate\(row\.last_end_date\)\}/);
   assert.match(styles, /\.ifb-admin \.ifb-table thead th\.ifb-col-date,/);
   assert.match(styles, /\.ifb-admin \.ifb-table tbody td\.ifb-col-date,/);
 });
@@ -440,8 +440,8 @@ test('staff feedback column heading and cells align right without changing stude
   const table = screen.slice(screen.indexOf('function groupsTableHtml('), screen.indexOf('function optionBarsHtml('));
   assert.match(table, /scope === 'staff'[\s\S]*?<th scope="col" class="ifb-col-stage ifb-col-staff">\$\{esc\(slot\.label\)\}<\/th>/);
   assert.match(table, /scope === 'staff'[\s\S]*?<td class="ifb-col-stage ifb-col-staff" data-label="\$\{esc\(slot\.label\)\}">/);
-  assert.match(table, /<th scope="col" class="ifb-center ifb-col-stage">\$\{esc\(slot\.label\)\}<\/th>/);
-  assert.match(table, /<td class="ifb-center ifb-col-stage" data-label="\$\{esc\(slot\.label\)\}">/);
+  assert.match(table, /<th scope="col" class="ifb-center ifb-col-stage">\$\{esc\(slots\.find\(\(slot\) => slot\.stage === 'pre'\)\?\.label \|\| 'תלמידים – פתיחה'\)\}<\/th>/);
+  assert.match(table, /<td class="ifb-center ifb-col-stage" data-label="\$\{esc\(slot\?\.label \|\| 'תלמידים – פתיחה'\)\}">/);
   assert.match(styles, /\.ifb-admin \.ifb-groups-table--staff thead th\.ifb-col-staff,\s*\.ifb-admin \.ifb-groups-table--staff tbody td\.ifb-col-staff \{\s*text-align: right;/);
 });
 
@@ -490,7 +490,7 @@ test('instructor table uses requested nine headings in exact RTL order with inde
   const headings = [...header.matchAll(/<th scope="col"[^>]*>([^<]+)<\/th>/g)].map((match) => match[1]);
   assert.deepEqual(headings, [
     'מדריך', 'קורס', 'קבוצות', 'תחילת קורס ראשון',
-    'פתיחה', 'סטטוס', 'סיום קורס ראשון',
+    'פתיחה', 'סטטוס', 'סיום קורס אחרון',
     'סיום', 'סטטוס'
   ]);
   const body = list.slice(list.indexOf('<tbody>'), list.indexOf('</tbody>'));
@@ -498,7 +498,7 @@ test('instructor table uses requested nine headings in exact RTL order with inde
   assert.deepEqual(fields, [
     'קורס', 'קבוצות', 'תחילת קורס ראשון',
     'פתיחה', 'סטטוס פתיחה',
-    'סיום קורס ראשון', 'סיום', 'סטטוס סיום'
+    'סיום קורס אחרון', 'סיום', 'סטטוס סיום'
   ]);
   assert.match(list, /instructorStageStatusHtml\(row, 'pre'\)/);
   assert.match(list, /instructorStageStatusHtml\(row, 'final'\)/);
