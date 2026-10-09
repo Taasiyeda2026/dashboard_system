@@ -279,31 +279,35 @@
 .ifb-filters--instructors .ifb-field { width: 165px; }
 .ifb-filters--instructors .ifb-btn { min-width: 64px; }
 .ifb-instructor-table-wrap {
-  width: min(100%, 1060px);
-  justify-self: start;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  justify-self: stretch;
   border-radius: 12px;
-  overflow-x: auto;
 }
 .ifb-instructor-table {
   width: 100%;
   min-width: 0;
   table-layout: fixed;
 }
-.ifb-instructor-table col.ifb-iw-instructor { width: 15%; }
-.ifb-instructor-table col.ifb-iw-program { width: 21%; }
-.ifb-instructor-table col.ifb-iw-groups { width: 6%; }
-.ifb-instructor-table col.ifb-iw-date { width: 13%; }
-.ifb-instructor-table col.ifb-iw-action { width: 7%; }
-.ifb-instructor-table col.ifb-iw-status { width: 9%; }
+.ifb-instructor-table col.ifb-iw-instructor { width: 12%; }
+.ifb-instructor-table col.ifb-iw-program { width: 15%; }
+.ifb-instructor-table col.ifb-iw-groups { width: 4%; }
+.ifb-instructor-table col.ifb-iw-date { width: 10%; }
+.ifb-instructor-table col.ifb-iw-action { width: 6%; }
+.ifb-instructor-table col.ifb-iw-status { width: 7%; }
 .ifb-instructor-table th:nth-child(3),
 .ifb-instructor-table th:nth-child(4),
 .ifb-instructor-table th:nth-child(5),
 .ifb-instructor-table th:nth-child(7),
-.ifb-instructor-table th:nth-child(8) { text-align: center; }
+.ifb-instructor-table th:nth-child(8),
+.ifb-instructor-table th:nth-child(10),
+.ifb-instructor-table th:nth-child(11) { text-align: center; }
 .ifb-instructor-table th:nth-child(6),
-.ifb-instructor-table th:nth-child(9) { text-align: right; }
+.ifb-instructor-table th:nth-child(9),
+.ifb-instructor-table th:nth-child(12) { text-align: right; }
 .ifb-instructor-table th,
-.ifb-instructor-table td { padding: 6px 8px; line-height: 1.2; }
+.ifb-instructor-table td { padding: 5px 3px; line-height: 1.2; font-size: 11.5px; }
 .ifb-instructor-table tbody tr:last-child td { border-bottom: 0; }
 
 .ifb-instructor-stage-cell { vertical-align: middle !important; }
@@ -1407,9 +1411,9 @@
 }
 
 
-/* Instructor feedback: compact nine-column layout fits its container, with
-   symmetric widths per pair: dates 13%, actions 7%, statuses 9%.
-   Name and course may wrap rather than forcing horizontal scrolling. */
+/* Instructor feedback: yearly 12-column table within the available width.
+   Three balanced pairs use date 10%, actions 6%, status 7%, with wrapped
+   names and smaller action controls for desktop. */
 @media (min-width: 761px) {
   .ifb-instructor-table {
     width: 100%;
@@ -1420,15 +1424,15 @@
     width: 100%;
     min-width: 0;
   }
-  .ifb-instructor-table col.ifb-iw-instructor { width: 15%; }
-  .ifb-instructor-table col.ifb-iw-program { width: 21%; }
-  .ifb-instructor-table col.ifb-iw-groups { width: 6%; }
-  .ifb-instructor-table col.ifb-iw-date { width: 13%; }
-  .ifb-instructor-table col.ifb-iw-action { width: 7%; }
-  .ifb-instructor-table col.ifb-iw-status { width: 9%; }
+  .ifb-instructor-table col.ifb-iw-instructor { width: 12%; }
+  .ifb-instructor-table col.ifb-iw-program { width: 15%; }
+  .ifb-instructor-table col.ifb-iw-groups { width: 4%; }
+  .ifb-instructor-table col.ifb-iw-date { width: 10%; }
+  .ifb-instructor-table col.ifb-iw-action { width: 6%; }
+  .ifb-instructor-table col.ifb-iw-status { width: 7%; }
   .ifb-instructor-table thead th { width: auto !important; }
   .ifb-instructor-table th, .ifb-instructor-table td {
-    padding-inline: 4px;
+    padding-inline: 2px;
     min-width: 0;
     overflow-wrap: anywhere;
   }
@@ -1441,7 +1445,7 @@
     text-align: center;
     white-space: nowrap;
     overflow-wrap: normal;
-    font-size: 11.5px;
+    font-size: 10.5px;
   }
   .ifb-instructor-table th.ifb-col-status,
   .ifb-instructor-table td.ifb-col-status { text-align: right; }
@@ -1460,13 +1464,13 @@
     gap: 2px;
   }
   .ifb-instructor-table .ifb-icon-actions .ifb-text-action {
-    width: 22px;
-    min-width: 22px;
-    height: 24px;
+    width: 20px;
+    min-width: 20px;
+    height: 22px;
   }
   .ifb-instructor-table .ifb-icon-actions .ifb-text-action svg {
-    width: 15px;
-    height: 15px;
+    width: 14px;
+    height: 14px;
   }
 }
 
