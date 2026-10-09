@@ -1039,3 +1039,78 @@
   .ifb-table tbody tr > * + * { border-inline-start: 0; }
   .ifb-template-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
 }
+
+
+/* Final UI review: responsive filter grids, consistent readable tables, and compact actions. */
+@media (min-width: 1121px) {
+  .ifb-filters--primary {
+    grid-template-columns: minmax(200px, 1.55fr) repeat(5, minmax(118px, 1fr)) auto;
+  }
+}
+@media (min-width: 761px) and (max-width: 1120px) {
+  .ifb-filters--primary, .ifb-filters--more { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ifb-filters--instructors { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .ifb-filters--instructors .ifb-field { width: auto; }
+}
+.ifb-instructor-table-wrap { width: 100%; max-width: none; }
+.ifb-table-wrap { min-width: 0; }
+.ifb-table th, .ifb-table td { line-height: 1.35; }
+.ifb-groups-table th[scope="row"], .ifb-groups-table td { overflow-wrap: anywhere; }
+.ifb-groups-table .ifb-status, .ifb-courses-table .ifb-status { white-space: normal; }
+.ifb-groups-table .ifb-col-date { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ifb-instructor-table .ifb-col-date { font-variant-numeric: tabular-nums; }
+.ifb-instructor-table th, .ifb-instructor-table td { vertical-align: middle; }
+.ifb-icon-actions { display: flex; flex-wrap: nowrap; justify-content: center; align-items: center; gap: 2px; }
+.ifb-icon-actions .ifb-text-action {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 28px;
+  min-width: 26px;
+  border-radius: 6px;
+}
+.ifb-icon-actions .ifb-text-action svg {
+  width: 17px;
+  height: 17px;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.ifb-icon-actions .ifb-text-action:hover,
+.ifb-icon-actions .ifb-text-action:focus-visible {
+  background: var(--ifb-a-accent-soft);
+  outline: 2px solid var(--ifb-a-control);
+  outline-offset: 1px;
+  text-decoration: none;
+}
+.ifb-icon-actions .is-disabled { opacity: .33; pointer-events: none; }
+.ifb-instructor-stage { gap: 1px; }
+
+/* Three comfortably sized template cards rather than four crowded ones. */
+@media (min-width: 1081px) {
+  .ifb-template-grid { max-width: min(100%, 1120px); grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (min-width: 621px) and (max-width: 1080px) {
+  .ifb-template-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .ifb-template-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .ifb-filters--primary,
+  .ifb-filters--more,
+  .ifb-filters--instructors { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ifb-filters--instructors .ifb-field { width: auto; }
+  .ifb-filters--primary .ifb-field--search { grid-column: 1 / -1; }
+  .ifb-filter-panel { max-width: 100%; }
+  .ifb-toolbar .ifb-filter-panel .ifb-field { min-width: 0; }
+  .ifb-icon-actions .ifb-text-action { width: 32px; height: 32px; }
+}
+@media (max-width: 420px) {
+  .ifb-filters--primary,
+  .ifb-filters--more,
+  .ifb-filters--instructors { grid-template-columns: minmax(0, 1fr); }
+  .ifb-filters--primary .ifb-field--search { grid-column: auto; }
+}
