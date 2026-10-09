@@ -232,7 +232,7 @@ const PAPER_PDF_BUCKET = 'feedback-template-pdfs';
 
 export async function fetchSavedPaperPdfs() {
   return unwrap(client().from('feedback_template_pdfs')
-    .select('template_id,version_id,storage_path,file_name,uploaded_at'));
+    .select('template_id,language,version_id,storage_path,file_name,uploaded_at'));
 }
 
 export async function downloadSavedPaperPdf(record) {
@@ -253,14 +253,15 @@ export async function downloadSavedPaperPdf(record) {
   setTimeout(() => URL.revokeObjectURL(url), 30000);
 }
 
-export async function uploadSavedPaperPdf(template, file) {
+export async function uploadSavedPaperPdf(template, file, language = 'he') {
+  if (!['he', 'ar'].includes(language)) throw new Error('שפת PDF אינה תקינה');
   if (!template?.id || !template.current_version_id) throw new Error('יש לפרסם את התבנית לפני העלאת PDF');
   if (!(file instanceof File) || !/\.pdf$/i.test(file.name) || (file.type && file.type !== 'application/pdf') || file.size < 10 || file.size > 10485760) {
     throw new Error('ניתן להעלות PDF בלבד, עד 10MB');
   }
   const signature = new Uint8Array(await file.slice(0, 5).arrayBuffer());
   if (String.fromCharCode(...signature) !== '%PDF-') throw new Error('הקובץ אינו PDF תקין');
-  const existing = await unwrap(client().from('feedback_template_pdfs').select('storage_path').eq('template_id', template.id).maybeSingle());
+  const existing = await unwrap(client().from('feedback_template_pdfs').select('storage_path').eq('template_id', template.id).eq('language', language).maybeSingle());
   const path = `${template.id}/${crypto.randomUUID()}.pdf`;
   const storage = client().storage.from(PAPER_PDF_BUCKET);
   const { error } = await storage.upload(path, file, { contentType: 'application/pdf', upsert: false, cacheControl: '0' });
@@ -268,10 +269,11 @@ export async function uploadSavedPaperPdf(template, file) {
   try {
     await unwrap(client().from('feedback_template_pdfs').upsert({
       template_id: template.id,
+      language,
       version_id: template.current_version_id,
       storage_path: path,
       file_name: file.name.slice(0, 255)
-    }, { onConflict: 'template_id' }));
+    }, { onConflict: 'template_id,language' }));
   } catch (error) {
     await storage.remove([path]).catch(() => {});
     throw error;
@@ -283,8 +285,8 @@ export async function uploadSavedPaperPdf(template, file) {
 }
 
 export async function deleteSavedPaperPdf(record) {
-  if (!record?.template_id) throw new Error('לא נמצא קובץ למחיקה');
-  await unwrap(client().from('feedback_template_pdfs').delete().eq('template_id', record.template_id));
+  if (!record?.template_id || !['he', 'ar'].includes(record.language)) throw new Error('לא נמצא קובץ למחיקה');
+  await unwrap(client().from('feedback_template_pdfs').delete().eq('template_id', record.template_id).eq('language', record.language));
   if (record.storage_path) {
     await client().storage.from(PAPER_PDF_BUCKET).remove([record.storage_path]);
   }
