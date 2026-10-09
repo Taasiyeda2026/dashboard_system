@@ -1,0 +1,138 @@
+[activity-edit] activity name options missing from client settings
+[activity-edit][instructors-options] {
+  contacts_count: 0,
+  roster_count: 0,
+  valid_count: 0,
+  selected_emp_id: '1500',
+  selected_instructor_name: 'ורד עליאן'
+}
+TAP version 13
+# Subtest: activities handoff sets selectedId and focus mode flags
+ok 1 - activities handoff sets selectedId and focus mode flags
+  ---
+  duration_ms: 1.684346
+  type: 'test'
+  ...
+# Subtest: selected activity opens detail automatically and marks scroll/focus target
+ok 2 - selected activity opens detail automatically and marks scroll/focus target
+  ---
+  duration_ms: 18.057992
+  type: 'test'
+  ...
+# Subtest: focus mode shows only the selected activity and reveal-all restores the full list
+ok 3 - focus mode shows only the selected activity and reveal-all restores the full list
+  ---
+  duration_ms: 3.496029
+  type: 'test'
+  ...
+# Subtest: local course list search filters by activity, school, authority, instructor and id
+ok 4 - local course list search filters by activity, school, authority, instructor and id
+  ---
+  duration_ms: 2.087739
+  type: 'test'
+  ...
+# Subtest: desktop workboard keeps independent list scroll while mobile stays page-scroll
+ok 5 - desktop workboard keeps independent list scroll while mobile stays page-scroll
+  ---
+  duration_ms: 0.854386
+  type: 'test'
+  ...
+# Subtest: activity drawer shows scheduling status card and open-scheduling CTA
+ok 6 - activity drawer shows scheduling status card and open-scheduling CTA
+  ---
+  duration_ms: 147.887373
+  type: 'test'
+  ...
+# Subtest: bind focuses selected card with scrollIntoView center when arriving from activities
+ok 7 - bind focuses selected card with scrollIntoView center when arriving from activities
+  ---
+  duration_ms: 1.029283
+  type: 'test'
+  ...
+# Subtest: Liron stale Monday 13:30–15:00 recommendation is contextual only and cannot be selected
+ok 8 - Liron stale Monday 13:30–15:00 recommendation is contextual only and cannot be selected
+  ---
+  duration_ms: 2.379428
+  type: 'test'
+  ...
+# Subtest: Liron stale proposal after range_max is also blocked
+ok 9 - Liron stale proposal after range_max is also blocked
+  ---
+  duration_ms: 0.501467
+  type: 'test'
+  ...
+# Subtest: pending status says update is required until an actual planning run starts
+ok 10 - pending status says update is required until an actual planning run starts
+  ---
+  duration_ms: 0.262836
+  type: 'test'
+  ...
+# Subtest: successful replacement row becomes actionable again without the stale snapshot
+ok 11 - successful replacement row becomes actionable again without the stale snapshot
+  ---
+  duration_ms: 0.838572
+  type: 'test'
+  ...
+# Subtest: explicit update remains incremental, screen entry stays passive, and point mutation auto-refresh remains enabled
+ok 12 - explicit update remains incremental, screen entry stays passive, and point mutation auto-refresh remains enabled
+  ---
+  duration_ms: 1.518171
+  type: 'test'
+  ...
+# Subtest: display projection preserves current proposal, selected and first choices and full dependency footprint
+ok 13 - display projection preserves current proposal, selected and first choices and full dependency footprint
+  ---
+  duration_ms: 0.354571
+  type: 'test'
+  ...
+# Subtest: display projection preserves hard-gate audit and dependency closure results
+ok 14 - display projection preserves hard-gate audit and dependency closure results
+  ---
+  duration_ms: 1.707229
+  type: 'test'
+  ...
+# Subtest: 253 rows mount at most 25 cards and all pages expose every activity
+ok 15 - 253 rows mount at most 25 cards and all pages expose every activity
+  ---
+  duration_ms: 12.431472
+  type: 'test'
+  ...
+# Subtest: cache compacts large alternatives, isolates sessions and never persists credentials
+ok 16 - cache compacts large alternatives, isolates sessions and never persists credentials
+  ---
+  duration_ms: 2.27204
+  type: 'test'
+  ...
+# Subtest: quota/disabled/corrupt storage never interrupts display or restores obsolete data
+ok 17 - quota/disabled/corrupt storage never interrupts display or restores obsolete data
+  ---
+  duration_ms: 0.389513
+  type: 'test'
+  ...
+# Subtest: oversize source snapshot is not cached and old cache is removed
+ok 18 - oversize source snapshot is not cached and old cache is removed
+  ---
+  duration_ms: 9.741629
+  type: 'test'
+  ...
+# Subtest: large scheduling snapshot restores only in its authenticated session without runtime flags
+ok 19 - large scheduling snapshot restores only in its authenticated session without runtime flags
+  ---
+  duration_ms: 4.868837
+  type: 'test'
+  ...
+# Subtest: route maintenance skips 2573 valid routes and keeps a stable cursor after writes
+ok 20 - route maintenance skips 2573 valid routes and keeps a stable cursor after writes
+  ---
+  duration_ms: 0.602345
+  type: 'test'
+  ...
+1..20
+# tests 20
+# suites 0
+# pass 20
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 891.809322

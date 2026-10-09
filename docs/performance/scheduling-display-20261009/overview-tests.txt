@@ -1,0 +1,40 @@
+TAP version 13
+# Subtest: completion rows count first half from 1 September and exclude explicit second-half work
+ok 1 - completion rows count first half from 1 September and exclude explicit second-half work
+  ---
+  duration_ms: 12.258295
+  type: 'test'
+  ...
+# Subtest: first-half completion overview includes live, drafts and proposals per instructor
+ok 2 - first-half completion overview includes live, drafts and proposals per instructor
+  ---
+  duration_ms: 0.950186
+  type: 'test'
+  ...
+# Subtest: first-half planned workload includes meetings that continue beyond the half
+ok 3 - first-half planned workload includes meetings that continue beyond the half
+  ---
+  duration_ms: 0.356954
+  type: 'test'
+  ...
+# Subtest: instructor overview keeps one compact planned-work column with expandable activity details
+ok 4 - instructor overview keeps one compact planned-work column with expandable activity details
+  ---
+  duration_ms: 0.267012
+  type: 'test'
+  ...
+# Subtest: existing-team activity details expose weekday, hours and meeting count from planning meetings
+ok 5 - existing-team activity details expose weekday, hours and meeting count from planning meetings
+  ---
+  duration_ms: 0.528677
+  type: 'test'
+  ...
+1..5
+# tests 5
+# suites 0
+# pass 5
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 193.964796

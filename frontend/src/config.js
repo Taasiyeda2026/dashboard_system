@@ -430,3 +430,5 @@ config.HOTFIX_VERSION = `impact-feedback-templates-five-cards-20261009-v30-${con
 config.HOTFIX_VERSION = `impact-feedback-paper-pdf-hebrew-acrobat-20261009-v29-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `impact-feedback-six-tabs-printable-questionnaires-20261009-v28-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `impact-feedback-five-tabs-course-analysis-20261009-v27-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `scheduling-bounded-display-cache-20261009-v1-${config.HOTFIX_VERSION}`;

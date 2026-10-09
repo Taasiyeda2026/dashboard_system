@@ -1,0 +1,13 @@
+{
+  "facts": {
+    "rows": 253,
+    "cards": 25,
+    "matched": 1,
+    "engineStarted": false,
+    "storedSnapshot": true
+  },
+  "calls": [
+    "/rest/v1/rpc/get_scheduling_planning_display_workspace"
+  ],
+  "unexpected": []
+}

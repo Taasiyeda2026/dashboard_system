@@ -1,0 +1,181 @@
+[activity-edit] activity name options missing from client settings
+[activity-edit][instructors-options] {
+  contacts_count: 0,
+  roster_count: 0,
+  valid_count: 0,
+  selected_emp_id: '1500',
+  selected_instructor_name: 'ורד עליאן'
+}
+[course-scheduling] stylesheet load failed TypeError [ERR_UNKNOWN_FILE_EXTENSION]: Unknown file extension ".css" for /workspace/work/scheduling-pr1/repo/frontend/src/screens/course-scheduling.css
+    at Object.getFileProtocolModuleFormat [as file:] (node:internal/modules/esm/get_format:243:9)
+    at defaultGetFormat (node:internal/modules/esm/get_format:283:36)
+    at defaultLoadSync (node:internal/modules/esm/load:161:16)
+    at #loadAndMaybeBlockOnLoaderThread (node:internal/modules/esm/loader:802:12)
+    at #loadSync (node:internal/modules/esm/loader:834:53)
+    at ModuleLoader.load (node:internal/modules/esm/loader:783:26)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:494:31)
+    at #getOrCreateModuleJobAfterResolve (node:internal/modules/esm/loader:560:36)
+    at afterResolve (node:internal/modules/esm/loader:607:52)
+    at ModuleLoader.getOrCreateModuleJob (node:internal/modules/esm/loader:613:12) {
+  code: 'ERR_UNKNOWN_FILE_EXTENSION'
+}
+TAP version 13
+# Subtest: activities handoff sets selectedId and focus mode flags
+ok 1 - activities handoff sets selectedId and focus mode flags
+  ---
+  duration_ms: 1.67452
+  type: 'test'
+  ...
+# Subtest: selected activity opens detail automatically and marks scroll/focus target
+ok 2 - selected activity opens detail automatically and marks scroll/focus target
+  ---
+  duration_ms: 16.752808
+  type: 'test'
+  ...
+# Subtest: focus mode shows only the selected activity and reveal-all restores the full list
+ok 3 - focus mode shows only the selected activity and reveal-all restores the full list
+  ---
+  duration_ms: 2.67544
+  type: 'test'
+  ...
+# Subtest: local course list search filters by activity, school, authority, instructor and id
+ok 4 - local course list search filters by activity, school, authority, instructor and id
+  ---
+  duration_ms: 1.631197
+  type: 'test'
+  ...
+# Subtest: desktop workboard keeps independent list scroll while mobile stays page-scroll
+ok 5 - desktop workboard keeps independent list scroll while mobile stays page-scroll
+  ---
+  duration_ms: 0.778764
+  type: 'test'
+  ...
+# Subtest: activity drawer shows scheduling status card and open-scheduling CTA
+ok 6 - activity drawer shows scheduling status card and open-scheduling CTA
+  ---
+  duration_ms: 143.003181
+  type: 'test'
+  ...
+# Subtest: bind focuses selected card with scrollIntoView center when arriving from activities
+ok 7 - bind focuses selected card with scrollIntoView center when arriving from activities
+  ---
+  duration_ms: 1.045476
+  type: 'test'
+  ...
+# Subtest: Liron stale Monday 13:30–15:00 recommendation is contextual only and cannot be selected
+ok 8 - Liron stale Monday 13:30–15:00 recommendation is contextual only and cannot be selected
+  ---
+  duration_ms: 2.346176
+  type: 'test'
+  ...
+# Subtest: Liron stale proposal after range_max is also blocked
+ok 9 - Liron stale proposal after range_max is also blocked
+  ---
+  duration_ms: 0.501557
+  type: 'test'
+  ...
+# Subtest: pending status says update is required until an actual planning run starts
+ok 10 - pending status says update is required until an actual planning run starts
+  ---
+  duration_ms: 0.240614
+  type: 'test'
+  ...
+# Subtest: successful replacement row becomes actionable again without the stale snapshot
+ok 11 - successful replacement row becomes actionable again without the stale snapshot
+  ---
+  duration_ms: 0.541345
+  type: 'test'
+  ...
+# Subtest: explicit update remains incremental, screen entry stays passive, and point mutation auto-refresh remains enabled
+ok 12 - explicit update remains incremental, screen entry stays passive, and point mutation auto-refresh remains enabled
+  ---
+  duration_ms: 1.527594
+  type: 'test'
+  ...
+# Subtest: display projection preserves current proposal, selected and first choices and full dependency footprint
+ok 13 - display projection preserves current proposal, selected and first choices and full dependency footprint
+  ---
+  duration_ms: 0.368722
+  type: 'test'
+  ...
+# Subtest: display projection preserves hard-gate audit and dependency closure results
+ok 14 - display projection preserves hard-gate audit and dependency closure results
+  ---
+  duration_ms: 1.705926
+  type: 'test'
+  ...
+# Subtest: 253 rows mount at most 25 cards and all pages expose every activity
+ok 15 - 253 rows mount at most 25 cards and all pages expose every activity
+  ---
+  duration_ms: 10.759375
+  type: 'test'
+  ...
+# Subtest: cache compacts large alternatives, isolates sessions and never persists credentials
+ok 16 - cache compacts large alternatives, isolates sessions and never persists credentials
+  ---
+  duration_ms: 2.100796
+  type: 'test'
+  ...
+# Subtest: quota/disabled/corrupt storage never interrupts display or restores obsolete data
+ok 17 - quota/disabled/corrupt storage never interrupts display or restores obsolete data
+  ---
+  duration_ms: 0.269365
+  type: 'test'
+  ...
+# Subtest: oversize source snapshot is not cached and old cache is removed
+ok 18 - oversize source snapshot is not cached and old cache is removed
+  ---
+  duration_ms: 9.988062
+  type: 'test'
+  ...
+# Subtest: instructor details remain absent until opened and memoized overview invalidates on a new plan
+ok 19 - instructor details remain absent until opened and memoized overview invalidates on a new plan
+  ---
+  duration_ms: 1.03458
+  type: 'test'
+  ...
+# Subtest: list search/paging preserve the detail DOM and selection; delegated actions reach unseen rows
+ok 20 - list search/paging preserve the detail DOM and selection; delegated actions reach unseen rows
+  ---
+  duration_ms: 375.873081
+  type: 'test'
+  ...
+# Subtest: display aggregate cache is reused across page changes and invalidated when rows change
+ok 21 - display aggregate cache is reused across page changes and invalidated when rows change
+  ---
+  duration_ms: 15.78
+  type: 'test'
+  ...
+# Subtest: async cache fails safely when a worker fails and discards the previous snapshot
+ok 22 - async cache fails safely when a worker fails and discards the previous snapshot
+  ---
+  duration_ms: 1.814525
+  type: 'test'
+  ...
+# Subtest: async cache only accepts the latest write and excludes credentials/runtime functions
+ok 23 - async cache only accepts the latest write and excludes credentials/runtime functions
+  ---
+  duration_ms: 0.541405
+  type: 'test'
+  ...
+# Subtest: compact valid and invalid proposals produce the same hard-gate decisions
+ok 24 - compact valid and invalid proposals produce the same hard-gate decisions
+  ---
+  duration_ms: 0.823309
+  type: 'test'
+  ...
+# Subtest: hidden or stale completion overview is never constructed
+ok 25 - hidden or stale completion overview is never constructed
+  ---
+  duration_ms: 0.441729
+  type: 'test'
+  ...
+1..25
+# tests 25
+# suites 0
+# pass 25
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1253.516448

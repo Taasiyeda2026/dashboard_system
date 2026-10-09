@@ -1,0 +1,94 @@
+{
+  "passed": 6,
+  "rows": 253,
+  "productionWrites": 0,
+  "checksum": "737058aced70a421b9bd6a0a2354e914",
+  "samples": [
+    {
+      "variant": "full",
+      "ms": 210.193848,
+      "requests": 1,
+      "bytes": 6641139
+    },
+    {
+      "variant": "display",
+      "ms": 229.497249,
+      "requests": 1,
+      "bytes": 1536756
+    },
+    {
+      "variant": "full",
+      "ms": 216.98731199999997,
+      "requests": 1,
+      "bytes": 6641139
+    },
+    {
+      "variant": "display",
+      "ms": 211.7799,
+      "requests": 1,
+      "bytes": 1536756
+    },
+    {
+      "variant": "full",
+      "ms": 212.6834080000001,
+      "requests": 1,
+      "bytes": 6641139
+    },
+    {
+      "variant": "display",
+      "ms": 196.2756629999999,
+      "requests": 1,
+      "bytes": 1536756
+    },
+    {
+      "variant": "full",
+      "ms": 220.78863000000024,
+      "requests": 1,
+      "bytes": 6641139
+    },
+    {
+      "variant": "display",
+      "ms": 187.0148509999999,
+      "requests": 1,
+      "bytes": 1536756
+    },
+    {
+      "variant": "full",
+      "ms": 201.71921299999985,
+      "requests": 1,
+      "bytes": 6641139
+    },
+    {
+      "variant": "display",
+      "ms": 203.88298299999997,
+      "requests": 1,
+      "bytes": 1536756
+    },
+    {
+      "variant": "full",
+      "ms": 238.88287800000035,
+      "requests": 1,
+      "bytes": 6641139
+    },
+    {
+      "variant": "display",
+      "ms": 185.5364679999998,
+      "requests": 1,
+      "bytes": 1536756
+    },
+    {
+      "variant": "full",
+      "ms": 194.52776300000005,
+      "requests": 1,
+      "bytes": 6641139
+    },
+    {
+      "variant": "display",
+      "ms": 202.8025389999998,
+      "requests": 1,
+      "bytes": 1536756
+    }
+  ],
+  "environment": "PostgreSQL 17.11 (Debian 17.11-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+  "limitations": "Isolated PostgreSQL; permission result stub controlled by test; real RLS/auth JWT not exercised; no server CPU/peak memory samples."
+}

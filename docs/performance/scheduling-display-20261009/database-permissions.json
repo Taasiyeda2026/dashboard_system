@@ -1,0 +1,4 @@
+{
+  "passed": 6,
+  "reason": "Migration permission predicate hardened against a NULL permission result; retested changed authorization branches only."
+}

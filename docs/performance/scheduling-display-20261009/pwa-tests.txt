@@ -1,0 +1,11 @@
+✔ service worker entry imports the implementation without a second manual version (2.72818ms)
+✔ PWA guardrails keep cache versioning and catalog registration centralized (5.120857ms)
+✔ PWA guardrails prevent wholesale catalog and bulky-file precache (0.643616ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 19.651391
