@@ -112,7 +112,8 @@ test('nine actual green-leadership PRE rating questions fit on one printable A4 
   assert.equal(pdf.getPages()[0].getWidth(), 595.28);
   // Check actual PDF text extraction: do not accept a visually plausible
   // document with mirrored Hebrew words or reversed Gefen identifiers.
-  const pdfLoadTask = getDocument({ data: bytes });
+  // PDF.js transfers/detaches its input; pass a copy so the bytes remain downloadable.
+  const pdfLoadTask = getDocument({ data: new Uint8Array(bytes) });
   const extractedPdf = await pdfLoadTask.promise;
   const content = await (await extractedPdf.getPage(1)).getTextContent();
   const extractedText = content.items.map((item) => item.str).join(' ');
