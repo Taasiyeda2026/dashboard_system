@@ -177,8 +177,8 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_VALIDATION_VERSION = 'planning-validation-v5-20261009-official-date-transition-guard';
-export const PLANNING_ENGINE_VERSION = 'planning-v36-20261009-point-context-transition-guard';
+export const PLANNING_VALIDATION_VERSION = 'planning-validation-v5-20261009-official-date-transition-guard-v2';
+export const PLANNING_ENGINE_VERSION = 'planning-v36-20261009-point-context-transition-guard-v2';
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -5668,7 +5668,7 @@ function* validatePlanningPlanCoherenceSteps({
       endTime: row.endTime
     };
     const result = planningOptionPassesFinalValidation(option, {
-      preserveOfficialSchedule: text(row.kind) === 'fixed-proposal',
+      preserveOfficialSchedule: ['proposal', 'fixed-proposal'].includes(text(row.kind)),
       activity,
       instructors,
       profiles,

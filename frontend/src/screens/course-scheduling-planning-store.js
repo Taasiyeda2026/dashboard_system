@@ -1,7 +1,7 @@
 import { compactPlanningWorkspace } from './course-scheduling-display-data.js';
 import { planningPerfCount, planningPerfTimer } from './course-scheduling-perf.js';
 import { supabase } from '../supabase-client.js';
-import { schedulingCalendarMeetings } from './instructor-scheduling-load.js';
+import { activityMeetings, schedulingCalendarMeetings } from './instructor-scheduling-load.js';
 import {
   auditStoredPlanningHardGates,
   expectedPlanningMeetingCount
@@ -531,7 +531,7 @@ export function expandPlanningAffectedIdsBySchool({
     const school = text(activity?.school_id || row.schoolId);
     const ids = new Set([...instructorIdsFromActivity(activity), ...instructorIdsFromPlanningEntry(entry)]);
     const dates = new Set(meetingsFromPlanningEntry(entry, activity).map(m => m.date));
-    const immutable = !!entry.lockedOption || row.planningLocked === true || row.schoolDateAnchored === true
+    const immutable = !!text(activity?.emp_id) || !!entry.lockedOption || row.planningLocked === true || row.schoolDateAnchored === true
       || ['live', 'fixed', 'fixed-proposal'].includes(text(row.kind));
     const keys = [...ids].flatMap(id => dates.size ? [...dates].map(date => id + '|' + date) : [id + '|*']);
     metadata.set(courseId, { school, keys, immutable });
@@ -540,9 +540,12 @@ export function expandPlanningAffectedIdsBySchool({
     for (const id of ids) index(resources, id + '|all', courseId);
   }
   const queue = [...result];
+  const visited = new Set(result);
   const include = (id) => {
-    if (result.has(id) || metadata.get(id)?.immutable) return;
-    result.add(id); queue.push(id);
+    if (visited.has(id)) return;
+    visited.add(id); queue.push(id);
+    // Immutable rows remain dependency bridges, never movable work targets.
+    if (!metadata.get(id)?.immutable) result.add(id);
   };
   for (let cursor = 0; cursor < queue.length; cursor++) {
     const item = metadata.get(queue[cursor]);
@@ -1107,21 +1110,27 @@ export function planningEngineUpgradeAffectedCourseIds({
   const previousMajor = Number(previous.match(/planning-v(\d+)/)?.[1]) || 0;
   const currentMajor = Number(current.match(/planning-v(\d+)/)?.[1]) || 0;
 
-  // v36 repairs proven fixed-date drift. Valid incumbents require an explicit
+  // v36 repairs proven official date/time drift. Valid incumbents require an explicit
   // validation-only marker upgrade, not a fresh national candidate search.
   if (currentMajor === 36 && previousMajor > 0 && previousMajor < 36) {
     const byId = new Map(activities.map(a => [idOf(a), a]));
     const affected = [];
     for (const entry of shared.rows || []) {
       const row = entry.row || {}, id = text(entry.activityId || row.courseId);
-      if (row.kind !== 'fixed-proposal' || entry.lockedOption || row.planningLocked) continue;
+      if (!['fixed-proposal', 'proposal'].includes(row.kind) || entry.lockedOption || row.planningLocked || row.schoolDateAnchored) continue;
       const activity = byId.get(id);
-      if (!activity) continue;
-      for (let number = 1; number <= 35; number++) {
-        const date = text(activity['date_' + number]).slice(0, 10);
-        if (!date) continue;
+      if (!activity || text(activity.emp_id)) continue;
+      for (const [index, original] of activityMeetings(activity).entries()) {
+        const number = Number(original.meeting_no) || index + 1;
         const meeting = (row.meetings || []).find((m,i) => (Number(m.meeting_no) || i+1) === number);
-        if (!meeting || text(meeting.date).slice(0,10) !== date) { affected.push(id); break; }
+        const date = text(original.date).slice(0, 10);
+        const start = text(original.start_time || activity.start_time).slice(0, 5);
+        const end = text(original.end_time || activity.end_time).slice(0, 5);
+        if (!meeting || text(meeting.date).slice(0,10) !== date
+          || (start && text(meeting.start_time || row.startTime).slice(0,5) !== start)
+          || (end && text(meeting.end_time || row.endTime).slice(0,5) !== end)) {
+          affected.push(id); break;
+        }
       }
     }
     return expandPlanningAffectedIdsBySchool({ affectedIds: affected, shared, activities });
