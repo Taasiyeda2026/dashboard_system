@@ -126,6 +126,28 @@ export function createPlanningDeadlineCheckpoint({
   };
 }
 
+/**
+ * A single cooperative wall-clock deadline shared by nested conflict repairs.
+ * Unlike a per-activity budget, nested calls do not reset this deadline.
+ */
+export function createPlanningLocalRepairDeadlineCheckpoint({
+  checkpoint = async () => {},
+  deadlineAt,
+  now = () => Date.now()
+} = {}) {
+  if (!Number.isFinite(Number(deadlineAt)) || Number(deadlineAt) <= 0) {
+    throw new Error('planning_local_repair_deadline_missing');
+  }
+  return async (...args) => {
+    await checkpoint(...args);
+    if (now() >= Number(deadlineAt)) {
+      const timeout = new Error('planning_local_repair_timeout');
+      timeout.code = 'planning_local_repair_timeout';
+      throw timeout;
+    }
+  };
+}
+
 export function createPlanningOptimizationDeadlineCheckpoint({
   checkpoint = async () => {},
   budgetMs = FAST_BULK_OPTIMIZATION_BUDGET_MS,
@@ -6647,14 +6669,7 @@ export async function buildDynamicCoursePlan({
       const deadlineAt = _finalValidationRepairDeadlineAt > 0
         ? _finalValidationRepairDeadlineAt
         : Date.now() + 75_000;
-      const repairCheckpoint = async (...args) => {
-        await checkpoint(...args);
-        if (Date.now() >= deadlineAt) {
-          const timeout = new Error('planning_local_repair_timeout');
-          timeout.code = 'planning_local_repair_timeout';
-          throw timeout;
-        }
-      };
+      const repairCheckpoint = createPlanningLocalRepairDeadlineCheckpoint({ checkpoint, deadlineAt });
       await report('תיקון מקומי לאחר בקרת תקינות', 0, repairIds.length);
       try {
         return await buildDynamicCoursePlan({
