@@ -97,7 +97,7 @@ const ui = {
   course: '',
   showAll: true,
   overview: { audience: '', phase: '' },
-  filters: { authority: '', school: '', instructor: '', status: '', search: '' },
+  filters: { authority: '', school: '', instructor: '', manager: '', status: '', search: '' },
   analysis: { audience: 'student', stage: 'post' },
   results: { drill: '' },
   templates: { templateId: null, versionId: null, previewBand: '' },
@@ -201,10 +201,10 @@ function campaignStatusHtml(campaign) {
 
 function tableStatusHtml(campaign) {
   const status = campaignUiStatus(campaign);
-  const studentResponses = campaign?.audience === 'student' ? Number(status.responses || 0) : 0;
+  const responseCount = Number(status.responses || 0);
   return `<div class="ifb-status-cell">
     ${statusText(status.label, status.tone, status.key)}
-    ${studentResponses > 0 ? `<span class="ifb-status-cell__count">${studentResponses} שאלונים</span>` : ''}
+    ${responseCount > 0 ? `<span class="ifb-status-cell__count">${responseCount} שאלונים</span>` : ''}
   </div>`;
 }
 
@@ -462,7 +462,7 @@ function coursesTableHtml() {
     return `<tr data-course-row="${esc(program.key)}">
       <th scope="row" data-label="קורס"><span class="ifb-course-name">${esc(programTitle(program.key))}</span></th>
       <td data-label="מצב" class="ifb-center"><span class="ifb-course-status ${statusClass}">${label}</span></td>
-      ${columns.map((col, index) => `<td data-label="${esc(col.label)}" class="ifb-center"><span class="ifb-num">${stages[index].campaigns ? stages[index].responses : '—'}</span></td>`).join('')}
+      ${columns.map((col, index) => `<td data-label="${esc(col.label)}" class="ifb-center"><span class="ifb-num" title="${stages[index].campaigns ? 'שאלונים שהתקבלו' : 'משוב טרם נפתח'}">${stages[index].campaigns ? stages[index].responses : '—'}</span></td>`).join('')}
       <td data-label="פעולות" class="ifb-col-actions"><button type="button" class="ifb-row-action" data-ifb-analyze="${esc(program.key)}" aria-label="ניתוח הקורס ${esc(programTitle(program.key))}" title="ניתוח הקורס"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V11M10 20V4M16 20v-8M22 20v-5"></path></svg></button></td>
     </tr>`;
   }).join('');
@@ -527,12 +527,12 @@ function overviewHtml() {
     (!o.audience || campaign.audience === o.audience) && (!o.phase || stagePhase(campaign.audience, campaign.stage) === o.phase);
   const groups = courseScopedGroups().filter((g) =>
     g.program_key && groupHasFeedback(g) && g.campaigns.some(matchesScope));
-  const answered = groups.filter((g) => g.campaigns.some((c) => matchesScope(c) && Number(c.responses) > 0)).length;
+  const withoutResponses = groups.filter((g) => g.campaigns.some((c) => matchesScope(c) && Number(c.responses || 0) === 0)).length;
   const kpis = [
     ['קורסים במעקב', ui.course ? 1 : ui.programs.length, ''],
     ['קבוצות עם שאלון', groups.length, ''],
     ['שאלונים שהוגשו', totals.responses, ''],
-    ['קבוצות שהשיבו', answered, '']
+    ['קבוצות ללא תשובות', withoutResponses, 'לאחר פתיחת משוב']
   ];
   const audienceEntries = AUDIENCE_ORDER.filter((a) => (!o.audience || o.audience === a) && (totals.byAudience[a] || 0) > 0)
     .map((a) => [AUDIENCE_LABELS[a], totals.byAudience[a]]);
@@ -566,10 +566,11 @@ function groupFiltersHtml(groups, scope) {
       </summary>
       <section class="ifb-filter-panel">
         <div class="ifb-filters ifb-filters--primary" data-ifb-filters="${scope}">
-          <label class="ifb-field ifb-field--search"><span>חיפוש</span><input type="search" data-f="search" value="${esc(f.search)}" placeholder="בית ספר, רשות, מדריך…"></label>
+          <label class="ifb-field ifb-field--search"><span>חיפוש</span><input type="search" data-f="search" value="${esc(f.search)}" placeholder="בית ספר, קורס, מדריך, מנהל פעילות…"></label>
           <label class="ifb-field"><span>רשות</span><select data-f="authority">${optionList(uniqueSorted(groups.map((g) => g.authority)), f.authority, 'כל הרשויות')}</select></label>
           <label class="ifb-field"><span>בית ספר</span><select data-f="school">${optionList(uniqueSorted(groups.map((g) => g.school)), f.school, 'כל בתי הספר')}</select></label>
           <label class="ifb-field"><span>מדריך</span><select data-f="instructor">${optionList(uniqueSorted(groups.map((g) => g.instructor_name)), f.instructor, 'כל המדריכים')}</select></label>
+          <label class="ifb-field"><span>מנהל פעילות</span><select data-f="manager">${optionList(uniqueSorted(groups.map((g) => g.activity_manager)), f.manager, 'כל מנהלי הפעילות')}</select></label>
           <label class="ifb-field"><span>סטטוס</span><select data-f="status">
             ${[['', 'הכל'], ['unresolved', 'קורס לא זוהה'], ['has_feedback', 'יש משובים'], ['no_feedback', 'ללא משובים'], ['any_live', 'משוב פעיל'], ['pending_contact', 'ממתין לאיש קשר'], ['expired', 'פג תוקף'], ['completed_all', 'כל המשובים הושלמו'], ['excluded', 'הוסתרו (לא רלוונטי)']]
               .map(([v, l]) => `<option value="${v}"${v === f.status ? ' selected' : ''}>${esc(l)}</option>`).join('')}
@@ -608,7 +609,7 @@ function groupsTableHtml(slots, scope) {
           <th scope="col">רשות</th>
           ${showCourse ? '<th scope="col">קורס</th>' : ''}
           <th scope="col">${scope === 'staff' ? 'איש קשר' : 'מדריך'}</th>
-          <th scope="col" class="ifb-center">סיום הקבוצה</th>
+          <th scope="col" class="ifb-center ifb-col-date">סיום הקבוצה</th>
           ${slots.map((slot) => `<th scope="col" class="ifb-center">${esc(slot.label)}</th>`).join('')}
           <th scope="col"><span class="ifb-sr">פעולות</span></th>
         </tr></thead>
@@ -619,8 +620,8 @@ function groupsTableHtml(slots, scope) {
             ${showCourse ? `<td data-label="קורס">${g.program_key
               ? esc(programTitle(g.program_key))
               : g.feedback_excluded ? statusText('לא רלוונטי למשובים', 'muted') : programQuickPickHtml(g)}</td>` : ''}
-            <td data-label="${scope === 'staff' ? 'איש קשר' : 'מדריך'}">${esc((scope === 'staff' ? g.contact_name : g.instructor_name) || '—')}</td>
-            <td data-label="סיום הקבוצה" class="ifb-center ifb-nowrap">${fmtDate(g.end_date)}</td>
+            <td data-label="${scope === 'staff' ? 'איש קשר' : 'מדריך'}">${scope === 'staff' ? (g.contact_name ? esc(g.contact_name) : '<span class="ifb-muted" title="טרם הוגדר שם של איש קשר">לא הוגדר</span>') : esc(g.instructor_name || 'לא שובץ')}</td>
+            <td data-label="סיום הקבוצה" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(g.end_date)}</td>
             ${slots.map((slot) => `<td class="ifb-center" data-label="${esc(slot.label)}">${g.program_key ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}</td>`).join('')}
             <td data-label="פעולות" class="ifb-col-actions"><button type="button" class="ifb-row-action" data-ifb-open-group="${esc(g.row_id)}" aria-label="ניהול משובי הקבוצה ${esc(g.school || '')}" title="ניהול משובי הקבוצה"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="2"></rect><path d="M7 3v4M17 3v4M3 10h18"></path></svg></button></td>
           </tr>`).join('')}</tbody>
@@ -802,13 +803,13 @@ function instructorCampaignActionsHtml(row, stage) {
   const live = status.key === 'active' || status.key === 'collecting' || status.key === 'scheduled';
   return `<div class="ifb-instructor-stage">
     ${tableStatusHtml(campaign)}
-    <div class="ifb-text-actions">
-      <a class="ifb-text-action ifb-text-action--whatsapp${live ? '' : ' is-disabled'}" href="${esc(links.whatsapp)}" target="_blank" rel="noopener" data-ifb-share="whatsapp" data-campaign="${esc(campaign.id)}"${live ? '' : ' aria-disabled="true"'}>WhatsApp</a>
-      <a class="ifb-text-action${live && links.hasEmail ? '' : ' is-disabled'}" href="${esc(links.email)}" data-ifb-share="email" data-campaign="${esc(campaign.id)}"${live && links.hasEmail ? '' : ' aria-disabled="true"'}>מייל</a>
-      <button type="button" class="ifb-text-action" data-ifb-copy="${esc(campaign.id)}">העתקה</button>
+    <div class="ifb-text-actions ifb-icon-actions" role="group" aria-label="פעולות לשיתוף וניהול משוב ${esc(stageName)}">
+      <a class="ifb-text-action ifb-text-action--whatsapp${live ? '' : ' is-disabled'}" href="${esc(links.whatsapp)}" target="_blank" rel="noopener" data-ifb-share="whatsapp" data-campaign="${esc(campaign.id)}" title="שיתוף ב־WhatsApp" aria-label="שיתוף ב־WhatsApp"${live ? '' : ' aria-disabled="true"'}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.2 19.8 5 16.4a8 8 0 1 1 3 2.6Z"></path><path d="M9 9c.8 2.4 2.5 4 5 5"></path></svg></a>
+      <a class="ifb-text-action${live && links.hasEmail ? '' : ' is-disabled'}" href="${esc(links.email)}" data-ifb-share="email" data-campaign="${esc(campaign.id)}" title="שליחה במייל" aria-label="שליחה במייל"${live && links.hasEmail ? '' : ' aria-disabled="true"'}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="m4 7 8 6 8-6"></path></svg></a>
+      <button type="button" class="ifb-text-action" data-ifb-copy="${esc(campaign.id)}" aria-label="העתקת קישור" title="העתקת קישור"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="13" rx="2"></rect><path d="M5 16H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></button>
       ${campaign.status === 'active'
-        ? `<button type="button" class="ifb-text-action ifb-text-action--danger" data-ifb-close="${esc(campaign.id)}">סגירה</button>`
-        : `<button type="button" class="ifb-text-action" data-ifb-reopen="${esc(campaign.id)}">פתיחה מחדש</button>`}
+        ? `<button type="button" class="ifb-text-action ifb-text-action--danger" data-ifb-close="${esc(campaign.id)}" aria-label="סגירת משוב" title="סגירת משוב"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6 18 18M18 6 6 18"></path></svg></button>`
+        : `<button type="button" class="ifb-text-action" data-ifb-reopen="${esc(campaign.id)}" aria-label="פתיחת משוב מחדש" title="פתיחת משוב מחדש"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2-5.3M4 4v5h5"></path></svg></button>`}
     </div>
   </div>`;
 }
@@ -893,7 +894,7 @@ function instructorAssignmentsHtml() {
     ${rows.length ? `<div class="ifb-table-wrap">
       <table class="ifb-table ifb-instructor-table">
         <caption class="ifb-sr">משובי מדריכים לפי מדריך וקורס</caption>
-        <thead><tr><th scope="col">מדריך</th><th scope="col">קורס</th><th scope="col" class="ifb-center">קבוצות</th><th scope="col" class="ifb-center">סיום הקורס הראשון</th><th scope="col" class="ifb-center">סטטוס</th><th scope="col" class="ifb-center">פתיחה – אחרי הכשרה</th><th scope="col" class="ifb-center">סיום הקורס</th></tr></thead>
+        <thead><tr><th scope="col">מדריך</th><th scope="col">קורס</th><th scope="col" class="ifb-center">קבוצות</th><th scope="col" class="ifb-center" title="מועד הסיום הראשון מבין קבוצות המדריך בקורס">סיום ראשון</th><th scope="col" class="ifb-center">סטטוס</th><th scope="col" class="ifb-center">פתיחה – אחרי הכשרה</th><th scope="col" class="ifb-center">סיום הקורס</th></tr></thead>
         <tbody>${rows.map((row) => `
           <tr data-instructor-feedback="${esc(instructorAssignmentKey(row))}">
             <th scope="row" data-label="מדריך"><span>${esc(row.instructor_name || row.instructor_emp_id)}</span><span class="ifb-muted ifb-instructor-id">#${esc(row.instructor_emp_id)}</span></th>
