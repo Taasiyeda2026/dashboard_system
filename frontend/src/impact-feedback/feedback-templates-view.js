@@ -115,12 +115,13 @@ function listHtml(ui) {
       const file = tpl.paperPdfs?.find((p) => p.template_id === template.id);
       const outdated = Boolean(file && file.version_id !== template.current_version_id);
       const upToDate = Boolean(file && !outdated);
+      const pdfState = upToDate ? 'is-ready' : outdated ? 'is-stale' : 'is-missing';
       return `<div class="ifb-template-card__slot">
         <button type="button" class="ifb-template-card__open" data-tpl-open="${esc(template.id)}" title="${esc(name)}" aria-label="צפייה ועריכת ${esc(name)}">${esc(short)}${draft ? '<span class="ifb-sr"> – טיוטה בעריכה</span>' : ''}</button>
-        <button type="button" class="ifb-template-card__pdf" data-tpl-pdf="${esc(template.id)}" ${upToDate ? '' : 'disabled'} title="${upToDate ? 'הורדת PDF שמור' : outdated ? 'הקובץ אינו עדכני' : 'טרם הועלה PDF'}" aria-label="הורדת PDF: ${esc(name)}">PDF</button>
+        <button type="button" class="ifb-template-card__pdf ${pdfState}" data-tpl-pdf="${esc(template.id)}" ${upToDate ? '' : 'disabled'} title="${upToDate ? 'הורדת PDF שמור' : outdated ? 'הקובץ אינו עדכני — יש להחליף PDF' : 'טרם הועלה PDF'}" aria-label="${upToDate ? 'הורדת' : outdated ? 'PDF לא עדכני עבור' : 'PDF חסר עבור'} ${esc(name)}">PDF</button>
         ${outdated ? '<span class="ifb-template-card__warning" role="img" aria-label="PDF לא עדכני" title="השאלון עודכן. יש להחליף PDF">!</span>' : ''}
-        <button type="button" class="ifb-template-card__upload" data-tpl-upload="${esc(template.id)}" ${published ? '' : 'disabled'} title="${file ? 'החלפת PDF שמור' : 'העלאת PDF'}" aria-label="${file ? 'החלפת' : 'העלאת'} PDF: ${esc(name)}">↑</button>
-        ${file ? `<button type="button" class="ifb-template-card__delete" data-tpl-delete="${esc(template.id)}" aria-label="מחיקת PDF: ${esc(name)}" title="מחיקת PDF">×</button>` : '<span class="ifb-template-card__delete-placeholder" aria-hidden="true"></span>'}
+        <button type="button" class="ifb-template-card__upload" data-tpl-upload="${esc(template.id)}" ${published ? '' : 'disabled'} title="${file ? 'החלפת PDF שמור' : 'העלאת PDF'}" aria-label="${file ? 'החלפת' : 'העלאת'} PDF: ${esc(name)}"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 16V4m0 0L7.5 8.5M12 4l4.5 4.5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg></button>
+        ${file ? `<button type="button" class="ifb-template-card__delete" data-tpl-delete="${esc(template.id)}" aria-label="מחיקת PDF: ${esc(name)}" title="מחיקת PDF"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h16M10 4h4m-7 3 1 13h8l1-13M10 11v6m4-6v6"/></svg></button>` : '<span class="ifb-template-card__delete-placeholder" aria-hidden="true"></span>'}
         ${outdated ? '<span class="ifb-template-card__stale-text">יש להחליף PDF</span>' : ''}
       </div>`;
     }).join('');
