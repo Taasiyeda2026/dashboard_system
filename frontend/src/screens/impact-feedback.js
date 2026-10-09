@@ -468,7 +468,15 @@ function studentRateCell(collection) {
 
 function coursesTableHtml() {
   const o = ui.overview;
-  const programs = ui.programs.filter((p) => !ui.course || p.key === ui.course);
+  const programKeys = new Set([
+    ...(ui.groups || []).filter((g) =>
+      studentFeedbackPeriodForGroup(g) === ui.feedbackHalf && g.program_key
+    ).map((g) => g.program_key),
+    ...(ui.instructorAssignments || []).filter((r) =>
+      studentFeedbackPeriodForGroup({ start_date: r.first_start_date }) === ui.feedbackHalf
+    ).map((r) => r.program_key)
+  ]);
+  const programs = ui.programs.filter((p) => programKeys.has(p.key) && (!ui.course || p.key === ui.course));
   if (!programs.length) return emptyHtml('לא נמצאו קורסים.');
   const columns = [
     { audience: 'student', stage: 'pre', label: 'תלמידים – פתיחה' },
@@ -556,7 +564,10 @@ function overviewHtml() {
     g.program_key && groupHasFeedback(g) && g.campaigns.some(matchesScope));
   const withoutResponses = groups.filter((g) => g.campaigns.some((c) => matchesScope(c) && Number(c.responses || 0) === 0)).length;
   const kpis = [
-    ['קורסים במעקב', ui.course ? 1 : ui.programs.length, ''],
+    ['קורסים במעקב', new Set([
+      ...(ui.groups || []).filter((g) => studentFeedbackPeriodForGroup(g) === ui.feedbackHalf && g.program_key).map((g) => g.program_key),
+      ...(ui.instructorAssignments || []).filter((r) => studentFeedbackPeriodForGroup({ start_date: r.first_start_date }) === ui.feedbackHalf).map((r) => r.program_key)
+    ]).size, ''],
     ['קבוצות עם שאלון', groups.length, ''],
     ['שאלונים שהוגשו', totals.responses, ''],
     ['קבוצות ללא תשובות', withoutResponses, 'לאחר פתיחת משוב']
@@ -984,7 +995,7 @@ function instructorsHtml() {
        ${openAnswersDisclosure(facts)}`
     : selectCourseHint('תוצאות לכל שאלה');
   return `
-    ${sectionHtml('הפצה ומעקב', instructorAssignmentsHtml())}
+    ${sectionHtml('הפצה ומעקב', instructorAssignmentsHtml(), { note: 'משוב מדריך הוא אחד לכל מדריך וקורס בשנה, ומשויך למחצית של תאריך ההתחלה הראשון.' })}
     ${sectionHtml('תוצאות', results, { actions: ui.course ? exportButtonHtml('audience:instructor') : '' })}`;
 }
 
