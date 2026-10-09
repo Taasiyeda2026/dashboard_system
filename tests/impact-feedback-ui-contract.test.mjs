@@ -69,3 +69,26 @@ test('desktop and mobile layouts keep templates and filters usable without creat
   assert.match(styles, /\.ifb-template-card__inner/);
   assert.match(screen, /data-ifb-filter-disclosure/);
 });
+
+
+test('students have two course dates with matching widths and centered feedback columns', () => {
+  const groupTable = screen.slice(screen.indexOf('function groupsTableHtml('), screen.indexOf('function optionBarsHtml('));
+  assert.match(groupTable, /scope === 'students' \? '<col class="ifb-gw-date ifb-gw-date--start">'/);
+  assert.match(groupTable, /<col class="ifb-gw-date ifb-gw-date--end">/);
+  assert.match(groupTable, /scope === 'students' \? '<th scope="col" class="ifb-center ifb-col-date">תחילת קורס<\/th>'/);
+  assert.match(groupTable, /scope === 'students' \? 'סיום קורס' : 'סיום הקבוצה'/);
+  assert.match(groupTable, /fmtDate\(g\.start_date\)/);
+  assert.match(groupTable, /fmtDate\(g\.end_date\)/);
+  assert.match(groupTable, /class="ifb-center ifb-col-stage">\$\{esc\(slot\.label\)\}/);
+  assert.match(groupTable, /class="ifb-center ifb-col-stage" data-label="\$\{esc\(slot\.label\)\}"/);
+  assert.match(styles, /\.ifb-groups-table--students col\.ifb-gw-date--start,\s*\.ifb-groups-table--students col\.ifb-gw-date--end \{ width: 11%; \}/);
+  assert.match(styles, /\.ifb-groups-table--students\.ifb-groups-table--with-program col\.ifb-gw-date--start,\s*\.ifb-groups-table--students\.ifb-groups-table--with-program col\.ifb-gw-date--end \{ width: 10%; \}/);
+  assert.match(styles, /\.ifb-groups-table--students thead th\.ifb-col-stage,/);
+});
+
+test('student table heading is gently colored without coloring every row or changing staff headings', () => {
+  assert.match(styles, /\.ifb-groups-table--students thead th \{\s*background: color-mix\(/);
+  assert.match(styles, /border-bottom: 2px solid color-mix\(/);
+  assert.match(styles, /@media \(min-width: 761px\)/);
+  assert.match(styles, /@media \(max-width: 760px\)/);
+});
