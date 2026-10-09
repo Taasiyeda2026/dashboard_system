@@ -951,18 +951,18 @@ function instructorAssignmentsHtml() {
         <caption class="ifb-sr">משובי מדריכים לפי מדריך וקורס</caption>
         <colgroup>
           <col class="ifb-iw-instructor"><col class="ifb-iw-program"><col class="ifb-iw-groups">
-          <col class="ifb-iw-equal"><col class="ifb-iw-equal"><col class="ifb-iw-equal">
-          <col class="ifb-iw-equal"><col class="ifb-iw-equal"><col class="ifb-iw-equal">
+          <col class="ifb-iw-date"><col class="ifb-iw-action"><col class="ifb-iw-status">
+          <col class="ifb-iw-date"><col class="ifb-iw-action"><col class="ifb-iw-status">
         </colgroup>
         <thead><tr>
           <th scope="col">מדריך</th>
           <th scope="col">קורס</th>
           <th scope="col" class="ifb-center">קבוצות</th>
           <th scope="col" class="ifb-center ifb-col-date" title="תאריך ההתחלה המוקדם ביותר מכל קבוצות המדריך בקורס">תחילת קורס ראשון</th>
-          <th scope="col" class="ifb-center">פתיחה – אחרי הכשרה</th>
+          <th scope="col" class="ifb-center" title="משוב פתיחה – אחרי הכשרה">פתיחה</th>
           <th scope="col" class="ifb-col-status">סטטוס</th>
           <th scope="col" class="ifb-center ifb-col-date" title="תאריך הסיום המוקדם ביותר מכל קבוצות המדריך בקורס, ללא תלות בקבוצת ההתחלה הראשונה">סיום קורס ראשון</th>
-          <th scope="col" class="ifb-center">סיום הקורס</th>
+          <th scope="col" class="ifb-center" title="משוב סיום הקורס">סיום</th>
           <th scope="col" class="ifb-col-status">סטטוס</th>
         </tr></thead>
         <tbody>${rows.map((row) => `
@@ -971,10 +971,10 @@ function instructorAssignmentsHtml() {
             <td data-label="קורס">${esc(programTitle(row.program_key))}</td>
             <td data-label="קבוצות" class="ifb-center"><span class="ifb-num">${Number(row.assignment_count) || 0}</span></td>
             <td data-label="תחילת קורס ראשון" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(row.first_start_date)}</td>
-            <td data-label="פתיחה – אחרי הכשרה" class="ifb-instructor-stage-cell">${instructorCampaignActionsHtml(row, 'pre')}</td>
+            <td data-label="פתיחה" class="ifb-instructor-stage-cell">${instructorCampaignActionsHtml(row, 'pre')}</td>
             <td data-label="סטטוס פתיחה" class="ifb-col-status">${instructorStageStatusHtml(row, 'pre')}</td>
             <td data-label="סיום קורס ראשון" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(row.first_course_end_date)}</td>
-            <td data-label="סיום הקורס" class="ifb-instructor-stage-cell">${instructorCampaignActionsHtml(row, 'final')}</td>
+            <td data-label="סיום" class="ifb-instructor-stage-cell">${instructorCampaignActionsHtml(row, 'final')}</td>
             <td data-label="סטטוס סיום" class="ifb-col-status">${instructorStageStatusHtml(row, 'final')}</td>
           </tr>`).join('')}</tbody>
       </table>
