@@ -1033,7 +1033,7 @@ function crossCourseHtml() {
   const stageOptions = AUDIENCE_STAGES[a.audience] || ['post'];
   const stage = stageOptions.includes(a.stage) ? a.stage : stageOptions[stageOptions.length - 1];
   const { programKeys, rows } = crossCourseCore(ui.facts || [], { audience: a.audience, stage });
-  if (!rows.length) return emptyHtml('אין עדיין תשובות לשאלות הליבה המשותפות בקהל ובשלב שנבחרו.');`;
+  if (!rows.length) return emptyHtml('אין עדיין תשובות לשאלות הליבה המשותפות בקהל ובשלב שנבחרו.');
   return `<div class="ifb-table-wrap ifb-table-wrap--scroll"><table class="ifb-table ifb-cross-table">
     <caption class="ifb-sr">השוואה בין קורסים בשאלות הליבה</caption>
     <thead><tr><th scope="col">שאלת ליבה</th>${programKeys.map((k) => `<th scope="col" class="ifb-center${k === ui.course ? ' is-selected' : ''}">${esc(programTitle(k))}</th>`).join('')}</tr></thead>
