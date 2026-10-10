@@ -28,24 +28,27 @@ function headline(payload) {
 }
 
 const NA_LABEL = 'לא רלוונטי / לא הייתה אפשרות להעריך';
+const AR_RATING_LABELS = ['غير صحيح بالنسبة لي إطلاقًا', 'صحيح بالنسبة لي قليلًا', 'صحيح بالنسبة لي إلى حدّ ما', 'صحيح بالنسبة لي بدرجة كبيرة', 'صحيح جدًا بالنسبة لي'];
+const arLabel = (he, ar, lang) => lang === 'ar' ? ar : he;
 
-function ratingHtml(q, value, young) {
+function ratingHtml(q, value, young, lang = 'he') {
+  const labels = lang === 'ar' ? AR_RATING_LABELS : RATING_LABELS;
   const name = `q-${q.id}`;
   const buttons = [1, 2, 3, 4, 5].map((n) => `
     <label class="ifb-rate__opt${young ? ' is-emoji' : ''}">
       <input type="radio" name="${esc(name)}" value="${n}" data-qid="${esc(q.id)}" data-kind="rating"${Number(value) === n ? ' checked' : ''}>
       <span class="ifb-rate__face" aria-hidden="true">${young ? RATING_EMOJI[n - 1] : n}</span>
-      <span class="ifb-sr">${n} – ${esc(RATING_LABELS[n - 1])}</span>
-      ${young ? `<span class="ifb-rate__caption" aria-hidden="true">${esc(RATING_LABELS[n - 1])}</span>` : ''}
+      <span class="ifb-sr">${n} – ${esc(labels[n - 1])}</span>
+      ${young ? `<span class="ifb-rate__caption" aria-hidden="true">${esc(labels[n - 1])}</span>` : ''}
     </label>`).join('');
   const na = q.allow_na ? `
     <label class="ifb-rate__na">
       <input type="radio" name="${esc(name)}" value="na" data-qid="${esc(q.id)}" data-kind="rating"${value === 'na' ? ' checked' : ''}>
-      <span>${esc(NA_LABEL)}</span>
+      <span>${esc(arLabel(NA_LABEL, 'لا ينطبق / لم تتح لي فرصة التقييم', lang))}</span>
     </label>` : '';
   return `
     <div class="ifb-rate" role="radiogroup" aria-label="${esc(q.text)}">${buttons}</div>
-    ${young ? '' : `<div class="ifb-rate__ends" aria-hidden="true"><span>${esc(RATING_LABELS[0])}</span><span>${esc(RATING_LABELS[4])}</span></div>`}
+    ${young ? '' : `<div class="ifb-rate__ends" aria-hidden="true"><span>${esc(labels[0])}</span><span>${esc(labels[4])}</span></div>`}
     ${na}`;
 }
 
@@ -61,34 +64,34 @@ function choiceHtml(q, value, multiple) {
   </div>`;
 }
 
-function yesNoHtml(q, value) {
+function yesNoHtml(q, value, lang = 'he') {
   return `<div class="ifb-choices is-yesno" role="radiogroup" aria-label="${esc(q.text)}">
-    <label class="ifb-choice"><input type="radio" name="q-${esc(q.id)}" value="true" data-qid="${esc(q.id)}" data-kind="bool"${value === true ? ' checked' : ''}><span>כן</span></label>
-    <label class="ifb-choice"><input type="radio" name="q-${esc(q.id)}" value="false" data-qid="${esc(q.id)}" data-kind="bool"${value === false ? ' checked' : ''}><span>לא</span></label>
+    <label class="ifb-choice"><input type="radio" name="q-${esc(q.id)}" value="true" data-qid="${esc(q.id)}" data-kind="bool"${value === true ? ' checked' : ''}><span>${arLabel('כן', 'نعم', lang)}</span></label>
+    <label class="ifb-choice"><input type="radio" name="q-${esc(q.id)}" value="false" data-qid="${esc(q.id)}" data-kind="bool"${value === false ? ' checked' : ''}><span>${arLabel('לא', 'لا', lang)}</span></label>
   </div>`;
 }
 
-function textHtml(q, value) {
-  return `<textarea class="ifb-text" rows="3" maxlength="2000" data-qid="${esc(q.id)}" data-kind="text" aria-label="${esc(q.text)}" placeholder="אפשר לכתוב כאן…">${esc(value || '')}</textarea>`;
+function textHtml(q, value, lang = 'he') {
+  return `<textarea class="ifb-text" rows="3" maxlength="2000" data-qid="${esc(q.id)}" data-kind="text" aria-label="${esc(q.text)}" placeholder="${arLabel('אפשר לכתוב כאן…', 'يمكنك الكتابة هنا…', lang)}">${esc(value || '')}</textarea>`;
 }
 
-function questionHtml(q, index, answers, young) {
+function questionHtml(q, index, answers, young, lang = 'he') {
   const value = answers[q.id];
   let control = '';
-  if (q.type === 'rating_1_5') control = ratingHtml(q, value, young);
-  else if (q.type === 'yes_no') control = yesNoHtml(q, value);
+  if (q.type === 'rating_1_5') control = ratingHtml(q, value, young, lang);
+  else if (q.type === 'yes_no') control = yesNoHtml(q, value, lang);
   else if (q.type === 'single_select') control = choiceHtml(q, value, false);
   else if (q.type === 'multi_select') control = choiceHtml(q, value, true);
-  else control = textHtml(q, value);
+  else control = textHtml(q, value, lang);
   return `
     <fieldset class="ifb-q${isAnswered(q, value) ? ' is-answered' : ''}" data-question="${esc(q.id)}">
       <legend class="ifb-q__title">
         <span class="ifb-q__num" aria-hidden="true">${index + 1}</span>
-        <span>${esc(q.text)}${q.required ? '' : ' <span class="ifb-q__optional">(לא חובה)</span>'}</span>
+        <span>${esc(q.text)}${q.required ? '' : ` <span class="ifb-q__optional">(${arLabel('לא חובה', 'اختياري', lang)})</span>`}</span>
       </legend>
-      ${q.type === 'multi_select' ? '<p class="ifb-q__hint">אפשר לבחור כמה תשובות</p>' : ''}
+      ${q.type === 'multi_select' ? `<p class="ifb-q__hint">${arLabel('אפשר לבחור כמה תשובות', 'يمكن اختيار أكثر من إجابة', lang)}</p>` : ''}
       ${control}
-      <p class="ifb-q__error" hidden>נשמח לתשובה לשאלה הזו</p>
+      <p class="ifb-q__error" hidden>${arLabel('נשמח לתשובה לשאלה הזו', 'يرجى الإجابة عن هذا السؤال', lang)}</p>
     </fieldset>`;
 }
 
@@ -118,10 +121,10 @@ export function mountFeedbackForm(container, payload, options = {}) {
     <div lang="${arabic ? 'ar' : 'he'}" dir="rtl" class="ifb-shell${young ? ' is-young' : ''}${audienceClass}">
       <header class="ifb-hero">
         ${logoUrl ? `<img class="ifb-logo" src="${esc(logoUrl)}" alt="תעשיידע">` : ''}
-        ${options.onChooseLanguage ? '<button type="button" class="ifb-hero__change-language" data-ifb-change-language>בחירת שפה / اختيار اللغة</button>' : ''}
+        ${options.onChooseLanguage ? `<button type="button" class="ifb-hero__change-language" data-ifb-change-language>${arabic ? 'اختيار اللغة' : 'בחירת שפה'}</button>` : ''}
         <p class="ifb-hero__kicker">${esc(arabic ? (payload.stage === 'pre' ? 'استبيان البداية' : 'استبيان النهاية') : headline(payload))}</p>
-        <h1 class="ifb-hero__title">${esc(payload.program_title || '')}</h1>
-        ${payload.recipient_name ? `<p class="ifb-hero__hello">שלום ${esc(payload.recipient_name)}</p>` : ''}
+        <h1 class="ifb-hero__title">${esc(arabic && /ביומימיקרי/.test(payload.program_title || '') ? 'المحاكاة الحيوية' : (payload.program_title || ''))}</h1>
+        ${payload.recipient_name ? `<p class="ifb-hero__hello">${arabic ? 'مرحبًا' : 'שלום'} ${esc(payload.recipient_name)}</p>` : ''}
         ${(arabic ? payload.intro_text_ar : payload.intro_text) ? `<p class="ifb-hero__intro">${esc(arabic ? payload.intro_text_ar : payload.intro_text)}</p>` : ''}
       </header>
       <div class="ifb-progress" aria-hidden="true">
@@ -129,7 +132,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
         <span class="ifb-progress__label" data-progress-label></span>
       </div>
       <form class="ifb-form" novalidate>
-        ${questions.map((q, i) => questionHtml(q, i, answers, young)).join('')}
+        ${questions.map((q, i) => questionHtml(q, i, answers, young, options.language || 'he')).join('')}
         <div class="ifb-submit">
           <p class="ifb-submit__error" data-submit-error role="alert" hidden></p>
           <button type="submit" class="ifb-submit__btn" data-submit>${options.preview ? 'שליחה (תצוגה מקדימה)' : (arabic ? 'إرسال الاستبيان' : 'שליחת המשוב')}</button>
@@ -152,7 +155,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
     const pct = formProgress(questions, answers);
     const answered = questions.filter((q) => isAnswered(q, answers[q.id])).length;
     fill.style.width = `${pct}%`;
-    label.textContent = `${answered} מתוך ${questions.length}`;
+    label.textContent = arabic ? `${answered} من ${questions.length}` : `${answered} מתוך ${questions.length}`;
   }
 
   function markQuestion(qid) {
@@ -213,14 +216,14 @@ export function mountFeedbackForm(container, payload, options = {}) {
     submitError.hidden = true;
     const missing = missingRequired(questions, answers);
     if (missing.length) {
-      submitError.textContent = missing.length === 1 ? 'נשארה שאלה אחת שלא נענתה' : `נשארו ${missing.length} שאלות שלא נענו`;
+      submitError.textContent = arabic ? (missing.length === 1 ? 'بقي سؤال واحد دون إجابة' : `بقي ${missing.length} أسئلة دون إجابة`) : (missing.length === 1 ? 'נשארה שאלה אחת שלא נענתה' : `נשארו ${missing.length} שאלות שלא נענו`);
       submitError.hidden = false;
       showMissing(missing);
       return;
     }
     submitBtn.disabled = true;
     submitBtn.classList.add('is-busy');
-    submitBtn.textContent = 'שולח…';
+    submitBtn.textContent = arabic ? 'جارٍ الإرسال…' : 'שולח…';
     try {
       const payloadAnswers = {};
       for (const q of questions) {
@@ -231,17 +234,17 @@ export function mountFeedbackForm(container, payload, options = {}) {
       const result = await options.onSubmit?.(payloadAnswers);
       if (result?.state === 'invalid_answers') {
         showMissing([...(result.missing || []), ...(result.invalid || [])]);
-        throw new Error('יש לבדוק את התשובות המסומנות');
+        throw new Error(arabic ? 'يرجى مراجعة الإجابات المحددة' : 'יש לבדוק את התשובות המסומנות');
       }
       if (result && result.ok === false && result.state !== 'invalid_answers') return;
     } catch (error) {
-      submitError.textContent = error?.message || 'השליחה נכשלה. נסו שוב.';
+      submitError.textContent = arabic ? 'تعذّر إرسال الاستبيان. يرجى المحاولة مجددًا.' : (error?.message || 'השליחה נכשלה. נסו שוב.');
       submitError.hidden = false;
     } finally {
       if (submitBtn.isConnected) {
         submitBtn.disabled = false;
         submitBtn.classList.remove('is-busy');
-        submitBtn.textContent = options.preview ? 'שליחה (תצוגה מקדימה)' : 'שליחת המשוב';
+        submitBtn.textContent = options.preview ? (arabic ? 'إرسال (معاينة)' : 'שליחה (תצוגה מקדימה)') : (arabic ? 'إرسال الاستبيان' : 'שליחת המשוב');
       }
     }
   });
