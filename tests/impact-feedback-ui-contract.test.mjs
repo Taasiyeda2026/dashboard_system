@@ -450,7 +450,7 @@ test('template cards use three desktop columns with tight language spacing and r
   assert.match(styles, /@media \(min-width: 681px\) and \(max-width: 999px\) \{\s*\.ifb-admin \.ifb-template-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}/);
   assert.match(styles, /@media \(max-width: 680px\) \{\s*\.ifb-admin \.ifb-template-grid \{ grid-template-columns: minmax\(0, 1fr\);/);
   assert.match(styles, /\.ifb-admin \.ifb-template-card__slots \{[\s\S]*?width: min\(100%, 356px\);[\s\S]*?margin-inline: auto;/);
-  assert.match(styles, /\.ifb-admin \.ifb-template-card__slot \{[\s\S]*?grid-template-columns: minmax\(0, 1.37fr\) repeat\(2, minmax\(0, \.85fr\)\);/);
+  assert.match(styles, /\.ifb-admin \.ifb-template-card__slot \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) repeat\(2, 76px\);/);
   assert.match(styles, /\.ifb-admin \.ifb-template-card__inner \{[\s\S]*?min-height: 100%;/);
 });
 
