@@ -47,7 +47,12 @@
 }
 .ifb-hero__title { margin: 4px 0 8px; font-size: 28px; line-height: 1.22; font-weight: 800; letter-spacing: -.015em; }
 .ifb-hero__hello { margin: 0 0 7px; font-size: 17px; font-weight: 700; }
-.ifb-hero__intro { margin: 0 auto; max-width: 36em; color: var(--ifb-muted); font-size: 15.5px; line-height: 1.6; }
+.ifb-hero__intro { margin: 12px auto 0; max-width: 38em; color: var(--ifb-muted); text-align: start; font-size: 15.5px; line-height: 1.55; }
+.ifb-hero__intro p { margin: 0; }
+.ifb-hero__lead { color: var(--ifb-ink); font-weight: 750; font-size: 1.09em; line-height: 1.48; }
+.ifb-hero__details { margin-top: 9px !important; }
+.ifb-hero__guidance { margin-top: 12px !important; padding: 11px 14px; border-inline-start: 3px solid var(--ifb-accent); border-radius: 9px; background: var(--ifb-accent-soft); color: var(--ifb-ink); font-size: .96em; line-height: 1.5; }
+.ifb-hero__guidance strong { font-weight: 750; }
 
 .ifb-progress {
   position: sticky;
