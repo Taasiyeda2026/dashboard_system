@@ -1,0 +1,76 @@
+{
+  "scope": "PostgreSQL 17 local schema adapter, real RPC SQL, explicitly modeled identities; not a deployed Supabase/Auth instance",
+  "sourceActivitiesHash": "69a9597bc76b1dde912c4f7bf9b562e1",
+  "results": [
+    {
+      "case": "actual SQL commit and full load parity",
+      "pass": true,
+      "saveMs": 3774.8264109999996,
+      "rows": 253
+    },
+    {
+      "case": "protected instructor change",
+      "pass": true,
+      "rejection": "planning_server_protected_instructor_changed: activity-000496"
+    },
+    {
+      "case": "official date removal",
+      "pass": true,
+      "rejection": "planning_server_official_dates_changed: activity-000496"
+    },
+    {
+      "case": "forged live cannot bypass gates",
+      "pass": true,
+      "rejection": "planning_server_candidate_constraint_failed"
+    },
+    {
+      "case": "invalid new meeting",
+      "pass": true,
+      "rejection": "planning_server_candidate_constraint_failed"
+    },
+    {
+      "case": "cancelled run cannot commit",
+      "pass": true
+    },
+    {
+      "case": "modeled role admin",
+      "pass": true
+    },
+    {
+      "case": "modeled role operation_manager",
+      "pass": true
+    },
+    {
+      "case": "modeled role denied",
+      "pass": true
+    },
+    {
+      "case": "validated snapshot writer",
+      "pass": true
+    },
+    {
+      "case": "invalid snapshot writer rolls back",
+      "pass": true
+    },
+    {
+      "case": "validated incremental writer",
+      "pass": true
+    },
+    {
+      "case": "invalid incremental writer rolls back",
+      "pass": true
+    },
+    {
+      "case": "new illegal lock cannot acquire protected-source exemption",
+      "pass": true
+    },
+    {
+      "case": "v37 canonical workspace cannot downgrade to legacy writer",
+      "pass": true
+    },
+    {
+      "case": "actual SQL roles authenticated/denied/anon and private-validator execution grants",
+      "pass": true
+    }
+  ]
+}

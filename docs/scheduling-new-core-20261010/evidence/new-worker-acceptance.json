@@ -1,0 +1,214 @@
+{
+  "scope": "actual Worker endpoint through Node worker_threads adapter; browser measured separately",
+  "samples": [
+    {
+      "warm": false,
+      "wallMs": 821.414166,
+      "cpuMs": 823.741,
+      "computeMs": 292.991807,
+      "changedEntries": 13213,
+      "rssBytes": 243929088,
+      "databaseRequests": 0
+    },
+    {
+      "warm": true,
+      "wallMs": 256.024084,
+      "cpuMs": 279.225,
+      "computeMs": 218.146798,
+      "changedEntries": 13213,
+      "rssBytes": 250687488,
+      "databaseRequests": 0
+    },
+    {
+      "warm": true,
+      "wallMs": 207.27504599999997,
+      "cpuMs": 217.171,
+      "computeMs": 193.02007700000013,
+      "changedEntries": 13213,
+      "rssBytes": 258686976,
+      "databaseRequests": 0
+    },
+    {
+      "warm": true,
+      "wallMs": 301.83695799999987,
+      "cpuMs": 349.172,
+      "computeMs": 290.8252479999999,
+      "changedEntries": 13213,
+      "rssBytes": 304513024,
+      "databaseRequests": 0
+    },
+    {
+      "warm": true,
+      "wallMs": 179.74176999999986,
+      "cpuMs": 182.439,
+      "computeMs": 170.10962700000005,
+      "changedEntries": 13213,
+      "rssBytes": 344297472,
+      "databaseRequests": 0
+    },
+    {
+      "warm": true,
+      "wallMs": 198.1114869999999,
+      "cpuMs": 235.553,
+      "computeMs": 189.01634599999988,
+      "changedEntries": 13213,
+      "rssBytes": 347922432,
+      "databaseRequests": 0
+    },
+    {
+      "warm": true,
+      "wallMs": 162.39377200000035,
+      "cpuMs": 162.534,
+      "computeMs": 149.12356,
+      "changedEntries": 13213,
+      "rssBytes": 354906112,
+      "databaseRequests": 0
+    },
+    {
+      "warm": true,
+      "wallMs": 153.01937799999996,
+      "cpuMs": 162.035,
+      "computeMs": 144.43128100000013,
+      "changedEntries": 13213,
+      "rssBytes": 365559808,
+      "databaseRequests": 0
+    },
+    {
+      "warm": true,
+      "wallMs": 174.80564200000026,
+      "cpuMs": 205.264,
+      "computeMs": 165.8063790000001,
+      "changedEntries": 13213,
+      "rssBytes": 373514240,
+      "databaseRequests": 0
+    },
+    {
+      "warm": true,
+      "wallMs": 163.57894400000032,
+      "cpuMs": 161.393,
+      "computeMs": 152.16293799999994,
+      "changedEntries": 13213,
+      "rssBytes": 378150912,
+      "databaseRequests": 0
+    },
+    {
+      "warm": true,
+      "wallMs": 185.2715390000003,
+      "cpuMs": 206.113,
+      "computeMs": 169.70914700000003,
+      "changedEntries": 13213,
+      "rssBytes": 383795200,
+      "databaseRequests": 0
+    },
+    {
+      "warm": true,
+      "wallMs": 184.5471389999998,
+      "cpuMs": 199.328,
+      "computeMs": 173.95344299999988,
+      "changedEntries": 13213,
+      "rssBytes": 384532480,
+      "databaseRequests": 0
+    },
+    {
+      "warm": true,
+      "wallMs": 162.0053310000003,
+      "cpuMs": 166.853,
+      "computeMs": 144.62590699999964,
+      "changedEntries": 13213,
+      "rssBytes": 385478656,
+      "databaseRequests": 0
+    },
+    {
+      "warm": true,
+      "wallMs": 155.3425739999998,
+      "cpuMs": 169.228,
+      "computeMs": 144.43678899999986,
+      "changedEntries": 13213,
+      "rssBytes": 385232896,
+      "databaseRequests": 0
+    },
+    {
+      "warm": true,
+      "wallMs": 156.10074900000018,
+      "cpuMs": 152.094,
+      "computeMs": 147.80420099999992,
+      "changedEntries": 13213,
+      "rssBytes": 386433024,
+      "databaseRequests": 0
+    },
+    {
+      "warm": true,
+      "wallMs": 148.68116899999995,
+      "cpuMs": 148.355,
+      "computeMs": 140.14241400000037,
+      "changedEntries": 13213,
+      "rssBytes": 387211264,
+      "databaseRequests": 0
+    },
+    {
+      "warm": true,
+      "wallMs": 147.75972500000034,
+      "cpuMs": 146.625,
+      "computeMs": 139.33817199999976,
+      "changedEntries": 13213,
+      "rssBytes": 388390912,
+      "databaseRequests": 0
+    },
+    {
+      "warm": true,
+      "wallMs": 147.4408699999999,
+      "cpuMs": 155.386,
+      "computeMs": 136.48773200000005,
+      "changedEntries": 13213,
+      "rssBytes": 389337088,
+      "databaseRequests": 0
+    },
+    {
+      "warm": true,
+      "wallMs": 157.21133099999997,
+      "cpuMs": 154.149,
+      "computeMs": 141.82801300000028,
+      "changedEntries": 13213,
+      "rssBytes": 390324224,
+      "databaseRequests": 0
+    },
+    {
+      "warm": true,
+      "wallMs": 180.6626529999994,
+      "cpuMs": 186.666,
+      "computeMs": 170.17999999999938,
+      "changedEntries": 13213,
+      "rssBytes": 398471168,
+      "databaseRequests": 0
+    },
+    {
+      "warm": true,
+      "wallMs": 153.83139799999935,
+      "cpuMs": 156.688,
+      "computeMs": 144.5914869999997,
+      "changedEntries": 13213,
+      "rssBytes": 404439040,
+      "databaseRequests": 0
+    }
+  ],
+  "results": [
+    {
+      "case": "21 point runs only one computed activity, all full results valid",
+      "pass": true
+    },
+    {
+      "case": "pre-cancelled run yields no result",
+      "pass": true
+    },
+    {
+      "case": "actual national Worker matches direct validated baseline, provisional progress explicit",
+      "pass": true,
+      "wallMs": 8528.353765999998,
+      "progress": 146
+    },
+    {
+      "case": "point API rejects national scope",
+      "pass": true
+    }
+  ]
+}

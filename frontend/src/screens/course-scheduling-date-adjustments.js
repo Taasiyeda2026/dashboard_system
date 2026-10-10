@@ -803,7 +803,7 @@ export function auditPlanningOptionHardGates(option = {}, {
     instructorContexts,
     activity,
     schoolCalendar: sectorCalendar,
-    allowSaturday: sectorForAudit.toLowerCase() === 'arab',
+    allowSaturday: ['arab', 'druze'].includes(sectorForAudit.toLowerCase()),
     allowedUnresolvedExceptionDates: option?.unresolvedInstructorExceptionDates || []
   });
   failures.push(...(meetingValidation.failures || []));

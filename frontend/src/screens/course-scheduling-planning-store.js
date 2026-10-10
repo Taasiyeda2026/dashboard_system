@@ -377,7 +377,14 @@ export function sharedPlanningAffectedCourseIds({
         ...instructorIdsFromPlanningEntry(entry),
         ...instructorIdsFromActivity(activity)
       ]);
-      if ([...ids].some((id) => contextInstructorIds.has(id))) changed.add(courseId);
+      if ([...ids].some((id) => {
+        if (!contextInstructorIds.has(id)) return false;
+        const dates = diff.changedExceptionDatesByInstructor?.[id];
+        const broader = [...(diff.changedInstructorProfileIds || []),...(diff.changedAvailabilityInstructorIds || [])].map(text).includes(id);
+        if (!dates || broader || !entry.row?.instructorEmpId) return true;
+        const relevant = [...meetingsFromPlanningEntry(entry,activity),...(entry.row?.options || []).flatMap(o=>o.meetings || [])];
+        return relevant.some(m=>dates.includes(m.date));
+      })) changed.add(courseId);
     }
   }
 
@@ -529,7 +536,7 @@ export function expandPlanningAffectedIdsBySchool({
     if (allowed && !allowed.has(courseId)) continue;
     const activity = activityById.get(courseId), row = entry.row || {};
     const school = text(activity?.school_id || row.schoolId);
-    const ids = new Set([...instructorIdsFromActivity(activity), ...instructorIdsFromPlanningEntry(entry)]);
+    const ids = new Set([...instructorIdsFromActivity(activity),text(row.instructorEmpId),text(entry.lockedOption?.instructorEmpId),...(row.additionalInstructorEmpIds || []).map(text),...(row.meetings || []).map(m=>text(m.substituteEmpId))].filter(Boolean));
     const dates = new Set(meetingsFromPlanningEntry(entry, activity).map(m => m.date));
     const immutable = !!text(activity?.emp_id) || !!entry.lockedOption || row.planningLocked === true || row.schoolDateAnchored === true
       || ['live', 'fixed', 'fixed-proposal'].includes(text(row.kind));
@@ -815,6 +822,8 @@ export function planningStoreErrorMessage(error, fallback = 'שמירת התכנ
   const code = text(error?.code);
   const message = text(error?.message || error);
   const raw = code ? `${code}|${message}` : message;
+  if (raw.includes('planning_worker_national_required')) return 'נדרש חישוב מלא מפורש. לא הופעל חישוב ארצי בעקבות עדכון נקודתי.';
+  if (raw.includes('planning_worker_')) return 'החישוב הנקודתי נעצר. התכנון השמור נשמר; ניתן לנסות שוב.';
   if (raw.includes('planning_final_validation_failed')) {
     const failure = Array.isArray(error?.failures) ? error.failures[0] : null;
     const reasonLabels = {
@@ -876,8 +885,11 @@ export function applyLocalPlanningNeedsRecalc(targetState = null, { activityIds 
   }
 
   if (Array.isArray(localState.courseSchedulingPlanningRows)) {
-    for (const row of localState.courseSchedulingPlanningRows) {
+    for (let index = 0; index < localState.courseSchedulingPlanningRows.length; index += 1) {
+      let row = localState.courseSchedulingPlanningRows[index];
       if (!ids.includes(text(row?.courseId))) continue;
+      // A retained Worker input is immutable; dirty markers belong to the view.
+      if (Object.isFrozen(row)) localState.courseSchedulingPlanningRows[index] = row = { ...row };
       row.needsRecalc = true;
       row.planningLocked = false;
       row.kind = row.kind || 'proposal';

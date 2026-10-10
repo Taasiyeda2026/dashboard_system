@@ -1,0 +1,266 @@
+{
+  "workerBuiltUrl": null,
+  "availabilityChanged": false,
+  "revisionChurn": false,
+  "coldOnly": false,
+  "variant": "after",
+  "browser": "151.0.7922.173",
+  "fixtureSha256": "b1c075c4e6c56017324f3e9f622856012fc9c00917d6439a0b2bd9aaf90d37e1",
+  "fixtureBytes": 8867991,
+  "samples": [],
+  "acceptance": [
+    {
+      "device": "desktop",
+      "starts": [
+        {
+          "feedbackMs": 81,
+          "cancelMs": 37.100000001490116,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 33.399999998509884,
+          "cancelMs": 34,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 33.20000000298023,
+          "cancelMs": 33.69999999552965,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 33.399999998509884,
+          "cancelMs": 32.899999998509884,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 33.5,
+          "cancelMs": 32.899999998509884,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 34.5,
+          "cancelMs": 31,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 33.5,
+          "cancelMs": 32.79999999701977,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 33.70000000298023,
+          "cancelMs": 51.5,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 33.600000001490116,
+          "cancelMs": 32.399999998509884,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 33.399999998509884,
+          "cancelMs": 32.5,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 33.30000000447035,
+          "cancelMs": 30,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 33.30000000447035,
+          "cancelMs": 29.899999998509884,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 33.399999998509884,
+          "cancelMs": 30,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 33.599999994039536,
+          "cancelMs": 29.30000000447035,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 33.399999998509884,
+          "cancelMs": 31.899999998509884,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 33.099999994039536,
+          "cancelMs": 30.80000000447035,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 33.29999999701977,
+          "cancelMs": 32.100000001490116,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 33.29999999701977,
+          "cancelMs": 35,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 33.399999998509884,
+          "cancelMs": 32.5,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 33.5,
+          "cancelMs": 31.600000001490116,
+          "commits": 0,
+          "error": ""
+        }
+      ],
+      "scope": "Actual run-button status through two requestAnimationFrame callbacks; cancelled before engine completion, no DB save."
+    },
+    {
+      "device": "mobile-cpu4",
+      "starts": [
+        {
+          "feedbackMs": 254.60000000149012,
+          "cancelMs": 198.89999999850988,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 50.100000001490116,
+          "cancelMs": 197,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 34.899999998509884,
+          "cancelMs": 175.80000000447035,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 33.80000000447035,
+          "cancelMs": 170.89999999850988,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 49.600000001490116,
+          "cancelMs": 190.79999999701977,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 35.19999999552965,
+          "cancelMs": 176.20000000298023,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 35,
+          "cancelMs": 168.60000000149012,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 35.100000001490116,
+          "cancelMs": 167.39999999850988,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 44.70000000298023,
+          "cancelMs": 159.89999999850988,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 34.80000000447035,
+          "cancelMs": 167.29999999701977,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 34.19999999552965,
+          "cancelMs": 162.60000000149012,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 34.600000001490116,
+          "cancelMs": 161.39999999850988,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 34.600000001490116,
+          "cancelMs": 160.09999999403954,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 33.79999999701977,
+          "cancelMs": 174.10000000149012,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 49.5,
+          "cancelMs": 159.30000000447035,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 131.20000000298023,
+          "cancelMs": 209.59999999403954,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 35.599999994039536,
+          "cancelMs": 164.90000000596046,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 33.599999994039536,
+          "cancelMs": 158,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 36,
+          "cancelMs": 154.10000000149012,
+          "commits": 0,
+          "error": ""
+        },
+        {
+          "feedbackMs": 36,
+          "cancelMs": 145,
+          "commits": 0,
+          "error": ""
+        }
+      ],
+      "scope": "Actual run-button status through two requestAnimationFrame callbacks; cancelled before engine completion, no DB save."
+    }
+  ],
+  "scope": "Real screen render/bind with isolated RPC stub; point benchmark calls engine transport directly; end-to-end run button tested separately. No actual Supabase auth/RLS/SQL or national service test."
+}

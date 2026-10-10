@@ -1,0 +1,86 @@
+{
+  "workerBuiltUrl": null,
+  "availabilityChanged": false,
+  "revisionChurn": false,
+  "coldOnly": false,
+  "variant": "after",
+  "browser": "151.0.7922.173",
+  "fixtureSha256": "b1c075c4e6c56017324f3e9f622856012fc9c00917d6439a0b2bd9aaf90d37e1",
+  "fixtureBytes": 8867991,
+  "samples": [],
+  "acceptance": [
+    {
+      "device": "desktop",
+      "faults": [
+        {
+          "scenario": "permission-denied",
+          "commits": 0,
+          "error": "חישוב התכנון נכשל: 42501|isolated permission denied",
+          "workerDisposed": true,
+          "runs": 0,
+          "rows": 253
+        },
+        {
+          "scenario": "unvalidated-source",
+          "commits": 0,
+          "error": "נדרש חישוב מלא מפורש. לא הופעל חישוב ארצי בעקבות עדכון נקודתי.",
+          "workerDisposed": true,
+          "runs": 0,
+          "rows": 253
+        },
+        {
+          "scenario": "worker-crash",
+          "commits": 0,
+          "error": "החישוב הנקודתי נעצר. התכנון השמור נשמר; ניתן לנסות שוב.",
+          "workerDisposed": true,
+          "runs": 1,
+          "rows": 253
+        },
+        {
+          "scenario": "close-and-reopen-saved-plan",
+          "rows": 253,
+          "runs": 0,
+          "commits": 0,
+          "workerAbsent": true
+        }
+      ]
+    },
+    {
+      "device": "mobile-cpu4",
+      "faults": [
+        {
+          "scenario": "permission-denied",
+          "commits": 0,
+          "error": "חישוב התכנון נכשל: 42501|isolated permission denied",
+          "workerDisposed": true,
+          "runs": 0,
+          "rows": 253
+        },
+        {
+          "scenario": "unvalidated-source",
+          "commits": 0,
+          "error": "נדרש חישוב מלא מפורש. לא הופעל חישוב ארצי בעקבות עדכון נקודתי.",
+          "workerDisposed": true,
+          "runs": 0,
+          "rows": 253
+        },
+        {
+          "scenario": "worker-crash",
+          "commits": 0,
+          "error": "החישוב הנקודתי נעצר. התכנון השמור נשמר; ניתן לנסות שוב.",
+          "workerDisposed": true,
+          "runs": 1,
+          "rows": 253
+        },
+        {
+          "scenario": "close-and-reopen-saved-plan",
+          "rows": 253,
+          "runs": 0,
+          "commits": 0,
+          "workerAbsent": true
+        }
+      ]
+    }
+  ],
+  "scope": "Real screen render/bind with isolated RPC stub; point benchmark calls engine transport directly; end-to-end run button tested separately. No actual Supabase auth/RLS/SQL or national service test."
+}

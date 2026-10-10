@@ -617,7 +617,7 @@ function evaluateCandidate({
   const meetingOptions = { periodKey, allDates: true, schoolCalendar: input.schoolCalendar || [] };
   const persistedMeetings = preparedInstructor?.allMeetings
     || meetingAssignments(persistedRows, { ...meetingOptions, empId });
-  const allowSaturday = normalizeCalendarSector(course?.calendar_sector) === 'arab';
+  const allowSaturday = ['arab', 'druze'].includes(normalizeCalendarSector(course?.calendar_sector));
   const adjustmentInput = {
     meetings: allMeetings,
     rules: rules[empId] || [],
