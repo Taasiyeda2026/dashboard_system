@@ -249,7 +249,23 @@ export async function buildPlan(input = {}) {
     rows.set(id, row); occupancy.add(row); completed++; metrics.activitiesComputed++; planningPerfCount("activitiesComputed");
     await report('תכנון בלוקים — מנוע חדש', completed, queue.length, id, row);
   };
-  for (const block of blocks) {
+  // Order operational blocks by region, but retain one nationwide occupancy.
+  // Mixed-region blocks are deferred to the shared-border stage so they can
+  // never be independently committed or given the same instructor twice.
+  const regionalRank = (block) => {
+    const districts = new Set(block.results.map(({ course }) => normalizeOperationalDistrict(course.district || course.school_district || course.authority_district)));
+    if (districts.size !== 1) return 2;
+    const district = [...districts][0];
+    return district === 'צפון' ? 0 : district === 'דרום' ? 1 : 2;
+  };
+  const stagedBlocks = blocks.map((block, index) => ({ block, index, stage: regionalRank(block) }))
+    .sort((a, b) => a.stage - b.stage || a.index - b.index);
+  let currentStage = -1;
+  for (const { block, stage } of stagedBlocks) {
+    if (stage !== currentStage) {
+      currentStage = stage;
+      await report(['תכנון צפון — אילוצים ארציים', 'תכנון דרום — אילוצים ארציים', 'תכנון מרכז וגבולות — אילוצים ארציים'][stage], completed, queue.length);
+    }
     await checkpoint(); const activities = block.results.map(r => r.course);
     let acceptedBlock = false;
     if (activities.length > 1) {
