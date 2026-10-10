@@ -2606,7 +2606,10 @@ export const courseSchedulingScreen = {
         rules,
         exceptions,
         schoolCalendar: snapshot?.schoolCalendar || [],
-        persist: !data._is_stale && !validationChanged
+        // Validation during a read/reload must never mutate the shared planning revision.
+        // An invalid suggestion is still surfaced locally; persisted invalidation is
+        // reserved for explicit source changes or an independently authorized edit.
+        persist: false
       });
       const mergedAffectedIds = [...new Set([
         ...affectedIds.map(text).filter(Boolean),
