@@ -1314,6 +1314,48 @@ function evidenceSummaryHtml(facts) {
   </div>`;
 }
 
+/** Programme-specific evidence map: descriptive findings only; no inferred causes. */
+function biomimicryImprovementHtml(facts) {
+  if (ui.course !== 'biomimicry') return '';
+  const themes = [
+    { title: 'סקרנות וחקר הטבע', keys: ['מעניין אותי לגלות', 'כשאני רואה משהו מעניין', 'הפעילויות עוררו סקרנות'], action: 'לבדוק את אופן פתיחת מפגשי החקר ואת ההמחשות המעוררות סקרנות' },
+    { title: 'הבנת מנגנונים בטבע', keys: ['אני יכול/ה להסביר איך תכונה', 'התלמידים הצליחו להסביר כיצד תכונה', 'אני שם/ה לב לפרטים'], action: 'לבדוק אם נדרשות דוגמאות והמחשות מדעיות נוספות' },
+    { title: 'מעבר מהטבע לפתרון', keys: ['אני יכול/ה לחשוב על רעיונות חדשים', 'התלמידים הצליחו לקשר בין רעיון', 'התלמידים הצליחו להסביר כיצד רעיון'], action: 'לבחון את רצף הפעילות מהתבוננות בטבע לפיתוח פתרון' },
+    { title: 'יצירתיות ועבודה בצוות', keys: ['יותר מפתרון אחד', 'לעבוד עם חברים', 'רעיונות יצירתיים', 'עבדו יחד בתכנון'], action: 'לבחון הזדמנויות ליצירת חלופות ועבודה קבוצתית' },
+    { title: 'הצגת רעיונות ותוצרים', keys: ['בטוח/ה להציג רעיון', 'הצליחו להסביר את הרעיון שפיתחו'], action: 'לבדוק את היקף תרגול הצגת התוצרים ומתן משוב' },
+    { title: 'איכות ההדרכה וההכשרה', keys: ['ההכשרה הכינה אותי', 'מערכי השיעור והמצגות', 'התוכן והפעילויות התאימו', 'רמת הפעילויות התאימה'], action: 'לבדוק צורך בדיוק הכשרת המדריכים, מערכי השיעור והתאמת הרמה' },
+    { title: 'ציוד, תפעול ותמיכה', keys: ['הציוד הנדרש הגיע', 'התיאום עם בית הספר', 'כשנזקקתי לסיוע'], action: 'לבדוק את זמינות הציוד, תיאום מול בתי הספר ומענה למדריכים' }
+  ];
+  const points = [];
+  for (const audience of AUDIENCE_ORDER) {
+    const stage = audience === 'student' ? 'post' : 'final';
+    for (const q of questionStats(factsFor(facts, audience, stage))) {
+      if (q.question_type === 'rating_1_5' && Number.isFinite(q.avg)) points.push({ ...q, audience });
+    }
+  }
+  const selected = themes.map((theme) => {
+    const matches = points.filter((q) => theme.keys.some((key) => q.text.includes(key)));
+    const enough = matches.filter((q) => q.valid >= MIN_N_RANKING);
+    const sorted = [...enough].sort((a, b) => a.avg - b.avg);
+    const evidence = sorted.map((q) => `<li><span class="ifb-improvement-source">${esc(AUDIENCE_LABELS[q.audience])}</span> — ${esc(q.text)} <strong>${fmtNum(q.avg)} מתוך 5</strong> · ${q.valid} תשובות תקפות</li>`).join('');
+    return `<article class="ifb-improvement-theme">
+      <h4>${esc(theme.title)}</h4>
+      ${enough.length ? `<p>${sorted[0].avg < 3.5 ? 'נושא לבחינה: התקבל דירוג נמוך יחסית באחת השאלות.' : 'קיימים דירוגים לעיון בתחום זה; אין מסקנה על צורך בשינוי מהציון לבדו.'}</p><ul>${evidence}</ul>` : '<p class="ifb-muted">עדיין אין די דירוגים תקפים בתחום זה לקביעת ממצא.</p>'}
+      <p class="ifb-improvement-action"><strong>כיוון לבדיקה:</strong> ${esc(theme.action)}. ${enough.length ? 'החלטה רק לאחר עיון בתשובות המילוליות ובהקשר.' : 'אין המלצה לביצוע לפני איסוף ראיות.'}</p>
+    </article>`;
+  }).join('');
+  const answers = openAnswers(facts.filter((f) => stagePhase(f.audience, f.stage) === 'end'));
+  return `<section class="ifb-panel ifb-improvement-report">
+    <h3>דוח שיפור פנימי — ביומימיקרי יסודי</h3>
+    <p class="ifb-muted">הדוח עוסק בתוכנית זו בלבד. כל מדד נשאר קשור לקהל ולשאלה המקורית; אין השוואה מספרית בין קהלים או בין תוכניות. לצורך ממצא דירוג נדרשות לפחות ${MIN_N_RANKING} תשובות תקפות לשאלה.</p>
+    <div class="ifb-improvement-themes">${selected}</div>
+    <details class="ifb-disclosure"><summary>תשובות פתוחות לבדיקה אנושית (${answers.length})</summary>
+      ${openAnswersListHtml(answers, { showContext: false })}
+    </details>
+    <p class="ifb-muted">כיווני הבדיקה אינם אבחון של סיבות ואינם המלצות מאושרות. יש לאמת עם מדריכים ועם הצוות החינוכי לפני שינוי תכנים, הכשרה או ציוד. משובי המדריכים הם מידע פנימי בלבד.</p>
+  </section>`;
+}
+
 function analysisHtml() {
   if (!ui.course) {
     return `
@@ -1324,6 +1366,7 @@ function analysisHtml() {
   const facts = courseFacts();
   return `
     ${analysisFiltersHtml()}
+    ${biomimicryImprovementHtml(facts)}
     ${evidenceSummaryHtml(facts)}
     ${sectionHtml(`סיכום מצטבר – ${programTitle(ui.course)}`, cumulativeSummaryHtml(), { actions: exportButtonHtml('analysis', 'הפקת דוח מסכם (Excel)'), note: 'הנתונים מתייחסים רק למחצית הנבחרת, לפי תאריך תחילת הקורס.' })}
     ${sectionHtml('השוואה בין תלמידים, מדריכים וצוות חינוכי', audienceComparisonHtml(facts))}
