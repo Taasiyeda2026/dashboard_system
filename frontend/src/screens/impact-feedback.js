@@ -1366,7 +1366,7 @@ function aiAnalysisExportHtml() {
       <button type="button" class="ifb-btn ifb-btn--primary" data-ifb-ai-export="internal">הורדת דוח AI פנימי — כולל מדריכים</button>
       <button type="button" class="ifb-btn" data-ifb-ai-export="external">הורדת דוח הערכה חינוכית — ללא משובי מדריכים</button>
     </div>
-    <p class="ifb-muted">קובץ פנימי עשוי להכיל תשובות חופשיות רגישות. אין להעלות אותו לשירות AI חיצוני ללא אישור ארגוני מתאים. מידע מזהה על תלמידים, עובדים ובתי ספר אינו נכלל בייצוא.</p>
+    <p class="ifb-muted">קובץ פנימי עשוי להכיל תשובות חופשיות רגישות. אין להעלות אותו לשירות AI חיצוני ללא אישור ארגוני מתאים. שדות זיהוי מובנים אינם מיוצאים. תשובות פתוחות בקובץ הפנימי עלולות לכלול פרטים מזהים שהוקלדו בטקסט — חובה לעיין ולהסירם לפני העברה לגורם חיצוני. הייצוא החיצוני אינו כולל תשובות פתוחות.</p>
   </section>`;
 }
 
@@ -1393,7 +1393,7 @@ function exportAiAnalysis(mode) {
       }
     }
   }
-  const freeText = openAnswers(facts).map((a) => ({
+  const freeText = (includeInstructor ? openAnswers(facts) : []).map((a) => ({
     audience: AUDIENCE_LABELS[a.audience] || a.audience,
     stage: stageLabelFor(a.audience, a.stage),
     question: a.question_text,
@@ -1417,8 +1417,8 @@ function exportAiAnalysis(mode) {
     'לכל המלצה הוסף ראיות תומכות, מידת ביטחון (מבוסס/ראשוני/לא מספיק מידע), עדיפות, והצעת דרך לאימות.',
     includeInstructor ? 'זהו דוח פנים ארגוני. אל תציע להעביר משובי מדריכים לגורמים חיצוניים.' : 'זהו דוח חיצוני: השתמש אך ורק בנתוני תלמידים וצוות חינוכי. אין לטעון שקיימים נתוני מדריכים בקובץ.',
     'אל תמציא תשובות, מדדים, סיבות או שמות. אם אין מספיק נתונים, ציין זאת והצע איסוף נוסף.'
-  ].join('\\n');
-  const output = prompt + '\\n\\n--- תחילת נתונים לניתוח (JSON) ---\\n' + JSON.stringify(data, null, 2) + '\\n--- סוף נתונים ---\\n';
+  ].join('\n');
+  const output = prompt + '\n\n--- תחילת נתונים לניתוח (JSON) ---\n' + JSON.stringify(data, null, 2) + '\n--- סוף נתונים ---\n';
   downloadBlob(new Blob([output], { type: 'text/plain;charset=utf-8' }), `biomimicry-feedback-ai-${mode}-${isoDay(Date.now())}.txt`);
   showToast('קובץ הניתוח והפרומפט הורד למחשב');
 }
