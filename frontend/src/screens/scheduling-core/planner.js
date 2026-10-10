@@ -182,15 +182,23 @@ export async function buildPlan(input = {}) {
       if (!knownRoute(context, instructor.address, a.school_address)) await ensureRoute(context, instructor.address, a.school_address);
       const rejected = staticFailures(context, a, empId); if (rejected.length) { planningPerfCount('staticCandidatePruned'); rejected.forEach(r => failures.add(r)); continue; }
       let attempted = 0;
+      // Cap per weekday so the early Monday series cannot exhaust the fast
+      // budget before Tue/Wed same-school packing alternatives are generated.
+      const perWeekday = new Map();
+      const weekdayCap = Math.max(12, Math.floor(limit / 4));
       for (const meetings of schedules(context, a, empId, spec, input, previous.get(id), scheduleState||state)) {
-        if (++attempted > limit) { incomplete = true; break; }
+        if (attempted >= limit) { incomplete = true; break; }
         if(!officialMeetings(a).length && meetings.length!==spec.sessions)continue;
+        const dow = weekday(meetings[0]?.date);
+        if (Number.isInteger(dow) && (perWeekday.get(dow) || 0) >= weekdayCap) continue;
         metrics.generatedSchedules++; planningPerfCount("scenarioCount"); await checkpoint();
         if ((input.optimizationOnlyCourseIds || []).includes(id) && JSON.stringify(meetings.map(m=>m.date))!==JSON.stringify((previous.get(id)?.meetings || []).map(m=>m.date))) continue;
         const option = { instructorEmpId: empId, meetings, startDate: meetings[0].date, endDate: meetings.at(-1).date, startTime: meetings[0].start_time, endTime: meetings[0].end_time };
         await ensureCandidateRoutes(context, state, a, option);
         const issues = candidateFailures(context, state, a, option); metrics.candidateChecks++; planningPerfCount("candidateEvals");
         if (issues.length) { issues.forEach(f => failures.add(f.reason)); continue; }
+        attempted++;
+        if (Number.isInteger(dow)) perWeekday.set(dow, (perWeekday.get(dow) || 0) + 1);
         found.push(option);
       }
     }
@@ -210,9 +218,36 @@ export async function buildPlan(input = {}) {
   function opportunityCost(a,option){let cost=0;for(const [id,alternatives] of baselineOptions){if(id===activityId(a)||rows.has(id)||!alternatives.length)continue;const count=new Set(alternatives.map(o=>o.instructorEmpId)).size;if(count>2)continue;
       cost+=alternatives.filter(other=>overlapOptions(option,other)).length/alternatives.length;
     }return cost;}
-  const comparePlacement=(a,b)=>a.blockers-b.blockers||a.placement.newDays-b.placement.newDays||a.placement.waiting-b.placement.waiting||b.placement.sameSchool-a.placement.sameSchool||a.option.startDate.localeCompare(b.option.startDate)||a.option.startTime.localeCompare(b.option.startTime)||a.option.instructorEmpId.localeCompare(b.option.instructorEmpId);
-  function shortlist(a,options,state,count=4){const ranked=options.map(option=>({option,blockers:0,placement:placement(a,option,state)})).sort(comparePlacement),counts=new Map(),kept=[];
-    for(const {option} of ranked){const n=counts.get(option.instructorEmpId)||0;if(n<count){kept.push(option);counts.set(option.instructorEmpId,n+1);}}return kept;
+  // Prefer consecutive same-school packing over raw waiting minutes so a
+  // second course at the same school is shortlisted before a clean new day.
+  const comparePlacement=(a,b)=>a.blockers-b.blockers||a.placement.newDays-b.placement.newDays||b.placement.sameSchool-a.placement.sameSchool||a.placement.waiting-b.placement.waiting||a.option.startDate.localeCompare(b.option.startDate)||a.option.startTime.localeCompare(b.option.startTime)||a.option.instructorEmpId.localeCompare(b.option.instructorEmpId);
+  function shortlist(a,options,state,count=4){
+    const ranked=options.map(option=>({option,blockers:0,placement:placement(a,option,state)})).sort(comparePlacement);
+    const counts=new Map(), kept=[], seenEmpWeekday=new Set();
+    // Prefer already-packed same-school options, then diversify remaining
+    // shortlist slots by weekday so a blocked Monday cannot starve Wed packing.
+    for(const item of ranked){
+      const emp=item.option.instructorEmpId, n=counts.get(emp)||0;
+      if(n>=count) continue;
+      if(item.placement.sameSchool>0 || item.placement.newDays===0){
+        kept.push(item.option);
+        counts.set(emp,n+1);
+        seenEmpWeekday.add(`${emp}|${weekday(item.option.startDate)}`);
+      }
+    }
+    for(const {option} of ranked){
+      const emp=option.instructorEmpId, n=counts.get(emp)||0;
+      if(n>=count || kept.includes(option)) continue;
+      const key=`${emp}|${weekday(option.startDate)}`;
+      if(seenEmpWeekday.has(key)) continue;
+      seenEmpWeekday.add(key); counts.set(emp,n+1); kept.push(option);
+    }
+    for(const {option} of ranked){
+      const emp=option.instructorEmpId, n=counts.get(emp)||0;
+      if(n>=count || kept.includes(option)) continue;
+      counts.set(emp,n+1); kept.push(option);
+    }
+    return kept;
   }
   async function candidates(a,state,baseOnly=false) {
     const id=activityId(a);if(!candidatePools.has(id))candidatePools.set(id,await generatePool(a));

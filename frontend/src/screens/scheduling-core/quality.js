@@ -40,8 +40,10 @@ export function operationalQuality(rows,input={},context=input.constraintContext
     measurementPolicy:'Travel counts outbound and return home legs plus chronological school transitions per instructor/date, verified routes only; unknown legs counted separately. Availability is union of explicit windows with date exceptions over requested period, excluding unpermitted Friday; sector-specific holidays and travel are not subtracted from the availability denominator. Free windows are raw gaps, not certified course placements.'};
 }
 // A lower-priority objective can never buy a higher-priority regression.
+// Same-school consecutive packing outranks idle waiting: a small wait on one
+// school day must not beat two clean but separate school visits.
 export function compareOperationalQuality(a,b) {
-  for(const [key,direction] of [['covered',1],['meetingHours',1],['splitDays',-1],['waitingMinutes',-1],['sameSchoolSequences',1],['sameAuthoritySequences',1],['nearbySequences',1],['unknownRouteLegs',-1],['totalTravelMinutes',-1],['totalTravelKm',-1],['operationalScoreSum',1]]){
+  for(const [key,direction] of [['covered',1],['meetingHours',1],['splitDays',-1],['sameSchoolSequences',1],['waitingMinutes',-1],['sameAuthoritySequences',1],['nearbySequences',1],['unknownRouteLegs',-1],['totalTravelMinutes',-1],['totalTravelKm',-1],['operationalScoreSum',1]]){
     const delta=(a[key]||0)-(b[key]||0);if(Math.abs(delta)>1e-7)return Math.sign(delta)*direction;
   }return 0;
 }
