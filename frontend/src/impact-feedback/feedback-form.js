@@ -52,14 +52,14 @@ function ratingHtml(q, value, young, lang = 'he') {
     ${na}`;
 }
 
-function choiceHtml(q, value, multiple) {
+function choiceHtml(q, value, multiple, lang = 'he') {
   const selected = new Set(multiple ? (Array.isArray(value) ? value : []) : [value]);
   const options = Array.isArray(q.options) ? q.options : [];
   return `<div class="ifb-choices${multiple ? ' is-multi' : ''}" role="${multiple ? 'group' : 'radiogroup'}" aria-label="${esc(q.text)}">
     ${options.map((o) => `
       <label class="ifb-choice">
         <input type="${multiple ? 'checkbox' : 'radio'}" name="q-${esc(q.id)}" value="${esc(o.value)}" data-qid="${esc(q.id)}" data-kind="${multiple ? 'multi' : 'single'}"${selected.has(o.value) ? ' checked' : ''}>
-        <span>${esc(o.label || o.value)}</span>
+        <span>${esc((lang === 'ar' ? o.label_ar : o.label) || o.label || o.value)}</span>
       </label>`).join('')}
   </div>`;
 }
@@ -80,8 +80,8 @@ function questionHtml(q, index, answers, young, lang = 'he') {
   let control = '';
   if (q.type === 'rating_1_5') control = ratingHtml(q, value, young, lang);
   else if (q.type === 'yes_no') control = yesNoHtml(q, value, lang);
-  else if (q.type === 'single_select') control = choiceHtml(q, value, false);
-  else if (q.type === 'multi_select') control = choiceHtml(q, value, true);
+  else if (q.type === 'single_select') control = choiceHtml(q, value, false, lang);
+  else if (q.type === 'multi_select') control = choiceHtml(q, value, true, lang);
   else control = textHtml(q, value, lang);
   return `
     <fieldset class="ifb-q${isAnswered(q, value) ? ' is-answered' : ''}" data-question="${esc(q.id)}">
