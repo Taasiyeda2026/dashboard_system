@@ -1929,3 +1929,22 @@
 @media (max-width: 520px) {
   .ifb-admin .ifb-filters--instructors { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Feedback analysis: readable data density without altering calculations. */
+.ifb-admin .ifb-q-table th,
+.ifb-admin .ifb-q-table td,
+.ifb-admin .ifb-prepost-table th,
+.ifb-admin .ifb-prepost-table td { padding: 10px 12px; line-height: 1.5; }
+.ifb-admin .ifb-q-table th[scope="row"] { width: 48%; min-width: 0; text-align: start; }
+.ifb-admin .ifb-q-table td[data-label="תשובות שהתקבלו"] { min-width: 116px; }
+.ifb-admin .ifb-q-table td[data-label="ציון ממוצע"] { min-width: 110px; }
+.ifb-admin .ifb-q-table .ifb-cell-sub,
+.ifb-admin .ifb-prepost-table .ifb-cell-sub { display: block; margin-top: 3px; font-size: 11px; }
+.ifb-admin .ifb-analysis-breakdown { margin: 0 0 8px; }
+.ifb-admin .ifb-analysis-breakdown > summary { padding: 10px 12px; font-size: 13px; font-weight: 700; }
+.ifb-admin .ifb-analysis-breakdown > .ifb-table-wrap { margin-top: 8px; }
+.ifb-admin .ifb-analysis-empty-note { margin: 0; padding: 8px 0; color: var(--ifb-a-muted); font-size: 13px; }
+@media (max-width: 760px) {
+  .ifb-admin .ifb-q-table th[scope="row"] { width: auto; }
+  .ifb-admin .ifb-q-table th, .ifb-admin .ifb-q-table td { min-width: 0; padding: 8px; }
+}
