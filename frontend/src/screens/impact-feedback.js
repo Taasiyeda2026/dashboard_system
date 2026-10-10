@@ -1093,19 +1093,35 @@ function cumulativeSummaryHtml() {
 
 function audienceComparisonHtml(facts) {
   const rows = audienceMetricScores(facts, ui.metrics, { minN: MIN_N_GAP });
-  if (!rows.length) return emptyHtml('טרם התקבלו תשובות דירוג.');
-  const cell = (c) => (c ? `<span class="ifb-num">${fmtNum(c.avg)} מתוך 5</span><span class="ifb-muted ifb-cell-sub">תשובות למדד: ${c.n}</span>` : '<span class="ifb-muted">טרם התקבלו תשובות</span>');
-  return `<div class="ifb-table-wrap"><table class="ifb-table">
-    <caption class="ifb-sr">השוואה בין אוכלוסיות לפי מדד</caption>
-    <thead><tr><th scope="col">מדד</th><th scope="col" class="ifb-center">תלמידים (סיום)</th><th scope="col" class="ifb-center">מדריכים (סיום)</th><th scope="col" class="ifb-center">צוות חינוכי</th><th scope="col" class="ifb-center">הבדל בין נקודות המבט</th></tr></thead>
-    <tbody>${rows.map((r) => `<tr>
-      <th scope="row" data-label="מדד">${esc(r.label)}${r.kind === 'program' ? '<span class="ifb-cell-sub ifb-muted">איכות התוכנית</span>' : ''}</th>
-      <td data-label="תלמידים (סיום)" class="ifb-center">${cell(r.cells.student)}</td>
-      <td data-label="מדריכים (סיום)" class="ifb-center">${cell(r.cells.instructor)}</td>
-      <td data-label="צוות חינוכי" class="ifb-center">${cell(r.cells.educational_staff)}</td>
-      <td data-label="הבדל בין נקודות המבט" class="ifb-center">${r.gap ? statusText(`${r.gap.label} (${r.gap.gap} נק׳)`, r.gap.key === 'aligned' ? 'success' : r.gap.key === 'partial' ? 'muted' : 'warning') : '<span class="ifb-muted">—</span>'}</td>
-    </tr>`).join('')}</tbody>
-  </table></div>`;
+  if (!rows.length) return '<p class="ifb-analysis-empty-note">טרם התקבלו דירוגים להצגת מדדים.</p>';
+  const audiences = [
+    { key: 'student', label: 'תלמידים (סיום)' },
+    { key: 'instructor', label: 'מדריכים (סיום)' },
+    { key: 'educational_staff', label: 'צוות חינוכי' }
+  ];
+  const active = audiences.filter(({ key }) => rows.some((r) => r.cells[key]));
+  if (!active.length) return '<p class="ifb-analysis-empty-note">טרם התקבלו דירוגים להצגת מדדים.</p>';
+  const inactive = audiences.filter(({ key }) => !active.some((a) => a.key === key));
+  const comparison = active.length > 1;
+  const score = (c) => c
+    ? `<strong class="ifb-analysis-score">${fmtNum(c.avg)} <small>מתוך 5</small></strong><span class="ifb-analysis-count">דירוגים תקפים: ${c.n}</span>`
+    : '<span class="ifb-muted">אין דירוגים למדד זה</span>';
+  return `<div class="ifb-analysis-comparison">
+    <p class="ifb-analysis-context">${comparison ? 'השוואת ציונים לפי תחום הערכה' : 'ציוני הערכה לפי תחום'} · הציון המרבי הוא 5</p>
+    <div class="ifb-table-wrap"><table class="ifb-table ifb-analysis-metrics-table">
+      <caption class="ifb-sr">ציוני מדדים לפי קהל משיבים</caption>
+      <thead><tr><th scope="col">תחום הערכה</th>
+        ${active.map((a) => `<th scope="col" class="ifb-center">${a.label}</th>`).join('')}
+        ${comparison ? '<th scope="col" class="ifb-center">השוואה בין הקהלים</th>' : ''}
+      </tr></thead>
+      <tbody>${rows.map((r) => `<tr>
+        <th scope="row" data-label="תחום הערכה">${esc(r.label)}${r.kind === 'program' ? '<span class="ifb-cell-sub ifb-muted">איכות התוכנית</span>' : ''}</th>
+        ${active.map((a) => `<td class="ifb-center" data-label="${esc(a.label)}">${score(r.cells[a.key])}</td>`).join('')}
+        ${comparison ? `<td class="ifb-center" data-label="השוואה בין הקהלים">${r.gap ? statusText(`${r.gap.label} (${r.gap.gap} נקודות)`, r.gap.key === 'aligned' ? 'success' : r.gap.key === 'partial' ? 'muted' : 'warning') : '<span class="ifb-muted">אין מספיק נתונים להשוואה</span>'}</td>` : ''}
+      </tr>`).join('')}</tbody>
+    </table></div>
+    ${inactive.length ? `<p class="ifb-analysis-footnote">טרם התקבלו דירוגים מ${inactive.map((a) => a.label).join(' ומ')}. העמודות יופיעו כשיצטברו תשובות.</p>` : ''}
+  </div>`;
 }
 
 /** Core wording embeds each course's topic ({topic}); show the shared concept once, topic-neutral. */
