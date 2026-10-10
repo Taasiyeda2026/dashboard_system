@@ -110,7 +110,7 @@ function introHtml(text, lang = 'he') {
   const welcome = paragraphs[0] || '';
   const remaining = paragraphs.filter((part) => part !== welcome && part !== key).join(' ');
   // Keep the displayed introduction brief; full approved copy stays in the template.
-  const sentences = remaining.split(/(?<=[.!?؟])\\s+/u).filter(Boolean);
+  const sentences = remaining.split(/(?<=[.!?؟])\s+/u).filter(Boolean);
   const body = sentences.slice(0, 2).join(' ');
   const guidance = key ? `<p class="ifb-hero__guidance"><strong>${esc(key)}</strong></p>` : '';
   return `<div class="ifb-hero__intro" dir="rtl">
