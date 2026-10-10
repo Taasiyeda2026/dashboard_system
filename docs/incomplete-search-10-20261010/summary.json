@@ -1,12 +1,16 @@
 {
   "task": "#2261",
-  "workspaceRevision": 11949,
+  "workspaceRevisionBefore": 11949,
+  "workspaceRevisionAfter": 11950,
   "elapsedMs": 11373,
   "assignableCount": 6,
   "notAssignableCount": 4,
   "fixedInstructorRowsPreserved": true,
   "validationValid": true,
-  "noProductionMutation": true,
+  "saved": true,
+  "withInstructorAfterSave": 231,
+  "activitiesTableUnchanged": true,
+  "finalAssignmentsConfirmed": false,
   "noMergeDeploy": true,
   "assignable": [
     {
@@ -17,7 +21,7 @@
       "endDate": "2027-03-19",
       "startTime": "08:00",
       "endTime": "09:30",
-      "optionsCount": 12,
+      "status": "הצעה מוכנה",
       "meetingsCount": 14
     },
     {
@@ -28,7 +32,7 @@
       "endDate": "2027-03-18",
       "startTime": "08:00",
       "endTime": "09:30",
-      "optionsCount": 12,
+      "status": "מתאים טכנית ונדרש טיפול",
       "meetingsCount": 12
     },
     {
@@ -39,7 +43,7 @@
       "endDate": "2027-02-15",
       "startTime": "11:00",
       "endTime": "12:30",
-      "optionsCount": 12,
+      "status": "הצעה מוכנה",
       "meetingsCount": 10
     },
     {
@@ -50,7 +54,7 @@
       "endDate": "2027-02-22",
       "startTime": "12:30",
       "endTime": "14:00",
-      "optionsCount": 12,
+      "status": "הצעה מוכנה",
       "meetingsCount": 8
     },
     {
@@ -61,7 +65,7 @@
       "endDate": "2027-04-09",
       "startTime": "09:30",
       "endTime": "11:00",
-      "optionsCount": 12,
+      "status": "הצעה מוכנה",
       "meetingsCount": 10
     },
     {
@@ -72,7 +76,7 @@
       "endDate": "2027-03-15",
       "startTime": "09:00",
       "endTime": "10:30",
-      "optionsCount": 12,
+      "status": "הצעה מוכנה",
       "meetingsCount": 11
     }
   ],
@@ -82,65 +86,30 @@
       "kind": "recruitment",
       "status": "נדרש גיוס",
       "searchIncomplete": false,
-      "recruitmentCertified": true,
-      "rejectionReasons": [
-        "overlap",
-        "transition_time",
-        "transition_distance_exceeded",
-        "blocked_authority",
-        "home_distance_exceeded",
-        "language"
-      ],
-      "reason": "התנגשות עם פעילויות אחרות; יש לבדוק שרשרת החלפות או מועד גמיש אחר · אין זמן מספיק לנסיעה ולמרווח הביטחון · המעבר בין בתי הספר עולה על 20 ק״מ · רשות הפעילות חסומה למדריכים שנבדקו · המדריכים שנבדקו מחוץ לטווח הנסיעה האוטומטי · נדרש מדריך עם שפת ההדרכה המבוקשת"
+      "recruitmentCertified": true
     },
     {
       "activityId": "PAI-efbb152e-cd5b-4f10-aa20-765d85d4b990-2",
       "kind": "recruitment",
       "status": "נדרש גיוס",
       "searchIncomplete": false,
-      "recruitmentCertified": true,
-      "rejectionReasons": [
-        "overlap",
-        "transition_time",
-        "transition_distance_exceeded",
-        "blocked_authority",
-        "home_distance_exceeded",
-        "language"
-      ],
-      "reason": "התנגשות עם פעילויות אחרות; יש לבדוק שרשרת החלפות או מועד גמיש אחר · אין זמן מספיק לנסיעה ולמרווח הביטחון · המעבר בין בתי הספר עולה על 20 ק״מ · רשות הפעילות חסומה למדריכים שנבדקו · המדריכים שנבדקו מחוץ לטווח הנסיעה האוטומטי · נדרש מדריך עם שפת ההדרכה המבוקשת"
+      "recruitmentCertified": true
     },
     {
       "activityId": "PAI-efbb152e-cd5b-4f10-aa20-765d85d4b990-3",
       "kind": "recruitment",
       "status": "נדרש גיוס",
       "searchIncomplete": false,
-      "recruitmentCertified": true,
-      "rejectionReasons": [
-        "overlap",
-        "transition_time",
-        "transition_distance_exceeded",
-        "blocked_authority",
-        "home_distance_exceeded",
-        "language"
-      ],
-      "reason": "התנגשות עם פעילויות אחרות; יש לבדוק שרשרת החלפות או מועד גמיש אחר · אין זמן מספיק לנסיעה ולמרווח הביטחון · המעבר בין בתי הספר עולה על 20 ק״מ · רשות הפעילות חסומה למדריכים שנבדקו · המדריכים שנבדקו מחוץ לטווח הנסיעה האוטומטי · נדרש מדריך עם שפת ההדרכה המבוקשת"
+      "recruitmentCertified": true
     },
     {
       "activityId": "PAI-efbb152e-cd5b-4f10-aa20-765d85d4b990-4",
       "kind": "recruitment",
       "status": "נדרש גיוס",
       "searchIncomplete": false,
-      "recruitmentCertified": true,
-      "rejectionReasons": [
-        "overlap",
-        "transition_time",
-        "transition_distance_exceeded",
-        "blocked_authority",
-        "home_distance_exceeded",
-        "language"
-      ],
-      "reason": "התנגשות עם פעילויות אחרות; יש לבדוק שרשרת החלפות או מועד גמיש אחר · אין זמן מספיק לנסיעה ולמרווח הביטחון · המעבר בין בתי הספר עולה על 20 ק״מ · רשות הפעילות חסומה למדריכים שנבדקו · המדריכים שנבדקו מחוץ לטווח הנסיעה האוטומטי · נדרש מדריך עם שפת ההדרכה המבוקשת"
+      "recruitmentCertified": true
     }
   ],
-  "productionApplyRoute": "After owner approval only: point-run with targetCourseIds=these 10, allowGlobalRepair=false, existingRows=current workspace rows, then save_scheduling_planning_snapshot for only the changed target rows. Do not national-rerun. Not activated in this task."
+  "saveRpc": "save_scheduling_planning_incremental_snapshot",
+  "sourceRevision": 239
 }
