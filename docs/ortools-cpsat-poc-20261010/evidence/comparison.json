@@ -1,0 +1,35 @@
+{
+  "baselineLabel": "regional-js-v37",
+  "baseline": {
+    "assigned": 233,
+    "meetingHours": 3990.166666666667,
+    "elapsedMs": 34541.910288,
+    "version": "planning-v37-20261010-constraint-block-planner"
+  },
+  "ortools": {
+    "assigned": 234,
+    "meetingHours": 4005.1666666666665,
+    "protectedLive": 109,
+    "openAssigned": 125,
+    "elapsedWallSeconds": 265.19370639499994,
+    "status": "FEASIBLE",
+    "provenOptimal": false,
+    "internalValid": true
+  },
+  "delta": {
+    "assigned": 1,
+    "meetingHours": 14.999999999999545
+  },
+  "acceptance": {
+    "aimAssignedAtLeastBaseline": true,
+    "protectedLiveExpected": 109,
+    "protectedLiveActual": 109,
+    "noNewHardViolationsReportedSeparately": true
+  },
+  "recommendationNotes": [
+    "Do not claim global optimality unless solver.status == OPTIMAL.",
+    "Candidate universe is bounded by the same generatePool budget/profile as the JS exporter.",
+    "Coverage gaps vs baseline, if any, are reported without relaxing constraints."
+  ],
+  "recommendation": "GO — PoC meets or beats baseline coverage under hard constraints; consider staged integration evaluation."
+}
