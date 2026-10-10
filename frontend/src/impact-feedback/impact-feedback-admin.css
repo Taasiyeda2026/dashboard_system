@@ -1948,3 +1948,28 @@
   .ifb-admin .ifb-q-table th[scope="row"] { width: auto; }
   .ifb-admin .ifb-q-table th, .ifb-admin .ifb-q-table td { min-width: 0; padding: 8px; }
 }
+
+/* Analysis results: text headings start-aligned, numerical columns centered. */
+.ifb-admin .ifb-analysis-metrics-table { width: 100%; table-layout: fixed; }
+.ifb-admin .ifb-analysis-metrics-table th[scope="row"],
+.ifb-admin .ifb-analysis-metrics-table thead th:first-child {
+  text-align: start;
+  width: 30%;
+  font-weight: 700;
+}
+.ifb-admin .ifb-analysis-metrics-table thead th:not(:first-child),
+.ifb-admin .ifb-analysis-metrics-table td { text-align: center; }
+.ifb-admin .ifb-analysis-metrics-table th,
+.ifb-admin .ifb-analysis-metrics-table td { padding: 12px 14px; vertical-align: middle; }
+.ifb-admin .ifb-analysis-score { display: block; font-size: 18px; line-height: 1.4; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ifb-admin .ifb-analysis-score small { font-size: 11px; font-weight: 500; color: var(--ifb-a-muted); }
+.ifb-admin .ifb-analysis-count { display: block; margin-top: 2px; font-size: 11px; color: var(--ifb-a-muted); }
+.ifb-admin .ifb-analysis-context { margin: 0 0 10px; color: var(--ifb-a-muted); font-size: 12px; text-align: start; }
+.ifb-admin .ifb-analysis-footnote { margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: var(--ifb-a-muted); text-align: start; }
+@media (max-width: 760px) {
+  .ifb-admin .ifb-analysis-metrics-table { table-layout: auto; }
+  .ifb-admin .ifb-analysis-metrics-table th[scope="row"] { width: auto; }
+  .ifb-admin .ifb-analysis-metrics-table th,
+  .ifb-admin .ifb-analysis-metrics-table td { padding: 9px 8px; }
+  .ifb-admin .ifb-analysis-score { font-size: 16px; white-space: normal; }
+}
