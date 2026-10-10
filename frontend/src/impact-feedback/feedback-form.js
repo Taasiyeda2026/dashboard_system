@@ -108,7 +108,10 @@ function introHtml(text, lang = 'he') {
     : /(?:אין תשובות נכונות או לא נכונות|אין תשובה נכונה או לא נכונה)/;
   const key = paragraphs.find((part) => guidancePattern.test(part)) || '';
   const welcome = paragraphs[0] || '';
-  const body = paragraphs.filter((part) => part !== welcome && part !== key).join(' ');
+  const remaining = paragraphs.filter((part) => part !== welcome && part !== key).join(' ');
+  // Keep the displayed introduction brief; full approved copy stays in the template.
+  const sentences = remaining.split(/(?<=[.!?؟])\\s+/u).filter(Boolean);
+  const body = sentences.slice(0, 2).join(' ');
   const guidance = key ? `<p class="ifb-hero__guidance"><strong>${esc(key)}</strong></p>` : '';
   return `<div class="ifb-hero__intro" dir="rtl">
     <p class="ifb-hero__lead">${esc(welcome)}</p>
