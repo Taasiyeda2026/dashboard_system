@@ -143,15 +143,15 @@ export function hasCourseEndDate(group) {
  * Keep student-feedback semesters identical to the scheduling board.
  * Assign each course to exactly one semester by its first activity date,
  * not by its end date (a first-half course may continue into February).
- * The one-day 30 January gap follows the planning engine: starts before
- * the second-half start belong to the first half.
+ * Feedback reporting uses a January 1 cutoff, independent of the scheduling
+ * board's January 31 semester start.
  */
 export function studentFeedbackPeriodForGroup(group) {
   if (!hasCourseStartDate(group)) return null;
   const day = group.start_date;
   const { first, second } = COURSE_SCHEDULING_PERIODS;
   if (day < first.start || day > second.end) return null;
-  return day >= second.start ? 'second' : 'first';
+  return day >= '2027-01-01' ? 'second' : 'first';
 }
 
 /**
