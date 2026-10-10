@@ -763,7 +763,7 @@ function questionTableHtml(facts, { caption = '' } = {}) {
     <tbody>${stats.map((q) => `
       <tr>
         <th scope="row" data-label="שאלה"><span class="ifb-q-text">${esc(q.text)}</span><span class="ifb-cell-sub ifb-muted">${esc(q.section === 'course' ? 'ייחודית לקורס' : 'ליבה')} · ${esc(metricLabel(q.metric_key))}${q.wordingChanged ? ' · הניסוח השתנה בין גרסאות' : ''}</span></th>
-        <td data-label="תשובות שהתקבלו" class="ifb-center"><span class="ifb-num">${q.question_type === 'rating_1_5' ? q.valid : q.n}</span>${q.na ? `<span class="ifb-cell-sub ifb-muted">${q.na} „לא רלוונטי”</span>` : ''}</td>
+        <td data-label="תשובות שהתקבלו" class="ifb-center"><span class="ifb-sr">תשובות למדד: </span><span class="ifb-num">${q.question_type === 'rating_1_5' ? q.valid : q.n}</span>${q.na ? `<span class="ifb-cell-sub ifb-muted">${q.na} „לא רלוונטי”</span>` : ''}</td>
         <td data-label="ממוצע" class="ifb-center"><strong class="ifb-num">${q.question_type === 'rating_1_5' ? `${fmtNum(q.avg)} מתוך 5` : 'לא חל'}</strong></td>
         <td data-label="התפלגות">${questionResultCell(q)}</td>
       </tr>`).join('')}</tbody>
