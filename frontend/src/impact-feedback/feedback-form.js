@@ -122,7 +122,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
         <p class="ifb-hero__kicker">${esc(arabic ? (payload.stage === 'pre' ? 'استبيان البداية' : 'استبيان النهاية') : headline(payload))}</p>
         <h1 class="ifb-hero__title">${esc(payload.program_title || '')}</h1>
         ${payload.recipient_name ? `<p class="ifb-hero__hello">שלום ${esc(payload.recipient_name)}</p>` : ''}
-        ${payload.intro_text ? `<p class="ifb-hero__intro">${esc(payload.intro_text)}</p>` : ''}
+        ${(arabic ? payload.intro_text_ar : payload.intro_text) ? `<p class="ifb-hero__intro">${esc(arabic ? payload.intro_text_ar : payload.intro_text)}</p>` : ''}
       </header>
       <div class="ifb-progress" aria-hidden="true">
         <div class="ifb-progress__track"><div class="ifb-progress__fill" data-progress-fill></div></div>
