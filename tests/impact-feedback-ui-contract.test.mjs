@@ -304,7 +304,7 @@ test('SQL instructor feedback aggregates the two earliest dates independently', 
 
 
 test('public survey thanks screen never offers another form or resets completion on this device', () => {
-  assert.match(publicPage, /function showThanks\(root\)/);
+  assert.match(publicPage, /function showThanks\(root, language = 'he'\)/);
   assert.match(publicPage, /if \(isStudent && local\?\.getItem\(doneKey\)\)/);
   assert.match(publicPage, /local\?\.setItem\(doneKey, new Date\(\)\.toISOString\(\)\)/);
   assert.doesNotMatch(publicPage, /data-another|allowAnother|onAnother|removeItem\(doneKey\)/);
@@ -573,7 +573,7 @@ test('every valid public feedback token starts with equal-weight bilingual langu
   assert.match(publicPage, /root\.querySelector\('\[data-ifb-lang="he"\]'\)\.addEventListener\('click', onHebrew\)/);
   assert.match(publicPage, /root\.querySelector\('\[data-ifb-lang="ar"\]'\)\.addEventListener\('click', onArabic\)/);
   assert.match(publicPage, /if \(!payload \|\| payload\.state !== 'ok'\) \{/);
-  assert.match(publicPage, /if \(isStudent && local\?\.getItem\(doneKey\)\) \{\s*showThanks\(root\);\s*return;/);
+  assert.match(publicPage, /if \(isStudent && local\?\.getItem\(doneKey\)\) \{\s*showThanks\(root, session\?\.getItem\(languageKey\) === 'ar' \? 'ar' : 'he'\);\s*return;/);
   assert.match(publicPage, /const renderLanguageChoice = \(\) => showLanguageChoice\(root, \{/);
   assert.match(publicPage, /renderLanguageChoice\(\);\s*\}\s*start\(\)/);
 });
@@ -590,7 +590,7 @@ test('Arabic is available only when translations are supplied and selected wordi
 });
 
 test('survey language change preserves draft and equal bilingual styling on mobile', () => {
-  assert.match(publicForm, /options\.onChooseLanguage \? '<button type="button" class="ifb-hero__change-language"/);
+  assert.match(publicForm, /options\.onChooseLanguage \? `<button type="button" class="ifb-hero__change-language"/);
   assert.match(publicForm, /options\.onChange\?\.\(\{ \.\.\.answers \}\)/);
   assert.match(publicForm, /options\.onChooseLanguage\?\.\(\)/);
   assert.match(publicPage, /onChooseLanguage: renderLanguageChoice/);
