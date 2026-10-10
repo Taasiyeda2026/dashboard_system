@@ -9,7 +9,7 @@ Related docs (do not treat as overrides of this map):
 
 If this map and the code disagree, **the code wins**. Update this file after any material scheduling change.
 
-**Engine version observed while writing:** `ENGINE_VERSION = planning-v37-20261010-regional-scarcity-stages` in `frontend/src/screens/scheduling-core/constraints.js` (exported as `PLANNING_ENGINE_VERSION` from `course-scheduling-planning.js`). Live national path is `buildPlan` in `scheduling-core/planner.js`.
+**Engine version observed while writing:** `ENGINE_VERSION = planning-v37-20261010-constraint-block-planner` in `frontend/src/screens/scheduling-core/constraints.js` (exported as `PLANNING_ENGINE_VERSION` from `course-scheduling-planning.js`). Live national path is `buildPlan` in `scheduling-core/planner.js` (regional scarcity staging under the same v37 save token).
 
 ---
 

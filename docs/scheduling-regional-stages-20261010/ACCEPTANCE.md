@@ -2,6 +2,8 @@
 
 Stabilizes national planning by staging operational blocks North → South → Center/borders while keeping one nationwide occupancy, active-only new candidates, proximity ranking (not hard geo partition), and scarcity-first ordering **inside** each region. Route-aware baseline pools are built per regional batch, not for the whole country upfront.
 
+`ENGINE_VERSION` remains `planning-v37-20261010-constraint-block-planner` so the existing trusted SQL validator / capability handshake keep working; deployable cache markers (`HOTFIX_VERSION`, `CACHE_VERSION`) still refresh clients.
+
 Supersedes the unproven interim measurement on PR #2253 (223 assigned / ~30.4s) that was taken **before** scarcity-within-region was restored.
 
 ## Same-input comparison
