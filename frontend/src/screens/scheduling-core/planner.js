@@ -233,12 +233,8 @@ export async function buildPlan(input = {}) {
     finalists.sort(baseOnly?(a,b)=>a.instructorEmpId.localeCompare(b.instructorEmpId):(a,b)=>a.opportunityCost-b.opportunityCost||compareCandidatesStable(a,b));
     return {...pool,options:finalists,failures:[...failures]};
   }
-  for (const a of queue) { const result = await candidates(a, occupancy, true); baselineOptions.set(activityId(a), result.options); baselineInfo.set(activityId(a), result); }
   const urgencyOrder = { within_7: 0, within_14: 1, later: 2, none: 3 };
   const urgency = new Map(queue.map(a => [activityId(a), courseUrgency({ ...a, meetings: officialMeetings(a) }, input.today)]));
-  queue.sort((a, b) => { const au = urgency.get(activityId(a)), bu = urgency.get(activityId(b)); return urgencyOrder[au.urgencyBand] - urgencyOrder[bu.urgencyBand]
-    || new Set(baselineOptions.get(activityId(a)).map(o => o.instructorEmpId)).size - new Set(baselineOptions.get(activityId(b)).map(o => o.instructorEmpId)).size
-    || text(au.nextUpcomingMeetingDate).localeCompare(text(bu.nextUpcomingMeetingDate)) || activityId(a).localeCompare(activityId(b)); });
   const blocks = buildOperationalBlocks(queue.map(a => ({ course: { ...a, meetings: officialMeetings(a) }, status: 'ממתין' })));
   let completed = 0;
   const accept = async (a, result, option) => {
@@ -271,10 +267,22 @@ export async function buildPlan(input = {}) {
     const district = [...districts][0];
     return district === 'צפון' ? 0 : district === 'דרום' ? 1 : 2;
   };
+  // Defer expensive route-aware candidate search until the block's region
+  // is reached. Keep every instructor eligible and one shared occupancy.
   const stagedBlocks = blocks.map((block, index) => ({ block, index, stage: regionalRank(block) }))
     .sort((a, b) => a.stage - b.stage || a.index - b.index);
   let currentStage = -1;
   for (const { block, stage } of stagedBlocks) {
+    // Candidate pools are calculated for this regional block only, not
+    // populated nationally before the first regional stage can progress.
+    for (const { course: a } of block.results) {
+      const id = activityId(a);
+      if (!baselineOptions.has(id)) {
+        const result = await candidates(a, occupancy, true);
+        baselineOptions.set(id, result.options);
+        baselineInfo.set(id, result);
+      }
+    }
     if (stage !== currentStage) {
       currentStage = stage;
       await report(['תכנון צפון — אילוצים ארציים', 'תכנון דרום — אילוצים ארציים', 'תכנון מרכז וגבולות — אילוצים ארציים'][stage], completed, queue.length);
