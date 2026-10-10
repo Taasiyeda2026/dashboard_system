@@ -95,6 +95,28 @@ function questionHtml(q, index, answers, young, lang = 'he') {
     </fieldset>`;
 }
 
+
+// Compact, accessible intro structure shared across all feedback audiences and languages.
+// Preserve the template's authored text while promoting its key message.
+function introHtml(text, lang = 'he') {
+  const source = String(text || '').trim();
+  if (!source) return '';
+  const segments = source.split(/\n\s*\n|\n/).map((part) => part.trim()).filter(Boolean);
+  const paragraphs = segments.length > 1 ? segments : source.split(/(?<=[.!?؟])\s+/u).filter(Boolean);
+  const guidancePattern = lang === 'ar'
+    ? /(?:لا توجد إجابات صحيحة أو خاطئة|لا توجد إجابات صحيحة|لا توجد إجابة صحيحة)/
+    : /(?:אין תשובות נכונות או לא נכונות|אין תשובה נכונה או לא נכונה)/;
+  const key = paragraphs.find((part) => guidancePattern.test(part)) || '';
+  const welcome = paragraphs[0] || '';
+  const body = paragraphs.filter((part) => part !== welcome && part !== key).join(' ');
+  const guidance = key ? `<p class="ifb-hero__guidance"><strong>${esc(key)}</strong></p>` : '';
+  return `<div class="ifb-hero__intro" dir="rtl">
+    <p class="ifb-hero__lead">${esc(welcome)}</p>
+    ${body ? `<p class="ifb-hero__details">${esc(body)}</p>` : ''}
+    ${guidance}
+  </div>`;
+}
+
 export function messageCardHtml({ title, body, logoUrl = '', extra = '' }) {
   return `
     <section class="ifb-card ifb-message" role="status">
@@ -125,7 +147,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
         <p class="ifb-hero__kicker">${esc(arabic ? (payload.stage === 'pre' ? 'استبيان البداية' : 'استبيان النهاية') : headline(payload))}</p>
         <h1 class="ifb-hero__title">${esc(arabic && /ביומימיקרי/.test(payload.program_title || '') ? 'المحاكاة الحيوية' : (payload.program_title || ''))}</h1>
         ${payload.recipient_name ? `<p class="ifb-hero__hello">${arabic ? 'مرحبًا' : 'שלום'} ${esc(payload.recipient_name)}</p>` : ''}
-        ${(arabic ? payload.intro_text_ar : payload.intro_text) ? `<p class="ifb-hero__intro">${esc(arabic ? payload.intro_text_ar : payload.intro_text)}</p>` : ''}
+        ${introHtml(arabic ? payload.intro_text_ar : payload.intro_text, arabic ? 'ar' : 'he')}
       </header>
       <div class="ifb-progress" aria-hidden="true">
         <div class="ifb-progress__track"><div class="ifb-progress__fill" data-progress-fill></div></div>
