@@ -274,7 +274,7 @@ test('one shared half-year switch controls all operational feedback tabs without
   assert.match(screen, /ui\.summaryHalf = null;/);
   assert.match(screen, /await load\(host\)/);
   assert.match(styles, /\.ifb-student-semester\.is-active \{/);
-  assert.match(screen, /תבניות השאלונים משותפות למחצית א׳ ולמחצית ב׳/);
+  assert.doesNotMatch(screen, /תבניות השאלונים משותפות למחצית א׳ ולמחצית ב׳/);
 });
 
 
