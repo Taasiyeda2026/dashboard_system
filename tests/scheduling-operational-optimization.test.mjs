@@ -62,3 +62,20 @@ test('more than two blocked flexible meetings permits another permanent instruct
  const next=await buildDynamicCoursePlan({...data,existingRows:base.rows,committedRows:base.rows,targetCourseIds:['flex'],allowGlobalRepair:false,exceptions:{[row.instructorEmpId]:row.meetings.map(m=>({exception_date:m.date,available:false}))}});
  assert.equal(next.finalPlanValidation.valid,true);assert.ok(next.rows[0].instructorEmpId);assert.notEqual(next.rows[0].instructorEmpId,row.instructorEmpId);
 });
+
+test('regional staging reports north, south, then center while retaining nationwide validation',async()=>{
+ const activities=[
+  activity('center',{district:'מרכז',school_id:'3',school_address:'school1'}),
+  activity('south',{district:'דרום',school_id:'2',school_address:'school1'}),
+  activity('north',{district:'צפון',school_id:'1',school_address:'school1'})
+ ];
+ const phases=[];
+ const data=input(activities,{skipSoftOptimization:true,onProgress:async({phase})=>phases.push(phase)});
+ const plan=await buildDynamicCoursePlan(data);
+ const stageNames=['תכנון צפון — אילוצים ארציים','תכנון דרום — אילוצים ארציים','תכנון מרכז וגבולות — אילוצים ארציים'];
+ const indices=stageNames.map(name=>phases.indexOf(name));
+ assert.ok(indices.every(index=>index>=0),JSON.stringify(phases));
+ assert.ok(indices[0]<indices[1]&&indices[1]<indices[2]);
+ assert.equal(plan.rows.length,3);
+ assert.equal(plan.finalPlanValidation.valid,true);
+});
