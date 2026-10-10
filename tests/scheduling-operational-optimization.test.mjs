@@ -13,7 +13,12 @@ test('augmenting search solves three-instructor chain beyond one displaced activ
  assert.equal(await augmentingSearch({...config,maxDepth:3,canMove:id=>id!=='B'}),null);
 });
 test('strict objective cannot trade coverage or teaching hours for lower travel or idle time',()=>{
- const q={covered:2,meetingHours:4,waitingMinutes:100,totalTravelMinutes:50};assert.ok(compareOperationalQuality({...q,covered:1,waitingMinutes:0},q)<0);assert.ok(compareOperationalQuality({...q,meetingHours:3,waitingMinutes:0},q)<0);assert.ok(compareOperationalQuality({...q,waitingMinutes:50,totalTravelMinutes:500},q)>0);
+ const q={covered:2,meetingHours:4,waitingMinutes:100,totalTravelMinutes:50,sameSchoolSequences:0};
+ assert.ok(compareOperationalQuality({...q,covered:1,waitingMinutes:0},q)<0);
+ assert.ok(compareOperationalQuality({...q,meetingHours:3,waitingMinutes:0},q)<0);
+ assert.ok(compareOperationalQuality({...q,waitingMinutes:50,totalTravelMinutes:500},q)>0);
+ assert.ok(compareOperationalQuality({...q,sameSchoolSequences:2,waitingMinutes:120},q)>0,
+  'same-school packing outranks idle waiting once coverage and teaching hours are equal');
 });
 test('quality measures explicit availability union, travel round trips, waiting and school sequences',()=>{
  const data=input([activity('a'),activity('b',{start_time:'10:00',end_time:'11:00'})]);data.rules['1'].push({weekday:1,available:true,start_time:'09:00',end_time:'12:00'});data.exceptions['1']=[{exception_date:'2026-10-12',available:false}];
