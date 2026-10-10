@@ -94,21 +94,6 @@ function showLanguageChoice(root, { onHebrew, onArabic }) {
   root.setAttribute('aria-busy', 'false');
 }
 
-const BIOMIMICRY_ARABIC_QUESTIONS = [
-  "مثير للاهتمام بالنسبة لي أن أكتشف أشياء جديدة عن الطبيعة.",
-  "عندما أرى شيئًا مثيرًا للاهتمام في الطبيعة، أريد أن أفهم كيف يعمل.",
-  "ألاحظ تفاصيل مميزة في النباتات والحيوانات.",
-  "أستطيع أن أشرح كيف تساعد صفة معينة حيوانًا في الطبيعة.",
-  "أستطيع التفكير في أفكار جديدة مستوحاة من الطبيعة.",
-  "عندما أواجه مشكلة، أحاول التفكير في أكثر من حل واحد.",
-  "أستطيع العمل مع زملائي لإيجاد حل لمشكلة.",
-  "أشعر بالثقة عند عرض فكرتي أمام الآخرين.",
-  "كانت أنشطة الدورة ممتعة وشيقة.",
-  "أتيحت لي الفرصة لاقتراح أفكاري الخاصة خلال الدورة.",
-  "ما النشاط الذي أحببته أكثر خلال الدورة؟",
-  "ما الذي تود تغييره أو إضافته إلى الدورة؟"
-];
-
 function showArabicPending(root, onBack) {
   document.documentElement.lang = 'ar';
   root.innerHTML = `<div class="ifb-shell ifb-shell--language" lang="ar" dir="rtl">
@@ -160,20 +145,14 @@ async function start() {
 
   const renderForm = (language = 'he') => {
     document.documentElement.lang = language;
-    const isBilingualBiomimicry = language === 'ar' && payload.audience === 'student' &&
-      (payload.program_key === 'biomimicry' || payload.program_gefen === '6089' || /ביומימיקרי/.test(payload.program_title || '')) &&
-      !/חטיב/.test(payload.program_title || '');
-    const displayPayload = isBilingualBiomimicry ? {
-      ...payload,
-      intro_text: payload.intro_text,
-      questions: payload.questions.map((q, i) => ({ ...q, text_ar: BIOMIMICRY_ARABIC_QUESTIONS[i] || '' }))
-    } : payload;
+    const localizedQuestions = payload.questions.map((q) => language === 'ar' ? { ...q, text: q.text_ar || q.text } : q);
+    const displayPayload = { ...payload, questions: localizedQuestions };
     let initialAnswers = {};
     try { initialAnswers = JSON.parse(session?.getItem(draftKey) || '{}') || {}; } catch { initialAnswers = {}; }
     const startedAt = Date.now();
     mountFeedbackForm(root, displayPayload, {
       logoUrl,
-      bilingual: isBilingualBiomimicry,
+      language,
       initialAnswers,
       onChooseLanguage: renderLanguageChoice,
       onChange(answers) {
@@ -218,7 +197,7 @@ async function start() {
   }
   const renderLanguageChoice = () => showLanguageChoice(root, {
     onHebrew: () => renderForm('he'),
-    onArabic: () => (payload.audience === 'student' && /ביומימיקרי/.test(payload.program_title || '') && !/חטיב/.test(payload.program_title || ''))
+    onArabic: () => payload.questions.every((q) => Boolean(q.text_ar))
       ? renderForm('ar') : showArabicPending(root, renderLanguageChoice)
   });
   renderLanguageChoice();
