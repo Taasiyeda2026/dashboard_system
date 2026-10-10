@@ -1,0 +1,40 @@
+{
+  "version": "planning-v37-20261010-constraint-block-planner",
+  "elapsedMs": 14039.383287999999,
+  "cpuMs": 13647.37,
+  "maxRSSKiB": 382680,
+  "heapUsedBytes": 208446856,
+  "rows": 253,
+  "assigned": 225,
+  "routeMisses": 216,
+  "databaseRequests": 0,
+  "metrics": {
+    "candidateChecks": 36481,
+    "generatedSchedules": 36481,
+    "activitiesComputed": 144,
+    "protectedRows": 112,
+    "contextMs": 16.265906,
+    "validationMs": 72.88710499999979,
+    "optimizationMs": 5073.4477480000005,
+    "elapsedMs": 14031.306147
+  },
+  "optimization": {
+    "completed": false,
+    "basePreserved": true,
+    "failure": "planning_optimization_budget_exceeded"
+  },
+  "quality": {
+    "covered": 225,
+    "uncovered": 28,
+    "recruitmentProfiles": 5,
+    "recruitment": 14,
+    "changedDrafts": 0,
+    "newWorkDayMeetings": 617,
+    "totalTravelKm": 1105.9,
+    "operationalScoreSum": 8958,
+    "meetingHours": 3745.6666666666524,
+    "instructorsUsed": 23,
+    "workDays": 1013
+  },
+  "sourceUnchanged": true
+}

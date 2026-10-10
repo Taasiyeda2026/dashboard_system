@@ -2143,7 +2143,7 @@ test('route failure never produces a valid planning proposal', async () => {
   assert.equal(result.rows[0].kind, 'missing');
   assert.equal(result.rows[0].instructorEmpId, '');
   assert.equal(result.rows[0].options.length, 0);
-  assert.match(result.rows[0].reason, /home_route_unknown/);
+  assert.match(result.rows[0].reason, /חסר מסלול נסיעה מאומת/);
   assert.equal(result.rows[0].diagnostics.recruitmentCertified,false);
 });
 
@@ -2474,7 +2474,7 @@ test('national planning reoptimizes an existing draft before declaring recruitme
   assert.ok(row.startDate);
   assert.ok(row.startTime);
   assert.ok(row.meetings.length > 0);
-  assert.match(row.reason, /מיצוי אפשרויות הצוות הקיים/);
+  assert.match(row.reason, /לא נמצאה חלופה חוקית במסגרת החיפוש/);
 });
 
 test('recruitment packing reuses one hiring model for compatible activities instead of one hire per activity', () => {
@@ -2658,7 +2658,7 @@ test('Planning marks recruitment only when no active instructor can satisfy the 
   assert.ok(result.rows[0].startTime);
   assert.ok(result.rows[0].meetings.length > 0);
   assert.ok(result.rows[0].recruitmentProfileId);
-  assert.match(result.rows[0].reason, /נדרש גיוס/);
+  assert.match(result.rows[0].reason, /לא נמצאה חלופה חוקית במסגרת החיפוש/);
   assert.equal(result.recruitment, 1);
 });
 
