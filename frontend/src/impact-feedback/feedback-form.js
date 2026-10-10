@@ -152,6 +152,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
 
   const audienceClass = payload.audience === 'student' ? ' is-student' : ' is-adult';
   const arabic = options.language === 'ar';
+  const hasStarted = Boolean(options.initialStarted) || Object.keys(answers).some((key) => answers[key] !== null && answers[key] !== '' && answers[key] !== undefined);
   container.innerHTML = `
     <div lang="${arabic ? 'ar' : 'he'}" dir="rtl" class="ifb-shell${young ? ' is-young' : ''}${audienceClass}">
       <header class="ifb-hero">
@@ -162,6 +163,10 @@ export function mountFeedbackForm(container, payload, options = {}) {
         ${payload.recipient_name ? `<p class="ifb-hero__hello">${arabic ? 'مرحبًا' : 'שלום'} ${esc(payload.recipient_name)}</p>` : ''}
         ${introHtml(arabic ? payload.intro_text_ar : payload.intro_text, arabic ? 'ar' : 'he')}
       </header>
+      <div class="ifb-start" data-ifb-start-panel${hasStarted ? ' hidden' : ''}>
+        <button type="button" class="ifb-start__btn" data-ifb-start>${arabic ? 'بدء الاستبيان' : 'התחלת המשוב'}</button>
+      </div>
+      <div data-ifb-questionnaire${hasStarted ? '' : ' hidden'}>
       <div class="ifb-progress" aria-hidden="true">
         <div class="ifb-progress__track"><div class="ifb-progress__fill" data-progress-fill></div></div>
         <span class="ifb-progress__label" data-progress-label></span>
@@ -173,8 +178,16 @@ export function mountFeedbackForm(container, payload, options = {}) {
           <button type="submit" class="ifb-submit__btn" data-submit>${options.preview ? 'שליחה (תצוגה מקדימה)' : (arabic ? 'إرسال الاستبيان' : 'שליחת המשוב')}</button>
         </div>
       </form>
+      </div>
     </div>`;
 
+  const startPanel = container.querySelector('[data-ifb-start-panel]');
+  const questionnaire = container.querySelector('[data-ifb-questionnaire]');
+  container.querySelector('[data-ifb-start]')?.addEventListener('click', () => {
+    startPanel.hidden = true;
+    questionnaire.hidden = false;
+    questionnaire.querySelector('[data-progress-label]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
   const form = container.querySelector('form');
   const fill = container.querySelector('[data-progress-fill]');
   const label = container.querySelector('[data-progress-label]');
