@@ -349,3 +349,22 @@
   .ifb-language-card__choices { gap: 9px; }
   .ifb-language-card__choice { min-height: 53px; font-size: 18px; }
 }
+
+/* Shared welcome-to-questionnaire step, for all audiences and both languages. */
+.ifb-shell [hidden] { display: none !important; }
+.ifb-start { display: flex; justify-content: center; padding: 19px 8px 26px; }
+.ifb-start__btn {
+  width: min(100%, 260px); min-height: 46px; padding: 10px 22px;
+  border: 0; border-radius: 12px; background: var(--ifb-accent);
+  color: #fff; font: inherit; font-size: 17px; font-weight: 750; cursor: pointer;
+}
+.ifb-start__btn:focus-visible { outline: 3px solid var(--ifb-focus); outline-offset: 3px; }
+.ifb-submit { position: static; padding: 14px 0 20px; background: transparent; }
+.ifb-submit__btn, .ifb-shell.is-adult .ifb-submit__btn {
+  display: block; width: min(100%, 280px); max-width: 280px;
+  margin-inline: auto; min-height: 47px; font-size: 16px; box-shadow: none;
+}
+@media (max-width: 480px) {
+  .ifb-start { padding-top: 15px; padding-bottom: 22px; }
+  .ifb-submit__btn, .ifb-shell.is-adult .ifb-submit__btn { width: min(100%, 250px); min-height: 46px; font-size: 16px; }
+}
