@@ -6814,9 +6814,10 @@ export async function buildLegacyDynamicCoursePlan({
       activities: targets, instructors, profiles, rules, exceptions, schoolCalendar, routeClient }, checkpoint);
     if (validation.valid) verifiedBase = { rows: baseRows, validation };
     try {
-    const optimizationCheckpoint = fastMaintenanceRun
-      ? createPlanningOptimizationDeadlineCheckpoint({ checkpoint })
-      : checkpoint;
+    // The entire optional optimization must be bounded, even in non-fast
+    // maintenance runs. Otherwise expensive school/day passes can exhaust the
+    // browser's hard five-minute run deadline before final validation/save.
+    const optimizationCheckpoint = createPlanningOptimizationDeadlineCheckpoint({ checkpoint });
     let optimizationBudgetExceeded = false;
     const runOptimizationPass = async (operation) => {
       if (optimizationBudgetExceeded) return null;
@@ -6873,7 +6874,7 @@ export async function buildLegacyDynamicCoursePlan({
       }
     }
     if (!optimizationBudgetExceeded && (gapCompactionTargetIds === null || gapCompactionTargetIds.size > 0)) {
-      await compactInstructorDayGapsPass({
+      await runOptimizationPass(() => compactInstructorDayGapsPass({
         rowsById,
         preparedContextFor,
         targetCourseIds: gapCompactionTargetIds ? [...gapCompactionTargetIds] : null,
@@ -6896,8 +6897,8 @@ export async function buildLegacyDynamicCoursePlan({
         },
         maxPasses: fastMaintenanceRun ? 0 : 3,
         report
-      });
-      await report('צמצום חלונות הושלם', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
+      }));
+      if (!optimizationBudgetExceeded) await report('צמצום חלונות הושלם', rowsById.size, rowsById.size, '', null, [...rowsById.values()]);
     }
     if (optimizationBudgetExceeded) {
       optimizationFailure = 'planning_optimization_budget_exceeded';
