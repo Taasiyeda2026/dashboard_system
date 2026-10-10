@@ -3,7 +3,7 @@ import { isFullDaySchedulingActivity } from '../shared/activity-scheduling-eligi
 import { normalizeCalendarSector } from '../shared/school-calendar-logic.js';
 import { schedulingWeekendFailure } from '../shared/scheduling-weekend-policy.js';
 
-export const ENGINE_VERSION = 'planning-v37-20261010-constraint-block-planner';
+export const ENGINE_VERSION = 'planning-v37-20261010-regional-scarcity-stages';
 export const text = value => String(value ?? '').trim();
 export const activityId = a => text(a?.row_id || a?.RowID || a?.id);
 export const address = value => text(value).toLowerCase().replace(/\s+/g, ' ');

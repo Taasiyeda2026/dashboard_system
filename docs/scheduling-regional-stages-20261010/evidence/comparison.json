@@ -1,0 +1,100 @@
+{
+  "fixture": "docs/scheduling-new-core-20261010/fixtures canonical DECISION_CANONICAL=1",
+  "baseCommitNote": "main planner before regional staging (measured from clean main checkout before branch work)",
+  "regionalCommitNote": "cursor/scheduling-engine-stabilize-e1e0 after scarcity-within-region restore; rebased onto latest main",
+  "fullSoftOptimization": {
+    "main": {
+      "version": "planning-v37-20261010-constraint-block-planner",
+      "elapsedMs": 43925.780716999994,
+      "assigned": 228,
+      "rows": 253,
+      "routeMisses": 240,
+      "candidateChecks": 78328,
+      "protectedRows": 112,
+      "optimizationMs": 25031.490773999998,
+      "meetingHours": 3826.666666666667,
+      "totalTravelKm": 54346.04799999999,
+      "waitingMinutes": 23730,
+      "covered": 228,
+      "uncovered": 25
+    },
+    "regional": {
+      "version": "planning-v37-20261010-constraint-block-planner",
+      "elapsedMs": 34541.910288,
+      "assigned": 233,
+      "rows": 253,
+      "routeMisses": 250,
+      "candidateChecks": 70742,
+      "protectedRows": 112,
+      "optimizationMs": 17825.736432,
+      "meetingHours": 3990.166666666667,
+      "totalTravelKm": 57491.20899999999,
+      "waitingMinutes": 25074,
+      "covered": 233,
+      "uncovered": 20
+    }
+  },
+  "baselineOnly": {
+    "main": {
+      "version": "planning-v37-20261010-constraint-block-planner",
+      "elapsedMs": 17983.235291,
+      "assigned": 223,
+      "rows": 253,
+      "routeMisses": 237,
+      "candidateChecks": 67306,
+      "protectedRows": 112,
+      "optimizationMs": 0,
+      "meetingHours": 3697.666666666667,
+      "totalTravelKm": 52441.70299999999,
+      "waitingMinutes": 29150,
+      "covered": 223,
+      "uncovered": 30
+    },
+    "regional": {
+      "version": "planning-v37-20261010-constraint-block-planner",
+      "elapsedMs": 16512.596727,
+      "assigned": 229,
+      "rows": 253,
+      "routeMisses": 245,
+      "candidateChecks": 63926,
+      "protectedRows": 112,
+      "optimizationMs": 0,
+      "meetingHours": 3928.666666666667,
+      "totalTravelKm": 56228.11499999998,
+      "waitingMinutes": 30318,
+      "covered": 229,
+      "uncovered": 24
+    }
+  },
+  "independentAudit": {
+    "main": {
+      "assignedActivities": 228,
+      "generatedViolations": 0,
+      "protectedSourceViolations": 73
+    },
+    "regional": {
+      "assignedActivities": 233,
+      "generatedViolations": 0,
+      "protectedSourceViolations": 73
+    }
+  },
+  "protectedLiveRows": {
+    "main": 109,
+    "regional": 109,
+    "changed": 0
+  },
+  "pairwiseTimeOverlaps": {
+    "main": 0,
+    "regional": 0
+  },
+  "finalPlanValidation": {
+    "main": true,
+    "regional": true
+  },
+  "rebasedBaselineOnlyAssigned": 229,
+  "deltaFull": {
+    "assigned": 5,
+    "elapsedMs": -9383.870428999995,
+    "meetingHours": 163.5
+  }
+}

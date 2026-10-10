@@ -1,0 +1,44 @@
+{
+  "rows": 253,
+  "maxRSSKiB": 537884,
+  "version": "planning-v37-20261010-constraint-block-planner",
+  "databaseRequests": 0,
+  "heapUsedBytes": 268709072,
+  "assigned": 233,
+  "elapsedMs": 34541.910288,
+  "routeMisses": 250,
+  "sourceUnchanged": true,
+  "cpuMs": 35247.402,
+  "metrics": {
+    "activitiesComputed": 144,
+    "protectedRows": 112,
+    "validationMs": 69.25089700000171,
+    "generatedSchedules": 70742,
+    "contextMs": 32.02451399999998,
+    "optimizationMs": 17825.736432,
+    "candidateChecks": 70742,
+    "elapsedMs": 34535.457612000006
+  },
+  "quality": {
+    "waitingMinutes": 25074,
+    "totalTravelKm": 57491.20899999999,
+    "uncovered": 20,
+    "recruitment": 14,
+    "recruitmentProfiles": 5,
+    "splitDays": 244,
+    "meetingHours": 3990.166666666667,
+    "covered": 233,
+    "instructorsUsed": 23,
+    "workDays": 1024,
+    "sameSchoolSequences": 950,
+    "totalTravelMinutes": 66843
+  },
+  "optimization": {
+    "completed": false,
+    "optimal": false,
+    "basePreserved": false,
+    "scope": "bounded-neighborhood",
+    "algorithmRevision": "v37-operational-1",
+    "decisionCount": 25
+  }
+}
