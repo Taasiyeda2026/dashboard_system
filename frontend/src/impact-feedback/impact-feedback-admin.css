@@ -1973,3 +1973,17 @@
   .ifb-admin .ifb-analysis-metrics-table td { padding: 9px 8px; }
   .ifb-admin .ifb-analysis-score { font-size: 16px; white-space: normal; }
 }
+
+/* Programme-specific improvement report: directional text, centred scores. */
+.ifb-admin .ifb-improvement-report { margin-block: 14px; }
+.ifb-admin .ifb-improvement-report > h3 { margin: 0 0 8px; text-align: start; }
+.ifb-admin .ifb-improvement-themes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-block: 14px; }
+.ifb-admin .ifb-improvement-theme { border: 1px solid var(--ifb-a-border, #e1e5ec); border-radius: 10px; padding: 14px; min-width: 0; }
+.ifb-admin .ifb-improvement-theme h4 { margin: 0 0 8px; text-align: start; font-size: 14px; }
+.ifb-admin .ifb-improvement-theme p { margin: 6px 0; font-size: 12px; line-height: 1.6; }
+.ifb-admin .ifb-improvement-theme ul { margin: 10px 0; padding-inline-start: 18px; }
+.ifb-admin .ifb-improvement-theme li { margin-block: 7px; font-size: 12px; line-height: 1.6; }
+.ifb-admin .ifb-improvement-theme li strong { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ifb-admin .ifb-improvement-source { font-weight: 600; }
+.ifb-admin .ifb-improvement-action { border-top: 1px solid var(--ifb-a-border, #e1e5ec); padding-top: 10px; }
+@media (max-width: 780px) { .ifb-admin .ifb-improvement-themes { grid-template-columns: 1fr; } }
