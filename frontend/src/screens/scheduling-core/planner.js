@@ -269,24 +269,36 @@ export async function buildPlan(input = {}) {
   };
   // Defer expensive route-aware candidate search until the block's region
   // is reached. Keep every instructor eligible and one shared occupancy.
-  const stagedBlocks = blocks.map((block, index) => ({ block, index, stage: regionalRank(block) }))
-    .sort((a, b) => a.stage - b.stage || a.index - b.index);
-  let currentStage = -1;
-  for (const { block, stage } of stagedBlocks) {
-    // Candidate pools are calculated for this regional block only, not
-    // populated nationally before the first regional stage can progress.
-    for (const { course: a } of block.results) {
-      const id = activityId(a);
-      if (!baselineOptions.has(id)) {
-        const result = await candidates(a, occupancy, true);
+  const stagedBlocks = blocks.map((block, index) => ({ block, index, stage: regionalRank(block) }));
+  // Restore scarcity-first ordering INSIDE each region. Deferring all pools
+  // without ordering allowed flexible courses to consume scarce instructors.
+  // Prepare one regional batch at a time; never precompute the entire country.
+  async function* orderedRegionalBlocks() {
+    for (const stage of [0, 1, 2]) {
+      const stageBlocks = stagedBlocks.filter(entry => entry.stage === stage);
+      if (!stageBlocks.length) continue;
+      await report(['תכנון צפון — אילוצים ארציים', 'תכנון דרום — אילוצים ארציים', 'תכנון מרכז וגבולות — אילוצים ארציים'][stage], completed, queue.length);
+      for (const { block } of stageBlocks) for (const { course: activity } of block.results) {
+        const id = activityId(activity);
+        if (baselineOptions.has(id)) continue;
+        const result = await candidates(activity, occupancy, true);
         baselineOptions.set(id, result.options);
         baselineInfo.set(id, result);
       }
+      const priority = ({ block }) => {
+        const activities = block.results.map(item => item.course);
+        const scarcity = Math.min(...activities.map(activity => new Set((baselineOptions.get(activityId(activity)) || []).map(option => option.instructorEmpId)).size));
+        const urgent = Math.min(...activities.map(activity => urgencyOrder[urgency.get(activityId(activity)).urgencyBand] ?? 3));
+        return { scarcity, urgent };
+      };
+      stageBlocks.sort((left, right) => {
+        const a = priority(left), b = priority(right);
+        return a.urgent - b.urgent || a.scarcity - b.scarcity || left.index - right.index;
+      });
+      for (const entry of stageBlocks) yield entry;
     }
-    if (stage !== currentStage) {
-      currentStage = stage;
-      await report(['תכנון צפון — אילוצים ארציים', 'תכנון דרום — אילוצים ארציים', 'תכנון מרכז וגבולות — אילוצים ארציים'][stage], completed, queue.length);
-    }
+  }
+  for await (const { block } of orderedRegionalBlocks()) {
     await checkpoint(); const activities = block.results.map(r => r.course);
     let acceptedBlock = false;
     if (activities.length > 1) {
