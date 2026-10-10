@@ -656,3 +656,13 @@ test('analysis comparison hides empty audience columns and aligns numeric headin
   assert.match(styles, /\.ifb-analysis-metrics-table thead th:not\(:first-child\)/);
   assert.match(styles, /\.ifb-analysis-metrics-table thead th:first-child/);
 });
+
+test('biomimicry AI export offers separate internal and external scopes', () => {
+  assert.match(screen, /function aiAnalysisExportHtml\(\)/);
+  assert.match(screen, /data-ifb-ai-export="internal"/);
+  assert.match(screen, /data-ifb-ai-export="external"/);
+  assert.match(screen, /includeInstructor \|\| f\.audience !== 'instructor'/);
+  assert.match(screen, /includeInstructor \? openAnswers\(facts\) : \[\]/);
+  assert.match(screen, /function exportAiAnalysis\(mode\)/);
+  assert.match(screen, /exportAiAnalysis\(aiExport\.dataset\.ifbAiExport\)/);
+});
