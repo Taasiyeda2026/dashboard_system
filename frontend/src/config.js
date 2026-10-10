@@ -432,3 +432,7 @@ config.HOTFIX_VERSION = `impact-feedback-six-tabs-printable-questionnaires-20261
 config.HOTFIX_VERSION = `impact-feedback-five-tabs-course-analysis-20261009-v27-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `scheduling-bounded-display-cache-20261009-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `scheduling-v37-new-constraint-block-core-20261010-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `scheduling-v37-acceptance-contracts-20261010-v2-${config.HOTFIX_VERSION}`;

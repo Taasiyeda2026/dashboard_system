@@ -1,4 +1,3 @@
-import { supabase } from '../supabase-client.js';
 import { activityMeetings } from './instructor-scheduling-load.js';
 import { adjacentActivities } from './instructor-matching-engine.js';
 import { planningPerfCount } from './course-scheduling-perf.js';
@@ -78,6 +77,7 @@ export async function loadSchedulingTravelCacheRows({
   if (!force && existing?.promise) return existing.promise;
 
   const promise = (async () => {
+    const { supabase } = await import('../supabase-client.js');
     const rows = [];
     for (let offset = 0; offset < limit; offset += size) {
       const { data, error } = await supabase
@@ -134,7 +134,10 @@ export function adaptSinglePairRouteInvoke(handler) {
 }
 
 export function createRouteClient({
-  invoke = (body) => supabase.functions.invoke('scheduling-route', { body }),
+  invoke = async (body) => {
+    const { supabase } = await import('../supabase-client.js');
+    return supabase.functions.invoke('scheduling-route', { body });
+  },
   concurrency = 4,
   batchSize = DEFAULT_ROUTE_BATCH_SIZE,
   preloadedRows = [],

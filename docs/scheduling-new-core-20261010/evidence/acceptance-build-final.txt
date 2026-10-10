@@ -1,0 +1,196 @@
+
+> workspace@1.0.0 build
+> node scripts/sync-attendance-vendor.mjs && vite build && node scripts/postbuild-dist.mjs
+
+[sync-attendance-vendor] copied @supabase/supabase-js UMD build to attendance/vendor/supabase.js
+vite v6.4.2 building for production...
+transforming...
+frontend/src/screens/attendance-control.js?v=20261005-manager-reopen-hierarchy-v1 (117:37): "default" is not exported by "../../scheduling-pr1/repo/node_modules/xlsx/xlsx.mjs", imported by "frontend/src/screens/attendance-control.js?v=20261005-manager-reopen-hierarchy-v1".
+frontend/src/screens/attendance-control.js (117:37): "default" is not exported by "../../scheduling-pr1/repo/node_modules/xlsx/xlsx.mjs", imported by "frontend/src/screens/attendance-control.js".
+✓ 814 modules transformed.
+rendering chunks...
+[plugin vite:reporter]
+(!) /workspace/work/scheduling-new-core-20261010/repo/frontend/src/activity-drawer-inline-layout.js is dynamically imported by /workspace/work/scheduling-new-core-20261010/repo/frontend/src/feature-loaders.js but also statically imported by /workspace/work/scheduling-new-core-20261010/repo/frontend/src/activity-drawer-layout-pipeline.js, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter]
+(!) /workspace/work/scheduling-new-core-20261010/repo/frontend/src/activity-drawer-edit-dedup.js is dynamically imported by /workspace/work/scheduling-new-core-20261010/repo/frontend/src/feature-loaders.js but also statically imported by /workspace/work/scheduling-new-core-20261010/repo/frontend/src/activity-drawer-layout-pipeline.js, /workspace/work/scheduling-new-core-20261010/repo/frontend/src/screens/shared/bind-activity-edit-form.js, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter]
+(!) /workspace/work/scheduling-new-core-20261010/repo/frontend/src/screens/activities.js is dynamically imported by /workspace/work/scheduling-new-core-20261010/repo/frontend/src/dashboard-drilldown-runtime.js?v=20260821-v1, /workspace/work/scheduling-new-core-20261010/repo/frontend/src/feature-loaders.js, /workspace/work/scheduling-new-core-20261010/repo/frontend/src/main.js but also statically imported by /workspace/work/scheduling-new-core-20261010/repo/frontend/src/activities-tabs-corrections.js, /workspace/work/scheduling-new-core-20261010/repo/frontend/src/activity-performance-runtime.js, /workspace/work/scheduling-new-core-20261010/repo/frontend/src/israa-activities-main-workspace.js?v=20260926-v7, /workspace/work/scheduling-new-core-20261010/repo/frontend/src/israa-management-activities-ux-fix.js?v=20260824-v1, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter]
+(!) /workspace/work/scheduling-new-core-20261010/repo/frontend/src/feature-loaders.js is dynamically imported by /workspace/work/scheduling-new-core-20261010/repo/frontend/src/main.js but also statically imported by /workspace/work/scheduling-new-core-20261010/repo/frontend/src/feature-route-loader.js, /workspace/work/scheduling-new-core-20261010/repo/frontend/src/manager-board-interactions-runtime.js?v=20260910-manager-board-direct-interactions-v1, /workspace/work/scheduling-new-core-20261010/repo/frontend/src/progressive-route-warmup.js, /workspace/work/scheduling-new-core-20261010/repo/frontend/src/screens/proposals-agreements.js, /workspace/work/scheduling-new-core-20261010/repo/frontend/src/screens/proposals-agreements.js?v=20260912-client-drawer-cleanup-v1, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter]
+(!) /workspace/work/scheduling-new-core-20261010/repo/frontend/src/birthday-calendar.js is dynamically imported by /workspace/work/scheduling-new-core-20261010/repo/frontend/src/feature-loaders.js, /workspace/work/scheduling-new-core-20261010/repo/frontend/src/feature-loaders.js but also statically imported by /workspace/work/scheduling-new-core-20261010/repo/frontend/src/manager-board-runtime.js?v=20261009-manager-board-side-panels-v1, /workspace/work/scheduling-new-core-20261010/repo/frontend/src/screens/instructor-portal/calendar.js, dynamic import will not move module into another chunk.
+
+[plugin vite:reporter]
+(!) /workspace/work/scheduling-new-core-20261010/repo/frontend/src/screens/attendance-control.js?v=20261005-manager-reopen-hierarchy-v1 is dynamically imported by /workspace/work/scheduling-new-core-20261010/repo/frontend/src/admin-attendance-standalone.js?v=20261007-inactive-attendance-roster-v1, /workspace/work/scheduling-new-core-20261010/repo/frontend/src/manager-board-workspace-runtime.js?v=20261007-inactive-attendance-roster-v2, /workspace/work/scheduling-new-core-20261010/repo/frontend/src/payroll-control-test-mode.js?v=20260817-v4, /workspace/work/scheduling-new-core-20261010/repo/frontend/src/screens/shared/payroll-control-launcher.js but also statically imported by /workspace/work/scheduling-new-core-20261010/repo/frontend/src/admin-attendance-standalone.js?v=20261007-inactive-attendance-roster-v1, /workspace/work/scheduling-new-core-20261010/repo/frontend/src/manager-board-workspace-runtime.js?v=20261007-inactive-attendance-roster-v2, dynamic import will not move module into another chunk.
+
+computing gzip size...
+dist/assets/course-scheduling-cache-worker-DUXfjU0o.js                 0.26 kB
+dist/assets/manifest-CxkAavht.json                                     1.12 kB │ gzip:   0.42 kB
+dist/feedback.html                                                     1.83 kB │ gzip:   0.95 kB
+dist/index.html                                                        3.21 kB │ gzip:   1.13 kB
+dist/assets/apple-touch-icon-DZF9rhdV.png                             15.56 kB
+dist/assets/taasiyeda-logo-B1rnIkUf.png                               16.38 kB
+dist/assets/taasiyeda1-Jtel3xEn.png                                   24.42 kB
+dist/assets/logo_system-koyfqh2I.png                                  27.63 kB
+dist/assets/favicon-D0Y9bj5H.ico                                      47.11 kB
+dist/assets/course-scheduling-point.worker-B0L7y16w.js                64.46 kB
+dist/assets/logo1-sNrSbLi9.png                                       168.82 kB
+dist/assets/supabase-client-DJDy3X-E.js                              207.93 kB
+dist/assets/Arimo-Regular-DtBhdGpM.ttf                               317.65 kB
+dist/assets/Arimo-Bold-BjWBU6ph.ttf                                  318.18 kB
+dist/assets/Arimo-Medium-DBzaS3RL.ttf                                320.66 kB
+dist/assets/Arimo-SemiBold-soJdDiwj.ttf                              321.66 kB
+dist/assets/style-DpZPX9Hv.css                                       871.31 kB │ gzip: 131.83 kB
+dist/assets/israa-tracking-hierarchy-runtime-BS5VfqIA.js               0.06 kB │ gzip:   0.08 kB
+dist/assets/orders-CX_dibNU.js                                         0.10 kB │ gzip:   0.11 kB
+dist/assets/reports-D87A7Xug.js                                        0.33 kB │ gzip:   0.28 kB
+dist/assets/annual-reviews-rating-comment-compact-Cb6uZ8BZ.js          0.35 kB │ gzip:   0.25 kB
+dist/assets/annual-reviews-safe-extension-styles-CfOtZujX.js           0.58 kB │ gzip:   0.33 kB
+dist/assets/_commonjsHelpers-D6-XlEtG.js                               0.73 kB │ gzip:   0.39 kB
+dist/assets/activity-drawer-floating-actions-uWc7nqic.js               0.77 kB │ gzip:   0.40 kB
+dist/assets/annual-reviews-manager-dedup-FmYCMkdL.js                   0.79 kB │ gzip:   0.49 kB
+dist/assets/activity-2026-season-query-hotfix-B7I-xBNs.js              1.00 kB │ gzip:   0.52 kB
+dist/assets/operations-2027-date-range-fix-BJfNlOzX.js                 1.02 kB │ gzip:   0.56 kB
+dist/assets/calendar-cache-key-DZb6Q9uM.js                             1.07 kB │ gzip:   0.47 kB
+dist/assets/proposal-client-home-load-more-fix-xLxiqRmI.js             1.09 kB │ gzip:   0.56 kB
+dist/assets/birthday-instructor-caption-Dasvawi1.js                    1.13 kB │ gzip:   0.60 kB
+dist/assets/activity-type-icons-DMWpch7J.js                            1.19 kB │ gzip:   0.58 kB
+dist/assets/annual-reviews-ui-compact-feedback-qmwNhBlq.js             1.28 kB │ gzip:   0.50 kB
+dist/assets/activity-drawer-D0ZD8LT_.js                                1.29 kB │ gzip:   0.68 kB
+dist/assets/proposal-next-year-space-workshop-pricing-Bx12UIyp.js      1.34 kB │ gzip:   0.63 kB
+dist/assets/operations-summer-training-matrix-D3CZNY3u.js              1.57 kB │ gzip:   0.80 kB
+dist/assets/completion-approval-status-Di2QHh42.js                     1.57 kB │ gzip:   0.78 kB
+dist/assets/activity-feedback-button-BR_0JPYU.js                       1.59 kB │ gzip:   0.90 kB
+dist/assets/proposal-editor-controller-CqpapMNY.js                     1.60 kB │ gzip:   0.60 kB
+dist/assets/work-schedule-DUdfbKUT.js                                  1.66 kB │ gzip:   0.87 kB
+dist/assets/proposal-pdf-storage-key-hotfix-9TjYa0Dn.js                1.68 kB │ gzip:   0.83 kB
+dist/assets/work-schedule-print-reliability-DDSIcahg.js                1.80 kB │ gzip:   0.82 kB
+dist/assets/client-contact-persistence-DHDTVF6v.js                     1.86 kB │ gzip:   0.89 kB
+dist/assets/admin-lists-auth-hotfix-rmrbLKM7.js                        1.88 kB │ gzip:   0.91 kB
+dist/assets/birthday-popup-session-guard-BOYTyIGi.js                   1.98 kB │ gzip:   0.88 kB
+dist/assets/proposal-pdf-svg-origin-clean-CaljcYhn.js                  2.04 kB │ gzip:   0.99 kB
+dist/assets/annual-reviews-next-school-year-safe-BslGXV7_.js           2.13 kB │ gzip:   0.81 kB
+dist/assets/annual-reviews-print-shell-fix-zQYt1BSI.js                 2.20 kB │ gzip:   0.73 kB
+dist/assets/annual-reviews-print-plain-BtFbmXnU.js                     2.26 kB │ gzip:   0.95 kB
+dist/assets/proposal-new-contact-link-runtime-CNWo_3OE.js              2.28 kB │ gzip:   0.99 kB
+dist/assets/month-navigation-runtime-DK7Xv8K6.js                       2.53 kB │ gzip:   1.22 kB
+dist/assets/admin-lists-VGKxjK_f.js                                    2.61 kB │ gzip:   1.26 kB
+dist/assets/activity-2027-contact-list-runtime-HLFiFXZs.js             2.62 kB │ gzip:   1.14 kB
+dist/assets/instructor-course-schedule-2027-Cysiirn4.js                2.69 kB │ gzip:   1.24 kB
+dist/assets/proposal-summer-creation-retired-BWwGGNs7.js               2.73 kB │ gzip:   1.18 kB
+dist/assets/school-catalog-bootstrap-hotfix-f4kfZaue.js                2.95 kB │ gzip:   1.21 kB
+dist/assets/gefen-proposal-pdf-header-alignment-BMirQsLC.js            3.04 kB │ gzip:   1.21 kB
+dist/assets/manager-gantt-placeholder-runtime--jzDVBqw.js              3.08 kB │ gzip:   1.31 kB
+dist/assets/admin-settings-B3j-b7Sc.js                                 3.13 kB │ gzip:   1.40 kB
+dist/assets/course-meeting-substitute-requests-DaDBiMdC.js             3.24 kB │ gzip:   1.41 kB
+dist/assets/dashboard-month-navigation-runtime-BYMGKf3s.js             3.26 kB │ gzip:   1.39 kB
+dist/assets/proposal-pdf-school-filename-runtime-gYzOOT1Z.js           3.28 kB │ gzip:   1.32 kB
+dist/assets/proposal-pdf-single-generation-hotfix-DQdxCHsc.js          3.36 kB │ gzip:   1.47 kB
+dist/assets/proposal-full-clone-runtime-DMfR15t2.js                    3.43 kB │ gzip:   1.48 kB
+dist/assets/admin-permissions-access-hotfix-CTzpbGhw.js                3.68 kB │ gzip:   1.53 kB
+dist/assets/end-dates-live-fix-CmCoolWu.js                             3.71 kB │ gzip:   1.83 kB
+dist/assets/proposal-pdf-download-filename-hotfix-Cm9wECDW.js          3.77 kB │ gzip:   1.60 kB
+dist/assets/dashboard-D0IICCzh.js                                      3.80 kB │ gzip:   1.79 kB
+dist/assets/proposal-operational-name-runtime-PGN4sJcX.js              4.14 kB │ gzip:   1.66 kB
+dist/assets/instructor-birthday-profile-B5vObM62.js                    4.79 kB │ gzip:   1.93 kB
+dist/assets/instructor-scheduling-data-DKLaSkaD.js                     4.81 kB │ gzip:   1.78 kB
+dist/assets/my-activities-C5MHVNMd.js                                  4.86 kB │ gzip:   1.95 kB
+dist/assets/payroll-control-test-review-fix-CaFibxwp.js                4.89 kB │ gzip:   2.09 kB
+dist/assets/operations-completion-toolbar-compact-DtxZpUNq.js          4.89 kB │ gzip:   1.49 kB
+dist/assets/proposal-summer-list-runtime-B0e0VwRs.js                   4.92 kB │ gzip:   1.84 kB
+dist/assets/feedback-D0fimofB.js                                       5.19 kB │ gzip:   2.24 kB
+dist/assets/annual-reviews-safe-runtime-R12b_IMI.js                    5.43 kB │ gzip:   2.38 kB
+dist/assets/catalog-B1Ch7bJg.js                                        5.87 kB │ gzip:   1.97 kB
+dist/assets/team-calendar-runtime-BE9KRRE3.js                          6.04 kB │ gzip:   2.62 kB
+dist/assets/school-calendar-runtime-BENTdL-8.js                        6.08 kB │ gzip:   2.04 kB
+dist/assets/proposal-details-public-cleanup-DteGjReu.js                6.14 kB │ gzip:   2.05 kB
+dist/assets/course-scheduling-manager-approval-DA2vIE4D.js             6.22 kB │ gzip:   2.34 kB
+dist/assets/israa-proposal-items-BJQRCpqI.js                           6.38 kB │ gzip:   2.46 kB
+dist/assets/birthday-popup-C75eXgb8.js                                 6.52 kB │ gzip:   2.70 kB
+dist/assets/israa-tracking-filters-runtime-DYEPg11n.js                 6.73 kB │ gzip:   2.47 kB
+dist/assets/activities-tabs-corrections-C2Og4DV-.js                    6.83 kB │ gzip:   2.86 kB
+dist/assets/summer-feedback-instructor-card-BEvwUcuL.js                7.41 kB │ gzip:   2.54 kB
+dist/assets/payroll-control-test-plain-status-Km7aI6td.js              7.74 kB │ gzip:   1.97 kB
+dist/assets/end-dates-DR7GFGRN.js                                      7.77 kB │ gzip:   2.91 kB
+dist/assets/proposal-filtered-tab-count-runtime-Bi0Yvnmx.js            7.90 kB │ gzip:   2.94 kB
+dist/assets/portal-data-CO2cFB7z.js                                    8.05 kB │ gzip:   2.59 kB
+dist/assets/proposal-domain-routing-CaLtOP14.js                        8.10 kB │ gzip:   3.19 kB
+dist/assets/operations-inventory-polish-Dve4x76c.js                    8.19 kB │ gzip:   2.71 kB
+dist/assets/proposal-gefen-approval-list-status-3Pqvi9NX.js            8.32 kB │ gzip:   3.05 kB
+dist/assets/instructor-guidelines-Dz3HQvYz.js                          8.37 kB │ gzip:   2.96 kB
+dist/assets/annual-reviews-final-pdf-safe-BZqWojwS.js                  8.46 kB │ gzip:   3.19 kB
+dist/assets/payroll-control-window-fix-DalWUgLW.js                     8.87 kB │ gzip:   2.67 kB
+dist/assets/proposal-activity-linking-2bG3gKIj.js                      9.30 kB │ gzip:   3.58 kB
+dist/assets/proposal-approval-runtime-w12zTkGl.js                      9.36 kB │ gzip:   3.70 kB
+dist/assets/instructor-course-schedule-print-Ba1IHPE-.js               9.38 kB │ gzip:   3.33 kB
+dist/assets/summer-feedback-admin-integration-DNxIxyLp.js              9.38 kB │ gzip:   3.37 kB
+dist/assets/annual-reviews-manager-question-set-CxHRQip7.js            9.90 kB │ gzip:   3.60 kB
+dist/assets/activities-approved-ui-fix-C0U6JhOd.js                    10.02 kB │ gzip:   2.70 kB
+dist/assets/activities-approved-ui-fix-BVZss8wI.js                    10.02 kB │ gzip:   2.70 kB
+dist/assets/admin-home-CUzDpfAx.js                                    10.05 kB │ gzip:   3.48 kB
+dist/assets/gefen-proposal-layout-update-BUov7Uwk.js                  10.32 kB │ gzip:   2.33 kB
+dist/assets/israa-activities-main-workspace-BVEWTlpf.js               10.47 kB │ gzip:   3.94 kB
+dist/assets/instructor-completion-approvals-BQKWW_Ap.js               10.96 kB │ gzip:   3.72 kB
+dist/assets/operations-visual-tweaks-Cxz-SuDc.js                      11.03 kB │ gzip:   2.52 kB
+dist/assets/calendar-Br1m0ELh.js                                      11.05 kB │ gzip:   4.06 kB
+dist/assets/annual-reviews-language-safe-BXJh35TP.js                  11.45 kB │ gzip:   3.12 kB
+dist/assets/annual-reviews-role-lessons-safe-Uu0zBNqt.js              11.51 kB │ gzip:   2.85 kB
+dist/assets/week-vSH2fZXs.js                                          11.55 kB │ gzip:   4.56 kB
+dist/assets/month-BTqXvAZc.js                                         11.93 kB │ gzip:   4.64 kB
+dist/assets/admin-keyboard-converter-DcOX0rpg.js                      12.02 kB │ gzip:   3.55 kB
+dist/assets/proposal-incomplete-print-runtime-Bt5fXz2I.js             12.29 kB │ gzip:   4.33 kB
+dist/assets/instructors-workspace-nav-D73F8Ty7.js                     12.61 kB │ gzip:   4.58 kB
+dist/assets/client-file-layout-polish-Dl2LK5l7.js                     12.75 kB │ gzip:   2.79 kB
+dist/assets/edit-requests-DJkXIT17.js                                 13.45 kB │ gzip:   4.54 kB
+dist/assets/instructor-contacts-D-jrHqLV.js                           13.55 kB │ gzip:   5.20 kB
+dist/assets/proposal-drawer-activity-style-B7SG6V-r.js                13.69 kB │ gzip:   2.57 kB
+dist/assets/activity-completion-approval-print-bOcqh8_j.js            14.02 kB │ gzip:   4.83 kB
+dist/assets/annual-reviews-readable-print-DSUDXPa9.js                 14.09 kB │ gzip:   3.93 kB
+dist/assets/admin-date-simulator-CwuI8po0.js                          14.11 kB │ gzip:   4.17 kB
+dist/assets/certificates-t3pIj3Ct.js                                  14.15 kB │ gzip:   4.63 kB
+dist/assets/payroll-control-test-mode-ClIw1Aj0.js                     14.59 kB │ gzip:   4.12 kB
+dist/assets/exceptions-CXqjtNch.js                                    14.62 kB │ gzip:   5.12 kB
+dist/assets/contacts-full-directory-Bxmop_lH.js                       15.36 kB │ gzip:   5.11 kB
+dist/assets/permissions-DF9suPFJ.js                                   15.50 kB │ gzip:   4.70 kB
+dist/assets/annual-reviews-isolated-print-3_frpgeP.js                 15.69 kB │ gzip:   4.16 kB
+dist/assets/archive-CdLUdUTp.js                                       16.29 kB │ gzip:   5.47 kB
+dist/assets/operations-authorities-cleanup-BJjl-JhB.js                16.92 kB │ gzip:   4.65 kB
+dist/assets/payroll-control-finish-By17tRq9.js                        18.51 kB │ gzip:   6.18 kB
+dist/assets/client-contact-persistence-hotfix-D8ik745a.js             21.53 kB │ gzip:   6.13 kB
+dist/assets/admin-messages-runtime-CgOo0GDM.js                        22.22 kB │ gzip:   6.16 kB
+dist/assets/proposal-workflow-completion-D89MLL8u.js                  23.60 kB │ gzip:   7.31 kB
+dist/assets/dashboard-DTblSaTc.js                                     25.07 kB │ gzip:   7.57 kB
+dist/assets/operations-2027-loading-controller-BkSoRhSr.js            27.75 kB │ gzip:   8.10 kB
+dist/assets/instructors-DZBGgnM2.js                                   28.62 kB │ gzip:   8.94 kB
+dist/assets/instructors-BJnv3G9D.js                                   28.62 kB │ gzip:   8.94 kB
+dist/assets/admin-pricing-simulator-CdfU1hjy.js                       28.63 kB │ gzip:   6.43 kB
+dist/assets/contacts-Buaj1S49.js                                      31.82 kB │ gzip:   8.99 kB
+dist/assets/feedback-form-DHuivj5t.js                                 32.57 kB │ gzip:  11.22 kB
+dist/assets/israa-management-BKCm0FxU.js                              33.85 kB │ gzip:   9.25 kB
+dist/assets/israa-tracking-v2-runtime-BArXkSpD.js                     35.33 kB │ gzip:  10.77 kB
+dist/assets/annual-reviews-v2-ic1JRcLR.js                             39.67 kB │ gzip:  10.71 kB
+dist/assets/invitations-DQZRWLpT.js                                   40.64 kB │ gzip:  10.74 kB
+dist/assets/instructor-workspace-ui-CxKpYCZh.js                       42.79 kB │ gzip:  13.27 kB
+dist/assets/finance-CmEWrM7h.js                                       61.97 kB │ gzip:  19.52 kB
+dist/assets/attendance-control-BJ8Pn1VX.js                           116.60 kB │ gzip:  33.04 kB
+dist/assets/impact-feedback-DAssWLgQ.js                              132.75 kB │ gzip:  40.24 kB
+dist/assets/personal-reports-CsRrAGir.js                             152.71 kB │ gzip:  38.70 kB
+dist/assets/operations-management-DH5Y6rYu.js                        164.17 kB │ gzip:  40.56 kB
+dist/assets/course-scheduling-periods-JScztt_V.js                    210.36 kB │ gzip:  54.95 kB
+dist/assets/graph-mail-Dqf8w8Gc.js                                   289.86 kB │ gzip:  72.35 kB
+dist/assets/proposals-agreements-k4lsbOA0.js                         328.23 kB │ gzip:  90.60 kB
+dist/assets/proposals-agreements-B2Fi7PGN.js                         328.23 kB │ gzip:  90.60 kB
+dist/assets/course-scheduling-LHHFT1tQ.js                            330.16 kB │ gzip:  91.46 kB
+dist/assets/outlook-DO4bdlJu.js                                    1,377.68 kB │ gzip: 490.77 kB
+dist/assets/index-B98r_QRY.js                                      1,674.60 kB │ gzip: 470.04 kB
+
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 12.50s
+[postbuild-dist] precache entries: 5

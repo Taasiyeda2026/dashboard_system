@@ -1,0 +1,28 @@
+{
+  "results": [
+    {
+      "case": "blocked-date dependency closure, full-result validation, official/protected preservation",
+      "pass": true,
+      "affected": 89,
+      "computed": 89,
+      "elapsedMs": 8515.348864000001,
+      "target": "activity-000605",
+      "date": "2026-12-16"
+    },
+    {
+      "case": "matching checkpoint resumes; old engine/stale source rejected",
+      "pass": true
+    },
+    {
+      "case": "corrupt checkpoint timing fails full resumed validation",
+      "pass": true,
+      "repairIds": [
+        "activity-000116",
+        "activity-000122",
+        "activity-000027",
+        "activity-000173"
+      ]
+    }
+  ],
+  "scope": "actual new core, isolated representative point change; checkpoint version/source and corrupt-result rejection; no browser-survival claim"
+}

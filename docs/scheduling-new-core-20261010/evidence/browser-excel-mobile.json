@@ -1,0 +1,24 @@
+{
+  "workerBuiltUrl": null,
+  "availabilityChanged": false,
+  "revisionChurn": false,
+  "coldOnly": false,
+  "variant": "after",
+  "browser": "151.0.7922.173",
+  "fixtureSha256": "b1c075c4e6c56017324f3e9f622856012fc9c00917d6439a0b2bd9aaf90d37e1",
+  "fixtureBytes": 8867991,
+  "samples": [],
+  "acceptance": [
+    {
+      "device": "mobile-cpu4",
+      "excel": {
+        "סידור עבודה": 253,
+        "אפשרויות תכנון": 759,
+        "מערכת לפי מדריך": 2024
+      },
+      "download": "סידור_עבודה_תכנון_2026-10-10.xlsx",
+      "scope": "actual Excel button, full-row RPC, revision fence, XLSX download parsed"
+    }
+  ],
+  "scope": "Real screen render/bind with isolated RPC stub; point benchmark calls engine transport directly; end-to-end run button tested separately. No actual Supabase auth/RLS/SQL or national service test."
+}

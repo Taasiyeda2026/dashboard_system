@@ -92,7 +92,7 @@ test('entering shared planning never recalculates automatically; point mutations
   const start = screen.indexOf('const currentPlanningScope = planningScope();');
   const end = screen.indexOf('const reloadDistanceCoverage = async', start);
   const entryFlow = screen.slice(start, end);
-  assert.match(entryFlow, /reloadSharedPlanningState\(\{ refreshData: false \}\)/);
+  assert.match(entryFlow, /reloadSharedPlanningState\(\{[^\n]*displayOnly: true/);
   assert.doesNotMatch(entryFlow, /scheduleBackgroundPlanning|runCoursePlanning/);
   assert.match(screen, /data-run-course-planning/);
   assert.match(screen, /הכול מעודכן/);
@@ -122,10 +122,11 @@ test('current shared planning has no incremental rerun button and click handler 
   const statusStart = screen.indexOf('function schedulingPlanningStatusHtml');
   const statusEnd = screen.indexOf('function genderRequirementLabel', statusStart);
   const statusFlow = screen.slice(statusStart, statusEnd);
-  const currentBlockStart = statusFlow.lastIndexOf('<strong>הכול מעודכן</strong>');
+  const currentBlockStart = statusFlow.lastIndexOf('return `<div');
   const currentBlock = statusFlow.slice(currentBlockStart);
 
-  assert.match(currentBlock, /<strong>הכול מעודכן<\/strong>/);
+  assert.match(currentBlock, /הכול מעודכן/);
+  assert.match(currentBlock, /protectedSourceIssueCount/);
   assert.doesNotMatch(currentBlock, /data-run-course-planning/);
   assert.doesNotMatch(currentBlock, /חשב מחדש/);
 
@@ -148,7 +149,7 @@ test('shared planning uses bounded route concurrency without treating it as the 
   const routeClientStart = screen.indexOf('const routeClient = createRouteClient({');
   const routeClientEnd = screen.indexOf('const lockedOptions', routeClientStart);
   const routeClientSetup = screen.slice(routeClientStart, routeClientEnd);
-  assert.match(routeClientSetup, /concurrency:\s*\d+/);
+  assert.match(routeClientSetup, /concurrency:[^\n]*\? 8 : 6/);
 });
 
 test('fast planning parallelizes independent cached route legs and uses six routed pairs per batch', async () => {

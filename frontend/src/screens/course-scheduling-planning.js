@@ -1,3 +1,5 @@
+import { buildPlan as buildNewSchedulingPlan } from './scheduling-core/planner.js';
+import { validatePlan as validateNewSchedulingPlan, validatePlanWithRoutes, ENGINE_VERSION as NEW_PLANNING_ENGINE_VERSION } from './scheduling-core/constraints.js';
 import {
   appendSchedulingRunActivityCooperatively,
   calculateCourseSchedule,
@@ -177,8 +179,8 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
   geography: 15,
   stability: 10
 });
-export const PLANNING_VALIDATION_VERSION = 'planning-validation-v5-20261009-official-date-transition-guard-v2';
-export const PLANNING_ENGINE_VERSION = 'planning-v36-20261009-point-context-transition-guard-v2';
+export const PLANNING_VALIDATION_VERSION = 'planning-validation-v6-20261010-new-core-shared-constraints';
+export const PLANNING_ENGINE_VERSION = NEW_PLANNING_ENGINE_VERSION;
 export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
   // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
   '82835': '53828'
@@ -3479,6 +3481,7 @@ export function buildPlanningContextParts(input = {}) {
   const instructors = {};
   const availability = {};
   const exceptions = {};
+  const exceptionDates = {};
   const profiles = {};
   const schoolCalendar = {};
   const catalog = {};
@@ -3517,7 +3520,10 @@ export function buildPlanningContextParts(input = {}) {
       note: row.note
     });
     exceptions[empId] = bucket;
+    const dateKey = empId + '|' + text(row.exception_date || row.date).slice(0,10);
+    (exceptionDates[dateKey] ||= []).push(row);
   }
+  for (const dateKey of Object.keys(exceptionDates)) exceptionDates[dateKey] = stableEntityHash(stableRows(exceptionDates[dateKey]));
   for (const empId of Object.keys(exceptions)) {
     exceptions[empId] = stableEntityHash(stableRows(exceptions[empId]));
   }
@@ -3551,6 +3557,7 @@ export function buildPlanningContextParts(input = {}) {
     instructors,
     availability,
     exceptions,
+    exceptionDates,
     profiles,
     schoolCalendar,
     catalog
@@ -3614,6 +3621,12 @@ export function diffPlanningContextParts(previousParts = null, currentParts = nu
   }
   diff.changedAvailabilityInstructorIds = mapKeyDiff(previousParts.availability, currentParts.availability);
   diff.changedExceptionInstructorIds = mapKeyDiff(previousParts.exceptions, currentParts.exceptions);
+  if (previousParts.exceptionDates && currentParts.exceptionDates) {
+    diff.changedExceptionDatesByInstructor = {};
+    for (const key of mapKeyDiff(previousParts.exceptionDates,currentParts.exceptionDates)) {
+      const [id,date] = key.split('|'); (diff.changedExceptionDatesByInstructor[id] ||= []).push(date);
+    }
+  }
 
   const calendarKeys = mapKeyDiff(previousParts.schoolCalendar, currentParts.schoolCalendar);
   const windows = [];
@@ -5776,14 +5789,14 @@ function* validatePlanningPlanCoherenceSteps({
 }
 
 
-export function validatePlanningPlanCoherence(input = {}) {
+export function validateLegacyPlanningPlanCoherence(input = {}) {
   const steps = validatePlanningPlanCoherenceSteps(input);
   let next = steps.next();
   while (!next.done) next = steps.next();
   return next.value;
 }
 
-export async function validatePlanningPlanCoherenceCooperatively(input = {}, checkpoint = async () => {}) {
+export async function validateLegacyPlanningPlanCoherenceCooperatively(input = {}, checkpoint = async () => {}) {
   const stop = planningPerfTimer('wholePlanValidation');
   const steps = validatePlanningPlanCoherenceSteps(input);
   let next = steps.next();
@@ -5810,7 +5823,8 @@ export async function validateResumedPlanningRows({
   district = '',
   periodKey = DEFAULT_PLANNING_PERIOD_KEY,
   routeClient = createRouteClient(),
-  checkpoint = async () => {}
+  checkpoint = async () => {},
+  lockedOptions = {}, committedRows = []
 } = {}) {
   const targets = planningWorkspaceCourses(activities, district, periodKey);
   const rowById = new Map((rows || []).map((row) => [text(row?.courseId), row]).filter(([courseId]) => !!courseId));
@@ -5820,7 +5834,8 @@ export async function validateResumedPlanningRows({
   );
   const validation = await validatePlanningPlanCoherenceCooperatively({
     rows: ordered,
-    activities: targets,
+    activities,
+    lockedOptions, committedRows,
     instructors,
     profiles,
     rules,
@@ -6009,7 +6024,7 @@ export function finalValidationRepairCourseIds(failures = [], rows = [], maxIds 
   return [...expanded].slice(0, Math.max(1, Number(maxIds) || 24));
 }
 
-export async function buildDynamicCoursePlan({
+export async function buildLegacyDynamicCoursePlan({
   activities = [],
   instructors = [],
   profiles = {},
@@ -6946,7 +6961,8 @@ export async function buildDynamicCoursePlan({
   );
   let finalPlanValidation = await validatePlanningPlanCoherenceCooperatively({
     rows,
-    activities: targets,
+    activities,
+    lockedOptions, committedRows,
     instructors,
     profiles,
     rules,
@@ -8186,4 +8202,15 @@ export function planningTabHtml({
     ${planningRowsHtml(rows, { loading })}
     ${calculatedAt && rows.length && pendingCount === 0 ? `<details class="course-planning-instructor-overview"><summary>מערכת מלאה לפי מדריך ולפי מפגש</summary>${planningInstructorScheduleHtml(rows)}</details>` : ''}
   </section>`;
+}
+
+// Product entry points use the new core. Legacy exports exist only for isolated comparison.
+export function validatePlanningPlanCoherence(input = {}) { return validateNewSchedulingPlan(input); }
+export async function validatePlanningPlanCoherenceCooperatively(input = {}, checkpoint = async () => {}) { return validatePlanWithRoutes(input, checkpoint); }
+export async function buildDynamicCoursePlan(input = {}) {
+  const requiredActivities = planningWorkspaceCourses(input.activities || [], input.district || '', input.periodKey);
+  const catalogIndex = planningCatalogIndex(input.catalog || []);
+  const courseSpecs = Object.fromEntries(requiredActivities.map(a => [idOf(a), inferPlanningCourseSpec(a, catalogIndex)]));
+  return buildNewSchedulingPlan({ ...input, routeClient: input.routeClient || createRouteClient(),
+    checkpoint: input.checkpoint || createPlanningCheckpoint({ signal: input.signal }), requiredActivities, courseSpecs });
 }

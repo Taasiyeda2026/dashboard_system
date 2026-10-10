@@ -1,3 +1,5 @@
+import { reusablePointWorkspace, refreshCommittedPointWorkspace } from './course-scheduling-point-workspace.js';
+import { schedulingPointWorker } from './course-scheduling-worker-client.js';
 import { courseListWindow } from './course-scheduling-display-data.js';
 import { runPlanningPreflight, createPlanningRunDeadlineCheckpoint, startPlanningLeaseHeartbeat, planningLeaseWaitMessage, throwIfPlanningRunInvalidated } from './course-scheduling-preflight.js';
 import { readSchedulingSessionCache, writeSchedulingSessionCacheAsync, schedulingSessionIdentity } from './course-scheduling-session-cache.js';
@@ -181,6 +183,7 @@ export function cancelCourseSchedulingPlanning(state = null) {
   cancelPendingPlanningStart();
   activePlanningRun?.controller?.abort();
   activePlanningRun = null;
+  schedulingPointWorker.dispose('planning_cancelled');
   if (state) {
     state.courseSchedulingPlanningLoading = false;
     state.courseSchedulingPlanningProgress = null;
@@ -1187,7 +1190,7 @@ export function schedulingPlanningStatusHtml(state = {}, { snapshotStale = false
       const countLabel = total || pending;
       const progressSuffix = total ? ` · ${completed} מתוך ${total}` : '';
       const label = countLabel === 1 ? 'מעדכן פעילות אחת…' : `מעדכן ${countLabel} פעילויות שהושפעו…`;
-      return `<div class="course-scheduling-auto-plan is-working" role="status" data-planning-status aria-busy="true"><span data-planning-status-message><strong>${escapeHtml(label)}</strong>${escapeHtml(progressSuffix)} אפשר לעבור למסכים אחרים; העדכון ימשיך ברקע.</span></div>`;
+      return `<div class="course-scheduling-auto-plan is-working" role="status" data-planning-status aria-busy="true"><span data-planning-status-message><strong>${escapeHtml(label)}</strong>${escapeHtml(progressSuffix)} אפשר לעבור למסכים אחרים; העדכון ימשיך ברקע.</span><button type="button" class="course-scheduling-workboard-secondary" data-stop-course-planning>בטל חישוב</button></div>`;
     }
     const suffix = total ? ` · ${completed} מתוך ${total}` : '';
     return `<div class="course-scheduling-auto-plan is-working" role="status" data-planning-status aria-busy="true"><span data-planning-status-message><strong>מחשב הצעות שיבוץ</strong>${escapeHtml(suffix)}. אפשר לעבור למסכים אחרים בדשבורד; החישוב ימשיך.</span></div>`;
@@ -1216,7 +1219,7 @@ export function schedulingPlanningStatusHtml(state = {}, { snapshotStale = false
     </div>`;
   }
   return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
-    <span data-planning-status-message><strong>${(state.courseSchedulingPlanningRows || []).some(row => row?.diagnostics?.softOptimizationIncomplete) ? 'בסיס התכנון נבדק; השיפור הנוסף לא הושלם' : 'הכול מעודכן'}</strong></span>
+    <span data-planning-status-message><strong>${(state.courseSchedulingPlanningRows || []).some(row => row?.diagnostics?.protectedSourceIssueCount) ? 'ההצעות החדשות נבדקו; בשיבוצי המקור המוגנים נדרשת בדיקת חריגות' : (state.courseSchedulingPlanningRows || []).some(row => row?.diagnostics?.softOptimizationIncomplete) ? 'בסיס התכנון נבדק; השיפור הנוסף לא הושלם' : 'הכול מעודכן'}</strong></span>
     ${!snapshotStale && (state.courseSchedulingPlanningRows || []).length
       ? '<button type="button" class="course-scheduling-workboard-secondary" data-export-course-planning>ייצוא Excel</button>' : ''}
   </div>`;
@@ -2101,7 +2104,7 @@ export const courseSchedulingScreen = {
     const reloadPlanningSnapshot = () => courseSchedulingScreen.load({ api, forceRefresh: true });
     const cached = !forceRefresh && readSchedulingSessionCache(identity);
     if (cached) return { ...cached, _is_stale: true, reloadPlanningSnapshot };
-    const [activities, contacts, scheduling, meetingState, schoolLocations, schoolCalendar, planningCatalogResult] = await Promise.all([
+    const [activities, contacts, scheduling, meetingState, schoolLocations, schoolCalendar, planningCatalogResult, externalBlockersResult, historyResult] = await Promise.all([
       api.activities({ activity_period: 'school_2027', activity_type: 'all', include_inactive: true, select: 'row_id,district,authority_id,authority,school,school_id,activity_name,catalog_slug,activity_no,proposal_item_id,activity_type,item_type,activity_season,grade,education_level,class_group,sessions,start_time,end_time,instruction_language,required_instructor_gender,scheduling_note,instructor_assignment_status,instructor_assignment_locked,draft_emp_id,draft_instructor_name,draft_created_at,draft_proposed_meetings,emp_id,instructor_name,emp_id_2,instructor_name_2,start_date,end_date,status,date_1,date_2,date_3,date_4,date_5,date_6,date_7,date_8,date_9,date_10,date_11,date_12,date_13,date_14,date_15,date_16,date_17,date_18,date_19,date_20,date_21,date_22,date_23,date_24,date_25,date_26,date_27,date_28,date_29,date_30,date_31,date_32,date_33,date_34,date_35,updated_at' }),
       api.instructorContacts(),
       loadInstructorSchedulingData(),
@@ -2110,7 +2113,9 @@ export const courseSchedulingScreen = {
       forceRefresh ? loadPlanningSchoolCalendarRows() : loadSchoolCalendarRows(),
       supabase
         .from('proposal_activity_pricing')
-        .select('activity_name,activity_no,gefen_number,pricing_key,program_name,name,title,meetings_count,hours_count,unit_duration,is_active_for_proposals')
+        .select('activity_name,activity_no,gefen_number,pricing_key,program_name,name,title,meetings_count,hours_count,unit_duration,is_active_for_proposals'),
+      supabase.rpc('get_scheduling_planning_external_blockers'),
+      supabase.from('course_meeting_instructor_history').select('activity_id,meeting_date,emp_id').gte('meeting_date','2026-09-01').lte('meeting_date','2027-06-30')
     ]);
     if (forceRefresh) {
       const sourceError = authResult?.error || contacts?.error || scheduling?.error || meetingState?.error || schoolLocations?.error || planningCatalogResult?.error;
@@ -2123,6 +2128,9 @@ export const courseSchedulingScreen = {
     const enriched = enrichActivitiesWithSchoolAddresses(activities?.rows || [], schoolRows);
     return {
       _is_stale: false,
+      externalPlanningBlockers: attachCancelledMeetingsToActivities(externalBlockersResult?.data || [], meetingState),
+      externalPlanningBlockersError: externalBlockersResult?.error || historyResult?.error || null,
+      meetingInstructorHistory: historyResult?.data || [],
       activities: attachCancelledMeetingsToActivities(enriched.activities, meetingState),
       instructors: activeSchedulingInstructors(contacts?.rows || []),
       scheduling,
@@ -2407,6 +2415,14 @@ export const courseSchedulingScreen = {
       status.classList.remove('is-ready', 'is-warning', 'is-error');
       status.classList.add('is-working');
       status.setAttribute('aria-busy', 'true');
+      if (pending > 0 && !activePlanningRun?.committing && !status.querySelector('[data-stop-course-planning]')) {
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'course-scheduling-workboard-secondary';
+        cancel.dataset.stopCoursePlanning = '';
+        cancel.textContent = 'בטל חישוב';
+        status.append(cancel);
+      }
       if (!phase && pending > 0) {
         const label = pending === 1 ? 'מעדכן פעילות אחת' : `מעדכן ${pending} פעילויות שהושפעו`;
         message.textContent = `${label}… אפשר לעבור למסכים אחרים; העדכון ימשיך ברקע.`;
@@ -2708,7 +2724,7 @@ export const courseSchedulingScreen = {
             data._planningCompletionCache.rows = nextRows;
           }
           state.courseSchedulingPlanningRows = nextRows;
-          if (schedulingScreenActive && state.route === 'course-scheduling' && root.isConnected) rerenderPreservingWorkboardScroll();
+          if (schedulingScreenActive && state.route === 'course-scheduling' && root.isConnected) renderOpenedCourse(id);
         } catch (error) {
           state.courseSchedulingError = planningStoreErrorMessage(error, 'טעינת פרטי השיבוץ נכשלה. רעננו את התכנון לפני פעולה.');
           if (schedulingScreenActive && root.isConnected) rerenderPreservingWorkboardScroll();
@@ -2868,6 +2884,19 @@ export const courseSchedulingScreen = {
       if (runUiVisible()) run.ui?.update?.();
 
       try {
+        // Paint the start/cancel affordance before even an immediately-resolved
+        // preflight can chain into snapshot fingerprints and dependency closure.
+        // Hidden screens must not wait on a throttled animation-frame callback.
+        if (runUiVisible() && typeof requestAnimationFrame === 'function' && document.visibilityState !== 'hidden') {
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 0))));
+        } else {
+          await new Promise(resolve => setTimeout(resolve, 0));
+        }
+        assertRunOwnership();
+        const capability = await supabase.rpc('get_scheduling_planning_engine_capabilities');
+        if (capability.error || capability.data?.validatorVersion !== PLANNING_ENGINE_VERSION || capability.data?.atomicCommit !== true) {
+          throw new Error('המנוע החדש דורש אימות שמירה בצד השרת; ה־migration טרם הותקן או שאינו תואם. לא בוצעה שמירה.');
+        }
         const preflight = await runPlanningPreflight({
           load: loadSchedulingPlanningPreflight,
           acquire: acquireSchedulingPlanningRunLease,
@@ -2898,9 +2927,24 @@ export const courseSchedulingScreen = {
         const stopSnapshotLoad = planningPerfTimer('snapshotLoad');
         // Load the workspace first so engine-upgrade / force-full can refuse a
         // reused UI/session snapshot and start from an authoritative source.
-        const shared = await loadSharedPlanningWorkspace({
-          periodKey: scope.periodKey,
-          district: scope.district
+        const contextOwner = JSON.stringify([
+          text(data.authSession?.user?.id || state.user?.auth_user_id || state.user?.id || state.user?.emp_id),
+          text(data.authSession?.sessionId)
+        ]);
+        let shared = null;
+        if (!forceFull && data._pointPlanningWorkspace) {
+          // Preflight omits workspace ID. The compact authorized read supplies
+          // identity and current metadata before any full context can be reused.
+          const display = await loadSharedPlanningDisplayWorkspace(scope);
+          if (Number(display.workspace?.revision) === Number(preflight.facts.workspace?.revision)) {
+            shared = reusablePointWorkspace(data._pointPlanningWorkspace, {
+              owner: contextOwner, scope: scope.key, display,
+              facts: { ...preflight.facts, workspace: { ...preflight.facts.workspace, id: display.workspace?.id } }
+            });
+          }
+        }
+        shared ||= await loadSharedPlanningWorkspace({
+          periodKey: scope.periodKey, district: scope.district
         });
         assertRunOwnership();
         const storedEngineForSnapshot = text(shared?.workspace?.engineVersion);
@@ -3048,6 +3092,7 @@ export const courseSchedulingScreen = {
 
         const affectedIds = runPlan.affectedIds;
         const fullRun = runPlan.runType === PLANNING_RUN_TYPES.FULL_MAINTENANCE;
+        if (fullRun && !forceFull) throw Object.assign(new Error('planning_worker_national_required'), { code: 'planning_worker_national_required' });
         const structuralPlanningUpgrade = engineChanged
           && runPlan.runType === PLANNING_RUN_TYPES.ENGINE_UPGRADE
           && !upgradeExecution.v28OptimizationUpgrade
@@ -3453,8 +3498,10 @@ export const courseSchedulingScreen = {
           }
         };
 
-        const planningBuildInput = (snapshot) => ({
-          activities: snapshot.activities || [],
+        const planningBuildInput = (snapshot) => {
+          if (snapshot.externalPlanningBlockersError) throw new Error('planning_external_blockers_unavailable');
+          return ({
+          activities: [...(snapshot.activities || []), ...(snapshot.externalPlanningBlockers || [])].map(a => ({...a, meeting_instructor_overrides: (snapshot.meetingInstructorHistory || []).filter(h => h.activity_id === a.row_id)})),
           instructors: snapshot.instructors || [],
           profiles: Object.fromEntries((snapshot.scheduling?.profiles || []).map((row) => [text(row.emp_id), row])),
           rules: group(snapshot.scheduling?.rules || [], 'emp_id'),
@@ -3464,6 +3511,7 @@ export const courseSchedulingScreen = {
           district: scope.district,
           periodKey: scope.periodKey
         });
+        };
         // Bounded delta replan over an otherwise complete plan. Valid rows are
         // reused as fixed context; only targetIds are recalculated.
         // A failed local-repair pass must not invalidate 253 otherwise-valid
@@ -3543,34 +3591,13 @@ export const courseSchedulingScreen = {
               }
             }
           }
-          try {
-            return await buildDynamicCoursePlan({ ...preparedInput, committedRows: existingRows });
-          } catch (error) {
-            if (error?.code !== 'planning_final_validation_failed') throw error;
-            const recovered = await recoverPlanningOverlapFromCommittedProposals({
-              ...input,
-              error,
-              committedRows: existingRows
-            });
-            if (!recovered) throw error;
-            planningPerfEvent('planning-committed-incumbent-recovery', {
-              restoredCourseIds: recovered.restoredCourseIds,
-              totalRows: recovered.rows.length
-            });
-            return {
-              rows: recovered.rows,
-              total: recovered.rows.length,
-              planned: recovered.rows.filter((row) =>
-                ['proposal', 'fixed-proposal', 'planning-locked'].includes(text(row?.kind))
-                && text(row?.instructorEmpId)
-              ).length,
-              routeStats: {
-                googleCalls: Number(routeClient.googleCalls) || 0,
-                cacheHits: Number(routeClient.cacheHits) || 0,
-                committedIncumbentRecovery: true
-              }
-            };
-          }
+          const workerRun = fullRun ? schedulingPointWorker.runNational.bind(schedulingPointWorker) : schedulingPointWorker.run.bind(schedulingPointWorker);
+          return workerRun({ ...preparedInput, committedRows: existingRows }, {
+            owner: contextOwner,
+            version: JSON.stringify([runEngineVersion, scope.periodKey, scope.district, run.sourceRevision, shared?.workspace?.revision, preparedInput.today, planningDataFingerprint(preparedInput), planningContextFingerprint(preparedInput)]),
+            routeRows: routeCacheRows, routeInvoke: body => supabase.functions.invoke('scheduling-route', { body }),
+            signal: run.controller.signal, assertActive: assertRunOwnership, checkpoint, onProgress: onPlanningProgress
+          });
         };
 
         const runDeltaRepair = async (snapshot, existing, targetIds, onProgress) => {
@@ -3901,8 +3928,13 @@ export const courseSchedulingScreen = {
         }
 
         assertRunOwnership();
+        // An in-flight atomic RPC cannot be cancelled. Stop accepting cancellation
+        // before dispatch, after the final ownership fence.
+        run.committing = true;
+        root.querySelector('[data-stop-course-planning]')?.setAttribute('disabled', '');
         const stopWorkspaceSave = planningPerfTimer('workspaceSave');
         const commitExpectedRevision = Number(shared?.workspace?.revision) || 0;
+        let committedPointIds = null;
         const saved = checkpointSnapshotComplete && validatedCheckpointReady
           ? await commitSharedPlanningCheckpoint({
               runId: run.runId, sourceRevision: run.sourceRevision,
@@ -3950,6 +3982,7 @@ export const courseSchedulingScreen = {
                 removed: removedActivityIds.length,
                 total: finalRows.length
               });
+              committedPointIds = incrementalRows.map(row => text(row.courseId));
               return saveSharedPlanningIncrementalSnapshot({
                   runId: run.runId, sourceRevision: run.sourceRevision,
                 periodKey: scope.periodKey,
@@ -3966,16 +3999,21 @@ export const courseSchedulingScreen = {
         stopWorkspaceSave();
 
         assertRunOwnership();
-        const canonical = await loadSharedPlanningWorkspace({
-          periodKey: scope.periodKey,
-          district: scope.district
+        const canonical = await refreshCommittedPointWorkspace({
+          previous: shared, changedIds: committedPointIds, saved,
+          loadDisplay: () => loadSharedPlanningDisplayWorkspace(scope),
+          loadDetails: loadSharedPlanningRowDetails,
+          verifyRevision: assertSharedPlanningWorkspaceRevision,
+          loadFull: () => loadSharedPlanningWorkspace(scope)
         });
         assertRunOwnership();
         Object.assign(data, freshEnd);
+        data._pointPlanningWorkspace = { owner: contextOwner, scope: scope.key, sourceRevision: run.sourceRevision, shared: canonical };
         applySharedPlanningState(canonical, freshEnd);
         state.courseSchedulingPlanningRouteStats = result.routeStats || null;
-        state.courseSchedulingPlanningSharedRevision = Number(saved?.revision || canonical?.workspace?.revision) || 0;
-        state.courseSchedulingPlanningAffectedIds = [];
+        state.courseSchedulingPlanningSharedRevision = Number(canonical?.workspace?.revision || saved?.revision) || 0;
+        // Preserve dirty flags resolved from the canonical read: a concurrent
+        // edit after commit must not be labelled as current by this run.
         try {
           await clearSharedPlanningCheckpoint({
                   runId: run.runId, sourceRevision: run.sourceRevision,
@@ -4265,6 +4303,17 @@ export const courseSchedulingScreen = {
       void runCoursePlanning({ forceFull: true, reuseSnapshot: false });
     });
 
+    // Delegate on the stable root: status-only updates and rerenders replace buttons.
+    if (root._pointPlanningCancel) root.removeEventListener('click', root._pointPlanningCancel);
+    root._pointPlanningCancel = event => {
+      if (!event.target.closest?.('[data-stop-course-planning]')) return;
+      if (activePlanningRun?.committing) return;
+      activePlanningRun?.controller?.abort();
+      state.courseSchedulingPlanningLoading = false;
+      state.courseSchedulingPlanningProgress = null;
+      rerenderPreservingWorkboardScroll();
+    };
+    root.addEventListener('click', root._pointPlanningCancel);
     root.querySelector('[data-run-course-planning]')?.addEventListener('click', () => {
       const pending = (state.courseSchedulingPlanningAffectedIds || []).length;
       const alreadyCurrent = pending === 0
@@ -4465,6 +4514,23 @@ export const courseSchedulingScreen = {
       state.courseSchedulingScrollToFilteredList = true;
       rerender();
     });
+    const updatePlanningChoiceCard = (courseId, previousControl) => {
+      const course = courseById.get(courseId);
+      const card = [...root.querySelectorAll('[data-course-card]')]
+        .find(element => text(element.dataset.courseCard) === courseId);
+      if (!course || !card) { rerenderPreservingWorkboardScroll(); return; }
+      const planningById = new Map((state.courseSchedulingPlanningRows || []).map(row => [text(row.courseId), row]));
+      const template = document.createElement('template');
+      template.innerHTML = courseListCardHtml(courseRowModel(course, resultByCourseId, planningById), text(state.courseSchedulingSelectedId), state);
+      const next = template.content.firstElementChild;
+      if (!next) return;
+      card.replaceWith(next);
+      if (!previousControl) return;
+      const selector = previousControl.hasAttribute('data-planning-choice-date') ? '[data-planning-choice-date]'
+        : previousControl.hasAttribute('data-planning-choice-time') ? '[data-planning-choice-time]' : '[data-planning-choice-instructor]';
+      next.querySelector(selector)?.focus({ preventScroll: true });
+    };
+
     bindCourseListControls(root, '[data-planning-choice-date]', 'change', (select, event) => {
       const courseId = text(select.dataset.courseId);
       if (!courseId) return;
@@ -4474,7 +4540,7 @@ export const courseSchedulingScreen = {
         timeKey: '',
         instructorEmpId: ''
       };
-      rerenderPreservingWorkboardScroll();
+      updatePlanningChoiceCard(courseId, select);
     });
     bindCourseListControls(root, '[data-planning-choice-time]', 'change', (select, event) => {
       const courseId = text(select.dataset.courseId);
@@ -4486,7 +4552,7 @@ export const courseSchedulingScreen = {
         timeKey: text(event.target.value),
         instructorEmpId: ''
       };
-      rerenderPreservingWorkboardScroll();
+      updatePlanningChoiceCard(courseId, select);
     });
     bindCourseListControls(root, '[data-planning-choice-instructor]', 'change', (select, event) => {
       const courseId = text(select.dataset.courseId);
@@ -4497,7 +4563,7 @@ export const courseSchedulingScreen = {
         ...current,
         instructorEmpId: text(event.target.value)
       };
-      rerenderPreservingWorkboardScroll();
+      updatePlanningChoiceCard(courseId, select);
     });
 
     const renderOpenedCourse = courseId => {
@@ -4519,7 +4585,25 @@ export const courseSchedulingScreen = {
         void hydrateOpenedPlanningRow();
         return;
       }
-      rerender();
+      if (isCourseSchedulingFocusMode(state) || activeTab(state) === 'maintenance') { rerender(); return; }
+      const oldDetail = root.querySelector('[data-course-detail]');
+      if (!oldDetail) { rerender(); return; }
+      const selectedId = text(state.courseSchedulingSelectedId);
+      const planningById = new Map((state.courseSchedulingPlanningRows || []).map(item => [text(item.courseId), item]));
+      const selectedCourse = courseById.get(selectedId);
+      const selectedRow = selectedCourse ? courseRowModel(selectedCourse, resultByCourseId, planningById) : null;
+      const template = document.createElement('template');
+      template.innerHTML = `<section class="course-scheduling-detail${selectedId ? ' is-open' : ''}" data-course-detail>${selectedRow ? selectedCoursePanelHtml(selectedRow, state) : ''}</section>`;
+      oldDetail.replaceWith(template.content.firstElementChild);
+      root.querySelector('.course-scheduling-screen')?.classList.toggle('has-selected-course', !!selectedId);
+      const refreshIds = new Set(courseId ? [courseId] : []);
+      for (const card of root.querySelectorAll('[data-course-card]')) {
+        card.classList.toggle('is-selected', text(card.dataset.courseCard) === selectedId);
+        card.dataset.courseScrollTarget = text(card.dataset.courseCard) === selectedId ? 'selected' : '';
+        if (card.querySelector('.course-scheduling-workboard-choice-panel')) refreshIds.add(text(card.dataset.courseCard));
+      }
+      for (const id of refreshIds) updatePlanningChoiceCard(id, null);
+      bindSelectedCourseDetails();
     };
 
     bindCourseListControls(root, '[data-workboard-alternatives]', 'click', (button, event) => {
@@ -4602,7 +4686,9 @@ export const courseSchedulingScreen = {
       rerender();
     }));
 
+    function bindSelectedCourseDetails(includeRootControls = false) {
     const detailRoot = root.querySelector('[data-course-detail]') || root;
+    const bindingRoot = includeRootControls ? root : detailRoot;
     const selectedCourseId = state.courseSchedulingSelectedId;
     const selectedCourse = courseById.get(selectedCourseId);
 
@@ -4627,25 +4713,25 @@ export const courseSchedulingScreen = {
       rerender();
     });
 
-    root.querySelector('[data-close-single-substitute]')?.addEventListener('click', () => {
+    bindingRoot.querySelector('[data-close-single-substitute]')?.addEventListener('click', () => {
       state.courseSchedulingSingleSubstitutionCourseId = '';
       state.courseSchedulingSingleSubstitutionDate = '';
       state.courseSchedulingSingleSubstitutionEmpId = '';
       rerender();
     });
-    root.querySelector('[data-single-substitute-overlay]')?.addEventListener('click', (event) => {
+    bindingRoot.querySelector('[data-single-substitute-overlay]')?.addEventListener('click', (event) => {
       if (event.target !== event.currentTarget) return;
       state.courseSchedulingSingleSubstitutionCourseId = '';
       state.courseSchedulingSingleSubstitutionDate = '';
       state.courseSchedulingSingleSubstitutionEmpId = '';
       rerender();
     });
-    root.querySelector('[data-single-substitute-date]')?.addEventListener('change', (event) => {
+    bindingRoot.querySelector('[data-single-substitute-date]')?.addEventListener('change', (event) => {
       state.courseSchedulingSingleSubstitutionDate = event.target.value;
       state.courseSchedulingSingleSubstitutionEmpId = '';
       rerender();
     });
-    root.querySelector('[data-single-substitute-emp]')?.addEventListener('change', (event) => {
+    bindingRoot.querySelector('[data-single-substitute-emp]')?.addEventListener('change', (event) => {
       state.courseSchedulingSingleSubstitutionEmpId = event.target.value;
     });
 
@@ -4662,7 +4748,7 @@ export const courseSchedulingScreen = {
       state.courseSchedulingMeetingHistory[courseId] = historyResult.data || [];
     };
 
-    root.querySelector('[data-save-single-substitute]')?.addEventListener('click', async (event) => {
+    bindingRoot.querySelector('[data-save-single-substitute]')?.addEventListener('click', async (event) => {
       const courseId = text(state.courseSchedulingSingleSubstitutionCourseId);
       const meetingDate = text(state.courseSchedulingSingleSubstitutionDate);
       const substituteEmpId = Number(state.courseSchedulingSingleSubstitutionEmpId);
@@ -4709,7 +4795,7 @@ export const courseSchedulingScreen = {
       rerender();
     });
 
-    root.querySelector('[data-clear-single-substitute]')?.addEventListener('click', async (event) => {
+    bindingRoot.querySelector('[data-clear-single-substitute]')?.addEventListener('click', async (event) => {
       const courseId = text(state.courseSchedulingSingleSubstitutionCourseId);
       const meetingDate = text(state.courseSchedulingSingleSubstitutionDate);
       if (!courseId || !meetingDate) return;
@@ -4773,13 +4859,13 @@ export const courseSchedulingScreen = {
       state.courseSchedulingCancelReason = '';
       rerender();
     });
-    root.querySelector('[data-close-cancel-assignment]')?.addEventListener('click', () => {
+    bindingRoot.querySelector('[data-close-cancel-assignment]')?.addEventListener('click', () => {
       state.courseSchedulingCancelCourseId = '';
       rerender();
     });
-    root.querySelector('[data-cancel-assignment-reason]')?.addEventListener('input', (event) => { state.courseSchedulingCancelReason = event.target.value; });
-    root.querySelector('[data-confirm-cancel-assignment]')?.addEventListener('click', async (event) => {
-      const reason = text(root.querySelector('[data-cancel-assignment-reason]')?.value);
+    bindingRoot.querySelector('[data-cancel-assignment-reason]')?.addEventListener('input', (event) => { state.courseSchedulingCancelReason = event.target.value; });
+    bindingRoot.querySelector('[data-confirm-cancel-assignment]')?.addEventListener('click', async (event) => {
+      const reason = text(bindingRoot.querySelector('[data-cancel-assignment-reason]')?.value);
       if (!reason) { showToast('יש להזין סיבת ביטול', 'error'); return; }
       event.currentTarget.disabled = true;
       const { data: updatedActivity, error } = await supabase.rpc('cancel_confirmed_course_assignment', { p_activity_id: state.courseSchedulingCancelCourseId, p_reason: reason });
@@ -4985,11 +5071,11 @@ export const courseSchedulingScreen = {
       return true;
     };
 
-    bindCourseListControls(root, '[data-confirm-actual-draft]', 'click', (button, event) => {
+    bindCourseListControls(bindingRoot, '[data-confirm-actual-draft]', 'click', (button, event) => {
       void confirmActivityDraft(text(button.dataset.courseId), button);
     });
 
-    root.querySelectorAll('[data-find-instructors]').forEach((button) => {
+    bindingRoot.querySelectorAll('[data-find-instructors]').forEach((button) => {
       button.addEventListener('click', runFindInstructors);
     });
 
@@ -5046,16 +5132,143 @@ export const courseSchedulingScreen = {
         rerender();
       });
     });
-    root.querySelector('[data-cancel-manual-candidate]')?.addEventListener('click', () => {
+    bindingRoot.querySelector('[data-cancel-manual-candidate]')?.addEventListener('click', () => {
       closeManualCandidateConfirmation(state);
       rerender();
     });
-    root.querySelector('[data-confirm-manual-candidate]')?.addEventListener('click', async (event) => {
+    bindingRoot.querySelector('[data-confirm-manual-candidate]')?.addEventListener('click', async (event) => {
       const result = resultByCourseId.get(selectedCourseId);
       const candidate = consumeManualCandidateConfirmation(state, result?.manualCandidates || result?.checked || []);
       rerender();
       await saveManualCandidate(candidate, event.currentTarget);
     });
+
+    detailRoot.querySelector('[data-assign-course]')?.addEventListener('click', async (event) => {
+      if (!canEdit || !selectedCourseId) return;
+      const result = resultByCourseId.get(selectedCourseId);
+      const topCandidate = result?.recommended || result?.bestAvailable;
+      if (!topCandidate) return;
+      const selectedId = text(state.courseSchedulingSelectedCandidateId)
+        || text(detailRoot.querySelector('input[type="radio"][name^="course-candidate"]:checked')?.value);
+      const selected = allCandidatesForResult(result).find((item) => emp(item) === selectedId);
+      const blockReason = actionDisabledReason({ candidate: selected, canEdit });
+      if (blockReason) { showToast(blockReason, 'error'); updateCandidateActions(false); return; }
+      if (state.courseSchedulingReplacementCourseId === selectedCourseId) {
+        const meetingsDone = Number(state.courseSchedulingReplacementMeetings) || 0;
+        const reason = text(state.courseSchedulingReplacementReason);
+        const effectiveFrom = text(state.courseSchedulingReplacementEffectiveFrom);
+        if (meetingsDone === 1 && !reason) { showToast('לאחר מפגש אחד יש להזין סיבה', 'error'); return; }
+        if (meetingsDone >= 2 && (!reason || !effectiveFrom || !state.courseSchedulingReplacementConfirmed)) {
+          showToast('החלפה תפעולית דורשת סיבה, תאריך תחולה ואישור מפורש', 'error'); return;
+        }
+        updateCandidateActions(true);
+        const rpc = meetingsDone >= 2 ? 'replace_locked_course_instructor' : 'reassign_locked_course_instructor';
+        const payload = meetingsDone >= 2 ? {
+          p_activity_id: selectedCourseId, p_new_emp_id: Number(selectedId), p_new_instructor_name: selected.instructor.full_name,
+          p_effective_from: effectiveFrom, p_reason: reason
+        } : buildCourseReassignmentRpc({
+          activityId: selectedCourseId,
+          selectedId,
+          selected,
+          topCandidate,
+          decisionType: selectedId === emp(result.recommended) ? 'approved' : 'overridden',
+          reason
+        });
+        const { data: updatedActivity, error } = await supabase.rpc(rpc, payload);
+        if (error) { showToast(translateSchedulingAssignmentError(error.message, 'החלפת המדריך נכשלה'), 'error'); updateCandidateActions(false); return; }
+        applyReturnedSchedulingActivity(data.activities, updatedActivity);
+        state.courseSchedulingReplacementCourseId = '';
+        state.courseSchedulingResults = (state.courseSchedulingResults || []).filter((item) => idOf(item.course) !== selectedCourseId);
+        clearScreenDataCache?.();
+        invalidatePlanningWorkboard();
+        showToast('המדריך הוחלף. המערכת מעדכנת את סידור העבודה.', 'success');
+        rerender();
+        return;
+      }
+      const adjustment = selected.dateAdjustment;
+      const approvalMessage = adjustment?.exceedsHalf
+        ? `המועדים המוצעים חורגים מהמחצית ומסתיימים בתאריך ${formatDateHe(adjustment.newEndDate)}. לאשר סופית את שינוי המועדים ואת שיבוץ ${selected.instructor.full_name}?`
+        : `לשבץ את ${selected.instructor.full_name} לפעילות ${result.course.activity_name}?`;
+      if (!window.confirm(approvalMessage)) return;
+      updateCandidateActions(true);
+      const proposedMeetings = adjustment?.meetings?.map(({ date }) => ({ date })) || null;
+      const { data: updatedActivity, error } = await supabase.rpc(proposedMeetings ? 'assign_activity_instructor_with_dates' : 'assign_activity_instructor', {
+        p_activity_id: selectedCourseId,
+        p_emp_id: Number(selectedId),
+        p_instructor_name: selected.instructor.full_name,
+        p_top_emp_id: Number(emp(topCandidate)),
+        p_selected_score: selected.score,
+        p_top_score: topCandidate.score,
+        p_decision_type: selectedId === emp(result.recommended) ? 'approved' : 'overridden',
+        p_reason: null,
+        ...(proposedMeetings ? { p_proposed_meetings: proposedMeetings } : {})
+      });
+      if (error) { showToast(translateSchedulingAssignmentError(error.message, 'השיבוץ נכשל'), 'error'); updateCandidateActions(false); return; }
+      applyReturnedSchedulingActivity(data.activities, updatedActivity);
+      state.courseSchedulingSelectedCandidateId = '';
+      clearScreenDataCache?.();
+      invalidatePlanningWorkboard();
+      state.courseSchedulingSelectedId = selectedCourseId;
+      showToast('השיבוץ נשמר. המערכת מעדכנת את שאר סידור העבודה.', 'success');
+      rerender();
+    });
+
+    detailRoot.querySelector('[data-save-draft]')?.addEventListener('click', async (event) => {
+      if (!canEdit || !selectedCourseId) return;
+      const result = resultByCourseId.get(selectedCourseId);
+      const topCandidate = result?.recommended || result?.bestAvailable;
+      if (!topCandidate) return;
+      const selectedId = text(state.courseSchedulingSelectedCandidateId)
+        || text(detailRoot.querySelector('input[type="radio"][name^="course-candidate"]:checked')?.value);
+      const selected = allCandidatesForResult(result).find((item) => emp(item) === selectedId);
+      const liveCourse = (data.activities || []).find((row) => idOf(row) === selectedCourseId) || selectedCourse;
+      if (text(liveCourse?.draft_emp_id)) {
+        showToast('הפעילות כבר נשמרה כטיוטה', 'error');
+        updateCandidateActions(false);
+        return;
+      }
+      const blockReason = actionDisabledReason({ candidate: selected, canEdit });
+      if (blockReason) { showToast(blockReason, 'error'); updateCandidateActions(false); return; }
+      updateCandidateActions(true);
+      const { rpc, payload } = buildCourseAssignmentDraftRpc({
+        activityId: selectedCourseId,
+        selected,
+        topCandidate
+      });
+      const { error } = await supabase.rpc(rpc, payload);
+      if (error) { showToast(translateSchedulingAssignmentError(error.message, 'שמירת הטיוטה נכשלה'), 'error'); updateCandidateActions(false); return; }
+      if (liveCourse) {
+        liveCourse.draft_emp_id = String(payload.p_emp_id);
+        liveCourse.draft_instructor_name = payload.p_instructor_name;
+        if (payload.p_proposed_meetings) liveCourse.draft_proposed_meetings = payload.p_proposed_meetings;
+      }
+      clearScreenDataCache?.();
+      invalidatePlanningWorkboard();
+      state.courseSchedulingSelectedId = selectedCourseId;
+      showToast('הטיוטה נשמרה. המערכת מתכננת את שאר הפעילויות סביבה.', 'success');
+      rerender();
+    });
+
+    detailRoot.querySelector('[data-confirm-draft]')?.addEventListener('click', (event) => {
+      void confirmActivityDraft(selectedCourseId, event.currentTarget);
+    });
+
+    detailRoot.querySelector('[data-cancel-draft]')?.addEventListener('click', async (event) => {
+      if (!canEdit || !selectedCourseId) return;
+      if (!window.confirm('לבטל את הטיוטה?')) return;
+      event.target.disabled = true;
+      const { data: updatedActivity, error } = await supabase.rpc('cancel_course_assignment_draft', { p_activity_id: selectedCourseId });
+      if (error) { showToast(`ביטול הטיוטה נכשל: ${error.message}`, 'error'); event.target.disabled = false; return; }
+      applyReturnedSchedulingActivity(data.activities, updatedActivity);
+      clearScreenDataCache?.();
+      invalidatePlanningWorkboard();
+      state.courseSchedulingSelectedId = selectedCourseId;
+      showToast('הטיוטה בוטלה. המערכת מעדכנת את סידור העבודה.', 'success');
+      rerender();
+    });
+
+    }
+    bindSelectedCourseDetails(true);
 
     const runDistrictSimulation = async () => {
       if (state.courseSchedulingSimulationLoading || state.courseSchedulingLoading) return;
@@ -5379,130 +5592,6 @@ export const courseSchedulingScreen = {
         event.preventDefault();
         openSimulationCourseDetail(row.dataset.simulationCourseRow);
       });
-    });
-
-    detailRoot.querySelector('[data-assign-course]')?.addEventListener('click', async (event) => {
-      if (!canEdit || !selectedCourseId) return;
-      const result = resultByCourseId.get(selectedCourseId);
-      const topCandidate = result?.recommended || result?.bestAvailable;
-      if (!topCandidate) return;
-      const selectedId = text(state.courseSchedulingSelectedCandidateId)
-        || text(detailRoot.querySelector('input[type="radio"][name^="course-candidate"]:checked')?.value);
-      const selected = allCandidatesForResult(result).find((item) => emp(item) === selectedId);
-      const blockReason = actionDisabledReason({ candidate: selected, canEdit });
-      if (blockReason) { showToast(blockReason, 'error'); updateCandidateActions(false); return; }
-      if (state.courseSchedulingReplacementCourseId === selectedCourseId) {
-        const meetingsDone = Number(state.courseSchedulingReplacementMeetings) || 0;
-        const reason = text(state.courseSchedulingReplacementReason);
-        const effectiveFrom = text(state.courseSchedulingReplacementEffectiveFrom);
-        if (meetingsDone === 1 && !reason) { showToast('לאחר מפגש אחד יש להזין סיבה', 'error'); return; }
-        if (meetingsDone >= 2 && (!reason || !effectiveFrom || !state.courseSchedulingReplacementConfirmed)) {
-          showToast('החלפה תפעולית דורשת סיבה, תאריך תחולה ואישור מפורש', 'error'); return;
-        }
-        updateCandidateActions(true);
-        const rpc = meetingsDone >= 2 ? 'replace_locked_course_instructor' : 'reassign_locked_course_instructor';
-        const payload = meetingsDone >= 2 ? {
-          p_activity_id: selectedCourseId, p_new_emp_id: Number(selectedId), p_new_instructor_name: selected.instructor.full_name,
-          p_effective_from: effectiveFrom, p_reason: reason
-        } : buildCourseReassignmentRpc({
-          activityId: selectedCourseId,
-          selectedId,
-          selected,
-          topCandidate,
-          decisionType: selectedId === emp(result.recommended) ? 'approved' : 'overridden',
-          reason
-        });
-        const { data: updatedActivity, error } = await supabase.rpc(rpc, payload);
-        if (error) { showToast(translateSchedulingAssignmentError(error.message, 'החלפת המדריך נכשלה'), 'error'); updateCandidateActions(false); return; }
-        applyReturnedSchedulingActivity(data.activities, updatedActivity);
-        state.courseSchedulingReplacementCourseId = '';
-        state.courseSchedulingResults = (state.courseSchedulingResults || []).filter((item) => idOf(item.course) !== selectedCourseId);
-        clearScreenDataCache?.();
-        invalidatePlanningWorkboard();
-        showToast('המדריך הוחלף. המערכת מעדכנת את סידור העבודה.', 'success');
-        rerender();
-        return;
-      }
-      const adjustment = selected.dateAdjustment;
-      const approvalMessage = adjustment?.exceedsHalf
-        ? `המועדים המוצעים חורגים מהמחצית ומסתיימים בתאריך ${formatDateHe(adjustment.newEndDate)}. לאשר סופית את שינוי המועדים ואת שיבוץ ${selected.instructor.full_name}?`
-        : `לשבץ את ${selected.instructor.full_name} לפעילות ${result.course.activity_name}?`;
-      if (!window.confirm(approvalMessage)) return;
-      updateCandidateActions(true);
-      const proposedMeetings = adjustment?.meetings?.map(({ date }) => ({ date })) || null;
-      const { data: updatedActivity, error } = await supabase.rpc(proposedMeetings ? 'assign_activity_instructor_with_dates' : 'assign_activity_instructor', {
-        p_activity_id: selectedCourseId,
-        p_emp_id: Number(selectedId),
-        p_instructor_name: selected.instructor.full_name,
-        p_top_emp_id: Number(emp(topCandidate)),
-        p_selected_score: selected.score,
-        p_top_score: topCandidate.score,
-        p_decision_type: selectedId === emp(result.recommended) ? 'approved' : 'overridden',
-        p_reason: null,
-        ...(proposedMeetings ? { p_proposed_meetings: proposedMeetings } : {})
-      });
-      if (error) { showToast(translateSchedulingAssignmentError(error.message, 'השיבוץ נכשל'), 'error'); updateCandidateActions(false); return; }
-      applyReturnedSchedulingActivity(data.activities, updatedActivity);
-      state.courseSchedulingSelectedCandidateId = '';
-      clearScreenDataCache?.();
-      invalidatePlanningWorkboard();
-      state.courseSchedulingSelectedId = selectedCourseId;
-      showToast('השיבוץ נשמר. המערכת מעדכנת את שאר סידור העבודה.', 'success');
-      rerender();
-    });
-
-    detailRoot.querySelector('[data-save-draft]')?.addEventListener('click', async (event) => {
-      if (!canEdit || !selectedCourseId) return;
-      const result = resultByCourseId.get(selectedCourseId);
-      const topCandidate = result?.recommended || result?.bestAvailable;
-      if (!topCandidate) return;
-      const selectedId = text(state.courseSchedulingSelectedCandidateId)
-        || text(detailRoot.querySelector('input[type="radio"][name^="course-candidate"]:checked')?.value);
-      const selected = allCandidatesForResult(result).find((item) => emp(item) === selectedId);
-      const liveCourse = (data.activities || []).find((row) => idOf(row) === selectedCourseId) || selectedCourse;
-      if (text(liveCourse?.draft_emp_id)) {
-        showToast('הפעילות כבר נשמרה כטיוטה', 'error');
-        updateCandidateActions(false);
-        return;
-      }
-      const blockReason = actionDisabledReason({ candidate: selected, canEdit });
-      if (blockReason) { showToast(blockReason, 'error'); updateCandidateActions(false); return; }
-      updateCandidateActions(true);
-      const { rpc, payload } = buildCourseAssignmentDraftRpc({
-        activityId: selectedCourseId,
-        selected,
-        topCandidate
-      });
-      const { error } = await supabase.rpc(rpc, payload);
-      if (error) { showToast(translateSchedulingAssignmentError(error.message, 'שמירת הטיוטה נכשלה'), 'error'); updateCandidateActions(false); return; }
-      if (liveCourse) {
-        liveCourse.draft_emp_id = String(payload.p_emp_id);
-        liveCourse.draft_instructor_name = payload.p_instructor_name;
-        if (payload.p_proposed_meetings) liveCourse.draft_proposed_meetings = payload.p_proposed_meetings;
-      }
-      clearScreenDataCache?.();
-      invalidatePlanningWorkboard();
-      state.courseSchedulingSelectedId = selectedCourseId;
-      showToast('הטיוטה נשמרה. המערכת מתכננת את שאר הפעילויות סביבה.', 'success');
-      rerender();
-    });
-
-    detailRoot.querySelector('[data-confirm-draft]')?.addEventListener('click', (event) => {
-      void confirmActivityDraft(selectedCourseId, event.currentTarget);
-    });
-
-    detailRoot.querySelector('[data-cancel-draft]')?.addEventListener('click', async (event) => {
-      if (!canEdit || !selectedCourseId) return;
-      if (!window.confirm('לבטל את הטיוטה?')) return;
-      event.target.disabled = true;
-      const { data: updatedActivity, error } = await supabase.rpc('cancel_course_assignment_draft', { p_activity_id: selectedCourseId });
-      if (error) { showToast(`ביטול הטיוטה נכשל: ${error.message}`, 'error'); event.target.disabled = false; return; }
-      applyReturnedSchedulingActivity(data.activities, updatedActivity);
-      clearScreenDataCache?.();
-      invalidatePlanningWorkboard();
-      state.courseSchedulingSelectedId = selectedCourseId;
-      showToast('הטיוטה בוטלה. המערכת מעדכנת את סידור העבודה.', 'success');
-      rerender();
     });
 
     root.querySelector('[data-refresh-distance-coverage]')?.addEventListener('click', async () => {

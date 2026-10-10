@@ -1,0 +1,22 @@
+✔ eligible instructor receives explained score while missing distance is informational (3.036344ms)
+✔ rejects language, gender, exception and overlap with exact reasons (1.205152ms)
+✔ Saturday without permitted society disqualifies and ranking separates rejected candidates (0.3945ms)
+✔ Friday requires separate permission and explicit weekly availability (0.916698ms)
+✔ instructor without profile does not assume a language requirement (0.396593ms)
+✔ legacy professional and activity restriction fields do not affect eligibility except blocked_authorities (0.376473ms)
+✔ missing weekly availability never implies availability (14.863452ms)
+✔ פורצות דרך only accepts female instructors (0.465023ms)
+✔ unavailable Google distance is explanatory data, not an exception (0.379207ms)
+✔ impossible transition disqualifies candidate (0.53101ms)
+✔ home distance above 40 km is a hard eligibility failure (0.369563ms)
+✔ projected weekly load only counts weeks used by the activity (0.448179ms)
+✔ average weekly load is passed through ranking and creates a visible load exception (0.308754ms)
+✔ quality bands preserve the existing score while classifying boundaries (0.25819ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 32.204837

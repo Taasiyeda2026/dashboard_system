@@ -1,0 +1,44 @@
+✔ 253/253 RUNNING checkpoint goes to validation instead of a fresh run, never straight to commit (1.977047ms)
+✔ 253/253 rows alone never skip unfinished optimization passes (0.640712ms)
+✔ partial resume re-opens unassigned rows so the existing-staff rescue runs again (0.667021ms)
+✔ partial or stale RUNNING checkpoints are not treated as complete (1.573273ms)
+✔ mid-run source change rebases only the changed activity and its instructor/date dependents (1.379388ms)
+✔ rebase includes rows newly flagged needs_recalc but not rows already dirty when the run started (0.36033ms)
+✔ instructor availability change during a run rebases only rows that depend on that instructor (0.34689ms)
+✔ a row dirty at start and flagged again during the run is rechecked (0.4355ms)
+✔ flag-time comparison keeps a safety margin and fails closed (0.187335ms)
+✔ no detected change keeps the whole calculated plan (empty delta) (0.307332ms)
+✔ resumed complete checkpoint is validated without re-planning and keeps every row (3.504633ms)
+✔ resumed checkpoint with a hard conflict reports only a bounded repair delta (6.79519ms)
+✔ completed point resume validates preserved rows without triggering national optimization (4.449402ms)
+✔ interrupted point run recalculates unassigned rows and fully validates preserved assignments (6.315486ms)
+✔ run wiring: planner completion is recorded explicitly and resume keeps optimization scope (0.374842ms)
+✔ run wiring: completed RUNNING checkpoint skips the planner and source conflicts rebase instead of aborting (0.40114ms)
+✔ period/district filter change keeps the loaded shared plan and an active run on screen (0.269686ms)
+✔ real-world overlap recovery keeps the prior conflict-free instructor instead of discarding all 253 proposals (1.141268ms)
+✔ overlap recovery never overrides a locked plan or invents an unverified alternative (0.216959ms)
+✔ screen uses the whole-plan validated fallback for both normal and delta planning (0.338127ms)
+✔ nested local overlap repairs have one cooperative deadline that cannot restart (0.709604ms)
+✔ on whole-plan overlap, saved incumbent is verified before 75s nested repair (0.325028ms)
+✔ checkpoint recovery covers more than eight intersecting courses and can safely fall back to committed missing rows (3.199915ms)
+✔ a dirty rows checkpoint is checked for overlap before any resumed planning can trust its incumbents (0.224861ms)
+✔ school-cohort choices reject same-instructor overlaps and prefer next valid instructor without delaying course (0.665098ms)
+✔ school-cohort choices honor meeting substitutes and full-day instructor blockers (0.266082ms)
+✔ residual school-cohort collision is reconciled after packing, preferring a valid alternate to lost hours (0.769301ms)
+✔ unresolved cohort clashes remain unassigned rather than being wrongly certified as recruitment (0.488699ms)
+✔ committed fixed and locked activities are never replaced to resolve a provisional conflict (0.256607ms)
+✔ browser planning deadline ends an otherwise infinite computation without committing (0.337386ms)
+✔ unrecoverable checkpoint falls back to original dirty scope and separately committed data (0.626261ms)
+✔ safe restart adds newly created courses while keeping unrelated saved proposals (0.143451ms)
+✔ unrecoverable checkpoint never silently launches a full country rebuild (0.084013ms)
+✔ 253-row production-shape acceptance: recover corrupted checkpoint, preserve 101 live, serialize validated full save (17.439521ms)
+✔ stage progress checkpoints upload changed rows only with a 120s cooldown, never repeat whole 253-row snapshot (1.9317ms)
+✔ stage snapshots persist fresh rows if previous checkpoint cache was discarded for unsafe overlap (0.255395ms)
+ℹ tests 36
+ℹ suites 0
+ℹ pass 36
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 67.500916

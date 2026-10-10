@@ -1,0 +1,617 @@
+{
+  "version": "planning-v36-20261009-point-context-transition-guard-v2",
+  "elapsedMs": 43005.020864,
+  "cpuMs": 41675.806,
+  "maxRSSKiB": 550240,
+  "heapUsedBytes": 346574936,
+  "rows": 253,
+  "assigned": 198,
+  "routeMisses": 0,
+  "databaseRequests": 0,
+  "optimization": {
+    "completed": false,
+    "failure": "planning_optimization_budget_exceeded",
+    "basePreserved": true
+  },
+  "quality": {
+    "uncovered": 55,
+    "missing": 41,
+    "recruitmentProfiles": 4,
+    "recruitment": 14,
+    "changedDrafts": 0,
+    "newWorkDayMeetings": 785,
+    "totalTravelKm": 3940.4,
+    "averageTravelKm": 33.7,
+    "averageOperationalScore": 54.5,
+    "schoolCount": 106,
+    "schoolsWithMultipleFlexibleActivities": 26,
+    "fragmentedSchools": 26,
+    "totalSchoolWeekdays": 68,
+    "avoidableSchoolDaySplits": 0,
+    "maxSchoolWeekdays": 5,
+    "groups": [
+      {
+        "schoolId": "457",
+        "groupActivityCount": 4,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 4,
+        "actualWeekdays": [
+          0,
+          1,
+          4
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "tour_day_exclusive",
+        "anchorWeekdays": [],
+        "packingStatus": "unresolved_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "2854",
+        "groupActivityCount": 6,
+        "anchorActivityCount": 3,
+        "flexibleActivityCount": 1,
+        "actualWeekdays": [
+          0,
+          2,
+          3
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "anchor_weekdays",
+        "anchorWeekdays": [
+          2,
+          3
+        ],
+        "packingStatus": "unresolved_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "387",
+        "groupActivityCount": 3,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 3,
+        "actualWeekdays": [
+          0,
+          1
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "solver_no_complete_bundle",
+        "anchorWeekdays": [],
+        "packingStatus": "unresolved_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "1254",
+        "groupActivityCount": 2,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 2,
+        "actualWeekdays": [
+          0,
+          1
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "tour_day_exclusive",
+        "anchorWeekdays": [],
+        "packingStatus": "unresolved_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "342",
+        "groupActivityCount": 4,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 3,
+        "actualWeekdays": [
+          0,
+          2
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "solver_no_complete_bundle",
+        "anchorWeekdays": [],
+        "packingStatus": "unresolved_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "2879",
+        "groupActivityCount": 2,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 2,
+        "actualWeekdays": [
+          1,
+          5
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "solver_no_complete_bundle",
+        "anchorWeekdays": [],
+        "packingStatus": "unresolved_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "238",
+        "groupActivityCount": 3,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 3,
+        "actualWeekdays": [
+          1,
+          3
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "solver_no_complete_bundle",
+        "anchorWeekdays": [],
+        "packingStatus": "unresolved_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "443",
+        "groupActivityCount": 2,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 2,
+        "actualWeekdays": [
+          3
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "",
+        "anchorWeekdays": [],
+        "packingStatus": "packed",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "2774",
+        "groupActivityCount": 2,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 2,
+        "actualWeekdays": [
+          0
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "",
+        "anchorWeekdays": [],
+        "packingStatus": "packed",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "1931",
+        "groupActivityCount": 4,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 2,
+        "actualWeekdays": [
+          3,
+          4
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "solver_no_complete_bundle",
+        "anchorWeekdays": [],
+        "packingStatus": "unresolved_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "1068",
+        "groupActivityCount": 3,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 3,
+        "actualWeekdays": [
+          2,
+          3,
+          5
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "tour_day_exclusive",
+        "anchorWeekdays": [],
+        "packingStatus": "unresolved_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "409",
+        "groupActivityCount": 2,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 2,
+        "actualWeekdays": [
+          4
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "",
+        "anchorWeekdays": [],
+        "packingStatus": "packed",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "337",
+        "groupActivityCount": 2,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 2,
+        "actualWeekdays": [
+          1,
+          3
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "solver_no_complete_bundle",
+        "anchorWeekdays": [],
+        "packingStatus": "unresolved_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "3155",
+        "groupActivityCount": 2,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 2,
+        "actualWeekdays": [
+          0
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "",
+        "anchorWeekdays": [],
+        "packingStatus": "packed",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "1278",
+        "groupActivityCount": 2,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 2,
+        "actualWeekdays": [
+          0,
+          2
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "solver_no_complete_bundle",
+        "anchorWeekdays": [],
+        "packingStatus": "unresolved_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "3171",
+        "groupActivityCount": 2,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 2,
+        "actualWeekdays": [
+          1,
+          2
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "solver_no_complete_bundle",
+        "anchorWeekdays": [],
+        "packingStatus": "unresolved_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "1281",
+        "groupActivityCount": 3,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 3,
+        "actualWeekdays": [
+          2,
+          3
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "solver_no_complete_bundle",
+        "anchorWeekdays": [],
+        "packingStatus": "unresolved_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "2425",
+        "groupActivityCount": 6,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 5,
+        "actualWeekdays": [
+          0,
+          1,
+          3
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "solver_no_complete_bundle",
+        "anchorWeekdays": [],
+        "packingStatus": "unresolved_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "3535",
+        "groupActivityCount": 2,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 1,
+        "actualWeekdays": [
+          0,
+          3
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "solver_no_complete_bundle",
+        "anchorWeekdays": [],
+        "packingStatus": "unresolved_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "3537",
+        "groupActivityCount": 2,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 1,
+        "actualWeekdays": [
+          1
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "",
+        "anchorWeekdays": [],
+        "packingStatus": "packed",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "3502",
+        "groupActivityCount": 2,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 2,
+        "actualWeekdays": [
+          1,
+          3
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "solver_no_complete_bundle",
+        "anchorWeekdays": [],
+        "packingStatus": "unresolved_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "283",
+        "groupActivityCount": 6,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 6,
+        "actualWeekdays": [
+          1,
+          2,
+          3
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "solver_no_complete_bundle",
+        "anchorWeekdays": [],
+        "packingStatus": "unresolved_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "3063",
+        "groupActivityCount": 2,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 2,
+        "actualWeekdays": [
+          3
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "",
+        "anchorWeekdays": [],
+        "packingStatus": "packed",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "2361",
+        "groupActivityCount": 4,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 1,
+        "actualWeekdays": [
+          1
+        ],
+        "minimumFeasibleWeekdays": 1,
+        "avoidableSplitCount": 0,
+        "splitReason": "",
+        "anchorWeekdays": [],
+        "packingStatus": "packed",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "449",
+        "groupActivityCount": 2,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 2,
+        "actualWeekdays": [
+          1,
+          2
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "solver_no_complete_bundle",
+        "anchorWeekdays": [],
+        "packingStatus": "unresolved_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "2366",
+        "groupActivityCount": 2,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 2,
+        "actualWeekdays": [
+          1,
+          5
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "solver_no_complete_bundle",
+        "anchorWeekdays": [],
+        "packingStatus": "unresolved_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "3532",
+        "groupActivityCount": 2,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 1,
+        "actualWeekdays": [
+          1,
+          5
+        ],
+        "minimumFeasibleWeekdays": 2,
+        "avoidableSplitCount": 0,
+        "splitReason": "no_single_day_complete_bundle",
+        "anchorWeekdays": [],
+        "packingStatus": "required_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "2346",
+        "groupActivityCount": 2,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 2,
+        "actualWeekdays": [
+          1,
+          5
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "solver_no_complete_bundle",
+        "anchorWeekdays": [],
+        "packingStatus": "unresolved_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "2991",
+        "groupActivityCount": 6,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 6,
+        "actualWeekdays": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "solver_no_complete_bundle",
+        "anchorWeekdays": [],
+        "packingStatus": "unresolved_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "389",
+        "groupActivityCount": 6,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 1,
+        "actualWeekdays": [
+          3,
+          5
+        ],
+        "minimumFeasibleWeekdays": 2,
+        "avoidableSplitCount": 0,
+        "splitReason": "no_single_day_complete_bundle",
+        "anchorWeekdays": [],
+        "packingStatus": "required_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "3064",
+        "groupActivityCount": 2,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 2,
+        "actualWeekdays": [
+          0,
+          5
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "solver_no_complete_bundle",
+        "anchorWeekdays": [],
+        "packingStatus": "unresolved_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "3191",
+        "groupActivityCount": 2,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 2,
+        "actualWeekdays": [
+          1
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "",
+        "anchorWeekdays": [],
+        "packingStatus": "packed",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "2215",
+        "groupActivityCount": 3,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 1,
+        "actualWeekdays": [
+          1,
+          3
+        ],
+        "minimumFeasibleWeekdays": 2,
+        "avoidableSplitCount": 0,
+        "splitReason": "no_single_day_complete_bundle",
+        "anchorWeekdays": [],
+        "packingStatus": "required_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      },
+      {
+        "schoolId": "3209",
+        "groupActivityCount": 2,
+        "anchorActivityCount": 0,
+        "flexibleActivityCount": 2,
+        "actualWeekdays": [
+          2,
+          6
+        ],
+        "minimumFeasibleWeekdays": null,
+        "avoidableSplitCount": 0,
+        "splitReason": "solver_no_complete_bundle",
+        "anchorWeekdays": [],
+        "packingStatus": "unresolved_split",
+        "alternativeCount": 0,
+        "alternatives": []
+      }
+    ]
+  },
+  "sourceUnchanged": true
+}

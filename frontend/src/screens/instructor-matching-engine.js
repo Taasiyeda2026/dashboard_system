@@ -1,3 +1,4 @@
+import { schedulingWeekendFailure } from './shared/scheduling-weekend-policy.js';
 import { instructionLanguageLabel, profileSpeaksLanguage, resolveInstructionLanguage } from './shared/instruction-language.js';
 import { normalizeCalendarSector } from './shared/school-calendar-logic.js';
 import { isFullDaySchedulingActivity } from './shared/activity-scheduling-eligibility.js';
@@ -19,7 +20,7 @@ export const MAX_CONSECUTIVE_TRANSITION_GAP_MINUTES = 120;
 
 export function transitionDistanceCapApplies(gapMinutes) {
   const gap = Number(gapMinutes);
-  return Number.isFinite(gap) && gap <= MAX_CONSECUTIVE_TRANSITION_GAP_MINUTES;
+  return Number.isFinite(gap) && gap >= 0;
 }
 
 export function transitionBufferMinutes(distanceKm) {
@@ -341,16 +342,12 @@ export function evaluateInstructor({
   let availableMeetings = 0;
   const availabilityIssueKinds = new Set(['missing_availability', 'hours_unavailable', 'day_blocked', 'overlap', 'full_day_tour_conflict']);
   const travelIssueKinds = new Set(['unverified_transition', 'insufficient_transition', 'transition_distance_exceeded']);
-  const saturdayAllowed = normalizeCalendarSector(activity?.calendar_sector) === 'arab';
-
   for (const meeting of meetings) {
-    const weekday = new Date(`${meeting.date}T12:00:00`).getDay();
-    if (weekday === 6 && !saturdayAllowed) {
-      failures.push(`שבת פתוחה לשיבוץ רק בבתי ספר בחברה הערבית (${meeting.date})`);
-      continue;
-    }
-
+    const weekday = new Date(`${meeting.date}T12:00:00Z`).getUTCDay();
     const availability = exceptionMap.get(meeting.date) || ruleMap.get(weekday);
+    const weekendFailure = schedulingWeekendFailure({ date: meeting.date, profile, activity, availability });
+    if (weekendFailure) { failures.push(`${weekendFailure === 'friday_not_allowed' ? 'נדרש היתר נפרד לעבודה ביום שישי' : weekendFailure === 'saturday_sector' ? 'שבת מותרת רק בפעילות בחברה הערבית או הדרוזית' : 'לא הוגדרה זמינות מפורשת לשבת'} (${meeting.date})`); failureCodes.push(weekendFailure); continue; }
+
     if (!availability) {
       const day = new Intl.DateTimeFormat('he-IL', { weekday: 'long' }).format(new Date(`${meeting.date}T12:00:00`));
       addIssue('missing_availability', `${weekday}-${meeting.start_time}-${meeting.end_time}`, `לא הוגדרה זמינות לימי ${day} בשעות ${meeting.start_time}–${meeting.end_time}`, meeting.date, true);

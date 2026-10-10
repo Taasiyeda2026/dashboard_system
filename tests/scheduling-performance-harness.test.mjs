@@ -48,6 +48,8 @@ const activity = (id, date = '2026-10-11') => ({
   school_address: 'school',
   instruction_language: 'he',
   sessions: 1,
+  start_time: '09:15',
+  end_time: '10:45',
   date_1: date,
   updated_at: '2026-09-29T20:00:00Z'
 });
@@ -177,7 +179,7 @@ test('planning perf harness: five dirty activities with warm routes', async () =
   assert.equal(measuredResult.report.counters.activitiesComputed, 5);
   assert.equal(routeClient.googleCalls, 0);
   assert.equal(measuredResult.report.counters.googleCalls, 0);
-  assert.ok(measuredResult.report.counters.scheduleCalls >= 5);
+  assert.ok(measuredResult.report.counters.scheduleCalls === 1);
   assert.ok(measuredResult.report.counters.candidateEvals > 0);
 });
 
@@ -214,7 +216,7 @@ test('planning fast search prunes hard-ineligible instructors before scenario ev
     'static shortlist must be computed once; extra evaluations are limited to final validation of the top options');
 });
 
-test('full maintenance defers recruitment rescue until the fast base plan is complete', async () => {
+test('new national planner certifies unavailable staff only after candidate checks and final validation', async () => {
   const instructors = instructorRows(8);
   const profiles = profileRows(instructors);
   const unavailableRules = Object.fromEntries(instructors.map((instructor) => [
@@ -248,12 +250,11 @@ test('full maintenance defers recruitment rescue until the fast base plan is com
     planningProfile: 'fast',
     onProgress: async ({ phase }) => phases.push(phase)
   }));
-  const baseDone = phases.indexOf('בניית תוכנית');
-  const rescueStarted = phases.indexOf('מיצוי צוות קיים לפני גיוס');
-  assert.ok(baseDone >= 0 && rescueStarted > baseDone, 'full maintenance rescue must run after the base activity loop');
-  assert.equal(measuredResult.report.counters.rescueDeferred, 1);
-  assert.equal(measuredResult.report.counters.rescueProcessed, 1);
-  assert.equal(measuredResult.value.rows[0].kind, 'missing');
-  assert.equal(measuredResult.value.rows[0].diagnostics.recruitmentCertified, false);
-  assert.equal(measuredResult.value.rows[0].diagnostics.searchIncomplete, true);
+  assert.ok(phases.includes('אימות סופי — מנוע חדש'));
+  assert.equal(measuredResult.value.newEngineMetrics.activitiesComputed,1);
+  assert.equal(measuredResult.value.finalPlanValidation.valid,true);
+  assert.equal(measuredResult.value.rows[0].kind, 'recruitment');
+  assert.equal(measuredResult.value.rows[0].instructorEmpId, '');
+  assert.equal(measuredResult.value.rows[0].diagnostics.recruitmentCertified, true);
+  assert.equal(measuredResult.value.rows[0].diagnostics.searchIncomplete, false);
 });

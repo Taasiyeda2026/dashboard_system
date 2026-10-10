@@ -1,0 +1,18 @@
+PLANNING_PERF_SCENARIO {"label":"noop-reopen","wallMs":1.2,"counters":{"preliminaryCalls":0,"scheduleCalls":0,"activitiesComputed":0,"upgradeActivitiesComputed":0,"candidateEvals":0,"candidateEvaluations":0,"instructorScans":0,"scenarioCount":0,"scenarioEvaluations":0,"travelRequests":0,"routeCacheRequests":0,"cacheHits":0,"googleCalls":0,"finalValidations":0,"contextRebuilds":0,"progressUiUpdates":0,"checkpointSaves":0,"checkpointPayloadBytes":0},"timers":{}}
+✔ planning perf harness: no-op reopen does zero engine work (3.106497ms)
+PLANNING_PERF_SCENARIO {"label":"single-dirty","wallMs":20.5,"counters":{"preliminaryCalls":0,"scheduleCalls":1,"activitiesComputed":1,"upgradeActivitiesComputed":0,"candidateEvals":16,"candidateEvaluations":0,"instructorScans":0,"scenarioCount":16,"scenarioEvaluations":0,"travelRequests":0,"routeCacheRequests":0,"cacheHits":0,"googleCalls":0,"finalValidations":0,"contextRebuilds":0,"progressUiUpdates":0,"checkpointSaves":0,"checkpointPayloadBytes":0,"cooperativeYields":1},"timers":{}}
+✔ planning perf harness: one dirty activity with warm routes (21.260856ms)
+PLANNING_PERF_SCENARIO {"label":"five-dirty-warm-cache","wallMs":11.2,"counters":{"preliminaryCalls":0,"scheduleCalls":1,"activitiesComputed":5,"upgradeActivitiesComputed":0,"candidateEvals":80,"candidateEvaluations":0,"instructorScans":0,"scenarioCount":80,"scenarioEvaluations":0,"travelRequests":0,"routeCacheRequests":0,"cacheHits":0,"googleCalls":0,"finalValidations":0,"contextRebuilds":0,"progressUiUpdates":0,"checkpointSaves":0,"checkpointPayloadBytes":0,"cooperativeYields":1},"timers":{}}
+✔ planning perf harness: five dirty activities with warm routes (11.62462ms)
+PLANNING_PERF_SCENARIO {"label":"static-shortlist","wallMs":1.6,"counters":{"preliminaryCalls":0,"scheduleCalls":1,"activitiesComputed":1,"upgradeActivitiesComputed":0,"candidateEvals":4,"candidateEvaluations":0,"instructorScans":0,"scenarioCount":4,"scenarioEvaluations":0,"travelRequests":0,"routeCacheRequests":0,"cacheHits":0,"googleCalls":0,"finalValidations":0,"contextRebuilds":0,"progressUiUpdates":0,"checkpointSaves":0,"checkpointPayloadBytes":0,"staticCandidatePruned":23},"timers":{}}
+✔ planning fast search prunes hard-ineligible instructors before scenario evaluation (2.048932ms)
+PLANNING_PERF_SCENARIO {"label":"deferred-full-rescue","wallMs":4.3,"counters":{"preliminaryCalls":0,"scheduleCalls":1,"activitiesComputed":1,"upgradeActivitiesComputed":0,"candidateEvals":0,"candidateEvaluations":0,"instructorScans":0,"scenarioCount":0,"scenarioEvaluations":0,"travelRequests":0,"routeCacheRequests":0,"cacheHits":0,"googleCalls":0,"finalValidations":0,"contextRebuilds":0,"progressUiUpdates":0,"checkpointSaves":0,"checkpointPayloadBytes":0},"timers":{}}
+✔ new national planner certifies unavailable staff only after candidate checks and final validation (4.731695ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 47.457188

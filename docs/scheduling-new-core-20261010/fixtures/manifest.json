@@ -1,0 +1,26 @@
+{
+  "anonymous-snapshot.json": {
+    "sha256": "ecdd221dec476d20e9cb1ae64cb8cc7417a404e2dd1a89afe9aa04995ed780bd",
+    "bytes": 2541025,
+    "compressedBase64Bytes": 384408
+  },
+  "anonymous-saved.json": {
+    "sha256": "cfda6a8ded5ea4cc49b62cb9acd269ae26251ad9f890eaa1544e725e5242cc9e",
+    "bytes": 5789867,
+    "compressedBase64Bytes": 327300
+  },
+  "anonymous-canonical.json": {
+    "sha256": "9110646ef0f3ed2a1e88e52d1eee9d6ce1ed377f570464da9197eb56b29684c9",
+    "bytes": 15109,
+    "compressedBase64Bytes": 3944
+  },
+  "anonymous-routes.json": {
+    "sha256": "c3bbbbc3363020540e2b16ca7f4a9a53432d746ed6d5508d19e3ec631f0f4691",
+    "bytes": 4845526,
+    "compressedBase64Bytes": 502572
+  },
+  "browser-fixture.json": {
+    "sha256": "b1c075c4e6c56017324f3e9f622856012fc9c00917d6439a0b2bd9aaf90d37e1",
+    "bytes": 8867991
+  }
+}

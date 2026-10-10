@@ -1,0 +1,18 @@
+✔ shared planning persists separately from live activities with scheduling RLS (4.181625ms)
+✔ course planning screen loads and saves the shared workspace and only recalculates affected rows (2.812274ms)
+✔ post-optimization snapshots are persisted so final validation failures do not force a full rebuild (2.927293ms)
+✔ full and incremental planning silently checkpoint and can resume (2.869528ms)
+✔ entering shared planning never recalculates automatically; point mutations auto-refresh via needs-recalc (1.342623ms)
+✔ successful planning persistence does not invalidate the scheduling screen cache (1.04077ms)
+✔ shared planning UI communicates targeted refresh and shared workspace reload (1.260763ms)
+✔ current shared planning has no incremental rerun button and click handler never promotes an empty update to full run (0.952811ms)
+✔ shared planning uses bounded route concurrency without treating it as the primary fix (0.845342ms)
+✔ fast planning parallelizes independent cached route legs and uses six routed pairs per batch (1.598289ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 25.274808

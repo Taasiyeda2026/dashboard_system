@@ -1,0 +1,32 @@
+✔ new product entry uses v37 and one 100-point score contract; inputs remain unchanged (19.241535ms)
+✔ Friday needs separate permission even with weekly or date availability (7.198652ms)
+✔ Saturday policy: arab requires explicit availability and permitted society (3.14254ms)
+✔ Saturday policy: druze requires explicit availability and permitted society (1.619251ms)
+✔ Saturday policy: jewish requires explicit availability and permitted society (1.208496ms)
+✔ Saturday policy: general requires explicit availability and permitted society (0.612321ms)
+✔ Saturday policy: missing requires explicit availability and permitted society (0.699078ms)
+✔ official protected series remains complete across semesters and blocks new March collisions (1.687661ms)
+✔ block-first keeps back-to-back courses with one teacher and splits true parallel lanes (3.24533ms)
+✔ a blocked saved fixed proposal is unassigned or legally reassigned without moving source dates (1.350776ms)
+✔ travel above 20km fails even after a long gap and unknown travel is never invented (0.927062ms)
+✔ holidays, gender, language, inactive status and blocked authority are hard gates, not scores (1.830621ms)
+✔ removed education/course/school restrictions do not reappear as gates (1.098825ms)
+✔ ordinary point scope cannot silently request national repair, and cancellation yields no plan (1.038416ms)
+✔ co-teacher and recorded substitutions remain authoritative blockers (1.813997ms)
+✔ national optimizer failure returns independently validated base; cancellation never does (1.989054ms)
+✔ other-season approved obligations block proposals without becoming planning rows (1.041471ms)
+✔ fixed forbidden Saturday or holiday is a source conflict, not a recruitment claim (1.815779ms)
+✔ date-specific exception fingerprints retain exact affected dates (1.097143ms)
+✔ dependency closure follows actual occupancy through protected bridges, not every alternative teacher (47.216458ms)
+✔ undated fixed school hours cannot be shifted or silently stretched (2.846444ms)
+✔ new or changed planning lock cannot convert an illegal candidate to a protected exception (0.756242ms)
+✔ Saturday date exception explicitly overrides weekly availability in both directions (1.015473ms)
+✔ official seconds are preserved and a forged secondary assignment is rejected (1.118784ms)
+ℹ tests 24
+ℹ suites 0
+ℹ pass 24
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 113.260151
