@@ -2658,7 +2658,7 @@ test('Planning marks recruitment only when no active instructor can satisfy the 
   assert.ok(result.rows[0].startTime);
   assert.ok(result.rows[0].meetings.length > 0);
   assert.ok(result.rows[0].recruitmentProfileId);
-  assert.match(result.rows[0].reason, /נדרש גיוס/);
+  assert.match(result.rows[0].reason, /לא נמצאה חלופה חוקית במסגרת החיפוש/);
   assert.equal(result.recruitment, 1);
 });
 
