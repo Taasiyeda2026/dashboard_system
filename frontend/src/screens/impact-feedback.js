@@ -649,7 +649,28 @@ function groupsTableHtml(slots, scope) {
   const filtered = scope === 'students'
     ? sortStudentFeedbackGroups(matching)
     : scope === 'staff'
-      ? sortEducationalStaffFeedbackGroups(matching)
+      ? (() => {
+        // Display a single staff row per course + contact + school, without
+        // altering the underlying activities or their feedback campaigns.
+        const sorted = sortEducationalStaffFeedbackGroups(matching);
+        const unique = new Map();
+        for (const group of sorted) {
+          // No known contact: keep rows separate rather than merge unknown people.
+          const contact = String(group.contact_name || '').trim().replace(/\\s+/g, ' ').toLocaleLowerCase('he');
+          const school = String(group.school || '').trim().replace(/\\s+/g, ' ').toLocaleLowerCase('he');
+          const course = String(group.program_key || '').trim();
+          const key = contact && school && course
+            ? JSON.stringify([course, contact, school])
+            : JSON.stringify(['unidentified', group.row_id]);
+          const previous = unique.get(key);
+          if (!previous || (Number(groupHasFeedback(group)) > Number(groupHasFeedback(previous)))
+            || (Number(groupHasFeedback(group)) === Number(groupHasFeedback(previous))
+              && String(group.end_date || '') > String(previous.end_date || ''))) {
+            unique.set(key, group);
+          }
+        }
+        return [...unique.values()];
+      })()
       : matching.sort((a, b) =>
         Number(groupHasFeedback(b)) - Number(groupHasFeedback(a)) ||
         String(a.school).localeCompare(String(b.school), 'he'));
