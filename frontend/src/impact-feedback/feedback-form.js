@@ -72,7 +72,7 @@ function textHtml(q, value) {
   return `<textarea class="ifb-text" rows="3" maxlength="2000" data-qid="${esc(q.id)}" data-kind="text" aria-label="${esc(q.text)}" placeholder="אפשר לכתוב כאן…">${esc(value || '')}</textarea>`;
 }
 
-function questionHtml(q, index, answers, young) {
+function questionHtml(q, index, answers, young, bilingual = false) {
   const value = answers[q.id];
   let control = '';
   if (q.type === 'rating_1_5') control = ratingHtml(q, value, young);
@@ -84,7 +84,7 @@ function questionHtml(q, index, answers, young) {
     <fieldset class="ifb-q${isAnswered(q, value) ? ' is-answered' : ''}" data-question="${esc(q.id)}">
       <legend class="ifb-q__title">
         <span class="ifb-q__num" aria-hidden="true">${index + 1}</span>
-        <span>${esc(q.text)}${q.required ? '' : ' <span class="ifb-q__optional">(לא חובה)</span>'}</span>
+        <span>${esc(q.text)}${bilingual && q.text_ar ? `<span lang="ar" dir="rtl" style="display:block;margin-top:0.35rem;font-weight:500">${esc(q.text_ar)}</span>` : ''}${q.required ? '' : ' <span class="ifb-q__optional">(לא חובה)</span>'}</span>
       </legend>
       ${q.type === 'multi_select' ? '<p class="ifb-q__hint">אפשר לבחור כמה תשובות</p>' : ''}
       ${control}
@@ -128,7 +128,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
         <span class="ifb-progress__label" data-progress-label></span>
       </div>
       <form class="ifb-form" novalidate>
-        ${questions.map((q, i) => questionHtml(q, i, answers, young)).join('')}
+        ${questions.map((q, i) => questionHtml(q, i, answers, young, Boolean(options.bilingual))).join('')}
         <div class="ifb-submit">
           <p class="ifb-submit__error" data-submit-error role="alert" hidden></p>
           <button type="submit" class="ifb-submit__btn" data-submit>${options.preview ? 'שליחה (תצוגה מקדימה)' : 'שליחת המשוב'}</button>
