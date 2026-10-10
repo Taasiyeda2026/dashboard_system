@@ -23,7 +23,7 @@ export function officialMeetings(a) {
 export function knownRoute(context, from, to) {
   if (!address(from) || !address(to)) return null;
   if (address(from) === address(to)) return { distance_km: 0, duration_minutes: 0 };
-  const route = context.routeClient?.peek?.(from, to);
+  const route = context.routeClient?.peek?.(from, to) || context.verifiedRoutes?.get(`${address(from)}→${address(to)}`);
   return route && route.distance_km != null && route.duration_minutes != null
     && Number.isFinite(+route.distance_km) && Number.isFinite(+route.duration_minutes)
     && +route.distance_km >= 0 && +route.duration_minutes >= 0 ? route : null;
@@ -40,7 +40,37 @@ export function compileConstraints(input) {
     const days = new Map(); for (const r of rows) { const key = text(r.exception_date).slice(0, 10); if (!days.has(key)) days.set(key, []); days.get(key).push(r); }
     exceptions.set(id, days);
   }
-  return { byActivity, byInstructor, profiles, rules, exceptions, calendar: input.schoolCalendar || [], routeClient: input.routeClient };
+  return { byActivity, byInstructor, profiles, rules, exceptions, calendar: input.schoolCalendar || [], verifiedRoutes: new Map(), routeClient: input.routeClient };
+}
+// Cache only actual route responses; absence/failure never becomes a guessed route.
+export async function ensureRoute(context, from, to) {
+  const known = knownRoute(context, from, to); if (known) return known;
+  if (!address(from) || !address(to)) return null;
+  const route = await context.routeClient?.request?.(from, to);
+  if (route && route.calculated !== false && route.distance_km != null && route.duration_minutes != null
+    && Number.isFinite(+route.distance_km) && Number.isFinite(+route.duration_minutes)
+    && +route.distance_km >= 0 && +route.duration_minutes >= 0) {
+    context.verifiedRoutes ||= new Map(); context.verifiedRoutes.set(`${address(from)}→${address(to)}`, route);
+  }
+  return knownRoute(context, from, to);
+}
+export async function ensureCandidateRoutes(context, occupancy, activity, option) {
+  await ensureRoute(context, context.byInstructor.get(text(option.instructorEmpId))?.address, activity.school_address);
+  for (const meeting of option.meetings || []) {
+    const empId = meetingEmpId(meeting, option.instructorEmpId);
+    await ensureRoute(context, context.byInstructor.get(empId)?.address, activity.school_address);
+    const list = (occupancy.days.get(`${empId}|${meeting.date}`) || []).filter(m => m.courseId !== activityId(activity));
+    const before = list.filter(m => m.end <= minute(meeting.start_time)).at(-1), after = list.find(m => m.start >= minute(meeting.end_time));
+    if (before && before.schoolId !== text(activity.school_id)) await ensureRoute(context, before.address, activity.school_address);
+    if (after && after.schoolId !== text(activity.school_id)) await ensureRoute(context, activity.school_address, after.address);
+  }
+}
+export async function validatePlanWithRoutes(input, checkpoint = async () => {}) {
+  const context = input.constraintContext || compileConstraints(input), occupancy = createOccupancy(context, input.rows || []);
+  for (const row of input.rows || []) { await checkpoint(); const a = context.byActivity.get(row.courseId);
+    if (a && row.instructorEmpId) await ensureCandidateRoutes(context, occupancy, a, row);
+  }
+  await checkpoint(); return validatePlan({...input, constraintContext:context});
 }
 export function staticFailures(context, activity, empId) {
   const p = context.profiles[empId], i = context.byInstructor.get(empId), failures = [];
@@ -129,7 +159,7 @@ export function candidateFailures(context, occupancy, activity, option) {
 }
 export function isProtectedActivity(a) { return !!text(a?.emp_id) || !!text(a?.emp_id_2) || a?.instructor_assignment_locked === true; }
 export function sameSchedule(a = [], b = []) {
-  const projection = rows => rows.map(m => [text(m.date).slice(0, 10), canonicalTime(m.start_time), canonicalTime(m.end_time), +m.meeting_no || 0]);
+  const projection = rows => rows.map((m,i) => [text(m.date).slice(0, 10), canonicalTime(m.start_time), canonicalTime(m.end_time), +m.meeting_no || i+1]);
   return JSON.stringify(projection(a)) === JSON.stringify(projection(b));
 }
 export function validatePlan(input) {

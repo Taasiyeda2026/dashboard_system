@@ -18,3 +18,9 @@ WORKER_RESULT=/tmp/browser.json node scripts/acceptance/new-engine-browser.mjs
 Browser modes: WORKER_UI_ONLY=1, WORKER_FAULT_ONLY=1, WORKER_START_ONLY=1, WORKER_NETWORK_ONLY=1, WORKER_EXCEL_ONLY=1; optional WORKER_DEVICE=desktop or mobile-cpu4. Default compressed browser fixture is checked in. Browser APIs are stubbed deliberately; this is not an auth/RLS test.
 
 For old engine comparison use ENGINE_MODULE pointing to the old v36 planning module at e3ad085f704697ef1ec58423ea277f439b3fecaf and a separate ACCEPTANCE_OUT. See the SQL scripts' explicit localhost-only connection guards and prerequisites before running bootstrap → seed → save. Do not acquire or embed production secrets. Audit script uses DECISION_PLAN and DECISION_AUDIT_FILE; input paths must remain separate from output paths.
+
+Final single-pipeline command (same prerequisites, disposable loopback PostgreSQL only):
+
+```sh
+DECISION_DIR=/tmp/v37-input DECISION_CANONICAL=1 ACCEPTANCE_OUT=/tmp/v37-results node scripts/acceptance/new-engine-end-to-end.mjs
+```

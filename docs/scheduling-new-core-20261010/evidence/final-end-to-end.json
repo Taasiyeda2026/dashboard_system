@@ -1,0 +1,100 @@
+{
+  "pass": true,
+  "steps": [
+    {
+      "step": "new-engine-national",
+      "pass": true,
+      "elapsedMs": 14231.259019000001
+    },
+    {
+      "step": "new-engine-audit",
+      "pass": true,
+      "elapsedMs": 205.60365999999885
+    },
+    {
+      "step": "new-engine-postgres-bootstrap",
+      "pass": true,
+      "elapsedMs": 135.15137299999878
+    },
+    {
+      "step": "new-engine-postgres-seed",
+      "pass": true,
+      "elapsedMs": 1097.6604580000003
+    },
+    {
+      "step": "new-engine-save",
+      "pass": true,
+      "elapsedMs": 26262.447324999997
+    }
+  ],
+  "metrics": {
+    "version": "planning-v37-20261010-constraint-block-planner",
+    "elapsedMs": 13902.167951000001,
+    "cpuMs": 13597.174,
+    "maxRSSKiB": 408024,
+    "heapUsedBytes": 232369496,
+    "rows": 253,
+    "assigned": 226,
+    "routeMisses": 222,
+    "databaseRequests": 0,
+    "metrics": {
+      "candidateChecks": 38960,
+      "generatedSchedules": 38960,
+      "activitiesComputed": 144,
+      "protectedRows": 112,
+      "contextMs": 20.60488799999999,
+      "validationMs": 72.63290600000073,
+      "optimizationMs": 5132.531036999999,
+      "elapsedMs": 13892.84061
+    },
+    "optimization": {
+      "completed": false,
+      "basePreserved": true,
+      "failure": "planning_optimization_budget_exceeded"
+    },
+    "quality": {
+      "covered": 226,
+      "uncovered": 27,
+      "recruitmentProfiles": 5,
+      "recruitment": 14,
+      "changedDrafts": 0,
+      "newWorkDayMeetings": 615,
+      "totalTravelKm": 1096.4,
+      "operationalScoreSum": 9062,
+      "meetingHours": 3766.6666666666524,
+      "instructorsUsed": 23,
+      "workDays": 1010
+    },
+    "sourceUnchanged": true
+  },
+  "independentAudit": {
+    "scope": "Independent arithmetic audit. Course restriction/employment semantics and approved exceptions require additional contract checks; protected-source findings are not newly introduced engine changes.",
+    "period": {
+      "key": "year",
+      "label": "שנת הלימודים",
+      "start": "2026-09-01",
+      "end": "2027-06-30"
+    },
+    "assignedActivities": 226,
+    "meetingHours": 3766.666666666667,
+    "violations": 73,
+    "generatedViolations": 0,
+    "protectedSourceViolations": 73,
+    "counts": {
+      "protected-source:home_distance_exceeded": 16,
+      "protected-source:availability": 21,
+      "protected-source:calendar_end_time": 1,
+      "protected-source:transition": 35
+    },
+    "travelObservations": 703,
+    "travelKm": 9250.775000000001
+  },
+  "sqlCases": 16,
+  "saveAndReload": {
+    "case": "actual SQL commit and full load parity",
+    "pass": true,
+    "saveMs": 2336.161332,
+    "rows": 253
+  },
+  "scope": "Actual new national engine, independent arithmetic audit, actual local PostgreSQL trusted RPC commit and reload; modeled identities, not a Supabase Auth/browser test; historic protected findings unchanged and explicit"
+}

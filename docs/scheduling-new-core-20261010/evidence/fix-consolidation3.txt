@@ -1,0 +1,38 @@
+✔ school-day packing pass is available before instructor-day consolidation (4.63174ms)
+✔ same school may abut; different school requires travel+buffer and rounds to next slot (0.650326ms)
+✔ scenario generation prefers travel-aware 13:00 over false 12:00 adjacency across schools (17.666575ms)
+✔ day consolidation rejects equal-day reseats that do not improve measured travel (0.266031ms)
+✔ Netanya flexible activity packs onto Monday 13:00 after existing Monday 10:30–12:00, not Tuesday (17.655269ms)
+✔ tight scenario budget retains same-school adjacency before broad availability coverage (8.255037ms)
+✔ three flexible same-school activities consolidate to one weekly workday when feasible (6.802201ms)
+✔ flexible course is compacted immediately before a fixed afternoon course using travel+buffer (2.162159ms)
+✖ optimization-only upgrade reuses instructor assignment and only compacts the stored time (6.333533ms)
+✔ fixed schedule and locked assignment stay put while flexible consolidates (1.162159ms)
+✔ list search filters in place without calling full workboard rerender (1.680301ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 10
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 73.677397
+
+✖ failing tests:
+
+test at tests/course-scheduling-day-consolidation-netanya.test.mjs:381:1
+✖ optimization-only upgrade reuses instructor assignment and only compacts the stored time (6.333533ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+
+    assert.ok(phases.some((phase) => phase.startsWith('צמצום חלונות ביום')))
+
+      at TestContext.<anonymous> (file:///workspace/work/scheduling-new-core-20261010/repo/tests/course-scheduling-day-consolidation-netanya.test.mjs:464:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }

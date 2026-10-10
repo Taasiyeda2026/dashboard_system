@@ -1,0 +1,155 @@
+{
+  "resolvedCases": 30,
+  "cases": [
+    {
+      "originalFailure": "16 - resumed complete checkpoint is validated without re-planning and keeps every row",
+      "resolution": "Real compatibility: hydrate actual home/adjacent route results before validating a resumed plan; canonical optional meeting numbers; explicit calendar fixture.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "17 - resumed checkpoint with a hard conflict reports only a bounded repair delta",
+      "resolution": "Same shared validation correction; still rejects overlap and returns only affected a/b.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "18 - resume with no unfinished rows still runs gap compaction over the original scope",
+      "resolution": "Obsolete legacy gap-pass phase: assert full validation and no national expansion for completed point resume.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "19 - interrupted run: unassigned rows re-enter base planning (staff rescue) and every optimization pass runs on the original scope",
+      "resolution": "Obsolete legacy pass names: assert only reopened c is computed, assigned rows reused and whole-plan validation runs.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "23 - real-world overlap recovery keeps the prior conflict-free instructor instead of discarding all 253 proposals",
+      "resolution": "Actual route acquisition fix retains an independently validated saved incumbent.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "27 - on whole-plan overlap, saved incumbent is verified before 75s nested repair",
+      "resolution": "Obsolete direct Main Thread call assertion: retain checkpoint guards and assert Worker dispatcher receives committed rows.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "28 - checkpoint recovery covers more than eight intersecting courses and can safely fall back to committed missing rows",
+      "resolution": "Invalid synthetic unassigned rows dropped official dates; fixture now retains all source dates. Whole-checkpoint recovery safety remains.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "29 - a dirty rows checkpoint is checked for overlap before any resumed planning can trust its incumbents",
+      "resolution": "Obsolete direct-call assertion updated to Worker call after checkpoint validation/recovery.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "36 - unrecoverable checkpoint falls back to original dirty scope and separately committed data",
+      "resolution": "Same dispatcher contract update; original scope and separately committed workspace checks retained.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "71 - flexible course is compacted immediately before a fixed afternoon course using travel+buffer",
+      "resolution": "Real adjacency candidate omission: include legal travel+buffer critical slots before generic grid and tie-break by idle gap.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "72 - optimization-only upgrade reuses instructor assignment and only compacts the stored time",
+      "resolution": "Real optimization-only contract: limit instructor/date series to stored selection and consider legal critical hours; update obsolete phase assertion.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "107 - 9. legacy simulation state falls back to the main scheduling workboard",
+      "resolution": "Obsolete full-screen rerender assertion: require selected detail open in-place; no UI implementation changes.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "142 - planning perf harness: one dirty activity with warm routes",
+      "resolution": "New core now reports actual performance counters; fixed-time synthetic activity now contains required source hours.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "143 - planning perf harness: five dirty activities with warm routes",
+      "resolution": "Same counters/valid fixture; five activities computed in one engine call, not five old recursive engine calls.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "144 - planning fast search prunes hard-ineligible instructors before scenario evaluation",
+      "resolution": "Report static-pruned instructors once; prune language/gender before route acquisition or scenario checks.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "145 - full maintenance defers recruitment rescue until the fast base plan is complete",
+      "resolution": "Old deferred-rescue architecture removed. Assert fully unavailable candidates produce certified staffing requirements only after final validation, without real instructor assignment.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "234 - validation version exists and engine bump does not imply full-workspace dirty SQL",
+      "resolution": "Update engine/validator marker expectations to v37/v6; retain narrow DB invalidation and no implicit full workspace dirty checks.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "250 - an already-started activity with incomplete timing is never moved to a synthetic future schedule",
+      "resolution": "Real incomplete official-hours issue: retain official date as unresolved, never move it or certify recruitment.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "266 - v28 upgrade rescues saved recruitment with existing staff without a general base rebuild",
+      "resolution": "Real missing targeted upgrade-recovery scope: recalculate only explicitly identified saved recruitment activity.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "281 - national planning prefers an early first-half start for an undated 10-meeting course",
+      "resolution": "Actual route response caching fixes request-only legacy adapters; early first-half date and full meeting-count checks retained.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "282 - Planning locks a selected option without writing to the activity and exposes it as a blocker",
+      "resolution": "Hydrate/validate real routes for new planning lock and preserve locked status/count compatibility; activity unchanged.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "303 - incremental Planning reuses unaffected shared rows without rerouting them",
+      "resolution": "Synthetic unaffected proposal now supplies an already cached route; final hard validation is retained with zero new network requests.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "304 - fixed schedules never move and a fixed holiday requires treatment",
+      "resolution": "New explicit missing-data status replaces vague legacy treatment label; official holiday dates/hours and source unchanged checks retained.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "305 - route failure never produces a valid planning proposal",
+      "resolution": "Status/reason changed to explicit home_route_unknown; no assignment, no alternatives, no certified recruitment remain mandatory.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "306 - national repair pass can swap a flexible fixed-slot assignment to avoid unnecessary recruitment",
+      "resolution": "New scarcity ordering avoids old unnecessary repair: require both legal assignments and zero uncovered/recruitment; remove old repair-trace expectation.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "314 - national planning reoptimizes an existing draft before declaring recruitment",
+      "resolution": "Restore source draft metadata fields in result adapter; actual draft record never mutated.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "321 - Planning marks recruitment only when no active instructor can satisfy the hard gates",
+      "resolution": "Restore recruitment result count and explicit reason; no invented instructor.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "322 - resumed incremental recruitment does not start national repair",
+      "resolution": "Restore result count; point run still cannot trigger national repair.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "323 - resumed incremental rows retain unaffected saved proposals",
+      "resolution": "Invalid empty saved proposal to nonexistent instructor replaced with a real valid saved fixture and blocked-language target; retain unaffected assignment and whole-plan validation.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    },
+    {
+      "originalFailure": "329 - dynamic Planning emits only the completed row during progress",
+      "resolution": "Update status label; retain per-completed-row progress and forbid repeating whole rows payload.",
+      "status": "covered by focused checks; full CI verification recorded in PR"
+    }
+  ]
+}

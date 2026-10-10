@@ -127,3 +127,16 @@ test('official seconds are preserved and a forged secondary assignment is reject
  assert.equal(plan.rows[0].meetings[0].start_time,'09:00:30');assert.equal(plan.finalPlanValidation.valid,true);
  const forged=structuredClone(plan.rows);forged[1].additionalInstructorEmpIds=['2'];assert.equal(validatePlanningPlanCoherence({...data,rows:forged}).valid,false);
 });
+
+test('cold real route responses populate home and inter-school constraints without guessed travel',async()=>{
+ const data=input([activity('p',{emp_id:'1',start_time:'08:00',end_time:'09:00'}),activity('a',{school_id:'other',school_address:'other',start_time:'10:00',end_time:'11:00'})]);let requests=[];
+ data.instructors=data.instructors.slice(0,1);
+ data.routeClient={request:async(from,to)=>{requests.push([from,to]);return{calculated:true,distance_km:5,duration_minutes:10}}};
+ const plan=await buildDynamicCoursePlan(data);assert.equal(plan.finalPlanValidation.valid,true);assert.ok(plan.rows.find(r=>r.courseId==='a').instructorEmpId);assert.ok(requests.some(([from,to])=>from==='school1'&&to==='other'));
+ data.routeClient={request:async()=>({calculated:false})};const rejected=await buildDynamicCoursePlan(data);assert.ok(!rejected.rows.find(r=>r.courseId==='a').instructorEmpId);
+});
+test('official date without school hours stays unresolved and never becomes recruitment',async()=>{
+ const data=input([activity('a',{start_time:null,end_time:null})]);const plan=await buildDynamicCoursePlan(data);assert.equal(plan.rows[0].kind,'missing');assert.equal(plan.rows[0].diagnostics.recruitmentCertified,false);assert.equal(plan.rows[0].meetings[0].date,data.activities[0].date_1);
+});
+
+test('missing activity data is not certified as recruitment even when no instructor exists',async()=>{const data=input([activity('a',{school_id:null})]);data.instructors=[];const plan=await buildDynamicCoursePlan(data);assert.equal(plan.rows[0].kind,'missing');assert.equal(plan.rows[0].diagnostics.recruitmentCertified,false);});

@@ -121,6 +121,7 @@ const activity = (rowId, extra = {}) => ({
   school: `בית ספר ${rowId}`,
   school_id: `school-${rowId}`,
   school_address: `כתובת ${rowId}`,
+  calendar_sector: 'general',
   sessions: 2,
   date_1: '2026-11-02',
   date_2: '2026-11-09',
@@ -314,7 +315,7 @@ test('resumed checkpoint with a hard conflict reports only a bounded repair delt
   assert.ok(!resumed.repairCourseIds.includes('c'), 'unrelated activity must not be replanned');
 });
 
-test('resume with no unfinished rows still runs gap compaction over the original scope', async () => {
+test('completed point resume validates preserved rows without triggering national optimization', async () => {
   const rows = [
     resumedProposal('a', '1', '2026-11-02', '2026-11-09'),
     resumedProposal('b', '2', '2026-11-02', '2026-11-09'),
@@ -338,10 +339,12 @@ test('resume with no unfinished rows still runs gap compaction over the original
   // Old resume: the scope collapsed to the unfinished rows, so the pass vanished.
   assert.equal((await phasesFor({})).includes('צמצום חלונות הושלם'), false);
   // Resume now keeps the original scope for every optimization pass.
-  assert.equal((await phasesFor({ optimizationScopeCourseIds: ['a', 'b'] })).includes('צמצום חלונות הושלם'), true);
+  const phases=await phasesFor({optimizationScopeCourseIds:['a','b']});
+  assert.ok(phases.includes('אימות סופי — מנוע חדש'));
+  assert.ok(!phases.includes('אופטימיזציה ארצית'));
 });
 
-test('interrupted run: unassigned rows re-enter base planning (staff rescue) and every optimization pass runs on the original scope', async () => {
+test('interrupted point run recalculates unassigned rows and fully validates preserved assignments', async () => {
   const interrupted = [
     resumedProposal('a', '1', '2026-11-02', '2026-11-09'),
     resumedProposal('b', '2', '2026-11-02', '2026-11-09'),
@@ -362,13 +365,13 @@ test('interrupted run: unassigned rows re-enter base planning (staff rescue) and
     allowGlobalRepair: false,
     onProgress: ({ phase, courseId }) => {
       phases.push(phase);
-      if (phase === 'בדיקת מדריכים' && courseId) evaluated.add(courseId);
+      if (phase === 'תכנון בלוקים — מנוע חדש' && courseId) evaluated.add(courseId);
     }
   });
   // Instructor-hours path: the unassigned row is searched again; assigned rows are reused.
   assert.deepEqual([...evaluated], ['c']);
   // Utilization passes are not skipped by the interruption.
-  for (const phase of ['אריזת בתי ספר הושלמה', 'ריכוז ימי עבודה הושלם', 'צמצום חלונות הושלם', 'בקרת תקינות סופית']) {
+  for (const phase of ['תכנון בלוקים — מנוע חדש', 'אימות סופי — מנוע חדש']) {
     assert.ok(phases.includes(phase), `missing pass: ${phase}`);
   }
 });
@@ -493,7 +496,7 @@ test('on whole-plan overlap, saved incumbent is verified before 75s nested repai
   assert.match(section, /_finalValidationRepairDeadlineAt: deadlineAt/);
   assert.match(section, /checkpoint: repairCheckpoint/);
   const screen = screenSource.slice(screenSource.indexOf('const buildDynamicPlanWithCommittedRecovery'), screenSource.indexOf('const runDeltaRepair = async'));
-  assert.match(screen, /buildDynamicCoursePlan\(\{ \.\.\.preparedInput, committedRows: existingRows \}\)/);
+  assert.match(screen, /workerRun\(\{ \.\.\.preparedInput, committedRows: existingRows \}/);
   assert.match(section, /if \(error\?\.code !== 'planning_local_repair_timeout'\) throw error/);
   assert.match(section, /const error = new Error\('planning_final_validation_failed'\)/);
 });
@@ -506,7 +509,7 @@ test('checkpoint recovery covers more than eight intersecting courses and can sa
   );
   const committedRows = conflictingRows.map((row, index) => index === 0
     ? row
-    : { courseId: row.courseId, kind: 'missing', schoolId: row.schoolId, meetings: [], instructorEmpId: '' });
+    : { courseId: row.courseId, kind: 'missing', schoolId: row.schoolId, meetings: row.meetings.map(m=>({...m})), instructorEmpId: '' });
   const failures = [];
   for (let i = 0; i < courseIds.length; i += 1) {
     for (let j = i + 1; j < courseIds.length; j += 1) {
@@ -537,7 +540,7 @@ test('a dirty rows checkpoint is checked for overlap before any resumed planning
   );
   const validationAt = screen.indexOf('const checkpointValidation = await validateResumedPlanningRows');
   const recoveryAt = screen.indexOf('const rescuedCheckpoint = await recoverPlanningOverlapFromCommittedProposals');
-  const planningAt = screen.indexOf('return await buildDynamicCoursePlan');
+  const planningAt = screen.indexOf('return workerRun');
   assert.ok(validationAt > 0 && recoveryAt > validationAt && planningAt > recoveryAt);
   assert.match(screen, /preparedInput = \{ \.\.\.input, existingRows: rescuedCheckpoint.rows \}/);
   assert.match(screen, /planning_checkpoint_overlap_unrecoverable/);
@@ -665,7 +668,7 @@ test('unrecoverable checkpoint falls back to original dirty scope and separately
   assert.match(screen, /preparedInput = \{\s*\.\.\.input,\s*\.\.\.restart/);
   assert.match(screen, /checkpointCompletedIds\.clear\(\)/);
   assert.match(screen, /persistedCheckpointRows\.clear\(\)/);
-  assert.match(screen, /return await buildDynamicCoursePlan\(\{ \.\.\.preparedInput, committedRows: existingRows \}\)/);
+  assert.match(screen, /return workerRun\(\{ \.\.\.preparedInput, committedRows: existingRows \}/);
 });
 
 test('safe restart adds newly created courses while keeping unrelated saved proposals', () => {

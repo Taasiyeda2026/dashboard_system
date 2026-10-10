@@ -1,5 +1,5 @@
 import { buildPlan as buildNewSchedulingPlan } from './scheduling-core/planner.js';
-import { validatePlan as validateNewSchedulingPlan, ENGINE_VERSION as NEW_PLANNING_ENGINE_VERSION } from './scheduling-core/constraints.js';
+import { validatePlan as validateNewSchedulingPlan, validatePlanWithRoutes, ENGINE_VERSION as NEW_PLANNING_ENGINE_VERSION } from './scheduling-core/constraints.js';
 import {
   appendSchedulingRunActivityCooperatively,
   calculateCourseSchedule,
@@ -8206,7 +8206,7 @@ export function planningTabHtml({
 
 // Product entry points use the new core. Legacy exports exist only for isolated comparison.
 export function validatePlanningPlanCoherence(input = {}) { return validateNewSchedulingPlan(input); }
-export async function validatePlanningPlanCoherenceCooperatively(input = {}, checkpoint = async () => {}) { await checkpoint(); const result = validateNewSchedulingPlan(input); await checkpoint(); return result; }
+export async function validatePlanningPlanCoherenceCooperatively(input = {}, checkpoint = async () => {}) { return validatePlanWithRoutes(input, checkpoint); }
 export async function buildDynamicCoursePlan(input = {}) {
   const requiredActivities = planningWorkspaceCourses(input.activities || [], input.district || '', input.periodKey);
   const catalogIndex = planningCatalogIndex(input.catalog || []);

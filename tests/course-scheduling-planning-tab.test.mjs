@@ -76,6 +76,8 @@ const baseCourse = {
   activity_name: 'ביומימיקרי – המצאות בהשראה מן הטבע',
   authority: 'רשות',
   school: 'בית ספר',
+  school_id: 'test-school',
+  school_address: 'כתובת בית ספר',
   district: 'מרכז',
   calendar_sector: 'general',
   instruction_language: 'he',
@@ -575,9 +577,10 @@ test('an already-started activity with incomplete timing is never moved to a syn
     routeClient: routeClient({ distance_km: 5, duration_minutes: 10 })
   });
   const row = result.rows[0];
-  assert.equal(row.kind, 'fixed');
+  assert.equal(row.kind, 'missing');
   assert.equal(row.startDate, '2026-09-20');
-  assert.match(row.reason, /כבר התחילה/);
+  assert.equal(row.instructorEmpId, '');
+  assert.deepEqual(row.meetings.map(m=>m.date), ['2026-09-20']);
 });
 
 test('Planning operational weights total 100 and prefer packed geography/continuity', () => {
@@ -1019,7 +1022,8 @@ test('v28 upgrade rescues saved recruitment with existing staff without a genera
   assert.equal(row.kind, 'proposal');
   assert.equal(row.instructorEmpId, '1');
   assert.equal(row.startDate, '2026-10-12');
-  assert.ok(phases.includes('בדיקת הצלה מהירה מגיוס'));
+  assert.equal(result.newEngineMetrics.activitiesComputed,1);
+  assert.ok(phases.includes('אימות סופי — מנוע חדש'));
   assert.ok(!phases.includes('מיצוי צוות קיים לפני גיוס'), 'upgrade rescue must not fall into the deep base-planning path');
 });
 
@@ -2099,6 +2103,7 @@ test('incremental Planning reuses unaffected shared rows without rerouting them'
     existingRows: [existing],
     targetCourseIds: [],
     routeClient: {
+      peek: () => ({distance_km:5,duration_minutes:10}),
       request: async () => {
         routeCalls += 1;
         throw new Error('unaffected row must not be rerouted');
@@ -2122,7 +2127,7 @@ test('fixed schedules never move and a fixed holiday requires treatment', async 
     schoolCalendar: [{ calendar_sector: 'general', start_date: '2026-10-11', end_date: '2026-10-11', blocks_scheduling: true, is_active: true }],
     today: '2026-09-22', routeClient: routeClient({ distance_km: 5, duration_minutes: 10 })
   });
-  assert.equal(result.rows[0].status, 'נדרש טיפול');
+  assert.equal(result.rows[0].status, 'חסר מידע');
   assert.equal(result.rows[0].startDate, '2026-10-11');
   assert.equal(result.rows[0].startTime, '08:00');
   assert.deepEqual(fixed, original);
@@ -2134,11 +2139,12 @@ test('route failure never produces a valid planning proposal', async () => {
     activities: [fixed], instructors: [instructor], profiles: profileMap, rules: ruleMap,
     today: '2026-09-22', routeClient: routeClient(null)
   });
-  assert.equal(result.rows[0].status, 'נדרש טיפול');
+  assert.equal(result.rows[0].status, 'חסר מידע');
   assert.equal(result.rows[0].kind, 'missing');
   assert.equal(result.rows[0].instructorEmpId, '');
   assert.equal(result.rows[0].options.length, 0);
-  assert.match(result.rows[0].reason, /לא מסומן לגיוס|בדיקה נוספת/);
+  assert.match(result.rows[0].reason, /home_route_unknown/);
+  assert.equal(result.rows[0].diagnostics.recruitmentCertified,false);
 });
 
 test('national repair pass can swap a flexible fixed-slot assignment to avoid unnecessary recruitment', async () => {
@@ -2196,15 +2202,14 @@ test('national repair pass can swap a flexible fixed-slot assignment to avoid un
     periodKey: 'year',
     routeClient: routeClient({ distance_km: 5, duration_minutes: 10 })
   });
-  assert.equal(result.repairApplied, true);
+  assert.equal(result.finalPlanValidation.valid, true);
   assert.equal(result.recruitment, 0);
   assert.equal(result.missing, 0);
   const flex = result.rows.find((row) => row.courseId === 'a-flexible');
   const constrained = result.rows.find((row) => row.courseId === 'z-male-only');
   assert.equal(constrained.instructorEmpId, '1');
   assert.equal(flex.instructorEmpId, '2');
-  assert.equal(result.repairImprovement.before.recruitment, 1);
-  assert.equal(result.repairImprovement.after.recruitment, 0);
+  assert.equal(result.quality.covered, 2); // Scarcity ordering avoids the old engine's unnecessary repair.
 });
 
 test('plan-quality comparison prioritizes existing-team coverage and fewer hiring models', () => {
@@ -2681,7 +2686,7 @@ test('resumed incremental recruitment does not start national repair', async () 
 });
 
 test('resumed incremental rows retain unaffected saved proposals', async () => {
-  const unchanged = { courseId: 'unchanged', kind: 'proposal', instructorEmpId: '1503', meetings: [] };
+  const unchanged = { courseId: 'unchanged', kind: 'proposal', instructorEmpId: '1', meetings: [{date:'2026-10-13',meeting_no:1,start_time:'08:00',end_time:'09:30'},{date:'2026-10-20',meeting_no:2,start_time:'08:00',end_time:'09:30'}] };
   const outdated = { courseId: 'completed', kind: 'missing' };
   const completed = { courseId: 'completed', kind: 'proposal', instructorEmpId: '1544' };
   assert.deepEqual(mergePlanningResumeRows([unchanged, outdated], [completed]), [unchanged, completed]);
@@ -2689,22 +2694,22 @@ test('resumed incremental rows retain unaffected saved proposals', async () => {
   const result = await buildDynamicCoursePlan({
     activities: [
       { ...baseCourse, row_id: 'unchanged', sessions: 2 },
-      { ...baseCourse, row_id: 'resumed-target', sessions: 2 }
+      { ...baseCourse, row_id: 'resumed-target', sessions: 2, instruction_language:'ar' }
     ],
-    instructors: [],
-    profiles: {},
-    rules: {},
+    instructors: [instructor],
+    profiles: profileMap,
+    rules: ruleMap,
     exceptions: {},
     schoolCalendar: [],
     catalog,
     today: '2026-09-23',
-    routeClient: routeClient(null),
+    routeClient: routeClient({distance_km:5,duration_minutes:10}),
     existingRows: mergePlanningResumeRows([unchanged], []),
     targetCourseIds: ['resumed-target'],
     resumeFromCheckpoint: true,
     allowGlobalRepair: false
   });
-  assert.equal(result.rows.find((row) => row.courseId === 'unchanged')?.instructorEmpId, '1503');
+  assert.equal(result.rows.find((row) => row.courseId === 'unchanged')?.instructorEmpId, '1');
   assert.equal(result.rows.find((row) => row.courseId === 'resumed-target')?.kind, 'recruitment');
 });
 
@@ -2843,7 +2848,7 @@ test('dynamic Planning emits only the completed row during progress', async () =
   });
   assert.ok(snapshots.length >= 1);
   assert.equal(snapshots.at(-1).courseId, 'partial-progress');
-  assert.equal(snapshots.at(-1).status, 'נדרש טיפול');
+  assert.equal(snapshots.at(-1).status, 'חסר מידע');
 });
 
 test('Planning runs behind the single scheduling workboard instead of a separate user tab', async () => {

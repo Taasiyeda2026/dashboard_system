@@ -368,7 +368,8 @@ test('9. legacy simulation state falls back to the main scheduling workboard', (
   });
   root.querySelector('[data-course-card="open-detail"]').click();
   assert.equal(state.courseSchedulingSelectedId, 'open-detail');
-  assert.ok(renders >= 1);
+  assert.ok(root.querySelector('[data-course-detail].is-open'),'opening must render the selected course detail in place');
+  assert.equal(renders,0,'opening an existing card does not require a full-screen render');
   delete globalThis.window;
   delete globalThis.document;
 });

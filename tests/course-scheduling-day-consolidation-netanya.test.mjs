@@ -461,7 +461,9 @@ test('optimization-only upgrade reuses instructor assignment and only compacts t
   assert.equal(row.startDate, '2026-10-12', 'optimization-only must preserve the selected weekday/date series');
   assert.equal(row.startTime, '11:00');
   assert.equal(row.endTime, '12:30');
-  assert.ok(phases.some((phase) => phase.startsWith('צמצום חלונות ביום')));
+  assert.equal(result.finalPlanValidation.valid,true);
+  assert.equal(result.newEngineMetrics.activitiesComputed,1);
+  assert.ok(phases.includes('אימות סופי — מנוע חדש'));
   assert.ok(!phases.includes('בדיקת מדריכים'), 'optimization-only must not rerun instructor search');
 });
 
