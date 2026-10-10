@@ -2,6 +2,8 @@
 
 Status: **draft PR for review, not ready for production**. No merge, deployment, production migration or production data writes. Reuses the existing screen, saved-workspace revisions/leases/checkpoints, route broker and PR #2229 Worker scaffolding without merging that PR. Replaces the product planning entry point with a new constraint-first block planner; does not rewrite the application.
 
+**Additional blocking finding from GitHub CI:** on commit `45e9380494b29cd02d0eced66f9bc4aeecc64b7d`, syntax/JSON and PostgreSQL regression passed, but the existing scheduling-contract selection ran 381 cases: **351 passed, 30 failed**. Failures include checkpoint/resume, time compaction, preserved/locked proposals, performance contracts and old status/progress assertions. Some fixtures omit newly required hard-constraint data and some assertions reference the old algorithm, but the complete set is **not yet classified or repaired**. These failures must not be dismissed as harmless legacy failures or hidden by changing CI selection. See `evidence/github-ci-blockers.json`. Focused new-engine passes below do not establish full acceptance.
+
 ## Implemented
 
 `frontend/src/screens/scheduling-core/{planner,constraints,recruitment}.js`: compiled context, immutable approved/fixed anchors (all 35 official dates), legal candidate generation, scarcity/block ordering, bounded displacement optimization, independent final validation and explicit unfilled reasons/recruitment requirements. Friday requires a separate true permission. Saturday requires explicit availability and Arab/Druze activity. Jewish, general and unknown sectors cannot use Saturday.
