@@ -134,10 +134,9 @@ function listHtml(ui) {
           ${outdated ? '<span class="ifb-template-card__warning" role="img" aria-label="PDF לא עדכני" title="השאלון עודכן. יש להחליף PDF">!</span>' : ''}
         </div>`;
       };
-      return `<div class="ifb-template-card__slot">
+      return `<div class="ifb-template-card__slot${slot.audience === 'student' ? '' : ' is-digital'}">
         <button type="button" class="ifb-template-card__open" data-tpl-open="${esc(template.id)}" title="${esc(name)}" aria-label="צפייה ועריכת ${esc(name)}">${esc(short)}${draft ? '<span class="ifb-sr"> – טיוטה בעריכה</span>' : ''}</button>
-        ${languageControls('he')}
-        ${languageControls('ar')}
+        ${slot.audience === 'student' ? `${languageControls('he')}${languageControls('ar')}` : ''}
       </div>`;
     }).join('');
     return `<article class="ifb-template-card" data-template-course="${esc(program.key)}">
