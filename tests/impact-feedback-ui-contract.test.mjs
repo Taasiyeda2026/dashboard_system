@@ -619,3 +619,12 @@ test('template PDF actions are rendered for student surveys only', () => {
   assert.match(view, /is-digital/);
   assert.match(css, /\.ifb-template-card__slot\.is-digital/);
 });
+
+test('analysis shows explicit counts and scoring scales instead of statistical N', () => {
+  const analysis = screen.slice(screen.indexOf('function questionTableHtml('), screen.indexOf('// Group view (opened from'));
+  assert.match(analysis, /תשובות שהתקבלו/);
+  assert.match(analysis, /תשובות למדד:/);
+  assert.match(analysis, /מתוך 5/);
+  assert.match(analysis, /ifb-analysis-breakdown/);
+  assert.doesNotMatch(analysis, /N תקפות|N=\\$\\{/);
+});
