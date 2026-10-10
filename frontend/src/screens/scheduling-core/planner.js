@@ -10,7 +10,7 @@ import { resolveCourseSchedulingPeriod } from '../course-scheduling-periods.js';
 import { isSchedulingActivityActive, schedulingActivityTypeCategory, isFullDaySchedulingActivity } from '../shared/activity-scheduling-eligibility.js';
 import { normalizeOperationalDistrict } from '../shared/district-normalization.js';
 import { compileConstraints, createOccupancy, candidateFailures, staticFailures, meetingFailures, knownRoute,
-  ensureRoute, ensureCandidateRoutes, validatePlanWithRoutes, officialMeetings, isProtectedActivity, validatePlan, ENGINE_VERSION, text, activityId, minute, weekday, addDays } from './constraints.js';
+  ensureRoute, ensureCandidateRoutes, validatePlanWithRoutes, officialMeetings, isProtectedActivity, activeInstructor, validatePlan, ENGINE_VERSION, text, activityId, minute, weekday, addDays } from './constraints.js';
 
 const stamp = value => {const seconds=Math.round(value*60), result=`${String(Math.floor(seconds/3600)).padStart(2,'0')}:${String(Math.floor(seconds/60)%60).padStart(2,'0')}`;return seconds%60?result+':'+String(seconds%60).padStart(2,'0'):result;};
 const covered = row => !!row.instructorEmpId;
@@ -159,7 +159,20 @@ export async function buildPlan(input = {}) {
     if (officialMeetings(a).some(m => meetingFailures(context,a,'',m).some(reason => ['calendar_block','calendar_end_time','saturday_sector'].includes(reason)))) return { options: [], incomplete: false, missing: true, failures: ['source_date_conflict'] };
     if (a.start_time && a.end_time && minute(a.end_time)-minute(a.start_time) !== spec.durationMinutes && !officialMeetings(a).length) return {options:[],incomplete:false,missing:true,failures:['source_duration_conflict']};
     if (!spec.complete) return { options: [], incomplete: false, missing: true, failures: ['missing_course_spec'] };
-    for (const [empId, instructor] of context.byInstructor) {
+    // Only active instructors can receive new proposals. Keep inactive people
+    // in the context for historical/protected assignments and validation.
+    // Home-to-school verified road distance is a proximity ranking, not a hard
+    // geographic partition: unknown routes remain eligible for route lookup.
+    const nearbyInstructors = [...context.byInstructor]
+      .filter(([, instructor]) => activeInstructor(instructor))
+      .sort(([leftId, left], [rightId, right]) => {
+        const leftRoute = knownRoute(context, left.address, a.school_address);
+        const rightRoute = knownRoute(context, right.address, a.school_address);
+        const leftDistance = leftRoute ? Number(leftRoute.distance_km) : Infinity;
+        const rightDistance = rightRoute ? Number(rightRoute.distance_km) : Infinity;
+        return leftDistance - rightDistance || leftId.localeCompare(rightId);
+      });
+    for (const [empId, instructor] of nearbyInstructors) {
       if(incumbentExceptionInstructor.has(id)&&incumbentExceptionInstructor.get(id)!==empId)continue;
       if(incumbentExceptionIneligible.get(id)===empId)continue;
       if ((input.optimizationOnlyCourseIds || []).includes(id) && previous.get(id)?.instructorEmpId !== empId) continue;
