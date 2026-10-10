@@ -1851,3 +1851,61 @@
   .ifb-admin .ifb-template-card__delete,
   .ifb-admin .ifb-template-card__delete-placeholder { width: 18px; flex-basis: 18px; }
 }
+
+/* Staff group detail: compact, balanced full-width layout; no behavior changes. */
+.ifb-group-detail--staff { width: 100%; min-width: 0; gap: 12px; }
+.ifb-group-detail--staff .ifb-group-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  gap: 10px;
+  padding: 16px 20px;
+}
+.ifb-group-detail--staff .ifb-group-head__identity { padding-bottom: 8px; }
+.ifb-group-detail--staff .ifb-meta--head {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 20px;
+}
+.ifb-group-detail--staff .ifb-meta--head dt { margin-bottom: 2px; }
+.ifb-group-detail--staff .ifb-meta--head dd { margin: 0; }
+.ifb-group-detail--staff .ifb-group-head__date dt,
+.ifb-group-detail--staff .ifb-group-head__date dd { text-align: start; }
+.ifb-group-detail--staff .ifb-slots--staff {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-content: stretch;
+}
+.ifb-group-detail--staff .ifb-slots--staff .ifb-slot {
+  width: 100%;
+  display: grid;
+  gap: 12px;
+  padding: 16px 20px;
+}
+.ifb-group-detail--staff .ifb-slots--staff .ifb-slot__head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 18px;
+}
+.ifb-group-detail--staff .ifb-slots--staff .ifb-slot__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 8px;
+}
+.ifb-group-detail--staff .ifb-slots--staff .ifb-open-form { max-width: 100%; }
+.ifb-group-detail--staff .ifb-slots--staff .ifb-slot .ifb-meta {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (max-width: 760px) {
+  .ifb-group-detail--staff .ifb-group-head,
+  .ifb-group-detail--staff .ifb-slots--staff .ifb-slot { padding: 12px; }
+  .ifb-group-detail--staff .ifb-meta--head { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .ifb-group-detail--staff .ifb-slots--staff .ifb-slot .ifb-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 420px) {
+  .ifb-group-detail--staff .ifb-meta--head { grid-template-columns: minmax(0, 1fr); }
+}
