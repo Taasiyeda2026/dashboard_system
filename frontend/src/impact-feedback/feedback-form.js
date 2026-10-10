@@ -121,7 +121,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
     <div lang="${arabic ? 'ar' : 'he'}" dir="rtl" class="ifb-shell${young ? ' is-young' : ''}${audienceClass}">
       <header class="ifb-hero">
         ${logoUrl ? `<img class="ifb-logo" src="${esc(logoUrl)}" alt="תעשיידע">` : ''}
-        ${options.onChooseLanguage ? '<button type="button" class="ifb-hero__change-language" data-ifb-change-language>${arabic ? 'اختيار اللغة' : 'בחירת שפה'}</button>' : ''}
+        ${options.onChooseLanguage ? `<button type="button" class="ifb-hero__change-language" data-ifb-change-language>${arabic ? 'اختيار اللغة' : 'בחירת שפה'}</button>` : ''}
         <p class="ifb-hero__kicker">${esc(arabic ? (payload.stage === 'pre' ? 'استبيان البداية' : 'استبيان النهاية') : headline(payload))}</p>
         <h1 class="ifb-hero__title">${esc(arabic && /ביומימיקרי/.test(payload.program_title || '') ? 'المحاكاة الحيوية' : (payload.program_title || ''))}</h1>
         ${payload.recipient_name ? `<p class="ifb-hero__hello">${arabic ? 'مرحبًا' : 'שלום'} ${esc(payload.recipient_name)}</p>` : ''}
