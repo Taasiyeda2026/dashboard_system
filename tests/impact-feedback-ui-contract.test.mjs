@@ -602,3 +602,13 @@ test('survey language change preserves draft and equal bilingual styling on mobi
   assert.match(publicCss, /\.ifb-language-card__choices \{[\s\S]*?grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(publicCss, /@media \(max-width: 480px\) \{[\s\S]*?\.ifb-language-card__question \{ font-size: 21px; \}/);
 });
+
+
+test('educational staff list deduplicates only by course, named contact and school', () => {
+  const section = screen.slice(screen.indexOf('function groupsTableHtml('), screen.indexOf('// Per-question results'));
+  assert.match(section, /scope === 'staff'/);
+  assert.match(section, /JSON\.stringify\(\[course, contact, school\]\)/);
+  assert.match(section, /JSON\.stringify\(\['unidentified', group\.row_id\]\)/);
+  assert.match(section, /groupHasFeedback\(group\)/);
+  assert.doesNotMatch(section, /JSON\.stringify\(\[course, contact, school,.*feedbackHalf/);
+});
