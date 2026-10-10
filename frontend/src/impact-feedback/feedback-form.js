@@ -31,6 +31,12 @@ const NA_LABEL = 'לא רלוונטי / לא הייתה אפשרות להערי�
 const AR_RATING_LABELS = ['غير صحيح بالنسبة لي إطلاقًا', 'صحيح بالنسبة لي قليلًا', 'صحيح بالنسبة لي إلى حدّ ما', 'صحيح بالنسبة لي بدرجة كبيرة', 'صحيح جدًا بالنسبة لي'];
 const arLabel = (he, ar, lang) => lang === 'ar' ? ar : he;
 
+function arabicHeadline(payload) {
+  if (payload.audience === 'instructor') return payload.stage === 'pre' ? 'استبيان المرشدين – بعد التدريب' : 'استبيان المرشدين – نهاية البرنامج';
+  if (payload.audience === 'educational_staff') return 'استبيان الطاقم التربوي';
+  return payload.stage === 'pre' ? 'استبيان البداية' : 'استبيان النهاية';
+}
+
 function ratingHtml(q, value, young, lang = 'he') {
   const labels = lang === 'ar' ? AR_RATING_LABELS : RATING_LABELS;
   const name = `q-${q.id}`;
@@ -108,11 +114,15 @@ function introHtml(text, lang = 'he') {
     : /(?:אין תשובות נכונות או לא נכונות|אין תשובה נכונה או לא נכונה)/;
   const key = paragraphs.find((part) => guidancePattern.test(part)) || '';
   const welcome = paragraphs[0] || '';
+  // Pull out the reassurance even when it is part of a longer paragraph.
+  const guidanceSentence = key
+    ? (key.split(/(?<=[.!?؟])\s+/u).find((part) => guidancePattern.test(part)) || key)
+    : '';
   const remaining = paragraphs.filter((part) => part !== welcome && part !== key).join(' ');
   // Keep the displayed introduction brief; full approved copy stays in the template.
   const sentences = remaining.split(/(?<=[.!?؟])\s+/u).filter(Boolean);
   const body = sentences.slice(0, 2).join(' ');
-  const guidance = key ? `<p class="ifb-hero__guidance"><strong>${esc(key)}</strong></p>` : '';
+  const guidance = guidanceSentence ? `<p class="ifb-hero__guidance"><strong>${esc(guidanceSentence)}</strong></p>` : '';
   return `<div class="ifb-hero__intro" dir="rtl">
     <p class="ifb-hero__lead">${esc(welcome)}</p>
     ${body ? `<p class="ifb-hero__details">${esc(body)}</p>` : ''}
@@ -147,7 +157,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
       <header class="ifb-hero">
         ${logoUrl ? `<img class="ifb-logo" src="${esc(logoUrl)}" alt="תעשיידע">` : ''}
         ${options.onChooseLanguage ? `<button type="button" class="ifb-hero__change-language" data-ifb-change-language>${arabic ? 'اختيار اللغة' : 'בחירת שפה'}</button>` : ''}
-        <p class="ifb-hero__kicker">${esc(arabic ? (payload.stage === 'pre' ? 'استبيان البداية' : 'استبيان النهاية') : headline(payload))}</p>
+        <p class="ifb-hero__kicker">${esc(arabic ? arabicHeadline(payload) : headline(payload))}</p>
         <h1 class="ifb-hero__title">${esc(arabic && /ביומימיקרי/.test(payload.program_title || '') ? 'المحاكاة الحيوية' : (payload.program_title || ''))}</h1>
         ${payload.recipient_name ? `<p class="ifb-hero__hello">${arabic ? 'مرحبًا' : 'שלום'} ${esc(payload.recipient_name)}</p>` : ''}
         ${introHtml(arabic ? payload.intro_text_ar : payload.intro_text, arabic ? 'ar' : 'he')}
