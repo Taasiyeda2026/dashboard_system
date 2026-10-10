@@ -227,7 +227,8 @@ test('student feedback reuses the scheduling-board dates and allocates each star
   assert.equal(COURSE_SCHEDULING_PERIODS.second.end, '2027-06-30');
   const cases = [
     [null, null], ['2026-08-31', null], ['2026-09-01', 'first'],
-    ['2027-01-29', 'first'], ['2027-01-30', 'first'],
+    ['2026-12-31', 'first'], ['2027-01-01', 'second'],
+    ['2027-01-20', 'second'], ['2027-01-29', 'second'], ['2027-01-30', 'second'],
     ['2027-01-31', 'second'], ['2027-06-30', 'second'],
     ['2027-07-01', null]
   ];
@@ -237,7 +238,7 @@ test('student feedback reuses the scheduling-board dates and allocates each star
   assert.equal(studentFeedbackPeriodForGroup({
     start_date: '2027-01-20',
     end_date: '2027-02-22'
-  }), 'first', 'a first-half course that ends in February must not move to second half');
+  }), 'second', 'a January-started course belongs to second half regardless of its end date');
   assert.equal(studentFeedbackPeriodForGroup({ start_date: '2027-01-31' }), 'second');
 });
 
