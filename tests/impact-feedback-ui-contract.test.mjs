@@ -628,3 +628,17 @@ test('analysis shows explicit counts and scoring scales instead of statistical N
   assert.match(analysis, /ifb-analysis-breakdown/);
   assert.doesNotMatch(analysis, /N תקפות|N=\\$\\{/);
 });
+
+test('analysis comparison hides empty audience columns and aligns numeric headings centrally', () => {
+  const start = screen.indexOf('function audienceComparisonHtml(facts)');
+  const end = screen.indexOf('/** Core wording embeds', start);
+  const comparison = screen.slice(start, end);
+  const styles = readFileSync(new URL('../frontend/src/impact-feedback/impact-feedback-admin.css', import.meta.url), 'utf8');
+  assert.match(comparison, /const active = audiences\.filter/);
+  assert.match(comparison, /const comparison = active\.length > 1/);
+  assert.match(comparison, /active\.map/);
+  assert.match(comparison, /תחום הערכה/);
+  assert.match(comparison, /דירוגים תקפים:/);
+  assert.match(styles, /\.ifb-analysis-metrics-table thead th:not\(:first-child\)/);
+  assert.match(styles, /\.ifb-analysis-metrics-table thead th:first-child/);
+});
