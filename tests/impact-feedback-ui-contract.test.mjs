@@ -610,3 +610,12 @@ test('educational staff list deduplicates only by course, named contact and scho
   assert.match(section, /groupHasFeedback\(group\)/);
   assert.doesNotMatch(section, /JSON\.stringify\(\[course, contact, school,.*feedbackHalf/);
 });
+
+
+test('template PDF actions are rendered for student surveys only', () => {
+  const view = readFileSync(new URL('../frontend/src/impact-feedback/feedback-templates-view.js', import.meta.url), 'utf8');
+  const css = readFileSync(new URL('../frontend/src/impact-feedback/impact-feedback-admin.css', import.meta.url), 'utf8');
+  assert.match(view, /slot\.audience === 'student' \? \`\$\{languageControls\('he'\)\}\$\{languageControls\('ar'\)\}\` : ''/);
+  assert.match(view, /is-digital/);
+  assert.match(css, /\.ifb-template-card__slot\.is-digital/);
+});

@@ -1737,6 +1737,10 @@
   padding-block: 2px 3px;
 }
 .ifb-admin .ifb-template-card__slot { row-gap: 0; }
+/* Staff and instructor surveys are digital-only; use the complete row width. */
+.ifb-admin .ifb-template-card__slot.is-digital { grid-template-columns: minmax(0, 1fr); }
+.ifb-admin .ifb-template-card__slot.is-digital .ifb-template-card__open { width: 100%; }
+
 .ifb-admin .ifb-template-card__open {
   width: 100%;
   min-width: 0;
