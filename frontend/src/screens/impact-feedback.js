@@ -1476,7 +1476,7 @@ function viewHtml() {
   if (ui.tab === 'instructors') return instructorsHtml();
   if (ui.tab === 'staff') return staffHtml();
   if (ui.tab === 'analysis') return analysisHtml();
-  if (ui.tab === 'templates') return `<p class="ifb-template-semester-note">תבניות השאלונים משותפות למחצית א׳ ולמחצית ב׳ ואין צורך לשכפל אותן.</p>${courseOnlyFiltersHtml('templates')}${renderTemplatesView(ui)}`;
+  if (ui.tab === 'templates') return `${courseOnlyFiltersHtml('templates')}${renderTemplatesView(ui)}`;
   return overviewHtml();
 }
 
