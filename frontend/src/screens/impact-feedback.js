@@ -1218,7 +1218,6 @@ function slotCardHtml(group, slot) {
   if (!campaign) {
     return `<article class="ifb-slot" data-slot="${slot.key}">
       <div class="ifb-slot__head">${title}${campaignStatusHtml(null)}</div>
-      ${slot.audience === 'educational_staff' && group.contact_name ? `<p class="ifb-muted">איש קשר: ${esc(group.contact_name)}</p>` : ''}
       ${openFormHtml(group, slot)}
     </article>`;
   }
