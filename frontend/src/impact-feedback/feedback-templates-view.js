@@ -220,7 +220,7 @@ function readOnlyQuestionHtml(q, index, ui, defaults) {
   const metric = ui.metrics.find((m) => m.key === q.metric_key)?.label || q.metric_key;
   return `<li class="ifb-tq is-readonly">
     <span class="ifb-tq__num">שאלה ${index + 1}</span>
-    <p class="ifb-tq__text">${esc(q.wording?.default || '')}</p>
+    <p class="ifb-tq__text">${esc(q.wording?.default || '')}</p>${q.wording?.ar ? `<p class="ifb-tq__text" lang="ar" dir="rtl">${esc(q.wording.ar)}</p>` : ''}
     ${questionMetaHtml([
       metaPart(metric),
       metaPart(QUESTION_TYPES.find((t) => t.key === q.question_type)?.label || ''),
@@ -242,7 +242,8 @@ function editableQuestionHtml(q, index, total, ui, defaults) {
         <button type="button" class="ifb-icon-btn ifb-icon-btn--danger" data-tpl-remove aria-label="הסרת השאלה">✕</button>
       </span>
     </div>
-    <label class="ifb-field"><span>ניסוח השאלה</span><textarea rows="2" data-tq-field="wording.default">${esc(q.wording?.default || '')}</textarea></label>
+    <label class="ifb-field"><span>עברית – נוסח השאלה</span><textarea rows="2" lang="he" dir="rtl" data-tq-field="wording.default">${esc(q.wording?.default || '')}</textarea></label>
+    <label class="ifb-field"><span>ערבית – נוסח השאלה</span><textarea rows="2" lang="ar" dir="rtl" data-tq-field="wording.ar">${esc(q.wording?.ar || '')}</textarea></label>
     <div class="ifb-tq__row">
       <label class="ifb-field"><span>סוג תשובה</span><select data-tq-field="question_type">${typeOptions(q.question_type)}</select></label>
       <label class="ifb-field"><span>מדד</span><select data-tq-field="metric_key">${metricOptions(ui, q.metric_key)}</select></label>
@@ -301,7 +302,7 @@ function editorHtml(ui) {
              <button type="button" class="ifb-btn ifb-btn--danger" data-tpl-discard>ביטול הטיוטה</button>`
           : '<button type="button" class="ifb-btn ifb-btn--primary" data-tpl-edit title="יצירת טיוטה לעריכה">עריכה</button>'}
       </div>
-      ${editing ? `<label class="ifb-field ifb-field--wide ifb-tpl-head__intro"><span>טקסט פתיחה בשאלון</span><textarea rows="2" data-tpl-intro>${esc(ed.draft.intro_text || '')}</textarea></label>`
+      ${editing ? `<div class="ifb-tpl-head__intro"><label class="ifb-field ifb-field--wide"><span>פתיח בעברית</span><textarea rows="4" lang="he" dir="rtl" data-tpl-intro>${esc(ed.draft.intro_text || '')}</textarea></label><label class="ifb-field ifb-field--wide"><span>פתיח בערבית</span><textarea rows="4" lang="ar" dir="rtl" data-tpl-intro-ar>${esc(ed.draft.intro_text_ar || '')}</textarea></label></div>`
         : (ed.published?.intro_text ? `<div class="ifb-tpl-head__intro"><span>טקסט פתיחה</span><p>${esc(ed.published.intro_text)}</p></div>` : '')}
     </section>
     <section class="ifb-tq-block">
@@ -427,7 +428,7 @@ async function saveQuestionField(ui, repaint, row, field, input) {
       input.value = q.wording?.default || '';
       return;
     }
-    patch = { wording: { default: value } };
+    patch = { wording: { ...(q.wording || {}), [key]: value } };
   } else if (field === 'required') {
     patch = { required: input.checked };
   } else if (field === 'question_type') {
@@ -592,9 +593,13 @@ export function bindTemplatesView(host, ui, repaint) {
 
   root.addEventListener('change', async (event) => {
     const input = event.target;
-    if (input.matches('[data-tpl-intro]')) {
-      await withSave(() => updateVersionIntro(tpl.editor.draft.id, input.value.trim()), repaint, { ui });
-      tpl.editor.draft.intro_text = input.value.trim();
+    if (input.matches('[data-tpl-intro], [data-tpl-intro-ar]')) {
+      const isArabic = input.matches('[data-tpl-intro-ar]');
+      const nextHe = isArabic ? tpl.editor.draft.intro_text : input.value.trim();
+      const nextAr = isArabic ? input.value.trim() : (tpl.editor.draft.intro_text_ar || '');
+      await withSave(() => updateVersionIntro(tpl.editor.draft.id, nextHe, nextAr), repaint, { ui });
+      tpl.editor.draft.intro_text = nextHe;
+      tpl.editor.draft.intro_text_ar = nextAr;
       return;
     }
     const field = input.dataset.tqField;

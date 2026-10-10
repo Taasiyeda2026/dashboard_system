@@ -113,15 +113,16 @@ export function mountFeedbackForm(container, payload, options = {}) {
   const logoUrl = options.logoUrl || '';
 
   const audienceClass = payload.audience === 'student' ? ' is-student' : ' is-adult';
+  const arabic = options.language === 'ar';
   container.innerHTML = `
-    <div class="ifb-shell${young ? ' is-young' : ''}${audienceClass}">
+    <div lang="${arabic ? 'ar' : 'he'}" dir="rtl" class="ifb-shell${young ? ' is-young' : ''}${audienceClass}">
       <header class="ifb-hero">
         ${logoUrl ? `<img class="ifb-logo" src="${esc(logoUrl)}" alt="תעשיידע">` : ''}
         ${options.onChooseLanguage ? '<button type="button" class="ifb-hero__change-language" data-ifb-change-language>בחירת שפה / اختيار اللغة</button>' : ''}
-        <p class="ifb-hero__kicker">${esc(headline(payload))}</p>
+        <p class="ifb-hero__kicker">${esc(arabic ? (payload.stage === 'pre' ? 'استبيان البداية' : 'استبيان النهاية') : headline(payload))}</p>
         <h1 class="ifb-hero__title">${esc(payload.program_title || '')}</h1>
         ${payload.recipient_name ? `<p class="ifb-hero__hello">שלום ${esc(payload.recipient_name)}</p>` : ''}
-        ${payload.intro_text ? `<p class="ifb-hero__intro">${esc(payload.intro_text)}</p>` : ''}
+        ${(arabic ? payload.intro_text_ar : payload.intro_text) ? `<p class="ifb-hero__intro">${esc(arabic ? payload.intro_text_ar : payload.intro_text)}</p>` : ''}
       </header>
       <div class="ifb-progress" aria-hidden="true">
         <div class="ifb-progress__track"><div class="ifb-progress__fill" data-progress-fill></div></div>
@@ -131,7 +132,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
         ${questions.map((q, i) => questionHtml(q, i, answers, young)).join('')}
         <div class="ifb-submit">
           <p class="ifb-submit__error" data-submit-error role="alert" hidden></p>
-          <button type="submit" class="ifb-submit__btn" data-submit>${options.preview ? 'שליחה (תצוגה מקדימה)' : 'שליחת המשוב'}</button>
+          <button type="submit" class="ifb-submit__btn" data-submit>${options.preview ? 'שליחה (תצוגה מקדימה)' : (arabic ? 'إرسال الاستبيان' : 'שליחת המשוב')}</button>
         </div>
       </form>
     </div>`;

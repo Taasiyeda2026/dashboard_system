@@ -428,7 +428,7 @@ test('educational staff list orders ended courses earliest-first independently o
   assert.deepEqual(actual.map((r) => r.row_id), ['earliest', 'same-date-first', 'same-date-last', 'second', 'latest']);
   assert.equal(rows[0].row_id, 'latest', 'original server array is unchanged');
   const table = screen.slice(screen.indexOf('function groupsTableHtml('), screen.indexOf('function optionBarsHtml('));
-  assert.match(table, /scope === 'staff'\s*\? sortEducationalStaffFeedbackGroups\(matching\)/);
+  assert.match(table, /scope === 'staff'[\s\S]*?const sorted = sortEducationalStaffFeedbackGroups\(matching\)/);
   assert.match(table, /scope === 'staff'\s*\? courseScopedGroups\(\)\.filter\(hasCourseEndDate\)/);
   assert.match(table, /const inHalf = all\.filter\(\(g\) => studentFeedbackPeriodForGroup\(g\) === ui\.feedbackHalf\)/);
 });
@@ -449,8 +449,8 @@ test('template cards use three desktop columns with tight language spacing and r
   assert.match(styles, /\.ifb-admin \.ifb-template-card__language-headings,[\s\S]*?column-gap: 3px;/);
   assert.match(styles, /@media \(min-width: 681px\) and \(max-width: 999px\) \{\s*\.ifb-admin \.ifb-template-grid \{ grid-template-columns: repeat\(2, minmax\(0, 1fr\)\); \}/);
   assert.match(styles, /@media \(max-width: 680px\) \{\s*\.ifb-admin \.ifb-template-grid \{ grid-template-columns: minmax\(0, 1fr\);/);
-  assert.match(styles, /\.ifb-admin \.ifb-template-card__slots \{[\s\S]*?width: min\(100%, 400px\);[\s\S]*?margin-inline: auto;/);
-  assert.match(styles, /\.ifb-admin \.ifb-template-card__slot \{[\s\S]*?grid-template-columns: minmax\(0, 1.37fr\) repeat\(2, minmax\(0, \.85fr\)\);/);
+  assert.match(styles, /\.ifb-admin \.ifb-template-card__slots \{[\s\S]*?width: min\(100%, 356px\);[\s\S]*?margin-inline: auto;/);
+  assert.match(styles, /\.ifb-admin \.ifb-template-card__slot \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) repeat\(2, 76px\);/);
   assert.match(styles, /\.ifb-admin \.ifb-template-card__inner \{[\s\S]*?min-height: 100%;/);
 });
 
@@ -578,18 +578,15 @@ test('every valid public feedback token starts with equal-weight bilingual langu
   assert.match(publicPage, /renderLanguageChoice\(\);\s*\}\s*start\(\)/);
 });
 
-test('Arabic is clearly pending and never silently serves unapproved Hebrew questionnaire', () => {
+test('Arabic is available only when translations are supplied and selected wording is isolated', () => {
   assert.match(publicPage, /function showArabicPending\(root, onBack\)/);
-  assert.match(publicPage, /الاستبيان باللغة العربية قيد الإعداد/);
-  assert.match(publicPage, /ستتوفر النسخة العربية بعد اعتماد أسئلة الاستبيان/);
-  assert.match(publicPage, /العودة لاختيار اللغة/);
-  assert.match(publicPage, /onArabic: \(\) => showArabicPending\(root, renderLanguageChoice\)/);
-  assert.match(publicPage, /onHebrew: renderForm/);
-  assert.doesNotMatch(publicPage, /onArabic: renderForm/);
-  assert.match(publicPage, /document\.documentElement\.lang = 'ar'/);
-  assert.match(publicPage, /document\.documentElement\.lang = 'he'/);
-  assert.match(publicPage, /mountFeedbackForm\(root, payload/);
-  assert.doesNotMatch(publicPage, /translate\(/);
+  assert.match(publicPage, /payload\.questions\.every\(\(q\) => Boolean\(q\.text_ar\)\)/);
+  assert.match(publicPage, /renderForm\('ar'\) : showArabicPending\(root, renderLanguageChoice\)/);
+  assert.match(publicPage, /language === 'ar' \? \{ \.\.\.q, text: q\.text_ar \|\| q\.text \}/);
+  assert.match(publicPage, /onHebrew: \(\) => renderForm\('he'\)/);
+  assert.match(publicPage, /document\.documentElement\.lang = language/);
+  assert.match(publicPage, /mountFeedbackForm\(root, displayPayload/);
+  assert.doesNotMatch(publicPage, /BIOMIMICRY_ARABIC_QUESTIONS/);
 });
 
 test('survey language change preserves draft and equal bilingual styling on mobile', () => {

@@ -143,13 +143,16 @@ async function start() {
   const draftKey = storageKey('draft', token);
   const submissionKey = storageKey('submission', token);
 
-  const renderForm = () => {
-    document.documentElement.lang = 'he';
+  const renderForm = (language = 'he') => {
+    document.documentElement.lang = language;
+    const localizedQuestions = payload.questions.map((q) => language === 'ar' ? { ...q, text: q.text_ar || q.text } : q);
+    const displayPayload = { ...payload, questions: localizedQuestions };
     let initialAnswers = {};
     try { initialAnswers = JSON.parse(session?.getItem(draftKey) || '{}') || {}; } catch { initialAnswers = {}; }
     const startedAt = Date.now();
-    mountFeedbackForm(root, payload, {
+    mountFeedbackForm(root, displayPayload, {
       logoUrl,
+      language,
       initialAnswers,
       onChooseLanguage: renderLanguageChoice,
       onChange(answers) {
@@ -193,8 +196,9 @@ async function start() {
     return;
   }
   const renderLanguageChoice = () => showLanguageChoice(root, {
-    onHebrew: renderForm,
-    onArabic: () => showArabicPending(root, renderLanguageChoice)
+    onHebrew: () => renderForm('he'),
+    onArabic: () => payload.questions.every((q) => Boolean(q.text_ar))
+      ? renderForm('ar') : showArabicPending(root, renderLanguageChoice)
   });
   renderLanguageChoice();
 }

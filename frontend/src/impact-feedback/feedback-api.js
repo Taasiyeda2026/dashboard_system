@@ -149,7 +149,7 @@ export async function fetchVersionQuestions(versionId) {
 }
 
 export async function fetchVersion(versionId) {
-  return unwrap(client().from('feedback_template_versions').select('id,template_id,status,intro_text,notes').eq('id', versionId).single());
+  return unwrap(client().from('feedback_template_versions').select('id,template_id,status,intro_text,intro_text_ar,notes').eq('id', versionId).single());
 }
 
 export async function fetchBankQuestions(programKey, audience, stage) {
@@ -175,8 +175,8 @@ export async function discardDraft(versionId) {
   return unwrap(client().rpc('feedback_admin_discard_draft', { p_version_id: versionId }));
 }
 
-export async function updateVersionIntro(versionId, introText) {
-  return unwrap(client().from('feedback_template_versions').update({ intro_text: introText }).eq('id', versionId));
+export async function updateVersionIntro(versionId, introText, introTextAr) {
+  return unwrap(client().from('feedback_template_versions').update({ intro_text: introText, ...(introTextAr !== undefined ? { intro_text_ar: introTextAr } : {}) }).eq('id', versionId));
 }
 
 export async function updateTemplateQuestion(id, patch) {
