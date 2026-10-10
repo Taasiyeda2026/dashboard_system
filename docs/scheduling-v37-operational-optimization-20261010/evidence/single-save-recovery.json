@@ -1,0 +1,8 @@
+{
+  "scope": "existing disposable localhost PostgreSQL; actual checkpoint/commit RPCs, modeled admin identity; no planner invocation",
+  "pass": true,
+  "rows": 253,
+  "saveMs": 2706.5705,
+  "revision": 5,
+  "reconnectedCheckpointRecovery": true
+}

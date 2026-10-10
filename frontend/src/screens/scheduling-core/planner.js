@@ -1,3 +1,7 @@
+import { explainRejections } from './rejection-reasons.js';
+import { classifyMeetingAvailabilityBlocks } from '../course-scheduling-date-adjustments.js';
+import { operationalQuality, availabilityByInstructor, compareOperationalQuality } from './quality.js';
+import { augmentingSearch } from './augmenting-search.js';
 import { planningPerfCount } from '../course-scheduling-perf.js';
 import { recruitmentModels } from './recruitment.js';
 import { computeSchedulingScore, compareCandidatesStable, courseUrgency } from '../course-scheduling-score.js';
@@ -79,7 +83,16 @@ function* schedules(context, a, empId, spec, input, previous, occupancy) {
   const period = resolveCourseSchedulingPeriod(input.periodKey || 'first'), year = resolveCourseSchedulingPeriod('year');
   const start = [period.start, input.today || period.start, '2026-10-12', text(a.start_date).slice(0, 10)].sort().at(-1);
   const end = period.key === 'first' ? '2027-02-28' : year.end;
-  if (previous?.meetings?.length && previous.meetings[0].date >= start) yield previous.meetings;
+  if (previous?.meetings?.length && previous.meetings[0].date >= start) {
+    yield previous.meetings;
+    if(previous.instructorEmpId===empId){const blocks=classifyMeetingAvailabilityBlocks({meetings:previous.meetings,rules:input.rules?.[empId]||[],exceptions:input.exceptions?.[empId]||[]});
+      if(blocks.instructorExceptionCount>0&&blocks.recoverable){const shifted=[];let nextAllowed=previous.meetings[0].date,changed=false;
+        for(const m of previous.meetings){let date=m.date<nextAllowed?nextAllowed:m.date;while(date<=end&&meetingFailures(context,a,empId,{...m,date}).length)date=addDays(date,7);
+          if(date>end){shifted.length=0;break;}changed ||= date!==m.date;shifted.push({...m,date});nextAllowed=addDays(date,7);
+        }if(changed&&shifted.length===spec.sessions&&(!a.start_date||shifted[0].date===text(a.start_date).slice(0,10)))yield shifted;
+      }
+    }
+  }
   for (let date = start; date <= (a.start_date ? text(a.start_date).slice(0, 10) : period.end); date = addDays(date, 1)) {
     const day = weekday(date), dayRules = context.exceptions.get(empId)?.get(date) || context.rules.get(empId)?.get(day) || [];
     if (day === 5 && context.profiles[empId]?.friday_allowed !== true) continue;
@@ -99,32 +112,10 @@ function* schedules(context, a, empId, spec, input, previous, occupancy) {
           if (!meetingFailures(context, a, empId, meeting).length) meetings.push(meeting);
           next = addDays(next, 7);
         }
-        if (meetings.length === spec.sessions) yield meetings;
+        if (meetings.length === spec.sessions && (!a.start_date || meetings[0].date === text(a.start_date).slice(0,10))) yield meetings;
       }
     }
   }
-}
-function planQuality(rows, input) {
-  const work = new Set(), newWork = new Set(), instructors = new Set(), prior = new Map((input.committedRows || []).map(r => [r.courseId, r]));
-  let hours = 0, travelKm = 0, score = 0, changedDrafts = 0;
-  for (const row of rows) {
-    if (!covered(row)) continue; instructors.add(row.instructorEmpId);
-    for (const m of row.meetings || []) { hours += (minute(m.end_time) - minute(m.start_time)) / 60; work.add(`${row.instructorEmpId}|${m.date}`); }
-    if (row.kind !== 'live') {
-      score += row.score || 0; travelKm += row.relevantTravelDistance || 0;
-      for (const m of row.meetings || []) newWork.add(`${row.instructorEmpId}|${m.date}`);
-      if (row.sourceHadDraft && prior.get(row.courseId)?.instructorEmpId !== row.instructorEmpId) changedDrafts++;
-    }
-  }
-  return { covered: rows.filter(covered).length, uncovered: rows.filter(r => !covered(r)).length, recruitmentProfiles: recruitmentModels(rows, input.constraintContext || compileConstraints(input)).length,
-    recruitment: rows.filter(r => r.kind === 'recruitment').length, changedDrafts, newWorkDayMeetings: newWork.size,
-    totalTravelKm: travelKm, operationalScoreSum: score, meetingHours: hours, instructorsUsed: instructors.size, workDays: work.size };
-}
-function betterQuality(a, b) {
-  for (const [key, direction] of [['covered', 1], ['recruitmentProfiles', -1], ['changedDrafts', -1], ['newWorkDayMeetings', -1], ['totalTravelKm', -1], ['operationalScoreSum', 1], ['uncovered', -1]]) {
-    if (a[key] !== b[key]) return (a[key] - b[key]) * direction > 0;
-  }
-  return false;
 }
 export async function buildPlan(input = {}) {
   planningPerfCount("scheduleCalls");
@@ -153,9 +144,14 @@ export async function buildPlan(input = {}) {
   }
   const occupancy = createOccupancy(context, anchors), queue = targets.filter(a => affected.has(activityId(a)) && !rows.has(activityId(a)));
   metrics.contextMs = performance.now() - started;
-  const baselineOptions = new Map(), baselineInfo = new Map();
+  const baselineOptions = new Map(), baselineInfo = new Map(), candidatePools = new Map();
+  const availability = availabilityByInstructor(context,input.periodKey || 'year');
+  const quality = values => operationalQuality(values,input,context,availability);
+  const incumbentExceptionInstructor=new Map(), incumbentExceptionIneligible=new Map();
+  if(input.targetCourseIds!=null)for(const a of queue){const prior=previous.get(activityId(a)),empId=prior?.instructorEmpId;if(!empId)continue;const blocked=classifyMeetingAvailabilityBlocks({meetings:prior.meetings||[],rules:input.rules?.[empId]||[],exceptions:input.exceptions?.[empId]||[]});if(blocked.instructorExceptionCount>0&&blocked.recoverable)incumbentExceptionInstructor.set(activityId(a),empId);else if(blocked.instructorExceptionCount>0&&!blocked.recoverable)incumbentExceptionIneligible.set(activityId(a),empId);}
   const limit = input.candidateBudgetPerInstructor || (input.planningProfile === 'fast' ? 96 : 384);
-  async function candidates(a, state, baseOnly = false) {
+  async function generatePool(a,scheduleState=null) {
+    const state = createOccupancy(context,anchors);
     const id = activityId(a), spec = courseSpec(a, input), found = [], failures = new Set(); let incomplete = false;
     const missingData=staticFailures(context,a,'').filter(r=>['missing_school_data','missing_language'].includes(r));
     if(missingData.length)return {options:[],incomplete:false,missing:true,failures:missingData};
@@ -164,29 +160,65 @@ export async function buildPlan(input = {}) {
     if (a.start_time && a.end_time && minute(a.end_time)-minute(a.start_time) !== spec.durationMinutes && !officialMeetings(a).length) return {options:[],incomplete:false,missing:true,failures:['source_duration_conflict']};
     if (!spec.complete) return { options: [], incomplete: false, missing: true, failures: ['missing_course_spec'] };
     for (const [empId, instructor] of context.byInstructor) {
+      if(incumbentExceptionInstructor.has(id)&&incumbentExceptionInstructor.get(id)!==empId)continue;
+      if(incumbentExceptionIneligible.get(id)===empId)continue;
       if ((input.optimizationOnlyCourseIds || []).includes(id) && previous.get(id)?.instructorEmpId !== empId) continue;
       await checkpoint();
       const nonRouteFailures=staticFailures(context,a,empId).filter(r=>r!=='home_route_unknown');
-      if(nonRouteFailures.length){if(baseOnly)planningPerfCount('staticCandidatePruned');nonRouteFailures.forEach(r=>failures.add(r));continue;}
+      if(nonRouteFailures.length){planningPerfCount('staticCandidatePruned');nonRouteFailures.forEach(r=>failures.add(r));continue;}
       if (!knownRoute(context, instructor.address, a.school_address)) await ensureRoute(context, instructor.address, a.school_address);
-      const rejected = staticFailures(context, a, empId); if (rejected.length) { if(baseOnly)planningPerfCount('staticCandidatePruned'); rejected.forEach(r => failures.add(r)); continue; }
-      let attempted = 0, accepted = 0;
-      for (const meetings of schedules(context, a, empId, spec, input, previous.get(id), state)) {
+      const rejected = staticFailures(context, a, empId); if (rejected.length) { planningPerfCount('staticCandidatePruned'); rejected.forEach(r => failures.add(r)); continue; }
+      let attempted = 0;
+      for (const meetings of schedules(context, a, empId, spec, input, previous.get(id), scheduleState||state)) {
         if (++attempted > limit) { incomplete = true; break; }
+        if(!officialMeetings(a).length && meetings.length!==spec.sessions)continue;
         metrics.generatedSchedules++; planningPerfCount("scenarioCount"); await checkpoint();
         if ((input.optimizationOnlyCourseIds || []).includes(id) && JSON.stringify(meetings.map(m=>m.date))!==JSON.stringify((previous.get(id)?.meetings || []).map(m=>m.date))) continue;
         const option = { instructorEmpId: empId, meetings, startDate: meetings[0].date, endDate: meetings.at(-1).date, startTime: meetings[0].start_time, endTime: meetings[0].end_time };
         await ensureCandidateRoutes(context, state, a, option);
         const issues = candidateFailures(context, state, a, option); metrics.candidateChecks++; planningPerfCount("candidateEvals");
         if (issues.length) { issues.forEach(f => failures.add(f.reason)); continue; }
-        found.push(baseOnly ? option : scoring(context, state, a, option));
-        // Keep a bounded set of real legal alternatives for each instructor;
-        // finding one is sufficient for baseline scarcity, never a no-fit proof.
-        if (++accepted >= (baseOnly ? 1 : 3)) break;
+        found.push(option);
       }
     }
-    found.sort(baseOnly ? (a, b) => a.instructorEmpId.localeCompare(b.instructorEmpId) : (a,b)=>b.score-a.score || a.idleGapMinutes-b.idleGapMinutes || compareCandidatesStable(a,b));
+    found.sort((a,b)=>a.instructorEmpId.localeCompare(b.instructorEmpId)||a.startDate.localeCompare(b.startDate)||a.startTime.localeCompare(b.startTime));
     return { options: found, incomplete, missing: failures.has('missing_school_data') || failures.has('missing_course_spec') || failures.has('missing_language') || failures.has('home_route_unknown') || (!found.length && failures.has('missing_profile_data')), failures: [...failures] };
+  }
+  // Structural shortlist, not a second scoring formula. Examine all generated
+  // legal alternatives, retain distinct efficient schedules for every instructor,
+  // then compute the existing 100-point score only for those finalists.
+  function placement(a,option,state){let newDays=0,waiting=0,sameSchool=0;
+    for(const m of option.meetings){const list=(state.days.get(`${option.instructorEmpId}|${m.date}`)||[]).filter(x=>x.courseId!==activityId(a));if(!list.length){newDays++;continue;}
+      const start=minute(m.start_time),end=minute(m.end_time),before=list.filter(x=>x.end<=start).at(-1),after=list.find(x=>x.start>=end);
+      for(const [neighbor,gap] of [[before,before?start-before.end:0],[after,after?after.start-end:0]]){if(!neighbor)continue;const same=neighbor.schoolId===text(a.school_id);if(same&&gap<=30)sameSchool++;const route=same?{duration_minutes:0,distance_km:0}:knownRoute(context,neighbor.address,a.school_address);if(route)waiting+=Math.max(0,gap-(+route.duration_minutes)-(same?0:+route.distance_km<=5?5:15));}
+    }return {newDays,waiting,sameSchool};
+  }
+  const overlapOptions=(a,b)=>a.instructorEmpId===b.instructorEmpId&&a.meetings.some(m=>b.meetings.some(n=>m.date===n.date&&minute(m.start_time)<minute(n.end_time)&&minute(m.end_time)>minute(n.start_time)));
+  function opportunityCost(a,option){let cost=0;for(const [id,alternatives] of baselineOptions){if(id===activityId(a)||rows.has(id)||!alternatives.length)continue;const count=new Set(alternatives.map(o=>o.instructorEmpId)).size;if(count>2)continue;
+      cost+=alternatives.filter(other=>overlapOptions(option,other)).length/alternatives.length;
+    }return cost;}
+  const comparePlacement=(a,b)=>a.blockers-b.blockers||a.placement.newDays-b.placement.newDays||a.placement.waiting-b.placement.waiting||b.placement.sameSchool-a.placement.sameSchool||a.option.startDate.localeCompare(b.option.startDate)||a.option.startTime.localeCompare(b.option.startTime)||a.option.instructorEmpId.localeCompare(b.option.instructorEmpId);
+  function shortlist(a,options,state,count=4){const ranked=options.map(option=>({option,blockers:0,placement:placement(a,option,state)})).sort(comparePlacement),counts=new Map(),kept=[];
+    for(const {option} of ranked){const n=counts.get(option.instructorEmpId)||0;if(n<count){kept.push(option);counts.set(option.instructorEmpId,n+1);}}return kept;
+  }
+  async function candidates(a,state,baseOnly=false) {
+    const id=activityId(a);if(!candidatePools.has(id))candidatePools.set(id,await generatePool(a));
+    let pool=candidatePools.get(id);const options=[],failures=new Set(pool.failures);
+    const collect=async raws=>{for(const raw of raws){await checkpoint();await ensureCandidateRoutes(context,state,a,raw);const issues=candidateFailures(context,state,a,raw);
+      if(issues.length){issues.forEach(f=>failures.add(f.reason));continue;}options.push(raw);
+    }};
+    await collect(pool.options);
+    if(!baseOnly&&!officialMeetings(a).length&&(!options.length||!options.some(o=>placement(a,o,state).sameSchool>0))){
+      // Temporal adjacency changes when another course is accepted. Cached
+      // constraints remain valid, but cached time choices are not exhaustive.
+      // Refresh only this flexible activity, never the national snapshot.
+      const extra=await generatePool(a,state),seen=new Set(pool.options.map(o=>JSON.stringify([o.instructorEmpId,o.meetings]))),fresh=extra.options.filter(o=>!seen.has(JSON.stringify([o.instructorEmpId,o.meetings])));
+      pool={...pool,options:[...pool.options,...fresh],incomplete:pool.incomplete||extra.incomplete};candidatePools.set(id,pool);await collect(fresh);
+    }
+    const finalists=baseOnly?options:shortlist(a,options,state,8).map(raw=>scoring(context,state,a,raw));
+    if(!baseOnly)for(const option of finalists)option.opportunityCost=opportunityCost(a,option);
+    finalists.sort(baseOnly?(a,b)=>a.instructorEmpId.localeCompare(b.instructorEmpId):(a,b)=>a.opportunityCost-b.opportunityCost||compareCandidatesStable(a,b));
+    return {...pool,options:finalists,failures:[...failures]};
   }
   for (const a of queue) { const result = await candidates(a, occupancy, true); baselineOptions.set(activityId(a), result.options); baselineInfo.set(activityId(a), result); }
   const urgencyOrder = { within_7: 0, within_14: 1, later: 2, none: 3 };
@@ -200,7 +232,7 @@ export async function buildPlan(input = {}) {
     const id = activityId(a); occupancy.remove(id);
     const row = option ? optionRow(a, option, result.options.slice(0, 12)) : { ...rowFor(a, officialMeetings(a)), sessions: courseSpec(a, input).sessions,
       kind: result.missing || result.incomplete ? 'missing' : 'recruitment', status: result.incomplete ? 'בדיקה לא הושלמה' : result.missing ? 'חסר מידע' : 'נדרש גיוס',
-      reason: result.incomplete ? 'החיפוש המוגבל הסתיים ללא הוכחה שאין מדריך מתאים' : result.failures.join(' · ') || 'נדרש גיוס לאחר מיצוי אפשרויות הצוות הקיים',
+      reason: result.incomplete ? 'החיפוש המוגבל הסתיים ללא הוכחה שאין מדריך מתאים' : explainRejections(result.failures),
       diagnostics: { searchIncomplete: result.incomplete, recruitmentCertified: !result.missing && !result.incomplete, rejectionReasons: result.failures } };
     if (row.kind === 'recruitment' && !row.meetings.length) {
       const profile = {gender: ['male','female'].includes(a.required_instructor_gender) ? a.required_instructor_gender : 'female', instruction_languages:[a.instruction_language],friday_allowed:false};
@@ -210,6 +242,9 @@ export async function buildPlan(input = {}) {
       if(choices.length){Object.assign(row,choices[0],{scheduleOptions:choices,diagnostics:{...row.diagnostics,hypotheticalRecruitmentSchedule:true}});}
       else {row.kind='missing';row.status='נדרש בירור מועדים';row.diagnostics.recruitmentCertified=false;}
     }
+    if(!row.instructorEmpId && (baselineOptions.get(id)||[]).length){row.diagnostics.recruitmentCertified=false;row.diagnostics.operationalConflict=true;row.reason='קיימים מדריכים מתאימים, אך האפשרויות מתנגשות בתכנון הנוכחי; נדרש חיפוש החלפות או שינוי מועדים שאינם קבועים.';}
+    if(incumbentExceptionInstructor.has(id)&&!row.instructorEmpId){row.kind='missing';row.status='נדרשת התאמת מועדים';row.reason='חריג זמינות נקודתי: המדריך הקבוע לא הוחלף. לא נמצאה הזזה חוקית; מועדים רשמיים מחייבים אישור לשינוי.';row.diagnostics.recruitmentCertified=false;}
+    if(option)row.diagnostics={...row.diagnostics,selectionReason:'scarcity-and-operational-ranking',candidateAlternatives:result.options.length,opportunityCost:option.opportunityCost||0};
     row.dependencyInstructorIds = [...new Set([...(baselineOptions.get(id) || []).map(o => o.instructorEmpId), ...(row.instructorEmpId ? [row.instructorEmpId] : context.byInstructor.keys())])];
     rows.set(id, row); occupancy.add(row); completed++; metrics.activitiesComputed++; planningPerfCount("activitiesComputed");
     await report('תכנון בלוקים — מנוע חדש', completed, queue.length, id, row);
@@ -229,7 +264,8 @@ export async function buildPlan(input = {}) {
         }
         if (valid) choices.push({ simulation, representative: simulation.reduce((best, item) => best || item.scored, null), score: simulation.reduce((sum, item) => sum + item.scored.score, 0) });
       }
-      choices.sort((a, b) => compareCandidatesStable(a.representative, b.representative) || b.score - a.score);
+      for(const choice of choices)choice.opportunityCost=choice.simulation.reduce((sum,item)=>sum+opportunityCost(item.a,item.scored),0);
+      choices.sort((a, b) => a.opportunityCost-b.opportunityCost || compareCandidatesStable(a.representative, b.representative) || b.score - a.score);
       if (choices.length) { for (const { a, scored } of choices[0].simulation) await accept(a, { options: [scored] }, scored); acceptedBlock = true; }
     }
     if (!acceptedBlock) for (const a of activities) { const result = await candidates(a, occupancy); await accept(a, result, result.options[0]); }
@@ -238,35 +274,93 @@ export async function buildPlan(input = {}) {
   const validationInput = value => ({ ...input, constraintContext: context, rows: value, requiredActivities: targets });
   let at = performance.now(), base = orderedRows(), validation = await validatePlanWithRoutes(validationInput(base), checkpoint); metrics.validationMs += performance.now() - at;
   if (!validation.valid) throw schedulingError('planning_final_validation_failed', validation.failures);
-  const verifiedBase = base, baselineQuality = planQuality(base, input); let bestVerified = base, optimization = { completed: true, basePreserved: false };
-  if (!input.skipSoftOptimization && (input.targetCourseIds == null || (input._nationalRun === true && input.resumeFromCheckpoint === true)) && input.allowGlobalRepair !== false && base.some(r => !covered(r))) {
-    at = performance.now();
-    try {
-      await report('בסיס חוקי נשמר בזיכרון; תיקון ארצי', base.length, base.length, '', null, base);
-      // Bounded augmenting reassignment: only unprotected generated proposals
-      // can be displaced; every replacement is rechecked against current state.
-      const deadline = performance.now() + (input.optimizationBudgetMs || 5000);
-      for (const missing of base.filter(r => !covered(r))) {
-        await checkpoint(); const a = context.byActivity.get(missing.courseId), candidatesToMove = [...rows.values()].filter(r => covered(r) && ['proposal', 'fixed-proposal'].includes(r.kind)).slice(0, 24);
-        for (const movable of candidatesToMove) {
-          if (performance.now() > deadline) throw schedulingError('planning_optimization_budget_exceeded');
-          const state = createOccupancy(context, [...anchors, ...rows.values()]); state.remove(movable.courseId);
-          const result = await candidates(a, state); const chosen = result.options[0]; if (!chosen) continue;
-          const replacement = optionRow(a, chosen, result.options.slice(0, 12)); state.add(replacement);
-          const otherActivity = context.byActivity.get(movable.courseId), other = await candidates(otherActivity, state), next = other.options[0];
-          if (!next) continue;
-          const trial = orderedRows().map(r => r.courseId === missing.courseId ? replacement : r.courseId === movable.courseId ? optionRow(otherActivity, next, other.options.slice(0, 12)) : r);
-          const checked = validatePlan(validationInput(trial));
-          if (checked.valid && betterQuality(planQuality(trial, input), planQuality(orderedRows(), input))) { rows.set(replacement.courseId, replacement); rows.set(movable.courseId, optionRow(otherActivity, next, other.options.slice(0, 12))); bestVerified = trial; break; }
-        }
+  // A valid persisted incumbent is also a lower bound; recomputation must not
+  // discard a better lawful plan merely because greedy ordering changed.
+  const incumbent=targets.map(a=>previous.get(activityId(a)));
+  if(incumbent.every(Boolean)){
+    const checked=await validatePlanWithRoutes(validationInput(incumbent),checkpoint);
+    if(checked.valid&&compareOperationalQuality(quality(incumbent),quality(base))>0){base=incumbent;for(const row of base)rows.set(row.courseId,row);validation=checked;}
+  }
+  let bestVerified=base,bestQuality=quality(base);
+  const optimization={completed:true,basePreserved:false,optimal:false,scope:'bounded-neighborhood',algorithmRevision:'v37-operational-1',decisions:[],stages:[],candidateSearchIncomplete:[...candidatePools.values()].some(p=>p.incomplete)};
+  const national=input.targetCourseIds==null||(input._nationalRun===true&&input.resumeFromCheckpoint===true);
+  if(!input.skipSoftOptimization&&national&&input.allowGlobalRepair!==false){
+    at=performance.now();
+    const budget=Number.isFinite(input.optimizationBudgetMs)?Math.max(0,Math.min(input.optimizationBudgetMs,60000)):45000;
+    const nodeBudget=Number.isFinite(input.optimizationNodeBudget)?Math.max(0,Math.min(input.optimizationNodeBudget,20000)):6000;
+    const deadline=at+budget;let nodes=0;
+    const stageLimit=(name,fallback)=>Number.isFinite(input.optimizationStageNodeBudgets?.[name])?Math.max(0,Math.min(input.optimizationStageNodeBudgets[name],20000)):fallback;
+    const searchCheckpoint=async()=>{await checkpoint();if(++nodes>nodeBudget||performance.now()>deadline)throw schedulingError('planning_optimization_budget_exceeded');};
+    const stateFor=current=>createOccupancy(context,[...anchors,...current.values()]);
+    const canMove=(id,row)=>affected.has(id)&&!input.lockedOptions?.[id]&&!isProtectedActivity(context.byActivity.get(id))&&['proposal','fixed-proposal'].includes(row?.kind);
+
+    const optionsFor=async(id,current)=>{
+      const a=context.byActivity.get(id),state=stateFor(current),pool=candidatePools.get(id)||await generatePool(a);candidatePools.set(id,pool);
+      // Rank legal against immutable anchors first, then global opportunity cost:
+      // prefer fewer conflicts before testing multi-activity displacement.
+      const ranked=[];
+      for(const option of pool.options){const issues=candidateFailures(context,state,a,option),blockers=new Set();let barrier=false;
+        for(const issue of issues){if(issue.reason==='overlap'){for(const m of option.meetings)for(const other of state.days.get(`${option.instructorEmpId}|${m.date}`)||[])if(other.courseId!==id&&(other.fullDay||isFullDaySchedulingActivity(a)||(minute(m.start_time)<other.end&&minute(m.end_time)>other.start)))blockers.add(other.courseId);}
+          else if(issue.otherCourseId)blockers.add(issue.otherCourseId);else barrier=true;}
+        if(barrier||[...blockers].some(b=>!canMove(b,current.get(b))))continue;
+        ranked.push({option,blockers:blockers.size,placement:placement(a,option,state)});
       }
-      base = orderedRows(); validation = validatePlan(validationInput(base));
-      if (!validation.valid || !betterQuality(planQuality(base, input), baselineQuality)) { base = verifiedBase; validation = validatePlan(validationInput(base)); optimization.basePreserved = true; }
-    } catch (error) {
-      if (input.signal?.aborted || error.code === 'planning_cancelled') throw error;
-      base = bestVerified; validation = validatePlan(validationInput(base)); optimization = { completed: false, basePreserved: true, failure: error.code || error.message };
-    }
-    metrics.optimizationMs = performance.now() - at;
+      ranked.sort(comparePlacement);
+      // Diverse legal schedules for every instructor, rather than allowing the
+      // first instructor's flexible schedules to consume the entire branch cap.
+      const counts=new Map(),diverse=[];for(const item of ranked){const id=item.option.instructorEmpId,count=counts.get(id)||0;if(count<4){diverse.push(item.option);counts.set(id,count+1);}}
+      return diverse.map(raw=>scoring(context,state,a,raw));
+    };
+    const blockersFor=async(id,option,current)=>{
+      const a=context.byActivity.get(id),state=stateFor(current);await ensureCandidateRoutes(context,state,a,option);
+      const issues=candidateFailures(context,state,a,option),blockers=new Set();
+      for(const f of issues){
+        if(f.reason==='overlap')for(const m of option.meetings){for(const other of state.days.get(`${option.instructorEmpId}|${m.date}`)||[]){if(other.courseId!==id&&(other.fullDay||isFullDaySchedulingActivity(a)||(minute(m.start_time)<other.end&&minute(m.end_time)>other.start)))blockers.add(other.courseId);}}
+        else if(f.otherCourseId)blockers.add(f.otherCourseId);else return null;
+      }
+      return [...blockers].sort((a,b)=>(candidatePools.get(a)?.options.length||0)-(candidatePools.get(b)?.options.length||0)||a.localeCompare(b));
+    };
+    const acceptTrial=async(trial,reason)=>{
+      const checked=validatePlan(validationInput(trial));if(!checked.valid)return false;
+      const nextQuality=quality(trial);if(compareOperationalQuality(nextQuality,bestQuality)<=0)return false;
+      const old=new Map(bestVerified.map(r=>[r.courseId,r]));const changes=trial.filter(r=>JSON.stringify([r.instructorEmpId,r.meetings])!==JSON.stringify([old.get(r.courseId)?.instructorEmpId,old.get(r.courseId)?.meetings])).map(r=>({courseId:r.courseId,from:old.get(r.courseId)?.instructorEmpId||null,to:r.instructorEmpId||null,reason}));
+      trial=trial.map(row=>{const change=changes.find(d=>d.courseId===row.courseId);return change?{...row,diagnostics:{...row.diagnostics,optimizationDecision:change}}:row;});
+      for(const row of trial)rows.set(row.courseId,row);bestVerified=trial;bestQuality=nextQuality;validation=checked;optimization.decisions.push(...changes);
+      await report('שיפור ארצי מאומת — מנוע חדש',trial.length,trial.length,'',null,trial);return true;
+    };
+    try {
+      await report('בסיס חוקי נשמר בזיכרון; תיקון ארצי',base.length,base.length,'',null,base);
+      if(budget===0||nodeBudget===0)throw schedulingError('planning_optimization_budget_exceeded');
+      // Progressive, deterministic neighborhoods; wall time is an emergency cap,
+      // node limits are reproducible. No arbitrary first-24-victims slice.
+      for(const depth of [1,3]){
+        const beforeNodes=nodes,stageStart=performance.now();let gains=0;
+        coverageLoop: for(const missing of bestVerified.filter(r=>!covered(r))){await searchCheckpoint();let localNodes=0;
+          const localCheckpoint=async()=>{await searchCheckpoint();if(nodes-beforeNodes>stageLimit(depth===1?'coverage1':'coverage3',depth===1?100:160))throw schedulingError('planning_optimization_stage_budget_exceeded');if(++localNodes>(depth===1?40:80))throw schedulingError('planning_optimization_local_budget_exceeded');};
+          let trial;try{trial=await augmentingSearch({rows:new Map(rows),targetId:missing.courseId,optionsFor,blockersFor,canMove,toRow:(id,option)=>optionRow(context.byActivity.get(id),option,[]),checkpoint:localCheckpoint,maxDepth:depth,branchLimit:depth===1?32:64});}catch(error){if(error.code==='planning_optimization_stage_budget_exceeded'){optimization.completed=false;optimization.stageBudgetStops=(optimization.stageBudgetStops||0)+1;break coverageLoop;}if(error.code!=='planning_optimization_local_budget_exceeded')throw error;optimization.localBudgetStops=(optimization.localBudgetStops||0)+1;optimization.completed=false;continue;}
+          if(trial&&await acceptTrial(targets.map(a=>trial.get(activityId(a))),'augmenting-chain'))gains++;
+        }optimization.stages.push({name:'coverage',depth,nodes:nodes-beforeNodes,gains,elapsedMs:performance.now()-stageStart});
+      }
+      // Coverage is now fixed. Improve lawful schedules by the same strict
+      // lexicographic objective; never buy continuity with lost teaching hours.
+      const stageStart=performance.now(),beforeNodes=nodes;let gains=0;
+      qualityLoop: for(const row of [...rows.values()].sort((a,b)=>a.courseId.localeCompare(b.courseId))){if(nodes-beforeNodes>=stageLimit('quality',200)||performance.now()>deadline-Math.min(5000,budget/4)){optimization.completed=false;optimization.qualityBudgetStop=true;break;}if(!canMove(row.courseId,row))continue;
+        const a=context.byActivity.get(row.courseId),state=stateFor(rows);state.remove(row.courseId);
+        const options=await candidates(a,state);const seen=new Set(),counts=new Map();let count=0;
+        for(const option of options.options){const key=JSON.stringify([option.instructorEmpId,option.meetings]);if(seen.has(key))continue;seen.add(key);const n=counts.get(option.instructorEmpId)||0;if(n>=3)continue;counts.set(option.instructorEmpId,n+1);if(++count>72)break;if(nodes-beforeNodes>=stageLimit('quality',200)){optimization.completed=false;optimization.qualityBudgetStop=true;break qualityLoop;}await searchCheckpoint();
+          const trial=orderedRows().map(r=>r.courseId===row.courseId?optionRow(a,option,options.options.slice(0,12)):r);
+          if(await acceptTrial(trial,'operational-quality')){gains++;break;}
+        }
+      }optimization.stages.push({name:'operational-quality',nodes:nodes-beforeNodes,gains,elapsedMs:performance.now()-stageStart});
+      // Better packing can open windows that did not exist during the coverage
+      // pass. Recheck uncovered activities after it, with refreshed adjacency.
+      const recoveryStart=performance.now();let recovered=0;
+      for(const missing of bestVerified.filter(r=>!covered(r))){await searchCheckpoint();const a=context.byActivity.get(missing.courseId),result=await candidates(a,stateFor(rows));if(!result.options.length)continue;
+        const trial=orderedRows().map(r=>r.courseId===missing.courseId?optionRow(a,result.options[0],result.options.slice(0,12)):r);if(await acceptTrial(trial,'opened-window-recovery'))recovered++;
+      }optimization.stages.push({name:'opened-window-recovery',gains:recovered,elapsedMs:performance.now()-recoveryStart});
+    } catch(error){if(input.signal?.aborted)throw schedulingError('planning_cancelled');if(error.code==='planning_cancelled')throw error;optimization.completed=false;optimization.basePreserved=true;optimization.failure=error.code||error.message;}
+    optimization.nodes=nodes;optimization.budgetMs=budget;optimization.nodeBudget=nodeBudget;
+    base=bestVerified;validation=validatePlan(validationInput(base));metrics.optimizationMs=performance.now()-at;
   }
   await report('אימות סופי — מנוע חדש', base.length, base.length, '', null, base);
   await checkpoint(); if (!validation.valid) throw schedulingError('planning_final_validation_failed', validation.failures);
@@ -281,5 +375,5 @@ export async function buildPlan(input = {}) {
   });
   return { rows: base, total: base.length, planned: base.filter(covered).length, engineVersion: ENGINE_VERSION, finalPlanValidation: validation,
     locked: base.filter(r=>r.planningLocked).length, missing:base.filter(r=>r.kind==='missing').length, recruitment:base.filter(r=>r.kind==='recruitment').length,
-    optimization, quality: planQuality(base, input), newEngineMetrics: { ...metrics, elapsedMs: performance.now() - started }, recruitmentProfiles: models };
+    optimization, quality: {...quality(base),recruitmentProfiles:models.length}, newEngineMetrics: { ...metrics, elapsedMs: performance.now() - started }, recruitmentProfiles: models };
 }

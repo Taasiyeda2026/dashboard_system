@@ -1,0 +1,10 @@
+✔ zero optimizer budget returns best validated base; cancellation never yields a plan (33.374386ms)
+✔ more than two blocked flexible meetings permits another permanent instructor under the existing policy (110.391395ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 179.908093

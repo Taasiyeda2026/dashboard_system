@@ -5,6 +5,7 @@ import {decisionInput} from './new-engine-input.mjs';
 import {createRouteClient} from '../../frontend/src/screens/course-scheduling-travel.js';
 const out=process.env.ACCEPTANCE_OUT;if(!out)throw Error('ACCEPTANCE_OUT required');await mkdir(out,{recursive:true});
 const {input,routes}=await decisionInput(process.env.DECISION_DIR);
+if(process.env.DECISION_SAVED_PLAN){const saved=JSON.parse(await readFile(process.env.DECISION_SAVED_PLAN,'utf8'));input.existingRows=saved.rows;input.committedRows=saved.rows;}
 const mod=await import(process.env.ENGINE_MODULE?pathToFileURL(process.env.ENGINE_MODULE):'../../frontend/src/screens/course-scheduling-planning.js');
 let routeMisses=0;input.routeClient=createRouteClient({preloadedRows:routes,invoke:async()=>{routeMisses++;return {data:{calculated:false},error:null}}});
 input.allowGlobalRepair=true;input.skipSoftOptimization=process.env.BASELINE_ONLY==='1';
