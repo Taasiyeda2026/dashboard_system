@@ -140,3 +140,5 @@ test('official date without school hours stays unresolved and never becomes recr
 });
 
 test('missing activity data is not certified as recruitment even when no instructor exists',async()=>{const data=input([activity('a',{school_id:null})]);data.instructors=[];const plan=await buildDynamicCoursePlan(data);assert.equal(plan.rows[0].kind,'missing');assert.equal(plan.rows[0].diagnostics.recruitmentCertified,false);});
+
+test('flexible Arab or Druze Saturday can use explicit positive date availability without weekly availability',async()=>{for(const sector of ['arab','druze']){const data=input([activity('a',{date_1:null,start_date:'2026-10-17',calendar_sector:sector})]);for(const r of Object.values(data.rules))r.find(day=>day.weekday===6).available=false;data.exceptions={'1':[{exception_date:'2026-10-17',available:true,start_time:'08:00',end_time:'16:00'}]};const plan=await buildDynamicCoursePlan(data);assert.equal(plan.rows[0].instructorEmpId,'1');assert.equal(plan.rows[0].meetings[0].date,'2026-10-17');assert.equal(plan.finalPlanValidation.valid,true);}});

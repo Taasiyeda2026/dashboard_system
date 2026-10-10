@@ -81,7 +81,7 @@ function* schedules(context, a, empId, spec, input, previous, occupancy) {
   const end = period.key === 'first' ? '2027-02-28' : year.end;
   if (previous?.meetings?.length && previous.meetings[0].date >= start) yield previous.meetings;
   for (let date = start; date <= (a.start_date ? text(a.start_date).slice(0, 10) : period.end); date = addDays(date, 1)) {
-    const day = weekday(date), dayRules = context.rules.get(empId)?.get(day) || [];
+    const day = weekday(date), dayRules = context.exceptions.get(empId)?.get(date) || context.rules.get(empId)?.get(day) || [];
     if (day === 5 && context.profiles[empId]?.friday_allowed !== true) continue;
     if (day === 6 && !['arab', 'druze'].includes(a.calendar_sector)) continue;
     for (const rule of dayRules.filter(r => r.available === true)) {
@@ -164,12 +164,12 @@ export async function buildPlan(input = {}) {
     if (a.start_time && a.end_time && minute(a.end_time)-minute(a.start_time) !== spec.durationMinutes && !officialMeetings(a).length) return {options:[],incomplete:false,missing:true,failures:['source_duration_conflict']};
     if (!spec.complete) return { options: [], incomplete: false, missing: true, failures: ['missing_course_spec'] };
     for (const [empId, instructor] of context.byInstructor) {
+      if ((input.optimizationOnlyCourseIds || []).includes(id) && previous.get(id)?.instructorEmpId !== empId) continue;
       await checkpoint();
       const nonRouteFailures=staticFailures(context,a,empId).filter(r=>r!=='home_route_unknown');
       if(nonRouteFailures.length){if(baseOnly)planningPerfCount('staticCandidatePruned');nonRouteFailures.forEach(r=>failures.add(r));continue;}
       if (!knownRoute(context, instructor.address, a.school_address)) await ensureRoute(context, instructor.address, a.school_address);
       const rejected = staticFailures(context, a, empId); if (rejected.length) { if(baseOnly)planningPerfCount('staticCandidatePruned'); rejected.forEach(r => failures.add(r)); continue; }
-      if ((input.optimizationOnlyCourseIds || []).includes(id) && previous.get(id)?.instructorEmpId !== empId) continue;
       let attempted = 0, accepted = 0;
       for (const meetings of schedules(context, a, empId, spec, input, previous.get(id), state)) {
         if (++attempted > limit) { incomplete = true; break; }

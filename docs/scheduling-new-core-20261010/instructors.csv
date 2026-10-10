@@ -8,7 +8,7 @@ empId,active,includedInEngine,profilePresent,activities,meetings,hours,declaredA
 18,True,True,True,10,90,132.16666666666669,1218,0.10851122058018611,Exact weekly windows plus date exceptions over year period; not reduced by sector-specific school holidays; no inferred availability
 16,False,False,True,0,0,0,1519,0,Exact weekly windows plus date exceptions over year period; not reduced by sector-specific school holidays; no inferred availability
 3,True,True,True,10,83,123.58333333333339,953,0.12967820916404343,Exact weekly windows plus date exceptions over year period; not reduced by sector-specific school holidays; no inferred availability
-10,True,True,True,12,150,227.33333333333331,1425.5,0.15947620717876768,Exact weekly windows plus date exceptions over year period; not reduced by sector-specific school holidays; no inferred availability
+10,True,True,True,11,136,206.33333333333331,1425.5,0.14474453408160878,Exact weekly windows plus date exceptions over year period; not reduced by sector-specific school holidays; no inferred availability
 13,False,False,False,0,0,0,0,,Exact weekly windows plus date exceptions over year period; not reduced by sector-specific school holidays; no inferred availability
 23,False,False,False,0,0,0,0,,Exact weekly windows plus date exceptions over year period; not reduced by sector-specific school holidays; no inferred availability
 9,False,False,False,0,0,0,0,,Exact weekly windows plus date exceptions over year period; not reduced by sector-specific school holidays; no inferred availability

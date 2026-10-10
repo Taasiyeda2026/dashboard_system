@@ -5,7 +5,7 @@
     {
       "case": "actual SQL commit and full load parity",
       "pass": true,
-      "saveMs": 2336.161332,
+      "saveMs": 2635.562829,
       "rows": 253
     },
     {

@@ -7,8 +7,8 @@
       "start": "2026-09-01",
       "end": "2027-06-30"
     },
-    "assignedActivities": 226,
-    "meetingHours": 3766.666666666667,
+    "assignedActivities": 225,
+    "meetingHours": 3745.666666666667,
     "violations": 73,
     "generatedViolations": 0,
     "protectedSourceViolations": 73,
@@ -18,8 +18,8 @@
       "protected-source:calendar_end_time": 1,
       "protected-source:transition": 35
     },
-    "travelObservations": 703,
-    "travelKm": 9250.775000000001
+    "travelObservations": 702,
+    "travelKm": 9248.292999999994
   },
   "activityReport": [
     {
@@ -840,11 +840,11 @@
     },
     {
       "courseId": "activity-000168",
-      "kind": "proposal",
-      "scheduled": true,
-      "instructorEmpId": "10",
-      "reason": "רציפות ויעילות ביום · 0 ק״מ, 0 דקות נסיעה · עומס חזוי 209.33 שעות במחצית",
-      "meetings": 14,
+      "kind": "missing",
+      "scheduled": false,
+      "instructorEmpId": null,
+      "reason": "החיפוש המוגבל הסתיים ללא הוכחה שאין מדריך מתאים",
+      "meetings": 0,
       "issues": []
     },
     {
@@ -2330,7 +2330,7 @@
       "kind": "proposal",
       "scheduled": true,
       "instructorEmpId": "10",
-      "reason": "רציפות ויעילות ביום · 0 ק״מ, 0 דקות נסיעה · עומס חזוי 224.33 שעות במחצית",
+      "reason": "רציפות ויעילות ביום · 0 ק״מ, 0 דקות נסיעה · עומס חזוי 116.33 שעות במחצית",
       "meetings": 10,
       "issues": []
     },
@@ -3113,11 +3113,11 @@
       "active": true,
       "includedInEngine": true,
       "profilePresent": true,
-      "activities": 12,
-      "meetings": 150,
-      "hours": 227.33333333333331,
+      "activities": 11,
+      "meetings": 136,
+      "hours": 206.33333333333331,
       "declaredAvailableHours": 1425.5,
-      "utilizationRatio": 0.15947620717876768,
+      "utilizationRatio": 0.14474453408160878,
       "denominator": "Exact weekly windows plus date exceptions over year period; not reduced by sector-specific school holidays; no inferred availability"
     },
     {
@@ -4058,13 +4058,6 @@
       "type": "home",
       "distanceKm": 13.672,
       "durationMinutes": 19
-    },
-    {
-      "courseId": "activity-000168",
-      "empId": "10",
-      "type": "home",
-      "distanceKm": 34.852,
-      "durationMinutes": 38
     },
     {
       "courseId": "activity-000198",
@@ -8167,81 +8160,81 @@
     {
       "courseId": "activity-000582",
       "empId": "10",
-      "date": "2026-10-18",
+      "date": "2026-10-12",
       "type": "transition",
-      "distanceKm": 16.35,
+      "distanceKm": 19.587,
       "durationMinutes": 21
     },
     {
       "courseId": "activity-000582",
       "empId": "10",
-      "date": "2026-10-25",
+      "date": "2026-10-19",
       "type": "transition",
-      "distanceKm": 16.35,
+      "distanceKm": 19.587,
       "durationMinutes": 21
     },
     {
       "courseId": "activity-000582",
       "empId": "10",
-      "date": "2026-11-01",
+      "date": "2026-10-26",
       "type": "transition",
-      "distanceKm": 16.35,
+      "distanceKm": 19.587,
       "durationMinutes": 21
     },
     {
       "courseId": "activity-000582",
       "empId": "10",
-      "date": "2026-11-08",
+      "date": "2026-11-02",
       "type": "transition",
-      "distanceKm": 16.35,
+      "distanceKm": 19.587,
       "durationMinutes": 21
     },
     {
       "courseId": "activity-000582",
       "empId": "10",
-      "date": "2026-11-15",
+      "date": "2026-11-09",
       "type": "transition",
-      "distanceKm": 16.35,
+      "distanceKm": 19.587,
       "durationMinutes": 21
     },
     {
       "courseId": "activity-000582",
       "empId": "10",
-      "date": "2026-11-22",
+      "date": "2026-11-16",
       "type": "transition",
-      "distanceKm": 16.35,
+      "distanceKm": 19.587,
       "durationMinutes": 21
     },
     {
       "courseId": "activity-000582",
       "empId": "10",
-      "date": "2026-11-29",
+      "date": "2026-11-23",
       "type": "transition",
-      "distanceKm": 16.35,
+      "distanceKm": 19.587,
       "durationMinutes": 21
     },
     {
       "courseId": "activity-000582",
       "empId": "10",
-      "date": "2026-12-13",
+      "date": "2026-11-30",
       "type": "transition",
-      "distanceKm": 16.35,
+      "distanceKm": 19.587,
       "durationMinutes": 21
     },
     {
       "courseId": "activity-000582",
       "empId": "10",
-      "date": "2026-12-20",
+      "date": "2026-12-14",
       "type": "transition",
-      "distanceKm": 16.35,
+      "distanceKm": 19.587,
       "durationMinutes": 21
     },
     {
       "courseId": "activity-000582",
       "empId": "10",
-      "date": "2026-12-27",
+      "date": "2026-12-21",
       "type": "transition",
-      "distanceKm": 16.35,
+      "distanceKm": 19.587,
       "durationMinutes": 21
     },
     {
