@@ -822,6 +822,7 @@ export function planningStoreErrorMessage(error, fallback = 'שמירת התכנ
   const code = text(error?.code);
   const message = text(error?.message || error);
   const raw = code ? `${code}|${message}` : message;
+  if (code === 'planning_worker_data_clone_failed') return message;
   if (raw.includes('planning_worker_national_required')) return 'נדרש חישוב מלא מפורש. לא הופעל חישוב ארצי בעקבות עדכון נקודתי.';
   if (raw.includes('planning_worker_')) return 'החישוב הנקודתי נעצר. התכנון השמור נשמר; ניתן לנסות שוב.';
   if (raw.includes('planning_final_validation_failed')) {

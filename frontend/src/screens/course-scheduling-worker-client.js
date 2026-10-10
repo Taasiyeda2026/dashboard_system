@@ -1,4 +1,4 @@
-import { POINT_SNAPSHOT_FIELDS, planningWorkerError, applyPlanningRowPatches } from './course-scheduling-worker-protocol.js';
+import { POINT_SNAPSHOT_FIELDS, planningWorkerError, applyPlanningRowPatches, planningRouteReply, planningCloneError } from './course-scheduling-worker-protocol.js';
 
 const yieldUi = () => new Promise(resolve => setTimeout(resolve, 0));
 export class SchedulingPointWorker {
@@ -9,7 +9,7 @@ export class SchedulingPointWorker {
   }
   dispose(code = 'planning_worker_failed') {
     this.worker?.terminate(); this.worker = null; this.signatures.clear(); this.snapshotRoots.clear(); this.snapshotVersion = ''; this.readonlyHashes = new WeakMap(); this.readonlyNodes = new WeakSet(); this.owner = '';
-    for (const task of this.pending.values()) { clearTimeout(task.timeout); task.reject(planningWorkerError(code)); }
+    for (const task of this.pending.values()) { clearTimeout(task.timeout); task.reject(code instanceof Error ? code : planningWorkerError(code)); }
     this.pending.clear();
   }
   ensureWorker(owner) {
@@ -22,7 +22,8 @@ export class SchedulingPointWorker {
     this.worker.onmessage = ({data}) => this.receive(data);
   }
   post(message) {
-    const start = performance.now(); this.worker.postMessage(message);
+    const start = performance.now();
+    try { this.worker.postMessage(message); } catch (error) { throw planningCloneError(error, message); }
     this.metrics.maxPostMs = Math.max(this.metrics.maxPostMs, performance.now()-start); this.metrics.messages++;
   }
   request(type, body = {}, hooks = {}) {
@@ -30,7 +31,7 @@ export class SchedulingPointWorker {
     return new Promise((resolve,reject) => {
       const timeout = setTimeout(()=>this.dispose('planning_worker_timeout'), ['run','run-national'].includes(type)?10*60*1000:15000);
       this.pending.set(id,{resolve,reject,timeout,...hooks});
-      try { this.post({id,type,...body}); } catch { this.dispose('planning_worker_protocol_error'); }
+      try { this.post({id,type,...body}); } catch (error) { this.dispose(error); }
     });
   }
   async receive(data) {
@@ -40,8 +41,10 @@ export class SchedulingPointWorker {
       if (data.type === 'route') {
         try {
           const value = await task.routeInvoke(data.body); task.assertActive?.();
-          if (this.pending.has(data.id)) this.post({type:'route-result',runId:data.id,routeId:data.routeId,value});
-        } catch (error) { if (this.pending.has(data.id)) this.post({type:'route-result',runId:data.id,routeId:data.routeId,error:error.code||'route_lookup_failed'}); }
+          if (this.pending.has(data.id)) this.post({type:'route-result',runId:data.id,routeId:data.routeId,value:planningRouteReply(value)});
+        } catch (error) {
+          if (error.code === 'planning_worker_data_clone_failed') { this.dispose(error); return; }
+          if (this.pending.has(data.id)) this.post({type:'route-result',runId:data.id,routeId:data.routeId,error:typeof error.code === 'string' ? error.code : 'route_lookup_failed', message:error.message}); }
         return;
       }
       if (data.type === 'heartbeat') { await task.checkpoint?.(); return; }
@@ -51,7 +54,7 @@ export class SchedulingPointWorker {
       if (task.cancelled) task.reject(planningWorkerError('planning_cancelled'));
       else if (data.error) task.reject(planningWorkerError(data.error,{failures:data.failures}));
       else task.resolve(data);
-    } catch (error) { this.dispose(error.code || 'planning_cancelled'); }
+    } catch (error) { this.dispose(error); }
   }
   async freezeReadonlyData(item, signal, assertActive) {
     const stack = [item], nodes = [], seen = new WeakSet(); let deadline = performance.now()+6;
@@ -143,7 +146,7 @@ export class SchedulingPointWorker {
       signal?.addEventListener('abort',abort,{once:true});
       try {
         await this.sync({...input,routeRows},version,signal,assertActive);
-        const options={};for(const [key,value] of Object.entries(input))if(!POINT_SNAPSHOT_FIELDS.includes(key)&&!['routeClient','signal','checkpoint','onProgress'].includes(key)&&typeof value!=='function')options[key]=value;
+        const options={};for(const [key,value] of Object.entries(input))if(!POINT_SNAPSHOT_FIELDS.includes(key)&&!['routeClient','constraintContext','signal','checkpoint','onProgress'].includes(key)&&typeof value!=='function')options[key]=value;
         options.allowGlobalRepair = national ? input.allowGlobalRepair !== false : false; options._nationalRun = national; this.metrics.runs++;
         const response = await this.request(national ? 'run-national' : 'run',{version,options,perf},{run:true,routeInvoke,assertActive,checkpoint,onProgress});
         if (signal?.aborted) throw planningWorkerError('planning_cancelled'); assertActive?.();

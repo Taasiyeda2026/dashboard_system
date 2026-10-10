@@ -15,7 +15,7 @@ self.onmessage = async ({ data: message }) => {
     const waiter = routeWaiters.get(message.routeId);
     if (!waiter || waiter.runId !== message.runId) return;
     routeWaiters.delete(message.routeId);
-    if (message.error) waiter.reject(planningWorkerError(message.error));
+    if (message.error) waiter.reject(planningWorkerError(message.error, { message: message.message || message.error }));
     else waiter.resolve(message.value);
     return;
   }

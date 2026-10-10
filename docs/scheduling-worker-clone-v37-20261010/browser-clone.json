@@ -1,0 +1,861 @@
+{
+  "before": {
+    "error": 25,
+    "message": "25"
+  },
+  "after": {
+    "id": 1,
+    "ok": true
+  },
+  "nestedError": {
+    "code": "planning_worker_data_clone_failed",
+    "path": "snapshot-patch.entries.0.1.deep.callback",
+    "message": "לא ניתן להעביר נתונים למנוע החישוב: שדה שאינו ניתן להעתקה (snapshot-patch.entries.0.1.deep.callback). התכנון השמור לא השתנה."
+  },
+  "elapsedMs": 20527.39999999851,
+  "routeCalls": 220,
+  "progress": 147,
+  "sourceUnchanged": true,
+  "rows": 253,
+  "assigned": 225,
+  "finalValidation": {
+    "valid": true,
+    "failures": [],
+    "warnings": [
+      {
+        "reason": "home_distance_exceeded",
+        "empId": "4",
+        "courseId": "activity-000496",
+        "protectedSource": true
+      },
+      {
+        "reason": "home_distance_exceeded",
+        "empId": "48",
+        "courseId": "activity-000615",
+        "protectedSource": true
+      },
+      {
+        "reason": "home_distance_exceeded",
+        "empId": "41",
+        "courseId": "activity-000153",
+        "protectedSource": true
+      },
+      {
+        "reason": "home_distance_exceeded",
+        "empId": "10",
+        "courseId": "activity-000062",
+        "protectedSource": true
+      },
+      {
+        "reason": "home_distance_exceeded",
+        "empId": "10",
+        "courseId": "activity-000151",
+        "protectedSource": true
+      },
+      {
+        "reason": "home_distance_exceeded",
+        "empId": "4",
+        "courseId": "activity-000596",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "4",
+        "date": "2026-10-06",
+        "otherCourseId": "activity-000554",
+        "courseId": "activity-000596",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "4",
+        "date": "2026-10-13",
+        "otherCourseId": "activity-000554",
+        "courseId": "activity-000596",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "4",
+        "date": "2026-10-20",
+        "otherCourseId": "activity-000554",
+        "courseId": "activity-000596",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "4",
+        "date": "2026-11-03",
+        "otherCourseId": "activity-000554",
+        "courseId": "activity-000596",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "4",
+        "date": "2026-11-10",
+        "otherCourseId": "activity-000554",
+        "courseId": "activity-000596",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "4",
+        "date": "2026-11-17",
+        "otherCourseId": "activity-000554",
+        "courseId": "activity-000596",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "4",
+        "date": "2026-11-24",
+        "otherCourseId": "activity-000554",
+        "courseId": "activity-000596",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "4",
+        "date": "2026-12-01",
+        "otherCourseId": "activity-000554",
+        "courseId": "activity-000596",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "4",
+        "date": "2026-12-08",
+        "otherCourseId": "activity-000554",
+        "courseId": "activity-000596",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "4",
+        "date": "2026-12-15",
+        "otherCourseId": "activity-000554",
+        "courseId": "activity-000596",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "45",
+        "date": "2026-10-15",
+        "otherCourseId": "activity-000545",
+        "courseId": "activity-000105",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "45",
+        "date": "2026-10-22",
+        "otherCourseId": "activity-000545",
+        "courseId": "activity-000105",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "45",
+        "date": "2026-10-29",
+        "otherCourseId": "activity-000545",
+        "courseId": "activity-000105",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "45",
+        "date": "2026-11-05",
+        "otherCourseId": "activity-000545",
+        "courseId": "activity-000105",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "45",
+        "date": "2026-11-12",
+        "otherCourseId": "activity-000545",
+        "courseId": "activity-000105",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "45",
+        "date": "2026-11-19",
+        "otherCourseId": "activity-000545",
+        "courseId": "activity-000105",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "45",
+        "date": "2026-11-26",
+        "otherCourseId": "activity-000545",
+        "courseId": "activity-000105",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "45",
+        "date": "2026-12-03",
+        "otherCourseId": "activity-000545",
+        "courseId": "activity-000105",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "45",
+        "date": "2026-12-17",
+        "otherCourseId": "activity-000545",
+        "courseId": "activity-000105",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "45",
+        "date": "2027-01-14",
+        "otherCourseId": "activity-000545",
+        "courseId": "activity-000105",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-10-28",
+        "otherCourseId": "activity-000617",
+        "courseId": "activity-000602",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-11-04",
+        "otherCourseId": "activity-000617",
+        "courseId": "activity-000602",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-11-11",
+        "otherCourseId": "activity-000617",
+        "courseId": "activity-000602",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-11-18",
+        "otherCourseId": "activity-000617",
+        "courseId": "activity-000602",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-11-25",
+        "otherCourseId": "activity-000617",
+        "courseId": "activity-000602",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-12-02",
+        "otherCourseId": "activity-000617",
+        "courseId": "activity-000602",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-12-16",
+        "otherCourseId": "activity-000617",
+        "courseId": "activity-000602",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "45",
+        "date": "2026-10-15",
+        "otherCourseId": "activity-000105",
+        "courseId": "activity-000545",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "45",
+        "date": "2026-10-22",
+        "otherCourseId": "activity-000105",
+        "courseId": "activity-000545",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "45",
+        "date": "2026-10-29",
+        "otherCourseId": "activity-000105",
+        "courseId": "activity-000545",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "45",
+        "date": "2026-11-05",
+        "otherCourseId": "activity-000105",
+        "courseId": "activity-000545",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "45",
+        "date": "2026-11-12",
+        "otherCourseId": "activity-000105",
+        "courseId": "activity-000545",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "45",
+        "date": "2026-11-19",
+        "otherCourseId": "activity-000105",
+        "courseId": "activity-000545",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "45",
+        "date": "2026-11-26",
+        "otherCourseId": "activity-000105",
+        "courseId": "activity-000545",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "45",
+        "date": "2026-12-03",
+        "otherCourseId": "activity-000105",
+        "courseId": "activity-000545",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "45",
+        "date": "2026-12-17",
+        "otherCourseId": "activity-000105",
+        "courseId": "activity-000545",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "45",
+        "date": "2027-01-14",
+        "otherCourseId": "activity-000105",
+        "courseId": "activity-000545",
+        "protectedSource": true
+      },
+      {
+        "reason": "home_distance_exceeded",
+        "empId": "35",
+        "courseId": "activity-000606",
+        "protectedSource": true
+      },
+      {
+        "reason": "home_distance_exceeded",
+        "empId": "4",
+        "courseId": "activity-000497",
+        "protectedSource": true
+      },
+      {
+        "reason": "availability_exception",
+        "empId": "8",
+        "date": "2027-01-25",
+        "courseId": "activity-000600",
+        "protectedSource": true
+      },
+      {
+        "reason": "availability_exception",
+        "empId": "8",
+        "date": "2027-02-01",
+        "courseId": "activity-000600",
+        "protectedSource": true
+      },
+      {
+        "reason": "home_distance_exceeded",
+        "empId": "4",
+        "courseId": "activity-000554",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "4",
+        "date": "2026-10-06",
+        "otherCourseId": "activity-000596",
+        "courseId": "activity-000554",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "4",
+        "date": "2026-10-13",
+        "otherCourseId": "activity-000596",
+        "courseId": "activity-000554",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "4",
+        "date": "2026-10-20",
+        "otherCourseId": "activity-000596",
+        "courseId": "activity-000554",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "4",
+        "date": "2026-11-03",
+        "otherCourseId": "activity-000596",
+        "courseId": "activity-000554",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "4",
+        "date": "2026-11-10",
+        "otherCourseId": "activity-000596",
+        "courseId": "activity-000554",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "4",
+        "date": "2026-11-17",
+        "otherCourseId": "activity-000596",
+        "courseId": "activity-000554",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "4",
+        "date": "2026-11-24",
+        "otherCourseId": "activity-000596",
+        "courseId": "activity-000554",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "4",
+        "date": "2026-12-01",
+        "otherCourseId": "activity-000596",
+        "courseId": "activity-000554",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "4",
+        "date": "2026-12-08",
+        "otherCourseId": "activity-000596",
+        "courseId": "activity-000554",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "4",
+        "date": "2026-12-15",
+        "otherCourseId": "activity-000596",
+        "courseId": "activity-000554",
+        "protectedSource": true
+      },
+      {
+        "reason": "home_distance_exceeded",
+        "empId": "10",
+        "courseId": "activity-000106",
+        "protectedSource": true
+      },
+      {
+        "reason": "home_distance_exceeded",
+        "empId": "35",
+        "courseId": "activity-000611",
+        "protectedSource": true
+      },
+      {
+        "reason": "home_distance_exceeded",
+        "empId": "3",
+        "courseId": "activity-000611",
+        "protectedSource": true
+      },
+      {
+        "reason": "availability",
+        "empId": "3",
+        "date": "2026-10-08",
+        "courseId": "activity-000611",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-10-22",
+        "otherCourseId": "activity-000603",
+        "courseId": "activity-000611",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-10-29",
+        "otherCourseId": "activity-000603",
+        "courseId": "activity-000611",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-11-05",
+        "otherCourseId": "activity-000603",
+        "courseId": "activity-000611",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-11-12",
+        "otherCourseId": "activity-000603",
+        "courseId": "activity-000611",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-11-19",
+        "otherCourseId": "activity-000603",
+        "courseId": "activity-000611",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-11-26",
+        "otherCourseId": "activity-000603",
+        "courseId": "activity-000611",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-12-03",
+        "otherCourseId": "activity-000603",
+        "courseId": "activity-000611",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-12-17",
+        "otherCourseId": "activity-000603",
+        "courseId": "activity-000611",
+        "protectedSource": true
+      },
+      {
+        "reason": "availability",
+        "empId": "3",
+        "date": "2026-11-05",
+        "courseId": "activity-000529",
+        "protectedSource": true
+      },
+      {
+        "reason": "availability",
+        "empId": "3",
+        "date": "2026-11-12",
+        "courseId": "activity-000529",
+        "protectedSource": true
+      },
+      {
+        "reason": "availability",
+        "empId": "3",
+        "date": "2026-11-19",
+        "courseId": "activity-000529",
+        "protectedSource": true
+      },
+      {
+        "reason": "availability",
+        "empId": "3",
+        "date": "2026-11-26",
+        "courseId": "activity-000529",
+        "protectedSource": true
+      },
+      {
+        "reason": "availability",
+        "empId": "3",
+        "date": "2026-12-03",
+        "courseId": "activity-000529",
+        "protectedSource": true
+      },
+      {
+        "reason": "availability",
+        "empId": "3",
+        "date": "2026-12-17",
+        "courseId": "activity-000529",
+        "protectedSource": true
+      },
+      {
+        "reason": "availability",
+        "empId": "3",
+        "date": "2026-12-24",
+        "courseId": "activity-000529",
+        "protectedSource": true
+      },
+      {
+        "reason": "availability",
+        "empId": "3",
+        "date": "2026-12-31",
+        "courseId": "activity-000529",
+        "protectedSource": true
+      },
+      {
+        "reason": "availability",
+        "empId": "3",
+        "date": "2027-01-07",
+        "courseId": "activity-000529",
+        "protectedSource": true
+      },
+      {
+        "reason": "availability",
+        "empId": "3",
+        "date": "2027-01-14",
+        "courseId": "activity-000529",
+        "protectedSource": true
+      },
+      {
+        "reason": "availability_exception",
+        "empId": "8",
+        "date": "2027-01-25",
+        "courseId": "activity-000138",
+        "protectedSource": true
+      },
+      {
+        "reason": "availability_exception",
+        "empId": "8",
+        "date": "2027-02-01",
+        "courseId": "activity-000138",
+        "protectedSource": true
+      },
+      {
+        "reason": "availability_exception",
+        "empId": "8",
+        "date": "2027-02-10",
+        "courseId": "activity-000273",
+        "protectedSource": true
+      },
+      {
+        "reason": "availability_exception",
+        "empId": "8",
+        "date": "2027-02-10",
+        "courseId": "activity-000040",
+        "protectedSource": true
+      },
+      {
+        "reason": "availability_exception",
+        "empId": "43",
+        "date": "2026-10-14",
+        "courseId": "activity-000085",
+        "protectedSource": true
+      },
+      {
+        "reason": "availability_exception",
+        "empId": "43",
+        "date": "2026-10-14",
+        "courseId": "activity-000188",
+        "protectedSource": true
+      },
+      {
+        "reason": "home_distance_exceeded",
+        "empId": "35",
+        "courseId": "activity-000141",
+        "protectedSource": true
+      },
+      {
+        "reason": "home_distance_exceeded",
+        "empId": "3",
+        "courseId": "activity-000141",
+        "protectedSource": true
+      },
+      {
+        "reason": "home_distance_exceeded",
+        "empId": "35",
+        "courseId": "activity-000603",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-10-22",
+        "otherCourseId": "activity-000611",
+        "courseId": "activity-000603",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-10-29",
+        "otherCourseId": "activity-000611",
+        "courseId": "activity-000603",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-11-05",
+        "otherCourseId": "activity-000611",
+        "courseId": "activity-000603",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-11-12",
+        "otherCourseId": "activity-000611",
+        "courseId": "activity-000603",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-11-19",
+        "otherCourseId": "activity-000611",
+        "courseId": "activity-000603",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-11-26",
+        "otherCourseId": "activity-000611",
+        "courseId": "activity-000603",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-12-03",
+        "otherCourseId": "activity-000611",
+        "courseId": "activity-000603",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-12-17",
+        "otherCourseId": "activity-000611",
+        "courseId": "activity-000603",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-10-28",
+        "otherCourseId": "activity-000602",
+        "courseId": "activity-000617",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-11-04",
+        "otherCourseId": "activity-000602",
+        "courseId": "activity-000617",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-11-11",
+        "otherCourseId": "activity-000602",
+        "courseId": "activity-000617",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-11-18",
+        "otherCourseId": "activity-000602",
+        "courseId": "activity-000617",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-11-25",
+        "otherCourseId": "activity-000602",
+        "courseId": "activity-000617",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-12-02",
+        "otherCourseId": "activity-000602",
+        "courseId": "activity-000617",
+        "protectedSource": true
+      },
+      {
+        "reason": "transition_distance_exceeded",
+        "empId": "35",
+        "date": "2026-12-16",
+        "otherCourseId": "activity-000602",
+        "courseId": "activity-000617",
+        "protectedSource": true
+      },
+      {
+        "reason": "home_distance_exceeded",
+        "empId": "35",
+        "courseId": "activity-000618",
+        "protectedSource": true
+      },
+      {
+        "reason": "home_distance_exceeded",
+        "empId": "41",
+        "courseId": "activity-000270",
+        "protectedSource": true
+      },
+      {
+        "reason": "home_distance_exceeded",
+        "empId": "41",
+        "courseId": "activity-000271",
+        "protectedSource": true
+      },
+      {
+        "reason": "availability_exception",
+        "empId": "8",
+        "date": "2027-01-25",
+        "courseId": "activity-000018",
+        "protectedSource": true
+      },
+      {
+        "reason": "availability_exception",
+        "empId": "8",
+        "date": "2027-02-01",
+        "courseId": "activity-000018",
+        "protectedSource": true
+      },
+      {
+        "reason": "calendar_end_time",
+        "empId": "25",
+        "date": "2027-03-22",
+        "courseId": "activity-000576",
+        "protectedSource": true
+      }
+    ],
+    "validatorVersion": "planning-v37-20261010-constraint-block-planner",
+    "protectedSourceWarnings": 110
+  },
+  "engineMetrics": {
+    "candidateChecks": 30568,
+    "generatedSchedules": 30568,
+    "activitiesComputed": 144,
+    "protectedRows": 112,
+    "contextMs": 22.700000002980232,
+    "validationMs": 130.5,
+    "optimizationMs": 5119.5,
+    "elapsedMs": 19874.10000000149
+  }
+}
