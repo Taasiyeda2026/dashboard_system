@@ -1,0 +1,57 @@
+{
+  "solver": {
+    "status": "FEASIBLE",
+    "statusCode": 2,
+    "provenOptimal": false,
+    "lexicographicStages": [
+      {
+        "phase": "max_assigned",
+        "status": "OPTIMAL",
+        "value": 125
+      },
+      {
+        "phase": "max_teaching_minutes",
+        "status": "OPTIMAL",
+        "value": 125000
+      },
+      {
+        "phase": "min_home_travel",
+        "status": "FEASIBLE",
+        "value": 210201
+      }
+    ],
+    "wallSeconds": 265.19370639499994,
+    "userTime": 80.024834447,
+    "wallTime": 80.024834387,
+    "objectiveValue": {
+      "assignedOpen": 125,
+      "teachingMinutes": 125000,
+      "homeTravelScore": 210201
+    },
+    "bestObjectiveBound": 187507.0,
+    "seed": 1,
+    "timeLimitSeconds": 240.0,
+    "numSearchWorkers": 8,
+    "numCandidates": 19416,
+    "numConflictPairs": 5120060,
+    "ortoolsVersion": "unknown"
+  },
+  "metrics": {
+    "rows": 253,
+    "assigned": 234,
+    "protectedLive": 109,
+    "openCourses": 144,
+    "openAssigned": 125,
+    "meetingHours": 4005.1666666666665,
+    "unassignedOpen": 19
+  },
+  "internalValidation": {
+    "protectedChanged": 0,
+    "protectedChangedIds": [],
+    "pairwiseOverlaps": 0,
+    "overlapSamples": [],
+    "duplicateOpenAssignments": [],
+    "valid": true
+  },
+  "inputFingerprint": "647e41f7a61da72f02fa053c1af918f4b51777e4e6a811e6a088b916e3b15d79"
+}

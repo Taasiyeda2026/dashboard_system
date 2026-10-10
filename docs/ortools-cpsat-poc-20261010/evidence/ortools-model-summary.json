@@ -1,0 +1,12 @@
+{
+  "exportElapsedMs": 768003.851819,
+  "targets": 253,
+  "protected": 109,
+  "openCourses": 144,
+  "candidates": 19416,
+  "conflictPairs": 5120060,
+  "coursesWithZeroOptions": 18,
+  "blockers": 3,
+  "routeMisses": 0,
+  "inputFingerprint": "647e41f7a61da72f02fa053c1af918f4b51777e4e6a811e6a088b916e3b15d79"
+}

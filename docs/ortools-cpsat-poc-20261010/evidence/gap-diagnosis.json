@@ -1,0 +1,44 @@
+{
+  "generatedViolations": 0,
+  "protectedSourceViolations": 73,
+  "protectedChangedVsJsLive": 0,
+  "assigned": 234,
+  "meetingHours": 4005.1666666666665,
+  "solver": {
+    "status": "FEASIBLE",
+    "statusCode": 2,
+    "provenOptimal": false,
+    "lexicographicStages": [
+      {
+        "phase": "max_assigned",
+        "status": "OPTIMAL",
+        "value": 125
+      },
+      {
+        "phase": "max_teaching_minutes",
+        "status": "OPTIMAL",
+        "value": 125000
+      },
+      {
+        "phase": "min_home_travel",
+        "status": "FEASIBLE",
+        "value": 210201
+      }
+    ],
+    "wallSeconds": 265.19370639499994,
+    "userTime": 80.024834447,
+    "wallTime": 80.024834387,
+    "objectiveValue": {
+      "assignedOpen": 125,
+      "teachingMinutes": 125000,
+      "homeTravelScore": 210201
+    },
+    "bestObjectiveBound": 187507.0,
+    "seed": 1,
+    "timeLimitSeconds": 240.0,
+    "numSearchWorkers": 8,
+    "numCandidates": 19416,
+    "numConflictPairs": 5120060,
+    "ortoolsVersion": "unknown"
+  }
+}
