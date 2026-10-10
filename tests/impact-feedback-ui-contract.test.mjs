@@ -308,7 +308,7 @@ test('public survey thanks screen never offers another form or resets completion
   assert.match(publicPage, /if \(isStudent && local\?\.getItem\(doneKey\)\)/);
   assert.match(publicPage, /local\?\.setItem\(doneKey, new Date\(\)\.toISOString\(\)\)/);
   assert.doesNotMatch(publicPage, /data-another|allowAnother|onAnother|removeItem\(doneKey\)/);
-  assert.match(publicPage, /showThanks\(root\)/);
+  assert.match(publicPage, /showThanks\(root, language\)/);
 });
 
 test('QR share dialog fits without scroll and does not expose the long token on screen', () => {
