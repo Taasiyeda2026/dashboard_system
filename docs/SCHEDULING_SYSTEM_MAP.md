@@ -9,7 +9,7 @@ Related docs (do not treat as overrides of this map):
 
 If this map and the code disagree, **the code wins**. Update this file after any material scheduling change.
 
-**Engine version observed while writing:** `PLANNING_ENGINE_VERSION = planning-v28-20261004-anchor-safe-global-reassignment-self-invalidation` in `frontend/src/screens/course-scheduling-planning.js`.
+**Engine version observed while writing:** `ENGINE_VERSION = planning-v37-20261010-constraint-block-planner` in `frontend/src/screens/scheduling-core/constraints.js` (exported as `PLANNING_ENGINE_VERSION` from `course-scheduling-planning.js`). Live national path is `buildPlan` in `scheduling-core/planner.js` (regional scarcity staging under the same v37 save token).
 
 ---
 
@@ -184,7 +184,18 @@ Distance maintenance UI lives under the **maintenance** tab (`course-scheduling-
 
 ## 8. How planning scenarios / candidates are created
 
-### National planner — `buildDynamicCoursePlan`
+### National planner — `buildPlan` (`scheduling-core/planner.js`, current)
+
+`buildDynamicCoursePlan` delegates to the v37 constraint-block planner. Material national behavior:
+
+1. Compile constraints; keep protected/`live` and planning-locked anchors; build one **nationwide** occupancy.
+2. Build operational blocks, then stage them **צפון → דרום → מרכז/גבולות** (`orderedRegionalBlocks`). Mixed-district blocks defer to the shared stage.
+3. Per stage only: generate route-aware baseline candidate pools, then sort that stage by urgency then instructor scarcity before accepting blocks. Do not precompute every national pool up front.
+4. New proposals consider **active** instructors only; inactive profiles remain in context for historic/protected validation. Verified home→school km is a proximity sort, not a hard regional partition.
+5. One global final `validatePlanWithRoutes` / `validatePlan`; optional bounded soft optimization and recruitment packing after the regional greedy base.
+6. Acceptance evidence: `docs/scheduling-regional-stages-20261010/ACCEPTANCE.md`.
+
+### Legacy narrative — older `buildDynamicCoursePlan` stages (may lag code)
 
 1. Build target courses for district/period (`planningWorkspaceCourses`).
 2. Context activities = approved assignments only for blocking calendar (existing drafts intentionally **not** treated as hard blockers so planner may replace them).

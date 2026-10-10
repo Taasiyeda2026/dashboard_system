@@ -10,7 +10,7 @@ import { resolveCourseSchedulingPeriod } from '../course-scheduling-periods.js';
 import { isSchedulingActivityActive, schedulingActivityTypeCategory, isFullDaySchedulingActivity } from '../shared/activity-scheduling-eligibility.js';
 import { normalizeOperationalDistrict } from '../shared/district-normalization.js';
 import { compileConstraints, createOccupancy, candidateFailures, staticFailures, meetingFailures, knownRoute,
-  ensureRoute, ensureCandidateRoutes, validatePlanWithRoutes, officialMeetings, isProtectedActivity, validatePlan, ENGINE_VERSION, text, activityId, minute, weekday, addDays } from './constraints.js';
+  ensureRoute, ensureCandidateRoutes, validatePlanWithRoutes, officialMeetings, isProtectedActivity, activeInstructor, validatePlan, ENGINE_VERSION, text, activityId, minute, weekday, addDays } from './constraints.js';
 
 const stamp = value => {const seconds=Math.round(value*60), result=`${String(Math.floor(seconds/3600)).padStart(2,'0')}:${String(Math.floor(seconds/60)%60).padStart(2,'0')}`;return seconds%60?result+':'+String(seconds%60).padStart(2,'0'):result;};
 const covered = row => !!row.instructorEmpId;
@@ -159,7 +159,20 @@ export async function buildPlan(input = {}) {
     if (officialMeetings(a).some(m => meetingFailures(context,a,'',m).some(reason => ['calendar_block','calendar_end_time','saturday_sector'].includes(reason)))) return { options: [], incomplete: false, missing: true, failures: ['source_date_conflict'] };
     if (a.start_time && a.end_time && minute(a.end_time)-minute(a.start_time) !== spec.durationMinutes && !officialMeetings(a).length) return {options:[],incomplete:false,missing:true,failures:['source_duration_conflict']};
     if (!spec.complete) return { options: [], incomplete: false, missing: true, failures: ['missing_course_spec'] };
-    for (const [empId, instructor] of context.byInstructor) {
+    // Only active instructors can receive new proposals. Keep inactive people
+    // in the context for historical/protected assignments and validation.
+    // Home-to-school verified road distance is a proximity ranking, not a hard
+    // geographic partition: unknown routes remain eligible for route lookup.
+    const nearbyInstructors = [...context.byInstructor]
+      .filter(([, instructor]) => activeInstructor(instructor))
+      .sort(([leftId, left], [rightId, right]) => {
+        const leftRoute = knownRoute(context, left.address, a.school_address);
+        const rightRoute = knownRoute(context, right.address, a.school_address);
+        const leftDistance = leftRoute ? Number(leftRoute.distance_km) : Infinity;
+        const rightDistance = rightRoute ? Number(rightRoute.distance_km) : Infinity;
+        return leftDistance - rightDistance || leftId.localeCompare(rightId);
+      });
+    for (const [empId, instructor] of nearbyInstructors) {
       if(incumbentExceptionInstructor.has(id)&&incumbentExceptionInstructor.get(id)!==empId)continue;
       if(incumbentExceptionIneligible.get(id)===empId)continue;
       if ((input.optimizationOnlyCourseIds || []).includes(id) && previous.get(id)?.instructorEmpId !== empId) continue;
@@ -220,12 +233,8 @@ export async function buildPlan(input = {}) {
     finalists.sort(baseOnly?(a,b)=>a.instructorEmpId.localeCompare(b.instructorEmpId):(a,b)=>a.opportunityCost-b.opportunityCost||compareCandidatesStable(a,b));
     return {...pool,options:finalists,failures:[...failures]};
   }
-  for (const a of queue) { const result = await candidates(a, occupancy, true); baselineOptions.set(activityId(a), result.options); baselineInfo.set(activityId(a), result); }
   const urgencyOrder = { within_7: 0, within_14: 1, later: 2, none: 3 };
   const urgency = new Map(queue.map(a => [activityId(a), courseUrgency({ ...a, meetings: officialMeetings(a) }, input.today)]));
-  queue.sort((a, b) => { const au = urgency.get(activityId(a)), bu = urgency.get(activityId(b)); return urgencyOrder[au.urgencyBand] - urgencyOrder[bu.urgencyBand]
-    || new Set(baselineOptions.get(activityId(a)).map(o => o.instructorEmpId)).size - new Set(baselineOptions.get(activityId(b)).map(o => o.instructorEmpId)).size
-    || text(au.nextUpcomingMeetingDate).localeCompare(text(bu.nextUpcomingMeetingDate)) || activityId(a).localeCompare(activityId(b)); });
   const blocks = buildOperationalBlocks(queue.map(a => ({ course: { ...a, meetings: officialMeetings(a) }, status: 'ממתין' })));
   let completed = 0;
   const accept = async (a, result, option) => {
@@ -249,7 +258,47 @@ export async function buildPlan(input = {}) {
     rows.set(id, row); occupancy.add(row); completed++; metrics.activitiesComputed++; planningPerfCount("activitiesComputed");
     await report('תכנון בלוקים — מנוע חדש', completed, queue.length, id, row);
   };
-  for (const block of blocks) {
+  // Order operational blocks by region, but retain one nationwide occupancy.
+  // Mixed-region blocks are deferred to the shared-border stage so they can
+  // never be independently committed or given the same instructor twice.
+  const regionalRank = (block) => {
+    const districts = new Set(block.results.map(({ course }) => normalizeOperationalDistrict(course.district || course.school_district || course.authority_district)));
+    if (districts.size !== 1) return 2;
+    const district = [...districts][0];
+    return district === 'צפון' ? 0 : district === 'דרום' ? 1 : 2;
+  };
+  // Defer expensive route-aware candidate search until the block's region
+  // is reached. Keep every instructor eligible and one shared occupancy.
+  const stagedBlocks = blocks.map((block, index) => ({ block, index, stage: regionalRank(block) }));
+  // Restore scarcity-first ordering INSIDE each region. Deferring all pools
+  // without ordering allowed flexible courses to consume scarce instructors.
+  // Prepare one regional batch at a time; never precompute the entire country.
+  async function* orderedRegionalBlocks() {
+    for (const stage of [0, 1, 2]) {
+      const stageBlocks = stagedBlocks.filter(entry => entry.stage === stage);
+      if (!stageBlocks.length) continue;
+      await report(['תכנון צפון — אילוצים ארציים', 'תכנון דרום — אילוצים ארציים', 'תכנון מרכז וגבולות — אילוצים ארציים'][stage], completed, queue.length);
+      for (const { block } of stageBlocks) for (const { course: activity } of block.results) {
+        const id = activityId(activity);
+        if (baselineOptions.has(id)) continue;
+        const result = await candidates(activity, occupancy, true);
+        baselineOptions.set(id, result.options);
+        baselineInfo.set(id, result);
+      }
+      const priority = ({ block }) => {
+        const activities = block.results.map(item => item.course);
+        const scarcity = Math.min(...activities.map(activity => new Set((baselineOptions.get(activityId(activity)) || []).map(option => option.instructorEmpId)).size));
+        const urgent = Math.min(...activities.map(activity => urgencyOrder[urgency.get(activityId(activity)).urgencyBand] ?? 3));
+        return { scarcity, urgent };
+      };
+      stageBlocks.sort((left, right) => {
+        const a = priority(left), b = priority(right);
+        return a.urgent - b.urgent || a.scarcity - b.scarcity || left.index - right.index;
+      });
+      for (const entry of stageBlocks) yield entry;
+    }
+  }
+  for await (const { block } of orderedRegionalBlocks()) {
     await checkpoint(); const activities = block.results.map(r => r.course);
     let acceptedBlock = false;
     if (activities.length > 1) {

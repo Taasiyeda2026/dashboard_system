@@ -1,0 +1,8 @@
+sample_row_keys ['activeWorkDays', 'activityType', 'authority', 'availabilityHours', 'continuityAverage', 'continuityMeetingCount', 'courseId', 'courseName', 'currentCourseCount', 'currentHalfHours', 'currentUtilizationRatio', 'dependencyInstructorIds', 'diagnostics', 'district', 'eligible', 'endDate', 'endTime', 'existingWorkDayMeetingCount', 'fullDayBlocking', 'halfOverflow', 'hasSameAuthorityDay', 'hasSameSchoolDay', 'idleGapMinutes', 'instructor', 'instructorEmpId', 'instructorName', 'kind', 'meetings', 'movedMeetingsCount', 'nearbyMeetingCount', 'newWorkDayMeetingCount', 'nonTravelWaitingMinutes', 'opensNewWorkDay', 'operationalMetrics', 'opportunityCost', 'options', 'originalEndDate', 'packingOptions', 'previousDraftInstructorEmpId', 'previousDraftInstructorName']
+sample_row {'activityId': None, 'activity_id': None, 'id': None, 'courseId': 'activity-000116', 'kind': 'proposal', 'instructorEmpId': '46', 'emp_id': None}
+protected {'main': 109, 'pr': 109, 'changed': 0, 'missing': 0, 'extra': 0}
+main-full pairwise_time_overlaps 0 assigned_meetings 2432
+pr-full pairwise_time_overlaps 0 assigned_meetings 2541
+final {'main_valid': True, 'pr_valid': True, 'main_failures': 0, 'pr_failures': 0}
+kinds_main Counter({'proposal': 114, 'live': 109, 'recruitment': 14, 'missing': 11, 'fixed-proposal': 5})
+kinds_pr Counter({'proposal': 119, 'live': 109, 'recruitment': 14, 'missing': 6, 'fixed-proposal': 5})

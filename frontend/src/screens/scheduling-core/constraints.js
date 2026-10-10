@@ -3,6 +3,10 @@ import { isFullDaySchedulingActivity } from '../shared/activity-scheduling-eligi
 import { normalizeCalendarSector } from '../shared/school-calendar-logic.js';
 import { schedulingWeekendFailure } from '../shared/scheduling-weekend-policy.js';
 
+// Keep the v37 trusted-save token stable. Regional scarcity staging is a
+// planner-search revision under the same hard-constraint validator contract;
+// changing this string without a coordinated SQL capability migration blocks
+// atomic save (planning_engine_version_conflict / capability handshake).
 export const ENGINE_VERSION = 'planning-v37-20261010-constraint-block-planner';
 export const text = value => String(value ?? '').trim();
 export const activityId = a => text(a?.row_id || a?.RowID || a?.id);
