@@ -171,19 +171,33 @@ test('student table filters groups without start dates without hiding staff grou
 test('feedback uses fresh activity data on entry and while active without a duplicate date store', () => {
   assert.match(screen, /load\(host, \{ force: true \}\)/);
   assert.match(screen, /async function ensureGroups\(force = false\)/);
-  assert.match(screen, /ui\.groups = await fetchGroups\(ui\.year\)/);
+  assert.match(screen, /ui\.groups = rows/);
   assert.match(screen, /ACTIVITY_SYNC_INTERVAL_MS = 60 \* 1000/);
   assert.match(screen, /const groups = await fetchGroups\(year\)/);
   assert.match(screen, /window\.addEventListener\('focus', check/);
   assert.match(screen, /document\.addEventListener\('visibilitychange'/);
   assert.match(screen, /window\.addEventListener\('israa-activities-changed'/);
-  assert.match(screen, /if \(JSON\.stringify\(groups\) !== JSON\.stringify\(ui\.groups\)\)/);
+  assert.match(screen, /groupsSyncFingerprint\(groups\) !== groupsSyncFingerprint\(ui\.groups\)/);
   assert.match(screen, /if \(!host\.isConnected\) \{/);
   assert.match(screen, /activitySyncController\?\.abort\(\)/);
   assert.match(screen, /installActivityDateSync\(host\)/);
   assert.match(screen, /\['students', 'staff', 'instructors'\]\.includes\(ui\.tab\)/);
   assert.match(screen, /const assignments = await fetchInstructorAssignments\(year\)/);
   assert.match(screen, /ui\.instructorAssignments = assignments/);
+});
+
+test('tab switches and group-back reuse cache; refresh and mutations force fresh reads', () => {
+  assert.match(screen, /async function switchTab\([\s\S]*?tabDataReady\(key\)[\s\S]*?load\(host, \{ force: false/);
+  assert.match(screen, /data-ifb-back[\s\S]*?load\(host, \{ force: false \}\)/);
+  assert.match(screen, /data-ifb-retry[\s\S]*?load\(host, \{ force: true \}\)/);
+  assert.match(screen, /load\(host, \{ force: true \}\);/);
+  assert.match(screen, /async function refreshAggregates\(\)/);
+  assert.match(screen, /await refreshAggregates\(\)/);
+  assert.match(screen, /const inflight = \{/);
+  assert.match(screen, /FILTER_SEARCH_DEBOUNCE_MS/);
+  assert.match(screen, /resetYearScopedState\(\)/);
+  assert.match(screen, /ui\.groupsYear = null/);
+  assert.match(screen, /ui\.summaryHalf = null/);
 });
 
 

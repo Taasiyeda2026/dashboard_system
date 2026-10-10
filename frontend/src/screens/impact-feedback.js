@@ -72,8 +72,18 @@ import '../impact-feedback/impact-feedback-admin.css';
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ACTIVITY_SYNC_INTERVAL_MS = 60 * 1000;
 const ACTIVITY_SYNC_MIN_GAP_MS = 12 * 1000;
+const FILTER_SEARCH_DEBOUNCE_MS = 160;
 let activitySyncController = null;
 let activitySyncTimer = null;
+let filterPaintTimer = null;
+/** In-flight fetches coalesced so parallel ensure* / load calls share one request per source. */
+const inflight = {
+  definitions: null,
+  groups: null,
+  assignments: null,
+  summary: null,
+  facts: null
+};
 /** Minimum valid answers before a question is ranked as a strength / improvement area. */
 const MIN_N_RANKING = 5;
 /** Minimum respondents per population before a gap between populations is described. */
@@ -248,38 +258,92 @@ function distributionHtml(dist = [0, 0, 0, 0, 0]) {
 
 async function ensureDefinitions() {
   if (ui.metrics.length && ui.programs.length) return;
-  const [metrics, programs] = await Promise.all([fetchMetrics(), fetchPrograms()]);
-  ui.metrics = metrics || [];
-  ui.programs = programs || [];
+  if (inflight.definitions) return inflight.definitions;
+  const task = (async () => {
+    try {
+      const [metrics, programs] = await Promise.all([fetchMetrics(), fetchPrograms()]);
+      ui.metrics = metrics || [];
+      ui.programs = programs || [];
+    } finally {
+      if (inflight.definitions === task) inflight.definitions = null;
+    }
+  })();
+  inflight.definitions = task;
+  return task;
 }
 
 async function ensureGroups(force = false) {
   if (!force && ui.groups && ui.groupsYear === ui.year) return;
-  ui.groups = await fetchGroups(ui.year);
-  ui.groupsYear = ui.year;
+  if (inflight.groups) return inflight.groups;
+  const year = ui.year;
+  const task = (async () => {
+    try {
+      const rows = await fetchGroups(year);
+      if (year !== ui.year) return;
+      ui.groups = rows;
+      ui.groupsYear = year;
+    } finally {
+      if (inflight.groups === task) inflight.groups = null;
+    }
+  })();
+  inflight.groups = task;
+  return task;
 }
 
 async function ensureInstructorAssignments(force = false) {
   if (!force && ui.instructorAssignments && ui.instructorAssignmentsYear === ui.year) return;
-  ui.instructorAssignments = await fetchInstructorAssignments(ui.year);
-  ui.instructorAssignmentsYear = ui.year;
+  if (inflight.assignments) return inflight.assignments;
+  const year = ui.year;
+  const task = (async () => {
+    try {
+      const rows = await fetchInstructorAssignments(year);
+      if (year !== ui.year) return;
+      ui.instructorAssignments = rows;
+      ui.instructorAssignmentsYear = year;
+    } finally {
+      if (inflight.assignments === task) inflight.assignments = null;
+    }
+  })();
+  inflight.assignments = task;
+  return task;
 }
 
 async function ensureSummary(force = false) {
   if (!force && ui.summary && ui.summaryYear === ui.year && ui.summaryHalf === ui.feedbackHalf) return;
+  if (inflight.summary) return inflight.summary;
   const year = ui.year;
   const half = ui.feedbackHalf;
-  const rows = await fetchCourseSummary(year, half);
-  if (year !== ui.year || half !== ui.feedbackHalf) return;
-  ui.summary = rows;
-  ui.summaryYear = year;
-  ui.summaryHalf = half;
+  const task = (async () => {
+    try {
+      const rows = await fetchCourseSummary(year, half);
+      if (year !== ui.year || half !== ui.feedbackHalf) return;
+      ui.summary = rows;
+      ui.summaryYear = year;
+      ui.summaryHalf = half;
+    } finally {
+      if (inflight.summary === task) inflight.summary = null;
+    }
+  })();
+  inflight.summary = task;
+  return task;
 }
 
 async function ensureFacts(force = false) {
   if (!force && ui.facts && ui.factsYear === ui.year) return;
-  ui.facts = await fetchAnswerFacts({ academic_year: ui.year });
-  ui.factsYear = ui.year;
+  if (inflight.facts) return inflight.facts;
+  const year = ui.year;
+  const task = (async () => {
+    try {
+      const rows = await fetchAnswerFacts({ academic_year: year });
+      if (year !== ui.year) return;
+      ui.facts = rows;
+      ui.factsYear = year;
+    } finally {
+      if (inflight.facts === task) inflight.facts = null;
+    }
+  })();
+  inflight.facts = task;
+  return task;
 }
 
 async function ensureGroupFacts(rowId, force = false) {
@@ -287,6 +351,44 @@ async function ensureGroupFacts(rowId, force = false) {
   const facts = await fetchAnswerFacts({ activity_row_id: rowId });
   ui.groupFacts.set(rowId, facts);
   return facts;
+}
+
+/** Lightweight fingerprint for activity-date sync (avoids full JSON.stringify of large tables). */
+function groupsSyncFingerprint(groups) {
+  return (groups || []).map((g) => [
+    g.row_id,
+    g.start_date || '',
+    g.end_date || '',
+    g.activity_status || '',
+    g.instructor_emp_id || '',
+    g.activity_manager || '',
+    Array.isArray(g.campaigns) ? g.campaigns.length : 0
+  ].join('|')).join('\n');
+}
+
+function assignmentsSyncFingerprint(rows) {
+  return (rows || []).map((r) => [
+    r.instructor_emp_id,
+    r.program_key,
+    r.first_start_date || '',
+    r.last_end_date || '',
+    r.last_end_a || '',
+    r.last_end_b || '',
+    r.assignment_count || 0,
+    r.pre_campaign?.id || '',
+    r.final_campaign?.id || '',
+    r.final_b_campaign?.id || ''
+  ].join('|')).join('\n');
+}
+
+function tabDataReady(tab = ui.tab) {
+  const needs = TAB_NEEDS[tab] || [];
+  return needs.every((need) => ({
+    summary: ui.summary,
+    facts: ui.facts,
+    groups: ui.groups,
+    assignments: ui.instructorAssignments
+  })[need]);
 }
 
 async function refreshGroup(rowId) {
@@ -303,13 +405,7 @@ function findGroup(rowId) {
 }
 
 function needsReady() {
-  const needs = TAB_NEEDS[ui.tab] || [];
-  return needs.every((need) => ({
-    summary: ui.summary,
-    facts: ui.facts,
-    groups: ui.groups,
-    assignments: ui.instructorAssignments
-  })[need]);
+  return tabDataReady(ui.tab);
 }
 
 /** The half-year view has one source of truth for facts on every tab. */
@@ -1586,17 +1682,30 @@ function paint(host, { focusTab = false } = {}) {
 
 async function load(host, { force = false, focusTab = false } = {}) {
   ui.error = '';
-  ui.loading = true;
-  paint(host, { focusTab });
+  const needs = ui.groupRowId ? ['groups'] : (TAB_NEEDS[ui.tab] || []);
+  const cacheWarm = !force
+    && ui.programs.length
+    && (ui.groupRowId ? Boolean(ui.groups) : tabDataReady(ui.tab));
+  if (!cacheWarm) {
+    ui.loading = true;
+    paint(host, { focusTab });
+  }
   try {
     await ensureDefinitions();
-    const needs = ui.groupRowId ? ['groups'] : (TAB_NEEDS[ui.tab] || []);
-    await Promise.all(needs.map((need) => ({
+    // Assignments before summary avoids a useless parallel race; summary no longer
+    // re-runs the heavy assignments RPC on the server (see migration).
+    const loaders = {
       summary: () => ensureSummary(force),
       facts: () => ensureFacts(force),
       groups: () => ensureGroups(force),
       assignments: () => ensureInstructorAssignments(force)
-    })[need]()));
+    };
+    if (needs.includes('assignments') && needs.includes('summary')) {
+      await loaders.assignments();
+      await Promise.all(needs.filter((n) => n !== 'assignments').map((need) => loaders[need]()));
+    } else {
+      await Promise.all(needs.map((need) => loaders[need]()));
+    }
     if (ui.groupRowId) {
       // Always show live counts for the opened group.
       await refreshGroup(ui.groupRowId);
@@ -1630,18 +1739,28 @@ function campaignById(id) {
 function invalidateAggregates() {
   ui.facts = null;
   ui.summary = null;
+  ui.factsYear = null;
+  ui.summaryYear = null;
+  ui.summaryHalf = null;
+  inflight.facts = null;
+  inflight.summary = null;
+}
+
+async function refreshAggregates() {
+  await Promise.all([ensureSummary(true), ensureFacts(true)]);
 }
 
 async function afterCampaignChange(host, rowId) {
   await refreshGroup(rowId);
   invalidateAggregates();
+  await refreshAggregates();
   paint(host);
 }
 
 async function afterInstructorCampaignChange(host) {
   await ensureInstructorAssignments(true);
   invalidateAggregates();
-  await ensureFacts(true);
+  await refreshAggregates();
   paint(host);
 }
 
@@ -1650,7 +1769,12 @@ async function switchTab(host, key, { focusTab = false } = {}) {
   ui.tab = key;
   ui.groupRowId = null;
   ui.templates.templateId = null;
-  await load(host, { force: true, focusTab });
+  // Reuse in-memory year-scoped data; forced reload is reserved for entry/refresh/mutations.
+  if (ui.programs.length && tabDataReady(key)) {
+    paint(host, { focusTab });
+    return;
+  }
+  await load(host, { force: false, focusTab });
 }
 
 function handleTabKeys(host, event) {
@@ -1699,7 +1823,16 @@ async function handleClick(host, event) {
     await load(host);
     return;
   }
-  if (t.closest('[data-ifb-back]')) { ui.groupRowId = null; ui.tab = ui.groupReturnTab || 'students'; await load(host, { force: true }); return; }
+  if (t.closest('[data-ifb-back]')) {
+    ui.groupRowId = null;
+    ui.tab = ui.groupReturnTab || 'students';
+    if (ui.programs.length && tabDataReady(ui.tab)) {
+      paint(host);
+      return;
+    }
+    await load(host, { force: false });
+    return;
+  }
   const clear = t.closest('[data-ifb-clear]');
   if (clear) {
     const target = clear.dataset.ifbClear === 'instructors' ? ui.instructorFilters : ui.filters;
@@ -1826,13 +1959,22 @@ function resetYearScopedState() {
   ui.groupRowId = null;
   ui.groupFacts.clear();
   ui.groups = null;
+  ui.groupsYear = null;
   ui.instructorAssignments = null;
+  ui.instructorAssignmentsYear = null;
   ui.summary = null;
   ui.facts = null;
+  ui.summaryYear = null;
+  ui.factsYear = null;
   ui.summaryHalf = null;
   ui.feedbackHalf = 'first';
   ui.instructorOpenForms.clear();
   ui.openForms.clear();
+  inflight.definitions = null;
+  inflight.groups = null;
+  inflight.assignments = null;
+  inflight.summary = null;
+  inflight.facts = null;
 }
 
 function handleFilterInput(host, event) {
@@ -1848,6 +1990,15 @@ function handleFilterInput(host, event) {
     const key = el.getAttribute(`data-${attr}`);
     if (key) {
       target[key] = el.value;
+      // Debounce search typing so every keystroke does not rebuild large tables.
+      if (key === 'search' || el.type === 'search') {
+        if (filterPaintTimer !== null) window.clearTimeout(filterPaintTimer);
+        filterPaintTimer = window.setTimeout(() => {
+          filterPaintTimer = null;
+          paint(host);
+        }, FILTER_SEARCH_DEBOUNCE_MS);
+        return;
+      }
       paint(host);
       return;
     }
@@ -1856,9 +2007,9 @@ function handleFilterInput(host, event) {
 
 /**
  * Keep the feedback activity view in sync with the canonical activities table.
- * Opening the feedback screen and switching tabs already perform a forced read.
- * While student/staff/instructor tabs remain open, re-read in the foreground every minute and
- * when the browser regains focus; deletions and cleared dates are reflected too.
+ * Opening the feedback screen and manual refresh perform a forced read.
+ * Tab switches reuse the in-memory year cache; while student/staff/instructor tabs
+ * remain open, re-read in the foreground every minute and when the browser regains focus.
  * No second date store, database triggers, or persistent polling in the background.
  */
 function installActivityDateSync(host) {
@@ -1889,7 +2040,7 @@ function installActivityDateSync(host) {
         const assignments = await fetchInstructorAssignments(year);
         if (controller.signal.aborted || !host.isConnected || year !== ui.year ||
             tab !== ui.tab || ui.groupRowId) return;
-        if (JSON.stringify(assignments) !== JSON.stringify(ui.instructorAssignments)) {
+        if (assignmentsSyncFingerprint(assignments) !== assignmentsSyncFingerprint(ui.instructorAssignments)) {
           ui.instructorAssignments = assignments;
           ui.instructorAssignmentsYear = year;
           paint(host);
@@ -1898,7 +2049,7 @@ function installActivityDateSync(host) {
         const groups = await fetchGroups(year);
         if (controller.signal.aborted || !host.isConnected || year !== ui.year ||
             tab !== ui.tab || ui.groupRowId) return;
-        if (JSON.stringify(groups) !== JSON.stringify(ui.groups)) {
+        if (groupsSyncFingerprint(groups) !== groupsSyncFingerprint(ui.groups)) {
           ui.groups = groups;
           ui.groupsYear = year;
           paint(host);
