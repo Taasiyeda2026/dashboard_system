@@ -1851,3 +1851,100 @@
   .ifb-admin .ifb-template-card__delete,
   .ifb-admin .ifb-template-card__delete-placeholder { width: 18px; flex-basis: 18px; }
 }
+
+/* Staff group detail: compact, balanced full-width layout; no behavior changes. */
+.ifb-group-detail--staff { width: 100%; min-width: 0; gap: 12px; }
+.ifb-group-detail--staff .ifb-group-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  gap: 10px;
+  padding: 16px 20px;
+}
+.ifb-group-detail--staff .ifb-group-head__identity { padding-bottom: 8px; }
+.ifb-group-detail--staff .ifb-meta--head {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px 20px;
+}
+.ifb-group-detail--staff .ifb-meta--head dt { margin-bottom: 2px; }
+.ifb-group-detail--staff .ifb-meta--head dd { margin: 0; }
+.ifb-group-detail--staff .ifb-group-head__date dt,
+.ifb-group-detail--staff .ifb-group-head__date dd { text-align: start; }
+.ifb-group-detail--staff .ifb-slots--staff {
+  width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  justify-content: stretch;
+}
+.ifb-group-detail--staff .ifb-slots--staff .ifb-slot {
+  width: 100%;
+  display: grid;
+  gap: 12px;
+  padding: 16px 20px;
+}
+.ifb-group-detail--staff .ifb-slots--staff .ifb-slot__head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px 18px;
+}
+.ifb-group-detail--staff .ifb-slots--staff .ifb-slot__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: 8px;
+}
+.ifb-group-detail--staff .ifb-slots--staff .ifb-open-form { max-width: 100%; }
+.ifb-group-detail--staff .ifb-slots--staff .ifb-slot .ifb-meta {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+@media (max-width: 760px) {
+  .ifb-group-detail--staff .ifb-group-head,
+  .ifb-group-detail--staff .ifb-slots--staff .ifb-slot { padding: 12px; }
+  .ifb-group-detail--staff .ifb-meta--head { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .ifb-group-detail--staff .ifb-slots--staff .ifb-slot .ifb-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 420px) {
+  .ifb-group-detail--staff .ifb-meta--head { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Instructor feedback filters: responsive columns, never overlap. */
+.ifb-admin .ifb-filter-panel--instructors { width: 100%; max-width: 100%; min-width: 0; }
+.ifb-admin .ifb-filters--instructors {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(64px, auto);
+  gap: 10px;
+  align-items: end;
+}
+.ifb-admin .ifb-filters--instructors .ifb-field { width: 100%; min-width: 0; }
+.ifb-admin .ifb-filters--instructors select,
+.ifb-admin .ifb-filters--instructors input { width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; }
+@media (max-width: 1100px) {
+  .ifb-admin .ifb-filters--instructors { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .ifb-admin .ifb-filters--instructors { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Feedback analysis: readable data density without altering calculations. */
+.ifb-admin .ifb-q-table th,
+.ifb-admin .ifb-q-table td,
+.ifb-admin .ifb-prepost-table th,
+.ifb-admin .ifb-prepost-table td { padding: 10px 12px; line-height: 1.5; }
+.ifb-admin .ifb-q-table th[scope="row"] { width: 48%; min-width: 0; text-align: start; }
+.ifb-admin .ifb-q-table td[data-label="תשובות שהתקבלו"] { min-width: 116px; }
+.ifb-admin .ifb-q-table td[data-label="ציון ממוצע"] { min-width: 110px; }
+.ifb-admin .ifb-q-table .ifb-cell-sub,
+.ifb-admin .ifb-prepost-table .ifb-cell-sub { display: block; margin-top: 3px; font-size: 11px; }
+.ifb-admin .ifb-analysis-breakdown { margin: 0 0 8px; }
+.ifb-admin .ifb-analysis-breakdown > summary { padding: 10px 12px; font-size: 13px; font-weight: 700; }
+.ifb-admin .ifb-analysis-breakdown > .ifb-table-wrap { margin-top: 8px; }
+.ifb-admin .ifb-analysis-empty-note { margin: 0; padding: 8px 0; color: var(--ifb-a-muted); font-size: 13px; }
+@media (max-width: 760px) {
+  .ifb-admin .ifb-q-table th[scope="row"] { width: auto; }
+  .ifb-admin .ifb-q-table th, .ifb-admin .ifb-q-table td { min-width: 0; padding: 8px; }
+}

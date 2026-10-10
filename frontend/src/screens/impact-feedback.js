@@ -759,12 +759,12 @@ function questionTableHtml(facts, { caption = '' } = {}) {
   if (!stats.length) return emptyHtml('טרם התקבלו תשובות.');
   return `<div class="ifb-table-wrap"><table class="ifb-table ifb-q-table">
     ${caption ? `<caption class="ifb-sr">${esc(caption)}</caption>` : ''}
-    <thead><tr><th scope="col">שאלה</th><th scope="col" class="ifb-center">N תקפות</th><th scope="col" class="ifb-center">ממוצע</th><th scope="col">התפלגות</th></tr></thead>
+    <thead><tr><th scope="col">שאלה</th><th scope="col" class="ifb-center">תשובות שהתקבלו</th><th scope="col" class="ifb-center">ציון ממוצע</th><th scope="col">התפלגות</th></tr></thead>
     <tbody>${stats.map((q) => `
       <tr>
         <th scope="row" data-label="שאלה"><span class="ifb-q-text">${esc(q.text)}</span><span class="ifb-cell-sub ifb-muted">${esc(q.section === 'course' ? 'ייחודית לקורס' : 'ליבה')} · ${esc(metricLabel(q.metric_key))}${q.wordingChanged ? ' · הניסוח השתנה בין גרסאות' : ''}</span></th>
-        <td data-label="N תקפות" class="ifb-center"><span class="ifb-num">${q.question_type === 'rating_1_5' ? q.valid : q.n}</span>${q.na ? `<span class="ifb-cell-sub ifb-muted">${q.na} „לא רלוונטי”</span>` : ''}</td>
-        <td data-label="ממוצע" class="ifb-center"><strong class="ifb-num">${q.question_type === 'rating_1_5' ? fmtNum(q.avg) : '—'}</strong></td>
+        <td data-label="תשובות שהתקבלו" class="ifb-center"><span class="ifb-num">${q.question_type === 'rating_1_5' ? q.valid : q.n}</span>${q.na ? `<span class="ifb-cell-sub ifb-muted">${q.na} „לא רלוונטי”</span>` : ''}</td>
+        <td data-label="ממוצע" class="ifb-center"><strong class="ifb-num">${q.question_type === 'rating_1_5' ? `${fmtNum(q.avg)} מתוך 5` : 'לא חל'}</strong></td>
         <td data-label="התפלגות">${questionResultCell(q)}</td>
       </tr>`).join('')}</tbody>
   </table></div>`;
@@ -785,8 +785,8 @@ function prePostQuestionTableHtml(preFacts, postFacts, { audience }) {
     <thead><tr><th scope="col">שאלה</th><th scope="col" class="ifb-center">${esc(preLabel)}</th><th scope="col" class="ifb-center">${esc(postLabel)}</th><th scope="col" class="ifb-center">שינוי</th></tr></thead>
     <tbody>${cmp.rows.map((r) => `<tr>
       <th scope="row" data-label="שאלה"><span class="ifb-q-text">${esc(r.text)}</span><span class="ifb-cell-sub ifb-muted">${esc(metricLabel(r.metric_key))}</span></th>
-      <td data-label="${esc(preLabel)}" class="ifb-center"><span class="ifb-num">${fmtNum(r.preAvg)}</span> <span class="ifb-muted">N=${r.nPre}</span></td>
-      <td data-label="${esc(postLabel)}" class="ifb-center"><span class="ifb-num">${fmtNum(r.postAvg)}</span> <span class="ifb-muted">N=${r.nPost}</span></td>
+      <td data-label="${esc(preLabel)}" class="ifb-center"><span class="ifb-num">${fmtNum(r.preAvg)}</span> <span class="ifb-muted ifb-cell-sub">תשובות: ${r.nPre}</span></td>
+      <td data-label="${esc(postLabel)}" class="ifb-center"><span class="ifb-num">${fmtNum(r.postAvg)}</span> <span class="ifb-muted ifb-cell-sub">תשובות: ${r.nPost}</span></td>
       <td data-label="שינוי" class="ifb-center">${r.comparable ? `<strong class="${deltaClass(r.delta)}">${fmtDelta(r.delta)}</strong>` : '<span class="ifb-muted" title="הניסוח השתנה בין השלבים">לא בר השוואה</span>'}</td>
     </tr>`).join('')}</tbody>
   </table></div>`;
@@ -1094,7 +1094,7 @@ function cumulativeSummaryHtml() {
 function audienceComparisonHtml(facts) {
   const rows = audienceMetricScores(facts, ui.metrics, { minN: MIN_N_GAP });
   if (!rows.length) return emptyHtml('טרם התקבלו תשובות דירוג.');
-  const cell = (c) => (c ? `<span class="ifb-num">${fmtNum(c.avg)}</span> <span class="ifb-muted">N=${c.n}</span>` : '<span class="ifb-muted">לא נמדד</span>');
+  const cell = (c) => (c ? `<span class="ifb-num">${fmtNum(c.avg)} מתוך 5</span><span class="ifb-muted ifb-cell-sub">תשובות למדד: ${c.n}</span>` : '<span class="ifb-muted">טרם התקבלו תשובות</span>');
   return `<div class="ifb-table-wrap"><table class="ifb-table">
     <caption class="ifb-sr">השוואה בין אוכלוסיות לפי מדד</caption>
     <thead><tr><th scope="col">מדד</th><th scope="col" class="ifb-center">תלמידים (סיום)</th><th scope="col" class="ifb-center">מדריכים (סיום)</th><th scope="col" class="ifb-center">צוות חינוכי</th><th scope="col" class="ifb-center">הבדל בין נקודות המבט</th></tr></thead>
@@ -1132,13 +1132,13 @@ function crossCourseHtml() {
   const stageOptions = AUDIENCE_STAGES[a.audience] || ['post'];
   const stage = stageOptions.includes(a.stage) ? a.stage : stageOptions[stageOptions.length - 1];
   const { programKeys, rows } = crossCourseCore(semesterFacts(), { audience: a.audience, stage });
-  if (!rows.length) return emptyHtml('אין עדיין תשובות לשאלות הליבה המשותפות בקהל ובשלב שנבחרו.');
+  if (!rows.length) return '<p class="ifb-analysis-empty-note">טרם התקבלו מספיק תשובות להשוואה בין קורסים.</p>';
   return `<div class="ifb-table-wrap ifb-table-wrap--scroll"><table class="ifb-table ifb-cross-table">
     <caption class="ifb-sr">השוואה בין קורסים בשאלות הליבה</caption>
     <thead><tr><th scope="col">שאלת ליבה</th>${programKeys.map((k) => `<th scope="col" class="ifb-center${k === ui.course ? ' is-selected' : ''}">${esc(programTitle(k))}</th>`).join('')}</tr></thead>
     <tbody>${rows.map((r) => `<tr>
       <th scope="row" data-label="שאלת ליבה"><span class="ifb-q-text">${esc(neutralCoreText(r.text))}</span><span class="ifb-cell-sub ifb-muted">${esc(metricLabel(r.metric_key))}</span></th>
-      ${programKeys.map((k) => `<td data-label="${esc(programTitle(k))}" class="ifb-center${k === ui.course ? ' is-selected' : ''}">${r.byProgram[k] ? `<span class="ifb-num">${fmtNum(r.byProgram[k].avg)}</span> <span class="ifb-muted">N=${r.byProgram[k].n}</span>` : '<span class="ifb-muted">—</span>'}</td>`).join('')}
+      ${programKeys.map((k) => `<td data-label="${esc(programTitle(k))}" class="ifb-center${k === ui.course ? ' is-selected' : ''}">${r.byProgram[k] ? `<span class="ifb-num">${fmtNum(r.byProgram[k].avg)}</span> <span class="ifb-muted ifb-cell-sub">תשובות: ${r.byProgram[k].n}</span>` : '<span class="ifb-muted">—</span>'}</td>`).join('')}
     </tr>`).join('')}</tbody>
   </table></div>`;
 }
@@ -1170,11 +1170,10 @@ function analysisHtml() {
     ${analysisFiltersHtml()}
     ${sectionHtml(`סיכום מצטבר – ${programTitle(ui.course)}`, cumulativeSummaryHtml(), { actions: exportButtonHtml('analysis', 'הפקת דוח מסכם (Excel)'), note: 'הנתונים מתייחסים רק למחצית הנבחרת, לפי תאריך תחילת הקורס.' })}
     ${sectionHtml('השוואה בין תלמידים, מדריכים וצוות חינוכי', audienceComparisonHtml(facts))}
-    ${sectionHtml('פתיחה–סיום: תלמידים', prePostQuestionTableHtml(factsFor(facts, 'student', 'pre'), factsFor(facts, 'student', 'post'), { audience: 'student' }))}
-    ${sectionHtml('פתיחה–סיום: מדריכים', prePostQuestionTableHtml(factsFor(facts, 'instructor', 'pre'), factsFor(facts, 'instructor', 'final'), { audience: 'instructor' }))}
+    ${sectionHtml('השוואת פתיחה וסיום', `<details class="ifb-disclosure ifb-analysis-breakdown"><summary>תלמידים — פתיחה וסיום</summary>${prePostQuestionTableHtml(factsFor(facts, 'student', 'pre'), factsFor(facts, 'student', 'post'), { audience: 'student' })}</details><details class="ifb-disclosure ifb-analysis-breakdown"><summary>מדריכים — פתיחה וסיום</summary>${prePostQuestionTableHtml(factsFor(facts, 'instructor', 'pre'), factsFor(facts, 'instructor', 'final'), { audience: 'instructor' })}</details>`)}
     ${sectionHtml('תוצאות לכל שאלה – שאלות ליבה', populationResultsHtml(facts, { section: 'core' }))}
     ${sectionHtml('מדדים ייחודיים לקורס', populationResultsHtml(facts, { section: 'course' }), { note: 'שאלות שנכתבו לפי מטרות ותוצרי הקורס. אינן משמשות להשוואה בין קורסים.' })}
-    ${sectionHtml('השוואה בין קורסים במדדי ליבה', crossCourseHtml())}`;
+    ${sectionHtml('השוואה בין קורסים במדדי ליבה', `<details class="ifb-disclosure ifb-analysis-breakdown"><summary>פתיחת השוואה בין קורסים</summary>${crossCourseHtml()}</details>`)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -1218,7 +1217,6 @@ function slotCardHtml(group, slot) {
   if (!campaign) {
     return `<article class="ifb-slot" data-slot="${slot.key}">
       <div class="ifb-slot__head">${title}${campaignStatusHtml(null)}</div>
-      ${slot.audience === 'educational_staff' && group.contact_name ? `<p class="ifb-muted">איש קשר: ${esc(group.contact_name)}</p>` : ''}
       ${openFormHtml(group, slot)}
     </article>`;
   }
