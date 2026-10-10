@@ -436,3 +436,5 @@ config.HOTFIX_VERSION = `scheduling-bounded-display-cache-20261009-v1-${config.H
 config.HOTFIX_VERSION = `scheduling-v37-new-constraint-block-core-20261010-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `scheduling-v37-acceptance-contracts-20261010-v2-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `scheduling-worker-clone-v37-20261010-v1-${config.HOTFIX_VERSION}`;
