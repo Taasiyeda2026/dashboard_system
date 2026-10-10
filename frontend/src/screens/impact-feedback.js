@@ -537,7 +537,7 @@ function insightsHtml(facts) {
   const item = (q) => `<li>
     <span class="ifb-insight__text">${esc(q.text)}</span>
     <span class="ifb-insight__meta">${esc(programTitle(q.programKey))} · ${esc(AUDIENCE_LABELS[q.audience])} · ${esc(stageLabelFor(q.audience, q.stage))}</span>
-    <span class="ifb-insight__value"><strong>${fmtNum(q.avg)}</strong> <span class="ifb-muted">N=${q.valid}</span></span>
+    <span class="ifb-insight__value"><strong>${fmtNum(q.avg)}</strong> <span class="ifb-muted">תשובות תקפות: ${q.valid}</span></span>
   </li>`;
   const list = (items, empty) => (items.length ? `<ul class="ifb-insights">${items.join('')}</ul>` : `<p class="ifb-muted">${esc(empty)}</p>`);
   const notEnough = flat
@@ -1174,6 +1174,50 @@ function populationResultsHtml(facts, { section }) {
   return blocks.length ? blocks.join('') : emptyHtml(section === 'course' ? 'טרם התקבלו תשובות לשאלות הייחודיות לקורס.' : 'טרם התקבלו תשובות.');
 }
 
+/**
+ * Evidence-first management summary. This is descriptive, deterministic analysis,
+ * not an AI-generated inference. Every finding retains its original question and N.
+ */
+function evidenceSummaryHtml(facts) {
+  const end = facts.filter((f) => stagePhase(f.audience, f.stage) === 'end');
+  const records = [];
+  for (const audience of AUDIENCE_ORDER) {
+    for (const stage of AUDIENCE_STAGES[audience]) {
+      if (stagePhase(audience, stage) !== 'end') continue;
+      for (const q of questionStats(factsFor(end, audience, stage))) {
+        if (q.question_type !== 'rating_1_5' || !Number.isFinite(q.avg) || q.valid < MIN_N_RANKING) continue;
+        records.push({ ...q, audience, stage });
+      }
+    }
+  }
+  const nResponses = new Set(facts.map((f) => f.response_id).filter(Boolean)).size;
+  if (!records.length) {
+    return `<div class="ifb-panel ifb-panel--tight">
+      <h3>מה ניתן ללמוד מהמשובים?</h3>
+      <p>נספרו ${nResponses} שאלונים בתקופה הנבחרת. עדיין אין די תשובות תקפות בשאלות דירוג להצגת חוזקות ונושאים לשיפור באופן מבוסס.</p>
+      <p class="ifb-muted">לצורך הצגת ממצא נדרשות לפחות ${MIN_N_RANKING} תשובות תקפות לאותה שאלה ולאותו קהל. הנתונים המלאים זמינים בהמשך.</p>
+    </div>`;
+  }
+  const ordered = [...records].sort((a, b) => b.avg - a.avg);
+  const high = ordered[0];
+  const low = ordered[ordered.length - 1];
+  const evidence = (q) => `<span class="ifb-cell-sub ifb-muted">מקור: ${esc(AUDIENCE_LABELS[q.audience])} · ${esc(stageLabelFor(q.audience, q.stage))} · ${q.valid} תשובות תקפות · ${fmtNum(q.avg)} מתוך 5</span>`;
+  const finding = (heading, q, interpretation) => `<div class="ifb-evidence-item">
+    <h4>${heading}</h4><p>${esc(q.text)}</p>${evidence(q)}
+    <p class="ifb-muted">${esc(interpretation)}</p>
+  </div>`;
+  const identical = Math.abs(high.avg - low.avg) < 0.001;
+  return `<div class="ifb-panel ifb-panel--tight ifb-evidence-summary">
+    <h3>מה מלמדות התוצאות?</h3>
+    <p>הסיכום מבוסס על ${records.length} שאלות דירוג עם לפחות ${MIN_N_RANKING} תשובות תקפות לכל שאלה. הסולם הוא 1–5, והדירוגים מתארים את תשובות המשיבים — לא הוכחה להשפעת התוכנית.</p>
+    ${finding('התוצאה הגבוהה ביותר במדגם', high, 'זהו היבט שקיבל דירוג גבוה יחסית. כדאי לבחון כיצד לשמר אותו בפעילות.')}
+    ${identical ? '<p class="ifb-muted">הממוצעים זהים; אין בסיס להבחנה בין חוזקה לפער לפי הדירוג בלבד.</p>' :
+      finding('התוצאה הנמוכה ביותר במדגם', low, 'זהו נושא שכדאי לבחון לעומק מול פירוט התשובות וההקשר החינוכי לפני קבלת החלטות.')}
+    <p class="ifb-muted">מגבלות: הממצאים מבוססים על דיווח עצמי; השאלות יכולות להשתנות בין קהלים וגרסאות. אין להסיק מהבדלי ציונים לבדם קשר סיבתי או שינוי לאורך זמן.</p>
+    <details class="ifb-disclosure"><summary>למה נבחרו הממצאים האלה?</summary><p>נבחרו השאלות בעלות ממוצע הדירוג הגבוה והנמוך ביותר מתוך שאלות הסיום בעלות לפחות ${MIN_N_RANKING} תשובות תקפות. אין כאן השוואת איכות בין קהלים שונים; כל מספר מוצג לצד ניסוח השאלה ומספר התשובות.</p></details>
+  </div>`;
+}
+
 function analysisHtml() {
   if (!ui.course) {
     return `
@@ -1184,6 +1228,7 @@ function analysisHtml() {
   const facts = courseFacts();
   return `
     ${analysisFiltersHtml()}
+    ${evidenceSummaryHtml(facts)}
     ${sectionHtml(`סיכום מצטבר – ${programTitle(ui.course)}`, cumulativeSummaryHtml(), { actions: exportButtonHtml('analysis', 'הפקת דוח מסכם (Excel)'), note: 'הנתונים מתייחסים רק למחצית הנבחרת, לפי תאריך תחילת הקורס.' })}
     ${sectionHtml('השוואה בין תלמידים, מדריכים וצוות חינוכי', audienceComparisonHtml(facts))}
     ${sectionHtml('השוואת פתיחה וסיום', `<details class="ifb-disclosure ifb-analysis-breakdown"><summary>תלמידים — פתיחה וסיום</summary>${prePostQuestionTableHtml(factsFor(facts, 'student', 'pre'), factsFor(facts, 'student', 'post'), { audience: 'student' })}</details><details class="ifb-disclosure ifb-analysis-breakdown"><summary>מדריכים — פתיחה וסיום</summary>${prePostQuestionTableHtml(factsFor(facts, 'instructor', 'pre'), factsFor(facts, 'instructor', 'final'), { audience: 'instructor' })}</details>`)}
@@ -1289,8 +1334,8 @@ function prePostMetricTableHtml(comparison) {
       <tbody>${comparison.rows.map((r) => `
         <tr>
           <th scope="row" data-label="מדד">${esc(r.label)}</th>
-          <td data-label="פתיחה">${fmtNum(r.preAvg)} <span class="ifb-muted">N=${r.nPre}</span></td>
-          <td data-label="סיום">${fmtNum(r.postAvg)} <span class="ifb-muted">N=${r.nPost}</span></td>
+          <td data-label="פתיחה">${fmtNum(r.preAvg)} <span class="ifb-muted">תשובות: ${r.nPre}</span></td>
+          <td data-label="סיום">${fmtNum(r.postAvg)} <span class="ifb-muted">תשובות: ${r.nPost}</span></td>
           <td data-label="שינוי" class="${deltaClass(r.delta)}">${fmtDelta(r.delta)}</td>
           <td data-label="מגמה">${esc(describeGroupChange(r.preAvg, r.postAvg))}</td>
         </tr>`).join('')}</tbody>
