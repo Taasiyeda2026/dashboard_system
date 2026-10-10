@@ -170,6 +170,30 @@ jobs:
             echo "No scheduling contract files changed; focused scheduling tests skipped."
           fi
 
+
+      - name: One-time regional national benchmark (anonymous fixture)
+        if: github.event.pull_request.number == 2253
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/regional-input" "$RUNNER_TEMP/regional-output"
+          node --input-type=module -e '
+            import {readFile,writeFile} from "node:fs/promises";
+            import {gunzipSync} from "node:zlib";
+            const root="docs/scheduling-new-core-20261010/fixtures/";
+            for(const name of ["anonymous-snapshot","anonymous-saved","anonymous-routes","anonymous-canonical"]){
+              const encoded=(await readFile(root+name+".json.gz.b64","utf8")).trim();
+              await writeFile(process.env.RUNNER_TEMP+"/regional-input/"+name+".json",gunzipSync(Buffer.from(encoded,"base64")));
+            }
+          '
+          DECISION_CANONICAL=1 DECISION_DIR="$RUNNER_TEMP/regional-input" ACCEPTANCE_OUT="$RUNNER_TEMP/regional-output" timeout 210s node scripts/acceptance/new-engine-national.mjs
+          node --input-type=module -e '
+            import {readFile} from "node:fs/promises";
+            const a=JSON.parse(await readFile(process.env.RUNNER_TEMP+"/regional-output/national-metrics.json","utf8"));
+            console.log("REGIONAL_ACCEPTANCE_METRICS",JSON.stringify({elapsedMs:a.elapsedMs,rows:a.rows,assigned:a.assigned,routeMisses:a.routeMisses,optimization:a.optimization?.completed,sourceUnchanged:a.sourceUnchanged}));
+            if(a.rows!==253 || !a.sourceUnchanged || a.routeMisses!==0)process.exitCode=1;
+          '
+
   scheduling-postgres:
     name: scheduling Postgres regression
     runs-on: ubuntu-latest
