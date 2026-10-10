@@ -594,8 +594,12 @@ export function bindTemplatesView(host, ui, repaint) {
   root.addEventListener('change', async (event) => {
     const input = event.target;
     if (input.matches('[data-tpl-intro], [data-tpl-intro-ar]')) {
-      await withSave(() => updateVersionIntro(tpl.editor.draft.id, input.value.trim()), repaint, { ui });
-      tpl.editor.draft.intro_text = input.value.trim();
+      const isArabic = input.matches('[data-tpl-intro-ar]');
+      const nextHe = isArabic ? tpl.editor.draft.intro_text : input.value.trim();
+      const nextAr = isArabic ? input.value.trim() : (tpl.editor.draft.intro_text_ar || '');
+      await withSave(() => updateVersionIntro(tpl.editor.draft.id, nextHe, nextAr), repaint, { ui });
+      tpl.editor.draft.intro_text = nextHe;
+      tpl.editor.draft.intro_text_ar = nextAr;
       return;
     }
     const field = input.dataset.tqField;
