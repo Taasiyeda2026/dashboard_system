@@ -62,9 +62,11 @@ function showMessage(root, stateKey, extra = '') {
   root.setAttribute('aria-busy', 'false');
 }
 
-function showThanks(root) {
+function showThanks(root, language = 'he') {
   // After submission there is no public reset/restart action on this device.
-  root.innerHTML = `<div class="ifb-shell">${messageCardHtml({ ...THANK_YOU, logoUrl })}</div>`;
+  const msg = language === 'ar' ? { title: 'شكرًا لمشاركتك معنا!', body: 'استمروا في التأمل في الطبيعة بفضول، وطرح الأسئلة واكتشاف أفكار جديدة مستوحاة من العالم من حولكم.' } : THANK_YOU;
+  document.documentElement.lang = language;
+  root.innerHTML = `<div class="ifb-shell" lang="${language}" dir="rtl">${messageCardHtml({ ...msg, logoUrl })}</div>`;
   root.setAttribute('aria-busy', 'false');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -142,9 +144,11 @@ async function start() {
   const doneKey = storageKey('done', token);
   const draftKey = storageKey('draft', token);
   const submissionKey = storageKey('submission', token);
+  const languageKey = storageKey('language', token);
 
   const renderForm = (language = 'he') => {
     document.documentElement.lang = language;
+    session?.setItem(languageKey, language);
     const localizedQuestions = payload.questions.map((q) => language === 'ar' ? { ...q, text: q.text_ar || q.text } : q);
     const displayPayload = { ...payload, questions: localizedQuestions };
     let initialAnswers = {};
@@ -174,13 +178,13 @@ async function start() {
             p_duration_seconds: Math.round((Date.now() - startedAt) / 1000)
           });
         } catch {
-          throw new Error('לא הצלחנו לשלוח – בדקו את החיבור לאינטרנט ונסו שוב. התשובות שלכם שמורות.');
+          throw new Error(language === 'ar' ? 'تعذّر الإرسال. تحققوا من الاتصال وحاولوا مجددًا. إجاباتكم محفوظة.' : 'לא הצלחנו לשלוח – בדקו את החיבור לאינטרנט ונסו שוב. התשובות שלכם שמורות.');
         }
         if (result?.ok) {
           session?.removeItem(draftKey);
           session?.removeItem(submissionKey);
           local?.setItem(doneKey, new Date().toISOString());
-          showThanks(root);
+          showThanks(root, language);
           return result;
         }
         if (result?.state === 'invalid_answers') return result;
@@ -192,7 +196,7 @@ async function start() {
   };
 
   if (isStudent && local?.getItem(doneKey)) {
-    showThanks(root);
+    showThanks(root, session?.getItem(languageKey) === 'ar' ? 'ar' : 'he');
     return;
   }
   const renderLanguageChoice = () => showLanguageChoice(root, {
