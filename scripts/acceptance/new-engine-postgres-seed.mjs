@@ -26,7 +26,7 @@ await insert('instructor_availability_rules',s.instructor_availability_rules);
 await insert('instructor_availability_exceptions',s.instructor_availability_exceptions);
 const locations=new Map(input.activities.map(a=>[String(a.school_id),a]));
 await insert('schools',s.schools.map(r=>({...r,institution_address:locations.get(String(r.id))?.school_address||r.institution_address,sector:locations.get(String(r.id))?.calendar_sector||r.sector})));
-await insert('school_calendar',s.school_calendar.map((r,i)=>({...r,id:i+1}))); 
+await insert('school_calendar',s.school_calendar.map((r,i)=>({...r,id:i+1})));
 await insert('proposal_activity_pricing',s.proposal_activity_pricing.map((r,i)=>({...r,id:i+1})));
 await insert('activities',s.activities);
 await insert('course_meeting_instructor_history',s.course_meeting_instructor_history || []);
