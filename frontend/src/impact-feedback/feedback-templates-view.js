@@ -302,7 +302,7 @@ function editorHtml(ui) {
              <button type="button" class="ifb-btn ifb-btn--danger" data-tpl-discard>ביטול הטיוטה</button>`
           : '<button type="button" class="ifb-btn ifb-btn--primary" data-tpl-edit title="יצירת טיוטה לעריכה">עריכה</button>'}
       </div>
-      ${editing ? `<label class="ifb-field ifb-field--wide ifb-tpl-head__intro"><span>טקסט פתיחה בשאלון</span><textarea rows="2" data-tpl-intro>${esc(ed.draft.intro_text || '')}</textarea></label>`
+      ${editing ? `<div class="ifb-tpl-head__intro"><label class="ifb-field ifb-field--wide"><span>פתיח בעברית</span><textarea rows="4" lang="he" dir="rtl" data-tpl-intro>${esc(ed.draft.intro_text || '')}</textarea></label><label class="ifb-field ifb-field--wide"><span>פתיח בערבית</span><textarea rows="4" lang="ar" dir="rtl" data-tpl-intro-ar>${esc(ed.draft.intro_text_ar || '')}</textarea></label></div>`
         : (ed.published?.intro_text ? `<div class="ifb-tpl-head__intro"><span>טקסט פתיחה</span><p>${esc(ed.published.intro_text)}</p></div>` : '')}
     </section>
     <section class="ifb-tq-block">
@@ -593,7 +593,7 @@ export function bindTemplatesView(host, ui, repaint) {
 
   root.addEventListener('change', async (event) => {
     const input = event.target;
-    if (input.matches('[data-tpl-intro]')) {
+    if (input.matches('[data-tpl-intro], [data-tpl-intro-ar]')) {
       await withSave(() => updateVersionIntro(tpl.editor.draft.id, input.value.trim()), repaint, { ui });
       tpl.editor.draft.intro_text = input.value.trim();
       return;
