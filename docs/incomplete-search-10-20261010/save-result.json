@@ -1,0 +1,97 @@
+{
+  "task": "#2261",
+  "action": "atomic-incremental-save",
+  "previousRevision": 11949,
+  "newRevision": 11950,
+  "engineVersion": "planning-v37-20261010-constraint-block-planner",
+  "dataFingerprint": "my6i1s",
+  "contextHash": "we5vq7",
+  "sourceRevision": 239,
+  "savedRows": 10,
+  "withInstructor": 231,
+  "totalRows": 253,
+  "assignableProposals": 6,
+  "gederaRecruitment": 4,
+  "activitiesTableUnchanged": true,
+  "finalAssignmentsConfirmed": false,
+  "serverValidationOk": true,
+  "preflight": {
+    "revisionOk": true,
+    "stampsOk": true,
+    "fixedPreserved": true,
+    "overlapNewViolations": 0,
+    "localGateOk": true
+  },
+  "targets": [
+    {
+      "activityId": "ACT-b9931cca-0dfd-4a9d-82d4-85855230f399",
+      "emp": "1502",
+      "status": "הצעה מוכנה",
+      "kind": "proposal",
+      "meetings": 14
+    },
+    {
+      "activityId": "PAI-cf89bfd8-ffd4-405f-bde1-89d922876b16",
+      "emp": "1542",
+      "status": "מתאים טכנית ונדרש טיפול",
+      "kind": "proposal",
+      "meetings": 12
+    },
+    {
+      "activityId": "PAI-e0f504c6-65d0-484e-83ac-97cc494fadb3-2",
+      "emp": "1502",
+      "status": "הצעה מוכנה",
+      "kind": "proposal",
+      "meetings": 10
+    },
+    {
+      "activityId": "PAI-e59b8e24-8f73-4d31-97cb-988e3d10aa15",
+      "emp": "1502",
+      "status": "הצעה מוכנה",
+      "kind": "proposal",
+      "meetings": 8
+    },
+    {
+      "activityId": "PAI-efbb152e-cd5b-4f10-aa20-765d85d4b990",
+      "emp": null,
+      "status": "נדרש גיוס",
+      "kind": "recruitment",
+      "meetings": 30
+    },
+    {
+      "activityId": "PAI-efbb152e-cd5b-4f10-aa20-765d85d4b990-2",
+      "emp": null,
+      "status": "נדרש גיוס",
+      "kind": "recruitment",
+      "meetings": 30
+    },
+    {
+      "activityId": "PAI-efbb152e-cd5b-4f10-aa20-765d85d4b990-3",
+      "emp": null,
+      "status": "נדרש גיוס",
+      "kind": "recruitment",
+      "meetings": 30
+    },
+    {
+      "activityId": "PAI-efbb152e-cd5b-4f10-aa20-765d85d4b990-4",
+      "emp": null,
+      "status": "נדרש גיוס",
+      "kind": "recruitment",
+      "meetings": 30
+    },
+    {
+      "activityId": "school_2027_061",
+      "emp": "1502",
+      "status": "הצעה מוכנה",
+      "kind": "proposal",
+      "meetings": 10
+    },
+    {
+      "activityId": "school_2027_114",
+      "emp": "1502",
+      "status": "הצעה מוכנה",
+      "kind": "proposal",
+      "meetings": 11
+    }
+  ]
+}
