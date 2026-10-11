@@ -102,7 +102,7 @@ function activitiesHtml(items) {
   }).join('')}</tbody></table></div>`;
 }
 
-export function profileHtml(row, activities, canEdit, schedulingLoaded) {
+export function profileHtml(row, activities, canEdit, schedulingLoaded, courseOptions = []) {
   const profile = row.scheduling_profile || {};
   const exceptions = row.availability_exceptions || [];
   const profileMissing = schedulingProfileMissingFields(row);
@@ -112,11 +112,18 @@ export function profileHtml(row, activities, canEdit, schedulingLoaded) {
   const blockedAuthoritiesLabel = blockedAuthorities.length
     ? blockedAuthorities.join(' · ')
     : 'אין';
+  const blockedCourseIds = profile.course_restriction_mode === 'block_selected'
+    ? (profile.course_ids || []).map(String)
+    : [];
+  const courseLabels = new Map(courseOptions.map((item) => [String(item.value), item.label]));
+  const blockedCoursesLabel = blockedCourseIds.length
+    ? blockedCourseIds.map((id) => courseLabels.get(id) || id).join(' · ')
+    : 'אין';
   return `<div dir="rtl" class="instructor-profile">
     ${profileMissing.length ? `<p class="scheduling-warning"><b>חסר להשלמה:</b> ${escapeHtml(profileMissing.join(', '))}.</p>` : ''}
     <section class="instructor-profile__section"><div class="instructor-profile__section-head"><h3>פרטי מדריך</h3>${canEdit ? '<button type="button" class="ds-btn ds-btn--sm instructor-profile__action" data-edit-instructor-contact>עריכת פרטים</button>' : ''}</div><div class="instructor-profile__fields">${field('נייד', row.mobile || row.phone, 'ltr')}${field('דוא״ל', row.email, 'ltr')}${field('כתובת', row.address)}${field('סוג העסקה', row.employment_type)}${field('ותק', formatInstructorSeniority(row.seniority_years))}${field('מנהל ישיר', row.direct_manager)}</div></section>
     <section class="instructor-profile__section"><div class="instructor-profile__section-head"><h3>זמינות ואילוצים</h3>${canEdit ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--primary instructor-profile__action" data-edit-instructor-constraints>עדכון אילוצים</button>' : ''}</div>${schedulingLoaded ? `<div class="instructor-profile__availability">${weeklySummary(row).join('')}</div>${exceptions.length ? `<div class="ds-muted">${exceptions.length} חריגים לפי תאריך</div>` : ''}` : '<p class="ds-muted">אזור האילוצים אינו זמין לחשבון זה.</p>'}</section>
-    <section style="display:grid;gap:10px"><div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">התאמה לשיבוץ</h3>${canEdit ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-edit-instructor-matching>עריכת התאמה</button>' : ''}</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px">${field('מגדר', profile.gender === 'female' ? 'מדריכה' : profile.gender === 'male' ? 'מדריך' : 'טרם הוגדר')}${field('שפות הדרכה', (profile.instruction_languages || []).map(v => v === 'he' ? 'עברית' : 'ערבית').join(', '))}${field('רשויות חסומות', blockedAuthoritiesLabel)}</div>${profile.matching_note ? `<p class="ds-muted">הערה פנימית: ${escapeHtml(profile.matching_note)}</p>` : ''}</section>
+    <section style="display:grid;gap:10px"><div style="display:flex;justify-content:space-between;align-items:center"><h3 style="margin:0">התאמה לשיבוץ</h3>${canEdit ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-edit-instructor-matching>עריכת התאמה</button>' : ''}</div><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:9px">${field('מגדר', profile.gender === 'female' ? 'מדריכה' : profile.gender === 'male' ? 'מדריך' : 'טרם הוגדר')}${field('שפות הדרכה', (profile.instruction_languages || []).map(v => v === 'he' ? 'עברית' : 'ערבית').join(', '))}${field('רשויות חסומות', blockedAuthoritiesLabel)}${field('קורסים חסומים', blockedCoursesLabel)}</div>${profile.matching_note ? `<p class="ds-muted">הערה פנימית: ${escapeHtml(profile.matching_note)}</p>` : ''}</section>
     <section style="display:grid;gap:10px"><h3 style="margin:0">פעילויות פעילות ועתידיות <span class="ds-badge">${activities.length}</span></h3>${activitiesHtml(activities)}</section>
   </div>`;
 }
@@ -128,6 +135,19 @@ export function matchingForm(row, options = {}) {
   const selectedBlocked = Array.isArray(p.blocked_authorities)
     ? p.blocked_authorities.map((name) => String(name || '').trim()).filter(Boolean)
     : [];
+  const selectedCourseIds = p.course_restriction_mode === 'block_selected'
+    ? [...new Set((p.course_ids || []).map((id) => String(id).trim()).filter(Boolean))]
+    : [];
+  const courses = [...new Map((options.courses || []).map((item) => [
+    String(item.value), { value: String(item.value), label: String(item.label) }
+  ])).values()].filter((item) => item.value && item.label)
+    .sort((a,b) => a.label.localeCompare(b.label, 'he'));
+  const courseLabels = new Map(courses.map((item) => [item.value,item.label]));
+  const selectedCourseChips = selectedCourseIds.map((id) => {
+    const label = courseLabels.get(id) || id;
+    return `<span class="instructor-matching__chip">${escapeHtml(label)}<button type="button" class="instructor-matching__chip-remove" data-remove-blocked-course="${escapeHtml(id)}" aria-label="הסרת ${escapeHtml(label)}">×</button></span>`;
+  }).join('');
+  const courseOptions = courses.map((item) => `<option value="${escapeHtml(item.value)}">${escapeHtml(item.label)}</option>`).join('');
   const authorityOptions = (Array.isArray(options.authorities) ? options.authorities : [])
     .map((item) => ({
       value: String(item?.label || item?.value || '').trim(),
@@ -154,6 +174,16 @@ export function matchingForm(row, options = {}) {
         <datalist id="instructor-blocked-authority-options">${optionHtml}</datalist>
         <input type="hidden" name="blocked_authorities" value="${escapeHtml(selectedBlocked.join('\u001f'))}" data-blocked-authorities-value>
       </div>
+    </section>
+    <section class="instructor-matching__card"><h3>קורסים חסומים לשיבוץ</h3>
+      <p class="ds-muted" style="margin:0 0 8px">בחירת קורס תמנע הצעות שיבוץ חדשות של המדריך לקורס זה. שיבוצים שכבר אושרו לא יתבטלו.</p>
+      <div class="instructor-matching__chips" data-blocked-course-chips>${selectedCourseChips || '<span class="ds-muted">לא נבחרו קורסים</span>'}</div>
+      <label style="display:grid;gap:5px;margin-top:8px"><span>בחירת קורס מהרשימה</span>
+        <select class="ds-input" data-blocked-course-select aria-label="בחרו קורס לחסימה">
+          <option value="">בחירת קורס להוספה…</option>${courseOptions}
+        </select>
+      </label>
+      <input type="hidden" data-blocked-courses-value value="${escapeHtml(selectedCourseIds.join('\\u001f'))}">
     </section>
     <section class="instructor-matching__card"><h3>הערה פנימית</h3><label class="instructor-matching__note"><span>הערת התאמה פנימית</span><textarea class="ds-input" name="matching_note" rows="4">${escapeHtml(p.matching_note || '')}</textarea><small>ההערה מיועדת לצוות התפעול ואינה מוצגת למדריך/ה.</small></label></section>
     <p class="instructor-matching__status" role="alert" data-matching-status hidden></p>
