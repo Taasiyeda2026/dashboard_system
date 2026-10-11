@@ -206,12 +206,31 @@ async function handle(req: Request) {
   if (req.method !== "POST") throw new HttpFailure("שיטת בקשה לא נתמכת.", 405);
   const body = await req.json().catch(() => ({}));
   const action = txt(body.action);
-  const token = await graphToken();
+  const manager = canManageAll(ctx.user);
+  const instructor = isInstructor(ctx.user);
+  if (!manager && !instructor) throw new HttpFailure("אין הרשאה לאישורי צילום.", 403);
+
+  // Restricted instructor actions never grant global document management rights.
+  if (action === "instructor_status" || action === "instructor_list") {
+    const activity = await instructorActivity(ctx, body.activity_row_id);
+    const files = await instructorFiles(ctx, Number(activity.id));
+    if (action === "instructor_status") return respond({ has_file: files.length > 0 });
+    return respond({ files: files.map((f) => ({
+      id: f.id, file_name: f.file_name, mime_type: f.mime_type, uploaded_at: f.uploaded_at
+    })) });
+  }
 
   if (action === "upload") {
-    const activityId = Number(body.activity_id);
-    if (!Number.isSafeInteger(activityId) || activityId <= 0) throw new HttpFailure("מזהה פעילות לא תקין.");
-    await validateActivity(ctx, activityId);
+    let activityId: number;
+    if (instructor && !manager) {
+      const activity = await instructorActivity(ctx, body.activity_row_id);
+      activityId = Number(activity.id);
+    } else {
+      activityId = Number(body.activity_id);
+      if (!Number.isSafeInteger(activityId) || activityId <= 0) throw new HttpFailure("מזהה פעילות לא תקין.");
+      await validateActivity(ctx, activityId);
+    }
+    const token = await graphToken();
     const bytes = readBytes(body.base64);
     const mime = verifiedMime(bytes);
     const originalName = txt(body.file_name).replace(/[/\\\x00-\x1f]/g, "_").slice(0, 90) || "אישור צילום";
@@ -230,7 +249,9 @@ async function handle(req: Request) {
       size_bytes: bytes.length, uploaded_by: txt(ctx.user.full_name || ctx.user.name || ctx.user.user_id)
     };
     try {
-      const saved = await rest(ctx, "activity_photo_consent_files", { method: "POST", body: JSON.stringify(entry) });
+      const saved = instructor && !manager
+        ? await privilegedRows(ctx, "activity_photo_consent_files", { method: "POST", body: JSON.stringify(entry) })
+        : await rest(ctx, "activity_photo_consent_files", { method: "POST", body: JSON.stringify(entry) });
       return respond({ file: saved[0] });
     } catch (err) {
       await graph(token, "/items/" + encodeURIComponent(item.id), { method: "DELETE" }).catch(() => {});
@@ -239,7 +260,16 @@ async function handle(req: Request) {
   }
 
   if (action === "download") {
-    const file = await storedFile(ctx, txt(body.file_id));
+    let file;
+    if (manager) {
+      file = await storedFile(ctx, txt(body.file_id));
+    } else {
+      const activity = await instructorActivity(ctx, body.activity_row_id);
+      const files = await instructorFiles(ctx, Number(activity.id));
+      file = files.find((f) => f.id === txt(body.file_id));
+      if (!file || file.sp_drive_id !== DRIVE) throw new HttpFailure("המסמך אינו משויך לפעילות שלך.", 403);
+    }
+    const token = await graphToken();
     const r = await graph(token, "/items/" + encodeURIComponent(file.sp_item_id) + "/content");
     if (!r.ok) throw new HttpFailure("לא ניתן לטעון את המסמך מ־SharePoint (" + r.status + ").", 502);
     const bytes = new Uint8Array(await r.arrayBuffer());
@@ -248,7 +278,9 @@ async function handle(req: Request) {
   }
 
   if (action === "delete") {
+    if (!manager) throw new HttpFailure("מחיקת מסמכים מותרת למנהלי האישורים בלבד.", 403);
     const file = await storedFile(ctx, txt(body.file_id));
+    const token = await graphToken();
     const r = await graph(token, "/items/" + encodeURIComponent(file.sp_item_id), { method: "DELETE" });
     if (!r.ok && r.status !== 404) throw new HttpFailure("מחיקת המסמך מ־SharePoint נכשלה (" + r.status + ").", 502);
     await rest(ctx, "activity_photo_consent_files?id=eq." + encodeURIComponent(file.id), { method: "DELETE" });
