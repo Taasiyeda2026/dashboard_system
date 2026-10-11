@@ -494,6 +494,12 @@ export const instructorsScreen = {
     const openProfile = async (row) => {
       if (!row || !ui) return;
       await ensureScheduling();
+      // Resolve existing course blocks to real program names even before editing.
+      if (!Array.isArray(data.courseOptions) && row.scheduling_profile?.course_restriction_mode === 'block_selected'
+        && row.scheduling_profile?.course_ids?.length) {
+        try { data.courseOptions = await loadSchedulableCourseOptions(); }
+        catch (_) { /* profile continues to show the stable code when catalog is unavailable */ }
+      }
       const historyKey = text(row.emp_id || row.full_name);
       if (data._historyEmpId !== historyKey || !Array.isArray(data.detail_rows) || !data.detail_rows.length) {
         try {
