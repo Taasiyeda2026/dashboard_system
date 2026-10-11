@@ -22,9 +22,9 @@ const css = '<style id="photo-consent-style">' +
   '.pc-action{display:inline-flex;justify-content:center;align-items:center;min-height:34px;gap:5px;background:var(--ds-card-bg,#fff);border:1px solid #d5e4e9;border-radius:9px;padding:6px 11px;font-size:12px;font-weight:650;color:#176e80;text-decoration:none;cursor:pointer;white-space:nowrap}.pc-action:hover{background:#edf8fa}.pc-action:disabled{opacity:.5;cursor:not-allowed}.pc-action--danger{color:#ac3740}' +
   '.pc-school-button{border:0;background:transparent;color:#087b91;font-size:13px;font-weight:750;text-decoration:underline;text-underline-offset:3px;cursor:pointer;text-align:right;overflow-wrap:anywhere;padding:0}.pc-school-button:hover{color:#065b70}.pc-school-button:focus-visible,.pc-action:focus-visible,.pc-filter-toggle:focus-visible{outline:2px solid #0c8196;outline-offset:2px}' +
   '.pc-filter-shell{border:1px solid #e5edf1;background:#fbfdfe;border-radius:10px;margin:0 0 12px;overflow:hidden}.pc-filter-toggle{width:100%;padding:11px 12px;text-align:right;display:flex;justify-content:space-between;align-items:center;gap:10px;border:0;background:transparent;font-size:13px;font-weight:700;cursor:pointer;color:#3c5565}.pc-filter-body{padding:11px;border-top:1px solid var(--pc-border)}.pc-filter-body[hidden]{display:none}.pc-filter-count{font-size:11px;border-radius:999px;background:#e9f7fa;color:#087b91;padding:3px 9px;margin-inline-start:7px}.pc-toolbar{display:grid;grid-template-columns:minmax(220px,2fr) minmax(150px,1fr) auto;gap:10px;align-items:end}.pc-toolbar label{font-size:12px;font-weight:650;color:#607486;display:grid;gap:5px}.pc-workspace input[type=search],.pc-workspace select{width:100%;min-width:0;height:37px;padding:6px 10px;border-radius:9px;border:1px solid #d4e1e8;background:#fff;color:#273746;font-size:12px}' +
-  '.pc-results-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:7px 0 12px}.pc-results-header strong{font-size:13px;color:#374e61}.pc-table-wrap{overflow-x:auto}.pc-table{width:100%;border-collapse:collapse;min-width:660px;font-size:12px;text-align:right}.pc-table th{background:#f2f8fa;color:#50697b;font-weight:700;padding:11px 9px;text-align:right;border-bottom:1px solid #d9e6eb}.pc-table th.pc-date-th,.pc-table td.pc-date{text-align:center}.pc-table td{padding:12px 9px;vertical-align:middle;border-bottom:1px solid #edf1f4}.pc-table tbody tr:hover{background:#fbfdfe}.pc-table .pc-expanded-row td{padding:9px 11px;background:#fbfdfe}.pc-table td:first-child{font-weight:700}' +
-  '.pc-file-list{display:grid;gap:0;background:#fff;border:1px solid #e3ebef;border-radius:11px;overflow:hidden}.pc-file-list-title{background:#f0f7f9;color:#365a6c;font-weight:750;font-size:12px;padding:10px 13px}.pc-file-row{padding:11px 13px;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;border-top:1px solid #edf2f4}.pc-file-name{flex:1;min-width:0;overflow-wrap:anywhere}.pc-file-name strong{font-size:12px;color:#344a5b;display:block;margin-bottom:3px}.pc-file-row .pc-actions{justify-content:flex-start}' +
-  '.pc-mobile-list{display:none}.pc-mobile-card{border:1px solid #e3ebef;background:var(--ds-card-bg,#fff);border-radius:12px;padding:12px}.pc-mobile-top{display:flex;justify-content:space-between;align-items:flex-start;gap:9px}.pc-mobile-meta{font-size:12px;color:#597385;margin:9px 0;line-height:1.6}.pc-mobile-documents{margin-top:11px}.pc-pages{display:flex;justify-content:center;align-items:center;gap:10px;margin-top:13px}.pc-empty{padding:25px 12px;text-align:center;font-size:13px;color:#687e8c}.pc-notice{padding:10px 12px;border-radius:9px;border:1px solid #c7e6ed;background:#eff9fc;font-size:12px;margin-bottom:12px}.pc-notice--error{color:#992c37;border-color:#edc8cb;background:#fff3f4}' +
+  '.pc-results-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:7px 0 12px}.pc-results-header strong{font-size:13px;color:#374e61}.pc-table-wrap{overflow-x:auto}.pc-table{width:100%;border-collapse:collapse;min-width:860px;font-size:12px;text-align:right}.pc-table th{background:#f2f8fa;color:#50697b;font-weight:700;padding:11px 9px;text-align:right;border-bottom:1px solid #d9e6eb}.pc-table th.pc-date-th,.pc-table td.pc-date{text-align:center}.pc-table td{padding:12px 9px;vertical-align:middle;border-bottom:1px solid #edf1f4}.pc-table tbody tr:hover{background:#fbfdfe}.pc-table .pc-expanded-row td{padding:9px 11px;background:#fbfdfe}.pc-table td:first-child{font-weight:700}' +
+  '.pc-operational-name{max-width:195px;overflow-wrap:anywhere;line-height:1.5}.pc-multi-date{display:block;color:#728594;font-size:10px;margin-top:3px;line-height:1.4}.pc-file-list{display:grid;gap:0;background:#fff;border:1px solid #e3ebef;border-radius:11px;overflow:hidden}.pc-file-list-title{background:#f0f7f9;color:#365a6c;font-weight:750;font-size:12px;padding:10px 13px}.pc-file-row{padding:11px 13px;display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap;border-top:1px solid #edf2f4}.pc-file-name{flex:1;min-width:0;overflow-wrap:anywhere}.pc-file-name strong{font-size:12px;color:#344a5b;display:block;margin-bottom:3px}.pc-file-row .pc-actions{justify-content:flex-start}' +
+  '.pc-mobile-meta-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;margin:10px 0}.pc-mobile-meta-grid>div{min-width:0}.pc-mobile-meta-grid small{display:block;font-size:11px;color:#718495;margin-bottom:2px}.pc-mobile-meta-grid span{font-size:12px;color:#435968;overflow-wrap:anywhere}.pc-mobile-list{display:none}.pc-mobile-card{border:1px solid #e3ebef;background:var(--ds-card-bg,#fff);border-radius:12px;padding:12px}.pc-mobile-top{display:flex;justify-content:space-between;align-items:flex-start;gap:9px}.pc-mobile-meta{font-size:12px;color:#597385;margin:9px 0;line-height:1.6}.pc-mobile-documents{margin-top:11px}.pc-pages{display:flex;justify-content:center;align-items:center;gap:10px;margin-top:13px}.pc-empty{padding:25px 12px;text-align:center;font-size:13px;color:#687e8c}.pc-notice{padding:10px 12px;border-radius:9px;border:1px solid #c7e6ed;background:#eff9fc;font-size:12px;margin-bottom:12px}.pc-notice--error{color:#992c37;border-color:#edc8cb;background:#fff3f4}' +
   '.pc-preview-backdrop{position:fixed;inset:0;z-index:99999;background:#091b26b0;display:grid;place-items:center;padding:14px}.pc-preview{background:#fff;color:#344554;border-radius:13px;width:min(95vw,960px);height:min(93dvh,950px);padding:12px;display:flex;flex-direction:column;gap:10px}.pc-preview header{display:flex;align-items:center;justify-content:space-between;gap:10px}.pc-preview header strong{overflow-wrap:anywhere;min-width:0}.pc-preview img,.pc-preview iframe{flex:1;width:100%;min-height:0;object-fit:contain;border:0}' +
   '@media(max-width:820px){.pc-workspace{padding:10px 3px 25px}.pc-title h2{font-size:19px}.pc-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.pc-kpi{padding:10px 12px;gap:8px}.pc-kpi strong{font-size:21px}.pc-surface{padding:10px}.pc-toolbar{grid-template-columns:1fr 1fr}.pc-toolbar label:first-child{grid-column:1/-1}.pc-toolbar button{justify-self:start}.pc-table-wrap{display:none}.pc-mobile-list{display:grid;gap:9px}.pc-file-row{padding:10px;align-items:stretch}.pc-file-row .pc-actions{justify-content:flex-start}.pc-preview-backdrop{padding:6px}.pc-preview{height:96dvh;width:100%}}' +
   '@media(max-width:390px){.pc-summary{grid-template-columns:1fr 1fr}.pc-kpi{flex-direction:column;align-items:flex-start}.pc-toolbar{grid-template-columns:1fr}.pc-toolbar label:first-child{grid-column:auto}.pc-title-actions{width:100%}.pc-title-actions .pc-action{flex:1}}' +
@@ -34,7 +34,7 @@ async function allActivities(seasons) {
   const records = [];
   for (let offset = 0; ; offset += 500) {
     const { data, error } = await supabase.from('activities')
-      .select('id,row_id,authority,school,activity_name,start_date,activity_season,status')
+      .select('id,row_id,authority,school,activity_name,activity_manager,instructor_name,start_date,activity_season,status')
       .in('activity_season', seasons)
       .not('start_date', 'is', null)
       .order('start_date', { ascending: true })
@@ -91,7 +91,7 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
     return groups.filter((group) =>
       (context.authority === 'all' || group.authority === context.authority) &&
       (!needle || [group.school, group.authority,
-        ...group.documents.flatMap((f) => [f.file_name, f.ownerActivity?.activity_name])]
+        ...group.documents.flatMap((f) => [f.file_name, f.ownerActivity?.activity_name, f.ownerActivity?.activity_manager, f.ownerActivity?.instructor_name])]
         .some((s) => clean(s).toLocaleLowerCase('he').includes(needle))));
   };
 
@@ -107,7 +107,9 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
       group.documents.map((file) =>
         '<div class="pc-file-row"><div class="pc-file-name"><strong>' + safe(file.file_name) + '</strong>' +
         '<div class="pc-muted">' + safe(file.ownerActivity?.activity_name || 'פעילות') +
-        ' · ' + safe(dateHe(file.ownerActivity?.start_date)) +
+        ' · תחילת קורס: ' + safe(dateHe(file.ownerActivity?.start_date)) +
+        ' · מנהל פעילות: ' + safe(file.ownerActivity?.activity_manager || '—') +
+        ' · מדריך: ' + safe(file.ownerActivity?.instructor_name || '—') +
         (file.uploaded_by ? ' · ' + safe(file.uploaded_by) : '') + '</div></div>' +
         '<div class="pc-actions">' +
         '<button class="pc-action" type="button" data-pc-view="' + safe(file.id) + '">צפייה</button>' +
@@ -117,6 +119,17 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
         '<button class="pc-action pc-action--danger" type="button" data-pc-delete="' + safe(file.id) + '">מחיקה</button>' +
         '</div></div>'
       ).join('') + '</div>';
+  }
+
+  function operationalNames(names) {
+    return names.length ? safe(names.join(' · ')) : '—';
+  }
+
+  function operationalStartDate(group) {
+    const { startDates, firstStartDate } = group.operational;
+    return '<span>' + safe(dateHe(firstStartDate)) + '</span>' +
+      (startDates.length > 1 ? '<small class="pc-multi-date">+' +
+        (startDates.length - 1) + ' תאריכי התחלה נוספים</small>' : '');
   }
 
   function schoolButton(group, expanded) {
@@ -142,15 +155,22 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
         safe(encodeURIComponent(group.key)) + '" aria-expanded="' + (expanded ? 'true' : 'false') + '">' +
         (expanded ? 'סגירה' : 'הצגת אישורים') + '</button>';
       return {
-        desktop: '<tr><td>' + button + '</td><td>' + safe(group.authority) + '</td><td>' +
-          group.documents.length + '</td><td>' + group.activityCount + '</td><td class="pc-date">' +
-          safe(dateHe(group.updatedAt)) + '</td><td>' + action + '</td></tr>' +
-          (expanded ? '<tr class="pc-expanded-row"><td colspan="6">' + fileRows(group) + '</td></tr>' : ''),
+        desktop: '<tr><td>' + button + '</td><td>' + safe(group.authority) + '</td>' +
+          '<td class="pc-operational-name">' + operationalNames(group.operational.managers) + '</td>' +
+          '<td class="pc-operational-name">' + operationalNames(group.operational.instructors) + '</td>' +
+          '<td class="pc-date">' + operationalStartDate(group) + '</td>' +
+          '<td>' + group.documents.length + ' <span class="pc-muted">(' + group.activityCount + ' פעילויות)</span></td>' +
+          '<td>' + action + '</td></tr>' +
+          (expanded ? '<tr class="pc-expanded-row"><td colspan="7">' + fileRows(group) + '</td></tr>' : ''),
         mobile: '<article class="pc-mobile-card"><div class="pc-mobile-top"><div>' + button +
           '<div class="pc-muted">' + safe(group.authority) + '</div></div>' +
           '<strong>' + group.documents.length + ' אישורים</strong></div>' +
-          '<div class="pc-mobile-meta">' + group.activityCount + ' פעילויות משויכות · עודכן ' +
-          safe(dateHe(group.updatedAt)) + '</div>' + action +
+          '<div class="pc-mobile-meta-grid">' +
+          '<div><small>מנהל פעילות</small><span>' + operationalNames(group.operational.managers) + '</span></div>' +
+          '<div><small>מדריך</small><span>' + operationalNames(group.operational.instructors) + '</span></div>' +
+          '<div><small>תחילת קורס</small><span>' + operationalStartDate(group) + '</span></div>' +
+          '<div><small>פעילויות משויכות</small><span>' + group.activityCount + '</span></div>' +
+          '</div>' + action +
           (expanded ? '<div class="pc-mobile-documents">' + fileRows(group) + '</div>' : '') +
           '</article>'
       };
@@ -188,9 +208,9 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
       '<div class="pc-results-header"><strong>בתי ספר עם אישורי צילום</strong>' +
       '<span class="pc-muted">מציג ' + found.length + ' מתוך ' + groups.length + ' בתי ספר</span></div>' +
       '<div class="pc-table-wrap"><table class="pc-table"><thead><tr>' +
-      '<th>בית ספר</th><th>רשות</th><th>אישורים</th><th>פעילויות</th><th class="pc-date-th">עדכון אחרון</th><th>פעולות</th>' +
+      '<th>בית ספר</th><th>רשות</th><th>מנהל פעילות</th><th>מדריך</th><th class="pc-date-th">תחילת קורס</th><th>אישורים</th><th>פעולות</th>' +
       '</tr></thead><tbody>' +
-      (rows.length ? rows.map((r) => r.desktop).join('') : '<tr><td colspan="6" class="pc-empty">' + safe(emptyMessage) + '</td></tr>') +
+      (rows.length ? rows.map((r) => r.desktop).join('') : '<tr><td colspan="7" class="pc-empty">' + safe(emptyMessage) + '</td></tr>') +
       '</tbody></table></div>' +
       '<div class="pc-mobile-list">' +
       (rows.length ? rows.map((r) => r.mobile).join('') : '<div class="pc-empty">' + safe(emptyMessage) + '</div>') +
