@@ -666,3 +666,43 @@ test('biomimicry AI export offers separate internal and external scopes', () => 
   assert.match(screen, /function exportAiAnalysis\(mode\)/);
   assert.match(screen, /exportAiAnalysis\(aiExport\.dataset\.ifbAiExport\)/);
 });
+
+test('approved Arabic biomimicry pre/post match the supplied student questionnaires', () => {
+  const sql = readFileSync(new URL('../supabase/migrations/20261011190000_biomimicry_student_arabic_approved_docx.sql', import.meta.url), 'utf8');
+  const required = [
+    'هل فكّرتم يومًا ماذا يمكننا أن نتعلّم من الطبيعة من حولنا؟',
+    'خلال الدورة، استكشفنا الطبيعة وتعلّمنا كيف نستمدّ منها الإلهام لأفكار جديدة.',
+    'يهمّني أن أكتشف أشياء جديدة عن الطبيعة.',
+    'عندما أرى شيئًا مثيرًا للاهتمام في الطبيعة، أريد أن أفهم كيف يعمل.',
+    'أنتبه إلى تفاصيل مميّزة في النباتات والحيوانات.',
+    'أستطيع أن أشرح كيف تساعد صفة معيّنة حيوانًا على العيش في الطبيعة.',
+    'أستطيع أن أفكّر في أفكار جديدة مستوحاة من الطبيعة.',
+    'عندما تكون هناك مشكلة، أحاول التفكير في أكثر من حلّ واحد.',
+    'أستطيع أن أعمل مع أصدقائي لإيجاد حلّ لمشكلة.',
+    'أشعر بالثقة عندما أقدّم فكرة من أفكاري أمام الآخرين.',
+    'كانت الأنشطة في الدورة ممتعة ومثيرة للاهتمام.',
+    'خلال الدورة، أتيحت لي فرصة لاقتراح أفكار من عندي.',
+    'أيّ نشاط في الدورة أحببت أكثر؟',
+    'ما الذي تودّ تغييره أو إضافته في الدورة؟'
+  ];
+  for (const exactArabicText of required) assert.ok(sql.includes(exactArabicText), exactArabicText);
+  assert.match(sql, /common_n<>8/);
+  assert.match(sql, /n<>20/);
+  assert.match(sql, /private\.feedback_biomimicry_approved_question_ar/);
+  assert.match(sql, /private\.feedback_biomimicry_approved_intro_ar/);
+  assert.match(sql, /c\.program_key=''biomimicry'' and c\.audience=''student''/);
+  assert.match(sql, /private\.feedback_publish_version/);
+
+  for (const label of [
+    'لا ينطبق عليّ أبدًا', 'ينطبق عليّ قليلًا', 'ينطبق عليّ بدرجة متوسطة',
+    'ينطبق عليّ إلى حدّ كبير', 'ينطبق عليّ كثيرًا جدًا'
+  ]) assert.ok(publicForm.includes(label), label);
+  assert.match(publicForm, /isArabicBiomimicryStudent/);
+  assert.match(publicForm, /ifb-biomimicry-scale/);
+  assert.match(publicForm, /ifb-biomimicry-open-intro/);
+  assert.match(publicForm, /استبيان بداية دورة البيوميمكري – المحاكاة الحيوية/);
+  assert.match(publicForm, /استبيان نهاية دورة البيوميمكري – المحاكاة الحيوية/);
+  assert.match(publicForm, /questionHtml\(q, i, answers, young, options\.language \|\| 'he', biomimicryArabic\)/);
+  assert.match(publicPage, /biomimicryStudentStageForThanks/);
+  assert.match(templates, /program_key: ed\.template\.program_key/);
+});
