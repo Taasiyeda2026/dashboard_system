@@ -71,14 +71,18 @@ function allowsNa(q) {
 }
 
 function optionsToText(options) {
-  return (Array.isArray(options) ? options : []).map((o) => `${o.value}|${o.label}`).join('\n');
+  return (Array.isArray(options) ? options : [])
+    .map((o) => [o.value, o.label, o.label_ar || ''].join('|')).join('\n');
 }
 
-function textToOptions(text) {
+function textToOptions(text, existingOptions = []) {
   return String(text || '').split('\n').map((line) => line.trim()).filter(Boolean).map((line, i) => {
-    const [value, ...rest] = line.split('|');
-    const label = rest.join('|').trim() || value.trim();
-    return { value: (value.trim() || `opt_${i + 1}`).replace(/\s+/g, '_'), label };
+    const [rawValue = '', rawLabel = '', ...arabicParts] = line.split('|');
+    const value = (rawValue.trim() || `opt_${i + 1}`).replace(/\s+/g, '_');
+    const label = rawLabel.trim() || value;
+    const explicitArabic = arabicParts.join('|').trim();
+    const previousArabic = (Array.isArray(existingOptions) ? existingOptions : []).find((o) => o.value === value)?.label_ar;
+    return { value, label, ...(explicitArabic || previousArabic ? { label_ar: explicitArabic || previousArabic } : {}) };
   });
 }
 
@@ -226,7 +230,7 @@ function readOnlyQuestionHtml(q, index, ui, defaults) {
       allowsNa(q) ? metaPart('כולל „לא רלוונטי”') : '',
       ...exceptionParts(q, defaults)
     ])}
-    ${SELECT_TYPES.has(q.question_type) ? `<p class="ifb-tq__variant">אפשרויות: ${esc((q.options || []).map((o) => o.label).join(' · '))}</p>` : ''}
+    ${SELECT_TYPES.has(q.question_type) ? `<p class="ifb-tq__variant">אפשרויות בעברית: ${esc((q.options || []).map((o) => o.label).join(' · '))}</p><p class="ifb-tq__variant" lang="ar" dir="rtl">خيارات الإجابة بالعربية: ${esc((q.options || []).map((o) => o.label_ar || '').join(' · '))}</p>` : ''}
   </li>`;
 }
 
@@ -249,7 +253,7 @@ function editableQuestionHtml(q, index, total, ui, defaults) {
       <label class="ifb-check"><input type="checkbox" data-tq-field="required"${q.required ? ' checked' : ''}> חובה</label>
       ${q.question_type === 'rating_1_5' ? `<label class="ifb-check" title="מוסיף לשאלה את האפשרות „לא רלוונטי / לא הייתה אפשרות להעריך”. תשובה כזו אינה נכללת בממוצע."><input type="checkbox" data-tq-field="allow_na"${allowsNa(q) ? ' checked' : ''}> אפשרות „לא רלוונטי”</label>` : ''}
     </div>
-    ${SELECT_TYPES.has(q.question_type) ? `<label class="ifb-field"><span>אפשרויות (שורה לכל אפשרות: ערך|תווית)</span><textarea rows="3" data-tq-field="options">${esc(optionsToText(q.options))}</textarea></label>` : ''}
+    ${SELECT_TYPES.has(q.question_type) ? `<label class="ifb-field"><span>אפשרויות (שורה לכל אפשרות: ערך|עברית|ערבית)</span><textarea rows="3" data-tq-field="options">${esc(optionsToText(q.options))}</textarea></label>` : ''}
   </li>`;
 }
 
@@ -268,7 +272,7 @@ function addFormHtml(ed, ui) {
         <label class="ifb-field ifb-field--wide"><span>ניסוח שאלה חדשה</span><input type="text" name="text" required maxlength="400"></label>
         <label class="ifb-field"><span>סוג</span><select name="type">${typeOptions('rating_1_5')}</select></label>
         <label class="ifb-field"><span>מדד</span><select name="metric">${metricOptions(ui, ed.template.audience === 'instructor' ? 'content' : 'knowledge')}</select></label>
-        <label class="ifb-field ifb-field--wide"><span>אפשרויות לבחירה (רק לסוגי בחירה, ערך|תווית בכל שורה)</span><textarea name="options" rows="2"></textarea></label>
+        <label class="ifb-field ifb-field--wide"><span>אפשרויות לבחירה (רק לסוגי בחירה, ערך|עברית|ערבית בכל שורה)</span><textarea name="options" rows="2"></textarea></label>
         <label class="ifb-check"><input type="checkbox" name="required" checked> חובה</label>
         ${isStudent ? '<label class="ifb-check"><input type="checkbox" name="comparison"> שאלת השוואה (תופיע גם בטיוטת התבנית השנייה של התלמידים לאחר פרסום)</label>' : ''}
         <button type="submit" class="ifb-btn ifb-btn--primary">הוספת שאלה</button>
@@ -302,7 +306,7 @@ function editorHtml(ui) {
           : '<button type="button" class="ifb-btn ifb-btn--primary" data-tpl-edit title="יצירת טיוטה לעריכה">עריכה</button>'}
       </div>
       ${editing ? `<div class="ifb-tpl-head__intro"><label class="ifb-field ifb-field--wide"><span>פתיח בעברית</span><textarea rows="4" lang="he" dir="rtl" data-tpl-intro>${esc(ed.draft.intro_text || '')}</textarea></label><label class="ifb-field ifb-field--wide"><span>פתיח בערבית</span><textarea rows="4" lang="ar" dir="rtl" data-tpl-intro-ar>${esc(ed.draft.intro_text_ar || '')}</textarea></label></div>`
-        : (ed.published?.intro_text ? `<div class="ifb-tpl-head__intro"><span>טקסט פתיחה</span><p>${esc(ed.published.intro_text)}</p></div>` : '')}
+        : (ed.published?.intro_text ? `<div class="ifb-tpl-head__intro"><span>פתיח בעברית</span><p>${esc(ed.published.intro_text)}</p>${ed.published.intro_text_ar ? `<span>פתיח בערבית</span><p lang="ar" dir="rtl">${esc(ed.published.intro_text_ar)}</p>` : ''}</div>` : '')}
     </section>
     <section class="ifb-tq-block">
       ${listSummaryHtml(questions, defaults)}
@@ -443,7 +447,7 @@ async function saveQuestionField(ui, repaint, row, field, input) {
   } else if (field === 'metric_key') {
     patch = { metric_key: input.value };
   } else if (field === 'options') {
-    const options = textToOptions(input.value);
+    const options = textToOptions(input.value, q.options);
     if (options.length < 2) {
       showToast('יש להגדיר לפחות שתי אפשרויות', 'error');
       return;
