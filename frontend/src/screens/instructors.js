@@ -11,6 +11,7 @@ import { activityWorkDrawerHtml, patchDrawerDatesSection } from './shared/activi
 import {
   loadInstructorSchedulingData,
   saveInstructorSchedulingProfile,
+  loadSchedulableCourseOptions,
   saveInstructorWeeklyRules,
   saveInstructorAvailabilityException,
   deleteInstructorAvailabilityException
@@ -199,6 +200,26 @@ export function bindInstructorMatchingModal(modalRoot, { row, saveProfile, onSuc
   const valueInput = form.querySelector('[data-blocked-authorities-value]');
   const chipsHost = form.querySelector('[data-blocked-authority-chips]');
   const searchInput = form.querySelector('[data-blocked-authority-search]');
+  const courseValueInput = form.querySelector('[data-blocked-courses-value]');
+  const courseChipsHost = form.querySelector('[data-blocked-course-chips]');
+  const courseSelect = form.querySelector('[data-blocked-course-select]');
+  const allowedCourseLabels = new Map(
+    [...(courseSelect?.options || [])].filter((option) => option.value)
+      .map((option) => [String(option.value), String(option.textContent)])
+  );
+  const readCourses = () => String(courseValueInput?.value || '')
+    .split('\u001f').map((value) => value.trim()).filter(Boolean);
+  const writeCourses = (values) => {
+    const unique = [...new Set(values.map((value) => String(value).trim()).filter(Boolean))];
+    if (courseValueInput) courseValueInput.value = unique.join('\u001f');
+    if (!courseChipsHost) return;
+    courseChipsHost.innerHTML = unique.length
+      ? unique.map((id) => {
+          const label = allowedCourseLabels.get(id) || id;
+          return `<span class="instructor-matching__chip">${escapeHtml(label)}<button type="button" class="instructor-matching__chip-remove" data-remove-blocked-course="${escapeHtml(id)}" aria-label="הסרת ${escapeHtml(label)}">×</button></span>`;
+        }).join('')
+      : '<span class="ds-muted">לא נבחרו קורסים</span>';
+  };
   const allowedAuthorities = new Map(
     [...(form.querySelectorAll('#instructor-blocked-authority-options option') || [])]
       .map((option) => {
@@ -262,6 +283,20 @@ export function bindInstructorMatchingModal(modalRoot, { row, saveProfile, onSuc
     writeBlocked(readBlocked().filter((name) => name.toLocaleLowerCase('he-IL') !== target.toLocaleLowerCase('he-IL')));
   });
 
+  courseSelect?.addEventListener('change', () => {
+    const id = String(courseSelect.value || '').trim();
+    if (id && allowedCourseLabels.has(id)) {
+      writeCourses([...readCourses(), id]);
+      setMatchingStatus('');
+    }
+    courseSelect.value = '';
+  });
+  form.addEventListener('click', (event) => {
+    const remove = event.target?.closest?.('[data-remove-blocked-course]');
+    if (!remove || !form.contains(remove)) return;
+    const id = String(remove.getAttribute('data-remove-blocked-course') || '');
+    writeCourses(readCourses().filter((value) => value !== id));
+  });
   searchInput?.addEventListener('change', () => addBlocked(searchInput.value));
   searchInput?.addEventListener('keydown', (event) => {
     if (event.key !== 'Enter') return;
@@ -286,7 +321,8 @@ export function bindInstructorMatchingModal(modalRoot, { row, saveProfile, onSuc
         gender: form.querySelector('[name="gender"]:checked')?.value || '',
         instruction_languages: selected('language'),
         matching_note: form.querySelector('[name="matching_note"]')?.value || '',
-        blocked_authorities: readBlocked()
+        blocked_authorities: readBlocked(),
+        course_ids: readCourses()
       });
       await onSuccess?.();
     } catch (error) {
@@ -475,7 +511,7 @@ export const instructorsScreen = {
       const activities = activitiesFor(data, row);
       const reopen = () => requestAnimationFrame(() => openProfile(row));
       const profileTitle = row.full_name && row.emp_id ? `${row.full_name} | ${row.emp_id}` : row.full_name || row.emp_id;
-      ui.openDrawer({ title: profileTitle, content: profileHtml(row, activities, canEdit, !!data?.scheduling?.loaded) });
+      ui.openDrawer({ title: profileTitle, content: profileHtml(row, activities, canEdit, !!data?.scheduling?.loaded, data.courseOptions || []) });
       requestAnimationFrame(() => {
         document.querySelector('[data-edit-instructor-contact]')?.addEventListener('click', () => openContact(row, reopen));
         document.querySelector('[data-edit-instructor-constraints]')?.addEventListener('click', () => openConstraints(row, reopen));
@@ -528,10 +564,18 @@ export const instructorsScreen = {
       } catch (_) {
         /* keep whatever is already in clientSettings.dropdown_options */
       }
+      // Global system courses, not the current instructor's activity history.
+      // Values are canonical activity/program numbers; no free-text entry.
+      try {
+        data.courseOptions = await loadSchedulableCourseOptions();
+      } catch (error) {
+        showToast(String(error?.message || 'לא ניתן לטעון את הקורסים לבחירה'), 'error');
+        return;
+      }
       const uniqueOptions = (items) => [...new Map(items.filter(item => item.value).map(item => [item.value, item])).values()].sort((a,b) => a.label.localeCompare(b.label, 'he'));
       const activityRows = data?.detail_rows || [];
       const options = {
-        courses: uniqueOptions(activityRows.filter(item => text(item.activity_type).toLowerCase() === 'course' || text(item.activity_type) === 'קורס').map(item => ({ value: text(item.activity_no || item.course_id || item.activity_name), label: `${text(item.activity_name)}${text(item.activity_no) ? ` · ${text(item.activity_no)}` : ''}` }))),
+        courses: data.courseOptions,
         // Full system catalog (authorities table → clientSettings.dropdown_options), not detail_rows.
         authorities: systemAuthorityOptionsFromSettings(state?.clientSettings),
         schools: uniqueOptions(activityRows.map(item => ({ value: text(item.school_id || item.school), label: `${text(item.school)}${text(item.authority) ? ` · ${text(item.authority)}` : ''}` })))
