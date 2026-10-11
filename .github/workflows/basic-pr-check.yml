@@ -56,6 +56,20 @@ jobs:
 
           echo "Checked ${js_count} changed JavaScript files and ${json_count} changed JSON files."
 
+      - name: Run photo consent mobile and school-view regression tests
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="$(git rev-parse "origin/${BASE_REF}")"
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(frontend/src/screens/(photo-consent-workspace[.]js|shared/photo-consent-school[.]js)|tests/photo-consent-(mobile-school-view|visibility-contract)[.]test[.]mjs)$'; then
+            node --test tests/photo-consent-mobile-school-view.test.mjs tests/photo-consent-visibility-contract.test.mjs
+          else
+            echo "No photo-consent changes; focused tests skipped."
+          fi
+
       - name: Run impact feedback UI and analytics contract tests
         env:
           BASE_REF: ${{ github.base_ref }}
