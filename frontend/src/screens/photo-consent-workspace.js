@@ -1,7 +1,7 @@
 import { supabase } from '../supabase-client.js';
 import { escapeHtml } from './shared/html.js';
 import { photoConsentDocumentsBySchool, photoConsentSchoolKey } from './shared/photo-consent-school.js';
-import { splitPhotoConsentActivities } from './shared/photo-consent-completion.js';
+import { splitPhotoConsentActivities, photoConsentIsraelToday, photoConsentActivityCompleted } from './shared/photo-consent-completion.js';
 
 const PAGE_SIZE = 25;
 const ACCEPTED = new Set(['application/pdf', 'image/png', 'image/jpeg']);
@@ -151,7 +151,9 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
     const uploaded = context.activities.filter((a) => documentsFor(a).length > 0).length;
     const visibleIds = new Set(context.activities.map((a) => Number(a.id)));
     const documentCount = context.files.filter((f) => visibleIds.has(Number(f.activity_id))).length;
-    const found = filtered();
+    const today = photoConsentIsraelToday();
+    const { current: allCurrent } = splitPhotoConsentActivities(context.activities, today);
+    const { current: found, completed } = splitPhotoConsentActivities(filtered(), today);
     const pageCount = Math.max(1, Math.ceil(found.length / PAGE_SIZE));
     context.page = Math.min(context.page, pageCount - 1);
     const visible = found.slice(context.page * PAGE_SIZE, (context.page + 1) * PAGE_SIZE);
@@ -179,7 +181,7 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
           '<td>' + safe(a.authority || '—') + '</td><td>' + safe(a.activity_name || '—') + '</td>' +
           '<td class="pc-center">' + safe(dateHe(a.start_date)) + '</td>' +
           '<td>' + safe(a.instructor_name || '—') + '</td>' +
-          '<td class="pc-center">' + docsStatus + '</td><td>' + buttons + '</td></tr>' +
+          '<td>' + docsStatus + '</td><td>' + buttons + '</td></tr>' +
           (opened ? '<tr class="pc-expanded-row"><td class="pc-expanded-cell" colspan="7">' +
             fileRows(documents, a.school) + '</td></tr>' : ''),
         mobile: '<article class="pc-mobile-card">' +
@@ -195,6 +197,35 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
           '</article>'
       };
     });
+    const completedHtml = completed.length
+      ? '<section class="pc-completed" aria-label="פעילויות שהסתיימו">' +
+        '<button type="button" class="pc-completed-toggle" data-pc-completed-toggle aria-expanded="' +
+        (context.completedOpen ? 'true' : 'false') + '" aria-controls="pc-completed-content">' +
+        '<span>פעילויות שהסתיימו (' + completed.length + ')</span>' +
+        '<span class="pc-completed-arrow" aria-hidden="true">⌄</span></button>' +
+        '<div class="pc-completed-body" id="pc-completed-content"' +
+        (context.completedOpen ? '' : ' hidden') + '>' +
+        completed.map((activity) => {
+          const documents = documentsFor(activity);
+          const opened = context.openId === Number(activity.id) && documents.length > 0;
+          return '<div class="pc-completed-item"><div class="pc-completed-row">' +
+            '<div class="pc-completed-name"><strong>' + safe(activity.school || 'לא משויך') + '</strong>' +
+            '<span>· ' + safe(activity.activity_name || 'פעילות') + '</span>' +
+            '<span>· הסתיים ' + safe(dateHe(activity.end_date || activity.start_date)) + '</span>' +
+            '</div><div class="pc-actions">' +
+            (documents.length
+              ? '<button type="button" class="pc-action" data-pc-toggle="' + Number(activity.id) +
+                '" aria-expanded="' + (opened ? 'true' : 'false') + '">' +
+                documents.length + ' ' + (documents.length === 1 ? 'אישור · צפייה' : 'אישורים · צפייה') + '</button>'
+              : '') +
+            '<button type="button" class="pc-action" data-pc-upload="' + Number(activity.id) +
+            '"' + (context.busy ? ' disabled' : '') + '>העלאה</button>' +
+            '</div></div>' +
+            (opened ? '<div class="pc-completed-docs">' + fileRows(documents, activity.school) + '</div>' : '') +
+            '</div>';
+        }).join('') +
+        '</div></section>'
+      : '';
     root.innerHTML = css +
       '<section class="pc-workspace" dir="rtl">' +
       '<header class="pc-title"><h2>אישורי צילום</h2>' +
@@ -225,10 +256,10 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
       '<option value="missing"' + (context.status === 'missing' ? ' selected' : '') + '>ללא אישור</option></select></label>' +
       '<button type="button" class="pc-action" data-pc-clear' + (activeFilterCount ? '' : ' disabled') + '>ניקוי סינון</button>' +
       '</div></div></div>' +
-      '<div class="pc-results-header"><strong>רשימת פעילויות</strong><span class="pc-muted">מציג ' +
-      found.length + ' מתוך ' + total + ' פעילויות</span></div>' +
+      '<div class="pc-results-header"><strong>פעילויות פעילות ומתוכננות</strong><span class="pc-muted">מציג ' +
+      found.length + ' מתוך ' + allCurrent.length + ' פעילויות</span></div>' +
       '<div class="pc-table-wrap"><table class="pc-table">' +
-      '<thead><tr><th>בית ספר</th><th>רשות</th><th>תוכנית / פעילות</th><th>תאריך התחלה</th><th>מדריך</th><th>אישורים</th><th>פעולות</th></tr></thead>' +
+      '<thead><tr><th>בית ספר</th><th>רשות</th><th>תוכנית / פעילות</th><th class="pc-date-th">תאריך התחלה</th><th>מדריך</th><th>אישורים</th><th>פעולות</th></tr></thead>' +
       '<tbody>' + (rows.length ? rows.map((row) => row.desktop).join('') :
         '<tr><td colspan="7" class="pc-empty">אין פעילויות המתאימות לסינון</td></tr>') + '</tbody></table></div>' +
       '<div class="pc-mobile-list">' + (rows.length ? rows.map((row) => row.mobile).join('') :
@@ -237,7 +268,7 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
       '<button type="button" class="pc-action" data-pc-prev ' + (context.page === 0 ? 'disabled' : '') + '>הקודם</button>' +
       '<span class="pc-muted">עמוד ' + (context.page + 1) + ' מתוך ' + pageCount + '</span>' +
       '<button type="button" class="pc-action" data-pc-next ' + (context.page >= pageCount - 1 ? 'disabled' : '') + '>הבא</button>' +
-      '</nav></section></section>';
+      '</nav>' + completedHtml + '</section></section>';
   }
   async function refresh() {
     context.busy = true; report('טוען פעילויות ומסמכים…');
@@ -287,6 +318,7 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
     const isError = context.error;
     await refresh();
     context.openId = Number(activity.id);
+    if (photoConsentActivityCompleted(activity, photoConsentIsraelToday())) context.completedOpen = true;
     report(message || (succeeded + ' קבצים נשמרו ב־SharePoint.'), isError);
   }
   function closePreview() {
@@ -338,6 +370,12 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
   root.addEventListener('click', async (ev) => {
     const button = ev.target.closest('button');
     if (!button) return;
+    if (button.hasAttribute('data-pc-completed-toggle')) {
+      context.completedOpen = !context.completedOpen;
+      render();
+      root.querySelector('[data-pc-completed-toggle]')?.focus();
+      return;
+    }
     if (button.hasAttribute('data-pc-filter-toggle')) {
       context.filtersOpen = !context.filtersOpen;
       render();
