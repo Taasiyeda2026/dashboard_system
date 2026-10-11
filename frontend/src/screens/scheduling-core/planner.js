@@ -1,4 +1,5 @@
 import { explainRejections } from './rejection-reasons.js';
+import { earliestUndatedCourseStart } from '../course-scheduling-start-policy.js';
 import { classifyMeetingAvailabilityBlocks } from '../course-scheduling-date-adjustments.js';
 import { operationalQuality, availabilityByInstructor, compareOperationalQuality } from './quality.js';
 import { augmentingSearch } from './augmenting-search.js';
@@ -81,7 +82,7 @@ function* schedules(context, a, empId, spec, input, previous, occupancy) {
   if (official.length) { yield official; return; }
   // A source start date/time is a fixed school anchor even if date_1 is absent.
   const period = resolveCourseSchedulingPeriod(input.periodKey || 'first'), year = resolveCourseSchedulingPeriod('year');
-  const start = [period.start, input.today || period.start, '2026-10-12', text(a.start_date).slice(0, 10)].sort().at(-1);
+  const start = [period.start, earliestUndatedCourseStart(input.today), '2026-10-12', text(a.start_date).slice(0, 10)].sort().at(-1);
   const end = period.key === 'first' ? '2027-02-28' : year.end;
   if (previous?.meetings?.length && previous.meetings[0].date >= start) {
     yield previous.meetings;
