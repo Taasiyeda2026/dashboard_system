@@ -444,3 +444,5 @@ config.HOTFIX_VERSION = `scheduling-worker-clone-v37-20261010-v1-${config.HOTFIX
 config.HOTFIX_VERSION = `scheduling-v37-operational-optimization-20261010-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = 'photo-consent-sharepoint-20261011-v1-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'photo-consent-bootstrap-permission-20261011-v2-' + config.HOTFIX_VERSION;
