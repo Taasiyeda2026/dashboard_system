@@ -453,7 +453,7 @@ function fieldViewOnly(label, viewHtml) {
 function headerActionsHtml(exportAction, showPhotoConsentUpload = false, activityId = 0) {
   return `
     <div class="activity-drawer__header-actions" aria-label="פעולות חלון">
-      ${showPhotoConsentUpload ? `<button type="button" class="activity-drawer__photo-upload" data-activity-photo-upload="${Number(activityId)}" title="העלאת אישור צילום" aria-label="העלאת אישור צילום"><svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4H9.5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3.4"/></svg></button>` : ''}
+      ${showPhotoConsentUpload ? `<button type="button" class="activity-drawer__export activity-drawer__photo-upload" data-activity-photo-upload="${Number(activityId)}" title="העלאת אישור צילום" aria-label="העלאת אישור צילום"><svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4H9.5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3.4"/></svg></button>` : ''}
       ${exportAction ? '<button type="button" class="activity-drawer__export" data-action="export-activity-excel" title="ייצוא פעילות לאקסל" aria-label="ייצוא פעילות לאקסל">⇩</button>' : ''}
       <button type="button" class="activity-drawer__close" data-action="close-drawer" data-ui-close-drawer aria-label="סגירה">✕</button>
     </div>
