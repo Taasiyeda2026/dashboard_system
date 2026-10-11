@@ -448,3 +448,5 @@ config.HOTFIX_VERSION = 'photo-consent-sharepoint-20261011-v1-' + config.HOTFIX_
 config.HOTFIX_VERSION = 'photo-consent-bootstrap-permission-20261011-v2-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = 'photo-consent-ux-mobile-school-documents-20261011-v3-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'photo-consent-rtl-compact-finished-20261011-v4-' + config.HOTFIX_VERSION;
