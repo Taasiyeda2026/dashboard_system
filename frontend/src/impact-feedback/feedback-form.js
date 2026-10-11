@@ -128,6 +128,14 @@ function questionHtml(q, index, answers, young, lang = 'he', approvedStudentScal
 
 // Compact, accessible intro structure shared across all feedback audiences and languages.
 // Preserve the template's authored text while promoting its key message.
+function approvedFreeTextIntroHtml(arabic, femaleStudent, biomimicryArabic) {
+  if (biomimicryArabic) return '<section class="ifb-biomimicry-open-intro"><h2>نودّ أن نسمع المزيد عن تجربتكم</h2><p>في السؤالين التاليين، يمكنكم أن تكتبوا بكلماتكم ما أحببتموه في الدورة وما تودّون تغييره أو إضافته. ليس من الضروري الإجابة عن هذين السؤالين.</p></section>';
+  const title = arabic ? (femaleStudent ? 'نودّ أن نسمع المزيد عن تجربتكنّ' : 'نودّ أن نسمع المزيد عن تجربتكم') : (femaleStudent ? 'נשמח לשמוע עוד על החוויה שלכן' : 'נשמח לשמוע עוד על החוויה שלכם');
+  const body = arabic
+    ? (femaleStudent ? 'في السؤالين التاليين، يمكنكُنّ الكتابة عمّا كان مهمًّا لكنّ وما تودَدن تغييره أو تحسينه في البرنامج. الإجابة اختيارية.' : 'في السؤالين التاليين، يمكنكم الكتابة عمّا كان مهمًّا لكم وما تودّون تغييره أو تحسينه في البرنامج. الإجابة اختيارية.')
+    : (femaleStudent ? 'בשתי השאלות הבאות תוכלו לכתוב מה היה משמעותי עבורכן ומה הייתן רוצות לשפר. אין חובה לענות עליהן.' : 'בשתי השאלות הבאות תוכלו לכתוב מה היה משמעותי עבורכם ומה הייתם רוצים לשפר. אין חובה לענות עליהן.');
+  return `<section class="ifb-biomimicry-open-intro"><h2>${esc(title)}</h2><p>${esc(body)}</p></section>`;
+}
 function introHtml(text, lang = 'he', showApprovedFullText = false) {
   const source = String(text || '').trim();
   if (!source) return '';
@@ -211,7 +219,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
           <div class="ifb-biomimicry-scale__items">${(arabic ? AR_BIOMIMICRY_RATING_LABELS : RATING_LABELS).map((label, i) => `<div><strong>${i + 1}</strong><span>${esc(label)}</span></div>`).join('')}</div>
           <h2 class="ifb-biomimicry-scale__questions">${arabic ? 'الأسئلة:' : 'השאלות:'}</h2>
         </section>` : ''}
-        ${questions.map((q, i) => `${approvedStudentScale && payload.stage === 'post' && q.type === 'free_text' && (i === 0 || questions[i - 1]?.type !== 'free_text') ? '<section class="ifb-biomimicry-open-intro"><h2>نودّ أن نسمع المزيد عن تجربتكم</h2><p>في السؤالين التاليين، يمكنكم أن تكتبوا بكلماتكم ما أحببتموه في الدورة وما تودّون تغييره أو إضافته. ليس من الضروري الإجابة عن هذين السؤالين.</p></section>' : ''}${questionHtml(q, i, answers, young, options.language || 'he', approvedStudentScale)}`).join('')}
+        ${questions.map((q, i) => `${approvedStudentScale && payload.stage === 'post' && q.type === 'free_text' && (i === 0 || questions[i - 1]?.type !== 'free_text') ? approvedFreeTextIntroHtml(arabic, femaleStudent, biomimicryArabic) : ''}${questionHtml(q, i, answers, young, options.language || 'he', approvedStudentScale)}`).join('')}
         <div class="ifb-submit">
           <p class="ifb-submit__error" data-submit-error role="alert" hidden></p>
           <button type="submit" class="ifb-submit__btn" data-submit>${options.preview ? (arabic ? 'إرسال (معاينة)' : 'שליחה (תצוגה מקדימה)') : (arabic ? 'إرسال الاستبيان' : 'שליחת המשוב')}</button>
