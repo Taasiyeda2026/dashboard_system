@@ -102,7 +102,7 @@ function blobFromBase64(content, mime) {
 export function mountPhotoConsentWorkspace(root, state = {}) {
   if (!root || root.dataset.pcMounted === '1') return;
   root.dataset.pcMounted = '1';
-  if (clean(state?.user?.role || state?.user?.display_role) !== 'admin') {
+  if (![true, 'true', 'yes', '1', 1].includes(state?.user?.permissions?.manage_photo_consents)) {
     root.innerHTML = '<div class="pc-empty">הגישה לאישורי צילום מותרת למנהל מערכת בלבד.</div>';
     return;
   }
