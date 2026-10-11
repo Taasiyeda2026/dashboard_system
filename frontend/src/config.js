@@ -454,3 +454,5 @@ config.HOTFIX_VERSION = 'photo-consent-rtl-compact-finished-20261011-v4-' + conf
 config.HOTFIX_VERSION = 'photo-consent-camera-drawer-school-only-20261011-v5-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = 'photo-consent-camera-saved-green-20261011-v6-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'photo-consent-informative-schools-camera-viewer-20261011-v7-' + config.HOTFIX_VERSION;
