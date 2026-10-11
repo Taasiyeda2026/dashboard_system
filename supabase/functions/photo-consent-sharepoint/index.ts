@@ -31,7 +31,7 @@ async function session(req: Request) {
   if (!r.ok) throw new HttpFailure("לא ניתן לאמת הרשאת מנהל.", 403);
   const payload = await r.json();
   const user = Array.isArray(payload) ? payload[0] : payload;
-  if (user?.is_active !== true || ![true, "true", "yes", "1", 1].includes(user?.permissions?.manage_photo_consents)) throw new HttpFailure("אין הרשאה לגשת לאישורי צילום.", 403);
+  if (user?.is_active !== true) throw new HttpFailure("אין הרשאה לגשת לאישורי צילום.", 403);
   return { url, headers, user };
 }
 
@@ -50,6 +50,77 @@ async function validateActivity(ctx: Awaited<ReturnType<typeof session>>, id: nu
   if (!activity || !activity.start_date) throw new HttpFailure("לפעילות לא הוגדר תאריך התחלה.", 400);
   if (["נמחק", "deleted"].includes(txt(activity.status).toLowerCase())) throw new HttpFailure("לא ניתן להעלות אישור לפעילות שנמחקה.", 400);
   return activity;
+}
+
+
+function canManageAll(user: Record<string, unknown>) {
+  const permissions = user?.permissions as Record<string, unknown> | undefined;
+  return [true, "true", "yes", "1", 1].includes(permissions?.manage_photo_consents);
+}
+function isInstructor(user: Record<string, unknown>) {
+  return user?.role === "instructor" && /^\d+$/.test(txt(user?.emp_id));
+}
+
+// The service key is never exposed to the browser. Instructors never receive
+// SELECT or INSERT RLS privileges on the management metadata table.
+async function privilegedRows(ctx: Awaited<ReturnType<typeof session>>, path: string, options: RequestInit = {}) {
+  const key = txt(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
+  if (!key) throw new HttpFailure("שירות האישורים אינו מוגדר.", 503);
+  const r = await fetch(ctx.url + "/rest/v1/" + path, {
+    ...options,
+    headers: {
+      apikey: key, Authorization: "Bearer " + key,
+      "Content-Type": "application/json", Prefer: "return=representation",
+      ...(options.headers || {})
+    }
+  });
+  if (!r.ok) throw new HttpFailure("פעולת בסיס הנתונים נכשלה (" + r.status + ").", 502);
+  if (r.status === 204) return [];
+  return r.json();
+}
+
+async function instructorActivity(ctx: Awaited<ReturnType<typeof session>>, rowId: unknown) {
+  if (!isInstructor(ctx.user)) throw new HttpFailure("גישה מותרת למדריך משובץ בלבד.", 403);
+  const id = txt(rowId);
+  if (!id || id.length > 140 || !/^[a-zA-Z0-9_-]+$/.test(id)) {
+    throw new HttpFailure("מזהה פעילות לא תקין.", 400);
+  }
+  const rows = await privilegedRows(ctx, "activities?row_id=eq." + encodeURIComponent(id) +
+    "&select=id,row_id,emp_id,emp_id_2,start_date,status,activity_season&limit=1");
+  const activity = rows[0];
+  if (!activity || !activity.start_date ||
+    ["נמחק", "deleted"].includes(txt(activity.status).toLowerCase())) {
+    throw new HttpFailure("הפעילות אינה זמינה להעלאת אישור צילום.", 404);
+  }
+  const employee = txt(ctx.user.emp_id);
+  const permanentlyAssigned =
+    employee === txt(activity.emp_id) || employee === txt(activity.emp_id_2);
+  if (!permanentlyAssigned) {
+    // Current instructor resolved-meetings RPC is bound to auth.uid() so
+    // single-meeting substitutes can also upload to the activity they teach.
+    const fromYear = Number(txt(activity.start_date).slice(0, 4));
+    const fromMonth = Number(txt(activity.start_date).slice(5, 7));
+    const year = fromMonth >= 9 ? fromYear : fromYear - 1;
+    if (!Number.isInteger(year) || year < 2020 || year > 2040) {
+      throw new HttpFailure("לא ניתן לאמת שיבוץ להחלפה.", 403);
+    }
+    const r = await fetch(ctx.url + "/rest/v1/rpc/av2_get_current_instructor_resolved_meetings", {
+      method: "POST", headers: ctx.headers,
+      body: JSON.stringify({ p_from: year + "-09-01", p_to: (year + 1) + "-08-31" })
+    });
+    if (!r.ok) throw new HttpFailure("לא ניתן לאמת את השיבוץ הנוכחי.", 403);
+    const meetings = await r.json();
+    if (!Array.isArray(meetings) ||
+      !meetings.some((m) => txt(m?.row_id) === id && m?.meeting_date)) {
+      throw new HttpFailure("ניתן להעלות אישור צילום רק לפעילות המשויכת אליך.", 403);
+    }
+  }
+  return activity;
+}
+
+async function instructorFiles(ctx: Awaited<ReturnType<typeof session>>, activityId: number) {
+  return privilegedRows(ctx, "activity_photo_consent_files?activity_id=eq." + activityId +
+    "&select=id,file_name,mime_type,uploaded_at,activity_id,sp_item_id,sp_drive_id&order=uploaded_at.desc");
 }
 
 async function graphToken() {
