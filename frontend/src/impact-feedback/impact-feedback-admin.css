@@ -1987,3 +1987,20 @@
 .ifb-admin .ifb-improvement-source { font-weight: 600; }
 .ifb-admin .ifb-improvement-action { border-top: 1px solid var(--ifb-a-border, #e1e5ec); padding-top: 10px; }
 @media (max-width: 780px) { .ifb-admin .ifb-improvement-themes { grid-template-columns: 1fr; } }
+
+/* Temporary pilot: Israa may analyze survey data, but only an admin may
+   create, send, close, reopen or alter survey campaigns and templates. */
+.ifb-admin.is-feedback-readonly :is(
+  [data-ifb-show-open],
+  [data-ifb-instructor-open],
+  [data-ifb-cancel-open],
+  [data-ifb-instructor-cancel],
+  [data-ifb-open-form],
+  [data-ifb-instructor-open-form],
+  [data-ifb-close],
+  [data-ifb-reopen],
+  [data-ifb-extend],
+  [data-ifb-share],
+  [data-ifb-qr],
+  [data-ifb-copy]
+) { display: none !important; }
