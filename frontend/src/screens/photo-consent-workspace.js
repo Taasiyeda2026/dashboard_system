@@ -1,6 +1,7 @@
 import { supabase } from '../supabase-client.js';
 import { escapeHtml } from './shared/html.js';
 import { photoConsentDocumentsBySchool, photoConsentSchoolKey } from './shared/photo-consent-school.js';
+import { splitPhotoConsentActivities, photoConsentIsraelToday, photoConsentActivityCompleted } from './shared/photo-consent-completion.js';
 
 const PAGE_SIZE = 25;
 const ACCEPTED = new Set(['application/pdf', 'image/png', 'image/jpeg']);
@@ -29,17 +30,17 @@ const css = '<style id="photo-consent-style">' +
   '.pc-toolbar label{display:grid;gap:5px;min-width:0;font-size:12px;color:#536a78;font-weight:600}.pc-workspace input[type="search"],.pc-workspace select{height:36px;width:100%;min-width:0;border:1px solid #d6e3e8;border-radius:9px;background:var(--ds-card-bg,#fff);padding:6px 10px;color:var(--pc-ink);font-size:12px}' +
   '.pc-filter-count{font-size:11px;color:#087b91;background:#e9f7fa;border-radius:999px;padding:3px 9px;font-weight:650}.pc-results-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:6px 0 11px;flex-wrap:wrap}' +
   '.pc-results-header strong{font-size:13px;font-weight:700}.pc-results-header .pc-muted{font-size:12px}.pc-table-wrap{overflow-x:auto;width:100%}.pc-table{border-collapse:collapse;width:100%;min-width:780px;font-size:12px;table-layout:auto;text-align:right}' +
-  '.pc-table thead th{background:#f3f8fa;color:#526a79;font-weight:700;font-size:12px;text-align:center;padding:10px 8px;border-bottom:1px solid #dce8ed;white-space:nowrap}.pc-table td{padding:10px 8px;border-bottom:1px solid #eef2f4;vertical-align:middle}.pc-table tr:last-child>td{border-bottom:0}.pc-table tbody tr.pc-activity-row:hover{background:#fbfdfe}.pc-center{text-align:center}' +
+  '.pc-table thead th{background:#f3f8fa;color:#526a79;font-weight:700;font-size:12px;text-align:right;padding:10px 8px;border-bottom:1px solid #dce8ed;white-space:nowrap}.pc-table thead th.pc-date-th{text-align:center}.pc-table td{padding:10px 8px;border-bottom:1px solid #eef2f4;vertical-align:middle}.pc-table tr:last-child>td{border-bottom:0}.pc-table tbody tr.pc-activity-row:hover{background:#fbfdfe}.pc-center{text-align:center}' +
   '.pc-table td.pc-school-cell{min-width:140px;max-width:265px}.pc-school-label{font-size:12px;font-weight:700;color:var(--pc-ink);line-height:1.5}.pc-school-button{color:#087b91;background:transparent;border:0;padding:1px 0;font-size:12px;font-weight:750;cursor:pointer;text-align:right;text-decoration:underline;text-underline-offset:3px;line-height:1.6;overflow-wrap:anywhere}.pc-school-button:hover{color:#075568}' +
-  '.pc-status{font-size:12px;color:#8593a0;white-space:nowrap}.pc-status--yes{color:#117b72;font-weight:700}.pc-expanded-cell{padding:9px 15px 13px!important;background:#fbfdfe}' +
+  '.pc-table .pc-actions{justify-content:flex-start}.pc-status{font-size:12px;color:#8593a0;white-space:nowrap}.pc-status--yes{color:#117b72;font-weight:700}.pc-expanded-cell{padding:9px 15px 13px!important;background:#fbfdfe}' +
   '.pc-file-list{display:grid;gap:0;border:1px solid #e3ebef;border-radius:10px;background:#fff;overflow:hidden}.pc-file-list-title{font-size:12px;font-weight:750;padding:11px 13px;background:#f1f8fa;color:#365b69}' +
   '.pc-file-row{display:flex;justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap;padding:11px 13px;border-top:1px solid #eef2f4}.pc-file-name{min-width:0;flex:1;overflow-wrap:anywhere;font-size:12px}.pc-file-name strong{display:block;color:#334155;margin-bottom:3px}.pc-file-row .pc-actions{justify-content:flex-start}' +
-  '.pc-mobile-list{display:none}.pc-pages{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:12px}.pc-empty{padding:28px 12px;text-align:center;color:#6b8292;font-size:13px}' +
+  '.pc-completed{margin-top:12px;border:1px solid #e5edf1;border-radius:11px;background:#fbfdfe;overflow:hidden}.pc-completed-toggle{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 13px;border:0;background:transparent;cursor:pointer;text-align:right;color:#506879;font-size:12px;font-weight:720}.pc-completed-toggle:hover{background:#f2f8fa}.pc-completed-toggle:focus-visible{outline:2px solid #158a9e;outline-offset:-3px}.pc-completed-arrow{font-size:12px;transition:transform .15s}.pc-completed-toggle[aria-expanded="true"] .pc-completed-arrow{transform:rotate(180deg)}.pc-completed-body{border-top:1px solid #e5edf1;padding:4px 11px;max-height:370px;overflow-y:auto}.pc-completed-body[hidden]{display:none}.pc-completed-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 4px;border-bottom:1px solid #edf2f4;font-size:12px;flex-wrap:wrap}.pc-completed-row:last-child{border-bottom:0}.pc-completed-name{display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex:1;min-width:0}.pc-completed-name strong{font-size:12px;font-weight:720;color:#41596a}.pc-completed-name span{font-size:12px;color:#617688}.pc-completed-docs{width:100%;margin-top:4px}.pc-completed-row .pc-actions{justify-content:flex-start}.pc-mobile-list{display:none}.pc-pages{display:flex;gap:10px;align-items:center;justify-content:center;margin-top:12px}.pc-empty{padding:28px 12px;text-align:center;color:#6b8292;font-size:13px}' +
   '.pc-notice{font-size:12px;margin:0 0 12px;padding:10px 12px;border-radius:9px;background:#eff8fc;border:1px solid #cae6f0}.pc-notice--error{background:#fff2f2;border-color:#f0c8c8;color:#9b1c1c}' +
   '.pc-preview-backdrop{position:fixed;inset:0;background:#0a1520ac;z-index:99999;display:grid;place-items:center;padding:16px}.pc-preview{background:white;border-radius:14px;width:min(94vw,950px);height:min(92dvh,950px);padding:12px;display:flex;flex-direction:column;gap:10px;color:#273746}' +
   '.pc-preview header{display:flex;justify-content:space-between;align-items:center;gap:10px;min-width:0}.pc-preview header strong{min-width:0;overflow-wrap:anywhere}.pc-preview iframe,.pc-preview img{flex:1;min-height:0;width:100%;object-fit:contain;border:0}' +
   '@media(max-width:970px){.pc-kpi{padding:11px}.pc-kpi strong{font-size:22px}.pc-toolbar{grid-template-columns:minmax(180px,2fr) repeat(2,minmax(115px,1fr)) auto}}' +
-  '@media(max-width:820px){.pc-workspace{padding:10px 2px 24px}.pc-title{margin-bottom:13px}.pc-title h2{font-size:19px}.pc-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px}.pc-kpi{border-radius:11px;padding:10px 12px;gap:8px}.pc-kpi strong{font-size:22px}.pc-kpi span{font-size:11px}.pc-surface{padding:10px;border-radius:12px}.pc-toolbar{grid-template-columns:1fr 1fr}.pc-toolbar label:first-child{grid-column:1/-1}.pc-toolbar [data-pc-clear]{grid-column:1/-1;justify-self:start}.pc-table-wrap{display:none}.pc-mobile-list{display:grid;gap:9px}.pc-mobile-card{border:1px solid #e3ecef;border-radius:12px;padding:12px;background:var(--ds-card-bg,#fff)}.pc-mobile-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.pc-mobile-title{font-size:13px;font-weight:720;color:var(--pc-ink);line-height:1.45;margin:6px 0 10px}.pc-mobile-meta{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:11px}.pc-mobile-meta-item{min-width:0}.pc-mobile-meta-item small{display:block;color:#7b8d99;font-size:11px;margin-bottom:3px}.pc-mobile-meta-item span{display:block;font-size:12px;color:#3a5360;overflow-wrap:anywhere}.pc-mobile-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding-top:10px;border-top:1px solid #eef2f4}.pc-mobile-footer .pc-actions{justify-content:flex-start}.pc-mobile-documents{margin-top:10px}.pc-file-row{padding:10px;align-items:stretch}.pc-file-row .pc-actions{justify-content:flex-start}.pc-results-header{margin-top:3px}.pc-preview-backdrop{padding:6px}.pc-preview{width:100%;height:96dvh;border-radius:12px}}' +
+  '@media(max-width:820px){.pc-workspace{padding:10px 2px 24px}.pc-title{margin-bottom:13px}.pc-title h2{font-size:19px}.pc-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px}.pc-kpi{border-radius:11px;padding:10px 12px;gap:8px}.pc-kpi strong{font-size:22px}.pc-kpi span{font-size:11px}.pc-surface{padding:10px;border-radius:12px}.pc-toolbar{grid-template-columns:1fr 1fr}.pc-toolbar label:first-child{grid-column:1/-1}.pc-toolbar [data-pc-clear]{grid-column:1/-1;justify-self:start}.pc-table-wrap{display:none}.pc-mobile-list{display:grid;gap:9px}.pc-mobile-card{border:1px solid #e3ecef;border-radius:12px;padding:12px;background:var(--ds-card-bg,#fff)}.pc-mobile-top{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}.pc-mobile-title{font-size:13px;font-weight:720;color:var(--pc-ink);line-height:1.45;margin:6px 0 10px}.pc-mobile-meta{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:11px}.pc-mobile-meta-item{min-width:0}.pc-mobile-meta-item small{display:block;color:#7b8d99;font-size:11px;margin-bottom:3px}.pc-mobile-meta-item span{display:block;font-size:12px;color:#3a5360;overflow-wrap:anywhere}.pc-mobile-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding-top:10px;border-top:1px solid #eef2f4}.pc-mobile-footer .pc-actions{justify-content:flex-start}.pc-mobile-documents{margin-top:10px}.pc-completed-row{align-items:stretch}.pc-completed-row .pc-actions{justify-content:flex-start;flex-wrap:wrap}.pc-completed-name{width:100%}.pc-file-row{padding:10px;align-items:stretch}.pc-file-row .pc-actions{justify-content:flex-start}.pc-results-header{margin-top:3px}.pc-preview-backdrop{padding:6px}.pc-preview{width:100%;height:96dvh;border-radius:12px}}' +
   '@media(max-width:390px){.pc-title-actions{width:100%}.pc-title-actions .pc-action{flex:1}.pc-kpi{align-items:flex-start;flex-direction:column;gap:1px}.pc-kpi strong{font-size:23px}.pc-toolbar{grid-template-columns:1fr}.pc-toolbar label:first-child{grid-column:auto}}' +
   '</style>';
 
@@ -47,7 +48,7 @@ async function allActivities(seasons) {
   const records = [];
   for (let offset = 0; ; offset += 500) {
     const { data, error } = await supabase.from('activities')
-      .select('id,row_id,authority,school,activity_name,instructor_name,start_date,activity_season,status')
+      .select('id,row_id,authority,school,activity_name,instructor_name,start_date,end_date,activity_season,status')
       .in('activity_season', seasons)
       .not('start_date', 'is', null)
       .order('start_date', { ascending: true })
@@ -100,7 +101,7 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
     root.innerHTML = '<div class="pc-empty">אין הרשאה לצפות באישורי צילום.</div>';
     return;
   }
-  const context = { activities: [], files: [], search: '', status: 'all', authority: 'all', filtersOpen: false, page: 0, busy: false, notice: '', error: false, openId: 0, selectedActivity: 0, replaceId: '', previewUrl: '' };
+  const context = { activities: [], files: [], search: '', status: 'all', authority: 'all', filtersOpen: false, completedOpen: false, page: 0, busy: false, notice: '', error: false, openId: 0, selectedActivity: 0, replaceId: '', previewUrl: '' };
   const input = document.createElement('input');
   input.type = 'file'; input.accept = '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png'; input.multiple = true; input.hidden = true;
   document.body.appendChild(input);
@@ -150,7 +151,9 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
     const uploaded = context.activities.filter((a) => documentsFor(a).length > 0).length;
     const visibleIds = new Set(context.activities.map((a) => Number(a.id)));
     const documentCount = context.files.filter((f) => visibleIds.has(Number(f.activity_id))).length;
-    const found = filtered();
+    const today = photoConsentIsraelToday();
+    const { current: allCurrent } = splitPhotoConsentActivities(context.activities, today);
+    const { current: found, completed } = splitPhotoConsentActivities(filtered(), today);
     const pageCount = Math.max(1, Math.ceil(found.length / PAGE_SIZE));
     context.page = Math.min(context.page, pageCount - 1);
     const visible = found.slice(context.page * PAGE_SIZE, (context.page + 1) * PAGE_SIZE);
@@ -178,7 +181,7 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
           '<td>' + safe(a.authority || '—') + '</td><td>' + safe(a.activity_name || '—') + '</td>' +
           '<td class="pc-center">' + safe(dateHe(a.start_date)) + '</td>' +
           '<td>' + safe(a.instructor_name || '—') + '</td>' +
-          '<td class="pc-center">' + docsStatus + '</td><td>' + buttons + '</td></tr>' +
+          '<td>' + docsStatus + '</td><td>' + buttons + '</td></tr>' +
           (opened ? '<tr class="pc-expanded-row"><td class="pc-expanded-cell" colspan="7">' +
             fileRows(documents, a.school) + '</td></tr>' : ''),
         mobile: '<article class="pc-mobile-card">' +
@@ -194,6 +197,35 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
           '</article>'
       };
     });
+    const completedHtml = completed.length
+      ? '<section class="pc-completed" aria-label="פעילויות שהסתיימו">' +
+        '<button type="button" class="pc-completed-toggle" data-pc-completed-toggle aria-expanded="' +
+        (context.completedOpen ? 'true' : 'false') + '" aria-controls="pc-completed-content">' +
+        '<span>פעילויות שהסתיימו (' + completed.length + ')</span>' +
+        '<span class="pc-completed-arrow" aria-hidden="true">⌄</span></button>' +
+        '<div class="pc-completed-body" id="pc-completed-content"' +
+        (context.completedOpen ? '' : ' hidden') + '>' +
+        completed.map((activity) => {
+          const documents = documentsFor(activity);
+          const opened = context.openId === Number(activity.id) && documents.length > 0;
+          return '<div class="pc-completed-item"><div class="pc-completed-row">' +
+            '<div class="pc-completed-name"><strong>' + safe(activity.school || 'לא משויך') + '</strong>' +
+            '<span>· ' + safe(activity.activity_name || 'פעילות') + '</span>' +
+            '<span>· הסתיים ' + safe(dateHe(activity.end_date || activity.start_date)) + '</span>' +
+            '</div><div class="pc-actions">' +
+            (documents.length
+              ? '<button type="button" class="pc-action" data-pc-toggle="' + Number(activity.id) +
+                '" aria-expanded="' + (opened ? 'true' : 'false') + '">' +
+                documents.length + ' ' + (documents.length === 1 ? 'אישור · צפייה' : 'אישורים · צפייה') + '</button>'
+              : '') +
+            '<button type="button" class="pc-action" data-pc-upload="' + Number(activity.id) +
+            '"' + (context.busy ? ' disabled' : '') + '>העלאה</button>' +
+            '</div></div>' +
+            (opened ? '<div class="pc-completed-docs">' + fileRows(documents, activity.school) + '</div>' : '') +
+            '</div>';
+        }).join('') +
+        '</div></section>'
+      : '';
     root.innerHTML = css +
       '<section class="pc-workspace" dir="rtl">' +
       '<header class="pc-title"><h2>אישורי צילום</h2>' +
@@ -224,10 +256,10 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
       '<option value="missing"' + (context.status === 'missing' ? ' selected' : '') + '>ללא אישור</option></select></label>' +
       '<button type="button" class="pc-action" data-pc-clear' + (activeFilterCount ? '' : ' disabled') + '>ניקוי סינון</button>' +
       '</div></div></div>' +
-      '<div class="pc-results-header"><strong>רשימת פעילויות</strong><span class="pc-muted">מציג ' +
-      found.length + ' מתוך ' + total + ' פעילויות</span></div>' +
+      '<div class="pc-results-header"><strong>פעילויות פעילות ומתוכננות</strong><span class="pc-muted">מציג ' +
+      found.length + ' מתוך ' + allCurrent.length + ' פעילויות</span></div>' +
       '<div class="pc-table-wrap"><table class="pc-table">' +
-      '<thead><tr><th>בית ספר</th><th>רשות</th><th>תוכנית / פעילות</th><th>תאריך התחלה</th><th>מדריך</th><th>אישורים</th><th>פעולות</th></tr></thead>' +
+      '<thead><tr><th>בית ספר</th><th>רשות</th><th>תוכנית / פעילות</th><th class="pc-date-th">תאריך התחלה</th><th>מדריך</th><th>אישורים</th><th>פעולות</th></tr></thead>' +
       '<tbody>' + (rows.length ? rows.map((row) => row.desktop).join('') :
         '<tr><td colspan="7" class="pc-empty">אין פעילויות המתאימות לסינון</td></tr>') + '</tbody></table></div>' +
       '<div class="pc-mobile-list">' + (rows.length ? rows.map((row) => row.mobile).join('') :
@@ -236,7 +268,7 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
       '<button type="button" class="pc-action" data-pc-prev ' + (context.page === 0 ? 'disabled' : '') + '>הקודם</button>' +
       '<span class="pc-muted">עמוד ' + (context.page + 1) + ' מתוך ' + pageCount + '</span>' +
       '<button type="button" class="pc-action" data-pc-next ' + (context.page >= pageCount - 1 ? 'disabled' : '') + '>הבא</button>' +
-      '</nav></section></section>';
+      '</nav>' + completedHtml + '</section></section>';
   }
   async function refresh() {
     context.busy = true; report('טוען פעילויות ומסמכים…');
@@ -286,6 +318,7 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
     const isError = context.error;
     await refresh();
     context.openId = Number(activity.id);
+    if (photoConsentActivityCompleted(activity, photoConsentIsraelToday())) context.completedOpen = true;
     report(message || (succeeded + ' קבצים נשמרו ב־SharePoint.'), isError);
   }
   function closePreview() {
@@ -337,6 +370,12 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
   root.addEventListener('click', async (ev) => {
     const button = ev.target.closest('button');
     if (!button) return;
+    if (button.hasAttribute('data-pc-completed-toggle')) {
+      context.completedOpen = !context.completedOpen;
+      render();
+      root.querySelector('[data-pc-completed-toggle]')?.focus();
+      return;
+    }
     if (button.hasAttribute('data-pc-filter-toggle')) {
       context.filtersOpen = !context.filtersOpen;
       render();
