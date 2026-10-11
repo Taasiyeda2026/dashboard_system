@@ -450,3 +450,5 @@ config.HOTFIX_VERSION = 'photo-consent-bootstrap-permission-20261011-v2-' + conf
 config.HOTFIX_VERSION = 'photo-consent-ux-mobile-school-documents-20261011-v3-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = 'photo-consent-rtl-compact-finished-20261011-v4-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'photo-consent-camera-drawer-school-only-20261011-v5-' + config.HOTFIX_VERSION;
