@@ -30,8 +30,8 @@ function blobFromData(data) {
   return new Blob([bytes], { type: data.mime_type });
 }
 
-export async function openActivityPhotoConsentViewer(activityId, { onAdd = () => {} } = {}) {
-  const files = await photoConsentActivityFiles(activityId);
+export async function openActivityPhotoConsentViewer(activityId, { onAdd = () => {}, instructorMode = false } = {}) {
+  const files = await photoConsentActivityFiles(activityId, { instructorMode });
   if (!files.length) return false;
 
   const previousFocus = document.activeElement;
@@ -101,7 +101,10 @@ export async function openActivityPhotoConsentViewer(activityId, { onAdd = () =>
     content.replaceChildren(loading);
     setActions(files.length > 1 ? [button('חזרה לרשימה', showList)] : []);
     try {
-      const data = await photoConsentInvoke('download', { file_id: file.id });
+      const data = await photoConsentInvoke('download', {
+        file_id: file.id,
+        ...(instructorMode ? { activity_row_id: String(activityId) } : {})
+      });
       if (closed || sequence !== loadSequence) return;
       objectUrl = URL.createObjectURL(blobFromData(data));
       const preview = document.createElement(data.mime_type === 'application/pdf' ? 'iframe' : 'img');
