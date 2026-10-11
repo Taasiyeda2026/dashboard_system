@@ -30,6 +30,18 @@ export function photoConsentDocumentsBySchool(activities = [], files = []) {
   return bySchool;
 }
 
+// Operational columns are based only on activities actually linked to documents.
+// One school can have more than one instructor, activity manager or course date.
+export function photoConsentSchoolOperationalSummary(documents = []) {
+  const activities = [...new Map(documents.map((file) =>
+    [Number(file.activity_id), file.ownerActivity])).values()].filter(Boolean);
+  const unique = (values) => [...new Set(values.map((value) => String(value ?? '').trim()).filter(Boolean))];
+  const managers = unique(activities.map((activity) => activity.activity_manager));
+  const instructors = unique(activities.map((activity) => activity.instructor_name));
+  const dates = unique(activities.map((activity) => String(activity.start_date || '').slice(0, 10))).sort();
+  return { managers, instructors, startDates: dates, firstStartDate: dates[0] || null };
+}
+
 export function photoConsentSchoolManagementGroups(activities = [], files = []) {
   const grouped = photoConsentDocumentsBySchool(activities, files);
   return Array.from(grouped, ([key, documents]) => {
@@ -39,6 +51,7 @@ export function photoConsentSchoolManagementGroups(activities = [], files = []) 
       school: activity.school,
       authority: activity.authority,
       documents,
+      operational: photoConsentSchoolOperationalSummary(documents),
       activityCount: new Set(documents.map((file) => Number(file.activity_id))).size,
       updatedAt: documents[0].uploaded_at
     };
