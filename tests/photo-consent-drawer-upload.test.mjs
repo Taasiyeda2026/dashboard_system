@@ -13,7 +13,7 @@ test('activity drawer renders an accessible small camera action for authorized d
   assert.match(src, /data-activity-photo-upload/);
   assert.match(src, /aria-label="העלאת אישור צילום"/);
   assert.match(src, /viewBox="0 0 24 24"/);
-  assert.match(src, /canManagePhotoConsents && !!row\?\.start_date/);
+  assert.match(src, /!!row\?\.start_date && \(canManagePhotoConsents &&/);
   assert.match(src, /Number\.isSafeInteger\(Number\(row\?\.id\)\)/);
   assert.match(src, /canManagePhotoConsents: opts\.canManagePhotoConsents === true && !instructorLimited/);
 });

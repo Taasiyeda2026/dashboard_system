@@ -8,7 +8,7 @@ const CSS = new URL('../frontend/src/styles/activity-drawer-inline-layout.css', 
 
 test('saved camera presence is checked from the persisted activity-specific metadata', async () => {
   const src = await readFile(CLIENT, 'utf8');
-  const read = src.match(/export async function photoConsentActivityHasFiles\(activityId\) \{[\s\S]*?\n\}/);
+  const read = src.match(/export async function photoConsentActivityHasFiles\(activityId, \{ instructorMode = false \} = \{\}\) \{[\s\S]*?\n\}/);
   assert.ok(read, 'persisted presence read should exist');
   assert.match(read[0], /\.from\('activity_photo_consent_files'\)/);
   assert.match(read[0], /\.eq\('activity_id', id\)/);
@@ -18,11 +18,11 @@ test('saved camera presence is checked from the persisted activity-specific meta
 
 test('camera immediately turns green after confirmed upload and is rechecked on open/partial error', async () => {
   const src = await readFile(BINDER, 'utf8');
-  assert.match(src, /photoConsentActivityHasFiles\(activityId\)/);
+  assert.match(src, /photoConsentActivityHasFiles\(activityId, \{ instructorMode \}\)/);
   assert.match(src, /classList\.toggle\('is-photo-consent-saved', hasFile\)/);
   assert.match(src, /paintCamera\(root, activityId, true\)/);
   assert.match(src, /if \(saved\.length\) \{/);
-  assert.match(src, /void refreshCamera\(root, activityId\)/);
+  assert.match(src, /void refreshCamera\(root, activityId, \{ instructorMode \}\)/);
   assert.match(src, /button\.dataset\.photoConsentState = hasFile \? 'saved' : 'missing'/);
   assert.match(src, /if \(root\.dataset\.photoConsentDrawerBound === '1'\) return/);
   assert.match(src, /photoConsentCheckVersion/);

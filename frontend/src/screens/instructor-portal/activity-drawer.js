@@ -1,4 +1,6 @@
 import { activityWorkDrawerHtml } from '../shared/activity-detail-html.js';
+import { bindActivityPhotoConsentUpload } from '../shared/activity-photo-consent-drawer.js';
+import { showToast } from '../shared/toast.js';
 import { escapeHtml } from '../shared/html.js';
 import { currentInstructorIds, currentInstructorName } from '../instructor-utils.js';
 
@@ -25,11 +27,15 @@ function substitutionEyebrow(row = {}) {
 
 export function openInstructorActivityDrawer({ row, state, ui } = {}) {
   if (!row) return;
+  const canUploadOwnPhotoConsent = state?.user?.role === 'instructor' &&
+    !!String(row.row_id || row.RowID || '').trim() &&
+    !!String(row.start_date || row.activity_date || '').trim();
   ui?.openDrawer({
     title: instructorActivityName(row),
     content: `<div class="instructor-activity-drawer-shell"><p class="instructor-activity-drawer-shell__eyebrow">${escapeHtml(substitutionEyebrow(row))}</p>${activityWorkDrawerHtml(row, {
       settings: state?.clientSettings || {},
       instructorLimited: true,
+      canUploadOwnPhotoConsent,
       currentInstructorIds: currentInstructorIds(state),
       currentInstructorName: currentInstructorName(state),
       canEdit: false,
@@ -38,6 +44,11 @@ export function openInstructorActivityDrawer({ row, state, ui } = {}) {
       canDeleteActivity: false,
       canSchedule: false,
       exportAction: false
-    })}</div>`
+    })}</div>`,
+    onOpen: (contentRoot) => {
+      if (canUploadOwnPhotoConsent) {
+        bindActivityPhotoConsentUpload(contentRoot, showToast, { instructorMode: true });
+      }
+    }
   });
 }

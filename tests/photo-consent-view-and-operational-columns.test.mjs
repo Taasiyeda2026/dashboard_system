@@ -62,11 +62,11 @@ test('green camera opens private documents while regular camera offers upload', 
 
 test('private viewer supports direct single preview, multiple file selection and add-another action', async () => {
   const [src, client] = await Promise.all([readFile(VIEWER, 'utf8'), readFile(CLIENT, 'utf8')]);
-  assert.match(src, /photoConsentActivityFiles\(activityId\)/);
+  assert.match(src, /photoConsentActivityFiles\(activityId, \{ instructorMode \}\)/);
   assert.match(src, /if \(!files\.length\) return false/);
   assert.match(src, /if \(files\.length === 1\) void showPreview\(files\[0\]\)/);
   assert.match(src, /else showList\(\)/);
-  assert.match(src, /photoConsentInvoke\('download', \{ file_id: file\.id \}\)/);
+  assert.match(src, /photoConsentInvoke\('download', \{/);
   assert.match(src, /העלאת אישור נוסף/);
   assert.match(src, /onAdd\(\)/);
   assert.match(src, /URL\.revokeObjectURL/);

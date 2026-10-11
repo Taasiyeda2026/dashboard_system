@@ -30,7 +30,13 @@ export async function photoConsentInvoke(action, payload = {}) {
 
 // Read persisted metadata, not a local upload flag: the camera must also be green
 // after page reload and must reset when all linked files were deleted.
-export async function photoConsentActivityHasFiles(activityId) {
+export async function photoConsentActivityHasFiles(activityId, { instructorMode = false } = {}) {
+  if (instructorMode) {
+    const rowId = String(activityId || '').trim();
+    if (!rowId) return false;
+    const status = await photoConsentInvoke('instructor_status', { activity_row_id: rowId });
+    return status?.has_file === true;
+  }
   const id = Number(activityId);
   if (!Number.isSafeInteger(id) || id <= 0) return false;
   const { data, error } = await supabase.from('activity_photo_consent_files')
@@ -42,7 +48,13 @@ export async function photoConsentActivityHasFiles(activityId) {
 }
 
 // Private per-activity document list for the green-camera viewer.
-export async function photoConsentActivityFiles(activityId) {
+export async function photoConsentActivityFiles(activityId, { instructorMode = false } = {}) {
+  if (instructorMode) {
+    const rowId = String(activityId || '').trim();
+    if (!rowId) return [];
+    const result = await photoConsentInvoke('instructor_list', { activity_row_id: rowId });
+    return Array.isArray(result?.files) ? result.files : [];
+  }
   const id = Number(activityId);
   if (!Number.isSafeInteger(id) || id <= 0) return [];
   const { data, error } = await supabase.from('activity_photo_consent_files')
@@ -53,8 +65,9 @@ export async function photoConsentActivityFiles(activityId) {
   return data || [];
 }
 
-export async function uploadPhotoConsentFiles(activityId, files, onProgress = null) {
-  if (!Number.isSafeInteger(Number(activityId)) || Number(activityId) <= 0) {
+export async function uploadPhotoConsentFiles(activityId, files, onProgress = null, { instructorMode = false } = {}) {
+  if (instructorMode ? !String(activityId || '').trim() :
+      (!Number.isSafeInteger(Number(activityId)) || Number(activityId) <= 0)) {
     throw new Error('מזהה הפעילות אינו תקין.');
   }
   const selection = Array.from(files || []);
@@ -65,7 +78,8 @@ export async function uploadPhotoConsentFiles(activityId, files, onProgress = nu
     onProgress?.({ index: index + 1, total: selection.length, name: file.name });
     const base64 = await fileToBase64(file);
     const result = await photoConsentInvoke('upload', {
-      activity_id: Number(activityId), file_name: file.name, base64
+      ...(instructorMode ? { activity_row_id: String(activityId) } : { activity_id: Number(activityId) }),
+      file_name: file.name, base64
     });
     saved.push(result.file);
   }
