@@ -41,6 +41,18 @@ export async function photoConsentActivityHasFiles(activityId) {
   return Array.isArray(data) && data.length > 0;
 }
 
+// Private per-activity document list for the green-camera viewer.
+export async function photoConsentActivityFiles(activityId) {
+  const id = Number(activityId);
+  if (!Number.isSafeInteger(id) || id <= 0) return [];
+  const { data, error } = await supabase.from('activity_photo_consent_files')
+    .select('id,file_name,mime_type,uploaded_at')
+    .eq('activity_id', id)
+    .order('uploaded_at', { ascending: false });
+  if (error) throw new Error(error.message || 'לא ניתן לטעון את אישורי הצילום.');
+  return data || [];
+}
+
 export async function uploadPhotoConsentFiles(activityId, files, onProgress = null) {
   if (!Number.isSafeInteger(Number(activityId)) || Number(activityId) <= 0) {
     throw new Error('מזהה הפעילות אינו תקין.');

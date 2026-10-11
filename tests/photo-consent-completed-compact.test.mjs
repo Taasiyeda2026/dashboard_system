@@ -40,7 +40,7 @@ test('management headers stay right aligned, with only the last-update date cent
   const source = await readFile(SCREEN, 'utf8');
   assert.match(source, /\.pc-table th\{[^']*text-align:right/);
   assert.match(source, /\.pc-table th\.pc-date-th,\.pc-table td\.pc-date\{text-align:center\}/);
-  assert.match(source, /<th class="pc-date-th">עדכון אחרון<\/th>/);
+  assert.match(source, /<th class="pc-date-th">תחילת קורס<\/th>/);
   assert.match(source, /class="pc-date"/);
   assert.match(source, /photoConsentSchoolManagementGroups/);
   assert.doesNotMatch(source, /completedOpen: false/);

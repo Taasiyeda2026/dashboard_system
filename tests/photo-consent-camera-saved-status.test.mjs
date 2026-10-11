@@ -37,6 +37,6 @@ test('green camera style stays readable and compact in the existing drawer heade
   assert.match(css, /color: #0d8543 !important;/);
   assert.match(css, /\.activity-drawer__photo-upload\.is-photo-consent-saved svg/);
   const src = await readFile(BINDER, 'utf8');
-  assert.match(src, /אישור צילום שמור · העלאת אישור נוסף/);
+  assert.match(src, /צפייה באישורי צילום/);
   assert.match(src, /העלאת אישור צילום/);
 });

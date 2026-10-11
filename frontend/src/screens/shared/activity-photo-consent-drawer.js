@@ -1,11 +1,12 @@
 import { uploadPhotoConsentFiles, photoConsentActivityHasFiles } from './photo-consent-client.js';
+import { openActivityPhotoConsentViewer } from './activity-photo-consent-viewer.js';
 
 function paintCamera(root, activityId, hasFile) {
   const button = root.querySelector('button[data-activity-photo-upload]');
   if (!button || Number(button.dataset.activityPhotoUpload) !== activityId) return;
   button.classList.toggle('is-photo-consent-saved', hasFile);
   button.dataset.photoConsentState = hasFile ? 'saved' : 'missing';
-  const label = hasFile ? 'אישור צילום שמור · העלאת אישור נוסף' : 'העלאת אישור צילום';
+  const label = hasFile ? 'צפייה באישורי צילום' : 'העלאת אישור צילום';
   button.setAttribute('aria-label', label);
   button.title = label;
 }
@@ -41,11 +42,7 @@ export function bindActivityPhotoConsentUpload(root, notify = () => {}) {
   if (root.dataset.photoConsentDrawerBound === '1') return;
   root.dataset.photoConsentDrawerBound = '1';
   // Event delegation survives full drawer content replacement after detail/save.
-  root.addEventListener('click', (event) => {
-    const button = event.target.closest('button[data-activity-photo-upload]');
-    if (!button || !root.contains(button) || button.disabled) return;
-    const activityId = Number(button.dataset.activityPhotoUpload);
-    if (!Number.isSafeInteger(activityId) || activityId <= 0) return;
+  function openPicker(button, activityId) {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png';
@@ -80,5 +77,31 @@ export function bindActivityPhotoConsentUpload(root, notify = () => {}) {
       }
     }, { once: true });
     input.click();
+  }
+  root.addEventListener('click', async (event) => {
+    const button = event.target.closest('button[data-activity-photo-upload]');
+    if (!button || !root.contains(button) || button.disabled) return;
+    const activityId = Number(button.dataset.activityPhotoUpload);
+    if (!Number.isSafeInteger(activityId) || activityId <= 0) return;
+    if (button.dataset.photoConsentState === 'saved') {
+      button.disabled = true;
+      try {
+        const opened = await openActivityPhotoConsentViewer(activityId, {
+          onAdd: () => openPicker(button, activityId)
+        });
+        if (!opened) {
+          // File might have been deleted in management since opening this drawer.
+          paintCamera(root, activityId, false);
+          openPicker(button, activityId);
+        }
+      } catch (error) {
+        notify(error?.message || 'לא ניתן לטעון את אישורי הצילום.', 'error');
+        void refreshCamera(root, activityId);
+      } finally {
+        button.disabled = false;
+      }
+      return;
+    }
+    openPicker(button, activityId);
   });
 }
