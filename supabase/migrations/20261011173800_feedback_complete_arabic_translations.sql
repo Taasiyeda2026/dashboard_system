@@ -580,12 +580,29 @@ where coalesce(v.intro_text_ar,'') <> ''
 group by v.intro_text
 on conflict do nothing;
 
+-- Replays are harmless: only templates whose current published version lacks
+-- Arabic translations are eligible for a new translated version.
+create temporary table feedback_ar_target_templates(template_id uuid primary key) on commit drop;
+insert into feedback_ar_target_templates(template_id)
+select t.id from public.feedback_templates t
+join public.feedback_template_versions v on v.id=t.current_version_id
+where coalesce(v.intro_text_ar,'')=''
+   or exists(
+     select 1 from public.feedback_template_questions q
+     where q.version_id=t.current_version_id
+       and (coalesce(q.wording->>'ar','')='' or exists(
+         select 1 from jsonb_array_elements(q.options) o
+         where coalesce(o->>'label_ar','')=''
+       ))
+   );
+
 -- Create independent edit-ready copies; never edit locked published snapshots.
 insert into public.feedback_template_versions(template_id,version_no,status,intro_text,intro_text_ar,notes)
 select t.id,
   (select coalesce(max(x.version_no),0)+1 from public.feedback_template_versions x where x.template_id=t.id),
   'draft',v.intro_text,v.intro_text_ar,'תרגום ערבי – שמירת נוסח עברי'
 from public.feedback_templates t
+join feedback_ar_target_templates target on target.template_id=t.id
 join public.feedback_template_versions v on v.id=t.current_version_id
 where not exists(select 1 from public.feedback_template_versions d where d.template_id=t.id and d.status='draft');
 
@@ -594,6 +611,7 @@ insert into public.feedback_template_questions (
 )
 select d.id,q.question_id,q.section,q.sort_order,q.required,q.metric_key,q.question_type,q.is_comparison,q.wording,q.options,q.scoring
 from public.feedback_templates t
+join feedback_ar_target_templates target on target.template_id=t.id
 join public.feedback_template_versions d on d.template_id=t.id and d.status='draft'
 join public.feedback_template_questions q on q.version_id=t.current_version_id
 where not exists(select 1 from public.feedback_template_questions already where already.version_id=d.id and already.question_id=q.question_id);
@@ -601,13 +619,13 @@ where not exists(select 1 from public.feedback_template_questions already where 
 update public.feedback_template_questions q
 set wording=jsonb_set(q.wording,'{ar}',to_jsonb(m.ar),true)
 from public.feedback_template_versions v, private.feedback_arabic_translations m
-where q.version_id=v.id and v.status='draft' and m.kind='question'
+where q.version_id=v.id and v.status='draft' and v.template_id in (select template_id from feedback_ar_target_templates) and m.kind='question'
   and q.wording->>'default'=m.he and coalesce(q.wording->>'ar','')='';
 
 update public.feedback_template_versions v
 set intro_text_ar=m.ar
 from private.feedback_arabic_translations m
-where v.status='draft' and m.kind='intro'
+where v.status='draft' and v.template_id in (select template_id from feedback_ar_target_templates) and m.kind='intro'
   and v.intro_text=m.he and coalesce(v.intro_text_ar,'')='';
 
 update public.feedback_template_questions q
@@ -620,7 +638,7 @@ set options=(
  left join private.feedback_arabic_translations m
    on m.kind='option' and m.he=o.elem->>'label'
 )
-where q.version_id in (select id from public.feedback_template_versions where status='draft')
+where q.version_id in (select id from public.feedback_template_versions where status='draft' and template_id in (select template_id from feedback_ar_target_templates))
   and jsonb_typeof(q.options)='array' and q.options <> '[]'::jsonb;
 
 -- Localize the question bank as well, so reusing a question retains its translation.
@@ -646,6 +664,7 @@ do $translation_verification$
 begin
  if exists (
    select 1 from public.feedback_template_versions v
+   join feedback_ar_target_templates target on target.template_id=v.template_id
    join public.feedback_template_questions q on q.version_id=v.id
    where v.status='draft' and (coalesce(q.wording->>'ar','')='' or exists(
      select 1 from jsonb_array_elements(q.options) o
@@ -654,6 +673,7 @@ begin
  ) then raise exception 'feedback_arabic_incomplete_question_or_option'; end if;
  if exists (
    select 1 from public.feedback_template_versions v
+   join feedback_ar_target_templates target on target.template_id=v.template_id
    where v.status='draft' and coalesce(v.intro_text_ar,'')=''
  ) then raise exception 'feedback_arabic_incomplete_intro'; end if;
 end $translation_verification$;
@@ -741,6 +761,7 @@ declare x record;
 begin
  for x in select v.id from public.feedback_template_versions v
    join public.feedback_templates t on t.id=v.template_id
+   join feedback_ar_target_templates target on target.template_id=v.template_id
    where v.status='draft' and t.current_version_id is not null
  loop
    perform private.feedback_publish_version(x.id);
