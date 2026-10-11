@@ -37,6 +37,8 @@ const AR_BIOMIMICRY_RATING_LABELS = Object.freeze([
   'ينطبق عليّ كثيرًا جدًا'
 ]);
 const arLabel = (he, ar, lang) => lang === 'ar' ? ar : he;
+const SYLLABUS_STUDENT_PROGRAMS = new Set(['green_leadership', 'space_tech', 'trailblazers', 'pharma', 'ofek']);
+const isSyllabusStudent = (payload) => payload.audience === 'student' && SYLLABUS_STUDENT_PROGRAMS.has(payload.program_key);
 const isArabicBiomimicryStudent = (payload, language) =>
   language === 'ar' && payload.program_key === 'biomimicry' && payload.audience === 'student';
 const AR_PROGRAM_TITLES = Object.freeze({
@@ -59,15 +61,15 @@ function arabicHeadline(payload) {
   return payload.stage === 'pre' ? 'استبيان البداية' : 'استبيان النهاية';
 }
 
-function ratingHtml(q, value, young, lang = 'he', biomimicryArabic = false) {
-  const labels = biomimicryArabic ? AR_BIOMIMICRY_RATING_LABELS : lang === 'ar' ? AR_RATING_LABELS : RATING_LABELS;
+function ratingHtml(q, value, young, lang = 'he', approvedStudentScale = false) {
+  const labels = approvedStudentScale && lang === 'ar' ? AR_BIOMIMICRY_RATING_LABELS : lang === 'ar' ? AR_RATING_LABELS : RATING_LABELS;
   const name = `q-${q.id}`;
   const buttons = [1, 2, 3, 4, 5].map((n) => `
     <label class="ifb-rate__opt${young ? ' is-emoji' : ''}">
       <input type="radio" name="${esc(name)}" value="${n}" data-qid="${esc(q.id)}" data-kind="rating"${Number(value) === n ? ' checked' : ''}>
-      <span class="ifb-rate__face" aria-hidden="true">${biomimicryArabic ? ['①', '②', '③', '④', '⑤'][n - 1] : young ? RATING_EMOJI[n - 1] : n}</span>
+      <span class="ifb-rate__face" aria-hidden="true">${approvedStudentScale ? ['①', '②', '③', '④', '⑤'][n - 1] : young ? RATING_EMOJI[n - 1] : n}</span>
       <span class="ifb-sr">${n} – ${esc(labels[n - 1])}</span>
-      ${young && !biomimicryArabic ? `<span class="ifb-rate__caption" aria-hidden="true">${esc(labels[n - 1])}</span>` : ''}
+      ${young && !approvedStudentScale ? `<span class="ifb-rate__caption" aria-hidden="true">${esc(labels[n - 1])}</span>` : ''}
     </label>`).join('');
   const na = q.allow_na ? `
     <label class="ifb-rate__na">
@@ -75,8 +77,8 @@ function ratingHtml(q, value, young, lang = 'he', biomimicryArabic = false) {
       <span>${esc(arLabel(NA_LABEL, 'لا ينطبق / لم تتح لي فرصة التقييم', lang))}</span>
     </label>` : '';
   return `
-    <div class="ifb-rate${biomimicryArabic ? ' ifb-rate--arabic-biomimicry' : ''}" role="radiogroup" aria-label="${esc(q.text)}">${buttons}</div>
-    ${young || biomimicryArabic ? '' : `<div class="ifb-rate__ends" aria-hidden="true"><span>${esc(labels[0])}</span><span>${esc(labels[4])}</span></div>`}
+    <div class="ifb-rate${approvedStudentScale ? ' ifb-rate--arabic-biomimicry' : ''}" role="radiogroup" aria-label="${esc(q.text)}">${buttons}</div>
+    ${young || approvedStudentScale ? '' : `<div class="ifb-rate__ends" aria-hidden="true"><span>${esc(labels[0])}</span><span>${esc(labels[4])}</span></div>`}
     ${na}`;
 }
 
@@ -103,10 +105,10 @@ function textHtml(q, value, lang = 'he') {
   return `<textarea class="ifb-text" rows="3" maxlength="2000" data-qid="${esc(q.id)}" data-kind="text" aria-label="${esc(q.text)}" placeholder="${arLabel('אפשר לכתוב כאן…', 'يمكنك الكتابة هنا…', lang)}">${esc(value || '')}</textarea>`;
 }
 
-function questionHtml(q, index, answers, young, lang = 'he', biomimicryArabic = false) {
+function questionHtml(q, index, answers, young, lang = 'he', approvedStudentScale = false) {
   const value = answers[q.id];
   let control = '';
-  if (q.type === 'rating_1_5') control = ratingHtml(q, value, young, lang, biomimicryArabic);
+  if (q.type === 'rating_1_5') control = ratingHtml(q, value, young, lang, approvedStudentScale);
   else if (q.type === 'yes_no') control = yesNoHtml(q, value, lang);
   else if (q.type === 'single_select') control = choiceHtml(q, value, false, lang);
   else if (q.type === 'multi_select') control = choiceHtml(q, value, true, lang);
@@ -131,7 +133,7 @@ function introHtml(text, lang = 'he', showApprovedFullText = false) {
   if (!source) return '';
   if (showApprovedFullText) {
     return `<div class="ifb-hero__intro ifb-hero__intro--approved" dir="rtl">${source.split(/\r?\n|\\n/).map((line) => line.trim()).filter(Boolean).map((line, i) =>
-      `<p class="${i === 0 ? 'ifb-hero__lead' : /لا توجد إجابات صحيحة أو خاطئة/.test(line) ? 'ifb-hero__guidance' : 'ifb-hero__details'}">${esc(line)}</p>`
+      `<p class="${i === 0 ? 'ifb-hero__lead' : /(?:لا توجد إجابات صحيحة أو خاطئة|אין תשובות נכונות או לא נכונות)/.test(line) ? 'ifb-hero__guidance' : 'ifb-hero__details'}">${esc(line)}</p>`
     ).join('')}</div>`;
   }
   const segments = source.split(/\n\s*\n|\n/).map((part) => part.trim()).filter(Boolean);
@@ -174,7 +176,10 @@ export function messageCardHtml({ title, body, logoUrl = '', extra = '' }) {
 export function mountFeedbackForm(container, payload, options = {}) {
   const questions = Array.isArray(payload.questions) ? payload.questions : [];
   const biomimicryArabic = isArabicBiomimicryStudent(payload, options.language);
-  const young = !biomimicryArabic && payload.audience === 'student' && payload.age_band === 'a_c';
+  const syllabusStudent = isSyllabusStudent(payload);
+  const approvedStudentScale = biomimicryArabic || syllabusStudent;
+  const femaleStudent = syllabusStudent && payload.program_key === 'trailblazers';
+  const young = !approvedStudentScale && payload.audience === 'student' && payload.age_band === 'a_c';
   const answers = { ...(options.initialAnswers || {}) };
   const logoUrl = options.logoUrl || '';
 
@@ -182,14 +187,14 @@ export function mountFeedbackForm(container, payload, options = {}) {
   const arabic = options.language === 'ar';
   const hasStarted = Boolean(options.initialStarted) || Object.keys(answers).some((key) => answers[key] !== null && answers[key] !== '' && answers[key] !== undefined);
   container.innerHTML = `
-    <div lang="${arabic ? 'ar' : 'he'}" dir="rtl" class="ifb-shell${young ? ' is-young' : ''}${biomimicryArabic ? ' is-biomimicry-ar' : ''}${audienceClass}">
+    <div lang="${arabic ? 'ar' : 'he'}" dir="rtl" class="ifb-shell${young ? ' is-young' : ''}${biomimicryArabic ? ' is-biomimicry-ar' : ''}${syllabusStudent ? ' is-syllabus-student' : ''}${audienceClass}">
       <header class="ifb-hero">
         ${logoUrl ? `<img class="ifb-logo" src="${esc(logoUrl)}" alt="תעשיידע">` : ''}
         ${options.onChooseLanguage ? `<button type="button" class="ifb-hero__change-language" data-ifb-change-language>${arabic ? 'اختيار اللغة' : 'בחירת שפה'}</button>` : ''}
         ${biomimicryArabic ? '' : `<p class="ifb-hero__kicker">${esc(arabic ? arabicHeadline(payload) : headline(payload))}</p>`}
         <h1 class="ifb-hero__title">${esc(biomimicryArabic ? (payload.stage === 'pre' ? 'استبيان بداية دورة البيوميمكري – المحاكاة الحيوية' : 'استبيان نهاية دورة البيوميمكري – المحاكاة الحيوية') : arabic ? (AR_PROGRAM_TITLES[payload.program_title] || payload.program_title || '') : (payload.program_title || ''))}</h1>
         ${payload.recipient_name ? `<p class="ifb-hero__hello">${arabic ? 'مرحبًا' : 'שלום'} ${esc(payload.recipient_name)}</p>` : ''}
-        ${introHtml(arabic ? payload.intro_text_ar : payload.intro_text, arabic ? 'ar' : 'he', biomimicryArabic)}
+        ${introHtml(arabic ? payload.intro_text_ar : payload.intro_text, arabic ? 'ar' : 'he', approvedStudentScale)}
       </header>
       <div class="ifb-start" data-ifb-start-panel${hasStarted ? ' hidden' : ''}>
         <button type="button" class="ifb-start__btn" data-ifb-start>${arabic ? 'بدء الاستبيان' : 'התחלת המשוב'}</button>
@@ -200,13 +205,13 @@ export function mountFeedbackForm(container, payload, options = {}) {
         <span class="ifb-progress__label" data-progress-label></span>
       </div>
       <form class="ifb-form" novalidate>
-        ${biomimicryArabic ? `<section class="ifb-biomimicry-scale" aria-label="كيف نجيب؟">
-          <h2>كيف نجيب؟</h2>
-          <p>اقرؤوا كل جملة، واختاروا رقمًا من 1 إلى 5 حسب مدى انطباقها عليكم:</p>
-          <div class="ifb-biomimicry-scale__items">${AR_BIOMIMICRY_RATING_LABELS.map((label, i) => `<div><strong>${i + 1}</strong><span>${esc(label)}</span></div>`).join('')}</div>
-          <h2 class="ifb-biomimicry-scale__questions">الأسئلة:</h2>
+        ${approvedStudentScale ? `<section class="ifb-biomimicry-scale" aria-label="كيف نجيب؟">
+          <h2>${arabic ? 'كيف نجيب؟' : 'איך עונים?'}</h2>
+          <p>${arabic ? (femaleStudent ? 'اقرأن كل جملة، واخترن رقمًا من 1 إلى 5 حسب مدى انطباقها عليكنّ:' : 'اقرؤوا كل جملة، واختاروا رقمًا من 1 إلى 5 حسب مدى انطباقها عليكم:') : (femaleStudent ? 'קראו כל משפט ובחרו מספר מ־1 עד 5 לפי מידת ההתאמה שלו אליכן:' : 'קראו כל משפט ובחרו מספר מ־1 עד 5 לפי מידת ההתאמה שלו אליכם:')}</p>
+          <div class="ifb-biomimicry-scale__items">${(arabic ? AR_BIOMIMICRY_RATING_LABELS : RATING_LABELS).map((label, i) => `<div><strong>${i + 1}</strong><span>${esc(label)}</span></div>`).join('')}</div>
+          <h2 class="ifb-biomimicry-scale__questions">${arabic ? 'الأسئلة:' : 'השאלות:'}</h2>
         </section>` : ''}
-        ${questions.map((q, i) => `${biomimicryArabic && payload.stage === 'post' && q.type === 'free_text' && (i === 0 || questions[i - 1]?.type !== 'free_text') ? '<section class="ifb-biomimicry-open-intro"><h2>نودّ أن نسمع المزيد عن تجربتكم</h2><p>في السؤالين التاليين، يمكنكم أن تكتبوا بكلماتكم ما أحببتموه في الدورة وما تودّون تغييره أو إضافته. ليس من الضروري الإجابة عن هذين السؤالين.</p></section>' : ''}${questionHtml(q, i, answers, young, options.language || 'he', biomimicryArabic)}`).join('')}
+        ${questions.map((q, i) => `${approvedStudentScale && payload.stage === 'post' && q.type === 'free_text' && (i === 0 || questions[i - 1]?.type !== 'free_text') ? '<section class="ifb-biomimicry-open-intro"><h2>نودّ أن نسمع المزيد عن تجربتكم</h2><p>في السؤالين التاليين، يمكنكم أن تكتبوا بكلماتكم ما أحببتموه في الدورة وما تودّون تغييره أو إضافته. ليس من الضروري الإجابة عن هذين السؤالين.</p></section>' : ''}${questionHtml(q, i, answers, young, options.language || 'he', approvedStudentScale)}`).join('')}
         <div class="ifb-submit">
           <p class="ifb-submit__error" data-submit-error role="alert" hidden></p>
           <button type="submit" class="ifb-submit__btn" data-submit>${options.preview ? (arabic ? 'إرسال (معاينة)' : 'שליחה (תצוגה מקדימה)') : (arabic ? 'إرسال الاستبيان' : 'שליחת המשוב')}</button>
