@@ -552,3 +552,25 @@
     gap: 6px;
   }
 }
+
+/* A green camera means that a signed photo-consent file is saved for this activity.
+   This is a document-presence cue, not an assertion of consent by every pupil. */
+.activity-drawer__header-actions .activity-drawer__photo-upload.is-photo-consent-saved {
+  background: #e4f7eb !important;
+  border: 1px solid #75c69b !important;
+  color: #0d8543 !important;
+}
+
+.activity-drawer__header-actions .activity-drawer__photo-upload.is-photo-consent-saved svg {
+  stroke: #0d8543;
+}
+
+.activity-drawer__header-actions .activity-drawer__photo-upload.is-photo-consent-saved:hover {
+  background: #c9efd9 !important;
+  border-color: #3fa46f !important;
+}
+
+.activity-drawer__header-actions .activity-drawer__photo-upload.is-photo-consent-saved:focus-visible {
+  outline: 2px solid #22a467;
+  outline-offset: 2px;
+}
