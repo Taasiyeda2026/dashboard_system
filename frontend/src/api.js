@@ -4967,7 +4967,7 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
     can_review_requests: canReviewRequests,
     permission_flags: Object.fromEntries(Object.entries(flat).filter(([key]) =>
       ALL_PERMISSION_KEYS.includes(key)
-      || ['view_proposals', 'view_finance', 'view_inventory', 'can_request_edit_2', 'can_review_requests_2'].includes(key)
+      || ['view_proposals', 'view_finance', 'view_inventory', 'can_request_edit_2', 'can_review_requests_2', 'manage_photo_consents'].includes(key)
     )),
     client_settings: {}
   };
