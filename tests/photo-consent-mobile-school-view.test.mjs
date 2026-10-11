@@ -56,7 +56,7 @@ test('school click opens associated documents without any upload action in manag
   const source = await readFile(SCREEN, 'utf8');
   assert.match(source, /photoConsentSchoolManagementGroups\(context\.activities, context\.files\)/);
   assert.match(source, /data-pc-toggle/);
-  assert.match(source, /aria-label="פתיחת אישורי צילום של /);
+  assert.match(source, /aria-label="' \+ \(expanded \? 'סגירת' : 'פתיחת'\)/);
   assert.match(source, /file\.ownerActivity\?\.activity_name/);
   assert.match(source, /data-pc-view/);
   assert.match(source, /data-pc-download/);
