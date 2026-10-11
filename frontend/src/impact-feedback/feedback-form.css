@@ -368,3 +368,51 @@
   .ifb-start { padding-top: 15px; padding-bottom: 22px; }
   .ifb-submit__btn, .ifb-shell.is-adult .ifb-submit__btn { width: min(100%, 250px); min-height: 46px; font-size: 16px; }
 }
+
+/* Approved biomimicry student Arabic questionnaire: number-based 1–5 scale. */
+.ifb-shell.is-biomimicry-ar .ifb-hero__intro--approved p { margin-top: 9px; }
+.ifb-shell.is-biomimicry-ar .ifb-hero__intro--approved p:first-child { margin-top: 0; }
+.ifb-biomimicry-scale,
+.ifb-biomimicry-open-intro {
+  direction: rtl;
+  text-align: start;
+  border-radius: 14px;
+  padding: 15px 17px;
+  background: #f8f9fc;
+  border: 1px solid var(--ifb-line);
+  color: var(--ifb-ink);
+}
+.ifb-biomimicry-scale h2,
+.ifb-biomimicry-open-intro h2 {
+  font-size: 17px;
+  line-height: 1.5;
+  margin: 0 0 6px;
+}
+.ifb-biomimicry-scale p,
+.ifb-biomimicry-open-intro p { margin: 0; font-size: 14px; line-height: 1.6; }
+.ifb-biomimicry-scale__items {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin: 12px 0 0;
+  direction: rtl;
+}
+.ifb-biomimicry-scale__items > div {
+  display: grid;
+  align-content: start;
+  justify-items: center;
+  gap: 5px;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.4;
+}
+.ifb-biomimicry-scale__items strong { font-size: 16px; }
+.ifb-biomimicry-scale__questions { margin-top: 17px !important; }
+.ifb-rate--arabic-biomimicry { direction: rtl; }
+.ifb-rate--arabic-biomimicry .ifb-rate__face { border-radius: 50%; font-size: 24px; }
+@media (max-width: 480px) {
+  .ifb-biomimicry-scale { padding: 12px; }
+  .ifb-biomimicry-scale__items { gap: 4px; }
+  .ifb-biomimicry-scale__items > div { font-size: 10px; }
+  .ifb-rate--arabic-biomimicry .ifb-rate__face { font-size: 21px; }
+}
