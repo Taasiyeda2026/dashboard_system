@@ -702,7 +702,47 @@ test('approved Arabic biomimicry pre/post match the supplied student questionnai
   assert.match(publicForm, /ifb-biomimicry-open-intro/);
   assert.match(publicForm, /استبيان بداية دورة البيوميمكري – المحاكاة الحيوية/);
   assert.match(publicForm, /استبيان نهاية دورة البيوميمكري – المحاكاة الحيوية/);
-  assert.match(publicForm, /questionHtml\(q, i, answers, young, options\.language \|\| 'he', biomimicryArabic\)/);
+  assert.match(publicForm, /questionHtml\(q, i, answers, young, options\.language \|\| 'he', approvedStudentScale\)/);
   assert.match(publicPage, /biomimicryStudentStageForThanks/);
   assert.match(templates, /program_key: ed\.template\.program_key/);
+});
+
+test('five student syllabi use the approved age-appropriate bilingual layout and keep comparable question IDs', () => {
+  const sql = readFileSync(new URL('../supabase/migrations/20261011205000_student_syllabus_appropriate_introductions.sql', import.meta.url), 'utf8');
+  for (const key of ['green_leadership', 'space_tech', 'trailblazers', 'pharma', 'ofek']) {
+    assert.ok(sql.includes(key), key);
+    assert.ok(publicForm.includes(key), key);
+    assert.ok(publicPage.includes(key), key);
+  }
+  assert.match(sql, /when t\.stage='pre' then 8 else 12/);
+  assert.match(sql, /when t\.stage='pre' then 10 else 14/);
+  assert.match(sql, /count\(\*\) filter\(where q\.is_comparison\)/);
+  assert.match(sql, /q\.question_id,q\.section,q\.sort_order,q\.required,q\.metric_key,q\.question_type,q\.is_comparison,q\.wording,q\.options,q\.scoring/);
+  assert.match(sql, /private\.feedback_student_syllabus_intros/);
+  assert.match(sql, /private\.feedback_publish_version/);
+  assert.match(sql, /c\.audience=''student''/);
+
+  for (const phrase of [
+    'האם שמתם לב לדברים בסביבה שלכם',
+    'האם תהיתם פעם איך אפשר לחיות בחלל',
+    'האם חשבתן פעם איך רעיון שלכן',
+    'איך מפתחים פתרון רפואי',
+    'איך הופכים רעיון למוצר',
+    'هل لاحظتم أشياء في بيئتكم',
+    'هل تساءلتم يومًا كيف يمكن للإنسان',
+    'هل فكّرتنّ يومًا',
+    'كيف نطوّر حلًّا طبيًّا',
+    'كيف نحوّل فكرة إلى منتج'
+  ]) assert.ok(sql.includes(phrase), phrase);
+
+  assert.match(publicForm, /const syllabusStudent = isSyllabusStudent\(payload\)/);
+  assert.match(publicForm, /const approvedStudentScale = biomimicryArabic \|\| syllabusStudent/);
+  assert.match(publicForm, /const femaleStudent = syllabusStudent && payload\.program_key === 'trailblazers'/);
+  assert.match(publicForm, /introHtml\(arabic \? payload\.intro_text_ar : payload\.intro_text, arabic \? 'ar' : 'he', approvedStudentScale\)/);
+  assert.match(publicForm, /approvedFreeTextIntroHtml\(arabic, femaleStudent, biomimicryArabic\)/);
+  assert.match(publicForm, /اقرأن كل جملة/);
+  assert.match(publicForm, /קראו כל משפט/);
+  assert.match(publicForm, /אין חובה לענות עליהן/);
+  assert.match(publicPage, /STUDENT_SYLLABUS_OUTROS/);
+  assert.match(publicCss, /\.ifb-shell\.is-syllabus-student \.ifb-hero__intro--approved/);
 });

@@ -63,6 +63,30 @@ function showMessage(root, stateKey, extra = '') {
 }
 
 let biomimicryStudentStageForThanks = null;
+const STUDENT_SYLLABUS_OUTROS = Object.freeze({
+  green_leadership: {
+    pre: { he: 'תודה שהשתתפתם! מחכים לנו חקר, עבודה משותפת ורעיונות חדשים לשיפור הסביבה.', ar: 'شكرًا لمشاركتكم! ينتظرنا البحث والعمل معًا وتطوير أفكار جديدة لتحسين البيئة.' },
+    post: { he: 'תודה שהשתתפתם! המשיכו לשים לב לסביבה שלכם ולחשוב איך אפשר לשפר אותה.', ar: 'شكرًا لمشاركتكم! واصلوا الاهتمام ببيئتكم والتفكير في طرق لتحسينها.' }
+  },
+  space_tech: {
+    pre: { he: 'תודה שהשתתפתם! מחכים לנו גילויים חדשים על החלל ורעיונות לפתרון אתגרים.', ar: 'شكرًا لمشاركتكم! تنتظرنا اكتشافات جديدة عن الفضاء وأفكار لحلّ التحدّيات.' },
+    post: { he: 'תודה שהשתתפתם! המשיכו לשאול שאלות על החלל, לחקור ולנסות רעיונות חדשים.', ar: 'شكرًا لمشاركتكم! واصلوا طرح الأسئلة عن الفضاء والبحث وتجربة أفكار جديدة.' }
+  },
+  trailblazers: {
+    pre: { he: 'תודה שהשתתפתן! לפנינו הזדמנות לגלות נשים פורצות דרך ולפתח רעיונות משלנו.', ar: 'شكرًا لمشاركتكنّ! أمامنا فرصة للتعرّف إلى نساء رائدات وتطوير أفكارنا.' },
+    post: { he: 'תודה שהשתתפתן! המשיכו להשמיע את קולכן, להוביל רעיונות וליצור שינוי.', ar: 'شكرًا لمشاركتكنّ! واصلن التعبير عن آرائكنّ وقيادة الأفكار وصنع التغيير.' }
+  },
+  pharma: {
+    pre: { he: 'תודה שהשתתפתם! נחקור איך מדע, רפואה וחשיבה יצירתית יכולים לעזור לאנשים.', ar: 'شكرًا لمشاركتكم! سنستكشف كيف يمكن للعلم والطب والتفكير الإبداعي مساعدة الناس.' },
+    post: { he: 'תודה שהשתתפתם! המשיכו לחקור צרכים של אנשים ולחשוב על פתרונות שמשלבים מדע ויצירתיות.', ar: 'شكرًا لمشاركتكم! واصلوا البحث في احتياجات الناس والتفكير في حلول تجمع العلم والإبداع.' }
+  },
+  ofek: {
+    pre: { he: 'תודה שהשתתפתם! מחכים לנו חקר, עבודת צוות ופיתוח רעיונות למיזמים חדשים.', ar: 'شكرًا لمشاركتكم! ينتظرنا البحث والعمل الجماعي وتطوير أفكار لمشاريع جديدة.' },
+    post: { he: 'תודה שהשתתפתם! המשיכו לזהות צרכים, לשפר רעיונות ולהפוך אותם לפתרונות בעלי ערך.', ar: 'شكرًا لمشاركتكم! واصلوا تحديد الاحتياجات وتحسين الأفكار وتحويلها إلى حلول مفيدة.' }
+  }
+});
+let syllabusStudentForThanks = null;
+
 function showThanks(root, language = 'he') {
   // After submission there is no public reset/restart action on this device.
   const approvedBiomimicryThanks = biomimicryStudentStageForThanks === 'pre'
@@ -71,8 +95,10 @@ function showThanks(root, language = 'he') {
   const msg = language === 'ar'
     ? biomimicryStudentStageForThanks ? approvedBiomimicryThanks : { title: 'شكرًا لمشاركتك معنا!', body: 'شكرًا على وقتك وعلى الإجابات التي شاركتها. ستساعدنا ملاحظاتك على تحسين البرنامج وتطوير تجربة التعلّم.' }
     : THANK_YOU;
+  const syllabus = syllabusStudentForThanks && STUDENT_SYLLABUS_OUTROS[syllabusStudentForThanks.program_key]?.[syllabusStudentForThanks.stage];
+  const finalMsg = syllabus ? { title: syllabusStudentForThanks.program_key === 'trailblazers' ? (language === 'ar' ? 'شكرًا لمشاركتكنّ!' : 'תודה שהשתתפתן!') : (language === 'ar' ? 'شكرًا لمشاركتكم!' : 'תודה שהשתתפתם!'), body: syllabus[language] } : msg;
   document.documentElement.lang = language;
-  root.innerHTML = `<div class="ifb-shell" lang="${language}" dir="rtl">${messageCardHtml({ ...msg, logoUrl })}</div>`;
+  root.innerHTML = `<div class="ifb-shell" lang="${language}" dir="rtl">${messageCardHtml({ ...finalMsg, logoUrl })}</div>`;
   root.setAttribute('aria-busy', 'false');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -145,6 +171,7 @@ async function start() {
     return;
   }
   biomimicryStudentStageForThanks = payload.program_key === 'biomimicry' && payload.audience === 'student' ? payload.stage : null;
+  syllabusStudentForThanks = payload.audience === 'student' && STUDENT_SYLLABUS_OUTROS[payload.program_key] ? { program_key: payload.program_key, stage: payload.stage } : null;
   setTitle(payload.program_title);
 
   const isStudent = payload.audience === 'student';

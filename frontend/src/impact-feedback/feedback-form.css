@@ -370,8 +370,10 @@
 }
 
 /* Approved biomimicry student Arabic questionnaire: number-based 1–5 scale. */
-.ifb-shell.is-biomimicry-ar .ifb-hero__intro--approved p { margin-top: 9px; }
-.ifb-shell.is-biomimicry-ar .ifb-hero__intro--approved p:first-child { margin-top: 0; }
+.ifb-shell.is-biomimicry-ar .ifb-hero__intro--approved p,
+.ifb-shell.is-syllabus-student .ifb-hero__intro--approved p { margin-top: 9px; }
+.ifb-shell.is-biomimicry-ar .ifb-hero__intro--approved p:first-child,
+.ifb-shell.is-syllabus-student .ifb-hero__intro--approved p:first-child { margin-top: 0; }
 .ifb-biomimicry-scale,
 .ifb-biomimicry-open-intro {
   direction: rtl;
