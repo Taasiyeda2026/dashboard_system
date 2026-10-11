@@ -67,6 +67,7 @@ import {
 import { campaignLink, copyText, openQrProjection, personalShareLinks } from '../impact-feedback/feedback-share.js';
 import { renderTemplatesView, bindTemplatesView } from '../impact-feedback/feedback-templates-view.js';
 import '../impact-feedback/feedback-form.css';
+import { canViewImpactFeedback, isFeedbackAdmin } from '../impact-feedback/feedback-access.js';
 import '../impact-feedback/impact-feedback-admin.css';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -142,8 +143,9 @@ const ui = {
   error: ''
 };
 
-function isAdmin(state) {
-  return String(state?.user?.role || '').trim().toLowerCase() === 'admin';
+let feedbackReadOnly = false;
+function visibleFeedbackTabs() {
+  return feedbackReadOnly ? TABS.filter((tab) => tab.key !== 'templates') : TABS;
 }
 
 function programByKey(key) {
@@ -456,7 +458,7 @@ function courseOnlyFiltersHtml(scope) {
 }
 
 function shellHtml(inner) {
-  const activeTab = TABS.find((t) => t.key === ui.tab) || TABS[0];
+  const activeTab = visibleFeedbackTabs().find((t) => t.key === ui.tab) || TABS[0];
   return `
     <div class="ifb-admin__head">
       <h1 class="ifb-admin__title">משובים</h1>
@@ -465,7 +467,7 @@ function shellHtml(inner) {
       </button>
     </div>
     <nav class="ifb-tabs" role="tablist" aria-label="לשוניות מודול המשובים">
-      ${TABS.map((t) => `<button type="button" role="tab" id="ifb-tab-${t.key}" class="ifb-tab${ui.tab === t.key ? ' is-active' : ''}" aria-selected="${ui.tab === t.key}" aria-controls="ifb-panel" tabindex="${ui.tab === t.key ? '0' : '-1'}" data-ifb-tab="${t.key}">${esc(t.label)}</button>`).join('')}
+      ${visibleFeedbackTabs().map((t) => `<button type="button" role="tab" id="ifb-tab-${t.key}" class="ifb-tab${ui.tab === t.key ? ' is-active' : ''}" aria-selected="${ui.tab === t.key}" aria-controls="ifb-panel" tabindex="${ui.tab === t.key ? '0' : '-1'}" data-ifb-tab="${t.key}">${esc(t.label)}</button>`).join('')}
     </nav>
     ${ui.groupRowId || ui.tab === 'templates' || ui.tab === 'instructors' ? '' : feedbackSemesterTabsHtml()}
     <div class="ifb-view" role="tabpanel" id="ifb-panel" aria-labelledby="ifb-tab-${activeTab.key}" tabindex="-1">${inner}</div>`;
@@ -1876,7 +1878,7 @@ async function afterInstructorCampaignChange(host) {
 }
 
 async function switchTab(host, key, { focusTab = false } = {}) {
-  if (!TABS.some((t) => t.key === key)) return;
+  if (!visibleFeedbackTabs().some((t) => t.key === key)) return;
   ui.tab = key;
   ui.groupRowId = null;
   ui.templates.templateId = null;
@@ -1891,20 +1893,32 @@ async function switchTab(host, key, { focusTab = false } = {}) {
 function handleTabKeys(host, event) {
   const tab = event.target.closest('[data-ifb-tab]');
   if (!tab) return;
-  const index = TABS.findIndex((t) => t.key === tab.dataset.ifbTab);
+  const tabs = visibleFeedbackTabs();
+  const index = tabs.findIndex((t) => t.key === tab.dataset.ifbTab);
+  if (index < 0) return;
   let next = null;
   // RTL: the visually next tab is to the left.
-  if (event.key === 'ArrowLeft') next = (index + 1) % TABS.length;
-  else if (event.key === 'ArrowRight') next = (index - 1 + TABS.length) % TABS.length;
+  if (event.key === 'ArrowLeft') next = (index + 1) % tabs.length;
+  else if (event.key === 'ArrowRight') next = (index - 1 + tabs.length) % tabs.length;
   else if (event.key === 'Home') next = 0;
-  else if (event.key === 'End') next = TABS.length - 1;
+  else if (event.key === 'End') next = tabs.length - 1;
   if (next === null) return;
   event.preventDefault();
-  switchTab(host, TABS[next].key, { focusTab: true });
+  switchTab(host, tabs[next].key, { focusTab: true });
 }
 
 async function handleClick(host, event) {
   const t = event.target;
+  // Defense-in-depth for the temporary read-only user. Server writes stay admin-only.
+  if (feedbackReadOnly && t.closest([
+    '[data-ifb-show-open]', '[data-ifb-instructor-open]',
+    '[data-ifb-cancel-open]', '[data-ifb-instructor-cancel]',
+    '[data-ifb-close]', '[data-ifb-reopen]', '[data-ifb-share]',
+    '[data-ifb-qr]', '[data-ifb-copy]', '[data-ifb-extend]'
+  ].join(','))) {
+    event.preventDefault();
+    return;
+  }
   const tab = t.closest('[data-ifb-tab]');
   if (tab) { await switchTab(host, tab.dataset.ifbTab); return; }
   if (t.closest('[data-ifb-retry]') || t.closest('[data-ifb-refresh]')) { await load(host, { force: true }); return; }
@@ -2007,6 +2021,7 @@ async function handleClick(host, event) {
 }
 
 async function handleSubmit(host, event) {
+  if (feedbackReadOnly) { event.preventDefault(); return; }
   const form = event.target;
   if (form.closest('[data-ifb-templates]')) return;
   if (form.matches('[data-ifb-instructor-open-form]')) {
@@ -2187,9 +2202,15 @@ function installActivityDateSync(host) {
 }
 
 function mount(host, state) {
-  if (!isAdmin(state)) {
-    host.innerHTML = '<div class="ifb-empty ifb-empty--error" role="alert"><p>מודול המשובים זמין לאדמין בלבד.</p></div>';
+  if (!canViewImpactFeedback(state?.user)) {
+    host.innerHTML = '<div class="ifb-empty ifb-empty--error" role="alert"><p>אין לך הרשאה לצפות בממשק המשובים.</p></div>';
     return;
+  }
+  feedbackReadOnly = !isFeedbackAdmin(state?.user);
+  host.classList.toggle('is-feedback-readonly', feedbackReadOnly);
+  if (feedbackReadOnly && ui.tab === 'templates') {
+    ui.tab = 'overview';
+    ui.templates.templateId = null;
   }
   // The dashboard owns the year; feedback never exposes an independent year selector.
   const dashboardYear = normalizeGlobalActivityPeriod(state?.activityPeriodTab || ACTIVE_ACTIVITY_SEASON);
