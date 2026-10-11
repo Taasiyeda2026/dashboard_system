@@ -64,7 +64,7 @@ function showMessage(root, stateKey, extra = '') {
 
 function showThanks(root, language = 'he') {
   // After submission there is no public reset/restart action on this device.
-  const msg = language === 'ar' ? { title: 'شكرًا لمشاركتك معنا!', body: 'استمروا في التأمل في الطبيعة بفضول، وطرح الأسئلة واكتشاف أفكار جديدة مستوحاة من العالم من حولكم.' } : THANK_YOU;
+  const msg = language === 'ar' ? { title: 'شكرًا لمشاركتك معنا!', body: 'شكرًا على وقتك وعلى الإجابات التي شاركتها. ستساعدنا ملاحظاتك على تحسين البرنامج وتطوير تجربة التعلّم.' } : THANK_YOU;
   document.documentElement.lang = language;
   root.innerHTML = `<div class="ifb-shell" lang="${language}" dir="rtl">${messageCardHtml({ ...msg, logoUrl })}</div>`;
   root.setAttribute('aria-busy', 'false');
@@ -73,8 +73,8 @@ function showThanks(root, language = 'he') {
 
 /**
  * All valid public links (direct, email, WhatsApp, QR) share this same entry step.
- * Arabic questionnaire wording is deliberately NOT enabled until the Hebrew
- * templates have been approved and Arabic translations are published.
+ * Arabic opens once the version (or the legacy translation dictionary) provides
+ * translated wording for every question.
  */
 function showLanguageChoice(root, { onHebrew, onArabic }) {
   document.documentElement.lang = 'he';
