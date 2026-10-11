@@ -10,11 +10,13 @@ const storageService = await readFile(new URL('../attendance/src/services/storag
 const identityService = await readFile(new URL('../attendance/src/auth/identity.service.js', import.meta.url), 'utf8');
 const newReportScreen = await readFile(new URL('../attendance/src/screens/new-report-screen.js', import.meta.url), 'utf8');
 
-test('Attendance final mobile contract is loaded last and uses cache version 113', () => {
-  assert.match(index, /mobile-final-contract\.css\?v=113/);
-  assert.ok(index.indexOf('mobile-final-contract.css?v=113') > index.indexOf('new-report-accessibility.css?v=113'));
+test('Attendance final mobile contract is loaded last with the current PWA cache version', () => {
+  const version = Number(sw.match(/const CACHE_VERSION = (\d+);/)?.[1]);
+  assert.ok(Number.isSafeInteger(version) && version > 0);
+  assert.ok(index.includes('mobile-final-contract.css?v=' + version));
+  assert.ok(index.indexOf('mobile-final-contract.css?v=' + version) >
+    index.indexOf('new-report-accessibility.css?v=' + version));
   assert.doesNotMatch(index, /v=92/);
-  assert.match(sw, /const CACHE_VERSION = 113/);
 });
 
 test('Attendance attachments use ASCII employee/date/sequence storage keys and keep original metadata', () => {
