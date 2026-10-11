@@ -386,6 +386,7 @@ function openPreview(ui) {
     trailblazers: 'ريادة الأعمال والتكنولوجيا'
   };
   const payload = {
+    program_key: ed.template.program_key,
     audience: ed.template.audience,
     stage: ed.template.stage,
     age_band: null,
