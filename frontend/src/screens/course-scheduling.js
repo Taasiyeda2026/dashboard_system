@@ -1,4 +1,5 @@
 import { reusablePointWorkspace, refreshCommittedPointWorkspace } from './course-scheduling-point-workspace.js';
+import { undatedProposalNeedsNewStart } from './course-scheduling-start-policy.js';
 import { schedulingPointWorker } from './course-scheduling-worker-client.js';
 import { courseListWindow } from './course-scheduling-display-data.js';
 import { runPlanningPreflight, createPlanningRunDeadlineCheckpoint, startPlanningLeaseHeartbeat, planningLeaseWaitMessage, throwIfPlanningRunInvalidated } from './course-scheduling-preflight.js';
@@ -2577,7 +2578,9 @@ export const courseSchedulingScreen = {
           // before display. A proposal in that affected scope cannot be certified
           // against the current assignments even when only the directly edited
           // activity carries the persisted needs_recalc flag.
-          if ((snapshot._is_stale || affectedIds.includes(text(entry.activityId))) && text(row.kind) !== 'live') {
+          if ((snapshot._is_stale || affectedIds.includes(text(entry.activityId))
+            || (entry.lockedOption == null && undatedProposalNeedsNewStart(row, currentCourseById.get(text(entry.activityId)), today())))
+            && text(row.kind) !== 'live') {
             return stalePlanningRowForDisplay(row);
           }
           if (entry.needsRecalc === true) return stalePlanningRowForDisplay(row);
@@ -3023,15 +3026,23 @@ export const courseSchedulingScreen = {
               currentEngineVersion: PLANNING_ENGINE_VERSION
             }))
           : [];
+        const activityById = new Map((freshStart.activities || []).map((activity) => [idOf(activity), activity]));
+        const expiredUndatedIds = (shared?.rows || [])
+          .filter((entry) => !entry.lockedOption
+            && undatedProposalNeedsNewStart(entry.row, activityById.get(text(entry.activityId)), today()))
+          .map((entry) => text(entry.activityId));
         const regularAffectedIds = !shared?.workspace || unrecoverableGlobalContextChange
           ? []
-          : sharedPlanningAffectedCourseIds({
-              shared,
-              activities: freshStart.activities || [],
-              currentCourseIds,
-              contextDiff: contextResolution?.contextDiff || null,
-              unrecoverableGlobalContextChange: false
-            });
+          : [...new Set([
+              ...sharedPlanningAffectedCourseIds({
+                shared,
+                activities: freshStart.activities || [],
+                currentCourseIds,
+                contextDiff: contextResolution?.contextDiff || null,
+                unrecoverableGlobalContextChange: false
+              }),
+              ...expiredUndatedIds
+            ])];
         const upgradeExecution = planningEngineUpgradeExecutionScopes({
           regularAffectedIds,
           engineUpgradeAffectedIds,
