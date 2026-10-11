@@ -1,7 +1,39 @@
-import { uploadPhotoConsentFiles } from './photo-consent-client.js';
+import { uploadPhotoConsentFiles, photoConsentActivityHasFiles } from './photo-consent-client.js';
+
+function paintCamera(root, activityId, hasFile) {
+  const button = root.querySelector('button[data-activity-photo-upload]');
+  if (!button || Number(button.dataset.activityPhotoUpload) !== activityId) return;
+  button.classList.toggle('is-photo-consent-saved', hasFile);
+  button.dataset.photoConsentState = hasFile ? 'saved' : 'missing';
+  const label = hasFile ? 'אישור צילום שמור · העלאת אישור נוסף' : 'העלאת אישור צילום';
+  button.setAttribute('aria-label', label);
+  button.title = label;
+}
+
+async function refreshCamera(root, activityId) {
+  if (!Number.isSafeInteger(activityId) || activityId <= 0) return;
+  try {
+    const hasFile = await photoConsentActivityHasFiles(activityId);
+    // A slow request must not change the camera of a different drawer row
+    // or override an upload that has already started.
+    const button = root.querySelector('button[data-activity-photo-upload]');
+    if (button && !button.hasAttribute('aria-busy')) paintCamera(root, activityId, hasFile);
+  } catch (error) {
+    console.warn('[photo-consent-camera-status]', error?.message || error);
+    // Unknown status is not represented as a confirmed saved file.
+  }
+}
 
 export function bindActivityPhotoConsentUpload(root, notify = () => {}) {
-  if (!root || root.dataset.photoConsentDrawerBound === '1') return;
+  if (!root) return;
+  const camera = root.querySelector('button[data-activity-photo-upload]');
+  const activityId = Number(camera?.dataset.activityPhotoUpload);
+  if (camera && Number.isSafeInteger(activityId) && activityId > 0) {
+    void refreshCamera(root, activityId);
+  }
+  // Re-rendering the drawer re-queries persisted status, but does not bind a
+  // duplicate delegated click handler to the same drawer container.
+  if (root.dataset.photoConsentDrawerBound === '1') return;
   root.dataset.photoConsentDrawerBound = '1';
   // Event delegation survives full drawer content replacement after detail/save.
   root.addEventListener('click', (event) => {
@@ -25,7 +57,10 @@ export function bindActivityPhotoConsentUpload(root, notify = () => {}) {
         const saved = await uploadPhotoConsentFiles(activityId, files, ({ index, total }) => {
           notify('שומר אישור צילום ' + index + ' מתוך ' + total + '…', 'info');
         });
-        if (saved.length) notify(saved.length + ' קבצי אישור צילום נשמרו בהצלחה ב־SharePoint.', 'success');
+        if (saved.length) {
+          paintCamera(root, activityId, true);
+          notify(saved.length + ' קבצי אישור צילום נשמרו בהצלחה ב־SharePoint.', 'success');
+        }
       } catch (error) {
         notify((error?.message || 'העלאת אישור הצילום נכשלה.') +
           ' אם הועלו כמה קבצים, ניתן לבדוק את הקבצים שנשמרו במסך אישורי צילום.', 'error');
@@ -33,6 +68,8 @@ export function bindActivityPhotoConsentUpload(root, notify = () => {}) {
         button.disabled = false;
         button.removeAttribute('aria-busy');
         cleanup();
+        // Also covers a partly successful multi-file upload.
+        void refreshCamera(root, activityId);
       }
     }, { once: true });
     input.click();
