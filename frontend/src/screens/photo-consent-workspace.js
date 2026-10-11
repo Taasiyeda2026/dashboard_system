@@ -73,15 +73,6 @@ async function allFiles() {
   return records;
 }
 
-function asMap(files) {
-  const map = new Map();
-  files.forEach((f) => {
-    const id = Number(f.activity_id);
-    if (!map.has(id)) map.set(id, []);
-    map.get(id).push(f);
-  });
-  return map;
-}
 async function invoke(action, payload = {}) {
   const { data, error } = await supabase.functions.invoke('photo-consent-sharepoint', { body: { action, ...payload } });
   if (error || data?.error) throw new Error(data?.message || error?.message || 'פעולה מול SharePoint נכשלה.');
@@ -115,11 +106,11 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
   document.body.appendChild(input);
   const lookup = () => new Map(context.activities.map((a) => [Number(a.id), a]));
   const report = (message, error = false) => { context.notice = message; context.error = error; render(); };
-  const byActivity = () => asMap(context.files);
   function filtered() {
-    const map = byActivity(), needle = context.search.toLowerCase();
+    const documentsBySchool = photoConsentDocumentsBySchool(context.activities, context.files);
+    const needle = context.search.toLowerCase();
     return context.activities.filter((a) => {
-      const count = (map.get(Number(a.id)) || []).length;
+      const count = (documentsBySchool.get(photoConsentSchoolKey(a)) || []).length;
       return (context.status === 'all' || (context.status === 'present' ? count > 0 : count === 0))
         && (context.authority === 'all' || clean(a.authority) === context.authority)
         && (!needle || [a.school, a.authority, a.activity_name, a.row_id, a.instructor_name].some((v) => clean(v).toLowerCase().includes(needle)));
