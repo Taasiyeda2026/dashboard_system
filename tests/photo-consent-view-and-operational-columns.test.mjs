@@ -42,10 +42,10 @@ test('management shows manager, instructor and start date in both desktop and mo
   assert.match(src, /firstStartDate/);
   assert.match(src, /תאריכי התחלה נוספים/);
   assert.match(src, /class="pc-mobile-meta-grid"/);
-  assert.match(src, /file\.ownerActivity\?\.activity_manager/);
-  assert.match(src, /file\.ownerActivity\?\.instructor_name/);
+  assert.match(src, /group\.operational\.managers/);
+  assert.match(src, /group\.operational\.instructors/);
   assert.match(src, /file\.ownerActivity\?\.start_date/);
-  assert.match(src, /colspan="7"/);
+  assert.match(src, /colspan="6"/);
   assert.doesNotMatch(src, /data-pc-upload/);
 });
 
