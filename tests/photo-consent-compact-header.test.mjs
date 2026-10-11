@@ -6,7 +6,7 @@ const SCREEN = new URL('../frontend/src/screens/photo-consent-workspace.js', imp
 
 test('summary numbers, refresh and SharePoint controls occupy one compact row', async () => {
   const source = await readFile(SCREEN, 'utf8');
-  assert.match(source, /\\.pc-summary\{display:grid;grid-template-columns:repeat\(3,minmax\(0,1fr\)\) minmax\(195px,auto\)/);
+  assert.ok(source.includes('.pc-summary{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) minmax(195px,auto)'));
   const header = source.indexOf("'<header class=\"pc-title\"><h2>אישורי צילום</h2></header>'");
   const summary = source.indexOf("'<div class=\"pc-summary\">'", header);
   const actions = source.indexOf("'<div class=\"pc-summary-actions\"", summary);
@@ -29,7 +29,7 @@ test('collapsed filters do not occupy a separate full-width toolbar row', async 
   assert.match(source, /<span>סינון'/);
   assert.doesNotMatch(source, /סינון וחיפוש|סינון וצילום/);
   assert.doesNotMatch(source, /pc-filter-shell/);
-  assert.match(source, /\\.pc-filter-body\[hidden\]\{display:none\}/);
+  assert.ok(source.includes('.pc-filter-body[hidden]{display:none}'));
   assert.match(source, /context\.filtersOpen \? '' : ' hidden'/);
   const results = source.indexOf("'<div class=\"pc-results-header\">'");
   const button = source.indexOf("data-pc-filter-toggle", results);
