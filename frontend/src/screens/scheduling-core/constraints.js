@@ -1,4 +1,5 @@
 import { activityMeetings } from '../instructor-scheduling-load.js';
+import { isCourseBlocked } from '../instructor-matching-engine.js';
 import { isFullDaySchedulingActivity } from '../shared/activity-scheduling-eligibility.js';
 import { normalizeCalendarSector } from '../shared/school-calendar-logic.js';
 import { schedulingWeekendFailure } from '../shared/scheduling-weekend-policy.js';
@@ -86,6 +87,7 @@ export function staticFailures(context, activity, empId) {
   if (['male', 'female'].includes(activity.required_instructor_gender) && p?.gender !== activity.required_instructor_gender) failures.push('gender');
   const authority = address(activity.authority);
   if ((p?.blocked_authorities || []).some(a => address(a) === authority)) failures.push('blocked_authority');
+  if (isCourseBlocked(p, activity)) failures.push('blocked_course');
   const route = knownRoute(context, i?.address, activity.school_address);
   if (!route) failures.push('home_route_unknown'); else if (+route.distance_km > 40) failures.push('home_distance_exceeded');
   return failures;

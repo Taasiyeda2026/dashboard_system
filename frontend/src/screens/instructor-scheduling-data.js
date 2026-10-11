@@ -82,6 +82,48 @@ function normalizeBlockedAuthoritiesForSave(values) {
   return result;
 }
 
+
+/** Closed selection catalog: active course programs plus course codes used by
+ * current-year activities. No user-supplied free-text values are accepted. */
+export async function loadSchedulableCourseOptions() {
+  requireClient();
+  const [catalog, activities] = await Promise.all([
+    supabase.from('catalog_program_details')
+      .select('activity_no,catalog_title,item_type,is_active_for_catalog')
+      .eq('is_active_for_catalog', true),
+    supabase.from('activities')
+      .select('activity_no,activity_name,activity_type,status')
+      .eq('activity_season', 'school_2027')
+      .limit(1000)
+  ]);
+  if (catalog.error && activities.error) {
+    throw new Error('לא ניתן לטעון את רשימת הקורסים לבחירה. נסו שוב.');
+  }
+  const courseTypes = new Set(['course','courses','program','קורס','קורסים','תוכנית','תכנית']);
+  const closed = new Set(['בוטל','cancelled','canceled','נמחק','deleted','inactive','לא פעיל']);
+  const options = new Map();
+  const append = (code, name) => {
+    const value = String(code ?? '').trim();
+    const label = String(name ?? '').trim();
+    if (!value || !label || options.has(value)) return;
+    options.set(value, { value, label: `${label} · ${value}` });
+  };
+  for (const c of catalog.data || []) {
+    if (courseTypes.has(String(c.item_type || '').trim().toLowerCase())) append(c.activity_no, c.catalog_title);
+  }
+  for (const a of activities.data || []) {
+    if (!courseTypes.has(String(a.activity_type || '').trim().toLowerCase())) continue;
+    if (closed.has(String(a.status || '').trim().toLowerCase())) continue;
+    append(a.activity_no, a.activity_name);
+  }
+  return [...options.values()].sort((a, b) => a.label.localeCompare(b.label, 'he'));
+}
+
+function normalizedBlockedCourseIds(values) {
+  return [...new Set((Array.isArray(values) ? values : [])
+    .map(value => String(value ?? '').trim()).filter(Boolean))];
+}
+
 export async function saveInstructorSchedulingProfile(row) {
   requireClient();
   const empId = normalizeEmpId(row?.emp_id);
@@ -95,6 +137,9 @@ export async function saveInstructorSchedulingProfile(row) {
     instruction_languages: Array.isArray(row?.instruction_languages) ? row.instruction_languages.filter(v => ['he', 'ar'].includes(v)) : ['he'],
     matching_note: String(row?.matching_note || '').trim() || null,
     blocked_authorities: normalizeBlockedAuthoritiesForSave(row?.blocked_authorities),
+    // course_ids are effective only in block_selected mode; there is no text input.
+    course_ids: normalizedBlockedCourseIds(row?.course_ids),
+    course_restriction_mode: normalizedBlockedCourseIds(row?.course_ids).length ? 'block_selected' : 'all',
     updated_at: new Date().toISOString()
   };
   const { data, error } = await supabase

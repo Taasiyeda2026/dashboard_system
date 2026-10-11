@@ -120,6 +120,7 @@ Workboard also overlays UI buckets (`assigned` / `draft` / warning) from live ac
 - Instruction language match (profile languages required)
 - Gender when activity requires `male`/`female` (`any` = no gender filter, profile gender still required)
 - **Blocked authorities** (`instructor_scheduling_profiles.blocked_authorities`): normalized authority **names**; if `activity.authority` is in the list → hard fail `blocked_authority` / DB `scheduling_authority_blocked` (non-overridable; checked before travel/scoring). Empty list = no effect. Existing approved assignments are **not** auto-cancelled when a name is added.
+- **Blocked courses** (`course_restriction_mode='block_selected'`, `course_ids`): IDs selected from the official course catalog or current-year activity program numbers; match the target `activity_no`, not `row_id`. Blocks in instructor matcher (`blocked_course`), planning candidate gates and server save validator; manual/direct assignment returns `scheduling_course_blocked`. Empty list or `mode='all'` has no effect. Approved/live assignments remain unchanged. Profile changes invalidate related proposals.
 - Weekly availability rules + date exceptions
 - Friday when not `friday_allowed`
 - Saturday blocked unless `calendar_sector === 'arab'`
