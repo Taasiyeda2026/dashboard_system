@@ -1,5 +1,6 @@
 import { supabase } from '../supabase-client.js';
 import { escapeHtml } from './shared/html.js';
+import { photoConsentDocumentsBySchool, photoConsentSchoolKey } from './shared/photo-consent-school.js';
 
 const PAGE_SIZE = 25;
 const ACCEPTED = new Set(['application/pdf', 'image/png', 'image/jpeg']);
@@ -105,10 +106,10 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
   if (!root || root.dataset.pcMounted === '1') return;
   root.dataset.pcMounted = '1';
   if (![true, 'true', 'yes', '1', 1].includes(state?.user?.permissions?.manage_photo_consents)) {
-    root.innerHTML = '<div class="pc-empty">הגישה לאישורי צילום מותרת למנהל מערכת בלבד.</div>';
+    root.innerHTML = '<div class="pc-empty">אין הרשאה לצפות באישורי צילום.</div>';
     return;
   }
-  const context = { activities: [], files: [], search: '', status: 'all', authority: 'all', page: 0, busy: false, notice: '', error: false, openId: 0, selectedActivity: 0, replaceId: '', previewUrl: '' };
+  const context = { activities: [], files: [], search: '', status: 'all', authority: 'all', filtersOpen: false, page: 0, busy: false, notice: '', error: false, openId: 0, selectedActivity: 0, replaceId: '', previewUrl: '' };
   const input = document.createElement('input');
   input.type = 'file'; input.accept = '.pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png'; input.multiple = true; input.hidden = true;
   document.body.appendChild(input);
@@ -124,57 +125,127 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
         && (!needle || [a.school, a.authority, a.activity_name, a.row_id, a.instructor_name].some((v) => clean(v).toLowerCase().includes(needle)));
     });
   }
-  function fileRows(files) {
-    return '<div class="pc-file-list">' + files.map((f) =>
-      '<div class="pc-file-row"><div class="pc-file-name"><strong>' + safe(f.file_name) + '</strong>' +
-      ' <span class="pc-muted">· ' + safe(f.uploaded_by) + ' · ' + safe(dateHe(f.uploaded_at)) + '</span></div>' +
-      '<div class="pc-actions">' +
-      '<button type="button" class="pc-action" data-pc-view="' + safe(f.id) + '">צפייה</button>' +
-      '<button type="button" class="pc-action" data-pc-download="' + safe(f.id) + '">הורדה</button>' +
-      '<button type="button" class="pc-action" data-pc-replace="' + safe(f.id) + '" data-activity="' + Number(f.activity_id) + '">החלפה</button>' +
-      '<button type="button" class="pc-action pc-action--danger" data-pc-delete="' + safe(f.id) + '">מחיקה</button></div></div>'
-    ).join('') + '</div>';
+  function fileRows(documents, school) {
+    return '<div class="pc-file-list" aria-label="אישורי צילום לבית הספר">' +
+      '<div class="pc-file-list-title">אישורי צילום · ' + safe(school) + ' (' + documents.length + ')</div>' +
+      documents.map((f) =>
+        '<div class="pc-file-row"><div class="pc-file-name"><strong>' + safe(f.file_name) + '</strong>' +
+        '<div class="pc-muted">' + safe(f.ownerActivity?.activity_name || 'פעילות') +
+        ' · ' + safe(dateHe(f.ownerActivity?.start_date)) +
+        (f.uploaded_by ? ' · הועלה על ידי ' + safe(f.uploaded_by) : '') +
+        '</div></div>' +
+        '<div class="pc-actions">' +
+        '<button type="button" class="pc-action" data-pc-view="' + safe(f.id) + '">צפייה</button>' +
+        '<button type="button" class="pc-action" data-pc-download="' + safe(f.id) + '">הורדה</button>' +
+        '<button type="button" class="pc-action" data-pc-replace="' + safe(f.id) + '" data-activity="' + Number(f.activity_id) + '">החלפה</button>' +
+        '<button type="button" class="pc-action pc-action--danger" data-pc-delete="' + safe(f.id) + '">מחיקה</button>' +
+        '</div></div>'
+      ).join('') + '</div>';
   }
+
+  function schoolControl(activity, documents, open) {
+    const school = safe(activity.school || 'לא משויך');
+    if (!documents.length) return '<span class="pc-school-label">' + school + '</span>';
+    return '<button type="button" class="pc-school-button" data-pc-toggle="' + Number(activity.id) +
+      '" aria-label="הצגת ' + documents.length + ' אישורי צילום של ' + school +
+      '" aria-expanded="' + (open ? 'true' : 'false') + '" title="לחצו לצפייה באישורי בית הספר">' +
+      school + ' <span aria-hidden="true">↗</span></button>';
+  }
+
   function render() {
-    const map = byActivity(), total = context.activities.length;
-    const uploaded = context.activities.filter((a) => (map.get(Number(a.id)) || []).length > 0).length;
+    const schoolDocs = photoConsentDocumentsBySchool(context.activities, context.files);
+    const documentsFor = (activity) => schoolDocs.get(photoConsentSchoolKey(activity)) || [];
+    const total = context.activities.length;
+    const uploaded = context.activities.filter((a) => documentsFor(a).length > 0).length;
+    const visibleIds = new Set(context.activities.map((a) => Number(a.id)));
+    const documentCount = context.files.filter((f) => visibleIds.has(Number(f.activity_id))).length;
     const found = filtered();
     const pageCount = Math.max(1, Math.ceil(found.length / PAGE_SIZE));
     context.page = Math.min(context.page, pageCount - 1);
     const visible = found.slice(context.page * PAGE_SIZE, (context.page + 1) * PAGE_SIZE);
-    const authorities = Array.from(new Set(context.activities.map((a) => clean(a.authority)).filter(Boolean))).sort((a,b)=>a.localeCompare(b,'he'));
-    const notice = context.notice ? '<p role="status" class="pc-notice' + (context.error ? ' pc-notice--error' : '') + '">' + safe(context.notice) + '</p>' : '';
+    const authorities = Array.from(new Set(context.activities.map((a) => clean(a.authority)).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'he'));
+    const activeFilterCount = Number(Boolean(context.search.trim())) +
+      Number(context.status !== 'all') + Number(context.authority !== 'all');
+    const notice = context.notice
+      ? '<p role="status" class="pc-notice' + (context.error ? ' pc-notice--error' : '') + '">' + safe(context.notice) + '</p>'
+      : '';
+    const rows = visible.map((a) => {
+      const documents = documentsFor(a);
+      const opened = context.openId === Number(a.id) && documents.length > 0;
+      const control = schoolControl(a, documents, opened);
+      const docsStatus = documents.length
+        ? '<span class="pc-status pc-status--yes">' + documents.length + ' ' + (documents.length === 1 ? 'קובץ' : 'קבצים') + '</span>'
+        : '<span class="pc-status">טרם הועלה</span>';
+      const buttons = '<div class="pc-actions">' +
+        '<button type="button" class="pc-action pc-action--primary" data-pc-upload="' + Number(a.id) + '"' +
+        (context.busy ? ' disabled' : '') + '>העלאה</button>' +
+        (documents.length ? '<button type="button" class="pc-action" data-pc-toggle="' + Number(a.id) +
+          '" aria-expanded="' + (opened ? 'true' : 'false') + '">' + (opened ? 'סגירה' : 'אישורים') + '</button>' : '') +
+        '</div>';
+      return {
+        desktop: '<tr class="pc-activity-row"><td class="pc-school-cell">' + control + '</td>' +
+          '<td>' + safe(a.authority || '—') + '</td><td>' + safe(a.activity_name || '—') + '</td>' +
+          '<td class="pc-center">' + safe(dateHe(a.start_date)) + '</td>' +
+          '<td>' + safe(a.instructor_name || '—') + '</td>' +
+          '<td class="pc-center">' + docsStatus + '</td><td>' + buttons + '</td></tr>' +
+          (opened ? '<tr class="pc-expanded-row"><td class="pc-expanded-cell" colspan="7">' +
+            fileRows(documents, a.school) + '</td></tr>' : ''),
+        mobile: '<article class="pc-mobile-card">' +
+          '<div class="pc-mobile-top"><div>' +
+          '<div class="pc-muted">בית ספר</div>' + control + '</div>' + docsStatus + '</div>' +
+          '<div class="pc-mobile-title">' + safe(a.activity_name || 'פעילות') + '</div>' +
+          '<div class="pc-mobile-meta">' +
+          '<div class="pc-mobile-meta-item"><small>רשות</small><span>' + safe(a.authority || '—') + '</span></div>' +
+          '<div class="pc-mobile-meta-item"><small>תאריך התחלה</small><span>' + safe(dateHe(a.start_date)) + '</span></div>' +
+          '<div class="pc-mobile-meta-item"><small>מדריך</small><span>' + safe(a.instructor_name || '—') + '</span></div>' +
+          '</div><div class="pc-mobile-footer">' + buttons + '</div>' +
+          (opened ? '<div class="pc-mobile-documents">' + fileRows(documents, a.school) + '</div>' : '') +
+          '</article>'
+      };
+    });
     root.innerHTML = css +
       '<section class="pc-workspace" dir="rtl">' +
-      '<div class="pc-title"><div><h2>אישורי צילום</h2><p>מסמכים חתומים לפי פעילות שיש לה תאריך התחלה · הימצאות קובץ אינה מעידה על אישור צילום לכל התלמידים</p></div>' +
-      '<div class="pc-actions"><button class="pc-action" type="button" data-pc-refresh ' + (context.busy ? 'disabled' : '') + '>רענון</button>' +
-      '<a class="pc-action pc-link" href="' + SP_FOLDER_URL + '" target="_blank" rel="noopener noreferrer">תיקיית SharePoint</a></div></div>' +
+      '<header class="pc-title"><h2>אישורי צילום</h2>' +
+      '<div class="pc-title-actions">' +
+      '<button class="pc-action" type="button" data-pc-refresh ' + (context.busy ? 'disabled' : '') + '>↻ רענון</button>' +
+      '<a class="pc-action" href="' + SP_FOLDER_URL + '" target="_blank" rel="noopener noreferrer">תיקיית SharePoint ↗</a>' +
+      '</div></header>' +
       '<div class="pc-summary">' +
-      [['פעילויות עם תאריך התחלה',total],['פעילויות עם מסמכים',uploaded],['פעילויות ללא מסמך',total-uploaded],['מסמכים שהועלו',context.files.length]].map((k)=>
-        '<div class="pc-kpi"><span>' + safe(k[0]) + '</span><strong>' + Number(k[1]) + '</strong></div>').join('') + '</div>' +
-      '<div class="pc-surface">' + notice +
-      '<div class="pc-toolbar"><label>חיפוש פעילות<input data-pc-search type="search" placeholder="בית ספר, רשות, תוכנית, מדריך או מזהה" value="' + safe(context.search) + '"></label>' +
+      [['פעילויות עם תאריך התחלה', total, ''], ['פעילויות עם אישורים', uploaded, 'pc-kpi--positive'],
+        ['פעילויות ללא אישור', total - uploaded, 'pc-kpi--missing'], ['קבצים שהועלו', documentCount, '']].map((k) =>
+        '<div class="pc-kpi ' + k[2] + '"><span>' + safe(k[0]) + '</span><strong>' + Number(k[1]) + '</strong></div>'
+      ).join('') + '</div>' +
+      '<section class="pc-surface" aria-label="רשימת אישורי צילום">' + notice +
+      '<div class="pc-filter-shell">' +
+      '<button type="button" class="pc-filter-toggle" data-pc-filter-toggle aria-expanded="' +
+      (context.filtersOpen ? 'true' : 'false') + '" aria-controls="pc-filter-fields">' +
+      '<span class="pc-filter-title"><span class="pc-filter-icon" aria-hidden="true">☷</span> סינון וחיפוש' +
+      (activeFilterCount ? '<span class="pc-filter-count">' + activeFilterCount + ' פעילים</span>' : '') +
+      '</span><span class="pc-filter-arrow" aria-hidden="true">⌄</span></button>' +
+      '<div class="pc-filter-body" id="pc-filter-fields"' + (context.filtersOpen ? '' : ' hidden') + '>' +
+      '<div class="pc-toolbar">' +
+      '<label>חיפוש פעילות<input data-pc-search type="search" placeholder="בית ספר, רשות, תוכנית או מדריך" value="' + safe(context.search) + '"></label>' +
       '<label>רשות<select data-pc-authority><option value="all">כל הרשויות</option>' +
-      authorities.map((a) => '<option value="' + safe(a) + '"' + (context.authority === a ? ' selected' : '') + '>' + safe(a) + '</option>').join('') + '</select></label>' +
-      '<label>מסמכים<select data-pc-status><option value="all">כל הפעילויות</option><option value="present"' + (context.status === 'present' ? ' selected' : '') + '>עם מסמכים</option><option value="missing"' + (context.status === 'missing' ? ' selected' : '') + '>ללא מסמכים</option></select></label></div>' +
-      '<p class="pc-muted">מציג ' + found.length + ' פעילויות בהתאם לסינון</p>' +
-      '<div class="pc-table-wrap"><table class="pc-table"><thead><tr><th>בית ספר</th><th>רשות</th><th>תוכנית / פעילות</th><th>תחילת פעילות</th><th>מדריך</th><th>מסמכים</th><th>פעולות</th></tr></thead><tbody>' +
-      (visible.length ? visible.map((a) => {
-        const files = map.get(Number(a.id)) || [];
-        return '<tr><td>' + safe(a.school || 'לא משויך') + '<div class="pc-muted">' + safe(a.row_id) + '</div></td>' +
-          '<td>' + safe(a.authority || '—') + '</td><td>' + safe(a.activity_name || '—') + '</td>' +
-          '<td class="pc-center">' + safe(dateHe(a.start_date)) + '</td><td>' + safe(a.instructor_name || '—') + '</td>' +
-          '<td class="pc-center"><span class="pc-status' + (files.length ? ' pc-status--yes' : '') + '">' + (files.length ? files.length + ' קבצים' : 'טרם הועלה') + '</span></td>' +
-          '<td><div class="pc-actions"><button type="button" class="pc-action pc-action--primary" data-pc-upload="' + Number(a.id) + '"' + (context.busy ? ' disabled' : '') + '>העלאה</button>' +
-          (files.length ? '<button type="button" class="pc-action" data-pc-toggle="' + Number(a.id) + '">' + (context.openId === Number(a.id) ? 'סגירה' : 'הצגת קבצים') + '</button>' : '') +
-          '</div></td></tr>' +
-          (context.openId === Number(a.id) && files.length ? '<tr><td colspan="7">' + fileRows(files) + '</td></tr>' : '');
-      }).join('') : '<tr><td colspan="7" class="pc-empty">לא נמצאו פעילויות המתאימות לסינון</td></tr>') +
-      '</tbody></table></div><div class="pc-pages">' +
+      authorities.map((a) => '<option value="' + safe(a) + '"' + (context.authority === a ? ' selected' : '') + '>' + safe(a) + '</option>').join('') +
+      '</select></label>' +
+      '<label>אישורים<select data-pc-status><option value="all">כל הפעילויות</option>' +
+      '<option value="present"' + (context.status === 'present' ? ' selected' : '') + '>עם אישור</option>' +
+      '<option value="missing"' + (context.status === 'missing' ? ' selected' : '') + '>ללא אישור</option></select></label>' +
+      '<button type="button" class="pc-action" data-pc-clear' + (activeFilterCount ? '' : ' disabled') + '>ניקוי סינון</button>' +
+      '</div></div></div>' +
+      '<div class="pc-results-header"><strong>רשימת פעילויות</strong><span class="pc-muted">מציג ' +
+      found.length + ' מתוך ' + total + ' פעילויות</span></div>' +
+      '<div class="pc-table-wrap"><table class="pc-table">' +
+      '<thead><tr><th>בית ספר</th><th>רשות</th><th>תוכנית / פעילות</th><th>תאריך התחלה</th><th>מדריך</th><th>אישורים</th><th>פעולות</th></tr></thead>' +
+      '<tbody>' + (rows.length ? rows.map((row) => row.desktop).join('') :
+        '<tr><td colspan="7" class="pc-empty">אין פעילויות המתאימות לסינון</td></tr>') + '</tbody></table></div>' +
+      '<div class="pc-mobile-list">' + (rows.length ? rows.map((row) => row.mobile).join('') :
+        '<div class="pc-empty">אין פעילויות המתאימות לסינון</div>') + '</div>' +
+      '<nav class="pc-pages" aria-label="דפדוף בפעילויות">' +
       '<button type="button" class="pc-action" data-pc-prev ' + (context.page === 0 ? 'disabled' : '') + '>הקודם</button>' +
       '<span class="pc-muted">עמוד ' + (context.page + 1) + ' מתוך ' + pageCount + '</span>' +
       '<button type="button" class="pc-action" data-pc-next ' + (context.page >= pageCount - 1 ? 'disabled' : '') + '>הבא</button>' +
-      '</div></div></section>';
+      '</nav></section></section>';
   }
   async function refresh() {
     context.busy = true; report('טוען פעילויות ומסמכים…');
@@ -197,6 +268,8 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
     const selection = oldId ? files.slice(0, 1) : files;
     let succeeded = 0;
     context.busy = true;
+    context.notice = '';
+    context.error = false;
     render();
     for (const file of selection) {
       try {
@@ -272,7 +345,23 @@ export function mountPhotoConsentWorkspace(root, state = {}) {
   });
   root.addEventListener('click', async (ev) => {
     const button = ev.target.closest('button');
-    if (!button || context.busy) return;
+    if (!button) return;
+    if (button.hasAttribute('data-pc-filter-toggle')) {
+      context.filtersOpen = !context.filtersOpen;
+      render();
+      root.querySelector('[data-pc-filter-toggle]')?.focus();
+      return;
+    }
+    if (button.hasAttribute('data-pc-clear')) {
+      context.search = '';
+      context.status = 'all';
+      context.authority = 'all';
+      context.page = 0;
+      context.openId = 0;
+      render();
+      return;
+    }
+    if (context.busy) return;
     if (button.hasAttribute('data-pc-refresh')) return refresh();
     if (button.hasAttribute('data-pc-prev')) { context.page = Math.max(0, context.page - 1); return render(); }
     if (button.hasAttribute('data-pc-next')) { context.page += 1; return render(); }
