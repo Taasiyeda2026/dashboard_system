@@ -33,8 +33,8 @@ test('camera immediately turns green after confirmed upload and is rechecked on 
 test('green camera style stays readable and compact in the existing drawer header', async () => {
   const css = await readFile(CSS, 'utf8');
   assert.match(css, /\.activity-drawer__photo-upload\.is-photo-consent-saved \{/);
-  assert.match(css, /background: #e4f7eb !important;/);
-  assert.match(css, /color: #0d8543 !important;/);
+  assert.match(css, /background: #166534 !important;/);
+  assert.match(css, /color: #fff !important;/);
   assert.match(css, /\.activity-drawer__photo-upload\.is-photo-consent-saved svg/);
   const src = await readFile(BINDER, 'utf8');
   assert.match(src, /צפייה באישורי צילום/);
