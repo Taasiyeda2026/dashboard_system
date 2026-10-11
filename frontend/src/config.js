@@ -458,3 +458,5 @@ config.HOTFIX_VERSION = 'photo-consent-camera-saved-green-20261011-v6-' + config
 config.HOTFIX_VERSION = 'photo-consent-informative-schools-camera-viewer-20261011-v7-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = 'photo-consent-compact-inline-filter-summary-actions-20261011-v8-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'photo-consent-clean-document-list-deep-green-camera-20261011-v9-' + config.HOTFIX_VERSION;

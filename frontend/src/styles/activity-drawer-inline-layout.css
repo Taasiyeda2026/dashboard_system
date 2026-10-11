@@ -553,24 +553,56 @@
   }
 }
 
-/* A green camera means that a signed photo-consent file is saved for this activity.
-   This is a document-presence cue, not an assertion of consent by every pupil. */
+/* Camera action: optically and geometrically center the SVG in the circle.
+   The saved state uses a deep green fill, with clear white icon contrast. */
+.activity-drawer__header-actions .activity-drawer__photo-upload {
+  display: inline-grid !important;
+  place-items: center !important;
+  flex: 0 0 32px !important;
+  width: 32px !important;
+  height: 32px !important;
+  min-width: 32px !important;
+  min-height: 32px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 50% !important;
+  box-sizing: border-box !important;
+  line-height: 0 !important;
+  vertical-align: middle;
+}
+
+.activity-drawer__header-actions .activity-drawer__photo-upload svg {
+  display: block !important;
+  width: 18px !important;
+  height: 18px !important;
+  flex: none;
+  margin: 0 !important;
+  padding: 0 !important;
+  stroke: currentColor;
+}
+
 .activity-drawer__header-actions .activity-drawer__photo-upload.is-photo-consent-saved {
-  background: #e4f7eb !important;
-  border: 1px solid #75c69b !important;
-  color: #0d8543 !important;
+  background: #166534 !important;
+  border: 1px solid #14532d !important;
+  color: #fff !important;
+  box-shadow: 0 1px 3px rgba(6, 78, 43, 0.28);
 }
 
 .activity-drawer__header-actions .activity-drawer__photo-upload.is-photo-consent-saved svg {
-  stroke: #0d8543;
+  stroke: #fff !important;
 }
 
 .activity-drawer__header-actions .activity-drawer__photo-upload.is-photo-consent-saved:hover {
-  background: #c9efd9 !important;
-  border-color: #3fa46f !important;
+  background: #14532d !important;
+  border-color: #052e16 !important;
 }
 
 .activity-drawer__header-actions .activity-drawer__photo-upload.is-photo-consent-saved:focus-visible {
-  outline: 2px solid #22a467;
+  outline: 2px solid #86efac !important;
   outline-offset: 2px;
+}
+
+.activity-drawer__header-actions .activity-drawer__photo-upload:disabled {
+  cursor: wait;
+  opacity: 0.8;
 }
