@@ -10,7 +10,7 @@ test('summary numbers, refresh and SharePoint controls occupy one compact row', 
   const header = source.indexOf("'<header class=\"pc-title\"><h2>אישורי צילום</h2></header>'");
   const summary = source.indexOf("'<div class=\"pc-summary\">'", header);
   const actions = source.indexOf("'<div class=\"pc-summary-actions\"", summary);
-  const filter = source.indexOf("'<div class=\"pc-results-header\">'", actions);
+  const filter = source.indexOf("'<div class=\"pc-results-header\"", actions);
   assert.ok(header !== -1 && header < summary && summary < actions && actions < filter,
     'actions should be a sibling of the three KPI cards, before results and filter');
   const summaryMarkup = source.slice(summary, filter);
@@ -31,7 +31,7 @@ test('collapsed filters do not occupy a separate full-width toolbar row', async 
   assert.doesNotMatch(source, /pc-filter-shell/);
   assert.ok(source.includes('.pc-filter-body[hidden]{display:none}'));
   assert.match(source, /context\.filtersOpen \? '' : ' hidden'/);
-  const results = source.indexOf("'<div class=\"pc-results-header\">'");
+  const results = source.indexOf("'<div class=\"pc-results-header\"");
   const button = source.indexOf("data-pc-filter-toggle", results);
   const filterBody = source.indexOf("'<div class=\"pc-filter-body\"", button);
   const table = source.indexOf("'<div class=\"pc-table-wrap\"", filterBody);
