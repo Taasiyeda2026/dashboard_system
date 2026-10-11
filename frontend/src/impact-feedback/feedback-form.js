@@ -186,7 +186,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
       <header class="ifb-hero">
         ${logoUrl ? `<img class="ifb-logo" src="${esc(logoUrl)}" alt="תעשיידע">` : ''}
         ${options.onChooseLanguage ? `<button type="button" class="ifb-hero__change-language" data-ifb-change-language>${arabic ? 'اختيار اللغة' : 'בחירת שפה'}</button>` : ''}
-        ${biomimicryArabic ? '' : `<p class="ifb-hero__kicker">${esc(arabic ? arabicHeadline(payload) : headline(payload))}</p>`} 
+        ${biomimicryArabic ? '' : `<p class="ifb-hero__kicker">${esc(arabic ? arabicHeadline(payload) : headline(payload))}</p>`}
         <h1 class="ifb-hero__title">${esc(biomimicryArabic ? (payload.stage === 'pre' ? 'استبيان بداية دورة البيوميمكري – المحاكاة الحيوية' : 'استبيان نهاية دورة البيوميمكري – المحاكاة الحيوية') : arabic ? (AR_PROGRAM_TITLES[payload.program_title] || payload.program_title || '') : (payload.program_title || ''))}</h1>
         ${payload.recipient_name ? `<p class="ifb-hero__hello">${arabic ? 'مرحبًا' : 'שלום'} ${esc(payload.recipient_name)}</p>` : ''}
         ${introHtml(arabic ? payload.intro_text_ar : payload.intro_text, arabic ? 'ar' : 'he', biomimicryArabic)}
