@@ -30,6 +30,19 @@ function headline(payload) {
 const NA_LABEL = 'לא רלוונטי / לא הייתה אפשרות להעריך';
 const AR_RATING_LABELS = ['غير صحيح بالنسبة لي إطلاقًا', 'صحيح بالنسبة لي قليلًا', 'صحيح بالنسبة لي إلى حدّ ما', 'صحيح بالنسبة لي بدرجة كبيرة', 'صحيح جدًا بالنسبة لي'];
 const arLabel = (he, ar, lang) => lang === 'ar' ? ar : he;
+const AR_PROGRAM_TITLES = Object.freeze({
+  'ביומימיקרי': 'المحاكاة الحيوية',
+  'משחקי קופסה': 'ألعاب الطاولة',
+  'מנהיגות ירוקה': 'القيادة الخضراء',
+  'טכנולוגיות החלל': 'تكنولوجيا الفضاء',
+  'השמיים אינם הגבול': 'السماء ليست الحدّ',
+  'יישומי AI': 'تطبيقات الذكاء الاصطناعي',
+  'רוקחים עולם': 'نصنع عالم الأدوية',
+  'אופק פרימיום': 'أوفِك بريميوم',
+  'סודות ויסודות AI': 'أسرار وأسس الذكاء الاصطناعي',
+  'פורצות דרך': 'رائدات الطريق'
+});
+
 
 function arabicHeadline(payload) {
   if (payload.audience === 'instructor') return payload.stage === 'pre' ? 'استبيان المرشدين – بعد التدريب' : 'استبيان المرشدين – نهاية البرنامج';
@@ -58,14 +71,14 @@ function ratingHtml(q, value, young, lang = 'he') {
     ${na}`;
 }
 
-function choiceHtml(q, value, multiple) {
+function choiceHtml(q, value, multiple, lang = 'he') {
   const selected = new Set(multiple ? (Array.isArray(value) ? value : []) : [value]);
   const options = Array.isArray(q.options) ? q.options : [];
   return `<div class="ifb-choices${multiple ? ' is-multi' : ''}" role="${multiple ? 'group' : 'radiogroup'}" aria-label="${esc(q.text)}">
     ${options.map((o) => `
       <label class="ifb-choice">
         <input type="${multiple ? 'checkbox' : 'radio'}" name="q-${esc(q.id)}" value="${esc(o.value)}" data-qid="${esc(q.id)}" data-kind="${multiple ? 'multi' : 'single'}"${selected.has(o.value) ? ' checked' : ''}>
-        <span>${esc(o.label || o.value)}</span>
+        <span>${esc(lang === 'ar' ? (o.label_ar || o.label || o.value) : (o.label || o.value))}</span>
       </label>`).join('')}
   </div>`;
 }
@@ -86,8 +99,8 @@ function questionHtml(q, index, answers, young, lang = 'he') {
   let control = '';
   if (q.type === 'rating_1_5') control = ratingHtml(q, value, young, lang);
   else if (q.type === 'yes_no') control = yesNoHtml(q, value, lang);
-  else if (q.type === 'single_select') control = choiceHtml(q, value, false);
-  else if (q.type === 'multi_select') control = choiceHtml(q, value, true);
+  else if (q.type === 'single_select') control = choiceHtml(q, value, false, lang);
+  else if (q.type === 'multi_select') control = choiceHtml(q, value, true, lang);
   else control = textHtml(q, value, lang);
   return `
     <fieldset class="ifb-q${isAnswered(q, value) ? ' is-answered' : ''}" data-question="${esc(q.id)}">
@@ -159,7 +172,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
         ${logoUrl ? `<img class="ifb-logo" src="${esc(logoUrl)}" alt="תעשיידע">` : ''}
         ${options.onChooseLanguage ? `<button type="button" class="ifb-hero__change-language" data-ifb-change-language>${arabic ? 'اختيار اللغة' : 'בחירת שפה'}</button>` : ''}
         <p class="ifb-hero__kicker">${esc(arabic ? arabicHeadline(payload) : headline(payload))}</p>
-        <h1 class="ifb-hero__title">${esc(arabic && /ביומימיקרי/.test(payload.program_title || '') ? 'المحاكاة الحيوية' : (payload.program_title || ''))}</h1>
+        <h1 class="ifb-hero__title">${esc(arabic ? (AR_PROGRAM_TITLES[payload.program_title] || payload.program_title || '') : (payload.program_title || ''))}</h1>
         ${payload.recipient_name ? `<p class="ifb-hero__hello">${arabic ? 'مرحبًا' : 'שלום'} ${esc(payload.recipient_name)}</p>` : ''}
         ${introHtml(arabic ? payload.intro_text_ar : payload.intro_text, arabic ? 'ar' : 'he')}
       </header>
@@ -175,7 +188,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
         ${questions.map((q, i) => questionHtml(q, i, answers, young, options.language || 'he')).join('')}
         <div class="ifb-submit">
           <p class="ifb-submit__error" data-submit-error role="alert" hidden></p>
-          <button type="submit" class="ifb-submit__btn" data-submit>${options.preview ? 'שליחה (תצוגה מקדימה)' : (arabic ? 'إرسال الاستبيان' : 'שליחת המשוב')}</button>
+          <button type="submit" class="ifb-submit__btn" data-submit>${options.preview ? (arabic ? 'إرسال (معاينة)' : 'שליחה (תצוגה מקדימה)') : (arabic ? 'إرسال الاستبيان' : 'שליחת המשוב')}</button>
         </div>
       </form>
       </div>
