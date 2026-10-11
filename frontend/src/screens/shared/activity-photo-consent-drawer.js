@@ -3,7 +3,7 @@ import { openActivityPhotoConsentViewer } from './activity-photo-consent-viewer.
 
 function paintCamera(root, activityId, hasFile) {
   const button = root.querySelector('button[data-activity-photo-upload]');
-  if (!button || Number(button.dataset.activityPhotoUpload) !== activityId) return;
+  if (!button || String(button.dataset.activityPhotoUpload) !== String(activityId)) return;
   button.classList.toggle('is-photo-consent-saved', hasFile);
   button.dataset.photoConsentState = hasFile ? 'saved' : 'missing';
   const label = hasFile ? 'צפייה באישורי צילום' : 'העלאת אישור צילום';
@@ -11,12 +11,13 @@ function paintCamera(root, activityId, hasFile) {
   button.title = label;
 }
 
-async function refreshCamera(root, activityId) {
-  if (!Number.isSafeInteger(activityId) || activityId <= 0) return;
+async function refreshCamera(root, activityId, { instructorMode = false } = {}) {
+  if (instructorMode ? !String(activityId || '').trim() :
+      (!Number.isSafeInteger(activityId) || activityId <= 0)) return;
   const sequence = Number(root.dataset.photoConsentCheckVersion || 0) + 1;
   root.dataset.photoConsentCheckVersion = String(sequence);
   try {
-    const hasFile = await photoConsentActivityHasFiles(activityId);
+    const hasFile = await photoConsentActivityHasFiles(activityId, { instructorMode });
     // A slow request must not change the camera of a different drawer row
     // or override an upload that has already started.
     const button = root.querySelector('button[data-activity-photo-upload]');
@@ -30,12 +31,13 @@ async function refreshCamera(root, activityId) {
   }
 }
 
-export function bindActivityPhotoConsentUpload(root, notify = () => {}) {
+export function bindActivityPhotoConsentUpload(root, notify = () => {}, { instructorMode = false } = {}) {
   if (!root) return;
   const camera = root.querySelector('button[data-activity-photo-upload]');
-  const activityId = Number(camera?.dataset.activityPhotoUpload);
-  if (camera && Number.isSafeInteger(activityId) && activityId > 0) {
-    void refreshCamera(root, activityId);
+  const activityId = instructorMode ? String(camera?.dataset.activityPhotoUpload || '').trim() :
+    Number(camera?.dataset.activityPhotoUpload);
+  if (camera && (instructorMode ? !!activityId : (Number.isSafeInteger(activityId) && activityId > 0))) {
+    void refreshCamera(root, activityId, { instructorMode });
   }
   // Re-rendering the drawer re-queries persisted status, but does not bind a
   // duplicate delegated click handler to the same drawer container.
@@ -60,20 +62,20 @@ export function bindActivityPhotoConsentUpload(root, notify = () => {}) {
       try {
         const saved = await uploadPhotoConsentFiles(activityId, files, ({ index, total }) => {
           notify('שומר אישור צילום ' + index + ' מתוך ' + total + '…', 'info');
-        });
+        }, { instructorMode });
         if (saved.length) {
           paintCamera(root, activityId, true);
           notify(saved.length + ' קבצי אישור צילום נשמרו בהצלחה ב־SharePoint.', 'success');
         }
       } catch (error) {
         notify((error?.message || 'העלאת אישור הצילום נכשלה.') +
-          ' אם הועלו כמה קבצים, ניתן לבדוק את הקבצים שנשמרו במסך אישורי צילום.', 'error');
+          ' אם נבחרו כמה קבצים, אפשר לפתוח את המצלמה שוב כדי לבדוק מה נשמר.', 'error');
       } finally {
         button.disabled = false;
         button.removeAttribute('aria-busy');
         cleanup();
         // Also covers a partly successful multi-file upload.
-        void refreshCamera(root, activityId);
+        void refreshCamera(root, activityId, { instructorMode });
       }
     }, { once: true });
     input.click();
@@ -81,13 +83,15 @@ export function bindActivityPhotoConsentUpload(root, notify = () => {}) {
   root.addEventListener('click', async (event) => {
     const button = event.target.closest('button[data-activity-photo-upload]');
     if (!button || !root.contains(button) || button.disabled) return;
-    const activityId = Number(button.dataset.activityPhotoUpload);
-    if (!Number.isSafeInteger(activityId) || activityId <= 0) return;
+    const activityId = instructorMode ? String(button.dataset.activityPhotoUpload || '').trim() :
+      Number(button.dataset.activityPhotoUpload);
+    if (instructorMode ? !activityId : (!Number.isSafeInteger(activityId) || activityId <= 0)) return;
     if (button.dataset.photoConsentState === 'saved') {
       button.disabled = true;
       try {
         const opened = await openActivityPhotoConsentViewer(activityId, {
-          onAdd: () => openPicker(button, activityId)
+          onAdd: () => openPicker(button, activityId),
+          instructorMode
         });
         if (!opened) {
           // File might have been deleted in management since opening this drawer.
@@ -96,7 +100,7 @@ export function bindActivityPhotoConsentUpload(root, notify = () => {}) {
         }
       } catch (error) {
         notify(error?.message || 'לא ניתן לטעון את אישורי הצילום.', 'error');
-        void refreshCamera(root, activityId);
+        void refreshCamera(root, activityId, { instructorMode });
       } finally {
         button.disabled = false;
       }
