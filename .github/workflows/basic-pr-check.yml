@@ -64,8 +64,8 @@ jobs:
         run: |
           set -euo pipefail
           BASE_SHA="$(git rev-parse "origin/${BASE_REF}")"
-          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(frontend/src/screens/(photo-consent-workspace[.]js|activities[.]js|shared/(activity-detail-html|activity-photo-consent-(drawer|viewer)|photo-consent-(school|client|completion))[.]js)|frontend/src/styles/activity-drawer-inline-layout[.]css|tests/photo-consent-(mobile-school-view|visibility-contract|completed-compact|drawer-upload|camera-saved-status|view-and-operational-columns)[.]test[.]mjs)$'; then
-            node --test tests/photo-consent-mobile-school-view.test.mjs tests/photo-consent-visibility-contract.test.mjs tests/photo-consent-completed-compact.test.mjs tests/photo-consent-drawer-upload.test.mjs tests/photo-consent-camera-saved-status.test.mjs tests/photo-consent-view-and-operational-columns.test.mjs
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(frontend/src/screens/(photo-consent-workspace[.]js|activities[.]js|shared/(activity-detail-html|activity-photo-consent-(drawer|viewer)|photo-consent-(school|client|completion))[.]js)|frontend/src/styles/activity-drawer-inline-layout[.]css|tests/photo-consent-(mobile-school-view|visibility-contract|completed-compact|drawer-upload|camera-saved-status|view-and-operational-columns|compact-header)[.]test[.]mjs)$'; then
+            node --test tests/photo-consent-mobile-school-view.test.mjs tests/photo-consent-visibility-contract.test.mjs tests/photo-consent-completed-compact.test.mjs tests/photo-consent-drawer-upload.test.mjs tests/photo-consent-camera-saved-status.test.mjs tests/photo-consent-view-and-operational-columns.test.mjs tests/photo-consent-compact-header.test.mjs
           else
             echo "No photo-consent changes; focused tests skipped."
           fi
