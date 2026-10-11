@@ -145,7 +145,7 @@ const ui = {
 
 let feedbackReadOnly = false;
 function visibleFeedbackTabs() {
-  return feedbackReadOnly ? TABS.filter((tab) => tab.key !== 'templates') : TABS;
+  return TABS;
 }
 
 function programByKey(key) {
@@ -1766,7 +1766,7 @@ function viewHtml() {
   if (ui.tab === 'instructors') return instructorsHtml();
   if (ui.tab === 'staff') return staffHtml();
   if (ui.tab === 'analysis') return analysisHtml();
-  if (ui.tab === 'templates') return `${courseOnlyFiltersHtml('templates')}${renderTemplatesView(ui)}`;
+  if (ui.tab === 'templates') return `${courseOnlyFiltersHtml('templates')}${renderTemplatesView(ui, { readOnly: feedbackReadOnly })}`;
   return overviewHtml();
 }
 
@@ -1791,7 +1791,7 @@ function paint(host, { focusTab = false } = {}) {
     }
   }
   window.scrollTo({ top: scrollY });
-  if (host.querySelector('[data-ifb-templates]') || host.querySelector('[data-tpl-reload]')) bindTemplatesView(host, ui, () => paint(host));
+  if (host.querySelector('[data-ifb-templates]') || host.querySelector('[data-tpl-reload]')) bindTemplatesView(host, ui, () => paint(host), { readOnly: feedbackReadOnly });
 }
 
 async function load(host, { force = false, focusTab = false } = {}) {
@@ -2209,10 +2209,9 @@ function mount(host, state) {
   }
   feedbackReadOnly = !isFeedbackAdmin(state?.user);
   host.classList.toggle('is-feedback-readonly', feedbackReadOnly);
-  if (feedbackReadOnly && ui.tab === 'templates') {
-    ui.tab = 'overview';
-    ui.templates.templateId = null;
-  }
+  // A previous admin session may have opened a draft editor. Reset it on a
+  // viewer session so published content is fetched without any stale admin state.
+  if (feedbackReadOnly) ui.templates.templateId = null;
   // The dashboard owns the year; feedback never exposes an independent year selector.
   const dashboardYear = normalizeGlobalActivityPeriod(state?.activityPeriodTab || ACTIVE_ACTIVITY_SEASON);
   if (ui.year !== dashboardYear) {

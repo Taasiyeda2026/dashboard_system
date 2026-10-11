@@ -96,7 +96,7 @@ function fmtDay(value) {
  * Questionnaire list for one audience (and the selected course, when one is chosen).
  * One row per course × stage; the shared editor opens from here.
  */
-function listHtml(ui) {
+function listHtml(ui, { readOnly = false } = {}) {
   if (!tpl.list) return '<div class="ifb-empty" role="status"><div class="ds-spinner" aria-hidden="true"></div><p>טוען שאלונים…</p></div>';
   const programs = ui.programs.filter((p) => !ui.course || p.key === ui.course);
   if (!programs.length) return '<div class="ifb-empty">לא נמצאו קורסים.</div>';
@@ -122,6 +122,12 @@ function listHtml(ui) {
         const upToDate = Boolean(file && !outdated);
         const pdfState = upToDate ? 'is-ready' : outdated ? 'is-stale' : 'is-missing';
         const langName = language === 'he' ? 'עברית' : 'ערבית';
+        if (readOnly) return `<div class="ifb-template-card__lang-actions" data-pdf-language="${language}" aria-label="קובץ PDF בשפה ${langName}">
+          <button type="button" class="ifb-template-card__pdf ${pdfState}" data-tpl-pdf="${esc(template.id)}" data-tpl-lang="${language}" ${upToDate ? '' : 'disabled'}
+            title="${upToDate ? 'הורדת PDF שמור – ' + langName : outdated ? 'הקובץ אינו עדכני – ' + langName : 'טרם הועלה PDF – ' + langName}"
+            aria-label="${upToDate ? 'הורדת PDF' : 'PDF אינו זמין'} – ${esc(name)} – ${langName}">PDF</button>
+          ${outdated ? '<span class="ifb-template-card__warning" role="img" aria-label="PDF לא עדכני" title="יש להחליף את ה-PDF דרך אדמין">!</span>' : ''}
+        </div>`;
         return `<div class="ifb-template-card__lang-actions" data-pdf-language="${language}" aria-label="קובצי PDF בשפה ${langName}">
           <button type="button" class="ifb-template-card__pdf ${pdfState}" data-tpl-pdf="${esc(template.id)}" data-tpl-lang="${language}" ${upToDate ? '' : 'disabled'}
             title="${upToDate ? 'הורדת PDF שמור – ' + langName : outdated ? 'הקובץ אינו עדכני – יש להחליף PDF ' + langName : 'טרם הועלה PDF – ' + langName}"
@@ -139,7 +145,7 @@ function listHtml(ui) {
         </div>`;
       };
       return `<div class="ifb-template-card__slot${slot.audience === 'student' ? '' : ' is-digital'}">
-        <button type="button" class="ifb-template-card__open" data-tpl-open="${esc(template.id)}" title="${esc(name)}" aria-label="צפייה ועריכת ${esc(name)}">${esc(short)}${draft ? '<span class="ifb-sr"> – טיוטה בעריכה</span>' : ''}</button>
+        <button type="button" class="ifb-template-card__open" data-tpl-open="${esc(template.id)}" title="${esc(name)}" aria-label="${readOnly ? 'צפייה' : 'צפייה ועריכת'} ${esc(name)}">${esc(short)}${!readOnly && draft ? '<span class="ifb-sr"> – טיוטה בעריכה</span>' : ''}</button>
         ${slot.audience === 'student' ? `${languageControls('he')}${languageControls('ar')}` : ''}
       </div>`;
     }).join('');
@@ -280,12 +286,12 @@ function addFormHtml(ed, ui) {
     </section>`;
 }
 
-function editorHtml(ui) {
+function editorHtml(ui, { readOnly = false } = {}) {
   const ed = tpl.editor;
   if (tpl.loadingEditor || !ed) return '<div class="ifb-empty"><div class="ds-spinner"></div><p>טוען תבנית…</p></div>';
   const program = ui.programs.find((p) => p.key === ed.template.program_key);
   const slot = slotOf(ed.template);
-  const editing = Boolean(ed.draft);
+  const editing = !readOnly && Boolean(ed.draft);
   const questions = editing ? ed.draftQuestions : ed.publishedQuestions;
   const defaults = templateDefaults(questions);
   return `
@@ -303,7 +309,7 @@ function editorHtml(ui) {
         ${editing
           ? `<button type="button" class="ifb-btn ifb-btn--primary" data-tpl-publish>פרסום גרסה חדשה</button>
              <button type="button" class="ifb-btn ifb-btn--danger" data-tpl-discard>ביטול הטיוטה</button>`
-          : '<button type="button" class="ifb-btn ifb-btn--primary" data-tpl-edit title="יצירת טיוטה לעריכה">עריכה</button>'}
+          : readOnly ? '' : '<button type="button" class="ifb-btn ifb-btn--primary" data-tpl-edit title="יצירת טיוטה לעריכה">עריכה</button>'}
       </div>
       ${editing ? `<div class="ifb-tpl-head__intro"><label class="ifb-field ifb-field--wide"><span>פתיח בעברית</span><textarea rows="4" lang="he" dir="rtl" data-tpl-intro>${esc(ed.draft.intro_text || '')}</textarea></label><label class="ifb-field ifb-field--wide"><span>פתיח בערבית</span><textarea rows="4" lang="ar" dir="rtl" data-tpl-intro-ar>${esc(ed.draft.intro_text_ar || '')}</textarea></label></div>`
         : (ed.published?.intro_text ? `<div class="ifb-tpl-head__intro"><span>פתיח בעברית</span><p>${esc(ed.published.intro_text)}</p>${ed.published.intro_text_ar ? `<span>פתיח בערבית</span><p lang="ar" dir="rtl">${esc(ed.published.intro_text_ar)}</p>` : ''}</div>` : '')}
@@ -315,9 +321,9 @@ function editorHtml(ui) {
     ${editing ? addFormHtml(ed, ui) : ''}`;
 }
 
-export function renderTemplatesView(ui) {
+export function renderTemplatesView(ui, { readOnly = false } = {}) {
   if (tpl.error) return `<div class="ifb-empty ifb-empty--error" role="alert"><p>${esc(tpl.error)}</p><button type="button" class="ifb-btn" data-tpl-reload>נסו שוב</button></div>`;
-  return `<div data-ifb-templates>${ui.templates.templateId ? editorHtml(ui) : listHtml(ui)}</div>`;
+  return `<div data-ifb-templates>${ui.templates.templateId ? editorHtml(ui, { readOnly }) : listHtml(ui, { readOnly })}</div>`;
 }
 
 /** True while a questionnaire editor is open (the hosting tab then shows only the editor). */
@@ -341,7 +347,7 @@ async function loadList(repaint, force = false) {
   }
 }
 
-async function loadEditor(ui, repaint) {
+async function loadEditor(ui, repaint, { readOnly = false } = {}) {
   tpl.loadingEditor = true;
   repaint();
   try {
@@ -349,13 +355,13 @@ async function loadEditor(ui, repaint) {
     const template = tpl.list.find((t) => t.id === ui.templates.templateId);
     if (!template) throw new Error('התבנית לא נמצאה');
     const versions = versionsOf(template);
-    const draftMeta = versions.find((v) => v.status === 'draft');
+    const draftMeta = readOnly ? null : versions.find((v) => v.status === 'draft');
     const [published, publishedQuestions, draft, draftQuestions, bank] = await Promise.all([
       template.current_version_id ? fetchVersion(template.current_version_id) : null,
       template.current_version_id ? fetchVersionQuestions(template.current_version_id) : [],
       draftMeta ? fetchVersion(draftMeta.id) : null,
       draftMeta ? fetchVersionQuestions(draftMeta.id) : [],
-      fetchBankQuestions(template.program_key, template.audience, template.stage)
+      readOnly ? [] : fetchBankQuestions(template.program_key, template.audience, template.stage)
     ]);
     tpl.editor = { template, published, publishedQuestions: publishedQuestions || [], draft, draftQuestions: draftQuestions || [], bank };
     tpl.error = '';
@@ -367,11 +373,11 @@ async function loadEditor(ui, repaint) {
   }
 }
 
-function openPreview(ui) {
+function openPreview(ui, { readOnly = false } = {}) {
   const ed = tpl.editor;
   const program = ui.programs.find((p) => p.key === ed.template.program_key);
-  const source = ed.draft ? ed.draftQuestions : ed.publishedQuestions;
-  const intro = ed.draft || ed.published;
+  const source = !readOnly && ed.draft ? ed.draftQuestions : ed.publishedQuestions;
+  const intro = !readOnly && ed.draft ? ed.draft : ed.published;
   const arabicTopics = {
     biomimicry: 'المحاكاة الحيوية – ابتكارات مستوحاة من الطبيعة',
     biomimicry_secondary: 'المحاكاة الحيوية والاستدامة والابتكار التكنولوجي',
@@ -492,17 +498,23 @@ async function saveQuestionField(ui, repaint, row, field, input) {
   if (needsRepaint) repaint();
 }
 
-export function bindTemplatesView(host, ui, repaint) {
+export function bindTemplatesView(host, ui, repaint, { readOnly = false } = {}) {
   const root = host.querySelector('[data-ifb-templates]');
   if (!root) {
     if (tpl.error) host.querySelector('[data-tpl-reload]')?.addEventListener('click', () => { tpl.error = ''; tpl.list = null; loadList(repaint, true); });
     return;
   }
   if (!ui.templates.templateId && !tpl.list) loadList(repaint);
-  if (ui.templates.templateId && !tpl.editor && !tpl.loadingEditor && !tpl.error) loadEditor(ui, repaint);
+  if (ui.templates.templateId && !tpl.editor && !tpl.loadingEditor && !tpl.error) loadEditor(ui, repaint, { readOnly });
 
   root.addEventListener('click', async (event) => {
     const t = event.target;
+    // Viewer can open published templates, preview them and download existing PDFs.
+    // Administrative actions never reach their handlers in this view.
+    if (readOnly && !t.closest('[data-tpl-pdf], [data-tpl-open], [data-tpl-back], [data-tpl-preview]')) {
+      event.preventDefault();
+      return;
+    }
     const pdf = t.closest('[data-tpl-pdf]');
     if (pdf) {
       const template = tpl.list?.find((item) => item.id === pdf.dataset.tplPdf);
@@ -564,7 +576,7 @@ export function bindTemplatesView(host, ui, repaint) {
     if (open) {
       ui.templates.templateId = open.dataset.tplOpen;
       tpl.editor = null;
-      await loadEditor(ui, repaint);
+      await loadEditor(ui, repaint, { readOnly });
       window.scrollTo({ top: 0 });
       return;
     }
@@ -574,7 +586,7 @@ export function bindTemplatesView(host, ui, repaint) {
       await loadList(repaint, true);
       return;
     }
-    if (t.closest('[data-tpl-preview]')) { openPreview(ui); return; }
+    if (t.closest('[data-tpl-preview]')) { openPreview(ui, { readOnly }); return; }
     if (t.closest('[data-tpl-edit]')) {
       await withSave(() => getDraft(tpl.editor.template.id), repaint, { reload: true, ui });
       showToast('נוצרה טיוטה לעריכה');
@@ -625,6 +637,7 @@ export function bindTemplatesView(host, ui, repaint) {
   });
 
   root.addEventListener('change', async (event) => {
+    if (readOnly) return;
     const input = event.target;
     if (input.matches('[data-tpl-intro], [data-tpl-intro-ar]')) {
       const isArabic = input.matches('[data-tpl-intro-ar]');
@@ -641,6 +654,7 @@ export function bindTemplatesView(host, ui, repaint) {
   });
 
   root.addEventListener('submit', async (event) => {
+    if (readOnly) { event.preventDefault(); return; }
     const form = event.target;
     const ed = tpl.editor;
     if (!ed?.draft) return;
