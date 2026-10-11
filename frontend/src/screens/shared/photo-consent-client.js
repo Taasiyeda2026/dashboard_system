@@ -28,6 +28,19 @@ export async function photoConsentInvoke(action, payload = {}) {
   return data;
 }
 
+// Read persisted metadata, not a local upload flag: the camera must also be green
+// after page reload and must reset when all linked files were deleted.
+export async function photoConsentActivityHasFiles(activityId) {
+  const id = Number(activityId);
+  if (!Number.isSafeInteger(id) || id <= 0) return false;
+  const { data, error } = await supabase.from('activity_photo_consent_files')
+    .select('id')
+    .eq('activity_id', id)
+    .limit(1);
+  if (error) throw new Error(error.message || 'לא ניתן לבדוק אישורי צילום.');
+  return Array.isArray(data) && data.length > 0;
+}
+
 export async function uploadPhotoConsentFiles(activityId, files, onProgress = null) {
   if (!Number.isSafeInteger(Number(activityId)) || Number(activityId) <= 0) {
     throw new Error('מזהה הפעילות אינו תקין.');
