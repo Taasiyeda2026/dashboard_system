@@ -130,7 +130,7 @@ function introHtml(text, lang = 'he', showApprovedFullText = false) {
   const source = String(text || '').trim();
   if (!source) return '';
   if (showApprovedFullText) {
-    return `<div class="ifb-hero__intro ifb-hero__intro--approved" dir="rtl">${source.split(/\\n/).map((line) => line.trim()).filter(Boolean).map((line, i) =>
+    return `<div class="ifb-hero__intro ifb-hero__intro--approved" dir="rtl">${source.split(/\r?\n|\\n/).map((line) => line.trim()).filter(Boolean).map((line, i) =>
       `<p class="${i === 0 ? 'ifb-hero__lead' : /لا توجد إجابات صحيحة أو خاطئة/.test(line) ? 'ifb-hero__guidance' : 'ifb-hero__details'}">${esc(line)}</p>`
     ).join('')}</div>`;
   }
