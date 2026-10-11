@@ -56,6 +56,172 @@ jobs:
 
           echo "Checked ${js_count} changed JavaScript files and ${json_count} changed JSON files."
 
+      - name: Run photo consent mobile and school-view regression tests
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="$(git rev-parse "origin/${BASE_REF}")"
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(frontend/src/screens/(photo-consent-workspace\\.js|shared/photo-consent-school\\.js)|tests/photo-consent-(mobile-school-view|visibility-contract)\\.test\\.mjs)        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="$(git rev-parse "origin/${BASE_REF}")"
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(frontend/src/(screens/impact-feedback\\.js|impact-feedback/)|supabase/migrations/.*feedback|tests/impact-feedback-)'; then
+            node --test tests/impact-feedback-domain.test.mjs tests/impact-feedback-analysis.test.mjs tests/impact-feedback-ui-contract.test.mjs
+          else
+            echo "No feedback files changed; focused tests skipped."
+          fi
+
+      - name: Run mobile interface contract tests
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="$(git rev-parse "origin/${BASE_REF}")"
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(frontend/src/styles/instructor-|frontend/src/screens/instructor-portal/|attendance/(index\.html|sw\.js|src/styles/)|tests/(instructor-responsive-ux|attendance-mobile-contract)\.test\.mjs)'; then
+            node --test \
+              tests/instructor-responsive-ux.test.mjs \
+              tests/attendance-mobile-contract.test.mjs
+          else
+            echo "No instructor/attendance mobile contract files changed; mobile tests skipped."
+          fi
+
+      - name: Run attendance training picker contract
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="$(git rev-parse "origin/${BASE_REF}")"
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(attendance/(index\.html|sw\.js|src/(training-report-ui-runtime|course-dashboard-choice-runtime)\.js|src/components/searchable-select\.js|src/services/(activities|activities-report\.helpers)\.service\.js|src/services/activities-report\.helpers\.js)|supabase/migrations/.*attendance_dashboard_course_choice|tests/attendance-(new-report-activities|activity-type-behavior|time-cancellation-online-training|travel-compensation)\.test\.mjs)$'; then
+            npm ci --ignore-scripts --no-audit --no-fund
+            node --test \
+              tests/attendance-new-report-activities.test.mjs \
+              tests/attendance-activity-type-behavior.test.mjs \
+              tests/attendance-time-cancellation-online-training.test.mjs \
+              tests/attendance-travel-compensation.test.mjs
+          else
+            echo "No attendance training-picker contract files changed; focused tests skipped."
+          fi
+
+      - name: Run work schedule manager-instructor parity contract
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="$(git rev-parse "origin/${BASE_REF}")"
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(frontend/src/activity-2027-contact-list-runtime\.js|frontend/src/screens/operations-management\.js|frontend/src/screens/instructor-portal/(work-schedule|portal-data)\.js|frontend/src/screens/shared/instructor-course-schedule-(2027|print|view)\.js|tests/work-schedule-manager-instructor-parity\.test\.mjs)$'; then
+            node --test tests/work-schedule-manager-instructor-parity.test.mjs
+          else
+            echo "No work-schedule parity files changed; parity test skipped."
+          fi
+
+      - name: Run activity status save regression tests
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="$(git rev-parse "origin/${BASE_REF}")"
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(frontend/src/api\.js|tests/activity-status-only-save\.test\.mjs)$'; then
+            npm ci --ignore-scripts --no-audit --no-fund
+            node --test tests/activity-status-only-save.test.mjs
+          else
+            echo "No activity status-save contract files changed; focused test skipped."
+          fi
+
+      - name: Run focused scheduling contract tests
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="$(git rev-parse "origin/${BASE_REF}")"
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(frontend/src/screens/(course-scheduling|instructor-matching-engine|scheduling-core/)|frontend/src/screens/shared/(activity-scheduling-eligibility|course-scheduling-manual-picker-access|scheduling-weekend-policy)|supabase/migrations/.*schedul|tests/(course-scheduling|scheduling-new-core))'; then
+            npm ci --ignore-scripts --no-audit --no-fund
+            node --test \
+              tests/scheduling-new-core.test.mjs \
+              tests/course-scheduling-stage3-optimization.test.mjs \
+              tests/course-scheduling-contract-restoration.test.mjs \
+              tests/course-scheduling-date-adjustments.test.mjs \
+              tests/course-scheduling-stage2-matching.test.mjs \
+              tests/course-scheduling-engine.test.mjs \
+              tests/course-scheduling-hidden-planning-state.test.mjs \
+              tests/course-scheduling-e2e-alignment.test.mjs \
+              tests/course-scheduling-district-plan-consistency.test.mjs \
+              tests/course-scheduling-district-simulation.test.mjs \
+              tests/course-scheduling-district-simulation-save-drafts.test.mjs \
+              tests/course-scheduling-logic-ui-corrections.test.mjs \
+              tests/course-scheduling-manual-finalize-soft-warnings.test.mjs \
+              tests/course-scheduling-transition-server-rules.test.mjs \
+              tests/course-meeting-substitute-permissions.test.mjs \
+              tests/course-scheduling-planning-tab.test.mjs \
+              tests/course-scheduling-planning-invalidate.test.mjs \
+              tests/course-scheduling-planning-self-invalidation.test.mjs \
+              tests/course-scheduling-day-consolidation-netanya.test.mjs \
+              tests/course-scheduling-checkpoint-resume-rebase.test.mjs \
+              tests/scheduling-planning-audit-sector-filter.test.mjs
+          else
+            echo "No scheduling contract files changed; focused scheduling tests skipped."
+          fi
+
+  scheduling-postgres:
+    name: scheduling Postgres regression
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dashboard_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d dashboard_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+      - name: Run planning invalidation against PostgreSQL
+        env:
+          PLANNING_INVALIDATION_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dashboard_test
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          node --test tests/course-scheduling-planning-invalidation-postgres.test.mjs
+      # Runs after the step above, never in parallel: both rebuild the public schema.
+      - name: Run precise planning invalidation against PostgreSQL 16
+        env:
+          PLANNING_INVALIDATION_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dashboard_test
+          PLANNING_INVALIDATION_REQUIRE_DB: '1'
+        run: node --test tests/planning-precise-invalidation-postgres.test.mjs
+      # Execute the production commit function on disposable PostgreSQL,
+      # never on the user's actual Supabase database.
+      - name: Exercise validated planning checkpoint commit against PostgreSQL 16
+        env:
+          PLANNING_INVALIDATION_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dashboard_test
+          PLANNING_INVALIDATION_REQUIRE_DB: '1'
+        run: node --test tests/course-scheduling-checkpoint-commit-postgres.test.mjs
+; then
+            node --test tests/photo-consent-mobile-school-view.test.mjs tests/photo-consent-visibility-contract.test.mjs
+          else
+            echo "No photo-consent changes; focused tests skipped."
+          fi
+
       - name: Run impact feedback UI and analytics contract tests
         env:
           BASE_REF: ${{ github.base_ref }}
