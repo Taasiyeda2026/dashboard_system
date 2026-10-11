@@ -31,7 +31,7 @@ async function session(req: Request) {
   if (!r.ok) throw new HttpFailure("לא ניתן לאמת הרשאת מנהל.", 403);
   const payload = await r.json();
   const user = Array.isArray(payload) ? payload[0] : payload;
-  if (user?.role !== "admin" || user?.is_active !== true) throw new HttpFailure("הפעולה מותרת למנהל מערכת בלבד.", 403);
+  if (user?.is_active !== true || ![true, "true", "yes", "1", 1].includes(user?.permissions?.manage_photo_consents)) throw new HttpFailure("אין הרשאה לגשת לאישורי צילום.", 403);
   return { url, headers, user };
 }
 
