@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { photoConsentSchoolKey, photoConsentDocumentsBySchool } from '../frontend/src/screens/shared/photo-consent-school.js';
+import { photoConsentSchoolKey, photoConsentDocumentsBySchool, photoConsentSchoolManagementGroups } from '../frontend/src/screens/shared/photo-consent-school.js';
 
 const SCREEN = new URL('../frontend/src/screens/photo-consent-workspace.js', import.meta.url);
 
@@ -52,24 +52,43 @@ test('photo consent provides a responsive card layout without horizontal scrolli
   assert.match(source, /\.pc-kpi/);
 });
 
-test('school click opens the right document list and never loses file provenance', async () => {
+test('school click opens associated documents without any upload action in management', async () => {
   const source = await readFile(SCREEN, 'utf8');
-  assert.match(source, /photoConsentDocumentsBySchool\(context\.activities, context\.files\)/);
-  assert.match(source, /documentsBySchool\.get\(photoConsentSchoolKey\(a\)\)/);
+  assert.match(source, /photoConsentSchoolManagementGroups\(context\.activities, context\.files\)/);
   assert.match(source, /data-pc-toggle/);
-  assert.match(source, /aria-label="הצגת /);
-  assert.match(source, /f\.ownerActivity\?\.activity_name/);
+  assert.match(source, /aria-label="פתיחת אישורי צילום של /);
+  assert.match(source, /file\.ownerActivity\?\.activity_name/);
   assert.match(source, /data-pc-view/);
   assert.match(source, /data-pc-download/);
   assert.match(source, /data-pc-replace/);
   assert.match(source, /data-pc-delete/);
+  assert.doesNotMatch(source, /data-pc-upload/);
   assert.doesNotMatch(source, /מסמכים חתומים לפי פעילות שיש לה תאריך התחלה/);
 });
 
 test('signed files stay private in SharePoint and permission checks stay in place', async () => {
   const source = await readFile(SCREEN, 'utf8');
   assert.match(source, /state\?\.user\?\.permissions\?\.manage_photo_consents/);
-  assert.match(source, /supabase\.functions\.invoke\('photo-consent-sharepoint'/);
+  assert.match(source, /photoConsentInvoke/);
   assert.match(source, /'download'/);
   assert.match(source, /\.from\('activity_photo_consent_files'\)/);
+});
+
+test('management lists only schools containing uploaded signed documents', () => {
+  const activities = [
+    { id: 1, school: 'אורנים', authority: 'חיפה', activity_name: 'חלל' },
+    { id: 2, school: 'אורנים', authority: 'חיפה', activity_name: 'ביומימיקרי' },
+    { id: 3, school: 'ברושים', authority: 'חיפה', activity_name: 'חלל' },
+    { id: 4, school: 'אורנים', authority: 'נתניה', activity_name: 'AI' }
+  ];
+  const files = [
+    { id: 'a', activity_id: 1, uploaded_at: '2026-10-10T10:00:00Z' },
+    { id: 'b', activity_id: 2, uploaded_at: '2026-10-11T10:00:00Z' }
+  ];
+  const groups = photoConsentSchoolManagementGroups(activities, files);
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].school, 'אורנים');
+  assert.equal(groups[0].authority, 'חיפה');
+  assert.equal(groups[0].documents.length, 2);
+  assert.equal(groups[0].activityCount, 2);
 });

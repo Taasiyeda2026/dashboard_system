@@ -64,8 +64,8 @@ jobs:
         run: |
           set -euo pipefail
           BASE_SHA="$(git rev-parse "origin/${BASE_REF}")"
-          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(frontend/src/screens/(photo-consent-workspace[.]js|shared/photo-consent-(school|completion)[.]js)|tests/photo-consent-(mobile-school-view|visibility-contract|completed-compact)[.]test[.]mjs)$'; then
-            node --test tests/photo-consent-mobile-school-view.test.mjs tests/photo-consent-visibility-contract.test.mjs tests/photo-consent-completed-compact.test.mjs
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(frontend/src/screens/(photo-consent-workspace[.]js|activities[.]js|shared/(activity-detail-html|activity-photo-consent-drawer|photo-consent-(school|client|completion))[.]js)|tests/photo-consent-(mobile-school-view|visibility-contract|completed-compact|drawer-upload)[.]test[.]mjs)$'; then
+            node --test tests/photo-consent-mobile-school-view.test.mjs tests/photo-consent-visibility-contract.test.mjs tests/photo-consent-completed-compact.test.mjs tests/photo-consent-drawer-upload.test.mjs
           else
             echo "No photo-consent changes; focused tests skipped."
           fi

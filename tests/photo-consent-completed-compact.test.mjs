@@ -36,21 +36,15 @@ test('finished rows are excluded from the active table and sorted by latest end 
   assert.deepEqual(rows.map((r) => r.id), [1, 2, 3, 4], 'classification should not mutate input');
 });
 
-test('headers align right except the date column; finished are compact and collapsed by default', async () => {
-  const src = await readFile(SCREEN, 'utf8');
-  assert.match(src, /\.pc-table thead th\{[^']*text-align:right/);
-  assert.match(src, /\.pc-table thead th\.pc-date-th\{text-align:center\}/);
-  assert.match(src, /<th class="pc-date-th">תאריך התחלה<\/th>/);
-  assert.match(src, /<td class="pc-center">/);
-  assert.match(src, /end_date,activity_season,status/);
-  assert.match(src, /splitPhotoConsentActivities\(filtered\(\), today\)/);
-  assert.match(src, /completedOpen: false/);
-  assert.match(src, /data-pc-completed-toggle/);
-  assert.match(src, /context\.completedOpen = !context\.completedOpen/);
-  assert.match(src, /context\.completedOpen \? '' : ' hidden'/);
-  assert.match(src, /pc-completed-row/);
-  assert.match(src, /completedHtml/);
-  assert.match(src, /data-pc-upload/);
-  assert.match(src, /fileRows\(documents, activity\.school\)/);
-  assert.doesNotMatch(src, /' + safe\(activity\.instructor_name\) + '.{0,150}pc-completed-row/);
+test('management headers stay right aligned, with only the last-update date centered', async () => {
+  const source = await readFile(SCREEN, 'utf8');
+  assert.match(source, /\.pc-table th\{[^']*text-align:right/);
+  assert.match(source, /\.pc-table th\.pc-date-th,\.pc-table td\.pc-date\{text-align:center\}/);
+  assert.match(source, /<th class="pc-date-th">עדכון אחרון<\/th>/);
+  assert.match(source, /class="pc-date"/);
+  assert.match(source, /photoConsentSchoolManagementGroups/);
+  assert.doesNotMatch(source, /completedOpen: false/);
+  assert.doesNotMatch(source, /data-pc-completed-toggle/);
+  assert.doesNotMatch(source, /data-pc-upload/);
+  assert.match(source, /data-pc-replace/);
 });

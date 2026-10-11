@@ -29,3 +29,20 @@ export function photoConsentDocumentsBySchool(activities = [], files = []) {
   }
   return bySchool;
 }
+
+export function photoConsentSchoolManagementGroups(activities = [], files = []) {
+  const grouped = photoConsentDocumentsBySchool(activities, files);
+  return Array.from(grouped, ([key, documents]) => {
+    const activity = documents[0].ownerActivity;
+    return {
+      key,
+      school: activity.school,
+      authority: activity.authority,
+      documents,
+      activityCount: new Set(documents.map((file) => Number(file.activity_id))).size,
+      updatedAt: documents[0].uploaded_at
+    };
+  }).filter((group) => group.documents.length > 0)
+    .sort((a, b) => String(a.school || '').localeCompare(String(b.school || ''), 'he') ||
+      String(a.authority || '').localeCompare(String(b.authority || ''), 'he'));
+}

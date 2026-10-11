@@ -450,16 +450,17 @@ function fieldViewOnly(label, viewHtml) {
   `;
 }
 
-function headerActionsHtml(exportAction) {
+function headerActionsHtml(exportAction, showPhotoConsentUpload = false, activityId = 0) {
   return `
     <div class="activity-drawer__header-actions" aria-label="פעולות חלון">
+      ${showPhotoConsentUpload ? `<button type="button" class="activity-drawer__export activity-drawer__photo-upload" data-activity-photo-upload="${Number(activityId)}" title="העלאת אישור צילום" aria-label="העלאת אישור צילום"><svg aria-hidden="true" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4H9.5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3z"/><circle cx="12" cy="13" r="3.4"/></svg></button>` : ''}
       ${exportAction ? '<button type="button" class="activity-drawer__export" data-action="export-activity-excel" title="ייצוא פעילות לאקסל" aria-label="ייצוא פעילות לאקסל">⇩</button>' : ''}
       <button type="button" class="activity-drawer__close" data-action="close-drawer" data-ui-close-drawer aria-label="סגירה">✕</button>
     </div>
   `;
 }
 
-function headerHtml(row, { mode = 'single', summaryDate = '', exportAction = true, instructorLimited = false } = {}) {
+function headerHtml(row, { mode = 'single', summaryDate = '', exportAction = true, instructorLimited = false, canManagePhotoConsents = false } = {}) {
   if (mode === 'summary') {
     const rows = Array.isArray(row) ? row : [];
     const main = rows[0] || {};
@@ -509,7 +510,7 @@ function headerHtml(row, { mode = 'single', summaryDate = '', exportAction = tru
             <h2 class="activity-drawer__title">${escapeHtml(fallback(row?.activity_name))}</h2>
             <div class="activity-drawer__meta activity-drawer__meta--tags">${metaTags}</div>
           </div>
-          ${headerActionsHtml(exportAction)}
+          ${headerActionsHtml(exportAction, canManagePhotoConsents && !!row?.start_date && Number.isSafeInteger(Number(row?.id)) && Number(row?.id) > 0, Number(row?.id))}
         </div>
       </div>
     `;
@@ -1461,7 +1462,7 @@ export function activityWorkDrawerHtml(row, opts = {}) {
   }
   const one = row || {};
   return `
-    ${headerHtml(one, { exportAction, instructorLimited })}
+    ${headerHtml(one, { exportAction, instructorLimited, canManagePhotoConsents: opts.canManagePhotoConsents === true && !instructorLimited })}
     <div class="activity-drawer__body">
       ${singleForm(one, {
         settings,
