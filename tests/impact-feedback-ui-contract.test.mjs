@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { filterGroups, hasCourseStartDate, hasCourseEndDate, studentFeedbackPeriodForGroup, studentFeedbackHasResponses, sortStudentFeedbackGroups, sortEducationalStaffFeedbackGroups, filterFeedbackFactsForHalf } from '../frontend/src/impact-feedback/feedback-domain.js';
 import { COURSE_SCHEDULING_PERIODS } from '../frontend/src/screens/course-scheduling-periods.js';
+import { canViewImpactFeedback, isFeedbackAdmin } from '../frontend/src/impact-feedback/feedback-access.js';
 
 const screen = readFileSync(new URL('../frontend/src/screens/impact-feedback.js', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../frontend/src/impact-feedback/impact-feedback-admin.css', import.meta.url), 'utf8');
@@ -745,4 +746,43 @@ test('five student syllabi use the approved age-appropriate bilingual layout and
   assert.match(publicForm, /אין חובה לענות עליהן/);
   assert.match(publicPage, /STUDENT_SYLLABUS_OUTROS/);
   assert.match(publicCss, /\.ifb-shell\.is-syllabus-student \.ifb-hero__intro--approved/);
+});
+
+test('impact-feedback temporary access is limited to active admin and specific Israa account', () => {
+  const allowed = { user_id: '3030', role: 'business_development_manager', is_active: true };
+  assert.equal(canViewImpactFeedback({ user_id: 'a1', role: 'admin' }), true);
+  assert.equal(isFeedbackAdmin(allowed), false);
+  assert.equal(canViewImpactFeedback(allowed), true);
+  assert.equal(canViewImpactFeedback({ ...allowed, is_active: false }), false);
+  assert.equal(canViewImpactFeedback({ ...allowed, role: 'instructor' }), false);
+  assert.equal(canViewImpactFeedback({ ...allowed, user_id: '3031', full_name: 'איסראא' }), false);
+  assert.equal(canViewImpactFeedback({ ...allowed, user_id: '303' }), false);
+  assert.equal(canViewImpactFeedback({ role: 'business_development_manager' }), false);
+  assert.equal(canViewImpactFeedback(null), false);
+
+  const main = readFileSync(new URL('../frontend/src/main.js', import.meta.url), 'utf8');
+  assert.match(main, /if \(route === 'impact-feedback'\) return canViewImpactFeedback\(user\)/);
+  assert.match(main, /!state\.token \|\| !canViewImpactFeedback\(state\.user\)/);
+  assert.match(screen, /if \(!canViewImpactFeedback\(state\?\.user\)\)/);
+  assert.match(screen, /feedbackReadOnly = !isFeedbackAdmin\(state\?\.user\)/);
+  assert.match(screen, /visibleFeedbackTabs\(\)\.map/);
+  assert.match(screen, /feedbackReadOnly \? TABS\.filter\(\(tab\) => tab\.key !== 'templates'\)/);
+  assert.match(screen, /if \(feedbackReadOnly\) \{ event\.preventDefault\(\); return; \}/);
+  assert.match(screen, /feedbackReadOnly && t\.closest/);
+  assert.match(styles, /\.ifb-admin\.is-feedback-readonly :is/);
+  assert.match(styles, /\[data-ifb-close\]/);
+  assert.match(styles, /\[data-ifb-share\]/);
+  assert.match(styles, /\[data-ifb-open-form\]/);
+  assert.match(styles, /\[data-ifb-instructor-open-form\]/);
+
+  const sql = readFileSync(new URL('../supabase/migrations/20261011210500_feedback_admin_israa_readonly_access.sql', import.meta.url), 'utf8');
+  assert.match(sql, /u\.auth_user_id = \(select auth\.uid\(\)\)/);
+  assert.match(sql, /coalesce\(u\.is_active, false\)/);
+  assert.match(sql, /u\.user_id = '3030'/);
+  assert.match(sql, /u\.role = 'business_development_manager'/);
+  assert.match(sql, /feedback_metrics_authorized_view_select/);
+  assert.match(sql, /feedback_programs_authorized_view_select/);
+  assert.match(sql, /if changed<>5/);
+  assert.match(sql, /private\.feedback_can_view\(\)/);
+  assert.match(sql, /Unsafe feedback write grants detected/);
 });
