@@ -14,6 +14,7 @@ import {
 } from './shared/layout.js';
 
 import { activityWorkDrawerHtml, patchDrawerDatesSection } from './shared/activity-detail-html.js';
+import { bindActivityPhotoConsentUpload } from './shared/activity-photo-consent-drawer.js';
 import {
   ensureActivityListFilters,
   prepareRowsForSearch,
@@ -1270,6 +1271,7 @@ function activityDrawerContent(row, canSeePrivateNotes, canEdit, canDirectEdit, 
     canRequestEdit,
     canDeleteActivity,
     canSchedule,
+    canManagePhotoConsents: [true, 'true', 'yes', '1', 1].includes(state?.user?.permissions?.manage_photo_consents),
     hideEmpIds: !!hideEmpIds,
     hideRowId,
     hideActivityNo,
@@ -2510,6 +2512,7 @@ export const activitiesScreen = {
               );
               hideShellHeader(contentRoot);
               bindActivityEditForm(contentRoot);
+              bindActivityPhotoConsentUpload(contentRoot, showToast);
             }
           } catch (err) {
             console.warn('[activity-refresh-after-save:failed]', { sourceRowId, error: err?.message || String(err) });
@@ -2724,6 +2727,7 @@ export const activitiesScreen = {
     function makeOnOpen(contentRoot) {
       hideShellHeader(contentRoot);
       bindActivityEditForm(contentRoot);
+      bindActivityPhotoConsentUpload(contentRoot, showToast);
       bindContact2027Section(contentRoot);
       bindInstructorScheduling(contentRoot, { ui, state, activitiesRows });
       const form = contentRoot.querySelector('[data-drawer-form]');
