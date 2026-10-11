@@ -1,4 +1,5 @@
 import { escapeHtml } from './shared/html.js';
+import { mountPhotoConsentWorkspace } from './photo-consent-workspace.js';
 import { bindSummerContactsModalEvents, renderSummerContactsButton } from './shared/summer-contacts-modal.js';
 import { supabase } from '../supabase-client.js';
 import { setGlobalActivityPeriod } from '../state.js';
@@ -102,6 +103,7 @@ const TAB_SUMMER = 'summer';
 const TAB_HOME = 'home';
 const TAB_COMPLETION_APPROVAL = 'completion_approval';
 const TAB_WORKSHOPS = 'workshops';
+const TAB_PHOTO = 'photo_consents';
 const TAB_AUTHORITIES = 'authorities';
 const TAB_SCHOOLS = 'schools';
 const OPS_CUSTOM_TAB_WORKSHOP_TRAINING = 'summer_training_matrix';
@@ -119,7 +121,8 @@ const OPERATIONS_HOME_TARGETS = Object.freeze([
   { label: 'תעודות', type: 'route', value: 'certificates' },
   { label: 'הכשרות סדנאות', type: 'ops-custom-tab', value: OPS_CUSTOM_TAB_WORKSHOP_TRAINING },
   { label: 'הכשרות קורסים', type: 'ops-custom-tab', value: OPS_CUSTOM_TAB_COURSE_TRAINING },
-  { label: 'ערכות דפוס', type: 'ops-custom-tab', value: OPS_CUSTOM_TAB_PRINT_KITS }
+  { label: 'ערכות דפוס', type: 'ops-custom-tab', value: OPS_CUSTOM_TAB_PRINT_KITS },
+  { label: 'אישורי צילום', type: 'ops-tab', value: TAB_PHOTO }
 ]);
 const SUMMER_TRAINING_SESSION_KEY = 'opsSummerTrainingActive';
 const COMPLETION_APPROVAL_SUMMER_FROM = '2026-06-20';
@@ -127,6 +130,12 @@ const COMPLETION_APPROVAL_SUMMER_TO = '2026-08-31';
 
 function isOperationsAdmin(state = {}) {
   return String(state?.user?.role || state?.user?.display_role || '').trim() === 'admin';
+}
+
+function canOpenPhotoTab(user, tab) {
+  return tab === TAB_PHOTO
+    ? String(user?.role || user?.display_role || '').trim() === 'admin'
+    : canOpenOperationsTab(user, tab);
 }
 
 function canEditOperationsInventory(state = {}) {
@@ -138,7 +147,7 @@ let _opsEntryContext = 'operations';
 
 const OPS_CONTEXT_INSTRUCTORS = 'instructors';
 const OPS_CONTEXT_OPERATIONS = 'operations';
-const OPERATIONS_ONLY_TABS = [TAB_HOME, TAB_COMPLETION_APPROVAL, TAB_AUTHORITIES, TAB_WORKSHOPS];
+const OPERATIONS_ONLY_TABS = [TAB_HOME, TAB_COMPLETION_APPROVAL, TAB_AUTHORITIES, TAB_WORKSHOPS, TAB_PHOTO];
 
 function resetOperationsManagementEntry(state) {
   const ops = ensureOpsState(state);
@@ -723,7 +732,8 @@ function tabsHtml(activeTab, currentRoute = '', state = {}) {
   const tabs = [
     [TAB_COMPLETION_APPROVAL, 'אישורי ביצוע'],
     [TAB_AUTHORITIES, 'רשויות'],
-    [TAB_WORKSHOPS, 'ציוד ומלאי']
+    [TAB_WORKSHOPS, 'ציוד ומלאי'],
+    [TAB_PHOTO, 'אישורי צילום']
   ];
   const routeTabs = [
     ['invitations', 'הזמנות לאירועים', 'operations.orders'],
@@ -731,7 +741,7 @@ function tabsHtml(activeTab, currentRoute = '', state = {}) {
     ['certificates', 'תעודות', 'operations.certificates']
   ];
   return `<nav class="ds-exceptions-tabs ds-ops-mgmt-tabs no-print" aria-label="לשוניות ניהול תפעול" dir="rtl">
-    ${tabs.filter(([key]) => canOpenOperationsTab(state?.user, key)).map(([key, label]) => `<button type="button" class="ds-exceptions-tab ds-ops-mgmt-tab${activeTab === key ? ' is-active' : ''}" data-ops-tab="${escapeHtml(key)}" aria-pressed="${activeTab === key ? 'true' : 'false'}">${escapeHtml(label)}</button>`).join('')}
+    ${tabs.filter(([key]) => canOpenPhotoTab(state?.user, key)).map(([key, label]) => `<button type="button" class="ds-exceptions-tab ds-ops-mgmt-tab${activeTab === key ? ' is-active' : ''}" data-ops-tab="${escapeHtml(key)}" aria-pressed="${activeTab === key ? 'true' : 'false'}">${escapeHtml(label)}</button>`).join('')}
     ${routeTabs.filter(([, , capability]) => canOpenCapability(state?.user, capability)).map(([route, label]) => `<button type="button" class="ds-exceptions-tab ds-ops-mgmt-tab${currentRoute === route ? ' is-active' : ''}" data-route="${escapeHtml(route)}" aria-pressed="${currentRoute === route ? 'true' : 'false'}">${escapeHtml(label)}</button>`).join('')}
   </nav>`;
 }
@@ -758,12 +768,13 @@ function operationsHomeDescription(label) {
   if (text === 'הכשרות קורסים') return 'ניהול הכשרות והיערכות לקורסים';
   if (text.includes('הכשרות')) return 'ניהול הכשרות והיערכות';
   if (text.includes('דפוס')) return 'ניהול ערכות וחומרי דפוס';
+  if (text.includes('אישורי צילום')) return 'ניהול מסמכים חתומים לפי פעילויות';
   return `פתיחת ${text}`;
 }
 
 function operationsHomeHtml(state = {}) {
   const tiles = OPERATIONS_HOME_TARGETS.filter(({ type, value }) => {
-    if (type === 'ops-tab' || type === 'ops-custom-tab') return canOpenOperationsTab(state?.user, value);
+    if (type === 'ops-tab' || type === 'ops-custom-tab') return canOpenPhotoTab(state?.user, value);
     if (type === 'route') return canOpenCapability(state?.user, value === 'invitations' ? 'operations.orders' : `operations.${value}`);
     return false;
   }).map(({ label, type, value }) => `
@@ -3173,6 +3184,7 @@ function completionApprovalTabHtml(rows, state, data = {}, directory = buildScho
 function renderTab(rows, state, data, allPreparedRows = []) {
   const ops = ensureOpsState(state);
   if (ops.tab === TAB_HOME && !ops.customTab) return operationsHomeHtml(state);
+  if (ops.tab === TAB_PHOTO && !ops.customTab) return '<div data-photo-consent-workspace dir="rtl">טוען אישורי צילום…</div>';
   if (ops.customTab) return '';
   const stockMap = data?.workshopStockMap instanceof Map ? data.workshopStockMap : new Map();
   const directory = buildSchoolsDirectory(data?.schoolsDirectoryRows || []);
@@ -3327,9 +3339,9 @@ export async function loadOperationsTabData(api, tab, { state } = {}) {
 }
 
 async function ensureOperationsTabDataLoaded(tab, { data, api, state, rerender }) {
-  if (!canOpenOperationsTab(state?.user, tab)) return;
+  if (!canOpenPhotoTab(state?.user, tab)) return;
   const tabKey = operationsTabDataKey(tab);
-  if (tabKey === TAB_HOME) return;
+  if (tabKey === TAB_HOME || tabKey === TAB_PHOTO) return;
   const loadedTabs = new Set(Array.isArray(data?._loadedOperationsTabs) ? data._loadedOperationsTabs : []);
   if (loadedTabs.has(tabKey)) return;
   if (tabKey === TAB_WORKSHOPS) {
@@ -3372,10 +3384,11 @@ async function navigateOperationsHomeTarget(type, value, { data, api, state, rer
   }
 
   if (type === 'ops-tab') {
-    if (!canOpenOperationsTab(state?.user, value)) return;
+    if (!canOpenPhotoTab(state?.user, value)) return;
     ops.customTab = '';
     ops.tab = value || TAB_WORKSHOPS;
     if (ops.tab === TAB_SUMMER || ops.tab === TAB_INSTRUCTORS) ops.tab = TAB_COMPLETION_APPROVAL;
+    if (ops.tab === TAB_PHOTO) { rerender?.(); return; }
     document.dispatchEvent(new CustomEvent('ops-mgmt-standard-tab', { detail: { tab: ops.tab } }));
     await ensureOperationsTabDataLoaded(ops.tab, { data, api, state, rerender });
     document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'operations-management' } }));
@@ -3386,7 +3399,7 @@ async function navigateOperationsHomeTarget(type, value, { data, api, state, rer
 export const operationsManagementScreen = {
   load: async ({ api, state }) => {
     const ops = ensureOpsState(state || {});
-    if (!canOpenOperationsTab(state?.user, ops.tab)) {
+    if (!canOpenPhotoTab(state?.user, ops.tab)) {
       ops.tab = TAB_HOME;
       ops.customTab = '';
     }
@@ -3424,7 +3437,7 @@ export const operationsManagementScreen = {
       };
     }
 
-    if (ops.tab === TAB_HOME && !ops.customTab) {
+    if ((ops.tab === TAB_HOME || ops.tab === TAB_PHOTO) && !ops.customTab) {
       return {
         rows: [],
         _loadedOperationsTabs: [],
@@ -3506,16 +3519,20 @@ export const operationsManagementScreen = {
     }
     const isHomeView = isOperationsHomeView(state);
     return `<div class="ds-screen-stack ds-ops-mgmt-screen" data-ops-context="operations">${opsManagementStylesHtml()}${dsPageHeader(operationsPageTitle(state, { completionApproval: isCompletionApprovalTab }))}
-      ${isHomeView || isCompletionApprovalTab ? '' : topFiltersHtml(filterRows, state)}
+      ${isHomeView || isCompletionApprovalTab || ops.tab === TAB_PHOTO ? '' : topFiltersHtml(filterRows, state)}
       ${isHomeView ? '' : tabsHtml(ops.customTab ? null : ops.tab, state.route, state)}
       <div class="ds-ops-mgmt-content">${renderTab(activeRows, state, data, prepared)}</div>
-      ${isHomeView || isCompletionApprovalTab || ops.period === ACTIVITY_SEASON_SCHOOL_2027 ? '' : `<p class="ds-muted ds-ops-mgmt-count no-print" dir="rtl">מציג ${filteredRows.length} פעילויות מתוך ${allRows.length}</p>`}
+      ${isHomeView || isCompletionApprovalTab || ops.tab === TAB_PHOTO || ops.period === ACTIVITY_SEASON_SCHOOL_2027 ? '' : `<p class="ds-muted ds-ops-mgmt-count no-print" dir="rtl">מציג ${filteredRows.length} פעילויות מתוך ${allRows.length}</p>`}
     </div>`;
   },
   bind({ root, data = {}, api, state, rerender, clearScreenDataCache, ui }) {
     if (!root) return;
     state = state || {};
     const ops = ensureOpsState(state);
+    if (ops.tab === TAB_PHOTO && !ops.customTab) {
+      const container = root.querySelector('[data-photo-consent-workspace]');
+      if (container) mountPhotoConsentWorkspace(container, state);
+    }
     const filters = ensureActivityListFilters(state, SCOPE);
 
     if (_opsNeedsEntryReset) {
@@ -3539,7 +3556,7 @@ export const operationsManagementScreen = {
         ops.context = OPS_CONTEXT_OPERATIONS;
         ops.customTab = '';
         const requestedTab = btn.getAttribute('data-ops-tab') || TAB_COMPLETION_APPROVAL;
-        if (!canOpenOperationsTab(state?.user, requestedTab)) return;
+        if (!canOpenPhotoTab(state?.user, requestedTab)) return;
         ops.tab = requestedTab;
         if (ops.tab === TAB_SUMMER || ops.tab === TAB_INSTRUCTORS) ops.tab = TAB_COMPLETION_APPROVAL;
         try { sessionStorage.removeItem(SUMMER_TRAINING_SESSION_KEY); } catch { /* ignore */ }
