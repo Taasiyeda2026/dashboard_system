@@ -1,4 +1,5 @@
 import { buildPlan as buildNewSchedulingPlan } from './scheduling-core/planner.js';
+import { earliestUndatedCourseStart } from './course-scheduling-start-policy.js';
 import { validatePlan as validateNewSchedulingPlan, validatePlanWithRoutes, ENGINE_VERSION as NEW_PLANNING_ENGINE_VERSION } from './scheduling-core/constraints.js';
 import {
   appendSchedulingRunActivityCooperatively,
@@ -930,8 +931,8 @@ function candidateStartDates({ activity, targetWeekday, sessions, startTime, dur
     return respectsKnownDates ? [fixedStart] : [];
   }
 
-  const todayDate = text(today).slice(0, 10);
-  const floor = todayDate > period.start ? todayDate : period.start;
+  const futureStart = earliestUndatedCourseStart(today);
+  const floor = futureStart > period.start ? futureStart : period.start;
   const earliest = firstOnOrAfter(floor, targetWeekday);
   const latest = latestFeasiblePlanningStart({ activity, targetWeekday, startTime, durationMinutes, sessions, schoolCalendar, periodKey: activityPeriodKey });
   const values = new Set();
