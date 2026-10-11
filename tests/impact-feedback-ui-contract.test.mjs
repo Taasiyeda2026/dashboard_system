@@ -766,7 +766,7 @@ test('impact-feedback temporary access is limited to active admin and specific I
   assert.match(screen, /if \(!canViewImpactFeedback\(state\?\.user\)\)/);
   assert.match(screen, /feedbackReadOnly = !isFeedbackAdmin\(state\?\.user\)/);
   assert.match(screen, /visibleFeedbackTabs\(\)\.map/);
-  assert.match(screen, /feedbackReadOnly \? TABS\.filter\(\(tab\) => tab\.key !== 'templates'\)/);
+  assert.match(screen, /function visibleFeedbackTabs\(\) \{\s+return TABS;/);
   assert.match(screen, /if \(feedbackReadOnly\) \{ event\.preventDefault\(\); return; \}/);
   assert.match(screen, /feedbackReadOnly && t\.closest/);
   assert.match(styles, /\.ifb-admin\.is-feedback-readonly :is/);
@@ -785,4 +785,36 @@ test('impact-feedback temporary access is limited to active admin and specific I
   assert.match(sql, /if changed<>5/);
   assert.match(sql, /private\.feedback_can_view\(\)/);
   assert.match(sql, /Unsafe feedback write grants detected/);
+});
+
+test('Israa can browse published feedback templates, bilingual questions, PDFs, and previews without edits', () => {
+  const templateView = readFileSync(new URL('../frontend/src/impact-feedback/feedback-templates-view.js', import.meta.url), 'utf8');
+  const migration = readFileSync(new URL('../supabase/migrations/20261011212500_feedback_israa_published_templates_read.sql', import.meta.url), 'utf8');
+  const correction = readFileSync(new URL('../supabase/migrations/20261011213000_feedback_israa_published_version_policy_fix.sql', import.meta.url), 'utf8');
+  assert.match(screen, /renderTemplatesView\(ui, \{ readOnly: feedbackReadOnly \}\)/);
+  assert.match(screen, /bindTemplatesView\(host, ui, \(\) => paint\(host\), \{ readOnly: feedbackReadOnly \}\)/);
+  assert.match(templateView, /function listHtml\(ui, \{ readOnly = false \} = \{\}\)/);
+  assert.match(templateView, /if \(readOnly\) return `<div class="ifb-template-card__lang-actions"/);
+  assert.match(templateView, /function editorHtml\(ui, \{ readOnly = false \} = \{\}\)/);
+  assert.match(templateView, /const editing = !readOnly && Boolean\(ed\.draft\)/);
+  assert.match(templateView, /: readOnly \? '' : '<button type="button" class="ifb-btn ifb-btn--primary" data-tpl-edit/);
+  assert.match(templateView, /const draftMeta = readOnly \? null : versions\.find/);
+  assert.match(templateView, /readOnly \? \[\] : fetchBankQuestions\(/);
+  assert.match(templateView, /!readOnly && ed\.draft \? ed\.draftQuestions : ed\.publishedQuestions/);
+  assert.match(templateView, /if \(readOnly && !t\.closest/);
+  assert.match(templateView, /\[data-tpl-pdf\], \[data-tpl-open\], \[data-tpl-back\], \[data-tpl-preview\]/);
+  assert.match(templateView, /if \(readOnly\) \{ event\.preventDefault\(\); return; \}/);
+  assert.match(templateView, /if \(readOnly\) return;/);
+  assert.match(templateView, /readOnly \? '' : '<button/);
+  for (const t of [
+    'feedback_templates_pilot_view_select',
+    'feedback_template_versions_pilot_published_select',
+    'feedback_template_questions_pilot_published_select',
+    'feedback_template_pdfs_pilot_select',
+    'feedback_template_pdf_read_pilot'
+  ]) assert.ok(migration.includes(t), t);
+  assert.match(correction, /t\.id = feedback_template_versions\.template_id/);
+  assert.match(correction, /t\.current_version_id = feedback_template_versions\.id/);
+  assert.match(migration, /status = 'published'/);
+  assert.doesNotMatch(migration, /grant (update|insert|delete) /i);
 });
