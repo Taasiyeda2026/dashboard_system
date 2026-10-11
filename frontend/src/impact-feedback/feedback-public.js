@@ -62,9 +62,15 @@ function showMessage(root, stateKey, extra = '') {
   root.setAttribute('aria-busy', 'false');
 }
 
+let biomimicryStudentStageForThanks = null;
 function showThanks(root, language = 'he') {
   // After submission there is no public reset/restart action on this device.
-  const msg = language === 'ar' ? { title: 'شكرًا لمشاركتك معنا!', body: 'شكرًا على وقتك وعلى الإجابات التي شاركتها. ستساعدنا ملاحظاتك على تحسين البرنامج وتطوير تجربة التعلّم.' } : THANK_YOU;
+  const approvedBiomimicryThanks = biomimicryStudentStageForThanks === 'pre'
+    ? { title: 'شكرًا لمشاركتكم!', body: 'ينتظرنا المزيد من الاكتشاف والبحث والأفكار الجديدة.' }
+    : { title: 'شكرًا لمشاركتكم!', body: 'استمرّوا في النظر إلى الطبيعة بفضول، وطرح الأسئلة، واكتشاف أفكار جديدة مستوحاة من العالم من حولكم.' };
+  const msg = language === 'ar'
+    ? biomimicryStudentStageForThanks ? approvedBiomimicryThanks : { title: 'شكرًا لمشاركتك معنا!', body: 'شكرًا على وقتك وعلى الإجابات التي شاركتها. ستساعدنا ملاحظاتك على تحسين البرنامج وتطوير تجربة التعلّم.' }
+    : THANK_YOU;
   document.documentElement.lang = language;
   root.innerHTML = `<div class="ifb-shell" lang="${language}" dir="rtl">${messageCardHtml({ ...msg, logoUrl })}</div>`;
   root.setAttribute('aria-busy', 'false');
@@ -138,6 +144,7 @@ async function start() {
     showMessage(root, payload?.state || 'invalid');
     return;
   }
+  biomimicryStudentStageForThanks = payload.program_key === 'biomimicry' && payload.audience === 'student' ? payload.stage : null;
   setTitle(payload.program_title);
 
   const isStudent = payload.audience === 'student';
