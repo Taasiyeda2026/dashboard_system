@@ -1,4 +1,4 @@
-import { evaluateInstructor, adjacentActivities, isAuthorityBlocked, BLOCKED_AUTHORITY_MESSAGE, BLOCKED_AUTHORITY_CODE } from './instructor-matching-engine.js';
+import { evaluateInstructor, adjacentActivities, isAuthorityBlocked, isCourseBlocked, BLOCKED_AUTHORITY_MESSAGE, BLOCKED_AUTHORITY_CODE, BLOCKED_COURSE_MESSAGE, BLOCKED_COURSE_CODE } from './instructor-matching-engine.js';
 import { activityMeetings, isoWeekKey } from './instructor-scheduling-load.js';
 import { routeMatrixKey } from './course-scheduling-travel.js';
 import {
@@ -540,7 +540,7 @@ function evaluateCandidate({
   const profile = profiles[empId];
 
   // Skip travel/date-adjustment work when the authority is personally blocked.
-  if (isAuthorityBlocked(profile?.blocked_authorities, course?.authority)) {
+  if (isAuthorityBlocked(profile?.blocked_authorities, course?.authority) || isCourseBlocked(profile, course)) {
     const gate = evaluateInstructor({
       instructor,
       profile,
@@ -560,8 +560,8 @@ function evaluateCandidate({
     return {
       ...gate,
       eligible: false,
-      failures: [...new Set([...(gate.failures || []), BLOCKED_AUTHORITY_MESSAGE])],
-      failureCodes: [...new Set([...(gate.failureCodes || []), BLOCKED_AUTHORITY_CODE])],
+      failures: [...new Set([...(gate.failures || []), ...(isCourseBlocked(profile, course) ? [BLOCKED_COURSE_MESSAGE] : [BLOCKED_AUTHORITY_MESSAGE])])],
+      failureCodes: [...new Set([...(gate.failureCodes || []), ...(isCourseBlocked(profile, course) ? [BLOCKED_COURSE_CODE] : [BLOCKED_AUTHORITY_CODE])])],
       score: null,
       totalScore: null,
       qualityBand: null,
