@@ -16,6 +16,7 @@ import { applyGlobalAccent, accentNameFromStorage, bindAccentPickerOnce as bindA
 import { waitForSupabaseAuthSession } from './supabase-client.js';
 import { permissionFlagYes as permissionEnabled } from './permissions.js';
 import { hasPermission } from './permission-policy.js';
+import { canViewImpactFeedback } from './impact-feedback/feedback-access.js';
 import { countPendingApprovedProposals } from './screens/shared/proposals-pending-count.js';
 import { bootstrapLocalBaselineMonitor } from './local-baseline-monitor.js';
 
@@ -751,7 +752,7 @@ function isAdminRole(user = state?.user || {}) {
 }
 
 function routeAllowedByRole(route, user = state?.user || {}) {
-  if (route === 'impact-feedback') return isAdminRole(user);
+  if (route === 'impact-feedback') return canViewImpactFeedback(user);
   return true;
 }
 
@@ -1070,10 +1071,10 @@ function enforceCourseSchedulingRoute() {
   state.routes = state.effectiveRoutes;
 }
 
-// Impact feedback module is admin-only (server enforces the same rule via RLS/RPC checks).
+// Temporary access: admin and Israa only; database separately enforces identity and read-only access.
 function enforceImpactFeedbackRoute() {
   const current = Array.isArray(state.effectiveRoutes) ? state.effectiveRoutes : [];
-  if (!state.token || !isAdminRole()) {
+  if (!state.token || !canViewImpactFeedback(state.user)) {
     const withoutFeedback = current.filter((route) => route !== 'impact-feedback');
     state.effectiveRoutes = withoutFeedback;
     state.routes = withoutFeedback;
