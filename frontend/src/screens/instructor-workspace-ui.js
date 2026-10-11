@@ -183,7 +183,7 @@ export function matchingForm(row, options = {}) {
           <option value="">בחירת קורס להוספה…</option>${courseOptions}
         </select>
       </label>
-      <input type="hidden" data-blocked-courses-value value="${escapeHtml(selectedCourseIds.join('\\u001f'))}">
+      <input type="hidden" data-blocked-courses-value value="${escapeHtml(selectedCourseIds.join('\u001f'))}">
     </section>
     <section class="instructor-matching__card"><h3>הערה פנימית</h3><label class="instructor-matching__note"><span>הערת התאמה פנימית</span><textarea class="ds-input" name="matching_note" rows="4">${escapeHtml(p.matching_note || '')}</textarea><small>ההערה מיועדת לצוות התפעול ואינה מוצגת למדריך/ה.</small></label></section>
     <p class="instructor-matching__status" role="alert" data-matching-status hidden></p>
