@@ -14,7 +14,7 @@ create policy feedback_template_versions_pilot_published_select
     and status = 'published'
     and exists (
       select 1 from public.feedback_templates t
-      where t.id = template_id and t.current_version_id = id
+      where t.id = feedback_template_versions.template_id and t.current_version_id = feedback_template_versions.id
     )
   );
 
