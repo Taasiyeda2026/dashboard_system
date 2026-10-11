@@ -134,7 +134,7 @@ function isOperationsAdmin(state = {}) {
 
 function canOpenPhotoTab(user, tab) {
   return tab === TAB_PHOTO
-    ? String(user?.role || user?.display_role || '').trim() === 'admin'
+    ? [true, 'true', 'yes', '1', 1].includes(user?.permissions?.manage_photo_consents)
     : canOpenOperationsTab(user, tab);
 }
 
