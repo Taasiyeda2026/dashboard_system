@@ -2578,9 +2578,19 @@ export const courseSchedulingScreen = {
           // before display. A proposal in that affected scope cannot be certified
           // against the current assignments even when only the directly edited
           // activity carries the persisted needs_recalc flag.
-          if ((snapshot._is_stale || affectedIds.includes(text(entry.activityId))
-            || (entry.lockedOption == null && undatedProposalNeedsNewStart(row, currentCourseById.get(text(entry.activityId)), today())))
-            && text(row.kind) !== 'live') {
+          // Do not continue advertising an expired, unapproved system date while
+          // the source proposal remains untouched until an atomic replan succeeds.
+          if (entry.lockedOption == null
+            && undatedProposalNeedsNewStart(row, currentCourseById.get(text(entry.activityId)), today())) {
+            return {
+              ...stalePlanningRowForDisplay(row),
+              startDate: '', endDate: '', startTime: '', endTime: '',
+              meetings: [], options: [], packingOptions: [], scheduleOptions: [],
+              instructorEmpId: '', instructorName: '',
+              reason: 'הצעה ישנה הוסרה מהתצוגה. המנוע יציע תאריך חדש לפחות שבוע קדימה.'
+            };
+          }
+          if ((snapshot._is_stale || affectedIds.includes(text(entry.activityId))) && text(row.kind) !== 'live') {
             return stalePlanningRowForDisplay(row);
           }
           if (entry.needsRecalc === true) return stalePlanningRowForDisplay(row);
