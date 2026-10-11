@@ -371,17 +371,33 @@ function openPreview(ui) {
   const ed = tpl.editor;
   const program = ui.programs.find((p) => p.key === ed.template.program_key);
   const source = ed.draft ? ed.draftQuestions : ed.publishedQuestions;
+  const intro = ed.draft || ed.published;
+  const arabicTopics = {
+    biomimicry: 'المحاكاة الحيوية – ابتكارات مستوحاة من الطبيعة',
+    biomimicry_secondary: 'المحاكاة الحيوية والاستدامة والابتكار التكنولوجي',
+    board_games: 'تطوير ألعاب الطاولة والاستراتيجيات وتخطيط الألعاب',
+    green_leadership: 'الاستدامة والقيادة البيئية',
+    space_tech: 'تكنولوجيا الفضاء',
+    sky_limit: 'الفضاء والأقمار الصناعية وتكنولوجيا الفضاء',
+    ai_applications: 'تطبيقات الذكاء الاصطناعي',
+    ai_foundations: 'الذكاء الاصطناعي',
+    pharma: 'تطوير الأدوية والصناعة الدوائية',
+    ofek: 'ريادة الأعمال والصناعة',
+    trailblazers: 'ريادة الأعمال والتكنولوجيا'
+  };
   const payload = {
     audience: ed.template.audience,
     stage: ed.template.stage,
     age_band: null,
     program_title: program?.title || '',
     recipient_name: ed.template.audience === 'student' ? '' : 'שם הנמען',
-    intro_text: (ed.draft || ed.published)?.intro_text || '',
+    intro_text: intro?.intro_text || '',
+    intro_text_ar: intro?.intro_text_ar || '',
     questions: source.map((q) => ({
       id: q.id,
       type: q.question_type,
       text: String(q.wording?.default || '').replaceAll('{topic}', program?.topic || ''),
+      text_ar: String(q.wording?.ar || '').replaceAll('{topic}', arabicTopics[program?.key] || program?.topic || ''),
       options: q.options || [],
       required: q.required,
       allow_na: allowsNa(q)
@@ -391,18 +407,31 @@ function openPreview(ui) {
   overlay.className = 'ifb-preview-overlay';
   overlay.setAttribute('role', 'dialog');
   overlay.setAttribute('aria-modal', 'true');
-  overlay.innerHTML = '<div class="ifb-preview"><div class="ifb-preview__bar"><strong>תצוגה מקדימה – כך יראה השאלון בטלפון</strong><button type="button" class="ifb-btn ifb-btn--sm" data-preview-close>סגירה</button></div><div class="ifb-preview__phone" data-preview-body></div></div>';
+  overlay.innerHTML = '<div class="ifb-preview"><div class="ifb-preview__bar"><strong>תצוגה מקדימה – כך יראה השאלון בטלפון</strong><div><button type="button" class="ifb-btn ifb-btn--sm" data-preview-lang="he">עברית</button><button type="button" class="ifb-btn ifb-btn--sm" data-preview-lang="ar">العربية</button><button type="button" class="ifb-btn ifb-btn--sm" data-preview-close>סגירה</button></div></div><div class="ifb-preview__phone" data-preview-body></div></div>';
   document.body.append(overlay);
-  mountFeedbackForm(overlay.querySelector('[data-preview-body]'), payload, {
-    preview: true,
-    logoUrl: new URL('../../assets/certificates/logos/taasiyeda1.png', import.meta.url).href,
-    onSubmit: async () => {
-      showToast('תצוגה מקדימה – התשובות לא נשמרות', 'info');
-      return { ok: false, state: 'preview' };
-    }
-  });
+  const showLanguage = (language) => {
+    const localizedQuestions = payload.questions.map((q) => ({
+      ...q,
+      text: language === 'ar' ? (q.text_ar || q.text) : q.text
+    }));
+    mountFeedbackForm(overlay.querySelector('[data-preview-body]'), { ...payload, questions: localizedQuestions }, {
+      preview: true,
+      language,
+      logoUrl: new URL('../../assets/certificates/logos/taasiyeda1.png', import.meta.url).href,
+      onSubmit: async () => {
+        showToast('תצוגה מקדימה – התשובות לא נשמרות', 'info');
+        return { ok: false, state: 'preview' };
+      }
+    });
+  };
+  showLanguage('he');
   const close = () => overlay.remove();
   overlay.addEventListener('click', (event) => {
+    const languageButton = event.target.closest('[data-preview-lang]');
+    if (languageButton) {
+      showLanguage(languageButton.dataset.previewLang);
+      return;
+    }
     if (event.target === overlay || event.target.closest('[data-preview-close]')) close();
   });
 }
