@@ -12,12 +12,17 @@ function paintCamera(root, activityId, hasFile) {
 
 async function refreshCamera(root, activityId) {
   if (!Number.isSafeInteger(activityId) || activityId <= 0) return;
+  const sequence = Number(root.dataset.photoConsentCheckVersion || 0) + 1;
+  root.dataset.photoConsentCheckVersion = String(sequence);
   try {
     const hasFile = await photoConsentActivityHasFiles(activityId);
     // A slow request must not change the camera of a different drawer row
     // or override an upload that has already started.
     const button = root.querySelector('button[data-activity-photo-upload]');
-    if (button && !button.hasAttribute('aria-busy')) paintCamera(root, activityId, hasFile);
+    if (button && !button.hasAttribute('aria-busy') &&
+        Number(root.dataset.photoConsentCheckVersion) === sequence) {
+      paintCamera(root, activityId, hasFile);
+    }
   } catch (error) {
     console.warn('[photo-consent-camera-status]', error?.message || error);
     // Unknown status is not represented as a confirmed saved file.
@@ -52,6 +57,8 @@ export function bindActivityPhotoConsentUpload(root, notify = () => {}) {
       const files = Array.from(input.files || []);
       if (!files.length) { cleanup(); return; }
       button.disabled = true;
+      // An in-flight check from opening the drawer must not overwrite success.
+      root.dataset.photoConsentCheckVersion = String(Number(root.dataset.photoConsentCheckVersion || 0) + 1);
       button.setAttribute('aria-busy', 'true');
       try {
         const saved = await uploadPhotoConsentFiles(activityId, files, ({ index, total }) => {
