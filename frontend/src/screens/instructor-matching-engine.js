@@ -53,11 +53,22 @@ export const DEFAULT_SCHEDULING_PROFILE = Object.freeze({
   default_end_time: '15:00',
   matching_note: null,
   blocked_authorities: [],
+  course_restriction_mode: 'all',
+  course_ids: [],
 });
 
 /** Hard personal constraint reason code (client). Server uses scheduling_authority_blocked. */
 export const BLOCKED_AUTHORITY_CODE = 'blocked_authority';
 export const BLOCKED_AUTHORITY_MESSAGE = 'המדריך ביקש שלא לעבוד ברשות זו';
+export const BLOCKED_COURSE_CODE = 'blocked_course';
+export const BLOCKED_COURSE_MESSAGE = 'הקורס חסום לשיבוץ עבור מדריך זה';
+
+/** Course restrictions are keyed exclusively by registered program/activity number. */
+export function isCourseBlocked(profile, activity) {
+  if (profile?.course_restriction_mode !== 'block_selected') return false;
+  const id = String(activity?.activity_no ?? activity?.gefen_number ?? '').trim();
+  return !!id && (profile?.course_ids || []).some((value) => String(value).trim() === id);
+}
 
 /** Normalize authority display names for Set lookup (trim + collapse spaces + he-IL lower). */
 export function normalizeAuthorityName(value) {
@@ -125,7 +136,9 @@ export function normalizeSchedulingProfile(profile = {}) {
     ...(profile || {}),
     gender: gender === 'any' ? null : gender,
     instruction_languages: Array.isArray(profile?.instruction_languages) ? profile.instruction_languages : [],
-    blocked_authorities: normalizeBlockedAuthorities(profile?.blocked_authorities)
+    blocked_authorities: normalizeBlockedAuthorities(profile?.blocked_authorities),
+    course_ids: [...new Set((Array.isArray(profile?.course_ids) ? profile.course_ids : [])
+      .map((id) => String(id).trim()).filter(Boolean))]
   };
 }
 
@@ -258,6 +271,28 @@ export function evaluateInstructor({
 
   if (String(instructor.active ?? 'yes').toLowerCase() === 'no' || instructor.active === false) failures.push('המדריך אינו פעיל');
   if (!String(instructor.address || '').trim()) missingProfileData.push('כתובת');
+
+  // Hard personal constraint: course exclusion — before travel/scoring.
+  if (isCourseBlocked(profile, activity)) {
+    failures.push(BLOCKED_COURSE_MESSAGE);
+    failureCodes.push(BLOCKED_COURSE_CODE);
+    issues.push({ kind: BLOCKED_COURSE_CODE, key: 'course', message: BLOCKED_COURSE_MESSAGE, dates: [], missing: false });
+    return {
+      eligible: false, score: null, ...schedulingQualityBand(null, false),
+      failures: [...new Set(failures)], failureCodes: [...new Set(failureCodes)],
+      missingProfileData: [...new Set(missingProfileData)], warnings: [],
+      explanation: '', scoreReasons: [], scoreBreakdown: null,
+      checks: {
+        blockedCourse: checkResult(false, 'קורס חסום', BLOCKED_COURSE_MESSAGE),
+        gender: checkResult(null, 'מגדר', 'לא נבדק'),
+        language: checkResult(null, 'שפה', 'לא נבדק'),
+        availability: checkResult(null, 'זמינות', 'לא נבדק'),
+        travel: checkResult(null, 'מרחק', 'לא נבדק'),
+        notes: checkResult(true, 'הערות', [activity?.scheduling_note, profile.matching_note].filter(Boolean).join(' · '))
+      },
+      schedule: [], issues
+    };
+  }
 
   // Hard personal constraint: blocked authorities — fail before travel/scoring/meetings.
   if (isAuthorityBlocked(profile.blocked_authorities, activity?.authority)) {
