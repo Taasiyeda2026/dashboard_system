@@ -20,6 +20,7 @@ import {
   updatePreviewRecord,
 } from '../preview/preview-mode.js';
 import { isGeneratedTravelCancellation, sourceAttendanceRecords } from './travel-compensation.js';
+import { isZoomLocationReport } from './attendance-location-policy.js';
 export { isGeneratedTravelCancellation, sourceAttendanceRecords } from './travel-compensation.js';
 
 const LEGACY_SUMMER_WORKSHOP = 'סדנאות קיץ';
@@ -87,8 +88,14 @@ function normalizeActivityTypeList(values) {
 function normalizeRecordPayload(payload = {}) {
   const activityType = normalizeAttendanceActivityTypeLabel(payload?.activity_type);
   const onlineTraining = activityType === 'הכשרה' && payload?.training_mode === 'online';
+  const onlineLocation = isZoomLocationReport({
+    activityType,
+    trainingMode: payload?.training_mode,
+    operationMeetingMode: payload?.operation_meeting_mode,
+    operationName: payload?.activity_name_snapshot,
+  });
   const hasPublicTransport = Object.prototype.hasOwnProperty.call(payload, 'public_transport');
-  const usesPublicTransport = activityType !== ZOOM_LABEL && !onlineTraining && payload?.public_transport === true;
+  const usesPublicTransport = !onlineLocation && payload?.public_transport === true;
   const expenses = Object.prototype.hasOwnProperty.call(payload, 'expenses')
     ? Number(payload?.expenses || 0)
     : undefined;
@@ -100,12 +107,12 @@ function normalizeRecordPayload(payload = {}) {
       // Clearing expenses must also clear the free-text detail — never leave orphan notes.
       expense_details: expenses > 0 ? (payload?.expense_details || null) : null,
     } : {}),
-    ...(hasPublicTransport || activityType === ZOOM_LABEL ? {
+    ...(hasPublicTransport || onlineLocation ? {
       public_transport: usesPublicTransport,
       public_transport_cost: usesPublicTransport ? Number(payload?.public_transport_cost || 0) : 0,
     } : {}),
     // Zoom and public-transport reports never carry reimbursable travel kilometres.
-    ...((activityType === ZOOM_LABEL || onlineTraining || usesPublicTransport) ? { roundtrip_km: 0 } : {}),
+    ...((onlineLocation || usesPublicTransport) ? { roundtrip_km: 0 } : {}),
   };
 }
 

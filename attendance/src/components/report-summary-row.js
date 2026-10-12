@@ -1,5 +1,6 @@
 import { createIcon } from './icon.js';
 import { formatDurationHours } from './monthly-report-summary.js';
+import { isZoomLocationReport } from '../services/attendance-location-policy.js';
 
 export function formatTravelMinutes(value) {
   const minutes = Math.max(0, Math.round(Number(value) || 0));
@@ -49,9 +50,15 @@ export function reportPresentation(record = {}) {
   const contextValues = isBaseTrainingRecord(record)
     ? [record.program_name_snapshot]
     : [record.program_name_snapshot, record.school_name_snapshot, record.authority_name_snapshot];
-  if (record.activity_type === 'תפעול' && record.activity_name_snapshot === 'צוות') {
-    const teamLocation = record.operation_meeting_mode === 'online'
-      ? 'זום' : String(record.destination_address_snapshot || '').trim();
+  if (isZoomLocationReport({
+    activityType: record.activity_type,
+    trainingMode: record.training_mode,
+    operationMeetingMode: record.operation_meeting_mode,
+    operationName: record.activity_name_snapshot,
+  })) {
+    secondary.push('זום');
+  } else if (record.activity_type === 'תפעול' && record.activity_name_snapshot === 'צוות') {
+    const teamLocation = String(record.destination_address_snapshot || '').trim();
     if (teamLocation) secondary.push(teamLocation);
   }
   contextValues

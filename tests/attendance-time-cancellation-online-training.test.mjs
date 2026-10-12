@@ -22,7 +22,7 @@ test('zero cancellation remains resolved and editable, including after positive 
   assert.match(reports, /calculation_status === 'resolved'.*Number\.isFinite/s);
   assert.doesNotMatch(reports, /final_cancellation_minutes\) > 0/);
   assert.match(runtime, /resolved: minutes != null/);
-  assert.match(runtime, /input\.value = state\.label/);
+  assert.match(runtime, /createTimePicker\('av2-time-cancel-edit', 'ביטול זמן', state\.label, 1\)/);
 });
 
 test('saved manual correction is recognized after reload with the current audit label', () => {
@@ -150,7 +150,7 @@ test('scheduled online training reloads without location or travel data', () => 
 });
 
 test('online training has no location, kilometres, public transport, or cancellation', () => {
-  assert.match(newReport, /const hasNoLocation = isOpen \|\| isOnlineTraining\(\)/);
+  assert.match(newReport, /const hasNoLocation = isOpen \|\| isOnline;/);
   assert.match(newReport, /const usesPublicTransport = !isOnline/);
   assert.match(newReport, /const kmValue = \(!isOnline/);
   assert.match(service, /onlineTraining.*roundtrip_km: 0/s);
