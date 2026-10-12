@@ -1,7 +1,6 @@
 import { supabase } from './api/client.js';
-import { reconcileTravelCompensation, overrideTravelCompensation, resetTravelCompensationOverride } from './services/attendance.service.js';
-import { parseAutomaticCancellationLabel, reconcileChangedTravelContext } from './services/time-cancellation.helpers.js';
-import { createTimePicker } from './components/time-picker.js';
+import { reconcileTravelCompensation, reportTravelTime } from './services/attendance.service.js';
+import { reconcileChangedTravelContext, instructorTravelReportStatusLabel } from './services/time-cancellation.helpers.js';
 
 const ENHANCED_HEADER = 'av2TimeCancelHeader';
 const ENHANCED_ROW = 'av2TimeCancelRow';
@@ -128,17 +127,23 @@ function enhanceOperationForm(form) {
 
 function cancellationState(row) {
   const detail = row.querySelector('.av2-rr__travel-compensation');
-  if (!detail) return { label: '—', minutes: null, resolved: false, original: null, pending: false };
+  if (!detail) return { label: '—', minutes: null, resolved: false, pending: false, status: 'none' };
   if (detail.classList.contains('av2-rr__travel-compensation--pending')) {
-    return { label: 'ממתין', minutes: null, resolved: false, original: null, pending: true };
+    return { label: 'ממתין', minutes: null, resolved: false, pending: true, status: 'pending' };
   }
 
   const strongText = text(detail.querySelector('strong')?.textContent || detail.textContent);
   const valueMatch = strongText.match(/(\d{1,3}:[0-5]\d)/);
-  const label = valueMatch?.[1] || '—';
+  const label = valueMatch?.[1] || text(strongText) || '—';
   const minutes = parseClockMinutes(label);
   const audit = text(detail.querySelector('.av2-rr__travel-audit')?.textContent);
-  return { label, minutes, resolved: minutes != null, original: parseAutomaticCancellationLabel(audit), pending: false };
+  return {
+    label,
+    minutes,
+    resolved: true,
+    pending: /ממתין|תזכורת|לבקרת/.test(audit),
+    status: audit,
+  };
 }
 
 function enhanceReportHeader(head) {
@@ -170,33 +175,18 @@ function updateTimeCancelCell(row) {
   cell.classList.toggle('is-pending', state.pending);
 
   const nextTitle = state.pending
-    ? 'חישוב ביטול הזמן עדיין מתבצע'
-    : state.resolved
-      ? (state.original ? `נערך ידנית · מחושב במקור: ${state.original}` : 'מחושב אוטומטית לפי זמן הנסיעה')
-      : '';
+    ? instructorTravelReportStatusLabel({ review_status: 'pending_review' })
+    : state.status || 'דיווח זמני נסיעה';
   if (cell.title !== nextTitle) cell.title = nextTitle;
 
   const nextMinutes = state.minutes == null ? '' : String(state.minutes);
   if (cell.dataset.minutes !== nextMinutes) cell.dataset.minutes = nextMinutes;
-  if (state.original) {
-    if (cell.dataset.original !== state.original) cell.dataset.original = state.original;
-  } else if ('original' in cell.dataset) {
-    delete cell.dataset.original;
-  }
 
-  const oldDetail = row.querySelector('.av2-rr__travel-compensation');
-  if (oldDetail) {
-    oldDetail.hidden = true;
-    if (oldDetail.style.display !== 'none') oldDetail.style.display = 'none';
-    if (oldDetail.getAttribute('aria-hidden') !== 'true') oldDetail.setAttribute('aria-hidden', 'true');
-  }
+  // Keep the travel report controls visible in the row (do not hide the detail).
   return cell;
 }
 
 function showTimeCancelEditField(row, preferredForm = null) {
-  const state = cancellationState(row);
-  if (!state.resolved) return;
-
   window.setTimeout(() => {
     const form = preferredForm
       || document.querySelector('.av2-modal-overlay .av2-modal--form form')
@@ -210,71 +200,43 @@ function showTimeCancelEditField(row, preferredForm = null) {
     wrap.className = 'av2-field av2-time-cancel-edit';
     wrap.dataset.av2TimeCancelEdit = '1';
 
-    // Keep duration entry independent of the device keyboard. Some Android
-    // numeric keyboards do not expose ":" at all, so use the same custom
-    // hour/minute picker as attendance start/end times.
-    const timePicker = createTimePicker('av2-time-cancel-edit', 'ביטול זמן', state.label, 1);
+    const out = document.createElement('input');
+    out.type = 'number'; out.min = '0'; out.step = '1';
+    out.className = 'av2-rr__travel-minutes';
+    out.setAttribute('aria-label', 'דקות נסיעה הלוך');
+    out.placeholder = 'הלוך (דקות)';
+
+    const ret = document.createElement('input');
+    ret.type = 'number'; ret.min = '0'; ret.step = '1';
+    ret.className = 'av2-rr__travel-minutes';
+    ret.setAttribute('aria-label', 'דקות נסיעה חזור');
+    ret.placeholder = 'חזור (דקות)';
 
     const note = document.createElement('small');
     note.className = 'av2-time-cancel-edit__note';
-    note.textContent = state.original ? `תוקן ידנית (אוטומטי: ${state.original})` : 'חישוב אוטומטי';
+    note.textContent = 'דווחו זמני נסיעה בפועל. חישוב המערכת אינו מוצג למדריך.';
 
     const error = document.createElement('small');
     error.className = 'av2-time-cancel-edit__error';
     error.hidden = true;
 
-    wrap.append(timePicker.wrap, note, error);
-    if (state.original) {
-      const reset = document.createElement('button');
-      reset.type = 'button';
-      reset.className = 'av2-btn av2-btn--link';
-      reset.textContent = 'חזור לחישוב האוטומטי';
-      reset.addEventListener('click', async () => {
-        reset.disabled = true;
-        try {
-          await resetTravelCompensationOverride(text(row.dataset.recordId), parseClockMinutes(state.original));
-          form.closest('.av2-modal-overlay')?.remove();
-          const cell = row.querySelector('.av2-rr__time-cancel');
-          if (cell) {
-            cell.textContent = state.original;
-            cell.dataset.minutes = String(parseClockMinutes(state.original));
-            cell.title = 'מחושב אוטומטית';
-          }
-          showAttendanceNotice('ביטול הזמן חזר לחישוב האוטומטי.', 'success');
-        } catch (resetError) {
-          error.textContent = resetError?.message || 'החזרה לחישוב האוטומטי נכשלה.';
-          error.hidden = false;
-          reset.disabled = false;
-        }
-      });
-      wrap.append(reset);
-    }
+    wrap.append(out, ret, note, error);
     hoursDisplay.insertAdjacentElement('afterend', wrap);
 
-    // Hide the read-only compensation preview once the editable field is present.
     const readonlyPreview = form.querySelector('.av2-report__time-cancellation:not(.av2-report__base-training-route)');
-    if (readonlyPreview && readonlyPreview !== hoursDisplay) {
-      readonlyPreview.hidden = true;
-    }
+    if (readonlyPreview && readonlyPreview !== hoursDisplay) readonlyPreview.hidden = true;
 
     const recordId = text(row.dataset.recordId) || text(form.dataset.av2EditRecordId);
     const oldRow = row;
     const initialRouteContext = routeContextSnapshot(form);
-    form.addEventListener('submit', (event) => {
-      const desired = parseClockMinutes(timePicker.getValue());
-      if (desired == null) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        error.textContent = 'יש להזין ביטול זמן בפורמט שעות:דקות, לדוגמה 1:45.';
-        error.hidden = false;
-        timePicker.hourSel.focus();
+    form.addEventListener('submit', () => {
+      const outbound = Number(out.value);
+      const returning = Number(ret.value);
+      if (!Number.isFinite(outbound) || !Number.isFinite(returning) || out.value === '' || ret.value === '') {
         return;
       }
-      error.hidden = true;
       const routeContextChanged = initialRouteContext !== routeContextSnapshot(form);
-      if (recordId && (desired !== state.minutes || (state.original && routeContextChanged))) {
-        waitForSavedRowAndOverride(oldRow, recordId, desired, routeContextChanged);
-      }
+      if (recordId) waitForSavedRowAndReport(oldRow, recordId, outbound, returning, routeContextChanged);
     }, { capture: true });
   }, 0);
 }
@@ -283,43 +245,23 @@ function attachEditFormTimeCancellation(form) {
   if (!(form instanceof HTMLElement)) return;
   const recordId = text(form.dataset.av2EditRecordId);
   if (!recordId || form.querySelector('[data-av2-time-cancel-edit]')) return;
-
-  // Prefer the live table row when still mounted; otherwise synthesize state from the form preview.
   const row = document.querySelector(`.av2-report-row[data-record-id="${CSS.escape(recordId)}"]`);
-  if (row) {
-    showTimeCancelEditField(row, form);
-    return;
-  }
-
-  const preview = form.querySelector('.av2-report__time-cancellation:not(.av2-report__base-training-route) span');
-  const label = text(preview?.textContent);
-  const minutes = parseClockMinutes(label);
-  if (minutes == null) return;
-  const syntheticRow = document.createElement('div');
-  syntheticRow.className = 'av2-report-row';
-  syntheticRow.dataset.recordId = recordId;
-  const detail = document.createElement('div');
-  detail.className = 'av2-rr__travel-compensation';
-  const strong = document.createElement('strong');
-  strong.textContent = label;
-  detail.append(strong);
-  syntheticRow.append(detail);
-  showTimeCancelEditField(syntheticRow, form);
+  showTimeCancelEditField(row || Object.assign(document.createElement('div'), { dataset: { recordId } }), form);
 }
 
-function waitForSavedRowAndOverride(oldRow, recordId, desiredMinutes, routeContextChanged = false) {
+function waitForSavedRowAndReport(oldRow, recordId, outbound, returning, routeContextChanged = false) {
   const startedAt = Date.now();
   const timer = window.setInterval(() => {
     if (Date.now() - startedAt > 15000) {
       window.clearInterval(timer);
-      showAttendanceNotice('הדיווח נשמר, אך עדכון ביטול הזמן לא הושלם. נסו לערוך שוב.');
+      showAttendanceNotice('הדיווח נשמר, אך עדכון זמני הנסיעה לא הושלם. נסו לערוך שוב.');
       return;
     }
     const currentRow = document.querySelector(`.av2-report-row[data-record-id="${CSS.escape(recordId)}"]`);
-    if (oldRow.isConnected || !currentRow || currentRow === oldRow) return;
+    if (oldRow?.isConnected || !currentRow || currentRow === oldRow) return;
     window.clearInterval(timer);
     if (routeContextChanged) void applyRouteContextReset(recordId);
-    else void applyOverride(currentRow, recordId, desiredMinutes);
+    void applyTravelReport(currentRow, recordId, outbound, returning);
   }, 180);
 }
 
@@ -328,35 +270,31 @@ async function applyRouteContextReset(recordId) {
   applyingOverrides.add(recordId);
   try {
     await reconcileChangedTravelContext(reconcileTravelCompensation, recordId);
-    showAttendanceNotice('היעד או הפעילות השתנו; התיקון הידני אופס וביטול הזמן חושב מחדש.', 'success');
+    showAttendanceNotice('היעד או הפעילות השתנו; חישוב המערכת עודכן לבקרה בלי לדרוס את דיווח הנסיעה.', 'success');
   } catch (error) {
     console.warn('time cancellation recalculation failed:', error?.message || error);
-    showAttendanceNotice(`הדיווח נשמר, אך איפוס וחישוב ביטול הזמן נכשלו: ${error?.message || 'נסו שוב'}`);
+    showAttendanceNotice(`הדיווח נשמר, אך חישוב ביטול הזמן נכשל: ${error?.message || 'נסו שוב'}`);
   } finally {
     applyingOverrides.delete(recordId);
   }
 }
 
-async function applyOverride(row, recordId, desiredMinutes) {
+async function applyTravelReport(row, recordId, outbound, returning) {
   if (applyingOverrides.has(recordId)) return;
   applyingOverrides.add(recordId);
   try {
-    const reconciliation = await reconcileTravelCompensation(recordId);
-    if (reconciliation?.context_changed || reconciliation?.eligible === false) {
-      showAttendanceNotice('היעד או הפעילות השתנו; התיקון הידני אופס וביטול הזמן חושב מחדש.', 'success');
-      return;
-    }
-    await overrideTravelCompensation(recordId, desiredMinutes);
+    await reconcileTravelCompensation(recordId);
+    const saved = await reportTravelTime(recordId, outbound, returning);
     const cell = row.querySelector('.av2-rr__time-cancel') || updateTimeCancelCell(row);
-    if (cell) {
-      const nextText = formatMinutes(desiredMinutes);
-      if (text(cell.textContent) !== nextText) cell.textContent = nextText;
-      cell.dataset.minutes = String(desiredMinutes);
-      cell.title = 'נערך ידנית';
+    if (cell && saved?.requested_cancellation_minutes != null) {
+      cell.textContent = formatMinutes(saved.requested_cancellation_minutes);
+      cell.dataset.minutes = String(saved.requested_cancellation_minutes);
+      cell.title = instructorTravelReportStatusLabel(saved);
     }
+    showAttendanceNotice(instructorTravelReportStatusLabel(saved), 'success');
   } catch (error) {
-    console.warn('time cancellation override failed:', error?.message || error);
-    showAttendanceNotice(`הדיווח נשמר, אך עדכון ביטול הזמן נכשל: ${error?.message || 'נסו שוב'}`);
+    console.warn('travel time report failed:', error?.message || error);
+    showAttendanceNotice(`הדיווח נשמר, אך עדכון זמני הנסיעה נכשל: ${error?.message || 'נסו שוב'}`);
   } finally {
     applyingOverrides.delete(recordId);
   }

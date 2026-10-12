@@ -106,7 +106,12 @@ function legacyRecord(row = {}, travel = null, { generated = false, location = n
     returnTravelMinutes: travel?.return_travel_minutes ?? null,
     calculatedCancellationMinutes: travel?.calculated_cancellation_minutes ?? null,
     finalCancellationMinutes: travel?.final_cancellation_minutes ?? null,
-    manuallyOverridden: travel?.manually_overridden === true,
+    approvedCancellationMinutes: travel?.approved_cancellation_minutes ?? null,
+    reviewStatus: text(travel?.review_status),
+    reportedOutboundMinutes: travel?.reported_outbound_minutes ?? null,
+    reportedReturnMinutes: travel?.reported_return_minutes ?? null,
+    manuallyOverridden: travel?.manually_overridden === true
+      || text(travel?.review_status) === 'corrected',
     overrideByName: text(travel?.override_by_name),
     overrideAt: text(travel?.override_at),
     attachments,

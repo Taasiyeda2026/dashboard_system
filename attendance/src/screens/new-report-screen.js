@@ -302,11 +302,11 @@ export function renderNewReportScreen(container, {
     if (token !== baseTrainingRouteToken || !baseTrainingRouteRow?.isConnected) return;
 
     if (result?.status === 'resolved') {
-      const outbound = Number(result.outbound_travel_minutes || 0);
-      const returning = Number(result.return_travel_minutes || 0);
-      const cancellation = Number(result.cancellation_minutes || 0);
       baseTrainingRouteRow.hidden = false;
-      baseTrainingRouteRow.innerHTML = `<strong>מסלול נסיעה</strong><span>הבית שלך → Greenwork, יקום</span><small>הלוך ${formatTravelMinutes(outbound)} · חזור ${formatTravelMinutes(returning)} · ביטול זמן צפוי ${formatTravelMinutes(cancellation)}. מחושב אוטומטית — אין צורך לדווח ביטול זמן בנפרד.</small>`;
+      const reminder = result.show_travel_report_reminder
+        ? 'הנסיעה ארוכה מ־40 ק״מ בכיוון אחד — מומלץ לדווח את זמני הנסיעה בפועל לאחר השמירה.'
+        : 'לאחר השמירה ניתן לדווח זמני נסיעה בפועל (הלוך וחזור) לצורך ביטול זמן.';
+      baseTrainingRouteRow.innerHTML = `<strong>מסלול נסיעה</strong><span>הבית שלך → Greenwork, יקום</span><small>${reminder}</small>`;
     }
   }
 
@@ -1340,10 +1340,24 @@ export function renderNewReportScreen(container, {
     baseTrainingRouteRow.hidden = true;
     timesGrid.append(baseTrainingRouteRow);
     const existingCompensation = prefill?.travel_compensation;
-    if (existingCompensation?.calculation_status === 'resolved' && Number(existingCompensation.final_cancellation_minutes) > 0) {
+    if (existingCompensation) {
       const compensationRow = document.createElement('div');
       compensationRow.className = 'av2-report__time-cancellation';
-      compensationRow.innerHTML = `<strong>ביטול זמן</strong><span>${formatTravelMinutes(existingCompensation.final_cancellation_minutes)}</span><small>מחושב אוטומטית לפי זמן הנסיעה</small>`;
+      const reported = existingCompensation.reported_outbound_minutes != null
+        && existingCompensation.reported_return_minutes != null;
+      const approved = Number(existingCompensation.approved_cancellation_minutes || 0);
+      const status = existingCompensation.review_status || 'none';
+      let detail = 'ניתן לדווח זמני נסיעה בפועל (הלוך וחזור) לאחר השמירה.';
+      if (reported) {
+        detail = `דווח הלוך ${existingCompensation.reported_outbound_minutes} דק׳ · חזור ${existingCompensation.reported_return_minutes} דק׳ · סטטוס: ${status}`;
+      }
+      if (approved > 0 && (status === 'approved' || status === 'corrected')) {
+        detail += ` · מאושר לתשלום: ${formatTravelMinutes(approved)}`;
+      }
+      if (existingCompensation.show_travel_report_reminder) {
+        detail += ' · תזכורת: הנסיעה מעל 40 ק״מ בכיוון אחד.';
+      }
+      compensationRow.innerHTML = `<strong>ביטול זמן נסיעה</strong><span>${reported ? 'דיווח נסיעה נשמר' : 'טרם דווח'}</span><small>${detail}</small>`;
       timesGrid.append(compensationRow);
     }
 

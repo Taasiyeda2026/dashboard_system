@@ -6929,6 +6929,22 @@ export const api = {
     }
     return data || {};
   },
+  reviewAttendanceTravelCompensation: async ({
+    source_id,
+    decision,
+    approved_minutes = null,
+    note = null
+  } = {}) => {
+    assertPermission('view_attendance_control', 'attendance_control_forbidden');
+    const { data, error } = await supabase.rpc('av2_review_attendance_travel_compensation', {
+      p_source_id: String(source_id || '').trim(),
+      p_decision: String(decision || '').trim(),
+      p_approved_minutes: approved_minutes == null ? null : Math.max(0, Math.round(Number(approved_minutes) || 0)),
+      p_note: note == null ? null : String(note)
+    });
+    if (error) throw new Error(error.message || 'av2_review_attendance_travel_compensation_failed');
+    return data || {};
+  },
   managerFinalizeAttendanceMonthReview: async ({
     employee_id,
     month_key,

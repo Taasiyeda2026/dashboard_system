@@ -37,12 +37,12 @@ test('edit and duplicate restore base training from the saved snapshot', () => {
 });
 
 test('base training hides fixed location fields from creation and editing UI', () => {
-  assert.match(source, /setLocationFieldsVisible\(!isBaseTrainingActivity\(activity\) && !isOnlineTraining\(\) && !isScheduledTraining\(activity\)\)/);
+  assert.match(source, /setLocationFieldsVisible\(!isBaseTrainingActivity\(activity\) && !isOnlineActivity\(\) && !isScheduledTraining\(activity\)\)/);
   assert.match(reportsSource, /isBaseTraining = reportType === 'הכשרה'[\s\S]*actNameField\.input\.value\.trim\(\) === 'הכשרת בסיס'/);
-  assert.match(reportsSource, /authField\.wrap\.hidden = isOperations \|\| isBaseTraining/);
-  assert.match(reportsSource, /schoolField\.wrap\.hidden = isOperations \|\| isBaseTraining/);
-  assert.match(reportsSource, /authority_name_snapshot: isOperations \|\| isOnlineTraining \? null : \(isBaseTraining \? 'יקום'/);
-  assert.match(reportsSource, /school_name_snapshot:\s+isOperations \|\| isOnlineTraining \? null : \(isBaseTraining \? 'Greenwork'/);
+  assert.match(reportsSource, /authField\.wrap\.hidden = isOperations \|\| isBaseTraining \|\| isZoom \|\| isOnlineTraining/);
+  assert.match(reportsSource, /schoolField\.wrap\.hidden = isOperations \|\| isBaseTraining \|\| isZoom \|\| isOnlineTraining \|\| isScheduledTraining/);
+  assert.match(reportsSource, /authority_name_snapshot: isOperations \|\| isZoom \|\| isOnlineTraining \? null : \(isBaseTraining \? 'יקום'/);
+  assert.match(reportsSource, /school_name_snapshot:\s+isOperations \|\| isZoom \|\| isOnlineTraining \|\| isScheduledTraining \? null : \(isBaseTraining \? 'Greenwork'/);
 });
 
 test('attendance summary shows only supplemental meaningful details without repeating the collapsed row', () => {
@@ -69,10 +69,10 @@ test('base training shows a pre-save home-to-Greenwork route preview', () => {
   assert.match(serviceSource, /body: \{ mode: 'preview' \}/);
   assert.match(source, /getBaseTrainingRoutePreview/);
   assert.match(source, /הבית שלך → Greenwork, יקום/);
-  assert.match(source, /הלוך \$\{formatTravelMinutes\(outbound\)\}/);
-  assert.match(source, /חזור \$\{formatTravelMinutes\(returning\)\}/);
-  assert.match(source, /ביטול זמן צפוי \$\{formatTravelMinutes\(cancellation\)\}/);
-  assert.match(source, /אין צורך לדווח ביטול זמן בנפרד/);
+  assert.match(source, /show_travel_report_reminder/);
+  assert.match(source, /מעל 40 ק״מ בכיוון אחד/);
+  assert.doesNotMatch(source, /ביטול זמן צפוי/);
+  assert.doesNotMatch(source, /אין צורך לדווח ביטול זמן בנפרד/);
 });
 
 test('base training route service derives instructor home server-side and warms all active instructors', () => {

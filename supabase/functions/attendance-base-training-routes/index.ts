@@ -240,13 +240,18 @@ Deno.serve(async (req) => {
   try {
     const route = await instructorRoute(db, address, googleKey);
     const reconciliation = await reconcilePendingBaseTraining(db, empId, route);
+    const oneWayKm = Math.max(
+      Number(route.outbound_distance_km) || 0,
+      Number(route.return_distance_km) || 0
+    );
+    // Instructor preview must not expose system travel minutes / expected cancellation.
     return response({
       ok: true,
       status: 'resolved',
       destination_label: 'Greenwork, יקום',
+      show_travel_report_reminder: oneWayKm > 40,
       reconciled_pending: reconciliation.resolved,
-      reconcile_failed: reconciliation.failed,
-      ...route
+      reconcile_failed: reconciliation.failed
     });
   } catch (error) {
     return response({ ok: false, status: 'unavailable', reason: text((error as Error)?.message) || 'route_service_unavailable' }, 502);

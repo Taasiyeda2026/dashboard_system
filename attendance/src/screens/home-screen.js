@@ -282,8 +282,8 @@ function cancellationHours(records) {
     .filter((record) => !generatedSourceIds.has(String(record?.id || '')))
     .reduce((sum, record) => {
       const compensation = record?.travel_compensation;
-      if (compensation?.calculation_status !== 'resolved') return sum;
-      return sum + Math.max(0, Number(compensation?.final_cancellation_minutes || 0));
+      if (!['approved', 'corrected'].includes(compensation?.review_status)) return sum;
+      return sum + Math.max(0, Number(compensation?.approved_cancellation_minutes || 0));
     }, 0);
 
   return explicit + linkedMinutes / 60;
