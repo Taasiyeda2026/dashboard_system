@@ -161,8 +161,8 @@ begin
     coalesce(a->>'grade', ''), coalesce(a->>'class_group', ''),
     v_emp, coalesce(nullif(v_instructor->>'full_name', ''), a->>'instructor_name', ''),
     v_contact_id, coalesce(nullif(v_contact->>'contact_name', ''), a->>'contact_name', ''),
-    case when coalesce(a->>'start_date', '') ~ '^\d{4}-\d{2}-\d{2}' then left(a->>'start_date', 10)::date end,
-    case when coalesce(a->>'end_date', '') ~ '^\d{4}-\d{2}-\d{2}' then left(a->>'end_date', 10)::date end,
+    case when coalesce(a->>'start_date', '') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' then left(a->>'start_date', 10)::date end,
+    case when coalesce(a->>'end_date', '') ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' then left(a->>'end_date', 10)::date end,
     case when p_audience = 'student' then private.feedback_new_token() end,
     v_opens, p_expires_at, auth.uid()
   )
