@@ -9224,6 +9224,37 @@ select.ds-input {
   white-space: nowrap;
 }
 
+/* 2027 all-activities headline: the type breakdown sits to the left,
+   outside the existing title pill. RTL flex order is intentional. */
+.ds-activities-heading-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 0 auto;
+  width: fit-content;
+  max-width: 100%;
+  direction: rtl;
+}
+
+.ds-activities-heading-line > .ds-activities-title-row {
+  margin: 0;
+}
+
+.ds-activities-type-summary {
+  color: var(--ds-text);
+  font-size: 0.8rem;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+@media (max-width: 620px) {
+  .ds-activities-heading-line {
+    flex-wrap: wrap;
+    gap: 6px 10px;
+  }
+}
+
 /* ——— Activities main toolbar: one-row layout ——— */
 .ds-activities-main-toolbar {
   display: flex;
