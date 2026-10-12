@@ -8,9 +8,9 @@ import {
   payrollEntityFieldsEquivalent
 } from './payroll-control-identity.js';
 
-export const DETAIL_HEADERS = ['מספר עובד', 'שם עובד', 'תאריך', 'שעת התחלה', 'שעת סיום', 'שעות עבודה', 'ביטול זמן', 'סוג פעילות', 'שם בית ספר', 'רשות', 'שם תכנית', 'מספר מפגש', 'קילומטרים', 'תחבורה ציבורית', 'עלות תחבורה ציבורית', 'הוצאות', 'פירוט הוצאות', 'הערות', 'אסמכתאות'];
-export const MONTHLY_HEADERS = ['שם מדריך', 'מספר עובד', 'שעות ביטול זמן', 'שעות הכשרה', 'שעות חדר בריחה', 'שעות סדנה', 'שעות סדנאות קיץ', 'שעות סיור', 'שעות קורס', 'שעות תפעול', 'סה"כ קילומטרים', 'הוצאות', 'פירוט הוצאות', 'שעות זום', 'שעות לא מסווגות – לבדיקה', 'סה"כ שעות', 'עלות תחבורה ציבורית (₪)', 'סה"כ החזרים ללא ק"מ (₪)'];
-export const DAILY_HEADERS = ['תאריך', 'שם מדריך', 'מספר עובד', 'סוג פעילות', 'רשות', 'שעת התחלה', 'שעת סיום', 'שעות עבודה', 'ביטול זמן', 'קילומטרים', 'הוצאות', 'פירוט הוצאות', 'עלות תחבורה ציבורית (₪)', 'סה"כ החזרים ללא ק"מ (₪)'];
+export const DETAIL_HEADERS = ['מספר עובד', 'שם עובד', 'תאריך', 'שעת התחלה', 'שעת סיום', 'שעות עבודה', 'ביטול זמן', 'סוג פעילות', 'שם בית ספר', 'רשות', 'שם תכנית', 'מספר מפגש', 'קילומטרים', 'שימוש בתחבורה ציבורית', 'תחבורה ציבורית (₪)', 'הוצאות', 'פירוט הוצאות', 'הערות', 'אסמכתאות'];
+export const MONTHLY_HEADERS = ['שם מדריך', 'מספר עובד', 'שעות ביטול זמן', 'שעות הכשרה', 'שעות חדר בריחה', 'שעות סדנה', 'שעות סדנאות קיץ', 'שעות סיור', 'שעות קורס', 'שעות תפעול', 'סה"כ קילומטרים', 'הוצאות', 'פירוט הוצאות', 'שעות זום', 'שעות לא מסווגות – לבדיקה', 'סה"כ שעות', 'תחבורה ציבורית (₪)'];
+export const DAILY_HEADERS = ['תאריך', 'שם מדריך', 'מספר עובד', 'סוג פעילות', 'רשות', 'שעת התחלה', 'שעת סיום', 'שעות עבודה', 'ביטול זמן', 'קילומטרים', 'הוצאות', 'פירוט הוצאות', 'תחבורה ציבורית (₪)'];
 
 const FIELD_DEFS = [
   ['startTime', 'שעת התחלה', 'time'], ['endTime', 'שעת סיום', 'time'],
@@ -28,7 +28,7 @@ const HEADER_ALIASES = {
   meetingNo: ['מספר מפגש', 'מס מפגש', 'מפגש'], kilometers: ['קילומטרים', 'ק"מ', 'קמ', 'נסיעות'], expenses: ['הוצאות', 'סכום הוצאות'],
   expenseDetails: ['פירוט הוצאות', 'תיאור הוצאות'], notes: ['הערות', 'הערה'], activityId: ['מזהה פעילות', 'מזהה פעילות פנימי', 'rowid'],
   publicTransport: ['תחבורה ציבורית', 'public transport', 'public_transport'],
-  publicTransportCost: ['עלות תחבורה ציבורית', 'public transport cost', 'public_transport_cost'],
+  publicTransportCost: ['תחבורה ציבורית (₪)', 'עלות תחבורה ציבורית (₪)', 'עלות תחבורה ציבורית', 'public transport cost', 'public_transport_cost'],
   attachmentsNames: ['אסמכתאות', 'קבצים', 'attachments']
 };
 
@@ -1868,7 +1868,7 @@ export function buildCorrectedAttendanceWorkbook(comparisons, dashboardRows = []
   const monthly = [...monthlyMap.values()].map((item) => [
     item.name, item.id, ...item.hours.map(exportDuration), item.km, item.expenses, [...new Set(item.details)].join('; '),
     exportDuration(item.zoomHours), exportDuration(item.uncategorizedHours), exportDuration(item.totalHours),
-    item.publicTransportCost, Math.round((item.expenses + item.publicTransportCost) * 100) / 100
+    item.publicTransportCost
   ]);
   const daily = detailRows.map((row) => [
     excelDate(row.date || row.attendanceDate || row.AttendanceDate), txt(row.employeeName || row.EmployeeName), txt(row.employeeId || row.EmployeeId),
@@ -1879,15 +1879,12 @@ export function buildCorrectedAttendanceWorkbook(comparisons, dashboardRows = []
     optionalNumber(row.kilometers ?? row.Kilometers) ?? '', optionalNumber(row.expenses ?? row.totalExpenses ?? row.TotalExpenses) ?? '',
     txt(row.expenseDetails || row.expensesDetails || row.ExpensesDetails),
     asBoolean(row.publicTransport ?? row.PublicTransport ?? row.public_transport)
-      ? (optionalNumber(row.publicTransportCost ?? row.PublicTransportCost ?? row.public_transport_cost) ?? 0) : 0,
-    (optionalNumber(row.expenses ?? row.totalExpenses ?? row.TotalExpenses) ?? 0)
-      + (asBoolean(row.publicTransport ?? row.PublicTransport ?? row.public_transport)
-        ? (optionalNumber(row.publicTransportCost ?? row.PublicTransportCost ?? row.public_transport_cost) ?? 0) : 0)
+      ? (optionalNumber(row.publicTransportCost ?? row.PublicTransportCost ?? row.public_transport_cost) ?? 0) : 0
   ]);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, detailSheet, 'פירוט מלא');
   XLSX.utils.book_append_sheet(workbook, styledSheet(MONTHLY_HEADERS, monthly), 'סיכום חודשי');
-  XLSX.utils.book_append_sheet(workbook, styledSheet(DAILY_HEADERS, daily, [12, 18, 12, 14, 16, 11, 11, 11, 11, 12, 12, 24, 16, 18]), 'תצוגה יומית');
+  XLSX.utils.book_append_sheet(workbook, styledSheet(DAILY_HEADERS, daily, [12, 18, 12, 14, 16, 11, 11, 11, 11, 12, 12, 24, 16]), 'תצוגה יומית');
   return workbook;
 }
 
