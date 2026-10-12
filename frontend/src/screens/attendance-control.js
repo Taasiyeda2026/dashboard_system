@@ -2382,21 +2382,31 @@ export function resultsHtml(result, month = '', options = {}) {
       || isAttendanceTravelTimeCancellation(entry || row);
     const minutesLabel = (value) => `${Math.floor((Number(value) || 0) / 60)}:${String((Number(value) || 0) % 60).padStart(2, '0')}`;
 
-    if (autoCancellation) {
-      const calculated = source.calculatedCancellationMinutes != null ? minutesLabel(source.calculatedCancellationMinutes) : displayWorkHours(display);
-      const finalValue = source.finalCancellationMinutes != null ? minutesLabel(source.finalCancellationMinutes) : displayWorkHours(display);
-      const sourceLabel = row.program || row.school || 'פעילות מקור';
-      const unresolved = !entryResolvedLabel(entry || {});
+    if (autoCancellation || source.reviewStatus || source.reportedOutboundMinutes != null) {
+      const calculated = source.calculatedCancellationMinutes != null ? minutesLabel(source.calculatedCancellationMinutes) : '—';
+      const reportedCancel = (source.reportedOutboundMinutes != null && source.reportedReturnMinutes != null)
+        ? minutesLabel(Math.max(0, Number(source.reportedOutboundMinutes) - 45) + Math.max(0, Number(source.reportedReturnMinutes) - 45))
+        : 'טרם דווח';
+      const approvedValue = source.approvedCancellationMinutes != null
+        ? minutesLabel(source.approvedCancellationMinutes)
+        : 'טרם אושר';
+      const reviewStatus = source.reviewStatus || 'none';
+      const needsDecision = ['awaiting_report', 'auto_matched', 'pending_review'].includes(reviewStatus);
+      const sourceId = escapeHtml(source.sourceAttendanceRecordId || entryRecordId(entry) || '');
       const rows = [
-        ['תאריך', dateLabel(row.date), dateLabel(row.date), false],
-        ['סוג פעילות', 'ביטול זמן', 'ביטול זמן', false],
-        ['מקור הפעילות', sourceLabel, sourceLabel, false],
-        ['ביטול זמן', finalValue, calculated, unresolved]
-      ].map(([label, left, right, issue]) => `<tr class="${issue ? 'attendance-control__comparison-row--issue' : ''}"><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td>${shown(right)}</td><td><span class="attendance-control__status-pill ${issue ? 'attendance-control__status-pill--issue' : 'attendance-control__status-pill--info'}">${issue ? 'ממתין לאישור' : 'תואם'}</span></td><td><span class="attendance-control__no-action">—</span></td></tr>`).join('');
-      const override = source.manuallyOverridden
-        ? `<p class="attendance-control__manual-note"><strong>ביטול זמן: ${escapeHtml(finalValue)}</strong><br>נערך ידנית${source.overrideByName ? ` על ידי ${escapeHtml(source.overrideByName)}` : ''}</p>`
-        : `<p class="attendance-control__manual-note"><strong>ביטול זמן: ${escapeHtml(finalValue)}</strong><br>מחושב אוטומטית לפי זמן הנסיעה</p>`;
-      return `<div class="attendance-control__comparison-wrap"><p class="attendance-control__comparison-title">בדיקת ביטול זמן</p><table class="attendance-control__comparison-table attendance-control__parameter-table"><thead><tr><th>פרמטר</th><th>נוכחות</th><th>חישוב מערכת</th><th>סטטוס</th><th>פעולות</th></tr></thead><tbody>${rows}</tbody></table>${override}</div>${attachmentsHtml(display)}`;
+        ['דיווח מדריך (הלוך/חזור)', source.reportedOutboundMinutes != null ? `${source.reportedOutboundMinutes}/${source.reportedReturnMinutes}` : '—', '—', needsDecision && reviewStatus === 'awaiting_report'],
+        ['ביטול זמן מבוקש', reportedCancel, calculated, reviewStatus === 'pending_review'],
+        ['מאושר לתשלום', approvedValue, calculated, needsDecision]
+      ].map(([label, left, right, issue]) => `<tr class="${issue ? 'attendance-control__comparison-row--issue' : ''}"><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td>${shown(right)}</td><td><span class="attendance-control__status-pill ${issue ? 'attendance-control__status-pill--issue' : 'attendance-control__status-pill--info'}">${issue ? escapeHtml(reviewStatus) : 'תואם/סגור'}</span></td><td><span class="attendance-control__no-action">—</span></td></tr>`).join('');
+      const actions = needsDecision
+        ? `<div class="attendance-control__travel-review-actions" data-travel-source-id="${sourceId}">
+            <button type="button" class="ds-btn ds-btn--sm" data-travel-review="approve">אישור</button>
+            <button type="button" class="ds-btn ds-btn--sm" data-travel-review="reject">דחייה</button>
+            <label>תיקון דקות <input class="ds-input ds-input--sm" type="number" min="0" step="1" data-travel-correct-minutes></label>
+            <button type="button" class="ds-btn ds-btn--sm" data-travel-review="correct">תיקון</button>
+          </div>`
+        : `<p class="attendance-control__manual-note">סטטוס בקרה: ${escapeHtml(reviewStatus)} · מאושר: ${escapeHtml(approvedValue)}</p>`;
+      return `<div class="attendance-control__comparison-wrap"><p class="attendance-control__comparison-title">בדיקת ביטול זמן</p><table class="attendance-control__comparison-table attendance-control__parameter-table"><thead><tr><th>פרמטר</th><th>דיווח מדריך</th><th>חישוב מערכת</th><th>סטטוס</th><th>פעולות</th></tr></thead><tbody>${rows}</tbody></table>${actions}</div>${attachmentsHtml(display)}`;
     }
 
     return `${parameterReviewTable(entry || { attendance: row, final: display, differences: [] }, { attendanceOnly: true, attachedCancellation })}${attachmentsHtml(display)}`;
@@ -3029,6 +3039,39 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     const findEntry = (entryId) => (
       [...(result?.comparisons || []), ...(result?.notCompared || [])].find((entry) => entry.id === entryId) || null
     );
+
+    const travelReviewBtn = clickEl.closest('[data-travel-review]');
+    if (travelReviewBtn) {
+      const wrap = travelReviewBtn.closest('[data-travel-source-id]');
+      const sourceId = txt(wrap?.dataset?.travelSourceId);
+      const decision = txt(travelReviewBtn.dataset.travelReview);
+      if (!sourceId || !api?.reviewAttendanceTravelCompensation) {
+        setStatusMessage('בקרת ביטול זמן אינה זמינה כרגע.', { error: true });
+        return;
+      }
+      let approvedMinutes = null;
+      if (decision === 'correct') {
+        approvedMinutes = Number(wrap?.querySelector('[data-travel-correct-minutes]')?.value);
+        if (!Number.isFinite(approvedMinutes) || approvedMinutes < 0) {
+          setStatusMessage('יש להזין דקות מאושרות לתיקון.', { error: true });
+          return;
+        }
+      }
+      travelReviewBtn.disabled = true;
+      try {
+        await api.reviewAttendanceTravelCompensation({
+          source_id: sourceId,
+          decision,
+          approved_minutes: approvedMinutes
+        });
+        await loadAttendanceReview({ successMessage: 'החלטת ביטול הזמן נשמרה.' });
+      } catch (error) {
+        setStatusMessage(error?.message || 'שמירת החלטת ביטול הזמן נכשלה.', { error: true });
+      } finally {
+        travelReviewBtn.disabled = false;
+      }
+      return;
+    }
 
     const addRecordBtn = clickEl.closest('[data-attendance-add-record]');
     if (addRecordBtn && result) {

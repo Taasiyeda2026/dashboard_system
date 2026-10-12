@@ -18,7 +18,7 @@ import { openAttendanceCalendarDay } from '../components/calendar-day-drawer.js'
 import { loadAttendanceCalendarContext } from '../services/calendar.service.js';
 import { getMonthRecords, calcMonthSummary, updateRecord, deleteRecord,
          getMonthApproval, getActivityTypes, getOperationOptions, deleteAttachmentRecord, sourceAttendanceRecords,
-         generatedCancellationFor, overrideTravelCompensation,
+         generatedCancellationFor, reportTravelTime,
          getMonthDashboardValidation } from '../services/attendance.service.js';
 import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel } from '../services/month-gate.service.js';
 import { calcHours, ONLINE_REPORT_TYPE, OPERATIONS_REPORT_TYPE } from '../services/activities.service.js';
@@ -470,34 +470,58 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
   }
 
   const compensation = record.travel_compensation;
-  if (compensation?.calculation_status === 'resolved' && Number.isFinite(Number(compensation.final_cancellation_minutes))) {
+  if (compensation) {
     const detail = document.createElement('div');
     detail.className = 'av2-rr__travel-compensation';
     const text = document.createElement('span');
-    text.innerHTML = `<strong aria-label="משך ביטול זמן">${formatCancellationMinutes(compensation.final_cancellation_minutes)}</strong>`;
+    const approved = Number(compensation.approved_cancellation_minutes);
+    const requested = Number(compensation.requested_cancellation_minutes);
+    const label = Number.isFinite(approved) && approved >= 0 && ['approved', 'corrected'].includes(compensation.review_status)
+      ? formatCancellationMinutes(approved)
+      : Number.isFinite(requested)
+        ? formatCancellationMinutes(requested)
+        : 'טרם דווח';
+    text.innerHTML = `<strong aria-label="משך ביטול זמן">${label}</strong>`;
     detail.append(text);
-    if (compensation.manually_overridden) {
-      const audit = document.createElement('span');
-      audit.className = 'av2-rr__travel-audit';
-      audit.textContent = `תוקן ידנית (אוטומטי: ${formatCancellationMinutes(compensation.calculated_cancellation_minutes)})`;
-      audit.title = compensation.override_at ? `עודכן ${new Date(compensation.override_at).toLocaleString('he-IL')}` : 'נערך ידנית';
-      detail.append(audit);
+    const audit = document.createElement('span');
+    audit.className = 'av2-rr__travel-audit';
+    const bits = [];
+    if (compensation.reported_outbound_minutes != null && compensation.reported_return_minutes != null) {
+      bits.push(`הלוך ${compensation.reported_outbound_minutes} · חזור ${compensation.reported_return_minutes}`);
     }
-    if (editable) {
+    if (compensation.review_status && compensation.review_status !== 'none') {
+      bits.push(`סטטוס: ${compensation.review_status}`);
+    }
+    if (compensation.show_travel_report_reminder) bits.push('תזכורת: מעל 40 ק״מ בכיוון אחד');
+    audit.textContent = bits.join(' · ') || 'ניתן לדווח זמני נסיעה';
+    detail.append(audit);
+    if (editable && !['approved', 'corrected', 'rejected'].includes(compensation.review_status)) {
       const edit = document.createElement('button');
-      edit.type = 'button'; edit.className = 'av2-btn av2-btn--link'; edit.textContent = 'עריכה';
+      edit.type = 'button'; edit.className = 'av2-btn av2-btn--link'; edit.textContent = 'דיווח נסיעה';
       edit.addEventListener('click', () => {
         edit.hidden = true;
-        const input = document.createElement('input');
-        input.type = 'number'; input.min = '0'; input.step = '1'; input.value = String(compensation.final_cancellation_minutes);
-        input.className = 'av2-rr__travel-minutes'; input.setAttribute('aria-label', 'משך ביטול זמן בדקות');
+        const out = document.createElement('input');
+        out.type = 'number'; out.min = '0'; out.step = '1';
+        out.value = String(compensation.reported_outbound_minutes ?? '');
+        out.className = 'av2-rr__travel-minutes'; out.setAttribute('aria-label', 'דקות נסיעה הלוך');
+        out.placeholder = 'הלוך';
+        const ret = document.createElement('input');
+        ret.type = 'number'; ret.min = '0'; ret.step = '1';
+        ret.value = String(compensation.reported_return_minutes ?? '');
+        ret.className = 'av2-rr__travel-minutes'; ret.setAttribute('aria-label', 'דקות נסיעה חזור');
+        ret.placeholder = 'חזור';
         const save = document.createElement('button'); save.type = 'button'; save.className = 'av2-btn av2-btn--link'; save.textContent = 'שמירה';
         save.addEventListener('click', async () => {
           save.disabled = true;
-          try { await overrideTravelCompensation(record.id, Number(input.value)); onRefresh(); }
-          catch (error) { save.disabled = false; save.textContent = error.message || 'השמירה נכשלה'; }
+          try {
+            await reportTravelTime(record.id, Number(out.value), Number(ret.value));
+            onRefresh();
+          } catch (error) {
+            save.disabled = false;
+            save.textContent = error.message || 'השמירה נכשלה';
+          }
         });
-        detail.append(input, save); input.focus(); input.select();
+        detail.append(out, ret, save); out.focus();
       });
       detail.append(edit);
     }

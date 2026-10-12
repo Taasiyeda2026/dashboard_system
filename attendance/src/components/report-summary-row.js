@@ -124,12 +124,19 @@ export function createReportSummaryRow(record, options = {}) {
   const compensation = record.travel_compensation;
   const travel = document.createElement('span');
   travel.className = 'av2-report-summary-row__travel';
-  if (compensation?.calculation_status === 'resolved' && Number(compensation.final_cancellation_minutes) > 0) {
-    travel.textContent = formatTravelMinutes(compensation.final_cancellation_minutes);
-    travel.setAttribute('aria-label', `זמן נסיעה מזכה ${travel.textContent}`);
-  } else if (compensation && compensation.calculation_status !== 'resolved') {
+  if (
+    compensation
+    && ['approved', 'corrected'].includes(compensation.review_status)
+    && Number(compensation.approved_cancellation_minutes) > 0
+  ) {
+    travel.textContent = formatTravelMinutes(compensation.approved_cancellation_minutes);
+    travel.setAttribute('aria-label', `ביטול זמן מאושר ${travel.textContent}`);
+  } else if (compensation?.review_status === 'pending_review' || compensation?.review_status === 'auto_matched') {
     travel.classList.add('av2-report-summary-row__pending');
-    travel.textContent = 'חישוב נסיעה ממתין';
+    travel.textContent = 'ממתין לבקרת מנהל';
+  } else if (compensation?.review_status === 'awaiting_report' || compensation?.show_travel_report_reminder) {
+    travel.classList.add('av2-report-summary-row__pending');
+    travel.textContent = 'מומלץ לדווח זמני נסיעה';
   } else {
     travel.hidden = true;
   }
