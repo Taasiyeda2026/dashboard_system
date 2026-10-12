@@ -451,7 +451,7 @@ test('attendance shows unclassified hours, preserving sums and grouping, when re
 
 test('attendance table uses subtle column separators in headers and data cells', () => {
   const css = readFileSync(new URL('../frontend/src/styles/finance-attendance-payroll.css', import.meta.url), 'utf8');
-  assert.match(css, /\\.ds-fin-att-table th,\\s*\\.ds-fin-att-table td\\s*\\{[^}]*border-inline-start:\\s*1px solid #d7e6ec/s);
+  assert.match(css, /\.ds-fin-att-table th,\s*\.ds-fin-att-table td\s*\{[^}]*border-inline-start:\s*1px solid #d7e6ec/s);
 });
 
 test('attendance export type normalization defaults to full workbook', () => {
