@@ -853,7 +853,7 @@ test('completion rows count first half from 1 September and exclude explicit sec
   const activities = [
     { ...baseCourse, row_id: 'sep1', activity_type: 'course', start_date: '2026-09-01', date_1: '2026-09-01', emp_id: '1', instructor_name: 'א' },
     { ...baseCourse, row_id: 'undated', activity_type: 'course', sessions: 10 },
-    { ...baseCourse, row_id: 'sep14', activity_type: 'workshop', start_date: '2026-09-14', date_1: '2026-09-14', emp_id: '2', instructor_name: 'ב' },
+    { ...baseCourse, row_id: 'sep14', activity_type: 'course', start_date: '2026-09-14', date_1: '2026-09-14', emp_id: '2', instructor_name: 'ב' },
     { ...baseCourse, row_id: 'second', activity_type: 'course', start_date: '2027-02-01', date_1: '2027-02-01' }
   ];
   const rows = buildPlanningCompletionRows({ activities, planningRows: [] });
