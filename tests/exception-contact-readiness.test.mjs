@@ -12,7 +12,7 @@ const selected={id:10,school_id:123,contact_name:'איש קשר נבחר',email:
 
 test('only the explicitly selected school contact is eligible; never infer from another contact or legacy activity email',()=>{
   assert.equal(selectedContactIssue({...base,school_contact_id:null,contact_email:'fallback@school.org.il'},selected),'missing_selection');
-  assert.equal(selectedContactIssue(base,{...selected,id:11, email:''}),'missing_email'); // helper checks resolved contact only; loader resolves exact ID
+  assert.equal(selectedContactIssue(base,{...selected,id:11, email:''}),'broken_selection');
   const audit=buildContactReadinessAudit([base],[
     {...selected,id:11,email:'other@school.org.il'},
     {...selected,id:10,email:''}
@@ -59,8 +59,8 @@ test('audit classifies selected email, invalid formatting, mismatched school and
 test('exceptions screen keeps district view intact and loads contact view independently from Supabase',()=>{
  const screen=readFileSync(new URL('../frontend/src/screens/exceptions.js',import.meta.url),'utf8');
  const audit=readFileSync(new URL('../frontend/src/screens/exception-contact-audit.js',import.meta.url),'utf8');
- assert.match(screen,/\['districts', 'מחוזות'\]/);
- assert.match(screen,/\['contacts', 'פרטי אנשי קשר'\]/);
+ assert.match(screen,/EXCEPTIONS_INNER_DISTRICTS, 'מחוזות'/);
+ assert.match(screen,/EXCEPTIONS_INNER_CONTACTS, 'פרטי אנשי קשר'/);
  assert.match(screen,/data-exception-inner-tab/);
  assert.match(screen,/exceptionContactsHtml\(state\?\.exceptionsContactAudit, state\)/);
  assert.match(screen,/loadContactReadinessAudit\(\)/);
