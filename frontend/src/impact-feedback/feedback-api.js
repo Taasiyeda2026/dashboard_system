@@ -3,6 +3,7 @@
  * (RLS admin policies / admin-checked SECURITY DEFINER RPCs).
  */
 import { supabase } from '../supabase-client.js';
+import { isElementaryPaperTemplate } from './feedback-paper-pdf-eligibility.js';
 
 const ERROR_MESSAGES = {
   feedback_forbidden: 'אין הרשאה – רק אדמין מנהל את מודול המשובים',
@@ -22,7 +23,8 @@ const ERROR_MESSAGES = {
   feedback_version_not_draft: 'ניתן לפרסם רק טיוטה',
   feedback_instructor_scope_program: 'משוב מדריך נפתח לפי מדריך ותוכנית, לא לפי קבוצה',
   feedback_instructor_not_assigned: 'לא נמצא שיבוץ פעיל של המדריך לתוכנית הזו',
-  feedback_invalid_academic_year: 'שנת הפעילות אינה תקינה'
+  feedback_invalid_academic_year: 'שנת הפעילות אינה תקינה',
+  feedback_pdf_elementary_only: 'PDF זמין רק למשובי תלמידים בתוכניות יסודי'
 };
 
 export function translateFeedbackError(error) {
@@ -256,6 +258,8 @@ export async function downloadSavedPaperPdf(record) {
 export async function uploadSavedPaperPdf(template, file, language = 'he') {
   if (!['he', 'ar'].includes(language)) throw new Error('שפת PDF אינה תקינה');
   if (!template?.id || !template.current_version_id) throw new Error('יש לפרסם את התבנית לפני העלאת PDF');
+  const program = await unwrap(client().from('feedback_programs').select('key,education_level').eq('key', template.program_key).maybeSingle());
+  if (!isElementaryPaperTemplate(template, program)) throw new Error('feedback_pdf_elementary_only');
   if (!(file instanceof File) || !/\.pdf$/i.test(file.name) || (file.type && file.type !== 'application/pdf') || file.size < 10 || file.size > 10485760) {
     throw new Error('ניתן להעלות PDF בלבד, עד 10MB');
   }
