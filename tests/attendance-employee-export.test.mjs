@@ -31,6 +31,13 @@ test('employee workbook uses curated columns, H:MM hours and a populated daily s
   assert.deepEqual(detail[0], DETAIL_HEADERS);
   assert.deepEqual(monthly[0], MONTHLY_HEADERS);
   assert.deepEqual(daily[0], DAILY_HEADERS);
+  // UI simplification must apply to every admin workbook tab, not just finance.
+  for (const headers of [detail[0], monthly[0], daily[0]]) {
+    assert.ok(headers.includes('תחבורה ציבורית (₪)'), 'fare amount stays individually visible');
+    assert.ok(!headers.some((header) => /החזרים ללא ק[״"]מ/.test(String(header))), 'aggregate reimbursement column is removed');
+    assert.ok(!headers.includes('עלות תחבורה ציבורית (₪)'), 'outdated fare header is removed');
+  }
+  assert.ok(detail[0].includes('שימוש בתחבורה ציבורית'), 'detail still records whether transit was used');
   assert.equal(detail[0].includes('recordId'), false);
   assert.equal(detail[0].includes('generationKind'), false);
   assert.equal(detail[1][5], '2:00');

@@ -272,7 +272,6 @@ function attendanceTableHtml(entries = []) {
       <td class="ds-fin-num">${escapeHtml(String(Number(entry.kilometers) || 0))}</td>
       <td class="ds-fin-num">${escapeHtml(formatExpenseMoney(entry.publicTransportCost || 0))}</td>
       <td class="ds-fin-expense-cell-wrap">${expenseCell}</td>
-      <td class="ds-fin-num">${escapeHtml(formatExpenseMoney(entry.totalReimbursements || 0))}</td>
       <td class="ds-fin-file-cell">${fileCell}</td>
       <td class="ds-fin-att-notes"><span title="${escapeHtml(entry.notes || '')}">${escapeHtml(entry.notes || '')}</span></td>
     </tr>`;
@@ -282,7 +281,7 @@ function attendanceTableHtml(entries = []) {
       <col class="ds-fin-col-team"><col class="ds-fin-col-employee"><col class="ds-fin-col-employment"><col class="ds-fin-col-days">
       ${visibleHourCategories.map(() => '<col class="ds-fin-col-hour">').join('')}
       <col class="ds-fin-col-hour"><col class="ds-fin-col-km">
-      <col class="ds-fin-col-expenses"><col class="ds-fin-col-expenses"><col class="ds-fin-col-expenses">
+      <col class="ds-fin-col-expenses"><col class="ds-fin-col-expenses">
       <col class="ds-fin-col-file"><col class="ds-fin-col-notes">
     </colgroup>
     <thead>
@@ -296,7 +295,6 @@ function attendanceTableHtml(entries = []) {
         <th rowspan="2" class="ds-fin-num">סה״כ ק״מ</th>
         <th rowspan="2">תחבורה ציבורית (₪)</th>
         <th rowspan="2">הוצאות (₪)</th>
-        <th rowspan="2">סה״כ החזרים ללא ק״מ (₪)</th>
         <th rowspan="2">קובץ</th>
         <th rowspan="2">הערות</th>
       </tr>

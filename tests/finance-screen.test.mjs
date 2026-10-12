@@ -454,6 +454,37 @@ test('attendance table uses subtle column separators in headers and data cells',
   assert.match(css, /\.ds-fin-att-table th,\s*\.ds-fin-att-table td\s*\{[^}]*border-inline-start:\s*1px solid #d7e6ec/s);
 });
 
+test('finance attendance screen shows transit fare and expense columns without aggregate reimbursements', () => {
+  const data = createFinanceVisitState();
+  data.view = 'attendance';
+  data.attendanceByMonth[data.attendanceMonth] = {
+    approvals: [approval({
+      rows: [snapshotRow({
+        activityType: 'תפעול',
+        workHours: 2,
+        publicTransport: true,
+        publicTransportCost: 89,
+        expenses: 25,
+        kilometers: 0
+      })]
+    })]
+  };
+  const dom = new JSDOM(financeScreen.render(data, { state: { user: financeUser } }));
+  const table = dom.window.document.querySelector('.ds-fin-att-table');
+  const headings = [...table.querySelectorAll('thead th')].map((cell) => cell.textContent.trim());
+  assert.ok(headings.includes('תחבורה ציבורית (₪)'));
+  assert.ok(headings.includes('הוצאות (₪)'));
+  assert.ok(!headings.includes('סה״כ החזרים ללא ק״מ (₪)'));
+  assert.ok(!headings.includes('עלות תחבורה ציבורית (₪)'));
+  assert.equal(table.querySelectorAll('col').length, table.querySelectorAll('tbody tr:first-child td').length);
+  assert.match(table.querySelector('tbody').textContent, /₪89/);
+  assert.match(table.querySelector('tbody').textContent, /₪25/);
+  assert.ok(FINANCE_ATTENDANCE_COLUMNS.includes('תחבורה ציבורית (₪)'));
+  assert.ok(!FINANCE_ATTENDANCE_COLUMNS.includes('סה״כ החזרים ללא ק״מ (₪)'));
+  assert.ok(FINANCE_MAOF_DAILY_COLUMNS.includes('תחבורה ציבורית (₪)'));
+  assert.ok(!FINANCE_MAOF_DAILY_COLUMNS.includes('סה״כ החזרים ללא ק״מ (₪)'));
+});
+
 test('attendance export type normalization defaults to full workbook', () => {
   assert.equal(normalizeFinanceAttendanceExportType(''), FINANCE_ATTENDANCE_EXPORT_FULL);
   assert.equal(normalizeFinanceAttendanceExportType('MAOF'), FINANCE_ATTENDANCE_EXPORT_MAOF);

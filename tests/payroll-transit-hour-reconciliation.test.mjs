@@ -60,10 +60,11 @@ test('all approved Zoom hours and transit fares reconcile to the source snapshot
   const workbook = buildFinanceAttendanceWorkbook(result.rows, { approvals });
   const data = aoa(workbook, FINANCE_ATTENDANCE_GENERAL_SHEET);
   const idx = (heading) => data[0].indexOf(heading);
-  assert.ok(idx('עלות תחבורה ציבורית (₪)') >= 0);
-  assert.equal(data[1][idx('עלות תחבורה ציבורית (₪)')], 89);
+  assert.ok(idx('תחבורה ציבורית (₪)') >= 0);
+  assert.equal(data[1][idx('תחבורה ציבורית (₪)')], 89);
   assert.equal(data[1][idx('הוצאות')], 0);
-  assert.equal(data[1][idx('סה״כ החזרים ללא ק״מ (₪)')], 89);
+  assert.equal(data[0].includes('עלות תחבורה ציבורית (₪)'), false);
+  assert.equal(idx('סה״כ החזרים ללא ק״מ (₪)'), -1);
   assert.ok(Math.abs(data[1][idx('סה״כ שעות')] - 5.36 / 24) < 0.000001);
   assert.ok(Math.abs(data[1][idx('זום')] - 1.83 / 24) < 0.000001);
   assert.equal(FINANCE_HOUR_CATEGORIES.some((x) => x.key === 'zoom'), true);
@@ -106,9 +107,10 @@ test('approved attendance monthly and daily sheets retain Zoom hours and public 
   const col = (heading) => monthly[0].indexOf(heading);
   assert.equal(monthly[1][col('שעות זום')], formatDurationHours(1.83));
   assert.equal(monthly[1][col('סה"כ שעות')], formatDurationHours(5.36));
-  assert.equal(monthly[1][col('עלות תחבורה ציבורית (₪)')], 89);
-  assert.equal(monthly[1][col('סה"כ החזרים ללא ק"מ (₪)')], 89);
-  const fareCol = daily[0].indexOf('עלות תחבורה ציבורית (₪)');
+  assert.equal(monthly[1][col('תחבורה ציבורית (₪)')], 89);
+  assert.equal(col('סה"כ החזרים ללא ק"מ (₪)'), -1);
+  assert.equal(daily[0].includes('סה"כ החזרים ללא ק"מ (₪)'), false);
+  const fareCol = daily[0].indexOf('תחבורה ציבורית (₪)');
   assert.equal(daily.slice(1).reduce((sum, row) => sum + Number(row[fareCol] || 0), 0), 89);
 });
 
@@ -119,8 +121,8 @@ test('Maof daily report includes transit fare exactly once when a day has multip
   ], 'מעוף')];
   const rows = buildMaofDailyExcelRows(approvals);
   assert.equal(rows.length, 2);
-  assert.equal(rows.reduce((sum, row) => sum + Number(row['עלות תחבורה ציבורית (₪)'] || 0), 0), 30);
+  assert.equal(rows.reduce((sum, row) => sum + Number(row['תחבורה ציבורית (₪)'] || 0), 0), 30);
   assert.equal(rows.reduce((sum, row) => sum + Number(row['הוצאות (₪)'] || 0), 0), 5);
-  assert.equal(rows.reduce((sum, row) => sum + Number(row['סה״כ החזרים ללא ק״מ (₪)'] || 0), 0), 35);
+  assert.ok(rows.every((row) => !Object.hasOwn(row, 'סה״כ החזרים ללא ק״מ (₪)')));
   assert.deepEqual(auditFinanceAttendanceReconciliation([], approvals, FINANCE_ATTENDANCE_EXPORT_MAOF), []);
 });

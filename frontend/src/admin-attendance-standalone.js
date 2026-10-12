@@ -451,7 +451,7 @@ export function approvedSnapshotPreviewHtml(result = {}, employee = {}, monthKey
       <article><span>רשומות</span><strong>${rows.length}</strong></article>
       <article><span>שעות מאושרות</span><strong>${totalHours.toFixed(2)}</strong></article>
       <article><span>קילומטרים</span><strong>${totalKm.toFixed(1)}</strong></article>
-      <article><span>תחבורה ציבורית</span><strong>${approvedMoney(publicTransportCost)}</strong></article>
+      <article><span>תחבורה ציבורית (₪)</span><strong>${approvedMoney(publicTransportCost)}</strong></article>
       <article><span>הוצאות אחרות</span><strong>${approvedMoney(totalExpenses)}</strong></article>
       <article><span>סה״כ החזרים</span><strong>${approvedMoney(totalReimbursements)}</strong></article>
     </div>
