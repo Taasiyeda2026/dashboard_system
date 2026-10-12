@@ -34,6 +34,8 @@
   padding: 8px 7px;
   vertical-align: middle;
   border-bottom-color: #e5eef2;
+  /* Subtle vertical rules keep grouped hour headers aligned with each row. */
+  border-inline-start: 1px solid #d7e6ec;
 }
 
 .ds-fin-att-table thead th {

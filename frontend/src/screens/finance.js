@@ -246,10 +246,15 @@ function expenseDialogHtml(entry = {}) {
 
 function attendanceTableHtml(entries = []) {
   if (!entries.length) return dsEmptyState('אין דיווחי נוכחות מאושרים להעברה לשכר בחודש זה.');
-  const hourHeaders = FINANCE_HOUR_CATEGORIES.map((item) => `<th class="ds-fin-num">${escapeHtml(item.label)}</th>`).join('');
+  // The unclassified category is a safety net, but a zero-only column distracts
+  // from the approved payroll totals. Keep it available when any hours need review.
+  const visibleHourCategories = FINANCE_HOUR_CATEGORIES.filter((item) =>
+    item.key !== 'uncategorized' || entries.some((entry) => Number(entry.hours?.uncategorized) > 0)
+  );
+  const hourHeaders = visibleHourCategories.map((item) => `<th class="ds-fin-num">${escapeHtml(item.label)}</th>`).join('');
   const dialogs = entries.map(expenseDialogHtml).join('');
   const body = entries.map((entry) => {
-    const hourCells = FINANCE_HOUR_CATEGORIES.map((item) => `<td class="ds-fin-num">${escapeHtml(formatHours(entry.hours?.[item.key]))}</td>`).join('');
+    const hourCells = visibleHourCategories.map((item) => `<td class="ds-fin-num">${escapeHtml(formatHours(entry.hours?.[item.key]))}</td>`).join('');
     const fileCell = entry.hasFile
       ? `<button type="button" class="ds-fin-file" data-finance-file="${escapeHtml(entry.employeeId)}" title="פתיחת קובץ" aria-label="פתיחת קובץ">${hubIcon('file')}</button>`
       : '';
@@ -275,7 +280,7 @@ function attendanceTableHtml(entries = []) {
   return `${dsTableWrap(`<table class="ds-table ds-fin-att-table" dir="rtl">
     <colgroup>
       <col class="ds-fin-col-team"><col class="ds-fin-col-employee"><col class="ds-fin-col-employment"><col class="ds-fin-col-days">
-      ${FINANCE_HOUR_CATEGORIES.map(() => '<col class="ds-fin-col-hour">').join('')}
+      ${visibleHourCategories.map(() => '<col class="ds-fin-col-hour">').join('')}
       <col class="ds-fin-col-hour"><col class="ds-fin-col-km">
       <col class="ds-fin-col-expenses"><col class="ds-fin-col-expenses"><col class="ds-fin-col-expenses">
       <col class="ds-fin-col-file"><col class="ds-fin-col-notes">
@@ -286,7 +291,7 @@ function attendanceTableHtml(entries = []) {
         <th rowspan="2">שם העובד</th>
         <th rowspan="2">סוג העסקה</th>
         <th rowspan="2" class="ds-fin-num">ימי עבודה</th>
-        <th colspan="${FINANCE_HOUR_CATEGORIES.length}">שעות לפי סוג פעילות</th>
+        <th colspan="${visibleHourCategories.length}">שעות לפי סוג פעילות</th>
         <th rowspan="2" class="ds-fin-num">סה״כ שעות</th>
         <th rowspan="2" class="ds-fin-num">סה״כ ק״מ</th>
         <th rowspan="2">תחבורה ציבורית (₪)</th>
