@@ -566,8 +566,70 @@ function appendMaofDailySheet(workbook, approvals = []) {
   XLSX.utils.book_append_sheet(workbook, sheet, FINANCE_MAOF_SHEET);
 }
 
+/**
+ * Immutable-approval reconciliation. Export must not silently discard hours or
+ * employee-funded transit. It never updates approved payroll records.
+ */
+export function auditFinanceAttendanceReconciliation(entries = [], approvals = [], exportType = FINANCE_ATTENDANCE_EXPORT_FULL) {
+  const type = normalizeFinanceAttendanceExportType(exportType);
+  const expectedByEmployee = new Map();
+  for (const approval of filterApprovalsForExportType(approvals, type)) {
+    if (!isFinalPayrollApproval(approval)) continue;
+    const rows = snapshotRows(approval);
+    const id = employeeIdOf(approval) || employeeIdOf(approval.approved_snapshot) || employeeIdOf(rows[0]);
+    if (!id) continue;
+    const expected = expectedByEmployee.get(id) || { hours: 0, transport: 0, expenses: 0 };
+    for (const row of rows) {
+      expected.hours += num(row.workHours ?? row.WorkHours);
+      expected.expenses += num(row.expenses ?? row.totalExpenses ?? row.TotalExpenses);
+      if (row.publicTransport === true || row.publicTransport === 'true' || row.publicTransport === 1) {
+        expected.transport += num(row.publicTransportCost ?? row.PublicTransportCost ?? row.public_transport_cost);
+      }
+    }
+    expectedByEmployee.set(id, expected);
+  }
+  if (!expectedByEmployee.size) return [];
+
+  const actualByEmployee = new Map();
+  if (type === FINANCE_ATTENDANCE_EXPORT_MAOF) {
+    for (const row of buildMaofDailyExcelRows(approvals)) {
+      const id = txt(row['מספר עובד']);
+      const actual = actualByEmployee.get(id) || { transport: 0, expenses: 0 };
+      actual.transport += num(row['עלות תחבורה ציבורית (₪)']);
+      actual.expenses += num(row['הוצאות (₪)']);
+      actualByEmployee.set(id, actual);
+    }
+  } else {
+    for (const row of filterEntriesForExportType(entries, type)) {
+      actualByEmployee.set(employeeIdOf(row), {
+        hours: num(row.totalHours),
+        categorizedHours: roundHours(Object.values(row.hours || {}).reduce((sum, h) => sum + num(h), 0)),
+        transport: num(row.publicTransportCost),
+        expenses: num(row.expenses)
+      });
+    }
+  }
+
+  const mismatches = [];
+  for (const [id, expected] of expectedByEmployee) {
+    const actual = actualByEmployee.get(id);
+    if (!actual) { mismatches.push(id + ': לא נמצא בסיכום השכר'); continue; }
+    const moneyMismatch = Math.abs(roundHours(expected.transport) - roundHours(actual.transport)) > 0.01
+      || Math.abs(roundHours(expected.expenses) - roundHours(actual.expenses)) > 0.01;
+    const hourMismatch = type !== FINANCE_ATTENDANCE_EXPORT_MAOF
+      && (Math.abs(roundHours(expected.hours) - roundHours(actual.hours)) > 0.02
+        || Math.abs(roundHours(expected.hours) - roundHours(actual.categorizedHours)) > 0.02);
+    if (moneyMismatch || hourMismatch) mismatches.push(id + ': אי התאמה בשעות או בהחזרים');
+  }
+  return mismatches;
+}
+
 export function buildFinanceAttendanceWorkbook(entries = [], { approvals = [], exportType = FINANCE_ATTENDANCE_EXPORT_FULL } = {}) {
   const type = normalizeFinanceAttendanceExportType(exportType);
+  const inconsistencies = auditFinanceAttendanceReconciliation(entries, approvals, type);
+  if (inconsistencies.length) {
+    throw new Error('ייצוא שכר נחסם: הנתונים אינם תואמים לרשומות המאושרות. ' + inconsistencies.join(' · '));
+  }
   if (type === FINANCE_ATTENDANCE_EXPORT_FULL) {
     const workbook = XLSX.utils.book_new();
     appendFinanceAttendanceSheet(workbook, FINANCE_ATTENDANCE_GENERAL_SHEET, entries);
