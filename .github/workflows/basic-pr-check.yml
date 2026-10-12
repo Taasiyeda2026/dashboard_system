@@ -96,7 +96,7 @@ jobs:
           set -euo pipefail
           BASE_SHA="$(git rev-parse "origin/${BASE_REF}")"
           if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(frontend/src/(screens/impact-feedback\\.js|impact-feedback/)|supabase/(migrations/.*feedback|functions/feedback-staff-automation/)|tests/(impact-feedback-|feedback-staff-automation-|feedback-staff-delivery))'; then
-            node --test tests/impact-feedback-domain.test.mjs tests/impact-feedback-analysis.test.mjs tests/impact-feedback-ui-contract.test.mjs tests/feedback-staff-automation-dryrun.test.mjs tests/feedback-staff-delivery.test.mjs
+            node --test tests/impact-feedback-domain.test.mjs tests/impact-feedback-analysis.test.mjs tests/impact-feedback-ui-contract.test.mjs tests/impact-feedback-instructor-review.test.mjs tests/feedback-staff-automation-dryrun.test.mjs tests/feedback-staff-delivery.test.mjs
           else
             echo "No feedback files changed; focused tests skipped."
           fi
