@@ -108,6 +108,7 @@ using (
 grant select on public.attendance_travel_compensation_events to authenticated;
 
 -- Instructors must not read system comparison columns directly.
+alter table public.attendance_travel_compensations enable row level security;
 revoke select on public.attendance_travel_compensations from authenticated;
 grant select on public.attendance_travel_compensations to service_role;
 
@@ -938,11 +939,15 @@ begin
     raise exception 'attendance_month_not_submitted_for_manager_review' using errcode = '22023';
   end if;
 
+  -- Source attendance rows only. Generated travel-cancellation payables are
+  -- gated by av2_month_open_travel_reviews / approved_cancellation_minutes,
+  -- not by a second attendance_manager_record_reviews pass.
   select count(*)::integer
   into v_unapproved_count
   from public.attendance_records ar
   where ar.emp_id = v_emp_id
     and to_char(ar.report_date, 'YYYY-MM') = p_month_key
+    and ar.generation_kind is null
     and not exists (
       select 1
       from public.attendance_manager_record_reviews review
@@ -1140,7 +1145,11 @@ begin
       update public.attendance_travel_compensations
       set calculation_status = 'unavailable',
           failure_code = 'context_not_eligible',
-          route_context_fingerprint = null,
+          -- Keep NOT NULL fingerprint; mark ineligible without wiping locked pay.
+          route_context_fingerprint = coalesce(
+            old.route_context_fingerprint,
+            'ineligible:' || p_source_id::text
+          ),
           origin_entity_key = null,
           destination_entity_key = null,
           outbound_travel_minutes = null,
