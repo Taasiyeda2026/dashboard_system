@@ -177,6 +177,7 @@ async function start() {
   const isStudent = payload.audience === 'student';
   const doneKey = storageKey('done', token);
   const draftKey = storageKey('draft', token);
+  const reviewKey = storageKey('deepreview', token);
   const submissionKey = storageKey('submission', token);
   const languageKey = storageKey('language', token);
 
@@ -187,16 +188,22 @@ async function start() {
     const displayPayload = { ...payload, questions: localizedQuestions };
     let initialAnswers = {};
     try { initialAnswers = JSON.parse(session?.getItem(draftKey) || '{}') || {}; } catch { initialAnswers = {}; }
+    let initialReview = null;
+    try { initialReview = JSON.parse(session?.getItem(reviewKey) || 'null'); } catch { initialReview = null; }
     const startedAt = Date.now();
     mountFeedbackForm(root, displayPayload, {
       logoUrl,
       language,
       initialAnswers,
+      initialReview,
+      onReviewChange(review) {
+        try { session?.setItem(reviewKey, JSON.stringify(review)); } catch { /* ignore */ }
+      },
       onChooseLanguage: renderLanguageChoice,
       onChange(answers) {
         try { session?.setItem(draftKey, JSON.stringify(answers)); } catch { /* ignore */ }
       },
-      async onSubmit(answers) {
+      async onSubmit(answers, extendedReview) {
         // Same id for retries of the same filling -> the server stores it once.
         let submissionId = session?.getItem(submissionKey);
         if (!submissionId) {
@@ -205,23 +212,27 @@ async function start() {
         }
         let result;
         try {
-          result = await rpc('feedback_public_submit', {
+          const isInstructorFinal = payload.audience === 'instructor' && ['final','final_b'].includes(payload.stage);
+          result = await rpc(isInstructorFinal ? 'feedback_public_submit_instructor_review' : 'feedback_public_submit', {
             p_token: token,
             p_submission_id: submissionId,
             p_answers: answers,
-            p_duration_seconds: Math.round((Date.now() - startedAt) / 1000)
+            p_duration_seconds: Math.round((Date.now() - startedAt) / 1000),
+            ...(isInstructorFinal ? { p_review: extendedReview } : {})
           });
         } catch {
           throw new Error(language === 'ar' ? 'تعذّر الإرسال. تحققوا من الاتصال وحاولوا مجددًا. إجاباتكم محفوظة.' : 'לא הצלחנו לשלוח – בדקו את החיבור לאינטרנט ונסו שוב. התשובות שלכם שמורות.');
         }
         if (result?.ok) {
           session?.removeItem(draftKey);
+          session?.removeItem(reviewKey);
           session?.removeItem(submissionKey);
           local?.setItem(doneKey, new Date().toISOString());
           showThanks(root, language);
           return result;
         }
         if (result?.state === 'invalid_answers') return result;
+        if (result?.state === 'invalid_review') throw new Error(language === 'ar' ? 'يرجى مراجعة ملاحظات التقييم الموسع.' : 'יש לבדוק את ההמלצות בטופס המורחב.');
         showMessage(root, result?.state || 'error');
         return result;
       }
