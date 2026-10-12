@@ -140,6 +140,7 @@ test('migration enforces unified review engine and finalize gate', () => {
   assert.match(migration, /attendance_travel_compensation_events/);
   assert.match(migration, /attendance_travel_reviews_pending/);
   assert.match(migration, /manager_finalize_attendance_month_review/);
+  assert.match(migration, /ar\.generation_kind is null/);
   assert.match(migration, /NEVER creates payable|never creates payable|must not mint payable/i);
   assert.match(migration, /migrated_legacy_payroll_freeze/);
   assert.match(migration, /revoke select on public\.attendance_travel_compensations from authenticated/);
