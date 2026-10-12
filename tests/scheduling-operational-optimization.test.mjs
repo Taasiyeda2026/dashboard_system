@@ -13,20 +13,32 @@ test('augmenting search solves three-instructor chain beyond one displaced activ
  assert.equal(await augmentingSearch({...config,maxDepth:3,canMove:id=>id!=='B'}),null);
 });
 test('strict objective cannot trade coverage or teaching hours for lower travel or idle time',()=>{
- const q={covered:2,meetingHours:4,waitingMinutes:100,totalTravelMinutes:50};assert.ok(compareOperationalQuality({...q,covered:1,waitingMinutes:0},q)<0);assert.ok(compareOperationalQuality({...q,meetingHours:3,waitingMinutes:0},q)<0);assert.ok(compareOperationalQuality({...q,waitingMinutes:50,totalTravelMinutes:500},q)>0);
+ const q={covered:2,meetingHours:4,schoolActiveDays:2,instructorWorkDays:2,waitingMinutes:100,totalTravelMinutes:50};assert.ok(compareOperationalQuality({...q,covered:1,waitingMinutes:0},q)<0);assert.ok(compareOperationalQuality({...q,meetingHours:3,waitingMinutes:0},q)<0);assert.ok(compareOperationalQuality({...q,waitingMinutes:50,totalTravelMinutes:500},q)>0);
+});
+test('school activity days and instructor workdays outrank continuity and waiting gains',()=>{
+ const base={covered:3,meetingHours:6,schoolActiveDays:3,instructorWorkDays:4,sameSchoolSequences:1,waitingMinutes:120,splitDays:1};
+ assert.ok(compareOperationalQuality({...base,schoolActiveDays:4,sameSchoolSequences:5,waitingMinutes:0},base)<0,'extra school day must lose even with better continuity/waiting');
+ assert.ok(compareOperationalQuality({...base,instructorWorkDays:5,waitingMinutes:0},base)<0,'extra instructor workday must lose to small waiting savings');
+ assert.ok(compareOperationalQuality({...base,sameSchoolSequences:3},base)>0,'continuity may improve when school/instructor days stay equal');
+ assert.notEqual(base.schoolActiveDays,base.sameSchoolSequences);
 });
 test('quality measures explicit availability union, travel round trips, waiting and school sequences',()=>{
  const data=input([activity('a'),activity('b',{start_time:'10:00',end_time:'11:00'})]);data.rules['1'].push({weekday:1,available:true,start_time:'09:00',end_time:'12:00'});data.exceptions['1']=[{exception_date:'2026-10-12',available:false}];
  const context=compileConstraints(data),available=availabilityByInstructor(context,'year');assert.ok(available.get('1').availableHours<available.get('2').availableHours);
  const meetings=id=>[{date:'2026-10-19',start_time:id==='a'?'09:00':'10:00',end_time:id==='a'?'10:00':'11:00'}];const q=operationalQuality(['a','b'].map(courseId=>({courseId,instructorEmpId:'1',meetings:meetings(courseId)})),data,context,available);
- assert.equal(q.meetings,2);assert.equal(q.meetingHours,2);assert.equal(q.totalTravelMinutes,20);assert.equal(q.totalTravelKm,10);assert.equal(q.waitingMinutes,0);assert.equal(q.sameSchoolSequences,1);assert.equal(q.workDays,1);assert.equal(q.unknownRouteLegs,0);
+ assert.equal(q.meetings,2);assert.equal(q.meetingHours,2);assert.equal(q.totalTravelMinutes,20);assert.equal(q.totalTravelKm,10);assert.equal(q.waitingMinutes,0);assert.equal(q.sameSchoolSequences,1);assert.equal(q.workDays,1);assert.equal(q.instructorWorkDays,1);assert.equal(q.schoolActiveDays,1);assert.equal(q.unknownRouteLegs,0);
 });
 test('scarce fixed activity precedes broadly eligible activity and neither loses coverage',async()=>{
  const data=input([activity('broad'),activity('scarce',{instruction_language:'ar'})]);data.profiles['1'].instruction_languages=['he','ar'];const plan=await buildDynamicCoursePlan(data);assert.equal(plan.planned,2);assert.equal(plan.rows.find(r=>r.courseId==='scarce').instructorEmpId,'1');assert.equal(plan.finalPlanValidation.valid,true);assert.equal(plan.optimization.optimal,false);
 });
 test('optimization keeps approved and planning locked anchors, official times and point scope',async()=>{
  const data=input([activity('live',{emp_id:'1',instructor_assignment_locked:true}),activity('other'),activity('next',{start_time:'10:00',end_time:'11:00'})]);const baseline=await buildDynamicCoursePlan({...data,skipSoftOptimization:true});const plan=await buildDynamicCoursePlan({...data,existingRows:baseline.rows,committedRows:baseline.rows});assert.equal(plan.rows[0].instructorEmpId,'1');assert.deepEqual(plan.rows[0].meetings,baseline.rows[0].meetings);assert.equal(validatePlanningPlanCoherence({...data,rows:plan.rows}).valid,true);
- const point=await buildDynamicCoursePlan({...data,existingRows:plan.rows,committedRows:plan.rows,targetCourseIds:['other'],allowGlobalRepair:false});assert.deepEqual(point.rows.find(r=>r.courseId==='next'),plan.rows.find(r=>r.courseId==='next'));assert.equal(point.newEngineMetrics.activitiesComputed,1);
+ const point=await buildDynamicCoursePlan({...data,existingRows:plan.rows,committedRows:plan.rows,targetCourseIds:['other'],allowGlobalRepair:false});
+ const priorNext=plan.rows.find(r=>r.courseId==='next'),pointNext=point.rows.find(r=>r.courseId==='next');
+ assert.equal(pointNext.instructorEmpId,priorNext.instructorEmpId);
+ assert.deepEqual(pointNext.meetings,priorNext.meetings);
+ assert.equal(point.optimization.scope,'scoped-flexible-coverage');
+ assert.equal(point.newEngineMetrics.activitiesComputed,1);
 });
 test('zero optimizer budget returns best validated base; cancellation never yields a plan',async()=>{
  const data=input([activity('a'),activity('b')],{optimizationBudgetMs:0});const plan=await buildDynamicCoursePlan(data);assert.equal(plan.finalPlanValidation.valid,true);assert.equal(plan.optimization.completed,false);assert.equal(plan.optimization.failure,'planning_optimization_budget_exceeded');assert.ok(plan.rows.filter(r=>r.instructorEmpId).length===2);
@@ -77,6 +89,64 @@ test('regional staging reports north, south, then center while retaining nationw
  assert.ok(indices.every(index=>index>=0),JSON.stringify(phases));
  assert.ok(indices[0]<indices[1]&&indices[1]<indices[2]);
  assert.equal(plan.rows.length,3);
+ assert.equal(plan.finalPlanValidation.valid,true);
+});
+
+test('scoped targetCourseIds with allowGlobalRepair false runs flexible augmenting coverage chains',async()=>{
+ const activities=[activity('A',{date_2:'2026-10-19',sessions:2}),activity('B',{school_id:'2',school_address:'school2',date_2:'2026-10-19',sessions:2}),activity('C',{school_id:'3',school_address:'school3',date_1:'2026-10-19'})];
+ const data=input(activities),eligible={school1:['1','2'],school2:['2','3'],school3:['1']};
+ const routes=Object.entries(eligible).flatMap(([school,ids])=>['1','2','3'].flatMap(id=>[{origin_key:'home'+id,destination_key:school,distance_km:ids.includes(id)?5:45,duration_minutes:10},{origin_key:school,destination_key:'home'+id,distance_km:ids.includes(id)?5:45,duration_minutes:10}]));
+ data.routeClient=createRouteClient({preloadedRows:routes,invoke:async()=>({data:{calculated:false},error:null})});
+ const trapped=await buildDynamicCoursePlan({...data,skipSoftOptimization:true});
+ assert.equal(trapped.planned,3);
+ const incumbent=trapped.rows.map(row=>row.courseId==='C'?{...row,instructorEmpId:'',instructorName:'',kind:'missing',status:'חסר שיבוץ',options:[],score:0}:row.courseId==='A'?{...row,instructorEmpId:'1',instructorName:'Instructor 1'}:row.courseId==='B'?{...row,instructorEmpId:'2',instructorName:'Instructor 2'}:row);
+ const phases=[];
+ const recovered=await buildDynamicCoursePlan({...data,existingRows:incumbent,committedRows:incumbent,targetCourseIds:['C'],allowGlobalRepair:false,onProgress:async({phase})=>phases.push(phase)});
+ assert.equal(recovered.optimization.scope,'scoped-flexible-coverage');
+ assert.ok(recovered.optimization.softOptimizationAttempted);
+ assert.ok(recovered.optimization.stages.some(stage=>stage.name==='scoped-coverage'));
+ assert.ok(!recovered.optimization.stages.some(stage=>stage.name==='operational-quality'),'scoped path must not run national quality stage');
+ assert.ok(phases.some(phase=>String(phase).includes('ממוקד')));
+ assert.equal(recovered.planned,3);
+ assert.equal(recovered.rows.find(r=>r.courseId==='C').instructorEmpId,'1');
+ assert.equal(recovered.rows.find(r=>r.courseId==='A').instructorEmpId,'2');
+ assert.equal(recovered.rows.find(r=>r.courseId==='B').instructorEmpId,'3');
+ assert.equal(recovered.finalPlanValidation.valid,true);
+ assert.equal(recovered.quality.covered,3);
+ assert.ok(recovered.optimization.decisions.some(d=>d.reason==='augmenting-chain'));
+});
+
+test('chosen assignment stays inside legal final options with an accurate score',async()=>{
+ const data=input([activity('a'),activity('b',{start_time:'10:00',end_time:'11:00'})]);
+ const plan=await buildDynamicCoursePlan(data);
+ assert.equal(plan.finalPlanValidation.valid,true);
+ for(const row of plan.rows.filter(r=>r.instructorEmpId&&['proposal','fixed-proposal'].includes(r.kind))){
+  assert.ok(Array.isArray(row.options)&&row.options.length,'options required for assigned proposal');
+  const chosen=row.options.find(option=>option.instructorEmpId===row.instructorEmpId&&JSON.stringify(option.meetings)===JSON.stringify(row.meetings));
+  assert.ok(chosen,'chosen must be present in options');
+  assert.equal(chosen.score,row.score);
+  assert.equal(row.diagnostics.chosenInOptions,true);
+  assert.equal(row.diagnostics.chosenScore,row.score);
+  assert.equal(row.options[0].instructorEmpId,row.instructorEmpId);
+ }
+ assert.ok(['completed','bounded_incomplete','coverage_stage_budget','quality_stage_budget','local_budget','planning_optimization_budget_exceeded','not-attempted'].includes(plan.optimization.stopReason));
+});
+
+test('scoped coverage never mutates approved or planning-locked rows',async()=>{
+ const data=input([activity('live',{emp_id:'1',instructor_assignment_locked:true}),activity('flex',{date_1:null,start_time:null,end_time:null,sessions:2}),activity('other',{school_id:'2',school_address:'school2'})],{catalog:[{activity_name:'Fixture',meetings_count:2,hours_count:2}]});
+ const baseline=await buildDynamicCoursePlan({...data,skipSoftOptimization:true});
+ const flex=baseline.rows.find(r=>r.courseId==='flex');
+ assert.ok(flex?.instructorEmpId);
+ const lockedMeetings=flex.meetings;
+ const plan=await buildDynamicCoursePlan({...data,existingRows:baseline.rows,committedRows:baseline.rows,lockedOptions:{flex:{instructorEmpId:flex.instructorEmpId,meetings:lockedMeetings,instructorName:flex.instructorName}},targetCourseIds:['other'],allowGlobalRepair:false});
+ const locked=plan.rows.find(r=>r.courseId==='flex');
+ assert.equal(plan.rows.find(r=>r.courseId==='live').instructorEmpId,'1');
+ assert.deepEqual(plan.rows.find(r=>r.courseId==='live').meetings,baseline.rows.find(r=>r.courseId==='live').meetings);
+ assert.equal(locked.kind,'planning-locked');
+ assert.equal(locked.planningLocked,true);
+ assert.equal(locked.instructorEmpId,flex.instructorEmpId);
+ assert.deepEqual(locked.meetings,lockedMeetings);
+ assert.equal(plan.optimization.scope,'scoped-flexible-coverage');
  assert.equal(plan.finalPlanValidation.valid,true);
 });
 
