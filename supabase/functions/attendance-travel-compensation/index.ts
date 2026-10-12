@@ -79,20 +79,34 @@ Deno.serve(async (req) => {
   if (contextError) return response({ error: text(contextError.message).includes('locked') ? 'attendance_month_locked' : 'attendance_context_invalid' }, 403);
   if (!context?.eligible) return response({ eligible: false, status: 'not_applicable' });
   if (context.context_changed === false && context.calculation_status === 'resolved') {
-    return response({ eligible: true, status: 'resolved', outbound_travel_minutes: context.outbound_travel_minutes,
-      return_travel_minutes: context.return_travel_minutes,
-      calculated_cancellation_minutes: context.calculated_cancellation_minutes,
-      final_cancellation_minutes: context.final_cancellation_minutes,
-      manually_overridden: context.manually_overridden === true });
+    return response({
+      eligible: true,
+      status: 'resolved',
+      review_status: context.review_status || null,
+      approved_cancellation_minutes: context.approved_cancellation_minutes ?? null,
+      show_travel_report_reminder: Number(context.system_distance_km || 0) > 40
+    });
   }
   if (context.context_error) {
-    await db.rpc('av2_reconcile_attendance_travel', { p_source_id: sourceId, p_fingerprint: context.fingerprint,
-      p_outbound: null, p_return: null, p_failure_code: context.context_error });
+    await db.rpc('av2_reconcile_attendance_travel', {
+      p_source_id: sourceId,
+      p_fingerprint: context.fingerprint,
+      p_outbound: null,
+      p_return: null,
+      p_failure_code: context.context_error,
+      p_distance_km: null
+    });
     return response({ eligible: true, status: 'unavailable', failure_code: context.context_error }, 422);
   }
   if (!googleKey) {
-    await db.rpc('av2_reconcile_attendance_travel', { p_source_id: sourceId, p_fingerprint: context.fingerprint,
-      p_outbound: null, p_return: null, p_failure_code: 'google_key_not_configured' });
+    await db.rpc('av2_reconcile_attendance_travel', {
+      p_source_id: sourceId,
+      p_fingerprint: context.fingerprint,
+      p_outbound: null,
+      p_return: null,
+      p_failure_code: 'google_key_not_configured',
+      p_distance_km: null
+    });
     return response({ eligible: true, status: 'unavailable', failure_code: 'google_key_not_configured' }, 503);
   }
   try {
@@ -100,21 +114,44 @@ Deno.serve(async (req) => {
       route(db, context.origin_address, context.destination_address, googleKey),
       route(db, context.destination_address, context.origin_address, googleKey)
     ]);
+    const oneWayKm = Math.max(
+      Number(outbound.distance_km) || 0,
+      Number(returning.distance_km) || 0
+    );
     const { data, error } = await db.rpc('av2_reconcile_attendance_travel', {
-      p_source_id: sourceId, p_fingerprint: context.fingerprint,
-      p_outbound: outbound.duration_minutes, p_return: returning.duration_minutes, p_failure_code: null
+      p_source_id: sourceId,
+      p_fingerprint: context.fingerprint,
+      p_outbound: outbound.duration_minutes,
+      p_return: returning.duration_minutes,
+      p_failure_code: null,
+      p_distance_km: oneWayKm
     });
     if (error) throw new Error('reconcile_failed');
-    return response({ eligible: true, status: 'resolved', outbound_travel_minutes: outbound.duration_minutes,
-      return_travel_minutes: returning.duration_minutes,
-      calculated_cancellation_minutes: cancellationMinutes(outbound.duration_minutes, returning.duration_minutes),
-      final_cancellation_minutes: data?.final_cancellation_minutes,
-      manually_overridden: data?.manually_overridden === true });
+    // Edge response may include system fields for service/manager tooling.
+    // Instructor clients must read only av2_list_instructor_travel_compensations /
+    // av2_report_attendance_travel_time and must not surface these values in UI.
+    return response({
+      eligible: true,
+      status: 'resolved',
+      review_status: data?.review_status || null,
+      approved_cancellation_minutes: data?.approved_cancellation_minutes ?? null,
+      show_travel_report_reminder: oneWayKm > 40,
+      system_outbound_travel_minutes: outbound.duration_minutes,
+      system_return_travel_minutes: returning.duration_minutes,
+      system_cancellation_minutes: cancellationMinutes(outbound.duration_minutes, returning.duration_minutes),
+      system_distance_km: oneWayKm
+    });
   } catch (error) {
     const reason = ['route_not_found','cache_read_failed','cache_write_failed'].includes(text((error as Error)?.message))
       ? text((error as Error).message) : 'route_service_unavailable';
-    await db.rpc('av2_reconcile_attendance_travel', { p_source_id: sourceId, p_fingerprint: context.fingerprint,
-      p_outbound: null, p_return: null, p_failure_code: reason });
+    await db.rpc('av2_reconcile_attendance_travel', {
+      p_source_id: sourceId,
+      p_fingerprint: context.fingerprint,
+      p_outbound: null,
+      p_return: null,
+      p_failure_code: reason,
+      p_distance_km: null
+    });
     return response({ eligible: true, status: 'unavailable', failure_code: reason }, 503);
   }
 });

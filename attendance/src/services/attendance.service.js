@@ -19,9 +19,17 @@ import {
   submitPreviewMonth,
   updatePreviewRecord,
 } from '../preview/preview-mode.js';
-import { isGeneratedTravelCancellation, sourceAttendanceRecords } from './travel-compensation.js';
+import {
+  isGeneratedTravelCancellation,
+  sourceAttendanceRecords,
+  toInstructorTravelCompensationView,
+} from './travel-compensation.js';
 import { isZoomLocationReport } from './attendance-location-policy.js';
-export { isGeneratedTravelCancellation, sourceAttendanceRecords } from './travel-compensation.js';
+export {
+  isGeneratedTravelCancellation,
+  sourceAttendanceRecords,
+  toInstructorTravelCompensationView,
+} from './travel-compensation.js';
 
 const LEGACY_SUMMER_WORKSHOP = 'סדנאות קיץ';
 const WORKSHOP_LABEL = 'סדנה';
@@ -183,15 +191,19 @@ export async function getMonthRecords(empId, year, month, { force = false } = {}
   const sourceIds = sourceAttendanceRecords(rows).map((row) => row.id);
   if (!sourceIds.length) return storeCachedValue(monthRecordsCache, key, rows);
 
-  // Route reconciliation is intentionally not run during screen reads.
-  // It runs after save and via explicit retry/approval flows, so navigation stays fast.
-  const { data: compensation, error: compensationError } = await supabase.from('attendance_travel_compensations')
-    .select('*').in('source_attendance_record_id', sourceIds);
-  if (compensationError && !/attendance_travel_compensations/i.test(compensationError.message || '')) {
+  // Instructor-safe travel fields only — never select system route estimates.
+  const { data: compensation, error: compensationError } = await supabase.rpc(
+    'av2_list_instructor_travel_compensations',
+    { p_source_ids: sourceIds }
+  );
+  if (compensationError && !/av2_list_instructor_travel_compensations|attendance_travel_compensations/i.test(compensationError.message || '')) {
     throw new Error(`שגיאה בטעינת חישובי נסיעה: ${compensationError.message}`);
   }
-  const bySource = new Map((compensation || []).map((item) => [item.source_attendance_record_id, item]));
-  const result = rows.map((row) => bySource.has(row.id) ? { ...row, travel_compensation: bySource.get(row.id) } : row);
+  const list = Array.isArray(compensation) ? compensation : [];
+  const bySource = new Map(
+    list.map((item) => [item.source_attendance_record_id, toInstructorTravelCompensationView(item)])
+  );
+  const result = rows.map((row) => (bySource.has(row.id) ? { ...row, travel_compensation: bySource.get(row.id) } : row));
   return storeCachedValue(monthRecordsCache, key, result);
 }
 
@@ -271,8 +283,26 @@ export async function reconcileTravelCompensation(sourceRecordId) {
   const { data, error } = await supabase.functions.invoke('attendance-travel-compensation', {
     body: { source_attendance_record_id: sourceRecordId }
   });
-  if (error) return { eligible: true, status: 'unavailable', context_changed: prepared?.context_changed === true, failure_code: data?.failure_code || 'route_service_unavailable' };
-  return { ...data, context_changed: prepared?.context_changed === true };
+  if (error) {
+    return {
+      eligible: true,
+      status: 'unavailable',
+      context_changed: prepared?.context_changed === true,
+      failure_code: data?.failure_code || 'route_service_unavailable',
+      show_travel_report_reminder: prepared?.show_travel_report_reminder === true,
+      review_status: prepared?.review_status || null
+    };
+  }
+  // Strip any system estimate fields before they reach instructor UI state.
+  return {
+    eligible: true,
+    status: data?.status || 'resolved',
+    context_changed: prepared?.context_changed === true,
+    review_status: data?.review_status || prepared?.review_status || null,
+    approved_cancellation_minutes: data?.approved_cancellation_minutes ?? null,
+    show_travel_report_reminder: data?.show_travel_report_reminder === true
+      || prepared?.show_travel_report_reminder === true
+  };
 }
 
 export async function getBaseTrainingRoutePreview() {
@@ -287,21 +317,45 @@ export async function getBaseTrainingRoutePreview() {
       reason: data?.reason || data?.error || 'route_service_unavailable'
     };
   }
-  return data;
+  return {
+    ok: data?.ok !== false,
+    status: data?.status || 'resolved',
+    destination_label: data?.destination_label || 'Greenwork, יקום',
+    show_travel_report_reminder: data?.show_travel_report_reminder === true
+  };
 }
 
-export async function overrideTravelCompensation(sourceRecordId, finalMinutes) {
-  const { data, error } = await supabase.rpc('av2_override_attendance_time_cancellation', {
+export async function reportTravelTime(sourceRecordId, outboundMinutes, returnMinutes) {
+  const { data, error } = await supabase.rpc('av2_report_attendance_travel_time', {
     p_source_id: sourceRecordId,
-    p_final_minutes: Math.max(0, Math.round(Number(finalMinutes) || 0))
+    p_outbound_minutes: Math.max(0, Math.round(Number(outboundMinutes) || 0)),
+    p_return_minutes: Math.max(0, Math.round(Number(returnMinutes) || 0))
   });
-  if (error) throw new Error(error.message || 'עדכון ביטול הזמן נכשל');
+  if (error) throw new Error(error.message || 'דיווח זמן הנסיעה נכשל');
+  monthRecordsCache.clear();
+  return toInstructorTravelCompensationView(data || {});
+}
+
+/** @deprecated Instructor override retired — use reportTravelTime. */
+export async function overrideTravelCompensation(sourceRecordId, finalMinutes) {
+  throw new Error('דיווח ביטול זמן ידני הוחלף בדיווח זמני נסיעה הלוך/חזור');
+}
+
+/** @deprecated */
+export async function resetTravelCompensationOverride() {
+  throw new Error('איפוס לחישוב אוטומטי אינו זמין למדריך');
+}
+
+export async function reviewTravelCompensation(sourceRecordId, decision, approvedMinutes = null, note = null) {
+  const { data, error } = await supabase.rpc('av2_review_attendance_travel_compensation', {
+    p_source_id: sourceRecordId,
+    p_decision: decision,
+    p_approved_minutes: approvedMinutes == null ? null : Math.max(0, Math.round(Number(approvedMinutes) || 0)),
+    p_note: note
+  });
+  if (error) throw new Error(error.message || 'בקרת ביטול הזמן נכשלה');
   monthRecordsCache.clear();
   return data;
-}
-
-export async function resetTravelCompensationOverride(sourceRecordId, calculatedMinutes) {
-  return overrideTravelCompensation(sourceRecordId, calculatedMinutes);
 }
 
 export async function getOperationOptions() {
