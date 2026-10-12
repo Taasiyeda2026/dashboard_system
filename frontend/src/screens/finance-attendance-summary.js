@@ -9,8 +9,8 @@ export const FINANCE_HOUR_CATEGORIES = [
   { key: 'workshop', label: 'סדנה' },
   { key: 'tour', label: 'סיור' },
   { key: 'operations', label: 'תפעול' },
-  { key: 'zoom', label: 'זום' },
   { key: 'time_cancel', label: 'ביטול זמן' },
+  { key: 'zoom', label: 'זום' },
   // No approved hours may disappear merely because a category is unrecognized.
   { key: 'uncategorized', label: 'לא מסווג – לבדיקה' }
 ];
