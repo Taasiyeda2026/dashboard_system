@@ -204,6 +204,8 @@ export function renderNewReportScreen(container, {
   let baseTrainingRouteRow = null;
   let baseTrainingRouteToken = 0;
   let operationChoiceField = null;
+  let teamModeField = null;
+  let teamLocationField = null;
   let trainingModeField = null;
   let scheduledTrainingIds = new Set();
 
@@ -357,7 +359,10 @@ export function renderNewReportScreen(container, {
   function syncOperationDetailVisibility() {
     if (!trainingDescField?.wrap || !operationChoiceField?.input) return;
     const chosen = operationOptions.find((item) => item.id === operationChoiceField.input.value);
+    const isTeam = chosen?.label === 'צוות' && getReportType() === OPERATIONS_REPORT_TYPE;
     trainingDescField.wrap.hidden = !chosen?.is_other;
+    if (teamModeField?.wrap) teamModeField.wrap.hidden = !isTeam;
+    if (teamLocationField?.wrap) teamLocationField.wrap.hidden = !isTeam || teamModeField.input.value !== 'physical';
   }
 
   function operationSnapshot() {
@@ -1147,7 +1152,35 @@ export function renderNewReportScreen(container, {
       value: legacyOperationSnapshot && !matchedOperation ? legacyOperationSnapshot : '',
     });
     operationChoiceField.input.addEventListener('change', syncOperationDetailVisibility);
-    trainingDescWrap.append(operationChoiceField.wrap, trainingDescField.wrap);
+    teamModeField = createSelectField({
+      id: 'av2-team-meeting-mode',
+      label: 'אופן מפגש צוות *',
+      options: [
+        { value: '', label: 'בחר אופן מפגש…' },
+        { value: 'online', label: 'זום' },
+        { value: 'physical', label: 'מפגש פיזי' },
+      ],
+      value: legacyOperationSnapshot === 'צוות' ? String(prefill?.operation_meeting_mode || '') : '',
+    });
+    teamLocationField = createInputField({
+      id: 'av2-team-location',
+      label: 'מיקום פיזי *',
+      placeholder: 'בחר מיקום מהרשימה או הקלד כתובת מלאה',
+      value: legacyOperationSnapshot === 'צוות' ? String(prefill?.destination_address_snapshot || '') : '',
+    });
+    // Existing operation addresses are offered as suggestions, while allowing other venues.
+    const teamLocations = document.createElement('datalist');
+    teamLocations.id = 'av2-team-known-locations';
+    [...new Set(operationOptions.map((item) => String(item.address || '').trim()).filter(Boolean))]
+      .forEach((address) => {
+        const option = document.createElement('option');
+        option.value = address;
+        teamLocations.append(option);
+      });
+    teamLocationField.input.setAttribute('list', teamLocations.id);
+    teamLocationField.wrap.append(teamLocations);
+    teamModeField.input.addEventListener('change', syncOperationDetailVisibility);
+    trainingDescWrap.append(operationChoiceField.wrap, trainingDescField.wrap, teamModeField.wrap, teamLocationField.wrap);
     syncOperationDetailVisibility();
 
     trainingModeField = createSelectField({
@@ -1580,11 +1613,13 @@ export function renderNewReportScreen(container, {
       const reportType = getReportType();
       const isNoActivity = isNoActivityNameType(reportType);
       const isOpen = isOpenFieldType(reportType);
+      const isTeam = isOpen && operationSnapshot() === 'צוות';
+      const isTeamOnline = isTeam && teamModeField.input.value === 'online';
       const isOnline = isOnlineActivity();
       const isBaseTraining = isBaseTrainingActivity(activity);
 
       errorEl.hidden = true;
-      [activityNameSel?.wrap, trainingDescField?.wrap, typeField.wrap, startPicker.wrap, endPicker.wrap, authSel.wrap]
+      [activityNameSel?.wrap, trainingDescField?.wrap, teamModeField?.wrap, teamLocationField?.wrap, typeField.wrap, startPicker.wrap, endPicker.wrap, authSel.wrap]
         .forEach((w) => w?.classList.remove('av2-field--invalid'));
 
       const missing = [];
@@ -1616,6 +1651,12 @@ export function renderNewReportScreen(container, {
         markInvalid(operationChoiceField.wrap, 'פרטי תפעול');
       } else if (isOpen && !operationSnapshot()) {
         markInvalid(trainingDescField.wrap, 'פירוט אחר');
+      }
+      if (isTeam && !['online', 'physical'].includes(teamModeField.input.value)) {
+        markInvalid(teamModeField.wrap, 'אופן מפגש צוות');
+      }
+      if (isTeam && teamModeField.input.value === 'physical' && !teamLocationField.input.value.trim()) {
+        markInvalid(teamLocationField.wrap, 'מיקום פיזי');
       }
       if (!dateStr) markInvalid(dateField.wrap, 'תאריך');
       if (!startTime) markInvalid(startPicker.wrap, 'שעת התחלה');
@@ -1652,8 +1693,8 @@ export function renderNewReportScreen(container, {
 
       const programName = activity?.program_name || activityNameSnapshot || null;
 
-      const usesPublicTransport = !isOnline && publicTransportInput.checked;
-      const kmValue = (!isOnline && !usesPublicTransport && kmField.input.value)
+      const usesPublicTransport = !isOnline && !isTeamOnline && publicTransportInput.checked;
+      const kmValue = (!isOnline && !isTeamOnline && !usesPublicTransport && kmField.input.value)
         ? Number(kmField.input.value)
         : 0;
       const publicTransportCost = usesPublicTransport && publicTransportCostField.input.value
@@ -1672,6 +1713,8 @@ export function renderNewReportScreen(container, {
           total_hours: totalHours,
           course_business_identity: isCourseReportType() ? activity?.__dashboardCourseIdentity ?? null : null,
           activity_type: reportType,
+          operation_meeting_mode: isTeam ? teamModeField.input.value : null,
+          destination_address_snapshot: isTeam && !isTeamOnline ? teamLocationField.input.value.trim() : null,
           training_mode: reportType === TRAINING_REPORT_TYPE
             ? (isOnlineTraining() ? 'online' : 'physical')
             : null,
