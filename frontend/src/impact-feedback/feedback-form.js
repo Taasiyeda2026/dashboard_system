@@ -3,6 +3,7 @@
  * Mobile-first, RTL. Values are always stored on a 1–5 scale. Smileys are reserved
  * for young student questionnaires only; adult audiences always see a professional numeric scale.
  */
+import { mountInstructorExtendedReview } from './feedback-instructor-review.js';
 import {
   RATING_EMOJI,
   RATING_LABELS,
@@ -183,6 +184,7 @@ export function messageCardHtml({ title, body, logoUrl = '', extra = '' }) {
  */
 export function mountFeedbackForm(container, payload, options = {}) {
   const questions = Array.isArray(payload.questions) ? payload.questions : [];
+  const extendedReviewEnabled = payload.audience === 'instructor' && ['final', 'final_b'].includes(payload.stage);
   const biomimicryArabic = isArabicBiomimicryStudent(payload, options.language);
   const syllabusStudent = isSyllabusStudent(payload);
   const approvedStudentScale = biomimicryArabic || syllabusStudent;
@@ -220,6 +222,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
           <h2 class="ifb-biomimicry-scale__questions">${arabic ? 'الأسئلة:' : 'השאלות:'}</h2>
         </section>` : ''}
         ${questions.map((q, i) => `${approvedStudentScale && payload.stage === 'post' && q.type === 'free_text' && (i === 0 || questions[i - 1]?.type !== 'free_text') ? approvedFreeTextIntroHtml(arabic, femaleStudent, biomimicryArabic) : ''}${questionHtml(q, i, answers, young, options.language || 'he', approvedStudentScale)}`).join('')}
+        ${extendedReviewEnabled ? '<div data-ifb-review-mount></div>' : ''}
         <div class="ifb-submit">
           <p class="ifb-submit__error" data-submit-error role="alert" hidden></p>
           <button type="submit" class="ifb-submit__btn" data-submit>${options.preview ? (arabic ? 'إرسال (معاينة)' : 'שליחה (תצוגה מקדימה)') : (arabic ? 'إرسال الاستبيان' : 'שליחת המשוב')}</button>
@@ -236,6 +239,11 @@ export function mountFeedbackForm(container, payload, options = {}) {
     questionnaire.querySelector('[data-progress-label]')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
   const form = container.querySelector('form');
+  const extendedReview = extendedReviewEnabled ? mountInstructorExtendedReview(form.querySelector('[data-ifb-review-mount]'), {
+    language: options.language || 'he',
+    initialReview: options.initialReview,
+    onChange: options.onReviewChange
+  }) : null;
   const fill = container.querySelector('[data-progress-fill]');
   const label = container.querySelector('[data-progress-label]');
   const submitBtn = container.querySelector('[data-submit]');
@@ -316,6 +324,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
       showMissing(missing);
       return;
     }
+    if (extendedReview && !extendedReview.validate()) return;
     submitBtn.disabled = true;
     submitBtn.classList.add('is-busy');
     submitBtn.textContent = arabic ? 'جارٍ الإرسال…' : 'שולח…';
@@ -326,7 +335,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
         if (!isAnswered(q, value)) continue;
         payloadAnswers[q.id] = q.type === 'free_text' ? String(value).trim() : value;
       }
-      const result = await options.onSubmit?.(payloadAnswers);
+      const result = await options.onSubmit?.(payloadAnswers, extendedReview?.getReview());
       if (result?.state === 'invalid_answers') {
         showMissing([...(result.missing || []), ...(result.invalid || [])]);
         throw new Error(arabic ? 'يرجى مراجعة الإجابات المحددة' : 'יש לבדוק את התשובות המסומנות');
