@@ -239,7 +239,9 @@ export function renderNewReportScreen(container, {
   }
 
   function isOnlineActivity() {
-    return isOnlineReportType() || isOnlineTraining();
+    const isOnlineTeam = getReportType() === OPERATIONS_REPORT_TYPE
+      && operationSnapshot() === 'צוות' && teamModeField?.input?.value === 'online';
+    return isOnlineReportType() || isOnlineTraining() || isOnlineTeam;
   }
 
   function isNoActivityNameType(reportType = getReportType()) {
@@ -363,6 +365,7 @@ export function renderNewReportScreen(container, {
     trainingDescField.wrap.hidden = !chosen?.is_other;
     if (teamModeField?.wrap) teamModeField.wrap.hidden = !isTeam;
     if (teamLocationField?.wrap) teamLocationField.wrap.hidden = !isTeam || teamModeField.input.value !== 'physical';
+    syncTravelMode();
   }
 
   function operationSnapshot() {
