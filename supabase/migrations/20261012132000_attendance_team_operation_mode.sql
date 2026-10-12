@@ -113,6 +113,6 @@ end $function$;
 
 DROP TRIGGER IF EXISTS av2_sync_operation_destination_address ON public.attendance_records;
 CREATE TRIGGER av2_sync_operation_destination_address
-BEFORE INSERT OR UPDATE OF activity_type, activity_name_snapshot, operation_meeting_mode, destination_address_snapshot
+BEFORE INSERT OR UPDATE OF activity_type, activity_name_snapshot, operation_meeting_mode, destination_address_snapshot, roundtrip_km, public_transport, public_transport_cost
 ON public.attendance_records
 FOR EACH ROW EXECUTE FUNCTION public.av2_sync_operation_destination_address();
