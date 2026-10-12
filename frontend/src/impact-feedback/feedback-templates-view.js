@@ -20,6 +20,8 @@ import {
   fetchVersion,
   fetchVersionQuestions,
   getDraft,
+  getIsraaWordingDraft,
+  updateIsraaQuestionWording,
   publishDraft,
   translateFeedbackError,
   updateTemplateQuestion,
@@ -97,7 +99,7 @@ function fmtDay(value) {
  * Questionnaire list for one audience (and the selected course, when one is chosen).
  * One row per course × stage; the shared editor opens from here.
  */
-function listHtml(ui, { readOnly = false } = {}) {
+function listHtml(ui, { readOnly = false, canEditWording = false } = {}) {
   if (!tpl.list) return '<div class="ifb-empty" role="status"><div class="ds-spinner" aria-hidden="true"></div><p>טוען שאלונים…</p></div>';
   const programs = ui.programs.filter((p) => !ui.course || p.key === ui.course);
   if (!programs.length) return '<div class="ifb-empty">לא נמצאו קורסים.</div>';
@@ -147,7 +149,7 @@ function listHtml(ui, { readOnly = false } = {}) {
         </div>`;
       };
       return `<div class="ifb-template-card__slot${canUsePaperPdf ? '' : ' is-digital'}">
-        <button type="button" class="ifb-template-card__open" data-tpl-open="${esc(template.id)}" title="${esc(name)}" aria-label="${readOnly ? 'צפייה' : 'צפייה ועריכת'} ${esc(name)}">${esc(short)}${!readOnly && draft ? '<span class="ifb-sr"> – טיוטה בעריכה</span>' : ''}</button>
+        <button type="button" class="ifb-template-card__open" data-tpl-open="${esc(template.id)}" title="${esc(name)}" aria-label="${readOnly ? (canEditWording ? 'צפייה ועריכת נוסח' : 'צפייה') : 'צפייה ועריכת'} ${esc(name)}">${esc(short)}${(!readOnly || canEditWording) && draft ? '<span class="ifb-sr"> – טיוטה בעריכה</span>' : ''}</button>
         ${canUsePaperPdf ? `${languageControls('he')}${languageControls('ar')}` : ''}
       </div>`;
     }).join('');
@@ -288,13 +290,14 @@ function addFormHtml(ed, ui) {
     </section>`;
 }
 
-function editorHtml(ui, { readOnly = false } = {}) {
+function editorHtml(ui, { readOnly = false, canEditWording = false } = {}) {
   const ed = tpl.editor;
   if (tpl.loadingEditor || !ed) return '<div class="ifb-empty"><div class="ds-spinner"></div><p>טוען תבנית…</p></div>';
   const program = ui.programs.find((p) => p.key === ed.template.program_key);
   const slot = slotOf(ed.template);
   const editing = !readOnly && Boolean(ed.draft);
-  const questions = editing ? ed.draftQuestions : ed.publishedQuestions;
+  const wordingEditing = readOnly && canEditWording && Boolean(ed.draft);
+  const questions = (editing || wordingEditing) ? ed.draftQuestions : ed.publishedQuestions;
   const defaults = templateDefaults(questions);
   return `
     <button type="button" class="ifb-back" data-tpl-back>→ חזרה לרשימת השאלונים</button>
@@ -305,27 +308,29 @@ function editorHtml(ui, { readOnly = false } = {}) {
         <h2 class="ifb-tpl-head__title">${esc(slot ? templateSlotLabel(slot) : '')}</h2>
         ${!ed.published ? '<p class="ifb-tpl-head__status">טרם פורסם</p>' : `<p class="ifb-tpl-head__status">גרסה מפורסמת: ${esc(String(versionsOf(ed.template).find((v) => v.id === ed.published.id)?.version_no ?? ''))}</p>`}
         ${editing ? '<p class="ifb-tpl-head__status is-draft">טיוטה בעריכה</p>' : ''}
+        ${wordingEditing ? '<p class="ifb-tpl-head__status is-draft">טיוטת ניסוח שמורה · ממתינה לפרסום בידי אדמין</p>' : ''}
       </div>
       <div class="ifb-slot__actions ifb-tpl-head__actions">
         <button type="button" class="ifb-btn" data-tpl-preview>תצוגה מקדימה</button>
         ${editing
           ? `<button type="button" class="ifb-btn ifb-btn--primary" data-tpl-publish>פרסום גרסה חדשה</button>
              <button type="button" class="ifb-btn ifb-btn--danger" data-tpl-discard>ביטול הטיוטה</button>`
-          : readOnly ? '' : '<button type="button" class="ifb-btn ifb-btn--primary" data-tpl-edit title="יצירת טיוטה לעריכה">עריכה</button>'}
+          : readOnly ? (canEditWording && ed.published ? '<button type="button" class="ifb-btn ifb-btn--primary" data-tpl-wording-edit>עריכת נוסח בעברית ובערבית</button>' : '') : '<button type="button" class="ifb-btn ifb-btn--primary" data-tpl-edit title="יצירת טיוטה לעריכה">עריכה</button>'}
       </div>
+      ${wordingEditing ? '<p class="ifb-tpl-head__status">התיקונים נשמרים לאחר יציאה משדה · פרסום הטיוטה בידי האדמין בלבד</p>' : ''}
       ${editing ? `<div class="ifb-tpl-head__intro"><label class="ifb-field ifb-field--wide"><span>פתיח בעברית</span><textarea rows="4" lang="he" dir="rtl" data-tpl-intro>${esc(ed.draft.intro_text || '')}</textarea></label><label class="ifb-field ifb-field--wide"><span>פתיח בערבית</span><textarea rows="4" lang="ar" dir="rtl" data-tpl-intro-ar>${esc(ed.draft.intro_text_ar || '')}</textarea></label></div>`
         : (ed.published?.intro_text ? `<div class="ifb-tpl-head__intro"><span>פתיח בעברית</span><p>${esc(ed.published.intro_text)}</p>${ed.published.intro_text_ar ? `<span>פתיח בערבית</span><p lang="ar" dir="rtl">${esc(ed.published.intro_text_ar)}</p>` : ''}</div>` : '')}
     </section>
     <section class="ifb-tq-block">
       ${listSummaryHtml(questions, defaults)}
-      ${questions.length ? `<ol class="ifb-tq-list">${questions.map((q, i) => (editing ? editableQuestionHtml(q, i, questions.length, ui, defaults) : readOnlyQuestionHtml(q, i, ui, defaults))).join('')}</ol>` : ''}
+      ${questions.length ? `<ol class="ifb-tq-list">${questions.map((q, i) => (editing ? editableQuestionHtml(q, i, questions.length, ui, defaults) : wordingEditing ? wordingOnlyQuestionHtml(q, i, ui, defaults) : readOnlyQuestionHtml(q, i, ui, defaults))).join('')}</ol>` : ''}
     </section>
     ${editing ? addFormHtml(ed, ui) : ''}`;
 }
 
-export function renderTemplatesView(ui, { readOnly = false } = {}) {
+export function renderTemplatesView(ui, { readOnly = false, canEditWording = false } = {}) {
   if (tpl.error) return `<div class="ifb-empty ifb-empty--error" role="alert"><p>${esc(tpl.error)}</p><button type="button" class="ifb-btn" data-tpl-reload>נסו שוב</button></div>`;
-  return `<div data-ifb-templates>${ui.templates.templateId ? editorHtml(ui, { readOnly }) : listHtml(ui, { readOnly })}</div>`;
+  return `<div data-ifb-templates>${ui.templates.templateId ? editorHtml(ui, { readOnly, canEditWording }) : listHtml(ui, { readOnly, canEditWording })}</div>`;
 }
 
 /** True while a questionnaire editor is open (the hosting tab then shows only the editor). */
@@ -349,7 +354,7 @@ async function loadList(repaint, force = false) {
   }
 }
 
-async function loadEditor(ui, repaint, { readOnly = false } = {}) {
+async function loadEditor(ui, repaint, { readOnly = false, canEditWording = false } = {}) {
   tpl.loadingEditor = true;
   repaint();
   try {
@@ -357,7 +362,7 @@ async function loadEditor(ui, repaint, { readOnly = false } = {}) {
     const template = tpl.list.find((t) => t.id === ui.templates.templateId);
     if (!template) throw new Error('התבנית לא נמצאה');
     const versions = versionsOf(template);
-    const draftMeta = readOnly ? null : versions.find((v) => v.status === 'draft');
+    const draftMeta = (readOnly && !canEditWording) ? null : versions.find((v) => v.status === 'draft');
     const [published, publishedQuestions, draft, draftQuestions, bank] = await Promise.all([
       template.current_version_id ? fetchVersion(template.current_version_id) : null,
       template.current_version_id ? fetchVersionQuestions(template.current_version_id) : [],
@@ -445,17 +450,17 @@ function openPreview(ui, { readOnly = false } = {}) {
   });
 }
 
-async function withSave(action, repaint, { reload = false, ui } = {}) {
+async function withSave(action, repaint, { reload = false, ui, editorOptions = {} } = {}) {
   try {
     await action();
-    if (reload) await loadEditor(ui, repaint);
+    if (reload) await loadEditor(ui, repaint, editorOptions);
   } catch (error) {
     showToast(translateFeedbackError(error), 'error', 5000);
-    if (ui) await loadEditor(ui, repaint);
+    if (ui) await loadEditor(ui, repaint, editorOptions);
   }
 }
 
-async function saveQuestionField(ui, repaint, row, field, input) {
+async function saveQuestionField(ui, repaint, row, field, input, { wordingOnly = false } = {}) {
   const ed = tpl.editor;
   const q = ed.draftQuestions.find((item) => item.id === row.dataset.tq);
   if (!q) return;
