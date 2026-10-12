@@ -222,11 +222,56 @@ export async function releaseSchedulingPlanningRunLease({
 }
 
 export async function loadSharedPlanningWorkspace({ periodKey = 'year', district = '' } = {}) {
-  const { data, error } = await planningRpc('get_scheduling_planning_workspace', {
-    p_period_key: text(periodKey) || 'year',
-    p_district: text(district)
+  const scope = { p_period_key: text(periodKey) || 'year', p_district: text(district) };
+  const pageSize = 25;
+  const initial = await planningRpc('get_scheduling_planning_workspace_page', {
+    ...scope, p_limit: pageSize, p_offset: 0, p_expected_revision: null
   });
-  if (error) throw error;
+  let data;
+  if (initial.error) {
+    // Rolling deployments may have an older PostgREST schema cache. Do not
+    // mask any other error and never accept a mixed-version paginated snapshot.
+    if (!['PGRST202', '42883'].includes(initial.error.code)) throw initial.error;
+    const legacy = await planningRpc('get_scheduling_planning_workspace', scope);
+    if (legacy.error) throw legacy.error;
+    data = legacy.data;
+  } else {
+    const first = initial.data || {};
+    const workspace = first.workspace || null;
+    const total = Number(first.total) || 0;
+    const revision = Number(workspace?.revision);
+    const raw = [...(Array.isArray(first.rows) ? first.rows : [])];
+    if (workspace) {
+      if (!Number.isSafeInteger(revision) || total < 0 || total < raw.length || !Number.isSafeInteger(total)) {
+        throw new Error('planning_workspace_page_invalid');
+      }
+      // Bound the database payload and network cost; parallelize only two
+      // stable-order pages at once. Every page is fenced to the same revision.
+      const offsets = [];
+      for (let offset = pageSize; offset < total; offset += pageSize) offsets.push(offset);
+      for (let index = 0; index < offsets.length; index += 2) {
+        const batch = await Promise.all(offsets.slice(index, index + 2).map(async (offset) => {
+          const result = await planningRpc('get_scheduling_planning_workspace_page', {
+            ...scope, p_limit: pageSize, p_offset: offset, p_expected_revision: revision
+          });
+          if (result.error) throw result.error;
+          if (Number(result.data?.workspace?.revision) !== revision || Number(result.data?.total) !== total) {
+            throw new Error('planning_revision_conflict');
+          }
+          return Array.isArray(result.data?.rows) ? result.data.rows : [];
+        }));
+        for (const page of batch) raw.push(...page);
+      }
+      if (raw.length !== total
+        || new Set(raw.map((entry) => text(entry.activityId))).size !== total) {
+        throw new Error('planning_workspace_page_incomplete');
+      }
+      // A writer might commit after an individual page request. Never combine
+      // pages across revisions, even if the first/last pages were internally valid.
+      await assertSharedPlanningWorkspaceRevision({ workspaceId: workspace.id, expectedRevision: revision });
+    }
+    data = { workspace, rows: raw };
+  }
   const rawRows = Array.isArray(data?.rows) ? data.rows : [];
   return {
     workspace: data?.workspace || null,
