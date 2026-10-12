@@ -1,4 +1,5 @@
 import { escapeHtml } from './shared/html.js';
+import './exception-contact-audit.css';
 import { formatDateHe } from './shared/format-date.js';
 import { hebrewExceptionType, hebrewColumn } from './shared/ui-hebrew.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
@@ -290,7 +291,7 @@ function exceptionInnerTabsHtml(active) {
     [EXCEPTIONS_INNER_DISTRICTS, 'מחוזות'],
     [EXCEPTIONS_INNER_CONTACTS, 'פרטי אנשי קשר']
   ];
-  return `<nav class="ds-exceptions-tabs" aria-label="סוג החריגות" role="tablist">
+  return `<nav class="ds-exceptions-tabs ds-contact-view-tabs" aria-label="סוג החריגות" role="tablist">
     ${tabs.map(([key, label]) => `<button type="button"
       class="ds-exceptions-tab ${active===key?'is-active':''}"
       data-exception-inner-tab="${key}" role="tab"
@@ -300,14 +301,13 @@ function exceptionInnerTabsHtml(active) {
 
 function exceptionContactsHtml(audit, state = {}) {
   if (state.exceptionsContactLoading) {
-    return '<section class="ds-exceptions-screen__section"><p role="status">טוען פרטי אנשי קשר מפעילויות תשפ״ז…</p></section>';
+    return '<section class="ds-exceptions-screen__section"><p role="status">טוען פרטי אנשי קשר…</p></section>';
   }
   if (state.exceptionsContactError) {
-    return `<section class="ds-exceptions-screen__section"><p role="alert">לא ניתן לטעון את בדיקת אנשי הקשר. הנתונים לא השתנו.</p>
+    return `<section class="ds-exceptions-screen__section"><p role="alert">לא ניתן לטעון את נתוני אנשי הקשר.</p>
       <button type="button" class="ds-btn ds-btn--sm" data-exception-contact-refresh>נסה שוב</button></section>`;
   }
-  if (!audit) return `<section class="ds-exceptions-screen__section"><button type="button" class="ds-btn ds-btn--sm" data-exception-contact-refresh>טען נתוני אנשי קשר</button></section>`;
-
+  if (!audit) return `<section class="ds-exceptions-screen__section"><button type="button" class="ds-btn ds-btn--sm" data-exception-contact-refresh>טען פרטי אנשי קשר</button></section>`;
   const district = String(state.exceptionsContactDistrict || '');
   const issue = String(state.exceptionsContactIssue || '');
   const search = String(state.exceptionsContactSearch || '').trim().toLocaleLowerCase('he');
@@ -324,38 +324,41 @@ function exceptionContactsHtml(audit, state = {}) {
   const issueOptions = CONTACT_READINESS_ISSUE_ORDER.filter(key=>audit.byIssue[key])
     .map(key=>[key,`${CONTACT_READINESS_ISSUES[key]} (${audit.byIssue[key]})`]);
   const districtOptions = districts.map(key=>[key,key]);
-  const rowsHtml = visible.map(row => `<tr>
-    <td><strong>${escapeHtml(row.activity_name||'—')}</strong></td>
-    <td>${escapeHtml(row.authority||'—')}</td>
-    <td>${escapeHtml(row.school||'—')}</td>
-    <td>${escapeHtml(row.contact_name||'—')}</td>
-    <td dir="ltr" style="text-align:right">${escapeHtml(row.contact_email.replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/gi,'')||'—')}</td>
-    <td>${escapeHtml(CONTACT_READINESS_ISSUES[row.issue]||'נדרש בירור')}</td>
-    <td><button type="button" class="ds-btn ds-btn--sm" data-exception-contact-open="${escapeHtml(row.row_id)}">לפעילות</button></td>
-  </tr>`).join('');
-
-  return `<section class="ds-exceptions-summary" aria-label="סיכום פרטי אנשי קשר">
-    <div class="ds-exceptions-summary__card"><span>פעילויות הדורשות טיפול בפרטי איש קשר</span>
-    <strong>${escapeHtml(String(audit.problems))}</strong></div>
-    <div class="ds-exceptions-summary__districts">
-      <span>תקינים: <strong>${escapeHtml(String(audit.ready))}</strong> מתוך <strong>${escapeHtml(String(audit.total))}</strong> פעילויות פתוחות בתשפ״ז</span>
-      <button type="button" class="ds-btn ds-btn--sm" data-exception-contact-refresh>רענון</button>
+  const cleanEmail = value => String(value||'').replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g,'').trim();
+  const rowsHtml = visible.map(row => {
+    const legacy = row.contact_source === 'activity_unlinked';
+    const name = row.contact_name || '—';
+    const mail = cleanEmail(row.contact_email) || '—';
+    const sourceLabel = legacy ? '<small class="ds-contact-audit__source">מופיע בפעילות, לא משויך</small>' : '';
+    return `<tr>
+      <td><strong>${escapeHtml(row.activity_name||'—')}</strong></td>
+      <td>${escapeHtml(row.authority||'—')}</td>
+      <td>${escapeHtml(row.school||'—')}</td>
+      <td>${escapeHtml(name)}${sourceLabel}</td>
+      <td class="ds-contact-audit__email"><span>${escapeHtml(mail)}</span>${sourceLabel}</td>
+      <td>${escapeHtml(CONTACT_READINESS_ISSUES[row.issue]||'נדרש בירור')}</td>
+      <td><button type="button" class="ds-btn ds-btn--sm ds-contact-audit__open" data-exception-contact-open="${escapeHtml(row.row_id)}">לפעילות</button></td>
+    </tr>`;
+  }).join('');
+  return `<section class="ds-contact-audit" dir="rtl" aria-label="חריגות פרטי אנשי קשר">
+    <div class="ds-contact-audit__summary">
+      <div class="ds-contact-audit__headline"><strong>${escapeHtml(String(audit.problems))}</strong><span>פעילויות דורשות טיפול</span></div>
+      <span class="ds-contact-audit__totals">מתוך ${escapeHtml(String(audit.total))} פתוחות בתשפ״ז · ${escapeHtml(String(audit.ready))} תקינות</span>
+      <button type="button" class="ds-btn ds-btn--sm ds-contact-audit__refresh" data-exception-contact-refresh>רענון</button>
     </div>
-  </section>
-  <section class="ds-exceptions-screen__section" dir="rtl">
-    <p class="ds-muted">מוצגים רק קורסים וסיורים פתוחים בתשפ״ז עם פרטי איש קשר חסרים או לא תקינים. כתובת המייל חייבת להשתייך לאיש הקשר שנבחר בפעילות עצמה; אין השלמה אוטומטית מאנשי קשר אחרים.</p>
-    <div class="ds-exceptions-tabs" style="flex-wrap:wrap">
+    <div class="ds-contact-audit__toolbar">
       <label>מחוז <select class="ds-input ds-input--sm" data-exception-contact-district>
         ${opts([['','כל המחוזות'],...districtOptions],district)}</select></label>
       <label>סוג חריגה <select class="ds-input ds-input--sm" data-exception-contact-issue>
         ${opts([['','כל סוגי החריגות'],...issueOptions],issue)}</select></label>
-      <label>חיפוש <input class="ds-input ds-input--sm" type="search" data-exception-contact-search value="${escapeHtml(String(state.exceptionsContactSearch||''))}" placeholder="בית ספר, רשות או איש קשר"></label>
+      <label>חיפוש <input class="ds-input ds-input--sm" type="search" data-exception-contact-search value="${escapeHtml(String(state.exceptionsContactSearch||''))}" placeholder="תוכנית, בית ספר, רשות או איש קשר"></label>
+      ${(district||issue||search)?'<button type="button" class="ds-btn ds-btn--sm ds-contact-audit__clear" data-exception-contact-reset>נקה סינון</button>':''}
     </div>
-    <p class="ds-muted" role="status">מוצגות ${visible.length} מתוך ${selected.length} פעילויות התואמות לסינון.</p>
+    <p class="ds-contact-audit__results ds-contact-audit__count" role="status">${escapeHtml(String(selected.length))} פעילויות בתוצאות · מוצגות ${escapeHtml(String(visible.length))}</p>
     ${selected.length===0
-      ? dsEmptyState('אין חריגות פרטי אנשי קשר התואמות לסינון.')
-      : `<div style="overflow-x:auto"><table class="ds-table ds-table--interactive" dir="rtl">
-        <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>איש קשר נבחר</th><th>מייל</th><th>מה חסר</th><th>טיפול</th></tr></thead>
+      ? dsEmptyState('אין פעילויות הדורשות טיפול בסינון הנבחר.')
+      : `<div class="ds-contact-audit__table-wrap"><table class="ds-table ds-contact-audit__table">
+        <thead><tr><th>תוכנית</th><th>רשות</th><th>בית ספר</th><th>איש קשר</th><th>מייל</th><th>חריגה</th><th>טיפול</th></tr></thead>
         <tbody>${rowsHtml}</tbody></table></div>
         ${selected.length>visible.length?`<button type="button" class="ds-btn ds-btn--sm" data-exception-contact-more>הצג עוד</button>`:''}`}
   </section>`;
@@ -525,6 +528,13 @@ export const exceptionsScreen = {
     });
     root.querySelector('[data-exception-contact-search]')?.addEventListener('change',ev=>{
       state.exceptionsContactSearch=ev.target.value;state.exceptionsContactVisibleCount=50;rerender();
+    });
+    root.querySelector('[data-exception-contact-reset]')?.addEventListener('click',()=>{
+      state.exceptionsContactDistrict='';
+      state.exceptionsContactIssue='';
+      state.exceptionsContactSearch='';
+      state.exceptionsContactVisibleCount=50;
+      rerender();
     });
     root.querySelector('[data-exception-contact-more]')?.addEventListener('click',()=>{
       state.exceptionsContactVisibleCount=(Number(state.exceptionsContactVisibleCount)||50)+50;rerender();
