@@ -41,7 +41,7 @@ test('Israa works in shared drafts and cannot access template structure actions'
   assert.match(api, /feedback_israa_update_wording/);
   assert.match(view, /function wordingOnlyQuestionHtml/);
   assert.match(view, /data-tpl-wording-edit/);
-  assert.match(view, /wordingOnly \? true/);
+  assert.match(view, /wordingOnly: true/);
   assert.match(view, /field === 'wording.default' \|\| field === 'wording.ar'/);
   assert.match(view, /readOnly && !t\.closest\(canEditWording/);
   assert.match(view, /if \(readOnly\) \{ event\.preventDefault\(\); return; \}/);
