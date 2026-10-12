@@ -1,3 +1,4 @@
+import { proposalProgramDisplay, PROPOSAL_PROGRAM_DISPLAY_VERSION } from '../proposal-program-display.js';
 import { escapeHtml } from './shared/html.js';
 import { mergeFetchedContactsWithInserted, persistNewClientContact } from '../client-contact-persistence.js';
 import { dsCard, dsEmptyState, dsPageHeader, dsScreenStack, dsTableWrap } from './shared/layout.js';
@@ -162,6 +163,38 @@ function normalizeHebrewQuoteVariants(value) {
 function normalizeContactRoleDisplay(value) {
   const role = text(value);
   return role === 'מנהל/ת' ? 'מנהל/ת בית הספר' : role;
+}
+
+// Render context lives on a copied row, never on persisted items or form values.
+const CUSTOMER_DISPLAY_CONTEXT = Symbol('proposalCustomerDisplayContext');
+
+function customerDisplayContext(row = {}, options = {}) {
+  if (row[CUSTOMER_DISPLAY_CONTEXT]) return row[CUSTOMER_DISPLAY_CONTEXT];
+  const group = normalizeProposalGroup(row.activity_type_group);
+  const historical = options.preserveHistorical === true || (options.presentationVersion !== PROPOSAL_PROGRAM_DISPLAY_VERSION
+    && (normalizeProposalStatus(row.status) === 'sent' || Boolean(text(row.locked_at)) || proposalHasFinalPdf(row)));
+  return {
+    enabled: !historical && text(row.document_type) !== 'הסכם'
+      && (group === 'gefen' || isNextYearProposalGroup(group) || isCombinedProposalGroup(group)),
+    historical
+  };
+}
+
+function customerProgramDisplay(item, row, name, gefenNumber = proposalTextField(item, 'gefen_number', 'gefenNumber')) {
+  const kind = itemKindText(item);
+  const group = normalizeProposalGroup(item.proposal_group || item.activity_type_group);
+  const isCourse = !isDiscountItem(item) && !isWorkshopKindText(kind) && !isSummerKindText(kind)
+    && !/סיור|tour/.test(kind) && text(item.proposal_display_mode) !== 'bundle_child'
+    && (isCourseKindText(kind) || group === 'gefen' || group === 'next_year_courses'
+      || isNextYearProposalGroup(group));
+  return proposalProgramDisplay(item, { ...customerDisplayContext(row), isCourse, name, gefenNumber });
+}
+
+function customerProgramRowAttributes(item, row, display) {
+  const mapped = display.gefenNumber !== proposalTextField(item, 'gefen_number', 'gefenNumber');
+  return customerDisplayContext(row).enabled
+    ? ` data-source-gefen-number="${escapeHtml(proposalTextField(item, 'gefen_number', 'gefenNumber'))}" data-program-display="${mapped ? PROPOSAL_PROGRAM_DISPLAY_VERSION : 'original'}"`
+    : '';
 }
 
 function courseShortNameForItem(item = {}) {
@@ -1246,6 +1279,7 @@ export function buildProposalDocumentSnapshot(row = {}, items = [], templateSect
   }));
   return {
     version: 1,
+    ...(customerDisplayContext(row).enabled ? { presentation_version: PROPOSAL_PROGRAM_DISPLAY_VERSION } : {}),
     template_key: templateKey,
     activity_type_group: activityTypeGroup,
     row: normalizedRow,
@@ -1260,7 +1294,11 @@ export function proposalPreviewHtmlFromSnapshot(snapshot = null) {
   const row = snapshot.row && typeof snapshot.row === 'object' ? snapshot.row : {};
   const items = Array.isArray(snapshot.items) ? snapshot.items : [];
   const sections = Array.isArray(snapshot.template_sections) ? snapshot.template_sections : [];
-  return proposalPreviewBodyHtml({ ...row, status: row.status || 'sent' }, items, sections, { showSignatureImage: true });
+  return proposalPreviewBodyHtml({ ...row, status: row.status || 'sent' }, items, sections, {
+    showSignatureImage: true,
+    presentationVersion: snapshot.presentation_version,
+    preserveHistorical: snapshot.presentation_version !== PROPOSAL_PROGRAM_DISPLAY_VERSION
+  });
 }
 
 export function proposalLockedPreviewHtml(row = {}) {
@@ -2755,7 +2793,7 @@ function costTableRowData(name, quantity, unitPrice, total) {
   };
 }
 
-function costTableRowsFromItem(item = {}) {
+function costTableRowsFromItem(item = {}, documentRow = {}) {
   const bundleItems = Array.isArray(proposalField(item, 'selected_bundle_items', 'selectedBundleItems')) ? proposalField(item, 'selected_bundle_items', 'selectedBundleItems') : [];
   const displayMode = text(item.proposal_display_mode);
   const isBundleParent = displayMode === 'bundle_parent' || item.is_bundle_parent;
@@ -2772,11 +2810,19 @@ function costTableRowsFromItem(item = {}) {
     if (childRows.length) return childRows;
   }
 
-  const name = publicActivityName(proposalField(item, 'item_name', 'itemName'));
+  const display = customerProgramDisplay(item, documentRow, publicActivityName(proposalField(item, 'item_name', 'itemName')));
+  const name = display.name;
   const quantity = Number(proposalField(item, 'quantity', 'quantity')) || 1;
   const unitPrice = numberValue(item.unit_price);
   const total = numberValue(item.total_price) ?? (unitPrice != null ? quantity * unitPrice : null);
   const row = costTableRowData(name, quantity, unitPrice, total);
+  // Combined proposals use a four-column cost table. Keep its price columns
+  // unchanged and show course identity inside the existing activity cell.
+  if (row && customerDisplayContext(documentRow).enabled && itemCatalogKind(item) === 'course'
+    && display.gefenNumber) {
+    row.programDisplay = display;
+    row.programAttributes = customerProgramRowAttributes(item, documentRow, display);
+  }
   return row ? [row] : [];
 }
 
@@ -2837,7 +2883,7 @@ function proposalCostTableHtml(items = [], options = {}) {
   const allBilledItems = (Array.isArray(items) ? items : []).filter((item) =>
     !isTestHoursItem(item) && text(item.proposal_display_mode) !== 'bundle_child');
   const regularItems = allBilledItems.filter((item) => !isDiscountItem(item));
-  const rows = regularItems.flatMap((item) => costTableRowsFromItem(item));
+  const rows = regularItems.flatMap((item) => costTableRowsFromItem(item, options.documentRow));
   if (!rows.length) return '';
   const subtotal = rows.reduce((sum, row) => sum + row.total, 0);
   const discount = Math.abs(allBilledItems.filter(isDiscountItem).reduce((sum, item) => {
@@ -2857,8 +2903,8 @@ function proposalCostTableHtml(items = [], options = {}) {
   return `<table class="${tableClass}">
     ${colgroupHtml}
     <thead><tr><th>פעילות</th><th>כמות</th><th>מחיר יחידה</th><th>${totalHeader}</th></tr></thead>
-    <tbody>${rows.map((row) => `<tr>
-        <td>${escapeHtml(row.name)}</td>
+    <tbody>${rows.map((row) => `<tr${row.programAttributes || ''}${row.programDisplay ? ' data-program-gefen-inline="true"' : ''}>
+        <td>${row.programDisplay ? `<div class="pa-course-name">${escapeHtml(row.name)}</div><div class="pa-course-gefen">מס׳ גפ״ן: <span data-program-gefen>${escapeHtml(row.programDisplay.gefenNumber)}</span></div>` : escapeHtml(row.name)}</td>
         <td>${escapeHtml(formatCurrency(row.quantity))}</td>
         <td>${currencyAmountHtml(row.unitPrice)}</td>
         <td>${currencyAmountHtml(row.total)}</td>
@@ -2906,7 +2952,7 @@ function nextYearGroupedCostTablesHtml(row = {}, items = []) {
     const rowGroup = resolveNextYearInternalRowGroup(item, 'next_year_courses');
     (rowGroup === 'next_year_workshops' ? workshopItems : courseItems).push(item);
   });
-  let courseTable = courseItems.length ? proposalItemDetailsTableHtml(courseItems, 'next_year_courses') : '';
+  let courseTable = courseItems.length ? proposalItemDetailsTableHtml(courseItems, 'next_year_courses', row) : '';
   const workshopTable = nextYearWorkshopTableHtml(workshopItems, { soleTable: !courseItems.length });
   if (courseTable && workshopTable) {
     courseTable = courseTable.replace(/>סה״כ לתשלום</g, '>סה״כ קורסים<');
@@ -2964,7 +3010,7 @@ function itemQuantityTotal(item = {}) {
   return total != null && total > 0 ? total : null;
 }
 
-function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
+function proposalItemDetailsTableHtml(items = [], contextGroup = '', documentRow = {}) {
   if (!isCourseKindText(groupKindText(contextGroup))) return '';
   const isNextYearTable = isNextYearProposalGroup(contextGroup);
   const isGefenTable = normalizeProposalGroup(contextGroup) === 'gefen';
@@ -3015,14 +3061,15 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
       hasTotalPrice = true;
       totalPrice += quantityTotal;
     }
-    const courseName = courseShortNameForItem(item);
+    const display = customerProgramDisplay(item, documentRow, courseShortNameForItem(item));
+    const courseName = display.name;
     const courseNote = isNextYearTable ? cleanCustomerText(text(item.course_note || item.manual_note || '')) : '';
     const courseCellHtml = courseNote
       ? `<div class="pa-course-name">${escapeHtml(courseName)}</div><div class="pa-course-note">${escapeHtml(courseNote)}</div>`
       : escapeHtml(courseName);
     const cells = [
       { value: courseCellHtml, html: true },
-      { value: shouldShowGefenForItem(item, contextGroup) ? proposalTextField(item, 'gefen_number', 'gefenNumber') : '' },
+      { value: shouldShowGefenForItem(item, contextGroup) ? display.gefenNumber : '' },
       { value: item.meetings_count != null ? formatCurrency(item.meetings_count) : '' },
       { value: formatCurrency(quantity) },
       { value: item.hours_count != null ? formatCurrency(item.hours_count) : '' },
@@ -3030,7 +3077,7 @@ function proposalItemDetailsTableHtml(items = [], contextGroup = '') {
       { value: quantityTotal != null ? currencyAmountHtml(quantityTotal) : '', html: true }
     ];
     if (!cells.some((cell) => cell.value)) return '';
-    return `<tr>${cells.map((cell) => `<td>${cell.html ? (cell.value || '') : escapeHtml(cell.value || '')}</td>`).join('')}</tr>`;
+    return `<tr${customerProgramRowAttributes(item, documentRow, display)}>${cells.map((cell) => `<td>${cell.html ? (cell.value || '') : escapeHtml(cell.value || '')}</td>`).join('')}</tr>`;
   }).filter(Boolean);
   if (!rows.length) return '';
   const payablePrice = discountAmount > 0 ? Math.max(totalPrice - discountAmount, 0) : null;
@@ -3719,7 +3766,7 @@ function selectedCourseNamesList(items = [], row = {}, contextGroup = '') {
   const seen = new Set();
   const names = [];
   for (const item of sourceItems) {
-    const name = publicActivityName(proposalField(item, 'item_name', 'itemName'));
+    const name = customerProgramDisplay(item, row, publicActivityName(proposalField(item, 'item_name', 'itemName'))).name;
     if (!name || seen.has(name)) continue;
     seen.add(name);
     names.push(name);
@@ -3755,7 +3802,7 @@ function selectedCourseShortNamesText(row = {}, items = []) {
     return isCourseKindText(groupKindText(itemGroup)) || isCourseKindText(itemKind) || itemCatalogKind(item) === 'course';
   });
   return sourceItems
-    .map((item) => text(item.course_short_name || item.short_name || item.item_short_name || item.item_name))
+    .map((item) => customerProgramDisplay(item, row, text(item.course_short_name || item.short_name || item.item_short_name || item.item_name)).name)
     .filter(Boolean)
     .join('\n');
 }
@@ -3878,7 +3925,7 @@ function buildProposalDocumentHtml({
   const isGefenApprovalDocument = text(documentClassName).split(' ').includes('pa-gefen-approval-document');
   const documentModifierClass = `${isNextYear ? ' pa-document--next-year' : ''}${isSummerDocument ? ' pa-document--summer' : ''}${isTourDocument ? ' pa-proposal-doc--tour pa-document--tour' : ''}${isGefenDocument ? ' pa-proposal-doc--gefen pa-pdf-page' : ''}`;
   return `
-    <div class="proposal-document pa-document pa-a4-page${documentModifierClass}${documentClassName ? ` ${escapeHtml(documentClassName)}` : ''}" data-build="20260704a"${rootAttributes ? ` ${rootAttributes}` : ''} dir="rtl" style="position:relative;box-sizing:border-box;">
+    <div class="proposal-document pa-document pa-a4-page${documentModifierClass}${documentClassName ? ` ${escapeHtml(documentClassName)}` : ''}" data-build="20260704a" data-program-display-context="${customerDisplayContext(row).historical ? 'historical' : customerDisplayContext(row).enabled ? PROPOSAL_PROGRAM_DISPLAY_VERSION : 'original'}"${rootAttributes ? ` ${rootAttributes}` : ''} dir="rtl" style="position:relative;box-sizing:border-box;">
       <style>
         .pa-org-intro {
           padding-inline: 4mm !important;
@@ -4214,10 +4261,11 @@ function gefenApprovalItemsTableHtml(row = {}, items = []) {
     <tbody>${rows.map((item) => {
       const quantity = itemQuantity(item);
       const total = itemQuantityTotal(item);
-      return `<tr>
+      const display = customerProgramDisplay(item, row, courseShortNameForItem(item));
+      return `<tr${customerProgramRowAttributes(item, row, display)}>
         <td class="pa-gefen-choice" aria-label="לבחירה">☐</td>
-        <td>${escapeHtml(courseShortNameForItem(item))}</td>
-        <td>${escapeHtml(text(item.gefen_number))}</td>
+        <td>${escapeHtml(display.name)}</td>
+        <td>${escapeHtml(display.gefenNumber)}</td>
         <td>${item.meetings_count != null ? escapeHtml(formatCurrency(item.meetings_count)) : ''}</td>
         <td>${item.hours_count != null ? escapeHtml(formatCurrency(item.hours_count)) : ''}</td>
         <td>${item.hourly_price != null ? currencyAmountHtml(Math.round(Number(item.hourly_price) || 0)) : ''}</td>
@@ -4233,6 +4281,7 @@ function gefenApprovalItemsTableHtml(row = {}, items = []) {
 }
 
 export function gefenApprovalDocumentHtml(row = {}, items = [], options = {}) {
+  row = { ...row, [CUSTOMER_DISPLAY_CONTEXT]: customerDisplayContext(row, options) };
   const quoteNumber = text(row.quote_number);
   const approvalRow = { ...row, activity_type_group: 'gefen' };
   const validityIso = text(row.valid_until) || calculateProposalValidityDate(row.proposal_date);
@@ -4308,7 +4357,7 @@ function gefenProposalDocumentHtml(row, items = [], templateSections = [], rende
     activityPreface ? `<section class="pa-section pa-gefen-purpose">${sectionBodyHtml(activityPreface)}</section>` : '',
     `<section class="pa-section pa-gefen-programs">
       <h3 class="pa-section-heading">${escapeHtml(sectionHeadingText(sectionTitle('activity_intro') || 'התוכניות המוצעות'))}</h3>
-      ${proposalItemDetailsTableHtml(items, 'gefen')}
+      ${proposalItemDetailsTableHtml(items, 'gefen', row)}
       ${activityAfterTable ? sectionBodyHtml(activityAfterTable) : ''}
       ${validationMessage ? `<p class="pa-gefen-document-warning" role="alert">${escapeHtml(validationMessage)}</p>` : ''}
     </section>`,
@@ -4338,6 +4387,7 @@ function gefenProposalDocumentHtml(row, items = [], templateSections = [], rende
 }
 
 export function proposalPreviewBodyHtml(row, items = [], templateSections = [], renderOptions = {}) {
+  row = { ...row, [CUSTOMER_DISPLAY_CONTEXT]: customerDisplayContext(row, renderOptions) };
   const activityTypeGroup = normalizeProposalGroup(row.activity_type_group);
   if (activityTypeGroup === 'gefen') {
     return gefenProposalDocumentHtml(row, items, templateSections, renderOptions);
@@ -4414,8 +4464,8 @@ export function proposalPreviewBodyHtml(row, items = [], templateSections = [], 
   const costTableHtml = groupedNextYearCostTables || (isTourProposalGroup(activityTypeGroup)
     ? tourCostTableHtml(items)
     : proposalKind === 'course'
-      ? proposalItemDetailsTableHtml(items, activityTypeGroup)
-      : proposalCostTableHtml(items, { isSummer: isSummerProposalGroup(activityTypeGroup) }));
+      ? proposalItemDetailsTableHtml(items, activityTypeGroup, row)
+      : proposalCostTableHtml(items, { isSummer: isSummerProposalGroup(activityTypeGroup), documentRow: row }));
   const costsIntro = costsIntroBody(row, items);
   const tableNote = proposalTableNote(row);
   const tableNoteHtml = tableNote ? `<p class="pa-table-note" data-pa-table-note>* ${escapeHtml(tableNote)}</p>` : '';
@@ -8972,7 +9022,8 @@ export const proposalsAgreementsScreen = {
         <div class="proposal-preview-area">
           ${lockedPreviewHtml || proposalPreviewBodyHtml(freshRow, items, templateSections, signingMode ? { showSignatureImage: true } : {})}
         </div>`;
-      proposalPdfDocumentNormalizer?.(overlay.querySelector('.proposal-preview-area'));
+      // A locked HTML snapshot is already the final customer document.
+      if (!lockedPreviewHtml) proposalPdfDocumentNormalizer?.(overlay.querySelector('.proposal-preview-area'));
       document.body.appendChild(overlay);
       document.body.classList.add('is-print-preview');
       const previousDocumentTitle = document.title;
