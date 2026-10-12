@@ -23,9 +23,8 @@ export const FINANCE_ATTENDANCE_COLUMNS = [
   ...FINANCE_HOUR_CATEGORIES.map((item) => item.label),
   'סה״כ שעות',
   'סה״כ ק״מ',
-  'עלות תחבורה ציבורית (₪)',
+  'תחבורה ציבורית (₪)',
   'הוצאות',
-  'סה״כ החזרים ללא ק״מ (₪)',
   'קובץ',
   'הערות'
 ];
@@ -51,9 +50,8 @@ export const FINANCE_MAOF_DAILY_COLUMNS = [
   'שעות פעילות',
   'סה״כ שעות',
   'סה״כ ק״מ ליום',
-  'עלות תחבורה ציבורית (₪)',
-  'הוצאות (₪)',
-  'סה״כ החזרים ללא ק״מ (₪)'
+  'תחבורה ציבורית (₪)',
+  'הוצאות (₪)'
 ];
 
 const txt = (value) => String(value ?? '').trim();
@@ -305,10 +303,8 @@ export function buildMaofDailyExcelRows(approvals = []) {
       'שעות פעילות': entry.hourRanges,
       'סה״כ שעות': entry.totalHours,
       'סה״כ ק״מ ליום': showKm ? (dailyKm.get(entry.dayKey) || 0) : '',
-      'עלות תחבורה ציבורית (₪)': showKm ? (dailyTransport.get(entry.dayKey) || 0) : '',
-      'הוצאות (₪)': showKm ? (dailyExpenses.get(entry.dayKey) || 0) : '',
-      'סה״כ החזרים ללא ק״מ (₪)': showKm
-        ? roundHours((dailyTransport.get(entry.dayKey) || 0) + (dailyExpenses.get(entry.dayKey) || 0)) : ''
+      'תחבורה ציבורית (₪)': showKm ? (dailyTransport.get(entry.dayKey) || 0) : '',
+      'הוצאות (₪)': showKm ? (dailyExpenses.get(entry.dayKey) || 0) : ''
     };
   });
 }
@@ -451,9 +447,8 @@ export function financeAttendanceDisplayRow(entry = {}) {
     'לא מסווג – לבדיקה': hours.uncategorized || 0,
     'סה״כ שעות': entry.totalHours || 0,
     'סה״כ ק״מ': entry.kilometers || 0,
-    'עלות תחבורה ציבורית (₪)': entry.publicTransportCost || 0,
+    'תחבורה ציבורית (₪)': entry.publicTransportCost || 0,
     הוצאות: entry.expenses || 0,
-    'סה״כ החזרים ללא ק״מ (₪)': entry.totalReimbursements || 0,
     קובץ: entry.hasFile ? (entry.fileUrl || entry.fileName || 'קובץ') : '',
     הערות: entry.notes || ''
   };
@@ -595,7 +590,7 @@ export function auditFinanceAttendanceReconciliation(entries = [], approvals = [
     for (const row of buildMaofDailyExcelRows(approvals)) {
       const id = txt(row['מספר עובד']);
       const actual = actualByEmployee.get(id) || { transport: 0, expenses: 0 };
-      actual.transport += num(row['עלות תחבורה ציבורית (₪)']);
+      actual.transport += num(row['תחבורה ציבורית (₪)']);
       actual.expenses += num(row['הוצאות (₪)']);
       actualByEmployee.set(id, actual);
     }

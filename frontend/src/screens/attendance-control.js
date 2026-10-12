@@ -8,9 +8,9 @@ import {
   payrollEntityFieldsEquivalent
 } from './payroll-control-identity.js';
 
-export const DETAIL_HEADERS = ['מספר עובד', 'שם עובד', 'תאריך', 'שעת התחלה', 'שעת סיום', 'שעות עבודה', 'ביטול זמן', 'סוג פעילות', 'שם בית ספר', 'רשות', 'שם תכנית', 'מספר מפגש', 'קילומטרים', 'תחבורה ציבורית', 'עלות תחבורה ציבורית', 'הוצאות', 'פירוט הוצאות', 'הערות', 'אסמכתאות'];
-export const MONTHLY_HEADERS = ['שם מדריך', 'מספר עובד', 'שעות ביטול זמן', 'שעות הכשרה', 'שעות חדר בריחה', 'שעות סדנה', 'שעות סדנאות קיץ', 'שעות סיור', 'שעות קורס', 'שעות תפעול', 'סה"כ קילומטרים', 'הוצאות', 'פירוט הוצאות', 'שעות זום', 'שעות לא מסווגות – לבדיקה', 'סה"כ שעות', 'עלות תחבורה ציבורית (₪)', 'סה"כ החזרים ללא ק"מ (₪)'];
-export const DAILY_HEADERS = ['תאריך', 'שם מדריך', 'מספר עובד', 'סוג פעילות', 'רשות', 'שעת התחלה', 'שעת סיום', 'שעות עבודה', 'ביטול זמן', 'קילומטרים', 'הוצאות', 'פירוט הוצאות', 'עלות תחבורה ציבורית (₪)', 'סה"כ החזרים ללא ק"מ (₪)'];
+export const DETAIL_HEADERS = ['מספר עובד', 'שם עובד', 'תאריך', 'שעת התחלה', 'שעת סיום', 'שעות עבודה', 'ביטול זמן', 'סוג פעילות', 'שם בית ספר', 'רשות', 'שם תכנית', 'מספר מפגש', 'קילומטרים', 'שימוש בתחבורה ציבורית', 'תחבורה ציבורית (₪)', 'הוצאות', 'פירוט הוצאות', 'הערות', 'אסמכתאות'];
+export const MONTHLY_HEADERS = ['שם מדריך', 'מספר עובד', 'שעות ביטול זמן', 'שעות הכשרה', 'שעות חדר בריחה', 'שעות סדנה', 'שעות סדנאות קיץ', 'שעות סיור', 'שעות קורס', 'שעות תפעול', 'סה"כ קילומטרים', 'הוצאות', 'פירוט הוצאות', 'שעות זום', 'שעות לא מסווגות – לבדיקה', 'סה"כ שעות', 'תחבורה ציבורית (₪)'];
+export const DAILY_HEADERS = ['תאריך', 'שם מדריך', 'מספר עובד', 'סוג פעילות', 'רשות', 'שעת התחלה', 'שעת סיום', 'שעות עבודה', 'ביטול זמן', 'קילומטרים', 'הוצאות', 'פירוט הוצאות', 'תחבורה ציבורית (₪)'];
 
 const FIELD_DEFS = [
   ['startTime', 'שעת התחלה', 'time'], ['endTime', 'שעת סיום', 'time'],
@@ -27,8 +27,8 @@ const HEADER_ALIASES = {
   school: ['שם בית ספר', 'בית ספר', 'מסגרת'], authority: ['רשות', 'עיר', 'מועצה'], program: ['שם תכנית', 'שם תוכנית', 'תכנית', 'תוכנית'],
   meetingNo: ['מספר מפגש', 'מס מפגש', 'מפגש'], kilometers: ['קילומטרים', 'ק"מ', 'קמ', 'נסיעות'], expenses: ['הוצאות', 'סכום הוצאות'],
   expenseDetails: ['פירוט הוצאות', 'תיאור הוצאות'], notes: ['הערות', 'הערה'], activityId: ['מזהה פעילות', 'מזהה פעילות פנימי', 'rowid'],
-  publicTransport: ['תחבורה ציבורית', 'public transport', 'public_transport'],
-  publicTransportCost: ['עלות תחבורה ציבורית', 'public transport cost', 'public_transport_cost'],
+  publicTransport: ['שימוש בתחבורה ציבורית', 'תחבורה ציבורית', 'public transport', 'public_transport'],
+  publicTransportCost: ['תחבורה ציבורית (₪)', 'עלות תחבורה ציבורית (₪)', 'עלות תחבורה ציבורית', 'public transport cost', 'public_transport_cost'],
   attachmentsNames: ['אסמכתאות', 'קבצים', 'attachments']
 };
 
@@ -1868,7 +1868,7 @@ export function buildCorrectedAttendanceWorkbook(comparisons, dashboardRows = []
   const monthly = [...monthlyMap.values()].map((item) => [
     item.name, item.id, ...item.hours.map(exportDuration), item.km, item.expenses, [...new Set(item.details)].join('; '),
     exportDuration(item.zoomHours), exportDuration(item.uncategorizedHours), exportDuration(item.totalHours),
-    item.publicTransportCost, Math.round((item.expenses + item.publicTransportCost) * 100) / 100
+    item.publicTransportCost
   ]);
   const daily = detailRows.map((row) => [
     excelDate(row.date || row.attendanceDate || row.AttendanceDate), txt(row.employeeName || row.EmployeeName), txt(row.employeeId || row.EmployeeId),
@@ -1879,15 +1879,12 @@ export function buildCorrectedAttendanceWorkbook(comparisons, dashboardRows = []
     optionalNumber(row.kilometers ?? row.Kilometers) ?? '', optionalNumber(row.expenses ?? row.totalExpenses ?? row.TotalExpenses) ?? '',
     txt(row.expenseDetails || row.expensesDetails || row.ExpensesDetails),
     asBoolean(row.publicTransport ?? row.PublicTransport ?? row.public_transport)
-      ? (optionalNumber(row.publicTransportCost ?? row.PublicTransportCost ?? row.public_transport_cost) ?? 0) : 0,
-    (optionalNumber(row.expenses ?? row.totalExpenses ?? row.TotalExpenses) ?? 0)
-      + (asBoolean(row.publicTransport ?? row.PublicTransport ?? row.public_transport)
-        ? (optionalNumber(row.publicTransportCost ?? row.PublicTransportCost ?? row.public_transport_cost) ?? 0) : 0)
+      ? (optionalNumber(row.publicTransportCost ?? row.PublicTransportCost ?? row.public_transport_cost) ?? 0) : 0
   ]);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, detailSheet, 'פירוט מלא');
   XLSX.utils.book_append_sheet(workbook, styledSheet(MONTHLY_HEADERS, monthly), 'סיכום חודשי');
-  XLSX.utils.book_append_sheet(workbook, styledSheet(DAILY_HEADERS, daily, [12, 18, 12, 14, 16, 11, 11, 11, 11, 12, 12, 24, 16, 18]), 'תצוגה יומית');
+  XLSX.utils.book_append_sheet(workbook, styledSheet(DAILY_HEADERS, daily, [12, 18, 12, 14, 16, 11, 11, 11, 11, 12, 12, 24, 16]), 'תצוגה יומית');
   return workbook;
 }
 
@@ -2290,8 +2287,8 @@ export function resultsHtml(result, month = '', options = {}) {
       { key: 'startTime', label: 'שעת התחלה', left: displayRow.startTime, editValue: current.startTime, right: dashboard?.startTime, always: true },
       { key: 'endTime', label: 'שעת סיום', left: displayRow.endTime, editValue: current.endTime, right: dashboard?.endTime, always: true },
       { key: 'workHours', label: 'סה״כ שעות', left: displayWorkHours(current), editValue: rowWorkHours(current), right: dashboard ? displayDashboardWorkHours(dashboard) : null, always: true, autoCalculated: true },
-      { key: 'publicTransport', label: 'תחבורה ציבורית', left: publicTransport ? 'כן' : 'לא', editValue: publicTransport, right: null, visible: publicTransport || (publicTransportCost != null && publicTransportCost > 0) },
-      { key: 'publicTransportCost', label: 'עלות תחבורה ציבורית', left: publicTransportCost, editValue: publicTransportCost, right: null, visible: publicTransport || (publicTransportCost != null && publicTransportCost > 0) },
+      { key: 'publicTransport', label: 'שימוש בתחבורה ציבורית', left: publicTransport ? 'כן' : 'לא', editValue: publicTransport, right: null, visible: publicTransport || (publicTransportCost != null && publicTransportCost > 0) },
+      { key: 'publicTransportCost', label: 'תחבורה ציבורית (₪)', left: publicTransportCost, editValue: publicTransportCost, right: null, visible: publicTransport || (publicTransportCost != null && publicTransportCost > 0) },
       { key: 'kilometers', label: 'ק״מ', left: attendanceKm, editValue: attendanceKm, right: dashboardKm, visible: !publicTransport },
       { key: 'expenses', label: 'הוצאות', left: attendanceExpenses, editValue: attendanceExpenses, right: dashboardExpenses, visible: (attendanceExpenses != null && attendanceExpenses > 0) || (dashboardExpenses != null && dashboardExpenses > 0) || diffByKey.has('expenses') },
       { key: 'expenseDetails', label: 'פירוט הוצאה', left: current.expenseDetails, editValue: current.expenseDetails, right: null, visible: (attendanceExpenses != null && attendanceExpenses > 0) && hasValue(current.expenseDetails) },
@@ -2767,7 +2764,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         <label><span>מספר מפגש</span><input class="ds-input" type="number" name="sessionNumber" min="1" step="1"></label>
         <label><span>ק״מ</span><input class="ds-input" type="number" name="kilometers" min="0" step="0.01" value="0"></label>
         <label><span>תחבורה ציבורית</span><select class="ds-input" name="publicTransport"><option value="false">לא</option><option value="true">כן</option></select></label>
-        <label><span>עלות תחבורה ציבורית</span><input class="ds-input" type="number" name="publicTransportCost" min="0" step="0.01" value="0"></label>
+        <label><span>תחבורה ציבורית (₪)</span><input class="ds-input" type="number" name="publicTransportCost" min="0" step="0.01" value="0"></label>
         <label><span>הוצאות</span><input class="ds-input" type="number" name="totalExpenses" min="0" step="0.01" value="0"></label>
         <label class="attendance-control__add-wide"><span>פירוט הוצאות</span><input class="ds-input" type="text" name="expensesDetails"></label>
         <label class="attendance-control__add-wide"><span>הערות</span><input class="ds-input" type="text" name="notes"></label>
