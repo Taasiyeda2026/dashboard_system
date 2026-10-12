@@ -43,6 +43,7 @@ import { uploadAttachment } from '../services/storage.service.js';
 import { attendanceDateWarning } from '../services/activity-date-warning.js';
 import { formatTravelMinutes } from '../components/report-summary-row.js';
 import { scheduledTrainingReportFields } from '../services/training-schedule.helpers.js';
+import { isZoomLocationReport } from '../services/attendance-location-policy.js';
 import {
   createDashboardCourseChoiceState,
   loadDashboardCourseRows,
@@ -206,6 +207,7 @@ export function renderNewReportScreen(container, {
   let operationChoiceField = null;
   let teamModeField = null;
   let teamLocationField = null;
+  let zoomLocationInfo = null;
   let trainingModeField = null;
   let scheduledTrainingIds = new Set();
 
@@ -239,9 +241,12 @@ export function renderNewReportScreen(container, {
   }
 
   function isOnlineActivity() {
-    const isOnlineTeam = getReportType() === OPERATIONS_REPORT_TYPE
-      && operationSnapshot() === 'צוות' && teamModeField?.input?.value === 'online';
-    return isOnlineReportType() || isOnlineTraining() || isOnlineTeam;
+    return isZoomLocationReport({
+      activityType: getReportType(),
+      trainingMode: isOnlineTraining() ? 'online' : trainingModeField?.input?.value,
+      operationMeetingMode: operationSnapshot() === 'צוות' ? teamModeField?.input?.value : '',
+      operationName: getReportType() === OPERATIONS_REPORT_TYPE ? operationSnapshot() : '',
+    });
   }
 
   function isNoActivityNameType(reportType = getReportType()) {
@@ -365,6 +370,7 @@ export function renderNewReportScreen(container, {
     trainingDescField.wrap.hidden = !chosen?.is_other;
     if (teamModeField?.wrap) teamModeField.wrap.hidden = !isTeam;
     if (teamLocationField?.wrap) teamLocationField.wrap.hidden = !isTeam || teamModeField.input.value !== 'physical';
+    if (zoomLocationInfo) zoomLocationInfo.hidden = !isOnlineActivity();
     syncTravelMode();
   }
 
@@ -374,8 +380,10 @@ export function renderNewReportScreen(container, {
   }
 
   function setLocationFieldsVisible(visible) {
-    if (authSel?.wrap) authSel.wrap.hidden = !visible;
-    if (schoolMount) schoolMount.hidden = !visible;
+    const showPhysicalLocation = visible && !isOnlineActivity();
+    if (authSel?.wrap) authSel.wrap.hidden = !showPhysicalLocation;
+    if (schoolMount) schoolMount.hidden = !showPhysicalLocation;
+    if (zoomLocationInfo) zoomLocationInfo.hidden = !isOnlineActivity();
   }
 
   function setActivityNameEnabled(enabled) {
@@ -442,7 +450,7 @@ export function renderNewReportScreen(container, {
 
   function syncLocationDependencies() {
   const hasType = !!getReportType();
-  const showsLocation = !isOpenFieldType() && !isOnlineTraining();
+  const showsLocation = !isOpenFieldType() && !isOnlineActivity();
   const courseAwaitingActivity = isCourseReportType() && !selectedActivity;
   authSel?.setDisabled(!hasType || !showsLocation || courseAwaitingActivity || !!selectedActivity);
   setSchoolEnabled(hasType && showsLocation && !courseAwaitingActivity && hasSelectedAuthority());
@@ -874,7 +882,7 @@ export function renderNewReportScreen(container, {
       syncAuthoritySchoolFromActivity(activity);
     }
     if (autoFillTimes) syncActivityTimes(activity);
-    setLocationFieldsVisible(!isBaseTrainingActivity(activity) && !isOnlineTraining() && !isScheduledTraining(activity));
+    setLocationFieldsVisible(!isBaseTrainingActivity(activity) && !isOnlineActivity() && !isScheduledTraining(activity));
     if (isOnlineTraining()) {
       baseTrainingRouteRow.hidden = true;
       baseTrainingRouteRow.replaceChildren();
@@ -927,7 +935,7 @@ export function renderNewReportScreen(container, {
       return;
     }
 
-    setLocationFieldsVisible(!isOnlineTraining());
+    setLocationFieldsVisible(!isOnlineActivity());
     setActivityNameVisible(true);
     setTrainingDescVisible(false);
 
@@ -1244,6 +1252,10 @@ export function renderNewReportScreen(container, {
     schoolMount = document.createElement('div');
     schoolMount.className = 'av2-report__school-mount';
     mountManualSchoolSelect();
+    zoomLocationInfo = document.createElement('div');
+    zoomLocationInfo.className = 'av2-field av2-report__virtual-location';
+    zoomLocationInfo.textContent = 'מיקום: זום — אין צורך בכתובת, רשות או בית ספר';
+    zoomLocationInfo.hidden = true;
 
     const meetingVal = prefill?.meeting_no != null ? String(prefill.meeting_no) : '';
     const meetingOptions = [{ value: '', label: '—' }];
@@ -1275,6 +1287,7 @@ export function renderNewReportScreen(container, {
         trainingDescWrap,
         authSel.wrap,
         schoolMount,
+        zoomLocationInfo,
         meetingWrap,
       ],
     );
@@ -1667,7 +1680,7 @@ export function renderNewReportScreen(container, {
       if (startTime && endTime && totalHours <= 0) {
         markInvalid(endPicker.wrap, 'שעת סיום חייבת להיות מאוחרת מהתחלה');
       }
-      if (!activity && !isNoActivity && !isOpen && !isOnlineTraining()) {
+      if (!activity && !isNoActivity && !isOpen && !isOnline) {
         const authLabel = manualAuthName?.trim() || '';
         if (!authLabel) markInvalid(authSel.wrap, 'רשות');
       }
@@ -1679,7 +1692,7 @@ export function renderNewReportScreen(container, {
         return;
       }
 
-      const hasNoLocation = isOpen || isOnlineTraining();
+      const hasNoLocation = isOpen || isOnline;
       const finalAuthorityId = hasNoLocation ? null : (activity?.authority_id ?? manualAuthId ?? null);
       const finalAuthorityName = hasNoLocation ? null : (activity?.authority_name ?? activity?.authority ?? manualAuthName ?? null);
       const finalSchoolId = hasNoLocation ? null : (activity ? (schoolId || null) : (manualSchoolId || null));
