@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { filterGroups, hasCourseStartDate, hasCourseEndDate, studentFeedbackPeriodForGroup, studentFeedbackHasResponses, sortStudentFeedbackGroups, sortEducationalStaffFeedbackGroups, filterFeedbackFactsForHalf } from '../frontend/src/impact-feedback/feedback-domain.js';
 import { COURSE_SCHEDULING_PERIODS } from '../frontend/src/screens/course-scheduling-periods.js';
-import { canViewImpactFeedback, isFeedbackAdmin } from '../frontend/src/impact-feedback/feedback-access.js';
+import { canViewImpactFeedback, canEditImpactFeedbackWording, isFeedbackAdmin } from '../frontend/src/impact-feedback/feedback-access.js';
 
 const screen = readFileSync(new URL('../frontend/src/screens/impact-feedback.js', import.meta.url), 'utf8');
 const styles = readFileSync(new URL('../frontend/src/impact-feedback/impact-feedback-admin.css', import.meta.url), 'utf8');
@@ -755,6 +755,9 @@ test('impact-feedback temporary access is limited to active admin and specific I
   assert.equal(canViewImpactFeedback({ user_id: 'a1', role: 'admin' }), true);
   assert.equal(isFeedbackAdmin(allowed), false);
   assert.equal(canViewImpactFeedback(allowed), true);
+  assert.equal(canEditImpactFeedbackWording(allowed), true);
+  assert.equal(canEditImpactFeedbackWording({ ...allowed, is_active: false }), false);
+  assert.equal(canEditImpactFeedbackWording({ user_id: 'a1', role: 'admin' }), false);
   assert.equal(canViewImpactFeedback({ ...allowed, is_active: false }), false);
   assert.equal(canViewImpactFeedback({ ...allowed, role: 'instructor' }), false);
   assert.equal(canViewImpactFeedback({ ...allowed, user_id: '3031', full_name: 'איסראא' }), false);
@@ -789,25 +792,28 @@ test('impact-feedback temporary access is limited to active admin and specific I
   assert.match(sql, /Unsafe feedback write grants detected/);
 });
 
-test('Israa can browse published feedback templates, bilingual questions, PDFs, and previews without edits', () => {
+test('Israa can view feedback, correct bilingual draft wording and cannot manage campaigns or PDFs', () => {
   const templateView = readFileSync(new URL('../frontend/src/impact-feedback/feedback-templates-view.js', import.meta.url), 'utf8');
   const migration = readFileSync(new URL('../supabase/migrations/20261011212500_feedback_israa_published_templates_read.sql', import.meta.url), 'utf8');
   const correction = readFileSync(new URL('../supabase/migrations/20261011213000_feedback_israa_published_version_policy_fix.sql', import.meta.url), 'utf8');
-  assert.match(screen, /renderTemplatesView\(ui, \{ readOnly: feedbackReadOnly \}\)/);
-  assert.match(screen, /bindTemplatesView\(host, ui, \(\) => paint\(host\), \{ readOnly: feedbackReadOnly \}\)/);
-  assert.match(templateView, /function listHtml\(ui, \{ readOnly = false \} = \{\}\)/);
+  assert.match(screen, /renderTemplatesView\(ui, \{ readOnly: feedbackReadOnly, canEditWording: feedbackCanEditWording \}\)/);
+  assert.match(screen, /bindTemplatesView\(host, ui, \(\) => paint\(host\), \{ readOnly: feedbackReadOnly, canEditWording: feedbackCanEditWording \}\)/);
+  assert.match(templateView, /function listHtml\(ui, \{ readOnly = false, canEditWording = false \} = \{\}\)/);
   assert.match(templateView, /if \(readOnly\) return `<div class="ifb-template-card__lang-actions"/);
-  assert.match(templateView, /function editorHtml\(ui, \{ readOnly = false \} = \{\}\)/);
+  assert.match(templateView, /function editorHtml\(ui, \{ readOnly = false, canEditWording = false \} = \{\}\)/);
   assert.match(templateView, /const editing = !readOnly && Boolean\(ed\.draft\)/);
-  assert.match(templateView, /: readOnly \? '' : '<button type="button" class="ifb-btn ifb-btn--primary" data-tpl-edit/);
-  assert.match(templateView, /const draftMeta = readOnly \? null : versions\.find/);
+  assert.match(templateView, /data-tpl-wording-edit/);
+  assert.match(templateView, /wordingOnlyQuestionHtml/);
+  assert.match(templateView, /data-tq-field="wording\.default"/);
+  assert.match(templateView, /data-tq-field="wording\.ar"/);
+  assert.match(templateView, /const draftMeta = \(readOnly && !canEditWording\) \? null : versions\.find/);
   assert.match(templateView, /readOnly \? \[\] : fetchBankQuestions\(/);
   assert.match(templateView, /!readOnly && ed\.draft \? ed\.draftQuestions : ed\.publishedQuestions/);
-  assert.match(templateView, /if \(readOnly && !t\.closest/);
+  assert.match(templateView, /if \(readOnly && !t\.closest\(canEditWording/);
   assert.match(templateView, /\[data-tpl-pdf\], \[data-tpl-open\], \[data-tpl-back\], \[data-tpl-preview\]/);
   assert.match(templateView, /if \(readOnly\) \{ event\.preventDefault\(\); return; \}/);
-  assert.match(templateView, /if \(readOnly\) return;/);
-  assert.match(templateView, /readOnly \? '' : '<button/);
+  assert.match(templateView, /if \(readOnly\) \{/);
+  assert.match(templateView, /readOnly \? \(canEditWording && ed\.published/);
   for (const t of [
     'feedback_templates_pilot_view_select',
     'feedback_template_versions_pilot_published_select',

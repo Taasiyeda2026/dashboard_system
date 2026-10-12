@@ -67,7 +67,7 @@ import {
 import { campaignLink, copyText, openQrProjection, personalShareLinks } from '../impact-feedback/feedback-share.js';
 import { renderTemplatesView, bindTemplatesView } from '../impact-feedback/feedback-templates-view.js';
 import '../impact-feedback/feedback-form.css';
-import { canViewImpactFeedback, isFeedbackAdmin } from '../impact-feedback/feedback-access.js';
+import { canViewImpactFeedback, canEditImpactFeedbackWording, isFeedbackAdmin } from '../impact-feedback/feedback-access.js';
 import '../impact-feedback/impact-feedback-admin.css';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -144,6 +144,7 @@ const ui = {
 };
 
 let feedbackReadOnly = false;
+let feedbackCanEditWording = false;
 function visibleFeedbackTabs() {
   return TABS;
 }
@@ -462,7 +463,7 @@ function shellHtml(inner) {
   return `
     <div class="ifb-admin__head">
       <h1 class="ifb-admin__title">משובים</h1>
-      ${feedbackReadOnly ? '<p class="ifb-viewer-note">גישה לצפייה וניתוח בלבד · פעולות ניהול נשארות לאדמין</p>' : ''}
+      ${feedbackReadOnly ? `<p class="ifb-viewer-note">${feedbackCanEditWording ? 'ניתן לערוך נוסחי שאלות בעברית ובערבית בטיוטה · פרסום ושינוי מבנה השאלון בידי אדמין' : 'גישה לצפייה וניתוח בלבד · פעולות ניהול נשארות לאדמין'}</p>` : ''}
       <button type="button" class="ifb-icon-btn ifb-icon-btn--lg" data-ifb-refresh title="טעינה מחדש של הנתונים" aria-label="טעינה מחדש של הנתונים">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"></path></svg>
       </button>
@@ -1766,7 +1767,7 @@ function viewHtml() {
   if (ui.tab === 'instructors') return instructorsHtml();
   if (ui.tab === 'staff') return staffHtml();
   if (ui.tab === 'analysis') return analysisHtml();
-  if (ui.tab === 'templates') return `${courseOnlyFiltersHtml('templates')}${renderTemplatesView(ui, { readOnly: feedbackReadOnly })}`;
+  if (ui.tab === 'templates') return `${courseOnlyFiltersHtml('templates')}${renderTemplatesView(ui, { readOnly: feedbackReadOnly, canEditWording: feedbackCanEditWording })}`;
   return overviewHtml();
 }
 
@@ -1791,7 +1792,7 @@ function paint(host, { focusTab = false } = {}) {
     }
   }
   window.scrollTo({ top: scrollY });
-  if (host.querySelector('[data-ifb-templates]') || host.querySelector('[data-tpl-reload]')) bindTemplatesView(host, ui, () => paint(host), { readOnly: feedbackReadOnly });
+  if (host.querySelector('[data-ifb-templates]') || host.querySelector('[data-tpl-reload]')) bindTemplatesView(host, ui, () => paint(host), { readOnly: feedbackReadOnly, canEditWording: feedbackCanEditWording });
 }
 
 async function load(host, { force = false, focusTab = false } = {}) {
@@ -2208,6 +2209,7 @@ function mount(host, state) {
     return;
   }
   feedbackReadOnly = !isFeedbackAdmin(state?.user);
+  feedbackCanEditWording = canEditImpactFeedbackWording(state?.user);
   host.classList.toggle('is-feedback-readonly', feedbackReadOnly);
   // A previous admin session may have opened a draft editor. Reset it on a
   // viewer session so published content is fetched without any stale admin state.
