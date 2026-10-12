@@ -1,5 +1,8 @@
 import { israelClock } from './planner.mjs';
 
+/** Required From mailbox for every automatically generated staff feedback email. */
+export const STAFF_FEEDBACK_SENDER = 'office@think.org.il';
+
 // No transport is constructed here: tests inject a fake, production injects Graph.
 export function deliveryWindow(action, now) {
   const clock = israelClock(now);
