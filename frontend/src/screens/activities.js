@@ -80,6 +80,24 @@ const RESOLVED_CONTACT_FIELDS = [
 ];
 const ADD_ACTIVITY_TYPE_ORDER = ['course', 'workshop', 'escape_room', 'tour', 'after_school'];
 
+/** Uses the same filtered rows as the headline total, not paginated table rows. */
+export function activitiesTypeCounts(rows = []) {
+  const counts = { course: 0, tour: 0, workshop: 0, other: 0 };
+  for (const row of rows) {
+    const category = normalizeActivityTypeKey(row?.activity_type || row?.type);
+    if (category === 'course' || category === 'tour' || category === 'workshop') counts[category] += 1;
+    else counts.other += 1;
+  }
+  return counts;
+}
+
+function activityTypesSummaryHtml(rows = []) {
+  const { course, tour, workshop, other } = activitiesTypeCounts(rows);
+  const parts = [`${course} קורסים`, `${tour} סיורים`, `${workshop} סדנאות`];
+  if (other > 0) parts.push(`${other} אחרות`);
+  return `<span class="ds-activities-type-summary" data-activities-type-summary dir="rtl" aria-label="פירוט פעילויות לפי סוג">(${parts.join(' | ')})</span>`;
+}
+
 const ALL_ACTIVITIES_TAB_KEY = 'all_activities';
 const ACTIVITIES_INNER_TAB_ALL = 'year_all';
 const ACTIVITIES_INNER_TAB_REGULAR_2026 = 'regular_2026';
@@ -2141,7 +2159,15 @@ export const activitiesScreen = {
       <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-activities-month-next aria-label="${escapeHtml(nextMonthTitle)}" title="${escapeHtml(nextMonthTitle)}" ${disableNextMonth ? 'disabled' : ''}>◀</button>
       ${allSummerBtn}
     </nav>`
-        : `<nav class="ds-activities-title-row" aria-label="${escapeHtml(periodLabel)}" dir="rtl">
+        : state.activityPeriodTab === ACTIVITY_SEASON_SCHOOL_2027
+          && state.activitiesInnerTab === ACTIVITIES_INNER_TAB_ALL
+          ? `<div class="ds-activities-heading-line" dir="rtl">
+      <nav class="ds-activities-title-row" aria-label="${escapeHtml(periodLabel)}" dir="rtl">
+        <h2 class="ds-activities-page-title">ניהול פעילויות - ${escapeHtml(periodLabel)} · ${total} פעילויות</h2>
+      </nav>
+      ${activityTypesSummaryHtml(filteredRows)}
+    </div>`
+          : `<nav class="ds-activities-title-row" aria-label="${escapeHtml(periodLabel)}" dir="rtl">
       <h2 class="ds-activities-page-title">ניהול פעילויות - ${escapeHtml(periodLabel)} · ${total} פעילויות</h2>
     </nav>`;
     const periodTabs = activityPeriodTabsHtml(allRows, state.activityPeriodTab, state);
