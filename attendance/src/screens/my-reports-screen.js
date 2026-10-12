@@ -313,6 +313,11 @@ function locationOrSchoolForRecord(record, baseTraining) {
     return authority || school || 'Greenwork, יקום';
   }
 
+  if (record.activity_type === OPERATIONS_REPORT_TYPE && record.activity_name_snapshot === 'צוות') {
+    return record.operation_meeting_mode === 'online'
+      ? 'זום'
+      : (record.destination_address_snapshot || '—');
+  }
   if (record.training_schedule_id) return authority || school || '—';
   return school || '—';
 }
@@ -627,6 +632,25 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
 
   form.append(reportDateField.wrap, actNameField.wrap, typeField.wrap, meetField.wrap);
 
+  const teamModeField = createSelectField({
+    id: 'edit-team-meeting-mode',
+    label: 'אופן מפגש צוות *',
+    options: [
+      { value: '', label: 'בחר אופן מפגש…' },
+      { value: 'online', label: 'זום' },
+      { value: 'physical', label: 'מפגש פיזי' },
+    ],
+    value: record.operation_meeting_mode || '',
+  });
+  const teamLocationField = createInputField({
+    id: 'edit-team-location',
+    label: 'מיקום פיזי *',
+    placeholder: 'כתובת המפגש',
+    value: record.operation_meeting_mode === 'physical'
+      ? String(record.destination_address_snapshot || '') : '',
+  });
+  form.append(teamModeField.wrap, teamLocationField.wrap);
+
   const authField   = createInputField({ id: 'edit-authority', label: 'רשות',    value: record.authority_name_snapshot || '' });
   const schoolField = createInputField({ id: 'edit-school',    label: 'בית ספר', value: record.school_name_snapshot || '' });
   form.append(authField.wrap, schoolField.wrap);
@@ -679,7 +703,11 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
   function syncEditTypeUi() {
     const reportType = typeField.input.value;
     const isOperations = reportType === OPERATIONS_REPORT_TYPE;
-    const isZoom = reportType === ONLINE_REPORT_TYPE;
+    const isTeam = isOperations && actNameField.input.value.trim() === 'צוות';
+    const isTeamZoom = isTeam && teamModeField.input.value === 'online';
+    teamModeField.wrap.hidden = !isTeam;
+    teamLocationField.wrap.hidden = !isTeam || teamModeField.input.value !== 'physical';
+    const isZoom = reportType === ONLINE_REPORT_TYPE || isTeamZoom;
     const isCourse = reportType === COURSE_REPORT_TYPE;
     const isBaseTraining = reportType === 'הכשרה' && actNameField.input.value.trim() === 'הכשרת בסיס';
     const isOnlineTraining = reportType === 'הכשרה' && trainingModeField.input.value === 'online';
@@ -714,6 +742,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     }
   }
   typeField.input.addEventListener('change', syncEditTypeUi);
+  teamModeField.input.addEventListener('change', syncEditTypeUi);
   trainingModeField.input.addEventListener('change', syncEditTypeUi);
   actNameField.input.addEventListener('input', syncEditTypeUi);
   syncEditTypeUi();
@@ -748,7 +777,9 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
       ? Number(record.total_hours) : calcHours(startTime, endTime);
     const reportType = typeField.input.value;
     const isOperations = reportType === OPERATIONS_REPORT_TYPE;
-    const isZoom = reportType === ONLINE_REPORT_TYPE;
+    const isTeam = isOperations && actNameField.input.value.trim() === 'צוות';
+    const isTeamZoom = isTeam && teamModeField.input.value === 'online';
+    const isZoom = reportType === ONLINE_REPORT_TYPE || isTeamZoom;
     const isCourse = reportType === COURSE_REPORT_TYPE;
     const isBaseTraining = reportType === 'הכשרה' && actNameField.input.value.trim() === 'הכשרת בסיס';
     const isOnlineTraining = reportType === 'הכשרה' && trainingModeField.input.value === 'online';
@@ -765,6 +796,8 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     if (startTime && endTime && totalHours <= 0) missing.push('שעת סיום חייבת להיות מאוחרת מהתחלה');
     if (!reportType) missing.push('סוג פעילות');
     if (!actNameField.input.value.trim()) missing.push(isOperations ? 'פרטי תפעול' : 'שם פעילות');
+    if (isTeam && !['online', 'physical'].includes(teamModeField.input.value)) missing.push('אופן מפגש צוות');
+    if (isTeam && teamModeField.input.value === 'physical' && !teamLocationField.input.value.trim()) missing.push('מיקום פיזי');
     if (!isOperations && !isBaseTraining && !isOnlineTraining && !isScheduledTraining && !authField.input.value.trim()) missing.push('רשות');
     if (missing.length) {
       errorEl.textContent = `שדות חובה: ${missing.join(' · ')}`;
@@ -783,6 +816,8 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
         total_hours:             totalHours,
         course_business_identity: isCourse ? record.course_business_identity ?? null : null,
         activity_type:           reportType,
+        operation_meeting_mode: isTeam ? teamModeField.input.value : null,
+        destination_address_snapshot: isTeam && !isTeamZoom ? teamLocationField.input.value.trim() : null,
         training_mode:           reportType === 'הכשרה' ? (isOnlineTraining ? 'online' : 'physical') : null,
         training_schedule_id:    reportType === 'הכשרה' ? (record.training_schedule_id ?? null) : null,
         activity_id:             isOperations || isBaseTraining || isScheduledTraining ? null : (record.activity_id ?? null),
@@ -798,8 +833,8 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
         meeting_no:              isCourse && meetField.input.value ? Number(meetField.input.value) : null,
         program_name:            isOperations || isBaseTraining ? null : (record.program_name ?? null),
         roundtrip_km:            isZoom || isOnlineTraining ? 0 : (kmField.input.value ? Number(kmField.input.value) : 0),
-        public_transport:        isOnlineTraining ? false : record.public_transport === true,
-        public_transport_cost:   isOnlineTraining ? 0 : Number(record.public_transport_cost || 0),
+        public_transport:        isOnlineTraining || isTeamZoom ? false : record.public_transport === true,
+        public_transport_cost:   isOnlineTraining || isTeamZoom ? 0 : Number(record.public_transport_cost || 0),
         expenses:                expField.input.value ? Number(expField.input.value) : 0,
         expense_details:         expDField.input.value.trim() || null,
         notes:                   notesField.input.value.trim() || null
