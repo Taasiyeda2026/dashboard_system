@@ -262,6 +262,18 @@ function exceptionGroupCard({ title, rows, key }) {
   </section>`;
 }
 
+function exceptionClearFilterButton(tab = 'general') {
+  const dataAttribute = tab === 'contacts' ? 'data-exception-contact-reset' : 'data-filter-clear="exceptions"';
+  return `<button type="button" class="ds-exception-clear-icon"
+    ${dataAttribute} title="ניקוי סינון" aria-label="ניקוי סינון">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M3 11a9 9 0 1 0 2.64-6.36L3 7"></path>
+      <path d="M3 2v5h5"></path>
+    </svg>
+  </button>`;
+}
+
 function exceptionsSummaryHtml(rows = []) {
   const uniqueActivities = uniqueExceptionActivityCount(rows);
   const byDistrict = new Map();
@@ -280,7 +292,7 @@ function exceptionsSummaryHtml(rows = []) {
     .map(([district, count]) => `<button type="button" class="ds-exception-district-chip" data-exception-district-filter="${escapeHtml(district)}"><span>${escapeHtml(district)}</span><strong>${escapeHtml(String(count))}</strong></button>`)
     .join('');
   return `<section class="ds-exceptions-summary" aria-label="סיכום חריגות">
-    <div class="ds-exceptions-summary__card"><span>פעילויות עם חריגות</span><strong data-exceptions-unique-activities>${escapeHtml(String(uniqueActivities))}</strong></div>
+    <div class="ds-exceptions-summary__card"><span>חריגות</span><strong data-exceptions-unique-activities>${escapeHtml(String(uniqueActivities))}</strong></div>
     <div class="ds-exceptions-summary__districts">${districtsHtml}</div>
   </section>`;
 }
@@ -313,7 +325,7 @@ function exceptionContactsToolbarHtml(audit, state = {}) {
     <input class="ds-input ds-input--sm" type="search" aria-label="חיפוש חריגות אנשי קשר" data-exception-contact-search value="${escapeHtml(search)}" placeholder="חיפוש פעילות, רשות, בית ספר או איש קשר">
     <select class="ds-input ds-input--sm" data-exception-contact-district aria-label="מחוז" title="מחוז">${opts([['','כל המחוזות'],...districts.map(x=>[x,x])],district)}</select>
     <select class="ds-input ds-input--sm" data-exception-contact-issue aria-label="סוג חריגה" title="סוג חריגה">${opts([['','כל סוגי החריגות'],...types],issue)}</select>
-    <button type="button" class="ds-btn ds-btn--sm ds-contact-audit__clear" data-exception-contact-reset aria-label="ניקוי סינון" title="ניקוי סינון">ניקוי</button>
+    ${exceptionClearFilterButton('contacts')}
   </div>`;
 }
 
@@ -375,7 +387,7 @@ function exceptionContactsHtml(audit, state = {}) {
   return `<div class="ds-contact-audit" dir="rtl" aria-label="חריגות פרטי אנשי קשר">
     <section class="ds-exceptions-summary" aria-label="סיכום חריגות אנשי קשר">
       <div class="ds-exceptions-summary__card">
-        <span>פעילויות עם חריגות קשר</span>
+        <span>חריגות</span>
         <strong>${selected.length}</strong>
       </div>
       <div class="ds-exceptions-summary__districts">${districtChips}</div>
@@ -471,8 +483,9 @@ export const exceptionsScreen = {
     const toolbarHtml = filtersToolbarHtml(EXCEPTIONS_SCOPE, allRows, state, {
       filterFields: EXCEPTION_FILTER_FIELDS,
       searchPlaceholder: 'חיפוש חריגות…',
-      optionsOverrides: getFilterOptionOverrides(state?.clientSettings || {})
-    });
+      optionsOverrides: getFilterOptionOverrides(state?.clientSettings || {}),
+      clear: false
+    }).replace(/<\/div>\s*$/, `${exceptionClearFilterButton('general')}</div>`);
     const byType = new Map();
     visibleRows.forEach((row) => {
       const type = String(row?.exception_type || '').trim() || 'other';

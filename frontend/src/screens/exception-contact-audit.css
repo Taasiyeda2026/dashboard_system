@@ -59,8 +59,8 @@
   width: auto;
   min-width: 170px;
   max-width: 230px;
-  min-height: 54px;
-  padding: 8px 13px;
+  min-height: 46px;
+  padding: 5px 11px;
   border: 1px solid var(--ds-border, #d7dfe7);
   border-inline-start: 3px solid var(--ds-primary, #0780ad);
   border-radius: 7px;
@@ -73,7 +73,7 @@
   color: var(--ds-text, #283748);
 }
 .ds-exceptions-screen .ds-exceptions-summary__card strong {
-  font-size: 21px;
+  font-size: 19px;
   line-height: 1;
   font-weight: 750;
   font-variant-numeric: tabular-nums;
@@ -152,15 +152,38 @@
   font-size: 12px;
 }
 .ds-exceptions-screen .ds-contact-audit__toolbar input { width: 250px; }
-.ds-exceptions-screen .ds-contact-audit__toolbar .ds-contact-audit__clear {
-  height: 30px;
+.ds-exceptions-screen .ds-exception-clear-icon {
+  display: inline-flex;
+  flex: 0 0 29px;
+  align-items: center;
+  justify-content: center;
+  width: 29px;
+  height: 29px;
+  min-height: 29px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--ds-border, #d7dfe7);
   border-radius: 6px;
-  margin-inline-start: auto;
+  background: var(--ds-surface, #fff);
+  color: var(--ds-text-muted, #66788b);
+  cursor: pointer;
+  vertical-align: middle;
 }
+.ds-exceptions-screen .ds-exception-clear-icon:hover {
+  color: var(--ds-primary, #0780ad);
+  border-color: var(--ds-primary, #0780ad);
+  background: var(--ds-surface-secondary, #f4f6f8);
+}
+.ds-exceptions-screen .ds-exception-clear-icon:focus-visible {
+  outline: 2px solid var(--ds-primary, #0780ad);
+  outline-offset: 2px;
+}
+.ds-exceptions-screen .ds-exception-clear-icon svg { display: block; }
+
 @media (max-width:720px) {
   .ds-exceptions-screen .ds-exceptions-summary { width: 100%; margin: 0 0 10px; }
   .ds-exceptions-screen .ds-exceptions-summary__card { min-width: 160px; }
   .ds-exceptions-screen .ds-contact-audit__toolbar input,
   .ds-exceptions-screen .ds-contact-audit__toolbar select { flex: 1 1 130px; width: auto; }
-  .ds-exceptions-screen .ds-contact-audit__toolbar .ds-contact-audit__clear { margin-inline-start: 0; }
+
 }

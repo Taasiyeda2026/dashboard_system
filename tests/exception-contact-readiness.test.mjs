@@ -137,3 +137,29 @@ test('same card-grid, compact KPI and filter position in both exceptions tabs',(
  assert.doesNotMatch(contact,/\<table/);
  assert.doesNotMatch(src,/מוצגים רק קורסים וסיורים פתוחים/);
 });
+
+
+test('same small חריגות labels and compact reset icon beside filters in both tabs',()=>{
+  const src=readFileSync(new URL('../frontend/src/screens/exceptions.js',import.meta.url),'utf8');
+  const css=readFileSync(new URL('../frontend/src/screens/exception-contact-audit.css',import.meta.url),'utf8');
+  const reset=src.slice(src.indexOf('function exceptionClearFilterButton('),src.indexOf('function exceptionsSummaryHtml('));
+  const general=src.slice(src.indexOf('function exceptionsSummaryHtml('),src.indexOf('function exceptionInnerTabsHtml('));
+  const contacts=src.slice(src.indexOf('function exceptionContactsHtml('),src.indexOf('function activityDrawerContent('));
+  const toolbar=src.slice(src.indexOf('function exceptionContactsToolbarHtml('),src.indexOf('function exceptionContactsHtml('));
+  assert.match(general,/<span>חריגות<\/span>/);
+  assert.match(contacts,/<span>חריגות<\/span>/);
+  assert.doesNotMatch(general,/פעילויות עם חריגות/);
+  assert.doesNotMatch(contacts,/פעילויות עם חריגות קשר/);
+  assert.match(reset,/data-filter-clear="exceptions"/);
+  assert.match(reset,/data-exception-contact-reset/);
+  assert.match(reset,/aria-label="ניקוי סינון"/);
+  assert.match(reset,/<svg/);
+  assert.match(toolbar,/exceptionClearFilterButton\('contacts'\)/);
+  assert.match(src,/exceptionClearFilterButton\('general'\)/);
+  assert.match(css,/min-height: 46px/);
+  assert.match(css,/\.ds-exception-clear-icon\s*\{/);
+  assert.match(css,/width: 29px/);
+  assert.match(src,/state\.exceptionsContactDistrict='';/);
+  assert.match(src,/state\.exceptionsContactIssue='';/);
+  assert.match(src,/state\.exceptionsContactSearch='';/);
+});
