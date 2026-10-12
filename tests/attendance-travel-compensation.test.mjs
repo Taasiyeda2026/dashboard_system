@@ -49,7 +49,8 @@ test('server route endpoint trusts canonical ids, not injected addresses or minu
   assert.match(edge, /av2_prepare_attendance_travel/);
   assert.match(edge, /\['origin','destination','outbound','return_minutes','emp_id'\]/);
   assert.match(edge, /travelMode: 'DRIVE'/);
-  assert.doesNotMatch(edge, /TRANSIT|40\s*km|40-km/i);
+  assert.doesNotMatch(edge, /TRANSIT/i);
+  assert.match(edge, /p_distance_km: oneWayKm/);
   assert.match(migration, /a\.emp_id::text=v_emp::text or a\.emp_id_2::text=v_emp::text/);
   assert.match(migration, /activity_schools/);
   assert.match(migration, /not in \('זום','תפעול','הכשרה','ביטולזמן'\)/);
@@ -64,9 +65,8 @@ test('generated cancellation lifecycle is nullable-clock, unique, idempotent and
   assert.match(migration, /generation_kind is null and source_attendance_record_id is null and start_time is not null/);
 });
 
-test('route context changes reset overrides while unchanged context is preserved', () => {
+test('route context changes reset system fields while guide report can be preserved', () => {
   assert.match(migration, /changed := not found or old\.route_context_fingerprint is distinct from/);
-  assert.match(migration, /if changed then[\s\S]*manually_overridden=false,override_by=null,override_at=null/);
   assert.match(edge, /context_changed === false && context\.calculation_status === 'resolved'/);
 });
 
@@ -85,7 +85,8 @@ test('generated cancellation is the only finance contribution and manager receiv
   const result = summarizeFinanceAttendance([approval]);
   assert.equal(result.rows[0].hours.time_cancel, 1.25);
   assert.match(bridge, /calculatedCancellationMinutes/);
-  assert.match(manager, /source\.manuallyOverridden[\s\S]*ביטול זמן מחושב במקור/);
+  assert.match(bridge, /approvedCancellationMinutes/);
+  assert.match(manager, /data-travel-review="approve"/);
   assert.match(migration, /attendance_generated_record_protected/);
 });
 

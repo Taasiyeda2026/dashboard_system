@@ -18,42 +18,41 @@ const activities = await readFile(new URL('../attendance/src/services/activities
 const service = await readFile(new URL('../attendance/src/services/attendance.service.js', import.meta.url), 'utf8');
 const migration = await readFile(new URL('../supabase/migrations/20260929120000_attendance_time_cancellation_and_online_training.sql', import.meta.url), 'utf8');
 
-test('zero cancellation remains resolved and editable, including after positive to zero and reload', () => {
-  assert.match(reports, /calculation_status === 'resolved'.*Number\.isFinite/s);
+test('instructor travel report remains editable without exposing system estimates', () => {
+  assert.match(reports, /reportTravelTime/);
+  assert.match(reports, /דקות נסיעה הלוך/);
   assert.doesNotMatch(reports, /final_cancellation_minutes\) > 0/);
-  assert.match(runtime, /resolved: minutes != null/);
-  assert.match(runtime, /createTimePicker\('av2-time-cancel-edit', 'ביטול זמן', state\.label, 1\)/);
+  assert.match(runtime, /reportTravelTime/);
+  assert.doesNotMatch(runtime, /createTimePicker\('av2-time-cancel-edit'/);
 });
 
-test('saved manual correction is recognized after reload with the current audit label', () => {
+test('legacy automatic cancellation audit labels still parse for history', () => {
   assert.equal(parseAutomaticCancellationLabel('תוקן ידנית (אוטומטי: 0:35)'), '0:35');
   assert.equal(parseAutomaticCancellationLabel('נערך ידנית · מחושב במקור: 1:05'), '1:05');
-  assert.match(runtime, /parseAutomaticCancellationLabel\(audit\)/);
 });
 
-test('zero to positive correction is written against the source record', () => {
-  assert.match(runtime, /overrideTravelCompensation\(recordId, desiredMinutes\)/);
-  assert.match(service, /p_source_id: sourceRecordId/);
-  assert.match(service, /p_final_minutes: Math\.max\(0/);
+test('guide reports outbound/return through the report RPC', () => {
+  assert.match(service, /av2_report_attendance_travel_time/);
+  assert.match(service, /p_outbound_minutes/);
+  assert.match(service, /p_return_minutes/);
 });
 
-test('manual override can return to the automatic calculation', () => {
-  assert.match(runtime, /חזור לחישוב האוטומטי/);
-  assert.match(runtime, /resetTravelCompensationOverride/);
-  assert.match(service, /return overrideTravelCompensation\(sourceRecordId, calculatedMinutes\)/);
+test('instructor cannot reset to automatic calculation for payroll', () => {
+  assert.doesNotMatch(runtime, /חזור לחישוב האוטומטי/);
+  assert.match(service, /איפוס לחישוב אוטומטי אינו זמין למדריך/);
 });
 
-test('override failure after source save is visible to the instructor', () => {
+test('travel report failure after source save is visible to the instructor', () => {
   assert.match(runtime, /role.*alert/);
-  assert.match(runtime, /הדיווח נשמר, אך עדכון ביטול הזמן נכשל/);
-  assert.match(runtime, /עדכון ביטול הזמן לא הושלם/);
+  assert.match(runtime, /עדכון זמני הנסיעה נכשל/);
+  assert.match(runtime, /עדכון זמני הנסיעה לא הושלם/);
 });
 
 test('route context reset succeeds only after a resolved recalculation', async () => {
   const result = await reconcileChangedTravelContext(async () => ({ eligible: true, status: 'resolved' }), 'source-1');
   assert.equal(result.status, 'resolved');
   assert.match(runtime, /await reconcileChangedTravelContext\(reconcileTravelCompensation, recordId\)/);
-  assert.match(runtime, /התיקון הידני אופס וביטול הזמן חושב מחדש/);
+  assert.match(runtime, /חישוב המערכת עודכן לבקרה בלי לדרוס את דיווח הנסיעה/);
 });
 
 test('route context recalculation failure is propagated for a visible error', async () => {
@@ -61,7 +60,7 @@ test('route context recalculation failure is propagated for a visible error', as
     reconcileChangedTravelContext(async () => ({ eligible: true, status: 'unavailable' }), 'source-1'),
     /החישוב מחדש של ביטול הזמן נכשל/,
   );
-  assert.match(runtime, /איפוס וחישוב ביטול הזמן נכשלו/);
+  assert.match(runtime, /חישוב ביטול הזמן נכשל/);
 });
 
 test('source report date changes synchronize the generated cancellation row', () => {

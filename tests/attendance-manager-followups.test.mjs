@@ -19,12 +19,13 @@ test('time cancellation is a real column beside hours and the old inline editor 
   assert.match(attendanceCss, /grid-template-columns:[\s\S]*time cancellation/);
 });
 
-test('time cancellation override is available only through the row edit flow', () => {
-  assert.match(attendanceRuntime, /aria-label'\)\) === 'עריכה'/);
-  assert.match(attendanceRuntime, /showTimeCancelEditField\(row\)/);
-  assert.match(attendanceRuntime, /data-av2-time-cancel-edit/);
-  assert.match(attendanceRuntime, /reconcileTravelCompensation\(recordId\)/);
-  assert.match(attendanceRuntime, /overrideTravelCompensation\(recordId, desiredMinutes\)/);
+test('time cancellation override is available only through the row edit flow', async () => {
+  const attendanceRuntimeV2 = await readFile(new URL('../attendance/src/attendance-followup-runtime-v2.js', import.meta.url), 'utf8');
+  assert.match(attendanceRuntimeV2, /showTimeCancelEditField/);
+  assert.match(attendanceRuntimeV2, /data-av2-time-cancel-edit/);
+  assert.match(attendanceRuntimeV2, /reconcileTravelCompensation\(recordId\)/);
+  assert.match(attendanceRuntimeV2, /reportTravelTime\(recordId, outbound, returning\)/);
+  assert.doesNotMatch(attendanceRuntimeV2, /overrideTravelCompensation\(recordId, desiredMinutes\)/);
 });
 
 test('managed operation destination is snapshotted and used by trusted travel context', () => {
