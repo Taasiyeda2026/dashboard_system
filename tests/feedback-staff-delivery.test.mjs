@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { deliveryWindow, staffMail, deliverClaim, runAutomation, STAFF_FEEDBACK_SENDER } from '../supabase/functions/feedback-staff-automation/delivery.mjs';
+import { deliveryWindow, staffMail, deliverClaim, runAutomation, STAFF_FEEDBACK_SENDER, STAFF_GRAPH_CLIENT_ID, STAFF_GRAPH_TENANT_ID, staffGraphCredentials, staffGraphTokenHasMailSend } from '../supabase/functions/feedback-staff-automation/delivery.mjs';
 import { staffDeliveryStatus, staffStatusIndex } from '../frontend/src/impact-feedback/staff-delivery-status.js';
 
 const item = { id:'id',claim_token:'claim',token:'a'.repeat(43),stage:'pre',
@@ -14,6 +14,48 @@ test('staff feedback always sends through the office mailbox, not shared MS_MAIL
   assert.match(edge,/const sender = STAFF_FEEDBACK_SENDER;/);
   assert.doesNotMatch(edge,/const sender = Deno\.env\.get\('MS_MAIL_SENDER'\)/);
   assert.match(edge,/encodeURIComponent\(sender\)\}\/sendMail/);
+});
+
+test('dedicated Graph secrets are mandatory, pinned to approved Entra app and never fall back to shared MS_*', () => {
+  const values = {
+    MS_TENANT_ID: STAFF_GRAPH_TENANT_ID,
+    MS_CLIENT_ID: STAFF_GRAPH_CLIENT_ID,
+    MS_CLIENT_SECRET: 'shared-credential',
+    FEEDBACK_STAFF_MS_TENANT_ID: STAFF_GRAPH_TENANT_ID,
+    FEEDBACK_STAFF_MS_CLIENT_ID: STAFF_GRAPH_CLIENT_ID,
+    FEEDBACK_STAFF_MS_CLIENT_SECRET: 'dedicated-credential'
+  };
+  const used = [];
+  const credentials = staffGraphCredentials(name => { used.push(name); return values[name]; });
+  assert.deepEqual(credentials, {
+    tenant: STAFF_GRAPH_TENANT_ID, client: STAFF_GRAPH_CLIENT_ID, secret: 'dedicated-credential'
+  });
+  assert.deepEqual(used, [
+    'FEEDBACK_STAFF_MS_CLIENT_ID',
+    'FEEDBACK_STAFF_MS_TENANT_ID',
+    'FEEDBACK_STAFF_MS_CLIENT_SECRET'
+  ]);
+  assert.throws(() => staffGraphCredentials(name => values['MS_' + name]), /credentials_not_ready/);
+  assert.throws(() => staffGraphCredentials(name => name.startsWith('FEEDBACK_STAFF_') ? undefined : values[name]), /credentials_not_ready/);
+  assert.throws(() => staffGraphCredentials(name => name === 'FEEDBACK_STAFF_MS_CLIENT_ID' ? 'wrong-app' : values[name]), /credentials_not_ready/);
+  assert.throws(() => staffGraphCredentials(name => name === 'FEEDBACK_STAFF_MS_TENANT_ID' ? 'wrong-tenant' : values[name]), /credentials_not_ready/);
+  const edge = readFileSync(new URL('../supabase/functions/feedback-staff-automation/index.ts',import.meta.url),'utf8');
+  assert.match(edge, /staffGraphCredentials\(\(name: string\) => Deno\.env\.get\(name\)\)/);
+  assert.match(edge, /staffGraphTokenHasMailSend\(String\(token\)\)/);
+  assert.doesNotMatch(edge, /Deno\.env\.get\('MS_(CLIENT_ID|TENANT_ID|CLIENT_SECRET)'\)/);
+});
+
+test('Graph token needs Mail.Send application role from the matching app and tenant', () => {
+  const jwt = claims => 'header.' + Buffer.from(JSON.stringify(claims)).toString('base64url') + '.signature';
+  const granted = { appid: STAFF_GRAPH_CLIENT_ID, tid: STAFF_GRAPH_TENANT_ID, roles: ['Mail.Send'] };
+  assert.equal(staffGraphTokenHasMailSend(jwt(granted)), true);
+  assert.equal(staffGraphTokenHasMailSend(jwt({...granted,roles:['Files.Read.All']})), false);
+  assert.equal(staffGraphTokenHasMailSend(jwt({...granted,roles:[],scp:'Mail.Send'})), false);
+  assert.equal(staffGraphTokenHasMailSend(jwt({...granted,appid:'different-app'})), false);
+  assert.equal(staffGraphTokenHasMailSend(jwt({...granted,tid:'different-tenant'})), false);
+  assert.equal(staffGraphTokenHasMailSend(jwt({azp:STAFF_GRAPH_CLIENT_ID,tid:STAFF_GRAPH_TENANT_ID,roles:['Mail.Send']})), true);
+  assert.equal(staffGraphTokenHasMailSend('opaque-token'), false);
+  assert.equal(staffGraphTokenHasMailSend(null), false);
 });
 
 test('default disabled: not one queue call, token request or mail call', async () => {
