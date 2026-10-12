@@ -192,8 +192,8 @@ function customerProgramDisplay(item, row, name, gefenNumber = proposalTextField
 
 function customerProgramRowAttributes(item, row, display) {
   const mapped = display.gefenNumber !== proposalTextField(item, 'gefen_number', 'gefenNumber');
-  return customerDisplayContext(row).enabled
-    ? ` data-source-gefen-number="${escapeHtml(proposalTextField(item, 'gefen_number', 'gefenNumber'))}" data-program-display="${mapped ? PROPOSAL_PROGRAM_DISPLAY_VERSION : 'original'}"`
+  return customerDisplayContext(row).enabled && mapped
+    ? ` data-source-gefen-number="${escapeHtml(proposalTextField(item, 'gefen_number', 'gefenNumber'))}" data-program-display="${PROPOSAL_PROGRAM_DISPLAY_VERSION}"`
     : '';
 }
 
@@ -2819,7 +2819,7 @@ function costTableRowsFromItem(item = {}, documentRow = {}) {
   // Combined proposals use a four-column cost table. Keep its price columns
   // unchanged and show course identity inside the existing activity cell.
   if (row && customerDisplayContext(documentRow).enabled && itemCatalogKind(item) === 'course'
-    && display.gefenNumber) {
+    && display.gefenNumber !== proposalTextField(item, 'gefen_number', 'gefenNumber')) {
     row.programDisplay = display;
     row.programAttributes = customerProgramRowAttributes(item, documentRow, display);
   }
