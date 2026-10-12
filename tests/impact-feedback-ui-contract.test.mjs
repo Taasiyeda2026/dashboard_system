@@ -78,18 +78,18 @@ test('desktop and mobile layouts keep templates and filters usable without creat
 });
 
 
-test('students have two course dates with matching widths and centered feedback columns', () => {
-  const groupTable = screen.slice(screen.indexOf('function groupsTableHtml('), screen.indexOf('function optionBarsHtml('));
-  assert.match(groupTable, /scope === 'students'[\s\S]*?ifb-gw-date--start[^']*<col class="ifb-gw-stage">[^']*ifb-gw-date--end/);
-  assert.match(groupTable, /<col class="ifb-gw-date ifb-gw-date--end">/);
-  assert.match(groupTable, /scope === 'students' \? '<th scope="col" class="ifb-center ifb-col-date">תחילת קורס<\/th>'/);
-  assert.match(groupTable, /scope === 'students' \? 'סיום קורס' : 'סיום הקבוצה'/);
-  assert.match(groupTable, /fmtDate\(g\.start_date\)/);
-  assert.match(groupTable, /fmtDate\(g\.end_date\)/);
-  assert.match(groupTable, /class="ifb-center ifb-col-stage">\$\{esc\(slots\.find\(\(slot\) => slot\.stage === 'pre'\)\?\.label \|\| 'תלמידים – פתיחה'\)\}/);
-  assert.match(groupTable, /class="ifb-center ifb-col-stage" data-label="\$\{esc\(slot\?\.label \|\| 'תלמידים – פתיחה'\)\}"/);
-  assert.match(styles, /\.ifb-groups-table--students col\.ifb-gw-date--start,\s*\.ifb-groups-table--students col\.ifb-gw-date--end \{ width: 11%; \}/);
-  assert.match(styles, /\.ifb-groups-table--students\.ifb-groups-table--with-program col\.ifb-gw-date--start,\s*\.ifb-groups-table--students\.ifb-groups-table--with-program col\.ifb-gw-date--end \{ width: 10%; \}/);
+test('student and school staff tables have matching course dates and separate opening/closing stages', () => {
+  const t = screen.slice(screen.indexOf('function groupsTableHtml('), screen.indexOf('function optionBarsHtml('));
+  assert.match(t, /ifb-gw-date--start/);
+  assert.match(t, /ifb-gw-date--end/);
+  assert.match(t, /<th scope="col" class="ifb-center ifb-col-date">תחילת קורס<\/th>/);
+  assert.match(t, /<th scope="col" class="ifb-center ifb-col-date">סיום קורס<\/th>/);
+  assert.match(t, /slots\.find\(\(slot\) => slot\.stage === 'pre'\)/);
+  assert.match(t, /scope === 'staff' \? 'final' : 'post'/);
+  assert.match(t, /fmtDate\(g\.start_date\)/);
+  assert.match(t, /fmtDate\(g\.end_date\)/);
+  assert.match(styles, /\.ifb-groups-table--students col\.ifb-gw-date--start,/);
+  assert.match(styles, /\.ifb-groups-table--students\.ifb-groups-table--with-program col\.ifb-gw-date--start,/);
   assert.match(styles, /\.ifb-groups-table--students thead th\.ifb-col-stage,/);
 });
 
@@ -339,20 +339,14 @@ test('QR share dialog fits without scroll and does not expose the long token on 
 });
 
 
-test('staff tab displays only groups with a valid scheduled end date', () => {
-  const sample = [
-    [null, false], ['', false], ['2026-02-30', false],
-    ['2027-01-04', true], ['2027-06-30', true]
-  ];
-  for (const [end_date, valid] of sample) {
-    assert.equal(hasCourseEndDate({ end_date, start_date: '2026-10-20' }), valid, String(end_date));
-  }
-  assert.equal(hasCourseEndDate({ end_date: '2027-01-04', start_date: null }), true,
-    'eligibility is determined by the end date, not inferred from the start date');
-  const groupTable = screen.slice(screen.indexOf('function groupsTableHtml('), screen.indexOf('function optionBarsHtml('));
-  assert.match(groupTable, /scope === 'staff'\s*\? courseScopedGroups\(\)\.filter\(hasCourseEndDate\)/);
-  assert.match(groupTable, /scope === 'students'\s*\? courseScopedGroups\(\)\.filter\(hasCourseStartDate\)/);
-  assert.match(groupTable, /בלשונית צוות חינוכי מוצגות רק קבוצות שנקבע להן תאריך סיום/);
+test('staff opening is tracked from course start while closing requires a known end date', () => {
+  const table = screen.slice(screen.indexOf('function groupsTableHtml('), screen.indexOf('function optionBarsHtml('));
+  assert.equal(hasCourseStartDate({ start_date:'2026-11-03', end_date:null }), true);
+  assert.equal(hasCourseEndDate({ start_date:'2026-11-03', end_date:null }), false);
+  assert.match(table, /scope === 'staff'\s*\? courseScopedGroups\(\)\.filter\(hasCourseStartDate\)/);
+  assert.match(table, /scope === 'students'\s*\? courseScopedGroups\(\)\.filter\(hasCourseStartDate\)/);
+  assert.match(table, /ממתין לתאריך סיום/);
+  assert.match(screen, /slot\.stage === 'final' && !hasCourseEndDate\(group\)/);
   assert.match(screen, /const groups = await fetchGroups\(year\)/);
 });
 
@@ -388,32 +382,30 @@ test('all feedback reporting uses the same cohort in facts, summaries and export
   assert.match(screen, /const inHalf = all\.filter\(\(g\) => studentFeedbackPeriodForGroup\(g\) === ui\.feedbackHalf\)/);
 });
 
-test('no fact appears in both semesters, and yearly instructor campaigns remain single-cohort', () => {
-  const group = (row_id, start_date, end_date) => ({ row_id, start_date, end_date });
+test('staff opening facts without end date count in the correct semester; closing waits for end', () => {
   const groups = [
-    group('first-student', '2026-10-20', '2027-02-15'),
-    group('second-student', '2027-02-01', '2027-05-01'),
-    group('first-staff-no-end', '2026-11-01', null)
+    { row_id:'first-student', start_date:'2026-10-20', end_date:'2027-02-15' },
+    { row_id:'second-student', start_date:'2027-02-01', end_date:'2027-05-01' },
+    { row_id:'first-staff-no-end', start_date:'2026-11-01', end_date:null }
   ];
-  const instructorAssignments = [
-    { instructor_emp_id: '1502', program_key: 'biomimicry',
-      first_start_date: '2026-10-20', pre_campaign: { id: 'pre-instructor' },
-      final_campaign: { id: 'final-instructor' } }
+  const assignments=[{ instructor_emp_id:'1502',program_key:'biomimicry',
+    first_start_date:'2026-10-20',pre_campaign:{id:'pre-instructor'},
+    final_campaign:{id:'final-instructor'} }];
+  const facts=[
+    {audience:'student',activity_row_id:'first-student',campaign_id:'st1'},
+    {audience:'student',activity_row_id:'second-student',campaign_id:'st2'},
+    {audience:'educational_staff',stage:'final',activity_row_id:'first-student',campaign_id:'staff1'},
+    {audience:'educational_staff',stage:'pre',activity_row_id:'first-staff-no-end',campaign_id:'staff2-pre'},
+    {audience:'educational_staff',stage:'final',activity_row_id:'first-staff-no-end',campaign_id:'staff2-final'},
+    {audience:'instructor',campaign_id:'pre-instructor'},
+    {audience:'instructor',campaign_id:'final-instructor'},
+    {audience:'instructor',campaign_id:'unknown'}
   ];
-  const facts = [
-    { audience: 'student', activity_row_id: 'first-student', campaign_id: 'st1' },
-    { audience: 'student', activity_row_id: 'second-student', campaign_id: 'st2' },
-    { audience: 'educational_staff', activity_row_id: 'first-student', campaign_id: 'staff1' },
-    { audience: 'educational_staff', activity_row_id: 'first-staff-no-end', campaign_id: 'staff2' },
-    { audience: 'instructor', activity_row_id: null, campaign_id: 'pre-instructor' },
-    { audience: 'instructor', activity_row_id: null, campaign_id: 'final-instructor' },
-    { audience: 'instructor', activity_row_id: null, campaign_id: 'unknown' }
-  ];
-  const first = filterFeedbackFactsForHalf(facts, groups, instructorAssignments, 'first');
-  const second = filterFeedbackFactsForHalf(facts, groups, instructorAssignments, 'second');
-  assert.deepEqual(first.map((f) => f.campaign_id), ['st1', 'staff1', 'pre-instructor', 'final-instructor']);
-  assert.deepEqual(second.map((f) => f.campaign_id), ['st2']);
-  assert.equal(first.some((f) => second.includes(f)), false);
+  const first=filterFeedbackFactsForHalf(facts,groups,assignments,'first');
+  const second=filterFeedbackFactsForHalf(facts,groups,assignments,'second');
+  assert.deepEqual(first.map(f=>f.campaign_id),['st1','staff1','staff2-pre','pre-instructor','final-instructor']);
+  assert.deepEqual(second.map(f=>f.campaign_id),['st2']);
+  assert.equal(first.some(f=>second.includes(f)),false);
 });
 
 test('semester-specific collection RPC keeps per-year RPC unchanged and respects source activity dates', () => {
@@ -431,32 +423,31 @@ test('semester-specific collection RPC keeps per-year RPC unchanged and respects
 });
 
 
-test('educational staff list orders ended courses earliest-first independently of responses', () => {
-  const rows = [
-    { row_id: 'latest', school: 'כרמל', end_date: '2027-06-01', campaigns: [] },
-    { row_id: 'second', school: 'דקל', end_date: '2027-01-18', campaigns: [{ audience: 'educational_staff', responses: 2 }] },
-    { row_id: 'same-date-last', school: 'ברוש', end_date: '2027-01-05', campaigns: [] },
-    { row_id: 'earliest', school: 'אלון', end_date: '2026-12-01', campaigns: [{ audience: 'educational_staff', responses: 1 }] },
-    { row_id: 'same-date-first', school: 'אורן', end_date: '2027-01-05', campaigns: [] }
+test('staff table orders started courses earliest first, including those without an end date', () => {
+  const rows=[
+    {row_id:'latest',school:'כרמל',start_date:'2027-04-01',end_date:'2027-06-01',campaigns:[]},
+    {row_id:'second',school:'דקל',start_date:'2027-01-18',end_date:null,campaigns:[]},
+    {row_id:'same-date-last',school:'ברוש',start_date:'2027-01-05',campaigns:[]},
+    {row_id:'earliest',school:'אלון',start_date:'2026-12-01',campaigns:[]},
+    {row_id:'same-date-first',school:'אורן',start_date:'2027-01-05',campaigns:[]}
   ];
-  const actual = sortEducationalStaffFeedbackGroups(rows);
-  assert.deepEqual(actual.map((r) => r.row_id), ['earliest', 'same-date-first', 'same-date-last', 'second', 'latest']);
-  assert.equal(rows[0].row_id, 'latest', 'original server array is unchanged');
-  const table = screen.slice(screen.indexOf('function groupsTableHtml('), screen.indexOf('function optionBarsHtml('));
-  assert.match(table, /scope === 'staff'[\s\S]*?const sorted = sortEducationalStaffFeedbackGroups\(matching\)/);
-  assert.match(table, /scope === 'staff'\s*\? courseScopedGroups\(\)\.filter\(hasCourseEndDate\)/);
+  assert.deepEqual(sortEducationalStaffFeedbackGroups(rows).map(r=>r.row_id),
+    ['earliest','same-date-first','same-date-last','second','latest']);
+  assert.equal(rows[0].row_id,'latest');
+  const table=screen.slice(screen.indexOf('function groupsTableHtml('), screen.indexOf('function optionBarsHtml('));
+  assert.match(table, /const sorted = sortEducationalStaffFeedbackGroups\(matching\)/);
+  assert.match(table, /scope === 'staff'\s*\? courseScopedGroups\(\)\.filter\(hasCourseStartDate\)/);
   assert.match(table, /const inHalf = all\.filter\(\(g\) => studentFeedbackPeriodForGroup\(g\) === ui\.feedbackHalf\)/);
 });
 
-test('staff feedback column heading and cells align right without changing student columns', () => {
-  const table = screen.slice(screen.indexOf('function groupsTableHtml('), screen.indexOf('function optionBarsHtml('));
-  assert.match(table, /scope === 'staff'[\s\S]*?<th scope="col" class="ifb-col-stage ifb-col-staff">\$\{esc\(slot\.label\)\}<\/th>/);
-  assert.match(table, /scope === 'staff'[\s\S]*?<td class="ifb-col-stage ifb-col-staff" data-label="\$\{esc\(slot\.label\)\}">/);
-  assert.match(table, /<th scope="col" class="ifb-center ifb-col-stage">\$\{esc\(slots\.find\(\(slot\) => slot\.stage === 'pre'\)\?\.label \|\| 'תלמידים – פתיחה'\)\}<\/th>/);
-  assert.match(table, /<td class="ifb-center ifb-col-stage" data-label="\$\{esc\(slot\?\.label \|\| 'תלמידים – פתיחה'\)\}">/);
-  assert.match(styles, /\.ifb-admin \.ifb-groups-table--staff thead th\.ifb-col-staff,\s*\.ifb-admin \.ifb-groups-table--staff tbody td\.ifb-col-staff \{\s*text-align: right;/);
+test('staff feedback displays opening and closing in separate centered stage columns', () => {
+  const t=screen.slice(screen.indexOf('function groupsTableHtml('),screen.indexOf('function optionBarsHtml('));
+  assert.match(t, /<th scope="col" class="ifb-center ifb-col-stage">/);
+  assert.match(t, /<td class="ifb-center ifb-col-stage"/);
+  assert.match(t, /scope === 'staff' \? 'final' : 'post'/);
+  assert.match(t, /ממתין לתאריך סיום/);
+  assert.match(styles, /\.ifb-groups-table--staff col\.ifb-gw-stage \{ width: 13%; \}/);
 });
-
 
 test('template cards use three desktop columns with tight language spacing and responsive layouts', () => {
   assert.match(styles, /\.ifb-admin \.ifb-template-grid \{[\s\S]*?grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);/);
@@ -541,26 +532,22 @@ test('twelve instructor columns sum to exactly 100 percent and missing B dates r
   assert.match(styles, /\.ifb-instructor-table-wrap \{\s*width: 100%;\s*max-width: 100%;\s*min-width: 0;/);
 });
 
-test('student table interleaves each survey with its corresponding course date', () => {
-  const list = screen.slice(screen.indexOf('function groupsTableHtml('), screen.indexOf('function optionBarsHtml('));
-  const colGroup = list.slice(list.indexOf('<colgroup>'), list.indexOf('</colgroup>'));
-  assert.match(colGroup, /scope === 'students'[\s\S]*?ifb-gw-date--start[^']*<col class="ifb-gw-stage">[^']*ifb-gw-date--end[^']*<col class="ifb-gw-stage">/);
-  const head = list.slice(list.indexOf('<thead><tr>'), list.indexOf('</thead>'));
-  const startIndex = head.indexOf('תחילת קורס');
-  const preIndex = head.indexOf("slot.stage === 'pre'");
-  const endIndex = head.indexOf('סיום קורס');
-  const postIndex = head.indexOf("slot.stage === 'post'");
-  assert.ok(startIndex >= 0 && preIndex > startIndex && endIndex > preIndex && postIndex > endIndex,
-    'header sequence is course start, student pre, course end, student post');
-  const tbody = list.slice(list.indexOf('<tbody>'), list.indexOf('</tbody>'));
-  const bodyStart = tbody.indexOf('data-label="תחילת קורס"');
-  const bodyPre = tbody.indexOf("slots.find((s) => s.stage === 'pre')");
-  const bodyEnd = tbody.indexOf('data-label="${scope === \'students\' ? \'סיום קורס\'');
-  const bodyPost = tbody.indexOf("slots.find((s) => s.stage === 'post')");
-  assert.ok(bodyStart >= 0 && bodyPre > bodyStart && bodyEnd > bodyPre && bodyPost > bodyEnd,
-    'cell sequence is course start, student pre, course end, student post');
-  assert.match(list, /scope === 'staff'[\s\S]*?<col class="ifb-gw-date ifb-gw-date--end">/);
-  assert.match(list, /scope === 'staff'[\s\S]*?ifb-col-stage ifb-col-staff/);
+test('student and staff tables interleave each feedback stage with its corresponding course date', () => {
+  const t=screen.slice(screen.indexOf('function groupsTableHtml('),screen.indexOf('function optionBarsHtml('));
+  const head=t.slice(t.indexOf('<thead><tr>'),t.indexOf('</thead>'));
+  const start=head.indexOf('תחילת קורס');
+  const pre=head.indexOf("slot.stage === 'pre'");
+  const end=head.indexOf('סיום קורס');
+  const final=head.indexOf("scope === 'staff' ? 'final' : 'post'");
+  assert.ok(start>=0 && pre>start && end>pre && final>end);
+  const tbody=t.slice(t.indexOf('<tbody>'),t.indexOf('</tbody>'));
+  const bodyStart=tbody.indexOf('data-label="תחילת קורס"');
+  const bodyPre=tbody.indexOf("slots.find((s) => s.stage === 'pre')");
+  const bodyEnd=tbody.indexOf('data-label="סיום קורס"');
+  const bodyFinal=tbody.indexOf("scope === 'staff' ? 'final' : 'post'");
+  assert.ok(bodyStart>=0 && bodyPre>bodyStart && bodyEnd>bodyPre && bodyFinal>bodyEnd);
+  const cols=t.slice(t.indexOf('<colgroup>'),t.indexOf('</colgroup>'));
+  assert.match(cols, /ifb-gw-date--start[^']*ifb-gw-stage[^']*ifb-gw-date--end[^']*ifb-gw-stage/);
 });
 
 test('second half uses a separate campaign and the existing final questionnaire', () => {
