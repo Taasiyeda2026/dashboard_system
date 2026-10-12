@@ -263,8 +263,11 @@ function attendanceTableHtml(entries = []) {
       <td>${escapeHtml(entry.employmentType || '—')}</td>
       <td class="ds-fin-num">${entry.workDays || 0}</td>
       ${hourCells}
+      <td class="ds-fin-num">${escapeHtml(formatHours(entry.totalHours))}</td>
       <td class="ds-fin-num">${escapeHtml(String(Number(entry.kilometers) || 0))}</td>
+      <td class="ds-fin-num">${escapeHtml(formatExpenseMoney(entry.publicTransportCost || 0))}</td>
       <td class="ds-fin-expense-cell-wrap">${expenseCell}</td>
+      <td class="ds-fin-num">${escapeHtml(formatExpenseMoney(entry.totalReimbursements || 0))}</td>
       <td class="ds-fin-file-cell">${fileCell}</td>
       <td class="ds-fin-att-notes"><span title="${escapeHtml(entry.notes || '')}">${escapeHtml(entry.notes || '')}</span></td>
     </tr>`;
@@ -273,7 +276,9 @@ function attendanceTableHtml(entries = []) {
     <colgroup>
       <col class="ds-fin-col-team"><col class="ds-fin-col-employee"><col class="ds-fin-col-employment"><col class="ds-fin-col-days">
       ${FINANCE_HOUR_CATEGORIES.map(() => '<col class="ds-fin-col-hour">').join('')}
-      <col class="ds-fin-col-km"><col class="ds-fin-col-expenses"><col class="ds-fin-col-file"><col class="ds-fin-col-notes">
+      <col class="ds-fin-col-hour"><col class="ds-fin-col-km">
+      <col class="ds-fin-col-expenses"><col class="ds-fin-col-expenses"><col class="ds-fin-col-expenses">
+      <col class="ds-fin-col-file"><col class="ds-fin-col-notes">
     </colgroup>
     <thead>
       <tr>
@@ -281,9 +286,12 @@ function attendanceTableHtml(entries = []) {
         <th rowspan="2">שם העובד</th>
         <th rowspan="2">סוג העסקה</th>
         <th rowspan="2" class="ds-fin-num">ימי עבודה</th>
-        <th colspan="6">סה״כ שעות</th>
+        <th colspan="${FINANCE_HOUR_CATEGORIES.length}">שעות לפי סוג פעילות</th>
+        <th rowspan="2" class="ds-fin-num">סה״כ שעות</th>
         <th rowspan="2" class="ds-fin-num">סה״כ ק״מ</th>
-        <th rowspan="2">הוצאות</th>
+        <th rowspan="2">תחבורה ציבורית (₪)</th>
+        <th rowspan="2">הוצאות (₪)</th>
+        <th rowspan="2">סה״כ החזרים ללא ק״מ (₪)</th>
         <th rowspan="2">קובץ</th>
         <th rowspan="2">הערות</th>
       </tr>
@@ -324,6 +332,7 @@ function attendanceViewHtml(data, { state } = {}) {
         <button type="button" class="ds-btn ds-btn--primary" data-finance-attendance-export>ייצוא לאקסל</button>
       </div>
       ${monthCache?.evidenceError ? `<div class="ds-fin-att-evidence-warning" role="status">הנתונים המאושרים נטענו, אך לא ניתן היה לטעון קישורים לאסמכתאות ההוצאות.</div>` : ''}
+      ${summarized.unmappedActivityTypes.length ? `<p class="ds-fin-att-evidence-warning" role="alert">קיימות שעות בסיווג ״לא מסווג – לבדיקה״: ${escapeHtml(summarized.unmappedActivityTypes.join(', '))}. השעות נכללות בסיכום ואין לקבוע להן תעריף ללא בדיקת הסיווג.</p>` : ''}
       ${body}
     </div>
   `);
