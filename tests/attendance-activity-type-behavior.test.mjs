@@ -106,7 +106,7 @@ test('Legacy Zoom data remains normalized while the current UI removes Zoom from
 });
 
 test('Attendance cache is synchronized for the training and dashboard-choice release', () => {
-  assert.match(swSource, /const CACHE_VERSION = 113;/);
-  assert.match(indexSource, /\?v=113/);
+  assert.match(swSource, /const CACHE_VERSION = 115;/);
+  assert.match(indexSource, /\?v=115/);
   assert.doesNotMatch(indexSource, /\?v=106/);
 });
