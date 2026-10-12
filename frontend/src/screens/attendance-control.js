@@ -9,8 +9,8 @@ import {
 } from './payroll-control-identity.js';
 
 export const DETAIL_HEADERS = ['מספר עובד', 'שם עובד', 'תאריך', 'שעת התחלה', 'שעת סיום', 'שעות עבודה', 'ביטול זמן', 'סוג פעילות', 'שם בית ספר', 'רשות', 'שם תכנית', 'מספר מפגש', 'קילומטרים', 'תחבורה ציבורית', 'עלות תחבורה ציבורית', 'הוצאות', 'פירוט הוצאות', 'הערות', 'אסמכתאות'];
-export const MONTHLY_HEADERS = ['שם מדריך', 'מספר עובד', 'שעות ביטול זמן', 'שעות הכשרה', 'שעות חדר בריחה', 'שעות סדנה', 'שעות סדנאות קיץ', 'שעות סיור', 'שעות קורס', 'שעות תפעול', 'סה"כ קילומטרים', 'הוצאות', 'פירוט הוצאות'];
-export const DAILY_HEADERS = ['תאריך', 'שם מדריך', 'מספר עובד', 'סוג פעילות', 'רשות', 'שעת התחלה', 'שעת סיום', 'שעות עבודה', 'ביטול זמן', 'קילומטרים', 'הוצאות', 'פירוט הוצאות'];
+export const MONTHLY_HEADERS = ['שם מדריך', 'מספר עובד', 'שעות ביטול זמן', 'שעות הכשרה', 'שעות חדר בריחה', 'שעות סדנה', 'שעות סדנאות קיץ', 'שעות סיור', 'שעות קורס', 'שעות תפעול', 'סה"כ קילומטרים', 'הוצאות', 'פירוט הוצאות', 'שעות זום', 'שעות לא מסווגות – לבדיקה', 'סה"כ שעות', 'עלות תחבורה ציבורית (₪)', 'סה"כ החזרים ללא ק"מ (₪)'];
+export const DAILY_HEADERS = ['תאריך', 'שם מדריך', 'מספר עובד', 'סוג פעילות', 'רשות', 'שעת התחלה', 'שעת סיום', 'שעות עבודה', 'ביטול זמן', 'קילומטרים', 'הוצאות', 'פירוט הוצאות', 'עלות תחבורה ציבורית (₪)', 'סה"כ החזרים ללא ק"מ (₪)'];
 
 const FIELD_DEFS = [
   ['startTime', 'שעת התחלה', 'time'], ['endTime', 'שעת סיום', 'time'],
@@ -1846,13 +1846,30 @@ export function buildCorrectedAttendanceWorkbook(comparisons, dashboardRows = []
   );
   const monthlyMap = new Map();
   mergedRows.filter((row) => normalizeAttendanceName(lookupText(row.employmentType || row.EmploymentType)).includes(normalizeAttendanceName('תעשיידע'))).forEach((row) => {
-    const key = txt(row.employeeId || row.EmployeeId); if (!monthlyMap.has(key)) monthlyMap.set(key, { name: txt(row.employeeName || row.EmployeeName), id: key, hours: Array(8).fill(0), km: 0, expenses: 0, details: [] });
-    const item = monthlyMap.get(key); const hours = rowWorkHours(row) ?? optionalNumber(row.workHours ?? row.WorkHours) ?? 0;
-    const bucket = activityBucket(lookupText(row.activityType || row.ActivityType)); if (bucket >= 0) item.hours[bucket] += hours;
-    item.km += optionalNumber(row.kilometers ?? row.Kilometers) || 0; item.expenses += optionalNumber(row.expenses ?? row.totalExpenses ?? row.TotalExpenses) || 0;
+    const key = txt(row.employeeId || row.EmployeeId);
+    if (!monthlyMap.has(key)) monthlyMap.set(key, {
+      name: txt(row.employeeName || row.EmployeeName), id: key, hours: Array(8).fill(0),
+      km: 0, expenses: 0, publicTransportCost: 0, zoomHours: 0, uncategorizedHours: 0, totalHours: 0, details: []
+    });
+    const item = monthlyMap.get(key);
+    const hours = rowWorkHours(row) ?? optionalNumber(row.workHours ?? row.WorkHours) ?? 0;
+    const kind = lookupText(row.activityType || row.ActivityType);
+    const bucket = activityBucket(kind);
+    if (bucket >= 0) item.hours[bucket] += hours;
+    else if (['זום', 'zoom', 'online', 'מקוון'].includes(normalizeAttendanceName(kind))) item.zoomHours += hours;
+    else item.uncategorizedHours += hours; // Never drop approved hours silently.
+    item.totalHours += hours;
+    item.km += optionalNumber(row.kilometers ?? row.Kilometers) || 0;
+    item.expenses += optionalNumber(row.expenses ?? row.totalExpenses ?? row.TotalExpenses) || 0;
+    const usesPublicTransport = asBoolean(row.publicTransport ?? row.PublicTransport ?? row.public_transport);
+    if (usesPublicTransport) item.publicTransportCost += optionalNumber(row.publicTransportCost ?? row.PublicTransportCost ?? row.public_transport_cost) || 0;
     const details = txt(row.expenseDetails || row.expensesDetails || row.ExpensesDetails); if (details) item.details.push(details);
   });
-  const monthly = [...monthlyMap.values()].map((item) => [item.name, item.id, ...item.hours.map(exportDuration), item.km, item.expenses, [...new Set(item.details)].join('; ')]);
+  const monthly = [...monthlyMap.values()].map((item) => [
+    item.name, item.id, ...item.hours.map(exportDuration), item.km, item.expenses, [...new Set(item.details)].join('; '),
+    exportDuration(item.zoomHours), exportDuration(item.uncategorizedHours), exportDuration(item.totalHours),
+    item.publicTransportCost, Math.round((item.expenses + item.publicTransportCost) * 100) / 100
+  ]);
   const daily = detailRows.map((row) => [
     excelDate(row.date || row.attendanceDate || row.AttendanceDate), txt(row.employeeName || row.EmployeeName), txt(row.employeeId || row.EmployeeId),
     lookupText(row.activityType || row.ActivityType), txt(row.authority || row.municipality || row.Municipality),
@@ -1860,12 +1877,17 @@ export function buildCorrectedAttendanceWorkbook(comparisons, dashboardRows = []
     exportDuration(rowWorkHours(row) ?? optionalNumber(row.workHours ?? row.WorkHours)),
     exportDuration(row.__cancellationHours),
     optionalNumber(row.kilometers ?? row.Kilometers) ?? '', optionalNumber(row.expenses ?? row.totalExpenses ?? row.TotalExpenses) ?? '',
-    txt(row.expenseDetails || row.expensesDetails || row.ExpensesDetails)
+    txt(row.expenseDetails || row.expensesDetails || row.ExpensesDetails),
+    asBoolean(row.publicTransport ?? row.PublicTransport ?? row.public_transport)
+      ? (optionalNumber(row.publicTransportCost ?? row.PublicTransportCost ?? row.public_transport_cost) ?? 0) : 0,
+    (optionalNumber(row.expenses ?? row.totalExpenses ?? row.TotalExpenses) ?? 0)
+      + (asBoolean(row.publicTransport ?? row.PublicTransport ?? row.public_transport)
+        ? (optionalNumber(row.publicTransportCost ?? row.PublicTransportCost ?? row.public_transport_cost) ?? 0) : 0)
   ]);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, detailSheet, 'פירוט מלא');
   XLSX.utils.book_append_sheet(workbook, styledSheet(MONTHLY_HEADERS, monthly), 'סיכום חודשי');
-  XLSX.utils.book_append_sheet(workbook, styledSheet(DAILY_HEADERS, daily, [12, 18, 12, 14, 16, 11, 11, 11, 11, 12, 12, 24]), 'תצוגה יומית');
+  XLSX.utils.book_append_sheet(workbook, styledSheet(DAILY_HEADERS, daily, [12, 18, 12, 14, 16, 11, 11, 11, 11, 12, 12, 24, 16, 18]), 'תצוגה יומית');
   return workbook;
 }
 
