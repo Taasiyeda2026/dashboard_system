@@ -15,3 +15,8 @@ export function canViewImpactFeedback(user) {
     && String(user?.role || '').trim() === 'business_development_manager'
     && user?.is_active !== false;
 }
+
+/** Only this pilot account may correct Hebrew/Arabic question wording in drafts. */
+export function canEditImpactFeedbackWording(user) {
+  return !isFeedbackAdmin(user) && canViewImpactFeedback(user);
+}
