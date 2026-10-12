@@ -22,7 +22,8 @@ export const STAGE_LABELS = Object.freeze({ pre: 'פתיחה', post: 'סיום',
 export const SLOTS = Object.freeze([
   { key: 'student:pre', audience: 'student', stage: 'pre', label: 'תלמידים – פתיחה', short: 'פתיחה' },
   { key: 'student:post', audience: 'student', stage: 'post', label: 'תלמידים – סיום', short: 'סיום' },
-  { key: 'educational_staff:final', audience: 'educational_staff', stage: 'final', label: 'צוות חינוכי', short: 'צוות' },
+  { key: 'educational_staff:pre', audience: 'educational_staff', stage: 'pre', label: 'צוות חינוכי – פתיחה', short: 'פתיחה' },
+  { key: 'educational_staff:final', audience: 'educational_staff', stage: 'final', label: 'צוות חינוכי – סיום', short: 'סיום' },
   { key: 'instructor:pre', audience: 'instructor', stage: 'pre', label: 'מדריך – פתיחה', short: 'מדריך פתיחה' },
   { key: 'instructor:final', audience: 'instructor', stage: 'final', label: 'מדריך – סיום', short: 'מדריך סיום' }
 ]);
@@ -156,7 +157,7 @@ export function studentFeedbackPeriodForGroup(group) {
 
 /**
  * Match each submitted answer to exactly one scheduling semester.
- * Groups are mapped by the course's start (staff also need a known end date).
+ * Groups are mapped by the course's start (staff opening needs a start; closing needs an end).
  * An instructor's single yearly campaign is mapped by the earliest start of
  * its instructor/program/year assignment. Never duplicate yearly responses
  * across halves, and never derive cohort from submission date.
@@ -165,7 +166,7 @@ export function filterFeedbackFactsForHalf(facts = [], groups = [], instructorAs
   if (!['first', 'second'].includes(half)) return [];
   const groupHalf = new Map((groups || []).filter((g) => g.row_id)
     .map((g) => [String(g.row_id), studentFeedbackPeriodForGroup(g)]));
-  const staffEligible = new Set((groups || []).filter((g) => g.row_id && hasCourseEndDate(g))
+  const staffClosingEligible = new Set((groups || []).filter((g) => g.row_id && hasCourseEndDate(g))
     .map((g) => String(g.row_id)));
   const instructorCampaignHalf = new Map();
   for (const assignment of instructorAssignments || []) {
@@ -181,14 +182,14 @@ export function filterFeedbackFactsForHalf(facts = [], groups = [], instructorAs
     }
     const key = String(fact.activity_row_id || '');
     return groupHalf.get(key) === half &&
-      (fact.audience !== 'educational_staff' || staffEligible.has(key));
+      (fact.audience !== 'educational_staff' || fact.stage === 'pre' || staffClosingEligible.has(key));
   });
 }
 
-/** Staff groups are ordered by their actual course end: nearest first, regardless of survey status. */
+/** Staff groups are ordered by course start; opening surveys must be visible before the course ends. */
 export function sortEducationalStaffFeedbackGroups(groups = []) {
   return [...groups].sort((a, b) =>
-    String(a.end_date || '9999-12-31').slice(0, 10).localeCompare(String(b.end_date || '9999-12-31').slice(0, 10)) ||
+    String(a.start_date || '9999-12-31').slice(0, 10).localeCompare(String(b.start_date || '9999-12-31').slice(0, 10)) ||
     String(a.school || '').localeCompare(String(b.school || ''), 'he') ||
     String(a.row_id || '').localeCompare(String(b.row_id || '')));
 }
@@ -358,14 +359,14 @@ export function shareMessage({ audience, stage = '', recipientName = '', program
   }
   if (audience === 'educational_staff') {
     // The link is already individual; do not repeat the recipient's school or technical details.
-    return `${greeting}\nנשמח לקבל ממך משוב קצר על התוכנית "${programTitle}".\nהמשוב חשוב לנו כדי ללמוד מהניסיון שלך, לדייק ולשפר את התוכניות שלנו.\nלמילוי המשוב:\n${url}\nתודה רבה,\nצוות תעשיידע`;
+    return `${greeting}\nנשמח לקבל ממך משוב ${stage === 'pre' ? 'פתיחה' : 'סיום'} קצר על התוכנית "${programTitle}".\nהמשוב חשוב לנו כדי ללמוד מהניסיון שלך, לדייק ולשפר את התוכניות שלנו.\nלמילוי המשוב:\n${url}\nתודה רבה,\nצוות תעשיידע`;
   }
   return `משוב התוכנית "${programTitle}" – ממלאים כאן:\n${url}`;
 }
 
 export function shareSubject(audience, programTitle, stage = '') {
   if (audience === 'instructor') return `משוב מדריך – ${stage === 'pre' ? 'פתיחה' : 'סיום'} – ${programTitle}`;
-  if (audience === 'educational_staff') return `משוב צוות חינוכי – ${programTitle}`;
+  if (audience === 'educational_staff') return `משוב צוות חינוכי – ${stage === 'pre' ? 'פתיחה' : 'סיום'} – ${programTitle}`;
   return `משוב – ${programTitle}`;
 }
 
@@ -597,7 +598,7 @@ export function filterFacts(facts = [], filters = {}) {
 export const AUDIENCE_STAGES = Object.freeze({
   student: ['pre', 'post'],
   instructor: ['pre', 'final', 'final_b'],
-  educational_staff: ['final']
+  educational_staff: ['pre', 'final']
 });
 
 export const AUDIENCE_ORDER = Object.freeze(['student', 'instructor', 'educational_staff']);
@@ -611,7 +612,7 @@ export const PHASE_LABELS = Object.freeze({ pre: 'פתיחה', end: 'סיום' }
 
 export function stageLabelFor(audience, stage) {
   if (audience === 'instructor') return stage === 'pre' ? 'פתיחה (אחרי הכשרה)' : stage === 'final_b' ? 'סיום מחצית ב׳' : 'סיום מחצית א׳';
-  if (audience === 'educational_staff') return 'סיום';
+  if (audience === 'educational_staff') return stage === 'pre' ? 'פתיחה' : 'סיום';
   return stage === 'pre' ? 'פתיחה' : 'סיום';
 }
 

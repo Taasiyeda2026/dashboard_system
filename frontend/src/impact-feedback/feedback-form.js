@@ -23,7 +23,7 @@ function esc(value) {
 
 function headline(payload) {
   if (payload.audience === 'instructor') return payload.stage === 'pre' ? 'משוב מדריך – פתיחה' : 'משוב מדריך – סיום';
-  if (payload.audience === 'educational_staff') return 'משוב צוות חינוכי';
+  if (payload.audience === 'educational_staff') return payload.stage === 'pre' ? 'משוב צוות חינוכי – פתיחה' : 'משוב צוות חינוכי – סיום';
   return `שאלון ${STAGE_LABELS[payload.stage] || ''}`.trim();
 }
 
@@ -57,7 +57,7 @@ const AR_PROGRAM_TITLES = Object.freeze({
 
 function arabicHeadline(payload) {
   if (payload.audience === 'instructor') return payload.stage === 'pre' ? 'استبيان المرشدين – بعد التدريب' : 'استبيان المرشدين – نهاية البرنامج';
-  if (payload.audience === 'educational_staff') return 'استبيان الطاقم التربوي';
+  if (payload.audience === 'educational_staff') return payload.stage === 'pre' ? 'استبيان الطاقم التربوي – بداية البرنامج' : 'استبيان الطاقم التربوي – نهاية البرنامج';
   return payload.stage === 'pre' ? 'استبيان البداية' : 'استبيان النهاية';
 }
 

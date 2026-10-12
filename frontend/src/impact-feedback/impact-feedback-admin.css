@@ -1131,19 +1131,20 @@
   .ifb-groups-table--with-program col.ifb-gw-date { width: 10%; }
   .ifb-groups-table--with-program col.ifb-gw-stage { width: 11%; }
   .ifb-groups-table--with-program col.ifb-gw-actions { width: 7%; }
-  .ifb-groups-table--staff col.ifb-gw-school { width: 29%; }
-  .ifb-groups-table--staff col.ifb-gw-authority { width: 15%; }
-  .ifb-groups-table--staff col.ifb-gw-person { width: 22%; }
-  .ifb-groups-table--staff col.ifb-gw-date { width: 12%; }
-  .ifb-groups-table--staff col.ifb-gw-stage { width: 15%; }
-  .ifb-groups-table--staff col.ifb-gw-actions { width: 7%; }
-  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-school { width: 24%; }
-  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-authority { width: 12%; }
-  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-course { width: 20%; }
-  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-person { width: 18%; }
-  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-date { width: 11%; }
-  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-stage { width: 9%; }
-  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-actions { width: 6%; }
+  /* Staff now has two survey stages, each beside its own date; widths sum to 100%. */
+  .ifb-groups-table--staff col.ifb-gw-school { width: 20%; }
+  .ifb-groups-table--staff col.ifb-gw-authority { width: 11%; }
+  .ifb-groups-table--staff col.ifb-gw-person { width: 17%; }
+  .ifb-groups-table--staff col.ifb-gw-date { width: 10%; }
+  .ifb-groups-table--staff col.ifb-gw-stage { width: 13%; }
+  .ifb-groups-table--staff col.ifb-gw-actions { width: 6%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-school { width: 17%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-authority { width: 9%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-course { width: 14%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-person { width: 13%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-date { width: 10%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-stage { width: 11%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-actions { width: 5%; }
   .ifb-groups-table thead th { width: auto !important; }
 }
 

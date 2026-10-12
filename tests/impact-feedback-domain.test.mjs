@@ -182,7 +182,13 @@ test('educational staff share message is warm and concise without naming the sch
     url
   });
   assert.match(message, /שלום מיכל/);
-  assert.match(message, /משוב קצר/);
+  assert.match(message, /משוב סיום קצר/);
+  const opening = shareMessage({
+    audience: 'educational_staff', stage: 'pre', recipientName: 'מיכל',
+    programTitle: 'ביומימיקרי', schoolName: 'בית הספר אוסישקין', url
+  });
+  assert.match(opening, /משוב פתיחה קצר/);
+  assert.doesNotMatch(opening, /בית הספר אוסישקין/);
   assert.match(message, /חשוב לנו/);
   assert.match(message, /תודה רבה/);
   assert.ok(message.includes(url), 'the original valid token URL is preserved in the invitation');
