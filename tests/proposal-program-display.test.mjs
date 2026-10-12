@@ -27,7 +27,7 @@ test('pure display rule requires exact original identity and explicit document/c
   assert.equal(proposalProgramDisplay(frozen, { enabled: true, isCourse: false }).name, frozen.item_name);
   assert.equal(proposalProgramDisplay({ ...programs[1], item_name: 'אופק יזמות פרימיום בתעשייה' }, {
     enabled: true, isCourse: true
-  }).name, 'אופק פרימיום');
+  }).name, 'אופק יזמות פרימיום בתעשייה');
 });
 
 for (const group of ['gefen', 'next_year', 'combined']) {
@@ -45,8 +45,11 @@ for (const group of ['gefen', 'next_year', 'combined']) {
       assert.equal(rows.length, items.length);
       for (let i = 0; i < rows.length; i++) {
         assert.equal(rows[i].querySelector('.pa-course-name')?.textContent || rows[i].cells[0].textContent, indices[i] === 0 ? alias : 'אופק פרימיום');
-        assert.equal(rows[i].querySelector('[data-program-gefen]')?.textContent || rows[i].cells[1].textContent, '52279');
-        assert.equal(rows[i].dataset.sourceGefenNumber, items[i].gefen_number);
+        const visibleGefen = rows[i].querySelector('[data-program-gefen]')?.textContent
+          || (group === 'combined' ? '' : rows[i].cells[1].textContent);
+        assert.equal(visibleGefen, group === 'combined' && indices[i] === 1 ? '' : '52279');
+        assert.equal(rows[i].dataset.sourceGefenNumber, indices[i] === 0 ? '3604' : undefined);
+        assert.equal(rows[i].hasAttribute('data-program-gefen-inline'), group === 'combined' && indices[i] === 0);
         assert.match(rows[i].cells[group === 'combined' ? 3 : 6].textContent, indices[i] === 0 ? /12,000/ : /13,500/);
       }
       const html = document.body.innerHTML;
@@ -56,6 +59,38 @@ for (const group of ['gefen', 'next_year', 'combined']) {
     });
   }
 }
+
+test('independent Premium and unrelated courses retain existing names and table layout in combined quotes', () => {
+  configureGroups();
+  const fullPremium = { ...programs[1], item_name: 'אופק יזמות פרימיום בתעשייה' };
+  const unrelated = { ...programs[0], id: 'unrelated', item_name: 'ביומימיקרי', gefen_number: '6089', activity_no: '6089', source_pricing_key: '6089' };
+  const input = [fullPremium, unrelated];
+  const before = structuredClone(input);
+  const document = parse(s.proposalPreviewBodyHtml(row('combined'), input, sections('combined')));
+  normalizeProposalWorkflowDocument(document);
+  const rows = [...document.querySelectorAll('.pa-cost-table tbody tr')];
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].cells[0].textContent, fullPremium.item_name);
+  assert.equal(rows[1].cells[0].textContent, unrelated.item_name);
+  assert.equal(document.querySelectorAll('.pa-cost-table [data-program-gefen-inline]').length, 0);
+  assert.equal(document.querySelectorAll('.pa-cost-table [data-source-gefen-number]').length, 0);
+  assert.doesNotMatch(document.querySelector('.pa-cost-table').textContent, /מס׳ גפ״ן:/);
+  assert.deepEqual(input, before);
+});
+
+test('combined quotes add the inline GEFEN display only to source 3604', () => {
+  configureGroups();
+  const document = parse(s.proposalPreviewBodyHtml(row('combined'), programs, sections('combined')));
+  normalizeProposalWorkflowDocument(document);
+  const rows = [...document.querySelectorAll('.pa-cost-table tbody tr')];
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].cells[0].querySelector('.pa-course-name')?.textContent, alias);
+  assert.equal(rows[0].cells[0].querySelector('[data-program-gefen]')?.textContent, '52279');
+  assert.equal(rows[0].dataset.sourceGefenNumber, '3604');
+  assert.equal(rows[1].cells[0].textContent, programs[1].item_name);
+  assert.equal(rows[1].dataset.sourceGefenNumber, undefined);
+  assert.equal(rows[1].querySelector('[data-program-gefen]'), null);
+});
 
 test('generated lists/placeholders map long source names without changing free text', () => {
   configureGroups();
