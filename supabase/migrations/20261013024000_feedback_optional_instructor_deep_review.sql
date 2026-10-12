@@ -35,9 +35,9 @@ declare
   v_opted_in boolean;
   v_items jsonb;
 begin
-  if p_review is null or jsonb_typeof(p_review) <> 'object'
-     or jsonb_typeof(p_review->'opted_in') <> 'boolean'
-     or jsonb_typeof(p_review->'items') <> 'array'
+  if jsonb_typeof(p_review) is distinct from 'object'
+     or jsonb_typeof(p_review->'opted_in') is distinct from 'boolean'
+     or jsonb_typeof(p_review->'items') is distinct from 'array'
      or pg_column_size(p_review) > 50000 then
     return jsonb_build_object('ok', false, 'state', 'invalid_review');
   end if;
