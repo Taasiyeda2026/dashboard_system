@@ -127,19 +127,14 @@ Deno.serve(async (req) => {
       p_distance_km: oneWayKm
     });
     if (error) throw new Error('reconcile_failed');
-    // Edge response may include system fields for service/manager tooling.
-    // Instructor clients must read only av2_list_instructor_travel_compensations /
-    // av2_report_attendance_travel_time and must not surface these values in UI.
+    // Instructor-reachable response: never expose system travel minutes/distance.
+    // Managers compare via payroll/control RPCs that read DB columns server-side.
     return response({
       eligible: true,
       status: 'resolved',
       review_status: data?.review_status || null,
       approved_cancellation_minutes: data?.approved_cancellation_minutes ?? null,
-      show_travel_report_reminder: oneWayKm > 40,
-      system_outbound_travel_minutes: outbound.duration_minutes,
-      system_return_travel_minutes: returning.duration_minutes,
-      system_cancellation_minutes: cancellationMinutes(outbound.duration_minutes, returning.duration_minutes),
-      system_distance_km: oneWayKm
+      show_travel_report_reminder: oneWayKm > 40
     });
   } catch (error) {
     const reason = ['route_not_found','cache_read_failed','cache_write_failed'].includes(text((error as Error)?.message))

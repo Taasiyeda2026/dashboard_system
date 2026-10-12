@@ -92,13 +92,16 @@ create policy attendance_travel_compensation_events_manager_read
 on public.attendance_travel_compensation_events
 for select to authenticated
 using (
+  -- Admin / ops / finance: all events. Team managers: only their direct reports.
   exists (
     select 1 from public.users u
     where u.auth_user_id = auth.uid() and u.is_active = true
       and lower(btrim(coalesce(u.role, ''))) in (
-        'admin', 'operation_manager', 'finance',
-        'activities_manager', 'manager', 'instructor_manager'
+        'admin', 'operation_manager', 'finance'
       )
+  )
+  or public.attendance_manager_can_review_employee(
+    attendance_travel_compensation_events.emp_id
   )
 );
 
@@ -109,10 +112,13 @@ revoke select on public.attendance_travel_compensations from authenticated;
 grant select on public.attendance_travel_compensations to service_role;
 
 drop policy if exists attendance_travel_compensations_read on public.attendance_travel_compensations;
+drop policy if exists attendance_travel_compensations_manager_read
+  on public.attendance_travel_compensations;
 create policy attendance_travel_compensations_manager_read
 on public.attendance_travel_compensations
 for select to authenticated
 using (
+  -- Admin / ops / finance: all rows. Team managers: only employees they can review.
   exists (
     select 1 from public.users u
     where u.auth_user_id = auth.uid() and u.is_active = true
@@ -120,17 +126,8 @@ using (
         'admin', 'operation_manager', 'finance'
       )
   )
-  or exists (
-    select 1
-    from public.users u
-    join public.contacts_instructors ci
-      on ci.emp_id = attendance_travel_compensations.emp_id
-    where u.auth_user_id = auth.uid() and u.is_active = true
-      and lower(btrim(coalesce(u.role, ''))) in (
-        'activities_manager', 'manager', 'instructor_manager'
-      )
-      and lower(btrim(coalesce(ci.direct_manager, '')))
-        = lower(btrim(coalesce(u.full_name, u.name, u.username, '')))
+  or public.attendance_manager_can_review_employee(
+    attendance_travel_compensations.emp_id
   )
 );
 
@@ -783,21 +780,61 @@ create or replace function public.av2_month_open_travel_reviews(
   p_month_key text
 )
 returns jsonb
-language sql
+language plpgsql
 stable
 security definer
 set search_path = public
 as $$
+declare
+  v_role text;
+  result jsonb;
+begin
+  if p_emp_id is null then
+    raise exception 'invalid_employee_id' using errcode = '22023';
+  end if;
+  if coalesce(trim(p_month_key), '') !~ '^[0-9]{4}-(0[1-9]|1[0-2])$' then
+    raise exception 'invalid_month_key' using errcode = '22023';
+  end if;
+
+  select lower(btrim(coalesce(u.role, '')))
+  into v_role
+  from public.users u
+  where u.auth_user_id = auth.uid()
+    and u.is_active = true
+  limit 1;
+
+  if v_role is null then
+    raise exception 'attendance_auth_required' using errcode = '42501';
+  end if;
+
+  -- Instructors cannot enumerate another employee's open travel reviews.
+  -- Team managers: only their reviewable employees. Admin/ops/finance: all.
+  if v_role in ('admin', 'operation_manager', 'finance') then
+    null;
+  elsif v_role in (
+    'activities_manager', 'manager', 'instructor_manager'
+  ) then
+    if not public.attendance_manager_can_review_employee(p_emp_id) then
+      raise exception 'attendance_permission_denied' using errcode = '42501';
+    end if;
+  else
+    raise exception 'attendance_permission_denied' using errcode = '42501';
+  end if;
+
   select coalesce(jsonb_agg(jsonb_build_object(
     'source_id', c.source_attendance_record_id,
     'review_status', c.review_status,
     'report_date', s.report_date
   )), '[]'::jsonb)
+  into result
   from public.attendance_travel_compensations c
   join public.attendance_records s on s.id = c.source_attendance_record_id
   where c.emp_id = p_emp_id
     and to_char(s.report_date, 'YYYY-MM') = p_month_key
     and c.review_status in ('awaiting_report', 'auto_matched', 'pending_review');
+
+  return result;
+end;
 $$;
 
 revoke all on function public.av2_month_open_travel_reviews(bigint, text)
@@ -966,9 +1003,37 @@ comment on function public.manager_finalize_attendance_month_review(text, text, 
 
 -- ---------------------------------------------------------------------------
 -- 7) Payroll bridge: expose approved minutes
+-- PostgreSQL cannot change RETURNS TABLE via CREATE OR REPLACE.
+-- Drop (same signature as prod) then recreate, preserving calculation_status /
+-- failure_code required by payroll-attendance-v2-bridge.js and adding review fields.
 -- ---------------------------------------------------------------------------
 
-create or replace function public.get_payroll_attendance_travel_compensations(
+do $$
+declare
+  dep record;
+begin
+  for dep in
+    select distinct n.nspname as schema_name, c.relkind, c.relname
+    from pg_depend d
+    join pg_proc p on p.oid = d.refobjid
+    join pg_namespace pn on pn.oid = p.pronamespace
+    join pg_class c on c.oid = d.objid
+    join pg_namespace n on n.oid = c.relnamespace
+    where pn.nspname = 'public'
+      and p.proname = 'get_payroll_attendance_travel_compensations'
+      and d.deptype = 'n'
+      and c.relkind in ('v', 'm')
+  loop
+    raise exception
+      'cannot_drop_get_payroll_attendance_travel_compensations_dependency:%.%',
+      dep.schema_name, dep.relname
+      using errcode = '2BP01';
+  end loop;
+end $$;
+
+drop function if exists public.get_payroll_attendance_travel_compensations(bigint[], date, date);
+
+create function public.get_payroll_attendance_travel_compensations(
   p_employee_ids bigint[] default null,
   p_from_date date default null,
   p_to_date date default null
@@ -976,6 +1041,8 @@ create or replace function public.get_payroll_attendance_travel_compensations(
 returns table(
   generated_record_id uuid,
   source_record_id uuid,
+  calculation_status text,
+  failure_code text,
   outbound_travel_minutes integer,
   return_travel_minutes integer,
   calculated_cancellation_minutes integer,
@@ -1000,6 +1067,8 @@ as $$
   select
     c.generated_attendance_record_id,
     c.source_attendance_record_id,
+    c.calculation_status,
+    c.failure_code,
     c.outbound_travel_minutes,
     c.return_travel_minutes,
     c.calculated_cancellation_minutes,
@@ -1027,6 +1096,9 @@ revoke all on function public.get_payroll_attendance_travel_compensations(bigint
 grant execute on function public.get_payroll_attendance_travel_compensations(bigint[], date, date)
   to authenticated;
 
+comment on function public.get_payroll_attendance_travel_compensations(bigint[], date, date) is
+  'Attendance-control travel compensation details for source reports and generated cancellation rows, including review/approval fields.';
+
 -- ---------------------------------------------------------------------------
 -- 8) Prepare: route changes reset system fields only — never wipe guide report
 --    or locked manager decisions.
@@ -1046,25 +1118,65 @@ declare
   old public.attendance_travel_compensations%rowtype;
   changed boolean;
   locked_decision boolean;
+  before_json jsonb;
 begin
   ctx := public.av2_attendance_travel_context(p_source_id, p_actor_id);
-  if not coalesce((ctx->>'eligible')::boolean, false) then
-    delete from public.attendance_travel_compensations
-    where source_attendance_record_id = p_source_id;
-    return ctx;
-  end if;
 
   select * into old
   from public.attendance_travel_compensations
   where source_attendance_record_id = p_source_id
   for update;
 
-  changed := not found or old.route_context_fingerprint is distinct from ctx->>'fingerprint';
   locked_decision := found and old.review_status in ('approved', 'corrected', 'rejected');
+
+  -- Physical → online / ineligible: never delete locked manager decisions or their payables.
+  if not coalesce((ctx->>'eligible')::boolean, false) then
+    if not found then
+      return ctx;
+    end if;
+    if locked_decision then
+      before_json := public.av2_travel_compensation_snapshot(old);
+      perform set_config('app.av2_compensation_write', '1', true);
+      update public.attendance_travel_compensations
+      set calculation_status = 'unavailable',
+          failure_code = 'context_not_eligible',
+          route_context_fingerprint = null,
+          origin_entity_key = null,
+          destination_entity_key = null,
+          outbound_travel_minutes = null,
+          return_travel_minutes = null,
+          calculated_cancellation_minutes = null,
+          system_distance_km = null,
+          updated_at = now()
+      where source_attendance_record_id = p_source_id
+      returning * into old;
+      perform public.av2_append_travel_compensation_event(
+        p_source_id, old.emp_id, 'route_recalculated', before_json,
+        public.av2_travel_compensation_snapshot(old),
+        'preserve locked decision after ineligible context'
+      );
+      return ctx || jsonb_build_object(
+        'context_changed', true,
+        'locked_decision_preserved', true,
+        'review_status', old.review_status,
+        'approved_cancellation_minutes', old.approved_cancellation_minutes
+      );
+    end if;
+
+    perform set_config('app.av2_compensation_write', '1', true);
+    if old.generated_attendance_record_id is not null then
+      delete from public.attendance_records where id = old.generated_attendance_record_id;
+    end if;
+    delete from public.attendance_travel_compensations
+    where source_attendance_record_id = p_source_id;
+    return ctx;
+  end if;
+
+  changed := not found or old.route_context_fingerprint is distinct from ctx->>'fingerprint';
 
   if changed then
     perform set_config('app.av2_compensation_write', '1', true);
-    if old.generated_attendance_record_id is not null and not locked_decision then
+    if found and old.generated_attendance_record_id is not null and not locked_decision then
       delete from public.attendance_records where id = old.generated_attendance_record_id;
     end if;
 
@@ -1184,9 +1296,14 @@ grant execute on function public.av2_mark_attendance_travel_pending(uuid)
 
 -- ---------------------------------------------------------------------------
 -- 9) Historical freeze / open-month reset (NOT for prod without approval)
+-- Safety:
+--   * Locked/payroll-approved months: set review metadata only; never change
+--     final_cancellation_minutes or delete generated payables.
+--   * Skip rows already frozen (idempotent; no duplicate freeze events).
+--   * Open months: never touch approved/corrected/rejected decisions.
 -- ---------------------------------------------------------------------------
 
--- Freeze months already manager-locked or payroll-approved.
+-- Freeze months already manager-locked or payroll-approved (unfrozen rows only).
 with locked_months as (
   select emp_id, month_key
   from public.attendance_month_approvals
@@ -1196,22 +1313,34 @@ with locked_months as (
      )
 ),
 targets as (
-  select c.*
+  select c.source_attendance_record_id
   from public.attendance_travel_compensations c
   join public.attendance_records s on s.id = c.source_attendance_record_id
   join locked_months lm
     on lm.emp_id = c.emp_id
    and lm.month_key = to_char(s.report_date, 'YYYY-MM')
+  where c.review_status not in ('approved', 'corrected', 'rejected')
+     or (
+       c.review_status in ('approved', 'corrected', 'rejected')
+       and c.approved_cancellation_minutes is null
+     )
 )
 update public.attendance_travel_compensations c
-set approved_cancellation_minutes = coalesce(c.final_cancellation_minutes, 0),
+set approved_cancellation_minutes = coalesce(
+      c.approved_cancellation_minutes,
+      c.final_cancellation_minutes,
+      0
+    ),
     review_status = case
+      when c.review_status in ('approved', 'corrected', 'rejected')
+        and c.approved_cancellation_minutes is not null
+        then c.review_status
       when coalesce(c.final_cancellation_minutes, 0) > 0 and c.manually_overridden then 'corrected'
       when coalesce(c.final_cancellation_minutes, 0) > 0 then 'approved'
       when c.manually_overridden then 'rejected'
       else 'none'
     end,
-    review_at = coalesce(c.override_at, c.updated_at, now()),
+    review_at = coalesce(c.review_at, c.override_at, c.updated_at, now()),
     updated_at = now()
 from targets t
 where c.source_attendance_record_id = t.source_attendance_record_id;
@@ -1231,14 +1360,23 @@ join public.attendance_records s on s.id = c.source_attendance_record_id
 join public.attendance_month_approvals a
   on a.emp_id = c.emp_id
  and a.month_key = to_char(s.report_date, 'YYYY-MM')
-where a.manager_approved_at is not null
-   or coalesce(a.status, '') in (
-     'locked', 'manager_approved', 'approved', 'approved_for_payroll', 'admin_approved'
-   );
+where (
+    a.manager_approved_at is not null
+    or coalesce(a.status, '') in (
+      'locked', 'manager_approved', 'approved', 'approved_for_payroll', 'admin_approved'
+    )
+  )
+  and not exists (
+    select 1
+    from public.attendance_travel_compensation_events e
+    where e.source_attendance_record_id = c.source_attendance_record_id
+      and e.event_type = 'migrated_legacy_payroll_freeze'
+  );
 
 -- Open months: clear unapproved payables created by legacy auto-reconcile.
+-- Never reset locked manager decisions (approved/corrected/rejected).
 with open_sources as (
-  select c.source_attendance_record_id, c.emp_id, c.generated_attendance_record_id
+  select c.source_attendance_record_id
   from public.attendance_travel_compensations c
   join public.attendance_records s on s.id = c.source_attendance_record_id
   left join public.attendance_month_approvals a
@@ -1248,6 +1386,7 @@ with open_sources as (
     and coalesce(a.status, 'open') not in (
       'locked', 'manager_approved', 'approved', 'approved_for_payroll', 'admin_approved'
     )
+    and c.review_status not in ('approved', 'corrected', 'rejected')
 )
 update public.attendance_travel_compensations c
 set review_status = public.av2_compute_travel_review_status(

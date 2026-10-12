@@ -147,6 +147,51 @@ test('migration enforces unified review engine and finalize gate', () => {
   assert.match(migration, /Preserve guide report/);
 });
 
+test('get_payroll travel function is drop/recreated and keeps bridge columns', () => {
+  assert.match(
+    migration,
+    /drop function if exists public\.get_payroll_attendance_travel_compensations\(bigint\[\], date, date\)/
+  );
+  assert.doesNotMatch(
+    migration,
+    /create or replace function public\.get_payroll_attendance_travel_compensations/
+  );
+  const payrollFn = migration.match(
+    /create function public\.get_payroll_attendance_travel_compensations[\s\S]*?comment on function public\.get_payroll_attendance_travel_compensations/
+  )?.[0] || '';
+  assert.match(payrollFn, /calculation_status text/);
+  assert.match(payrollFn, /failure_code text/);
+  assert.match(payrollFn, /approved_cancellation_minutes integer/);
+  assert.match(payrollFn, /review_status text/);
+  assert.match(payrollFn, /reported_outbound_minutes integer/);
+  assert.match(payrollFn, /reported_return_minutes integer/);
+});
+
+test('events and open-travel RPC authorize per-employee manager access', () => {
+  assert.match(
+    migration,
+    /attendance_travel_compensation_events_manager_read[\s\S]*attendance_manager_can_review_employee\(\s*attendance_travel_compensation_events\.emp_id/
+  );
+  assert.match(
+    migration,
+    /attendance_travel_compensations_manager_read[\s\S]*attendance_manager_can_review_employee\(\s*attendance_travel_compensations\.emp_id/
+  );
+  assert.match(migration, /av2_month_open_travel_reviews[\s\S]*attendance_permission_denied/);
+  assert.match(
+    migration,
+    /av2_month_open_travel_reviews[\s\S]*attendance_manager_can_review_employee\(p_emp_id\)/
+  );
+});
+
+test('prepare preserves locked decisions on ineligible context and freeze is idempotent', () => {
+  assert.match(migration, /preserve locked decision after ineligible context/);
+  assert.match(migration, /locked_decision_preserved/);
+  assert.match(migration, /never delete locked manager decisions/i);
+  assert.match(migration, /and not exists \([\s\S]*migrated_legacy_payroll_freeze/);
+  assert.match(migration, /and c\.review_status not in \('approved', 'corrected', 'rejected'\)/);
+  assert.match(migration, /never change[\s\S]*final_cancellation_minutes|never change\s+final_cancellation_minutes/i);
+});
+
 test('instructor service uses safe RPC and strips system edge fields', () => {
   assert.match(service, /av2_list_instructor_travel_compensations/);
   assert.doesNotMatch(service, /from\('attendance_travel_compensations'\)[\s\S]{0,80}select\('\*'\)/);
@@ -159,6 +204,11 @@ test('instructor service uses safe RPC and strips system edge fields', () => {
 test('edge writes one-way distance and base preview hides cancellation minutes', () => {
   assert.match(edge, /p_distance_km: oneWayKm/);
   assert.match(edge, /show_travel_report_reminder: oneWayKm > 40/);
+  assert.match(edge, /Instructor-reachable response: never expose system travel minutes/);
+  assert.doesNotMatch(edge, /outbound_travel_minutes:/);
+  assert.doesNotMatch(edge, /return_travel_minutes:/);
+  assert.doesNotMatch(edge, /calculated_cancellation_minutes:/);
+  assert.doesNotMatch(edge, /system_distance_km:/);
   assert.match(basePreview, /must not expose system travel minutes/);
   assert.match(basePreview, /show_travel_report_reminder: oneWayKm > 40/);
   assert.doesNotMatch(basePreview, /\.\.\.route/);
