@@ -35,8 +35,8 @@ begin
   if a is null then raise exception 'feedback_activity_not_found'; end if;
   -- Use actual scheduled course dates; a planned end date is not required for staff opening.
   if p_audience = 'educational_staff' and (
-    coalesce(a->>'start_date', '') !~ '^\\d{4}-\\d{2}-\\d{2}' or
-    (p_stage = 'final' and coalesce(a->>'end_date', '') !~ '^\\d{4}-\\d{2}-\\d{2}')
+    coalesce(a->>'start_date', '') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}' or
+    (p_stage = 'final' and coalesce(a->>'end_date', '') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}')
   ) then
     raise exception 'feedback_staff_stage_date_missing' using errcode = '22023';
   end if;
