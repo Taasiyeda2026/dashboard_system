@@ -18,6 +18,7 @@ Short map for keeping Codex/Cursor work scoped. Do not delete or move files base
 - `frontend/src/screens/shared/` — shared screen-level helpers/components.
 - `frontend/src/styles/` — frontend styling used by screens.
 - Course scheduling / national planning map: `docs/SCHEDULING_SYSTEM_MAP.md` (read before scheduling/planning tasks; Cursor rule `.cursor/rules/scheduling-system.mdc`).
+- Attendance travel time-cancellation (ביטול זמן) unified implementation brief for Codex: `docs/attendance-time-cancellation-unified-implementation.md` (read before changing travel compensation / instructor report / manager review / payroll cancellation flows).
 
 ## Service Worker / PWA
 
