@@ -67,14 +67,25 @@ test('isolated browser print and real local/Chromium PDFs preserve both program 
         const rows = [...table.querySelectorAll('tbody tr')].map(tr => ({
           name: tr.querySelector('.pa-course-name')?.textContent || tr.cells[group === 'approval' ? 1 : 0].textContent,
           gefen: tr.querySelector('[data-program-gefen]')?.textContent || tr.cells[group === 'approval' ? 2 : 1].textContent,
-          text: tr.textContent
+          text: tr.textContent,
+          sourceGefen: tr.dataset.sourceGefenNumber ?? null,
+          hasInlineGefen: Boolean(tr.querySelector('[data-program-gefen]'))
         }));
         return { html: area.innerHTML, rows, unchanged: JSON.stringify(items) === original };
       }, { group, proposal, items: programs, templates: sections(type) });
       assert.equal(result.unchanged, true);
       assert.equal(result.rows.length, 2);
       assert.deepEqual(result.rows.map(r => r.name), [alias, 'אופק פרימיום']);
-      assert.deepEqual(result.rows.map(r => r.gefen), ['52279', '52279']);
+      assert.equal(result.rows[0].gefen, '52279');
+      assert.equal(result.rows[0].sourceGefen, '3604');
+      if (group === 'combined') {
+        assert.equal(result.rows[0].hasInlineGefen, true);
+        assert.equal(result.rows[1].hasInlineGefen, false);
+        assert.equal(result.rows[1].sourceGefen, null);
+      } else {
+        assert.equal(result.rows[1].gefen, '52279');
+        assert.equal(result.rows[1].sourceGefen, null);
+      }
       assert.match(result.rows[0].text, /12,000/);
       assert.match(result.rows[1].text, /13,500/);
       await page.emulateMedia({ media: 'print' });
@@ -93,6 +104,27 @@ test('isolated browser print and real local/Chromium PDFs preserve both program 
       await writeFile(resolve(output, `${group}-local.pdf`), localPdf);
       results.push({ group, rows: result.rows, sourceUnchanged: result.unchanged, chromiumBytes: pdf.length, localBytes: localPdf.length });
     }
+    const untouchedPremium = await page.evaluate(({ proposal, item, templates }) => {
+      const area = document.querySelector('.proposal-preview-area');
+      area.innerHTML = probe.proposalPreviewBodyHtml(proposal, [item], templates);
+      workflow.normalizeProposalWorkflowDocument(area);
+      const course = area.querySelector('.pa-cost-table tbody tr');
+      return {
+        displayedName: course?.cells[0]?.textContent,
+        inlineGefenCount: course?.querySelectorAll('[data-program-gefen]')?.length ?? -1,
+        sourceMarkerCount: area.querySelectorAll('[data-source-gefen-number]').length
+      };
+    }, {
+      proposal: row('combined'),
+      item: { ...programs[1], item_name: 'אופק יזמות פרימיום בתעשייה' },
+      templates: sections('combined')
+    });
+    assert.deepEqual(untouchedPremium, {
+      displayedName: 'אופק יזמות פרימיום בתעשייה',
+      inlineGefenCount: 0,
+      sourceMarkerCount: 0
+    });
+    results.push({ untouchedPremium });
     const historical = await page.evaluate(({ proposal, items, templates }) => {
       const snapshot = probe.buildProposalDocumentSnapshot(proposal, items, templates);
       delete snapshot.presentation_version;
