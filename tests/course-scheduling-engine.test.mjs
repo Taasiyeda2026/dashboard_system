@@ -44,7 +44,7 @@ const rules = {
 
 const baseInput = (activities) => ({ activities, instructors, profiles, rules, exceptions: {} });
 
-test('filters open, fully unassigned supported 2027 scheduling activities', () => {
+test('filters open, unassigned 2027 course targets while ignoring workshops', () => {
   assert.deepEqual(schedulingCourses([
     course('ok'),
     { ...course('assigned'), emp_id: '1' },
@@ -53,7 +53,7 @@ test('filters open, fully unassigned supported 2027 scheduling activities', () =
     { ...course('workshop'), activity_type: 'סדנה' },
     { ...course('closed'), status: 'סגור' },
     { ...course('old'), activity_season: 'regular' }
-  ]).map((row) => row.row_id), ['ok', 'workshop']);
+  ]).map((row) => row.row_id), ['ok']);
 });
 
 test('preloaded travel cache avoids Edge Function calls during planning', async () => {
