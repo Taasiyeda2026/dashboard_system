@@ -19,6 +19,34 @@ test('simulation will not retro-send and has one candidate per group/stage',()=>
  assert.deepEqual(summarizeCandidatePreview(rows,{activationAt:'2026-10-13T00:00:00Z'}),{'pre:would_queue':1,'final:would_queue':1});
 });
 
+test('missing contact/email is skipped independently and a past-due unsent stage stays queueable the next day',()=>{
+ const activationAt='2026-10-12T00:00:00Z';
+ const pastDue='2026-10-13T09:00:00Z';
+ const rows=[
+   row({group_key:'ready',status:'eligible',eligibility_at:pastDue}),
+   row({group_key:'needs-contact',status:'missing_selected_contact',eligibility_at:pastDue}),
+   row({group_key:'needs-email',status:'missing_contact_email',eligibility_at:pastDue})
+ ];
+ assert.deepEqual(previewEligibility(rows,{activationAt}).map(x=>x.status),
+   ['would_queue','missing_selected_contact','missing_contact_email']);
+ const corrected=[
+   rows[0],
+   {...rows[1],status:'eligible',contact_id:4,contact_email:'fixed-contact@school.test'},
+   {...rows[2],status:'eligible',contact_email:'fixed-email@school.test'}
+ ];
+ const alreadyQueued=new Set(['ready:pre']);
+ assert.deepEqual(previewEligibility(corrected,{activationAt,queuedKeys:alreadyQueued}).map(x=>x.status),
+   ['already_queued','would_queue','would_queue']);
+ const earlierActivation='2026-10-14T00:00:00Z';
+ assert.deepEqual(previewEligibility(corrected,{activationAt:earlierActivation}).map(x=>x.status),
+   ['before_activation','before_activation','before_activation']);
+ const migration=readFileSync(new URL('../supabase/migrations/20261012230000_feedback_staff_delivery_disabled.sql',import.meta.url),'utf8');
+ assert.match(sql,/when e\.due_at > p_now then 'not_due'/);
+ assert.match(sql,/else 'eligible'/);
+ assert.match(migration,/where status='eligible' and eligibility_at>=ctl\.activation_at/);
+ assert.doesNotMatch(migration,/where status='eligible' and eligibility_at::date\s*=\s*p_now::date/);
+});
+
 test('08:00 revalidation rejects stale contact, date, representative and duplicates',()=>{
  const prepared=row();
  assert.equal(revalidateSend(prepared,row()),'ready');
