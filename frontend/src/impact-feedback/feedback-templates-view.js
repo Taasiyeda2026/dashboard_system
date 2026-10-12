@@ -329,7 +329,7 @@ function editorHtml(ui, { readOnly = false, canEditWording = false } = {}) {
         ${editing
           ? `<button type="button" class="ifb-btn ifb-btn--primary" data-tpl-publish>פרסום גרסה חדשה</button>
              <button type="button" class="ifb-btn ifb-btn--danger" data-tpl-discard>ביטול הטיוטה</button>`
-          : readOnly ? (canEditWording && ed.published ? '<button type="button" class="ifb-btn ifb-btn--primary" data-tpl-wording-edit>עריכת נוסח בעברית ובערבית</button>' : '') : '<button type="button" class="ifb-btn ifb-btn--primary" data-tpl-edit title="יצירת טיוטה לעריכה">עריכה</button>'}
+          : readOnly ? (canEditWording && ed.published && !wordingEditing ? '<button type="button" class="ifb-btn ifb-btn--primary" data-tpl-wording-edit>עריכת נוסח בעברית ובערבית</button>' : '') : '<button type="button" class="ifb-btn ifb-btn--primary" data-tpl-edit title="יצירת טיוטה לעריכה">עריכה</button>'}
       </div>
       ${wordingEditing ? '<p class="ifb-tpl-head__status">התיקונים נשמרים לאחר יציאה משדה · פרסום הטיוטה בידי האדמין בלבד</p>' : ''}
       ${editing ? `<div class="ifb-tpl-head__intro"><label class="ifb-field ifb-field--wide"><span>פתיח בעברית</span><textarea rows="4" lang="he" dir="rtl" data-tpl-intro>${esc(ed.draft.intro_text || '')}</textarea></label><label class="ifb-field ifb-field--wide"><span>פתיח בערבית</span><textarea rows="4" lang="ar" dir="rtl" data-tpl-intro-ar>${esc(ed.draft.intro_text_ar || '')}</textarea></label></div>`
