@@ -5,6 +5,7 @@
  */
 export const CONTACT_READINESS_ISSUES = Object.freeze({
   missing_selection: 'לא נבחר איש קשר',
+  unlinked_contact_details: 'פרטי קשר קיימים, אך לא שויכו',
   broken_selection: 'איש הקשר שנבחר לא נמצא',
   missing_email: 'חסרה כתובת מייל',
   invalid_email: 'כתובת מייל לא תקינה',
@@ -15,15 +16,30 @@ export const CONTACT_READINESS_ISSUES = Object.freeze({
 export const CONTACT_READINESS_ISSUE_ORDER = Object.keys(CONTACT_READINESS_ISSUES);
 const VALID_EMAIL = /^[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}$/i;
 
+function normalizedSchoolName(name) {
+  return String(name || '').trim().replace(/["׳״'\s\u200e\u200f]+/g, '').toLocaleLowerCase('he');
+}
+
 export function selectedContactIssue(activity, contact) {
-  if (!activity?.school_contact_id) return 'missing_selection';
+  if (!activity?.school_contact_id) {
+    return String(activity?.contact_name || activity?.contact_email || '').trim()
+      ? 'unlinked_contact_details' : 'missing_selection';
+  }
   if (!contact || String(contact.id) !== String(activity.school_contact_id)) return 'broken_selection';
   if (String(contact.active || '').trim() === 'לא פעיל') return 'inactive_contact';
   const email = String(contact.email || '').trim();
   if (!email) return 'missing_email';
   if (!VALID_EMAIL.test(email)) return 'invalid_email';
+  // School IDs may be duplicated in the directory even where authority and school name
+  // clearly match. Do not flag an otherwise valid, explicitly selected contact on ID alone.
   if (activity.school_id != null && contact.school_id != null
-      && String(activity.school_id) !== String(contact.school_id)) return 'wrong_school';
+      && String(activity.school_id) !== String(contact.school_id)) {
+    const sameSchool = normalizedSchoolName(activity.school)
+      && normalizedSchoolName(activity.school) === normalizedSchoolName(contact.school);
+    const sameAuthority = String(activity.authority || '').trim()
+      && String(activity.authority || '').trim() === String(contact.authority || '').trim();
+    if (!(sameSchool && sameAuthority)) return 'wrong_school';
+  }
   return null;
 }
 
@@ -47,9 +63,10 @@ export function buildContactReadinessAudit(activities = [], contacts = []) {
       district: String(activity.district || ''),
       activity_manager: String(activity.activity_manager || ''),
       school_contact_id: activity.school_contact_id ?? null,
-      contact_name: contact ? String(contact.contact_name || '') : '',
-      contact_email: contact ? String(contact.email || '') : '',
+      contact_name: contact ? String(contact.contact_name || '') : String(activity.contact_name || ''),
+      contact_email: contact ? String(contact.email || '') : String(activity.contact_email || ''),
       contact_school: contact ? String(contact.school || '') : '',
+      contact_source: contact ? 'selected' : (issue === 'unlinked_contact_details' ? 'activity_unlinked' : 'missing'),
       issue
     });
   }
@@ -67,7 +84,7 @@ export async function loadContactReadinessAudit() {
   const pageSize = 500;
   for (let from=0;;from+=pageSize) {
     const { data, error } = await supabase.from('activities')
-      .select('row_id,activity_name,program_name,activity_season,activity_type,status,authority,school,district,activity_manager,school_id,school_contact_id')
+      .select('row_id,activity_name,program_name,activity_season,activity_type,status,authority,school,district,activity_manager,school_id,school_contact_id,contact_name,contact_email')
       .eq('activity_season','school_2027').eq('status','פתוח')
       .in('activity_type',['course','tour'])
       .order('row_id',{ascending:true}).range(from,from+pageSize-1);
@@ -79,7 +96,7 @@ export async function loadContactReadinessAudit() {
   const contacts=[];
   for (let start=0;start<ids.length;start+=100) {
     const {data,error}=await supabase.from('contacts_schools')
-      .select('id,school_id,school,contact_name,email,active')
+      .select('id,school_id,authority,school,contact_name,email,active')
       .in('id',ids.slice(start,start+100));
     if (error) throw error;
     contacts.push(...(data||[]));
