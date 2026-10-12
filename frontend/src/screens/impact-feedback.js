@@ -1147,7 +1147,10 @@ function staffHtml() {
   const facts = courseFacts().filter((f) => f.audience === 'educational_staff');
   const results = ui.course
     ? `${collectionLineHtml('educational_staff')}
-       ${questionTableHtml(facts, { caption: 'צוות חינוכי – הערכת תוכנית' })}
+       <h3 class="ifb-subhead">משוב פתיחה – ציפיות ונקודת מוצא</h3>
+       ${questionTableHtml(factsFor(facts, 'educational_staff', 'pre'), { caption: 'צוות חינוכי – פתיחה' })}
+       <h3 class="ifb-subhead">משוב סיום – הערכת התוכנית</h3>
+       ${questionTableHtml(factsFor(facts, 'educational_staff', 'final'), { caption: 'צוות חינוכי – סיום' })}
        ${openAnswersDisclosure(facts, 'הערות פתוחות')}`
     : selectCourseHint('תוצאות לכל שאלה');
   return `
@@ -1458,6 +1461,8 @@ function defaultExpiry(slot) {
 
 function slotMissingReason(group, slot) {
   if (slot.audience === 'educational_staff' && !group.has_contact) return 'לא מוגדר איש קשר לקבוצה. יש להגדיר איש קשר בכרטיס הפעילות.';
+  if (slot.audience === 'educational_staff' && !hasCourseStartDate(group)) return 'יש לקבוע תאריך תחילת קורס לפני פתיחת משוב לצוות החינוכי.';
+  if (slot.audience === 'educational_staff' && slot.stage === 'final' && !hasCourseEndDate(group)) return 'משוב סיום לצוות החינוכי יהיה זמין לאחר קביעת תאריך סיום הקורס.';
   return '';
 }
 
