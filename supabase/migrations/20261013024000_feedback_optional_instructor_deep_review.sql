@@ -52,16 +52,22 @@ begin
 
   -- Validate untrusted data before accepting the main questionnaire; errors leave no partial response.
   for v_item in select value from jsonb_array_elements(v_items) loop
-    if jsonb_typeof(v_item) <> 'object'
-       or jsonb_typeof(v_item->'area') <> 'string'
-       or (v_item->>'area') not in ('content', 'slides', 'activity', 'structure', 'materials', 'equipment', 'other')
-       or jsonb_typeof(v_item->'actions') <> 'array'
+    -- Guard types in separate statements so a malformed scalar never reaches
+    -- jsonb_array_length() and missing required fields cannot slip through NULL booleans.
+    if jsonb_typeof(v_item) is distinct from 'object' then
+      return jsonb_build_object('ok', false, 'state', 'invalid_review');
+    end if;
+    if jsonb_typeof(v_item->'actions') is distinct from 'array' then
+      return jsonb_build_object('ok', false, 'state', 'invalid_review');
+    end if;
+    if jsonb_typeof(v_item->'area') is distinct from 'string'
+       or coalesce(v_item->>'area', '') not in ('content', 'slides', 'activity', 'structure', 'materials', 'equipment', 'other')
        or jsonb_array_length(v_item->'actions') = 0
        or jsonb_array_length(v_item->'actions') > 9
-       or jsonb_typeof(v_item->'issue') <> 'string'
-       or jsonb_typeof(v_item->'recommendation') <> 'string'
-       or char_length(btrim(v_item->>'issue')) not between 1 and 2000
-       or char_length(btrim(v_item->>'recommendation')) not between 1 and 2000
+       or jsonb_typeof(v_item->'issue') is distinct from 'string'
+       or jsonb_typeof(v_item->'recommendation') is distinct from 'string'
+       or coalesce(char_length(btrim(v_item->>'issue')), 0) not between 1 and 2000
+       or coalesce(char_length(btrim(v_item->>'recommendation')), 0) not between 1 and 2000
        or coalesce(char_length(v_item->>'meeting'), 0) > 60
        or coalesce(char_length(v_item->>'reference'), 0) > 160
        or coalesce(v_item->>'priority', '') not in ('urgent', 'high', 'normal') then
