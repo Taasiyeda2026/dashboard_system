@@ -9,7 +9,10 @@ export const FINANCE_HOUR_CATEGORIES = [
   { key: 'workshop', label: 'סדנה' },
   { key: 'tour', label: 'סיור' },
   { key: 'operations', label: 'תפעול' },
-  { key: 'time_cancel', label: 'ביטול זמן' }
+  { key: 'zoom', label: 'זום' },
+  { key: 'time_cancel', label: 'ביטול זמן' },
+  // No approved hours may disappear merely because a category is unrecognized.
+  { key: 'uncategorized', label: 'לא מסווג – לבדיקה' }
 ];
 
 export const FINANCE_ATTENDANCE_COLUMNS = [
@@ -18,8 +21,11 @@ export const FINANCE_ATTENDANCE_COLUMNS = [
   'סוג העסקה',
   'ימי עבודה',
   ...FINANCE_HOUR_CATEGORIES.map((item) => item.label),
+  'סה״כ שעות',
   'סה״כ ק״מ',
+  'עלות תחבורה ציבורית (₪)',
   'הוצאות',
+  'סה״כ החזרים ללא ק״מ (₪)',
   'קובץ',
   'הערות'
 ];
@@ -44,7 +50,10 @@ export const FINANCE_MAOF_DAILY_COLUMNS = [
   'סוג פעילות',
   'שעות פעילות',
   'סה״כ שעות',
-  'סה״כ ק״מ ליום'
+  'סה״כ ק״מ ליום',
+  'עלות תחבורה ציבורית (₪)',
+  'הוצאות (₪)',
+  'סה״כ החזרים ללא ק״מ (₪)'
 ];
 
 const txt = (value) => String(value ?? '').trim();
@@ -102,6 +111,7 @@ export function financeHourCategory(value) {
   if (normalized.includes('סיור') || normalized === 'tour' || normalized === 'tours') return 'tour';
   if (normalized.includes('קורס') || normalized === 'course' || normalized === 'courses') return 'course';
   if (normalized.includes('תפעול')) return 'operations';
+  if (normalized === 'זום' || normalized === 'zoom' || normalized === 'online' || normalized === 'מקוון') return 'zoom';
   return '';
 }
 
@@ -213,6 +223,8 @@ function approvalEmploymentType(approval = {}, rows = []) {
 export function buildMaofDailyExcelRows(approvals = []) {
   const groups = new Map();
   const dailyKm = new Map();
+  const dailyTransport = new Map();
+  const dailyExpenses = new Map();
   for (const approval of approvals || []) {
     if (!isFinalPayrollApproval(approval)) continue;
     const rows = snapshotRows(approval);
@@ -248,6 +260,11 @@ export function buildMaofDailyExcelRows(approvals = []) {
       }
       const dayKey = `${employeeId}|${date}`;
       dailyKm.set(dayKey, roundHours((dailyKm.get(dayKey) || 0) + num(row.kilometers ?? row.Kilometers ?? row.km)));
+      const usesPublicTransport = row.publicTransport === true || row.publicTransport === 'true' || row.publicTransport === 1;
+      dailyTransport.set(dayKey, roundHours((dailyTransport.get(dayKey) || 0)
+        + (usesPublicTransport ? num(row.publicTransportCost ?? row.PublicTransportCost ?? row.public_transport_cost) : 0)));
+      dailyExpenses.set(dayKey, roundHours((dailyExpenses.get(dayKey) || 0)
+        + num(row.expenses ?? row.totalExpenses ?? row.TotalExpenses)));
     }
   }
 
@@ -287,7 +304,11 @@ export function buildMaofDailyExcelRows(approvals = []) {
       'סוג פעילות': entry.activityType,
       'שעות פעילות': entry.hourRanges,
       'סה״כ שעות': entry.totalHours,
-      'סה״כ ק״מ ליום': showKm ? (dailyKm.get(entry.dayKey) || 0) : ''
+      'סה״כ ק״מ ליום': showKm ? (dailyKm.get(entry.dayKey) || 0) : '',
+      'עלות תחבורה ציבורית (₪)': showKm ? (dailyTransport.get(entry.dayKey) || 0) : '',
+      'הוצאות (₪)': showKm ? (dailyExpenses.get(entry.dayKey) || 0) : '',
+      'סה״כ החזרים ללא ק״מ (₪)': showKm
+        ? roundHours((dailyTransport.get(entry.dayKey) || 0) + (dailyExpenses.get(entry.dayKey) || 0)) : ''
     };
   });
 }
@@ -326,6 +347,8 @@ export function summarizeFinanceAttendance(approvals = [], { employees = [], emp
         hours: emptyHours(),
         kilometers: 0,
         expenses: 0,
+        publicTransportCost: 0,
+        totalHours: 0,
         expenseItems: [],
         notes: [],
         fileUrl: '',
@@ -347,11 +370,17 @@ export function summarizeFinanceAttendance(approvals = [], { employees = [], emp
       if (date) entry.workDates.add(date);
       const category = financeHourCategory(row.activityType || row.ActivityType);
       const hours = num(row.workHours ?? row.WorkHours);
-      if (category) entry.hours[category] = roundHours(entry.hours[category] + hours);
-      else if (txt(row.activityType || row.ActivityType)) entry.unmappedTypes.push(txt(row.activityType || row.ActivityType));
+      entry.hours[category || 'uncategorized'] = roundHours(entry.hours[category || 'uncategorized'] + hours);
+      entry.totalHours = roundHours(entry.totalHours + hours);
+      if (!category) entry.unmappedTypes.push(txt(row.activityType || row.ActivityType) || 'ללא סוג פעילות');
       entry.kilometers = roundHours(entry.kilometers + num(row.kilometers ?? row.Kilometers ?? row.km));
       const expenseAmount = num(row.expenses ?? row.totalExpenses ?? row.TotalExpenses);
       entry.expenses = roundHours(entry.expenses + expenseAmount);
+      const usesPublicTransport = row.publicTransport === true || row.publicTransport === 'true' || row.publicTransport === 1;
+      if (usesPublicTransport) {
+        entry.publicTransportCost = roundHours(entry.publicTransportCost
+          + num(row.publicTransportCost ?? row.PublicTransportCost ?? row.public_transport_cost));
+      }
       if (expenseAmount > 0) {
         const recordId = recordIdOf(row);
         const liveRow = liveRecordById.get(recordId) || {};
@@ -385,7 +414,10 @@ export function summarizeFinanceAttendance(approvals = [], { employees = [], emp
       workDays: entry.workDates.size,
       hours: entry.hours,
       kilometers: roundHours(entry.kilometers),
+      totalHours: roundHours(entry.totalHours),
+      publicTransportCost: roundHours(entry.publicTransportCost),
       expenses: roundHours(entry.expenses),
+      totalReimbursements: roundHours(entry.publicTransportCost + entry.expenses),
       expenseItems: entry.expenseItems,
       notes: entry.notes.join(' · '),
       fileUrl: entry.fileUrl,
@@ -415,8 +447,13 @@ export function financeAttendanceDisplayRow(entry = {}) {
     סיור: hours.tour || 0,
     תפעול: hours.operations || 0,
     'ביטול זמן': hours.time_cancel || 0,
+    'זום': hours.zoom || 0,
+    'לא מסווג – לבדיקה': hours.uncategorized || 0,
+    'סה״כ שעות': entry.totalHours || 0,
     'סה״כ ק״מ': entry.kilometers || 0,
+    'עלות תחבורה ציבורית (₪)': entry.publicTransportCost || 0,
     הוצאות: entry.expenses || 0,
+    'סה״כ החזרים ללא ק״מ (₪)': entry.totalReimbursements || 0,
     קובץ: entry.hasFile ? (entry.fileUrl || entry.fileName || 'קובץ') : '',
     הערות: entry.notes || ''
   };
@@ -486,6 +523,7 @@ function applyFinanceAttendanceDurationFormats(sheet, entries = []) {
       if (columnIndex < 0) continue;
       setExcelDurationCell(sheet, index + 1, columnIndex, entry?.hours?.[item.key]);
     }
+    setExcelDurationCell(sheet, index + 1, FINANCE_ATTENDANCE_COLUMNS.indexOf('סה״כ שעות'), entry?.totalHours);
   });
 }
 
