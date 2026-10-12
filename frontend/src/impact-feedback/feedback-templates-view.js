@@ -244,6 +244,20 @@ function readOnlyQuestionHtml(q, index, ui, defaults) {
   </li>`;
 }
 
+/** Israa may correct the bilingual question text only, without structural editing. */
+function wordingOnlyQuestionHtml(q, index, ui, defaults) {
+  const metric = ui.metrics.find((m) => m.key === q.metric_key)?.label || q.metric_key;
+  return `<li class="ifb-tq" data-tq="${esc(q.id)}">
+    <div class="ifb-tq__head">
+      <span class="ifb-tq__num">שאלה ${index + 1}</span>
+      ${questionMetaHtml([metaPart(metric), ...exceptionParts(q, defaults)])}
+    </div>
+    <label class="ifb-field"><span>נוסח השאלה בעברית</span><textarea rows="2" maxlength="2000" lang="he" dir="rtl" data-tq-field="wording.default">${esc(q.wording?.default || '')}</textarea></label>
+    <label class="ifb-field"><span>نص السؤال بالعربية – נוסח השאלה בערבית</span><textarea rows="2" maxlength="2000" lang="ar" dir="rtl" data-tq-field="wording.ar">${esc(q.wording?.ar || '')}</textarea></label>
+    ${SELECT_TYPES.has(q.question_type) ? `<p class="ifb-tq__variant">אפשרויות תשובה (לצפייה בלבד): ${esc((q.options || []).map((o) => o.label).join(' · '))}</p>` : ''}
+  </li>`;
+}
+
 function editableQuestionHtml(q, index, total, ui, defaults) {
   return `<li class="ifb-tq" data-tq="${esc(q.id)}">
     <div class="ifb-tq__head">
@@ -464,6 +478,24 @@ async function saveQuestionField(ui, repaint, row, field, input, { wordingOnly =
   const ed = tpl.editor;
   const q = ed.draftQuestions.find((item) => item.id === row.dataset.tq);
   if (!q) return;
+  if (wordingOnly) {
+    if (field !== 'wording.default' && field !== 'wording.ar') return;
+    const key = field === 'wording.default' ? 'default' : 'ar';
+    const language = key === 'default' ? 'he' : 'ar';
+    const value = input.value.trim();
+    if (key === 'default' && !value) {
+      showToast('נוסח השאלה בעברית הוא חובה', 'error');
+      input.value = q.wording?.default || '';
+      return;
+    }
+    if (value === (q.wording?.[key] || '')) return;
+    await withSave(async () => {
+      const result = await updateIsraaQuestionWording(q.id, language, value, q.wording?.[key] || '');
+      q.wording = result;
+      showToast('נוסח השאלה נשמר בטיוטה', 'success');
+    }, repaint, { ui, editorOptions: { readOnly: true, canEditWording: true } });
+    return;
+  }
   let patch;
   let needsRepaint = false;
   if (field.startsWith('wording.')) {
