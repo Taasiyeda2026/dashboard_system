@@ -64,7 +64,7 @@ test('clone errors show the failing field path without logging field values', ()
   const payload = { type: 'snapshot-patch', entries: [['0', { callback: () => 1, secret: 'DO_NOT_ECHO' }]] };
   const result = planningCloneError(error, payload);
   assert.equal(result.code, 'planning_worker_data_clone_failed');
-  assert.match(result.transportPath, /^snapshot-patch\\.entries\\.0\\.1\\.callback$/);
+  assert.match(result.transportPath, /^snapshot-patch\.entries\.0\.1\.callback$/);
   assert.doesNotMatch(result.message, /DO_NOT_ECHO/);
 });
 
