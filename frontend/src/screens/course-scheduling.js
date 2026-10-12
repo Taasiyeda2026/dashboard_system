@@ -23,7 +23,7 @@ import {
   israelTodayIso,
   meetingsCompletedForCourse
 } from './course-scheduling-meetings.js';
-import { isSchedulableActivityType, isSchedulingActivityActive, schedulingActivityTypeCategory } from './shared/activity-scheduling-eligibility.js';
+import { isCourseSchedulingTargetActivity, isSchedulingActivityActive } from './shared/activity-scheduling-eligibility.js';
 import { formatDateHe, formatTimeRangeShort } from './shared/format-date.js';
 import { weekRange, shiftWeek, buildWeekRows, weekCalendarHtml, fixedScheduleHtml, weekNavLabel } from './course-scheduling-calendar.js';
 import {
@@ -351,7 +351,7 @@ const today = () => israelTodayIso();
 const formatDateHeDots = (value) => formatDateHe(value).replaceAll('/', '.');
 export const PENDING_ACTIVITY_STORAGE_KEY = 'dashboard:pending-course-activity-id';
 export const SCHEDULING_SNAPSHOT_KEY = 'dashboard:course-scheduling-calculation-v2';
-export const SCHEDULING_SNAPSHOT_SCHEMA_VERSION = 4;
+export const SCHEDULING_SNAPSHOT_SCHEMA_VERSION = 5;
 export const SCHEDULING_SNAPSHOT_TTL_MS = 30 * 60 * 1000;
 const LEGACY_SCHEDULING_SNAPSHOT_KEYS = [
   'dashboard:course-scheduling-calculation-v1'
@@ -543,9 +543,7 @@ function filteredInterfaceCourses(courses = [], state = {}) {
   const periodKey = selectedPeriodKey(state);
   const district = text(state.courseSchedulingDistrict || '');
   const authority = text(state.courseSchedulingAuthority || '');
-  const activityType = text(state.activitySchedulingType || 'all');
   return courses
-    .filter((activity) => activityType === 'all' || schedulingActivityTypeCategory(activity.activity_type || activity.type) === activityType)
     .filter((course) => courseMatchesSchedulingPeriod(course, periodKey))
     .filter((course) => !district || districtValue(course) === district)
     .filter((course) => !authority || text(course.authority) === authority)
@@ -555,14 +553,14 @@ function filteredInterfaceCourses(courses = [], state = {}) {
 /** Assigned courses are display-only until the user explicitly starts replacement. */
 export function isAssignedCourseSchedulingManageable(activity = {}) {
   return isSchedulingActivityActive(activity)
-    && isSchedulableActivityType(activity.activity_type || activity.type)
+    && isCourseSchedulingTargetActivity(activity)
     && !!text(activity.emp_id);
 }
 
 function schedulingWorkspaceCourses(activities = []) {
   return activities.filter((activity) =>
     isSchedulingActivityActive(activity)
-    && isSchedulableActivityType(activity.activity_type || activity.type)
+    && isCourseSchedulingTargetActivity(activity)
   );
 }
 
@@ -580,9 +578,6 @@ function schedulingScopeHtml(allCourses = [], state = {}, allActivities = allCou
   const authoritySelectHtml = `<option value="">כל הרשויות</option>${authorityList.map((item) => `<option value="${escapeHtml(item)}"${item === selectedAuthority ? ' selected' : ''}>${escapeHtml(item)}</option>`).join('')}`;
   const displayStart = periodKey === 'first' ? FIRST_HALF_COUNT_START_DATE : period.start;
   const periodRange = `${formatDateHeDots(displayStart)} – ${formatDateHeDots(period.end)}`;
-  const selectedActivityType = text(state.activitySchedulingType || 'all');
-  const activityTypeOptions = [['all', 'הכול'], ['course', 'קורסים'], ['workshop', 'סדנאות'], ['tour', 'סיורים']]
-    .map(([value, label]) => `<option value="${value}"${value === selectedActivityType ? ' selected' : ''}>${label}</option>`).join('');
   const selectedBusinessStatus = text(state.courseSchedulingBusinessStatus || 'all');
   const businessStatusOptions = [['all', 'הכול'], ['open', 'פתוח'], ['draft', 'ממתין לאישור'], ['assigned', 'משובץ']]
     .map(([value, label]) => `<option value="${value}"${value === selectedBusinessStatus ? ' selected' : ''}>${label}</option>`).join('');
@@ -590,7 +585,6 @@ function schedulingScopeHtml(allCourses = [], state = {}, allActivities = allCou
     <div class="course-scheduling-tabs course-scheduling-tabs--inner">${periodButtons}</div>
     <label class="course-scheduling-filter-label">מחוז<select class="course-scheduling-input" data-district-filter>${districtSelectHtml}</select></label>
     <label class="course-scheduling-filter-label">רשות<select class="course-scheduling-input" data-authority-filter>${authoritySelectHtml}</select></label>
-    <label class="course-scheduling-filter-label">פעילות<select class="course-scheduling-input" data-activity-type-filter>${activityTypeOptions}</select></label>
     <label class="course-scheduling-filter-label">מצב<select class="course-scheduling-input" data-business-status-filter>${businessStatusOptions}</select></label>
     <p class="course-scheduling-period-range course-scheduling-period-range--push">${escapeHtml(periodRange)}</p>
   </div></section>`;
@@ -2182,7 +2176,10 @@ export const courseSchedulingScreen = {
     const interfaceCourses = filteredInterfaceCourses(allInterfaceCourses, state);
     restoreCalculationSnapshot(state, interfaceCourses, schedulingSnapshotContext(data));
     if (data._planningShared && !state.courseSchedulingPlanningSharedLoaded) {
-      state.courseSchedulingPlanningRows = data._planningShared.rows.map((entry) => data._is_stale && entry.row?.kind !== 'live' ? stalePlanningRowForDisplay(entry.row) : entry.row);
+      const courseIds = new Set(allInterfaceCourses.map(idOf));
+      state.courseSchedulingPlanningRows = data._planningShared.rows
+        .filter((entry) => courseIds.has(text(entry.activityId)))
+        .map((entry) => data._is_stale && entry.row?.kind !== 'live' ? stalePlanningRowForDisplay(entry.row) : entry.row);
       state.courseSchedulingPlanningSharedLoaded = true;
     }
     const results = state.courseSchedulingResults || [];
@@ -4394,7 +4391,8 @@ export const courseSchedulingScreen = {
             || Number(full.workspace?.revision) !== Number(state.courseSchedulingPlanningSharedRevision)) {
             throw new Error('planning_revision_conflict');
           }
-          rows = full.rows.map(entry => {
+          const courseIds = new Set(planningWorkspaceCourses(data.activities || [], scope.district, scope.periodKey).map(idOf));
+          rows = full.rows.filter(entry => courseIds.has(text(entry.activityId))).map(entry => {
             const row = entry.lockedOption ? applyPlanningLockToRow(entry.row, entry.lockedOption, scope.periodKey) : entry.row;
             return entry.needsRecalc ? stalePlanningRowForDisplay(row) : row;
           });
@@ -4508,13 +4506,6 @@ export const courseSchedulingScreen = {
       if (state.courseSchedulingSimulationView || (state.courseSchedulingSimulationRows || []).length) {
         clearDistrictSimulation();
       }
-      rerender();
-    });
-    root.querySelector('[data-activity-type-filter]')?.addEventListener('change', (event) => {
-      state.activitySchedulingType = event.target.value;
-      state.courseSchedulingSelectedId = '';
-      state.courseSchedulingResults = [];
-      clearDistrictSimulation();
       rerender();
     });
     root.querySelector('[data-business-status-filter]')?.addEventListener('change', (event) => {

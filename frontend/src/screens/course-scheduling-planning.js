@@ -41,6 +41,7 @@ import {
   isSchedulingBlockingAssignment,
   isSchedulingDraftAssignment,
   isFullDaySchedulingActivity,
+  isCourseSchedulingTargetActivity,
   schedulingActivityTypeCategory
 } from './shared/activity-scheduling-eligibility.js';
 import {
@@ -530,7 +531,7 @@ export function inferPlanningCourseSpec(activity = {}, catalogRows = []) {
 export function isPlanningActivity(activity = {}) {
   return String(activity.activity_season || '') === 'school_2027'
     && isSchedulingActivityActive(activity)
-    && !!schedulingActivityTypeCategory(activity.activity_type || activity.type);
+    && isCourseSchedulingTargetActivity(activity);
 }
 
 // Backward-compatible export name for older callers/tests.

@@ -6,7 +6,7 @@ import { resolveSchool2027Contact } from './school-2027-contact.js';
 import { ACTIVITY_SEASON_OPTIONS, ACTIVITY_SEASON_SCHOOL_2027, activityPeriodDisplayLabel, activitySeasonLabel, normalizeActivitySeason } from './summer-activity.js';
 import {
   isActivitySchedulingEligible,
-  isSchedulableActivityType,
+  isCourseSchedulingTargetActivity,
   isSchedulingActivityActive
 } from './activity-scheduling-eligibility.js';
 import { applyReadOnlyActivityCapabilities, isReadOnlyActivityRow } from './activity-readonly-period.js';
@@ -1288,7 +1288,7 @@ function jsonAttr(value) {
 
 function canOpenActivityScheduling(row = {}) {
   return isSchedulingActivityActive(row)
-    && isSchedulableActivityType(row.activity_type || row.type || row.item_type);
+    && isCourseSchedulingTargetActivity(row);
 }
 
 function activitySchedulingStatusCardHtml(row, { canSchedule = false, planningRow = null } = {}) {
@@ -1328,7 +1328,7 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
   const computedEnd = autoEndDate(row);
   const activityType = normalizeActivityTypeKey(row.activity_type || row.item_type);
   const is2027 = normalizeActivitySeason(row.activity_season) === ACTIVITY_SEASON_SCHOOL_2027;
-  const schedulingEligible = isActivitySchedulingEligible(row);
+  const schedulingEligible = isCourseSchedulingTargetActivity(row) && isActivitySchedulingEligible(row);
   const isOnce = ONCE_TYPES.includes(activityType);
   const isCourse = activityType === 'course';
   const isAfterSchool = activityType === 'after_school';

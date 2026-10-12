@@ -37,6 +37,7 @@ Inside `course-scheduling.js`:
 - Focus mode: arriving from Activities with a selected id shows only that activity (`is-activity-focus`); “הצג את כל הפעילויות” clears focus.
 - Stored rows with `needs_recalc=true` are restored as stale context only: the old instructor/date remain visibly marked as old, all proposal/lock/confirm actions are blocked, and the status bar offers an explicit incremental “עדכן” action. Merely entering the screen never starts that run; point-mutation events may still request the existing scoped auto-refresh.
 - Inner period controls (not screen tabs): `first` | `second` | `year` via `periodOptions()` / `data-period-key`.
+- **Current scope (2026-10-12): course targets only**, including `program`/Hebrew course aliases. Tours/workshops are excluded from workboard, national and point planning, and Excel; the activity-type selector is removed. Even a mislabeled course 13990/"התנסות בתעשייה" is excluded. Actual/draft tours remain full-day instructor calendar blockers.
 
 Permissions:
 
@@ -88,6 +89,7 @@ Permissions:
 Important separation:
 
 - **Planning rows** live in `scheduling_planning_*` and do **not** mutate `activities` until an explicit confirm/assign action.
+- 2026-10-12 scope migration removes unapproved unlocked tour *proposal* rows from the national planning workspace; activity records and assigned courses are untouched. It bumps the workspace revision without invalidating the already-validated course rows. The trusted SQL v37 engine token is unchanged: narrowing the eligible workspace cohort is not a change to instructor hard constraints.
 - **Drafts** on `activities` (`draft_emp_id`, `draft_proposed_meetings`) block the instructor calendar but are not final assignment.
 - **Approved** (`emp_id`) is a hard anchor for planning context.
 
@@ -126,7 +128,7 @@ Workboard also overlays UI buckets (`assigned` / `draft` / warning) from live ac
 - Saturday blocked unless `calendar_sector === 'arab'`
 - School-calendar blocking days (sector-filtered)
 - Overlap with other approved/draft meetings
-- **Tours / "התנסות בתעשייה": operational 09:00–14:00 full-day instructor blocker.** Activity 13990 is one 5-hour scheduling meeting regardless of pricing `hours_count`; pricing data is not changed. No other activity may share that instructor date.
+- **Tours / "התנסות בתעשייה": approved/draft tours remain operational 09:00–14:00 full-day instructor blockers; tours are not newly planned.** Activity 13990 is one 5-hour scheduling meeting regardless of pricing `hours_count`; pricing data is not changed. No other activity may share that instructor date.
 - Transition time + buffer between adjacent meetings
 - Home→school route: missing/unverified route is **not selectable**; distance > `MAX_HOME_DISTANCE_KM` (40) fails hard
 - Manual picker: many of the above are non-overridable (`MANUAL_NON_OVERRIDABLE_REASON` in manual-picker-access), including blocked authority
@@ -485,7 +487,7 @@ If a pitfall is only suspected and not proven in tests/migrations, mark new find
 - Full inventory of manager-approval physical tables and RLS policies (RPCs/`edit_requests` usage confirmed; column-level contracts not fully re-listed here).
 - Whether every `scheduling_revalidate_after_*` trigger is still attached after later migrations — re-check when touching invalidation.
 - Exact production district scoping conventions when `district === ''` (national workspace) vs filtered districts — confirm against current ops usage before changing scope keys.
-- Workshop / tour activity categories: eligibility helpers exist; product still treats courses as primary — confirm before enabling new types in the national planner.
+- The global workshop/tour activity helpers remain for other workflows and instructor calendar constraints; `isCourseSchedulingTargetActivity` limits only the scheduling workspace and engines. Reintroducing other target types requires a deliberate policy change.
 - Whether any runtime deep-link still renders `planningTabHtml` / calendar pane (current `render` remaps `planning`/`calendar` → `courses`).
 - Client Friday gate (weekly rule weekday 5) vs server `friday_allowed` — intentional split or drift; verify before changing either side.
 - Exact latest SQL body of overwritten gate functions without replaying the full migration chain on a live DB.

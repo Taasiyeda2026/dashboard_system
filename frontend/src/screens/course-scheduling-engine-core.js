@@ -4,6 +4,7 @@ import { routeMatrixKey } from './course-scheduling-travel.js';
 import {
   hasDraftInstructor,
   isActivitySchedulingEligible,
+  isCourseSchedulingTargetActivity,
   isFullDaySchedulingActivity,
   isSchedulingReadyActivity,
   isSchedulingReadyInstructor,
@@ -45,7 +46,8 @@ export function schedulingCourses(rows = [], options = {}) {
   const district = text(options.district);
   const allDistricts = options.allDistricts === true;
   const includeIncompleteWithoutPeriodMeetings = !!options.includeIncompleteWithoutPeriodMeetings;
-  return rows.filter((row) => (
+  return rows.filter(isCourseSchedulingTargetActivity)
+    .filter((row) => (
     includeIncompleteWithoutPeriodMeetings
       ? isActivitySchedulingEligible(row)
       : isSchedulingReadyActivity(row)

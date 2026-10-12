@@ -44,6 +44,12 @@ export function isFullDaySchedulingActivity(activity = {}) {
   return names.some((value) => value.includes('התנסות בתעשייה'));
 }
 
+/** Courses are the only scheduling work targets. Assigned/drafted tours stay calendar blockers. */
+export function isCourseSchedulingTargetActivity(activity = {}) {
+  return schedulingActivityTypeCategory(activity.activity_type ?? activity.type ?? activity.item_type) === 'course'
+    && !isFullDaySchedulingActivity(activity);
+}
+
 export const BLOCKED_SCHEDULING_STATUSES = new Set([
   'סגור', 'closed', 'בוטל', 'cancelled', 'canceled', 'נמחק', 'deleted', 'inactive', 'לא פעיל'
 ]);

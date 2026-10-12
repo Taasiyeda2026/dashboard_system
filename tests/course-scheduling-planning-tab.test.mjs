@@ -734,19 +734,19 @@ test('exact latest start searches backward around blocked school weeks', () => {
   assert.equal(latest, '2027-01-17');
 });
 
-test('full-year Planning includes every supported open activity type, including second-half work', () => {
+test('full-year Planning targets courses only, including second-half work', () => {
   const rows = planningWorkspaceCourses([
     { ...baseCourse, row_id: 'course-a', date_1: '2026-11-01' },
     { ...baseCourse, row_id: 'course-b', date_1: '2027-03-01' },
     { ...baseCourse, row_id: 'workshop-a', activity_type: 'workshop', date_1: '2027-04-01' },
     { ...baseCourse, row_id: 'tour-a', activity_type: 'tour', date_1: '2027-05-01' }
   ]);
-  assert.deepEqual(rows.map((row) => row.row_id), ['course-a', 'course-b', 'workshop-a', 'tour-a']);
+  assert.deepEqual(rows.map((row) => row.row_id), ['course-a', 'course-b']);
 });
 
 test('Planning keeps school-fixed September activities visible while 6 October applies only to generated new dates', () => {
   const rows = planningWorkspaceCourses([
-    { ...baseCourse, row_id: 'september-fixed', activity_type: 'workshop', date_1: '2026-09-30' },
+    { ...baseCourse, row_id: 'september-fixed', activity_type: 'course', date_1: '2026-09-30' },
     { ...baseCourse, row_id: 'undated' },
     { ...baseCourse, row_id: 'future', date_1: '2026-10-06' }
   ]);
@@ -853,7 +853,7 @@ test('completion rows count first half from 1 September and exclude explicit sec
   const activities = [
     { ...baseCourse, row_id: 'sep1', activity_type: 'course', start_date: '2026-09-01', date_1: '2026-09-01', emp_id: '1', instructor_name: 'א' },
     { ...baseCourse, row_id: 'undated', activity_type: 'course', sessions: 10 },
-    { ...baseCourse, row_id: 'sep14', activity_type: 'workshop', start_date: '2026-09-14', date_1: '2026-09-14', emp_id: '2', instructor_name: 'ב' },
+    { ...baseCourse, row_id: 'sep14', activity_type: 'course', start_date: '2026-09-14', date_1: '2026-09-14', emp_id: '2', instructor_name: 'ב' },
     { ...baseCourse, row_id: 'second', activity_type: 'course', start_date: '2027-02-01', date_1: '2027-02-01' }
   ];
   const rows = buildPlanningCompletionRows({ activities, planningRows: [] });

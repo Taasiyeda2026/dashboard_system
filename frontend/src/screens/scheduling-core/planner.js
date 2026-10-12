@@ -8,7 +8,7 @@ import { recruitmentModels } from './recruitment.js';
 import { computeSchedulingScore, compareCandidatesStable, courseUrgency } from '../course-scheduling-score.js';
 import { buildOperationalBlocks } from '../course-scheduling-engine.js';
 import { resolveCourseSchedulingPeriod } from '../course-scheduling-periods.js';
-import { isSchedulingActivityActive, schedulingActivityTypeCategory, isFullDaySchedulingActivity } from '../shared/activity-scheduling-eligibility.js';
+import { isSchedulingActivityActive, schedulingActivityTypeCategory, isFullDaySchedulingActivity, isCourseSchedulingTargetActivity } from '../shared/activity-scheduling-eligibility.js';
 import { normalizeOperationalDistrict } from '../shared/district-normalization.js';
 import { compileConstraints, createOccupancy, candidateFailures, staticFailures, meetingFailures, knownRoute,
   ensureRoute, ensureCandidateRoutes, validatePlanWithRoutes, officialMeetings, isProtectedActivity, activeInstructor, validatePlan, ENGINE_VERSION, text, activityId, minute, weekday, addDays } from './constraints.js';
@@ -18,7 +18,7 @@ const covered = row => !!row.instructorEmpId;
 const schedulingError = (code, failures = []) => Object.assign(Error(code), { code, failures });
 export function planningActivities(input) {
   const period = resolveCourseSchedulingPeriod(input.periodKey || 'first'), district = normalizeOperationalDistrict(input.district);
-  return (input.activities || []).filter(a => isSchedulingActivityActive(a) && schedulingActivityTypeCategory(a.activity_type || a.type))
+  return (input.activities || []).filter(a => isSchedulingActivityActive(a) && isCourseSchedulingTargetActivity(a))
     .filter(a => !district || normalizeOperationalDistrict(a.district || a.school_district || a.authority_district) === district)
     .filter(a => { const first = officialMeetings(a)[0]?.date; return first ? first >= period.start && first <= period.end : period.key !== 'second'; });
 }
