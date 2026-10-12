@@ -1,12 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { deliveryWindow, staffMail, deliverClaim, runAutomation } from '../supabase/functions/feedback-staff-automation/delivery.mjs';
+import { deliveryWindow, staffMail, deliverClaim, runAutomation, STAFF_FEEDBACK_SENDER } from '../supabase/functions/feedback-staff-automation/delivery.mjs';
 import { staffDeliveryStatus, staffStatusIndex } from '../frontend/src/impact-feedback/staff-delivery-status.js';
 
 const item = { id:'id',claim_token:'claim',token:'a'.repeat(43),stage:'pre',
   school:'בית ספר אלון',program_title:'פורצות דרך',recipient_email:'selected@school.test' };
 const baseUrl = 'https://taasiyeda2026.github.io/dashboard_system/';
+
+test('staff feedback always sends through the office mailbox, not shared MS_MAIL_SENDER', () => {
+  assert.equal(STAFF_FEEDBACK_SENDER, 'office@think.org.il');
+  const edge=readFileSync(new URL('../supabase/functions/feedback-staff-automation/index.ts',import.meta.url),'utf8');
+  assert.match(edge,/const sender = STAFF_FEEDBACK_SENDER;/);
+  assert.doesNotMatch(edge,/const sender = Deno\.env\.get\('MS_MAIL_SENDER'\)/);
+  assert.match(edge,/encodeURIComponent\(sender\)\}\/sendMail/);
+});
 
 test('default disabled: not one queue call, token request or mail call', async () => {
   const fail = () => { throw new Error('side_effect'); };
