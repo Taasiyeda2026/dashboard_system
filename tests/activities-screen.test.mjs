@@ -71,7 +71,7 @@ test('2027 all activities shows dynamic type totals to the left of the unchanged
   assert.equal(headline.contains(breakdown), false);
   assert.ok([...container.children].indexOf(headline) < [...container.children].indexOf(breakdown));
 
-  data.rows.push(row('T2', 'סיור'));
+  data.rows = [...data.rows, row('T2', 'סיור')];
   const updated = new JSDOM(activitiesScreen.render(data, { state })).window.document;
   assert.equal(updated.querySelector('.ds-activities-page-title').textContent.trim(), 'ניהול פעילויות - 2027 · 5 פעילויות');
   assert.equal(updated.querySelector('[data-activities-type-summary]').textContent.trim(), '(2 קורסים | 2 סיורים | 1 סדנאות)');
