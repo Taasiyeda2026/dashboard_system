@@ -11,7 +11,7 @@ const base={
 const selected={id:10,school_id:123,contact_name:'איש קשר נבחר',email:'selected@school.org.il',active:'פעיל'};
 
 test('only the explicitly selected school contact is eligible; never infer from another contact or legacy activity email',()=>{
-  assert.equal(selectedContactIssue({...base,school_contact_id:null,contact_email:'fallback@school.org.il'},selected),'missing_selection');
+  assert.equal(selectedContactIssue({...base,school_contact_id:null,contact_email:'fallback@school.org.il'},selected),'unlinked_contact_details');
   assert.equal(selectedContactIssue(base,{...selected,id:11, email:''}),'broken_selection');
   const audit=buildContactReadinessAudit([base],[
     {...selected,id:11,email:'other@school.org.il'},
@@ -51,9 +51,33 @@ test('audit classifies selected email, invalid formatting, mismatched school and
  assert.equal(audit.problems,5);
  assert.equal(audit.ready,1);
  assert.deepEqual(audit.byIssue,{
-  missing_selection:0,broken_selection:1,missing_email:1,invalid_email:1,wrong_school:1,inactive_contact:1
+  missing_selection:0,unlinked_contact_details:0,broken_selection:1,missing_email:1,invalid_email:1,wrong_school:1,inactive_contact:1
  });
- assert.equal(Object.keys(CONTACT_READINESS_ISSUES).length,6);
+ assert.equal(Object.keys(CONTACT_READINESS_ISSUES).length,7);
+});
+
+
+test('legacy activity name/email is visually explained but NOT considered a selected recipient',()=>{
+ const row={...base,school_contact_id:null,contact_name:'מורה קיים',contact_email:'teacher@school.org.il'};
+ const result=buildContactReadinessAudit([row],[]);
+ assert.equal(result.total,1);
+ assert.equal(result.ready,0);
+ assert.equal(result.problems,1);
+ assert.equal(result.rows[0].issue,'unlinked_contact_details');
+ assert.equal(result.rows[0].contact_source,'activity_unlinked');
+ assert.equal(result.rows[0].contact_email,'teacher@school.org.il');
+ assert.equal(buildContactReadinessAudit([{...base,school_contact_id:null}],[]).rows[0].issue,'missing_selection');
+});
+
+test('persisted contact with email is excluded, including a duplicate school ID for same named school',()=>{
+ const a={...base,authority:'יבנה',school:'ביאליק',school_id:2561,school_contact_id:1046};
+ const c={id:1046,contact_name:'ענת מיימון',email:'Anatmamon@gmail.com',
+   authority:'יבנה',school:'ביאליק',school_id:2537,active:'פעיל'};
+ const result=buildContactReadinessAudit([a],[c]);
+ assert.equal(result.total,1);
+ assert.equal(result.ready,1);
+ assert.equal(result.problems,0);
+ assert.equal(selectedContactIssue({...a,school:'בית ספר אחר'},c),'wrong_school');
 });
 
 test('exceptions screen keeps district view intact and loads contact view independently from Supabase',()=>{
@@ -69,6 +93,12 @@ test('exceptions screen keeps district view intact and loads contact view indepe
  assert.match(audit,/\.eq\('activity_season','school_2027'\)\.eq\('status','פתוח'\)/);
  assert.match(audit,/\.in\('activity_type',\['course','tour'\]\)/);
  assert.match(audit,/\.from\('contacts_schools'\)/);
+ assert.match(audit,/contact_name,contact_email/);
+ assert.match(screen,/מופיע בפעילות, לא משויך/);
+ assert.match(screen,/data-exception-contact-reset/);
+ assert.match(screen,/ds-contact-audit__table/);
+ assert.doesNotMatch(screen,/מוצגים רק קורסים וסיורים פתוחים/);
+ assert.doesNotMatch(screen,/כתובת המייל חייבת להשתייך/);
  assert.match(audit,/new Set\(activities\.map\(a=>a\.school_contact_id\)/);
  assert.doesNotMatch(audit,/\|\|\s*activity\.contact_email/);
 });
