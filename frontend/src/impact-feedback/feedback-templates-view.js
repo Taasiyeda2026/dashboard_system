@@ -26,6 +26,7 @@ import {
   updateVersionIntro
 } from './feedback-api.js';
 import { mountFeedbackForm } from './feedback-form.js';
+import { isElementaryPaperTemplate } from './feedback-paper-pdf-eligibility.js';
 
 const SELECT_TYPES = new Set(['single_select', 'multi_select']);
 const tpl = {
@@ -109,6 +110,7 @@ function listHtml(ui, { readOnly = false } = {}) {
       const published = versions.find((v) => v.id === template.current_version_id);
       const draft = versions.find((v) => v.status === 'draft');
       const name = `${program.title} – ${templateSlotLabel(slot)}`;
+      const canUsePaperPdf = isElementaryPaperTemplate(template, program);
       const short = ({
         'student:pre': 'תלמידים (התחלה)',
         'student:post': 'תלמידים (סיום)',
@@ -144,9 +146,9 @@ function listHtml(ui, { readOnly = false } = {}) {
           ${outdated ? '<span class="ifb-template-card__warning" role="img" aria-label="PDF לא עדכני" title="השאלון עודכן. יש להחליף PDF">!</span>' : ''}
         </div>`;
       };
-      return `<div class="ifb-template-card__slot${slot.audience === 'student' ? '' : ' is-digital'}">
+      return `<div class="ifb-template-card__slot${canUsePaperPdf ? '' : ' is-digital'}">
         <button type="button" class="ifb-template-card__open" data-tpl-open="${esc(template.id)}" title="${esc(name)}" aria-label="${readOnly ? 'צפייה' : 'צפייה ועריכת'} ${esc(name)}">${esc(short)}${!readOnly && draft ? '<span class="ifb-sr"> – טיוטה בעריכה</span>' : ''}</button>
-        ${slot.audience === 'student' ? `${languageControls('he')}${languageControls('ar')}` : ''}
+        ${canUsePaperPdf ? `${languageControls('he')}${languageControls('ar')}` : ''}
       </div>`;
     }).join('');
     return `<article class="ifb-template-card" data-template-course="${esc(program.key)}">
@@ -154,9 +156,9 @@ function listHtml(ui, { readOnly = false } = {}) {
         <h3 class="ifb-template-card__title">${esc(program.title)}</h3>
         <p class="ifb-template-card__gefen">${gefen ? esc(gefen) : ''}${esc(educationLevelLabel(program.education_level)) ? ` · ${esc(educationLevelLabel(program.education_level))}` : ''}</p>
         <div class="ifb-template-card__slots">
-          <div class="ifb-template-card__language-headings" aria-label="שפות מסמכי PDF">
+          ${program.education_level === 'elementary' ? `<div class="ifb-template-card__language-headings" aria-label="שפות מסמכי PDF">
             <span>סוג המשוב</span><span lang="he">עברית</span><span lang="ar">ערבית</span>
-          </div>
+          </div>` : ''}
           ${buttons}
         </div>
       </div>
@@ -519,7 +521,7 @@ export function bindTemplatesView(host, ui, repaint, { readOnly = false } = {}) 
     if (pdf) {
       const template = tpl.list?.find((item) => item.id === pdf.dataset.tplPdf);
       const record = tpl.paperPdfs?.find((item) => item.template_id === template?.id && item.language === pdf.dataset.tplLang);
-      if (!record || record.version_id !== template?.current_version_id || pdf.disabled) return;
+      if (!isElementaryPaperTemplate(template, ui.programs.find((p) => p.key === template?.program_key)) || !record || record.version_id !== template?.current_version_id || pdf.disabled) return;
       pdf.disabled = true;
       try {
         await downloadSavedPaperPdf(record);
@@ -533,7 +535,7 @@ export function bindTemplatesView(host, ui, repaint, { readOnly = false } = {}) 
     const upload = t.closest('[data-tpl-upload]');
     if (upload) {
       const template = tpl.list?.find((item) => item.id === upload.dataset.tplUpload);
-      if (!template?.current_version_id || upload.disabled) return;
+      if (!isElementaryPaperTemplate(template, ui.programs.find((p) => p.key === template?.program_key)) || !template?.current_version_id || upload.disabled) return;
       const picker = document.createElement('input');
       picker.type = 'file';
       picker.accept = '.pdf,application/pdf';
@@ -560,7 +562,7 @@ export function bindTemplatesView(host, ui, repaint, { readOnly = false } = {}) 
     if (remove) {
       const template = tpl.list?.find((item) => item.id === remove.dataset.tplDelete);
       const record = tpl.paperPdfs?.find((item) => item.template_id === template?.id && item.language === remove.dataset.tplLang);
-      if (!record || !window.confirm(`למחוק את קובץ ה־PDF השמור בשפה ${record.language === 'ar' ? 'ערבית' : 'עברית'}?`)) return;
+      if (!isElementaryPaperTemplate(template, ui.programs.find((p) => p.key === template?.program_key)) || !record || !window.confirm(`למחוק את קובץ ה־PDF השמור בשפה ${record.language === 'ar' ? 'ערבית' : 'עברית'}?`)) return;
       remove.disabled = true;
       try {
         await deleteSavedPaperPdf(record);
