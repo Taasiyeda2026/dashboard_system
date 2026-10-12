@@ -24,7 +24,12 @@ const ERROR_MESSAGES = {
   feedback_instructor_scope_program: 'משוב מדריך נפתח לפי מדריך ותוכנית, לא לפי קבוצה',
   feedback_instructor_not_assigned: 'לא נמצא שיבוץ פעיל של המדריך לתוכנית הזו',
   feedback_invalid_academic_year: 'שנת הפעילות אינה תקינה',
-  feedback_pdf_elementary_only: 'PDF זמין רק למשובי תלמידים בתוכניות יסודי'
+  feedback_pdf_elementary_only: 'PDF זמין רק למשובי תלמידים בתוכניות יסודי',
+  feedback_wording_conflict: 'השאלה עודכנה במקום אחר. יש לטעון את הטיוטה מחדש לפני שמירה',
+  feedback_wording_invalid_language: 'ניתן לערוך ניסוח בעברית או בערבית בלבד',
+  feedback_wording_invalid_text: 'נוסח השאלה ארוך מדי',
+  feedback_wording_empty_he: 'יש למלא נוסח שאלה בעברית',
+  feedback_wording_expected_required: 'יש לטעון מחדש את השאלה לפני שמירה'
 };
 
 export function translateFeedbackError(error) {
@@ -167,6 +172,21 @@ export async function fetchBankQuestions(programKey, audience, stage) {
 
 export async function getDraft(templateId) {
   return unwrap(client().rpc('feedback_admin_get_draft', { p_template_id: templateId }));
+}
+
+/** Israa can open a shared wording draft, without publishing it. */
+export async function getIsraaWordingDraft(templateId) {
+  return unwrap(client().rpc('feedback_israa_get_wording_draft', { p_template_id: templateId }));
+}
+
+/** Server allows changing only one bilingual wording key in a draft. */
+export async function updateIsraaQuestionWording(questionId, language, value, expectedText) {
+  return unwrap(client().rpc('feedback_israa_update_wording', {
+    p_question_id: questionId,
+    p_language: language,
+    p_text: value,
+    p_expected_text: expectedText
+  }));
 }
 
 export async function publishDraft(versionId) {
