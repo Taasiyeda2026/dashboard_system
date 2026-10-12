@@ -329,7 +329,7 @@ function exceptionContactsHtml(audit, state = {}) {
     <td>${escapeHtml(row.authority||'—')}</td>
     <td>${escapeHtml(row.school||'—')}</td>
     <td>${escapeHtml(row.contact_name||'—')}</td>
-    <td dir="ltr" style="text-align:right">${escapeHtml(row.contact_email.replace(/[\\u200e\\u200f\\u202a-\\u202e\\u2066-\\u2069]/gi,'')||'—')}</td>
+    <td dir="ltr" style="text-align:right">${escapeHtml(row.contact_email.replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/gi,'')||'—')}</td>
     <td>${escapeHtml(CONTACT_READINESS_ISSUES[row.issue]||'נדרש בירור')}</td>
     <td><button type="button" class="ds-btn ds-btn--sm" data-exception-contact-open="${escapeHtml(row.row_id)}">לפעילות</button></td>
   </tr>`).join('');
