@@ -13,13 +13,8 @@ export function proposalProgramDisplay(item = {}, context = {}) {
   const pricingKey = text(item.source_pricing_key ?? item.sourcePricingKey);
   if (context.enabled !== true || context.isCourse !== true
     || item.is_manual_course === true || item.manual_course === true) return original;
-  // This is the existing customer short name, also used by the pricing-table
-  // normalizer. Keep it identical in render paths that do not run a DOM pass.
-  if (gefenNumber === '52279'
-    && (!activityNo || activityNo === '52279')
-    && (!pricingKey || ['52279', 'gefen:52279'].includes(pricingKey))) {
-    return { ...original, name: 'אופק פרימיום' };
-  }
+  // Only the original 3604 program is aliased. The independent 52279
+  // program and every other program keep their pre-existing presentation.
   if (gefenNumber !== '3604'
     || (activityNo && activityNo !== '3604')
     || (pricingKey && !['3604', 'gefen:3604'].includes(pricingKey))) return original;
