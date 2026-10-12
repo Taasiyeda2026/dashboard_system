@@ -485,7 +485,7 @@ export const exceptionsScreen = {
       searchPlaceholder: 'חיפוש חריגות…',
       optionsOverrides: getFilterOptionOverrides(state?.clientSettings || {}),
       clear: false
-    }).replace(/<\\/div>\\s*$/, `${exceptionClearFilterButton('general')}</div>`);
+    }).replace(/<\/div>\s*$/, `${exceptionClearFilterButton('general')}</div>`);
     const byType = new Map();
     visibleRows.forEach((row) => {
       const type = String(row?.exception_type || '').trim() || 'other';
