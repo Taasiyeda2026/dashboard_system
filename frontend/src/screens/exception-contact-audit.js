@@ -17,7 +17,7 @@ const VALID_EMAIL = /^[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}$/i;
 
 export function selectedContactIssue(activity, contact) {
   if (!activity?.school_contact_id) return 'missing_selection';
-  if (!contact) return 'broken_selection';
+  if (!contact || String(contact.id) !== String(activity.school_contact_id)) return 'broken_selection';
   if (String(contact.active || '').trim() === 'לא פעיל') return 'inactive_contact';
   const email = String(contact.email || '').trim();
   if (!email) return 'missing_email';
