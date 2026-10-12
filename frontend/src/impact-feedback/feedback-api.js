@@ -138,6 +138,14 @@ export async function updateCampaign(campaignId, action, { opensAt = null, expir
   }));
 }
 
+/** Individual improvement recommendations submitted by final-stage instructors (viewers only). */
+export async function fetchInstructorReviewItems(academicYear = null) {
+  const rows = await unwrap(client().rpc('feedback_admin_instructor_review_items', {
+    p_academic_year: academicYear || null
+  }));
+  return Array.isArray(rows) ? rows : [];
+}
+
 export async function fetchAnswerFacts(filters = {}) {
   const clean = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== '' && v !== null && v !== undefined));
   const rows = await unwrap(client().rpc('feedback_admin_answer_facts', { p_filters: clean }));

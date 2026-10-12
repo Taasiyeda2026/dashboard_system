@@ -418,3 +418,56 @@
   .ifb-biomimicry-scale__items > div { font-size: 10px; }
   .ifb-rate--arabic-biomimicry .ifb-rate__face { font-size: 21px; }
 }
+
+
+/* Instructor final survey: optional five-minute detailed improvements. */
+.ifb-extra-review {
+  margin: 26px 0 18px; padding: clamp(16px, 3vw, 24px);
+  border: 1px solid var(--ifb-line); border-radius: 16px;
+  background: var(--ifb-card); color: var(--ifb-ink);
+  text-align: start; direction: rtl;
+}
+.ifb-extra-review h2 { margin: 0 0 10px; font-size: 20px; line-height: 1.45; }
+.ifb-extra-review p { margin: 0 0 16px; line-height: 1.65; }
+.ifb-extra-choice { margin: 0; padding: 0; border: 0; min-width: 0; }
+.ifb-extra-choice legend { margin-bottom: 10px; line-height: 1.55; }
+.ifb-extra-choice > label {
+  display: flex; align-items: center; gap: 9px; margin: 8px 0;
+  padding: 12px 13px; border: 1px solid var(--ifb-line);
+  border-radius: 11px; cursor: pointer;
+}
+.ifb-extra-choice input, .ifb-extra-actions input { accent-color: var(--ifb-accent); width: 18px; height: 18px; }
+.ifb-extra-item {
+  display: grid; gap: 14px; margin: 20px 0; padding: 17px;
+  border: 1px solid var(--ifb-line); border-radius: 12px; min-width: 0;
+}
+.ifb-extra-item > legend { font-size: 17px; padding-inline: 7px; }
+.ifb-extra-item > label, .ifb-extra-two > label { display: grid; gap: 7px; font-size: 14px; }
+.ifb-extra-item select, .ifb-extra-item input[type="text"], .ifb-extra-item textarea {
+  width: 100%; min-width: 0; box-sizing: border-box; padding: 11px;
+  border: 1px solid var(--ifb-line); border-radius: 10px; font: inherit;
+  color: var(--ifb-ink); background: #fff; text-align: start;
+}
+.ifb-extra-item textarea { min-height: 82px; resize: vertical; }
+.ifb-extra-two { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; }
+.ifb-extra-actions { display: grid; grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 9px 15px; padding: 13px; margin: 0; border: 1px solid var(--ifb-line); border-radius: 10px; }
+.ifb-extra-actions legend { padding-inline: 5px; line-height: 1.5; }
+.ifb-extra-actions label { display: flex; align-items: center; gap: 7px; font-size: 14px; }
+.ifb-extra-add, .ifb-extra-remove {
+  min-height: 42px; padding: 9px 15px; border: 1px solid var(--ifb-accent);
+  border-radius: 10px; background: var(--ifb-accent-soft);
+  color: var(--ifb-accent); font: inherit; font-weight: 650; cursor: pointer;
+}
+.ifb-extra-remove { justify-self: start; background: transparent; }
+.ifb-extra-error { padding: 10px 12px; color: #a52a37; font-weight: 650; }
+.ifb-extra-guidance { margin-top: 18px !important; }
+.ifb-extra-review input:focus-visible, .ifb-extra-review textarea:focus-visible,
+.ifb-extra-review select:focus-visible, .ifb-extra-review button:focus-visible {
+  outline: 3px solid var(--ifb-focus); outline-offset: 2px;
+}
+@media (max-width: 540px) {
+  .ifb-extra-two, .ifb-extra-actions { grid-template-columns: minmax(0,1fr); }
+  .ifb-extra-item { padding: 12px; }
+  .ifb-extra-review { padding: 14px; }
+}
