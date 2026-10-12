@@ -1,0 +1,246 @@
+{
+  "title": "Stage C final acceptance — verified routes, main vs PR, data integrity",
+  "productionWrites": 0,
+  "mergeDeploy": false,
+  "tests": {
+    "1_verifiedRoutesOnly": {
+      "pass": true,
+      "missingVerifiedCachePairs": 57,
+      "dummyFillersUsed": false,
+      "fillerRunEarlierClaim": {
+        "beforeCovered": 210,
+        "afterCovered": 217,
+        "delta": 7,
+        "note": "Prior load used 57 dummy 8km/15m fillers; not used as acceptance proof."
+      },
+      "verifiedPr": {
+        "skipSoft": {
+          "covered": 214,
+          "schoolActiveDays": 1378,
+          "instructorWorkDays": 976,
+          "waitingMinutes": 25939,
+          "totalTravelMinutes": 60070,
+          "totalTravelKm": 52741.897,
+          "unknownRouteLegs": 70,
+          "valid": true,
+          "constraintFailures": 0,
+          "elapsedMs": 16748.1,
+          "newlyCovered": [
+            "school_2027_067"
+          ],
+          "lostCoverage": [
+            "PAI-a6caab48-974b-4ec5-8342-de5f8c60cb4d",
+            "PAI-ae276b4c-9042-4ae0-acff-41fbb558e9b0-4",
+            "school_2027_060"
+          ],
+          "liveDateSync": [
+            {
+              "courseId": "ACT-2a66b687-b10f-43fd-b016-5a4876d5a7d5",
+              "instructorEmpId": "1528",
+              "matchesOfficial": true
+            },
+            {
+              "courseId": "ACT-8027babf-0b37-4511-bd8c-5fcbd655dc69",
+              "instructorEmpId": "1528",
+              "matchesOfficial": true
+            },
+            {
+              "courseId": "ACT-69fb3cb5-ab4f-463e-b83f-cca5f81b43cf",
+              "instructorEmpId": "1546",
+              "matchesOfficial": true
+            },
+            {
+              "courseId": "ACT-cd86ef69-671c-40b1-8a61-7111fbecef7b",
+              "instructorEmpId": "1546",
+              "matchesOfficial": true
+            }
+          ]
+        },
+        "softOpt": {
+          "covered": 215,
+          "schoolActiveDays": 1314,
+          "instructorWorkDays": 974,
+          "waitingMinutes": 21156,
+          "totalTravelMinutes": 59002,
+          "totalTravelKm": 51959.863,
+          "unknownRouteLegs": 70,
+          "valid": true,
+          "constraintFailures": 0,
+          "elapsedMs": 45153.5,
+          "newlyCovered": [
+            "school_2027_067"
+          ],
+          "lostCoverage": [
+            "PAI-ae276b4c-9042-4ae0-acff-41fbb558e9b0-4",
+            "school_2027_060"
+          ],
+          "liveDateSync": [
+            {
+              "courseId": "ACT-2a66b687-b10f-43fd-b016-5a4876d5a7d5",
+              "instructorEmpId": "1528",
+              "matchesOfficial": true
+            },
+            {
+              "courseId": "ACT-8027babf-0b37-4511-bd8c-5fcbd655dc69",
+              "instructorEmpId": "1528",
+              "matchesOfficial": true
+            },
+            {
+              "courseId": "ACT-69fb3cb5-ab4f-463e-b83f-cca5f81b43cf",
+              "instructorEmpId": "1546",
+              "matchesOfficial": true
+            },
+            {
+              "courseId": "ACT-cd86ef69-671c-40b1-8a61-7111fbecef7b",
+              "instructorEmpId": "1546",
+              "matchesOfficial": true
+            }
+          ]
+        }
+      },
+      "sensitivity": "Verified softOpt covers 215 (not 217). Soft vs skip under verified cache: +1 covered only. Newly covered school_2027_067 has verified home↔school routes. unknownRouteLegs=70 on both skip and soft; plan remains valid with 0 hard failures. Travel deltas under verified cache are therefore not dependent on dummy fillers."
+    },
+    "2_mainVsPrSoftOpt": {
+      "pass": true,
+      "sameSettings": "verified travel cache only, softOpt on, allowGlobalRepair true, planningProfile fast, same dataset",
+      "mainSoftOpt": {
+        "covered": 215,
+        "schoolActiveDays": 1325,
+        "instructorWorkDays": 1001,
+        "waitingMinutes": 19258,
+        "totalTravelMinutes": 60105,
+        "totalTravelKm": 52851.383,
+        "unknownRouteLegs": 70,
+        "valid": true,
+        "constraintFailures": 0,
+        "elapsedMs": 41511.0,
+        "newlyCovered": [
+          "school_2027_067"
+        ],
+        "lostCoverage": [
+          "PAI-ae276b4c-9042-4ae0-acff-41fbb558e9b0-4",
+          "school_2027_060"
+        ],
+        "liveDateSync": [
+          {
+            "courseId": "ACT-2a66b687-b10f-43fd-b016-5a4876d5a7d5",
+            "instructorEmpId": "1528",
+            "matchesOfficial": true
+          },
+          {
+            "courseId": "ACT-8027babf-0b37-4511-bd8c-5fcbd655dc69",
+            "instructorEmpId": "1528",
+            "matchesOfficial": true
+          },
+          {
+            "courseId": "ACT-69fb3cb5-ab4f-463e-b83f-cca5f81b43cf",
+            "instructorEmpId": "1546",
+            "matchesOfficial": true
+          },
+          {
+            "courseId": "ACT-cd86ef69-671c-40b1-8a61-7111fbecef7b",
+            "instructorEmpId": "1546",
+            "matchesOfficial": true
+          }
+        ]
+      },
+      "prSoftOpt": {
+        "covered": 215,
+        "schoolActiveDays": 1314,
+        "instructorWorkDays": 974,
+        "waitingMinutes": 21156,
+        "totalTravelMinutes": 59002,
+        "totalTravelKm": 51959.863,
+        "unknownRouteLegs": 70,
+        "valid": true,
+        "constraintFailures": 0,
+        "elapsedMs": 45153.5,
+        "newlyCovered": [
+          "school_2027_067"
+        ],
+        "lostCoverage": [
+          "PAI-ae276b4c-9042-4ae0-acff-41fbb558e9b0-4",
+          "school_2027_060"
+        ],
+        "liveDateSync": [
+          {
+            "courseId": "ACT-2a66b687-b10f-43fd-b016-5a4876d5a7d5",
+            "instructorEmpId": "1528",
+            "matchesOfficial": true
+          },
+          {
+            "courseId": "ACT-8027babf-0b37-4511-bd8c-5fcbd655dc69",
+            "instructorEmpId": "1528",
+            "matchesOfficial": true
+          },
+          {
+            "courseId": "ACT-69fb3cb5-ab4f-463e-b83f-cca5f81b43cf",
+            "instructorEmpId": "1546",
+            "matchesOfficial": true
+          },
+          {
+            "courseId": "ACT-cd86ef69-671c-40b1-8a61-7111fbecef7b",
+            "instructorEmpId": "1546",
+            "matchesOfficial": true
+          }
+        ]
+      },
+      "deltaPrMinusMain": {
+        "covered": 0,
+        "schoolActiveDays": -11,
+        "instructorWorkDays": -27,
+        "waitingMinutes": 1898,
+        "totalTravelMinutes": -1103,
+        "totalTravelKm": -891.52,
+        "elapsedMs": 3642.5
+      },
+      "softOptVsSkipOnPr": {
+        "covered": 1,
+        "schoolActiveDays": -64,
+        "instructorWorkDays": -2,
+        "waitingMinutes": -4783,
+        "totalTravelMinutes": -1068,
+        "totalTravelKm": -782.034
+      },
+      "assignmentDiffCount": 13,
+      "interpretation": "Equal coverage vs main. PR reduces schoolActiveDays (−11) and instructorWorkDays (−27) while accepting higher waiting (+1898), matching the new lexicographic priority. SoftOpt-vs-skip on PR is a separate +1 coverage / −64 school-days effect."
+    },
+    "3_dataIntegrity": {
+      "pass": true,
+      "courses239VsPlanning238": {
+        "missingActivityId": "ACT-149a9af7-006f-4570-84f7-ca27ac2d3ead",
+        "name": "רוקחים עולם",
+        "status": "פתוח",
+        "emp_id": null,
+        "dates": null,
+        "district": "צפון",
+        "explanation": "One school_2027 course has no scheduling_planning_rows row yet; workspace cohort is 238."
+      },
+      "fourLiveDateSyncs": [
+        {
+          "courseId": "ACT-2a66b687-b10f-43fd-b016-5a4876d5a7d5",
+          "instructorEmpId": "1528",
+          "matchesOfficial": true
+        },
+        {
+          "courseId": "ACT-8027babf-0b37-4511-bd8c-5fcbd655dc69",
+          "instructorEmpId": "1528",
+          "matchesOfficial": true
+        },
+        {
+          "courseId": "ACT-69fb3cb5-ab4f-463e-b83f-cca5f81b43cf",
+          "instructorEmpId": "1546",
+          "matchesOfficial": true
+        },
+        {
+          "courseId": "ACT-cd86ef69-671c-40b1-8a61-7111fbecef7b",
+          "instructorEmpId": "1546",
+          "matchesOfficial": true
+        }
+      ],
+      "explanation": "Instructor emp_id unchanged. Result meetings equal official activities.date_*; saved planning meetings were stale. Soft-opt decisions do not include these course IDs."
+    }
+  },
+  "mergeBlockers": [],
+  "recommendation": "No acceptance blocker found for merge from these three tests. Owner decision still required before merge/deploy."
+}

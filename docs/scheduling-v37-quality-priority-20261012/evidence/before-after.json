@@ -1,0 +1,126 @@
+{
+  "generatedAt": "2026-10-12T17:12:47.256Z",
+  "engineRevision": "v37-operational-2",
+  "technicalPlanCorrections": {
+    "schoolActiveDays": "Measured separately from sameSchoolSequences; lexicographic rank above instructor workdays and continuity.",
+    "scopedAugmenting": "targetCourseIds + allowGlobalRepair:false now runs scoped-flexible-coverage via augmentingSearch among flexible proposals only; national quality stage stays off; approved/locked remain barriers. Pool rebuild uses immovable barriers so movable anchors cannot hide chain options.",
+    "optionsDiagnostics": "Final options filtered to legal alternatives; chosen always present with fresh score; optimization.stopReason/scope exposed on rows."
+  },
+  "priorityDemo": {
+    "oldAcceptsExtraInstructorDayForWaiting": true,
+    "newAcceptsExtraInstructorDayForWaiting": false,
+    "oldAcceptsExtraSchoolDayForContinuity": true,
+    "newAcceptsExtraSchoolDayForContinuity": false
+  },
+  "scopedCoverageTrap": {
+    "before": {
+      "covered": 2,
+      "meetingHours": 4,
+      "schoolActiveDays": 4,
+      "instructorWorkDays": 4,
+      "sameSchoolSequences": 0,
+      "splitDays": 0,
+      "waitingMinutes": 0,
+      "totalTravelMinutes": 80,
+      "totalTravelKm": 40,
+      "unknownRouteLegs": 0,
+      "elapsedMs": 5.497491999999994,
+      "planned": 2,
+      "scope": "bounded-neighborhood",
+      "softOptimizationAttempted": false,
+      "stopReason": "not-attempted",
+      "constraintViolations": 0
+    },
+    "after": {
+      "covered": 3,
+      "meetingHours": 5,
+      "schoolActiveDays": 5,
+      "instructorWorkDays": 5,
+      "sameSchoolSequences": 0,
+      "splitDays": 0,
+      "waitingMinutes": 0,
+      "totalTravelMinutes": 100,
+      "totalTravelKm": 50,
+      "unknownRouteLegs": 0,
+      "elapsedMs": 10.132373000000001,
+      "planned": 3,
+      "scope": "scoped-flexible-coverage",
+      "softOptimizationAttempted": true,
+      "stopReason": "completed",
+      "stages": [
+        {
+          "name": "scoped-coverage",
+          "depth": 1,
+          "nodes": 6,
+          "gains": 0,
+          "elapsedMs": 2.4490049999999997
+        },
+        {
+          "name": "scoped-coverage",
+          "depth": 3,
+          "nodes": 7,
+          "gains": 1,
+          "elapsedMs": 1.734369000000001
+        }
+      ],
+      "decisions": 3,
+      "constraintViolations": 0,
+      "chosenOptionsConsistent": true
+    },
+    "deltas": {
+      "covered": 1,
+      "schoolActiveDays": 1,
+      "instructorWorkDays": 1,
+      "waitingMinutes": 0,
+      "totalTravelMinutes": 20,
+      "elapsedMs": 4.634881000000007
+    }
+  },
+  "nationalThreeCourse": {
+    "before": {
+      "covered": 3,
+      "meetingHours": 5,
+      "schoolActiveDays": 5,
+      "instructorWorkDays": 5,
+      "sameSchoolSequences": 0,
+      "splitDays": 0,
+      "waitingMinutes": 0,
+      "totalTravelMinutes": 100,
+      "totalTravelKm": 50,
+      "unknownRouteLegs": 0,
+      "elapsedMs": 4.276308999999998,
+      "planned": 3
+    },
+    "after": {
+      "covered": 3,
+      "meetingHours": 5,
+      "schoolActiveDays": 5,
+      "instructorWorkDays": 5,
+      "sameSchoolSequences": 0,
+      "splitDays": 0,
+      "waitingMinutes": 0,
+      "totalTravelMinutes": 100,
+      "totalTravelKm": 50,
+      "unknownRouteLegs": 0,
+      "elapsedMs": 5.75341499999999,
+      "planned": 3,
+      "stopReason": "completed"
+    },
+    "deltas": {
+      "covered": 0,
+      "schoolActiveDays": 0,
+      "instructorWorkDays": 0,
+      "waitingMinutes": 0,
+      "totalTravelMinutes": 0,
+      "elapsedMs": 1.477105999999992
+    }
+  },
+  "acceptanceGates": {
+    "coveredDoesNotDecrease": true,
+    "schoolActiveDaysDoNotIncreaseWhenCoverageEqual": true,
+    "noNewConstraintViolations": true,
+    "chosenOptionsConsistent": true,
+    "scopedDoesNotRunNationalQuality": true,
+    "newPriorityRejectsExtraSchoolOrInstructorDays": true
+  }
+}

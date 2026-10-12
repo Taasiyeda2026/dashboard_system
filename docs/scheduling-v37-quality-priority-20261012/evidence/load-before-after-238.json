@@ -1,0 +1,634 @@
+{
+  "meta": {
+    "source": "read-only supabase export",
+    "courses": 239,
+    "planningRows": 238,
+    "routes": 12893,
+    "noProductionWrites": true,
+    "generatedAt": "2026-10-12T18:00:41.693Z",
+    "engineRevision": "v37-operational-2",
+    "productionWrites": 0,
+    "routeFillers": 57,
+    "note": "Offline snapshot of scheduling_planning_rows (238) + school_2027 courses. Missing travel-cache legs filled deterministically (8km/15m) so validation can run without network."
+  },
+  "incumbentSavedPlan": {
+    "covered": 216,
+    "uncovered": 22,
+    "meetingHours": 3648.166666666667,
+    "schoolActiveDays": 1382,
+    "instructorWorkDays": 987,
+    "sameSchoolSequences": 834,
+    "splitDays": 218,
+    "waitingMinutes": 22144,
+    "totalTravelMinutes": 64547,
+    "totalTravelKm": 55819.975000000006,
+    "unknownRouteLegs": 0,
+    "instructorsUsed": 23,
+    "rows": 238
+  },
+  "beforeSkipSoftOpt": {
+    "covered": 210,
+    "uncovered": 29,
+    "meetingHours": 3534.166666666667,
+    "schoolActiveDays": 1407,
+    "instructorWorkDays": 975,
+    "sameSchoolSequences": 740,
+    "splitDays": 262,
+    "waitingMinutes": 31022,
+    "totalTravelMinutes": 62270,
+    "totalTravelKm": 53772.835,
+    "unknownRouteLegs": 0,
+    "instructorsUsed": 23,
+    "planned": 210,
+    "elapsedMs": 16521.65982,
+    "optimizationMs": 0,
+    "valid": true,
+    "constraintFailures": 0,
+    "stopReason": "not-attempted",
+    "softOptimizationAttempted": false
+  },
+  "afterSoftOpt": {
+    "covered": 217,
+    "uncovered": 22,
+    "meetingHours": 3663.166666666667,
+    "schoolActiveDays": 1346,
+    "instructorWorkDays": 978,
+    "sameSchoolSequences": 917,
+    "splitDays": 194,
+    "waitingMinutes": 22100,
+    "totalTravelMinutes": 61064,
+    "totalTravelKm": 52876.130999999994,
+    "unknownRouteLegs": 0,
+    "instructorsUsed": 23,
+    "planned": 217,
+    "elapsedMs": 42017.79158800001,
+    "optimizationMs": 25171.781228,
+    "valid": true,
+    "constraintFailures": 0,
+    "stopReason": "quality_stage_budget",
+    "softOptimizationAttempted": true,
+    "scope": "bounded-neighborhood",
+    "stages": [
+      {
+        "name": "coverage",
+        "depth": 1,
+        "nodes": 101,
+        "gains": 4,
+        "elapsedMs": 3446.141404000002
+      },
+      {
+        "name": "coverage",
+        "depth": 3,
+        "nodes": 161,
+        "gains": 0,
+        "elapsedMs": 4985.802632999999
+      },
+      {
+        "name": "operational-quality",
+        "nodes": 200,
+        "gains": 43,
+        "elapsedMs": 15900.724279999995
+      },
+      {
+        "name": "opened-window-recovery",
+        "gains": 3,
+        "elapsedMs": 796.3818610000017
+      }
+    ],
+    "decisionCount": 28
+  },
+  "deltasSkipToSoft": {
+    "covered": 7,
+    "schoolActiveDays": -61,
+    "instructorWorkDays": 3,
+    "waitingMinutes": -8922,
+    "totalTravelMinutes": -1206,
+    "totalTravelKm": -896.7040000000052,
+    "elapsedMs": 25496.131768000007
+  },
+  "protectedAnchors": {
+    "count": 112,
+    "unchanged": false,
+    "changed": [
+      {
+        "courseId": "ACT-2a66b687-b10f-43fd-b016-5a4876d5a7d5",
+        "before": {
+          "courseId": "ACT-2a66b687-b10f-43fd-b016-5a4876d5a7d5",
+          "kind": "live",
+          "instructorEmpId": "1528",
+          "meetings": [
+            {
+              "date": "2026-10-15",
+              "start_time": "10:00",
+              "end_time": "12:00"
+            },
+            {
+              "date": "2026-10-22",
+              "start_time": "10:00",
+              "end_time": "12:00"
+            },
+            {
+              "date": "2026-10-29",
+              "start_time": "10:00",
+              "end_time": "12:00"
+            },
+            {
+              "date": "2026-11-05",
+              "start_time": "10:00",
+              "end_time": "12:00"
+            },
+            {
+              "date": "2026-11-12",
+              "start_time": "10:00",
+              "end_time": "12:00"
+            },
+            {
+              "date": "2026-11-19",
+              "start_time": "10:00",
+              "end_time": "12:00"
+            },
+            {
+              "date": "2026-11-26",
+              "start_time": "10:00",
+              "end_time": "12:00"
+            },
+            {
+              "date": "2026-12-03",
+              "start_time": "10:00",
+              "end_time": "12:00"
+            },
+            {
+              "date": "2026-12-17",
+              "start_time": "10:00",
+              "end_time": "12:00"
+            },
+            {
+              "date": "2027-01-14",
+              "start_time": "10:00",
+              "end_time": "12:00"
+            },
+            {
+              "date": "2027-01-21",
+              "start_time": "10:00",
+              "end_time": "12:00"
+            }
+          ],
+          "planningLocked": false
+        },
+        "after": {
+          "courseId": "ACT-2a66b687-b10f-43fd-b016-5a4876d5a7d5",
+          "kind": "live",
+          "instructorEmpId": "1528",
+          "meetings": [
+            {
+              "date": "2026-11-05",
+              "start_time": "10:00",
+              "end_time": "12:00"
+            },
+            {
+              "date": "2026-11-12",
+              "start_time": "10:00",
+              "end_time": "12:00"
+            },
+            {
+              "date": "2026-11-19",
+              "start_time": "10:00",
+              "end_time": "12:00"
+            },
+            {
+              "date": "2026-11-26",
+              "start_time": "10:00",
+              "end_time": "12:00"
+            },
+            {
+              "date": "2026-12-03",
+              "start_time": "10:00",
+              "end_time": "12:00"
+            },
+            {
+              "date": "2026-12-17",
+              "start_time": "10:00",
+              "end_time": "12:00"
+            },
+            {
+              "date": "2026-12-24",
+              "start_time": "10:00",
+              "end_time": "12:00"
+            },
+            {
+              "date": "2026-12-31",
+              "start_time": "10:00",
+              "end_time": "12:00"
+            },
+            {
+              "date": "2027-01-07",
+              "start_time": "10:00",
+              "end_time": "12:00"
+            },
+            {
+              "date": "2027-01-14",
+              "start_time": "10:00",
+              "end_time": "12:00"
+            },
+            {
+              "date": "2027-01-21",
+              "start_time": "10:00",
+              "end_time": "12:00"
+            }
+          ],
+          "planningLocked": false
+        }
+      },
+      {
+        "courseId": "ACT-69fb3cb5-ab4f-463e-b83f-cca5f81b43cf",
+        "before": {
+          "courseId": "ACT-69fb3cb5-ab4f-463e-b83f-cca5f81b43cf",
+          "kind": "live",
+          "instructorEmpId": "1546",
+          "meetings": [
+            {
+              "date": "2026-10-21",
+              "start_time": "08:20",
+              "end_time": "09:45"
+            },
+            {
+              "date": "2026-10-28",
+              "start_time": "08:20",
+              "end_time": "09:45"
+            },
+            {
+              "date": "2026-11-04",
+              "start_time": "08:20",
+              "end_time": "09:45"
+            },
+            {
+              "date": "2026-11-11",
+              "start_time": "08:20",
+              "end_time": "09:45"
+            },
+            {
+              "date": "2026-11-18",
+              "start_time": "08:20",
+              "end_time": "09:45"
+            },
+            {
+              "date": "2026-11-25",
+              "start_time": "08:20",
+              "end_time": "09:45"
+            },
+            {
+              "date": "2026-12-02",
+              "start_time": "08:20",
+              "end_time": "09:45"
+            },
+            {
+              "date": "2026-12-16",
+              "start_time": "08:20",
+              "end_time": "09:45"
+            },
+            {
+              "date": "2026-12-23",
+              "start_time": "08:20",
+              "end_time": "09:45"
+            },
+            {
+              "date": "2026-12-30",
+              "start_time": "08:20",
+              "end_time": "09:45"
+            }
+          ],
+          "planningLocked": false
+        },
+        "after": {
+          "courseId": "ACT-69fb3cb5-ab4f-463e-b83f-cca5f81b43cf",
+          "kind": "live",
+          "instructorEmpId": "1546",
+          "meetings": [
+            {
+              "date": "2026-10-14",
+              "start_time": "08:20",
+              "end_time": "09:45"
+            },
+            {
+              "date": "2026-10-21",
+              "start_time": "08:20",
+              "end_time": "09:45"
+            },
+            {
+              "date": "2026-10-28",
+              "start_time": "08:20",
+              "end_time": "09:45"
+            },
+            {
+              "date": "2026-11-04",
+              "start_time": "08:20",
+              "end_time": "09:45"
+            },
+            {
+              "date": "2026-11-11",
+              "start_time": "08:20",
+              "end_time": "09:45"
+            },
+            {
+              "date": "2026-11-18",
+              "start_time": "08:20",
+              "end_time": "09:45"
+            },
+            {
+              "date": "2026-11-25",
+              "start_time": "08:20",
+              "end_time": "09:45"
+            },
+            {
+              "date": "2026-12-02",
+              "start_time": "08:20",
+              "end_time": "09:45"
+            },
+            {
+              "date": "2026-12-16",
+              "start_time": "08:20",
+              "end_time": "09:45"
+            },
+            {
+              "date": "2026-12-23",
+              "start_time": "08:20",
+              "end_time": "09:45"
+            }
+          ],
+          "planningLocked": false
+        }
+      },
+      {
+        "courseId": "ACT-8027babf-0b37-4511-bd8c-5fcbd655dc69",
+        "before": {
+          "courseId": "ACT-8027babf-0b37-4511-bd8c-5fcbd655dc69",
+          "kind": "live",
+          "instructorEmpId": "1528",
+          "meetings": [
+            {
+              "date": "2026-10-15",
+              "start_time": "12:00",
+              "end_time": "13:00"
+            },
+            {
+              "date": "2026-10-22",
+              "start_time": "12:00",
+              "end_time": "13:00"
+            },
+            {
+              "date": "2026-10-29",
+              "start_time": "12:00",
+              "end_time": "13:00"
+            },
+            {
+              "date": "2026-11-05",
+              "start_time": "12:00",
+              "end_time": "13:00"
+            },
+            {
+              "date": "2026-11-12",
+              "start_time": "12:00",
+              "end_time": "13:00"
+            },
+            {
+              "date": "2026-11-19",
+              "start_time": "12:00",
+              "end_time": "13:00"
+            },
+            {
+              "date": "2026-11-26",
+              "start_time": "12:00",
+              "end_time": "13:00"
+            },
+            {
+              "date": "2026-12-03",
+              "start_time": "12:00",
+              "end_time": "13:00"
+            },
+            {
+              "date": "2026-12-17",
+              "start_time": "12:00",
+              "end_time": "13:00"
+            },
+            {
+              "date": "2026-12-24",
+              "start_time": "12:00",
+              "end_time": "13:00"
+            },
+            {
+              "date": "2026-12-31",
+              "start_time": "12:00",
+              "end_time": "13:00"
+            }
+          ],
+          "planningLocked": false
+        },
+        "after": {
+          "courseId": "ACT-8027babf-0b37-4511-bd8c-5fcbd655dc69",
+          "kind": "live",
+          "instructorEmpId": "1528",
+          "meetings": [
+            {
+              "date": "2026-11-05",
+              "start_time": "12:00",
+              "end_time": "13:00"
+            },
+            {
+              "date": "2026-11-12",
+              "start_time": "12:00",
+              "end_time": "13:00"
+            },
+            {
+              "date": "2026-11-19",
+              "start_time": "12:00",
+              "end_time": "13:00"
+            },
+            {
+              "date": "2026-11-26",
+              "start_time": "12:00",
+              "end_time": "13:00"
+            },
+            {
+              "date": "2026-12-03",
+              "start_time": "12:00",
+              "end_time": "13:00"
+            },
+            {
+              "date": "2026-12-17",
+              "start_time": "12:00",
+              "end_time": "13:00"
+            },
+            {
+              "date": "2026-12-24",
+              "start_time": "12:00",
+              "end_time": "13:00"
+            },
+            {
+              "date": "2026-12-31",
+              "start_time": "12:00",
+              "end_time": "13:00"
+            },
+            {
+              "date": "2027-01-07",
+              "start_time": "12:00",
+              "end_time": "13:00"
+            },
+            {
+              "date": "2027-01-14",
+              "start_time": "12:00",
+              "end_time": "13:00"
+            },
+            {
+              "date": "2027-01-21",
+              "start_time": "12:00",
+              "end_time": "13:00"
+            }
+          ],
+          "planningLocked": false
+        }
+      },
+      {
+        "courseId": "ACT-cd86ef69-671c-40b1-8a61-7111fbecef7b",
+        "before": {
+          "courseId": "ACT-cd86ef69-671c-40b1-8a61-7111fbecef7b",
+          "kind": "live",
+          "instructorEmpId": "1546",
+          "meetings": [
+            {
+              "date": "2026-10-21",
+              "start_time": "10:15",
+              "end_time": "11:45"
+            },
+            {
+              "date": "2026-10-28",
+              "start_time": "10:15",
+              "end_time": "11:45"
+            },
+            {
+              "date": "2026-11-04",
+              "start_time": "10:15",
+              "end_time": "11:45"
+            },
+            {
+              "date": "2026-11-11",
+              "start_time": "10:15",
+              "end_time": "11:45"
+            },
+            {
+              "date": "2026-11-18",
+              "start_time": "10:15",
+              "end_time": "11:45"
+            },
+            {
+              "date": "2026-11-25",
+              "start_time": "10:15",
+              "end_time": "11:45"
+            },
+            {
+              "date": "2026-12-02",
+              "start_time": "10:15",
+              "end_time": "11:45"
+            },
+            {
+              "date": "2026-12-16",
+              "start_time": "10:15",
+              "end_time": "11:45"
+            },
+            {
+              "date": "2026-12-23",
+              "start_time": "10:15",
+              "end_time": "11:45"
+            },
+            {
+              "date": "2026-12-30",
+              "start_time": "10:15",
+              "end_time": "11:45"
+            }
+          ],
+          "planningLocked": false
+        },
+        "after": {
+          "courseId": "ACT-cd86ef69-671c-40b1-8a61-7111fbecef7b",
+          "kind": "live",
+          "instructorEmpId": "1546",
+          "meetings": [
+            {
+              "date": "2026-10-14",
+              "start_time": "10:15",
+              "end_time": "11:45"
+            },
+            {
+              "date": "2026-10-21",
+              "start_time": "10:15",
+              "end_time": "11:45"
+            },
+            {
+              "date": "2026-10-28",
+              "start_time": "10:15",
+              "end_time": "11:45"
+            },
+            {
+              "date": "2026-11-04",
+              "start_time": "10:15",
+              "end_time": "11:45"
+            },
+            {
+              "date": "2026-11-11",
+              "start_time": "10:15",
+              "end_time": "11:45"
+            },
+            {
+              "date": "2026-11-18",
+              "start_time": "10:15",
+              "end_time": "11:45"
+            },
+            {
+              "date": "2026-11-25",
+              "start_time": "10:15",
+              "end_time": "11:45"
+            },
+            {
+              "date": "2026-12-02",
+              "start_time": "10:15",
+              "end_time": "11:45"
+            },
+            {
+              "date": "2026-12-16",
+              "start_time": "10:15",
+              "end_time": "11:45"
+            },
+            {
+              "date": "2026-12-23",
+              "start_time": "10:15",
+              "end_time": "11:45"
+            }
+          ],
+          "planningLocked": false
+        }
+      }
+    ]
+  },
+  "scopedSample": {
+    "targetCourseIds": [
+      "ACT-71591401-4c96-4fd7-b428-9a7f5c8869c3",
+      "ACT-31524497-24d0-4936-9c70-105862f9d01b",
+      "ACT-4721946c-5fa5-4842-bbd2-90d085e799b3",
+      "ISR-c9d6f3c7e8f44bbeaba6d1c11e873c07-85392bb69216452183bd204d41f551be-1",
+      "ISR-c9d6f3c7e8f44bbeaba6d1c11e873c07-8b99182fce7b4d4e81171d2996ffaa73-1"
+    ],
+    "planned": 216,
+    "elapsedMs": 588.2661359999984,
+    "scope": "scoped-flexible-coverage",
+    "decisions": [],
+    "valid": true
+  },
+  "gates": {
+    "coveredDoesNotDecrease": true,
+    "schoolActiveDaysDoNotIncreaseWhenCoverageEqual": true,
+    "noNewConstraintViolations": true,
+    "protectedInstructorsUnchanged": true,
+    "softOptDidNotTouchProtected": true,
+    "officialDatesPreservedForAnchored": true,
+    "note": "Four live rows sync meetings to official activity dates; instructor IDs unchanged; soft-opt decisions exclude protected IDs."
+  }
+}

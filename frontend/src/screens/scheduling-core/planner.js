@@ -43,6 +43,8 @@ function optionRow(a, option, options) {
     status: option.score >= 60 ? 'הצעה מוכנה' : 'מתאים טכנית ונדרש טיפול', options,
     reason: option.recommendationReason || 'המדריך עבר את כל תנאי הסף', diagnostics: { routeVerified: true, searchIncomplete: false, recruitmentCertified: false } };
 }
+const optionIdentity = option => JSON.stringify([text(option?.instructorEmpId), option?.meetings || []]);
+const optionMatchesRow = (option, row) => optionIdentity(option) === optionIdentity(row);
 function protectedRow(a, previous) {
   // Source dates win, but retain confirmed meeting substitutions from saved
   // data when the original date/meeting identity still matches exactly.
@@ -141,7 +143,10 @@ export async function buildPlan(input = {}) {
       continue;
     }
     const lock = input.lockedOptions?.[id];
-    if (lock) { const row = { ...rowFor(a, lock.meetings), ...lock, kind: 'planning-locked', status: 'נקבע בתכנון', planningLocked: true }; rows.set(id, row); anchors.push(row); continue; }
+    if (lock) {
+      const row = { ...rowFor(a, lock.meetings), ...lock, kind: 'planning-locked', status: 'נקבע בתכנון', planningLocked: true };
+      rows.set(id, row); anchors.push(row); continue;
+    }
     if (!affected.has(id) && previous.has(id)) { const row = previous.get(id); rows.set(id, row); anchors.push(row); }
     else if (a.draft_emp_id && a.draft_proposed_meetings?.length) anchors.push({ ...rowFor(a, a.draft_proposed_meetings), instructorEmpId: text(a.draft_emp_id), kind: 'draft' });
   }
@@ -153,8 +158,10 @@ export async function buildPlan(input = {}) {
   const incumbentExceptionInstructor=new Map(), incumbentExceptionIneligible=new Map();
   if(input.targetCourseIds!=null)for(const a of queue){const prior=previous.get(activityId(a)),empId=prior?.instructorEmpId;if(!empId)continue;const blocked=classifyMeetingAvailabilityBlocks({meetings:prior.meetings||[],rules:input.rules?.[empId]||[],exceptions:input.exceptions?.[empId]||[]});if(blocked.instructorExceptionCount>0&&blocked.recoverable)incumbentExceptionInstructor.set(activityId(a),empId);else if(blocked.instructorExceptionCount>0&&!blocked.recoverable)incumbentExceptionIneligible.set(activityId(a),empId);}
   const limit = input.candidateBudgetPerInstructor || (input.planningProfile === 'fast' ? 96 : 384);
-  async function generatePool(a,scheduleState=null) {
-    const state = createOccupancy(context,anchors);
+  async function generatePool(a,scheduleState=null,occupancyRows=null) {
+    // occupancyRows lets augmenting search build raw schedules against immovable
+    // barriers only; movable flexible proposals stay displacement candidates.
+    const state = createOccupancy(context,occupancyRows||anchors);
     const id = activityId(a), spec = courseSpec(a, input), found = [], failures = new Set(); let incomplete = false;
     const missingData=staticFailures(context,a,'').filter(r=>['missing_school_data','missing_language'].includes(r));
     if(missingData.length)return {options:[],incomplete:false,missing:true,failures:missingData};
@@ -175,6 +182,7 @@ export async function buildPlan(input = {}) {
         const rightDistance = rightRoute ? Number(rightRoute.distance_km) : Infinity;
         return leftDistance - rightDistance || leftId.localeCompare(rightId);
       });
+    if (!nearbyInstructors.length && context.byInstructor.size) failures.add('inactive_instructor');
     for (const [empId, instructor] of nearbyInstructors) {
       if(incumbentExceptionInstructor.has(id)&&incumbentExceptionInstructor.get(id)!==empId)continue;
       if(incumbentExceptionIneligible.get(id)===empId)continue;
@@ -328,26 +336,44 @@ export async function buildPlan(input = {}) {
   if (!validation.valid) throw schedulingError('planning_final_validation_failed', validation.failures);
   // A valid persisted incumbent is also a lower bound; recomputation must not
   // discard a better lawful plan merely because greedy ordering changed.
-  const incumbent=targets.map(a=>previous.get(activityId(a)));
+  // Planning locks and live rows already committed into `rows` stay barriers.
+  const incumbent=targets.map(a=>{
+    const id=activityId(a),current=rows.get(id);
+    if(current?.planningLocked||current?.kind==='planning-locked'||current?.kind==='live')return current;
+    return previous.get(id);
+  });
   if(incumbent.every(Boolean)){
     const checked=await validatePlanWithRoutes(validationInput(incumbent),checkpoint);
     if(checked.valid&&compareOperationalQuality(quality(incumbent),quality(base))>0){base=incumbent;for(const row of base)rows.set(row.courseId,row);validation=checked;}
   }
   let bestVerified=base,bestQuality=quality(base);
-  const optimization={completed:true,basePreserved:false,optimal:false,scope:'bounded-neighborhood',algorithmRevision:'v37-operational-1',decisions:[],stages:[],candidateSearchIncomplete:[...candidatePools.values()].some(p=>p.incomplete)};
   const national=input.targetCourseIds==null||(input._nationalRun===true&&input.resumeFromCheckpoint===true);
-  if(!input.skipSoftOptimization&&national&&input.allowGlobalRepair!==false){
+  // Scoped incremental runs previously skipped augmentingSearch entirely when
+  // allowGlobalRepair===false. Coverage chains among flexible proposals are
+  // allowed; approved/locked rows stay barriers. National quality passes stay off.
+  const scopedCoverageSearch=!national&&input.targetCourseIds!=null&&input.allowGlobalRepair===false&&!input.skipSoftOptimization;
+  const softOptEnabled=!input.skipSoftOptimization&&((national&&input.allowGlobalRepair!==false)||scopedCoverageSearch);
+  const optimization={completed:true,basePreserved:false,optimal:false,scope:scopedCoverageSearch?'scoped-flexible-coverage':'bounded-neighborhood',algorithmRevision:'v37-operational-2',decisions:[],stages:[],candidateSearchIncomplete:[...candidatePools.values()].some(p=>p.incomplete),softOptimizationAttempted:false,stopReason:'not-attempted'};
+  if(softOptEnabled){
+    optimization.softOptimizationAttempted=true;
     at=performance.now();
-    const budget=Number.isFinite(input.optimizationBudgetMs)?Math.max(0,Math.min(input.optimizationBudgetMs,60000)):45000;
-    const nodeBudget=Number.isFinite(input.optimizationNodeBudget)?Math.max(0,Math.min(input.optimizationNodeBudget,20000)):6000;
+    const budget=Number.isFinite(input.optimizationBudgetMs)?Math.max(0,Math.min(input.optimizationBudgetMs,60000)):scopedCoverageSearch?15000:45000;
+    const nodeBudget=Number.isFinite(input.optimizationNodeBudget)?Math.max(0,Math.min(input.optimizationNodeBudget,20000)):scopedCoverageSearch?2000:6000;
     const deadline=at+budget;let nodes=0;
     const stageLimit=(name,fallback)=>Number.isFinite(input.optimizationStageNodeBudgets?.[name])?Math.max(0,Math.min(input.optimizationStageNodeBudgets[name],20000)):fallback;
     const searchCheckpoint=async()=>{await checkpoint();if(++nodes>nodeBudget||performance.now()>deadline)throw schedulingError('planning_optimization_budget_exceeded');};
     const stateFor=current=>createOccupancy(context,[...anchors,...current.values()]);
-    const canMove=(id,row)=>affected.has(id)&&!input.lockedOptions?.[id]&&!isProtectedActivity(context.byActivity.get(id))&&['proposal','fixed-proposal'].includes(row?.kind);
+    // National: only affected IDs. Scoped coverage may displace another flexible
+    // proposal only as a necessary exchange-chain blocker; protected/locked stay
+    // barriers. Unrelated flexible proposals outside a chain never move.
+    const canMove=(id,row)=>!input.lockedOptions?.[id]&&!row?.planningLocked&&row?.kind!=='planning-locked'&&!isProtectedActivity(context.byActivity.get(id))&&['proposal','fixed-proposal'].includes(row?.kind)&&(national?affected.has(id):true);
 
     const optionsFor=async(id,current)=>{
-      const a=context.byActivity.get(id),state=stateFor(current),pool=candidatePools.get(id)||await generatePool(a);candidatePools.set(id,pool);
+      const a=context.byActivity.get(id),state=stateFor(current);
+      // Rebuild against immovable barriers so scoped flexible anchors cannot hide
+      // the only exchange-chain option during pool pruning.
+      const immovableAnchors=anchors.filter(row=>!canMove(row.courseId,row));
+      const pool=await generatePool(a,null,immovableAnchors);candidatePools.set(id,pool);
       // Rank legal against immutable anchors first, then global opportunity cost:
       // prefer fewer conflicts before testing multi-activity displacement.
       const ranked=[];
@@ -372,47 +398,92 @@ export async function buildPlan(input = {}) {
       }
       return [...blockers].sort((a,b)=>(candidatePools.get(a)?.options.length||0)-(candidatePools.get(b)?.options.length||0)||a.localeCompare(b));
     };
-    const acceptTrial=async(trial,reason)=>{
+    const acceptTrial=async(trial,reason,meta={})=>{
       const checked=validatePlan(validationInput(trial));if(!checked.valid)return false;
       const nextQuality=quality(trial);if(compareOperationalQuality(nextQuality,bestQuality)<=0)return false;
-      const old=new Map(bestVerified.map(r=>[r.courseId,r]));const changes=trial.filter(r=>JSON.stringify([r.instructorEmpId,r.meetings])!==JSON.stringify([old.get(r.courseId)?.instructorEmpId,old.get(r.courseId)?.meetings])).map(r=>({courseId:r.courseId,from:old.get(r.courseId)?.instructorEmpId||null,to:r.instructorEmpId||null,reason}));
+      const old=new Map(bestVerified.map(r=>[r.courseId,r]));
+      const changes=trial.filter(r=>JSON.stringify([r.instructorEmpId,r.meetings])!==JSON.stringify([old.get(r.courseId)?.instructorEmpId,old.get(r.courseId)?.meetings])).map(r=>{
+        const targetCourseId=meta.targetCourseId||null;
+        const role=r.courseId===targetCourseId?'target':(reason==='augmenting-chain'?'displaced-blocker':'moved');
+        return {courseId:r.courseId,from:old.get(r.courseId)?.instructorEmpId||null,to:r.instructorEmpId||null,reason,targetCourseId,role,scope:optimization.scope};
+      });
+      // Scoped runs may only change the coverage target and blockers required for
+      // that chain — never an unrelated flexible proposal outside the chain.
+      if(scopedCoverageSearch&&reason==='augmenting-chain'){
+        const targetId=meta.targetCourseId;if(!targetId||!changes.some(c=>c.courseId===targetId&&c.role==='target'))return false;
+        if(changes.some(c=>c.role!=='target'&&c.role!=='displaced-blocker'))return false;
+        if(changes.some(c=>c.role==='displaced-blocker'&&affected.has(c.courseId)===false&&!['proposal','fixed-proposal'].includes(old.get(c.courseId)?.kind)))return false;
+      }else if(scopedCoverageSearch){
+        if(changes.some(c=>!affected.has(c.courseId)))return false;
+      }
       trial=trial.map(row=>{const change=changes.find(d=>d.courseId===row.courseId);return change?{...row,diagnostics:{...row.diagnostics,optimizationDecision:change}}:row;});
       for(const row of trial)rows.set(row.courseId,row);bestVerified=trial;bestQuality=nextQuality;validation=checked;optimization.decisions.push(...changes);
-      await report('שיפור ארצי מאומת — מנוע חדש',trial.length,trial.length,'',null,trial);return true;
+      await report(scopedCoverageSearch?'שיפור ממוקד מאומת — מנוע חדש':'שיפור ארצי מאומת — מנוע חדש',trial.length,trial.length,'',null,trial);return true;
     };
     try {
-      await report('בסיס חוקי נשמר בזיכרון; תיקון ארצי',base.length,base.length,'',null,base);
+      await report(scopedCoverageSearch?'בסיס חוקי נשמר; חיפוש כיסוי ממוקד בין הצעות גמישות':'בסיס חוקי נשמר בזיכרון; תיקון ארצי',base.length,base.length,'',null,base);
       if(budget===0||nodeBudget===0)throw schedulingError('planning_optimization_budget_exceeded');
       // Progressive, deterministic neighborhoods; wall time is an emergency cap,
       // node limits are reproducible. No arbitrary first-24-victims slice.
       for(const depth of [1,3]){
         const beforeNodes=nodes,stageStart=performance.now();let gains=0;
-        coverageLoop: for(const missing of bestVerified.filter(r=>!covered(r))){await searchCheckpoint();let localNodes=0;
+        // Scoped runs initiate coverage only for targeted missing activities.
+        const missingTargets=bestVerified.filter(r=>!covered(r)&&(national||affected.has(r.courseId)));
+        coverageLoop: for(const missing of missingTargets){await searchCheckpoint();let localNodes=0;
           const localCheckpoint=async()=>{await searchCheckpoint();if(nodes-beforeNodes>stageLimit(depth===1?'coverage1':'coverage3',depth===1?100:160))throw schedulingError('planning_optimization_stage_budget_exceeded');if(++localNodes>(depth===1?40:80))throw schedulingError('planning_optimization_local_budget_exceeded');};
           let trial;try{trial=await augmentingSearch({rows:new Map(rows),targetId:missing.courseId,optionsFor,blockersFor,canMove,toRow:(id,option)=>optionRow(context.byActivity.get(id),option,[]),checkpoint:localCheckpoint,maxDepth:depth,branchLimit:depth===1?32:64});}catch(error){if(error.code==='planning_optimization_stage_budget_exceeded'){optimization.completed=false;optimization.stageBudgetStops=(optimization.stageBudgetStops||0)+1;break coverageLoop;}if(error.code!=='planning_optimization_local_budget_exceeded')throw error;optimization.localBudgetStops=(optimization.localBudgetStops||0)+1;optimization.completed=false;continue;}
-          if(trial&&await acceptTrial(targets.map(a=>trial.get(activityId(a))),'augmenting-chain'))gains++;
-        }optimization.stages.push({name:'coverage',depth,nodes:nodes-beforeNodes,gains,elapsedMs:performance.now()-stageStart});
+          if(trial&&await acceptTrial(targets.map(a=>trial.get(activityId(a))),'augmenting-chain',{targetCourseId:missing.courseId}))gains++;
+        }optimization.stages.push({name:scopedCoverageSearch?'scoped-coverage':'coverage',depth,nodes:nodes-beforeNodes,gains,elapsedMs:performance.now()-stageStart});
       }
-      // Coverage is now fixed. Improve lawful schedules by the same strict
-      // lexicographic objective; never buy continuity with lost teaching hours.
-      const stageStart=performance.now(),beforeNodes=nodes;let gains=0;
-      qualityLoop: for(const row of [...rows.values()].sort((a,b)=>a.courseId.localeCompare(b.courseId))){if(nodes-beforeNodes>=stageLimit('quality',200)||performance.now()>deadline-Math.min(5000,budget/4)){optimization.completed=false;optimization.qualityBudgetStop=true;break;}if(!canMove(row.courseId,row))continue;
-        const a=context.byActivity.get(row.courseId),state=stateFor(rows);state.remove(row.courseId);
-        const options=await candidates(a,state);const seen=new Set(),counts=new Map();let count=0;
-        for(const option of options.options){const key=JSON.stringify([option.instructorEmpId,option.meetings]);if(seen.has(key))continue;seen.add(key);const n=counts.get(option.instructorEmpId)||0;if(n>=3)continue;counts.set(option.instructorEmpId,n+1);if(++count>72)break;if(nodes-beforeNodes>=stageLimit('quality',200)){optimization.completed=false;optimization.qualityBudgetStop=true;break qualityLoop;}await searchCheckpoint();
-          const trial=orderedRows().map(r=>r.courseId===row.courseId?optionRow(a,option,options.options.slice(0,12)):r);
-          if(await acceptTrial(trial,'operational-quality')){gains++;break;}
-        }
-      }optimization.stages.push({name:'operational-quality',nodes:nodes-beforeNodes,gains,elapsedMs:performance.now()-stageStart});
-      // Better packing can open windows that did not exist during the coverage
-      // pass. Recheck uncovered activities after it, with refreshed adjacency.
-      const recoveryStart=performance.now();let recovered=0;
-      for(const missing of bestVerified.filter(r=>!covered(r))){await searchCheckpoint();const a=context.byActivity.get(missing.courseId),result=await candidates(a,stateFor(rows));if(!result.options.length)continue;
-        const trial=orderedRows().map(r=>r.courseId===missing.courseId?optionRow(a,result.options[0],result.options.slice(0,12)):r);if(await acceptTrial(trial,'opened-window-recovery'))recovered++;
-      }optimization.stages.push({name:'opened-window-recovery',gains:recovered,elapsedMs:performance.now()-recoveryStart});
+      if(national){
+        // Coverage is now fixed. Improve lawful schedules by the same strict
+        // lexicographic objective; never buy continuity with lost teaching hours.
+        const stageStart=performance.now(),beforeNodes=nodes;let gains=0;
+        qualityLoop: for(const row of [...rows.values()].sort((a,b)=>a.courseId.localeCompare(b.courseId))){if(nodes-beforeNodes>=stageLimit('quality',200)||performance.now()>deadline-Math.min(5000,budget/4)){optimization.completed=false;optimization.qualityBudgetStop=true;break;}if(!canMove(row.courseId,row))continue;
+          const a=context.byActivity.get(row.courseId),state=stateFor(rows);state.remove(row.courseId);
+          const options=await candidates(a,state);const seen=new Set(),counts=new Map();let count=0;
+          for(const option of options.options){const key=JSON.stringify([option.instructorEmpId,option.meetings]);if(seen.has(key))continue;seen.add(key);const n=counts.get(option.instructorEmpId)||0;if(n>=3)continue;counts.set(option.instructorEmpId,n+1);if(++count>72)break;if(nodes-beforeNodes>=stageLimit('quality',200)){optimization.completed=false;optimization.qualityBudgetStop=true;break qualityLoop;}await searchCheckpoint();
+            const trial=orderedRows().map(r=>r.courseId===row.courseId?optionRow(a,option,options.options.slice(0,12)):r);
+            if(await acceptTrial(trial,'operational-quality',{targetCourseId:row.courseId})){gains++;break;}
+          }
+        }optimization.stages.push({name:'operational-quality',nodes:nodes-beforeNodes,gains,elapsedMs:performance.now()-stageStart});
+        // Better packing can open windows that did not exist during the coverage
+        // pass. Recheck uncovered activities after it, with refreshed adjacency.
+        const recoveryStart=performance.now();let recovered=0;
+        for(const missing of bestVerified.filter(r=>!covered(r))){await searchCheckpoint();const a=context.byActivity.get(missing.courseId),result=await candidates(a,stateFor(rows));if(!result.options.length)continue;
+          const trial=orderedRows().map(r=>r.courseId===missing.courseId?optionRow(a,result.options[0],result.options.slice(0,12)):r);if(await acceptTrial(trial,'opened-window-recovery',{targetCourseId:missing.courseId}))recovered++;
+        }optimization.stages.push({name:'opened-window-recovery',gains:recovered,elapsedMs:performance.now()-recoveryStart});
+      }
     } catch(error){if(input.signal?.aborted)throw schedulingError('planning_cancelled');if(error.code==='planning_cancelled')throw error;optimization.completed=false;optimization.basePreserved=true;optimization.failure=error.code||error.message;}
     optimization.nodes=nodes;optimization.budgetMs=budget;optimization.nodeBudget=nodeBudget;
     base=bestVerified;validation=validatePlan(validationInput(base));metrics.optimizationMs=performance.now()-at;
+  }
+  if(optimization.softOptimizationAttempted){
+    if(optimization.completed)optimization.stopReason='completed';
+    else if(optimization.failure)optimization.stopReason=optimization.failure;
+    else if(optimization.qualityBudgetStop)optimization.stopReason='quality_stage_budget';
+    else if(optimization.stageBudgetStops)optimization.stopReason='coverage_stage_budget';
+    else if(optimization.localBudgetStops)optimization.stopReason='local_budget';
+    else optimization.stopReason='bounded_incomplete';
+  }
+  // Align alternatives with the final lawful plan: every displayed option is
+  // re-scored against final occupancy so the UI never shows a stale score.
+  {
+    const finalState=createOccupancy(context,base);
+    base=base.map(row=>{
+      if(!['proposal','fixed-proposal'].includes(row.kind)||!row.instructorEmpId)return row;
+      const a=context.byActivity.get(row.courseId);if(!a)return row;
+      finalState.remove(row.courseId);
+      const chosenRaw={instructorEmpId:row.instructorEmpId,meetings:row.meetings||[],instructorName:row.instructorName||''};
+      const chosen=scoring(context,finalState,a,chosenRaw);
+      const legalOthers=(row.options||[]).filter(option=>!optionMatchesRow(option,chosen)&&!candidateFailures(context,finalState,a,option).length)
+        .map(option=>scoring(context,finalState,a,{instructorEmpId:option.instructorEmpId,meetings:option.meetings||[],instructorName:option.instructorName||''}));
+      const options=[chosen,...legalOthers].slice(0,12);
+      finalState.add(optionRow(a,chosen,options));
+      return {...row,...chosen,kind:row.kind,status:chosen.score>=60?'הצעה מוכנה':'מתאים טכנית ונדרש טיפול',options,
+        diagnostics:{...row.diagnostics,chosenScore:chosen.score,chosenInOptions:true,candidateAlternatives:options.length,optionsAlignedWithFinalPlan:true,optionsRescoredAgainstFinalPlan:true}};
+    });
+    bestVerified=base;bestQuality=quality(base);
   }
   await report('אימות סופי — מנוע חדש', base.length, base.length, '', null, base);
   await checkpoint(); if (!validation.valid) throw schedulingError('planning_final_validation_failed', validation.failures);
@@ -423,7 +494,8 @@ export async function buildPlan(input = {}) {
   });
   validation=validatePlan(validationInput(base));if(!validation.valid)throw schedulingError('planning_final_validation_failed',validation.failures);
   base = base.map(row => { const issues=validation.warnings.filter(w=>w.courseId===row.courseId);
-    return issues.length ? {...row, validationState:'protected-source', diagnostics:{...row.diagnostics, protectedSourceIssueCodes:[...new Set(issues.map(w=>w.reason))], protectedSourceIssueCount:issues.length}, reason:'שיבוץ מקור מוגן נשמר ללא שינוי; נדרשת בדיקת חריגות המקור: '+[...new Set(issues.map(w=>w.reason))].join(' · ')} : {...row, validationState:row.kind==='recruitment'?'requirements-only':'validated', diagnostics:{...row.diagnostics, softOptimizationIncomplete:!optimization.completed}};
+    const softIncomplete=optimization.softOptimizationAttempted&&!optimization.completed;
+    return issues.length ? {...row, validationState:'protected-source', diagnostics:{...row.diagnostics, protectedSourceIssueCodes:[...new Set(issues.map(w=>w.reason))], protectedSourceIssueCount:issues.length}, reason:'שיבוץ מקור מוגן נשמר ללא שינוי; נדרשת בדיקת חריגות המקור: '+[...new Set(issues.map(w=>w.reason))].join(' · ')} : {...row, validationState:row.kind==='recruitment'?'requirements-only':'validated', diagnostics:{...row.diagnostics, softOptimizationIncomplete:softIncomplete, optimizationStopReason:optimization.stopReason, optimizationScope:optimization.scope}};
   });
   return { rows: base, total: base.length, planned: base.filter(covered).length, engineVersion: ENGINE_VERSION, finalPlanValidation: validation,
     locked: base.filter(r=>r.planningLocked).length, missing:base.filter(r=>r.kind==='missing').length, recruitment:base.filter(r=>r.kind==='recruitment').length,

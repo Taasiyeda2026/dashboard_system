@@ -195,8 +195,15 @@ Distance maintenance UI lives under the **maintenance** tab (`course-scheduling-
 2. Build operational blocks, then stage them **צפון → דרום → מרכז/גבולות** (`orderedRegionalBlocks`). Mixed-district blocks defer to the shared stage.
 3. Per stage only: generate route-aware baseline candidate pools, then sort that stage by urgency then instructor scarcity before accepting blocks. Do not precompute every national pool up front.
 4. New proposals consider **active** instructors only; inactive profiles remain in context for historic/protected validation. Verified home→school km is a proximity sort, not a hard regional partition.
-5. One global final `validatePlanWithRoutes` / `validatePlan`; optional bounded soft optimization and recruitment packing after the regional greedy base.
-6. Acceptance evidence: `docs/scheduling-regional-stages-20261010/ACCEPTANCE.md`.
+5. One global final `validatePlanWithRoutes` / `validatePlan`; optional soft optimization and recruitment packing after the regional greedy base.
+6. Soft optimization lexicographic objective (`quality.js` / `compareOperationalQuality`):
+   `covered ↑ → meetingHours ↑ → schoolActiveDays ↓ → instructorWorkDays ↓ → sameSchoolSequences ↑ → sameAuthoritySequences ↑ → nearbySequences ↑ → splitDays ↓ → waitingMinutes ↓ → unknownRouteLegs ↓ → totalTravelMinutes ↓ → totalTravelKm ↓ → operationalScoreSum ↑`.
+   `schoolActiveDays` counts distinct `schoolId|date` pairs and is **not** the same as `sameSchoolSequences` (adjacent same-school continuity). Waiting/continuity gains must not open an extra school activity day or instructor workday when coverage and hours are equal.
+7. Soft-opt modes:
+   - National / full repair (`targetCourseIds == null` or national resume): bounded neighborhood — augmenting coverage, then `operational-quality`, then opened-window recovery.
+   - Scoped point recalculation (`targetCourseIds` set + `allowGlobalRepair:false` + soft-opt not skipped): `scoped-flexible-coverage` — augmenting chains among flexible `proposal` / `fixed-proposal` rows only; approved (`live`) and `planningLocked` rows stay immovable barriers; national quality stage is skipped. Every accepted move is recorded in `optimization.decisions` with `courseId`, `from`/`to`, `reason`, `targetCourseId`, and `role` (`target` | `displaced-blocker`).
+8. Final options alignment: for each proposal row, alternatives are legality-filtered against final occupancy and **every displayed option is re-scored** against that occupancy; the chosen assignment is always present at index 0 with a fresh score.
+9. Acceptance evidence: `docs/scheduling-regional-stages-20261010/ACCEPTANCE.md`, Stage C report `docs/scheduling-v37-quality-priority-20261012/REPORT.md`.
 
 ### Legacy narrative — older `buildDynamicCoursePlan` stages (may lag code)
 
