@@ -70,7 +70,10 @@ export function exportMonthToExcel(records, instructor, year, month) {
       'פירוט הוצאות':   r.expense_details || '',
       'הערות':          r.notes || '',
       'מספר עובד':      r.emp_id,
-      'שם מדריך':       instructor.name || ''
+      'שם מדריך':       instructor.name || '',
+      'אופן מפגש צוות': r.operation_meeting_mode === 'online' ? 'זום'
+        : r.operation_meeting_mode === 'physical' ? 'מפגש פיזי' : '',
+      'מיקום מפגש צוות': r.operation_meeting_mode === 'physical' ? (r.destination_address_snapshot || '') : ''
     };
   });
 
@@ -110,7 +113,9 @@ export function exportMonthToExcel(records, instructor, year, month) {
     { wch: 20 }, // פירוט
     { wch: 20 }, // הערות
     { wch: 10 }, // מ.ע
-    { wch: 16 }  // שם
+    { wch: 16 }, // שם
+    { wch: 16 }, // אופן מפגש צוות
+    { wch: 38 }  // מיקום מפגש צוות
   ];
 
   // ── Sheet 2: Summary ──────────────────────────────────────────────────────
