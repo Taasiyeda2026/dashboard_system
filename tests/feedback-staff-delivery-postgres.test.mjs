@@ -125,6 +125,73 @@ test('staff delivery PostgreSQL end-to-end, fake Graph only',async(t)=>{
       await q('set role anon');await assert.rejects(q('select * from feedback_staff_auto_status()'),/permission denied/);await q('reset role');
     });
 
+    await t.test('missing contact/email never blocks other groups; day-after correction catches up exactly once',async()=>{
+      await reset();
+      // All 3 groups have already passed the second and last official meeting.
+      // Missing metadata is NEVER treated as a sendable recipient.
+      await activity('READY');
+      await activity('LATE_CONTACT',{school_contact_id:null,contact_email:'old-fallback@school.test'});
+      await activity('LATE_EMAIL',{school_contact_id:9,contact_email:'old-fallback@school.test'});
+      const firstCandidates=await q('select * from feedback_staff_auto_candidates($1)',[morning]);
+      for(const stage of ['pre','final']) {
+        assert.equal(firstCandidates.find(c=>c.representative_row_id==='READY'&&c.stage===stage).status,'eligible');
+        assert.equal(firstCandidates.find(c=>c.representative_row_id==='LATE_CONTACT'&&c.stage===stage).status,'missing_selected_contact');
+        assert.equal(firstCandidates.find(c=>c.representative_row_id==='LATE_EMAIL'&&c.stage===stage).status,'missing_contact_email');
+      }
+      assert.equal((await rpc('feedback_staff_auto_prepare',{p_now:morning})).prepared,2);
+      const initial=await q('select group_key,stage,status from feedback_staff_auto_outbox');
+      assert.equal(initial.length,2);
+      let sent=0;
+      const graphFake=async()=>{sent++;return new Response(null,{status:202,headers:{'request-id':'test-only'}});};
+      for(let i=0;i<2;i++){
+        const claim=await rpc('feedback_staff_auto_claim');
+        assert.ok(claim.id);
+        assert.equal(await deliverClaim(claim,{rpc,baseUrl:'https://example.test/',
+          getAccessToken:async()=> 'test-only-token',send:graphFake}),'accepted');
+      }
+      assert.deepEqual(await rpc('feedback_staff_auto_claim'),{});
+      assert.equal(sent,2);
+
+      // Fix only the missing source data AFTER the original date passed.
+      // Both stages stay eligible because due_at <= now, NOT due_at = today.
+      await q("update activities set school_contact_id=7 where row_id='LATE_CONTACT'");
+      await q("update contacts_schools set email='recovered@school.test' where id=9");
+      const nextMorning='2026-10-15T02:00:00Z';
+      const nextDispatch='2026-10-15T05:00:00Z';
+      const nextCandidates=await q('select * from feedback_staff_auto_candidates($1)',[nextMorning]);
+      for(const id of ['LATE_CONTACT','LATE_EMAIL'])
+        for(const stage of ['pre','final']) {
+          const c=nextCandidates.find(c=>c.representative_row_id===id&&c.stage===stage);
+          assert.equal(c.status,'eligible');
+          assert.ok(new Date(c.eligibility_at)<new Date(nextMorning));
+        }
+      assert.equal((await rpc('feedback_staff_auto_prepare',{p_now:nextMorning})).prepared,4);
+      const nextQueued=await q("select count(*)::int n from feedback_staff_auto_outbox where status='pending'");
+      assert.equal(nextQueued[0].n,4);
+      assert.equal((await q("select count(*)::int n from feedback_staff_auto_outbox where status='accepted'"))[0].n,2);
+      // Date override affects only the fake test clock (never a production Cron).
+      const nextRpc=async(name,args={})=>{
+        const input={...args,...(['feedback_staff_auto_claim','feedback_staff_auto_begin_send'].includes(name)?{p_now:nextDispatch}:{})};
+        const entries=Object.entries(input);
+        const bindings=entries.map(([key],i)=>`${key}:=${i+1}`).join(',');
+        return (await q(`select public.${name}(${bindings}) result`,entries.map(([,v])=>v)))[0].result;
+      };
+      for(let i=0;i<4;i++){
+        const claim=await nextRpc('feedback_staff_auto_claim');
+        assert.ok(claim.id);
+        assert.ok(['selected@school.test','recovered@school.test'].includes(claim.recipient_email));
+        assert.equal(await deliverClaim(claim,{rpc:nextRpc,baseUrl:'https://example.test/',
+          getAccessToken:async()=> 'test-only-token',send:graphFake}),'accepted');
+      }
+      assert.deepEqual(await nextRpc('feedback_staff_auto_claim'),{});
+      assert.equal(sent,6);
+      assert.equal((await q("select count(*)::int n from feedback_staff_auto_outbox where status='accepted'"))[0].n,6);
+      // Next day map sees the already-accepted historical stages and does not duplicate.
+      assert.equal((await rpc('feedback_staff_auto_prepare',{p_now:'2026-10-16T02:00:00Z'})).prepared,0);
+      assert.equal((await q('select count(*)::int n from feedback_staff_auto_outbox'))[0].n,6);
+      await q("update contacts_schools set email=null where id=9");
+    });
+
     await t.test('date/contact/email/representative changes from 05 to 08 cancel stale dispatch',async()=>{
       for(const change of ["date_2='2026-10-20'","school_contact_id=8","end_time='13:00'"]) {
         await reset();await activity('A');await rpc('feedback_staff_auto_prepare',{p_now:morning});
