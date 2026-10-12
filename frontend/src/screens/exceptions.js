@@ -533,7 +533,7 @@ export const exceptionsScreen = {
       const rowId=btn.dataset.exceptionContactOpen||'';
       if(!rowId)return;
       state.activityPeriodTab=ACTIVITY_SEASON_SCHOOL_2027;
-      state.activitiesInnerTab='all';
+      state.activitiesInnerTab='year_all';
       state.listFilters=state.listFilters||{};
       state.listFilters.activities={q:rowId,visibleCount:200};
       document.dispatchEvent(new CustomEvent('app:navigate',{detail:{route:'activities'}}));
