@@ -7,6 +7,7 @@
 - הכנת תור ב־05:00 ותפיסה אטומית ב־08:00 לפי `Asia/Jerusalem`; שתי שכבות חסימה: `FEEDBACK_STAFF_DELIVERY_ENABLED` ובמסד `feedback_staff_auto_control.enabled` עם `activation_at` חובה.
 - בדיקה חוזרת של הקבוצה המאוחדת, כל חבריה, הפעילות המייצגת, מועד הסף ואיש הקשר. בדיקה נוספת סמוך לקריאת Graph בודקת גם שקישור הנמען לא הוחלף.
 - מקור נמען יחיד: `activities.school_contact_id → contacts_schools.id → contacts_schools.email`.
+- **כתובת שולח מחייבת:** כל מייל משוב צוות חינוכי נשלח מהתיבה `office@think.org.il` בלבד; אין שימוש ב־`MS_MAIL_SENDER` המשותף למנגנונים אחרים. כתובת בדיקת קבלה היא `idann@think.org.il` בלבד. הרשאת Graph עבור תיבת OFFICE עדיין דורשת בדיקה לפני הפעלה.
 - שימוש בתבניות המפורסמות `educational_staff/pre` ו־`educational_staff/final` וב־`feedback_recipients.token`. קישור ישן של איש קשר אחר מוחלף רק אם אין תשובות; קמפיין שהושלם/נסגר/פג אינו נפתח מחדש אוטומטית.
 - שליחת נוסח עברי קצר עם תוכנית, בית ספר, שלב וקישור אישי באמצעות אותה תשתית Microsoft Graph וארבעת משתני `MS_*` הקיימים. הודעות נשמרות ב־Sent Items לצורך בירור עתידי.
 - טבלת ניסיונות, מזהה claim ייחודי ונעילות במסד. ייחוד `(group_key,stage)` ובדיקת חפיפת החברים ההיסטוריים חוסמים שליחה כפולה גם לאחר החלפת נציג, שינוי שם או איחוד/פיצול קבוצה.
@@ -41,7 +42,7 @@ STAFF_DELIVERY_TEST_DATABASE_URL=postgresql://postgres:local-test@127.0.0.1:5543
 ## מה נשאר להפעלה עתידית — רק לאחר אישור מפורש נוסף
 
 1. למזג את PR של שלב ב׳ ולהחיל את המיגרציה כשהשליחה כבויה. לפרוס `feedback-staff-automation` עם `FEEDBACK_STAFF_DELIVERY_ENABLED=false`; Endpoint ללא user JWT מוגן בסוד השרת הקיים `FEEDBACK_STAFF_DRY_RUN_SECRET`.
-2. לוודא את משתני `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_MAIL_SENDER` הקיימים והרשאת `Mail.Send` לתיבה המיועדת. בדיקות אלה לא שולחות מייל. להגדיר `FEEDBACK_STAFF_BASE_URL` לכתובת הייצור של המשוב.
+2. לוודא את משתני `MS_TENANT_ID`, `MS_CLIENT_ID`, `MS_CLIENT_SECRET`, ואת הרשאת Graph לשליחה מתוך `office@think.org.il` הקיימים והרשאת `Mail.Send` לתיבה המיועדת. בדיקות אלה לא שולחות מייל. להגדיר `FEEDBACK_STAFF_BASE_URL` לכתובת הייצור של המשוב.
 3. לשמור ב־Vault את אותו סוד בשם `feedback_staff_automation_secret` ולהתקין את שני ה־Jobs הלא־פעילים באמצעות הפונקציה המיועדת לבעל המסד בלבד. נדרש secret חזק; אין להדפיסו או לשמור אותו ב־Git.
 4. לאשר מועד הפעלה עתידי מדויק, ולרשום `activation_at` בהתאם. הזכאות המקורית חייבת להיות אחרי הסף גם בהכנה וגם בבדיקת השליחה; לא יוצרים משלוחים על מפגשים שקדמו לסף.
 5. רק לאחר אישור הפעלה: להדליק את דגל המסד ודגל ה־Edge, ולהפעיל את שני ה־Jobs. Cron פועל שעתית ב־UTC, אך קורא לפונקציה רק בשעה 05/08 בישראל; אין שינוי ב־cron.timezone של Jobs אחרים.
