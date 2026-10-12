@@ -1,6 +1,6 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { previewEligibility, summarizeCandidatePreview, israelClock } from './planner.mjs';
-import { runAutomation } from './delivery.mjs';
+import { runAutomation, STAFF_FEEDBACK_SENDER } from './delivery.mjs';
 
 // Default OFF. Both this environment flag and DB control require future approval.
 const reply = (data: unknown, code = 200) => new Response(JSON.stringify(data), {
@@ -38,7 +38,9 @@ Deno.serve(async (req: Request) => {
    };
    if (action !== 'preview') {
      let cachedToken: string | null = null;
-     const sender = Deno.env.get('MS_MAIL_SENDER') || '';
+     // Business requirement: staff feedback is always sent as office@think.org.il.
+     // Never inherit a different sender from shared Microsoft Graph configuration.
+     const sender = STAFF_FEEDBACK_SENDER;
      const getAccessToken = async () => {
        if (cachedToken) return cachedToken;
        const tenant = Deno.env.get('MS_TENANT_ID');
