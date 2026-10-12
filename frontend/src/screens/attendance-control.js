@@ -27,7 +27,7 @@ const HEADER_ALIASES = {
   school: ['שם בית ספר', 'בית ספר', 'מסגרת'], authority: ['רשות', 'עיר', 'מועצה'], program: ['שם תכנית', 'שם תוכנית', 'תכנית', 'תוכנית'],
   meetingNo: ['מספר מפגש', 'מס מפגש', 'מפגש'], kilometers: ['קילומטרים', 'ק"מ', 'קמ', 'נסיעות'], expenses: ['הוצאות', 'סכום הוצאות'],
   expenseDetails: ['פירוט הוצאות', 'תיאור הוצאות'], notes: ['הערות', 'הערה'], activityId: ['מזהה פעילות', 'מזהה פעילות פנימי', 'rowid'],
-  publicTransport: ['תחבורה ציבורית', 'public transport', 'public_transport'],
+  publicTransport: ['שימוש בתחבורה ציבורית', 'תחבורה ציבורית', 'public transport', 'public_transport'],
   publicTransportCost: ['תחבורה ציבורית (₪)', 'עלות תחבורה ציבורית (₪)', 'עלות תחבורה ציבורית', 'public transport cost', 'public_transport_cost'],
   attachmentsNames: ['אסמכתאות', 'קבצים', 'attachments']
 };
@@ -2287,8 +2287,8 @@ export function resultsHtml(result, month = '', options = {}) {
       { key: 'startTime', label: 'שעת התחלה', left: displayRow.startTime, editValue: current.startTime, right: dashboard?.startTime, always: true },
       { key: 'endTime', label: 'שעת סיום', left: displayRow.endTime, editValue: current.endTime, right: dashboard?.endTime, always: true },
       { key: 'workHours', label: 'סה״כ שעות', left: displayWorkHours(current), editValue: rowWorkHours(current), right: dashboard ? displayDashboardWorkHours(dashboard) : null, always: true, autoCalculated: true },
-      { key: 'publicTransport', label: 'תחבורה ציבורית', left: publicTransport ? 'כן' : 'לא', editValue: publicTransport, right: null, visible: publicTransport || (publicTransportCost != null && publicTransportCost > 0) },
-      { key: 'publicTransportCost', label: 'עלות תחבורה ציבורית', left: publicTransportCost, editValue: publicTransportCost, right: null, visible: publicTransport || (publicTransportCost != null && publicTransportCost > 0) },
+      { key: 'publicTransport', label: 'שימוש בתחבורה ציבורית', left: publicTransport ? 'כן' : 'לא', editValue: publicTransport, right: null, visible: publicTransport || (publicTransportCost != null && publicTransportCost > 0) },
+      { key: 'publicTransportCost', label: 'תחבורה ציבורית (₪)', left: publicTransportCost, editValue: publicTransportCost, right: null, visible: publicTransport || (publicTransportCost != null && publicTransportCost > 0) },
       { key: 'kilometers', label: 'ק״מ', left: attendanceKm, editValue: attendanceKm, right: dashboardKm, visible: !publicTransport },
       { key: 'expenses', label: 'הוצאות', left: attendanceExpenses, editValue: attendanceExpenses, right: dashboardExpenses, visible: (attendanceExpenses != null && attendanceExpenses > 0) || (dashboardExpenses != null && dashboardExpenses > 0) || diffByKey.has('expenses') },
       { key: 'expenseDetails', label: 'פירוט הוצאה', left: current.expenseDetails, editValue: current.expenseDetails, right: null, visible: (attendanceExpenses != null && attendanceExpenses > 0) && hasValue(current.expenseDetails) },
@@ -2764,7 +2764,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         <label><span>מספר מפגש</span><input class="ds-input" type="number" name="sessionNumber" min="1" step="1"></label>
         <label><span>ק״מ</span><input class="ds-input" type="number" name="kilometers" min="0" step="0.01" value="0"></label>
         <label><span>תחבורה ציבורית</span><select class="ds-input" name="publicTransport"><option value="false">לא</option><option value="true">כן</option></select></label>
-        <label><span>עלות תחבורה ציבורית</span><input class="ds-input" type="number" name="publicTransportCost" min="0" step="0.01" value="0"></label>
+        <label><span>תחבורה ציבורית (₪)</span><input class="ds-input" type="number" name="publicTransportCost" min="0" step="0.01" value="0"></label>
         <label><span>הוצאות</span><input class="ds-input" type="number" name="totalExpenses" min="0" step="0.01" value="0"></label>
         <label class="attendance-control__add-wide"><span>פירוט הוצאות</span><input class="ds-input" type="text" name="expensesDetails"></label>
         <label class="attendance-control__add-wide"><span>הערות</span><input class="ds-input" type="text" name="notes"></label>
