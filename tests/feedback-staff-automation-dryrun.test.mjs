@@ -54,10 +54,12 @@ test('server preview is service-only, derives recipient from selected contact an
  assert.doesNotMatch(sql,/net\.http_post\(/);
 });
 
-test('deployed preview code, if invoked, cannot mutate queues, make campaigns or send mail',()=>{
- assert.match(edge,/if \(body\?\.action && body\.action !== 'preview'\)/);
+test('preview remains read-only and delivery is separately disabled by default',()=>{
+ assert.match(edge,/const action = body\?\.action \|\| 'preview'/);
  assert.match(edge,/FEEDBACK_STAFF_DRY_RUN_SECRET/);
  assert.match(edge,/feedback_staff_auto_candidates/);
  assert.match(edge,/mail_sent:0,outbox_written:0/);
- assert.doesNotMatch(edge,/graph\.microsoft\.com|sendMail|feedback_staff_auto_outbox|feedback_admin_open_campaign/);
+ assert.match(edge,/FEEDBACK_STAFF_DELIVERY_ENABLED'\) === 'true'/);
+ const preview = edge.slice(edge.indexOf('const response = await fetch(`${url}/rest/v1/rpc/feedback_staff_auto_candidates`'));
+ assert.doesNotMatch(preview,/sendMail|feedback_staff_auto_prepare|feedback_staff_auto_claim/);
 });

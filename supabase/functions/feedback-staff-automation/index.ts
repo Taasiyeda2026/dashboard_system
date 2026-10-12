@@ -1,8 +1,8 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { previewEligibility, summarizeCandidatePreview, israelClock } from './planner.mjs';
+import { runAutomation } from './delivery.mjs';
 
-// STAGE A: an authenticated preview. NO mail sender, NO queues, NO cron.
-// Any deployment remains permanently non-sending until a separate approved rollout.
+// Default OFF. Both this environment flag and DB control require future approval.
 const reply = (data: unknown, code = 200) => new Response(JSON.stringify(data), {
  status: code, headers: { 'Content-Type': 'application/json; charset=utf-8' }
 });
@@ -20,16 +20,54 @@ Deno.serve(async (req: Request) => {
      return reply({ok:false,error:'unauthorized'},401);
    }
 
-   // Explicitly disallow any side-effect requests during stage A.
    const body = await req.json().catch(() => ({}));
-   if (body?.action && body.action !== 'preview') {
-     return reply({ok:false,error:'dry_run_only'},403);
-   }
+   const action = body?.action || 'preview';
+   if (!['preview','prepare','dispatch'].includes(action)) return reply({ok:false,error:'invalid_action'},400);
 
    const url = Deno.env.get('SUPABASE_URL');
    const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
    if (!url || !key) return reply({ok:false,error:'supabase_not_configured'},503);
    const asOf = new Date();
+   const rpc = async (name: string, args: unknown) => {
+     const response = await fetch(`${url}/rest/v1/rpc/${name}`, {
+       method:'POST',headers:{apikey:key,Authorization:`Bearer ${key}`,'Content-Type':'application/json'},
+       body:JSON.stringify(args),signal:AbortSignal.timeout(20000)
+     });
+     if (!response.ok) throw new Error(`rpc_http_${response.status}`);
+     return response.json();
+   };
+   if (action !== 'preview') {
+     let cachedToken: string | null = null;
+     const sender = Deno.env.get('MS_MAIL_SENDER') || '';
+     const getAccessToken = async () => {
+       if (cachedToken) return cachedToken;
+       const tenant = Deno.env.get('MS_TENANT_ID');
+       const client = Deno.env.get('MS_CLIENT_ID');
+       const secret = Deno.env.get('MS_CLIENT_SECRET');
+       if (!tenant || !client || !secret || !sender) throw new Error('graph_not_configured');
+       const response = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
+         method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
+         body:new URLSearchParams({client_id:client,client_secret:secret,
+           scope:'https://graph.microsoft.com/.default',grant_type:'client_credentials'}),
+         signal:AbortSignal.timeout(15000)
+       });
+       if (!response.ok) throw new Error('graph_token_failed');
+       const token = (await response.json()).access_token;
+       if (!token) throw new Error('graph_token_missing');
+       cachedToken = String(token);
+       return cachedToken;
+     };
+     return reply({ok:true,...await runAutomation({action,now:asOf,
+       enabled:Deno.env.get('FEEDBACK_STAFF_DELIVERY_ENABLED') === 'true',rpc,
+       transport:{getAccessToken,baseUrl:Deno.env.get('FEEDBACK_STAFF_BASE_URL') ||
+         'https://taasiyeda2026.github.io/dashboard_system/',
+         send:(message: unknown, token: string) => fetch(
+           `https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`, {
+             method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},
+             body:JSON.stringify({message,saveToSentItems:true}),signal:AbortSignal.timeout(20000)
+           })}
+     })});
+   }
    const response = await fetch(`${url}/rest/v1/rpc/feedback_staff_auto_candidates`, {
      method:'POST',headers: {
        'apikey':key,'Authorization':`Bearer ${key}`,
@@ -49,7 +87,8 @@ Deno.serve(async (req: Request) => {
      by_stage_and_status:summarizeCandidatePreview(candidates,{activationAt}),
      note:'No scheduling or sending is enabled in simulation'});
  } catch (err) {
-   console.error('feedback-staff dry-run preview failed',err);
-   return reply({ok:false,error:'preview_failed'},500);
+   // No personal data, recipient tokens, Graph credentials or upstream bodies.
+   console.error('feedback-staff automation request failed');
+   return reply({ok:false,error:'automation_failed'},500);
  }
 });
