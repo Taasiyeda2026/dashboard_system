@@ -410,6 +410,50 @@ test('attendance view uses a compact shell without employee search and with thre
   assert.match(dom.window.document.querySelector('.ds-fin-backbar strong')?.textContent || '', /דיווח נוכחות/);
 });
 
+test('attendance hides the unclassified hours column when all displayed employee values are zero', () => {
+  const approved = [approval({ rows: [
+    snapshotRow({ activityType: 'קורס', workHours: 2 }),
+    snapshotRow({ activityType: 'הכשרה', workHours: 1 })
+  ] })];
+  const data = createFinanceVisitState();
+  data.view = 'attendance';
+  data.attendanceByMonth[data.attendanceMonth] = { approvals: approved };
+  const dom = new JSDOM(financeScreen.render(data, { state: { user: financeUser } }));
+  const table = dom.window.document.querySelector('.ds-fin-att-table');
+
+  assert.ok(table);
+  assert.doesNotMatch(table.textContent, /לא מסווג – לבדיקה/);
+  assert.equal(Number([...table.querySelectorAll('thead th')].find((th) => th.textContent.trim() === 'שעות לפי סוג פעילות')?.colSpan), 7);
+  assert.equal(table.querySelectorAll('col').length, table.querySelectorAll('tbody tr:first-child td').length);
+  // The audit category must remain in exported payroll files even when hidden on screen.
+  assert.ok(FINANCE_ATTENDANCE_COLUMNS.includes('לא מסווג – לבדיקה'));
+});
+
+test('attendance shows unclassified hours, preserving sums and grouping, when review is required', () => {
+  const approved = [approval({ rows: [
+    snapshotRow({ activityType: 'חדר בריחה', workHours: 3 }),
+    snapshotRow({ activityType: 'קורס', workHours: 2 })
+  ] })];
+  const data = createFinanceVisitState();
+  data.view = 'attendance';
+  data.attendanceByMonth[data.attendanceMonth] = { approvals: approved };
+  const dom = new JSDOM(financeScreen.render(data, { state: { user: financeUser } }));
+  const table = dom.window.document.querySelector('.ds-fin-att-table');
+  const headings = [...table.querySelectorAll('thead th')].map((th) => th.textContent.trim());
+
+  assert.equal(headings.filter((v) => v === 'לא מסווג – לבדיקה').length, 1);
+  assert.equal([...table.querySelectorAll('thead th')].find((th) => th.textContent.trim() === 'שעות לפי סוג פעילות')?.colSpan, 8);
+  assert.equal(table.querySelectorAll('col').length, table.querySelectorAll('tbody tr:first-child td').length);
+  assert.match(table.querySelector('tbody').textContent, /03:00/);
+  assert.match(table.querySelector('tbody').textContent, /05:00/);
+  assert.match(dom.window.document.body.textContent, /קיימות שעות בסיווג/);
+});
+
+test('attendance table uses subtle column separators in headers and data cells', () => {
+  const css = readFileSync(new URL('../frontend/src/styles/finance-attendance-payroll.css', import.meta.url), 'utf8');
+  assert.match(css, /\\.ds-fin-att-table th,\\s*\\.ds-fin-att-table td\\s*\\{[^}]*border-inline-start:\\s*1px solid #d7e6ec/s);
+});
+
 test('attendance export type normalization defaults to full workbook', () => {
   assert.equal(normalizeFinanceAttendanceExportType(''), FINANCE_ATTENDANCE_EXPORT_FULL);
   assert.equal(normalizeFinanceAttendanceExportType('MAOF'), FINANCE_ATTENDANCE_EXPORT_MAOF);
