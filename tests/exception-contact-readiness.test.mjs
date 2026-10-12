@@ -64,6 +64,7 @@ test('exceptions screen keeps district view intact and loads contact view indepe
  assert.match(screen,/data-exception-inner-tab/);
  assert.match(screen,/exceptionContactsHtml\(state\?\.exceptionsContactAudit, state\)/);
  assert.match(screen,/loadContactReadinessAudit\(\)/);
+ assert.match(screen,/state\.activitiesInnerTab='year_all'/);
  assert.match(screen,/state\.listFilters\.activities=\{q:rowId,visibleCount:200\}/);
  assert.match(audit,/\.eq\('activity_season','school_2027'\)\.eq\('status','פתוח'\)/);
  assert.match(audit,/\.in\('activity_type',\['course','tour'\]\)/);
