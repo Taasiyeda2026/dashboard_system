@@ -400,6 +400,10 @@ export function normalizeProposalWorkflowDocument(root = document) {
   const documents = [];
   if (root?.matches?.('.proposal-document')) documents.push(root);
   root?.querySelectorAll?.('.proposal-document').forEach((documentRoot) => documents.push(documentRoot));
+  // Old data snapshots are reconstructed for viewing only. Preserve their HTML,
+  // including names and formatting, instead of applying current presentation passes.
+  if (documents.length && documents.every((documentRoot) =>
+    documentRoot.dataset.programDisplayContext === 'historical')) return root;
   documents.forEach((documentRoot) => {
     // The live editor preview is already rendered with the correct proposal-specific
     // tables by proposals-agreements.js. Re-normalizing it on every DOM replacement

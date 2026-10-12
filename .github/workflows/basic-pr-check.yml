@@ -56,6 +56,23 @@ jobs:
 
           echo "Checked ${js_count} changed JavaScript files and ${json_count} changed JSON files."
 
+      - name: Run proposal program display regression tests
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE_SHA="$(git rev-parse "origin/${BASE_REF}")"
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(frontend/src/(screens/proposals-agreements[.]js|proposal-(program-display|next-year-pricing-display|workflow-completion)[.]js)|tests/(proposal-program-display[.]test[.]mjs|fixtures/proposal-program-display[.]mjs))$'; then
+            npm ci --ignore-scripts --no-audit --no-fund
+            node --test tests/proposal-program-display.test.mjs
+            npx playwright install --with-deps chromium
+            CHROMIUM_PATH="$(node -e 'process.stdout.write(require("@playwright/test").chromium.executablePath())')" RUN_PROPOSAL_DISPLAY_BROWSER=1 node --test tests/proposal-program-display-browser.test.mjs
+          else
+            echo "No proposal-display changes; focused tests skipped."
+          fi
+
       - name: Run photo consent mobile and school-view regression tests
         env:
           BASE_REF: ${{ github.base_ref }}

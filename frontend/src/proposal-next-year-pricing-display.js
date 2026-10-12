@@ -1,7 +1,8 @@
 import { api } from './api.js';
+import { proposalProgramDisplay, PROPOSAL_PROGRAM_DISPLAY_VERSION } from './proposal-program-display.js';
 
 const PATCH_KEY = Symbol.for('taasiyeda.proposalNextYearPricingDisplay');
-const TABLE_SELECTOR = '.pa-next-year-course-table, .pa-gefen-course-table, .pa-gefen-approval-table';
+const TABLE_SELECTOR = '.pa-next-year-course-table, .pa-gefen-course-table, .pa-gefen-approval-table, .pa-cost-table';
 
 export const NEXT_YEAR_SHORT_NAMES_BY_GEFEN = Object.freeze({
   '6089': 'ביומימיקרי',
@@ -99,11 +100,32 @@ function tablesInRoot(root) {
 
 export function normalizeProposalPricingTables(root = globalThis.document) {
   tablesInRoot(root).forEach((table) => {
+    if (table.closest?.('[data-program-display-context="historical"]')) return;
     const indexes = tableColumnIndexes(table);
     table.querySelectorAll('tbody > tr').forEach((row) => {
       const cells = Array.from(row.cells || []);
+      if (row.hasAttribute('data-program-gefen-inline')) {
+        if (row.dataset.programDisplay === PROPOSAL_PROGRAM_DISPLAY_VERSION) {
+          const display = proposalProgramDisplay({ gefen_number: row.dataset.sourceGefenNumber }, {
+            enabled: true, isCourse: true
+          });
+          setTextIfChanged(row.querySelector('.pa-course-name'), display.name);
+          setTextIfChanged(row.querySelector('[data-program-gefen]'), display.gefenNumber);
+        }
+        return;
+      }
+      if (table.matches('.pa-cost-table') && !table.matches('.pa-next-year-course-table, .pa-gefen-course-table')) return;
       const gefenNumber = String(cells[indexes.gefen]?.textContent || '').replace(/\D/g, '');
-      normalizeCourseNameCell(cells[indexes.name], gefenNumber);
+      if (row.dataset.programDisplay === PROPOSAL_PROGRAM_DISPLAY_VERSION) {
+        const display = proposalProgramDisplay({ gefen_number: row.dataset.sourceGefenNumber }, {
+          enabled: true, isCourse: true, name: cells[indexes.name]?.textContent,
+          gefenNumber: cells[indexes.gefen]?.textContent
+        });
+        setTextIfChanged(cells[indexes.name]?.querySelector?.('.pa-course-name') || cells[indexes.name], display.name);
+        setTextIfChanged(cells[indexes.gefen], display.gefenNumber);
+      } else {
+        normalizeCourseNameCell(cells[indexes.name], gefenNumber);
+      }
       normalizeHoursCell(cells[indexes.hours]);
       normalizeHourlyPriceCell(cells[indexes.hourlyPrice]);
     });
