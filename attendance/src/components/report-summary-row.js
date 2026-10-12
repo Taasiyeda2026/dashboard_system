@@ -49,6 +49,11 @@ export function reportPresentation(record = {}) {
   const contextValues = isBaseTrainingRecord(record)
     ? [record.program_name_snapshot]
     : [record.program_name_snapshot, record.school_name_snapshot, record.authority_name_snapshot];
+  if (record.activity_type === 'תפעול' && record.activity_name_snapshot === 'צוות') {
+    const teamLocation = record.operation_meeting_mode === 'online'
+      ? 'זום' : String(record.destination_address_snapshot || '').trim();
+    if (teamLocation) secondary.push(teamLocation);
+  }
   contextValues
     .map((value) => String(value || '').trim()).filter(Boolean).forEach((value) => {
       const key = normalizedLabel(value);

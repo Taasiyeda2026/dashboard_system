@@ -305,7 +305,7 @@ export async function getOperationOptions() {
   if (operationOptionsCache && Date.now() - operationOptionsCache.at <= 5 * 60_000) {
     return operationOptionsCache.value;
   }
-  const { data, error } = await supabase.from('attendance_operation_options').select('id,label,active,sort_order,is_other')
+  const { data, error } = await supabase.from('attendance_operation_options').select('id,label,active,sort_order,is_other,address')
     .eq('active', true).order('is_other').order('sort_order').order('label');
   if (error) throw new Error(`שגיאה בטעינת סוגי תפעול: ${error.message}`);
   const value = data || [];
