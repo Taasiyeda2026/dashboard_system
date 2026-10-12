@@ -54,6 +54,7 @@ import {
 } from '../impact-feedback/feedback-domain.js';
 import {
   fetchAnswerFacts,
+  fetchInstructorReviewItems,
   fetchCourseSummary,
   fetchGroups,
   fetchStaffDeliveryStatus,
@@ -140,6 +141,7 @@ const ui = {
   programs: [],
   facts: null,
   factsYear: null,
+  instructorReviewItems: [],
   groupFacts: new Map(),
   openForms: new Set(),
   instructorOpenForms: new Set(),
@@ -360,9 +362,13 @@ async function ensureFacts(force = false) {
   const year = ui.year;
   const task = (async () => {
     try {
-      const rows = await fetchAnswerFacts({ academic_year: year });
+      const [rows, extendedItems] = await Promise.all([
+        fetchAnswerFacts({ academic_year: year }),
+        fetchInstructorReviewItems(year)
+      ]);
       if (year !== ui.year) return;
       ui.facts = rows;
+      ui.instructorReviewItems = extendedItems;
       ui.factsYear = year;
     } finally {
       if (inflight.facts === task) inflight.facts = null;
@@ -1451,6 +1457,37 @@ function exportAiAnalysis(mode) {
   showToast('קובץ הניתוח והפרומפט הורד למחשב');
 }
 
+const INSTRUCTOR_REVIEW_AREAS = {
+  content:'תוכן הקורס',slides:'מצגות ושקופיות',activity:'פעילויות',
+  structure:'סדר וזמנים',materials:'חומרי הדרכה',equipment:'ציוד ועזרים',other:'אחר'
+};
+const INSTRUCTOR_REVIEW_ACTIONS = {
+  fix:'לתקן',update:'לעדכן',replace:'להחליף',reorder:'לשנות סדר',
+  simplify:'לפשט ולהנגיש',illustrate:'להוסיף המחשה',engage:'להגביר עניין',
+  extend:'להוסיף או להרחיב',remove:'להסיר'
+};
+function scopedInstructorRecommendations(facts) {
+  const responses = new Set(facts.filter((f) => f.audience === 'instructor' && ['final','final_b'].includes(f.stage))
+    .map((f) => f.response_id));
+  return (ui.instructorReviewItems || []).filter((r) => responses.has(r.response_id) && (!ui.course || r.program_key === ui.course));
+}
+function instructorRecommendationsHtml(facts) {
+  const items = scopedInstructorRecommendations(facts);
+  if (!items.length) return '<p class="ifb-muted">טרם התקבלו המלצות מפורטות ממדריכים לתקופה שנבחרה.</p>';
+  return '<p class="ifb-muted">כל המלצה מוצגת בנפרד, גם אם התקבלה ממדריך אחד בלבד. ההערות לא משוקללות בציוני הקורס.</p>'+
+    '<ul class="ifb-answers">'+items.map((r) => {
+      const actions = (r.actions || []).map((x) => INSTRUCTOR_REVIEW_ACTIONS[x] || x).join(', ');
+      const reference = [r.meeting ? 'מפגש '+r.meeting : '',r.reference || ''].filter(Boolean).join(' · ');
+      const priority = r.priority === 'urgent' ? 'דחוף' : r.priority === 'high' ? 'חשוב' : 'שיפור רצוי';
+      return '<li class="ifb-answer"><p class="ifb-answer__text"><strong>'+esc(INSTRUCTOR_REVIEW_AREAS[r.area] || r.area)+
+        '</strong> · '+esc(priority)+(reference ? ' · '+esc(reference) : '')+'</p>'+
+        '<p><strong>מה זוהה:</strong> '+esc(r.issue)+'</p>'+
+        '<p><strong>המלצת המדריך:</strong> '+esc(r.recommendation)+'</p>'+
+        '<p class="ifb-muted">סוג שינוי: '+esc(actions)+' · '+esc(r.instructor_name || 'מדריך')+
+        ' · '+esc(fmtDate(r.submitted_at))+'</p></li>';
+    }).join('')+'</ul>';
+}
+
 function analysisHtml() {
   if (!ui.course) {
     return `
@@ -1464,6 +1501,7 @@ function analysisHtml() {
     ${aiAnalysisExportHtml()}
     ${biomimicryImprovementHtml(facts)}
     ${evidenceSummaryHtml(facts)}
+    ${sectionHtml('המלצות מפורטות מהמדריכים', instructorRecommendationsHtml(facts), { note: 'הערות לשיפור התכנים, המצגות והפעילויות מתוך ההתנסות בשטח.' })}
     ${sectionHtml(`סיכום מצטבר – ${programTitle(ui.course)}`, cumulativeSummaryHtml(), { actions: exportButtonHtml('analysis', 'הפקת דוח מסכם (Excel)'), note: 'הנתונים מתייחסים רק למחצית הנבחרת, לפי תאריך תחילת הקורס.' })}
     ${sectionHtml('השוואה בין תלמידים, מדריכים וצוות חינוכי', audienceComparisonHtml(facts))}
     ${sectionHtml('השוואת פתיחה וסיום', `<details class="ifb-disclosure ifb-analysis-breakdown"><summary>תלמידים — פתיחה וסיום</summary>${prePostQuestionTableHtml(factsFor(facts, 'student', 'pre'), factsFor(facts, 'student', 'post'), { audience: 'student' })}</details><details class="ifb-disclosure ifb-analysis-breakdown"><summary>מדריכים — פתיחה וסיום</summary>${prePostQuestionTableHtml(factsFor(facts, 'instructor', 'pre'), factsFor(facts, 'instructor', 'final'), { audience: 'instructor' })}</details>`)}
@@ -1764,6 +1802,17 @@ function runExport(scope) {
     appendSheet(wb, 'השוואת קורסים (ליבה)', ['קהל', 'שלב', 'שאלת ליבה', 'קורס', 'ממוצע', 'N'], cross, [14, 20, 56, 24, 10, 8]);
   } else {
     appendSheet(wb, 'סיכום מדדים', SUMMARY_EXPORT_HEADERS, summaryExportRows(threePerspectives(facts, ui.metrics), ui.metrics), [26, 24, 18, 18, 16, 16, 12, 12, 14, 34]);
+  }
+  if (!isGroup) {
+    const improvements = scopedInstructorRecommendations(facts).map((r) => [
+      programTitle(r.program_key), r.instructor_name || '', String(r.submitted_at || '').slice(0,16).replace('T',' '),
+      INSTRUCTOR_REVIEW_AREAS[r.area] || r.area || '', r.meeting || '', r.reference || '',
+      (r.actions || []).map((x) => INSTRUCTOR_REVIEW_ACTIONS[x] || x).join(', '),
+      r.issue || '', r.recommendation || '',
+      r.priority === 'urgent' ? 'דחוף' : r.priority === 'high' ? 'חשוב' : 'שיפור רצוי'
+    ]);
+    appendSheet(wb, 'המלצות מדריכים', ['קורס','מדריך','תאריך','תחום','מפגש','מצגת או פעילות','פעולות מומלצות',
+      'תיאור הקושי','המלצה לשינוי','חשיבות'], improvements, [24,24,18,24,16,24,30,60,60,20]);
   }
   appendSheet(wb, 'תשובות פתוחות', ['תאריך מילוי', 'קהל', 'שלב', 'קורס', 'רשות', 'בית ספר', 'שכבה', 'שם הפעילות', 'שם הממלא/ת', 'שאלה', 'תשובה'],
     openAnswersExportRows(facts), [18, 18, 14, 22, 18, 22, 12, 28, 22, 42, 56]);
