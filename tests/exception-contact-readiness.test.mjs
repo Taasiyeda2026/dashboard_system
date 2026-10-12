@@ -96,9 +96,44 @@ test('exceptions screen keeps district view intact and loads contact view indepe
  assert.match(audit,/contact_name,contact_email/);
  assert.match(screen,/מופיע בפעילות, לא משויך/);
  assert.match(screen,/data-exception-contact-reset/);
- assert.match(screen,/ds-contact-audit__table/);
+ assert.match(screen,/ds-contact-audit__toolbar/);
+ assert.match(screen,/ds-exceptions-grid/);
+ assert.match(screen,/ds-exception-card--contact/);
+ assert.match(screen,/ds-exception-group__title/);
+ assert.match(screen,/exceptionContactsToolbarHtml\(state\?\.exceptionsContactAudit, state\)/);
+ assert.match(screen,/data-exception-contact-district-chip/);
+ assert.match(screen,/data-exception-contact-group/);
+ assert.doesNotMatch(screen,/ds-contact-audit__table/);
  assert.doesNotMatch(screen,/מוצגים רק קורסים וסיורים פתוחים/);
  assert.doesNotMatch(screen,/כתובת המייל חייבת להשתייך/);
  assert.match(audit,/new Set\(activities\.map\(a=>a\.school_contact_id\)/);
  assert.doesNotMatch(audit,/\|\|\s*activity\.contact_email/);
+});
+
+
+test('same card-grid, compact KPI and filter position in both exceptions tabs',()=>{
+ const src=readFileSync(new URL('../frontend/src/screens/exceptions.js',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../frontend/src/screens/exception-contact-audit.css',import.meta.url),'utf8');
+ assert.match(src,/function exceptionsSummaryHtml\(rows = \[\]\)/);
+ assert.match(src,/function exceptionContactsHtml\(audit, state = \{\}\)/);
+ assert.match(src,/function exceptionContactsToolbarHtml\(audit, state = \{\}\)/);
+ const general=src.slice(src.indexOf('function exceptionGroupCard('),src.indexOf('function exceptionsSummaryHtml('));
+ const contact=src.slice(src.indexOf('function exceptionContactsHtml('),src.indexOf('function activityDrawerContent('));
+ for (const cls of ['ds-exception-group','ds-exceptions-grid','ds-exception-list-item',
+   'ds-interactive-card--session','ds-exception-card','ds-exception-card__activity',
+   'ds-exception-card__school','ds-exception-card__authority']) {
+   assert.ok(general.includes(cls), 'district has '+cls);
+   assert.ok(contact.includes(cls), 'contacts has '+cls);
+ }
+ for(const cls of ['ds-exceptions-summary','ds-exceptions-summary__card','ds-exceptions-summary__districts','ds-exception-district-chip']) {
+   assert.ok(src.includes(cls));
+   assert.ok(contact.includes(cls));
+ }
+ assert.match(css,/\.ds-exceptions-screen \.ds-exceptions-summary\s*\{/);
+ assert.match(css,/width: max-content/);
+ assert.match(css,/max-width: 100%/);
+ assert.match(css,/max-width: 230px/);
+ assert.match(css,/\.ds-exceptions-screen \.ds-contact-audit__toolbar/);
+ assert.doesNotMatch(contact,/\<table/);
+ assert.doesNotMatch(src,/מוצגים רק קורסים וסיורים פתוחים/);
 });
