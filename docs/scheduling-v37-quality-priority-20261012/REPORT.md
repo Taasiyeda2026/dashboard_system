@@ -2,24 +2,22 @@
 
 Branch work only. No merge, deploy, or production DB/plan writes.
 
-## Technical plan corrections (pre-implementation)
+## Technical plan corrections
 
-1. **School days ≠ continuity**  
+1. **School days ≠ continuity**
    `schoolActiveDays` (distinct `schoolId|date`) is measured separately from `sameSchoolSequences`. Lexicographic order:
 
    `covered ↑ → meetingHours ↑ → schoolActiveDays ↓ → instructorWorkDays ↓ → sameSchoolSequences ↑ → … → waiting ↓ → travel ↓`
 
    Small waiting/continuity gains cannot open an extra school activity day or instructor workday.
 
-2. **Scoped augmenting**  
-   `targetCourseIds` + `allowGlobalRepair:false` previously skipped soft-opt entirely. It now runs `scoped-flexible-coverage`: augmenting chains among flexible proposals only, no national quality stage, approved/locked remain barriers. Candidate pools for search are rebuilt against immovable barriers so movable flexible anchors cannot hide chain options.
+2. **Scoped augmenting**
+   `targetCourseIds` + `allowGlobalRepair:false` runs `scoped-flexible-coverage`: augmenting chains among flexible proposals only, no national quality stage, approved/locked remain barriers. Candidate pools rebuild against immovable barriers. Each move records `targetCourseId` + `role` (`target` / `displaced-blocker`).
 
-3. **Options / diagnostics**  
-   Final alternatives are legality-filtered against the final plan; the chosen assignment is always present with a fresh score. `optimization.stopReason` / `optimizationScope` replace a blanket incomplete flag when soft-opt was not attempted.
+3. **Options / diagnostics**
+   Final alternatives are legality-filtered and **re-scored** against the final plan; the chosen assignment is always present with a fresh score.
 
-## Before / after (same fixtures)
-
-Full JSON: `evidence/before-after.json`.
+## Before / after
 
 ### Priority demo (equal coverage/hours)
 
@@ -33,34 +31,43 @@ Full JSON: `evidence/before-after.json`.
 | Metric | Before (`skipSoftOptimization`) | After (scoped coverage) |
 |---|---:|---:|
 | Covered courses | 2 | **3** |
-| Teaching hours | 4 | 5 |
-| School active days | 4 | 5 |
-| Instructor workdays | 4 | 5 |
-| Waiting minutes | 0 | 0 |
-| Travel minutes | 80 | 100 |
-| Runtime ms | ~5.5 | ~10.1 |
-| Constraint violations | 0 | 0 |
 | Soft-opt scope | not attempted | `scoped-flexible-coverage` |
 | Chosen ∈ options | n/a | **true** |
+| Displacement tracking | n/a | `target` + `displaced-blocker` |
 
-Coverage rose by 1 via an augmenting chain; school/instructor days rose only with that added course (not at equal coverage). National quality stage did not run.
+### Isolated 238-course planning snapshot (read-only export)
 
-### National 3-course fixture
+Source: `scheduling_planning_rows` (238) + `school_2027` courses; no production writes. Offline travel fillers for 57 missing cache legs. Evidence: `evidence/load-before-after-238.json`.
 
-Coverage, school days, instructor days, waiting, and travel unchanged; runtime +~1.5ms on this tiny fixture.
+| Metric | Before (`skipSoftOptimization`) | After (national soft-opt) | Δ |
+|---|---:|---:|---:|
+| Covered | 210 | **217** | +7 |
+| School active days | 1407 | **1346** | −61 |
+| Instructor workdays | 975 | 978 | +3 (with +7 coverage) |
+| Waiting minutes | 31022 | **22100** | −8922 |
+| Travel minutes | 62270 | **61064** | −1206 |
+| Travel km | 53772.8 | **52876.1** | −896.7 |
+| Runtime ms | ~16735 | ~42018 | +25283 |
+| Constraint failures | 0 | 0 | 0 |
+| Soft-opt decisions | 0 | 28 |  |
+| Protected instructor IDs unchanged | yes | yes |  |
+| Soft-opt touched protected | no | no |  |
+
+Four live rows sync meeting dates to current official activity dates (known stale projection vs source); soft-opt decisions do not include those course IDs.
 
 ## Gates
 
-- Covered does not decrease  
-- School active days do not increase when coverage is equal  
-- Zero new constraint violations  
-- Chosen instructor/score/options consistent  
-- Scoped path does not run national `operational-quality`  
-- New priority rejects extra school/instructor days for continuity/waiting  
+- Covered does not decrease
+- School active days do not increase when coverage is equal
+- Zero new constraint violations
+- Chosen instructor/score/options consistent (all options re-scored)
+- Scoped path does not run national `operational-quality`
+- Scoped path leaves unrelated flexible proposals outside the exchange chain unchanged
+- New priority rejects extra school/instructor days for continuity/waiting
 
 ## Cache
 
-- `HOTFIX_VERSION` marker: `scheduling-v37-quality-priority-20261012-v1-…`  
-- `CACHE_VERSION`: `2000`  
+- `HOTFIX_VERSION` marker: `scheduling-v37-quality-priority-20261012-v2-…`
+- `CACHE_VERSION`: `2001`
 
 Awaiting owner approval before merge/deploy.
