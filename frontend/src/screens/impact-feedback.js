@@ -584,7 +584,8 @@ function coursesTableHtml() {
     { audience: 'student', stage: 'post', label: 'תלמידים – סיום' },
     { audience: 'instructor', stage: 'pre', label: 'מדריכים – פתיחה' },
     { audience: 'instructor', stage: 'final', label: 'מדריכים – סיום' },
-    { audience: 'educational_staff', stage: 'final', label: 'צוות חינוכי' }
+    { audience: 'educational_staff', stage: 'pre', label: 'צוות חינוכי – פתיחה' },
+    { audience: 'educational_staff', stage: 'final', label: 'צוות חינוכי – סיום' }
   ].filter((c) => (!o.audience || c.audience === o.audience)
     && (!o.phase || stagePhase(c.audience, c.stage) === o.phase));
 
@@ -737,12 +738,12 @@ function feedbackSemesterTabsHtml() {
 }
 
 function groupsTableHtml(slots, scope) {
-  // The activities table is authoritative. Students need a course start date,
-  // while school staff need an end date. Other audiences and stored replies are unchanged.
+  // The activities table is authoritative. Both audiences enter tracking at the
+  // course start; only the staff closing slot depends on a known end date.
   const all = scope === 'students'
     ? courseScopedGroups().filter(hasCourseStartDate)
     : scope === 'staff'
-      ? courseScopedGroups().filter(hasCourseEndDate)
+      ? courseScopedGroups().filter(hasCourseStartDate)
       : courseScopedGroups();
   const inHalf = all.filter((g) => studentFeedbackPeriodForGroup(g) === ui.feedbackHalf);
   const matching = filterGroups(inHalf, ui.filters);
@@ -763,8 +764,10 @@ function groupsTableHtml(slots, scope) {
             ? JSON.stringify([course, contact, school])
             : JSON.stringify(['unidentified', group.row_id]);
           const previous = unique.get(key);
-          if (!previous || (Number(groupHasFeedback(group)) > Number(groupHasFeedback(previous)))
-            || (Number(groupHasFeedback(group)) === Number(groupHasFeedback(previous))
+          const coverage = (item) => STAFF_SLOTS.filter((slot) => Boolean(slotCampaign(item, slot))).length;
+          if (!previous || coverage(group) > coverage(previous)
+            || (coverage(group) === coverage(previous) && Number(groupHasFeedback(group)) > Number(groupHasFeedback(previous)))
+            || (coverage(group) === coverage(previous) && Number(groupHasFeedback(group)) === Number(groupHasFeedback(previous))
               && String(group.end_date || '') > String(previous.end_date || ''))) {
             unique.set(key, group);
           }
@@ -784,9 +787,7 @@ function groupsTableHtml(slots, scope) {
           <col class="ifb-gw-school"><col class="ifb-gw-authority">
           ${showCourse ? '<col class="ifb-gw-course">' : ''}
           <col class="ifb-gw-person">
-          ${scope === 'students'
-            ? '<col class="ifb-gw-date ifb-gw-date--start"><col class="ifb-gw-stage"><col class="ifb-gw-date ifb-gw-date--end"><col class="ifb-gw-stage">'
-            : '<col class="ifb-gw-date ifb-gw-date--end">' + slots.map(() => '<col class="ifb-gw-stage">').join('')}
+          <col class="ifb-gw-date ifb-gw-date--start"><col class="ifb-gw-stage"><col class="ifb-gw-date ifb-gw-date--end"><col class="ifb-gw-stage">
           <col class="ifb-gw-actions">
         </colgroup>
         <thead><tr>
@@ -794,12 +795,10 @@ function groupsTableHtml(slots, scope) {
           <th scope="col">רשות</th>
           ${showCourse ? '<th scope="col">קורס</th>' : ''}
           <th scope="col">${scope === 'staff' ? 'איש קשר' : 'מדריך'}</th>
-          ${scope === 'students' ? '<th scope="col" class="ifb-center ifb-col-date">תחילת קורס</th>' : ''}
-          ${scope === 'students' ? `<th scope="col" class="ifb-center ifb-col-stage">${esc(slots.find((slot) => slot.stage === 'pre')?.label || 'תלמידים – פתיחה')}</th>` : ''}
-          <th scope="col" class="ifb-center ifb-col-date">${scope === 'students' ? 'סיום קורס' : 'סיום הקבוצה'}</th>
-          ${scope === 'students'
-            ? `<th scope="col" class="ifb-center ifb-col-stage">${esc(slots.find((slot) => slot.stage === 'post')?.label || 'תלמידים – סיום')}</th>`
-            : slots.map((slot) => `<th scope="col" class="ifb-col-stage ifb-col-staff">${esc(slot.label)}</th>`).join('')}
+          <th scope="col" class="ifb-center ifb-col-date">תחילת קורס</th>
+          <th scope="col" class="ifb-center ifb-col-stage">${esc(slots.find((slot) => slot.stage === 'pre')?.label || 'משוב פתיחה')}</th>
+          <th scope="col" class="ifb-center ifb-col-date">סיום קורס</th>
+          <th scope="col" class="ifb-center ifb-col-stage">${esc(slots.find((slot) => slot.stage === (scope === 'staff' ? 'final' : 'post'))?.label || 'משוב סיום')}</th>
           <th scope="col"><span class="ifb-sr">פעולות</span></th>
         </tr></thead>
         <tbody>${filtered.map((g) => `
@@ -810,21 +809,20 @@ function groupsTableHtml(slots, scope) {
               ? esc(programTitle(g.program_key))
               : g.feedback_excluded ? statusText('לא רלוונטי למשובים', 'muted') : `<span title="נדרש טיפול בהתאמת תבנית המשוב לקורס. השיוך מנוהל במערכת ולא במסך זה.">${statusText('ממתין להתאמת משוב', 'warning')}</span>`}</td>` : ''}
             <td data-label="${scope === 'staff' ? 'איש קשר' : 'מדריך'}">${scope === 'staff' ? (g.contact_name ? esc(g.contact_name) : '<span class="ifb-muted" title="טרם הוגדר שם של איש קשר">לא הוגדר</span>') : esc(g.instructor_name || 'לא שובץ')}</td>
-            ${scope === 'students' ? `<td data-label="תחילת קורס" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(g.start_date)}</td>` : ''}
-            ${scope === 'students' ? (() => {
+            <td data-label="תחילת קורס" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(g.start_date)}</td>
+            ${(() => {
               const slot = slots.find((s) => s.stage === 'pre');
-              return `<td class="ifb-center ifb-col-stage" data-label="${esc(slot?.label || 'תלמידים – פתיחה')}">${g.program_key && slot ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}</td>`;
-            })() : ''}
-            <td data-label="${scope === 'students' ? 'סיום קורס' : 'סיום הקבוצה'}" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(g.end_date)}</td>
-            ${scope === 'students' ? (() => {
-              const slot = slots.find((s) => s.stage === 'post');
-              return `<td class="ifb-center ifb-col-stage" data-label="${esc(slot?.label || 'תלמידים – סיום')}">${g.program_key && slot ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}</td>`;
-            })() : slots.map((slot) =>
-              `<td class="ifb-col-stage ifb-col-staff" data-label="${esc(slot.label)}">${g.program_key ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}</td>`).join('')}
+              return `<td class="ifb-center ifb-col-stage" data-label="${esc(slot?.label || 'משוב פתיחה')}">${g.program_key && slot ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}</td>`;
+            })()}
+            <td data-label="סיום קורס" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(g.end_date)}</td>
+            ${(() => {
+              const slot = slots.find((s) => s.stage === (scope === 'staff' ? 'final' : 'post'));
+              return `<td class="ifb-center ifb-col-stage" data-label="${esc(slot?.label || 'משוב סיום')}">${g.program_key && slot ? (scope === 'staff' && !hasCourseEndDate(g) ? '<span class="ifb-muted" title="מועד הסיום טרם נקבע">ממתין לתאריך סיום</span>' : tableStatusHtml(slotCampaign(g, slot))) : '<span class="ifb-muted">—</span>'}</td>`;
+            })()}
             <td data-label="פעולות" class="ifb-col-actions"><button type="button" class="ifb-row-action" data-ifb-open-group="${esc(g.row_id)}" aria-label="ניהול משובי הקבוצה ${esc(g.school || '')}" title="ניהול משובי הקבוצה"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="2"></rect><path d="M7 3v4M17 3v4M3 10h18"></path></svg></button></td>
           </tr>`).join('')}</tbody>
       </table>
-    </div>` : emptyHtml('לא נמצאו קבוצות התואמות לסינון.', scope === 'students' ? 'בלשונית תלמידים מוצגות רק קבוצות שנקבע להן תאריך התחלה בכל הפעילויות.' : 'בלשונית צוות חינוכי מוצגות רק קבוצות שנקבע להן תאריך סיום בכל הפעילויות.');
+    </div>` : emptyHtml('לא נמצאו קבוצות התואמות לסינון.', scope === 'students' ? 'בלשונית תלמידים מוצגות רק קבוצות שנקבע להן תאריך התחלה בכל הפעילויות.' : 'בלשונית צוות חינוכי מוצגות קבוצות שנקבע להן תאריך התחלה בכל הפעילויות.');
   return `${groupFiltersHtml(inHalf, scope)}${body}`;
 }
 
