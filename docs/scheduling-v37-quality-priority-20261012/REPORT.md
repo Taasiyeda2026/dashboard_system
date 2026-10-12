@@ -71,3 +71,32 @@ Four live rows sync meeting dates to current official activity dates (known stal
 - `CACHE_VERSION`: `2001`
 
 Awaiting owner approval before merge/deploy.
+
+## Final acceptance (verified routes, main vs PR)
+
+No production writes. Evidence: `evidence/final-acceptance-report.json`.
+
+### 1. Verified travel only
+- Dummy fillers disabled; 57 cache pairs remain missing.
+- PR softOpt: covered **215**, constraint failures **0**, valid plan.
+- Prior filler claim of +7 coverage (210→217) is **not** accepted as travel/legality proof.
+- Verified soft vs skip: 214→215 (+1). Newly covered `school_2027_067` has verified home↔school routes.
+
+### 2. main vs PR (softOpt, same verified cache)
+| Metric | main | PR | Δ (PR−main) |
+|---|---:|---:|---:|
+| Covered | 215 | 215 | 0 |
+| School active days | 1325 | 1314 | −11 |
+| Instructor workdays | 1001 | 974 | −27 |
+| Waiting minutes | 19258 | 21156 | +1898 |
+| Travel minutes | 60105 | 59002 | −1103 |
+| Runtime ms | ~41511 | ~45153 | +~3642 |
+
+Separate softOpt-vs-skip on PR: +1 covered, −64 school days, −2 instructor days, −4783 waiting.
+
+### 3. Data integrity
+- 239 courses vs 238 planning rows: missing `ACT-149a9af7` (רוקחים עולם) — open, undated, no planning row.
+- Four live date syncs: emp_id unchanged; result meetings match official `activities.date_*`; saved plan was stale; soft-opt did not move them.
+
+### Merge readiness
+No blocker found from these three acceptance tests. Awaiting explicit owner approval before merge/deploy.
