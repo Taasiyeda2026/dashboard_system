@@ -19,11 +19,15 @@ export function availabilityByInstructor(context,periodKey='year') {
 export function operationalQuality(rows,input={},context=input.constraintContext||compileConstraints(input),availability=availabilityByInstructor(context,input.periodKey||'year')) {
   const occupancy=createOccupancy(context,rows),instructors=new Map([...context.byInstructor].map(([id])=>[id,{empId:id,...availability.get(id),assignedHours:0,activeDays:0,meetings:0,activities:new Set(),waitingMinutes:0,travelMinutes:0,travelKm:0,unknownRouteLegs:0,freeWindows:[]}]));
   let sameSchoolSequences=0,sameAuthoritySequences=0,nearbySequences=0,splitDays=0;
+  // Distinct school calendar days with at least one meeting — not continuity
+  // sequences and not instructor workdays.
+  const schoolActiveDayKeys=new Set();
   for(const [key,list] of occupancy.days){const empId=list[0].empId,date=list[0].date;let stats=instructors.get(empId);if(!stats){stats={empId,availableHours:0,availableDays:0,assignedHours:0,activeDays:0,meetings:0,activities:new Set(),waitingMinutes:0,travelMinutes:0,travelKm:0,unknownRouteLegs:0,freeWindows:[]};instructors.set(empId,stats);}
     stats.activeDays++;let waiting=0;const home=context.byInstructor.get(empId)?.address;
     const leg=(from,to,same=false)=>{const route=same?{duration_minutes:0,distance_km:0}:knownRoute(context,from,to);if(!route){stats.unknownRouteLegs++;return null;}stats.travelMinutes+=+route.duration_minutes;stats.travelKm+=+route.distance_km;return route;};
     leg(home,list[0].address);leg(list.at(-1).address,home);
     for(let i=0;i<list.length;i++){const m=list[i];stats.meetings++;stats.activities.add(m.courseId);stats.assignedHours+=(m.end-m.start)/60;
+      if(m.schoolId)schoolActiveDayKeys.add(`${m.schoolId}|${m.date}`);
       if(!i)continue;const p=list[i-1],same=!!m.schoolId&&m.schoolId===p.schoolId,gap=m.start-p.end,route=leg(p.address,m.address,same);
       if(gap>=0){const idle=route?Math.max(0,gap-(+route.duration_minutes)-(same?0:+route.distance_km<=5?5:15)):null;
         if(idle!==null){waiting+=idle;stats.waitingMinutes+=idle;}if(same&&gap<=30)sameSchoolSequences++;
@@ -36,12 +40,16 @@ export function operationalQuality(rows,input={},context=input.constraintContext
   }
   const perInstructor=[...instructors.values()].map(s=>({...s,activities:s.activities.size,utilizationRatio:s.availableHours?s.assignedHours/s.availableHours:null,freeWindows:s.freeWindows.filter(w=>w.endMinutes>w.startMinutes)}));
   const total=key=>perInstructor.reduce((sum,s)=>sum+(s[key]||0),0),covered=rows.filter(r=>r.instructorEmpId).length;
-  return {covered,uncovered:rows.length-covered,recruitment:rows.filter(r=>r.kind==='recruitment').length,meetingHours:total('assignedHours'),meetings:total('meetings'),availableHours:total('availableHours'),utilizationRatio:total('availableHours')?total('assignedHours')/total('availableHours'):null,workDays:total('activeDays'),waitingMinutes:total('waitingMinutes'),splitDays,sameSchoolSequences,sameAuthoritySequences,nearbySequences,totalTravelMinutes:total('travelMinutes'),totalTravelKm:total('travelKm'),unknownRouteLegs:total('unknownRouteLegs'),instructorsUsed:perInstructor.filter(s=>s.meetings).length,operationalScoreSum:rows.filter(r=>r.kind!=='live').reduce((sum,r)=>sum+(r.score||0),0),perInstructor,
-    measurementPolicy:'Travel counts outbound and return home legs plus chronological school transitions per instructor/date, verified routes only; unknown legs counted separately. Availability is union of explicit windows with date exceptions over requested period, excluding unpermitted Friday; sector-specific holidays and travel are not subtracted from the availability denominator. Free windows are raw gaps, not certified course placements.'};
+  const instructorWorkDays=total('activeDays');
+  return {covered,uncovered:rows.length-covered,recruitment:rows.filter(r=>r.kind==='recruitment').length,meetingHours:total('assignedHours'),meetings:total('meetings'),availableHours:total('availableHours'),utilizationRatio:total('availableHours')?total('assignedHours')/total('availableHours'):null,workDays:instructorWorkDays,instructorWorkDays,schoolActiveDays:schoolActiveDayKeys.size,waitingMinutes:total('waitingMinutes'),splitDays,sameSchoolSequences,sameAuthoritySequences,nearbySequences,totalTravelMinutes:total('travelMinutes'),totalTravelKm:total('travelKm'),unknownRouteLegs:total('unknownRouteLegs'),instructorsUsed:perInstructor.filter(s=>s.meetings).length,operationalScoreSum:rows.filter(r=>r.kind!=='live').reduce((sum,r)=>sum+(r.score||0),0),perInstructor,
+    measurementPolicy:'Travel counts outbound and return home legs plus chronological school transitions per instructor/date, verified routes only; unknown legs counted separately. Availability is union of explicit windows with date exceptions over requested period, excluding unpermitted Friday; sector-specific holidays and travel are not subtracted from the availability denominator. Free windows are raw gaps, not certified course placements. schoolActiveDays counts distinct school|date pairs with meetings; instructorWorkDays/workDays count instructor|date occupancy days; sameSchoolSequences counts adjacent same-school meetings with gap≤30m.'};
 }
-// A lower-priority objective can never buy a higher-priority regression.
+// Lexicographic operational efficiency: coverage and hours first; never expand
+// school activity days or instructor workdays to buy continuity or idle gains.
 export function compareOperationalQuality(a,b) {
-  for(const [key,direction] of [['covered',1],['meetingHours',1],['splitDays',-1],['waitingMinutes',-1],['sameSchoolSequences',1],['sameAuthoritySequences',1],['nearbySequences',1],['unknownRouteLegs',-1],['totalTravelMinutes',-1],['totalTravelKm',-1],['operationalScoreSum',1]]){
-    const delta=(a[key]||0)-(b[key]||0);if(Math.abs(delta)>1e-7)return Math.sign(delta)*direction;
+  for(const [key,direction] of [['covered',1],['meetingHours',1],['schoolActiveDays',-1],['instructorWorkDays',-1],['sameSchoolSequences',1],['sameAuthoritySequences',1],['nearbySequences',1],['splitDays',-1],['waitingMinutes',-1],['unknownRouteLegs',-1],['totalTravelMinutes',-1],['totalTravelKm',-1],['operationalScoreSum',1]]){
+    const left=key==='instructorWorkDays'?((a.instructorWorkDays??a.workDays)||0):(a[key]||0);
+    const right=key==='instructorWorkDays'?((b.instructorWorkDays??b.workDays)||0):(b[key]||0);
+    const delta=left-right;if(Math.abs(delta)>1e-7)return Math.sign(delta)*direction;
   }return 0;
 }
