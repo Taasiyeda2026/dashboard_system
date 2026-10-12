@@ -23,7 +23,7 @@ if (!globalThis.localStorage) {
   };
 }
 
-const { activitiesScreen, getActivitiesAccessDebug } = await import('../frontend/src/screens/activities.js');
+const { activitiesScreen, activitiesTypeCounts, getActivitiesAccessDebug } = await import('../frontend/src/screens/activities.js');
 
 function baseState() {
   return {
@@ -45,6 +45,54 @@ async function waitForElement(document, selector, { timeoutMs = 15000 } = {}) {
   }
   assert.fail(`Timed out waiting for ${selector}`);
 }
+
+test('2027 all activities shows dynamic type totals to the left of the unchanged headline', () => {
+  const state = baseState();
+  state.activityPeriodTab = 'school_2027';
+  state.activitiesInnerTab = 'year_all';
+  const row = (RowID, activity_type) => ({
+    RowID, activity_type, activity_season: 'school_2027', status: 'פתוח',
+    activity_name: RowID, authority: 'רשות א', school: 'בית ספר א'
+  });
+  const data = { rows: [
+    row('C1', 'course'), row('C2', 'תוכנית'),
+    row('T1', 'tour'), row('W1', 'workshop')
+  ] };
+  const html = activitiesScreen.render(data, { state });
+  const doc = new JSDOM(html).window.document;
+  const container = doc.querySelector('.ds-activities-heading-line');
+  const headline = container?.querySelector('.ds-activities-title-row');
+  const breakdown = container?.querySelector('[data-activities-type-summary]');
+  assert.ok(headline);
+  assert.ok(breakdown);
+  assert.equal(headline.textContent.trim(), 'ניהול פעילויות - 2027 · 4 פעילויות');
+  assert.equal(breakdown.textContent.trim(), '(2 קורסים | 1 סיורים | 1 סדנאות)');
+  assert.equal(breakdown.parentElement, headline.parentElement);
+  assert.equal(headline.contains(breakdown), false);
+  assert.ok([...container.children].indexOf(headline) < [...container.children].indexOf(breakdown));
+
+  data.rows = [...data.rows, row('T2', 'סיור')];
+  const updated = new JSDOM(activitiesScreen.render(data, { state })).window.document;
+  assert.equal(updated.querySelector('.ds-activities-page-title').textContent.trim(), 'ניהול פעילויות - 2027 · 5 פעילויות');
+  assert.equal(updated.querySelector('[data-activities-type-summary]').textContent.trim(), '(2 קורסים | 2 סיורים | 1 סדנאות)');
+});
+
+test('2027 type totals handle all categories without changing other year tabs', () => {
+  assert.deepEqual(activitiesTypeCounts([
+    { activity_type:'program' },{ activity_type:'course' },
+    { activity_type:'tour' },{ activity_type:'workshop' },
+    { activity_type:'escape_room' }
+  ]), { course:2, tour:1, workshop:1, other:1 });
+
+  const state = baseState();
+  state.activityPeriodTab = 'regular';
+  state.activitiesInnerTab = 'year_all';
+  const html = activitiesScreen.render({ rows:[{
+    RowID:'ONE', activity_type:'course', activity_season:'regular',
+    activity_name:'תוכנית', status:'פתוח'
+  }] },{ state });
+  assert.doesNotMatch(html, /data-activities-type-summary/);
+});
 
 test('activities render: emp_id without name does not show "ללא מדריך"', () => {
   const data = {
