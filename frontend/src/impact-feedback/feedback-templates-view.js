@@ -468,9 +468,11 @@ async function withSave(action, repaint, { reload = false, ui, editorOptions = {
   try {
     await action();
     if (reload) await loadEditor(ui, repaint, editorOptions);
+    return true;
   } catch (error) {
     showToast(translateFeedbackError(error), 'error', 5000);
     if (ui) await loadEditor(ui, repaint, editorOptions);
+    return false;
   }
 }
 
@@ -537,20 +539,22 @@ async function saveQuestionField(ui, repaint, row, field, input, { wordingOnly =
   if (needsRepaint) repaint();
 }
 
-export function bindTemplatesView(host, ui, repaint, { readOnly = false } = {}) {
+export function bindTemplatesView(host, ui, repaint, { readOnly = false, canEditWording = false } = {}) {
   const root = host.querySelector('[data-ifb-templates]');
   if (!root) {
     if (tpl.error) host.querySelector('[data-tpl-reload]')?.addEventListener('click', () => { tpl.error = ''; tpl.list = null; loadList(repaint, true); });
     return;
   }
   if (!ui.templates.templateId && !tpl.list) loadList(repaint);
-  if (ui.templates.templateId && !tpl.editor && !tpl.loadingEditor && !tpl.error) loadEditor(ui, repaint, { readOnly });
+  if (ui.templates.templateId && !tpl.editor && !tpl.loadingEditor && !tpl.error) loadEditor(ui, repaint, { readOnly, canEditWording });
 
   root.addEventListener('click', async (event) => {
     const t = event.target;
-    // Viewer can open published templates, preview them and download existing PDFs.
-    // Administrative actions never reach their handlers in this view.
-    if (readOnly && !t.closest('[data-tpl-pdf], [data-tpl-open], [data-tpl-back], [data-tpl-preview]')) {
+    // Read-only viewers may preview; Israa additionally opens wording-only drafts.
+    // Structural and administrative actions never reach their handlers.
+    if (readOnly && !t.closest(canEditWording
+      ? '[data-tpl-pdf], [data-tpl-open], [data-tpl-back], [data-tpl-preview], [data-tpl-wording-edit]'
+      : '[data-tpl-pdf], [data-tpl-open], [data-tpl-back], [data-tpl-preview]')) {
       event.preventDefault();
       return;
     }
@@ -615,7 +619,7 @@ export function bindTemplatesView(host, ui, repaint, { readOnly = false } = {}) 
     if (open) {
       ui.templates.templateId = open.dataset.tplOpen;
       tpl.editor = null;
-      await loadEditor(ui, repaint, { readOnly });
+      await loadEditor(ui, repaint, { readOnly, canEditWording });
       window.scrollTo({ top: 0 });
       return;
     }
@@ -625,7 +629,16 @@ export function bindTemplatesView(host, ui, repaint, { readOnly = false } = {}) 
       await loadList(repaint, true);
       return;
     }
-    if (t.closest('[data-tpl-preview]')) { openPreview(ui, { readOnly }); return; }
+    if (t.closest('[data-tpl-preview]')) { openPreview(ui, { readOnly: readOnly && !canEditWording }); return; }
+    if (canEditWording && t.closest('[data-tpl-wording-edit]')) {
+      const saved = await withSave(
+        () => getIsraaWordingDraft(tpl.editor.template.id),
+        repaint,
+        { reload: true, ui, editorOptions: { readOnly: true, canEditWording: true } }
+      );
+      if (saved) showToast('טיוטת הניסוח מוכנה לעריכה בעברית ובערבית', 'success');
+      return;
+    }
     if (t.closest('[data-tpl-edit]')) {
       await withSave(() => getDraft(tpl.editor.template.id), repaint, { reload: true, ui });
       showToast('נוצרה טיוטה לעריכה');
@@ -676,8 +689,16 @@ export function bindTemplatesView(host, ui, repaint, { readOnly = false } = {}) 
   });
 
   root.addEventListener('change', async (event) => {
-    if (readOnly) return;
     const input = event.target;
+    if (readOnly) {
+      if (!canEditWording || !tpl.editor?.draft) return;
+      const field = input.dataset.tqField;
+      const row = input.closest('[data-tq]');
+      if (row && (field === 'wording.default' || field === 'wording.ar')) {
+        await saveQuestionField(ui, repaint, row, field, input, { wordingOnly: true });
+      }
+      return;
+    }
     if (input.matches('[data-tpl-intro], [data-tpl-intro-ar]')) {
       const isArabic = input.matches('[data-tpl-intro-ar]');
       const nextHe = isArabic ? tpl.editor.draft.intro_text : input.value.trim();
