@@ -17,7 +17,7 @@ import { createMiniCalendar } from '../components/mini-calendar.js';
 import { openAttendanceCalendarDay } from '../components/calendar-day-drawer.js';
 import { loadAttendanceCalendarContext } from '../services/calendar.service.js';
 import { getMonthRecords, calcMonthSummary, updateRecord, deleteRecord,
-         getMonthApproval, getActivityTypes, deleteAttachmentRecord, sourceAttendanceRecords,
+         getMonthApproval, getActivityTypes, getOperationOptions, deleteAttachmentRecord, sourceAttendanceRecords,
          generatedCancellationFor, overrideTravelCompensation,
          getMonthDashboardValidation } from '../services/attendance.service.js';
 import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel } from '../services/month-gate.service.js';
@@ -649,6 +649,18 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     value: record.operation_meeting_mode === 'physical'
       ? String(record.destination_address_snapshot || '') : '',
   });
+  const knownLocations = document.createElement('datalist');
+  knownLocations.id = 'edit-team-known-locations';
+  teamLocationField.input.setAttribute('list', knownLocations.id);
+  teamLocationField.wrap.append(knownLocations);
+  void getOperationOptions().then((operations) => {
+    [...new Set(operations.map((item) => String(item.address || '').trim()).filter(Boolean))]
+      .forEach((address) => {
+        const option = document.createElement('option');
+        option.value = address;
+        knownLocations.append(option);
+      });
+  }).catch(() => {}); // Manual entry remains available if the catalog is offline.
   form.append(teamModeField.wrap, teamLocationField.wrap);
 
   const authField   = createInputField({ id: 'edit-authority', label: 'רשות',    value: record.authority_name_snapshot || '' });
