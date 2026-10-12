@@ -6,3 +6,8 @@ project_id = "szinlhjuwyiyszdpsdop"
 [remotes.main.auth.email.template.recovery]
 subject = "קוד אימות לאיפוס הכניסה – תעשיידע"
 content_path = "./supabase/templates/recovery.html"
+
+# Cron authenticates with its dedicated server-only secret, never a user JWT.
+# Deployment and live delivery still require separate approval.
+[functions.feedback-staff-automation]
+verify_jwt = false

@@ -73,6 +73,12 @@ export async function fetchGroups(academicYear = null, activityRowId = null) {
   return Array.isArray(rows) ? rows : [];
 }
 
+/** Existing feedback viewers only; RPC returns no recipient details or tokens. */
+export async function fetchStaffDeliveryStatus() {
+  const rows = await unwrap(client().rpc('feedback_staff_auto_status'));
+  return Array.isArray(rows) ? rows : [];
+}
+
 /** Course × audience × stage collection figures (questionnaires, invited, unique respondents). */
 export async function fetchCourseSummary(academicYear = null, half = 'first') {
   // Collection metrics must use the same course cohort as the visible facts.

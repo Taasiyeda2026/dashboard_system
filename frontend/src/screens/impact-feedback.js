@@ -56,6 +56,7 @@ import {
   fetchAnswerFacts,
   fetchCourseSummary,
   fetchGroups,
+  fetchStaffDeliveryStatus,
   fetchInstructorAssignments,
   fetchMetrics,
   fetchPrograms,
@@ -65,6 +66,7 @@ import {
   updateCampaign
 } from '../impact-feedback/feedback-api.js';
 import { campaignLink, copyText, openQrProjection, personalShareLinks } from '../impact-feedback/feedback-share.js';
+import { staffDeliveryStatus, staffStatusIndex } from '../impact-feedback/staff-delivery-status.js';
 import { renderTemplatesView, bindTemplatesView } from '../impact-feedback/feedback-templates-view.js';
 import '../impact-feedback/feedback-form.css';
 import { canViewImpactFeedback, canEditImpactFeedbackWording, isFeedbackAdmin } from '../impact-feedback/feedback-access.js';
@@ -127,6 +129,8 @@ const ui = {
   filterExpanded: { overview: false, students: false, staff: false, instructors: false, analysis: false, templates: false },
   groups: null,
   groupsYear: null,
+  staffDelivery: new Map(),
+  staffDeliveryLoaded: false,
   instructorAssignments: null,
   instructorAssignmentsYear: null,
   summary: null,
@@ -291,6 +295,25 @@ async function ensureGroups(force = false) {
   })();
   inflight.groups = task;
   return task;
+}
+
+async function ensureStaffDelivery(force = false) {
+  if (ui.year !== 'school_2027' || (!force && ui.staffDeliveryLoaded)) return;
+  try {
+    ui.staffDelivery = staffStatusIndex(await fetchStaffDeliveryStatus());
+  } catch {
+    // During rollout the migration may not yet exist. Never report false success,
+    // and keep the existing survey UI usable if the status read is unavailable.
+    ui.staffDelivery = new Map();
+  }
+  ui.staffDeliveryLoaded = true;
+}
+
+function staffEmailStatusHtml(group, stage, scope) {
+  if (scope !== 'staff' || ui.year !== 'school_2027') return '';
+  const value = ui.staffDelivery.get(`${group.row_id}|${stage}`);
+  const { label, tone } = staffDeliveryStatus(value?.status);
+  return `<span class="ifb-cell-sub ifb-mail-status" aria-label="שליחת מייל: ${esc(label)}">${statusText(`מייל: ${label}`, tone)}</span>`;
 }
 
 async function ensureInstructorAssignments(force = false) {
@@ -812,12 +835,12 @@ function groupsTableHtml(slots, scope) {
             <td data-label="תחילת קורס" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(g.start_date)}</td>
             ${(() => {
               const slot = slots.find((s) => s.stage === 'pre');
-              return `<td class="ifb-center ifb-col-stage" data-label="${esc(slot?.label || 'משוב פתיחה')}">${g.program_key && slot ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}</td>`;
+              return `<td class="ifb-center ifb-col-stage" data-label="${esc(slot?.label || 'משוב פתיחה')}">${g.program_key && slot ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}${staffEmailStatusHtml(g, 'pre', scope)}</td>`;
             })()}
             <td data-label="סיום קורס" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(g.end_date)}</td>
             ${(() => {
               const slot = slots.find((s) => s.stage === (scope === 'staff' ? 'final' : 'post'));
-              return `<td class="ifb-center ifb-col-stage" data-label="${esc(slot?.label || 'משוב סיום')}">${g.program_key && slot ? (scope === 'staff' && !hasCourseEndDate(g) ? '<span class="ifb-muted" title="מועד הסיום טרם נקבע">ממתין לתאריך סיום</span>' : tableStatusHtml(slotCampaign(g, slot))) : '<span class="ifb-muted">—</span>'}</td>`;
+              return `<td class="ifb-center ifb-col-stage" data-label="${esc(slot?.label || 'משוב סיום')}">${g.program_key && slot ? (scope === 'staff' && !hasCourseEndDate(g) ? '<span class="ifb-muted" title="מועד הסיום טרם נקבע">ממתין לתאריך סיום</span>' : tableStatusHtml(slotCampaign(g, slot))) : '<span class="ifb-muted">—</span>'}${staffEmailStatusHtml(g, 'final', scope)}</td>`;
             })()}
             <td data-label="פעולות" class="ifb-col-actions"><button type="button" class="ifb-row-action" data-ifb-open-group="${esc(g.row_id)}" aria-label="ניהול משובי הקבוצה ${esc(g.school || '')}" title="ניהול משובי הקבוצה"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="15" rx="2"></rect><path d="M7 3v4M17 3v4M3 10h18"></path></svg></button></td>
           </tr>`).join('')}</tbody>
@@ -1810,6 +1833,7 @@ async function load(host, { force = false, focusTab = false } = {}) {
   }
   try {
     await ensureDefinitions();
+    if (ui.tab === 'staff') await ensureStaffDelivery(force);
     // Assignments before summary avoids a useless parallel race; summary no longer
     // re-runs the heavy assignments RPC on the server (see migration).
     const loaders = {
@@ -1889,6 +1913,7 @@ async function switchTab(host, key, { focusTab = false } = {}) {
   ui.templates.templateId = null;
   // Reuse in-memory year-scoped data; forced reload is reserved for entry/refresh/mutations.
   if (ui.programs.length && tabDataReady(key)) {
+    if (key === 'staff') await ensureStaffDelivery();
     paint(host, { focusTab });
     return;
   }
@@ -2093,6 +2118,8 @@ function resetYearScopedState() {
   ui.groupFacts.clear();
   ui.groups = null;
   ui.groupsYear = null;
+  ui.staffDelivery.clear();
+  ui.staffDeliveryLoaded = false;
   ui.instructorAssignments = null;
   ui.instructorAssignmentsYear = null;
   ui.summary = null;
@@ -2180,11 +2207,14 @@ function installActivityDateSync(host) {
         }
       } else {
         const groups = await fetchGroups(year);
+        if (tab === 'staff') await ensureStaffDelivery(true);
         if (controller.signal.aborted || !host.isConnected || year !== ui.year ||
             tab !== ui.tab || ui.groupRowId) return;
         if (groupsSyncFingerprint(groups) !== groupsSyncFingerprint(ui.groups)) {
           ui.groups = groups;
           ui.groupsYear = year;
+          paint(host);
+        } else if (tab === 'staff') {
           paint(host);
         }
       }
