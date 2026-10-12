@@ -2,6 +2,43 @@ import { israelClock } from './planner.mjs';
 
 /** Required From mailbox for every automatically generated staff feedback email. */
 export const STAFF_FEEDBACK_SENDER = 'office@think.org.il';
+/**
+ * Staff feedback uses its OWN Azure app registration. These are public app/tenant
+ * identifiers (not secrets), pinned to the approved Taasiyeda Dashboard app.
+ * Never fall back to shared MS_* used by unrelated services.
+ */
+export const STAFF_GRAPH_CLIENT_ID = 'b37ae8f7-0b03-4925-b0e4-f5cb8da95238';
+export const STAFF_GRAPH_TENANT_ID = 'bb3f0918-c67d-4fee-b2db-e6a8eab891d1';
+
+export function staffGraphCredentials(readEnv) {
+  const client = String(readEnv('FEEDBACK_STAFF_MS_CLIENT_ID') || '').trim().toLowerCase();
+  const tenant = String(readEnv('FEEDBACK_STAFF_MS_TENANT_ID') || '').trim().toLowerCase();
+  const secret = String(readEnv('FEEDBACK_STAFF_MS_CLIENT_SECRET') || '');
+  if (!secret || client !== STAFF_GRAPH_CLIENT_ID || tenant !== STAFF_GRAPH_TENANT_ID) {
+    throw new Error('staff_graph_credentials_not_ready');
+  }
+  return { client, tenant, secret };
+}
+
+/** Graph application tokens must belong to the pinned app AND carry Mail.Send. */
+export function staffGraphTokenHasMailSend(token) {
+  if (typeof token !== 'string') return false;
+  try {
+    const middle = token.split('.')[1];
+    if (!middle || !/^[A-Za-z0-9_-]+$/.test(middle)) return false;
+    const raw = middle.replace(/-/g, '+').replace(/_/g, '/');
+    const claims = JSON.parse(atob(raw.padEnd(Math.ceil(raw.length / 4) * 4, '=')));
+    const appId = String(claims.appid || claims.azp || '').toLowerCase();
+    const tenantId = String(claims.tid || '').toLowerCase();
+    return appId === STAFF_GRAPH_CLIENT_ID
+      && tenantId === STAFF_GRAPH_TENANT_ID
+      && Array.isArray(claims.roles)
+      && claims.roles.includes('Mail.Send');
+  } catch {
+    return false;
+  }
+}
+
 
 // No transport is constructed here: tests inject a fake, production injects Graph.
 export function deliveryWindow(action, now) {

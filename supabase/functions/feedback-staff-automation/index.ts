@@ -1,6 +1,6 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { previewEligibility, summarizeCandidatePreview, israelClock } from './planner.mjs';
-import { runAutomation, STAFF_FEEDBACK_SENDER } from './delivery.mjs';
+import { runAutomation, STAFF_FEEDBACK_SENDER, staffGraphCredentials, staffGraphTokenHasMailSend } from './delivery.mjs';
 
 // Default OFF. Both this environment flag and DB control require future approval.
 const reply = (data: unknown, code = 200) => new Response(JSON.stringify(data), {
@@ -43,10 +43,8 @@ Deno.serve(async (req: Request) => {
      const sender = STAFF_FEEDBACK_SENDER;
      const getAccessToken = async () => {
        if (cachedToken) return cachedToken;
-       const tenant = Deno.env.get('MS_TENANT_ID');
-       const client = Deno.env.get('MS_CLIENT_ID');
-       const secret = Deno.env.get('MS_CLIENT_SECRET');
-       if (!tenant || !client || !secret || !sender) throw new Error('graph_not_configured');
+       // Do not use the shared MS_* app credentials belonging to other systems.
+       const { tenant, client, secret } = staffGraphCredentials((name: string) => Deno.env.get(name));
        const response = await fetch(`https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`, {
          method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},
          body:new URLSearchParams({client_id:client,client_secret:secret,
@@ -56,6 +54,7 @@ Deno.serve(async (req: Request) => {
        if (!response.ok) throw new Error('graph_token_failed');
        const token = (await response.json()).access_token;
        if (!token) throw new Error('graph_token_missing');
+       if (!staffGraphTokenHasMailSend(String(token))) throw new Error('staff_graph_mail_send_not_granted');
        cachedToken = String(token);
        return cachedToken;
      };
