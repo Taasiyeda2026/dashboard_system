@@ -7,7 +7,6 @@ const NAV_ICONS = {
   'בית': '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 10.8 12 3l9 7.8v9.2a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   'פעילויות': '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 5h11M8 12h11M8 19h11M4.5 5h.01M4.5 12h.01M4.5 19h.01" stroke-width="1.9" stroke-linecap="round"/></svg>',
   'לוח שנה': '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" stroke-width="1.8"/><path d="M7 3v4M17 3v4M3 9h18" stroke-width="1.8" stroke-linecap="round"/></svg>',
-  'דיווחים': '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 20V10M12 20V4M19 20v-7" stroke-width="2" stroke-linecap="round"/></svg>',
   'משובים': '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM15 3v5h4M9 12h7M9 16h7" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>'
 };
 
