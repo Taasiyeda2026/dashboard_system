@@ -469,3 +469,4 @@ config.HOTFIX_VERSION = 'instructor-own-photo-consent-camera-20261011-v10-' + co
 config.HOTFIX_VERSION = 'proposal-portzot-customer-display-20261012-v1-' + config.HOTFIX_VERSION;
 config.HOTFIX_VERSION = 'unified-travel-time-cancellation-review-20261013-v1-' + config.HOTFIX_VERSION;
 config.HOTFIX_VERSION = 'feedback-staff-delivery-disabled-20261012-v1-' + config.HOTFIX_VERSION;
+config.HOTFIX_VERSION = '20261013-instructor-feedback-reports-v1-' + config.HOTFIX_VERSION;
