@@ -499,6 +499,7 @@ const screenLabels = {
   'instructor-dashboard': 'לוח בקרה',
   'instructor-work-schedule': 'סידור עבודה',
   'instructor-reports': 'דיווחים',
+  'instructor-feedback': 'משובים',
   'my-data': 'הפעילויות שלי',
   'instructor-completion-approvals': 'אישורי ביצוע',
   'instructor-guidelines': 'נהלים',
@@ -657,6 +658,7 @@ const screenLoaders = {
   'instructor-dashboard': () => import('./screens/instructor-portal/dashboard.js').then((m) => m.instructorDashboardScreen),
   'instructor-work-schedule': () => import('./screens/instructor-portal/work-schedule.js').then((m) => m.instructorWorkScheduleScreen),
   'instructor-reports': () => import('./screens/instructor-portal/reports.js').then((m) => m.instructorReportsScreen),
+  'instructor-feedback': () => import('./screens/instructor-portal/feedback.js').then((m) => m.instructorFeedbackScreen),
   'my-data': () => import('./screens/instructor-portal/my-activities.js').then((m) => m.instructorMyActivitiesScreen),
   'instructor-completion-approvals': () => import('./screens/instructor-completion-approvals.js').then((m) => m.instructorCompletionApprovalsScreen),
   'instructor-guidelines': () => import('./screens/instructor-guidelines.js').then((m) => m.instructorGuidelinesScreen),
@@ -722,7 +724,7 @@ function isActiveInstructorPilotUser(user = state?.user || {}) {
   return [user.emp_id, user.employee_id, user.user_id].map((v) => String(v || '').trim()).some((id) => ACTIVE_INSTRUCTOR_EMP_IDS.has(id));
 }
 function instructorOnlyRoutes() {
-  return ['instructor-dashboard', 'instructor-work-schedule', 'instructor-calendar', 'instructor-reports', 'my-data', 'instructor-completion-approvals', 'instructor-guidelines'];
+  return ['instructor-dashboard', 'instructor-work-schedule', 'instructor-calendar', 'instructor-reports', 'instructor-feedback', 'my-data', 'instructor-completion-approvals', 'instructor-guidelines'];
 }
 
 const INSTRUCTOR_MOBILE_NAV = [
@@ -730,6 +732,7 @@ const INSTRUCTOR_MOBILE_NAV = [
   { route: 'my-data', short: 'פעילויות', icon: '📋' },
   { route: 'instructor-calendar', short: 'לוח שנה', icon: '📅' },
   { route: 'instructor-reports', short: 'דיווחים', icon: '📊' },
+  { route: 'instructor-feedback', short: 'משובים', icon: '📝' },
   { route: null, short: 'נוכחות', icon: '✅', externalUrl: config.instructorAttendanceUrl },
   { route: null, short: 'מצגות', icon: '📂', externalUrlBlank: config.instructorPresentationsUrl }
 ];
@@ -1103,7 +1106,8 @@ function shell(content) {
     { route: 'instructor-calendar', label: 'לוח שנה' },
     { label: 'מערכת נוכחות', externalUrl: config.instructorAttendanceUrl },
     { label: 'מצגות', externalUrlBlank: config.instructorPresentationsUrl },
-    { route: 'instructor-reports', label: 'דיווחים' }
+    { route: 'instructor-reports', label: 'דיווחים' },
+    { route: 'instructor-feedback', label: 'משובים' }
   ];
   const regularNav = effectiveRoutes()
     .filter((route) =>
@@ -1330,6 +1334,7 @@ function screenDataCacheKey() {
  */
 const SCREEN_CACHE_TTL_MS = {
   dashboard: 5 * 60 * 1000,
+  'instructor-feedback': 0, // always read live release times; never cache personal tokens
   activities: 5 * 60 * 1000,
   week: 8 * 60 * 1000,
   month: 8 * 60 * 1000,
@@ -1342,6 +1347,7 @@ function screenCacheTtl() {
   return SCREEN_CACHE_TTL_MS[state.route] ?? DEFAULT_CACHE_TTL_MS;
 }
 const MEMORY_ONLY_CACHE_PREFIXES = [
+  'instructor-feedback',
   'activityDetail:',
   'operations:',
   'proposals-agreements',
