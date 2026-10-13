@@ -51,6 +51,19 @@ test('new and edit forms keep separate before/after segments and physical venue'
   assert.match(edit, /total_hours:\s+totalHours/);
 });
 
+test('new-report cancellation is immediately after hours and before travel, with no redundant note', () => {
+  const hours = create.indexOf("timesGrid.append(startPicker.wrap, endPicker.wrap, hoursDisplay, publicTransportToggle, kmField.wrap, publicTransportCostWrap)");
+  const afterHours = create.indexOf('hoursDisplay.after(cancellationRow, cancellationFields)');
+  const beforeTravel = create.indexOf('publicTransportToggle, kmField.wrap, publicTransportCostWrap', hours);
+  assert.ok(hours >= 0 && beforeTravel > hours && afterHours > beforeTravel, 'cancellation is inserted after the hours node before transport and kilometers');
+  assert.match(create, /cancellationFields\.append\(cancellationBeforeField\.wrap, cancellationAfterField\.wrap\)/);
+  assert.doesNotMatch(create, /ביטול הזמן ייבדק בנפרד; שעות הפעילות אינן משתנות\./);
+  assert.match(create, /cancellationFields\.hidden = !eligible \|\| !cancellationToggle\.checked/);
+  assert.match(create, /cancellationToggle\.addEventListener\('change', syncInlineCancellationUi\)/);
+  assert.match(create, /cancellation_before_minutes: cancellationToggle\.checked/);
+  assert.match(create, /total_hours: totalHours/);
+});
+
 test('SQL preserves course timestamps and gates cancellation behind manager approval', () => {
   assert.match(migration, /add column if not exists cancellation_before_minutes integer/);
   assert.match(migration, /add column if not exists cancellation_after_minutes integer/);
