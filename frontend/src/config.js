@@ -472,3 +472,4 @@ config.HOTFIX_VERSION = 'feedback-staff-delivery-disabled-20261012-v1-' + config
 config.HOTFIX_VERSION = '20261013-instructor-feedback-reports-v1-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = `attendance-course-clock-no-padding-20261013-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `feedback-all-recurring-auto-schedule-20261013-v1-${config.HOTFIX_VERSION}`;
