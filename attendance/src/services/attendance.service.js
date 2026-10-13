@@ -121,6 +121,8 @@ function normalizeRecordPayload(payload = {}) {
     } : {}),
     // Zoom and public-transport reports never carry reimbursable travel kilometres.
     ...((onlineLocation || usesPublicTransport) ? { roundtrip_km: 0 } : {}),
+    // Inline cancellation only belongs to a physical source activity.
+    ...(onlineLocation ? { cancellation_before_minutes: null, cancellation_after_minutes: null } : {}),
   };
 }
 
