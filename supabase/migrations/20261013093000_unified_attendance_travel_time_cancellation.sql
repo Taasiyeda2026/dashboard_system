@@ -556,7 +556,7 @@ $$;
 -- delegate here without ever creating payable hours automatically.
 create or replace function public.av2_reconcile_attendance_travel(
   p_source_id uuid, p_fingerprint text, p_outbound integer,
-  p_return integer, p_failure_code text
+  p_return integer, p_failure_code text default null
 )
 returns jsonb language sql security definer set search_path = public as $compat$
   select public.av2_reconcile_attendance_travel(
