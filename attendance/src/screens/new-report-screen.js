@@ -1420,10 +1420,10 @@ export function renderNewReportScreen(container, {
     });
     cancellationFields = document.createElement('div');
     cancellationFields.className = 'av2-report__time-cancellation av2-report__inline-cancellation';
-    const cancellationNote = document.createElement('small');
-    cancellationNote.textContent = 'ביטול הזמן ייבדק בנפרד; שעות הפעילות אינן משתנות.';
-    cancellationFields.append(cancellationBeforeField.wrap, cancellationAfterField.wrap, cancellationNote);
-    timesGrid.append(cancellationRow, cancellationFields);
+    cancellationFields.append(cancellationBeforeField.wrap, cancellationAfterField.wrap);
+    // Position cancellation immediately after total hours, before transport/km.
+    // The existing eligibility, validation and save flow remain unchanged.
+    hoursDisplay.after(cancellationRow, cancellationFields);
     cancellationToggle.addEventListener('change', syncInlineCancellationUi);
     syncInlineCancellationUi();
 
