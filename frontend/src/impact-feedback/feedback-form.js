@@ -278,6 +278,14 @@ export function mountFeedbackForm(container, payload, options = {}) {
         didClear = true;
       }
     }
+    // Visible questions are numbered continuously even when a follow-up is hidden.
+    let visibleIndex = 0;
+    for (const q of questions) {
+      const node = form.querySelector(`[data-question="${CSS.escape(q.id)}"]`);
+      if (!node || node.hidden) continue;
+      const number = node.querySelector('.ifb-q__num');
+      if (number) number.textContent = String(++visibleIndex);
+    }
     return didClear;
   }
 
