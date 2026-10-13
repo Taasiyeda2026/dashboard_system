@@ -2081,3 +2081,27 @@
   .ifb-admin.is-feedback-instructor .ifb-portal-table td { padding: 8px 0; }
   .ifb-admin.is-feedback-instructor .ifb-portal-table td:last-child { border-bottom: 0; }
 }
+
+/* Instructor-only survey progress: totals without access to respondents/answers. */
+.ifb-admin.is-feedback-instructor .ifb-portal-response-count {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.ifb-admin.is-feedback-instructor .ifb-portal-completed {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #167548;
+  font-weight: 700;
+}
+.ifb-admin.is-feedback-instructor .ifb-portal-completed > span {
+  display: inline-grid;
+  place-items: center;
+  width: 19px;
+  height: 19px;
+  border-radius: 50%;
+  color: #fff;
+  background: #17804c;
+  font-size: 12px;
+}
