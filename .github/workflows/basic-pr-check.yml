@@ -135,7 +135,9 @@ jobs:
               tests/attendance-time-cancellation-online-training.test.mjs \
               tests/attendance-travel-compensation.test.mjs \
               tests/attendance-inline-cancellation.test.mjs \
-              tests/attendance-unified-travel-review.test.mjs
+              tests/attendance-unified-travel-review.test.mjs \
+              tests/attendance-monthly-report-summary.test.mjs \
+              tests/attendance-core-flow-hardening.test.mjs
           else
             echo "No attendance training-picker contract files changed; focused tests skipped."
           fi
