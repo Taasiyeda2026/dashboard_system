@@ -4,6 +4,7 @@ import { dsPageHeader, dsScreenStack } from '../shared/layout.js';
 import { copyText, openQrProjection } from '../../impact-feedback/feedback-share.js';
 import { publicFeedbackUrl } from '../../impact-feedback/feedback-domain.js';
 import './feedback.css';
+import '../../impact-feedback/impact-feedback-admin.css';
 
 const YEAR='school_2027';
 const EMPTY={student:[],personal:[]};
@@ -84,8 +85,9 @@ export function instructorFeedbackContent(data=EMPTY) {
 export const instructorFeedbackScreen={
   load: async()=>fetchInstructorPortalFeedback(),
   render(data) { return dsScreenStack(instructorFeedbackContent(data)); },
-  bind({root}) {
-    let current=EMPTY;
+  bind({root,data}) {
+    let current=data || EMPTY;
+    const cleanup=new AbortController();
     let running=false;
     let tab='students';
     const host=()=>root.querySelector('.instructor-feedback-page');
@@ -133,12 +135,16 @@ export const instructorFeedbackScreen={
         await openQrProjection({audience:'student',stage:entry.stage,public_token:entry.token},{
           programTitle:entry.course,schoolName:entry.school,grade:entry.grade});
       }
-    });
+    },{signal:cleanup.signal});
     const timer=setInterval(()=>{
-      if(!root.isConnected){clearInterval(timer);return;}
+      if(!root.isConnected || !host()){
+        clearInterval(timer);
+        cleanup.abort();
+        return;
+      }
       refresh();
     },60000);
-    // populate the delegated click backing data (and revalidate time gates).
+    // Re-check before the first tap and again each minute across 09:15.
     refresh();
   }
 };
