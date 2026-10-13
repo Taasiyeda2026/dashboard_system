@@ -110,7 +110,7 @@ test('2 manager record edit remains one local draft and one atomic save', () => 
 test('3 hours calculation keeps course buffer and workshop exact window', () => {
   assert.deepEqual(
     attendanceTimesFromActivity({ start_time: '08:30', end_time: '10:00' }, 'קורס'),
-    { startTime: '08:15', endTime: '10:15' }
+    { startTime: '08:30', endTime: '10:00' }
   );
   assert.deepEqual(
     attendanceTimesFromActivity({ start_time: '08:30', end_time: '10:00' }, 'סדנה'),

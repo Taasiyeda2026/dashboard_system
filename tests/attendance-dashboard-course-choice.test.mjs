@@ -45,7 +45,7 @@ test('all meetings resolve automatically, preserving each source metadata and pa
   assert.equal(resolved.activity.row_id, null);
   assert.equal(resolved.activity.meeting_no, null);
   assert.deepEqual(resolved.activity.__dashboardCourseSources, rows);
-  assert.equal(resolved.activity.__dashboardCourseWork.totalHours, 10);
+  assert.equal(resolved.activity.__dashboardCourseWork.totalHours, 8);
   assert.equal(resolved.activity.authority_id, 5);
 });
 test('legacy row hints locate a whole business activity, never discard other authorized sources', () => {
@@ -58,6 +58,26 @@ test('simultaneous classes share instructional work without losing any source li
   assert.equal(resolved.status, 'resolved');
   assert.equal(resolved.candidateRows.length, 4);
   assert.equal(resolved.activity.__dashboardCourseWork.totalHours, 2);
+});
+test('course clock times are never padded, while 45/90-minute paid hours remain distinct', () => {
+  const cases = [
+    ['10:00', '10:45', 1],
+    ['10:00', '11:30', 2],
+    ['10:00', '12:00', 2],
+    ['10:00', '11:25', 1.42],
+  ];
+  for (const [start_time, end_time, paidHours] of cases) {
+    const resolved = resolveDashboardCourseChoice(buildDashboardCourseOptions([{ ...base, start_time, end_time }])[0], [{ ...base, start_time, end_time }]);
+    assert.equal(resolved.activity.__dashboardCourseWork.startTime, start_time);
+    assert.equal(resolved.activity.__dashboardCourseWork.endTime, end_time);
+    assert.equal(resolved.activity.__dashboardCourseWork.totalHours, paidHours);
+  }
+  const adjacent = [{ ...base, row_id: 'first', start_time: '10:00', end_time: '11:30' },
+    { ...base, row_id: 'second', start_time: '11:30', end_time: '13:00' }];
+  const grouped = resolveDashboardCourseChoice(buildDashboardCourseOptions(adjacent)[0], adjacent).activity.__dashboardCourseWork;
+  assert.equal(grouped.startTime, '10:00');
+  assert.equal(grouped.endTime, '13:00');
+  assert.equal(grouped.totalHours, 4);
 });
 test('resolution uses the fresh snapshot, including one-time substitute ownership', () => {
   const original = { ...base, resolved_emp_id: 1 };
@@ -168,8 +188,9 @@ test('real grouped selection saves exact dashboard row, meeting, school, authori
   assert.equal(saved[0].meeting_no, 8);
   assert.equal(saved[0].school_id, 101);
   assert.equal(saved[0].authority_id, 5);
-  assert.equal(saved[0].start_time, '10:45');
-  assert.equal(saved[0].end_time, '12:45');
+  assert.equal(saved[0].start_time, '11:00');
+  assert.equal(saved[0].end_time, '12:30');
+  assert.equal(saved[0].total_hours, 2);
 });
 test('real date change clears old choice and course extended search never queries the global catalog', async () => {
   await render([base]); options()[0].click(); await flush();
@@ -205,11 +226,11 @@ test('Alex-shaped three adjacent meetings save all work without ambiguity or pad
   const rows = [8,10,12].map((start,i) => ({...base,row_id:`school_2027_0${59-i}`,id:59-i,
     single_school_id:2648,meeting_no:i+2,start_time:`${String(start).padStart(2,'0')}:00`,end_time:`${start+2}:00`}));
   await render(rows); assert.equal(options().length,1); options()[0].click(); await flush();
-  assert.equal(document.querySelector('.av2-report__hours-value').textContent,'7:30');
+  assert.equal(document.querySelector('.av2-report__hours-value').textContent,'6:00');
   document.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); await flush();
   assert.equal(saved.length,1);
-  assert.equal(saved[0].total_hours,7.5);
-  assert.equal(saved[0].start_time,'07:45'); assert.equal(saved[0].end_time,'14:15');
+  assert.equal(saved[0].total_hours,6);
+  assert.equal(saved[0].start_time,'08:00'); assert.equal(saved[0].end_time,'14:00');
   assert.equal(saved[0].activity_row_id,null); assert.equal(saved[0].meeting_no,null);
   assert.deepEqual(saved[0].course_business_identity,['ביומימיקרי',['id','2648']]);
 });

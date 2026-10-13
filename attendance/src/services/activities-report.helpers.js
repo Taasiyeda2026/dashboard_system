@@ -242,9 +242,12 @@ export function buildDashboardCourseOptions(rows = []) {
   return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label, 'he'));
 }
 
-/** Paid work is calculated per distinct teaching session. Simultaneous classes
- * share instructional time; adjacent sessions retain their own 45-minute bonus.
- * Preparation intervals may overlap, but their earned minutes must not be lost.
+/**
+ * Preserve the dashboard's scheduled course times as reported start/end.
+ * Work/payroll hours are separate: an exact 45-minute lesson earns 60 minutes,
+ * an exact 90-minute lesson earns 120 minutes; other scheduled durations
+ * are not lengthened. Overlapping classes are counted once, while distinct
+ * adjacent sessions each retain their own eligible paid duration.
  */
 export function dashboardCourseWork(rows = []) {
   const intervals = rows.map(row => [parseClockMinutes(row.start_time), parseClockMinutes(row.end_time)])
@@ -257,14 +260,16 @@ export function dashboardCourseWork(rows = []) {
     if (previous && start < previous[1]) previous[1] = Math.max(previous[1], end);
     else sessions.push([start, end]);
   }
-  const paid = sessions.map(([start, end]) => {
-    const blocks = Math.floor((end - start) / 45);
-    return [Math.max(0, start - Math.ceil(blocks / 2) * 15), Math.min(1439, end + Math.floor(blocks / 2) * 15)];
-  });
-  const paidMinutes = paid.reduce((sum, [start, end]) => sum + end - start, 0);
-  return { startTime: formatClockMinutes(Math.min(...paid.map(row => row[0]))),
-    endTime: formatClockMinutes(Math.max(...paid.map(row => row[1]))),
-    paidMinutes, totalHours: Math.round(paidMinutes / 60 * 100) / 100 };
+  const paidMinutes = sessions.reduce((sum, [start, end]) => {
+    const scheduledMinutes = end - start;
+    return sum + (scheduledMinutes === 45 ? 60 : scheduledMinutes === 90 ? 120 : scheduledMinutes);
+  }, 0);
+  return {
+    startTime: formatClockMinutes(Math.min(...sessions.map(row => row[0]))),
+    endTime: formatClockMinutes(Math.max(...sessions.map(row => row[1]))),
+    paidMinutes,
+    totalHours: Math.round(paidMinutes / 60 * 100) / 100,
+  };
 }
 
 /** Resolve a business activity to ALL sources in a fresh authorized date snapshot.
@@ -399,11 +404,8 @@ function formatClockMinutes(totalMinutes) {
   return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
-/**
- * Attendance work window for dashboard-linked course/workshop activities.
- * Workshop: exact dashboard hours.
- * Course: add 15 minutes of paid work for every full 45 dashboard minutes.
- * Course extensions are balanced around the dashboard meeting in 15-minute blocks.
+/** Course/workshop attendance uses the exact dashboard clock times.
+ * Paid hours, when different, are held in __dashboardCourseWork.totalHours.
  */
 export function attendanceTimesFromActivity(activity, reportType = '') {
   if (activity?.__dashboardCourseWork) return activity.__dashboardCourseWork;
@@ -412,22 +414,8 @@ export function attendanceTimesFromActivity(activity, reportType = '') {
   if (startMinutes == null || endMinutes == null || endMinutes <= startMinutes) {
     return { startTime: '', endTime: '' };
   }
-
-  const normalizedType = normalizeAttendanceReportType(reportType);
-  let extraMinutes = 0;
-
-  let beforeMinutes = 0;
-  let afterMinutes = 0;
-
-  if (normalizedType === 'קורס') {
-    const dashboardMinutes = endMinutes - startMinutes;
-    const fortyFiveMinuteBlocks = Math.floor(dashboardMinutes / 45);
-    beforeMinutes = Math.ceil(fortyFiveMinuteBlocks / 2) * 15;
-    afterMinutes = Math.floor(fortyFiveMinuteBlocks / 2) * 15;
-  }
-
   return {
-    startTime: formatClockMinutes(startMinutes - beforeMinutes),
-    endTime: formatClockMinutes(endMinutes + afterMinutes),
+    startTime: formatClockMinutes(startMinutes),
+    endTime: formatClockMinutes(endMinutes),
   };
 }

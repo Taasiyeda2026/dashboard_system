@@ -40,18 +40,18 @@ test('Attendance report type list treats Zoom as training mode, not an activity 
   assert.ok(OPEN_FIELD_REPORT_TYPES.includes('תפעול'));
 });
 
-test('Workshop uses dashboard hours while course adds 15 minutes per full 45-minute block', () => {
+test('Workshop and course preserve dashboard start/end; course paid hours are separate', () => {
   assert.deepEqual(
     attendanceTimesFromActivity({ start_time: '08:30', end_time: '10:00' }, 'סדנה'),
     { startTime: '08:30', endTime: '10:00' },
   );
   assert.deepEqual(
     attendanceTimesFromActivity({ start_time: '08:30', end_time: '10:00' }, 'קורס'),
-    { startTime: '08:15', endTime: '10:15' },
+    { startTime: '08:30', endTime: '10:00' },
   );
   assert.deepEqual(
     attendanceTimesFromActivity({ start_time: '12:00:00', end_time: '13:00:00' }, 'קורס'),
-    { startTime: '11:45', endTime: '13:00' },
+    { startTime: '12:00', endTime: '13:00' },
   );
   assert.deepEqual(
     attendanceTimesFromActivity({ start_time: '', end_time: '13:00' }, 'קורס'),
@@ -86,7 +86,7 @@ test('Course reporting uses the selected date dashboard row and does not add a c
   assert.doesNotMatch(courseDashboardRuntimeSource, /ambiguousAtSchool|כיתה/);
   assert.match(searchableSelectSource, /wrap\.addEventListener\('av2:set-options'/);
   assert.doesNotMatch(courseDashboardRuntimeSource, /createSelectField|createInputField/);
-  assert.match(indexSource, /course-dashboard-choice-runtime\.js\?v=118/);
+  assert.match(indexSource, /course-dashboard-choice-runtime\.js\?v=119/);
 });
 
 test('Legacy Zoom data remains normalized while the current UI removes Zoom from activity-type choices', () => {
@@ -102,11 +102,11 @@ test('Legacy Zoom data remains normalized while the current UI removes Zoom from
   assert.match(trainingRuntimeSource, /const ZOOM_LABEL = 'זום'/);
   assert.match(trainingRuntimeSource, /option\.value === 'online'/);
   assert.match(trainingRuntimeSource, /removeZoomAsActivityType/);
-  assert.match(indexSource, /training-report-ui-runtime\.js\?v=118/);
+  assert.match(indexSource, /training-report-ui-runtime\.js\?v=119/);
 });
 
 test('Attendance cache is synchronized for the training and dashboard-choice release', () => {
-  assert.match(swSource, /const CACHE_VERSION = 118;/);
-  assert.match(indexSource, /\?v=118/);
+  assert.match(swSource, /const CACHE_VERSION = 119;/);
+  assert.match(indexSource, /\?v=119/);
   assert.doesNotMatch(indexSource, /\?v=106/);
 });
