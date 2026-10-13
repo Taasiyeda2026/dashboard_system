@@ -60,6 +60,7 @@ import {
   fetchStaffDeliveryStatus,
   fetchInstructorAssignments,
   fetchInstructorPortalItems,
+  downloadSavedPaperPdf,
   fetchMetrics,
   fetchPrograms,
   openCampaign,
@@ -2292,6 +2293,16 @@ function installActivityDateSync(host) {
  * buttons, tab styling, tables, QR projection and public questionnaire.
  * The restricted RPC is the sole data source. Never fetch admin datasets here.
  */
+/** Always format scheduled dates in Israel time; never expose raw timestamps. */
+function formatInstructorPortalDate(value) {
+  if (!value) return '—';
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(String(value))
+    ? new Date(value + 'T12:00:00+03:00') : new Date(value);
+  return Number.isFinite(date.getTime())
+    ? date.toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'Asia/Jerusalem' })
+    : '—';
+}
+
 function instructorFeedbackView(data, activeTab) {
   const tabs = [
     { key: 'students', label: 'משובי תלמידים' },
@@ -2305,35 +2316,48 @@ function instructorFeedbackView(data, activeTab) {
   const studentRows = students.map((item) => `
     <tr>
       <td data-label="משוב">${esc('משוב ' + stageName(item.stage))}</td>
+      <td data-label="מועד ביצוע" class="ifb-portal-due">${item.due_date ? `<time datetime="${esc(item.due_date)}">${esc(formatInstructorPortalDate(item.due_date))}</time>` : '—'}</td>
       <td data-label="בית ספר">${esc(item.school_name || '—')}</td>
       <td data-label="רשות">${esc(item.authority_name || '—')}</td>
       <td data-label="כיתה">${esc(item.class_name || '—')}</td>
       <td data-label="קורס">${esc(item.program_title || '—')}</td>
       <td data-label="העתקת קישור"><button class="ifb-btn" type="button" data-ifb-instr-copy="${esc(item.campaign_id)}">העתק קישור</button></td>
-      <td data-label="הצגת QR"><button class="ifb-btn" type="button" data-ifb-instr-qr="${esc(item.campaign_id)}">הצגת QR</button></td>
+      <td data-label="הצגת QR"><button class="ifb-btn ifb-btn--sm" type="button" data-ifb-instr-qr="${esc(item.campaign_id)}">הצגת QR</button></td>
+      <td data-label="PDF" class="ifb-portal-pdf">
+        ${Array.isArray(item.paper_pdfs) && item.paper_pdfs.length
+          ? item.paper_pdfs.map((file) => `<button type="button" class="ifb-pdf-action"
+              data-ifb-instr-pdf="${esc(item.campaign_id)}" data-ifb-instr-pdf-lang="${esc(file.language)}"
+              title="הורדת משוב PDF – ${file.language === 'ar' ? 'ערבית' : 'עברית'}"
+              aria-label="הורדת משוב PDF – ${file.language === 'ar' ? 'ערבית' : 'עברית'}">
+              <span class="ifb-pdf-action__icon" aria-hidden="true">PDF</span><span>${file.language === 'ar' ? 'ערבית' : 'עברית'}</span>
+            </button>`).join('')
+          : '—'}
+      </td>
     </tr>`).join('');
   const personalRows = personal.map((item) => {
     const url = item.token
       ? campaignLink({ audience: 'instructor', recipient: { token: item.token } })
       : '';
-    const status = item.completed ? 'הושלם' : (url ? 'ממתין למילוי' : 'לא זמין למילוי');
+    const expired = !item.completed && item.expires_at && new Date(item.expires_at).getTime() <= Date.now();
+    const status = item.completed ? 'הושלם' : expired ? 'פג תוקף' : (url ? 'ממתין למילוי' : 'לא זמין למילוי');
     return `<tr>
       <td data-label="משוב">${esc('משוב ' + personalName(item.stage))}</td>
       <td data-label="קורס">${esc(item.program_title || '—')}</td>
-      <td data-label="סטטוס">${esc(status)}</td>
-      <td data-label="פעולה">${url ? `<a class="ifb-btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer">מילוי / המשך מילוי</a>` : '—'}</td>
+      <td data-label="סטטוס" class="ifb-portal-status">${esc(status)}</td>
+      <td data-label="לביצוע עד" class="ifb-portal-due">${item.expires_at ? `<time datetime="${esc(item.expires_at)}">${esc(formatInstructorPortalDate(item.expires_at))}</time>` : '—'}</td>
+      <td data-label="פעולה">${url ? `<a class="ifb-btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer">מילוי</a>` : '—'}</td>
     </tr>`;
   }).join('');
 
   const contents = activeTab === 'students'
     ? students.length
-      ? `<div class="ifb-table-wrap"><table class="ifb-table"><thead><tr>
-          <th>משוב</th><th>בית ספר</th><th>רשות</th><th>כיתה</th><th>קורס</th><th>העתקת קישור</th><th>הצגת QR</th>
+      ? `<div class="ifb-table-wrap ifb-portal-table-wrap"><table class="ifb-table ifb-portal-table"><thead><tr>
+          <th>משוב</th><th>מועד ביצוע</th><th>בית ספר</th><th>רשות</th><th>כיתה</th><th>קורס</th><th>העתקת קישור</th><th>הצגת QR</th><th>PDF</th>
         </tr></thead><tbody>${studentRows}</tbody></table></div>`
       : emptyHtml('אין כרגע משובי תלמידים זמינים לפעילויות שלך.')
     : personal.length
-      ? `<div class="ifb-table-wrap"><table class="ifb-table"><thead><tr>
-          <th>משוב</th><th>קורס</th><th>סטטוס</th><th>פעולה</th>
+      ? `<div class="ifb-table-wrap ifb-portal-table-wrap"><table class="ifb-table ifb-portal-table"><thead><tr>
+          <th>משוב</th><th>קורס</th><th>סטטוס</th><th>לביצוע עד</th><th>פעולה</th>
         </tr></thead><tbody>${personalRows}</tbody></table></div>`
       : emptyHtml('אין כרגע משובים אישיים שנפתחו עבורך.');
   return `
@@ -2348,7 +2372,7 @@ function instructorFeedbackView(data, activeTab) {
         aria-controls="ifb-panel">${tab.label}</button>`).join('')}
     </nav>
     <div id="ifb-panel" class="ifb-view" role="tabpanel">
-      ${sectionHtml(activeTab === 'students' ? 'משובי תלמידים' : 'המשובים שלי', contents)}
+      <div class="ifb-portal-content">${contents}</div>
     </div>`;
 }
 
@@ -2381,6 +2405,21 @@ function mountInstructorFeedback(host) {
     }
     if (event.target.closest('[data-ifb-instr-refresh], [data-ifb-retry]')) {
       await refresh();
+      return;
+    }
+    const pdf = event.target.closest('[data-ifb-instr-pdf]');
+    if (pdf) {
+      const item = items.students.find((row) => row.campaign_id === pdf.dataset.ifbInstrPdf);
+      const file = item?.paper_pdfs?.find((record) => record.language === pdf.dataset.ifbInstrPdfLang);
+      if (!file || pdf.disabled) return;
+      pdf.disabled = true;
+      try {
+        await downloadSavedPaperPdf(file);
+      } catch (error) {
+        showToast(translateFeedbackError(error), 'error', 5000);
+      } finally {
+        pdf.disabled = false;
+      }
       return;
     }
     const copy = event.target.closest('[data-ifb-instr-copy]');
