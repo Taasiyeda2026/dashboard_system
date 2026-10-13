@@ -65,6 +65,18 @@ test('Israel hours work both in summer and winter timezone',()=>{
  assert.deepEqual(israelClock(new Date('2026-12-10T06:00:00Z')),{day:'2026-12-10',hour:8});
 });
 
+test('20 Nov final safeguard needs course completion, not administrative open/closed status',()=>{
+  const migration=readFileSync(new URL('../supabase/migrations/20261013061500_staff_final_course_completion_from_20261120.sql',import.meta.url),'utf8');
+  assert.match(migration,/e\.stage='final' and \(p_now at time zone 'Asia\/Jerusalem'\)::date < date '2026-11-20'/);
+  assert.match(migration,/c\.active_scheduled>=c\.expected_count/);
+  assert.match(migration,/s\.end_date is not null/);
+  assert.match(migration,/\(s\.end_date \+ 1\)::timestamp at time zone 'Asia\/Jerusalem'/);
+  assert.match(migration,/private\.feedback_is_course_activity\(to_jsonb\(a\)\)/);
+  assert.doesNotMatch(migration,/a\.status\s*(=|<>|in\s*\()/i);
+  assert.doesNotMatch(migration,/cron\.(schedule|alter_job)/);
+  assert.doesNotMatch(migration,/feedback_staff_auto_control\s+set\s+enabled/i);
+});
+
 test('server preview is service-only, derives recipient from selected contact and uses official dates',()=>{
  assert.match(sql,/a\.activity_season = 'school_2027'/);
  assert.match(sql,/a\.start_date between date '2026-09-01' and date '2027-06-30'/);
