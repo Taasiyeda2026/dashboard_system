@@ -82,12 +82,14 @@ test('server preview is service-only, derives recipient from selected contact an
  assert.doesNotMatch(sql,/net\.http_post\(/);
 });
 
-test('preview remains read-only and delivery is separately disabled by default',()=>{
+test('preview is read-only and production delivery remains protected by authentication and DB cutoff',()=>{
  assert.match(edge,/const action = body\?\.action \|\| 'preview'/);
  assert.match(edge,/FEEDBACK_STAFF_DRY_RUN_SECRET/);
  assert.match(edge,/feedback_staff_auto_candidates/);
  assert.match(edge,/mail_sent:0,outbox_written:0/);
- assert.match(edge,/FEEDBACK_STAFF_DELIVERY_ENABLED'\) === 'true'/);
+  assert.match(edge,/STAFF_SCHEDULER_SECRET_SHA256/);
+  assert.match(edge,/cronAuthorized = action !== 'preview'/);
+  assert.match(edge,/enabled:true,rpc/);
  const preview = edge.slice(edge.indexOf('const response = await fetch(`${url}/rest/v1/rpc/feedback_staff_auto_candidates`'));
  assert.doesNotMatch(preview,/sendMail|feedback_staff_auto_prepare|feedback_staff_auto_claim/);
 });
