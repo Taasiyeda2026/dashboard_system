@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { deliveryWindow, staffMail, deliverClaim, runAutomation, STAFF_FEEDBACK_SENDER, STAFF_GRAPH_CLIENT_ID, STAFF_GRAPH_TENANT_ID, staffGraphCredentials, staffGraphTokenHasMailSend } from '../supabase/functions/feedback-staff-automation/delivery.mjs';
 import { staffDeliveryStatus, staffStatusIndex } from '../frontend/src/impact-feedback/staff-delivery-status.js';
+import { STAFF_SIGNATURE_CONTENT_ID, STAFF_SIGNATURE_PNG_BASE64, STAFF_SIGNATURE_WIDTH, STAFF_SIGNATURE_HEIGHT } from '../supabase/functions/feedback-staff-automation/staff-signature.mjs';
 
 const item = { id:'id',claim_token:'claim',token:'a'.repeat(43),stage:'pre',
   school:'בית ספר אלון',contact_name:'רונית כהן',program_title:'פורצות דרך',recipient_email:'selected@school.test' };
@@ -106,6 +107,31 @@ test('approved Hebrew opening and closing emails use the selected contact name a
   assert.throws(()=>staffMail({...item,token:'invalid'},baseUrl));
   assert.throws(()=>staffMail({...item,stage:'invalid'},baseUrl));
   assert.throws(()=>staffMail({...item,program_title:''},baseUrl));
+});
+
+test('supplied Taasiyeda signature is a real small PNG attached inline by CID in both mail types', () => {
+  const bytes=Buffer.from(STAFF_SIGNATURE_PNG_BASE64,'base64');
+  assert.ok(bytes.length > 2000 && bytes.length < 25000);
+  assert.deepEqual(bytes.subarray(0,8),Buffer.from('89504e470d0a1a0a','hex'));
+  assert.equal(bytes.readUInt32BE(16),159);
+  assert.equal(bytes.readUInt32BE(20),51);
+  assert.equal(STAFF_SIGNATURE_WIDTH,159);
+  assert.equal(STAFF_SIGNATURE_HEIGHT,51);
+  for(const stage of ['pre','final']) {
+    const message=staffMail({...item,stage},baseUrl);
+    assert.match(message.body.content,new RegExp('src="cid:'+STAFF_SIGNATURE_CONTENT_ID+'"'));
+    assert.match(message.body.content,/alt="צוות תעשיידע"/);
+    assert.equal(message.body.content.includes('<p><strong>צוות תעשיידע</strong></p>'),false);
+    assert.doesNotMatch(message.body.content,/src="https?:[^"]+\\.(png|jpg|gif)/i);
+    assert.deepEqual(message.attachments,[{
+      '@odata.type':'#microsoft.graph.fileAttachment',
+      name:'taasiyeda-signature.png',
+      contentType:'image/png',
+      contentId:STAFF_SIGNATURE_CONTENT_ID,
+      isInline:true,
+      contentBytes:STAFF_SIGNATURE_PNG_BASE64
+    }]);
+  }
 });
 
 test('personal name and program are safely escaped; blank names do not leak placeholders',()=>{

@@ -1,4 +1,5 @@
 import { israelClock } from './planner.mjs';
+import { STAFF_SIGNATURE_CONTENT_ID, STAFF_SIGNATURE_PNG_BASE64, STAFF_SIGNATURE_WIDTH, STAFF_SIGNATURE_HEIGHT } from './staff-signature.mjs';
 
 /** Required From mailbox for every automatically generated staff feedback email. */
 export const STAFF_FEEDBACK_SENDER = 'office@think.org.il';
@@ -90,11 +91,19 @@ export function staffMail(item, baseUrl) {
         ...paragraphs.map((paragraph) => `<p>${paragraph}</p>`),
         `<p><strong>למילוי המשוב האישי:</strong><br><a href="${escapeMailHtml(url.href)}">${escapeMailHtml(url.href)}</a></p>`,
         '<p>תודה רבה על שיתוף הפעולה,</p>',
-        '<p><strong>צוות תעשיידע</strong></p>',
+        '<p style="margin:8px 0 0;text-align:right"><img src="cid:' + STAFF_SIGNATURE_CONTENT_ID + '" alt="צוות תעשיידע" width="' + STAFF_SIGNATURE_WIDTH + '" height="' + STAFF_SIGNATURE_HEIGHT + '" style="display:inline-block;width:159px;height:51px;border:0;outline:none;text-decoration:none"></p>',
         '</div>'
       ].join('\n')
     },
-    toRecipients: [{ emailAddress: { address: item.recipient_email } }]
+    toRecipients: [{ emailAddress: { address: item.recipient_email } }],
+    attachments: [{
+      '@odata.type': '#microsoft.graph.fileAttachment',
+      name: 'taasiyeda-signature.png',
+      contentType: 'image/png',
+      contentId: STAFF_SIGNATURE_CONTENT_ID,
+      isInline: true,
+      contentBytes: STAFF_SIGNATURE_PNG_BASE64
+    }]
   };
 }
 
