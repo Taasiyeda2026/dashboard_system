@@ -8,6 +8,7 @@ import { handleSupabaseSessionFailure } from '../session-security-runtime.js';
 import { hasPermission } from '../permission-policy.js';
 import { ProposalEditorController } from '../proposal-editor-controller.js';
 import { ensureFeature } from '../feature-loaders.js';
+import { externalClientDocumentsHtml, mountClientExternalDocuments } from '../client-file-external-documents.js';
 
 export { countPendingApprovedProposals, isProposalApprovedPendingSend };
 
@@ -5899,6 +5900,7 @@ function selectedClientFileHtml(file, state = {}) {
       <hr>
       <details class="ds-client-archive"><summary>ארכיון הצעות מחיר — ${archive.length}</summary><div>${archive.length ? archive.map((row) => proposalCompactCardHtml(row, { archived: true, canManage })).join('') : '<p class="ds-client-empty">הארכיון ריק</p>'}</div></details>
     </aside>
+    ${externalClientDocumentsHtml(canManage)}
   </div>`;
 }
 
@@ -6932,6 +6934,7 @@ export const proposalsAgreementsScreen = {
           clientWorkspace.innerHTML = file
             ? `${selectedClientFileHtml(file, state)}${drawerHtml(null, activityNameOptions, state)}`
             : clientFileLandingHtml({ ...data, contactOptions }, state);
+          if (file) void mountClientExternalDocuments(clientWorkspace, file, { canManage, signal });
         }
         return;
       }
@@ -6961,6 +6964,7 @@ export const proposalsAgreementsScreen = {
       clientWorkspace.innerHTML = file
         ? `${selectedClientFileHtml(file, state)}${drawerHtml(null, activityNameOptions, state)}`
         : clientFileLandingHtml({ ...data, contactOptions }, state);
+      if (file) void mountClientExternalDocuments(clientWorkspace, file, { canManage, signal });
     };
     const resolveProposalReturnTo = (explicitReturnTo = '', clientKeyHint = '') => {
       const requested = text(explicitReturnTo);
