@@ -18,7 +18,7 @@ import { openAttendanceCalendarDay } from '../components/calendar-day-drawer.js'
 import { loadAttendanceCalendarContext } from '../services/calendar.service.js';
 import { getMonthRecords, calcMonthSummary, updateRecord, deleteRecord,
          getMonthApproval, getActivityTypes, getOperationOptions, deleteAttachmentRecord, sourceAttendanceRecords,
-         generatedCancellationFor, reportTravelTime,
+         generatedCancellationFor, reportTravelTime, reconcileTravelCompensation,
          getMonthDashboardValidation } from '../services/attendance.service.js';
 import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel } from '../services/month-gate.service.js';
 import { calcHours, ONLINE_REPORT_TYPE, OPERATIONS_REPORT_TYPE } from '../services/activities.service.js';
@@ -26,6 +26,11 @@ import { deleteAttachment, getSignedUrl } from '../services/storage.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
 import { isBaseTrainingRecord, reportPresentation } from '../components/report-summary-row.js';
 import { isZoomLocationReport } from '../services/attendance-location-policy.js';
+import {
+  canReportInlineCancellation,
+  parseCancellationDuration,
+  formatCancellationDuration,
+} from '../services/cancellation-segments.js';
 import { buildMonthlySummaryItems, buildDailyTotalHoursByRecord, formatDurationHours } from '../components/monthly-report-summary.js';
 
 const COURSE_REPORT_TYPE = 'קורס';
@@ -724,9 +729,45 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
   hoursDisplay.append(hoursLabel, hoursValue);
   form.append(startTimeField.wrap, endTimeField.wrap, hoursDisplay);
 
-  const kmField  = createInputField({ id: 'edit-km',       label: 'ק"מ הלוך-חזור', type: 'number', value: String(record.roundtrip_km || 0), attrs: { min: '0', step: '1' } });
-  const expField = createInputField({ id: 'edit-expenses', label: 'הוצאות (₪)',    type: 'number', value: String(record.expenses || 0),      attrs: { min: '0', step: '0.01' } });
-  form.append(kmField.wrap, expField.wrap);
+  const kmField  = createInputField({ id: 'edit-km', label: 'ק"מ הלוך-חזור', type: 'number', value: String(record.roundtrip_km || 0), attrs: { min: '0', step: '1' } });
+  const expField = createInputField({ id: 'edit-expenses', label: 'הוצאות (₪)', type: 'number', value: String(record.expenses || 0), attrs: { min: '0', step: '0.01' } });
+  const publicTransportWrap = document.createElement('label');
+  publicTransportWrap.className = 'av2-report__transport-toggle';
+  const publicTransportToggle = document.createElement('input');
+  publicTransportToggle.id = 'edit-public-transport';
+  publicTransportToggle.type = 'checkbox';
+  publicTransportToggle.checked = record.public_transport === true;
+  publicTransportWrap.append(publicTransportToggle, document.createTextNode('תחבורה ציבורית'));
+  const publicTransportCostField = createInputField({
+    id: 'edit-public-transport-cost', label: 'עלות תחבורה ציבורית (₪)',
+    type: 'number', value: String(record.public_transport_cost || 0),
+    attrs: { min: '0', step: '0.01' },
+  });
+  form.append(publicTransportWrap, kmField.wrap, publicTransportCostField.wrap, expField.wrap);
+  const cancellationWrap = document.createElement('label');
+  cancellationWrap.className = 'av2-report__transport-toggle av2-report__inline-cancellation-toggle';
+  const cancellationToggle = document.createElement('input');
+  cancellationToggle.type = 'checkbox';
+  cancellationToggle.id = 'edit-has-cancellation';
+  cancellationToggle.checked = record.cancellation_before_minutes != null
+    && record.cancellation_after_minutes != null;
+  cancellationWrap.append(cancellationToggle, document.createTextNode('הוספת ביטול זמן'));
+  const beforeCancellationField = createInputField({
+    id: 'edit-cancellation-before', label: 'ביטול זמן לפני הפעילות (שעות:דקות)',
+    value: formatCancellationDuration(record.cancellation_before_minutes),
+    placeholder: '0:00',
+  });
+  const afterCancellationField = createInputField({
+    id: 'edit-cancellation-after', label: 'ביטול זמן אחרי הפעילות (שעות:דקות)',
+    value: formatCancellationDuration(record.cancellation_after_minutes),
+    placeholder: '0:00',
+  });
+  const cancellationFields = document.createElement('div');
+  cancellationFields.className = 'av2-report__time-cancellation av2-report__inline-cancellation';
+  const cancellationNote = document.createElement('small');
+  cancellationNote.textContent = 'ביטול הזמן נבדק בנפרד ואינו משנה את שעות הפעילות.';
+  cancellationFields.append(beforeCancellationField.wrap, afterCancellationField.wrap, cancellationNote);
+  form.append(cancellationWrap, cancellationFields);
 
   const trainingModeField = createSelectField({
     id: 'edit-training-mode',
@@ -735,6 +776,19 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     value: record.training_mode === 'online' ? 'online' : 'physical',
   });
   form.insertBefore(trainingModeField.wrap, authField.wrap);
+  const trainingLocationField = createInputField({
+    id: 'edit-training-location', label: 'מיקום ההכשרה *',
+    placeholder: 'בחר מיקום או הקלד כתובת מלאה',
+    value: String(record.destination_address_snapshot || record.authority_name_snapshot || ''),
+  });
+  const knownTrainingLocations = document.createElement('datalist');
+  knownTrainingLocations.id = 'edit-training-known-locations';
+  const defaultLocation = document.createElement('option');
+  defaultLocation.value = 'Greenwork, יקום';
+  knownTrainingLocations.append(defaultLocation);
+  trainingLocationField.input.setAttribute('list', knownTrainingLocations.id);
+  trainingLocationField.wrap.append(knownTrainingLocations);
+  form.insertBefore(trainingLocationField.wrap, authField.wrap);
 
   const hasTrainingSchedule = Boolean(record.training_schedule_id);
   if (hasTrainingSchedule) {
@@ -742,6 +796,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     typeField.input.disabled = true;
     actNameField.input.readOnly = true;
     trainingModeField.input.disabled = true;
+    trainingLocationField.input.readOnly = true;
   }
 
   let kmBeforeZoom = record.activity_type === ONLINE_REPORT_TYPE ? '' : kmField.input.value;
@@ -776,11 +831,23 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     if (!isCourse) meetField.input.value = '';
     trainingModeField.wrap.hidden = reportType !== 'הכשרה';
     trainingModeField.input.disabled = isScheduledTraining;
-    authField.wrap.hidden = isOperations || isBaseTraining || isZoom || isOnlineTraining;
-    authField.input.disabled = isScheduledTraining;
-    schoolField.wrap.hidden = isOperations || isBaseTraining || isZoom || isOnlineTraining || isScheduledTraining;
+    authField.wrap.hidden = isOperations || reportType === 'הכשרה' || isZoom;
+    authField.input.disabled = isScheduledTraining || reportType === 'הכשרה';
+    schoolField.wrap.hidden = isOperations || reportType === 'הכשרה' || isZoom;
+    trainingLocationField.wrap.hidden = reportType !== 'הכשרה' || isOnlineTraining;
+    const eligibleCancellation = canReportInlineCancellation({ activityType: reportType, online: isZoom });
+    cancellationWrap.hidden = !eligibleCancellation;
+    if (!eligibleCancellation) cancellationToggle.checked = false;
+    cancellationFields.hidden = !eligibleCancellation || !cancellationToggle.checked;
+    publicTransportWrap.hidden = isZoom;
+    publicTransportToggle.disabled = isZoom;
+    if (isZoom) publicTransportToggle.checked = false;
+    const usesTransport = !isZoom && publicTransportToggle.checked;
+    publicTransportCostField.wrap.hidden = !usesTransport;
+    publicTransportCostField.input.disabled = !usesTransport;
+    kmField.wrap.hidden = isZoom || usesTransport;
 
-    if (isZoom || isOnlineTraining) {
+    if (isZoom || isOnlineTraining || usesTransport) {
       if (!kmField.input.disabled) kmBeforeZoom = kmField.input.value;
       kmField.input.value = '0';
       kmField.input.readOnly = true;
@@ -795,6 +862,8 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
   typeField.input.addEventListener('change', syncEditTypeUi);
   teamModeField.input.addEventListener('change', syncEditTypeUi);
   trainingModeField.input.addEventListener('change', syncEditTypeUi);
+  publicTransportToggle.addEventListener('change', syncEditTypeUi);
+  cancellationToggle.addEventListener('change', syncEditTypeUi);
   actNameField.input.addEventListener('input', syncEditTypeUi);
   syncEditTypeUi();
 
@@ -854,7 +923,10 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     if (!actNameField.input.value.trim()) missing.push(isOperations ? 'פרטי תפעול' : 'שם פעילות');
     if (isTeam && !['online', 'physical'].includes(teamModeField.input.value)) missing.push('אופן מפגש צוות');
     if (isTeam && teamModeField.input.value === 'physical' && !teamLocationField.input.value.trim()) missing.push('מיקום פיזי');
-    if (!isOperations && !isBaseTraining && !isZoom && !isOnlineTraining && !isScheduledTraining && !authField.input.value.trim()) missing.push('רשות');
+    if (reportType === 'הכשרה' && !isZoom && !trainingLocationField.input.value.trim()) missing.push('מיקום ההכשרה');
+    if (!isOperations && reportType !== 'הכשרה' && !isZoom && !authField.input.value.trim()) missing.push('רשות');
+    if (cancellationToggle.checked && parseCancellationDuration(beforeCancellationField.input.value) == null) missing.push('ביטול זמן לפני הפעילות (שעות:דקות)');
+    if (cancellationToggle.checked && parseCancellationDuration(afterCancellationField.input.value) == null) missing.push('ביטול זמן אחרי הפעילות (שעות:דקות)');
     if (missing.length) {
       errorEl.textContent = `שדות חובה: ${missing.join(' · ')}`;
       errorEl.hidden = false;
@@ -873,7 +945,9 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
         course_business_identity: isCourse ? record.course_business_identity ?? null : null,
         activity_type:           reportType,
         operation_meeting_mode: isTeam ? teamModeField.input.value : null,
-        destination_address_snapshot: isTeam && !isTeamZoom ? teamLocationField.input.value.trim() : null,
+        destination_address_snapshot: isTeam && !isTeamZoom
+          ? teamLocationField.input.value.trim()
+          : (reportType === 'הכשרה' && !isZoom ? trainingLocationField.input.value.trim() : null),
         training_mode:           reportType === 'הכשרה' ? (isOnlineTraining ? 'online' : 'physical') : null,
         training_schedule_id:    reportType === 'הכשרה' ? (record.training_schedule_id ?? null) : null,
         activity_id:             isOperations || isBaseTraining || isScheduledTraining ? null : (record.activity_id ?? null),
@@ -882,21 +956,25 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
         activity_season:         isOperations || isBaseTraining ? null : (record.activity_season ?? null),
         activity_name_snapshot:  actNameField.input.value.trim() || null,
         authority_id:            isOperations || isBaseTraining || isZoom || isOnlineTraining || isScheduledTraining ? null : (record.authority_id ?? null),
-        authority_name_snapshot: isOperations || isZoom || isOnlineTraining ? null : (isBaseTraining ? 'יקום' : (isScheduledTraining ? (record.authority_name_snapshot || null) : (authField.input.value.trim() || null))),
+        authority_name_snapshot: isOperations || isZoom
+          ? null : (reportType === 'הכשרה' ? trainingLocationField.input.value.trim() : (authField.input.value.trim() || null)),
         school_id:               isOperations || isBaseTraining || isZoom || isOnlineTraining || isScheduledTraining ? null : (record.school_id ?? null),
-        school_name_snapshot:    isOperations || isZoom || isOnlineTraining || isScheduledTraining ? null : (isBaseTraining ? 'Greenwork' : (schoolField.input.value.trim() || null)),
+        school_name_snapshot:    isOperations || isZoom || reportType === 'הכשרה' ? null : (schoolField.input.value.trim() || null),
         semel_mosad:             isOperations || isBaseTraining || isZoom || isOnlineTraining || isScheduledTraining ? null : (record.semel_mosad ?? null),
         meeting_no:              isCourse && meetField.input.value ? Number(meetField.input.value) : null,
         program_name:            isOperations || isBaseTraining ? null : (record.program_name ?? null),
-        roundtrip_km:            isZoom || isOnlineTraining ? 0 : (kmField.input.value ? Number(kmField.input.value) : 0),
-        public_transport:        isOnlineTraining || isZoom ? false : record.public_transport === true,
-        public_transport_cost:   isOnlineTraining || isZoom ? 0 : Number(record.public_transport_cost || 0),
+        cancellation_before_minutes: cancellationToggle.checked ? parseCancellationDuration(beforeCancellationField.input.value) : null,
+        cancellation_after_minutes:  cancellationToggle.checked ? parseCancellationDuration(afterCancellationField.input.value) : null,
+        roundtrip_km:            isZoom || publicTransportToggle.checked ? 0 : (kmField.input.value ? Number(kmField.input.value) : 0),
+        public_transport:        !isZoom && publicTransportToggle.checked,
+        public_transport_cost:   !isZoom && publicTransportToggle.checked ? Number(publicTransportCostField.input.value || 0) : 0,
         expenses:                expField.input.value ? Number(expField.input.value) : 0,
         expense_details:         expDField.input.value.trim() || null,
         notes:                   notesField.input.value.trim() || null
       });
       overlay.remove();
       onRefresh();
+      void reconcileTravelCompensation(record.id).then(() => onRefresh()).catch(() => null);
     } catch (err) {
       errorEl.textContent = err.message;
       errorEl.hidden = false;

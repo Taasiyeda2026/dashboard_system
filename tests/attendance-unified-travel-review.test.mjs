@@ -14,7 +14,7 @@ import {
 import { instructorTravelReportStatusLabel } from '../attendance/src/services/time-cancellation.helpers.js';
 
 const migration = await readFile(
-  new URL('../supabase/migrations/20261013093000_unified_attendance_travel_time_cancellation.sql', import.meta.url),
+  new URL('../supabase/migrations/20261013042258_unified_attendance_travel_time_cancellation.sql', import.meta.url),
   'utf8'
 );
 const service = await readFile(new URL('../attendance/src/services/attendance.service.js', import.meta.url), 'utf8');

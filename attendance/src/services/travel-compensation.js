@@ -57,9 +57,11 @@ export function toInstructorTravelCompensationView(row = {}) {
     reported_outbound_minutes: reportedOutbound ?? null,
     reported_return_minutes: reportedReturn ?? null,
     reported_at: row.reported_at || null,
-    requested_cancellation_minutes: hasReport
-      ? calculateTravelCancellationMinutes(reportedOutbound, reportedReturn)
-      : (row.requested_cancellation_minutes ?? null),
+    requested_cancellation_minutes: row.requested_cancellation_minutes ??
+      (hasReport ? calculateTravelCancellationMinutes(reportedOutbound, reportedReturn) : null),
+    reported_before_cancellation_minutes: row.reported_before_cancellation_minutes ?? null,
+    reported_after_cancellation_minutes: row.reported_after_cancellation_minutes ?? null,
+    report_kind: row.report_kind || 'travel_minutes',
     review_status: row.review_status || 'none',
     approved_cancellation_minutes: row.approved_cancellation_minutes ?? null,
     show_travel_report_reminder: row.show_travel_report_reminder === true,

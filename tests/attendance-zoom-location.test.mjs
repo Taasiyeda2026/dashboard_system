@@ -11,17 +11,17 @@ const display = await readFile(new URL('../attendance/src/components/report-summ
 test('legacy Zoom reports are virtual locations without a required authority or school', () => {
   assert.equal(isZoomLocationReport({ activityType: 'זום' }), true);
   assert.equal(isZoomLocationReport({ activityType: 'מקוון' }), true);
-  assert.match(newReport, /!isOpen && !isOnline\)/);
+  assert.match(newReport, /!isOpen && !isOnline && reportType !== TRAINING_REPORT_TYPE/);
   assert.match(newReport, /const hasNoLocation = isOpen \|\| isOnline;/);
-  assert.match(myReports, /!isBaseTraining && !isZoom && !isOnlineTraining/);
+  assert.match(myReports, /reportType !== 'הכשרה' && !isZoom/);
 });
 
 test('online training is Zoom while physical training keeps its original checks', () => {
   assert.equal(isZoomLocationReport({ activityType: 'הכשרה', trainingMode: 'online' }), true);
   assert.equal(isZoomLocationReport({ activityType: 'הכשרה', scheduledOnline: true }), true);
   assert.equal(isZoomLocationReport({ activityType: 'הכשרה', trainingMode: 'physical' }), false);
-  assert.match(newReport, /const showPhysicalLocation = visible && !isOnlineActivity\(\)/);
-  assert.match(myReports, /authField\.wrap\.hidden = isOperations \|\| isBaseTraining \|\| isZoom/);
+  assert.match(newReport, /const physicalTraining = training && !isOnlineActivity\(\)/);
+  assert.match(myReports, /authField\.wrap\.hidden = isOperations \|\| reportType === 'הכשרה' \|\| isZoom/);
 });
 
 test('operational Zoom meeting needs no physical address, including team and other Zoom types', () => {
@@ -44,9 +44,10 @@ test('Zoom hides place inputs and zeroes travel instead of omitting the activity
   assert.match(newReport, /zoomLocationInfo\.textContent = 'מיקום: זום/);
   assert.match(myReports, /virtualLocationInfo\.textContent = 'מיקום: זום/);
   assert.match(newReport, /const showsLocation = !isOpenFieldType\(\) && !isOnlineActivity\(\)/);
+  assert.match(newReport, /getReportType\(\) !== TRAINING_REPORT_TYPE/);
   assert.match(service, /usesPublicTransport = !onlineLocation/);
   assert.match(service, /\(onlineLocation \|\| usesPublicTransport\) \? \{ roundtrip_km: 0 \}/);
-  assert.match(myReports, /public_transport:\s+isOnlineTraining \|\| isZoom \? false/);
+  assert.match(myReports, /public_transport:\s+!isZoom && publicTransportToggle\.checked/);
   assert.match(display, /secondary\.push\('זום'\)/);
   assert.match(myReports, /\}\)\) return 'זום';/);
 });

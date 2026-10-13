@@ -86,7 +86,7 @@ test('Course reporting uses the selected date dashboard row and does not add a c
   assert.doesNotMatch(courseDashboardRuntimeSource, /ambiguousAtSchool|כיתה/);
   assert.match(searchableSelectSource, /wrap\.addEventListener\('av2:set-options'/);
   assert.doesNotMatch(courseDashboardRuntimeSource, /createSelectField|createInputField/);
-  assert.match(indexSource, /course-dashboard-choice-runtime\.js\?v=115/);
+  assert.match(indexSource, /course-dashboard-choice-runtime\.js\?v=116/);
 });
 
 test('Legacy Zoom data remains normalized while the current UI removes Zoom from activity-type choices', () => {
@@ -97,16 +97,16 @@ test('Legacy Zoom data remains normalized while the current UI removes Zoom from
   assert.match(reportsSource, /ONLINE_REPORT_TYPE, OPERATIONS_REPORT_TYPE/);
   assert.match(reportsSource, /isOperations \? 'פרטי תפעול \*' : 'שם פעילות'/);
   assert.match(reportsSource, /kmField\.input\.disabled = true/);
-  assert.match(reportsSource, /roundtrip_km:\s*isZoom \|\| isOnlineTraining \? 0/);
+  assert.match(reportsSource, /roundtrip_km:\s*isZoom \|\| publicTransportToggle\.checked \? 0/);
 
   assert.match(trainingRuntimeSource, /const ZOOM_LABEL = 'זום'/);
   assert.match(trainingRuntimeSource, /option\.value === 'online'/);
   assert.match(trainingRuntimeSource, /removeZoomAsActivityType/);
-  assert.match(indexSource, /training-report-ui-runtime\.js\?v=115/);
+  assert.match(indexSource, /training-report-ui-runtime\.js\?v=116/);
 });
 
 test('Attendance cache is synchronized for the training and dashboard-choice release', () => {
-  assert.match(swSource, /const CACHE_VERSION = 115;/);
-  assert.match(indexSource, /\?v=115/);
+  assert.match(swSource, /const CACHE_VERSION = 116;/);
+  assert.match(indexSource, /\?v=116/);
   assert.doesNotMatch(indexSource, /\?v=106/);
 });

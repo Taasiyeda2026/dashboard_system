@@ -158,6 +158,23 @@
 .av2-report__transport-toggle { display: inline-flex; width: max-content; align-items: center; gap: 6px; direction: rtl; white-space: nowrap; justify-self: start; }
 .av2-report__transport-toggle input { margin: 0; flex: 0 0 auto; }
 .av2-report__time-cancellation { grid-column: 1 / -1; display: grid; grid-template-columns: auto auto 1fr; gap: 8px; align-items: center; padding: 7px 9px; border-radius: 8px; background: #eff6ff; font-size: .76rem; }.av2-report__time-cancellation small{color:var(--av2-color-text-muted)}
+/* Inline before/after cancellation stays visually separate from course hours. */
+.av2-report__inline-cancellation {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  background: var(--av2-color-surface, #fff);
+  border: 1px solid var(--av2-color-border, #dbe4ed);
+  padding: 12px;
+}
+.av2-report__inline-cancellation > .av2-field { min-width: 0; }
+.av2-report__inline-cancellation > small { grid-column: 1 / -1; }
+.av2-report__transport-toggle[hidden],
+.av2-report__form .av2-field[hidden],
+.av2-report__inline-cancellation[hidden],
+.av2-report__inline-cancellation-toggle[hidden] { display: none !important; }
+@media (max-width: 560px) {
+  .av2-report__inline-cancellation { grid-template-columns: 1fr; }
+}
 .av2-rr__travel-compensation { grid-column: 1 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 7px; padding: 6px 10px; background: #eff6ff; border-radius: 7px; font-size: .75rem; }
 .av2-rr__travel-compensation--pending { background: #fff7ed; color: #9a3412; }.av2-rr__travel-audit{color:#7c3aed}.av2-rr__travel-minutes{width:74px;padding:4px}
 .av2-rr__metric-divider{display:inline-block;width:1px;height:16px;background:var(--av2-color-border);margin-inline:8px;vertical-align:middle}.av2-rr__travel-compensation>span:first-child{display:inline-flex;align-items:center;color:var(--av2-color-accent);font-variant-numeric:tabular-nums}.av2-rr__travel-compensation small{color:var(--av2-color-text-muted)}
