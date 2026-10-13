@@ -65,6 +65,9 @@ import {
   fetchPrograms,
   openCampaign,
   openInstructorCampaign,
+  scheduleInstructorPreFeedback,
+  fetchInstructorPreSchedules,
+  cancelInstructorPreFeedback,
   translateFeedbackError,
   updateCampaign
 } from '../impact-feedback/feedback-api.js';
@@ -136,6 +139,7 @@ const ui = {
   staffDeliveryLoaded: false,
   instructorAssignments: null,
   instructorAssignmentsYear: null,
+  preSchedules: new Map(),
   summary: null,
   summaryYear: null,
   summaryHalf: null,
@@ -326,8 +330,14 @@ async function ensureInstructorAssignments(force = false) {
   const year = ui.year;
   const task = (async () => {
     try {
-      const rows = await fetchInstructorAssignments(year);
+      const [rows, schedules] = await Promise.all([
+        fetchInstructorAssignments(year),
+        feedbackReadOnly ? Promise.resolve([]) : fetchInstructorPreSchedules(year)
+      ]);
       if (year !== ui.year) return;
+      ui.preSchedules = new Map(schedules.map((r) => [
+        [r.instructor_emp_id, r.program_key, r.academic_year].join('|'), r
+      ]));
       ui.instructorAssignments = rows;
       ui.instructorAssignmentsYear = year;
     } finally {
@@ -1000,9 +1010,22 @@ function instructorCampaignActionsHtml(row, stage) {
   const campaign = instructorCampaignFor(row, stage);
   const key = instructorAssignmentKey(row, stage);
   const stageName = stage === 'pre' ? 'פתיחה' : stage === 'final_b' ? 'סיום מחצית ב׳' : 'סיום מחצית א׳';
+  const preSchedule = stage === 'pre'
+    ? ui.preSchedules.get([row.instructor_emp_id, row.program_key, row.academic_year].join('|'))
+    : null;
   if (stage === 'final' && !row.last_end_a) return '';
   if (stage === 'final_b' && !row.last_end_b) return '';
   if (!campaign) {
+    if (preSchedule?.status === 'scheduled' && !ui.instructorOpenForms.has(key)) {
+      const local = new Date(preSchedule.send_at).toLocaleString('he-IL', {
+        dateStyle: 'short', timeStyle: 'short', timeZone: 'Asia/Jerusalem'
+      });
+      return `<div class="ifb-instructor-stage ifb-instructor-stage--compact">
+        <span class="ifb-muted" title="משלוח אוטומטי מתוזמן לשעון ישראל">מתוזמן: ${esc(local)}</span>
+        <button type="button" class="ifb-icon-action" data-ifb-instructor-cancel-scheduled="${esc(key)}"
+          aria-label="ביטול משלוח מתוזמן" title="ביטול משלוח מתוזמן">×</button>
+      </div>`;
+    }
     if (!ui.instructorOpenForms.has(key)) {
       return `<div class="ifb-instructor-stage ifb-instructor-stage--compact">
         <button type="button" class="ifb-icon-action" data-ifb-instructor-open="${esc(key)}" title="פתיחת משוב ${stageName}" aria-label="פתיחת משוב">
@@ -1014,10 +1037,13 @@ function instructorCampaignActionsHtml(row, stage) {
       <form class="ifb-instructor-open-form" data-ifb-instructor-open-form
         data-emp="${esc(row.instructor_emp_id)}" data-program="${esc(row.program_key)}" data-year="${esc(row.academic_year)}"
         data-stage="${stage}" data-key="${esc(key)}">
-        <label class="ifb-field"><span>פתיחה</span><input type="date" name="opens" value="${isoDay(Date.now())}" required></label>
-        <label class="ifb-field"><span>תוקף עד</span><input type="date" name="expires" value="${isoDay(Date.now() + (14 * DAY_MS))}" min="${isoDay(Date.now() + DAY_MS)}"></label>
+        ${stage === 'pre'
+          ? `<label class="ifb-field"><span>תאריך ושעת משלוח (ישראל)</span>
+              <input type="datetime-local" name="sendAt" value="${isoDay(Date.now() + DAY_MS)}T09:15" required></label>`
+          : `<label class="ifb-field"><span>פתיחה</span><input type="date" name="opens" value="${isoDay(Date.now())}" required></label>
+             <label class="ifb-field"><span>תוקף עד</span><input type="date" name="expires" value="${isoDay(Date.now() + (14 * DAY_MS))}" min="${isoDay(Date.now() + DAY_MS)}"></label>`}
         <div class="ifb-slot__actions">
-          <button type="submit" class="ifb-btn ifb-btn--primary ifb-btn--sm">יצירת קישור</button>
+          <button type="submit" class="ifb-btn ifb-btn--primary ifb-btn--sm">${stage === 'pre' ? 'תזמון ושליחה אוטומטית' : 'יצירת קישור'}</button>
           <button type="button" class="ifb-btn ifb-btn--ghost ifb-btn--sm" data-ifb-instructor-cancel="${esc(key)}">ביטול</button>
         </div>
       </form>`;
@@ -1992,7 +2018,7 @@ async function handleClick(host, event) {
   const t = event.target;
   // Defense-in-depth for the temporary read-only user. Server writes stay admin-only.
   if (feedbackReadOnly && t.closest([
-    '[data-ifb-show-open]', '[data-ifb-instructor-open]',
+    '[data-ifb-show-open]', '[data-ifb-instructor-open]', '[data-ifb-instructor-cancel-scheduled]',
     '[data-ifb-cancel-open]', '[data-ifb-instructor-cancel]',
     '[data-ifb-close]', '[data-ifb-reopen]', '[data-ifb-share]',
     '[data-ifb-qr]', '[data-ifb-copy]', '[data-ifb-extend]'
@@ -2054,6 +2080,18 @@ async function handleClick(host, event) {
   if (instructorOpen) { ui.instructorOpenForms.add(instructorOpen.dataset.ifbInstructorOpen); paint(host); return; }
   const instructorCancel = t.closest('[data-ifb-instructor-cancel]');
   if (instructorCancel) { ui.instructorOpenForms.delete(instructorCancel.dataset.ifbInstructorCancel); paint(host); return; }
+  const cancelScheduled = t.closest('[data-ifb-instructor-cancel-scheduled]');
+  if (cancelScheduled && !feedbackReadOnly) {
+    const key = cancelScheduled.dataset.ifbInstructorCancelScheduled;
+    const [emp, program, year] = key.split('|');
+    try {
+      await cancelInstructorPreFeedback(emp, program, year);
+      showToast('תזמון המייל בוטל');
+      await ensureInstructorAssignments(true);
+      paint(host);
+    } catch (error) { showToast(translateFeedbackError(error), 'error', 6000); }
+    return;
+  }
   const qr = t.closest('[data-ifb-qr]');
   if (qr) {
     const { group, campaign } = campaignById(qr.dataset.ifbQr);
@@ -2111,12 +2149,20 @@ async function handleSubmit(host, event) {
     const button = form.querySelector('[type="submit"]');
     button.disabled = true;
     try {
-      await openInstructorCampaign(form.dataset.emp, form.dataset.program, form.dataset.year, form.dataset.stage, {
-        opensAt: openingIso(String(data.get('opens') || '')),
-        expiresAt: expiryIso(String(data.get('expires') || ''))
-      });
+      if (form.dataset.stage === 'pre') {
+        const chosen = String(data.get('sendAt') || '');
+        const date = new Date(chosen);
+        if (!chosen || !Number.isFinite(date.getTime())) throw new Error('יש לבחור תאריך ושעה תקינים');
+        await scheduleInstructorPreFeedback(form.dataset.emp, form.dataset.program, form.dataset.year, date.toISOString());
+        showToast('משוב הפתיחה תוזמן למשלוח אוטומטי במייל');
+      } else {
+        await openInstructorCampaign(form.dataset.emp, form.dataset.program, form.dataset.year, form.dataset.stage, {
+          opensAt: openingIso(String(data.get('opens') || '')),
+          expiresAt: expiryIso(String(data.get('expires') || ''))
+        });
+        showToast(form.dataset.stage === 'final_b' ? 'נוצר משוב סיום מחצית ב׳' : 'נוצר משוב סיום מחצית א׳');
+      }
       ui.instructorOpenForms.delete(form.dataset.key);
-      showToast(form.dataset.stage === 'pre' ? 'נוצר משוב פתיחה למדריך' : form.dataset.stage === 'final_b' ? 'נוצר משוב סיום מחצית ב׳' : 'נוצר משוב סיום מחצית א׳');
       await afterInstructorCampaignChange(host);
     } catch (error) {
       button.disabled = false;
@@ -2173,6 +2219,7 @@ function resetYearScopedState() {
   ui.staffDeliveryLoaded = false;
   ui.instructorAssignments = null;
   ui.instructorAssignmentsYear = null;
+  ui.preSchedules.clear();
   ui.summary = null;
   ui.facts = null;
   ui.summaryYear = null;
