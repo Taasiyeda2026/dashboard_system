@@ -175,6 +175,39 @@ async function start() {
   setTitle(payload.program_title);
 
   const isStudent = payload.audience === 'student';
+  const isInstructor = payload.audience === 'instructor';
+  let remoteDraft = null;
+  if (isInstructor) {
+    try {
+      remoteDraft = await rpc('feedback_public_instructor_draft', { p_token: token });
+      if (!remoteDraft?.ok) throw new Error('draft_unavailable');
+    } catch {
+      showMessage(root, 'error', '<button type="button" class="ifb-message__link" onclick="location.reload()">לא הצלחנו לטעון את הטיוטה האישית. נסו שוב</button>');
+      return;
+    }
+  }
+  let saving = Promise.resolve();
+  let pending = null;
+  let delay = null;
+  const writePending = async () => {
+    if (delay) { clearTimeout(delay); delay=null; }
+    if (!pending) return saving;
+    const snapshot=pending;
+    pending=null;
+    saving=saving.catch(()=>{}).then(async()=>{
+      const result=await rpc('feedback_public_instructor_draft',{
+        p_token:token,p_write:true,p_answers:snapshot.answers,p_review:snapshot.review
+      });
+      if (!result?.ok) throw new Error('לא הצלחנו לשמור את הטיוטה בשרת');
+    });
+    return saving;
+  };
+  const queueSave=(answers,review)=>{
+    if (!isInstructor) return;
+    pending={answers:{...answers},review:review||null};
+    if(delay) clearTimeout(delay);
+    delay=setTimeout(()=>writePending().catch(()=>{}),550);
+  };
   const doneKey = storageKey('done', token);
   const draftKey = storageKey('draft', token);
   const reviewKey = storageKey('deepreview', token);
@@ -188,8 +221,11 @@ async function start() {
     const displayPayload = { ...payload, questions: localizedQuestions };
     let initialAnswers = {};
     try { initialAnswers = JSON.parse(session?.getItem(draftKey) || '{}') || {}; } catch { initialAnswers = {}; }
+    if (isInstructor && remoteDraft?.answers && Object.keys(remoteDraft.answers).length) initialAnswers=remoteDraft.answers;
     let initialReview = null;
     try { initialReview = JSON.parse(session?.getItem(reviewKey) || 'null'); } catch { initialReview = null; }
+    if (isInstructor && remoteDraft?.review) initialReview=remoteDraft.review;
+    let currentAnswers={...initialAnswers},currentReview=initialReview;
     const startedAt = Date.now();
     mountFeedbackForm(root, displayPayload, {
       logoUrl,
@@ -197,13 +233,23 @@ async function start() {
       initialAnswers,
       initialReview,
       onReviewChange(review) {
+        currentReview=review;
         try { session?.setItem(reviewKey, JSON.stringify(review)); } catch { /* ignore */ }
+        queueSave(currentAnswers,currentReview);
       },
       onChooseLanguage: renderLanguageChoice,
       onChange(answers) {
+        currentAnswers={...answers};
         try { session?.setItem(draftKey, JSON.stringify(answers)); } catch { /* ignore */ }
+        queueSave(currentAnswers,currentReview);
       },
       async onSubmit(answers, extendedReview) {
+        if(isInstructor){
+          currentAnswers={...answers};
+          currentReview=extendedReview??currentReview;
+          queueSave(currentAnswers,currentReview);
+          await writePending();
+        }
         // Same id for retries of the same filling -> the server stores it once.
         let submissionId = session?.getItem(submissionKey);
         if (!submissionId) {
