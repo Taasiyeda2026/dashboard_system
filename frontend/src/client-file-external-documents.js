@@ -40,7 +40,7 @@ function ensureStyles() {
 export function externalClientDocumentsHtml(canManage = false) {
   return `<section class="ds-client-external" data-pa-external-documents aria-label="הסכמים והצעות מחיר חיצוניים">
     <div class="ds-client-external__head"><h3>הסכמים והצעות מחיר חיצוניים</h3>
-      ₰{canManage ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ext-add>＋ מסמך חיצוני</button>' : ''}</div>
+      ${canManage ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ext-add>＋ מסמך חיצוני</button>' : ''}</div>
     <div class="ds-client-external__list" data-ext-list><p class="ds-client-external__message">טוען מסמכים…</p></div>
     <div data-ext-editor></div>
     <p class="ds-client-external__error" data-ext-error role="alert" hidden></p>
@@ -71,11 +71,11 @@ export function externalClientDocumentRowsHtml(rows = [], canManage = false) {
   return rows.map(row => {
     const summary = [kindLabel(row.document_kind), text(row.external_number) ? 'מס׳ חיצוני: ' + text(row.external_number) : '',
       dateLabel(row.document_date), amountLabel(row.amount)].filter(Boolean).join(' · ');
-    return `<article class="ds-client-external__item" data-ext-row="₰{safe(row.id)}">
-      <div class="ds-client-external__details"><strong>₰{safe(row.title)}</strong><small>₰{safe(summary)} · קובץ PDF</small></div>
+    return `<article class="ds-client-external__item" data-ext-row="${safe(row.id)}">
+      <div class="ds-client-external__details"><strong>${safe(row.title)}</strong><small>${safe(summary)} · קובץ PDF</small></div>
       <div class="ds-client-external__actions">
-        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ext-view="₰{safe(row.id)}">צפייה ב־PDF</button>
-        ₰{canManage ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ext-delete="₰{safe(row.id)}">מחיקה</button>` : ''}
+        <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ext-view="${safe(row.id)}">צפייה ב־PDF</button>
+        ${canManage ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-ext-delete="${safe(row.id)}">מחיקה</button>` : ''}
       </div>
     </article>`;
   }).join('');
