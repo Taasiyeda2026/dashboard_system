@@ -121,7 +121,7 @@ test('supplied Taasiyeda signature is a real small PNG attached inline by CID in
     const message=staffMail({...item,stage},baseUrl);
     assert.match(message.body.content,new RegExp('src="cid:'+STAFF_SIGNATURE_CONTENT_ID+'"'));
     assert.match(message.body.content,/alt="צוות תעשיידע"/);
-    assert.doesNotMatch(message.body.content,/<p><strong>צוות תעשיידע<\\/strong><\\/p>/);
+    assert.equal(message.body.content.includes('<p><strong>צוות תעשיידע</strong></p>'),false);
     assert.doesNotMatch(message.body.content,/src="https?:[^"]+\\.(png|jpg|gif)/i);
     assert.deepEqual(message.attachments,[{
       '@odata.type':'#microsoft.graph.fileAttachment',
