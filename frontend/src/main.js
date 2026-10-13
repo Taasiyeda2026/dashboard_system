@@ -1071,7 +1071,7 @@ function enforceCourseSchedulingRoute() {
   state.routes = state.effectiveRoutes;
 }
 
-// Temporary access: admin and Israa only; database separately enforces identity and read-only access.
+// Admin/Israa retain their management view; instructors use the same route with restricted data.
 function enforceImpactFeedbackRoute() {
   const current = Array.isArray(state.effectiveRoutes) ? state.effectiveRoutes : [];
   if (!state.token || !(canViewImpactFeedback(state.user) || isFeedbackInstructor(state.user))) {
