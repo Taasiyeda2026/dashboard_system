@@ -68,6 +68,7 @@ import {
   scheduleInstructorPreFeedback,
   fetchInstructorPreSchedules,
   cancelInstructorPreFeedback,
+  fetchAutoDeliveryStatus,
   translateFeedbackError,
   updateCampaign
 } from '../impact-feedback/feedback-api.js';
@@ -137,6 +138,7 @@ const ui = {
   groupsYear: null,
   staffDelivery: new Map(),
   staffDeliveryLoaded: false,
+  autoDelivery: null,
   instructorAssignments: null,
   instructorAssignmentsYear: null,
   preSchedules: new Map(),
@@ -978,6 +980,26 @@ function collectionLineHtml(audience) {
 const STUDENT_SLOTS = GROUP_SLOTS.filter((s) => s.audience === 'student');
 const STAFF_SLOTS = GROUP_SLOTS.filter((s) => s.audience === 'educational_staff');
 
+
+function autoDeliveryStatusHtml(audience) {
+  if (!ui.autoDelivery || ui.year !== 'school_2027') return '';
+  const data = ui.autoDelivery;
+  const rows = (data.delivery_counts || []).filter((r) => r.audience === audience);
+  const sent = rows.filter((r) => r.status === 'accepted').reduce((a,r) => a + Number(r.count || 0),0);
+  const waiting = rows.filter((r) => r.status === 'pending').reduce((a,r) => a + Number(r.count || 0),0);
+  const problems = rows.filter((r) => ['failed','unknown','needs_attention','invalidated'].includes(r.status))
+    .reduce((a,r) => a + Number(r.count || 0),0);
+  const state = data.enabled ? 'פעיל' : 'לא פעיל';
+  return `<p class="ifb-inline-stats" aria-label="בקרת משלוחים אוטומטית">
+    <span><strong>מנגנון משלוחים:</strong> ${esc(state)}</span><span aria-hidden="true">·</span>
+    <span><strong>מיפוי:</strong> 05:30</span><span aria-hidden="true">·</span>
+    <span><strong>שליחה:</strong> 09:15</span><span aria-hidden="true">·</span>
+    <span><strong>אושרו:</strong> ${sent}</span><span aria-hidden="true">·</span>
+    <span><strong>ממתינים:</strong> ${waiting}</span><span aria-hidden="true">·</span>
+    <span><strong>דורשים טיפול:</strong> ${problems}</span>
+  </p>`;
+}
+
 function studentsHtml() {
   const facts = courseFacts().filter((f) => f.audience === 'student');
   const results = ui.course
@@ -990,6 +1012,7 @@ function studentsHtml() {
        ${openAnswersDisclosure(facts)}`
     : selectCourseHint('תוצאות לכל שאלה');
   return `
+    ${autoDeliveryStatusHtml('student')}
     ${sectionHtml('הפצה ומעקב לפי קבוצה', groupsTableHtml(STUDENT_SLOTS, 'students'))}
     ${sectionHtml('תוצאות', results, { actions: ui.course ? exportButtonHtml('audience:student') : '' })}`;
 }
@@ -1192,6 +1215,7 @@ function instructorsHtml() {
        ${openAnswersDisclosure(facts)}`
     : selectCourseHint('תוצאות לכל שאלה');
   return `
+    ${autoDeliveryStatusHtml('instructor')}
     ${sectionHtml('הפצה ומעקב', instructorAssignmentsHtml(), { note: 'טבלה שנתית אחת: משוב פתיחה ואחריו משובי סיום נפרדים למחצית א׳ ולמחצית ב׳.' })}
     ${sectionHtml('תוצאות', results, { actions: ui.course ? exportButtonHtml('instructor-all') : '' })}`;
 }
@@ -1911,6 +1935,13 @@ async function load(host, { force = false, focusTab = false } = {}) {
   try {
     await ensureDefinitions();
     if (ui.tab === 'staff') await ensureStaffDelivery(force);
+    if (['students','instructors','overview'].includes(ui.tab) && (force || ui.autoDelivery === null)) {
+      try {
+        ui.autoDelivery = await fetchAutoDeliveryStatus();
+      } catch {
+        ui.autoDelivery = null; // Never report success without an audited server status.
+      }
+    }
     // Assignments before summary avoids a useless parallel race; summary no longer
     // re-runs the heavy assignments RPC on the server (see migration).
     const loaders = {
@@ -2217,6 +2248,7 @@ function resetYearScopedState() {
   ui.groupsYear = null;
   ui.staffDelivery.clear();
   ui.staffDeliveryLoaded = false;
+  ui.autoDelivery = null;
   ui.instructorAssignments = null;
   ui.instructorAssignmentsYear = null;
   ui.preSchedules.clear();
