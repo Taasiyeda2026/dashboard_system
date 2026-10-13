@@ -5,7 +5,7 @@ do $body$
 declare def text; src text := 'where a.eligible_at<=p_now'; dst text := 'where a.eligible_at<=p_now
      and a.eligible_at>=ctl.activated_at';
 begin
- select pg_get_functiondef(oid) into def from pg_proc p
+ select pg_get_functiondef(p.oid) into def from pg_proc p
  join pg_namespace n on n.oid=p.pronamespace
  where n.nspname='public' and p.proname='feedback_auto_prepare';
  if def is null then raise exception 'feedback_auto_prepare_not_found'; end if;
