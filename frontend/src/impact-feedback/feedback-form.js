@@ -4,6 +4,7 @@
  * for young student questionnaires only; adult audiences always see a professional numeric scale.
  */
 import { mountInstructorExtendedReview } from './feedback-instructor-review.js';
+import { activeFeedbackQuestions } from './feedback-conditional.js';
 import {
   RATING_EMOJI,
   RATING_LABELS,
@@ -254,11 +255,46 @@ export function mountFeedbackForm(container, payload, options = {}) {
     options.onChooseLanguage?.();
   });
 
+  function syncBranchVisibility() {
+    // Parent questions appear before their follow-ups; removing hidden answers
+    // also removes stale drafts and ensures they cannot be submitted accidentally.
+    let didClear = false;
+    for (const q of questions) {
+      const active = activeFeedbackQuestions(questions, answers).some((item) => item.id === q.id);
+      const node = form.querySelector(`[data-question="${CSS.escape(q.id)}"]`);
+      if (!node) continue;
+      node.hidden = !active;
+      node.querySelectorAll('input,textarea,select').forEach((input) => {
+        input.disabled = !active;
+        if (!active) {
+          if ('checked' in input) input.checked = false;
+          else input.value = '';
+        }
+      });
+      if (!active && Object.prototype.hasOwnProperty.call(answers, q.id)) {
+        delete answers[q.id];
+        node.classList.remove('is-answered', 'is-missing');
+        node.querySelector('.ifb-q__error').hidden = true;
+        didClear = true;
+      }
+    }
+    // Visible questions are numbered continuously even when a follow-up is hidden.
+    let visibleIndex = 0;
+    for (const q of questions) {
+      const node = form.querySelector(`[data-question="${CSS.escape(q.id)}"]`);
+      if (!node || node.hidden) continue;
+      const number = node.querySelector('.ifb-q__num');
+      if (number) number.textContent = String(++visibleIndex);
+    }
+    return didClear;
+  }
+
   function updateProgress() {
+    const active = activeFeedbackQuestions(questions, answers);
     const pct = formProgress(questions, answers);
-    const answered = questions.filter((q) => isAnswered(q, answers[q.id])).length;
+    const answered = active.filter((q) => isAnswered(q, answers[q.id])).length;
     fill.style.width = `${pct}%`;
-    label.textContent = arabic ? `${answered} من ${questions.length}` : `${answered} מתוך ${questions.length}`;
+    label.textContent = arabic ? `${answered} من ${active.length}` : `${answered} מתוך ${active.length}`;
   }
 
   function markQuestion(qid) {
@@ -285,6 +321,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
       answers[qid] = [...form.querySelectorAll(`input[data-qid="${CSS.escape(qid)}"]:checked`)].map((el) => el.value);
     }
     markQuestion(qid);
+    syncBranchVisibility();
     updateProgress();
     options.onChange?.({ ...answers });
   });
@@ -294,6 +331,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
     if (input?.dataset?.kind !== 'text') return;
     answers[input.dataset.qid] = input.value;
     markQuestion(input.dataset.qid);
+    syncBranchVisibility();
     updateProgress();
     options.onChange?.({ ...answers });
   });
@@ -317,6 +355,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
     event.preventDefault();
     if (submitBtn.disabled) return;
     submitError.hidden = true;
+    syncBranchVisibility();
     const missing = missingRequired(questions, answers);
     if (missing.length) {
       submitError.textContent = arabic ? (missing.length === 1 ? 'بقي سؤال واحد دون إجابة' : `بقي ${missing.length} أسئلة دون إجابة`) : (missing.length === 1 ? 'נשארה שאלה אחת שלא נענתה' : `נשארו ${missing.length} שאלות שלא נענו`);
@@ -330,7 +369,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
     submitBtn.textContent = arabic ? 'جارٍ الإرسال…' : 'שולח…';
     try {
       const payloadAnswers = {};
-      for (const q of questions) {
+      for (const q of activeFeedbackQuestions(questions, answers)) {
         const value = answers[q.id];
         if (!isAnswered(q, value)) continue;
         payloadAnswers[q.id] = q.type === 'free_text' ? String(value).trim() : value;
@@ -353,6 +392,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
     }
   });
 
+  syncBranchVisibility();
   updateProgress();
   return { answers };
 }

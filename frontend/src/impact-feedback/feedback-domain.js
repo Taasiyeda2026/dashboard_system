@@ -1,4 +1,5 @@
 import { COURSE_SCHEDULING_PERIODS } from '../screens/course-scheduling-periods.js';
+import { activeFeedbackQuestions } from './feedback-conditional.js';
 /**
  * Impact feedback — pure domain logic (no DOM, no network).
  * Shared by the admin screen, the public form and node tests.
@@ -1017,13 +1018,14 @@ export function isAnswered(question, value) {
 }
 
 export function missingRequired(questions = [], answers = {}) {
-  return questions.filter((q) => q.required && !isAnswered(q, answers[q.id])).map((q) => q.id);
+  return activeFeedbackQuestions(questions, answers).filter((q) => q.required && !isAnswered(q, answers[q.id])).map((q) => q.id);
 }
 
 export function formProgress(questions = [], answers = {}) {
-  if (!questions.length) return 0;
-  const answered = questions.filter((q) => isAnswered(q, answers[q.id])).length;
-  return Math.round((answered / questions.length) * 100);
+  const active = activeFeedbackQuestions(questions, answers);
+  if (!active.length) return 0;
+  const answered = active.filter((q) => isAnswered(q, answers[q.id])).length;
+  return Math.round((answered / active.length) * 100);
 }
 
 export const PUBLIC_STATE_MESSAGES = Object.freeze({

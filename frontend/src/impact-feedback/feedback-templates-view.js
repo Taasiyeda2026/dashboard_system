@@ -240,6 +240,7 @@ function readOnlyQuestionHtml(q, index, ui, defaults) {
       metaPart(metric),
       metaPart(QUESTION_TYPES.find((t) => t.key === q.question_type)?.label || ''),
       allowsNa(q) ? metaPart('כולל „לא רלוונטי”') : '',
+      q.scoring?.visible_when ? metaPart('שאלת המשך מותנית') : '',
       ...exceptionParts(q, defaults)
     ])}
     ${SELECT_TYPES.has(q.question_type) ? `<p class="ifb-tq__variant">אפשרויות בעברית: ${esc((q.options || []).map((o) => o.label).join(' · '))}</p><p class="ifb-tq__variant" lang="ar" dir="rtl">خيارات الإجابة بالعربية: ${esc((q.options || []).map((o) => o.label_ar || '').join(' · '))}</p>` : ''}
@@ -264,7 +265,7 @@ function editableQuestionHtml(q, index, total, ui, defaults) {
   return `<li class="ifb-tq" data-tq="${esc(q.id)}">
     <div class="ifb-tq__head">
       <span class="ifb-tq__num">שאלה ${index + 1}</span>
-      ${questionMetaHtml(exceptionParts(q, defaults).slice(0, 2))}
+      ${questionMetaHtml([...exceptionParts(q, defaults).slice(0, 2), ...(q.scoring?.visible_when ? [metaPart('שאלת המשך מותנית')] : [])])}
       <span class="ifb-tq__tools">
         <button type="button" class="ifb-icon-btn" data-tpl-move="-1" ${index === 0 ? 'disabled' : ''} aria-label="העברה למעלה">↑</button>
         <button type="button" class="ifb-icon-btn" data-tpl-move="1" ${index === total - 1 ? 'disabled' : ''} aria-label="העברה למטה">↓</button>
@@ -430,7 +431,8 @@ function openPreview(ui, { readOnly = false } = {}) {
       text_ar: String(q.wording?.ar || '').replaceAll('{topic}', arabicTopics[program?.key] || program?.topic || ''),
       options: q.options || [],
       required: q.required,
-      allow_na: allowsNa(q)
+      allow_na: allowsNa(q),
+      visible_when: q.scoring?.visible_when || null
     }))
   };
   const overlay = document.createElement('div');
