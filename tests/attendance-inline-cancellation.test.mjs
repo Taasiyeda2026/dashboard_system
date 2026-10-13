@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
   formatCancellationDuration, parseCancellationDuration,
-  canReportInlineCancellation, cancellationRequestedMinutes,
+  canReportInlineCancellation, cancellationRequestedMinutes, instructorReportedCancellationMinutes,
 } from '../attendance/src/services/cancellation-segments.js';
 
 const read = (path) => readFile(new URL('../' + path, import.meta.url), 'utf8');
@@ -62,6 +62,58 @@ test('new-report cancellation is immediately after hours and before travel, with
   assert.match(create, /cancellationToggle\.addEventListener\('change', syncInlineCancellationUi\)/);
   assert.match(create, /cancellation_before_minutes: cancellationToggle\.checked/);
   assert.match(create, /total_hours: totalHours/);
+});
+
+test('instructor cancellation display favors exact submitted values over manager-approved minutes', () => {
+  assert.equal(instructorReportedCancellationMinutes({
+    cancellation_before_minutes: 75,
+    cancellation_after_minutes: 20,
+    travel_compensation: { approved_cancellation_minutes: 30, review_status: 'corrected', requested_cancellation_minutes: 80 },
+  }), 95);
+  assert.equal(instructorReportedCancellationMinutes({
+    travel_compensation: { requested_cancellation_minutes: 85, approved_cancellation_minutes: null, review_status: 'pending_review' },
+  }), 85);
+  assert.equal(instructorReportedCancellationMinutes({
+    travel_compensation: { reported_before_cancellation_minutes: 65, reported_after_cancellation_minutes: 5, approved_cancellation_minutes: null },
+  }), 70);
+  assert.equal(instructorReportedCancellationMinutes({ cancellation_before_minutes: 0, cancellation_after_minutes: 0 }), 0);
+  assert.equal(instructorReportedCancellationMinutes({
+    travel_compensation: { requested_cancellation_minutes: null, approved_cancellation_minutes: 45, review_status: 'approved' },
+  }), null);
+  assert.equal(instructorReportedCancellationMinutes({}), null);
+});
+
+test('all attendance report views use submitted cancellations before approval, not approved figures', async () => {
+  const [row, home, monthly, excel, reportDetails] = await Promise.all([
+    read('attendance/src/components/report-summary-row.js'),
+    read('attendance/src/screens/home-screen.js'),
+    read('attendance/src/components/monthly-report-summary.js'),
+    read('attendance/src/services/excel.service.js'),
+    read('attendance/src/screens/my-reports-screen.js'),
+  ]);
+  const { reportedCancellationHours, buildMonthlySummaryItems, groupReportRecordsByDate } = await import('../attendance/src/components/monthly-report-summary.js');
+  const rows = [
+    { id: 'A1', report_date: '2026-10-13', activity_type: 'קורס', total_hours: 2,
+      cancellation_before_minutes: 40, cancellation_after_minutes: 20,
+      travel_compensation: { requested_cancellation_minutes: 60, approved_cancellation_minutes: null, review_status: 'pending_review' } },
+    { id: 'GEN', report_date: '2026-10-13', generation_kind: 'travel_time_cancellation',
+      source_attendance_record_id: 'A1', activity_type: 'ביטול זמן', total_hours: 0.5 },
+    { id: 'A2', report_date: '2026-10-13', activity_type: 'הכשרה', total_hours: 1,
+      travel_compensation: { requested_cancellation_minutes: 90, approved_cancellation_minutes: 20, review_status: 'corrected' } },
+    { id: 'STANDALONE', report_date: '2026-10-13', activity_type: 'ביטול זמן', total_hours: 0.5 },
+  ];
+  assert.equal(reportedCancellationHours(rows), 3);
+  assert.equal(groupReportRecordsByDate(rows)[0].cancellationHours, 3);
+  const summary = buildMonthlySummaryItems(rows).find((item) => item.activityType === 'ביטול זמן');
+  assert.equal(summary.numericValue, 3);
+  assert.match(row, /instructorReportedCancellationMinutes\(record\)/);
+  assert.doesNotMatch(row, /formatTravelMinutes\(compensation\.approved_cancellation_minutes\)/);
+  assert.match(home, /return reportedCancellationHours\(records\)/);
+  assert.match(reportDetails, /const label = instructorMinutes !== null \? formatCancellationMinutes\(instructorMinutes\) : 'טרם דווח'/);
+  assert.match(reportDetails, /instructorReportedCancellationMinutes\(record\)/);
+  assert.match(excel, /'ביטול זמן מדווח': instructorReportedCancellationMinutes\(r\)/);
+  assert.match(excel, /reportedCancellationHours\(records\)/);
+  assert.match(monthly, /reportedCancellationHours/);
 });
 
 test('SQL preserves course timestamps and gates cancellation behind manager approval', () => {
