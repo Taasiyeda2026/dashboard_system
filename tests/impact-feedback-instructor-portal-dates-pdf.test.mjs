@@ -71,3 +71,14 @@ test('instructor sees student response totals, questionnaire preview, and own gr
   assert.match(screen, /window\.open\(url, '_blank', 'noopener,noreferrer'\)/);
   assert.doesNotMatch(migration, /feedback_answers/);
 });
+
+test('admin can schedule after-training messages by Israel-local timestamp, separately from opening', () => {
+  const api = readFileSync(new URL('../frontend/src/impact-feedback/feedback-api.js', import.meta.url), 'utf8');
+  assert.match(api, /feedback_auto_schedule_instructor_pre/);
+  assert.match(screen, /שליחה מתוזמנת \(שעון ישראל\)/);
+  assert.match(screen, /type="datetime-local" name="send_at"/);
+  assert.match(screen, /scheduleInstructorTrainingFeedback\(/);
+  assert.match(screen, /parseIsraelFeedbackTime\(input\)/);
+  assert.match(screen, /event\.submitter\?\.value === 'schedule'/);
+  assert.match(screen, /form\.dataset\.stage !== 'pre'/);
+});
