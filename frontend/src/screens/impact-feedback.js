@@ -1,5 +1,5 @@
 /**
- * "משובים" — admin-only module.
+ * "משובים" — existing module with admin management and restricted instructor access.
  * Six tabs that share the dashboard academic year and one selected course:
  *   סקירה כללית · תלמידים · מדריכים · צוות חינוכי · ניתוח והשוואה
  * The unit of analysis is a course + respondent population. Results are computed from every valid
@@ -2327,12 +2327,12 @@ function instructorFeedbackView(data, activeTab) {
 
   const contents = activeTab === 'students'
     ? students.length
-      ? `<div class="ifb-table-wrap"><table class="ifb-table ifb-instructor-table"><thead><tr>
+      ? `<div class="ifb-table-wrap"><table class="ifb-table"><thead><tr>
           <th>משוב</th><th>בית ספר</th><th>רשות</th><th>כיתה</th><th>קורס</th><th>העתקת קישור</th><th>הצגת QR</th>
         </tr></thead><tbody>${studentRows}</tbody></table></div>`
       : emptyHtml('אין כרגע משובי תלמידים זמינים לפעילויות שלך.')
     : personal.length
-      ? `<div class="ifb-table-wrap"><table class="ifb-table ifb-instructor-table"><thead><tr>
+      ? `<div class="ifb-table-wrap"><table class="ifb-table"><thead><tr>
           <th>משוב</th><th>קורס</th><th>סטטוס</th><th>פעולה</th>
         </tr></thead><tbody>${personalRows}</tbody></table></div>`
       : emptyHtml('אין כרגע משובים אישיים שנפתחו עבורך.');
