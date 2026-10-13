@@ -246,7 +246,10 @@ test('staff delivery PostgreSQL end-to-end, fake Graph only',async(t)=>{
       await q("update activities set end_time='13:00' where row_id='A'");
       const endedClaim=await rpc('feedback_staff_auto_claim');
       assert.equal(endedClaim.stage,'final');
-      assert.ok((await q("select count(*)::int n from feedback_staff_auto_outbox where stage='pre' and status='cancelled'"))[0].n===1);
+      // The first claim returns the still-valid final entry. A subsequent
+      // claim pass inspects the changed pre snapshot and cancels that row.
+      assert.deepEqual(await rpc('feedback_staff_auto_claim'),{});
+      assert.equal((await q("select count(*)::int n from feedback_staff_auto_outbox where stage='pre' and status='cancelled'"))[0].n,1);
       // Test database is reset before any Graph call; do not send the claim.
 
       await reset();await activity('A');await activity('B',{school:'School A',end_date:'2026-10-12'});
