@@ -471,3 +471,6 @@
   .ifb-extra-item { padding: 12px; }
   .ifb-extra-review { padding: 14px; }
 }
+
+/* Adaptive instructor feedback: hidden follow-ups must not occupy layout space. */
+.ifb-form .ifb-q[hidden] { display: none !important; }
