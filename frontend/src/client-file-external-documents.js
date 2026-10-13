@@ -24,11 +24,10 @@ function ensureStyles() {
     .ds-client-external__details strong,.ds-client-external__details small{display:block}
     .ds-client-external__details small{font-size:.77rem;color:#596b7d;margin-top:3px}
     .ds-client-external__actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
-    .ds-client-external__form{margin-top:10px;border:1px solid #dce8ed;border-radius:12px;background:#f8fbfd;padding:12px;display:grid;gap:10px}
-    .ds-client-external__fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-    .ds-client-external__form label{display:grid;gap:5px;font-size:.78rem;font-weight:600;color:#475569}
+    .ds-client-external__form{width:100%;max-width:900px;box-sizing:border-box;margin:10px auto 0;border:1px solid #dce8ed;border-radius:12px;background:#f8fbfd;padding:16px;display:grid;gap:12px}
+    .ds-client-external__fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px;align-items:start}
+    .ds-client-external__form label{display:grid;min-width:0;gap:5px;font-size:.78rem;font-weight:600;color:#475569}
     .ds-client-external__form input,.ds-client-external__form select,.ds-client-external__form textarea{width:100%;box-sizing:border-box;min-height:34px;border:1px solid #cad9e3;border-radius:7px;padding:6px;background:#fff;font:inherit}
-    .ds-client-external__form [data-ext-full]{grid-column:1/-1}
     .ds-client-external__form-actions{display:flex;align-items:center;gap:10px}
     .ds-client-external__message{font-size:.8rem;color:#526679}
     .ds-client-external__error{font-size:.8rem;color:#b42318}
@@ -52,11 +51,10 @@ export function externalClientDocumentFormHtml() {
     <div class="ds-client-external__fields">
       <label>סוג מסמך<select name="document_kind" required><option value="agreement">הסכם חיצוני</option><option value="quote">הצעת מחיר חיצונית</option></select></label>
       <label>כותרת המסמך<input name="title" maxlength="200" placeholder="לדוגמה: הסכם תוכנית יישומי AI" required></label>
-      <label>מספר מסמך חיצוני (אם קיים)<input name="external_number" maxlength="100"></label>
       <label>תאריך המסמך<input type="date" name="document_date"></label>
       <label>סכום בש״ח (אופציונלי)<input type="number" name="amount" min="0" step="0.01"></label>
-      <label data-ext-full>קובץ PDF<input type="file" name="document_file" accept=".pdf,application/pdf" required></label>
-      <label data-ext-full>הערות (אופציונלי)<textarea name="notes" maxlength="2000" rows="2"></textarea></label>
+      <label>קובץ PDF<input type="file" name="document_file" accept=".pdf,application/pdf" required></label>
+      <label>הערות (אופציונלי)<textarea name="notes" maxlength="2000" rows="2"></textarea></label>
     </div>
     <div class="ds-client-external__form-actions">
       <button type="submit" class="ds-btn ds-btn--sm ds-btn--primary" data-ext-save>שמירת מסמך</button>
@@ -186,7 +184,6 @@ export async function mountClientExternalDocuments(workspace, file, { canManage 
       const amountValue = text(fields.get('amount'));
       const { error: insertError } = await supabase.from('client_external_documents').insert({
         id, client_key: file.key, document_kind: fields.get('document_kind'), title,
-        external_number: text(fields.get('external_number')) || null,
         document_date: text(fields.get('document_date')) || null,
         amount: amountValue ? Number(amountValue) : null,
         notes: text(fields.get('notes')) || null,
