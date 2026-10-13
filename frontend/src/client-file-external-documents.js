@@ -15,7 +15,7 @@ function ensureStyles() {
   const node = document.createElement('style');
   node.id = 'client-external-documents-style-v1';
   node.textContent = `
-    .ds-client-external{grid-column:1/-1;border:1px solid #d3e4eb;border-radius:16px;padding:16px;background:#fff;min-width:0}
+    .ds-client-external{box-sizing:border-box;width:100%;border:1px solid #d3e4eb;border-radius:16px;padding:16px;background:#fff;min-width:0}
     .ds-client-external__head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
     .ds-client-external__head h3{margin:0}
     .ds-client-external__list{display:grid;gap:8px}
