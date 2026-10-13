@@ -59,3 +59,15 @@ test('only the instructor view gets quiet table styling; existing sharing remain
   assert.match(screen, /if \(isFeedbackInstructor\(state\?\.user\)\)/);
   assert.doesNotMatch(sql, /feedback_staff_auto_control|cron\.job|sendMail|graph\.microsoft/);
 });
+
+test('instructor sees student response totals, questionnaire preview, and own green completion', () => {
+  const migration = readFileSync(new URL('../supabase/migrations/20261013205500_feedback_instructor_portal_progress_expiry.sql', import.meta.url), 'utf8');
+  assert.match(migration, /'response_count'/);
+  assert.match(migration, /count\(\*\) from public\.feedback_responses fr where fr\.campaign_id=c\.id/);
+  assert.match(migration, /interval '14 days'/);
+  assert.match(screen, /data-ifb-instr-preview/);
+  assert.match(screen, /item\.response_count/);
+  assert.match(screen, /ifb-portal-completed/);
+  assert.match(screen, /window\.open\(url, '_blank', 'noopener,noreferrer'\)/);
+  assert.doesNotMatch(migration, /feedback_answers/);
+});
