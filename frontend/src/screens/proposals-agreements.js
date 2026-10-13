@@ -5885,7 +5885,8 @@ function selectedClientFileHtml(file, state = {}) {
     : (file.client_type === 'authority' && file.authority_code ? { label: 'סמל רשות', value: file.authority_code } : null);
   return `<div class="ds-client-file" data-pa-client-file="${escapeHtml(file.key)}">
     <button type="button" class="ds-client-file__close" data-pa-client-close aria-label="סגירת תיק לקוח">✕</button>
-    <section class="ds-client-file__identity">
+    <div class="ds-client-file__contacts-column">
+      <section class="ds-client-file__identity">
       <h2 class="ds-client-file__title">${escapeHtml(file.school || file.authority || 'לקוח ללא שם')}</h2>
       <p><span>רשות</span><strong>${escapeHtml(file.authority || 'לא הוגדרה')}</strong></p>
       <p><span>תחום</span><strong>${escapeHtml(file.domain || 'לא הוגדר')}</strong></p>
@@ -5893,14 +5894,15 @@ function selectedClientFileHtml(file, state = {}) {
       ${identifier ? `<p><span>${identifier.label}</span><strong>${escapeHtml(identifier.value)}</strong></p>` : ''}
       <div class="ds-client-file__contacts-head"><h3>אנשי קשר</h3>${canManage ? '<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-pa-client-add-contact>＋ איש קשר</button>' : ''}</div>
       <div class="ds-client-contacts">${clientContactsHtml(file, canManage)}</div>
-    </section>
+      </section>
+      ${externalClientDocumentsHtml(canManage)}
+    </div>
     <aside class="ds-client-file__proposals">
       <div class="ds-client-file__proposals-head"><h3>הצעות עדכניות</h3><button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-pa-client-add-proposal>+ הצעה חדשה</button></div>
       <div>${current.length ? current.map((row) => proposalCompactCardHtml(row, { canManage })).join('') : '<p class="ds-client-empty">אין הצעות עדכניות</p>'}</div>
       <hr>
       <details class="ds-client-archive"><summary>ארכיון הצעות מחיר — ${archive.length}</summary><div>${archive.length ? archive.map((row) => proposalCompactCardHtml(row, { archived: true, canManage })).join('') : '<p class="ds-client-empty">הארכיון ריק</p>'}</div></details>
     </aside>
-    ${externalClientDocumentsHtml(canManage)}
   </div>`;
 }
 
