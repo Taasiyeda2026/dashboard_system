@@ -85,8 +85,7 @@ v_work := attendance_private.course_work(v_sources);
   END IF;
   v_def := replace(v_def,v_old,v_new);
 
-  v_old := $previous$
-v_expected_start := v_dashboard_start - make_interval(mins => v_before_minutes);
+  v_old := $previous$v_expected_start := v_dashboard_start - make_interval(mins => v_before_minutes);
           v_expected_end := v_dashboard_end + make_interval(mins => v_after_minutes);$previous$;
   v_new := $replacement$
 v_expected_start := v_dashboard_start;
