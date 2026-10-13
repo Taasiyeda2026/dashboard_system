@@ -1,6 +1,7 @@
 import { createIcon } from './icon.js';
 import { formatDurationHours } from './monthly-report-summary.js';
 import { isZoomLocationReport } from '../services/attendance-location-policy.js';
+import { instructorReportedCancellationMinutes } from '../services/cancellation-segments.js';
 
 export function formatTravelMinutes(value) {
   const minutes = Math.max(0, Math.round(Number(value) || 0));
@@ -122,18 +123,12 @@ export function createReportSummaryRow(record, options = {}) {
   hours.setAttribute('aria-label', `${hours.textContent} שעות עבודה`);
 
   const compensation = record.travel_compensation;
+  const instructorMinutes = instructorReportedCancellationMinutes(record);
   const travel = document.createElement('span');
   travel.className = 'av2-report-summary-row__travel';
-  if (
-    compensation
-    && ['approved', 'corrected'].includes(compensation.review_status)
-    && Number(compensation.approved_cancellation_minutes) > 0
-  ) {
-    travel.textContent = formatTravelMinutes(compensation.approved_cancellation_minutes);
-    travel.setAttribute('aria-label', `ביטול זמן מאושר ${travel.textContent}`);
-  } else if (compensation?.review_status === 'pending_review' || compensation?.review_status === 'auto_matched') {
-    travel.classList.add('av2-report-summary-row__pending');
-    travel.textContent = 'ממתין לבקרת מנהל';
+  if (instructorMinutes !== null) {
+    travel.textContent = formatTravelMinutes(instructorMinutes);
+    travel.setAttribute('aria-label', `ביטול זמן שדווח על ידי המדריך ${travel.textContent}`);
   } else if (compensation?.review_status === 'awaiting_report' || compensation?.show_travel_report_reminder) {
     travel.classList.add('av2-report-summary-row__pending');
     travel.textContent = 'מומלץ לדווח זמני נסיעה';
