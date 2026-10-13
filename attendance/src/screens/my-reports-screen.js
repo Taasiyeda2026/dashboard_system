@@ -745,7 +745,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
   });
   form.append(publicTransportWrap, kmField.wrap, publicTransportCostField.wrap, expField.wrap);
   const cancellationWrap = document.createElement('label');
-  cancellationWrap.className = 'av2-report__transport-toggle';
+  cancellationWrap.className = 'av2-report__transport-toggle av2-report__inline-cancellation-toggle';
   const cancellationToggle = document.createElement('input');
   cancellationToggle.type = 'checkbox';
   cancellationToggle.id = 'edit-has-cancellation';
