@@ -73,6 +73,9 @@ test('staff delivery PostgreSQL end-to-end, fake Graph only',async(t)=>{
     await q(await file('../supabase/migrations/20261012230000_feedback_staff_delivery_disabled.sql'));
     await q(await file('../supabase/migrations/20261013034500_feedback_staff_approved_personalized_email.sql'));
     await q(await file('../supabase/migrations/20261013061500_staff_final_course_completion_from_20261120.sql'));
+    await q('alter table public.users add column if not exists emp_id text');
+    await q(await file('../supabase/migrations/20261013080000_instructor_feedback_portal_and_drafts.sql'));
+    await q("insert into public.users(user_id,auth_user_id,role,is_active,emp_id) values('instr','33333333-3333-3333-3333-333333333333','instructor',true,'1501')");
     await q("insert into users(user_id,auth_user_id,role,is_active) values('admin',$1,'admin',true),('other','22222222-2222-2222-2222-222222222222','operation_manager',true)",[ADMIN]);
     await q("insert into contacts_schools(id,contact_name,email) values(7,'רונית','selected@school.test'),(8,'דנה','new@school.test'),(9,'ללא מייל',null)");
 
@@ -362,6 +365,43 @@ test('staff delivery PostgreSQL end-to-end, fake Graph only',async(t)=>{
       assert.ok(studentForm.questions.length>0);assert.ok(instructorForm.questions.length>0);
       await q('reset role');
       await q("update feedback_staff_auto_control set enabled=false,activation_at=null");
+    });
+
+    await t.test('real instructor portal uses auth identity, shows own student/personal links and persists drafts',async()=>{
+      await reset();
+      await activity('OWN_COURSE',{emp_id:'1501',instructor_name:'דנה',instructor_assignment_locked:true,instructor_assignment_status:'שובץ'});
+      await activity('OTHER_COURSE',{emp_id:'1555',instructor_name:'אחר',instructor_assignment_locked:true,instructor_assignment_status:'שובץ'});
+      await q("insert into contacts_instructors(emp_id,full_name,mobile,email,active) values(1501,'דנה','0500000000','instructor@example.test','פעיל') on conflict do nothing");
+      await q("select set_config('test.uid',$1,false)",[ADMIN]);
+      const student=(await q("select feedback_admin_open_campaign('OWN_COURSE','student','pre') result"))[0].result;
+      await q("select feedback_admin_open_campaign('OTHER_COURSE','student','pre')");
+      const personal=(await q("select feedback_admin_open_instructor_campaign('1501','trailblazers','school_2027','pre') result"))[0].result;
+      await q("select set_config('test.uid','33333333-3333-3333-3333-333333333333',false)");
+      await q('set role authenticated');
+      const portal=(await q("select feedback_instructor_portal_items('school_2027') result"))[0].result;
+      assert.equal(portal.student.length,1);
+      assert.equal(portal.student[0].token,student.public_token);
+      assert.equal(portal.student[0].school,'School OWN_COURSE');
+      assert.equal(portal.personal.length,1);
+      assert.equal(portal.personal[0].token,personal.recipient.token);
+      assert.equal(portal.personal[0].status,'pending');
+      await q('set role anon');
+      const noStudentDraft=(await q("select feedback_public_instructor_draft($1,false) result",[student.public_token]))[0].result;
+      assert.deepEqual(noStudentDraft,{ok:false,state:'invalid'});
+      const personalDraft=(await q("select feedback_public_instructor_draft($1,true,'{}'::jsonb,'{}'::jsonb) result",[personal.recipient.token]))[0].result;
+      assert.equal(personalDraft.ok,true);
+      assert.deepEqual((await q("select feedback_public_instructor_draft($1) result",[personal.recipient.token]))[0].result.answers,{});
+      await q('reset role');
+      await q("select set_config('test.uid','33333333-3333-3333-3333-333333333333',false)");
+      await q('set role authenticated');
+      assert.equal((await q("select feedback_instructor_portal_items('school_2027') result"))[0].result.personal[0].status,'draft');
+      await q('reset role');
+      await q("update feedback_recipients set status='completed',locked=true where token=$1",[personal.recipient.token]);
+      assert.equal((await q("select count(*)::int n from feedback_instructor_drafts"))[0].n,0);
+      await q("select set_config('test.uid','22222222-2222-2222-2222-222222222222',false)");
+      await q('set role authenticated');
+      await assert.rejects(q("select feedback_instructor_portal_items('school_2027')"),/feedback_forbidden/);
+      await q('reset role');
     });
   } finally {await client.end();}
 });
