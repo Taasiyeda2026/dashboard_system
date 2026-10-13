@@ -2321,6 +2321,8 @@ function instructorFeedbackView(data, activeTab) {
       <td data-label="רשות">${esc(item.authority_name || '—')}</td>
       <td data-label="כיתה">${esc(item.class_name || '—')}</td>
       <td data-label="קורס">${esc(item.program_title || '—')}</td>
+      <td data-label="התקבלו" class="ifb-portal-response-count" aria-label="מספר המשובים שהתקבלו">${Number(item.response_count) || 0}</td>
+      <td data-label="צפייה בשאלון"><button class="ifb-btn ifb-btn--sm" type="button" data-ifb-instr-preview="${esc(item.campaign_id)}" title="צפייה בשאלון ללא תשובות" aria-label="צפייה בשאלון לתלמידים">◉</button></td>
       <td data-label="העתקת קישור"><button class="ifb-btn" type="button" data-ifb-instr-copy="${esc(item.campaign_id)}">העתק קישור</button></td>
       <td data-label="הצגת QR"><button class="ifb-btn ifb-btn--sm" type="button" data-ifb-instr-qr="${esc(item.campaign_id)}">הצגת QR</button></td>
       <td data-label="PDF" class="ifb-portal-pdf">
@@ -2347,7 +2349,7 @@ function instructorFeedbackView(data, activeTab) {
     return `<tr>
       <td data-label="משוב">${esc('משוב ' + personalName(item.stage))}</td>
       <td data-label="קורס">${esc(item.program_title || '—')}</td>
-      <td data-label="סטטוס" class="ifb-portal-status">${esc(status)}</td>
+      <td data-label="סטטוס" class="ifb-portal-status">${item.completed ? '<span class="ifb-portal-completed"><span aria-hidden="true">✓</span> הושלם</span>' : esc(status)}</td>
       <td data-label="לביצוע עד" class="ifb-portal-due">${item.expires_at ? `<time datetime="${esc(item.expires_at)}">${esc(formatInstructorPortalDate(item.expires_at))}</time>` : '—'}</td>
       <td data-label="פעולה">${url ? `<a class="ifb-btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer">מילוי</a>` : '—'}</td>
     </tr>`;
@@ -2356,7 +2358,7 @@ function instructorFeedbackView(data, activeTab) {
   const contents = activeTab === 'students'
     ? students.length
       ? `<div class="ifb-table-wrap ifb-portal-table-wrap"><table class="ifb-table ifb-portal-table"><thead><tr>
-          <th>משוב</th><th>מועד ביצוע</th><th>בית ספר</th><th>רשות</th><th>כיתה</th><th>קורס</th><th>העתקת קישור</th><th>הצגת QR</th><th>PDF</th>
+          <th>משוב</th><th>מועד ביצוע</th><th>בית ספר</th><th>רשות</th><th>כיתה</th><th>קורס</th><th>התקבלו</th><th>צפייה</th><th>העתקת קישור</th><th>הצגת QR</th><th>PDF</th>
         </tr></thead><tbody>${studentRows}</tbody></table></div>`
       : emptyHtml('אין כרגע משובי תלמידים זמינים לפעילויות שלך.')
     : personal.length
@@ -2424,6 +2426,15 @@ function mountInstructorFeedback(host) {
       } finally {
         pdf.disabled = false;
       }
+      return;
+    }
+    const preview = event.target.closest('[data-ifb-instr-preview]');
+    if (preview) {
+      const item = items.students.find((row) => row.campaign_id === preview.dataset.ifbInstrPreview);
+      if (!item?.token) return;
+      // The same public student questionnaire, not an administrative results page.
+      const url = campaignLink({ audience: 'student', stage: item.stage, public_token: item.token });
+      window.open(url, '_blank', 'noopener,noreferrer');
       return;
     }
     const copy = event.target.closest('[data-ifb-instr-copy]');
