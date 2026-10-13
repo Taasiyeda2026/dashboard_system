@@ -1431,12 +1431,15 @@ export function renderNewReportScreen(container, {
     if (existingCompensation) {
       const compensationRow = document.createElement('div');
       compensationRow.className = 'av2-report__time-cancellation';
-      const reported = existingCompensation.reported_outbound_minutes != null
-        && existingCompensation.reported_return_minutes != null;
+      const inlineReported = existingCompensation.report_kind === 'inline_segments';
+      const reported = inlineReported || (existingCompensation.reported_outbound_minutes != null
+        && existingCompensation.reported_return_minutes != null);
       const approved = Number(existingCompensation.approved_cancellation_minutes || 0);
       const status = existingCompensation.review_status || 'none';
       let detail = 'ניתן לדווח זמני נסיעה בפועל (הלוך וחזור) לאחר השמירה.';
-      if (reported) {
+      if (inlineReported) {
+        detail = `ביטול זמן לפני: ${formatCancellationDuration(existingCompensation.reported_before_cancellation_minutes)} · אחרי: ${formatCancellationDuration(existingCompensation.reported_after_cancellation_minutes)} · סטטוס: ${status}`;
+      } else if (reported) {
         detail = `דווח הלוך ${existingCompensation.reported_outbound_minutes} דק׳ · חזור ${existingCompensation.reported_return_minutes} דק׳ · סטטוס: ${status}`;
       }
       if (approved > 0 && (status === 'approved' || status === 'corrected')) {
