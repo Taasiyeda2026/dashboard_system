@@ -18,7 +18,7 @@ import { openAttendanceCalendarDay } from '../components/calendar-day-drawer.js'
 import { loadAttendanceCalendarContext } from '../services/calendar.service.js';
 import { getMonthRecords, calcMonthSummary, updateRecord, deleteRecord,
          getMonthApproval, getActivityTypes, getOperationOptions, deleteAttachmentRecord, sourceAttendanceRecords,
-         generatedCancellationFor, reportTravelTime,
+         generatedCancellationFor, reportTravelTime, reconcileTravelCompensation,
          getMonthDashboardValidation } from '../services/attendance.service.js';
 import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel } from '../services/month-gate.service.js';
 import { calcHours, ONLINE_REPORT_TYPE, OPERATIONS_REPORT_TYPE } from '../services/activities.service.js';
@@ -974,6 +974,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
       });
       overlay.remove();
       onRefresh();
+      void reconcileTravelCompensation(record.id).then(() => onRefresh()).catch(() => null);
     } catch (err) {
       errorEl.textContent = err.message;
       errorEl.hidden = false;
