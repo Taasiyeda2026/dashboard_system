@@ -110,6 +110,8 @@ function legacyRecord(row = {}, travel = null, { generated = false, location = n
     reviewStatus: text(travel?.review_status),
     reportedOutboundMinutes: travel?.reported_outbound_minutes ?? null,
     reportedReturnMinutes: travel?.reported_return_minutes ?? null,
+    reportedCancellationBeforeMinutes: travel?.reported_before_cancellation_minutes ?? null,
+    reportedCancellationAfterMinutes: travel?.reported_after_cancellation_minutes ?? null,
     manuallyOverridden: travel?.manually_overridden === true
       || text(travel?.review_status) === 'corrected',
     overrideByName: text(travel?.override_by_name),
