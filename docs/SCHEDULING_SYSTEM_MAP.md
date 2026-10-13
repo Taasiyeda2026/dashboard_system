@@ -1,5 +1,14 @@
 # Scheduling System Map
 
+## Private scheduling agent gateway (staged 2026-10-14)
+
+See `docs/SCHEDULING_AGENT_GATEWAY.md` for actual rollout status, Google access,
+approval isolation, and validation. The base owner-bound approval schema is installed
+with writes disabled; the follow-up human-channel check, MCP/Google integration and
+approval page are staged. The gateway wraps existing lock/confirmation RPCs and changes
+no scheduling rules. Spreadsheet diffs are review-only. Google cell writing and live
+end-to-end acceptance remain prerequisites, not implemented production capabilities.
+
 Living map of the **course scheduling / national planning** system as implemented on `main`.
 
 Related docs (do not treat as overrides of this map):
