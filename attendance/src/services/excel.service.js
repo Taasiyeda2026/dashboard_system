@@ -130,10 +130,12 @@ export function exportMonthToExcel(records, instructor, year, month) {
   const byType = {};
   let totalHours = 0, totalKm = 0, totalExpenses = 0;
 
-  const sourceIds = new Set(records.filter((r) => !r?.generation_kind).map((r) => String(r?.id ?? '')));
+  const reportedSourceIds = new Set(records
+    .filter((r) => !r?.generation_kind && instructorReportedCancellationMinutes(r) !== null)
+    .map((r) => String(r?.id ?? '')));
   for (const r of records) {
     const generatedLinked = r?.generation_kind === 'travel_time_cancellation'
-      && sourceIds.has(String(r?.source_attendance_record_id ?? ''));
+      && reportedSourceIds.has(String(r?.source_attendance_record_id ?? ''));
     const t = r.activity_type || (r?.generation_kind === 'travel_time_cancellation' ? 'ביטול זמן' : 'לא ידוע');
     if (!byType[t]) byType[t] = { hours: 0, sessions: 0, km: 0, expenses: 0 };
     const hours = Number(r.total_hours || 0);
@@ -152,13 +154,7 @@ export function exportMonthToExcel(records, instructor, year, month) {
   // The attendance report shows instructor-reported cancellation, not payroll approval.
   // Keep work-hour and payroll totals independent of this display-only aggregation.
   byType['ביטול זמן'] ||= { hours: 0, sessions: 0, km: 0, expenses: 0 };
-  const standaloneCancellationHours = records
-    .filter((r) => isCancellationRecord(r)
-      && !(r?.generation_kind === 'travel_time_cancellation'
-        && sourceIds.has(String(r?.source_attendance_record_id ?? ''))))
-    .reduce((n, r) => n + Number(r?.total_hours || 0), 0);
-  byType['ביטול זמן'].hours = Math.max(0, reportedCancellationHours(records) - standaloneCancellationHours)
-    + standaloneCancellationHours;
+  byType['ביטול זמן'].hours = reportedCancellationHours(records);
   if (!byType['ביטול זמן'].hours && !byType['ביטול זמן'].sessions) delete byType['ביטול זמן'];
 
   const summaryRows = Object.entries(byType).map(([type, agg]) => ({
