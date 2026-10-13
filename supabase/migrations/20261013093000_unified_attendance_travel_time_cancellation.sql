@@ -7,6 +7,25 @@
 -- 1) Schema
 -- ---------------------------------------------------------------------------
 
+-- User-entered cancellation segments belong to the source activity. Never alter
+-- start_time, end_time, or total_hours when recording these amounts.
+alter table public.attendance_records
+  add column if not exists cancellation_before_minutes integer,
+  add column if not exists cancellation_after_minutes integer;
+alter table public.attendance_records
+  drop constraint if exists attendance_inline_cancellation_segments_check;
+alter table public.attendance_records
+  add constraint attendance_inline_cancellation_segments_check
+  check (
+    (cancellation_before_minutes is null and cancellation_after_minutes is null)
+    or (cancellation_before_minutes between 0 and 1440
+        and cancellation_after_minutes between 0 and 1440
+        and generation_kind is null
+        and activity_type not in ('ביטול זמן', 'זום', 'מקוון')
+        and not (activity_type = 'הכשרה' and training_mode = 'online')
+        and not (operation_meeting_mode = 'online'))
+  );
+
 alter table public.attendance_travel_compensations
   add column if not exists reported_outbound_minutes integer,
   add column if not exists reported_return_minutes integer,
@@ -340,6 +359,48 @@ revoke all on function public.av2_sync_travel_cancellation_payable(uuid)
 grant execute on function public.av2_sync_travel_cancellation_payable(uuid)
   to service_role;
 
+-- Directly entered cancellation segments are compared as requested non-work
+-- minutes, NOT interpreted as actual outbound/return trip durations.
+create or replace function public.av2_compute_source_travel_review_status(
+  p_source_id uuid,
+  p_reported_outbound integer,
+  p_reported_return integer,
+  p_system_outbound integer,
+  p_system_return integer,
+  p_system_cancel integer,
+  p_system_distance_km numeric,
+  p_calculation_status text,
+  p_existing_review_status text default null
+)
+returns text language plpgsql stable as $
+declare
+  before_minutes integer;
+  after_minutes integer;
+begin
+  if p_existing_review_status in ('approved', 'corrected', 'rejected') then
+    return p_existing_review_status;
+  end if;
+  select cancellation_before_minutes, cancellation_after_minutes
+    into before_minutes, after_minutes
+  from public.attendance_records where id = p_source_id;
+  if before_minutes is not null and after_minutes is not null then
+    if p_calculation_status is distinct from 'resolved' then
+      return 'pending_review';
+    end if;
+    if before_minutes + after_minutes = coalesce(p_system_cancel, 0) then
+      return 'auto_matched';
+    end if;
+    return 'pending_review';
+  end if;
+  return public.av2_compute_travel_review_status(
+    p_reported_outbound, p_reported_return,
+    p_system_outbound, p_system_return,
+    p_system_cancel, p_system_distance_km,
+    p_calculation_status, p_existing_review_status
+  );
+end;
+$;
+
 -- ---------------------------------------------------------------------------
 -- 3) Reconcile: system calc only — never creates payable hours by itself
 -- ---------------------------------------------------------------------------
@@ -387,6 +448,10 @@ begin
           when locked_decision then review_status
           when reported_outbound_minutes is not null and reported_return_minutes is not null
             then 'pending_review'
+          when exists (
+            select 1 from public.attendance_records a
+            where a.id = p_source_id and a.cancellation_before_minutes is not null
+          ) then 'pending_review'
           else 'none'
         end,
         updated_at = now()
@@ -405,7 +470,8 @@ begin
   end if;
 
   calculated := public.av2_travel_cancellation_minutes(p_outbound, p_return);
-  next_status := public.av2_compute_travel_review_status(
+  next_status := public.av2_compute_source_travel_review_status(
+    p_source_id,
     c.reported_outbound_minutes,
     c.reported_return_minutes,
     p_outbound,
@@ -521,6 +587,10 @@ begin
   if c.review_status in ('approved', 'corrected', 'rejected') then
     raise exception 'attendance_travel_review_locked' using errcode = '42501';
   end if;
+  if s.cancellation_before_minutes is not null then
+    raise exception 'attendance_inline_cancellation_exists_edit_source_record'
+      using errcode = '22023';
+  end if;
 
   before_json := public.av2_travel_compensation_snapshot(c);
   requested := public.av2_travel_cancellation_minutes(p_outbound_minutes, p_return_minutes);
@@ -602,12 +672,17 @@ begin
     'reported_return_minutes', c.reported_return_minutes,
     'reported_at', c.reported_at,
     'requested_cancellation_minutes', case
+      when s.cancellation_before_minutes is not null and s.cancellation_after_minutes is not null
+        then s.cancellation_before_minutes + s.cancellation_after_minutes
       when c.reported_outbound_minutes is not null and c.reported_return_minutes is not null
         then public.av2_travel_cancellation_minutes(
           c.reported_outbound_minutes, c.reported_return_minutes
         )
       else null
     end,
+    'reported_before_cancellation_minutes', s.cancellation_before_minutes,
+    'reported_after_cancellation_minutes', s.cancellation_after_minutes,
+    'report_kind', case when s.cancellation_before_minutes is not null then 'inline_segments' else 'travel_minutes' end,
     'review_status', c.review_status,
     'approved_cancellation_minutes', c.approved_cancellation_minutes,
     'show_travel_report_reminder', coalesce(c.system_distance_km, 0) > 40,
@@ -615,6 +690,7 @@ begin
   ) order by c.source_attendance_record_id), '[]'::jsonb)
   into result
   from public.attendance_travel_compensations c
+  join public.attendance_records s on s.id = c.source_attendance_record_id
   where c.emp_id = v_emp
     and c.source_attendance_record_id = any(coalesce(p_source_ids, array[]::uuid[]));
 
@@ -718,6 +794,8 @@ begin
 
   before_json := public.av2_travel_compensation_snapshot(c);
   requested := case
+    when s.cancellation_before_minutes is not null and s.cancellation_after_minutes is not null
+      then s.cancellation_before_minutes + s.cancellation_after_minutes
     when c.reported_outbound_minutes is not null and c.reported_return_minutes is not null
       then public.av2_travel_cancellation_minutes(
         c.reported_outbound_minutes, c.reported_return_minutes
@@ -1056,6 +1134,8 @@ returns table(
   review_status text,
   reported_outbound_minutes integer,
   reported_return_minutes integer,
+  reported_before_cancellation_minutes integer,
+  reported_after_cancellation_minutes integer,
   manually_overridden boolean,
   override_by_name text,
   override_at timestamptz
@@ -1082,6 +1162,8 @@ as $$
     c.review_status,
     c.reported_outbound_minutes,
     c.reported_return_minutes,
+    s.cancellation_before_minutes,
+    s.cancellation_after_minutes,
     c.manually_overridden,
     coalesce(
       nullif(btrim(u.full_name), ''),
@@ -1093,7 +1175,8 @@ as $$
   from public.attendance_travel_compensations c
   join visible v on v.record_id = c.generated_attendance_record_id
      or v.record_id = c.source_attendance_record_id
-  left join public.users u on u.auth_user_id = c.override_by;
+  left join public.users u on u.auth_user_id = c.override_by
+  left join public.attendance_records s on s.id = c.source_attendance_record_id;
 $$;
 
 revoke all on function public.get_payroll_attendance_travel_compensations(bigint[], date, date)
@@ -1226,6 +1309,10 @@ begin
           then public.attendance_travel_compensations.review_status
         when public.attendance_travel_compensations.reported_outbound_minutes is not null
           then 'pending_review'
+        when exists (
+          select 1 from public.attendance_records sr
+          where sr.id = p_source_id and sr.cancellation_before_minutes is not null
+        ) then 'pending_review'
         else 'none'
       end,
       approved_cancellation_minutes = case
@@ -1398,7 +1485,8 @@ with open_sources as (
     and c.review_status not in ('approved', 'corrected', 'rejected')
 )
 update public.attendance_travel_compensations c
-set review_status = public.av2_compute_travel_review_status(
+set review_status = public.av2_compute_source_travel_review_status(
+      c.source_attendance_record_id,
       c.reported_outbound_minutes,
       c.reported_return_minutes,
       c.outbound_travel_minutes,
