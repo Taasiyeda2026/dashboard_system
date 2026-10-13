@@ -730,6 +730,7 @@ const INSTRUCTOR_MOBILE_NAV = [
   { route: 'my-data', short: 'פעילויות', icon: '📋' },
   { route: 'instructor-calendar', short: 'לוח שנה', icon: '📅' },
   { route: 'instructor-reports', short: 'דיווחים', icon: '📊' },
+  { route: 'impact-feedback', short: 'משובים', icon: '📝' },
   { route: null, short: 'נוכחות', icon: '✅', externalUrl: config.instructorAttendanceUrl },
   { route: null, short: 'מצגות', icon: '📂', externalUrlBlank: config.instructorPresentationsUrl }
 ];
