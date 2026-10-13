@@ -30,6 +30,7 @@ import {
   canReportInlineCancellation,
   parseCancellationDuration,
   formatCancellationDuration,
+  instructorReportedCancellationMinutes,
 } from '../services/cancellation-segments.js';
 import { buildMonthlySummaryItems, buildDailyTotalHoursByRecord, formatDurationHours } from '../components/monthly-report-summary.js';
 
@@ -475,32 +476,30 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
   }
 
   const compensation = record.travel_compensation;
-  if (compensation) {
+  const instructorMinutes = instructorReportedCancellationMinutes(record);
+  if (compensation || instructorMinutes !== null) {
     const detail = document.createElement('div');
     detail.className = 'av2-rr__travel-compensation';
     const text = document.createElement('span');
-    const approved = Number(compensation.approved_cancellation_minutes);
-    const requested = Number(compensation.requested_cancellation_minutes);
-    const label = Number.isFinite(approved) && approved >= 0 && ['approved', 'corrected'].includes(compensation.review_status)
-      ? formatCancellationMinutes(approved)
-      : Number.isFinite(requested)
-        ? formatCancellationMinutes(requested)
-        : 'טרם דווח';
+    // Show the instructor's own entry even while awaiting manager review.
+    // Approved minutes belong to the separate payroll/manager workflow.
+    const label = instructorMinutes !== null ? formatCancellationMinutes(instructorMinutes) : 'טרם דווח';
     text.innerHTML = `<strong aria-label="משך ביטול זמן">${label}</strong>`;
     detail.append(text);
     const audit = document.createElement('span');
     audit.className = 'av2-rr__travel-audit';
     const bits = [];
-    if (compensation.reported_outbound_minutes != null && compensation.reported_return_minutes != null) {
+    if (compensation?.reported_outbound_minutes != null && compensation?.reported_return_minutes != null) {
       bits.push(`הלוך ${compensation.reported_outbound_minutes} · חזור ${compensation.reported_return_minutes}`);
     }
-    if (compensation.review_status && compensation.review_status !== 'none') {
+    if (compensation?.review_status && compensation.review_status !== 'none') {
       bits.push(`סטטוס: ${compensation.review_status}`);
     }
-    if (compensation.show_travel_report_reminder) bits.push('תזכורת: מעל 40 ק״מ בכיוון אחד');
-    audit.textContent = bits.join(' · ') || 'ניתן לדווח זמני נסיעה';
+    if (compensation?.show_travel_report_reminder) bits.push('תזכורת: מעל 40 ק״מ בכיוון אחד');
+    audit.textContent = bits.join(' · ')
+      || (instructorMinutes !== null ? 'דווח על ידי המדריך' : 'ניתן לדווח זמני נסיעה');
     detail.append(audit);
-    if (editable && !['approved', 'corrected', 'rejected'].includes(compensation.review_status)) {
+    if (editable && compensation && !['approved', 'corrected', 'rejected'].includes(compensation.review_status)) {
       const edit = document.createElement('button');
       edit.type = 'button'; edit.className = 'av2-btn av2-btn--link'; edit.textContent = 'דיווח נסיעה';
       edit.addEventListener('click', () => {
@@ -576,6 +575,9 @@ async function handleCopy(record, btn) {
     record.activity_name_snapshot || record.activity_type || '',
     record.school_name_snapshot || '',
     record.authority_name_snapshot || '',
+    ...(instructorReportedCancellationMinutes(record) !== null
+      ? [`ביטול זמן מדווח: ${formatCancellationMinutes(instructorReportedCancellationMinutes(record))}`]
+      : []),
     Number(record.roundtrip_km || 0).toFixed(0) + ' ק"מ',
   ].filter(Boolean).join(' | ');
 

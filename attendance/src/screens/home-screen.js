@@ -8,7 +8,7 @@ import { getMonthRecords, getMonthApproval, submitMonth, sourceAttendanceRecords
 import { canEditMonth, resolveMonthDisplayStatus, getMonthKey, formatMonthLabel } from '../services/month-gate.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
 import { distinctAttendanceWorkDays } from '../components/report-summary-row.js';
-import { formatDurationHours, isCancellationRecord } from '../components/monthly-report-summary.js';
+import { formatDurationHours, isCancellationRecord, reportedCancellationHours } from '../components/monthly-report-summary.js';
 import { openSubmitConfirmationDialog } from '../submit-confirmation-dialog.js';
 
 const STATUS_MAP = {
@@ -266,27 +266,7 @@ function hoursForType(records, label) {
 }
 
 function cancellationHours(records) {
-  const rows = Array.isArray(records) ? records : [];
-  const explicit = rows
-    .filter(isCancellationRecord)
-    .reduce((sum, record) => sum + Number(record?.total_hours || 0), 0);
-
-  const generatedSourceIds = new Set(
-    rows
-      .filter((record) => isCancellationRecord(record) && record?.source_attendance_record_id)
-      .map((record) => String(record.source_attendance_record_id))
-  );
-
-  const linkedMinutes = rows
-    .filter((record) => !isCancellationRecord(record))
-    .filter((record) => !generatedSourceIds.has(String(record?.id || '')))
-    .reduce((sum, record) => {
-      const compensation = record?.travel_compensation;
-      if (!['approved', 'corrected'].includes(compensation?.review_status)) return sum;
-      return sum + Math.max(0, Number(compensation?.approved_cancellation_minutes || 0));
-    }, 0);
-
-  return explicit + linkedMinutes / 60;
+  return reportedCancellationHours(records);
 }
 
 export function buildHomeSummaryStats(records = []) {

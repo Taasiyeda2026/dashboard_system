@@ -1,3 +1,5 @@
+import { instructorReportedCancellationMinutes } from '../services/cancellation-segments.js';
+
 function numberValue(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
@@ -10,6 +12,26 @@ function normalizedLabel(value) {
 export function isCancellationRecord(record = {}) {
   return record?.generation_kind === 'travel_time_cancellation'
     || normalizedLabel(record?.activity_type) === normalizedLabel('ביטול זמן');
+}
+
+/**
+ * Instructor-facing cancellation totals are based on submitted time, not manager
+ * approval. Explicit standalone cancellations remain included, while generated
+ * payroll lines are excluded when their source record is already available.
+ */
+export function reportedCancellationHours(records = []) {
+  const rows = Array.isArray(records) ? records : [];
+  const reportedSourceIds = new Set(rows
+    .filter((row) => !row?.generation_kind && instructorReportedCancellationMinutes(row) !== null)
+    .map((row) => String(row?.id ?? '')));
+  return rows.reduce((hours, row) => {
+    if (isCancellationRecord(row)) {
+      if (row?.generation_kind === 'travel_time_cancellation'
+          && reportedSourceIds.has(String(row?.source_attendance_record_id ?? ''))) return hours;
+      return hours + numberValue(row?.total_hours);
+    }
+    return hours + (instructorReportedCancellationMinutes(row) ?? 0) / 60;
+  }, 0);
 }
 
 export function formatDurationHours(value) {
@@ -57,9 +79,7 @@ export function groupReportRecordsByDate(records = []) {
       date,
       records: [...dayRecords].sort((a, b) => String(a?.start_time || '').localeCompare(String(b?.start_time || ''))),
       totalHours: dayRecords.reduce((sum, record) => sum + numberValue(record?.total_hours), 0),
-      cancellationHours: dayRecords
-        .filter(isCancellationRecord)
-        .reduce((sum, record) => sum + numberValue(record?.total_hours), 0)
+      cancellationHours: reportedCancellationHours(dayRecords)
     }));
 }
 
@@ -78,13 +98,25 @@ export function buildMonthlySummaryItems(records = []) {
   const hoursByType = new Map();
   let totalKm = 0;
   let totalExpenses = 0;
+  const rows = Array.isArray(records) ? records : [];
+  const reportedSourceIds = new Set(rows
+    .filter((row) => !row?.generation_kind && instructorReportedCancellationMinutes(row) !== null)
+    .map((row) => String(row?.id ?? '')));
 
-  for (const record of Array.isArray(records) ? records : []) {
+  for (const record of rows) {
+    const generatedLinked = record?.generation_kind === 'travel_time_cancellation'
+      && reportedSourceIds.has(String(record?.source_attendance_record_id ?? ''));
     const hours = numberValue(record?.total_hours);
     let activityType = String(record?.activity_type || '').trim();
     if (!activityType && record?.generation_kind === 'travel_time_cancellation') activityType = 'ביטול זמן';
-    if (activityType && hours > 0) {
+    if (!generatedLinked && activityType && hours > 0) {
       hoursByType.set(activityType, (hoursByType.get(activityType) || 0) + hours);
+    }
+    if (!isCancellationRecord(record)) {
+      const requested = instructorReportedCancellationMinutes(record);
+      if (requested !== null && requested > 0) {
+        hoursByType.set('ביטול זמן', (hoursByType.get('ביטול זמן') || 0) + requested / 60);
+      }
     }
     totalKm += numberValue(record?.roundtrip_km);
     totalExpenses += numberValue(record?.expenses);
