@@ -132,7 +132,7 @@ test('portal calendar stays a seven-column grid with compact mobile day details'
   assert.match(source, /ui\?\.openDrawer/);
   assert.doesNotMatch(source, /חגים, חופשות, מועדים וימי הולדת מכל המגזרים/);
   assert.match(source, /loadInstructorPortalSchedule\(api,/);
-  assert.match(source, /instructorActivities\(data\?\.rows, state\)/);
+  assert.match(source, /instructorActivityEventsForDate\(data\?\.activities \|\| \[\], date, data\?\.resolvedMeetings \|\| null\)/);
   assert.equal(instructorActivityEventsForDate([{ RowID: 'mine', activity_name: 'פעילות שלי', date_1: '2026-09-08' }], '2026-09-08').length, 1);
   assert.match(eventSource, /hasSchoolCalendar \? 'is-school-calendar-day'/);
   assert.match(eventSource, /hasActivity \? 'has-instructor-activity'/);
