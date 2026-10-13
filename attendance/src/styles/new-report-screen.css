@@ -168,6 +168,8 @@
 }
 .av2-report__inline-cancellation > .av2-field { min-width: 0; }
 .av2-report__inline-cancellation > small { grid-column: 1 / -1; }
+.av2-report__transport-toggle[hidden],
+.av2-report__form .av2-field[hidden],
 .av2-report__inline-cancellation[hidden],
 .av2-report__inline-cancellation-toggle[hidden] { display: none !important; }
 @media (max-width: 560px) {
