@@ -109,19 +109,24 @@ test('approved Hebrew opening and closing emails use the selected contact name a
   assert.throws(()=>staffMail({...item,program_title:''},baseUrl));
 });
 
-test('supplied Taasiyeda signature is a real small PNG attached inline by CID in both mail types', () => {
+test('approved wide Taasiyeda signature is an inline PNG under the single thank-you line in both emails', () => {
   const bytes=Buffer.from(STAFF_SIGNATURE_PNG_BASE64,'base64');
-  assert.ok(bytes.length > 2000 && bytes.length < 25000);
+  assert.ok(bytes.length > 8000 && bytes.length < 25000);
   assert.deepEqual(bytes.subarray(0,8),Buffer.from('89504e470d0a1a0a','hex'));
-  assert.equal(bytes.readUInt32BE(16),159);
-  assert.equal(bytes.readUInt32BE(20),51);
-  assert.equal(STAFF_SIGNATURE_WIDTH,159);
-  assert.equal(STAFF_SIGNATURE_HEIGHT,51);
+  assert.equal(bytes.readUInt32BE(16),825);
+  assert.equal(bytes.readUInt32BE(20),179);
+  assert.equal(STAFF_SIGNATURE_WIDTH,410);
+  assert.equal(STAFF_SIGNATURE_HEIGHT,89);
   for(const stage of ['pre','final']) {
     const message=staffMail({...item,stage},baseUrl);
     assert.match(message.body.content,new RegExp('src="cid:'+STAFF_SIGNATURE_CONTENT_ID+'"'));
-    assert.match(message.body.content,/alt="צוות תעשיידע"/);
+    assert.match(message.body.content,/alt="חתימת תעשיידע"/);
     assert.equal(message.body.content.includes('<p><strong>צוות תעשיידע</strong></p>'),false);
+    assert.equal((message.body.content.match(/תודה רבה על שיתוף הפעולה,/g)||[]).length,1);
+    assert.ok(message.body.content.indexOf('תודה רבה על שיתוף הפעולה,') < message.body.content.indexOf('src="cid:'));
+    assert.match(message.body.content,/width="410" height="89"/);
+    assert.doesNotMatch(message.body.content,/<p>בברכה,</);
+    assert.doesNotMatch(message.body.content,/>צוות תעשיידע</);
     assert.doesNotMatch(message.body.content,/src="https?:[^"]+\\.(png|jpg|gif)/i);
     assert.deepEqual(message.attachments,[{
       '@odata.type':'#microsoft.graph.fileAttachment',
