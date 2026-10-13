@@ -163,7 +163,7 @@ test('6 generated travel cancellation is not duplicated in source-only totals', 
   assert.deepEqual(sourceAttendanceRecords(records).map((row) => row.id), ['source', 'manual']);
   assert.equal(calculateTravelCancellationMinutes(60, 50), 20);
   assert.match(home, /cancellationHours\(/);
-  assert.match(home, /generatedSourceIds/);
+  assert.match(home, /reportedCancellationHours/);
   assert.match(monthlySummary, /buildMonthlySummaryItems/);
 });
 
