@@ -103,10 +103,10 @@ jobs:
         run: |
           set -euo pipefail
           BASE_SHA="$(git rev-parse "origin/${BASE_REF}")"
-          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(frontend/src/(screens/impact-feedback\\.js|impact-feedback/)|supabase/(migrations/.*feedback|functions/feedback-staff-automation/)|tests/(impact-feedback-|feedback-staff-automation-|feedback-staff-delivery))'; then
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -Eq '^(frontend/src/(screens/impact-feedback\\.js|impact-feedback/)|supabase/(migrations/.*feedback|functions/feedback-(staff-automation|auto-delivery)/)|tests/(impact-feedback-|feedback-staff-automation-|feedback-staff-delivery))'; then
             # This suite always includes instructor-review tests, which require jsdom.
             npm ci --ignore-scripts --no-audit --no-fund
-            node --test tests/impact-feedback-domain.test.mjs tests/impact-feedback-analysis.test.mjs tests/impact-feedback-ui-contract.test.mjs tests/impact-feedback-instructor-review.test.mjs tests/impact-feedback-conditional-questions.test.mjs tests/feedback-staff-automation-dryrun.test.mjs tests/feedback-staff-delivery.test.mjs tests/impact-feedback-instructor-portal-dates-pdf.test.mjs tests/impact-feedback-instructor-access.test.mjs tests/impact-feedback-elementary-pdf-only.test.mjs tests/instructor-reports-hidden-cache-and-pdf.test.mjs tests/instructor-portal.test.mjs tests/instructor-responsive-ux.test.mjs tests/attendance-mobile-contract.test.mjs
+            node --test tests/impact-feedback-domain.test.mjs tests/impact-feedback-analysis.test.mjs tests/impact-feedback-ui-contract.test.mjs tests/impact-feedback-instructor-review.test.mjs tests/impact-feedback-conditional-questions.test.mjs tests/feedback-staff-automation-dryrun.test.mjs tests/feedback-staff-delivery.test.mjs tests/impact-feedback-instructor-portal-dates-pdf.test.mjs tests/impact-feedback-instructor-access.test.mjs tests/impact-feedback-elementary-pdf-only.test.mjs tests/feedback-auto-scheduler-contract.test.mjs tests/instructor-reports-hidden-cache-and-pdf.test.mjs tests/instructor-portal.test.mjs tests/instructor-responsive-ux.test.mjs tests/attendance-mobile-contract.test.mjs
           else
             echo "No feedback files changed; focused tests skipped."
           fi

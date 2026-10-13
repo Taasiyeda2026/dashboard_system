@@ -340,3 +340,34 @@ export async function deleteSavedPaperPdf(record) {
     await client().storage.from(PAPER_PDF_BUCKET).remove([record.storage_path]);
   }
 }
+
+/** Admin-only: schedule an individual instructor opening feedback email from office@think.org.il. */
+export async function scheduleInstructorPreFeedback(instructorEmpId, programKey, academicYear, sendAt) {
+  return unwrap(client().rpc('feedback_auto_schedule_instructor_pre', {
+    p_instructor_emp_id: String(instructorEmpId || ''),
+    p_program_key: programKey,
+    p_academic_year: academicYear,
+    p_send_at: sendAt
+  }));
+}
+
+/** Admin-only scheduled PRE invitations; separate from the answered campaign status. */
+export async function fetchInstructorPreSchedules(academicYear = 'school_2027') {
+  const rows = await unwrap(client().rpc('feedback_auto_admin_pre_schedules', {
+    p_academic_year: academicYear
+  }));
+  return Array.isArray(rows) ? rows : [];
+}
+
+export async function cancelInstructorPreFeedback(instructorEmpId, programKey, academicYear) {
+  return unwrap(client().rpc('feedback_auto_cancel_instructor_pre', {
+    p_instructor_emp_id: String(instructorEmpId || ''),
+    p_program_key: programKey,
+    p_academic_year: academicYear
+  }));
+}
+
+/** Current audited dispatch status for all recurring instructor/student emails. */
+export async function fetchAutoDeliveryStatus() {
+  return unwrap(client().rpc('feedback_auto_dashboard_status'));
+}
