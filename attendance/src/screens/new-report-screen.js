@@ -883,8 +883,8 @@ export function renderNewReportScreen(container, {
       trainingModeField.input.value = activity.is_online === true ? 'online' : 'physical';
       trainingModeField.input.disabled = activity.__attendanceTrainingSchedule === true;
       if (trainingLocationField) {
-        trainingLocationField.input.value = activity.training_location_address
-          || activity.training_location_name
+        trainingLocationField.input.value = activity.training_location_name
+          || activity.training_location_address
           || (isBaseTrainingActivity(activity) ? 'Greenwork, יקום' : trainingLocationField.input.value);
         trainingLocationField.input.readOnly = isScheduledTraining(activity);
       }
