@@ -302,12 +302,21 @@ BEGIN
     END IF;
     v_added := 0;
     FOR v_def IN SELECT value FROM jsonb_array_elements(v_defs) LOOP
-      v_parent_key := 'in_final_20261013_' || replace(v_def->>'parent','__COURSE__',v_template.program_key);
-      SELECT tq.id INTO v_parent_id
-      FROM public.feedback_template_questions tq
-      JOIN public.feedback_questions bq ON bq.id=tq.question_id
-      WHERE tq.version_id=v_template.version_id AND bq.question_key=v_parent_key;
-      IF v_parent_id IS NULL THEN RAISE EXCEPTION 'Missing parent %',v_parent_key; END IF;
+      IF v_def->>'section'='course' THEN
+        -- The third course-specific question is consistently at sort_order 270.
+        -- Its bank key is intentionally not inferred from a program title.
+        v_parent_key := 'course component checklist (270)';
+        SELECT tq.id INTO v_parent_id FROM public.feedback_template_questions tq
+        WHERE tq.version_id=v_template.version_id AND tq.section='course'
+          AND tq.sort_order=270 AND tq.question_type='multi_select';
+      ELSE
+        v_parent_key := 'in_final_20261013_' || (v_def->>'parent');
+        SELECT tq.id INTO v_parent_id
+        FROM public.feedback_template_questions tq
+        JOIN public.feedback_questions bq ON bq.id=tq.question_id
+        WHERE tq.version_id=v_template.version_id AND bq.question_key=v_parent_key;
+      END IF;
+      IF v_parent_id IS NULL THEN RAISE EXCEPTION 'Missing parent % in %',v_parent_key,v_template.program_key; END IF;
       v_qkey := 'in_final_followup_20261013_' || (CASE WHEN v_def->>'section'='course' THEN v_template.program_key||'_' ELSE '' END)
          || (v_def->>'suffix');
       v_sco := jsonb_build_object('include_in_score',false,'visible_when',
