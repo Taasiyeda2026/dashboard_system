@@ -15,7 +15,6 @@ export const PORTAL_SHORTCUTS = Object.freeze([
   { title: 'לוח שנה', action: 'route:instructor-calendar' },
   { title: 'מערכת נוכחות', action: 'external:attendance' },
   { title: 'מצגות', action: 'external:presentations' },
-  { title: 'דיווחים', action: 'route:instructor-reports' },
   { title: 'הפעילויות שלי', action: 'route:my-data' }
 ]);
 
