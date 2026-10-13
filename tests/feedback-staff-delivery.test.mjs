@@ -88,7 +88,7 @@ test('approved Hebrew opening and closing emails use the selected contact name a
     assert.match(mail.body.content,/שלום רונית כהן,/);
     assert.match(mail.body.content,/למילוי המשוב האישי:/);
     assert.match(mail.body.content,/תודה רבה על שיתוף הפעולה,/);
-    assert.match(mail.body.content,/צוות תעשיידע/);
+    assert.match(mail.body.content,/alt="חתימת תעשיידע"/);
     assert.ok(mail.body.content.includes(`${baseUrl}feedback.html?t=${item.token}`));
     assert.doesNotMatch(mail.subject+mail.body.content,/בית ספר אלון/);
     assert.doesNotMatch(mail.subject,/פתיחה|סיום/);
