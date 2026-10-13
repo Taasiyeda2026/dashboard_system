@@ -71,6 +71,7 @@ test('staff delivery PostgreSQL end-to-end, fake Graph only',async(t)=>{
       create function public.scheduling_effective_end_time(text,date,time) returns time language sql as $$select $3$$;`);
     await q(await file('../supabase/migrations/20261012224500_feedback_staff_automation_dry_run_foundation.sql'));
     await q(await file('../supabase/migrations/20261012230000_feedback_staff_delivery_disabled.sql'));
+    await q(await file('../supabase/migrations/20261013034500_feedback_staff_approved_personalized_email.sql'));
     await q("insert into users(user_id,auth_user_id,role,is_active) values('admin',$1,'admin',true),('other','22222222-2222-2222-2222-222222222222','operation_manager',true)",[ADMIN]);
     await q("insert into contacts_schools(id,contact_name,email) values(7,'רונית','selected@school.test'),(8,'דנה','new@school.test'),(9,'ללא מייל',null)");
 
@@ -215,12 +216,18 @@ test('staff delivery PostgreSQL end-to-end, fake Graph only',async(t)=>{
       let sent=0;
       for(let i=0;i<2;i++) {
         const claim=await rpc('feedback_staff_auto_claim');assert.ok(claim.id);
+        assert.equal(claim.contact_name,'רונית');
+        assert.equal(claim.school,undefined); // no school name in the outgoing mail item
         const recipient=(await q('select * from feedback_recipients where token=$1',[claim.token]))[0];
         assert.equal(String(recipient.contact_id),'7');assert.equal(recipient.email,'selected@school.test');
         const form=(await q('select feedback_public_get($1) form',[claim.token]))[0].form;
         assert.equal(form.audience,'educational_staff');assert.equal(form.stage,claim.stage);
         assert.equal(await deliverClaim(claim,{rpc,baseUrl:'https://example.test/',getAccessToken:async()=> 'fake',send:async(mail)=>{
-          assert.equal(mail.toRecipients[0].emailAddress.address,recipient.email);sent++;return new Response(null,{status:202});}}),'accepted');
+          assert.equal(mail.toRecipients[0].emailAddress.address,recipient.email);
+          assert.equal(mail.subject,'משוב על פעילויות תעשיידע | פורצות דרך');
+          assert.match(mail.body.content,/שלום רונית,/);
+          assert.doesNotMatch(mail.body.content,/School A/);
+          sent++;return new Response(null,{status:202});}}),'accepted');
       }
       assert.equal(sent,2);assert.deepEqual(await rpc('feedback_staff_auto_claim'),{});
       await q("update contacts_schools set contact_name='Changed identity' where id=7");

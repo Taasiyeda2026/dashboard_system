@@ -46,22 +46,54 @@ export function deliveryWindow(action, now) {
   return clock.hour === (action === 'prepare' ? 5 : action === 'dispatch' ? 8 : -1);
 }
 
+/** Escape untrusted activity/contact values before rendering a right-to-left email. */
+function escapeMailHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) =>
+    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
+}
+
 export function staffMail(item, baseUrl) {
   const base = new URL(baseUrl);
   if (base.protocol !== 'https:' || base.username || base.password) throw new Error('invalid_feedback_base_url');
   if (!/^[A-Za-z0-9_-]{32,128}$/.test(item.token || '')) throw new Error('invalid_personal_token');
+  const stage = item.stage;
+  if (stage !== 'pre' && stage !== 'final') throw new Error('invalid_stage');
+  const programTitle = String(item.program_title ?? '').replace(/[\r\n]+/g, ' ').trim();
+  if (!programTitle) throw new Error('missing_program_title');
+  // The name belongs to the selected contacts_schools record, not a legacy
+  // activity field. A blank name never leaks a template placeholder.
+  const contactName = String(item.contact_name ?? '').replace(/[\r\n]+/g, ' ').trim();
+  const greeting = contactName ? `שלום ${escapeMailHtml(contactName)},` : 'שלום רב,';
+  const program = escapeMailHtml(programTitle);
   const url = new URL('feedback.html', base);
   url.searchParams.set('t', item.token);
-  const stage = item.stage === 'pre' ? 'פתיחה' : item.stage === 'final' ? 'סיום' : null;
-  if (!stage) throw new Error('invalid_stage');
+
+  const paragraphs = stage === 'pre'
+    ? [
+      `לאחר המפגשים הראשונים בתוכנית <strong>${program}</strong>, נשמח לשמוע את התרשמותך מהפעילות עד כה.`,
+      'חשוב לנו לדעת האם יש נושאים שכדאי לדייק, לשפר או להתאים כבר בשלב זה של התוכנית.',
+      'נודה לך על הקדשת מספר דקות למילוי משוב קצר, שיסייע לנו להמשיך ולשפר את הפעילות ולהתאים אותה לצורכי התלמידים ובית הספר.'
+    ]
+    : [
+      `עם סיום התוכנית <strong>${program}</strong>, נשמח לשמוע את התרשמותך מהפעילות שהתקיימה.`,
+      'חשוב לנו להבין מה עבד היטב, אילו חלקים היו משמעותיים במיוחד והאם יש נושאים שכדאי לשמר, לדייק או לשפר לקראת הפעילויות הבאות.',
+      'נודה לך על הקדשת מספר דקות למילוי משוב קצר, שיסייע לנו להמשיך ולפתח את התוכנית ולהתאים אותה לצורכי התלמידים ובית הספר.'
+    ];
+
   return {
-    subject: `משוב ${stage} – ${item.program_title} – ${item.school}`,
-    body: { contentType: 'Text', content: [
-      'שלום,', '',
-      `נשמח לקבל משוב ${stage} קצר על התוכנית "${item.program_title}" בבית הספר "${item.school}".`,
-      'המשוב יסייע לנו ללמוד מהניסיון שלכם ולשפר את התוכנית.',
-      `למילוי המשוב האישי: ${url.href}`, '', 'תודה על שיתוף הפעולה,', 'צוות תעשיידע'
-    ].join('\n') },
+    subject: `משוב על פעילויות תעשיידע | ${programTitle}`,
+    body: {
+      contentType: 'HTML',
+      content: [
+        '<div dir="rtl" lang="he" style="font-family:Arial,sans-serif;font-size:15px;line-height:1.6;text-align:right">',
+        `<p>${greeting}</p>`,
+        ...paragraphs.map((paragraph) => `<p>${paragraph}</p>`),
+        `<p><strong>למילוי המשוב האישי:</strong><br><a href="${escapeMailHtml(url.href)}">${escapeMailHtml(url.href)}</a></p>`,
+        '<p>תודה רבה על שיתוף הפעולה,</p>',
+        '<p><strong>צוות תעשיידע</strong></p>',
+        '</div>'
+      ].join('\n')
+    },
     toRecipients: [{ emailAddress: { address: item.recipient_email } }]
   };
 }
