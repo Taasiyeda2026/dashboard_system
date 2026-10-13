@@ -191,7 +191,7 @@ function showTimeCancelEditField(row, preferredForm = null) {
     const form = preferredForm
       || document.querySelector('.av2-modal-overlay .av2-modal--form form')
       || document.querySelector('.av2-report__form[data-av2-edit-record-id]');
-    if (!form || form.querySelector('[data-av2-time-cancel-edit]')) return;
+    if (!form || form.querySelector('[data-av2-time-cancel-edit]') || form.querySelector('#edit-has-cancellation') || form.querySelector('#av2-has-cancellation')) return;
     const hoursDisplay = form.querySelector('.av2-report__hours-display')
       || form.querySelector('.av2-report__time-cancellation');
     if (!hoursDisplay) return;
@@ -244,7 +244,7 @@ function showTimeCancelEditField(row, preferredForm = null) {
 function attachEditFormTimeCancellation(form) {
   if (!(form instanceof HTMLElement)) return;
   const recordId = text(form.dataset.av2EditRecordId);
-  if (!recordId || form.querySelector('[data-av2-time-cancel-edit]')) return;
+  if (!recordId || form.querySelector('[data-av2-time-cancel-edit]') || form.querySelector('#edit-has-cancellation') || form.querySelector('#av2-has-cancellation')) return;
   const row = document.querySelector(`.av2-report-row[data-record-id="${CSS.escape(recordId)}"]`);
   showTimeCancelEditField(row || Object.assign(document.createElement('div'), { dataset: { recordId } }), form);
 }
