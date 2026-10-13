@@ -51,4 +51,3 @@ export function instructorReportedCancellationMinutes(record = {}) {
     ? Math.max(0, Math.round(Number(requested)))
     : null;
 }
-
