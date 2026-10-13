@@ -9,8 +9,8 @@ import { filterGroups, hasCourseStartDate, studentFeedbackPeriodForGroup,
 // This suite creates its own disposable database, never accepts a remote URL.
 const url=process.env.STAFF_DELIVERY_TEST_DATABASE_URL;
 const ADMIN='11111111-1111-1111-1111-111111111111';
-const morning='2026-10-14T02:00:00Z'; // 05 Israel
-const dispatch='2026-10-14T05:00:00Z';
+const morning='2026-11-20T03:00:00Z'; // 05:00 Israel (standard time)
+const dispatch='2026-11-20T06:00:00Z'; // 08:00 Israel
 const file=(path)=>readFile(new URL(path,import.meta.url),'utf8');
 
 function visibleStaff(groups,half) {
@@ -72,6 +72,7 @@ test('staff delivery PostgreSQL end-to-end, fake Graph only',async(t)=>{
     await q(await file('../supabase/migrations/20261012224500_feedback_staff_automation_dry_run_foundation.sql'));
     await q(await file('../supabase/migrations/20261012230000_feedback_staff_delivery_disabled.sql'));
     await q(await file('../supabase/migrations/20261013034500_feedback_staff_approved_personalized_email.sql'));
+    await q(await file('../supabase/migrations/20261013061500_staff_final_course_completion_from_20261120.sql'));
     await q("insert into users(user_id,auth_user_id,role,is_active) values('admin',$1,'admin',true),('other','22222222-2222-2222-2222-222222222222','operation_manager',true)",[ADMIN]);
     await q("insert into contacts_schools(id,contact_name,email) values(7,'רונית','selected@school.test'),(8,'דנה','new@school.test'),(9,'ללא מייל',null)");
 
@@ -103,10 +104,46 @@ test('staff delivery PostgreSQL end-to-end, fake Graph only',async(t)=>{
       await q("update activities set date_3='2026-10-14'");
       await q("insert into course_meeting_cancellations values('INCOMPLETE','2026-10-13')");
       rows=await q('select * from feedback_staff_auto_candidates($1)',[morning]);
-      assert.equal(rows.find(c=>c.stage==='pre').status,'not_due');
-      assert.equal(rows.find(c=>c.stage==='final').status,'not_due');
+      assert.equal(rows.find(c=>c.stage==='pre').status,'eligible');
+      assert.equal(rows.find(c=>c.stage==='final').status,'unscheduled'); // cancelled second meeting needs a replacement
       rows=await q("select * from feedback_staff_auto_candidates('2026-10-14T09:01Z')");
-      assert.ok(rows.every(c=>c.status==='eligible'));
+      assert.equal(rows.find(c=>c.stage==='final').status,'not_due'); // before Nov 20
+      assert.equal(rows.find(c=>c.stage==='pre').status,'eligible');
+    });
+
+    await t.test('from Nov 20: final feedback uses real completion for both open and closed courses, never just admin closure',async()=>{
+      await reset();
+      await activity('OPEN_FINISHED',{school:'Finished Open',status:'פתוח',end_date:'2026-11-18'});
+      await activity('CLOSED_FINISHED',{school:'Finished Closed',status:'סגור',end_date:'2026-11-19'});
+      await activity('CLOSED_FUTURE',{school:'Closed But Future',status:'סגור',
+        start_date:'2026-11-18',date_1:'2026-11-18',date_2:'2026-11-22',end_date:'2026-11-22'});
+      await activity('OPEN_END_FUTURE',{school:'Open Declared Future',status:'פתוח',end_date:'2026-11-22'});
+      await activity('CLOSED_CANCELLED',{school:'Cancelled Course',status:'סגור'});
+      await q("insert into course_meeting_cancellations values('CLOSED_CANCELLED','2026-10-13')");
+      await activity('CLOSED_NO_END',{school:'No End',status:'סגור',end_date:null});
+      await activity('CLOSED_WORKSHOP',{school:'Workshop',status:'סגור',
+        activity_type:'workshop',activity_family:'one_day',activity_name:'סדנה',end_date:'2026-11-18'});
+      // Never send before the 20 Nov start, even when a course has already ended.
+      let rows=await q("select * from public.feedback_staff_auto_candidates('2026-11-19T03:00:00Z')");
+      assert.equal(rows.find(c=>c.representative_row_id==='OPEN_FINISHED'&&c.stage==='final').status,'not_due');
+      assert.equal(rows.find(c=>c.representative_row_id==='CLOSED_FINISHED'&&c.stage==='final').status,'not_due');
+      rows=await q('select * from public.feedback_staff_auto_candidates($1)',[morning]);
+      const finalStatus=id=>rows.find(c=>c.representative_row_id===id&&c.stage==='final')?.status;
+      assert.equal(finalStatus('OPEN_FINISHED'),'eligible');
+      assert.equal(finalStatus('CLOSED_FINISHED'),'eligible');
+      assert.equal(finalStatus('CLOSED_FUTURE'),'not_due');
+      assert.equal(finalStatus('OPEN_END_FUTURE'),'not_due');
+      assert.equal(finalStatus('CLOSED_CANCELLED'),'unscheduled');
+      assert.equal(finalStatus('CLOSED_NO_END'),'unscheduled');
+      assert.equal(finalStatus('CLOSED_WORKSHOP'),undefined); // only courses
+      assert.equal((await rpc('feedback_staff_auto_prepare',{p_now:morning})).prepared,6);
+      const due=await q("select activity_row_id,stage from feedback_staff_auto_outbox where stage='final' order by activity_row_id");
+      assert.deepEqual(due.map(x=>x.activity_row_id),['CLOSED_FINISHED','OPEN_FINISHED']);
+      // Progressing to Nov 23 makes both future courses eligible without
+      // requiring a status change or manual UI control.
+      rows=await q("select * from public.feedback_staff_auto_candidates('2026-11-23T03:00:00Z')");
+      assert.equal(rows.find(c=>c.representative_row_id==='CLOSED_FUTURE'&&c.stage==='final').status,'eligible');
+      assert.equal(rows.find(c=>c.representative_row_id==='OPEN_END_FUTURE'&&c.stage==='final').status,'eligible');
     });
 
     await t.test('strict selected contact, no fallback; UI exposes only required statuses',async()=>{
@@ -157,8 +194,8 @@ test('staff delivery PostgreSQL end-to-end, fake Graph only',async(t)=>{
       // Both stages stay eligible because due_at <= now, NOT due_at = today.
       await q("update activities set school_contact_id=7 where row_id='LATE_CONTACT'");
       await q("update contacts_schools set email='recovered@school.test' where id=9");
-      const nextMorning='2026-10-15T02:00:00Z';
-      const nextDispatch='2026-10-15T05:00:00Z';
+      const nextMorning='2026-11-21T03:00:00Z'; // 05 Israel, winter
+      const nextDispatch='2026-11-21T06:00:00Z'; // 08 Israel, winter
       const nextCandidates=await q('select * from feedback_staff_auto_candidates($1)',[nextMorning]);
       for(const id of ['LATE_CONTACT','LATE_EMAIL'])
         for(const stage of ['pre','final']) {
@@ -290,7 +327,7 @@ test('staff delivery PostgreSQL end-to-end, fake Graph only',async(t)=>{
     });
 
     await t.test('future activation bound blocks historical meetings in prepare and claim',async()=>{
-      await reset();await activity('PAST');await q("update feedback_staff_auto_control set activation_at='2026-10-14T00:00Z'");
+      await reset();await activity('PAST');await q("update feedback_staff_auto_control set activation_at='2026-11-21T00:00Z'");
       assert.equal((await rpc('feedback_staff_auto_prepare',{p_now:morning})).prepared,0);
       assert.deepEqual(await rpc('feedback_staff_auto_claim'),{});
       await q("update feedback_staff_auto_control set enabled=false,activation_at=null");
