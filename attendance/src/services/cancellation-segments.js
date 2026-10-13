@@ -27,3 +27,28 @@ export function cancellationRequestedMinutes(record = {}) {
   if (before == null || after == null) return null;
   return Number(before) + Number(after);
 }
+
+/**
+ * Instructor-facing attendance reports show exactly the submitted/requested
+ * cancellation time, independently of manager approval and payroll fields.
+ * Missing requests are null (unlike a reported 0:00).
+ */
+export function instructorReportedCancellationMinutes(record = {}) {
+  const sourceBefore = record.cancellation_before_minutes;
+  const sourceAfter = record.cancellation_after_minutes;
+  if (sourceBefore != null && sourceAfter != null) {
+    return Math.max(0, Math.round(Number(sourceBefore) + Number(sourceAfter)));
+  }
+  const compensation = record.travel_compensation;
+  if (!compensation) return null;
+  const before = compensation.reported_before_cancellation_minutes;
+  const after = compensation.reported_after_cancellation_minutes;
+  if (before != null && after != null) {
+    return Math.max(0, Math.round(Number(before) + Number(after)));
+  }
+  const requested = compensation.requested_cancellation_minutes;
+  return requested != null && Number.isFinite(Number(requested))
+    ? Math.max(0, Math.round(Number(requested)))
+    : null;
+}
+
