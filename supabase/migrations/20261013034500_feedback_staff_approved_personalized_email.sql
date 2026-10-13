@@ -50,5 +50,3 @@ begin
  end loop;
  return '{}'::jsonb;
 end $$;
-
-
