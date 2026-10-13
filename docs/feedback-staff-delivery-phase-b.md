@@ -1,4 +1,15 @@
-# שלב ב׳ — משובים אוטומטיים לצוות החינוכי, כבוי כברירת מחדל
+# שלב ב׳ — משובים אוטומטיים לצוות החינוכי
+
+## הפעלה מאושרת — 13.10.2026
+
+- אושרה הפעלה החל מ־13.10.2026: מיפוי יומי ב־05:00 ושליחה לצוות החינוכי ב־08:00 לפי Asia/Jerusalem.
+- מועד האישור נשמר ב־feedback_staff_auto_control.activation_at כדי לא לשלוח משובים שמועד הזכאות שלהם היה לפני האישור.
+- שני תהליכי ה־Cron פועלים בשעון UTC מדי שעה, אך שולחים בקשה רק אם השעה המקומית היא 05:00 או 08:00; גם שרת Edge וגם מסד הנתונים אוכפים שעות אלה.
+- סוד ה־Cron נשמר ב־Supabase Vault בשם feedback_staff_automation_secret. בשרת Edge נשמרת טביעת SHA-256 בלבד, והזדהות זו מותרת ל־prepare ו־dispatch בלבד, ללא preview.
+- לפני הכנת תור, Edge מוודא שהוא מסוגל להפיק טוקן Microsoft Graph מהיישום הייעודי Taasiyeda Dashboard עם הרשאת Mail.Send. אם ההכנה אינה מורשית, לא נוצר תור לשליחה.
+- שער ההפעלה המרכזי הוא feedback_staff_auto_control.enabled, נוסף להזדהות של Cron. ללא הרשאות Azure תקינות, אין להציג את ההפצה כפעילה בפועל.
+- נמען חסר מדולג בלי לעצור קבוצות אחרות; מיפוי נוסף בימים הבאים יכול להשלים שליחה רק אחרי מועד ההפעלה; אין ניסיון חוזר אוטומטי לאחר failed או unknown.
+
 
 המשך ישיר ל־PR #2301: משתמש ב־`feedback_staff_auto_candidates` וב־`feedback_staff_auto_outbox` הקיימים. אין רשימת קורסים נוספת ואין שינוי ב־RPC של תלמידים או מדריכים.
 
@@ -49,7 +60,7 @@ STAFF_DELIVERY_TEST_DATABASE_URL=postgresql://postgres:local-test@127.0.0.1:5543
 - שני תהליכי Cron מוכנים באמצעות `feedback_staff_auto_install_inactive_cron()`; המיגרציה לא קוראת לה. גם הפעלה ידנית שלה מתקינה Jobs במצב inactive בלבד, בתוך אותה טרנזקציה.
 - המיגרציה נוצרה עם Supabase CLI; חותמת הזמן הוזזה לאחר מיגרציית שלב א׳ כדי לשמור על סדר התלויות.
 
-## מה נשאר להפעלה עתידית — רק לאחר אישור מפורש נוסף
+## הוראות היסטוריות מלפני אישור ההפעלה
 
 1. למזג את PR של שלב ב׳ ולהחיל את המיגרציה כשהשליחה כבויה. לפרוס `feedback-staff-automation` עם `FEEDBACK_STAFF_DELIVERY_ENABLED=false`; Endpoint ללא user JWT מוגן בסוד השרת הקיים `FEEDBACK_STAFF_DRY_RUN_SECRET`.
 2. להגדיר **משתנים ייעודיים חדשים בלבד**, ללא שינוי ערכי `MS_*` המשמשים מערכות אחרות: `FEEDBACK_STAFF_MS_TENANT_ID` = `bb3f0918-c67d-4fee-b2db-e6a8eab891d1`, `FEEDBACK_STAFF_MS_CLIENT_ID` = `b37ae8f7-0b03-4925-b0e4-f5cb8da95238`, ו־`FEEDBACK_STAFF_MS_CLIENT_SECRET` = **Value של Client Secret פעיל שנוצר עבור יישום Taasiyeda Dashboard** (לא Secret ID, לא Digest). סוד זה יש להזין ישירות ב־Supabase Edge Functions → Secrets, לא בצ'אט או Git. חובה לוודא אישור `Microsoft Graph / Application / Mail.Send` עבור היישום, וכן הגבלת שליחה לתיבת `office@think.org.il` בהתאם למדיניות הארגונית. אין לשלוח עד לבדיקת הרשאות יזומה נפרדת. יש לקבוע `FEEDBACK_STAFF_BASE_URL` לכתובת הייצור של המשוב.
