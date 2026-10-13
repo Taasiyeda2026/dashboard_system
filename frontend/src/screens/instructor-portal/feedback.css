@@ -1,0 +1,28 @@
+.instructor-feedback-page{width:100%;min-width:0;direction:rtl}
+.instructor-feedback-tabs{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:18px 0}
+.instructor-feedback-tabs [role=tab]{appearance:none;background:#fff;border:1px solid #dce3eb;color:#213b52;border-radius:9px;padding:11px 15px;min-height:44px;cursor:pointer;font:inherit;font-weight:600}
+.instructor-feedback-tabs [role=tab][aria-selected=true]{background:#20527c;color:#fff;border-color:#20527c}
+.instructor-feedback-tabs [data-feedback-refresh]{margin-inline-start:auto}
+.instructor-feedback-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));gap:12px}
+.instructor-feedback-card{border:1px solid #dce3eb;border-radius:10px;background:#fff;padding:18px;min-width:0;box-shadow:0 1px 4px #0e21300d}
+.instructor-feedback-card h3{font-size:1.06rem;font-weight:700;line-height:1.45;margin:0 0 14px}
+.instructor-feedback-card dl{margin:0 0 14px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.instructor-feedback-card dt{font-size:.83rem;color:#697986;margin-bottom:3px}
+.instructor-feedback-card dd{margin:0;overflow-wrap:anywhere;font-weight:600}
+.instructor-feedback-actions{display:flex;gap:8px;flex-wrap:wrap}
+.instructor-feedback-actions .ds-btn{min-height:42px}
+.instructor-feedback-program{margin:0 0 12px}
+.instructor-feedback-state{font-weight:600;margin:0 0 12px}
+.instructor-feedback-note{color:#566878;margin:4px 0 16px;line-height:1.6}
+.instructor-feedback-empty{padding:26px 18px;color:#607180;background:#f8fafc;border:1px solid #e5eaf0;border-radius:9px;width:100%}
+.instructor-feedback-error{color:#b42318;margin:12px 0}
+.instructor-feedback-page [hidden]{display:none!important}
+@media(max-width:620px){
+.instructor-feedback-tabs{gap:6px}
+.instructor-feedback-tabs [role=tab]{font-size:.9rem;flex:1;min-width:0}
+.instructor-feedback-tabs [data-feedback-refresh]{margin-inline-start:0}
+.instructor-feedback-grid{grid-template-columns:1fr}
+.instructor-feedback-card{padding:14px}
+.instructor-feedback-card dl{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.instructor-feedback-actions .ds-btn{flex:1}
+}
