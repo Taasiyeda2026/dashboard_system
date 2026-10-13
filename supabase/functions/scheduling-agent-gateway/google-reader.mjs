@@ -25,6 +25,7 @@ export function createGoogleReader({getAccessToken,spreadsheetId,folderId,fetchI
   const before=await get(metadataUrl);
   if(before.id!==id||before.mimeType!=='application/vnd.google-apps.spreadsheet'||!before.parents?.includes(folderId)||!before.modifiedTime||!before.version)throw new GatewayError('spreadsheet_identity_mismatch',409);
   const metadata=await get(`https://sheets.googleapis.com/v4/spreadsheets/${id}?fields=spreadsheetId,properties(timeZone),sheets(properties(sheetId,title,gridProperties(rowCount,columnCount)))`);
+  if(metadata.spreadsheetId!==id)throw new GatewayError('spreadsheet_identity_mismatch',409);
   const tab=metadata.sheets?.find(s=>s.properties?.title==='שיבוצים')?.properties;
   // Fail closed on an oversized/structurally different workbook, rather than truncate it.
   if(!tab||tab.gridProperties.columnCount>26||tab.gridProperties.rowCount>2000)throw new GatewayError('sheet_structure_requires_review',409);
