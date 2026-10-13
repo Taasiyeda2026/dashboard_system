@@ -15,7 +15,7 @@ function ensureStyles() {
   const node = document.createElement('style');
   node.id = 'client-external-documents-style-v1';
   node.textContent = `
-    .ds-client-external{grid-column:1/-1;border:1px solid #d3e4eb;border-radius:16px;padding:16px;background:#fff;min-width:0}
+    .ds-client-external{box-sizing:border-box;width:100%;border:1px solid #d3e4eb;border-radius:16px;padding:16px;background:#fff;min-width:0}
     .ds-client-external__head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
     .ds-client-external__head h3{margin:0}
     .ds-client-external__list{display:grid;gap:8px}
@@ -80,7 +80,7 @@ export function externalClientDocumentRowsHtml(rows = [], canManage = false) {
 }
 
 /** Dedicated client-file section; no proposal or finance workflows are invoked. */
-export async function mountClientExternalDocuments(workspace, file, { canManage = false, signal } = {}) {
+export async function mountClientExternalDocuments(workspace, file, { canManage = false, signal, client = supabase } = {}) {
   const host = workspace?.querySelector?.('[data-pa-external-documents]');
   if (!host || !file?.key) return;
   ensureStyles();
@@ -95,7 +95,7 @@ export async function mountClientExternalDocuments(workspace, file, { canManage 
     errorBox.hidden = !value;
   };
   const refresh = async () => {
-    const { data, error } = await supabase.from('client_external_documents')
+    const { data, error } = await client.from('client_external_documents')
       .select('id,client_key,document_kind,title,external_number,document_date,amount,notes,file_name,file_path,created_at')
       .eq('client_key', file.key).order('created_at', { ascending: false });
     if (!active()) return;
@@ -128,7 +128,7 @@ export async function mountClientExternalDocuments(workspace, file, { canManage 
       const tab = window.open('', '_blank');
       if (tab) tab.opener = null;
       try {
-        const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(row.file_path, 90);
+        const { data, error } = await client.storage.from(BUCKET).createSignedUrl(row.file_path, 90);
         if (error || !data?.signedUrl) throw error || new Error('Missing signed URL');
         if (tab && !tab.closed) tab.location.replace(data.signedUrl);
         else message('הדפדפן חסם פתיחת חלון. יש לאפשר חלונות קופצים ולנסות שוב.');
@@ -141,10 +141,10 @@ export async function mountClientExternalDocuments(workspace, file, { canManage 
     if (!canManage || !window.confirm('למחוק את המסמך "' + row.title + '" מתיק הלקוח?')) return;
     button.disabled = true;
     try {
-      const { error } = await supabase.from('client_external_documents').delete()
+      const { error } = await client.from('client_external_documents').delete()
         .eq('id', row.id).eq('client_key', file.key);
       if (error) throw error;
-      const { error: cleanupError } = await supabase.storage.from(BUCKET).remove([row.file_path]);
+      const { error: cleanupError } = await client.storage.from(BUCKET).remove([row.file_path]);
       await refresh();
       if (cleanupError) message('הרשומה הוסרה, אך ניקוי קובץ האחסון דורש טיפול.');
     } catch {
@@ -177,12 +177,12 @@ export async function mountClientExternalDocuments(workspace, file, { canManage 
     progress.textContent = 'מעלה ושומר…';
     let uploaded = false;
     try {
-      const { error: uploadError } = await supabase.storage.from(BUCKET)
+      const { error: uploadError } = await client.storage.from(BUCKET)
         .upload(path, pdf, { contentType: 'application/pdf', upsert: false });
       if (uploadError) throw uploadError;
       uploaded = true;
       const amountValue = text(fields.get('amount'));
-      const { error: insertError } = await supabase.from('client_external_documents').insert({
+      const { error: insertError } = await client.from('client_external_documents').insert({
         id, client_key: file.key, document_kind: fields.get('document_kind'), title,
         document_date: text(fields.get('document_date')) || null,
         amount: amountValue ? Number(amountValue) : null,
@@ -195,7 +195,7 @@ export async function mountClientExternalDocuments(workspace, file, { canManage 
       await refresh();
     } catch {
       if (uploaded) {
-        try { await supabase.storage.from(BUCKET).remove([path]); } catch { /* best effort */ }
+        try { await client.storage.from(BUCKET).remove([path]); } catch { /* best effort */ }
       }
       message('שמירת המסמך נכשלה. לא שונתה הצעת מחיר במערכת.');
     } finally {

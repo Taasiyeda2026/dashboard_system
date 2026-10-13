@@ -117,9 +117,33 @@ function ensureClientFileStyle() {
       outline: 0;
     }
 
-    #app .ds-client-file.is-layout-polished > .ds-client-file__identity {
+    #app .ds-client-file.is-layout-polished > .ds-client-file__contacts-column {
       grid-column: 2;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      align-content: start;
+      gap: 16px;
+      width: 100%;
+      min-width: 0;
+    }
+
+    #app .ds-client-file.is-layout-polished > .ds-client-file__contacts-column > .ds-client-file__identity {
+      box-sizing: border-box;
+      width: 100%;
       align-self: start;
+      padding: 14px 16px 16px;
+      border: 1px solid var(--ds-border);
+      border-radius: 16px;
+      background: #fff;
+      box-shadow: 0 3px 14px rgba(15, 23, 42, 0.04);
+    }
+
+    #app .ds-client-file.is-layout-polished > .ds-client-file__contacts-column > .ds-client-external {
+      grid-column: 1;
+      box-sizing: border-box;
+      width: 100%;
+      min-width: 0;
+      margin: 0;
       padding: 14px 16px 16px;
       border: 1px solid var(--ds-border);
       border-radius: 16px;
@@ -327,7 +351,7 @@ function ensureClientFileStyle() {
       }
 
       #app .ds-client-file__header,
-      #app .ds-client-file.is-layout-polished > .ds-client-file__identity,
+      #app .ds-client-file.is-layout-polished > .ds-client-file__contacts-column,
       #app .ds-client-file.is-layout-polished > .ds-client-file__proposals {
         grid-column: 1 !important;
       }
@@ -399,7 +423,8 @@ function decorateArchive(file) {
 
 function buildCompactHeader(file) {
   if (file.querySelector(':scope > .ds-client-file__header')) return;
-  const identity = Array.from(file.children).find((item) => item.classList?.contains('ds-client-file__identity'));
+  const identity = file.querySelector(':scope > .ds-client-file__contacts-column > .ds-client-file__identity')
+    || Array.from(file.children).find((item) => item.classList?.contains('ds-client-file__identity'));
   const proposals = Array.from(file.children).find((item) => item.classList?.contains('ds-client-file__proposals'));
   if (!identity || !proposals) return;
 
