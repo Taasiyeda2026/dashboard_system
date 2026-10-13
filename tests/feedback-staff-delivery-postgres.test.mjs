@@ -213,7 +213,7 @@ test('staff delivery PostgreSQL end-to-end, fake Graph only',async(t)=>{
       const nextRpc=async(name,args={})=>{
         const input={...args,...(['feedback_staff_auto_claim','feedback_staff_auto_begin_send'].includes(name)?{p_now:nextDispatch}:{})};
         const entries=Object.entries(input);
-        const bindings=entries.map(([key],i)=>key+':=
+        const bindings=entries.map(([key],i)=>key+':='+String.fromCharCode(36)+(i+1)).join(',');
         return (await q(`select public.${name}(${bindings}) result`,entries.map(([,v])=>v)))[0].result;
       };
       for(let i=0;i<4;i++){
