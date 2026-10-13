@@ -5,7 +5,7 @@ import { deliveryWindow, staffMail, deliverClaim, runAutomation, STAFF_FEEDBACK_
 import { staffDeliveryStatus, staffStatusIndex } from '../frontend/src/impact-feedback/staff-delivery-status.js';
 
 const item = { id:'id',claim_token:'claim',token:'a'.repeat(43),stage:'pre',
-  school:'בית ספר אלון',program_title:'פורצות דרך',recipient_email:'selected@school.test' };
+  school:'בית ספר אלון',contact_name:'רונית כהן',program_title:'פורצות דרך',recipient_email:'selected@school.test' };
 const baseUrl = 'https://taasiyeda2026.github.io/dashboard_system/';
 
 test('staff feedback always sends through the office mailbox, not shared MS_MAIL_SENDER', () => {
@@ -75,13 +75,45 @@ test('05/08 Israel gates at exact DST transition dates', () => {
   }
 });
 
-test('personal Hebrew mail uses selected address, program, school and stage token', () => {
-  const mail=staffMail(item,baseUrl);
-  assert.deepEqual(mail.toRecipients,[{emailAddress:{address:item.recipient_email}}]);
-  assert.match(mail.subject,/פתיחה.*פורצות דרך.*אלון/);
-  assert.ok(mail.body.content.includes(`${baseUrl}feedback.html?t=${item.token}`));
-  assert.match(staffMail({...item,stage:'final'},baseUrl).subject,/סיום/);
+test('approved Hebrew opening and closing emails use the selected contact name and one school-free subject', () => {
+  const pre=staffMail(item,baseUrl);
+  const final=staffMail({...item,stage:'final'},baseUrl);
+  const subject='משוב על פעילויות תעשיידע | פורצות דרך';
+  for(const mail of [pre,final]) {
+    assert.equal(mail.subject,subject);
+    assert.equal(mail.body.contentType,'HTML');
+    assert.deepEqual(mail.toRecipients,[{emailAddress:{address:item.recipient_email}}]);
+    assert.match(mail.body.content,/dir="rtl"/);
+    assert.match(mail.body.content,/שלום רונית כהן,/);
+    assert.match(mail.body.content,/למילוי המשוב האישי:/);
+    assert.match(mail.body.content,/תודה רבה על שיתוף הפעולה,/);
+    assert.match(mail.body.content,/צוות תעשיידע/);
+    assert.ok(mail.body.content.includes(`${baseUrl}feedback.html?t=${item.token}`));
+    assert.doesNotMatch(mail.subject+mail.body.content,/בית ספר אלון/);
+    assert.doesNotMatch(mail.subject,/פתיחה|סיום/);
+    assert.doesNotMatch(mail.body.content,/\[שם איש הקשר\]|\[שם התוכנית\]/);
+  }
+  assert.match(pre.body.content,/לאחר המפגשים הראשונים בתוכנית/);
+  assert.match(pre.body.content,/נשמח לשמוע את התרשמותך מהפעילות עד כה/);
+  assert.match(pre.body.content,/כדאי לדייק, לשפר או להתאים כבר בשלב זה של התוכנית/);
+  assert.match(pre.body.content,/להתאים אותה לצורכי התלמידים ובית הספר/);
+  assert.match(final.body.content,/עם סיום התוכנית/);
+  assert.match(final.body.content,/אילו חלקים היו משמעותיים במיוחד/);
+  assert.match(final.body.content,/לשמר, לדייק או לשפר לקראת הפעילויות הבאות/);
+  assert.match(final.body.content,/להתאים אותה לצורכי התלמידים ובית הספר/);
+  assert.doesNotMatch(pre.body.content,/עם סיום התוכנית/);
+  assert.doesNotMatch(final.body.content,/לאחר המפגשים הראשונים/);
   assert.throws(()=>staffMail({...item,token:'invalid'},baseUrl));
+  assert.throws(()=>staffMail({...item,stage:'invalid'},baseUrl));
+  assert.throws(()=>staffMail({...item,program_title:''},baseUrl));
+});
+
+test('personal name and program are safely escaped; blank names do not leak placeholders',()=>{
+  const malicious=staffMail({...item,contact_name:'<רונית & דנה>',program_title:'<מדע & טכנולוגיה>'},baseUrl);
+  assert.match(malicious.body.content,/שלום &lt;רונית &amp; דנה&gt;,/);
+  assert.match(malicious.body.content,/&lt;מדע &amp; טכנולוגיה&gt;/);
+  assert.doesNotMatch(malicious.body.content,/<רונית|<מדע/);
+  assert.equal(staffMail({...item,contact_name:''},baseUrl).body.content.includes('שלום רב,'),true);
 });
 
 test('Graph 202, definitive rejection and ambiguous communication are recorded once', async () => {
