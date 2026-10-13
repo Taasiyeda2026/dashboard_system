@@ -22,9 +22,9 @@ const basicRows = [
 
 test('dashboard defines title-only shortcuts without a separate work schedule card', () => {
   const source = fs.readFileSync(new URL('../frontend/src/screens/instructor-portal/dashboard.js', import.meta.url), 'utf8');
-  assert.equal((source.match(/action: '/g) || []).length, 5);
-  for (const label of ['לוח שנה', 'מערכת נוכחות', 'מצגות', 'דיווחים', 'הפעילויות שלי']) assert.match(source, new RegExp(label));
-  assert.doesNotMatch(source, /title: 'סידור עבודה'/);
+  assert.equal((source.match(/action: '/g) || []).length, 4);
+  for (const label of ['לוח שנה', 'מערכת נוכחות', 'מצגות', 'הפעילויות שלי']) assert.match(source, new RegExp(label));
+  assert.doesNotMatch(source, /title: 'סידור עבודה'|title: 'דיווחים'/);
   assert.doesNotMatch(source, /subtitle:/);
   assert.match(source, /config\.instructorAttendanceUrl/);
   assert.match(source, /config\.instructorPresentationsUrl/);
@@ -40,7 +40,7 @@ test('instructor dashboard, activities, and work schedule render their approved 
   const dashboard = new JSDOM(instructorDashboardScreen.render({ rows: [activity] }, { state: stateA })).window.document;
   assert.ok(dashboard.querySelector('[data-portal-month]'));
   assert.ok(dashboard.querySelector('.instructor-portal-focus'));
-  assert.equal(dashboard.querySelectorAll('.instructor-portal-shortcut').length, 5);
+  assert.equal(dashboard.querySelectorAll('.instructor-portal-shortcut').length, 4);
   assert.doesNotMatch(dashboard.body.textContent, /דורש תשומת לב|סיכום אישי/);
 
   const activities = new JSDOM(instructorMyActivitiesScreen.render({ rows: [activity] }, { state: stateA })).window.document;
@@ -49,7 +49,7 @@ test('instructor dashboard, activities, and work schedule render their approved 
   assert.match(activities.querySelector('.portal-activities-desktop').textContent, /רשות בדיקה/);
   assert.match(activities.querySelector('.portal-activities-mobile').textContent, /רשות בדיקה/);
   assert.doesNotMatch(activities.body.textContent, /שכבה סודית|פתוח|סטטוס/);
-  assert.equal(activities.querySelectorAll('th').length, 5);
+  assert.equal(activities.querySelectorAll('th').length, 6);
   assert.doesNotMatch(activities.body.textContent, /פעולה|פרטים/);
 
   let openedDrawer = '';
@@ -71,7 +71,7 @@ test('dashboard renders a dynamic plain-text monthly summary in the approved ord
   const monthIndex = source.indexOf('instructor-portal-dashboard__toolbar');
   const summaryIndex = source.indexOf('instructorMonthlySummaryHtml(summary)', monthIndex);
   const dividerIndex = source.indexOf('instructor-portal-summary-divider', summaryIndex);
-  const nextIndex = source.indexOf('${nextCard}', dividerIndex);
+  const nextIndex = source.indexOf('${upcomingSection}', dividerIndex);
   const shortcutsIndex = source.indexOf('instructor-portal-shortcuts', nextIndex);
   assert.ok(monthIndex < summaryIndex && summaryIndex < dividerIndex && dividerIndex < nextIndex && nextIndex < shortcutsIndex);
 });
@@ -131,8 +131,8 @@ test('portal calendar stays a seven-column grid with compact mobile day details'
   assert.match(source, /ds-interactive-card--day-cell|variant: 'day-cell'/);
   assert.match(source, /ui\?\.openDrawer/);
   assert.doesNotMatch(source, /חגים, חופשות, מועדים וימי הולדת מכל המגזרים/);
-  assert.match(source, /loadInstructorActivities\(api\)/);
-  assert.match(source, /instructorActivities\(data\?\.rows, state\)/);
+  assert.match(source, /loadInstructorPortalSchedule\(api,/);
+  assert.match(source, /instructorActivityEventsForDate\(data\?\.activities \|\| \[\], date, data\?\.resolvedMeetings \|\| null\)/);
   assert.equal(instructorActivityEventsForDate([{ RowID: 'mine', activity_name: 'פעילות שלי', date_1: '2026-09-08' }], '2026-09-08').length, 1);
   assert.match(eventSource, /hasSchoolCalendar \? 'is-school-calendar-day'/);
   assert.match(eventSource, /hasActivity \? 'has-instructor-activity'/);
@@ -206,7 +206,10 @@ test('instructor navigation keeps portal areas and omits approvals and guideline
   const mobile = source.slice(source.indexOf('const INSTRUCTOR_MOBILE_NAV'), source.indexOf('function instructorBottomNavHtml'));
   assert.ok(mobile.indexOf('instructor-dashboard') < mobile.indexOf('my-data'));
   assert.doesNotMatch(mobile, /instructor-work-schedule/);
-  for (const route of ['instructor-calendar', 'instructor-reports']) assert.match(mobile, new RegExp(route));
+  assert.match(mobile, /instructor-calendar/);
+  assert.doesNotMatch(mobile, /instructor-reports/);
+  assert.doesNotMatch(sidebar, /instructor-reports/);
+  assert.match(source, /route === 'instructor-reports' && String\(user\?\.role \|\| ''\)\.trim\(\) === 'instructor'/);
   assert.match(source, /resolveInitialAuthenticatedRoute/);
   assert.match(source, /role \|\| ''\)\.trim\(\) === 'instructor'.*instructor-dashboard/s);
   assert.match(source, /isInstructorUser \? '' : `<div class="shell-period-wrap"/);
@@ -320,7 +323,7 @@ test('attendance read failure does not reject the instructor calendar data load'
   }, { empId: 'A-1', fromDate: '2026-09-01', toDate: '2027-08-31' });
   assert.deepEqual(rows, []);
   const calendarSource = fs.readFileSync(new URL('../frontend/src/screens/instructor-portal/calendar.js', import.meta.url), 'utf8');
-  assert.match(calendarSource, /Promise\.all\([\s\S]+loadInstructorActivities\(api\)[\s\S]+loadInstructorAttendanceDates\(api,/);
+  assert.match(calendarSource, /Promise\.all\([\s\S]+loadInstructorPortalSchedule\(api,[\s\S]+loadInstructorAttendanceDates\(api,/);
 });
 
 test('reports is a placeholder and does not load completion approvals', () => {

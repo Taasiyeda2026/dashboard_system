@@ -30,7 +30,9 @@ test('PDF buttons exist only for current admin-uploaded elementary student PDFs'
   assert.match(sql, /t\.current_version_id = fp\.version_id/);
   assert.match(sql, /c\.template_version_id = fp\.version_id/);
   assert.match(sql, /'paper_pdfs', case when/);
-  assert.match(screen, /item\.paper_pdfs\.length/);
+  assert.match(screen, /item\.paper_pdf_supported/);
+  assert.match(screen, /\['he', 'ar'\]\.map/);
+  assert.match(screen, /file \? '' : 'disabled'/);
   assert.match(screen, /data-ifb-instr-pdf/);
   assert.match(screen, /downloadSavedPaperPdf\(file\)/);
   assert.match(api, /createSignedUrl\(record\.storage_path, 60\)/);

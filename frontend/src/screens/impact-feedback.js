@@ -2324,13 +2324,17 @@ function instructorFeedbackView(data, activeTab) {
       <td data-label="העתקת קישור"><button class="ifb-btn" type="button" data-ifb-instr-copy="${esc(item.campaign_id)}">העתק קישור</button></td>
       <td data-label="הצגת QR"><button class="ifb-btn ifb-btn--sm" type="button" data-ifb-instr-qr="${esc(item.campaign_id)}">הצגת QR</button></td>
       <td data-label="PDF" class="ifb-portal-pdf">
-        ${Array.isArray(item.paper_pdfs) && item.paper_pdfs.length
-          ? item.paper_pdfs.map((file) => `<button type="button" class="ifb-pdf-action"
-              data-ifb-instr-pdf="${esc(item.campaign_id)}" data-ifb-instr-pdf-lang="${esc(file.language)}"
-              title="הורדת משוב PDF – ${file.language === 'ar' ? 'ערבית' : 'עברית'}"
-              aria-label="הורדת משוב PDF – ${file.language === 'ar' ? 'ערבית' : 'עברית'}">
-              <span class="ifb-pdf-action__icon" aria-hidden="true">PDF</span><span>${file.language === 'ar' ? 'ערבית' : 'עברית'}</span>
-            </button>`).join('')
+        ${item.paper_pdf_supported
+          ? ['he', 'ar'].map((language) => {
+              const file = item.paper_pdfs?.find((pdf) => pdf.language === language);
+              const label = language === 'ar' ? 'ערבית' : 'עברית';
+              const tooltip = file ? `הורדת משוב PDF – ${label}` : `PDF ${label} טרם הועלה`;
+              return `<button type="button" class="ifb-pdf-action"
+                data-ifb-instr-pdf="${esc(item.campaign_id)}" data-ifb-instr-pdf-lang="${language}"
+                title="${esc(tooltip)}" aria-label="${esc(tooltip)}" ${file ? '' : 'disabled'}>
+                <span class="ifb-pdf-action__icon" aria-hidden="true">PDF</span><span>${label}</span>
+              </button>`;
+            }).join('')
           : '—'}
       </td>
     </tr>`).join('');
