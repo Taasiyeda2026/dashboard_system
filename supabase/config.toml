@@ -11,3 +11,8 @@ content_path = "./supabase/templates/recovery.html"
 # Deployment and live delivery still require separate approval.
 [functions.feedback-staff-automation]
 verify_jwt = false
+
+# User identity is verified with Auth getUser, then a DB-bound owner permission.
+# No service-role key and no anonymous RPC/table access. Commits remain disabled.
+[functions.scheduling-agent-gateway]
+verify_jwt = false

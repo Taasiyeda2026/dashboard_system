@@ -1,0 +1,5 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {agentRequestHtml} from '../frontend/src/screens/shared/scheduling-agent-approvals-view.js';
+const request={id:'request',state:'pending',expires_at:'2090-10-01T00:00:00Z',preview:{school:'<script>attack</script>',program:'Course',activityId:'course',option:{instructorName:'Instructor',meetings:[{date:'2090-09-20',start_time:'08:00',end_time:'09:30'}]}}};
+test('human approval view escapes untrusted text and requires a separate review checkbox',()=>{const html=agentRequestHtml(request);assert.equal(html.includes('<script>'),false);assert.match(html,/&lt;script&gt;/);assert.match(html,/data-reviewed/);assert.match(html,/data-approve="request" disabled/);assert.match(html,/2090-09-20/);});
+test('expired or consumed approvals have no enabled review control',()=>{for(const r of [{...request,expires_at:'2020-01-01'},{...request,state:'committed'}])assert.match(agentRequestHtml(r),/data-reviewed="request" disabled/);});

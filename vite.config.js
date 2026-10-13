@@ -38,7 +38,8 @@ export default defineConfig(() => {
         input: {
           index: resolve(__dirname, 'index.html'),
           // Standalone public feedback form (no app shell / login).
-          feedback: resolve(__dirname, 'feedback.html')
+          feedback: resolve(__dirname, 'feedback.html'),
+          schedulingAgentApproval: resolve(__dirname, 'scheduling-agent-approval.html')
         },
         output: {
           // Do not inline dynamic imports: feature/screen bundles must stay async chunks.
