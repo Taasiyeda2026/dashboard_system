@@ -10,7 +10,7 @@ const read = (path) => readFile(new URL('../' + path, import.meta.url), 'utf8');
 const [create, edit, migration, control, bridge] = await Promise.all([
   read('attendance/src/screens/new-report-screen.js'),
   read('attendance/src/screens/my-reports-screen.js'),
-  read('supabase/migrations/20261013093000_unified_attendance_travel_time_cancellation.sql'),
+  read('supabase/migrations/20261013042258_unified_attendance_travel_time_cancellation.sql'),
   read('frontend/src/screens/attendance-control.js'),
   read('frontend/src/payroll-attendance-v2-bridge.js'),
 ]);
