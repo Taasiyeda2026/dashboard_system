@@ -372,7 +372,7 @@ create or replace function public.av2_compute_source_travel_review_status(
   p_calculation_status text,
   p_existing_review_status text default null
 )
-returns text language plpgsql stable as $
+returns text language plpgsql stable as $source$
 declare
   before_minutes integer;
   after_minutes integer;
@@ -399,7 +399,7 @@ begin
     p_calculation_status, p_existing_review_status
   );
 end;
-$;
+$source$;
 
 -- ---------------------------------------------------------------------------
 -- 3) Reconcile: system calc only — never creates payable hours by itself
