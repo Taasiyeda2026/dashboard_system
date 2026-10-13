@@ -155,7 +155,9 @@ test('staff delivery PostgreSQL end-to-end, fake Graph only',async(t)=>{
       assert.equal((await q('select count(*)::int n from feedback_staff_auto_outbox'))[0].n,0);
       await q("select set_config('test.uid',$1,false)",[ADMIN]);await q('set role authenticated');
       const states=await q('select * from feedback_staff_auto_status()');
-      assert.ok(states.every(s=>s.status==='needs_attention'));
+      assert.ok(states.every(s=>s.stage==='pre' ? s.status==='needs_attention' : ['needs_attention','not_due'].includes(s.status)));
+      // The final check starts on 20 Nov; the status UI uses the actual
+      // system clock, so its final row may show not_due before that date.
       assert.deepEqual(Object.keys(states[0]).sort(),['activity_row_id','reason','stage','status']);
       await assert.rejects(q('select feedback_staff_auto_claim()'),/permission denied/);
       await q("select set_config('test.uid','22222222-2222-2222-2222-222222222222',false)");
@@ -225,18 +227,28 @@ test('staff delivery PostgreSQL end-to-end, fake Graph only',async(t)=>{
       assert.equal(sent,6);
       assert.equal((await q("select count(*)::int n from feedback_staff_auto_outbox where status='accepted'"))[0].n,6);
       // Next day map sees the already-accepted historical stages and does not duplicate.
-      assert.equal((await rpc('feedback_staff_auto_prepare',{p_now:'2026-10-16T02:00:00Z'})).prepared,0);
+      assert.equal((await rpc('feedback_staff_auto_prepare',{p_now:'2026-11-22T03:00:00Z'})).prepared,0);
       assert.equal((await q('select count(*)::int n from feedback_staff_auto_outbox'))[0].n,6);
       await q("update contacts_schools set email=null where id=9");
     });
 
     await t.test('date/contact/email/representative changes from 05 to 08 cancel stale dispatch',async()=>{
-      for(const change of ["date_2='2026-10-20'","school_contact_id=8","end_time='13:00'"]) {
+      for(const change of ["date_2='2026-11-25'","school_contact_id=8"]) {
         await reset();await activity('A');await rpc('feedback_staff_auto_prepare',{p_now:morning});
         await q(`update activities set ${change} where row_id='A'`);
         assert.deepEqual(await rpc('feedback_staff_auto_claim'),{});
         assert.ok((await q('select status from feedback_staff_auto_outbox')).every(o=>o.status==='cancelled'));
       }
+      // An end-time correction on a course completed weeks ago must not
+      // manufacture a future class. The final gate remains eligible only
+      // after the recorded END DATE, unlike the changed pre-stage snapshot.
+      await reset();await activity('A');await rpc('feedback_staff_auto_prepare',{p_now:morning});
+      await q("update activities set end_time='13:00' where row_id='A'");
+      const endedClaim=await rpc('feedback_staff_auto_claim');
+      assert.equal(endedClaim.stage,'final');
+      assert.ok((await q("select count(*)::int n from feedback_staff_auto_outbox where stage='pre' and status='cancelled'"))[0].n===1);
+      // Test database is reset before any Graph call; do not send the claim.
+
       await reset();await activity('A');await activity('B',{school:'School A',end_date:'2026-10-12'});
       await rpc('feedback_staff_auto_prepare',{p_now:morning});await q("update activities set end_date='2026-10-15' where row_id='B'");
       assert.deepEqual(await rpc('feedback_staff_auto_claim'),{});
