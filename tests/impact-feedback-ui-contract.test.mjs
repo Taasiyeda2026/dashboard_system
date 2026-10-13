@@ -754,7 +754,8 @@ test('impact-feedback temporary access is limited to active admin and specific I
 
   const main = readFileSync(new URL('../frontend/src/main.js', import.meta.url), 'utf8');
   assert.match(main, /if \(route === 'impact-feedback'\) return canViewImpactFeedback\(user\)/);
-  assert.match(main, /!state\.token \|\| !canViewImpactFeedback\(state\.user\)/);
+  assert.match(main, /!state\.token \|\| !\(canViewImpactFeedback\(state\.user\) \|\| isFeedbackInstructor\(state\.user\)\)/);
+  assert.match(screen, /if \(isFeedbackInstructor\(state\?\.user\)\)/);
   assert.match(screen, /if \(!canViewImpactFeedback\(state\?\.user\)\)/);
   assert.match(screen, /feedbackReadOnly = !isFeedbackAdmin\(state\?\.user\)/);
   assert.match(screen, /visibleFeedbackTabs\(\)\.map/);

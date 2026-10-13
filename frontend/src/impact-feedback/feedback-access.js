@@ -5,6 +5,10 @@
  */
 export const FEEDBACK_ISRAA_USER_ID = '3030';
 
+export function isFeedbackInstructor(user) {
+  return String(user?.role || '').trim().toLowerCase() === 'instructor' && user?.is_active !== false;
+}
+
 export function isFeedbackAdmin(user) {
   return String(user?.role || '').trim().toLowerCase() === 'admin';
 }

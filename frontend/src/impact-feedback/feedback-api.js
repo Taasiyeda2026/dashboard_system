@@ -89,6 +89,17 @@ export async function fetchCourseSummary(academicYear = null, half = 'first') {
   return Array.isArray(rows) ? rows : [];
 }
 
+/** Restricted instructor portal: campaigns only; no response or template data. */
+export async function fetchInstructorPortalItems(academicYear = 'school_2027') {
+  const data = await unwrap(client().rpc('feedback_instructor_portal_items', {
+    p_academic_year: academicYear
+  }));
+  return {
+    students: Array.isArray(data?.students) ? data.students : [],
+    personal: Array.isArray(data?.personal) ? data.personal : []
+  };
+}
+
 export async function fetchInstructorAssignments(academicYear = null) {
   const rows = await unwrap(client().rpc('feedback_admin_instructor_assignments', {
     p_academic_year: academicYear || null

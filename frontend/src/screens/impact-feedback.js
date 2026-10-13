@@ -1,5 +1,5 @@
 /**
- * "משובים" — admin-only module.
+ * "משובים" — existing module with admin management and restricted instructor access.
  * Six tabs that share the dashboard academic year and one selected course:
  *   סקירה כללית · תלמידים · מדריכים · צוות חינוכי · ניתוח והשוואה
  * The unit of analysis is a course + respondent population. Results are computed from every valid
@@ -59,6 +59,7 @@ import {
   fetchGroups,
   fetchStaffDeliveryStatus,
   fetchInstructorAssignments,
+  fetchInstructorPortalItems,
   fetchMetrics,
   fetchPrograms,
   openCampaign,
@@ -70,7 +71,7 @@ import { campaignLink, copyText, openQrProjection, personalShareLinks } from '..
 import { staffDeliveryStatus, staffStatusIndex } from '../impact-feedback/staff-delivery-status.js';
 import { renderTemplatesView, bindTemplatesView } from '../impact-feedback/feedback-templates-view.js';
 import '../impact-feedback/feedback-form.css';
-import { canViewImpactFeedback, canEditImpactFeedbackWording, isFeedbackAdmin } from '../impact-feedback/feedback-access.js';
+import { canViewImpactFeedback, canEditImpactFeedbackWording, isFeedbackAdmin, isFeedbackInstructor } from '../impact-feedback/feedback-access.js';
 import '../impact-feedback/impact-feedback-admin.css';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -2285,7 +2286,132 @@ function installActivityDateSync(host) {
   activitySyncTimer = window.setInterval(check, ACTIVITY_SYNC_INTERVAL_MS);
 }
 
+
+/**
+ * Instructor access lives INSIDE the existing feedback screen and reuses its
+ * buttons, tab styling, tables, QR projection and public questionnaire.
+ * The restricted RPC is the sole data source. Never fetch admin datasets here.
+ */
+function instructorFeedbackView(data, activeTab) {
+  const tabs = [
+    { key: 'students', label: 'משובי תלמידים' },
+    { key: 'personal', label: 'המשובים שלי' }
+  ];
+  const students = Array.isArray(data?.students) ? data.students : [];
+  const personal = Array.isArray(data?.personal) ? data.personal : [];
+  const stageName = (stage) => stage === 'pre' ? 'פתיחת קורס' : 'סיום קורס';
+  const personalName = (stage) => stage === 'pre' ? 'פתיחה לאחר הכשרה'
+    : stage === 'final_b' ? 'סיום מחצית ב׳' : 'סיום מחצית א׳';
+  const studentRows = students.map((item) => `
+    <tr>
+      <td data-label="משוב">${esc('משוב ' + stageName(item.stage))}</td>
+      <td data-label="בית ספר">${esc(item.school_name || '—')}</td>
+      <td data-label="רשות">${esc(item.authority_name || '—')}</td>
+      <td data-label="כיתה">${esc(item.class_name || '—')}</td>
+      <td data-label="קורס">${esc(item.program_title || '—')}</td>
+      <td data-label="העתקת קישור"><button class="ifb-btn" type="button" data-ifb-instr-copy="${esc(item.campaign_id)}">העתק קישור</button></td>
+      <td data-label="הצגת QR"><button class="ifb-btn" type="button" data-ifb-instr-qr="${esc(item.campaign_id)}">הצגת QR</button></td>
+    </tr>`).join('');
+  const personalRows = personal.map((item) => {
+    const url = item.token
+      ? campaignLink({ audience: 'instructor', recipient: { token: item.token } })
+      : '';
+    const status = item.completed ? 'הושלם' : (url ? 'ממתין למילוי' : 'לא זמין למילוי');
+    return `<tr>
+      <td data-label="משוב">${esc('משוב ' + personalName(item.stage))}</td>
+      <td data-label="קורס">${esc(item.program_title || '—')}</td>
+      <td data-label="סטטוס">${esc(status)}</td>
+      <td data-label="פעולה">${url ? `<a class="ifb-btn" href="${esc(url)}" target="_blank" rel="noopener noreferrer">מילוי / המשך מילוי</a>` : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const contents = activeTab === 'students'
+    ? students.length
+      ? `<div class="ifb-table-wrap"><table class="ifb-table"><thead><tr>
+          <th>משוב</th><th>בית ספר</th><th>רשות</th><th>כיתה</th><th>קורס</th><th>העתקת קישור</th><th>הצגת QR</th>
+        </tr></thead><tbody>${studentRows}</tbody></table></div>`
+      : emptyHtml('אין כרגע משובי תלמידים זמינים לפעילויות שלך.')
+    : personal.length
+      ? `<div class="ifb-table-wrap"><table class="ifb-table"><thead><tr>
+          <th>משוב</th><th>קורס</th><th>סטטוס</th><th>פעולה</th>
+        </tr></thead><tbody>${personalRows}</tbody></table></div>`
+      : emptyHtml('אין כרגע משובים אישיים שנפתחו עבורך.');
+  return `
+    <div class="ifb-admin__head">
+      <h1 class="ifb-admin__title">משובים</h1>
+      <button type="button" class="ifb-icon-btn ifb-icon-btn--lg" data-ifb-instr-refresh
+        title="ריענון משובים" aria-label="ריענון משובים">↻</button>
+    </div>
+    <nav class="ifb-tabs" role="tablist" aria-label="משובים בממשק המדריך">
+      ${tabs.map((tab) => `<button type="button" class="ifb-tab${activeTab === tab.key ? ' is-active' : ''}"
+        data-ifb-instr-tab="${tab.key}" role="tab" aria-selected="${activeTab === tab.key}"
+        aria-controls="ifb-panel">${tab.label}</button>`).join('')}
+    </nav>
+    <div id="ifb-panel" class="ifb-view" role="tabpanel">
+      ${sectionHtml(activeTab === 'students' ? 'משובי תלמידים' : 'המשובים שלי', contents)}
+    </div>`;
+}
+
+function mountInstructorFeedback(host) {
+  // Instructor never invokes feedback_admin_* RPCs or renders the admin tabs.
+  host.classList.add('is-feedback-instructor');
+  let activeTab = 'students';
+  let items = { students: [], personal: [] };
+  let pending = false;
+  const show = () => { if (host.isConnected) host.innerHTML = instructorFeedbackView(items, activeTab); };
+  const refresh = async ({ quiet = false } = {}) => {
+    if (pending || !host.isConnected) return;
+    pending = true;
+    if (!quiet) host.innerHTML = loadingHtml();
+    try {
+      items = await fetchInstructorPortalItems('school_2027');
+      show();
+    } catch (error) {
+      if (!quiet) host.innerHTML = errorHtml(translateFeedbackError(error));
+    } finally {
+      pending = false;
+    }
+  };
+  host.addEventListener('click', async (event) => {
+    const tab = event.target.closest('[data-ifb-instr-tab]');
+    if (tab) {
+      activeTab = tab.dataset.ifbInstrTab === 'personal' ? 'personal' : 'students';
+      show();
+      return;
+    }
+    if (event.target.closest('[data-ifb-instr-refresh], [data-ifb-retry]')) {
+      await refresh();
+      return;
+    }
+    const copy = event.target.closest('[data-ifb-instr-copy]');
+    const qr = event.target.closest('[data-ifb-instr-qr]');
+    if (!copy && !qr) return;
+    const id = (copy || qr).getAttribute(copy ? 'data-ifb-instr-copy' : 'data-ifb-instr-qr');
+    const item = items.students.find((row) => row.campaign_id === id);
+    if (!item?.token) return;
+    const campaign = { audience: 'student', stage: item.stage, public_token: item.token };
+    if (copy) {
+      showToast(await copyText(campaignLink(campaign)) ? 'הקישור הועתק' : 'לא ניתן להעתיק את הקישור');
+    } else {
+      await openQrProjection(campaign, {
+        programTitle: item.program_title, schoolName: item.school_name, grade: item.class_name
+      });
+    }
+  });
+  // A campaign scheduled for 09:15 must become visible without re-login.
+  // Read-only polling does not create, open or dispatch feedback campaigns.
+  const timer = window.setInterval(() => {
+    if (!host.isConnected) { window.clearInterval(timer); return; }
+    if (document.visibilityState !== 'hidden') refresh({ quiet: true });
+  }, 15000);
+  refresh();
+}
+
 function mount(host, state) {
+  if (isFeedbackInstructor(state?.user)) {
+    mountInstructorFeedback(host);
+    return;
+  }
   if (!canViewImpactFeedback(state?.user)) {
     host.innerHTML = '<div class="ifb-empty ifb-empty--error" role="alert"><p>אין לך הרשאה לצפות בממשק המשובים.</p></div>';
     return;

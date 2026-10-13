@@ -16,7 +16,7 @@ import { applyGlobalAccent, accentNameFromStorage, bindAccentPickerOnce as bindA
 import { waitForSupabaseAuthSession } from './supabase-client.js';
 import { permissionFlagYes as permissionEnabled } from './permissions.js';
 import { hasPermission } from './permission-policy.js';
-import { canViewImpactFeedback } from './impact-feedback/feedback-access.js';
+import { canViewImpactFeedback, isFeedbackInstructor } from './impact-feedback/feedback-access.js';
 import { countPendingApprovedProposals } from './screens/shared/proposals-pending-count.js';
 import { bootstrapLocalBaselineMonitor } from './local-baseline-monitor.js';
 
@@ -722,7 +722,7 @@ function isActiveInstructorPilotUser(user = state?.user || {}) {
   return [user.emp_id, user.employee_id, user.user_id].map((v) => String(v || '').trim()).some((id) => ACTIVE_INSTRUCTOR_EMP_IDS.has(id));
 }
 function instructorOnlyRoutes() {
-  return ['instructor-dashboard', 'instructor-work-schedule', 'instructor-calendar', 'instructor-reports', 'my-data', 'instructor-completion-approvals', 'instructor-guidelines'];
+  return ['instructor-dashboard', 'instructor-work-schedule', 'instructor-calendar', 'instructor-reports', 'my-data', 'instructor-completion-approvals', 'instructor-guidelines', 'impact-feedback'];
 }
 
 const INSTRUCTOR_MOBILE_NAV = [
@@ -730,6 +730,7 @@ const INSTRUCTOR_MOBILE_NAV = [
   { route: 'my-data', short: 'פעילויות', icon: '📋' },
   { route: 'instructor-calendar', short: 'לוח שנה', icon: '📅' },
   { route: 'instructor-reports', short: 'דיווחים', icon: '📊' },
+  { route: 'impact-feedback', short: 'משובים', icon: '📝' },
   { route: null, short: 'נוכחות', icon: '✅', externalUrl: config.instructorAttendanceUrl },
   { route: null, short: 'מצגות', icon: '📂', externalUrlBlank: config.instructorPresentationsUrl }
 ];
@@ -752,7 +753,7 @@ function isAdminRole(user = state?.user || {}) {
 }
 
 function routeAllowedByRole(route, user = state?.user || {}) {
-  if (route === 'impact-feedback') return canViewImpactFeedback(user);
+  if (route === 'impact-feedback') return canViewImpactFeedback(user) || isFeedbackInstructor(user);
   return true;
 }
 
@@ -1071,10 +1072,10 @@ function enforceCourseSchedulingRoute() {
   state.routes = state.effectiveRoutes;
 }
 
-// Temporary access: admin and Israa only; database separately enforces identity and read-only access.
+// Admin/Israa retain their management view; instructors use the same route with restricted data.
 function enforceImpactFeedbackRoute() {
   const current = Array.isArray(state.effectiveRoutes) ? state.effectiveRoutes : [];
-  if (!state.token || !canViewImpactFeedback(state.user)) {
+  if (!state.token || !(canViewImpactFeedback(state.user) || isFeedbackInstructor(state.user))) {
     const withoutFeedback = current.filter((route) => route !== 'impact-feedback');
     state.effectiveRoutes = withoutFeedback;
     state.routes = withoutFeedback;
@@ -1103,7 +1104,8 @@ function shell(content) {
     { route: 'instructor-calendar', label: 'לוח שנה' },
     { label: 'מערכת נוכחות', externalUrl: config.instructorAttendanceUrl },
     { label: 'מצגות', externalUrlBlank: config.instructorPresentationsUrl },
-    { route: 'instructor-reports', label: 'דיווחים' }
+    { route: 'instructor-reports', label: 'דיווחים' },
+    { route: 'impact-feedback', label: 'משובים' }
   ];
   const regularNav = effectiveRoutes()
     .filter((route) =>
