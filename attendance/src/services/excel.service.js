@@ -1,3 +1,6 @@
+import { instructorReportedCancellationMinutes } from './cancellation-segments.js';
+import { isCancellationRecord, reportedCancellationHours } from '../components/monthly-report-summary.js';
+
 /**
  * excel.service.js
  * Export attendance records for a month to an xlsx file.
@@ -58,6 +61,9 @@ export function exportMonthToExcel(records, instructor, year, month) {
       'התחלה':          excelClock(r.start_time),
       'סיום':           excelClock(r.end_time),
       'שעות':           excelDuration(r.total_hours),
+      'ביטול זמן מדווח': instructorReportedCancellationMinutes(r) !== null
+        ? excelDuration(instructorReportedCancellationMinutes(r) / 60)
+        : '',
       'סוג פעילות':     r.activity_type || '',
       'שם פעילות':      r.activity_name_snapshot || '',
       'תוכנית':         r.program_name_snapshot || r.program_name || '',
@@ -84,8 +90,9 @@ export function exportMonthToExcel(records, instructor, year, month) {
     applyNumberFormat(XLSX, ws1, 2, firstRecordRow, lastRecordRow, 'hh:mm');
     applyNumberFormat(XLSX, ws1, 3, firstRecordRow, lastRecordRow, 'hh:mm');
     applyNumberFormat(XLSX, ws1, 4, firstRecordRow, lastRecordRow, '[h]:mm');
-    applyNumberFormat(XLSX, ws1, 12, firstRecordRow, lastRecordRow, '0.0');
-    applyNumberFormat(XLSX, ws1, 13, firstRecordRow, lastRecordRow, '#,##0.00');
+    applyNumberFormat(XLSX, ws1, 5, firstRecordRow, lastRecordRow, '[h]:mm');
+    applyNumberFormat(XLSX, ws1, 13, firstRecordRow, lastRecordRow, '0.0');
+    applyNumberFormat(XLSX, ws1, 14, firstRecordRow, lastRecordRow, '#,##0.00');
   }
 
   // Title rows
@@ -101,6 +108,7 @@ export function exportMonthToExcel(records, instructor, year, month) {
     { wch: 7 },  // התחלה
     { wch: 7 },  // סיום
     { wch: 6 },  // שעות
+    { wch: 18 }, // ביטול זמן מדווח
     { wch: 14 }, // סוג פעילות
     { wch: 22 }, // שם פעילות
     { wch: 16 }, // תוכנית
@@ -122,20 +130,36 @@ export function exportMonthToExcel(records, instructor, year, month) {
   const byType = {};
   let totalHours = 0, totalKm = 0, totalExpenses = 0;
 
+  const sourceIds = new Set(records.filter((r) => !r?.generation_kind).map((r) => String(r?.id ?? '')));
   for (const r of records) {
-    const t = r.activity_type || 'לא ידוע';
+    const generatedLinked = r?.generation_kind === 'travel_time_cancellation'
+      && sourceIds.has(String(r?.source_attendance_record_id ?? ''));
+    const t = r.activity_type || (r?.generation_kind === 'travel_time_cancellation' ? 'ביטול זמן' : 'לא ידוע');
     if (!byType[t]) byType[t] = { hours: 0, sessions: 0, km: 0, expenses: 0 };
     const hours = Number(r.total_hours || 0);
     const km = Number(r.roundtrip_km || 0);
     const expenses = Number(r.expenses || 0);
-    byType[t].hours += hours;
-    byType[t].sessions += 1;
+    if (!generatedLinked) {
+      byType[t].hours += hours;
+      byType[t].sessions += 1;
+    }
     byType[t].km += km;
     byType[t].expenses += expenses;
     totalHours += hours;
     totalKm += km;
     totalExpenses += expenses;
   }
+  // The attendance report shows instructor-reported cancellation, not payroll approval.
+  // Keep work-hour and payroll totals independent of this display-only aggregation.
+  byType['ביטול זמן'] ||= { hours: 0, sessions: 0, km: 0, expenses: 0 };
+  const standaloneCancellationHours = records
+    .filter((r) => isCancellationRecord(r)
+      && !(r?.generation_kind === 'travel_time_cancellation'
+        && sourceIds.has(String(r?.source_attendance_record_id ?? ''))))
+    .reduce((n, r) => n + Number(r?.total_hours || 0), 0);
+  byType['ביטול זמן'].hours = Math.max(0, reportedCancellationHours(records) - standaloneCancellationHours)
+    + standaloneCancellationHours;
+  if (!byType['ביטול זמן'].hours && !byType['ביטול זמן'].sessions) delete byType['ביטול זמן'];
 
   const summaryRows = Object.entries(byType).map(([type, agg]) => ({
     'סוג פעילות': type,
