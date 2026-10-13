@@ -25,14 +25,17 @@ alter table public.client_external_documents enable row level security;
 revoke all on public.client_external_documents from public, anon;
 grant select, insert, delete on public.client_external_documents to authenticated;
 
+drop policy if exists client_external_documents_read on public.client_external_documents;
 create policy client_external_documents_read
   on public.client_external_documents for select to authenticated
   using (public.app_can_view_proposals_agreements());
 
+drop policy if exists client_external_documents_insert on public.client_external_documents;
 create policy client_external_documents_insert
   on public.client_external_documents for insert to authenticated
   with check (public.app_can_manage_proposals_agreements() and created_by = auth.uid());
 
+drop policy if exists client_external_documents_delete on public.client_external_documents;
 create policy client_external_documents_delete
   on public.client_external_documents for delete to authenticated
   using (public.app_can_manage_proposals_agreements());
@@ -41,6 +44,7 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 values ('client-external-documents', 'client-external-documents', false, 15728640, array['application/pdf']::text[])
 on conflict (id) do nothing;
 
+drop policy if exists client_external_documents_storage_read on storage.objects;
 create policy client_external_documents_storage_read
   on storage.objects for select to authenticated
   using (
@@ -48,6 +52,7 @@ create policy client_external_documents_storage_read
     and public.app_can_view_proposals_agreements()
   );
 
+drop policy if exists client_external_documents_storage_upload on storage.objects;
 create policy client_external_documents_storage_upload
   on storage.objects for insert to authenticated
   with check (
@@ -56,6 +61,7 @@ create policy client_external_documents_storage_upload
     and name ~ '^documents/[a-f0-9-]{36}\.pdf$'
   );
 
+drop policy if exists client_external_documents_storage_delete on storage.objects;
 create policy client_external_documents_storage_delete
   on storage.objects for delete to authenticated
   using (
