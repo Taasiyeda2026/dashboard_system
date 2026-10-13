@@ -9,6 +9,22 @@ const item = { id:'id',claim_token:'claim',token:'a'.repeat(43),stage:'pre',
   school:'בית ספר אלון',contact_name:'רונית כהן',program_title:'פורצות דרך',recipient_email:'selected@school.test' };
 const baseUrl = 'https://taasiyeda2026.github.io/dashboard_system/';
 
+test('production scheduler uses Vault digest with action-scoped auth and Graph preflight', () => {
+  const edge=readFileSync(new URL('../supabase/functions/feedback-staff-automation/index.ts',import.meta.url),'utf8');
+  assert.match(edge,/STAFF_SCHEDULER_SECRET_SHA256 = '[a-f0-9]{64}'/);
+  assert.match(edge,/actualDigest === STAFF_SCHEDULER_SECRET_SHA256/);
+  assert.match(edge,/action !== 'preview' && actualDigest === STAFF_SCHEDULER_SECRET_SHA256/);
+  assert.match(edge,/legacyAuthorized/);
+  assert.match(edge,/action === 'prepare'\) await getAccessToken\(\)/);
+  assert.match(edge,/enabled:true,rpc/);
+  assert.doesNotMatch(edge,/Deno\.env\.get\('FEEDBACK_STAFF_DELIVERY_ENABLED'\)/);
+  assert.match(edge,/staffGraphCredentials/);
+  const sql=readFileSync(new URL('../supabase/migrations/20261012230000_feedback_staff_delivery_disabled.sql',import.meta.url),'utf8');
+  assert.match(sql,/feedback_staff_automation_secret/);
+  assert.match(sql,/extract\(hour from now\(\) at time zone 'Asia\/Jerusalem'\)/);
+  assert.match(sql,/feedback-staff-'\|\|action/);
+});
+
 test('staff feedback always sends through the office mailbox, not shared MS_MAIL_SENDER', () => {
   assert.equal(STAFF_FEEDBACK_SENDER, 'office@think.org.il');
   const edge=readFileSync(new URL('../supabase/functions/feedback-staff-automation/index.ts',import.meta.url),'utf8');

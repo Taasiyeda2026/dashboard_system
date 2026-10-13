@@ -2,7 +2,10 @@ import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import { previewEligibility, summarizeCandidatePreview, israelClock } from './planner.mjs';
 import { runAutomation, STAFF_FEEDBACK_SENDER, staffGraphCredentials, staffGraphTokenHasMailSend } from './delivery.mjs';
 
-// Default OFF. Both this environment flag and DB control require future approval.
+// Production activation approved on 2026-10-13. The DB control is the
+// authoritative runtime on/off switch; Cron uses a Vault-stored shared secret.
+// Microsoft Graph uses separate pinned credentials and Mail.Send permission.
+const STAFF_SCHEDULER_SECRET_SHA256 = '5799221868b0bc9081f4d3cda7839928dd84c79d7b7680033f80283b471a93f4';
 const reply = (data: unknown, code = 200) => new Response(JSON.stringify(data), {
  status: code, headers: { 'Content-Type': 'application/json; charset=utf-8' }
 });
@@ -13,16 +16,18 @@ const sha256 = async (text: string) =>
 Deno.serve(async (req: Request) => {
  try {
    if (req.method !== 'POST') return reply({ok:false,error:'method_not_allowed'},405);
-   const secret = Deno.env.get('FEEDBACK_STAFF_DRY_RUN_SECRET') || '';
-   const candidateSecret = req.headers.get('x-staff-dry-run-secret') || '';
-   if (!secret || !candidateSecret
-       || (await sha256(secret)) !== (await sha256(candidateSecret))) {
-     return reply({ok:false,error:'unauthorized'},401);
-   }
-
    const body = await req.json().catch(() => ({}));
    const action = body?.action || 'preview';
    if (!['preview','prepare','dispatch'].includes(action)) return reply({ok:false,error:'invalid_action'},400);
+   const candidateSecret = req.headers.get('x-staff-dry-run-secret') || '';
+   const legacySecret = Deno.env.get('FEEDBACK_STAFF_DRY_RUN_SECRET') || '';
+   if (!candidateSecret) return reply({ok:false,error:'unauthorized'},401);
+   const actualDigest = await sha256(candidateSecret);
+   const legacyAuthorized = Boolean(legacySecret) && actualDigest === await sha256(legacySecret);
+   // The scheduled job's random secret is kept only in Supabase Vault. Its
+   // digest is safe to store in source; do not allow it to call preview.
+   const cronAuthorized = action !== 'preview' && actualDigest === STAFF_SCHEDULER_SECRET_SHA256;
+   if (!legacyAuthorized && !cronAuthorized) return reply({ok:false,error:'unauthorized'},401);
 
    const url = Deno.env.get('SUPABASE_URL');
    const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -58,8 +63,11 @@ Deno.serve(async (req: Request) => {
        cachedToken = String(token);
        return cachedToken;
      };
+     // Before preparing a batch, verify the Graph identity and Mail.Send role.
+     // Missing credentials must NOT create pending mail that will fail at 08:00.
+     if (action === 'prepare') await getAccessToken();
      return reply({ok:true,...await runAutomation({action,now:asOf,
-       enabled:Deno.env.get('FEEDBACK_STAFF_DELIVERY_ENABLED') === 'true',rpc,
+       enabled:true,rpc,
        transport:{getAccessToken,baseUrl:Deno.env.get('FEEDBACK_STAFF_BASE_URL') ||
          'https://taasiyeda2026.github.io/dashboard_system/',
          send:(message: unknown, token: string) => fetch(
