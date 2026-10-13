@@ -91,7 +91,7 @@ export function staffMail(item, baseUrl) {
         ...paragraphs.map((paragraph) => `<p>${paragraph}</p>`),
         `<p><strong>למילוי המשוב האישי:</strong><br><a href="${escapeMailHtml(url.href)}">${escapeMailHtml(url.href)}</a></p>`,
         '<p>תודה רבה על שיתוף הפעולה,</p>',
-        '<p style="margin:8px 0 0;text-align:right"><img src="cid:' + STAFF_SIGNATURE_CONTENT_ID + '" alt="צוות תעשיידע" width="' + STAFF_SIGNATURE_WIDTH + '" height="' + STAFF_SIGNATURE_HEIGHT + '" style="display:inline-block;width:159px;height:51px;border:0;outline:none;text-decoration:none"></p>',
+        '<p style="margin:8px 0 0;text-align:right"><img src="cid:' + STAFF_SIGNATURE_CONTENT_ID + '" alt="חתימת תעשיידע" width="' + STAFF_SIGNATURE_WIDTH + '" height="' + STAFF_SIGNATURE_HEIGHT + '" style="display:block;max-width:100%;width:410px;height:auto;border:0;outline:none;text-decoration:none"></p>',
         '</div>'
       ].join('\n')
     },
