@@ -2005,3 +2005,70 @@
   [data-ifb-qr],
   [data-ifb-copy]
 ) { display: none !important; }
+
+
+/* Instructor feedback only — quiet, legible tables; no change to admin tables. */
+.ifb-admin.is-feedback-instructor { gap: 12px; padding-block: 16px 22px; }
+.ifb-admin.is-feedback-instructor .ifb-admin__head { min-height: 38px; }
+.ifb-admin.is-feedback-instructor .ifb-tabs { gap: 24px; }
+.ifb-admin.is-feedback-instructor .ifb-portal-content { min-width: 0; }
+.ifb-admin.is-feedback-instructor .ifb-portal-table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--ifb-a-line);
+  border-radius: 11px;
+  background: var(--ifb-a-card);
+}
+.ifb-admin.is-feedback-instructor .ifb-portal-table { width: 100%; }
+.ifb-admin.is-feedback-instructor .ifb-portal-table th {
+  background: #f2f7fa;
+  color: var(--ifb-a-ink);
+  padding: 11px 13px;
+  font-size: 12px;
+  font-weight: 650;
+}
+.ifb-admin.is-feedback-instructor .ifb-portal-table td {
+  padding: 11px 13px;
+  font-size: 13px;
+  vertical-align: middle;
+}
+.ifb-admin.is-feedback-instructor .ifb-portal-table tbody tr:last-child td { border-bottom: 0; }
+.ifb-admin.is-feedback-instructor .ifb-portal-table .ifb-portal-due {
+  color: var(--ifb-a-ink);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ifb-admin.is-feedback-instructor .ifb-portal-table .ifb-portal-status { color: var(--ifb-a-muted); }
+.ifb-admin.is-feedback-instructor .ifb-portal-table .ifb-btn { min-height: 30px; padding: 4px 10px; font-size: 12px; }
+.ifb-admin.is-feedback-instructor .ifb-portal-pdf { white-space: nowrap; }
+.ifb-admin.is-feedback-instructor .ifb-pdf-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-inline-end: 5px;
+  padding: 4px 6px;
+  min-height: 29px;
+  border: 1px solid var(--ifb-a-line);
+  border-radius: 7px;
+  color: var(--ifb-a-ink);
+  background: #fff;
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.ifb-admin.is-feedback-instructor .ifb-pdf-action:hover,
+.ifb-admin.is-feedback-instructor .ifb-pdf-action:focus-visible { border-color: var(--ifb-a-control-hover); }
+.ifb-admin.is-feedback-instructor .ifb-pdf-action:disabled { opacity: .5; cursor: wait; }
+.ifb-admin.is-feedback-instructor .ifb-pdf-action__icon {
+  color: #a93043;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+@media (max-width: 760px) {
+  .ifb-admin.is-feedback-instructor { padding: 10px; }
+  .ifb-admin.is-feedback-instructor .ifb-portal-table-wrap { overflow: visible; border: 0; background: transparent; }
+  .ifb-admin.is-feedback-instructor .ifb-portal-table tr { padding: 8px 12px; }
+  .ifb-admin.is-feedback-instructor .ifb-portal-table td { padding: 8px 0; }
+  .ifb-admin.is-feedback-instructor .ifb-portal-table td:last-child { border-bottom: 0; }
+}
