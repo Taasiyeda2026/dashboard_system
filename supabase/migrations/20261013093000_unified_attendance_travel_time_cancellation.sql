@@ -26,6 +26,34 @@ alter table public.attendance_records
         and not (operation_meeting_mode = 'online'))
   );
 
+-- Do not let an instructor silently change an already-reviewed request.
+create or replace function public.av2_guard_reviewed_inline_cancellation()
+returns trigger language plpgsql security definer
+set search_path = public
+as $guard$
+begin
+  if old.cancellation_before_minutes is distinct from new.cancellation_before_minutes
+     or old.cancellation_after_minutes is distinct from new.cancellation_after_minutes then
+    if exists (
+      select 1 from public.attendance_travel_compensations c
+      where c.source_attendance_record_id = old.id
+        and c.review_status in ('approved', 'corrected', 'rejected')
+    ) then
+      raise exception 'attendance_travel_review_locked' using errcode = '42501';
+    end if;
+  end if;
+  return new;
+end;
+$guard$;
+revoke all on function public.av2_guard_reviewed_inline_cancellation()
+  from public, anon, authenticated;
+drop trigger if exists av2_guard_reviewed_inline_cancellation
+  on public.attendance_records;
+create trigger av2_guard_reviewed_inline_cancellation
+before update of cancellation_before_minutes, cancellation_after_minutes
+on public.attendance_records for each row
+execute function public.av2_guard_reviewed_inline_cancellation();
+
 alter table public.attendance_travel_compensations
   add column if not exists reported_outbound_minutes integer,
   add column if not exists reported_return_minutes integer,
