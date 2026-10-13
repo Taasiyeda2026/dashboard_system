@@ -551,8 +551,23 @@ begin
 end;
 $$;
 
--- Drop legacy 5-arg signature so callers use the distance-aware function.
-drop function if exists public.av2_reconcile_attendance_travel(uuid, text, integer, integer, text);
+-- Compatibility bridge for the older deployed Edge version during rollout.
+-- The new Edge should use the 6-argument call with the distance; old calls
+-- delegate here without ever creating payable hours automatically.
+create or replace function public.av2_reconcile_attendance_travel(
+  p_source_id uuid, p_fingerprint text, p_outbound integer,
+  p_return integer, p_failure_code text
+)
+returns jsonb language sql security definer set search_path = public as $compat$
+  select public.av2_reconcile_attendance_travel(
+    p_source_id, p_fingerprint, p_outbound, p_return, p_failure_code,
+    null::numeric
+  );
+$compat$;
+revoke all on function public.av2_reconcile_attendance_travel(uuid, text, integer, integer, text)
+  from public, anon, authenticated;
+grant execute on function public.av2_reconcile_attendance_travel(uuid, text, integer, integer, text)
+  to service_role;
 
 revoke all on function public.av2_reconcile_attendance_travel(uuid, text, integer, integer, text, numeric)
   from public, anon, authenticated;
