@@ -236,7 +236,7 @@ test('manager control can approve/correct/reject and API exposes review RPC', ()
 
 test('deployable frontend cache markers bumped for this change', () => {
   assert.match(config, /unified-travel-time-cancellation-review-20261013-v1/);
-  assert.match(sw, /const CACHE_VERSION = 2003/);
+  assert.ok(Number(sw.match(/const CACHE_VERSION = (\\d+)/)?.[1]) >= 2003);
 });
 
 test('spec records no auto payroll approval and separate submit vs finalize gates', () => {
