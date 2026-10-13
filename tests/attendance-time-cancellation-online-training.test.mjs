@@ -164,7 +164,7 @@ test('scheduled training edit keeps fixed schedule identity, date, mode and loca
   assert.match(reports, /authField\.input\.disabled = isScheduledTraining \|\| reportType === 'הכשרה'/);
   assert.match(reports, /trainingLocationField\.input\.readOnly = true/);
   assert.match(reports, /training_schedule_id:\s+reportType === 'הכשרה'/);
-  assert.match(reports, /isScheduledTraining \? \(record\.authority_name_snapshot \|\| null\)/);
+  assert.match(reports, /reportType === 'הכשרה' \? trainingLocationField\.input\.value\.trim\(\)/);
 });
 
 test('training mode participates in route-context change detection', () => {
