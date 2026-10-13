@@ -722,14 +722,13 @@ function isActiveInstructorPilotUser(user = state?.user || {}) {
   return [user.emp_id, user.employee_id, user.user_id].map((v) => String(v || '').trim()).some((id) => ACTIVE_INSTRUCTOR_EMP_IDS.has(id));
 }
 function instructorOnlyRoutes() {
-  return ['instructor-dashboard', 'instructor-work-schedule', 'instructor-calendar', 'instructor-reports', 'my-data', 'instructor-completion-approvals', 'instructor-guidelines', 'impact-feedback'];
+  return ['instructor-dashboard', 'instructor-work-schedule', 'instructor-calendar', 'my-data', 'instructor-completion-approvals', 'instructor-guidelines', 'impact-feedback'];
 }
 
 const INSTRUCTOR_MOBILE_NAV = [
   { route: 'instructor-dashboard', short: 'בית', icon: '🏠' },
   { route: 'my-data', short: 'פעילויות', icon: '📋' },
   { route: 'instructor-calendar', short: 'לוח שנה', icon: '📅' },
-  { route: 'instructor-reports', short: 'דיווחים', icon: '📊' },
   { route: 'impact-feedback', short: 'משובים', icon: '📝' },
   { route: null, short: 'נוכחות', icon: '✅', externalUrl: config.instructorAttendanceUrl },
   { route: null, short: 'מצגות', icon: '📂', externalUrlBlank: config.instructorPresentationsUrl }
@@ -753,6 +752,8 @@ function isAdminRole(user = state?.user || {}) {
 }
 
 function routeAllowedByRole(route, user = state?.user || {}) {
+  // The legacy reports route is not part of the instructor experience, on either viewport.
+  if (route === 'instructor-reports' && String(user?.role || '').trim() === 'instructor') return false;
   if (route === 'impact-feedback') return canViewImpactFeedback(user) || isFeedbackInstructor(user);
   return true;
 }
@@ -1104,7 +1105,6 @@ function shell(content) {
     { route: 'instructor-calendar', label: 'לוח שנה' },
     { label: 'מערכת נוכחות', externalUrl: config.instructorAttendanceUrl },
     { label: 'מצגות', externalUrlBlank: config.instructorPresentationsUrl },
-    { route: 'instructor-reports', label: 'דיווחים' },
     { route: 'impact-feedback', label: 'משובים' }
   ];
   const regularNav = effectiveRoutes()
