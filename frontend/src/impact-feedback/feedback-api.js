@@ -118,6 +118,16 @@ export async function openInstructorCampaign(instructorEmpId, programKey, academ
   }));
 }
 
+/** Admin-only future dispatch for post-training personal feedback. */
+export async function scheduleInstructorTrainingFeedback(instructorEmpId, programKey, academicYear, sendAt) {
+  return unwrap(client().rpc('feedback_auto_schedule_instructor_pre', {
+    p_instructor_emp_id: String(instructorEmpId || ''),
+    p_program_key: programKey,
+    p_academic_year: academicYear,
+    p_send_at: sendAt
+  }));
+}
+
 export async function openCampaign(activityRowId, audience, stage, { opensAt = null, expiresAt = null, ageBand = null } = {}) {
   return unwrap(client().rpc('feedback_admin_open_campaign', {
     p_activity_row_id: activityRowId,

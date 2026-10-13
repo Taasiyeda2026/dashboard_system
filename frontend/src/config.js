@@ -474,3 +474,5 @@ config.HOTFIX_VERSION = '20261013-instructor-feedback-reports-v1-' + config.HOTF
 config.HOTFIX_VERSION = `attendance-course-clock-no-padding-20261013-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = 'instructor-feedback-student-count-view-expiry-20261013-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'feedback-admin-training-mail-schedule-20261013-' + config.HOTFIX_VERSION;

@@ -65,6 +65,7 @@ import {
   fetchPrograms,
   openCampaign,
   openInstructorCampaign,
+  scheduleInstructorTrainingFeedback,
   translateFeedbackError,
   updateCampaign
 } from '../impact-feedback/feedback-api.js';
@@ -1016,8 +1017,10 @@ function instructorCampaignActionsHtml(row, stage) {
         data-stage="${stage}" data-key="${esc(key)}">
         <label class="ifb-field"><span>פתיחה</span><input type="date" name="opens" value="${isoDay(Date.now())}" required></label>
         <label class="ifb-field"><span>תוקף עד</span><input type="date" name="expires" value="${isoDay(Date.now() + (14 * DAY_MS))}" min="${isoDay(Date.now() + DAY_MS)}"></label>
+        ${stage === 'pre' ? '<label class="ifb-field"><span>שליחה מתוזמנת (שעון ישראל)</span><input type="datetime-local" name="send_at" aria-label="תאריך ושעת משלוח משוב אחרי הכשרה"></label>' : ''}
         <div class="ifb-slot__actions">
-          <button type="submit" class="ifb-btn ifb-btn--primary ifb-btn--sm">יצירת קישור</button>
+          <button type="submit" class="ifb-btn ifb-btn--primary ifb-btn--sm" name="operation" value="create">יצירת קישור</button>
+          ${stage === 'pre' ? '<button type="submit" class="ifb-btn ifb-btn--sm" name="operation" value="schedule">תזמון מייל</button>' : ''}
           <button type="button" class="ifb-btn ifb-btn--ghost ifb-btn--sm" data-ifb-instructor-cancel="${esc(key)}">ביטול</button>
         </div>
       </form>`;
@@ -2101,6 +2104,27 @@ async function handleClick(host, event) {
   if (exp) runExport(exp.dataset.scope);
 }
 
+/** Convert a local Israel wall-clock datetime into UTC, including DST changes. */
+function parseIsraelFeedbackTime(value) {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) throw new Error('מועד משלוח לא תקין');
+  const target = Date.parse(value + ':00Z');
+  if (!Number.isFinite(target)) throw new Error('מועד משלוח לא תקין');
+  const fmt = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Jerusalem', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  });
+  let guess = target;
+  for (let i = 0; i < 3; i++) {
+    const parts = Object.fromEntries(fmt.formatToParts(new Date(guess)).map(p => [p.type, p.value]));
+    const wallUtc = Date.UTC(+parts.year, +parts.month - 1, +parts.day, +parts.hour, +parts.minute);
+    guess += target - wallUtc;
+  }
+  const check = Object.fromEntries(fmt.formatToParts(new Date(guess)).map(p => [p.type, p.value]));
+  const actual = [check.year, check.month, check.day].join('-') + 'T' + [check.hour, check.minute].join(':');
+  if (actual !== value) throw new Error('שעת המשלוח אינה תקינה באזור הזמן ישראל');
+  return new Date(guess).toISOString();
+}
+
 async function handleSubmit(host, event) {
   if (feedbackReadOnly) { event.preventDefault(); return; }
   const form = event.target;
@@ -2108,15 +2132,26 @@ async function handleSubmit(host, event) {
   if (form.matches('[data-ifb-instructor-open-form]')) {
     event.preventDefault();
     const data = new FormData(form);
-    const button = form.querySelector('[type="submit"]');
+    const action = event.submitter?.value === 'schedule' ? 'schedule' : 'create';
+    const button = event.submitter || form.querySelector('[type="submit"]');
     button.disabled = true;
     try {
-      await openInstructorCampaign(form.dataset.emp, form.dataset.program, form.dataset.year, form.dataset.stage, {
-        opensAt: openingIso(String(data.get('opens') || '')),
-        expiresAt: expiryIso(String(data.get('expires') || ''))
-      });
+      if (action === 'schedule') {
+        if (form.dataset.stage !== 'pre') throw new Error('שליחה מתוזמנת אפשרית רק למשוב לאחר הכשרה');
+        const input = String(data.get('send_at') || '').trim();
+        if (!input) throw new Error('יש לבחור תאריך ושעת משלוח');
+        const sendAt = parseIsraelFeedbackTime(input);
+        if (Date.parse(sendAt) <= Date.now() + 120000) throw new Error('יש לבחור מועד עתידי, לפחות שתי דקות מהעכשיו');
+        await scheduleInstructorTrainingFeedback(form.dataset.emp, form.dataset.program, form.dataset.year, sendAt);
+        showToast('מייל המשוב תוזמן בהצלחה לשעה שנבחרה');
+      } else {
+        await openInstructorCampaign(form.dataset.emp, form.dataset.program, form.dataset.year, form.dataset.stage, {
+          opensAt: openingIso(String(data.get('opens') || '')),
+          expiresAt: expiryIso(String(data.get('expires') || ''))
+        });
+        showToast(form.dataset.stage === 'pre' ? 'נוצר משוב פתיחה למדריך' : form.dataset.stage === 'final_b' ? 'נוצר משוב סיום מחצית ב׳' : 'נוצר משוב סיום מחצית א׳');
+      }
       ui.instructorOpenForms.delete(form.dataset.key);
-      showToast(form.dataset.stage === 'pre' ? 'נוצר משוב פתיחה למדריך' : form.dataset.stage === 'final_b' ? 'נוצר משוב סיום מחצית ב׳' : 'נוצר משוב סיום מחצית א׳');
       await afterInstructorCampaignChange(host);
     } catch (error) {
       button.disabled = false;
@@ -2322,7 +2357,7 @@ function instructorFeedbackView(data, activeTab) {
       <td data-label="כיתה">${esc(item.class_name || '—')}</td>
       <td data-label="קורס">${esc(item.program_title || '—')}</td>
       <td data-label="התקבלו" class="ifb-portal-response-count" aria-label="מספר המשובים שהתקבלו">${Number(item.response_count) || 0}</td>
-      <td data-label="צפייה בשאלון"><button class="ifb-btn ifb-btn--sm" type="button" data-ifb-instr-preview="${esc(item.campaign_id)}" title="צפייה בשאלון ללא תשובות" aria-label="צפייה בשאלון לתלמידים">◉</button></td>
+      <td data-label="צפייה בשאלון"><button class="ifb-btn ifb-btn--sm" type="button" data-ifb-instr-preview="${esc(item.campaign_id)}" title="צפייה בשאלון ללא תשובות" aria-label="צפייה בשאלון לתלמידים"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"></path><circle cx="12" cy="12" r="2.8"></circle></svg></button></td>
       <td data-label="העתקת קישור"><button class="ifb-btn" type="button" data-ifb-instr-copy="${esc(item.campaign_id)}">העתק קישור</button></td>
       <td data-label="הצגת QR"><button class="ifb-btn ifb-btn--sm" type="button" data-ifb-instr-qr="${esc(item.campaign_id)}">הצגת QR</button></td>
       <td data-label="PDF" class="ifb-portal-pdf">
