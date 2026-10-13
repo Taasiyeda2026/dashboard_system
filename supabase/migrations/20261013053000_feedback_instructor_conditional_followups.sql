@@ -309,7 +309,7 @@ BEGIN
       WHERE tq.version_id=v_template.version_id AND bq.question_key=v_parent_key;
       IF v_parent_id IS NULL THEN RAISE EXCEPTION 'Missing parent %',v_parent_key; END IF;
       v_qkey := 'in_final_followup_20261013_' || (CASE WHEN v_def->>'section'='course' THEN v_template.program_key||'_' ELSE '' END)
-         || v_def->>'suffix';
+         || (v_def->>'suffix');
       v_sco := jsonb_build_object('include_in_score',false,'visible_when',
          jsonb_build_object('parent_id',v_parent_id::text,'operator',v_def->>'op'));
       IF v_def ? 'value' THEN
