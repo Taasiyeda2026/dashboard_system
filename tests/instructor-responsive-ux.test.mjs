@@ -16,10 +16,10 @@ test('instructor responsive layer is scoped and loaded after shared dashboard st
   assert.match(css, /\.instructor-area/);
   assert.doesNotMatch(css, /^\s*\.ds-table\s*\{/m);
   const sharedIndex = index.indexOf('manager-board-team-strip-inline-fix.css');
-  const instructorIndex = index.indexOf('instructor-portal-responsive.css?v=20261004-activity-date-range-v1');
+  const instructorIndex = index.indexOf('instructor-portal-responsive.css?v=20261013-instructor-feedback-reports-v1');
   assert.notEqual(instructorIndex, -1);
   assert.ok(instructorIndex > sharedIndex);
-  assert.match(index, /instructor-portal-ux-runtime\.js\?v=20260913-instructor-responsive-v1/);
+  assert.match(index, /instructor-portal-ux-runtime\.js\?v=20261013-instructor-feedback-reports-v1/);
 });
 
 test('instructor activities are a compact summary and keep full details in the shared drawer', () => {
@@ -72,11 +72,11 @@ test('dashboard monthly summary is unboxed and uses the current accent divider',
   assert.match(css, /instructor-portal-summary-divider[\s\S]*background:\s*var\(--ds-accent\)/);
 });
 
-test('persistent instructor navigation is reduced to four core destinations with vector icons', () => {
+test('persistent instructor navigation excludes reports and retains main destinations with vector icons', () => {
   assert.match(runtime, /shell-sidebar--instructor \.shell-nav__btn\[data-external-url\]/);
   assert.match(runtime, /instructor-bottom-nav__btn\[data-external-url\]/);
   assert.match(runtime, /NAV_ICONS/);
-  for (const label of ['בית', 'פעילויות', 'לוח שנה', 'דיווחים']) assert.match(runtime, new RegExp(`'${label}'`));
+  for (const label of ['בית', 'פעילויות', 'לוח שנה', 'משובים']) assert.match(runtime, new RegExp(`'${label}'`));
 });
 
 test('completion approvals keep the shared print/status mechanism and render as a compact checklist', () => {
