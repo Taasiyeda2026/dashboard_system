@@ -21,11 +21,13 @@ export function isCancellationRecord(record = {}) {
  */
 export function reportedCancellationHours(records = []) {
   const rows = Array.isArray(records) ? records : [];
-  const sourceIds = new Set(rows.filter((row) => !row?.generation_kind).map((row) => String(row?.id ?? '')));
+  const reportedSourceIds = new Set(rows
+    .filter((row) => !row?.generation_kind && instructorReportedCancellationMinutes(row) !== null)
+    .map((row) => String(row?.id ?? '')));
   return rows.reduce((hours, row) => {
     if (isCancellationRecord(row)) {
       if (row?.generation_kind === 'travel_time_cancellation'
-          && sourceIds.has(String(row?.source_attendance_record_id ?? ''))) return hours;
+          && reportedSourceIds.has(String(row?.source_attendance_record_id ?? ''))) return hours;
       return hours + numberValue(row?.total_hours);
     }
     return hours + (instructorReportedCancellationMinutes(row) ?? 0) / 60;
@@ -97,11 +99,13 @@ export function buildMonthlySummaryItems(records = []) {
   let totalKm = 0;
   let totalExpenses = 0;
   const rows = Array.isArray(records) ? records : [];
-  const sourceIds = new Set(rows.filter((row) => !row?.generation_kind).map((row) => String(row?.id ?? '')));
+  const reportedSourceIds = new Set(rows
+    .filter((row) => !row?.generation_kind && instructorReportedCancellationMinutes(row) !== null)
+    .map((row) => String(row?.id ?? '')));
 
   for (const record of rows) {
     const generatedLinked = record?.generation_kind === 'travel_time_cancellation'
-      && sourceIds.has(String(record?.source_attendance_record_id ?? ''));
+      && reportedSourceIds.has(String(record?.source_attendance_record_id ?? ''));
     const hours = numberValue(record?.total_hours);
     let activityType = String(record?.activity_type || '').trim();
     if (!activityType && record?.generation_kind === 'travel_time_cancellation') activityType = 'ביטול זמן';
