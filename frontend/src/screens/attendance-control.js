@@ -195,13 +195,20 @@ const ATTENDANCE_GRACE_START_MINUTES = 15;
 const ATTENDANCE_GRACE_END_MINUTES   = 10;
 const DAILY_KM_TOLERANCE = 5;
 
-// School-clock time is not payroll time. Only the two unambiguous business cases
-// may be converted automatically; unusual timetables stay visible for review.
+// School-clock time and paid work hours are separate. No paid-time padding
+// may shift the source times. Unusual sub-120-minute timetables need review.
 function dashboardPayrollHours(startTime, endTime) {
   const minutes = calculateWorkHours(startTime, endTime) * 60;
   if (Math.abs(minutes - 45) < 0.01) return 1;
   if (Math.abs(minutes - 90) < 0.01) return 2;
+  if (minutes >= 120 && Math.abs(minutes % 15) < 0.01) return minutes / 60;
   return null;
+}
+
+function correctedAttendanceWorkHours(row = {}) {
+  const scheduled = calculateWorkHours(row.startTime, row.endTime);
+  if (attendanceActivityTypeKey(row.activityType) !== 'course') return scheduled;
+  return dashboardPayrollHours(row.startTime, row.endTime) ?? scheduled;
 }
 
 function timeMinutesValue(value) {
@@ -214,6 +221,8 @@ function formatMinutesAsTime(minutes) {
   return `${String(Math.floor(normalized / 60)).padStart(2, '0')}:${String(normalized % 60).padStart(2, '0')}`;
 }
 
+// Recognize historical reports whose paid allowance was embedded in the
+// clock window. New reports use the unmodified dashboard times instead.
 function courseExpectedAttendanceTimes(dashboard) {
   if (attendanceActivityTypeKey(dashboard?.activityType) !== 'course') return null;
   const payrollHours = dashboardPayrollHours(dashboard.startTime, dashboard.endTime);
@@ -997,7 +1006,7 @@ export function approveAttendanceEntryCurrent(entry) {
     difference.custom = '';
     difference.decided = true;
     if (difference.key === 'startTime' || difference.key === 'endTime') {
-      entry.final.workHours = calculateWorkHours(entry.final.startTime, entry.final.endTime);
+      entry.final.workHours = correctedAttendanceWorkHours(entry.final);
     }
   }
   entry.managerRecordApproved = true;
@@ -1253,7 +1262,7 @@ export function applyAttendanceManualCorrection(entry, changes = {}) {
   entry.final = enforceAttendanceTravelMode({
     ...merged,
     workHours: timesChanged
-      ? calculateWorkHours(merged.startTime, merged.endTime)
+      ? correctedAttendanceWorkHours(merged)
       : rowWorkHours(merged) ?? optionalNumber(base.workHours)
   });
   entry.managerResolved = 'corrected';
@@ -1670,7 +1679,7 @@ export function applyAttendanceChoice(comparison, field, choice, custom = '') {
   const value = choice === 'dashboard' ? difference.dashboard : choice === 'custom' ? custom : difference.attendance;
   comparison.final[field] = difference.type === 'number' || difference.type === 'money' ? optionalNumber(value) : value;
   if (field === 'startTime' || field === 'endTime') {
-    comparison.final.workHours = calculateWorkHours(comparison.final.startTime, comparison.final.endTime);
+    comparison.final.workHours = correctedAttendanceWorkHours(comparison.final);
   }
   // Only mark as corrected once every difference has received an explicit manager decision.
   if (comparison.differences.every((d) => d.decided)) comparison.managerResolved = 'corrected';
