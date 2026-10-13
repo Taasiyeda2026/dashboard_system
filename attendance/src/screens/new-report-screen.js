@@ -38,6 +38,11 @@ import {
   reconcileTravelCompensation,
   getBaseTrainingRoutePreview,
 } from '../services/attendance.service.js';
+import {
+  canReportInlineCancellation,
+  formatCancellationDuration,
+  parseCancellationDuration,
+} from '../services/cancellation-segments.js';
 import { canEditMonth, editBlockReason, getMonthKey } from '../services/month-gate.service.js';
 import { uploadAttachment } from '../services/storage.service.js';
 import { attendanceDateWarning } from '../services/activity-date-warning.js';
@@ -209,6 +214,12 @@ export function renderNewReportScreen(container, {
   let teamLocationField = null;
   let zoomLocationInfo = null;
   let trainingModeField = null;
+  let trainingLocationField = null;
+  let publicTransportToggleEl = null;
+  let cancellationToggle = null;
+  let cancellationFields = null;
+  let cancellationBeforeField = null;
+  let cancellationAfterField = null;
   let scheduledTrainingIds = new Set();
 
   function getReportDate() {
@@ -380,9 +391,12 @@ export function renderNewReportScreen(container, {
   }
 
   function setLocationFieldsVisible(visible) {
-    const showPhysicalLocation = visible && !isOnlineActivity();
-    if (authSel?.wrap) authSel.wrap.hidden = !showPhysicalLocation;
-    if (schoolMount) schoolMount.hidden = !showPhysicalLocation;
+    const training = getReportType() === TRAINING_REPORT_TYPE;
+    const physicalTraining = training && !isOnlineActivity();
+    const showSchoolLocation = visible && !isOnlineActivity() && !training;
+    if (authSel?.wrap) authSel.wrap.hidden = !showSchoolLocation;
+    if (schoolMount) schoolMount.hidden = !showSchoolLocation;
+    if (trainingLocationField?.wrap) trainingLocationField.wrap.hidden = !physicalTraining;
     if (zoomLocationInfo) zoomLocationInfo.hidden = !isOnlineActivity();
   }
 
@@ -449,17 +463,19 @@ export function renderNewReportScreen(container, {
   }
 
   function syncLocationDependencies() {
-  const hasType = !!getReportType();
-  const showsLocation = !isOpenFieldType() && !isOnlineActivity();
-  const courseAwaitingActivity = isCourseReportType() && !selectedActivity;
-  authSel?.setDisabled(!hasType || !showsLocation || courseAwaitingActivity || !!selectedActivity);
-  setSchoolEnabled(hasType && showsLocation && !courseAwaitingActivity && hasSelectedAuthority());
-  syncMeetingFieldState();
-}
+    const hasType = !!getReportType();
+    const showsLocation = !isOpenFieldType() && !isOnlineActivity()
+      && getReportType() !== TRAINING_REPORT_TYPE;
+    const courseAwaitingActivity = isCourseReportType() && !selectedActivity;
+    authSel?.setDisabled(!hasType || !showsLocation || courseAwaitingActivity || !!selectedActivity);
+    setSchoolEnabled(hasType && showsLocation && !courseAwaitingActivity && hasSelectedAuthority());
+    syncMeetingFieldState();
+  }
 
   function syncTravelMode() {
     if (!kmField?.input || !publicTransportInput || !publicTransportCostWrap) return;
     const online = isOnlineActivity();
+    if (publicTransportToggleEl) publicTransportToggleEl.hidden = online;
     if (online) {
       publicTransportInput.checked = false;
       publicTransportInput.disabled = true;
@@ -468,7 +484,7 @@ export function renderNewReportScreen(container, {
     }
 
     const usesPublicTransport = !online && publicTransportInput.checked;
-    kmField.wrap.hidden = usesPublicTransport;
+    kmField.wrap.hidden = online || usesPublicTransport;
     kmField.input.disabled = online || usesPublicTransport;
     kmField.input.readOnly = online || usesPublicTransport;
     publicTransportCostWrap.hidden = !usesPublicTransport;
@@ -476,6 +492,15 @@ export function renderNewReportScreen(container, {
 
     if (online || usesPublicTransport) kmField.input.value = '0';
     if (!usesPublicTransport) publicTransportCostField.input.value = '';
+    syncInlineCancellationUi();
+  }
+
+  function syncInlineCancellationUi() {
+    if (!cancellationToggle || !cancellationFields) return;
+    const eligible = canReportInlineCancellation({ activityType: getReportType(), online: isOnlineActivity() });
+    cancellationToggle.parentElement.hidden = !eligible;
+    if (!eligible) cancellationToggle.checked = false;
+    cancellationFields.hidden = !eligible || !cancellationToggle.checked;
   }
 
   function syncKmForReportType(newType, prevType) {
@@ -857,6 +882,12 @@ export function renderNewReportScreen(container, {
     if (trainingModeField && getReportType() === TRAINING_REPORT_TYPE) {
       trainingModeField.input.value = activity.is_online === true ? 'online' : 'physical';
       trainingModeField.input.disabled = activity.__attendanceTrainingSchedule === true;
+      if (trainingLocationField) {
+        trainingLocationField.input.value = activity.training_location_address
+          || activity.training_location_name
+          || (isBaseTrainingActivity(activity) ? 'Greenwork, יקום' : trainingLocationField.input.value);
+        trainingLocationField.input.readOnly = isScheduledTraining(activity);
+      }
     }
 
     const rowId = isCourseReportType() ? dashboardCourseChoiceKey(activity) : activityRowId(activity);
@@ -1205,7 +1236,7 @@ export function renderNewReportScreen(container, {
     });
     trainingModeField.wrap.hidden = initialReportType !== TRAINING_REPORT_TYPE;
     trainingModeField.input.addEventListener('change', () => {
-      setLocationFieldsVisible(!isOnlineTraining() && !isBaseTrainingActivity(selectedActivity));
+      setLocationFieldsVisible(!isOnlineTraining());
       syncTravelMode();
       syncLocationDependencies();
     });
@@ -1257,6 +1288,28 @@ export function renderNewReportScreen(container, {
     zoomLocationInfo.textContent = 'מיקום: זום — אין צורך בכתובת, רשות או בית ספר';
     zoomLocationInfo.hidden = true;
 
+    trainingLocationField = createInputField({
+      id: 'av2-training-location',
+      label: 'מיקום ההכשרה *',
+      placeholder: 'בחר מיקום או הקלד כתובת מלאה',
+      value: prefill?.destination_address_snapshot || prefill?.authority_name_snapshot || '',
+    });
+    const trainingLocations = document.createElement('datalist');
+    trainingLocations.id = 'av2-training-known-locations';
+    for (const location of new Set([
+      'Greenwork, יקום',
+      ...instructorActivities.flatMap((item) => [
+        item.training_location_address, item.training_location_name,
+      ]),
+      ...operationOptions.map((item) => item.address),
+    ].map((value) => String(value || '').trim()).filter(Boolean))) {
+      const option = document.createElement('option');
+      option.value = location;
+      trainingLocations.append(option);
+    }
+    trainingLocationField.input.setAttribute('list', trainingLocations.id);
+    trainingLocationField.wrap.append(trainingLocations);
+
     const meetingVal = prefill?.meeting_no != null ? String(prefill.meeting_no) : '';
     const meetingOptions = [{ value: '', label: '—' }];
     for (let i = 1; i <= 20; i++) meetingOptions.push({ value: String(i), label: String(i) });
@@ -1284,6 +1337,7 @@ export function renderNewReportScreen(container, {
         typeField.wrap,
         activityNameWrap,
         trainingModeField.wrap,
+        trainingLocationField.wrap,
         trainingDescWrap,
         authSel.wrap,
         schoolMount,
@@ -1321,6 +1375,7 @@ export function renderNewReportScreen(container, {
     const publicTransportLabel = document.createElement('span');
     publicTransportLabel.textContent = 'תחבורה ציבורית';
     publicTransportToggle.append(publicTransportInput, publicTransportLabel);
+    publicTransportToggleEl = publicTransportToggle;
 
     publicTransportCostField = createInputField({
       id: 'av2-public-transport-cost',
@@ -1339,6 +1394,39 @@ export function renderNewReportScreen(container, {
     baseTrainingRouteRow.className = 'av2-report__time-cancellation av2-report__base-training-route';
     baseTrainingRouteRow.hidden = true;
     timesGrid.append(baseTrainingRouteRow);
+
+    // Non-work cancellation segments stay inside the original activity report.
+    const cancellationRow = document.createElement('label');
+    cancellationRow.className = 'av2-report__transport-toggle av2-report__inline-cancellation-toggle';
+    cancellationToggle = document.createElement('input');
+    cancellationToggle.type = 'checkbox';
+    cancellationToggle.id = 'av2-has-cancellation';
+    cancellationToggle.checked = prefill?.cancellation_before_minutes != null
+      && prefill?.cancellation_after_minutes != null;
+    const cancellationText = document.createElement('span');
+    cancellationText.textContent = 'הוספת ביטול זמן';
+    cancellationRow.append(cancellationToggle, cancellationText);
+    cancellationBeforeField = createInputField({
+      id: 'av2-cancellation-before',
+      label: 'ביטול זמן לפני הפעילות (שעות:דקות)',
+      value: formatCancellationDuration(prefill?.cancellation_before_minutes),
+      placeholder: '0:00',
+    });
+    cancellationAfterField = createInputField({
+      id: 'av2-cancellation-after',
+      label: 'ביטול זמן אחרי הפעילות (שעות:דקות)',
+      value: formatCancellationDuration(prefill?.cancellation_after_minutes),
+      placeholder: '0:00',
+    });
+    cancellationFields = document.createElement('div');
+    cancellationFields.className = 'av2-report__time-cancellation av2-report__inline-cancellation';
+    const cancellationNote = document.createElement('small');
+    cancellationNote.textContent = 'ביטול הזמן ייבדק בנפרד; שעות הפעילות אינן משתנות.';
+    cancellationFields.append(cancellationBeforeField.wrap, cancellationAfterField.wrap, cancellationNote);
+    timesGrid.append(cancellationRow, cancellationFields);
+    cancellationToggle.addEventListener('change', syncInlineCancellationUi);
+    syncInlineCancellationUi();
+
     const existingCompensation = prefill?.travel_compensation;
     if (existingCompensation) {
       const compensationRow = document.createElement('div');
@@ -1694,7 +1782,17 @@ export function renderNewReportScreen(container, {
       if (startTime && endTime && totalHours <= 0) {
         markInvalid(endPicker.wrap, 'שעת סיום חייבת להיות מאוחרת מהתחלה');
       }
-      if (!activity && !isNoActivity && !isOpen && !isOnline) {
+      if (reportType === TRAINING_REPORT_TYPE && !isOnline
+        && !trainingLocationField.input.value.trim()) {
+        markInvalid(trainingLocationField.wrap, 'מיקום ההכשרה');
+      }
+      if (cancellationToggle.checked) {
+        if (parseCancellationDuration(cancellationBeforeField.input.value) == null)
+          markInvalid(cancellationBeforeField.wrap, 'ביטול זמן לפני הפעילות (שעות:דקות)');
+        if (parseCancellationDuration(cancellationAfterField.input.value) == null)
+          markInvalid(cancellationAfterField.wrap, 'ביטול זמן אחרי הפעילות (שעות:דקות)');
+      }
+      if (!activity && !isNoActivity && !isOpen && !isOnline && reportType !== TRAINING_REPORT_TYPE) {
         const authLabel = manualAuthName?.trim() || '';
         if (!authLabel) markInvalid(authSel.wrap, 'רשות');
       }
@@ -1706,11 +1804,13 @@ export function renderNewReportScreen(container, {
         return;
       }
 
+      const isTraining = reportType === TRAINING_REPORT_TYPE;
       const hasNoLocation = isOpen || isOnline;
-      const finalAuthorityId = hasNoLocation ? null : (activity?.authority_id ?? manualAuthId ?? null);
-      const finalAuthorityName = hasNoLocation ? null : (activity?.authority_name ?? activity?.authority ?? manualAuthName ?? null);
-      const finalSchoolId = hasNoLocation ? null : (activity ? (schoolId || null) : (manualSchoolId || null));
-      const finalSchoolName = hasNoLocation ? null : (activity ? (schoolName || null) : (manualSchoolName || null));
+      const location = isTraining && !isOnline ? trainingLocationField.input.value.trim() : '';
+      const finalAuthorityId = hasNoLocation || isTraining ? null : (activity?.authority_id ?? manualAuthId ?? null);
+      const finalAuthorityName = hasNoLocation ? null : (isTraining ? location : (activity?.authority_name ?? activity?.authority ?? manualAuthName ?? null));
+      const finalSchoolId = hasNoLocation || isTraining ? null : (activity ? (schoolId || null) : (manualSchoolId || null));
+      const finalSchoolName = hasNoLocation || isTraining ? null : (activity ? (schoolName || null) : (manualSchoolName || null));
 
       let activityNameSnapshot = null;
       if (isOpen) {
@@ -1744,7 +1844,8 @@ export function renderNewReportScreen(container, {
           course_business_identity: isCourseReportType() ? activity?.__dashboardCourseIdentity ?? null : null,
           activity_type: reportType,
           operation_meeting_mode: isTeam ? teamModeField.input.value : null,
-          destination_address_snapshot: isTeam && !isTeamOnline ? teamLocationField.input.value.trim() : null,
+          destination_address_snapshot: isTeam && !isTeamOnline
+            ? teamLocationField.input.value.trim() : (isTraining && !isOnline ? location : null),
           training_mode: reportType === TRAINING_REPORT_TYPE
             ? (isOnlineTraining() ? 'online' : 'physical')
             : null,
@@ -1758,9 +1859,13 @@ export function renderNewReportScreen(container, {
           authority_name_snapshot: finalAuthorityName,
           school_id: finalSchoolId,
           school_name_snapshot: finalSchoolName,
-          semel_mosad: hasNoLocation ? null : (semelMosad || null),
+          semel_mosad: hasNoLocation || isTraining ? null : (semelMosad || null),
           program_name: isOpen || isBaseTraining ? null : (activity?.program_name ?? null),
           program_name_snapshot: programName,
+          cancellation_before_minutes: cancellationToggle.checked
+            ? parseCancellationDuration(cancellationBeforeField.input.value) : null,
+          cancellation_after_minutes: cancellationToggle.checked
+            ? parseCancellationDuration(cancellationAfterField.input.value) : null,
           roundtrip_km: kmValue,
           public_transport: usesPublicTransport,
           public_transport_cost: publicTransportCost,
