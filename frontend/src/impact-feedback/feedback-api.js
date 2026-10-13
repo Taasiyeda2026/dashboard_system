@@ -366,3 +366,8 @@ export async function cancelInstructorPreFeedback(instructorEmpId, programKey, a
     p_academic_year: academicYear
   }));
 }
+
+/** Current audited dispatch status for all recurring instructor/student emails. */
+export async function fetchAutoDeliveryStatus() {
+  return unwrap(client().rpc('feedback_auto_dashboard_status'));
+}
