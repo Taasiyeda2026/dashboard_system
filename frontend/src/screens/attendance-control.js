@@ -2384,9 +2384,13 @@ export function resultsHtml(result, month = '', options = {}) {
 
     if (autoCancellation || source.reviewStatus || source.reportedOutboundMinutes != null) {
       const calculated = source.calculatedCancellationMinutes != null ? minutesLabel(source.calculatedCancellationMinutes) : '—';
-      const reportedCancel = (source.reportedOutboundMinutes != null && source.reportedReturnMinutes != null)
-        ? minutesLabel(Math.max(0, Number(source.reportedOutboundMinutes) - 45) + Math.max(0, Number(source.reportedReturnMinutes) - 45))
-        : 'טרם דווח';
+      const inlineRequest = source.reportedCancellationBeforeMinutes != null
+        && source.reportedCancellationAfterMinutes != null;
+      const reportedCancel = inlineRequest
+        ? minutesLabel(Number(source.reportedCancellationBeforeMinutes) + Number(source.reportedCancellationAfterMinutes))
+        : (source.reportedOutboundMinutes != null && source.reportedReturnMinutes != null)
+          ? minutesLabel(Math.max(0, Number(source.reportedOutboundMinutes) - 45) + Math.max(0, Number(source.reportedReturnMinutes) - 45))
+          : 'טרם דווח';
       const approvedValue = source.approvedCancellationMinutes != null
         ? minutesLabel(source.approvedCancellationMinutes)
         : 'טרם אושר';
@@ -2394,7 +2398,10 @@ export function resultsHtml(result, month = '', options = {}) {
       const needsDecision = ['awaiting_report', 'auto_matched', 'pending_review'].includes(reviewStatus);
       const sourceId = escapeHtml(source.sourceAttendanceRecordId || entryRecordId(entry) || '');
       const rows = [
-        ['דיווח מדריך (הלוך/חזור)', source.reportedOutboundMinutes != null ? `${source.reportedOutboundMinutes}/${source.reportedReturnMinutes}` : '—', '—', needsDecision && reviewStatus === 'awaiting_report'],
+        [inlineRequest ? 'דיווח ביטול זמן (לפני/אחרי)' : 'דיווח זמן נסיעה (הלוך/חזור)',
+          inlineRequest ? `${minutesLabel(source.reportedCancellationBeforeMinutes)} / ${minutesLabel(source.reportedCancellationAfterMinutes)}`
+            : source.reportedOutboundMinutes != null ? `${source.reportedOutboundMinutes}/${source.reportedReturnMinutes}` : '—',
+          '—', needsDecision && reviewStatus === 'awaiting_report'],
         ['ביטול זמן מבוקש', reportedCancel, calculated, reviewStatus === 'pending_review'],
         ['מאושר לתשלום', approvedValue, calculated, needsDecision]
       ].map(([label, left, right, issue]) => `<tr class="${issue ? 'attendance-control__comparison-row--issue' : ''}"><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td>${shown(right)}</td><td><span class="attendance-control__status-pill ${issue ? 'attendance-control__status-pill--issue' : 'attendance-control__status-pill--info'}">${issue ? escapeHtml(reviewStatus) : 'תואם/סגור'}</span></td><td><span class="attendance-control__no-action">—</span></td></tr>`).join('');
