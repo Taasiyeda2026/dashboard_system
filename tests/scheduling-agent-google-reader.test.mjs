@@ -4,7 +4,7 @@ import {createGoogleReader,createGoogleTokenProvider} from '../supabase/function
 const CANONICAL_SHEET_ID='fixture-sheet';
 const json=body=>Response.json(body);
 const meta={id:CANONICAL_SHEET_ID,mimeType:'application/vnd.google-apps.spreadsheet',modifiedTime:'now',version:'1',parents:['fixture-folder']};
-const sheet={sheets:[{properties:{title:'שיבוצים',sheetId:42,gridProperties:{rowCount:1000,columnCount:26}}}],properties:{timeZone:'America/Los_Angeles'}};
+const sheet={spreadsheetId:CANONICAL_SHEET_ID,sheets:[{properties:{title:'שיבוצים',sheetId:42,gridProperties:{rowCount:1000,columnCount:26}}}],properties:{timeZone:'America/Los_Angeles'}};
 test('missing OAuth credentials fail before any outgoing call',async()=>{let calls=0;await assert.rejects(createGoogleTokenProvider({fetchImpl:async()=>{calls++;}})(),/not_configured/);assert.equal(calls,0);});
 test('refresh tokens remain server side, account is pinned and short-lived token is reused',async()=>{
  let calls=0;const p=createGoogleTokenProvider({clientId:'client',clientSecret:'private',refreshToken:'private-refresh',expectedGoogleSub:'fixture-owner',fetchImpl:async u=>(calls++,u.includes('/token')?json({access_token:'access',expires_in:3600}):json({sub:'fixture-owner'}))});
@@ -20,4 +20,14 @@ test('reader verifies identity and rereads revision around bounded native values
 });
 test('concurrent Google revision change returns conflict instead of a snapshot',async()=>{
  let metadataReads=0;const r=createGoogleReader({spreadsheetId:CANONICAL_SHEET_ID,folderId:'fixture-folder',getAccessToken:async()=> 'secret',fetchImpl:async u=>json(u.includes('/drive/')?{...meta,version:String(++metadataReads)}:u.includes('/values/')?{values:[]}:sheet)});await assert.rejects(r({},CANONICAL_SHEET_ID),/changed_during_read/);
+});
+
+test('Sheets API identity mismatch is rejected before fetching any values',async()=>{
+ let valueReads=0;
+ const reader=createGoogleReader({spreadsheetId:CANONICAL_SHEET_ID,folderId:'fixture-folder',getAccessToken:async()=> 'token',fetchImpl:async u=>{
+  if(u.includes('/values/'))valueReads++;
+  return json(u.includes('/drive/')?meta:{...sheet,spreadsheetId:'different-sheet'});
+ }});
+ await assert.rejects(reader({},CANONICAL_SHEET_ID),/spreadsheet_identity_mismatch/);
+ assert.equal(valueReads,0);
 });
