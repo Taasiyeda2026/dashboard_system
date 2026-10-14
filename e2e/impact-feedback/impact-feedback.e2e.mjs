@@ -200,7 +200,8 @@ async function main() {
     await openTab(admin, 'staff');
     assert.equal(await admin.locator('.ifb-tpl-table tbody tr').count(), 1);
     await openTab(admin, 'analysis');
-    assert.match(await admin.locator('.ifb-section h2').first().textContent(), /סיכום מצטבר – פורצות דרך/);
+    assert.equal(await admin.locator('[data-ifb-course]').inputValue(), 'trailblazers');
+    assert.match(await admin.locator('.ifb-section h2').first().textContent(), /תשובות מדריכים/);
     await openTab(admin, 'overview');
     assert.deepEqual(await admin.locator('tr[data-course-row]').evaluateAll((rows) => rows.map((r) => r.dataset.courseRow)), ['trailblazers']);
   });
@@ -241,28 +242,28 @@ async function main() {
     assert.match(await admin.locator('#ifb-panel').textContent(), /התלמידות היו מעורבות מאוד/);
   });
 
-  await step('Analysis: cumulative summary, separate populations, cross-course core comparison', async () => {
+  await step('Analysis: only unaggregated, full questionnaire responses for all audiences', async () => {
     await openTab(admin, 'analysis');
-    // The analysis tab now opens with the complete per-instructor replies.
-    assert.match(await admin.locator('#ifb-panel').textContent(), /כל התשובות של המדריכים/);
-    await admin.locator('[data-ifb-filter-disclosure="analysis"] summary').click();
-    await admin.locator('select[data-a="audience"]').selectOption('student');
-    await admin.locator('select[data-a="stage"]').selectOption('post');
-    const summary = admin.locator('.ifb-section', { has: admin.locator('h2', { hasText: 'סיכום מצטבר' }) }).first();
-    assert.match(await summary.textContent(), /לא ניתן לזיהוי \(אנונימי\)/, 'students are never given a unique-respondent count');
-    const audienceRow = admin.locator('.ifb-section', { hasText: 'השוואה בין תלמידים' }).locator('tbody tr').first();
-    assert.match(await audienceRow.textContent(), /N=4/);
-    assert.doesNotMatch(await admin.locator('.ifb-section', { hasText: 'השוואה בין תלמידים' }).textContent(), /ממוצע משולב/);
-    const cross = admin.locator('.ifb-cross-table');
-    await cross.waitFor();
-    const headers = (await cross.locator('thead th').allTextContents()).map((x) => x.trim());
-    assert.deepEqual(headers.slice(1).sort(), ['פורצות דרך', 'רוקחים עולם'].sort(), 'only courses with data, each separately');
-    assert.doesNotMatch(await cross.textContent(), /יזמות וטכנולוגיה/, 'topic-specific wording is neutralised in the shared core row');
+    const panel = admin.locator('#ifb-panel');
+    assert.equal(await panel.locator('.ifb-section').count(), 1, 'only one raw-answer section is displayed');
+    assert.match(await panel.locator('.ifb-section h2').textContent(), /תשובות מדריכים/);
+    assert.equal(await panel.locator('.ifb-cross-table').count(), 0, 'no cross-course chart or comparison');
+    assert.equal(await panel.locator('.ifb-prepost-table').count(), 0, 'no pre/post analysis');
+    assert.equal(await panel.locator('[data-ifb-export]').count(), 0, 'no report or analytics export controls');
+    await panel.locator('[data-ifb-filter-disclosure="analysis"] summary').click();
+    await panel.locator('select[data-a="audience"]').selectOption('educational_staff');
+    assert.equal(await panel.locator('.ifb-section').count(), 1);
+    assert.match(await panel.locator('.ifb-section h2').textContent(), /תשובות צוות חינוכי/);
+    await panel.locator('select[data-a="audience"]').selectOption('student');
+    assert.equal(await panel.locator('.ifb-section').count(), 1);
+    assert.match(await panel.locator('.ifb-section h2').textContent(), /תשובות תלמידים/);
+    assert.equal(await panel.locator('.ifb-cross-table').count(), 0);
     await admin.screenshot({ path: `${SHOTS}/03-analysis-desktop.png`, fullPage: true });
   });
 
-  await step('Summary report exports per course with collection, per-question results and anonymous students', async () => {
-    const [download] = await Promise.all([admin.waitForEvent('download'), admin.locator('[data-ifb-export="xlsx"]').first().click()]);
+  await step('Student tab report export remains available outside the raw answers view', async () => {
+    await openTab(admin, 'students');
+    const [download] = await Promise.all([admin.waitForEvent('download'), admin.locator('[data-ifb-export="xlsx"][data-scope="audience:student"]').click()]);
     const wb = XLSX.read(await readFile(await download.path()));
     assert.deepEqual(wb.SheetNames, ['איסוף והיענות', 'תוצאות לפי שאלה', 'פתיחה-סיום', 'השוואת אוכלוסיות', 'השוואת קורסים (ליבה)', 'תשובות פתוחות', 'נתונים גולמיים']);
     const collection = XLSX.utils.sheet_to_json(wb.Sheets['איסוף והיענות'], { header: 1 });

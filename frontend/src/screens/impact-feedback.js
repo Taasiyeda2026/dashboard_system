@@ -1693,39 +1693,16 @@ function instructorRecommendationsHtml(facts) {
     }).join('')+'</ul>';
 }
 
+/** Raw questionnaire answers only. Keep analytics in their existing audience tabs. */
 function analysisHtml() {
   const fullAnswers = ui.analysis.audience === 'instructor'
-    ? sectionHtml('כל התשובות של המדריכים — לפי מדריך וקורס', instructorFullResponsesHtml(), {
-      note: 'כל תשובה מוצגת כפי שנשמרה, כולל טקסט חופשי, בחירות ודירוגים.'
-    })
+    ? sectionHtml('תשובות מדריכים — לפי מדריך וקורס', instructorFullResponsesHtml())
     : ui.analysis.audience === 'educational_staff'
-      ? sectionHtml('כל התשובות של הצוות החינוכי — לפי איש קשר וקורס', staffFullResponsesHtml(), {
-        note: 'כל שאלון שהוגש מוצג בנפרד, כולל תשובות מלאות ופרטי בית הספר.'
-      })
-      : sectionHtml('כל תשובות התלמידים — לפי קורס ובית ספר', studentFullResponsesHtml(), {
-        note: 'השאלונים אנונימיים. כל הגשה מוצגת בנפרד, ללא פרטים מזהים של תלמידים.'
-      });
-  if (!ui.course) {
-    return `
-      ${analysisFiltersHtml()}
-      ${fullAnswers}
-      
-      ${sectionHtml('השוואה בין קורסים במדדי ליבה', crossCourseHtml(), { actions: exportButtonHtml('analysis', 'דוח כל הקורסים (Excel)') })}`;
-  }
-  const facts = courseFacts();
+      ? sectionHtml('תשובות צוות חינוכי — לפי איש קשר וקורס', staffFullResponsesHtml())
+      : sectionHtml('תשובות תלמידים — לפי קורס ובית ספר', studentFullResponsesHtml());
   return `
     ${analysisFiltersHtml()}
-    ${fullAnswers}
-    ${aiAnalysisExportHtml()}
-    ${biomimicryImprovementHtml(facts)}
-    ${evidenceSummaryHtml(facts)}
-    ${sectionHtml('המלצות מפורטות מהמדריכים', instructorRecommendationsHtml(facts), { note: 'הערות לשיפור התכנים, המצגות והפעילויות מתוך ההתנסות בשטח.' })}
-    ${sectionHtml(`סיכום מצטבר – ${programTitle(ui.course)}`, cumulativeSummaryHtml(), { actions: exportButtonHtml('analysis', 'הפקת דוח מסכם (Excel)'), note: 'הנתונים מתייחסים רק למחצית הנבחרת, לפי תאריך תחילת הקורס.' })}
-    ${sectionHtml('השוואה בין תלמידים, מדריכים וצוות חינוכי', audienceComparisonHtml(facts))}
-    ${sectionHtml('השוואת פתיחה וסיום', `<details class="ifb-disclosure ifb-analysis-breakdown"><summary>תלמידים — פתיחה וסיום</summary>${prePostQuestionTableHtml(factsFor(facts, 'student', 'pre'), factsFor(facts, 'student', 'post'), { audience: 'student' })}</details><details class="ifb-disclosure ifb-analysis-breakdown"><summary>מדריכים — פתיחה וסיום</summary>${prePostQuestionTableHtml(factsFor(facts, 'instructor', 'pre'), factsFor(facts, 'instructor', 'final'), { audience: 'instructor' })}</details>`)}
-    ${sectionHtml('תוצאות לכל שאלה – שאלות ליבה', populationResultsHtml(facts, { section: 'core' }))}
-    ${sectionHtml('מדדים ייחודיים לקורס', populationResultsHtml(facts, { section: 'course' }), { note: 'שאלות שנכתבו לפי מטרות ותוצרי הקורס. אינן משמשות להשוואה בין קורסים.' })}
-    ${sectionHtml('השוואה בין קורסים במדדי ליבה', `<details class="ifb-disclosure ifb-analysis-breakdown"><summary>פתיחת השוואה בין קורסים</summary>${crossCourseHtml()}</details>`)}`;
+    ${fullAnswers}`;
 }
 
 // ---------------------------------------------------------------------------
