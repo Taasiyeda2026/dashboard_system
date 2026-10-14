@@ -11,10 +11,6 @@ export function hasArabicAnswerText(value) {
 export function arabicAnswerTranslationUrl(value) {
   const text = String(value ?? '').trim();
   if (!hasArabicAnswerText(text)) return '';
-  const url = new URL('https://translate.google.com/');
-  url.searchParams.set('sl', 'ar');
-  url.searchParams.set('tl', 'iw');
-  url.searchParams.set('text', text);
-  url.searchParams.set('op', 'translate');
-  return url.toString();
+  return 'https://translate.google.com/?sl=ar&tl=iw&text=' +
+    encodeURIComponent(text) + '&op=translate';
 }
