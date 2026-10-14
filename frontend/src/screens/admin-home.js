@@ -34,6 +34,25 @@ function premiumEscape(value) {
 function premiumDate(value) {
   return value ? new Date(value).toLocaleString('he-IL') : '—';
 }
+const PREMIUM_ROLE_NAMES = Object.freeze({
+  S: 'מוביל/ת תהליך',
+  R: 'חוקר/ת ובודק/ת',
+  P: 'מפתח/ת מוצר',
+  C: 'מציג/ה ומתקשר/ת'
+});
+function premiumProfile(scores, version) {
+  const values = Object.entries(scores || {})
+    .filter(([key, value]) => Object.hasOwn(PREMIUM_ROLE_NAMES, key) && Number.isFinite(Number(value)))
+    .sort((a,b) => Number(b[1]) - Number(a[1]));
+  if (!values.length) return '<span>אין תוצאות</span>';
+  return '<div class="premium-role-list">' + values.map(([key,value],i) =>
+    '<div class="premium-role-item">' +
+    (i === 0 ? '<strong>התפקיד המתאים ביותר: ' : '<span>') +
+    premiumEscape(PREMIUM_ROLE_NAMES[key]) +
+    (i === 0 ? '</strong>' : '</span>') +
+    '<span class="premium-role-value">' + premiumEscape(Number(value).toLocaleString('he-IL',{maximumFractionDigits:1})) + (Number(version) >= 3 ? '%': ' נקודות') + '</span></div>'
+  ).join('') + '</div>';
+}
 function renderPremiumResults(container, classes) {
   const items = Array.isArray(classes) ? classes : [];
   const count = items.reduce((total, item) => total + (item.responses || []).length, 0);
@@ -49,7 +68,7 @@ function renderPremiumResults(container, classes) {
       .join(' ').toLocaleLowerCase('he').includes(query));
     list.innerHTML = filtered.map(item => {
       const responses = item.responses || [];
-      const rows = responses.map(r => `<tr><td>${premiumEscape(r.name)}</td><td>${premiumEscape(premiumDate(r.completedAt))}</td><td>${premiumEscape(Object.entries(r.scores || {}).map(([key,value]) => key + ': ' + value).join(' | '))}</td></tr>`).join('');
+      const rows = responses.map(r => `<tr><td>${premiumEscape(r.name)}</td><td>${premiumEscape(premiumDate(r.completedAt))}</td><td>${premiumProfile(r.scores, r.questionnaireVersion)}</td></tr>`).join('');
       const run = item.latestTeamRun;
       const teamRows = run?.teams?.map((team, index) => `<tr><td>${premiumEscape(team.team ?? index + 1)}</td><td>${premiumEscape((team.members || []).map(m => typeof m === 'string' ? m : (m.name || m.studentName || '')).join(', '))}</td></tr>`).join('') || '';
       return `<details class="admin-course-results-class">
@@ -191,6 +210,9 @@ function managementTilesHtml() {
 function stylesHtml() {
   return `
     <style>
+      .premium-role-list { display:grid; gap:5px; min-width:230px; }
+      .premium-role-item { display:flex; justify-content:space-between; gap:18px; align-items:baseline; }
+      .premium-role-value { white-space:nowrap; font-variant-numeric:tabular-nums; }
       .admin-course-results-summary { display:flex; gap:18px; flex-wrap:wrap; margin:12px 0 20px; }
       .admin-course-results-data input { width:min(100%,360px); padding:10px; margin:8px 0 16px; border:1px solid var(--color-border,#dbe3ec); border-radius:9px; background:var(--color-surface,#fff); color:inherit; }
       .admin-course-results-class { border:1px solid var(--color-border,#dbe3ec); border-radius:12px; padding:14px; margin-bottom:12px; background:var(--color-surface,#fff); }
