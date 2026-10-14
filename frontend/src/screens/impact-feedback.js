@@ -83,6 +83,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const ACTIVITY_SYNC_INTERVAL_MS = 60 * 1000;
 const ACTIVITY_SYNC_MIN_GAP_MS = 12 * 1000;
 const FILTER_SEARCH_DEBOUNCE_MS = 160;
+/** Keep large anonymous student cohorts responsive, while making every form accessible. */
+const STUDENT_FULL_ANSWER_PAGE_SIZE = 20;
 let activitySyncController = null;
 let activitySyncTimer = null;
 let filterPaintTimer = null;
@@ -1450,11 +1452,18 @@ function studentFullResponsesHtml() {
         (ui.analysis.group || (ci === 0 && gi === 0) ? ' open' : '') +
         '><summary>' + esc(heading) + ' · ' + group.responses.length +
         ' שאלונים אנונימיים</summary>' +
-        group.responses.map((response, ri) => completeFeedbackFormHtml(response, {
-          audience: 'student', index: ri,
-          initiallyOpen: Boolean(ui.analysis.group) && ri === 0 ||
-            (ci === 0 && gi === 0 && ri === 0)
-        })).join('') + '</details>';
+        group.responses.slice(0, STUDENT_FULL_ANSWER_PAGE_SIZE).map((response, ri) =>
+          completeFeedbackFormHtml(response, {
+            audience: 'student', index: ri,
+            initiallyOpen: (Boolean(ui.analysis.group) || (ci === 0 && gi === 0)) && ri === 0
+          })).join('') +
+        (group.responses.length > STUDENT_FULL_ANSWER_PAGE_SIZE
+          ? '<button type="button" class="ifb-btn ifb-full-answer-more" data-ifb-student-more="' +
+            esc(course.programKey) + '" data-ifb-student-group="' + esc(group.key) +
+            '" data-ifb-student-shown="' + STUDENT_FULL_ANSWER_PAGE_SIZE +
+            '">הצגת ' + Math.min(STUDENT_FULL_ANSWER_PAGE_SIZE,
+              group.responses.length - STUDENT_FULL_ANSWER_PAGE_SIZE) + ' שאלונים נוספים</button>'
+          : '') + '</details>';
     }).join('');
     const number = course.groups.reduce((n, group) => n + group.responses.length, 0);
     return '<details class="ifb-disclosure ifb-full-answer-person"' +
@@ -2205,6 +2214,29 @@ async function handleClick(host, event) {
     '[data-ifb-qr]', '[data-ifb-copy]', '[data-ifb-extend]'
   ].join(','))) {
     event.preventDefault();
+    return;
+  }
+  const moreStudent = t.closest('[data-ifb-student-more]');
+  if (moreStudent) {
+    const courseKey = moreStudent.dataset.ifbStudentMore;
+    const groupKey = moreStudent.dataset.ifbStudentGroup;
+    const group = groupStudentFullResponses(semesterFacts(), {
+      programKey: courseKey, stage: ui.analysis.stage, groupKey
+    }).find((course) => course.programKey === courseKey)?.groups.find((item) => item.key === groupKey);
+    if (!group) return;
+    const shown = Math.max(0, Math.min(group.responses.length,
+      Number(moreStudent.dataset.ifbStudentShown) || STUDENT_FULL_ANSWER_PAGE_SIZE));
+    const next = Math.min(group.responses.length, shown + STUDENT_FULL_ANSWER_PAGE_SIZE);
+    moreStudent.insertAdjacentHTML('beforebegin', group.responses.slice(shown, next)
+      .map((response, index) => completeFeedbackFormHtml(response, {
+        audience: 'student', index: shown + index
+      })).join(''));
+    if (next === group.responses.length) moreStudent.remove();
+    else {
+      moreStudent.dataset.ifbStudentShown = String(next);
+      moreStudent.textContent = 'הצגת ' + Math.min(STUDENT_FULL_ANSWER_PAGE_SIZE,
+        group.responses.length - next) + ' שאלונים נוספים';
+    }
     return;
   }
   const tab = t.closest('[data-ifb-tab]');
