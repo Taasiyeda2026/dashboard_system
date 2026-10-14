@@ -3125,7 +3125,9 @@ export const activitiesScreen = {
       const current = String(nameSel.value || '').trim();
       const currentStillValid = list.some((o) => String(o?.label || '').trim() === current);
       const nextValue = currentStillValid ? current : '';
-      nameSel.innerHTML = optionsHtml(list.map((o) => o.label), nextValue, type ? 'בחרו שם פעילות' : 'בחרו קודם סוג פעילות');
+      nameSel.innerHTML = optionsHtml(list.map((o) => o.label), nextValue,
+        type ? 'בחרו שם פעילות' : 'בחרו קודם סוג פעילות',
+        (label) => list.find((item) => item.label === label)?.display_label || label);
       nameSel.disabled = !type;
       nameSel.value = nextValue;
       const hit = list.find((o) => String(o?.label || '').trim() === String(nameSel.value || '').trim());
