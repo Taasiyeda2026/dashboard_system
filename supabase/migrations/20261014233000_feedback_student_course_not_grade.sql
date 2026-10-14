@@ -4,7 +4,8 @@
 DO $migration$
 DECLARE
   def text;
-  old_clause text := E'if c.audience=\'student\' and c.age_band is null\\n   then v_status:=\'needs_attention\';v_error:=\'unresolved_grade_age_band\'; end if;';
+  old_clause text := $old$if c.audience='student' and c.age_band is null
+   then v_status:='needs_attention';v_error:='unresolved_grade_age_band'; end if;$old$;
   new_clause text := E'-- Student questionnaires are course-based; grade and age_band are optional metadata.';
 BEGIN
   SELECT pg_get_functiondef(p.oid) INTO def
