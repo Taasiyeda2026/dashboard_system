@@ -1334,30 +1334,24 @@ function instructorFullResponsesHtml() {
     return '<p class="ifb-analysis-empty-note">אין משובי מדריכים שהוגשו בסינון הנוכחי. ניתן לשנות מדריך, קורס או שלב.</p>';
   }
   const coursesCount = new Set(people.flatMap((person) => person.courses.map((course) => course.programKey))).size;
-  const html = people.map((person, pi) => {
+  const html = people.map((person) => {
     const n = person.courses.reduce((sum, course) => sum + course.responses.length, 0);
-    const courseHtml = person.courses.map((course, ci) => {
-      const forms = course.responses.map((response, ri) => {
+    const courseHtml = person.courses.map((course) => {
+      const forms = course.responses.map((response) => {
         const answers = response.answers.map((fact, qi) =>
           '<div class="ifb-full-answer-item"><div class="ifb-full-answer-question">' +
           '<span class="ifb-full-answer-num">' + (qi + 1) + '.</span>' +
           '<span dir="auto">' + esc(fact.question_text || 'שאלה') + '</span></div>' +
           '<div class="ifb-full-answer-reply">' + completeInstructorAnswerValueHtml(fact) + '</div></div>'
         ).join('');
-        return '<details class="ifb-disclosure ifb-full-answer-form"' +
-          (ui.analysis.instructor || (pi === 0 && ci === 0 && ri === 0) ? ' open' : '') +
-          '><summary>' + esc(stageLabelFor('instructor', response.stage)) + ' · ' +
+        return '<details class="ifb-disclosure ifb-full-answer-form"><summary>' + esc(stageLabelFor('instructor', response.stage)) + ' · ' +
           esc(fmtDate(response.submittedAt)) + ' · ' + response.answers.length +
           ' תשובות</summary><div class="ifb-full-answer-list">' + answers + '</div></details>';
       }).join('');
-      return '<details class="ifb-disclosure ifb-full-answer-course"' +
-        (ui.analysis.instructor || (pi === 0 && ci === 0) ? ' open' : '') +
-        '><summary>' + esc(programTitle(course.programKey)) + ' · ' +
+      return '<details class="ifb-disclosure ifb-full-answer-course"><summary>' + esc(programTitle(course.programKey)) + ' · ' +
         course.responses.length + ' משובים</summary>' + forms + '</details>';
     }).join('');
-    return '<details class="ifb-disclosure ifb-full-answer-person"' +
-      (ui.analysis.instructor || pi === 0 ? ' open' : '') +
-      '><summary><strong>' + esc(person.name) + '</strong>' +
+    return '<details class="ifb-disclosure ifb-full-answer-person"><summary><strong>' + esc(person.name) + '</strong>' +
       (person.employeeId ? ' · מס׳ עובד ' + esc(person.employeeId) : '') +
       ' · ' + person.courses.length + ' קורסים · ' + n + ' משובים</summary>' +
       courseHtml + '</details>';
@@ -1392,15 +1386,14 @@ function studentAnswersFilterHtml(stage) {
     '</select></label>';
 }
 
-function completeFeedbackFormHtml(response, { audience, index = 0, initiallyOpen = false } = {}) {
+function completeFeedbackFormHtml(response, { audience, index = 0 } = {}) {
   const heading = audience === 'student' ? 'שאלון אנונימי ' + (index + 1) : stageLabelFor(audience, response.stage);
   const answers = response.answers.map((fact, questionIndex) =>
     '<div class="ifb-full-answer-item"><div class="ifb-full-answer-question">' +
       '<span class="ifb-full-answer-num">' + (questionIndex + 1) + '.</span>' +
       '<span dir="auto">' + esc(fact.question_text || 'שאלה') + '</span></div>' +
       '<div class="ifb-full-answer-reply">' + completeInstructorAnswerValueHtml(fact) + '</div></div>').join('');
-  return '<details class="ifb-disclosure ifb-full-answer-form"' + (initiallyOpen ? ' open' : '') +
-    '><summary>' + esc(heading) + ' · ' + esc(fmtDate(response.submittedAt)) +
+  return '<details class="ifb-disclosure ifb-full-answer-form"><summary>' + esc(heading) + ' · ' + esc(fmtDate(response.submittedAt)) +
     ' · ' + response.answers.length + ' תשובות</summary>' +
     '<div class="ifb-full-answer-list">' + answers + '</div></details>';
 }
@@ -1412,20 +1405,15 @@ function staffFullResponsesHtml() {
   const total = people.reduce((sum, person) => sum +
     person.courses.reduce((n, course) => n + course.responses.length, 0), 0);
   if (!total) return '<p class="ifb-analysis-empty-note">אין עדיין משובים שהוגשו על ידי הצוות החינוכי בסינון הנוכחי.</p>';
-  const cards = people.map((person, pi) => {
-    const courseCards = person.courses.map((course, ci) =>
-      '<details class="ifb-disclosure ifb-full-answer-course"' +
-        (ui.analysis.contact || (pi === 0 && ci === 0) ? ' open' : '') +
-        '><summary>' + esc(programTitle(course.programKey)) + ' · ' +
+  const cards = people.map((person) => {
+    const courseCards = person.courses.map((course) =>
+      '<details class="ifb-disclosure ifb-full-answer-course"><summary>' + esc(programTitle(course.programKey)) + ' · ' +
         course.responses.length + ' משובים</summary>' +
         course.responses.map((response, ri) => completeFeedbackFormHtml(response, {
-          audience: 'educational_staff', index: ri,
-          initiallyOpen: Boolean(ui.analysis.contact) || (pi === 0 && ci === 0 && ri === 0)
+          audience: 'educational_staff', index: ri
         })).join('') + '</details>').join('');
     const number = person.courses.reduce((n, course) => n + course.responses.length, 0);
-    return '<details class="ifb-disclosure ifb-full-answer-person"' +
-      (ui.analysis.contact || pi === 0 ? ' open' : '') +
-      '><summary><strong>' + esc(person.name) + '</strong> · ' +
+    return '<details class="ifb-disclosure ifb-full-answer-person"><summary><strong>' + esc(person.name) + '</strong> · ' +
       esc(person.schoolName) + ' · ' + person.courses.length +
       ' קורסים · ' + number + ' משובים</summary>' + courseCards + '</details>';
   }).join('');
@@ -1441,21 +1429,18 @@ function studentFullResponsesHtml() {
   const total = courses.reduce((sum, course) => sum +
     course.groups.reduce((n, group) => n + group.responses.length, 0), 0);
   if (!total) return '<p class="ifb-analysis-empty-note">עדיין לא התקבלו משובי תלמידים בסינון הנוכחי. השאלונים יופיעו כאן לאחר ההגשה.</p>';
-  const cards = courses.map((course, ci) => {
-    const groups = course.groups.map((group, gi) => {
+  const cards = courses.map((course) => {
+    const groups = course.groups.map((group) => {
       const activity = (ui.groups || []).find((row) =>
         String(row.row_id) === group.key.slice('group:'.length));
       const classroom = String(activity?.class_group || '').trim();
       const heading = [group.schoolName, group.grade, classroom, group.authorityName]
         .filter(Boolean).join(' · ');
-      return '<details class="ifb-disclosure ifb-full-answer-course"' +
-        (ui.analysis.group || (ci === 0 && gi === 0) ? ' open' : '') +
-        '><summary>' + esc(heading) + ' · ' + group.responses.length +
+      return '<details class="ifb-disclosure ifb-full-answer-course"><summary>' + esc(heading) + ' · ' + group.responses.length +
         ' שאלונים אנונימיים</summary>' +
         group.responses.slice(0, STUDENT_FULL_ANSWER_PAGE_SIZE).map((response, ri) =>
           completeFeedbackFormHtml(response, {
-            audience: 'student', index: ri,
-            initiallyOpen: (Boolean(ui.analysis.group) || (ci === 0 && gi === 0)) && ri === 0
+            audience: 'student', index: ri
           })).join('') +
         (group.responses.length > STUDENT_FULL_ANSWER_PAGE_SIZE
           ? '<button type="button" class="ifb-btn ifb-full-answer-more" data-ifb-student-more="' +
@@ -1466,9 +1451,7 @@ function studentFullResponsesHtml() {
           : '') + '</details>';
     }).join('');
     const number = course.groups.reduce((n, group) => n + group.responses.length, 0);
-    return '<details class="ifb-disclosure ifb-full-answer-person"' +
-      (ci === 0 || Boolean(ui.course) ? ' open' : '') +
-      '><summary><strong>' + esc(programTitle(course.programKey)) + '</strong> · ' +
+    return '<details class="ifb-disclosure ifb-full-answer-person"><summary><strong>' + esc(programTitle(course.programKey)) + '</strong> · ' +
       course.groups.length + ' קבוצות · ' + number +
       ' שאלונים אנונימיים</summary>' + groups + '</details>';
   }).join('');
