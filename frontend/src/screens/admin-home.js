@@ -213,6 +213,8 @@ function stylesHtml() {
       .premium-role-list { display:grid; gap:5px; min-width:230px; }
       .premium-role-item { display:flex; justify-content:space-between; gap:18px; align-items:baseline; }
       .premium-role-value { white-space:nowrap; font-variant-numeric:tabular-nums; }
+      /* The dashboard's explicit display rules must never override hidden views. */
+      .admin-management-home [hidden] { display: none !important; }
       .admin-course-results-summary { display:flex; gap:18px; flex-wrap:wrap; margin:12px 0 20px; }
       .admin-course-results-data input { width:min(100%,360px); padding:10px; margin:8px 0 16px; border:1px solid var(--color-border,#dbe3ec); border-radius:9px; background:var(--color-surface,#fff); color:inherit; }
       .admin-course-results-class { border:1px solid var(--color-border,#dbe3ec); border-radius:12px; padding:14px; margin-bottom:12px; background:var(--color-surface,#fff); }
@@ -319,13 +321,15 @@ export const adminHomeScreen = {
         </div>
         ${canViewCourseResults() ? `
           <section data-course-results-section hidden aria-label="תוצאות קורסים">
-            <button type="button" class="admin-course-results-back" data-course-results-back>חזרה לניהול</button>
-            <h2>תוצאות קורסים</h2>
-            <div class="admin-management-grid">
+            <div data-course-results-catalog>
+              <button type="button" class="admin-course-results-back" data-course-results-back>חזרה לניהול</button>
+              <h2>תוצאות קורסים</h2>
+              <div class="admin-management-grid">
               ${tileButton({title: 'פרימיום', description: 'תוצאות שאלון הצוות וחלוקת קבוצות', icon: 'reports', courseResults: false}) .replace('class="admin-management-tile"', 'class="admin-management-tile" data-premium-course-results="true"')}
               <div class="admin-management-tile admin-course-results-disabled" aria-label="פורצות דרך – בקרוב">
                 <span class="admin-management-tile__icon">${iconSvg('reports')}</span>
                 <span class="admin-management-tile__content"><strong>פורצות דרך</strong><small>יתחבר לתוצאות הקורס בהמשך</small></span>
+              </div>
               </div>
             </div>
             <div data-premium-results-section hidden>
@@ -348,18 +352,25 @@ export const adminHomeScreen = {
         if (main && section) { main.hidden = true; section.hidden = false; }
       });
       root?.querySelector('[data-course-results-back]')?.addEventListener('click', () => {
-        if (main && section) { section.hidden = true; main.hidden = false; }
+        if (main && section) {
+          section.hidden = true;
+          main.hidden = false;
+          const catalog = root?.querySelector('[data-course-results-catalog]');
+          const premium = root?.querySelector('[data-premium-results-section]');
+          if (catalog) catalog.hidden = false;
+          if (premium) premium.hidden = true;
+        }
       });
-      const courseGrid = section?.querySelector('.admin-management-grid');
+      const catalog = root?.querySelector('[data-course-results-catalog]');
       const premiumSection = root?.querySelector('[data-premium-results-section]');
       const premiumStatus = root?.querySelector('[data-premium-load-status]');
       const premiumData = root?.querySelector('[data-premium-results-data]');
       root?.querySelector('[data-premium-results-back]')?.addEventListener('click', () => {
-        if (courseGrid && premiumSection) { premiumSection.hidden = true; courseGrid.hidden = false; }
+        if (catalog && premiumSection) { premiumSection.hidden = true; catalog.hidden = false; }
       });
       root?.querySelector('[data-premium-course-results]')?.addEventListener('click', async () => {
-        if (!courseGrid || !premiumSection || !premiumStatus || !premiumData) return;
-        courseGrid.hidden = true;
+        if (!catalog || !premiumSection || !premiumStatus || !premiumData) return;
+        catalog.hidden = true;
         premiumSection.hidden = false;
         premiumStatus.textContent = 'טוען תוצאות...';
         premiumData.replaceChildren();
