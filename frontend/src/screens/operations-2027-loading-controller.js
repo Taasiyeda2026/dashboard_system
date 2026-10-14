@@ -201,6 +201,21 @@ async function queryCourses() {
   return result.data || [];
 }
 
+/** The kit inventory includes the escape-room kit (inactive as a course, active as stock). */
+async function queryPrintKitCourses() {
+  const result = await supabase
+    .from(COURSE_TABLE)
+    .select('id, short_name, full_name, gefen_number, sort_order, is_active, requires_print_kit')
+    .eq('requires_print_kit', true)
+    .order('sort_order', { ascending: true });
+  if (result.error) throw result.error;
+  return result.data || [];
+}
+
+function sharedPrintKitCourses() {
+  return loadOperations2027Source('print-kit-courses', queryPrintKitCourses);
+}
+
 async function querySchool2027Activities() {
   const result = await supabase
     .from(ACTIVITY_TABLE)
@@ -398,7 +413,7 @@ function loadPrintKitData() {
   return loadOperations2027Tab(TAB_PRINT_KITS, async () => {
     const [instructors, courses, activities, editable, inventoryResult, distributionResult] = await Promise.all([
       sharedInstructors(),
-      sharedCourses(),
+      sharedPrintKitCourses(),
       sharedActivities(),
       sharedEditPermission(),
       supabase.from(KIT_INVENTORY_TABLE).select('course_id, warehouse_quantity, hila_quantity, idan_quantity, gil_quantity'),
