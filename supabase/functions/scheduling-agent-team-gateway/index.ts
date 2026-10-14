@@ -1,0 +1,137 @@
+// Team-scoped MCP gateway. Separate from owner-only scheduling-agent-gateway.
+// Every tool uses the requesting user's Supabase JWT: NEVER a service_role or shared owner token.
+const PROJECT = 'https://szinlhjuwyiyszdpsdop.supabase.co';
+const ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY') || '';
+const BASE = PROJECT + '/functions/v1/scheduling-agent-team-gateway/mcp';
+const META = BASE + '/.well-known/oauth-protected-resource';
+
+const TOOLS = [
+  {
+    name: 'read_snapshot',
+    description: 'Read only whitelisted scheduling fields and safe instructor alternatives. No financial, payroll, email, phone, private Google Sheets or configuration data.',
+    inputSchema: {type:'object',properties:{},additionalProperties:false}
+  },
+  {
+    name: 'manager_approval_state',
+    description: 'Check whether an existing manual draft needs administrator approval and its current approval status. Read only.',
+    inputSchema: {type:'object',properties:{activityId:{type:'string'}},required:['activityId'],additionalProperties:false}
+  },
+  {
+    name: 'stage_manual_draft',
+    description: 'Write a validated manual scheduling draft in the requesting user identity. Call ONLY after the user explicitly approves the specific activity, instructor, and any exception. NEVER finalize or approve a scheduling exception.',
+    inputSchema: {type:'object',properties:{activityId:{type:'string'},instructorId:{type:'integer',minimum:1},reason:{type:'string',maxLength:500}},required:['activityId','instructorId'],additionalProperties:false}
+  },
+  {
+    name: 'submit_manager_approval',
+    description: 'Submit the caller-owned manual scheduling draft to the existing dashboard approval queue. Call ONLY after explicit user consent. Only the administrator can approve/reject in the dashboard.',
+    inputSchema: {type:'object',properties:{activityId:{type:'string'}},required:['activityId'],additionalProperties:false}
+  }
+];
+
+function respond(payload:unknown,status=200,headers:Record<string,string>={}){
+  return Response.json(payload,{status,headers:{'Cache-Control':'no-store',...headers}});
+}
+function rejectUnauthorized(status=401){
+  return respond({error:'unauthorized'},status,
+    {'WWW-Authenticate':'Bearer resource_metadata="'+META+'"'});
+}
+function isObject(v:unknown):v is Record<string,unknown> {
+  return v!==null&&typeof v==='object'&&!Array.isArray(v);
+}
+function activityId(v:unknown){
+  return typeof v==='string'&&v.trim().length>0&&v.length<=200;
+}
+async function rpc(token:string,fn:string,args:Record<string,unknown>={}){
+  const response=await fetch(PROJECT+'/rest/v1/rpc/'+fn,{
+    method:'POST',
+    headers:{'apikey':ANON_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'},
+    body:JSON.stringify(args),
+    signal:AbortSignal.timeout(18000)
+  });
+  if(!response.ok){
+    if(response.status===401||response.status===403)return {error:'permission_denied',status:403};
+    const body=await response.json().catch(()=>({}));
+    return {error:(body?.code==='42501')?'permission_denied':'request_rejected',status:body?.code==='42501'?403:409};
+  }
+  return {data:await response.json()};
+}
+async function authenticate(request:Request):Promise<string|null> {
+  if(!ANON_KEY)return null;
+  const match=/^Bearer ([^\s]+)$/.exec(request.headers.get('Authorization')||'');
+  if(!match)return null;
+  const token=match[1];
+  const response=await fetch(PROJECT+'/auth/v1/user',{
+    headers:{apikey:ANON_KEY,Authorization:'Bearer '+token},
+    signal:AbortSignal.timeout(10000)
+  });
+  if(!response.ok)return null;
+  const who=await response.json();
+  if(!who?.id)return null;
+  const access=await rpc(token,'scheduling_agent_team_identity');
+  if(!access.data?.authorized)return null;
+  return token;
+}
+function validate(name:string,args:unknown):args is Record<string,unknown> {
+  if(!isObject(args))return false;
+  const allowed:Record<string,string[]>={
+    read_snapshot:[],
+    manager_approval_state:['activityId'],
+    stage_manual_draft:['activityId','instructorId','reason'],
+    submit_manager_approval:['activityId']
+  };
+  if(!allowed[name]||Object.keys(args).some(k=>!allowed[name].includes(k)))return false;
+  if(name==='read_snapshot')return Object.keys(args).length===0;
+  if(!activityId(args.activityId))return false;
+  if(name==='stage_manual_draft'){
+    if(!Number.isSafeInteger(args.instructorId)||Number(args.instructorId)<=0)return false;
+    if(args.reason!==undefined&&(typeof args.reason!=='string'||args.reason.length>500))return false;
+  }
+  return true;
+}
+Deno.serve(async request=>{
+  const path=new URL(request.url).pathname;
+  if(request.method==='GET'&&path.endsWith('/mcp/.well-known/oauth-protected-resource'))
+    return respond({resource:BASE,authorization_servers:[PROJECT+'/auth/v1'],scopes_supported:['openid'],bearer_methods_supported:['header']});
+  if(!path.endsWith('/mcp'))return respond({error:'not_found'},404);
+  if(request.method!=='POST'&&request.method!=='GET')return respond({error:'method_not_allowed'},405);
+  let token:string|null;
+  try {token=await authenticate(request);} catch{return rejectUnauthorized();}
+  if(!token)return rejectUnauthorized();
+  if(request.method==='GET')return new Response(null,{status:405,headers:{Allow:'POST','Cache-Control':'no-store'}});
+  let body:Record<string,unknown>;
+  try{
+    if(Number(request.headers.get('content-length')||0)>16384)return respond({error:'payload_too_large'},413);
+    const raw=await request.text();
+    if(new TextEncoder().encode(raw).length>16384)return respond({error:'payload_too_large'},413);
+    const value=JSON.parse(raw);
+    if(!isObject(value)||value.jsonrpc!=='2.0'||typeof value.method!=='string')throw Error();
+    body=value;
+  } catch {return respond({error:'invalid_jsonrpc'},400);}
+  const id=body.id;
+  const result=(value:unknown)=>respond({jsonrpc:'2.0',id,result:value});
+  if(body.method==='notifications/initialized'&&!('id' in body))
+    return new Response(null,{status:202});
+  if(body.method==='initialize')
+    return result({protocolVersion:'2025-06-18',capabilities:{tools:{listChanged:false}},serverInfo:{name:'taasiyeda-team-scheduling-agent',version:'0.1.0'}});
+  if(body.method==='ping')return result({});
+  if(body.method==='tools/list')return result({tools:TOOLS});
+  if(body.method!=='tools/call')return respond({jsonrpc:'2.0',id,error:{code:-32601,message:'Method not found'}});
+  const params=body.params;
+  const name=isObject(params)?params.name:null;
+  const args=isObject(params)?params.arguments??{}:null;
+  if(typeof name!=='string'||!validate(name,args))
+    return result({isError:true,content:[{type:'text',text:'invalid_or_unauthorized_arguments'}]});
+  const names:Record<string,string>={
+    read_snapshot:'scheduling_agent_team_read_snapshot',
+    manager_approval_state:'scheduling_agent_team_manager_approval_state',
+    stage_manual_draft:'scheduling_agent_team_stage_manual_draft',
+    submit_manager_approval:'scheduling_agent_team_submit_manager_approval'
+  };
+  const input:Record<string,unknown>=name==='read_snapshot'?{}:
+    name==='stage_manual_draft'?{p_activity_id:args.activityId,p_emp_id:args.instructorId,p_reason:args.reason??null}:
+      {p_activity_id:args.activityId};
+  const output=await rpc(token,names[name],input).catch(()=>({error:'upstream_unavailable',status:502}));
+  if('error' in output)
+    return result({isError:true,content:[{type:'text',text:JSON.stringify({ok:false,error:output.error})}]});
+  return result({isError:false,content:[{type:'text',text:JSON.stringify({ok:true,result:output.data})}]});
+});
