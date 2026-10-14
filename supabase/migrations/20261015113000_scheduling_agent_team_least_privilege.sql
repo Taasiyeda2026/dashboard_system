@@ -113,7 +113,15 @@ create or replace function public.scheduling_agent_team_stage_manual_draft(
 ) returns jsonb language plpgsql security definer
 set search_path = public, pg_temp
 as $$
-declare instructor_name text; staged public.activities; target public.activities;
+declare
+  instructor_name text;
+  staged public.activities;
+  target public.activities;
+  instructor public.contacts_instructors;
+  target_location text;
+  home_distance_km numeric;
+  effective_reason text;
+  hard_violations text[];
 begin
   perform public.scheduling_agent_team_assert_member();
   if p_activity_id is null or length(p_activity_id) not between 1 and 200
@@ -124,11 +132,31 @@ begin
   if not found or target.activity_season <> 'school_2027'
     or target.activity_type <> 'course' or target.status <> 'פתוח'
   then raise exception 'scheduling_agent_team_course_only'; end if;
-  select full_name into instructor_name from public.contacts_instructors
-  where emp_id=p_emp_id;
-  if instructor_name is null then raise exception 'instructor_not_found'; end if;
+  select * into instructor from public.contacts_instructors where emp_id=p_emp_id;
+  if not found then raise exception 'instructor_not_found'; end if;
+  instructor_name := instructor.full_name;
+
+  -- Distance exceptions are derived from the trusted route cache, NEVER from
+  -- the staff member's editable reason. Prevent the old 'בחירה ידנית' shortcut
+  -- from accidentally skipping the existing >=60 km dashboard approval rule.
+  target_location := public.scheduling_school_location(
+    target.school_id, target.school, target.authority_id, target.authority
+  );
+  home_distance_km := public.scheduling_cached_travel_distance_km(instructor.address,target_location);
+  effective_reason := nullif(btrim(coalesce(p_reason,'')), '');
+  if home_distance_km > 40 then
+    effective_reason := concat_ws(' · ',effective_reason,
+      'מרחק הנסיעה לבית הספר מעל מגבלה של 40 ק״מ');
+  end if;
+
+  hard_violations := public.scheduling_manual_assignment_hard_violations(p_activity_id,p_emp_id);
+  if 'scheduling_transition_distance_exceeded'=any(hard_violations) then
+    effective_reason := concat_ws(' · ',effective_reason,
+      'המרחק בין הפעילויות גדול מ־20 ק״מ');
+  end if;
+
   select * into staged from public.save_course_assignment_manual_draft(
-    p_activity_id, p_emp_id, instructor_name, null, null, null, p_reason
+    p_activity_id, p_emp_id, instructor_name, null, null, null, effective_reason
   );
   return jsonb_build_object(
     'activityId',staged.row_id,
