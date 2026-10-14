@@ -147,3 +147,18 @@ test('the analysis tab renders only the filter panel and complete submitted ques
   assert.doesNotMatch(analysis, /instructorRecommendationsHtml\(|prePostQuestionTableHtml\(|populationResultsHtml\(/);
   assert.doesNotMatch(analysis, /exportButtonHtml\(|sectionHtml\('השוואת|sectionHtml\('מדדים/);
 });
+
+
+test('full raw feedback accordions for every audience start collapsed even when filters select a person or group', () => {
+  const raw = screen.slice(screen.indexOf('function instructorFullResponsesHtml() {'),
+    screen.indexOf('function crossCourseHtml()', screen.indexOf('function instructorFullResponsesHtml() {')));
+  for (const audience of ['instructorFullResponsesHtml', 'staffFullResponsesHtml', 'studentFullResponsesHtml']) {
+    assert.match(raw, new RegExp('function ' + audience + '\\(\\)'), audience + ' is covered');
+  }
+  for (const kind of ['person', 'course', 'form']) {
+    assert.match(raw, new RegExp('<details class="ifb-disclosure ifb-full-answer-' + kind + '"><summary>'));
+  }
+  assert.doesNotMatch(raw, /initiallyOpen|\\? ' open' : ''/, 'no filter or first-card state should force open a response');
+  assert.doesNotMatch(raw, /ifb-full-answer-(?:person|course|form)"\\s+open/, 'no raw-answer detail should be open by default');
+  assert.match(raw, /ifb-full-answer-more/, 'lazy loading student responses stays available');
+});

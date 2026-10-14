@@ -250,13 +250,39 @@ async function main() {
     assert.equal(await panel.locator('.ifb-cross-table').count(), 0, 'no cross-course chart or comparison');
     assert.equal(await panel.locator('.ifb-prepost-table').count(), 0, 'no pre/post analysis');
     assert.equal(await panel.locator('[data-ifb-export]').count(), 0, 'no report or analytics export controls');
+    // All three levels of raw questionnaire details must be collapsed by default.
+    const assertAllResponsesCollapsed = async () => {
+      const details = panel.locator('details.ifb-full-answer-person, details.ifb-full-answer-course, details.ifb-full-answer-form');
+      assert.ok(await details.evaluateAll((nodes) => nodes.every((node) => !node.open)),
+        'no responder, course, group or questionnaire should open automatically');
+      return details.count();
+    };
+    await assertAllResponsesCollapsed();
+    const firstInstructor = panel.locator('details.ifb-full-answer-person').first();
+    if (await firstInstructor.count()) {
+      await firstInstructor.locator(':scope > summary').click();
+      assert.equal(await firstInstructor.evaluate((node) => node.open), true,
+        'instructor expands only on an explicit click');
+      const firstCourse = firstInstructor.locator('details.ifb-full-answer-course').first();
+      assert.equal(await firstCourse.evaluate((node) => node.open), false,
+        'expanding a person does not auto-expand their course');
+      await firstCourse.locator(':scope > summary').click();
+      const firstForm = firstCourse.locator('details.ifb-full-answer-form').first();
+      assert.equal(await firstForm.evaluate((node) => node.open), false,
+        'expanding a course does not auto-expand its questionnaire');
+      await firstForm.locator(':scope > summary').click();
+      assert.equal(await firstForm.evaluate((node) => node.open), true,
+        'the questionnaire can still be opened to read all answers');
+    }
     await panel.locator('[data-ifb-filter-disclosure="analysis"] summary').click();
     await panel.locator('select[data-a="audience"]').selectOption('educational_staff');
     assert.equal(await panel.locator('.ifb-section').count(), 1);
     assert.match(await panel.locator('.ifb-section h2').textContent(), /תשובות צוות חינוכי/);
+    await assertAllResponsesCollapsed();
     await panel.locator('select[data-a="audience"]').selectOption('student');
     assert.equal(await panel.locator('.ifb-section').count(), 1);
     assert.match(await panel.locator('.ifb-section h2').textContent(), /תשובות תלמידים/);
+    await assertAllResponsesCollapsed();
     assert.equal(await panel.locator('.ifb-cross-table').count(), 0);
     await admin.screenshot({ path: `${SHOTS}/03-analysis-desktop.png`, fullPage: true });
   });
