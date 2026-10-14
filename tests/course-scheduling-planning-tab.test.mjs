@@ -327,7 +327,10 @@ test('planning spec derives meeting count and duration from catalog without chan
   assert.equal(baseCourse.start_time, undefined);
 });
 
-test('legacy 82835 biomimicry identifier resolves to canonical 53828 catalog duration', () => {
+test('planning distinguishes confirmed Biomimicry numbers and refuses to infer age from retired 82835', () => {
+  assert.equal(canonicalPlanningActivityNo('6089'), '6089');
+  assert.equal(canonicalPlanningActivityNo('53828'), '53828');
+  assert.equal(canonicalPlanningActivityNo('82835'), '82835', 'historical code was applied to both age bands');
   const canonicalCatalog = [{
     activity_no: '53828',
     gefen_number: '53828',
@@ -339,11 +342,10 @@ test('legacy 82835 biomimicry identifier resolves to canonical 53828 catalog dur
   }];
   const activity = {
     ...baseCourse,
-    activity_name: 'ביומימיקרי',
-    activity_no: '82835',
+    activity_name: 'ביומימיקרי לחטיבה',
+    activity_no: '53828',
     sessions: 11
   };
-  assert.equal(canonicalPlanningActivityNo('82835'), '53828');
   const spec = inferPlanningCourseSpec(activity, canonicalCatalog);
   assert.equal(spec.sessions, 11);
   assert.equal(spec.durationMinutes, 90);

@@ -61,7 +61,8 @@ export function activitySchedulingFieldsChanged(before = null, afterOrChanges = 
   if (!before || typeof before !== 'object') return true;
   return keys.some((key) => text(before[key]) !== text(next[key]));
 }
-const ACTIVITY_NO_ALIASES = Object.freeze({ '82835': '53828' });
+// Legacy 82835 represented both age bands. Never blindly treat it as secondary.
+const ACTIVITY_NO_ALIASES = Object.freeze({});
 function canonicalPlanningActivityNo(value) {
   const raw = text(value);
   return ACTIVITY_NO_ALIASES[raw] || raw;

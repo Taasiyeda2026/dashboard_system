@@ -7,8 +7,8 @@ const activitiesScreen = readFileSync(
   new URL('../frontend/src/screens/activities.js', import.meta.url), 'utf8'
 );
 
-test('secondary biomimicry gets clear display-only name for both canonical and legacy numbers', () => {
-  for (const no of ['53828', '82835', 53828, 82835]) {
+test('secondary biomimicry gets clear display-only name by its verified canonical number', () => {
+  for (const no of ['53828', 53828]) {
     assert.equal(
       displayedActivityProgramName({ activity_no: no, activity_name: 'ביומימיקרי' }, 'ביומימיקרי'),
       'ביומימיקרי (לחטיבה)'
@@ -23,6 +23,7 @@ test('secondary biomimicry gets clear display-only name for both canonical and l
 test('elementary 6089 and all other activities retain existing display labels', () => {
   const cases = [
     [{ activity_no: '6089', activity_name: 'ביומימיקרי' }, 'ביומימיקרי'],
+    [{ activity_no: '82835', activity_name: 'ביומימיקרי' }, 'ביומימיקרי'],
     [{ activity_no: 6089, activity_name: 'ביומימיקרי' }, 'ביומימיקרי'],
     [{ activity_no: '57651', activity_name: 'טכנולוגיות החלל' }, 'טכנולוגיות החלל'],
     [{ activity_no: 'KIT-BIOMIMICRY-ESCAPE', activity_name: 'ביומימיקרי חדר בריחה' }, 'ביומימיקרי חדר בריחה'],
@@ -34,7 +35,7 @@ test('elementary 6089 and all other activities retain existing display labels', 
 });
 
 test('the name conversion is pure and used for activity-list rendering, not edited data', () => {
-  const activity = { activity_no: '82835', activity_name: 'ביומימיקרי', activity_type: 'course' };
+  const activity = { activity_no: '53828', activity_name: 'ביומימיקרי לחטיבה', activity_type: 'course' };
   const snapshot = structuredClone(activity);
   assert.equal(displayedActivityProgramName(activity, activity.activity_name), 'ביומימיקרי (לחטיבה)');
   assert.deepEqual(activity, snapshot, 'saved source row must never be rewritten');
