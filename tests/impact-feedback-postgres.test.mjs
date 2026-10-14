@@ -454,7 +454,7 @@ test('impact feedback DB contract: program fallback, manual mapping, catalog lim
       ('M-6','school_2027','course','משחקי קופסה',null,'בית ספר ו',null,'מדריכה','1'),
       ('M-7','school_2027','workshop','סדנת רובוטיקה',null,'בית ספר ז','ה','מדריכה','1')`);
     await client.query(`insert into activities (row_id, activity_season, activity_type, activity_name, activity_no, school, grade, instructor_name, emp_id) values
-      ('M-11','school_2027','course','ביומימיקרי','82835','חטיבה א',null,'מדריכה','1'),
+      ('M-11','school_2027','course','ביומימיקרי לחטיבה','53828','חטיבה א',null,'מדריכה','1'),
       ('M-12','school_2027','course','בינה מלאכותית','9545','חטיבה ב',null,'מדריכה','1'),
       ('M-13','school_2027','course','ביומימיקרי','6089','יסודי ג',null,'מדריכה','1'),
       ('M-14','school_2027','course','השמיים אינם הגבול','57646','חטיבה ד',null,'מדריכה','1')`);
@@ -516,7 +516,7 @@ test('impact feedback DB contract: program fallback, manual mapping, catalog lim
     assert.deepEqual([groups['M-8'].program_key, groups['M-8'].program_source], ['ofek', 'gefen'], 'Gefen 52279 resolves to Ofek automatically');
     assert.deepEqual([groups['M-9'].program_key, groups['M-9'].program_source], ['trailblazers', 'gefen'], 'Gefen 3604 resolves to Trailblazers automatically');
     assert.deepEqual([groups['M-10'].program_key, groups['M-10'].program_source], [null, null], 'ids outside the final catalog are not auto-matched');
-    assert.deepEqual([groups['M-11'].program_key, groups['M-11'].program_source], ['biomimicry_secondary', 'activity_no'], 'legacy activity_no 82835 resolves to canonical Biomimicry 53828');
+    assert.deepEqual([groups['M-11'].program_key, groups['M-11'].program_source], ['biomimicry_secondary', 'activity_no'], 'canonical activity_no 53828 resolves to secondary Biomimicry');
     assert.deepEqual([groups['M-12'].program_key, groups['M-12'].program_source], ['ai_foundations', 'activity_no'], 'activity_no 9545 resolves even when gefen_number is empty');
     assert.deepEqual([groups['M-13'].program_key, groups['M-13'].program_source], ['biomimicry', 'activity_no'], 'activity_no 6089 resolves elementary Biomimicry');
     assert.deepEqual(['L-1', 'L-2', 'L-3', 'L-4', 'L-5', 'L-6', 'L-7'].map((id) => groups[id]?.program_key ?? null),
