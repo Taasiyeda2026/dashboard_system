@@ -28,6 +28,8 @@ import {
   courseLabel as domainCourseLabel,
   crossCourseCore,
   groupInstructorFullResponses,
+  groupEducationalStaffFullResponses,
+  groupStudentFullResponses,
   describeGroupChange,
   factsFor,
   filterGroups,
@@ -81,6 +83,8 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const ACTIVITY_SYNC_INTERVAL_MS = 60 * 1000;
 const ACTIVITY_SYNC_MIN_GAP_MS = 12 * 1000;
 const FILTER_SEARCH_DEBOUNCE_MS = 160;
+/** Keep large anonymous student cohorts responsive, while making every form accessible. */
+const STUDENT_FULL_ANSWER_PAGE_SIZE = 20;
 let activitySyncController = null;
 let activitySyncTimer = null;
 let filterPaintTimer = null;
@@ -127,7 +131,7 @@ const ui = {
   showAll: true,
   overview: { audience: '', phase: '' },
   filters: { authority: '', school: '', instructor: '', manager: '', status: '', search: '' },
-  analysis: { audience: 'instructor', stage: 'pre', instructor: '' },
+  analysis: { audience: 'instructor', stage: 'pre', instructor: '', contact: '', group: '' },
   results: { drill: '' },
   templates: { templateId: null, versionId: null, previewBand: '' },
   instructorFilters: { instructor: '', manager: '', status: '' },
@@ -1271,12 +1275,14 @@ function analysisFiltersHtml() {
   const a = ui.analysis;
   const stageOptions = AUDIENCE_STAGES[a.audience] || ['post'];
   const stage = stageOptions.includes(a.stage) ? a.stage : stageOptions[stageOptions.length - 1];
-  const active = Number(Boolean(ui.course)) + Number(a.audience !== 'student') + Number(Boolean(a.stage && a.stage !== 'post')) + Number(Boolean(a.instructor));
+  const active = Number(Boolean(ui.course)) + Number(a.audience !== 'student') + Number(Boolean(a.stage && a.stage !== 'post')) + Number(Boolean(a.instructor)) + Number(Boolean(a.contact)) + Number(Boolean(a.group));
   return filterDisclosureHtml('analysis', `<div class="ifb-filters ifb-filters--inline">
     ${courseFilterFieldHtml()}
     <label class="ifb-field"><span>קהל</span><select data-a="audience">${AUDIENCE_ORDER.map((x) => `<option value="${x}"${x === a.audience ? ' selected' : ''}>${esc(AUDIENCE_LABELS[x])}</option>`).join('')}</select></label>
     <label class="ifb-field"><span>שלב</span><select data-a="stage">${stageOptions.map((s) => `<option value="${s}"${s === stage ? ' selected' : ''}>${esc(stageLabelFor(a.audience, s))}</option>`).join('')}</select></label>
     ${a.audience === 'instructor' ? instructorAnswersFilterHtml(stage) : ''}
+    ${a.audience === 'educational_staff' ? staffAnswersFilterHtml(stage) : ''}
+    ${a.audience === 'student' ? studentAnswersFilterHtml(stage) : ''}
   </div>`, active);
 }
 
@@ -1362,12 +1368,122 @@ function instructorFullResponsesHtml() {
     html + '</div>';
 }
 
+/** Only contacts and school groups with submitted answers appear in the selectors. */
+function staffAnswersFilterHtml(stage) {
+  const people = groupEducationalStaffFullResponses(semesterFacts(), { stage, programKey: ui.course });
+  return '<label class="ifb-field"><span>איש קשר</span><select data-a="contact">' +
+    '<option value="">כל אנשי הקשר</option>' +
+    people.map((person) => '<option value="' + esc(person.key) + '"' +
+      (person.key === ui.analysis.contact ? ' selected' : '') + '>' +
+      esc(person.name + ' · ' + person.schoolName) + '</option>').join('') + '</select></label>';
+}
+
+function studentAnswersFilterHtml(stage) {
+  const courses = groupStudentFullResponses(semesterFacts(), { stage, programKey: ui.course });
+  const groups = new Map();
+  for (const course of courses) for (const group of course.groups) {
+    if (!groups.has(group.key)) groups.set(group.key,
+      group.schoolName + (group.grade ? ' · ' + group.grade : '') + ' · ' + programTitle(course.programKey));
+  }
+  return '<label class="ifb-field"><span>בית ספר / קבוצה</span><select data-a="group">' +
+    '<option value="">כל בתי הספר והקבוצות</option>' +
+    [...groups].map(([key, title]) => '<option value="' + esc(key) + '"' +
+      (key === ui.analysis.group ? ' selected' : '') + '>' + esc(title) + '</option>').join('') +
+    '</select></label>';
+}
+
+function completeFeedbackFormHtml(response, { audience, index = 0, initiallyOpen = false } = {}) {
+  const heading = audience === 'student' ? 'שאלון אנונימי ' + (index + 1) : stageLabelFor(audience, response.stage);
+  const answers = response.answers.map((fact, questionIndex) =>
+    '<div class="ifb-full-answer-item"><div class="ifb-full-answer-question">' +
+      '<span class="ifb-full-answer-num">' + (questionIndex + 1) + '.</span>' +
+      '<span dir="auto">' + esc(fact.question_text || 'שאלה') + '</span></div>' +
+      '<div class="ifb-full-answer-reply">' + completeInstructorAnswerValueHtml(fact) + '</div></div>').join('');
+  return '<details class="ifb-disclosure ifb-full-answer-form"' + (initiallyOpen ? ' open' : '') +
+    '><summary>' + esc(heading) + ' · ' + esc(fmtDate(response.submittedAt)) +
+    ' · ' + response.answers.length + ' תשובות</summary>' +
+    '<div class="ifb-full-answer-list">' + answers + '</div></details>';
+}
+
+function staffFullResponsesHtml() {
+  const people = groupEducationalStaffFullResponses(semesterFacts(), {
+    programKey: ui.course, stage: ui.analysis.stage, contactKey: ui.analysis.contact
+  });
+  const total = people.reduce((sum, person) => sum +
+    person.courses.reduce((n, course) => n + course.responses.length, 0), 0);
+  if (!total) return '<p class="ifb-analysis-empty-note">אין עדיין משובים שהוגשו על ידי הצוות החינוכי בסינון הנוכחי.</p>';
+  const cards = people.map((person, pi) => {
+    const courseCards = person.courses.map((course, ci) =>
+      '<details class="ifb-disclosure ifb-full-answer-course"' +
+        (ui.analysis.contact || (pi === 0 && ci === 0) ? ' open' : '') +
+        '><summary>' + esc(programTitle(course.programKey)) + ' · ' +
+        course.responses.length + ' משובים</summary>' +
+        course.responses.map((response, ri) => completeFeedbackFormHtml(response, {
+          audience: 'educational_staff', index: ri,
+          initiallyOpen: Boolean(ui.analysis.contact) || (pi === 0 && ci === 0 && ri === 0)
+        })).join('') + '</details>').join('');
+    const number = person.courses.reduce((n, course) => n + course.responses.length, 0);
+    return '<details class="ifb-disclosure ifb-full-answer-person"' +
+      (ui.analysis.contact || pi === 0 ? ' open' : '') +
+      '><summary><strong>' + esc(person.name) + '</strong> · ' +
+      esc(person.schoolName) + ' · ' + person.courses.length +
+      ' קורסים · ' + number + ' משובים</summary>' + courseCards + '</details>';
+  }).join('');
+  return '<div class="ifb-instructor-full-results"><p class="ifb-analysis-context">' +
+    people.length + ' אנשי קשר · ' + total + ' משובים שהוגשו. כל השאלות והתשובות מוצגות במלואן.</p>' +
+    cards + '</div>';
+}
+
+function studentFullResponsesHtml() {
+  const courses = groupStudentFullResponses(semesterFacts(), {
+    programKey: ui.course, stage: ui.analysis.stage, groupKey: ui.analysis.group
+  }).filter((course) => course.groups.length);
+  const total = courses.reduce((sum, course) => sum +
+    course.groups.reduce((n, group) => n + group.responses.length, 0), 0);
+  if (!total) return '<p class="ifb-analysis-empty-note">עדיין לא התקבלו משובי תלמידים בסינון הנוכחי. השאלונים יופיעו כאן לאחר ההגשה.</p>';
+  const cards = courses.map((course, ci) => {
+    const groups = course.groups.map((group, gi) => {
+      const activity = (ui.groups || []).find((row) =>
+        String(row.row_id) === group.key.slice('group:'.length));
+      const classroom = String(activity?.class_group || '').trim();
+      const heading = [group.schoolName, group.grade, classroom, group.authorityName]
+        .filter(Boolean).join(' · ');
+      return '<details class="ifb-disclosure ifb-full-answer-course"' +
+        (ui.analysis.group || (ci === 0 && gi === 0) ? ' open' : '') +
+        '><summary>' + esc(heading) + ' · ' + group.responses.length +
+        ' שאלונים אנונימיים</summary>' +
+        group.responses.slice(0, STUDENT_FULL_ANSWER_PAGE_SIZE).map((response, ri) =>
+          completeFeedbackFormHtml(response, {
+            audience: 'student', index: ri,
+            initiallyOpen: (Boolean(ui.analysis.group) || (ci === 0 && gi === 0)) && ri === 0
+          })).join('') +
+        (group.responses.length > STUDENT_FULL_ANSWER_PAGE_SIZE
+          ? '<button type="button" class="ifb-btn ifb-full-answer-more" data-ifb-student-more="' +
+            esc(course.programKey) + '" data-ifb-student-group="' + esc(group.key) +
+            '" data-ifb-student-shown="' + STUDENT_FULL_ANSWER_PAGE_SIZE +
+            '">הצגת ' + Math.min(STUDENT_FULL_ANSWER_PAGE_SIZE,
+              group.responses.length - STUDENT_FULL_ANSWER_PAGE_SIZE) + ' שאלונים נוספים</button>'
+          : '') + '</details>';
+    }).join('');
+    const number = course.groups.reduce((n, group) => n + group.responses.length, 0);
+    return '<details class="ifb-disclosure ifb-full-answer-person"' +
+      (ci === 0 || Boolean(ui.course) ? ' open' : '') +
+      '><summary><strong>' + esc(programTitle(course.programKey)) + '</strong> · ' +
+      course.groups.length + ' קבוצות · ' + number +
+      ' שאלונים אנונימיים</summary>' + groups + '</details>';
+  }).join('');
+  return '<div class="ifb-instructor-full-results">' +
+    '<p class="ifb-analysis-context">' + courses.length + ' קורסים · ' + total +
+    ' שאלונים שהוגשו. התשובות אנונימיות; לא מוצגים שמות תלמידים או מזהי תלמידים.</p>' +
+    cards + '</div>';
+}
+
 function crossCourseHtml() {
   const a = ui.analysis;
   const stageOptions = AUDIENCE_STAGES[a.audience] || ['post'];
   const stage = stageOptions.includes(a.stage) ? a.stage : stageOptions[stageOptions.length - 1];
   const { programKeys, rows } = crossCourseCore(semesterFacts(), { audience: a.audience, stage });
-  if (!rows.length) return '<p class="ifb-analysis-empty-note">אין עדיין שאלות ליבה זהות שנענו בשני קורסים לפחות. תשובות המדריכים שכבר התקבלו מופיעות למעלה.</p>';
+  if (!rows.length) return '<p class="ifb-analysis-empty-note">אין עדיין שאלות ליבה זהות שנענו בשני קורסים לפחות. השאלונים המלאים שהתקבלו מוצגים למעלה לפי הסינון שנבחר.</p>';
   return `<div class="ifb-table-wrap ifb-table-wrap--scroll"><table class="ifb-table ifb-cross-table">
     <caption class="ifb-sr">השוואה בין קורסים בשאלות הליבה</caption>
     <thead><tr><th scope="col">שאלת ליבה</th>${programKeys.map((k) => `<th scope="col" class="ifb-center${k === ui.course ? ' is-selected' : ''}">${esc(programTitle(k))}</th>`).join('')}</tr></thead>
@@ -1578,21 +1694,28 @@ function instructorRecommendationsHtml(facts) {
 }
 
 function analysisHtml() {
-  const instructorAnswers = ui.analysis.audience === 'instructor'
+  const fullAnswers = ui.analysis.audience === 'instructor'
     ? sectionHtml('כל התשובות של המדריכים — לפי מדריך וקורס', instructorFullResponsesHtml(), {
       note: 'כל תשובה מוצגת כפי שנשמרה, כולל טקסט חופשי, בחירות ודירוגים.'
-    }) : '';
+    })
+    : ui.analysis.audience === 'educational_staff'
+      ? sectionHtml('כל התשובות של הצוות החינוכי — לפי איש קשר וקורס', staffFullResponsesHtml(), {
+        note: 'כל שאלון שהוגש מוצג בנפרד, כולל תשובות מלאות ופרטי בית הספר.'
+      })
+      : sectionHtml('כל תשובות התלמידים — לפי קורס ובית ספר', studentFullResponsesHtml(), {
+        note: 'השאלונים אנונימיים. כל הגשה מוצגת בנפרד, ללא פרטים מזהים של תלמידים.'
+      });
   if (!ui.course) {
     return `
       ${analysisFiltersHtml()}
-      ${instructorAnswers}
-      ${ui.analysis.audience === 'instructor' ? '' : selectCourseHint('סיכום מצטבר, השוואה בין אוכלוסיות, פתיחה–סיום ותוצאות לכל שאלה')}
+      ${fullAnswers}
+      
       ${sectionHtml('השוואה בין קורסים במדדי ליבה', crossCourseHtml(), { actions: exportButtonHtml('analysis', 'דוח כל הקורסים (Excel)') })}`;
   }
   const facts = courseFacts();
   return `
     ${analysisFiltersHtml()}
-    ${instructorAnswers}
+    ${fullAnswers}
     ${aiAnalysisExportHtml()}
     ${biomimicryImprovementHtml(facts)}
     ${evidenceSummaryHtml(facts)}
@@ -2093,6 +2216,29 @@ async function handleClick(host, event) {
     event.preventDefault();
     return;
   }
+  const moreStudent = t.closest('[data-ifb-student-more]');
+  if (moreStudent) {
+    const courseKey = moreStudent.dataset.ifbStudentMore;
+    const groupKey = moreStudent.dataset.ifbStudentGroup;
+    const group = groupStudentFullResponses(semesterFacts(), {
+      programKey: courseKey, stage: ui.analysis.stage, groupKey
+    }).find((course) => course.programKey === courseKey)?.groups.find((item) => item.key === groupKey);
+    if (!group) return;
+    const shown = Math.max(0, Math.min(group.responses.length,
+      Number(moreStudent.dataset.ifbStudentShown) || STUDENT_FULL_ANSWER_PAGE_SIZE));
+    const next = Math.min(group.responses.length, shown + STUDENT_FULL_ANSWER_PAGE_SIZE);
+    moreStudent.insertAdjacentHTML('beforebegin', group.responses.slice(shown, next)
+      .map((response, index) => completeFeedbackFormHtml(response, {
+        audience: 'student', index: shown + index
+      })).join(''));
+    if (next === group.responses.length) moreStudent.remove();
+    else {
+      moreStudent.dataset.ifbStudentShown = String(next);
+      moreStudent.textContent = 'הצגת ' + Math.min(STUDENT_FULL_ANSWER_PAGE_SIZE,
+        group.responses.length - next) + ' שאלונים נוספים';
+    }
+    return;
+  }
   const tab = t.closest('[data-ifb-tab]');
   if (tab) { await switchTab(host, tab.dataset.ifbTab); return; }
   if (t.closest('[data-ifb-retry]') || t.closest('[data-ifb-refresh]')) { await load(host, { force: true }); return; }
@@ -2318,6 +2464,8 @@ function handleFilterInput(host, event) {
   if (el.matches('[data-ifb-course]')) {
     ui.course = el.value;
     ui.analysis.instructor = '';
+    ui.analysis.contact = '';
+    ui.analysis.group = '';
     ui.templates.templateId = null;
     paint(host);
     return;
@@ -2327,7 +2475,12 @@ function handleFilterInput(host, event) {
     const key = el.getAttribute(`data-${attr}`);
     if (key) {
       target[key] = el.value;
-      if (attr === 'a' && (key === 'audience' || key === 'stage')) ui.analysis.instructor = '';
+      if (attr === 'a' && (key === 'audience' || key === 'stage')) {
+        ui.analysis.instructor = '';
+        ui.analysis.contact = '';
+        ui.analysis.group = '';
+        if (key === 'audience') ui.analysis.stage = (AUDIENCE_STAGES[el.value] || ['pre'])[0];
+      }
       // Debounce search typing so every keystroke does not rebuild large tables.
       if (key === 'search' || el.type === 'search') {
         if (filterPaintTimer !== null) window.clearTimeout(filterPaintTimer);

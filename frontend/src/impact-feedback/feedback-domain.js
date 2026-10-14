@@ -922,6 +922,82 @@ export function groupInstructorFullResponses(facts = [], { programKey = '', stag
   })).sort((a, b) => a.name.localeCompare(b.name, 'he') || a.key.localeCompare(b.key));
 }
 
+/** Preserve each submitted answer as-is. Staff groups use name + school; no hidden identity is inferred. */
+export function groupEducationalStaffFullResponses(facts = [], { programKey = '', stage = '', contactKey = '' } = {}) {
+  const people = new Map();
+  for (const fact of facts || []) {
+    if (fact.audience !== 'educational_staff' || !fact.response_id) continue;
+    if (programKey && fact.program_key !== programKey) continue;
+    if (stage && fact.stage !== stage) continue;
+    const name = String(fact.respondent_name || '').trim() || 'איש קשר ללא שם';
+    const schoolName = String(fact.school_name || '').trim() || 'בית ספר לא צוין';
+    const key = 'contact:' + encodeURIComponent(schoolName) + ':' + encodeURIComponent(name);
+    if (contactKey && contactKey !== key) continue;
+    if (!people.has(key)) people.set(key, { key, name, schoolName, courses: new Map() });
+    const person = people.get(key);
+    const courseKey = String(fact.program_key || '');
+    if (!person.courses.has(courseKey)) person.courses.set(courseKey, { programKey: courseKey, responses: new Map() });
+    const course = person.courses.get(courseKey);
+    const responseKey = String(fact.response_id);
+    if (!course.responses.has(responseKey)) course.responses.set(responseKey, {
+      responseId: responseKey, stage: fact.stage, submittedAt: fact.submitted_at, answers: []
+    });
+    course.responses.get(responseKey).answers.push(fact);
+  }
+  return [...people.values()].map((person) => ({
+    ...person,
+    courses: [...person.courses.values()].map((course) => ({
+      programKey: course.programKey,
+      responses: [...course.responses.values()].map((response) => ({
+        ...response,
+        answers: response.answers.sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0)
+          || String(a.question_id).localeCompare(String(b.question_id)))
+      })).sort((a, b) => String(a.submittedAt || '').localeCompare(String(b.submittedAt || '')))
+    })).sort((a, b) => a.programKey.localeCompare(b.programKey))
+  })).sort((a, b) => a.name.localeCompare(b.name, 'he') || a.schoolName.localeCompare(b.schoolName, 'he'));
+}
+
+/**
+ * Student surveys are anonymous: course > school/group > each distinct submission.
+ * No participant identity is read, generated or inferred. The campaign/activity ID
+ * is used only to keep school groups with the same display name separate.
+ */
+export function groupStudentFullResponses(facts = [], { programKey = '', stage = '', groupKey = '' } = {}) {
+  const courses = new Map();
+  for (const fact of facts || []) {
+    if (fact.audience !== 'student' || !fact.response_id) continue;
+    if (programKey && fact.program_key !== programKey) continue;
+    if (stage && fact.stage !== stage) continue;
+    const courseKey = String(fact.program_key || '');
+    if (!courses.has(courseKey)) courses.set(courseKey, { programKey: courseKey, groups: new Map() });
+    const course = courses.get(courseKey);
+    const key = 'group:' + String(fact.activity_row_id || fact.campaign_id || fact.response_id);
+    if (groupKey && key !== groupKey) continue;
+    if (!course.groups.has(key)) course.groups.set(key, {
+      key, schoolName: String(fact.school_name || 'בית ספר לא צוין'),
+      authorityName: String(fact.authority_name || ''), grade: String(fact.grade || ''),
+      groups: new Map()
+    });
+    const group = course.groups.get(key);
+    const responseKey = String(fact.response_id);
+    if (!group.groups.has(responseKey)) group.groups.set(responseKey, {
+      responseId: responseKey, stage: fact.stage, submittedAt: fact.submitted_at, answers: []
+    });
+    group.groups.get(responseKey).answers.push(fact);
+  }
+  return [...courses.values()].map((course) => ({
+    programKey: course.programKey,
+    groups: [...course.groups.values()].map((group) => ({
+      key: group.key, schoolName: group.schoolName, authorityName: group.authorityName, grade: group.grade,
+      responses: [...group.groups.values()].map((response) => ({
+        ...response,
+        answers: response.answers.sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0)
+          || String(a.question_id).localeCompare(String(b.question_id)))
+      })).sort((a, b) => String(a.submittedAt || '').localeCompare(String(b.submittedAt || '')))
+    })).sort((a, b) => a.schoolName.localeCompare(b.schoolName, 'he') || a.key.localeCompare(b.key))
+  })).sort((a, b) => a.programKey.localeCompare(b.programKey));
+}
+
 /** Strengths / improvement areas: rating questions with enough valid answers, by pooled mean. */
 export function strengthsAndGaps(stats = [], { minN = 5, count = 3 } = {}) {
   const eligible = stats.filter((q) => q.question_type === 'rating_1_5' && q.valid >= minN && q.avg !== null);
