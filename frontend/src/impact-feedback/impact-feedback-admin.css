@@ -2105,3 +2105,22 @@
   background: #17804c;
   font-size: 12px;
 }
+
+/* Complete instructor forms in analysis: nested instructor > course > response. */
+.ifb-admin .ifb-instructor-full-results { display: grid; gap: 10px; min-width: 0; }
+.ifb-admin .ifb-full-answer-person { border: 1px solid var(--ifb-a-line); border-radius: 10px; padding: 10px 12px; background: var(--ifb-a-card); min-width: 0; }
+.ifb-admin .ifb-full-answer-course { margin-block-start: 10px; padding: 8px 10px; border-inline-start: 2px solid var(--ifb-a-accent); }
+.ifb-admin .ifb-full-answer-form { margin-block-start: 9px; padding: 8px 10px; background: var(--ifb-a-bg); border: 1px solid var(--ifb-a-line); border-radius: 8px; }
+.ifb-admin .ifb-full-answer-person summary,
+.ifb-admin .ifb-full-answer-course summary,
+.ifb-admin .ifb-full-answer-form summary { cursor: pointer; font-size: 13px; font-weight: 600; }
+.ifb-admin .ifb-full-answer-list { display: grid; gap: 0; margin-block-start: 8px; min-width: 0; }
+.ifb-admin .ifb-full-answer-item { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 12px; align-items: start; padding: 10px 4px; border-block-start: 1px solid var(--ifb-a-divider); }
+.ifb-admin .ifb-full-answer-question { display: flex; align-items: flex-start; gap: 7px; min-width: 0; font-size: 13px; line-height: 1.5; }
+.ifb-admin .ifb-full-answer-num { color: var(--ifb-a-muted); font-variant-numeric: tabular-nums; }
+.ifb-admin .ifb-full-answer-reply { min-width: 0; font-size: 13px; line-height: 1.6; }
+.ifb-admin .ifb-full-answer-raw { white-space: pre-wrap; overflow-wrap: anywhere; unicode-bidi: plaintext; }
+@media (max-width: 760px) {
+  .ifb-admin .ifb-full-answer-item { grid-template-columns: minmax(0, 1fr); gap: 4px; }
+  .ifb-admin .ifb-full-answer-person { padding: 9px; }
+}

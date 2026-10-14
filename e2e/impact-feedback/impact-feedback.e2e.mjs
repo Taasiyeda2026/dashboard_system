@@ -243,7 +243,12 @@ async function main() {
 
   await step('Analysis: cumulative summary, separate populations, cross-course core comparison', async () => {
     await openTab(admin, 'analysis');
-    const summary = admin.locator('.ifb-section').first();
+    // The analysis tab now opens with the complete per-instructor replies.
+    assert.match(await admin.locator('#ifb-panel').textContent(), /כל התשובות של המדריכים/);
+    await admin.locator('[data-ifb-filter-disclosure="analysis"] summary').click();
+    await admin.locator('select[data-a="audience"]').selectOption('student');
+    await admin.locator('select[data-a="stage"]').selectOption('post');
+    const summary = admin.locator('.ifb-section', { has: admin.locator('h2', { hasText: 'סיכום מצטבר' }) }).first();
     assert.match(await summary.textContent(), /לא ניתן לזיהוי \(אנונימי\)/, 'students are never given a unique-respondent count');
     const audienceRow = admin.locator('.ifb-section', { hasText: 'השוואה בין תלמידים' }).locator('tbody tr').first();
     assert.match(await audienceRow.textContent(), /N=4/);

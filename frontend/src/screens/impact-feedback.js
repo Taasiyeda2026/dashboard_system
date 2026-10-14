@@ -27,6 +27,7 @@ import {
   courseCollection,
   courseLabel as domainCourseLabel,
   crossCourseCore,
+  groupInstructorFullResponses,
   describeGroupChange,
   factsFor,
   filterGroups,
@@ -126,7 +127,7 @@ const ui = {
   showAll: true,
   overview: { audience: '', phase: '' },
   filters: { authority: '', school: '', instructor: '', manager: '', status: '', search: '' },
-  analysis: { audience: 'student', stage: 'post' },
+  analysis: { audience: 'instructor', stage: 'pre', instructor: '' },
   results: { drill: '' },
   templates: { templateId: null, versionId: null, previewBand: '' },
   instructorFilters: { instructor: '', manager: '', status: '' },
@@ -1270,12 +1271,95 @@ function analysisFiltersHtml() {
   const a = ui.analysis;
   const stageOptions = AUDIENCE_STAGES[a.audience] || ['post'];
   const stage = stageOptions.includes(a.stage) ? a.stage : stageOptions[stageOptions.length - 1];
-  const active = Number(Boolean(ui.course)) + Number(a.audience !== 'student') + Number(Boolean(a.stage && a.stage !== 'post'));
+  const active = Number(Boolean(ui.course)) + Number(a.audience !== 'student') + Number(Boolean(a.stage && a.stage !== 'post')) + Number(Boolean(a.instructor));
   return filterDisclosureHtml('analysis', `<div class="ifb-filters ifb-filters--inline">
     ${courseFilterFieldHtml()}
     <label class="ifb-field"><span>קהל</span><select data-a="audience">${AUDIENCE_ORDER.map((x) => `<option value="${x}"${x === a.audience ? ' selected' : ''}>${esc(AUDIENCE_LABELS[x])}</option>`).join('')}</select></label>
     <label class="ifb-field"><span>שלב</span><select data-a="stage">${stageOptions.map((s) => `<option value="${s}"${s === stage ? ' selected' : ''}>${esc(stageLabelFor(a.audience, s))}</option>`).join('')}</select></label>
+    ${a.audience === 'instructor' ? instructorAnswersFilterHtml(stage) : ''}
   </div>`, active);
+}
+
+/** Instructor choices reflect actual submitted forms in the selected course and half. */
+function instructorAnswersFilterHtml(stage) {
+  const people = groupInstructorFullResponses(semesterFacts(), {
+    stage, programKey: ui.course, assignments: ui.instructorAssignments || []
+  });
+  return '<label class="ifb-field"><span>מדריך</span><select data-a="instructor">' +
+    '<option value="">כל המדריכים</option>' +
+    people.map((person) => '<option value="' + esc(person.key) + '"' +
+      (person.key === ui.analysis.instructor ? ' selected' : '') + '>' +
+      esc(person.name) + (person.employeeId ? ' (' + esc(person.employeeId) + ')' : '') +
+      '</option>').join('') + '</select></label>';
+}
+
+function completeInstructorAnswerValueHtml(fact) {
+  const values = Array.isArray(fact.value_options) ? fact.value_options : [];
+  const labels = Object.fromEntries((Array.isArray(fact.question_options) ? fact.question_options : [])
+    .filter((option) => option && option.value != null)
+    .map((option) => [String(option.value), String(option.label || option.label_ar || option.value)]));
+  if (fact.question_type === 'rating_1_5') {
+    if (fact.value_number != null) return '<strong>' + esc(String(fact.value_number)) + ' מתוך 5</strong>';
+    return values.includes('na') ? 'לא רלוונטי / לא הייתה אפשרות להעריך' : 'לא נענה';
+  }
+  if (fact.question_type === 'yes_no') {
+    return fact.value_bool === true ? 'כן' : fact.value_bool === false ? 'לא' : 'לא נענה';
+  }
+  if (fact.question_type === 'single_select' || fact.question_type === 'multi_select') {
+    return '<span dir="auto">' + esc(values.map((v) => labels[String(v)] || String(v)).join(' · ') || 'לא נענה') + '</span>';
+  }
+  if (fact.question_type === 'free_text' || fact.value_text != null) {
+    return '<div class="ifb-full-answer-raw" dir="auto">' + esc(String(fact.value_text ?? '')) + '</div>';
+  }
+  return '<span class="ifb-muted">לא נענה</span>';
+}
+
+/** Every question and its original reply; no averages, shared-question threshold or truncation. */
+function instructorFullResponsesHtml() {
+  const people = groupInstructorFullResponses(semesterFacts(), {
+    programKey: ui.course,
+    stage: ui.analysis.stage,
+    instructorKey: ui.analysis.instructor,
+    assignments: ui.instructorAssignments || []
+  });
+  const totalForms = people.reduce((n, person) =>
+    n + person.courses.reduce((sum, course) => sum + course.responses.length, 0), 0);
+  if (!totalForms) {
+    return '<p class="ifb-analysis-empty-note">אין משובי מדריכים שהוגשו בסינון הנוכחי. ניתן לשנות מדריך, קורס או שלב.</p>';
+  }
+  const coursesCount = new Set(people.flatMap((person) => person.courses.map((course) => course.programKey))).size;
+  const html = people.map((person, pi) => {
+    const n = person.courses.reduce((sum, course) => sum + course.responses.length, 0);
+    const courseHtml = person.courses.map((course, ci) => {
+      const forms = course.responses.map((response, ri) => {
+        const answers = response.answers.map((fact, qi) =>
+          '<div class="ifb-full-answer-item"><div class="ifb-full-answer-question">' +
+          '<span class="ifb-full-answer-num">' + (qi + 1) + '.</span>' +
+          '<span dir="auto">' + esc(fact.question_text || 'שאלה') + '</span></div>' +
+          '<div class="ifb-full-answer-reply">' + completeInstructorAnswerValueHtml(fact) + '</div></div>'
+        ).join('');
+        return '<details class="ifb-disclosure ifb-full-answer-form"' +
+          (ui.analysis.instructor || (pi === 0 && ci === 0 && ri === 0) ? ' open' : '') +
+          '><summary>' + esc(stageLabelFor('instructor', response.stage)) + ' · ' +
+          esc(fmtDate(response.submittedAt)) + ' · ' + response.answers.length +
+          ' תשובות</summary><div class="ifb-full-answer-list">' + answers + '</div></details>';
+      }).join('');
+      return '<details class="ifb-disclosure ifb-full-answer-course"' +
+        (ui.analysis.instructor || (pi === 0 && ci === 0) ? ' open' : '') +
+        '><summary>' + esc(programTitle(course.programKey)) + ' · ' +
+        course.responses.length + ' משובים</summary>' + forms + '</details>';
+    }).join('');
+    return '<details class="ifb-disclosure ifb-full-answer-person"' +
+      (ui.analysis.instructor || pi === 0 ? ' open' : '') +
+      '><summary><strong>' + esc(person.name) + '</strong>' +
+      (person.employeeId ? ' · מס׳ עובד ' + esc(person.employeeId) : '') +
+      ' · ' + person.courses.length + ' קורסים · ' + n + ' משובים</summary>' +
+      courseHtml + '</details>';
+  }).join('');
+  return '<div class="ifb-instructor-full-results">' +
+    '<p class="ifb-analysis-context">' + people.length + ' מדריכים · ' + coursesCount +
+    ' קורסים · ' + totalForms + ' משובים שהוגשו. כל התשובות זמינות לפתיחה במלואן.</p>' +
+    html + '</div>';
 }
 
 function crossCourseHtml() {
@@ -1283,7 +1367,7 @@ function crossCourseHtml() {
   const stageOptions = AUDIENCE_STAGES[a.audience] || ['post'];
   const stage = stageOptions.includes(a.stage) ? a.stage : stageOptions[stageOptions.length - 1];
   const { programKeys, rows } = crossCourseCore(semesterFacts(), { audience: a.audience, stage });
-  if (!rows.length) return '<p class="ifb-analysis-empty-note">טרם התקבלו מספיק תשובות להשוואה בין קורסים.</p>';
+  if (!rows.length) return '<p class="ifb-analysis-empty-note">אין עדיין שאלות ליבה זהות שנענו בשני קורסים לפחות. תשובות המדריכים שכבר התקבלו מופיעות למעלה.</p>';
   return `<div class="ifb-table-wrap ifb-table-wrap--scroll"><table class="ifb-table ifb-cross-table">
     <caption class="ifb-sr">השוואה בין קורסים בשאלות הליבה</caption>
     <thead><tr><th scope="col">שאלת ליבה</th>${programKeys.map((k) => `<th scope="col" class="ifb-center${k === ui.course ? ' is-selected' : ''}">${esc(programTitle(k))}</th>`).join('')}</tr></thead>
@@ -1494,15 +1578,21 @@ function instructorRecommendationsHtml(facts) {
 }
 
 function analysisHtml() {
+  const instructorAnswers = ui.analysis.audience === 'instructor'
+    ? sectionHtml('כל התשובות של המדריכים — לפי מדריך וקורס', instructorFullResponsesHtml(), {
+      note: 'כל תשובה מוצגת כפי שנשמרה, כולל טקסט חופשי, בחירות ודירוגים.'
+    }) : '';
   if (!ui.course) {
     return `
       ${analysisFiltersHtml()}
-      ${selectCourseHint('סיכום מצטבר, השוואה בין אוכלוסיות, פתיחה–סיום ותוצאות לכל שאלה')}
+      ${instructorAnswers}
+      ${ui.analysis.audience === 'instructor' ? '' : selectCourseHint('סיכום מצטבר, השוואה בין אוכלוסיות, פתיחה–סיום ותוצאות לכל שאלה')}
       ${sectionHtml('השוואה בין קורסים במדדי ליבה', crossCourseHtml(), { actions: exportButtonHtml('analysis', 'דוח כל הקורסים (Excel)') })}`;
   }
   const facts = courseFacts();
   return `
     ${analysisFiltersHtml()}
+    ${instructorAnswers}
     ${aiAnalysisExportHtml()}
     ${biomimicryImprovementHtml(facts)}
     ${evidenceSummaryHtml(facts)}
@@ -2227,6 +2317,7 @@ function handleFilterInput(host, event) {
   const el = event.target;
   if (el.matches('[data-ifb-course]')) {
     ui.course = el.value;
+    ui.analysis.instructor = '';
     ui.templates.templateId = null;
     paint(host);
     return;
@@ -2236,6 +2327,7 @@ function handleFilterInput(host, event) {
     const key = el.getAttribute(`data-${attr}`);
     if (key) {
       target[key] = el.value;
+      if (attr === 'a' && (key === 'audience' || key === 'stage')) ui.analysis.instructor = '';
       // Debounce search typing so every keystroke does not rebuild large tables.
       if (key === 'search' || el.type === 'search') {
         if (filterPaintTimer !== null) window.clearTimeout(filterPaintTimer);
