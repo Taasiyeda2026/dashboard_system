@@ -46,6 +46,12 @@ begin
     and (i.activity_no is distinct from '6089' or i.gefen_number is distinct from '6089');
   if v_count<>0 then raise exception 'Legacy rows have conflicting proposal item program numbers'; end if;
 
+  select count(*) into v_count from public.activities
+  where row_id='LONG-165' and activity_season='regular'
+    and activity_no='6089' and gefen_number='6089'
+    and grade like 'ח%' and status='סגור' and proposal_item_id is null;
+  if v_count<>1 then raise exception 'Historic middle-school exception changed'; end if;
+
   select count(*) into v_count from public.attendance_records
   where activity_no='82835'
     and activity_row_id not in (select row_id from public.activities
@@ -70,6 +76,7 @@ select 'biomimicry-grade-correction-20261015',
  'User confirmed elementary=6089, secondary=53828. 82835 applied wrongly to 47 elementary activities and 2 secondary ones. Preserve proposals, scheduling and feedback links.',
  jsonb_build_object(
    'legacy_activities',(select coalesce(jsonb_agg(to_jsonb(a) order by a.row_id),'[]'::jsonb) from public.activities a where a.activity_no='82835' and a.activity_season='school_2027'),
+   'historic_middle_school_exception',(select to_jsonb(a) from public.activities a where a.row_id='LONG-165'),
    'other_biomimicry_2027',(select coalesce(jsonb_agg(to_jsonb(a) order by a.row_id),'[]'::jsonb) from public.activities a where a.activity_season='school_2027' and a.activity_no in ('6089','53828')),
    'attendance',(select coalesce(jsonb_agg(to_jsonb(r) order by r.id),'[]'::jsonb) from public.attendance_records r where r.activity_no='82835'),
    'list_options',(select coalesce(jsonb_agg(to_jsonb(l) order by l.list_id),'[]'::jsonb) from public.lists l where l.list_id in (28,29,378)),
@@ -89,6 +96,14 @@ set activity_no=case when a.row_id in ('ACT-7b152c38-7975-4658-a0ee-17a050491dcb
       then case when a.row_id in ('ACT-7b152c38-7975-4658-a0ee-17a050491dcb','school_2027_032') then '53828' else '6089' end
       else a.catalog_slug end
 where a.activity_season='school_2027' and a.activity_no='82835';
+
+-- One previously closed 2026 grade-8 activity was incorrectly numbered 6089.
+-- No linked proposal, attendance or feedback records; keep its closed status.
+update public.activities
+set activity_no='53828',gefen_number='53828',activity_name='ביומימיקרי לחטיבה',
+    education_level='middle_school'
+where row_id='LONG-165' and activity_season='regular'
+  and activity_no='6089' and gefen_number='6089' and grade like 'ח%';
 
 -- Harmonize the already canonical school-2027 Biomimicry rows.
 update public.activities a set
@@ -172,6 +187,10 @@ begin
     and (gefen_number is distinct from activity_no or education_level is distinct from
          (case when activity_no='6089' then 'elementary' else 'middle_school' end));
   if n<>0 then raise exception 'Biomimicry 2027 has mismatched identities or school levels'; end if;
+  select count(*) into n from public.activities
+    where row_id='LONG-165' and activity_no='53828' and gefen_number='53828'
+      and activity_name='ביומימיקרי לחטיבה' and status='סגור';
+  if n<>1 then raise exception 'Historic middle-school activity not corrected'; end if;
   select count(*) into n from public.attendance_records where activity_no='82835';
   if n<>0 then raise exception 'Legacy attendance still present: %',n; end if;
   select count(*) into n from public.lists where category='activity_names' and activity_no='82835'
@@ -191,6 +210,7 @@ $final$;
 update private.biomimicry_20261015_correction_audit
 set after_snapshot=jsonb_build_object(
    'biomimicry_2027',(select coalesce(jsonb_agg(to_jsonb(a) order by a.row_id),'[]'::jsonb) from public.activities a where a.activity_season='school_2027' and a.activity_no in('6089','53828')),
+   'historic_middle_school_exception',(select to_jsonb(a) from public.activities a where a.row_id='LONG-165'),
    'attendance',(select coalesce(jsonb_agg(to_jsonb(r) order by r.id),'[]'::jsonb) from public.attendance_records r where r.activity_row_id in (select row_id from public.activities where activity_season='school_2027' and activity_no in('6089','53828')) and r.report_date is not null and r.activity_no in('6089','53828')),
    'list_options',(select coalesce(jsonb_agg(to_jsonb(l) order by l.list_id),'[]'::jsonb) from public.lists l where l.list_id in(28,29,378)),
    'campaign',(select coalesce(jsonb_agg(to_jsonb(c)),'[]'::jsonb) from public.feedback_campaigns c where c.activity_row_id='school_2027_111'),
