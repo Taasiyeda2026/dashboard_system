@@ -1,0 +1,58 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const sql = readFileSync(new URL('../supabase/migrations/20261015113000_scheduling_agent_team_least_privilege.sql', import.meta.url), 'utf8');
+const edge = readFileSync(new URL('../supabase/functions/scheduling-agent-team-gateway/index.ts', import.meta.url), 'utf8');
+
+test('only the owner and the two explicitly named staff roles can access team scheduling RPCs', () => {
+  for (const email of ['idann@think.org.il','edenc@think.org.il','esraas@think.org.il']) {
+    assert.ok(sql.includes(email));
+  }
+  assert.match(sql, /auth\.uid\(\) is null/);
+  assert.match(sql, /u\.auth_user_id = auth\.uid\(\)/);
+  assert.match(sql, /u\.is_active is true/);
+  assert.match(sql, /app_has_permission\('view_operations_scheduling'\)/);
+  assert.match(sql, /u\.auth_user_id = \(select c\.approver_id/);
+});
+
+test('team snapshot is whitelisted and excludes private source data', () => {
+  assert.match(sql, /scheduling_agent_team_read_snapshot/);
+  assert.match(sql, /jsonb_build_object\(/);
+  for (const forbidden of ['sheetHash','spreadsheetId','phone','mobile','email','address','salary','revenue','invoice','amount','cost','permissions','secret','credentials','token']) {
+    assert.doesNotMatch(sql, new RegExp("'"+forbidden+"'",'i'), 'sensitive response key: '+forbidden);
+  }
+});
+
+test('team tools cannot commit, approve, change settings or run arbitrary RPCs', () => {
+  for (const tool of ['read_snapshot','manager_approval_state','stage_manual_draft','submit_manager_approval']) {
+    assert.ok(edge.includes("name: '"+tool+"'"));
+  }
+  assert.doesNotMatch(edge, /name: '(?:commit_approved_changes|review_manager_approval|update_settings|execute_sql)'/);
+  assert.match(edge, /const names:Record<string,string>/);
+  assert.match(edge, /if\(!allowed\[name\]\|\|Object\.keys\(args\)\.some/);
+  assert.match(edge, /scheduling_agent_team_identity/);
+});
+
+test('every call is bound to its own JWT, not a service-role or owner token', () => {
+  assert.match(edge,/auth\/v1\/user/);
+  assert.match(edge,/Authorization:'Bearer '\+token/);
+  assert.doesNotMatch(edge,/SUPABASE_SERVICE_ROLE_KEY|SCHEDULING_AGENT_GOOGLE_SERVICE_ACCOUNT|GITHUB_TOKEN/);
+});
+
+test('team draft request tracks real submitting identity and uses existing dashboard queue', () => {
+  assert.match(sql,/a\.draft_created_by is distinct from auth\.uid\(\)/);
+  assert.match(sql,/public\.save_course_assignment_manual_draft/);
+  assert.match(sql,/public\.submit_course_assignment_manager_approval/);
+  assert.match(sql,/target\.activity_type <> 'course'/);
+  assert.doesNotMatch(sql,/public\.review_course_assignment_manager_approval\(/);
+  assert.doesNotMatch(sql,/public\.scheduling_agent_commit_approved\(/);
+});
+
+test('anonymous cannot execute the team RPC functions', () => {
+  for(const fn of ['scheduling_agent_team_identity','scheduling_agent_team_read_snapshot','scheduling_agent_team_stage_manual_draft','scheduling_agent_team_submit_manager_approval','scheduling_agent_team_manager_approval_state']) {
+    const idx=sql.indexOf('revoke all on function public.'+fn+'(');
+    assert.ok(idx>=0,'missing revoke for '+fn);
+    assert.match(sql.slice(idx,idx+200),/from public, anon/);
+  }
+});
