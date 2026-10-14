@@ -505,7 +505,7 @@ export function tableHtml(rows, options = {}) {
     return `<tr data-manager-tracking-emp-id="${escapeHtml(empId)}">
       <td class="manager-workspace-person"><strong>${escapeHtml(text(row.full_name) || empId)}</strong><small>${escapeHtml(text(row.employment_type))}</small></td>
       ${cells}
-      <td data-label="תיק עובד">${folder ? `<a class="manager-workspace-folder-link" href="${escapeHtml(folder)}" target="_blank" rel="noopener">פתח תיק</a>` : '<span class="manager-workspace-status is-muted">טרם קושר</span>'}</td>
+      <td data-label="תיק עובד">${folder ? `<a class="manager-workspace-folder-link" data-manager-tracking-folder-emp-id="${escapeHtml(empId)}" href="${escapeHtml(folder)}" target="_blank" rel="noopener">פתח תיק</a>` : '<span class="manager-workspace-status is-muted">טרם קושר</span>'}</td>
     </tr>`;
   }).join('');
 

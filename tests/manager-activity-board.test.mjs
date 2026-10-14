@@ -291,3 +291,17 @@ test('a duplicate onboarding attempt returns the existing instructor and never t
   assert.ok(foundBranch > -1 && genderInsert > -1 && foundBranch < genderInsert);
   assert.ok(onboardingGenderMigrationSrc.includes('return query select v_existing.emp_id::bigint, v_existing.full_name::text, true;\n    return;\n  end if;'));
 });
+
+
+test('manager tracking refreshes SharePoint document statuses safely on return or request', () => {
+  assert.match(trackingSrc, /data-manager-tracking-folder-emp-id/);
+  assert.match(workspaceSrc, /data-manager-tracking-sync/);
+  assert.match(workspaceSrc, /syncSharePointReturn/);
+  assert.match(workspaceSrc, /addEventListener\('visibilitychange', syncSharePointReturn\)/);
+  assert.match(workspaceSrc, /addEventListener\('focus', syncSharePointReturn\)/);
+  assert.match(workspaceSrc, /instructor-employee-file-live/);
+  assert.match(workspaceSrc, /refresh: true/);
+  assert.match(workspaceSrc, /Math\.min\(3, targets\.length\)/);
+  assert.match(workspaceSrc, /rosterCache\.delete\(/);
+  assert.match(workspaceSrc, /await renderWorkspace\(true\)/);
+});
