@@ -74,6 +74,7 @@ import {
 } from '../impact-feedback/feedback-api.js';
 import { campaignLink, copyText, openQrProjection, personalShareLinks } from '../impact-feedback/feedback-share.js';
 import { staffDeliveryStatus, staffStatusIndex } from '../impact-feedback/staff-delivery-status.js';
+import { hasArabicAnswerText, arabicAnswerTranslationUrl } from '../impact-feedback/feedback-translation.js';
 import { renderTemplatesView, bindTemplatesView } from '../impact-feedback/feedback-templates-view.js';
 import '../impact-feedback/feedback-form.css';
 import { canViewImpactFeedback, canEditImpactFeedbackWording, isFeedbackAdmin, isFeedbackInstructor } from '../impact-feedback/feedback-access.js';
@@ -1315,7 +1316,14 @@ function completeInstructorAnswerValueHtml(fact) {
     return '<span dir="auto">' + esc(values.map((v) => labels[String(v)] || String(v)).join(' · ') || 'לא נענה') + '</span>';
   }
   if (fact.question_type === 'free_text' || fact.value_text != null) {
-    return '<div class="ifb-full-answer-raw" dir="auto">' + esc(String(fact.value_text ?? '')) + '</div>';
+    const answer = String(fact.value_text ?? '');
+    return '<div class="ifb-full-answer-raw" dir="auto">' + esc(answer) + '</div>' +
+      (fact.question_type === 'free_text' && hasArabicAnswerText(answer)
+        ? '<button type="button" class="ifb-btn ifb-btn--sm ifb-full-answer-translate" ' +
+          'data-ifb-arabic-translate title="פתיחת Google Translate בכרטיסייה חדשה. ' +
+          'התשובה מועברת לשירות רק בלחיצה." aria-label="תרגם תשובה מערבית לעברית באמצעות Google Translate">' +
+          'תרגם לעברית ↗</button>'
+        : '');
   }
   return '<span class="ifb-muted">לא נענה</span>';
 }
@@ -2174,6 +2182,16 @@ async function handleClick(host, event) {
     '[data-ifb-qr]', '[data-ifb-copy]', '[data-ifb-extend]'
   ].join(','))) {
     event.preventDefault();
+    return;
+  }
+  const translateButton = t.closest('[data-ifb-arabic-translate]');
+  if (translateButton) {
+    // Opt-in only: get the saved text from the currently displayed reply.
+    // Never send unselected comments to an external translation provider.
+    const answer = translateButton.closest('.ifb-full-answer-reply')
+      ?.querySelector('.ifb-full-answer-raw')?.textContent || '';
+    const url = arabicAnswerTranslationUrl(answer);
+    if (url) window.open(url, '_blank', 'noopener,noreferrer');
     return;
   }
   const moreStudent = t.closest('[data-ifb-student-more]');

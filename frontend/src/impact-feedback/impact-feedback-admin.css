@@ -2124,3 +2124,16 @@
   .ifb-admin .ifb-full-answer-item { grid-template-columns: minmax(0, 1fr); gap: 4px; }
   .ifb-admin .ifb-full-answer-person { padding: 9px; }
 }
+
+/* Raw-answer translation is a deliberate click and only appears beside Arabic free text. */
+.ifb-admin .ifb-full-answer-translate {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-block-start: 7px;
+  padding: 4px 10px;
+  min-height: 30px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
