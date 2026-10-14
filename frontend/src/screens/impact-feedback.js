@@ -27,6 +27,7 @@ import {
   courseCollection,
   courseLabel as domainCourseLabel,
   crossCourseCore,
+  groupInstructorFullResponses,
   describeGroupChange,
   factsFor,
   filterGroups,
@@ -126,7 +127,7 @@ const ui = {
   showAll: true,
   overview: { audience: '', phase: '' },
   filters: { authority: '', school: '', instructor: '', manager: '', status: '', search: '' },
-  analysis: { audience: 'student', stage: 'post' },
+  analysis: { audience: 'instructor', stage: 'pre', instructor: '' },
   results: { drill: '' },
   templates: { templateId: null, versionId: null, previewBand: '' },
   instructorFilters: { instructor: '', manager: '', status: '' },
@@ -1270,11 +1271,12 @@ function analysisFiltersHtml() {
   const a = ui.analysis;
   const stageOptions = AUDIENCE_STAGES[a.audience] || ['post'];
   const stage = stageOptions.includes(a.stage) ? a.stage : stageOptions[stageOptions.length - 1];
-  const active = Number(Boolean(ui.course)) + Number(a.audience !== 'student') + Number(Boolean(a.stage && a.stage !== 'post'));
+  const active = Number(Boolean(ui.course)) + Number(a.audience !== 'student') + Number(Boolean(a.stage && a.stage !== 'post')) + Number(Boolean(a.instructor));
   return filterDisclosureHtml('analysis', `<div class="ifb-filters ifb-filters--inline">
     ${courseFilterFieldHtml()}
     <label class="ifb-field"><span>קהל</span><select data-a="audience">${AUDIENCE_ORDER.map((x) => `<option value="${x}"${x === a.audience ? ' selected' : ''}>${esc(AUDIENCE_LABELS[x])}</option>`).join('')}</select></label>
     <label class="ifb-field"><span>שלב</span><select data-a="stage">${stageOptions.map((s) => `<option value="${s}"${s === stage ? ' selected' : ''}>${esc(stageLabelFor(a.audience, s))}</option>`).join('')}</select></label>
+    ${a.audience === 'instructor' ? instructorAnswersFilterHtml(stage) : ''}
   </div>`, active);
 }
 
@@ -2227,6 +2229,7 @@ function handleFilterInput(host, event) {
   const el = event.target;
   if (el.matches('[data-ifb-course]')) {
     ui.course = el.value;
+    ui.analysis.instructor = '';
     ui.templates.templateId = null;
     paint(host);
     return;
@@ -2236,6 +2239,7 @@ function handleFilterInput(host, event) {
     const key = el.getAttribute(`data-${attr}`);
     if (key) {
       target[key] = el.value;
+      if (attr === 'a' && (key === 'audience' || key === 'stage')) ui.analysis.instructor = '';
       // Debounce search typing so every keystroke does not rebuild large tables.
       if (key === 'search' || el.type === 'search') {
         if (filterPaintTimer !== null) window.clearTimeout(filterPaintTimer);
