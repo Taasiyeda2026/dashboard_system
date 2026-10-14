@@ -752,16 +752,17 @@ export function patchPrintKitDelivery(data, courseId, instructorName, location) 
   return true;
 }
 
-export function patchPrintKitReturn(data, courseId, instructorName) {
+export function patchPrintKitReturn(data, courseId, instructorName, returnLocation = null) {
   const key = pairKey(courseId, instructorName);
   const index = data.distributionRows.findIndex((row) => pairKey(row?.course_id, row?.instructor_name) === key);
   if (index < 0) return false;
-  const [distribution] = data.distributionRows.splice(index, 1);
-  const config = KIT_LOCATIONS.find((item) => item.key === distribution?.source_location);
-  if (config) {
-    const stock = ensureInventoryRow(data, courseId);
-    stock[config.field] = Math.max(0, Number(stock[config.field] || 0)) + 1;
-  }
+  const distribution = data.distributionRows[index];
+  const location = distribution?.source_location === 'unrecorded' ? returnLocation : distribution?.source_location;
+  const config = KIT_LOCATIONS.find((item) => item.key === location);
+  if (!config) return false; // Unknown source: never invent a stockroom.
+  data.distributionRows.splice(index, 1);
+  const stock = ensureInventoryRow(data, courseId);
+  stock[config.field] = Math.max(0, Number(stock[config.field] || 0)) + 1;
   return true;
 }
 
@@ -830,7 +831,52 @@ function openLocationPicker(root, courseId, instructorName) {
   document.body.appendChild(backdrop);
 }
 
+function openReturnLocationPicker(button, root) {
+  document.querySelector('.ops2027-modal-backdrop')?.remove?.();
+  const backdrop = document.createElement('div');
+  backdrop.className = 'ops2027-modal-backdrop';
+  backdrop.innerHTML = `<div class="ops2027-modal" role="dialog" aria-modal="true">
+    <h3>החזרת ערכה</h3>
+    <p>מיקום המסירה המקורי לא תועד. לאיזה מלאי תוחזר הערכה של
+      ${escapeHtml(button.dataset.instructor)}?</p>
+    <div class="ops2027-modal-actions">
+      ${KIT_LOCATIONS.map((location) => `<button type="button" data-return-location="${escapeHtml(location.key)}">${escapeHtml(location.label)}</button>`).join('')}
+      <button type="button" data-cancel>ביטול</button>
+    </div>
+  </div>`;
+  backdrop.addEventListener('click', (event) => {
+    if (event.target === backdrop || event.target.closest('[data-cancel]')) backdrop.remove();
+  });
+  backdrop.querySelectorAll('[data-return-location]').forEach((locationButton) => {
+    locationButton.addEventListener('click', async () => {
+      backdrop.querySelectorAll('button').forEach((item) => { item.disabled = true; });
+      const result = await supabase.rpc('return_course_print_kit_to_location', {
+        p_course_id: button.dataset.courseId,
+        p_instructor_name: button.dataset.instructor,
+        p_return_location: locationButton.dataset.returnLocation
+      });
+      if (result.error) {
+        window.alert(result.error.message || 'החזרת הערכה נכשלה');
+        backdrop.remove();
+        return;
+      }
+      const data = store.tabCache.get(TAB_PRINT_KITS);
+      if (data) patchPrintKitReturn(data, button.dataset.courseId, button.dataset.instructor, locationButton.dataset.returnLocation);
+      backdrop.remove();
+      renderPrintKitCache(root);
+    });
+  });
+  document.body.appendChild(backdrop);
+}
+
 async function returnKit(button, root) {
+  const data = store.tabCache.get(TAB_PRINT_KITS);
+  const row = data?.distributionRows.find((item) =>
+    pairKey(item?.course_id, item?.instructor_name) === pairKey(button.dataset.courseId, button.dataset.instructor));
+  if (row?.source_location === 'unrecorded') {
+    openReturnLocationPicker(button, root);
+    return;
+  }
   if (!window.confirm('להחזיר את הערכה למלאי?')) return;
   button.disabled = true;
   const result = await supabase.rpc('return_course_print_kit', {
