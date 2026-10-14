@@ -31,8 +31,13 @@ function canViewAdminOnlyTools() {
   return String(state?.user?.role || state?.user?.display_role || '').trim() === 'admin';
 }
 
-function tileButton({ title, description, icon, route = '', url = '', managerTab = '', capabilityId = '', dateSimulator = false, pricingSimulator = false, keyboardConverter = false }) {
+function canViewCourseResults() {
+  return canViewAdminOnlyTools() && String(state?.user?.user_id ?? state?.user?.id ?? '') === '8000';
+}
+
+function tileButton({ title, description, icon, route = '', url = '', managerTab = '', capabilityId = '', dateSimulator = false, pricingSimulator = false, keyboardConverter = false, courseResults = false }) {
   const attrs = [];
+  if (courseResults) attrs.push('data-course-results-open="true"');
   if (capabilityId) attrs.push(`data-capability-id="${capabilityId}"`);
   if (route) attrs.push(`data-route="${route}"`);
   if (url) attrs.push(`data-admin-hub-url="${url}"`);
@@ -123,6 +128,12 @@ function managementTilesHtml() {
       capabilityId: 'admin.attendance',
       managerTab: 'payroll-attendance'
     }),
+    canViewCourseResults() && tileButton({
+      title: 'תוצאות קורסים',
+      description: 'תוצאות פרימיום ופורצות דרך',
+      icon: 'reports',
+      courseResults: true
+    }),
     isAdmin && tileButton({
       title: 'תאריכים',
       description: 'סימולציית רצף מפגשים לפי לוח הלימודים',
@@ -144,6 +155,8 @@ function managementTilesHtml() {
 function stylesHtml() {
   return `
     <style>
+      .admin-course-results-back { margin-bottom: 16px; border: 1px solid var(--color-border, #dbe3ec); background: var(--color-surface, #fff); color: var(--color-text, #172033); border-radius: 10px; padding: 10px 16px; cursor: pointer; }
+      .admin-course-results-disabled { opacity: .65; cursor: default; }
       .admin-management-home {
         width: min(100%, 1120px);
         margin-inline: auto;
@@ -233,13 +246,42 @@ export const adminHomeScreen = {
       ${stylesHtml()}
       <section class="admin-management-home" dir="rtl">
         ${dsPageHeader('ניהול', 'כלי הניהול המרכזיים במקום אחד')}
-        <div class="admin-management-grid" aria-label="כלי ניהול">
-          ${managementTilesHtml()}
+        <div data-course-results-main>
+          <div class="admin-management-grid" aria-label="כלי ניהול">
+            ${managementTilesHtml()}
+          </div>
         </div>
+        ${canViewCourseResults() ? `
+          <section data-course-results-section hidden aria-label="תוצאות קורסים">
+            <button type="button" class="admin-course-results-back" data-course-results-back>חזרה לניהול</button>
+            <h2>תוצאות קורסים</h2>
+            <div class="admin-management-grid">
+              ${tileButton({title: 'פרימיום', description: 'תוצאות שאלון הצוות וחלוקת קבוצות', icon: 'reports', courseResults: false}) .replace('class="admin-management-tile"', 'class="admin-management-tile" data-premium-course-results="true"')}
+              <div class="admin-management-tile admin-course-results-disabled" aria-label="פורצות דרך – בקרוב">
+                <span class="admin-management-tile__icon">${iconSvg('reports')}</span>
+                <span class="admin-management-tile__content"><strong>פורצות דרך</strong><small>יתחבר לתוצאות הקורס בהמשך</small></span>
+              </div>
+            </div>
+          </section>
+        ` : ''}
+
       </section>
     `);
   },
   bind({ root }) {
+    if (canViewCourseResults()) {
+      const main = root?.querySelector('[data-course-results-main]');
+      const section = root?.querySelector('[data-course-results-section]');
+      root?.querySelector('[data-course-results-open]')?.addEventListener('click', () => {
+        if (main && section) { main.hidden = true; section.hidden = false; }
+      });
+      root?.querySelector('[data-course-results-back]')?.addEventListener('click', () => {
+        if (main && section) { section.hidden = true; main.hidden = false; }
+      });
+      root?.querySelector('[data-premium-course-results]')?.addEventListener('click', () => {
+        window.open('https://taasiyeda2026.github.io/Premium/premium%20web/team-questionnaire/private-owner-dashboard.html', '_blank', 'noopener,noreferrer');
+      });
+    }
     root?.querySelectorAll?.('[data-admin-hub-url]').forEach((button) => {
       button.addEventListener('click', () => {
         const url = String(button.getAttribute('data-admin-hub-url') || '').trim();
