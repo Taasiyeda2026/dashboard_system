@@ -183,10 +183,10 @@ export const PLANNING_OPTIMIZATION_WEIGHTS = Object.freeze({
 });
 export const PLANNING_VALIDATION_VERSION = 'planning-validation-v6-20261010-new-core-shared-constraints';
 export const PLANNING_ENGINE_VERSION = NEW_PLANNING_ENGINE_VERSION;
-export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({
-  // Legacy Gefen identifier retained on existing activities; canonical catalog program is 53828.
-  '82835': '53828'
-});
+// 82835 was used historically for *both* elementary and middle-school programs.
+// Never map it globally to either one: the production activities are corrected
+// individually based on the school, class and the linked proposal item.
+export const PLANNING_ACTIVITY_NO_ALIASES = Object.freeze({});
 
 /**
  * Validation-currency SoT for stored shared planning.
