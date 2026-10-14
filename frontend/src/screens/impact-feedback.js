@@ -1366,6 +1366,106 @@ function instructorFullResponsesHtml() {
     html + '</div>';
 }
 
+/** Only contacts and school groups with submitted answers appear in the selectors. */
+function staffAnswersFilterHtml(stage) {
+  const people = groupEducationalStaffFullResponses(semesterFacts(), { stage, programKey: ui.course });
+  return '<label class="ifb-field"><span>איש קשר</span><select data-a="contact">' +
+    '<option value="">כל אנשי הקשר</option>' +
+    people.map((person) => '<option value="' + esc(person.key) + '"' +
+      (person.key === ui.analysis.contact ? ' selected' : '') + '>' +
+      esc(person.name + ' · ' + person.schoolName) + '</option>').join('') + '</select></label>';
+}
+
+function studentAnswersFilterHtml(stage) {
+  const courses = groupStudentFullResponses(semesterFacts(), { stage, programKey: ui.course });
+  const groups = new Map();
+  for (const course of courses) for (const group of course.groups) {
+    if (!groups.has(group.key)) groups.set(group.key,
+      group.schoolName + (group.grade ? ' · ' + group.grade : '') + ' · ' + programTitle(course.programKey));
+  }
+  return '<label class="ifb-field"><span>בית ספר / קבוצה</span><select data-a="group">' +
+    '<option value="">כל בתי הספר והקבוצות</option>' +
+    [...groups].map(([key, title]) => '<option value="' + esc(key) + '"' +
+      (key === ui.analysis.group ? ' selected' : '') + '>' + esc(title) + '</option>').join('') +
+    '</select></label>';
+}
+
+function completeFeedbackFormHtml(response, { audience, index = 0, initiallyOpen = false } = {}) {
+  const heading = audience === 'student' ? 'שאלון אנונימי ' + (index + 1) : stageLabelFor(audience, response.stage);
+  const answers = response.answers.map((fact, questionIndex) =>
+    '<div class="ifb-full-answer-item"><div class="ifb-full-answer-question">' +
+      '<span class="ifb-full-answer-num">' + (questionIndex + 1) + '.</span>' +
+      '<span dir="auto">' + esc(fact.question_text || 'שאלה') + '</span></div>' +
+      '<div class="ifb-full-answer-reply">' + completeInstructorAnswerValueHtml(fact) + '</div></div>').join('');
+  return '<details class="ifb-disclosure ifb-full-answer-form"' + (initiallyOpen ? ' open' : '') +
+    '><summary>' + esc(heading) + ' · ' + esc(fmtDate(response.submittedAt)) +
+    ' · ' + response.answers.length + ' תשובות</summary>' +
+    '<div class="ifb-full-answer-list">' + answers + '</div></details>';
+}
+
+function staffFullResponsesHtml() {
+  const people = groupEducationalStaffFullResponses(semesterFacts(), {
+    programKey: ui.course, stage: ui.analysis.stage, contactKey: ui.analysis.contact
+  });
+  const total = people.reduce((sum, person) => sum +
+    person.courses.reduce((n, course) => n + course.responses.length, 0), 0);
+  if (!total) return '<p class="ifb-analysis-empty-note">אין עדיין משובים שהוגשו על ידי הצוות החינוכי בסינון הנוכחי.</p>';
+  const cards = people.map((person, pi) => {
+    const courseCards = person.courses.map((course, ci) =>
+      '<details class="ifb-disclosure ifb-full-answer-course"' +
+        (ui.analysis.contact || (pi === 0 && ci === 0) ? ' open' : '') +
+        '><summary>' + esc(programTitle(course.programKey)) + ' · ' +
+        course.responses.length + ' משובים</summary>' +
+        course.responses.map((response, ri) => completeFeedbackFormHtml(response, {
+          audience: 'educational_staff', index: ri,
+          initiallyOpen: Boolean(ui.analysis.contact) || (pi === 0 && ci === 0 && ri === 0)
+        })).join('') + '</details>').join('');
+    const number = person.courses.reduce((n, course) => n + course.responses.length, 0);
+    return '<details class="ifb-disclosure ifb-full-answer-person"' +
+      (ui.analysis.contact || pi === 0 ? ' open' : '') +
+      '><summary><strong>' + esc(person.name) + '</strong> · ' +
+      esc(person.schoolName) + ' · ' + person.courses.length +
+      ' קורסים · ' + number + ' משובים</summary>' + courseCards + '</details>';
+  }).join('');
+  return '<div class="ifb-instructor-full-results"><p class="ifb-analysis-context">' +
+    people.length + ' אנשי קשר · ' + total + ' משובים שהוגשו. כל השאלות והתשובות מוצגות במלואן.</p>' +
+    cards + '</div>';
+}
+
+function studentFullResponsesHtml() {
+  const courses = groupStudentFullResponses(semesterFacts(), {
+    programKey: ui.course, stage: ui.analysis.stage, groupKey: ui.analysis.group
+  }).filter((course) => course.groups.length);
+  const total = courses.reduce((sum, course) => sum +
+    course.groups.reduce((n, group) => n + group.responses.length, 0), 0);
+  if (!total) return '<p class="ifb-analysis-empty-note">עדיין לא התקבלו משובי תלמידים בסינון הנוכחי. השאלונים יופיעו כאן לאחר ההגשה.</p>';
+  const cards = courses.map((course, ci) => {
+    const groups = course.groups.map((group, gi) => {
+      const heading = group.schoolName + (group.grade ? ' · ' + group.grade : '') +
+        (group.authorityName ? ' · ' + group.authorityName : '');
+      return '<details class="ifb-disclosure ifb-full-answer-course"' +
+        (ui.analysis.group || (ci === 0 && gi === 0) ? ' open' : '') +
+        '><summary>' + esc(heading) + ' · ' + group.responses.length +
+        ' שאלונים אנונימיים</summary>' +
+        group.responses.map((response, ri) => completeFeedbackFormHtml(response, {
+          audience: 'student', index: ri,
+          initiallyOpen: Boolean(ui.analysis.group) && ri === 0 ||
+            (ci === 0 && gi === 0 && ri === 0)
+        })).join('') + '</details>';
+    }).join('');
+    const number = course.groups.reduce((n, group) => n + group.responses.length, 0);
+    return '<details class="ifb-disclosure ifb-full-answer-person"' +
+      (ci === 0 || Boolean(ui.course) ? ' open' : '') +
+      '><summary><strong>' + esc(programTitle(course.programKey)) + '</strong> · ' +
+      course.groups.length + ' קבוצות · ' + number +
+      ' שאלונים אנונימיים</summary>' + groups + '</details>';
+  }).join('');
+  return '<div class="ifb-instructor-full-results">' +
+    '<p class="ifb-analysis-context">' + courses.length + ' קורסים · ' + total +
+    ' שאלונים שהוגשו. התשובות אנונימיות; לא מוצגים שמות תלמידים או מזהי תלמידים.</p>' +
+    cards + '</div>';
+}
+
 function crossCourseHtml() {
   const a = ui.analysis;
   const stageOptions = AUDIENCE_STAGES[a.audience] || ['post'];
