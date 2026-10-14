@@ -83,7 +83,7 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
   if(name==='read_snapshot')return Object.keys(args).length===0;
   if(!activityId(args.activityId))return false;
   if(name==='stage_manual_draft'){
-    if(!Number.isSafeInteger(args.instructorId)||Number(args.instructorId)<=0)return false;
+    if(typeof args.instructorId!=='number'||!Number.isSafeInteger(args.instructorId)||args.instructorId<=0)return false;
     if(args.reason!==undefined&&(typeof args.reason!=='string'||args.reason.length>500))return false;
   }
   return true;
