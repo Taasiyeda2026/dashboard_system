@@ -870,6 +870,58 @@ export function crossCourseCore(facts = [], { audience = 'student', stage = '' }
   return { programKeys, rows };
 }
 
+/**
+ * One complete submitted instructor form, grouped by person and then course.
+ * Unlike comparisons, this does not require matching questions or a minimum N.
+ * Keep the original answer facts (including free text) without aggregating them.
+ */
+export function groupInstructorFullResponses(facts = [], { programKey = '', stage = '', instructorKey = '', assignments = [] } = {}) {
+  const campaigns = new Map();
+  for (const assignment of assignments || []) {
+    for (const campaign of [assignment.pre_campaign, assignment.final_campaign, assignment.final_b_campaign]) {
+      if (campaign?.id) campaigns.set(String(campaign.id), assignment);
+    }
+  }
+  const people = new Map();
+  for (const fact of facts || []) {
+    if (fact.audience !== 'instructor' || !fact.response_id) continue;
+    if (programKey && fact.program_key !== programKey) continue;
+    if (stage && fact.stage !== stage) continue;
+    const assignment = campaigns.get(String(fact.campaign_id));
+    const employeeId = String(assignment?.instructor_emp_id || '').trim();
+    const name = String(assignment?.instructor_name || fact.instructor_name || fact.respondent_name || 'מדריך ללא שם').trim();
+    const key = employeeId ? 'employee:' + employeeId : 'name:' + name;
+    if (instructorKey && key !== instructorKey) continue;
+    if (!people.has(key)) people.set(key, { key, name, employeeId, courses: new Map() });
+    const person = people.get(key);
+    const courseKey = String(fact.program_key || '');
+    if (!person.courses.has(courseKey)) person.courses.set(courseKey, { programKey: courseKey, responses: new Map() });
+    const course = person.courses.get(courseKey);
+    const responseKey = String(fact.response_id);
+    if (!course.responses.has(responseKey)) {
+      course.responses.set(responseKey, {
+        responseId: responseKey,
+        campaignId: String(fact.campaign_id || ''),
+        stage: fact.stage,
+        submittedAt: fact.submitted_at,
+        answers: []
+      });
+    }
+    course.responses.get(responseKey).answers.push(fact);
+  }
+  return [...people.values()].map((person) => ({
+    ...person,
+    courses: [...person.courses.values()].map((course) => ({
+      ...course,
+      responses: [...course.responses.values()].map((response) => ({
+        ...response,
+        answers: response.answers.sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0)
+          || String(a.question_id).localeCompare(String(b.question_id)))
+      })).sort((a, b) => String(a.submittedAt || '').localeCompare(String(b.submittedAt || '')))
+    })).sort((a, b) => a.programKey.localeCompare(b.programKey))
+  })).sort((a, b) => a.name.localeCompare(b.name, 'he') || a.key.localeCompare(b.key));
+}
+
 /** Strengths / improvement areas: rating questions with enough valid answers, by pooled mean. */
 export function strengthsAndGaps(stats = [], { minN = 5, count = 3 } = {}) {
   const eligible = stats.filter((q) => q.question_type === 'rating_1_5' && q.valid >= minN && q.avg !== null);
