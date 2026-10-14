@@ -604,7 +604,7 @@ function printKitStockTableHtml(view) {
     }).join('');
     return `<tr><td class="ops2027-row-label">${escapeHtml(courseLabel(course))}</td>${locations}<td class="ops2027-summary-col">${summary.activeInstructorKits}</td><td class="ops2027-summary-col">${summary.inactiveInstructorKits}</td><td class="ops2027-summary-col">${summary.totalUnique}</td></tr>`;
   }).join('');
-  return `<div class="ops2027-table-shell ops2027-print-kit-stock"><table class="ops2027-table"><thead><tr><th class="ops2027-row-label">שם ערכה</th>${KIT_LOCATIONS.map((location) => `<th class="ops2027-number-col">${escapeHtml(location.label)}</th>`).join('')}<th class="ops2027-summary-col">אצל מדריכים פעילים</th><th class="ops2027-summary-col">אצל מדריכים לא פעילים</th><th class="ops2027-summary-col">סה״כ</th></tr></thead><tbody>${body}</tbody></table></div>`;
+  return `<div class="ops2027-table-shell ops2027-print-kit-stock"><table class="ops2027-table"><thead><tr><th class="ops2027-row-label">שם ערכה</th>${KIT_LOCATIONS.map((location) => `<th class="ops2027-number-col">${escapeHtml(location.label)}</th>`).join('')}<th class="ops2027-summary-col">מדריכים - פעילים</th><th class="ops2027-summary-col">מדריכים - לא פעילים</th><th class="ops2027-summary-col">סה״כ</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 function printKitCellHtml(view, instructor, course, inactive = false) {
