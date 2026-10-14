@@ -134,7 +134,7 @@ test('activity drawer becomes one inline view/edit template without duplicate he
     dropdown_options: {
       activity_names: [
         { label: 'ביומימיקרי', activity_name: 'ביומימיקרי', activity_no: '6089', activity_type: 'course', parent_value: 'course', active: true, sort_order: 1 },
-        { label: 'ביומימיקרי', activity_name: 'ביומימיקרי', activity_no: '82835', activity_type: 'course', parent_value: 'course', active: true, sort_order: 11 },
+        { label: 'ביומימיקרי (לחטיבה)', activity_name: 'ביומימיקרי לחטיבה', activity_no: '53828', activity_type: 'course', parent_value: 'course', active: true, sort_order: 11 },
         { label: 'בינה מלאכותית', activity_name: 'בינה מלאכותית', activity_no: '100', activity_type: 'course', parent_value: 'course', active: true, sort_order: 12 },
         { label: 'מייקרים', activity_name: 'מייקרים', activity_no: '58221', activity_type: 'course', parent_value: 'course', active: false, sort_order: 20 }
       ]
