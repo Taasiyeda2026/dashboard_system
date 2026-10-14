@@ -14,6 +14,7 @@ import {
 } from './shared/layout.js';
 
 import { activityWorkDrawerHtml, patchDrawerDatesSection } from './shared/activity-detail-html.js';
+import { displayedActivityProgramName } from './shared/activity-program-display-name.js';
 import { bindActivityPhotoConsentUpload } from './shared/activity-photo-consent-drawer.js';
 import {
   ensureActivityListFilters,
@@ -590,7 +591,8 @@ function createAdminSummaryBucket(label) {
 }
 
 function displayActivityName(row = {}) {
-  return normalizeAdminSummaryText(row.activity_name || row.title || row.name || row.program_name) || 'ללא שם פעילות';
+  const storedName = normalizeAdminSummaryText(row.activity_name || row.title || row.name || row.program_name) || 'ללא שם פעילות';
+  return displayedActivityProgramName(row, storedName);
 }
 
 function addRowToAdminSummaryBucket(bucket, row = {}) {
