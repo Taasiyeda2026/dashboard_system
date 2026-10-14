@@ -60,3 +60,16 @@ test('one-day activity names are filtered by canonical type aliases', () => {
   assert.deepEqual(getActivityNamesForType(mixedSettings, 'סיור').map((row) => row.label), ['התנסות בתעשייה']);
   assert.deepEqual(getActivityNamesForType(mixedSettings, 'escape_room').map((row) => row.label), ['תמיר - איפה דדי']);
 });
+
+
+test('elementary 6089 and secondary 53828 are distinct visible choices; old 82835 cannot be selected anew', () => {
+  const biomimicrySettings = { dropdown_options: { activity_names: [
+    {label: 'ביומימיקרי', activity_name: 'ביומימיקרי', activity_no: '6089', active: true, activity_type: 'course'},
+    {label: 'ביומימיקרי לחטיבה', activity_name: 'ביומימיקרי לחטיבה', activity_no: '53828', active: true, activity_type: 'course'},
+    {label: 'ביומימיקרי', activity_name: 'ביומימיקרי', activity_no: '82835', active: true, activity_type: 'course'}
+  ]}};
+  const entries=getActivityNamesForType(biomimicrySettings,'course');
+  assert.deepEqual(entries.map((v)=>v.activity_no),['6089','53828']);
+  assert.deepEqual(entries.map((v)=>v.display_label),['ביומימיקרי (יסודי) — 6089','ביומימיקרי (לחטיבה) — 53828']);
+  assert.deepEqual(entries.map((v)=>v.label),['ביומימיקרי','ביומימיקרי לחטיבה']);
+});

@@ -263,3 +263,34 @@ test('catalog session sync trims trailing dates when the replacement course is s
     globalThis.document = previousDocument;
   }
 });
+
+
+test('activity editor distinguishes 6089 and 53828 visually and never silently reassigns old 82835', () => {
+  installStorageMocks();
+  const settings = { program_activity_types:['course'], dropdown_options: { activity_names: [
+    { label: 'ביומימיקרי', activity_name: 'ביומימיקרי', activity_no: '6089', gefen_number: '6089', active: true, activity_type:'course' },
+    { label: 'ביומימיקרי לחטיבה', activity_name: 'ביומימיקרי לחטיבה', activity_no: '53828', gefen_number: '53828', active: true, activity_type:'course' },
+    { label: 'ביומימיקרי', activity_name: 'ביומימיקרי', activity_no: '82835', gefen_number: '82835', active: false, activity_type:'course' }
+  ] } };
+  const view = (no,name) => {
+    const html=activityWorkDrawerHtml({
+      RowID: 'TEST-'+no, source_sheet:'activities', activity_season:'school_2027',
+      activity_type:'course', item_type:'course', activity_name:name,
+      activity_no:no, gefen_number:no, status:'פתוח'
+    }, {canEdit:true,canDirectEdit:true,settings});
+    const dom=new JSDOM('<main>'+html+'</main>');
+    const select=dom.window.document.querySelector('[data-role="activity-name-select"]');
+    return {dom,select,opts:Array.from(select.options).filter(x=>x.value)};
+  };
+  const elementary=view('6089','ביומימיקרי');
+  assert.equal(elementary.select.selectedOptions[0].dataset.activityNo,'6089');
+  assert.ok(elementary.opts.some(x=>x.textContent==='ביומימיקרי (יסודי) — 6089'));
+  assert.ok(elementary.opts.some(x=>x.textContent==='ביומימיקרי (לחטיבה) — 53828'));
+  assert.equal(elementary.opts.some(x=>x.dataset.activityNo==='82835'),false);
+  const middle=view('53828','ביומימיקרי לחטיבה');
+  assert.equal(middle.select.selectedOptions[0].dataset.activityNo,'53828');
+  const legacy=view('82835','ביומימיקרי');
+  assert.equal(legacy.select.selectedOptions[0].dataset.activityNo,'82835');
+  assert.match(legacy.select.selectedOptions[0].textContent,/מספר ישן 82835/);
+  assert.equal(legacy.opts.filter(x=>x.dataset.activityNo==='82835').length,1);
+});

@@ -1,3 +1,5 @@
+import { displayedActivityChoiceLabel } from './activity-program-display-name.js';
+
 const UNASSIGNED_INSTRUCTOR_LABELS = new Set([
   '-',
   '—',
@@ -209,6 +211,7 @@ export function getActivityCatalog(settings) {
   return rows
     .map((row) => ({
       label: humanDisplayText(row?.label || row?.activity_name || row?.value),
+      display_label: displayedActivityChoiceLabel(row, humanDisplayText(row?.label || row?.activity_name || row?.value)),
       label_he: humanDisplayText(row?.label_he || row?.label || row?.activity_name || row?.value),
       value: humanDisplayText(row?.value || row?.activity_name || row?.label),
       activity_name: humanDisplayText(row?.activity_name || row?.value || row?.label),
@@ -223,6 +226,8 @@ export function getActivityCatalog(settings) {
     }))
     .filter((row) => row.label)
     .filter((row) => !isExplicitlyInactive(row.active))
+    // The old 82835 catalog row is not a valid choice for new activities.
+    .filter((row) => row.activity_no !== '82835')
     .filter((row) => {
       const sig = `${row.label}|${row.activity_no}|${row.parent_value}`;
       if (seen.has(sig)) return false;
