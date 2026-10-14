@@ -1471,7 +1471,7 @@ function crossCourseHtml() {
   const stageOptions = AUDIENCE_STAGES[a.audience] || ['post'];
   const stage = stageOptions.includes(a.stage) ? a.stage : stageOptions[stageOptions.length - 1];
   const { programKeys, rows } = crossCourseCore(semesterFacts(), { audience: a.audience, stage });
-  if (!rows.length) return '<p class="ifb-analysis-empty-note">אין עדיין שאלות ליבה זהות שנענו בשני קורסים לפחות. תשובות המדריכים שכבר התקבלו מופיעות למעלה.</p>';
+  if (!rows.length) return '<p class="ifb-analysis-empty-note">אין עדיין שאלות ליבה זהות שנענו בשני קורסים לפחות. השאלונים המלאים שהתקבלו מוצגים למעלה לפי הסינון שנבחר.</p>';
   return `<div class="ifb-table-wrap ifb-table-wrap--scroll"><table class="ifb-table ifb-cross-table">
     <caption class="ifb-sr">השוואה בין קורסים בשאלות הליבה</caption>
     <thead><tr><th scope="col">שאלת ליבה</th>${programKeys.map((k) => `<th scope="col" class="ifb-center${k === ui.course ? ' is-selected' : ''}">${esc(programTitle(k))}</th>`).join('')}</tr></thead>
@@ -1682,21 +1682,28 @@ function instructorRecommendationsHtml(facts) {
 }
 
 function analysisHtml() {
-  const instructorAnswers = ui.analysis.audience === 'instructor'
+  const fullAnswers = ui.analysis.audience === 'instructor'
     ? sectionHtml('כל התשובות של המדריכים — לפי מדריך וקורס', instructorFullResponsesHtml(), {
       note: 'כל תשובה מוצגת כפי שנשמרה, כולל טקסט חופשי, בחירות ודירוגים.'
-    }) : '';
+    })
+    : ui.analysis.audience === 'educational_staff'
+      ? sectionHtml('כל התשובות של הצוות החינוכי — לפי איש קשר וקורס', staffFullResponsesHtml(), {
+        note: 'כל שאלון שהוגש מוצג בנפרד, כולל תשובות מלאות ופרטי בית הספר.'
+      })
+      : sectionHtml('כל תשובות התלמידים — לפי קורס ובית ספר', studentFullResponsesHtml(), {
+        note: 'השאלונים אנונימיים. כל הגשה מוצגת בנפרד, ללא פרטים מזהים של תלמידים.'
+      });
   if (!ui.course) {
     return `
       ${analysisFiltersHtml()}
-      ${instructorAnswers}
-      ${ui.analysis.audience === 'instructor' ? '' : selectCourseHint('סיכום מצטבר, השוואה בין אוכלוסיות, פתיחה–סיום ותוצאות לכל שאלה')}
+      ${fullAnswers}
+      
       ${sectionHtml('השוואה בין קורסים במדדי ליבה', crossCourseHtml(), { actions: exportButtonHtml('analysis', 'דוח כל הקורסים (Excel)') })}`;
   }
   const facts = courseFacts();
   return `
     ${analysisFiltersHtml()}
-    ${instructorAnswers}
+    ${fullAnswers}
     ${aiAnalysisExportHtml()}
     ${biomimicryImprovementHtml(facts)}
     ${evidenceSummaryHtml(facts)}
