@@ -58,7 +58,7 @@ test('analysis tab renders full instructor submissions and keeps the per-course 
   assert.match(screen, /function instructorFullResponsesHtml\(\)/);
   assert.match(screen, /groupInstructorFullResponses\(semesterFacts\(\)/);
   assert.match(screen, /data-a="instructor"/);
-  assert.match(screen, /sectionHtml\('כל התשובות של המדריכים — לפי מדריך וקורס', instructorFullResponsesHtml\(\)/);
+  assert.match(screen, /sectionHtml\('תשובות מדריכים — לפי מדריך וקורס', instructorFullResponsesHtml\(\)/);
   assert.match(screen, /completeInstructorAnswerValueHtml\(fact\)/);
   assert.match(screen, /esc\(fact\.question_text \|\| 'שאלה'\)/);
   assert.match(screen, /esc\(String\(fact\.value_text \?\? ''\)\)/);
@@ -127,9 +127,23 @@ test('all three audience views expose raw saved answers and selectors without id
   assert.match(screen, /groupStudentFullResponses\(semesterFacts\(\)/);
   assert.match(screen, /data-a="contact"/);
   assert.match(screen, /data-a="group"/);
-  assert.match(screen, /sectionHtml\('כל התשובות של הצוות החינוכי — לפי איש קשר וקורס', staffFullResponsesHtml\(\)/);
-  assert.match(screen, /sectionHtml\('כל תשובות התלמידים — לפי קורס ובית ספר', studentFullResponsesHtml\(\)/);
+  assert.match(screen, /sectionHtml\('תשובות צוות חינוכי — לפי איש קשר וקורס', staffFullResponsesHtml\(\)/);
+  assert.match(screen, /sectionHtml\('תשובות תלמידים — לפי קורס ובית ספר', studentFullResponsesHtml\(\)/);
   assert.match(screen, /שאלון אנונימי /);
   assert.match(screen, /completeInstructorAnswerValueHtml\(fact\)/);
   assert.match(screen, /if \(key === 'audience'\) ui\.analysis\.stage = \(AUDIENCE_STAGES\[el\.value\] \|\| \['pre'\]\)\[0\]/);
+});
+
+test('the analysis tab renders only the filter panel and complete submitted questionnaires', () => {
+  const analysis = screen.slice(screen.indexOf('function analysisHtml() {'),
+    screen.indexOf('// Group view', screen.indexOf('function analysisHtml() {')));
+  assert.match(analysis, /\$\{analysisFiltersHtml\(\)\}/);
+  assert.match(analysis, /\$\{fullAnswers\}/);
+  assert.match(analysis, /instructorFullResponsesHtml\(\)/);
+  assert.match(analysis, /staffFullResponsesHtml\(\)/);
+  assert.match(analysis, /studentFullResponsesHtml\(\)/);
+  assert.doesNotMatch(analysis, /crossCourseHtml\(|cumulativeSummaryHtml\(|audienceComparisonHtml\(/);
+  assert.doesNotMatch(analysis, /aiAnalysisExportHtml\(|biomimicryImprovementHtml\(|evidenceSummaryHtml\(/);
+  assert.doesNotMatch(analysis, /instructorRecommendationsHtml\(|prePostQuestionTableHtml\(|populationResultsHtml\(/);
+  assert.doesNotMatch(analysis, /exportButtonHtml\(|sectionHtml\('השוואת|sectionHtml\('מדדים/);
 });
