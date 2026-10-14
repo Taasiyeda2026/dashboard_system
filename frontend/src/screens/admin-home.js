@@ -132,7 +132,6 @@ function managementTilesHtml() {
       title: 'תוצאות קורסים',
       description: 'תוצאות פרימיום ופורצות דרך',
       icon: 'reports',
-      capabilityId: 'admin.course_results',
       courseResults: true
     }),
     isAdmin && tileButton({
