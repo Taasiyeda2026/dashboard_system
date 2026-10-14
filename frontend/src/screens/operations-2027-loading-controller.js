@@ -903,7 +903,6 @@ async function returnKit(button, root) {
     window.alert(result.error.message || 'החזרת הערכה נכשלה');
     return;
   }
-  const data = store.tabCache.get(TAB_PRINT_KITS);
   if (data) patchPrintKitReturn(data, button.dataset.courseId, button.dataset.instructor);
   renderPrintKitCache(root);
 }
