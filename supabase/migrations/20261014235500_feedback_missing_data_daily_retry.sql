@@ -13,8 +13,12 @@ BEGIN
        $old$c.cc_email is null or c.age_band is null or c.activity_row_id<>d.activity_row_id$old$,
        $new$c.cc_email is null or c.activity_row_id<>d.activity_row_id$new$),
       ('feedback_staff_auto_prepare',
-       $old$if existing.status in ('failed','needs_attention') then continue; end if;$old$,
-       $new$if existing.status in ('failed','needs_attention') and existing.graph_started_at is not null then continue; end if;$new$),
+       $old$-- A new daily preparation may refresh a cancelled stale snapshot. Failed
+     -- attempts are retained for explicit review, never silently retried.
+     if existing.status in ('failed','needs_attention') then continue; end if;$old$,
+       $new$-- Recheck recoverable pre-send failures when source details are corrected.
+     -- Never retry a failed or ambiguous delivery after a Graph attempt.
+     if existing.status in ('failed','needs_attention') and existing.graph_started_at is not null then continue; end if;$new$),
       ('feedback_staff_auto_claim',
        $old$c.eligibility_at<ctl.activation_at$old$,
        $new$(c.eligibility_at<ctl.activation_at and o.stage<>'pre')$new$),
