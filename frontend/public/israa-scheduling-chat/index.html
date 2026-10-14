@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="he" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>סוכן השיבוצים | תעשיידע</title>
+<style>
+:root{font-family:"Assistant","Segoe UI",Arial,sans-serif;color:#1b2a3a;background:#f5f7fa;font-size:15px}
+*{box-sizing:border-box}body{margin:0;min-height:100vh}button,input,textarea{font:inherit}
+button{cursor:pointer}button:disabled{cursor:not-allowed;opacity:.55}
+.shell{max-width:920px;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column;background:#fff;border-inline:1px solid #e6ebf0}
+.header{height:66px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e6ebf0;padding:0 24px;flex-shrink:0}
+.brand{display:flex;align-items:center;gap:12px}.mark{width:33px;height:33px;border-radius:9px;background:#e7f1fb;color:#1f5e9c;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700}
+h1{font-size:17px;line-height:1.3;margin:0;font-weight:700}.org{font-size:12px;color:#78879a;margin-top:3px}
+.secondary{color:#65758a;font-size:13px}.link{border:0;background:transparent;color:#56687e;padding:8px;border-radius:6px;font-size:13px}.link:hover{background:#f1f5f9}
+#login{width:min(100% - 44px,385px);margin:auto;padding:28px 0 88px}#login h2{font-size:23px;font-weight:650;letter-spacing:-.4px;margin:0 0 9px}
+#login p{color:#64748b;line-height:1.7;margin:0 0 25px;font-size:14px}
+label{font-size:13px;display:block;margin:0 0 7px;color:#30465e}input{width:100%;border:1px solid #d7dfe9;border-radius:8px;padding:12px;outline:none;margin-bottom:16px;background:white;color:#172033}input:focus,textarea:focus{border-color:#4a8fd0;box-shadow:0 0 0 2px #e2f0ff}
+.primary{border:1px solid #2d6fa9;background:#2d6fa9;color:white;border-radius:8px;padding:11px 17px;font-weight:600}.primary:hover{background:#245d91}.full{width:100%}
+#loginerror{min-height:24px;color:#b42318;font-size:13px;margin-top:12px;line-height:1.5}
+#workspace{display:none;flex:1;min-height:0;flex-direction:column}
+#thread{flex:1;min-height:0;overflow-y:auto;padding:29px max(20px,calc((100% - 680px)/2));display:flex;flex-direction:column;gap:20px}
+.message{max-width:90%;line-height:1.7;overflow-wrap:anywhere;white-space:pre-wrap}
+.message.user{align-self:flex-start;background:#eef4fa;border-radius:12px 12px 3px 12px;padding:12px 15px}
+.message.assistant{align-self:flex-end;width:100%;max-width:100%;color:#263b52}
+.message .meta{font-weight:650;color:#245782;font-size:12px;margin-bottom:5px}
+.actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px;white-space:normal}
+.choice{border:1px solid #cfdae6;border-radius:8px;background:#fff;padding:7px 10px;color:#294b69;text-align:right;font-size:13px}
+.choice:hover{background:#f2f7fc}
+.bottom{padding:15px max(18px,calc((100% - 700px)/2)) 20px;border-top:1px solid #e8eef4;flex-shrink:0}
+.composer{display:flex;align-items:end;gap:9px;border:1px solid #ced9e5;border-radius:12px;padding:8px 8px 8px 10px;background:#fff}
+.composer:focus-within{border-color:#7ba9d6}textarea{border:0;resize:none;outline:0;box-shadow:none!important;padding:10px;min-height:43px;max-height:150px;flex:1;line-height:1.5;background:transparent;color:#1b2a3a}
+.send{border:0;background:#2d6fa9;color:#fff;border-radius:8px;min-width:48px;height:43px;font-weight:700}
+.send:disabled{background:#a5b6c5}#loginMode{margin-top:12px;text-align:center}
+.notice{font-size:12px;color:#7c8997;text-align:center;margin-top:8px}
+.week-wrap{max-width:100%;overflow-x:auto;border:1px solid #e1e8f0;border-radius:8px;margin-top:10px}.week-table{min-width:740px;width:100%;border-collapse:collapse;table-layout:fixed}.week-table th{background:#f2f6fa;padding:8px 5px;font-size:12px}.week-table td{height:50px;border:1px solid #e7edf4;vertical-align:top;padding:3px;font-size:11px}.week-event{background:#e4f0fa;border-right:3px solid #487fad;border-radius:5px;padding:4px;margin-bottom:3px;white-space:normal}.week-hour{width:46px;color:#738196;text-align:center}
+@media(max-width:700px){.shell{border:0}.header{height:60px;padding:0 16px}h1{font-size:16px}#thread{padding:22px 17px}.bottom{padding:11px 13px 15px}.message{font-size:14px}}
+</style></head>
+<body><main class="shell">
+<header class="header"><div class="brand"><div class="mark" aria-hidden="true">ת</div><div><h1>סוכן השיבוצים</h1><div class="org">תעשיידע</div></div></div><button id="logout" class="link" style="display:none">יציאה</button></header>
+<section id="login"><h2>כניסה אישית</h2><p>כניסה לחשבון תעשיידע לצורך טיפול בשיבוצים.</p>
+<form id="loginform"><label for="email">כתובת דוא״ל</label><input id="email" type="email" autocomplete="username" required>
+<label for="password">סיסמה</label><input id="password" type="password" autocomplete="current-password" required>
+<button class="primary full" type="submit" id="loginbutton">כניסה</button></form>
+<div id="loginerror" role="alert"></div><div id="loginMode"><button type="button" class="link" id="otp">שליחת קישור כניסה לדוא״ל</button></div></section>
+<section id="workspace"><div id="thread" role="log" aria-live="polite" aria-label="שיחה"></div>
+<div class="bottom"><form class="composer" id="chatForm"><textarea id="entry" rows="1" placeholder="מה תרצי לשבץ?" aria-label="בקשת שיבוץ"></textarea><button type="submit" id="send" class="send" aria-label="שליחה">שלחי</button></form><div class="notice">שינויים נשמרים רק לאחר אישור ובדיקת תקינות.</div></div></section>
+</main>
+<script>
+(function(){
+"use strict";
+var BASE="https://szinlhjuwyiyszdpsdop.supabase.co";
+var KEY="sb_publishable_k0IbDJlgPA9KTVuDWrCyFw_Zsa5kZIM";
+var state={access:null,refresh:null,data:null,pendingActivity:null,pendingInstructor:null,pendingReason:null,busy:false};
+function el(id){return document.getElementById(id)}
+function normalize(s){return String(s||"").toLowerCase().replace(/[\u0591-\u05c7]/g,"").replace(/[-־"'’.,:!?()\u200f]/g," ").replace(/\s+/g," ").trim()}
+function showError(message){el("loginerror").textContent=message||""}
+function reqUrl(path){return BASE+path}
+async function request(path,body,token){
+ var headers={"apikey":KEY,"Content-Type":"application/json"};
+ if(token)headers.Authorization="Bearer "+token;
+ var res=await fetch(reqUrl(path),{method:"POST",headers:headers,body:JSON.stringify(body),cache:"no-store"});
+ var data=await res.json().catch(function(){return{}});
+ if(!res.ok){throw new Error((data.message||data.msg||data.error_description||data.error||data.code||"request_failed")+" ("+res.status+")")}
+ return data;
+}
+async function rpc(name,args){
+ if(!state.access)throw Error("נדרשת התחברות");
+ return request("/rest/v1/rpc/"+name,args||{},state.access);
+}
+function saveSession(){try{sessionStorage.setItem("israa_session",JSON.stringify({access:state.access,refresh:state.refresh}))}catch(e){}}
+function logout(){state.access=null;state.refresh=null;state.data=null;state.pendingActivity=null;state.pendingInstructor=null;state.pendingReason=null;try{sessionStorage.removeItem("israa_session")}catch(e){};el("workspace").style.display="none";el("login").style.display="block";el("logout").style.display="none";el("password").value="";el("thread").replaceChildren();}
+async function signIn(email,password){
+ var result=await request("/auth/v1/token?grant_type=password",{email:email,password:password},null);
+ state.access=result.access_token;state.refresh=result.refresh_token;saveSession();await loadWorkspace()
+}
+async function signInWithOtp(email){
+ await request("/auth/v1/otp",{email:email,create_user:false,options:{email_redirect_to:location.href.split("#")[0]}},null)
+}
+async function refreshSession(){
+ if(!state.refresh)return false;
+ try{var out=await request("/auth/v1/token?grant_type=refresh_token",{refresh_token:state.refresh},null);state.access=out.access_token;state.refresh=out.refresh_token;saveSession();return true}catch(e){return false}
+}
+function scrollDown(){var t=el("thread");t.scrollTop=t.scrollHeight}
+function addMessage(kind,text,choices){
+ var wrap=document.createElement("div");wrap.className="message "+kind;
+ if(kind==="assistant"){var name=document.createElement("div");name.className="meta";name.textContent="סוכן השיבוצים";wrap.appendChild(name)}
+ var content=document.createElement("div");content.textContent=text;wrap.appendChild(content);
+ if(choices&&choices.length){var actions=document.createElement("div");actions.className="actions";choices.slice(0,9).forEach(function(ch){
+ var b=document.createElement("button");b.type="button";b.className="choice";b.textContent=ch.label;
+ b.addEventListener("click",function(){if(state.busy)return;ch.action()});actions.appendChild(b)});wrap.appendChild(actions)}
+ el("thread").appendChild(wrap);scrollDown();return wrap
+}
+function setBusy(b){state.busy=b;el("send").disabled=b;el("entry").disabled=b}
+function acts(){return state.data&&Array.isArray(state.data.activities)?state.data.activities:[]}
+function teachers(){return state.data&&Array.isArray(state.data.instructors)?state.data.instructors:[]}
+function matchTeachers(text){
+ var t=normalize(text), exact=teachers().filter(function(i){return t.includes(normalize(i.name))});
+ if(exact.length)return exact;
+ return teachers().filter(function(i){var first=normalize(i.name).split(" ")[0];return first.length>=3&&t.includes(first)})
+}
+function matchActivities(text){
+ var t=normalize(text);
+ var exact=acts().filter(function(a){return t.includes(normalize(a.id))});
+ if(exact.length)return exact;
+ var matches=acts().filter(function(a){
+  var school=normalize(a.school),program=normalize(a.program);
+  return (school.length>=3&&t.includes(school))||(program.length>=4&&t.includes(program));
+ });
+ var paired=matches.filter(function(a){return t.includes(normalize(a.school))&&t.includes(normalize(a.program))});
+ return paired.length?paired:matches;
+}
+function activityLabel(a){return (a.school||"בית ספר")+" · "+(a.program||"תוכנית")+(a.instructor?" · "+a.instructor:" · ללא מדריך")}
+function chooseActivity(a){state.pendingActivity=a;addMessage("assistant","בחרת: "+activityLabel(a)+". מי המדריך או המדריכה שתרצי לשבץ?")}
+function chooseTeacher(t){state.pendingInstructor=t;addMessage("assistant","בחרת: "+t.name+". באיזה בית ספר ותוכנית תרצי לשבץ?")}
+function labelsForActivities(items){return items.slice(0,8).map(function(a){return{label:activityLabel(a),action:function(){if(state.pendingInstructor){var t=state.pendingInstructor;state.pendingInstructor=null;preview(a,t)}else{chooseActivity(a)}}}})}
+function labelsForTeachers(items){return items.slice(0,8).map(function(t){return{label:t.name,action:function(){if(state.pendingActivity){var a=state.pendingActivity;state.pendingActivity=null;preview(a,t)}else{chooseTeacher(t)}}}})}
+function isListQuestion(t){return /הצג|הראי|תראי|מי משובץ|איזה שיבוצים|מה השיבוצים|רשימת|כמה|מה יש/.test(t)}
+async function updateContext(){state.data=await rpc("scheduling_chat_context",{})}
+async function preview(a,t){
+ state.pendingActivity=null;state.pendingInstructor=null;setBusy(true);
+ try{
+  var replacing=Number(a.instructorId)>0;
+  var rpcName=replacing?"scheduling_chat_preview_replace":"scheduling_chat_preview_fixed";
+  var args=replacing?{p_activity_id:a.id,p_new_emp_id:Number(t.id)}:{p_activity_id:a.id,p_emp_id:Number(t.id)};
+  var p=await rpc(rpcName,args);
+  if(!p.eligible){
+   var descriptions={scheduling_home_distance_exceeded:"המרחק של המדריך מבית הספר חורג מהמותר לפי כללי השיבוץ.",
+    scheduling_transition_distance_exceeded:"המרחק בין הפעילויות באותו יום חורג מהמותר.",
+    scheduling_instructor_unavailable:"המדריך אינו זמין במועד המבוקש.",
+    scheduling_conflict_detected:"יש התנגשות עם פעילות אחרת של המדריך.",
+    same_instructor:"המדריך כבר משובץ לקורס.",course_reassignment_locked:"לא ניתן להחליף מדריך אחרי שני מפגשים או יותר.",
+    full_calendar_required:"יש להשלים את מועדי הקורס לפני שיבוץ.",activity_not_locked_assignment:"הקורס אינו במצב שמאפשר החלפה באמצעות הסוכן.",
+    activity_already_assigned_or_locked:"הקורס משובץ או נעול."};
+   addMessage("assistant",(descriptions[p.reason]||"השיבוץ אינו אפשרי.")+(Array.isArray(p.violations)&&p.violations.length?"\nבדיקות שיבוץ: "+p.violations.join(" · "):""));
+   return;
+  }
+  p.isReplacement=replacing;
+  addMessage("assistant",(replacing?"החלפת מדריך:":"שיבוץ חדש:")+"\n"+p.school+" · "+p.program+
+   "\n"+(replacing?"מדריך נוכחי: "+p.oldInstructor+"\n":"")+"מדריך חדש: "+p.instructor+
+   "\n"+p.scheduledMeetings+" מפגשים. המועדים הקיימים נשארים ללא שינוי.\nלאשר ולשמור?",[
+    {label:"אישור ושמירה",action:function(){if(p.requiresReason){state.pendingReason=p;addMessage("assistant","כתבי מה הסיבה להחלפת המדריך (כבר התקיים מפגש אחד).")}else commit(p,"")}},
+    {label:"ביטול",action:function(){state.pendingReason=null;addMessage("assistant","לא בוצע שינוי.")}}
+  ]);
+ }catch(e){addMessage("assistant","לא ניתן להשלים את הבדיקה: "+friendly(e))}
+ finally{setBusy(false)}
+}
+function friendly(e){
+ var msg=String(e&&e.message||e);
+ if(/401|JWT|token|unauthorized/i.test(msg))return "ההתחברות פגה. היכנסי מחדש.";
+ if(/42501|permission|access_denied/i.test(msg))return "החשבון אינו מורשה לפעולה.";
+ if(/409|changed|stale/i.test(msg))return "הפעילות השתנתה. יש לבדוק מחדש.";
+ if(/429/i.test(msg))return "נסי שוב בעוד רגע.";
+ if(/scheduling_|conflict|unavailable|constraint/i.test(msg))return "נמצאה מגבלה בתנאי השיבוץ. בדקי את הזמינות או את המועדים.";
+ return "הפעולה לא הושלמה. ניתן לבדוק אותה בדשבורד.";
+}
+async function commit(p,reason){
+ setBusy(true);
+ try{
+  var replace=!!p.isReplacement;
+  var rpcName=replace?"scheduling_chat_commit_replace":"scheduling_chat_assign_fixed";
+  var args=replace?{p_activity_id:p.activityId,p_new_emp_id:Number(p.instructorId),
+    p_old_emp_id:Number(p.oldInstructorId),p_expected_updated_at:p.updatedAt,
+    p_reason:reason||"",p_confirm:true}:
+    {p_activity_id:p.activityId,p_emp_id:Number(p.instructorId),
+     p_expected_updated_at:p.updatedAt,p_confirm:true};
+  var out=await rpc(rpcName,args);
+  await updateContext();
+  var current=acts().find(function(a){return a.id===out.activityId});
+  if(!current||Number(current.instructorId)!==Number(out.instructorId))throw Error("verification_failed");
+  addMessage("assistant","השיבוץ נשמר ואומת.\n"+out.school+" · "+current.program+"\nמדריך: "+out.instructor);
+ }catch(e){addMessage("assistant","לא ניתן לאשר שהשיבוץ נשמר: "+friendly(e))}
+ finally{setBusy(false)}
+}
+function showWeek(teacher,offset){
+ var sunday=new Date();sunday.setHours(12,0,0,0);sunday.setDate(sunday.getDate()-sunday.getDay()+offset*7);
+ var days=Array.from({length:7},function(_,i){var d=new Date(sunday);d.setDate(sunday.getDate()+i);return d});
+ var iso=function(d){return [d.getFullYear(),String(d.getMonth()+1).padStart(2,"0"),String(d.getDate()).padStart(2,"0")].join("-")};
+ var items=[];
+ acts().filter(function(a){return Number(a.instructorId)===Number(teacher.id)}).forEach(function(a){
+  (a.meetings||[]).forEach(function(m){if(days.some(function(d){return iso(d)===m.date}))items.push({date:m.date,start:m.startTime||"",end:m.endTime||"",school:a.school,program:a.program})})
+ });
+ var panel=addMessage("assistant","היומן של "+teacher.name+" — שבוע "+days[0].toLocaleDateString("he-IL")+"\n"+items.length+" מפגשים.");
+ var wrap=document.createElement("div");wrap.className="week-wrap";
+ var tbl=document.createElement("table");tbl.className="week-table";
+ var head=document.createElement("tr");["שעה","ראשון","שני","שלישי","רביעי","חמישי","שישי","שבת"].forEach(function(s,j){
+  var th=document.createElement("th");th.textContent=s+(j?(" "+days[j-1].getDate()+"/"+(days[j-1].getMonth()+1)):"");head.appendChild(th)
+ });tbl.appendChild(head);
+ for(var hour=7;hour<=20;hour++){
+  var row=document.createElement("tr");var h=document.createElement("td");h.className="week-hour";h.textContent=String(hour).padStart(2,"0")+":00";row.appendChild(h);
+  days.forEach(function(d){var cell=document.createElement("td");items.filter(function(ev){return ev.date===iso(d)&&Number(ev.start.slice(0,2))===hour}).forEach(function(ev){
+   var box=document.createElement("div");box.className="week-event";box.textContent=ev.start+"–"+ev.end+" · "+ev.school+" · "+ev.program;cell.appendChild(box)
+  });row.appendChild(cell)});tbl.appendChild(row)
+ }
+ wrap.appendChild(tbl);panel.appendChild(wrap);
+ var nav=document.createElement("div");nav.className="actions";
+ [{label:"שבוע קודם",num:-1},{label:"שבוע הבא",num:1}].forEach(function(op){
+  var b=document.createElement("button");b.type="button";b.className="choice";b.textContent=op.label;b.onclick=function(){showWeek(teacher,offset+op.num)};nav.appendChild(b)
+ });panel.appendChild(nav);scrollDown()
+}
+function answer(text){
+ var n=normalize(text);
+ if(state.pendingReason){
+  var pending=state.pendingReason;state.pendingReason=null;
+  if(/^(בטל|ביטול|לא)$/i.test(n)){addMessage("assistant","לא בוצע שינוי.");return}
+  if(text.length<5){state.pendingReason=pending;addMessage("assistant","כתבי סיבה קצרה להחלפה.");return}
+  commit(pending,text);return
+ }
+ var foundA=matchActivities(text),foundT=matchTeachers(text);
+ if(/יומן|השבוע|שבועי|טבלה/.test(n)&&foundT.length===1&&!foundA.length){showWeek(foundT[0],0);return}
+ if(/שנה|הזז|העבר/.test(n)&&/שעה|מועד|יום|תאריך/.test(n)){
+  addMessage("assistant","כעת ניתן לבצע שיבוץ או החלפת מדריך תוך שמירת המועדים הקיימים. שינוי ימים ושעות מתבצע עדיין בממשק השיבוצים בדשבורד.");return
+ }
+
+ if(/ללא מדריך|לא משובץ|שעדיין חסר להם מדריך/.test(n)&&isListQuestion(n)){
+  var missing=acts().filter(function(a){return !a.instructorId});
+  addMessage("assistant","נמצאו "+missing.length+" פעילויות פתוחות ללא מדריך.\n"+missing.slice(0,10).map(activityLabel).join("\n")+(missing.length>10?"\nאפשר לציין בית ספר כדי להתמקד.":""));return
+ }
+ if(isListQuestion(n)&&foundT.length===1&&!foundA.length){
+  var t=foundT[0],list=acts().filter(function(a){return Number(a.instructorId)===Number(t.id)});
+  addMessage("assistant",list.length?"שיבוצים של "+t.name+":\n"+list.slice(0,16).map(activityLabel).join("\n"):"לא נמצאו שיבוצים פתוחים למדריך/ה "+t.name+".");return;
+ }
+ if(foundA.length===1&&foundT.length===1){preview(foundA[0],foundT[0]);return}
+ if(state.pendingActivity&&foundT.length===1){var a=state.pendingActivity;state.pendingActivity=null;preview(a,foundT[0]);return}
+ if(state.pendingInstructor&&foundA.length===1){var t=state.pendingInstructor;state.pendingInstructor=null;preview(foundA[0],t);return}
+ if(foundA.length>1){addMessage("assistant","מצאתי כמה פעילויות. לאיזו מהן התכוונת?",labelsForActivities(foundA));return}
+ if(foundT.length>1){addMessage("assistant","מצאתי כמה מדריכים. למי התכוונת?",labelsForTeachers(foundT));return}
+ if(foundA.length===1){chooseActivity(foundA[0]);return}
+ if(foundT.length===1){chooseTeacher(foundT[0]);return}
+ addMessage("assistant","כתבי לי את שם בית הספר, התוכנית והמדריך/ה המבוקש/ת. אמצא את הפעילות, אבדוק את השיבוץ ואציג אותו לאישור.\nאפשר גם לבקש להציג את השיבוצים של מדריך/ה או פעילויות ללא מדריך.")
+}
+async function loadWorkspace(){
+ try{
+  await updateContext();
+  el("login").style.display="none";el("workspace").style.display="flex";el("logout").style.display="block";
+  el("thread").replaceChildren();addMessage("assistant","היי איסראא, מה תרצי לשבץ?");
+  el("entry").focus();showError("")
+ }catch(e){logout();showError(/42501|permission|access_denied|401/i.test(String(e.message))?"הגישה לסוכן השיבוצים אינה מאושרת עבור החשבון הזה.":"לא ניתן לטעון את השיבוצים. בדקי את החיבור ונסי שוב.")}
+}
+el("loginform").addEventListener("submit",async function(ev){
+ ev.preventDefault();el("loginbutton").disabled=true;showError("");
+ try{await signIn(el("email").value.trim(),el("password").value)}
+ catch(e){showError("לא ניתן להיכנס. בדקי את פרטי החשבון או השתמשי בקישור כניסה לדוא״ל.")}
+ finally{el("loginbutton").disabled=false}
+});
+el("otp").addEventListener("click",async function(){
+ var email=el("email").value.trim();if(!email){showError("יש להזין כתובת דוא״ל קודם.");return}
+ try{await signInWithOtp(email);showError("אם הדוא״ל רשום במערכת, יישלח אליו קישור כניסה.")}
+ catch(e){showError("שליחת קישור הכניסה לא הצליחה.")}
+});
+el("logout").addEventListener("click",logout);
+el("chatForm").addEventListener("submit",function(ev){ev.preventDefault();var value=el("entry").value.trim();if(!value||state.busy)return;el("entry").value="";addMessage("user",value);answer(value)});
+el("entry").addEventListener("keydown",function(ev){if(ev.key==="Enter"&&!ev.shiftKey){ev.preventDefault();el("chatForm").requestSubmit()}});
+async function restore(){
+ var hash=new URLSearchParams(location.hash.replace(/^#/,""));
+ if(hash.get("access_token")){state.access=hash.get("access_token");state.refresh=hash.get("refresh_token");history.replaceState({},document.title,location.pathname);saveSession();await loadWorkspace();return}
+ try{var saved=JSON.parse(sessionStorage.getItem("israa_session")||"null");if(!saved)return;state.access=saved.access;state.refresh=saved.refresh; if(await refreshSession())await loadWorkspace();else logout()}catch(e){logout()}
+}
+restore();
+})();
+</script>
+</body></html>
