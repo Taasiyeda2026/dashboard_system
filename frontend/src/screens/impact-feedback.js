@@ -1441,8 +1441,11 @@ function studentFullResponsesHtml() {
   if (!total) return '<p class="ifb-analysis-empty-note">עדיין לא התקבלו משובי תלמידים בסינון הנוכחי. השאלונים יופיעו כאן לאחר ההגשה.</p>';
   const cards = courses.map((course, ci) => {
     const groups = course.groups.map((group, gi) => {
-      const heading = group.schoolName + (group.grade ? ' · ' + group.grade : '') +
-        (group.authorityName ? ' · ' + group.authorityName : '');
+      const activity = (ui.groups || []).find((row) =>
+        String(row.row_id) === group.key.slice('group:'.length));
+      const classroom = String(activity?.class_group || '').trim();
+      const heading = [group.schoolName, group.grade, classroom, group.authorityName]
+        .filter(Boolean).join(' · ');
       return '<details class="ifb-disclosure ifb-full-answer-course"' +
         (ui.analysis.group || (ci === 0 && gi === 0) ? ' open' : '') +
         '><summary>' + esc(heading) + ' · ' + group.responses.length +
