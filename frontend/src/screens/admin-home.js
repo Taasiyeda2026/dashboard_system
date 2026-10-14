@@ -1,4 +1,5 @@
 import { state } from '../state.js';
+import { supabase, waitForSupabaseAuthSession } from '../supabase-client.js';
 import { dsPageHeader, dsScreenStack } from './shared/layout.js';
 
 
@@ -27,6 +28,41 @@ function effectiveRoutes() {
   return new Set(Array.isArray(routes) ? routes : []);
 }
 
+function premiumEscape(value) {
+  return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+}
+function premiumDate(value) {
+  return value ? new Date(value).toLocaleString('he-IL') : '—';
+}
+function renderPremiumResults(container, classes) {
+  const items = Array.isArray(classes) ? classes : [];
+  const count = items.reduce((total, item) => total + (item.responses || []).length, 0);
+  const teams = items.reduce((total, item) => total + (item.latestTeamRun?.teams?.length || 0), 0);
+  container.innerHTML = `
+    <div class="admin-course-results-summary"><span>כיתות: <strong>${items.length}</strong></span><span>תשובות: <strong>${count}</strong></span><span>צוותים: <strong>${teams}</strong></span></div>
+    <label>סינון כיתה או תלמיד <input type="search" data-premium-filter placeholder="חיפוש בתוצאות פרימיום"></label>
+    <div data-premium-class-list></div>`;
+  const list = container.querySelector('[data-premium-class-list]');
+  function draw(filter = '') {
+    const query = filter.trim().toLocaleLowerCase('he');
+    const filtered = items.filter(item => [item.name, item.code, ...(item.responses || []).map(r => r.name)]
+      .join(' ').toLocaleLowerCase('he').includes(query));
+    list.innerHTML = filtered.map(item => {
+      const responses = item.responses || [];
+      const rows = responses.map(r => `<tr><td>${premiumEscape(r.name)}</td><td>${premiumEscape(premiumDate(r.completedAt))}</td><td>${premiumEscape(Object.entries(r.scores || {}).map(([key,value]) => key + ': ' + value).join(' | '))}</td></tr>`).join('');
+      const run = item.latestTeamRun;
+      const teamRows = run?.teams?.map((team, index) => `<tr><td>${premiumEscape(team.team ?? index + 1)}</td><td>${premiumEscape((team.members || []).map(m => typeof m === 'string' ? m : (m.name || m.studentName || '')).join(', '))}</td></tr>`).join('') || '';
+      return `<details class="admin-course-results-class">
+        <summary>${premiumEscape(item.name || 'כיתה ללא שם')} — ${responses.length} תשובות</summary>
+        <p>קוד כיתה: ${premiumEscape(item.code)} | סטטוס: ${premiumEscape(item.status)} | נפתחה: ${premiumEscape(premiumDate(item.createdAt))}</p>
+        <div class="admin-course-results-table"><table><thead><tr><th>תלמיד/ה</th><th>מועד מילוי</th><th>תוצאות הפרופיל</th></tr></thead><tbody>${rows || '<tr><td colspan="3">אין עדיין תשובות</td></tr>'}</tbody></table></div>
+        <h3>חלוקת צוותים</h3>${teamRows ? `<div class="admin-course-results-table"><table><thead><tr><th>צוות</th><th>חברים</th></tr></thead><tbody>${teamRows}</tbody></table></div>` : '<p>לא נוצרו צוותים.</p>'}
+      </details>`;
+    }).join('') || '<p>לא נמצאו כיתות.</p>';
+  }
+  draw();
+  container.querySelector('[data-premium-filter]').addEventListener('input', event => draw(event.target.value));
+}
 function canViewAdminOnlyTools() {
   return String(state?.user?.role || state?.user?.display_role || '').trim() === 'admin';
 }
@@ -155,6 +191,14 @@ function managementTilesHtml() {
 function stylesHtml() {
   return `
     <style>
+      .admin-course-results-summary { display:flex; gap:18px; flex-wrap:wrap; margin:12px 0 20px; }
+      .admin-course-results-data input { width:min(100%,360px); padding:10px; margin:8px 0 16px; border:1px solid var(--color-border,#dbe3ec); border-radius:9px; background:var(--color-surface,#fff); color:inherit; }
+      .admin-course-results-class { border:1px solid var(--color-border,#dbe3ec); border-radius:12px; padding:14px; margin-bottom:12px; background:var(--color-surface,#fff); }
+      .admin-course-results-class summary { font-weight:700; cursor:pointer; }
+      .admin-course-results-class p { color:var(--color-text-secondary,#64748b); }
+      .admin-course-results-table { overflow-x:auto; }
+      .admin-course-results-table table { width:100%; border-collapse:collapse; }
+      .admin-course-results-table th,.admin-course-results-table td { padding:10px; border-bottom:1px solid var(--color-border,#dbe3ec); text-align:right; }
       .admin-course-results-back { margin-bottom: 16px; border: 1px solid var(--color-border, #dbe3ec); background: var(--color-surface, #fff); color: var(--color-text, #172033); border-radius: 10px; padding: 10px 16px; cursor: pointer; }
       .admin-course-results-disabled { opacity: .65; cursor: default; }
       .admin-management-home {
@@ -262,6 +306,12 @@ export const adminHomeScreen = {
                 <span class="admin-management-tile__content"><strong>פורצות דרך</strong><small>יתחבר לתוצאות הקורס בהמשך</small></span>
               </div>
             </div>
+            <div data-premium-results-section hidden>
+              <button type="button" class="admin-course-results-back" data-premium-results-back>חזרה לקורסים</button>
+              <h2>פרימיום – תוצאות שאלון הצוות</h2>
+              <p data-premium-load-status role="status"></p>
+              <div class="admin-course-results-data" data-premium-results-data></div>
+            </div>
           </section>
         ` : ''}
 
@@ -278,8 +328,32 @@ export const adminHomeScreen = {
       root?.querySelector('[data-course-results-back]')?.addEventListener('click', () => {
         if (main && section) { section.hidden = true; main.hidden = false; }
       });
-      root?.querySelector('[data-premium-course-results]')?.addEventListener('click', () => {
-        window.open('https://taasiyeda2026.github.io/Premium/premium%20web/team-questionnaire/private-owner-dashboard.html', '_blank', 'noopener,noreferrer');
+      const courseGrid = section?.querySelector('.admin-management-grid');
+      const premiumSection = root?.querySelector('[data-premium-results-section]');
+      const premiumStatus = root?.querySelector('[data-premium-load-status]');
+      const premiumData = root?.querySelector('[data-premium-results-data]');
+      root?.querySelector('[data-premium-results-back]')?.addEventListener('click', () => {
+        if (courseGrid && premiumSection) { premiumSection.hidden = true; courseGrid.hidden = false; }
+      });
+      root?.querySelector('[data-premium-course-results]')?.addEventListener('click', async () => {
+        if (!courseGrid || !premiumSection || !premiumStatus || !premiumData) return;
+        courseGrid.hidden = true;
+        premiumSection.hidden = false;
+        premiumStatus.textContent = 'טוען תוצאות...';
+        premiumData.replaceChildren();
+        try {
+          if (!canViewCourseResults() || !supabase) throw new Error('אין הרשאה לצפות בתוצאות.');
+          const session = await waitForSupabaseAuthSession();
+          if (!session?.access_token) throw new Error('נדרשת התחברות פעילה לדשבורד.');
+          const { data, error } = await supabase.rpc('premium_questionnaire_owner_dashboard');
+          if (error) throw error;
+          if (!premiumSection.isConnected) return;
+          renderPremiumResults(premiumData, data);
+          premiumStatus.textContent = '';
+        } catch (error) {
+          console.error('[premium-course-results] unable to load:', error);
+          premiumStatus.textContent = 'לא ניתן לטעון את התוצאות. ודא שהתחברת לדשבורד בחשבון המורשה.';
+        }
       });
     }
     root?.querySelectorAll?.('[data-admin-hub-url]').forEach((button) => {
