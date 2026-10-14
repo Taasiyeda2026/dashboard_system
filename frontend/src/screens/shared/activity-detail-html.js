@@ -1,4 +1,5 @@
 import { escapeHtml } from './html.js';
+import { displayedActivityChoiceLabel } from './activity-program-display-name.js';
 import { formatDateHe, formatDateHeWithWeekday, formatTimeShort, formatTimeRangeShort, formatActivityDateColumnsHe } from './format-date.js';
 import { activityManagerDisplayName, activityTypeDisplayLabel, activityTypeMatches, cleanActivityManagerName, getActivityCatalog, getManagerUsers, getContactsInstructorUsers, getRosterUsers, getValidInstructorUsers, humanDisplayText, INVALID_ACTIVITY_INSTRUCTOR_STATUS, validateInstructorBinding, NO_ACTIVITY_MANAGER_LABEL, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveActivityInstructorName, resolveGradeOptions } from './activity-options.js';
 import { activityAllowsSecondInstructor, schoolBelongsToAuthority, schoolsForAuthority } from './activity-form-rules.js';
@@ -197,6 +198,10 @@ function normalizeActivityNameOptions(raw) {
       return;
     }
     if (o && typeof o === 'object') {
+      // Keep old or inactive items out of new choices. Existing records with
+      // these identifiers are preserved by the selected-identity fallback.
+      if (o.active === false || o.is_active === false
+        || String(o.activity_no || o.gefen_number || '').trim() === '82835') return;
       const label = humanDisplayText(o.activity_name || o.label_he || o.label || o.value);
       if (!label) return;
       out.push({
@@ -377,7 +382,7 @@ function buildActivityNameOpts(options, safeValue, activityType, selectedIdentit
         const meetingsCount = String(o?.meetings_count ?? '').trim();
         const actType = String(o?.parent_value || o?.activity_type || activityType || '').trim();
         const isStableMatch = !hasStableSelection || actNo === selectedActivityNo || gefenNumber === selectedGefenNumber;
-        return `<option value="${escapeHtml(label)}" data-activity-no="${escapeHtml(actNo)}" data-gefen-number="${escapeHtml(gefenNumber)}" data-meetings-count="${escapeHtml(meetingsCount)}" data-activity-type="${escapeHtml(actType)}"${selected && isStableMatch ? ' selected' : ''}>${escapeHtml(label)}</option>`;
+        return `<option value="${escapeHtml(label)}" data-activity-no="${escapeHtml(actNo)}" data-gefen-number="${escapeHtml(gefenNumber)}" data-meetings-count="${escapeHtml(meetingsCount)}" data-activity-type="${escapeHtml(actType)}"${selected && isStableMatch ? ' selected' : ''}>${escapeHtml(displayedActivityChoiceLabel(o, label))}</option>`;
       })
     )
     .join('');
