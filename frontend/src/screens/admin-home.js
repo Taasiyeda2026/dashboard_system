@@ -40,7 +40,7 @@ const PREMIUM_ROLE_NAMES = Object.freeze({
   P: 'מפתח/ת מוצר',
   C: 'מציג/ה ומתקשר/ת'
 });
-function premiumProfile(scores) {
+function premiumProfile(scores, version) {
   const values = Object.entries(scores || {})
     .filter(([key, value]) => Object.hasOwn(PREMIUM_ROLE_NAMES, key) && Number.isFinite(Number(value)))
     .sort((a,b) => Number(b[1]) - Number(a[1]));
@@ -50,7 +50,7 @@ function premiumProfile(scores) {
     (i === 0 ? '<strong>התפקיד המתאים ביותר: ' : '<span>') +
     premiumEscape(PREMIUM_ROLE_NAMES[key]) +
     (i === 0 ? '</strong>' : '</span>') +
-    '<span class="premium-role-value">' + premiumEscape(Number(value).toLocaleString('he-IL',{maximumFractionDigits:1})) + '%</span></div>'
+    '<span class="premium-role-value">' + premiumEscape(Number(value).toLocaleString('he-IL',{maximumFractionDigits:1})) + (Number(version) >= 3 ? '%': ' נקודות') + '</span></div>'
   ).join('') + '</div>';
 }
 function renderPremiumResults(container, classes) {
@@ -68,7 +68,7 @@ function renderPremiumResults(container, classes) {
       .join(' ').toLocaleLowerCase('he').includes(query));
     list.innerHTML = filtered.map(item => {
       const responses = item.responses || [];
-      const rows = responses.map(r => `<tr><td>${premiumEscape(r.name)}</td><td>${premiumEscape(premiumDate(r.completedAt))}</td><td>${premiumProfile(r.scores)}</td></tr>`).join('');
+      const rows = responses.map(r => `<tr><td>${premiumEscape(r.name)}</td><td>${premiumEscape(premiumDate(r.completedAt))}</td><td>${premiumProfile(r.scores, r.questionnaireVersion)}</td></tr>`).join('');
       const run = item.latestTeamRun;
       const teamRows = run?.teams?.map((team, index) => `<tr><td>${premiumEscape(team.team ?? index + 1)}</td><td>${premiumEscape((team.members || []).map(m => typeof m === 'string' ? m : (m.name || m.studentName || '')).join(', '))}</td></tr>`).join('') || '';
       return `<details class="admin-course-results-class">
