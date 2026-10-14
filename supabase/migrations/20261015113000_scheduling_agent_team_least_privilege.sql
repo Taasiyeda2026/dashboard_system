@@ -143,6 +143,9 @@ begin
     target.school_id, target.school, target.authority_id, target.authority
   );
   home_distance_km := public.scheduling_cached_travel_distance_km(instructor.address,target_location);
+  if home_distance_km is null then
+    raise exception 'scheduling_home_route_unverified';
+  end if;
   effective_reason := nullif(btrim(coalesce(p_reason,'')), '');
   if home_distance_km > 40 then
     effective_reason := concat_ws(' · ',effective_reason,
