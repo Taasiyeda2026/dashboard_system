@@ -56,3 +56,11 @@ test('anonymous cannot execute the team RPC functions', () => {
     assert.match(sql.slice(idx,idx+200),/from public, anon/);
   }
 });
+
+test('manual exceptions are derived from verified route data, not only user-entered text', () => {
+  assert.match(sql, /scheduling_cached_travel_distance_km/);
+  assert.match(sql, /home_distance_km > 40/);
+  assert.match(sql, /scheduling_manual_assignment_hard_violations/);
+  assert.match(sql, /scheduling_transition_distance_exceeded/);
+  assert.match(sql, /effective_reason/);
+});
