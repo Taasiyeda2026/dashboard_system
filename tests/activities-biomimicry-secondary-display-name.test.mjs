@@ -8,7 +8,7 @@ const activitiesScreen = readFileSync(
 );
 
 test('secondary biomimicry gets clear display-only name for both canonical and legacy numbers', () => {
-  for (const no of ['53828', '82835', 53828, 82835]) {
+  for (const no of ['53828', 53828]) {
     assert.equal(
       displayedActivityProgramName({ activity_no: no, activity_name: 'ביומימיקרי' }, 'ביומימיקרי'),
       'ביומימיקרי (לחטיבה)'
@@ -22,6 +22,7 @@ test('secondary biomimicry gets clear display-only name for both canonical and l
 
 test('elementary 6089 and all other activities retain existing display labels', () => {
   const cases = [
+    [{ activity_no: '82835', activity_name: 'ביומימיקרי' }, 'ביומימיקרי (מספר ישן 82835 — לבדיקה)'],
     [{ activity_no: '6089', activity_name: 'ביומימיקרי' }, 'ביומימיקרי'],
     [{ activity_no: 6089, activity_name: 'ביומימיקרי' }, 'ביומימיקרי'],
     [{ activity_no: '57651', activity_name: 'טכנולוגיות החלל' }, 'טכנולוגיות החלל'],
@@ -36,7 +37,7 @@ test('elementary 6089 and all other activities retain existing display labels', 
 test('the name conversion is pure and used for activity-list rendering, not edited data', () => {
   const activity = { activity_no: '82835', activity_name: 'ביומימיקרי', activity_type: 'course' };
   const snapshot = structuredClone(activity);
-  assert.equal(displayedActivityProgramName(activity, activity.activity_name), 'ביומימיקרי (לחטיבה)');
+  assert.equal(displayedActivityProgramName(activity, activity.activity_name), 'ביומימיקרי (מספר ישן 82835 — לבדיקה)');
   assert.deepEqual(activity, snapshot, 'saved source row must never be rewritten');
   assert.match(activitiesScreen, /function displayActivityName\(row = \{\}\) \{[\s\S]*?displayedActivityProgramName\(row, storedName\)/);
   assert.match(activitiesScreen, /const rawActivityName = displayActivityName\(row\)/);
