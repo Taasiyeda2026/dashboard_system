@@ -113,13 +113,17 @@ create or replace function public.scheduling_agent_team_stage_manual_draft(
 ) returns jsonb language plpgsql security definer
 set search_path = public, pg_temp
 as $$
-declare instructor_name text; staged public.activities;
+declare instructor_name text; staged public.activities; target public.activities;
 begin
   perform public.scheduling_agent_team_assert_member();
   if p_activity_id is null or length(p_activity_id) not between 1 and 200
     or p_emp_id is null or p_emp_id <= 0
     or length(coalesce(p_reason,'')) > 500
   then raise exception 'scheduling_agent_invalid_selection'; end if;
+  select * into target from public.activities where row_id=p_activity_id;
+  if not found or target.activity_season <> 'school_2027'
+    or target.activity_type <> 'course' or target.status <> 'פתוח'
+  then raise exception 'scheduling_agent_team_course_only'; end if;
   select full_name into instructor_name from public.contacts_instructors
   where emp_id=p_emp_id;
   if instructor_name is null then raise exception 'instructor_not_found'; end if;
