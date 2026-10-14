@@ -344,8 +344,8 @@ function stockTableHtml(data) {
   return `<div class="ops2027-table-shell"><table class="ops2027-table"><thead><tr>
     <th class="ops2027-course-col">שם ערכה</th>
     ${KIT_LOCATIONS.map((location) => `<th class="ops2027-number-col">${escapeHtml(location.label)}</th>`).join('')}
-    <th class="ops2027-number-col">אצל מדריכים פעילים</th>
-    <th class="ops2027-number-col">אצל מדריכים לא פעילים</th>
+    <th class="ops2027-number-col">מדריכים - פעילים</th>
+    <th class="ops2027-number-col">מדריכים - לא פעילים</th>
     <th class="ops2027-number-col">סה״כ</th>
   </tr></thead><tbody>${body}</tbody></table></div>`;
 }
