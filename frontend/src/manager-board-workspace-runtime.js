@@ -34,6 +34,8 @@ let lastContextSignature = '';
 let embeddedAttendanceSignature = '';
 let resetMonthOnNextBoard = true;
 let attendanceYm = '';
+let trackingSyncInProgress = false;
+let pendingSharePointReturn = null;
 const rosterCache = new Map();
 const attendanceSummaryCache = new Map();
 const attendanceReviewSnapshotCache = new Map();
@@ -433,6 +435,28 @@ function handleWorkspaceClick(event) {
     return;
   }
 
+  const syncButton = target.closest('[data-manager-tracking-sync]');
+  if (syncButton && activeTab === 'tracking') {
+    event.preventDefault();
+    void syncTrackingDocuments();
+    return;
+  }
+
+  // The employee folder opens in a separate SharePoint tab. When the manager
+  // returns, rescan only that employee instead of scanning the whole team.
+  const folderLink = target.closest('[data-manager-tracking-folder-emp-id]');
+  if (folderLink && activeTab === 'tracking') {
+    const boardRoot = folderLink.closest('[data-manager-board-root]');
+    if (boardRoot) {
+      const context = contextFromBoard(boardRoot);
+      pendingSharePointReturn = {
+        empId: text(folderLink.dataset.managerTrackingFolderEmpId),
+        manager: context.manager,
+        schoolYear: context.schoolYear
+      };
+    }
+  }
+
   const button = target.closest('[data-manager-workspace-tab]');
   if (!button || !canUseWorkspace()) return;
   const boardRoot = button.closest('[data-manager-board-root]');
@@ -805,11 +829,100 @@ async function renderAttendance(boardRoot, context, roster, renderToken) {
   });
 }
 
+
+function trackingSyncStatus(message, isError = false) {
+  const status = validBoardRoot()?.querySelector('[data-manager-tracking-sync-status]');
+  if (!status) return;
+  status.textContent = message;
+  status.setAttribute('role', isError ? 'alert' : 'status');
+}
+
+/**
+ * Refreshes only mapped employee folders from SharePoint. This is an explicit
+ * refresh or a single-employee return sync, never an automatic full-team poll.
+ * The Edge Function enforces the existing employee-file access permission.
+ */
+async function syncTrackingDocuments(onlyEmpIds = null) {
+  const boardRoot = validBoardRoot();
+  if (!boardRoot || activeTab !== 'tracking' || trackingSyncInProgress) return;
+  const context = contextFromBoard(boardRoot);
+  trackingSyncInProgress = true;
+  const syncButton = boardRoot.querySelector('[data-manager-tracking-sync]');
+  if (syncButton) syncButton.disabled = true;
+  try {
+    const roster = await loadRoster(context.manager, context.schoolYear);
+    const targets = roster.filter((row) =>
+      text(row.folder_web_url)
+      && (!onlyEmpIds || onlyEmpIds.has(text(row.emp_id)))
+    );
+    if (!targets.length) {
+      trackingSyncStatus('אין תיקי עובדים מקושרים לסנכרון.');
+      return;
+    }
+    let next = 0;
+    let completed = 0;
+    const errors = [];
+    trackingSyncStatus(`מסנכרן מסמכים מ-SharePoint: 0 מתוך ${targets.length}`);
+    const worker = async () => {
+      while (next < targets.length) {
+        const row = targets[next++];
+        try {
+          const { data, error } = await supabase.functions.invoke('instructor-employee-file-live', {
+            body: { empId: Number(row.emp_id), schoolYear: context.schoolYear, refresh: true }
+          });
+          if (error || data?.error || data?.live !== true) {
+            throw new Error(error?.message || data?.error || data?.reason || 'sync_unavailable');
+          }
+        } catch (error) {
+          errors.push(`${text(row.full_name) || row.emp_id}: ${error?.message || 'שגיאת סנכרון'}`);
+        }
+        completed += 1;
+        trackingSyncStatus(`מסנכרן מסמכים מ-SharePoint: ${completed} מתוך ${targets.length}`);
+      }
+    };
+    // SharePoint Graph queries are already parallel inside a single employee scan.
+    // Limit employee-level concurrency to protect Graph and the Edge service.
+    await Promise.all(Array.from({ length: Math.min(3, targets.length) }, () => worker()));
+    rosterCache.delete(`${context.manager}|${context.schoolYear}`);
+
+    const currentRoot = validBoardRoot();
+    const currentContext = currentRoot && contextFromBoard(currentRoot);
+    if (activeTab === 'tracking' && currentContext?.manager === context.manager &&
+        currentContext?.schoolYear === context.schoolYear) {
+      lastContextSignature = '';
+      await renderWorkspace(true);
+      const successful = targets.length - errors.length;
+      trackingSyncStatus(errors.length
+        ? `עודכנו ${successful} מתוך ${targets.length} תיקים. ${errors.length} נכשלו: ${errors.slice(0, 3).join('; ')}`
+        : `הסנכרון הושלם: ${successful} תיקי עובדים עודכנו.`, errors.length > 0);
+    }
+  } catch (error) {
+    trackingSyncStatus(`רענון המסמכים נכשל: ${error?.message || 'שגיאה לא ידועה'}`, true);
+  } finally {
+    trackingSyncInProgress = false;
+    const currentButton = validBoardRoot()?.querySelector('[data-manager-tracking-sync]');
+    if (currentButton) currentButton.disabled = false;
+  }
+}
+
+function syncSharePointReturn() {
+  if (!pendingSharePointReturn || trackingSyncInProgress ||
+      document.visibilityState === 'hidden' || !document.hasFocus()) return;
+  const pending = pendingSharePointReturn;
+  pendingSharePointReturn = null;
+  const boardRoot = validBoardRoot();
+  if (!boardRoot || activeTab !== 'tracking') return;
+  const context = contextFromBoard(boardRoot);
+  if (context.manager !== pending.manager || context.schoolYear !== pending.schoolYear) return;
+  void syncTrackingDocuments(new Set([pending.empId]));
+}
+
 function renderTracking(boardRoot, context, roster) {
   const view = boardRoot.querySelector('[data-manager-workspace-view]');
   if (!view) return;
   view.innerHTML = `<section class="manager-workspace-panel manager-workspace-tracking" dir="rtl">
-    <header class="manager-workspace-panel__head"><div><h2>מעקב צוות</h2><p>${escapeHtml(context.manager)} · שנת ${escapeHtml(context.schoolYear)}</p></div>${sharePointRootButton(context.schoolYear)}</header>
+    <header class="manager-workspace-panel__head"><div><h2>מעקב צוות</h2><p>${escapeHtml(context.manager)} · שנת ${escapeHtml(context.schoolYear)}</p></div>${sharePointRootButton(context.schoolYear)}<button type="button" class="manager-workspace-run-team" data-manager-tracking-sync>רענון מסמכים</button></header>
+    <p class="manager-workspace-tracking-sync-status" data-manager-tracking-sync-status role="status" aria-live="polite"></p>
     ${trackingTableHtml(roster, { schoolYear: context.schoolYear })}
   </section>`;
 }
@@ -1084,6 +1197,8 @@ function startWorkspaceRuntime() {
   const app = document.getElementById('app');
   if (!app) return;
   window.addEventListener('click', handleWorkspaceClick, true);
+  window.addEventListener('focus', syncSharePointReturn);
+  document.addEventListener('visibilitychange', syncSharePointReturn);
   observer = new MutationObserver(scheduleSync);
   observer.observe(app, { childList: true, subtree: true });
   window.addEventListener('storage', (event) => {
