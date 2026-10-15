@@ -1,4 +1,7 @@
 // Match get_scheduling_planning_preflight: Israeli calendar days, not UTC days.
+/**
+ * @param {{stored?: Array<{activity_id: string, needs_recalc?: boolean, locked_option?: unknown, row_data?: {kind?: string, startDate?: string}}>, activities?: Array<Record<string, unknown>>, serverTime: string}} input
+ */
 export function planningRefreshTargets({stored = [], activities = [], serverTime}) {
   const now = new Date(serverTime);
   if (!serverTime || !Number.isFinite(now.getTime())) throw Error('worker_snapshot_server_time_invalid');
