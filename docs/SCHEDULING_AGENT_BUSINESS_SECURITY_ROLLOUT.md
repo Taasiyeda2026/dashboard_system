@@ -37,3 +37,29 @@ The current private owner MCP endpoint `scheduling-agent-gateway` remains unchan
 
 ## Status
 Prepared on review branch only. No migration, Edge Function deployment, merge, live ChatGPT workspace install or scheduling writes have taken place.
+
+## Authenticated optimization queue (15 Oct 2026 update)
+The team MCP also exposes `request_optimization` and `optimization_status`.
+Incremental can be requested by Idan, Eden or Esraa; a full national rebuild can
+be requested and claimed only by Idan. The job table is hidden behind SECURITY
+DEFINER role gates, has RLS enabled, and records the requesting user's JWT identity.
+The queue **does not itself calculate anything**. A signed-in scheduling dashboard
+with its scheduling screen open periodically claims the job and runs the EXACT
+existing v38 `runCoursePlanning` code path, including input refresh, lease,
+heartbeat, checkpoint and validated save. It marks the job complete only when
+the server preflight confirms matching source and validated revision, no dirty rows,
+and engine v38. If the dashboard is closed, the job stays queued: the agent must
+explain this clearly and must not claim optimization is complete.
+No confirmed assignments are automatically changed by optimization: only
+proposed/planned workspace rows are saved. Individual activity writes still require
+explicit separate employee confirmation.
+
+This is a **dashboard-assisted optimizer**, not a permanently available cloud
+background worker. A truly independent 24/7 server-side engine remains future work.
+For go-live, open the authenticated scheduling screen to process pending jobs.
+
+Policy now targets: <=30 km between same-day schools allowed with verified route
+and travel buffer; >30 to <=45 is an approved manual-draft exception only;
+>45 cannot be staged or finalized. v38 changes the client engine marker,
+server capability handshake, v37-compatible trusted snapshot checks, and SQL
+instructor-violation guards together. Separate home-to-school policy is unchanged.
