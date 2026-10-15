@@ -9,7 +9,7 @@ export class WakeupError extends Error {
 }
 
 // Only GitHub App installation tokens minted here; no PAT fallback or caller URL.
-export function createGithubAppDispatcher({appId,installationId,privateKey,fetchImpl=fetch,
+export function createGithubAppDispatcher({appId='',installationId='',privateKey='',fetchImpl=fetch,
   cryptoImpl=globalThis.crypto,now=Date.now}={}) {
   const validId=x=>/^\d+$/.test(String(x||''));
   async function request(path,token,body){
