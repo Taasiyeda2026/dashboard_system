@@ -157,6 +157,9 @@ const REQUEST_SINGLE_SUBSTITUTE_ROLES = new Set([
   'business_development_manager'
 ]);
 
+// Authoritative planning/optimization runs only in the authenticated GitHub
+// agent worker. Dashboard remains a read-only consumer of computed proposals.
+const SCHEDULING_AGENT_OWNS_COMPUTE = true;
 let schedulingScreenActive = false;
 let planningRunGeneration = 0;
 let activePlanningRun = null;
@@ -1173,7 +1176,7 @@ export function schedulingPlanningStatusHtml(state = {}, { snapshotStale = false
   if (error) {
     return `<div class="course-scheduling-auto-plan is-error" role="status" data-planning-status aria-busy="false">
       <span data-planning-status-message><strong>ההצעות לא עודכנו.</strong> ${escapeHtml(error)}</span>
-      <button type="button" class="course-scheduling-workboard-secondary" data-run-course-planning>נסה שוב</button>
+      ${SCHEDULING_AGENT_OWNS_COMPUTE ? '<span class="course-scheduling-agent-compute">החישוב מתבצע בסוכן השיבוצים</span>' : '<button type="button" class="course-scheduling-workboard-secondary" data-run-course-planning>נסה שוב</button>'}
     </div>`;
   }
   if (loading) {
@@ -1196,21 +1199,21 @@ export function schedulingPlanningStatusHtml(state = {}, { snapshotStale = false
   if (!calculatedAt) {
     return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
       <span data-planning-status-message><strong>אין עדיין תכנון שמור.</strong> החישוב יתחיל רק כשתבחר לבנות הצעות.</span>
-      <button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>בנה הצעות</button>
+      ${SCHEDULING_AGENT_OWNS_COMPUTE ? '<span class="course-scheduling-agent-compute">החישוב מתבצע בסוכן השיבוצים</span>' : '<button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>בנה הצעות</button>'}
     </div>`;
   }
   if (state.courseSchedulingPlanningStale) {
     const reason = text(state.courseSchedulingPlanningStaleReason) || 'נתוני התכנון השתנו';
     return `<div class="course-scheduling-auto-plan is-warning" role="status" data-planning-status aria-busy="false">
       <span data-planning-status-message><strong>התכנון השמור אינו עדכני.</strong> ${escapeHtml(reason)}.</span>
-      <button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>עדכן</button>
+      ${SCHEDULING_AGENT_OWNS_COMPUTE ? '<span class="course-scheduling-agent-compute">החישוב מתבצע בסוכן השיבוצים</span>' : '<button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>עדכן</button>'}
     </div>`;
   }
   if (pendingRecalc > 0 || hardGateInvalid > 0) {
     const count = Math.max(pendingRecalc, hardGateInvalid);
     return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
       <span data-planning-status-message><strong>נדרש עדכון · ${count} פעילויות</strong></span>
-      <button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>עדכן</button>
+      ${SCHEDULING_AGENT_OWNS_COMPUTE ? '<span class="course-scheduling-agent-compute">החישוב מתבצע בסוכן השיבוצים</span>' : '<button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>עדכן</button>'}
     </div>`;
   }
   return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
@@ -2849,6 +2852,14 @@ export const courseSchedulingScreen = {
     };
 
     const runCoursePlanning = async ({ forceFull = false, reuseSnapshot = false } = {}) => {
+      if (SCHEDULING_AGENT_OWNS_COMPUTE) {
+        // Even if an old 'recalculate' control is rendered, never run the
+        // obsolete browser engine or obtain a planning lease.
+        state.courseSchedulingPlanningError = 'החישוב מבוצע על ידי סוכן השיבוצים בשרת. הצעות התכנון יתעדכנו כאן לאחר השלמת ההרצה.';
+        state.courseSchedulingPlanningLoading = false;
+        updatePlanningStatusInPlace?.();
+        return { skipped: true, computeOwner: 'agent' };
+      }
       const stopRunTimer = planningPerfTimer('runCoursePlanning');
       planningPerfEvent('run-start', { forceFull: forceFull === true, reuseSnapshot: reuseSnapshot === true });
       cancelPendingPlanningStart();
@@ -4142,7 +4153,7 @@ export const courseSchedulingScreen = {
     // snapshot validator as the dashboard's own "עדכן" action. Queue consumption
     // is intentionally browser-driven: no secret key, headless SQL planner, or
     // unverified plan payload is accepted from ChatGPT.
-    if (!root._agentOptimizationQueueTimer) {
+    if (!SCHEDULING_AGENT_OWNS_COMPUTE && !root._agentOptimizationQueueTimer) {
       const pollAgentOptimizationQueue = async () => {
         if (!root.isConnected) {
           clearInterval(root._agentOptimizationQueueTimer);

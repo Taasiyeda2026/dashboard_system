@@ -1,0 +1,20 @@
+name: Agent-Only Scheduling Dashboard
+on:
+  pull_request:
+    paths:
+      - 'frontend/src/screens/course-scheduling.js'
+      - 'tests/scheduling-agent-display-only-cutover.test.mjs'
+      - '.github/workflows/scheduling-agent-display-only.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test tests/scheduling-agent-display-only-cutover.test.mjs
