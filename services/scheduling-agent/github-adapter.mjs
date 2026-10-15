@@ -8,6 +8,7 @@ import {
 import {createRouteClient} from '../../frontend/src/screens/course-scheduling-travel.js';
 import {enrichActivitiesWithSchoolAddresses} from '../../frontend/src/screens/course-scheduling-distance-build.js';
 import {activeSchedulingInstructors} from '../../frontend/src/screens/shared/course-scheduling-instructors.js';
+import {israelTodayIso} from '../../frontend/src/screens/course-scheduling-meetings.js';
 
 export const WORKER_AUDIENCE='taasiyeda-scheduling-agent-worker';
 const DEFAULT_BASE='https://szinlhjuwyiyszdpsdop.supabase.co/functions/v1/scheduling-agent-worker-api';
@@ -24,7 +25,7 @@ const requiredList=(source,key)=>{
   return source[key];
 };
 
-export function prepareServerPlanningSnapshot(payload) {
+export function prepareServerPlanningSnapshot(payload, {now = new Date()} = {}) {
   if(!payload || typeof payload!=='object'||!payload.workspace
     || !/^\d+$/.test(String(payload.sourceRevision??''))
     || !/^\d+$/.test(String(payload.workspace.revision??''))) {
@@ -91,6 +92,8 @@ export function prepareServerPlanningSnapshot(payload) {
     routeClient,
     snapshot:{
       ...fingerprintInput,
+      // Match the dashboard's date-sensitive guards even when the runner uses UTC.
+      today:israelTodayIso(now),
       profiles:Object.fromEntries(profiles.map(p=>[trim(p.emp_id),p])),
       rules:groupByEmp(rules),exceptions:groupByEmp(exceptions),
       existingRows:trustedRows,committedRows:trustedRows,
