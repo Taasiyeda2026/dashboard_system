@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { schedulingError, describeSchedulingSnapshot } from '../supabase/functions/scheduling-agent-team-gateway/diagnostics.mjs';
+// Focused live-gateway regression checks for designated manager review and uncertain writes.
+import './scheduling-gateway-followup.test.mjs';
 
 const edge=readFileSync(new URL('../supabase/functions/scheduling-agent-team-gateway/index.ts',import.meta.url),'utf8');
 const sql=readFileSync(new URL('../supabase/migrations/20261017100000_scheduling_agent_team_schedule_batch.sql',import.meta.url),'utf8');
