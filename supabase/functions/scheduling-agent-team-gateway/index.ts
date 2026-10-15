@@ -25,6 +25,11 @@ const TOOLS = [
     name: 'submit_manager_approval',
     description: 'Submit the caller-owned manual scheduling draft to the existing dashboard approval queue. Call ONLY after explicit user consent. Only the administrator can approve/reject in the dashboard.',
     inputSchema: {type:'object',properties:{activityId:{type:'string'}},required:['activityId'],additionalProperties:false}
+  },
+  {
+    name: 'confirm_own_draft',
+    description: 'Finalize the caller\'s already saved, validated ordinary course-assignment draft in the dashboard. Requires the employee\'s EXPLICIT confirmation of that particular assignment. Never approve an exception; pending exception requests will be rejected until the designated owner approves.',
+    inputSchema: {type:'object',properties:{activityId:{type:'string'}},required:['activityId'],additionalProperties:false}
   }
 ];
 
@@ -77,7 +82,8 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
     read_snapshot:[],
     manager_approval_state:['activityId'],
     stage_manual_draft:['activityId','instructorId','reason'],
-    submit_manager_approval:['activityId']
+    submit_manager_approval:['activityId'],
+    confirm_own_draft:['activityId']
   };
   if(!allowed[name]||Object.keys(args).some(k=>!allowed[name].includes(k)))return false;
   if(name==='read_snapshot')return Object.keys(args).length===0;
@@ -125,7 +131,8 @@ Deno.serve(async request=>{
     read_snapshot:'scheduling_agent_team_read_snapshot',
     manager_approval_state:'scheduling_agent_team_manager_approval_state',
     stage_manual_draft:'scheduling_agent_team_stage_manual_draft',
-    submit_manager_approval:'scheduling_agent_team_submit_manager_approval'
+    submit_manager_approval:'scheduling_agent_team_submit_manager_approval',
+    confirm_own_draft:'scheduling_agent_team_confirm_own_draft'
   };
   const input:Record<string,unknown>=name==='read_snapshot'?{}:
     name==='stage_manual_draft'?{p_activity_id:args.activityId,p_emp_id:args.instructorId,p_reason:args.reason??null}:
