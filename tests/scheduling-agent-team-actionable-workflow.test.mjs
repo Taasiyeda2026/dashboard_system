@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { schedulingError, describeSchedulingSnapshot } from '../supabase/functions/scheduling-agent-team-gateway/diagnostics.mjs';
+// Focused live-gateway regression checks for designated manager review and uncertain writes.
+import './scheduling-gateway-followup.test.mjs';
 
 const edge=readFileSync(new URL('../supabase/functions/scheduling-agent-team-gateway/index.ts',import.meta.url),'utf8');
 const sql=readFileSync(new URL('../supabase/migrations/20261017100000_scheduling_agent_team_schedule_batch.sql',import.meta.url),'utf8');
@@ -85,7 +87,7 @@ test('draft dates are not promoted before confirmation',()=>{
 
 test('team MCP advertises changed tool catalog and updated server version',()=>{
   assert.match(edge,/capabilities:\{tools:\{listChanged:true\}\}/);
-  assert.match(edge,/serverInfo:\{name:'taasiyeda-team-scheduling-agent',version:'0\.2\.0'\}/);
+  assert.match(edge,/serverInfo:\{name:'taasiyeda-team-scheduling-agent',version:'0\.2\.2'\}/);
   assert.match(edge,/name: 'stage_schedule_batch'/);
   assert.match(edge,/name: 'confirm_schedule_batch'/);
 });

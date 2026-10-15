@@ -20,6 +20,12 @@ const REASONS = Object.freeze({
   scheduling_agent_invalid_selection: ['פרטי הפעילות או המדריך אינם תקינים.', 'זהה את הרשומה המדויקת במערכת ונסה שוב רק לאחר אימות.'],
   scheduling_agent_team_draft_changed: ['פרטי טיוטת השיבוץ השתנו מאז האישור.', 'קרא מחדש את הטיוטה ובקש אישור לפרטים העדכניים.'],
   scheduling_agent_batch_item_failed: ['אחת הפעילויות בקבוצת השיבוצים נדחתה; הבקשה כולה בוטלה.', 'הצג איזו פעילות נכשלה, מה הסיבה ואיזה תיקון נדרש; אל תנסה לשמור חלקית.'],
+  scheduling_transition_distance_forbidden: ['מרחק המעבר עולה על הסף המותר ואינו ניתן לאישור חריג.', 'בחר מדריך או לוח מפגשים חלופי; אין לעקוף חסימה זו.'],
+  scheduling_transition_insufficient: ['אין מספיק זמן לנסיעה ולמרווח המעבר בין המפגשים.', 'הצע שעות חלופיות לאחר אימות זמן הנסיעה.'],
+  scheduling_transition_unverified: ['מסלול המעבר בין המפגשים אינו מאומת.', 'אמת את המסלול לפני שמירה.'],
+  scheduling_instructor_unavailable: ['המדריך אינו זמין בשעות המבוקשות.', 'בחר חלון זמין או מדריך חלופי.'],
+  edit_request_already_reviewed: ['בקשת האישור כבר טופלה.', 'קרא מחדש את מצב האישור ואל תגיש את אותה החלטה שוב.'],
+  edit_request_not_found: ['בקשת האישור לא נמצאה.', 'קרא מחדש את מצב האישור וזיהוי הבקשה.'],
   scheduling_home_route_unverified: ['מסלול הנסיעה לבית הספר אינו מאומת.', 'בדוק מיקום ומסלול שמור לפני אישור חריגה.'],
   scheduling_home_distance_exceeded: ['המרחק לבית הספר חורג מהמגבלה הרגילה.', 'בדוק האם נדרש אישור מנהל לפי מרחק המסלול המאומת.'],
   scheduling_transition_distance_exceeded: ['המרחק בין פעילויות עוקבות חורג מהמותר.', 'בדוק מעבר בין בתי ספר ואת מסלול אישור החריגה.'],
@@ -34,7 +40,7 @@ const REASONS = Object.freeze({
   scheduling_school_calendar_blocked: ['התאריך חסום בלוח השנה של בית הספר.', 'הצע מועד חלופי ובקש אישור.'],
   scheduling_saturday_blocked: ['לא ניתן לשבץ פעילות ביום שבת עבור בית הספר הזה.', 'בדוק את מגזר בית הספר והצע מועד מתאים.'],
   scheduling_friday_not_allowed: ['המדריך אינו זמין לפעילות ביום שישי.', 'בחר יום שבו המדריך זמין.'],
-  scheduling_manager_approval_required: ['השיבוץ דורש אישור מנהל לפני קיבוע.', 'שלח בקשת אישור דרך submit_manager_approval והמתן לאישור המנהל.'],
+  scheduling_manager_approval_required: ['השיבוץ דורש אישור מנהל לפני קיבוע.', 'בדוק manager_approval_state והצג חריגה מובנית וערכים מאומתים; נימוק חופשי אינו חריגה. הגש בקשת מנהל רק אם approval_required=true ולאחר הסכמה מפורשת.'],
   scheduling_assignment_locked: ['הפעילות כבר משובצת או נעולה.', 'אל תדרוס שיבוץ קיים; בקש אישור למסלול החלפה מתאים.'],
   scheduling_activity_not_open: ['הפעילות אינה פתוחה לשיבוץ.', 'בדוק את סטטוס הפעילות לפני פעולה נוספת.'],
   instructor_not_found: ['המדריך לא נמצא במאגר.', 'בדוק את מזהה המדריך במערכת.'],
@@ -56,18 +62,22 @@ export function schedulingError(body, httpStatus) {
   }
   let code = explicit || (body?.code === '42501' || httpStatus === 401 || httpStatus === 403 ? 'permission_denied' : 'request_rejected');
   const effectiveCode = innerCode || code;
-  const [message, nextStep] = REASONS[effectiveCode] || [
+  const [message, nextStep] = httpStatus >= 500 ? [
+    'תוצאת הפעולה אינה ידועה עקב תקלה בשירות.',
+    'קרא מחדש את מצב הפעילות או הבקשה לפני ניסיון נוסף; אין להסיק שהפעולה בוטלה.'
+  ] : REASONS[effectiveCode] || [
     'הפעולה נדחתה על ידי המערכת; לא ניתן לקבוע מהסוכן את הסיבה המדויקת.',
     'עצור, בדוק את מזהי הפעילות וההרשאות ופנה לבדיקת תקלה עם מזהה הבקשה; אל תנסה לעקוף את האימות.'
   ];
   return {
     error: code,
     reasonCode: innerCode || (code === 'request_rejected' ? null : code),
+    diagnosticCode: typeof body?.code === 'string' && /^[A-Z0-9_]{1,20}$/.test(body.code) ? body.code : null,
     message,
     nextStep,
     ...(activityId ? { activityId } : {}),
     retrySameRequest: false,
-    writesCommitted: false
+    writesCommitted: httpStatus >= 500 ? null : false
   };
 }
 
@@ -84,7 +94,7 @@ export function describeSchedulingSnapshot(snapshot) {
         readiness: {
           complete: missing.length === 0,
           missing,
-          ...(missing.length ? { nextStep: 'הכן את פרטי לוח המפגשים, קבל אישור מפורש ושמור באמצעות stage_schedule_batch.' } : {})
+          ...(missing.length ? { nextStep: row.draftInstructorId ? 'קיימת טיוטת שיבוץ. בדוק manager_approval_state ואת המועדים השמורים בטיוטה; אין ליצור אותה מחדש בגלל היעדר מועדים רשמיים. לאחר בדיקות ואישור סופי השתמש ב-confirm_schedule_batch.' : 'הכן את פרטי לוח המפגשים, קבל אישור מפורש ושמור באמצעות stage_schedule_batch.' } : {})
         }
       };
     })

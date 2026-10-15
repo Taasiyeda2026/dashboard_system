@@ -24,14 +24,22 @@ test('team snapshot is whitelisted and excludes private source data', () => {
   }
 });
 
-test('team tools cannot commit, approve, change settings or run arbitrary RPCs', () => {
-  for (const tool of ['planning_status','read_snapshot','manager_approval_state','stage_manual_draft','submit_manager_approval','confirm_own_draft','confirm_planning_option']) {
+test('team tools isolate owner-only review from ordinary employee actions and arbitrary RPCs', () => {
+  for (const tool of ['planning_status','read_snapshot','manager_approval_state','stage_manual_draft','submit_manager_approval','confirm_own_draft','confirm_planning_option','review_manager_approval']) {
     assert.ok(edge.includes("name: '"+tool+"'"));
   }
-  assert.doesNotMatch(edge, /name: '(?:commit_approved_changes|review_manager_approval|update_settings|execute_sql)'/);
+  assert.doesNotMatch(edge, /name: '(?:commit_approved_changes|update_settings|execute_sql)'/);
+  assert.match(edge, /review_manager_approval:'review_course_assignment_manager_approval'/);
+  assert.match(edge, /scheduling_agent_team_manager_approval_state/);
+  assert.match(edge, /state\.data\.request_id!==args\.requestId/);
+  assert.match(edge, /state\.data\.request_status!=='pending'/);
+  assert.match(edge, /assignmentFinalized:false/);
   assert.match(edge, /const names:Record<string,string>/);
   assert.match(edge, /if\(!allowed\[name\]\|\|Object\.keys\(args\)\.some/);
   assert.match(edge, /scheduling_agent_team_identity/);
+  const ownerGuard=readFileSync(new URL('../supabase/migrations/20261015113500_scheduling_manager_approval_owner_only.sql',import.meta.url),'utf8');
+  assert.match(ownerGuard, /auth\.uid\(\) is distinct from \(select c\.approver_id/);
+  assert.match(ownerGuard, /caller_role is distinct from ''admin''/);
 });
 
 test('every call is bound to its own JWT, not a service-role or owner token', () => {

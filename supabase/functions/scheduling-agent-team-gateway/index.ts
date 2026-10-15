@@ -8,6 +8,12 @@ const META = BASE + '/.well-known/oauth-protected-resource';
 
 const TOOLS = [
   {
+    name: 'review_manager_approval',
+    annotations: {readOnlyHint:false, destructiveHint:true, idempotentHint:false, openWorldHint:false},
+    description: 'Only the active designated admin can approve or reject ONE existing exception request. First use manager_approval_state, show the exact activity, instructor, dates and structured exception, and ask explicit consent. The existing database reviewer enforces authorization and request freshness. Never finalizes a course. If the outcome is unknown, read state before any retry.',
+    inputSchema: {type:'object',properties:{activityId:{type:'string',minLength:1,maxLength:200},requestId:{type:'string',minLength:1,maxLength:200},decision:{type:'string',enum:['approved','rejected']}},required:['activityId','requestId','decision'],additionalProperties:false}
+  },
+  {
     name: 'request_optimization',
     description: 'Request a fresh operational scheduling optimization of the current-year plan. Incremental can be requested by Idan/Eden/Esraa, full rebuild by Idan only. Queued requests are processed by the private authenticated GitHub Actions scheduling agent worker; the dashboard is display-only. Execution may be delayed until a workflow runner starts. NEVER claim it has run until status says completed. No existing confirmed assignments are changed.',
     inputSchema: {type:'object',properties:{mode:{type:'string',enum:['incremental','full']}},required:['mode'],additionalProperties:false}
@@ -33,7 +39,7 @@ const TOOLS = [
   {
     name: 'manager_approval_state',
     annotations: {readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false},
-    description: 'Check whether an existing manual draft needs administrator approval and its current approval status. Read only.',
+    description: 'Read current structured approval_details for the draft. Operational rationale is audit documentation, NEVER an exception signal. Show exception codes and checked values before requesting manager consent. approval_required=false with request_applicable=false means any returned pending request is historical and does not block ordinary confirmation. Blocking violations remain non-overridable. Read only.',
     inputSchema: {type:'object',properties:{activityId:{type:'string'}},required:['activityId'],additionalProperties:false}
   },
   {
@@ -43,7 +49,7 @@ const TOOLS = [
   },
   {
     name: 'stage_schedule_batch',
-    description: 'STAGE 1-5 unscheduled 2027 courses as one atomic transaction with exact dates, hours and instructors. Call only AFTER a user explicitly approves the specific school, activity IDs, instructor IDs, dates and hours. First read_snapshot, compare meeting counts, identify ambiguous dates and request corrections, never auto-fix calendar years. A failure rolls back every draft. Official dates and assignments are NOT changed. Check manager approvals and request a separate explicit finalization consent.',
+    description: 'STAGE 1-5 unscheduled 2027 courses as one atomic transaction with exact dates, hours and instructors. Call only AFTER a user explicitly approves the specific school, activity IDs, instructor IDs, dates and hours. First read_snapshot, compare meeting counts, identify ambiguous dates and request corrections, never auto-fix calendar years. A failure rolls back every draft. Official dates and assignments are NOT changed. Check current structured manager approval details; never infer an exception from the free-text reason. Ordinary rationale is preserved for audit. Request separate explicit finalization consent.',
     inputSchema: {type:'object',properties:{items:{type:'array',minItems:1,maxItems:5,items:{type:'object',properties:{
       activityId:{type:'string'},instructorId:{type:'integer',minimum:1},
       startTime:{type:'string'},endTime:{type:'string'},
@@ -53,7 +59,7 @@ const TOOLS = [
   },
   {
     name: 'confirm_schedule_batch',
-    description: 'FINALIZE 1-5 caller-owned staged course drafts atomically, applying exact staged dates to the official calendar and confirming instructors through existing validators. Call only after the user separately and explicitly approves finalizing THESE drafts, and only if all required manager exceptions are already approved. If any course is rejected, all changes roll back.',
+    description: 'FINALIZE 1-5 caller-owned staged course drafts atomically, applying exact staged dates to the official calendar and confirming instructors through existing validators. Call only after the user separately and explicitly approves finalizing THESE drafts, and only if all CURRENT structured manager exceptions are already approved. A historical request marked request_applicable=false is not a current exception. Never bypass blocking violations. If any course is rejected, all changes roll back.',
     inputSchema: {type:'object',properties:{items:{type:'array',minItems:1,maxItems:5,items:{type:'object',properties:{
       activityId:{type:'string'},draftCreatedAt:{type:'string'},activityUpdatedAt:{type:'string'}
     },required:['activityId','draftCreatedAt','activityUpdatedAt'],additionalProperties:false}}},
@@ -61,7 +67,7 @@ const TOOLS = [
   },
   {
     name: 'submit_manager_approval',
-    description: 'Submit the caller-owned manual scheduling draft to the existing dashboard approval queue. Call ONLY after explicit user consent. Only the administrator can approve/reject in the dashboard.',
+    description: 'Submit the caller-owned manual scheduling draft to the existing dashboard approval queue. First read manager_approval_state and confirm approval_required=true with a concrete structured exception; NEVER submit solely because of a free-text rationale. Call ONLY after explicit user consent. Only the administrator can approve/reject in the dashboard.',
     inputSchema: {type:'object',properties:{activityId:{type:'string'}},required:['activityId'],additionalProperties:false}
   },
   {
@@ -98,7 +104,7 @@ async function rpc(token:string,fn:string,args:Record<string,unknown>={}){
     method:'POST',
     headers:{'apikey':ANON_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'},
     body:JSON.stringify(args),
-    signal:AbortSignal.timeout(18000)
+    signal:AbortSignal.timeout(fn==='scheduling_agent_team_confirm_schedule_batch'?55000:18000)
   });
   if(!response.ok){
     const body=await response.json().catch(()=>({}));
@@ -125,6 +131,7 @@ async function authenticate(request:Request):Promise<string|null> {
 function validate(name:string,args:unknown):args is Record<string,unknown> {
   if(!isObject(args))return false;
   const allowed:Record<string,string[]>={
+    review_manager_approval:['activityId','requestId','decision'],
     read_snapshot:[],
     planning_status:[],
     request_optimization:['mode'],
@@ -169,6 +176,7 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
   if(name==='request_optimization')return args.mode==='incremental'||args.mode==='full';
   if(name==='optimization_status')return typeof args.jobId==='string'&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(args.jobId);
   if(!activityId(args.activityId))return false;
+  if(name==='review_manager_approval')return activityId(args.requestId)&&(args.decision==='approved'||args.decision==='rejected');
   if(name==='stage_manual_draft'){
     if(typeof args.instructorId!=='number'||!Number.isSafeInteger(args.instructorId)||args.instructorId<=0)return false;
     if(args.reason!==undefined&&(typeof args.reason!=='string'||args.reason.length>500))return false;
@@ -205,7 +213,7 @@ Deno.serve(async request=>{
   if(body.method==='notifications/initialized'&&!('id' in body))
     return new Response(null,{status:202});
   if(body.method==='initialize')
-    return result({protocolVersion:'2025-06-18',capabilities:{tools:{listChanged:true}},serverInfo:{name:'taasiyeda-team-scheduling-agent',version:'0.2.0'}});
+    return result({protocolVersion:'2025-06-18',capabilities:{tools:{listChanged:true}},serverInfo:{name:'taasiyeda-team-scheduling-agent',version:'0.2.2'}});
   if(body.method==='ping')return result({});
   if(body.method==='tools/list')return result({tools:TOOLS});
   if(body.method!=='tools/call')return respond({jsonrpc:'2.0',id,error:{code:-32601,message:'Method not found'}});
@@ -215,6 +223,7 @@ Deno.serve(async request=>{
   if(typeof name!=='string'||!validate(name,args))
     return result({isError:true,content:[{type:'text',text:'invalid_or_unauthorized_arguments'}]});
   const names:Record<string,string>={
+    review_manager_approval:'review_course_assignment_manager_approval',
     read_snapshot:'scheduling_agent_team_read_snapshot',
     planning_status:'scheduling_agent_team_planning_status',
     request_optimization:'scheduling_agent_team_request_optimization',
@@ -228,6 +237,7 @@ Deno.serve(async request=>{
     confirm_planning_option:'scheduling_agent_team_confirm_planning_option'
   };
   const input:Record<string,unknown>=(name==='read_snapshot'||name==='planning_status')?{}:
+    name==='review_manager_approval'?{p_request_id:args.requestId,p_status:args.decision}:
     name==='request_optimization'?{p_mode:args.mode}:
     name==='optimization_status'?{p_job_id:args.jobId}:
     name==='stage_manual_draft'?{p_activity_id:args.activityId,p_emp_id:args.instructorId,p_reason:args.reason??null}:
@@ -239,8 +249,21 @@ Deno.serve(async request=>{
       p_source_revision:args.sourceRevision,
       p_allow_date_change:args.allowDateChange
     }:{p_activity_id:args.activityId};
-  const output=await rpc(token,names[name],input).catch(()=>({error:'upstream_unavailable',status:502,reasonCode:null,activityId:null,message:'לא ניתן ליצור קשר עם מערכת השיבוצים כרגע.',nextStep:'הבקשה לא אושרה. בדוק את מצב השירות לפני ניסיון חדש; אל תדווח שהשיבוץ נשמר.'}));
+  if(name==='review_manager_approval'){
+    // Bind approval consent to the exact activity and current pending request.
+    // The existing reviewer independently locks/revalidates request and draft and checks admin identity.
+    const state=await rpc(token,'scheduling_agent_team_manager_approval_state',{p_activity_id:args.activityId}).catch(()=>null);
+    if(!state?.data || state.data.request_id!==args.requestId || state.data.request_status!=='pending'
+      || (args.decision==='approved' && state.data.approval_required!==true))
+      return result({isError:true,content:[{type:'text',text:JSON.stringify({ok:false,error:'approval_state_not_current',writesCommitted:false,retrySameRequest:false,nextStep:'קרא מחדש את מצב הבקשה; לא בוצעה החלטת מנהל.'})}]});
+  }
+  const output=await rpc(token,names[name],input).catch(()=>({error:'upstream_unavailable',status:502,reasonCode:null,diagnosticCode:null,activityId:null,message:'הקשר עם מערכת השיבוצים נקטע; תוצאת הפעולה אינה ידועה.',nextStep:'קרא מחדש את מצב הפעילות או הבקשה לפני ניסיון נוסף. אין להסיק שהשמירה הצליחה או בוטלה.'}));
   if('error' in output)
-    return result({isError:true,content:[{type:'text',text:JSON.stringify({ok:false,error:output.error,reasonCode:output.reasonCode??null,message:output.message,nextStep:output.nextStep,activityId:output.activityId??null,retrySameRequest:false,writesCommitted:false})}]});
+    return result({isError:true,content:[{type:'text',text:JSON.stringify({ok:false,error:output.error,reasonCode:output.reasonCode??null,diagnosticCode:output.diagnosticCode??null,message:output.message,nextStep:output.nextStep,activityId:output.activityId??null,retrySameRequest:false,writesCommitted:output.status>=500?null:false,outcome:output.status>=500?'unknown':'rejected'})}]});
+  if(name==='review_manager_approval'){
+    // Never send the generic edit_requests row (which includes requested_payload) to ChatGPT.
+    const row=output.data;
+    return result({isError:false,content:[{type:'text',text:JSON.stringify({ok:true,result:{requestId:row.request_id,status:row.status,activityId:row.source_row_id,reviewedAt:row.reviewed_at,assignmentFinalized:false}})}]});
+  }
   return result({isError:false,content:[{type:'text',text:JSON.stringify({ok:true,result:name==='read_snapshot'?describeSchedulingSnapshot(output.data):output.data})}]});
 });
