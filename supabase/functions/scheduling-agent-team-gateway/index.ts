@@ -30,6 +30,15 @@ const TOOLS = [
     name: 'confirm_own_draft',
     description: 'Finalize the caller\'s already saved, validated ordinary course-assignment draft in the dashboard. Requires the employee\'s EXPLICIT confirmation of that particular assignment. Never approve an exception; pending exception requests will be rejected until the designated owner approves.',
     inputSchema: {type:'object',properties:{activityId:{type:'string'}},required:['activityId'],additionalProperties:false}
+  },
+  {
+    name: 'confirm_planning_option',
+    description: 'Confirm a fresh verified existing plan option, including proposed dates. Requires explicit confirmation. Changing agreed future dates requires separate explicit consent. Never change past sessions or approve exceptions.',
+    inputSchema: {type:'object',properties:{
+      activityId:{type:'string'},optionIndex:{type:'integer',minimum:0,maximum:50},
+      workspaceRevision:{type:'string',pattern:'^[0-9]+$'},sourceRevision:{type:'string',pattern:'^[0-9]+$'},
+      allowDateChange:{type:'boolean'}},
+      required:['activityId','optionIndex','workspaceRevision','sourceRevision','allowDateChange'],additionalProperties:false}
   }
 ];
 
@@ -83,7 +92,8 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
     manager_approval_state:['activityId'],
     stage_manual_draft:['activityId','instructorId','reason'],
     submit_manager_approval:['activityId'],
-    confirm_own_draft:['activityId']
+    confirm_own_draft:['activityId'],
+    confirm_planning_option:['activityId','optionIndex','workspaceRevision','sourceRevision','allowDateChange']
   };
   if(!allowed[name]||Object.keys(args).some(k=>!allowed[name].includes(k)))return false;
   if(name==='read_snapshot')return Object.keys(args).length===0;
@@ -91,6 +101,12 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
   if(name==='stage_manual_draft'){
     if(typeof args.instructorId!=='number'||!Number.isSafeInteger(args.instructorId)||args.instructorId<=0)return false;
     if(args.reason!==undefined&&(typeof args.reason!=='string'||args.reason.length>500))return false;
+  }
+  if(name==='confirm_planning_option'){
+    if(typeof args.optionIndex!=='number'||!Number.isInteger(args.optionIndex)||args.optionIndex<0||args.optionIndex>50)return false;
+    if(typeof args.workspaceRevision!=='string'||!/^\\d+$/.test(args.workspaceRevision))return false;
+    if(typeof args.sourceRevision!=='string'||!/^\\d+$/.test(args.sourceRevision))return false;
+    if(typeof args.allowDateChange!=='boolean')return false;
   }
   return true;
 }
@@ -132,11 +148,18 @@ Deno.serve(async request=>{
     manager_approval_state:'scheduling_agent_team_manager_approval_state',
     stage_manual_draft:'scheduling_agent_team_stage_manual_draft',
     submit_manager_approval:'scheduling_agent_team_submit_manager_approval',
-    confirm_own_draft:'scheduling_agent_team_confirm_own_draft'
+    confirm_own_draft:'scheduling_agent_team_confirm_own_draft',
+    confirm_planning_option:'scheduling_agent_team_confirm_planning_option'
   };
   const input:Record<string,unknown>=name==='read_snapshot'?{}:
     name==='stage_manual_draft'?{p_activity_id:args.activityId,p_emp_id:args.instructorId,p_reason:args.reason??null}:
-      {p_activity_id:args.activityId};
+    name==='confirm_planning_option'?{
+      p_activity_id:args.activityId,
+      p_option_index:args.optionIndex,
+      p_workspace_revision:args.workspaceRevision,
+      p_source_revision:args.sourceRevision,
+      p_allow_date_change:args.allowDateChange
+    }:{p_activity_id:args.activityId};
   const output=await rpc(token,names[name],input).catch(()=>({error:'upstream_unavailable',status:502}));
   if('error' in output)
     return result({isError:true,content:[{type:'text',text:JSON.stringify({ok:false,error:output.error})}]});
