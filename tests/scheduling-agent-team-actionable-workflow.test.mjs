@@ -65,6 +65,7 @@ test('SQL batch is owner-of-draft protected, transactional and keeps existing va
   assert.match(sql,/scheduling_agent_team_confirm_own_draft\(entry_id\)/);
   assert.match(sql,/course\.draft_created_by is distinct from auth\.uid\(\)/);
   assert.match(sql,/course\.draft_created_at is distinct from expected_at/);
+  assert.match(sql,/course\.updated_at is distinct from expected_updated_at/);
   assert.match(sql,/scheduling_manager_approval_required|check_manager_approval_state/);
   assert.match(sql,/jsonb_array_length\(p_items\) not between 1 and 5/);
   assert.match(sql,/raise exception using message='scheduling_agent_batch_item_failed'/);
