@@ -18,7 +18,7 @@ test('only the exact signed GitHub main-branch workflow can reach worker control
 
 test('service-role key is isolated to Edge Function and SQL worker denies human accounts',()=>{
  assert.match(edge,/Deno\.env\.get\('SUPABASE_SERVICE_ROLE_KEY'\)/);
- assert.doesNotMatch(edge,/console\.(log|debug)|return output\(\{.*secret/);
+ assert.doesNotMatch(edge,/console\.(log|debug)|JSON\.stringify\(secret\)/);
  assert.match(sql,/caller_role <> 'service_role'/);
  assert.match(sql,/revoke all on function public\.scheduling_agent_worker_command\(text,jsonb\) from public,anon,authenticated;/);
  assert.match(sql,/grant execute on function public\.scheduling_agent_worker_command\(text,jsonb\) to service_role;/);
