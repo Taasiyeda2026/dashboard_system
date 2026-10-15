@@ -4,6 +4,8 @@ on:
     paths:
       - 'services/scheduling-agent/**'
       - 'tests/scheduling-agent-server-*.test.mjs'
+      - 'tests/scheduling-agent-github-adapter.test.mjs'
+      - '.github/workflows/scheduling-agent-worker.yml'
       - '.github/workflows/scheduling-agent-server-core.yml'
   workflow_dispatch:
 jobs:
@@ -17,4 +19,4 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci
-      - run: node --test tests/scheduling-agent-server-*.test.mjs
+      - run: node --test tests/scheduling-agent-server-*.test.mjs tests/scheduling-agent-github-adapter.test.mjs
