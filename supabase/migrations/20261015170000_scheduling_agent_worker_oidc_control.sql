@@ -1,6 +1,18 @@
 -- GitHub OIDC scheduling worker; internal commands accessible ONLY through service_role.
 -- The Edge gateway validates GitHub's signed OIDC token before calling this RPC.
 -- No human JWT, GitHub token or service-role key is stored in the database.
+-- Fail-closed cutover gate: installing worker code NEVER starts live calculation.
+create table if not exists public.scheduling_agent_worker_settings (
+  singleton boolean primary key default true check (singleton),
+  enabled boolean not null default false,
+  updated_at timestamptz not null default clock_timestamp()
+);
+insert into public.scheduling_agent_worker_settings(singleton,enabled)
+values(true,false) on conflict(singleton) do nothing;
+alter table public.scheduling_agent_worker_settings enable row level security;
+revoke all on public.scheduling_agent_worker_settings from public,anon,authenticated;
+grant select on public.scheduling_agent_worker_settings to service_role;
+
 alter table public.scheduling_agent_team_optimization_jobs
   add column if not exists worker_run_id uuid,
   add column if not exists worker_heartbeat_at timestamptz;
@@ -38,13 +50,14 @@ declare
   v_facts jsonb;
   v_success boolean;
   v_engine text := 'planning-v38-20261015-transition-30-45';
+  v_worker_enabled boolean := false;
 begin
   -- Check BEFORE setting a scoped delegated identity. Anonymous/employee
   -- access is never permitted to a service-only control command.
   if caller_role <> 'service_role' then
     raise exception 'worker_machine_identity_required' using errcode='42501';
   end if;
-  if p_action not in ('claim','lease','heartbeat','preflight','locations','blockers','persist','finish','release') then
+  if p_action not in ('probe','claim','lease','heartbeat','preflight','locations','blockers','persist','finish','release') then
     raise exception 'worker_action_not_allowed' using errcode='42501';
   end if;
   if jsonb_typeof(p_payload) is distinct from 'object' then
@@ -64,6 +77,18 @@ begin
   perform set_config('request.jwt.claims',jsonb_build_object(
     'sub',worker_owner::text,'role','authenticated'
   )::text,true);
+
+  select enabled into v_worker_enabled from public.scheduling_agent_worker_settings where singleton;
+  if p_action='probe' then
+    v_facts:=public.get_scheduling_planning_preflight('year','');
+    return jsonb_build_object('ready',true,'enabled',v_worker_enabled,
+      'engine',v_engine,'sourceRevision',v_facts->>'sourceRevision',
+      'workspaceRevision',v_facts->'workspace'->>'revision');
+  end if;
+  if v_worker_enabled is distinct from true then
+    if p_action='claim' then return jsonb_build_object('claimed',false,'disabled',true); end if;
+    raise exception 'worker_live_cutover_not_enabled' using errcode='42501';
+  end if;
 
   if p_action = 'locations' then
     select coalesce(jsonb_agg(to_jsonb(s)),'[]'::jsonb) into v_result
