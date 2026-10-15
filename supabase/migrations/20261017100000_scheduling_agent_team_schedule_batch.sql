@@ -281,3 +281,100 @@ grant execute on function public.scheduling_agent_team_stage_schedule_batch(json
   to authenticated;
 grant execute on function public.scheduling_agent_team_confirm_schedule_batch(jsonb)
   to authenticated;
+
+-- Include non-sensitive school/class identity in staff snapshot to avoid wrong group selection.
+-- Preserve all previous whitelisted keys and the team's existing JWT restrictions.
+CREATE OR REPLACE FUNCTION public.scheduling_agent_team_read_snapshot()
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO 'public', 'pg_temp'
+AS $function$
+declare
+  rows jsonb;
+  preflight jsonb;
+  can_recommend boolean;
+begin
+  perform public.scheduling_agent_team_assert_member();
+  preflight := public.scheduling_agent_team_planning_status();
+  can_recommend := (preflight->>'planningCurrent')::boolean;
+  select coalesce(jsonb_agg(
+    jsonb_build_object(
+      'activityId', a.row_id,
+      'school', a.school,
+      'grade', a.grade,
+      'classGroup', a.class_group,
+      'schoolId', a.school_id,
+      'authority', a.authority,
+      'program', a.activity_name,
+      'programId', a.activity_no,
+      'instructorId', a.emp_id,
+      'instructorName', a.instructor_name,
+      'startDate', a.start_date,
+      'endDate', a.end_date,
+      'startTime', a.start_time,
+      'endTime', a.end_time,
+      'sessions', a.sessions,
+      'assignmentLocked', a.instructor_assignment_locked,
+      'draftInstructorId', a.draft_emp_id,
+      'draftInstructorName', a.draft_instructor_name,
+      'needsRecalc', coalesce(r.needs_recalc,false),
+      'options', (
+        select coalesce(jsonb_agg(
+          jsonb_build_object(
+            'optionIndex', (opt.ordinality-1)::integer,
+            'instructorId', opt.value->>'instructorEmpId',
+            'instructorName', opt.value->>'instructorName',
+            'eligible', opt.value->'eligible',
+            'routeVerified', opt.value->'routeVerified',
+            'score', opt.value->'score',
+            'sameSchoolMeetingCount', opt.value->'sameSchoolMeetingCount',
+            'sameAuthorityMeetingCount', opt.value->'sameAuthorityMeetingCount',
+            'newWorkDayMeetingCount', opt.value->'newWorkDayMeetingCount',
+            'estimatedTravelKm', opt.value->'relevantTravelDistance',
+            'estimatedTravelMinutes', opt.value->'relevantTravelMinutes',
+            'nonTravelWaitingMinutes', opt.value->'nonTravelWaitingMinutes',
+            'reason', opt.value->>'recommendationReason',
+            'meetings', (
+              select coalesce(jsonb_agg(jsonb_build_object(
+                'date', mt.value->>'date',
+                'startTime', mt.value->>'start_time',
+                'endTime', mt.value->>'end_time',
+                'meetingNo', mt.value->>'meeting_no'
+              )), '[]'::jsonb)
+              from jsonb_array_elements(
+                case when jsonb_typeof(opt.value->'meetings')='array'
+                  then opt.value->'meetings' else '[]'::jsonb end
+              ) as mt(value)
+            )
+          ) order by opt.ordinality), '[]'::jsonb)
+        from jsonb_array_elements(
+          case when can_recommend and r.needs_recalc is distinct from true
+              and jsonb_typeof(r.row_data->'options')='array'
+            then r.row_data->'options' else '[]'::jsonb end
+        ) with ordinality as opt(value, ordinality)
+      )
+    ) order by a.row_id
+  ), '[]'::jsonb)
+  into rows
+  from public.activities a
+  left join public.scheduling_planning_workspaces w
+    on w.period_key='year' and w.district=''
+  left join public.scheduling_planning_rows r
+    on r.workspace_id=w.id and r.activity_id=a.row_id
+  where a.activity_season='school_2027'
+    and a.status='פתוח'
+    and a.activity_type='course'
+    and a.activity_no is distinct from '13990'
+    and coalesce(a.activity_name,'') not like '%התנסות בתעשייה%';
+
+  return jsonb_build_object(
+    'mode','team_scheduling_only',
+    'sourceRevision',(select revision::text from public.scheduling_planning_source_state where singleton),
+    'workspaceRevision',(select revision::text from public.scheduling_planning_workspaces where period_key='year' and district=''),
+    'planningCurrent',can_recommend,
+    'planningStatus',preflight,
+    'rows',rows
+  );
+end
+$function$;
