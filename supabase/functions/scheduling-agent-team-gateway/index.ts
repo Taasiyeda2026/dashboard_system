@@ -1,3 +1,4 @@
+import { schedulingError, describeSchedulingSnapshot } from './diagnostics.mjs';
 // Team-scoped MCP gateway. Separate from owner-only scheduling-agent-gateway.
 // Every tool uses the requesting user's Supabase JWT: NEVER a service_role or shared owner token.
 const PROJECT = 'https://szinlhjuwyiyszdpsdop.supabase.co';
@@ -26,7 +27,7 @@ const TOOLS = [
   {
     name: 'read_snapshot',
     annotations: {readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false},
-    description: 'Read only whitelisted scheduling fields and safe instructor alternatives. No financial, payroll, email, phone, private Google Sheets or configuration data.',
+    description: 'Read-only scheduling status and missing-date/time readiness; inspect the target activities BEFORE writing. If a schedule is missing, explain what is missing and obtain the user\'s consent to exact dates and times before using stage_schedule_batch. Excludes finance and private data.',
     inputSchema: {type:'object',properties:{},additionalProperties:false}
   },
   {
@@ -37,8 +38,26 @@ const TOOLS = [
   },
   {
     name: 'stage_manual_draft',
-    description: 'Write a validated manual scheduling draft in the requesting user identity. Call ONLY after the user explicitly approves the specific activity, instructor, and any exception. NEVER finalize or approve a scheduling exception.',
+    description: 'Create a validated manual assignment draft only when official meeting dates/hours ALREADY exist. If missing, use stage_schedule_batch after the user approves the complete schedule. Never finalize or approve exceptions.',
     inputSchema: {type:'object',properties:{activityId:{type:'string'},instructorId:{type:'integer',minimum:1},reason:{type:'string',maxLength:500}},required:['activityId','instructorId'],additionalProperties:false}
+  },
+  {
+    name: 'stage_schedule_batch',
+    description: 'STAGE 1-5 unscheduled 2027 courses as one atomic transaction with exact dates, hours and instructors. Call only AFTER a user explicitly approves the specific school, activity IDs, instructor IDs, dates and hours. First read_snapshot, compare meeting counts, identify ambiguous dates and request corrections, never auto-fix calendar years. A failure rolls back every draft. Official dates and assignments are NOT changed. Check manager approvals and request a separate explicit finalization consent.',
+    inputSchema: {type:'object',properties:{items:{type:'array',minItems:1,maxItems:5,items:{type:'object',properties:{
+      activityId:{type:'string'},instructorId:{type:'integer',minimum:1},
+      startTime:{type:'string'},endTime:{type:'string'},
+      dates:{type:'array',minItems:1,maxItems:35,items:{type:'string'}},reason:{type:'string',maxLength:500}
+    },required:['activityId','instructorId','startTime','endTime','dates'],additionalProperties:false}}},
+    required:['items'],additionalProperties:false}
+  },
+  {
+    name: 'confirm_schedule_batch',
+    description: 'FINALIZE 1-5 caller-owned staged course drafts atomically, applying exact staged dates to the official calendar and confirming instructors through existing validators. Call only after the user separately and explicitly approves finalizing THESE drafts, and only if all required manager exceptions are already approved. If any course is rejected, all changes roll back.',
+    inputSchema: {type:'object',properties:{items:{type:'array',minItems:1,maxItems:5,items:{type:'object',properties:{
+      activityId:{type:'string'},draftCreatedAt:{type:'string'},activityUpdatedAt:{type:'string'}
+    },required:['activityId','draftCreatedAt','activityUpdatedAt'],additionalProperties:false}}},
+    required:['items'],additionalProperties:false}
   },
   {
     name: 'submit_manager_approval',
@@ -82,9 +101,8 @@ async function rpc(token:string,fn:string,args:Record<string,unknown>={}){
     signal:AbortSignal.timeout(18000)
   });
   if(!response.ok){
-    if(response.status===401||response.status===403)return {error:'permission_denied',status:403};
     const body=await response.json().catch(()=>({}));
-    return {error:(body?.code==='42501')?'permission_denied':'request_rejected',status:body?.code==='42501'?403:409};
+    return {...schedulingError(body,response.status),status:response.status};
   }
   return {data:await response.json()};
 }
@@ -113,12 +131,41 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
     optimization_status:['jobId'],
     manager_approval_state:['activityId'],
     stage_manual_draft:['activityId','instructorId','reason'],
+    stage_schedule_batch:['items'],
+    confirm_schedule_batch:['items'],
     submit_manager_approval:['activityId'],
     confirm_own_draft:['activityId'],
     confirm_planning_option:['activityId','optionIndex','workspaceRevision','sourceRevision','allowDateChange']
   };
   if(!allowed[name]||Object.keys(args).some(k=>!allowed[name].includes(k)))return false;
   if(name==='read_snapshot'||name==='planning_status')return Object.keys(args).length===0;
+  if(name==='stage_schedule_batch'||name==='confirm_schedule_batch'){
+    if(Object.keys(args).length!==1||!Array.isArray(args.items)
+       ||args.items.length<1||args.items.length>5)return false;
+    const ids=new Set<string>();
+    for(const item of args.items){
+      if(!isObject(item)||typeof item.activityId!=='string'||!activityId(item.activityId)
+        ||ids.has(item.activityId))return false;
+      ids.add(item.activityId);
+      if(name==='confirm_schedule_batch'){
+        if(Object.keys(item).some(k=>!['activityId','draftCreatedAt','activityUpdatedAt'].includes(k)))return false;
+        if(typeof item.draftCreatedAt!=='string'||item.draftCreatedAt.length<10||item.draftCreatedAt.length>60
+          ||typeof item.activityUpdatedAt!=='string'||item.activityUpdatedAt.length<10||item.activityUpdatedAt.length>60)return false;
+      }else{
+        if(Object.keys(item).some(k=>!['activityId','instructorId','startTime','endTime','dates','reason'].includes(k)))return false;
+        if(typeof item.instructorId!=='number'||!Number.isSafeInteger(item.instructorId)
+          ||item.instructorId<=0)return false;
+        if(typeof item.startTime!=='string'||typeof item.endTime!=='string'
+          ||!/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(item.startTime)
+          ||!/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(item.endTime)
+          ||item.startTime>=item.endTime)return false;
+        if(!Array.isArray(item.dates)||item.dates.length<1||item.dates.length>35
+           ||item.dates.some(d=>typeof d!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(d)))return false;
+        if(item.reason!==undefined&&(typeof item.reason!=='string'||item.reason.length>500))return false;
+      }
+    }
+    return true;
+  }
   if(name==='request_optimization')return args.mode==='incremental'||args.mode==='full';
   if(name==='optimization_status')return typeof args.jobId==='string'&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(args.jobId);
   if(!activityId(args.activityId))return false;
@@ -174,6 +221,8 @@ Deno.serve(async request=>{
     optimization_status:'scheduling_agent_team_optimization_status',
     manager_approval_state:'scheduling_agent_team_manager_approval_state',
     stage_manual_draft:'scheduling_agent_team_stage_manual_draft',
+    stage_schedule_batch:'scheduling_agent_team_stage_schedule_batch',
+    confirm_schedule_batch:'scheduling_agent_team_confirm_schedule_batch',
     submit_manager_approval:'scheduling_agent_team_submit_manager_approval',
     confirm_own_draft:'scheduling_agent_team_confirm_own_draft',
     confirm_planning_option:'scheduling_agent_team_confirm_planning_option'
@@ -182,6 +231,7 @@ Deno.serve(async request=>{
     name==='request_optimization'?{p_mode:args.mode}:
     name==='optimization_status'?{p_job_id:args.jobId}:
     name==='stage_manual_draft'?{p_activity_id:args.activityId,p_emp_id:args.instructorId,p_reason:args.reason??null}:
+    (name==='stage_schedule_batch'||name==='confirm_schedule_batch')?{p_items:args.items}:
     name==='confirm_planning_option'?{
       p_activity_id:args.activityId,
       p_option_index:args.optionIndex,
@@ -189,8 +239,8 @@ Deno.serve(async request=>{
       p_source_revision:args.sourceRevision,
       p_allow_date_change:args.allowDateChange
     }:{p_activity_id:args.activityId};
-  const output=await rpc(token,names[name],input).catch(()=>({error:'upstream_unavailable',status:502}));
+  const output=await rpc(token,names[name],input).catch(()=>({error:'upstream_unavailable',status:502,reasonCode:null,activityId:null,message:'לא ניתן ליצור קשר עם מערכת השיבוצים כרגע.',nextStep:'הבקשה לא אושרה. בדוק את מצב השירות לפני ניסיון חדש; אל תדווח שהשיבוץ נשמר.'}));
   if('error' in output)
-    return result({isError:true,content:[{type:'text',text:JSON.stringify({ok:false,error:output.error})}]});
-  return result({isError:false,content:[{type:'text',text:JSON.stringify({ok:true,result:output.data})}]});
+    return result({isError:true,content:[{type:'text',text:JSON.stringify({ok:false,error:output.error,reasonCode:output.reasonCode??null,message:output.message,nextStep:output.nextStep,activityId:output.activityId??null,retrySameRequest:false,writesCommitted:false})}]});
+  return result({isError:false,content:[{type:'text',text:JSON.stringify({ok:true,result:name==='read_snapshot'?describeSchedulingSnapshot(output.data):output.data})}]});
 });
