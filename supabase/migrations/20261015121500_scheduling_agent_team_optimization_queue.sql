@@ -58,8 +58,9 @@ declare j public.scheduling_agent_team_optimization_jobs;
 begin
   perform public.scheduling_agent_team_assert_member();
   select * into j from public.scheduling_agent_team_optimization_jobs
-  where status='queued' order by created_at asc
-  for update skip locked limit 1;
+  where status='queued'
+    and (mode='incremental' or auth.uid()=(select approver_id from public.scheduling_agent_control where singleton))
+  order by created_at asc for update skip locked limit 1;
   if not found then return jsonb_build_object('claimed',false); end if;
   update public.scheduling_agent_team_optimization_jobs
   set status='running',claimed_by=auth.uid(),claimed_at=now()
