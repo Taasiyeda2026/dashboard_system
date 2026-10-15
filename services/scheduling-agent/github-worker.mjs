@@ -1,4 +1,5 @@
 /**
+ * Main-branch push starts a one-shot worker wake-up without relying on a browser.
  * Signed main-branch GitHub Actions worker, with safe read-only shadow on push.
  * The shadow never claims a queued job, acquires a lease, or writes proposals.
  */
