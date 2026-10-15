@@ -6,6 +6,8 @@ on:
       - 'tests/scheduling-agent-server-*.test.mjs'
       - 'tests/scheduling-agent-github-adapter.test.mjs'
       - 'tests/scheduling-agent-github-server-security.test.mjs'
+      - 'tests/scheduling-agent-shadow-readonly.test.mjs'
+      - 'supabase/migrations/20261015181500_scheduling_agent_worker_readonly_shadow.sql'
       - 'supabase/functions/scheduling-agent-worker-api/**'
       - 'supabase/migrations/20261015170000_scheduling_agent_worker_oidc_control.sql'
       - '.github/workflows/scheduling-agent-worker.yml'
@@ -22,10 +24,11 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci
-      - run: node --test tests/scheduling-agent-server-*.test.mjs tests/scheduling-agent-github-*.test.mjs
+      - run: node --test tests/scheduling-agent-server-*.test.mjs tests/scheduling-agent-github-*.test.mjs tests/scheduling-agent-shadow-readonly.test.mjs
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
       - run: deno check --node-modules-dir=auto supabase/functions/scheduling-agent-worker-api/index.ts
       - run: python -m pip install --disable-pip-version-check --quiet pglast
       - run: python -c "from pglast import parse_sql; parse_sql(open('supabase/migrations/20261015170000_scheduling_agent_worker_oidc_control.sql').read()); print('SQL syntax verified')"
+      - run: python -c "from pglast import parse_sql; parse_sql(open('supabase/migrations/20261015181500_scheduling_agent_worker_readonly_shadow.sql').read()); print('Shadow SQL syntax verified')"
