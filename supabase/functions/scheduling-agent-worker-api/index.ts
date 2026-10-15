@@ -48,7 +48,7 @@ async function validateGitHubOidc(authorization:string|null){
   if(claims.iss!==ISSUER || claims.aud!==AUD
       || claims.repository!==EXPECTED_REPO || String(claims.repository_id)!==EXPECTED_REPO_ID
       || claims.ref!=='refs/heads/main' || claims.workflow_ref!==EXPECTED_WORKFLOW
-      || !['schedule','workflow_dispatch'].includes(String(claims.event_name||''))) {
+      || !['schedule','workflow_dispatch','push'].includes(String(claims.event_name||''))) {
     throw Error('github_workflow_identity_denied');
   }
   const keys=await oidcKeys();
