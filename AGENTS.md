@@ -72,3 +72,22 @@ Reporting:
 - The automatic PR workflow should stay lightweight: changed-file sanity checks and syntax/JSON validation only. Do not add builds, browser installs, Playwright, performance suites, stress suites, or broad regression tests to it unless the user explicitly requests that policy change.
 - Do not expand automatic CI just because a shared file changed, e.g. `frontend/src/feature-loaders.js`, `frontend/src/config.js`, or `frontend/sw.js`. Do not reintroduce per-feature/path-triggered heavy workflows.
 - Do not run tests that are not directly related to the task at hand.
+
+## Production Supabase OAuth configuration safety
+
+- Production project: `szinlhjuwyiyszdpsdop`. Auth Site URL must be
+  `https://taasiyeda2026.github.io/dashboard_system`.
+  OAuth consent path must be `/scheduling-agent-approval.html`.
+- NEVER use `supabase config push` against production, including with piped
+  confirmation or from a coding agent: it can overwrite unrelated live Auth settings.
+  Treat Auth Site URL, Redirect URLs, OAuth Server and sign-in settings as
+  production-sensitive changes requiring explicit owner approval.
+- Keep the production-specific values in `[remotes.main.auth]` in
+  `supabase/config.toml`, not in default local development `[auth]`.
+  Do not introduce production loopback Site URLs or remove existing redirects silently.
+- Before any reviewed configuration change, run
+  `node scripts/ci/guard-supabase-production-auth.mjs` and
+  `node --test tests/supabase-production-auth-guard.test.mjs`.
+  Passing this check is NOT live verification and cannot prevent a manual
+  out-of-band Dashboard/API or CLI change.
+- Do not deploy or merge Auth-config changes without separate owner approval.
