@@ -1,0 +1,20 @@
+name: Scheduling Local Engine Cutover
+on:
+  pull_request:
+    paths:
+      - 'frontend/src/screens/course-scheduling.js'
+      - 'tests/scheduling-agent-local-calculation-cutover.test.mjs'
+      - '.github/workflows/scheduling-agent-local-cutover.yml'
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: node --test tests/scheduling-agent-local-calculation-cutover.test.mjs
