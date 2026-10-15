@@ -51,9 +51,11 @@ export function prepareServerPlanningSnapshot(payload) {
   // Raw year data also contains workshops/tours and historical non-course rows;
   // only missing addresses among actual planned courses block a plan. Each
   // retained non-course blocker is separately validated by the core engine.
-  const addressMissingInPlannedCourses=planningWorkspaceCourses(enriched.activities,'','year')
-    .some(x=>x.school_address_missing===true);
-  if(addressMissingInPlannedCourses)throw new WorkerTransportError('school_locations_missing_for_planned_course');
+  // Keep incomplete open course records visible to the authoritative planner
+  // as unresolved scheduling cases. Never invent an address or route for them.
+  // The compute boundary rejects any actual assignment on such a course.
+  const missingSchoolCourseIds=planningWorkspaceCourses(enriched.activities,'','year')
+    .filter(x=>x.school_address_missing===true).map(x=>trim(x.row_id));
   const cancelled=new Map();
   for(const row of requiredList(payload,'cancellations')){
     const id=trim(row.activity_id); if(!cancelled.has(id))cancelled.set(id,new Set());
@@ -93,7 +95,7 @@ export function prepareServerPlanningSnapshot(payload) {
       rules:groupByEmp(rules),exceptions:groupByEmp(exceptions),
       existingRows:trustedRows,committedRows:trustedRows,
       lockedOptions:Object.fromEntries(stored.filter(x=>x.lockedOption).map(x=>[x.activityId,x.lockedOption])),
-      routeRows:cachedRoutes
+      routeRows:cachedRoutes,missingSchoolCourseIds
     }
   };
 }
