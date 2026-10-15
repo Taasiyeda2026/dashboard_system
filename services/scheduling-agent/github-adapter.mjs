@@ -152,9 +152,9 @@ export function createGithubAgentBackend(transport) {
     heartbeatLease:({jobId,runId,ttlSeconds})=>call('heartbeat',{jobId,runId,ttlSeconds}),
     loadSnapshot:async({jobId,runId,mode})=>prepareServerPlanningSnapshot(await call('snapshot',{jobId,runId,mode})),
     readPreflight:({jobId,runId})=>call('preflight',{jobId,runId}),
-    persistProposals:({jobId,runId,mode,sourceRevision,workspaceRevision,dataFingerprint,
+    persistProposals:({jobId,runId,mode,validationOnly=false,sourceRevision,workspaceRevision,dataFingerprint,
       contextFingerprint,engineVersion,rows,activities})=>call('persist',{
-       jobId,runId,mode,sourceRevision,workspaceRevision,dataFingerprint,contextFingerprint,
+       jobId,runId,mode,validationOnly,sourceRevision,workspaceRevision,dataFingerprint,contextFingerprint,
        engineVersion, rows:rows.map(row=>({
           activityId:trim(row.courseId),row,
           activityUpdatedAt:activities.find(a=>trim(a.row_id)===trim(row.courseId))?.updated_at||null

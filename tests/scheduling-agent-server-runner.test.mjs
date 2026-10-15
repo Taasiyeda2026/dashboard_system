@@ -118,3 +118,19 @@ test('invalid engine output is rejected before persistence',async()=>{
  assert.equal(result.status,'failed');
  assert.ok(!f.events.includes('persist'));
 });
+
+test('empty incremental scope uses fenced SQL validation without running planner',async()=>{
+ const f=fixture();f.data.targetCourseIds=[];f.pre.dirtyCount=0;
+ f.pre.workspace.engineVersion='planning-v38-20261015-transition-30-45';
+ const original=f.backend.persistProposals;
+ f.backend.persistProposals=async p=>{assert.equal(p.validationOnly,true);assert.deepEqual(p.rows,[]);return original(p);};
+ const r=await runOneSchedulingAgentJob({backend:f.backend,computePlan:()=>assert.fail('no compute'),
+ createRunId:()=> '11111111-1111-4111-8111-111111111111'});
+ assert.equal(r.status,'completed');assert.equal(r.validationOnly,true);
+});
+for(const variant of ['dirty','old-engine'])test('empty incremental scope refuses '+variant,async()=>{
+ const f=fixture();f.data.targetCourseIds=[];
+ if(variant==='dirty')f.pre.workspace.engineVersion='planning-v38-20261015-transition-30-45';else f.pre.dirtyCount=0;
+ const r=await runOneSchedulingAgentJob({backend:f.backend,computePlan:()=>assert.fail('no compute')});
+ assert.equal(r.failureCode,'incremental_scope_unavailable');assert.ok(!f.events.includes('persist'));
+});

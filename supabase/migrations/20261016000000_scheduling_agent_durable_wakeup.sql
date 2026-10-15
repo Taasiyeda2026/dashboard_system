@@ -124,6 +124,111 @@ begin
   raise exception 'wakeup_action_not_allowed';
 end $$;
 
+-- Durable manager alerts use the EXISTING selected-recipient popup infrastructure.
+-- No schedule rows, approvals or source revision stamps are changed by supervision.
+create table public.scheduling_agent_alerts (
+  id uuid primary key default gen_random_uuid(),
+  job_id uuid not null references public.scheduling_agent_team_optimization_jobs(id),
+  kind text not null check(kind in ('failed','queue_overdue','worker_unresponsive','dispatch_failure')),
+  message_id uuid not null references public.staff_messages(id),
+  created_at timestamptz not null default clock_timestamp(),
+  delivered_at timestamptz, send_started_at timestamptz, delivery_unknown boolean not null default false, delivery_attempts integer not null default 0,
+  delivery_due_at timestamptz not null default clock_timestamp(),
+  delivery_token uuid, delivery_expires_at timestamptz,
+  unique(job_id,kind)
+);
+alter table public.scheduling_agent_alerts enable row level security;
+revoke all on public.scheduling_agent_alerts from public,anon,authenticated;
+
+create function public.scheduling_agent_collect_alerts() returns void
+language plpgsql security definer set search_path=public,pg_temp as $$
+declare j public.scheduling_agent_team_optimization_jobs; owner_id uuid; v_kind text; msg uuid;
+begin
+  perform pg_advisory_xact_lock(hashtext('scheduling_planning_run'),hashtext('year|'));
+  if not exists(select 1 from public.scheduling_agent_worker_settings
+    where singleton and enabled and autonomous_enabled) then return; end if;
+  select c.approver_id into owner_id from public.scheduling_agent_control c
+    join public.users u on u.auth_user_id=c.approver_id and u.is_active and u.role='admin'
+    where c.singleton;
+  if owner_id is null then return; end if;
+  -- A crashed/lost send is never replayed: Graph has no idempotent sendMail API.
+  update public.scheduling_agent_alerts set delivery_unknown=true
+    where send_started_at is not null and delivered_at is null and not delivery_unknown
+      and delivery_expires_at<=clock_timestamp();
+  update public.staff_messages m set body=left(m.body,2500)||' מצב מסירת הדוא״ל אינו ידוע; נדרשת בדיקה בתיבת השולח. לא יבוצע משלוח חוזר אוטומטי.'
+    where m.id in (select a.message_id from public.scheduling_agent_alerts a where a.delivery_unknown)
+      and m.body not like '%מצב מסירת הדוא״ל אינו ידוע%';
+  for j in select * from public.scheduling_agent_team_optimization_jobs
+    where status='failed' or (status in ('queued','running')
+      and coalesce(worker_heartbeat_at,claimed_at,created_at)<clock_timestamp()-interval '15 minutes')
+  loop
+    v_kind:=case when j.failure_code='worker_dispatch_attempts_exhausted' then 'dispatch_failure' when j.status='failed' then 'failed'
+      when j.status='running' then 'worker_unresponsive'
+      when j.dispatch_attempts>=3 and j.dispatch_failure_code is not null then 'dispatch_failure'
+      else 'queue_overdue' end;
+    if exists(select 1 from public.scheduling_agent_alerts a where a.job_id=j.id and a.kind=v_kind) then continue; end if;
+    insert into public.staff_messages(title,body,schedule_type,scheduled_date,scheduled_time,
+      importance,audience,recipient_user_ids,active_from,created_by)
+      values('סוכן השיבוצים: נדרשת בדיקת מנהל',
+        format('משימת שיבוץ %s: %s. קוד: %s. זמן זיהוי UTC: %s. פעולה נדרשת: בדיקת תור המשימות, לוגי הסוכן והרשאות GitHub Actions. אין להפעיל משימה נוספת ידנית.',
+          j.id,case v_kind when 'failed' then 'נכשלה סופית' when 'worker_unresponsive' then 'מנוע החישוב אינו מגיב' when 'dispatch_failure' then 'תקלה מתמשכת בהפעלת GitHub Actions' else 'ממתינה בתור מעל 15 דקות' end,
+          coalesce(j.failure_code,j.dispatch_failure_code,'worker_progress_overdue'),clock_timestamp()),
+        'once',(clock_timestamp() at time zone 'Asia/Jerusalem')::date,'00:00',
+        'critical','selected_users',array[owner_id],(clock_timestamp() at time zone 'Asia/Jerusalem')::date,owner_id)
+      returning id into msg;
+    insert into public.scheduling_agent_alerts(job_id,kind,message_id) values(j.id,v_kind,msg);
+  end loop;
+end $$;
+revoke all on function public.scheduling_agent_collect_alerts() from public,anon,authenticated,service_role;
+
+-- Optional external delivery is an outbox, independent of browser availability.
+create function public.scheduling_agent_alert_command(p_action text,p_payload jsonb default '{}')
+returns jsonb language plpgsql security definer set search_path=public,pg_temp as $$
+declare a public.scheduling_agent_alerts; token uuid; recipient text;
+begin
+  if coalesce(auth.role(),'')<>'service_role' then raise exception 'worker_machine_identity_required' using errcode='42501'; end if;
+  perform pg_advisory_xact_lock(hashtext('scheduling_planning_run'),hashtext('year|'));
+  select u.email into recipient from public.scheduling_agent_control c
+    join public.users u on u.auth_user_id=c.approver_id and u.is_active and u.role='admin' where c.singleton;
+  if p_action='verify' then return jsonb_build_object('recipientReady',coalesce(recipient ~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$',false)); end if;
+  if not exists(select 1 from public.scheduling_agent_worker_settings where singleton and enabled and autonomous_enabled)
+    then return jsonb_build_object('reserved',false); end if;
+  if p_action='reserve' then
+    if recipient is null then return jsonb_build_object('reserved',false); end if;
+    perform public.scheduling_agent_collect_alerts();
+    select * into a from public.scheduling_agent_alerts
+      where delivered_at is null and send_started_at is null and delivery_attempts<5 and delivery_due_at<=clock_timestamp()
+      and (delivery_expires_at is null or delivery_expires_at<=clock_timestamp())
+      order by created_at,id for update skip locked limit 1;
+    if not found then return jsonb_build_object('reserved',false); end if;
+    token:=gen_random_uuid();
+    update public.scheduling_agent_alerts set delivery_token=token,
+      delivery_expires_at=clock_timestamp()+interval '90 seconds',delivery_attempts=delivery_attempts+1,
+      delivery_due_at=clock_timestamp()+make_interval(secs=>least(3600,60*(2^delivery_attempts)::integer))
+      where id=a.id;
+    return jsonb_build_object('reserved',true,'alertId',a.id,'deliveryToken',token,'jobId',a.job_id,'kind',a.kind,'recipient',recipient,'eventAt',a.created_at);
+  elsif p_action='begin_send' then
+    update public.scheduling_agent_alerts set send_started_at=clock_timestamp()
+      where id=(p_payload->>'alertId')::uuid and delivery_token=(p_payload->>'deliveryToken')::uuid
+        and delivery_expires_at>clock_timestamp() and send_started_at is null and delivered_at is null;
+    if not found then raise exception 'alert_reservation_lost'; end if;
+    return jsonb_build_object('started',true);
+  elsif p_action='ack' then
+    update public.scheduling_agent_alerts set
+      delivered_at=case when p_payload->>'accepted'='true' then clock_timestamp() else null end,
+      delivery_unknown=coalesce(p_payload->>'uncertain'='true',false),
+      send_started_at=case when p_payload->>'retrySafe'='true' then null else send_started_at end,
+      delivery_token=null,delivery_expires_at=null
+      where id=(p_payload->>'alertId')::uuid and delivery_token=(p_payload->>'deliveryToken')::uuid
+        and delivery_expires_at>clock_timestamp() and delivered_at is null;
+    if not found then raise exception 'alert_reservation_lost'; end if;
+    return jsonb_build_object('acknowledged',true);
+  end if;
+  raise exception 'alert_action_not_allowed';
+end $$;
+revoke all on function public.scheduling_agent_alert_command(text,jsonb) from public,anon,authenticated;
+grant execute on function public.scheduling_agent_alert_command(text,jsonb) to service_role;
+
 -- pg_net delivery is best effort; durable due-state above is the source of truth.
 create function public.scheduling_agent_wakeup_tick() returns void
 language plpgsql security definer set search_path=public,pg_temp as $$
@@ -132,10 +237,14 @@ begin
   perform pg_advisory_xact_lock(hashtext('scheduling_planning_run'),hashtext('year|'));
   if not exists(select 1 from public.scheduling_agent_worker_settings
     where singleton and enabled and autonomous_enabled) then return; end if;
+  perform public.scheduling_agent_collect_alerts();
   perform public.scheduling_agent_recover_jobs();
+  perform public.scheduling_agent_collect_alerts();
   if not exists(select 1 from public.scheduling_agent_team_optimization_jobs
     where status='queued' and next_attempt_at<=clock_timestamp() and dispatch_due_at<=clock_timestamp()
-      and (dispatch_expires_at is null or dispatch_expires_at<=clock_timestamp())) then return; end if;
+      and (dispatch_expires_at is null or dispatch_expires_at<=clock_timestamp()))
+    and not exists(select 1 from public.scheduling_agent_alerts where delivered_at is null and send_started_at is null
+      and delivery_attempts<5 and delivery_due_at<=clock_timestamp()) then return; end if;
   select decrypted_secret into wake_secret from vault.decrypted_secrets
     where name='scheduling_agent_wakeup_secret' limit 1;
   if wake_secret is null or length(wake_secret)<32 then return; end if;
@@ -317,8 +426,16 @@ begin
     ) then raise exception 'worker_run_lease_invalid' using errcode='42501'; end if;
     v_rows:=p_payload->'rows';
     if jsonb_typeof(v_rows) is distinct from 'array' or
-      jsonb_array_length(v_rows)>700 or jsonb_array_length(v_rows)=0
+      jsonb_array_length(v_rows)>700
     then raise exception 'worker_planning_rows_invalid'; end if;
+    if jsonb_array_length(v_rows)=0 or p_payload->>'validationOnly'='true' then
+      v_facts:=public.get_scheduling_planning_preflight('year','');
+      if p_payload->>'validationOnly' is distinct from 'true' or j.mode<>'incremental'
+        or jsonb_array_length(v_rows)<>0
+        or (v_facts->>'dirtyCount')::integer is distinct from 0
+        or v_facts->'workspace'->>'engineVersion' is distinct from v_engine
+      then raise exception 'worker_validation_only_not_allowed'; end if;
+    end if;
     if coalesce(p_payload->>'engineVersion','')<>v_engine
     then raise exception 'worker_engine_version_untrusted'; end if;
     if p_payload->>'mode' is distinct from j.mode

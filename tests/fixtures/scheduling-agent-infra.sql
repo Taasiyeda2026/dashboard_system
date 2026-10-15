@@ -8,7 +8,7 @@ create schema auth; create schema cron; create schema vault; create schema net;
 create function auth.uid() returns uuid language sql as $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
 create function auth.role() returns text language sql as $$select current_setting('request.jwt.claim.role',true)$$;
 create function public.app_has_permission(text) returns boolean language sql as $$select auth.uid() is not null$$;
-create table public.users(auth_user_id uuid,is_active boolean,role text);
+create table public.users(auth_user_id uuid,is_active boolean,role text,email text default 'owner@example.invalid');
 create table public.scheduling_agent_control(singleton boolean,approver_id uuid);
 create function public.scheduling_agent_team_assert_member() returns void language plpgsql as $$begin
  if auth.uid() is null then raise exception 'member_required'; end if;
@@ -18,10 +18,12 @@ create table public.scheduling_planning_source_state(singleton boolean,revision 
 create table public.scheduling_planning_workspaces(id uuid,period_key text,district text,revision bigint);
 create table public.scheduling_planning_rows(workspace_id uuid,activity_id text,row_data jsonb,locked_option jsonb);
 create table public.fixture_saves(id bigint generated always as identity,run_id uuid);
+create table fixture_validation(dirty_count integer,engine_version text,reject_save boolean);
+insert into fixture_validation values(0,'planning-v38-20261015-transition-30-45',false);
 create function public.get_scheduling_planning_preflight(text,text) returns jsonb language sql as $$
- select jsonb_build_object('sourceRevision',revision,'dirtyCount',0,'workspace',jsonb_build_object(
+ select jsonb_build_object('sourceRevision',revision,'dirtyCount',(select dirty_count from fixture_validation),'workspace',jsonb_build_object(
  'revision',(select revision from scheduling_planning_workspaces limit 1),'validatedSourceRevision',revision,
- 'engineVersion','planning-v38-20261015-transition-30-45')) from scheduling_planning_source_state limit 1
+ 'engineVersion',(select engine_version from fixture_validation))) from scheduling_planning_source_state limit 1
 $$;
 create function public.acquire_scheduling_planning_run_lease(text,text,uuid,integer) returns jsonb language plpgsql as $$begin
  if exists(select 1 from scheduling_planning_run_leases where expires_at>now() and run_id<>$3) then return '{"acquired":false}'; end if;
@@ -39,7 +41,7 @@ create function public.save_scheduling_planning_snapshot(text,text,text,text,tex
  returns jsonb language plpgsql as $$begin
  insert into fixture_saves(run_id) values($8);
  update scheduling_planning_workspaces set revision=revision+1;
- if $6->0->'row'->>'invalid'='true' then raise exception 'fixture_domain_rejected';end if;
+ if (select reject_save from fixture_validation) or $6->0->'row'->>'invalid'='true' then raise exception 'fixture_domain_rejected';end if;
  return jsonb_build_object('revision',(select revision from scheduling_planning_workspaces limit 1));
 end$$;
 create function public.save_scheduling_planning_incremental_snapshot(text,text,text,text,text,jsonb,jsonb,bigint,uuid,bigint)
@@ -52,3 +54,8 @@ create table vault.decrypted_secrets(name text,decrypted_secret text);
 create table net.fixture_requests(id bigint generated always as identity,url text);
 create function net.http_post(url text,headers jsonb,body jsonb,timeout_milliseconds integer) returns bigint language plpgsql as $$declare n bigint;begin
  insert into net.fixture_requests(url) values($1) returning id into n;return n;end$$;
+
+-- Existing notification table contract (no personal data).
+create table public.staff_messages(id uuid primary key default gen_random_uuid(),title text,body text,
+ schedule_type text,scheduled_date date,scheduled_time time,importance text,audience text,
+ recipient_user_ids uuid[],active_from date,created_by uuid);

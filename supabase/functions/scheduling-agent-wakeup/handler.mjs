@@ -1,5 +1,5 @@
 // A durable reservation in the EXISTING job queue coalesces concurrent wakeups.
-export function createWakeupHandler({secret,command,dispatch,cryptoImpl=globalThis.crypto}) {
+export function createWakeupHandler({secret,command,dispatch,notify,cryptoImpl=globalThis.crypto}) {
   const response=(value,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store'}});
   return async request=>{
     if(request.method!=='POST')return response({code:'post_required'},405);
@@ -18,9 +18,13 @@ export function createWakeupHandler({secret,command,dispatch,cryptoImpl=globalTh
         ||(body.action!==undefined&&!['verify','wake'].includes(body.action)))throw Error();
     }catch{return response({code:'invalid_wakeup_request'},400);}
     if(body.action==='verify'){
-      try{return response(await dispatch.verify());}
+      try{const github=await dispatch.verify();
+        const alerts=notify?.verify?await notify.verify():{configured:false};
+        return response({...github,alerts});}
       catch(error){return response({code:error?.code||'github_verification_failed'},503);}
     }
+    // Alert delivery failure never prevents compute wakeup. Its own durable outbox retries.
+    if(notify)try{await notify();}catch{}
     let reservation;
     try {
       reservation=await command('reserve',{});

@@ -113,7 +113,7 @@ Deno.serve(async(req:Request)=>{
     const args:Record<string,unknown>={};
     for(const key of ['jobId','runId','mode','ttlSeconds','success','failureCode',
       'sourceRevision','workspaceRevision','dataFingerprint','contextFingerprint',
-      'engineVersion','rows']){
+      'engineVersion','rows','validationOnly']){
       if(Object.hasOwn(body,key))args[key]=body[key];
     }
     if(action!=='snapshot')return output(await command(action,args));

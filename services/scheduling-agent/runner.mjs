@@ -8,6 +8,7 @@
  */
 import {randomUUID} from 'node:crypto';
 import {computeAgentSchedulingPlan} from './compute-plan.mjs';
+import {PLANNING_ENGINE_VERSION} from '../../frontend/src/screens/course-scheduling-planning.js';
 
 const REQUIRED_BACKEND = Object.freeze([
   'claimJob','acquireLease','loadSnapshot','readPreflight','heartbeatLease',
@@ -69,7 +70,7 @@ function assertInput(snapshot, job) {
     throw new SchedulingAgentRunError('invalid_claimed_job');
   }
   if (job.mode==='incremental' &&
-     (!Array.isArray(snapshot.targetCourseIds)||snapshot.targetCourseIds.length===0)) {
+     !Array.isArray(snapshot.targetCourseIds)) {
     throw new SchedulingAgentRunError('incremental_scope_unavailable');
   }
   if (!snapshot.dataFingerprint || !snapshot.contextFingerprint) {
@@ -125,7 +126,13 @@ export async function runOneSchedulingAgentJob({
     if (initial.engineVersion===undefined) {
       throw new SchedulingAgentRunError('planning_engine_version_missing');
     }
-    const output=await computePlan({
+    const validationOnly=job.mode==='incremental'&&input.targetCourseIds.length===0;
+    if(validationOnly&&(initial.dirtyCount!==0||initial.engineVersion!==PLANNING_ENGINE_VERSION))
+      throw new SchedulingAgentRunError('incremental_scope_unavailable');
+    // The existing incremental SQL saver validates the entire stored workspace,
+    // even with an empty patch. It alone may advance the validated source stamp.
+    const output=validationOnly?{engineVersion:PLANNING_ENGINE_VERSION,
+      diagnostics:{finalPlanValid:true},rows:[]}:await computePlan({
       ...input, mode:job.mode, signal:controller.signal,
       onProgress:progress=>onProgress({jobId,phase:progress?.phase||'computing'})
     });
@@ -143,6 +150,7 @@ export async function runOneSchedulingAgentJob({
     // early fail-fast check, never a substitute for DB fencing.
     const persisted=await backend.persistProposals({
       jobId,runId,mode:job.mode,
+      validationOnly,
       sourceRevision:input.sourceRevision,
       workspaceRevision:input.workspaceRevision,
       dataFingerprint:input.dataFingerprint,
@@ -155,7 +163,9 @@ export async function runOneSchedulingAgentJob({
     // Later source changes are a new invalidation, not a failed committed job.
     if(persisted?.status!=='completed'||persisted.jobId!==jobId||persisted.runId!==runId)
       throw new SchedulingAgentRunError('worker_receipt_required');
-    return {status:'completed',jobId,engineVersion:output.engineVersion,rowCount:output.rows.length};
+    return {status:'completed',jobId,engineVersion:output.engineVersion,rowCount:output.rows.length,
+      sourceRevision:String(persisted.sourceRevision??input.sourceRevision),
+      workspaceRevision:String(persisted.revision??''),validationOnly};
   } catch (error) {
     const errorCode=String(error?.code||'planning_server_run_failed').slice(0,120);
     // Never report success. If owner fencing has expired, the backend must
