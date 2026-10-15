@@ -40,7 +40,7 @@ $$;
 create or replace function public.scheduling_agent_team_planning_status()
 returns jsonb language plpgsql stable security definer
 set search_path = public, pg_temp
-as $
+as $$
 declare p jsonb;
 begin
   perform public.scheduling_agent_team_assert_member();
@@ -61,12 +61,12 @@ begin
       and p->'workspace'->>'engineVersion'='planning-v38-20261015-transition-30-45'
   );
 end
-$;
+$$;
 
 create or replace function public.scheduling_agent_team_read_snapshot()
 returns jsonb language plpgsql stable security definer
 set search_path = public, pg_temp
-as $
+as $$
 declare
   rows jsonb;
   preflight jsonb;
