@@ -13,21 +13,25 @@ const TOOLS = [
   },
   {
     name: 'optimization_status',
+    annotations: {readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false},
     description: 'Read the actual state of a previously submitted optimization job: queued, running, completed or failed.',
     inputSchema: {type:'object',properties:{jobId:{type:'string',format:'uuid'}},required:['jobId'],additionalProperties:false}
   },
   {
     name: 'planning_status',
+    annotations: {readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false},
     description: 'Read-only freshness/optimization status of the nationwide plan: current source and workspace revisions, dirty activities, whether an authorized planner run is already active. Never claims to calculate or refresh anything.',
     inputSchema: {type:'object',properties:{},additionalProperties:false}
   },
   {
     name: 'read_snapshot',
+    annotations: {readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false},
     description: 'Read only whitelisted scheduling fields and safe instructor alternatives. No financial, payroll, email, phone, private Google Sheets or configuration data.',
     inputSchema: {type:'object',properties:{},additionalProperties:false}
   },
   {
     name: 'manager_approval_state',
+    annotations: {readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false},
     description: 'Check whether an existing manual draft needs administrator approval and its current approval status. Read only.',
     inputSchema: {type:'object',properties:{activityId:{type:'string'}},required:['activityId'],additionalProperties:false}
   },
