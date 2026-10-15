@@ -28,3 +28,19 @@ jobs:
       - run: npm ci
       - run: node --test tests/scheduling-agent-business-guard.test.mjs tests/scheduling-agent-transition-30-45.test.mjs tests/course-scheduling-e2e-alignment.test.mjs
       - run: node --test tests/scheduling-point-engine-acceptance.test.mjs tests/course-scheduling-transition-server-rules.test.mjs
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno check supabase/functions/scheduling-agent-team-gateway/index.ts
+      - run: python3 -m pip install --quiet pglast
+      - name: Parse new scheduling migrations
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from pglast import parse_sql
+          found = sorted(Path("supabase/migrations").glob("20261015*scheduling*.sql"))
+          assert found, "Scheduling migrations not found"
+          for file in found:
+              parse_sql(file.read_text(encoding="utf-8"))
+              print("OK SQL:", file.name)
+          PY
