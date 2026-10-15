@@ -13,8 +13,8 @@ export const NEARBY_TRANSITION_DISTANCE_KM = 5;
 export const NEARBY_TRANSITION_BUFFER_MINUTES = 5;
 /** Default safety buffer for transitions above the nearby threshold and up to the hard cap. Applied once only. */
 export const TRANSITION_BUFFER_MINUTES = 15;
-/** Hard cap for consecutive school-to-school transitions (km). Inclusive at exactly this value. */
-export const MAX_TRANSITION_DISTANCE_KM = 20;
+/** Normal automatic limit between same-day schools (km); 30-45 requires owner approval, >45 is forbidden. */
+export const MAX_TRANSITION_DISTANCE_KM = 30;
 /** A gap above this value is treated as a separate trip, not a consecutive school-to-school transition. */
 export const MAX_CONSECUTIVE_TRANSITION_GAP_MINUTES = 120;
 
