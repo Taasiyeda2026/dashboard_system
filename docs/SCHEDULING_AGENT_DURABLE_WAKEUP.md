@@ -38,10 +38,10 @@ failures and unresponsive workers. It creates one critical
 `staff_messages` popup per job/fault type, addressed only to the active approving admin
 through the existing selected-recipient UI (15-second polling when open).
 A private `scheduling_agent_alerts` outbox delivers Microsoft 365 email independently
-of the dashboard, using the existing server-only `MS_*` Graph application. Recipient
+of the dashboard, using the existing verified server-only office mail identity (`FEEDBACK_STAFF_MS_*`). Recipient
 email is resolved from that current active approver's `public.users.email`; callers
 cannot choose recipients. Tokens must identify the configured tenant/app and carry
-`Mail.Send`. No feedback-specific credentials or personal tokens are reused.
+`Mail.Send`. The existing office sender identity is deliberately reused; no new Graph grants or personal tokens are introduced.
 Mail sends have 90-second reservations and a durable `begin_send` barrier. The
 four fault types are terminal failure, overdue queue, unresponsive worker and
 persistent GitHub dispatch failure. Emails include type, job ID, UTC detection time
@@ -111,8 +111,9 @@ Store that last same value in Supabase Vault under the name
 committed SQL file. Do not reuse a user token, publishable key or service-role key.
 Existing Supabase runtime credentials stay inside Edge Functions.
 
-Microsoft 365 readiness additionally requires the existing `MS_TENANT_ID`,
-`MS_CLIENT_ID`, `MS_CLIENT_SECRET`, `MS_MAIL_SENDER` in the same project. Do not paste
+Microsoft 365 readiness uses the existing `FEEDBACK_STAFF_MS_TENANT_ID`,
+`FEEDBACK_STAFF_MS_CLIENT_ID`, `FEEDBACK_STAFF_MS_CLIENT_SECRET` in the same project.
+The sender is pinned to `office@think.org.il` and the owner recipient remains the active admin. Do not paste
 or replace credentials in chat. Confirm in Entra that this existing application has
 Graph **Application Mail.Send** with admin consent and is restricted through Exchange
 application RBAC/access policy to the chosen sender mailbox. No new broad application

@@ -14,10 +14,10 @@ const dispatch=createGithubAppDispatcher({
 Deno.serve(createWakeupHandler({
   secret:Deno.env.get('SCHEDULING_WAKEUP_SECRET'),dispatch,
   notify:createAlertDelivery({
-    tenantId:Deno.env.get('MS_TENANT_ID'),
-    clientId:Deno.env.get('MS_CLIENT_ID'),
-    clientSecret:Deno.env.get('MS_CLIENT_SECRET'),
-    sender:Deno.env.get('MS_MAIL_SENDER'),
+    tenantId:Deno.env.get('FEEDBACK_STAFF_MS_TENANT_ID'),
+    clientId:Deno.env.get('FEEDBACK_STAFF_MS_CLIENT_ID'),
+    clientSecret:Deno.env.get('FEEDBACK_STAFF_MS_CLIENT_SECRET'),
+    sender:'office@think.org.il',
     command:async(action:string,payload:Record<string,unknown>)=>{
       const {data,error}=await client.rpc('scheduling_agent_alert_command',{p_action:action,p_payload:payload});
       if(error)throw Error('alert_rpc_failed');
