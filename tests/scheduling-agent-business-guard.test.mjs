@@ -25,7 +25,7 @@ test('team snapshot is whitelisted and excludes private source data', () => {
 });
 
 test('team tools cannot commit, approve, change settings or run arbitrary RPCs', () => {
-  for (const tool of ['read_snapshot','manager_approval_state','stage_manual_draft','submit_manager_approval']) {
+  for (const tool of ['read_snapshot','manager_approval_state','stage_manual_draft','submit_manager_approval','confirm_own_draft']) {
     assert.ok(edge.includes("name: '"+tool+"'"));
   }
   assert.doesNotMatch(edge, /name: '(?:commit_approved_changes|review_manager_approval|update_settings|execute_sql)'/);
@@ -63,4 +63,19 @@ test('manual exceptions are derived from verified route data, not only user-ente
   assert.match(sql, /scheduling_manual_assignment_hard_violations/);
   assert.match(sql, /scheduling_transition_distance_exceeded/);
   assert.match(sql, /effective_reason/);
+});
+
+test('regular team assignment is permitted only from a personally created draft', () => {
+  const confirmation = readFileSync(
+    new URL('../supabase/migrations/20261015114000_scheduling_agent_team_confirm_regular_drafts.sql',import.meta.url),'utf8'
+  );
+  assert.match(confirmation,/draft_created_by is distinct from auth.uid\(\)/);
+  assert.match(confirmation,/scheduling_agent_team_assert_member\(\)/);
+  assert.match(confirmation,/course_assignment_manager_approval_state/);
+  assert.match(confirmation,/scheduling_manager_approval_required/);
+  assert.match(confirmation,/public.assign_activity_instructor\(/);
+  assert.match(confirmation,/scheduling_agent_team_confirm_own_draft/);
+  assert.doesNotMatch(confirmation,/review_course_assignment_manager_approval\(/);
+  assert.match(edge,/name: 'confirm_own_draft'/);
+  assert.match(edge,/scheduling_agent_team_confirm_own_draft/);
 });
