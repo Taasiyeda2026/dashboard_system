@@ -29,7 +29,7 @@ begin
   then raise exception 'full_optimization_requires_admin' using errcode='42501'; end if;
   -- One queued job per shared national workspace. All account identities retained.
   select * into j from public.scheduling_agent_team_optimization_jobs
-  where status='queued' order by created_at asc limit 1;
+  where status in ('queued','running') and mode=p_mode order by created_at asc limit 1;
   if not found then
     insert into public.scheduling_agent_team_optimization_jobs(created_by,mode)
     values(auth.uid(),p_mode) returning * into j;
@@ -57,6 +57,11 @@ returns jsonb language plpgsql security definer set search_path=public,pg_temp a
 declare j public.scheduling_agent_team_optimization_jobs;
 begin
   perform public.scheduling_agent_team_assert_member();
+  -- Client vanished mid-run: stale jobs can be retried, but never while a
+  -- normal five-minute engine run is allowed to be active.
+  update public.scheduling_agent_team_optimization_jobs
+    set status='queued',claimed_by=null,claimed_at=null
+  where status='running' and claimed_at < now()-interval '12 minutes';
   select * into j from public.scheduling_agent_team_optimization_jobs
   where status='queued'
     and (mode='incremental' or auth.uid()=(select approver_id from public.scheduling_agent_control where singleton))
