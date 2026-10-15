@@ -8,7 +8,7 @@ const META = BASE + '/.well-known/oauth-protected-resource';
 const TOOLS = [
   {
     name: 'request_optimization',
-    description: 'Request a fresh operational scheduling optimization of the current-year plan. Incremental can be requested by Idan/Eden/Esraa, full rebuild by Idan only. Queued requests run using the trusted scheduling dashboard planner WHEN an authorized operator has the scheduling screen open. NEVER claim it has run until status says completed. No existing confirmed assignments are changed.',
+    description: 'Request a fresh operational scheduling optimization of the current-year plan. Incremental can be requested by Idan/Eden/Esraa, full rebuild by Idan only. Queued requests are processed by the private authenticated GitHub Actions scheduling agent worker; the dashboard is display-only. Execution may be delayed until a workflow runner starts. NEVER claim it has run until status says completed. No existing confirmed assignments are changed.',
     inputSchema: {type:'object',properties:{mode:{type:'string',enum:['incremental','full']}},required:['mode'],additionalProperties:false}
   },
   {
