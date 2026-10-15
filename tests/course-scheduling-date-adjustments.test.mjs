@@ -152,10 +152,10 @@ test('final half overflow confirmation happens before RPC and draft payloads con
   const assignHandler=screen.slice(screen.lastIndexOf("detailRoot.querySelector('[data-assign-course]')"),screen.lastIndexOf("detailRoot.querySelector('[data-save-draft]')"));
   const normalApproval=assignHandler.slice(assignHandler.indexOf('const adjustment = selected.dateAdjustment'));
   assert.ok(normalApproval.indexOf('window.confirm(approvalMessage)') >= 0);
-  assert.ok(normalApproval.indexOf('window.confirm(approvalMessage)') < normalApproval.indexOf("supabase.rpc(proposedMeetings ? 'assign_activity_instructor_with_dates' : 'assign_activity_instructor'"));
+  assert.ok(normalApproval.indexOf('window.confirm(approvalMessage)') < normalApproval.indexOf("assignmentRpc(proposedMeetings ? 'assign_activity_instructor_with_dates' : 'assign_activity_instructor'"));
   const draftApproval=screen.slice(screen.indexOf('const confirmActivityDraft = async'),screen.indexOf("root.querySelectorAll('[data-confirm-actual-draft]')"));
   assert.ok(draftApproval.indexOf('window.confirm(approvalMessage)') >= 0);
-  assert.ok(draftApproval.indexOf('window.confirm(approvalMessage)') < draftApproval.indexOf("supabase.rpc(\n        proposedMeetings ? 'assign_activity_instructor_with_dates' : 'assign_activity_instructor'"));
+  assert.ok(draftApproval.indexOf('window.confirm(approvalMessage)') < draftApproval.indexOf("assignmentRpc(\n        proposedMeetings ? 'assign_activity_instructor_with_dates' : 'assign_activity_instructor'"));
 });
 
 

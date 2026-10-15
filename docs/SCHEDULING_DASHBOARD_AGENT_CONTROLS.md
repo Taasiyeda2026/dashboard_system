@@ -99,3 +99,8 @@ change was made. Existing Vite warnings concern xlsx default export, mixed stati
 imports and large chunks. Node's CSS-import warning is expected for these JSDOM tests.
 Generated dist output is excluded from the PR. HOTFIX_VERSION and CACHE_VERSION are
 updated; no new CI workflow, E2E job or infrastructure deployment is included.
+
+CI follow-up: five existing contract cases were updated for the enabled agent-load
+button and guarded assignmentRpc facade. Browser compute stays disabled; draft-only
+writes and final date-change confirmation ordering remain asserted. These five cases
+passed separately (22 focused Node cases total, without counting repeats).
