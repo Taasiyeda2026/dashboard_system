@@ -26,6 +26,6 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
-      - run: deno check supabase/functions/scheduling-agent-worker-api/index.ts
+      - run: deno check --node-modules-dir=auto supabase/functions/scheduling-agent-worker-api/index.ts
       - run: python -m pip install --disable-pip-version-check --quiet pglast
       - run: python -c "from pglast import parse_sql; parse_sql(open('supabase/migrations/20261015170000_scheduling_agent_worker_oidc_control.sql').read()); print('SQL syntax verified')"
