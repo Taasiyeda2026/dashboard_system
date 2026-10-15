@@ -35,13 +35,45 @@ begin
 end
 $$;
 
+-- Safe preflight: never return lease owner ID, arbitrary checkpoint payload,
+-- payroll, finance or source-table rows.
+create or replace function public.scheduling_agent_team_planning_status()
+returns jsonb language plpgsql stable security definer
+set search_path = public, pg_temp
+as $
+declare p jsonb;
+begin
+  perform public.scheduling_agent_team_assert_member();
+  p := public.get_scheduling_planning_preflight('year','');
+  return jsonb_build_object(
+    'sourceRevision',p->>'sourceRevision',
+    'workspaceRevision',p->'workspace'->>'revision',
+    'validatedSourceRevision',p->'workspace'->>'validatedSourceRevision',
+    'engineVersion',p->'workspace'->>'engineVersion',
+    'dirtyCount',p->'dirtyCount',
+    'runActive',p->'activeLease' is not null and p->'activeLease'<>'null'::jsonb,
+    'checkpointPhase',p->'checkpoint'->>'phase',
+    'checkpointCompleted',p->'checkpoint'->'completedCount',
+    'checkpointTotal',p->'checkpoint'->'totalCount',
+    'planningCurrent',
+      p->>'sourceRevision' is not distinct from p->'workspace'->>'validatedSourceRevision'
+      and coalesce((p->>'dirtyCount')::integer,0)=0
+  );
+end
+$;
+
 create or replace function public.scheduling_agent_team_read_snapshot()
 returns jsonb language plpgsql stable security definer
 set search_path = public, pg_temp
-as $$
-declare rows jsonb;
+as $
+declare
+  rows jsonb;
+  preflight jsonb;
+  can_recommend boolean;
 begin
   perform public.scheduling_agent_team_assert_member();
+  preflight := public.scheduling_agent_team_planning_status();
+  can_recommend := (preflight->>'planningCurrent')::boolean;
   select coalesce(jsonb_agg(
     jsonb_build_object(
       'activityId', a.row_id,
@@ -64,10 +96,18 @@ begin
       'options', (
         select coalesce(jsonb_agg(
           jsonb_build_object(
+            'optionIndex', (opt.ordinality-1)::integer,
             'instructorId', opt.value->>'instructorEmpId',
             'instructorName', opt.value->>'instructorName',
             'eligible', opt.value->'eligible',
+            'routeVerified', opt.value->'routeVerified',
             'score', opt.value->'score',
+            'sameSchoolMeetingCount', opt.value->'sameSchoolMeetingCount',
+            'sameAuthorityMeetingCount', opt.value->'sameAuthorityMeetingCount',
+            'newWorkDayMeetingCount', opt.value->'newWorkDayMeetingCount',
+            'estimatedTravelKm', opt.value->'relevantTravelDistance',
+            'estimatedTravelMinutes', opt.value->'relevantTravelMinutes',
+            'nonTravelWaitingMinutes', opt.value->'nonTravelWaitingMinutes',
             'reason', opt.value->>'recommendationReason',
             'meetings', (
               select coalesce(jsonb_agg(jsonb_build_object(
@@ -82,11 +122,12 @@ begin
               ) as mt(value)
             )
           )
-        ), '[]'::jsonb)
+        ) order by opt.ordinality), '[]'::jsonb)
         from jsonb_array_elements(
-          case when jsonb_typeof(r.row_data->'options')='array'
+          case when can_recommend and r.needs_recalc is distinct from true
+              and jsonb_typeof(r.row_data->'options')='array'
             then r.row_data->'options' else '[]'::jsonb end
-        ) as opt(value)
+        ) with ordinality as opt(value, ordinality)
       )
     ) order by a.row_id
   ), '[]'::jsonb)
@@ -106,6 +147,8 @@ begin
     'mode','team_scheduling_only',
     'sourceRevision',(select revision::text from public.scheduling_planning_source_state where singleton),
     'workspaceRevision',(select revision::text from public.scheduling_planning_workspaces where period_key='year' and district=''),
+    'planningCurrent',can_recommend,
+    'planningStatus',preflight,
     'rows',rows
   );
 end
@@ -211,12 +254,14 @@ $$;
 revoke all on function public.scheduling_agent_team_assert_member() from public, anon, authenticated;
 revoke all on function public.scheduling_agent_team_identity() from public, anon;
 revoke all on function public.scheduling_agent_team_read_snapshot() from public, anon;
+revoke all on function public.scheduling_agent_team_planning_status() from public, anon;
 revoke all on function public.scheduling_agent_team_stage_manual_draft(text,bigint,text) from public, anon;
 revoke all on function public.scheduling_agent_team_submit_manager_approval(text) from public, anon;
 revoke all on function public.scheduling_agent_team_manager_approval_state(text) from public, anon;
 
 grant execute on function public.scheduling_agent_team_identity() to authenticated;
 grant execute on function public.scheduling_agent_team_read_snapshot() to authenticated;
+grant execute on function public.scheduling_agent_team_planning_status() to authenticated;
 grant execute on function public.scheduling_agent_team_stage_manual_draft(text,bigint,text) to authenticated;
 grant execute on function public.scheduling_agent_team_submit_manager_approval(text) to authenticated;
 grant execute on function public.scheduling_agent_team_manager_approval_state(text) to authenticated;
