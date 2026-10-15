@@ -26,7 +26,7 @@ function isObject(value) {
 }
 
 function assertNonEmptyRevision(value, field) {
-  if (!/^\\d+$/.test(String(value ?? ''))) {
+  if (!/^\d+$/.test(String(value ?? ''))) {
     throw new AgentPlanningInputError(`invalid_${field}`);
   }
 }
