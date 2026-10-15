@@ -1,0 +1,19 @@
+name: Scheduling OAuth Consent Regression
+on:
+  pull_request:
+    paths:
+      - 'frontend/src/scheduling-agent-approval-page.js'
+      - 'tests/scheduling-agent-oauth-team-consent.test.mjs'
+      - '.github/workflows/scheduling-oauth-consent.yml'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test tests/scheduling-agent-oauth-team-consent.test.mjs
