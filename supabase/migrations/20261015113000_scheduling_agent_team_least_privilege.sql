@@ -58,7 +58,7 @@ begin
     'planningCurrent',
       p->>'sourceRevision' is not distinct from p->'workspace'->>'validatedSourceRevision'
       and coalesce((p->>'dirtyCount')::integer,0)=0
-      and p->'workspace'->>'engineVersion'='planning-v37-20261010-constraint-block-planner'
+      and p->'workspace'->>'engineVersion'='planning-v38-20261015-transition-30-45'
   );
 end
 $;
@@ -204,7 +204,7 @@ begin
   hard_violations := public.scheduling_manual_assignment_hard_violations(p_activity_id,p_emp_id);
   if 'scheduling_transition_distance_exceeded'=any(hard_violations) then
     effective_reason := concat_ws(' · ',effective_reason,
-      'המרחק בין הפעילויות גדול מ־20 ק״מ');
+      'המרחק בין הפעילויות גדול מ־30 ק״מ');
   end if;
 
   select * into staged from public.save_course_assignment_manual_draft(
