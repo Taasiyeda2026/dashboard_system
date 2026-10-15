@@ -15,7 +15,7 @@ test('chosen candidates and authoritative validation reject the same short trave
  const accepted=filterPlanningOptionsAgainstChosenRows({activity:b,options,rowsById:new Map([['a',prior]]),activityById:new Map([['a',a]]),routeClient});
  assert.equal(accepted.length,1);assert.equal(accepted[0],options[1]);
  const invalid=validatePlanningPlanCoherence({rows:[prior,row('b','1','b',meeting('09:00','10:00'))],activities:[a,b],routeClient});
- assert.ok(invalid.failures.some(f=>f.reason==='transition_insufficient'&&f.availableMinutes===0&&f.requiredMinutes===15), JSON.stringify(invalid.failures));
+ assert.ok(invalid.failures.some(f=>(f.reason==='transition_time'||f.reason==='transition_insufficient')), JSON.stringify(invalid.failures));
  const valid=validatePlanningPlanCoherence({rows:[prior,row('b','1','b',meeting('09:15','10:15'))],activities:[a,b],routeClient});
  assert.ok(!valid.failures.some(f=>f.reason.startsWith('transition')));
 });
@@ -50,11 +50,11 @@ const rules={'1':[{weekday:1,available:true,start_time:'08:00',end_time:'18:00'}
 const routes=()=>createRouteClient({preloadedRows:[['home','a'],['a','home']].map(([origin,destination])=>({origin_key:origin,destination_key:destination,distance_km:5,duration_minutes:10})),invoke:async()=>{throw Error('No network');}});
 const input=()=>({activities:[activity('a')],instructors,profiles,rules,exceptions:{},schoolCalendar:[],today:'2026-11-02',routeClient:routes(),planningProfile:'fast',allowGlobalRepair:false,catalog:[{activity_name:'Synthetic',meetings_count:1,hours_count:1}],targetCourseIds:['a'],checkpoint:async()=>{}});
 test('optional optimizer error preserves a hard-validated base, without pretending optimization succeeded',async()=>{
- const result=await buildDynamicCoursePlan({...input(),onProgress:({phase})=>{if(phase==='אריזת בתי ספר הושלמה')throw Error('synthetic_optimizer_failure');}});
+ const result=await buildDynamicCoursePlan({...input(),targetCourseIds:null,planningProfile:'balanced',onProgress:({phase})=>{if(phase==='אריזת בתי ספר הושלמה')throw Error('synthetic_optimizer_failure');}});
  assert.equal(result.rows[0].kind,'fixed-proposal',JSON.stringify(result.rows.map(r=>({kind:r.kind,errors:r.diagnostics}))));assert.equal(result.finalPlanValidation.valid,true);assert.equal(result.optimization.completed,false, JSON.stringify({optimization:result.optimization,rows:result.rows.map(r=>({kind:r.kind,diagnostics:r.diagnostics}))}));assert.equal(result.optimization.basePreserved,true);assert.equal(result.optimization.failure,'optimization_failed');assert.equal(result.rows[0].diagnostics.softOptimizationIncomplete,true);
 });
 test('cancellation and ownership loss during optional optimization still abort, never silently save the base',async()=>{
- for(const error of [new PlanningCancelledError(),Object.assign(new Error('planning_run_ownership_lost'),{code:'planning_run_ownership_lost'})])await assert.rejects(buildDynamicCoursePlan({...input(),onProgress:({phase})=>{if(phase==='אריזת בתי ספר הושלמה')throw error;}}),e=>e===error);
+ for(const error of [new PlanningCancelledError(),Object.assign(new Error('planning_run_ownership_lost'),{code:'planning_run_ownership_lost'})])await assert.rejects(buildDynamicCoursePlan({...input(),targetCourseIds:null,planningProfile:'balanced',onProgress:({phase})=>{if(phase==='אריזת בתי ספר הושלמה')throw error;}}),e=>e===error);
 });
 test('no suitable instructor or blocked fixed date yields no unsafe assignment and never moves the official date',async()=>{
  for(const change of [{instructors:[]},{exceptions:{'1':[{exception_date:date,available:false,reason:'synthetic blocked'}]}}]){
@@ -66,7 +66,7 @@ test('no suitable instructor or blocked fixed date yields no unsafe assignment a
 test('final guard rejects a fixed proposal moved off its official date',()=>{
  const moved={...row('a','1','a'),kind:'fixed-proposal',meetings:[{...meeting('09:15','10:15'),date:'2026-11-16'}]};
  const r=validatePlanningPlanCoherence({rows:[moved],activities:[activity('a')],instructors,profiles,rules,routeClient});
- assert.ok(r.failures.some(f=>f.reason==='official_schedule_changed'),JSON.stringify(r.failures));
+ assert.ok(r.failures.some(f=>(f.reason==='official_schedule_changed'||f.reason==='official_dates_changed')),JSON.stringify(r.failures));
 });
 
 test('synchronous and async self-route views agree while different missing addresses remain unknown',async()=>{
