@@ -25,6 +25,7 @@ function fixture({mode='incremental'}={}) {
       pre.workspace.engineVersion='planning-v38';
       pre.workspace.validatedSourceRevision='649';
       pre.dirtyCount=0;
+      return {status:'completed',jobId:payload.jobId,runId:payload.runId};
    },
    async finishJob({success,failureCode}){events.push(success?'finish-success':`finish-failed:${failureCode}`);},
    async releaseLease(){events.push('release');}
@@ -49,15 +50,29 @@ test('requires trusted backend adapter, never falls back to local/browser',async
  await assert.rejects(runOneSchedulingAgentJob(),e=>e instanceof SchedulingAgentRunError&&e.code==='secure_backend_adapter_required');
 });
 
-test('successful result only after proposal persistence and postflight validation',async()=>{
+test('successful result only after atomic persistence returns the matching receipt',async()=>{
  const f=fixture();
  const result=await runOneSchedulingAgentJob({
    backend:f.backend,computePlan:f.computePlan,createRunId:()=> '11111111-1111-4111-8111-111111111111'
  });
  assert.equal(result.status,'completed');
  assert.deepEqual(f.events,[
-   'claim','lease','snapshot','preflight','compute','preflight','persist','preflight','finish-success','release'
+   'claim','lease','snapshot','preflight','compute','preflight','persist','release'
  ]);
+});
+
+test('lost persistence response recovers committed receipt without reporting failure',async()=>{
+ const f=fixture();let receipt;
+ f.backend.persistProposals=async p=>{receipt={status:'completed',jobId:p.jobId,runId:p.runId};throw Error('connection_lost');};
+ f.backend.finishJob=async()=>receipt;
+ const result=await runOneSchedulingAgentJob({backend:f.backend,computePlan:f.computePlan});
+ assert.equal(result.status,'completed');assert.equal(result.recoveredReceipt,true);
+});
+
+test('legacy save response cannot claim atomic completion',async()=>{
+ const f=fixture();f.backend.persistProposals=async()=>({revision:2});
+ const result=await runOneSchedulingAgentJob({backend:f.backend,computePlan:f.computePlan});
+ assert.equal(result.status,'failed');assert.equal(result.failureCode,'worker_receipt_required');
 });
 
 test('a changed source revision refuses to save stale options',async()=>{

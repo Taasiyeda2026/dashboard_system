@@ -1,5 +1,19 @@
 # Scheduling System Map
 
+## Durable server wakeup (PR staging, not activated)
+
+See `docs/SCHEDULING_AGENT_DURABLE_WAKEUP.md` for the infrastructure protocol,
+activation gates, GitHub App setup and isolated acceptance evidence. The current
+shared engine token is `planning-v38-20261015-transition-30-45`; the older v37 and
+browser-orchestration descriptions below are historical and are not cutover proof.
+This change does not alter planner/eligibility/scoring logic. The existing queue
+gains durable wake reservations, bounded retries, atomic attempt ownership and an
+atomic result/completion receipt. Supabase Cron and immediate pg_net notifications
+invoke the authenticated wake service; GitHub App Actions write dispatches the
+existing main-branch workflow, which continues using GitHub OIDC for DB access.
+Migration defaults disable autonomous operation and register the supervisor inactive.
+Merging or deploying is not authorization to calculate or confirm assignments.
+
 ## Private scheduling agent gateway (staged 2026-10-14)
 
 See `docs/SCHEDULING_AGENT_GATEWAY.md` for actual rollout status, Google access,

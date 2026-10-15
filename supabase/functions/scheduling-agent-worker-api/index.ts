@@ -84,7 +84,13 @@ Deno.serve(async(req:Request)=>{
   if(!ALLOWED_ACTIONS.has(action))return output({code:'unknown_worker_command'},400);
   const command=async(name:string,payload:Record<string,unknown>={})=>{
     const {data,error}=await client.rpc('scheduling_agent_worker_command',{p_action:name,p_payload:payload});
-    if(error)throw Error(error.code||'worker_command_failed');
+    if(error){
+      const retryable=new Set(['planning_source_revision_conflict','planning_revision_conflict',
+        'worker_snapshot_revision_changed','worker_run_lease_invalid']);
+      const code=retryable.has(error.message)?error.message:
+        ['40001','40P01'].includes(error.code)?'worker_database_retry':error.code||'worker_command_failed';
+      throw Error(code);
+    }
     return data;
   };
   // Range pagination is explicit: PostgREST's default 1,000-row limit must

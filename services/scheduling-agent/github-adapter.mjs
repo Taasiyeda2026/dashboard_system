@@ -121,16 +121,18 @@ export function createGithubWorkerTransport({
     const encoded=doc.value.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
     const claims=JSON.parse(Buffer.from(encoded,'base64').toString('utf8'));
     cachedToken=doc.value;
-    tokenExpiresAt=Number(claims.exp)*1000||0;
+    // Edge accepts iat no older than 180s, even when exp is much later.
+    tokenExpiresAt=Math.min(Number(claims.exp)*1000||0,now()+240_000);
     return cachedToken;
   }
   async function call(action,payload={}){
     const token=await oidc();
-    const response=await fetchImpl(baseUrl,{
+    let response;
+    try {response=await fetchImpl(baseUrl,{
       method:'POST',
       headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
       body:JSON.stringify({action,...payload}),signal:AbortSignal.timeout(120000)
-    });
+    });}catch{throw new WorkerTransportError('worker_transport_failed');}
     if(!response.ok) {
       let code='worker_api_unavailable';
       try{const body=await response.json();if(typeof body?.code==='string')code=body.code;}catch{}
@@ -145,7 +147,7 @@ export function createGithubAgentBackend(transport) {
   if(!transport || typeof transport.call!=='function')throw new WorkerTransportError('worker_transport_required');
   const call=(action,details={})=>transport.call(action,details);
   return {
-    claimJob:()=>call('claim'),
+    claimJob:({runId}={})=>call('claim',runId?{runId}:{}),
     acquireLease:({jobId,runId,ttlSeconds})=>call('lease',{jobId,runId,ttlSeconds}),
     heartbeatLease:({jobId,runId,ttlSeconds})=>call('heartbeat',{jobId,runId,ttlSeconds}),
     loadSnapshot:async({jobId,runId,mode})=>prepareServerPlanningSnapshot(await call('snapshot',{jobId,runId,mode})),

@@ -1,11 +1,5 @@
 name: Taasiyeda Scheduling Agent Engine
 on:
-  push:
-    branches: [main]
-    paths:
-      - '.github/workflows/scheduling-agent-worker.yml'
-      - 'services/scheduling-agent/**'
-      - 'supabase/functions/scheduling-agent-worker-api/**'
   schedule:
     # GitHub may delay a scheduled invocation. This is an eventually consistent queue poll.
     - cron: '*/5 * * * *'
@@ -21,7 +15,7 @@ concurrency:
 
 jobs:
   run:
-    if: github.repository == 'Taasiyeda2026/dashboard_system' && github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || github.event_name == 'push')
+    if: github.repository == 'Taasiyeda2026/dashboard_system' && github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:

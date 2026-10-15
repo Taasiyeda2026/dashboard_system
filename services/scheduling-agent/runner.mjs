@@ -87,10 +87,10 @@ export async function runOneSchedulingAgentJob({
 }={}) {
   requireBackend(backend);
   if (typeof computePlan!=='function') throw new SchedulingAgentRunError('engine_required');
-  const job=await backend.claimJob();
+  const runId=createRunId();
+  const job=await backend.claimJob({runId});
   if (!job || job.claimed!==true) return {status:'idle'};
   const jobId=String(job.jobId||'');
-  const runId=createRunId();
   let lease=false, timer=null, heartbeatFailure=null;
   const controller=new AbortController();
   const heartbeat=async()=>{
@@ -104,7 +104,8 @@ export async function runOneSchedulingAgentJob({
     }
   };
   try {
-    if (!/^[0-9a-f-]{36}$/i.test(jobId)||!['incremental','full'].includes(job.mode)) {
+    if (!/^[0-9a-f-]{36}$/i.test(jobId)||!['incremental','full'].includes(job.mode)
+        ||(job.runId&&job.runId!==runId)) {
       throw new SchedulingAgentRunError('invalid_claimed_job');
     }
     const acquired=await backend.acquireLease({jobId,runId,ttlSeconds:120});
@@ -140,7 +141,7 @@ export async function runOneSchedulingAgentJob({
     // The persistence adapter MUST assert the same revisions, current engine,
     // and lease owner *inside the database transaction*. This read is only an
     // early fail-fast check, never a substitute for DB fencing.
-    await backend.persistProposals({
+    const persisted=await backend.persistProposals({
       jobId,runId,mode:job.mode,
       sourceRevision:input.sourceRevision,
       workspaceRevision:input.workspaceRevision,
@@ -150,20 +151,19 @@ export async function runOneSchedulingAgentJob({
       rows:output.rows,
       activities:input.snapshot.activities
     });
-    const after=validatedPreflight(await backend.readPreflight({jobId,runId}));
-    if (after.sourceRevision!==after.validatedSourceRevision ||
-        after.engineVersion!==output.engineVersion ||
-        after.dirtyCount!==0) {
-      throw new SchedulingAgentRunError('planning_saved_but_not_current');
-    }
-    if (heartbeatFailure) throw new SchedulingAgentRunError('planning_lease_lost');
-    await backend.finishJob({jobId,runId,success:true});
+    // New server contract: validation, receipt and completion commit together.
+    // Later source changes are a new invalidation, not a failed committed job.
+    if(persisted?.status!=='completed'||persisted.jobId!==jobId||persisted.runId!==runId)
+      throw new SchedulingAgentRunError('worker_receipt_required');
     return {status:'completed',jobId,engineVersion:output.engineVersion,rowCount:output.rows.length};
   } catch (error) {
     const errorCode=String(error?.code||'planning_server_run_failed').slice(0,120);
     // Never report success. If owner fencing has expired, the backend must
     // reject this finish too; leave the job for lease-expiry recovery.
-    await backend.finishJob({jobId,runId,success:false,failureCode:errorCode});
+    const finished=await backend.finishJob({jobId,runId,success:false,failureCode:errorCode});
+    // A lost persist response must not turn an already committed receipt into failure.
+    if(finished?.status==='completed'&&finished.jobId===jobId&&finished.runId===runId)
+      return {status:'completed',jobId,recoveredReceipt:true};
     return {status:'failed',jobId,failureCode:errorCode};
   } finally {
     if (timer) clearInterval(timer);
