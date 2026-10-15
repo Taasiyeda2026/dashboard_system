@@ -7,6 +7,16 @@ const META = BASE + '/.well-known/oauth-protected-resource';
 
 const TOOLS = [
   {
+    name: 'request_optimization',
+    description: 'Request a fresh operational scheduling optimization of the current-year plan. Incremental can be requested by Idan/Eden/Esraa, full rebuild by Idan only. Queued requests run using the trusted scheduling dashboard planner WHEN an authorized operator has the scheduling screen open. NEVER claim it has run until status says completed. No existing confirmed assignments are changed.',
+    inputSchema: {type:'object',properties:{mode:{type:'string',enum:['incremental','full']}},required:['mode'],additionalProperties:false}
+  },
+  {
+    name: 'optimization_status',
+    description: 'Read the actual state of a previously submitted optimization job: queued, running, completed or failed.',
+    inputSchema: {type:'object',properties:{jobId:{type:'string',format:'uuid'}},required:['jobId'],additionalProperties:false}
+  },
+  {
     name: 'planning_status',
     description: 'Read-only freshness/optimization status of the nationwide plan: current source and workspace revisions, dirty activities, whether an authorized planner run is already active. Never claims to calculate or refresh anything.',
     inputSchema: {type:'object',properties:{},additionalProperties:false}
@@ -95,6 +105,8 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
   const allowed:Record<string,string[]>={
     read_snapshot:[],
     planning_status:[],
+    request_optimization:['mode'],
+    optimization_status:['jobId'],
     manager_approval_state:['activityId'],
     stage_manual_draft:['activityId','instructorId','reason'],
     submit_manager_approval:['activityId'],
@@ -103,6 +115,8 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
   };
   if(!allowed[name]||Object.keys(args).some(k=>!allowed[name].includes(k)))return false;
   if(name==='read_snapshot'||name==='planning_status')return Object.keys(args).length===0;
+  if(name==='request_optimization')return args.mode==='incremental'||args.mode==='full';
+  if(name==='optimization_status')return typeof args.jobId==='string'&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(args.jobId);
   if(!activityId(args.activityId))return false;
   if(name==='stage_manual_draft'){
     if(typeof args.instructorId!=='number'||!Number.isSafeInteger(args.instructorId)||args.instructorId<=0)return false;
@@ -152,6 +166,8 @@ Deno.serve(async request=>{
   const names:Record<string,string>={
     read_snapshot:'scheduling_agent_team_read_snapshot',
     planning_status:'scheduling_agent_team_planning_status',
+    request_optimization:'scheduling_agent_team_request_optimization',
+    optimization_status:'scheduling_agent_team_optimization_status',
     manager_approval_state:'scheduling_agent_team_manager_approval_state',
     stage_manual_draft:'scheduling_agent_team_stage_manual_draft',
     submit_manager_approval:'scheduling_agent_team_submit_manager_approval',
@@ -159,6 +175,8 @@ Deno.serve(async request=>{
     confirm_planning_option:'scheduling_agent_team_confirm_planning_option'
   };
   const input:Record<string,unknown>=(name==='read_snapshot'||name==='planning_status')?{}:
+    name==='request_optimization'?{p_mode:args.mode}:
+    name==='optimization_status'?{p_job_id:args.jobId}:
     name==='stage_manual_draft'?{p_activity_id:args.activityId,p_emp_id:args.instructorId,p_reason:args.reason??null}:
     name==='confirm_planning_option'?{
       p_activity_id:args.activityId,
