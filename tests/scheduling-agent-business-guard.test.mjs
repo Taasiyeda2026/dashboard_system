@@ -25,7 +25,7 @@ test('team snapshot is whitelisted and excludes private source data', () => {
 });
 
 test('team tools cannot commit, approve, change settings or run arbitrary RPCs', () => {
-  for (const tool of ['read_snapshot','manager_approval_state','stage_manual_draft','submit_manager_approval','confirm_own_draft','confirm_planning_option']) {
+  for (const tool of ['planning_status','read_snapshot','manager_approval_state','stage_manual_draft','submit_manager_approval','confirm_own_draft','confirm_planning_option']) {
     assert.ok(edge.includes("name: '"+tool+"'"));
   }
   assert.doesNotMatch(edge, /name: '(?:commit_approved_changes|review_manager_approval|update_settings|execute_sql)'/);
@@ -98,4 +98,19 @@ test('a planned assignment must be from the current authorized planning snapshot
   assert.doesNotMatch(plan,/review_course_assignment_manager_approval\(/);
   assert.match(edge,/name: 'confirm_planning_option'/);
   assert.match(edge,/scheduling_agent_team_confirm_planning_option/);
+});
+
+test('an outdated countrywide plan cannot be offered as a freshly calculated recommendation', () => {
+  assert.match(sql,/create or replace function public\.scheduling_agent_team_planning_status\(/);
+  assert.match(sql,/get_scheduling_planning_preflight\('year',''\)/);
+  assert.match(sql,/can_recommend := \(preflight->>'planningCurrent'\)::boolean/);
+  assert.match(sql,/can_recommend and r\.needs_recalc is distinct from true/);
+  assert.match(sql,/planningCurrent/);
+  assert.match(sql,/estimatedTravelKm/);
+  assert.match(sql,/sameSchoolMeetingCount/);
+  assert.match(sql,/nonTravelWaitingMinutes/);
+  assert.match(sql,/with ordinality as opt\(value, ordinality\)/);
+  assert.match(sql,/optionIndex/);
+  assert.match(edge,/name: 'planning_status'/);
+  assert.match(edge,/scheduling_agent_team_planning_status/);
 });
