@@ -1,5 +1,11 @@
 name: Taasiyeda Scheduling Agent Engine
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/scheduling-agent-worker.yml'
+      - 'services/scheduling-agent/**'
+      - 'supabase/functions/scheduling-agent-worker-api/**'
   schedule:
     # GitHub may delay a scheduled invocation. This is an eventually consistent queue poll.
     - cron: '*/5 * * * *'
