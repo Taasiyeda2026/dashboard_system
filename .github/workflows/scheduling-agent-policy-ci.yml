@@ -1,0 +1,46 @@
+name: Scheduling Agent Policy CI
+on:
+  pull_request:
+    paths:
+      - 'frontend/src/screens/instructor-matching-engine.js'
+      - 'frontend/src/screens/scheduling-core/**'
+      - 'supabase/migrations/20261015*'
+      - 'supabase/functions/scheduling-agent-team-gateway/**'
+      - 'tests/scheduling-agent-business-guard.test.mjs'
+      - 'tests/scheduling-agent-transition-30-45.test.mjs'
+      - 'tests/course-scheduling-e2e-alignment.test.mjs'
+      - '.github/workflows/scheduling-agent-policy-ci.yml'
+  push:
+    branches:
+      - 'codex/scheduling-agent-business-least-privilege-20261015'
+  workflow_dispatch:
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: node --test tests/scheduling-agent-business-guard.test.mjs tests/scheduling-agent-transition-30-45.test.mjs tests/course-scheduling-e2e-alignment.test.mjs
+      - run: node --test tests/scheduling-point-engine-acceptance.test.mjs tests/course-scheduling-transition-server-rules.test.mjs
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno check supabase/functions/scheduling-agent-team-gateway/index.ts
+      - run: python3 -m pip install --quiet pglast
+      - name: Parse new scheduling migrations
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from pglast import parse_sql
+          found = sorted(Path("supabase/migrations").glob("20261015*scheduling*.sql"))
+          assert found, "Scheduling migrations not found"
+          for file in found:
+              parse_sql(file.read_text(encoding="utf-8"))
+              print("OK SQL:", file.name)
+          PY

@@ -1,0 +1,65 @@
+# Organizational scheduling agent — controlled rollout (15 Oct 2026)
+
+## Goal / boundary
+One ChatGPT Business plugin for Idan, Eden and Esraa: free-form scheduling chat only, with personally attributed manual draft creation and submissions to the **existing** dashboard manager approval queue. This plugin must never return financial data or grant owner, configuration, code, raw Google Drive, or system administration access.
+
+The current private owner MCP endpoint `scheduling-agent-gateway` remains unchanged. Do **not** share it with staff. The team plugin uses a **separate** `scheduling-agent-team-gateway/mcp` URL and only seven tools: `planning_status`, `read_snapshot`, `manager_approval_state`, `stage_manual_draft`, `submit_manager_approval`, `confirm_own_draft`, `confirm_planning_option`.
+
+## Permission model
+- Gate **every request** with the signed-in user's Supabase JWT, `/auth/v1/user` validation, and a SQL `SECURITY DEFINER` access check. Never use service-role, owner bearer, or shared Google token.
+- Allow only active users with the scheduling-view permission and exact identity/role pairs: `idann@think.org.il` / admin **and** the `scheduling_agent_control.approver_id`, `edenc@think.org.il` / operation_manager, `esraas@think.org.il` / business_development_manager.
+- `scheduling_agent_team_planning_status` reports safe source/workspace cursors, dirty count, checkpoint progress and active-run flag; no lease owner data. `scheduling_agent_team_read_snapshot` responds with explicitly selected schedule fields and candidate continuity/travel data. It suppresses **all recommendation options** when the nationwide source has changed since validation or any plans are dirty, and per-row when `needs_recalc`. Stale activity information remains visible and explicitly marked. Option indices are stable via PostgreSQL `WITH ORDINALITY`. It intentionally strips addresses, personal contact details, financial data, owner controls, raw Google sheets and most raw planning metadata.
+- Draft creation delegates to existing `save_course_assignment_manual_draft` validators under the caller JWT. Only open `school_2027` courses are accepted. No changes to a finalized assignment.
+- **Chosen planning options:** workers can confirm a server-stored candidate using `confirm_planning_option`, subject to matching workspace/source revisions, route-verification flag, activity record freshness, normal date/calendar/assignment validation, no protected or substitute assignments and explicit consent for changing school-agreed future meeting dates. Past confirmed meeting dates cannot be changed.
+- **Normal authorized assignments:** a worker may confirm her own validated manual draft through `scheduling_agent_team_confirm_own_draft`. The existing dashboard assignment validators and exception-approval trigger remain mandatory. This function never reviews, approves, or overrides exception requests. The assistant must first ask for explicit approval of the particular assignment in chat.
+- Team approval submission requires **the draft's creator** to equal `auth.uid()` and delegates to the existing `submit_course_assignment_manager_approval`. It is a **submission**, not an approval. Reject stale/inapplicable drafts as the existing dashboard already does.
+- The dashboard reviewer RPC is additionally restricted to the designated owner ID so any future second admin cannot approve these exceptions.
+- Do not use the older `scheduling_agent_request_approval` route: that is an entirely different owner-bound planning approval queue.
+
+## Approval / deployment sequence — NOT yet authorized
+1. Review PR and run `node --test tests/scheduling-agent-business-guard.test.mjs` plus existing `tests/scheduling-agent-gateway.test.mjs` and scheduling approval tests. No merge until owner agrees.
+2. Back up current function definitions / verify deployed source match. Apply the four new SQL migrations in order after reconciling transition policy and engine-version changes and deploy the new `scheduling-agent-team-gateway` Edge Function; do not modify or enable existing private owner gateway commits.
+3. Verify Supabase OAuth Server authorization URL leads to live `https://taasiyeda2026.github.io/dashboard_system/scheduling-agent-approval.html` instead of `127.0.0.1:3000`. Verify the deployed page exists. Changing global Auth Site URL affects other sign-in flows; do not change it without assessing them.
+4. Create the organizational plugin using the validated archive `taasiyeda_scheduling_business_secure.zip` (version 0.2.0). Verify returned scope is WORKSPACE and do **not** create a replacement in the personal scope.
+5. Restrict plugin sharing to owner, Eden and Esraa only. Staff receive usage access, never creator/editor/admin permissions; never set workspace-wide default.
+6. Test with **their own** sessions: read schedule and planning options, confirm a precomputed option in an approved disposable environment, ask revenue totals (must not reveal financial values), try settings/code/approval (no such tools / server deny), stage a *test* manual draft only if explicitly authorized by the owner, verify ordinary confirmation and exceptional submission separately, submit approval and verify `edit_requests.requested_by` matches the real requesting account. Check owner approval path separately. Do not use real production drafts for exploratory tests without authorization.
+7. Check the raw SQL team RPCs are blocked for anonymous, non-listed and inactive users and confirm staff cannot reach the **old owner** gateway.
+8. Only then publish to the exact three authorized people.
+
+## Important distinctions
+- Existing dashboard permissions of staff remain unchanged by this work. Do not promise this plugin revokes permissions available in other interfaces.
+- Open chat cannot be constrained to a narrow topic purely by prompt. The server data and tool allowlist are the security boundary.
+- Approval for >=60km home-distance manual exceptions and other pre-existing exceptions is enforced by the existing dashboard functions; the automatic 40km matching limit is not the manual approval threshold.
+- Team chat can analyze the live state and its **validated** existing options, including same-school continuity, additional workdays and estimated route distance/time. It does **not** trigger a new national optimization run or refresh stale planning rows; such a claim would be incorrect. **Critical pending feature:** build a centrally managed, authenticated engine execution worker that calls the same v37 planner with the same constraint source, acquires/heartbeats the planning run lease, validates source+workspace revision before saving, supports scoped incremental optimization before national recovery, records proposals separate from confirmed assignments, and preserves approved/fixed/locked courses. Do not expose arbitrary `save_scheduling_planning_snapshot`, SQL, or untrusted plan payloads to team chat.
+- Current required transition policy **not yet implemented:** between same-day activities <=30 km permitted with verified travel time, >30 to <=45 km requires Idan's manager approval, >45 km prohibited. Older client and SQL checks still use 20 km. Do not enable team writes or claim the new distance rule is enforced until this is reconciled in frontend hard-gates, SQL manual approval/finalize guards and planner engine version/validation/migrations/tests together.
+- Drafts/requests/ordinary confirmations are database writes. Their tools require explicit consent to the *specific* action in chat, with post-write receipt.
+- A successful schema/ZIP check does not establish OAuth success or account-level acceptance.
+
+## Status
+Prepared on review branch only. No migration, Edge Function deployment, merge, live ChatGPT workspace install or scheduling writes have taken place.
+
+## Authenticated optimization queue (15 Oct 2026 update)
+The team MCP also exposes `request_optimization` and `optimization_status`.
+Incremental can be requested by Idan, Eden or Esraa; a full national rebuild can
+be requested and claimed only by Idan. The job table is hidden behind SECURITY
+DEFINER role gates, has RLS enabled, and records the requesting user's JWT identity.
+The queue **does not itself calculate anything**. A signed-in scheduling dashboard
+with its scheduling screen open periodically claims the job and runs the EXACT
+existing v38 `runCoursePlanning` code path, including input refresh, lease,
+heartbeat, checkpoint and validated save. It marks the job complete only when
+the server preflight confirms matching source and validated revision, no dirty rows,
+and engine v38. If the dashboard is closed, the job stays queued: the agent must
+explain this clearly and must not claim optimization is complete.
+No confirmed assignments are automatically changed by optimization: only
+proposed/planned workspace rows are saved. Individual activity writes still require
+explicit separate employee confirmation.
+
+This is a **dashboard-assisted optimizer**, not a permanently available cloud
+background worker. A truly independent 24/7 server-side engine remains future work.
+For go-live, open the authenticated scheduling screen to process pending jobs.
+
+Policy now targets: <=30 km between same-day schools allowed with verified route
+and travel buffer; >30 to <=45 is an approved manual-draft exception only;
+>45 cannot be staged or finalized. v38 changes the client engine marker,
+server capability handshake, v37-compatible trusted snapshot checks, and SQL
+instructor-violation guards together. Separate home-to-school policy is unchanged.

@@ -166,16 +166,16 @@ test('5-6: exactly 40 km accepted; more than 40 km rejected by client and server
   assert.equal(MAX_HOME_DISTANCE_KM, 40);
 });
 
-test('7: transitions use +5/+15 buffer within 20 km and hard-reject above 20 km', () => {
+test('7: transitions use +5/+15 buffer within 30 km and request approval above 30 km', () => {
   assert.equal(NEARBY_TRANSITION_DISTANCE_KM, 5);
   assert.equal(NEARBY_TRANSITION_BUFFER_MINUTES, 5);
   assert.equal(TRANSITION_BUFFER_MINUTES, 15);
-  assert.equal(MAX_TRANSITION_DISTANCE_KM, 20);
+  assert.equal(MAX_TRANSITION_DISTANCE_KM, 30);
   assert.equal(transitionBufferMinutes(5), 5);
   assert.equal(transitionBufferMinutes(5.1), 15);
   assert.equal(transitionBufferMinutes(20), 15);
-  assert.equal(exceedsTransitionDistanceLimit(20), false);
-  assert.equal(exceedsTransitionDistanceLimit(20.01), true);
+  assert.equal(exceedsTransitionDistanceLimit(30), false);
+  assert.equal(exceedsTransitionDistanceLimit(30.01), true);
 
   const previous = {
     date: '2026-09-06',
@@ -253,7 +253,7 @@ test('7: transitions use +5/+15 buffer within 20 km and hard-reject above 20 km'
     }
   });
   assert.equal(overCap.eligible, false);
-  assert.ok(overCap.failures.some((item) => /20/.test(item)));
+  assert.ok(overCap.failures.some((item) => /30/.test(item)));
 
   const adjustment = proposeDateAdjustments({
     meetings: [{ date: '2026-09-06', start_time: '11:00', end_time: '12:00' }],
