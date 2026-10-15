@@ -165,7 +165,7 @@ begin
         'activityId',entry_id,'instructorId',emp,
         'instructorName',teacher.full_name,'startTime',start_t,'endTime',end_t,
         'startDate',first_date,'endDate',prev_date,'meetingCount',jsonb_array_length(canonical),
-        'draftCreatedAt',saved.draft_created_at,'state','draft_saved',
+        'draftCreatedAt',saved.draft_created_at,'activityUpdatedAt',saved.updated_at,'state','draft_saved',
         'approvalNeeded','check_manager_approval_state'));
     exception when others then
       get stacked diagnostics reported=message_text;
@@ -194,6 +194,7 @@ declare
   ids text[] := '{}'::text[];
   entry_id text;
   expected_at timestamptz;
+  expected_updated_at timestamptz;
   fields text;
   i integer;
   meeting_date date;
@@ -213,10 +214,12 @@ begin
       if jsonb_typeof(item) <> 'object'
          or length(entry_id) not between 1 and 200 or entry_id = any(ids)
          or nullif(item->>'draftCreatedAt','') is null
+         or nullif(item->>'activityUpdatedAt','') is null
       then raise exception 'scheduling_agent_invalid_selection'; end if;
       ids := array_append(ids,entry_id);
       begin
         expected_at := (item->>'draftCreatedAt')::timestamptz;
+        expected_updated_at := (item->>'activityUpdatedAt')::timestamptz;
       exception when others then raise exception 'scheduling_agent_invalid_selection'; end;
       select * into course from public.activities where row_id=entry_id for update;
       if not found or course.activity_season <> 'school_2027' or course.status <> 'פתוח'
@@ -224,6 +227,7 @@ begin
       then raise exception 'scheduling_agent_team_course_only'; end if;
       if course.draft_created_by is distinct from auth.uid()
          or course.draft_created_at is distinct from expected_at
+         or course.updated_at is distinct from expected_updated_at
          or course.draft_emp_id is null or course.draft_proposed_meetings is null
          or course.emp_id is not null or course.instructor_assignment_locked
       then raise exception 'scheduling_agent_team_draft_changed'; end if;
