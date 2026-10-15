@@ -31,6 +31,7 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+      - run: node --test tests/scheduling-agent-team-actionable-workflow.test.mjs
       - run: deno check supabase/functions/scheduling-agent-team-gateway/index.ts
       - run: python3 -m pip install --quiet pglast
       - name: Parse new scheduling migrations
@@ -39,6 +40,7 @@ jobs:
           from pathlib import Path
           from pglast import parse_sql
           found = sorted(Path("supabase/migrations").glob("20261015*scheduling*.sql"))
+          found.append(Path("supabase/migrations/20261017100000_scheduling_agent_team_schedule_batch.sql"))
           assert found, "Scheduling migrations not found"
           for file in found:
               parse_sql(file.read_text(encoding="utf-8"))
