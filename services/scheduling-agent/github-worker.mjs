@@ -7,6 +7,8 @@ import {createGithubWorkerTransport,createGithubAgentBackend} from './github-ada
 
 const transport=createGithubWorkerTransport();
 const backend=createGithubAgentBackend(transport);
+const probe=await transport.call('probe');
+if(probe?.ready!==true)throw Error('github_worker_oidc_probe_failed');
 const deadline=new AbortController();
 const timeout=setTimeout(()=>deadline.abort(),8*60_000);
 timeout.unref?.();
