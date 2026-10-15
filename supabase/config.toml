@@ -3,6 +3,23 @@ project_id = "dashboard_system"
 [remotes.main]
 project_id = "szinlhjuwyiyszdpsdop"
 
+
+# Production identity-provider settings. Keep local OAuth redirects separate.
+# Never run `supabase config push` against this project: CLI defaults may overwrite live
+# Auth settings, including values NOT declared here. Review remote changes manually.
+[remotes.main.auth]
+site_url = "https://taasiyeda2026.github.io/dashboard_system"
+# Preserve the two entries already present in production at the time of this change.
+additional_redirect_urls = [
+  "https://127.0.0.1:3000",
+  "https://taasiyeda2026.github.io/dashboard_system",
+]
+
+[remotes.main.auth.oauth_server]
+enabled = true
+authorization_url_path = "/scheduling-agent-approval.html"
+allow_dynamic_registration = true
+
 [remotes.main.auth.email.template.recovery]
 subject = "קוד אימות לאיפוס הכניסה – תעשיידע"
 content_path = "./supabase/templates/recovery.html"
