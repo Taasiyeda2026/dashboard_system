@@ -58,6 +58,7 @@ begin
     'planningCurrent',
       p->>'sourceRevision' is not distinct from p->'workspace'->>'validatedSourceRevision'
       and coalesce((p->>'dirtyCount')::integer,0)=0
+      and p->'workspace'->>'engineVersion'='planning-v37-20261010-constraint-block-planner'
   );
 end
 $;
