@@ -6,11 +6,14 @@ async function start(){
  if(!supabase)throw Error('אין חיבור למערכת.');
  const {data,error}=await supabase.auth.getUser();
  if(error||!data.user){root.innerHTML='<p>יש להתחבר תחילה לדשבורד בחשבון האישי שלך, ואז לחזור לעמוד הזה ולרענן.</p>';return;}
- // The DB verifies the owner identity and operational permissions server-side.
- await rpc('scheduling_agent_read_snapshot');
+ // OAuth consent can be granted by *any authorized scheduling team member*,
+ // but only after the actual Supabase session is verified on the server. This
+ // must not inherit the old owner's broader scheduling approval permissions.
  const authorizationId=new URL(location.href).searchParams.get('authorization_id');
  if(authorizationId){
   if(!/^[a-zA-Z0-9_-]{1,200}$/.test(authorizationId))throw Error('בקשת הרשאה לא תקינה.');
+  const {data:teamAccess,error:teamError}=await supabase.rpc('scheduling_agent_team_identity');
+  if(teamError||teamAccess?.authorized!==true)throw Error('אין הרשאה להתחבר לסוכן השיבוצים הארגוני.');
   const details=await supabase.auth.oauth.getAuthorizationDetails(authorizationId);
   if(details.error)throw Error('בקשת הרשאת הסוכן אינה זמינה.');
   const d=details.data;
@@ -21,6 +24,9 @@ async function start(){
    if(result.error){showError('לא ניתן להשלים את ההרשאה.');return;}redirect(result.data.redirect_url);
   };return;
  }
+ // Approval of actual scheduling changes is still OWNER-ONLY, and never
+ // becomes available to staff merely because they may authorize their MCP.
+ await rpc('scheduling_agent_read_snapshot');
  const requests=await rpc('scheduling_agent_list_requests');
  root.innerHTML=requests.length?requests.map(r=>agentRequestHtml(r)).join(''):'<p>אין בקשות שינוי. לא נשלחו שיבוצים לאישור במסגרת ההקמה.</p>';
  root.onchange=event=>{const input=event.target.closest('[data-reviewed]');if(input){const button=root.querySelector(`[data-approve="${CSS.escape(input.dataset.reviewed)}"]`);if(button)button.disabled=!input.checked;}};
