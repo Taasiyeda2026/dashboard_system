@@ -3,7 +3,7 @@
  * No service-role key, staff login, OAuth refresh token, or private data in logs.
  */
 import {
-  planningDataFingerprint, serializePlanningContextFingerprint, applyPlanningLockToRow
+  planningDataFingerprint, serializePlanningContextFingerprint, applyPlanningLockToRow, planningWorkspaceCourses
 } from '../../frontend/src/screens/course-scheduling-planning.js';
 import {createRouteClient} from '../../frontend/src/screens/course-scheduling-travel.js';
 import {enrichActivitiesWithSchoolAddresses} from '../../frontend/src/screens/course-scheduling-distance-build.js';
@@ -48,7 +48,12 @@ export function prepareServerPlanningSnapshot(payload) {
     throw new WorkerTransportError('authoritative_planning_source_incomplete');
   }
   const enriched=enrichActivitiesWithSchoolAddresses(activities,schoolLocations);
-  if(enriched.missingCount>0)throw new WorkerTransportError('school_locations_missing');
+  // Raw year data also contains workshops/tours and historical non-course rows;
+  // only missing addresses among actual planned courses block a plan. Each
+  // retained non-course blocker is separately validated by the core engine.
+  const addressMissingInPlannedCourses=planningWorkspaceCourses(enriched.activities,'','year')
+    .some(x=>x.school_address_missing===true);
+  if(addressMissingInPlannedCourses)throw new WorkerTransportError('school_locations_missing_for_planned_course');
   const cancelled=new Map();
   for(const row of requiredList(payload,'cancellations')){
     const id=trim(row.activity_id); if(!cancelled.has(id))cancelled.set(id,new Set());
