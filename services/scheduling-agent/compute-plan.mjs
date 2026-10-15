@@ -80,7 +80,7 @@ export function verifyAgentPlanningInput({
  */
 export function assertNoUnlocatedCourseAssignments(rows=[],missingSchoolCourseIds=[]) {
   const unresolved=new Set((missingSchoolCourseIds||[]).map(String));
-  for (const row of rows {
+  for (const row of rows) {
     if(!unresolved.has(String(row?.courseId||'')))continue;
     // Unlocated school can be a reported exception/recruitment requirement,
     // NEVER a firm or suggested instructor/route assignment.
