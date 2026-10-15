@@ -25,7 +25,7 @@ test('team snapshot is whitelisted and excludes private source data', () => {
 });
 
 test('team tools cannot commit, approve, change settings or run arbitrary RPCs', () => {
-  for (const tool of ['read_snapshot','manager_approval_state','stage_manual_draft','submit_manager_approval','confirm_own_draft']) {
+  for (const tool of ['read_snapshot','manager_approval_state','stage_manual_draft','submit_manager_approval','confirm_own_draft','confirm_planning_option']) {
     assert.ok(edge.includes("name: '"+tool+"'"));
   }
   assert.doesNotMatch(edge, /name: '(?:commit_approved_changes|review_manager_approval|update_settings|execute_sql)'/);
@@ -78,4 +78,24 @@ test('regular team assignment is permitted only from a personally created draft'
   assert.doesNotMatch(confirmation,/review_course_assignment_manager_approval\(/);
   assert.match(edge,/name: 'confirm_own_draft'/);
   assert.match(edge,/scheduling_agent_team_confirm_own_draft/);
+});
+
+test('a planned assignment must be from the current authorized planning snapshot', () => {
+  const plan = readFileSync(
+    new URL('../supabase/migrations/20261015114500_scheduling_agent_team_confirm_existing_option.sql',import.meta.url),'utf8'
+  );
+  assert.match(plan,/scheduling_agent_team_assert_member/);
+  assert.match(plan,/p_workspace_revision/);
+  assert.match(plan,/p_source_revision/);
+  assert.match(plan,/r.needs_recalc/);
+  assert.match(plan,/r.activity_updated_at is distinct from a.updated_at/);
+  assert.match(plan,/option_data->>'eligible'/);
+  assert.match(plan,/option_data->>'routeVerified'/);
+  assert.match(plan,/scheduling_agent_existing_dates_protected/);
+  assert.match(plan,/scheduling_agent_elapsed_meeting_protected/);
+  assert.match(plan,/scheduling_agent_date_change_requires_explicit_consent/);
+  assert.match(plan,/public.assign_activity_instructor_with_dates/);
+  assert.doesNotMatch(plan,/review_course_assignment_manager_approval\(/);
+  assert.match(edge,/name: 'confirm_planning_option'/);
+  assert.match(edge,/scheduling_agent_team_confirm_planning_option/);
 });
