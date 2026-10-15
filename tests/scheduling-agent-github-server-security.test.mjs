@@ -12,7 +12,7 @@ test('only the exact signed GitHub main-branch workflow can reach worker control
  assert.match(edge,/claims\.ref!=='refs\/heads\/main'/);
  assert.match(edge,/claims\.workflow_ref!==EXPECTED_WORKFLOW/);
  assert.match(edge,/claims\.aud!==AUD/);
- assert.match(edge,/\['schedule','workflow_dispatch'\]/);
+ assert.match(edge,/\['schedule','workflow_dispatch','push'\]/);
  assert.match(edge,/await validateGitHubOidc\(req\.headers\.get\('authorization'\)\)/);
 });
 
