@@ -2,6 +2,7 @@
 // Each call MUST carry a signed GitHub JWT from our main-branch workflow.
 // Supabase service-role credential exists only in the protected Edge runtime.
 import {createClient} from 'npm:@supabase/supabase-js@2.57.4';
+import {planningRefreshTargets} from './planning-scope.mjs';
 
 const BASE='https://szinlhjuwyiyszdpsdop.supabase.co';
 const AUD='taasiyeda-scheduling-agent-worker';
@@ -173,17 +174,7 @@ Deno.serve(async(req:Request)=>{
       activityUpdatedAt:x.activity_updated_at,lockedOption:x.locked_option,
       needsRecalc:x.needs_recalc
     }));
-    const threshold=new Date(Date.now()+7*86400000).toISOString().slice(0,10);
-    const targets=new Set(stored.filter(x=>x.needs_recalc).map(x=>String(x.activity_id)));
-    const activityById=new Map(activities.map(x=>[String(x.row_id),x]));
-    for(const x of planningRows){
-      const row=x.row||{};
-      if(x.lockedOption||!['proposal','fixed-proposal'].includes(String(row.kind))
-         ||!row.startDate||String(row.startDate)>=threshold)continue;
-      const activity=activityById.get(String(x.activityId));
-      if(activity && !activity.emp_id && !activity.emp_id_2 && !activity.start_date
-        && !activity.instructor_assignment_locked)targets.add(String(x.activityId));
-    }
+    const targets=planningRefreshTargets({stored,activities,serverTime:end.serverTime});
     return output({
       sourceRevision:String(start.sourceRevision),
       workspace:{...start.workspace,id:workspace.id},
