@@ -44,7 +44,7 @@ begin
   if caller_role <> 'service_role' then
     raise exception 'worker_machine_identity_required' using errcode='42501';
   end if;
-  if p_action not in ('claim','lease','heartbeat','preflight','persist','finish','release') then
+  if p_action not in ('claim','lease','heartbeat','preflight','locations','blockers','persist','finish','release') then
     raise exception 'worker_action_not_allowed' using errcode='42501';
   end if;
   if jsonb_typeof(p_payload) is distinct from 'object' then
@@ -64,6 +64,15 @@ begin
   perform set_config('request.jwt.claims',jsonb_build_object(
     'sub',worker_owner::text,'role','authenticated'
   )::text,true);
+
+  if p_action = 'locations' then
+    select coalesce(jsonb_agg(to_jsonb(s)),'[]'::jsonb) into v_result
+      from public.scheduling_authority_school_locations() s;
+    return v_result;
+  end if;
+  if p_action = 'blockers' then
+    return coalesce(public.get_scheduling_planning_external_blockers(),'[]'::jsonb);
+  end if;
 
   if p_action = 'claim' then
     -- Do not touch jobs claimed by the browser under the old mechanism.
@@ -100,7 +109,9 @@ begin
 
   select * into j from public.scheduling_agent_team_optimization_jobs
     where id=v_job for update;
-  if not found or j.status<>'running' or j.claimed_by is not null
+  if not found or (j.status<>'running'
+      and not (p_action='release' and j.status in ('failed','completed')))
+    or j.claimed_by is not null
     or (j.worker_run_id is not null and j.worker_run_id<>v_run)
   then raise exception 'worker_job_ownership_lost' using errcode='42501'; end if;
 
