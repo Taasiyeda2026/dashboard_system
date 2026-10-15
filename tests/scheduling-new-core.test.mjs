@@ -13,9 +13,9 @@ function input(activities, extra = {}) {
     exceptions: {}, schoolCalendar: [], catalog: [], today: '2026-10-09', periodKey: 'year', planningProfile: 'fast', skipSoftOptimization: true,
     existingRows: [], committedRows: [], lockedOptions: {}, routeClient: createRouteClient({ preloadedRows: routeRows, invoke: async () => { throw Error('Network forbidden'); } }), ...extra };
 }
-test('new product entry uses v37 and one 100-point score contract; inputs remain unchanged', async () => {
+test('new product entry uses v38 and one 100-point score contract; inputs remain unchanged', async () => {
   const data = input([activity('a')]), before = JSON.stringify({ ...data, routeClient: null });
-  const plan = await buildDynamicCoursePlan(data); assert.equal(plan.engineVersion, PLANNING_ENGINE_VERSION); assert.match(plan.engineVersion, /^planning-v37-/);
+  const plan = await buildDynamicCoursePlan(data); assert.equal(plan.engineVersion, PLANNING_ENGINE_VERSION); assert.match(plan.engineVersion, /^planning-v38-/);
   assert.equal(plan.finalPlanValidation.valid, true); assert.ok(plan.rows[0].instructorEmpId);
   const score = plan.rows[0]; assert.equal(score.score, Object.values(score.scoreBreakdown).reduce((sum, item) => sum + item.points, 0));
   assert.equal(JSON.stringify({ ...data, routeClient: null }), before);
@@ -55,10 +55,10 @@ test('a blocked saved fixed proposal is unassigned or legally reassigned without
   const second = await buildDynamicCoursePlan(changed); assert.equal(second.finalPlanValidation.valid, true); assert.notEqual(second.rows[0].instructorEmpId, id);
   assert.equal(second.rows[0].meetings[0].date, '2026-10-12'); assert.equal(first.rows[0].instructorEmpId, id);
 });
-test('travel above 20km fails even after a long gap and unknown travel is never invented', async () => {
+test('travel above 45km fails even after a long gap and unknown travel is never invented', async () => {
   const a = activity('approved', { emp_id: '1', instructor_assignment_locked: true }), b = activity('b', { school_id: '2', school_address: 'school2', start_time: '13:00', end_time: '14:00' });
   const data = input([a, b], { instructors: [{ emp_id: '1', active: 'yes', address: 'home1' }] });
-  data.routeClient = createRouteClient({ preloadedRows: [{ origin_key: 'home1', destination_key: 'school1', distance_km: 5, duration_minutes: 10 }, { origin_key: 'home1', destination_key: 'school2', distance_km: 5, duration_minutes: 10 }, { origin_key: 'school1', destination_key: 'school2', distance_km: 21, duration_minutes: 20 }], invoke: async () => ({ data: { calculated: false }, error: null }) });
+  data.routeClient = createRouteClient({ preloadedRows: [{ origin_key: 'home1', destination_key: 'school1', distance_km: 5, duration_minutes: 10 }, { origin_key: 'home1', destination_key: 'school2', distance_km: 5, duration_minutes: 10 }, { origin_key: 'school1', destination_key: 'school2', distance_km: 46, duration_minutes: 60 }], invoke: async () => ({ data: { calculated: false }, error: null }) });
   const plan = await buildDynamicCoursePlan(data); assert.ok(!plan.rows[1].instructorEmpId); assert.equal(plan.rows[0].instructorEmpId, '1');
 });
 test('holidays, gender, language, inactive status and blocked authority are hard gates, not scores', async () => {

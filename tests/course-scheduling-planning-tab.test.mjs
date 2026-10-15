@@ -275,7 +275,7 @@ test('stale shared planning is not presented as a current recommendation', () =>
 
   assert.match(html, /התכנון השמור אינו עדכני/);
   assert.match(html, /גרסת מנוע התכנון השתנתה מאז החישוב האחרון/);
-  assert.match(html, /data-run-course-planning|>עדכן</);
+  assert.match(html, /החישוב מתבצע בסוכן השיבוצים/);
   assert.doesNotMatch(html, /data-planning-completion-overview/);
   assert.match(html, /אין מועד קבוע מבית הספר — המערכת תציע תאריך, שעה ומדריך/);
 });
