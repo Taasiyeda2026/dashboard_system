@@ -115,6 +115,11 @@ Deno.serve(async(req:Request)=>{
     // Full snapshot uses multiple DB requests but protects against mixed
     // versions by comparing authoritative preflight both BEFORE and AFTER.
     const start=await command('preflight',args);
+    const {data:workspace,error:workspaceError}=await client.from('scheduling_planning_workspaces')
+      .select('id,revision').eq('period_key','year').eq('district','').single();
+    if(workspaceError||!workspace?.id||String(workspace.revision)!==String(start?.workspace?.revision)){
+      throw Error('worker_workspace_identity_conflict');
+    }
     const selectAct=[
       'row_id','district','authority_id','authority','school','school_id','activity_name',
       'catalog_slug','activity_no','proposal_item_id','activity_type','item_type',
@@ -144,7 +149,7 @@ Deno.serve(async(req:Request)=>{
       paged('scheduling_travel_cache','origin_key,destination_key,distance_km,duration_minutes,provider,calculated_at,expires_at,origin_address,destination_address,origin_entity_key,destination_entity_key',
         q=>q.gt('expires_at',new Date().toISOString()),10000),
       paged('scheduling_planning_rows','activity_id,row_data,activity_updated_at,locked_option,needs_recalc',
-        q=>q.eq('workspace_id',String(start?.workspace?.id||'')),10000),
+        q=>q.eq('workspace_id',String(workspace.id)),10000),
       paged('course_meeting_cancellations','activity_id,meeting_date',q=>q.order('meeting_date'),10000)
     ]);
     const end=await command('preflight',args);
@@ -174,7 +179,7 @@ Deno.serve(async(req:Request)=>{
     }
     return output({
       sourceRevision:String(start.sourceRevision),
-      workspace:start.workspace,
+      workspace:{...start.workspace,id:workspace.id},
       activities,instructors,schoolLocations,externalBlockers,meetingInstructorHistory,
       profiles,rules,exceptions,schoolCalendar,catalog,routes,
       existingRows:planningRows,cancellations,
