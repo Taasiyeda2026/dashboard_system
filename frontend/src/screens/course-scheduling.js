@@ -4138,6 +4138,56 @@ export const courseSchedulingScreen = {
       }
     };
 
+    // Chat-triggered optimization uses the SAME lease-protected v38 planner and
+    // snapshot validator as the dashboard's own "עדכן" action. Queue consumption
+    // is intentionally browser-driven: no secret key, headless SQL planner, or
+    // unverified plan payload is accepted from ChatGPT.
+    if (!root._agentOptimizationQueueTimer) {
+      const pollAgentOptimizationQueue = async () => {
+        if (!root.isConnected) {
+          clearInterval(root._agentOptimizationQueueTimer);
+          root._agentOptimizationQueueTimer = null;
+          return;
+        }
+        if (!schedulingScreenActive || state.route !== 'course-scheduling'
+          || state.courseSchedulingPlanningLoading || root._agentQueueBusy) return;
+        root._agentQueueBusy = true;
+        let job = null;
+        try {
+          const claimed = await supabase.rpc('scheduling_agent_team_claim_optimization');
+          if (claimed.error || claimed.data?.claimed !== true) return;
+          job = claimed.data;
+          // Never automatically force a full rebuild unless Idan explicitly
+          // requested mode=full through the authenticated server queue.
+          await runCoursePlanning({forceFull:job.mode === 'full',reuseSnapshot:false});
+          const facts = await loadSchedulingPlanningPreflight(planningScope());
+          const upToDate = facts?.sourceRevision
+            && String(facts.sourceRevision) === String(facts?.workspace?.validatedSourceRevision)
+            && Number(facts.dirtyCount) === 0
+            && facts?.workspace?.engineVersion === PLANNING_ENGINE_VERSION;
+          const committed = state.courseSchedulingPlanningRunDiagnostics?.phase === PLANNING_RUN_PHASES.COMMITTED;
+          await supabase.rpc('scheduling_agent_team_finish_optimization', {
+            p_job_id: job.jobId,
+            p_success: Boolean(committed && upToDate),
+            p_failure_code: committed ? 'planning_not_current'
+              : text(state.courseSchedulingPlanningRunDiagnostics?.error || 'planning_run_failed')
+          });
+        } catch (error) {
+          if (job?.jobId) {
+            await supabase.rpc('scheduling_agent_team_finish_optimization', {
+              p_job_id: job.jobId,p_success:false,p_failure_code:'planning_execution_error'
+            }).catch(() => {});
+          }
+        } finally {
+          root._agentQueueBusy = false;
+        }
+      };
+      root._agentOptimizationQueueTimer = setInterval(
+        () => { void pollAgentOptimizationQueue(); }, 12000
+      );
+      void pollAgentOptimizationQueue();
+    }
+
     const clonePlanningOption = (option = {}) => ({
       ...option,
       meetings: (option.meetings || []).map((meeting) => ({ ...meeting })),
