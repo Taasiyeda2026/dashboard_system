@@ -55,8 +55,8 @@ const TOOLS = [
     name: 'confirm_schedule_batch',
     description: 'FINALIZE 1-5 caller-owned staged course drafts atomically, applying exact staged dates to the official calendar and confirming instructors through existing validators. Call only after the user separately and explicitly approves finalizing THESE drafts, and only if all required manager exceptions are already approved. If any course is rejected, all changes roll back.',
     inputSchema: {type:'object',properties:{items:{type:'array',minItems:1,maxItems:5,items:{type:'object',properties:{
-      activityId:{type:'string'},draftCreatedAt:{type:'string'}
-    },required:['activityId','draftCreatedAt'],additionalProperties:false}}},
+      activityId:{type:'string'},draftCreatedAt:{type:'string'},activityUpdatedAt:{type:'string'}
+    },required:['activityId','draftCreatedAt','activityUpdatedAt'],additionalProperties:false}}},
     required:['items'],additionalProperties:false}
   },
   {
@@ -147,8 +147,9 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
       if(!isObject(item)||!activityId(item.activityId)||ids.has(item.activityId))return false;
       ids.add(item.activityId);
       if(name==='confirm_schedule_batch'){
-        if(Object.keys(item).some(k=>!['activityId','draftCreatedAt'].includes(k)))return false;
-        if(typeof item.draftCreatedAt!=='string'||item.draftCreatedAt.length<10||item.draftCreatedAt.length>60)return false;
+        if(Object.keys(item).some(k=>!['activityId','draftCreatedAt','activityUpdatedAt'].includes(k)))return false;
+        if(typeof item.draftCreatedAt!=='string'||item.draftCreatedAt.length<10||item.draftCreatedAt.length>60
+          ||typeof item.activityUpdatedAt!=='string'||item.activityUpdatedAt.length<10||item.activityUpdatedAt.length>60)return false;
       }else{
         if(Object.keys(item).some(k=>!['activityId','instructorId','startTime','endTime','dates','reason'].includes(k)))return false;
         if(!Number.isSafeInteger(item.instructorId)||item.instructorId<=0)return false;
