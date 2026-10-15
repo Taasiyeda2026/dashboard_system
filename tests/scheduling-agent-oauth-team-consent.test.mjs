@@ -15,12 +15,13 @@ test('OAuth consent permits only authenticated scheduling team identities',()=>{
 
 test('Non-OAuth manager approval remains owner-only',()=>{
  const consentBlock=consent.indexOf('if(authorizationId){');
- const end=consent.indexOf('const requests=await rpc(',consentBlock);
+ const end=consent.indexOf('  };return;',consentBlock);
+ assert.ok(end>consentBlock,'OAuth consent block must return before manager approval');
  const current=consent.slice(consentBlock,end);
  assert.ok(current.indexOf("scheduling_agent_team_identity")>=0);
  assert.ok(!current.includes("rpc('scheduling_agent_read_snapshot')"),
    'Team consent must not invoke the owner-only snapshot RPC');
- assert.match(consent.slice(end-180,end),/await rpc\('scheduling_agent_read_snapshot'\)/);
+ assert.match(consent.slice(end,consent.indexOf('const requests=await rpc(',end)),/await rpc\('scheduling_agent_read_snapshot'\)/);
  assert.match(consent,/const requests=await rpc\('scheduling_agent_list_requests'\)/);
 });
 
