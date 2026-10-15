@@ -8,7 +8,7 @@ import { schedulingWeekendFailure } from '../shared/scheduling-weekend-policy.js
 // planner-search revision under the same hard-constraint validator contract;
 // changing this string without a coordinated SQL capability migration blocks
 // atomic save (planning_engine_version_conflict / capability handshake).
-export const ENGINE_VERSION = 'planning-v37-20261010-constraint-block-planner';
+export const ENGINE_VERSION = 'planning-v38-20261015-transition-30-45';
 export const text = value => String(value ?? '').trim();
 export const activityId = a => text(a?.row_id || a?.RowID || a?.id);
 export const address = value => text(value).toLowerCase().replace(/\s+/g, ' ');
@@ -136,7 +136,7 @@ export function transitionFailure(context, previous, next) {
   if (previous.schoolId && previous.schoolId === next.schoolId) return null;
   const route = knownRoute(context, previous.address, next.address);
   if (!route) return 'transition_unknown';
-  if (+route.distance_km > 20) return 'transition_distance_exceeded';
+  if (+route.distance_km > 30) return 'transition_distance_exceeded';
   const required = +route.duration_minutes + (+route.distance_km <= 5 ? 5 : 15);
   return next.start - previous.end < required ? 'transition_time' : null;
 }
