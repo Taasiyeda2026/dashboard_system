@@ -2508,7 +2508,7 @@ export const courseSchedulingScreen = {
       }
     };
 
-    const applySharedPlanningState = (shared, snapshot = data) => {
+    const applySharedPlanningState = (shared, snapshot = data, serverPreflight = null) => {
       const scope = planningScope();
       const currentCourses = planningWorkspaceCourses(
         snapshot?.activities || [],
@@ -2533,7 +2533,17 @@ export const courseSchedulingScreen = {
             legacyFingerprint: legacyContextFingerprint
           })
         : null;
-      const inputChanged = contextResolution?.contextChanged === true;
+      // Agent-owned server state is authoritative; compare source revisions
+      // rather than treating representation differences as a source mutation.
+      const serverSourceRevision = text(serverPreflight?.sourceRevision);
+      const validatedSourceRevision = text(serverPreflight?.workspace?.validatedSourceRevision);
+      const serverCertified = !!workspace
+        && !!serverSourceRevision
+        && serverSourceRevision === validatedSourceRevision
+        && text(serverPreflight?.workspace?.engineVersion) === storedEngineVersion
+        && Number(serverPreflight?.dirtyCount) === 0
+        && !engineChanged;
+      const inputChanged = !serverCertified && contextResolution?.contextChanged === true;
       const unrecoverableGlobalContextChange = contextResolution?.unrecoverableGlobalContextChange === true;
       const engineUpgradeAffectedIds = engineChanged
           ? planningEngineUpgradeAffectedCourseIds({
@@ -2543,7 +2553,7 @@ export const courseSchedulingScreen = {
             currentEngineVersion: PLANNING_ENGINE_VERSION
           })
         : [];
-      const affectedIds = !workspace
+      const affectedIds = serverCertified ? [] : !workspace
         ? currentCourseIds
         : unrecoverableGlobalContextChange
           ? currentCourseIds
@@ -2674,13 +2684,15 @@ export const courseSchedulingScreen = {
 
     const reloadSharedPlanningState = async ({ refreshData = true, isCurrent = () => true, displayOnly = false } = {}) => {
       const scope = planningScope();
-      const [fresh, shared] = await Promise.all([
+      const [fresh, shared, serverPreflight] = await Promise.all([
         refreshData ? data.reloadPlanningSnapshot?.() : Promise.resolve(data),
-        (displayOnly ? loadSharedPlanningDisplayWorkspace : loadSharedPlanningWorkspace)({ periodKey: scope.periodKey, district: scope.district })
+        (displayOnly ? loadSharedPlanningDisplayWorkspace : loadSharedPlanningWorkspace)({ periodKey: scope.periodKey, district: scope.district }),
+        // A failed preflight must not suppress a stale-plan warning.
+        loadSchedulingPlanningPreflight(scope).catch(() => null)
       ]);
       if (!isCurrent()) throw new PlanningCancelledError();
       if (fresh && fresh !== data) Object.assign(data, fresh);
-      applySharedPlanningState(shared, fresh || data);
+      applySharedPlanningState(shared, fresh || data, serverPreflight);
       let nextShared = shared;
       if (
         state.courseSchedulingPlanningFingerprintUpgraded
