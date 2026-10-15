@@ -6,7 +6,7 @@ on:
       - 'tests/scheduling-agent-server-*.test.mjs'
       - 'tests/scheduling-agent-github-adapter.test.mjs'
       - 'tests/scheduling-agent-github-server-security.test.mjs'
-      - 'tests/scheduling-agent-shadow-readonly.test.mjs tests/scheduling-agent-snapshot-views.test.mjs'
+      - 'tests/scheduling-agent-shadow-readonly.test.mjs'
       - 'tests/scheduling-agent-snapshot-views.test.mjs'
       - 'supabase/migrations/20261015184000_scheduling_agent_worker_least_privilege_views.sql'
       - 'supabase/migrations/20261015181500_scheduling_agent_worker_readonly_shadow.sql'
@@ -26,7 +26,7 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci
-      - run: node --test tests/scheduling-agent-server-*.test.mjs tests/scheduling-agent-github-*.test.mjs tests/scheduling-agent-shadow-readonly.test.mjs
+      - run: node --test tests/scheduling-agent-server-*.test.mjs tests/scheduling-agent-github-*.test.mjs tests/scheduling-agent-shadow-readonly.test.mjs tests/scheduling-agent-snapshot-views.test.mjs
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
