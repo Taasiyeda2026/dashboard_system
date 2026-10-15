@@ -3,7 +3,7 @@ on:
   pull_request:
     paths:
       - 'services/scheduling-agent/**'
-      - 'tests/scheduling-agent-server-engine.test.mjs'
+      - 'tests/scheduling-agent-server-*.test.mjs'
       - '.github/workflows/scheduling-agent-server-core.yml'
   workflow_dispatch:
 jobs:
@@ -17,4 +17,4 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci
-      - run: node --test tests/scheduling-agent-server-engine.test.mjs
+      - run: node --test tests/scheduling-agent-server-*.test.mjs
