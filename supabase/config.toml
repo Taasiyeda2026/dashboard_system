@@ -16,3 +16,11 @@ verify_jwt = false
 # No service-role key and no anonymous RPC/table access. Commits remain disabled.
 [functions.scheduling-agent-gateway]
 verify_jwt = false
+
+# Dedicated server-only wake secret; handler rejects missing/invalid secret.
+[functions.scheduling-agent-wakeup]
+verify_jwt = false
+
+# GitHub OIDC is verified against the exact main-branch workflow inside handler.
+[functions.scheduling-agent-worker-api]
+verify_jwt = false

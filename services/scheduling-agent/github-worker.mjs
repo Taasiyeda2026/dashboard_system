@@ -1,37 +1,19 @@
 /**
- * Main-branch push starts a one-shot worker wake-up without relying on a browser.
+ * Server dispatch or scheduled polling starts one queue attempt without a browser.
  * v38 trusted database transition gate now matches the approved 30km automatic limit.
- * Signed main-branch GitHub Actions worker, with safe read-only shadow on push.
- * The shadow never claims a queued job, acquires a lease, or writes proposals.
+ * Disabled means idle on EVERY trigger; no implicit shadow calculation.
  */
 import {runOneSchedulingAgentJob} from './runner.mjs';
-import {computeAgentSchedulingPlan} from './compute-plan.mjs';
 import {
-  createGithubWorkerTransport,createGithubAgentBackend,prepareServerPlanningSnapshot
+  createGithubWorkerTransport,createGithubAgentBackend
 } from './github-adapter.mjs';
 
 async function main(){
   const transport=createGithubWorkerTransport();
   const probe=await transport.call('probe');
   if(probe?.ready!==true)throw Error('worker_oidc_probe_failed');
-  if(probe.enabled!==true) {
-    if(process.env.GITHUB_EVENT_NAME!=='push'){
-      return {status:'idle',reason:'worker_cutover_disabled'};
-    }
-    // ONE-TIME main-branch canary. All private inputs/results remain in runner
-    // memory, never in GitHub Actions logs, cache or artifacts.
-    const raw=await transport.call('snapshot');
-    const trusted=prepareServerPlanningSnapshot(raw);
-    const c=new AbortController();
-    const watchdog=setTimeout(()=>c.abort(),8*60_000);
-    try{
-      const result=await computeAgentSchedulingPlan({
-        ...trusted,mode:'full',signal:c.signal
-      });
-      return {status:'shadow_validated',engineVersion:result.engineVersion,
-        rowCount:result.rows.length,sourceRevision:trusted.sourceRevision,
-        workspaceRevision:trusted.workspaceRevision};
-    }finally{clearTimeout(watchdog);}
+  if(probe.enabled!==true || probe.atomicCompletion!==true) {
+    return {status:'idle',reason:'worker_cutover_disabled'};
   }
 
   const backend=createGithubAgentBackend(transport);
@@ -54,6 +36,6 @@ try{
 }catch(error){
   const raw=String(error?.code||error?.message||'worker_unexpected_error');
   const code=raw.replace(/[^a-zA-Z0-9_-]/g,'').slice(0,50)||'worker_unexpected_error';
-  process.stdout.write(JSON.stringify({status:'shadow_failed',failureCode:code})+'\n');
+  process.stdout.write(JSON.stringify({status:'failed',failureCode:code})+'\n');
   process.exitCode=1;
 }

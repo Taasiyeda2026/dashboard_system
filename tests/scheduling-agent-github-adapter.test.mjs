@@ -59,3 +59,24 @@ test('adapter provides only the narrow runner interface',()=>{
   'claimJob','acquireLease','heartbeatLease','loadSnapshot','readPreflight',
   'persistProposals','finishJob','releaseLease'].sort());
 });
+
+test('long-lived OIDC tokens refresh before the Edge iat window expires',async()=>{
+ let time=Date.now(),exchanges=0;
+ const transport=createGithubWorkerTransport({now:()=>time,
+  env:{ACTIONS_ID_TOKEN_REQUEST_URL:'https://example.invalid/token',ACTIONS_ID_TOKEN_REQUEST_TOKEN:'synthetic'},
+  fetchImpl:async(url)=>{
+   if(String(url).includes('audience=')){exchanges++;return {ok:true,json:async()=>({value:JWT_HEAD+'.'+
+    Buffer.from(JSON.stringify({exp:Math.floor(time/1000)+3600})).toString('base64url')+'.signature'})};}
+   return {ok:true,json:async()=>({ok:true})};
+  }});
+ await transport.call('heartbeat');time+=181000;await transport.call('heartbeat');
+ assert.equal(exchanges,2);
+});
+
+test('lost worker connection has a safe retryable error code',async()=>{
+ const transport=createGithubWorkerTransport({
+  env:{ACTIONS_ID_TOKEN_REQUEST_URL:'https://example.invalid/token',ACTIONS_ID_TOKEN_REQUEST_TOKEN:'synthetic'},
+  fetchImpl:async(url)=>{if(String(url).includes('audience='))return {ok:true,json:async()=>({value:TOKEN})};
+   throw Error('private provider detail');}});
+ await assert.rejects(transport.call('persist'),e=>e.code==='worker_transport_failed'&&!e.message.includes('private'));
+});
