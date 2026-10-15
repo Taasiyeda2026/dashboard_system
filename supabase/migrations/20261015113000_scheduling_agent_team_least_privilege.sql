@@ -122,8 +122,7 @@ begin
                   then opt.value->'meetings' else '[]'::jsonb end
               ) as mt(value)
             )
-          )
-        ) order by opt.ordinality), '[]'::jsonb)
+          ) order by opt.ordinality), '[]'::jsonb)
         from jsonb_array_elements(
           case when can_recommend and r.needs_recalc is distinct from true
               and jsonb_typeof(r.row_data->'options')='array'
