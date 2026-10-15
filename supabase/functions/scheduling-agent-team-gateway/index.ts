@@ -104,8 +104,8 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
   }
   if(name==='confirm_planning_option'){
     if(typeof args.optionIndex!=='number'||!Number.isInteger(args.optionIndex)||args.optionIndex<0||args.optionIndex>50)return false;
-    if(typeof args.workspaceRevision!=='string'||!/^\\d+$/.test(args.workspaceRevision))return false;
-    if(typeof args.sourceRevision!=='string'||!/^\\d+$/.test(args.sourceRevision))return false;
+    if(typeof args.workspaceRevision!=='string'||!/^\d+$/.test(args.workspaceRevision))return false;
+    if(typeof args.sourceRevision!=='string'||!/^\d+$/.test(args.sourceRevision))return false;
     if(typeof args.allowDateChange!=='boolean')return false;
   }
   return true;
