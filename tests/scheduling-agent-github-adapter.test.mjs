@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {planningActivityHasStarted} from '../frontend/src/screens/course-scheduling-planning.js';
 import {
   WORKER_AUDIENCE,WorkerTransportError,
   prepareServerPlanningSnapshot,createGithubWorkerTransport,
@@ -10,6 +11,21 @@ import {
 const JWT_HEAD=Buffer.from(JSON.stringify({alg:'RS256',typ:'JWT'})).toString('base64url');
 const JWT_BODY=Buffer.from(JSON.stringify({exp:Math.floor(Date.now()/1000)+300})).toString('base64url');
 const TOKEN=JWT_HEAD+'.'+JWT_BODY+'.signature';
+
+test('server snapshot supplies the Israeli date across UTC midnight for started-course guards',()=>{
+ const payload={workspace:{revision:'12200'},sourceRevision:'649',
+  activities:[],instructors:[],schoolLocations:[],externalBlockers:[],
+  meetingInstructorHistory:[],profiles:[],rules:[],exceptions:[],schoolCalendar:[],
+  catalog:[],routes:[],existingRows:[],targetCourseIds:[],cancellations:[],
+  sourceComplete:true,routesComplete:true,catalogComplete:true,schoolCalendarComplete:true};
+ const before=prepareServerPlanningSnapshot(payload,{now:new Date('2026-10-15T20:59:00Z')});
+ const after=prepareServerPlanningSnapshot(payload,{now:new Date('2026-10-15T21:01:00Z')});
+ assert.equal(before.snapshot.today,'2026-10-15');
+ assert.equal(after.snapshot.today,'2026-10-16');
+ assert.equal(planningActivityHasStarted({start_date:'2026-10-16'},before.snapshot.today),false);
+ assert.equal(planningActivityHasStarted({start_date:'2026-10-16'},after.snapshot.today),true);
+ assert.equal(payload.today,undefined);
+});
 
 test('GitHub OIDC never needs reusable Supabase or GitHub PAT secrets',async()=>{
  const calls=[];
