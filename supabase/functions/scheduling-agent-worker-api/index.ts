@@ -115,7 +115,7 @@ Deno.serve(async(req:Request)=>{
     // Full snapshot uses multiple DB requests but protects against mixed
     // versions by comparing authoritative preflight both BEFORE and AFTER.
     const start=await command('preflight',args);
-    const {data:workspace,error:workspaceError}=await client.from('scheduling_planning_workspaces')
+    const {data:workspace,error:workspaceError}=await client.from('scheduling_agent_worker_workspaces')
       .select('id,revision').eq('period_key','year').eq('district','').single();
     if(workspaceError||!workspace?.id||String(workspace.revision)!==String(start?.workspace?.revision)){
       throw Error('worker_workspace_identity_conflict');
@@ -138,17 +138,17 @@ Deno.serve(async(req:Request)=>{
       paged('contacts_instructors','emp_id,full_name,address,active,seniority_years',q=>q.order('emp_id'),5000),
       command('locations',args),
       command('blockers',args),
-      paged('course_meeting_instructor_history','activity_id,meeting_date,emp_id',
+      paged('scheduling_agent_worker_history','activity_id,meeting_date,emp_id',
         q=>q.gte('meeting_date','2026-09-01').lte('meeting_date','2027-06-30'),10000),
-      paged('instructor_scheduling_profiles','emp_id,default_start_time,default_end_time,friday_allowed,gender,instruction_languages,education_levels,course_restriction_mode,course_ids,blocked_authorities,blocked_schools,matching_note,weekly_target_hours,weekly_max_hours,preferred_work_days,max_fixed_courses',q=>q.order('emp_id'),5000),
-      paged('instructor_availability_rules','emp_id,weekday,available,start_time,end_time,notes',q=>q.order('emp_id'),5000),
-      paged('instructor_availability_exceptions','emp_id,exception_date,available,start_time,end_time,notes',q=>q.order('emp_id'),5000),
-      paged('school_calendar','external_key,title,category,calendar_sector,start_date,end_date,resume_date,day_status,school_day_end_time,blocks_scheduling,enforce_end_time,show_on_main_calendar,is_active',
+      paged('scheduling_agent_worker_profiles','emp_id,default_start_time,default_end_time,friday_allowed,gender,instruction_languages,education_levels,course_restriction_mode,course_ids,blocked_authorities,blocked_schools,matching_note,weekly_target_hours,weekly_max_hours,preferred_work_days,max_fixed_courses',q=>q.order('emp_id'),5000),
+      paged('scheduling_agent_worker_rules','emp_id,weekday,available,start_time,end_time,notes',q=>q.order('emp_id'),5000),
+      paged('scheduling_agent_worker_exceptions','emp_id,exception_date,available,start_time,end_time,notes',q=>q.order('emp_id'),5000),
+      paged('scheduling_agent_worker_calendar','external_key,title,category,calendar_sector,start_date,end_date,resume_date,day_status,school_day_end_time,blocks_scheduling,enforce_end_time,show_on_main_calendar,is_active',
         q=>q.eq('is_active',true).eq('show_on_main_calendar',true).order('start_date'),5000),
-      paged('proposal_activity_pricing','activity_name,activity_no,gefen_number,pricing_key,program_name,name,title,meetings_count,hours_count,unit_duration,is_active_for_proposals',q=>q.order('activity_name'),5000),
+      paged('scheduling_agent_worker_catalog','activity_name,activity_no,gefen_number,pricing_key,program_name,name,title,meetings_count,hours_count,unit_duration,is_active_for_proposals',q=>q.order('activity_name'),5000),
       paged('scheduling_travel_cache','origin_key,destination_key,distance_km,duration_minutes,provider,calculated_at,expires_at,origin_address,destination_address,origin_entity_key,destination_entity_key',
         q=>q.gt('expires_at',new Date().toISOString()),10000),
-      paged('scheduling_planning_rows','activity_id,row_data,activity_updated_at,locked_option,needs_recalc',
+      paged('scheduling_agent_worker_rows','activity_id,row_data,activity_updated_at,locked_option,needs_recalc',
         q=>q.eq('workspace_id',String(workspace.id)),10000),
       paged('course_meeting_cancellations','activity_id,meeting_date',q=>q.order('meeting_date'),10000)
     ]);
