@@ -11,7 +11,7 @@ const EXPECTED_REPO='Taasiyeda2026/dashboard_system';
 const EXPECTED_REPO_ID='1212938814';
 const EXPECTED_WORKFLOW=EXPECTED_REPO+'/.github/workflows/scheduling-agent-worker.yml@refs/heads/main';
 const ALLOWED_ACTIONS=new Set([
-  'claim','lease','heartbeat','preflight','snapshot','persist','finish','release'
+  'probe','claim','lease','heartbeat','preflight','snapshot','persist','finish','release'
 ]);
 
 const encoder=new TextEncoder();
