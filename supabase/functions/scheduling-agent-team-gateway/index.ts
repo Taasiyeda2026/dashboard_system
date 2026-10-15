@@ -205,7 +205,7 @@ Deno.serve(async request=>{
   if(body.method==='notifications/initialized'&&!('id' in body))
     return new Response(null,{status:202});
   if(body.method==='initialize')
-    return result({protocolVersion:'2025-06-18',capabilities:{tools:{listChanged:false}},serverInfo:{name:'taasiyeda-team-scheduling-agent',version:'0.1.0'}});
+    return result({protocolVersion:'2025-06-18',capabilities:{tools:{listChanged:true}},serverInfo:{name:'taasiyeda-team-scheduling-agent',version:'0.2.0'}});
   if(body.method==='ping')return result({});
   if(body.method==='tools/list')return result({tools:TOOLS});
   if(body.method!=='tools/call')return respond({jsonrpc:'2.0',id,error:{code:-32601,message:'Method not found'}});
