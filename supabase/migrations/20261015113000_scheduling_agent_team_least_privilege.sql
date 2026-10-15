@@ -102,7 +102,12 @@ begin
     and a.activity_no is distinct from '13990'
     and coalesce(a.activity_name,'') not like '%התנסות בתעשייה%';
 
-  return jsonb_build_object('mode','team_scheduling_only','rows',rows);
+  return jsonb_build_object(
+    'mode','team_scheduling_only',
+    'sourceRevision',(select revision::text from public.scheduling_planning_source_state where singleton),
+    'workspaceRevision',(select revision::text from public.scheduling_planning_workspaces where period_key='year' and district=''),
+    'rows',rows
+  );
 end
 $$;
 
