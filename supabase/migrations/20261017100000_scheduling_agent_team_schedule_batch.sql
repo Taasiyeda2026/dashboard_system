@@ -47,8 +47,8 @@ begin
          or length(entry_id) not between 1 and 200
          or entry_id = any(seen)
          or coalesce(item->>'instructorId','') !~ '^[0-9]{1,12}$'
-         or coalesce(item->>'startTime','') !~ '^[0-2][0-9]:[0-5][0-9]$'
-         or coalesce(item->>'endTime','') !~ '^[0-2][0-9]:[0-5][0-9]$'
+         or coalesce(item->>'startTime','') !~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+         or coalesce(item->>'endTime','') !~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'
          or jsonb_typeof(item->'dates') is distinct from 'array'
       then raise exception 'scheduling_agent_invalid_selection'; end if;
       seen := array_append(seen,entry_id);
@@ -98,7 +98,7 @@ begin
         exception when others then
           raise exception 'scheduling_agent_schedule_invalid_date';
         end;
-        if to_char(next_date,'YYYY-MM-DD') <> date_value #>> '{}'
+        if to_char(next_date,'YYYY-MM-DD') <> (date_value #>> '{}')
            or next_date < date '2026-09-01' or next_date > date '2027-08-31'
            or (prev_date is not null and next_date <= prev_date)
         then raise exception 'scheduling_agent_schedule_invalid_date'; end if;
