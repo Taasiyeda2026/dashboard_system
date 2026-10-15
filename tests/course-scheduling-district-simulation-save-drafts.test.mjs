@@ -374,7 +374,7 @@ test('15. no final-assignment RPC is called from district draft save', async () 
   assert.ok(start > 0 && end > start, 'expected district draft-save handler');
   const handler = source.slice(start, end);
   assert.match(handler, /buildCourseAssignmentDraftRpc/);
-  assert.match(handler, /supabase\.rpc\(rpc, payload\)/);
+  assert.match(handler, /assignmentRpc\(rpc, payload\)/);
   assert.doesNotMatch(handler, /assign_activity_instructor/);
   assert.doesNotMatch(handler, /assign_activity_instructor_with_dates/);
   assert.match(source, /save_course_assignment_draft_with_dates' : 'save_course_assignment_draft'/);
@@ -398,7 +398,7 @@ test('17. existing individual-course draft saving remains unchanged', async () =
   assert.ok(start > 0 && end > start);
   const handler = source.slice(start, end);
   assert.match(handler, /buildCourseAssignmentDraftRpc/);
-  assert.match(handler, /supabase\.rpc\(rpc, payload\)/);
+  assert.match(handler, /assignmentRpc\(rpc, payload\)/);
   assert.doesNotMatch(handler, /assign_activity_instructor/);
   assert.match(handler, /actionDisabledReason/);
 });

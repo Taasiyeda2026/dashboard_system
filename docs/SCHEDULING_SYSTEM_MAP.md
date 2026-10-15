@@ -14,6 +14,21 @@ existing main-branch workflow, which continues using GitHub OIDC for DB access.
 Migration defaults disable autonomous operation and register the supervisor inactive.
 Merging or deploying is not authorization to calculate or confirm assignments.
 
+## Dashboard / agent selection controls (PR staging, 2026-10-15)
+
+The live v38 planner computes recommendations on the server. The UI must load
+`get_scheduling_dashboard_candidates` through `course-scheduling-agent-selection.js`,
+not re-enable the browser `calculateCourseSchedule` path. Replacement can select
+stored agent options or a manual instructor; all mutations delegate through the
+allowlisted `scheduling_dashboard_assignment` RPC to the EXISTING domain RPCs.
+Activity timestamps and optional source/workspace revisions fence stale submissions.
+Manual choices are explicitly unvalidated until server save; manager approval,
+language, gender, availability, conflict, training/block and travel checks remain.
+Explicit refresh clears stale local recommendations, while load failures do not
+retry on every rerender. Both functions and the new frontend must deploy together;
+this branch does not depend on or deploy infrastructure PR #2372.
+See `docs/SCHEDULING_DASHBOARD_AGENT_CONTROLS.md` for production evidence and tests.
+
 ## Private scheduling agent gateway (staged 2026-10-14)
 
 See `docs/SCHEDULING_AGENT_GATEWAY.md` for actual rollout status, Google access,
@@ -32,7 +47,7 @@ Related docs (do not treat as overrides of this map):
 
 If this map and the code disagree, **the code wins**. Update this file after any material scheduling change.
 
-**Engine version observed while writing:** `ENGINE_VERSION = planning-v37-20261010-constraint-block-planner` in `frontend/src/screens/scheduling-core/constraints.js` (exported as `PLANNING_ENGINE_VERSION` from `course-scheduling-planning.js`). Live national path is `buildPlan` in `scheduling-core/planner.js` (regional scarcity staging under the same v37 save token).
+**Engine version verified 2026-10-15:** `ENGINE_VERSION = planning-v38-20261015-transition-30-45` in `frontend/src/screens/scheduling-core/constraints.js` (exported as `PLANNING_ENGINE_VERSION` from `course-scheduling-planning.js`). Live national path is `buildPlan` in `scheduling-core/planner.js` (regional scarcity staging under the current v38 save token).
 
 ---
 

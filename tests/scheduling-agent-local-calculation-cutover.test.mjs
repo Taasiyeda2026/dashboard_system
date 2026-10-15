@@ -10,7 +10,11 @@ test('single-course local candidate engine is disabled under server ownership',(
   const run=source.slice(start,end);
   assert.match(run,/if \(SCHEDULING_AGENT_OWNS_COMPUTE\) \{[\s\S]*?return;/);
   assert.ok(run.indexOf('if (SCHEDULING_AGENT_OWNS_COMPUTE)')<run.indexOf('preliminaryCourseCandidates(input)') || !run.includes('preliminaryCourseCandidates(input)'));
-  assert.match(source,/data-find-instructors \$\{SCHEDULING_AGENT_OWNS_COMPUTE \|\| finding \? 'disabled' : ''\}/);
+  const localFallback=run.indexOf('if (state.courseSchedulingLoading) return;');
+  const serverBranch=run.slice(0,localFallback);
+  assert.match(serverBranch,/assignmentClient\.candidates\(selectedCourseId/);
+  assert.doesNotMatch(serverBranch,/calculateCourseSchedule|preliminaryCourseCandidates|calculateCandidateTravel/);
+  assert.match(source,/data-find-instructors \$\{finding \? 'disabled' : ''\}/);
 });
 test('district simulation is not performed by dashboard',()=>{
   const start=source.indexOf('const runDistrictSimulation = async () => {');

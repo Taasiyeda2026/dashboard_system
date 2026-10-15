@@ -391,7 +391,7 @@ test('10. single-course manual controls remain available while district simulati
     }
   });
   assert.match(html, /data-find-instructors/);
-  assert.match(html, /מדריכים וחלופות — דרך סוכן השיבוצים/);
+  assert.match(html, /טען חלופות ובחירה ידנית/);
   assert.doesNotMatch(html, /data-run-district-simulation/);
   assert.doesNotMatch(html, /הפעל תכנון מחוזי/);
   assert.doesNotMatch(html, /data-district-simulation-panel/);

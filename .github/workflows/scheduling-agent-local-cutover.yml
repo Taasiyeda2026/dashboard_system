@@ -4,6 +4,8 @@ on:
     paths:
       - 'frontend/src/screens/course-scheduling.js'
       - 'tests/scheduling-agent-local-calculation-cutover.test.mjs'
+      - 'tests/scheduling-dashboard-agent-controls.test.mjs'
+      - 'frontend/src/screens/course-scheduling-agent-selection.js'
       - '.github/workflows/scheduling-agent-local-cutover.yml'
   workflow_dispatch:
 jobs:
@@ -18,3 +20,8 @@ jobs:
           node-version: '22'
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: node --test tests/scheduling-agent-local-calculation-cutover.test.mjs
+      - name: Verify manual replacement UI with server-owned computation
+        run: >-
+          node --test
+          --test-name-pattern="manual replacement from recommended|direct result HTML|through manual picker still"
+          tests/scheduling-dashboard-agent-controls.test.mjs
