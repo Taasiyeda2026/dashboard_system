@@ -6,7 +6,9 @@ on:
       - 'tests/scheduling-agent-server-*.test.mjs'
       - 'tests/scheduling-agent-github-adapter.test.mjs'
       - 'tests/scheduling-agent-github-server-security.test.mjs'
-      - 'tests/scheduling-agent-shadow-readonly.test.mjs'
+      - 'tests/scheduling-agent-shadow-readonly.test.mjs tests/scheduling-agent-snapshot-views.test.mjs'
+      - 'tests/scheduling-agent-snapshot-views.test.mjs'
+      - 'supabase/migrations/20261015184000_scheduling_agent_worker_least_privilege_views.sql'
       - 'supabase/migrations/20261015181500_scheduling_agent_worker_readonly_shadow.sql'
       - 'supabase/functions/scheduling-agent-worker-api/**'
       - 'supabase/migrations/20261015170000_scheduling_agent_worker_oidc_control.sql'
@@ -32,3 +34,4 @@ jobs:
       - run: python -m pip install --disable-pip-version-check --quiet pglast
       - run: python -c "from pglast import parse_sql; parse_sql(open('supabase/migrations/20261015170000_scheduling_agent_worker_oidc_control.sql').read()); print('SQL syntax verified')"
       - run: python -c "from pglast import parse_sql; parse_sql(open('supabase/migrations/20261015181500_scheduling_agent_worker_readonly_shadow.sql').read()); print('Shadow SQL syntax verified')"
+      - run: python -c "from pglast import parse_sql; parse_sql(open('supabase/migrations/20261015184000_scheduling_agent_worker_least_privilege_views.sql').read()); print('View SQL syntax verified')"
