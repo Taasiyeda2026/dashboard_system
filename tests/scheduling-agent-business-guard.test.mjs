@@ -114,3 +114,23 @@ test('an outdated countrywide plan cannot be offered as a freshly calculated rec
   assert.match(edge,/name: 'planning_status'/);
   assert.match(edge,/scheduling_agent_team_planning_status/);
 });
+
+test('chat optimizer requests are queued and run only through the existing authorized v38 dashboard planner', () => {
+  const queue=readFileSync(new URL('../supabase/migrations/20261015121500_scheduling_agent_team_optimization_queue.sql',import.meta.url),'utf8');
+  const dashboard=readFileSync(new URL('../frontend/src/screens/course-scheduling.js',import.meta.url),'utf8');
+  assert.match(edge,/name: 'request_optimization'/);
+  assert.match(edge,/name: 'optimization_status'/);
+  assert.match(edge,/scheduling_agent_team_request_optimization/);
+  assert.match(edge,/scheduling_agent_team_optimization_status/);
+  assert.match(queue,/scheduling_agent_team_assert_member/);
+  assert.match(queue,/full_optimization_requires_admin/);
+  assert.match(queue,/scheduling_agent_team_claim_optimization/);
+  assert.match(queue,/scheduling_agent_team_finish_optimization/);
+  assert.match(queue,/validatedSourceRevision/);
+  assert.match(queue,/planning-v38-20261015-transition-30-45/);
+  assert.match(queue,/enable row level security/);
+  assert.match(dashboard,/scheduling_agent_team_claim_optimization/);
+  assert.match(dashboard,/await runCoursePlanning\(\{forceFull:job.mode === 'full',reuseSnapshot:false\}\)/);
+  assert.match(dashboard,/scheduling_agent_team_finish_optimization/);
+  assert.doesNotMatch(queue,/update public\.activities\s+set/i);
+});
