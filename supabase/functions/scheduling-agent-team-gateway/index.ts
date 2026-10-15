@@ -236,7 +236,7 @@ Deno.serve(async request=>{
       p_source_revision:args.sourceRevision,
       p_allow_date_change:args.allowDateChange
     }:{p_activity_id:args.activityId};
-  const output=await rpc(token,names[name],input).catch(()=>({error:'upstream_unavailable',status:502}));
+  const output=await rpc(token,names[name],input).catch(()=>({error:'upstream_unavailable',status:502,message:'לא ניתן ליצור קשר עם מערכת השיבוצים כרגע.',nextStep:'הבקשה לא אושרה. בדוק את מצב השירות לפני ניסיון חדש; אל תדווח שהשיבוץ נשמר.'}));
   if('error' in output)
     return result({isError:true,content:[{type:'text',text:JSON.stringify({ok:false,error:output.error,reasonCode:output.reasonCode??null,message:output.message,nextStep:output.nextStep,activityId:output.activityId??null,retrySameRequest:false,writesCommitted:false})}]});
   return result({isError:false,content:[{type:'text',text:JSON.stringify({ok:true,result:name==='read_snapshot'?describeSchedulingSnapshot(output.data):output.data})}]});
