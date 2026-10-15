@@ -147,7 +147,8 @@ Deno.serve(async(req:Request)=>{
         q=>q.eq('is_active',true).eq('show_on_main_calendar',true).order('start_date'),5000),
       paged('scheduling_agent_worker_catalog','activity_name,activity_no,gefen_number,pricing_key,program_name,name,title,meetings_count,hours_count,unit_duration,is_active_for_proposals',q=>q.order('activity_name'),5000),
       paged('scheduling_travel_cache','origin_key,destination_key,distance_km,duration_minutes,provider,calculated_at,expires_at,origin_address,destination_address,origin_entity_key,destination_entity_key',
-        q=>q.gt('expires_at',new Date().toISOString()),10000),
+        q=>q.gt('expires_at',new Date().toISOString())
+            .order('origin_key',{ascending:true}).order('destination_key',{ascending:true}),50000),
       paged('scheduling_agent_worker_rows','activity_id,row_data,activity_updated_at,locked_option,needs_recalc',
         q=>q.eq('workspace_id',String(workspace.id)),10000),
       paged('course_meeting_cancellations','activity_id,meeting_date',q=>q.order('meeting_date'),10000)
