@@ -1,0 +1,31 @@
+name: Scheduling Agent Server Core
+on:
+  pull_request:
+    paths:
+      - 'services/scheduling-agent/**'
+      - 'tests/scheduling-agent-server-*.test.mjs'
+      - 'tests/scheduling-agent-github-adapter.test.mjs'
+      - 'tests/scheduling-agent-github-server-security.test.mjs'
+      - 'supabase/functions/scheduling-agent-worker-api/**'
+      - 'supabase/migrations/20261015170000_scheduling_agent_worker_oidc_control.sql'
+      - '.github/workflows/scheduling-agent-worker.yml'
+      - '.github/workflows/scheduling-agent-server-core.yml'
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci
+      - run: node --test tests/scheduling-agent-server-*.test.mjs tests/scheduling-agent-github-*.test.mjs
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - run: deno check --node-modules-dir=auto supabase/functions/scheduling-agent-worker-api/index.ts
+      - run: python -m pip install --disable-pip-version-check --quiet pglast
+      - run: python -c "from pglast import parse_sql; parse_sql(open('supabase/migrations/20261015170000_scheduling_agent_worker_oidc_control.sql').read()); print('SQL syntax verified')"
