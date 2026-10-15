@@ -144,7 +144,8 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
        ||args.items.length<1||args.items.length>5)return false;
     const ids=new Set<string>();
     for(const item of args.items){
-      if(!isObject(item)||!activityId(item.activityId)||ids.has(item.activityId))return false;
+      if(!isObject(item)||typeof item.activityId!=='string'||!activityId(item.activityId)
+        ||ids.has(item.activityId))return false;
       ids.add(item.activityId);
       if(name==='confirm_schedule_batch'){
         if(Object.keys(item).some(k=>!['activityId','draftCreatedAt','activityUpdatedAt'].includes(k)))return false;
@@ -152,7 +153,8 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
           ||typeof item.activityUpdatedAt!=='string'||item.activityUpdatedAt.length<10||item.activityUpdatedAt.length>60)return false;
       }else{
         if(Object.keys(item).some(k=>!['activityId','instructorId','startTime','endTime','dates','reason'].includes(k)))return false;
-        if(!Number.isSafeInteger(item.instructorId)||item.instructorId<=0)return false;
+        if(typeof item.instructorId!=='number'||!Number.isSafeInteger(item.instructorId)
+          ||item.instructorId<=0)return false;
         if(typeof item.startTime!=='string'||typeof item.endTime!=='string'
           ||!/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(item.startTime)
           ||!/^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(item.endTime)
@@ -237,7 +239,7 @@ Deno.serve(async request=>{
       p_source_revision:args.sourceRevision,
       p_allow_date_change:args.allowDateChange
     }:{p_activity_id:args.activityId};
-  const output=await rpc(token,names[name],input).catch(()=>({error:'upstream_unavailable',status:502,message:'לא ניתן ליצור קשר עם מערכת השיבוצים כרגע.',nextStep:'הבקשה לא אושרה. בדוק את מצב השירות לפני ניסיון חדש; אל תדווח שהשיבוץ נשמר.'}));
+  const output=await rpc(token,names[name],input).catch(()=>({error:'upstream_unavailable',status:502,reasonCode:null,activityId:null,message:'לא ניתן ליצור קשר עם מערכת השיבוצים כרגע.',nextStep:'הבקשה לא אושרה. בדוק את מצב השירות לפני ניסיון חדש; אל תדווח שהשיבוץ נשמר.'}));
   if('error' in output)
     return result({isError:true,content:[{type:'text',text:JSON.stringify({ok:false,error:output.error,reasonCode:output.reasonCode??null,message:output.message,nextStep:output.nextStep,activityId:output.activityId??null,retrySameRequest:false,writesCommitted:false})}]});
   return result({isError:false,content:[{type:'text',text:JSON.stringify({ok:true,result:name==='read_snapshot'?describeSchedulingSnapshot(output.data):output.data})}]});
