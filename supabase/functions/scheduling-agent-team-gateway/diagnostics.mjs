@@ -40,7 +40,7 @@ const REASONS = Object.freeze({
   scheduling_school_calendar_blocked: ['התאריך חסום בלוח השנה של בית הספר.', 'הצע מועד חלופי ובקש אישור.'],
   scheduling_saturday_blocked: ['לא ניתן לשבץ פעילות ביום שבת עבור בית הספר הזה.', 'בדוק את מגזר בית הספר והצע מועד מתאים.'],
   scheduling_friday_not_allowed: ['המדריך אינו זמין לפעילות ביום שישי.', 'בחר יום שבו המדריך זמין.'],
-  scheduling_manager_approval_required: ['השיבוץ דורש אישור מנהל לפני קיבוע.', 'שלח בקשת אישור דרך submit_manager_approval והמתן לאישור המנהל.'],
+  scheduling_manager_approval_required: ['השיבוץ דורש אישור מנהל לפני קיבוע.', 'בדוק manager_approval_state והצג חריגה מובנית וערכים מאומתים; נימוק חופשי אינו חריגה. הגש בקשת מנהל רק אם approval_required=true ולאחר הסכמה מפורשת.'],
   scheduling_assignment_locked: ['הפעילות כבר משובצת או נעולה.', 'אל תדרוס שיבוץ קיים; בקש אישור למסלול החלפה מתאים.'],
   scheduling_activity_not_open: ['הפעילות אינה פתוחה לשיבוץ.', 'בדוק את סטטוס הפעילות לפני פעולה נוספת.'],
   instructor_not_found: ['המדריך לא נמצא במאגר.', 'בדוק את מזהה המדריך במערכת.'],
@@ -72,6 +72,7 @@ export function schedulingError(body, httpStatus) {
   return {
     error: code,
     reasonCode: innerCode || (code === 'request_rejected' ? null : code),
+    diagnosticCode: typeof body?.code === 'string' && /^[A-Z0-9_]{1,20}$/.test(body.code) ? body.code : null,
     message,
     nextStep,
     ...(activityId ? { activityId } : {}),
@@ -93,7 +94,7 @@ export function describeSchedulingSnapshot(snapshot) {
         readiness: {
           complete: missing.length === 0,
           missing,
-          ...(missing.length ? { nextStep: 'הכן את פרטי לוח המפגשים, קבל אישור מפורש ושמור באמצעות stage_schedule_batch.' } : {})
+          ...(missing.length ? { nextStep: row.draftInstructorId ? 'קיימת טיוטת שיבוץ. בדוק manager_approval_state ואת המועדים השמורים בטיוטה; אין ליצור אותה מחדש בגלל היעדר מועדים רשמיים. לאחר בדיקות ואישור סופי השתמש ב-confirm_schedule_batch.' : 'הכן את פרטי לוח המפגשים, קבל אישור מפורש ושמור באמצעות stage_schedule_batch.' } : {})
         }
       };
     })
