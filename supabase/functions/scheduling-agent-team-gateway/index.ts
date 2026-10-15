@@ -7,6 +7,11 @@ const META = BASE + '/.well-known/oauth-protected-resource';
 
 const TOOLS = [
   {
+    name: 'planning_status',
+    description: 'Read-only freshness/optimization status of the nationwide plan: current source and workspace revisions, dirty activities, whether an authorized planner run is already active. Never claims to calculate or refresh anything.',
+    inputSchema: {type:'object',properties:{},additionalProperties:false}
+  },
+  {
     name: 'read_snapshot',
     description: 'Read only whitelisted scheduling fields and safe instructor alternatives. No financial, payroll, email, phone, private Google Sheets or configuration data.',
     inputSchema: {type:'object',properties:{},additionalProperties:false}
@@ -89,6 +94,7 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
   if(!isObject(args))return false;
   const allowed:Record<string,string[]>={
     read_snapshot:[],
+    planning_status:[],
     manager_approval_state:['activityId'],
     stage_manual_draft:['activityId','instructorId','reason'],
     submit_manager_approval:['activityId'],
@@ -96,7 +102,7 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
     confirm_planning_option:['activityId','optionIndex','workspaceRevision','sourceRevision','allowDateChange']
   };
   if(!allowed[name]||Object.keys(args).some(k=>!allowed[name].includes(k)))return false;
-  if(name==='read_snapshot')return Object.keys(args).length===0;
+  if(name==='read_snapshot'||name==='planning_status')return Object.keys(args).length===0;
   if(!activityId(args.activityId))return false;
   if(name==='stage_manual_draft'){
     if(typeof args.instructorId!=='number'||!Number.isSafeInteger(args.instructorId)||args.instructorId<=0)return false;
@@ -145,13 +151,14 @@ Deno.serve(async request=>{
     return result({isError:true,content:[{type:'text',text:'invalid_or_unauthorized_arguments'}]});
   const names:Record<string,string>={
     read_snapshot:'scheduling_agent_team_read_snapshot',
+    planning_status:'scheduling_agent_team_planning_status',
     manager_approval_state:'scheduling_agent_team_manager_approval_state',
     stage_manual_draft:'scheduling_agent_team_stage_manual_draft',
     submit_manager_approval:'scheduling_agent_team_submit_manager_approval',
     confirm_own_draft:'scheduling_agent_team_confirm_own_draft',
     confirm_planning_option:'scheduling_agent_team_confirm_planning_option'
   };
-  const input:Record<string,unknown>=name==='read_snapshot'?{}:
+  const input:Record<string,unknown>=(name==='read_snapshot'||name==='planning_status')?{}:
     name==='stage_manual_draft'?{p_activity_id:args.activityId,p_emp_id:args.instructorId,p_reason:args.reason??null}:
     name==='confirm_planning_option'?{
       p_activity_id:args.activityId,
