@@ -113,6 +113,16 @@ export async function computeAgentSchedulingPlan({
   if (!Array.isArray(result?.rows)) {
     throw new AgentPlanningInputError('planning_rows_missing');
   }
+  const unresolved=new Set((snapshot.missingSchoolCourseIds||[]).map(String));
+  for (const row of result.rows) {
+    if(!unresolved.has(String(row?.courseId||'')))continue;
+    // Unlocated school can be a reported exception/recruitment requirement,
+    // NEVER a firm or suggested instructor/route assignment.
+    const assignmentPresent=Boolean(row?.instructorEmpId)
+      || ['options','packingOptions','scheduleOptions'].some(k=>
+         (Array.isArray(row?.[k])?row[k]:[]).some(o=>o?.instructorEmpId));
+    if(assignmentPresent)throw new AgentPlanningInputError('unlocated_school_assignment_forbidden');
+  }
   // Caller must still verify the same source and workspace revisions under the
   // database lease BEFORE attempting the existing fenced planning snapshot RPC.
   return {
