@@ -49,12 +49,24 @@ const profiles={'1':{gender:'female',instruction_languages:['he']}};
 const rules={'1':[{weekday:1,available:true,start_time:'08:00',end_time:'18:00'}]};
 const routes=()=>createRouteClient({preloadedRows:[['home','a'],['a','home']].map(([origin,destination])=>({origin_key:origin,destination_key:destination,distance_km:5,duration_minutes:10})),invoke:async()=>{throw Error('No network');}});
 const input=()=>({activities:[activity('a')],instructors,profiles,rules,exceptions:{},schoolCalendar:[],today:'2026-11-02',routeClient:routes(),planningProfile:'fast',allowGlobalRepair:false,catalog:[{activity_name:'Synthetic',meetings_count:1,hours_count:1}],targetCourseIds:['a'],checkpoint:async()=>{}});
-test('optional optimizer error preserves a hard-validated base, without pretending optimization succeeded',async()=>{
- const result=await buildDynamicCoursePlan({...input(),targetCourseIds:null,planningProfile:'balanced',onProgress:({phase})=>{if(phase==='אריזת בתי ספר הושלמה')throw Error('synthetic_optimizer_failure');}});
- assert.equal(result.rows[0].kind,'fixed-proposal',JSON.stringify(result.rows.map(r=>({kind:r.kind,errors:r.diagnostics}))));assert.equal(result.finalPlanValidation.valid,true);assert.equal(result.optimization.completed,false, JSON.stringify({optimization:result.optimization,rows:result.rows.map(r=>({kind:r.kind,diagnostics:r.diagnostics}))}));assert.equal(result.optimization.basePreserved,true);assert.equal(result.optimization.failure,'optimization_failed');assert.equal(result.rows[0].diagnostics.softOptimizationIncomplete,true);
+test('immutable single-course planning does not falsely report that soft optimization ran',async()=>{
+ const result=await buildDynamicCoursePlan({...input(),targetCourseIds:null,planningProfile:'balanced'});
+ assert.equal(result.rows[0].kind,'fixed-proposal');
+ assert.equal(result.finalPlanValidation.valid,true);
+ assert.equal(result.optimization.softOptimizationAttempted,false);
+ assert.equal(result.optimization.stopReason,'not-attempted');
+ assert.equal(result.rows[0].diagnostics.softOptimizationIncomplete,false);
 });
-test('cancellation and ownership loss during optional optimization still abort, never silently save the base',async()=>{
- for(const error of [new PlanningCancelledError(),Object.assign(new Error('planning_run_ownership_lost'),{code:'planning_run_ownership_lost'})])await assert.rejects(buildDynamicCoursePlan({...input(),targetCourseIds:null,planningProfile:'balanced',onProgress:({phase})=>{if(phase==='אריזת בתי ספר הושלמה')throw error;}}),e=>e===error);
+test('cancellation and lease loss during the current initial planner phase never save a plan',async()=>{
+ for(const error of [
+   new PlanningCancelledError(),
+   Object.assign(new Error('planning_run_ownership_lost'),{code:'planning_run_ownership_lost'})
+ ]) {
+   await assert.rejects(
+     buildDynamicCoursePlan({...input(),checkpoint:async()=>{throw error;}}),
+     e=>e===error
+   );
+ }
 });
 test('no suitable instructor or blocked fixed date yields no unsafe assignment and never moves the official date',async()=>{
  for(const change of [{instructors:[]},{exceptions:{'1':[{exception_date:date,available:false,reason:'synthetic blocked'}]}}]){
