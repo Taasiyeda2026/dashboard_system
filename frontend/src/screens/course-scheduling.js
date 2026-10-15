@@ -1952,8 +1952,8 @@ function selectedCoursePanelHtml(row, state) {
     </div>` : '';
   return `${header}${schoolContext}${replacementControls}
     <div class="course-scheduling-primary-action">
-      <button type="button" class="${findButtonClass}" data-find-instructors ${finding ? 'disabled' : ''}>
-        ${finding ? 'בודק מדריכים...' : (hasSuggestion ? 'בדיקה מחדש של מדריכים' : 'מצא מדריכים מתאימים')}
+      <button type="button" class="${findButtonClass}" data-find-instructors ${SCHEDULING_AGENT_OWNS_COMPUTE || finding ? 'disabled' : ''}>
+        ${SCHEDULING_AGENT_OWNS_COMPUTE ? 'מדריכים וחלופות — דרך סוכן השיבוצים' : finding ? 'בודק מדריכים...' : (hasSuggestion ? 'בדיקה מחדש של מדריכים' : 'מצא מדריכים מתאימים')}
       </button>
     </div>
     ${finding ? loadingInstructorsHtml(state.courseSchedulingProgressStep || 1) : instructorsResultsHtml(result, state)}
@@ -5007,6 +5007,10 @@ export const courseSchedulingScreen = {
     updateCandidateActions(false);
 
     const runFindInstructors = async () => {
+      if (SCHEDULING_AGENT_OWNS_COMPUTE) {
+        showToast('התאמת מדריכים וחישוב חלופות מתבצעים בסוכן השיבוצים בלבד.', 'info');
+        return;
+      }
       if (state.courseSchedulingLoading) return;
       state.courseSchedulingLoading = true;
       state.courseSchedulingError = '';
@@ -5347,6 +5351,10 @@ export const courseSchedulingScreen = {
     bindSelectedCourseDetails(true);
 
     const runDistrictSimulation = async () => {
+      if (SCHEDULING_AGENT_OWNS_COMPUTE) {
+        showToast('הסימולציה המחוזית מתבצעת בסוכן השיבוצים בלבד.', 'info');
+        return;
+      }
       if (state.courseSchedulingSimulationLoading || state.courseSchedulingLoading) return;
       const district = normalizeOperationalDistrict(state.courseSchedulingDistrict || '');
       const allDistricts = !district;
