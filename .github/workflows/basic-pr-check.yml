@@ -56,6 +56,9 @@ jobs:
 
           echo "Checked ${js_count} changed JavaScript files and ${json_count} changed JSON files."
 
+      - name: Protect production Supabase Auth configuration
+        run: node scripts/ci/guard-supabase-production-auth.mjs
+
       - name: Run proposal program display regression tests
         env:
           BASE_REF: ${{ github.base_ref }}
