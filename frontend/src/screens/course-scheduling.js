@@ -1,3 +1,4 @@
+import { createAgentAssignmentClient } from './course-scheduling-agent-selection.js';
 import { reusablePointWorkspace, refreshCommittedPointWorkspace } from './course-scheduling-point-workspace.js';
 import { undatedProposalNeedsNewStart } from './course-scheduling-start-policy.js';
 import { schedulingPointWorker } from './course-scheduling-worker-client.js';
@@ -297,6 +298,7 @@ const SCHEDULING_ASSIGNMENT_ERROR_HE = {
 
 function translateSchedulingAssignmentError(codeOrMessage, prefix = 'הפעולה נכשלה') {
   const raw = String(codeOrMessage || '').trim();
+  if(/revision_conflict/.test(raw))return `${prefix}: הנתונים השתנו. רעננו את נתוני השיבוץ ונסו שוב.`;
   if (SCHEDULING_ASSIGNMENT_ERROR_HE[raw]) return `${prefix}: ${SCHEDULING_ASSIGNMENT_ERROR_HE[raw]}`;
   for (const [code, msg] of Object.entries(SCHEDULING_ASSIGNMENT_ERROR_HE)) {
     if (raw.includes(code)) return `${prefix}: ${msg}`;
@@ -1576,7 +1578,7 @@ export function manualCandidateConfirmationHtml(confirmation = null) {
   return `<div class="course-scheduling-overlay" data-manual-candidate-confirmation>
     <div class="course-scheduling-modal" role="dialog" aria-modal="true" aria-labelledby="manual-candidate-confirmation-title">
       <h2 id="manual-candidate-confirmation-title">בחירת מדריך ידנית</h2>
-      <p>המדריך שנבחר אינו עומד בכל תנאי ההתאמה לפעילות. האם להמשיך בכל זאת?</p>
+      <p>בחירה ידנית תיבדק בשרת לפני שמירה. בחירה זו אינה עוקפת תנאי סף או אישור מנהל.</p>
       ${reasons.length ? `<div class="course-scheduling-alert" role="alert"><strong>סיבות אי־ההתאמה:</strong><ul>${reasons.map((reason) => `<li>${escapeHtml(reason)}</li>`).join('')}</ul></div>` : ''}
       <div class="course-scheduling-detail-actions">
         <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-cancel-manual-candidate>חזרה</button>
@@ -1615,14 +1617,14 @@ function manualCandidatePickerHtml(result, state = {}) {
   return `<section class="course-scheduling-manual-picker" data-manual-picker>
     <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-toggle-manual-picker>${open ? 'סגור בחירה ידנית' : 'בחר מדריך אחר'}</button>
     ${open ? `<div class="course-scheduling-manual-picker__panel">
-      <input class="ds-input" type="search" value="${escapeHtml(state.courseSchedulingManualSearch || '')}" placeholder="חיפוש מדריך לפי שם" data-manual-candidate-search>
+      <input class="ds-input" type="search" value="${escapeHtml(state.courseSchedulingManualSearch || '')}" placeholder="חיפוש מדריך לפי שם — האימות יתבצע בשרת" data-manual-candidate-search>
       <div class="course-scheduling-manual-picker__list">
         ${visible.length ? visible.map((candidate) => {
           const warnings = manualCandidateWarnings(candidate);
           const blocked = manualCandidateBlocked(candidate);
           return `<button type="button" class="course-scheduling-manual-candidate${blocked ? ' is-blocked' : ''}" data-manual-candidate="${escapeHtml(emp(candidate))}" data-manual-candidate-search-text="${escapeHtml(`${candidate.instructor?.full_name || ''} ${emp(candidate)}`.toLocaleLowerCase('he-IL'))}" ${blocked ? 'disabled' : ''}>
             <strong>${escapeHtml(candidate.instructor?.full_name || emp(candidate))}</strong>
-            <span>${escapeHtml(warnings[0] || 'ניתן לבחור ידנית')}</span>
+            <span>${escapeHtml(warnings[0] || (candidate.serverValidationRequired ? 'האילוצים ייבדקו בשרת לפני שמירה' : 'ניתן לבחור ידנית'))}</span>
           </button>`;
         }).join('') : '<p class="ds-muted">לא נמצאו מדריכים בחיפוש.</p>'}
       </div>
@@ -1952,11 +1954,11 @@ function selectedCoursePanelHtml(row, state) {
     </div>` : '';
   return `${header}${schoolContext}${replacementControls}
     <div class="course-scheduling-primary-action">
-      <button type="button" class="${findButtonClass}" data-find-instructors ${SCHEDULING_AGENT_OWNS_COMPUTE || finding ? 'disabled' : ''}>
-        ${SCHEDULING_AGENT_OWNS_COMPUTE ? 'מדריכים וחלופות — דרך סוכן השיבוצים' : finding ? 'בודק מדריכים...' : (hasSuggestion ? 'בדיקה מחדש של מדריכים' : 'מצא מדריכים מתאימים')}
+      <button type="button" class="${findButtonClass}" data-find-instructors ${finding ? 'disabled' : ''}>
+        ${SCHEDULING_AGENT_OWNS_COMPUTE ? (finding ? 'טוען חלופות מהסוכן…' : 'טען חלופות ובחירה ידנית') : finding ? 'בודק מדריכים...' : (hasSuggestion ? 'בדיקה מחדש של מדריכים' : 'מצא מדריכים מתאימים')}
       </button>
     </div>
-    ${finding ? loadingInstructorsHtml(state.courseSchedulingProgressStep || 1) : instructorsResultsHtml(result, state)}
+    ${finding ? (SCHEDULING_AGENT_OWNS_COMPUTE ? '<p role="status">טוען המלצות שמורות מהסוכן…</p>' : loadingInstructorsHtml(state.courseSchedulingProgressStep || 1)) : instructorsResultsHtml(result, state)}
     ${selectedCourseExtraDetailsHtml(row.course)}`;
 }
 
@@ -2168,7 +2170,8 @@ export const courseSchedulingScreen = {
     state.meetingState = data.meetingState;
     const allInterfaceCourses = schedulingWorkspaceCourses(data.activities || []);
     const interfaceCourses = filteredInterfaceCourses(allInterfaceCourses, state);
-    restoreCalculationSnapshot(state, interfaceCourses, schedulingSnapshotContext(data));
+    if(SCHEDULING_AGENT_OWNS_COMPUTE) state.courseSchedulingResults=(state.courseSchedulingResults||[]).filter(r=>r.agentSnapshot);
+    else restoreCalculationSnapshot(state, interfaceCourses, schedulingSnapshotContext(data));
     if (data._planningShared && !state.courseSchedulingPlanningSharedLoaded) {
       const courseIds = new Set(allInterfaceCourses.map(idOf));
       state.courseSchedulingPlanningRows = data._planningShared.rows
@@ -2228,6 +2231,8 @@ export const courseSchedulingScreen = {
         : `${schedulingScopeHtml(allInterfaceCourses, state, data.activities || [])}
       ${data._is_stale ? '<p role="status" class="course-scheduling-alert">מוצג מידע שמור שטרם אומת מול השרת. מרענן נתונים; פעולות שמירה חסומות עד לסיום.</p>' : ''}
       ${schedulingPlanningStatusHtml(state, { snapshotStale: data._is_stale === true })}
+      <div role="status">${data._is_stale ? 'מוצג עותק שמור; יש לרענן לפני שמירה.' : ''}${escapeHtml(state.courseSchedulingError||'')}
+        <button type="button" data-refresh-assignment-data>רענן נתוני שיבוץ</button></div>
       <section class="course-scheduling-summary" aria-label="סיכום פעילויות לפי מצב">${summaryCardsHtml(rowModels, state)}</section>
       ${state.courseSchedulingPlanningSharedLoaded && !state.courseSchedulingPlanningLoading && !state.courseSchedulingPlanningStale
         ? completionCache.html
@@ -2259,8 +2264,33 @@ export const courseSchedulingScreen = {
     data.reloadPlanningSnapshot ||= () => courseSchedulingScreen.load({ api, forceRefresh: true });
     schedulingScreenActive = true;
     const canEdit = !data._is_stale && hasPermission(state?.user, activeTab(state) === 'maintenance' ? 'manage_instructor_maintenance' : 'view_operations_scheduling');
+    root.querySelector('[data-refresh-assignment-data]')?.addEventListener('click',async event=>{
+      event.currentTarget.disabled=true;
+      try{
+        const fresh=await data.reloadPlanningSnapshot();
+        Object.assign(data,fresh,{_is_stale:false});
+        data._agentAssignmentSnapshots?.clear();
+        data._planningSharedLoadedKey='';
+        state.courseSchedulingResults=[];state.courseSchedulingError='';
+        clearScreenDataCache?.();
+      }catch(error){state.courseSchedulingError=translateSchedulingAssignmentError(error.message,'הרענון נכשל. אפשר לנסות שוב.');}
+      finally{rerender();}
+    });
     const substituteAccess = singleMeetingSubstitutionAccess(state?.user || {});
     const resultByCourseId = new Map((state.courseSchedulingResults || []).map((result) => [idOf(result.course), result]));
+    const assignmentClient=createAgentAssignmentClient({
+      snapshots:data._agentAssignmentSnapshots ||= new Map(),
+      rpc:(name,args)=>supabase.rpc(name,args),
+      getActivity:id=>(data.activities||[]).find(a=>idOf(a)===id),
+      onActivity:row=>applyReturnedSchedulingActivity(data.activities,row),
+      onConflict:()=>{
+        state.courseSchedulingError='הנתונים או ההרשאות השתנו. רעננו את הנתונים ונסו שוב.';
+        state.courseSchedulingResults=[];
+        clearScreenDataCache?.();
+        rerender();
+      }
+    });
+    const assignmentRpc=(name,args)=>assignmentClient.mutate(name,args);
     const allInterfaceCourses = schedulingWorkspaceCourses(data.activities || []);
     const interfaceCourses = filteredInterfaceCourses(allInterfaceCourses, state);
     // Include all loaded activities so district draft-save can validate courses outside the authority filter.
@@ -2773,7 +2803,8 @@ export const courseSchedulingScreen = {
         })
         .catch((error) => {
           if (!schedulingScreenActive || state.route !== 'course-scheduling' || !root.isConnected) return;
-          data._planningSharedLoadedKey = '';
+          // Do not spin on permission/network failure on every rerender. Explicit refresh retries.
+          data._planningSharedLoadedKey = currentPlanningScope.key;
           data._planningAutoStartedKey = currentPlanningScope.key;
           state.courseSchedulingPlanningSharedLoaded = true;
           state.courseSchedulingPlanningError = planningStoreErrorMessage(error, 'טעינת הצעות השיבוץ נכשלה');
@@ -4946,9 +4977,10 @@ export const courseSchedulingScreen = {
     bindingRoot.querySelector('[data-confirm-cancel-assignment]')?.addEventListener('click', async (event) => {
       const reason = text(bindingRoot.querySelector('[data-cancel-assignment-reason]')?.value);
       if (!reason) { showToast('יש להזין סיבת ביטול', 'error'); return; }
-      event.currentTarget.disabled = true;
-      const { data: updatedActivity, error } = await supabase.rpc('cancel_confirmed_course_assignment', { p_activity_id: state.courseSchedulingCancelCourseId, p_reason: reason });
-      if (error) { showToast(translateSchedulingAssignmentError(error.message, 'ביטול השיבוץ נכשל'), 'error'); event.currentTarget.disabled = false; return; }
+      const trigger=event.currentTarget;
+      trigger.disabled = true;
+      const { data: updatedActivity, error } = await assignmentRpc('cancel_confirmed_course_assignment', { p_activity_id: state.courseSchedulingCancelCourseId, p_reason: reason });
+      if (error) { showToast(translateSchedulingAssignmentError(error.message, 'ביטול השיבוץ נכשל'), 'error'); trigger.disabled = false; return; }
       applyReturnedSchedulingActivity(data.activities, updatedActivity);
       state.courseSchedulingCancelCourseId = '';
       state.courseSchedulingCancelReason = '';
@@ -5011,7 +5043,20 @@ export const courseSchedulingScreen = {
 
     const runFindInstructors = async () => {
       if (SCHEDULING_AGENT_OWNS_COMPUTE) {
-        showToast('התאמת מדריכים וחישוב חלופות מתבצעים בסוכן השיבוצים בלבד.', 'info');
+        if(state.courseSchedulingLoading)return;
+        state.courseSchedulingLoading=true;
+        state.courseSchedulingError='';
+        rerender();
+        try{
+          const result=await assignmentClient.candidates(selectedCourseId,{
+            replacement:state.courseSchedulingReplacementCourseId===selectedCourseId
+          });
+          if(text(state.courseSchedulingSelectedId)!==selectedCourseId)return;
+          state.courseSchedulingResults=[...(state.courseSchedulingResults||[]).filter(r=>idOf(r.course)!==selectedCourseId),result];
+          state.courseSchedulingSelectedCandidateId=emp(result.recommended);
+        }catch(error){
+          state.courseSchedulingError=translateSchedulingAssignmentError(error.message,'טעינת חלופות הסוכן נכשלה. אפשר לנסות שוב.');
+        }finally{state.courseSchedulingLoading=false;rerender();}
         return;
       }
       if (state.courseSchedulingLoading) return;
@@ -5124,7 +5169,7 @@ export const courseSchedulingScreen = {
       if (trigger) trigger.disabled = true;
 
       const empId = Number(course.draft_emp_id);
-      const { data: updatedActivity, error } = await supabase.rpc(
+      const { data: updatedActivity, error } = await assignmentRpc(
         proposedMeetings ? 'assign_activity_instructor_with_dates' : 'assign_activity_instructor',
         {
           p_activity_id: courseId,
@@ -5178,6 +5223,15 @@ export const courseSchedulingScreen = {
         if (!canEdit || !selectedCourseId || !candidate || button?.disabled) return;
         const result = resultByCourseId.get(selectedCourseId);
         if (!candidate || manualCandidateBlocked(candidate)) return;
+        if(state.courseSchedulingReplacementCourseId===selectedCourseId){
+          result.checked=[...(result.checked||[]).filter(c=>emp(c)!==emp(candidate)),candidate];
+          result.bestAvailable=candidate;
+          result.status='נדרש טיפול';
+          state.courseSchedulingSelectedCandidateId=emp(candidate);
+          state.courseSchedulingManualPickerOpen=false;
+          rerender();
+          return;
+        }
         if (button) button.disabled = true;
         const topCandidate = result?.recommended || result?.bestAvailable || candidate;
         const payload = {
@@ -5189,7 +5243,7 @@ export const courseSchedulingScreen = {
           p_top_score: Number.isFinite(topCandidate?.score) ? topCandidate.score : null,
           p_reason: manualCandidateWarnings(candidate).join(' · ') || 'בחירה ידנית'
         };
-        const { error } = await supabase.rpc('save_course_assignment_manual_draft', payload);
+        const { error } = await assignmentRpc('save_course_assignment_manual_draft', payload);
         if (error) {
           if (button) button.disabled = false;
           showToast(translateSchedulingAssignmentError(error.message, 'שמירת הבחירה הידנית נכשלה'), 'error');
@@ -5257,7 +5311,7 @@ export const courseSchedulingScreen = {
           decisionType: selectedId === emp(result.recommended) ? 'approved' : 'overridden',
           reason
         });
-        const { data: updatedActivity, error } = await supabase.rpc(rpc, payload);
+        const { data: updatedActivity, error } = await assignmentRpc(rpc, payload);
         if (error) { showToast(translateSchedulingAssignmentError(error.message, 'החלפת המדריך נכשלה'), 'error'); updateCandidateActions(false); return; }
         applyReturnedSchedulingActivity(data.activities, updatedActivity);
         state.courseSchedulingReplacementCourseId = '';
@@ -5275,7 +5329,7 @@ export const courseSchedulingScreen = {
       if (!window.confirm(approvalMessage)) return;
       updateCandidateActions(true);
       const proposedMeetings = adjustment?.meetings?.map(({ date }) => ({ date })) || null;
-      const { data: updatedActivity, error } = await supabase.rpc(proposedMeetings ? 'assign_activity_instructor_with_dates' : 'assign_activity_instructor', {
+      const { data: updatedActivity, error } = await assignmentRpc(proposedMeetings ? 'assign_activity_instructor_with_dates' : 'assign_activity_instructor', {
         p_activity_id: selectedCourseId,
         p_emp_id: Number(selectedId),
         p_instructor_name: selected.instructor.full_name,
@@ -5318,7 +5372,7 @@ export const courseSchedulingScreen = {
         selected,
         topCandidate
       });
-      const { error } = await supabase.rpc(rpc, payload);
+      const { error } = await assignmentRpc(rpc, payload);
       if (error) { showToast(translateSchedulingAssignmentError(error.message, 'שמירת הטיוטה נכשלה'), 'error'); updateCandidateActions(false); return; }
       if (liveCourse) {
         liveCourse.draft_emp_id = String(payload.p_emp_id);
@@ -5340,7 +5394,7 @@ export const courseSchedulingScreen = {
       if (!canEdit || !selectedCourseId) return;
       if (!window.confirm('לבטל את הטיוטה?')) return;
       event.target.disabled = true;
-      const { data: updatedActivity, error } = await supabase.rpc('cancel_course_assignment_draft', { p_activity_id: selectedCourseId });
+      const { data: updatedActivity, error } = await assignmentRpc('cancel_course_assignment_draft', { p_activity_id: selectedCourseId });
       if (error) { showToast(`ביטול הטיוטה נכשל: ${error.message}`, 'error'); event.target.disabled = false; return; }
       applyReturnedSchedulingActivity(data.activities, updatedActivity);
       clearScreenDataCache?.();
@@ -5471,7 +5525,7 @@ export const courseSchedulingScreen = {
           const batch = draftIds.slice(offset, offset + batchSize);
           const outcomes = await Promise.all(batch.map(async (courseId) => {
             try {
-              const { data: updatedActivity, error } = await supabase.rpc('cancel_course_assignment_draft', { p_activity_id: courseId });
+              const { data: updatedActivity, error } = await assignmentRpc('cancel_course_assignment_draft', { p_activity_id: courseId });
               if (error) return { ok: false, courseId, reason: text(error.message) || 'ביטול הטיוטה נכשל' };
               applyReturnedSchedulingActivity(data.activities || [], updatedActivity);
               return { ok: true, courseId };
@@ -5605,7 +5659,7 @@ export const courseSchedulingScreen = {
           selected,
           topCandidate
         });
-        const { error } = await supabase.rpc(rpc, payload);
+        const { error } = await assignmentRpc(rpc, payload);
         if (error) {
           const message = text(error.message);
           let reason = message || 'שמירת הטיוטה נכשלה';
