@@ -37,7 +37,7 @@ test('network failure is returned to UI instead of leaving a rejected async hand
  const c=createAgentAssignmentClient({getActivity:()=>course,rpc:async()=>{throw Error('offline');}});
  assert.equal((await c.mutate('cancel_course_assignment_draft',{p_activity_id:course.row_id})).error.message,'offline');
 });
-function ui({assigned=false,draft=false,stale=false,allowed=true,rpcImpl,mutateImpl}={}){
+function ui({assigned=false,draft=false,stale=false,allowed=true,rpcImpl,mutateImpl,completed=0}={}){
  const dom=new JSDOM('<div id="root"></div>',{url:'https://example.invalid'});
  for(const key of ['window','document','sessionStorage','localStorage','CustomEvent'])globalThis[key]=key==='window'?dom.window:dom.window[key];
  dom.window.confirm=()=>true;
@@ -48,7 +48,7 @@ function ui({assigned=false,draft=false,stale=false,allowed=true,rpcImpl,mutateI
  supabase.rpc=async(name,args)=>{calls.push({name,args});if(rpcImpl)return rpcImpl(name,args);
   if(name==='get_scheduling_dashboard_candidates')return {data:{...snapshot,activity}};
   if(name==='course_assignment_manager_approval_state')return {data:{requires_approval:false,can_confirm:true}};
-  if(name==='scheduling_course_meetings_completed')return {data:0};
+  if(name==='scheduling_course_meetings_completed')return {data:completed};
   if(name==='scheduling_course_meeting_instructors')return {data:[]};
   if(name==='scheduling_dashboard_assignment'&&mutateImpl)return mutateImpl(args,activity);
   if(name==='scheduling_dashboard_assignment')return {data:{...activity,
@@ -149,9 +149,9 @@ test('cancel permission conflict restores UI without using expired event.current
  }finally{f.close();}
 });
 
-for(const failure of [null,'scheduling_conflict_detected','scheduling_manager_approval_required'])test('manual replacement from recommended agent choice reaches server: '+(failure||'success'),async()=>{
+for(const {failure,completed} of [{failure:null,completed:0},{failure:'scheduling_conflict_detected',completed:0},{failure:'scheduling_manager_approval_required',completed:0},{failure:null,completed:2}])test('manual replacement from recommended agent choice reaches server: '+(failure||'success')+' after '+completed+' meetings',async()=>{
  let resolveWrite;const pending=new Promise(resolve=>{resolveWrite=resolve;});
- const f=ui({assigned:true,mutateImpl:()=>pending});
+ const f=ui({assigned:true,mutateImpl:()=>pending,completed});
  try{
   f.root.querySelector('[data-change-assignment]').click();await settle();
   assert.equal(f.state.courseSchedulingResults[0].recommended.instructor.emp_id,'7');
@@ -165,9 +165,14 @@ for(const failure of [null,'scheduling_conflict_detected','scheduling_manager_ap
   assert.equal(f.data.activities[0].emp_id,'6');
   assert.ok(!f.calls.some(c=>c.name==='scheduling_dashboard_assignment'));
   const reason=f.root.querySelector('[data-replacement-reason]');reason.value='בחירה ידנית לצורך תפעולי';reason.dispatchEvent(new window.Event('input',{bubbles:true}));
+  if(completed>=2){
+   const effective=f.root.querySelector('[data-replacement-effective-from]');effective.value='2026-11-01';effective.dispatchEvent(new window.Event('change',{bubbles:true}));
+   const confirmation=f.root.querySelector('[data-replacement-confirm]');confirmation.checked=true;confirmation.dispatchEvent(new window.Event('change',{bubbles:true}));
+  }
   f.root.querySelector('[data-assign-course]').click();await settle();
   const request=f.calls.find(c=>c.name==='scheduling_dashboard_assignment');
-  assert.equal(request.args.p_rpc,'reassign_locked_course_instructor');
+  assert.equal(request.args.p_rpc,completed>=2?'replace_locked_course_instructor':'reassign_locked_course_instructor');
+  if(completed>=2)assert.equal(request.args.p_args.p_effective_from,'2026-11-01');
   assert.equal(request.args.p_args.p_new_emp_id,8);
   assert.equal(request.args.p_args.p_reason,reason.value);
   assert.equal(request.args.p_expected_updated_at,version);

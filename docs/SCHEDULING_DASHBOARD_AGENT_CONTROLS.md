@@ -114,7 +114,7 @@ notice, even when selecting a previously recommended instructor through the manu
 picker. Neither selection nor opening the picker mutates the assignment. The guarded
 replacement RPC and its existing complete server checks determine success.
 
-Six focused Node/JSDOM cases cover direct HTML in both layouts; an operation_manager
+Seven focused Node/JSDOM cases cover direct HTML in both layouts; an operation_manager
 with Eden-equivalent permissions completes manual replacement through actual bound
 controls, reason entry, and the fenced server request. Tests delay the server response
 and verify the old instructor stays in place, then simulate success, overlap rejection
@@ -127,6 +127,8 @@ server mutation, optimization or browser planner is used in these tests.
 The actual PR #2372 head `27cdcb3127a11ef122ee10ec138e002568bed50f` was compared with
 its checked-out fixture/migration before testing. A disposable local PostgreSQL DB
 applied the existing queue/OIDC migrations, then both PR migrations, in order.
+An additional UI case covers operational replacement after two meetings, with reason,
+effective date and explicit confirmation before the server request.
 Three new combined scenarios verify: installation keeps Cron and autonomous compute
 paused with zero dispatch; an operation_manager can read/select and invoke the
 manual replacement RPC while compute stays paused; the worker's atomicCompletion
@@ -160,3 +162,8 @@ All six management actions are implemented/tested through guarded APIs: selectin
 an agent option, manual selection, saving a draft, confirming assignment, replacing
 and cancelling. They are not claimed as already available in production before
 migration/frontend deployment and live acceptance approval.
+
+The existing Scheduling Local Engine Cutover CI workflow now runs exactly these
+seven focused Node/JSDOM cases in addition to its existing compute-ownership guard.
+No new workflow, browser installation or browser E2E job is added. The combined
+migration test remains a local-only check using both checked-out PRs explicitly.
