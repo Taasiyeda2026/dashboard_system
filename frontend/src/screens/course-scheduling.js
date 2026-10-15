@@ -1685,6 +1685,7 @@ function resultsActionsHtml(result, selectedId, state = {}) {
     : 'בחרו מדריך כדי להמשיך';
   return `${selected ? proposedMeetingsPanelHtml(selected) : ''}
     ${selected ? halfOverflowWarningHtml(selected) : ''}
+    ${selected?.serverValidationRequired && (selected.eligible !== true || (state.courseSchedulingManualSelection?.courseId === idOf(result.course) && state.courseSchedulingManualSelection?.empId === selectedId)) ? '<p role="status" data-manual-validation-pending>בחירה ידנית שטרם אומתה. האילוצים ואישורי המנהל ייבדקו בשרת לפני שמירה.</p>' : ''}
     <div class="course-scheduling-action-bar" data-selection-actions>
       <span class="course-scheduling-action-bar__selected" data-selection-note>${note}</span>
       <span class="course-scheduling-action-bar__sep" aria-hidden="true">|</span>
@@ -1747,7 +1748,7 @@ export function instructorsResultsHtml(result, state = {}) {
     </div>`;
   }
   if (!result?.recommended && result?.bestAvailable) {
-    return candidatesResultsLayoutHtml(result, state, { primary: result.bestAvailable, kind: 'bestAvailable' });
+    return candidatesResultsLayoutHtml(result, state, { primary: result.bestAvailable, kind: 'bestAvailable' }) + manualCandidatePickerHtml(result, state);
   }
   if (!result?.recommended && result?.status === 'נדרש גיוס') {
     return `<div class="course-scheduling-result-block course-scheduling-result-block--negative">
@@ -1770,7 +1771,7 @@ export function instructorsResultsHtml(result, state = {}) {
     </div>`;
   }
   if (!result?.recommended) return '';
-  return candidatesResultsLayoutHtml(result, state, { primary: result.recommended, kind: 'recommended' });
+  return candidatesResultsLayoutHtml(result, state, { primary: result.recommended, kind: 'recommended' }) + manualCandidatePickerHtml(result, state);
 }
 
 /** Compatibility export used by focused engine/UI tests. */
@@ -5045,6 +5046,7 @@ export const courseSchedulingScreen = {
       if (SCHEDULING_AGENT_OWNS_COMPUTE) {
         if(state.courseSchedulingLoading)return;
         state.courseSchedulingLoading=true;
+        state.courseSchedulingManualSelection=null;
         state.courseSchedulingError='';
         rerender();
         try{
@@ -5223,6 +5225,7 @@ export const courseSchedulingScreen = {
         if (!canEdit || !selectedCourseId || !candidate || button?.disabled) return;
         const result = resultByCourseId.get(selectedCourseId);
         if (!candidate || manualCandidateBlocked(candidate)) return;
+        state.courseSchedulingManualSelection={courseId:selectedCourseId,empId:emp(candidate)};
         if(state.courseSchedulingReplacementCourseId===selectedCourseId){
           result.checked=[...(result.checked||[]).filter(c=>emp(c)!==emp(candidate)),candidate];
           result.bestAvailable=candidate;

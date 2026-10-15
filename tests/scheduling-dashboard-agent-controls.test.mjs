@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
 import {agentCandidateResult,createAgentAssignmentClient} from '../frontend/src/screens/course-scheduling-agent-selection.js';
-import {courseSchedulingScreen} from '../frontend/src/screens/course-scheduling.js';
+import {courseSchedulingScreen,instructorsResultsHtml} from '../frontend/src/screens/course-scheduling.js';
 import {supabase} from '../frontend/src/supabase-client.js';
 const version='2026-10-15T08:00:00Z';
 const course={row_id:'synthetic',activity_season:'school_2027',activity_type:'קורס',status:'פתוח',school:'בדיקה',authority:'בדיקה',activity_name:'בדיקה',updated_at:version,start_date:'2026-11-01',date_1:'2026-11-01',start_time:'10:00',end_time:'11:00'};
@@ -37,7 +37,7 @@ test('network failure is returned to UI instead of leaving a rejected async hand
  const c=createAgentAssignmentClient({getActivity:()=>course,rpc:async()=>{throw Error('offline');}});
  assert.equal((await c.mutate('cancel_course_assignment_draft',{p_activity_id:course.row_id})).error.message,'offline');
 });
-function ui({assigned=false,draft=false,stale=false,allowed=true,rpcImpl}={}){
+function ui({assigned=false,draft=false,stale=false,allowed=true,rpcImpl,mutateImpl}={}){
  const dom=new JSDOM('<div id="root"></div>',{url:'https://example.invalid'});
  for(const key of ['window','document','sessionStorage','localStorage','CustomEvent'])globalThis[key]=key==='window'?dom.window:dom.window[key];
  dom.window.confirm=()=>true;
@@ -50,6 +50,7 @@ function ui({assigned=false,draft=false,stale=false,allowed=true,rpcImpl}={}){
   if(name==='course_assignment_manager_approval_state')return {data:{requires_approval:false,can_confirm:true}};
   if(name==='scheduling_course_meetings_completed')return {data:0};
   if(name==='scheduling_course_meeting_instructors')return {data:[]};
+  if(name==='scheduling_dashboard_assignment'&&mutateImpl)return mutateImpl(args,activity);
   if(name==='scheduling_dashboard_assignment')return {data:{...activity,
     ...(args.p_rpc.startsWith('save_')?{draft_emp_id:String(args.p_args.p_emp_id),draft_instructor_name:args.p_args.p_instructor_name}:
       args.p_rpc.startsWith('cancel_')?{emp_id:null,instructor_name:null,instructor_assignment_locked:false,draft_emp_id:null}:
@@ -145,5 +146,54 @@ test('cancel permission conflict restores UI without using expired event.current
   assert.ok(f.root.querySelector('[data-refresh-assignment-data]'));
   assert.equal(f.root.querySelector('[data-confirm-cancel-assignment]').disabled,false);
   assert.match(f.state.courseSchedulingError,/הרשאות השתנו/);
+ }finally{f.close();}
+});
+
+for(const failure of [null,'scheduling_conflict_detected','scheduling_manager_approval_required'])test('manual replacement from recommended agent choice reaches server: '+(failure||'success'),async()=>{
+ let resolveWrite;const pending=new Promise(resolve=>{resolveWrite=resolve;});
+ const f=ui({assigned:true,mutateImpl:()=>pending});
+ try{
+  f.root.querySelector('[data-change-assignment]').click();await settle();
+  assert.equal(f.state.courseSchedulingResults[0].recommended.instructor.emp_id,'7');
+  assert.equal(f.root.querySelectorAll('[data-manual-picker]').length,1);
+  f.root.querySelector('[data-toggle-manual-picker]').click();
+  f.root.querySelector('[data-manual-candidate="8"]').click();
+  f.root.querySelector('[data-confirm-manual-candidate]').click();await settle();
+  assert.equal(f.state.courseSchedulingSelectedCandidateId,'8');
+  assert.equal(f.state.courseSchedulingResults[0].checked.find(c=>c.instructor.emp_id==='8').eligible,false);
+  assert.match(f.root.querySelector('[data-manual-validation-pending]').textContent,/שטרם אומתה/);
+  assert.equal(f.data.activities[0].emp_id,'6');
+  assert.ok(!f.calls.some(c=>c.name==='scheduling_dashboard_assignment'));
+  const reason=f.root.querySelector('[data-replacement-reason]');reason.value='בחירה ידנית לצורך תפעולי';reason.dispatchEvent(new window.Event('input',{bubbles:true}));
+  f.root.querySelector('[data-assign-course]').click();await settle();
+  const request=f.calls.find(c=>c.name==='scheduling_dashboard_assignment');
+  assert.equal(request.args.p_rpc,'reassign_locked_course_instructor');
+  assert.equal(request.args.p_args.p_new_emp_id,8);
+  assert.equal(request.args.p_args.p_reason,reason.value);
+  assert.equal(request.args.p_expected_updated_at,version);
+  assert.equal(request.args.p_expected_source_revision,666);
+  assert.equal(f.data.activities[0].emp_id,'6');
+  resolveWrite(failure?{error:{message:failure}}:{data:{...f.data.activities[0],emp_id:8,instructor_name:'בחירה ידנית',updated_at:'2026-10-15T08:01:00Z'}});
+  await settle();
+  assert.equal(f.data.activities[0].emp_id,failure?'6':8);
+  assert.equal(f.data.activities[0].date_1,course.date_1);
+  if(failure){assert.ok(f.root.querySelector('[data-manual-validation-pending]'));assert.equal(f.root.querySelector('[data-assign-course]').disabled,false);}
+ }finally{resolveWrite({error:{message:'test_cleanup'}});f.close();}
+});
+
+for(const kind of ['recommended','bestAvailable'])test('direct result HTML includes exactly one manual picker beside '+kind,()=>{
+ const result=agentCandidateResult(snapshot,{replacement:true});
+ if(kind==='bestAvailable'){result.bestAvailable=result.recommended;result.recommended=null;}
+ const dom=new JSDOM(instructorsResultsHtml(result,{}));
+ assert.equal(dom.window.document.querySelectorAll('[data-manual-picker]').length,1);dom.window.close();
+});
+test('choosing the recommended instructor through manual picker still awaits server verification',async()=>{
+ const f=ui({assigned:true});try{
+  f.root.querySelector('[data-change-assignment]').click();await settle();
+  f.root.querySelector('[data-toggle-manual-picker]').click();
+  f.root.querySelector('[data-manual-candidate="7"]').click();
+  f.root.querySelector('[data-confirm-manual-candidate]').click();await settle();
+  assert.ok(f.root.querySelector('[data-manual-validation-pending]'));
+  assert.equal(f.data.activities[0].emp_id,'6');assert.ok(!f.calls.some(c=>c.name==='scheduling_dashboard_assignment'));
  }finally{f.close();}
 });

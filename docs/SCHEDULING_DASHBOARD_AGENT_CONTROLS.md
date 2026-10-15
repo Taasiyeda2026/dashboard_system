@@ -104,3 +104,59 @@ CI follow-up: five existing contract cases were updated for the enabled agent-lo
 button and guarded assignmentRpc facade. Browser compute stays disabled; draft-only
 writes and final date-change confirmation ordering remain asserted. These five cases
 passed separately (22 focused Node cases total, without counting repeats).
+
+## Focused PR review follow-up: manual selection beside recommendations
+
+`instructorsResultsHtml` now includes the manual picker for both recommended and
+bestAvailable result layouts. It does not rely on a later runtime enhancer inserting
+controls. The selected manual replacement has an explicit pending-server-validation
+notice, even when selecting a previously recommended instructor through the manual
+picker. Neither selection nor opening the picker mutates the assignment. The guarded
+replacement RPC and its existing complete server checks determine success.
+
+Six focused Node/JSDOM cases cover direct HTML in both layouts; an operation_manager
+with Eden-equivalent permissions completes manual replacement through actual bound
+controls, reason entry, and the fenced server request. Tests delay the server response
+and verify the old instructor stays in place, then simulate success, overlap rejection
+and manager-approval-required rejection. A separate case verifies selecting the
+recommended instructor manually is still explicitly pending verification. No real
+server mutation, optimization or browser planner is used in these tests.
+
+### Combined migration acceptance and deployment order
+
+The actual PR #2372 head `27cdcb3127a11ef122ee10ec138e002568bed50f` was compared with
+its checked-out fixture/migration before testing. A disposable local PostgreSQL DB
+applied the existing queue/OIDC migrations, then both PR migrations, in order.
+Three new combined scenarios verify: installation keeps Cron and autonomous compute
+paused with zero dispatch; an operation_manager can read/select and invoke the
+manual replacement RPC while compute stays paused; the worker's atomicCompletion
+probe contract survives installation of the dashboard migration. Domain mutation
+functions remain synthetic stubs; this proves migration/API coexistence, not a live
+production business-rule certification. A fixture result-decoding failure was fixed
+and only that affected scenario was rerun.
+
+After separate merge/deployment approval, use this order:
+
+1. Retain the existing base migrations through `20261015190000`.
+2. Apply #2372 `20261016000000_scheduling_agent_durable_wakeup.sql` first. Keep
+   `autonomous_enabled=false`, supervisor Cron inactive, and existing owner enable
+   gate under owner control. Do not dispatch or enqueue acceptance calculations.
+3. Apply #2373 `20261016100000_scheduling_dashboard_agent_controls.sql` second.
+   It adds different RPC names; it does not replace worker_command, wakeup, queue
+   admission, recovery, result receipts or alerts from #2372.
+4. Deploy the paired worker-api/wakeup Edge code from #2372 and configure its
+   GitHub App / Vault / Graph secrets securely, while compute remains paused.
+5. Deploy the #2373 frontend after its RPCs exist. HOTFIX_VERSION includes the
+   manual-picker review fix and frontend CACHE_VERSION is 2016. No cache list or
+   root SW version source is added.
+6. Run verify-only readiness for #2372 and read-only UI checks under the intended
+   role. Separately authorize any production acceptance assignment/test email;
+   these are not permitted by this PR's test execution.
+7. Only with further explicit approval activate Cron/autonomous processing and
+   perform a real optimization. This activation is independent of manual dashboard
+   assignment management, which is available while automatic compute is paused.
+
+All six management actions are implemented/tested through guarded APIs: selecting
+an agent option, manual selection, saving a draft, confirming assignment, replacing
+and cancelling. They are not claimed as already available in production before
+migration/frontend deployment and live acceptance approval.
