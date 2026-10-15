@@ -39,7 +39,7 @@ const TOOLS = [
   {
     name: 'manager_approval_state',
     annotations: {readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false},
-    description: 'Check whether an existing manual draft needs administrator approval and its current approval status. Read only.',
+    description: 'Read current structured approval_details for the draft. Operational rationale is audit documentation, NEVER an exception signal. Show exception codes and checked values before requesting manager consent. approval_required=false with request_applicable=false means any returned pending request is historical and does not block ordinary confirmation. Blocking violations remain non-overridable. Read only.',
     inputSchema: {type:'object',properties:{activityId:{type:'string'}},required:['activityId'],additionalProperties:false}
   },
   {
@@ -49,7 +49,7 @@ const TOOLS = [
   },
   {
     name: 'stage_schedule_batch',
-    description: 'STAGE 1-5 unscheduled 2027 courses as one atomic transaction with exact dates, hours and instructors. Call only AFTER a user explicitly approves the specific school, activity IDs, instructor IDs, dates and hours. First read_snapshot, compare meeting counts, identify ambiguous dates and request corrections, never auto-fix calendar years. A failure rolls back every draft. Official dates and assignments are NOT changed. Check manager approvals and request a separate explicit finalization consent.',
+    description: 'STAGE 1-5 unscheduled 2027 courses as one atomic transaction with exact dates, hours and instructors. Call only AFTER a user explicitly approves the specific school, activity IDs, instructor IDs, dates and hours. First read_snapshot, compare meeting counts, identify ambiguous dates and request corrections, never auto-fix calendar years. A failure rolls back every draft. Official dates and assignments are NOT changed. Check current structured manager approval details; never infer an exception from the free-text reason. Ordinary rationale is preserved for audit. Request separate explicit finalization consent.',
     inputSchema: {type:'object',properties:{items:{type:'array',minItems:1,maxItems:5,items:{type:'object',properties:{
       activityId:{type:'string'},instructorId:{type:'integer',minimum:1},
       startTime:{type:'string'},endTime:{type:'string'},
@@ -59,7 +59,7 @@ const TOOLS = [
   },
   {
     name: 'confirm_schedule_batch',
-    description: 'FINALIZE 1-5 caller-owned staged course drafts atomically, applying exact staged dates to the official calendar and confirming instructors through existing validators. Call only after the user separately and explicitly approves finalizing THESE drafts, and only if all required manager exceptions are already approved. If any course is rejected, all changes roll back.',
+    description: 'FINALIZE 1-5 caller-owned staged course drafts atomically, applying exact staged dates to the official calendar and confirming instructors through existing validators. Call only after the user separately and explicitly approves finalizing THESE drafts, and only if all CURRENT structured manager exceptions are already approved. A historical request marked request_applicable=false is not a current exception. Never bypass blocking violations. If any course is rejected, all changes roll back.',
     inputSchema: {type:'object',properties:{items:{type:'array',minItems:1,maxItems:5,items:{type:'object',properties:{
       activityId:{type:'string'},draftCreatedAt:{type:'string'},activityUpdatedAt:{type:'string'}
     },required:['activityId','draftCreatedAt','activityUpdatedAt'],additionalProperties:false}}},
@@ -67,7 +67,7 @@ const TOOLS = [
   },
   {
     name: 'submit_manager_approval',
-    description: 'Submit the caller-owned manual scheduling draft to the existing dashboard approval queue. Call ONLY after explicit user consent. Only the administrator can approve/reject in the dashboard.',
+    description: 'Submit the caller-owned manual scheduling draft to the existing dashboard approval queue. First read manager_approval_state and confirm approval_required=true with a concrete structured exception; NEVER submit solely because of a free-text rationale. Call ONLY after explicit user consent. Only the administrator can approve/reject in the dashboard.',
     inputSchema: {type:'object',properties:{activityId:{type:'string'}},required:['activityId'],additionalProperties:false}
   },
   {
@@ -104,7 +104,7 @@ async function rpc(token:string,fn:string,args:Record<string,unknown>={}){
     method:'POST',
     headers:{'apikey':ANON_KEY,'Authorization':'Bearer '+token,'Content-Type':'application/json'},
     body:JSON.stringify(args),
-    signal:AbortSignal.timeout(18000)
+    signal:AbortSignal.timeout(fn==='scheduling_agent_team_confirm_schedule_batch'?55000:18000)
   });
   if(!response.ok){
     const body=await response.json().catch(()=>({}));
@@ -213,7 +213,7 @@ Deno.serve(async request=>{
   if(body.method==='notifications/initialized'&&!('id' in body))
     return new Response(null,{status:202});
   if(body.method==='initialize')
-    return result({protocolVersion:'2025-06-18',capabilities:{tools:{listChanged:true}},serverInfo:{name:'taasiyeda-team-scheduling-agent',version:'0.2.0'}});
+    return result({protocolVersion:'2025-06-18',capabilities:{tools:{listChanged:true}},serverInfo:{name:'taasiyeda-team-scheduling-agent',version:'0.2.2'}});
   if(body.method==='ping')return result({});
   if(body.method==='tools/list')return result({tools:TOOLS});
   if(body.method!=='tools/call')return respond({jsonrpc:'2.0',id,error:{code:-32601,message:'Method not found'}});
@@ -259,7 +259,7 @@ Deno.serve(async request=>{
   }
   const output=await rpc(token,names[name],input).catch(()=>({error:'upstream_unavailable',status:502,reasonCode:null,activityId:null,message:'הקשר עם מערכת השיבוצים נקטע; תוצאת הפעולה אינה ידועה.',nextStep:'קרא מחדש את מצב הפעילות או הבקשה לפני ניסיון נוסף. אין להסיק שהשמירה הצליחה או בוטלה.'}));
   if('error' in output)
-    return result({isError:true,content:[{type:'text',text:JSON.stringify({ok:false,error:output.error,reasonCode:output.reasonCode??null,message:output.message,nextStep:output.nextStep,activityId:output.activityId??null,retrySameRequest:false,writesCommitted:output.status>=500?null:false,outcome:output.status>=500?'unknown':'rejected'})}]});
+    return result({isError:true,content:[{type:'text',text:JSON.stringify({ok:false,error:output.error,reasonCode:output.reasonCode??null,diagnosticCode:output.diagnosticCode??null,message:output.message,nextStep:output.nextStep,activityId:output.activityId??null,retrySameRequest:false,writesCommitted:output.status>=500?null:false,outcome:output.status>=500?'unknown':'rejected'})}]});
   if(name==='review_manager_approval'){
     // Never send the generic edit_requests row (which includes requested_payload) to ChatGPT.
     const row=output.data;
