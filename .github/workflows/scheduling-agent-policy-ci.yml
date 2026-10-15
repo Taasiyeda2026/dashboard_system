@@ -7,6 +7,7 @@ on:
       - 'supabase/migrations/20261015*'
       - 'supabase/functions/scheduling-agent-team-gateway/**'
       - 'tests/scheduling-agent-business-guard.test.mjs'
+      - 'tests/scheduling-agent-transition-30-45.test.mjs'
       - 'tests/course-scheduling-e2e-alignment.test.mjs'
       - '.github/workflows/scheduling-agent-policy-ci.yml'
   push:
@@ -24,5 +25,5 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: node --test tests/scheduling-agent-business-guard.test.mjs tests/course-scheduling-e2e-alignment.test.mjs
+      - run: node --test tests/scheduling-agent-business-guard.test.mjs tests/scheduling-agent-transition-30-45.test.mjs tests/course-scheduling-e2e-alignment.test.mjs
       - run: node --test tests/scheduling-point-engine-acceptance.test.mjs tests/course-scheduling-transition-server-rules.test.mjs
