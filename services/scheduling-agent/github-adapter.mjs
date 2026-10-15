@@ -3,7 +3,7 @@
  * No service-role key, staff login, OAuth refresh token, or private data in logs.
  */
 import {
-  planningDataFingerprint, serializePlanningContextFingerprint
+  planningDataFingerprint, serializePlanningContextFingerprint, applyPlanningLockToRow
 } from '../../frontend/src/screens/course-scheduling-planning.js';
 import {createRouteClient} from '../../frontend/src/screens/course-scheduling-travel.js';
 import {enrichActivitiesWithSchoolAddresses} from '../../frontend/src/screens/course-scheduling-distance-build.js';
@@ -49,21 +49,26 @@ export function prepareServerPlanningSnapshot(payload) {
   }
   const enriched=enrichActivitiesWithSchoolAddresses(activities,schoolLocations);
   if(enriched.missingCount>0)throw new WorkerTransportError('school_locations_missing');
-  const baseActivities=[...enriched.activities,...externalBlockers]
+  const cancelled=new Map();
+  for(const row of requiredList(payload,'cancellations')){
+    const id=trim(row.activity_id); if(!cancelled.has(id))cancelled.set(id,new Set());
+    cancelled.get(id).add(trim(row.meeting_date));
+  }
+  const withCancellations=rows=>rows.map(row=>cancelled.has(trim(row.row_id))
+    ? {...row,cancelled_meeting_dates:[...cancelled.get(trim(row.row_id))]}:row);
+  const baseActivities=[...withCancellations(enriched.activities),...withCancellations(externalBlockers)]
     .map(a=>({...a,meeting_instructor_overrides:history.filter(h=>h.activity_id===a.row_id)}));
   const fingerprintInput={
     activities:baseActivities,instructors:activeSchedulingInstructors(contacts),
     profiles,rules,exceptions,schoolCalendar:calendar,catalog,periodKey:'year'
   };
-  const trustedRows=stored.map(x=>x.row).filter(Boolean);
+  const trustedRows=stored.map(x=>x.lockedOption
+    ? applyPlanningLockToRow(x.row,x.lockedOption,'year'):x.row).filter(Boolean);
   if(stored.some(x=>!x||!x.activityId||!x.row) ||
     new Set(stored.map(x=>x.activityId)).size!==stored.length) {
     throw new WorkerTransportError('workspace_rows_invalid');
   }
   // A locked row must be supplied in the canonical form, not silently dropped.
-  if(stored.some(x=>x.lockedOption && !x.row.planningLocked)) {
-    throw new WorkerTransportError('locked_rows_not_canonicalized');
-  }
   const routeClient=createRouteClient({
     preloadedRows:cachedRoutes,
     // Never substitute invented distances/times: an authoritative source must
