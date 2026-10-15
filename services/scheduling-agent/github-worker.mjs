@@ -1,5 +1,6 @@
 /**
  * Main-branch push starts a one-shot worker wake-up without relying on a browser.
+ * v38 trusted database transition gate now matches the approved 30km automatic limit.
  * Signed main-branch GitHub Actions worker, with safe read-only shadow on push.
  * The shadow never claims a queued job, acquires a lease, or writes proposals.
  */
