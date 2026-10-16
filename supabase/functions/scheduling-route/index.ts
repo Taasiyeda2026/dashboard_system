@@ -407,8 +407,26 @@ function needsRefresh(cached: Record<string, unknown> | null | undefined, now = 
   return !Number.isFinite(expiresAt) || expiresAt <= now;
 }
 
+function schoolIdentityConflict(cached: Record<string, unknown> | null | undefined, pair: TravelPair) {
+  if (!cached) return false;
+  const recordedOrigin = cached.origin_school_id == null ? null : Number(cached.origin_school_id);
+  const recordedDestination = cached.destination_school_id == null ? null : Number(cached.destination_school_id);
+  return (
+    (recordedOrigin != null && pair.origin_school_id != null && recordedOrigin !== pair.origin_school_id) ||
+    (recordedDestination != null && pair.destination_school_id != null && recordedDestination !== pair.destination_school_id) ||
+    (!!cached.origin_entity_key && !!pair.origin_entity_key &&
+      String(cached.origin_entity_key).startsWith('school_id:') &&
+      String(pair.origin_entity_key).startsWith('school_id:') &&
+      String(cached.origin_entity_key) !== pair.origin_entity_key) ||
+    (!!cached.destination_entity_key && !!pair.destination_entity_key &&
+      String(cached.destination_entity_key).startsWith('school_id:') &&
+      String(pair.destination_entity_key).startsWith('school_id:') &&
+      String(cached.destination_entity_key) !== pair.destination_entity_key)
+  );
+}
 function isUsableForPair(cached: Record<string, unknown> | null | undefined, pair: TravelPair) {
-  return !!cached && addressesMatch(cached, pair) && hasUsableMetrics(cached, pair);
+  return !!cached && !schoolIdentityConflict(cached, pair)
+    && addressesMatch(cached, pair) && hasUsableMetrics(cached, pair);
 }
 
 function isCacheValid(cached: Record<string, unknown> | null | undefined, pair: TravelPair) {
@@ -1407,6 +1425,12 @@ async function processPair(db: DbClient, pair: TravelPair, key: string): Promise
   )) || existing.rows.find((row) => (
     text(row.origin_key) === pair.origin_key && text(row.destination_key) === pair.destination_key
   )) || existing.rows[0] || null;
+  // Identical text keys must not make two distinct school identities share one journey.
+  if (existing.rows.some((row) => text(row.origin_key) === pair.origin_key
+      && text(row.destination_key) === pair.destination_key
+      && schoolIdentityConflict(row, pair))) {
+    return { dbError: null, failed: true, failure: failureForPair(pair, 'ambiguous_school_location') };
+  }
   // Quarantined routes require reviewed location identity; bulk builds must never
   // silently overwrite them or generate Google requests for them.
   if (existing.rows.some((row) => row.location_suspect === true &&
