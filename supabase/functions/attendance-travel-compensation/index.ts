@@ -139,6 +139,23 @@ Deno.serve(async (req) => {
   } catch (error) {
     const reason = ['route_not_found','cache_read_failed','cache_write_failed'].includes(text((error as Error)?.message))
       ? text((error as Error).message) : 'route_service_unavailable';
+    // Attendance travel remains unchanged. A failed route calculation additionally
+    // records missing directed segments for MANUAL maintenance (deduplicated, no retry loop).
+    // A queue failure must never prevent reconciliation/payroll error reporting.
+    if (context.origin_address && context.destination_address) {
+      await Promise.allSettled([
+        db.rpc('scheduling_queue_missing_route', {
+          p_origin: context.origin_address, p_destination: context.destination_address,
+          p_source_kind: 'attendance', p_instructor_emp_id: context.emp_id || null,
+          p_attendance_id: sourceId
+        }),
+        db.rpc('scheduling_queue_missing_route', {
+          p_origin: context.destination_address, p_destination: context.origin_address,
+          p_source_kind: 'attendance', p_instructor_emp_id: context.emp_id || null,
+          p_attendance_id: sourceId
+        })
+      ]);
+    }
     await db.rpc('av2_reconcile_attendance_travel', {
       p_source_id: sourceId,
       p_fingerprint: context.fingerprint,
