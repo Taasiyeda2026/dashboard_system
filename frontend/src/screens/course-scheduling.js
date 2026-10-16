@@ -1979,16 +1979,20 @@ function maintenanceTabHtml(state) {
   const routeBusy = !!state.courseSchedulingManualRouteBusy;
   const pendingText = state.courseSchedulingRouteQueueLoading ? '…' : String(missingRoutes.length);
   const manualRows = missingRoutes.map((route, index) => {
-    const ambiguous = route.failure_reason === 'ambiguous_same_address';
+    const ambiguous = [
+      'ambiguous_same_address', 'unverified_zero_between_distinct_schools', 'location_resolution_conflict'
+    ].includes(route.failure_reason);
     const origin = [route.origin_school_name, route.origin_authority, route.origin_address].filter(Boolean).join(' · ');
     const destination = [route.destination_school_name, route.destination_authority, route.destination_address].filter(Boolean).join(' · ');
-    const source = route.source_kind === 'attendance' ? 'נוכחות' : 'שיבוץ';
+    const source = route.source_kind === 'attendance' ? 'נוכחות' :
+      route.source_kind === 'audit' ? 'ביקורת מסלולים' : 'שיבוץ';
     const status = ambiguous ? 'נדרש אימות מיקום' : 'מסלול חסר';
     return '<tr class="course-scheduling-maintenance-route-row">' +
       '<td data-label="מוצא" class="course-scheduling-maintenance-route-location">' + escapeHtml(origin) + '</td>' +
       '<td data-label="יעד" class="course-scheduling-maintenance-route-location">' + escapeHtml(destination) + '</td>' +
       '<td data-label="מקור"><span class="course-scheduling-maintenance-route-source">' + source + '</span></td>' +
-      '<td data-label="מצב"><span class="course-scheduling-maintenance-route-status' + (ambiguous ? ' is-ambiguous' : '') + '">' + status + '</span></td>' +
+      '<td data-label="מצב"><span class="course-scheduling-maintenance-route-status' + (ambiguous ? ' is-ambiguous' : '') + '" title="' +
+        escapeHtml(route.review_note || '') + '">' + status + '</span></td>' +
       '<td data-label="פעולה" class="course-scheduling-maintenance-route-action">' +
       '<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-maintenance-route-button" data-calculate-missing-route="' + index + '"' +
       (ambiguous || routeBusy || distanceBusy ? ' disabled' : '') +
@@ -2851,7 +2855,7 @@ export const courseSchedulingScreen = {
 
     const reloadManualRouteQueue = async () => {
       const { data: routes, error } = await supabase.from('scheduling_route_missing_queue')
-        .select('origin_key,destination_key,origin_address,destination_address,origin_school_name,destination_school_name,origin_authority,destination_authority,source_kind,failure_reason,first_seen_at')
+        .select('origin_key,destination_key,origin_address,destination_address,origin_school_name,destination_school_name,origin_authority,destination_authority,source_kind,failure_reason,review_note,first_seen_at')
         .eq('status', 'pending').order('first_seen_at', { ascending: false }).limit(100);
       if (error) throw error;
       state.courseSchedulingRouteQueue = routes || [];
@@ -5793,7 +5797,7 @@ export const courseSchedulingScreen = {
       button.addEventListener('click', async () => {
         if (state.courseSchedulingManualRouteBusy || state.courseSchedulingDistanceLoading) return;
         const selected=(state.courseSchedulingRouteQueue||[])[Number(button.dataset.calculateMissingRoute)];
-        if (!selected || selected.failure_reason==='ambiguous_same_address') return;
+        if (!selected || ['ambiguous_same_address','unverified_zero_between_distinct_schools','location_resolution_conflict'].includes(selected.failure_reason)) return;
         state.courseSchedulingManualRouteBusy=true;
         state.courseSchedulingManualRouteMessage='מחשב את המסלול שנבחר בלבד...';
         rerender();
