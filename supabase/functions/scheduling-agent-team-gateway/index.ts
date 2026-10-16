@@ -85,6 +85,17 @@ const TOOLS = [
     inputSchema: {type:'object',properties:{activityId:{type:'string'},instructorId:{type:'integer',minimum:1},reason:{type:'string',maxLength:500}},required:['activityId','instructorId'],additionalProperties:false}
   },
   {
+    name: 'stage_schedule',
+    description: 'One scheduling entrypoint with two EXCLUSIVE modes. mode=exact_dates: the provided approved dates are authoritative and never regenerated; provide activityId,instructorId,startTime,endTime,dates. mode=from_start_date: supply approved startDate and hours; the shared school-sector calendar logic computes all meetings. Both modes delegate to existing atomic validation and draft saving; never overwrite existing dates, drafts, locks or assignments. Use read_staged_schedule for existing drafts; exception approvals and final confirmation remain separate.',
+    inputSchema: {type:'object',properties:{
+      mode:{type:'string',enum:['exact_dates','from_start_date']},
+      activityId:{type:'string'},instructorId:{type:'integer',minimum:1},
+      startTime:{type:'string'},endTime:{type:'string'},startDate:{type:'string'},
+      dates:{type:'array',minItems:1,maxItems:35,items:{type:'string'}},
+      reason:{type:'string',maxLength:500}
+    },required:['mode','activityId','instructorId','startTime','endTime'],additionalProperties:false}
+  },
+  {
     name: 'stage_schedule_from_start_date',
     description: 'Calculate a weekly calendar from an approved start date and live school calendar, then stage a NEW unassigned 2027 course via the existing atomic validator. No overwriting drafts, existing hours, approved dates or assignments. Does NOT finalize or grant exceptions. Read snapshot and obtain consent for exact activity, instructor, start date and hours before use.',
     inputSchema: {type:'object',properties:{
@@ -289,8 +300,27 @@ Deno.serve(async request=>{
   if(body.method==='tools/list')return result({tools:TOOLS});
   if(body.method!=='tools/call')return respond({jsonrpc:'2.0',id,error:{code:-32601,message:'Method not found'}});
   const params=body.params;
-  const name=isObject(params)?params.name:null;
-  const args=isObject(params)?params.arguments??{}:null;
+  let name=isObject(params)?params.name:null;
+  let args=isObject(params)?params.arguments??{}:null;
+  if(name==='stage_schedule'){
+    if(!isObject(args)|| !['exact_dates','from_start_date'].includes(String(args.mode))
+      ||(args.mode==='exact_dates' && (!Array.isArray(args.dates)||args.startDate!==undefined))
+      ||(args.mode==='from_start_date' && (typeof args.startDate!=='string'||args.dates!==undefined))){
+      return result({isError:true,content:[{type:'text',text:JSON.stringify({
+        ok:false,error:'invalid_schedule_mode',message:'בחר רשימת מועדים או תאריך התחלה, לא את שניהם.',
+        nextStep:'לרשימה מאושרת השתמש ב-exact_dates עם dates; לחישוב אוטומטי השתמש ב-from_start_date עם startDate.',
+        writesCommitted:false
+      })}]});
+    }
+    const {mode,...scheduleArgs}=args;
+    if(mode==='exact_dates'){
+      name='stage_schedule_batch';
+      args={items:[scheduleArgs]};
+    } else {
+      name='stage_schedule_from_start_date';
+      args=scheduleArgs;
+    }
+  }
   if(typeof name!=='string'||!TOOLS.some(tool=>tool.name===name))
     return result({isError:true,content:[{type:'text',text:JSON.stringify({
       ok:false,error:'unknown_tool',message:'כלי השיבוץ אינו מוכר.',
