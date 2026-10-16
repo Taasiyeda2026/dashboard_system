@@ -193,6 +193,8 @@ export function compactSchoolCalendarLabel(events = [], { maxTitles = 2 } = {}) 
  * Pure server/browser schedule generation. Rows are the authoritative school_calendar
  * snapshot supplied by the caller; NEVER silently accept an unavailable calendar.
  * Weekly plans do not infer or authorize double meetings.
+ * Runtime type validation is performed below; document all accepted fields for Deno's TS importer.
+ * @param {{calendarRows?: any[], sector?: any, startDate?: any, startTime?: any, endTime?: any, sessions?: any, maxSkips?: number}} options
  */
 export function generateWeeklyScheduleFromStartDate({
   calendarRows, sector, startDate, startTime, endTime, sessions, maxSkips = 104

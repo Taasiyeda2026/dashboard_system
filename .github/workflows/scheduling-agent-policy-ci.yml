@@ -40,6 +40,7 @@ jobs:
           from pathlib import Path
           from pglast import parse_sql
           found = sorted(Path("supabase/migrations").glob("20261015*scheduling*.sql"))
+          found.extend(sorted(Path("supabase/migrations").glob("20261016*scheduling*.sql")))
           found.append(Path("supabase/migrations/20261017100000_scheduling_agent_team_schedule_batch.sql"))
           assert found, "Scheduling migrations not found"
           for file in found:
