@@ -1977,42 +1977,56 @@ function maintenanceTabHtml(state) {
   const updateDisabled = distanceBusy || coverageLoading || noDistanceWork;
   const missingRoutes = state.courseSchedulingRouteQueue || [];
   const routeBusy = !!state.courseSchedulingManualRouteBusy;
+  const pendingText = state.courseSchedulingRouteQueueLoading ? '…' : String(missingRoutes.length);
   const manualRows = missingRoutes.map((route, index) => {
     const ambiguous = route.failure_reason === 'ambiguous_same_address';
-    const origin = [route.origin_school_name,route.origin_authority,route.origin_address].filter(Boolean).join(' · ');
-    const destination = [route.destination_school_name,route.destination_authority,route.destination_address].filter(Boolean).join(' · ');
-    return '<tr><td>'+escapeHtml(origin)+'</td><td>'+escapeHtml(destination)+'</td><td>'+
-      (route.source_kind === 'attendance' ? 'נוכחות' : 'שיבוץ')+'</td><td>'+
-      (ambiguous ? 'מיקום לא מאומת – כתובות זהות' : 'חסר')+'</td><td>'+
-      '<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-calculate-missing-route="'+index+'"'+
-      (ambiguous || routeBusy || distanceBusy ? ' disabled' : '')+'>חשב מסלול</button></td></tr>';
+    const origin = [route.origin_school_name, route.origin_authority, route.origin_address].filter(Boolean).join(' · ');
+    const destination = [route.destination_school_name, route.destination_authority, route.destination_address].filter(Boolean).join(' · ');
+    const source = route.source_kind === 'attendance' ? 'נוכחות' : 'שיבוץ';
+    const status = ambiguous ? 'נדרש אימות מיקום' : 'מסלול חסר';
+    return '<tr class="course-scheduling-maintenance-route-row">' +
+      '<td data-label="מוצא" class="course-scheduling-maintenance-route-location">' + escapeHtml(origin) + '</td>' +
+      '<td data-label="יעד" class="course-scheduling-maintenance-route-location">' + escapeHtml(destination) + '</td>' +
+      '<td data-label="מקור"><span class="course-scheduling-maintenance-route-source">' + source + '</span></td>' +
+      '<td data-label="מצב"><span class="course-scheduling-maintenance-route-status' + (ambiguous ? ' is-ambiguous' : '') + '">' + status + '</span></td>' +
+      '<td data-label="פעולה" class="course-scheduling-maintenance-route-action">' +
+      '<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-maintenance-route-button" data-calculate-missing-route="' + index + '"' +
+      (ambiguous || routeBusy || distanceBusy ? ' disabled' : '') +
+      '>' + (ambiguous ? 'ממתין למיקום' : 'חשב מסלול') + '</button></td></tr>';
   }).join('');
-  const manualQueuePanel = '<article class="course-scheduling-maintenance-card"><div>'+
-    '<h3>מסלולים חסרים שהתגלו בשיבוצים ובנוכחות</h3>'+
-    '<p class="course-scheduling-maintenance-note">מסלולים חסרים נרשמים ללא חישוב. כל מסלול מופיע פעם אחת, וחישוב מופעל רק בלחיצה יזומה.</p>'+
-    '<p>ממתינים לטיפול: '+(state.courseSchedulingRouteQueueLoading ? '…' : missingRoutes.length)+
-      (missingRoutes.length===100 ? ' (מוצגים 100 ראשונים)' : '')+'</p>'+
-    (state.courseSchedulingRouteQueueError ? '<p class="course-scheduling-alert">'+escapeHtml(state.courseSchedulingRouteQueueError)+'</p>' : '')+
-    (state.courseSchedulingManualRouteMessage ? '<p role="status">'+escapeHtml(state.courseSchedulingManualRouteMessage)+'</p>' : '')+
-    (manualRows ? '<div class="course-scheduling-table-scroll"><table><thead><tr><th>מוצא</th><th>יעד</th><th>מקור</th><th>מצב</th><th>פעולה</th></tr></thead><tbody>'+manualRows+'</tbody></table></div>' : '<p>אין מסלולים ממתינים ברשימת הטיפול.</p>')+
+  const manualQueuePanel = '<article class="course-scheduling-maintenance-card course-scheduling-maintenance-card--queue">' +
+    '<div class="course-scheduling-maintenance-card__content">' +
+    '<div class="course-scheduling-maintenance-queue-heading">' +
+    '<div><h3>מסלולים חסרים שהתגלו בשיבוצים ובנוכחות</h3>' +
+    '<p class="course-scheduling-maintenance-note">מסלול חסר נרשם פעם אחת בלבד, ללא חישוב אוטומטי. חישוב מתבצע רק בלחיצה על הפעולה המתאימה.</p></div>' +
+    '<span class="course-scheduling-maintenance-pending-count" aria-label="מסלולים ממתינים לטיפול">' +
+    pendingText + ' ממתינים לטיפול</span></div>' +
+    (missingRoutes.length === 100 ? '<p class="course-scheduling-maintenance-note">מוצגים 100 המסלולים הראשונים.</p>' : '') +
+    (state.courseSchedulingRouteQueueError ? '<p class="course-scheduling-alert" role="alert">' + escapeHtml(state.courseSchedulingRouteQueueError) + '</p>' : '') +
+    (state.courseSchedulingManualRouteMessage ? '<p class="course-scheduling-maintenance-feedback" role="status">' + escapeHtml(state.courseSchedulingManualRouteMessage) + '</p>' : '') +
+    (manualRows
+      ? '<div class="course-scheduling-maintenance-routes"><table dir="rtl"><thead><tr>' +
+        '<th scope="col">מוצא</th><th scope="col">יעד</th><th scope="col">מקור</th><th scope="col">מצב</th><th scope="col">פעולה</th>' +
+        '</tr></thead><tbody>' + manualRows + '</tbody></table></div>'
+      : '<p class="course-scheduling-maintenance-empty">אין מסלולים ממתינים ברשימת הטיפול.</p>') +
     '</div></article>';
   return `<section class="course-scheduling-maintenance-tab" aria-labelledby="course-scheduling-maintenance-heading">
     <h2 id="course-scheduling-maintenance-heading" class="course-scheduling-visually-hidden">פעולות תחזוקה</h2>
-    <article class="course-scheduling-maintenance-card">
-      <div>
+    <article class="course-scheduling-maintenance-card course-scheduling-maintenance-card--base">
+      <div class="course-scheduling-maintenance-base-info">
         <h3>עדכון מסלולי בסיס</h3>
         <p class="course-scheduling-maintenance-note">המספרים מתייחסים למסלולי הבסיס. חוסרים שהתגלו בשיבוצים ובנוכחות מופיעים בנפרד למטה. אין חישוב אוטומטי במסך זה.</p>
-        <div class="course-scheduling-distance-coverage">
-          <p>נדרשים: ${count('required_count')}</p>
-          <p>קיימים: ${count('existing_count')}</p>
-          <p>חסרים: ${count('missing_count')}</p>
-          <p>דורשים רענון: ${count('refresh_required_count')}</p>
+        <div class="course-scheduling-distance-coverage" aria-label="כיסוי מסלולי בסיס">
+          <p>נדרשים: <strong>${count('required_count')}</strong></p>
+          <p>קיימים: <strong>${count('existing_count')}</strong></p>
+          <p>חסרים: <strong>${count('missing_count')}</strong></p>
+          <p>דורשים רענון: <strong>${count('refresh_required_count')}</strong></p>
           <button type="button" class="course-scheduling-distance-refresh" data-refresh-distance-coverage aria-label="רענון נתוני מצב" title="רענון נתוני מצב" ${coverageLoading || distanceBusy ? 'disabled' : ''}>↻</button>
         </div>
         ${doneMessage ? `<p class="${doneError ? 'course-scheduling-alert' : 'course-scheduling-success'}">${escapeHtml(doneMessage)}</p>` : ''}
         ${doneDetails ? `<p class="course-scheduling-maintenance-note">${escapeHtml(doneDetails)}</p>` : ''}
       </div>
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-update-distances ${updateDisabled ? 'disabled' : ''}>${distanceBusy ? 'מעדכן מסלולי בסיס...' : (noDistanceWork ? 'כל מסלולי הבסיס מעודכנים' : 'עדכון מסלולי בסיס')}</button>
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary course-scheduling-maintenance-base-button" data-update-distances ${updateDisabled ? 'disabled' : ''}>${distanceBusy ? 'מעדכן מסלולי בסיס...' : (noDistanceWork ? 'כל מסלולי הבסיס מעודכנים' : 'עדכון מסלולי בסיס')}</button>
     </article>
     ${manualQueuePanel}
   </section>`;
