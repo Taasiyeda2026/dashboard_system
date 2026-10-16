@@ -188,6 +188,7 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
     request_optimization:['mode'],
     optimization_status:['jobId'],
     manager_approval_state:['activityId'],
+    read_staged_schedule:['activityId'],
     stage_manual_draft:['activityId','instructorId','reason'],
     stage_schedule_batch:['items'],
     stage_schedule_from_start_date:['activityId','instructorId','startDate','startTime','endTime','reason'],
