@@ -98,8 +98,7 @@ begin
  if p_latitude is null and p_longitude is distinct from null or p_longitude is null and p_latitude is distinct from null then
    raise exception 'coordinate_pair_required'; end if;
  if p_latitude is not null and (
-    not isfinite(p_latitude) or not isfinite(p_longitude)
-    or p_latitude not between 29 and 34 or p_longitude not between 34 and 36)
+    p_latitude not between 29 and 34 or p_longitude not between 34 and 36)
  then raise exception 'coordinates_outside_israel'; end if;
  if p_accuracy not in ('school_area','maps_plus_code') then raise exception 'invalid_accuracy'; end if;
  if length(coalesce(p_note,''))>500 then raise exception 'note_too_long'; end if;
