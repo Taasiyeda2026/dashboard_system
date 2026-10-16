@@ -492,7 +492,7 @@ function headerHtml(row, { mode = 'single', summaryDate = '', exportAction = tru
     const typeTag = activityTypeLabel(row?.activity_type);
     const statusVal = statusText(row?.status);
     const domainRaw = String(row?.activity_domain || '').trim().toUpperCase();
-    const domainVal = ['E', 'Y'].includes(domainRaw) ? domainRaw : '';
+    const domainVal = ['E', 'Y', 'EY'].includes(domainRaw) ? domainRaw : '';
     const schoolVal = humanDisplayText(row?.school) || '';
     const authorityVal = humanDisplayText(row?.authority) || '';
     const isOpen = normStatus(row?.status) !== 'closed';
@@ -556,10 +556,10 @@ function blockActivityDetails(row, { settings = {} } = {}) {
           'תחום פעילות',
           selectHtml({
             name: 'activity_domain',
-            value: ['E', 'Y'].includes(String(row.activity_domain || '').trim().toUpperCase())
+            value: ['E', 'Y', 'EY'].includes(String(row.activity_domain || '').trim().toUpperCase())
               ? String(row.activity_domain).trim().toUpperCase()
               : '',
-            options: ['E', 'Y'],
+            options: ['E', 'Y', 'EY'],
             placeholder: 'בחרו תחום'
           })
         ) : ''}
