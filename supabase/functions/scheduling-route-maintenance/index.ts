@@ -54,7 +54,7 @@ async function loadCache(db, pairs) {
   const cached = new Map();
   for (let offset = 0; ; offset += 1000) {
     const { data, error } = await db.from('scheduling_travel_cache')
-      .select('origin_key,destination_key,origin_address,destination_address,distance_km,duration_minutes,provider')
+      .select('origin_key,destination_key,origin_address,destination_address,distance_km,duration_minutes,provider,location_suspect')
       .in('origin_key', originKeys).in('destination_key', destinationKeys)
       .order('origin_key').order('destination_key').range(offset, offset + 999);
     if (error) throw new Error('cache_read_failed');
@@ -152,6 +152,7 @@ async function repairRoutes(db, apiKey, requests, includeReverse) {
       return { label: pair.label, status: 'blocked', reason: 'ambiguous_same_address' };
     }
     const existing = cache.get(pair.cacheKey);
+    if (existing?.location_suspect === true) return { label: pair.label, status: 'blocked', reason: 'location_review_required' };
     if (alreadyUsable(existing, pair)) return { label: pair.label, status: 'cached' };
     if (!apiKey) return { label: pair.label, status: 'failed', reason: 'google_key_not_configured' };
     const computed = await googleRoute(pair, apiKey);
@@ -332,7 +333,7 @@ async function repairApprovedCoordinates(db, googleKey, requests, includeReverse
     if (lookupError) return {label,status:'failed',reason:'cache_read_failed'};
     const originCoord = from.point.latitude + ',' + from.point.longitude;
     const destCoord = to.point.latitude + ',' + to.point.longitude;
-    if (validKm(current)
+    if (validKm(current) && current?.location_suspect !== true
         && current.provider === 'google_approved_coordinates'
         && current.query_origin_address === originCoord && current.query_destination_address === destCoord) {
       return {label,status:'cached',distance_km:Number(current.distance_km),duration_minutes:Number(current.duration_minutes)};
