@@ -619,6 +619,10 @@ export function findCachedRowForPair(cacheRows = [], pair = {}) {
   const destinationEntityKey = text(pair.destination_entity_key);
   if (originEntityKey && destinationEntityKey) {
     const byEntity = (cacheRows || []).find((row) => (
+      row.provider === 'google_approved_coordinates'
+      && text(row.origin_entity_key) === originEntityKey
+      && text(row.destination_entity_key) === destinationEntityKey
+    )) || (cacheRows || []).find((row) => (
       text(row.origin_entity_key) === originEntityKey
       && text(row.destination_entity_key) === destinationEntityKey
     ));

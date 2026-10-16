@@ -940,7 +940,12 @@ function cacheLookupMaps(rows: Record<string, unknown>[]) {
     if (originKey && destinationKey) byRoute.set(`${originKey}->${destinationKey}`, row);
     const originEntity = text(row.origin_entity_key);
     const destinationEntity = text(row.destination_entity_key);
-    if (originEntity && destinationEntity) byEntityPair.set(`${originEntity}->${destinationEntity}`, row);
+    if (originEntity && destinationEntity) {
+      const lookupKey = `${originEntity}->${destinationEntity}`;
+      if (row.provider === 'google_approved_coordinates' || !byEntityPair.has(lookupKey)) {
+        byEntityPair.set(lookupKey, row);
+      }
+    }
   }
   return { byRoute, byEntityPair };
 }
@@ -950,9 +955,10 @@ function cacheRowForPair(
   byRoute: Map<string, Record<string, unknown>>,
   byEntityPair: Map<string, Record<string, unknown>>
 ) {
+  const typed = byEntityPair.get(`${pair.origin_entity_key}->${pair.destination_entity_key}`);
+  if (typed?.provider === 'google_approved_coordinates') return typed;
   return byRoute.get(`${pair.origin_key}->${pair.destination_key}`)
-    || byEntityPair.get(`${pair.origin_entity_key}->${pair.destination_entity_key}`)
-    || null;
+    || typed || null;
 }
 
 async function loadRelevantSchedulingCacheRows(
@@ -1390,7 +1396,12 @@ async function processPair(db: DbClient, pair: TravelPair, key: string): Promise
   const existing = await findCachedByEntities(db, pair);
   if (existing.error) return { dbError: existing.error };
 
-  const matching = existing.rows.find((row) => (
+  const approved = existing.rows.find((row) => (
+    row.provider === 'google_approved_coordinates'
+    && text(row.origin_entity_key) === pair.origin_entity_key
+    && text(row.destination_entity_key) === pair.destination_entity_key
+  ));
+  const matching = approved || existing.rows.find((row) => (
     text(row.origin_entity_key) === pair.origin_entity_key
     && text(row.destination_entity_key) === pair.destination_entity_key
   )) || existing.rows.find((row) => (
