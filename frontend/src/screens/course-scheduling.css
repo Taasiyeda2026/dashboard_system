@@ -3661,3 +3661,21 @@
   .course-scheduling-screen .cs-route-review-school { padding: 13px; }
   .course-scheduling-screen .cs-route-review-coordinates { grid-template-columns: minmax(0,1fr); }
 }
+
+/* Identified school first, street address second; ambiguous identities remain explicit. */
+.course-scheduling-screen .cs-route-school-name {
+  font-weight: 800;
+  font-size: .87rem;
+  color: #25374a;
+  line-height: 1.5;
+}
+.course-scheduling-screen .cs-route-school-address {
+  font-weight: 400;
+  font-size: .76rem;
+  color: #697b8e;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.course-scheduling-screen .cs-route-school-unresolved {
+  color: #955e1e;
+}
