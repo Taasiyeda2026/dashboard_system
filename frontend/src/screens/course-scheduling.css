@@ -3518,3 +3518,146 @@
     min-height: 44px;
   }
 }
+
+
+/* Route evidence + confirmed school location editor; scoped to maintenance. */
+.course-scheduling-screen .cs-route-review {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #c9d9e8;
+  border-radius: 12px;
+  background: #f9fbfe;
+  padding: 22px;
+  display: grid;
+  gap: 16px;
+  color: #25384b;
+  text-align: right;
+}
+.course-scheduling-screen .cs-route-review-header,
+.course-scheduling-screen .cs-route-review-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.course-scheduling-screen .cs-route-review h4,
+.course-scheduling-screen .cs-route-review h5,
+.course-scheduling-screen .cs-route-review p { margin: 0; }
+.course-scheduling-screen .cs-route-review h4 { font-size: 1.04rem; font-weight: 800; }
+.course-scheduling-screen .cs-route-review h5 { font-size: .95rem; font-weight: 800; }
+.course-scheduling-screen .cs-route-review-explanation {
+  padding: 12px 15px;
+  border-right: 3px solid #829fbf;
+  background: #eef4fb;
+  border-radius: 5px;
+  line-height: 1.65;
+}
+.course-scheduling-screen .cs-route-review-evidence {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 8px 18px;
+  padding: 14px 16px;
+  border: 1px solid #e0e8f0;
+  border-radius: 9px;
+  background: #fff;
+}
+.course-scheduling-screen .cs-route-review-evidence p {
+  overflow-wrap: anywhere;
+  font-size: .82rem;
+  line-height: 1.6;
+}
+.course-scheduling-screen .cs-route-review-school-grid {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 14px;
+}
+.course-scheduling-screen .cs-route-review-school {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  padding: 17px;
+  background: #fff;
+  border: 1px solid #dbe5ef;
+  border-radius: 10px;
+}
+.course-scheduling-screen .cs-route-review-school label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: #43566c;
+  font-size: .81rem;
+  font-weight: 700;
+}
+.course-scheduling-screen .cs-route-review-school input:not([type="checkbox"]),
+.course-scheduling-screen .cs-route-review-school select {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  border: 1px solid #cbd8e5;
+  border-radius: 7px;
+  padding: 8px 10px;
+  background: #fff;
+  color: #20364e;
+  font: inherit;
+  font-weight: 500;
+  text-align: right;
+  direction: rtl;
+}
+.course-scheduling-screen .cs-route-review-school input[type="number"] {
+  direction: ltr;
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+.course-scheduling-screen .cs-route-review-school .cs-route-review-confirm {
+  display: flex;
+  flex-direction: row;
+  align-items: start;
+  gap: 9px;
+  line-height: 1.5;
+}
+.course-scheduling-screen .cs-route-review-confirm input { margin-top: 4px; }
+.course-scheduling-screen .cs-route-review-field-hint {
+  font-size: .79rem;
+  line-height: 1.55;
+  color: #586c80;
+  overflow-wrap: anywhere;
+}
+.course-scheduling-screen .cs-route-review-coordinates {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 10px;
+}
+.course-scheduling-screen .cs-route-review-search {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+.course-scheduling-screen .cs-route-review-footer {
+  border-top: 1px solid #dce5ef;
+  padding-top: 14px;
+}
+.course-scheduling-screen .cs-route-review-footer p { font-size: .83rem; line-height: 1.55; }
+.course-scheduling-screen .cs-route-review-message {
+  border-radius: 8px;
+  background: #eff5fb;
+  padding: 10px 12px;
+  font-size: .82rem;
+  line-height: 1.6;
+}
+@media (max-width: 950px) {
+  .course-scheduling-screen .cs-route-review-school-grid,
+  .course-scheduling-screen .cs-route-review-evidence { grid-template-columns: minmax(0,1fr); }
+}
+@media (max-width: 600px) {
+  .course-scheduling-screen .cs-route-review { padding: 14px; }
+  .course-scheduling-screen .cs-route-review-header,
+  .course-scheduling-screen .cs-route-review-footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .course-scheduling-screen .cs-route-review-school { padding: 13px; }
+  .course-scheduling-screen .cs-route-review-coordinates { grid-template-columns: minmax(0,1fr); }
+}
