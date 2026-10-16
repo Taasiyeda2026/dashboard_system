@@ -291,7 +291,6 @@ Deno.serve(async request=>{
     body=value;
   } catch {return respond({error:'invalid_jsonrpc'},400);}
   const id=body.id;
-  const result=(value:unknown)=>respond({jsonrpc:'2.0',id,result:value});
   if(body.method==='notifications/initialized'&&!('id' in body))
     return new Response(null,{status:202});
   if(body.method==='initialize')
@@ -300,6 +299,7 @@ Deno.serve(async request=>{
   if(body.method==='tools/list')return result({tools:TOOLS});
   if(body.method!=='tools/call')return respond({jsonrpc:'2.0',id,error:{code:-32601,message:'Method not found'}});
   const params=body.params;
+  const result=(value:unknown)=>respond({jsonrpc:'2.0',id,result:value});
   let name=isObject(params)?params.name:null;
   let args=isObject(params)?params.arguments??{}:null;
   if(name==='stage_schedule'){
