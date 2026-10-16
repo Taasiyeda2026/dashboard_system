@@ -5805,6 +5805,8 @@ export const courseSchedulingScreen = {
       rerender();
       try {
         await reloadDistanceCoverage();
+        await reloadManualRouteQueue();
+        state.courseSchedulingRouteQueueError = '';
         state.courseSchedulingDistanceError = false;
         state.courseSchedulingDistanceDoneMessage = '';
       } catch (error) {
