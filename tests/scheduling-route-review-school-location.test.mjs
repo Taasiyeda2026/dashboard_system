@@ -6,15 +6,15 @@ const src = p => readFile(new URL(p,import.meta.url),'utf8');
 test('every audited route has an explanatory action and actual calculation evidence', async () => {
  const screen=await src('../frontend/src/screens/course-scheduling.js');
  assert.match(screen,/data-review-route/);
- assert.match(screen,/בדוק מיקומים/);
+ assert.match(screen,/תקן כתובת/);
  assert.match(screen,/מרחק אפס חשוד/);
  assert.match(screen,/כתובת זוהתה אחרת/);
  assert.match(screen,/outbound_query_origin/);
  assert.match(screen,/reverse_query_destination/);
- assert.match(screen,/origin_candidates/);
- assert.match(screen,/destination_candidates/);
- assert.match(screen,/כתובת מלאה ומדויקת לניווט/);
- assert.match(screen,/אני מאשר\/ת שזהו המיקום הנכון/);
+ assert.match(screen,/side \+ '_candidates'/);
+ assert.match(screen,/data-review-school/);
+ assert.match(screen,/כתובת מלאה ומדויקת לנסיעה/);
+ assert.match(screen,/בדקתי ואני מאשר\/ת את הכתובת/);
 });
 
 test('school location edits require explicit confirmation and are not calculations', async () => {
