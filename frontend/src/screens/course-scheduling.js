@@ -2093,8 +2093,20 @@ function maintenanceTabHtml(state) {
       const fallbackSchool = text(route[side + '_school_name']);
       const authority = text(route[side + '_authority']);
       const one = matches.length === 1 ? matches[0] : null;
+      const instructors = route[side + '_instructor_matches'] || [];
+      const kindHint = route[side + '_kind_hint'];
+      if ((kindHint === 'instructor' || (instructors.length && kindHint !== 'school')) && instructors.length && matches.length) {
+        return '<div class="cs-route-school-name cs-route-school-unresolved">ייתכן בית מדריך או בית ספר – נדרש זיהוי</div>' +
+          '<div class="cs-route-school-address">' + escapeHtml(address) + '</div>';
+      }
+      if (instructors.length && (kindHint === 'instructor' || matches.length === 0)) {
+        return '<div class="cs-route-school-name">כתובת מגורי מדריך' +
+          (instructors.length === 1 ? ': ' + escapeHtml(instructors[0].full_name) : ' – נדרש זיהוי מדריך') +
+          '</div><div class="cs-route-school-address">' + escapeHtml(address) + '</div>';
+      }
       if (one) {
-        return '<div class="cs-route-school-name">' + escapeHtml(one.school_name) + '</div>' +
+        return '<div class="cs-route-school-name">' +
+           (kindHint === 'school' ? '' : 'ייתכן בית ספר: ') + escapeHtml(one.school_name) + '</div>' +
           '<div class="cs-route-school-address">' + escapeHtml([one.city || one.authority, address].filter(Boolean).join(' · ')) + '</div>';
       }
       if (matches.length > 1) {
@@ -2121,7 +2133,7 @@ function maintenanceTabHtml(state) {
         escapeHtml(route.review_note || '') + '">' + status + '</span></td>' +
       '<td data-label="פעולה" class="course-scheduling-maintenance-route-action">' +
       (ambiguous
-        ? '<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-maintenance-route-button" data-review-route="' + index + '">בדוק מיקומים</button>'
+        ? '<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-maintenance-route-button" data-review-route="' + index + '">בדוק / תקן כתובת</button>'
         : '<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-maintenance-route-button" data-calculate-missing-route="' + index + '"' +
           (routeBusy || distanceBusy ? ' disabled' : '') + '>חשב מסלול</button>') + '</td></tr>';
   }).join('');
@@ -2986,6 +2998,13 @@ export const courseSchedulingScreen = {
         .select('origin_key,destination_key,origin_address,destination_address,origin_school_id,destination_school_id,origin_school_name,destination_school_name,origin_authority,destination_authority,source_kind,failure_reason,review_note,review_evidence,first_seen_at')
         .eq('status', 'pending').order('first_seen_at', { ascending: false }).limit(100);
       if (error) throw error;
+      // Scope employee address matches to the pending route queue, via a privileged RPC.
+      // Never infer a school's identity from an address which may be an instructor's home.
+      const { data: homeMatches, error: homeError } = await supabase.rpc('scheduling_route_review_queue_homes');
+      if (homeError) throw homeError;
+      const instructorDetails = new Map((homeMatches || []).map(match => [
+        match.origin_key + '\\u2192' + match.destination_key, match
+      ]));
       // Resolve school names in ONE catalog lookup; no geocoding or route calculation.
       const rows = routes || [];
       const catalogAddresses = [...new Set(rows.flatMap(r => [
@@ -3032,7 +3051,11 @@ export const courseSchedulingScreen = {
       state.courseSchedulingRouteQueue = rows.map(route => ({
         ...route,
         origin_catalog_matches: matchSchools(route.origin_address,route.origin_school_id),
-        destination_catalog_matches: matchSchools(route.destination_address,route.destination_school_id)
+        destination_catalog_matches: matchSchools(route.destination_address,route.destination_school_id),
+        origin_instructor_matches: instructorDetails.get(route.origin_key + '\\u2192' + route.destination_key)?.origin_matches || [],
+        destination_instructor_matches: instructorDetails.get(route.origin_key + '\\u2192' + route.destination_key)?.destination_matches || [],
+        origin_kind_hint: instructorDetails.get(route.origin_key + '\\u2192' + route.destination_key)?.origin_kind_hint || null,
+        destination_kind_hint: instructorDetails.get(route.origin_key + '\\u2192' + route.destination_key)?.destination_kind_hint || null
       }));
       state.courseSchedulingRouteQueueLoaded = true;
     };
@@ -5971,19 +5994,28 @@ export const courseSchedulingScreen = {
     const reloadRouteReviewDetails = async () => {
       const selected = state.courseSchedulingRouteReviewSelected;
       if (!selected) return;
-      const { data: review, error } = await supabase.rpc('scheduling_route_review_school_candidates', {
+      const { data: review, error } = await supabase.rpc('scheduling_route_review_endpoint_details', {
         p_origin_key: selected.origin_key, p_destination_key: selected.destination_key
       });
       if (error) throw error;
       state.courseSchedulingRouteReview = review;
-      if (!state.courseSchedulingRouteReviewSchoolIds) state.courseSchedulingRouteReviewSchoolIds = {};
+      state.courseSchedulingRouteReviewSchoolIds ||= {};
+      state.courseSchedulingRouteReviewInstructorIds ||= {};
+      state.courseSchedulingRouteReviewKinds ||= {};
       for (const side of ['origin', 'destination']) {
-        const choices = review[side + '_candidates'] || [];
-        const kept = Number(state.courseSchedulingRouteReviewSchoolIds[side]);
-        if (!choices.some(v => Number(v.id) === kept)) {
-          state.courseSchedulingRouteReviewSchoolIds[side] =
-            review.route?.[side + '_school_id'] || choices[0]?.id || null;
+        const schools = review[side + '_candidates'] || [];
+        const people = review[side + '_instructors'] || [];
+        const explicit = review.route?.[side + '_review_type'];
+        const hint = review[side + '_kind_hint'];
+        if (!state.courseSchedulingRouteReviewKinds[side]) {
+          state.courseSchedulingRouteReviewKinds[side] = explicit ||
+            (hint === 'school' || hint === 'instructor' ? hint : 'unknown');
         }
+        if (!schools.some(v => Number(v.id) === Number(state.courseSchedulingRouteReviewSchoolIds[side])))
+          state.courseSchedulingRouteReviewSchoolIds[side] = review.route?.[side + '_school_id'] || null;
+        if (!people.some(v => Number(v.emp_id) === Number(state.courseSchedulingRouteReviewInstructorIds[side])))
+          state.courseSchedulingRouteReviewInstructorIds[side] =
+            review.route?.[side + '_instructor_emp_id'] || null;
       }
     };
     root.querySelectorAll('[data-review-route]').forEach(button => {
@@ -5995,6 +6027,8 @@ export const courseSchedulingScreen = {
         };
         state.courseSchedulingRouteReview = null;
         state.courseSchedulingRouteReviewSchoolIds = {};
+        state.courseSchedulingRouteReviewInstructorIds = {};
+        state.courseSchedulingRouteReviewKinds = {};
         state.courseSchedulingRouteReviewMessage = '';
         state.courseSchedulingRouteReviewLoading = true;
         rerender();
