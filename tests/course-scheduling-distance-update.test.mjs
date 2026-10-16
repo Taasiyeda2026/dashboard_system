@@ -511,7 +511,7 @@ test('upsert-style merge never counts a failed batch body as inserted success', 
 });
 
 test('Edge Function status errors are translated to Hebrew guidance', () => {
-  assert.match(translateSchedulingRouteError('Edge Function returned a non-2xx status code'), /שירות חישוב המרחקים/);
+  assert.match(translateSchedulingRouteError('Edge Function returned a non-2xx status code'), /שירות חישוב המסלולים/);
   assert.match(translateSchedulingRouteError('authority_school_lookup_failed'), /בתי הספר/);
   assert.match(translateSchedulingRouteError('cache_write_failed'), /מטמון/);
   assert.match(translateSchedulingRouteError('google_key_not_configured'), /Google Maps/);
@@ -519,9 +519,9 @@ test('Edge Function status errors are translated to Hebrew guidance', () => {
   assert.match(translateSchedulingRouteError('authentication_required'), /התחבר/);
 });
 
-test('batch endpoint still requires the admin/operation_manager role before build runs', async () => {
+test('batch endpoint requires authorized scheduling access before build', async () => {
   const ts = await readFile(edgeFunctionUrl, 'utf8');
-  const roleCheckIndex = ts.indexOf("['admin', 'operation_manager'].includes");
+  const roleCheckIndex = ts.indexOf("const hasSchedulingAccess =");
   const buildDispatchIndex = ts.indexOf('runBuildCache(db, key, payload)');
   assert.ok(roleCheckIndex > -1 && buildDispatchIndex > roleCheckIndex, 'role check must happen before build mode can run');
 });
@@ -629,7 +629,7 @@ test('course scheduling distance UI exposes only simple coverage and progress co
   assert.match(source, /נותרו \$\{remaining\} מסלולים לעדכון/);
   const card = source.split('function maintenanceTabHtml')[1].split('function calendarTabHtml')[0];
   assert.match(card, /עדכון מסלולי בסיס/);
-  assert.match(card, /מסלולי מעבר נוספים בין פעילויות נבדקים לפי הצורך בזמן השיבוץ/);
+  assert.match(card, /חוסרים שהתגלו בשיבוצים ובנוכחות מופיעים בנפרד/);
   assert.doesNotMatch(card, /cache|TTL|batch|expiration|מטמון|מנות|פרטים/i);
   assert.match(source, /state\.courseSchedulingDistanceError = info\.error/);
 });
