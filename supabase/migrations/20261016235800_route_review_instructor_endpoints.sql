@@ -50,7 +50,7 @@ begin
        (lower(btrim(ci.address))=lower(btrim(q.origin_address))
         or ci.emp_id=q.origin_instructor_emp_id
         or (ci.emp_id=q.instructor_emp_id and q.source_kind='attendance' and q.origin_school_id is null
-            and lower(btrim(ci.address))=lower(btrim(q.origin_address)))),'[]'::jsonb),
+            and lower(btrim(ci.address))=lower(btrim(q.origin_address))))),'[]'::jsonb),
   'destination_candidates',coalesce((select jsonb_agg(jsonb_build_object('emp_id',ci.emp_id,'full_name',ci.full_name,'address',ci.address) order by ci.emp_id)
       from public.contacts_instructors ci
       where nullif(btrim(ci.address),'') is not null and
