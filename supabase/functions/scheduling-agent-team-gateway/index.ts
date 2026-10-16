@@ -370,12 +370,19 @@ Deno.serve(async request=>{
         calendarRows,sector:schools[0].sector,startDate:args.startDate,
         startTime:args.startTime,endTime:args.endTime,sessions:Number(course.sessions)
       });
-      const staged=await rpc(token,'scheduling_agent_team_stage_schedule_batch',{p_items:[{
+      const stagedItems=[{
         activityId:args.activityId,instructorId:args.instructorId,startTime:args.startTime,
         endTime:args.endTime,dates:schedule.dates,reason:args.reason??''
-      }]});
-      if('error' in staged)return errorReply(String(staged.error),
-        String(staged.nextStep||'בדוק את כללי האימות, ההתנגשויות וההרשאות של השיבוץ.'));
+      }];
+      const staged=await rpc(token,'scheduling_agent_team_stage_schedule_batch',{p_items:stagedItems});
+      if('error' in staged){
+        if(['scheduling_transition_unverified','scheduling_home_route_unverified'].includes(String(staged.reasonCode))){
+          // The failed stage transaction rolled back: queue in a separate transaction, never calculate.
+          await rpc(token,'scheduling_agent_team_queue_missing_stage_routes',{p_items:stagedItems}).catch(()=>null);
+        }
+        return errorReply(String(staged.error),
+          String(staged.nextStep||'בדוק את כללי האימות, ההתנגשויות וההרשאות של השיבוץ.'));
+      }
       return result({isError:false,content:[{type:'text',text:JSON.stringify({
         ok:true,result:staged.data,calculation:{endDate:schedule.endDate,
           deferred:schedule.deferred,source:'school_calendar',meetingCount:schedule.dates.length},
@@ -434,8 +441,15 @@ Deno.serve(async request=>{
       return result({isError:true,content:[{type:'text',text:JSON.stringify({ok:false,error:'approval_state_not_current',writesCommitted:false,retrySameRequest:false,nextStep:'קרא מחדש את מצב הבקשה; לא בוצעה החלטת מנהל.'})}]});
   }
   const output=await rpc(token,names[name],input).catch(()=>({error:'upstream_unavailable',status:502,reasonCode:null,diagnosticCode:null,activityId:null,message:'הקשר עם מערכת השיבוצים נקטע; תוצאת הפעולה אינה ידועה.',nextStep:'קרא מחדש את מצב הפעילות או הבקשה לפני ניסיון נוסף. אין להסיק שהשמירה הצליחה או בוטלה.'}));
-  if('error' in output)
-    return result({isError:true,content:[{type:'text',text:JSON.stringify({ok:false,error:output.error,reasonCode:output.reasonCode??null,diagnosticCode:output.diagnosticCode??null,message:output.message,nextStep:output.nextStep,activityId:output.activityId??null,retrySameRequest:false,writesCommitted:output.status>=500?null:false,outcome:output.status>=500?'unknown':'rejected'})}]});
+  if('error' in output){
+    let maintenanceQueued: boolean|null=null;
+    if(name==='stage_schedule_batch' && ['scheduling_transition_unverified','scheduling_home_route_unverified'].includes(String(output.reasonCode))){
+      // Queue AFTER failed atomic stage, not inside the rolled-back transaction. No Google calls.
+      const registration=await rpc(token,'scheduling_agent_team_queue_missing_stage_routes',{p_items:args.items}).catch(()=>null);
+      maintenanceQueued=!!registration && !('error' in registration);
+    }
+    return result({isError:true,content:[{type:'text',text:JSON.stringify({ok:false,error:output.error,reasonCode:output.reasonCode??null,diagnosticCode:output.diagnosticCode??null,message:output.message,nextStep:maintenanceQueued===true?'המסלול החסר נרשם בתחזוקת המסלולים. נדרש חישוב ידני ואחריו ניסיון שיבוץ חדש באישור המשתמש.':output.nextStep,maintenanceQueued,activityId:output.activityId??null,retrySameRequest:false,writesCommitted:output.status>=500?null:false,outcome:output.status>=500?'unknown':'rejected'})}]});
+  }
   if(name==='review_manager_approval'){
     // Never send the generic edit_requests row (which includes requested_payload) to ChatGPT.
     const row=output.data;
