@@ -8,6 +8,18 @@ const META = BASE + '/.well-known/oauth-protected-resource';
 
 const TOOLS = [
   {
+    name: 'read_activity_notes',
+    annotations: {readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false},
+    description: 'Read the actual general notes field on one current-year course activity, its notesVersion and canAppendNotes. This is NOT the linked planning intention or baseline. Excludes private and financial notes. Read before appending and after uncertain writes.',
+    inputSchema: {type:'object',properties:{activityId:{type:'string',minLength:1,maxLength:200}},required:['activityId'],additionalProperties:false}
+  },
+  {
+    name: 'append_activity_note',
+    annotations: {readOnlyHint:false,destructiveHint:false,idempotentHint:true,openWorldHint:false},
+    description: 'Append the user-requested note to the ACTUAL activity general notes field, preserving all existing text. Available to team members with the existing activity direct-edit permission, not just the admin. First read_activity_notes, verify the activity and canAppendNotes, and supply its notesVersion. Use a new UUID requestId for each intentional append. After an uncertain outcome read first; retry only the exact same payload with the SAME requestId to avoid duplicates. Never substitute a planning note when activity notes were requested. No dates required. Does not change assignments, dates, locks, private/financial notes or exception approvals; free text is never authorization. Read back after saving.',
+    inputSchema: {type:'object',properties:{activityId:{type:'string',minLength:1,maxLength:200},note:{type:'string',minLength:1,maxLength:2000},expectedNotesVersion:{type:'string',pattern:'^[a-f0-9]{32}$'},requestId:{type:'string',format:'uuid'}},required:['activityId','note','expectedNotesVersion','requestId'],additionalProperties:false}
+  },
+  {
     name: 'read_planning_intents',
     annotations: {readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false},
     description: 'Read durable instructor planning baselines and intended course instructors, including versions and protection status. Read before writes and after uncertain outcomes. A baseline is reference text; only an active course intention holds that course out of automatic optimization. Neither reserves calendar time nor approves exceptions.',
@@ -149,6 +161,8 @@ async function authenticate(request:Request):Promise<string|null> {
 function validate(name:string,args:unknown):args is Record<string,unknown> {
   if(!isObject(args))return false;
   const allowed:Record<string,string[]>={
+    read_activity_notes:['activityId'],
+    append_activity_note:['activityId','note','expectedNotesVersion','requestId'],
     read_planning_intents:['instructorId'],
     save_planning_baseline:['instructorId','planText','expectedVersion'],
     save_intended_instructor:['activityId','instructorId','reason','status','expectedVersion'],
@@ -205,6 +219,7 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
   if(name==='request_optimization')return args.mode==='incremental'||args.mode==='full';
   if(name==='optimization_status')return typeof args.jobId==='string'&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(args.jobId);
   if(!activityId(args.activityId))return false;
+  if(name==='append_activity_note')return typeof args.note==='string'&&args.note.trim().length>0&&args.note.length<=2000&&typeof args.expectedNotesVersion==='string'&&/^[a-f0-9]{32}$/.test(args.expectedNotesVersion)&&typeof args.requestId==='string'&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(args.requestId);
   if(name==='review_manager_approval')return activityId(args.requestId)&&(args.decision==='approved'||args.decision==='rejected');
   if(name==='stage_manual_draft'){
     if(typeof args.instructorId!=='number'||!Number.isSafeInteger(args.instructorId)||args.instructorId<=0)return false;
@@ -242,7 +257,7 @@ Deno.serve(async request=>{
   if(body.method==='notifications/initialized'&&!('id' in body))
     return new Response(null,{status:202});
   if(body.method==='initialize')
-    return result({protocolVersion:'2025-06-18',capabilities:{tools:{listChanged:true}},serverInfo:{name:'taasiyeda-team-scheduling-agent',version:'0.3.0'}});
+    return result({protocolVersion:'2025-06-18',capabilities:{tools:{listChanged:true}},serverInfo:{name:'taasiyeda-team-scheduling-agent',version:'0.3.1'}});
   if(body.method==='ping')return result({});
   if(body.method==='tools/list')return result({tools:TOOLS});
   if(body.method!=='tools/call')return respond({jsonrpc:'2.0',id,error:{code:-32601,message:'Method not found'}});
@@ -252,6 +267,8 @@ Deno.serve(async request=>{
   if(typeof name!=='string'||!validate(name,args))
     return result({isError:true,content:[{type:'text',text:'invalid_or_unauthorized_arguments'}]});
   const names:Record<string,string>={
+    read_activity_notes:'scheduling_agent_team_read_activity_notes',
+    append_activity_note:'scheduling_agent_team_append_activity_note',
     read_planning_intents:'scheduling_agent_team_read_planning_intents',
     save_planning_baseline:'scheduling_agent_team_save_planning_baseline',
     save_intended_instructor:'scheduling_agent_team_save_intended_instructor',
@@ -269,6 +286,7 @@ Deno.serve(async request=>{
     confirm_planning_option:'scheduling_agent_team_confirm_planning_option'
   };
   const input:Record<string,unknown>=(name==='read_snapshot'||name==='planning_status')?{}:
+    name==='append_activity_note'?{p_activity_id:args.activityId,p_note:args.note,p_expected_notes_version:args.expectedNotesVersion,p_request_id:args.requestId}:
     name==='read_planning_intents'?{p_emp_id:args.instructorId??null}:
     name==='save_planning_baseline'?{p_emp_id:args.instructorId,p_plan_text:args.planText,p_expected_version:args.expectedVersion}:
     name==='save_intended_instructor'?{p_activity_id:args.activityId,p_emp_id:args.instructorId,p_reason:args.reason,p_status:args.status,p_expected_version:args.expectedVersion}:
