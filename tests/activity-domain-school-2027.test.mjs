@@ -33,7 +33,7 @@ test('activity-domain UI is limited to school_2027 create and edit forms', async
   ]);
 
   assert.match(activities, /name="activity_domain" required/);
-  assert.match(activities, /isSchool2027Activity && !\['E', 'Y'\]\.includes\(activityDomain\)/);
+  assert.match(activities, /isSchool2027Activity && !\['E', 'Y', 'EY'\]\.includes\(activityDomain\)/);
   assert.match(detail, /is2027Row \? fieldEditOnly\(\s*'תחום פעילות'/);
   assert.doesNotMatch(detail.match(/is2027Row \? fieldEditOnly\([\s\S]*?placeholder: 'בחרו תחום'[\s\S]*?\) : ''/)?.[0] || '', /disabled/);
   assert.match(api, /'activity_domain'/);
