@@ -2074,16 +2074,35 @@ function maintenanceTabHtml(state) {
     const ambiguous = [
       'ambiguous_same_address', 'unverified_zero_between_distinct_schools', 'location_resolution_conflict'
     ].includes(route.failure_reason);
-    const origin = [route.origin_school_name, route.origin_authority, route.origin_address].filter(Boolean).join(' · ');
-    const destination = [route.destination_school_name, route.destination_authority, route.destination_address].filter(Boolean).join(' · ');
+    const placeLabel = (side) => {
+      const address = text(route[side + '_address']);
+      const matches = route[side + '_catalog_matches'] || [];
+      const fallbackSchool = text(route[side + '_school_name']);
+      const authority = text(route[side + '_authority']);
+      const one = matches.length === 1 ? matches[0] : null;
+      if (one) {
+        return '<div class="cs-route-school-name">' + escapeHtml(one.school_name) + '</div>' +
+          '<div class="cs-route-school-address">' + escapeHtml([one.city || one.authority, address].filter(Boolean).join(' · ')) + '</div>';
+      }
+      if (matches.length > 1) {
+        const possible = matches.slice(0, 3).map(x => x.school_name).join(' / ');
+        return '<div class="cs-route-school-name cs-route-school-unresolved">נדרש זיהוי בית ספר</div>' +
+          '<div class="cs-route-school-address">' + escapeHtml([authority, address].filter(Boolean).join(' · ')) +
+          ' · אפשרויות: ' + escapeHtml(possible) + '</div>';
+      }
+      return '<div class="cs-route-school-name">' + escapeHtml(fallbackSchool || 'בית הספר טרם זוהה') + '</div>' +
+        '<div class="cs-route-school-address">' + escapeHtml([authority, address].filter(Boolean).join(' · ')) + '</div>';
+    };
+    const origin = placeLabel('origin');
+    const destination = placeLabel('destination');
     const source = route.source_kind === 'attendance' ? 'נוכחות' :
       route.source_kind === 'audit' ? 'ביקורת מסלולים' : 'שיבוץ';
     const status = route.failure_reason === 'unverified_zero_between_distinct_schools' ? 'מרחק אפס חשוד' :
       route.failure_reason === 'location_resolution_conflict' ? 'כתובת זוהתה אחרת' :
       ambiguous ? 'נדרש אימות מיקום' : 'מסלול חסר';
     return '<tr class="course-scheduling-maintenance-route-row">' +
-      '<td data-label="מוצא" class="course-scheduling-maintenance-route-location">' + escapeHtml(origin) + '</td>' +
-      '<td data-label="יעד" class="course-scheduling-maintenance-route-location">' + escapeHtml(destination) + '</td>' +
+      '<td data-label="מוצא" class="course-scheduling-maintenance-route-location">' + origin + '</td>' +
+      '<td data-label="יעד" class="course-scheduling-maintenance-route-location">' + destination + '</td>' +
       '<td data-label="מקור"><span class="course-scheduling-maintenance-route-source">' + source + '</span></td>' +
       '<td data-label="מצב"><span class="course-scheduling-maintenance-route-status' + (ambiguous ? ' is-ambiguous' : '') + '" title="' +
         escapeHtml(route.review_note || '') + '">' + status + '</span></td>' +
@@ -2954,7 +2973,54 @@ export const courseSchedulingScreen = {
         .select('origin_key,destination_key,origin_address,destination_address,origin_school_id,destination_school_id,origin_school_name,destination_school_name,origin_authority,destination_authority,source_kind,failure_reason,review_note,review_evidence,first_seen_at')
         .eq('status', 'pending').order('first_seen_at', { ascending: false }).limit(100);
       if (error) throw error;
-      state.courseSchedulingRouteQueue = routes || [];
+      // Resolve school names in ONE catalog lookup; no geocoding or route calculation.
+      const rows = routes || [];
+      const catalogAddresses = [...new Set(rows.flatMap(r => [
+        r.origin_address, r.destination_address
+      ]).map(value => text(value).split(',')[0].trim()).filter(v => v.length >= 3))].slice(0, 200);
+      const assignedIds = [...new Set(rows.flatMap(r => [
+        Number(r.origin_school_id), Number(r.destination_school_id)
+      ]).filter(v => Number.isSafeInteger(v) && v > 0))];
+      let matchedSchools = [];
+      if (catalogAddresses.length || assignedIds.length) {
+        const requests = [];
+        if (catalogAddresses.length) requests.push(supabase.from('schools')
+          .select('id,school_name,authority,city,institution_address,route_verified_address')
+          .in('institution_address', catalogAddresses).limit(300));
+        if (assignedIds.length) requests.push(supabase.from('schools')
+          .select('id,school_name,authority,city,institution_address,route_verified_address')
+          .in('id',assignedIds).limit(300));
+        const results = await Promise.all(requests);
+        for (const response of results) {
+          if (response.error) throw response.error;
+          matchedSchools.push(...(response.data || []));
+        }
+      }
+      const catalog = [...new Map(matchedSchools.map(item => [Number(item.id),item])).values()];
+      const normalized = value => text(value).trim().toLocaleLowerCase('he');
+      const matchSchools = (address, schoolId) => {
+        if (schoolId != null && Number(schoolId) > 0) {
+          const exact = catalog.find(s => Number(s.id) === Number(schoolId));
+          if (exact) return [exact];
+        }
+        const current = normalized(address), street = normalized(text(address).split(',')[0]);
+        return catalog.filter(s => {
+          const registered = normalized(s.institution_address);
+          const verified = normalized(s.route_verified_address);
+          if (!registered && !verified) return false;
+          if (verified && current === verified) return true;
+          if (current === registered) return true;
+          // Longer address: street followed by explicitly matching locality.
+          const city = normalized(s.city || s.authority);
+          return registered === street && current.startsWith(street + ',') &&
+            city.length > 1 && current.includes(city);
+        });
+      };
+      state.courseSchedulingRouteQueue = rows.map(route => ({
+        ...route,
+        origin_catalog_matches: matchSchools(route.origin_address,route.origin_school_id),
+        destination_catalog_matches: matchSchools(route.destination_address,route.destination_school_id)
+      }));
       state.courseSchedulingRouteQueueLoaded = true;
     };
     if (activeTab(state)==='maintenance' &&
