@@ -189,6 +189,41 @@ async function repairRoutes(db, apiKey, requests, includeReverse) {
     blocked: entries.filter((r) => r.status === 'blocked').length
   };
 }
+
+async function resolveMappedSchoolPlaces(apiKey, requests) {
+  if (!apiKey) return { checked: requests.length, failed: requests.length, entries: requests.map((r)=>({school_id:r.school_id, status:'failed',reason:'google_key_not_configured'})), cached:0,created:0,blocked:0 };
+  const entries = await mapConcurrent(requests, 4, async (request) => {
+    const cid = clean(request.cid);
+    const variants = (request.queries || []).map(clean).filter(Boolean).slice(0,4);
+    const candidates = new Map();
+    for (const query of variants) {
+      const response = await fetch('https://places.googleapis.com/v1/places:searchText', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-Goog-Api-Key':apiKey,
+          'X-Goog-FieldMask':'places.id,places.displayName,places.formattedAddress,places.location,places.googleMapsUri'},
+        body:JSON.stringify({textQuery:query,languageCode:'he',regionCode:'IL',maxResultCount:10})
+      });
+      if (!response.ok) return {school_id:request.school_id, status:'failed',reason:'places_api_http_'+response.status};
+      const payload = await response.json();
+      for(const p of payload.places || []) {
+        if(!p.id || !p.location) continue;
+        candidates.set(p.id, {
+          name:p.displayName?.text || '', address:p.formattedAddress || '', lat:p.location.latitude, lng:p.location.longitude,
+          id:p.id, google_maps_uri:p.googleMapsUri || '',
+          cid:(p.googleMapsUri || '').match(/[?&]cid=(\d+)/)?.[1] || null
+        });
+      }
+      if([...candidates.values()].some((c)=>c.cid === cid)) break;
+    }
+    const matched = [...candidates.values()].find((c)=>c.cid === cid);
+    return {school_id:request.school_id, requested_cid:cid, status:matched?'matched':'not_verified',
+      matched:matched || null, candidates:[...candidates.values()].slice(0,12) };
+  });
+  return { entries, checked: entries.length, cached:0,created:0,
+    failed:entries.filter((x)=>x.status==='failed').length,
+    blocked:entries.filter((x)=>x.status==='not_verified').length };
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
   const url = Deno.env.get('SUPABASE_URL');
@@ -202,9 +237,11 @@ Deno.serve(async (req) => {
   let body;
   try { body = await req.json(); } catch { return json({ error: 'invalid_payload' }, 400); }
   const runId = clean(body?.run_id);
-  const requests = Array.isArray(body?.pairs) ? body.pairs : [];
+  const resolveMode = body?.mode === 'resolve_places';
+  const requests = resolveMode ? (Array.isArray(body?.places) ? body.places : []) : (Array.isArray(body?.pairs) ? body.pairs : []);
   if (!/^[0-9a-f-]{36}$/i.test(runId) || !requests.length || requests.length > 100
-      || requests.some((r) => !['home','school'].includes(r?.kind))) {
+      || (resolveMode ? requests.some((r) => !validId(r?.school_id) || !/^\d{15,22}$/.test(clean(r?.cid)) || !Array.isArray(r?.queries))
+        : requests.some((r) => !['home','school'].includes(r?.kind)))) {
     return json({ error: 'invalid_request' }, 400);
   }
   const { data: claimed, error: claimError } = await db.from('scheduling_route_maintenance_runs')
@@ -212,7 +249,9 @@ Deno.serve(async (req) => {
     .eq('id', runId).eq('status', 'queued').select('id');
   if (claimError || !claimed?.length) return json({ error: 'run_not_queued' }, 409);
   try {
-    const result = await repairRoutes(db, Deno.env.get('GOOGLE_MAPS_API_KEY') || '', requests, body?.include_reverse === true);
+    const result = resolveMode
+      ? await resolveMappedSchoolPlaces(Deno.env.get('GOOGLE_MAPS_API_KEY') || '', requests)
+      : await repairRoutes(db, Deno.env.get('GOOGLE_MAPS_API_KEY') || '', requests, body?.include_reverse === true);
     const newStatus = result.failed || result.blocked ? 'completed_with_issues' : 'completed';
     const { error: saveError } = await db.from('scheduling_route_maintenance_runs')
       .update({ status: newStatus, finished_at: new Date().toISOString(),
