@@ -1,6 +1,13 @@
 // Safe, actionable scheduling errors for the staff MCP gateway.
 // Do not forward raw database error messages, SQL details or identities.
 const REASONS = Object.freeze({
+  activity_notes_permission_denied: ['אין לחשבון הרשאת עריכה ישירה של פעילויות.', 'הפעולה משתמשת בהרשאות המערכת הקיימות; יש לפנות למנהל לקבלת הרשאה מתאימה.'],
+  activity_notes_not_found: ['פעילות הקורס לא נמצאה בשנת הפעילות הנוכחית.', 'בדוק את מזהה הפעילות באמצעות read_snapshot.'],
+  activity_notes_invalid: ['פרטי ההערה אינם תקינים.', 'קרא read_activity_notes והשתמש בגרסה ובמזהה בקשה תקינים.'],
+  activity_notes_version_conflict: ['הערות הפעילות השתנו מאז הקריאה.', 'קרא read_activity_notes מחדש ובדוק את ההערות העדכניות לפני הוספה.'],
+  activity_notes_request_conflict: ['מזהה הבקשה כבר שימש להערה אחרת.', 'קרא את ההערות; אל תשנה את תוכן הבקשה בעת ניסיון חוזר.'],
+  activity_notes_capacity: ['שדה ההערות הגיע למגבלת האורך.', 'אין למחוק הערות קיימות אוטומטית; נדרשת בדיקה במערכת.'],
+  activity_notes_verification_failed: ['הערת הפעילות לא נשמרה כמצופה והפעולה בוטלה.', 'בדוק את הערות הפעילות ואת לוגי המערכת לפני ניסיון נוסף.'],
   planning_intent_invalid: ['פרטי התכנון אינם תקינים.', 'קרא את התכנון השמור ובדוק את המזהים והגרסה.'],
   planning_intent_version_conflict: ['התכנון השתנה מאז הקריאה האחרונה.', 'קרא read_planning_intents מחדש ובדוק את השינוי לפני שמירה נוספת.'],
   planning_intent_protected: ['לקורס שמור מדריך מיועד מוגן.', 'הצג את הבחירה השמורה. החלפה או שחרור מחייבים הוראה מפורשת של המשתמש.'],
