@@ -267,6 +267,122 @@ async function estimateCoordinateSegments(apiKey, segments) {
     blocked:entries.filter((e)=>e.status==='blocked').length};
 }
 
+
+async function repairApprovedCoordinates(db, googleKey, requests, includeReverse) {
+  const schoolIds = [...new Set(requests.flatMap((r) => r.kind === 'home'
+    ? [validId(r.school_id)] : [validId(r.origin_school_id), validId(r.destination_school_id)]
+  ).filter(Boolean))];
+  const instructorIds = [...new Set(requests.filter((r) => r.kind === 'home')
+    .map((r) => validId(r.instructor_id)).filter(Boolean))];
+  const keys = [
+    ...schoolIds.map((id) => 'school_id:' + id),
+    ...instructorIds.map((id) => 'instructor:' + id)
+  ];
+  const [pointsResult, schoolsResult, instructorsResult] = await Promise.all([
+    db.from('scheduling_route_approved_points')
+      .select('entity_key,latitude,longitude,approval_source,location_accuracy').in('entity_key', keys),
+    db.from('schools').select('id,institution_address,authority_id,school_name').in('id',schoolIds),
+    instructorIds.length
+      ? db.from('contacts_instructors').select('emp_id,address').in('emp_id',instructorIds)
+      : Promise.resolve({data:[],error:null})
+  ]);
+  if (pointsResult.error || schoolsResult.error || instructorsResult.error) {
+    throw new Error('approved_location_lookup_failed');
+  }
+  const points = new Map((pointsResult.data || []).map((row)=>[clean(row.entity_key),row]));
+  const schools = new Map((schoolsResult.data || []).map((row)=>[Number(row.id),row]));
+  const instructors = new Map((instructorsResult.data || []).map((row)=>[Number(row.emp_id),row]));
+  function endpoint(kind,id) {
+    const entity = kind === 'school' ? 'school_id:' + id : 'instructor:' + id;
+    const data = kind === 'school' ? schools.get(id) : instructors.get(id);
+    const point = points.get(entity);
+    if (!data || !point) return null;
+    const address = clean(kind === 'school' ? data.institution_address : data.address);
+    if (!address || !validIsraelCoordinate(point.latitude,point.longitude)) return null;
+    return { entity,id,kind,address,point,
+      schoolId:kind === 'school' ? id : null,
+      empId:kind === 'instructor' ? id : null,
+      authorityId:kind === 'school' ? data.authority_id : null };
+  }
+  const routes = [], blocked = [];
+  for (const request of requests) {
+    const kind = request.kind;
+    const from = kind === 'home'
+      ? endpoint('instructor',validId(request.instructor_id))
+      : endpoint('school',validId(request.origin_school_id));
+    const to = endpoint('school',validId(kind === 'home' ? request.school_id : request.destination_school_id));
+    const label = kind === 'home'
+      ? 'home:' + request.instructor_id + '->' + request.school_id
+      : 'school:' + request.origin_school_id + '->' + request.destination_school_id;
+    if (!from || !to || from.entity === to.entity) {
+      blocked.push({label,status:'blocked',reason:'approved_point_or_source_missing'});
+      continue;
+    }
+    routes.push({from,to,label});
+    if (includeReverse) routes.push({from:to,to:from,label:label + ':return'});
+  }
+  const entries = await mapConcurrent(routes,4,async ({from,to,label}) => {
+    // Entity-specific cache keys prevent schools with the same village address
+    // from overwriting each other's actual Google route.
+    const origin_key = 'approved:' + from.entity;
+    const destination_key = 'approved:' + to.entity;
+    const { data: current, error: lookupError } = await db.from('scheduling_travel_cache')
+      .select('distance_km,duration_minutes,query_origin_address,query_destination_address,provider')
+      .eq('origin_key',origin_key).eq('destination_key',destination_key).maybeSingle();
+    if (lookupError) return {label,status:'failed',reason:'cache_read_failed'};
+    const originCoord = from.point.latitude + ',' + from.point.longitude;
+    const destCoord = to.point.latitude + ',' + to.point.longitude;
+    if (validKm(current)
+        && current.provider === 'google_approved_coordinates'
+        && current.query_origin_address === originCoord && current.query_destination_address === destCoord) {
+      return {label,status:'cached',distance_km:Number(current.distance_km),duration_minutes:Number(current.duration_minutes)};
+    }
+    if (!googleKey) return {label,status:'failed',reason:'google_key_not_configured'};
+    const response = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-Goog-Api-Key':googleKey,
+        'X-Goog-FieldMask':'routes.distanceMeters,routes.duration'},
+      body:JSON.stringify({
+        origin:{location:{latLng:{latitude:from.point.latitude,longitude:from.point.longitude}}},
+        destination:{location:{latLng:{latitude:to.point.latitude,longitude:to.point.longitude}}},
+        travelMode:'DRIVE'
+      })
+    });
+    if (!response.ok) return {label,status:'failed',reason:'google_route_http_'+response.status};
+    const metrics = parseGoogleRouteMetrics((await response.json())?.routes?.[0]);
+    if (!metrics || !Number.isFinite(metrics.distance_km)
+        || !Number.isFinite(metrics.duration_minutes)
+        || metrics.distance_km < 0 || metrics.duration_minutes < 0) {
+      return {label,status:'failed',reason:'route_not_found'};
+    }
+    if (metrics.distance_km === 0 || metrics.duration_minutes === 0) {
+      return {label,status:'blocked',reason:'zero_route_requires_review'};
+    }
+    const row = {
+      origin_key,destination_key,
+      origin_address:from.address,destination_address:to.address,
+      origin_type:from.kind,destination_type:to.kind === 'instructor' ? 'location' : 'school',
+      origin_school_id:from.schoolId,destination_school_id:to.schoolId,
+      origin_instructor_emp_id:from.empId,
+      origin_entity_key:from.entity,destination_entity_key:to.entity,
+      authority_id:to.authorityId ?? from.authorityId ?? null,
+      query_origin_address:originCoord,query_destination_address:destCoord,
+      distance_km:metrics.distance_km,duration_minutes:metrics.duration_minutes,
+      provider:'google_approved_coordinates',calculated_at:new Date().toISOString(),
+      expires_at:'9999-12-31T23:59:59.999Z'
+    };
+    const {error:writeError} = await db.from('scheduling_travel_cache').upsert(row);
+    if (writeError) return {label,status:'failed',reason:'cache_write_failed'};
+    return {label,status:'created',distance_km:metrics.distance_km,duration_minutes:metrics.duration_minutes};
+  });
+  const all = [...blocked,...entries];
+  return {entries:all,checked:all.length,
+    cached:all.filter((e)=>e.status==='cached').length,
+    created:all.filter((e)=>e.status==='created').length,
+    failed:all.filter((e)=>e.status==='failed').length,
+    blocked:all.filter((e)=>e.status==='blocked').length};
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
   const url = Deno.env.get('SUPABASE_URL');
@@ -281,6 +397,7 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return json({ error: 'invalid_payload' }, 400); }
   const runId = clean(body?.run_id);
   const resolveMode = body?.mode === 'resolve_places';
+  const approvedMode = body?.mode === 'repair_approved_coordinates';
   const estimateMode = body?.mode === 'estimate_coordinates';
   const requests = estimateMode ? (Array.isArray(body?.segments) ? body.segments : [])
     : resolveMode ? (Array.isArray(body?.places) ? body.places : []) : (Array.isArray(body?.pairs) ? body.pairs : []);
@@ -288,7 +405,9 @@ Deno.serve(async (req) => {
       || (estimateMode ? requests.some((s)=>!clean(s?.label) || !validIsraelCoordinate(s?.from_lat,s?.from_lng)
           || !validIsraelCoordinate(s?.to_lat,s?.to_lng))
         : resolveMode ? requests.some((r) => !validId(r?.school_id) || !/^\d{15,22}$/.test(clean(r?.cid)) || !Array.isArray(r?.queries))
-        : requests.some((r) => !['home','school'].includes(r?.kind)))) {
+        : requests.some((r) => !['home','school'].includes(r?.kind)
+          || (r.kind === 'home' ? (!validId(r.instructor_id) || !validId(r.school_id))
+            : (!validId(r.origin_school_id) || !validId(r.destination_school_id)))))) {
     return json({ error: 'invalid_request' }, 400);
   }
   const { data: claimed, error: claimError } = await db.from('scheduling_route_maintenance_runs')
@@ -296,8 +415,9 @@ Deno.serve(async (req) => {
     .eq('id', runId).eq('status', 'queued').select('id');
   if (claimError || !claimed?.length) return json({ error: 'run_not_queued' }, 409);
   try {
-    const result = estimateMode
-      ? await estimateCoordinateSegments(Deno.env.get('GOOGLE_MAPS_API_KEY') || '', requests)
+    const result = approvedMode
+      ? await repairApprovedCoordinates(db,Deno.env.get('GOOGLE_MAPS_API_KEY') || '',requests,body?.include_reverse === true)
+      : estimateMode ? await estimateCoordinateSegments(Deno.env.get('GOOGLE_MAPS_API_KEY') || '', requests)
       : resolveMode ? await resolveMappedSchoolPlaces(Deno.env.get('GOOGLE_MAPS_API_KEY') || '', requests)
       : await repairRoutes(db, Deno.env.get('GOOGLE_MAPS_API_KEY') || '', requests, body?.include_reverse === true);
     const newStatus = result.failed || result.blocked ? 'completed_with_issues' : 'completed';
