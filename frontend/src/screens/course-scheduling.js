@@ -1963,6 +1963,98 @@ function selectedCoursePanelHtml(row, state) {
     ${selectedCourseExtraDetailsHtml(row.course)}`;
 }
 
+function routeReviewDetailsHtml(state) {
+  const review = state.courseSchedulingRouteReview;
+  const selected = state.courseSchedulingRouteReviewSelected;
+  if (!selected) return '';
+  if (state.courseSchedulingRouteReviewLoading) {
+    return '<section class="cs-route-review" role="status">טוען נתוני מוסדות ומסלולים לבדיקה…</section>';
+  }
+  if (!review) return '<section class="cs-route-review"><p>' + escapeHtml(state.courseSchedulingRouteReviewMessage || 'נתוני הבדיקה אינם זמינים.') + '</p></section>';
+  const route = review.route || {};
+  const evidence = route.review_evidence || {};
+  const isZero = route.failure_reason === 'unverified_zero_between_distinct_schools';
+  const explanation = isZero
+    ? 'שני מוסדות שונים קיבלו מרחק אפס משום שנשמרה להם אותה כתובת. בדקו אם הם באמת באותו מבנה או שנדרשות כתובות מדויקות ונפרדות.'
+    : 'המיקום בחישוב הראשון זוהה אחרת מאשר בחישוב בכיוון ההפוך. בדקו לכל מוסד את שם היישוב, כתובת הכניסה ונקודת הציון.';
+  const evidenceHtml = isZero
+    ? '<p><strong>הנתון החשוד:</strong> ' + escapeHtml(String(evidence.cached_km ?? '0')) + ' ק״מ, ' +
+      escapeHtml(String(evidence.cached_minutes ?? '0')) + ' דקות. <strong>מה לבדוק:</strong> האם מדובר בשני בתי ספר בעלי כניסות נפרדות?</p>'
+    : '<div class="cs-route-review-evidence">' +
+      '<p><strong>חישוב בכיוון הראשון:</strong> ' + escapeHtml(String(evidence.cached_km ?? '—')) + ' ק״מ</p>' +
+      '<p><strong>חישוב בכיוון ההפוך:</strong> ' + escapeHtml(String(evidence.return_km ?? '—')) + ' ק״מ</p>' +
+      '<p><strong>מוצא כפי שנשלח לניווט:</strong> ' + escapeHtml(evidence.outbound_query_origin || '—') + '</p>' +
+      '<p><strong>אותו מוצא בכיוון ההפוך:</strong> ' + escapeHtml(evidence.reverse_query_destination || '—') + '</p>' +
+      '<p><strong>יעד כפי שנשלח לניווט:</strong> ' + escapeHtml(evidence.outbound_query_destination || '—') + '</p>' +
+      '<p><strong>אותו יעד בכיוון ההפוך:</strong> ' + escapeHtml(evidence.reverse_query_origin || '—') + '</p></div>';
+  const chosen = state.courseSchedulingRouteReviewSchoolIds || {};
+  const editor = (side, label, candidates) => {
+    const all = Array.isArray(candidates) ? candidates : [];
+    const id = Number(chosen[side] || route[side + '_school_id'] || all[0]?.id);
+    const school = all.find(s => Number(s.id) === id);
+    const options = all.map(s => '<option value="' + Number(s.id) + '"' +
+      (school?.id === s.id ? ' selected' : '') + '>' +
+      escapeHtml(s.school_name + ' — ' + (s.city || s.authority || '') + ' (מזהה ' + s.id + ')') + '</option>').join('');
+    const effective = school?.route_verified_address || school?.institution_address || '';
+    const verified = Boolean(school?.route_verified_address);
+    return '<section class="cs-route-review-school" data-review-side="' + side + '">' +
+      '<h5>' + label + '</h5>' +
+      '<p class="cs-route-review-field-hint">כתובת המסלול המקורית: <b>' +
+        escapeHtml(route[side + '_address'] || '—') + '</b></p>' +
+      '<label>איזה בית ספר נמצא כאן? <select data-review-school="' + side + '">' +
+        (options || '<option value="">לא נמצאו מועמדים – חפשו בית ספר</option>') +
+        '</select></label>' +
+      '<div class="cs-route-review-search"><input type="search" data-review-school-search="' + side +
+        '" placeholder="חיפוש בית ספר לפי שם" aria-label="חיפוש בית ספר"/>' +
+        '<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-review-search="' + side + '">חפש</button></div>' +
+      (school ? '<p class="cs-route-review-field-hint">כתובת בקטלוג: ' +
+          escapeHtml(school.institution_address || 'לא הוגדרה') + ' · יישוב: ' +
+          escapeHtml(school.city || school.authority || 'לא צוין') + '</p>' +
+        (school.note ? '<p class="cs-route-review-field-hint">מידע קודם על הנקודה: ' + escapeHtml(school.note) + '</p>' : '') +
+        '<label>כתובת מלאה ומדויקת לניווט <input type="text" data-review-address="' + side +
+          '" value="' + escapeHtml(effective) + '" placeholder="רחוב, מספר, יישוב" /></label>' +
+        '<div class="cs-route-review-coordinates">' +
+          '<label>קו רוחב <input data-review-lat="' + side + '" type="number" step="any" placeholder="32.0000" value="' +
+             escapeHtml(school.latitude == null ? '' : String(school.latitude)) + '"/></label>' +
+          '<label>קו אורך <input data-review-lng="' + side + '" type="number" step="any" placeholder="35.0000" value="' +
+             escapeHtml(school.longitude == null ? '' : String(school.longitude)) + '"/></label></div>' +
+        '<label>רמת דיוק נקודת הציון <select data-review-accuracy="' + side + '">' +
+          '<option value="school_area">אזור בית הספר</option><option value="maps_plus_code"' +
+          (school.location_accuracy === 'maps_plus_code' ? ' selected' : '') + '>נקודת מפה מאומתת</option></select></label>' +
+        '<label>הערת אימות (רשות) <input type="text" data-review-note="' + side + '" maxlength="500" placeholder="לדוגמה: שער כניסה ברחוב…"/></label>' +
+        '<label class="cs-route-review-confirm"><input type="checkbox" data-review-confirm="' + side +
+          '"/> בדקתי ואני מאשר/ת שזהו המיקום הנכון של בית הספר</label>' +
+        '<button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-review-save="' + side + '"' +
+          (state.courseSchedulingRouteReviewSaving ? ' disabled' : '') + '>שמור מיקום מאומת</button>' +
+        '<small>' + (verified ? 'קיים מיקום מאומת לנסיעות; ניתן לעדכן אותו.' : 'טרם נשמר מיקום מאומת לנסיעות.') + '</small>'
+        : '<p class="cs-route-review-field-hint">בחרו את המוסד המדויק מהתוצאות לפני עדכון מיקום.</p>') +
+      '</section>';
+  };
+  const origin = (review.origin_candidates || []).find(s =>
+    Number(s.id) === Number(chosen.origin || route.origin_school_id || review.origin_candidates?.[0]?.id));
+  const dest = (review.destination_candidates || []).find(s =>
+    Number(s.id) === Number(chosen.destination || route.destination_school_id || review.destination_candidates?.[0]?.id));
+  const canCalculate = origin?.route_verified_address && dest?.route_verified_address &&
+    origin.route_verified_address.trim().toLowerCase() !== dest.route_verified_address.trim().toLowerCase();
+  return '<section class="cs-route-review" aria-label="בדיקת מיקומי מסלול">' +
+    '<div class="cs-route-review-header"><h4>בדיקת המסלול: מה בדיוק צריך לתקן?</h4>' +
+      '<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-review-close>סגור</button></div>' +
+    '<p class="cs-route-review-explanation">' + explanation + '</p>' + evidenceHtml +
+    '<div class="cs-route-review-school-grid">' +
+      editor('origin', 'בית ספר מוצא', review.origin_candidates) +
+      editor('destination', 'בית ספר יעד', review.destination_candidates) + '</div>' +
+    '<div class="cs-route-review-footer">' +
+      '<p>' + (canCalculate
+        ? 'שני המיקומים נשמרו. אפשר לחשב את המקטע החדש באופן ידני.'
+        : 'כדי לחשב מסלול, יש לשמור מיקום מאומת לכל אחד מהמוסדות וכתובות נפרדות לניווט.') + '</p>' +
+      '<button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-review-calculate' +
+        (!canCalculate || state.courseSchedulingRouteReviewSaving ? ' disabled' : '') +
+        '>חשב מסלול מאומת – ידנית</button></div>' +
+    (state.courseSchedulingRouteReviewMessage ? '<p class="cs-route-review-message" role="status">' +
+      escapeHtml(state.courseSchedulingRouteReviewMessage) + '</p>' : '') +
+    '</section>';
+}
+
 function maintenanceTabHtml(state) {
   const distanceBusy = !!state.courseSchedulingDistanceLoading;
   const coverageLoading = !!state.courseSchedulingDistanceCoverageLoading;
@@ -1994,9 +2086,10 @@ function maintenanceTabHtml(state) {
       '<td data-label="מצב"><span class="course-scheduling-maintenance-route-status' + (ambiguous ? ' is-ambiguous' : '') + '" title="' +
         escapeHtml(route.review_note || '') + '">' + status + '</span></td>' +
       '<td data-label="פעולה" class="course-scheduling-maintenance-route-action">' +
-      '<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-maintenance-route-button" data-calculate-missing-route="' + index + '"' +
-      (ambiguous || routeBusy || distanceBusy ? ' disabled' : '') +
-      '>' + (ambiguous ? 'ממתין למיקום' : 'חשב מסלול') + '</button></td></tr>';
+      (ambiguous
+        ? '<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-maintenance-route-button" data-review-route="' + index + '">בדוק מיקומים</button>'
+        : '<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-maintenance-route-button" data-calculate-missing-route="' + index + '"' +
+          (routeBusy || distanceBusy ? ' disabled' : '') + '>חשב מסלול</button>') + '</td></tr>';
   }).join('');
   const manualQueuePanel = '<article class="course-scheduling-maintenance-card course-scheduling-maintenance-card--queue">' +
     '<div class="course-scheduling-maintenance-card__content">' +
@@ -2033,6 +2126,7 @@ function maintenanceTabHtml(state) {
       <button type="button" class="course-scheduling-btn course-scheduling-btn--primary course-scheduling-maintenance-base-button" data-update-distances ${updateDisabled ? 'disabled' : ''}>${distanceBusy ? 'מעדכן מסלולי בסיס...' : (noDistanceWork ? 'כל מסלולי הבסיס מעודכנים' : 'עדכון מסלולי בסיס')}</button>
     </article>
     ${manualQueuePanel}
+    ${routeReviewDetailsHtml(state)}
   </section>`;
 }
 
@@ -2855,7 +2949,7 @@ export const courseSchedulingScreen = {
 
     const reloadManualRouteQueue = async () => {
       const { data: routes, error } = await supabase.from('scheduling_route_missing_queue')
-        .select('origin_key,destination_key,origin_address,destination_address,origin_school_name,destination_school_name,origin_authority,destination_authority,source_kind,failure_reason,review_note,first_seen_at')
+        .select('origin_key,destination_key,origin_address,destination_address,origin_school_id,destination_school_id,origin_school_name,destination_school_name,origin_authority,destination_authority,source_kind,failure_reason,review_note,review_evidence,first_seen_at')
         .eq('status', 'pending').order('first_seen_at', { ascending: false }).limit(100);
       if (error) throw error;
       state.courseSchedulingRouteQueue = routes || [];
