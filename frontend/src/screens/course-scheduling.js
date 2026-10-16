@@ -2078,7 +2078,9 @@ function maintenanceTabHtml(state) {
     const destination = [route.destination_school_name, route.destination_authority, route.destination_address].filter(Boolean).join(' · ');
     const source = route.source_kind === 'attendance' ? 'נוכחות' :
       route.source_kind === 'audit' ? 'ביקורת מסלולים' : 'שיבוץ';
-    const status = ambiguous ? 'נדרש אימות מיקום' : 'מסלול חסר';
+    const status = route.failure_reason === 'unverified_zero_between_distinct_schools' ? 'מרחק אפס חשוד' :
+      route.failure_reason === 'location_resolution_conflict' ? 'כתובת זוהתה אחרת' :
+      ambiguous ? 'נדרש אימות מיקום' : 'מסלול חסר';
     return '<tr class="course-scheduling-maintenance-route-row">' +
       '<td data-label="מוצא" class="course-scheduling-maintenance-route-location">' + escapeHtml(origin) + '</td>' +
       '<td data-label="יעד" class="course-scheduling-maintenance-route-location">' + escapeHtml(destination) + '</td>' +
