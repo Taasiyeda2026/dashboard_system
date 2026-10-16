@@ -39,7 +39,7 @@ test('maintenance card exposes scheduling coverage, refresh, and one build actio
   assert.match(maintenanceCard, /דורשים רענון:.*refresh_required_count/s);
   assert.equal((maintenanceCard.match(/data-update-distances/g) || []).length, 1);
   assert.match(maintenanceCard, /data-refresh-distance-coverage[^>]*aria-label="רענון נתוני מצב"/);
-  assert.match(maintenanceCard, /noDistanceWork[\s\S]*כל המסלולים מעודכנים/);
+  assert.match(maintenanceCard, /noDistanceWork[\s\S]*כל מסלולי הבסיס מעודכנים/);
   assert.match(maintenanceCard, /coverageKnown && !doneError && actionRequiredCount === 0/);
   assert.doesNotMatch(maintenanceCard, /data-distance-target|data-distance-month|payroll_month|עדכון מרחקים עבור|בקרת שכר לפי חודש/);
   assert.doesNotMatch(maintenanceCard, /cache|TTL|batch|expiration|מטמון|מנות/i);
