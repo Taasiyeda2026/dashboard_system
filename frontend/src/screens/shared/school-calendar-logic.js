@@ -188,3 +188,41 @@ export function compactSchoolCalendarLabel(events = [], { maxTitles = 2 } = {}) 
   const extra = labels.length - visible.length;
   return extra > 0 ? `${visible.join(' · ')} +${extra}` : visible.join(' · ');
 }
+
+/**
+ * Pure server/browser schedule generation. Rows are the authoritative school_calendar
+ * snapshot supplied by the caller; NEVER silently accept an unavailable calendar.
+ * Weekly plans do not infer or authorize double meetings.
+ */
+export function generateWeeklyScheduleFromStartDate({
+  calendarRows, sector, startDate, startTime, endTime, sessions, maxSkips = 104
+} = {}) {
+  const fail = (code) => { const error = new Error(code); error.code = code; throw error; };
+  if (!Array.isArray(calendarRows)) fail('calendar_unavailable');
+  if (!normalizeCalendarSector(sector)) fail('school_sector_missing');
+  if (typeof startDate !== 'string' || !ISO_DATE_RE.test(startDate)
+    || !Number.isFinite(dateValue(startDate))
+    || new Date(startDate + 'T12:00:00').toISOString().slice(0, 10) !== startDate)
+    fail('invalid_start_date');
+  const first = timeMinutes(startTime), last = timeMinutes(endTime);
+  if (first == null || last == null || first >= last) fail('invalid_times');
+  if (!Number.isInteger(sessions) || sessions < 1 || sessions > 35) fail('invalid_session_count');
+  const rows = filterSchoolCalendarRowsBySector(calendarRows, sector);
+  const dates = [], deferred = [];
+  let candidate = startDate;
+  for (let index = 0; index < sessions; index++) {
+    let skippedWeeks = 0;
+    while (true) {
+      const blocked = blockingSchoolCalendarEvent(rows, candidate);
+      const shortened = shortenedSchoolDayConflict(rows, candidate, endTime);
+      if (!blocked && !shortened) break;
+      if (++skippedWeeks > maxSkips) fail('calendar_generation_exhausted');
+      candidate = addCalendarDays(candidate, 7);
+      if (!candidate) fail('calendar_generation_exhausted');
+    }
+    dates.push(candidate);
+    if (skippedWeeks) deferred.push({ meeting: index + 1, skippedWeeks });
+    candidate = addCalendarDays(candidate, 7);
+  }
+  return { dates, deferred, endDate: dates[dates.length - 1] };
+}
