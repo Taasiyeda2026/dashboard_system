@@ -159,7 +159,7 @@ async function repairRoutes(db, apiKey, requests, includeReverse) {
     const row = {
       origin_key: key(pair.from.address), destination_key: key(pair.to.address),
       origin_address: pair.from.address, destination_address: pair.to.address,
-      origin_type: pair.from.type, destination_type: pair.to.type,
+      origin_type: pair.from.type, destination_type: pair.to.type === 'instructor' ? 'location' : pair.to.type,
       origin_school_id: pair.from.schoolId, destination_school_id: pair.to.schoolId,
       origin_instructor_emp_id: pair.from.empId,
       origin_entity_key: pair.from.entity, destination_entity_key: pair.to.entity,
