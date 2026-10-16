@@ -6044,6 +6044,51 @@ export const courseSchedulingScreen = {
       state.courseSchedulingRouteReviewMessage = '';
       rerender();
     });
+    root.querySelectorAll('[data-review-kind]').forEach(select => {
+      select.addEventListener('change', () => {
+        state.courseSchedulingRouteReviewKinds ||= {};
+        state.courseSchedulingRouteReviewKinds[select.dataset.reviewKind] = select.value;
+        state.courseSchedulingRouteReviewMessage = '';
+        rerender();
+      });
+    });
+    root.querySelectorAll('[data-review-instructor]').forEach(select => {
+      select.addEventListener('change', () => {
+        state.courseSchedulingRouteReviewInstructorIds ||= {};
+        state.courseSchedulingRouteReviewInstructorIds[select.dataset.reviewInstructor] =
+          select.value ? Number(select.value) : null;
+        state.courseSchedulingRouteReviewMessage = '';
+        rerender();
+      });
+    });
+    root.querySelectorAll('[data-review-find-instructor]').forEach(button => {
+      button.addEventListener('click', async () => {
+        const side = button.dataset.reviewFindInstructor;
+        const query = text(root.querySelector('[data-review-instructor-search="' + side + '"]')?.value);
+        if (query.length < 2) {
+          state.courseSchedulingRouteReviewMessage = 'הקלידו לפחות שתי אותיות או מספר עובד.';
+          rerender();
+          return;
+        }
+        try {
+          const keys = state.courseSchedulingRouteReviewSelected;
+          const { data: matches, error } = await supabase.rpc('scheduling_route_review_find_instructors',{
+            p_origin_key: keys.origin_key,p_destination_key: keys.destination_key,p_search: query
+          });
+          if (error) throw error;
+          const existing = state.courseSchedulingRouteReview[side + '_instructors'] || [];
+          state.courseSchedulingRouteReview[side + '_instructors'] = [
+            ...new Map([...existing,...(matches || [])].map(v => [Number(v.emp_id),v])).values()
+          ];
+          state.courseSchedulingRouteReviewMessage = (matches || []).length
+            ? 'בחרו את המדריך הנכון מהרשימה כדי לעדכן את כתובת מגוריו.'
+            : 'לא נמצאו מדריכים. בדקו את השם או את מספר העובד.';
+        } catch(error) {
+          state.courseSchedulingRouteReviewMessage = 'חיפוש מדריך נכשל: ' + text(error.message);
+        }
+        rerender();
+      });
+    });
     root.querySelectorAll('[data-review-school]').forEach(select => {
       select.addEventListener('change', () => {
         state.courseSchedulingRouteReviewSchoolIds ||= {};
@@ -6084,8 +6129,15 @@ export const courseSchedulingScreen = {
       button.addEventListener('click', async () => {
         if (state.courseSchedulingRouteReviewSaving) return;
         const side = button.dataset.reviewSave;
-        const chosen = state.courseSchedulingRouteReviewSchoolIds?.[side] ||
-          state.courseSchedulingRouteReview?.route?.[side + '_school_id'];
+        const kind = state.courseSchedulingRouteReviewKinds?.[side];
+        const chosen = kind === 'school'
+          ? state.courseSchedulingRouteReviewSchoolIds?.[side]
+          : kind === 'instructor' ? state.courseSchedulingRouteReviewInstructorIds?.[side] : null;
+        if (!chosen || !['school','instructor'].includes(kind)) {
+          state.courseSchedulingRouteReviewMessage = 'בחרו תחילה אם זו כתובת בית ספר או כתובת מגורי מדריך ואת הזהות המדויקת.';
+          rerender();
+          return;
+        }
         const address = text(root.querySelector('[data-review-address="' + side + '"]')?.value);
         const latitude = text(root.querySelector('[data-review-lat="' + side + '"]')?.value);
         const longitude = text(root.querySelector('[data-review-lng="' + side + '"]')?.value);
@@ -6093,7 +6145,7 @@ export const courseSchedulingScreen = {
         const note = text(root.querySelector('[data-review-note="' + side + '"]')?.value);
         const confirmed = !!root.querySelector('[data-review-confirm="' + side + '"]')?.checked;
         if (!confirmed) {
-          state.courseSchedulingRouteReviewMessage = 'יש לסמן שאימתתם את מיקום בית הספר לפני השמירה.';
+          state.courseSchedulingRouteReviewMessage = 'יש לאשר את סוג הנקודה והכתובת לפני השמירה.';
           rerender();
           return;
         }
@@ -6102,42 +6154,66 @@ export const courseSchedulingScreen = {
         state.courseSchedulingRouteReviewMessage = 'שומר מיקום מאומת ללא חישוב מסלול…';
         rerender();
         try {
-          const { error } = await supabase.rpc('scheduling_route_review_save_school', {
+          const { error } = await supabase.rpc(
+            kind === 'instructor' ? 'scheduling_route_review_save_instructor' : 'scheduling_route_review_save_school', {
             p_origin_key: keys.origin_key, p_destination_key: keys.destination_key,
-            p_side: side, p_school_id: Number(chosen), p_address: address,
-            p_latitude: latitude === '' ? null : Number(latitude),
+            p_side: side,
+            ...(kind === 'instructor' ? {p_emp_id: Number(chosen)} : {p_school_id: Number(chosen)}),
+            p_address: address, p_latitude: latitude === '' ? null : Number(latitude),
             p_longitude: longitude === '' ? null : Number(longitude),
             p_accuracy: accuracy || 'school_area', p_note: note, p_confirmed: true
           });
           if (error) throw error;
           await reloadRouteReviewDetails();
           await reloadManualRouteQueue();
-          state.courseSchedulingRouteReviewMessage = 'המיקום המאומת נשמר לבית הספר. לא בוצע חישוב נסיעה.';
+          state.courseSchedulingRouteReviewMessage = (kind === 'instructor'
+            ? 'כתובת המגורים של המדריך עודכנה ונרשם תיעוד השינוי.'
+            : 'מיקום בית הספר עודכן ונרשם תיעוד השינוי.') + ' לא בוצע חישוב מסלול.';
         } catch (error) {
           const code = text(error.message);
           state.courseSchedulingRouteReviewMessage = 'שמירת המיקום נכשלה: ' +
             (code.includes('address_must_include_school_city') ? 'יש לכלול בכתובת את שם היישוב של בית הספר.' :
               code.includes('coordinate_pair_required') ? 'יש להזין קו רוחב וקו אורך ביחד, או להשאיר את שניהם ריקים.' :
-              code.includes('full_school_address_required') ? 'יש להזין כתובת מלאה, כולל יישוב.' : code);
+              code.includes('full_school_address_required') || code.includes('full_instructor_address_required')
+                ? 'יש להזין כתובת מלאה, כולל יישוב.' : code);
         } finally { state.courseSchedulingRouteReviewSaving = false; rerender(); }
       });
     });
     root.querySelector('[data-review-calculate]')?.addEventListener('click', async () => {
       if (state.courseSchedulingRouteReviewSaving || state.courseSchedulingManualRouteBusy) return;
       const review = state.courseSchedulingRouteReview || {};
+      const kinds = state.courseSchedulingRouteReviewKinds || {};
       const ids = state.courseSchedulingRouteReviewSchoolIds || {};
-      const origin = (review.origin_candidates || []).find(s => Number(s.id) === Number(ids.origin));
-      const dest = (review.destination_candidates || []).find(s => Number(s.id) === Number(ids.destination));
-      if (!origin?.route_verified_address || !dest?.route_verified_address ||
-          origin.route_verified_address.toLowerCase() === dest.route_verified_address.toLowerCase()) return;
+      const instructors = state.courseSchedulingRouteReviewInstructorIds || {};
+      const getSide = side => {
+        const kind = kinds[side];
+        const entity = kind === 'school'
+          ? (review[side + '_candidates'] || []).find(v => Number(v.id) === Number(ids[side]))
+          : kind === 'instructor'
+          ? (review[side + '_instructors'] || []).find(v => Number(v.emp_id) === Number(instructors[side]))
+          : null;
+        const address = kind === 'school' ? entity?.route_verified_address : entity?.address;
+        return {kind,entity,address};
+      };
+      const origin = getSide('origin'), dest = getSide('destination');
+      if (!origin.address || !dest.address || !review.route?.origin_reviewed_at ||
+          !review.route?.destination_reviewed_at || origin.kind !== review.route.origin_review_type ||
+          dest.kind !== review.route.destination_review_type || Number(origin.kind === 'school'
+            ? origin.entity.id : origin.entity.emp_id) !== Number(origin.kind === 'school'
+            ? review.route.origin_school_id : review.route.origin_instructor_emp_id) ||
+          Number(dest.kind === 'school' ? dest.entity.id : dest.entity.emp_id) !==
+            Number(dest.kind === 'school' ? review.route.destination_school_id : review.route.destination_instructor_emp_id) ||
+          origin.address.toLowerCase() === dest.address.toLowerCase()) return;
       state.courseSchedulingRouteReviewSaving = true;
       state.courseSchedulingRouteReviewMessage = 'מחשב ידנית את המקטע שבחרתם…';
       rerender();
       try {
         const { data: route, error } = await invokeDistanceRoute({
-          origin: origin.route_verified_address, destination: dest.route_verified_address,
-          origin_school_name: origin.school_name, destination_school_name: dest.school_name,
-          origin_authority_name: origin.authority, destination_authority_name: dest.authority
+          origin: origin.address, destination: dest.address,
+          origin_school_name: origin.kind === 'school' ? origin.entity.school_name : '',
+          destination_school_name: dest.kind === 'school' ? dest.entity.school_name : '',
+          origin_authority_name: origin.kind === 'school' ? origin.entity.authority : '',
+          destination_authority_name: dest.kind === 'school' ? dest.entity.authority : ''
         });
         if (error || !route?.calculated || !Number.isFinite(Number(route.distance_km)) ||
             Number(route.distance_km) <= 0 || Number(route.duration_minutes) <= 0) {
