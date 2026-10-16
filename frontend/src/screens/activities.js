@@ -732,7 +732,7 @@ export const ACTIVITY_FILTER_FIELDS = [
     hideWhenEmpty: true,
     getValues: (row) => {
       const value = String(row?.activity_domain || '').trim().toUpperCase();
-      return ['E', 'Y'].includes(value) ? [value] : [];
+      return ['E', 'Y', 'EY'].includes(value) ? [value] : [];
     }
   },
   { key: 'instructor', label: 'מדריך', getValues: (row) => [humanDisplayText(row?.instructor_name), humanDisplayText(row?.instructor_name_2)] },
@@ -1042,7 +1042,7 @@ function addActivityModalHtml(settings, activityPeriodTab = '') {
         }
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>סטטוס</span><select class="ds-input" name="status">${optionsHtml(statusOptions, initialStatus)}</select></label>
         ${initialSeason === ACTIVITY_SEASON_SCHOOL_2027
-          ? `<label class="ds-activity-add-field ds-activity-add-field--compact"><span>תחום פעילות</span><select class="ds-input" name="activity_domain" required><option value="">בחרו תחום</option><option value="E">E</option><option value="Y">Y</option></select></label>`
+          ? `<label class="ds-activity-add-field ds-activity-add-field--compact"><span>תחום פעילות</span><select class="ds-input" name="activity_domain" required><option value="">בחרו תחום</option><option value="E">E</option><option value="Y">Y</option><option value="EY">EY</option></select></label>`
           : ''
         }
         <fieldset class="ds-activity-add-field ds-activity-add-field--span2" data-funding-picker><legend>מימון</legend><div style="display:grid;gap:6px">${(settings?.dropdown_options?.funding_source_records || []).map((source) => `<label style="display:grid;grid-template-columns:auto 1fr minmax(100px,140px);align-items:center;gap:8px"><input type="checkbox" data-funding-source-id="${escapeHtml(source.id)}" data-funding-name="${escapeHtml(source.name)}"><span>${escapeHtml(source.name)}</span><input class="ds-input" type="number" min="0" step="0.01" inputmode="decimal" data-funding-amount placeholder="סכום (רשות)"></label>`).join('')}</div></fieldset>
@@ -3442,8 +3442,8 @@ export const activitiesScreen = {
         resetAddActivitySavingState(form, submitBtn);
         return;
       }
-      if (isSchool2027Activity && !['E', 'Y'].includes(activityDomain)) {
-        setAddActivityStatus(statusEl, 'יש לבחור תחום פעילות E או Y', { isError: true });
+      if (isSchool2027Activity && !['E', 'Y', 'EY'].includes(activityDomain)) {
+        setAddActivityStatus(statusEl, 'יש לבחור תחום פעילות E, Y או EY', { isError: true });
         resetAddActivitySavingState(form, submitBtn);
         return;
       }
