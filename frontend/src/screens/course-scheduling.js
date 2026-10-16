@@ -1964,95 +1964,108 @@ function selectedCoursePanelHtml(row, state) {
 }
 
 function routeReviewDetailsHtml(state) {
-  const review = state.courseSchedulingRouteReview;
   const selected = state.courseSchedulingRouteReviewSelected;
   if (!selected) return '';
-  if (state.courseSchedulingRouteReviewLoading) {
-    return '<section class="cs-route-review" role="status">טוען נתוני מוסדות ומסלולים לבדיקה…</section>';
-  }
-  if (!review) return '<section class="cs-route-review"><p>' + escapeHtml(state.courseSchedulingRouteReviewMessage || 'נתוני הבדיקה אינם זמינים.') + '</p></section>';
-  const route = review.route || {};
-  const evidence = route.review_evidence || {};
-  const isZero = route.failure_reason === 'unverified_zero_between_distinct_schools';
-  const explanation = isZero
-    ? 'שני מוסדות שונים קיבלו מרחק אפס משום שנשמרה להם אותה כתובת. בדקו אם הם באמת באותו מבנה או שנדרשות כתובות מדויקות ונפרדות.'
-    : 'המיקום בחישוב הראשון זוהה אחרת מאשר בחישוב בכיוון ההפוך. בדקו לכל מוסד את שם היישוב, כתובת הכניסה ונקודת הציון.';
-  const evidenceHtml = isZero
-    ? '<p><strong>הנתון החשוד:</strong> ' + escapeHtml(String(evidence.cached_km ?? '0')) + ' ק״מ, ' +
-      escapeHtml(String(evidence.cached_minutes ?? '0')) + ' דקות. <strong>מה לבדוק:</strong> האם מדובר בשני בתי ספר בעלי כניסות נפרדות?</p>'
-    : '<div class="cs-route-review-evidence">' +
-      '<p><strong>חישוב בכיוון הראשון:</strong> ' + escapeHtml(String(evidence.cached_km ?? '—')) + ' ק״מ</p>' +
-      '<p><strong>חישוב בכיוון ההפוך:</strong> ' + escapeHtml(String(evidence.return_km ?? '—')) + ' ק״מ</p>' +
-      '<p><strong>מוצא כפי שנשלח לניווט:</strong> ' + escapeHtml(evidence.outbound_query_origin || '—') + '</p>' +
-      '<p><strong>אותו מוצא בכיוון ההפוך:</strong> ' + escapeHtml(evidence.reverse_query_destination || '—') + '</p>' +
-      '<p><strong>יעד כפי שנשלח לניווט:</strong> ' + escapeHtml(evidence.outbound_query_destination || '—') + '</p>' +
-      '<p><strong>אותו יעד בכיוון ההפוך:</strong> ' + escapeHtml(evidence.reverse_query_origin || '—') + '</p></div>';
+  const review = state.courseSchedulingRouteReview;
+  if (state.courseSchedulingRouteReviewLoading) return '<section class="cs-route-review" role="status">טוען פרטי מיקומים…</section>';
+  if (!review) return '<section class="cs-route-review">' + escapeHtml(state.courseSchedulingRouteReviewMessage || 'לא ניתן לטעון את נתוני המסלול.') + '</section>';
+  const route = review.route || {}, evidence = route.review_evidence || {};
+  const kinds = state.courseSchedulingRouteReviewKinds || {};
   const chosen = state.courseSchedulingRouteReviewSchoolIds || {};
-  const editor = (side, label, candidates) => {
-    const all = Array.isArray(candidates) ? candidates : [];
-    const id = Number(chosen[side] || route[side + '_school_id'] || all[0]?.id);
-    const school = all.find(s => Number(s.id) === id);
-    const options = all.map(s => '<option value="' + Number(s.id) + '"' +
-      (school?.id === s.id ? ' selected' : '') + '>' +
-      escapeHtml(s.school_name + ' — ' + (s.city || s.authority || '') + ' (מזהה ' + s.id + ')') + '</option>').join('');
-    const effective = school?.route_verified_address || school?.institution_address || '';
-    const verified = Boolean(school?.route_verified_address);
-    return '<section class="cs-route-review-school" data-review-side="' + side + '">' +
-      '<h5>' + label + '</h5>' +
-      '<p class="cs-route-review-field-hint">כתובת המסלול המקורית: <b>' +
-        escapeHtml(route[side + '_address'] || '—') + '</b></p>' +
-      '<label>איזה בית ספר נמצא כאן? <select data-review-school="' + side + '">' +
-        (options || '<option value="">לא נמצאו מועמדים – חפשו בית ספר</option>') +
-        '</select></label>' +
-      '<div class="cs-route-review-search"><input type="search" data-review-school-search="' + side +
-        '" placeholder="חיפוש בית ספר לפי שם" aria-label="חיפוש בית ספר"/>' +
-        '<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-review-search="' + side + '">חפש</button></div>' +
-      (school ? '<p class="cs-route-review-field-hint">כתובת בקטלוג: ' +
-          escapeHtml(school.institution_address || 'לא הוגדרה') + ' · יישוב: ' +
-          escapeHtml(school.city || school.authority || 'לא צוין') + '</p>' +
-        (school.note ? '<p class="cs-route-review-field-hint">מידע קודם על הנקודה: ' + escapeHtml(school.note) + '</p>' : '') +
-        '<label>כתובת מלאה ומדויקת לניווט <input type="text" data-review-address="' + side +
-          '" value="' + escapeHtml(effective) + '" placeholder="רחוב, מספר, יישוב" /></label>' +
+  const instructorIds = state.courseSchedulingRouteReviewInstructorIds || {};
+  const isZero = route.failure_reason === 'unverified_zero_between_distinct_schools';
+  const evidenceHtml = isZero
+    ? '<p class="cs-route-review-explanation">נרשם מרחק אפס בין שתי נקודות שסומנו כבתי ספר שונים. יש לבדוק אם הן באמת באותו מתחם.</p>'
+    : '<div class="cs-route-review-evidence">' +
+      '<p><strong>מרחק שנשמר:</strong> ' + escapeHtml(String(evidence.cached_km ?? '—')) + ' ק״מ</p>' +
+      '<p><strong>בכיוון ההפוך:</strong> ' + escapeHtml(String(evidence.return_km ?? '—')) + ' ק״מ</p>' +
+      '<p><strong>מוצא בחישוב המקורי:</strong> ' + escapeHtml(evidence.outbound_query_origin || '—') + '</p>' +
+      '<p><strong>אותו מוצא בכיוון ההפוך:</strong> ' + escapeHtml(evidence.reverse_query_destination || '—') + '</p>' +
+      '<p><strong>יעד בחישוב המקורי:</strong> ' + escapeHtml(evidence.outbound_query_destination || '—') + '</p>' +
+      '<p><strong>אותו יעד בכיוון ההפוך:</strong> ' + escapeHtml(evidence.reverse_query_origin || '—') + '</p></div>';
+  const endpoint = side => {
+    const kind = kinds[side] || 'unknown';
+    const schools = review[side + '_candidates'] || [];
+    const people = review[side + '_instructors'] || [];
+    const schoolId = Number(chosen[side]);
+    const instructorId = Number(instructorIds[side]);
+    const school = schools.find(s => Number(s.id) === schoolId);
+    const instructor = people.find(x => Number(x.emp_id) === instructorId);
+    const chosenEntity = kind === 'school' ? school : kind === 'instructor' ? instructor : null;
+    const savedAddress = kind === 'school'
+      ? school?.route_verified_address : kind === 'instructor' ? instructor?.address : '';
+    const origAddress = escapeHtml(route[side + '_address'] || '—');
+    const schoolOptions = schools.map(s => '<option value="' + Number(s.id) + '"' +
+      (Number(s.id) === schoolId ? ' selected' : '') + '>' +
+      escapeHtml(s.school_name + ' — ' + (s.city || s.authority || '') + ' (' + s.id + ')') + '</option>').join('');
+    const instructorOptions = people.map(x => '<option value="' + Number(x.emp_id) + '"' +
+      (Number(x.emp_id) === instructorId ? ' selected' : '') + '>' +
+      escapeHtml(x.full_name + ' (' + x.emp_id + ')') + '</option>').join('');
+    const selectHtml = kind === 'school'
+      ? '<label>בית הספר המדויק<select data-review-school="' + side + '"><option value="">בחרו בית ספר</option>' + schoolOptions + '</select></label>' +
+        '<div class="cs-route-review-search"><input data-review-school-search="' + side + '" type="search" placeholder="חיפוש בית ספר לפי שם"/>' +
+        '<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-review-search="' + side + '">חפש</button></div>'
+      : kind === 'instructor'
+      ? '<label>המדריך שזו כתובת מגוריו<select data-review-instructor="' + side + '"><option value="">בחרו מדריך</option>' +
+        instructorOptions + '</select></label>' +
+        '<div class="cs-route-review-search"><input data-review-instructor-search="' + side + '" type="search" placeholder="חיפוש מדריך לפי שם או מספר עובד"/>' +
+        '<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-review-find-instructor="' + side + '">חפש</button></div>'
+      : '<p class="cs-route-review-field-hint">בחרו תחילה אם הכתובת שייכת לבית ספר או למגורי מדריך. אין להסיק זאת משם הרחוב בלבד.</p>';
+    const entityDescription = school && kind === 'school'
+      ? 'כתובת הקטלוג: ' + escapeHtml(school.institution_address || 'לא רשומה') +
+        ' · יישוב: ' + escapeHtml(school.city || school.authority || 'לא הוגדר')
+      : instructor && kind === 'instructor'
+      ? 'כתובת מגורים שמורה: ' + escapeHtml(instructor.address || 'לא רשומה')
+      : 'יש לבחור ' + (kind === 'school' ? 'בית ספר' : 'מדריך') + ' מהרשימה.';
+    const confirmed = Boolean(route[side + '_reviewed_at'] && route[side + '_review_type'] === kind);
+    const detail = kind !== 'unknown' && chosenEntity
+      ? '<p class="cs-route-review-field-hint">' + entityDescription + '</p>' +
+        '<label>כתובת מלאה ומדויקת לנסיעה<input type="text" data-review-address="' + side +
+        '" value="' + escapeHtml(savedAddress || chosenEntity.institution_address || '') +
+        '" placeholder="רחוב, מספר, יישוב"/></label>' +
         '<div class="cs-route-review-coordinates">' +
-          '<label>קו רוחב <input data-review-lat="' + side + '" type="number" step="any" placeholder="32.0000" value="' +
-             escapeHtml(school.latitude == null ? '' : String(school.latitude)) + '"/></label>' +
-          '<label>קו אורך <input data-review-lng="' + side + '" type="number" step="any" placeholder="35.0000" value="' +
-             escapeHtml(school.longitude == null ? '' : String(school.longitude)) + '"/></label></div>' +
-        '<label>רמת דיוק נקודת הציון <select data-review-accuracy="' + side + '">' +
-          '<option value="school_area">אזור בית הספר</option><option value="maps_plus_code"' +
-          (school.location_accuracy === 'maps_plus_code' ? ' selected' : '') + '>נקודת מפה מאומתת</option></select></label>' +
-        '<label>הערת אימות (רשות) <input type="text" data-review-note="' + side + '" maxlength="500" placeholder="לדוגמה: שער כניסה ברחוב…"/></label>' +
+        '<label>קו רוחב<input type="number" step="any" data-review-lat="' + side +
+        '" value="' + escapeHtml(chosenEntity.latitude == null ? '' : String(chosenEntity.latitude)) + '"/></label>' +
+        '<label>קו אורך<input type="number" step="any" data-review-lng="' + side +
+        '" value="' + escapeHtml(chosenEntity.longitude == null ? '' : String(chosenEntity.longitude)) + '"/></label></div>' +
+        '<label>דיוק המיקום<select data-review-accuracy="' + side + '">' +
+          '<option value="school_area">אזור הכתובת</option><option value="maps_plus_code">נקודת מפה מאומתת</option></select></label>' +
+        '<label>הערת אימות<input type="text" maxlength="500" data-review-note="' + side + '" placeholder="פרטי הכתובת שנבדקו"/></label>' +
         '<label class="cs-route-review-confirm"><input type="checkbox" data-review-confirm="' + side +
-          '"/> בדקתי ואני מאשר/ת שזהו המיקום הנכון של בית הספר</label>' +
+        '"/> בדקתי ואני מאשר/ת את הכתובת ואת זהות ' + (kind === 'instructor' ? 'המדריך' : 'בית הספר') + '</label>' +
         '<button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-review-save="' + side + '"' +
-          (state.courseSchedulingRouteReviewSaving ? ' disabled' : '') + '>שמור מיקום מאומת</button>' +
-        '<small>' + (verified ? 'קיים מיקום מאומת לנסיעות; ניתן לעדכן אותו.' : 'טרם נשמר מיקום מאומת לנסיעות.') + '</small>'
-        : '<p class="cs-route-review-field-hint">בחרו את המוסד המדויק מהתוצאות לפני עדכון מיקום.</p>') +
-      '</section>';
+        (state.courseSchedulingRouteReviewSaving ? ' disabled' : '') +
+        '>שמור ' + (kind === 'instructor' ? 'כתובת מגורי מדריך' : 'מיקום בית ספר') + '</button>' +
+        (confirmed ? '<small>הסוג והמיקום אושרו בעבר ברשומה הזאת.</small>' : '')
+      : '';
+    return '<section class="cs-route-review-school" data-review-side="' + side + '">' +
+      '<h5>' + (side === 'origin' ? 'נקודת מוצא' : 'נקודת יעד') + '</h5>' +
+      '<p class="cs-route-review-field-hint">כתובת שמורה במסלול: <b>' + origAddress + '</b></p>' +
+      '<label>מהי הנקודה? <select data-review-kind="' + side + '">' +
+        '<option value="unknown"' + (kind === 'unknown' ? ' selected' : '') + '>טרם זוהה – יש לבחור</option>' +
+        '<option value="school"' + (kind === 'school' ? ' selected' : '') + '>בית ספר</option>' +
+        '<option value="instructor"' + (kind === 'instructor' ? ' selected' : '') + '>כתובת מגורי מדריך</option>' +
+        '</select></label>' + selectHtml + detail + '</section>';
   };
-  const origin = (review.origin_candidates || []).find(s =>
-    Number(s.id) === Number(chosen.origin || route.origin_school_id || review.origin_candidates?.[0]?.id));
-  const dest = (review.destination_candidates || []).find(s =>
-    Number(s.id) === Number(chosen.destination || route.destination_school_id || review.destination_candidates?.[0]?.id));
-  const canCalculate = origin?.route_verified_address && dest?.route_verified_address &&
-    origin.route_verified_address.trim().toLowerCase() !== dest.route_verified_address.trim().toLowerCase();
-  return '<section class="cs-route-review" aria-label="בדיקת מיקומי מסלול">' +
-    '<div class="cs-route-review-header"><h4>בדיקת המסלול: מה בדיוק צריך לתקן?</h4>' +
-      '<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-review-close>סגור</button></div>' +
-    '<p class="cs-route-review-explanation">' + explanation + '</p>' + evidenceHtml +
-    '<div class="cs-route-review-school-grid">' +
-      editor('origin', 'בית ספר מוצא', review.origin_candidates) +
-      editor('destination', 'בית ספר יעד', review.destination_candidates) + '</div>' +
-    '<div class="cs-route-review-footer">' +
-      '<p>' + (canCalculate
-        ? 'שני המיקומים נשמרו. אפשר לחשב את המקטע החדש באופן ידני.'
-        : 'כדי לחשב מסלול, יש לשמור מיקום מאומת לכל אחד מהמוסדות וכתובות נפרדות לניווט.') + '</p>' +
-      '<button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-review-calculate' +
-        (!canCalculate || state.courseSchedulingRouteReviewSaving ? ' disabled' : '') +
-        '>חשב מסלול מאומת – ידנית</button></div>' +
+  const verified = ['origin','destination'].every(side => {
+    const kind = kinds[side]; const id = kind === 'school' ? chosen[side] : instructorIds[side];
+    const entity = (kind === 'school' ? review[side + '_candidates'] : review[side + '_instructors'] || [])
+      ?.find(x => Number(kind === 'school' ? x.id : x.emp_id) === Number(id));
+    return entity && route[side + '_review_type'] === kind && route[side + '_reviewed_at'] &&
+      (kind === 'school' ? entity.route_verified_address : entity.address);
+  });
+  return '<section class="cs-route-review" aria-label="בדיקת ועדכון מסלול">' +
+    '<div class="cs-route-review-header"><h4>בדיקה ותיקון מיקומי המסלול</h4>' +
+    '<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-review-close>סגור</button></div>' +
+    '<p class="cs-route-review-explanation">הכתובת במטמון אינה בהכרח בית ספר. זהו במפורש המקום לאמת ולתקן כל נקודה.</p>' +
+    evidenceHtml + '<div class="cs-route-review-school-grid">' + endpoint('origin') + endpoint('destination') + '</div>' +
+    '<div class="cs-route-review-footer"><p>' +
+       (verified ? 'שני הצדדים אומתו. ניתן לחשב את המסלול בלחיצה יזומה בלבד.' :
+          'לאחר בחירת סוג, אימות ושמירה של שתי הנקודות ייפתח החישוב הידני.') + '</p>' +
+       '<button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-review-calculate' +
+       (!verified || state.courseSchedulingRouteReviewSaving ? ' disabled' : '') + '>חשב מסלול ידנית</button></div>' +
     (state.courseSchedulingRouteReviewMessage ? '<p class="cs-route-review-message" role="status">' +
-      escapeHtml(state.courseSchedulingRouteReviewMessage) + '</p>' : '') +
-    '</section>';
+      escapeHtml(state.courseSchedulingRouteReviewMessage) + '</p>' : '') + '</section>';
 }
 
 function maintenanceTabHtml(state) {
