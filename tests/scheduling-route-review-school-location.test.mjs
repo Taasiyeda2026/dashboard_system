@@ -11,8 +11,8 @@ test('every audited route has an explanatory action and actual calculation evide
  assert.match(screen,/כתובת זוהתה אחרת/);
  assert.match(screen,/outbound_query_origin/);
  assert.match(screen,/reverse_query_destination/);
- assert.match(screen,/origin_candidates/);
- assert.match(screen,/destination_candidates/);
+ assert.match(screen,/side \+ '_candidates'/);
+ assert.match(screen,/data-review-school/);
  assert.match(screen,/כתובת מלאה ומדויקת לנסיעה/);
  assert.match(screen,/בדקתי ואני מאשר\/ת את הכתובת/);
 });
