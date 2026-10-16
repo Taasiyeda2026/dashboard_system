@@ -248,7 +248,7 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
   if(name==='stage_schedule_from_start_date') {
     return activityId(args.activityId)
       && Number.isSafeInteger(args.instructorId) && (args.instructorId as number)>0
-      && typeof args.startDate==='string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(args.startDate)
+      && typeof args.startDate==='string' && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(args.startDate)
       && typeof args.startTime==='string' && /^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(args.startTime)
       && typeof args.endTime==='string' && /^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(args.endTime)
       && args.startTime<args.endTime
