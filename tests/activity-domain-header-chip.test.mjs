@@ -10,7 +10,7 @@ function headerOnly(row, opts = {}) {
     .split('<div class="activity-drawer__body">')[0];
 }
 
-test('activity domain appears in the top header as E or Y only', () => {
+test('activity domain appears in the top header as E, Y or EY', () => {
   const base = {
     activity_name: 'טכנולוגיות החלל',
     activity_type: 'course',
@@ -22,6 +22,7 @@ test('activity domain appears in the top header as E or Y only', () => {
 
   assert.match(headerOnly({ ...base, activity_domain: 'E' }), />E<\/span>/);
   assert.match(headerOnly({ ...base, activity_domain: 'y' }), />Y<\/span>/);
+  assert.match(headerOnly({ ...base, activity_domain: 'EY' }), />EY<\/span>/);
   assert.doesNotMatch(headerOnly({ ...base, activity_domain: 'X' }), />X<\/span>/);
   assert.doesNotMatch(headerOnly({ ...base, activity_domain: '' }), /activity-drawer__meta-tag--domain/);
   assert.doesNotMatch(headerOnly({ ...base, activity_domain: 'E' }, { instructorLimited: true }), /activity-drawer__meta-tag--domain/);

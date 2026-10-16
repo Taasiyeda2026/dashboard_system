@@ -5485,7 +5485,7 @@ function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true 
       nextValue = normalizeActivitySeason(rawValue);
     } else if (key === 'activity_domain') {
       const domain = String(rawValue ?? '').trim().toUpperCase();
-      if (domain && domain !== 'E' && domain !== 'Y') {
+      if (domain && domain !== 'E' && domain !== 'Y' && domain !== 'EY') {
         throw new Error('invalid_activity_domain');
       }
       nextValue = domain || null;
