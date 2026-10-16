@@ -290,8 +290,17 @@ Deno.serve(async request=>{
   const params=body.params;
   const name=isObject(params)?params.name:null;
   const args=isObject(params)?params.arguments??{}:null;
-  if(typeof name!=='string'||!validate(name,args))
-    return result({isError:true,content:[{type:'text',text:'invalid_or_unauthorized_arguments'}]});
+  if(typeof name!=='string'||!TOOLS.some(tool=>tool.name===name))
+    return result({isError:true,content:[{type:'text',text:JSON.stringify({
+      ok:false,error:'unknown_tool',message:'כלי השיבוץ אינו מוכר.',
+      nextStep:'רענן את רשימת כלי הסוכן ובדוק את שם הכלי.',writesCommitted:false
+    })}]});
+  if(!validate(name,args))
+    return result({isError:true,content:[{type:'text',text:JSON.stringify({
+      ok:false,error:'invalid_arguments',message:'פרמטרי הקריאה אינם עומדים בסכמת הכלי.',
+      nextStep:'בדוק את השדות הנדרשים, הפורמטים והערכים מול tools/list; לא בוצעה פעולה.',
+      writesCommitted:false
+    })}]});
   if(name==='stage_schedule_from_start_date'){
     const errorReply=(code:string,nextStep:string)=>result({isError:true,content:[{type:'text',text:JSON.stringify({
       ok:false,error:code,message:code,nextStep,writesCommitted:false,outcome:'rejected'
