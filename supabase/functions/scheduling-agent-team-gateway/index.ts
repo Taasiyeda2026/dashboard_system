@@ -1,3 +1,4 @@
+import { generateWeeklyScheduleFromStartDate } from '../../../frontend/src/screens/shared/school-calendar-logic.js';
 import { schedulingError, describeSchedulingSnapshot } from './diagnostics.mjs';
 // Team-scoped MCP gateway. Separate from owner-only scheduling-agent-gateway.
 // Every tool uses the requesting user's Supabase JWT: NEVER a service_role or shared owner token.
@@ -82,6 +83,15 @@ const TOOLS = [
     name: 'stage_manual_draft',
     description: 'Create a validated manual assignment draft only when official meeting dates/hours ALREADY exist. If missing, use stage_schedule_batch after the user approves the complete schedule. Never finalize or approve exceptions.',
     inputSchema: {type:'object',properties:{activityId:{type:'string'},instructorId:{type:'integer',minimum:1},reason:{type:'string',maxLength:500}},required:['activityId','instructorId'],additionalProperties:false}
+  },
+  {
+    name: 'stage_schedule_from_start_date',
+    description: 'Calculate a weekly calendar from an approved start date and live school calendar, then stage a NEW unassigned 2027 course via the existing atomic validator. No overwriting drafts, existing hours, approved dates or assignments. Does NOT finalize or grant exceptions. Read snapshot and obtain consent for exact activity, instructor, start date and hours before use.',
+    inputSchema: {type:'object',properties:{
+      activityId:{type:'string'},instructorId:{type:'integer',minimum:1},
+      startDate:{type:'string'},startTime:{type:'string'},endTime:{type:'string'},
+      reason:{type:'string',maxLength:500}
+    },required:['activityId','instructorId','startDate','startTime','endTime'],additionalProperties:false}
   },
   {
     name: 'stage_schedule_batch',
@@ -180,6 +190,7 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
     manager_approval_state:['activityId'],
     stage_manual_draft:['activityId','instructorId','reason'],
     stage_schedule_batch:['items'],
+    stage_schedule_from_start_date:['activityId','instructorId','startDate','startTime','endTime','reason'],
     confirm_schedule_batch:['items'],
     submit_manager_approval:['activityId'],
     confirm_own_draft:['activityId'],
@@ -221,6 +232,15 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
       }
     }
     return true;
+  }
+  if(name==='stage_schedule_from_start_date') {
+    return activityId(args.activityId)
+      && Number.isSafeInteger(args.instructorId) && (args.instructorId as number)>0
+      && typeof args.startDate==='string' && /^\\d{4}-\\d{2}-\\d{2}$/.test(args.startDate)
+      && typeof args.startTime==='string' && /^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(args.startTime)
+      && typeof args.endTime==='string' && /^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(args.endTime)
+      && args.startTime<args.endTime
+      && (args.reason===undefined || (typeof args.reason==='string' && args.reason.length<=500));
   }
   if(name==='request_optimization')return args.mode==='incremental'||args.mode==='full';
   if(name==='optimization_status')return typeof args.jobId==='string'&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(args.jobId);
@@ -272,6 +292,62 @@ Deno.serve(async request=>{
   const args=isObject(params)?params.arguments??{}:null;
   if(typeof name!=='string'||!validate(name,args))
     return result({isError:true,content:[{type:'text',text:'invalid_or_unauthorized_arguments'}]});
+  if(name==='stage_schedule_from_start_date'){
+    const errorReply=(code:string,nextStep:string)=>result({isError:true,content:[{type:'text',text:JSON.stringify({
+      ok:false,error:code,message:code,nextStep,writesCommitted:false,outcome:'rejected'
+    })}]});
+    // Authenticated source reads: no service-role privileges or calendar fallbacks.
+    const readRows=async(table:string,query:string)=>{
+      const response=await fetch(PROJECT+'/rest/v1/'+table+'?'+query,{
+        headers:{apikey:ANON_KEY,Authorization:'Bearer '+token},
+        signal:AbortSignal.timeout(18000)
+      });
+      if(!response.ok)throw Error('source_read_unavailable');
+      return await response.json();
+    };
+    try{
+      const rows=await readRows('activities',
+        'select=row_id,school_id,activity_season,activity_type,status,sessions,start_date,end_date,start_time,end_time,emp_id,draft_emp_id,instructor_assignment_locked,draft_proposed_meetings,date_1'
+        +'&row_id=eq.'+encodeURIComponent(String(args.activityId)));
+      if(rows.length!==1)return errorReply('activity_not_found','בדוק את מזהה הפעילות ואת הרשאות הקריאה.');
+      const course=rows[0];
+      if(course.activity_season!=='school_2027'||course.activity_type!=='course'||course.status!=='פתוח')
+        return errorReply('activity_not_eligible','הפעילות אינה קורס פתוח בתשפ״ז.');
+      if(course.emp_id||course.draft_emp_id||course.draft_proposed_meetings||course.instructor_assignment_locked
+         ||course.start_date||course.end_date||course.start_time||course.end_time||course.date_1)
+        return errorReply('existing_schedule_protected','יש טיוטה או לוח קיים. קרא את מצב הטיוטה; אין לדרוס אותו. נדרש מנגנון המשך טיוטה נפרד.');
+      if(!Number.isInteger(Number(course.sessions))||Number(course.sessions)<1||Number(course.sessions)>35)
+        return errorReply('invalid_session_count','תקן את מספר המפגשים ברשומת הפעילות.');
+      const schools=await readRows('schools','select=id,sector&id=eq.'+encodeURIComponent(String(course.school_id)));
+      if(schools.length!==1||!schools[0].sector)
+        return errorReply('school_sector_missing','הגדר מגזר לוח שנה לבית הספר.');
+      const calendarRows=await readRows('school_calendar',
+        'select=calendar_sector,start_date,end_date,day_status,blocks_scheduling,enforce_end_time,school_day_end_time,is_active,show_on_main_calendar'
+        +'&is_active=eq.true&show_on_main_calendar=eq.true&order=start_date.asc&limit=5000');
+      // Never authorize generation based on a truncated calendar snapshot.
+      if(calendarRows.length===5000)return errorReply('calendar_unavailable','לוח השנה גדול ממגבלת הקריאה; נדרש דפדוף לפני חישוב.');
+      const schedule=generateWeeklyScheduleFromStartDate({
+        calendarRows,sector:schools[0].sector,startDate:args.startDate,
+        startTime:args.startTime,endTime:args.endTime,sessions:Number(course.sessions)
+      });
+      const staged=await rpc(token,'scheduling_agent_team_stage_schedule_batch',{p_items:[{
+        activityId:args.activityId,instructorId:args.instructorId,startTime:args.startTime,
+        endTime:args.endTime,dates:schedule.dates,reason:args.reason??''
+      }]});
+      if('error' in staged)return errorReply(String(staged.error),
+        String(staged.nextStep||'בדוק את כללי האימות, ההתנגשויות וההרשאות של השיבוץ.'));
+      return result({isError:false,content:[{type:'text',text:JSON.stringify({
+        ok:true,result:staged.data,calculation:{endDate:schedule.endDate,
+          deferred:schedule.deferred,source:'school_calendar',meetingCount:schedule.dates.length},
+        finalized:false
+      })}]});
+    }catch(e){
+      const code=e instanceof Error&&['invalid_start_date','invalid_times','invalid_session_count',
+        'calendar_generation_exhausted','school_sector_missing','calendar_unavailable'].includes(e.message)
+        ?e.message:'source_read_unavailable';
+      return errorReply(code,'בדוק את תאריך ההתחלה, שעות הפעילות וזמינות לוח השנה; לא נשמרה טיוטה.');
+    }
+  }
   const names:Record<string,string>={
     read_activity_notes:'scheduling_agent_team_read_activity_notes',
     append_activity_note:'scheduling_agent_team_append_activity_note',
