@@ -224,7 +224,8 @@ jobs:
               tests/scheduling-v37-course-only-validator.test.mjs \
               tests/course-scheduling-distance-update.test.mjs \
               tests/scheduling-route-manual-missing-queue.test.mjs \
-              tests/course-scheduling-maintenance-design.test.mjs
+              tests/course-scheduling-maintenance-design.test.mjs \
+              tests/scheduling-route-location-identity-audit.test.mjs
           else
             echo "No scheduling contract files changed; focused scheduling tests skipped."
           fi
