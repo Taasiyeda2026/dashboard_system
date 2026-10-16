@@ -16,7 +16,7 @@ test('server snapshot supplies the Israeli date across UTC midnight for started-
  const payload={workspace:{revision:'12200'},sourceRevision:'649',
   activities:[],instructors:[],schoolLocations:[],externalBlockers:[],
   meetingInstructorHistory:[],profiles:[],rules:[],exceptions:[],schoolCalendar:[],
-  catalog:[],routes:[],existingRows:[],targetCourseIds:[],cancellations:[],
+  catalog:[],routes:[],existingRows:[],targetCourseIds:[],cancellations:[],planningIntents:[],
   sourceComplete:true,routesComplete:true,catalogComplete:true,schoolCalendarComplete:true};
  const before=prepareServerPlanningSnapshot(payload,{now:new Date('2026-10-15T20:59:00Z')});
  const after=prepareServerPlanningSnapshot(payload,{now:new Date('2026-10-15T21:01:00Z')});
@@ -54,7 +54,7 @@ test('incomplete and non-authoritative snapshots are rejected before the engine'
  assert.throws(()=>prepareServerPlanningSnapshot(empty),e=>e.code==='missing_server_snapshot_instructors');
  assert.throws(()=>prepareServerPlanningSnapshot({...empty,instructors:[],schoolLocations:[],
     externalBlockers:[],meetingInstructorHistory:[],profiles:[],rules:[],exceptions:[],
-    schoolCalendar:[],catalog:[],routes:[],existingRows:[],targetCourseIds:[]}),
+    schoolCalendar:[],catalog:[],routes:[],existingRows:[],targetCourseIds:[],planningIntents:[]}),
   e=>e.code==='authoritative_planning_source_incomplete');
 });
 

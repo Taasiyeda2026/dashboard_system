@@ -7,7 +7,7 @@ const base={
  sourceRevision:'649',workspace:{revision:'12200'},
  activities:[],instructors:[],schoolLocations:[],externalBlockers:[],
  meetingInstructorHistory:[],profiles:[],rules:[],exceptions:[],
- schoolCalendar:[],catalog:[],routes:[],existingRows:[],cancellations:[],
+ schoolCalendar:[],catalog:[],routes:[],existingRows:[],cancellations:[],planningIntents:[],
  targetCourseIds:[],sourceComplete:true,routesComplete:true,
  schoolCalendarComplete:true,catalogComplete:true
 };

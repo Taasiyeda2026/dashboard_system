@@ -43,6 +43,7 @@ export function prepareServerPlanningSnapshot(payload, {now = new Date()} = {}) 
   const catalog=requiredList(payload,'catalog');
   const cachedRoutes=requiredList(payload,'routes');
   const stored=requiredList(payload,'existingRows');
+  const planningIntents=requiredList(payload,'planningIntents');
   const targets=requiredList(payload,'targetCourseIds');
   if (payload.sourceComplete!==true || payload.routesComplete!==true || payload.catalogComplete!==true
       || payload.schoolCalendarComplete!==true) {
@@ -91,7 +92,7 @@ export function prepareServerPlanningSnapshot(payload, {now = new Date()} = {}) 
     targetCourseIds:targets.map(trim).filter(Boolean),
     routeClient,
     snapshot:{
-      ...fingerprintInput,
+      ...fingerprintInput,planningIntents,
       // Match the dashboard's date-sensitive guards even when the runner uses UTC.
       today:israelTodayIso(now),
       profiles:Object.fromEntries(profiles.map(p=>[trim(p.emp_id),p])),

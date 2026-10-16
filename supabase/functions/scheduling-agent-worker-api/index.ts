@@ -139,7 +139,7 @@ Deno.serve(async(req:Request)=>{
     ].join(',');
     const [
       activities,instructors,schoolLocations,externalBlockers,meetingInstructorHistory,
-      profiles,rules,exceptions,schoolCalendar,catalog,routes,stored,cancellations
+      profiles,rules,exceptions,schoolCalendar,catalog,routes,stored,cancellations,planningIntents
     ]=await Promise.all([
       paged('activities',selectAct,q=>q.eq('activity_season','school_2027'),10000),
       paged('contacts_instructors','emp_id,full_name,address,active,seniority_years',q=>q.order('emp_id'),5000),
@@ -158,7 +158,8 @@ Deno.serve(async(req:Request)=>{
             .order('origin_key',{ascending:true}).order('destination_key',{ascending:true}),50000),
       paged('scheduling_agent_worker_rows','activity_id,row_data,activity_updated_at,locked_option,needs_recalc',
         q=>q.eq('workspace_id',String(workspace.id)),10000),
-      paged('course_meeting_cancellations','activity_id,meeting_date',q=>q.order('meeting_date'),10000)
+      paged('course_meeting_cancellations','activity_id,meeting_date',q=>q.order('meeting_date'),10000),
+      paged('scheduling_agent_worker_intents','activity_id,emp_id,status,version',q=>q.eq('status','active').order('activity_id'),10000)
     ]);
     const end=await command('preflight',args);
     if(String(start?.sourceRevision)!==String(end?.sourceRevision)
@@ -180,7 +181,7 @@ Deno.serve(async(req:Request)=>{
       workspace:{...start.workspace,id:workspace.id},
       activities,instructors,schoolLocations,externalBlockers,meetingInstructorHistory,
       profiles,rules,exceptions,schoolCalendar,catalog,routes,
-      existingRows:planningRows,cancellations,
+      existingRows:planningRows,cancellations,planningIntents,
       targetCourseIds:[...targets],
       sourceComplete:true,routesComplete:true,
       schoolCalendarComplete:true,catalogComplete:true

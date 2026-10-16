@@ -1,6 +1,9 @@
 // Safe, actionable scheduling errors for the staff MCP gateway.
 // Do not forward raw database error messages, SQL details or identities.
 const REASONS = Object.freeze({
+  planning_intent_invalid: ['פרטי התכנון אינם תקינים.', 'קרא את התכנון השמור ובדוק את המזהים והגרסה.'],
+  planning_intent_version_conflict: ['התכנון השתנה מאז הקריאה האחרונה.', 'קרא read_planning_intents מחדש ובדוק את השינוי לפני שמירה נוספת.'],
+  planning_intent_protected: ['לקורס שמור מדריך מיועד מוגן.', 'הצג את הבחירה השמורה. החלפה או שחרור מחייבים הוראה מפורשת של המשתמש.'],
   scheduling_activity_dates_missing: ['תאריכי המפגשים חסרים בפעילות.', 'הכן תאריכים מדויקים לכל המפגשים, בקש אישור ולאחריו השתמש ב-stage_schedule_batch.'],
   scheduling_activity_hours_missing: ['שעות המפגש חסרות או אינן תקינות.', 'בדוק שעות התחלה וסיום והצג אותן לאישור לפני שמירה.'],
   scheduling_proposed_dates_invalid: ['רשימת התאריכים שגויה או אינה מסודרת.', 'בדוק שכל תאריך תקין, בסדר עולה וללא כפילויות; אל תתקן שנת לימודים בלי לשאול.'],
@@ -94,7 +97,7 @@ export function describeSchedulingSnapshot(snapshot) {
         readiness: {
           complete: missing.length === 0,
           missing,
-          ...(missing.length ? { nextStep: row.draftInstructorId ? 'קיימת טיוטת שיבוץ. בדוק manager_approval_state ואת המועדים השמורים בטיוטה; אין ליצור אותה מחדש בגלל היעדר מועדים רשמיים. לאחר בדיקות ואישור סופי השתמש ב-confirm_schedule_batch.' : 'הכן את פרטי לוח המפגשים, קבל אישור מפורש ושמור באמצעות stage_schedule_batch.' } : {})
+          ...(missing.length ? { nextStep: row.draftInstructorId ? 'קיימת טיוטת שיבוץ. בדוק manager_approval_state ואת המועדים השמורים בטיוטה; אין ליצור אותה מחדש בגלל היעדר מועדים רשמיים. לאחר בדיקות ואישור סופי השתמש ב-confirm_schedule_batch.' : 'לשמירת מדריך מיועד ללא מועדים השתמש ב-save_intended_instructor; זו אינה טיוטה מאומתת או שיבוץ סופי. לטיוטת לוח מפגשים קבל אישור לתאריכים ולשעות והשתמש ב-stage_schedule_batch.' } : {})
         }
       };
     })
