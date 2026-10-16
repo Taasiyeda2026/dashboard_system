@@ -35,8 +35,7 @@ test('route maintenance labels and user-initiated calculation handlers remain co
 test('list resolves catalog school identity without guessing when several schools share an address', async () => {
  const js = await source('../frontend/src/screens/course-scheduling.js');
  const view = js.split('function maintenanceTabHtml')[1].split('function calendarTabHtml')[0];
- assert.match(view, /origin_catalog_matches/);
- assert.match(view, /destination_catalog_matches/);
+ assert.match(view, /side \+ '_catalog_matches'/);
  assert.match(view, /matches.length === 1/);
  assert.match(view, /matches.length > 1/);
  assert.match(view, /נדרש זיהוי בית ספר/);
