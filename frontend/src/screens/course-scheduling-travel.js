@@ -82,7 +82,7 @@ export async function loadSchedulingTravelCacheRows({
     for (let offset = 0; offset < limit; offset += size) {
       const { data, error } = await supabase
         .from('scheduling_travel_cache')
-        .select('origin_key,destination_key,origin_address,destination_address,distance_km,duration_minutes,expires_at')
+        .select('origin_key,destination_key,origin_address,destination_address,distance_km,duration_minutes,expires_at,location_suspect')
         .order('origin_key', { ascending: true })
         .order('destination_key', { ascending: true })
         .range(offset, offset + size - 1);
@@ -145,10 +145,15 @@ export function createRouteClient({
 } = {}) {
   const cache = new Map();
   const persistentCache = new Map();
+  const quarantinedKeys = new Set();
   const matrixPromises = new Map();
   for (const row of preloadedRows || []) {
     const originKey = normalizePlace(text(row?.origin_key) || row?.origin_address);
     const destinationKey = normalizePlace(text(row?.destination_key) || row?.destination_address);
+    if (row?.location_suspect === true) {
+      quarantinedKeys.add(`${originKey}→${destinationKey}`);
+      continue; // Never treat a quarantined route as a valid preload.
+    }
     const distance = Number(row?.distance_km);
     const duration = Number(row?.duration_minutes);
     if (!originKey || !destinationKey || !Number.isFinite(distance) || !Number.isFinite(duration)) continue;
@@ -270,12 +275,20 @@ export function createRouteClient({
     planningPerfCount('routeCacheRequests');
     if (signal?.aborted) return Promise.reject(cancelledError());
     if (!text(origin) || !text(destination)) return Promise.resolve(null);
-    if (normalizePlace(origin) === normalizePlace(destination)) return Promise.resolve({ distance_km: 0, duration_minutes: 0, cached: true });
     const normalizedContext = normalizedRouteContext(context);
+    const matrixKey = routeMatrixKey(origin, destination);
+    if (quarantinedKeys.has(matrixKey)) return Promise.resolve(null);
+    if (normalizePlace(origin) === normalizePlace(destination)) {
+      // Same town-level address can still mean different physical schools.
+      if (normalizedContext.originSchoolName && normalizedContext.destinationSchoolName &&
+        normalizePlace(normalizedContext.originSchoolName) !== normalizePlace(normalizedContext.destinationSchoolName)) {
+        return Promise.resolve(null);
+      }
+      return Promise.resolve({ distance_km: 0, duration_minutes: 0, cached: true });
+    }
     const cacheKey = routeRequestKey(origin, destination, normalizedContext);
     if (cache.has(cacheKey)) return cache.get(cacheKey);
 
-    const matrixKey = routeMatrixKey(origin, destination);
     const persistent = persistentCache.get(matrixKey);
     if (persistent) {
       cacheHits += 1;
@@ -326,11 +339,17 @@ export function createRouteClient({
     return sharedPromise;
   };
 
-  const peek = (origin, destination) => {
+  const peek = (origin, destination, context = {}) => {
     if (!text(origin) || !text(destination)) return null;
+    if (quarantinedKeys.has(routeMatrixKey(origin, destination))) return null;
+    const sameContext = normalizedRouteContext(context);
     // routeLeg already treats an identical normalized address as a
     // known zero-length leg. The synchronous validation view must agree.
-    if (normalizePlace(origin) === normalizePlace(destination)) return { distance_km: 0, duration_minutes: 0, cached: true };
+    if (normalizePlace(origin) === normalizePlace(destination)) {
+      if (sameContext.originSchoolName && sameContext.destinationSchoolName &&
+          normalizePlace(sameContext.originSchoolName) !== normalizePlace(sameContext.destinationSchoolName)) return null;
+      return { distance_km: 0, duration_minutes: 0, cached: true };
+    }
     const hit = persistentCache.get(routeMatrixKey(origin, destination));
     return hit ? { ...hit, cached: true } : null;
   };
