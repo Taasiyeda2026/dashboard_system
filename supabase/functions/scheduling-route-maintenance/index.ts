@@ -224,6 +224,49 @@ async function resolveMappedSchoolPlaces(apiKey, requests) {
     blocked:entries.filter((x)=>x.status==='not_verified').length };
 }
 
+
+function validIsraelCoordinate(lat, lng) {
+  return typeof lat === 'number' && typeof lng === 'number'
+    && Number.isFinite(lat) && Number.isFinite(lng)
+    && lat > 29 && lat < 34 && lng > 34 && lng < 36;
+}
+async function estimateCoordinateSegments(apiKey, segments) {
+  if (!apiKey) return { checked:segments.length, estimated:0, created:0, cached:0,
+    failed:segments.length, blocked:0, entries:segments.map((s)=>({
+      label:s.label,status:'failed',reason:'google_key_not_configured'
+    })) };
+  const entries = await mapConcurrent(segments, 4, async (s) => {
+    const label = clean(s.label).slice(0,120);
+    const response = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+      method:'POST', headers:{
+        'Content-Type':'application/json','X-Goog-Api-Key':apiKey,
+        'X-Goog-FieldMask':'routes.distanceMeters,routes.duration,routes.legs.startLocation,routes.legs.endLocation'
+      }, body: JSON.stringify({
+        origin: { location: { latLng: { latitude:s.from_lat, longitude:s.from_lng } } },
+        destination: { location: { latLng: { latitude:s.to_lat, longitude:s.to_lng } } },
+        travelMode:'DRIVE'
+      })
+    });
+    if (!response.ok) return { label,status:'failed',reason:'route_http_'+response.status };
+    const metrics = parseGoogleRouteMetrics((await response.json())?.routes?.[0]);
+    if (!metrics || !Number.isFinite(metrics.distance_km) || !Number.isFinite(metrics.duration_minutes)) {
+      return {label,status:'failed',reason:'route_not_found'};
+    }
+    if (metrics.distance_km === 0 || metrics.duration_minutes === 0) {
+      return {label,status:'blocked',reason:'unverified_zero_route'};
+    }
+    return {label,status:'estimated',origin_id:clean(s.origin_id),destination_id:clean(s.destination_id),
+      from_lat:s.from_lat,from_lng:s.from_lng,to_lat:s.to_lat,to_lng:s.to_lng,
+      distance_km:metrics.distance_km,duration_minutes:metrics.duration_minutes,
+      accuracy:'provisional',source:'user_supplied_or_google_maps_plus_code',
+      not_authorized_for_payroll:true};
+  });
+  return {entries,checked:entries.length,cached:0,created:0,
+    estimated:entries.filter((e)=>e.status==='estimated').length,
+    failed:entries.filter((e)=>e.status==='failed').length,
+    blocked:entries.filter((e)=>e.status==='blocked').length};
+}
+
 Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
   const url = Deno.env.get('SUPABASE_URL');
@@ -238,9 +281,13 @@ Deno.serve(async (req) => {
   try { body = await req.json(); } catch { return json({ error: 'invalid_payload' }, 400); }
   const runId = clean(body?.run_id);
   const resolveMode = body?.mode === 'resolve_places';
-  const requests = resolveMode ? (Array.isArray(body?.places) ? body.places : []) : (Array.isArray(body?.pairs) ? body.pairs : []);
+  const estimateMode = body?.mode === 'estimate_coordinates';
+  const requests = estimateMode ? (Array.isArray(body?.segments) ? body.segments : [])
+    : resolveMode ? (Array.isArray(body?.places) ? body.places : []) : (Array.isArray(body?.pairs) ? body.pairs : []);
   if (!/^[0-9a-f-]{36}$/i.test(runId) || !requests.length || requests.length > 100
-      || (resolveMode ? requests.some((r) => !validId(r?.school_id) || !/^\d{15,22}$/.test(clean(r?.cid)) || !Array.isArray(r?.queries))
+      || (estimateMode ? requests.some((s)=>!clean(s?.label) || !validIsraelCoordinate(s?.from_lat,s?.from_lng)
+          || !validIsraelCoordinate(s?.to_lat,s?.to_lng))
+        : resolveMode ? requests.some((r) => !validId(r?.school_id) || !/^\d{15,22}$/.test(clean(r?.cid)) || !Array.isArray(r?.queries))
         : requests.some((r) => !['home','school'].includes(r?.kind)))) {
     return json({ error: 'invalid_request' }, 400);
   }
@@ -249,8 +296,9 @@ Deno.serve(async (req) => {
     .eq('id', runId).eq('status', 'queued').select('id');
   if (claimError || !claimed?.length) return json({ error: 'run_not_queued' }, 409);
   try {
-    const result = resolveMode
-      ? await resolveMappedSchoolPlaces(Deno.env.get('GOOGLE_MAPS_API_KEY') || '', requests)
+    const result = estimateMode
+      ? await estimateCoordinateSegments(Deno.env.get('GOOGLE_MAPS_API_KEY') || '', requests)
+      : resolveMode ? await resolveMappedSchoolPlaces(Deno.env.get('GOOGLE_MAPS_API_KEY') || '', requests)
       : await repairRoutes(db, Deno.env.get('GOOGLE_MAPS_API_KEY') || '', requests, body?.include_reverse === true);
     const newStatus = result.failed || result.blocked ? 'completed_with_issues' : 'completed';
     const { error: saveError } = await db.from('scheduling_route_maintenance_runs')
