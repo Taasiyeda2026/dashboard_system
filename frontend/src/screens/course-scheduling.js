@@ -2052,6 +2052,8 @@ function routeReviewDetailsHtml(state) {
     const entity = (kind === 'school' ? review[side + '_candidates'] : review[side + '_instructors'] || [])
       ?.find(x => Number(kind === 'school' ? x.id : x.emp_id) === Number(id));
     return entity && route[side + '_review_type'] === kind && route[side + '_reviewed_at'] &&
+      Number(kind === 'school' ? route[side + '_school_id'] : route[side + '_instructor_emp_id']) ===
+        Number(kind === 'school' ? entity.id : entity.emp_id) &&
       (kind === 'school' ? entity.route_verified_address : entity.address);
   });
   return '<section class="cs-route-review" aria-label="בדיקת ועדכון מסלול">' +
@@ -6035,7 +6037,13 @@ export const courseSchedulingScreen = {
         try { await reloadRouteReviewDetails(); }
         catch (error) {
           state.courseSchedulingRouteReviewMessage = 'טעינת הבדיקה נכשלה: ' + text(error.message);
-        } finally { state.courseSchedulingRouteReviewLoading = false; rerender(); }
+        } finally {
+          state.courseSchedulingRouteReviewLoading = false;
+          rerender();
+          requestAnimationFrame(() => root.querySelector('.cs-route-review')?.scrollIntoView({
+            behavior: 'smooth', block: 'start'
+          }));
+        }
       });
     });
     root.querySelector('[data-review-close]')?.addEventListener('click', () => {
