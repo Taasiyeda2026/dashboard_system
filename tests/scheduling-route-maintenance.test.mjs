@@ -40,3 +40,13 @@ test('the maintenance audit is isolated by RLS', async () => {
   assert.match(sql, /GRANT EXECUTE ON FUNCTION .* TO service_role/i);
   assert.doesNotMatch(sql, /GRANT.*TO authenticated/i);
 });
+
+test('school map CID must match Google Places result, not a text-search guess', async () => {
+  const source = await readFile(workerUrl, 'utf8');
+  assert.match(source, /places\.googleMapsUri/);
+  assert.match(source, /places:searchText/);
+  assert.match(source, /c\.cid === cid/);
+  assert.match(source, /not_verified/);
+  assert.match(source, /resolveMode/);
+  assert.match(source, /run_not_queued/);
+});
