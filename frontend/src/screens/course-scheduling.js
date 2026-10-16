@@ -1975,12 +1975,33 @@ function maintenanceTabHtml(state) {
   const coverageKnown = state.courseSchedulingDistanceCoverageLoaded === true && !coverageLoading;
   const noDistanceWork = coverageKnown && !doneError && actionRequiredCount === 0;
   const updateDisabled = distanceBusy || coverageLoading || noDistanceWork;
+  const missingRoutes = state.courseSchedulingRouteQueue || [];
+  const routeBusy = !!state.courseSchedulingManualRouteBusy;
+  const manualRows = missingRoutes.map((route, index) => {
+    const ambiguous = route.failure_reason === 'ambiguous_same_address';
+    const origin = [route.origin_school_name,route.origin_authority,route.origin_address].filter(Boolean).join(' · ');
+    const destination = [route.destination_school_name,route.destination_authority,route.destination_address].filter(Boolean).join(' · ');
+    return '<tr><td>'+escapeHtml(origin)+'</td><td>'+escapeHtml(destination)+'</td><td>'+
+      (route.source_kind === 'attendance' ? 'נוכחות' : 'שיבוץ')+'</td><td>'+
+      (ambiguous ? 'מיקום לא מאומת – כתובות זהות' : 'חסר')+'</td><td>'+
+      '<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-calculate-missing-route="'+index+'"'+
+      (ambiguous || routeBusy || distanceBusy ? ' disabled' : '')+'>חשב מסלול</button></td></tr>';
+  }).join('');
+  const manualQueuePanel = '<article class="course-scheduling-maintenance-card"><div>'+
+    '<h3>מסלולים חסרים שהתגלו בשיבוצים ובנוכחות</h3>'+
+    '<p class="course-scheduling-maintenance-note">מסלולים חסרים נרשמים ללא חישוב. כל מסלול מופיע פעם אחת, וחישוב מופעל רק בלחיצה יזומה.</p>'+
+    '<p>ממתינים לטיפול: '+(state.courseSchedulingRouteQueueLoading ? '…' : missingRoutes.length)+
+      (missingRoutes.length===100 ? ' (מוצגים 100 ראשונים)' : '')+'</p>'+
+    (state.courseSchedulingRouteQueueError ? '<p class="course-scheduling-alert">'+escapeHtml(state.courseSchedulingRouteQueueError)+'</p>' : '')+
+    (state.courseSchedulingManualRouteMessage ? '<p role="status">'+escapeHtml(state.courseSchedulingManualRouteMessage)+'</p>' : '')+
+    (manualRows ? '<div class="course-scheduling-table-scroll"><table><thead><tr><th>מוצא</th><th>יעד</th><th>מקור</th><th>מצב</th><th>פעולה</th></tr></thead><tbody>'+manualRows+'</tbody></table></div>' : '<p>אין מסלולים ממתינים ברשימת הטיפול.</p>')+
+    '</div></article>';
   return `<section class="course-scheduling-maintenance-tab" aria-labelledby="course-scheduling-maintenance-heading">
     <h2 id="course-scheduling-maintenance-heading" class="course-scheduling-visually-hidden">פעולות תחזוקה</h2>
     <article class="course-scheduling-maintenance-card">
       <div>
         <h3>עדכון מסלולי בסיס</h3>
-        <p class="course-scheduling-maintenance-note">הספירה מתייחסת למסלולי הבסיס שנבנו מראש. מסלולי מעבר נוספים בין פעילויות נבדקים לפי הצורך בזמן השיבוץ.</p>
+        <p class="course-scheduling-maintenance-note">המספרים מתייחסים למסלולי הבסיס. חוסרים שהתגלו בשיבוצים ובנוכחות מופיעים בנפרד למטה. אין חישוב אוטומטי במסך זה.</p>
         <div class="course-scheduling-distance-coverage">
           <p>נדרשים: ${count('required_count')}</p>
           <p>קיימים: ${count('existing_count')}</p>
@@ -1991,8 +2012,9 @@ function maintenanceTabHtml(state) {
         ${doneMessage ? `<p class="${doneError ? 'course-scheduling-alert' : 'course-scheduling-success'}">${escapeHtml(doneMessage)}</p>` : ''}
         ${doneDetails ? `<p class="course-scheduling-maintenance-note">${escapeHtml(doneDetails)}</p>` : ''}
       </div>
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-update-distances ${updateDisabled ? 'disabled' : ''}>${distanceBusy ? 'מעדכן מסלולי בסיס...' : (noDistanceWork ? 'כל המסלולים מעודכנים' : 'עדכון מסלולי בסיס')}</button>
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-update-distances ${updateDisabled ? 'disabled' : ''}>${distanceBusy ? 'מעדכן מסלולי בסיס...' : (noDistanceWork ? 'כל מסלולי הבסיס מעודכנים' : 'עדכון מסלולי בסיס')}</button>
     </article>
+    ${manualQueuePanel}
   </section>`;
 }
 
@@ -2813,6 +2835,21 @@ export const courseSchedulingScreen = {
         });
     }
 
+    const reloadManualRouteQueue = async () => {
+      const { data: routes, error } = await supabase.from('scheduling_route_missing_queue')
+        .select('origin_key,destination_key,origin_address,destination_address,origin_school_name,destination_school_name,origin_authority,destination_authority,source_kind,failure_reason,first_seen_at')
+        .eq('status', 'pending').order('first_seen_at', { ascending: false }).limit(100);
+      if (error) throw error;
+      state.courseSchedulingRouteQueue = routes || [];
+      state.courseSchedulingRouteQueueLoaded = true;
+    };
+    if (activeTab(state)==='maintenance' &&
+        !state.courseSchedulingRouteQueueLoaded && !state.courseSchedulingRouteQueueLoading) {
+      state.courseSchedulingRouteQueueLoading = true;
+      reloadManualRouteQueue()
+        .catch(error => { state.courseSchedulingRouteQueueError='טעינת מסלולים חסרים נכשלה: '+text(error.message); state.courseSchedulingRouteQueueLoaded=true; })
+        .finally(() => { state.courseSchedulingRouteQueueLoading=false; rerender(); });
+    }
     const reloadDistanceCoverage = async () => {
       const coverage = await loadDistanceCoverage(invokeDistanceRoute, 'all');
       state.courseSchedulingDistanceStats = coverage;
@@ -5738,6 +5775,30 @@ export const courseSchedulingScreen = {
       });
     });
 
+    root.querySelectorAll('[data-calculate-missing-route]').forEach(button => {
+      button.addEventListener('click', async () => {
+        if (state.courseSchedulingManualRouteBusy || state.courseSchedulingDistanceLoading) return;
+        const selected=(state.courseSchedulingRouteQueue||[])[Number(button.dataset.calculateMissingRoute)];
+        if (!selected || selected.failure_reason==='ambiguous_same_address') return;
+        state.courseSchedulingManualRouteBusy=true;
+        state.courseSchedulingManualRouteMessage='מחשב את המסלול שנבחר בלבד...';
+        rerender();
+        try {
+          const { data: route, error } = await invokeDistanceRoute({
+            origin:selected.origin_address, destination:selected.destination_address,
+            origin_school_name:selected.origin_school_name||'', destination_school_name:selected.destination_school_name||'',
+            origin_authority_name:selected.origin_authority||'', destination_authority_name:selected.destination_authority||''
+          });
+          if(error || !route?.calculated || !Number.isFinite(Number(route.distance_km)) || !Number.isFinite(Number(route.duration_minutes)))
+            throw new Error(translateSchedulingRouteError(route?.error||error?.message||'route_not_found'));
+          await reloadManualRouteQueue();
+          state.courseSchedulingRouteQueueError='';
+          state.courseSchedulingManualRouteMessage='המסלול נשמר: '+Number(route.distance_km).toFixed(2)+' ק״מ, '+Number(route.duration_minutes)+' דקות.';
+        } catch(error) {
+          state.courseSchedulingManualRouteMessage='חישוב המסלול נכשל: '+text(error.message);
+        } finally { state.courseSchedulingManualRouteBusy=false; rerender(); }
+      });
+    });
     root.querySelector('[data-refresh-distance-coverage]')?.addEventListener('click', async () => {
       if (state.courseSchedulingDistanceCoverageLoading || state.courseSchedulingDistanceLoading) return;
       state.courseSchedulingDistanceCoverageLoading = true;
