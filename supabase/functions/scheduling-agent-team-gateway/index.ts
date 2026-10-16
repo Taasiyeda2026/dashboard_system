@@ -1,4 +1,4 @@
-import { generateWeeklyScheduleFromStartDate } from '../../../frontend/src/screens/shared/school-calendar-logic.js';
+import { generateWeeklyScheduleFromStartDate } from './calendar-shared.mjs';
 import { schedulingError, describeSchedulingSnapshot } from './diagnostics.mjs';
 // Team-scoped MCP gateway. Separate from owner-only scheduling-agent-gateway.
 // Every tool uses the requesting user's Supabase JWT: NEVER a service_role or shared owner token.
