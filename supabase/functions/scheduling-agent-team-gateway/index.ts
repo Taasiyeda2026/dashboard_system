@@ -67,6 +67,12 @@ const TOOLS = [
     inputSchema: {type:'object',properties:{},additionalProperties:false}
   },
   {
+    name: 'read_staged_schedule',
+    annotations: {readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false},
+    description: 'Read the exact persisted meeting dates, hours, draft owner-status and revision stamps for an existing 2027 course draft. Use this before deciding dates are missing or confirming an already staged schedule. This does NOT approve, edit or finalize anything; independently check approvals and request explicit finalization consent.',
+    inputSchema: {type:'object',properties:{activityId:{type:'string'}},required:['activityId'],additionalProperties:false}
+  },
+  {
     name: 'manager_approval_state',
     annotations: {readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false},
     description: 'Read current structured approval_details for the draft. Operational rationale is audit documentation, NEVER an exception signal. Show exception codes and checked values before requesting manager consent. approval_required=false with request_applicable=false means any returned pending request is historical and does not block ordinary confirmation. Blocking violations remain non-overridable. Read only.',
@@ -277,6 +283,7 @@ Deno.serve(async request=>{
     planning_status:'scheduling_agent_team_planning_status',
     request_optimization:'scheduling_agent_team_request_optimization',
     optimization_status:'scheduling_agent_team_optimization_status',
+    read_staged_schedule:'scheduling_agent_team_read_staged_schedule',
     manager_approval_state:'scheduling_agent_team_manager_approval_state',
     stage_manual_draft:'scheduling_agent_team_stage_manual_draft',
     stage_schedule_batch:'scheduling_agent_team_stage_schedule_batch',
