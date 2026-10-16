@@ -389,7 +389,7 @@ function isFiniteMetric(value: unknown) {
 }
 
 function hasUsableMetrics(cached: Record<string, unknown> | null | undefined, pair?: TravelPair) {
-  if (!cached) return false;
+  if (!cached || cached.location_suspect === true) return false;
   if (!isFiniteMetric(cached.distance_km) || !isFiniteMetric(cached.duration_minutes)) return false;
   const distance = Number(cached.distance_km);
   const duration = Number(cached.duration_minutes);
@@ -407,8 +407,26 @@ function needsRefresh(cached: Record<string, unknown> | null | undefined, now = 
   return !Number.isFinite(expiresAt) || expiresAt <= now;
 }
 
+function schoolIdentityConflict(cached: Record<string, unknown> | null | undefined, pair: TravelPair) {
+  if (!cached) return false;
+  const recordedOrigin = cached.origin_school_id == null ? null : Number(cached.origin_school_id);
+  const recordedDestination = cached.destination_school_id == null ? null : Number(cached.destination_school_id);
+  return (
+    (recordedOrigin != null && pair.origin_school_id != null && recordedOrigin !== pair.origin_school_id) ||
+    (recordedDestination != null && pair.destination_school_id != null && recordedDestination !== pair.destination_school_id) ||
+    (!!cached.origin_entity_key && !!pair.origin_entity_key &&
+      String(cached.origin_entity_key).startsWith('school_id:') &&
+      String(pair.origin_entity_key).startsWith('school_id:') &&
+      String(cached.origin_entity_key) !== pair.origin_entity_key) ||
+    (!!cached.destination_entity_key && !!pair.destination_entity_key &&
+      String(cached.destination_entity_key).startsWith('school_id:') &&
+      String(pair.destination_entity_key).startsWith('school_id:') &&
+      String(cached.destination_entity_key) !== pair.destination_entity_key)
+  );
+}
 function isUsableForPair(cached: Record<string, unknown> | null | undefined, pair: TravelPair) {
-  return !!cached && addressesMatch(cached, pair) && hasUsableMetrics(cached, pair);
+  return !!cached && !schoolIdentityConflict(cached, pair)
+    && addressesMatch(cached, pair) && hasUsableMetrics(cached, pair);
 }
 
 function isCacheValid(cached: Record<string, unknown> | null | undefined, pair: TravelPair) {
@@ -1407,6 +1425,19 @@ async function processPair(db: DbClient, pair: TravelPair, key: string): Promise
   )) || existing.rows.find((row) => (
     text(row.origin_key) === pair.origin_key && text(row.destination_key) === pair.destination_key
   )) || existing.rows[0] || null;
+  // Identical text keys must not make two distinct school identities share one journey.
+  if (existing.rows.some((row) => text(row.origin_key) === pair.origin_key
+      && text(row.destination_key) === pair.destination_key
+      && schoolIdentityConflict(row, pair))) {
+    return { dbError: null, failed: true, failure: failureForPair(pair, 'ambiguous_school_location') };
+  }
+  // Quarantined routes require reviewed location identity; bulk builds must never
+  // silently overwrite them or generate Google requests for them.
+  if (existing.rows.some((row) => row.location_suspect === true &&
+      text(row.origin_key) === pair.origin_key &&
+      text(row.destination_key) === pair.destination_key)) {
+    return { dbError: null, failed: true, failure: failureForPair(pair, 'location_review_required') };
+  }
   const wasUsableCurrentRoute = isUsableForPair(matching, pair);
 
   if (isCacheValid(matching, pair)) {
@@ -1416,6 +1447,11 @@ async function processPair(db: DbClient, pair: TravelPair, key: string): Promise
   // Same normalized address stays local zero — no Maps API call. Still skip upsert
   // when a valid same-address row already exists (checked above).
   if (isSamePlace(pair.origin_address, pair.destination_address)) {
+    if (pair.origin_school_id != null && pair.destination_school_id != null
+      && pair.origin_school_id !== pair.destination_school_id) {
+      // A town-level address shared by two schools is NOT a verified zero-km journey.
+      return { dbError: null, failed: true, failure: failureForPair(pair, 'ambiguous_school_location') };
+    }
     const write = await replaceCacheRow(db, pair, cacheRowPayload(pair, 0, 0, 'same_school'));
     if (write.error) return { dbError: write.error };
     return {
@@ -1796,6 +1832,9 @@ async function resolveDynamicRoutePair(
   cached: Record<string, unknown> | null | undefined
 ) {
   const hadPrevious = !!cached;
+  if (cached?.location_suspect === true) {
+    return { calculated: false as const, reason: 'location_review_required', error: 'location_review_required' };
+  }
   if (cached && isLookupCacheValid(cached, pair.origin, pair.destination)) {
     return {
       calculated: true as const,
@@ -2000,6 +2039,9 @@ Deno.serve(async (req) => {
   if (cacheReadError) return jsonResponse({ calculated: false, reason: 'cache_read_failed', error: 'cache_read_failed' }, 500);
 
   const hadPrevious = !!cached;
+  if (cached?.location_suspect === true) {
+    return jsonResponse({ calculated: false, reason: 'location_review_required', error: 'location_review_required' }, 409);
+  }
   if (cached && hasUsableMetrics(cached) && (!text(cached.origin_address) || text(cached.origin_address) === origin)
     && (!text(cached.destination_address) || text(cached.destination_address) === destination)) {
     return jsonResponse({
@@ -2012,7 +2054,12 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Same normalized address: zero local route, never call Google Maps.
+  // Same address text is not sufficient proof of identical physical school locations.
+  if (isSamePlace(origin, destination) && originSchoolName && destinationSchoolName
+      && localityCompareKey(originSchoolName) !== localityCompareKey(destinationSchoolName)) {
+    return jsonResponse({ calculated: false, reason: 'ambiguous_school_location', error: 'ambiguous_school_location' }, 409);
+  }
+  // Same normalized address: zero local route only when no separate school identity is supplied.
   if (isSamePlace(origin, destination)) {
     const { error: cacheWriteError } = await db.from('scheduling_travel_cache').upsert({
       origin_key: originKey,
