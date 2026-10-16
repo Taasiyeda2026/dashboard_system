@@ -35,6 +35,7 @@ async function route(db: any, origin: string, destination: string, key: string) 
   const { data: cached, error } = await db.from('scheduling_travel_cache').select('*')
     .eq('origin_key', originKey).eq('destination_key', destinationKey).maybeSingle();
   if (error) throw new Error('cache_read_failed');
+  if (cached?.location_suspect === true) throw new Error('location_review_required'); // No automatic recalculation.
   if (cached && Number.isFinite(Number(cached.duration_minutes))
     && (!text(cached.origin_address) || text(cached.origin_address) === origin)
     && (!text(cached.destination_address) || text(cached.destination_address) === destination)) {
