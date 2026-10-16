@@ -31,3 +31,19 @@ test('route maintenance labels and user-initiated calculation handlers remain co
   const loading=js.split('const reloadManualRouteQueue')[1].split('const reloadDistanceCoverage')[0];
   assert.doesNotMatch(loading, /invokeDistanceRoute|runDistanceBuildLoop/);
 });
+
+test('list resolves catalog school identity without guessing when several schools share an address', async () => {
+ const js = await source('../frontend/src/screens/course-scheduling.js');
+ const view = js.split('function maintenanceTabHtml')[1].split('function calendarTabHtml')[0];
+ assert.match(view, /origin_catalog_matches/);
+ assert.match(view, /destination_catalog_matches/);
+ assert.match(view, /matches.length === 1/);
+ assert.match(view, /matches.length > 1/);
+ assert.match(view, /נדרש זיהוי בית ספר/);
+ assert.match(view, /בית הספר טרם זוהה/);
+ const loader = js.split('const reloadManualRouteQueue')[1].split('const reloadDistanceCoverage')[0];
+ assert.match(loader, /from\('schools'\)/);
+ assert.match(loader, /\.in\('institution_address', catalogAddresses\)/);
+ assert.match(loader, /city.length > 1/);
+ assert.doesNotMatch(loader, /invokeDistanceRoute|runDistanceBuildLoop/);
+});
