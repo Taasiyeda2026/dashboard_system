@@ -10,7 +10,7 @@ function headerOnly(row, opts = {}) {
     .split('<div class="activity-drawer__body">')[0];
 }
 
-test('activity domain appears in the top header as E or Y only', () => {
+test('activity domain appears in the top header as E, Y or EY', () => {
   const base = {
     activity_name: 'טכנולוגיות החלל',
     activity_type: 'course',
