@@ -87,7 +87,7 @@ test('draft dates are not promoted before confirmation',()=>{
 
 test('team MCP advertises changed tool catalog and updated server version',()=>{
   assert.match(edge,/capabilities:\{tools:\{listChanged:true\}\}/);
-  assert.match(edge,/serverInfo:\{name:'taasiyeda-team-scheduling-agent',version:'0\.2\.2'\}/);
+  assert.match(edge,/serverInfo:\{name:'taasiyeda-team-scheduling-agent',version:'0\.3\.0'\}/);
   assert.match(edge,/name: 'stage_schedule_batch'/);
   assert.match(edge,/name: 'confirm_schedule_batch'/);
 });

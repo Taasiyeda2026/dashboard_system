@@ -13,6 +13,8 @@ import {
   createPlanningCheckpoint
 } from '../../frontend/src/screens/course-scheduling-planning.js';
 
+import {applyPlanningIntents} from './planning-intents.mjs';
+
 export class AgentPlanningInputError extends Error {
   constructor(code) {
     super(code);
@@ -107,8 +109,9 @@ export async function computeAgentSchedulingPlan({
   });
   if (signal?.aborted) throw new AgentPlanningInputError('planning_cancelled');
 
+  const intents = applyPlanningIntents(snapshot);
   const result = await buildDynamicCoursePlan({
-    ...snapshot,
+    ...intents.snapshot,
     periodKey: 'year',
     district: '',
     routeClient,
@@ -126,6 +129,7 @@ export async function computeAgentSchedulingPlan({
   if (!Array.isArray(result?.rows)) {
     throw new AgentPlanningInputError('planning_rows_missing');
   }
+  result.rows.push(...intents.rows);
   assertNoUnlocatedCourseAssignments(result.rows,snapshot.missingSchoolCourseIds||[]);
   // Caller must still verify the same source and workspace revisions under the
   // database lease BEFORE attempting the existing fenced planning snapshot RPC.

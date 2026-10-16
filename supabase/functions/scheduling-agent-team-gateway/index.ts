@@ -8,6 +8,24 @@ const META = BASE + '/.well-known/oauth-protected-resource';
 
 const TOOLS = [
   {
+    name: 'read_planning_intents',
+    annotations: {readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false},
+    description: 'Read durable instructor planning baselines and intended course instructors, including versions and protection status. Read before writes and after uncertain outcomes. A baseline is reference text; only an active course intention holds that course out of automatic optimization. Neither reserves calendar time nor approves exceptions.',
+    inputSchema: {type:'object',properties:{instructorId:{type:'integer',minimum:1}},additionalProperties:false}
+  },
+  {
+    name: 'save_planning_baseline',
+    annotations: {readOnlyHint:false,destructiveHint:false,idempotentHint:false,openWorldHint:false},
+    description: 'Save the explicitly requested instructor planning baseline, including weekdays, schools, alternatives and conditions, without requiring dates. First read_planning_intents and use its version (0 if absent). Preserves the baseline across optimization, but text alone is NOT an optimizer constraint; use save_intended_instructor for each specific course to protect. Does not change availability, previous notes, official assignments or approvals. Read back to verify.',
+    inputSchema: {type:'object',properties:{instructorId:{type:'integer',minimum:1},planText:{type:'string',minLength:1,maxLength:6000},expectedVersion:{type:'string',pattern:'^[0-9]+$'}},required:['instructorId','planText','expectedVersion'],additionalProperties:false}
+  },
+  {
+    name: 'save_intended_instructor',
+    annotations: {readOnlyHint:false,destructiveHint:false,idempotentHint:false,openWorldHint:false},
+    description: 'Save or explicitly release a user-selected instructor for one open unassigned course, EVEN WHEN dates or hours are missing. Read read_snapshot and read_planning_intents first; use current version (0 if absent). active holds the course out of optimization pending schedule validation; released removes that hold. Never select a mere alternative as active without user consent. This is NOT a validated draft, final assignment, calendar reservation or exception approval. Existing assignments/drafts/locks cannot be overwritten. Finalization still requires exact dates, existing validators and separate explicit consent. Read back to verify.',
+    inputSchema: {type:'object',properties:{activityId:{type:'string',minLength:1,maxLength:200},instructorId:{type:'integer',minimum:1},reason:{type:'string',maxLength:1000},status:{type:'string',enum:['active','released']},expectedVersion:{type:'string',pattern:'^[0-9]+$'}},required:['activityId','instructorId','reason','status','expectedVersion'],additionalProperties:false}
+  },
+  {
     name: 'review_manager_approval',
     annotations: {readOnlyHint:false, destructiveHint:true, idempotentHint:false, openWorldHint:false},
     description: 'Only the active designated admin can approve or reject ONE existing exception request. First use manager_approval_state, show the exact activity, instructor, dates and structured exception, and ask explicit consent. The existing database reviewer enforces authorization and request freshness. Never finalizes a course. If the outcome is unknown, read state before any retry.',
@@ -131,6 +149,9 @@ async function authenticate(request:Request):Promise<string|null> {
 function validate(name:string,args:unknown):args is Record<string,unknown> {
   if(!isObject(args))return false;
   const allowed:Record<string,string[]>={
+    read_planning_intents:['instructorId'],
+    save_planning_baseline:['instructorId','planText','expectedVersion'],
+    save_intended_instructor:['activityId','instructorId','reason','status','expectedVersion'],
     review_manager_approval:['activityId','requestId','decision'],
     read_snapshot:[],
     planning_status:[],
@@ -145,6 +166,14 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
     confirm_planning_option:['activityId','optionIndex','workspaceRevision','sourceRevision','allowDateChange']
   };
   if(!allowed[name]||Object.keys(args).some(k=>!allowed[name].includes(k)))return false;
+  if(['read_planning_intents','save_planning_baseline','save_intended_instructor'].includes(name)){
+    if(name==='read_planning_intents' && args.instructorId===undefined)return true;
+    if(typeof args.instructorId!=='number'||!Number.isSafeInteger(args.instructorId)||args.instructorId<1)return false;
+    if(name==='read_planning_intents')return true;
+    if(typeof args.expectedVersion!=='string'||!/^\d{1,15}$/.test(args.expectedVersion))return false;
+    if(name==='save_planning_baseline')return typeof args.planText==='string'&&args.planText.trim().length>0&&args.planText.length<=6000;
+    return activityId(args.activityId)&&typeof args.reason==='string'&&args.reason.length<=1000&&(args.status==='active'||args.status==='released');
+  }
   if(name==='read_snapshot'||name==='planning_status')return Object.keys(args).length===0;
   if(name==='stage_schedule_batch'||name==='confirm_schedule_batch'){
     if(Object.keys(args).length!==1||!Array.isArray(args.items)
@@ -201,9 +230,9 @@ Deno.serve(async request=>{
   if(request.method==='GET')return new Response(null,{status:405,headers:{Allow:'POST','Cache-Control':'no-store'}});
   let body:Record<string,unknown>;
   try{
-    if(Number(request.headers.get('content-length')||0)>16384)return respond({error:'payload_too_large'},413);
+    if(Number(request.headers.get('content-length')||0)>32768)return respond({error:'payload_too_large'},413);
     const raw=await request.text();
-    if(new TextEncoder().encode(raw).length>16384)return respond({error:'payload_too_large'},413);
+    if(new TextEncoder().encode(raw).length>32768)return respond({error:'payload_too_large'},413);
     const value=JSON.parse(raw);
     if(!isObject(value)||value.jsonrpc!=='2.0'||typeof value.method!=='string')throw Error();
     body=value;
@@ -213,7 +242,7 @@ Deno.serve(async request=>{
   if(body.method==='notifications/initialized'&&!('id' in body))
     return new Response(null,{status:202});
   if(body.method==='initialize')
-    return result({protocolVersion:'2025-06-18',capabilities:{tools:{listChanged:true}},serverInfo:{name:'taasiyeda-team-scheduling-agent',version:'0.2.2'}});
+    return result({protocolVersion:'2025-06-18',capabilities:{tools:{listChanged:true}},serverInfo:{name:'taasiyeda-team-scheduling-agent',version:'0.3.0'}});
   if(body.method==='ping')return result({});
   if(body.method==='tools/list')return result({tools:TOOLS});
   if(body.method!=='tools/call')return respond({jsonrpc:'2.0',id,error:{code:-32601,message:'Method not found'}});
@@ -223,6 +252,9 @@ Deno.serve(async request=>{
   if(typeof name!=='string'||!validate(name,args))
     return result({isError:true,content:[{type:'text',text:'invalid_or_unauthorized_arguments'}]});
   const names:Record<string,string>={
+    read_planning_intents:'scheduling_agent_team_read_planning_intents',
+    save_planning_baseline:'scheduling_agent_team_save_planning_baseline',
+    save_intended_instructor:'scheduling_agent_team_save_intended_instructor',
     review_manager_approval:'review_course_assignment_manager_approval',
     read_snapshot:'scheduling_agent_team_read_snapshot',
     planning_status:'scheduling_agent_team_planning_status',
@@ -237,6 +269,9 @@ Deno.serve(async request=>{
     confirm_planning_option:'scheduling_agent_team_confirm_planning_option'
   };
   const input:Record<string,unknown>=(name==='read_snapshot'||name==='planning_status')?{}:
+    name==='read_planning_intents'?{p_emp_id:args.instructorId??null}:
+    name==='save_planning_baseline'?{p_emp_id:args.instructorId,p_plan_text:args.planText,p_expected_version:args.expectedVersion}:
+    name==='save_intended_instructor'?{p_activity_id:args.activityId,p_emp_id:args.instructorId,p_reason:args.reason,p_status:args.status,p_expected_version:args.expectedVersion}:
     name==='review_manager_approval'?{p_request_id:args.requestId,p_status:args.decision}:
     name==='request_optimization'?{p_mode:args.mode}:
     name==='optimization_status'?{p_job_id:args.jobId}:
