@@ -503,7 +503,8 @@ test('activities render: assignment status separates pending approval from truly
   assert.match(allHtml, /מצב שיבוץ: משובץ/);
 });
 
-test('activities render: domain filter shows only E/Y for 2027 and filters rows', () => {
+test('activities render: domain filter supports E/Y/EY for 2027 and filters rows', () => {
+  assert.deepEqual(ACTIVITY_FILTER_FIELDS.find((field) => field.key === 'activity_domain').getValues({ activity_domain: 'EY' }), ['EY']);
   const rows = fixtureRows();
   const state = withFilters(baseState({
     activityPeriodTab: 'school_2027',
