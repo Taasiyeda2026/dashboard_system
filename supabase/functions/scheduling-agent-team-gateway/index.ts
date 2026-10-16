@@ -376,12 +376,28 @@ Deno.serve(async request=>{
       }];
       const staged=await rpc(token,'scheduling_agent_team_stage_schedule_batch',{p_items:stagedItems});
       if('error' in staged){
-        if(['scheduling_transition_unverified','scheduling_home_route_unverified'].includes(String(staged.reasonCode))){
-          // The failed stage transaction rolled back: queue in a separate transaction, never calculate.
-          await rpc(token,'scheduling_agent_team_queue_missing_stage_routes',{p_items:stagedItems}).catch(()=>null);
+        const routeMissing=['scheduling_transition_unverified','scheduling_home_route_unverified']
+          .includes(String(staged.reasonCode));
+        let maintenanceQueued: boolean|null=null;
+        let maintenanceNewCount: number|null=null;
+        if(routeMissing && staged.status < 500){
+          // Registration only, in a separate transaction. Never compute routes or retry a write.
+          const registration=await rpc(token,'scheduling_agent_team_queue_missing_stage_routes',
+            {p_items:stagedItems}).catch(()=>null);
+          if(registration && !('error' in registration)
+             && Number.isInteger(registration.data) && registration.data>=0){
+            maintenanceNewCount=registration.data;
+            maintenanceQueued=registration.data>0;
+          } else maintenanceQueued=false;
         }
-        return errorReply(String(staged.error),
-          String(staged.nextStep||'בדוק את כללי האימות, ההתנגשויות וההרשאות של השיבוץ.'));
+        return result({isError:true,content:[{type:'text',text:JSON.stringify({
+          ok:false,error:staged.error,reasonCode:staged.reasonCode??null,
+          message:staged.message,activityId:staged.activityId??args.activityId,
+          maintenanceQueued,maintenanceNewCount,
+          nextStep:'עצור. בדוק את מסך תחזוקת המסלולים, חשב מסלול חסר ידנית, אמת מרחק וזמן מעבר ורק לאחר מכן קבל אישור לניסיון שמירה חדש.',
+          writesCommitted:staged.status>=500?null:false,
+          outcome:staged.status>=500?'unknown':'rejected',retrySameRequest:false
+        })}]});
       }
       return result({isError:false,content:[{type:'text',text:JSON.stringify({
         ok:true,result:staged.data,calculation:{endDate:schedule.endDate,
@@ -446,7 +462,7 @@ Deno.serve(async request=>{
     if(name==='stage_schedule_batch' && ['scheduling_transition_unverified','scheduling_home_route_unverified'].includes(String(output.reasonCode))){
       // Queue AFTER failed atomic stage, not inside the rolled-back transaction. No Google calls.
       const registration=await rpc(token,'scheduling_agent_team_queue_missing_stage_routes',{p_items:args.items}).catch(()=>null);
-      maintenanceQueued=!!registration && !('error' in registration);
+      maintenanceQueued=!!registration && !('error' in registration) && Number.isInteger(registration.data) && registration.data>0;
     }
     return result({isError:true,content:[{type:'text',text:JSON.stringify({ok:false,error:output.error,reasonCode:output.reasonCode??null,diagnosticCode:output.diagnosticCode??null,message:output.message,nextStep:maintenanceQueued===true?'המסלול החסר נרשם בתחזוקת המסלולים. נדרש חישוב ידני ואחריו ניסיון שיבוץ חדש באישור המשתמש.':output.nextStep,maintenanceQueued,activityId:output.activityId??null,retrySameRequest:false,writesCommitted:output.status>=500?null:false,outcome:output.status>=500?'unknown':'rejected'})}]});
   }
