@@ -61,6 +61,7 @@ async function cachedRoute(db: any, origin: string, destination: string, key: st
     .eq('destination_key', destinationKey)
     .maybeSingle();
   if (error) throw new Error('cache_read_failed');
+  if (cached?.location_suspect === true) throw new Error('location_review_required'); // Await explicit location verification.
 
   const cachedDistance = Number(cached?.distance_km);
   const cachedDuration = Number(cached?.duration_minutes);
