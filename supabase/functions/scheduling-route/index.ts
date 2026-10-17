@@ -397,8 +397,17 @@ function hasUsableMetrics(cached: Record<string, unknown> | null | undefined, pa
   const sameLocation = pair
     ? isSamePlace(pair.origin_address, pair.destination_address)
     : isSamePlace(text(cached.origin_address) || text(cached.origin_key), text(cached.destination_address) || text(cached.destination_key));
+  // A verified two-school campus may have a genuine zero driving leg.
+  // Only honor the explicitly audited, typed pair; never extend this to generic same-city addresses.
+  const sharedCampusZero = distance === 0 && duration === 0
+    && cached.provider === 'manager_verified_shared_campus'
+    && cached.origin_type === 'school' && cached.destination_type === 'school'
+    && Number(cached.origin_school_id) > 0
+    && Number(cached.destination_school_id) > 0
+    && Number(cached.origin_school_id) !== Number(cached.destination_school_id);
   if ((distance === 0 || duration === 0) && !sameLocation
-    && !(distance === 0 && duration === 0 && cached.provider === 'google_verified_zero')) return false;
+    && !(distance === 0 && duration === 0 && cached.provider === 'google_verified_zero')
+    && !sharedCampusZero) return false;
   return true;
 }
 
