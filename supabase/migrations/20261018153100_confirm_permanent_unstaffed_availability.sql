@@ -211,22 +211,9 @@ begin
  execute v;
 end $$;
 
--- Any proposed-dates save may recognize a documented approved absence, but this
--- alone does NOT finalize an assignment or mark the blocked meeting staffed.
-do $$
-declare v text; needle text;
-begin
- v:=pg_get_functiondef('public.scheduling_assert_proposed_eligibility(text,bigint,jsonb)'::regprocedure);
- needle:='then raise exception ''scheduling_instructor_unavailable''; end if;';
- if position(needle in v)=0 then raise exception 'proposed_eligibility_patch_precondition_failed'; end if;
- v:=replace(v,needle,
-   'then' || chr(10) ||
-   '      if not (meeting_date = any(public.scheduling_approved_blocked_dates(p_activity_id,p_emp_id,p_meetings)))' || chr(10) ||
-   '      then raise exception ''scheduling_instructor_unavailable''; end if;' || chr(10) ||
-   '    end if;'
- );
- execute v;
-end $$;
+-- Ordinary proposed-date saves still use scheduling_assert_proposed_eligibility
+-- unchanged. Manager approval NEVER makes an unavailable meeting teachable;
+-- only the dedicated finalization path can record an unstaffed placeholder.
 
 -- Deny direct writes of synthetic "unstaffed" instructor history records.
 -- Existing manual substitution RPCs are security-definer and continue to work.
