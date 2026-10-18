@@ -143,7 +143,7 @@ async function create() {
     const {data,error} = await supabase.from(TABLE).insert(blankRecord()).select('*').single();
     if (error) throw error;
     selected=data; list.unshift(data); stage=0; render();
-  } catch(err) { home(); status(err?.message || 'יצירת הטיוטה נכשלה',true); }
+  } catch(err) { dialog('<div class="io-content"><p class="io-error">יצירת הטיוטה נכשלה: '+e(err?.message || err)+'</p><button type="button" class="io-secondary" data-io-action="home">חזרה לרשימה</button></div>'); }
 }
 function resume(id) {
   selected=list.find(item=>item.id===id);
