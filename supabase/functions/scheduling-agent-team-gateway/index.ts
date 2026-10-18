@@ -474,6 +474,9 @@ Deno.serve(async request=>{
     name==='optimization_status'?{p_job_id:args.jobId}:
     name==='stage_manual_draft'?{p_activity_id:args.activityId,p_emp_id:args.instructorId,p_reason:args.reason??null}:
     (name==='stage_schedule_batch'||name==='confirm_schedule_batch')?{p_items:args.items}:
+    name==='read_permanent_unavailability'?{p_activity_id:args.activityId,p_emp_id:args.instructorId}:
+    name==='approve_permanent_unavailability'?{p_activity_id:args.activityId,p_emp_id:args.instructorId,p_from:args.scopeStart,p_to:args.scopeEnd,p_reason:args.reason}:
+    name==='confirm_permanent_unavailability'?{p_activity_id:args.activityId,p_emp_id:args.instructorId,p_expected_updated_at:args.activityUpdatedAt}:
     name==='confirm_planning_option'?{
       p_activity_id:args.activityId,
       p_option_index:args.optionIndex,
