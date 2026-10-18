@@ -31,9 +31,9 @@ begin
   if target.start_time is null or target.end_time is null or target.start_time >= target.end_time then
     raise exception 'scheduling_activity_hours_missing';
   end if;
-  if jsonb_typeof(p_meetings) <> 'array'
-    or jsonb_array_length(p_meetings) = 0
-    or jsonb_array_length(p_meetings) > 35
+  if jsonb_typeof(p_meetings) is distinct from 'array'
+  then raise exception 'scheduling_proposed_dates_invalid'; end if;
+  if jsonb_array_length(p_meetings) not between 1 and 35
   then raise exception 'scheduling_proposed_dates_invalid'; end if;
 
   -- sessions is the authoritative course length, including wholly undated courses.
