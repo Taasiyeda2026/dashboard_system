@@ -24,7 +24,9 @@ export function canViewImpactFeedback(user) {
     || (userId === '6000' && role === 'operation_manager');
 }
 
-/** Only this pilot account may correct Hebrew/Arabic question wording in drafts. */
+/** Only Israa's specific active account may edit draft Hebrew/Arabic wording. */
 export function canEditImpactFeedbackWording(user) {
-  return !isFeedbackAdmin(user) && canViewImpactFeedback(user);
+  return String(user?.user_id || '').trim() === FEEDBACK_ISRAA_USER_ID
+    && String(user?.role || '').trim().toLowerCase() === 'business_development_manager'
+    && user?.is_active !== false;
 }
