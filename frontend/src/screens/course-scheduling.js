@@ -5607,6 +5607,12 @@ export const courseSchedulingScreen = {
         return;
       }
       const adjustment = selected.dateAdjustment;
+      if (adjustment?.exceedsHalf) {
+        const end = resolveCourseSchedulingPeriod(selectedPeriodKey(state))?.end || '';
+        if (!window.confirm(
+          `חריגת תקופת פעילות נפרדת: המועד האחרון ${formatDateHe(adjustment.newEndDate)} לאחר ${formatDateHe(end)}. אישור בחירת המדריך אינו אישור חריגת מחצית. האם נבדקה ההרשאה והתקבל אישור נפרד למועדים האלה?`
+        )) return;
+      }
       const approvalMessage = adjustment?.exceedsHalf
         ? `המועדים המוצעים חורגים מהמחצית ומסתיימים בתאריך ${formatDateHe(adjustment.newEndDate)}. לאשר סופית את שינוי המועדים ואת שיבוץ ${selected.instructor.full_name}?`
         : `לשבץ את ${selected.instructor.full_name} לפעילות ${result.course.activity_name}?`;
