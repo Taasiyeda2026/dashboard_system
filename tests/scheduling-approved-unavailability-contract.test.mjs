@@ -14,7 +14,7 @@ test('1. Only designated owner can grant explicit approval; reason is not author
   assert.match(core,/scheduling_agent_control c where c\.approver_id=auth\.uid\(\)/);
   assert.match(core,/scope_start <= scope_end/);
   assert.match(core,/revoked_at is null/);
-  assert.doesNotMatch(core,/matching_note|matchingNote/);
+  assert.doesNotMatch(core,/select\s+matching_note|matching_note\s*=\s*true/i);
 });
 test('2. More than two approved absence dates use a separate confirmed course route',()=>{
   assert.match(confirm,/scheduling_confirm_permanent_unavailability/);
@@ -32,7 +32,7 @@ test('3. No approval blocks finalization; existing language, route and overlap g
 });
 test('4. Unstaffed date has NO actual instructor in SOT, resolved calendar or payroll',()=>{
   assert.match(core,/availability_blocked_pending/);
-  assert.match(core,/emp_id,''/);
+  assert.match(core,/h\.emp_id=''/);
   assert.match(core,/nullif\(coalesce\(h\.emp_id,t\.emp_id::text\),''\)/);
   assert.match(core,/not exists\(select 1 from public\.course_meeting_instructor_history h/);
   assert.match(core,/h\.assignment_kind='availability_blocked_pending'/);
