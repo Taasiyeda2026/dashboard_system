@@ -5424,7 +5424,7 @@ export const courseSchedulingScreen = {
       const requestedCount = Number(course.sessions);
       const draftCount = proposedMeetings?.length ?? 0;
       const officialCount = activityMeetings(course).length;
-      if (!Number.isInteger(requestedCount) || requestedCount < 1 || requestedCount > 35) {
+      if (proposedMeetings && (!Number.isInteger(requestedCount) || requestedCount < 1 || requestedCount > 35)) {
         showToast('אישור הטיוטה נחסם: מספר המפגשים הרשמי אינו תקין.', 'error');
         return false;
       }
