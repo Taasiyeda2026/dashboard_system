@@ -275,6 +275,15 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
       && args.startTime<args.endTime
       && (args.reason===undefined || (typeof args.reason==='string' && args.reason.length<=500));
   }
+  if(['read_permanent_unavailability','approve_permanent_unavailability','confirm_permanent_unavailability'].includes(name)){
+    if(!activityId(args.activityId)||typeof args.instructorId!=='number'||!Number.isSafeInteger(args.instructorId)||args.instructorId<=0)return false;
+    if(name==='read_permanent_unavailability')return true;
+    if(name==='confirm_permanent_unavailability')return typeof args.activityUpdatedAt==='string'&&args.activityUpdatedAt.length>=10&&args.activityUpdatedAt.length<=60;
+    return typeof args.reason==='string'&&args.reason.trim().length>=12&&args.reason.length<=1000
+      && typeof args.scopeStart==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(args.scopeStart)
+      && typeof args.scopeEnd==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(args.scopeEnd)
+      && args.scopeStart<=args.scopeEnd;
+  }
   if(name==='request_optimization')return args.mode==='incremental'||args.mode==='full';
   if(name==='optimization_status')return typeof args.jobId==='string'&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(args.jobId);
   if(!activityId(args.activityId))return false;
