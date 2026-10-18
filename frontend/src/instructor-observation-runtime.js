@@ -41,7 +41,8 @@ const localDate = () => { const d = new Date(); return [d.getFullYear(),String(d
 const allowed = user => ['admin','activities_manager','operation_manager'].includes(String(user?.role || '').trim()) && user?.is_active !== false;
 const icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.8"/></svg>';
 let root, userGetter = () => ({}), selected = null, list = [], stage = -1, empId = '', name = '', saveQueue = Promise.resolve(), debounce, activityOptions = [], lastFocus = null;
-let isOpen = false;
+let isOpen = false, viewerAuthId = '';
+const editable = () => !!selected && selected.status === 'draft' && (!selected.created_by || selected.created_by === viewerAuthId);
 
 const statusNode = () => root?.querySelector('[data-io-status]');
 function status(message, bad = false) {
@@ -108,6 +109,8 @@ async function open(id, display, trigger) {
   try {
     if (!supabase) throw new Error('חיבור הנתונים אינו זמין');
     await waitForSupabaseAuthSession({ timeoutMs: 6000 });
+    const userResponse = await supabase.auth.getUser();
+    viewerAuthId = String(userResponse?.data?.user?.id || '');
     const {data,error} = await supabase.from(TABLE).select('*').eq('emp_id',Number(empId)).order('created_at',{ascending:false}).limit(30);
     if (error) throw error;
     list = data || [];
@@ -151,12 +154,12 @@ function resume(id) {
   stage=0; render();
 }
 function field(label,key,type='text',required=false,value='') {
-  return '<label class="io-field"><span>'+e(label)+(required ? ' <em>חובה</em>' : '')+'</span><input type="'+e(type)+'" data-io-detail="'+e(key)+'" value="'+e(value)+'" '+(selected.status==='completed'?'disabled':'')+'></label>';
+  return '<label class="io-field"><span>'+e(label)+(required ? ' <em>חובה</em>' : '')+'</span><input type="'+e(type)+'" data-io-detail="'+e(key)+'" value="'+e(value)+'" '+(!editable()?'disabled':'')+'></label>';
 }
 function choice(key,question,choices) {
   const current=selected.responses?.[key] || '';
   return '<fieldset class="io-question"><legend>'+e(question)+'</legend><div class="io-options">'+choices.map((v) =>
-    '<label class="io-option"><input type="radio" name="io-'+e(key)+'" data-io-answer="'+e(key)+'" value="'+e(v)+'" '+(current===v?'checked ':'')+(selected.status==='completed'?'disabled':'')+'><span>'+e(v)+'</span></label>').join('')+'</div></fieldset>';
+    '<label class="io-option"><input type="radio" name="io-'+e(key)+'" data-io-answer="'+e(key)+'" value="'+e(v)+'" '+(current===v?'checked ':'')+(!editable()?'disabled':'')+'><span>'+e(v)+'</span></label>').join('')+'</div></fieldset>';
 }
 function detailScreen() {
   const d=selected.details || {};
@@ -167,21 +170,21 @@ function detailScreen() {
     field('שם הקורס','course','text',true,d.course || '')+field('מספר מפגש','meeting','number',true,d.meeting || '')+
     field('בית הספר','school','text',true,d.school || '')+field('כיתה','class','text',true,d.class || '')+
     field('מספר תלמידים','students','number',true,d.students || '')+
-    '<label class="io-field"><span>נוכחות צוות בית הספר <em>חובה</em></span><select data-io-detail="school_staff" '+(selected.status==='completed'?'disabled':'')+'><option value="">בחרו…</option><option value="כן" '+(d.school_staff==='כן'?'selected':'')+'>כן</option><option value="לא" '+(d.school_staff==='לא'?'selected':'')+'>לא</option></select></label></div>'+
-    '<label class="io-field"><span>מידע חשוב לצופה לפני תחילת השיעור (אם יש)</span><textarea data-io-detail="important" rows="3" '+(selected.status==='completed'?'disabled':'')+'>'+e(d.important||'')+'</textarea></label>';
+    '<label class="io-field"><span>נוכחות צוות בית הספר <em>חובה</em></span><select data-io-detail="school_staff" '+(!editable()?'disabled':'')+'><option value="">בחרו…</option><option value="כן" '+(d.school_staff==='כן'?'selected':'')+'>כן</option><option value="לא" '+(d.school_staff==='לא'?'selected':'')+'>לא</option></select></label></div>'+
+    '<label class="io-field"><span>מידע חשוב לצופה לפני תחילת השיעור (אם יש)</span><textarea data-io-detail="important" rows="3" '+(!editable()?'disabled':'')+'>'+e(d.important||'')+'</textarea></label>';
 }
 function sectionScreen(index) {
   const s=SECTIONS[index];
   return '<h3>'+e(index+1)+'. '+e(s.title)+'</h3><p class="io-muted">'+e(s.help)+'</p>'+
     s.questions.map((q,i)=>choice(index+'-'+i,q[0],q[1])).join('')+
-    '<label class="io-field"><span>הערות ודוגמאות מהצפייה (לא חובה)</span><textarea data-io-comment="'+index+'" rows="4" placeholder="מה ראיתם בפועל? מה כדאי לשמר או לשפר?" '+(selected.status==='completed'?'disabled':'')+'>'+e(selected.comments?.[index]||'')+'</textarea></label>';
+    '<label class="io-field"><span>הערות ודוגמאות מהצפייה (לא חובה)</span><textarea data-io-comment="'+index+'" rows="4" placeholder="מה ראיתם בפועל? מה כדאי לשמר או לשפר?" '+(!editable()?'disabled':'')+'>'+e(selected.comments?.[index]||'')+'</textarea></label>';
 }
 function summaryScreen() {
   return '<h3>סיכום המשוב</h3><p class="io-muted">הדירוג הכולל הוא הערכת המנהל ואינו ממוצע אוטומטי של סולמות התשובה השונים.</p>'+
     '<fieldset class="io-question"><legend>דירוג כולל של ביצועי המדריך בשיעור</legend><div class="io-options">'+[1,2,3,4,5].map(n=>
-      '<label class="io-option"><input type="radio" name="io-overall" data-io-overall value="'+n+'" '+(Number(selected.overall_rating)===n?'checked ':'')+(selected.status==='completed'?'disabled':'')+'><span>'+n+' · '+e(RATING_LABELS[n])+'</span></label>').join('')+'</div></fieldset>'+
+      '<label class="io-option"><input type="radio" name="io-overall" data-io-overall value="'+n+'" '+(Number(selected.overall_rating)===n?'checked ':'')+(!editable()?'disabled':'')+'><span>'+n+' · '+e(RATING_LABELS[n])+'</span></label>').join('')+'</div></fieldset>'+
     [['strengths','נקודות כוח'],['improvements','נקודות לשיפור'],['summary','סיכום מקצועי וחוות דעת']].map(([key,label])=>
-      '<label class="io-field"><span>'+e(label)+' <em>חובה</em></span><textarea rows="5" data-io-text="'+key+'" '+(selected.status==='completed'?'disabled':'')+'>'+e(selected[key]||'')+'</textarea></label>').join('');
+      '<label class="io-field"><span>'+e(label)+' <em>חובה</em></span><textarea rows="5" data-io-text="'+key+'" '+(!editable()?'disabled':'')+'>'+e(selected[key]||'')+'</textarea></label>').join('');
 }
 function overview() {
   const d=selected.details||{};
@@ -213,15 +216,15 @@ function render() {
   const footer = '<footer class="io-actions"><button type="button" class="io-secondary" data-io-action="home">לכל התצפיות</button><div class="io-actions-main">'+
     (stage>0?'<button type="button" class="io-secondary" data-io-action="back">הקודם</button>':'')+
     (stage<9?'<button type="button" class="io-primary" data-io-action="next">המשך</button>':'')+
-    (stage===9 && !done?'<button type="button" class="io-primary" data-io-action="finish">סיום ושמירת המשוב</button>':'')+
+    (stage===9 && editable()?'<button type="button" class="io-primary" data-io-action="finish">סיום ושמירת המשוב</button>':'')+
     (stage===9 && done?'<button type="button" class="io-primary" data-io-action="print">הפקת PDF</button>':'')+
     '</div></footer>';
   dialog('<div class="io-progress"><div class="io-progress-header"><span>שלב '+(stage+1)+' מתוך '+stages.length+' · '+e(stages[stage])+'</span><span>'+Math.round((stage+1)/stages.length*100)+'%</span></div><div class="io-track"><span style="width:'+Math.round((stage+1)/stages.length*100)+'%"></span></div></div>'+
-    '<main class="io-content">'+body+'</main><p class="io-save-status" data-io-status aria-live="polite">'+(done?'המשוב הושלם וננעל לעריכה':'שינויים נשמרים כטיוטה')+'</p>'+footer);
+    '<main class="io-content">'+body+'</main><p class="io-save-status" data-io-status aria-live="polite">'+(done?'המשוב הושלם וננעל לעריכה':editable()?'שינויים נשמרים כטיוטה':'טיוטה לצפייה בלבד')+'</p>'+footer);
   root.querySelector('.io-print').innerHTML=report();
 }
 function capture() {
-  if (!selected || selected.status!=='draft') return;
+  if (!editable()) return;
   root.querySelectorAll('[data-io-detail]').forEach(el => {
     const key=el.dataset.ioDetail, val=el.value;
     if (key==='date') selected.observation_date=val;
@@ -235,7 +238,7 @@ function capture() {
   if (rating) selected.overall_rating=Number(rating.value);
 }
 function persist(final=false) {
-  if (!selected || selected.status==='completed') return Promise.resolve();
+  if (!editable()) return Promise.resolve();
   const snapshot={observer_name:selected.observer_name,observation_date:selected.observation_date,
     details:{...selected.details},responses:{...selected.responses},comments:{...selected.comments},
     overall_rating:selected.overall_rating,strengths:selected.strengths,improvements:selected.improvements,summary:selected.summary,
@@ -285,7 +288,7 @@ async function onClick(event) {
   }
 }
 function onInput(event) {
-  if (!selected || selected.status==='completed') return;
+  if (!editable()) return;
   const target=event.target;
   if (target.matches('[data-io-pick-activity]')) {
     const idx=Number(target.value);
