@@ -229,7 +229,7 @@ begin
    public.scheduling_effective_meetings(v_activity, v_activity.emp_id)) item
    where item->>'date'=p_meeting_date::text)
  then raise exception 'scheduling_meeting_not_found'; end if;
- select * into v_sub from public.contacts_instructors where emp_id=p_substitute_emp_id;
+ select * into v_sub from public.contacts_instructors ci where ci.emp_id=p_substitute_emp_id;
  if not found then raise exception 'instructor_not_found';end if;
   select *
     into v_existing
