@@ -5082,11 +5082,13 @@ export const courseSchedulingScreen = {
           </section>`;
         }).join('');
       };
-      void supabase.rpc('scheduling_permanent_availability_options', { p_activity_id: selectedCourseId })
-        .then(({ data: options, error }) => {
-          if (error) { availabilityHost.textContent = 'לא ניתן לטעון אישורי חריג זמינות'; return; }
-          paintApprovedAvailability(options);
-        });
+      try {
+        void Promise.resolve(supabase.rpc('scheduling_permanent_availability_options', { p_activity_id: selectedCourseId }))
+          .then(({ data: options, error }) => {
+            if (error) { availabilityHost.textContent = 'לא ניתן לטעון אישורי חריג זמינות'; return; }
+            paintApprovedAvailability(options);
+          }).catch(() => { /* An optional read must never break ordinary scheduling controls. */ });
+      } catch { /* Mock/older clients may not yet expose this endpoint. */ }
       availabilityHost.addEventListener('click', async event => {
         const button = event.target.closest?.('[data-confirm-approved-unavailable]');
         if (!button || !canEdit || !selectedCourseId) return;
