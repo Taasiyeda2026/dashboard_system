@@ -110,6 +110,14 @@ export async function computeAgentSchedulingPlan({
   if (signal?.aborted) throw new AgentPlanningInputError('planning_cancelled');
 
   const intents = applyPlanningIntents(snapshot);
+  // A manager's active intended-instructor choice is represented by a protected
+  // exception row and deliberately omitted from intents.snapshot.activities.
+  // A dirty row may still appear in the authoritative incremental target list;
+  // passing its ID to the engine after removing its activity would otherwise
+  // raise planning_scope_conflict. Exclude only these held IDs, never unrelated
+  // or unknown targets (the engine must continue to reject those).
+  const heldCourseIds = new Set(intents.rows.map(row => String(row.courseId)));
+  const runnableTargetCourseIds = metadata.targetCourseIds.filter(id => !heldCourseIds.has(id));
   const result = await buildDynamicCoursePlan({
     ...intents.snapshot,
     periodKey: 'year',
@@ -119,7 +127,7 @@ export async function computeAgentSchedulingPlan({
     checkpoint: checkpoint || createPlanningCheckpoint({signal}),
     onProgress,
     _nationalRun: mode === 'full',
-    targetCourseIds: mode === 'full' ? null : metadata.targetCourseIds,
+    targetCourseIds: mode === 'full' ? null : runnableTargetCourseIds,
     allowGlobalRepair: mode === 'full'
   });
 
