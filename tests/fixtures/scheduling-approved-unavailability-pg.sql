@@ -133,7 +133,7 @@ create function public.scheduling_assert_assignment_calendar(
 declare target public.activities; meeting jsonb;
 begin
  select * into target from public.activities where row_id=p_activity_id;
- p_meetings := public.scheduling_validate_proposed_meetings(p_activity_id, p_meetings);
+  p_meetings := public.scheduling_validate_proposed_meetings(p_activity_id, p_meetings);
  for meeting in select value from jsonb_array_elements(p_meetings) loop
   if meeting->>'date' is null then raise exception 'scheduling_proposed_dates_invalid'; end if;
  end loop;
@@ -231,7 +231,7 @@ begin
  then raise exception 'scheduling_meeting_not_found'; end if;
  select * into v_sub from public.contacts_instructors where emp_id=p_substitute_emp_id;
  if not found then raise exception 'instructor_not_found';end if;
- select *
+  select *
     into v_existing
   from public.course_meeting_instructor_history h
   where h.activity_id=p_activity_id and h.meeting_date=p_meeting_date
@@ -264,7 +264,7 @@ begin
  previous_emp_id=excluded.previous_emp_id,
  previous_instructor_name=excluded.previous_instructor_name,
  replaces_history=excluded.replaces_history;
- return query
+  return query
   select h.meeting_date, h.emp_id, h.instructor_name, h.recorded_at
   from public.course_meeting_instructor_history h where h.activity_id=p_activity_id and h.meeting_date=p_meeting_date;
 end $$;
