@@ -224,6 +224,9 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
     confirm_schedule_batch:['items'],
     submit_manager_approval:['activityId'],
     confirm_own_draft:['activityId'],
+    read_permanent_unavailability:['activityId','instructorId'],
+    approve_permanent_unavailability:['activityId','instructorId','scopeStart','scopeEnd','reason'],
+    confirm_permanent_unavailability:['activityId','instructorId','activityUpdatedAt'],
     confirm_planning_option:['activityId','optionIndex','workspaceRevision','sourceRevision','allowDateChange']
   };
   if(!allowed[name]||Object.keys(args).some(k=>!allowed[name].includes(k)))return false;
