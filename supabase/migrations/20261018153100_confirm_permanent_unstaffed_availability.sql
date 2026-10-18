@@ -92,12 +92,12 @@ grant execute on function public.scheduling_confirm_permanent_unavailability(tex
 -- The dashboard's fenced assignment gateway supports this as an explicit
 -- separate operation; ordinary assignment and draft flows remain unchanged.
 do $$
-declare v text; needle text:='  else raise exception ''scheduling_action_not_allowed'' using errcode=''42501''; end if;';
+declare v text; needle text:=' else raise exception ''scheduling_action_not_allowed'' using errcode=''42501''; end if;';
 begin
  v:=pg_get_functiondef('public.scheduling_dashboard_assignment(text,jsonb,timestamptz,bigint,bigint)'::regprocedure);
  if position(needle in v)=0 then raise exception 'dashboard_assignment_patch_precondition_failed'; end if;
  v:=replace(v,needle,
-   '  elsif p_rpc=''scheduling_confirm_permanent_unavailability'' then' || chr(10) ||
+   ' elsif p_rpc=''scheduling_confirm_permanent_unavailability'' then' || chr(10) ||
    '   result:=public.scheduling_confirm_permanent_unavailability((p_args->>''p_activity_id'')::text,(p_args->>''p_emp_id'')::bigint,p_expected_updated_at);' || chr(10) || needle
  );
  execute v;
