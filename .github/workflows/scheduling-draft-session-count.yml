@@ -1,0 +1,59 @@
+name: Scheduling Draft Sessions Count
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/20261018112000_fix_course_draft_sessions_count.sql'
+      - 'frontend/src/screens/course-scheduling.js'
+      - 'supabase/functions/scheduling-agent-team-gateway/**'
+      - 'docs/SCHEDULING_AGENT_TEAM_ACTIONABLE_WORKFLOW.md'
+      - 'tests/scheduling-draft-count-sessions-postgres.test.mjs'
+      - 'tests/fixtures/draft-session-count-postgres.sql'
+      - '.github/workflows/scheduling-draft-session-count.yml'
+permissions:
+  contents: read
+jobs:
+  postgres-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: test-only-local
+          POSTGRES_DB: scheduling_sessions_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Execute session-count and finalization acceptance tests
+        env:
+          DRAFT_COUNT_TEST_DATABASE_URL: postgresql://postgres:test-only-local@127.0.0.1:5432/scheduling_sessions_ci
+        run: node --test tests/scheduling-draft-count-sessions-postgres.test.mjs
+  existing-scheduling-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify existing date-adjustment and team agent behavior
+        run: |
+          node --test \
+            tests/course-scheduling-date-adjustments.test.mjs \
+            tests/scheduling-agent-team-actionable-workflow.test.mjs \
+            tests/scheduling-agent-team-read-staged-schedule.test.mjs \
+            tests/scheduling-dashboard-agent-controls.test.mjs
