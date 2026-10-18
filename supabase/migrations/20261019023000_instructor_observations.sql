@@ -65,6 +65,107 @@ begin
     or btrim(new.summary) = ''
     or new.observation_date is null
     or new.completed_at is null
+    or nullif(btrim(new.observer_name), '') is null
+    or nullif(btrim(new.details->>'course'), '') is null
+    or nullif(btrim(new.details->>'school'), '') is null
+    or nullif(btrim(new.details->>'class'), '') is null
+    or coalesce(new.details->>'school_staff','') not in ('כן','לא')
+    or coalesce(new.details->>'meeting','') !~ '^[1-9][0-9]*
+    raise exception 'instructor_observation_summary_incomplete' using errcode = '23514';
+  end if;
+  new.updated_at = now();
+  return new;
+end;
+$fn$;
+drop trigger if exists instructor_observations_immutable on public.instructor_observations;
+create trigger instructor_observations_immutable
+  before update on public.instructor_observations
+  for each row execute function public.instructor_observation_immutable();
+
+alter table public.instructor_observations enable row level security;
+drop policy if exists instructor_observations_read on public.instructor_observations;
+create policy instructor_observations_read on public.instructor_observations
+for select to authenticated using (
+  public.can_manage_instructor_observations()
+  and (created_by = auth.uid() or public.app_current_role() = 'admin')
+);
+drop policy if exists instructor_observations_insert on public.instructor_observations;
+create policy instructor_observations_insert on public.instructor_observations
+for insert to authenticated with check (
+  public.can_manage_instructor_observations()
+  and created_by = auth.uid()
+  and status = 'draft'
+);
+drop policy if exists instructor_observations_update on public.instructor_observations;
+create policy instructor_observations_update on public.instructor_observations
+for update to authenticated
+using (
+  public.can_manage_instructor_observations()
+  and created_by = auth.uid()
+  and status = 'draft'
+)
+with check (
+  public.can_manage_instructor_observations()
+  and created_by = auth.uid()
+  and status in ('draft','completed')
+);
+
+revoke all on public.instructor_observations from public, anon;
+grant select, insert, update on public.instructor_observations to authenticated;
+-- Deliberately no DELETE policy: completed records form part of the management audit trail.
+comment on table public.instructor_observations is
+'Confidential instructor observation reviews. Separate from feedback campaigns; drafts editable by creator, completed reports immutable.';
+
+    or coalesce(new.details->>'students','') !~ '^[1-9][0-9]*
+    raise exception 'instructor_observation_summary_incomplete' using errcode = '23514';
+  end if;
+  new.updated_at = now();
+  return new;
+end;
+$fn$;
+drop trigger if exists instructor_observations_immutable on public.instructor_observations;
+create trigger instructor_observations_immutable
+  before update on public.instructor_observations
+  for each row execute function public.instructor_observation_immutable();
+
+alter table public.instructor_observations enable row level security;
+drop policy if exists instructor_observations_read on public.instructor_observations;
+create policy instructor_observations_read on public.instructor_observations
+for select to authenticated using (
+  public.can_manage_instructor_observations()
+  and (created_by = auth.uid() or public.app_current_role() = 'admin')
+);
+drop policy if exists instructor_observations_insert on public.instructor_observations;
+create policy instructor_observations_insert on public.instructor_observations
+for insert to authenticated with check (
+  public.can_manage_instructor_observations()
+  and created_by = auth.uid()
+  and status = 'draft'
+);
+drop policy if exists instructor_observations_update on public.instructor_observations;
+create policy instructor_observations_update on public.instructor_observations
+for update to authenticated
+using (
+  public.can_manage_instructor_observations()
+  and created_by = auth.uid()
+  and status = 'draft'
+)
+with check (
+  public.can_manage_instructor_observations()
+  and created_by = auth.uid()
+  and status in ('draft','completed')
+);
+
+revoke all on public.instructor_observations from public, anon;
+grant select, insert, update on public.instructor_observations to authenticated;
+-- Deliberately no DELETE policy: completed records form part of the management audit trail.
+comment on table public.instructor_observations is
+'Confidential instructor observation reviews. Separate from feedback campaigns; drafts editable by creator, completed reports immutable.';
+
+    or not (new.responses ?& array[
+      '0-0','0-1','1-0','1-1','1-2','2-0','2-1','2-2',
+      '3-0','3-1','4-0','4-1','4-2','5-0','5-1'
+    ])
   ) then
     raise exception 'instructor_observation_summary_incomplete' using errcode = '23514';
   end if;
