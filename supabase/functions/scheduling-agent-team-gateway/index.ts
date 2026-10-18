@@ -133,6 +133,24 @@ const TOOLS = [
     inputSchema: {type:'object',properties:{activityId:{type:'string'}},required:['activityId'],additionalProperties:false}
   },
   {
+    name:'read_permanent_unavailability',
+    annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false},
+    description:'Read documented scoped permanent-course approval and blocked lesson statuses for one instructor and activity. No writes.',
+    inputSchema:{type:'object',properties:{activityId:{type:'string'},instructorId:{type:'integer',minimum:1}},required:['activityId','instructorId'],additionalProperties:false}
+  },
+  {
+    name:'approve_permanent_unavailability',
+    annotations:{readOnlyHint:false,destructiveHint:true,idempotentHint:false,openWorldHint:false},
+    description:'Designated manager ONLY. Record explicit activity, instructor, date-range and reason approval to finalize permanent allocation while blocked lessons stay UNSTAFFED. Requires explicit manager consent. This does not change availability.',
+    inputSchema:{type:'object',properties:{activityId:{type:'string'},instructorId:{type:'integer',minimum:1},scopeStart:{type:'string'},scopeEnd:{type:'string'},reason:{type:'string',minLength:12,maxLength:1000}},required:['activityId','instructorId','scopeStart','scopeEnd','reason'],additionalProperties:false}
+  },
+  {
+    name:'confirm_permanent_unavailability',
+    annotations:{readOnlyHint:false,destructiveHint:true,idempotentHint:false,openWorldHint:false},
+    description:'Finalize permanent instructor ONLY after confirming matching manager approval, current revision, and obtaining explicit final consent. Blocked lessons are persisted without an effective teaching instructor.',
+    inputSchema:{type:'object',properties:{activityId:{type:'string'},instructorId:{type:'integer',minimum:1},activityUpdatedAt:{type:'string',minLength:10,maxLength:60}},required:['activityId','instructorId','activityUpdatedAt'],additionalProperties:false}
+  },
+  {
     name: 'confirm_planning_option',
     description: 'Confirm a fresh verified existing plan option, including proposed dates. Requires explicit confirmation. Changing agreed future dates requires separate explicit consent. Never change past sessions or approve exceptions.',
     inputSchema: {type:'object',properties:{
