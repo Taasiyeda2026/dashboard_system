@@ -163,7 +163,7 @@ end $$;
 -- Substitute writes may target a blocked day: the date exists in official
 -- course dates even though it is absent from the staffed effective calendar.
 do $$
-declare v text; needle text; 
+declare v text; needle text;
 begin
  v:=pg_get_functiondef('public.set_course_meeting_substitute(text,date,bigint)'::regprocedure);
  needle:='public.scheduling_effective_meetings(v_activity, v_activity.emp_id)';
@@ -196,7 +196,7 @@ do $$
 declare v text; needle text;
 begin
  v:=pg_get_functiondef('public.clear_course_meeting_substitute(text,date)'::regprocedure);
- needle:='  v_restore_history :='; 
+ needle:='  v_restore_history :=';
  if position(needle in v)=0 then raise exception 'clear_substitute_patch_precondition_failed'; end if;
  v:=replace(v,needle,
    '  if v_existing.availability_approval_id is not null then' || chr(10) ||
