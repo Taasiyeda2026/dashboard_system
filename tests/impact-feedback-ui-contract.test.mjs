@@ -762,9 +762,11 @@ test('impact-feedback preserves admin/Israa access and adds read-only operationa
   assert.equal(canEditImpactFeedbackWording({ user_id: '6000', role: 'operation_manager' }), false);
   assert.equal(canViewImpactFeedback({ user_id: '6001', role: 'operation_manager', is_active: true }), false);
   assert.equal(canViewImpactFeedback({ role: 'finance', is_active: true }), false);
-  assert.match(screen, /const LIMITED_VIEWER_TABS = new Set\(\['overview', 'students', 'instructors', 'staff'\]\)/);
+  assert.match(screen, /const LIMITED_VIEWER_TABS = new Set\(\['overview', 'students', 'instructors', 'staff', 'analysis'\]\)/);
   assert.match(screen, /host\.classList\.toggle\('is-feedback-limited-viewer', isLimitedFeedbackViewer\(\)\)/);
-  assert.match(styles, /\.ifb-admin\.is-feedback-limited-viewer \[data-ifb-analyze\]/);
+  assert.doesNotMatch(styles, /\.ifb-admin\.is-feedback-limited-viewer \[data-ifb-analyze\]/);
+  assert.match(screen, /if \(!visibleFeedbackTabs\(\)\.some\(\(tab\) => tab\.key === 'analysis'\)\) return;/);
+  assert.match(main, /route === 'impact-feedback' \|\| \(/);
 
   const policy = readFileSync(new URL('../supabase/migrations/20261018154000_feedback_managers_readonly_results.sql', import.meta.url), 'utf8');
   assert.match(policy, /create or replace function private\.feedback_can_view_results\(\)/);
