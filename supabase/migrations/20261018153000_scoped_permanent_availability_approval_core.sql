@@ -147,7 +147,7 @@ create or replace function public.scheduling_effective_meetings(
         where h.activity_id=p_activity.row_id
           and h.meeting_date=(value->>'date')::date
           and h.assignment_kind='availability_blocked_pending'
-          and h.emp_id='' and p_activity.emp_id=p_emp_id)
+          and h.emp_id='' and h.previous_emp_id=p_emp_id::text)
   ) effective
 $$;
 
