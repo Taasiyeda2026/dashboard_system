@@ -19,8 +19,10 @@ import { hasPermission } from './permission-policy.js';
 import { canViewImpactFeedback, isFeedbackInstructor } from './impact-feedback/feedback-access.js';
 import { countPendingApprovedProposals } from './screens/shared/proposals-pending-count.js';
 import { bootstrapLocalBaselineMonitor } from './local-baseline-monitor.js';
+import { installInstructorObservationRuntime } from './instructor-observation-runtime.js';
 
 const app = document.getElementById('app');
+installInstructorObservationRuntime({ getUser: () => state.user });
 bootstrapLocalBaselineMonitor({
   buildEnabled: import.meta.env.DEV || import.meta.env.VITE_DS_BASELINE_MONITOR === 'true',
   getContext: () => ({
