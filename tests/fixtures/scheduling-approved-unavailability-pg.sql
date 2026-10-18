@@ -237,7 +237,7 @@ begin
   where h.activity_id=p_activity_id and h.meeting_date=p_meeting_date
   for update;
  v_existing_found:=found;
- if v_existing_found and v_existing.assignment_kind = 'single_meeting_substitution' then
+  if v_existing_found and v_existing.assignment_kind = 'single_meeting_substitution' then
    v_previous_emp_id:=coalesce(v_existing.previous_emp_id,v_activity.emp_id::text);
    v_previous_instructor_name:=coalesce(v_existing.previous_instructor_name,v_activity.instructor_name);
    v_replaces_history:=coalesce(v_existing.replaces_history,false);
