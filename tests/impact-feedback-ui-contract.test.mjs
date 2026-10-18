@@ -766,7 +766,6 @@ test('impact-feedback preserves admin/Israa access and adds read-only operationa
   assert.match(screen, /host\.classList\.toggle\('is-feedback-limited-viewer', isLimitedFeedbackViewer\(\)\)/);
   assert.doesNotMatch(styles, /\.ifb-admin\.is-feedback-limited-viewer \[data-ifb-analyze\]/);
   assert.match(screen, /if \(!visibleFeedbackTabs\(\)\.some\(\(tab\) => tab\.key === 'analysis'\)\) return;/);
-  assert.match(main, /route === 'impact-feedback' \|\| \(/);
 
   const policy = readFileSync(new URL('../supabase/migrations/20261018154000_feedback_managers_readonly_results.sql', import.meta.url), 'utf8');
   assert.match(policy, /create or replace function private\.feedback_can_view_results\(\)/);
@@ -778,6 +777,7 @@ test('impact-feedback preserves admin/Israa access and adds read-only operationa
   assert.match(policy, /feedback_results_write_guard_expanded/);
 
   const main = readFileSync(new URL('../frontend/src/main.js', import.meta.url), 'utf8');
+  assert.match(main, /route === 'impact-feedback' \|\| \(/);
   assert.match(main, /if \(route === 'impact-feedback'\) return canViewImpactFeedback\(user\)/);
   assert.match(main, /!state\.token \|\| !\(canViewImpactFeedback\(state\.user\) \|\| isFeedbackInstructor\(state\.user\)\)/);
   assert.match(screen, /if \(isFeedbackInstructor\(state\?\.user\)\)/);
