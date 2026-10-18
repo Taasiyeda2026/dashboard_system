@@ -14,6 +14,26 @@ test('undated intended instructor survives full computation without becoming an 
  assert.deepEqual(result.rows[0].meetings,[]);
  assert.equal(JSON.stringify(snapshot),before);
 });
+test('incremental dirty row with protected instructor intent stays protected without a scope conflict',async()=>{
+ const before=JSON.stringify(snapshot);
+ const result=await computeAgentSchedulingPlan({
+  snapshot,sourceRevision:'1',workspaceRevision:'1',mode:'incremental',
+  targetCourseIds:['course-1'],routeClient:{peek:()=>null,request:async()=>null}
+ });
+ assert.equal(result.diagnostics.finalPlanValid,true);
+ assert.deepEqual(result.rows.map(row=>row.courseId),['course-1']);
+ assert.equal(result.rows[0].kind,'exception');
+ assert.equal(result.rows[0].planningIntent.protected,true);
+ assert.equal(result.rows[0].planningIntent.instructorId,1);
+ assert.equal(result.rows[0].instructorEmpId,null);
+ assert.equal(JSON.stringify(snapshot),before);
+});
+test('protected intent exclusion does not hide unrelated invalid incremental targets',async()=>{
+ await assert.rejects(computeAgentSchedulingPlan({
+  snapshot,sourceRevision:'1',workspaceRevision:'1',mode:'incremental',
+  targetCourseIds:['course-1','unknown-activity'],routeClient:{peek:()=>null,request:async()=>null}
+ }),error=>error?.code==='planning_scope_conflict');
+});
 test('holds remove stale proposals and preserve official non-cancelled meeting dates',()=>{
  const out=applyPlanningIntents({...snapshot,activities:[{...course,date_1:'2026-11-01',date_2:'2026-11-08',start_time:'10:00',end_time:'11:30',cancelled_meeting_dates:['2026-11-08']}],existingRows:[{courseId:'course-1',instructorEmpId:99}],committedRows:[{courseId:'course-1'}]});
  assert.equal(out.snapshot.activities.length,0);assert.equal(out.snapshot.existingRows.length,0);
