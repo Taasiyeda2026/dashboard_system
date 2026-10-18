@@ -1935,10 +1935,11 @@ function selectedCoursePanelHtml(row, state) {
         <p>${Number(schoolInfo.anchorActivityCount) || 0} פעילויות locked/fixed · ${Number(schoolInfo.flexibleActivityCount) || 0} פעילויות גמישות</p>
         <strong>${schoolInfo.packingStatus === 'avoidable_split' ? '⚠ ניתן לצמצם את הפיצול' : (schoolInfo.packingStatus === 'required_split' ? 'הפיצול נדרש' : 'התכנון מרוכז')}</strong>`}</section>`
     : '';
+  const approvalHost = '<section data-approved-permanent-availability-host aria-live="polite"></section>';
   if (row.isAssigned && state.courseSchedulingReplacementCourseId !== row.id) {
-    return `${header}${schoolContext}${assignedDetailHtml(row, state)}`;
+    return `${header}${schoolContext}${approvalHost}${assignedDetailHtml(row, state)}`;
   }
-  if (row.hasDraft) return `${header}${schoolContext}${draftDetailHtml(row.course)}`;
+  if (row.hasDraft) return `${header}${schoolContext}${approvalHost}${draftDetailHtml(row.course)}`;
 
   const finding = !!state.courseSchedulingLoading;
   const result = row.result;
@@ -1953,7 +1954,7 @@ function selectedCoursePanelHtml(row, state) {
       <label>סיבה${replacementMeetings ? ' *' : ''}<textarea class="course-scheduling-input" data-replacement-reason>${escapeHtml(state.courseSchedulingReplacementReason || '')}</textarea></label>
       ${replacementMeetings >= 2 ? `<label>תאריך כניסה לתוקף *<input class="course-scheduling-input" type="date" data-replacement-effective-from value="${escapeHtml(state.courseSchedulingReplacementEffectiveFrom || '')}"></label><label><input type="checkbox" data-replacement-confirm ${state.courseSchedulingReplacementConfirmed ? 'checked' : ''}> אני מאשר/ת את ההחלפה התפעולית</label>` : ''}
     </div>` : '';
-  return `${header}${schoolContext}${replacementControls}
+  return `${header}${schoolContext}${approvalHost}${replacementControls}
     <div class="course-scheduling-primary-action">
       <button type="button" class="${findButtonClass}" data-find-instructors ${finding ? 'disabled' : ''}>
         ${SCHEDULING_AGENT_OWNS_COMPUTE ? (finding ? 'טוען חלופות מהסוכן…' : 'טען חלופות ובחירה ידנית') : finding ? 'בודק מדריכים...' : (hasSuggestion ? 'בדיקה מחדש של מדריכים' : 'מצא מדריכים מתאימים')}
@@ -5057,6 +5058,58 @@ export const courseSchedulingScreen = {
     const bindingRoot = includeRootControls ? root : detailRoot;
     const selectedCourseId = state.courseSchedulingSelectedId;
     const selectedCourse = courseById.get(selectedCourseId);
+
+    // This is a separate, server-authorized choice, not a relaxation of the
+    // standard recommendation engine's two-exception recovery budget.
+    const availabilityHost = detailRoot.querySelector('[data-approved-permanent-availability-host]');
+    if (availabilityHost && selectedCourseId && !data._is_stale) {
+      const paintApprovedAvailability = options => {
+        if (!availabilityHost.isConnected || text(state.courseSchedulingSelectedId) !== text(selectedCourseId)) return;
+        const rows = Array.isArray(options) ? options : [];
+        availabilityHost.innerHTML = rows.map(option => {
+          const dates = Array.isArray(option.blockedDates) ? option.blockedDates : [];
+          const pending = Array.isArray(option.unresolvedMeetings) ? option.unresolvedMeetings : [];
+          const empId = Number(option.empId);
+          const name = escapeHtml(option.fullName || String(empId));
+          const scheduled = Number(selectedCourse?.emp_id) === empId;
+          const status = pending.length ? 'שיבוץ אושר – קיימים מפגשים לטיפול' : 'אישור חריג מתועד';
+          return `<section class="course-scheduling-alert" data-approved-availability-choice>
+            <strong>${name} — ${escapeHtml(status)}</strong>
+            <p>המדריכה קבועה לקורס בלבד; המפגשים החסומים אינם מאוישים עד לשיבוץ מחליפה או שינוי מועד.</p>
+            <p>מפגשים החסומים לפי האישור: ${dates.map(date => `<bdi dir="ltr">${escapeHtml(formatDateHe(date) || date)}</bdi>`).join(' · ') || '—'}</p>
+            ${pending.length ? `<p>נדרש טיפול – מפגש חסום: ${pending.map(x => escapeHtml(formatDateHe(x.date) || x.date)).join(' · ')}</p>` : ''}
+            ${canEdit && !selectedCourse?.emp_id && !selectedCourse?.instructor_assignment_locked ? `<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-confirm-approved-unavailable="${empId}">שבץ כמדריכה קבועה; השאר מפגשים חסומים לטיפול</button>` : ''}
+          </section>`;
+        }).join('');
+      };
+      void supabase.rpc('scheduling_permanent_availability_options', { p_activity_id: selectedCourseId })
+        .then(({ data: options, error }) => {
+          if (error) { availabilityHost.textContent = 'לא ניתן לטעון אישורי חריג זמינות'; return; }
+          paintApprovedAvailability(options);
+        });
+      availabilityHost.addEventListener('click', async event => {
+        const button = event.target.closest?.('[data-confirm-approved-unavailable]');
+        if (!button || !canEdit || !selectedCourseId) return;
+        const empId = Number(button.dataset.confirmApprovedUnavailable);
+        if (!Number.isInteger(empId) || empId <= 0) return;
+        if (!window.confirm('לאשר שיבוץ קבוע לפי האישור המתועד? המפגשים החסומים יישארו לא מאוישים ויידרשו לטיפול נפרד.')) return;
+        button.disabled = true;
+        const { data: updatedActivity, error } = await assignmentRpc('scheduling_confirm_permanent_unavailability', {
+          p_activity_id: selectedCourseId, p_emp_id: empId
+        });
+        if (error) {
+          showToast(translateSchedulingAssignmentError(error.message, 'אישור השיבוץ הקבוע נכשל'), 'error');
+          button.disabled = false;
+          return;
+        }
+        applyReturnedSchedulingActivity(data.activities, updatedActivity);
+        clearScreenDataCache?.();
+        invalidatePlanningWorkboard();
+        state.courseSchedulingSelectedId = selectedCourseId;
+        showToast('שיבוץ אושר – קיימים מפגשים לטיפול', 'success');
+        rerender();
+      });
+    }
 
     detailRoot.querySelector('[data-open-single-substitute]')?.addEventListener('click', async () => {
       if (!canEdit || !substituteAccess.allowed || !selectedCourseId) return;
