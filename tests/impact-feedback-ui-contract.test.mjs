@@ -629,7 +629,8 @@ test('analysis shows explicit counts and scoring scales instead of statistical N
   assert.match(analysis, /תשובות שהתקבלו/);
   assert.match(analysis, /תשובות למדד:/);
   assert.match(analysis, /מתוך 5/);
-  assert.match(analysis, /ifb-analysis-breakdown/);
+  // The analysis uses the question/metrics tables; the old breakdown wrapper was removed.
+  assert.match(analysis, /ifb-q-table/);
   assert.doesNotMatch(analysis, /N תקפות|N=\\$\\{/);
 });
 
