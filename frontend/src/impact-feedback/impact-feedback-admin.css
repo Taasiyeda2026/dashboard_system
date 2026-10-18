@@ -2007,10 +2007,6 @@
 ) { display: none !important; }
 
 
-/* These drill-down actions jump to the analysis tab, which is not in the
-   four-tab viewer scope. Hide them only for activity managers and Eden. */
-.ifb-admin.is-feedback-limited-viewer [data-ifb-analyze] { display: none !important; }
-
 /* Instructor feedback only — quiet, legible tables; no change to admin tables. */
 .ifb-admin.is-feedback-instructor { gap: 12px; padding-block: 16px 22px; }
 .ifb-admin.is-feedback-instructor .ifb-admin__head { min-height: 38px; }
