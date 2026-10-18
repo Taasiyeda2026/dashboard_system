@@ -459,6 +459,9 @@ Deno.serve(async request=>{
     confirm_schedule_batch:'scheduling_agent_team_confirm_schedule_batch',
     submit_manager_approval:'scheduling_agent_team_submit_manager_approval',
     confirm_own_draft:'scheduling_agent_team_confirm_own_draft',
+    read_permanent_unavailability:'scheduling_permanent_unavailability_state',
+    approve_permanent_unavailability:'scheduling_approve_permanent_unavailability',
+    confirm_permanent_unavailability:'scheduling_confirm_permanent_unavailability',
     confirm_planning_option:'scheduling_agent_team_confirm_planning_option'
   };
   const input:Record<string,unknown>=(name==='read_snapshot'||name==='planning_status')?{}:
