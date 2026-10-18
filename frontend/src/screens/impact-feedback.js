@@ -160,8 +160,8 @@ const ui = {
 
 let feedbackReadOnly = false;
 let feedbackCanEditWording = false;
-// Activity managers and Eden may read survey results, but not analysis or templates.
-const LIMITED_VIEWER_TABS = new Set(['overview', 'students', 'instructors', 'staff']);
+// Activity managers and Eden may view results and analysis, but never templates or editing.
+const LIMITED_VIEWER_TABS = new Set(['overview', 'students', 'instructors', 'staff', 'analysis']);
 function isLimitedFeedbackViewer() {
   return feedbackReadOnly && !feedbackCanEditWording;
 }
@@ -506,7 +506,7 @@ function shellHtml(inner) {
   return `
     <div class="ifb-admin__head">
       <h1 class="ifb-admin__title">משובים</h1>
-      ${feedbackReadOnly ? `<p class="ifb-viewer-note">${feedbackCanEditWording ? 'ניתן לערוך נוסחי שאלות בעברית ובערבית בטיוטה · פרסום ושינוי מבנה השאלון בידי אדמין' : 'גישה לצפייה במשובים בלבד · ללא עריכה, תבניות או פעולות שליחה'}</p>` : ''}
+      ${feedbackReadOnly ? `<p class="ifb-viewer-note">${feedbackCanEditWording ? 'ניתן לערוך נוסחי שאלות בעברית ובערבית בטיוטה · פרסום ושינוי מבנה השאלון בידי אדמין' : 'גישה לצפייה במשובים ובניתוח בלבד · ללא עריכה, תבניות או פעולות שליחה'}</p>` : ''}
       <button type="button" class="ifb-icon-btn ifb-icon-btn--lg" data-ifb-refresh title="טעינה מחדש של הנתונים" aria-label="טעינה מחדש של הנתונים">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"></path></svg>
       </button>
