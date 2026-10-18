@@ -17,7 +17,7 @@ const claimBackfill = readFileSync(
 
 test('PRE opening may pass pre-activation revalidation at every guard; FINAL remains restricted', () => {
   assert.match(preBackfill,/or stage=\\'pre\\'/);
-  assert.match(claimBackfill,/o\.stage<>''pre''/);
+  assert.match(claimBackfill,/o\.stage<>'pre'/);
   assert.match(migration,/after_guard constant text := 'or \(c\.eligibility_at<ctl\.activation_at and o\.stage<>''pre''\)'/);
   assert.match(migration,/before_guard constant text := 'or c\.eligibility_at<ctl\.activation_at'/);
   assert.match(sendSource,/if not found or not ctl\.enabled or ctl\.activation_at is null or c\.eligibility_at<ctl\.activation_at/);
