@@ -65,9 +65,9 @@ begin
  end if;
  if old.emp_id is null and new.emp_id is not null and
    not exists (select 1 from public.course_meeting_instructor_history h
-     join public.scheduling_permanent_availability_approvals p on p.id=h.availability_approval_id
+     left join public.scheduling_permanent_availability_approvals p on p.id=h.availability_approval_id
      where h.activity_id=new.row_id and h.assignment_kind='availability_blocked_pending'
-       and p.emp_id<>new.emp_id)
+       and (p.emp_id is distinct from new.emp_id or p.revoked_at is not null))
  then return new; end if;
  raise exception 'scheduling_unstaffed_meetings_need_resolution';
 end $$;
