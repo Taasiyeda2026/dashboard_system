@@ -737,7 +737,7 @@ test('five student syllabi use the approved age-appropriate bilingual layout and
   assert.match(publicCss, /\.ifb-shell\.is-syllabus-student \.ifb-hero__intro--approved/);
 });
 
-test('impact-feedback temporary access is limited to active admin and specific Israa account', () => {
+test('impact-feedback preserves admin/Israa access and adds read-only operational viewers', () => {
   const allowed = { user_id: '3030', role: 'business_development_manager', is_active: true };
   assert.equal(canViewImpactFeedback({ user_id: 'a1', role: 'admin' }), true);
   assert.equal(isFeedbackAdmin(allowed), false);
@@ -751,6 +751,28 @@ test('impact-feedback temporary access is limited to active admin and specific I
   assert.equal(canViewImpactFeedback({ ...allowed, user_id: '303' }), false);
   assert.equal(canViewImpactFeedback({ role: 'business_development_manager' }), false);
   assert.equal(canViewImpactFeedback(null), false);
+  for (const user_id of ['1500', '5000']) {
+    const manager = { user_id, role: 'activities_manager', is_active: true };
+    assert.equal(canViewImpactFeedback(manager), true);
+    assert.equal(canEditImpactFeedbackWording(manager), false);
+    assert.equal(canViewImpactFeedback({ ...manager, is_active: false }), false);
+  }
+  assert.equal(canViewImpactFeedback({ user_id: '6000', role: 'operation_manager', is_active: true }), true);
+  assert.equal(canEditImpactFeedbackWording({ user_id: '6000', role: 'operation_manager' }), false);
+  assert.equal(canViewImpactFeedback({ user_id: '6001', role: 'operation_manager', is_active: true }), false);
+  assert.equal(canViewImpactFeedback({ role: 'finance', is_active: true }), false);
+  assert.match(screen, /const LIMITED_VIEWER_TABS = new Set\(\['overview', 'students', 'instructors', 'staff'\]\)/);
+  assert.match(screen, /host\.classList\.toggle\('is-feedback-limited-viewer', isLimitedFeedbackViewer\(\)\)/);
+  assert.match(styles, /\.ifb-admin\.is-feedback-limited-viewer \[data-ifb-analyze\]/);
+
+  const policy = readFileSync(new URL('../supabase/migrations/20261018154000_feedback_managers_readonly_results.sql', import.meta.url), 'utf8');
+  assert.match(policy, /create or replace function private\.feedback_can_view_results\(\)/);
+  assert.match(policy, /u\.role = 'activities_manager'/);
+  assert.match(policy, /u\.role = 'operation_manager' and u\.user_id = '6000'/);
+  assert.match(policy, /create policy feedback_metrics_results_view_select/);
+  assert.match(policy, /create policy feedback_programs_results_view_select/);
+  assert.match(policy, /feedback_results_template_exposure/);
+  assert.match(policy, /feedback_results_write_guard_expanded/);
 
   const main = readFileSync(new URL('../frontend/src/main.js', import.meta.url), 'utf8');
   assert.match(main, /if \(route === 'impact-feedback'\) return canViewImpactFeedback\(user\)/);
@@ -759,7 +781,7 @@ test('impact-feedback temporary access is limited to active admin and specific I
   assert.match(screen, /if \(!canViewImpactFeedback\(state\?\.user\)\)/);
   assert.match(screen, /feedbackReadOnly = !isFeedbackAdmin\(state\?\.user\)/);
   assert.match(screen, /visibleFeedbackTabs\(\)\.map/);
-  assert.match(screen, /function visibleFeedbackTabs\(\) \{\s+return TABS;/);
+  assert.match(screen, /function visibleFeedbackTabs\(\) \{\s+return isLimitedFeedbackViewer\(\) \? TABS\.filter/);
   assert.match(screen, /if \(feedbackReadOnly\) \{ event\.preventDefault\(\); return; \}/);
   assert.match(screen, /feedbackReadOnly && t\.closest/);
   assert.match(styles, /\.ifb-admin\.is-feedback-readonly :is/);
