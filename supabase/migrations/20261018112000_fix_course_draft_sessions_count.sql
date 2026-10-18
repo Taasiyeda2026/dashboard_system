@@ -31,66 +31,23 @@ begin
   if target.start_time is null or target.end_time is null or target.start_time >= target.end_time then
     raise exception 'scheduling_activity_hours_missing';
   end if;
-  if jsonb_typeof(p_meetings) is distinct from 'array'
-  then raise exception 'scheduling_proposed_dates_invalid'; end if;
-  if jsonb_array_length(p_meetings) not between 1 and 35
-  then raise exception 'scheduling_proposed_dates_invalid'; end if;
+  if jsonb_typeof(p_meetings) is distinct from 'array' then raise exception 'scheduling_proposed_dates_invalid'; end if;
+  if jsonb_array_length(p_meetings) not between 1 and 35 then raise exception 'scheduling_proposed_dates_invalid'; end if;
 
-  -- sessions is the authoritative course length, including wholly undated courses.
-  -- Reject malformed counts before casting; never interpret missing sessions as zero.
+  -- Course sessions, not official dates, is authoritative for an unconfirmed draft.
   sessions_text := btrim(coalesce(target.sessions, ''));
-  if sessions_text !~ '^[0-9]{1,2}
-
-  for item in select value from jsonb_array_elements(p_meetings) loop
-    if nullif(item->>'date', '') is null then raise exception 'scheduling_proposed_dates_invalid'; end if;
-    begin
-      item_date := (item->>'date')::date;
-    exception when others then
-      raise exception 'scheduling_proposed_dates_invalid';
-    end;
-
-    if extract(dow from item_date) = 6 and coalesce(activity_sector, '') not in ('arab','druze') then raise exception 'scheduling_saturday_blocked'; end if;
-    if not public.school_calendar_activity_exception_exists(target.row_id, item_date)
-      and exists (
-        select 1 from public.school_calendar c
-        where c.is_active = true
-          and c.blocks_scheduling = true
-          and c.start_date is not null
-          and public.school_calendar_event_applies(c.calendar_sector, activity_sector)
-          and item_date between c.start_date and coalesce(c.end_date, c.start_date)
-      )
-    then raise exception 'scheduling_school_calendar_blocked'; end if;
-    if last_date is not null and item_date <= last_date then raise exception 'scheduling_proposed_dates_invalid'; end if;
-
-    effective_end := public.scheduling_effective_end_time(p_activity_id, item_date, target.end_time);
-    if effective_end is null or effective_end <= target.start_time then raise exception 'scheduling_activity_hours_missing'; end if;
-    last_date := item_date;
-    canonical := canonical || jsonb_build_array(jsonb_build_object(
-      'date', item_date,
-      'start_time', target.start_time,
-      'end_time', effective_end
-    ));
-  end loop;
-  return canonical;
-end
-$function$
- then
+  if sessions_text !~ '^[0-9]+$' or length(sessions_text)>2 then
     raise exception 'scheduling_activity_sessions_invalid';
   end if;
   required_count := sessions_text::integer;
-  if required_count not between 1 and 35 then
-    raise exception 'scheduling_activity_sessions_invalid';
-  end if;
+  if required_count not between 1 and 35 then raise exception 'scheduling_activity_sessions_invalid'; end if;
   if jsonb_array_length(p_meetings) <> required_count then
     raise exception 'scheduling_proposed_meeting_count_mismatch';
   end if;
-
   select count(*) into official_count
   from generate_series(1,35) n
   where nullif(to_jsonb(target)->>('date_' || n), '') is not null;
-  -- A blank official calendar is normal before a first confirmed assignment.
-  -- A partially populated existing calendar is NOT permission to overwrite it.
-  if official_count > 0 and official_count <> required_count then
+  if official_count>0 and official_count<>required_count then
     raise exception 'scheduling_existing_official_meeting_count_conflict';
   end if;
 
