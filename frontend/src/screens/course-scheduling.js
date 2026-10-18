@@ -280,6 +280,12 @@ const SCHEDULING_ASSIGNMENT_ERROR_HE = {
   scheduling_permission_denied:        'אין הרשאה לביצוע שיבוץ. נדרשת הרשאת שיבוצים',
   scheduling_activity_not_open:        'הפעילות אינה פתוחה לשיבוץ',
   scheduling_activity_dates_missing:   'תאריכי המפגשים חסרים בפעילות',
+  scheduling_activity_sessions_invalid: 'מספר המפגשים הרשמי חסר או אינו תקין — יש לתקן את נתון הקורס',
+  scheduling_proposed_meeting_count_mismatch: 'מספר המפגשים בטיוטה אינו שווה למספר המפגשים המוגדר בקורס',
+  scheduling_existing_official_meeting_count_conflict: 'הלוח הרשמי מכיל מספר מפגשים שאינו תואם לנתון הקורס — אין לדרוס אותו',
+  scheduling_existing_official_meetings_protected: 'הקורס כבר מכיל מועדים רשמיים שונים — נדרש תהליך שינוי מועדים נפרד',
+  scheduling_draft_meetings_changed: 'מועדי האישור שונים מהמועדים בטיוטה השמורה — יש לבדוק מחדש לפני אישור',
+  scheduling_draft_changed: 'טיוטת השיבוץ השתנתה או שייכת למדריך אחר — רעננו את הנתונים',
   scheduling_activity_hours_missing:   'שעות המפגש חסרות או שגויות בפעילות',
   instructor_not_found:                'המדריך לא נמצא במאגר — ייתכן שהנתונים השתנו',
   instructor_inactive:                 'המדריך אינו פעיל',
@@ -1833,7 +1839,7 @@ function draftDetailHtml(course) {
   const proposed = draftProposedMeetingsFromCourse(course);
   return `<p class="course-scheduling-status-chip is-draft">${STATUS.draft}</p>
     <p>מדריך בטיוטה: <b>${escapeHtml(course.draft_instructor_name || course.draft_emp_id)}</b></p>
-    <p class="course-scheduling-muted">הטיוטה שומרת את השיבוץ המוצע ואינה מעדכנת את הפעילות עד לאישור.</p>
+    <p class="course-scheduling-muted">הטיוטה שומרת את השיבוץ המוצע ואינה מעדכנת את הפעילות עד לאישור. מספר מפגשים נדרש: <b>${escapeHtml(course.sessions || 'לא הוגדר')}</b>; בטיוטה: <b>${proposed?.proposedMeetings?.length ?? 0}</b>.</p>
     ${proposed ? proposedMeetingsPanelHtml(proposed) : ''}
     ${proposed ? halfOverflowWarningHtml(proposed) : ''}
     <div class="course-scheduling-detail-actions">
@@ -5415,12 +5421,28 @@ export const courseSchedulingScreen = {
       const halfEnd = resolveCourseSchedulingPeriod(selectedPeriodKey(state))?.end || '';
       const exceedsHalf = !!proposedEnd && !!halfEnd && proposedEnd > halfEnd;
       const movedCount = Number(proposedSummary?.movedMeetingsCount) || 0;
+      const requestedCount = Number(course.sessions);
+      const draftCount = proposedMeetings?.length ?? 0;
+      const officialCount = activityMeetings(course).length;
+      if (!Number.isInteger(requestedCount) || requestedCount < 1 || requestedCount > 35) {
+        showToast('אישור הטיוטה נחסם: מספר המפגשים הרשמי אינו תקין.', 'error');
+        return false;
+      }
+      if (proposedMeetings && draftCount !== requestedCount) {
+        showToast(`אישור הטיוטה נחסם: נדרשים ${requestedCount} מפגשים, אך קיימים ${draftCount} בטיוטה. מועדים רשמיים קיימים: ${officialCount}.`, 'error');
+        return false;
+      }
       let approvalMessage = `לאשר את הטיוטה ולשבץ את ${course.draft_instructor_name || course.draft_emp_id}?`;
       if (movedCount > 0) {
         approvalMessage = `הטיוטה כוללת ${movedCount} מועדים מוצעים (סיום מקורי ${formatDateHe(originalEnd) || '—'}, סיום מוצע ${formatDateHe(proposedEnd) || '—'}). לאשר את הטיוטה כשיבוץ סופי?`;
       }
       if (exceedsHalf) {
-        approvalMessage = `המועדים בטיוטה מסתיימים בתאריך ${formatDateHe(proposedEnd)} וחורגים מהתקופה שנבחרה. לאשר כשיבוץ סופי?`;
+        // Deliberately distinct from the permanent-instructor/admin approval.
+        // Neither the draft nor any official meeting is changed by this warning.
+        const dateOverflowAcknowledged = window.confirm(
+          `חריגת תקופת פעילות נפרדת: המפגשים בטיוטה מסתיימים בתאריך ${formatDateHe(proposedEnd)}, אחרי ${formatDateHe(halfEnd)} (סוף התקופה שנבחרה). אישור מנהל לחריגת מדריך אינו בהכרח אישור לחריגת מחצית. אין להזיז או למחוק מועדים אוטומטית. האם יש הרשאה ואישור נפרד להמשיך עם המועדים האלה?`
+        );
+        if (!dateOverflowAcknowledged) return false;
       }
       if (!window.confirm(approvalMessage)) return false;
       if (trigger) trigger.disabled = true;
@@ -5441,7 +5463,11 @@ export const courseSchedulingScreen = {
         }
       );
       if (error) {
-        showToast(translateSchedulingAssignmentError(error.message, 'אישור הטיוטה נכשל'), 'error');
+        const mismatch = String(error.message || '').includes('scheduling_proposed_meeting_count_mismatch');
+        const failureText = mismatch
+          ? `אישור הטיוטה נכשל: נדרשים ${requestedCount} מפגשים, בטיוטה ${draftCount}, בלוח הרשמי ${officialCount}. יש לבדוק את הטיוטה השמורה ולא ליצור אותה מחדש.`
+          : translateSchedulingAssignmentError(error.message, 'אישור הטיוטה נכשל');
+        showToast(failureText, 'error');
         if (trigger) trigger.disabled = false;
         return false;
       }
