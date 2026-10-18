@@ -13,7 +13,7 @@ const migration=readFileSync(new URL('../supabase/migrations/20261018112000_fix_
 test('new validator is based on sessions, not populated official dates',()=>{
  assert.match(migration,/required_count := sessions_text::integer/);
  assert.match(migration,/jsonb_array_length\(p_meetings\) <> required_count/);
- assert.match(migration,/official_count > 0 and official_count <> required_count/);
+ assert.match(migration,/official_count\s*>\s*0\s*and\s*official_count\s*<>\s*required_count/);
  assert.match(migration,/scheduling_existing_official_meetings_protected/);
  assert.match(migration,/scheduling_activity_sessions_invalid/);
  assert.doesNotMatch(migration,/jsonb_array_length\(p_meetings\) <> official_count/);
