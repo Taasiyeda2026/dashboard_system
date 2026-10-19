@@ -5331,6 +5331,12 @@ export const courseSchedulingScreen = {
       if (SCHEDULING_AGENT_OWNS_COMPUTE) {
         if(state.courseSchedulingLoading)return;
         state.courseSchedulingLoading=true;
+        // Explicitly switching to saved recommendations closes the direct
+        // manual picker. Otherwise its already-open toggle closes the choices,
+        // including when the operator returns to an agent recommendation.
+        state.courseSchedulingManualPickerOpen=false;
+        state.courseSchedulingManualSearch='';
+        state.courseSchedulingManualConfirmation=null;
         state.courseSchedulingManualSelection=null;
         state.courseSchedulingError='';
         rerender();
