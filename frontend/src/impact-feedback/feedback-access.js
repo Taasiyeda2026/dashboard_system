@@ -1,6 +1,7 @@
 /**
- * Temporary feedback rollout: only administrators and Israa's specific active user.
- * The server independently checks the authenticated auth.uid() against public.users.
+ * Feedback permissions: admin (full), Israa (existing wording pilot),
+ * activity managers and Eden (results-only), instructors (personal portal).
+ * The server independently checks auth.uid() against public.users.
  * Frontend checks only control navigation; they are not an authorization boundary.
  */
 export const FEEDBACK_ISRAA_USER_ID = '3030';
@@ -15,12 +16,17 @@ export function isFeedbackAdmin(user) {
 
 export function canViewImpactFeedback(user) {
   if (isFeedbackAdmin(user)) return true;
-  return String(user?.user_id || '').trim() === FEEDBACK_ISRAA_USER_ID
-    && String(user?.role || '').trim() === 'business_development_manager'
-    && user?.is_active !== false;
+  if (user?.is_active === false) return false;
+  const role = String(user?.role || '').trim().toLowerCase();
+  const userId = String(user?.user_id || '').trim();
+  return (userId === FEEDBACK_ISRAA_USER_ID && role === 'business_development_manager')
+    || role === 'activities_manager'
+    || (userId === '6000' && role === 'operation_manager');
 }
 
-/** Only this pilot account may correct Hebrew/Arabic question wording in drafts. */
+/** Only Israa's specific active account may edit draft Hebrew/Arabic wording. */
 export function canEditImpactFeedbackWording(user) {
-  return !isFeedbackAdmin(user) && canViewImpactFeedback(user);
+  return String(user?.user_id || '').trim() === FEEDBACK_ISRAA_USER_ID
+    && String(user?.role || '').trim().toLowerCase() === 'business_development_manager'
+    && user?.is_active !== false;
 }

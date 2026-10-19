@@ -22,8 +22,8 @@ function instructorLabelFor(status) {
 function actionLabelFor(status) {
   if (status === 'שובץ') return 'החלף מדריך';
   if (status === 'שמור כטיוטה') return 'פתח טיוטה';
-  if (status === 'נמצאה המלצה') return 'בדוק מדריכים';
-  return 'מצא מדריך';
+  if (status === 'נמצאה המלצה') return 'בחר מדריך';
+  return 'שיבוץ ידני';
 }
 
 function cssEscape(value) {
@@ -34,10 +34,11 @@ function cssEscape(value) {
 function triggerFindAction(screen, courseId) {
   if (!courseId) return false;
   const selected = screen.querySelector(`[data-course-card="${cssEscape(courseId)}"].is-selected`);
-  const findButton = screen.querySelector('[data-course-detail] [data-find-instructors]');
-  if (!selected || !findButton || findButton.disabled) return false;
+  const manualButton = screen.querySelector('[data-course-detail] [data-open-manual-assignment]');
+  const actionButton = manualButton || screen.querySelector('[data-course-detail] [data-find-instructors]');
+  if (!selected || !actionButton || actionButton.disabled) return false;
   pendingFindCourseId = '';
-  findButton.click();
+  actionButton.click();
   return true;
 }
 

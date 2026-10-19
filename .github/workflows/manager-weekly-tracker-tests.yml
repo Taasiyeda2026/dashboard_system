@@ -1,0 +1,26 @@
+name: Manager Weekly Tracker Tests
+on:
+  pull_request:
+    paths:
+      - 'frontend/src/manager-weekly-manual-tracking.js'
+      - 'frontend/src/manager-gantt-placeholder-runtime.js'
+      - 'tests/manager-weekly-manual-tracking.test.mjs'
+      - 'tests/manager-gantt-payroll-permissions.test.mjs'
+      - 'supabase/migrations/20261019141000_manager_weekly_manual_tracking.sql'
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/src/manager-weekly-manual-tracking.js'
+      - 'frontend/src/manager-gantt-placeholder-runtime.js'
+      - 'tests/manager-weekly-manual-tracking.test.mjs'
+      - 'tests/manager-gantt-payroll-permissions.test.mjs'
+jobs:
+  manager-weekly:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run focused manager weekly tests
+        run: node --test tests/manager-weekly-manual-tracking.test.mjs tests/manager-gantt-payroll-permissions.test.mjs

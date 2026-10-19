@@ -160,8 +160,13 @@ const ui = {
 
 let feedbackReadOnly = false;
 let feedbackCanEditWording = false;
+// Activity managers and Eden may view results and analysis, but never templates or editing.
+const LIMITED_VIEWER_TABS = new Set(['overview', 'students', 'instructors', 'staff', 'analysis']);
+function isLimitedFeedbackViewer() {
+  return feedbackReadOnly && !feedbackCanEditWording;
+}
 function visibleFeedbackTabs() {
-  return TABS;
+  return isLimitedFeedbackViewer() ? TABS.filter((tab) => LIMITED_VIEWER_TABS.has(tab.key)) : TABS;
 }
 
 function programByKey(key) {
@@ -501,7 +506,7 @@ function shellHtml(inner) {
   return `
     <div class="ifb-admin__head">
       <h1 class="ifb-admin__title">משובים</h1>
-      ${feedbackReadOnly ? `<p class="ifb-viewer-note">${feedbackCanEditWording ? 'ניתן לערוך נוסחי שאלות בעברית ובערבית בטיוטה · פרסום ושינוי מבנה השאלון בידי אדמין' : 'גישה לצפייה וניתוח בלבד · פעולות ניהול נשארות לאדמין'}</p>` : ''}
+      ${feedbackReadOnly ? `<p class="ifb-viewer-note">${feedbackCanEditWording ? 'ניתן לערוך נוסחי שאלות בעברית ובערבית בטיוטה · פרסום ושינוי מבנה השאלון בידי אדמין' : 'גישה לצפייה במשובים ובניתוח בלבד · ללא עריכה, תבניות או פעולות שליחה'}</p>` : ''}
       <button type="button" class="ifb-icon-btn ifb-icon-btn--lg" data-ifb-refresh title="טעינה מחדש של הנתונים" aria-label="טעינה מחדש של הנתונים">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"></path></svg>
       </button>
@@ -2222,6 +2227,7 @@ async function handleClick(host, event) {
   if (t.closest('[data-ifb-retry]') || t.closest('[data-ifb-refresh]')) { await load(host, { force: true }); return; }
   const analyze = t.closest('[data-ifb-analyze]');
   if (analyze) {
+    if (!visibleFeedbackTabs().some((tab) => tab.key === 'analysis')) return;
     ui.course = analyze.dataset.ifbAnalyze;
     await switchTab(host, 'analysis');
     window.scrollTo({ top: 0 });
@@ -2731,6 +2737,13 @@ function mount(host, state) {
   feedbackReadOnly = !isFeedbackAdmin(state?.user);
   feedbackCanEditWording = canEditImpactFeedbackWording(state?.user);
   host.classList.toggle('is-feedback-readonly', feedbackReadOnly);
+  host.classList.toggle('is-feedback-limited-viewer', isLimitedFeedbackViewer());
+  // Never retain an admin/Israa-only tab when a results-only viewer signs in.
+  if (!visibleFeedbackTabs().some((tab) => tab.key === ui.tab)) {
+    ui.tab = 'overview';
+    ui.groupRowId = null;
+  }
+  if (!visibleFeedbackTabs().some((tab) => tab.key === ui.groupReturnTab)) ui.groupReturnTab = 'students';
   // A previous admin session may have opened a draft editor. Reset it on a
   // viewer session so published content is fetched without any stale admin state.
   if (feedbackReadOnly) ui.templates.templateId = null;

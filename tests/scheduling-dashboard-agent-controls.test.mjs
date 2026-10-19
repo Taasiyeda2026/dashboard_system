@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
-import {agentCandidateResult,createAgentAssignmentClient} from '../frontend/src/screens/course-scheduling-agent-selection.js';
+import {agentCandidateResult,manualInstructorResult,createAgentAssignmentClient} from '../frontend/src/screens/course-scheduling-agent-selection.js';
 import {courseSchedulingScreen,instructorsResultsHtml} from '../frontend/src/screens/course-scheduling.js';
 import {supabase} from '../frontend/src/supabase-client.js';
 const version='2026-10-15T08:00:00Z';
@@ -43,7 +43,7 @@ function ui({assigned=false,draft=false,stale=false,allowed=true,rpcImpl,mutateI
  dom.window.confirm=()=>true;
  const state={route:'course-scheduling',user:allowed?eden:{role:'operation_manager',permissions:{}},courseSchedulingSelectedId:course.row_id,courseSchedulingFocusMode:true,courseSchedulingPlanningSharedLoaded:true};
  const activity={...course,...(assigned?{emp_id:'6',instructor_name:'קודם',instructor_assignment_locked:true}:{}),...(draft?{draft_emp_id:'7',draft_instructor_name:instructor.full_name}:{})};
- const data={activities:[activity],instructors:[instructor],scheduling:{},_is_stale:stale,_planningSharedLoadedKey:'year|',meetingState:{loaded:true,approvedDates:new Map(),cancelledDates:new Map()}};
+ const data={activities:[activity],instructors:[instructor,{emp_id:'8',full_name:'בחירה ידנית',active:'yes'}],scheduling:{},_is_stale:stale,_planningSharedLoadedKey:'year|',meetingState:{loaded:true,approvedDates:new Map(),cancelledDates:new Map()}};
  const root=document.querySelector('#root');const old=supabase.rpc;const calls=[];
  supabase.rpc=async(name,args)=>{calls.push({name,args});if(rpcImpl)return rpcImpl(name,args);
   if(name==='get_scheduling_dashboard_candidates')return {data:{...snapshot,activity}};
@@ -71,12 +71,88 @@ test('Eden operation_manager loads agent candidates and saves a draft without br
   assert.equal(f.data.activities[0].draft_emp_id,'7');
  }finally{f.close();}
 });
-test('existing assignment replacement opens agent choices instead of disabled runFindInstructors',async()=>{
+test('manual candidates do not require agent options or pretend to be eligible',()=>{
+ const r=manualInstructorResult(course,[instructor,{emp_id:'8',full_name:'בחירה ידנית'}]);
+ assert.equal(r.manualOnly,true);assert.equal(r.agentSnapshot,undefined);
+ assert.equal(r.recommended,null);assert.equal(r.manualCandidates.length,2);
+ assert.equal(r.manualCandidates[1].serverValidationRequired,true);
+ assert.equal(r.manualCandidates[1].eligible,false);
+});
+test('Eden saves a manual draft without calling the agent or planner',async()=>{
+ const f=ui();try{
+  f.root.querySelector('[data-open-manual-assignment]').click();await settle();
+  assert.equal(f.state.courseSchedulingResults[0].manualOnly,true);
+  assert.ok(f.root.querySelector('[data-manual-candidate="8"]'));
+  assert.ok(!f.calls.some(c=>c.name==='get_scheduling_dashboard_candidates'));
+  f.root.querySelector('[data-manual-candidate="8"]').click();
+  f.root.querySelector('[data-confirm-manual-candidate]').click();await settle();
+  const writes=f.calls.filter(c=>c.name==='scheduling_dashboard_assignment');
+  assert.equal(writes.length,1);
+  assert.equal(writes[0].args.p_rpc,'save_course_assignment_manual_draft');
+  assert.equal(writes[0].args.p_args.p_emp_id,8);
+  assert.equal(writes[0].args.p_expected_source_revision,null);
+  assert.equal(writes[0].args.p_expected_workspace_revision,null);
+  assert.equal(f.data.activities[0].draft_emp_id,'8');
+  assert.ok(!f.calls.some(c=>c.name==='get_scheduling_dashboard_candidates'));
+ }finally{f.close();}
+});
+test('manual action ignores earlier agent workspace revision',async()=>{
+ const f=ui();try{
+  f.root.querySelector('[data-find-instructors]').click();await settle();
+  f.root.querySelector('[data-open-manual-assignment]').click();await settle();
+  f.root.querySelector('[data-manual-candidate="8"]').click();
+  f.root.querySelector('[data-confirm-manual-candidate]').click();await settle();
+  const write=f.calls.find(c=>c.name==='scheduling_dashboard_assignment');
+  assert.equal(write.args.p_expected_source_revision,null);
+  assert.equal(write.args.p_expected_workspace_revision,null);
+ }finally{f.close();}
+});
+test('Eden reassigns manually without agent suggestions',async()=>{
+ const f=ui({assigned:true});try{
+  f.root.querySelector('[data-change-assignment]').click();await settle();
+  f.root.querySelector('[data-manual-candidate="8"]').click();
+  f.root.querySelector('[data-confirm-manual-candidate]').click();await settle();
+  assert.equal(f.state.courseSchedulingSelectedCandidateId,'8');
+  const reason=f.root.querySelector('[data-replacement-reason]');
+  reason.value='שיבוץ ידני תפעולי';reason.dispatchEvent(new window.Event('input',{bubbles:true}));
+  f.root.querySelector('[data-assign-course]').click();await settle();
+  const write=f.calls.find(c=>c.name==='scheduling_dashboard_assignment');
+  assert.equal(write.args.p_rpc,'reassign_locked_course_instructor');
+  assert.equal(write.args.p_args.p_new_emp_id,8);
+  assert.ok(!f.calls.some(c=>c.name==='get_scheduling_dashboard_candidates'));
+ }finally{f.close();}
+});
+test('planning-only lock does not force a global plan run before manual selection',async()=>{
+ const f=ui();try{
+  f.state.courseSchedulingPlanningRows=[{courseId:course.row_id,planningLocked:true,instructorEmpId:'7',kind:'planning-locked'}];
+  f.render();
+  const manual=f.root.querySelector('[data-open-manual-assignment]');
+  assert.ok(manual);manual.click();await settle();
+  assert.ok(f.root.querySelector('[data-manual-candidate="8"]'));
+  assert.ok(!f.calls.some(c=>c.name==='get_scheduling_dashboard_candidates'));
+ }finally{f.close();}
+});
+test('opening saved recommendations closes the direct manual picker exactly once',async()=>{
+ const f=ui({assigned:true});try{
+  f.root.querySelector('[data-change-assignment]').click();await settle();
+  assert.equal(f.state.courseSchedulingManualPickerOpen,true);
+  assert.ok(f.root.querySelector('[data-manual-candidate="8"]'));
+  f.root.querySelector('[data-find-instructors]').click();await settle();
+  assert.equal(f.state.courseSchedulingManualPickerOpen,false);
+  assert.equal(f.root.querySelector('[data-manual-candidate="8"]'),null);
+  f.root.querySelector('[data-toggle-manual-picker]').click();
+  assert.equal(f.state.courseSchedulingManualPickerOpen,true);
+  assert.ok(f.root.querySelector('[data-manual-candidate="8"]'));
+  assert.equal(f.calls.filter(c=>c.name==='get_scheduling_dashboard_candidates').length,1);
+ }finally{f.close();}
+});
+test('existing assignment replacement opens manual picker without calling the agent',async()=>{
  const f=ui({assigned:true});try{
   f.root.querySelector('[data-change-assignment]').click();await settle();
   assert.equal(f.state.courseSchedulingReplacementCourseId,course.row_id);
-  assert.ok(f.calls.some(c=>c.name==='get_scheduling_dashboard_candidates'));
-  assert.ok(f.root.querySelector('[data-assign-course]'));
+  assert.equal(f.calls.filter(c=>c.name==='get_scheduling_dashboard_candidates').length,0);
+  assert.ok(f.root.querySelector('[data-manual-candidate="8"]'));
+  assert.ok(!f.root.querySelector('[data-assign-course]'));
  }finally{f.close();}
 });
 test('cached UI offers explicit refresh and keeps write controls disabled',async()=>{
@@ -100,6 +176,7 @@ test('Eden confirms a stored draft through the guarded server assignment RPC',as
 test('Eden confirms replacement without changing course dates',async()=>{
  const f=ui({assigned:true});try{
   f.root.querySelector('[data-change-assignment]').click();await settle();
+  f.root.querySelector('[data-find-instructors]').click();await settle();
   f.root.querySelector('[data-assign-course]').click();await settle();
   assert.ok(f.calls.some(c=>c.name==='scheduling_dashboard_assignment'&&c.args.p_rpc==='reassign_locked_course_instructor'));
   assert.equal(f.data.activities[0].emp_id,7);assert.equal(f.data.activities[0].date_1,course.date_1);
@@ -154,6 +231,7 @@ for(const {failure,completed} of [{failure:null,completed:0},{failure:'schedulin
  const f=ui({assigned:true,mutateImpl:()=>pending,completed});
  try{
   f.root.querySelector('[data-change-assignment]').click();await settle();
+  f.root.querySelector('[data-find-instructors]').click();await settle();
   assert.equal(f.state.courseSchedulingResults[0].recommended.instructor.emp_id,'7');
   assert.equal(f.root.querySelectorAll('[data-manual-picker]').length,1);
   f.root.querySelector('[data-toggle-manual-picker]').click();
@@ -195,6 +273,7 @@ for(const kind of ['recommended','bestAvailable'])test('direct result HTML inclu
 test('choosing the recommended instructor through manual picker still awaits server verification',async()=>{
  const f=ui({assigned:true});try{
   f.root.querySelector('[data-change-assignment]').click();await settle();
+  f.root.querySelector('[data-find-instructors]').click();await settle();
   f.root.querySelector('[data-toggle-manual-picker]').click();
   f.root.querySelector('[data-manual-candidate="7"]').click();
   f.root.querySelector('[data-confirm-manual-candidate]').click();await settle();

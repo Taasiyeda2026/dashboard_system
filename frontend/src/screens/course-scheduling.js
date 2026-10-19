@@ -1,4 +1,4 @@
-import { createAgentAssignmentClient } from './course-scheduling-agent-selection.js';
+import { createAgentAssignmentClient, manualInstructorResult } from './course-scheduling-agent-selection.js';
 import { reusablePointWorkspace, refreshCommittedPointWorkspace } from './course-scheduling-point-workspace.js';
 import { undatedProposalNeedsNewStart } from './course-scheduling-start-policy.js';
 import { schedulingPointWorker } from './course-scheduling-worker-client.js';
@@ -280,6 +280,12 @@ const SCHEDULING_ASSIGNMENT_ERROR_HE = {
   scheduling_permission_denied:        'אין הרשאה לביצוע שיבוץ. נדרשת הרשאת שיבוצים',
   scheduling_activity_not_open:        'הפעילות אינה פתוחה לשיבוץ',
   scheduling_activity_dates_missing:   'תאריכי המפגשים חסרים בפעילות',
+  scheduling_activity_sessions_invalid: 'מספר המפגשים הרשמי חסר או אינו תקין — יש לתקן את נתון הקורס',
+  scheduling_proposed_meeting_count_mismatch: 'מספר המפגשים בטיוטה אינו שווה למספר המפגשים המוגדר בקורס',
+  scheduling_existing_official_meeting_count_conflict: 'הלוח הרשמי מכיל מספר מפגשים שאינו תואם לנתון הקורס — אין לדרוס אותו',
+  scheduling_existing_official_meetings_protected: 'הקורס כבר מכיל מועדים רשמיים שונים — נדרש תהליך שינוי מועדים נפרד',
+  scheduling_draft_meetings_changed: 'מועדי האישור שונים מהמועדים בטיוטה השמורה — יש לבדוק מחדש לפני אישור',
+  scheduling_draft_changed: 'טיוטת השיבוץ השתנתה או שייכת למדריך אחר — רעננו את הנתונים',
   scheduling_activity_hours_missing:   'שעות המפגש חסרות או שגויות בפעילות',
   instructor_not_found:                'המדריך לא נמצא במאגר — ייתכן שהנתונים השתנו',
   instructor_inactive:                 'המדריך אינו פעיל',
@@ -1833,7 +1839,7 @@ function draftDetailHtml(course) {
   const proposed = draftProposedMeetingsFromCourse(course);
   return `<p class="course-scheduling-status-chip is-draft">${STATUS.draft}</p>
     <p>מדריך בטיוטה: <b>${escapeHtml(course.draft_instructor_name || course.draft_emp_id)}</b></p>
-    <p class="course-scheduling-muted">הטיוטה שומרת את השיבוץ המוצע ואינה מעדכנת את הפעילות עד לאישור.</p>
+    <p class="course-scheduling-muted">הטיוטה שומרת את השיבוץ המוצע ואינה מעדכנת את הפעילות עד לאישור. מספר מפגשים נדרש: <b>${escapeHtml(course.sessions || 'לא הוגדר')}</b>; בטיוטה: <b>${proposed?.proposedMeetings?.length ?? 0}</b>.</p>
     ${proposed ? proposedMeetingsPanelHtml(proposed) : ''}
     ${proposed ? halfOverflowWarningHtml(proposed) : ''}
     <div class="course-scheduling-detail-actions">
@@ -1927,6 +1933,7 @@ function selectedCoursePanelHtml(row, state) {
   }
 
   const header = selectedCourseWorkPanelHeaderHtml(row, state);
+  const approvalHost = '<section data-approved-permanent-availability-host aria-live="polite"></section>';
   const schoolInfo = row.planningRow?.schoolPlanning;
   const schoolContext = schoolInfo && Number(schoolInfo.groupActivityCount) > 1
     ? `<section class="course-scheduling-school-detail"><h3>פעילויות נוספות בבית הספר</h3>${row.planningRow?.needsRecalc === true
@@ -1935,18 +1942,17 @@ function selectedCoursePanelHtml(row, state) {
         <p>${Number(schoolInfo.anchorActivityCount) || 0} פעילויות locked/fixed · ${Number(schoolInfo.flexibleActivityCount) || 0} פעילויות גמישות</p>
         <strong>${schoolInfo.packingStatus === 'avoidable_split' ? '⚠ ניתן לצמצם את הפיצול' : (schoolInfo.packingStatus === 'required_split' ? 'הפיצול נדרש' : 'התכנון מרוכז')}</strong>`}</section>`
     : '';
-  const approvalHost = '<section data-approved-permanent-availability-host aria-live="polite"></section>';
   if (row.isAssigned && state.courseSchedulingReplacementCourseId !== row.id) {
     return `${header}${schoolContext}${approvalHost}${assignedDetailHtml(row, state)}`;
   }
-  if (row.hasDraft) return `${header}${schoolContext}${approvalHost}${draftDetailHtml(row.course)}`;
+  // Approved unavailable lessons stay unstaffed and require separate handling.
+  // A planning lock is not an activity draft. It must not prevent an operator
+  // from opening the independent manual picker; the server still validates save.
+  if (row.hasActualDraft) return `${header}${schoolContext}${approvalHost}${draftDetailHtml(row.course)}`;
 
   const finding = !!state.courseSchedulingLoading;
   const result = row.result;
   const hasSuggestion = !!result?.recommended;
-  const findButtonClass = hasSuggestion
-    ? 'course-scheduling-btn course-scheduling-btn--secondary'
-    : 'course-scheduling-btn course-scheduling-btn--primary course-scheduling-btn--xl';
   const replacementMeetings = Number(state.courseSchedulingReplacementMeetings) || 0;
   const replacementControls = state.courseSchedulingReplacementCourseId === row.id ? `<div class="course-scheduling-alert" role="alert">
       <b>${replacementMeetings >= 2 ? 'החלפת מדריך עקב צורך תפעולי' : 'שינוי מדריך'}</b>
@@ -1954,10 +1960,11 @@ function selectedCoursePanelHtml(row, state) {
       <label>סיבה${replacementMeetings ? ' *' : ''}<textarea class="course-scheduling-input" data-replacement-reason>${escapeHtml(state.courseSchedulingReplacementReason || '')}</textarea></label>
       ${replacementMeetings >= 2 ? `<label>תאריך כניסה לתוקף *<input class="course-scheduling-input" type="date" data-replacement-effective-from value="${escapeHtml(state.courseSchedulingReplacementEffectiveFrom || '')}"></label><label><input type="checkbox" data-replacement-confirm ${state.courseSchedulingReplacementConfirmed ? 'checked' : ''}> אני מאשר/ת את ההחלפה התפעולית</label>` : ''}
     </div>` : '';
-  return `${header}${schoolContext}${approvalHost}${replacementControls}
+  return `${header}${schoolContext}${approvalHost}${row.hasPlanningDraft ? '<p class="course-scheduling-muted">קיימת בחירת מדריך בתכנון בלבד; ניתן לבחור ידנית, בכפוף לבדיקת השמירה.</p>' : ''}${replacementControls}
     <div class="course-scheduling-primary-action">
-      <button type="button" class="${findButtonClass}" data-find-instructors ${finding ? 'disabled' : ''}>
-        ${SCHEDULING_AGENT_OWNS_COMPUTE ? (finding ? 'טוען חלופות מהסוכן…' : 'טען חלופות ובחירה ידנית') : finding ? 'בודק מדריכים...' : (hasSuggestion ? 'בדיקה מחדש של מדריכים' : 'מצא מדריכים מתאימים')}
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-open-manual-assignment ${finding ? 'disabled' : ''}>שבץ מדריך ידנית</button>
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-find-instructors ${finding ? 'disabled' : ''}>
+        ${SCHEDULING_AGENT_OWNS_COMPUTE ? (finding ? 'טוען המלצות שמורות…' : 'הצג המלצות שמורות') : finding ? 'בודק מדריכים...' : (hasSuggestion ? 'בדיקה מחדש של מדריכים' : 'מצא מדריכים מתאימים')}
       </button>
     </div>
     ${finding ? (SCHEDULING_AGENT_OWNS_COMPUTE ? '<p role="status">טוען המלצות שמורות מהסוכן…</p>' : loadingInstructorsHtml(state.courseSchedulingProgressStep || 1)) : instructorsResultsHtml(result, state)}
@@ -2354,7 +2361,7 @@ export const courseSchedulingScreen = {
     state.meetingState = data.meetingState;
     const allInterfaceCourses = schedulingWorkspaceCourses(data.activities || []);
     const interfaceCourses = filteredInterfaceCourses(allInterfaceCourses, state);
-    if(SCHEDULING_AGENT_OWNS_COMPUTE) state.courseSchedulingResults=(state.courseSchedulingResults||[]).filter(r=>r.agentSnapshot);
+    if(SCHEDULING_AGENT_OWNS_COMPUTE) state.courseSchedulingResults=(state.courseSchedulingResults||[]).filter(r=>r.agentSnapshot || r.manualOnly === true);
     else restoreCalculationSnapshot(state, interfaceCourses, schedulingSnapshotContext(data));
     if (data._planningShared && !state.courseSchedulingPlanningSharedLoaded) {
       const courseIds = new Set(allInterfaceCourses.map(idOf));
@@ -2427,7 +2434,7 @@ export const courseSchedulingScreen = {
       <div class="course-scheduling-layout course-scheduling-layout--courses">
         <aside class="course-scheduling-courses" data-course-list tabindex="-1" aria-label="טבלת פעילויות">${courseListHtml(rowModels, selectedId, state)}</aside>
         <section class="course-scheduling-detail${selectedId ? ' is-open' : ''}" data-course-detail>${
-          selectedId && selectedRow?.planningRow?._detailsDeferred
+          selectedId && selectedRow?.planningRow?._detailsDeferred && !selectedRow?.result?.manualOnly
             ? '<p role="status">טוען פרטי שיבוץ…</p>'
             : selectedId && selectedRow?.course
             ? selectedCoursePanelHtml(selectedRow, state)
@@ -5059,6 +5066,30 @@ export const courseSchedulingScreen = {
     const selectedCourseId = state.courseSchedulingSelectedId;
     const selectedCourse = courseById.get(selectedCourseId);
 
+    // Direct operator choice: no agent query or national/point planning run.
+    // A save still uses the existing server validations and approval flow.
+    const openManualInstructorPicker = () => {
+      if (!canEdit || !selectedCourseId || !selectedCourse || state.courseSchedulingLoading) return;
+      const result = manualInstructorResult(selectedCourse, activeSchedulingInstructors(data.instructors || []));
+      if (!result.manualCandidates.length) {
+        showToast('לא נמצאו מדריכים פעילים ברשימה. יש לרענן את נתוני המדריכים.', 'error');
+        return;
+      }
+      state.courseSchedulingResults = [
+        ...(state.courseSchedulingResults || []).filter(item => idOf(item.course) !== selectedCourseId),
+        result
+      ];
+      // Manual writes require current activity version but no agent workspace.
+      data._agentAssignmentSnapshots?.delete(selectedCourseId);
+      state.courseSchedulingManualConfirmation = null;
+      state.courseSchedulingManualSelection = null;
+      state.courseSchedulingSelectedCandidateId = '';
+      state.courseSchedulingManualPickerOpen = true;
+      state.courseSchedulingManualSearch = '';
+      state.courseSchedulingError = '';
+      rerender();
+    };
+
     // This is a separate, server-authorized choice, not a relaxation of the
     // standard recommendation engine's two-exception recovery budget.
     const availabilityHost = detailRoot.querySelector('[data-approved-permanent-availability-host]');
@@ -5272,7 +5303,7 @@ export const courseSchedulingScreen = {
       state.courseSchedulingReplacementReason = '';
       state.courseSchedulingReplacementEffectiveFrom = '';
       state.courseSchedulingReplacementConfirmed = false;
-      await runFindInstructors();
+      openManualInstructorPicker();
     });
 
     detailRoot.querySelector('[data-open-cancel-assignment]')?.addEventListener('click', () => {
@@ -5356,6 +5387,12 @@ export const courseSchedulingScreen = {
       if (SCHEDULING_AGENT_OWNS_COMPUTE) {
         if(state.courseSchedulingLoading)return;
         state.courseSchedulingLoading=true;
+        // Explicitly switching to saved recommendations closes the direct
+        // manual picker. Otherwise its already-open toggle closes the choices,
+        // including when the operator returns to an agent recommendation.
+        state.courseSchedulingManualPickerOpen=false;
+        state.courseSchedulingManualSearch='';
+        state.courseSchedulingManualConfirmation=null;
         state.courseSchedulingManualSelection=null;
         state.courseSchedulingError='';
         rerender();
@@ -5470,12 +5507,28 @@ export const courseSchedulingScreen = {
       const halfEnd = resolveCourseSchedulingPeriod(selectedPeriodKey(state))?.end || '';
       const exceedsHalf = !!proposedEnd && !!halfEnd && proposedEnd > halfEnd;
       const movedCount = Number(proposedSummary?.movedMeetingsCount) || 0;
+      const requestedCount = Number(course.sessions);
+      const draftCount = proposedMeetings?.length ?? 0;
+      const officialCount = activityMeetings(course).length;
+      if (proposedMeetings && (!Number.isInteger(requestedCount) || requestedCount < 1 || requestedCount > 35)) {
+        showToast('אישור הטיוטה נחסם: מספר המפגשים הרשמי אינו תקין.', 'error');
+        return false;
+      }
+      if (proposedMeetings && draftCount !== requestedCount) {
+        showToast(`אישור הטיוטה נחסם: נדרשים ${requestedCount} מפגשים, אך קיימים ${draftCount} בטיוטה. מועדים רשמיים קיימים: ${officialCount}.`, 'error');
+        return false;
+      }
       let approvalMessage = `לאשר את הטיוטה ולשבץ את ${course.draft_instructor_name || course.draft_emp_id}?`;
       if (movedCount > 0) {
         approvalMessage = `הטיוטה כוללת ${movedCount} מועדים מוצעים (סיום מקורי ${formatDateHe(originalEnd) || '—'}, סיום מוצע ${formatDateHe(proposedEnd) || '—'}). לאשר את הטיוטה כשיבוץ סופי?`;
       }
       if (exceedsHalf) {
-        approvalMessage = `המועדים בטיוטה מסתיימים בתאריך ${formatDateHe(proposedEnd)} וחורגים מהתקופה שנבחרה. לאשר כשיבוץ סופי?`;
+        // Deliberately distinct from the permanent-instructor/admin approval.
+        // Neither the draft nor any official meeting is changed by this warning.
+        const dateOverflowAcknowledged = window.confirm(
+          `חריגת תקופת פעילות נפרדת: המפגשים בטיוטה מסתיימים בתאריך ${formatDateHe(proposedEnd)}, אחרי ${formatDateHe(halfEnd)} (סוף התקופה שנבחרה). אישור מנהל לחריגת מדריך אינו בהכרח אישור לחריגת מחצית. אין להזיז או למחוק מועדים אוטומטית. האם יש הרשאה ואישור נפרד להמשיך עם המועדים האלה?`
+        );
+        if (!dateOverflowAcknowledged) return false;
       }
       if (!window.confirm(approvalMessage)) return false;
       if (trigger) trigger.disabled = true;
@@ -5496,7 +5549,11 @@ export const courseSchedulingScreen = {
         }
       );
       if (error) {
-        showToast(translateSchedulingAssignmentError(error.message, 'אישור הטיוטה נכשל'), 'error');
+        const mismatch = String(error.message || '').includes('scheduling_proposed_meeting_count_mismatch');
+        const failureText = mismatch
+          ? `אישור הטיוטה נכשל: נדרשים ${requestedCount} מפגשים, בטיוטה ${draftCount}, בלוח הרשמי ${officialCount}. יש לבדוק את הטיוטה השמורה ולא ליצור אותה מחדש.`
+          : translateSchedulingAssignmentError(error.message, 'אישור הטיוטה נכשל');
+        showToast(failureText, 'error');
         if (trigger) trigger.disabled = false;
         return false;
       }
@@ -5518,6 +5575,7 @@ export const courseSchedulingScreen = {
     bindingRoot.querySelectorAll('[data-find-instructors]').forEach((button) => {
       button.addEventListener('click', runFindInstructors);
     });
+    detailRoot.querySelector('[data-open-manual-assignment]')?.addEventListener('click', openManualInstructorPicker);
 
     detailRoot.querySelector('[data-toggle-manual-picker]')?.addEventListener('click', () => {
       state.courseSchedulingManualPickerOpen = state.courseSchedulingManualPickerOpen !== true;
@@ -5568,9 +5626,12 @@ export const courseSchedulingScreen = {
         }
         state.courseSchedulingManualPickerOpen = false;
         state.courseSchedulingManualSearch = '';
+        state.courseSchedulingResults = (state.courseSchedulingResults || [])
+          .filter(item => idOf(item.course) !== selectedCourseId);
         clearScreenDataCache?.();
-        showToast('הבחירה הידנית נשמרה כטיוטה. יתר התכנון מתעדכן.', 'success');
-        await runFindInstructors();
+        invalidatePlanningWorkboard();
+        showToast('טיוטת השיבוץ הידני נשמרה. לא הופעל חישוב תכנון.', 'success');
+        rerender();
     };
     detailRoot.querySelectorAll('[data-manual-candidate]').forEach((button) => {
       button.addEventListener('click', () => {
@@ -5636,6 +5697,12 @@ export const courseSchedulingScreen = {
         return;
       }
       const adjustment = selected.dateAdjustment;
+      if (adjustment?.exceedsHalf) {
+        const end = resolveCourseSchedulingPeriod(selectedPeriodKey(state))?.end || '';
+        if (!window.confirm(
+          `חריגת תקופת פעילות נפרדת: המועד האחרון ${formatDateHe(adjustment.newEndDate)} לאחר ${formatDateHe(end)}. אישור בחירת המדריך אינו אישור חריגת מחצית. האם נבדקה ההרשאה והתקבל אישור נפרד למועדים האלה?`
+        )) return;
+      }
       const approvalMessage = adjustment?.exceedsHalf
         ? `המועדים המוצעים חורגים מהמחצית ומסתיימים בתאריך ${formatDateHe(adjustment.newEndDate)}. לאשר סופית את שינוי המועדים ואת שיבוץ ${selected.instructor.full_name}?`
         : `לשבץ את ${selected.instructor.full_name} לפעילות ${result.course.activity_name}?`;

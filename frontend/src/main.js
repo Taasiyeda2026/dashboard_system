@@ -1107,14 +1107,20 @@ function shell(content) {
     { label: 'מצגות', externalUrlBlank: config.instructorPresentationsUrl },
     { route: 'impact-feedback', label: 'משובים' }
   ];
+  // Feedback viewers must see the route in the main sidebar even if legacy
+  // user-specific navigation settings still mark it hidden/contextual.
+  // This is limited to authorized users; the feedback server enforces read-only.
   const regularNav = effectiveRoutes()
     .filter((route) =>
-      !hiddenSet.has(route) &&
-      !contextualSet.has(route) &&
-      !ACTIVITIES_CHILD_ROUTES.has(route) &&
-      !ADMIN_SIDEBAR_HIDDEN_ROUTES.has(route) &&
-      !adminSidebarExclude.has(route) &&
-      routeAllowedByRole(route)
+      routeAllowedByRole(route) && (
+        route === 'impact-feedback' || (
+          !hiddenSet.has(route) &&
+          !contextualSet.has(route) &&
+          !ACTIVITIES_CHILD_ROUTES.has(route) &&
+          !ADMIN_SIDEBAR_HIDDEN_ROUTES.has(route) &&
+          !adminSidebarExclude.has(route)
+        )
+      )
     )
     .map(
       (route) =>

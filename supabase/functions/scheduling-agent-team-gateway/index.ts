@@ -116,7 +116,7 @@ const TOOLS = [
   },
   {
     name: 'confirm_schedule_batch',
-    description: 'FINALIZE 1-5 caller-owned staged course drafts atomically, applying exact staged dates to the official calendar and confirming instructors through existing validators. Call only after the user separately and explicitly approves finalizing THESE drafts, and only if all CURRENT structured manager exceptions are already approved. A historical request marked request_applicable=false is not a current exception. Never bypass blocking violations. If any course is rejected, all changes roll back.',
+    description: 'FINALIZE 1-5 caller-owned staged course drafts atomically, checking proposed date count against course sessions before writing dates to the official calendar and confirming instructors through existing validators. Call only after the user separately and explicitly approves finalizing THESE drafts, and only if all CURRENT structured manager exceptions are already approved. A historical request marked request_applicable=false is not a current exception. Never bypass blocking violations. If any course is rejected, all changes roll back.',
     inputSchema: {type:'object',properties:{items:{type:'array',minItems:1,maxItems:5,items:{type:'object',properties:{
       activityId:{type:'string'},draftCreatedAt:{type:'string'},activityUpdatedAt:{type:'string'}
     },required:['activityId','draftCreatedAt','activityUpdatedAt'],additionalProperties:false}}},
@@ -129,7 +129,7 @@ const TOOLS = [
   },
   {
     name: 'confirm_own_draft',
-    description: 'Finalize the caller\'s already saved, validated ordinary course-assignment draft in the dashboard. Requires the employee\'s EXPLICIT confirmation of that particular assignment. Never approve an exception; pending exception requests will be rejected until the designated owner approves.',
+    description: 'Finalize the caller\'s existing validated course draft, including moving proposed dates into the official calendar only on confirmation. Requires the employee\'s EXPLICIT confirmation of that particular assignment. Never approve an exception; pending exception requests will be rejected until the designated owner approves.',
     inputSchema: {type:'object',properties:{activityId:{type:'string'}},required:['activityId'],additionalProperties:false}
   },
   {
@@ -494,13 +494,42 @@ Deno.serve(async request=>{
   }
   const output=await rpc(token,names[name],input).catch(()=>({error:'upstream_unavailable',status:502,reasonCode:null,diagnosticCode:null,activityId:null,message:'הקשר עם מערכת השיבוצים נקטע; תוצאת הפעולה אינה ידועה.',nextStep:'קרא מחדש את מצב הפעילות או הבקשה לפני ניסיון נוסף. אין להסיק שהשמירה הצליחה או בוטלה.'}));
   if('error' in output){
+    // Query only the caller-visible staged schedule after a rejected write.
+    // No retries, date generation, new drafts, or raw SQL details are sent back.
+    let meetingCountDetails: Record<string, number|null>|null=null;
+    const countFailureCodes=new Set([
+      'scheduling_proposed_meeting_count_mismatch',
+      'scheduling_agent_schedule_count_mismatch',
+      'scheduling_activity_sessions_invalid',
+      'scheduling_existing_official_meeting_count_conflict'
+    ]);
+    const affectedId=typeof args.activityId==='string' ? args.activityId
+      : typeof output.activityId==='string' ? output.activityId
+      : Array.isArray(args.items)&&args.items.length===1&&isObject(args.items[0])
+        ? args.items[0].activityId : null;
+    if(output.status<500 && countFailureCodes.has(String(output.reasonCode)) && activityId(affectedId)){
+      const current=await rpc(token,'scheduling_agent_team_read_staged_schedule',
+        {p_activity_id:affectedId as string}).catch(()=>null);
+      if(current && 'data' in current && current.data){
+        const row=current.data as Record<string,unknown>;
+        const raw=String(row.requiredMeetingCount??'');
+        const req=/^[0-9]{1,2}$/.test(raw)?Number(raw):null;
+        const draft=Number(row.draftMeetingCount??(Array.isArray(row.draftMeetings)?row.draftMeetings.length:0));
+        const official=Number(row.officialMeetingCount??0);
+        meetingCountDetails={
+          requiredMeetingCount:req,
+          draftMeetingCount:Number.isSafeInteger(draft)?draft:null,
+          officialMeetingCount:Number.isSafeInteger(official)?official:null
+        };
+      }
+    }
     let maintenanceQueued: boolean|null=null;
     if(name==='stage_schedule_batch' && ['scheduling_transition_unverified','scheduling_home_route_unverified'].includes(String(output.reasonCode))){
       // Queue AFTER failed atomic stage, not inside the rolled-back transaction. No Google calls.
       const registration=await rpc(token,'scheduling_agent_team_queue_missing_stage_routes',{p_items:args.items}).catch(()=>null);
       maintenanceQueued=!!registration && !('error' in registration) && Number.isInteger(registration.data) && registration.data>0;
     }
-    return result({isError:true,content:[{type:'text',text:JSON.stringify({ok:false,error:output.error,reasonCode:output.reasonCode??null,diagnosticCode:output.diagnosticCode??null,message:output.message,nextStep:maintenanceQueued===true?'המסלול החסר נרשם בתחזוקת המסלולים. נדרש חישוב ידני ואחריו ניסיון שיבוץ חדש באישור המשתמש.':output.nextStep,maintenanceQueued,activityId:output.activityId??null,retrySameRequest:false,writesCommitted:output.status>=500?null:false,outcome:output.status>=500?'unknown':'rejected'})}]});
+    return result({isError:true,content:[{type:'text',text:JSON.stringify({ok:false,error:output.error,reasonCode:output.reasonCode??null,diagnosticCode:output.diagnosticCode??null,message:meetingCountDetails ? output.message+' נדרשים '+String(meetingCountDetails.requiredMeetingCount??'לא הוגדר')+' מפגשים, בטיוטה '+String(meetingCountDetails.draftMeetingCount??'לא ידוע')+', ובמועדים הרשמיים '+String(meetingCountDetails.officialMeetingCount??'לא ידוע')+'.' : output.message,meetingCountDetails,nextStep:maintenanceQueued===true?'המסלול החסר נרשם בתחזוקת המסלולים. נדרש חישוב ידני ואחריו ניסיון שיבוץ חדש באישור המשתמש.':output.nextStep,maintenanceQueued,activityId:output.activityId??null,retrySameRequest:false,writesCommitted:output.status>=500?null:false,outcome:output.status>=500?'unknown':'rejected'})}]});
   }
   if(name==='review_manager_approval'){
     // Never send the generic edit_requests row (which includes requested_payload) to ChatGPT.

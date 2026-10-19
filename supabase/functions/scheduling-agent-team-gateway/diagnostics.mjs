@@ -14,7 +14,12 @@ const REASONS = Object.freeze({
   scheduling_activity_dates_missing: ['תאריכי המפגשים חסרים בפעילות.', 'הכן תאריכים מדויקים לכל המפגשים, בקש אישור ולאחריו השתמש ב-stage_schedule_batch.'],
   scheduling_activity_hours_missing: ['שעות המפגש חסרות או אינן תקינות.', 'בדוק שעות התחלה וסיום והצג אותן לאישור לפני שמירה.'],
   scheduling_proposed_dates_invalid: ['רשימת התאריכים שגויה או אינה מסודרת.', 'בדוק שכל תאריך תקין, בסדר עולה וללא כפילויות; אל תתקן שנת לימודים בלי לשאול.'],
-  scheduling_proposed_meeting_count_mismatch: ['מספר המפגשים אינו תואם לפעילות.', 'השווה את מספר השורות בקובץ למספר המפגשים במערכת.'],
+  scheduling_proposed_meeting_count_mismatch: ['מספר מועדי הטיוטה אינו תואם למספר המפגשים הרשמי בקורס.', 'קרא read_staged_schedule והצג את requiredMeetingCount לעומת draftMeetingCount; מועדים רשמיים ריקים אינם סיבה להמציא תאריכים.'],
+  scheduling_activity_sessions_invalid: ['נתון מספר המפגשים בקורס חסר או אינו תקין.', 'בקש תיקון של שדה sessions בפעילות; אין להניח שהמספר אפס ואין להמציא מפגשים.'],
+  scheduling_existing_official_meeting_count_conflict: ['מספר המועדים הרשמיים השמורים שונה ממספר המפגשים בקורס.', 'בדוק את הנתונים הקיימים; אין לדרוס לוח רשמי.'],
+  scheduling_existing_official_meetings_protected: ['מועדי השיבוץ הרשמיים שונים מהמועדים שהוצעו.', 'השתמש בתהליך שינוי מועדים מורשה; אל תדרוס או תזיז מועדים אוטומטית.'],
+  scheduling_draft_meetings_changed: ['מועדי האישור אינם זהים למועדים בטיוטה הקיימת.', 'קרא מחדש read_staged_schedule ובדוק את השינוי לפני בקשת אישור חדש.'],
+  scheduling_draft_changed: ['טיוטת השיבוץ השתנתה או שייכת למדריך אחר.', 'קרא מחדש את פרטי הטיוטה והאישורים; אין ניסיון חוזר אוטומטי.'],
   scheduling_agent_schedule_missing: ['חסרים תאריכים או שעות לוח המפגשים.', 'הכן לוח מפגשים מלא וקבל אישור.'],
   scheduling_agent_schedule_count_mismatch: ['מספר התאריכים שונה ממספר המפגשים שהוגדר בקורס.', 'ודא שהקובץ והקורס מתייחסים לאותה קבוצה.'],
   scheduling_agent_schedule_only_new: ['ניתן לקלוט לוח מפגשים בדרך זו רק לפעילות ללא תאריכים ושיבוצים קיימים.', 'עצור ובקש מסלול שינוי מועדים נפרד ומאושר; אין לדרוס לוח קיים.'],
@@ -97,14 +102,29 @@ export function describeSchedulingSnapshot(snapshot) {
     ...snapshot,
     rows: snapshot.rows.map(row => {
       const missing = [];
-      if (!row.startDate && !row.endDate) missing.push('meeting_dates');
+      const requiredCount = Number(row.sessions);
+      const draftCount = Number(row.draftMeetingCount || 0);
+      const validRequiredCount = Number.isSafeInteger(requiredCount) && requiredCount >= 1 && requiredCount <= 35;
+      const hasCompleteDraft = !!row.draftInstructorId && validRequiredCount && draftCount === requiredCount;
+      // Missing OFFICIAL dates is normal for a complete, saved but unconfirmed draft.
+      if (!row.startDate && !row.endDate && !hasCompleteDraft) missing.push('meeting_dates');
       if (!row.startTime || !row.endTime) missing.push('meeting_hours');
+      if (draftCount > 0 && (!validRequiredCount || draftCount !== requiredCount)) missing.push('meeting_count_mismatch');
       return {
         ...row,
         readiness: {
           complete: missing.length === 0,
           missing,
-          ...(missing.length ? { nextStep: row.draftInstructorId ? 'קיימת טיוטת שיבוץ. בדוק manager_approval_state ואת המועדים השמורים בטיוטה; אין ליצור אותה מחדש בגלל היעדר מועדים רשמיים. לאחר בדיקות ואישור סופי השתמש ב-confirm_schedule_batch.' : 'לשמירת מדריך מיועד ללא מועדים השתמש ב-save_intended_instructor; זו אינה טיוטה מאומתת או שיבוץ סופי. לטיוטת לוח מפגשים קבל אישור לתאריכים ולשעות והשתמש ב-stage_schedule_batch.' } : {})
+          requiredMeetingCount: validRequiredCount ? requiredCount : null,
+          draftMeetingCount: draftCount,
+          officialDatesStillEmpty: !row.startDate && !row.endDate,
+          ...(row.draftInstructorId ? {
+            nextStep: hasCompleteDraft
+              ? 'קיימת טיוטה מלאה. קרא read_staged_schedule ואת אישורי המנהל; אין ליצור אותה מחדש. לאחר אישור מפורש בצע confirm_schedule_batch או confirm_own_draft בהתאם לבעלות ולמסלול.'
+              : 'קיימת טיוטה, אך יש לבדוק את מספר מפגשיה ושעותיה באמצעות read_staged_schedule; אין להמציא תאריכים או לדרוס טיוטה שמורה.'
+          } : missing.length ? {
+            nextStep: 'בהיעדר טיוטה, קבל אישור ללוח מפגשים מלא לפני stage_schedule_batch.'
+          } : {})
         }
       };
     })

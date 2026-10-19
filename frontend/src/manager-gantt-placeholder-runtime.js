@@ -1,10 +1,11 @@
+import { mountManagerWeeklyManual } from './manager-weekly-manual-tracking.js';
 const GANTT_TAB_ID = 'gantt';
 const BOARD_SELECTOR = '.manager-board-screen[data-manager-board-root]';
 const TAB_SELECTOR = '[data-manager-workspace-tab]';
 let ganttActive = false;
 let observer = null;
 let syncScheduled = false;
-/** Track the live board DOM node; reset ganttActive when it changes (SPA re-mount). */
+/** Preserve the active tab on normal board selector/month re-renders. */
 let currentBoard = null;
 
 function ensureStyles() {
@@ -17,8 +18,8 @@ ${BOARD_SELECTOR}.is-manager-gantt-placeholder .manager-workspace-view,
 ${BOARD_SELECTOR}.is-manager-gantt-placeholder .manager-board-kpis,
 ${BOARD_SELECTOR}.is-manager-gantt-placeholder .manager-board-layout,
 ${BOARD_SELECTOR}.is-manager-gantt-placeholder .manager-board-panel--instructors{display:none!important}
-.manager-gantt-placeholder{min-height:360px;display:grid;place-items:center;border:1px solid #dbe3ea;border-radius:14px;background:#fff;margin-top:14px;box-shadow:0 2px 8px rgba(15,23,42,.04)}
-.manager-gantt-placeholder strong{font-size:clamp(1.35rem,2.5vw,2rem);letter-spacing:.08em;color:#64748b;font-weight:800}
+.manager-gantt-placeholder{min-height:360px;margin-top:14px}
+
 [data-manager-gantt-placeholder][hidden]{display:none!important}
 `;
   document.head.appendChild(style);
@@ -31,7 +32,7 @@ function ganttPanel(board) {
     panel.className = 'manager-gantt-placeholder';
     panel.dataset.managerGanttPlaceholder = 'true';
     panel.setAttribute('dir', 'rtl');
-    panel.innerHTML = '<strong>COMING SOON...</strong>';
+    panel.innerHTML = '';
   }
 
   // The team selector is shared context for every manager-board tab. Keep it
@@ -77,6 +78,12 @@ function applyGanttState(board) {
     });
   }
   if (panel) panel.hidden = !ganttActive;
+  if (panel && ganttActive) {
+    const managerName = board.querySelector('[data-manager-board-manager]')?.value || board.querySelector('.manager-board-manager-fixed strong')?.textContent?.trim() || '';
+    const year = board.dataset.managerBoardSchoolYear || '2027';
+    const ym = board.dataset.managerBoardYm || '2026-10';
+    mountManagerWeeklyManual(panel, { managerName, year, ym });
+  }
 }
 
 function sync() {
@@ -91,12 +98,8 @@ function sync() {
     }
     return;
   }
-  // Board was replaced by a new DOM node (SPA re-render / navigation back).
-  // Reset ganttActive so the placeholder never bleeds onto non-gantt tabs.
-  if (board !== currentBoard) {
-    ganttActive = false;
-    currentBoard = board;
-  }
+  // A manager/month change replaces the board node. Preserve Gantt selection.
+  if (board !== currentBoard) currentBoard = board;
   ensureGanttTab(board);
   applyGanttState(board);
 }

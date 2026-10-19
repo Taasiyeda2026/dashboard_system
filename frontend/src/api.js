@@ -5640,6 +5640,13 @@ async function saveActivitySchoolsForActivity(activityRow = {}, source = {}) {
   if (error) throw new Error(error.message || 'activity_schools_save_failed');
 }
 
+function assertExplicitSchool2027InstructionLanguage(activity = {}) {
+  if (normalizeActivitySeason(activity?.activity_season) !== ACTIVITY_SEASON_SCHOOL_2027) return;
+  if (!['he', 'ar'].includes(String(activity?.instruction_language || '').trim())) {
+    throw new Error('יש לבחור שפת הדרכה: עברית או ערבית');
+  }
+}
+
 function assertNewActivityHasNoInstructors(activity = {}) {
   if (['emp_id', 'instructor_name', 'emp_id_2', 'instructor_name_2'].some(
     (key) => String(activity?.[key] ?? '').trim(),
@@ -5666,6 +5673,7 @@ async function assertSchoolAuthorityLink(activity = {}) {
 
 async function upsertActivityToSupabase(payload = {}) {
   const act = applyInstructorEmpSync(payload?.activity || payload || {});
+  assertExplicitSchool2027InstructionLanguage(act);
   assertNewActivityHasNoInstructors(act);
   await validateActivityInstructorBindingsOrThrow(act);
   const row = sanitizeActivityPayloadForSupabase(synchronizeStartDateAndFirstMeeting(sanitizeActivityPayload(act)), { includeRowId: true });
@@ -8806,6 +8814,7 @@ export const api = {
   submitCreateActivityRequest: async (activity) => {
     if (!canSubmitCreateActivityRequestsUser()) throw new Error('forbidden_create_activity_request');
     assertActivityPeriodEditable({ activity: activity || {}, changes: activity || {} });
+    assertExplicitSchool2027InstructionLanguage(activity || {});
     assertNewActivityHasNoInstructors(activity || {});
     await assertSchoolAuthorityLink(activity || {});
     const currentUser = state?.user || {};
@@ -8988,7 +8997,7 @@ export const api = {
     logActivityMutationDebug('success', 'submitEditRequest', debugPayload, { table: 'edit_requests', request_id: row.request_id });
     return { request_id: row.request_id, status: 'pending' };
   },
-  reviewEditRequest: async (request_id, status) => {
+  reviewEditRequest: async (request_id, status, reviewOptions = {}) => {
     const requestId = String(request_id || '').trim();
     const nextStatus = String(status || '').trim();
     if (!requestId) throw new Error('missing_request_id');
@@ -9002,6 +9011,7 @@ export const api = {
     if (reqRes.error || !reqRes.data) throw new Error(reqRes.error?.message || 'review_edit_request_failed');
     const reqRow = reqRes.data;
     if (String(reqRow?.status || '').trim() !== 'pending') throw new Error('edit_request_already_reviewed');
+    let approvedCreatePayload = null;
     if (nextStatus === 'approved') {
       const requestType = normalizeEditRequestType(reqRow?.request_type);
       const sourceRowId = String(reqRow?.source_row_id || '').trim();
@@ -9011,6 +9021,17 @@ export const api = {
           { includeRowId: true }
         );
         if (!Object.keys(requestedPayload).length) throw new Error('missing_create_activity_payload');
+        // Legacy pending requests may predate the mandatory language field.
+        // Only accept an explicit reviewer choice; never infer Hebrew or Arabic.
+        if (normalizeActivitySeason(requestedPayload.activity_season) === ACTIVITY_SEASON_SCHOOL_2027
+          && !['he', 'ar'].includes(String(requestedPayload.instruction_language || '').trim())) {
+          const selectedLanguage = String(reviewOptions?.instruction_language || '').trim();
+          if (['he', 'ar'].includes(selectedLanguage)) {
+            requestedPayload.instruction_language = selectedLanguage;
+            approvedCreatePayload = requestedPayload;
+          }
+        }
+        assertExplicitSchool2027InstructionLanguage(requestedPayload);
         await upsertActivityToSupabase({ activity: requestedPayload });
       } else {
         const requestedValues = { ...parseJsonishObject(reqRow?.requested_values) };
@@ -9063,6 +9084,7 @@ export const api = {
       .from('edit_requests')
       .update({
         status: nextStatus,
+        ...(approvedCreatePayload ? { requested_payload: approvedCreatePayload } : {}),
         reviewed_at: new Date().toISOString(),
         reviewer_user_id: String(reviewer?.user_id || '').trim(),
         reviewed_by: String(reviewer?.full_name || reviewer?.profile?.full_name || '').trim()
