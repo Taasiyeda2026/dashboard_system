@@ -1,4 +1,4 @@
-import { createAgentAssignmentClient } from './course-scheduling-agent-selection.js';
+import { createAgentAssignmentClient, manualInstructorResult } from './course-scheduling-agent-selection.js';
 import { reusablePointWorkspace, refreshCommittedPointWorkspace } from './course-scheduling-point-workspace.js';
 import { undatedProposalNeedsNewStart } from './course-scheduling-start-policy.js';
 import { schedulingPointWorker } from './course-scheduling-worker-client.js';
@@ -1961,8 +1961,9 @@ function selectedCoursePanelHtml(row, state) {
     </div>` : '';
   return `${header}${schoolContext}${replacementControls}
     <div class="course-scheduling-primary-action">
-      <button type="button" class="${findButtonClass}" data-find-instructors ${finding ? 'disabled' : ''}>
-        ${SCHEDULING_AGENT_OWNS_COMPUTE ? (finding ? 'טוען חלופות מהסוכן…' : 'טען חלופות ובחירה ידנית') : finding ? 'בודק מדריכים...' : (hasSuggestion ? 'בדיקה מחדש של מדריכים' : 'מצא מדריכים מתאימים')}
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-open-manual-assignment ${finding ? 'disabled' : ''}>שבץ מדריך ידנית</button>
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-find-instructors ${finding ? 'disabled' : ''}>
+        ${SCHEDULING_AGENT_OWNS_COMPUTE ? (finding ? 'טוען המלצות שמורות…' : 'הצג המלצות שמורות') : finding ? 'בודק מדריכים...' : (hasSuggestion ? 'בדיקה מחדש של מדריכים' : 'מצא מדריכים מתאימים')}
       </button>
     </div>
     ${finding ? (SCHEDULING_AGENT_OWNS_COMPUTE ? '<p role="status">טוען המלצות שמורות מהסוכן…</p>' : loadingInstructorsHtml(state.courseSchedulingProgressStep || 1)) : instructorsResultsHtml(result, state)}
@@ -2359,7 +2360,7 @@ export const courseSchedulingScreen = {
     state.meetingState = data.meetingState;
     const allInterfaceCourses = schedulingWorkspaceCourses(data.activities || []);
     const interfaceCourses = filteredInterfaceCourses(allInterfaceCourses, state);
-    if(SCHEDULING_AGENT_OWNS_COMPUTE) state.courseSchedulingResults=(state.courseSchedulingResults||[]).filter(r=>r.agentSnapshot);
+    if(SCHEDULING_AGENT_OWNS_COMPUTE) state.courseSchedulingResults=(state.courseSchedulingResults||[]).filter(r=>r.agentSnapshot || r.manualOnly === true);
     else restoreCalculationSnapshot(state, interfaceCourses, schedulingSnapshotContext(data));
     if (data._planningShared && !state.courseSchedulingPlanningSharedLoaded) {
       const courseIds = new Set(allInterfaceCourses.map(idOf));
@@ -5064,6 +5065,28 @@ export const courseSchedulingScreen = {
     const selectedCourseId = state.courseSchedulingSelectedId;
     const selectedCourse = courseById.get(selectedCourseId);
 
+    // Direct operator choice: no agent query or national/point planning run.
+    // A save still uses the existing server validations and approval flow.
+    const openManualInstructorPicker = () => {
+      if (!canEdit || !selectedCourseId || !selectedCourse || state.courseSchedulingLoading) return;
+      const result = manualInstructorResult(selectedCourse, activeSchedulingInstructors(data.instructors || []));
+      if (!result.manualCandidates.length) {
+        showToast('לא נמצאו מדריכים פעילים ברשימה. יש לרענן את נתוני המדריכים.', 'error');
+        return;
+      }
+      state.courseSchedulingResults = [
+        ...(state.courseSchedulingResults || []).filter(item => idOf(item.course) !== selectedCourseId),
+        result
+      ];
+      state.courseSchedulingManualConfirmation = null;
+      state.courseSchedulingManualSelection = null;
+      state.courseSchedulingSelectedCandidateId = '';
+      state.courseSchedulingManualPickerOpen = true;
+      state.courseSchedulingManualSearch = '';
+      state.courseSchedulingError = '';
+      rerender();
+    };
+
     detailRoot.querySelector('[data-open-single-substitute]')?.addEventListener('click', async () => {
       if (!canEdit || !substituteAccess.allowed || !selectedCourseId) return;
       const [substitutionResult, historyResult] = await Promise.all([
@@ -5223,7 +5246,7 @@ export const courseSchedulingScreen = {
       state.courseSchedulingReplacementReason = '';
       state.courseSchedulingReplacementEffectiveFrom = '';
       state.courseSchedulingReplacementConfirmed = false;
-      await runFindInstructors();
+      openManualInstructorPicker();
     });
 
     detailRoot.querySelector('[data-open-cancel-assignment]')?.addEventListener('click', () => {
@@ -5489,6 +5512,7 @@ export const courseSchedulingScreen = {
     bindingRoot.querySelectorAll('[data-find-instructors]').forEach((button) => {
       button.addEventListener('click', runFindInstructors);
     });
+    detailRoot.querySelector('[data-open-manual-assignment]')?.addEventListener('click', openManualInstructorPicker);
 
     detailRoot.querySelector('[data-toggle-manual-picker]')?.addEventListener('click', () => {
       state.courseSchedulingManualPickerOpen = state.courseSchedulingManualPickerOpen !== true;
@@ -5539,9 +5563,12 @@ export const courseSchedulingScreen = {
         }
         state.courseSchedulingManualPickerOpen = false;
         state.courseSchedulingManualSearch = '';
+        state.courseSchedulingResults = (state.courseSchedulingResults || [])
+          .filter(item => idOf(item.course) !== selectedCourseId);
         clearScreenDataCache?.();
-        showToast('הבחירה הידנית נשמרה כטיוטה. יתר התכנון מתעדכן.', 'success');
-        await runFindInstructors();
+        invalidatePlanningWorkboard();
+        showToast('טיוטת השיבוץ הידני נשמרה. לא הופעל חישוב תכנון.', 'success');
+        rerender();
     };
     detailRoot.querySelectorAll('[data-manual-candidate]').forEach((button) => {
       button.addEventListener('click', () => {
