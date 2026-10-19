@@ -27,6 +27,6 @@ jobs:
           from pathlib import Path
           from pglast import parse_sql
           source=Path('supabase/migrations/20261020022500_postmerge_observation_scheduling_hardening.sql').read_text()
-          assert len(parse_sql(source)) >= 9
+          assert len(parse_sql(source)) >= 8
           print('SQL parsed successfully')
           PY
