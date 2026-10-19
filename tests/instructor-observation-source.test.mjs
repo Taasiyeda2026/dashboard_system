@@ -42,3 +42,17 @@ test('PDF report is complete, A4-printable and does not modify finalized records
   assert.match(migration, /created_by = auth\.uid\(\)/);
   assert.doesNotMatch(migration, /for delete to authenticated/i);
 });
+
+test('migration contains one well-formed observation trigger and each RLS policy once',()=>{
+ for(const marker of [
+  'create trigger instructor_observations_immutable',
+  'create policy instructor_observations_read',
+  'create policy instructor_observations_insert',
+  'create policy instructor_observations_update',
+  'comment on table public.instructor_observations'
+ ]) assert.equal(migration.split(marker).length-1,1,marker);
+ assert.match(migration, /new\.details->>'meeting',''\) !~ '\^\[1-9\]\[0-9\]\*\$'/);
+ assert.match(migration, /new\.details->>'students',''\) !~ '\^\[1-9\]\[0-9\]\*\$'/);
+ assert.match(migration, /new\.responses \?& array\[/);
+ assert.match(migration, /'5-1'\s*\]\)\s*\) then/);
+});
