@@ -218,9 +218,14 @@ function bind(ctx) {
   root.querySelector('[data-mw-add-program]')?.addEventListener('click', () => addProgram(ctx));
   root.querySelectorAll('[data-mw-save-program]').forEach((b) => b.addEventListener('click', () => saveProgram(ctx, Number(b.dataset.mwSaveProgram))));
   root.querySelector('[data-mw-check]')?.addEventListener('click', () => verifySubmitted(ctx));
+  root.querySelectorAll('input, textarea, select').forEach((input) => input.addEventListener('input', () => { if (ctx.canEdit) ctx.dirty = true; }));
 }
 function changeWeek(ctx, week) {
-  if (!isCurrent(ctx) || ctx.loading) return;
+  if (!isCurrent(ctx) || ctx.loading || ctx.busy) return;
+  if (ctx.dirty && !window.confirm('יש שינויים שלא נשמרו. לעבור שבוע ולבטל אותם?')) return;
+  if (ctx.dirty) ctx.reports = JSON.parse(JSON.stringify(ctx.savedReports || []));
+  ctx.dirty = false;
+  ctx.notice = null;
   ctx.week = week;
   render(ctx);
 }
@@ -277,6 +282,7 @@ async function load(ctx) {
     if (!isCurrent(ctx)) return;
     if (r.error || p.error) throw new Error(r.error?.message || p.error?.message);
     ctx.reports = r.data || [];
+    ctx.savedReports = JSON.parse(JSON.stringify(ctx.reports));
     ctx.programs = p.data || [];
     ctx.loading = false;
     render(ctx);
@@ -314,6 +320,7 @@ async function saveWeekly(ctx, submit) {
     if (i < 0) ctx.reports.push(data);
     else ctx.reports[i] = data;
     ctx.dirty = false;
+    ctx.savedReports = JSON.parse(JSON.stringify(ctx.reports));
     render(ctx);
     setNotice(ctx, submit ? 'הדיווח הוגש וננעל לעריכה. כעת ניתן לבדוק התאמה לנתוני המקור.' : 'הטיוטה נשמרה בהצלחה.');
   } catch (error) {
@@ -365,7 +372,7 @@ async function verifySubmitted(ctx) {
   if (error) { node.innerHTML = '<div class="mw-error">בדיקת המקור לא זמינה: ' + esc(error.message) + '</div>'; return; }
   const rows = (data || []).filter((a) => !CLOSED.has(val(a.status).toLowerCase()));
   const unique = [...new Map(rows.map((a) => [a.row_id, a])).values()];
-  const schoolKeys = new Set(unique.map((a) => a.school_id ? 'id:' + a.school_id : 'name:' + val(a.school)).filter(Boolean));
+  const schoolKeys = new Set(unique.map((a) => a.school_id ? 'id:' + a.school_id : (val(a.school) ? 'name:' + val(a.school) : '')).filter(Boolean));
   const counts = {
     activities: unique.length,
     schools: schoolKeys.size,
