@@ -1,0 +1,32 @@
+name: Observation and scheduling post-merge hardening
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/20261020022500_postmerge_observation_scheduling_hardening.sql'
+      - 'tests/postmerge-observation-scheduling-hardening.test.mjs'
+      - '.github/workflows/postmerge-observation-scheduling-hardening.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  focused-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run observation, scheduling and hardening contracts
+        run: node --test tests/instructor-observation-source.test.mjs tests/instructor-observation-browser.test.mjs tests/scheduling-approved-unavailability-contract.test.mjs tests/postmerge-observation-scheduling-hardening.test.mjs
+      - name: Parse migration with PostgreSQL grammar
+        run: |
+          python3 -m pip install --quiet pglast
+          python3 - <<'PY'
+          from pathlib import Path
+          from pglast import parse_sql
+          source=Path('supabase/migrations/20261020022500_postmerge_observation_scheduling_hardening.sql').read_text()
+          assert len(parse_sql(source)) >= 8
+          print('SQL parsed successfully')
+          PY
