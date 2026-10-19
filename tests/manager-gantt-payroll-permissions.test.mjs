@@ -8,7 +8,7 @@ const managerFinalCss = await readFile(new URL('../frontend/src/styles/manager-b
 const navSource = await readFile(new URL('../frontend/src/screens/shared/instructors-workspace-nav.js', import.meta.url), 'utf8');
 const launcherSource = await readFile(new URL('../frontend/src/screens/shared/payroll-control-launcher.js', import.meta.url), 'utf8');
 
-test('manager board loads a Gantt placeholder tab with COMING SOON', () => {
+test('manager board loads a manual weekly tracking Gantt tab', () => {
   assert.match(cleanupSource, /manager-gantt-placeholder-runtime\.js\?v=20260908-team-strip-v3/);
   assert.match(ganttSource, /data\.managerWorkspaceTab = GANTT_TAB_ID/);
   assert.match(ganttSource, /textContent = 'גאנט'/);
