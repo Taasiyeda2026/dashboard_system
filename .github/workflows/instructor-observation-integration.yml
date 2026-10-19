@@ -7,6 +7,7 @@ on:
       - 'frontend/src/main.js'
       - 'supabase/migrations/20261019023000_instructor_observations.sql'
       - 'tests/instructor-observation-source.test.mjs'
+      - 'tests/instructor-observation-browser.test.mjs'
       - 'tests/instructor-observation-postgres.test.mjs'
       - '.github/workflows/instructor-observation-integration.yml'
   workflow_dispatch:
@@ -23,7 +24,7 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Check observation runtime and validations
-        run: node --test tests/instructor-observation-source.test.mjs
+        run: node --test tests/instructor-observation-source.test.mjs tests/instructor-observation-browser.test.mjs
       - name: Parse observation PostgreSQL migration with pglast
         run: |
           python3 -m pip install --quiet pglast
