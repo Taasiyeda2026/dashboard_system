@@ -118,3 +118,37 @@ language sql stable security definer set search_path = public, pg_temp as $$
 $$;
 revoke all on function public.manager_weekly_manager_directory() from public;
 grant execute on function public.manager_weekly_manager_directory() to authenticated;
+
+-- Completeness is also checked in PostgreSQL, not only in the browser.
+create or replace function public.manager_weekly_valid_submission(
+  p_metrics jsonb, p_openings jsonb, p_week date, p_highlights text, p_next_steps text
+) returns boolean language plpgsql immutable set search_path = public, pg_temp as $$
+declare metric_key text; item jsonb; d date; n numeric;
+begin
+  if jsonb_typeof(p_metrics) <> 'object' or jsonb_typeof(p_openings) <> 'array'
+     or nullif(trim(coalesce(p_highlights,'')), '') is null
+     or nullif(trim(coalesce(p_next_steps,'')), '') is null then return false; end if;
+  foreach metric_key in array array['activities','schools','unassigned','planned','started','training','materials','kits','issues'] loop
+    if jsonb_typeof(p_metrics->metric_key) <> 'number' then return false; end if;
+    n := (p_metrics->>metric_key)::numeric;
+    if n < 0 or n <> trunc(n) or n > 2147483647 then return false; end if;
+  end loop;
+  if jsonb_array_length(p_openings) <> (p_metrics->>'planned')::integer then return false; end if;
+  for item in select value from jsonb_array_elements(p_openings) loop
+    if nullif(trim(coalesce(item->>'school','')), '') is null
+       or nullif(trim(coalesce(item->>'program','')), '') is null
+       or nullif(trim(coalesce(item->>'instructor','')), '') is null
+       or coalesce(item->>'start_date','') !~ '^\d{4}-\d{2}-\d{2}$' then return false; end if;
+    begin
+      d := (item->>'start_date')::date;
+    exception when others then return false;
+    end;
+    if d < p_week or d > p_week + 6 then return false; end if;
+  end loop;
+  return true;
+exception when others then return false;
+end
+$$;
+alter table public.manager_weekly_reports
+  add constraint manager_weekly_reports_submit_valid
+  check (status <> 'submitted' or public.manager_weekly_valid_submission(metrics, openings, week_start, highlights, next_steps));
