@@ -12,7 +12,7 @@ const launcherSource = await readFile(new URL('../frontend/src/screens/shared/pa
 
 test('manager board loads a manual weekly tracking Gantt tab', () => {
   assert.match(cleanupSource, /manager-gantt-placeholder-runtime\.js\?v=20261019-manual-weekly-v1/);
-  assert.match(ganttSource, /data\.managerWorkspaceTab = GANTT_TAB_ID/);
+  assert.match(ganttSource, /button\.dataset\.managerWorkspaceTab = GANTT_TAB_ID/);
   assert.match(ganttSource, /textContent = 'גאנט'/);
   assert.match(ganttSource, /mountManagerWeeklyManual/);
   assert.doesNotMatch(ganttSource, /COMING SOON/);
@@ -28,11 +28,9 @@ test('manager team strip remains above Gantt content and uses symmetric tile siz
   assert.match(managerFinalCss, /width:\s*100%/);
 });
 
-test('payroll control is limited to admin operations and finance', () => {
-  const expectedRoles = /new Set\(\['admin', 'operation_manager', 'finance'\]\)/;
-  assert.match(navSource, expectedRoles);
-  assert.match(navSource, /tab\?\.id === 'payroll-control' && !hasPayrollControlRole\(state\)/);
-  assert.match(launcherSource, expectedRoles);
+test('payroll access follows the central attendance permission', () => {
+  assert.match(navSource, /hasPermission\(state\?\.user, 'view_attendance_control'\)/);
+  assert.match(launcherSource, /hasPermission\(state\?\.user, 'view_attendance_control'\)/);
   assert.match(launcherSource, /if \(!canOpenPayrollControl\(state\)\)/);
   assert.match(launcherSource, /אין הרשאה לפתוח את בקרת הנוכחות/);
 });
