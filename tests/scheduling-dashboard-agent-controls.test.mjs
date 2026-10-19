@@ -122,6 +122,16 @@ test('Eden reassigns manually without agent suggestions',async()=>{
   assert.ok(!f.calls.some(c=>c.name==='get_scheduling_dashboard_candidates'));
  }finally{f.close();}
 });
+test('planning-only lock does not force a global plan run before manual selection',async()=>{
+ const f=ui();try{
+  f.state.courseSchedulingPlanningRows=[{courseId:course.row_id,planningLocked:true,instructorEmpId:'7',kind:'planning-locked'}];
+  f.render();
+  const manual=f.root.querySelector('[data-open-manual-assignment]');
+  assert.ok(manual);manual.click();await settle();
+  assert.ok(f.root.querySelector('[data-manual-candidate="8"]'));
+  assert.ok(!f.calls.some(c=>c.name==='get_scheduling_dashboard_candidates'));
+ }finally{f.close();}
+});
 test('existing assignment replacement opens manual picker without calling the agent',async()=>{
  const f=ui({assigned:true});try{
   f.root.querySelector('[data-change-assignment]').click();await settle();
