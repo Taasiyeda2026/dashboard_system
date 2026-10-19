@@ -48,7 +48,7 @@ test('count of expected openings must match the detailed rows', () => {
 test('each expected opening must belong to selected week', () => {
   const report = validReport();
   report.openings[0].start_date = '2026-10-25';
-  assert.match(validateWeeklyReport(report), /השבוע המדווח/);
+  assert.match(validateWeeklyReport(report), /לשבוע המדווח/);
 });
 
 test('manager report cannot be submitted without weekly learning and next steps', () => {
