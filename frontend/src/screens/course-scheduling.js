@@ -1944,7 +1944,9 @@ function selectedCoursePanelHtml(row, state) {
   if (row.isAssigned && state.courseSchedulingReplacementCourseId !== row.id) {
     return `${header}${schoolContext}${assignedDetailHtml(row, state)}`;
   }
-  if (row.hasDraft) return `${header}${schoolContext}${draftDetailHtml(row.course)}`;
+  // A planning lock is not an activity draft. It must not prevent an operator
+  // from opening the independent manual picker; the server still validates save.
+  if (row.hasActualDraft) return `${header}${schoolContext}${draftDetailHtml(row.course)}`;
 
   const finding = !!state.courseSchedulingLoading;
   const result = row.result;
@@ -1956,7 +1958,7 @@ function selectedCoursePanelHtml(row, state) {
       <label>סיבה${replacementMeetings ? ' *' : ''}<textarea class="course-scheduling-input" data-replacement-reason>${escapeHtml(state.courseSchedulingReplacementReason || '')}</textarea></label>
       ${replacementMeetings >= 2 ? `<label>תאריך כניסה לתוקף *<input class="course-scheduling-input" type="date" data-replacement-effective-from value="${escapeHtml(state.courseSchedulingReplacementEffectiveFrom || '')}"></label><label><input type="checkbox" data-replacement-confirm ${state.courseSchedulingReplacementConfirmed ? 'checked' : ''}> אני מאשר/ת את ההחלפה התפעולית</label>` : ''}
     </div>` : '';
-  return `${header}${schoolContext}${replacementControls}
+  return `${header}${schoolContext}${row.hasPlanningDraft ? '<p class="course-scheduling-muted">קיימת בחירת מדריך בתכנון בלבד; ניתן לבחור ידנית, בכפוף לבדיקת השמירה.</p>' : ''}${replacementControls}
     <div class="course-scheduling-primary-action">
       <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-open-manual-assignment ${finding ? 'disabled' : ''}>שבץ מדריך ידנית</button>
       <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-find-instructors ${finding ? 'disabled' : ''}>
