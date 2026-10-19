@@ -19,6 +19,9 @@ test('observation migration, RLS and immutable completed reports on disposable P
       if not exists(select from pg_roles where rolname='authenticated') then
         create role authenticated;
       end if;
+      if not exists(select from pg_roles where rolname='anon') then
+        create role anon;
+      end if;
     end $$;
     create function auth.uid() returns uuid language sql stable as
       $$ select nullif(current_setting('test.uid',true),'')::uuid $$;
