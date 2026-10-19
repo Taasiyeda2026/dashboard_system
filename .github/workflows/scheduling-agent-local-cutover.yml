@@ -20,8 +20,10 @@ jobs:
           node-version: '22'
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: node --test tests/scheduling-agent-local-calculation-cutover.test.mjs
-      - name: Verify manual replacement UI with server-owned computation
+      - name: Verify direct manual assignment and all guarded replacement flows
+        run: node --test tests/scheduling-dashboard-agent-controls.test.mjs
+      - name: Verify manual controls in the main workboard
         run: >-
           node --test
-          --test-name-pattern="manual replacement from recommended|direct result HTML|through manual picker still"
-          tests/scheduling-dashboard-agent-controls.test.mjs
+          --test-name-pattern="single-course manual controls"
+          tests/course-scheduling-district-simulation.test.mjs
