@@ -1,0 +1,36 @@
+name: Instructor Observation Integration
+on:
+  pull_request:
+    paths:
+      - 'frontend/src/instructor-observation-runtime.js'
+      - 'frontend/src/styles/instructor-observation.css'
+      - 'frontend/src/main.js'
+      - 'supabase/migrations/20261019023000_instructor_observations.sql'
+      - 'tests/instructor-observation-source.test.mjs'
+      - '.github/workflows/instructor-observation-integration.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  observation-contract-and-sql:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Check observation runtime and validations
+        run: node --test tests/instructor-observation-source.test.mjs
+      - name: Parse observation PostgreSQL migration with pglast
+        run: |
+          python3 -m pip install --quiet pglast
+          python3 - <<'PY'
+          from pathlib import Path
+          from pglast import parse_sql
+          sql = Path('supabase/migrations/20261019023000_instructor_observations.sql').read_text()
+          statements = parse_sql(sql)
+          assert len(statements) >= 15, f'Unexpected SQL statement count: {len(statements)}'
+          print(f'Parsed {len(statements)} observation migration statements')
+          PY
