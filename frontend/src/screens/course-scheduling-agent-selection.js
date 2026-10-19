@@ -23,6 +23,25 @@ export function agentCandidateResult(snapshot,{replacement=false}={}) {
     agentSnapshot:snapshot};
 }
 
+/**
+ * Operator-initiated manual assignment. Builds the picker from the already loaded
+ * active-instructor directory; no agent read, national planning or optimization.
+ * Instructor eligibility is intentionally NOT inferred by the browser: the
+ * existing audited assignment RPC validates the selected instructor on save.
+ */
+export function manualInstructorResult(course, instructors = []) {
+  if (!text(course?.row_id)) throw Error('manual_assignment_activity_required');
+  const manualCandidates = instructors.filter(instructor => text(instructor?.emp_id)).map(instructor => ({
+    instructor, eligible: false, score: null, failures: [],
+    missingProfileData: [], serverValidationRequired: true
+  }));
+  return {
+    course, recommended: null, bestAvailable: null, alternatives: [], checked: [],
+    manualCandidates, manualOnly: true, status: 'נדרש טיפול',
+    treatmentReason: 'בחירה ידנית ללא הרצת תכנון. התאמה, התנגשויות ואישורים ייבדקו בשרת בעת השמירה.'
+  };
+}
+
 export function createAgentAssignmentClient({rpc,getActivity,onActivity=()=>{},onConflict=()=>{},snapshots=new Map()}) {
   return {
     async candidates(activityId,options){
