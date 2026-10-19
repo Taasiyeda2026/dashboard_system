@@ -133,6 +133,24 @@ const TOOLS = [
     inputSchema: {type:'object',properties:{activityId:{type:'string'}},required:['activityId'],additionalProperties:false}
   },
   {
+    name:'read_permanent_unavailability',
+    annotations:{readOnlyHint:true,destructiveHint:false,idempotentHint:true,openWorldHint:false},
+    description:'Read documented scoped permanent-course approval and blocked lesson statuses for one instructor and activity. No writes.',
+    inputSchema:{type:'object',properties:{activityId:{type:'string'},instructorId:{type:'integer',minimum:1}},required:['activityId','instructorId'],additionalProperties:false}
+  },
+  {
+    name:'approve_permanent_unavailability',
+    annotations:{readOnlyHint:false,destructiveHint:true,idempotentHint:false,openWorldHint:false},
+    description:'Designated manager ONLY. Record explicit activity, instructor, date-range and reason approval to finalize permanent allocation while blocked lessons stay UNSTAFFED. Requires explicit manager consent. This does not change availability.',
+    inputSchema:{type:'object',properties:{activityId:{type:'string'},instructorId:{type:'integer',minimum:1},scopeStart:{type:'string'},scopeEnd:{type:'string'},reason:{type:'string',minLength:12,maxLength:1000}},required:['activityId','instructorId','scopeStart','scopeEnd','reason'],additionalProperties:false}
+  },
+  {
+    name:'confirm_permanent_unavailability',
+    annotations:{readOnlyHint:false,destructiveHint:true,idempotentHint:false,openWorldHint:false},
+    description:'Finalize permanent instructor ONLY after confirming matching manager approval, current revision, and obtaining explicit final consent. Blocked lessons are persisted without an effective teaching instructor.',
+    inputSchema:{type:'object',properties:{activityId:{type:'string'},instructorId:{type:'integer',minimum:1},activityUpdatedAt:{type:'string',minLength:10,maxLength:60}},required:['activityId','instructorId','activityUpdatedAt'],additionalProperties:false}
+  },
+  {
     name: 'confirm_planning_option',
     description: 'Confirm a fresh verified existing plan option, including proposed dates. Requires explicit confirmation. Changing agreed future dates requires separate explicit consent. Never change past sessions or approve exceptions.',
     inputSchema: {type:'object',properties:{
@@ -206,6 +224,9 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
     confirm_schedule_batch:['items'],
     submit_manager_approval:['activityId'],
     confirm_own_draft:['activityId'],
+    read_permanent_unavailability:['activityId','instructorId'],
+    approve_permanent_unavailability:['activityId','instructorId','scopeStart','scopeEnd','reason'],
+    confirm_permanent_unavailability:['activityId','instructorId','activityUpdatedAt'],
     confirm_planning_option:['activityId','optionIndex','workspaceRevision','sourceRevision','allowDateChange']
   };
   if(!allowed[name]||Object.keys(args).some(k=>!allowed[name].includes(k)))return false;
@@ -253,6 +274,15 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
       && typeof args.endTime==='string' && /^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(args.endTime)
       && args.startTime<args.endTime
       && (args.reason===undefined || (typeof args.reason==='string' && args.reason.length<=500));
+  }
+  if(['read_permanent_unavailability','approve_permanent_unavailability','confirm_permanent_unavailability'].includes(name)){
+    if(!activityId(args.activityId)||typeof args.instructorId!=='number'||!Number.isSafeInteger(args.instructorId)||args.instructorId<=0)return false;
+    if(name==='read_permanent_unavailability')return true;
+    if(name==='confirm_permanent_unavailability')return typeof args.activityUpdatedAt==='string'&&args.activityUpdatedAt.length>=10&&args.activityUpdatedAt.length<=60;
+    return typeof args.reason==='string'&&args.reason.trim().length>=12&&args.reason.length<=1000
+      && typeof args.scopeStart==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(args.scopeStart)
+      && typeof args.scopeEnd==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(args.scopeEnd)
+      && args.scopeStart<=args.scopeEnd;
   }
   if(name==='request_optimization')return args.mode==='incremental'||args.mode==='full';
   if(name==='optimization_status')return typeof args.jobId==='string'&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(args.jobId);
@@ -429,6 +459,9 @@ Deno.serve(async request=>{
     confirm_schedule_batch:'scheduling_agent_team_confirm_schedule_batch',
     submit_manager_approval:'scheduling_agent_team_submit_manager_approval',
     confirm_own_draft:'scheduling_agent_team_confirm_own_draft',
+    read_permanent_unavailability:'scheduling_permanent_unavailability_state',
+    approve_permanent_unavailability:'scheduling_approve_permanent_unavailability',
+    confirm_permanent_unavailability:'scheduling_confirm_permanent_unavailability',
     confirm_planning_option:'scheduling_agent_team_confirm_planning_option'
   };
   const input:Record<string,unknown>=(name==='read_snapshot'||name==='planning_status')?{}:
@@ -441,6 +474,9 @@ Deno.serve(async request=>{
     name==='optimization_status'?{p_job_id:args.jobId}:
     name==='stage_manual_draft'?{p_activity_id:args.activityId,p_emp_id:args.instructorId,p_reason:args.reason??null}:
     (name==='stage_schedule_batch'||name==='confirm_schedule_batch')?{p_items:args.items}:
+    name==='read_permanent_unavailability'?{p_activity_id:args.activityId,p_emp_id:args.instructorId}:
+    name==='approve_permanent_unavailability'?{p_activity_id:args.activityId,p_emp_id:args.instructorId,p_from:args.scopeStart,p_to:args.scopeEnd,p_reason:args.reason}:
+    name==='confirm_permanent_unavailability'?{p_activity_id:args.activityId,p_emp_id:args.instructorId,p_expected_updated_at:args.activityUpdatedAt}:
     name==='confirm_planning_option'?{
       p_activity_id:args.activityId,
       p_option_index:args.optionIndex,

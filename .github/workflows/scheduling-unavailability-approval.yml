@@ -1,0 +1,70 @@
+name: Scoped Permanent Unavailability Approval
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/20261018153*'
+      - 'frontend/src/screens/course-scheduling.js'
+      - 'supabase/functions/scheduling-agent-team-gateway/**'
+      - 'tests/scheduling-approved-unavailability-contract.test.mjs'
+      - '.github/workflows/scheduling-unavailability-approval.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Scoped approval and existing scheduling regressions
+        run: |
+          node --test \
+            tests/scheduling-approved-unavailability-contract.test.mjs \
+            tests/course-scheduling-exception-recovery.test.mjs \
+            tests/course-single-meeting-substitution.test.mjs \
+            tests/instructor-resolved-meetings-sot.test.mjs \
+            tests/scheduling-agent-team-actionable-workflow.test.mjs
+      - name: Parse every new PostgreSQL migration
+        run: |
+          python3 -m pip install --quiet pglast
+          python3 - <<'PY'
+          from pathlib import Path
+          from pglast import parse_sql
+          paths=sorted(Path('supabase/migrations').glob('20261018153*.sql'))
+          assert len(paths)>=4, paths
+          for path in paths:
+              parse_sql(path.read_text(encoding='utf-8'))
+              print('SQL parsed:',path.name)
+          PY
+
+  postgres-acceptance:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: fixture-only
+          POSTGRES_DB: scheduling_fixture
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Disposable PostgreSQL lifecycle
+        env:
+          SCHEDULING_UNAVAILABILITY_TEST_DATABASE_URL: postgresql://postgres:fixture-only@127.0.0.1:5432/scheduling_fixture
+        run: node --test tests/scheduling-approved-unavailability-postgres.test.mjs

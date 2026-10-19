@@ -40,8 +40,25 @@ test('submitEditRequest and reviewEditRequest keep request payload handling', as
   const source = await readApiSource();
   assert.match(source, /submitEditRequest: async \(source_row_id, changes, source_sheet = 'activities'\) => \{/);
   assert.match(source, /const rowId = String\(requestPayload\?\.source_row_id \|\| source_row_id \|\| ''\)\.trim\(\);/);
-  assert.match(source, /reviewEditRequest: async \(request_id, status\) => \{/);
+  assert.match(source, /reviewEditRequest: async \(request_id, status, reviewOptions = \{\}\) => \{/);
   assert.match(source, /const requestId = String\(request_id \|\| ''\)\.trim\(\);/);
+});
+
+test('school 2027 create and approval require explicit instructional language', async () => {
+  const [apiSource, activitiesSource, requestsSource] = await Promise.all([
+    readApiSource(),
+    readSource('../frontend/src/screens/activities.js'),
+    readSource('../frontend/src/screens/edit-requests.js')
+  ]);
+  assert.match(activitiesSource, /name="instruction_language"/);
+  assert.match(activitiesSource, /instruction_language: get\('instruction_language'\)/);
+  assert.match(activitiesSource, /יש לבחור שפת הדרכה: עברית או ערבית/);
+  assert.match(apiSource, /function assertExplicitSchool2027InstructionLanguage\(activity = \{\}\)/);
+  assert.match(apiSource, /assertExplicitSchool2027InstructionLanguage\(activity \|\| \{\}\)/);
+  assert.match(apiSource, /assertExplicitSchool2027InstructionLanguage\(requestedPayload\)/);
+  assert.match(apiSource, /requestedPayload\.instruction_language = selectedLanguage/);
+  assert.match(requestsSource, /data-approval-language/);
+  assert.match(requestsSource, /reviewEditRequest\(requestId, status, reviewOptions\)/);
 });
 
 test('api mutation cache invalidation map includes required keys', async () => {

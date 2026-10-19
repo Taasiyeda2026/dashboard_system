@@ -1045,6 +1045,7 @@ function addActivityModalHtml(settings, activityPeriodTab = '') {
           ? `<label class="ds-activity-add-field ds-activity-add-field--compact"><span>תחום פעילות</span><select class="ds-input" name="activity_domain" required><option value="">בחרו תחום</option><option value="E">E</option><option value="Y">Y</option><option value="EY">EY</option></select></label>`
           : ''
         }
+        <label class="ds-activity-add-field ds-activity-add-field--compact"><span>שפת הדרכה${initialSeason === ACTIVITY_SEASON_SCHOOL_2027 ? ' *' : ''}</span><select class="ds-input" name="instruction_language" ${initialSeason === ACTIVITY_SEASON_SCHOOL_2027 ? 'required' : ''}><option value="">בחרו שפת הדרכה</option><option value="he">עברית</option><option value="ar">ערבית</option></select></label>
         <fieldset class="ds-activity-add-field ds-activity-add-field--span2" data-funding-picker><legend>מימון</legend><div style="display:grid;gap:6px">${(settings?.dropdown_options?.funding_source_records || []).map((source) => `<label style="display:grid;grid-template-columns:auto 1fr minmax(100px,140px);align-items:center;gap:8px"><input type="checkbox" data-funding-source-id="${escapeHtml(source.id)}" data-funding-name="${escapeHtml(source.name)}"><span>${escapeHtml(source.name)}</span><input class="ds-input" type="number" min="0" step="0.01" inputmode="decimal" data-funding-amount placeholder="סכום (רשות)"></label>`).join('')}</div></fieldset>
         <div class="ds-activity-add-field ds-activity-add-field--span2" data-add-gefen-order-host hidden>
           <input type="checkbox" name="exists_in_gefen" value="true" data-gefen-exists-checkbox hidden>
@@ -3332,6 +3333,7 @@ export const activitiesScreen = {
         activity_type: selectedType || get('activity_type'),
         item_type: selectedType || get('activity_type'),
         activity_season: activitySeason,
+        instruction_language: get('instruction_language') || null,
         ...(activitySeason === ACTIVITY_SEASON_SCHOOL_2027 ? { activity_domain: activityDomain } : {}),
         activity_name: humanDisplayText(selectedName),
         activity_no: String(hit?.activity_no || get('activity_no') || ''),
@@ -3439,6 +3441,11 @@ export const activitiesScreen = {
       const missing = required.filter(([key]) => !String(payload[key] || '').trim()).map(([, label]) => label);
       if (missing.length) {
         setAddActivityStatus(statusEl, `לא ניתן לשמור: חסר ${missing.join(' / ')}`, { isError: true });
+        resetAddActivitySavingState(form, submitBtn);
+        return;
+      }
+      if (isSchool2027Activity && !['he', 'ar'].includes(String(payload.instruction_language || '').trim())) {
+        setAddActivityStatus(statusEl, 'יש לבחור שפת הדרכה: עברית או ערבית', { isError: true });
         resetAddActivitySavingState(form, submitBtn);
         return;
       }
