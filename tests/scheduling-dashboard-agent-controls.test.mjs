@@ -132,6 +132,20 @@ test('planning-only lock does not force a global plan run before manual selectio
   assert.ok(!f.calls.some(c=>c.name==='get_scheduling_dashboard_candidates'));
  }finally{f.close();}
 });
+test('opening saved recommendations closes the direct manual picker exactly once',async()=>{
+ const f=ui({assigned:true});try{
+  f.root.querySelector('[data-change-assignment]').click();await settle();
+  assert.equal(f.state.courseSchedulingManualPickerOpen,true);
+  assert.ok(f.root.querySelector('[data-manual-candidate="8"]'));
+  f.root.querySelector('[data-find-instructors]').click();await settle();
+  assert.equal(f.state.courseSchedulingManualPickerOpen,false);
+  assert.equal(f.root.querySelector('[data-manual-candidate="8"]'),null);
+  f.root.querySelector('[data-toggle-manual-picker]').click();
+  assert.equal(f.state.courseSchedulingManualPickerOpen,true);
+  assert.ok(f.root.querySelector('[data-manual-candidate="8"]'));
+  assert.equal(f.calls.filter(c=>c.name==='get_scheduling_dashboard_candidates').length,1);
+ }finally{f.close();}
+});
 test('existing assignment replacement opens manual picker without calling the agent',async()=>{
  const f=ui({assigned:true});try{
   f.root.querySelector('[data-change-assignment]').click();await settle();
