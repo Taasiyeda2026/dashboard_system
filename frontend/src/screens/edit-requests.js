@@ -44,6 +44,7 @@ const LOCAL_FIELD_LABELS = {
   district: 'מחוז',
   activity_season: 'עונה',
   activity_domain: 'תחום',
+  instruction_language: 'שפת הדרכה',
   item_type: 'סוג פריט',
   participants_count: 'מספר משתתפים',
   operations_private_notes: 'הערות תפעול',
@@ -362,6 +363,20 @@ export function renderGroup(group, canReview) {
   const tableHead = isCreateRequest
     ? '<tr><th>שדה</th><th>ערך</th></tr>'
     : '<tr><th>שדה</th><th>ערך נוכחי</th><th></th><th>ערך מבוקש</th></tr>';
+  const requiresLanguageSelection = isCreateRequest
+    && String(group?.requested_payload?.activity_season || '').trim() === 'school_2027'
+    && !['he', 'ar'].includes(String(group?.requested_payload?.instruction_language || '').trim());
+  const languageSelectionHtml = requiresLanguageSelection ? `
+    <label class="ds-er-language-selection" dir="rtl">
+      <strong>שפת הדרכה — חובה לבחור לפני האישור</strong>
+      <select class="ds-input" data-approval-language aria-label="שפת הדרכה לאישור פעילות">
+        <option value="">בחרו שפת הדרכה</option>
+        <option value="he">עברית</option>
+        <option value="ar">ערבית</option>
+      </select>
+    </label>
+  ` : '';
+
   const fieldsTableHtml = changeFields.length ? `
       <h4 class="ds-er-section-title">${sectionTitle}</h4>
       <div class="ds-table-wrap ds-er-fields-wrap">
@@ -386,6 +401,7 @@ export function renderGroup(group, canReview) {
       </header>
       ${metaHtml ? `<div class="ds-er-meta-grid" dir="rtl">${metaHtml}</div>` : ''}
       ${warnIncomplete}
+      ${languageSelectionHtml}
       ${fieldsTableHtml}
       ${reviewerNoteHtml}
       ${requesterFooterHtml(group)}
@@ -460,6 +476,13 @@ export const editRequestsScreen = {
         const requestType = groupEl?.dataset.requestType || '';
         const isSchedulingApproval = requestType === COURSE_ASSIGNMENT_MANAGER_APPROVAL_REQUEST_TYPE;
         const isMeetingSubstituteRequest = requestType === COURSE_MEETING_SUBSTITUTE_REQUEST_TYPE;
+        const languageSelect = groupEl?.querySelector('[data-approval-language]');
+        if (status === 'approved' && languageSelect && !['he', 'ar'].includes(languageSelect.value)) {
+          showToast('כדי לאשר את הפעילות יש לבחור שפת הדרכה: עברית או ערבית', 'error');
+          languageSelect.focus();
+          return;
+        }
+        const reviewOptions = languageSelect ? { instruction_language: languageSelect.value } : {};
         btn.disabled = true;
 
         try {
@@ -467,7 +490,7 @@ export const editRequestsScreen = {
             ? await reviewCourseAssignmentManagerApproval(requestId, status)
             : (isMeetingSubstituteRequest
               ? await reviewCourseMeetingSubstituteRequest(requestId, status)
-              : await api.reviewEditRequest(requestId, status));
+              : await api.reviewEditRequest(requestId, status, reviewOptions));
 
           if (reviewed?.status === 'conflict') {
             groupEl?.remove();
