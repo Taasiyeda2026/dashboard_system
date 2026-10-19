@@ -1949,9 +1949,6 @@ function selectedCoursePanelHtml(row, state) {
   const finding = !!state.courseSchedulingLoading;
   const result = row.result;
   const hasSuggestion = !!result?.recommended;
-  const findButtonClass = hasSuggestion
-    ? 'course-scheduling-btn course-scheduling-btn--secondary'
-    : 'course-scheduling-btn course-scheduling-btn--primary course-scheduling-btn--xl';
   const replacementMeetings = Number(state.courseSchedulingReplacementMeetings) || 0;
   const replacementControls = state.courseSchedulingReplacementCourseId === row.id ? `<div class="course-scheduling-alert" role="alert">
       <b>${replacementMeetings >= 2 ? 'החלפת מדריך עקב צורך תפעולי' : 'שינוי מדריך'}</b>
@@ -2433,7 +2430,7 @@ export const courseSchedulingScreen = {
       <div class="course-scheduling-layout course-scheduling-layout--courses">
         <aside class="course-scheduling-courses" data-course-list tabindex="-1" aria-label="טבלת פעילויות">${courseListHtml(rowModels, selectedId, state)}</aside>
         <section class="course-scheduling-detail${selectedId ? ' is-open' : ''}" data-course-detail>${
-          selectedId && selectedRow?.planningRow?._detailsDeferred
+          selectedId && selectedRow?.planningRow?._detailsDeferred && !selectedRow?.result?.manualOnly
             ? '<p role="status">טוען פרטי שיבוץ…</p>'
             : selectedId && selectedRow?.course
             ? selectedCoursePanelHtml(selectedRow, state)
@@ -5078,6 +5075,8 @@ export const courseSchedulingScreen = {
         ...(state.courseSchedulingResults || []).filter(item => idOf(item.course) !== selectedCourseId),
         result
       ];
+      // Manual writes require current activity version but no agent workspace.
+      data._agentAssignmentSnapshots?.delete(selectedCourseId);
       state.courseSchedulingManualConfirmation = null;
       state.courseSchedulingManualSelection = null;
       state.courseSchedulingSelectedCandidateId = '';
