@@ -1,0 +1,106 @@
+
+/* Instructor observation: responsive manager workflow, independent of campaign feedback. */
+.io-icon { display:inline-grid;place-items:center;flex:0 0 auto;width:32px;height:32px;padding:6px;border:1px solid #c7d8e4;border-radius:8px;background:#fff;color:#186b89;cursor:pointer;box-sizing:border-box;transition:background .15s,border-color .15s; }
+.io-icon svg {width:17px;height:17px}
+.io-icon:hover {background:#e7f5fb;border-color:#65b3d0}
+.io-icon:focus-visible {outline:2px solid #08799d;outline-offset:2px}
+.io-team-member {display:flex;align-items:center;gap:4px;width:100%;min-width:0;height:100%}
+.io-team-member > button.manager-board-team-strip__chip {min-width:0;flex:1 1 auto;width:auto!important;padding-inline:5px!important;font-size:.72rem}
+.io-team-member > .io-team-icon {width:29px;height:29px;padding:5px}
+.io-card-icon {position:absolute;right:6px;top:6px;z-index:3;width:28px;height:28px;padding:5px}
+.io-modal-open {overflow:hidden!important}
+.io-root {display:none;position:fixed;inset:0;z-index:2147483000;background:rgba(12,31,48,.65);padding:16px;box-sizing:border-box;align-items:center;justify-content:center;direction:rtl;font-family:inherit;color:#193047}
+.io-root.io-visible {display:flex}
+.io-dialog {width:min(920px,100%);max-height:calc(100dvh - 32px);min-height:300px;display:flex;flex-direction:column;overflow:hidden;background:#fff;border-radius:16px;box-shadow:0 18px 60px rgba(0,0,0,.27)}
+.io-top {display:flex;align-items:center;justify-content:space-between;gap:18px;padding:15px 24px;border-bottom:1px solid #dce6ed;background:#f7fbfd;flex:none}
+.io-top h2 {font-size:1.15rem;margin:2px 0 0;color:#16344a}
+.io-top small {font-size:.75rem;color:#638198}
+.io-x {height:36px;width:36px;border:1px solid #d8e3eb;border-radius:9px;color:#49677a;background:#fff;cursor:pointer;font-size:1.05rem}
+.io-content {padding:24px;overflow-y:auto;flex:1;overscroll-behavior:contain}
+.io-content h3 {font-size:1.12rem;margin:0 0 12px}
+.io-content p,.io-content li {line-height:1.65}
+.io-content ol {padding-right:22px;padding-left:0}
+.io-lead {border-right:3px solid #1896b5;background:#f4f9fc;border-radius:8px;padding:13px 17px;margin:0 0 20px}
+.io-lead h3 {margin:0 0 5px}
+.io-lead p {margin:0}
+.io-muted {font-size:.87rem;color:#607489;margin:5px 0 18px}
+.io-progress {padding:13px 24px 0;flex:none}
+.io-progress-header {display:flex;justify-content:space-between;gap:8px;font-size:.79rem;color:#536d80;font-weight:650;margin-bottom:8px}
+.io-track {background:#e7edf1;border-radius:20px;height:5px;overflow:hidden}
+.io-track>span {display:block;background:#1394b1;height:100%;border-radius:20px}
+.io-fields {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.io-field {display:flex;flex-direction:column;gap:7px;margin-bottom:17px;font-size:.88rem;font-weight:700;color:#354d60}
+.io-field em {font-size:.66rem;font-style:normal;color:#9a4f43;margin-right:4px}
+.io-field input,.io-field select,.io-field textarea {display:block;box-sizing:border-box;width:100%;max-width:100%;border:1px solid #cad8e2;border-radius:9px;background:#fff;padding:10px 12px;font:inherit;font-size:.95rem;color:#173449;min-height:44px;direction:rtl;outline:none}
+.io-field textarea {resize:vertical;min-height:100px;line-height:1.6}
+.io-field input:focus,.io-field select:focus,.io-field textarea:focus {border-color:#189aba;box-shadow:0 0 0 3px rgba(24,154,186,.12)}
+.io-field [disabled] {background:#f6f8fa;color:#577182}
+.io-question {margin:0 0 20px;padding:15px;border:1px solid #e0e8ee;border-radius:11px}
+.io-question legend {padding:0 7px;font-weight:750;font-size:.95rem}
+.io-options {display:flex;gap:9px;flex-wrap:wrap;margin-top:5px}
+.io-option {position:relative;cursor:pointer}
+.io-option input {position:absolute;opacity:0;width:1px;height:1px}
+.io-option span {display:block;border:1px solid #cfdae4;border-radius:9px;background:#fff;min-height:39px;padding:9px 14px;box-sizing:border-box;font-size:.86rem;font-weight:650;transition:background .15s,border-color .15s}
+.io-option input:checked + span {background:#e0f4fa;border-color:#0d8cae;color:#075b76;box-shadow:inset 0 0 0 1px #0d8cae}
+.io-option input:focus-visible + span {outline:2px solid #08799d;outline-offset:3px}
+.io-option input:disabled + span {cursor:default;opacity:.85}
+.io-actions {display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 24px;border-top:1px solid #dfe8ee;background:#fbfcfd;flex:none}
+.io-actions-main {display:flex;gap:10px;flex-wrap:wrap}
+.io-primary,.io-secondary {border:1px solid #117e9e;border-radius:9px;padding:9px 18px;font:inherit;font-weight:750;min-height:41px;cursor:pointer}
+.io-primary {color:#fff;background:#1184a5}
+.io-primary:hover {background:#076785}
+.io-secondary {background:#fff;color:#17617a;border-color:#bdd1de}
+.io-primary:disabled,.io-secondary:disabled {opacity:.6;cursor:wait}
+.io-save-status {color:#647d8e;font-size:.77rem;margin:0;padding:7px 24px;text-align:left;min-height:30px;box-sizing:border-box}
+.io-error {color:#af2d34!important}
+.io-success {color:#227b60;font-weight:700}
+.io-history {display:grid;gap:9px;margin-top:12px}
+.io-history-row {display:flex;justify-content:space-between;align-items:center;gap:12px;padding:13px 16px;text-align:right;border:1px solid #dee8ee;background:#fff;border-radius:10px;cursor:pointer;font:inherit;color:inherit}
+.io-history-row:hover {background:#f7fbfd}
+.io-history-row>span:first-child {display:grid;gap:3px}
+.io-history-row small {color:#627c8b}
+.io-pill {font-size:.75rem;font-weight:700;border-radius:20px;background:#e4f3f8;color:#23718b;padding:5px 10px;white-space:nowrap}
+.io-overview {display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid #e5edf0;padding:12px 0;font-size:.87rem}
+.io-overview span {color:#537085}
+.io-print {display:none}
+@media(max-width:640px) {
+ .io-root {padding:0;align-items:stretch}
+ .io-dialog {width:100%;height:100dvh;max-height:100dvh;border-radius:0}
+ .io-top {padding:13px 16px}
+ .io-progress {padding:12px 16px 0}
+ .io-content {padding:17px 16px}
+ .io-content h3 {font-size:1.02rem}
+ .io-fields {grid-template-columns:minmax(0,1fr);gap:0}
+ .io-question {padding:12px}
+ .io-options {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .io-option span {text-align:center;font-size:.81rem;display:grid;place-items:center;min-height:44px;padding:7px}
+ .io-actions {padding:12px 16px;padding-bottom:max(12px,env(safe-area-inset-bottom));}
+ .io-actions-main {justify-content:flex-end}
+ .io-actions button {padding:8px 11px;font-size:.82rem}
+ .io-save-status {padding:5px 16px}
+ .io-overview {flex-direction:column;gap:4px}
+ .io-history-row {align-items:flex-start}
+ .io-pill {white-space:normal}
+}
+@media print {
+ @page {size:A4;margin:15mm}
+ body > *:not(.io-root) {display:none!important}
+ body.io-modal-open {overflow:visible!important;background:white!important}
+ .io-root,.io-root.io-visible {display:block!important;position:static!important;inset:auto!important;padding:0!important;margin:0!important;background:white!important;color:#111!important;z-index:auto!important}
+ .io-dialog {display:none!important}
+ .io-print {display:block!important;font:10pt/1.5 Arial,"Noto Sans Hebrew",sans-serif!important;direction:rtl;color:#172334}
+ .io-report header {border-bottom:3px solid #207e9f;margin-bottom:15px;padding-bottom:10px}
+ .io-report h1 {font-size:18pt;margin:0 0 5px}
+ .io-report header p {color:#567;margin:0}
+ .io-report h2 {font-size:12pt;border-bottom:1px solid #bcd1dc;padding-bottom:5px;margin:17px 0 10px}
+ .io-report h3 {font-size:10pt;margin:9px 0 3px}
+ .io-report table {border-collapse:collapse;width:100%;margin:10px 0 18px}
+ .io-report th,.io-report td {border:1px solid #d9e2e7;padding:5px 8px;text-align:right}
+ .io-report th {background:#f2f7fa;width:28%}
+ .io-report section {break-inside:avoid-page;page-break-inside:avoid}
+ .io-report-answer {display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px dotted #dde5e9}
+ .io-report-answer strong {font-weight:550;max-width:80%}
+ .io-report-answer span {font-weight:700}
+ .io-report p {white-space:pre-wrap;margin:7px 0}
+ .io-report footer {border-top:1px solid #cfdce4;color:#567;padding-top:9px;margin-top:30px;font-size:8pt}
+}
