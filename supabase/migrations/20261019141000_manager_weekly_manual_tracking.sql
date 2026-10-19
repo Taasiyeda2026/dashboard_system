@@ -102,3 +102,19 @@ for update to authenticated using (
 ) with check (
   manager_user_id = public.manager_weekly_self_user_id()
 );
+
+-- Directory restricted to authorized board users, so operations can review without broad users-table grants.
+create or replace function public.manager_weekly_manager_directory()
+returns table(manager_user_id text, manager_name text)
+language sql stable security definer set search_path = public, pg_temp as $$
+  select u.user_id, coalesce(nullif(trim(u.full_name), ''), u.name, u.user_id)
+  from public.users u
+  where u.role = 'activities_manager' and u.is_active is true
+    and (
+      public.app_current_role() in ('admin', 'operation_manager')
+      or u.auth_user_id = auth.uid()
+    )
+  order by 2
+$$;
+revoke all on function public.manager_weekly_manager_directory() from public;
+grant execute on function public.manager_weekly_manager_directory() to authenticated;
