@@ -57,7 +57,11 @@ test('observation migration, RLS and immutable completed reports on disposable P
   const details={course:'Course',school:'School',class:'9A',school_staff:'כן',meeting:'2',students:'24'};
   const completed=await q("update public.instructor_observations set status='completed',completed_at=now(),observation_date=current_date,overall_rating=4,strengths='Excellent',improvements='Practice',summary='Good teaching',details=$2::jsonb,responses=$3::jsonb where id=$1 returning status",[id,JSON.stringify(details),JSON.stringify(responses)]);
   assert.equal(completed[0].status,'completed');
-  await assert.rejects(db.query('update public.instructor_observations set strengths=$2 where id=$1',[id,'Tamper']),/completed_instructor_observation_is_immutable/);
+  // RLS suppresses unauthorized updates to completed rows before the immutable
+  // trigger is reached. Verify the row is neither modified nor returned.
+  const changed=await q('update public.instructor_observations set strengths=$2 where id=$1 returning id',[id,'Tamper']);
+  assert.equal(changed.length,0);
+  assert.equal((await q('select strengths from public.instructor_observations where id=$1',[id]))[0].strengths,'Excellent');
   await db.query("select set_config('test.uid',$1,false),set_config('test.role','activities_manager',false)",[auth2]);
   assert.equal((await q('select count(*)::int as n from public.instructor_observations'))[0].n,0);
   const blocked=await q("update public.instructor_observations set summary='Changed' where id=$1 returning id",[id]);
