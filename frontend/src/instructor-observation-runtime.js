@@ -151,7 +151,9 @@ async function create() {
 function resume(id) {
   selected=list.find(item=>item.id===id);
   if (!selected) return;
-  stage=0; render();
+  // Completed observations reopen at the report/print step instead of forcing
+  // a manager to click through every already-finalized section.
+  stage=selected.status==='completed'?9:0; render();
 }
 function field(label,key,type='text',required=false,value='') {
   return '<label class="io-field"><span>'+e(label)+(required ? ' <em>חובה</em>' : '')+'</span><input type="'+e(type)+'" data-io-detail="'+e(key)+'" value="'+e(value)+'" '+(!editable()?'disabled':'')+'></label>';
