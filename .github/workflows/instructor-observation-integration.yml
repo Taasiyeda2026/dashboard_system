@@ -7,6 +7,7 @@ on:
       - 'frontend/src/main.js'
       - 'supabase/migrations/20261019023000_instructor_observations.sql'
       - 'tests/instructor-observation-source.test.mjs'
+      - 'tests/instructor-observation-postgres.test.mjs'
       - '.github/workflows/instructor-observation-integration.yml'
   workflow_dispatch:
 permissions:
@@ -34,3 +35,29 @@ jobs:
           assert len(statements) >= 15, f'Unexpected SQL statement count: {len(statements)}'
           print(f'Parsed {len(statements)} observation migration statements')
           PY
+  observation-postgres-acceptance:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: fixture-only
+          POSTGRES_DB: observation_fixture
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: PostgreSQL RLS and completed observation integrity
+        env:
+          OBSERVATION_TEST_DATABASE_URL: postgresql://postgres:fixture-only@127.0.0.1:5432/observation_fixture
+        run: node --test tests/instructor-observation-postgres.test.mjs
