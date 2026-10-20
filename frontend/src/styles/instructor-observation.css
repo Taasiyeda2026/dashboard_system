@@ -1,13 +1,24 @@
 
 /* Instructor observation: responsive manager workflow, independent of campaign feedback. */
-.io-icon { display:inline-grid;place-items:center;flex:0 0 auto;width:32px;height:32px;padding:6px;border:1px solid #c7d8e4;border-radius:8px;background:#fff;color:#186b89;cursor:pointer;box-sizing:border-box;transition:background .15s,border-color .15s; }
-.io-icon svg {width:17px;height:17px}
-.io-icon:hover {background:#e7f5fb;border-color:#65b3d0}
-.io-icon:focus-visible {outline:2px solid #08799d;outline-offset:2px}
-.io-team-member {display:flex;align-items:center;gap:4px;width:100%;min-width:0;height:100%}
-.io-team-member > button.manager-board-team-strip__chip {min-width:0;flex:1 1 auto;width:auto!important;padding-inline:5px!important;font-size:.72rem}
-.io-team-member > .io-team-icon {width:29px;height:29px;padding:5px}
-.io-card-icon {position:absolute;right:6px;top:6px;z-index:3;width:28px;height:28px;padding:5px}
+/* Observation actions live in the two tracking-table columns, next to the date.
+   They do not occupy team-roster grid columns or alter instructor chip widths. */
+.manager-workspace-tracking-table .manager-workspace-followup-cell__content:has(.manager-workspace-observation-action) {
+  display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap;
+}
+.manager-workspace-observation-action {
+  display:inline-grid;place-items:center;flex:0 0 24px;width:24px;height:24px;
+  padding:3px;border:1px solid #c7d8e4;border-radius:6px;background:#fff;
+  color:#186b89;cursor:pointer;box-sizing:border-box;
+}
+.manager-workspace-observation-action svg {width:16px;height:16px}
+.manager-workspace-observation-action:hover {background:#e7f5fb;border-color:#65b3d0}
+.manager-workspace-observation-action:focus-visible {outline:2px solid #08799d;outline-offset:2px}
+@media(max-width:640px) {
+  #app .manager-board-screen .manager-workspace-tracking-table--employee-file .manager-workspace-followup-cell__content:has(.manager-workspace-observation-action) {
+    display:inline-flex;align-items:center;gap:6px;justify-content:flex-start;
+  }
+  .manager-workspace-observation-action {flex-basis:30px;width:30px;height:30px}
+}
 .io-modal-open {overflow:hidden!important}
 .io-root {display:none;position:fixed;inset:0;z-index:2147483000;background:rgba(12,31,48,.65);padding:16px;box-sizing:border-box;align-items:center;justify-content:center;direction:rtl;font-family:inherit;color:#193047}
 .io-root.io-visible {display:flex}
