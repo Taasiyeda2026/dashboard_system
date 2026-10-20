@@ -485,7 +485,7 @@ begin
   end if;
   return new;
 end
-$function$
+$function$;
 
 -- Revalidate an exact manual decision with the same hard checker, rather than
 -- reapplying the automatic 40km/unknown-route gate and immediately invalidating it.
@@ -554,7 +554,7 @@ exception
   when others then
     return 'scheduling_revalidation_error:' || sqlstate || ':' || sqlerrm;
 end
-$function$
+$function$;
 
 revoke all on all functions in schema scheduling_manual_private from public,anon,authenticated;
 
@@ -591,7 +591,7 @@ AS $function$
           and h.assignment_kind='availability_blocked_pending'
           and h.emp_id='' and h.previous_emp_id=p_emp_id::text)
   ) effective
-$function$
+$function$;
 
 
 -- Scoped operator warning acknowledgement; ordinary paths retain their body.
@@ -692,7 +692,7 @@ begin
   end loop;
   return new;
 end
-$function$
+$function$;
 
 
 -- Scoped operator warning acknowledgement; ordinary paths retain their body.
@@ -783,7 +783,7 @@ begin
 
   return new;
 end;
-$function$
+$function$;
 
 
 -- A manually acknowledged short-day exception preserves the chosen end time,
@@ -823,7 +823,7 @@ AS $function$
       ), p_original_end)
     )
   end
-$function$
+$function$;
 
 revoke all on all functions in schema scheduling_manual_private from public,anon,authenticated;
 
