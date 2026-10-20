@@ -54,7 +54,7 @@ test('manager icons only appear for authorized roles and observation data is sep
 });
 
 test('PDF report is complete, A4-printable and does not modify finalized records', () => {
-  assert.match(source, /SECTIONS\.map\(\(s,i\)=>'<section>/);
+  assert.match(source, /SECTIONS\.map\(\(s,i\)=>'<section class="io-report-section">/);
   assert.match(source, /completed/);
   assert.match(source, /window\.print\(\)/);
   assert.match(stylesheet, /@media print/);
