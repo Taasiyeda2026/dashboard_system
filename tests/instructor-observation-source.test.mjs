@@ -21,8 +21,10 @@ test('observation feature script parses and retains 6 source sections with 15 qu
 });
 
 test('manager icons only appear for authorized roles and observation data is separate', () => {
-  assert.match(source, /manager-board-team-strip__grid button\[data-instructor-id\]/);
-  assert.match(source, /instructor-card-shell button\[data-instructor-card\]/);
+  assert.doesNotMatch(source, /manager-board-team-strip__grid button\[data-instructor-id\]/);
+  assert.doesNotMatch(source, /instructor-card-shell button\[data-instructor-card\]/);
+  assert.match(source, /observationSlot/);
+  assert.match(source, /btn\.dataset\.ioSlot/);
   assert.match(source, /activities_manager/);
   assert.match(source, /operation_manager/);
   assert.match(source, /const TABLE = 'instructor_observations'/);

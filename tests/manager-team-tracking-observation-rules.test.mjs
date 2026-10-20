@@ -473,3 +473,28 @@ test('cache bump and hotfix marker for deployable frontend change', () => {
   assert.match(configSource, /manager-board-tracking-single-load-20260912-v1/);
   assert.doesNotMatch(indexHtml, /manager-board-employee-file-tracking-runtime\.js/);
 });
+
+test('observation 1 button is inline with the due date; observation 2 has its own linked slot', () => {
+  const instructor = row({
+    emp_id: 1550,
+    full_name: 'מדריכה לדוגמה',
+    seniority_years: 1,
+    first_activity_date: '2026-10-20',
+    observation_1_due_date: '2026-11-27'
+  });
+  const html = tableHtml([instructor], {todayIso: '2026-11-01', schoolYear: '2027'});
+  const obs1 = html.match(/<td class="manager-workspace-followup-cell[^"]*" data-label="תצפית 1"[\s\S]*?<\/td>/)?.[0] || '';
+  const obs2 = html.match(/<td class="manager-workspace-followup-cell[^"]*" data-label="תצפית 2"[\s\S]*?<\/td>/)?.[0] || '';
+  assert.match(obs1, /27\.11\.26/);
+  assert.match(obs1, /data-io-open="1550"/);
+  assert.match(obs1, /data-io-slot="1"/);
+  assert.match(obs2, /data-io-open="1550"/);
+  assert.match(obs2, /data-io-slot="2"/);
+  assert.equal((html.match(/data-io-open=/g) || []).length, 2);
+  assert.doesNotMatch(obs1, /✓/);
+});
+
+test('observation action is not offered for non-applicable veteran observation 2 or exempt employee', () => {
+  assert.doesNotMatch(obs2Html({seniority_years: 4, emp_id:1550}), /data-io-open/);
+  assert.doesNotMatch(obs1Html({emp_id: AVIGDOR_SHARON_EMP_ID}), /data-io-open/);
+});

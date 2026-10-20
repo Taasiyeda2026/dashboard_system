@@ -39,46 +39,14 @@ const RATING_LABELS = ['','חלש','טעון שיפור','טוב','טוב מאו
 const e = (value) => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const localDate = () => { const d = new Date(); return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-'); };
 const allowed = user => ['admin','activities_manager','operation_manager'].includes(String(user?.role || '').trim()) && user?.is_active !== false;
-const icon = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.8"/></svg>';
 let root, userGetter = () => ({}), selected = null, list = [], stage = -1, empId = '', name = '', saveQueue = Promise.resolve(), debounce, activityOptions = [], lastFocus = null;
-let isOpen = false, viewerAuthId = '';
+let isOpen = false, viewerAuthId = '', observationSlot = 1;
 const editable = () => !!selected && selected.status === 'draft' && (!selected.created_by || selected.created_by === viewerAuthId);
 
 const statusNode = () => root?.querySelector('[data-io-status]');
 function status(message, bad = false) {
   const node = statusNode();
   if (node) { node.textContent = message || ''; node.classList.toggle('io-error',!!bad); }
-}
-function attachControls() {
-  if (!allowed(userGetter()) || !document.body) return;
-  document.querySelectorAll('.manager-board-team-strip__grid button[data-instructor-id]').forEach(button => {
-    if (button.closest('.io-team-member')) return;
-    const id = String(button.dataset.instructorId || '').trim();
-    if (!/^[0-9]+$/.test(id)) return;
-    const wrapper = document.createElement('span');
-    wrapper.className = 'io-team-member';
-    button.parentNode.insertBefore(wrapper,button);
-    wrapper.appendChild(button);
-    const action = document.createElement('button');
-    action.type = 'button'; action.className = 'io-icon io-team-icon';
-    action.dataset.ioOpen = id; action.dataset.ioName = button.textContent.trim();
-    action.title = 'משוב צפייה והערכת מדריך';
-    action.setAttribute('aria-label','פתיחת משוב צפייה עבור '+button.textContent.trim());
-    action.innerHTML = icon; wrapper.appendChild(action);
-  });
-  document.querySelectorAll('.instructor-card-shell button[data-instructor-card]').forEach(button => {
-    const parent = button.closest('.instructor-card-shell');
-    if (!parent || parent.querySelector('[data-io-open]')) return;
-    const id = String(button.dataset.instructorCard || '').trim();
-    if (!/^[0-9]+$/.test(id)) return;
-    const action = document.createElement('button');
-    action.type = 'button'; action.className = 'io-icon io-card-icon';
-    action.dataset.ioOpen = id;
-    action.dataset.ioName = button.querySelector('.instructor-card__name')?.textContent?.trim() || id;
-    action.title = 'משוב צפייה והערכת מדריך';
-    action.setAttribute('aria-label','פתיחת משוב צפייה עבור '+action.dataset.ioName);
-    action.innerHTML = icon; parent.appendChild(action);
-  });
 }
 
 function modalShell() {
@@ -98,10 +66,10 @@ function close() {
   selected = null; stage = -1;
   if (lastFocus?.isConnected) lastFocus.focus();
 }
-async function open(id, display, trigger) {
+async function open(id, display, trigger, slot = 1) {
   if (!allowed(userGetter())) return;
   modalShell();
-  empId = id; name = display || id; stage = -1; selected = null;
+  empId = id; name = display || id; observationSlot = slot === 2 ? 2 : 1; stage = -1; selected = null;
   lastFocus = trigger; isOpen = true;
   root.classList.add('io-visible');
   document.body.classList.add('io-modal-open');
@@ -113,7 +81,7 @@ async function open(id, display, trigger) {
     viewerAuthId = String(userResponse?.data?.user?.id || '');
     const {data,error} = await supabase.from(TABLE).select('*').eq('emp_id',Number(empId)).order('created_at',{ascending:false}).limit(30);
     if (error) throw error;
-    list = data || [];
+    list = (data || []).filter((item) => Number(item.details?.observation_slot || 1) === observationSlot);
     activityOptions = [];
     try {
       const response = await supabase.from('activities').select('row_id,activity_name,program_name,school,authority,emp_id,emp_id_2').or('emp_id.eq.'+empId+',emp_id_2.eq.'+empId).limit(100);
@@ -126,11 +94,11 @@ async function open(id, display, trigger) {
 }
 function dialog(body) {
   const host = root.querySelector('.io-dialog');
-  host.innerHTML = '<header class="io-top"><div><small>ניהול מדריכים / משוב צפייה</small><h2 id="io-heading">'+e(name)+'</h2></div><button type="button" class="io-x" data-io-action="close" aria-label="סגירה">✕</button></header>'+body;
+  host.innerHTML = '<header class="io-top"><div><small>מעקב צוות / תצפית '+observationSlot+'</small><h2 id="io-heading">'+e(name)+'</h2></div><button type="button" class="io-x" data-io-action="close" aria-label="סגירה">✕</button></header>'+body;
 }
 function home() {
   stage = -1;
-  dialog('<div class="io-content"><div class="io-lead"><h3>משוב צפייה והערכת מדריך</h3><p>תצפית מקצועית בשיעור, תיעוד דוגמאות ומתן משוב בונה. לכל ביקור נוצר דו"ח נפרד. ניתן לשמור טיוטה ולהמשיך במועד אחר.</p></div>'+
+  dialog('<div class="io-content"><div class="io-lead"><h3>משוב תצפית '+observationSlot+' – צפייה והערכת מדריך</h3><p>תצפית מקצועית בשיעור, תיעוד דוגמאות ומתן משוב בונה. לכל ביקור נוצר דו"ח נפרד. ניתן לשמור טיוטה ולהמשיך במועד אחר.</p></div>'+
     '<button type="button" class="io-primary" data-io-action="new">＋ התחלת תצפית חדשה</button>'+
     '<h3>תצפיות קודמות</h3><div class="io-history">'+(list.length ? list.map((item) =>
     '<button type="button" data-io-resume="'+e(item.id)+'" class="io-history-row"><span><strong>'+e(item.observation_date || 'ללא תאריך')+'</strong><small>'+e(item.details?.course || 'טרם נבחר קורס')+' · '+e(item.observer_name || 'צופה לא מוגדר')+'</small></span><span class="io-pill">'+(item.status === 'completed' ? 'הושלם · דו"ח' : 'טיוטה · המשך מילוי')+'</span></button>').join('') : '<p class="io-muted">עדיין לא נערכו תצפיות למדריך זה.</p>')+'</div></div>');
@@ -138,7 +106,7 @@ function home() {
 function blankRecord() {
   const u = userGetter();
   return {emp_id:Number(empId), instructor_name:name, observer_name:String(u?.full_name || u?.name || u?.display_name || '').trim(),
-    observation_date:localDate(), details:{}, responses:{}, comments:{}, overall_rating:null, strengths:'', improvements:'', summary:'', status:'draft'};
+    observation_date:localDate(), details:{observation_slot:observationSlot}, responses:{}, comments:{}, overall_rating:null, strengths:'', improvements:'', summary:'', status:'draft'};
 }
 async function create() {
   dialog('<div class="io-content">יוצר טיוטת תצפית…</div>');
@@ -198,7 +166,7 @@ function overview() {
 }
 function report() {
   const d=selected.details||{};
-  return '<div class="io-report"><header><h1>תעשיידע · משוב צפייה והערכת מדריך</h1><p>דו"ח תצפית מקצועי · שנת הלימודים תשפ״ז</p></header>'+
+  return '<div class="io-report"><header><h1>תעשיידע · משוב תצפית '+Number(selected.details?.observation_slot || observationSlot)+' – צפייה והערכת מדריך</h1><p>דו"ח תצפית מקצועי · שנת הלימודים תשפ״ז</p></header>'+
     '<table><tbody>'+[['שם המדריך',selected.instructor_name],['תאריך הצפייה',selected.observation_date],['שם הצופה',selected.observer_name],
     ['שם הקורס',d.course],['מספר מפגש',d.meeting],['בית הספר',d.school],['כיתה',d.class],['מספר תלמידים',d.students],
     ['נוכחות צוות בית הספר',d.school_staff],['מידע מקדים',d.important]].map(([k,v])=>'<tr><th>'+e(k)+'</th><td>'+e(v||'—')+'</td></tr>').join('')+'</tbody></table>'+
@@ -308,16 +276,11 @@ function onInput(event) {
 export function installInstructorObservationRuntime({getUser=()=>({})}={}) {
   if (typeof document==='undefined' || window.__instructorObservationInstalled) return;
   window.__instructorObservationInstalled=true;userGetter=getUser;
-  let scheduled=false;
-  const update=()=>{scheduled=false;attachControls();};
-  const observer=new MutationObserver(()=>{if(scheduled)return;scheduled=true;requestAnimationFrame(update);});
-  const start=()=>{attachControls();observer.observe(document.body,{childList:true,subtree:true});};
-  if(document.body) start();else document.addEventListener('DOMContentLoaded',start,{once:true});
   document.addEventListener('click',event=>{
     const btn=event.target.closest('[data-io-open]');
     if(!btn)return;
     event.preventDefault();event.stopPropagation();
-    void open(String(btn.dataset.ioOpen),String(btn.dataset.ioName || ''),btn);
+    void open(String(btn.dataset.ioOpen),String(btn.dataset.ioName || ''),btn,Number(btn.dataset.ioSlot));
   },true);
   document.addEventListener('keydown',event=>{if(event.key==='Escape' && isOpen){event.preventDefault();close();}});
 }
