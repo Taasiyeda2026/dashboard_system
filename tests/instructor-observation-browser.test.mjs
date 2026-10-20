@@ -61,6 +61,7 @@ test('manager creates, completes, reopens, and prints observation without editin
   await click('[data-io-open="1550"]');
   await click('[data-io-action="new"]');
   assert.equal(records.length,1);
+  assert.equal(records[0].details.observation_slot,1);
   await click('[data-io-action="next"]');
   const fill=(sel,value)=>{
    const el=w.document.querySelector(sel);
@@ -98,5 +99,11 @@ test('manager creates, completes, reopens, and prints observation without editin
   await click('[data-io-resume="test-record"]');
   assert.ok(w.document.querySelector('[data-io-action="print"]'));
   assert.equal(w.document.querySelector('[data-io-action="finish"]'),null);
+  await click('[data-io-action="close"]');
+  await click('[data-io-open="1550"][data-io-slot="2"]');
+  assert.match(w.document.querySelector('.io-dialog').textContent, /תצפית 2/);
+  assert.match(w.document.querySelector('.io-history').textContent, /עדיין לא נערכו תצפיות/);
+  await click('[data-io-action="new"]');
+  assert.equal(records[1].details.observation_slot,2);
  }finally{dom.window.close();}
 });
