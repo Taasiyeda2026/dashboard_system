@@ -308,8 +308,8 @@ function sectionScreen(index) {
 }
 function summaryScreen() {
   return '<h3>סיכום המשוב</h3><p class="io-muted">הדירוג הכולל הוא הערכת המנהל ואינו ממוצע אוטומטי של סולמות התשובה השונים.</p>'+
-    '<fieldset class="io-question"><legend>דירוג כולל של ביצועי המדריך בשיעור</legend><div class="io-options">'+[1,2,3,4,5].map(n=>
-      '<label class="io-option"><input type="radio" name="io-overall" data-io-overall value="'+n+'" '+(Number(selected.overall_rating)===n?'checked ':'')+(!editable()?'disabled':'')+'><span>'+n+' · '+e(RATING_LABELS[n])+'</span></label>').join('')+'</div></fieldset>'+
+    '<fieldset class="io-question io-question--rating"><legend>דירוג כולל של ביצועי המדריך בשיעור</legend><div class="io-options io-options--rating">'+RATING_OPTIONS.map(([n,label])=>
+      '<label class="io-option"><input type="radio" name="io-overall" data-io-overall value="'+n+'" '+(Number(selected.overall_rating)===Number(n)?'checked ':'')+(!editable()?'disabled':'')+'><span>'+n+' – '+e(label)+'</span></label>').join('')+'</div></fieldset>'+
     [['strengths','נקודות כוח'],['improvements','נקודות לשיפור'],['summary','סיכום מקצועי וחוות דעת']].map(([key,label])=>
       '<label class="io-field"><span>'+e(label)+' <em>חובה</em></span><textarea rows="5" data-io-text="'+key+'" '+(!editable()?'disabled':'')+'>'+e(selected[key]||'')+'</textarea></label>').join('');
 }
