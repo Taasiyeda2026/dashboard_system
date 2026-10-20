@@ -122,7 +122,7 @@ test('workspace hides requested instructional copy and summary counters without 
 });
 
 
-test('metric entry fields are half-width and the entire metrics column is right-aligned', async()=>{
+test('all five metric entry fields fit a single desktop grid row, with right-aligned metric labels', async()=>{
   const {ctx,api}=setup();
   await api.toggleEntry(ctx);
   const table=ctx.host.querySelector('.mw-table');
@@ -134,7 +134,8 @@ test('metric entry fields are half-width and the entire metrics column is right-
       'Each metrics label remains visible in the first column');
   }
   assert.match(source,/\.mw-table th:first-child,\.mw-table td:first-child\{[^}]*text-align:right/);
-  assert.match(source,/\.mw-fields \.mw-field input\{width:50%;align-self:flex-start\}/);
+  assert.match(source,/\.mw-fields\{display:grid;grid-template-columns:repeat\(5,minmax\(0,1fr\)\);gap:10px\}/);
+  assert.match(source,/\.mw-fields \.mw-field input\{width:100%;min-width:0;box-sizing:border-box/);
   assert.equal(ctx.host.querySelectorAll('[data-mw-metric]').length,5,
     'All metric inputs remain available after resizing');
 });
