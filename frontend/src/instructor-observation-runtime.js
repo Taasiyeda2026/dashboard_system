@@ -6,36 +6,49 @@ import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 import './styles/instructor-observation.css';
 
 const TABLE = 'instructor_observations';
+const RATING_OPTIONS = [
+  ['5','מצוין'], ['4','טוב מאוד'], ['3','טוב'], ['2','טעון שיפור'], ['1','חלש']
+];
+const GRADED = RATING_OPTIONS.map(([score])=>score);
 const SECTIONS = [
   { title: 'הכנה ופתיחה', help: 'התבוננו בהיערכות המדריך ובאופן שבו השיעור נפתח.', questions: [
     ['האם המדריך הגיע מוכן לשיעור (ציוד, מצגת, חומרים, סדר עבודה)?', ['כן','חלקית','לא']],
-    ['פתיחת השיעור הייתה ברורה, מסקרנת ומכינה את התלמידים לנושא?', ['מצוין','טוב','בינוני','חלש']]
+    ['פתיחת השיעור הייתה ברורה, מסקרנת ומכינה את התלמידים לנושא?', GRADED]
   ]},
   { title: 'שליטה בתוכן ובמבנה השיעור', help: 'בדקו את הידע המקצועי, ההתאמה לסילבוס והרצף הפדגוגי.', questions: [
-    ['שליטה בתוכן ובידע הנדרש לשיעור', ['מצוין','טוב','בינוני','חלש']],
+    ['שליטה בתוכן ובידע הנדרש לשיעור', GRADED],
     ['עבודה עקבית לפי הסילבוס והמטרות שנקבעו לשיעור', ['כן','חלקית','לא']],
-    ['יכולת קישור בין שיעור קודם לנושא הנלמד היום / סיכום בסוף השיעור', ['מצוין','טוב','חלקי','לא בוצע']]
+    ['יכולת קישור בין שיעור קודם לנושא הנלמד היום / סיכום בסוף השיעור', [...GRADED,'לא בוצע']]
   ]},
   { title: 'איכות ההסבר והעברת התוכן', help: 'התייחסו לבהירות, להמחשות ולעידוד חשיבה.', questions: [
-    ['בהירות ההסבר והתאמת השפה לגיל התלמידים', ['מצוין','טוב','בינוני','חלש']],
-    ['שימוש בהמחשות, שאלות, דוגמאות, ציוד או מצגת', ['גבוה','בינוני','נמוך']],
-    ['עידוד חשיבה, סקרנות או שאלות מצד התלמידים', ['גבוה','בינוני','נמוך']]
+    ['בהירות ההסבר והתאמת השפה לגיל התלמידים', GRADED],
+    ['שימוש בהמחשות, שאלות, דוגמאות, ציוד או מצגת', GRADED],
+    ['עידוד חשיבה, סקרנות או שאלות מצד התלמידים', GRADED]
   ]},
   { title: 'אינטראקציה עם תלמידים', help: 'בדקו את המעורבות, האווירה ואת היחס לתלמידים.', questions: [
-    ['רמת המעורבות של התלמידים במהלך השיעור', ['גבוהה','בינונית','נמוכה']],
-    ['יחס אישי, תקשורת נעימה ויצירת קשר עם כלל התלמידים', ['מצוין','טוב','בינוני','חלש']]
+    ['רמת המעורבות של התלמידים במהלך השיעור', GRADED],
+    ['יחס אישי, תקשורת נעימה ויצירת קשר עם כלל התלמידים', GRADED]
   ]},
   { title: 'ניהול כיתה', help: 'תעדו כיצד נשמרו הקשב והסדר, וכיצד התמודדו עם הפרעות.', questions: [
-    ['שמירה על סדר וקשב במהלך השיעור', ['מצוין','טוב','בינוני','מאתגר']],
-    ['התמודדות עם בעיות משמעת או הפרעות', ['מצוינת','טובה','בינונית','חלשה','לא נדרש']],
-    ['עבודה יעילה במהלך פעילות/בנייה (במידת הצורך)', ['מצוין','טוב','בינוני','חלש','לא רלוונטי']]
+    ['שמירה על סדר וקשב במהלך השיעור', GRADED],
+    ['התמודדות עם בעיות משמעת או הפרעות', [...GRADED,'לא נדרש']],
+    ['עבודה יעילה במהלך פעילות/בנייה (במידת הצורך)', [...GRADED,'לא רלוונטי']]
   ]},
   { title: 'מקצועיות ושיתוף פעולה', help: 'התייחסו לנוכחות המקצועית ולעבודה עם צוות בית הספר, אם נכח.', questions: [
-    ['ביטחון מקצועי, נוכחות והובלת השיעור', ['מצוין','טוב','בינוני','נמוך']],
-    ['שיתוף פעולה עם צוות בית הספר הנוכח בשיעור (אם יש)', ['מצוין','טוב','בינוני','לא התקיים']]
+    ['ביטחון מקצועי, נוכחות והובלת השיעור', GRADED],
+    ['שיתוף פעולה עם צוות בית הספר הנוכח בשיעור (אם יש)', [...GRADED,'לא התקיים']]
   ]}
 ];
 const RATING_LABELS = ['','חלש','טעון שיפור','טוב','טוב מאוד','מצוין'];
+const isNumericRating = choice => /^[1-5]$/.test(String(choice));
+const ratingText = choice => isNumericRating(choice) ? String(choice)+' – '+RATING_LABELS[Number(choice)] : String(choice || '');
+const gradedChoices = choices => choices.some(isNumericRating);
+const responseLabel = (value,choices) => {
+  if(!value) return 'לא מולא';
+  if(gradedChoices(choices) && !choices.includes(String(value)))
+    return 'תשובה בסולם קודם: '+String(value);
+  return ratingText(value);
+};
 const e = (value) => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const localDate = () => { const d = new Date(); return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-'); };
 const allowed = user => ['admin','activities_manager','operation_manager'].includes(String(user?.role || '').trim()) && user?.is_active !== false;
@@ -102,11 +115,19 @@ function dialog(body) {
   host.innerHTML = '<header class="io-top"><div><small>מעקב צוות / תצפית '+observationSlot+'</small><h2 id="io-heading">'+e(name)+'</h2></div><button type="button" class="io-x" data-io-action="close" aria-label="סגירה">✕</button></header>'+body;
 }
 function home() {
-  stage = -1;
-  dialog('<div class="io-content"><div class="io-lead"><h3>משוב תצפית '+observationSlot+' – צפייה והערכת מדריך</h3></div>'+
-    '<button type="button" class="io-primary" data-io-action="new">＋ התחלת תצפית חדשה</button>'+
-    '<h3>תצפיות קודמות</h3><div class="io-history">'+(list.length ? list.map((item) =>
-    '<button type="button" data-io-resume="'+e(item.id)+'" class="io-history-row"><span><strong>'+e(item.observation_date || 'ללא תאריך')+'</strong><small>'+e(item.details?.course || 'טרם נבחר קורס')+' · '+e(item.observer_name || 'צופה לא מוגדר')+'</small></span><span class="io-pill">'+(item.status === 'completed' ? 'הושלם · דו"ח' : 'טיוטה · המשך מילוי')+'</span></button>').join('') : '<p class="io-muted">עדיין לא נערכו תצפיות למדריך זה.</p>')+'</div></div>');
+  stage=-1;
+  const history=list.length ? list.map(item=>
+    '<button type="button" data-io-resume="'+e(item.id)+'" class="io-history-row"><span><strong>'+
+    e(item.observation_date || 'ללא תאריך')+'</strong><small>'+
+    e(item.details?.course || 'טרם נבחר קורס')+' · '+e(item.observer_name || 'צופה לא מוגדר')+
+    '</small></span><span class="io-pill">'+
+    (item.status==='completed'?'הושלם · דו"ח':'המשך מילוי')+'</span></button>').join(''):
+    '<p class="io-home-empty">עדיין לא נערכו תצפיות למדריך זה.</p>';
+  dialog('<div class="io-content io-home"><div class="io-home-head"><div><h3>משוב תצפית '+observationSlot+'</h3>'+
+    '<p class="io-home-subtitle">צפייה והערכת מדריך</p></div>'+
+    '<button type="button" class="io-primary" data-io-action="new">＋ התחלת תצפית חדשה</button></div>'+
+    '<section class="io-home-history" aria-label="תצפיות קודמות"><h3>תצפיות קודמות</h3>'+
+    '<div class="io-history">'+history+'</div></section></div>');
 }
 function blankRecord() {
   const u = userGetter();
@@ -132,11 +153,19 @@ function field(label,key,type='text',required=false,value='') {
   return '<label class="io-field"><span>'+e(label)+(required ? ' <em>חובה</em>' : '')+'</span><input type="'+e(type)+'" data-io-detail="'+e(key)+'" value="'+e(value)+'" '+(!editable()?'disabled':'')+'></label>';
 }
 function choice(key,question,choices) {
-  const current=selected.responses?.[key] || '';
-  return '<fieldset class="io-question"><legend>'+e(question)+'</legend><div class="io-options">'+choices.map((v) =>
-    '<label class="io-option"><input type="radio" name="io-'+e(key)+'" data-io-answer="'+e(key)+'" value="'+e(v)+'" '+(current===v?'checked ':'')+(!editable()?'disabled':'')+'><span>'+e(v)+'</span></label>').join('')+'</div></fieldset>';
+  const current=String(selected.responses?.[key] || '');
+  const numeric=gradedChoices(choices);
+  const legacy=!!current && !choices.includes(current);
+  const options=choices.map(v=>
+    '<label class="io-option"><input type="radio" name="io-'+e(key)+'" data-io-answer="'+e(key)+
+    '" value="'+e(v)+'" '+(current===v?'checked ':'')+(!editable()?'disabled':'')+
+    '><span>'+e(numeric?ratingText(v):v)+'</span></label>').join('');
+  return '<fieldset class="io-question'+(numeric?' io-question--rating':'')+'"><legend>'+e(question)+
+    '</legend><div class="io-options'+(numeric?' io-options--rating':'')+'">'+options+'</div>'+
+    (legacy?'<p class="io-legacy-rating">תשובה שנשמרה בסולם הקודם: '+e(current)+
+      (editable()?'. יש לבחור דירוג חדש כדי להשלים את המדד.':'.')+'</p>':'')+
+    '</fieldset>';
 }
-
 /** Scheduled meetings are identified by source date_N, not by arithmetic on weekdays. */
 function scheduledMeetings(activity) {
   const meetings=[];
@@ -267,14 +296,20 @@ function detailScreen() {
 }
 function sectionScreen(index) {
   const s=SECTIONS[index];
-  return '<h3>'+e(index+1)+'. '+e(s.title)+'</h3><p class="io-muted">'+e(s.help)+'</p>'+
-    s.questions.map((q,i)=>choice(index+'-'+i,q[0],q[1])).join('')+
-    '<label class="io-field"><span>הערות ודוגמאות מהצפייה (לא חובה)</span><textarea data-io-comment="'+index+'" rows="4" placeholder="מה ראיתם בפועל? מה כדאי לשמר או לשפר?" '+(!editable()?'disabled':'')+'>'+e(selected.comments?.[index]||'')+'</textarea></label>';
+  return '<div class="io-stage-heading"><div><span class="io-stage-eyebrow">תחום הערכה '+(index+1)+' מתוך '+SECTIONS.length+'</span>'+
+    '<h3>'+e(s.title)+'</h3><p class="io-muted">'+e(s.help)+'</p></div></div>'+
+    (s.questions.some(q=>gradedChoices(q[1]))?'<div class="io-rating-key"><strong>סולם ההערכה:</strong> '+
+      RATING_OPTIONS.map(([v,label])=>'<span>'+v+' – '+e(label)+'</span>').join('')+'</div>':'')+
+    '<div class="io-question-list">'+
+    s.questions.map((q,i)=>choice(index+'-'+i,q[0],q[1])).join('')+'</div>'+
+    '<label class="io-field io-section-comment"><span>הערות ודוגמאות מהצפייה (לא חובה)</span>'+
+    '<textarea data-io-comment="'+index+'" rows="4" placeholder="מה ראיתם בפועל? מה כדאי לשמר או לשפר?" '+
+    (!editable()?'disabled':'')+'>'+e(selected.comments?.[index]||'')+'</textarea></label>';
 }
 function summaryScreen() {
   return '<h3>סיכום המשוב</h3><p class="io-muted">הדירוג הכולל הוא הערכת המנהל ואינו ממוצע אוטומטי של סולמות התשובה השונים.</p>'+
-    '<fieldset class="io-question"><legend>דירוג כולל של ביצועי המדריך בשיעור</legend><div class="io-options">'+[1,2,3,4,5].map(n=>
-      '<label class="io-option"><input type="radio" name="io-overall" data-io-overall value="'+n+'" '+(Number(selected.overall_rating)===n?'checked ':'')+(!editable()?'disabled':'')+'><span>'+n+' · '+e(RATING_LABELS[n])+'</span></label>').join('')+'</div></fieldset>'+
+    '<fieldset class="io-question io-question--rating"><legend>דירוג כולל של ביצועי המדריך בשיעור</legend><div class="io-options io-options--rating">'+RATING_OPTIONS.map(([n,label])=>
+      '<label class="io-option"><input type="radio" name="io-overall" data-io-overall value="'+n+'" '+(Number(selected.overall_rating)===Number(n)?'checked ':'')+(!editable()?'disabled':'')+'><span>'+n+' – '+e(label)+'</span></label>').join('')+'</div></fieldset>'+
     [['strengths','נקודות כוח'],['improvements','נקודות לשיפור'],['summary','סיכום מקצועי וחוות דעת']].map(([key,label])=>
       '<label class="io-field"><span>'+e(label)+' <em>חובה</em></span><textarea rows="5" data-io-text="'+key+'" '+(!editable()?'disabled':'')+'>'+e(selected[key]||'')+'</textarea></label>').join('');
 }
@@ -347,17 +382,48 @@ function overview() {
       missing.length ? '<p class="io-review-reminder" role="status">לא ניתן לסיים את המשוב עד להשלמת '+missing.length+' שלבים.</p>' :
       '<p class="io-success">כל שדות החובה הושלמו. אפשר לסיים ולשמור את המשוב.</p>');
 }
+function printedQuestion(question,key) {
+  const [label,choices]=question;
+  const current=String(selected.responses?.[key] || '');
+  const legacy=current && !choices.includes(current);
+  const grade=gradedChoices(choices);
+  return '<div class="io-report-question"><div class="io-report-question-title"><strong>'+e(label)+
+    '</strong><span>'+e(responseLabel(current,choices))+'</span></div>'+
+    (legacy?'<p class="io-report-legacy">התשובה ניתנה לפי סולם קודם; לא הוסב לה דירוג מספרי.</p>':
+    '<div class="io-report-choices'+(grade?' io-report-choices--rating':'')+'">'+
+      choices.map(value=>'<span class="io-report-choice'+(current===value?' is-selected':'')+'">'+
+        '<span class="io-report-check" aria-hidden="true">'+(current===value?'☒':'☐')+'</span> '+
+        e(grade?ratingText(value):value)+'</span>').join('')+'</div>')+
+    '</div>';
+}
 function report() {
   const d=selected.details||{};
-  return '<div class="io-report"><header><h1>תעשיידע · משוב תצפית '+Number(selected.details?.observation_slot || observationSlot)+' – צפייה והערכת מדריך</h1><p>דו"ח תצפית מקצועי · שנת הלימודים תשפ״ז</p></header>'+
-    '<table><tbody>'+[['שם המדריך',selected.instructor_name],['תאריך הצפייה',selected.observation_date],['שם הצופה',selected.observer_name],
-    ['שם הקורס',d.course],['מספר מפגש',d.meeting],['בית הספר',d.school],['כיתה',d.class],['מספר תלמידים',d.students],
-    ['נוכחות צוות בית הספר',d.school_staff],['מידע מקדים',d.important]].map(([k,v])=>'<tr><th>'+e(k)+'</th><td>'+e(v||'—')+'</td></tr>').join('')+'</tbody></table>'+
-    SECTIONS.map((s,i)=>'<section><h2>'+(i+1)+'. '+e(s.title)+'</h2>'+
-      s.questions.map((q,j)=>'<div class="io-report-answer"><strong>'+e(q[0])+'</strong><span>'+e(selected.responses?.[i+'-'+j] || 'לא מולא')+'</span></div>').join('')+
-      '<p><strong>הערות ודוגמאות: </strong>'+e(selected.comments?.[i]||'לא נרשמו')+'</p></section>').join('')+
-    '<section><h2>סיכום מקצועי</h2><p><strong>דירוג כולל:</strong> '+e(selected.overall_rating ? selected.overall_rating+' · '+RATING_LABELS[selected.overall_rating] : '—')+'</p>'+
-    '<h3>נקודות כוח</h3><p>'+e(selected.strengths||'—')+'</p><h3>נקודות לשיפור</h3><p>'+e(selected.improvements||'—')+'</p><h3>חוות דעת מסכמת</h3><p>'+e(selected.summary||'—')+'</p></section>'+
+  const facts=[
+    ['שם המדריך',selected.instructor_name],['תאריך הצפייה',selected.observation_date],
+    ['שם הצופה',selected.observer_name],['שם הקורס',d.course],
+    ['מספר מפגש',d.meeting],['בית הספר',d.school],
+    ['כיתה',d.class],['מספר תלמידים',d.students],
+    ['נוכחות צוות בית הספר',d.school_staff],['מידע מקדים',d.important]
+  ];
+  return '<div class="io-report"><header><h1>תעשיידע · משוב תצפית '+
+    Number(selected.details?.observation_slot || observationSlot)+' – צפייה והערכת מדריך</h1>'+
+    '<p>דו"ח תצפית מקצועי · שנת הלימודים תשפ״ז</p></header>'+
+    '<section class="io-report-details"><h2>פרטי התצפית</h2><table><tbody>'+
+    facts.map(([k,v])=>'<tr><th>'+e(k)+'</th><td>'+e(v||'—')+'</td></tr>').join('')+
+    '</tbody></table></section>'+
+    '<div class="io-report-rating-key"><strong>סולם ההערכה:</strong> '+
+    RATING_OPTIONS.map(([n,label])=>'<span>'+n+' – '+e(label)+'</span>').join('')+
+    '</div>'+
+    SECTIONS.map((s,i)=>'<section class="io-report-section"><h2>'+(i+1)+'. '+e(s.title)+'</h2>'+
+      s.questions.map((q,j)=>printedQuestion(q,i+'-'+j)).join('')+
+      (selected.comments?.[i]?'<p class="io-report-notes"><strong>הערות ודוגמאות:</strong> '+
+        e(selected.comments[i])+'</p>':'')+'</section>').join('')+
+    '<section class="io-report-section"><h2>סיכום מקצועי</h2>'+
+    '<p><strong>דירוג כולל:</strong> '+
+      e(selected.overall_rating?selected.overall_rating+' – '+RATING_LABELS[selected.overall_rating]:'—')+'</p>'+
+    '<h3>נקודות כוח</h3><p>'+e(selected.strengths||'—')+'</p>'+
+    '<h3>נקודות לשיפור</h3><p>'+e(selected.improvements||'—')+'</p>'+
+    '<h3>חוות דעת מסכמת</h3><p>'+e(selected.summary||'—')+'</p></section>'+
     '<footer>תאריך הפקת הדו"ח: '+e(localDate())+' · נוצר במערכת תעשיידע</footer></div>';
 }
 function render() {

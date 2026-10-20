@@ -61,6 +61,10 @@ test('manager creates, completes, reopens, and prints observation without editin
    el.click();await tick();
   };
   await click('[data-io-open="1550"]');
+  assert.ok(w.document.querySelector('.io-home-head'),'Home dialog has compact grouped heading and action');
+  assert.equal(w.document.querySelectorAll('.io-home-head [data-io-action="new"]').length,1);
+  assert.equal(w.document.querySelectorAll('.io-home .io-lead').length,0,
+    'Oversized introductory banner removed from the observation launcher');
   await click('[data-io-action="new"]');
   assert.equal(records.length,1);
   assert.equal(records[0].details.observation_slot,1);
@@ -108,6 +112,14 @@ test('manager creates, completes, reopens, and prints observation without editin
   fill('[data-io-detail="students"]','24');
   fill('[data-io-detail="school_staff"]','כן');
   await click('[data-io-action="next"]');
+  const scoreRow=w.document.querySelector('.io-question--rating');
+  assert.ok(scoreRow,'The domain contains a graded question');
+  assert.deepEqual(
+    [...scoreRow.querySelectorAll('[data-io-answer]')].map(el=>el.value),
+    ['5','4','3','2','1'],'All graded questions have five numbered options');
+  assert.deepEqual(
+    [...scoreRow.querySelectorAll('.io-option span')].map(el=>el.textContent),
+    ['5 – מצוין','4 – טוב מאוד','3 – טוב','2 – טעון שיפור','1 – חלש']);
   // Deliberately skip the fourth observation section to test direct review navigation.
   for(let section=0;section<6;section++){
    const groups=new Set([...w.document.querySelectorAll('[data-io-answer]')].map(x=>x.name));
@@ -148,7 +160,17 @@ test('manager creates, completes, reopens, and prints observation without editin
   await click('[data-io-action="finish"]');
   assert.equal(records[0].status,'completed');
   assert.equal(Object.keys(records[0].responses).length,15);
-  assert.ok(w.document.querySelector('.io-print').textContent.includes('דוח תצפית מלא'));
+  assert.equal(records[0].responses['0-1'],'5','Numeric score must persist, not the old text label');
+  const printable=w.document.querySelector('.io-print');
+  assert.ok(printable.textContent.includes('דוח תצפית מלא'));
+  assert.equal(printable.querySelectorAll('.io-report-question').length,15);
+  assert.equal(printable.querySelectorAll('.io-report-choice.is-selected').length,15);
+  const gradedPrinted=printable.querySelector('.io-report-choices--rating');
+  assert.ok(gradedPrinted);
+  assert.equal(gradedPrinted.querySelectorAll('.io-report-choice').length,5);
+  assert.match(gradedPrinted.querySelector('.io-report-choice.is-selected').textContent,/5 – מצוין/);
+  assert.match(printable.querySelector('.io-report-rating-key').textContent,/2 – טעון שיפור/);
+  assert.match(printable.querySelector('.io-report-section:last-of-type').textContent,/4 – טוב מאוד/);
   await click('[data-io-action="print"]');
   assert.equal(printed,1);
   await click('[data-io-action="home"]');

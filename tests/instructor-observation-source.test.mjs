@@ -16,8 +16,29 @@ test('observation feature script parses and retains 6 source sections with 15 qu
   assert.equal(sections.reduce((sum, section) => sum + section.questions.length, 0), 15);
   assert.deepEqual([...sections.map(section => section.questions.length)], [2, 3, 3, 2, 3, 2]);
   assert.deepEqual([...sections[0].questions[0][1]], ['כן', 'חלקית', 'לא']);
-  assert.deepEqual([...sections[1].questions[2][1]], ['מצוין', 'טוב', 'חלקי', 'לא בוצע']);
-  assert.deepEqual([...sections[5].questions[1][1]], ['מצוין', 'טוב', 'בינוני', 'לא התקיים']);
+  const expected=['5','4','3','2','1'];
+  for (const section of sections) for (const [,answers] of section.questions) {
+    if(answers.some(answer=>/^[1-5]$/.test(answer))) {
+      assert.deepEqual([...answers.slice(0,5)],expected,'Graded domains use all five numeric ratings');
+    } else assert.deepEqual([...answers],['כן','חלקית','לא']);
+  }
+  assert.deepEqual([...sections[1].questions[2][1]], [...expected,'לא בוצע']);
+  assert.deepEqual([...sections[5].questions[1][1]], [...expected,'לא התקיים']);
+});
+
+test('numeric score labels print consistently and historic answers remain unconverted',()=>{
+ const context=vm.createContext({});
+ const grade=new vm.Script(jsBody+'\n({labels:RATING_OPTIONS.map(([v,caption])=>v+" – "+caption),newText:responseLabel("4",SECTIONS[0].questions[1][1]),oldText:responseLabel("בינוני",SECTIONS[0].questions[1][1]),binary:responseLabel("כן",SECTIONS[0].questions[0][1])})').runInContext(context);
+ assert.deepEqual([...grade.labels],['5 – מצוין','4 – טוב מאוד','3 – טוב','2 – טעון שיפור','1 – חלש']);
+ assert.equal(grade.newText,'4 – טוב מאוד');
+ assert.equal(grade.oldText,'תשובה בסולם קודם: בינוני');
+ assert.equal(grade.binary,'כן');
+ assert.match(source,/function printedQuestion/);
+ assert.match(source,/io-report-choice/);
+ assert.match(source,/io-report-rating-key/);
+ assert.match(stylesheet,/io-report-choices--rating/);
+ assert.match(stylesheet,/io-home-head/);
+ assert.match(stylesheet,/io-options--rating/);
 });
 
 test('manager icons only appear for authorized roles and observation data is separate', () => {
@@ -33,7 +54,7 @@ test('manager icons only appear for authorized roles and observation data is sep
 });
 
 test('PDF report is complete, A4-printable and does not modify finalized records', () => {
-  assert.match(source, /SECTIONS\.map\(\(s,i\)=>'<section>/);
+  assert.match(source, /SECTIONS\.map\(\(s,i\)=>'<section class="io-report-section">/);
   assert.match(source, /completed/);
   assert.match(source, /window\.print\(\)/);
   assert.match(stylesheet, /@media print/);
