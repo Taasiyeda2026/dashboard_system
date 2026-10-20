@@ -246,7 +246,7 @@ test('main scheduling workboard exposes only open, draft and assigned business s
   assert.match(html, /01\.09\.2026/);
 });
 
-test('stale shared planning is not presented as a current recommendation', () => {
+test('stale shared planning stays labeled while the instructor table and manual entry remain visible', () => {
   const activities = [{
     ...baseCourse,
     row_id: 'stale-undated',
@@ -276,7 +276,9 @@ test('stale shared planning is not presented as a current recommendation', () =>
   assert.match(html, /התכנון השמור אינו עדכני/);
   assert.match(html, /גרסת מנוע התכנון השתנתה מאז החישוב האחרון/);
   assert.match(html, /החישוב מתבצע בסוכן השיבוצים/);
-  assert.doesNotMatch(html, /data-planning-completion-overview/);
+  assert.match(html, /data-planning-completion-overview/);
+  assert.match(html, /data-planning-overview-currency/);
+  assert.match(html, /data-open-manual-course="stale-undated"/);
   assert.match(html, /אין מועד קבוע מבית הספר — המערכת תציע תאריך, שעה ומדריך/);
 });
 
