@@ -94,7 +94,7 @@ async function open(id, display, trigger, slot = 1) {
 }
 function dialog(body) {
   const host = root.querySelector('.io-dialog');
-  host.innerHTML = '<header class="io-top"><div><small>ניהול מדריכים / משוב צפייה</small><h2 id="io-heading">'+e(name)+'</h2></div><button type="button" class="io-x" data-io-action="close" aria-label="סגירה">✕</button></header>'+body;
+  host.innerHTML = '<header class="io-top"><div><small>מעקב צוות / תצפית '+observationSlot+'</small><h2 id="io-heading">'+e(name)+'</h2></div><button type="button" class="io-x" data-io-action="close" aria-label="סגירה">✕</button></header>'+body;
 }
 function home() {
   stage = -1;
@@ -166,7 +166,7 @@ function overview() {
 }
 function report() {
   const d=selected.details||{};
-  return '<div class="io-report"><header><h1>תעשיידע · משוב צפייה והערכת מדריך</h1><p>דו"ח תצפית מקצועי · שנת הלימודים תשפ״ז</p></header>'+
+  return '<div class="io-report"><header><h1>תעשיידע · משוב תצפית '+Number(selected.details?.observation_slot || observationSlot)+' – צפייה והערכת מדריך</h1><p>דו"ח תצפית מקצועי · שנת הלימודים תשפ״ז</p></header>'+
     '<table><tbody>'+[['שם המדריך',selected.instructor_name],['תאריך הצפייה',selected.observation_date],['שם הצופה',selected.observer_name],
     ['שם הקורס',d.course],['מספר מפגש',d.meeting],['בית הספר',d.school],['כיתה',d.class],['מספר תלמידים',d.students],
     ['נוכחות צוות בית הספר',d.school_staff],['מידע מקדים',d.important]].map(([k,v])=>'<tr><th>'+e(k)+'</th><td>'+e(v||'—')+'</td></tr>').join('')+'</tbody></table>'+
