@@ -6,6 +6,8 @@ on:
       - 'frontend/src/manager-gantt-placeholder-runtime.js'
       - 'tests/manager-weekly-manual-tracking.test.mjs'
       - 'tests/manager-daily-work-and-weekly-report.test.mjs'
+      - 'tests/manager-final-values-collapsible-entry.test.mjs'
+      - 'supabase/migrations/20261021100000_manager_final_values_no_drafts.sql'
       - 'supabase/migrations/20261020115000_manager_ongoing_tasks_weekly_snapshots.sql'
       - 'tests/manager-gantt-payroll-permissions.test.mjs'
       - 'supabase/migrations/20261019141000_manager_weekly_manual_tracking.sql'
@@ -24,5 +26,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install browser test dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run focused manager weekly tests
-        run: node --test tests/manager-weekly-manual-tracking.test.mjs tests/manager-daily-work-and-weekly-report.test.mjs tests/manager-gantt-payroll-permissions.test.mjs
+        run: node --test tests/manager-weekly-manual-tracking.test.mjs tests/manager-daily-work-and-weekly-report.test.mjs tests/manager-final-values-collapsible-entry.test.mjs tests/manager-gantt-payroll-permissions.test.mjs

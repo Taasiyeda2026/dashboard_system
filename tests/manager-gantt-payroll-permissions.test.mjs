@@ -36,8 +36,9 @@ test('payroll access follows the central attendance permission', () => {
 });
 
 test('weekly tracker is manual-first, backed by RLS and supports submission', () => {
-  assert.match(trackingSource, /שמירת טיוטה/);
-  assert.match(trackingSource, /הגשת המעקב השבועי/);
+  assert.match(trackingSource, /שמירת נתונים/);
+  assert.doesNotMatch(trackingSource, /שמירת טיוטה/);
+  assert.match(trackingSource, /הגשת הדיווח להנהלה/);
   assert.match(trackingSource, /validateWeeklyReport/);
   assert.match(trackingSource, /manager_program_learning/);
   assert.match(trackingSource, /currentReport\(ctx\)\.status !== 'submitted'/);

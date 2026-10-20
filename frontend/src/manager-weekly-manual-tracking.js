@@ -43,7 +43,7 @@ function labelWeek(start) {
   return short(dateFromIso(start)) + '–' + short(end);
 }
 function nullReport(week) {
-  return { week_start: week, status: 'draft', metrics: {}, openings: [], highlights: '', next_steps: '', blockers: '', instructor_notes: '', kit_notes: '' };
+  return { week_start: week, status: 'current', metrics: {}, openings: [], highlights: '', next_steps: '', blockers: '', instructor_notes: '', kit_notes: '' };
 }
 function validMetric(v) {
   return Number.isSafeInteger(Number(v)) && Number(v) >= 0;
@@ -78,7 +78,7 @@ const styles = [
   '.mw-section{border-top:1px solid #e5ebf1;padding-top:17px;margin-top:16px}.mw-section-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.mw-section h3{font-size:15px;font-weight:750}',
   '.mw-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.mw-field{display:flex;flex-direction:column;gap:5px;color:#506376;font-size:12px;font-weight:600}.mw-field input,.mw-field textarea,.mw-field select{border:1px solid #cad7e2;border-radius:8px;min-height:36px;padding:8px 10px;color:#1c3449;background:#fff;font-size:13px;font-family:inherit;width:100%;direction:rtl}.mw-field textarea{min-height:72px;resize:vertical}.mw-field input:focus,.mw-field textarea:focus{outline:2px solid #b3e5f0}.mw-textareas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.mw-opening{display:grid;grid-template-columns:1fr 1fr 1fr 132px 1fr auto;gap:7px;align-items:end;padding:9px;border:1px solid #e3ebf1;border-radius:9px;margin-top:8px;background:#fcfdff}.mw-opening .mw-field{min-width:0}.mw-opening-extra{grid-column:1/-1}',
   '.mw-foot{display:flex;align-items:center;gap:9px;justify-content:flex-end;flex-wrap:wrap;margin-top:15px}.mw-error{color:#b42318;background:#fff1f1;border:1px solid #f2d0ce;padding:10px;border-radius:9px;margin:10px 0}.mw-notice{color:#135d4e;background:#eafaf3;border:1px solid #c9ecdc;padding:10px;border-radius:9px;margin:10px 0}.mw-verify{margin-top:12px;background:#f5fafc;border:1px solid #dceaf0;border-radius:10px;padding:11px}.mw-verify ul{margin:8px 20px 0 0;padding:0}.mw-empty{padding:24px;text-align:center;color:#64748b}.mw-program{border:1px solid #e3ebf1;border-radius:10px;margin:10px 0;padding:12px;background:#fbfdff}.mw-program-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:9px}.mw-progress{font-size:12px;color:#52657a}.mw-sr-only{position:absolute;left:-10000px}',
-  '.mw-work-legend{font-size:12px;color:#597087;margin:2px 0 10px;line-height:1.5}.mw-work-summary{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.mw-work-stat{padding:5px 9px;background:#f2f7fa;border:1px solid #d6e5ed;border-radius:8px;font-size:12px}.mw-task-scroll{overflow:auto;max-width:100%;border:1px solid #e2ebf0;border-radius:10px;margin:12px 0}.mw-task-table{width:100%;min-width:1150px;border-collapse:collapse;text-align:right}.mw-task-table th,.mw-task-table td{padding:8px;border-bottom:1px solid #e5edf1}.mw-task-table th{background:#f4f8fb;white-space:nowrap;font-size:12px}.mw-task-table td input,.mw-task-table td select{width:100%;border:1px solid #cbdce5;border-radius:7px;padding:7px;min-height:34px;font:inherit;font-size:12px;background:#fff;color:#23384b;box-sizing:border-box}.mw-task-table td input:disabled,.mw-task-table td select:disabled{background:#f5f7f9}.mw-task-form{display:grid;grid-template-columns:1.4fr 1fr .9fr .9fr .8fr;gap:8px;align-items:end;margin-top:11px}.mw-task-form .mw-field{margin:0}.mw-task-notes{margin-top:8px}.mw-task-status{font-size:11px;color:#62778a}.mw-snapshot{border:1px solid #e1e9f0;background:#f8fbfd;padding:12px;border-radius:10px;margin-top:12px}.mw-snapshot ul{margin:7px 20px 0 0;padding:0}.mw-snapshot li{line-height:1.6}.mw-task-empty{padding:14px;color:#62768a;text-align:center}',
+  '.mw-report-entry [data-mw-report-fields][hidden]{display:none!important}.mw-entry-status{margin-inline-start:auto}.mw-entry-chevron{font-size:16px}.mw-work-legend{font-size:12px;color:#597087;margin:2px 0 10px;line-height:1.5}.mw-work-summary{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.mw-work-stat{padding:5px 9px;background:#f2f7fa;border:1px solid #d6e5ed;border-radius:8px;font-size:12px}.mw-task-scroll{overflow:auto;max-width:100%;border:1px solid #e2ebf0;border-radius:10px;margin:12px 0}.mw-task-table{width:100%;min-width:1150px;border-collapse:collapse;text-align:right}.mw-task-table th,.mw-task-table td{padding:8px;border-bottom:1px solid #e5edf1}.mw-task-table th{background:#f4f8fb;white-space:nowrap;font-size:12px}.mw-task-table td input,.mw-task-table td select{width:100%;border:1px solid #cbdce5;border-radius:7px;padding:7px;min-height:34px;font:inherit;font-size:12px;background:#fff;color:#23384b;box-sizing:border-box}.mw-task-table td input:disabled,.mw-task-table td select:disabled{background:#f5f7f9}.mw-task-form{display:grid;grid-template-columns:1.4fr 1fr .9fr .9fr .8fr;gap:8px;align-items:end;margin-top:11px}.mw-task-form .mw-field{margin:0}.mw-task-notes{margin-top:8px}.mw-task-status{font-size:11px;color:#62778a}.mw-snapshot{border:1px solid #e1e9f0;background:#f8fbfd;padding:12px;border-radius:10px;margin-top:12px}.mw-snapshot ul{margin:7px 20px 0 0;padding:0}.mw-snapshot li{line-height:1.6}.mw-task-empty{padding:14px;color:#62768a;text-align:center}',
   '@media(max-width:950px){.mw-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.mw-opening{grid-template-columns:repeat(2,minmax(0,1fr))}.mw-opening-extra{grid-column:auto}.mw-task-form{grid-template-columns:repeat(2,minmax(0,1fr))}}',
   '@media(max-width:610px){.mw-tracker{padding:13px 11px}.mw-fields,.mw-textareas,.mw-program-grid,.mw-opening{grid-template-columns:1fr}.mw-header h2{font-size:17px}.mw-section{margin-top:12px}.mw-opening-extra{grid-column:auto}}'
 ].join('');
@@ -104,7 +104,8 @@ function safeOpening(row) {
   };
 }
 function currentReport(ctx) {
-  return ctx.reports.find((r) => r.week_start === ctx.week) || nullReport(ctx.week);
+  return (ctx.editingReport?.week_start===ctx.week?ctx.editingReport:null) ||
+    ctx.reports.find(r=>r.week_start===ctx.week) || nullReport(ctx.week);
 }
 function inputField(label, key, value, opts = {}) {
   return '<label class="mw-field"><span>' + esc(label) + '</span>' +
@@ -146,7 +147,7 @@ function tableMarkup(ctx) {
   }).join('') + '</tr>').join('');
   const headers = weeks.map((week) => {
     const report = ctx.reports.find((r) => r.week_start === week);
-    const status = report?.status === 'submitted' ? 'הוגש' : report ? 'טיוטה' : 'לא מולא';
+    const status = report?.status === 'submitted' ? 'הוגש' : report ? 'נשמר' : 'לא מולא';
     return '<th class="' + (week === ctx.week ? 'mw-focus' : '') + '"><button type="button" class="mw-week-btn" data-mw-week="' + esc(week) + '">' + labelWeek(week) + '<span class="mw-week-status">' + status + '</span></button></th>';
   }).join('');
   return '<div class="mw-table-scroll"><table class="mw-table"><thead><tr><th>מדד שהמנהל ממלא</th>' + headers + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
@@ -169,7 +170,7 @@ function formMarkup(ctx) {
   const report = currentReport(ctx);
   const locked = report.status === 'submitted' || !ctx.canEdit;
   const hasReport = !!ctx.reports.find((r) => r.week_start === ctx.week);
-  const displayStatus = report.status === 'submitted' ? 'הוגש ' + new Date(report.submitted_at).toLocaleString('he-IL') : hasReport ? 'טיוטה שמורה' : 'טרם מולא';
+  const displayStatus = report.status === 'submitted' ? 'הוגש ' + new Date(report.submitted_at).toLocaleString('he-IL') : hasReport ? 'נתונים שמורים' : 'טרם הוזנו נתונים';
   const metrics = '<div class="mw-fields">' + MANUAL_METRICS.map(([key, title]) =>
     '<label class="mw-field"><span>' + esc(title) + '</span><input type="number" min="0" step="1" ' +
     'data-mw-metric="' + esc(key) + '" value="' + esc(report.metrics?.[key] ?? '') + '" ' + (locked ? 'disabled' : '') + '/></label>').join('') + '</div>';
@@ -185,10 +186,19 @@ function formMarkup(ctx) {
   ];
   const notes = '<div class="mw-section"><div class="mw-section-head"><h3>הבנה ניהולית וסיכום שבוע</h3></div><div class="mw-textareas">' +
     noteFields.map(([key, title]) => inputField(title, key, report[key], { textarea: true, disabled: locked })).join('') + '</div></div>';
-  const buttons = locked ? '<span class="mw-muted">הדיווח הוגש ונעול לעריכה.</span>' : '<button type="button" class="mw-btn" data-mw-save>שמירת טיוטה</button>' +
-    '<button type="button" class="mw-btn mw-primary" data-mw-submit>הגשת המעקב השבועי</button>';
-  return '<div class="mw-section"><div class="mw-section-head"><h3>הזנה עצמאית – שבוע ' + esc(labelWeek(ctx.week)) + '</h3><span class="mw-tag">' + esc(displayStatus) + '</span></div>' +
-    metrics + openings + notes + '<div class="mw-foot">' + buttons + '</div>' + snapshotMarkup(report) + '<div data-mw-verification></div></div>';
+  const buttons = locked ? '<span class="mw-muted">הדיווח הוגש ונעול לעריכה.</span>' : '<button type="button" class="mw-btn" data-mw-save>שמירת נתונים</button>' +
+    '<button type="button" class="mw-btn mw-primary" data-mw-submit>הגשת הדיווח להנהלה</button>';
+  const expanded=!!ctx.entryExpanded;
+  const toggleText=expanded?'שמור וסגור':(locked?'הצגת פרטי הדיווח':'פתח מילוי נתונים');
+  const header='<div class="mw-section-head"><h3>הזנת נתונים – שבוע '+esc(labelWeek(ctx.week))+'</h3>'+
+    '<span class="mw-tag mw-entry-status" data-mw-saving-state role="status">'+esc(displayStatus)+'</span>'+
+    '<button type="button" class="mw-btn mw-entry-toggle" data-mw-toggle aria-expanded="'+expanded+
+    '" aria-controls="mw-report-fields">'+esc(toggleText)+' <span class="mw-entry-chevron" aria-hidden="true">'+
+    (expanded?'▴':'▾')+'</span></button></div>';
+  return '<section class="mw-section mw-report-entry" data-mw-report-entry>'+header+
+    '<div id="mw-report-fields" data-mw-report-fields'+(expanded?'':' hidden')+'>'+
+    metrics+openings+notes+'<div class="mw-foot">'+buttons+'</div></div>'+
+    snapshotMarkup(report)+'<div data-mw-verification></div></section>';
 }
 const TASK_CATEGORIES = [
   ['assignment','שיבוץ מדריך'], ['training','הכשרה'], ['kit','ערכות'],
@@ -352,45 +362,95 @@ function bind(ctx) {
   root.querySelector('[data-mw-prev]')?.addEventListener('click', () => changeWeek(ctx, shiftWeek(ctx.week, -1)));
   root.querySelector('[data-mw-next]')?.addEventListener('click', () => changeWeek(ctx, shiftWeek(ctx.week, 1)));
   root.querySelectorAll('[data-mw-week]').forEach((b) => b.addEventListener('click', () => changeWeek(ctx, b.dataset.mwWeek)));
-  root.querySelector('[data-mw-save]')?.addEventListener('click', () => saveWeekly(ctx, false));
-  root.querySelector('[data-mw-submit]')?.addEventListener('click', () => saveWeekly(ctx, true));
+  root.querySelector('[data-mw-save]')?.addEventListener('click',()=>{void saveWeekly(ctx,false);});
+  root.querySelector('[data-mw-submit]')?.addEventListener('click',()=>{void saveWeekly(ctx,true);});
+  root.querySelector('[data-mw-toggle]')?.addEventListener('click',()=>{void toggleEntry(ctx);});
   root.querySelector('[data-mw-add]')?.addEventListener('click', () => adjustOpenings(ctx, null));
   root.querySelectorAll('[data-mw-remove]').forEach((b) => b.addEventListener('click', () => adjustOpenings(ctx, Number(b.dataset.mwRemove))));
   root.querySelector('[data-mw-add-program]')?.addEventListener('click', () => addProgram(ctx));
   root.querySelectorAll('[data-mw-save-program]').forEach((b) => b.addEventListener('click', () => saveProgram(ctx, Number(b.dataset.mwSaveProgram))));
   root.querySelector('[data-mw-check]')?.addEventListener('click', () => verifySubmitted(ctx));
-  root.querySelectorAll('input, textarea, select').forEach((input) => input.addEventListener('input', () => { if (ctx.canEdit) ctx.dirty = true; }));
+  root.querySelectorAll('[data-mw-report-fields] input, [data-mw-report-fields] textarea, [data-mw-report-fields] select').forEach(input=>{
+    const changed=()=>{
+      if(!ctx.canEdit || currentReport(ctx).status==='submitted')return;
+      ctx.dirty=true;ctx.changeSeq++;
+      const badge=ctx.host.querySelector('[data-mw-saving-state]');
+      if(badge)badge.textContent='שומר שינויים…';
+      scheduleAutoSave(ctx);
+    };
+    input.addEventListener('input',changed);
+    input.addEventListener('change',changed);
+  });
 }
-function changeWeek(ctx, week) {
-  if (!isCurrent(ctx) || ctx.loading || ctx.busy) return;
-  if (ctx.dirty && !window.confirm('יש שינויים שלא נשמרו. לעבור שבוע ולבטל אותם?')) return;
-  if (ctx.dirty) ctx.reports = JSON.parse(JSON.stringify(ctx.savedReports || []));
-  ctx.dirty = false;
-  ctx.notice = null;
-  ctx.week = week;
-  render(ctx);
+function cancelAutoSave(ctx) {
+  if(ctx.autoSaveTimer)clearTimeout(ctx.autoSaveTimer);
+  ctx.autoSaveTimer=null;
 }
-function adjustOpenings(ctx, remove) {
-  const report = readForm(ctx);
-  if (remove == null) report.openings.push(safeOpening({}));
-  else report.openings.splice(remove, 1);
-  const ix = ctx.reports.findIndex((r) => r.week_start === ctx.week);
-  // Keep unsaved changes only in this in-memory editing state; never claim they are persisted.
-  if (ix >= 0) ctx.reports[ix] = report;
-  else ctx.reports.push(report);
-  ctx.dirty = true;
-  render(ctx);
-  setNotice(ctx, 'השינויים טרם נשמרו. יש ללחוץ על שמירת טיוטה.');
+function updateWeeklySummary(ctx) {
+  const node=ctx.host.querySelector('[data-mw-weekly-table]');
+  if(!node)return;
+  node.innerHTML=tableMarkup(ctx);
+  node.querySelectorAll('[data-mw-week]').forEach(button=>button.addEventListener('click',()=>{void changeWeek(ctx,button.dataset.mwWeek);}));
+}
+function scheduleAutoSave(ctx) {
+  cancelAutoSave(ctx);
+  if(!ctx.entryExpanded || !ctx.dirty || !ctx.canEdit)return;
+  ctx.autoSaveTimer=setTimeout(()=>{
+    ctx.autoSaveTimer=null;
+    void saveWeekly(ctx,false,{silent:true});
+  },1100);
+}
+async function toggleEntry(ctx) {
+  if(!isCurrent(ctx))return false;
+  if(!ctx.entryExpanded){ctx.entryExpanded=true;render(ctx);return true;}
+  cancelAutoSave(ctx);
+  if(ctx.saveInFlight) {
+    const prior=await ctx.saveInFlight;
+    if(!prior)return false;
+  }
+  if(ctx.canEdit && ctx.dirty && currentReport(ctx).status!=='submitted') {
+    const saved=await saveWeekly(ctx,false,{silent:true});
+    if(!saved)return false;
+  }
+  if(!isCurrent(ctx))return false;
+  ctx.entryExpanded=false;render(ctx);
+  setNotice(ctx,'הנתונים נשמרו. אפשר לפתוח שוב את הטופס בכל עת.');
+  return true;
+}
+async function changeWeek(ctx,week) {
+  if(!isCurrent(ctx) || ctx.loading)return false;
+  cancelAutoSave(ctx);
+  if(ctx.saveInFlight) {
+    const prior=await ctx.saveInFlight;
+    if(!prior)return false;
+  }
+  if(ctx.entryExpanded && ctx.canEdit && ctx.dirty && currentReport(ctx).status!=='submitted') {
+    const saved=await saveWeekly(ctx,false,{silent:true});
+    if(!saved)return false;
+  }
+  if(!isCurrent(ctx))return false;
+  ctx.dirty=false;ctx.editingReport=null;ctx.notice=null;ctx.entryExpanded=false;ctx.week=week;
+  render(ctx);return true;
+}
+function adjustOpenings(ctx,remove) {
+  if(!ctx.canEdit || currentReport(ctx).status==='submitted')return;
+  const report=readForm(ctx);
+  if(remove==null)report.openings.push(safeOpening({}));
+  else report.openings.splice(remove,1);
+  // Unsaved added rows should not appear as already stored figures.
+  ctx.editingReport=report;
+  ctx.dirty=true;ctx.changeSeq++;
+  cancelAutoSave(ctx);render(ctx);scheduleAutoSave(ctx);
 }
 function render(ctx) {
   if (!isCurrent(ctx)) return;
   const roleLabel = ctx.canEdit ? 'הזנה עצמאית למנהל הפעילות' : 'צפייה בדיווחי מנהל הפעילות';
   ctx.host.innerHTML = '<div class="' + TRACKER_CLASS + '">' +
     '<div class="mw-header"><div><h2>מעקב שבועי – פתיחות ומוכנות</h2><p class="mw-muted">' + esc(ctx.managerName) + ' · שנת פעילות ' + esc(ctx.year) + '</p></div><span class="mw-tag">' + esc(roleLabel) + '</span></div>' +
-    '<div class="mw-intro"><strong>שני שלבים של ניהול:</strong> העבודה השוטפת מתעדכנת לאורך כל השבוע ונשארת פתוחה גם אחרי הגשת דיווח; הדיווח השבועי מסכם את התכנון מול הביצוע ונשמר כתמונת מצב להנהלה. הנתונים מוזנים עצמאית, ובדיקת התאמה למערכת המקור אפשרית רק לאחר הגשה.</div>' +
+    '<div class="mw-intro"><strong>כל נתון שמנהל הפעילות מזין הוא נתון סופי לאחר בקרתו – אין טיוטות.</strong> אזור המילוי נפתח בלחיצה ונשמר בסגירה. הגשת הדיווח להנהלה היא פעולה נפרדת היוצרת תמונת מצב נעולה.</div>' +
     '<div class="mw-toolbar"><div class="mw-left"><button class="mw-btn" type="button" data-mw-prev>‹ שבוע קודם</button><strong>' + labelWeek(ctx.week) + '</strong><button class="mw-btn" type="button" data-mw-next>שבוע הבא ›</button></div><span class="mw-progress">' + ctx.reports.filter((r) => r.status === 'submitted').length + ' שבועות שהוגשו בשנת הפעילות</span></div>' +
     '<div class="mw-section-head"><h3>1. עבודה שוטפת</h3></div>' +
-    '<section class="mw-section" data-mw-tasks-root></section><div class="mw-section-head"><h3>2. דיווח שבועי להנהלה – תכנון מול ביצוע</h3></div>' + tableMarkup(ctx) + '<div data-mw-notice></div>' + formMarkup(ctx) + programMarkup(ctx) + '</div>';
+    '<section class="mw-section" data-mw-tasks-root></section><div class="mw-section-head"><h3>2. מדדי בקרה ודיווח שבועי להנהלה</h3></div><div data-mw-weekly-table>' + tableMarkup(ctx) + '</div>' + '<div data-mw-notice></div>' + formMarkup(ctx) + programMarkup(ctx) + '</div>';
   bind(ctx);
   refreshTaskSection(ctx);
   if (currentReport(ctx).status === 'submitted') {
@@ -425,7 +485,7 @@ async function load(ctx) {
     ]);
     if (!isCurrent(ctx)) return;
     if (r.error || p.error || t.error) throw new Error(r.error?.message || p.error?.message || t.error?.message);
-    ctx.reports = r.data || [];
+    ctx.reports = (r.data || []).map(row=>({...row,status:row.status==='draft'?'current':row.status}));
     ctx.savedReports = JSON.parse(JSON.stringify(ctx.reports));
     ctx.programs = p.data || [];
     ctx.tasks = t.data || [];
@@ -437,45 +497,77 @@ async function load(ctx) {
     ctx.host.querySelector('[data-mw-retry]')?.addEventListener('click', () => load(ctx));
   }
 }
-async function saveWeekly(ctx, submit) {
-  if (!isCurrent(ctx) || !ctx.canEdit || ctx.busy) return;
-  const report = readForm(ctx);
-  if (submit) {
-    const invalid = validateWeeklyReport(report);
-    if (invalid) return setNotice(ctx, invalid, true);
+/** Every saved value is a final manager-reviewed figure; weekly submission is separate. */
+async function saveWeekly(ctx,submit=false,{silent=false}={}) {
+  if(!isCurrent(ctx) || !ctx.canEdit || !ctx.entryExpanded)return false;
+  cancelAutoSave(ctx);
+  // Serialize writes: never let an earlier autosave overwrite a later edit.
+  if(ctx.saveInFlight) {
+    const prior=await ctx.saveInFlight;
+    if(!prior || !isCurrent(ctx))return false;
   }
-  for (const [key] of MANUAL_METRICS) {
-    if (report.metrics[key] != null && !validMetric(report.metrics[key])) return setNotice(ctx, 'יש להזין מספרים שלמים שאינם שליליים.', true);
+  if(currentReport(ctx).status==='submitted')return false;
+  const report=readForm(ctx);
+  if(submit) {
+    const invalid=validateWeeklyReport(report);
+    if(invalid){setNotice(ctx,invalid,true);return false;}
   }
-  ctx.busy = true;
-  ctx.host.querySelectorAll('[data-mw-save],[data-mw-submit]').forEach((b) => { b.disabled = true; });
-  try {
-    const payload = {
-      manager_user_id: ctx.managerId, school_year: ctx.year, week_start: ctx.week,
-      metrics: report.metrics, openings: report.openings,
-      highlights: report.highlights, next_steps: report.next_steps, blockers: report.blockers,
-      instructor_notes: report.instructor_notes, kit_notes: report.kit_notes,
-      status: submit ? 'submitted' : 'draft', submitted_at: submit ? new Date().toISOString() : null,
-      tasks_snapshot: submit ? frozenTaskSnapshot(ctx) : []
-    };
-    const { data, error } = await supabase.from('manager_weekly_reports')
-      .upsert(payload, { onConflict: 'manager_user_id,school_year,week_start' }).select('*').single();
-    if (error) throw error;
-    if (!isCurrent(ctx)) return;
-    const i = ctx.reports.findIndex((r) => r.week_start === ctx.week);
-    if (i < 0) ctx.reports.push(data);
-    else ctx.reports[i] = data;
-    ctx.dirty = false;
-    ctx.savedReports = JSON.parse(JSON.stringify(ctx.reports));
-    render(ctx);
-    setNotice(ctx, submit ? 'הדיווח הוגש וננעל לעריכה. כעת ניתן לבדוק התאמה לנתוני המקור.' : 'הטיוטה נשמרה בהצלחה.');
-  } catch (error) {
-    setNotice(ctx, 'השמירה נכשלה: ' + error.message, true);
-  } finally {
-    ctx.busy = false;
-    ctx.host.querySelectorAll('[data-mw-save],[data-mw-submit]').forEach((b) => { b.disabled = false; });
+  for(const [key] of MANUAL_METRICS) {
+    if(report.metrics[key]!=null && !validMetric(report.metrics[key])) {
+      setNotice(ctx,'יש להזין מספרים שלמים שאינם שליליים.',true);
+      return false;
+    }
+  }
+  const generation=ctx.changeSeq;
+  const promise=(async()=>{
+    ctx.busy=true;
+    ctx.host.querySelectorAll('[data-mw-save],[data-mw-submit]').forEach(button=>{button.disabled=true;});
+    try {
+      const payload={
+        manager_user_id:ctx.managerId,school_year:ctx.year,week_start:ctx.week,
+        metrics:report.metrics,openings:report.openings,
+        highlights:report.highlights,next_steps:report.next_steps,blockers:report.blockers,
+        instructor_notes:report.instructor_notes,kit_notes:report.kit_notes,
+        status:submit?'submitted':'current',
+        submitted_at:submit?new Date().toISOString():null,
+        tasks_snapshot:submit?frozenTaskSnapshot(ctx):[]
+      };
+      const {data,error}=await supabase.from('manager_weekly_reports')
+        .upsert(payload,{onConflict:'manager_user_id,school_year,week_start'}).select('*').single();
+      if(error)throw error;
+      if(!isCurrent(ctx))return false;
+      const i=ctx.reports.findIndex(r=>r.week_start===ctx.week);
+      if(i<0)ctx.reports.push(data);
+      else ctx.reports[i]=data;
+      if(ctx.changeSeq===generation){ctx.dirty=false;ctx.editingReport=null;}
+      ctx.savedReports=JSON.parse(JSON.stringify(ctx.reports));
+      if(submit) {
+        ctx.entryExpanded=false;
+        render(ctx);
+        setNotice(ctx,'הדיווח השבועי הוגש ונשמר כתמונת מצב נעולה להנהלה.');
+      } else {
+        updateWeeklySummary(ctx);
+        const badge=ctx.host.querySelector('[data-mw-saving-state]');
+        if(badge && !ctx.dirty)badge.textContent='נתונים שמורים';
+        if(!silent)setNotice(ctx,'הנתונים נשמרו בהצלחה.');
+      }
+      return true;
+    } catch(error) {
+      if(isCurrent(ctx))setNotice(ctx,'השמירה נכשלה: '+(error?.message||error)+'. האזור יישאר פתוח לשמירה חוזרת.',true);
+      return false;
+    } finally {
+      ctx.busy=false;
+      ctx.host.querySelectorAll('[data-mw-save],[data-mw-submit]').forEach(button=>{button.disabled=false;});
+    }
+  })();
+  ctx.saveInFlight=promise;
+  try {return await promise;}
+  finally {
+    if(ctx.saveInFlight===promise)ctx.saveInFlight=null;
+    if(ctx.dirty && !submit && isCurrent(ctx) && ctx.entryExpanded)scheduleAutoSave(ctx);
   }
 }
+
 async function addProgram(ctx) {
   if (!isCurrent(ctx) || !ctx.canEdit) return;
   const name = val(ctx.host.querySelector('[data-mw-program-name]')?.value);
@@ -541,7 +633,8 @@ export function mountManagerWeeklyManual(host, context) {
   if (active && active.host === host && active.key === key) return;
   const ctx = {
     ...context, key, host, week: initialWeek(context.ym), reports: [], programs: [],
-    managerId: '', canEdit: false, loading: true, busy: false, taskBusy:false, dirty: false, notice: null, tasks: []
+    managerId: '', canEdit: false, loading: true, busy: false, taskBusy:false, dirty: false, notice: null, tasks: [],
+    entryExpanded:false,autoSaveTimer:null,saveInFlight:null,changeSeq:0,editingReport:null
   };
   active = ctx;
   host.innerHTML = '<div class="mw-tracker"><div class="mw-empty">טוען סביבת מעקב שבועי…</div></div>';
