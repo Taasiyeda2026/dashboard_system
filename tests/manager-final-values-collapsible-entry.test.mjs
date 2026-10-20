@@ -96,3 +96,28 @@ test('migration changes persisted draft states without erasing numbers or submit
   assert.match(migration,/status = 'current'/);
   assert.doesNotMatch(migration,/delete from public\.manager_weekly_reports/i);
 });
+
+
+test('workspace hides requested instructional copy and summary counters without removing task controls',()=>{
+  const {ctx,api}=setup();
+  ctx.tasks=[{
+    id:'task-1',subject:'הכשרת מדריך',activity_label:'בית ספר',
+    category:'training',owner_label:'הילה',due_date:'2026-10-25',
+    status:'open',notes:'נדרש תיאום'
+  }];
+  api.render(ctx);
+  const screen=ctx.host.textContent;
+  for(const unwanted of [
+    'כל נתון שמנהל הפעילות מזין הוא נתון סופי',
+    'אזור המילוי נפתח בלחיצה',
+    'עדכון לאורך השבוע. משימות ממשיכות',
+    'שבועות שהוגשו בשנת הפעילות',
+    'פתוחות: 1',
+    'באיחור: 0',
+    'הושלמו: 0'
+  ])assert.doesNotMatch(screen,new RegExp(unwanted));
+  assert.ok(ctx.host.querySelector('[data-mw-task-row="task-1"]'));
+  assert.ok(ctx.host.querySelector('[data-mw-task-add]'));
+  assert.ok(ctx.host.querySelector('[data-mw-toggle]'));
+  assert.ok(ctx.host.querySelector('[data-mw-weekly-table]'));
+});
