@@ -55,6 +55,8 @@ create table public.instructor_assignment_audit(
   previous_status text,new_status text,previous_emp_id text,previous_instructor_name text,
   meetings_completed_at_decision integer,effective_from date,decision_context jsonb);
 create table public.edit_requests(request_type text,source_row_id text,status text,requested_payload jsonb);
+create table public.scheduling_planning_workspaces(id uuid primary key,revision bigint,updated_at timestamptz);
+create table public.scheduling_planning_rows(workspace_id uuid,activity_id text,locked_option jsonb,needs_recalc boolean,updated_at timestamptz);
 create table public.fixture_routes(origin text,destination text,km numeric,minutes integer);
 create function public.app_has_permission(text) returns boolean language sql stable as $$
  select exists(select 1 from public.users where auth_user_id=auth.uid() and is_active and role in ('admin','operation_manager'))
@@ -78,19 +80,19 @@ create function public.scheduling_authority_name_is_blocked(text[],text) returns
  select coalesce($2=any($1),false)
 $$;
 create function public.school_calendar_sector_for_school_id(bigint) returns text language sql immutable as $$ select 'jewish'::text $$;
-create function public.school_calendar_sector_for_activity(text) returns text language sql stable as $ select 'jewish'::text $;
-create function public.school_calendar_eden_20260930_request(date) returns boolean language sql stable as $ select false $;
+create function public.school_calendar_sector_for_activity(text) returns text language sql stable as $$ select 'jewish'::text $$;
+create function public.school_calendar_eden_20260930_request(date) returns boolean language sql stable as $$ select false $$;
 create function public.school_calendar_activity_exception_exists(text,date) returns boolean language sql stable as $$ select false $$;
 create function public.school_calendar_event_applies(text,text) returns boolean language sql immutable as $$ select $1 in ('general',$2) $$;
 create function public.scheduling_effective_end_time(text,date,time) returns time language sql stable as $$ select $3 $$;
 create function public.scheduling_activity_is_full_day_tour(public.activities) returns boolean language sql stable as $$
  select $1.activity_type='סיור'
 $$;
-create function public.scheduling_activity_official_meetings(public.activities) returns jsonb language sql stable as $
+create function public.scheduling_activity_official_meetings(public.activities) returns jsonb language sql stable as $$
  select coalesce(jsonb_agg(jsonb_build_object('date',d) order by d),'[]'::jsonb) from (
    select nullif(to_jsonb($1)->>('date_'||n),'')::date d from generate_series(1,35) n
  ) dates where d is not null
-$;
+$$;
 create function public.scheduling_effective_meetings(public.activities,bigint) returns jsonb language sql stable as $$
  select coalesce(jsonb_agg(jsonb_build_object('date',d,'start_time',$1.start_time,'end_time',$1.end_time) order by d),'[]'::jsonb)
  from (
@@ -147,7 +149,7 @@ test('manual operations gateway on isolated local PostgreSQL', { skip: !connecti
           public.course_meeting_instructor_history,public.course_meeting_cancellations,
           public.activity_completion_approval_uploads,public.scheduling_instructor_intents,
           public.instructor_assignment_audit,public.fixture_routes,public.users,public.school_calendar,
-          scheduling_manual_private.decisions;
+          scheduling_manual_private.decisions,public.scheduling_planning_rows,public.scheduling_planning_workspaces;
         insert into public.users values('${actor}',true,'operation_manager');
         insert into public.contacts_instructors values(1507,'מדריך א','home-a','yes'),(1508,'מדריך ב','home-b','yes');
         insert into public.instructor_scheduling_profiles values
@@ -284,6 +286,18 @@ test('manual operations gateway on isolated local PostgreSQL', { skip: !connecti
       assert.ok(p.warnings.some(w=>w.code==='manual_short_school_day'));await commit(args,p);
       const m=(await client.query("select public.scheduling_effective_meetings(a,1507) as m from public.activities a where row_id='manual-a'")).rows[0].m;
       assert.equal(m[0].end_time,'09:45:00');
+    });
+
+
+    await t.test('an obsolete proposal lock is released only for the saved activity', async () => {
+      await reset();
+      await client.query("insert into public.scheduling_planning_workspaces values('00000000-0000-4000-8000-000000000003',10,now())");
+      await client.query("insert into public.scheduling_planning_rows values('00000000-0000-4000-8000-000000000003','manual-a','{}',false,now()),('00000000-0000-4000-8000-000000000003','other','{}',false,now())");
+      const args=await params();await commit(args,await preview(args));
+      const rows=(await client.query("select activity_id,locked_option,needs_recalc from public.scheduling_planning_rows order by activity_id")).rows;
+      assert.equal(rows[0].locked_option,null);assert.equal(rows[0].needs_recalc,true);
+      assert.deepEqual(rows[1].locked_option,{});assert.equal(rows[1].needs_recalc,false);
+      assert.equal((await client.query('select revision from public.scheduling_planning_workspaces')).rows[0].revision,'11');
     });
 
     await t.test('private decision receipts are inaccessible to client roles', async () => {

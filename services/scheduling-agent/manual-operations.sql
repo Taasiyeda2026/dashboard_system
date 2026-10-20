@@ -346,7 +346,7 @@ create or replace function public.commit_scheduling_manual_assignment(
   p_acknowledge_warnings boolean default false,p_reason text default null)
 returns public.activities language plpgsql security definer set search_path = public, pg_temp as $$
 declare a public.activities; proposed public.activities; result public.activities;
-  preview jsonb; set_clause text; audit_context jsonb; decision_id uuid; old_dates date[];
+  preview jsonb; set_clause text; audit_context jsonb; decision_id uuid; old_dates date[]; released_locks jsonb;
 begin
   perform scheduling_manual_private.assert_operator();
   -- Same serialization order as source changes and the existing assignment gateway.
@@ -368,8 +368,7 @@ begin
   proposed:=jsonb_populate_record(null::public.activities,preview->'activity');
   -- Replacing a saved intention is an explicit acknowledged warning in this
   -- same preview. It is released transactionally and retained in the audit.
-  if preview->'intent' is not null and preview->'intent'<>'null'::jsonb
-    and (preview->'intent'->>'empId')::bigint<>p_emp_id then
+  if preview->'intent' is not null and preview->'intent'<>'null'::jsonb then
     update public.scheduling_instructor_intents set status='released',version=version+1,
       updated_at=clock_timestamp(),updated_by=auth.uid()
       where activity_id=a.row_id and status='active';
@@ -410,7 +409,16 @@ begin
       draft_emp_id=null,draft_instructor_name=null,draft_created_at=null,draft_created_by=null,draft_proposed_meetings=null
       where row_id=$2 returning *' into result using proposed,p_activity_id;
   end if;
-  audit_context:=jsonb_build_object('manualOperatorPolicy','manual-operations-v1','decisionId',decision_id,
+  -- The operational record supersedes any old proposal lock for this activity.
+  -- Release that derived choice only; never recalculate or touch other activities.
+  select coalesce(jsonb_agg(jsonb_build_object('workspaceId',r.workspace_id,'lockedOption',r.locked_option)),'[]'::jsonb)
+    into released_locks from public.scheduling_planning_rows r where r.activity_id=a.row_id and r.locked_option is not null;
+  with released as (
+    update public.scheduling_planning_rows set locked_option=null,needs_recalc=true,updated_at=clock_timestamp()
+      where activity_id=a.row_id and locked_option is not null returning workspace_id)
+  update public.scheduling_planning_workspaces w set revision=w.revision+1,updated_at=clock_timestamp()
+    where w.id in (select workspace_id from released);
+  audit_context:=jsonb_build_object('releasedPlanningLocks',released_locks,'manualOperatorPolicy','manual-operations-v1','decisionId',decision_id,
     'previousPendingHistory',preview->'pendingHistory','previousIntent',preview->'intent','warnings',preview->'warnings','acknowledged',p_acknowledge_warnings,'meetings',preview->'meetings',
     'previousSchedule',scheduling_manual_private.scope(a),'newSchedule',scheduling_manual_private.scope(result));
   insert into public.instructor_assignment_audit(activity_id,selected_emp_id,selected_instructor_name,

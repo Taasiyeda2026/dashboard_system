@@ -133,8 +133,12 @@ export function createManualOperationsController({ state, rpc, onChange = () => 
   return {
     refresh() { onChange(); },
     back() { const editor = state[editorKey]; if (editor && !editor.busy) { editor.preview = null; editor.acknowledged = false; onChange(); } },
-    open(activity, instructors) {
-      state[editorKey] = createManualOperation(activity, instructors);
+    open(activity, instructors, initial = {}) {
+      const editor = createManualOperation(activity, instructors);
+      for (const field of ['empId','dates','startTime','endTime','action','effectiveFrom']) {
+        if (initial[field] != null) editor[field] = initial[field];
+      }
+      state[editorKey] = editor;
       onChange();
     },
     close() {

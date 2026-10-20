@@ -2525,13 +2525,13 @@ export const courseSchedulingScreen = {
       }
     });
     bindManualOperationsEditor(root, state, manualOperations);
-    const openManualOperations = course => {
+    const openManualOperations = (course, initial = {}) => {
       if (!canEdit || !canManuallySchedule(state.user) || !data._manualOperationsAvailable || !course) return false;
       state.courseSchedulingCandidateRequestId = (state.courseSchedulingCandidateRequestId || 0) + 1;
       state.courseSchedulingSelectedId = idOf(course);
       state.courseSchedulingLoading = false;
       data._agentAssignmentSnapshots?.delete(idOf(course));
-      manualOperations.open(course, (data.instructors || []).filter(instructor => text(instructor.emp_id)));
+      manualOperations.open(course, (data.instructors || []).filter(instructor => text(instructor.emp_id)), initial);
       return true;
     };
 
@@ -4675,9 +4675,16 @@ export const courseSchedulingScreen = {
       }
     });
     bindCourseListControls(root, '[data-confirm-planning-draft]', 'click', async (button, event) => {
-      if (!canEdit || state.courseSchedulingPlanningLoading || button.disabled) return;
+      if (!canEdit || button.disabled) return;
       const courseId = text(button.dataset.courseId);
       const row = (state.courseSchedulingPlanningRows || []).find((item) => text(item.courseId) === courseId);
+      if (row?.instructorEmpId && openManualOperations(courseById.get(courseId), {
+        empId: text(row.instructorEmpId), action: 'confirm',
+        ...(row.meetings?.length ? { dates: row.meetings.map(m => text(m.date).slice(0,10)),
+          startTime: text(row.startTime || row.meetings[0].start_time).slice(0,5),
+          endTime: text(row.endTime || row.meetings[0].end_time).slice(0,5) } : {})
+      })) return;
+      if (state.courseSchedulingPlanningLoading) return;
       if (!courseId || planningNeedsRecalc(courseId) || row?.needsRecalc === true || !row?.planningLocked || !row?.instructorEmpId) return;
       if (!window.confirm(`לאשר את הטיוטה ולשבץ את ${row.instructorName || row.instructorEmpId} לפעילות?`)) return;
 
@@ -5703,7 +5710,9 @@ export const courseSchedulingScreen = {
         if (!canEdit || !selectedCourseId || button.disabled) return;
         const result = resultByCourseId.get(selectedCourseId);
         const candidate = (result?.manualCandidates || result?.checked || []).find((item) => emp(item) === text(button.dataset.manualCandidate));
-        if (!candidate || manualCandidateBlocked(candidate)) return;
+        if (!candidate) return;
+        if (openManualOperations(selectedCourse, { empId: emp(candidate) })) return;
+        if (manualCandidateBlocked(candidate)) return;
         openManualCandidateConfirmation(state, candidate);
         rerender();
       });
@@ -5727,6 +5736,13 @@ export const courseSchedulingScreen = {
       const selectedId = text(state.courseSchedulingSelectedCandidateId)
         || text(detailRoot.querySelector('input[type="radio"][name^="course-candidate"]:checked')?.value);
       const selected = allCandidatesForResult(result).find((item) => emp(item) === selectedId);
+      const manualMeetings = selected?.dateAdjustment?.meetings;
+      if (selected && openManualOperations(selectedCourse, {
+        empId: emp(selected), action: 'confirm',
+        ...(manualMeetings?.length ? { dates: manualMeetings.map(m => text(m.date).slice(0, 10)),
+          startTime: text(manualMeetings[0].start_time || selectedCourse.start_time).slice(0, 5),
+          endTime: text(manualMeetings[0].end_time || selectedCourse.end_time).slice(0, 5) } : {})
+      })) return;
       const blockReason = actionDisabledReason({ candidate: selected, canEdit });
       if (blockReason) { showToast(blockReason, 'error'); updateCandidateActions(false); return; }
       if (state.courseSchedulingReplacementCourseId === selectedCourseId) {
@@ -5803,6 +5819,13 @@ export const courseSchedulingScreen = {
       const selectedId = text(state.courseSchedulingSelectedCandidateId)
         || text(detailRoot.querySelector('input[type="radio"][name^="course-candidate"]:checked')?.value);
       const selected = allCandidatesForResult(result).find((item) => emp(item) === selectedId);
+      const manualMeetings = selected?.dateAdjustment?.meetings;
+      if (selected && openManualOperations(selectedCourse, {
+        empId: emp(selected), action: 'draft',
+        ...(manualMeetings?.length ? { dates: manualMeetings.map(m => text(m.date).slice(0, 10)),
+          startTime: text(manualMeetings[0].start_time || selectedCourse.start_time).slice(0, 5),
+          endTime: text(manualMeetings[0].end_time || selectedCourse.end_time).slice(0, 5) } : {})
+      })) return;
       const liveCourse = (data.activities || []).find((row) => idOf(row) === selectedCourseId) || selectedCourse;
       if (text(liveCourse?.draft_emp_id)) {
         showToast('הפעילות כבר נשמרה כטיוטה', 'error');
@@ -5832,6 +5855,7 @@ export const courseSchedulingScreen = {
     });
 
     detailRoot.querySelector('[data-confirm-draft]')?.addEventListener('click', (event) => {
+      if (openManualOperations(selectedCourse, { action: 'confirm' })) return;
       void confirmActivityDraft(selectedCourseId, event.currentTarget);
     });
 
