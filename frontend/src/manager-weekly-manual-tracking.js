@@ -361,35 +361,86 @@ function bind(ctx) {
   root.querySelector('[data-mw-prev]')?.addEventListener('click', () => changeWeek(ctx, shiftWeek(ctx.week, -1)));
   root.querySelector('[data-mw-next]')?.addEventListener('click', () => changeWeek(ctx, shiftWeek(ctx.week, 1)));
   root.querySelectorAll('[data-mw-week]').forEach((b) => b.addEventListener('click', () => changeWeek(ctx, b.dataset.mwWeek)));
-  root.querySelector('[data-mw-save]')?.addEventListener('click', () => saveWeekly(ctx, false));
-  root.querySelector('[data-mw-submit]')?.addEventListener('click', () => saveWeekly(ctx, true));
+  root.querySelector('[data-mw-save]')?.addEventListener('click',()=>{void saveWeekly(ctx,false);});
+  root.querySelector('[data-mw-submit]')?.addEventListener('click',()=>{void saveWeekly(ctx,true);});
+  root.querySelector('[data-mw-toggle]')?.addEventListener('click',()=>{void toggleEntry(ctx);});
   root.querySelector('[data-mw-add]')?.addEventListener('click', () => adjustOpenings(ctx, null));
   root.querySelectorAll('[data-mw-remove]').forEach((b) => b.addEventListener('click', () => adjustOpenings(ctx, Number(b.dataset.mwRemove))));
   root.querySelector('[data-mw-add-program]')?.addEventListener('click', () => addProgram(ctx));
   root.querySelectorAll('[data-mw-save-program]').forEach((b) => b.addEventListener('click', () => saveProgram(ctx, Number(b.dataset.mwSaveProgram))));
   root.querySelector('[data-mw-check]')?.addEventListener('click', () => verifySubmitted(ctx));
-  root.querySelectorAll('input, textarea, select').forEach((input) => input.addEventListener('input', () => { if (ctx.canEdit) ctx.dirty = true; }));
+  root.querySelectorAll('[data-mw-report-fields] input, [data-mw-report-fields] textarea, [data-mw-report-fields] select').forEach(input=>{
+    const changed=()=>{
+      if(!ctx.canEdit || currentReport(ctx).status==='submitted')return;
+      ctx.dirty=true;ctx.changeSeq++;
+      const badge=ctx.host.querySelector('[data-mw-saving-state]');
+      if(badge)badge.textContent='שומר שינויים…';
+      scheduleAutoSave(ctx);
+    };
+    input.addEventListener('input',changed);
+    input.addEventListener('change',changed);
+  });
 }
-function changeWeek(ctx, week) {
-  if (!isCurrent(ctx) || ctx.loading || ctx.busy) return;
-  if (ctx.dirty && !window.confirm('יש שינויים שלא נשמרו. לעבור שבוע ולבטל אותם?')) return;
-  if (ctx.dirty) ctx.reports = JSON.parse(JSON.stringify(ctx.savedReports || []));
-  ctx.dirty = false;
-  ctx.notice = null;
-  ctx.week = week;
-  render(ctx);
+function cancelAutoSave(ctx) {
+  if(ctx.autoSaveTimer)clearTimeout(ctx.autoSaveTimer);
+  ctx.autoSaveTimer=null;
 }
-function adjustOpenings(ctx, remove) {
-  const report = readForm(ctx);
-  if (remove == null) report.openings.push(safeOpening({}));
-  else report.openings.splice(remove, 1);
-  const ix = ctx.reports.findIndex((r) => r.week_start === ctx.week);
-  // Keep unsaved changes only in this in-memory editing state; never claim they are persisted.
-  if (ix >= 0) ctx.reports[ix] = report;
+function updateWeeklySummary(ctx) {
+  const node=ctx.host.querySelector('[data-mw-weekly-table]');
+  if(!node)return;
+  node.innerHTML=tableMarkup(ctx);
+  node.querySelectorAll('[data-mw-week]').forEach(button=>button.addEventListener('click',()=>{void changeWeek(ctx,button.dataset.mwWeek);}));
+}
+function scheduleAutoSave(ctx) {
+  cancelAutoSave(ctx);
+  if(!ctx.entryExpanded || !ctx.dirty || !ctx.canEdit)return;
+  ctx.autoSaveTimer=setTimeout(()=>{
+    ctx.autoSaveTimer=null;
+    void saveWeekly(ctx,false,{silent:true});
+  },1100);
+}
+async function toggleEntry(ctx) {
+  if(!isCurrent(ctx))return false;
+  if(!ctx.entryExpanded){ctx.entryExpanded=true;render(ctx);return true;}
+  cancelAutoSave(ctx);
+  if(ctx.saveInFlight) {
+    const prior=await ctx.saveInFlight;
+    if(!prior)return false;
+  }
+  if(ctx.canEdit && ctx.dirty && currentReport(ctx).status!=='submitted') {
+    const saved=await saveWeekly(ctx,false,{silent:true});
+    if(!saved)return false;
+  }
+  if(!isCurrent(ctx))return false;
+  ctx.entryExpanded=false;render(ctx);
+  setNotice(ctx,'הנתונים נשמרו. אפשר לפתוח שוב את הטופס בכל עת.');
+  return true;
+}
+async function changeWeek(ctx,week) {
+  if(!isCurrent(ctx) || ctx.loading)return false;
+  cancelAutoSave(ctx);
+  if(ctx.saveInFlight) {
+    const prior=await ctx.saveInFlight;
+    if(!prior)return false;
+  }
+  if(ctx.entryExpanded && ctx.canEdit && ctx.dirty && currentReport(ctx).status!=='submitted') {
+    const saved=await saveWeekly(ctx,false,{silent:true});
+    if(!saved)return false;
+  }
+  if(!isCurrent(ctx))return false;
+  ctx.dirty=false;ctx.notice=null;ctx.entryExpanded=false;ctx.week=week;
+  render(ctx);return true;
+}
+function adjustOpenings(ctx,remove) {
+  if(!ctx.canEdit || currentReport(ctx).status==='submitted')return;
+  const report=readForm(ctx);
+  if(remove==null)report.openings.push(safeOpening({}));
+  else report.openings.splice(remove,1);
+  const index=ctx.reports.findIndex(row=>row.week_start===ctx.week);
+  if(index>=0)ctx.reports[index]=report;
   else ctx.reports.push(report);
-  ctx.dirty = true;
-  render(ctx);
-  setNotice(ctx, 'השינויים טרם נשמרו. יש ללחוץ על שמירת טיוטה.');
+  ctx.dirty=true;ctx.changeSeq++;
+  cancelAutoSave(ctx);render(ctx);scheduleAutoSave(ctx);
 }
 function render(ctx) {
   if (!isCurrent(ctx)) return;
@@ -446,45 +497,77 @@ async function load(ctx) {
     ctx.host.querySelector('[data-mw-retry]')?.addEventListener('click', () => load(ctx));
   }
 }
-async function saveWeekly(ctx, submit) {
-  if (!isCurrent(ctx) || !ctx.canEdit || ctx.busy) return;
-  const report = readForm(ctx);
-  if (submit) {
-    const invalid = validateWeeklyReport(report);
-    if (invalid) return setNotice(ctx, invalid, true);
+/** Every saved value is a final manager-reviewed figure; weekly submission is separate. */
+async function saveWeekly(ctx,submit=false,{silent=false}={}) {
+  if(!isCurrent(ctx) || !ctx.canEdit || !ctx.entryExpanded)return false;
+  cancelAutoSave(ctx);
+  // Serialize writes: never let an earlier autosave overwrite a later edit.
+  if(ctx.saveInFlight) {
+    const prior=await ctx.saveInFlight;
+    if(!prior || !isCurrent(ctx))return false;
   }
-  for (const [key] of MANUAL_METRICS) {
-    if (report.metrics[key] != null && !validMetric(report.metrics[key])) return setNotice(ctx, 'יש להזין מספרים שלמים שאינם שליליים.', true);
+  if(currentReport(ctx).status==='submitted')return false;
+  const report=readForm(ctx);
+  if(submit) {
+    const invalid=validateWeeklyReport(report);
+    if(invalid){setNotice(ctx,invalid,true);return false;}
   }
-  ctx.busy = true;
-  ctx.host.querySelectorAll('[data-mw-save],[data-mw-submit]').forEach((b) => { b.disabled = true; });
-  try {
-    const payload = {
-      manager_user_id: ctx.managerId, school_year: ctx.year, week_start: ctx.week,
-      metrics: report.metrics, openings: report.openings,
-      highlights: report.highlights, next_steps: report.next_steps, blockers: report.blockers,
-      instructor_notes: report.instructor_notes, kit_notes: report.kit_notes,
-      status: submit ? 'submitted' : 'draft', submitted_at: submit ? new Date().toISOString() : null,
-      tasks_snapshot: submit ? frozenTaskSnapshot(ctx) : []
-    };
-    const { data, error } = await supabase.from('manager_weekly_reports')
-      .upsert(payload, { onConflict: 'manager_user_id,school_year,week_start' }).select('*').single();
-    if (error) throw error;
-    if (!isCurrent(ctx)) return;
-    const i = ctx.reports.findIndex((r) => r.week_start === ctx.week);
-    if (i < 0) ctx.reports.push(data);
-    else ctx.reports[i] = data;
-    ctx.dirty = false;
-    ctx.savedReports = JSON.parse(JSON.stringify(ctx.reports));
-    render(ctx);
-    setNotice(ctx, submit ? 'הדיווח הוגש וננעל לעריכה. כעת ניתן לבדוק התאמה לנתוני המקור.' : 'הטיוטה נשמרה בהצלחה.');
-  } catch (error) {
-    setNotice(ctx, 'השמירה נכשלה: ' + error.message, true);
-  } finally {
-    ctx.busy = false;
-    ctx.host.querySelectorAll('[data-mw-save],[data-mw-submit]').forEach((b) => { b.disabled = false; });
+  for(const [key] of MANUAL_METRICS) {
+    if(report.metrics[key]!=null && !validMetric(report.metrics[key])) {
+      setNotice(ctx,'יש להזין מספרים שלמים שאינם שליליים.',true);
+      return false;
+    }
+  }
+  const generation=ctx.changeSeq;
+  const promise=(async()=>{
+    ctx.busy=true;
+    ctx.host.querySelectorAll('[data-mw-save],[data-mw-submit]').forEach(button=>{button.disabled=true;});
+    try {
+      const payload={
+        manager_user_id:ctx.managerId,school_year:ctx.year,week_start:ctx.week,
+        metrics:report.metrics,openings:report.openings,
+        highlights:report.highlights,next_steps:report.next_steps,blockers:report.blockers,
+        instructor_notes:report.instructor_notes,kit_notes:report.kit_notes,
+        status:submit?'submitted':'current',
+        submitted_at:submit?new Date().toISOString():null,
+        tasks_snapshot:submit?frozenTaskSnapshot(ctx):[]
+      };
+      const {data,error}=await supabase.from('manager_weekly_reports')
+        .upsert(payload,{onConflict:'manager_user_id,school_year,week_start'}).select('*').single();
+      if(error)throw error;
+      if(!isCurrent(ctx))return false;
+      const i=ctx.reports.findIndex(r=>r.week_start===ctx.week);
+      if(i<0)ctx.reports.push(data);
+      else ctx.reports[i]=data;
+      if(ctx.changeSeq===generation)ctx.dirty=false;
+      ctx.savedReports=JSON.parse(JSON.stringify(ctx.reports));
+      if(submit) {
+        ctx.entryExpanded=false;
+        render(ctx);
+        setNotice(ctx,'הדיווח השבועי הוגש ונשמר כתמונת מצב נעולה להנהלה.');
+      } else {
+        updateWeeklySummary(ctx);
+        const badge=ctx.host.querySelector('[data-mw-saving-state]');
+        if(badge && !ctx.dirty)badge.textContent='נתונים שמורים';
+        if(!silent)setNotice(ctx,'הנתונים נשמרו בהצלחה.');
+      }
+      return true;
+    } catch(error) {
+      if(isCurrent(ctx))setNotice(ctx,'השמירה נכשלה: '+(error?.message||error)+'. האזור יישאר פתוח לשמירה חוזרת.',true);
+      return false;
+    } finally {
+      ctx.busy=false;
+      ctx.host.querySelectorAll('[data-mw-save],[data-mw-submit]').forEach(button=>{button.disabled=false;});
+    }
+  })();
+  ctx.saveInFlight=promise;
+  try {return await promise;}
+  finally {
+    if(ctx.saveInFlight===promise)ctx.saveInFlight=null;
+    if(ctx.dirty && !submit && isCurrent(ctx) && ctx.entryExpanded)scheduleAutoSave(ctx);
   }
 }
+
 async function addProgram(ctx) {
   if (!isCurrent(ctx) || !ctx.canEdit) return;
   const name = val(ctx.host.querySelector('[data-mw-program-name]')?.value);
