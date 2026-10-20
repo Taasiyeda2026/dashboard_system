@@ -42,6 +42,19 @@ export function manualInstructorResult(course, instructors = []) {
   };
 }
 
+
+// Operational commands depend on the current activity and domain validation,
+// never on a separately calculated plan. Only accepting a stored proposal uses
+// source/workspace revisions. A persisted draft has its own identity and dates,
+// revalidated by the domain RPC when it is confirmed.
+export function assignmentUsesPlanSnapshot(name, args = {}, activity = {}) {
+  if (['save_course_assignment_draft', 'save_course_assignment_draft_with_dates'].includes(name)) return true;
+  if (['assign_activity_instructor', 'assign_activity_instructor_with_dates'].includes(name)) {
+    return !text(activity.draft_emp_id) || text(activity.draft_emp_id) !== text(args.p_emp_id);
+  }
+  return false;
+}
+
 export function createAgentAssignmentClient({rpc,getActivity,onActivity=()=>{},onConflict=()=>{},snapshots=new Map()}) {
   return {
     async candidates(activityId,options){
@@ -53,7 +66,8 @@ export function createAgentAssignmentClient({rpc,getActivity,onActivity=()=>{},o
       return agentCandidateResult(data,options);
     },
     async mutate(name,args){
-      const id=text(args.p_activity_id),activity=getActivity(id),snapshot=snapshots.get(id);
+      const id=text(args.p_activity_id),activity=getActivity(id);
+      const snapshot=assignmentUsesPlanSnapshot(name,args,activity)?snapshots.get(id):null;
       if(!activity?.updated_at)return {data:null,error:{message:'scheduling_activity_revision_conflict'}};
       try{
         const result=await rpc('scheduling_dashboard_assignment',{

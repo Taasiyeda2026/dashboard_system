@@ -1,5 +1,21 @@
 # Scheduling System Map
 
+## Human operational control / proposal boundary (draft, 2026-10-20)
+
+The accepted target is documented in [SCHEDULING_MANUAL_CONTROL_CONTRACT.md](SCHEDULING_MANUAL_CONTROL_CONTRACT.md):
+the agent proposes for unassigned courses around immutable confirmed assignments;
+Eden and admin control instructor/date/time changes manually. This target is not
+fully implemented or deployed by this draft.
+
+The client patch separates plan revisions from operational commands. Manual draft,
+matching saved-draft confirmation, replacements, cancellations and operational
+unavailability commands retain the activity updated_at guard but omit unrelated
+plan source/workspace revision checks. Accepting a calculated proposal keeps those
+plan checks. All paths still delegate to the existing allowlisted gateway and
+domain validation/approval functions. Missing-route/approval blockers and the
+independent manual date editor remain unresolved. Worker reactivation, production
+assignments and schema changes are outside this patch.
+
 ## Persistent operational workboard / manual assignment (2026-10-20)
 
 The instructor completion table stays visible while the saved plan is stale,
