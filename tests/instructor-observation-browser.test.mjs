@@ -70,8 +70,10 @@ test('manager creates, completes, reopens, and prints observation without editin
    assert.ok(el,'Missing field '+sel);
    el.value=value;el.dispatchEvent(new w.Event('input',{bubbles:true}));
   };
-  // Linked activity must prefill course, school, class and exact meeting by observation date.
-  fill('[data-io-detail="date"]','2026-11-27');
+  // Regression for the reported case: new observation defaults to 20 Oct,
+  // but the selected course starts later. Propose its actual first planned date.
+  vm.runInContext("selected.observation_date='2026-10-20'",context);
+  w.document.querySelector('[data-io-detail="date"]').value='2026-10-20';
   const activityPicker=w.document.querySelector('[data-io-pick-activity]');
   assert.ok(activityPicker,'Expected linked activity list');
   activityPicker.value='0';
@@ -80,12 +82,21 @@ test('manager creates, completes, reopens, and prints observation without editin
   assert.equal(w.document.querySelector('[data-io-detail="school"]').value,'בית ספר לבדיקות');
   assert.equal(w.document.querySelector('[data-io-detail="class"]').value,'ו׳ · קבוצה 2');
   assert.equal(w.document.querySelector('[data-io-detail="meeting"]').value,'1');
+  assert.equal(w.document.querySelector('[data-io-detail="date"]').value,'2026-11-27');
+  assert.match(w.document.querySelector('[data-io-activity-info]').textContent,/מועד מתוכנן/);
   assert.equal(vm.runInContext('selected.details.activity_row_id',context),'activity-test-1');
+  const meetingPicker=w.document.querySelector('[data-io-pick-meeting]');
+  assert.ok(meetingPicker,'Scheduled meeting picker must appear after activity selection');
+  assert.equal(meetingPicker.querySelectorAll('option').length,4);
+  meetingPicker.value='2';
+  meetingPicker.dispatchEvent(new w.Event('change',{bubbles:true}));
+  assert.equal(w.document.querySelector('[data-io-detail="date"]').value,'2026-12-04');
+  assert.equal(w.document.querySelector('[data-io-detail="meeting"]').value,'2');
   fill('[data-io-detail="date"]','2026-12-04');
   assert.equal(w.document.querySelector('[data-io-detail="meeting"]').value,'2');
   fill('[data-io-detail="date"]','2026-12-25');
   assert.equal(w.document.querySelector('[data-io-detail="meeting"]').value,'');
-  assert.match(w.document.querySelector('[data-io-activity-info]').textContent,/לא נמצא מפגש/);
+  assert.match(w.document.querySelector('[data-io-activity-info]').textContent,/התאריך אינו תואם למפגש מתוכנן/);
   fill('[data-io-detail="meeting"]','3');
   fill('[data-io-detail="date"]','2026-12-11');
   assert.equal(w.document.querySelector('[data-io-detail="meeting"]').value,'3',

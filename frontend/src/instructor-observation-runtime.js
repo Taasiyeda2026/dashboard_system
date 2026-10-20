@@ -137,6 +137,36 @@ function choice(key,question,choices) {
     '<label class="io-option"><input type="radio" name="io-'+e(key)+'" data-io-answer="'+e(key)+'" value="'+e(v)+'" '+(current===v?'checked ':'')+(!editable()?'disabled':'')+'><span>'+e(v)+'</span></label>').join('')+'</div></fieldset>';
 }
 
+/** Scheduled meetings are identified by source date_N, not by arithmetic on weekdays. */
+function scheduledMeetings(activity) {
+  const meetings=[];
+  for(let index=1;index<=35;index++) {
+    const date=String(activity?.['date_'+index] || '').slice(0,10);
+    if(/^\d{4}-\d{2}-\d{2}$/.test(date)) meetings.push({number:index,date});
+  }
+  return meetings;
+}
+function shortMeetingDate(iso) {
+  const match=String(iso || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? match[3]+'.'+match[2]+'.'+match[1] : '';
+}
+function meetingPickerMarkup() {
+  const activity=selectedActivityOption();
+  if(!activity) return '';
+  const meetings=scheduledMeetings(activity);
+  const d=selected?.details || {};
+  if(!meetings.length) return '<p class="io-muted">לא נמצאו מועדי מפגשים בפעילות זו. יש להזין את מספר המפגש ידנית.</p>';
+  return '<label class="io-field"><span>בחירת מפגש מתוכנן מהפעילות</span><select data-io-pick-meeting '+(!editable()?'disabled':'')+'>'+
+    '<option value="">בחרו מפגש ותאריך…</option>'+
+    meetings.map(m=>'<option value="'+m.number+'" '+(String(d.meeting)===String(m.number) && d.meeting_source_date===m.date?'selected':'')+'>'+
+      'מפגש '+m.number+' — '+e(shortMeetingDate(m.date))+'</option>').join('')+
+    '</select></label>';
+}
+function refreshMeetingPicker() {
+  const holder=root?.querySelector('[data-io-meeting-picker]');
+  if(holder) holder.innerHTML=meetingPickerMarkup();
+}
+
 /** Populate only facts already held in the chosen activity. Never invent a meeting number. */
 function observationActivityPrefill(activity, observationDate) {
   const grade=String(activity?.grade || '').trim();
@@ -168,21 +198,40 @@ function setObservationDetailValue(key,value) {
   const input=root?.querySelector('[data-io-detail="'+key+'"]');
   if(input) input.value=String(value ?? '');
 }
-function showActivityPrefillStatus(data) {
+function showActivityPrefillStatus(data, {proposedDate=false}={}) {
+  const activity=selectedActivityOption();
+  const meetings=scheduledMeetings(activity);
   const problems=[];
   if (!data.class) problems.push('הכיתה אינה מופיעה בפעילות');
-  if (!data.meeting) problems.push('לא נמצא מפגש בתאריך הצפייה');
-  const message=problems.length ? 'הפרטים הקיימים מולאו. '+problems.join('; ')+'. יש לבדוק ולהשלים ידנית.' :
+  if (!data.meeting) problems.push(meetings.length ? 'התאריך אינו תואם למפגש מתוכנן: בחרו מפגש מהרשימה או הזינו מספר ידנית' :
+    'לא קיימים מועדי מפגשים בפעילות: יש למלא מספר ידנית');
+  let message=problems.length ? 'הפרטים הקיימים מולאו. '+problems.join('; ')+'.' :
     'פרטי הקורס, בית הספר, הכיתה ומספר המפגש מולאו מהפעילות.';
+  if(proposedDate) message='נבחר באופן אוטומטי מפגש '+data.meeting+' בתאריך '+shortMeetingDate(data.meeting_source_date)+
+    ' כמועד מתוכנן לתצפית (לא אישור ביצוע). יש לאמת או לשנות את המועד לפני השלמת המשוב. '+(problems.length?problems.join('; '):'');
   const el=root?.querySelector('[data-io-activity-info]');
   if(el) el.textContent=message;
 }
 function applyActivityPrefill(activity) {
   if(!activity || !selected || !editable()) return;
-  const data=observationActivityPrefill(activity,selected.observation_date);
+  let data=observationActivityPrefill(activity,selected.observation_date);
+  let proposedDate=false;
+  // A new draft initially contains today's date, not an intentional observation date.
+  // Offer the next *actual scheduled* meeting and its date instead of leaving the
+  // meeting field empty, but never override a date explicitly entered by the observer.
+  if(!data.meeting && !selected.details?.observation_date_manual) {
+    const next=scheduledMeetings(activity).find(m=>m.date>=String(selected.observation_date || '').slice(0,10));
+    if(next) {
+      selected.observation_date=next.date;
+      data=observationActivityPrefill(activity,next.date);
+      setObservationDetailValue('date',next.date);
+      proposedDate=true;
+    }
+  }
   selected.details={...selected.details,...data};
   for(const key of ['course','school','class','meeting']) setObservationDetailValue(key,data[key]);
-  showActivityPrefillStatus(data);
+  refreshMeetingPicker();
+  showActivityPrefillStatus(data,{proposedDate});
 }
 /** Changing the visit date updates only a meeting number that was derived automatically. */
 function refreshMeetingForDate() {
@@ -194,14 +243,21 @@ function refreshMeetingForDate() {
   d.meeting=next.meeting;
   d.meeting_source_date=next.meeting_source_date;
   setObservationDetailValue('meeting',d.meeting);
+  refreshMeetingPicker();
   showActivityPrefillStatus({...next,class:d.class});
 }
 
 function detailScreen() {
   const d=selected.details || {};
-  const pickOptions = activityOptions.map((a,i)=>'<option value="'+i+'" '+(String(d.activity_row_id || '')===String(a.row_id)?'selected':'')+'>'+e((a.activity_name || a.program_name || 'פעילות')+' · '+(a.school || '')+' · '+(a.authority || '')+' · '+(a.grade || '')+' '+(a.class_group || ''))+'</option>').join('');
+  const pickOptions = activityOptions.map((a,i)=> {
+    const first=scheduledMeetings(a)[0];
+    const title=(a.activity_name || a.program_name || 'פעילות')+' · '+(a.school || '')+
+      ' · '+(a.authority || '')+' · '+(a.grade || '')+' '+(a.class_group || '')+
+      (first?' · מפגש ראשון '+shortMeetingDate(first.date):'');
+    return '<option value="'+i+'" '+(String(d.activity_row_id || '')===String(a.row_id)?'selected':'')+'>'+e(title)+'</option>';
+  }).join('');
   return '<h3>פרטי התצפית — לפני תחילת השיעור</h3><p class="io-muted">בחרו פעילות קיימת כדי למלא אוטומטית את הקורס, בית הספר, הכיתה ומספר המפגש אם תאריך התצפית תואם למועד במערכת. יש לאמת את הפרטים.</p>'+
-    (activityOptions.length ? '<label class="io-field"><span>מילוי מתוך פעילות קיימת (לבחירה)</span><select data-io-pick-activity '+(!editable()?'disabled':'')+'><option value="">בחרו פעילות…</option>'+pickOptions+'</select></label><p class="io-muted" data-io-activity-info role="status">שדות שלא קיימים בפעילות נשארים להשלמה ידנית; מספר התלמידים ונוכחות צוות בית הספר מתועדים לפי המצב בפועל.</p>' : '')+
+    (activityOptions.length ? '<label class="io-field"><span>מילוי מתוך פעילות קיימת (לבחירה)</span><select data-io-pick-activity '+(!editable()?'disabled':'')+'><option value="">בחרו פעילות…</option>'+pickOptions+'</select></label><div data-io-meeting-picker>'+meetingPickerMarkup()+'</div><p class="io-muted" data-io-activity-info role="status">יש לוודא את מועד התצפית בפועל; מספר התלמידים ונוכחות צוות בית הספר ממולאים לפי מה שנצפה.</p>' : '')+
     '<div class="io-fields">'+field('תאריך צפייה','date','date',true,selected.observation_date || '')+field('שם הצופה','observer','text',true,selected.observer_name || '')+
     field('שם הקורס','course','text',true,d.course || '')+field('מספר מפגש','meeting','number',true,d.meeting || '')+
     field('בית הספר','school','text',true,d.school || '')+field('כיתה','class','text',true,d.class || '')+
@@ -326,6 +382,7 @@ async function onClick(event) {
 function onInput(event) {
   if (!editable()) return;
   const target=event.target;
+  if(event.type==='input' && target.matches('[data-io-pick-activity],[data-io-pick-meeting]')) return;
   if (target.matches('[data-io-pick-activity]')) {
     const idx=Number(target.value);
     const activity=target.value!==''?activityOptions[idx]:null;
@@ -333,18 +390,33 @@ function onInput(event) {
     else if(selected?.details) {
       delete selected.details.activity_row_id;
       delete selected.details.meeting_source_date;
+      refreshMeetingPicker();
       const info=root?.querySelector('[data-io-activity-info]');
       if(info) info.textContent='הפעילות נותקה. אפשר למלא או לערוך את הפרטים ידנית.';
     }
   }
+  if (target.matches('[data-io-pick-meeting]')) {
+    const activity=selectedActivityOption();
+    const meeting=scheduledMeetings(activity).find(m=>String(m.number)===target.value);
+    if(meeting) {
+      selected.observation_date=meeting.date;
+      selected.details={...selected.details,meeting:String(meeting.number),
+        meeting_source_date:meeting.date,observation_date_manual:true};
+      setObservationDetailValue('date',meeting.date);
+      setObservationDetailValue('meeting',meeting.number);
+      showActivityPrefillStatus({...selected.details,class:selected.details.class});
+    }
+  }
   if (target.matches('[data-io-detail="meeting"]')) {
     if (selected?.details) delete selected.details.meeting_source_date;
+    refreshMeetingPicker();
   }
   if (target.matches('[data-io-detail="date"]')) {
+    selected.details={...selected.details,observation_date_manual:true};
     capture();
     refreshMeetingForDate();
   }
-  if (!target.closest('[data-io-detail],[data-io-answer],[data-io-comment],[data-io-overall],[data-io-text],[data-io-pick-activity]')) return;
+  if (!target.closest('[data-io-detail],[data-io-answer],[data-io-comment],[data-io-overall],[data-io-text],[data-io-pick-activity],[data-io-pick-meeting]')) return;
   capture(); clearTimeout(debounce);
   debounce=setTimeout(()=>{ void persist().then(()=>status('הטיוטה נשמרה')).catch(err=>status('השמירה נכשלה: '+(err?.message||err),true)); },1100);
 }
