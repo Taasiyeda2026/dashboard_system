@@ -204,7 +204,8 @@ function taskMarkup(ctx) {
     '<label class="mw-field"><span>בית ספר / קורס</span><input data-mw-task-new="activity_label" maxlength="250"/></label>'+
     '<label class="mw-field"><span>סוג הבעיה</span><select data-mw-task-new="category">'+optionsHtml(TASK_CATEGORIES,'unassigned')+'</select></label>'+
     '<label class="mw-field"><span>אחראי</span><input data-mw-task-new="owner_label" maxlength="120"/></label>'+
-    '<label class="mw-field"><span>תאריך יעד</span><input data-mw-task-new="due_date" type="date"/></label></div>'+
+    '<label class="mw-field"><span>תאריך יעד</span><input data-mw-task-new="due_date" type="date"/></label>'+
+    '<label class="mw-field"><span>סטטוס</span><select data-mw-task-new="status">'+optionsHtml(TASK_STATUSES,'open')+'</select></label></div>'+
     '<label class="mw-field mw-task-notes"><span>הערות / מעקב</span><input data-mw-task-new="notes" maxlength="1200" placeholder="מה נעשה ומה עוד נדרש?"/></label>'+
     '<div class="mw-foot"><button type="button" class="mw-btn mw-primary" data-mw-task-add>שמירת בעיה</button></div></div>');
   return header+table+add+'<div data-mw-task-notice role="status"></div>';
@@ -233,7 +234,7 @@ async function addTask(ctx) {
     const payload={
       manager_user_id:ctx.managerId,school_year:ctx.year,subject,
       activity_label:read('activity_label'),category:read('category')||'other',
-      owner_label:read('owner_label'),due_date:read('due_date')||null,notes:read('notes'),status:'open'
+      owner_label:read('owner_label'),due_date:read('due_date')||null,notes:read('notes'),status:read('status')||'open'
     };
     const {data,error}=await supabase.from('manager_ongoing_tasks').insert(payload).select('*').single();
     if(error)throw error;
