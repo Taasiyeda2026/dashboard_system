@@ -18,7 +18,7 @@ alter table public.manager_ongoing_tasks
     'assignment','school','kit','training','materials','other'
   ));
 
--- Management week submission requires only the nine independently reviewed metrics.
+-- Management week submission requires only the five independently reviewed metrics.
 -- Old opening details and written summaries remain stored (and unchanged) for history,
 -- but are no longer required or requested in the two-section user interface.
 create or replace function public.manager_weekly_valid_submission(
@@ -28,8 +28,7 @@ declare metric_key text; n numeric;
 begin
   if jsonb_typeof(p_metrics) <> 'object' then return false; end if;
   foreach metric_key in array array[
-    'activities','schools','unassigned','planned','started',
-    'training','materials','kits','issues'
+    'activities','schools','unassigned','planned','started'
   ] loop
     if jsonb_typeof(p_metrics->metric_key) <> 'number' then return false; end if;
     n := (p_metrics->>metric_key)::numeric;
