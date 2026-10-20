@@ -40,7 +40,7 @@ test('weekly tracker is manual-first, backed by RLS and supports submission', ()
   assert.doesNotMatch(trackingSource, /שמירת טיוטה/);
   assert.match(trackingSource, /הגשת הדיווח להנהלה/);
   assert.match(trackingSource, /validateWeeklyReport/);
-  assert.match(trackingSource, /manager_program_learning/);
+  assert.match(trackingSource, /manager_ongoing_tasks/);
   assert.match(trackingSource, /currentReport\(ctx\)\.status !== 'submitted'/);
   assert.match(migrationSource, /manager_weekly_reports_update_drafts_self/);
   assert.match(migrationSource, /manager_weekly_manager_directory/);
