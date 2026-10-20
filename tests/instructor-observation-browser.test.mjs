@@ -80,7 +80,7 @@ test('manager creates, completes, reopens, and prints observation without editin
   assert.equal(w.document.querySelector('[data-io-detail="school"]').value,'בית ספר לבדיקות');
   assert.equal(w.document.querySelector('[data-io-detail="class"]').value,'ו׳ · קבוצה 2');
   assert.equal(w.document.querySelector('[data-io-detail="meeting"]').value,'1');
-  assert.equal(records[0].details.activity_row_id,'activity-test-1');
+  assert.equal(vm.runInContext('selected.details.activity_row_id',context),'activity-test-1');
   fill('[data-io-detail="date"]','2026-12-04');
   assert.equal(w.document.querySelector('[data-io-detail="meeting"]').value,'2');
   fill('[data-io-detail="date"]','2026-12-25');
