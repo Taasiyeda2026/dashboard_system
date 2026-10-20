@@ -9,7 +9,7 @@ const isolatedSource = source.replace(/^import\s+.*?;\s*$/gm, '').replace(/^expo
 const { weekStartIso, shiftWeek, validateWeeklyReport } =
   runInNewContext(isolatedSource + '\n({weekStartIso, shiftWeek, validateWeeklyReport})', { Date });
 
-const keys = ['activities','schools','unassigned','planned','started','training','materials','kits','issues'];
+const keys = ['activities','schools','unassigned','planned','started'];
 function validReport(overrides = {}) {
   return {
     week_start: '2026-10-18',
@@ -37,20 +37,22 @@ test('complete manually entered submission is valid', () => {
 
 test('weekly submission requires all quantitative metrics', () => {
   const data = validReport();
-  delete data.metrics.kits;
-  assert.match(validateWeeklyReport(data), /ערכות/);
+  delete data.metrics.schools;
+  assert.match(validateWeeklyReport(data), /בתי ספר/);
 });
 
-test('count of expected openings must match the detailed rows', () => {
-  assert.match(validateWeeklyReport(validReport({ openings: [] })), /מספר שורות הפתיחה/);
+test('old opening details and summaries are no longer required for metric submission',()=>{
+  assert.equal(validateWeeklyReport(validReport({openings:[],highlights:'',next_steps:''})),'');
 });
-
-test('each expected opening must belong to selected week', () => {
-  const report = validReport();
-  report.openings[0].start_date = '2026-10-25';
-  assert.match(validateWeeklyReport(report), /לשבוע המדווח/);
+test('hidden historic training, kits, materials and issues metrics are not required',()=>{
+  const report=validReport();
+  for(const key of ['training','materials','kits','issues']) delete report.metrics[key];
+  assert.equal(validateWeeklyReport(report),'');
 });
-
-test('manager report cannot be submitted without weekly learning and next steps', () => {
-  assert.match(validateWeeklyReport(validReport({ highlights: '' })), /סיכום השבוע/);
+test('negative or non-integer core metrics are rejected',()=>{
+  const report=validReport();
+  report.metrics.activities=-1;
+  assert.match(validateWeeklyReport(report),/פעילויות/);
+  report.metrics.activities=2.5;
+  assert.match(validateWeeklyReport(report),/פעילויות/);
 });

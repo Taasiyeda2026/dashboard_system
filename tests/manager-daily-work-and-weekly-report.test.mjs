@@ -42,9 +42,18 @@ test('task category, state, owner and deadline are visible to manager',()=>{
  assert.equal(s.done,1);
  assert.match(taskMarkup({canEdit:true,tasks:sample}),/להכין ערכת ביומימיקרי/);
 });
-test('report submission validation still requires self-entered weekly metrics and openings',()=>{
- const report={week_start:'2026-10-18',metrics:{activities:2,schools:1,unassigned:0,planned:1,started:0,training:0,materials:0,kits:1,issues:1},openings:[],highlights:'התקדמות',next_steps:'תכנון'};
- assert.match(validateWeeklyReport(report),/שורות הפתיחה/);
+test('report submission validates five metrics only, without repeating issue details',()=>{
+ const report={week_start:'2026-10-18',metrics:{activities:2,schools:1,unassigned:0,planned:1,started:0},openings:[],highlights:'',next_steps:''};
+ assert.equal(validateWeeklyReport(report),'');
+ delete report.metrics.activities;
+ assert.match(validateWeeklyReport(report),/פעילויות/);
+});
+test('issue statuses are only open or closed and both appear in the dropdown',()=>{
+ const html=taskMarkup({canEdit:true,tasks:sample,year:'2027',managerId:'1500'});
+ assert.match(html,/value="open"/);
+ assert.match(html,/value="closed"/);
+ assert.doesNotMatch(html,/<option value="in_progress"/);
+ assert.doesNotMatch(html,/<option value="waiting"/);
 });
 test('database enforces owned task writes, read-only admin and permanent submitted report snapshot',()=>{
  assert.match(migration,/enable row level security/);

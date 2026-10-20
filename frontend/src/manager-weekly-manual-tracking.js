@@ -7,11 +7,7 @@ export const MANUAL_METRICS = [
   ['schools', 'מספר בתי ספר'],
   ['unassigned', 'פעילויות ללא מדריך'],
   ['planned', 'קורסים צפויים להתחיל השבוע'],
-  ['started', 'קורסים שהתחילו בפועל השבוע'],
-  ['training', 'הכשרות מדריכים שצריך להשלים'],
-  ['materials', 'חומרי הדרכה שצריך להשלים'],
-  ['kits', 'ערכות שצריך להכין או להעביר'],
-  ['issues', 'נושאים פתוחים שדורשים טיפול']
+  ['started', 'קורסים שהתחילו בפועל השבוע']
 ];
 const READONLY_ROLES = new Set(['admin', 'operation_manager']);
 const CLOSED = new Set(['בוטל', 'מבוטל', 'נמחק', 'סגור', 'cancelled', 'canceled', 'deleted', 'closed', 'inactive']);
@@ -49,23 +45,12 @@ function validMetric(v) {
   return Number.isSafeInteger(Number(v)) && Number(v) >= 0;
 }
 export function validateWeeklyReport(report) {
-  for (const [key, label] of MANUAL_METRICS) {
-    if (!Object.prototype.hasOwnProperty.call(report.metrics || {}, key) || !validMetric(report.metrics[key])) {
-      return 'יש למלא מספר תקין במדד: ' + label;
-    }
+  for(const [key,label] of MANUAL_METRICS) {
+    if(!Object.prototype.hasOwnProperty.call(report.metrics||{},key) || !validMetric(report.metrics[key]))
+      return 'יש למלא מספר תקין במדד: '+label;
   }
-  const openings = Array.isArray(report.openings) ? report.openings : [];
-  if (openings.length !== Number(report.metrics.planned)) return 'מספר שורות הפתיחה חייב להיות זהה למספר הקורסים הצפויים להיפתח.';
-  for (const item of openings) {
-    if (!val(item.school) || !val(item.program) || !/^\d{4}-\d{2}-\d{2}$/.test(val(item.start_date)) || !val(item.instructor)) {
-      return 'בכל פתיחה יש למלא בית ספר, תוכנית, תאריך ומדריך (או "טרם שובץ").';
-    }
-    if (weekStartIso(item.start_date) !== report.week_start) return 'תאריך הפתיחה חייב להשתייך לשבוע המדווח.';
-  }
-  if (!val(report.highlights) || !val(report.next_steps)) return 'להגשה נדרש למלא את סיכום השבוע ואת התכנון לשבוע הבא.';
   return '';
 }
-
 let active = null;
 const styles = [
   '.mw-tracker{direction:rtl;padding:20px 22px;margin-top:14px;border:1px solid #dce5ee;border-radius:16px;background:#fff;color:#253650;box-shadow:0 2px 9px #1f385309;font-size:13.5px}',
@@ -117,25 +102,15 @@ function inputField(label, key, value, opts = {}) {
     '</label>';
 }
 function readForm(ctx) {
-  const root = ctx.host;
-  const prev = currentReport(ctx);
-  const metrics = {};
-  for (const [key] of MANUAL_METRICS) {
-    const value = root.querySelector('[data-mw-metric="' + key + '"]')?.value ?? '';
-    if (value !== '') metrics[key] = Number(value);
+  const previous=currentReport(ctx);
+  const metrics={...(previous.metrics||{})};
+  for(const [key] of MANUAL_METRICS) {
+    const value=ctx.host.querySelector('[data-mw-metric="'+key+'"]')?.value??'';
+    if(value!=='')metrics[key]=Number(value);
+    else delete metrics[key];
   }
-  const openings = [...root.querySelectorAll('[data-mw-opening]')].map((el) => {
-    const result = {};
-    for (const field of ['authority', 'school', 'program', 'start_date', 'instructor', 'training', 'kits', 'materials', 'issue']) {
-      result[field] = val(el.querySelector('[data-mw-field="' + field + '"]')?.value);
-    }
-    return safeOpening(result);
-  });
-  const report = { ...prev, metrics, openings };
-  for (const key of ['highlights', 'next_steps', 'blockers', 'instructor_notes', 'kit_notes']) {
-    report[key] = val(root.querySelector('[data-mw-input="' + key + '"]')?.value);
-  }
-  return report;
+  // Preserve legacy details and notes without asking managers to re-enter them.
+  return {...previous,metrics};
 }
 function tableMarkup(ctx) {
   const weeks = [-2, -1, 0, 1, 2, 3].map((i) => shiftWeek(ctx.week, i));
@@ -152,61 +127,42 @@ function tableMarkup(ctx) {
   }).join('');
   return '<div class="mw-table-scroll"><table class="mw-table"><thead><tr><th>מדדים</th>' + headers + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
 }
-function openingMarkup(row, index, locked) {
-  const editable = locked ? 'disabled' : '';
-  const field = (name, title, type = 'text') =>
-    '<label class="mw-field"><span>' + esc(title) + '</span><input type="' + type + '" data-mw-field="' + name + '" value="' + esc(row[name] || '') + '" ' + editable + ' maxlength="250"/></label>';
-  const choice = (name, title) => '<label class="mw-field"><span>' + esc(title) + '</span><select data-mw-field="' + name + '" ' + editable + '>' +
-      ['', 'מוכן', 'בטיפול', 'חסר', 'לא נדרש', 'טרם נבדק'].map((v) => '<option value="' + esc(v) + '"' + (v === (row[name] || '') ? ' selected' : '') + '>' + esc(v || 'בחרו מצב') + '</option>').join('') + '</select></label>';
-  return '<div class="mw-opening" data-mw-opening><strong>' + (index + 1) + '.</strong>' +
-    field('authority', 'רשות') + field('school', 'בית ספר *') +
-    field('program', 'תוכנית *') + field('start_date', 'תאריך התחלה *', 'date') +
-    '<button type="button" class="mw-btn" data-mw-remove="' + index + '" ' + editable + '>הסר</button>' +
-    field('instructor', 'מדריך / טרם שובץ *') +
-    choice('training', 'הכשרה') + choice('materials', 'חומרי הדרכה') + choice('kits', 'ערכות') +
-    field('issue', 'חסם או פעולה נדרשת') + '</div>';
-}
 function formMarkup(ctx) {
-  const report = currentReport(ctx);
-  const locked = report.status === 'submitted' || !ctx.canEdit;
-  const hasReport = !!ctx.reports.find((r) => r.week_start === ctx.week);
-  const displayStatus = report.status === 'submitted' ? 'הוגש ' + new Date(report.submitted_at).toLocaleString('he-IL') : hasReport ? 'נתונים שמורים' : 'טרם הוזנו נתונים';
-  const metrics = '<div class="mw-fields">' + MANUAL_METRICS.map(([key, title]) =>
-    '<label class="mw-field"><span>' + esc(title) + '</span><input type="number" min="0" step="1" ' +
-    'data-mw-metric="' + esc(key) + '" value="' + esc(report.metrics?.[key] ?? '') + '" ' + (locked ? 'disabled' : '') + '/></label>').join('') + '</div>';
-  const open = (Array.isArray(report.openings) ? report.openings : []).map((r, i) => openingMarkup(r, i, locked)).join('');
-  const openings = '<div class="mw-section"><div class="mw-section-head"><div><h3>פירוט קורסים שצפויים להתחיל</h3><p class="mw-muted">יש להזין שורה לכל קורס. לא מועתקים נתונים אוטומטית ממסך הפעילויות.</p></div>' +
-    (!locked ? '<button type="button" class="mw-btn" data-mw-add>+ הוספת פתיחה</button>' : '') + '</div><div data-mw-openings>' + open + '</div></div>';
-  const noteFields = [
-    ['highlights', 'מה הושלם ומה התחיל השבוע? *'],
-    ['next_steps', 'מה מתוכנן לשבוע הבא? *'],
-    ['blockers', 'בעיות, עיכובים ומה נדרש מההנהלה'],
-    ['instructor_notes', 'מה למדתי על המדריכים וההכשרות?'],
-    ['kit_notes', 'מוכנות תוכן, ציוד וערכות']
-  ];
-  const notes = '<div class="mw-section"><div class="mw-section-head"><h3>הבנה ניהולית וסיכום שבוע</h3></div><div class="mw-textareas">' +
-    noteFields.map(([key, title]) => inputField(title, key, report[key], { textarea: true, disabled: locked })).join('') + '</div></div>';
-  const buttons = locked ? '<span class="mw-muted">הדיווח הוגש ונעול לעריכה.</span>' : '<button type="button" class="mw-btn" data-mw-save>שמירת נתונים</button>' +
+  const report=currentReport(ctx);
+  const locked=report.status==='submitted'||!ctx.canEdit;
+  const exists=!!ctx.reports.find(r=>r.week_start===ctx.week);
+  const status=report.status==='submitted'?'דווח להנהלה '+new Date(report.submitted_at).toLocaleString('he-IL'):
+    exists?'נתונים שמורים':'טרם הוזנו נתונים';
+  const metrics='<div class="mw-fields">'+MANUAL_METRICS.map(([key,title])=>
+    '<label class="mw-field"><span>'+esc(title)+'</span><input type="number" min="0" step="1" data-mw-metric="'+
+    esc(key)+'" value="'+esc(report.metrics?.[key]??'')+'" '+(locked?'disabled':'')+'/></label>').join('')+'</div>';
+  const buttons=locked?'<span class="mw-muted">הדיווח השבועי נשמר להנהלה.</span>':
+    '<button type="button" class="mw-btn" data-mw-save>שמירת נתונים</button>'+
     '<button type="button" class="mw-btn mw-primary" data-mw-submit>הגשת הדיווח להנהלה</button>';
   const expanded=!!ctx.entryExpanded;
-  const toggleText=expanded?'שמור וסגור':(locked?'הצגת פרטי הדיווח':'פתח מילוי נתונים');
-  const header='<div class="mw-section-head"><h3>הזנת נתונים – שבוע '+esc(labelWeek(ctx.week))+'</h3>'+
-    '<span class="mw-tag mw-entry-status" data-mw-saving-state role="status">'+esc(displayStatus)+'</span>'+
+  const header='<div class="mw-section-head"><h3>מילוי המדדים – '+esc(labelWeek(ctx.week))+'</h3>'+
+    '<span class="mw-tag mw-entry-status" data-mw-saving-state role="status">'+esc(status)+'</span>'+
     '<button type="button" class="mw-btn mw-entry-toggle" data-mw-toggle aria-expanded="'+expanded+
-    '" aria-controls="mw-report-fields">'+esc(toggleText)+' <span class="mw-entry-chevron" aria-hidden="true">'+
-    (expanded?'▴':'▾')+'</span></button></div>';
+    '" aria-controls="mw-report-fields">'+(expanded?'שמור וסגור':locked?'הצגת המדדים':'פתח מילוי מדדים')+
+    '<span class="mw-entry-chevron" aria-hidden="true">'+(expanded?'▴':'▾')+'</span></button></div>';
   return '<section class="mw-section mw-report-entry" data-mw-report-entry>'+header+
     '<div id="mw-report-fields" data-mw-report-fields'+(expanded?'':' hidden')+'>'+
-    metrics+openings+notes+'<div class="mw-foot">'+buttons+'</div></div>'+
+    metrics+'<div class="mw-foot">'+buttons+'</div></div>'+
     snapshotMarkup(report)+'<div data-mw-verification></div></section>';
 }
 const TASK_CATEGORIES = [
-  ['assignment','שיבוץ מדריך'], ['training','הכשרה'], ['kit','ערכות'],
-  ['materials','חומרי הדרכה'], ['school','תיאום בית ספר'], ['other','אחר']
+  ['unassigned','פעילות שלא שובצה'],
+  ['instructor_shortage','חוסר במדריכים'],
+  ['instructor_cancellation','ביטול מדריך'],
+  ['assignment','בעיה בשיבוץ'],
+  ['school','בעיה בתיאום'],
+  ['kit','חוסר בערכות'],
+  ['training','חוסר בהכשרות'],
+  ['materials','חוסר בחומרי הדרכה'],
+  ['other','אחר']
 ];
-const TASK_STATUSES = [
-  ['open','פתוחה'], ['in_progress','בטיפול'], ['waiting','ממתינה לגורם נוסף'], ['done','הושלמה']
-];
+const TASK_STATUSES = [['open','פתוח'],['closed','סגור']];
+const issueIsClosed = status => status==='closed'||status==='done';
 function optionsHtml(options, chosen) {
   return options.map(([value,label])=>'<option value="'+esc(value)+'"'+(value===chosen?' selected':'')+'>'+esc(label)+'</option>').join('');
 }
@@ -215,42 +171,43 @@ function taskField(task,key,opts={}) {
     (opts.disabled?' disabled':'')+' maxlength="'+(opts.max||250)+'" aria-label="'+esc(opts.label||key)+'"/>';
 }
 function taskSummary(tasks) {
-  const pending=tasks.filter(t=>t.status!=='done');
+  const pending=tasks.filter(t=>!issueIsClosed(t.status));
   const now=isoDate(new Date());
   const overdue=pending.filter(t=>t.due_date && t.due_date < now);
   return {pending:pending.length,done:tasks.length-pending.length,overdue:overdue.length};
 }
 function taskMarkup(ctx) {
   const entries=[...ctx.tasks].sort((a,b)=>{
-    const aDone=a.status==='done',bDone=b.status==='done';
+    const aDone=issueIsClosed(a.status),bDone=issueIsClosed(b.status);
     if(aDone!==bDone)return aDone?1:-1;
     return String(a.due_date||'9999-12-31').localeCompare(String(b.due_date||'9999-12-31'));
   });
   const locked=!ctx.canEdit;
-  const header='<div class="mw-section-head"><h3>עבודה שוטפת – משימות ומוכנות</h3></div>';
+  const header='';
   const tableRows=entries.map((t)=>{
     const id=esc(t.id);
     const select=(field,options,value)=>'<select data-mw-task-field="'+field+'" '+(locked?'disabled':'')+' aria-label="'+esc(field)+'">'+optionsHtml(options,value)+'</select>';
-    return '<tr data-mw-task-row="'+id+'"><td>'+taskField(t,'subject',{disabled:locked,label:'משימה'})+'</td>'+
+    return '<tr data-mw-task-row="'+id+'"><td>'+taskField(t,'subject',{disabled:locked,label:'תיאור הבעיה'})+'</td>'+
       '<td>'+taskField(t,'activity_label',{disabled:locked,label:'בית ספר / פעילות'})+'</td>'+
       '<td>'+select('category',TASK_CATEGORIES,t.category)+'</td>'+
       '<td>'+taskField(t,'owner_label',{disabled:locked,label:'אחראי'})+'</td>'+
       '<td>'+taskField(t,'due_date',{disabled:locked,type:'date',label:'תאריך יעד'})+'</td>'+
       '<td>'+select('status',TASK_STATUSES,t.status)+'</td>'+
-      '<td>'+taskField(t,'notes',{disabled:locked,label:'עדכון אחרון'})+'</td>'+
+      '<td>'+taskField(t,'notes',{disabled:locked,label:'הערות / מעקב'})+'</td>'+
       '<td>'+(locked?'<span class="mw-task-status">צפייה</span>':
         '<button type="button" class="mw-btn" data-mw-task-save="'+id+'">שמירת עדכון</button>')+'</td></tr>';
   }).join('');
-  const table=entries.length?'<div class="mw-task-scroll"><table class="mw-task-table"><thead><tr><th>מה צריך לעשות?</th><th>פעילות / בית ספר</th><th>תחום</th><th>אחראי</th><th>תאריך יעד</th><th>מצב</th><th>עדכון</th><th>פעולה</th></tr></thead><tbody>'+tableRows+'</tbody></table></div>':
-    '<div class="mw-task-empty">עדיין לא נוספו משימות. כדי לעקוב באופן שוטף, מנהל הפעילות צריך להזין את המשימות הראשונות.</div>';
-  const add=locked?'':('<div class="mw-section"><h3>הוספת משימה חדשה</h3><div class="mw-task-form">'+
-    '<label class="mw-field"><span>המשימה *</span><input data-mw-task-new="subject" maxlength="250" placeholder="לדוגמה: לוודא הכשרה למדריך"/></label>'+
+  const table=entries.length?'<div class="mw-task-scroll"><table class="mw-task-table"><thead><tr><th>תיאור הבעיה</th><th>פעילות / בית ספר</th><th>סוג הבעיה</th><th>אחראי</th><th>תאריך יעד</th><th>סטטוס</th><th>הערות / מעקב</th><th>פעולה</th></tr></thead><tbody>'+tableRows+'</tbody></table></div>':
+    '<div class="mw-task-empty">לא דווחו עדיין בעיות למעקב.</div>';
+  const add=locked?'':('<div class="mw-section"><h3>הוספת בעיה למעקב</h3><div class="mw-task-form">'+
+    '<label class="mw-field"><span>תיאור הבעיה *</span><input data-mw-task-new="subject" maxlength="250" placeholder="לדוגמה: אין מדריך משובץ לקורס"/></label>'+
     '<label class="mw-field"><span>בית ספר / קורס</span><input data-mw-task-new="activity_label" maxlength="250"/></label>'+
-    '<label class="mw-field"><span>תחום</span><select data-mw-task-new="category">'+optionsHtml(TASK_CATEGORIES,'assignment')+'</select></label>'+
+    '<label class="mw-field"><span>סוג הבעיה</span><select data-mw-task-new="category">'+optionsHtml(TASK_CATEGORIES,'unassigned')+'</select></label>'+
     '<label class="mw-field"><span>אחראי</span><input data-mw-task-new="owner_label" maxlength="120"/></label>'+
-    '<label class="mw-field"><span>תאריך יעד</span><input data-mw-task-new="due_date" type="date"/></label></div>'+
-    '<label class="mw-field mw-task-notes"><span>הערה / תיאור</span><input data-mw-task-new="notes" maxlength="1200" placeholder="מה נדרש כדי לסיים את הטיפול?"/></label>'+
-    '<div class="mw-foot"><button type="button" class="mw-btn mw-primary" data-mw-task-add>הוספת משימה</button></div></div>');
+    '<label class="mw-field"><span>תאריך יעד</span><input data-mw-task-new="due_date" type="date"/></label>'+
+    '<label class="mw-field"><span>סטטוס</span><select data-mw-task-new="status">'+optionsHtml(TASK_STATUSES,'open')+'</select></label></div>'+
+    '<label class="mw-field mw-task-notes"><span>הערות / מעקב</span><input data-mw-task-new="notes" maxlength="1200" placeholder="מה נעשה ומה עוד נדרש?"/></label>'+
+    '<div class="mw-foot"><button type="button" class="mw-btn mw-primary" data-mw-task-add>שמירת בעיה</button></div></div>');
   return header+table+add+'<div data-mw-task-notice role="status"></div>';
 }
 function taskNotice(ctx,msg,error=false) {
@@ -269,7 +226,7 @@ async function addTask(ctx) {
   const root=ctx.host;
   const read=key=>val(root.querySelector('[data-mw-task-new="'+key+'"]')?.value);
   const subject=read('subject');
-  if(!subject)return taskNotice(ctx,'יש למלא את תיאור המשימה.',true);
+  if(!subject)return taskNotice(ctx,'יש למלא את תיאור הבעיה.',true);
   ctx.taskBusy=true;
   const addBtn=root.querySelector('[data-mw-task-add]');
   if(addBtn)addBtn.disabled=true;
@@ -277,15 +234,15 @@ async function addTask(ctx) {
     const payload={
       manager_user_id:ctx.managerId,school_year:ctx.year,subject,
       activity_label:read('activity_label'),category:read('category')||'other',
-      owner_label:read('owner_label'),due_date:read('due_date')||null,notes:read('notes'),status:'open'
+      owner_label:read('owner_label'),due_date:read('due_date')||null,notes:read('notes'),status:read('status')||'open'
     };
     const {data,error}=await supabase.from('manager_ongoing_tasks').insert(payload).select('*').single();
     if(error)throw error;
     if(!isCurrent(ctx))return;
     ctx.tasks.push(data);
     refreshTaskSection(ctx);
-    taskNotice(ctx,'המשימה נשמרה. היא תמשיך להופיע במעקב גם לאחר הגשת הדיווח השבועי.');
-  } catch(error) {taskNotice(ctx,'לא ניתן לשמור משימה: '+error.message,true);}
+    taskNotice(ctx,'הבעיה נשמרה במעקב.');
+  } catch(error) {taskNotice(ctx,'לא ניתן לשמור בעיה: '+error.message,true);}
   finally {ctx.taskBusy=false;if(addBtn?.isConnected)addBtn.disabled=false;}
 }
 async function saveTask(ctx,id) {
@@ -294,7 +251,7 @@ async function saveTask(ctx,id) {
   const row=[...ctx.host.querySelectorAll('[data-mw-task-row]')].find(r=>r.dataset.mwTaskRow===id);
   if(!row||!task)return;
   const read=key=>val(row.querySelector('[data-mw-task-field="'+key+'"]')?.value);
-  if(!read('subject'))return taskNotice(ctx,'תיאור המשימה הוא שדה חובה.',true);
+  if(!read('subject'))return taskNotice(ctx,'תיאור הבעיה הוא שדה חובה.',true);
   ctx.taskBusy=true;
   const button=row.querySelector('[data-mw-task-save]');
   if(button)button.disabled=true;
@@ -310,13 +267,13 @@ async function saveTask(ctx,id) {
     if(!isCurrent(ctx))return;
     ctx.tasks=ctx.tasks.map(t=>t.id===id?data:t);
     refreshTaskSection(ctx);
-    taskNotice(ctx,'עדכון המשימה נשמר.');
-  } catch(error) {taskNotice(ctx,'עדכון המשימה נכשל: '+error.message,true);}
+    taskNotice(ctx,'עדכון הבעיה נשמר.');
+  } catch(error) {taskNotice(ctx,'עדכון הבעיה נכשל: '+error.message,true);}
   finally {ctx.taskBusy=false;if(button?.isConnected)button.disabled=false;}
 }
 function frozenTaskSnapshot(ctx) {
   const currentWeek=ctx.week;
-  const recent=ctx.tasks.filter(t=>t.status!=='done' ||
+  const recent=ctx.tasks.filter(t=>!issueIsClosed(t.status) ||
     (t.updated_at && t.updated_at.slice(0,10)>=currentWeek));
   return recent.map(t=>({
     id:t.id,subject:t.subject,activity_label:t.activity_label,category:t.category,
@@ -326,33 +283,16 @@ function frozenTaskSnapshot(ctx) {
 function snapshotMarkup(report) {
   if(report.status!=='submitted')return '';
   const tasks=Array.isArray(report.tasks_snapshot)?report.tasks_snapshot:[];
-  const open=tasks.filter(t=>t.status!=='done');
+  const open=tasks.filter(t=>!issueIsClosed(t.status));
   return '<div class="mw-snapshot"><strong>תמונת מצב להנהלה – במועד ההגשה</strong>'+
-    '<p class="mw-muted">העתק היסטורי של המשימות בעת ההגשה. עדכונים חדשים בעבודה השוטפת לא משנים אותו.</p>'+
-    '<p>משימות בדיווח: '+tasks.length+' · פתוחות: '+open.length+' · הושלמו: '+(tasks.length-open.length)+'</p>'+
+    '<p class="mw-muted">תמונת מצב היסטורית של הבעיות בעת ההגשה; עדכונים מאוחרים אינם משנים אותה.</p>'+
+    '<p>בעיות בדיווח: '+tasks.length+' · פתוחות: '+open.length+' · סגורות: '+(tasks.length-open.length)+'</p>'+
     (open.length?'<ul>'+open.slice(0,30).map(t=>'<li>'+esc(t.subject)+
       (t.owner_label?' · אחראי: '+esc(t.owner_label):'')+
       (t.due_date?' · יעד: '+esc(t.due_date):'')+'</li>').join('')+'</ul>':'')+
-    (open.length>30?'<p class="mw-muted">מוצגות 30 המשימות הפתוחות הראשונות.</p>':'')+'</div>';
+    (open.length>30?'<p class="mw-muted">מוצגות 30 הבעיות הפתוחות הראשונות.</p>':'')+'</div>';
 }
 
-function programMarkup(ctx) {
-  const locked = !ctx.canEdit;
-  const items = ctx.programs.map((p, index) => {
-    const fields = [
-      ['purpose', 'מטרות התוכנית'], ['key_content', 'מה לומדים בתוכנית?'],
-      ['instructor_training', 'איזה מדריכים מוכשרים ומה נדרש?'],
-      ['required_kits', 'איזה חומרים וערכות נדרשים?'],
-      ['risks', 'קשיים, בתי ספר ודגשים']
-    ];
-    return '<div class="mw-program" data-mw-program="' + index + '"><strong>' + esc(p.program_name) + '</strong><div class="mw-program-grid">' +
-      fields.map(([key, title]) => '<label class="mw-field"><span>' + esc(title) + '</span><textarea data-mw-program-field="' + key + '" ' + (locked ? 'disabled' : '') + ' maxlength="3000">' + esc(p[key]) + '</textarea></label>').join('') +
-      '</div>' + (!locked ? '<div class="mw-foot"><button class="mw-btn" type="button" data-mw-save-program="' + index + '">שמירת היכרות עם התוכנית</button></div>' : '') + '</div>';
-  }).join('');
-  return '<div class="mw-section"><div class="mw-section-head"><div><h3>היכרות עם תוכניות הלימוד</h3><p class="mw-muted">למלא פעם אחת לכל תוכנית, ולעדכן כאשר משתנה מידע.</p></div></div>' +
-    (!locked ? '<div class="mw-left"><input aria-label="שם תוכנית חדשה" data-mw-program-name placeholder="שם תוכנית חדשה" maxlength="180" style="min-height:36px;border:1px solid #cad7e2;border-radius:8px;padding:8px"/><button type="button" class="mw-btn" data-mw-add-program>הוספת תוכנית</button></div>' : '') +
-    (items || '<div class="mw-empty">עדיין לא הוזנו תוכניות. מנהל הפעילות יוסיף אותן בעצמו.</div>') + '</div>';
-}
 function bind(ctx) {
   const root = ctx.host;
   root.querySelector('[data-mw-prev]')?.addEventListener('click', () => changeWeek(ctx, shiftWeek(ctx.week, -1)));
@@ -361,10 +301,6 @@ function bind(ctx) {
   root.querySelector('[data-mw-save]')?.addEventListener('click',()=>{void saveWeekly(ctx,false);});
   root.querySelector('[data-mw-submit]')?.addEventListener('click',()=>{void saveWeekly(ctx,true);});
   root.querySelector('[data-mw-toggle]')?.addEventListener('click',()=>{void toggleEntry(ctx);});
-  root.querySelector('[data-mw-add]')?.addEventListener('click', () => adjustOpenings(ctx, null));
-  root.querySelectorAll('[data-mw-remove]').forEach((b) => b.addEventListener('click', () => adjustOpenings(ctx, Number(b.dataset.mwRemove))));
-  root.querySelector('[data-mw-add-program]')?.addEventListener('click', () => addProgram(ctx));
-  root.querySelectorAll('[data-mw-save-program]').forEach((b) => b.addEventListener('click', () => saveProgram(ctx, Number(b.dataset.mwSaveProgram))));
   root.querySelector('[data-mw-check]')?.addEventListener('click', () => verifySubmitted(ctx));
   root.querySelectorAll('[data-mw-report-fields] input, [data-mw-report-fields] textarea, [data-mw-report-fields] select').forEach(input=>{
     const changed=()=>{
@@ -428,24 +364,15 @@ async function changeWeek(ctx,week) {
   ctx.dirty=false;ctx.editingReport=null;ctx.notice=null;ctx.entryExpanded=false;ctx.week=week;
   render(ctx);return true;
 }
-function adjustOpenings(ctx,remove) {
-  if(!ctx.canEdit || currentReport(ctx).status==='submitted')return;
-  const report=readForm(ctx);
-  if(remove==null)report.openings.push(safeOpening({}));
-  else report.openings.splice(remove,1);
-  // Unsaved added rows should not appear as already stored figures.
-  ctx.editingReport=report;
-  ctx.dirty=true;ctx.changeSeq++;
-  cancelAutoSave(ctx);render(ctx);scheduleAutoSave(ctx);
-}
+
 function render(ctx) {
   if (!isCurrent(ctx)) return;
   const roleLabel = ctx.canEdit ? 'הזנה עצמאית למנהל הפעילות' : 'צפייה בדיווחי מנהל הפעילות';
   ctx.host.innerHTML = '<div class="' + TRACKER_CLASS + '">' +
     '<div class="mw-header"><div><h2>מעקב שבועי – פתיחות ומוכנות</h2><p class="mw-muted">' + esc(ctx.managerName) + ' · שנת פעילות ' + esc(ctx.year) + '</p></div><span class="mw-tag">' + esc(roleLabel) + '</span></div>' +
     '<div class="mw-toolbar"><div class="mw-left"><button class="mw-btn" type="button" data-mw-prev>‹ שבוע קודם</button><strong>' + labelWeek(ctx.week) + '</strong><button class="mw-btn" type="button" data-mw-next>שבוע הבא ›</button></div></div>' +
-    '<div class="mw-section-head"><h3>1. עבודה שוטפת</h3></div>' +
-    '<section class="mw-section" data-mw-tasks-root></section><div class="mw-section-head"><h3>2. מדדי בקרה ודיווח שבועי להנהלה</h3></div><div data-mw-weekly-table>' + tableMarkup(ctx) + '</div>' + '<div data-mw-notice></div>' + formMarkup(ctx) + programMarkup(ctx) + '</div>';
+    '<div class="mw-section-head"><h3>1. מדדים שבועיים</h3></div><div data-mw-weekly-table>' + tableMarkup(ctx) + '</div>' + formMarkup(ctx) +
+    '<div class="mw-section-head"><h3>2. בעיות ומעקב</h3></div><section class="mw-section" data-mw-tasks-root></section><div data-mw-notice></div></div>';
   bind(ctx);
   refreshTaskSection(ctx);
   if (currentReport(ctx).status === 'submitted') {
@@ -473,16 +400,14 @@ async function load(ctx) {
     ctx.managerId = found.manager_user_id;
     ctx.managerName = found.manager_name;
     ctx.canEdit = state?.user?.role === 'activities_manager' && val(state?.user?.user_id) === val(found.manager_user_id);
-    const [r, p, t] = await Promise.all([
+    const [r, t] = await Promise.all([
       supabase.from('manager_weekly_reports').select('*').eq('manager_user_id', ctx.managerId).eq('school_year', ctx.year).order('week_start'),
-      supabase.from('manager_program_learning').select('*').eq('manager_user_id', ctx.managerId).eq('school_year', ctx.year).order('program_name'),
       supabase.from('manager_ongoing_tasks').select('*').eq('manager_user_id',ctx.managerId).eq('school_year',ctx.year).order('updated_at',{ascending:false}).limit(500)
     ]);
     if (!isCurrent(ctx)) return;
-    if (r.error || p.error || t.error) throw new Error(r.error?.message || p.error?.message || t.error?.message);
+    if (r.error || t.error) throw new Error(r.error?.message || t.error?.message);
     ctx.reports = (r.data || []).map(row=>({...row,status:row.status==='draft'?'current':row.status}));
     ctx.savedReports = JSON.parse(JSON.stringify(ctx.reports));
-    ctx.programs = p.data || [];
     ctx.tasks = t.data || [];
     ctx.loading = false;
     render(ctx);
@@ -563,34 +488,7 @@ async function saveWeekly(ctx,submit=false,{silent=false}={}) {
   }
 }
 
-async function addProgram(ctx) {
-  if (!isCurrent(ctx) || !ctx.canEdit) return;
-  const name = val(ctx.host.querySelector('[data-mw-program-name]')?.value);
-  if (!name) return setNotice(ctx, 'יש לרשום את שם התוכנית.', true);
-  if (ctx.programs.some((p) => p.program_name === name)) return setNotice(ctx, 'תוכנית זו כבר מופיעה ברשימה.', true);
-  const payload = { manager_user_id: ctx.managerId, school_year: ctx.year, program_name: name };
-  const { data, error } = await supabase.from('manager_program_learning').insert(payload).select('*').single();
-  if (error) return setNotice(ctx, 'הוספת התוכנית נכשלה: ' + error.message, true);
-  if (!isCurrent(ctx)) return;
-  ctx.programs.push(data);
-  render(ctx);
-  setNotice(ctx, 'התוכנית נוספה. כעת יש ללמוד את פרטיה ולהשלים את שדות ההיכרות.');
-}
-async function saveProgram(ctx, index) {
-  if (!isCurrent(ctx) || !ctx.canEdit) return;
-  const current = ctx.programs[index];
-  const card = ctx.host.querySelector('[data-mw-program="' + index + '"]');
-  if (!current || !card) return;
-  const payload = {};
-  for (const key of ['purpose', 'key_content', 'instructor_training', 'required_kits', 'risks']) {
-    payload[key] = val(card.querySelector('[data-mw-program-field="' + key + '"]')?.value);
-  }
-  const { data, error } = await supabase.from('manager_program_learning').update(payload).eq('id', current.id).select('*').single();
-  if (error) return setNotice(ctx, 'שמירת התוכנית נכשלה: ' + error.message, true);
-  if (!isCurrent(ctx)) return;
-  ctx.programs[index] = data;
-  setNotice(ctx, 'פרטי ההיכרות עם התוכנית נשמרו.');
-}
+
 async function verifySubmitted(ctx) {
   if (!isCurrent(ctx) || currentReport(ctx).status !== 'submitted') return;
   const node = ctx.host.querySelector('[data-mw-verification]');
@@ -627,7 +525,7 @@ export function mountManagerWeeklyManual(host, context) {
   const key = contextKey(context);
   if (active && active.host === host && active.key === key) return;
   const ctx = {
-    ...context, key, host, week: initialWeek(context.ym), reports: [], programs: [],
+    ...context, key, host, week: initialWeek(context.ym), reports: [],
     managerId: '', canEdit: false, loading: true, busy: false, taskBusy:false, dirty: false, notice: null, tasks: [],
     entryExpanded:false,autoSaveTimer:null,saveInFlight:null,changeSeq:0,editingReport:null
   };
