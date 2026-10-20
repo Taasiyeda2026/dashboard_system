@@ -487,3 +487,5 @@ config.HOTFIX_VERSION = 'persistent-manual-scheduling-workboard-20261020-v1-' + 
 config.HOTFIX_VERSION = 'manual-operations-plan-independence-20261020-v1-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = 'manual-operator-warning-confirmation-20261021-v1-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'manual-directory-warning-20261020-v1-' + config.HOTFIX_VERSION;

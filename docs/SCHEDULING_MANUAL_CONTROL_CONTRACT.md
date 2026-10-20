@@ -109,3 +109,10 @@ operation; keep the production pause until the completed release is verified.
 Verified 2026-10-20 UTC: isolated run 39501709430 passed 14 PostgreSQL tests,
 the application build and six PWA/cache checks. Focused UI CI passed 63 tests,
 including bound warning acknowledgement/save behavior and protected anchors.
+
+Release verified: PR 2420 merged and Pages run 39502049081 succeeded. The API
+was read-only previewed under authenticated admin and operation_manager for
+Alex/Gedera: no blockers, missing-transition warnings, no assignment writes.
+Planning worker/supervisor resumed; the external assignment gateway stays disabled.
+The manual directory also retains inactive instructors with a visible inactive
+label and warning acknowledgement; the automatic planning pool stays active-only.

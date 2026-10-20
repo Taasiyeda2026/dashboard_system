@@ -2302,7 +2302,7 @@ export const courseSchedulingScreen = {
     const identity = schedulingSessionIdentity(authResult?.data?.session);
     const reloadPlanningSnapshot = () => courseSchedulingScreen.load({ api, forceRefresh: true });
     const cached = !forceRefresh && readSchedulingSessionCache(identity);
-    if (cached) return { ...cached, _is_stale: true, reloadPlanningSnapshot };
+    if (cached && Array.isArray(cached.manualInstructors)) return { ...cached, _is_stale: true, reloadPlanningSnapshot };
     const [activities, contacts, scheduling, meetingState, schoolLocations, schoolCalendar, planningCatalogResult, externalBlockersResult, historyResult] = await Promise.all([
       api.activities({ activity_period: 'school_2027', activity_type: 'all', include_inactive: true, select: 'row_id,district,authority_id,authority,school,school_id,activity_name,catalog_slug,activity_no,proposal_item_id,activity_type,item_type,activity_season,grade,education_level,class_group,sessions,start_time,end_time,instruction_language,required_instructor_gender,scheduling_note,instructor_assignment_status,instructor_assignment_locked,draft_emp_id,draft_instructor_name,draft_created_at,draft_proposed_meetings,emp_id,instructor_name,emp_id_2,instructor_name_2,start_date,end_date,status,date_1,date_2,date_3,date_4,date_5,date_6,date_7,date_8,date_9,date_10,date_11,date_12,date_13,date_14,date_15,date_16,date_17,date_18,date_19,date_20,date_21,date_22,date_23,date_24,date_25,date_26,date_27,date_28,date_29,date_30,date_31,date_32,date_33,date_34,date_35,updated_at' }),
       api.instructorContacts(),
@@ -2332,6 +2332,8 @@ export const courseSchedulingScreen = {
       meetingInstructorHistory: historyResult?.data || [],
       activities: attachCancelledMeetingsToActivities(enriched.activities, meetingState),
       instructors: activeSchedulingInstructors(contacts?.rows || []),
+      // Operators may acknowledge inactive status; automatic planning keeps its active-only pool.
+      manualInstructors: (contacts?.rows || []).filter(instructor => text(instructor.emp_id)),
       scheduling,
       meetingState,
       schoolLocations: schoolRows,
@@ -2531,7 +2533,7 @@ export const courseSchedulingScreen = {
       state.courseSchedulingSelectedId = idOf(course);
       state.courseSchedulingLoading = false;
       data._agentAssignmentSnapshots?.delete(idOf(course));
-      manualOperations.open(course, (data.instructors || []).filter(instructor => text(instructor.emp_id)), initial);
+      manualOperations.open(course, (data.manualInstructors || data.instructors || []).filter(instructor => text(instructor.emp_id)), initial);
       return true;
     };
 
