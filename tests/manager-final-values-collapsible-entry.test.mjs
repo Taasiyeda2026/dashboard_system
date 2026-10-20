@@ -121,3 +121,21 @@ test('workspace hides requested instructional copy and summary counters without 
   assert.ok(ctx.host.querySelector('[data-mw-toggle]'));
   assert.ok(ctx.host.querySelector('[data-mw-weekly-table]'));
 });
+
+
+test('metric entry fields are half-width and the entire metrics column is right-aligned', async()=>{
+  const {ctx,api}=setup();
+  await api.toggleEntry(ctx);
+  const table=ctx.host.querySelector('.mw-table');
+  assert.ok(table,'Weekly metrics table must remain available');
+  assert.equal(table.querySelector('thead th:first-child').textContent.trim(),'מדדים');
+  assert.equal(table.querySelectorAll('tbody tr').length,9);
+  for(const row of table.querySelectorAll('tbody tr')){
+    assert.ok(row.querySelector('td:first-child').textContent.trim(),
+      'Each metrics label remains visible in the first column');
+  }
+  assert.match(source,/\.mw-table th:first-child,\.mw-table td:first-child\{[^}]*text-align:right/);
+  assert.match(source,/\.mw-fields \.mw-field input\{width:50%;align-self:flex-start\}/);
+  assert.equal(ctx.host.querySelectorAll('[data-mw-metric]').length,9,
+    'All metric inputs remain available after resizing');
+});
