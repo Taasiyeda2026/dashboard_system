@@ -7286,6 +7286,7 @@ function firstHalfCountingPeriod() {
 function planningCompletionStatus(row = {}) {
   if (row.kind === 'live') return 'משובץ';
   if (row.kind === 'draft') return 'טיוטה';
+  if (row.needsRecalc === true) return 'תכנון שמור — נדרש עדכון';
   if (row.kind === 'planning-locked') return 'נקבע בתכנון';
   if (row.sourceHadDraft && (row.kind === 'proposal' || row.kind === 'fixed-proposal')) return 'הצעת שינוי לטיוטה';
   if (row.kind === 'proposal' || row.kind === 'fixed-proposal') return 'הצעת מערכת';
@@ -7313,13 +7314,16 @@ function planningRowIsFirstHalf(row = {}) {
   return startDate <= period.end && endDate >= period.start;
 }
 
-export function buildPlanningCompletionRows({ activities = [], planningRows = [] } = {}) {
+export function buildPlanningCompletionRows({ activities = [], planningRows = [], includeManualActivities = false } = {}) {
   const firstHalf = firstHalfCountingPeriod();
   const byId = new Map((planningRows || []).map((row) => [text(row?.courseId), row]));
   const rows = [];
 
   for (const activity of activities || []) {
-    if (!isPlanningActivity(activity)) continue;
+    // Presentation scope may include manual workshop/tour assignments; this does
+    // not change isPlanningActivity or any automatic planner target gate.
+    if (!isPlanningActivity(activity) && !(includeManualActivities && isSchedulingActivityActive(activity)
+      && schedulingActivityTypeCategory(activity.activity_type ?? activity.type ?? activity.item_type))) continue;
     const dates = officialPlanningDates(activity);
     const firstOfficialDate = dates[0] || '';
     if (firstOfficialDate && (firstOfficialDate < firstHalf.start || firstOfficialDate > firstHalf.end)) continue;
@@ -7327,18 +7331,14 @@ export function buildPlanningCompletionRows({ activities = [], planningRows = []
     const activityId = idOf(activity);
     const assigned = !!text(activity.emp_id);
     const draft = !assigned && !!text(activity.draft_emp_id);
-    if (assigned) {
+    if (assigned || draft) {
       rows.push(liveRow(activity, 'first'));
       continue;
     }
 
     const planningRow = byId.get(activityId);
-    if (planningRow) {
+    if (planningRow && !['live', 'draft'].includes(planningRow.kind)) {
       rows.push(planningRow);
-      continue;
-    }
-    if (draft) {
-      rows.push(liveRow(activity, 'first'));
       continue;
     }
 
@@ -7554,7 +7554,6 @@ export function planningCompletionInstructorDetailsHtml(rows, detailKey) {
 export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, schoolYearTotal = null, expandedInstructorIds = null } = {}) {
   const firstHalfRows = (rows || []).filter(planningRowIsFirstHalf);
   const overview = planningInstructorCompletionOverview(firstHalfRows);
-  if (!firstHalfRows.length) return '';
 
   const totals = firstHalfRows.reduce((acc, row) => {
     const activityType = text(row?.activityType) || 'קורס';
@@ -7680,7 +7679,7 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
         </div>
       </div>
     </details>` : ''}
-    ${overview.length ? `<section class="course-planning-team-plan">
+    <section class="course-planning-team-plan">
       <div class="course-planning-section-heading">
         <div>
           <strong>תכנון לצוות הקיים</strong>
@@ -7697,7 +7696,7 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
           <th>מתחיל</th>
           <th>מסתיים</th>
         </tr></thead>
-        <tbody>${overview.map((item) => {
+        <tbody>${overview.length ? overview.map((item) => {
           const detailKey = text(item.empId || item.name);
           const courseNames = (item.programs || []).filter(Boolean);
           return `<tr>
@@ -7717,10 +7716,10 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
         <tr class="course-planning-completion-detail-row" data-planning-instructor-details="${escapeHtml(detailKey)}"${expandedInstructorIds?.includes(detailKey) ? '' : ' hidden'}>
           ${expandedInstructorIds === null || expandedInstructorIds.includes(detailKey) ? instructorCompletionDetailHtml(item) : '<td colspan="7"></td>'}
         </tr>`;
-        }).join('')}</tbody>
+        }).join('') : '<tr><td colspan="7">עדיין אין שיבוצים או הצעות למדריכים. אפשר לבחור פעילות ולשבץ מדריך ידנית.</td></tr>'}</tbody>
       </table>
       </div>
-    </section>` : ''}
+    </section>
     ${unresolvedRows.length ? `<details class="course-planning-workplan-unresolved">
       <summary>${unresolvedRows.length} פעילויות שדורשות טיפול נוסף</summary>
       <div class="course-planning-workplan-unresolved-table-wrap">

@@ -24,7 +24,7 @@ import {
   israelTodayIso,
   meetingsCompletedForCourse
 } from './course-scheduling-meetings.js';
-import { isCourseSchedulingTargetActivity, isSchedulingActivityActive } from './shared/activity-scheduling-eligibility.js';
+import { isCourseSchedulingTargetActivity, isSchedulingActivityActive, isSchedulableActivityType } from './shared/activity-scheduling-eligibility.js';
 import { formatDateHe, formatTimeRangeShort } from './shared/format-date.js';
 import { weekRange, shiftWeek, buildWeekRows, weekCalendarHtml, fixedScheduleHtml, weekNavLabel } from './course-scheduling-calendar.js';
 import {
@@ -568,10 +568,16 @@ export function isAssignedCourseSchedulingManageable(activity = {}) {
     && !!text(activity.emp_id);
 }
 
-function schedulingWorkspaceCourses(activities = []) {
+export function canManuallySchedule(user = {}) {
+  return ['admin', 'operation_manager'].includes(text(user.role))
+    && user.is_active !== false && hasPermission(user, 'view_operations_scheduling');
+}
+
+function schedulingWorkspaceCourses(activities = [], user = {}) {
   return activities.filter((activity) =>
     isSchedulingActivityActive(activity)
-    && isCourseSchedulingTargetActivity(activity)
+    && (isCourseSchedulingTargetActivity(activity)
+      || (canManuallySchedule(user) && isSchedulableActivityType(activity.activity_type ?? activity.type ?? activity.item_type)))
   );
 }
 
@@ -994,7 +1000,16 @@ function planningAlternativeButtonsHtml(row = {}, expanded = false, state = {}) 
   return '';
 }
 
-function workboardActionsHtml(row = {}, { planningLoading = false, alternativesExpanded = false } = {}) {
+function workboardActionsHtml(row = {}, options = {}) {
+  const manual = options.manualAccess
+    ? `<button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-open-manual-course="${escapeHtml(row.id)}">${row.isAssigned ? 'שינוי ידני' : row.hasActualDraft ? 'אישור / שינוי ידני' : 'שיבוץ ידני'}</button>`
+    : '';
+  if (manual && (row.isAssigned || row.planningRow?.needsRecalc === true
+    || (!row.hasActualDraft && !row.hasPlanningDraft && !planningPrimaryOption(row.planningRow)))) return manual;
+  return manual + plannedWorkboardActionsHtml(row, options);
+}
+
+function plannedWorkboardActionsHtml(row = {}, { planningLoading = false, alternativesExpanded = false } = {}) {
   if (row.isAssigned) {
     return '<button type="button" class="course-scheduling-workboard-secondary" data-course-row-action data-open-course-detail>פתח / שינוי שיבוץ</button>';
   }
@@ -1125,6 +1140,7 @@ function courseListCardHtml(row, selectedId, state = {}) {
     <span class="course-scheduling-compact-cell course-scheduling-compact-instructor" title="${escapeHtml(row.instructorLabel)}">${escapeHtml(row.instructorLabel)}</span>
     <span class="course-scheduling-compact-cell course-scheduling-compact-status"><span class="course-scheduling-status-chip${row.bucket === 'draft' ? ' is-status-draft' : (row.bucket === 'assigned' ? ' is-status-ready' : ' is-status-warning')}">${escapeHtml(row.statusLabel)}</span>${alert}</span>
     <span class="course-scheduling-compact-cell course-scheduling-workboard-actions">${workboardActionsHtml(row, {
+      manualAccess: canManuallySchedule(state.user),
       planningLoading: !!state.courseSchedulingPlanningLoading,
       alternativesExpanded: expanded
     })}</span>
@@ -1962,10 +1978,10 @@ function selectedCoursePanelHtml(row, state) {
     </div>` : '';
   return `${header}${schoolContext}${approvalHost}${row.hasPlanningDraft ? '<p class="course-scheduling-muted">קיימת בחירת מדריך בתכנון בלבד; ניתן לבחור ידנית, בכפוף לבדיקת השמירה.</p>' : ''}${replacementControls}
     <div class="course-scheduling-primary-action">
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-open-manual-assignment ${finding ? 'disabled' : ''}>שבץ מדריך ידנית</button>
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-find-instructors ${finding ? 'disabled' : ''}>
+      ${canManuallySchedule(state.user) ? '<button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-open-manual-assignment>שבץ מדריך ידנית</button>' : ''}
+      ${isCourseSchedulingTargetActivity(row.course) ? `<button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-find-instructors ${finding ? 'disabled' : ''}>
         ${SCHEDULING_AGENT_OWNS_COMPUTE ? (finding ? 'טוען המלצות שמורות…' : 'הצג המלצות שמורות') : finding ? 'בודק מדריכים...' : (hasSuggestion ? 'בדיקה מחדש של מדריכים' : 'מצא מדריכים מתאימים')}
-      </button>
+      </button>` : ''}
     </div>
     ${finding ? (SCHEDULING_AGENT_OWNS_COMPUTE ? '<p role="status">טוען המלצות שמורות מהסוכן…</p>' : loadingInstructorsHtml(state.courseSchedulingProgressStep || 1)) : instructorsResultsHtml(result, state)}
     ${selectedCourseExtraDetailsHtml(row.course)}`;
@@ -2359,7 +2375,7 @@ export const courseSchedulingScreen = {
     }
 
     state.meetingState = data.meetingState;
-    const allInterfaceCourses = schedulingWorkspaceCourses(data.activities || []);
+    const allInterfaceCourses = schedulingWorkspaceCourses(data.activities || [], state.user);
     const interfaceCourses = filteredInterfaceCourses(allInterfaceCourses, state);
     if(SCHEDULING_AGENT_OWNS_COMPUTE) state.courseSchedulingResults=(state.courseSchedulingResults||[]).filter(r=>r.agentSnapshot || r.manualOnly === true);
     else restoreCalculationSnapshot(state, interfaceCourses, schedulingSnapshotContext(data));
@@ -2389,12 +2405,14 @@ export const courseSchedulingScreen = {
       schoolYearTotal: allInterfaceCourses.length,
       expandedInstructorIds: state.courseSchedulingExpandedInstructorIds || []
     };
-    const overviewOptionsKey = JSON.stringify(overviewOptions);
+    const overviewOptionsKey = JSON.stringify({ ...overviewOptions,
+      includeManualActivities: canManuallySchedule(state.user),
+      activityVersions: (data.activities || []).map(a => [idOf(a), a.updated_at, a.emp_id, a.draft_emp_id])
+    });
     let completionCache = data._planningCompletionCache;
-    const showCompletionOverview = state.courseSchedulingPlanningSharedLoaded && !state.courseSchedulingPlanningLoading && !state.courseSchedulingPlanningStale;
-    if (showCompletionOverview && (!completionCache || completionCache.rows !== planningRows || completionCache.activities !== data.activities
-      || completionCache.optionsKey !== overviewOptionsKey)) {
-      const completionRows = buildPlanningCompletionRows({ activities: data.activities || [], planningRows });
+    if (!completionCache || completionCache.rows !== planningRows || completionCache.activities !== data.activities
+      || completionCache.optionsKey !== overviewOptionsKey) {
+      const completionRows = buildPlanningCompletionRows({ activities: data.activities || [], planningRows, includeManualActivities: canManuallySchedule(state.user) });
       completionCache = { rows: planningRows, activities: data.activities, optionsKey: overviewOptionsKey,
         html: planningCompletionOverviewHtml(completionRows, overviewOptions) };
       data._planningCompletionCache = completionCache;
@@ -2425,18 +2443,14 @@ export const courseSchedulingScreen = {
       <div role="status">${data._is_stale ? 'מוצג עותק שמור; יש לרענן לפני שמירה.' : ''}${escapeHtml(state.courseSchedulingError||'')}
         <button type="button" data-refresh-assignment-data>רענן נתוני שיבוץ</button></div>
       <section class="course-scheduling-summary" aria-label="סיכום פעילויות לפי מצב">${summaryCardsHtml(rowModels, state)}</section>
-      ${state.courseSchedulingPlanningSharedLoaded && !state.courseSchedulingPlanningLoading && !state.courseSchedulingPlanningStale
-        ? completionCache.html
-        : (state.courseSchedulingPlanningSharedLoaded && state.courseSchedulingPlanningStale
-          ? '<section class="course-planning-overview-pending" data-planning-overview-pending><strong>טבלת תכנון המדריכים תוצג לאחר חישוב התכנון המעודכן.</strong><span>לאחר החישוב יוצגו שוב עומס, פעילויות, מפגשים, שבוע שיא ותאריכי עבודה לכל מדריך.</span></section>'
-          : '')}
+      ${!state.courseSchedulingPlanningSharedLoaded || state.courseSchedulingPlanningLoading || state.courseSchedulingPlanningStale
+        ? '<p class="course-scheduling-alert" role="status" data-planning-overview-currency>טבלת המדריכים מוצגת לפי השיבוצים והטיוטות הקיימים והתכנון השמור. הצעות התכנון ממתינות לעדכון; אפשר לשבץ פעילות ידנית.</p>' : ''}
+      ${completionCache.html}
       <p data-course-scheduling-error class="course-scheduling-alert"${state.courseSchedulingError ? '' : ' hidden'}>${escapeHtml(state.courseSchedulingError || '')}</p>
       <div class="course-scheduling-layout course-scheduling-layout--courses">
         <aside class="course-scheduling-courses" data-course-list tabindex="-1" aria-label="טבלת פעילויות">${courseListHtml(rowModels, selectedId, state)}</aside>
         <section class="course-scheduling-detail${selectedId ? ' is-open' : ''}" data-course-detail>${
-          selectedId && selectedRow?.planningRow?._detailsDeferred && !selectedRow?.result?.manualOnly
-            ? '<p role="status">טוען פרטי שיבוץ…</p>'
-            : selectedId && selectedRow?.course
+          selectedId && selectedRow?.course
             ? selectedCoursePanelHtml(selectedRow, state)
             : ''
         }</section>
@@ -2482,7 +2496,7 @@ export const courseSchedulingScreen = {
       }
     });
     const assignmentRpc=(name,args)=>assignmentClient.mutate(name,args);
-    const allInterfaceCourses = schedulingWorkspaceCourses(data.activities || []);
+    const allInterfaceCourses = schedulingWorkspaceCourses(data.activities || [], state.user);
     const interfaceCourses = filteredInterfaceCourses(allInterfaceCourses, state);
     // Include all loaded activities so district draft-save can validate courses outside the authority filter.
     const courseById = new Map(
@@ -4556,7 +4570,7 @@ export const courseSchedulingScreen = {
       if (!detailRow) return;
       const opening = detailRow.hidden;
       if (opening && !detailRow.querySelector('.course-planning-completion-detail-panel')) {
-        const completion = buildPlanningCompletionRows({ activities: data.activities || [], planningRows: state.courseSchedulingPlanningRows || [] });
+        const completion = buildPlanningCompletionRows({ activities: data.activities || [], planningRows: state.courseSchedulingPlanningRows || [], includeManualActivities: canManuallySchedule(state.user) });
         detailRow.innerHTML = planningCompletionInstructorDetailsHtml(completion, detailKey);
       }
       state.courseSchedulingExpandedInstructorIds = opening
@@ -4942,22 +4956,11 @@ export const courseSchedulingScreen = {
 
     const renderOpenedCourse = courseId => {
       const row = (state.courseSchedulingPlanningRows || []).find(row => text(row.courseId) === text(courseId));
-      if (!data._is_stale && row?._detailsDeferred && state.courseSchedulingPlanningShared?.workspace) {
-        const detail = root.querySelector('[data-course-detail]');
-        if (text(state.courseSchedulingSelectedId) === text(courseId) && detail) {
-          detail.classList.add('is-open');
-          detail.innerHTML = '<p role="status">טוען פרטי שיבוץ…</p>';
-          root.querySelector('.course-scheduling-screen')?.classList.add('has-selected-course');
-        }
-        for (const card of root.querySelectorAll('[data-course-card]')) {
-          card.classList.toggle('is-selected', text(card.dataset.courseCard) === text(state.courseSchedulingSelectedId));
-          if (text(card.dataset.courseCard) === text(state.courseSchedulingAlternativesCourseId)
-            && !card.querySelector('[data-lazy-alternatives-loading]')) {
-            card.insertAdjacentHTML('beforeend', '<p role="status" data-lazy-alternatives-loading>טוען חלופות…</p>');
-          }
-        }
+      if (!data._is_stale && row?._detailsDeferred && state.courseSchedulingPlanningShared?.workspace
+        && !(state.courseSchedulingResults || []).some(result => idOf(result.course) === text(courseId) && result.manualOnly)) {
+        // Hydrate recommendations in the background; operational controls use
+        // the live activity and must remain available while this request waits.
         void hydrateOpenedPlanningRow();
-        return;
       }
       if (isCourseSchedulingFocusMode(state) || activeTab(state) === 'maintenance') { rerender(); return; }
       const oldDetail = root.querySelector('[data-course-detail]');
@@ -4995,6 +4998,19 @@ export const courseSchedulingScreen = {
       state.courseSchedulingExpandedCandidateId = '';
       state.courseSchedulingShowAllCandidates = false;
       renderOpenedCourse(courseId);
+    });
+
+    bindCourseListControls(root, '[data-open-manual-course]', 'click', (button) => {
+      if (!canEdit || !canManuallySchedule(state.user)) return;
+      const courseId = text(button.dataset.openManualCourse);
+      if (!courseById.has(courseId)) return;
+      state.courseSchedulingSelectedId = courseId;
+      state.courseSchedulingSelectedCandidateId = '';
+      renderOpenedCourse(courseId);
+      const detail = root.querySelector('[data-course-detail]');
+      // Existing drafts retain their explicit confirm/cancel workflow. Existing
+      // assignments enter the audited replacement flow, preserving past lessons.
+      detail?.querySelector('[data-change-assignment], [data-open-manual-assignment]')?.click();
     });
 
     root.querySelectorAll('[data-switch-tab]').forEach((button) => {
@@ -5069,7 +5085,9 @@ export const courseSchedulingScreen = {
     // Direct operator choice: no agent query or national/point planning run.
     // A save still uses the existing server validations and approval flow.
     const openManualInstructorPicker = () => {
-      if (!canEdit || !selectedCourseId || !selectedCourse || state.courseSchedulingLoading) return;
+      if (!canEdit || !canManuallySchedule(state.user) || !selectedCourseId || !selectedCourse) return;
+      state.courseSchedulingCandidateRequestId = (state.courseSchedulingCandidateRequestId || 0) + 1;
+      state.courseSchedulingLoading = false;
       const result = manualInstructorResult(selectedCourse, activeSchedulingInstructors(data.instructors || []));
       if (!result.manualCandidates.length) {
         showToast('לא נמצאו מדריכים פעילים ברשימה. יש לרענן את נתוני המדריכים.', 'error');
@@ -5386,6 +5404,10 @@ export const courseSchedulingScreen = {
     const runFindInstructors = async () => {
       if (SCHEDULING_AGENT_OWNS_COMPUTE) {
         if(state.courseSchedulingLoading)return;
+        const requestId = (state.courseSchedulingCandidateRequestId || 0) + 1;
+        state.courseSchedulingCandidateRequestId = requestId;
+        const isCurrent = () => state.courseSchedulingCandidateRequestId === requestId
+          && text(state.courseSchedulingSelectedId) === selectedCourseId;
         state.courseSchedulingLoading=true;
         // Explicitly switching to saved recommendations closes the direct
         // manual picker. Otherwise its already-open toggle closes the choices,
@@ -5398,14 +5420,14 @@ export const courseSchedulingScreen = {
         rerender();
         try{
           const result=await assignmentClient.candidates(selectedCourseId,{
-            replacement:state.courseSchedulingReplacementCourseId===selectedCourseId
+            replacement:state.courseSchedulingReplacementCourseId===selectedCourseId, isCurrent
           });
-          if(text(state.courseSchedulingSelectedId)!==selectedCourseId)return;
+          if (!result || !isCurrent()) return;
           state.courseSchedulingResults=[...(state.courseSchedulingResults||[]).filter(r=>idOf(r.course)!==selectedCourseId),result];
           state.courseSchedulingSelectedCandidateId=emp(result.recommended);
         }catch(error){
-          state.courseSchedulingError=translateSchedulingAssignmentError(error.message,'טעינת חלופות הסוכן נכשלה. אפשר לנסות שוב.');
-        }finally{state.courseSchedulingLoading=false;rerender();}
+          if (isCurrent()) state.courseSchedulingError=translateSchedulingAssignmentError(error.message,'טעינת חלופות הסוכן נכשלה. אפשר לנסות שוב.');
+        }finally{if (state.courseSchedulingCandidateRequestId === requestId) { state.courseSchedulingLoading=false;rerender(); }}
         return;
       }
       if (state.courseSchedulingLoading) return;
@@ -5590,7 +5612,7 @@ export const courseSchedulingScreen = {
       });
     });
     const saveManualCandidate = async (candidate, button) => {
-        if (!canEdit || !selectedCourseId || !candidate || button?.disabled) return;
+        if (!canEdit || !canManuallySchedule(state.user) || !selectedCourseId || !candidate || button?.disabled) return;
         const result = resultByCourseId.get(selectedCourseId);
         if (!candidate || manualCandidateBlocked(candidate)) return;
         state.courseSchedulingManualSelection={courseId:selectedCourseId,empId:emp(candidate)};

@@ -851,6 +851,23 @@ test('fixed-date Planning changes only the missing hour and keeps every school d
   assert.ok(built.meetings.every((meeting) => meeting.start_time === '09:30' && meeting.end_time === '11:00'));
 });
 
+test('completion rows prefer operational assignments and drafts over stored planning', () => {
+  const activity = { ...baseCourse, row_id: 'current', activity_type: 'course', date_1: '2026-11-01', start_date: '2026-11-01', draft_emp_id: '8', draft_instructor_name: 'טיוטה עדכנית' };
+  const stored = { courseId: 'current', kind: 'proposal', instructorEmpId: '7', instructorName: 'הצעה ישנה' };
+  const rows = buildPlanningCompletionRows({ activities: [activity], planningRows: [stored] });
+  assert.equal(rows[0].kind, 'draft');
+  assert.equal(rows[0].instructorEmpId, '8');
+  assert.equal(buildPlanningCompletionRows({ activities: [{...activity,draft_emp_id:null}], planningRows: [{...stored,kind:'live'}] })[0].kind, 'missing');
+  assert.match(planningCompletionOverviewHtml([]), /course-planning-completion-table/);
+});
+
+test('completion display includes manual workshops and tours only when explicitly requested', () => {
+  const activities = ['course','workshop','tour'].map((activity_type,i) => ({...baseCourse, row_id: String(i), activity_type, date_1:'2026-11-01', start_date:'2026-11-01', emp_id:'8',instructor_name:'מדריך'}));
+  assert.equal(buildPlanningCompletionRows({activities}).length,1);
+  assert.equal(buildPlanningCompletionRows({activities,includeManualActivities:true}).length,3);
+  assert.equal(planningWorkspaceCourses(activities).length,1);
+});
+
 test('completion rows count first half from 1 September and exclude explicit second-half work', () => {
   const activities = [
     { ...baseCourse, row_id: 'sep1', activity_type: 'course', start_date: '2026-09-01', date_1: '2026-09-01', emp_id: '1', instructor_name: 'א' },
