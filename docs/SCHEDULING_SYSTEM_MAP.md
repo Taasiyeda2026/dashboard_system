@@ -1,20 +1,30 @@
 # Scheduling System Map
 
-## Human operational control / proposal boundary (draft, 2026-10-20)
+## Manual operator decisions / fixed agent anchors (staged 2026-10-21)
 
-The accepted target is documented in [SCHEDULING_MANUAL_CONTROL_CONTRACT.md](SCHEDULING_MANUAL_CONTROL_CONTRACT.md):
-the agent proposes for unassigned courses around immutable confirmed assignments;
-Eden and admin control instructor/date/time changes manually. This target is not
-fully implemented or deployed by this draft.
+See [SCHEDULING_MANUAL_CONTROL_CONTRACT.md](SCHEDULING_MANUAL_CONTROL_CONTRACT.md)
+for the accepted policy and deployment status. In the new manual editor, active
+admin/operation_manager may acknowledge ALL scheduling business limitations in a
+warning popup and save with a recorded reason, without agent compute or a second
+approver. This includes overlap, availability, profile/language/gender, personal
+blocks, holidays/weekend, distance and travel feasibility. These remain strict in
+automatic recommendations and existing legacy paths. Canonical identity,
+permissions, activity version, valid dates/times and historical integrity remain.
 
-The client patch separates plan revisions from operational commands. Manual draft,
-matching saved-draft confirmation, replacements, cancellations and operational
-unavailability commands retain the activity updated_at guard but omit unrelated
-plan source/workspace revision checks. Accepting a calculated proposal keeps those
-plan checks. All paths still delegate to the existing allowlisted gateway and
-domain validation/approval functions. Missing-route/approval blockers and the
-independent manual date editor remain unresolved. Worker reactivation, production
-assignments and schema changes are outside this patch.
+The staged paired API revalidates preview/hash under source/instructor/activity
+locks, records a private scoped receipt and audits the save. The calendar/tour/
+manual-approval guards recognize only this exact server-created scope. Draft
+dates/times stay tentative; a final update writes the schedule atomically.
+Locked revalidation preserves acknowledged decisions and reports changed warnings.
+The agent refuses changed confirmed anchors and skips route requests for those
+anchors themselves; only unassigned proposals are newly validated.
+
+Live SQL contradicts older §7 distance/buffer descriptions: transition caps apply
+to every nonnegative gap, and the buffer is 10min up to 10km / 15min otherwise.
+This is reported rule drift. No 120-minute shortcut or silent automatic rule
+change is introduced here. The manual path reads the cache and exposes limitations
+as warnings. No production deployment or worker reactivation is implied by this
+staged source; consult the PR/release verification.
 
 ## Persistent operational workboard / manual assignment (2026-10-20)
 

@@ -1,3 +1,4 @@
+import { createManualOperationsController, manualOperationsDialogHtml, bindManualOperationsEditor } from './course-scheduling-manual-operations.js';
 import { createAgentAssignmentClient, manualInstructorResult } from './course-scheduling-agent-selection.js';
 import { reusablePointWorkspace, refreshCommittedPointWorkspace } from './course-scheduling-point-workspace.js';
 import { undatedProposalNeedsNewStart } from './course-scheduling-start-policy.js';
@@ -2462,6 +2463,7 @@ export const courseSchedulingScreen = {
       return `<div class="course-scheduling-overlay" data-cancel-assignment-overlay><div class="course-scheduling-modal" role="dialog" aria-modal="true"><h2>ביטול שיבוץ מדריך</h2><p><b>${escapeHtml(course.instructor_name || course.emp_id)}</b></p><p>${escapeHtml(course.activity_name || '—')} · ${escapeHtml(course.school || '—')}</p>${completed ? '<p class="course-scheduling-alert">הביטול יחול על המשך הפעילות. היסטוריית המפגשים הקודמים תישמר.</p>' : ''}<label>סיבת הביטול *<textarea class="course-scheduling-input" data-cancel-assignment-reason>${escapeHtml(state.courseSchedulingCancelReason || '')}</textarea></label><div class="course-scheduling-detail-actions"><button class="course-scheduling-btn course-scheduling-btn--secondary" data-close-cancel-assignment>חזרה</button><button class="course-scheduling-btn course-scheduling-btn--primary" data-confirm-cancel-assignment>בטל שיבוץ</button></div></div></div>`;
     })() : ''}
     ${manualCandidateConfirmationHtml(state.courseSchedulingManualConfirmation)}
+    ${canManuallySchedule(state.user) ? manualOperationsDialogHtml(state) : ''}
     </div>`);
   },
 
@@ -2475,6 +2477,8 @@ export const courseSchedulingScreen = {
         const fresh=await data.reloadPlanningSnapshot();
         Object.assign(data,fresh,{_is_stale:false});
         data._agentAssignmentSnapshots?.clear();
+        data._manualOperationsCapabilityChecked = false;
+        data._manualOperationsAvailable = false;
         data._planningSharedLoadedKey='';
         state.courseSchedulingResults=[];state.courseSchedulingError='';
         clearScreenDataCache?.();
@@ -2496,6 +2500,41 @@ export const courseSchedulingScreen = {
       }
     });
     const assignmentRpc=(name,args)=>assignmentClient.mutate(name,args);
+    // Capability discovery permits the paired frontend to precede its server API.
+    // A failed probe is attempted again only after an explicit data refresh.
+    if (canEdit && canManuallySchedule(state.user) && !data._manualOperationsCapabilityChecked) {
+      data._manualOperationsCapabilityChecked = true;
+      void supabase.rpc('scheduling_manual_capabilities').then(({ data: capabilities, error }) => {
+        data._manualOperationsAvailable = !error && capabilities?.apiVersion === 'manual-operations-v1'
+          && capabilities.enabled === true;
+        if (data._manualOperationsAvailable && root.isConnected) rerender();
+      }).catch(() => { data._manualOperationsAvailable = false; });
+    }
+    const manualOperations = createManualOperationsController({
+      state, rpc: (name, args) => supabase.rpc(name, args), onChange: rerender,
+      onSaved: row => {
+        applyReturnedSchedulingActivity(data.activities, row);
+        data._agentAssignmentSnapshots?.delete(idOf(row));
+        state.courseSchedulingResults = (state.courseSchedulingResults || []).filter(item => idOf(item.course) !== idOf(row));
+        data._planningSharedLoadedKey = '';
+        state.courseSchedulingPlanningSharedLoaded = false;
+        state.courseSchedulingManualSelection = null;
+        state.courseSchedulingManualConfirmation = null;
+        clearScreenDataCache?.();
+        showToast('הבחירה הידנית נשמרה. לא הופעל חישוב תכנון.', 'success');
+      }
+    });
+    bindManualOperationsEditor(root, state, manualOperations);
+    const openManualOperations = course => {
+      if (!canEdit || !canManuallySchedule(state.user) || !data._manualOperationsAvailable || !course) return false;
+      state.courseSchedulingCandidateRequestId = (state.courseSchedulingCandidateRequestId || 0) + 1;
+      state.courseSchedulingSelectedId = idOf(course);
+      state.courseSchedulingLoading = false;
+      data._agentAssignmentSnapshots?.delete(idOf(course));
+      manualOperations.open(course, (data.instructors || []).filter(instructor => text(instructor.emp_id)));
+      return true;
+    };
+
     const allInterfaceCourses = schedulingWorkspaceCourses(data.activities || [], state.user);
     const interfaceCourses = filteredInterfaceCourses(allInterfaceCourses, state);
     // Include all loaded activities so district draft-save can validate courses outside the authority filter.
@@ -5004,6 +5043,7 @@ export const courseSchedulingScreen = {
       if (!canEdit || !canManuallySchedule(state.user)) return;
       const courseId = text(button.dataset.openManualCourse);
       if (!courseById.has(courseId)) return;
+      if (openManualOperations(courseById.get(courseId))) return;
       state.courseSchedulingSelectedId = courseId;
       state.courseSchedulingSelectedCandidateId = '';
       renderOpenedCourse(courseId);
@@ -5086,6 +5126,7 @@ export const courseSchedulingScreen = {
     // A save still uses the existing server validations and approval flow.
     const openManualInstructorPicker = () => {
       if (!canEdit || !canManuallySchedule(state.user) || !selectedCourseId || !selectedCourse) return;
+      if (openManualOperations(selectedCourse)) return;
       state.courseSchedulingCandidateRequestId = (state.courseSchedulingCandidateRequestId || 0) + 1;
       state.courseSchedulingLoading = false;
       const result = manualInstructorResult(selectedCourse, activeSchedulingInstructors(data.instructors || []));
@@ -5309,6 +5350,7 @@ export const courseSchedulingScreen = {
     });
     detailRoot.querySelector('[data-change-assignment]')?.addEventListener('click', async () => {
       if (!canEdit || !selectedCourseId) return;
+      if (openManualOperations(selectedCourse)) return;
       const [{ data: completed, error }, historyResult] = await Promise.all([
         supabase.rpc('scheduling_course_meetings_completed', { p_activity_id: selectedCourseId }),
         supabase.rpc('scheduling_course_meeting_instructors', { p_activity_id: selectedCourseId })
@@ -5591,6 +5633,7 @@ export const courseSchedulingScreen = {
     };
 
     bindCourseListControls(bindingRoot, '[data-confirm-actual-draft]', 'click', (button, event) => {
+      if (openManualOperations(courseById.get(text(button.dataset.courseId)))) return;
       void confirmActivityDraft(text(button.dataset.courseId), button);
     });
 

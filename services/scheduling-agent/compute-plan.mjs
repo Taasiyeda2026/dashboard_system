@@ -13,6 +13,7 @@ import {
   createPlanningCheckpoint
 } from '../../frontend/src/screens/course-scheduling-planning.js';
 
+import { isProtectedActivity, officialMeetings } from '../../frontend/src/screens/scheduling-core/constraints.js';
 import {applyPlanningIntents} from './planning-intents.mjs';
 
 export class AgentPlanningInputError extends Error {
@@ -80,10 +81,41 @@ export function verifyAgentPlanningInput({
  * 4. independently validate source/workspace revision and lease ownership;
  * 5. commit only planning rows atomically through the existing audited RPC.
  */
-export function assertNoUnlocatedCourseAssignments(rows=[],missingSchoolCourseIds=[]) {
+
+/** Validate actual assigned rows before applying any missing-location exemptions.
+ * Confirmed assignments remain context; only unassigned courses get proposals. */
+export function assertProtectedAgentRows(rows = [], activities = []) {
+  const source = new Map(activities.filter(isProtectedActivity).map(a => [String(a.row_id), a]));
+  const text = value => String(value ?? '').trim();
+  const stamp = value => {
+    const t = text(value);
+    return t.length === 5 ? t + ':00' : t;
+  };
+  const meetings = (items, fallback) => (items || []).map(m => [
+    text(m.date).slice(0, 10), stamp(m.start_time), stamp(m.end_time),
+    text(m.substituteEmpId ?? fallback)
+  ]);
+  for (const row of rows) {
+    const a = source.get(String(row.courseId));
+    if (!a) continue;
+    const empId = text(a.emp_id || a.emp_id_2);
+    const secondary = text(a.emp_id) && text(a.emp_id_2) ? [text(a.emp_id_2)] : [];
+    if (row.kind !== 'live' || text(row.instructorEmpId) !== empId
+      || JSON.stringify(meetings(row.meetings, row.instructorEmpId)) !== JSON.stringify(meetings(officialMeetings(a), empId))
+      || JSON.stringify((row.additionalInstructorEmpIds || []).map(text).sort()) !== JSON.stringify(secondary.sort())
+      || ['options', 'packingOptions', 'scheduleOptions'].some(key => (row[key] || []).length)) {
+      throw new AgentPlanningInputError('protected_assignment_changed');
+    }
+  }
+  return [...source.keys()];
+}
+
+export function assertNoUnlocatedCourseAssignments(rows=[],missingSchoolCourseIds=[],protectedCourseIds=[]) {
+  const protectedIds = new Set(protectedCourseIds.map(String));
   const unresolved=new Set((missingSchoolCourseIds||[]).map(String));
   for (const row of rows) {
     if(!unresolved.has(String(row?.courseId||'')))continue;
+    if(row.kind==='live' && protectedIds.has(String(row.courseId)))continue;
     // Unlocated school can be a reported exception/recruitment requirement,
     // NEVER a firm or suggested instructor/route assignment.
     const assignmentPresent=Boolean(row?.instructorEmpId)
@@ -109,6 +141,7 @@ export async function computeAgentSchedulingPlan({
   });
   if (signal?.aborted) throw new AgentPlanningInputError('planning_cancelled');
 
+  const protectedActivities = snapshot.activities.filter(isProtectedActivity).map(a => structuredClone(a));
   const intents = applyPlanningIntents(snapshot);
   // A manager's active intended-instructor choice is represented by a protected
   // exception row and deliberately omitted from intents.snapshot.activities.
@@ -138,7 +171,8 @@ export async function computeAgentSchedulingPlan({
     throw new AgentPlanningInputError('planning_rows_missing');
   }
   result.rows.push(...intents.rows);
-  assertNoUnlocatedCourseAssignments(result.rows,snapshot.missingSchoolCourseIds||[]);
+  const protectedCourseIds = assertProtectedAgentRows(result.rows, protectedActivities);
+  assertNoUnlocatedCourseAssignments(result.rows,snapshot.missingSchoolCourseIds||[],protectedCourseIds);
   // Caller must still verify the same source and workspace revisions under the
   // database lease BEFORE attempting the existing fenced planning snapshot RPC.
   return {
