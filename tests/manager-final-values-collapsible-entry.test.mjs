@@ -46,7 +46,7 @@ test('all fields are hidden by default while the weekly summary remains visible'
   const {ctx}=setup();
   assert.equal(ctx.host.querySelector('[data-mw-report-fields]').hidden,true);
   assert.ok(ctx.host.querySelector('[data-mw-weekly-table]'));
-  assert.match(ctx.host.querySelector('[data-mw-toggle]').textContent,/פתח מילוי נתונים/);
+  assert.match(ctx.host.querySelector('[data-mw-toggle]').textContent,/פתח מילוי מדדים/);
   assert.doesNotMatch(ctx.host.textContent,/טיוטה/);
 });
 test('opening, entering a final value and closing persist before the form is hidden',async()=>{
@@ -77,11 +77,9 @@ test('week switching saves the current entries, without submitting any board rep
 test('submit remains a separate validated, immutable weekly management snapshot',async()=>{
   const {api,ctx,writes}=setup();
   await api.toggleEntry(ctx);
-  for(const key of ['activities','schools','unassigned','planned','started','training','materials','kits','issues']){
+  for(const key of ['activities','schools','unassigned','planned','started']){
     fill(ctx.host.querySelector('[data-mw-metric="'+key+'"]'),'0');
   }
-  fill(ctx.host.querySelector('[data-mw-input="highlights"]'),'אומת ביצוע');
-  fill(ctx.host.querySelector('[data-mw-input="next_steps"]'),'המשך טיפול');
   assert.equal(await api.saveWeekly(ctx,true),true);
   assert.equal(writes.at(-1).status,'submitted');
   assert.ok(writes.at(-1).submitted_at);
@@ -119,6 +117,7 @@ test('workspace hides requested instructional copy and summary counters without 
   assert.ok(ctx.host.querySelector('[data-mw-task-row="task-1"]'));
   assert.ok(ctx.host.querySelector('[data-mw-task-add]'));
   assert.ok(ctx.host.querySelector('[data-mw-toggle]'));
+  assert.deepEqual([...ctx.host.querySelectorAll('.mw-tracker > .mw-section-head > h3')].map(e=>e.textContent),['1. מדדים שבועיים','2. בעיות ומעקב']);
   assert.ok(ctx.host.querySelector('[data-mw-weekly-table]'));
 });
 
@@ -129,13 +128,24 @@ test('metric entry fields are half-width and the entire metrics column is right-
   const table=ctx.host.querySelector('.mw-table');
   assert.ok(table,'Weekly metrics table must remain available');
   assert.equal(table.querySelector('thead th:first-child').textContent.trim(),'מדדים');
-  assert.equal(table.querySelectorAll('tbody tr').length,9);
+  assert.equal(table.querySelectorAll('tbody tr').length,5);
   for(const row of table.querySelectorAll('tbody tr')){
     assert.ok(row.querySelector('td:first-child').textContent.trim(),
       'Each metrics label remains visible in the first column');
   }
   assert.match(source,/\.mw-table th:first-child,\.mw-table td:first-child\{[^}]*text-align:right/);
   assert.match(source,/\.mw-fields \.mw-field input\{width:50%;align-self:flex-start\}/);
-  assert.equal(ctx.host.querySelectorAll('[data-mw-metric]').length,9,
+  assert.equal(ctx.host.querySelectorAll('[data-mw-metric]').length,5,
     'All metric inputs remain available after resizing');
+});
+
+test('only five numeric metrics and the issue ledger are displayed, with no repeated narrative forms', async()=>{
+  const {api,ctx}=setup();
+  await api.toggleEntry(ctx);
+  const metrics=[...ctx.host.querySelectorAll('[data-mw-metric]')];
+  assert.deepEqual(metrics.map(m=>m.dataset.mwMetric),['activities','schools','unassigned','planned','started']);
+  assert.equal(ctx.host.querySelectorAll('[data-mw-input],[data-mw-opening],[data-mw-program]').length,0);
+  assert.equal(ctx.host.querySelector('[data-mw-task-new="category"] option').textContent,'פעילות שלא שובצה');
+  const statuses=[...ctx.host.querySelectorAll('[data-mw-task-new="status"] option')].map(n=>n.textContent);
+  assert.deepEqual(statuses,['פתוח','סגור']);
 });
