@@ -26,5 +26,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install browser test dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run focused manager weekly tests
         run: node --test tests/manager-weekly-manual-tracking.test.mjs tests/manager-daily-work-and-weekly-report.test.mjs tests/manager-final-values-collapsible-entry.test.mjs tests/manager-gantt-payroll-permissions.test.mjs
