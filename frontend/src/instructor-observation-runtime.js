@@ -84,7 +84,12 @@ async function open(id, display, trigger, slot = 1) {
     list = (data || []).filter((item) => Number(item.details?.observation_slot || 1) === observationSlot);
     activityOptions = [];
     try {
-      const response = await supabase.from('activities').select('row_id,activity_name,program_name,school,authority,emp_id,emp_id_2').or('emp_id.eq.'+empId+',emp_id_2.eq.'+empId).limit(100);
+      const meetingDates = Array.from({length:35},(_,i)=>'date_'+(i+1)).join(',');
+      const response = await supabase.from('activities')
+        .select('row_id,activity_name,program_name,school,authority,grade,class_group,activity_season,emp_id,emp_id_2,'+meetingDates)
+        .eq('activity_season','school_2027')
+        .or('emp_id.eq.'+empId+',emp_id_2.eq.'+empId)
+        .limit(200);
       if (!response.error) activityOptions = response.data || [];
     } catch (_) { /* manual course and school entry still available */ }
     home();
@@ -131,11 +136,72 @@ function choice(key,question,choices) {
   return '<fieldset class="io-question"><legend>'+e(question)+'</legend><div class="io-options">'+choices.map((v) =>
     '<label class="io-option"><input type="radio" name="io-'+e(key)+'" data-io-answer="'+e(key)+'" value="'+e(v)+'" '+(current===v?'checked ':'')+(!editable()?'disabled':'')+'><span>'+e(v)+'</span></label>').join('')+'</div></fieldset>';
 }
+
+/** Populate only facts already held in the chosen activity. Never invent a meeting number. */
+function observationActivityPrefill(activity, observationDate) {
+  const grade=String(activity?.grade || '').trim();
+  const group=String(activity?.class_group || '').trim();
+  const className=grade && group ? grade+' · '+(/^[0-9]+$/.test(group) ? 'קבוצה '+group : group) : grade || group;
+  const date=String(observationDate || '').slice(0,10);
+  let meeting='';
+  if (/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) {
+    for(let i=1;i<=35;i++) {
+      if(String(activity?.['date_'+i] || '').slice(0,10) === date) {
+        meeting=String(i);
+        break;
+      }
+    }
+  }
+  return {
+    activity_row_id:String(activity?.row_id || ''),
+    course:String(activity?.activity_name || activity?.program_name || '').trim(),
+    school:String(activity?.school || '').trim(),
+    class:className,
+    meeting,
+    meeting_source_date:meeting ? date : ''
+  };
+}
+function selectedActivityOption() {
+  return activityOptions.find(a=>String(a.row_id) === String(selected?.details?.activity_row_id || '')) || null;
+}
+function setObservationDetailValue(key,value) {
+  const input=root?.querySelector('[data-io-detail="'+key+'"]');
+  if(input) input.value=String(value ?? '');
+}
+function showActivityPrefillStatus(data) {
+  const problems=[];
+  if (!data.class) problems.push('הכיתה אינה מופיעה בפעילות');
+  if (!data.meeting) problems.push('לא נמצא מפגש בתאריך הצפייה');
+  const message=problems.length ? 'הפרטים הקיימים מולאו. '+problems.join('; ')+'. יש לבדוק ולהשלים ידנית.' :
+    'פרטי הקורס, בית הספר, הכיתה ומספר המפגש מולאו מהפעילות.';
+  const el=root?.querySelector('[data-io-activity-info]');
+  if(el) el.textContent=message;
+}
+function applyActivityPrefill(activity) {
+  if(!activity || !selected || !editable()) return;
+  const data=observationActivityPrefill(activity,selected.observation_date);
+  selected.details={...selected.details,...data};
+  for(const key of ['course','school','class','meeting']) setObservationDetailValue(key,data[key]);
+  showActivityPrefillStatus(data);
+}
+/** Changing the visit date updates only a meeting number that was derived automatically. */
+function refreshMeetingForDate() {
+  const activity=selectedActivityOption();
+  if (!activity || !selected || !editable()) return;
+  const d=selected.details || {};
+  if(d.meeting && !d.meeting_source_date) return; // The observer entered a manual number.
+  const next=observationActivityPrefill(activity,selected.observation_date);
+  d.meeting=next.meeting;
+  d.meeting_source_date=next.meeting_source_date;
+  setObservationDetailValue('meeting',d.meeting);
+  showActivityPrefillStatus({...next,class:d.class});
+}
+
 function detailScreen() {
   const d=selected.details || {};
-  const pickOptions = activityOptions.map((a,i)=>'<option value="'+i+'">'+e((a.activity_name || a.program_name || 'פעילות')+' · '+(a.school || '')+' · '+(a.authority || ''))+'</option>').join('');
-  return '<h3>פרטי התצפית — לפני תחילת השיעור</h3><p class="io-muted">יש לשאול את המדריך ולוודא את הפרטים לפני תחילת הצפייה. ניתן לבחור פעילות משובצת כדי להשלים אוטומטית את הקורס ובית הספר.</p>'+
-    (activityOptions.length ? '<label class="io-field"><span>מילוי מתוך פעילות קיימת (לבחירה)</span><select data-io-pick-activity><option value="">בחרו פעילות…</option>'+pickOptions+'</select></label>' : '')+
+  const pickOptions = activityOptions.map((a,i)=>'<option value="'+i+'" '+(String(d.activity_row_id || '')===String(a.row_id)?'selected':'')+'>'+e((a.activity_name || a.program_name || 'פעילות')+' · '+(a.school || '')+' · '+(a.authority || '')+' · '+(a.grade || '')+' '+(a.class_group || ''))+'</option>').join('');
+  return '<h3>פרטי התצפית — לפני תחילת השיעור</h3><p class="io-muted">בחרו פעילות קיימת כדי למלא אוטומטית את הקורס, בית הספר, הכיתה ומספר המפגש אם תאריך התצפית תואם למועד במערכת. יש לאמת את הפרטים.</p>'+
+    (activityOptions.length ? '<label class="io-field"><span>מילוי מתוך פעילות קיימת (לבחירה)</span><select data-io-pick-activity '+(!editable()?'disabled':'')+'><option value="">בחרו פעילות…</option>'+pickOptions+'</select></label><p class="io-muted" data-io-activity-info role="status">שדות שלא קיימים בפעילות נשארים להשלמה ידנית; מספר התלמידים ונוכחות צוות בית הספר מתועדים לפי המצב בפועל.</p>' : '')+
     '<div class="io-fields">'+field('תאריך צפייה','date','date',true,selected.observation_date || '')+field('שם הצופה','observer','text',true,selected.observer_name || '')+
     field('שם הקורס','course','text',true,d.course || '')+field('מספר מפגש','meeting','number',true,d.meeting || '')+
     field('בית הספר','school','text',true,d.school || '')+field('כיתה','class','text',true,d.class || '')+
@@ -262,12 +328,21 @@ function onInput(event) {
   const target=event.target;
   if (target.matches('[data-io-pick-activity]')) {
     const idx=Number(target.value);
-    const a=target.value!==''?activityOptions[idx]:null;
-    if(a) {
-      const course=root.querySelector('[data-io-detail="course"]'),school=root.querySelector('[data-io-detail="school"]');
-      if(course) course.value=a.activity_name||a.program_name||'';
-      if(school) school.value=a.school||'';
+    const activity=target.value!==''?activityOptions[idx]:null;
+    if(activity) applyActivityPrefill(activity);
+    else if(selected?.details) {
+      delete selected.details.activity_row_id;
+      delete selected.details.meeting_source_date;
+      const info=root?.querySelector('[data-io-activity-info]');
+      if(info) info.textContent='הפעילות נותקה. אפשר למלא או לערוך את הפרטים ידנית.';
     }
+  }
+  if (target.matches('[data-io-detail="meeting"]')) {
+    if (selected?.details) delete selected.details.meeting_source_date;
+  }
+  if (target.matches('[data-io-detail="date"]')) {
+    capture();
+    refreshMeetingForDate();
   }
   if (!target.closest('[data-io-detail],[data-io-answer],[data-io-comment],[data-io-overall],[data-io-text],[data-io-pick-activity]')) return;
   capture(); clearTimeout(debounce);
