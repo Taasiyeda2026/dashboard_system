@@ -142,7 +142,7 @@ test('manager creates, completes, reopens, and prints observation without editin
   }
   await click('[data-io-action="review"]');
   assert.equal(w.document.querySelectorAll('[data-io-action="jump"].is-incomplete').length,0);
-  assert.match(w.document.querySelector('.io-review-list').textContent,/15/);
+  assert.equal(w.document.querySelectorAll('[data-io-action="jump"].is-complete').length,8);
   assert.equal(records[0].details.students,'24','Details filled earlier remain saved');
   assert.equal(records[0].strengths,'חוזקות מקצועיות','Summary remains saved');
   await click('[data-io-action="finish"]');
