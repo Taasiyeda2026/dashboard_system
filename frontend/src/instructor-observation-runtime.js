@@ -98,7 +98,7 @@ function dialog(body) {
 }
 function home() {
   stage = -1;
-  dialog('<div class="io-content"><div class="io-lead"><h3>משוב תצפית '+observationSlot+' – צפייה והערכת מדריך</h3><p>תצפית מקצועית בשיעור, תיעוד דוגמאות ומתן משוב בונה. לכל ביקור נוצר דו"ח נפרד. ניתן לשמור טיוטה ולהמשיך במועד אחר.</p></div>'+
+  dialog('<div class="io-content"><div class="io-lead"><h3>משוב תצפית '+observationSlot+' – צפייה והערכת מדריך</h3></div>'+
     '<button type="button" class="io-primary" data-io-action="new">＋ התחלת תצפית חדשה</button>'+
     '<h3>תצפיות קודמות</h3><div class="io-history">'+(list.length ? list.map((item) =>
     '<button type="button" data-io-resume="'+e(item.id)+'" class="io-history-row"><span><strong>'+e(item.observation_date || 'ללא תאריך')+'</strong><small>'+e(item.details?.course || 'טרם נבחר קורס')+' · '+e(item.observer_name || 'צופה לא מוגדר')+'</small></span><span class="io-pill">'+(item.status === 'completed' ? 'הושלם · דו"ח' : 'טיוטה · המשך מילוי')+'</span></button>').join('') : '<p class="io-muted">עדיין לא נערכו תצפיות למדריך זה.</p>')+'</div></div>');
