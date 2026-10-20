@@ -108,9 +108,10 @@ test('manager creates, completes, reopens, and prints observation without editin
   fill('[data-io-detail="students"]','24');
   fill('[data-io-detail="school_staff"]','כן');
   await click('[data-io-action="next"]');
+  // Deliberately skip the fourth observation section to test direct review navigation.
   for(let section=0;section<6;section++){
    const groups=new Set([...w.document.querySelectorAll('[data-io-answer]')].map(x=>x.name));
-   for(const name of groups){
+   if(section!==3) for(const name of groups){
     const first=[...w.document.querySelectorAll('[data-io-answer]')].find(x=>x.name===name);
     first.click();
    }
@@ -122,6 +123,28 @@ test('manager creates, completes, reopens, and prints observation without editin
   fill('[data-io-text="improvements"]','המלצה לשיפור');
   fill('[data-io-text="summary"]','דוח תצפית מלא');
   await click('[data-io-action="next"]');
+  // Final review must show precisely the skipped step as an actionable row.
+  const incomplete=w.document.querySelectorAll('[data-io-action="jump"].is-incomplete');
+  assert.equal(incomplete.length,1);
+  assert.equal(incomplete[0].dataset.ioJump,'5');
+  assert.match(incomplete[0].textContent,/דורש השלמה/);
+  assert.ok(w.document.querySelector('[data-io-action="jump"][data-io-jump="1"]'),
+    'Details should also be independently accessible from review');
+  await click('[data-io-action="finish"]');
+  assert.equal(records[0].status,'draft','Incomplete observation cannot be finalized');
+  assert.match(w.document.querySelector('[data-io-status]').textContent,/נדרש להשלים/);
+  await click('[data-io-action="jump"][data-io-jump="5"]');
+  assert.match(w.document.querySelector('.io-progress-header').textContent,/שלב 6 מתוך 10/);
+  assert.ok(w.document.querySelector('[data-io-action="review"]'),'Direct return to review should be available');
+  for(const name of new Set([...w.document.querySelectorAll('[data-io-answer]')].map(x=>x.name))){
+    const first=[...w.document.querySelectorAll('[data-io-answer]')].find(x=>x.name===name);
+    first.click();
+  }
+  await click('[data-io-action="review"]');
+  assert.equal(w.document.querySelectorAll('[data-io-action="jump"].is-incomplete').length,0);
+  assert.match(w.document.querySelector('.io-review-list').textContent,/15/);
+  assert.equal(records[0].details.students,'24','Details filled earlier remain saved');
+  assert.equal(records[0].strengths,'חוזקות מקצועיות','Summary remains saved');
   await click('[data-io-action="finish"]');
   assert.equal(records[0].status,'completed');
   assert.equal(Object.keys(records[0].responses).length,15);
