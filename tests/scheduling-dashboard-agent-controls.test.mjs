@@ -1,3 +1,6 @@
+import './scheduling-agent-fixed-assignments.test.mjs';
+import './course-scheduling-manual-operations.test.mjs';
+import './course-scheduling-manual-plan-independence.test.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
@@ -322,7 +325,8 @@ for(const {failure,completed} of [{failure:null,completed:0},{failure:'schedulin
   assert.equal(request.args.p_args.p_new_emp_id,8);
   assert.equal(request.args.p_args.p_reason,reason.value);
   assert.equal(request.args.p_expected_updated_at,version);
-  assert.equal(request.args.p_expected_source_revision,666);
+  assert.equal(request.args.p_expected_source_revision,null);
+  assert.equal(request.args.p_expected_workspace_revision,null);
   assert.equal(f.data.activities[0].emp_id,'6');
   resolveWrite(failure?{error:{message:failure}}:{data:{...f.data.activities[0],emp_id:8,instructor_name:'בחירה ידנית',updated_at:'2026-10-15T08:01:00Z'}});
   await settle();
@@ -347,5 +351,42 @@ test('choosing the recommended instructor through manual picker still awaits ser
   f.root.querySelector('[data-confirm-manual-candidate]').click();await settle();
   assert.ok(f.root.querySelector('[data-manual-validation-pending]'));
   assert.equal(f.data.activities[0].emp_id,'6');assert.ok(!f.calls.some(c=>c.name==='scheduling_dashboard_assignment'));
+ }finally{f.close();}
+});
+
+test('Eden uses the enabled independent instructor and date editor with her own route acknowledgement', async () => {
+ const requests=[];
+ const f=ui({activityFields:{sessions:'1'},rpcImpl:async(name,args)=>{
+  requests.push({name,args});
+  if(name==='scheduling_manual_capabilities')return {data:{apiVersion:'manual-operations-v1',enabled:true}};
+  if(name==='get_scheduling_manual_assignment_preview')return {data:{
+   previewHash:'manual-preview',blockers:[],warnings:[{code:'manual_home_route_unknown'}],
+   reasonRequired:true,instructorName:'בחירה ידנית',previousInstructorName:null}};
+  if(name==='commit_scheduling_manual_assignment')return {data:{...course,sessions:'1',draft_emp_id:'8',
+   draft_instructor_name:'בחירה ידנית',updated_at:'2026-10-20T12:00:00Z'}};
+  return {data:[]};
+ }});
+ try{
+  await settle();
+  f.root.querySelector('[data-open-manual-course]').click();
+  assert.ok(f.root.querySelector('[data-manual-operations-overlay]'));
+  let instructor=f.root.querySelector('[data-manual-operation-field="empId"]');
+  instructor.value='8';instructor.dispatchEvent(new window.Event('change',{bubbles:true}));
+  f.root.querySelector('[data-manual-operation-check]').click();await settle();
+  assert.equal(f.root.querySelector('[data-manual-operation-save]').disabled,true);
+  const reason=f.root.querySelector('[data-manual-operation-field="reason"]');
+  reason.value='נבדק מול המדריך';reason.dispatchEvent(new window.Event('input',{bubbles:true}));
+  const ack=f.root.querySelector('[data-manual-operation-field="acknowledged"]');
+  ack.checked=true;ack.dispatchEvent(new window.Event('change',{bubbles:true}));
+  assert.equal(f.root.querySelector('[data-manual-operation-save]').disabled,false);
+  f.root.querySelector('[data-manual-operation-save]').click();await settle();
+  assert.equal(f.data.activities[0].draft_emp_id,'8');
+  assert.equal(f.root.querySelector('[data-manual-operations-overlay]'),null);
+  assert.ok(f.root.querySelector('.course-planning-completion-table'));
+  assert.ok(!requests.some(r=>['get_scheduling_dashboard_candidates','scheduling_dashboard_assignment'].includes(r.name)));
+  const commit=requests.find(r=>r.name==='commit_scheduling_manual_assignment');
+  assert.equal(commit.args.p_acknowledge_warnings,true);
+  assert.equal(commit.args.p_preview_hash,'manual-preview');
+  assert.equal(commit.args.p_expected_updated_at,version);
  }finally{f.close();}
 });

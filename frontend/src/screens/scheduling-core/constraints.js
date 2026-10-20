@@ -73,7 +73,9 @@ export async function ensureCandidateRoutes(context, occupancy, activity, option
 export async function validatePlanWithRoutes(input, checkpoint = async () => {}) {
   const context = input.constraintContext || compileConstraints(input), occupancy = createOccupancy(context, input.rows || []);
   for (const row of input.rows || []) { await checkpoint(); const a = context.byActivity.get(row.courseId);
-    if (a && row.instructorEmpId) await ensureCandidateRoutes(context, occupancy, a, row);
+    // Confirmed assignments are fixed occupancy, not candidates for certification.
+    // Candidate transitions around these anchors still request their own routes.
+    if (a && row.instructorEmpId && !isProtectedActivity(a)) await ensureCandidateRoutes(context, occupancy, a, row);
   }
   await checkpoint(); return validatePlan({...input, constraintContext:context});
 }
