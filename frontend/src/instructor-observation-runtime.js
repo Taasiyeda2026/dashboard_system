@@ -144,7 +144,7 @@ function observationActivityPrefill(activity, observationDate) {
   const className=grade && group ? grade+' · '+(/^[0-9]+$/.test(group) ? 'קבוצה '+group : group) : grade || group;
   const date=String(observationDate || '').slice(0,10);
   let meeting='';
-  if (/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
     for(let i=1;i<=35;i++) {
       if(String(activity?.['date_'+i] || '').slice(0,10) === date) {
         meeting=String(i);
