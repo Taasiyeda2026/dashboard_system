@@ -96,7 +96,7 @@ test('manager creates, completes, reopens, and prints observation without editin
   assert.equal(w.document.querySelector('[data-io-detail="meeting"]').value,'2');
   fill('[data-io-detail="date"]','2026-12-25');
   assert.equal(w.document.querySelector('[data-io-detail="meeting"]').value,'');
-  assert.match(w.document.querySelector('[data-io-activity-info]').textContent,/לא נמצא מפגש/);
+  assert.match(w.document.querySelector('[data-io-activity-info]').textContent,/התאריך אינו תואם למפגש מתוכנן/);
   fill('[data-io-detail="meeting"]','3');
   fill('[data-io-detail="date"]','2026-12-11');
   assert.equal(w.document.querySelector('[data-io-detail="meeting"]').value,'3',
