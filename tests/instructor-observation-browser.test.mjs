@@ -10,7 +10,7 @@ const runtime=readFileSync(new URL('../frontend/src/instructor-observation-runti
 const tick=()=>new Promise(r=>setTimeout(r,20));
 
 test('manager creates, completes, reopens, and prints observation without editing locked report',async()=>{
- const dom=new JSDOM('<div class="manager-board-team-strip__grid"><button data-instructor-id="1550">מדריך בדיקה</button></div>',{url:'https://test.invalid'});
+ const dom=new JSDOM('<table class="manager-workspace-tracking-table"><tbody><tr><td data-label="תצפית 1"><span>27.11.26</span><button data-io-open="1550" data-io-slot="1" data-io-name="מדריך בדיקה">פתיחת משוב</button></td><td data-label="תצפית 2"><button data-io-open="1550" data-io-slot="2" data-io-name="מדריך בדיקה">פתיחת משוב</button></td></tr></tbody></table>',{url:'https://test.invalid'});
  const w=dom.window,records=[],authId='11111111-1111-4111-8111-111111111111';
  let printed=0;
  w.print=()=>{printed++};
