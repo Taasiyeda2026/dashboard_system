@@ -5,6 +5,8 @@ on:
       - 'frontend/src/manager-weekly-manual-tracking.js'
       - 'frontend/src/manager-gantt-placeholder-runtime.js'
       - 'tests/manager-weekly-manual-tracking.test.mjs'
+      - 'tests/manager-daily-work-and-weekly-report.test.mjs'
+      - 'supabase/migrations/20261020115000_manager_ongoing_tasks_weekly_snapshots.sql'
       - 'tests/manager-gantt-payroll-permissions.test.mjs'
       - 'supabase/migrations/20261019141000_manager_weekly_manual_tracking.sql'
   push:
@@ -23,4 +25,4 @@ jobs:
         with:
           node-version: '22'
       - name: Run focused manager weekly tests
-        run: node --test tests/manager-weekly-manual-tracking.test.mjs tests/manager-gantt-payroll-permissions.test.mjs
+        run: node --test tests/manager-weekly-manual-tracking.test.mjs tests/manager-daily-work-and-weekly-report.test.mjs tests/manager-gantt-payroll-permissions.test.mjs
