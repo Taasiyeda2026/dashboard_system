@@ -104,7 +104,8 @@ function safeOpening(row) {
   };
 }
 function currentReport(ctx) {
-  return ctx.reports.find((r) => r.week_start === ctx.week) || nullReport(ctx.week);
+  return (ctx.editingReport?.week_start===ctx.week?ctx.editingReport:null) ||
+    ctx.reports.find(r=>r.week_start===ctx.week) || nullReport(ctx.week);
 }
 function inputField(label, key, value, opts = {}) {
   return '<label class="mw-field"><span>' + esc(label) + '</span>' +
@@ -428,7 +429,7 @@ async function changeWeek(ctx,week) {
     if(!saved)return false;
   }
   if(!isCurrent(ctx))return false;
-  ctx.dirty=false;ctx.notice=null;ctx.entryExpanded=false;ctx.week=week;
+  ctx.dirty=false;ctx.editingReport=null;ctx.notice=null;ctx.entryExpanded=false;ctx.week=week;
   render(ctx);return true;
 }
 function adjustOpenings(ctx,remove) {
@@ -436,9 +437,8 @@ function adjustOpenings(ctx,remove) {
   const report=readForm(ctx);
   if(remove==null)report.openings.push(safeOpening({}));
   else report.openings.splice(remove,1);
-  const index=ctx.reports.findIndex(row=>row.week_start===ctx.week);
-  if(index>=0)ctx.reports[index]=report;
-  else ctx.reports.push(report);
+  // Unsaved added rows should not appear as already stored figures.
+  ctx.editingReport=report;
   ctx.dirty=true;ctx.changeSeq++;
   cancelAutoSave(ctx);render(ctx);scheduleAutoSave(ctx);
 }
@@ -539,7 +539,7 @@ async function saveWeekly(ctx,submit=false,{silent=false}={}) {
       const i=ctx.reports.findIndex(r=>r.week_start===ctx.week);
       if(i<0)ctx.reports.push(data);
       else ctx.reports[i]=data;
-      if(ctx.changeSeq===generation)ctx.dirty=false;
+      if(ctx.changeSeq===generation){ctx.dirty=false;ctx.editingReport=null;}
       ctx.savedReports=JSON.parse(JSON.stringify(ctx.reports));
       if(submit) {
         ctx.entryExpanded=false;
@@ -634,7 +634,7 @@ export function mountManagerWeeklyManual(host, context) {
   const ctx = {
     ...context, key, host, week: initialWeek(context.ym), reports: [], programs: [],
     managerId: '', canEdit: false, loading: true, busy: false, taskBusy:false, dirty: false, notice: null, tasks: [],
-    entryExpanded:false,autoSaveTimer:null,saveInFlight:null,changeSeq:0
+    entryExpanded:false,autoSaveTimer:null,saveInFlight:null,changeSeq:0,editingReport:null
   };
   active = ctx;
   host.innerHTML = '<div class="mw-tracker"><div class="mw-empty">טוען סביבת מעקב שבועי…</div></div>';
