@@ -136,7 +136,7 @@ begin
         and e.value->>'date'=d::text and (
           nullif(b.emp_id_2,'')=p_emp_id::text or b.draft_emp_id=p_emp_id::text
           or coalesce(h.emp_id,b.emp_id::text)=p_emp_id::text)
-      order by (e.value->>'start_time')::time
+      order by (e.value->>'start_time')::time,b.row_id
     loop
       if public.scheduling_activity_is_full_day_tour(a) or public.scheduling_activity_is_full_day_tour(other.activity) then
         warnings:=warnings||jsonb_build_array(jsonb_build_object('code','scheduling_full_day_tour_conflict','empId',p_emp_id,
@@ -851,6 +851,6 @@ begin
        and (p.emp_id is distinct from new.emp_id or p.revoked_at is not null))
  then return new; end if;
  raise exception 'scheduling_unstaffed_meetings_need_resolution';
-end $function$
+end $function$;
 
 revoke all on all functions in schema scheduling_manual_private from public,anon,authenticated;
