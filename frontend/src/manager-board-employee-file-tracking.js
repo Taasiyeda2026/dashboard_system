@@ -430,6 +430,17 @@ function feedbackWindowDisplayHtml(state) {
   return `<span class="manager-workspace-deadline-date">${escapeHtml(state.label)}</span>`;
 }
 
+/** The observation form opens from the corresponding tracking column,
+ * never from the staff strip. The due date remains the employee-file source. */
+function observationActionHtml(row, field) {
+  if (field !== 'observation_1_completed' && field !== 'observation_2_completed') return '';
+  const id = text(row?.emp_id);
+  if (!/^\d+$/.test(id)) return '';
+  const slot = field === 'observation_1_completed' ? 1 : 2;
+  const person = text(row?.full_name) || id;
+  return `<button type="button" class="manager-workspace-observation-action" data-io-open="${escapeHtml(id)}" data-io-slot="${slot}" data-io-name="${escapeHtml(person)}" aria-label="פתיחת משוב תצפית ${slot} עבור ${escapeHtml(person)}" title="פתיחת משוב תצפית ${slot}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.8"/></svg></button>`;
+}
+
 export function completionCell(row, column, options = {}) {
   const { field, label, deadline, feedbackWindow } = column;
 
@@ -456,7 +467,7 @@ export function completionCell(row, column, options = {}) {
   if (feedbackWindow) {
     const state = resolvePeriodicFeedbackState(row, column, options);
     const done = state.kind === 'done';
-    return `<td class="manager-workspace-followup-cell${done ? ' is-done' : ''}" data-label="${escapeHtml(label)}" aria-label="${escapeHtml(label)}: ${escapeHtml(state.aria)}"><span class="manager-workspace-followup-cell__content">${feedbackWindowDisplayHtml(state)}</span></td>`;
+    return `<td class="manager-workspace-followup-cell${done ? ' is-done' : ''}" data-label="${escapeHtml(label)}" aria-label="${escapeHtml(label)}: ${escapeHtml(state.aria)}"><span class="manager-workspace-followup-cell__content">${feedbackWindowDisplayHtml(state)}${observationActionHtml(row, field)}</span></td>`;
   }
 
   const completed = row?.[field] === true;
@@ -489,7 +500,7 @@ export function completionCell(row, column, options = {}) {
     stateLabel = 'אין תאריך יעד';
   }
 
-  return `<td class="manager-workspace-followup-cell${completed ? ' is-done' : ''}" data-label="${escapeHtml(label)}" aria-label="${escapeHtml(callLabel)}: ${escapeHtml(stateLabel)}"><span class="manager-workspace-followup-cell__content">${display}</span></td>`;
+  return `<td class="manager-workspace-followup-cell${completed ? ' is-done' : ''}" data-label="${escapeHtml(label)}" aria-label="${escapeHtml(callLabel)}: ${escapeHtml(stateLabel)}"><span class="manager-workspace-followup-cell__content">${display}${observationActionHtml(row, field)}</span></td>`;
 }
 
 export function tableHtml(rows, options = {}) {
