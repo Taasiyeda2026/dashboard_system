@@ -7,11 +7,7 @@ export const MANUAL_METRICS = [
   ['schools', 'מספר בתי ספר'],
   ['unassigned', 'פעילויות ללא מדריך'],
   ['planned', 'קורסים צפויים להתחיל השבוע'],
-  ['started', 'קורסים שהתחילו בפועל השבוע'],
-  ['training', 'הכשרות מדריכים שצריך להשלים'],
-  ['materials', 'חומרי הדרכה שצריך להשלים'],
-  ['kits', 'ערכות שצריך להכין או להעביר'],
-  ['issues', 'נושאים פתוחים שדורשים טיפול']
+  ['started', 'קורסים שהתחילו בפועל השבוע']
 ];
 const READONLY_ROLES = new Set(['admin', 'operation_manager']);
 const CLOSED = new Set(['בוטל', 'מבוטל', 'נמחק', 'סגור', 'cancelled', 'canceled', 'deleted', 'closed', 'inactive']);
@@ -107,10 +103,11 @@ function inputField(label, key, value, opts = {}) {
 }
 function readForm(ctx) {
   const previous=currentReport(ctx);
-  const metrics={};
+  const metrics={...(previous.metrics||{})};
   for(const [key] of MANUAL_METRICS) {
     const value=ctx.host.querySelector('[data-mw-metric="'+key+'"]')?.value??'';
     if(value!=='')metrics[key]=Number(value);
+    else delete metrics[key];
   }
   // Preserve legacy details and notes without asking managers to re-enter them.
   return {...previous,metrics};
@@ -154,12 +151,18 @@ function formMarkup(ctx) {
     snapshotMarkup(report)+'<div data-mw-verification></div></section>';
 }
 const TASK_CATEGORIES = [
-  ['assignment','שיבוץ מדריך'], ['training','הכשרה'], ['kit','ערכות'],
-  ['materials','חומרי הדרכה'], ['school','תיאום בית ספר'], ['other','אחר']
+  ['unassigned','פעילות שלא שובצה'],
+  ['instructor_shortage','חוסר במדריכים'],
+  ['instructor_cancellation','ביטול מדריך'],
+  ['assignment','בעיה בשיבוץ'],
+  ['school','בעיה בתיאום'],
+  ['kit','חוסר בערכות'],
+  ['training','חוסר בהכשרות'],
+  ['materials','חוסר בחומרי הדרכה'],
+  ['other','אחר']
 ];
-const TASK_STATUSES = [
-  ['open','פתוחה'], ['in_progress','בטיפול'], ['waiting','ממתינה לגורם נוסף'], ['done','הושלמה']
-];
+const TASK_STATUSES = [['open','פתוח'],['closed','סגור']];
+const issueIsClosed = status => status==='closed'||status==='done';
 function optionsHtml(options, chosen) {
   return options.map(([value,label])=>'<option value="'+esc(value)+'"'+(value===chosen?' selected':'')+'>'+esc(label)+'</option>').join('');
 }
@@ -168,42 +171,42 @@ function taskField(task,key,opts={}) {
     (opts.disabled?' disabled':'')+' maxlength="'+(opts.max||250)+'" aria-label="'+esc(opts.label||key)+'"/>';
 }
 function taskSummary(tasks) {
-  const pending=tasks.filter(t=>t.status!=='done');
+  const pending=tasks.filter(t=>!issueIsClosed(t.status));
   const now=isoDate(new Date());
   const overdue=pending.filter(t=>t.due_date && t.due_date < now);
   return {pending:pending.length,done:tasks.length-pending.length,overdue:overdue.length};
 }
 function taskMarkup(ctx) {
   const entries=[...ctx.tasks].sort((a,b)=>{
-    const aDone=a.status==='done',bDone=b.status==='done';
+    const aDone=issueIsClosed(a.status),bDone=issueIsClosed(b.status);
     if(aDone!==bDone)return aDone?1:-1;
     return String(a.due_date||'9999-12-31').localeCompare(String(b.due_date||'9999-12-31'));
   });
   const locked=!ctx.canEdit;
-  const header='<div class="mw-section-head"><h3>עבודה שוטפת – משימות ומוכנות</h3></div>';
+  const header='';
   const tableRows=entries.map((t)=>{
     const id=esc(t.id);
     const select=(field,options,value)=>'<select data-mw-task-field="'+field+'" '+(locked?'disabled':'')+' aria-label="'+esc(field)+'">'+optionsHtml(options,value)+'</select>';
-    return '<tr data-mw-task-row="'+id+'"><td>'+taskField(t,'subject',{disabled:locked,label:'משימה'})+'</td>'+
+    return '<tr data-mw-task-row="'+id+'"><td>'+taskField(t,'subject',{disabled:locked,label:'תיאור הבעיה'})+'</td>'+
       '<td>'+taskField(t,'activity_label',{disabled:locked,label:'בית ספר / פעילות'})+'</td>'+
       '<td>'+select('category',TASK_CATEGORIES,t.category)+'</td>'+
       '<td>'+taskField(t,'owner_label',{disabled:locked,label:'אחראי'})+'</td>'+
       '<td>'+taskField(t,'due_date',{disabled:locked,type:'date',label:'תאריך יעד'})+'</td>'+
       '<td>'+select('status',TASK_STATUSES,t.status)+'</td>'+
-      '<td>'+taskField(t,'notes',{disabled:locked,label:'עדכון אחרון'})+'</td>'+
+      '<td>'+taskField(t,'notes',{disabled:locked,label:'הערות / מעקב'})+'</td>'+
       '<td>'+(locked?'<span class="mw-task-status">צפייה</span>':
         '<button type="button" class="mw-btn" data-mw-task-save="'+id+'">שמירת עדכון</button>')+'</td></tr>';
   }).join('');
-  const table=entries.length?'<div class="mw-task-scroll"><table class="mw-task-table"><thead><tr><th>מה צריך לעשות?</th><th>פעילות / בית ספר</th><th>תחום</th><th>אחראי</th><th>תאריך יעד</th><th>מצב</th><th>עדכון</th><th>פעולה</th></tr></thead><tbody>'+tableRows+'</tbody></table></div>':
-    '<div class="mw-task-empty">עדיין לא נוספו משימות. כדי לעקוב באופן שוטף, מנהל הפעילות צריך להזין את המשימות הראשונות.</div>';
-  const add=locked?'':('<div class="mw-section"><h3>הוספת משימה חדשה</h3><div class="mw-task-form">'+
-    '<label class="mw-field"><span>המשימה *</span><input data-mw-task-new="subject" maxlength="250" placeholder="לדוגמה: לוודא הכשרה למדריך"/></label>'+
+  const table=entries.length?'<div class="mw-task-scroll"><table class="mw-task-table"><thead><tr><th>תיאור הבעיה</th><th>פעילות / בית ספר</th><th>סוג הבעיה</th><th>אחראי</th><th>תאריך יעד</th><th>סטטוס</th><th>הערות / מעקב</th><th>פעולה</th></tr></thead><tbody>'+tableRows+'</tbody></table></div>':
+    '<div class="mw-task-empty">לא דווחו עדיין בעיות למעקב.</div>';
+  const add=locked?'':('<div class="mw-section"><h3>הוספת בעיה למעקב</h3><div class="mw-task-form">'+
+    '<label class="mw-field"><span>תיאור הבעיה *</span><input data-mw-task-new="subject" maxlength="250" placeholder="לדוגמה: אין מדריך משובץ לקורס"/></label>'+
     '<label class="mw-field"><span>בית ספר / קורס</span><input data-mw-task-new="activity_label" maxlength="250"/></label>'+
-    '<label class="mw-field"><span>תחום</span><select data-mw-task-new="category">'+optionsHtml(TASK_CATEGORIES,'assignment')+'</select></label>'+
+    '<label class="mw-field"><span>סוג הבעיה</span><select data-mw-task-new="category">'+optionsHtml(TASK_CATEGORIES,'unassigned')+'</select></label>'+
     '<label class="mw-field"><span>אחראי</span><input data-mw-task-new="owner_label" maxlength="120"/></label>'+
     '<label class="mw-field"><span>תאריך יעד</span><input data-mw-task-new="due_date" type="date"/></label></div>'+
-    '<label class="mw-field mw-task-notes"><span>הערה / תיאור</span><input data-mw-task-new="notes" maxlength="1200" placeholder="מה נדרש כדי לסיים את הטיפול?"/></label>'+
-    '<div class="mw-foot"><button type="button" class="mw-btn mw-primary" data-mw-task-add>הוספת משימה</button></div></div>');
+    '<label class="mw-field mw-task-notes"><span>הערות / מעקב</span><input data-mw-task-new="notes" maxlength="1200" placeholder="מה נעשה ומה עוד נדרש?"/></label>'+
+    '<div class="mw-foot"><button type="button" class="mw-btn mw-primary" data-mw-task-add>שמירת בעיה</button></div></div>');
   return header+table+add+'<div data-mw-task-notice role="status"></div>';
 }
 function taskNotice(ctx,msg,error=false) {
@@ -222,7 +225,7 @@ async function addTask(ctx) {
   const root=ctx.host;
   const read=key=>val(root.querySelector('[data-mw-task-new="'+key+'"]')?.value);
   const subject=read('subject');
-  if(!subject)return taskNotice(ctx,'יש למלא את תיאור המשימה.',true);
+  if(!subject)return taskNotice(ctx,'יש למלא את תיאור הבעיה.',true);
   ctx.taskBusy=true;
   const addBtn=root.querySelector('[data-mw-task-add]');
   if(addBtn)addBtn.disabled=true;
@@ -237,8 +240,8 @@ async function addTask(ctx) {
     if(!isCurrent(ctx))return;
     ctx.tasks.push(data);
     refreshTaskSection(ctx);
-    taskNotice(ctx,'המשימה נשמרה. היא תמשיך להופיע במעקב גם לאחר הגשת הדיווח השבועי.');
-  } catch(error) {taskNotice(ctx,'לא ניתן לשמור משימה: '+error.message,true);}
+    taskNotice(ctx,'הבעיה נשמרה במעקב.');
+  } catch(error) {taskNotice(ctx,'לא ניתן לשמור בעיה: '+error.message,true);}
   finally {ctx.taskBusy=false;if(addBtn?.isConnected)addBtn.disabled=false;}
 }
 async function saveTask(ctx,id) {
@@ -247,7 +250,7 @@ async function saveTask(ctx,id) {
   const row=[...ctx.host.querySelectorAll('[data-mw-task-row]')].find(r=>r.dataset.mwTaskRow===id);
   if(!row||!task)return;
   const read=key=>val(row.querySelector('[data-mw-task-field="'+key+'"]')?.value);
-  if(!read('subject'))return taskNotice(ctx,'תיאור המשימה הוא שדה חובה.',true);
+  if(!read('subject'))return taskNotice(ctx,'תיאור הבעיה הוא שדה חובה.',true);
   ctx.taskBusy=true;
   const button=row.querySelector('[data-mw-task-save]');
   if(button)button.disabled=true;
@@ -263,13 +266,13 @@ async function saveTask(ctx,id) {
     if(!isCurrent(ctx))return;
     ctx.tasks=ctx.tasks.map(t=>t.id===id?data:t);
     refreshTaskSection(ctx);
-    taskNotice(ctx,'עדכון המשימה נשמר.');
-  } catch(error) {taskNotice(ctx,'עדכון המשימה נכשל: '+error.message,true);}
+    taskNotice(ctx,'עדכון הבעיה נשמר.');
+  } catch(error) {taskNotice(ctx,'עדכון הבעיה נכשל: '+error.message,true);}
   finally {ctx.taskBusy=false;if(button?.isConnected)button.disabled=false;}
 }
 function frozenTaskSnapshot(ctx) {
   const currentWeek=ctx.week;
-  const recent=ctx.tasks.filter(t=>t.status!=='done' ||
+  const recent=ctx.tasks.filter(t=>!issueIsClosed(t.status) ||
     (t.updated_at && t.updated_at.slice(0,10)>=currentWeek));
   return recent.map(t=>({
     id:t.id,subject:t.subject,activity_label:t.activity_label,category:t.category,
@@ -279,14 +282,14 @@ function frozenTaskSnapshot(ctx) {
 function snapshotMarkup(report) {
   if(report.status!=='submitted')return '';
   const tasks=Array.isArray(report.tasks_snapshot)?report.tasks_snapshot:[];
-  const open=tasks.filter(t=>t.status!=='done');
+  const open=tasks.filter(t=>!issueIsClosed(t.status));
   return '<div class="mw-snapshot"><strong>תמונת מצב להנהלה – במועד ההגשה</strong>'+
-    '<p class="mw-muted">העתק היסטורי של המשימות בעת ההגשה. עדכונים חדשים בעבודה השוטפת לא משנים אותו.</p>'+
-    '<p>משימות בדיווח: '+tasks.length+' · פתוחות: '+open.length+' · הושלמו: '+(tasks.length-open.length)+'</p>'+
+    '<p class="mw-muted">תמונת מצב היסטורית של הבעיות בעת ההגשה; עדכונים מאוחרים אינם משנים אותה.</p>'+
+    '<p>בעיות בדיווח: '+tasks.length+' · פתוחות: '+open.length+' · סגורות: '+(tasks.length-open.length)+'</p>'+
     (open.length?'<ul>'+open.slice(0,30).map(t=>'<li>'+esc(t.subject)+
       (t.owner_label?' · אחראי: '+esc(t.owner_label):'')+
       (t.due_date?' · יעד: '+esc(t.due_date):'')+'</li>').join('')+'</ul>':'')+
-    (open.length>30?'<p class="mw-muted">מוצגות 30 המשימות הפתוחות הראשונות.</p>':'')+'</div>';
+    (open.length>30?'<p class="mw-muted">מוצגות 30 הבעיות הפתוחות הראשונות.</p>':'')+'</div>';
 }
 
 function bind(ctx) {
