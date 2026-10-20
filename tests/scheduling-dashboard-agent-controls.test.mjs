@@ -390,3 +390,34 @@ test('Eden uses the enabled independent instructor and date editor with her own 
   assert.equal(commit.args.p_expected_updated_at,version);
  }finally{f.close();}
 });
+
+test('manual editor includes inactive instructors from the full directory and requires their warning acknowledgement', async () => {
+ const f=ui({activityFields:{sessions:'1'},rpcImpl:async(name,args)=>{
+  if(name==='scheduling_manual_capabilities')return {data:{apiVersion:'manual-operations-v1',enabled:true}};
+  if(name==='get_scheduling_manual_assignment_preview')return {data:{
+   previewHash:'inactive-preview',blockers:[],warnings:[{code:'instructor_inactive',empId:9}],
+   reasonRequired:true,instructorName:'מדריך לא פעיל'}};
+  if(name==='commit_scheduling_manual_assignment')return {data:{...course,sessions:'1',
+   draft_emp_id:'9',draft_instructor_name:'מדריך לא פעיל',updated_at:'2026-10-20T12:00:00Z'}};
+  return {data:[]};
+ }});
+ try {
+  f.data.manualInstructors=[...f.data.instructors,{emp_id:'9',full_name:'מדריך לא פעיל',active:'no'}];
+  await settle();
+  f.root.querySelector('[data-open-manual-course]').click();
+  const picker=f.root.querySelector('[data-manual-operation-field="empId"]');
+  assert.match(picker.querySelector('option[value="9"]').textContent,/לא פעיל/);
+  assert.ok(!f.data.instructors.some(i=>i.emp_id==='9'),'automatic pool remains active-only');
+  picker.value='9';picker.dispatchEvent(new window.Event('change',{bubbles:true}));
+  f.root.querySelector('[data-manual-operation-check]').click();await settle();
+  assert.match(f.root.querySelector('[role="alertdialog"]').textContent,/המדריך אינו פעיל/);
+  assert.equal(f.root.querySelector('[data-manual-operation-save]').disabled,true);
+  const reason=f.root.querySelector('[data-manual-operation-field="reason"]');
+  reason.value='אושר מראש';reason.dispatchEvent(new window.Event('input',{bubbles:true}));
+  const ack=f.root.querySelector('[data-manual-operation-field="acknowledged"]');
+  ack.checked=true;ack.dispatchEvent(new window.Event('change',{bubbles:true}));
+  f.root.querySelector('[data-manual-operation-save]').click();await settle();
+  assert.equal(f.data.activities[0].draft_emp_id,'9');
+  assert.ok(!f.calls.some(c=>c.name==='get_scheduling_dashboard_candidates'));
+ } finally {f.close();}
+});
