@@ -40,7 +40,7 @@ const e = (value) => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;'
 const localDate = () => { const d = new Date(); return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-'); };
 const allowed = user => ['admin','activities_manager','operation_manager'].includes(String(user?.role || '').trim()) && user?.is_active !== false;
 let root, userGetter = () => ({}), selected = null, list = [], stage = -1, empId = '', name = '', saveQueue = Promise.resolve(), debounce, activityOptions = [], lastFocus = null;
-let isOpen = false, viewerAuthId = '', observationSlot = 1;
+let isOpen = false, viewerAuthId = '', observationSlot = 1, reviewReached = false;
 const editable = () => !!selected && selected.status === 'draft' && (!selected.created_by || selected.created_by === viewerAuthId);
 
 const statusNode = () => root?.querySelector('[data-io-status]');
@@ -63,13 +63,13 @@ function close() {
   if (selected && selected.status === 'draft') { capture(); void persist().catch(()=>{}); }
   isOpen = false; root?.classList.remove('io-visible');
   document.body.classList.remove('io-modal-open');
-  selected = null; stage = -1;
+  selected = null; stage = -1; reviewReached = false;
   if (lastFocus?.isConnected) lastFocus.focus();
 }
 async function open(id, display, trigger, slot = 1) {
   if (!allowed(userGetter())) return;
   modalShell();
-  empId = id; name = display || id; observationSlot = slot === 2 ? 2 : 1; stage = -1; selected = null;
+  empId = id; name = display || id; observationSlot = slot === 2 ? 2 : 1; stage = -1; selected = null; reviewReached = false;
   lastFocus = trigger; isOpen = true;
   root.classList.add('io-visible');
   document.body.classList.add('io-modal-open');
@@ -118,7 +118,7 @@ async function create() {
   try {
     const {data,error} = await supabase.from(TABLE).insert(blankRecord()).select('*').single();
     if (error) throw error;
-    selected=data; list.unshift(data); stage=0; render();
+    selected=data; list.unshift(data); stage=0; reviewReached=false; render();
   } catch(err) { dialog('<div class="io-content"><p class="io-error">יצירת הטיוטה נכשלה: '+e(err?.message || err)+'</p><button type="button" class="io-secondary" data-io-action="home">חזרה לרשימה</button></div>'); }
 }
 function resume(id) {
@@ -126,7 +126,7 @@ function resume(id) {
   if (!selected) return;
   // Completed observations reopen at the report/print step instead of forcing
   // a manager to click through every already-finalized section.
-  stage=selected.status==='completed'?9:0; render();
+  stage=selected.status==='completed'?9:0; reviewReached=stage===9; render();
 }
 function field(label,key,type='text',required=false,value='') {
   return '<label class="io-field"><span>'+e(label)+(required ? ' <em>חובה</em>' : '')+'</span><input type="'+e(type)+'" data-io-detail="'+e(key)+'" value="'+e(value)+'" '+(!editable()?'disabled':'')+'></label>';
@@ -278,13 +278,74 @@ function summaryScreen() {
     [['strengths','נקודות כוח'],['improvements','נקודות לשיפור'],['summary','סיכום מקצועי וחוות דעת']].map(([key,label])=>
       '<label class="io-field"><span>'+e(label)+' <em>חובה</em></span><textarea rows="5" data-io-text="'+key+'" '+(!editable()?'disabled':'')+'>'+e(selected[key]||'')+'</textarea></label>').join('');
 }
+/** One canonical completion summary powers the final review and validation. */
+function completionRows() {
+  const d=selected?.details || {};
+  const present=value=>String(value ?? '').trim().length>0;
+  const validPositive=value=>/^[1-9]\d*$/.test(String(value ?? ''));
+  const details=[
+    ['תאריך הצפייה',present(selected?.observation_date)],
+    ['שם הצופה',present(selected?.observer_name)],
+    ['שם הקורס',present(d.course)],
+    ['מספר מפגש',validPositive(d.meeting)],
+    ['בית הספר',present(d.school)],
+    ['כיתה',present(d.class)],
+    ['מספר תלמידים',validPositive(d.students)],
+    ['נוכחות צוות בית הספר',['כן','לא'].includes(d.school_staff)]
+  ];
+  const rows=[{
+    stage:1,label:'פרטי התצפית',complete:details.every(([,ok])=>ok),
+    count:details.filter(([,ok])=>ok).length,total:details.length,
+    missing:details.filter(([,ok])=>!ok).map(([name])=>name)
+  }];
+  for(let i=0;i<SECTIONS.length;i++) {
+    const s=SECTIONS[i];
+    const questions=s.questions.map((q,j)=>q[1].includes(selected?.responses?.[i+'-'+j]));
+    rows.push({
+      stage:i+2,label:s.title,complete:questions.every(Boolean),
+      count:questions.filter(Boolean).length,total:questions.length,
+      missing:questions.flatMap((ok,j)=>ok?[]:['מדד '+(j+1)])
+    });
+  }
+  const summary=[
+    ['דירוג כולל',Number.isInteger(Number(selected?.overall_rating)) && Number(selected?.overall_rating)>=1 && Number(selected?.overall_rating)<=5],
+    ['נקודות כוח',present(selected?.strengths)],['נקודות לשיפור',present(selected?.improvements)],
+    ['חוות דעת מסכמת',present(selected?.summary)]
+  ];
+  rows.push({
+    stage:8,label:'סיכום המשוב',complete:summary.every(([,ok])=>ok),
+    count:summary.filter(([,ok])=>ok).length,total:summary.length,
+    missing:summary.filter(([,ok])=>!ok).map(([name])=>name)
+  });
+  return rows;
+}
 function overview() {
   const d=selected.details||{};
-  return '<h3>בדיקה לפני סיום והפקת דו"ח</h3><p class="io-muted">בדקו שכל הפרטים נכונים. לאחר הסיום המשוב יינעל לעריכה ויהיה זמין לצפייה ולהפקת PDF.</p>'+
-    '<div class="io-overview"><strong>'+e(selected.instructor_name)+'</strong><span>'+e(selected.observation_date)+' · '+e(d.school || 'ללא בית ספר')+' · '+e(d.course || 'ללא קורס')+'</span></div>'+
-    SECTIONS.map((s,i)=>'<div class="io-overview"><strong>'+e(s.title)+'</strong><span>'+s.questions.filter((q,j)=>!!selected.responses?.[i+'-'+j]).length+' מתוך '+s.questions.length+' מדדים מולאו</span></div>').join('')+
-    '<div class="io-overview"><strong>דירוג מסכם</strong><span>'+e(selected.overall_rating ? selected.overall_rating+' · '+RATING_LABELS[selected.overall_rating] : 'טרם דורג')+'</span></div>'+
-    (selected.status==='completed' ? '<p class="io-success">המשוב הושלם ונשמר. ניתן להפיק דו"ח PDF.</p>' : '<p class="io-muted">ניתן לחזור לכל שלב ולהשלים פרטים חסרים.</p>');
+  const rows=completionRows();
+  const missing=rows.filter(row=>!row.complete);
+  const intro=selected.status==='completed'
+    ? 'המשוב הושלם וננעל לעריכה. ניתן להפיק דו"ח PDF.'
+    : missing.length
+      ? 'נותרו '+missing.length+' שלבים להשלמה. לחצו על כל שלב המסומן "דורש השלמה" כדי לחזור אליו ישירות, ולאחר מכן חזרו לסיכום.'
+      : 'כל שדות החובה מולאו. ניתן לחזור לערוך כל שלב לפני סיום ושמירת המשוב.';
+  const rowHtml=row=>{
+    const status=row.complete?'הושלם':'דורש השלמה';
+    const info=row.count+' מתוך '+row.total+' שדות מולאו'+
+      (row.missing.length?' · חסר: '+row.missing.join(', '):'');
+    const children='<strong>'+e(row.label)+'</strong><span class="io-review-result">'+
+      '<span class="io-review-state '+(row.complete?'is-complete':'is-incomplete')+'">'+e(status)+'</span>'+
+      '<small>'+e(info)+'</small>'+(editable()?'<span class="io-review-link">'+(row.complete?'עריכה':'מעבר להשלמה')+' ←</span>':'')+'</span>';
+    return editable()
+      ? '<button type="button" class="io-overview io-review-row '+(row.complete?'is-complete':'is-incomplete')+'" data-io-action="jump" data-io-jump="'+row.stage+'" aria-label="'+e(row.label+': '+status+'; מעבר לשלב')+'">'+children+'</button>'
+      : '<div class="io-overview io-review-row is-readonly">'+children+'</div>';
+  };
+  return '<h3>בדיקה לפני סיום והפקת דו"ח</h3><p class="io-muted">'+e(intro)+'</p>'+
+    '<div class="io-overview"><strong>'+e(selected.instructor_name)+'</strong><span>'+
+      e(selected.observation_date)+' · '+e(d.school || 'ללא בית ספר')+' · '+e(d.course || 'ללא קורס')+'</span></div>'+
+    '<div class="io-review-list" aria-label="מצב השלמת שלבי התצפית">'+rows.map(rowHtml).join('')+'</div>'+
+    (selected.status==='completed' ? '<p class="io-success">המשוב הושלם ונשמר. ניתן להפיק דו"ח PDF.</p>' :
+      missing.length ? '<p class="io-review-reminder" role="status">לא ניתן לסיים את המשוב עד להשלמת '+missing.length+' שלבים.</p>' :
+      '<p class="io-success">כל שדות החובה הושלמו. אפשר לסיים ולשמור את המשוב.</p>');
 }
 function report() {
   const d=selected.details||{};
@@ -302,11 +363,13 @@ function report() {
 function render() {
   if (!selected) return home();
   const done=selected.status==='completed';
+  if(stage===9) reviewReached=true;
   const stages=['הקדמה','פרטי התצפית',...SECTIONS.map(s=>s.title),'סיכום','בדיקה והפקה'];
   const body = stage===0 ? '<div class="io-lead"><h3>לפני שמתחילים — מטרת התצפית</h3><p>המשוב נועד להעריך את איכות ההדרכה בפועל, לזהות חוזקות ותחומים לשיפור ולבסס ליווי מקצועי.</p></div><h3>הנחיות לצופה</h3><ol><li>יש ליידע את המדריך מראש על מועד התצפית, מטרותיה ומדדי ההערכה.</li><li>יש לתעד רק מה שנצפה בפועל ובאופן ענייני ומדויק.</li><li>רצוי לציין דוגמאות קונקרטיות בכל תחום.</li><li>בסיום יש לכתוב נקודות כוח, נקודות לשיפור וחוות דעת מסכמת.</li><li>אפשר לשמור טיוטה בכל שלב. הדו"ח זמין למנהל בלבד ואינו נשלח אוטומטית למדריך.</li></ol>' :
     stage===1 ? detailScreen() : stage>=2&&stage<=7 ? sectionScreen(stage-2) : stage===8 ? summaryScreen() : overview();
   const footer = '<footer class="io-actions"><button type="button" class="io-secondary" data-io-action="home">לכל התצפיות</button><div class="io-actions-main">'+
     (stage>0?'<button type="button" class="io-secondary" data-io-action="back">הקודם</button>':'')+
+    (reviewReached && stage!==9 && editable()?'<button type="button" class="io-secondary" data-io-action="review">חזרה לסיכום</button>':'')+
     (stage<9?'<button type="button" class="io-primary" data-io-action="next">המשך</button>':'')+
     (stage===9 && editable()?'<button type="button" class="io-primary" data-io-action="finish">סיום ושמירת המשוב</button>':'')+
     (stage===9 && done?'<button type="button" class="io-primary" data-io-action="print">הפקת PDF</button>':'')+
@@ -344,17 +407,11 @@ function persist(final=false) {
   return saveQueue;
 }
 function validate() {
-  const d=selected.details||{};
-  if (!selected.observation_date || !selected.observer_name || !d.course || !d.meeting || Number(d.meeting)<1 || !d.school || !d.class ||
-    !d.students || Number(d.students)<1 || !['כן','לא'].includes(d.school_staff))
-    return 'יש להשלים את כל שדות החובה בפרטי התצפית (שלב 2).';
-  for(let i=0;i<SECTIONS.length;i++) for(let j=0;j<SECTIONS[i].questions.length;j++) {
-    if(!SECTIONS[i].questions[j][1].includes(selected.responses?.[i+'-'+j])) return 'לא מולאו כל המדדים בתחום: '+SECTIONS[i].title;
-  }
-  if(!(selected.overall_rating>=1&&selected.overall_rating<=5)||!selected.strengths?.trim()||!selected.improvements?.trim()||!selected.summary?.trim())
-    return 'יש להשלים דירוג כולל, נקודות כוח, נקודות לשיפור וסיכום מקצועי.';
-  return '';
+  const firstMissing=completionRows().find(row=>!row.complete);
+  if (!firstMissing) return '';
+  return 'נדרש להשלים את השלב: '+firstMissing.label+'. לחצו על השורה המתאימה בסיכום כדי לחזור אליו.';
 }
+
 async function onClick(event) {
   const button=event.target.closest('[data-io-action], [data-io-resume]');
   if (!button) return;
@@ -363,7 +420,12 @@ async function onClick(event) {
   if (action==='close') return close();
   if (action==='new') return create();
   if (action==='print') { if (selected?.status==='completed') window.print(); return; }
-  if (action==='home' || action==='next' || action==='back' || action==='finish') {
+  if (['home','next','back','finish','jump','review'].includes(action)) {
+    if (action==='jump') {
+      const destination=Number(button.dataset.ioJump);
+      if (stage!==9 || !editable() || !Number.isInteger(destination) || destination<1 || destination>8) return;
+    }
+    if (action==='review' && (!reviewReached || stage===9 || !editable())) return;
     clearTimeout(debounce); capture();
     if (action==='finish') {
       const error=validate();
@@ -375,6 +437,8 @@ async function onClick(event) {
       if (action==='home') home();
       else if (action==='next') {stage=Math.min(9,stage+1);render();}
       else if (action==='back') {stage=Math.max(0,stage-1);render();}
+      else if (action==='jump') {stage=Number(button.dataset.ioJump);render();}
+      else if (action==='review') {stage=9;render();}
       else if (action==='finish') {stage=9;render();status('המשוב נשמר וננעל. ניתן להפיק PDF.');}
     } catch(err) { button.disabled=false;status('השמירה נכשלה: '+(err?.message||err),true); }
   }
