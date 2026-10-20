@@ -249,7 +249,13 @@ function refreshMeetingForDate() {
 
 function detailScreen() {
   const d=selected.details || {};
-  const pickOptions = activityOptions.map((a,i)=>'<option value="'+i+'" '+(String(d.activity_row_id || '')===String(a.row_id)?'selected':'')+'>'+e((a.activity_name || a.program_name || 'פעילות')+' · '+(a.school || '')+' · '+(a.authority || '')+' · '+(a.grade || '')+' '+(a.class_group || ''))+'</option>').join('');
+  const pickOptions = activityOptions.map((a,i)=> {
+    const first=scheduledMeetings(a)[0];
+    const title=(a.activity_name || a.program_name || 'פעילות')+' · '+(a.school || '')+
+      ' · '+(a.authority || '')+' · '+(a.grade || '')+' '+(a.class_group || '')+
+      (first?' · מפגש ראשון '+shortMeetingDate(first.date):'');
+    return '<option value="'+i+'" '+(String(d.activity_row_id || '')===String(a.row_id)?'selected':'')+'>'+e(title)+'</option>';
+  }).join('');
   return '<h3>פרטי התצפית — לפני תחילת השיעור</h3><p class="io-muted">בחרו פעילות קיימת כדי למלא אוטומטית את הקורס, בית הספר, הכיתה ומספר המפגש אם תאריך התצפית תואם למועד במערכת. יש לאמת את הפרטים.</p>'+
     (activityOptions.length ? '<label class="io-field"><span>מילוי מתוך פעילות קיימת (לבחירה)</span><select data-io-pick-activity '+(!editable()?'disabled':'')+'><option value="">בחרו פעילות…</option>'+pickOptions+'</select></label><div data-io-meeting-picker>'+meetingPickerMarkup()+'</div><p class="io-muted" data-io-activity-info role="status">יש לוודא את מועד התצפית בפועל; מספר התלמידים ונוכחות צוות בית הספר ממולאים לפי מה שנצפה.</p>' : '')+
     '<div class="io-fields">'+field('תאריך צפייה','date','date',true,selected.observation_date || '')+field('שם הצופה','observer','text',true,selected.observer_name || '')+
@@ -403,6 +409,7 @@ function onInput(event) {
   }
   if (target.matches('[data-io-detail="meeting"]')) {
     if (selected?.details) delete selected.details.meeting_source_date;
+    refreshMeetingPicker();
   }
   if (target.matches('[data-io-detail="date"]')) {
     selected.details={...selected.details,observation_date_manual:true};
