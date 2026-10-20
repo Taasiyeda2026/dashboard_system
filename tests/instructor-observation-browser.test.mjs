@@ -12,6 +12,8 @@ const tick=()=>new Promise(r=>setTimeout(r,20));
 test('manager creates, completes, reopens, and prints observation without editing locked report',async()=>{
  const dom=new JSDOM('<table class="manager-workspace-tracking-table"><tbody><tr><td data-label="תצפית 1"><span>27.11.26</span><button data-io-open="1550" data-io-slot="1" data-io-name="מדריך בדיקה">פתיחת משוב</button></td><td data-label="תצפית 2"><button data-io-open="1550" data-io-slot="2" data-io-name="מדריך בדיקה">פתיחת משוב</button></td></tr></tbody></table>',{url:'https://test.invalid'});
  const w=dom.window,records=[],authId='11111111-1111-4111-8111-111111111111';
+ const linkedActivity={row_id:'activity-test-1',activity_name:'ביומימיקרי',school:'בית ספר לבדיקות',grade:'ו׳',
+   class_group:'קבוצה 2',date_1:'2026-11-27',date_2:'2026-12-04',date_3:'2026-12-11'};
  let printed=0;
  w.print=()=>{printed++};
  const supabase={
@@ -23,7 +25,7 @@ test('manager creates, completes, reopens, and prints observation without editin
     eq(key,value){filters.push([key,value]);return this},
     or(){return this},
     order(){return this},
-    limit(){return Promise.resolve({data:table==='activities'?[]:records.filter(x=>x.emp_id===1550),error:null})},
+    limit(){return Promise.resolve({data:table==='activities'?[linkedActivity]:records.filter(x=>x.emp_id===1550),error:null})},
     insert(row){op='insert';payload=row;return this},
     update(row){op='update';payload=row;return this},
     async single(){
@@ -68,6 +70,26 @@ test('manager creates, completes, reopens, and prints observation without editin
    assert.ok(el,'Missing field '+sel);
    el.value=value;el.dispatchEvent(new w.Event('input',{bubbles:true}));
   };
+  // Linked activity must prefill course, school, class and exact meeting by observation date.
+  fill('[data-io-detail="date"]','2026-11-27');
+  const activityPicker=w.document.querySelector('[data-io-pick-activity]');
+  assert.ok(activityPicker,'Expected linked activity list');
+  activityPicker.value='0';
+  activityPicker.dispatchEvent(new w.Event('change',{bubbles:true}));
+  assert.equal(w.document.querySelector('[data-io-detail="course"]').value,'ביומימיקרי');
+  assert.equal(w.document.querySelector('[data-io-detail="school"]').value,'בית ספר לבדיקות');
+  assert.equal(w.document.querySelector('[data-io-detail="class"]').value,'ו׳ · קבוצה 2');
+  assert.equal(w.document.querySelector('[data-io-detail="meeting"]').value,'1');
+  assert.equal(records[0].details.activity_row_id,'activity-test-1');
+  fill('[data-io-detail="date"]','2026-12-04');
+  assert.equal(w.document.querySelector('[data-io-detail="meeting"]').value,'2');
+  fill('[data-io-detail="date"]','2026-12-25');
+  assert.equal(w.document.querySelector('[data-io-detail="meeting"]').value,'');
+  assert.match(w.document.querySelector('[data-io-activity-info]').textContent,/לא נמצא מפגש/);
+  fill('[data-io-detail="meeting"]','3');
+  fill('[data-io-detail="date"]','2026-12-11');
+  assert.equal(w.document.querySelector('[data-io-detail="meeting"]').value,'3',
+    'Manual meeting correction must not be overwritten by changing the date');
   fill('[data-io-detail="course"]','קורס הדגמה');
   fill('[data-io-detail="school"]','בית ספר ניסוי');
   fill('[data-io-detail="class"]','ט');
