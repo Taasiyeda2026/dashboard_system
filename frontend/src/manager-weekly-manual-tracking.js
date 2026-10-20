@@ -78,7 +78,8 @@ const styles = [
   '.mw-section{border-top:1px solid #e5ebf1;padding-top:17px;margin-top:16px}.mw-section-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.mw-section h3{font-size:15px;font-weight:750}',
   '.mw-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.mw-field{display:flex;flex-direction:column;gap:5px;color:#506376;font-size:12px;font-weight:600}.mw-field input,.mw-field textarea,.mw-field select{border:1px solid #cad7e2;border-radius:8px;min-height:36px;padding:8px 10px;color:#1c3449;background:#fff;font-size:13px;font-family:inherit;width:100%;direction:rtl}.mw-field textarea{min-height:72px;resize:vertical}.mw-field input:focus,.mw-field textarea:focus{outline:2px solid #b3e5f0}.mw-textareas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.mw-opening{display:grid;grid-template-columns:1fr 1fr 1fr 132px 1fr auto;gap:7px;align-items:end;padding:9px;border:1px solid #e3ebf1;border-radius:9px;margin-top:8px;background:#fcfdff}.mw-opening .mw-field{min-width:0}.mw-opening-extra{grid-column:1/-1}',
   '.mw-foot{display:flex;align-items:center;gap:9px;justify-content:flex-end;flex-wrap:wrap;margin-top:15px}.mw-error{color:#b42318;background:#fff1f1;border:1px solid #f2d0ce;padding:10px;border-radius:9px;margin:10px 0}.mw-notice{color:#135d4e;background:#eafaf3;border:1px solid #c9ecdc;padding:10px;border-radius:9px;margin:10px 0}.mw-verify{margin-top:12px;background:#f5fafc;border:1px solid #dceaf0;border-radius:10px;padding:11px}.mw-verify ul{margin:8px 20px 0 0;padding:0}.mw-empty{padding:24px;text-align:center;color:#64748b}.mw-program{border:1px solid #e3ebf1;border-radius:10px;margin:10px 0;padding:12px;background:#fbfdff}.mw-program-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:9px}.mw-progress{font-size:12px;color:#52657a}.mw-sr-only{position:absolute;left:-10000px}',
-  '@media(max-width:950px){.mw-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.mw-opening{grid-template-columns:repeat(2,minmax(0,1fr))}.mw-opening-extra{grid-column:auto}}',
+  '.mw-work-legend{font-size:12px;color:#597087;margin:2px 0 10px;line-height:1.5}.mw-work-summary{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.mw-work-stat{padding:5px 9px;background:#f2f7fa;border:1px solid #d6e5ed;border-radius:8px;font-size:12px}.mw-task-scroll{overflow:auto;max-width:100%;border:1px solid #e2ebf0;border-radius:10px;margin:12px 0}.mw-task-table{width:100%;min-width:1150px;border-collapse:collapse;text-align:right}.mw-task-table th,.mw-task-table td{padding:8px;border-bottom:1px solid #e5edf1}.mw-task-table th{background:#f4f8fb;white-space:nowrap;font-size:12px}.mw-task-table td input,.mw-task-table td select{width:100%;border:1px solid #cbdce5;border-radius:7px;padding:7px;min-height:34px;font:inherit;font-size:12px;background:#fff;color:#23384b;box-sizing:border-box}.mw-task-table td input:disabled,.mw-task-table td select:disabled{background:#f5f7f9}.mw-task-form{display:grid;grid-template-columns:1.4fr 1fr .9fr .9fr .8fr;gap:8px;align-items:end;margin-top:11px}.mw-task-form .mw-field{margin:0}.mw-task-notes{margin-top:8px}.mw-task-status{font-size:11px;color:#62778a}.mw-snapshot{border:1px solid #e1e9f0;background:#f8fbfd;padding:12px;border-radius:10px;margin-top:12px}.mw-snapshot ul{margin:7px 20px 0 0;padding:0}.mw-snapshot li{line-height:1.6}.mw-task-empty{padding:14px;color:#62768a;text-align:center}',
+  '@media(max-width:950px){.mw-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.mw-opening{grid-template-columns:repeat(2,minmax(0,1fr))}.mw-opening-extra{grid-column:auto}.mw-task-form{grid-template-columns:repeat(2,minmax(0,1fr))}}',
   '@media(max-width:610px){.mw-tracker{padding:13px 11px}.mw-fields,.mw-textareas,.mw-program-grid,.mw-opening{grid-template-columns:1fr}.mw-header h2{font-size:17px}.mw-section{margin-top:12px}.mw-opening-extra{grid-column:auto}}'
 ].join('');
 function ensureStyle() {
@@ -187,8 +188,148 @@ function formMarkup(ctx) {
   const buttons = locked ? '<span class="mw-muted">הדיווח הוגש ונעול לעריכה.</span>' : '<button type="button" class="mw-btn" data-mw-save>שמירת טיוטה</button>' +
     '<button type="button" class="mw-btn mw-primary" data-mw-submit>הגשת המעקב השבועי</button>';
   return '<div class="mw-section"><div class="mw-section-head"><h3>הזנה עצמאית – שבוע ' + esc(labelWeek(ctx.week)) + '</h3><span class="mw-tag">' + esc(displayStatus) + '</span></div>' +
-    metrics + openings + notes + '<div class="mw-foot">' + buttons + '</div><div data-mw-verification></div></div>';
+    metrics + openings + notes + '<div class="mw-foot">' + buttons + '</div>' + snapshotMarkup(report) + '<div data-mw-verification></div></div>';
 }
+const TASK_CATEGORIES = [
+  ['assignment','שיבוץ מדריך'], ['training','הכשרה'], ['kit','ערכות'],
+  ['materials','חומרי הדרכה'], ['school','תיאום בית ספר'], ['other','אחר']
+];
+const TASK_STATUSES = [
+  ['open','פתוחה'], ['in_progress','בטיפול'], ['waiting','ממתינה לגורם נוסף'], ['done','הושלמה']
+];
+function optionsHtml(options, chosen) {
+  return options.map(([value,label])=>'<option value="'+esc(value)+'"'+(value===chosen?' selected':'')+'>'+esc(label)+'</option>').join('');
+}
+function taskField(task,key,opts={}) {
+  return '<input data-mw-task-field="'+key+'" type="'+(opts.type||'text')+'" value="'+esc(task[key] ?? '')+'"'+
+    (opts.disabled?' disabled':'')+' maxlength="'+(opts.max||250)+'" aria-label="'+esc(opts.label||key)+'"/>';
+}
+function taskSummary(tasks) {
+  const pending=tasks.filter(t=>t.status!=='done');
+  const now=isoDate(new Date());
+  const overdue=pending.filter(t=>t.due_date && t.due_date < now);
+  return {pending:pending.length,done:tasks.length-pending.length,overdue:overdue.length};
+}
+function taskMarkup(ctx) {
+  const entries=[...ctx.tasks].sort((a,b)=>{
+    const aDone=a.status==='done',bDone=b.status==='done';
+    if(aDone!==bDone)return aDone?1:-1;
+    return String(a.due_date||'9999-12-31').localeCompare(String(b.due_date||'9999-12-31'));
+  });
+  const summary=taskSummary(entries);
+  const locked=!ctx.canEdit;
+  const header='<div class="mw-section-head"><div><h3>עבודה שוטפת – משימות ומוכנות</h3>'+
+    '<p class="mw-work-legend">עדכון לאורך השבוע. משימות ממשיכות לשבוע הבא גם לאחר הגשת הדוח. המנהל מזין את הנתונים בעצמו.</p></div>'+
+    '<div class="mw-work-summary"><span class="mw-work-stat">פתוחות: '+summary.pending+'</span>'+
+    '<span class="mw-work-stat">באיחור: '+summary.overdue+'</span><span class="mw-work-stat">הושלמו: '+summary.done+'</span></div></div>';
+  const tableRows=entries.map((t)=>{
+    const id=esc(t.id);
+    const select=(field,options,value)=>'<select data-mw-task-field="'+field+'" '+(locked?'disabled':'')+' aria-label="'+esc(field)+'">'+optionsHtml(options,value)+'</select>';
+    return '<tr data-mw-task-row="'+id+'"><td>'+taskField(t,'subject',{disabled:locked,label:'משימה'})+'</td>'+
+      '<td>'+taskField(t,'activity_label',{disabled:locked,label:'בית ספר / פעילות'})+'</td>'+
+      '<td>'+select('category',TASK_CATEGORIES,t.category)+'</td>'+
+      '<td>'+taskField(t,'owner_label',{disabled:locked,label:'אחראי'})+'</td>'+
+      '<td>'+taskField(t,'due_date',{disabled:locked,type:'date',label:'תאריך יעד'})+'</td>'+
+      '<td>'+select('status',TASK_STATUSES,t.status)+'</td>'+
+      '<td>'+taskField(t,'notes',{disabled:locked,label:'עדכון אחרון'})+'</td>'+
+      '<td>'+(locked?'<span class="mw-task-status">צפייה</span>':
+        '<button type="button" class="mw-btn" data-mw-task-save="'+id+'">שמירת עדכון</button>')+'</td></tr>';
+  }).join('');
+  const table=entries.length?'<div class="mw-task-scroll"><table class="mw-task-table"><thead><tr><th>מה צריך לעשות?</th><th>פעילות / בית ספר</th><th>תחום</th><th>אחראי</th><th>תאריך יעד</th><th>מצב</th><th>עדכון</th><th>פעולה</th></tr></thead><tbody>'+tableRows+'</tbody></table></div>':
+    '<div class="mw-task-empty">עדיין לא נוספו משימות. כדי לעקוב באופן שוטף, מנהל הפעילות צריך להזין את המשימות הראשונות.</div>';
+  const add=locked?'':('<div class="mw-section"><h3>הוספת משימה חדשה</h3><div class="mw-task-form">'+
+    '<label class="mw-field"><span>המשימה *</span><input data-mw-task-new="subject" maxlength="250" placeholder="לדוגמה: לוודא הכשרה למדריך"/></label>'+
+    '<label class="mw-field"><span>בית ספר / קורס</span><input data-mw-task-new="activity_label" maxlength="250"/></label>'+
+    '<label class="mw-field"><span>תחום</span><select data-mw-task-new="category">'+optionsHtml(TASK_CATEGORIES,'assignment')+'</select></label>'+
+    '<label class="mw-field"><span>אחראי</span><input data-mw-task-new="owner_label" maxlength="120"/></label>'+
+    '<label class="mw-field"><span>תאריך יעד</span><input data-mw-task-new="due_date" type="date"/></label></div>'+
+    '<label class="mw-field mw-task-notes"><span>הערה / תיאור</span><input data-mw-task-new="notes" maxlength="1200" placeholder="מה נדרש כדי לסיים את הטיפול?"/></label>'+
+    '<div class="mw-foot"><button type="button" class="mw-btn mw-primary" data-mw-task-add>הוספת משימה</button></div></div>');
+  return header+table+add+'<div data-mw-task-notice role="status"></div>';
+}
+function taskNotice(ctx,msg,error=false) {
+  const node=ctx.host.querySelector('[data-mw-task-notice]');
+  if(node)node.innerHTML=msg?'<div class="'+(error?'mw-error':'mw-notice')+'">'+esc(msg)+'</div>':'';
+}
+function refreshTaskSection(ctx) {
+  const node=ctx.host.querySelector('[data-mw-tasks-root]');
+  if(!node)return;
+  node.innerHTML=taskMarkup(ctx);
+  node.querySelector('[data-mw-task-add]')?.addEventListener('click',()=>addTask(ctx));
+  node.querySelectorAll('[data-mw-task-save]').forEach(b=>b.addEventListener('click',()=>saveTask(ctx,b.dataset.mwTaskSave)));
+}
+async function addTask(ctx) {
+  if(!ctx.canEdit || ctx.taskBusy || !isCurrent(ctx))return;
+  const root=ctx.host;
+  const read=key=>val(root.querySelector('[data-mw-task-new="'+key+'"]')?.value);
+  const subject=read('subject');
+  if(!subject)return taskNotice(ctx,'יש למלא את תיאור המשימה.',true);
+  ctx.taskBusy=true;
+  const addBtn=root.querySelector('[data-mw-task-add]');
+  if(addBtn)addBtn.disabled=true;
+  try {
+    const payload={
+      manager_user_id:ctx.managerId,school_year:ctx.year,subject,
+      activity_label:read('activity_label'),category:read('category')||'other',
+      owner_label:read('owner_label'),due_date:read('due_date')||null,notes:read('notes'),status:'open'
+    };
+    const {data,error}=await supabase.from('manager_ongoing_tasks').insert(payload).select('*').single();
+    if(error)throw error;
+    if(!isCurrent(ctx))return;
+    ctx.tasks.push(data);
+    refreshTaskSection(ctx);
+    taskNotice(ctx,'המשימה נשמרה. היא תמשיך להופיע במעקב גם לאחר הגשת הדיווח השבועי.');
+  } catch(error) {taskNotice(ctx,'לא ניתן לשמור משימה: '+error.message,true);}
+  finally {ctx.taskBusy=false;if(addBtn?.isConnected)addBtn.disabled=false;}
+}
+async function saveTask(ctx,id) {
+  if(!ctx.canEdit || ctx.taskBusy || !isCurrent(ctx))return;
+  const task=ctx.tasks.find(t=>t.id===id);
+  const row=[...ctx.host.querySelectorAll('[data-mw-task-row]')].find(r=>r.dataset.mwTaskRow===id);
+  if(!row||!task)return;
+  const read=key=>val(row.querySelector('[data-mw-task-field="'+key+'"]')?.value);
+  if(!read('subject'))return taskNotice(ctx,'תיאור המשימה הוא שדה חובה.',true);
+  ctx.taskBusy=true;
+  const button=row.querySelector('[data-mw-task-save]');
+  if(button)button.disabled=true;
+  try {
+    const payload={
+      subject:read('subject'),activity_label:read('activity_label'),
+      category:read('category'),owner_label:read('owner_label'),
+      due_date:read('due_date')||null,status:read('status'),notes:read('notes')
+    };
+    const {data,error}=await supabase.from('manager_ongoing_tasks')
+      .update(payload).eq('id',id).eq('manager_user_id',ctx.managerId).select('*').single();
+    if(error)throw error;
+    if(!isCurrent(ctx))return;
+    ctx.tasks=ctx.tasks.map(t=>t.id===id?data:t);
+    refreshTaskSection(ctx);
+    taskNotice(ctx,'עדכון המשימה נשמר.');
+  } catch(error) {taskNotice(ctx,'עדכון המשימה נכשל: '+error.message,true);}
+  finally {ctx.taskBusy=false;if(button?.isConnected)button.disabled=false;}
+}
+function frozenTaskSnapshot(ctx) {
+  const currentWeek=ctx.week;
+  const recent=ctx.tasks.filter(t=>t.status!=='done' ||
+    (t.updated_at && t.updated_at.slice(0,10)>=currentWeek));
+  return recent.map(t=>({
+    id:t.id,subject:t.subject,activity_label:t.activity_label,category:t.category,
+    owner_label:t.owner_label,due_date:t.due_date,status:t.status,notes:t.notes,updated_at:t.updated_at
+  }));
+}
+function snapshotMarkup(report) {
+  if(report.status!=='submitted')return '';
+  const tasks=Array.isArray(report.tasks_snapshot)?report.tasks_snapshot:[];
+  const open=tasks.filter(t=>t.status!=='done');
+  return '<div class="mw-snapshot"><strong>תמונת מצב להנהלה – במועד ההגשה</strong>'+
+    '<p class="mw-muted">העתק היסטורי של המשימות בעת ההגשה. עדכונים חדשים בעבודה השוטפת לא משנים אותו.</p>'+
+    '<p>משימות בדיווח: '+tasks.length+' · פתוחות: '+open.length+' · הושלמו: '+(tasks.length-open.length)+'</p>'+
+    (open.length?'<ul>'+open.slice(0,30).map(t=>'<li>'+esc(t.subject)+
+      (t.owner_label?' · אחראי: '+esc(t.owner_label):'')+
+      (t.due_date?' · יעד: '+esc(t.due_date):'')+'</li>').join('')+'</ul>':'')+
+    (open.length>30?'<p class="mw-muted">מוצגות 30 המשימות הפתוחות הראשונות.</p>':'')+'</div>';
+}
+
 function programMarkup(ctx) {
   const locked = !ctx.canEdit;
   const items = ctx.programs.map((p, index) => {
@@ -246,10 +387,12 @@ function render(ctx) {
   const roleLabel = ctx.canEdit ? 'הזנה עצמאית למנהל הפעילות' : 'צפייה בדיווחי מנהל הפעילות';
   ctx.host.innerHTML = '<div class="' + TRACKER_CLASS + '">' +
     '<div class="mw-header"><div><h2>מעקב שבועי – פתיחות ומוכנות</h2><p class="mw-muted">' + esc(ctx.managerName) + ' · שנת פעילות ' + esc(ctx.year) + '</p></div><span class="mw-tag">' + esc(roleLabel) + '</span></div>' +
-    '<div class="mw-intro"><strong>הנתונים מוזנים על ידי מנהל הפעילות.</strong> יש לעיין בלוח הפעילויות, לבדוק את התכנון ולמלא באופן עצמאי. המסך אינו משלים תשובות ממערכת המקור. בדיקת התאמה תתאפשר לאחר הגשה.</div>' +
+    '<div class="mw-intro"><strong>שני שלבים של ניהול:</strong> העבודה השוטפת מתעדכנת לאורך כל השבוע ונשארת פתוחה גם אחרי הגשת דיווח; הדיווח השבועי מסכם את התכנון מול הביצוע ונשמר כתמונת מצב להנהלה. הנתונים מוזנים עצמאית, ובדיקת התאמה למערכת המקור אפשרית רק לאחר הגשה.</div>' +
     '<div class="mw-toolbar"><div class="mw-left"><button class="mw-btn" type="button" data-mw-prev>‹ שבוע קודם</button><strong>' + labelWeek(ctx.week) + '</strong><button class="mw-btn" type="button" data-mw-next>שבוע הבא ›</button></div><span class="mw-progress">' + ctx.reports.filter((r) => r.status === 'submitted').length + ' שבועות שהוגשו בשנת הפעילות</span></div>' +
-    tableMarkup(ctx) + '<div data-mw-notice></div>' + formMarkup(ctx) + programMarkup(ctx) + '</div>';
+    '<div class="mw-section-head"><h3>1. עבודה שוטפת</h3></div>' +
+    '<section class="mw-section" data-mw-tasks-root></section><div class="mw-section-head"><h3>2. דיווח שבועי להנהלה – תכנון מול ביצוע</h3></div>' + tableMarkup(ctx) + '<div data-mw-notice></div>' + formMarkup(ctx) + programMarkup(ctx) + '</div>';
   bind(ctx);
+  refreshTaskSection(ctx);
   if (currentReport(ctx).status === 'submitted') {
     const check = ctx.host.querySelector('[data-mw-verification]');
     if (check) check.innerHTML = '<button type="button" class="mw-btn" data-mw-check>בדיקת התאמה לנתוני המקור (לאחר הגשה)</button>';
@@ -275,15 +418,17 @@ async function load(ctx) {
     ctx.managerId = found.manager_user_id;
     ctx.managerName = found.manager_name;
     ctx.canEdit = state?.user?.role === 'activities_manager' && val(state?.user?.user_id) === val(found.manager_user_id);
-    const [r, p] = await Promise.all([
+    const [r, p, t] = await Promise.all([
       supabase.from('manager_weekly_reports').select('*').eq('manager_user_id', ctx.managerId).eq('school_year', ctx.year).order('week_start'),
-      supabase.from('manager_program_learning').select('*').eq('manager_user_id', ctx.managerId).eq('school_year', ctx.year).order('program_name')
+      supabase.from('manager_program_learning').select('*').eq('manager_user_id', ctx.managerId).eq('school_year', ctx.year).order('program_name'),
+      supabase.from('manager_ongoing_tasks').select('*').eq('manager_user_id',ctx.managerId).eq('school_year',ctx.year).order('updated_at',{ascending:false}).limit(500)
     ]);
     if (!isCurrent(ctx)) return;
-    if (r.error || p.error) throw new Error(r.error?.message || p.error?.message);
+    if (r.error || p.error || t.error) throw new Error(r.error?.message || p.error?.message || t.error?.message);
     ctx.reports = r.data || [];
     ctx.savedReports = JSON.parse(JSON.stringify(ctx.reports));
     ctx.programs = p.data || [];
+    ctx.tasks = t.data || [];
     ctx.loading = false;
     render(ctx);
   } catch (error) {
@@ -310,7 +455,8 @@ async function saveWeekly(ctx, submit) {
       metrics: report.metrics, openings: report.openings,
       highlights: report.highlights, next_steps: report.next_steps, blockers: report.blockers,
       instructor_notes: report.instructor_notes, kit_notes: report.kit_notes,
-      status: submit ? 'submitted' : 'draft', submitted_at: submit ? new Date().toISOString() : null
+      status: submit ? 'submitted' : 'draft', submitted_at: submit ? new Date().toISOString() : null,
+      tasks_snapshot: submit ? frozenTaskSnapshot(ctx) : []
     };
     const { data, error } = await supabase.from('manager_weekly_reports')
       .upsert(payload, { onConflict: 'manager_user_id,school_year,week_start' }).select('*').single();
@@ -395,7 +541,7 @@ export function mountManagerWeeklyManual(host, context) {
   if (active && active.host === host && active.key === key) return;
   const ctx = {
     ...context, key, host, week: initialWeek(context.ym), reports: [], programs: [],
-    managerId: '', canEdit: false, loading: true, busy: false, dirty: false, notice: null
+    managerId: '', canEdit: false, loading: true, busy: false, taskBusy:false, dirty: false, notice: null, tasks: []
   };
   active = ctx;
   host.innerHTML = '<div class="mw-tracker"><div class="mw-empty">טוען סביבת מעקב שבועי…</div></div>';
