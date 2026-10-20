@@ -1,7 +1,7 @@
 # Manual scheduling with explicit operator decisions
 
-Accepted requirement: 2026-10-21. This change is staged until its isolated
-Postgres, UI and deployment checks pass.
+Accepted requirement: 2026-10-21. Isolated PostgreSQL, UI, build and cache checks
+passed in GitHub Actions; production readiness is verified during rollout.
 
 ## Product behavior
 
@@ -33,8 +33,9 @@ activity or changed warning set requires another preview, never a blind save.
 ## Server boundary
 
 services/scheduling-agent/manual-operations.sql is the implementation source.
-Generate its migration with the Supabase CLI before release; do not invent a
-migration filename or run tests on production records.
+The pinned Supabase CLI generated supabase/migrations/20261020213712_operator_manual_scheduling.sql.
+The generated migration contains this exact tested source. Never run assignment
+tests on production records.
 
 - scheduling_manual_capabilities: permission-gated API availability.
 - get_scheduling_manual_assignment_preview: read-only canonical preview, warnings,
@@ -104,3 +105,7 @@ Deploy the generated migration before the paired frontend and verify read-only
 readiness under the intended role. Do not test by assigning a real instructor or
 sending messages. Worker reactivation/optimization is separate from manual
 operation; keep the production pause until the completed release is verified.
+
+Verified 2026-10-20 UTC: isolated run 39501709430 passed 14 PostgreSQL tests,
+the application build and six PWA/cache checks. Focused UI CI passed 63 tests,
+including bound warning acknowledgement/save behavior and protected anchors.
