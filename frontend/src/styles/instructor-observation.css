@@ -109,12 +109,16 @@ button.io-review-row:focus-visible {outline:2px solid #08799d;outline-offset:2px
  .io-pill {white-space:normal}
 }
 @media print {
- @page {size:A4;margin:15mm}
- body > *:not(.io-root) {display:none!important}
+ /* Loaded globally by main.js: only isolate an actively open observation.
+    A retained, closed .io-root must never replace another document in print. */
+ @page instructor-observation-report {size:A4;margin:15mm}
+ body.io-modal-open > *:not(.io-root) {display:none!important}
  body.io-modal-open {overflow:visible!important;background:white!important}
- .io-root,.io-root.io-visible {display:block!important;position:static!important;inset:auto!important;padding:0!important;margin:0!important;background:white!important;color:#111!important;z-index:auto!important}
- .io-dialog {display:none!important}
- .io-print {display:block!important;font:10pt/1.5 Arial,"Noto Sans Hebrew",sans-serif!important;direction:rtl;color:#172334}
+ body.io-modal-open > .io-root.io-visible {display:block!important;position:static!important;inset:auto!important;padding:0!important;margin:0!important;background:white!important;color:#111!important;z-index:auto!important;page:instructor-observation-report}
+ body.io-modal-open > .io-root.io-visible,
+ body.io-modal-open > .io-root.io-visible * {visibility:visible!important}
+ body.io-modal-open .io-dialog {display:none!important}
+ body.io-modal-open .io-print {display:block!important;font:10pt/1.5 Arial,"Noto Sans Hebrew",sans-serif!important;direction:rtl;color:#172334}
  .io-report header {border-bottom:3px solid #207e9f;margin-bottom:15px;padding-bottom:10px}
  .io-report h1 {font-size:18pt;margin:0 0 5px}
  .io-report header p {color:#567;margin:0}

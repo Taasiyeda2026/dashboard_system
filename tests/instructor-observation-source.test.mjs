@@ -37,7 +37,7 @@ test('PDF report is complete, A4-printable and does not modify finalized records
   assert.match(source, /completed/);
   assert.match(source, /window\.print\(\)/);
   assert.match(stylesheet, /@media print/);
-  assert.match(stylesheet, /@page\s*\{size:A4/);
+  assert.match(stylesheet, /@page instructor-observation-report\s*\{size:A4/);
   assert.match(stylesheet, /@media\(max-width:640px\)/);
   assert.match(migration, /completed_instructor_observation_is_immutable/);
   assert.match(migration, /enable row level security/);
