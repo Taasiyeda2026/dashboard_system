@@ -482,3 +482,4 @@ config.HOTFIX_VERSION = 'scheduling-agent-dashboard-controls-20261015-v1-' + con
 config.HOTFIX_VERSION = 'scheduling-manual-with-agent-recommendation-20261015-v2-' + config.HOTFIX_VERSION;
 config.HOTFIX_VERSION = 'activity-domain-ey-shared-20261016-v1-' + config.HOTFIX_VERSION;
 config.HOTFIX_VERSION = 'proposal-print-observation-isolation-20261020-v1-' + config.HOTFIX_VERSION;
+config.HOTFIX_VERSION = 'persistent-manual-scheduling-workboard-20261020-v1-' + config.HOTFIX_VERSION;

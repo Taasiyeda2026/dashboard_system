@@ -46,6 +46,7 @@ export function createAgentAssignmentClient({rpc,getActivity,onActivity=()=>{},o
   return {
     async candidates(activityId,options){
       const {data,error}=await rpc('get_scheduling_dashboard_candidates',{p_activity_id:activityId});
+      if (options?.isCurrent && !options.isCurrent()) return null;
       if(error)throw error;
       if(text(data?.activity?.row_id)!==text(activityId))throw Error('trusted_assignment_snapshot_required');
       snapshots.set(text(activityId),data);onActivity(data.activity);

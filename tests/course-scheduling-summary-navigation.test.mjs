@@ -31,10 +31,11 @@ test('workboard row actions explain single-course workflows clearly', () => {
   assert.match(screen, /'בחר מדריך אחר'/);
 });
 
-test('stale planning explains where the instructor summary table went', () => {
-  assert.match(screen, /data-planning-overview-pending/);
-  assert.match(screen, /טבלת תכנון המדריכים תוצג לאחר חישוב התכנון המעודכן/);
-  assert.match(screen, /עומס, פעילויות, מפגשים, שבוע שיא ותאריכי עבודה לכל מדריך/);
+test('stale planning keeps the instructor summary visible with a currency notice', () => {
+  assert.match(screen, /data-planning-overview-currency/);
+  assert.match(screen, /טבלת המדריכים מוצגת לפי השיבוצים והטיוטות הקיימים והתכנון השמור/);
+  assert.doesNotMatch(screen, /טבלת תכנון המדריכים תוצג לאחר/);
+  assert.match(screen, /\$\{completionCache\.html\}/);
 });
 
 test('active summary filter has pointer, focus and selected styling', () => {

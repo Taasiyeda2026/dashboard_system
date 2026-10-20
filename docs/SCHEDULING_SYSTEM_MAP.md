@@ -1,5 +1,25 @@
 # Scheduling System Map
 
+## Persistent operational workboard / manual assignment (2026-10-20)
+
+The instructor completion table stays visible while the saved plan is stale,
+loading, missing, or refreshing. A currency notice identifies unrefreshed plan
+proposals; operational assignments and activity drafts take precedence over stored
+planning rows, including removal of obsolete live/draft rows. An empty instructor
+table retains its columns and an explicit empty state. This is presentation only:
+stale plan choices remain blocked and no calculation is triggered by rendering.
+
+Admin and operation_manager with scheduling permission have a per-activity manual
+entry independent of agent recommendations and deferred planning-row details.
+Their operational list includes current-year active courses, workshops and tours;
+automatic planning and recommendation scope remains **courses only**. Other roles
+retain the course-only list. Manual selection still uses the existing versioned
+scheduling_dashboard_assignment gateway and domain RPC validations/approval flow.
+Existing drafts keep explicit confirm/cancel; assigned activities use audited
+replacement and retain historical meetings. A late agent response cannot replace
+a newer manual selection or its activity revision. No production assignments,
+permissions, schema or planning runs are changed by this UI update.
+
 ## Durable server wakeup (PR staging, not activated)
 
 See `docs/SCHEDULING_AGENT_DURABLE_WAKEUP.md` for the infrastructure protocol,
@@ -75,7 +95,7 @@ Inside `course-scheduling.js`:
 - Focus mode: arriving from Activities with a selected id shows only that activity (`is-activity-focus`); “הצג את כל הפעילויות” clears focus.
 - Stored rows with `needs_recalc=true` are restored as stale context only: the old instructor/date remain visibly marked as old, all proposal/lock/confirm actions are blocked, and the status bar offers an explicit incremental “עדכן” action. Merely entering the screen never starts that run; point-mutation events may still request the existing scoped auto-refresh.
 - Inner period controls (not screen tabs): `first` | `second` | `year` via `periodOptions()` / `data-period-key`.
-- **Current scope (2026-10-12): course targets only**, including `program`/Hebrew course aliases. Tours/workshops are excluded from workboard, national and point planning, and Excel; the activity-type selector is removed. Even a mislabeled course 13990/"התנסות בתעשייה" is excluded. Actual/draft tours remain full-day instructor calendar blockers.
+- **Automatic planning scope: course targets only**, including `program`/Hebrew course aliases. Tours/workshops are excluded from national and point planning and planning Excel; admin/operation_manager can see and assign them manually in the operational workboard (2026-10-20). The activity-type selector remains removed. Even a mislabeled course 13990/"התנסות בתעשייה" is excluded from automatic planning. Actual/draft tours remain full-day instructor calendar blockers.
 
 Permissions:
 
@@ -532,7 +552,7 @@ If a pitfall is only suspected and not proven in tests/migrations, mark new find
 - Full inventory of manager-approval physical tables and RLS policies (RPCs/`edit_requests` usage confirmed; column-level contracts not fully re-listed here).
 - Whether every `scheduling_revalidate_after_*` trigger is still attached after later migrations — re-check when touching invalidation.
 - Exact production district scoping conventions when `district === ''` (national workspace) vs filtered districts — confirm against current ops usage before changing scope keys.
-- The global workshop/tour activity helpers remain for other workflows and instructor calendar constraints; `isCourseSchedulingTargetActivity` limits only the scheduling workspace and engines. Reintroducing other target types requires a deliberate policy change.
+- `isCourseSchedulingTargetActivity` still limits the automatic engines to courses. Since 2026-10-20, the operational UI separately includes supported active workshop/tour records for admin and operation_manager manual assignment; this does not expand automatic target types.
 - Whether any runtime deep-link still renders `planningTabHtml` / calendar pane (current `render` remaps `planning`/`calendar` → `courses`).
 - Client Friday gate (weekly rule weekday 5) vs server `friday_allowed` — intentional split or drift; verify before changing either side.
 - Exact latest SQL body of overwritten gate functions without replaying the full migration chain on a live DB.

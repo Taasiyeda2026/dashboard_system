@@ -37,12 +37,12 @@ test('network failure is returned to UI instead of leaving a rejected async hand
  const c=createAgentAssignmentClient({getActivity:()=>course,rpc:async()=>{throw Error('offline');}});
  assert.equal((await c.mutate('cancel_course_assignment_draft',{p_activity_id:course.row_id})).error.message,'offline');
 });
-function ui({assigned=false,draft=false,stale=false,allowed=true,rpcImpl,mutateImpl,completed=0}={}){
+function ui({assigned=false,draft=false,stale=false,allowed=true,rpcImpl,mutateImpl,completed=0,user,activityFields={}}={}){
  const dom=new JSDOM('<div id="root"></div>',{url:'https://example.invalid'});
  for(const key of ['window','document','sessionStorage','localStorage','CustomEvent'])globalThis[key]=key==='window'?dom.window:dom.window[key];
  dom.window.confirm=()=>true;
- const state={route:'course-scheduling',user:allowed?eden:{role:'operation_manager',permissions:{}},courseSchedulingSelectedId:course.row_id,courseSchedulingFocusMode:true,courseSchedulingPlanningSharedLoaded:true};
- const activity={...course,...(assigned?{emp_id:'6',instructor_name:'קודם',instructor_assignment_locked:true}:{}),...(draft?{draft_emp_id:'7',draft_instructor_name:instructor.full_name}:{})};
+ const state={route:'course-scheduling',user:user||(allowed?eden:{role:'operation_manager',permissions:{}}),courseSchedulingSelectedId:course.row_id,courseSchedulingFocusMode:true,courseSchedulingPlanningSharedLoaded:true};
+ const activity={...course,...(assigned?{emp_id:'6',instructor_name:'קודם',instructor_assignment_locked:true}:{}),...(draft?{draft_emp_id:'7',draft_instructor_name:instructor.full_name}:{}),...activityFields};
  const data={activities:[activity],instructors:[instructor,{emp_id:'8',full_name:'בחירה ידנית',active:'yes'}],scheduling:{},_is_stale:stale,_planningSharedLoadedKey:'year|',meetingState:{loaded:true,approvedDates:new Map(),cancelledDates:new Map()}};
  const root=document.querySelector('#root');const old=supabase.rpc;const calls=[];
  supabase.rpc=async(name,args)=>{calls.push({name,args});if(rpcImpl)return rpcImpl(name,args);
@@ -62,6 +62,74 @@ function ui({assigned=false,draft=false,stale=false,allowed=true,rpcImpl,mutateI
  return {root,state,data,calls,render,close(){supabase.rpc=old;dom.window.close();for(const key of ['window','document','sessionStorage','localStorage','CustomEvent'])delete globalThis[key];}};
 }
 const settle=()=>new Promise(resolve=>setTimeout(resolve,25));
+for (const user of [eden, {role:'admin'}]) test(user.role+' keeps the instructor table and manual entry when planning is stale or deferred',async()=>{
+ const f=ui({user});try{
+  f.state.courseSchedulingPlanningStale=true;
+  f.state.courseSchedulingPlanningRows=[{courseId:course.row_id,kind:'proposal',needsRecalc:true,_detailsDeferred:true,instructorEmpId:'7',instructorName:instructor.full_name,meetings:[{date:'2026-11-01',start_time:'10:00',end_time:'11:00'}]}];
+  f.render();
+  assert.ok(f.root.querySelector('.course-planning-completion-table'));
+  assert.match(f.root.querySelector('[data-planning-overview-currency]').textContent,/ממתינות לעדכון/);
+  f.root.querySelector('[data-open-manual-course]').click();await settle();
+  assert.ok(f.root.querySelector('[data-manual-candidate="8"]'));
+  f.root.querySelector('[data-manual-candidate="8"]').click();
+  f.root.querySelector('[data-confirm-manual-candidate]').click();await settle();
+  assert.equal(f.data.activities[0].draft_emp_id,'8');
+  assert.ok(f.root.querySelector('.course-planning-completion-table'));
+  assert.match(f.root.querySelector('.course-planning-completion-table').textContent,/בחירה ידנית/);
+  assert.ok(!f.calls.some(c=>c.name==='get_scheduling_dashboard_candidates'));
+  assert.equal(f.calls.filter(c=>c.name==='scheduling_dashboard_assignment').length,1);
+ }finally{f.close();}
+});
+test('instructor table remains mounted before planning loads, during a run, and with no assignments',()=>{
+ const f=ui();try{
+  for(const flags of [
+   {courseSchedulingPlanningSharedLoaded:false},
+   {courseSchedulingPlanningSharedLoaded:true,courseSchedulingPlanningLoading:true},
+   {courseSchedulingPlanningLoading:false,courseSchedulingPlanningStale:true}
+  ]){
+   Object.assign(f.state,flags);f.render();
+   assert.ok(f.root.querySelector('.course-planning-completion-table'));
+   assert.ok(f.root.querySelector('[data-open-manual-course]'));
+  }
+  f.data.activities=[];f.render();
+  assert.ok(f.root.querySelector('.course-planning-completion-table'));
+ }finally{f.close();}
+});
+for(const activity_type of ['סדנה','סיור'])test('manual '+activity_type+' assignment is available without extending automatic planning',async()=>{
+ const f=ui({activityFields:{activity_type}});try{
+  assert.ok(f.root.querySelector('[data-course-card="synthetic"]'));
+  f.root.querySelector('[data-open-manual-course]').click();await settle();
+  assert.equal(f.root.querySelector('[data-find-instructors]'),null);
+  f.root.querySelector('[data-manual-candidate="8"]').click();
+  f.root.querySelector('[data-confirm-manual-candidate]').click();await settle();
+  const write=f.calls.find(c=>c.name==='scheduling_dashboard_assignment');
+  assert.equal(write.args.p_rpc,'save_course_assignment_manual_draft');
+  assert.equal(f.data.activities[0].draft_emp_id,'8');
+  assert.ok(!f.calls.some(c=>c.name==='get_scheduling_dashboard_candidates'));
+ }finally{f.close();}
+});
+test('late recommendation response cannot overwrite a manual selection or its activity revision',async()=>{
+ let finish;
+ const pending=new Promise(resolve=>{finish=resolve});
+ const f=ui({rpcImpl:async name=>name==='get_scheduling_dashboard_candidates'?pending:{data:[]}});
+ try{
+  f.root.querySelector('[data-find-instructors]').click();
+  f.root.querySelector('[data-open-manual-assignment]').click();await settle();
+  assert.equal(f.state.courseSchedulingResults[0].manualOnly,true);
+  f.data.activities[0].updated_at='2026-10-20T10:00:00Z';
+  finish({data:snapshot});await settle();
+  assert.equal(f.state.courseSchedulingResults[0].manualOnly,true);
+  assert.equal(f.data.activities[0].updated_at,'2026-10-20T10:00:00Z');
+  assert.equal(f.data._agentAssignmentSnapshots.size,0);
+  assert.ok(f.root.querySelector('[data-manual-candidate="8"]'));
+ }finally{finish({data:snapshot});f.close();}
+});
+test('read-only scheduling role has no direct manual assignment entry',()=>{
+ const f=ui({user:{...eden,role:'activities_manager'}});try{
+  assert.equal(f.root.querySelector('[data-open-manual-course]'),null);
+  assert.equal(f.root.querySelector('[data-open-manual-assignment]'),null);
+ }finally{f.close();}
+});
 test('Eden operation_manager loads agent candidates and saves a draft without browser matching',async()=>{
  const f=ui();try{
   const find=f.root.querySelector('[data-find-instructors]');assert.ok(find);assert.equal(find.disabled,false);find.click();await settle();
