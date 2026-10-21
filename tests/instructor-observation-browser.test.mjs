@@ -16,8 +16,18 @@ test('manager creates, completes, reopens, and prints observation without editin
    class_group:'קבוצה 2',date_1:'2026-11-27',date_2:'2026-12-04',date_3:'2026-12-11'};
  let printed=0;
  w.print=()=>{printed++};
+ const sharepointUploads=[];
  const supabase={
   auth:{getUser:async()=>({data:{user:{id:authId}}})},
+  functions:{invoke:async(name,{body})=>{
+    assert.equal(name,'instructor-observation-sharepoint');
+    if(body.action==='status')return {data:sharepointUploads.length?sharepointUploads.at(-1):{saved:false},error:null};
+    assert.equal(body.action,'save');
+    const receipt={saved:true,file_name:'מדריך בדיקה - תצפית 1 - 11.12.2026 - test.pdf',
+      observation_slot:1,url:'https://think365orgil.sharepoint.com/sites/taasiyeda2027/example.pdf'};
+    sharepointUploads.push(receipt);
+    return {data:receipt,error:null};
+  }},
   from(table){
    let op='',payload=null,filters=[];
    return {
@@ -159,6 +169,12 @@ test('manager creates, completes, reopens, and prints observation without editin
   assert.equal(records[0].strengths,'חוזקות מקצועיות','Summary remains saved');
   await click('[data-io-action="finish"]');
   assert.equal(records[0].status,'completed');
+  assert.equal(sharepointUploads.length,1,'Completion uploads exactly one finalized PDF');
+  assert.equal(w.document.querySelectorAll('[data-io-action="sharepoint"]').length,0,
+    'Upload confirmation replaces retry button');
+  assert.match(w.document.querySelector('.io-sp-saved').textContent,/מדריך בדיקה - תצפית 1/);
+  assert.equal(w.document.querySelector('.io-sp-saved a').href,
+    'https://think365orgil.sharepoint.com/sites/taasiyeda2027/example.pdf');
   assert.equal(Object.keys(records[0].responses).length,15);
   assert.equal(records[0].responses['0-1'],'5','Numeric score must persist, not the old text label');
   const printable=w.document.querySelector('.io-print');
