@@ -1,4 +1,5 @@
 import { api } from './api.js';
+import './styles/approvals-nav-status.css';
 import { config } from './config.js';
 import { ACTIVE_ACTIVITY_SEASON, globalActivityPeriodLabel, globalActivityPeriodFullLabel, globalActivityPeriodOptions, normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 import { state, setSession, defaultClientSettings, setGlobalActivityPeriod, setArchiveActivityPeriod } from './state.js';
@@ -533,17 +534,26 @@ function navLabelForRoute(route) {
 }
 
 async function refreshOpenEditRequestsCount() {
-  if (!isAllowedRoute('edit-requests')) return;
+  if (!state.token || !isAllowedRoute('edit-requests')) return;
+  const requestedForUser=String(state.user?.user_id || '');
   try {
-    const count = await api.editRequestsOpenCount();
-    const normalized = Number.isFinite(count) && count > 0 ? Math.floor(count) : 0;
-    if (state.openEditRequestsCount !== normalized) {
-      state.openEditRequestsCount = normalized;
+    const latest=await api.editRequestsBadgeCounts();
+    if (!state.token || String(state.user?.user_id || '')!==requestedForUser) return;
+    const normalize=v=>Number.isFinite(Number(v))&&Number(v)>0?Math.floor(Number(v)):0;
+    const incoming=normalize(latest.incoming);
+    const sent=normalize(latest.sent);
+    const total=incoming+sent;
+    if(state.openEditRequestsCount!==total
+        || state.openEditRequestsIncomingCount!==incoming
+        || state.openEditRequestsSentCount!==sent){
+      state.openEditRequestsIncomingCount=incoming;
+      state.openEditRequestsSentCount=sent;
+      state.openEditRequestsCount=total;
+      // Update only header/sidebar badges; do not remount the active screen.
       updateNavCountBadges();
-      if (state.token) scheduleRender();
     }
   } catch {
-    // Keep existing count on transient failures.
+    // Keep last verified counts when a transient network/read error occurs.
   }
 }
 
@@ -1003,11 +1013,16 @@ function exceptionsNavCount() {
 function navLabelHtmlForRoute(route) {
   const baseLabel = screenLabels[route] || 'מסך';
   if (route === 'edit-requests') {
-    const count = Number(state.openEditRequestsCount);
-    const label = escapeHtml(baseLabel);
-    if (!Number.isFinite(count) || count <= 0) return label;
-    const safeCount = escapeHtml(String(count));
-    return `${label} <span class="ds-nav-count-badge ds-nav-count-badge--edit-requests" aria-label="${safeCount} בקשות עריכה פתוחות">${safeCount}</span>`;
+    const label=escapeHtml(baseLabel);
+    const incoming=Number(state.openEditRequestsIncomingCount)||0;
+    const sent=Number(state.openEditRequestsSentCount)||0;
+    if(incoming+sent>0) {
+      return label+
+        (incoming>0?' <span class="ds-nav-count-badge ds-nav-count-badge--edit-requests" title="ממתינות לטיפולי" aria-label="'+incoming+' בקשות ממתינות לטיפולי">'+incoming+'</span>':'')+
+        (sent>0?' <span class="ds-nav-count-badge ds-nav-count-badge--edit-requests-sent" title="שלחתי – ממתינות לתשובה" aria-label="'+sent+' בקשות ששלחתי וממתינות לתשובה">'+sent+'</span>':'');
+    }
+    const count=Number(state.openEditRequestsCount)||0;
+    return count>0?label+' <span class="ds-nav-count-badge ds-nav-count-badge--edit-requests" aria-label="'+count+' בקשות פתוחות">'+count+'</span>':label;
   }
   if (route === 'proposals-agreements') {
     const count = proposalsNavCount();
@@ -1157,7 +1172,9 @@ function shell(content) {
     route: state.route,
     routes: effectiveRoutes().filter((r) => routeAllowedByRole(r) && !adminHeaderExclude.has(r) && !HEADER_ALWAYS_EXCLUDE.has(r) && !(hasUnifiedClientFile && r === 'contacts')),
     operationsManagement: state.operationsManagement
-  }, { exceptions: exceptionsNavCount(), editRequests: Number(state.openEditRequestsCount) || 0 });
+  }, { exceptions: exceptionsNavCount(), editRequests: Number(state.openEditRequestsCount) || 0,
+      editRequestsIncoming: Number(state.openEditRequestsIncomingCount) || 0,
+      editRequestsSent: Number(state.openEditRequestsSentCount) || 0 });
   const headerTechHtml = '';
   const instructorMobileHeader = isInstructorUser
     ? `<div class="shell-top__instr-meta"><span class="shell-top__instr-user">${displayName}</span><button type="button" class="shell-logout-btn shell-logout-btn--mobile" aria-label="התנתקות" title="התנתקות"><span aria-hidden="true">⏻</span></button></div>`
@@ -1466,7 +1483,9 @@ async function loadScreenDataWithCache(screen) {
   const routePerfEnabled = routeName === 'dashboard' || routeName === 'activities' || routeName === 'week' || routeName === 'month' || routeName === 'contacts' || routeName === 'proposals-agreements';
   const routePerfStart = routePerfEnabled ? (typeof performance !== 'undefined' ? performance.now() : Date.now()) : 0;
   const key = screenDataCacheKey();
-  const hit = state.screenDataCache[key];
+  // Requests can be approved in a different session. Always fetch current
+  // statuses on entering this page, regardless of the dashboard cache TTL.
+  const hit = routeName === 'edit-requests' ? null : state.screenDataCache[key];
   const ttl = screenCacheTtl();
   const age = hit ? Date.now() - hit.t : 0;
   const serverMarkedStale = !!(hit && hit.data && hit.data._is_stale === true);
@@ -2212,6 +2231,16 @@ function bindShell() {
 
   document.addEventListener('app:edit-requests-updated', () => {
     refreshOpenEditRequestsCount().catch(() => {});
+  });
+  // Approvals may be completed by another user in a different session.
+  // Keep the header current without refreshing the whole dashboard.
+  setInterval(() => {
+    if (state.token && document.visibilityState !== 'hidden')
+      refreshOpenEditRequestsCount().catch(() => {});
+  }, 60000);
+  document.addEventListener('visibilitychange', () => {
+    if (state.token && document.visibilityState === 'visible')
+      refreshOpenEditRequestsCount().catch(() => {});
   });
 
   document.addEventListener('app:proposals-pending-updated', (e) => {

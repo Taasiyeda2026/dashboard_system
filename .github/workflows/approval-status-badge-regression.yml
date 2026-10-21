@@ -1,0 +1,31 @@
+name: Approval Status Badge Regression
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/src/api.js'
+      - 'frontend/src/main.js'
+      - 'frontend/src/state.js'
+      - 'frontend/src/screens/edit-requests.js'
+      - 'frontend/src/screens/shared/act-nav-grid.js'
+      - 'frontend/src/styles/approvals-nav-status.css'
+      - 'tests/edit-requests-feedback-regression.test.mjs'
+      - '.github/workflows/approval-status-badge-regression.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  approvals:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Run approval status and badge regression tests
+        run: node --test tests/edit-requests-feedback-regression.test.mjs

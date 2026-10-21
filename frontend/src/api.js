@@ -7891,20 +7891,62 @@ export const api = {
     }));
     return buildEditRequestGroups(rows, canReview, activityByRowId);
   },
-  editRequestsOpenCount: async () => {
-    const openStatuses = ['pending', 'open', 'awaiting approval', 'awaiting_approval'];
-    let query = supabase
-      .from('edit_requests')
-      .select('request_id', { count: 'exact', head: true })
-      .in('status', openStatuses);
-    if (!canReviewEditRequestsUser()) {
-      const currentUserId = String(state?.user?.user_id || '').trim();
-      if (!currentUserId) return 0;
-      query = query.eq('requested_by_user_id', currentUserId);
-    }
-    const { count, error } = await query;
+  editRequestsBadgeCounts: async () => {
+    const currentUserId = String(state?.user?.user_id || '').trim();
+    if (!currentUserId) return { incoming: 0, sent: 0, total: 0 };
+    const role = String(state?.user?.role || '').trim();
+    const canReview = canReviewEditRequestsUser();
+    const reviewScheduling = role === 'admin';
+    const reviewSubstitute = role === 'admin' || role === 'operation_manager';
+    const openStatuses = ['pending','open','awaiting approval','awaiting_approval'];
+    const { data, error } = await supabase.from('edit_requests')
+      .select('request_id,requested_by_user_id,request_type,status')
+      .in('status',openStatuses);
     if (error) throw new Error(error.message || 'edit_requests_open_count_failed');
-    return Number.isFinite(count) ? Number(count) : 0;
+
+    // Multiple sources can expose the SAME pending request. Deduplicate by its
+    // immutable request ID before calculating either badge.
+    const pending = new Map();
+    for (const row of data || []) {
+      const id = String(row?.request_id || '').trim();
+      if (id) pending.set(id,row);
+    }
+    const roles = [
+      ...(reviewScheduling ? ['course_assignment_manager_approval_requests'] : []),
+      ...(reviewSubstitute ? ['course_meeting_substitute_requests'] : [])
+    ];
+    await Promise.all(roles.map(async (rpc) => {
+      const { data: requests, error: rpcError } = await supabase.rpc(rpc);
+      if (rpcError) {
+        if (String(rpcError.code || '') === '42501') return;
+        throw new Error(rpcError.message || 'approval_count_failed');
+      }
+      for (const row of Array.isArray(requests) ? requests : []) {
+        const id = String(row?.request_id || '').trim();
+        if (!id || !openStatuses.includes(String(row?.status || '').trim())) continue;
+        pending.set(id,{...pending.get(id),...row});
+      }
+    }));
+
+    let incoming=0, sent=0;
+    for (const row of pending.values()) {
+      if (String(row.requested_by_user_id || '').trim() === currentUserId) {
+        sent++;
+        continue;
+      }
+      const type=String(row.request_type || '').trim();
+      const canHandle=type==='course_assignment_exception'
+        ? reviewScheduling
+        : type==='course_meeting_substitution'
+          ? reviewSubstitute
+          : canReview;
+      if (canHandle) incoming++;
+    }
+    return {incoming,sent,total:incoming+sent};
+  },
+  editRequestsOpenCount: async () => {
+    const counts=await api.editRequestsBadgeCounts();
+    return counts.total;
   },
   proposalsAgreements: async (params = {}) => readProposalsAgreementsFromSupabase(params || {}),
   proposalsAgreementsEditorDeps: async () => readProposalsAgreementsEditorDepsFromSupabase(),

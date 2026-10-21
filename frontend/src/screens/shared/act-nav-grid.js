@@ -8,9 +8,15 @@ function itemLabelHtml(item, counts = {}) {
     return `${label} <span class="ds-nav-count-badge" aria-label="${escapeHtml(String(count))} חריגות">(${escapeHtml(String(count))})</span>`;
   }
   if (item.route === 'edit-requests') {
-    const count = Number(counts.editRequests || 0);
-    if (!Number.isFinite(count) || count <= 0) return label;
-    return `${label} <span class="ds-nav-count-badge ds-nav-count-badge--edit-requests" aria-label="${escapeHtml(String(count))} בקשות עריכה פתוחות">${escapeHtml(String(count))}</span>`;
+    const incoming=Number(counts.editRequestsIncoming)||0;
+    const sent=Number(counts.editRequestsSent)||0;
+    if(incoming+sent>0) {
+      return label+
+        (incoming>0?` <span class="ds-nav-count-badge ds-nav-count-badge--edit-requests" title="ממתינות לטיפולי" aria-label="${incoming} בקשות ממתינות לטיפולי">${escapeHtml(String(incoming))}</span>`:'')+
+        (sent>0?` <span class="ds-nav-count-badge ds-nav-count-badge--edit-requests-sent" title="שלחתי – ממתינות לתשובה" aria-label="${sent} בקשות ששלחתי וממתינות לתשובה">${escapeHtml(String(sent))}</span>`:'');
+    }
+    const count=Number(counts.editRequests)||0;
+    return count>0?`${label} <span class="ds-nav-count-badge ds-nav-count-badge--edit-requests" aria-label="${count} בקשות פתוחות">${escapeHtml(String(count))}</span>`:label;
   }
   return label;
 }
