@@ -152,7 +152,7 @@ test('each manager sees only their own pending sent requests and actual reviewer
  const end=source.indexOf('  editRequestsOpenCount: async () => {',start);
  assert.ok(start>0 && end>start);
  const code=source.slice(start,end).trim().replace(/,\s*$/,'');
- const data=[
+ let data=[
    {request_id:'g1',requested_by_user_id:'5000',status:'pending',request_type:'edit_activity'},
    {request_id:'h1',requested_by_user_id:'1500',status:'pending',request_type:'edit_activity'},
    {request_id:'e1',requested_by_user_id:'6000',status:'pending',request_type:'edit_activity'},
@@ -172,7 +172,7 @@ test('each manager sees only their own pending sent requests and actual reviewer
  };
  // Backend RLS limits activity managers to their own requests, regardless
  // of any legacy review flag (Hila has that flag but cannot review other users).
- let data=data.filter(row=>row.requested_by_user_id==='5000');
+ data=data.filter(row=>row.requested_by_user_id==='5000');
  await make({id:'5000',role:'activities_manager',canReview:false,
    expected:{incoming:0,sent:1,total:1}});
  data=[{request_id:'h1',requested_by_user_id:'1500',status:'pending',request_type:'edit_activity'}];
