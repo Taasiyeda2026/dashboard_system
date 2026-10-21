@@ -127,8 +127,8 @@ test('saving multiple problems creates separate persisted rows and resets to one
  await save();
  assert.equal(writes.length,1,'Single batch write');
  assert.equal(writes[0].length,2);
- assert.deepEqual(writes[0].map(x=>x.subject),['אין מדריך','אין ערכות']);
- assert.deepEqual(writes[0].map(x=>x.category),['instructor_shortage','kit']);
+ assert.deepEqual(Array.from(writes[0],x=>x.subject),['אין מדריך','אין ערכות']);
+ assert.deepEqual(Array.from(writes[0],x=>x.category),['instructor_shortage','kit']);
  assert.equal(writes[0][0].manager_user_id,'1500');
  assert.equal(writes[0][1].school_year,'2027');
  assert.equal(ctx.tasks.length,2,'Both tasks added as distinct persistent entries');
