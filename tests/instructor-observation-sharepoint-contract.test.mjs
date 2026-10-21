@@ -12,7 +12,7 @@ test('SharePoint path is resolved by mapped instructor identity rather than brow
  assert.match(backend,/\/03 תצפיות\/תצפית "/);
  assert.match(backend,/observation\.details\?\.observation_slot/);
  assert.match(backend,/if\(!\[1,2\]\.includes\(slot\)\)/);
- assert.match(backend,/folder\.folder/);
+ assert.match(backend,/folder\?\.folder/);
  assert.match(backend,/parsed\.origin!==SITE/);
  assert.match(backend,/decoded\.startsWith\(BASE\)/);
  assert.match(backend,/name\.includes\("\/"\)/);
@@ -38,7 +38,7 @@ test('PDF is created from completed DB record with embedded Hebrew font, never b
 });
 test('UI automatically uploads after completion and offers a retry without unlocking completed report',()=>{
  assert.match(frontend,/else if \(action==='finish'\) \{stage=9;render\(\);await saveSharePointPdf\(\);\}/);
- assert.match(frontend,/if\(action==='sharepoint'\)/);
+ assert.match(frontend,/if\s*\(action==='sharepoint'\)/);
  assert.match(frontend,/sharepointReceipt=data/);
  assert.match(frontend,/href="'\+\s*e\(sharepointReceipt\.url\)/);
  assert.match(sql,/observation_id uuid primary key/);
