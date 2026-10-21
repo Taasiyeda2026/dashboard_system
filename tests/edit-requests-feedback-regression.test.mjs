@@ -21,7 +21,7 @@ test('admin edit request badge and review permission include can_review_requests
   const mainSource = await readFile(MAIN_FILE, 'utf8');
   assert.match(apiSource, /canReviewEditRequestsUser/);
   assert.match(apiSource, /return canReviewRequests\(user\)/);
-  assert.match(apiSource, /\.in\('status', openStatuses\)/);
+  assert.match(apiSource, /\.in\('status',\s*openStatuses\)/);
   assert.match(mainSource, /ds-nav-count-badge--edit-requests/);
   assert.match(mainSource, /app:edit-requests-updated/);
 });
