@@ -123,3 +123,75 @@ test('approval indicator refreshes on request changes and when another user comp
  assert.match(screen,/data-er-sent-resolved/);
  assert.match(screen,/readOnly:true/);
 });
+
+
+test('the approval header route is visible to Gil, Hila, Eden and all activity-enabled staff',async()=>{
+ const source=await readFile(API_FILE,'utf8');
+ const start=source.indexOf('  const canViewEditRequests = ',source.indexOf('function buildBootstrapFromUser('));
+ const end=source.indexOf(';',start);
+ assert.ok(start>0 && end>start,'Canonical bootstrap contains edit-requests route eligibility');
+ const expression=source.slice(start,end+1)+'; return canViewEditRequests;';
+ const eligible=(user)=>new Function('role','flat','canReviewRequests','canRequestEdit',
+   'canRequestCreateActivity','permissionFlagYes',expression)(
+     user.role,user.permissions,!!user.review,!!user.canRequest,()=>!!user.canCreate,
+     value=>value==='yes' || value===true);
+ for(const [name,user] of Object.entries({
+   'גיל נאמן':{role:'activities_manager',permissions:{view_activities:'yes'},canRequest:true},
+   'הילה רוזן':{role:'activities_manager',permissions:{view_activities:'yes'},review:true},
+   'עדן כהן':{role:'operation_manager',permissions:{view_activities:'yes'},review:true},
+   'צוות נוסף':{role:'authorized_user',permissions:{view_activities:'yes'}}
+ })){
+   assert.equal(eligible(user),true,name+' can view approval status even without approval privileges');
+ }
+ assert.equal(eligible({role:'instructor',permissions:{view_activities:'no'}}),false,
+   'Instructor routes do not receive the staff approval status workspace');
+});
+test('each manager sees only their own pending sent requests and actual reviewer work',async()=>{
+ const source=await readFile(API_FILE,'utf8');
+ const start=source.indexOf('  editRequestsBadgeCounts: async () => {');
+ const end=source.indexOf('  editRequestsOpenCount: async () => {',start);
+ assert.ok(start>0 && end>start);
+ const code=source.slice(start,end).trim().replace(/,\s*$/,'');
+ const data=[
+   {request_id:'g1',requested_by_user_id:'5000',status:'pending',request_type:'edit_activity'},
+   {request_id:'h1',requested_by_user_id:'1500',status:'pending',request_type:'edit_activity'},
+   {request_id:'e1',requested_by_user_id:'6000',status:'pending',request_type:'edit_activity'},
+   {request_id:'other1',requested_by_user_id:'other',status:'pending',request_type:'edit_activity'},
+   {request_id:'sched1',requested_by_user_id:'other',status:'pending',request_type:'course_assignment_exception'},
+   {request_id:'sub1',requested_by_user_id:'other',status:'pending',request_type:'course_meeting_substitution'}
+ ];
+ const make=({id,role,canReview,expected})=>{
+   const supabase={
+     from:()=>({select(){return this;},in(){return Promise.resolve({data,error:null});}}),
+     rpc:async()=>({data:[],error:null})
+   };
+   const context={state:{user:{user_id:id,role}},supabase,canReviewEditRequestsUser:()=>canReview};
+   const impl=runInNewContext('({'+code+'})',context);
+   return impl.editRequestsBadgeCounts().then(counts=>
+     assert.deepEqual(JSON.parse(JSON.stringify(counts)),expected,id));
+ };
+ // Backend RLS limits activity managers to their own requests, regardless
+ // of any legacy review flag (Hila has that flag but cannot review other users).
+ let data=data.filter(row=>row.requested_by_user_id==='5000');
+ await make({id:'5000',role:'activities_manager',canReview:false,
+   expected:{incoming:0,sent:1,total:1}});
+ data=[{request_id:'h1',requested_by_user_id:'1500',status:'pending',request_type:'edit_activity'}];
+ await make({id:'1500',role:'activities_manager',canReview:true,
+   expected:{incoming:0,sent:1,total:1}});
+ data=[
+   {request_id:'e1',requested_by_user_id:'6000',status:'pending',request_type:'edit_activity'},
+   {request_id:'other1',requested_by_user_id:'other',status:'pending',request_type:'edit_activity'},
+   {request_id:'sched1',requested_by_user_id:'other',status:'pending',request_type:'course_assignment_exception'},
+   {request_id:'sub1',requested_by_user_id:'other',status:'pending',request_type:'course_meeting_substitution'}
+ ];
+ await make({id:'6000',role:'operation_manager',canReview:true,
+   expected:{incoming:2,sent:1,total:3}});
+});
+test('non-reviewer with legacy flag gets requester-only approval data, not other users',async()=>{
+ const source=await readFile(API_FILE,'utf8');
+ const scope=source.slice(source.indexOf('  editRequests: async () => {'),source.indexOf('  editRequestsBadgeCounts: async () => {'));
+ assert.match(scope,/const canReview = canReviewEditRequestsUser\(\)\s*&& \(role === 'admin' \|\| role === 'operation_manager'\)/);
+ assert.match(scope,/requested_by_user_id/);
+ const status=await readFile(EDIT_REQUESTS_FILE,'utf8');
+ assert.match(status,/ownResolved:own\.filter\(g=>!isOpen\(g\)\)/);
+});
