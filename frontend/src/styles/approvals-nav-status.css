@@ -1,0 +1,22 @@
+/* Approval navigation: reviewed-by-me vs submitted-by-me are distinct queues. */
+.ds-nav-count-badge--edit-requests-sent {
+ display:inline-flex;min-width:18px;height:18px;padding:0 5px;align-items:center;justify-content:center;
+ font-size:11px;font-weight:800;line-height:1;color:#11677d;background:#dff2f7;
+ border:1px solid #a7d8e5;border-radius:999px;font-variant-numeric:tabular-nums;vertical-align:middle;
+}
+.ds-nav-count-badge--edit-requests {
+ display:inline-flex;min-width:18px;min-height:18px;align-items:center;justify-content:center;
+ font-variant-numeric:tabular-nums;vertical-align:middle;
+}
+.ds-er-status-overview {
+ display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin:0 0 16px;
+}
+.ds-er-status-overview span {
+ display:inline-flex;align-items:center;gap:7px;min-height:32px;padding:6px 11px;
+ border:1px solid #dce9ef;border-radius:9px;background:#f7fafc;color:#315267;font-size:12.5px;
+}
+.ds-er-status-overview strong {font-variant-numeric:tabular-nums;font-size:14px;color:#14516c}
+@media(max-width:610px){
+ .ds-er-status-overview{gap:6px}
+ .ds-er-status-overview span{padding:6px 8px;font-size:11.5px}
+}
