@@ -423,12 +423,14 @@ export function approvalViewBuckets(data) {
     || (Array.isArray(group?.fields) && group.fields.length>0)
   );
   const id=String(data?.currentUserId || '').trim();
-  const canReview=!!data?.canReview;
+  const canReview=!!data?.canReviewWorkflow || !!data?.canReview;
   const own=valid.filter(g=>id && String(g.requested_by_user_id||'').trim()===id)
     .sort((a,b)=>String(b.requested_at||'').localeCompare(String(a.requested_at||'')));
   const incoming=canReview?valid.filter(g=>
     isOpen(g) && (!id || String(g.requested_by_user_id||'').trim()!==id)
     && g.can_approve!==false
+    && (data?.canReview || (String(g.request_type||'')===COURSE_MEETING_SUBSTITUTE_REQUEST_TYPE
+        && g.can_approve===true))
   ):[];
   return {incoming,ownOpen:own.filter(isOpen),ownResolved:own.filter(g=>!isOpen(g)).slice(0,30)};
 }
@@ -449,13 +451,14 @@ export const editRequestsScreen = {
     }
     return {
       ...base,
+      canReviewWorkflow:!!base.canReview || canApproveSubstitute,
       currentUserId: String(state?.user?.user_id || '').trim(),
       groups: [...byId.values()]
     };
   },
   render(data) {
     const {incoming,ownOpen,ownResolved}=approvalViewBuckets(data);
-    const canReview=!!data?.canReview;
+    const canReview=!!data?.canReviewWorkflow || !!data?.canReview;
     const incomingHtml=incoming.length?incoming.map(g=>renderGroup(g,canReview)).join(''):
       dsEmptyState('אין כרגע בקשות הממתינות לטיפולך');
     const ownOpenHtml=ownOpen.length?ownOpen.map(g=>renderGroup(g,false)).join(''):
