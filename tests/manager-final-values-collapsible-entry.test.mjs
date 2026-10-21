@@ -255,3 +255,28 @@ test('switching to another week saves entered metrics and preserves the 3-column
   assert.equal(ctx.host.querySelector('.mw-extra-panel'),null);
   assert.match(ctx.host.querySelector('.mw-table').textContent,/25/);
 });
+
+
+test('weekly table is compact on desktop while keeping the three fixed week columns',()=>{
+  const {ctx}=setup();
+  assert.match(source,/\.mw-table-scroll\{[^}]*width:100%;max-width:900px/);
+  assert.match(source,/\.mw-table th:first-child,\.mw-table td:first-child\{[^}]*width:37%/);
+  assert.equal(ctx.host.querySelectorAll('.mw-table thead th').length,4);
+  assert.equal(ctx.host.querySelectorAll('.mw-table tbody tr').length,5);
+  assert.ok(ctx.host.querySelector('.mw-table-scroll'));
+  assert.doesNotMatch(source,/\.mw-table-scroll\{[^}]*overflow:auto/);
+});
+test('admin sees why issues are read-only; activity manager can enter and save an issue',()=>{
+  const {api,ctx}=setup();
+  ctx.canEdit=false;
+  api.render(ctx);
+  assert.match(ctx.host.querySelector('.mw-task-empty').textContent,/חשבון מנהל מערכת מיועד כאן לצפייה בלבד/);
+  assert.equal(ctx.host.querySelector('[data-mw-task-add]'),null);
+  ctx.canEdit=true;
+  api.render(ctx);
+  assert.ok(ctx.host.querySelector('[data-mw-task-new="subject"]'));
+  assert.ok(ctx.host.querySelector('[data-mw-task-new="category"]'));
+  assert.deepEqual([...ctx.host.querySelectorAll('[data-mw-task-new="status"] option')].map(x=>x.textContent),
+    ['פתוח','סגור']);
+  assert.ok(ctx.host.querySelector('[data-mw-task-add]'));
+});
