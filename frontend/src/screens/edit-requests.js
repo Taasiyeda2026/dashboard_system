@@ -410,55 +410,81 @@ export function renderGroup(group, canReview) {
   `;
 }
 
-const CLOSED_STATUSES = new Set(['approved', 'rejected']);
-
+const OPEN_STATUSES = new Set(['pending','open','awaiting approval','awaiting_approval']);
 function isOpen(group) {
-  return !CLOSED_STATUSES.has(String(group?.status || '').trim());
+  return OPEN_STATUSES.has(String(group?.status || '').trim());
 }
-
+export function approvalViewBuckets(data) {
+  const groups=Array.isArray(data?.groups) ? data.groups : [];
+  const valid=groups.filter(group=>
+    String(group?.request_type || '')==='create_activity'
+    || String(group?.request_type || '')===COURSE_ASSIGNMENT_MANAGER_APPROVAL_REQUEST_TYPE
+    || String(group?.request_type || '')===COURSE_MEETING_SUBSTITUTE_REQUEST_TYPE
+    || (Array.isArray(group?.fields) && group.fields.length>0)
+  );
+  const id=String(data?.currentUserId || '').trim();
+  const canReview=!!data?.canReview;
+  const own=valid.filter(g=>id && String(g.requested_by_user_id||'').trim()===id)
+    .sort((a,b)=>String(b.requested_at||'').localeCompare(String(a.requested_at||'')));
+  const incoming=canReview?valid.filter(g=>
+    isOpen(g) && (!id || String(g.requested_by_user_id||'').trim()!==id)
+    && g.can_approve!==false
+  ):[];
+  return {incoming,ownOpen:own.filter(isOpen),ownResolved:own.filter(g=>!isOpen(g)).slice(0,30)};
+}
 export const editRequestsScreen = {
   async load({ api, state }) {
     const base = await api.editRequests();
-    const baseGroups = (Array.isArray(base?.groups) ? base.groups : []).filter((group) => {
-      const type = String(group?.request_type || '');
-      return type !== COURSE_ASSIGNMENT_MANAGER_APPROVAL_REQUEST_TYPE
-        && type !== COURSE_MEETING_SUBSTITUTE_REQUEST_TYPE;
-    });
+    const baseGroups = Array.isArray(base?.groups) ? base.groups : [];
     const role = String(state?.user?.role || '').trim();
     const canApproveSubstitute = role === 'admin' || role === 'operation_manager';
     const [schedulingGroups, substituteGroups] = await Promise.all([
       loadCourseAssignmentManagerApprovalGroups(),
       loadCourseMeetingSubstituteRequestGroups({ canApprove: canApproveSubstitute })
     ]);
+    const byId = new Map();
+    for (const group of [...baseGroups,...schedulingGroups,...substituteGroups]) {
+      const id = String(group?.request_id || '').trim();
+      if (id) byId.set(id,group);
+    }
     return {
       ...base,
-      groups: [...baseGroups, ...schedulingGroups, ...substituteGroups]
+      currentUserId: String(state?.user?.user_id || '').trim(),
+      groups: [...byId.values()]
     };
   },
   render(data) {
-    const groups = Array.isArray(data?.groups) ? data.groups : [];
-    const validGroups = groups.filter((group) => (
-      String(group?.request_type || '') === 'create_activity'
-      || String(group?.request_type || '') === COURSE_ASSIGNMENT_MANAGER_APPROVAL_REQUEST_TYPE
-      || String(group?.request_type || '') === COURSE_MEETING_SUBSTITUTE_REQUEST_TYPE
-      || (Array.isArray(group?.fields) && group.fields.length > 0)
-    ));
-    const canReview = !!data?.canReview;
-
-    const openGroups = validGroups.filter(isOpen);
-
-    const groupsHtml = openGroups.length === 0
-      ? dsEmptyState('אין בקשות פתוחות כרגע')
-      : openGroups.map((g) => renderGroup(g, canReview)).join('');
-
-    const subtitle = canReview ? 'בקשות פעילות הממתינות לאישורך' : 'בקשות פעילות שהגשת';
+    const {incoming,ownOpen,ownResolved}=approvalViewBuckets(data);
+    const canReview=!!data?.canReview;
+    const incomingHtml=incoming.length?incoming.map(g=>renderGroup(g,canReview)).join(''):
+      dsEmptyState('אין כרגע בקשות הממתינות לטיפולך');
+    const ownOpenHtml=ownOpen.length?ownOpen.map(g=>renderGroup(g,false)).join(''):
+      dsEmptyState('אין בקשות ששלחת וממתינות לתשובה');
+    const ownResolvedHtml=ownResolved.length?ownResolved.map(g=>renderGroup(g,false)).join(''):
+      dsEmptyState('אין בקשות שטופלו להצגה');
+    const title=canReview?'אישורים – טיפול ומעקב':'אישורים – מעקב אחר הבקשות שלי';
+    const summary='<div class="ds-er-status-overview" dir="rtl" aria-label="סטטוס האישורים">'+
+      (canReview?'<span>ממתינות לטיפולי: <strong>'+incoming.length+'</strong></span>':'')+
+      '<span>שלחתי וממתינות לתשובה: <strong>'+ownOpen.length+'</strong></span>'+
+      '<span>בקשות ששלחתי וטופלו: <strong>'+ownResolved.length+'</strong></span></div>';
 
     return dsScreenStack(`
-      ${dsPageHeader('בקשות פעילות', subtitle)}
+      ${dsPageHeader(title,'בקשות פתוחות נשארות במעקב עד לקבלת החלטה. בקשות שטופלו נשמרות עם סטטוס אושר או נדחה.')}
+      ${summary}
+      ${canReview?dsCard({
+        title: `ממתינות לטיפולי (${incoming.length})`,
+        padded:false,
+        body:`<div class="ds-er-list" data-er-incoming>${incomingHtml}</div>`
+      }):''}
       ${dsCard({
-        title: `בקשות פתוחות (${openGroups.length})`,
-        padded: false,
-        body: `<div class="ds-er-list" data-er-list>${groupsHtml}</div>`
+        title:`בקשות ששלחתי – ממתינות לתשובה (${ownOpen.length})`,
+        padded:false,
+        body:`<div class="ds-er-list" data-er-sent-pending>${ownOpenHtml}</div>`
+      })}
+      ${dsCard({
+        title:`בקשות ששלחתי – טופלו (${ownResolved.length})`,
+        padded:false,
+        body:`<div class="ds-er-list" data-er-sent-resolved>${ownResolvedHtml}</div>`
       })}
     `);
   },
