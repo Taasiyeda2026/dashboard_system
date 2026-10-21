@@ -17,6 +17,12 @@ function cacheSnapshot(identity, data) {
   // Runtime flags/functions must not survive a page reload. No access token is stored.
   const snapshot = Object.fromEntries(Object.entries(data).filter(([key, value]) =>
     (!key.startsWith('_') || key === '_planningShared') && typeof value !== 'function'));
+  // Private operational notes must not persist in browser session storage.
+  // The authorized operator can fetch them again from the server on refresh.
+  if (Array.isArray(snapshot.activities)) snapshot.activities = snapshot.activities.map(activity => {
+    const { operations_private_notes, ...safeActivity } = activity;
+    return safeActivity;
+  });
   snapshot._planningShared = compactPlanningWorkspace(snapshot._planningShared);
   // Persist identity only, even if a caller passes a complete auth session.
   if (snapshot.authSession) snapshot.authSession = { user: { id: identity.userId }, sessionId: identity.sessionId };
