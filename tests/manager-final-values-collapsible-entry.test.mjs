@@ -25,7 +25,7 @@ function setup() {
     Date,console,setTimeout,clearTimeout,document:dom.window.document,window:dom.window,
     state:{user:{role:'activities_manager',user_id:'1500'}},supabase
   };
-  const api=runInNewContext(isolated+'\n({formMarkup,tableMarkup,render,toggleEntry,changeWeek,saveWeekly,__setActive:(ctx)=>{active=ctx;}})',sandbox);
+  const api=runInNewContext(isolated+'\n({formMarkup,tableMarkup,render,toggleEntry,changeWeek,saveWeekly,timelineWeeks,visibleWeeks,__setActive:(ctx)=>{active=ctx;}})',sandbox);
   const ctx={
     host:dom.window.document.getElementById('host'),managerName:'הילה רוזן',year:'2027',ym:'2026-10',
     week:'2026-10-18',managerId:'1500',canEdit:true,loading:false,taskBusy:false,busy:false,
@@ -149,4 +149,71 @@ test('only five numeric metrics and the issue ledger are displayed, with no repe
   assert.equal(ctx.host.querySelector('[data-mw-task-new="category"] option').textContent,'פעילות שלא שובצה');
   const statuses=[...ctx.host.querySelectorAll('[data-mw-task-new="status"] option')].map(n=>n.textContent);
   assert.deepEqual(statuses,['פתוח','סגור']);
+});
+
+
+test('current week and immediately previous week are the only visible default columns',()=>{
+  const {api,ctx}=setup();
+  ctx.today='2026-10-21';
+  api.render(ctx);
+  const header=[...ctx.host.querySelectorAll('.mw-table thead th')];
+  assert.equal(header.length,3,'Metric names and only two week columns');
+  assert.equal(header[1].querySelector('[data-mw-week]').dataset.mwWeek,'2026-10-18');
+  assert.equal(header[2].querySelector('[data-mw-week]').dataset.mwWeek,'2026-10-11');
+  assert.ok(header[1].classList.contains('mw-current'));
+  assert.match(header[1].textContent,/השבוע הנוכחי/);
+  assert.match(header[2].textContent,/השבוע הקודם/);
+  assert.equal(ctx.host.querySelectorAll('.mw-table tbody tr').length,5);
+  for(const row of ctx.host.querySelectorAll('.mw-table tbody tr'))
+    assert.equal(row.children.length,3,'No additional hidden-width columns');
+});
+test('all earlier and later school-year weeks are collapsed into separate controls',()=>{
+  const {api,ctx}=setup();
+  ctx.today='2026-10-21';
+  api.render(ctx);
+  const past=ctx.host.querySelector('[data-mw-picker="past"]');
+  const future=ctx.host.querySelector('[data-mw-picker="future"]');
+  assert.ok(past&&!past.open);
+  assert.ok(future&&!future.open);
+  assert.ok(past.querySelector('[data-mw-week="2026-08-30"]'),'Earliest school-year week reachable');
+  assert.ok(future.querySelector('[data-mw-week="2027-08-29"]'),'Last school-year week reachable');
+  assert.doesNotMatch(source,/\.mw-table-scroll\{overflow:auto/);
+  assert.match(source,/\.mw-table\{width:100%;min-width:0/);
+  assert.match(source,/\.mw-week-picker>summary/);
+});
+test('clicked weeks expand a single additional column; returning current collapses it',async()=>{
+  const {api,ctx}=setup();
+  ctx.today='2026-10-21';
+  api.render(ctx);
+  await api.changeWeek(ctx,'2027-01-10');
+  let columns=[...ctx.host.querySelectorAll('.mw-table thead th')];
+  assert.equal(columns.length,4);
+  assert.deepEqual(columns.slice(1).map(n=>n.querySelector('[data-mw-week]').dataset.mwWeek),
+    ['2026-10-18','2026-10-11','2027-01-10']);
+  assert.ok(columns[1].classList.contains('mw-current'));
+  assert.ok(columns[3].classList.contains('mw-extra-week'));
+  assert.ok(ctx.host.querySelector('[data-mw-collapse]'));
+  await api.changeWeek(ctx,'2026-09-20');
+  columns=[...ctx.host.querySelectorAll('.mw-table thead th')];
+  assert.equal(columns.length,4,'Old opened extra column replaced, not added');
+  assert.equal(columns[3].querySelector('[data-mw-week]').dataset.mwWeek,'2026-09-20');
+  ctx.host.querySelector('[data-mw-collapse]').click();
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(ctx.host.querySelectorAll('.mw-table thead th').length,3);
+  assert.equal(ctx.week,'2026-10-18');
+});
+test('switching to a hidden week preserves unsaved entered figures before expanding',async()=>{
+  const {api,ctx,writes}=setup();
+  ctx.today='2026-10-21';
+  api.render(ctx);
+  await api.toggleEntry(ctx);
+  fill(ctx.host.querySelector('[data-mw-metric="activities"]'),'25');
+  assert.equal(await api.changeWeek(ctx,'2026-11-01'),true);
+  assert.equal(writes.length,1);
+  assert.equal(writes[0].metrics.activities,25);
+  assert.equal(writes[0].week_start,'2026-10-18');
+  assert.equal(ctx.entryExpanded,false);
+  assert.equal(ctx.host.querySelectorAll('.mw-table thead th').length,4);
+  await api.changeWeek(ctx,'2026-10-18');
+  assert.match(ctx.host.querySelector('.mw-table').textContent,/25/);
 });
