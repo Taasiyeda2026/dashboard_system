@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {JSDOM} from 'jsdom';
 import {agentCandidateResult,manualInstructorResult,createAgentAssignmentClient} from '../frontend/src/screens/course-scheduling-agent-selection.js';
-import {courseSchedulingScreen,instructorsResultsHtml} from '../frontend/src/screens/course-scheduling.js';
+import {courseSchedulingScreen,instructorsResultsHtml,selectedCourseNotesHtml} from '../frontend/src/screens/course-scheduling.js';
 import {supabase} from '../frontend/src/supabase-client.js';
 const version='2026-10-15T08:00:00Z';
 const course={row_id:'synthetic',activity_season:'school_2027',activity_type:'קורס',status:'פתוח',school:'בדיקה',authority:'בדיקה',activity_name:'בדיקה',updated_at:version,start_date:'2026-11-01',date_1:'2026-11-01',start_time:'10:00',end_time:'11:00'};
@@ -420,4 +420,72 @@ test('manual editor includes inactive instructors from the full directory and re
   assert.equal(f.data.activities[0].draft_emp_id,'9');
   assert.ok(!f.calls.some(c=>c.name==='get_scheduling_dashboard_candidates'));
  } finally {f.close();}
+});
+
+test('operator workboard prioritizes manual assignment above deferred agent planning', () => {
+ const f=ui();try{
+  const list=f.root.querySelector('[data-course-list]');
+  const summary=f.root.querySelector('.course-scheduling-summary');
+  const plan=f.root.querySelector('[data-planning-disclosure]');
+  assert.ok(summary&&list&&plan);
+  assert.ok(summary.compareDocumentPosition(list)&4,'summary appears before workboard');
+  assert.ok(list.compareDocumentPosition(plan)&4,'agent planning appears below workboard');
+  assert.equal(plan.open,false,'agent planning is collapsed by default');
+  assert.ok(plan.querySelector('.course-planning-completion-table'),'planning information remains available');
+  plan.open=true;plan.dispatchEvent(new window.Event('toggle'));
+  f.render();
+  assert.equal(f.root.querySelector('[data-planning-disclosure]').open,true,'disclosure survives rerender');
+ }finally{f.close();}
+});
+
+test('activity notes are escaped, labeled, and operational private notes are role-restricted',()=>{
+ const activity={notes:'תיאום מול בית הספר <script>alert(1)</script>',scheduling_note:'רביעי בלבד',operations_private_notes:'הערה תפעולית פנימית'};
+ const admin=selectedCourseNotesHtml(activity,{role:'admin'});
+ assert.match(admin,/הערות פעילות/);
+ assert.match(admin,/הנחיות לשיבוץ/);
+ assert.match(admin,/הערות תפעול/);
+ assert.match(admin,/&lt;script&gt;/);
+ assert.doesNotMatch(admin,/<script>/);
+ const basic=selectedCourseNotesHtml(activity,{role:'activities_manager',permissions:{view_operations_scheduling:'yes'}});
+ assert.doesNotMatch(basic,/הערה תפעולית פנימית/);
+ assert.match(basic,/רביעי בלבד/);
+});
+
+test('new server manual API makes one operator action and warning acknowledgement without an agent run',async()=>{
+ const f=ui({activityFields:{sessions:'1',notes:'לתאם מראש',scheduling_note:'להתקשר לבית הספר'},
+  rpcImpl:async(name,args)=>{
+   if(name==='scheduling_manual_capabilities')return {data:{apiVersion:'manual-operations-v1',enabled:true}};
+   if(name==='get_scheduling_manual_assignment_preview')return {data:{
+    previewHash:'approval-fence',blockers:[],warnings:[{code:'scheduling_conflict_detected',date:'2026-11-01',otherActivity:'other'}],
+    reasonRequired:true,instructorName:'בחירה ידנית',previousInstructorName:''
+   }};
+   if(name==='commit_scheduling_manual_assignment')return {data:{...course,emp_id:8,instructor_name:'בחירה ידנית',
+    notes:'לתאם מראש',scheduling_note:'להתקשר לבית הספר',updated_at:'2026-10-21T12:30:00Z'}};
+   if(name==='course_assignment_manager_approval_state')return {data:{requires_approval:false}};
+   if(name==='scheduling_course_meetings_completed')return {data:0};
+   if(name==='scheduling_course_meeting_instructors')return {data:[]};
+   return {data:[]};
+  }});
+ try{
+  await settle();
+  const card=f.root.querySelector('[data-course-card="synthetic"]');
+  assert.ok(card.querySelector('[data-open-manual-course]'));
+  assert.equal(card.querySelectorAll('[data-course-row-action]').length,1,'one row action instead of competing manual/agent buttons');
+  card.querySelector('[data-open-manual-course]').click();await settle();
+  let selected=f.root.querySelector('[data-manual-operation-field="empId"]');
+  assert.ok(selected,'independent manual editor opened');
+  selected.value='8';selected.dispatchEvent(new window.Event('change',{bubbles:true}));
+  f.root.querySelector('[data-manual-operation-check]').click();await settle();
+  const dialog=f.root.querySelector('[data-manual-operations-overlay] [role="alertdialog"]');
+  assert.ok(dialog,'conflict is a consolidated warning, not a hard reject');
+  const reason=f.root.querySelector('[data-manual-operation-field="reason"]');
+  reason.value='סוכם מראש מול המנהל';reason.dispatchEvent(new window.Event('input',{bubbles:true}));
+  const acknowledged=f.root.querySelector('[data-manual-operation-field="acknowledged"]');
+  acknowledged.checked=true;acknowledged.dispatchEvent(new window.Event('change',{bubbles:true}));
+  f.root.querySelector('[data-manual-operation-save]').click();await settle();
+  assert.equal(f.data.activities[0].emp_id,8);
+  assert.equal(f.calls.filter(c=>c.name==='commit_scheduling_manual_assignment').length,1);
+  assert.ok(!f.calls.some(c=>c.name==='get_scheduling_dashboard_candidates'),'no agent candidate evaluation');
+  assert.ok(!f.calls.some(c=>c.name==='scheduling_dashboard_assignment'),'no legacy gateway write');
+ }finally{f.close();}
 });
