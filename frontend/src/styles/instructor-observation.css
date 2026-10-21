@@ -186,3 +186,7 @@ button.io-review-row:focus-visible {outline:2px solid #08799d;outline-offset:2px
  .io-report h2 {margin-top:15px}
  .io-report footer {border-top:1px solid #cfdce4;color:#567;padding-top:9px;margin-top:30px;font-size:8pt}
 }
+
+.io-sp-saved {font-size:.85rem;background:#eff9f5;border:1px solid #bae3d0;color:#175e47;padding:10px 12px;border-radius:9px;line-height:1.5;margin:10px 0}
+.io-sp-saved a {color:#095f89;text-decoration:underline;font-weight:700;overflow-wrap:anywhere}
+.io-sp-warning {font-size:.84rem;background:#fff8ec;border:1px solid #f1dfbd;color:#8a5620;padding:9px 12px;border-radius:9px;margin:10px 0}
