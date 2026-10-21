@@ -491,3 +491,5 @@ config.HOTFIX_VERSION = 'manual-operator-warning-confirmation-20261021-v1-' + co
 config.HOTFIX_VERSION = 'manual-directory-warning-20261020-v1-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = 'observation-eye-sharepoint-pdf-20261021-v1-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'observation-in-app-view-original-sharepoint-pdf-20261021-v1-' + config.HOTFIX_VERSION;
