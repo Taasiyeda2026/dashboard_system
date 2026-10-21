@@ -318,3 +318,20 @@ test('dashboard visual layout is legible at desktop and narrow sizes without cha
   assert.ok(ctx.host.querySelector('[data-mw-report-entry]'));
   assert.ok(ctx.host.querySelector('[data-mw-tasks-root]'));
 });
+
+
+test('unsaved issue rows survive navigation to another metrics week',async()=>{
+  const {api,ctx}=setup();
+  const row=ctx.host.querySelector('[data-mw-task-draft]');
+  assert.ok(row,'The first editable problem row exists');
+  fill(row.querySelector('[data-mw-task-new="subject"]'),'מדריך חסר');
+  ctx.host.querySelector('[data-mw-task-new-row-add]').click();
+  const second=ctx.host.querySelectorAll('[data-mw-task-draft]')[1];
+  fill(second.querySelector('[data-mw-task-new="subject"]'),'ציוד חסר');
+  assert.equal(ctx.host.querySelectorAll('[data-mw-task-draft]').length,2);
+  await api.changeWeek(ctx,'2026-10-25');
+  const rows=ctx.host.querySelectorAll('[data-mw-task-draft]');
+  assert.equal(rows.length,2,'Unsubmitted problems remain available after switching weeks');
+  assert.equal(rows[0].querySelector('[data-mw-task-new="subject"]').value,'מדריך חסר');
+  assert.equal(rows[1].querySelector('[data-mw-task-new="subject"]').value,'ציוד חסר');
+});

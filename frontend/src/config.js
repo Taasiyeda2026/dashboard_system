@@ -495,3 +495,5 @@ config.HOTFIX_VERSION = 'observation-eye-sharepoint-pdf-20261021-v1-' + config.H
 config.HOTFIX_VERSION = 'observation-in-app-view-original-sharepoint-pdf-20261021-v1-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = 'observation-v2-forty-questions-20261021-v1-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'weekly-manager-multiple-problems-plus-20261021-v1-' + config.HOTFIX_VERSION;
