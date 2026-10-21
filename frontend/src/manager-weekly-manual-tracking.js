@@ -65,13 +65,13 @@ const styles = [
   '',
   '.mw-toolbar{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:14px 0}.mw-left{display:flex;gap:7px;align-items:center;flex-wrap:wrap}',
   '.mw-btn{border:1px solid #cad8e5;background:#fff;border-radius:8px;padding:8px 11px;color:#28445d;font-weight:650;cursor:pointer;font-family:inherit;font-size:12px}.mw-btn:hover{background:#eef7fa}.mw-btn:disabled{opacity:.5;cursor:not-allowed}.mw-primary{background:#2496b3;color:#fff;border-color:#2496b3}.mw-primary:hover{background:#1c819d;color:#fff}',
-  '.mw-table-scroll{overflow:visible;width:100%;max-width:900px;border:1px solid #e0e7ef;border-radius:11px;margin:11px 0 8px}.mw-table{width:100%;min-width:0;table-layout:fixed;border-collapse:collapse;text-align:center}.mw-table th,.mw-table td{padding:10px 8px;border-bottom:1px solid #e8edf3;vertical-align:middle;text-align:center;overflow-wrap:anywhere}.mw-table th:first-child,.mw-table td:first-child{width:37%;text-align:right;background:#fff}.mw-table thead th{background:#f5f8fb;font-size:12px;color:#586b7d}.mw-table tr:last-child td,.mw-table tr:last-child th{border-bottom:0}.mw-table tbody th{font-weight:600;text-align:right}.mw-table thead th:first-child{background:#f5f8fb}.mw-table .mw-current{background:#dff3fa;color:#154f69;font-weight:750}.mw-table thead .mw-current{background:#c8e9f4;box-shadow:inset 0 3px 0 #1684aa}.mw-table .mw-focus{background:#f1f8fd}.mw-table thead .mw-focus{box-shadow:inset 0 3px 0 #8ab6d0}.mw-week-btn{display:flex;flex-direction:column;align-items:center;gap:3px;width:100%;border:0;background:transparent;color:inherit;cursor:pointer;font-weight:750;padding:3px;text-align:center}.mw-week-btn:hover .mw-week-range{text-decoration:underline}.mw-week-kind{font-size:10px;font-weight:800;color:#1c7894}.mw-week-range{font-size:12px}.mw-week-status{display:block;font-weight:400;color:#71899a;font-size:10px}.mw-week-navigation{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;margin:0 0 18px}.mw-week-picker{position:relative}.mw-week-picker>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid #cad8e5;border-radius:8px;color:#28445d;font-size:12px;font-weight:650;background:#fff}.mw-week-picker>summary::-webkit-details-marker{display:none}.mw-week-picker[open]>summary{background:#eef8fb;border-color:#9fc5d6}.mw-week-picker-options{display:flex;flex-wrap:wrap;align-items:center;gap:5px;padding:10px;border:1px solid #d9e5ed;border-radius:9px;margin-top:5px;max-width:min(600px,calc(100vw - 80px));background:#fafdff}.mw-week-choice{font-variant-numeric:tabular-nums;padding:6px 9px;font-size:11px}.mw-week-choice.is-selected{background:#e5f3fa;border-color:#3395b1}.mw-collapse-extra{border-color:#a9d4e0}.mw-table .mw-out-of-period{background:#f7f9fa;color:#9baab4}.mw-week-placeholder{cursor:default}.mw-extra-panel{background:#f8fbfd;border:1px solid #d9e8ee;border-radius:10px;margin:10px 0 18px;padding:13px}.mw-extra-panel-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;color:#28475c}.mw-extra-panel-head span{font-size:12px;color:#627f8c}.mw-extra-panel-head .mw-btn{margin-inline-start:auto}.mw-extra-table{width:100%;border-collapse:collapse;table-layout:fixed}.mw-extra-table th,.mw-extra-table td{border-bottom:1px solid #e0ebf0;padding:7px 10px;text-align:right}.mw-extra-table thead th{background:#ecf5fa}',
+  '.mw-table-scroll{overflow:visible;width:100%;max-width:900px;border:1px solid #e0e7ef;border-radius:11px;margin:11px 0 8px}.mw-table{width:100%;min-width:0;table-layout:fixed;border-collapse:collapse;text-align:center}.mw-table th,.mw-table td{padding:10px 8px;border-bottom:1px solid #e8edf3;vertical-align:middle;text-align:center;overflow-wrap:anywhere}.mw-table th:first-child,.mw-table td:first-child{width:34%;text-align:right;background:#fff}.mw-table thead th{background:#f5f8fb;font-size:12px;color:#586b7d}.mw-table tr:last-child td,.mw-table tr:last-child th{border-bottom:0}.mw-table tbody th{font-weight:600;text-align:right}.mw-table thead th:first-child{background:#f5f8fb}.mw-table .mw-current{background:#dff3fa;color:#154f69;font-weight:750}.mw-table thead .mw-current{background:#c8e9f4;box-shadow:inset 0 3px 0 #1684aa}.mw-table .mw-focus{background:#f1f8fd}.mw-table thead .mw-focus{box-shadow:inset 0 3px 0 #8ab6d0}.mw-week-btn{display:flex;flex-direction:column;align-items:center;gap:3px;width:100%;border:0;background:transparent;color:inherit;cursor:pointer;font-weight:750;padding:3px;text-align:center}.mw-week-btn:hover .mw-week-range{text-decoration:underline}.mw-week-kind{font-size:10px;font-weight:800;color:#1c7894}.mw-week-range{font-size:12px;white-space:nowrap}.mw-week-status{display:block;font-weight:400;color:#71899a;font-size:10px}.mw-week-navigation{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;margin:0 0 18px}.mw-week-picker{position:relative}.mw-week-picker>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid #cad8e5;border-radius:8px;color:#28445d;font-size:12px;font-weight:650;background:#fff}.mw-week-picker>summary::-webkit-details-marker{display:none}.mw-week-picker[open]>summary{background:#eef8fb;border-color:#9fc5d6}.mw-week-picker-options{display:flex;flex-wrap:wrap;align-items:center;gap:5px;padding:10px;border:1px solid #d9e5ed;border-radius:9px;margin-top:5px;max-width:min(600px,calc(100vw - 80px));background:#fafdff}.mw-week-choice{font-variant-numeric:tabular-nums;padding:6px 9px;font-size:11px}.mw-week-choice.is-selected{background:#e5f3fa;border-color:#3395b1}.mw-collapse-extra{border-color:#a9d4e0}.mw-table .mw-out-of-period{background:#f7f9fa;color:#9baab4}.mw-week-placeholder{cursor:default}.mw-extra-panel{background:#f8fbfd;border:1px solid #d9e8ee;border-radius:10px;margin:10px 0 18px;padding:13px}.mw-extra-panel-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;color:#28475c}.mw-extra-panel-head span{font-size:12px;color:#627f8c}.mw-extra-panel-head .mw-btn{margin-inline-start:auto}.mw-extra-table{width:100%;border-collapse:collapse;table-layout:fixed}.mw-extra-table th,.mw-extra-table td{border-bottom:1px solid #e0ebf0;padding:7px 10px;text-align:right}.mw-extra-table thead th{background:#ecf5fa}',
   '.mw-section{border-top:1px solid #e5ebf1;padding-top:17px;margin-top:16px}.mw-section-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.mw-section h3{font-size:15px;font-weight:750}',
   '.mw-fields{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.mw-field{display:flex;flex-direction:column;gap:5px;color:#506376;font-size:12px;font-weight:600}.mw-field input,.mw-field textarea,.mw-field select{border:1px solid #cad7e2;border-radius:8px;min-height:36px;padding:8px 10px;color:#1c3449;background:#fff;font-size:13px;font-family:inherit;width:100%;direction:rtl}.mw-fields .mw-field{min-width:0}.mw-fields .mw-field input{width:100%;min-width:0;box-sizing:border-box;align-self:flex-start}.mw-field textarea{min-height:72px;resize:vertical}.mw-field input:focus,.mw-field textarea:focus{outline:2px solid #b3e5f0}.mw-textareas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.mw-opening{display:grid;grid-template-columns:1fr 1fr 1fr 132px 1fr auto;gap:7px;align-items:end;padding:9px;border:1px solid #e3ebf1;border-radius:9px;margin-top:8px;background:#fcfdff}.mw-opening .mw-field{min-width:0}.mw-opening-extra{grid-column:1/-1}',
   '.mw-foot{display:flex;align-items:center;gap:9px;justify-content:flex-end;flex-wrap:wrap;margin-top:15px}.mw-error{color:#b42318;background:#fff1f1;border:1px solid #f2d0ce;padding:10px;border-radius:9px;margin:10px 0}.mw-notice{color:#135d4e;background:#eafaf3;border:1px solid #c9ecdc;padding:10px;border-radius:9px;margin:10px 0}.mw-verify{margin-top:12px;background:#f5fafc;border:1px solid #dceaf0;border-radius:10px;padding:11px}.mw-verify ul{margin:8px 20px 0 0;padding:0}.mw-empty{padding:24px;text-align:center;color:#64748b}.mw-program{border:1px solid #e3ebf1;border-radius:10px;margin:10px 0;padding:12px;background:#fbfdff}.mw-program-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:9px}.mw-sr-only{position:absolute;left:-10000px}',
   '.mw-report-entry [data-mw-report-fields][hidden]{display:none!important}.mw-entry-status{margin-inline-start:auto}.mw-entry-chevron{font-size:16px}.mw-task-scroll{overflow:auto;max-width:100%;border:1px solid #e2ebf0;border-radius:10px;margin:12px 0}.mw-task-table{width:100%;min-width:1150px;border-collapse:collapse;text-align:right}.mw-task-table th,.mw-task-table td{padding:8px;border-bottom:1px solid #e5edf1}.mw-task-table th{background:#f4f8fb;white-space:nowrap;font-size:12px}.mw-task-table td input,.mw-task-table td select{width:100%;border:1px solid #cbdce5;border-radius:7px;padding:7px;min-height:34px;font:inherit;font-size:12px;background:#fff;color:#23384b;box-sizing:border-box}.mw-task-table td input:disabled,.mw-task-table td select:disabled{background:#f5f7f9}.mw-task-form{display:grid;grid-template-columns:1.4fr 1fr .9fr .9fr .8fr;gap:8px;align-items:end;margin-top:11px}.mw-task-form .mw-field{margin:0}.mw-task-notes{margin-top:8px}.mw-task-status{font-size:11px;color:#62778a}.mw-snapshot{border:1px solid #e1e9f0;background:#f8fbfd;padding:12px;border-radius:10px;margin-top:12px}.mw-snapshot ul{margin:7px 20px 0 0;padding:0}.mw-snapshot li{line-height:1.6}.mw-task-empty{padding:14px;color:#62768a;text-align:center}',
   '@media(max-width:950px){.mw-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.mw-opening{grid-template-columns:repeat(2,minmax(0,1fr))}.mw-opening-extra{grid-column:auto}.mw-task-form{grid-template-columns:repeat(2,minmax(0,1fr))}}',
-  '@media(max-width:610px){.mw-tracker{padding:13px 11px}.mw-fields,.mw-textareas,.mw-program-grid,.mw-opening{grid-template-columns:1fr}.mw-header h2{font-size:17px}.mw-section{margin-top:12px}.mw-opening-extra{grid-column:auto}.mw-table th,.mw-table td{padding:8px 4px;font-size:11px}.mw-week-kind,.mw-week-status{font-size:9px}.mw-week-range{font-size:10px}.mw-week-picker-options{max-width:calc(100vw - 55px)}}'
+  '@media(max-width:610px){.mw-tracker{padding:13px 11px}.mw-fields,.mw-textareas,.mw-program-grid,.mw-opening{grid-template-columns:1fr}.mw-header h2{font-size:17px}.mw-section{margin-top:12px}.mw-opening-extra{grid-column:auto}.mw-table th,.mw-table td{padding:8px 4px;font-size:11px}.mw-week-kind,.mw-week-status{font-size:9px}.mw-week-range{font-size:10px;display:flex;flex-direction:column;align-items:center;gap:0;white-space:normal}.mw-week-divider{display:none}.mw-week-status{display:none}.mw-table th:first-child,.mw-table td:first-child{width:30%}.mw-week-picker-options{max-width:calc(100vw - 55px)}}'
 ].join('');
 function ensureStyle() {
   if (document.getElementById('manager-weekly-manual-style')) return;
@@ -127,10 +127,10 @@ function timelineWeeks() {
   for(let week=REPORT_START;week<=REPORT_LAST_WEEK;week=shiftWeek(week,1))weeks.push(week);
   return weeks;
 }
-/** RTL column order: previous (right), current (centre), next (left), ALWAYS 3. */
+/** RTL order: two older weeks on the right, current in the centre, two newer weeks on the left. */
 function visibleWeeks(ctx) {
   const current=timelineCurrentWeek(ctx);
-  return [shiftWeek(current,-1),current,shiftWeek(current,1)];
+  return [shiftWeek(current,-2),shiftWeek(current,-1),current,shiftWeek(current,1),shiftWeek(current,2)];
 }
 function extraWeekMarkup(ctx) {
   const base=visibleWeeks(ctx);
@@ -147,7 +147,7 @@ function extraWeekMarkup(ctx) {
     '</tbody></table></section>';
 }
 function weekSelector(ctx) {
-  const [previous,current,next]=visibleWeeks(ctx),all=timelineWeeks();
+  const [oldest,, , ,newest]=visibleWeeks(ctx),all=timelineWeeks();
   const group=(title,weeks,kind)=>weeks.length?
     '<details class="mw-week-picker" data-mw-picker="'+kind+'"><summary>'+title+' <span aria-hidden="true">▾</span></summary>'+
     '<div class="mw-week-picker-options" role="group" aria-label="'+title+'">'+weeks.map(week=>
@@ -155,13 +155,13 @@ function weekSelector(ctx) {
       '" data-mw-week="'+esc(week)+'" aria-pressed="'+(week===ctx.expandedWeek)+'">'+labelWeek(week)+
       (ctx.reports.some(r=>r.week_start===week)?' •':'')+'</button>').join('')+'</div></details>':'';
   return '<div class="mw-week-navigation" aria-label="פתיחת שבועות נוספים">'+
-    group('שבועות קודמים',all.filter(week=>week<previous).reverse(),'past')+
-    group('שבועות הבאים',all.filter(week=>week>next),'future')+
+    group('שבועות קודמים',all.filter(week=>week<oldest).reverse(),'past')+
+    group('שבועות הבאים',all.filter(week=>week>newest),'future')+
     '</div>'+extraWeekMarkup(ctx);
 }
 function tableMarkup(ctx) {
   const weeks=visibleWeeks(ctx),current=timelineCurrentWeek(ctx);
-  const labels=['השבוע שחלף','השבוע הנוכחי','השבוע הבא'];
+  const labels=['לפני שבועיים','השבוע שחלף','השבוע הנוכחי','השבוע הבא','בעוד שבועיים'];
   const cls=(week)=>week===current?'mw-current':'';
   const headers=weeks.map((week,i)=>{
     const valid=inReportPeriod(week);
@@ -169,12 +169,15 @@ function tableMarkup(ctx) {
     const status=!valid?'מחוץ לתקופת המעקב':
       report?.status==='submitted'?'דווח להנהלה':report?'נשמר':'לא מולא';
     const label=valid?labelWeek(week):'—';
+    const [from,to]=label.split('–');
+    const range=valid?'<span class="mw-week-start">'+esc(from)+'</span>'+
+      '<span class="mw-week-divider">–</span><span class="mw-week-end">'+esc(to)+'</span>':'—';
     return '<th scope="col" class="'+cls(week)+(valid?'':' mw-out-of-period')+'">'+
       (valid?'<button type="button" class="mw-week-btn" data-mw-week="'+esc(week)+'" '+
         (week===ctx.week?'aria-current="date"':'')+'>':
         '<div class="mw-week-btn mw-week-placeholder">')+
       '<span class="mw-week-kind">'+labels[i]+'</span>'+
-      '<span class="mw-week-range">'+label+'</span><span class="mw-week-status">'+status+'</span>'+
+      '<span class="mw-week-range">'+range+'</span><span class="mw-week-status">'+status+'</span>'+
       (valid?'</button>':'</div>')+'</th>';
   }).join('');
   const rows=MANUAL_METRICS.map(([metric,title])=>'<tr><th scope="row">'+esc(title)+'</th>'+
