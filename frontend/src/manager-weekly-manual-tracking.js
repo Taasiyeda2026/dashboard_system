@@ -12,6 +12,11 @@ export const MANUAL_METRICS = [
 const READONLY_ROLES = new Set(['admin', 'operation_manager']);
 const CLOSED = new Set(['בוטל', 'מבוטל', 'נמחק', 'סגור', 'cancelled', 'canceled', 'deleted', 'closed', 'inactive']);
 const TRACKER_CLASS = 'mw-tracker';
+export const REPORT_START = '2026-10-04';
+export const REPORT_END = '2027-06-30';
+const REPORT_LAST_WEEK = '2027-06-27';
+const inReportPeriod = week => week >= REPORT_START && week <= REPORT_LAST_WEEK;
+const clampReportWeek = week => week < REPORT_START ? REPORT_START : week > REPORT_LAST_WEEK ? REPORT_LAST_WEEK : week;
 const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const val = (value) => String(value ?? '').trim();
 const isoDate = (date) => [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
@@ -35,6 +40,7 @@ function initialWeek(ym) {
 function labelWeek(start) {
   const end = dateFromIso(start);
   end.setDate(end.getDate() + 6);
+  if (inReportPeriod(start) && isoDate(end) > REPORT_END) end.setTime(dateFromIso(REPORT_END).getTime());
   const short = (d) => [String(d.getDate()).padStart(2, '0'), String(d.getMonth() + 1).padStart(2, '0')].join('.');
   return short(dateFromIso(start)) + '–' + short(end);
 }
@@ -59,7 +65,7 @@ const styles = [
   '',
   '.mw-toolbar{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:14px 0}.mw-left{display:flex;gap:7px;align-items:center;flex-wrap:wrap}',
   '.mw-btn{border:1px solid #cad8e5;background:#fff;border-radius:8px;padding:8px 11px;color:#28445d;font-weight:650;cursor:pointer;font-family:inherit;font-size:12px}.mw-btn:hover{background:#eef7fa}.mw-btn:disabled{opacity:.5;cursor:not-allowed}.mw-primary{background:#2496b3;color:#fff;border-color:#2496b3}.mw-primary:hover{background:#1c819d;color:#fff}',
-  '.mw-table-scroll{overflow:visible;max-width:100%;border:1px solid #e0e7ef;border-radius:11px;margin:11px 0 8px}.mw-table{width:100%;min-width:0;table-layout:fixed;border-collapse:collapse;text-align:center}.mw-table th,.mw-table td{padding:10px 8px;border-bottom:1px solid #e8edf3;vertical-align:middle;text-align:center;overflow-wrap:anywhere}.mw-table th:first-child,.mw-table td:first-child{width:38%;text-align:right;background:#fff}.mw-table--expanded th:first-child,.mw-table--expanded td:first-child{width:31%}.mw-table thead th{background:#f5f8fb;font-size:12px;color:#586b7d}.mw-table tr:last-child td,.mw-table tr:last-child th{border-bottom:0}.mw-table tbody th{font-weight:600;text-align:right}.mw-table thead th:first-child{background:#f5f8fb}.mw-table .mw-current{background:#dff3fa;color:#154f69;font-weight:750}.mw-table thead .mw-current{background:#c8e9f4;box-shadow:inset 0 3px 0 #1684aa}.mw-table .mw-focus{background:#f1f8fd}.mw-table thead .mw-focus{box-shadow:inset 0 3px 0 #8ab6d0}.mw-week-btn{display:flex;flex-direction:column;align-items:center;gap:3px;width:100%;border:0;background:transparent;color:inherit;cursor:pointer;font-weight:750;padding:3px;text-align:center}.mw-week-btn:hover .mw-week-range{text-decoration:underline}.mw-week-kind{font-size:10px;font-weight:800;color:#1c7894}.mw-week-range{font-size:12px}.mw-week-status{display:block;font-weight:400;color:#71899a;font-size:10px}.mw-week-navigation{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;margin:0 0 18px}.mw-week-picker{position:relative}.mw-week-picker>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid #cad8e5;border-radius:8px;color:#28445d;font-size:12px;font-weight:650;background:#fff}.mw-week-picker>summary::-webkit-details-marker{display:none}.mw-week-picker[open]>summary{background:#eef8fb;border-color:#9fc5d6}.mw-week-picker-options{display:flex;flex-wrap:wrap;align-items:center;gap:5px;padding:10px;border:1px solid #d9e5ed;border-radius:9px;margin-top:5px;max-width:min(600px,calc(100vw - 80px));background:#fafdff}.mw-week-choice{font-variant-numeric:tabular-nums;padding:6px 9px;font-size:11px}.mw-week-choice.is-selected{background:#e5f3fa;border-color:#3395b1}.mw-collapse-extra{border-color:#a9d4e0}.mw-table .mw-extra-week{background:#f6fbff}',
+  '.mw-table-scroll{overflow:visible;max-width:100%;border:1px solid #e0e7ef;border-radius:11px;margin:11px 0 8px}.mw-table{width:100%;min-width:0;table-layout:fixed;border-collapse:collapse;text-align:center}.mw-table th,.mw-table td{padding:10px 8px;border-bottom:1px solid #e8edf3;vertical-align:middle;text-align:center;overflow-wrap:anywhere}.mw-table th:first-child,.mw-table td:first-child{width:31%;text-align:right;background:#fff}.mw-table thead th{background:#f5f8fb;font-size:12px;color:#586b7d}.mw-table tr:last-child td,.mw-table tr:last-child th{border-bottom:0}.mw-table tbody th{font-weight:600;text-align:right}.mw-table thead th:first-child{background:#f5f8fb}.mw-table .mw-current{background:#dff3fa;color:#154f69;font-weight:750}.mw-table thead .mw-current{background:#c8e9f4;box-shadow:inset 0 3px 0 #1684aa}.mw-table .mw-focus{background:#f1f8fd}.mw-table thead .mw-focus{box-shadow:inset 0 3px 0 #8ab6d0}.mw-week-btn{display:flex;flex-direction:column;align-items:center;gap:3px;width:100%;border:0;background:transparent;color:inherit;cursor:pointer;font-weight:750;padding:3px;text-align:center}.mw-week-btn:hover .mw-week-range{text-decoration:underline}.mw-week-kind{font-size:10px;font-weight:800;color:#1c7894}.mw-week-range{font-size:12px}.mw-week-status{display:block;font-weight:400;color:#71899a;font-size:10px}.mw-week-navigation{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;margin:0 0 18px}.mw-week-picker{position:relative}.mw-week-picker>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid #cad8e5;border-radius:8px;color:#28445d;font-size:12px;font-weight:650;background:#fff}.mw-week-picker>summary::-webkit-details-marker{display:none}.mw-week-picker[open]>summary{background:#eef8fb;border-color:#9fc5d6}.mw-week-picker-options{display:flex;flex-wrap:wrap;align-items:center;gap:5px;padding:10px;border:1px solid #d9e5ed;border-radius:9px;margin-top:5px;max-width:min(600px,calc(100vw - 80px));background:#fafdff}.mw-week-choice{font-variant-numeric:tabular-nums;padding:6px 9px;font-size:11px}.mw-week-choice.is-selected{background:#e5f3fa;border-color:#3395b1}.mw-collapse-extra{border-color:#a9d4e0}.mw-table .mw-out-of-period{background:#f7f9fa;color:#9baab4}.mw-week-placeholder{cursor:default}.mw-extra-panel{background:#f8fbfd;border:1px solid #d9e8ee;border-radius:10px;margin:10px 0 18px;padding:13px}.mw-extra-panel-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;color:#28475c}.mw-extra-panel-head span{font-size:12px;color:#627f8c}.mw-extra-panel-head .mw-btn{margin-inline-start:auto}.mw-extra-table{width:100%;border-collapse:collapse;table-layout:fixed}.mw-extra-table th,.mw-extra-table td{border-bottom:1px solid #e0ebf0;padding:7px 10px;text-align:right}.mw-extra-table thead th{background:#ecf5fa}',
   '.mw-section{border-top:1px solid #e5ebf1;padding-top:17px;margin-top:16px}.mw-section-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.mw-section h3{font-size:15px;font-weight:750}',
   '.mw-fields{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.mw-field{display:flex;flex-direction:column;gap:5px;color:#506376;font-size:12px;font-weight:600}.mw-field input,.mw-field textarea,.mw-field select{border:1px solid #cad7e2;border-radius:8px;min-height:36px;padding:8px 10px;color:#1c3449;background:#fff;font-size:13px;font-family:inherit;width:100%;direction:rtl}.mw-fields .mw-field{min-width:0}.mw-fields .mw-field input{width:100%;min-width:0;box-sizing:border-box;align-self:flex-start}.mw-field textarea{min-height:72px;resize:vertical}.mw-field input:focus,.mw-field textarea:focus{outline:2px solid #b3e5f0}.mw-textareas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.mw-opening{display:grid;grid-template-columns:1fr 1fr 1fr 132px 1fr auto;gap:7px;align-items:end;padding:9px;border:1px solid #e3ebf1;border-radius:9px;margin-top:8px;background:#fcfdff}.mw-opening .mw-field{min-width:0}.mw-opening-extra{grid-column:1/-1}',
   '.mw-foot{display:flex;align-items:center;gap:9px;justify-content:flex-end;flex-wrap:wrap;margin-top:15px}.mw-error{color:#b42318;background:#fff1f1;border:1px solid #f2d0ce;padding:10px;border-radius:9px;margin:10px 0}.mw-notice{color:#135d4e;background:#eafaf3;border:1px solid #c9ecdc;padding:10px;border-radius:9px;margin:10px 0}.mw-verify{margin-top:12px;background:#f5fafc;border:1px solid #dceaf0;border-radius:10px;padding:11px}.mw-verify ul{margin:8px 20px 0 0;padding:0}.mw-empty{padding:24px;text-align:center;color:#64748b}.mw-program{border:1px solid #e3ebf1;border-radius:10px;margin:10px 0;padding:12px;background:#fbfdff}.mw-program-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:9px}.mw-sr-only{position:absolute;left:-10000px}',
@@ -112,23 +118,36 @@ function readForm(ctx) {
   // Preserve legacy details and notes without asking managers to re-enter them.
   return {...previous,metrics};
 }
-/** Keep the true current week and the week before always visible. */
-function timelineCurrentWeek(ctx) {return weekStartIso(ctx.today || new Date());}
-function timelineWeeks(ctx) {
-  const year=Number(ctx.year);
-  if(!Number.isInteger(year)||year<2020||year>2100)return [];
-  const start=weekStartIso((year-1)+'-09-01'), end=weekStartIso(year+'-08-31'),weeks=[];
-  for(let day=start;day<=end;day=shiftWeek(day,1))weeks.push(day);
+/** For תשפ״ז, only weeks starting within 04.10.2026—30.06.2027 can be selected. */
+function timelineCurrentWeek(ctx) {
+  return clampReportWeek(weekStartIso(ctx.today || new Date()));
+}
+function timelineWeeks() {
+  const weeks=[];
+  for(let week=REPORT_START;week<=REPORT_LAST_WEEK;week=shiftWeek(week,1))weeks.push(week);
   return weeks;
 }
+/** RTL column order: previous (right), current (centre), next (left), ALWAYS 3. */
 function visibleWeeks(ctx) {
-  const current=timelineCurrentWeek(ctx),previous=shiftWeek(current,-1);
-  return ctx.expandedWeek && ctx.expandedWeek!==current && ctx.expandedWeek!==previous
-    ? [current,previous,ctx.expandedWeek] : [current,previous];
+  const current=timelineCurrentWeek(ctx);
+  return [shiftWeek(current,-1),current,shiftWeek(current,1)];
+}
+function extraWeekMarkup(ctx) {
+  const base=visibleWeeks(ctx);
+  const week=ctx.expandedWeek;
+  if(!week || base.includes(week) || !inReportPeriod(week))return '';
+  const report=ctx.reports.find(r=>r.week_start===week);
+  const status=report?.status==='submitted'?'דווח להנהלה':report?'נתונים שמורים':'לא מולא';
+  return '<section class="mw-extra-panel" aria-label="נתונים לשבוע נוסף">'+
+    '<div class="mw-extra-panel-head"><strong>שבוע נוסף: '+labelWeek(week)+'</strong>'+
+    '<span>'+status+'</span><button type="button" class="mw-btn" data-mw-collapse>סגור שבוע נוסף</button></div>'+
+    '<table class="mw-extra-table"><thead><tr><th scope="col">מדד</th><th scope="col">ערך</th></tr></thead><tbody>'+
+    MANUAL_METRICS.map(([key,label])=>'<tr><th scope="row">'+esc(label)+'</th><td>'+
+      (report?.metrics?.[key]==null?'—':esc(report.metrics[key]))+'</td></tr>').join('')+
+    '</tbody></table></section>';
 }
 function weekSelector(ctx) {
-  const current=timelineCurrentWeek(ctx),previous=shiftWeek(current,-1);
-  const all=timelineWeeks(ctx);
+  const [previous,current,next]=visibleWeeks(ctx),all=timelineWeeks();
   const group=(title,weeks,kind)=>weeks.length?
     '<details class="mw-week-picker" data-mw-picker="'+kind+'"><summary>'+title+' <span aria-hidden="true">▾</span></summary>'+
     '<div class="mw-week-picker-options" role="group" aria-label="'+title+'">'+weeks.map(week=>
@@ -136,36 +155,36 @@ function weekSelector(ctx) {
       '" data-mw-week="'+esc(week)+'" aria-pressed="'+(week===ctx.expandedWeek)+'">'+labelWeek(week)+
       (ctx.reports.some(r=>r.week_start===week)?' •':'')+'</button>').join('')+'</div></details>':'';
   return '<div class="mw-week-navigation" aria-label="פתיחת שבועות נוספים">'+
-    group('שבועות קודמים',all.filter(w=>w<previous).reverse(),'past')+
-    group('שבועות הבאים',all.filter(w=>w>current),'future')+
-    (ctx.expandedWeek && ctx.expandedWeek!==current && ctx.expandedWeek!==previous?
-      '<button type="button" class="mw-btn mw-collapse-extra" data-mw-collapse>סגירת השבוע הנוסף</button>':'')+
-    '</div>';
+    group('שבועות קודמים',all.filter(week=>week<previous).reverse(),'past')+
+    group('שבועות הבאים',all.filter(week=>week>next),'future')+
+    '</div>'+extraWeekMarkup(ctx);
 }
 function tableMarkup(ctx) {
-  const weeks=visibleWeeks(ctx),current=timelineCurrentWeek(ctx),previous=shiftWeek(current,-1);
-  const cls=week=>[
-    week===current?'mw-current':'',
-    week===ctx.week&&week!==current?'mw-focus':'',
-    week!==current&&week!==previous?'mw-extra-week':''
-  ].filter(Boolean).join(' ');
-  const headers=weeks.map(week=>{
-    const report=ctx.reports.find(r=>r.week_start===week);
-    const status=report?.status==='submitted'?'דווח להנהלה':report?'נשמר':'לא מולא';
-    const type=week===current?'השבוע הנוכחי':week===previous?'השבוע הקודם':'שבוע נוסף';
-    return '<th scope="col" class="'+cls(week)+'"><button type="button" class="mw-week-btn" data-mw-week="'+
-      esc(week)+'" '+(week===ctx.week?'aria-current="date"':'')+'><span class="mw-week-kind">'+type+
-      '</span><span class="mw-week-range">'+labelWeek(week)+'</span><span class="mw-week-status">'+
-      status+'</span></button></th>';
+  const weeks=visibleWeeks(ctx),current=timelineCurrentWeek(ctx);
+  const labels=['השבוע שחלף','השבוע הנוכחי','השבוע הבא'];
+  const cls=(week)=>week===current?'mw-current':'';
+  const headers=weeks.map((week,i)=>{
+    const valid=inReportPeriod(week);
+    const report=valid?ctx.reports.find(r=>r.week_start===week):null;
+    const status=!valid?'מחוץ לתקופת המעקב':
+      report?.status==='submitted'?'דווח להנהלה':report?'נשמר':'לא מולא';
+    const label=valid?labelWeek(week):'—';
+    return '<th scope="col" class="'+cls(week)+(valid?'':' mw-out-of-period')+'">'+
+      (valid?'<button type="button" class="mw-week-btn" data-mw-week="'+esc(week)+'" '+
+        (week===ctx.week?'aria-current="date"':'')+'>':
+        '<div class="mw-week-btn mw-week-placeholder">')+
+      '<span class="mw-week-kind">'+labels[i]+'</span>'+
+      '<span class="mw-week-range">'+label+'</span><span class="mw-week-status">'+status+'</span>'+
+      (valid?'</button>':'</div>')+'</th>';
   }).join('');
   const rows=MANUAL_METRICS.map(([metric,title])=>'<tr><th scope="row">'+esc(title)+'</th>'+
     weeks.map(week=>{
-      const report=ctx.reports.find(r=>r.week_start===week);
+      const report=inReportPeriod(week)?ctx.reports.find(r=>r.week_start===week):null;
       const number=report?.metrics?.[metric];
       return '<td class="'+cls(week)+'" style="font-variant-numeric:tabular-nums">'+
         (number==null?'—':esc(number))+'</td>';
     }).join('')+'</tr>').join('');
-  return '<div class="mw-table-scroll"><table class="mw-table'+(weeks.length>2?' mw-table--expanded':'')+'">'+
+  return '<div class="mw-table-scroll"><table class="mw-table">'+
     '<thead><tr><th scope="col">מדדים</th>'+headers+'</tr></thead><tbody>'+rows+'</tbody></table></div>'+
     weekSelector(ctx);
 }
@@ -395,7 +414,7 @@ async function toggleEntry(ctx) {
   return true;
 }
 async function changeWeek(ctx,week) {
-  if(!isCurrent(ctx) || ctx.loading)return false;
+  if(!isCurrent(ctx) || ctx.loading || !inReportPeriod(week))return false;
   cancelAutoSave(ctx);
   if(ctx.saveInFlight) {
     const prior=await ctx.saveInFlight;
@@ -407,8 +426,8 @@ async function changeWeek(ctx,week) {
   }
   if(!isCurrent(ctx))return false;
   ctx.dirty=false;ctx.editingReport=null;ctx.notice=null;ctx.entryExpanded=false;ctx.week=week;
-  const base=timelineCurrentWeek(ctx),previous=shiftWeek(base,-1);
-  ctx.expandedWeek=week===base || week===previous?null:week;
+  const fixed=visibleWeeks(ctx);
+  ctx.expandedWeek=fixed.includes(week)?null:week;
   render(ctx);return true;
 }
 
@@ -417,7 +436,10 @@ function render(ctx) {
   const roleLabel = ctx.canEdit ? 'הזנה עצמאית למנהל הפעילות' : 'צפייה בדיווחי מנהל הפעילות';
   ctx.host.innerHTML = '<div class="' + TRACKER_CLASS + '">' +
     '<div class="mw-header"><div><h2>מעקב שבועי – פתיחות ומוכנות</h2><p class="mw-muted">' + esc(ctx.managerName) + ' · שנת פעילות ' + esc(ctx.year) + '</p></div><span class="mw-tag">' + esc(roleLabel) + '</span></div>' +
-    '<div class="mw-toolbar"><div class="mw-left"><button class="mw-btn" type="button" data-mw-prev>‹ שבוע קודם</button><strong>' + labelWeek(ctx.week) + '</strong><button class="mw-btn" type="button" data-mw-next>שבוע הבא ›</button><button class="mw-btn" type="button" data-mw-today>חזרה לשבוע הנוכחי</button></div></div>' +
+    '<div class="mw-toolbar"><div class="mw-left"><button class="mw-btn" type="button" data-mw-prev '+
+    (ctx.week===REPORT_START?'disabled':'')+'>‹ שבוע קודם</button><strong>' + labelWeek(ctx.week) +
+    '</strong><button class="mw-btn" type="button" data-mw-next '+(ctx.week===REPORT_LAST_WEEK?'disabled':'')+
+    '>שבוע הבא ›</button><button class="mw-btn" type="button" data-mw-today>חזרה לשבוע הנוכחי</button></div></div>' +
     '<div class="mw-section-head"><h3>1. מדדים שבועיים</h3></div><div data-mw-weekly-table>' + tableMarkup(ctx) + '</div>' + formMarkup(ctx) +
     '<div class="mw-section-head"><h3>2. בעיות ומעקב</h3></div><section class="mw-section" data-mw-tasks-root></section><div data-mw-notice></div></div>';
   bind(ctx);
@@ -572,7 +594,7 @@ export function mountManagerWeeklyManual(host, context) {
   const key = contextKey(context);
   if (active && active.host === host && active.key === key) return;
   const ctx = {
-    ...context, key, host, week: initialWeek(context.ym), reports: [],
+    ...context, key, host, week: clampReportWeek(initialWeek(context.ym)), reports: [],
     managerId: '', canEdit: false, loading: true, busy: false, taskBusy:false, dirty: false, notice: null, tasks: [],
     entryExpanded:false,autoSaveTimer:null,saveInFlight:null,changeSeq:0,editingReport:null,expandedWeek:null
   };
