@@ -4912,7 +4912,12 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
     allowedRoutes.push('proposals-agreements');
   }
   const canReviewRequests = canReviewEditRequestsUser(flat);
-  const canViewEditRequests = canReviewRequests || canRequestEdit || canRequestCreateActivity(flat) || permissionFlagYes(flat.view_edit_requests);
+  // Every active staff member with activity access needs the Approvals status
+  // workspace, even if they cannot submit or approve edits themselves.
+  // Viewing one's own requests never grants permission to approve others.
+  const canViewEditRequests = canReviewRequests || canRequestEdit || canRequestCreateActivity(flat)
+    || permissionFlagYes(flat.view_edit_requests)
+    || (role !== 'instructor' && permissionFlagYes(flat.view_activities));
   if (canViewEditRequests && !allowedRoutes.includes('edit-requests')) {
     allowedRoutes.push('edit-requests');
   }
@@ -7870,7 +7875,11 @@ export const api = {
       .order('requested_at', { ascending: false });
     if (error) throw new Error(error.message || 'edit_requests_read_failed');
     const currentUserId = String(state?.user?.user_id || '').trim();
-    const canReview = canReviewEditRequestsUser();
+    // DB RLS permits cross-user review for admin/operations only, not merely
+    // because a staff profile carries a legacy can_review_requests flag.
+    const role = String(state?.user?.role || '').trim();
+    const canReview = canReviewEditRequestsUser()
+      && (role === 'admin' || role === 'operation_manager');
     const rows = (Array.isArray(data) ? data : []).filter((row) => {
       if (canReview) return true;
       return currentUserId && String(row?.requested_by_user_id || '').trim() === currentUserId;
@@ -7895,7 +7904,8 @@ export const api = {
     const currentUserId = String(state?.user?.user_id || '').trim();
     if (!currentUserId) return { incoming: 0, sent: 0, total: 0 };
     const role = String(state?.user?.role || '').trim();
-    const canReview = canReviewEditRequestsUser();
+    const canReview = canReviewEditRequestsUser()
+      && (role === 'admin' || role === 'operation_manager');
     const reviewScheduling = role === 'admin';
     const reviewSubstitute = role === 'admin' || role === 'operation_manager';
     const openStatuses = ['pending','open','awaiting approval','awaiting_approval'];
