@@ -265,10 +265,10 @@ test('switching to a distant week saves the active metrics and preserves five co
   assert.equal(ctx.host.querySelector('.mw-extra-panel'),null);
   assert.match(ctx.host.querySelector('.mw-table').textContent,/25/);
 });
-test('five date columns retain the compact 900px table width and two-line dates on mobile',()=>{
+test('five date columns use a centred, balanced 1020px table and remain legible on mobile',()=>{
   const {ctx}=setup();
-  assert.match(source,/\.mw-table-scroll\{[^}]*width:100%;max-width:900px/);
-  assert.match(source,/\.mw-table th:first-child,\.mw-table td:first-child\{[^}]*width:34%/);
+  assert.match(source,/\.mw-table-scroll\{[^}]*width:100%;max-width:1020px/);
+  assert.match(source,/\.mw-table th:first-child,\.mw-table td:first-child\{[^}]*width:35%/);
   assert.match(source,/\.mw-week-range\{font-size:10px;display:flex;flex-direction:column/);
   assert.match(source,/\.mw-week-divider\{display:none\}/);
   assert.equal(ctx.host.querySelectorAll('.mw-table thead th').length,6);
@@ -289,4 +289,28 @@ test('admin sees why issues are read-only; activity manager can enter and save a
   assert.deepEqual([...ctx.host.querySelectorAll('[data-mw-task-new="status"] option')].map(x=>x.textContent),
     ['פתוח','סגור']);
   assert.ok(ctx.host.querySelector('[data-mw-task-add]'));
+});
+
+
+test('five-week table and its controls share a centred visual column without altering the data',()=>{
+  const {api,ctx}=setup();
+  ctx.today='2026-10-21';
+  api.render(ctx);
+  assert.match(source,/\.mw-tracker>\.mw-section-head,\.mw-tracker>\.mw-toolbar,\.mw-tracker>\[data-mw-weekly-table\]/);
+  assert.match(source,/\.mw-table-scroll\{margin:0 auto 7px/);
+  assert.match(source,/\.mw-week-range\{display:inline-flex;[^}]*direction:ltr;unicode-bidi:isolate/);
+  assert.match(source,/\.mw-week-start,\.mw-week-end\{direction:ltr;unicode-bidi:isolate\}/);
+  assert.match(source,/\.mw-table thead \.mw-current\{background:#bfe5f3/);
+  assert.match(source,/\.mw-tracker>\.mw-report-entry\{border:1px solid #e0eaf1/);
+  assert.match(source,/\.mw-task-empty\{padding:14px 16px;border:1px dashed #dce7ed/);
+  assert.match(source,/\.mw-tracker>\[data-mw-notice\] \.mw-notice\{display:inline-flex/);
+  assert.match(source,/\.mw-week-range\{display:flex;flex-direction:column/);
+  assert.match(source,/el\.textContent = styles \+ visualPolish/);
+  const header=[...ctx.host.querySelectorAll('.mw-table thead th')];
+  assert.equal(header.length,6);
+  assert.equal(header[3].querySelector('.mw-week-start').textContent,'18.10');
+  assert.equal(header[3].querySelector('.mw-week-end').textContent,'24.10');
+  assert.ok(header[3].classList.contains('mw-current'));
+  assert.ok(ctx.host.querySelector('[data-mw-report-entry]'));
+  assert.ok(ctx.host.querySelector('[data-mw-tasks-root]'));
 });
