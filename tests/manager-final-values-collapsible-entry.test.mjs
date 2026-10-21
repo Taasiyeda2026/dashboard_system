@@ -152,26 +152,28 @@ test('only five numeric metrics and the issue ledger are displayed, with no repe
 });
 
 
-test('current week is highlighted in the middle, with past on the right and next on the left',()=>{
+test('five date columns stay in RTL order with the current week highlighted at the centre',()=>{
   const {api,ctx}=setup();
   ctx.today='2026-10-21';
   api.render(ctx);
   const header=[...ctx.host.querySelectorAll('.mw-table thead th')];
-  assert.equal(header.length,4,'Metrics + exactly three weekly columns');
+  assert.equal(header.length,6,'Metrics + five week columns');
   assert.deepEqual(header.slice(1).map(h=>h.querySelector('[data-mw-week]').dataset.mwWeek),
-    ['2026-10-11','2026-10-18','2026-10-25']);
-  assert.match(header[1].textContent,/השבוע שחלף/);
-  assert.match(header[2].textContent,/השבוע הנוכחי/);
-  assert.match(header[3].textContent,/השבוע הבא/);
-  assert.ok(header[2].classList.contains('mw-current'),'Only the middle/current week is highlighted');
+    ['2026-10-04','2026-10-11','2026-10-18','2026-10-25','2026-11-01']);
+  assert.match(header[1].textContent,/לפני שבועיים/);
+  assert.match(header[2].textContent,/השבוע שחלף/);
+  assert.match(header[3].textContent,/השבוע הנוכחי/);
+  assert.match(header[4].textContent,/השבוע הבא/);
+  assert.match(header[5].textContent,/בעוד שבועיים/);
+  assert.ok(header[3].classList.contains('mw-current'),'Centre week is highlighted');
   assert.equal(ctx.host.querySelectorAll('.mw-table .mw-current').length,6);
   assert.equal(ctx.host.querySelectorAll('.mw-table tbody tr').length,5);
   for(const row of ctx.host.querySelectorAll('.mw-table tbody tr'))
-    assert.equal(row.children.length,4,'No fourth hidden week column');
+    assert.equal(row.children.length,6,'Exactly five week values per metric');
 });
-test('year 2027 reporting period is exactly 04 Oct 2026 through 30 Jun 2027',()=>{
+test('reporting calendar is 04 Oct 2026 to 30 Jun 2027; only distant weeks appear in pickers',()=>{
   const {api,ctx}=setup();
-  ctx.today='2026-10-21';
+  ctx.today='2026-11-11';
   api.render(ctx);
   assert.equal(api.REPORT_START,'2026-10-04');
   assert.equal(api.REPORT_END,'2027-06-30');
@@ -186,82 +188,90 @@ test('year 2027 reporting period is exactly 04 Oct 2026 through 30 Jun 2027',()=
   assert.ok(future&&!future.open);
   assert.ok(past.querySelector('[data-mw-week="2026-10-04"]'));
   assert.ok(future.querySelector('[data-mw-week="2027-06-27"]'));
+  for(const week of api.visibleWeeks(ctx)){
+    assert.equal(ctx.host.querySelector('.mw-week-picker [data-mw-week="'+week+'"]'),null,
+      'Already-visible weeks must not be duplicated in dropdowns');
+  }
   assert.equal(ctx.host.querySelector('[data-mw-week="2026-09-27"]'),null);
   assert.equal(ctx.host.querySelector('[data-mw-week="2027-07-04"]'),null);
-  assert.doesNotMatch(source,/\.mw-table-scroll\{overflow:auto/);
+  assert.doesNotMatch(source,/\.mw-table-scroll\{[^}]*overflow:auto/);
   assert.match(source,/\.mw-table\{width:100%;min-width:0/);
 });
-test('extra past and future weeks open BELOW the fixed three-column table',async()=>{
+test('distant selected weeks appear below but never add a sixth week column',async()=>{
   const {api,ctx}=setup();
   ctx.today='2026-10-21';
   api.render(ctx);
   await api.changeWeek(ctx,'2027-01-10');
   let columns=[...ctx.host.querySelectorAll('.mw-table thead th')];
-  assert.equal(columns.length,4);
+  assert.equal(columns.length,6);
   assert.deepEqual(columns.slice(1).map(n=>n.querySelector('[data-mw-week]').dataset.mwWeek),
-    ['2026-10-11','2026-10-18','2026-10-25']);
-  assert.ok(ctx.host.querySelector('.mw-extra-panel'));
+    ['2026-10-04','2026-10-11','2026-10-18','2026-10-25','2026-11-01']);
   assert.match(ctx.host.querySelector('.mw-extra-panel').textContent,/שבוע נוסף: 10.01–16.01/);
   assert.ok(ctx.host.querySelector('[data-mw-collapse]'));
-  await api.changeWeek(ctx,'2026-10-04');
+  await api.changeWeek(ctx,'2026-12-06');
   columns=[...ctx.host.querySelectorAll('.mw-table thead th')];
-  assert.equal(columns.length,4,'Extra selection never adds a fourth weekly column');
-  assert.match(ctx.host.querySelector('.mw-extra-panel').textContent,/04.10–10.10/);
+  assert.equal(columns.length,6);
+  assert.match(ctx.host.querySelector('.mw-extra-panel').textContent,/06.12–12.12/);
   ctx.host.querySelector('[data-mw-collapse]').click();
   await new Promise(resolve=>setImmediate(resolve));
-  assert.equal(ctx.host.querySelectorAll('.mw-table thead th').length,4);
+  assert.equal(ctx.host.querySelectorAll('.mw-table thead th').length,6);
   assert.equal(ctx.host.querySelector('.mw-extra-panel'),null);
   assert.equal(ctx.week,'2026-10-18');
 });
-test('week range boundaries preserve three columns but block dates outside period',async()=>{
+test('five positions remain at year boundaries, with out-of-range weeks disabled',async()=>{
   const {api,ctx}=setup();
   ctx.today='2026-10-04';
   ctx.week='2026-10-04';
   api.render(ctx);
   let headers=[...ctx.host.querySelectorAll('.mw-table thead th')];
-  assert.equal(headers.length,4);
+  assert.equal(headers.length,6);
   assert.equal(headers[1].querySelector('[data-mw-week]'),null);
+  assert.equal(headers[2].querySelector('[data-mw-week]'),null);
   assert.match(headers[1].textContent,/מחוץ לתקופת המעקב/);
-  assert.equal(headers[2].querySelector('[data-mw-week]').dataset.mwWeek,'2026-10-04');
-  assert.equal(headers[3].querySelector('[data-mw-week]').dataset.mwWeek,'2026-10-11');
+  assert.match(headers[2].textContent,/מחוץ לתקופת המעקב/);
+  assert.equal(headers[3].querySelector('[data-mw-week]').dataset.mwWeek,'2026-10-04');
+  assert.equal(headers[4].querySelector('[data-mw-week]').dataset.mwWeek,'2026-10-11');
+  assert.equal(headers[5].querySelector('[data-mw-week]').dataset.mwWeek,'2026-10-18');
   assert.equal(ctx.host.querySelector('[data-mw-prev]').disabled,true);
   assert.equal(await api.changeWeek(ctx,'2026-09-27'),false);
   ctx.today='2027-06-30';
   ctx.week='2027-06-27';
   api.render(ctx);
   headers=[...ctx.host.querySelectorAll('.mw-table thead th')];
-  assert.equal(headers.length,4);
-  assert.equal(headers[1].querySelector('[data-mw-week]').dataset.mwWeek,'2027-06-20');
-  assert.equal(headers[2].querySelector('[data-mw-week]').dataset.mwWeek,'2027-06-27');
-  assert.match(headers[2].textContent,/27.06–30.06/);
-  assert.equal(headers[3].querySelector('[data-mw-week]'),null);
+  assert.equal(headers.length,6);
+  assert.equal(headers[1].querySelector('[data-mw-week]').dataset.mwWeek,'2027-06-13');
+  assert.equal(headers[2].querySelector('[data-mw-week]').dataset.mwWeek,'2027-06-20');
+  assert.equal(headers[3].querySelector('[data-mw-week]').dataset.mwWeek,'2027-06-27');
+  assert.match(headers[3].textContent,/27.06–30.06/);
+  assert.equal(headers[4].querySelector('[data-mw-week]'),null);
+  assert.equal(headers[5].querySelector('[data-mw-week]'),null);
   assert.equal(ctx.host.querySelector('[data-mw-next]').disabled,true);
   assert.equal(await api.changeWeek(ctx,'2027-07-04'),false);
 });
-test('switching to another week saves entered metrics and preserves the 3-column arrangement',async()=>{
+test('switching to a distant week saves the active metrics and preserves five columns',async()=>{
   const {api,ctx,writes}=setup();
   ctx.today='2026-10-21';
   api.render(ctx);
   await api.toggleEntry(ctx);
   fill(ctx.host.querySelector('[data-mw-metric="activities"]'),'25');
-  assert.equal(await api.changeWeek(ctx,'2026-11-01'),true);
+  assert.equal(await api.changeWeek(ctx,'2026-12-06'),true);
   assert.equal(writes.length,1);
   assert.equal(writes[0].metrics.activities,25);
   assert.equal(writes[0].week_start,'2026-10-18');
   assert.equal(ctx.entryExpanded,false);
-  assert.equal(ctx.host.querySelectorAll('.mw-table thead th').length,4);
+  assert.equal(ctx.host.querySelectorAll('.mw-table thead th').length,6);
   assert.ok(ctx.host.querySelector('.mw-extra-panel'));
   await api.changeWeek(ctx,'2026-10-18');
   assert.equal(ctx.host.querySelector('.mw-extra-panel'),null);
   assert.match(ctx.host.querySelector('.mw-table').textContent,/25/);
 });
-
-
-test('weekly table is compact on desktop while keeping the three fixed week columns',()=>{
+test('five date columns retain the compact 900px table width and two-line dates on mobile',()=>{
   const {ctx}=setup();
   assert.match(source,/\.mw-table-scroll\{[^}]*width:100%;max-width:900px/);
-  assert.match(source,/\.mw-table th:first-child,\.mw-table td:first-child\{[^}]*width:37%/);
-  assert.equal(ctx.host.querySelectorAll('.mw-table thead th').length,4);
+  assert.match(source,/\.mw-table th:first-child,\.mw-table td:first-child\{[^}]*width:34%/);
+  assert.match(source,/\.mw-week-range\{font-size:10px;display:flex;flex-direction:column/);
+  assert.match(source,/\.mw-week-divider\{display:none\}/);
+  assert.equal(ctx.host.querySelectorAll('.mw-table thead th').length,6);
   assert.equal(ctx.host.querySelectorAll('.mw-table tbody tr').length,5);
   assert.ok(ctx.host.querySelector('.mw-table-scroll'));
   assert.doesNotMatch(source,/\.mw-table-scroll\{[^}]*overflow:auto/);
