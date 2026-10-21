@@ -7,6 +7,8 @@ import {JSDOM} from 'jsdom';
 const runtime=readFileSync(new URL('../frontend/src/instructor-observation-runtime.js',import.meta.url),'utf8')
  .replace(/^import .*?;\s*$/gm,'')
  .replace(/export function /g,'function ');
+const questionnaire=readFileSync(new URL('../frontend/src/instructor-observation-questionnaire.js',import.meta.url),'utf8')
+ .replace(/export const /g,'const ');
 const tick=()=>new Promise(r=>setTimeout(r,20));
 
 test('manager completes, reopens read-only data, and downloads only the archived PDF',async()=>{
@@ -62,7 +64,7 @@ test('manager completes, reopens read-only data, and downloads only the archived
   URL:w.URL,Date,Promise
  });
  try{
-  vm.runInContext(runtime+'; installInstructorObservationRuntime({getUser:()=>({role:"operation_manager",is_active:true,full_name:"צופה"})});',context);
+  vm.runInContext(questionnaire+runtime+'; installInstructorObservationRuntime({getUser:()=>({role:"operation_manager",is_active:true,full_name:"צופה"})});',context);
   await tick();
   const click=async selector=>{
    const el=w.document.querySelector(selector);
@@ -77,6 +79,7 @@ test('manager completes, reopens read-only data, and downloads only the archived
   await click('[data-io-action="new"]');
   assert.equal(records.length,1);
   assert.equal(records[0].details.observation_slot,1);
+  assert.equal(records[0].details.form_version,2,'New observations always use the approved 40-question form');
   await click('[data-io-action="next"]');
   const fill=(sel,value)=>{
    const el=w.document.querySelector(sel);
@@ -125,16 +128,19 @@ test('manager completes, reopens read-only data, and downloads only the archived
   assert.ok(scoreRow,'The domain contains a graded question');
   assert.deepEqual(
     [...scoreRow.querySelectorAll('[data-io-answer]')].map(el=>el.value),
-    ['5','4','3','2','1'],'All graded questions have five numbered options');
+    ['5','4','3','2','1','לא נצפה','לא רלוונטי'],'Every domain rating offers five scores and two no-grade reasons');
   assert.deepEqual(
     [...scoreRow.querySelectorAll('.io-option span')].map(el=>el.textContent),
-    ['5 – מצוין','4 – טוב מאוד','3 – טוב','2 – טעון שיפור','1 – חלש']);
+    ['5 – מצוין','4 – טוב מאוד','3 – טוב','2 – טעון שיפור','1 – חלש','לא נצפה','לא רלוונטי']);
   // Deliberately skip the fourth observation section to test direct review navigation.
-  for(let section=0;section<6;section++){
+  for(let section=0;section<11;section++){
    const groups=new Set([...w.document.querySelectorAll('[data-io-answer]')].map(x=>x.name));
-   if(section!==3) for(const name of groups){
-    const first=[...w.document.querySelectorAll('[data-io-answer]')].find(x=>x.name===name);
-    first.click();
+   if(section!==3) {
+    for(const name of groups){
+     const options=[...w.document.querySelectorAll('[data-io-answer]')].filter(x=>x.name===name);
+     (section===1?options.find(x=>x.value==='לא נצפה'):options[0]).click();
+    }
+    fill('[data-io-comment="'+section+'"]','דוגמה מתועדת מהצפייה '+section);
    }
    await click('[data-io-action="next"]');
   }
@@ -142,6 +148,7 @@ test('manager completes, reopens read-only data, and downloads only the archived
   await click('[data-io-overall][value="4"]');
   fill('[data-io-text="strengths"]','חוזקות מקצועיות');
   fill('[data-io-text="improvements"]','המלצה לשיפור');
+  fill('[data-io-detail="recommendations"]','פעולות מקצועיות לשיפור');
   fill('[data-io-text="summary"]','דוח תצפית מלא');
   await click('[data-io-action="next"]');
   // Final review must show precisely the skipped step as an actionable row.
@@ -155,15 +162,16 @@ test('manager completes, reopens read-only data, and downloads only the archived
   assert.equal(records[0].status,'draft','Incomplete observation cannot be finalized');
   assert.match(w.document.querySelector('[data-io-status]').textContent,/נדרש להשלים/);
   await click('[data-io-action="jump"][data-io-jump="5"]');
-  assert.match(w.document.querySelector('.io-progress-header').textContent,/שלב 6 מתוך 10/);
+  assert.match(w.document.querySelector('.io-progress-header').textContent,/שלב 6 מתוך 15/);
   assert.ok(w.document.querySelector('[data-io-action="review"]'),'Direct return to review should be available');
   for(const name of new Set([...w.document.querySelectorAll('[data-io-answer]')].map(x=>x.name))){
     const first=[...w.document.querySelectorAll('[data-io-answer]')].find(x=>x.name===name);
     first.click();
   }
+  fill('[data-io-comment="3"]','תיעוד מחייב בתחום הרביעי');
   await click('[data-io-action="review"]');
   assert.equal(w.document.querySelectorAll('[data-io-action="jump"].is-incomplete').length,0);
-  assert.equal(w.document.querySelectorAll('[data-io-action="jump"].is-complete').length,8);
+  assert.equal(w.document.querySelectorAll('[data-io-action="jump"].is-complete').length,13);
   assert.equal(records[0].details.students,'24','Details filled earlier remain saved');
   assert.equal(records[0].strengths,'חוזקות מקצועיות','Summary remains saved');
   await click('[data-io-action="finish"]');
@@ -174,15 +182,17 @@ test('manager completes, reopens read-only data, and downloads only the archived
   assert.match(w.document.querySelector('.io-sp-saved').textContent,/מדריך בדיקה - תצפית 1/);
   assert.equal(w.document.querySelector('.io-sp-saved a').href,
     'https://think365orgil.sharepoint.com/sites/taasiyeda2027/example.pdf');
-  assert.equal(Object.keys(records[0].responses).length,15);
+  assert.equal(Object.keys(records[0].responses).length,24);
+  assert.equal(Object.keys(records[0].comments).length,11);
+  assert.equal(records[0].details.recommendations,'פעולות מקצועיות לשיפור');
   assert.equal(records[0].responses['0-1'],'5','Numeric score must persist, not the old text label');
   const printable=w.document.querySelector('.io-print');
   assert.ok(printable.textContent.includes('דוח תצפית מלא'));
-  assert.equal(printable.querySelectorAll('.io-report-question').length,15);
-  assert.equal(printable.querySelectorAll('.io-report-choice.is-selected').length,15);
+  assert.equal(printable.querySelectorAll('.io-report-question').length,24);
+  assert.equal(printable.querySelectorAll('.io-report-choice.is-selected').length,24);
   const gradedPrinted=printable.querySelector('.io-report-choices--rating');
   assert.ok(gradedPrinted);
-  assert.equal(gradedPrinted.querySelectorAll('.io-report-choice').length,5);
+  assert.equal(gradedPrinted.querySelectorAll('.io-report-choice').length,7);
   assert.match(gradedPrinted.querySelector('.io-report-choice.is-selected').textContent,/5 – מצוין/);
   assert.match(printable.querySelector('.io-report-rating-key').textContent,/2 – טעון שיפור/);
   assert.match(printable.querySelector('.io-report-section:last-of-type').textContent,/4 – טוב מאוד/);
@@ -242,7 +252,7 @@ test('tracking eye opens saved observation data and downloads the original Share
    const node=w.document.querySelector(selector);assert.ok(node,selector);node.click();await tick();await tick();
  };
  try{
-   vm.runInContext(runtime+'; installInstructorObservationRuntime({getUser:()=>({role:"admin",is_active:true})});',context);
+   vm.runInContext(questionnaire+runtime+'; installInstructorObservationRuntime({getUser:()=>({role:"admin",is_active:true})});',context);
    await click('[data-io-slot="1"]');
    assert.equal(openedTabs,0,'Eye click must not open a new tab or download');
    assert.equal(saves,0,'A saved original is never regenerated');
@@ -276,7 +286,7 @@ test('tracking eye opens saved observation data and downloads the original Share
 
 test('archived original link accepts only the correct HTTPS SharePoint location',()=>{
  const context=vm.createContext({URL});
- vm.runInContext(runtime,context);
+ vm.runInContext(questionnaire+runtime,context);
  const safe=vm.runInContext("archivedOriginalDownloadUrl('https://think365orgil.sharepoint.com/sites/taasiyeda2027/docs/p.pdf?web=1&x=2')",context);
  assert.equal(safe,'https://think365orgil.sharepoint.com/sites/taasiyeda2027/docs/p.pdf?x=2&download=1');
  const blocked=vm.runInContext("archivedOriginalDownloadUrl('https://evil.example.com/sites/taasiyeda2027/report.pdf')",context);

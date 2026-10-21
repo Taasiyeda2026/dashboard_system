@@ -7,9 +7,10 @@ const source = fs.readFileSync('frontend/src/instructor-observation-runtime.js',
 const stylesheet = fs.readFileSync('frontend/src/styles/instructor-observation.css', 'utf8');
 const migration = fs.readFileSync('supabase/migrations/20261019023000_instructor_observations.sql', 'utf8');
 const main = fs.readFileSync('frontend/src/main.js', 'utf8');
-const jsBody = source.replace(/^import .*?;\s*$/gm, '').replace(/export function /g, 'function ');
+const questionnaireSource = fs.readFileSync('frontend/src/instructor-observation-questionnaire.js','utf8').replace('export const ','const ');
+const jsBody = questionnaireSource+'\n'+source.replace(/^import .*?;\s*$/gm, '').replace(/export function /g, 'function ');
 
-test('observation feature script parses and retains 6 source sections with 15 questions', () => {
+test('historic observations retain their original six-domain 15-question schema', () => {
   const context = vm.createContext({});
   const sections = new vm.Script(jsBody + '\nSECTIONS;').runInContext(context);
   assert.equal(sections.length, 6);
@@ -54,7 +55,7 @@ test('manager icons only appear for authorized roles and observation data is sep
 });
 
 test('PDF report is complete, A4-printable and does not modify finalized records', () => {
-  assert.match(source, /SECTIONS\.map\(\(s,i\)=>'<section class="io-report-section">/);
+  assert.match(source, /activeSections\(\)\.map\(\(s,i\)=>'<section class="io-report-section">/);
   assert.match(source, /completed/);
   assert.match(source, /window\.print\(\)/);
   assert.match(stylesheet, /@media print/);
@@ -78,4 +79,22 @@ test('migration contains one well-formed observation trigger and each RLS policy
  assert.match(migration, /new\.details->>'students',''\) !~ '\^\[1-9\]\[0-9\]\*\$'/);
  assert.match(migration, /new\.responses \?& array\[/);
  assert.match(migration, /'5-1'\s*\]\)\s*\) then/);
+});
+
+test('approved version 2 contains 24 rated items and 11 required narrative prompts',()=>{
+ const context=vm.createContext({});
+ const spec=new vm.Script(jsBody+'\n({sections:V2_SECTIONS,raw:OBSERVATION_FORM_V2})').runInContext(context);
+ assert.equal(spec.sections.length,11);
+ assert.equal(spec.sections.reduce((n,s)=>n+s.questions.length,0),24);
+ assert.equal(spec.sections.filter(s=>!!s.open).length,11);
+ for(const section of spec.sections){
+   for(const [,answers] of section.questions)
+     assert.deepEqual([...answers],['5','4','3','2','1','לא נצפה','לא רלוונטי']);
+ }
+ assert.match(source,/details:\{observation_slot:observationSlot,form_version:2\}/);
+ assert.match(source,/noteRequired=isNewForm\(\)/);
+ assert.match(source,/present\(d.recommendations\)/);
+ assert.match(source,/activeSections\(\)/);
+ assert.match(source,/summaryStage\(\)/);
+ assert.match(source,/reviewStage\(\)/);
 });

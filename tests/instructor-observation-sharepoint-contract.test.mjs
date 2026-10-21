@@ -37,7 +37,7 @@ test('PDF is created from completed DB record with embedded Hebrew font, never b
  assert.doesNotMatch(frontend,/MS_CLIENT_SECRET|MS_TENANT_ID|graph\.microsoft\.com/);
 });
 test('UI automatically uploads after completion and offers a retry without unlocking completed report',()=>{
- assert.match(frontend,/else if \(action==='finish'\) \{stage=9;render\(\);await saveSharePointPdf\(\);\}/);
+ assert.match(frontend,/else if \(action==='finish'\) \{stage=reviewStage\(\);render\(\);await saveSharePointPdf\(\);\}/);
  assert.match(frontend,/if\s*\(action==='sharepoint'\)/);
  assert.match(frontend,/sharepointReceipt=data/);
  assert.match(frontend,/href="'\+\s*e\(approvedSharePointPdfUrl\(sharepointReceipt\.url\)\)/);

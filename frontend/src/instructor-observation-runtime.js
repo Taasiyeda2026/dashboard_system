@@ -4,6 +4,7 @@
  */
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 import './styles/instructor-observation.css';
+import { OBSERVATION_FORM_V2 } from './instructor-observation-questionnaire.js';
 
 const TABLE = 'instructor_observations';
 const RATING_OPTIONS = [
@@ -39,6 +40,7 @@ const SECTIONS = [
     ['שיתוף פעולה עם צוות בית הספר הנוכח בשיעור (אם יש)', [...GRADED,'לא התקיים']]
   ]}
 ];
+const V2_SECTIONS = OBSERVATION_FORM_V2.map(s=>({...s, questions:s.questions.map(q=>[q,[...GRADED,'לא נצפה','לא רלוונטי']])}));
 const RATING_LABELS = ['','חלש','טעון שיפור','טוב','טוב מאוד','מצוין'];
 const isNumericRating = choice => /^[1-5]$/.test(String(choice));
 const ratingText = choice => isNumericRating(choice) ? String(choice)+' – '+RATING_LABELS[Number(choice)] : String(choice || '');
@@ -55,6 +57,12 @@ const allowed = user => ['admin','activities_manager','operation_manager'].inclu
 let root, userGetter = () => ({}), selected = null, list = [], stage = -1, empId = '', name = '', saveQueue = Promise.resolve(), debounce, activityOptions = [], lastFocus = null;
 let isOpen = false, viewerAuthId = '', observationSlot = 1, reviewReached = false;
 let sharepointReceipt=null, sharepointBusy=false, sharepointChecking=false, sharepointError='';
+// Completed historical reports retain their original six-domain questionnaire.
+const isNewForm = () => Number(selected?.details?.form_version || 1) >= 2;
+const activeSections = () => isNewForm() ? V2_SECTIONS : SECTIONS;
+const summaryStage = () => activeSections().length + 2;
+const reviewStage = () => summaryStage() + 1;
+const questionNumber = (index,j) => activeSections().slice(0,index).reduce((n,s)=>n+s.questions.length+(isNewForm()?1:0),1)+j;
 const editable = () => !!selected && selected.status === 'draft' && (!selected.created_by || selected.created_by === viewerAuthId);
 
 const statusNode = () => root?.querySelector('[data-io-status]');
@@ -155,7 +163,7 @@ function home() {
 function blankRecord() {
   const u = userGetter();
   return {emp_id:Number(empId), instructor_name:name, observer_name:String(u?.full_name || u?.name || u?.display_name || '').trim(),
-    observation_date:localDate(), details:{observation_slot:observationSlot}, responses:{}, comments:{}, overall_rating:null, strengths:'', improvements:'', summary:'', status:'draft'};
+    observation_date:localDate(), details:{observation_slot:observationSlot,form_version:2}, responses:{}, comments:{}, overall_rating:null, strengths:'', improvements:'', summary:'', status:'draft'};
 }
 async function create() {
   dialog('<div class="io-content">יוצר טיוטת תצפית…</div>');
@@ -170,9 +178,9 @@ function resume(id) {
   if (!selected) return;
   // Completed observations reopen at the report/print step instead of forcing
   // a manager to click through every already-finalized section.
-  stage=selected.status==='completed'?9:0; reviewReached=stage===9; sharepointReceipt=null;sharepointError='';
-  sharepointChecking=stage===9; render();
-  if(stage===9)void checkSharePointReceipt(selected.id);
+  stage=selected.status==='completed'?reviewStage():0; reviewReached=stage===reviewStage(); sharepointReceipt=null;sharepointError='';
+  sharepointChecking=stage===reviewStage(); render();
+  if(stage===reviewStage())void checkSharePointReceipt(selected.id);
 }
 function field(label,key,type='text',required=false,value='') {
   return '<label class="io-field"><span>'+e(label)+(required ? ' <em>חובה</em>' : '')+'</span><input type="'+e(type)+'" data-io-detail="'+e(key)+'" value="'+e(value)+'" '+(!editable()?'disabled':'')+'></label>';
@@ -320,23 +328,30 @@ function detailScreen() {
     '<label class="io-field"><span>מידע חשוב לצופה לפני תחילת השיעור (אם יש)</span><textarea data-io-detail="important" rows="3" '+(!editable()?'disabled':'')+'>'+e(d.important||'')+'</textarea></label>';
 }
 function sectionScreen(index) {
-  const s=SECTIONS[index];
-  return '<div class="io-stage-heading"><div><span class="io-stage-eyebrow">תחום הערכה '+(index+1)+' מתוך '+SECTIONS.length+'</span>'+
+  const s=activeSections()[index];
+  return '<div class="io-stage-heading"><div><span class="io-stage-eyebrow">תחום הערכה '+(index+1)+' מתוך '+activeSections().length+'</span>'+
     '<h3>'+e(s.title)+'</h3><p class="io-muted">'+e(s.help)+'</p></div></div>'+
     (s.questions.some(q=>gradedChoices(q[1]))?'<div class="io-rating-key"><strong>סולם ההערכה:</strong> '+
       RATING_OPTIONS.map(([v,label])=>'<span>'+v+' – '+e(label)+'</span>').join('')+'</div>':'')+
     '<div class="io-question-list">'+
-    s.questions.map((q,i)=>choice(index+'-'+i,q[0],q[1])).join('')+'</div>'+
-    '<label class="io-field io-section-comment"><span>הערות ודוגמאות מהצפייה (לא חובה)</span>'+
-    '<textarea data-io-comment="'+index+'" rows="4" placeholder="מה ראיתם בפועל? מה כדאי לשמר או לשפר?" '+
-    (!editable()?'disabled':'')+'>'+e(selected.comments?.[index]||'')+'</textarea></label>';
+    s.questions.map((q,i)=>choice(index+'-'+i,(isNewForm()?questionNumber(index,i)+'. ':'')+q[0],q[1])).join('')+'</div>'+
+    '<label class="io-field io-section-comment"><span>'+e(isNewForm()?questionNumber(index,s.questions.length)+'. '+s.open:'הערות ודוגמאות מהצפייה')+
+    (isNewForm()?' <em>חובה</em>':' (לא חובה)')+'</span>'+
+    '<textarea data-io-comment="'+index+'" rows="5" placeholder="יש לתעד ממצאים ודוגמאות מהשיעור. אם לא נצפה, יש לציין זאת במפורש." '+
+    (isNewForm()?'required ':'')+(!editable()?'disabled':'')+'>'+e(selected.comments?.[index]||'')+'</textarea></label>';
 }
 function summaryScreen() {
-  return '<h3>סיכום המשוב</h3><p class="io-muted">הדירוג הכולל הוא הערכת המנהל ואינו ממוצע אוטומטי של סולמות התשובה השונים.</p>'+
-    '<fieldset class="io-question io-question--rating"><legend>דירוג כולל של ביצועי המדריך בשיעור</legend><div class="io-options io-options--rating">'+RATING_OPTIONS.map(([n,label])=>
+  const v2=isNewForm();
+  const fields=v2?[
+    ['strengths','37. מהן החוזקות המקצועיות, הפדגוגיות והבין־אישיות המרכזיות של המדריך, וכיצד באו לידי ביטוי במהלך השיעור? יש לפרט לפחות שתי חוזקות ולצרף דוגמאות שנצפו בפועל.'],
+    ['improvements','38. אילו יכולות או היבטים בהתנהלות המדריך דורשים שיפור או חיזוק? יש לפרט את התחומים המרכזיים, לציין את הממצאים שעליהם מבוססת ההערכה ולהסביר את השפעתם על איכות ההדרכה.'],
+    ['recommendations','39. אילו פעולות מעשיות מומלץ למדריך לבצע כדי לשפר את איכות ההדרכה? יש להגדיר המלצות ממוקדות להמשך ולציין האם נדרשים חניכה, הכשרה, ליווי פדגוגי או תמיכה מקצועית נוספת.'],
+    ['summary','40. מהי חוות דעתך המקצועית הכוללת על המדריך לאחר התצפית? יש להתייחס למידת מוכנותו להמשך הדרכה עצמאית, ליכולותיו הבולטות, לפוטנציאל ההתפתחות שלו ולהמלצתך המנומקת בנוגע להמשך הליווי.']
+  ]:[['strengths','נקודות כוח'],['improvements','נקודות לשיפור'],['summary','סיכום מקצועי וחוות דעת']];
+  return '<h3>סיכום המשוב</h3><p class="io-muted">הדירוג הכולל הוא הערכה מקצועית של הצופה ואינו מחושב כממוצע ציונים. תצפית יחידה אינה קובעת אוטומטית כשירות מדריך.</p>'+
+    '<fieldset class="io-question io-question--rating"><legend>'+(v2?'36. מהי הערכתך הכוללת לאיכות ההדרכה של המדריך בשיעור שנצפה, בהתבסס על מכלול המדדים והממצאים שתועדו?':'דירוג כולל של ביצועי המדריך בשיעור')+'</legend><div class="io-options io-options--rating">'+RATING_OPTIONS.map(([n,label])=>
       '<label class="io-option"><input type="radio" name="io-overall" data-io-overall value="'+n+'" '+(Number(selected.overall_rating)===Number(n)?'checked ':'')+(!editable()?'disabled':'')+'><span>'+n+' – '+e(label)+'</span></label>').join('')+'</div></fieldset>'+
-    [['strengths','נקודות כוח'],['improvements','נקודות לשיפור'],['summary','סיכום מקצועי וחוות דעת']].map(([key,label])=>
-      '<label class="io-field"><span>'+e(label)+' <em>חובה</em></span><textarea rows="5" data-io-text="'+key+'" '+(!editable()?'disabled':'')+'>'+e(selected[key]||'')+'</textarea></label>').join('');
+    fields.map(([key,label])=>'<label class="io-field"><span>'+e(label)+' <em>חובה</em></span><textarea rows="6" '+(key==='recommendations'?'data-io-detail="recommendations"':'data-io-text="'+key+'"')+' required '+(!editable()?'disabled':'')+'>'+e(key==='recommendations'?selected.details?.recommendations:selected[key]||'')+'</textarea></label>').join('');
 }
 /** One canonical completion summary powers the final review and validation. */
 function completionRows() {
@@ -358,22 +373,25 @@ function completionRows() {
     count:details.filter(([,ok])=>ok).length,total:details.length,
     missing:details.filter(([,ok])=>!ok).map(([name])=>name)
   }];
-  for(let i=0;i<SECTIONS.length;i++) {
-    const s=SECTIONS[i];
+  for(let i=0;i<activeSections().length;i++) {
+    const s=activeSections()[i];
     const questions=s.questions.map((q,j)=>q[1].includes(selected?.responses?.[i+'-'+j]));
+    const noteRequired=isNewForm(),noteFilled=present(selected?.comments?.[i]);
     rows.push({
-      stage:i+2,label:s.title,complete:questions.every(Boolean),
-      count:questions.filter(Boolean).length,total:questions.length,
-      missing:questions.flatMap((ok,j)=>ok?[]:['מדד '+(j+1)])
+      stage:i+2,label:s.title,complete:questions.every(Boolean) && (!noteRequired||noteFilled),
+      count:questions.filter(Boolean).length+(noteRequired&&noteFilled?1:0),
+      total:questions.length+(noteRequired?1:0),
+      missing:[...questions.flatMap((ok,j)=>ok?[]:['מדד '+(j+1)]),...(noteRequired&&!noteFilled?['שאלה פתוחה – חובה']:[])]
     });
   }
   const summary=[
     ['דירוג כולל',Number.isInteger(Number(selected?.overall_rating)) && Number(selected?.overall_rating)>=1 && Number(selected?.overall_rating)<=5],
     ['נקודות כוח',present(selected?.strengths)],['נקודות לשיפור',present(selected?.improvements)],
-    ['חוות דעת מסכמת',present(selected?.summary)]
+    ['חוות דעת מסכמת',present(selected?.summary)],
+    ...(isNewForm()?[['המלצות מקצועיות ותוכנית פעולה',present(d.recommendations)]]:[])
   ];
   rows.push({
-    stage:8,label:'סיכום המשוב',complete:summary.every(([,ok])=>ok),
+    stage:summaryStage(),label:'סיכום המשוב',complete:summary.every(([,ok])=>ok),
     count:summary.filter(([,ok])=>ok).length,total:summary.length,
     missing:summary.filter(([,ok])=>!ok).map(([name])=>name)
   });
@@ -419,19 +437,19 @@ async function checkSharePointReceipt(observationId) {
   sharepointChecking=false;
   if(error || data?.error) {
     sharepointError=await sharePointErrorText(error,data);
-    if(stage===9)render();
+    if(stage===reviewStage())render();
     return;
   }
   if(data?.saved && !approvedSharePointPdfUrl(data?.url)) {
     sharepointError='נמצאה אסמכתת PDF אך כתובת המסמך אינה תקינה לפתיחה';
-    if(stage===9)render();
+    if(stage===reviewStage())render();
     return; // Never generate a second copy of an already archived file.
   }
   sharepointReceipt=data?.saved ? data : null;
-  if(stage===9)render();
+  if(stage===reviewStage())render();
   // Recover a previously completed report only if the server confirms no archive.
   // A verified existing PDF is never regenerated by opening the eye.
-  if(!sharepointReceipt && stage===9)void saveSharePointPdf();
+  if(!sharepointReceipt && stage===reviewStage())void saveSharePointPdf();
 }
 async function sharePointErrorText(error,data) {
   if(data?.error)return String(data.error);
@@ -450,7 +468,7 @@ async function saveSharePointPdf() {
   if(!selected || selected.status!=='completed' || sharepointBusy)return false;
   const id=selected.id;
   sharepointBusy=true;sharepointError='';
-  if(stage===9)render();
+  if(stage===reviewStage())render();
   status('שומר PDF בתיקייה האישית ב־SharePoint…');
   try {
     if(!supabase?.functions?.invoke)throw new Error('שירות שמירת SharePoint אינו זמין');
@@ -467,7 +485,7 @@ async function saveSharePointPdf() {
     return false;
   } finally {
     sharepointBusy=false;
-    if(selected?.id===id && stage===9){
+    if(selected?.id===id && stage===reviewStage()){
       render();
       status(sharepointReceipt?'הדוח נשמר ב־SharePoint בתיקיית התצפית של המדריך.':
         'משוב התצפית נשמר במערכת, אך שמירת ה־PDF ב־SharePoint נכשלה: '+sharepointError,!sharepointReceipt);
@@ -515,15 +533,16 @@ function report({viewer=false}={}) {
     '<div class="io-report-rating-key"><strong>סולם ההערכה:</strong> '+
     RATING_OPTIONS.map(([n,label])=>'<span>'+n+' – '+e(label)+'</span>').join('')+
     '</div>'+
-    SECTIONS.map((s,i)=>'<section class="io-report-section"><h2>'+(i+1)+'. '+e(s.title)+'</h2>'+
-      s.questions.map((q,j)=>printedQuestion(q,i+'-'+j)).join('')+
-      (selected.comments?.[i]?'<p class="io-report-notes"><strong>הערות ודוגמאות:</strong> '+
+    activeSections().map((s,i)=>'<section class="io-report-section"><h2>'+(i+1)+'. '+e(s.title)+'</h2>'+
+      s.questions.map((q,j)=>printedQuestion([(isNewForm()?questionNumber(i,j)+'. ':'')+q[0],q[1]],i+'-'+j)).join('')+
+      (selected.comments?.[i]?'<p class="io-report-notes"><strong>'+e(isNewForm()?questionNumber(i,s.questions.length)+'. '+s.open:'הערות ודוגמאות')+':</strong> '+
         e(selected.comments[i])+'</p>':'')+'</section>').join('')+
     '<section class="io-report-section"><h2>סיכום מקצועי</h2>'+
     '<p><strong>דירוג כולל:</strong> '+
       e(selected.overall_rating?selected.overall_rating+' – '+RATING_LABELS[selected.overall_rating]:'—')+'</p>'+
     '<h3>נקודות כוח</h3><p>'+e(selected.strengths||'—')+'</p>'+
     '<h3>נקודות לשיפור</h3><p>'+e(selected.improvements||'—')+'</p>'+
+    (isNewForm()?'<h3>המלצות מקצועיות ותוכנית פעולה</h3><p>'+e(d.recommendations||'—')+'</p>':'')+
     '<h3>חוות דעת מסכמת</h3><p>'+e(selected.summary||'—')+'</p></section>'+
     (viewer?'':'<footer>תאריך הפקת הדו"ח: '+e(localDate())+' · נוצר במערכת תעשיידע</footer>')+'</div>';
 }
@@ -546,17 +565,17 @@ function render() {
     root.querySelector('.io-print').innerHTML=report();
     return;
   }
-  if(stage===9) reviewReached=true;
-  const stages=['הקדמה','פרטי התצפית',...SECTIONS.map(s=>s.title),'סיכום','בדיקה והפקה'];
+  if(stage===reviewStage()) reviewReached=true;
+  const stages=['הקדמה','פרטי התצפית',...activeSections().map(s=>s.title),'סיכום','בדיקה והפקה'];
   const body = stage===0 ? '<div class="io-lead"><h3>לפני שמתחילים — מטרת התצפית</h3><p>המשוב נועד להעריך את איכות ההדרכה בפועל, לזהות חוזקות ותחומים לשיפור ולבסס ליווי מקצועי.</p></div><h3>הנחיות לצופה</h3><ol><li>יש ליידע את המדריך מראש על מועד התצפית, מטרותיה ומדדי ההערכה.</li><li>יש לתעד רק מה שנצפה בפועל ובאופן ענייני ומדויק.</li><li>רצוי לציין דוגמאות קונקרטיות בכל תחום.</li><li>בסיום יש לכתוב נקודות כוח, נקודות לשיפור וחוות דעת מסכמת.</li><li>אפשר לשמור טיוטה בכל שלב. הדו"ח זמין למנהל בלבד ואינו נשלח אוטומטית למדריך.</li></ol>' :
-    stage===1 ? detailScreen() : stage>=2&&stage<=7 ? sectionScreen(stage-2) : stage===8 ? summaryScreen() : overview();
+    stage===1 ? detailScreen() : stage>=2&&stage<summaryStage() ? sectionScreen(stage-2) : stage===summaryStage() ? summaryScreen() : overview();
   const footer = '<footer class="io-actions"><button type="button" class="io-secondary" data-io-action="home">לכל התצפיות</button><div class="io-actions-main">'+
     (stage>0?'<button type="button" class="io-secondary" data-io-action="back">הקודם</button>':'')+
-    (reviewReached && stage!==9 && editable()?'<button type="button" class="io-secondary" data-io-action="review">חזרה לסיכום</button>':'')+
-    (stage<9?'<button type="button" class="io-primary" data-io-action="next">המשך</button>':'')+
-    (stage===9 && editable()?'<button type="button" class="io-primary" data-io-action="finish">סיום ושמירת המשוב</button>':'')+
-    (stage===9 && done?'<button type="button" class="io-primary" data-io-action="print">הפקת PDF</button>':'')+
-    (stage===9 && done && !sharepointReceipt?'<button type="button" class="io-secondary" data-io-action="sharepoint" '+(sharepointBusy?'disabled':'')+'>שמירה ב־SharePoint</button>':'')+
+    (reviewReached && stage!==reviewStage() && editable()?'<button type="button" class="io-secondary" data-io-action="review">חזרה לסיכום</button>':'')+
+    (stage<reviewStage()?'<button type="button" class="io-primary" data-io-action="next">המשך</button>':'')+
+    (stage===reviewStage() && editable()?'<button type="button" class="io-primary" data-io-action="finish">סיום ושמירת המשוב</button>':'')+
+    (stage===reviewStage() && done?'<button type="button" class="io-primary" data-io-action="print">הפקת PDF</button>':'')+
+    (stage===reviewStage() && done && !sharepointReceipt?'<button type="button" class="io-secondary" data-io-action="sharepoint" '+(sharepointBusy?'disabled':'')+'>שמירה ב־SharePoint</button>':'')+
     '</div></footer>';
   dialog('<div class="io-progress"><div class="io-progress-header"><span>שלב '+(stage+1)+' מתוך '+stages.length+' · '+e(stages[stage])+'</span><span>'+Math.round((stage+1)/stages.length*100)+'%</span></div><div class="io-track"><span style="width:'+Math.round((stage+1)/stages.length*100)+'%"></span></div></div>'+
     '<main class="io-content">'+body+'</main><p class="io-save-status" data-io-status aria-live="polite">'+(done?'המשוב הושלם וננעל לעריכה':editable()?'שינויים נשמרים כטיוטה':'טיוטה לצפייה בלבד')+'</p>'+footer);
@@ -608,9 +627,9 @@ async function onClick(event) {
   if (['home','next','back','finish','jump','review'].includes(action)) {
     if (action==='jump') {
       const destination=Number(button.dataset.ioJump);
-      if (stage!==9 || !editable() || !Number.isInteger(destination) || destination<1 || destination>8) return;
+      if (stage!==reviewStage() || !editable() || !Number.isInteger(destination) || destination<1 || destination>summaryStage()) return;
     }
-    if (action==='review' && (!reviewReached || stage===9 || !editable())) return;
+    if (action==='review' && (!reviewReached || stage===reviewStage() || !editable())) return;
     clearTimeout(debounce); capture();
     if (action==='finish') {
       const error=validate();
@@ -620,11 +639,11 @@ async function onClick(event) {
       button.disabled=true; status('שומר…');
       if (selected.status==='draft') await persist(action==='finish');
       if (action==='home') home();
-      else if (action==='next') {stage=Math.min(9,stage+1);render();}
+      else if (action==='next') {stage=Math.min(reviewStage(),stage+1);render();}
       else if (action==='back') {stage=Math.max(0,stage-1);render();}
       else if (action==='jump') {stage=Number(button.dataset.ioJump);render();}
-      else if (action==='review') {stage=9;render();}
-      else if (action==='finish') {stage=9;render();await saveSharePointPdf();}
+      else if (action==='review') {stage=reviewStage();render();}
+      else if (action==='finish') {stage=reviewStage();render();await saveSharePointPdf();}
     } catch(err) { button.disabled=false;status('השמירה נכשלה: '+(err?.message||err),true); }
   }
 }

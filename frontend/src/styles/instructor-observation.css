@@ -230,3 +230,16 @@ button.io-review-row:focus-visible {outline:2px solid #08799d;outline-offset:2px
  .io-archived-viewer .io-report th {width:38%}
  .io-original-download {width:100%}
 }
+
+
+/* Version 2: five graded choices plus two non-scoring answers, responsive on mobile. */
+.io-options--rating:has(.io-option:nth-child(7)) {grid-template-columns:repeat(auto-fit,minmax(108px,1fr))}
+.io-options--rating:has(.io-option:nth-child(7)) .io-option:nth-child(n+6) span {background:#f7fafb;border-style:dashed}
+.io-options--rating:has(.io-option:nth-child(7)) .io-option:nth-child(n+6) input:checked + span {background:#dceefa;border-style:solid}
+.io-section-comment:has(textarea[required]) {padding:14px;border:1px solid #cbdfe8;border-radius:10px;background:#f8fbfd}
+.io-section-comment:has(textarea[required]) textarea {background:#fff;min-height:138px}
+.io-section-comment:has(textarea[required]) em {display:inline-block;color:#a53d44}
+@media(max-width:640px) {
+ .io-options--rating:has(.io-option:nth-child(7)) {grid-template-columns:repeat(2,minmax(0,1fr))}
+ .io-section-comment:has(textarea[required]) {padding:12px}
+}
