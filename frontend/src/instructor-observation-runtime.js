@@ -398,6 +398,19 @@ async function checkSharePointReceipt(observationId) {
   // on the server, so reopening can safely recover a missing SharePoint PDF.
   if(!sharepointReceipt && stage===9)void saveSharePointPdf();
 }
+async function sharePointErrorText(error,data) {
+  if(data?.error)return String(data.error);
+  const response=error?.context;
+  if(response?.clone) {
+    try {
+      const body=await response.clone().json();
+      const detail=body?.error || body?.message || body?.detail;
+      if(detail)return String(detail);
+    } catch {}
+    if(response.status)return 'שגיאת שירות PDF (HTTP '+response.status+')';
+  }
+  return String(error?.message || 'שמירת PDF ב־SharePoint נכשלה');
+}
 async function saveSharePointPdf() {
   if(!selected || selected.status!=='completed' || sharepointBusy)return false;
   const id=selected.id;
@@ -409,7 +422,7 @@ async function saveSharePointPdf() {
     const {data,error}=await supabase.functions.invoke('instructor-observation-sharepoint',{
       body:{action:'save',observation_id:id}
     });
-    if(error || data?.error)throw new Error(data?.error || error?.message || 'שמירת PDF ב־SharePoint נכשלה');
+    if(error || data?.error)throw new Error(await sharePointErrorText(error,data));
     if(!data?.saved || !data?.url)throw new Error('לא התקבל אישור שמירה מ־SharePoint');
     if(selected?.id!==id)return false;
     sharepointReceipt=data;sharepointError='';
@@ -431,7 +444,7 @@ function sharepointStatusHtml() {
   if(sharepointReceipt?.saved)return '<p class="io-sp-saved">ה־PDF נשמר בתיק האישי: <a target="_blank" rel="noopener noreferrer" href="'+
     e(sharepointReceipt.url)+'">'+e(sharepointReceipt.file_name || 'פתיחת PDF ב־SharePoint')+'</a></p>';
   if(sharepointBusy)return '<p class="io-muted">שומר PDF בתיקיית התצפית ב־SharePoint…</p>';
-  return '<p class="io-sp-warning">'+(sharepointError?'שמירת ה־PDF נכשלה. ניתן לנסות שוב.':'ה־PDF עדיין לא נשמר ב־SharePoint.')+'</p>';
+  return '<p class="io-sp-warning">'+(sharepointError?'שמירת ה־PDF נכשלה: '+e(sharepointError)+'. אפשר לנסות שוב.':'ה־PDF עדיין לא נשמר ב־SharePoint.')+'</p>';
 }
 
 function printedQuestion(question,key) {
