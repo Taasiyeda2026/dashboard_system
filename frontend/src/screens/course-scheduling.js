@@ -2463,9 +2463,9 @@ export const courseSchedulingScreen = {
         : `${schedulingScopeHtml(allInterfaceCourses, state, data.activities || [])}
       <div class="course-scheduling-operator-toolbar" role="status">
         ${data._is_stale ? '<span class="course-scheduling-alert">מוצג עותק שמור; פעולות שמירה ייפתחו לאחר הרענון.</span>' : ''}
-        ${state.courseSchedulingError ? `<span class="course-scheduling-alert">${escapeHtml(state.courseSchedulingError)}</span>` : ''}
         <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-refresh-assignment-data>רענן נתוני שיבוץ</button>
       </div>
+      <p data-course-scheduling-error class="course-scheduling-alert"${state.courseSchedulingError ? '' : ' hidden'}>${escapeHtml(state.courseSchedulingError || '')}</p>
       <section class="course-scheduling-summary" aria-label="סיכום פעילויות לפי מצב">${summaryCardsHtml(rowModels, state)}</section>
       <div class="course-scheduling-layout course-scheduling-layout--courses">
         <aside class="course-scheduling-courses" data-course-list tabindex="-1" aria-label="טבלת פעילויות">${courseListHtml(rowModels, selectedId, state)}</aside>
@@ -2489,8 +2489,7 @@ export const courseSchedulingScreen = {
           ${completionCache.html}
         </div>
       </details>
-      <p data-course-scheduling-error class="course-scheduling-alert"${state.courseSchedulingError ? '' : ' hidden'}>${escapeHtml(state.courseSchedulingError || '')}</p>
-      </div>`}
+      `}
     ${singleMeetingSubstitutionModalHtml(data, state)}
     ${state.courseSchedulingCancelCourseId ? (() => {
       const course = (data.activities || []).find((item) => idOf(item) === state.courseSchedulingCancelCourseId) || {};
