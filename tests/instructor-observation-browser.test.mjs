@@ -9,13 +9,12 @@ const runtime=readFileSync(new URL('../frontend/src/instructor-observation-runti
  .replace(/export function /g,'function ');
 const tick=()=>new Promise(r=>setTimeout(r,20));
 
-test('manager creates, completes, reopens, and prints observation without editing locked report',async()=>{
+test('manager completes, reopens read-only data, and downloads only the archived PDF',async()=>{
  const dom=new JSDOM('<table class="manager-workspace-tracking-table"><tbody><tr><td data-label="תצפית 1"><span>27.11.26</span><button data-io-open="1550" data-io-slot="1" data-io-name="מדריך בדיקה">פתיחת משוב</button></td><td data-label="תצפית 2"><button data-io-open="1550" data-io-slot="2" data-io-name="מדריך בדיקה">פתיחת משוב</button></td></tr></tbody></table>',{url:'https://test.invalid'});
  const w=dom.window,records=[],authId='11111111-1111-4111-8111-111111111111';
  const linkedActivity={row_id:'activity-test-1',activity_name:'ביומימיקרי',school:'בית ספר לבדיקות',grade:'ו׳',
    class_group:'קבוצה 2',date_1:'2026-11-27',date_2:'2026-12-04',date_3:'2026-12-11'};
- let printed=0;
- w.print=()=>{printed++};
+ w.print=()=>{throw new Error('Viewing an archived observation must not print a regenerated PDF');};
  const sharepointUploads=[];
  const supabase={
   auth:{getUser:async()=>({data:{user:{id:authId}}})},
@@ -60,7 +59,7 @@ test('manager creates, completes, reopens, and prints observation without editin
   requestAnimationFrame:fn=>Promise.resolve().then(fn),
   setTimeout,clearTimeout,supabase,
   waitForSupabaseAuthSession:async()=>null,console,
-  Date,Promise
+  URL:w.URL,Date,Promise
  });
  try{
   vm.runInContext(runtime+'; installInstructorObservationRuntime({getUser:()=>({role:"operation_manager",is_active:true,full_name:"צופה"})});',context);
@@ -187,15 +186,17 @@ test('manager creates, completes, reopens, and prints observation without editin
   assert.match(gradedPrinted.querySelector('.io-report-choice.is-selected').textContent,/5 – מצוין/);
   assert.match(printable.querySelector('.io-report-rating-key').textContent,/2 – טעון שיפור/);
   assert.match(printable.querySelector('.io-report-section:last-of-type').textContent,/4 – טוב מאוד/);
-  await click('[data-io-action="print"]');
-  assert.equal(printed,1);
+  assert.equal(w.document.querySelector('[data-io-action="print"]'),null,'No regenerating or printing a new PDF');
+  assert.equal(w.document.querySelector('.io-original-download').href,
+    'https://think365orgil.sharepoint.com/sites/taasiyeda2027/example.pdf?download=1');
+  assert.ok(w.document.querySelector('.io-archived-viewer .io-report').textContent.includes('חוזקות מקצועיות'));
   await click('[data-io-action="home"]');
   sharepointUploads.length=0; // Simulate an existing completed report whose PDF is missing.
   await click('[data-io-resume="test-record"]');
   await tick();
   assert.equal(sharepointUploads.length,1,'Reopening a previously completed report archives its missing PDF');
   assert.match(w.document.querySelector('.io-sp-saved').textContent,/תצפית 1/);
-  assert.ok(w.document.querySelector('[data-io-action="print"]'));
+  assert.ok(w.document.querySelector('.io-original-download'),'Recovered original PDF has a download link');
   assert.equal(w.document.querySelector('[data-io-action="finish"]'),null);
   await click('[data-io-action="close"]');
   await click('[data-io-open="1550"][data-io-slot="2"]');
@@ -206,28 +207,23 @@ test('manager creates, completes, reopens, and prints observation without editin
  }finally{dom.window.close();}
 });
 
-test('tracking eye opens a saved SharePoint PDF instead of a new form, with a safe popup fallback',async()=>{
+test('tracking eye opens saved observation data and downloads the original SharePoint file only on demand',async()=>{
  const dom=new JSDOM('<table><tbody><tr><td class="is-done"><button data-io-open="1550" data-io-slot="1" data-io-name="מדריכה">עין 1</button></td><td><button data-io-open="1550" data-io-slot="2" data-io-name="מדריכה">עין 2</button></td></tr></tbody></table>',{url:'https://test.invalid'});
  const w=dom.window;
  const pdfUrl='https://think365orgil.sharepoint.com/sites/taasiyeda2027/report.pdf';
  const saved={saved:true,url:pdfUrl,file_name:'תצפית 1.pdf',observation_slot:1};
- const record={id:'saved-observation-1',emp_id:1550,status:'completed',details:{observation_slot:1},
+ const record={id:'saved-observation-1',emp_id:1550,status:'completed',
+   details:{observation_slot:1,school:'בית ספר',course:'ביומימיקרי',students:'25'},
    instructor_name:'מדריכה',observer_name:'מנהל',observation_date:'2026-10-13',
-   responses:{},comments:{},overall_rating:4,strengths:'',improvements:'',summary:''};
- let statusCalls=0, blankTabs=0, navigated='', allowPopup=true;
- w.open=(url,target)=>{
-   assert.equal(target,'_blank');
-   if(!allowPopup)return null;
-   if(url==='about:blank') {
-     blankTabs++;
-     return {closed:false,opener:w,location:{replace:(to)=>{navigated=to;}},close(){this.closed=true;}};
-   }
-   return null;
- };
+   responses:{'0-0':'כן','0-1':'4'},comments:{'0':'הערת הצופה'},
+   overall_rating:4,strengths:'חוזקה מקורית',improvements:'המלצה',summary:'סיכום שנשמר'};
+ let statusCalls=0, openedTabs=0, saves=0;
+ w.open=()=>{openedTabs++;return null;};
  const supabase={
    auth:{getUser:async()=>({data:{user:{id:'11111111-1111-4111-8111-111111111111'}}})},
    functions:{invoke:async(slug,{body})=>{
      assert.equal(slug,'instructor-observation-sharepoint');
+     if(body.action==='save'){saves++;return {data:saved,error:null};}
      assert.equal(body.action,'status');assert.equal(body.observation_id,record.id);
      statusCalls++;
      return {data:saved,error:null};
@@ -248,19 +244,41 @@ test('tracking eye opens a saved SharePoint PDF instead of a new form, with a sa
  try{
    vm.runInContext(runtime+'; installInstructorObservationRuntime({getUser:()=>({role:"admin",is_active:true})});',context);
    await click('[data-io-slot="1"]');
-   assert.equal(blankTabs,1,'Saved checkbox reserves a popup before awaiting the API');
-   assert.equal(navigated,pdfUrl,'The eye navigates to the existing SharePoint PDF');
-   assert.equal(statusCalls,1);
-   assert.equal(w.document.querySelector('.io-root')?.classList.contains('io-visible'),false);
-   await click('[data-io-slot="2"]');
-   assert.ok(w.document.querySelector('.io-home-head'),'Empty second slot still offers the creation form');
-   assert.equal(blankTabs,1,'No unnecessary popup for an incomplete observation');
+   assert.equal(openedTabs,0,'Eye click must not open a new tab or download');
+   assert.equal(saves,0,'A saved original is never regenerated');
+   assert.equal(statusCalls,1,'Read the existing verified SharePoint receipt');
+   const viewer=w.document.querySelector('.io-archived-viewer');
+   assert.ok(viewer,'A completed observation opens inside the dashboard');
+   assert.match(viewer.textContent,/בית ספר/);
+   assert.match(viewer.textContent,/סיכום שנשמר/);
+   assert.match(viewer.textContent,/חוזקה מקורית/);
+   assert.match(viewer.textContent,/הערת הצופה/);
+   assert.equal(viewer.querySelectorAll('.io-report-question').length,15,'All saved answers are displayed');
+   assert.equal(w.document.querySelectorAll('[data-io-action="new"]').length,0);
+   assert.equal(w.document.querySelectorAll('[data-io-action="print"]').length,0);
+   assert.equal(w.document.querySelectorAll('[data-io-action="finish"]').length,0);
+   const button=w.document.querySelector('.io-original-download');
+   assert.ok(button,'Download is an explicit second action');
+   assert.equal(button.href,pdfUrl+'?download=1');
+   assert.equal(button.getAttribute('target'),'_blank');
+   assert.equal(button.getAttribute('rel'),'noopener noreferrer');
+   assert.equal(w.document.querySelector('.io-sp-saved a').href,pdfUrl,
+     'The document reference points to the original SharePoint item');
+   await click('[data-io-action="home"]');
+   await click('[data-io-resume="saved-observation-1"]');
+   assert.ok(w.document.querySelector('.io-archived-viewer'),'History also opens read-only values');
    await click('[data-io-action="close"]');
-   allowPopup=false;
-   await click('[data-io-slot="1"]');
-   assert.equal(statusCalls,2);
-   assert.ok(w.document.querySelector('.io-sp-saved a'),'Blocked popup leaves a direct PDF link');
-   assert.equal(w.document.querySelector('.io-sp-saved a').href,pdfUrl);
-   assert.equal(w.document.querySelector('[data-io-action="new"]'),null,'Does not offer a new blank observation');
+   await click('[data-io-slot="2"]');
+   assert.ok(w.document.querySelector('.io-home-head'),'Incomplete second slot offers new observation');
+   assert.equal(openedTabs,0,'No popup even on incomplete slot');
  }finally{dom.window.close();}
+});
+
+test('archived original link accepts only the correct HTTPS SharePoint location',()=>{
+ const context=vm.createContext({URL});
+ vm.runInContext(runtime,context);
+ const safe=vm.runInContext("archivedOriginalDownloadUrl('https://think365orgil.sharepoint.com/sites/taasiyeda2027/docs/p.pdf?web=1&x=2')",context);
+ assert.equal(safe,'https://think365orgil.sharepoint.com/sites/taasiyeda2027/docs/p.pdf?x=2&download=1');
+ const blocked=vm.runInContext("archivedOriginalDownloadUrl('https://evil.example.com/sites/taasiyeda2027/report.pdf')",context);
+ assert.equal(blocked,'');
 });
