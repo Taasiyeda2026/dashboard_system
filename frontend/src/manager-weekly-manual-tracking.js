@@ -65,7 +65,7 @@ const styles = [
   '.mw-foot{display:flex;align-items:center;gap:9px;justify-content:flex-end;flex-wrap:wrap;margin-top:15px}.mw-error{color:#b42318;background:#fff1f1;border:1px solid #f2d0ce;padding:10px;border-radius:9px;margin:10px 0}.mw-notice{color:#135d4e;background:#eafaf3;border:1px solid #c9ecdc;padding:10px;border-radius:9px;margin:10px 0}.mw-verify{margin-top:12px;background:#f5fafc;border:1px solid #dceaf0;border-radius:10px;padding:11px}.mw-verify ul{margin:8px 20px 0 0;padding:0}.mw-empty{padding:24px;text-align:center;color:#64748b}.mw-program{border:1px solid #e3ebf1;border-radius:10px;margin:10px 0;padding:12px;background:#fbfdff}.mw-program-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:9px}.mw-sr-only{position:absolute;left:-10000px}',
   '.mw-report-entry [data-mw-report-fields][hidden]{display:none!important}.mw-entry-status{margin-inline-start:auto}.mw-entry-chevron{font-size:16px}.mw-task-scroll{overflow:auto;max-width:100%;border:1px solid #e2ebf0;border-radius:10px;margin:12px 0}.mw-task-table{width:100%;min-width:1150px;border-collapse:collapse;text-align:right}.mw-task-table th,.mw-task-table td{padding:8px;border-bottom:1px solid #e5edf1}.mw-task-table th{background:#f4f8fb;white-space:nowrap;font-size:12px}.mw-task-table td input,.mw-task-table td select{width:100%;border:1px solid #cbdce5;border-radius:7px;padding:7px;min-height:34px;font:inherit;font-size:12px;background:#fff;color:#23384b;box-sizing:border-box}.mw-task-table td input:disabled,.mw-task-table td select:disabled{background:#f5f7f9}.mw-task-form{display:grid;grid-template-columns:1.4fr 1fr .9fr .9fr .8fr;gap:8px;align-items:end;margin-top:11px}.mw-task-form .mw-field{margin:0}.mw-task-notes{margin-top:8px}.mw-task-status{font-size:11px;color:#62778a}.mw-snapshot{border:1px solid #e1e9f0;background:#f8fbfd;padding:12px;border-radius:10px;margin-top:12px}.mw-snapshot ul{margin:7px 20px 0 0;padding:0}.mw-snapshot li{line-height:1.6}.mw-task-empty{padding:14px;color:#62768a;text-align:center}',
   '@media(max-width:950px){.mw-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.mw-opening{grid-template-columns:repeat(2,minmax(0,1fr))}.mw-opening-extra{grid-column:auto}.mw-task-form{grid-template-columns:repeat(2,minmax(0,1fr))}}',
-  '@media(max-width:610px){.mw-tracker{padding:13px 11px}.mw-fields,.mw-textareas,.mw-program-grid,.mw-opening{grid-template-columns:1fr}.mw-header h2{font-size:17px}.mw-section{margin-top:12px}.mw-opening-extra{grid-column:auto}}'
+  '@media(max-width:610px){.mw-tracker{padding:13px 11px}.mw-fields,.mw-textareas,.mw-program-grid,.mw-opening{grid-template-columns:1fr}.mw-header h2{font-size:17px}.mw-section{margin-top:12px}.mw-opening-extra{grid-column:auto}.mw-table th,.mw-table td{padding:8px 4px;font-size:11px}.mw-week-kind,.mw-week-status{font-size:9px}.mw-week-range{font-size:10px}.mw-week-picker-options{max-width:calc(100vw - 55px)}}'
 ].join('');
 function ensureStyle() {
   if (document.getElementById('manager-weekly-manual-style')) return;
@@ -339,7 +339,9 @@ function bind(ctx) {
   const root = ctx.host;
   root.querySelector('[data-mw-prev]')?.addEventListener('click', () => changeWeek(ctx, shiftWeek(ctx.week, -1)));
   root.querySelector('[data-mw-next]')?.addEventListener('click', () => changeWeek(ctx, shiftWeek(ctx.week, 1)));
-  root.querySelectorAll('[data-mw-week]').forEach((b) => b.addEventListener('click', () => changeWeek(ctx, b.dataset.mwWeek)));
+  root.querySelectorAll('[data-mw-week]').forEach(b=>b.addEventListener('click',()=>{void changeWeek(ctx,b.dataset.mwWeek);}));
+  root.querySelector('[data-mw-collapse]')?.addEventListener('click',()=>{void changeWeek(ctx,timelineCurrentWeek(ctx));});
+  root.querySelector('[data-mw-today]')?.addEventListener('click',()=>{void changeWeek(ctx,timelineCurrentWeek(ctx));});
   root.querySelector('[data-mw-save]')?.addEventListener('click',()=>{void saveWeekly(ctx,false);});
   root.querySelector('[data-mw-submit]')?.addEventListener('click',()=>{void saveWeekly(ctx,true);});
   root.querySelector('[data-mw-toggle]')?.addEventListener('click',()=>{void toggleEntry(ctx);});
@@ -365,6 +367,7 @@ function updateWeeklySummary(ctx) {
   if(!node)return;
   node.innerHTML=tableMarkup(ctx);
   node.querySelectorAll('[data-mw-week]').forEach(button=>button.addEventListener('click',()=>{void changeWeek(ctx,button.dataset.mwWeek);}));
+  node.querySelector('[data-mw-collapse]')?.addEventListener('click',()=>{void changeWeek(ctx,timelineCurrentWeek(ctx));});
 }
 function scheduleAutoSave(ctx) {
   cancelAutoSave(ctx);
@@ -404,6 +407,8 @@ async function changeWeek(ctx,week) {
   }
   if(!isCurrent(ctx))return false;
   ctx.dirty=false;ctx.editingReport=null;ctx.notice=null;ctx.entryExpanded=false;ctx.week=week;
+  const base=timelineCurrentWeek(ctx),previous=shiftWeek(base,-1);
+  ctx.expandedWeek=week===base || week===previous?null:week;
   render(ctx);return true;
 }
 
@@ -412,7 +417,7 @@ function render(ctx) {
   const roleLabel = ctx.canEdit ? 'הזנה עצמאית למנהל הפעילות' : 'צפייה בדיווחי מנהל הפעילות';
   ctx.host.innerHTML = '<div class="' + TRACKER_CLASS + '">' +
     '<div class="mw-header"><div><h2>מעקב שבועי – פתיחות ומוכנות</h2><p class="mw-muted">' + esc(ctx.managerName) + ' · שנת פעילות ' + esc(ctx.year) + '</p></div><span class="mw-tag">' + esc(roleLabel) + '</span></div>' +
-    '<div class="mw-toolbar"><div class="mw-left"><button class="mw-btn" type="button" data-mw-prev>‹ שבוע קודם</button><strong>' + labelWeek(ctx.week) + '</strong><button class="mw-btn" type="button" data-mw-next>שבוע הבא ›</button></div></div>' +
+    '<div class="mw-toolbar"><div class="mw-left"><button class="mw-btn" type="button" data-mw-prev>‹ שבוע קודם</button><strong>' + labelWeek(ctx.week) + '</strong><button class="mw-btn" type="button" data-mw-next>שבוע הבא ›</button><button class="mw-btn" type="button" data-mw-today>חזרה לשבוע הנוכחי</button></div></div>' +
     '<div class="mw-section-head"><h3>1. מדדים שבועיים</h3></div><div data-mw-weekly-table>' + tableMarkup(ctx) + '</div>' + formMarkup(ctx) +
     '<div class="mw-section-head"><h3>2. בעיות ומעקב</h3></div><section class="mw-section" data-mw-tasks-root></section><div data-mw-notice></div></div>';
   bind(ctx);
@@ -569,7 +574,7 @@ export function mountManagerWeeklyManual(host, context) {
   const ctx = {
     ...context, key, host, week: initialWeek(context.ym), reports: [],
     managerId: '', canEdit: false, loading: true, busy: false, taskBusy:false, dirty: false, notice: null, tasks: [],
-    entryExpanded:false,autoSaveTimer:null,saveInFlight:null,changeSeq:0,editingReport:null
+    entryExpanded:false,autoSaveTimer:null,saveInFlight:null,changeSeq:0,editingReport:null,expandedWeek:null
   };
   active = ctx;
   host.innerHTML = '<div class="mw-tracker"><div class="mw-empty">טוען סביבת מעקב שבועי…</div></div>';
