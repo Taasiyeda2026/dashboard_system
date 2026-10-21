@@ -89,11 +89,23 @@ const visualPolish = [
   "@media(max-width:1050px){.mw-tracker{padding:18px 16px}.mw-tracker .mw-table th:first-child,.mw-tracker .mw-table td:first-child{width:34%}.mw-tracker .mw-table th,.mw-tracker .mw-table td{padding:10px 6px}.mw-tracker .mw-table tbody th{font-size:12.5px;padding-inline:10px}.mw-tracker .mw-week-kind{font-size:10.5px}.mw-tracker .mw-week-range{font-size:11px}.mw-tracker .mw-week-status{font-size:10px}}",
   "@media(max-width:690px){.mw-tracker{padding:12px 9px}.mw-header h2{font-size:17px}.mw-tracker .mw-table th:first-child,.mw-tracker .mw-table td:first-child{width:30%}.mw-tracker .mw-table th,.mw-tracker .mw-table td{padding:8px 3px}.mw-tracker .mw-table tbody th{font-size:10px;line-height:1.3;padding-inline:6px}.mw-tracker .mw-table tbody td{font-size:11px}.mw-tracker .mw-week-btn{min-height:71px;padding:3px 1px;gap:3px}.mw-tracker .mw-week-kind{font-size:9px}.mw-tracker .mw-week-range{flex-direction:column;gap:0;font-size:10px;white-space:normal}.mw-tracker .mw-week-divider{display:none}.mw-tracker .mw-week-status{display:none}.mw-tracker>.mw-toolbar{padding:7px}.mw-tracker>.mw-toolbar .mw-left{gap:5px}.mw-tracker>.mw-report-entry{padding:10px}.mw-tracker .mw-report-entry .mw-entry-toggle{margin-inline-start:0}}"
 ].join('');
+const multiIssueStyles = [
+  '.mw-task-add-section{margin-top:16px}.mw-task-add-section>h3{margin-bottom:5px}.mw-task-add-section>.mw-muted{margin-bottom:12px}',
+  '.mw-task-draft{padding:12px 13px 14px;border:1px solid #dce8f0;border-radius:10px;margin:10px 0;background:#fbfdff}',
+  '.mw-task-draft-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;color:#25475d}',
+  '.mw-task-draft-heading strong{font-size:12.5px}.mw-task-draft:only-child .mw-task-draft-remove{display:none}',
+  '.mw-task-draft-remove{font-size:11px!important;padding:4px 9px!important;min-height:27px!important}',
+  '.mw-task-draft-notes{margin-top:9px}.mw-task-draft-notes .mw-field{width:100%}',
+  '.mw-task-add-actions{justify-content:flex-start}.mw-task-add-actions [data-mw-task-add]{margin-inline-start:auto}',
+  '.mw-task-plus{display:inline-flex;align-items:center;gap:7px;border:1px solid #8ab9d0!important;color:#146884!important;font-weight:750!important}',
+  '.mw-task-plus-icon{display:inline-grid;place-items:center;font-size:20px;line-height:1;width:22px;height:22px;border-radius:6px;background:#e2f3fa;color:#11647e}',
+  '@media(max-width:610px){.mw-task-draft{padding:10px}.mw-task-draft .mw-task-form{grid-template-columns:1fr}.mw-task-add-actions{flex-direction:column;align-items:stretch}.mw-task-add-actions .mw-btn{width:100%}}'
+].join('');
 function ensureStyle() {
   if (document.getElementById('manager-weekly-manual-style')) return;
   const el = document.createElement('style');
   el.id = 'manager-weekly-manual-style';
-  el.textContent = styles + visualPolish;
+  el.textContent = styles + visualPolish + multiIssueStyles;
   document.head.appendChild(el);
 }
 function contextKey(ctx) { return [ctx.managerName, ctx.year, ctx.ym].join('|'); }
@@ -266,7 +278,7 @@ function ensureTaskDraftRows(ctx) {
     ctx.taskDraftRows=[blankTaskDraft(ctx)];
   return ctx.taskDraftRows;
 }
-function taskDraftRowMarkup(draft,index,removeAllowed) {
+function taskDraftRowMarkup(draft,index) {
   const field=(key,label,{type='text',max=250,placeholder=''}={})=>
     '<label class="mw-field"><span>'+esc(label)+'</span><input data-mw-task-new="'+key+'" '+
     'type="'+type+'" maxlength="'+max+'" value="'+esc(draft[key]||'')+'" '+
@@ -276,8 +288,8 @@ function taskDraftRowMarkup(draft,index,removeAllowed) {
     optionsHtml(choices,draft[key])+'</select></label>';
   return '<div class="mw-task-draft" data-mw-task-draft="'+esc(draft.id)+'">'+
     '<div class="mw-task-draft-heading"><strong>בעיה חדשה '+(index+1)+'</strong>'+
-    (removeAllowed?'<button type="button" class="mw-btn mw-task-draft-remove" data-mw-task-draft-remove="'+
-      esc(draft.id)+'" aria-label="הסרת שורת בעיה '+(index+1)+'">✕ הסרת שורה</button>':'')+'</div>'+
+    '<button type="button" class="mw-btn mw-task-draft-remove" data-mw-task-draft-remove="'+
+      esc(draft.id)+'" aria-label="הסרת שורת בעיה '+(index+1)+'">✕ הסרת שורה</button></div>'+
     '<div class="mw-task-form">'+
     field('subject','תיאור הבעיה *',{placeholder:'לדוגמה: אין מדריך משובץ לקורס'})+
     field('activity_label','בית ספר / קורס')+
@@ -307,7 +319,7 @@ function appendTaskDraftRow(ctx) {
   rows.push(draft);
   const root=ctx.host.querySelector('[data-mw-task-drafts]');
   if(!root)return;
-  root.insertAdjacentHTML('beforeend',taskDraftRowMarkup(draft,rows.length-1,true));
+  root.insertAdjacentHTML('beforeend',taskDraftRowMarkup(draft,rows.length-1));
   root.querySelector('[data-mw-task-draft="'+draft.id+'"] [data-mw-task-new="subject"]')?.focus();
 }
 function removeTaskDraftRow(ctx,id) {
@@ -327,8 +339,6 @@ function removeTaskDraftRow(ctx,id) {
     const btn=row.querySelector('[data-mw-task-draft-remove]');
     if(btn)btn.setAttribute('aria-label','הסרת שורת בעיה '+(index+1));
   });
-  const sole=container?.querySelector('[data-mw-task-draft]');
-  if(ctx.taskDraftRows.length===1)sole?.querySelector('[data-mw-task-draft-remove]')?.remove();
 }
 function taskMarkup(ctx) {
   const entries=[...ctx.tasks].sort((a,b)=>{
@@ -356,7 +366,7 @@ function taskMarkup(ctx) {
   const add=locked?'':('<div class="mw-section mw-task-add-section"><h3>הוספת בעיות למעקב</h3>'+
     '<p class="mw-muted">ניתן לתעד כמה בעיות במקביל. כל שורה תישמר כבעיה נפרדת.</p>'+
     '<div data-mw-task-drafts>'+ensureTaskDraftRows(ctx).map((draft,index,rows)=>
-      taskDraftRowMarkup(draft,index,rows.length>1)).join('')+'</div>'+
+      taskDraftRowMarkup(draft,index)).join('')+'</div>'+
     '<div class="mw-foot mw-task-add-actions">'+
     '<button type="button" class="mw-btn mw-task-plus" data-mw-task-new-row-add aria-label="הוספת שורת בעיה נוספת"><span aria-hidden="true" class="mw-task-plus-icon">＋</span> הוספת שורת בעיה</button>'+
     '<button type="button" class="mw-btn mw-primary" data-mw-task-add>שמירת כל הבעיות</button></div></div>');
@@ -366,10 +376,10 @@ function taskNotice(ctx,msg,error=false) {
   const node=ctx.host.querySelector('[data-mw-task-notice]');
   if(node)node.innerHTML=msg?'<div class="'+(error?'mw-error':'mw-notice')+'">'+esc(msg)+'</div>':'';
 }
-function refreshTaskSection(ctx) {
+function refreshTaskSection(ctx,{preserveDrafts=true}={}) {
   const node=ctx.host.querySelector('[data-mw-tasks-root]');
   if(!node)return;
-  syncTaskDraftRows(ctx);
+  if(preserveDrafts)syncTaskDraftRows(ctx);
   node.innerHTML=taskMarkup(ctx);
   node.querySelector('[data-mw-task-add]')?.addEventListener('click',()=>addTask(ctx));
   node.querySelector('[data-mw-task-new-row-add]')?.addEventListener('click',()=>appendTaskDraftRow(ctx));
@@ -407,7 +417,7 @@ async function addTask(ctx) {
     if(!isCurrent(ctx))return;
     ctx.tasks.push(...data);
     ctx.taskDraftRows=[blankTaskDraft(ctx)];
-    refreshTaskSection(ctx);
+    refreshTaskSection(ctx,{preserveDrafts:false});
     taskNotice(ctx,'נשמרו '+data.length+' בעיות נפרדות במעקב.');
   } catch(error) {
     if(isCurrent(ctx))taskNotice(ctx,'לא ניתן לשמור בעיות: '+error.message,true);
