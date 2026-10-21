@@ -13,7 +13,7 @@ test('SharePoint path is resolved by mapped instructor identity rather than brow
  assert.match(backend,/observation\.details\?\.observation_slot/);
  assert.match(backend,/if\(!\[1,2\]\.includes\(slot\)\)/);
  assert.match(backend,/folder\?\.folder/);
- assert.match(backend,/parsed\.origin!==SITE/);
+ assert.match(backend,/parsed\.origin!==new URL\(SITE\)\.origin/);
  assert.match(backend,/decoded\.startsWith\(BASE\)/);
  assert.match(backend,/name\.includes\("\/"\)/);
 });
