@@ -20,7 +20,7 @@ test('admin edit request badge and review permission include can_review_requests
   const apiSource = await readFile(API_FILE, 'utf8');
   const mainSource = await readFile(MAIN_FILE, 'utf8');
   assert.match(apiSource, /canReviewEditRequestsUser/);
-  assert.match(apiSource, /permissionFlagYes\(user\?\.can_review_requests\)/);
+  assert.match(apiSource, /return canReviewRequests\(user\)/);
   assert.match(apiSource, /\.in\('status', openStatuses\)/);
   assert.match(mainSource, /ds-nav-count-badge--edit-requests/);
   assert.match(mainSource, /app:edit-requests-updated/);
@@ -46,7 +46,7 @@ test('exceptions save flow explains resolved exception removal and offers activi
 
 test('approval header distinguishes approvals awaiting my action from approvals I sent',async()=>{
  const navSource=await readFile(new URL('../frontend/src/screens/shared/act-nav-grid.js',import.meta.url),'utf8');
- const code=navSource.replace(/^import .*?;\\s*$/gm,'').replace(/^export /gm,'');
+ const code=navSource.replace(/^import .*?;\s*$/gm,'').replace(/^export /gm,'');
  const {headerNavGridHtml}=runInNewContext(code+'\n({headerNavGridHtml})',{escapeHtml:v=>String(v)});
  const html=headerNavGridHtml({routes:['activities','edit-requests'],route:'edit-requests'},
    {editRequests:5,editRequestsIncoming:3,editRequestsSent:2});
