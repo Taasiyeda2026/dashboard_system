@@ -80,7 +80,17 @@ function close() {
   selected = null; stage = -1; reviewReached = false; sharepointReceipt=null;sharepointBusy=false;sharepointError='';
   if (lastFocus?.isConnected) lastFocus.focus();
 }
-async function open(id, display, trigger, slot = 1) {
+function approvedSharePointPdfUrl(value) {
+  try {
+    const url = new URL(String(value || ''));
+    return url.protocol === 'https:'
+      && url.hostname === 'think365orgil.sharepoint.com'
+      && url.pathname.startsWith('/sites/taasiyeda2027/')
+      ? url.href : '';
+  } catch { return ''; }
+}
+
+async function open(id, display, trigger, slot = 1, {preferArchived = false, pendingTab = null} = {}) {
   if (!allowed(userGetter())) return;
   modalShell();
   empId = id; name = display || id; observationSlot = slot === 2 ? 2 : 1; stage = -1; selected = null; reviewReached = false; sharepointReceipt=null;sharepointBusy=false;sharepointError='';
@@ -96,6 +106,40 @@ async function open(id, display, trigger, slot = 1) {
     const {data,error} = await supabase.from(TABLE).select('*').eq('emp_id',Number(empId)).order('created_at',{ascending:false}).limit(30);
     if (error) throw error;
     list = (data || []).filter((item) => Number(item.details?.observation_slot || 1) === observationSlot);
+    // The tracking eye is a document viewer for already completed observations.
+    // Resolve the server-verified receipt instead of displaying a new blank form.
+    const completed = list.find(item => item.status === 'completed');
+    if (completed && supabase?.functions?.invoke) {
+      try {
+        const {data:receipt, error:receiptError} = await supabase.functions.invoke(
+          'instructor-observation-sharepoint',
+          {body:{action:'status',observation_id:completed.id}}
+        );
+        const pdfUrl = !receiptError && receipt?.saved
+          ? approvedSharePointPdfUrl(receipt.url) : '';
+        if (pdfUrl) {
+          let opened = false;
+          if (pendingTab && !pendingTab.closed) {
+            try { pendingTab.location.replace(pdfUrl); opened = true; } catch (_) {}
+          }
+          if (!opened) {
+            try {
+              const tab = window.open(pdfUrl, '_blank');
+              if (tab) { tab.opener = null; opened = true; }
+            } catch (_) {}
+          }
+          if (opened) { close(); return; }
+          // A popup blocker must not send the manager to a new observation.
+          if (pendingTab && !pendingTab.closed) pendingTab.close();
+          selected = completed; stage = 9; reviewReached = true;
+          sharepointReceipt = receipt;
+          render();
+          status('הדו״ח שמור. לפתיחתו לחצו על הקישור ל־SharePoint המופיע למעלה.');
+          return;
+        }
+      } catch (_) { /* If the receipt cannot be checked, show the existing report. */ }
+    }
+    if (pendingTab && !pendingTab.closed) pendingTab.close();
     activityOptions = [];
     try {
       const meetingDates = Array.from({length:35},(_,i)=>'date_'+(i+1)).join(',');
@@ -106,8 +150,10 @@ async function open(id, display, trigger, slot = 1) {
         .limit(200);
       if (!response.error) activityOptions = response.data || [];
     } catch (_) { /* manual course and school entry still available */ }
-    home();
+    if (completed && preferArchived) resume(completed.id);
+    else home();
   } catch(err) {
+    if (pendingTab && !pendingTab.closed) pendingTab.close();
     dialog('<div class="io-note io-error">לא ניתן לטעון תצפיות. יש לוודא שטבלת התצפיות וההרשאות הופעלו ב-Supabase.<p>'+e(err?.message || err)+'</p></div>');
   }
 }
@@ -624,7 +670,18 @@ export function installInstructorObservationRuntime({getUser=()=>({})}={}) {
     const btn=event.target.closest('[data-io-open]');
     if(!btn)return;
     event.preventDefault();event.stopPropagation();
-    void open(String(btn.dataset.ioOpen),String(btn.dataset.ioName || ''),btn,Number(btn.dataset.ioSlot));
+    const preferArchived = !!btn.closest('td.is-done');
+    // Reserve a tab during the real click, before the async receipt lookup.
+    // Otherwise browsers can block opening the already saved SharePoint PDF.
+    let pendingTab = null;
+    if (preferArchived) {
+      try {
+        pendingTab = window.open('about:blank', '_blank');
+        if (pendingTab) pendingTab.opener = null;
+      } catch (_) {}
+    }
+    void open(String(btn.dataset.ioOpen),String(btn.dataset.ioName || ''),btn,
+      Number(btn.dataset.ioSlot),{preferArchived,pendingTab});
   },true);
   document.addEventListener('keydown',event=>{if(event.key==='Escape' && isOpen){event.preventDefault();close();}});
 }
