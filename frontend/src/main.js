@@ -1,4 +1,5 @@
 import { api } from './api.js';
+import './styles/approvals-nav-status.css';
 import { config } from './config.js';
 import { ACTIVE_ACTIVITY_SEASON, globalActivityPeriodLabel, globalActivityPeriodFullLabel, globalActivityPeriodOptions, normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 import { state, setSession, defaultClientSettings, setGlobalActivityPeriod, setArchiveActivityPeriod } from './state.js';
