@@ -40,7 +40,9 @@ test('UI automatically uploads after completion and offers a retry without unloc
  assert.match(frontend,/else if \(action==='finish'\) \{stage=9;render\(\);await saveSharePointPdf\(\);\}/);
  assert.match(frontend,/if\s*\(action==='sharepoint'\)/);
  assert.match(frontend,/sharepointReceipt=data/);
- assert.match(frontend,/href="'\+\s*e\(sharepointReceipt\.url\)/);
+ assert.match(frontend,/href="'\+\s*e\(approvedSharePointPdfUrl\(sharepointReceipt\.url\)\)/);
+ assert.match(frontend,/archivedOriginalDownloadUrl\(originalUrl\)/);
+ assert.match(frontend,/url\.searchParams\.set\('download','1'\)/);
  assert.match(sql,/observation_id uuid primary key/);
  assert.match(sql,/grant select .* authenticated/);
  assert.doesNotMatch(sql,/grant (insert|update|delete).*authenticated/);
