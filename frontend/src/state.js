@@ -124,6 +124,9 @@ export const state = {
   screenDataCache: {},
   /** Sidebar badge for open approval requests (null = not loaded yet). */
   openEditRequestsCount: null,
+  /** Pending requests to review and submitted requests awaiting an answer. */
+  openEditRequestsIncomingCount: null,
+  openEditRequestsSentCount: null,
   /** Sidebar badge for approved proposals awaiting send (null = not loaded yet). */
   pendingApprovedProposalsCount: null,
   /** True once Supabase Auth session is available on the shared client. */
