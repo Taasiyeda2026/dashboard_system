@@ -58,7 +58,7 @@ async function graph(token:string,path:string,options:RequestInit={},allow404=fa
 }
 function canonicalEmployeeFolder(url:unknown) {
  const parsed=new URL(clean(url));
- if(parsed.origin!==SITE)throw new Error("קישור תיק העובד אינו באתר SharePoint המאושר.");
+ if(parsed.origin!==new URL(SITE).origin)throw new Error("קישור תיק העובד אינו באתר SharePoint המאושר.");
  const folder=parsed.searchParams.get("id")||parsed.searchParams.get("RootFolder")||decodeURIComponent(parsed.pathname);
  const decoded=decodeURIComponent(folder).replace(/\/+$/,"");
  if(!decoded.startsWith(BASE))throw new Error("קישור תיק העובד אינו תחת תיקים אישיים.");
