@@ -45,3 +45,13 @@ test('UI automatically uploads after completion and offers a retry without unloc
  assert.match(sql,/grant select .* authenticated/);
  assert.doesNotMatch(sql,/grant (insert|update|delete).*authenticated/);
 });
+
+
+test('Edge Function service role can read and write upload receipts without broadening end-user writes',()=>{
+ const fix=readFileSync(new URL('../supabase/migrations/20261021060500_instructor_observation_pdf_service_role_permissions.sql',import.meta.url),'utf8');
+ assert.match(fix,/grant select, insert, update on table public\.instructor_observation_sharepoint_exports to service_role;/i);
+ assert.match(fix,/revoke insert, update, delete on table public\.instructor_observation_sharepoint_exports from anon, authenticated;/i);
+ assert.match(frontend,/async function sharePointErrorText\(error,data\)/);
+ assert.match(frontend,/response\.clone\(\)\.json\(\)/);
+ assert.match(frontend,/throw new Error\(await sharePointErrorText\(error,data\)\)/);
+});
