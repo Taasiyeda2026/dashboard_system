@@ -205,3 +205,62 @@ test('manager creates, completes, reopens, and prints observation without editin
   assert.equal(records[1].details.observation_slot,2);
  }finally{dom.window.close();}
 });
+
+test('tracking eye opens a saved SharePoint PDF instead of a new form, with a safe popup fallback',async()=>{
+ const dom=new JSDOM('<table><tbody><tr><td class="is-done"><button data-io-open="1550" data-io-slot="1" data-io-name="מדריכה">עין 1</button></td><td><button data-io-open="1550" data-io-slot="2" data-io-name="מדריכה">עין 2</button></td></tr></tbody></table>',{url:'https://test.invalid'});
+ const w=dom.window;
+ const pdfUrl='https://think365orgil.sharepoint.com/sites/taasiyeda2027/report.pdf';
+ const saved={saved:true,url:pdfUrl,file_name:'תצפית 1.pdf',observation_slot:1};
+ const record={id:'saved-observation-1',emp_id:1550,status:'completed',details:{observation_slot:1},
+   instructor_name:'מדריכה',observer_name:'מנהל',observation_date:'2026-10-13',
+   responses:{},comments:{},overall_rating:4,strengths:'',improvements:'',summary:''};
+ let statusCalls=0, blankTabs=0, navigated='', allowPopup=true;
+ w.open=(url,target)=>{
+   assert.equal(target,'_blank');
+   if(!allowPopup)return null;
+   if(url==='about:blank') {
+     blankTabs++;
+     return {closed:false,opener:w,location:{replace:(to)=>{navigated=to;}},close(){this.closed=true;}};
+   }
+   return null;
+ };
+ const supabase={
+   auth:{getUser:async()=>({data:{user:{id:'11111111-1111-4111-8111-111111111111'}}})},
+   functions:{invoke:async(slug,{body})=>{
+     assert.equal(slug,'instructor-observation-sharepoint');
+     assert.equal(body.action,'status');assert.equal(body.observation_id,record.id);
+     statusCalls++;
+     return {data:saved,error:null};
+   }},
+   from(table){
+     return {select(){return this},eq(){return this},order(){return this},or(){return this},
+       limit(){return Promise.resolve({data:table==='activities'?[]:[record],error:null})}};
+   }
+ };
+ const context=vm.createContext({
+   document:w.document,window:w,MutationObserver:w.MutationObserver,
+   setTimeout,clearTimeout,supabase,waitForSupabaseAuthSession:async()=>null,
+   URL:w.URL,console,Date,Promise
+ });
+ const click=async selector=>{
+   const node=w.document.querySelector(selector);assert.ok(node,selector);node.click();await tick();await tick();
+ };
+ try{
+   vm.runInContext(runtime+'; installInstructorObservationRuntime({getUser:()=>({role:"admin",is_active:true})});',context);
+   await click('[data-io-slot="1"]');
+   assert.equal(blankTabs,1,'Saved checkbox reserves a popup before awaiting the API');
+   assert.equal(navigated,pdfUrl,'The eye navigates to the existing SharePoint PDF');
+   assert.equal(statusCalls,1);
+   assert.equal(w.document.querySelector('.io-root')?.classList.contains('io-visible'),false);
+   await click('[data-io-slot="2"]');
+   assert.ok(w.document.querySelector('.io-home-head'),'Empty second slot still offers the creation form');
+   assert.equal(blankTabs,1,'No unnecessary popup for an incomplete observation');
+   await click('[data-io-action="close"]');
+   allowPopup=false;
+   await click('[data-io-slot="1"]');
+   assert.equal(statusCalls,2);
+   assert.ok(w.document.querySelector('.io-sp-saved a'),'Blocked popup leaves a direct PDF link');
+   assert.equal(w.document.querySelector('.io-sp-saved a').href,pdfUrl);
+   assert.equal(w.document.querySelector('[data-io-action="new"]'),null,'Does not offer a new blank observation');
+ }finally{dom.window.close();}
+});
