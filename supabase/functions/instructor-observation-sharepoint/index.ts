@@ -210,7 +210,7 @@ Deno.serve(async req=>{
   const filename=name+" - תצפית "+slot+" - "+dateString(observation.observation_date)+" - "+
     observation.id.slice(0,8)+".pdf";
   const destination="/items/"+encodeURIComponent(folder.id)+":/"+encodeURIComponent(filename);
-  let file=await graph(token,destination,null as any,true).catch(()=>null);
+  let file=await graph(token,destination,{},true);
   if(!file) {
    const pdfBytes=await buildPdf(observation,slot);
    const response=await fetch(GRAPH+destination+":/content",{
