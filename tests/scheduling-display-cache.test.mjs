@@ -44,6 +44,18 @@ test('cache compacts large alternatives, isolates sessions and never persists cr
  assert.equal(readSchedulingSessionCache(identity,store,9*3600000),null);
  assert.ok(new TextEncoder().encode([...store.values.values()][0]).length<1024*1024);
 });
+test('private operational activity notes are never persisted in the scheduling session cache', () => {
+  const store=storage();
+  const activity={row_id:'c1',notes:'גלוי',scheduling_note:'לימי שני',
+    operations_private_notes:'מידע פנימי ורגיש'};
+  assert.equal(writeSchedulingSessionCache(identity,{activities:[activity]},store,100),true);
+  const restored=readSchedulingSessionCache(identity,store,200);
+  assert.equal(restored.activities[0].notes,'גלוי');
+  assert.equal(restored.activities[0].scheduling_note,'לימי שני');
+  assert.equal('operations_private_notes' in restored.activities[0],false);
+  assert.doesNotMatch([...store.values.values()][0],/מידע פנימי ורגיש/);
+});
+
 test('quota/disabled/corrupt storage never interrupts display or restores obsolete data', () => {
  const store=storage();writeSchedulingSessionCache(identity,{activities:[]},store,100);
  const quota={...store,setItem(){throw Object.assign(new Error('full'),{name:'QuotaExceededError'});}};
