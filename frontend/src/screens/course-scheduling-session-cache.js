@@ -20,6 +20,7 @@ function cacheSnapshot(identity, data) {
   // Private operational notes must not persist in browser session storage.
   // The authorized operator can fetch them again from the server on refresh.
   if (Array.isArray(snapshot.activities)) snapshot.activities = snapshot.activities.map(activity => {
+    if (!activity || typeof activity !== 'object' || Array.isArray(activity)) return activity;
     const { operations_private_notes, ...safeActivity } = activity;
     return safeActivity;
   });
