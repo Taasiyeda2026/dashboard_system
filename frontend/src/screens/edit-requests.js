@@ -219,7 +219,7 @@ function requesterFooterHtml(group) {
   `;
 }
 
-export function renderGroup(group, canReview) {
+export function renderGroup(group, canReview, {readOnly=false}={}) {
   const activity = group.activity || null;
   const requestType = String(group.request_type || '');
   const isCreateRequest = requestType === 'create_activity';
@@ -241,9 +241,9 @@ export function renderGroup(group, canReview) {
   const endTime = formatTimeDisplay(isCreateRequest ? group?.requested_payload?.end_time : activity?.end_time);
   const activityTimes = [startTime, endTime].filter(Boolean).join('–');
 
-  const canApprove = (isSchedulingApproval || isMeetingSubstituteRequest)
+  const canApprove = !readOnly && ((isSchedulingApproval || isMeetingSubstituteRequest)
     ? group.status === 'pending' && group.can_approve === true
-    : canReview && group.status === 'pending' && group.can_approve !== false;
+    : canReview && group.status === 'pending' && group.can_approve !== false);
   const actionsHtml = canApprove ? `
     <div class="ds-er-actions">
       <button type="button" class="ds-btn ds-btn--success ds-btn--sm" data-action="approve" data-request-id="${escapeHtml(group.request_id)}">אישור</button>
@@ -428,7 +428,6 @@ export function approvalViewBuckets(data) {
     .sort((a,b)=>String(b.requested_at||'').localeCompare(String(a.requested_at||'')));
   const incoming=canReview?valid.filter(g=>
     isOpen(g) && (!id || String(g.requested_by_user_id||'').trim()!==id)
-    && g.can_approve!==false
     && (data?.canReview || (String(g.request_type||'')===COURSE_MEETING_SUBSTITUTE_REQUEST_TYPE
         && g.can_approve===true))
   ):[];
@@ -461,9 +460,9 @@ export const editRequestsScreen = {
     const canReview=!!data?.canReviewWorkflow || !!data?.canReview;
     const incomingHtml=incoming.length?incoming.map(g=>renderGroup(g,canReview)).join(''):
       dsEmptyState('אין כרגע בקשות הממתינות לטיפולך');
-    const ownOpenHtml=ownOpen.length?ownOpen.map(g=>renderGroup(g,false)).join(''):
+    const ownOpenHtml=ownOpen.length?ownOpen.map(g=>renderGroup(g,false,{readOnly:true})).join(''):
       dsEmptyState('אין בקשות ששלחת וממתינות לתשובה');
-    const ownResolvedHtml=ownResolved.length?ownResolved.map(g=>renderGroup(g,false)).join(''):
+    const ownResolvedHtml=ownResolved.length?ownResolved.map(g=>renderGroup(g,false,{readOnly:true})).join(''):
       dsEmptyState('אין בקשות שטופלו להצגה');
     const title=canReview?'אישורים – טיפול ומעקב':'אישורים – מעקב אחר הבקשות שלי';
     const summary='<div class="ds-er-status-overview" dir="rtl" aria-label="סטטוס האישורים">'+
