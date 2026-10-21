@@ -393,6 +393,10 @@ async function checkSharePointReceipt(observationId) {
   if(selected?.id!==observationId || selected?.status!=='completed' || !isOpen)return;
   sharepointReceipt=data?.saved ? data : null;
   if(stage===9)render();
+  // Previously completed observations (before this feature was deployed) need
+  // the same automatic archival as newly completed reports. Saving is idempotent
+  // on the server, so reopening can safely recover a missing SharePoint PDF.
+  if(!sharepointReceipt && stage===9)void saveSharePointPdf();
 }
 async function saveSharePointPdf() {
   if(!selected || selected.status!=='completed' || sharepointBusy)return false;
