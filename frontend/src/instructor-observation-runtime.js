@@ -534,7 +534,7 @@ function report({viewer=false}={}) {
     RATING_OPTIONS.map(([n,label])=>'<span>'+n+' – '+e(label)+'</span>').join('')+
     '</div>'+
     activeSections().map((s,i)=>'<section class="io-report-section"><h2>'+(i+1)+'. '+e(s.title)+'</h2>'+
-      s.questions.map((q,j)=>printedQuestion(q,i+'-'+j)).join('')+
+      s.questions.map((q,j)=>printedQuestion([(isNewForm()?questionNumber(i,j)+'. ':'')+q[0],q[1]],i+'-'+j)).join('')+
       (selected.comments?.[i]?'<p class="io-report-notes"><strong>'+e(isNewForm()?questionNumber(i,s.questions.length)+'. '+s.open:'הערות ודוגמאות')+':</strong> '+
         e(selected.comments[i])+'</p>':'')+'</section>').join('')+
     '<section class="io-report-section"><h2>סיכום מקצועי</h2>'+
