@@ -3679,3 +3679,39 @@
 .course-scheduling-screen .cs-route-school-unresolved {
   color: #955e1e;
 }
+
+/* Scheduling workboard simplification (2026-10-21): operational controls first. */
+.course-scheduling-screen .course-scheduling-operator-toolbar {
+  display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap;margin:8px 0;
+}
+.course-scheduling-screen .course-scheduling-planning-disclosure {
+  margin:14px 0 4px;border:1px solid #d8e0eb;border-radius:12px;background:#fff;overflow:hidden;
+}
+.course-scheduling-screen .course-scheduling-planning-disclosure > summary {
+  display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+  padding:13px 16px;cursor:pointer;background:#f4f7fb;list-style-position:inside;
+}
+.course-scheduling-screen .course-scheduling-planning-disclosure > summary > span {
+  color:#526277;font-size:.85rem;
+}
+.course-scheduling-screen .course-scheduling-planning-disclosure__body {padding:14px;}
+.course-scheduling-screen .course-scheduling-activity-notes {
+  margin:10px 0;padding:0;border:1px solid #d8e0eb;border-radius:9px;background:#fafbfd;
+}
+.course-scheduling-screen .course-scheduling-activity-notes > summary {
+  cursor:pointer;padding:10px 12px;font-weight:650;
+}
+.course-scheduling-screen .course-scheduling-activity-notes__body {
+  display:grid;gap:10px;padding:0 12px 12px;
+}
+.course-scheduling-screen .course-scheduling-activity-notes__body section {
+  border-top:1px solid #e7ebf1;padding-top:9px;
+}
+.course-scheduling-screen .course-scheduling-activity-notes__body p {
+  margin:5px 0 0;white-space:pre-wrap;overflow-wrap:anywhere;
+}
+@media(max-width:720px) {
+  .course-scheduling-screen .course-scheduling-planning-disclosure > summary {align-items:flex-start;flex-direction:column;}
+  .course-scheduling-screen .course-scheduling-operator-toolbar {justify-content:flex-start;}
+  .course-scheduling-screen .course-scheduling-planning-disclosure__body {padding:8px;}
+}
