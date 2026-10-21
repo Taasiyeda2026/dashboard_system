@@ -553,6 +553,8 @@ async function changeWeek(ctx,week) {
 
 function render(ctx) {
   if (!isCurrent(ctx)) return;
+  // Preserve issue drafts before rebuilding the weekly metrics interface.
+  syncTaskDraftRows(ctx);
   const roleLabel = ctx.canEdit ? 'הזנה עצמאית למנהל הפעילות' : 'צפייה בדיווחי מנהל הפעילות';
   ctx.host.innerHTML = '<div class="' + TRACKER_CLASS + '">' +
     '<div class="mw-header"><div><h2>מעקב שבועי – פתיחות ומוכנות</h2><p class="mw-muted">' + esc(ctx.managerName) + ' · שנת פעילות ' + esc(ctx.year) + '</p></div><span class="mw-tag">' + esc(roleLabel) + '</span></div>' +
