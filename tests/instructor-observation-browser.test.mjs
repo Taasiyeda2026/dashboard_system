@@ -240,7 +240,7 @@ test('tracking eye opens a saved SharePoint PDF instead of a new form, with a sa
  const context=vm.createContext({
    document:w.document,window:w,MutationObserver:w.MutationObserver,
    setTimeout,clearTimeout,supabase,waitForSupabaseAuthSession:async()=>null,
-   console,Date,Promise
+   URL:w.URL,console,Date,Promise
  });
  const click=async selector=>{
    const node=w.document.querySelector(selector);assert.ok(node,selector);node.click();await tick();await tick();
