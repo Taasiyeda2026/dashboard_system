@@ -54,7 +54,7 @@ const localDate = () => { const d = new Date(); return [d.getFullYear(),String(d
 const allowed = user => ['admin','activities_manager','operation_manager'].includes(String(user?.role || '').trim()) && user?.is_active !== false;
 let root, userGetter = () => ({}), selected = null, list = [], stage = -1, empId = '', name = '', saveQueue = Promise.resolve(), debounce, activityOptions = [], lastFocus = null;
 let isOpen = false, viewerAuthId = '', observationSlot = 1, reviewReached = false;
-let sharepointReceipt=null, sharepointBusy=false, sharepointError='';
+let sharepointReceipt=null, sharepointBusy=false, sharepointChecking=false, sharepointError='';
 const editable = () => !!selected && selected.status === 'draft' && (!selected.created_by || selected.created_by === viewerAuthId);
 
 const statusNode = () => root?.querySelector('[data-io-status]');
@@ -77,7 +77,7 @@ function close() {
   if (selected && selected.status === 'draft') { capture(); void persist().catch(()=>{}); }
   isOpen = false; root?.classList.remove('io-visible');
   document.body.classList.remove('io-modal-open');
-  selected = null; stage = -1; reviewReached = false; sharepointReceipt=null;sharepointBusy=false;sharepointError='';
+  selected = null; stage = -1; reviewReached = false; sharepointReceipt=null;sharepointBusy=false;sharepointChecking=false;sharepointError='';
   if (lastFocus?.isConnected) lastFocus.focus();
 }
 function approvedSharePointPdfUrl(value) {
@@ -89,11 +89,19 @@ function approvedSharePointPdfUrl(value) {
       ? url.href : '';
   } catch { return ''; }
 }
+function archivedOriginalDownloadUrl(value) {
+  const original = approvedSharePointPdfUrl(value);
+  if (!original) return '';
+  const url = new URL(original);
+  url.searchParams.delete('web');
+  url.searchParams.set('download','1');
+  return url.href;
+}
 
-async function open(id, display, trigger, slot = 1, {preferArchived = false, pendingTab = null} = {}) {
+async function open(id, display, trigger, slot = 1) {
   if (!allowed(userGetter())) return;
   modalShell();
-  empId = id; name = display || id; observationSlot = slot === 2 ? 2 : 1; stage = -1; selected = null; reviewReached = false; sharepointReceipt=null;sharepointBusy=false;sharepointError='';
+  empId = id; name = display || id; observationSlot = slot === 2 ? 2 : 1; stage = -1; selected = null; reviewReached = false; sharepointReceipt=null;sharepointBusy=false;sharepointChecking=false;sharepointError='';
   lastFocus = trigger; isOpen = true;
   root.classList.add('io-visible');
   document.body.classList.add('io-modal-open');
@@ -106,40 +114,10 @@ async function open(id, display, trigger, slot = 1, {preferArchived = false, pen
     const {data,error} = await supabase.from(TABLE).select('*').eq('emp_id',Number(empId)).order('created_at',{ascending:false}).limit(30);
     if (error) throw error;
     list = (data || []).filter((item) => Number(item.details?.observation_slot || 1) === observationSlot);
-    // The tracking eye is a document viewer for already completed observations.
-    // Resolve the server-verified receipt instead of displaying a new blank form.
+    // The eye opens the saved answers inside the dashboard; a separate link
+    // downloads the *existing* PDF without regenerating it.
     const completed = list.find(item => item.status === 'completed');
-    if (completed && supabase?.functions?.invoke) {
-      try {
-        const {data:receipt, error:receiptError} = await supabase.functions.invoke(
-          'instructor-observation-sharepoint',
-          {body:{action:'status',observation_id:completed.id}}
-        );
-        const pdfUrl = !receiptError && receipt?.saved
-          ? approvedSharePointPdfUrl(receipt.url) : '';
-        if (pdfUrl) {
-          let opened = false;
-          if (pendingTab && !pendingTab.closed) {
-            try { pendingTab.location.replace(pdfUrl); opened = true; } catch (_) {}
-          }
-          if (!opened) {
-            try {
-              const tab = window.open(pdfUrl, '_blank');
-              if (tab) { tab.opener = null; opened = true; }
-            } catch (_) {}
-          }
-          if (opened) { close(); return; }
-          // A popup blocker must not send the manager to a new observation.
-          if (pendingTab && !pendingTab.closed) pendingTab.close();
-          selected = completed; stage = 9; reviewReached = true;
-          sharepointReceipt = receipt;
-          render();
-          status('הדו״ח שמור. לפתיחתו לחצו על הקישור ל־SharePoint המופיע למעלה.');
-          return;
-        }
-      } catch (_) { /* If the receipt cannot be checked, show the existing report. */ }
-    }
-    if (pendingTab && !pendingTab.closed) pendingTab.close();
+    if (completed) { resume(completed.id); return; }
     activityOptions = [];
     try {
       const meetingDates = Array.from({length:35},(_,i)=>'date_'+(i+1)).join(',');
@@ -150,10 +128,8 @@ async function open(id, display, trigger, slot = 1, {preferArchived = false, pen
         .limit(200);
       if (!response.error) activityOptions = response.data || [];
     } catch (_) { /* manual course and school entry still available */ }
-    if (completed && preferArchived) resume(completed.id);
-    else home();
+    home();
   } catch(err) {
-    if (pendingTab && !pendingTab.closed) pendingTab.close();
     dialog('<div class="io-note io-error">לא ניתן לטעון תצפיות. יש לוודא שטבלת התצפיות וההרשאות הופעלו ב-Supabase.<p>'+e(err?.message || err)+'</p></div>');
   }
 }
@@ -186,7 +162,7 @@ async function create() {
   try {
     const {data,error} = await supabase.from(TABLE).insert(blankRecord()).select('*').single();
     if (error) throw error;
-    selected=data; list.unshift(data); stage=0; reviewReached=false;sharepointReceipt=null;sharepointBusy=false;sharepointError=''; render();
+    selected=data; list.unshift(data); stage=0; reviewReached=false;sharepointReceipt=null;sharepointBusy=false;sharepointChecking=false;sharepointError=''; render();
   } catch(err) { dialog('<div class="io-content"><p class="io-error">יצירת הטיוטה נכשלה: '+e(err?.message || err)+'</p><button type="button" class="io-secondary" data-io-action="home">חזרה לרשימה</button></div>'); }
 }
 function resume(id) {
@@ -194,7 +170,8 @@ function resume(id) {
   if (!selected) return;
   // Completed observations reopen at the report/print step instead of forcing
   // a manager to click through every already-finalized section.
-  stage=selected.status==='completed'?9:0; reviewReached=stage===9; sharepointReceipt=null;sharepointError=''; render();
+  stage=selected.status==='completed'?9:0; reviewReached=stage===9; sharepointReceipt=null;sharepointError='';
+  sharepointChecking=stage===9; render();
   if(stage===9)void checkSharePointReceipt(selected.id);
 }
 function field(label,key,type='text',required=false,value='') {
@@ -432,16 +409,28 @@ function overview() {
 }
 async function checkSharePointReceipt(observationId) {
   if(!observationId || !supabase?.functions?.invoke)return;
-  const {data,error}=await supabase.functions.invoke('instructor-observation-sharepoint',{
-    body:{action:'status',observation_id:observationId}
-  });
-  if(error || data?.error)return;
+  let data,error;
+  try {
+    ({data,error}=await supabase.functions.invoke('instructor-observation-sharepoint',{
+      body:{action:'status',observation_id:observationId}
+    }));
+  } catch(err) { error=err; }
   if(selected?.id!==observationId || selected?.status!=='completed' || !isOpen)return;
+  sharepointChecking=false;
+  if(error || data?.error) {
+    sharepointError=await sharePointErrorText(error,data);
+    if(stage===9)render();
+    return;
+  }
+  if(data?.saved && !approvedSharePointPdfUrl(data?.url)) {
+    sharepointError='נמצאה אסמכתת PDF אך כתובת המסמך אינה תקינה לפתיחה';
+    if(stage===9)render();
+    return; // Never generate a second copy of an already archived file.
+  }
   sharepointReceipt=data?.saved ? data : null;
   if(stage===9)render();
-  // Previously completed observations (before this feature was deployed) need
-  // the same automatic archival as newly completed reports. Saving is idempotent
-  // on the server, so reopening can safely recover a missing SharePoint PDF.
+  // Recover a previously completed report only if the server confirms no archive.
+  // A verified existing PDF is never regenerated by opening the eye.
   if(!sharepointReceipt && stage===9)void saveSharePointPdf();
 }
 async function sharePointErrorText(error,data) {
@@ -487,8 +476,9 @@ async function saveSharePointPdf() {
 }
 function sharepointStatusHtml() {
   if(!selected || selected.status!=='completed')return '';
-  if(sharepointReceipt?.saved)return '<p class="io-sp-saved">ה־PDF נשמר בתיק האישי: <a target="_blank" rel="noopener noreferrer" href="'+
-    e(sharepointReceipt.url)+'">'+e(sharepointReceipt.file_name || 'פתיחת PDF ב־SharePoint')+'</a></p>';
+  if(sharepointReceipt?.saved && approvedSharePointPdfUrl(sharepointReceipt.url))return '<p class="io-sp-saved">מסמך המקור שמור בתיק האישי ב־SharePoint: <a target="_blank" rel="noopener noreferrer" href="'+
+    e(approvedSharePointPdfUrl(sharepointReceipt.url))+'">'+e(sharepointReceipt.file_name || 'פתיחת PDF ב־SharePoint')+'</a></p>';
+  if(sharepointChecking)return '<p class="io-muted">בודק את קובץ המקור ב־SharePoint…</p>';
   if(sharepointBusy)return '<p class="io-muted">שומר PDF בתיקיית התצפית ב־SharePoint…</p>';
   return '<p class="io-sp-warning">'+(sharepointError?'שמירת ה־PDF נכשלה: '+e(sharepointError)+'. אפשר לנסות שוב.':'ה־PDF עדיין לא נשמר ב־SharePoint.')+'</p>';
 }
@@ -507,7 +497,7 @@ function printedQuestion(question,key) {
         e(grade?ratingText(value):value)+'</span>').join('')+'</div>')+
     '</div>';
 }
-function report() {
+function report({viewer=false}={}) {
   const d=selected.details||{};
   const facts=[
     ['שם המדריך',selected.instructor_name],['תאריך הצפייה',selected.observation_date],
@@ -535,11 +525,27 @@ function report() {
     '<h3>נקודות כוח</h3><p>'+e(selected.strengths||'—')+'</p>'+
     '<h3>נקודות לשיפור</h3><p>'+e(selected.improvements||'—')+'</p>'+
     '<h3>חוות דעת מסכמת</h3><p>'+e(selected.summary||'—')+'</p></section>'+
-    '<footer>תאריך הפקת הדו"ח: '+e(localDate())+' · נוצר במערכת תעשיידע</footer></div>';
+    (viewer?'':'<footer>תאריך הפקת הדו"ח: '+e(localDate())+' · נוצר במערכת תעשיידע</footer>')+'</div>';
 }
 function render() {
   if (!selected) return home();
   const done=selected.status==='completed';
+  if (done) {
+    const originalUrl=approvedSharePointPdfUrl(sharepointReceipt?.url);
+    const downloadUrl=archivedOriginalDownloadUrl(originalUrl);
+    const actions='<footer class="io-actions"><button type="button" class="io-secondary" data-io-action="home">לכל התצפיות</button>'+
+      '<div class="io-actions-main">'+
+      (downloadUrl?'<a class="io-primary io-original-download" target="_blank" rel="noopener noreferrer" href="'+e(downloadUrl)+'">הורדת ה־PDF המקורי</a>':'')+
+      (!originalUrl && !sharepointBusy && !sharepointChecking?'<button type="button" class="io-secondary" data-io-action="sharepoint">שמירה ב־SharePoint</button>':'')+
+      '</div></footer>';
+    dialog('<main class="io-content io-archived-viewer"><div class="io-archived-banner"><strong>תצפית שהושלמה — לצפייה בלבד</strong>'+
+      '<p>להלן נתוני המשוב והתשובות שנשמרו במערכת. ההורדה מתבצעת מהקובץ המקורי ב־SharePoint, ללא יצירת PDF חדש.</p></div>'+
+      report({viewer:true})+
+      '<div class="io-archived-document">'+sharepointStatusHtml()+'</div></main>'+
+      '<p class="io-save-status" data-io-status aria-live="polite">המשוב הושלם וננעל לעריכה</p>'+actions);
+    root.querySelector('.io-print').innerHTML=report();
+    return;
+  }
   if(stage===9) reviewReached=true;
   const stages=['הקדמה','פרטי התצפית',...SECTIONS.map(s=>s.title),'סיכום','בדיקה והפקה'];
   const body = stage===0 ? '<div class="io-lead"><h3>לפני שמתחילים — מטרת התצפית</h3><p>המשוב נועד להעריך את איכות ההדרכה בפועל, לזהות חוזקות ותחומים לשיפור ולבסס ליווי מקצועי.</p></div><h3>הנחיות לצופה</h3><ol><li>יש ליידע את המדריך מראש על מועד התצפית, מטרותיה ומדדי ההערכה.</li><li>יש לתעד רק מה שנצפה בפועל ובאופן ענייני ומדויק.</li><li>רצוי לציין דוגמאות קונקרטיות בכל תחום.</li><li>בסיום יש לכתוב נקודות כוח, נקודות לשיפור וחוות דעת מסכמת.</li><li>אפשר לשמור טיוטה בכל שלב. הדו"ח זמין למנהל בלבד ואינו נשלח אוטומטית למדריך.</li></ol>' :
@@ -670,18 +676,8 @@ export function installInstructorObservationRuntime({getUser=()=>({})}={}) {
     const btn=event.target.closest('[data-io-open]');
     if(!btn)return;
     event.preventDefault();event.stopPropagation();
-    const preferArchived = !!btn.closest('td.is-done');
-    // Reserve a tab during the real click, before the async receipt lookup.
-    // Otherwise browsers can block opening the already saved SharePoint PDF.
-    let pendingTab = null;
-    if (preferArchived) {
-      try {
-        pendingTab = window.open('about:blank', '_blank');
-        if (pendingTab) pendingTab.opener = null;
-      } catch (_) {}
-    }
     void open(String(btn.dataset.ioOpen),String(btn.dataset.ioName || ''),btn,
-      Number(btn.dataset.ioSlot),{preferArchived,pendingTab});
+      Number(btn.dataset.ioSlot));
   },true);
   document.addEventListener('keydown',event=>{if(event.key==='Escape' && isOpen){event.preventDefault();close();}});
 }
