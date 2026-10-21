@@ -81,7 +81,7 @@ function multipleIssueHarness() {
       }};
     }};
   }};
-  const api=runInNewContext(isolated+'\\n({refreshTaskSection,taskMarkup,taskSummary,addTask,__setActive:(ctx)=>{active=ctx;}})',
+  const api=runInNewContext(isolated+'\n({refreshTaskSection,taskMarkup,taskSummary,addTask,__setActive:(ctx)=>{active=ctx;}})',
     {Date,console,supabase,document:dom.window.document,window:dom.window});
   const ctx={host:dom.window.document.getElementById('host'),managerId:'1500',year:'2027',
     tasks:[],canEdit:true,taskBusy:false,managerName:'הילה רוזן'};
