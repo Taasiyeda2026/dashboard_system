@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { runInNewContext } from 'node:vm';
+import { JSDOM } from 'jsdom';
 
 const source=await readFile(new URL('../frontend/src/manager-weekly-manual-tracking.js',import.meta.url),'utf8');
 const migration=await readFile(new URL('../supabase/migrations/20261020115000_manager_ongoing_tasks_weekly_snapshots.sql',import.meta.url),'utf8');
@@ -62,4 +63,103 @@ test('database enforces owned task writes, read-only admin and permanent submitt
  assert.match(migration,/tasks_snapshot jsonb/);
  assert.doesNotMatch(migration,/for (delete|truncate) to authenticated/i);
  assert.doesNotMatch(source,/\.update\(.+\)\.from\('activities'\)/);
+});
+
+
+function multipleIssueHarness() {
+  const dom=new JSDOM('<div id="host"><section data-mw-tasks-root></section></div>',{url:'https://example.test'});
+  const writes=[];
+  let failNext=false;
+  const supabase={from(table){
+    assert.equal(table,'manager_ongoing_tasks');
+    return {insert(payloads){
+      assert.ok(Array.isArray(payloads),'New problems must be inserted as multiple independent rows');
+      writes.push(payloads);
+      return {async select() {
+        if(failNext){failNext=false;return {data:null,error:{message:'temporary failure'}};}
+        return {data:payloads.map((payload,i)=>({...payload,id:'saved-'+writes.length+'-'+i})),error:null};
+      }};
+    }};
+  }};
+  const api=runInNewContext(isolated+'\\n({refreshTaskSection,taskMarkup,taskSummary,addTask,__setActive:(ctx)=>{active=ctx;}})',
+    {Date,console,supabase,document:dom.window.document,window:dom.window});
+  const ctx={host:dom.window.document.getElementById('host'),managerId:'1500',year:'2027',
+    tasks:[],canEdit:true,taskBusy:false,managerName:'הילה רוזן'};
+  api.__setActive(ctx);
+  api.refreshTaskSection(ctx);
+  const fill=(index,key,value)=>{
+    const row=ctx.host.querySelectorAll('[data-mw-task-draft]')[index];
+    assert.ok(row,'Expected draft row '+index);
+    const field=row.querySelector('[data-mw-task-new="'+key+'"]');
+    assert.ok(field,'Missing '+key);
+    field.value=value;field.dispatchEvent(new dom.window.Event('input',{bubbles:true}));
+  };
+  const click=(selector)=>{const button=ctx.host.querySelector(selector);assert.ok(button,selector);button.click();};
+  const save=async()=>{await api.addTask(ctx);};
+  return {api,ctx,dom,writes,fill,click,save,failOnce:()=>{failNext=true;}};
+}
+test('section 2 plus control adds as many independent issue lines as needed',()=>{
+ const {ctx,click,fill}=multipleIssueHarness();
+ assert.equal(ctx.host.querySelectorAll('[data-mw-task-draft]').length,1);
+ const first=ctx.host.querySelector('[data-mw-task-new="subject"]');
+ fill(0,'subject','חוסר במדריכים');
+ click('[data-mw-task-new-row-add]');
+ click('[data-mw-task-new-row-add]');
+ assert.equal(ctx.host.querySelectorAll('[data-mw-task-draft]').length,3);
+ assert.equal(first.value,'חוסר במדריכים','Adding more rows must not wipe previously typed information');
+ fill(1,'subject','קורס ללא ערכות');
+ fill(2,'subject','בעיה בתיאום');
+ click('[data-mw-task-draft]:nth-child(2) [data-mw-task-draft-remove]');
+ assert.equal(ctx.host.querySelectorAll('[data-mw-task-draft]').length,2);
+ assert.equal(ctx.host.querySelectorAll('[data-mw-task-new="subject"]')[1].value,'בעיה בתיאום');
+ click('[data-mw-task-new-row-add]');
+ assert.equal(ctx.host.querySelectorAll('[data-mw-task-draft]').length,3);
+});
+test('saving multiple problems creates separate persisted rows and resets to one empty line',async()=>{
+ const {ctx,fill,click,save,writes}=multipleIssueHarness();
+ fill(0,'subject','אין מדריך');
+ fill(0,'activity_label','קציר');
+ fill(0,'category','instructor_shortage');
+ click('[data-mw-task-new-row-add]');
+ fill(1,'subject','אין ערכות');
+ fill(1,'category','kit');
+ fill(1,'due_date','2026-11-02');
+ await save();
+ assert.equal(writes.length,1,'Single batch write');
+ assert.equal(writes[0].length,2);
+ assert.deepEqual(writes[0].map(x=>x.subject),['אין מדריך','אין ערכות']);
+ assert.deepEqual(writes[0].map(x=>x.category),['instructor_shortage','kit']);
+ assert.equal(writes[0][0].manager_user_id,'1500');
+ assert.equal(writes[0][1].school_year,'2027');
+ assert.equal(ctx.tasks.length,2,'Both tasks added as distinct persistent entries');
+ assert.equal(ctx.host.querySelectorAll('[data-mw-task-row]').length,2);
+ assert.equal(ctx.host.querySelectorAll('[data-mw-task-draft]').length,1);
+ assert.equal(ctx.host.querySelector('[data-mw-task-new="subject"]').value,'');
+ assert.match(ctx.host.querySelector('[data-mw-task-notice]').textContent,/נשמרו 2 בעיות/);
+});
+test('invalid row and server failure keep all typed issue rows for correction',async()=>{
+ const {ctx,fill,click,save,writes,failOnce}=multipleIssueHarness();
+ fill(0,'subject','מדריך לא הגיע');
+ click('[data-mw-task-new-row-add]');
+ fill(1,'notes','דרוש בירור');
+ await save();
+ assert.equal(writes.length,0,'A partially populated row without subject cannot be saved');
+ assert.match(ctx.host.querySelector('[data-mw-task-notice]').textContent,/שורה 2/);
+ fill(1,'subject','ביטול מפגש');
+ failOnce();
+ await save();
+ assert.equal(writes.length,1);
+ assert.equal(ctx.tasks.length,0);
+ assert.equal(ctx.host.querySelectorAll('[data-mw-task-draft]').length,2);
+ assert.equal(ctx.host.querySelectorAll('[data-mw-task-new="subject"]')[1].value,'ביטול מפגש');
+ await save();
+ assert.equal(writes.length,2);
+ assert.equal(ctx.tasks.length,2);
+});
+test('admin viewing section 2 cannot add or edit problem rows',()=>{
+ const {api,ctx}=multipleIssueHarness();
+ const readOnly=api.taskMarkup({...ctx,canEdit:false});
+ assert.doesNotMatch(readOnly,/data-mw-task-new-row-add/);
+ assert.doesNotMatch(readOnly,/data-mw-task-add/);
+ assert.doesNotMatch(readOnly,/data-mw-task-draft/);
 });
