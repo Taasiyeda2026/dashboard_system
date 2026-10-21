@@ -535,9 +535,10 @@ function navLabelForRoute(route) {
 
 async function refreshOpenEditRequestsCount() {
   if (!state.token || !isAllowedRoute('edit-requests')) return;
+  const requestedForUser=String(state.user?.user_id || '');
   try {
     const latest=await api.editRequestsBadgeCounts();
-    if (!state.token) return;
+    if (!state.token || String(state.user?.user_id || '')!==requestedForUser) return;
     const normalize=v=>Number.isFinite(Number(v))&&Number(v)>0?Math.floor(Number(v)):0;
     const incoming=normalize(latest.incoming);
     const sent=normalize(latest.sent);
@@ -1482,7 +1483,9 @@ async function loadScreenDataWithCache(screen) {
   const routePerfEnabled = routeName === 'dashboard' || routeName === 'activities' || routeName === 'week' || routeName === 'month' || routeName === 'contacts' || routeName === 'proposals-agreements';
   const routePerfStart = routePerfEnabled ? (typeof performance !== 'undefined' ? performance.now() : Date.now()) : 0;
   const key = screenDataCacheKey();
-  const hit = state.screenDataCache[key];
+  // Requests can be approved in a different session. Always fetch current
+  // statuses on entering this page, regardless of the dashboard cache TTL.
+  const hit = routeName === 'edit-requests' ? null : state.screenDataCache[key];
   const ttl = screenCacheTtl();
   const age = hit ? Date.now() - hit.t : 0;
   const serverMarkedStale = !!(hit && hit.data && hit.data._is_stale === true);
