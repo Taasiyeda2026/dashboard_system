@@ -190,7 +190,11 @@ test('manager creates, completes, reopens, and prints observation without editin
   await click('[data-io-action="print"]');
   assert.equal(printed,1);
   await click('[data-io-action="home"]');
+  sharepointUploads.length=0; // Simulate an existing completed report whose PDF is missing.
   await click('[data-io-resume="test-record"]');
+  await tick();
+  assert.equal(sharepointUploads.length,1,'Reopening a previously completed report archives its missing PDF');
+  assert.match(w.document.querySelector('.io-sp-saved').textContent,/תצפית 1/);
   assert.ok(w.document.querySelector('[data-io-action="print"]'));
   assert.equal(w.document.querySelector('[data-io-action="finish"]'),null);
   await click('[data-io-action="close"]');
