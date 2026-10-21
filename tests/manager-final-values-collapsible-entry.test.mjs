@@ -130,7 +130,7 @@ test('all five metric entry fields fit a single desktop grid row, with right-ali
   assert.equal(table.querySelector('thead th:first-child').textContent.trim(),'מדדים');
   assert.equal(table.querySelectorAll('tbody tr').length,5);
   for(const row of table.querySelectorAll('tbody tr')){
-    assert.ok(row.querySelector('td:first-child').textContent.trim(),
+    assert.ok(row.querySelector('th[scope="row"]').textContent.trim(),
       'Each metrics label remains visible in the first column');
   }
   assert.match(source,/\.mw-table th:first-child,\.mw-table td:first-child\{[^}]*text-align:right/);
