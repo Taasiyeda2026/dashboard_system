@@ -52,8 +52,8 @@ test('approval header distinguishes approvals awaiting my action from approvals 
    {editRequests:5,editRequestsIncoming:3,editRequestsSent:2});
  assert.match(html,/title="ממתינות לטיפולי"/);
  assert.match(html,/title="שלחתי – ממתינות לתשובה"/);
- assert.match(html,/ds-nav-count-badge--edit-requests-sent[^>]+>2<\\/span>/);
- assert.match(html,/ds-nav-count-badge--edit-requests[^>]+>3<\\/span>/);
+ assert.match(html,/ds-nav-count-badge--edit-requests-sent[^>]+>2<\/span>/);
+ assert.match(html,/ds-nav-count-badge--edit-requests[^>]+>3<\/span>/);
  const empty=headerNavGridHtml({routes:['edit-requests'],route:'edit-requests'},
    {editRequests:0,editRequestsIncoming:0,editRequestsSent:0});
  assert.doesNotMatch(empty,/ds-nav-count-badge/);
@@ -111,10 +111,10 @@ test('badge count deduplicates specialized requests and includes own pending sub
 });
 test('approval indicator refreshes on request changes and when another user completes review',async()=>{
  const source=await readFile(MAIN_FILE,'utf8');
- assert.match(source,/editRequestsBadgeCounts\\(\\)/);
+ assert.match(source,/editRequestsBadgeCounts\(\)/);
  assert.match(source,/app:edit-requests-updated/);
  assert.match(source,/visibilitychange/);
- assert.match(source,/setInterval\\(\\(\\) =>/);
+ assert.match(source,/setInterval\(\(\) =>/);
  assert.match(source,/openEditRequestsSentCount/);
  assert.match(source,/openEditRequestsIncomingCount/);
  assert.match(source,/ds-nav-count-badge--edit-requests-sent/);
