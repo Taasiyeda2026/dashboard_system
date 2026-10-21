@@ -54,6 +54,7 @@ const localDate = () => { const d = new Date(); return [d.getFullYear(),String(d
 const allowed = user => ['admin','activities_manager','operation_manager'].includes(String(user?.role || '').trim()) && user?.is_active !== false;
 let root, userGetter = () => ({}), selected = null, list = [], stage = -1, empId = '', name = '', saveQueue = Promise.resolve(), debounce, activityOptions = [], lastFocus = null;
 let isOpen = false, viewerAuthId = '', observationSlot = 1, reviewReached = false;
+let sharepointReceipt=null, sharepointBusy=false, sharepointError='';
 const editable = () => !!selected && selected.status === 'draft' && (!selected.created_by || selected.created_by === viewerAuthId);
 
 const statusNode = () => root?.querySelector('[data-io-status]');
@@ -76,13 +77,13 @@ function close() {
   if (selected && selected.status === 'draft') { capture(); void persist().catch(()=>{}); }
   isOpen = false; root?.classList.remove('io-visible');
   document.body.classList.remove('io-modal-open');
-  selected = null; stage = -1; reviewReached = false;
+  selected = null; stage = -1; reviewReached = false; sharepointReceipt=null;sharepointBusy=false;sharepointError='';
   if (lastFocus?.isConnected) lastFocus.focus();
 }
 async function open(id, display, trigger, slot = 1) {
   if (!allowed(userGetter())) return;
   modalShell();
-  empId = id; name = display || id; observationSlot = slot === 2 ? 2 : 1; stage = -1; selected = null; reviewReached = false;
+  empId = id; name = display || id; observationSlot = slot === 2 ? 2 : 1; stage = -1; selected = null; reviewReached = false; sharepointReceipt=null;sharepointBusy=false;sharepointError='';
   lastFocus = trigger; isOpen = true;
   root.classList.add('io-visible');
   document.body.classList.add('io-modal-open');
@@ -139,7 +140,7 @@ async function create() {
   try {
     const {data,error} = await supabase.from(TABLE).insert(blankRecord()).select('*').single();
     if (error) throw error;
-    selected=data; list.unshift(data); stage=0; reviewReached=false; render();
+    selected=data; list.unshift(data); stage=0; reviewReached=false;sharepointReceipt=null;sharepointBusy=false;sharepointError=''; render();
   } catch(err) { dialog('<div class="io-content"><p class="io-error">יצירת הטיוטה נכשלה: '+e(err?.message || err)+'</p><button type="button" class="io-secondary" data-io-action="home">חזרה לרשימה</button></div>'); }
 }
 function resume(id) {
@@ -147,7 +148,8 @@ function resume(id) {
   if (!selected) return;
   // Completed observations reopen at the report/print step instead of forcing
   // a manager to click through every already-finalized section.
-  stage=selected.status==='completed'?9:0; reviewReached=stage===9; render();
+  stage=selected.status==='completed'?9:0; reviewReached=stage===9; sharepointReceipt=null;sharepointError=''; render();
+  if(stage===9)void checkSharePointReceipt(selected.id);
 }
 function field(label,key,type='text',required=false,value='') {
   return '<label class="io-field"><span>'+e(label)+(required ? ' <em>חובה</em>' : '')+'</span><input type="'+e(type)+'" data-io-detail="'+e(key)+'" value="'+e(value)+'" '+(!editable()?'disabled':'')+'></label>';
@@ -378,10 +380,56 @@ function overview() {
     '<div class="io-overview"><strong>'+e(selected.instructor_name)+'</strong><span>'+
       e(selected.observation_date)+' · '+e(d.school || 'ללא בית ספר')+' · '+e(d.course || 'ללא קורס')+'</span></div>'+
     '<div class="io-review-list" aria-label="מצב השלמת שלבי התצפית">'+rows.map(rowHtml).join('')+'</div>'+
-    (selected.status==='completed' ? '<p class="io-success">המשוב הושלם ונשמר. ניתן להפיק דו"ח PDF.</p>' :
+    (selected.status==='completed' ? '<p class="io-success">המשוב הושלם ונשמר. ניתן להפיק דו"ח PDF.</p>'+sharepointStatusHtml() :
       missing.length ? '<p class="io-review-reminder" role="status">לא ניתן לסיים את המשוב עד להשלמת '+missing.length+' שלבים.</p>' :
       '<p class="io-success">כל שדות החובה הושלמו. אפשר לסיים ולשמור את המשוב.</p>');
 }
+async function checkSharePointReceipt(observationId) {
+  if(!observationId || !supabase?.functions?.invoke)return;
+  const {data,error}=await supabase.functions.invoke('instructor-observation-sharepoint',{
+    body:{action:'status',observation_id:observationId}
+  });
+  if(error || data?.error)return;
+  if(selected?.id!==observationId || selected?.status!=='completed' || !isOpen)return;
+  sharepointReceipt=data?.saved ? data : null;
+  if(stage===9)render();
+}
+async function saveSharePointPdf() {
+  if(!selected || selected.status!=='completed' || sharepointBusy)return false;
+  const id=selected.id;
+  sharepointBusy=true;sharepointError='';
+  if(stage===9)render();
+  status('שומר PDF בתיקייה האישית ב־SharePoint…');
+  try {
+    if(!supabase?.functions?.invoke)throw new Error('שירות שמירת SharePoint אינו זמין');
+    const {data,error}=await supabase.functions.invoke('instructor-observation-sharepoint',{
+      body:{action:'save',observation_id:id}
+    });
+    if(error || data?.error)throw new Error(data?.error || error?.message || 'שמירת PDF ב־SharePoint נכשלה');
+    if(!data?.saved || !data?.url)throw new Error('לא התקבל אישור שמירה מ־SharePoint');
+    if(selected?.id!==id)return false;
+    sharepointReceipt=data;sharepointError='';
+    return true;
+  } catch(err) {
+    if(selected?.id===id)sharepointError=String(err?.message || err);
+    return false;
+  } finally {
+    sharepointBusy=false;
+    if(selected?.id===id && stage===9){
+      render();
+      status(sharepointReceipt?'הדוח נשמר ב־SharePoint בתיקיית התצפית של המדריך.':
+        'משוב התצפית נשמר במערכת, אך שמירת ה־PDF ב־SharePoint נכשלה: '+sharepointError,!sharepointReceipt);
+    }
+  }
+}
+function sharepointStatusHtml() {
+  if(!selected || selected.status!=='completed')return '';
+  if(sharepointReceipt?.saved)return '<p class="io-sp-saved">ה־PDF נשמר בתיק האישי: <a target="_blank" rel="noopener noreferrer" href="'+
+    e(sharepointReceipt.url)+'">'+e(sharepointReceipt.file_name || 'פתיחת PDF ב־SharePoint')+'</a></p>';
+  if(sharepointBusy)return '<p class="io-muted">שומר PDF בתיקיית התצפית ב־SharePoint…</p>';
+  return '<p class="io-sp-warning">'+(sharepointError?'שמירת ה־PDF נכשלה. ניתן לנסות שוב.':'ה־PDF עדיין לא נשמר ב־SharePoint.')+'</p>';
+}
+
 function printedQuestion(question,key) {
   const [label,choices]=question;
   const current=String(selected.responses?.[key] || '');
@@ -439,6 +487,7 @@ function render() {
     (stage<9?'<button type="button" class="io-primary" data-io-action="next">המשך</button>':'')+
     (stage===9 && editable()?'<button type="button" class="io-primary" data-io-action="finish">סיום ושמירת המשוב</button>':'')+
     (stage===9 && done?'<button type="button" class="io-primary" data-io-action="print">הפקת PDF</button>':'')+
+    (stage===9 && done && !sharepointReceipt?'<button type="button" class="io-secondary" data-io-action="sharepoint" '+(sharepointBusy?'disabled':'')+'>שמירה ב־SharePoint</button>':'')+
     '</div></footer>';
   dialog('<div class="io-progress"><div class="io-progress-header"><span>שלב '+(stage+1)+' מתוך '+stages.length+' · '+e(stages[stage])+'</span><span>'+Math.round((stage+1)/stages.length*100)+'%</span></div><div class="io-track"><span style="width:'+Math.round((stage+1)/stages.length*100)+'%"></span></div></div>'+
     '<main class="io-content">'+body+'</main><p class="io-save-status" data-io-status aria-live="polite">'+(done?'המשוב הושלם וננעל לעריכה':editable()?'שינויים נשמרים כטיוטה':'טיוטה לצפייה בלבד')+'</p>'+footer);
@@ -486,6 +535,7 @@ async function onClick(event) {
   if (action==='close') return close();
   if (action==='new') return create();
   if (action==='print') { if (selected?.status==='completed') window.print(); return; }
+  if (action==='sharepoint') { if(selected?.status==='completed')await saveSharePointPdf();return; }
   if (['home','next','back','finish','jump','review'].includes(action)) {
     if (action==='jump') {
       const destination=Number(button.dataset.ioJump);
@@ -505,7 +555,7 @@ async function onClick(event) {
       else if (action==='back') {stage=Math.max(0,stage-1);render();}
       else if (action==='jump') {stage=Number(button.dataset.ioJump);render();}
       else if (action==='review') {stage=9;render();}
-      else if (action==='finish') {stage=9;render();status('המשוב נשמר וננעל. ניתן להפיק PDF.');}
+      else if (action==='finish') {stage=9;render();await saveSharePointPdf();}
     } catch(err) { button.disabled=false;status('השמירה נכשלה: '+(err?.message||err),true); }
   }
 }
