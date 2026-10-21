@@ -59,7 +59,7 @@ const styles = [
   '',
   '.mw-toolbar{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:14px 0}.mw-left{display:flex;gap:7px;align-items:center;flex-wrap:wrap}',
   '.mw-btn{border:1px solid #cad8e5;background:#fff;border-radius:8px;padding:8px 11px;color:#28445d;font-weight:650;cursor:pointer;font-family:inherit;font-size:12px}.mw-btn:hover{background:#eef7fa}.mw-btn:disabled{opacity:.5;cursor:not-allowed}.mw-primary{background:#2496b3;color:#fff;border-color:#2496b3}.mw-primary:hover{background:#1c819d;color:#fff}',
-  '.mw-table-scroll{overflow:auto;max-width:100%;border:1px solid #e0e7ef;border-radius:11px;margin:11px 0 18px}.mw-table{width:100%;min-width:790px;table-layout:fixed;border-collapse:collapse;text-align:center}.mw-table th,.mw-table td{padding:9px 10px;border-bottom:1px solid #e8edf3;vertical-align:middle;text-align:center}.mw-table th:first-child,.mw-table td:first-child{width:26%}.mw-table th{background:#f5f8fb;font-size:12px;color:#586b7d;white-space:nowrap}.mw-table tr:last-child td{border-bottom:0}.mw-table th:first-child,.mw-table td:first-child{position:sticky;right:0;background:#fff;z-index:1;min-width:195px;text-align:right}.mw-table th:first-child{background:#f5f8fb;z-index:2}.mw-table .mw-focus{background:#edf9fc}.mw-week-btn{display:block;width:100%;border:0;background:transparent;color:inherit;cursor:pointer;font-weight:700;padding:3px;text-align:center}.mw-week-btn:hover{text-decoration:underline}.mw-week-status{display:block;font-weight:400;color:#8494a1;font-size:10px;margin-top:3px}',
+  '.mw-table-scroll{overflow:visible;max-width:100%;border:1px solid #e0e7ef;border-radius:11px;margin:11px 0 8px}.mw-table{width:100%;min-width:0;table-layout:fixed;border-collapse:collapse;text-align:center}.mw-table th,.mw-table td{padding:10px 8px;border-bottom:1px solid #e8edf3;vertical-align:middle;text-align:center;overflow-wrap:anywhere}.mw-table th:first-child,.mw-table td:first-child{width:38%;text-align:right;background:#fff}.mw-table--expanded th:first-child,.mw-table--expanded td:first-child{width:31%}.mw-table thead th{background:#f5f8fb;font-size:12px;color:#586b7d}.mw-table tr:last-child td,.mw-table tr:last-child th{border-bottom:0}.mw-table tbody th{font-weight:600;text-align:right}.mw-table thead th:first-child{background:#f5f8fb}.mw-table .mw-current{background:#dff3fa;color:#154f69;font-weight:750}.mw-table thead .mw-current{background:#c8e9f4;box-shadow:inset 0 3px 0 #1684aa}.mw-table .mw-focus{background:#f1f8fd}.mw-table thead .mw-focus{box-shadow:inset 0 3px 0 #8ab6d0}.mw-week-btn{display:flex;flex-direction:column;align-items:center;gap:3px;width:100%;border:0;background:transparent;color:inherit;cursor:pointer;font-weight:750;padding:3px;text-align:center}.mw-week-btn:hover .mw-week-range{text-decoration:underline}.mw-week-kind{font-size:10px;font-weight:800;color:#1c7894}.mw-week-range{font-size:12px}.mw-week-status{display:block;font-weight:400;color:#71899a;font-size:10px}.mw-week-navigation{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;margin:0 0 18px}.mw-week-picker{position:relative}.mw-week-picker>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:7px;padding:7px 10px;border:1px solid #cad8e5;border-radius:8px;color:#28445d;font-size:12px;font-weight:650;background:#fff}.mw-week-picker>summary::-webkit-details-marker{display:none}.mw-week-picker[open]>summary{background:#eef8fb;border-color:#9fc5d6}.mw-week-picker-options{display:flex;flex-wrap:wrap;align-items:center;gap:5px;padding:10px;border:1px solid #d9e5ed;border-radius:9px;margin-top:5px;max-width:min(600px,calc(100vw - 80px));background:#fafdff}.mw-week-choice{font-variant-numeric:tabular-nums;padding:6px 9px;font-size:11px}.mw-week-choice.is-selected{background:#e5f3fa;border-color:#3395b1}.mw-collapse-extra{border-color:#a9d4e0}.mw-table .mw-extra-week{background:#f6fbff}',
   '.mw-section{border-top:1px solid #e5ebf1;padding-top:17px;margin-top:16px}.mw-section-head{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px}.mw-section h3{font-size:15px;font-weight:750}',
   '.mw-fields{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.mw-field{display:flex;flex-direction:column;gap:5px;color:#506376;font-size:12px;font-weight:600}.mw-field input,.mw-field textarea,.mw-field select{border:1px solid #cad7e2;border-radius:8px;min-height:36px;padding:8px 10px;color:#1c3449;background:#fff;font-size:13px;font-family:inherit;width:100%;direction:rtl}.mw-fields .mw-field{min-width:0}.mw-fields .mw-field input{width:100%;min-width:0;box-sizing:border-box;align-self:flex-start}.mw-field textarea{min-height:72px;resize:vertical}.mw-field input:focus,.mw-field textarea:focus{outline:2px solid #b3e5f0}.mw-textareas{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}.mw-opening{display:grid;grid-template-columns:1fr 1fr 1fr 132px 1fr auto;gap:7px;align-items:end;padding:9px;border:1px solid #e3ebf1;border-radius:9px;margin-top:8px;background:#fcfdff}.mw-opening .mw-field{min-width:0}.mw-opening-extra{grid-column:1/-1}',
   '.mw-foot{display:flex;align-items:center;gap:9px;justify-content:flex-end;flex-wrap:wrap;margin-top:15px}.mw-error{color:#b42318;background:#fff1f1;border:1px solid #f2d0ce;padding:10px;border-radius:9px;margin:10px 0}.mw-notice{color:#135d4e;background:#eafaf3;border:1px solid #c9ecdc;padding:10px;border-radius:9px;margin:10px 0}.mw-verify{margin-top:12px;background:#f5fafc;border:1px solid #dceaf0;border-radius:10px;padding:11px}.mw-verify ul{margin:8px 20px 0 0;padding:0}.mw-empty{padding:24px;text-align:center;color:#64748b}.mw-program{border:1px solid #e3ebf1;border-radius:10px;margin:10px 0;padding:12px;background:#fbfdff}.mw-program-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-top:9px}.mw-sr-only{position:absolute;left:-10000px}',
@@ -112,20 +112,62 @@ function readForm(ctx) {
   // Preserve legacy details and notes without asking managers to re-enter them.
   return {...previous,metrics};
 }
+/** Keep the true current week and the week before always visible. */
+function timelineCurrentWeek(ctx) {return weekStartIso(ctx.today || new Date());}
+function timelineWeeks(ctx) {
+  const year=Number(ctx.year);
+  if(!Number.isInteger(year)||year<2020||year>2100)return [];
+  const start=weekStartIso((year-1)+'-09-01'), end=weekStartIso(year+'-08-31'),weeks=[];
+  for(let day=start;day<=end;day=shiftWeek(day,1))weeks.push(day);
+  return weeks;
+}
+function visibleWeeks(ctx) {
+  const current=timelineCurrentWeek(ctx),previous=shiftWeek(current,-1);
+  return ctx.expandedWeek && ctx.expandedWeek!==current && ctx.expandedWeek!==previous
+    ? [current,previous,ctx.expandedWeek] : [current,previous];
+}
+function weekSelector(ctx) {
+  const current=timelineCurrentWeek(ctx),previous=shiftWeek(current,-1);
+  const all=timelineWeeks(ctx);
+  const group=(title,weeks,kind)=>weeks.length?
+    '<details class="mw-week-picker" data-mw-picker="'+kind+'"><summary>'+title+' <span aria-hidden="true">▾</span></summary>'+
+    '<div class="mw-week-picker-options" role="group" aria-label="'+title+'">'+weeks.map(week=>
+      '<button type="button" class="mw-btn mw-week-choice'+(week===ctx.expandedWeek?' is-selected':'')+
+      '" data-mw-week="'+esc(week)+'" aria-pressed="'+(week===ctx.expandedWeek)+'">'+labelWeek(week)+
+      (ctx.reports.some(r=>r.week_start===week)?' •':'')+'</button>').join('')+'</div></details>':'';
+  return '<div class="mw-week-navigation" aria-label="פתיחת שבועות נוספים">'+
+    group('שבועות קודמים',all.filter(w=>w<previous).reverse(),'past')+
+    group('שבועות הבאים',all.filter(w=>w>current),'future')+
+    (ctx.expandedWeek && ctx.expandedWeek!==current && ctx.expandedWeek!==previous?
+      '<button type="button" class="mw-btn mw-collapse-extra" data-mw-collapse>סגירת השבוע הנוסף</button>':'')+
+    '</div>';
+}
 function tableMarkup(ctx) {
-  const weeks = [-2, -1, 0, 1, 2, 3].map((i) => shiftWeek(ctx.week, i));
-  const rows = MANUAL_METRICS.map(([metric, title]) => '<tr><td>' + esc(title) + '</td>' + weeks.map((week) => {
-    const report = ctx.reports.find((r) => r.week_start === week);
-    const number = report?.metrics?.[metric];
-    return '<td class="' + (week === ctx.week ? 'mw-focus' : '') + '" style="text-align:center;font-variant-numeric:tabular-nums">' +
-      (number == null ? '—' : esc(number)) + '</td>';
-  }).join('') + '</tr>').join('');
-  const headers = weeks.map((week) => {
-    const report = ctx.reports.find((r) => r.week_start === week);
-    const status = report?.status === 'submitted' ? 'הוגש' : report ? 'נשמר' : 'לא מולא';
-    return '<th class="' + (week === ctx.week ? 'mw-focus' : '') + '"><button type="button" class="mw-week-btn" data-mw-week="' + esc(week) + '">' + labelWeek(week) + '<span class="mw-week-status">' + status + '</span></button></th>';
+  const weeks=visibleWeeks(ctx),current=timelineCurrentWeek(ctx),previous=shiftWeek(current,-1);
+  const cls=week=>[
+    week===current?'mw-current':'',
+    week===ctx.week&&week!==current?'mw-focus':'',
+    week!==current&&week!==previous?'mw-extra-week':''
+  ].filter(Boolean).join(' ');
+  const headers=weeks.map(week=>{
+    const report=ctx.reports.find(r=>r.week_start===week);
+    const status=report?.status==='submitted'?'דווח להנהלה':report?'נשמר':'לא מולא';
+    const type=week===current?'השבוע הנוכחי':week===previous?'השבוע הקודם':'שבוע נוסף';
+    return '<th scope="col" class="'+cls(week)+'"><button type="button" class="mw-week-btn" data-mw-week="'+
+      esc(week)+'" '+(week===ctx.week?'aria-current="date"':'')+'><span class="mw-week-kind">'+type+
+      '</span><span class="mw-week-range">'+labelWeek(week)+'</span><span class="mw-week-status">'+
+      status+'</span></button></th>';
   }).join('');
-  return '<div class="mw-table-scroll"><table class="mw-table"><thead><tr><th>מדדים</th>' + headers + '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+  const rows=MANUAL_METRICS.map(([metric,title])=>'<tr><th scope="row">'+esc(title)+'</th>'+
+    weeks.map(week=>{
+      const report=ctx.reports.find(r=>r.week_start===week);
+      const number=report?.metrics?.[metric];
+      return '<td class="'+cls(week)+'" style="font-variant-numeric:tabular-nums">'+
+        (number==null?'—':esc(number))+'</td>';
+    }).join('')+'</tr>').join('');
+  return '<div class="mw-table-scroll"><table class="mw-table'+(weeks.length>2?' mw-table--expanded':'')+'">'+
+    '<thead><tr><th scope="col">מדדים</th>'+headers+'</tr></thead><tbody>'+rows+'</tbody></table></div>'+
+    weekSelector(ctx);
 }
 function formMarkup(ctx) {
   const report=currentReport(ctx);
