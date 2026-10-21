@@ -2323,8 +2323,16 @@ export const courseSchedulingScreen = {
     const reloadPlanningSnapshot = () => courseSchedulingScreen.load({ api, forceRefresh: true });
     const cached = !forceRefresh && readSchedulingSessionCache(identity);
     if (cached && Array.isArray(cached.manualInstructors)) return { ...cached, _is_stale: true, reloadPlanningSnapshot };
+    // Ask the server before requesting any private notes. A UI-only role check
+    // is not sufficient protection for a column on the shared activities table.
+    let manualCapabilityAvailable = false;
+    try {
+      const { data: capability, error } = await supabase.rpc('scheduling_manual_capabilities');
+      manualCapabilityAvailable = !error && capability?.apiVersion === 'manual-operations-v1'
+        && capability.enabled === true;
+    } catch { /* Legacy/manual fallback remains available without private notes. */ }
     const [activities, contacts, scheduling, meetingState, schoolLocations, schoolCalendar, planningCatalogResult, externalBlockersResult, historyResult] = await Promise.all([
-      api.activities({ activity_period: 'school_2027', activity_type: 'all', include_inactive: true, select: 'row_id,district,authority_id,authority,school,school_id,activity_name,catalog_slug,activity_no,proposal_item_id,activity_type,item_type,activity_season,grade,education_level,class_group,sessions,start_time,end_time,instruction_language,required_instructor_gender,notes,scheduling_note,operations_private_notes,instructor_assignment_status,instructor_assignment_locked,draft_emp_id,draft_instructor_name,draft_created_at,draft_proposed_meetings,emp_id,instructor_name,emp_id_2,instructor_name_2,start_date,end_date,status,date_1,date_2,date_3,date_4,date_5,date_6,date_7,date_8,date_9,date_10,date_11,date_12,date_13,date_14,date_15,date_16,date_17,date_18,date_19,date_20,date_21,date_22,date_23,date_24,date_25,date_26,date_27,date_28,date_29,date_30,date_31,date_32,date_33,date_34,date_35,updated_at' }),
+      api.activities({ activity_period: 'school_2027', activity_type: 'all', include_inactive: true, select: 'row_id,district,authority_id,authority,school,school_id,activity_name,catalog_slug,activity_no,proposal_item_id,activity_type,item_type,activity_season,grade,education_level,class_group,sessions,start_time,end_time,instruction_language,required_instructor_gender,notes,scheduling_note,${manualCapabilityAvailable ? 'operations_private_notes,' : ''}instructor_assignment_status,instructor_assignment_locked,draft_emp_id,draft_instructor_name,draft_created_at,draft_proposed_meetings,emp_id,instructor_name,emp_id_2,instructor_name_2,start_date,end_date,status,date_1,date_2,date_3,date_4,date_5,date_6,date_7,date_8,date_9,date_10,date_11,date_12,date_13,date_14,date_15,date_16,date_17,date_18,date_19,date_20,date_21,date_22,date_23,date_24,date_25,date_26,date_27,date_28,date_29,date_30,date_31,date_32,date_33,date_34,date_35,updated_at' }),
       api.instructorContacts(),
       loadInstructorSchedulingData(),
       loadCourseMeetingState(),
@@ -2347,6 +2355,8 @@ export const courseSchedulingScreen = {
     const enriched = enrichActivitiesWithSchoolAddresses(activities?.rows || [], schoolRows);
     return {
       _is_stale: false,
+      _manualOperationsCapabilityChecked: true,
+      _manualOperationsAvailable: manualCapabilityAvailable,
       externalPlanningBlockers: attachCancelledMeetingsToActivities(externalBlockersResult?.data || [], meetingState),
       externalPlanningBlockersError: externalBlockersResult?.error || historyResult?.error || null,
       meetingInstructorHistory: historyResult?.data || [],
@@ -2398,6 +2408,9 @@ export const courseSchedulingScreen = {
     }
 
     state.meetingState = data.meetingState;
+    if (data._manualOperationsCapabilityChecked === true) {
+      state.courseSchedulingManualOperationsAvailable = data._manualOperationsAvailable === true;
+    }
     const allInterfaceCourses = schedulingWorkspaceCourses(data.activities || [], state.user);
     const interfaceCourses = filteredInterfaceCourses(allInterfaceCourses, state);
     if(SCHEDULING_AGENT_OWNS_COMPUTE) state.courseSchedulingResults=(state.courseSchedulingResults||[]).filter(r=>r.agentSnapshot || r.manualOnly === true);
