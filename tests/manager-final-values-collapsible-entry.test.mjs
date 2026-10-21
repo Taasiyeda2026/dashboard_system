@@ -265,16 +265,16 @@ test('switching to a distant week saves the active metrics and preserves five co
   assert.equal(ctx.host.querySelector('.mw-extra-panel'),null);
   assert.match(ctx.host.querySelector('.mw-table').textContent,/25/);
 });
-test('five date columns use a centred, balanced 1020px table and remain legible on mobile',()=>{
+test('five fixed week columns use the full available table width',()=>{
   const {ctx}=setup();
-  assert.match(source,/\.mw-table-scroll\{[^}]*width:100%;max-width:1020px/);
-  assert.match(source,/\.mw-table th:first-child,\.mw-table td:first-child\{[^}]*width:35%/);
-  assert.match(source,/\.mw-week-range\{font-size:10px;display:flex;flex-direction:column/);
-  assert.match(source,/\.mw-week-divider\{display:none\}/);
+  assert.match(source,/\.mw-table-scroll\{overflow:visible;width:100%;max-width:1020px/,
+    'Legacy rule can remain but must be superseded by the last design layer');
+  assert.match(source,/\.mw-tracker \.mw-table-scroll\{max-width:none;width:100%;margin:0;overflow:hidden/);
+  assert.match(source,/\.mw-tracker>\.mw-toolbar,\.mw-tracker>\.mw-section-head,\.mw-tracker>\[data-mw-weekly-table\]/);
+  assert.match(source,/\.mw-tracker \.mw-table th:first-child,\.mw-tracker \.mw-table td:first-child\{width:32%/);
   assert.equal(ctx.host.querySelectorAll('.mw-table thead th').length,6);
   assert.equal(ctx.host.querySelectorAll('.mw-table tbody tr').length,5);
-  assert.ok(ctx.host.querySelector('.mw-table-scroll'));
-  assert.doesNotMatch(source,/\.mw-table-scroll\{[^}]*overflow:auto/);
+  assert.doesNotMatch(source,/\.mw-tracker \.mw-table-scroll\{[^}]*overflow:auto/);
 });
 test('admin sees why issues are read-only; activity manager can enter and save an issue',()=>{
   const {api,ctx}=setup();
@@ -292,22 +292,26 @@ test('admin sees why issues are read-only; activity manager can enter and save a
 });
 
 
-test('five-week table and its controls share a centred visual column without altering the data',()=>{
+test('dashboard visual layout is legible at desktop and narrow sizes without changing weekly data',()=>{
   const {api,ctx}=setup();
   ctx.today='2026-10-21';
   api.render(ctx);
-  assert.match(source,/\.mw-tracker>\.mw-section-head,\.mw-tracker>\.mw-toolbar,\.mw-tracker>\[data-mw-weekly-table\]/);
-  assert.match(source,/\.mw-table-scroll\{margin:0 auto 7px/);
-  assert.match(source,/\.mw-week-range\{display:inline-flex;[^}]*direction:ltr;unicode-bidi:isolate/);
-  assert.match(source,/\.mw-week-start,\.mw-week-end\{direction:ltr;unicode-bidi:isolate\}/);
-  assert.match(source,/\.mw-table thead \.mw-current\{background:#bfe5f3/);
-  assert.match(source,/\.mw-tracker>\.mw-report-entry\{border:1px solid #e0eaf1/);
-  assert.match(source,/\.mw-task-empty\{padding:14px 16px;border:1px dashed #dce7ed/);
+  assert.match(source,/\.mw-tracker\{padding:22px 24px 24px/);
+  assert.match(source,/\.mw-tracker \.mw-table-scroll\{max-width:none;width:100%/);
+  assert.match(source,/\.mw-tracker \.mw-table thead th:first-child\{background:#e6eef4/);
+  assert.match(source,/\.mw-tracker \.mw-table tbody th\{font-weight:650;font-size:14px/);
+  assert.match(source,/\.mw-tracker \.mw-week-range\{display:flex;flex-direction:row;[^}]*direction:ltr;unicode-bidi:isolate/);
+  assert.match(source,/\.mw-tracker \.mw-table thead th\.mw-current\{background:#cae9f5/);
+  assert.match(source,/\.mw-tracker>\.mw-report-entry\{border:1px solid #dae7ef/);
+  assert.match(source,/\.mw-tracker \.mw-task-empty\{padding:13px 16px/);
   assert.match(source,/\.mw-tracker>\[data-mw-notice\] \.mw-notice\{display:inline-flex/);
-  assert.match(source,/\.mw-week-range\{display:flex;flex-direction:column/);
+  assert.match(source,/@media\(max-width:690px\)\{\.mw-tracker\{padding:12px 9px/);
+  assert.match(source,/\.mw-tracker \.mw-week-range\{flex-direction:column;gap:0;font-size:10px/);
   assert.match(source,/el\.textContent = styles \+ visualPolish/);
   const header=[...ctx.host.querySelectorAll('.mw-table thead th')];
   assert.equal(header.length,6);
+  assert.deepEqual(header.slice(1).map(el=>el.querySelector('[data-mw-week]').dataset.mwWeek),
+    ['2026-10-04','2026-10-11','2026-10-18','2026-10-25','2026-11-01']);
   assert.equal(header[3].querySelector('.mw-week-start').textContent,'18.10');
   assert.equal(header[3].querySelector('.mw-week-end').textContent,'24.10');
   assert.ok(header[3].classList.contains('mw-current'));
