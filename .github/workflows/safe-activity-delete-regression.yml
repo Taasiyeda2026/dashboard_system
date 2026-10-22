@@ -1,0 +1,23 @@
+name: Safe Activity Delete Regression
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/src/activity-performance-runtime.js'
+      - 'supabase/migrations/20261022092000_admin_soft_remove_sent_coordination.sql'
+      - 'tests/activity-permanent-delete-runtime.test.mjs'
+      - 'tests/activity-operational-identity-soft-delete.test.mjs'
+      - '.github/workflows/safe-activity-delete-regression.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Activity deletion safeguards
+        run: node --test tests/activity-permanent-delete-runtime.test.mjs tests/activity-operational-identity-soft-delete.test.mjs
