@@ -501,3 +501,5 @@ config.HOTFIX_VERSION = 'weekly-manager-multiple-problems-plus-20261021-v1-' + c
 config.HOTFIX_VERSION = 'approvals-inbox-outbox-counts-status-20261021-v1-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = 'approvals-for-all-operational-staff-role-scope-20261021-v1-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'admin-safe-activity-removal-sent-coordination-20261022-v1-' + config.HOTFIX_VERSION;
