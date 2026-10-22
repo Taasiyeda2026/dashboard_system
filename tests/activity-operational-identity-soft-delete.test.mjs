@@ -60,3 +60,26 @@ test('Israa receives only the explicit activity-delete capability', async () => 
   assert.match(migration, /where emp_id = '3030'[\s\S]*username = 'esraaa'[\s\S]*is_active = true/i);
   assert.doesNotMatch(migration, /set\s+role\s*=/i, 'the migration must not broaden Israa by changing her application role');
 });
+
+
+test('admin-only soft removal retains sent coordination and all accounting/audit guards',async()=>{
+  const migration=await readFile(new URL('supabase/migrations/20261022092000_admin_soft_remove_sent_coordination.sql',ROOT),'utf8');
+  assert.match(migration,/public\.app_can_delete_activity\(\)/);
+  assert.match(migration,/public\.app_current_role\(\) is distinct from 'admin'/);
+  assert.match(migration,/sent_coordination_exists/);
+  assert.match(migration,/return new/);
+  assert.match(migration,/attendance_records/);
+  assert.match(migration,/activity_completion_approval_uploads/);
+  assert.match(migration,/finance_collection_tracking/);
+  assert.match(migration,/finance_transaction_account_lines/);
+  assert.match(migration,/finance_transaction_account_meetings/);
+  assert.match(migration,/course_meeting_instructor_history/);
+  assert.match(migration,/course_meeting_cancellations/);
+  const returnForSent=migration.indexOf('if sent_coordination_exists then');
+  const hardDelete=migration.indexOf('delete from public.activities');
+  const accountingBlock=migration.indexOf('finance_transaction_account_meetings');
+  assert.ok(accountingBlock>-1 && returnForSent>accountingBlock && hardDelete>returnForSent,
+    'Sent coordination is preserved only after all evidence safeguards and before any cleanup');
+  assert.doesNotMatch(migration,/delete from public\.activity_coordination_dispatches/);
+  assert.doesNotMatch(migration,/delete from public\.attendance_records/);
+});
