@@ -3,6 +3,7 @@ import { createSharedInteractionLayer } from './screens/shared/interactions.js';
 import { api } from './api.js';
 import { state, clearScreenDataCache } from './state.js';
 import { supabase } from './supabase-client.js';
+import { mountIsraaShareLanguage, shareIsraaGroupWithLanguage, israaShareErrorMessage } from './israa-share-language.js';
 
 const PANEL_SELECTOR = '.israa-mgmt .israa-activities-panel';
 const ACTIVE_TAB_SELECTOR = '.israa-mgmt [data-israa-tab="activities"].is-active';
@@ -298,18 +299,19 @@ function decorateDraftDrawer() {
     <button type="button" class="ds-btn" data-israa-workspace-remove>הסר מהפעילויות שלי</button>
   `;
   form.prepend(bar);
+  const languageSelect = mountIsraaShareLanguage(form, bar, currentDraftRow(form.dataset.rowId)?.instruction_language);
   bar.querySelector('[data-israa-workspace-share]')?.addEventListener('click', async (event) => {
     const button = event.currentTarget;
     button.disabled = true;
     try {
-      await api.shareIsraaActivityGroup(ref.trackingId, ref.proposalItemId, ref.groupNumber);
+      await shareIsraaGroupWithLanguage(api, ref, languageSelect);
       closeActivityDrawer();
       await refreshWorkspace();
       window.dispatchEvent(new CustomEvent('israa-activities-changed'));
     } catch (error) {
       console.error('[israa-workspace-share]', error);
       button.disabled = false;
-      window.alert('לא ניתן לשתף את הפעילות כרגע.');
+      window.alert(israaShareErrorMessage(error));
     }
   });
   bar.querySelector('[data-israa-workspace-remove]')?.addEventListener('click', async (event) => {
