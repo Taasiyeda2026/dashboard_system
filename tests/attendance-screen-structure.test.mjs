@@ -227,7 +227,7 @@ test('Attendance monthly summary uses current instructor month records and hides
   assert.doesNotMatch(reportsSource, /DAY_NAMES_SHORT|dateDay|dayName/);
   assert.match(newReportSource, /activity\?\.activity_name \|\| activity\?\.program_name/);
   assert.doesNotMatch(newReportSource, /activityNameSnapshot = activityNameSel\.getLabel/);
-  assert.match(newReportSource, /attrs: \{ max: localIsoDate\(\) \}/);
+  assert.match(newReportSource, /attrs: \{ max: latestReportDate\(\) \}/);
   assert.match(newReportSource, /buildForm\(null, reportDate\)/);
 });
 
