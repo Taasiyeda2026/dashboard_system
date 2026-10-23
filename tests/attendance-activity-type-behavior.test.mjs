@@ -21,6 +21,7 @@ const searchableSelectSource = await readFile(new URL('../attendance/src/compone
 const courseChoiceMigration = await readFile(new URL('../supabase/migrations/20261005000500_attendance_dashboard_course_choice.sql', import.meta.url), 'utf8');
 const swSource = await readFile(new URL('../attendance/sw.js', import.meta.url), 'utf8');
 const indexSource = await readFile(new URL('../attendance/index.html', import.meta.url), 'utf8');
+const attendanceCacheVersion = swSource.match(/const CACHE_VERSION = (\d+);/)?.[1];
 
 test('Attendance report type list treats Zoom as training mode, not an activity type', () => {
   assert.equal(ONLINE_REPORT_TYPE, 'זום'); // legacy record compatibility only
@@ -86,7 +87,7 @@ test('Course reporting uses the selected date dashboard row and does not add a c
   assert.doesNotMatch(courseDashboardRuntimeSource, /ambiguousAtSchool|כיתה/);
   assert.match(searchableSelectSource, /wrap\.addEventListener\('av2:set-options'/);
   assert.doesNotMatch(courseDashboardRuntimeSource, /createSelectField|createInputField/);
-  assert.match(indexSource, /course-dashboard-choice-runtime\.js\?v=119/);
+  assert.ok(indexSource.includes(`course-dashboard-choice-runtime.js?v=${attendanceCacheVersion}`));
 });
 
 test('Legacy Zoom data remains normalized while the current UI removes Zoom from activity-type choices', () => {
@@ -102,11 +103,11 @@ test('Legacy Zoom data remains normalized while the current UI removes Zoom from
   assert.match(trainingRuntimeSource, /const ZOOM_LABEL = 'זום'/);
   assert.match(trainingRuntimeSource, /option\.value === 'online'/);
   assert.match(trainingRuntimeSource, /removeZoomAsActivityType/);
-  assert.match(indexSource, /training-report-ui-runtime\.js\?v=119/);
+  assert.ok(indexSource.includes(`training-report-ui-runtime.js?v=${attendanceCacheVersion}`));
 });
 
 test('Attendance cache is synchronized for the training and dashboard-choice release', () => {
-  assert.match(swSource, /const CACHE_VERSION = 119;/);
-  assert.match(indexSource, /\?v=119/);
-  assert.doesNotMatch(indexSource, /\?v=106/);
+  assert.ok(attendanceCacheVersion, 'Attendance service worker must declare a cache version');
+  const assetVersions = [...indexSource.matchAll(/\?v=(\d+)/g)].map((match) => match[1]);
+  assert.deepEqual([...new Set(assetVersions)], [attendanceCacheVersion]);
 });
