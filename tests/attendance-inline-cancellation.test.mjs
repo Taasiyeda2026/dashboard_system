@@ -17,12 +17,12 @@ const [create, edit, migration, control, bridge] = await Promise.all([
 
 test('explicit duration fields accept clock hours:minutes and preserve zero', () => {
   assert.equal(parseCancellationDuration('0:00'), 0);
-  assert.equal(parseCancellationDuration('1:44'), 104);
+  assert.equal(parseCancellationDuration('1:44'), 105);
   assert.equal(parseCancellationDuration('12:05'), 725);
   assert.equal(parseCancellationDuration('01:60'), null);
   assert.equal(parseCancellationDuration('-1:00'), null);
   assert.equal(parseCancellationDuration('25:00'), null);
-  assert.equal(formatCancellationDuration(104), '1:44');
+  assert.equal(formatCancellationDuration(104), '1:45');
 });
 
 test('inline cancellation is eligible only on physical source activities', () => {
@@ -33,7 +33,7 @@ test('inline cancellation is eligible only on physical source activities', () =>
   assert.equal(cancellationRequestedMinutes({
     cancellation_before_minutes: 52, cancellation_after_minutes: 52,
     total_hours: 2
-  }), 104);
+  }), 110);
   assert.equal(cancellationRequestedMinutes({ total_hours: 2 }), null);
 });
 

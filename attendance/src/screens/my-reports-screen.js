@@ -29,6 +29,7 @@ import { isZoomLocationReport } from '../services/attendance-location-policy.js'
 import {
   canReportInlineCancellation,
   parseCancellationDuration,
+  cancellationMinutesForSave,
   formatCancellationDuration,
   instructorReportedCancellationMinutes,
 } from '../services/cancellation-segments.js';
@@ -283,8 +284,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
 // ── Record row (12 columns on desktop) ────────────────────────────────────────
 
 export function formatCancellationMinutes(value) {
-  const minutes = Math.max(0, Math.round(Number(value) || 0));
-  return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`;
+  return formatCancellationDuration(value);
 }
 
 function buildMonthlySummaryGrid(records) {
@@ -764,6 +764,12 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     value: formatCancellationDuration(record.cancellation_after_minutes),
     placeholder: '0:00',
   });
+  for (const field of [beforeCancellationField, afterCancellationField]) {
+    field.input.addEventListener('change', () => {
+      const minutes = parseCancellationDuration(field.input.value);
+      if (minutes !== null) field.input.value = formatCancellationDuration(minutes);
+    });
+  }
   const cancellationFields = document.createElement('div');
   cancellationFields.className = 'av2-report__time-cancellation av2-report__inline-cancellation';
   const cancellationNote = document.createElement('small');
@@ -972,8 +978,8 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
         semel_mosad:             isOperations || isBaseTraining || isZoom || isOnlineTraining || isScheduledTraining ? null : (record.semel_mosad ?? null),
         meeting_no:              isCourse && meetField.input.value ? Number(meetField.input.value) : null,
         program_name:            isOperations || isBaseTraining ? null : (record.program_name ?? null),
-        cancellation_before_minutes: cancellationToggle.checked ? parseCancellationDuration(beforeCancellationField.input.value) : null,
-        cancellation_after_minutes:  cancellationToggle.checked ? parseCancellationDuration(afterCancellationField.input.value) : null,
+        cancellation_before_minutes: cancellationToggle.checked ? cancellationMinutesForSave(beforeCancellationField.input.value, record, 'cancellation_before_minutes') : null,
+        cancellation_after_minutes:  cancellationToggle.checked ? cancellationMinutesForSave(afterCancellationField.input.value, record, 'cancellation_after_minutes') : null,
         roundtrip_km:            isZoom || publicTransportToggle.checked ? 0 : (kmField.input.value ? Number(kmField.input.value) : 0),
         public_transport:        !isZoom && publicTransportToggle.checked,
         public_transport_cost:   !isZoom && publicTransportToggle.checked ? Number(publicTransportCostField.input.value || 0) : 0,

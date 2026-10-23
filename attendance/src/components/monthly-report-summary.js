@@ -1,4 +1,4 @@
-import { instructorReportedCancellationMinutes } from '../services/cancellation-segments.js';
+import { instructorReportedCancellationMinutes, roundCancellationMinutesUp } from '../services/cancellation-segments.js';
 
 function numberValue(value) {
   const parsed = Number(value);
@@ -12,6 +12,11 @@ function normalizedLabel(value) {
 export function isCancellationRecord(record = {}) {
   return record?.generation_kind === 'travel_time_cancellation'
     || normalizedLabel(record?.activity_type) === normalizedLabel('ביטול זמן');
+}
+
+export function instructorReportHours(record = {}) {
+  const hours = numberValue(record?.total_hours);
+  return isCancellationRecord(record) ? roundCancellationMinutesUp(hours * 60) / 60 : hours;
 }
 
 /**
@@ -28,7 +33,7 @@ export function reportedCancellationHours(records = []) {
     if (isCancellationRecord(row)) {
       if (row?.generation_kind === 'travel_time_cancellation'
           && reportedSourceIds.has(String(row?.source_attendance_record_id ?? ''))) return hours;
-      return hours + numberValue(row?.total_hours);
+      return hours + instructorReportHours(row);
     }
     return hours + (instructorReportedCancellationMinutes(row) ?? 0) / 60;
   }, 0);
@@ -106,7 +111,7 @@ export function buildMonthlySummaryItems(records = []) {
   for (const record of rows) {
     const generatedLinked = record?.generation_kind === 'travel_time_cancellation'
       && reportedSourceIds.has(String(record?.source_attendance_record_id ?? ''));
-    const hours = numberValue(record?.total_hours);
+    const hours = instructorReportHours(record);
     let activityType = String(record?.activity_type || '').trim();
     if (!activityType && record?.generation_kind === 'travel_time_cancellation') activityType = 'ביטול זמן';
     if (!generatedLinked && activityType && hours > 0) {

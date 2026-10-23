@@ -25,6 +25,7 @@ import {
   toInstructorTravelCompensationView,
 } from './travel-compensation.js';
 import { isZoomLocationReport } from './attendance-location-policy.js';
+import { instructorReportHours } from '../components/monthly-report-summary.js';
 export {
   isGeneratedTravelCancellation,
   sourceAttendanceRecords,
@@ -84,6 +85,7 @@ function normalizeAttendanceRecord(record) {
   return {
     ...record,
     activity_type: normalizeAttendanceActivityTypeLabel(record.activity_type),
+    total_hours: instructorReportHours(record),
   };
 }
 
@@ -110,6 +112,8 @@ function normalizeRecordPayload(payload = {}) {
   return {
     ...payload,
     activity_type: activityType,
+    ...(Object.prototype.hasOwnProperty.call(payload, 'total_hours')
+      ? { total_hours: instructorReportHours({ ...payload, activity_type: activityType }) } : {}),
     ...(expenses !== undefined ? {
       expenses,
       // Clearing expenses must also clear the free-text detail — never leave orphan notes.

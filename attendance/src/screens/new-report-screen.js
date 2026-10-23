@@ -42,6 +42,7 @@ import {
   canReportInlineCancellation,
   formatCancellationDuration,
   parseCancellationDuration,
+  cancellationMinutesForSave,
 } from '../services/cancellation-segments.js';
 import { canEditMonth, editBlockReason, getMonthKey, latestReportDate } from '../services/month-gate.service.js';
 import { uploadAttachment } from '../services/storage.service.js';
@@ -1418,6 +1419,12 @@ export function renderNewReportScreen(container, {
       value: formatCancellationDuration(prefill?.cancellation_after_minutes),
       placeholder: '0:00',
     });
+    for (const field of [cancellationBeforeField, cancellationAfterField]) {
+      field.input.addEventListener('change', () => {
+        const minutes = parseCancellationDuration(field.input.value);
+        if (minutes !== null) field.input.value = formatCancellationDuration(minutes);
+      });
+    }
     cancellationFields = document.createElement('div');
     cancellationFields.className = 'av2-report__time-cancellation av2-report__inline-cancellation';
     cancellationFields.append(cancellationBeforeField.wrap, cancellationAfterField.wrap);
@@ -1839,6 +1846,11 @@ export function renderNewReportScreen(container, {
       saveBtn.querySelector('span').textContent = 'שומר…';
 
       try {
+        let originalCancellationRecord = null;
+        try {
+          const editingId = form.dataset.av2EditRecordId || sessionStorage.getItem('av2_edit_record_id');
+          if (prefill?.id && String(prefill.id) === editingId) originalCancellationRecord = prefill;
+        } catch {}
         const payload = {
           report_date: dateStr,
           start_time: startTime,
@@ -1866,9 +1878,9 @@ export function renderNewReportScreen(container, {
           program_name: isOpen || isBaseTraining ? null : (activity?.program_name ?? null),
           program_name_snapshot: programName,
           cancellation_before_minutes: cancellationToggle.checked
-            ? parseCancellationDuration(cancellationBeforeField.input.value) : null,
+            ? cancellationMinutesForSave(cancellationBeforeField.input.value, originalCancellationRecord, 'cancellation_before_minutes') : null,
           cancellation_after_minutes: cancellationToggle.checked
-            ? parseCancellationDuration(cancellationAfterField.input.value) : null,
+            ? cancellationMinutesForSave(cancellationAfterField.input.value, originalCancellationRecord, 'cancellation_after_minutes') : null,
           roundtrip_km: kmValue,
           public_transport: usesPublicTransport,
           public_transport_cost: publicTransportCost,
