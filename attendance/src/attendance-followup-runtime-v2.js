@@ -1,6 +1,7 @@
 import { supabase } from './api/client.js';
 import { reconcileTravelCompensation, reportTravelTime } from './services/attendance.service.js';
 import { reconcileChangedTravelContext, instructorTravelReportStatusLabel } from './services/time-cancellation.helpers.js';
+import { formatCancellationDuration } from './services/cancellation-segments.js';
 
 const ENHANCED_HEADER = 'av2TimeCancelHeader';
 const ENHANCED_ROW = 'av2TimeCancelRow';
@@ -13,8 +14,7 @@ function text(value) {
 }
 
 function formatMinutes(value) {
-  const minutes = Math.max(0, Math.round(Number(value) || 0));
-  return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`;
+  return formatCancellationDuration(value);
 }
 
 function parseClockMinutes(value) {

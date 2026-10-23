@@ -165,7 +165,7 @@ test('Attendance Excel export uses real time values and a correctly structured t
   assert.match(excelServiceSource, /const excelDuration = \(value\) => Math\.max\(0, Number\(value\) \|\| 0\) \/ 24/);
   assert.match(excelServiceSource, /'התחלה':\s+excelClock\(r\.start_time\)/);
   assert.match(excelServiceSource, /'סיום':\s+excelClock\(r\.end_time\)/);
-  assert.match(excelServiceSource, /'שעות':\s+excelDuration\(r\.total_hours\)/);
+  assert.match(excelServiceSource, /'שעות':\s+excelDuration\(instructorReportHours\(r\)\)/);
   assert.match(excelServiceSource, /applyNumberFormat\(XLSX, ws1, 4,[\s\S]*'\[h\]:mm'\)/);
   assert.match(excelServiceSource, /'סוג פעילות': 'סה"כ'/);
   assert.match(excelServiceSource, /'ק"מ': totalKm/);

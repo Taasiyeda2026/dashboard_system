@@ -1,5 +1,5 @@
 import { instructorReportedCancellationMinutes } from './cancellation-segments.js';
-import { isCancellationRecord, reportedCancellationHours } from '../components/monthly-report-summary.js';
+import { isCancellationRecord, reportedCancellationHours, instructorReportHours } from '../components/monthly-report-summary.js';
 
 /**
  * excel.service.js
@@ -60,7 +60,7 @@ export function exportMonthToExcel(records, instructor, year, month) {
       'יום':            dayName,
       'התחלה':          excelClock(r.start_time),
       'סיום':           excelClock(r.end_time),
-      'שעות':           excelDuration(r.total_hours),
+      'שעות':           excelDuration(instructorReportHours(r)),
       'ביטול זמן מדווח': instructorReportedCancellationMinutes(r) !== null
         ? excelDuration(instructorReportedCancellationMinutes(r) / 60)
         : '',
@@ -138,7 +138,7 @@ export function exportMonthToExcel(records, instructor, year, month) {
       && reportedSourceIds.has(String(r?.source_attendance_record_id ?? ''));
     const t = r.activity_type || (r?.generation_kind === 'travel_time_cancellation' ? 'ביטול זמן' : 'לא ידוע');
     if (!byType[t]) byType[t] = { hours: 0, sessions: 0, km: 0, expenses: 0 };
-    const hours = Number(r.total_hours || 0);
+    const hours = instructorReportHours(r);
     const km = Number(r.roundtrip_km || 0);
     const expenses = Number(r.expenses || 0);
     if (!generatedLinked) {
