@@ -51,7 +51,7 @@ test('published Israa groups leave individually while unshared groups remain', (
   assert.match(workspace, /workspaceRows = \[\.\.\.drafts, \.\.\.privateRows\]/);
   assert.match(workspace, /const sharedGroupKeys = new Set/);
   assert.match(workspace, /if \(sharedGroupKeys\.has\(groupKey\)\) continue/);
-  assert.match(workspace, /shareIsraaActivityGroup\(ref\.trackingId, ref\.proposalItemId, ref\.groupNumber\)/);
+  assert.match(workspace, /shareIsraaGroupWithLanguage\(api, ref, languageSelect\)/);
   const fallback = fs.readFileSync(new URL('../frontend/src/screens/israa-management.js', import.meta.url), 'utf8');
   assert.match(fallback, /const sharedGroups = new Set/);
   assert.match(fallback, /if \(sharedGroups\.has\(groupNumber\)\) continue/);
@@ -87,9 +87,9 @@ test('selecting an Israa proposal activity no longer reloads or closes the page'
 });
 
 test('workspace loads lazily with a fresh module and cache version', () => {
-  assert.match(proposalItems, /import\('\.\/israa-activities-main-workspace\.js\?v=20260926-v7'\)/);
+  assert.match(proposalItems, /import\('\.\/israa-activities-main-workspace\.js\?v=20261023-language-v1'\)/);
   assert.match(proposalItems, /data-israa-tab=\"activities\"/);
   assert.match(proposalItems, /ensureMainActivitiesWorkspace\(\)/);
   assert.doesNotMatch(bootstrap, /israa-activities-main-workspace/);
-  assert.match(serviceWorker, /const CACHE_VERSION = 1783;/);
+  assert.match(serviceWorker, /const CACHE_VERSION = 2032;/);
 });
