@@ -22,6 +22,17 @@ export function formatMonthLabel(year, month) {
   return d.toLocaleDateString('he-IL', { month: 'long', year: 'numeric' });
 }
 
+/** Latest report date: today, or month-end during the final five calendar days.
+ * Month approval / reopening permissions still apply separately via canEditMonth().
+ */
+export function latestReportDate(now = new Date()) {
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+  const lastDay = new Date(year, month, 0).getDate();
+  const day = now.getDate() >= lastDay - 4 ? lastDay : now.getDate();
+  return `${getMonthKey(year, month)}-${String(day).padStart(2, '0')}`;
+}
+
 /**
  * Can the instructor add / edit / delete records for this year+month?
  * @param {number} year

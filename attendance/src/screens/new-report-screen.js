@@ -43,7 +43,7 @@ import {
   formatCancellationDuration,
   parseCancellationDuration,
 } from '../services/cancellation-segments.js';
-import { canEditMonth, editBlockReason, getMonthKey } from '../services/month-gate.service.js';
+import { canEditMonth, editBlockReason, getMonthKey, latestReportDate } from '../services/month-gate.service.js';
 import { uploadAttachment } from '../services/storage.service.js';
 import { attendanceDateWarning } from '../services/activity-date-warning.js';
 import { formatTravelMinutes } from '../components/report-summary-row.js';
@@ -1010,8 +1010,8 @@ export function renderNewReportScreen(container, {
       coursePrefill = null;
     }
     if (!dateStr) return;
-    const today = localIsoDate();
-    if (dateStr > today) {
+    dateField.input.max = latestReportDate();
+    if (dateStr > dateField.input.max) {
       lockBanner.innerHTML = '<p>לא ניתן לדווח נוכחות עבור תאריך עתידי.</p>';
       lockBanner.hidden = false;
       formArea.querySelector('form')?.querySelectorAll('input,select,button,.av2-ssel__trigger,.av2-csel__trigger')
@@ -1118,7 +1118,7 @@ export function renderNewReportScreen(container, {
       label: 'תאריך *',
       type: 'date',
       value: prefill?.report_date || preservedDate || defaultDate,
-      attrs: { max: localIsoDate() },
+      attrs: { max: latestReportDate() },
     });
 
     const typeOptions = [
@@ -1751,7 +1751,7 @@ export function renderNewReportScreen(container, {
         if (!firstInvalid) firstInvalid = wrap;
       }
 
-      if (dateStr && dateStr > localIsoDate()) {
+      if (dateStr && dateStr > latestReportDate()) {
         errorEl.textContent = 'לא ניתן לדווח נוכחות עבור תאריך עתידי.';
         errorEl.hidden = false;
         dateField.input.focus();

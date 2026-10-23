@@ -20,7 +20,7 @@ import { getMonthRecords, calcMonthSummary, updateRecord, deleteRecord,
          getMonthApproval, getActivityTypes, getOperationOptions, deleteAttachmentRecord, sourceAttendanceRecords,
          generatedCancellationFor, reportTravelTime, reconcileTravelCompensation,
          getMonthDashboardValidation } from '../services/attendance.service.js';
-import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel } from '../services/month-gate.service.js';
+import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel, latestReportDate } from '../services/month-gate.service.js';
 import { calcHours, ONLINE_REPORT_TYPE, OPERATIONS_REPORT_TYPE } from '../services/activities.service.js';
 import { deleteAttachment, getSignedUrl } from '../services/storage.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
@@ -657,7 +657,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
 
   form.append(sectionTitle('פעילות'));
 
-  const reportDateField = createInputField({ id: 'edit-report-date', label: 'תאריך', type: 'date', value: String(record.report_date || '').slice(0, 10) });
+  const reportDateField = createInputField({ id: 'edit-report-date', label: 'תאריך', type: 'date', value: String(record.report_date || '').slice(0, 10), attrs: { max: latestReportDate() } });
 
   const actNameField = createInputField({ id: 'edit-activity-name', label: 'שם פעילות', value: record.activity_name_snapshot || '', placeholder: 'שם התוכנית' });
   actNameField.wrap.classList.add('av2-field--full');
@@ -892,6 +892,13 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     errorEl.hidden = true;
+
+    if (reportDateField.input.value > latestReportDate()) {
+      errorEl.textContent = 'לא ניתן לדווח נוכחות עבור תאריך עתידי.';
+      errorEl.hidden = false;
+      reportDateField.input.focus();
+      return;
+    }
 
     const startTime  = startTimeField.getValue();
     const endTime    = endTimeField.getValue();
