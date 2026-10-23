@@ -507,3 +507,5 @@ config.HOTFIX_VERSION = 'admin-safe-activity-removal-sent-coordination-20261022-
 config.HOTFIX_VERSION = 'israa-share-explicit-language-20261023-v1-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = 'attendance-month-end-future-dates-20261023-v1-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'attendance-excel-reported-total-20261023-v1-' + config.HOTFIX_VERSION;

@@ -128,7 +128,7 @@ export function exportMonthToExcel(records, instructor, year, month) {
 
   // ── Sheet 2: Summary ──────────────────────────────────────────────────────
   const byType = {};
-  let totalHours = 0, totalKm = 0, totalExpenses = 0;
+  let totalKm = 0, totalExpenses = 0;
 
   const reportedSourceIds = new Set(records
     .filter((r) => !r?.generation_kind && instructorReportedCancellationMinutes(r) !== null)
@@ -147,15 +147,15 @@ export function exportMonthToExcel(records, instructor, year, month) {
     }
     byType[t].km += km;
     byType[t].expenses += expenses;
-    totalHours += hours;
     totalKm += km;
     totalExpenses += expenses;
   }
   // The attendance report shows instructor-reported cancellation, not payroll approval.
-  // Keep work-hour and payroll totals independent of this display-only aggregation.
+  // This export total follows the displayed subtotals; payroll data is unchanged.
   byType['ביטול זמן'] ||= { hours: 0, sessions: 0, km: 0, expenses: 0 };
   byType['ביטול זמן'].hours = reportedCancellationHours(records);
   if (!byType['ביטול זמן'].hours && !byType['ביטול זמן'].sessions) delete byType['ביטול זמן'];
+  const totalHours = Object.values(byType).reduce((sum, agg) => sum + agg.hours, 0);
 
   const summaryRows = Object.entries(byType).map(([type, agg]) => ({
     'סוג פעילות': type,
