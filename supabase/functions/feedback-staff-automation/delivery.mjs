@@ -44,7 +44,7 @@ export function staffGraphTokenHasMailSend(token) {
 // No transport is constructed here: tests inject a fake, production injects Graph.
 export function deliveryWindow(action, now) {
   const clock = israelClock(now);
-  return clock.hour === (action === 'prepare' ? 5 : action === 'dispatch' ? 8 : -1);
+  return clock.hour === (action === 'prepare' ? 7 : action === 'dispatch' ? 8 : -1);
 }
 
 /** Escape untrusted activity/contact values before rendering a right-to-left email. */
