@@ -83,9 +83,9 @@ test('default disabled: not one queue call, token request or mail call', async (
   }
 });
 
-test('05/08 Israel gates at exact DST transition dates', () => {
+test('07/08 Israel gates at exact DST transition dates', () => {
   for (const [day,offset] of [['2026-10-24',3],['2026-10-25',2],['2027-03-25',2],['2027-03-26',3]]) {
-    for (const [action,hour] of [['prepare',5],['dispatch',8]]) {
+    for (const [action,hour] of [['prepare',7],['dispatch',8]]) {
       assert.equal(deliveryWindow(action,new Date(`${day}T${String(hour-offset).padStart(2,'0')}:00Z`)),true);
       assert.equal(deliveryWindow(action,new Date(`${day}T${String(hour-offset+1).padStart(2,'0')}:00Z`)),false);
     }
