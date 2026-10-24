@@ -4,7 +4,7 @@
 
 ## חיבור בין המקורות
 
-מכיוון שהקורס והדשבורד פועלים במקורות שונים, המשחק פותח חלון `inspiration-bridge.html?origin=…&state=…` בדשבורד. הדשבורד מאמת את ה־session באמצעות `auth.getUser(access_token)` ומחזיר אותו ב־`postMessage` רק למקור המפורש `https://portzot-derech.org` או `https://taasiyeda2026.github.io`. חיבור localhost מותר רק כאשר גם הדשבורד נמצא ב־localhost. `state` הוא nonce אקראי של 32–128 תווי base64url, שנבדק גם בחלון המשחק. חלון המשחק חייב לבדוק מקור, מקור החלון (`event.source`) ו־state לפני קליטת ההודעה.
+מכיוון שהקורס והדשבורד פועלים במקורות שונים, המשחק פותח חלון `inspiration-bridge.html?origin=…&state=…` בדשבורד. הדשבורד מאמת את ההתחברות באמצעות `auth.getUser(access_token)` ומחזיר רק את אסימון הגישה הקצר ב־`postMessage` למקור המפורש `https://portzot-derech.org` או `https://taasiyeda2026.github.io`. ההודעה כוללת רק `type: 'inspiration:session'`, `state` ו־`access_token`; אסימון הרענון נשאר בדשבורד בלבד, המנהל הבלעדי של רענון ההתחברות. המשחק שומר אסימון גישה ב־sessionStorage בלבד ואינו מפעיל `auth.setSession` או רענון Supabase עצמאי. כאשר תוקפו פג, פותחים שוב את גשר הדשבורד. חיבור localhost מותר רק כאשר גם הדשבורד נמצא ב־localhost. `state` הוא nonce אקראי של 32–128 תווי base64url, שנבדק גם בחלון המשחק. חלון המשחק חייב לבדוק מקור, מקור החלון (`event.source`) ו־state לפני קליטת ההודעה.
 
 אסימונים אינם נכתבים לכתובת, ל־query string או ללוג. אם אין session תקף, החלון עובר למסך ההתחברות הקיים; בקשת החזרה נשמרת רק ב־sessionStorage של חלון זה ותוקפה עשר דקות. לאחר התחברות רגילה מוחזר החלון לגשר קבוע באותו מקור. אין יעד חזרה חופשי. דף הגשר מוחרג מהמטמון של ה־Service Worker.
 

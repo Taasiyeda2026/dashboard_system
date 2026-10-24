@@ -46,12 +46,14 @@ test('return to bridge requires verified Supabase user and never puts tokens in 
   assert.equal(target.searchParams.size, 2);
 });
 
-test('session handoff verifies current token with auth server and matching identity', async () => {
+test('access token handoff verifies matching identity and never exports dashboard refresh token', async () => {
   const session = { access_token: 'test-access', refresh_token: 'test-refresh', user: { id: 'user-a' } };
   const client = (user) => ({ auth: { getSession: async () => ({ data: { session } }), getUser: async (token) => { assert.equal(token, session.access_token); return { data: { user } }; } } });
   assert.equal(await bridge.verifiedSession(client({ id: 'user-b' })), null);
   assert.equal(await bridge.verifiedSession(client(null)), null);
-  assert.deepEqual(await bridge.verifiedSession(client({ id: 'user-a' })), { access_token: 'test-access', refresh_token: 'test-refresh' });
+  assert.deepEqual(await bridge.verifiedSession(client({ id: 'user-a' })), { access_token: 'test-access' });
+  delete session.refresh_token;
+  assert.deepEqual(await bridge.verifiedSession(client({ id: 'user-a' })), { access_token: 'test-access' });
 });
 
 test('instructor shortcut is a visibility hint and bridge uses exact postMessage target', () => {

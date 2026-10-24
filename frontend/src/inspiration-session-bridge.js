@@ -1,5 +1,6 @@
-// The bridge returns an existing Supabase session only to the course window that
-// opened it. Roles remain a server-side decision in the game's API.
+// The bridge returns only a short-lived Supabase access token to the course
+// window that opened it. The dashboard exclusively owns session refresh.
+// Roles remain a server-side decision in the game's API.
 export const INSPIRATION_GAME_URL = 'https://portzot-derech.org/inspiration/teacher.html';
 const PENDING_KEY = 'inspiration_pending_bridge_v1';
 const MAX_AGE_MS = 10 * 60 * 1000;
@@ -54,8 +55,8 @@ export async function resumeInspirationBridge({ client, location, storage }) {
 export async function verifiedSession(client) {
   const { data: sessionData, error: sessionError } = await client.auth.getSession();
   const session = sessionData?.session;
-  if (sessionError || !session?.access_token || !session?.refresh_token) return null;
+  if (sessionError || !session?.access_token) return null;
   const { data, error } = await client.auth.getUser(session.access_token);
   if (error || !data?.user?.id || data.user.id !== session.user?.id) return null;
-  return { access_token: session.access_token, refresh_token: session.refresh_token };
+  return { access_token: session.access_token };
 }
