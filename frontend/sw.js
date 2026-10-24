@@ -4,7 +4,7 @@
  * API-like requests: network only, never cached. Bump CACHE_VERSION after deploy to drop old caches.
  * CACHE_VERSION is the single manual SW/cache version source; /sw.js imports this file without its own version.
  */
-const CACHE_VERSION = 2035;
+const CACHE_VERSION = 2036;
 const CACHE_PREFIX = 'dashboard-static-v';
 const CACHE_NAME = `${CACHE_PREFIX}${CACHE_VERSION}`;
 
@@ -35,6 +35,7 @@ function isApiLikeUrl(url) {
 
 function isBlockedCachePath(url) {
   const p = url.pathname.toLowerCase();
+  if (p.endsWith('/inspiration-bridge.html')) return true;
   if (p.includes('/attached_assets/')) return true;
   if (p.includes('/dist/')) return true;
   if (p.includes('/tests/')) return true;
