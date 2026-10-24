@@ -14,7 +14,8 @@ import { uniqueExceptionActivityCount } from './screens/shared/exceptions-metric
 import { loginScreen } from './screens/login.js';
 import { clearFinancePrefsIfUserChanged } from './screens/shared/finance-prefs-storage.js';
 import { applyGlobalAccent, accentNameFromStorage, bindAccentPickerOnce as bindAccentPickerListenerOnce } from './accent-picker.js';
-import { waitForSupabaseAuthSession } from './supabase-client.js';
+import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
+import { resumeInspirationBridge } from './inspiration-session-bridge.js';
 import { permissionFlagYes as permissionEnabled } from './permissions.js';
 import { hasPermission } from './permission-policy.js';
 import { canViewImpactFeedback, isFeedbackInstructor } from './impact-feedback/feedback-access.js';
@@ -1968,6 +1969,7 @@ async function restoreSession() {
 }
 
 async function mountScreen() {
+  if (await resumeInspirationBridge({ client: supabase, location: window.location, storage: window.sessionStorage })) return;
   redirectIfDisabledRoute();
   let requestedRoute = state.route;
   const transitionToken = ++navigationToken;

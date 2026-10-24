@@ -22,8 +22,8 @@ const basicRows = [
 
 test('dashboard defines title-only shortcuts without a separate work schedule card', () => {
   const source = fs.readFileSync(new URL('../frontend/src/screens/instructor-portal/dashboard.js', import.meta.url), 'utf8');
-  assert.equal((source.match(/action: '/g) || []).length, 4);
-  for (const label of ['לוח שנה', 'מערכת נוכחות', 'מצגות', 'הפעילויות שלי']) assert.match(source, new RegExp(label));
+  assert.equal((source.match(/action: '/g) || []).length, 5);
+  for (const label of ['לוח שנה', 'מערכת נוכחות', 'מצגות', 'הפעילויות שלי', 'נושמות השראה']) assert.match(source, new RegExp(label));
   assert.doesNotMatch(source, /title: 'סידור עבודה'|title: 'דיווחים'/);
   assert.doesNotMatch(source, /subtitle:/);
   assert.match(source, /config\.instructorAttendanceUrl/);
@@ -40,7 +40,10 @@ test('instructor dashboard, activities, and work schedule render their approved 
   const dashboard = new JSDOM(instructorDashboardScreen.render({ rows: [activity] }, { state: stateA })).window.document;
   assert.ok(dashboard.querySelector('[data-portal-month]'));
   assert.ok(dashboard.querySelector('.instructor-portal-focus'));
-  assert.equal(dashboard.querySelectorAll('.instructor-portal-shortcut').length, 4);
+  assert.equal(dashboard.querySelectorAll('.instructor-portal-shortcut').length, 5);
+  assert.ok(dashboard.querySelector('[data-card-action="external:inspiration"]'));
+  const otherUser = new JSDOM(instructorDashboardScreen.render({ rows: [] }, { state: { user: { role: 'manager' } } })).window.document;
+  assert.equal(otherUser.querySelector('[data-card-action="external:inspiration"]'), null);
   assert.doesNotMatch(dashboard.body.textContent, /דורש תשומת לב|סיכום אישי/);
 
   const activities = new JSDOM(instructorMyActivitiesScreen.render({ rows: [activity] }, { state: stateA })).window.document;
