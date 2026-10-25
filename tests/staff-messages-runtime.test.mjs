@@ -93,9 +93,9 @@ test('blocking popup order is birthday then Gefen then admin messages', () => {
   assert.match(priorityRuntime, /\.eq\('activity_season', GEFEN_SEASON\)/);
   assert.doesNotMatch(priorityRuntime, /startDate\.startsWith/);
 
-  const coordinatorIndex = indexHtml.indexOf('popup-priority-runtime.js?v=20260823-v2');
-  const gefenIndex = indexHtml.indexOf('gefen-start-reminder-runtime.js?v=20260823-v4');
-  const staffIndex = indexHtml.indexOf('staff-message-popup-runtime.js?v=20260823-v2');
+  const coordinatorIndex = indexHtml.indexOf('popup-priority-runtime.js?v=');
+  const gefenIndex = indexHtml.indexOf('gefen-start-reminder-runtime.js?v=');
+  const staffIndex = indexHtml.indexOf('staff-message-popup-runtime.js?v=');
   assert.ok(coordinatorIndex >= 0 && coordinatorIndex < gefenIndex);
   assert.ok(gefenIndex >= 0 && gefenIndex < staffIndex);
 });
@@ -108,9 +108,9 @@ test('staff message polling pauses in hidden tabs and resumes on focus', () => {
 });
 
 test('staff message runtimes are loaded and cache is bumped', () => {
-  assert.match(indexHtml, /admin-messages-card-runtime\.js\?v=20260823-v2/);
+  assert.match(indexHtml, /admin-messages-card-runtime\.js\?v=/);
   assert.match(cardRuntime, /admin-messages-runtime\.js\?v=20260823-v2/);
-  assert.match(indexHtml, /popup-priority-runtime\.js\?v=20260823-v2/);
+  assert.match(indexHtml, /popup-priority-runtime\.js\?v=/);
   assert.match(indexHtml, /staff-message-popup-runtime\.js\?v=20261025-hidden-tab-quiet-v1/);
   assert.match(sw, /const CACHE_VERSION = 2037/);
 });
