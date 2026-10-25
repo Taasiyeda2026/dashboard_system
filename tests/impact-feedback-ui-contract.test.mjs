@@ -785,8 +785,8 @@ test('impact-feedback preserves admin/Israa access and adds read-only operationa
   assert.match(screen, /feedbackReadOnly = !isFeedbackAdmin\(state\?\.user\)/);
   assert.match(screen, /visibleFeedbackTabs\(\)\.map/);
   assert.match(screen, /function visibleFeedbackTabs\(\) \{\s+return isLimitedFeedbackViewer\(\) \? TABS\.filter/);
-  assert.match(screen, /if \(feedbackReadOnly\) \{ event\.preventDefault\(\); return; \}/);
-  assert.match(screen, /feedbackReadOnly && t\.closest/);
+  assert.match(screen, /if \(feedbackReadOnly && !allowedStaffOpenForm\) \{ event\.preventDefault\(\); return; \}/);
+  assert.match(screen, /feedbackReadOnly && !allowedStaffShareClick && t\.closest/);
   assert.match(styles, /\.ifb-admin\.is-feedback-readonly :is/);
   assert.match(styles, /\[data-ifb-close\]/);
   assert.match(styles, /\[data-ifb-share\]/);
