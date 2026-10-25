@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import {
   buildContactResponsibleIndex,
   findContactResponsibleGroup,
@@ -12,6 +13,15 @@ import {
   normalizeContactMatchText,
   looseContactMatchText
 } from '../frontend/src/screens/shared/contact-responsible.js';
+
+test('contact responsible API projection excludes nonexistent columns', async () => {
+  const source = await readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
+  const match = source.match(/const SCHOOL_CONTACT_RESPONSIBLES_COLUMNS = '([^']+)'/);
+  assert.ok(match, 'contact responsible projection must be defined');
+  assert.deepEqual(match[1].split(','), [
+    'id', 'activity_date', 'school_id', 'school', 'responsible_emp_id', 'responsible_name'
+  ]);
+});
 
 const DATE = '2026-07-21';
 
