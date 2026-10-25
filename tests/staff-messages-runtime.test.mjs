@@ -111,6 +111,6 @@ test('staff message runtimes are loaded and cache is bumped', () => {
   assert.match(indexHtml, /admin-messages-card-runtime\.js\?v=20260823-v2/);
   assert.match(cardRuntime, /admin-messages-runtime\.js\?v=20260823-v2/);
   assert.match(indexHtml, /popup-priority-runtime\.js\?v=20260823-v2/);
-  assert.match(indexHtml, /staff-message-popup-runtime\.js\?v=20260823-v2/);
-  assert.match(sw, /const CACHE_VERSION = 1593/);
+  assert.match(indexHtml, /staff-message-popup-runtime\.js\?v=20261025-hidden-tab-quiet-v1/);
+  assert.match(sw, /const CACHE_VERSION = 2037/);
 });
