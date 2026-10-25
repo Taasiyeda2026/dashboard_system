@@ -1,5 +1,4 @@
 import { config } from '../../config.js';
-import { INSPIRATION_GAME_URL, canShowInspirationLink } from '../../inspiration-session-bridge.js';
 import { escapeHtml } from '../shared/html.js';
 import { dsPageHeader, dsScreenStack, dsInteractiveCard } from '../shared/layout.js';
 import {
@@ -16,8 +15,7 @@ export const PORTAL_SHORTCUTS = Object.freeze([
   { title: 'לוח שנה', action: 'route:instructor-calendar' },
   { title: 'מערכת נוכחות', action: 'external:attendance' },
   { title: 'מצגות', action: 'external:presentations' },
-  { title: 'הפעילויות שלי', action: 'route:my-data' },
-  { title: 'נושמות השראה', action: 'external:inspiration' }
+  { title: 'הפעילויות שלי', action: 'route:my-data' }
 ]);
 
 export function instructorMonthlySummaryHtml(summary = {}) {
@@ -77,7 +75,7 @@ export const instructorDashboardScreen = {
       ${instructorMonthlySummaryHtml(summary)}
       <div class="instructor-portal-summary-divider" aria-hidden="true"></div>
       ${upcomingSection}
-      <div class="instructor-portal-shortcuts">${PORTAL_SHORTCUTS.filter((item) => item.action !== 'external:inspiration' || canShowInspirationLink(state?.user)).map((item) => dsInteractiveCard({ action: item.action, title: item.title, variant: 'mini', extraClass: 'instructor-portal-shortcut' })).join('')}</div>
+      <div class="instructor-portal-shortcuts">${PORTAL_SHORTCUTS.map((item) => dsInteractiveCard({ action: item.action, title: item.title, variant: 'mini', extraClass: 'instructor-portal-shortcut' })).join('')}</div>
     </section>`);
   },
   bind({ root, rerender }) {
@@ -87,7 +85,6 @@ export const instructorDashboardScreen = {
       if (action.startsWith('route:')) document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: action.slice(6) } }));
       if (action === 'external:attendance') window.location.assign(config.instructorAttendanceUrl);
       if (action === 'external:presentations') window.open(config.instructorPresentationsUrl, '_blank', 'noopener,noreferrer');
-      if (action === 'external:inspiration') window.location.assign(INSPIRATION_GAME_URL);
     }));
   }
 };
