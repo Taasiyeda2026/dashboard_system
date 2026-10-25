@@ -77,7 +77,7 @@ import { staffDeliveryStatus, staffStatusIndex } from '../impact-feedback/staff-
 import { hasArabicAnswerText, arabicAnswerTranslationUrl } from '../impact-feedback/feedback-translation.js';
 import { renderTemplatesView, bindTemplatesView } from '../impact-feedback/feedback-templates-view.js';
 import '../impact-feedback/feedback-form.css';
-import { canViewImpactFeedback, canEditImpactFeedbackWording, isFeedbackAdmin, isFeedbackInstructor } from '../impact-feedback/feedback-access.js';
+import { canViewImpactFeedback, canEditImpactFeedbackWording, canShareEducationalStaffFeedback, isFeedbackAdmin, isFeedbackInstructor } from '../impact-feedback/feedback-access.js';
 import '../impact-feedback/impact-feedback-admin.css';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -798,6 +798,7 @@ function groupsTableHtml(slots, scope) {
         // altering the underlying activities or their feedback campaigns.
         const sorted = sortEducationalStaffFeedbackGroups(matching);
         const unique = new Map();
+        const instructorsByGroup = new Map();
         for (const group of sorted) {
           // No known contact: keep rows separate rather than merge unknown people.
           const contact = String(group.contact_name || '').trim().replace(/\\s+/g, ' ').toLocaleLowerCase('he');
@@ -806,6 +807,8 @@ function groupsTableHtml(slots, scope) {
           const key = contact && school && course
             ? JSON.stringify([course, contact, school])
             : JSON.stringify(['unidentified', group.row_id]);
+          if (!instructorsByGroup.has(key)) instructorsByGroup.set(key, new Set());
+          if (String(group.instructor_name || '').trim()) instructorsByGroup.get(key).add(String(group.instructor_name).trim());
           const previous = unique.get(key);
           const coverage = (item) => STAFF_SLOTS.filter((slot) => Boolean(slotCampaign(item, slot))).length;
           if (!previous || coverage(group) > coverage(previous)
@@ -815,7 +818,10 @@ function groupsTableHtml(slots, scope) {
             unique.set(key, group);
           }
         }
-        return [...unique.values()];
+        return [...unique.entries()].map(([key, group]) => ({
+          ...group,
+          staff_instructor_names: [...(instructorsByGroup.get(key) || [])]
+        }));
       })()
       : matching.sort((a, b) =>
         Number(groupHasFeedback(b)) - Number(groupHasFeedback(a)) ||
@@ -830,6 +836,7 @@ function groupsTableHtml(slots, scope) {
           <col class="ifb-gw-school"><col class="ifb-gw-authority">
           ${showCourse ? '<col class="ifb-gw-course">' : ''}
           <col class="ifb-gw-person">
+          ${scope === 'staff' ? '<col class="ifb-gw-instructor">' : ''}
           <col class="ifb-gw-date ifb-gw-date--start"><col class="ifb-gw-stage"><col class="ifb-gw-date ifb-gw-date--end"><col class="ifb-gw-stage">
           <col class="ifb-gw-actions">
         </colgroup>
@@ -838,6 +845,7 @@ function groupsTableHtml(slots, scope) {
           <th scope="col">רשות</th>
           ${showCourse ? '<th scope="col">קורס</th>' : ''}
           <th scope="col">${scope === 'staff' ? 'איש קשר' : 'מדריך'}</th>
+          ${scope === 'staff' ? '<th scope="col">מדריך/ה בקורס</th>' : ''}
           <th scope="col" class="ifb-center ifb-col-date">תחילת קורס</th>
           <th scope="col" class="ifb-center ifb-col-stage">${esc(slots.find((slot) => slot.stage === 'pre')?.label || 'משוב פתיחה')}</th>
           <th scope="col" class="ifb-center ifb-col-date">סיום קורס</th>
@@ -852,6 +860,7 @@ function groupsTableHtml(slots, scope) {
               ? esc(programTitle(g.program_key))
               : g.feedback_excluded ? statusText('לא רלוונטי למשובים', 'muted') : `<span title="נדרש טיפול בהתאמת תבנית המשוב לקורס. השיוך מנוהל במערכת ולא במסך זה.">${statusText('ממתין להתאמת משוב', 'warning')}</span>`}</td>` : ''}
             <td data-label="${scope === 'staff' ? 'איש קשר' : 'מדריך'}">${scope === 'staff' ? (g.contact_name ? esc(g.contact_name) : '<span class="ifb-muted" title="טרם הוגדר שם של איש קשר">לא הוגדר</span>') : esc(g.instructor_name || 'לא שובץ')}</td>
+            ${scope === 'staff' ? `<td data-label="מדריך/ה בקורס">${esc(g.staff_instructor_names?.join(', ') || 'לא שובץ/ה')}</td>` : ''}
             <td data-label="תחילת קורס" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(g.start_date)}</td>
             ${(() => {
               const slot = slots.find((s) => s.stage === 'pre');
@@ -1738,11 +1747,13 @@ function openFormHtml(group, slot) {
 }
 
 function slotCardHtml(group, slot) {
+  const staffShareAllowed = slot.audience === 'educational_staff' && canShareEducationalStaffFeedback(state?.user, group);
+  const staffShareAttr = staffShareAllowed ? ' data-ifb-staff-share-enabled="true"' : '';
   const campaign = slotCampaign(group, slot);
   const status = campaignUiStatus(campaign);
   const title = `<h3 class="ifb-slot__title">${esc(slot.label)}</h3>`;
   if (!campaign) {
-    return `<article class="ifb-slot" data-slot="${slot.key}">
+    return `<article class="ifb-slot" data-slot="${slot.key}"${staffShareAttr}>
       <div class="ifb-slot__head">${title}${campaignStatusHtml(null)}</div>
       ${openFormHtml(group, slot)}
     </article>`;
@@ -1782,7 +1793,7 @@ function slotCardHtml(group, slot) {
         <form data-ifb-extend="${id}"><label class="ifb-field"><span>תוקף עד</span><input type="date" name="expires" min="${isoDay(Date.now() + DAY_MS)}" value="${campaign.expires_at ? isoDay(campaign.expires_at) : ''}"></label>
         <button type="submit" class="ifb-btn ifb-btn--sm">שמירה</button></form></details>`
     : '';
-  return `<article class="ifb-slot" data-slot="${slot.key}" data-campaign="${id}">
+  return `<article class="ifb-slot" data-slot="${slot.key}" data-campaign="${id}"${staffShareAttr}>
     <div class="ifb-slot__head">${title}${campaignStatusHtml(campaign)}</div>
     ${meta}
     <div class="ifb-slot__actions">${actions}</div>
@@ -2179,8 +2190,10 @@ function handleTabKeys(host, event) {
 
 async function handleClick(host, event) {
   const t = event.target;
-  // Defense-in-depth for the temporary read-only user. Server writes stay admin-only.
-  if (feedbackReadOnly && t.closest([
+  // Read-only viewers remain blocked; an assigned activity manager may only create/share staff links.
+  const allowedStaffShareClick = Boolean(t.closest('[data-ifb-staff-share-enabled="true"]')
+    && t.closest('[data-ifb-show-open], [data-ifb-cancel-open], [data-ifb-share], [data-ifb-copy]'));
+  if (feedbackReadOnly && !allowedStaffShareClick && t.closest([
     '[data-ifb-show-open]', '[data-ifb-instructor-open]',
     '[data-ifb-cancel-open]', '[data-ifb-instructor-cancel]',
     '[data-ifb-close]', '[data-ifb-reopen]', '[data-ifb-share]',
@@ -2346,8 +2359,10 @@ function parseIsraelFeedbackTime(value) {
 }
 
 async function handleSubmit(host, event) {
-  if (feedbackReadOnly) { event.preventDefault(); return; }
   const form = event.target;
+  const allowedStaffOpenForm = form.matches('[data-ifb-open-form]')
+    && form.closest('[data-ifb-staff-share-enabled="true"]');
+  if (feedbackReadOnly && !allowedStaffOpenForm) { event.preventDefault(); return; }
   if (form.closest('[data-ifb-templates]')) return;
   if (form.matches('[data-ifb-instructor-open-form]')) {
     event.preventDefault();
