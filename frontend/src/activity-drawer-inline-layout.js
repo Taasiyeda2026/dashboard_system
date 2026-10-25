@@ -311,7 +311,7 @@ function coreDetails(form, body, row, existingValues) {
       viewValue: (row.funding_sources || []).map((source) => source?.name).filter(clean).join(' + ') || row.funding,
       editControls: fundingControls
     }),
-    instructorLimited ? null : makeField(doc, { label: 'מחיר', viewValue: formatMoney(row.price), editControls: priceControls }),
+    instructorLimited ? null : makeEditOnlyActivityField(doc, { label: 'מחיר', editControls: priceControls }),
     makeEditOnlyActivityField(doc, { label: 'מגדר', editControls: genderControls, className: 'activity-drawer-inline__field--gender' }),
     makeEditOnlyActivityField(doc, { label: 'שפת הדרכה', editControls: languageControls, className: 'activity-drawer-inline__field--language' }),
     hasOwnParticipantsSection ? null : makeField(doc, {

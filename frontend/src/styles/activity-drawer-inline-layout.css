@@ -527,7 +527,7 @@
   display: flex;
   align-items: baseline;
   justify-content: flex-start;
-  gap: 28px;
+  gap: 6px 16px;
   margin-block-end: 12px;
   color: #667085;
 }
@@ -541,7 +541,7 @@
 
 .activity-drawer-inline-layout .activity-drawer__date-summary strong {
   color: #172033;
-  font-size: 1rem;
+  font-size: 0.78rem;
   font-weight: 800;
 }
 
