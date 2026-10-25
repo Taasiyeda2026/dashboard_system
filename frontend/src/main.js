@@ -1155,7 +1155,8 @@ function shell(content) {
   }).join('');
   const nav = isInstructorUser ? instructorNav : regularNav;
   const attendanceNavBtn = isAdminUser
-      ? `<button type="button" class="shell-nav__btn" data-external-url="/dashboard_system/attendance/">👥 נוכחות</button>`
+      ? `<button type="button" class="shell-nav__btn" data-external-url="/dashboard_system/attendance/">👥 נוכחות</button>
+         <button type="button" class="shell-nav__btn" data-external-url="https://portzot-derech.org/inspiration/teacher.html">✨ נושמות השראה</button>`
       : '';
 
   const displayName = shellUserDisplayName();
