@@ -446,7 +446,7 @@ test('staff feedback displays opening and closing in separate centered stage col
   assert.match(t, /<td class="ifb-center ifb-col-stage"/);
   assert.match(t, /scope === 'staff' \? 'final' : 'post'/);
   assert.match(t, /ממתין לתאריך סיום/);
-  assert.match(styles, /\.ifb-groups-table--staff col\.ifb-gw-stage \{ width: 13%; \}/);
+  assert.match(styles, /\.ifb-groups-table--staff col\.ifb-gw-stage \{ width: 12%; \}/);
 });
 
 test('template cards use three desktop columns with tight language spacing and responsive layouts', () => {
@@ -785,8 +785,8 @@ test('impact-feedback preserves admin/Israa access and adds read-only operationa
   assert.match(screen, /feedbackReadOnly = !isFeedbackAdmin\(state\?\.user\)/);
   assert.match(screen, /visibleFeedbackTabs\(\)\.map/);
   assert.match(screen, /function visibleFeedbackTabs\(\) \{\s+return isLimitedFeedbackViewer\(\) \? TABS\.filter/);
-  assert.match(screen, /if \(feedbackReadOnly\) \{ event\.preventDefault\(\); return; \}/);
-  assert.match(screen, /feedbackReadOnly && t\.closest/);
+  assert.match(screen, /if \(feedbackReadOnly && !allowedStaffOpenForm\) \{ event\.preventDefault\(\); return; \}/);
+  assert.match(screen, /feedbackReadOnly && !allowedStaffShareClick && t\.closest/);
   assert.match(styles, /\.ifb-admin\.is-feedback-readonly :is/);
   assert.match(styles, /\[data-ifb-close\]/);
   assert.match(styles, /\[data-ifb-share\]/);
