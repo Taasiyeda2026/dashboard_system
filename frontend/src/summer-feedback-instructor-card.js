@@ -296,6 +296,9 @@ function scheduleEnhancement() {
 }
 
 function refreshFromServer() {
+  // Keep the last-known navigation state while the tab is hidden; refresh on
+  // focus/visibilitychange to avoid repeated Supabase calls in background tabs.
+  if (document.hidden) return;
   clearCachedState();
   scheduleEnhancement();
 }
