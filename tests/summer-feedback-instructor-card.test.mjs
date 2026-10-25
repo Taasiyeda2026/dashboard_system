@@ -152,6 +152,12 @@ test('sidebar eligibility refreshes automatically after opening and closing date
   assert.match(integrationSource, /visibilitychange/);
 });
 
+test('summer feedback polling skips hidden tabs and rechecks on return', () => {
+  assert.match(integrationSource, /if \(document\.hidden\) return/);
+  assert.match(integrationSource, /window\.addEventListener\('focus', refreshFromServer\)/);
+  assert.match(integrationSource, /visibilitychange/);
+});
+
 test('observer reacts to desktop and mobile navigation recreation', () => {
   assert.match(integrationSource, /shellChanged/);
   assert.match(integrationSource, /\.app-shell, \.shell-sidebar, \.shell-nav, \.instructor-bottom-nav/);
