@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { runInNewContext } from 'node:vm';
 import { canShareEducationalStaffFeedback } from '../frontend/src/impact-feedback/feedback-access.js';
 
 const screen = readFileSync(new URL('../frontend/src/screens/impact-feedback.js', import.meta.url), 'utf8');
@@ -28,7 +29,10 @@ test('educational-staff table contains an instructor column, including deduplica
 });
 
 test('manager share controls apply only to staff slots; close and edit remain hidden', () => {
-  assert.match(screen, /slot\.audience === 'educational_staff' && canShareEducationalStaffFeedback\(state\?\.user, group\)/);
+  assert.match(screen, /slot\.audience === 'educational_staff' && canShareEducationalStaffFeedback\(user, group\)/);
+  assert.match(screen, /feedbackViewerUser = state\?\.user \?\? null/);
+  assert.match(screen, /groupViewHtml\(findGroup\(ui\.groupRowId\), feedbackViewerUser\)/);
+  assert.match(screen, /visibleSlots\.map\(\(slot\) => slotCardHtml\(group, slot, user\)\)/);
   assert.match(screen, /data-ifb-staff-share-enabled="true"/);
   assert.match(screen, /allowedStaffShareClick/);
   assert.match(screen, /allowedStaffOpenForm/);
@@ -44,4 +48,29 @@ test('backend permits only manager-owned staff opening and mark_shared', () => {
   assert.match(migration, /p_action = ''mark_shared''/);
   assert.match(migration, /p_channel in \(''whatsapp'', ''email'', ''copy''\)/);
   assert.doesNotMatch(migration, /create or replace function private\.feedback_is_admin/);
+});
+
+
+test('staff feedback slot renders for manager and admin without an undefined state reference', () => {
+  const start = screen.indexOf('function slotCardHtml(');
+  const end = screen.indexOf('\nfunction prePostMetricTableHtml(', start);
+  assert.ok(start >= 0 && end > start, 'slot renderer should be present');
+  const renderSlot = runInNewContext(screen.slice(start, end) + '\nslotCardHtml;', {
+    canShareEducationalStaffFeedback,
+    slotCampaign: () => null,
+    campaignUiStatus: () => ({ key: 'not_started' }),
+    campaignStatusHtml: () => '',
+    openFormHtml: () => '',
+    esc: (value) => String(value)
+  });
+  const group = { activity_manager: 'הילה רוזן' };
+  const staffSlot = { audience: 'educational_staff', key: 'educational_staff:pre', label: 'משוב פתיחה' };
+  const authorized = renderSlot(group, staffSlot, { role: 'activities_manager', full_name: 'הילה רוזן', is_active: true });
+  assert.match(authorized, /data-ifb-staff-share-enabled="true"/);
+  const anotherManager = renderSlot(group, staffSlot, { role: 'activities_manager', full_name: 'גיל נאמן', is_active: true });
+  assert.doesNotMatch(anotherManager, /data-ifb-staff-share-enabled/);
+  const admin = renderSlot(group, staffSlot, { role: 'admin' });
+  assert.match(admin, /data-ifb-staff-share-enabled="true"/);
+  const student = renderSlot(group, { audience: 'student', key: 'student:pre', label: 'תלמידים פתיחה' }, { role: 'admin' });
+  assert.doesNotMatch(student, /data-ifb-staff-share-enabled/);
 });
