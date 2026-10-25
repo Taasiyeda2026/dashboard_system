@@ -446,7 +446,7 @@ test('staff feedback displays opening and closing in separate centered stage col
   assert.match(t, /<td class="ifb-center ifb-col-stage"/);
   assert.match(t, /scope === 'staff' \? 'final' : 'post'/);
   assert.match(t, /ממתין לתאריך סיום/);
-  assert.match(styles, /\.ifb-groups-table--staff col\.ifb-gw-stage \{ width: 13%; \}/);
+  assert.match(styles, /\.ifb-groups-table--staff col\.ifb-gw-stage \{ width: 12%; \}/);
 });
 
 test('template cards use three desktop columns with tight language spacing and responsive layouts', () => {
