@@ -318,6 +318,9 @@ async function loadPendingMessages(authUserId) {
 }
 
 async function checkStaffMessages() {
+  // Background tabs cannot display an acknowledgement dialog; resume immediately
+  // on focus/visibilitychange rather than polling Supabase while hidden.
+  if (document.visibilityState === 'hidden') return null;
   if (checkPromise || activePopup || !authenticatedShellIsReady()) return checkPromise;
   if ((Date.now() - lastSuccessfulCheckAt) < CHECK_THROTTLE_MS) return null;
 
