@@ -734,7 +734,6 @@ function blockContact2027(row, { viewOnly = false } = {}) {
       <!-- View mode -->
       <div class="activity-view-card__grid" data-mode="view">
         <div class="activity-view-field">
-          <span class="activity-view-field__label">פרטי קשר</span>
           <span data-contact-2027-view-wrap>${viewHtml}</span>
         </div>
       </div>
@@ -877,25 +876,27 @@ function presentValueText(value) {
 }
 
 /**
- * Period, funding, price and participant count come from the full activity record.
+ * Period is shown only while editing; price uses its existing edit control.
+ * Funding and participant count come from the full activity record.
  * Each field renders only when the record actually holds a value, so an empty field
  * is never displayed as an invented value.
  */
 function blockViewRecordDetails(row, { instructorLimited = false, showFunding = false, showParticipants = true } = {}) {
   if (instructorLimited) return '';
+  const period = activityPeriodDisplayLabel(row);
   const candidates = [
-    ['תקופת הפעילות', activityPeriodDisplayLabel(row)],
     ...(showFunding ? [['מימון', presentValueText(row.funding)]] : []),
-    ['מחיר', presentValueText(row.price)],
     ...(showParticipants ? [['מספר משתתפים', presentValueText(row.participants_count)]] : [])
   ].filter(([, value]) => value);
-  if (!candidates.length) return '';
   return `
-    <section class="activity-view-card activity-view-card--record" data-mode="view" data-record-details-section>
+    ${period ? `<section class="activity-drawer__section" data-mode="edit" hidden data-record-period-section>
+      ${viewField('תקופת הפעילות', period)}
+    </section>` : ''}
+    ${candidates.length ? `<section class="activity-view-card activity-view-card--record" data-mode="view" data-record-details-section>
       <div class="activity-view-card__grid">
         ${candidates.map(([label, value]) => viewField(label, value)).join('')}
       </div>
-    </section>
+    </section>` : ''}
   `;
 }
 

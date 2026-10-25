@@ -8774,7 +8774,46 @@ select.ds-input {
 }
 
 .activity-drawer__section--course-dates .activity-drawer__end-date__label::after {
-  content: ":";
+  content: none;
+}
+
+.activity-drawer__date-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 16px;
+  margin-block-end: 12px;
+}
+
+.activity-drawer__date-boundary {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.activity-drawer__date-summary .activity-drawer__end-date__label,
+.activity-drawer__date-summary strong {
+  font-size: 0.78rem !important;
+}
+
+.activity-drawer__date-summary strong {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+[data-contact-2027-section] > .activity-view-card__grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+[data-contact-2027-view-wrap] {
+  display: block;
+  min-width: 0;
+}
+
+[data-contact-2027-view-wrap] > .activity-view-field__value {
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 .activity-drawer__section--course-dates .activity-drawer__end-date strong {
