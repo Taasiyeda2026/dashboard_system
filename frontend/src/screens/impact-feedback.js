@@ -160,6 +160,7 @@ const ui = {
 
 let feedbackReadOnly = false;
 let feedbackCanEditWording = false;
+let feedbackViewerUser = null;
 // Activity managers and Eden may view results and analysis, but never templates or editing.
 const LIMITED_VIEWER_TABS = new Set(['overview', 'students', 'instructors', 'staff', 'analysis']);
 function isLimitedFeedbackViewer() {
@@ -1746,8 +1747,8 @@ function openFormHtml(group, slot) {
     </form>`;
 }
 
-function slotCardHtml(group, slot) {
-  const staffShareAllowed = slot.audience === 'educational_staff' && canShareEducationalStaffFeedback(state?.user, group);
+function slotCardHtml(group, slot, user) {
+  const staffShareAllowed = slot.audience === 'educational_staff' && canShareEducationalStaffFeedback(user, group);
   const staffShareAttr = staffShareAllowed ? ' data-ifb-staff-share-enabled="true"' : '';
   const campaign = slotCampaign(group, slot);
   const status = campaignUiStatus(campaign);
@@ -1834,7 +1835,7 @@ function groupResultsHtml(facts) {
   </div>`;
 }
 
-function groupViewHtml(group) {
+function groupViewHtml(group, user) {
   if (!group) return errorHtml('הקבוצה לא נמצאה בשנת הלימודים שנבחרה');
   const facts = ui.groupFacts.get(group.row_id);
   const back = TABS.find((t) => t.key === ui.groupReturnTab)?.label || 'תלמידים';
@@ -1871,7 +1872,7 @@ function groupViewHtml(group) {
           <div class="ifb-group-head__date"><dt>סיום קורס</dt><dd>${fmtDate(group.end_date)}</dd></div>
         </dl>
       </section>
-      <div class="ifb-slots${staffView ? ' ifb-slots--staff' : ''}">${visibleSlots.map((slot) => slotCardHtml(group, slot)).join('')}</div>
+      <div class="ifb-slots${staffView ? ' ifb-slots--staff' : ''}">${visibleSlots.map((slot) => slotCardHtml(group, slot, user)).join('')}</div>
       ${sectionHtml(staffView ? 'תוצאות משוב הצוות החינוכי' : 'תוצאות הקבוצה', results, {
         actions: facts ? (staffView ? (staffFacts.length ? exportButtonHtml(`group-staff:${group.row_id}`, 'ייצוא צוות חינוכי (Excel)') : '') : exportButtonHtml(`group:${group.row_id}`, 'ייצוא הקבוצה (Excel)')) : ''
       })}
@@ -2037,7 +2038,7 @@ function viewHtml() {
   if (ui.error) return errorHtml(ui.error);
   if (ui.groupRowId) {
     if (ui.loading || !ui.groups) return loadingHtml();
-    return groupViewHtml(findGroup(ui.groupRowId));
+    return groupViewHtml(findGroup(ui.groupRowId), feedbackViewerUser);
   }
   if (ui.loading || !ui.programs.length || !needsReady()) return loadingHtml();
   if (ui.tab === 'students') return studentsHtml();
@@ -2741,6 +2742,7 @@ function mountInstructorFeedback(host) {
 }
 
 function mount(host, state) {
+  feedbackViewerUser = state?.user ?? null;
   if (isFeedbackInstructor(state?.user)) {
     mountInstructorFeedback(host);
     return;
