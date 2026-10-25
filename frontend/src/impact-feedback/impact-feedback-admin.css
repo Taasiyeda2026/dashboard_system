@@ -1131,20 +1131,25 @@
   .ifb-groups-table--with-program col.ifb-gw-date { width: 10%; }
   .ifb-groups-table--with-program col.ifb-gw-stage { width: 11%; }
   .ifb-groups-table--with-program col.ifb-gw-actions { width: 7%; }
-  /* Staff now has two survey stages, each beside its own date; widths sum to 100%. */
-  .ifb-groups-table--staff col.ifb-gw-school { width: 20%; }
-  .ifb-groups-table--staff col.ifb-gw-authority { width: 11%; }
-  .ifb-groups-table--staff col.ifb-gw-person { width: 17%; }
-  .ifb-groups-table--staff col.ifb-gw-date { width: 10%; }
-  .ifb-groups-table--staff col.ifb-gw-stage { width: 13%; }
+  /* Educational-staff table: contact and actual assigned instructors have distinct columns.
+     All percentages total 100%, including the optional course column. */
+  .ifb-groups-table--staff { min-width: 1150px; }
+  .ifb-groups-table--staff col.ifb-gw-school { width: 17%; }
+  .ifb-groups-table--staff col.ifb-gw-authority { width: 9%; }
+  .ifb-groups-table--staff col.ifb-gw-person { width: 14%; }
+  .ifb-groups-table--staff col.ifb-gw-instructor { width: 12%; }
+  .ifb-groups-table--staff col.ifb-gw-date { width: 9%; }
+  .ifb-groups-table--staff col.ifb-gw-stage { width: 12%; }
   .ifb-groups-table--staff col.ifb-gw-actions { width: 6%; }
-  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-school { width: 17%; }
-  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-authority { width: 9%; }
-  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-course { width: 14%; }
-  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-person { width: 13%; }
-  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-date { width: 10%; }
-  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-stage { width: 11%; }
-  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-actions { width: 5%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program { min-width: 1300px; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-school { width: 15%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-authority { width: 7%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-course { width: 13%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-person { width: 11%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-instructor { width: 10%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-date { width: 9%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-stage { width: 10%; }
+  .ifb-groups-table--staff.ifb-groups-table--with-program col.ifb-gw-actions { width: 6%; }
   .ifb-groups-table thead th { width: auto !important; }
 }
 
@@ -2136,4 +2141,14 @@
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
+}
+
+/* Scoped exception: activity managers may create, copy and share only their own
+   educational-staff links. Close/reopen/expiry, student and instructor actions
+   remain hidden and are independently forbidden server-side. */
+.ifb-admin.is-feedback-readonly [data-ifb-staff-share-enabled="true"] :is(
+  [data-ifb-show-open], [data-ifb-cancel-open], [data-ifb-share], [data-ifb-copy]
+) { display: inline-flex !important; }
+.ifb-admin.is-feedback-readonly [data-ifb-staff-share-enabled="true"] [data-ifb-open-form] {
+  display: grid !important;
 }
