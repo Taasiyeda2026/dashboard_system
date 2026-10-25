@@ -16,7 +16,7 @@ as $$
       and u.is_active is true
       and u.role = 'activities_manager'
       and nullif(btrim(coalesce(a.activity_manager, '')), '') is not null
-      and nullif(btrim(coalesce(u.full_name, u.name, u.username, '')), '') is not null
+      and coalesce(nullif(btrim(u.full_name), ''), nullif(btrim(u.name), ''), nullif(btrim(u.username), '')) is not null
       and lower(regexp_replace(btrim(a.activity_manager), '[[:space:]]+', ' ', 'g'))
         = lower(regexp_replace(btrim(coalesce(
             nullif(btrim(u.full_name), ''),
