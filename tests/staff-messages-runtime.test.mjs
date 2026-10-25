@@ -100,6 +100,13 @@ test('blocking popup order is birthday then Gefen then admin messages', () => {
   assert.ok(gefenIndex >= 0 && gefenIndex < staffIndex);
 });
 
+test('staff message polling pauses in hidden tabs and resumes on focus', () => {
+  assert.match(popupRuntime, /if \(document\.visibilityState === 'hidden'\) return null/);
+  assert.match(popupRuntime, /setInterval\(\(\) => checkStaffMessages\(\)/);
+  assert.match(popupRuntime, /visibilitychange/);
+  assert.match(popupRuntime, /addEventListener\('focus', scheduleCheck\)/);
+});
+
 test('staff message runtimes are loaded and cache is bumped', () => {
   assert.match(indexHtml, /admin-messages-card-runtime\.js\?v=20260823-v2/);
   assert.match(cardRuntime, /admin-messages-runtime\.js\?v=20260823-v2/);
