@@ -511,3 +511,5 @@ config.HOTFIX_VERSION = 'attendance-month-end-future-dates-20261023-v1-' + confi
 config.HOTFIX_VERSION = 'attendance-excel-reported-total-20261023-v1-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = 'attendance-cancellation-ceil-five-minutes-20261024-v1-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'inspiration-game-sso-20261024-v1-' + config.HOTFIX_VERSION;
