@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
-import { canShareEducationalStaffFeedback } from '../frontend/src/impact-feedback/feedback-access.js';
+import { canShareEducationalStaffFeedback, canShareAssignedActivityFeedback } from '../frontend/src/impact-feedback/feedback-access.js';
 
 const screen = readFileSync(new URL('../frontend/src/screens/impact-feedback.js', import.meta.url), 'utf8');
 const css = readFileSync(new URL('../frontend/src/impact-feedback/impact-feedback-admin.css', import.meta.url), 'utf8');
@@ -57,6 +57,7 @@ test('staff feedback slot renders for manager and admin without an undefined sta
   assert.ok(start >= 0 && end > start, 'slot renderer should be present');
   const renderSlot = runInNewContext(screen.slice(start, end) + '\nslotCardHtml;', {
     canShareEducationalStaffFeedback,
+    canShareAssignedActivityFeedback,
     slotCampaign: () => null,
     campaignUiStatus: () => ({ key: 'not_started' }),
     campaignStatusHtml: () => '',
@@ -73,4 +74,38 @@ test('staff feedback slot renders for manager and admin without an undefined sta
   assert.match(admin, /data-ifb-staff-share-enabled="true"/);
   const student = renderSlot(group, { audience: 'student', key: 'student:pre', label: 'תלמידים פתיחה' }, { role: 'admin' });
   assert.doesNotMatch(student, /data-ifb-staff-share-enabled/);
+});
+
+test('assigned managers can present and copy existing student links, but cannot manage campaigns', () => {
+  const own = { activity_manager: 'הילה רוזן' };
+  const another = { activity_manager: 'גיל נאמן' };
+  const manager = { role: 'activities_manager', full_name: 'הילה רוזן', is_active: true };
+  assert.equal(canShareAssignedActivityFeedback(manager, own), true);
+  assert.equal(canShareAssignedActivityFeedback(manager, another), false);
+  assert.equal(canShareAssignedActivityFeedback({ role: 'operation_manager', full_name: 'הילה רוזן' }, own), false);
+  assert.equal(canShareAssignedActivityFeedback({ role: 'activities_manager', full_name: 'הילה רוזן', is_active: false }, own), false);
+  assert.match(screen, /slot\.audience === 'student' && canShareAssignedActivityFeedback\(user, group\)/);
+  assert.match(screen, /data-ifb-student-share-enabled="true"/);
+  assert.match(screen, /allowedStudentShareClick/);
+  assert.match(screen, /!allowedStaffShareClick && !allowedStudentShareClick/);
+  assert.match(css, /is-feedback-readonly \[data-ifb-student-share-enabled="true"\]/);
+  assert.match(css, /\[data-ifb-qr\], \[data-ifb-copy\]/);
+  const start = screen.indexOf('function slotCardHtml(');
+  const end = screen.indexOf('\nfunction prePostMetricTableHtml(', start);
+  const render = runInNewContext(screen.slice(start, end) + '\nslotCardHtml;', {
+    canShareEducationalStaffFeedback,
+    canShareAssignedActivityFeedback,
+    slotCampaign: () => ({ id: 'test-id', audience: 'student', stage: 'pre', status: 'active', opens_at: '2026-10-26T08:15:00Z', expires_at: '2026-11-09T21:59:00Z' }),
+    campaignUiStatus: () => ({ key: 'active' }),
+    campaignStatusHtml: () => '',
+    fmtDate: () => '',
+    esc: (value) => String(value)
+  });
+  const slot = { audience: 'student', stage: 'pre', key: 'student:pre', label: 'תלמידים – פתיחה' };
+  const allowed = render(own, slot, manager);
+  assert.match(allowed, /data-ifb-student-share-enabled="true"/);
+  assert.match(allowed, /data-ifb-qr="test-id"/);
+  assert.match(allowed, /data-ifb-copy="test-id"/);
+  assert.doesNotMatch(render(another, slot, manager), /data-ifb-student-share-enabled/);
+  assert.doesNotMatch(render(own, slot, { role: 'operation_manager', full_name: 'הילה רוזן' }), /data-ifb-student-share-enabled/);
 });
