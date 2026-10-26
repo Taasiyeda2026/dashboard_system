@@ -37,11 +37,16 @@ export function canEditImpactFeedbackWording(user) {
  * activities assigned to them. This UI helper mirrors the DB name comparison;
  * SQL remains the authorization boundary.
  */
-export function canShareEducationalStaffFeedback(user, group) {
+export function canShareAssignedActivityFeedback(user, group) {
   if (isFeedbackAdmin(user)) return true;
   if (user?.is_active === false || String(user?.role || '').trim().toLowerCase() !== 'activities_manager') return false;
   const ownName = [user?.full_name, user?.name, user?.username]
     .map((value) => String(value || '').trim()).find(Boolean) || '';
   const normalized = (value) => String(value || '').trim().replace(/\s+/g, ' ').toLocaleLowerCase('he');
   return Boolean(normalized(ownName) && normalized(ownName) === normalized(group?.activity_manager));
+}
+
+/** Existing staff-sharing behavior uses the same assigned-manager scope. */
+export function canShareEducationalStaffFeedback(user, group) {
+  return canShareAssignedActivityFeedback(user, group);
 }
