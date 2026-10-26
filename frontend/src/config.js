@@ -517,3 +517,5 @@ config.HOTFIX_VERSION = 'inspiration-game-sso-20261024-v1-' + config.HOTFIX_VERS
 config.HOTFIX_VERSION = 'activity-drawer-details-contacts-20261025-v1-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = 'manager-board-day-drawer-activities-managers-20261026-v1-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'manager-week-month-parity-20261026-v1-' + config.HOTFIX_VERSION;
