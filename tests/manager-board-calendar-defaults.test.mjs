@@ -76,6 +76,39 @@ test('manager day drawer is available to the admin and both activity managers on
   }
 });
 
+
+test('team manager week dates follow the main Sunday through Saturday calendar including month boundaries', async () => {
+  const [{ managerBoardWeekStart, managerBoardWeekDays }] = await loadInteractiveRuntimes();
+  assert.equal(managerBoardWeekStart('2026-10-26'), '2026-10-25');
+  assert.deepEqual(managerBoardWeekDays('2026-11-29'), [
+    '2026-11-29', '2026-11-30', '2026-12-01', '2026-12-02',
+    '2026-12-03', '2026-12-04', '2026-12-05'
+  ]);
+});
+
+test('manager week reuses seven day columns and shared session cards across month boundary', async () => {
+  const [{ renderManagerWeekCalendar }] = await loadInteractiveRuntimes();
+  const meeting = {
+    row_id: 'manager-session-1',
+    activity_name: 'ביומימיקרי',
+    school: 'בית ספר לדוגמה',
+    instructor_name: 'מדריכה לדוגמה',
+    start_time: '08:00',
+    end_time: '09:30',
+    sessions: 2,
+    date_1: '2026-11-29',
+    date_2: '2026-12-02'
+  };
+  const html = renderManagerWeekCalendar([meeting], [], '2026-11-29');
+  assert.equal((html.match(/class="ds-week-col/g) || []).length, 7);
+  assert.equal((html.match(/data-manager-board-row-id="manager-session-1"/g) || []).length, 2);
+  assert.match(html, /data-manager-board-day="2026-11-29"/);
+  assert.match(html, /data-manager-board-day="2026-12-02"/);
+  assert.match(html, /ds-interactive-card--session/);
+  assert.match(html, /ביומימיקרי/);
+  assert.match(html, /מדריכה לדוגמה/);
+});
+
 test('live day cells open by click, keyboard and after innerHTML restore', async () => {
   const [{ bindManagerBoardDayCells }] = await loadInteractiveRuntimes();
   const root = document.getElementById('screenRoot');
