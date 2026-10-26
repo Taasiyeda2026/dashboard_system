@@ -708,7 +708,7 @@ function managerWeekNavigationHtml(startIso, period) {
   if (!days.length) return '';
   const todayWeekStart = managerBoardWeekStart(localDateIso());
   const isCurrentWeek = startIso === todayWeekStart;
-  const label = ${isCurrentWeek ? 'שבוע נוכחי · ' : ''}${formatDateHe(days[0])} — ${formatDateHe(days[6])};
+  const label = `${isCurrentWeek ? 'שבוע נוכחי · ' : ''}${formatDateHe(days[0])} — ${formatDateHe(days[6])}`;
   const prevDisabled = !weekFitsPeriod(weekStartShift(startIso, -1), period);
   const nextDisabled = !weekFitsPeriod(weekStartShift(startIso, 1), period);
   return `<nav class="ds-cal-nav manager-board-week-nav" aria-label="ניווט שבועי" dir="rtl">
