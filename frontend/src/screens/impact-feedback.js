@@ -77,7 +77,7 @@ import { staffDeliveryStatus, staffStatusIndex } from '../impact-feedback/staff-
 import { hasArabicAnswerText, arabicAnswerTranslationUrl } from '../impact-feedback/feedback-translation.js';
 import { renderTemplatesView, bindTemplatesView } from '../impact-feedback/feedback-templates-view.js';
 import '../impact-feedback/feedback-form.css';
-import { canViewImpactFeedback, canEditImpactFeedbackWording, canShareEducationalStaffFeedback, isFeedbackAdmin, isFeedbackInstructor } from '../impact-feedback/feedback-access.js';
+import { canViewImpactFeedback, canEditImpactFeedbackWording, canShareEducationalStaffFeedback, canShareAssignedActivityFeedback, isFeedbackAdmin, isFeedbackInstructor } from '../impact-feedback/feedback-access.js';
 import '../impact-feedback/impact-feedback-admin.css';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -1750,11 +1750,13 @@ function openFormHtml(group, slot) {
 function slotCardHtml(group, slot, user) {
   const staffShareAllowed = slot.audience === 'educational_staff' && canShareEducationalStaffFeedback(user, group);
   const staffShareAttr = staffShareAllowed ? ' data-ifb-staff-share-enabled="true"' : '';
+  const studentShareAllowed = slot.audience === 'student' && canShareAssignedActivityFeedback(user, group);
+  const studentShareAttr = studentShareAllowed ? ' data-ifb-student-share-enabled="true"' : '';
   const campaign = slotCampaign(group, slot);
   const status = campaignUiStatus(campaign);
   const title = `<h3 class="ifb-slot__title">${esc(slot.label)}</h3>`;
   if (!campaign) {
-    return `<article class="ifb-slot" data-slot="${slot.key}"${staffShareAttr}>
+    return `<article class="ifb-slot" data-slot="${slot.key}"${staffShareAttr}${studentShareAttr}>
       <div class="ifb-slot__head">${title}${campaignStatusHtml(null)}</div>
       ${openFormHtml(group, slot)}
     </article>`;
@@ -1794,7 +1796,7 @@ function slotCardHtml(group, slot, user) {
         <form data-ifb-extend="${id}"><label class="ifb-field"><span>תוקף עד</span><input type="date" name="expires" min="${isoDay(Date.now() + DAY_MS)}" value="${campaign.expires_at ? isoDay(campaign.expires_at) : ''}"></label>
         <button type="submit" class="ifb-btn ifb-btn--sm">שמירה</button></form></details>`
     : '';
-  return `<article class="ifb-slot" data-slot="${slot.key}" data-campaign="${id}"${staffShareAttr}>
+  return `<article class="ifb-slot" data-slot="${slot.key}" data-campaign="${id}"${staffShareAttr}${studentShareAttr}>
     <div class="ifb-slot__head">${title}${campaignStatusHtml(campaign)}</div>
     ${meta}
     <div class="ifb-slot__actions">${actions}</div>
@@ -2194,7 +2196,9 @@ async function handleClick(host, event) {
   // Read-only viewers remain blocked; an assigned activity manager may only create/share staff links.
   const allowedStaffShareClick = Boolean(t.closest('[data-ifb-staff-share-enabled="true"]')
     && t.closest('[data-ifb-show-open], [data-ifb-cancel-open], [data-ifb-share], [data-ifb-copy]'));
-  if (feedbackReadOnly && !allowedStaffShareClick && t.closest([
+  const allowedStudentShareClick = Boolean(t.closest('[data-ifb-student-share-enabled="true"]')
+    && t.closest('[data-ifb-qr], [data-ifb-copy]'));
+  if (feedbackReadOnly && !allowedStaffShareClick && !allowedStudentShareClick && t.closest([
     '[data-ifb-show-open]', '[data-ifb-instructor-open]',
     '[data-ifb-cancel-open]', '[data-ifb-instructor-cancel]',
     '[data-ifb-close]', '[data-ifb-reopen]', '[data-ifb-share]',
@@ -2305,7 +2309,8 @@ async function handleClick(host, event) {
   const copy = t.closest('[data-ifb-copy]');
   if (copy) {
     const { campaign } = campaignById(copy.dataset.ifbCopy);
-    const ok = campaign ? await copyText(campaignLink(campaign)) : false;
+    const link = campaign ? campaignLink(campaign) : '';
+    const ok = link ? await copyText(link) : false;
     showToast(ok ? 'הקישור הועתק' : 'ההעתקה נכשלה', ok ? 'success' : 'error');
     if (ok && campaign?.audience !== 'student') updateCampaign(campaign.id, 'mark_shared', { channel: 'copy' }).catch(() => {});
     return;
