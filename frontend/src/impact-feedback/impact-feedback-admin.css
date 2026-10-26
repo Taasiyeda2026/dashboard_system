@@ -2152,3 +2152,10 @@
 .ifb-admin.is-feedback-readonly [data-ifb-staff-share-enabled="true"] [data-ifb-open-form] {
   display: grid !important;
 }
+
+
+/* Assigned activity managers may present/copy existing student feedback links only.
+   Opening, closing, reopening, editing and instructor actions stay admin-only. */
+.ifb-admin.is-feedback-readonly [data-ifb-student-share-enabled="true"] :is(
+  [data-ifb-qr], [data-ifb-copy]
+) { display: inline-flex !important; }
