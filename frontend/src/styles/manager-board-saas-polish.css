@@ -687,3 +687,51 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Manager team week/month switch: reuse the main activity week's cards and seven-day columns.
+   In week mode give the calendar the room its week layout needs; retain monthly layout unchanged. */
+.manager-board-screen[data-manager-board-view="week"] .manager-board-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.manager-board-screen[data-manager-board-view="week"] .manager-board-side {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.manager-board-screen .manager-board-view-switcher {
+  display: flex;
+  justify-content: center;
+  margin: 4px 0 12px;
+}
+
+.manager-board-screen .manager-board-week-nav {
+  margin: 0 auto 12px;
+}
+
+.manager-board-screen .manager-board-week-calendar {
+  width: 100%;
+  padding: 0 10px 12px;
+}
+
+.manager-board-screen .manager-board-week-calendar .ds-week-session-wrap > .ds-interactive-card {
+  width: 100%;
+}
+
+/* In management week mode the weekly navigation replaces the redundant month selector.
+   Other tabs keep their original month navigation controls (especially attendance). */
+.manager-board-screen[data-manager-board-view="week"]:has([data-manager-workspace-tab="management"].is-active)
+  .manager-board-hero .manager-board-month-nav {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .manager-board-screen[data-manager-board-view="week"] .manager-board-side {
+    grid-template-columns: 1fr;
+  }
+  .manager-board-screen[data-manager-board-view="week"] .manager-board-panel--calendar {
+    overflow-x: auto;
+  }
+  .manager-board-screen[data-manager-board-view="week"] .manager-board-week-calendar {
+    min-width: 820px;
+  }
+}
