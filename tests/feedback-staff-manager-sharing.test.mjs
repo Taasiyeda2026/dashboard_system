@@ -99,6 +99,8 @@ test('assigned managers can present and copy existing student links, but cannot 
     campaignUiStatus: () => ({ key: 'active' }),
     campaignStatusHtml: () => '',
     fmtDate: () => '',
+    isoDay: () => '',
+    DAY_MS: 86400000,
     esc: (value) => String(value)
   });
   const slot = { audience: 'student', stage: 'pre', key: 'student:pre', label: 'תלמידים – פתיחה' };
