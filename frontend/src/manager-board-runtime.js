@@ -11,6 +11,9 @@ import {
   SCHOOL_2027_END_DATE
 } from './screens/shared/summer-activity.js';
 import { escapeHtml } from './screens/shared/html.js';
+import { dsInteractiveCard } from './screens/shared/layout.js';
+import { formatDateHe } from './screens/shared/format-date.js';
+import { getHolidayLabel } from './screens/shared/holidays.js';
 import { loadActiveBirthdays } from './birthday-calendar.js';
 import { calendarPresentationTitle, dedupeSchoolCalendarOccurrences } from './screens/shared/school-calendar-logic.js';
 
@@ -58,6 +61,8 @@ let autoOpenedSessionKey = '';
 let selectedManager = '';
 let selectedYm = '';
 let selectedYmPeriod = '';
+let selectedCalendarView = 'month';
+let selectedWeekStart = '';
 let boardRequestId = 0;
 let observer = null;
 let observerTimer = null;
@@ -659,6 +664,111 @@ function renderCalendar(ym, meetings, schoolEvents) {
     </div>`;
 }
 
+
+function dateIso(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function localDateIso() {
+  return dateIso(new Date());
+}
+
+/** Same Sunday–Saturday window as the main activities week calendar. */
+export function managerBoardWeekStart(iso) {
+  const parsed = parseIso(iso);
+  if (!parsed) return '';
+  const [year, month, day] = parsed.split('-').map(Number);
+  const date = new Date(year, month - 1, day, 12);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return '';
+  date.setDate(date.getDate() - date.getDay());
+  return dateIso(date);
+}
+
+export function managerBoardWeekDays(startIso) {
+  const start = managerBoardWeekStart(startIso);
+  if (!start) return [];
+  const [year, month, day] = start.split('-').map(Number);
+  return Array.from({ length: 7 }, (_, offset) => dateIso(new Date(year, month - 1, day + offset, 12)));
+}
+
+function weekStartShift(startIso, delta) {
+  const [year, month, day] = startIso.split('-').map(Number);
+  return managerBoardWeekStart(dateIso(new Date(year, month - 1, day + (7 * delta), 12)));
+}
+
+function weekFitsPeriod(startIso, period) {
+  const days = managerBoardWeekDays(startIso);
+  if (!days.length) return false;
+  const bounds = periodBounds(period);
+  return days[6] >= bounds.start && days[0] <= bounds.end;
+}
+
+function managerWeekNavigationHtml(startIso, period) {
+  const days = managerBoardWeekDays(startIso);
+  if (!days.length) return '';
+  const todayWeekStart = managerBoardWeekStart(localDateIso());
+  const isCurrentWeek = startIso === todayWeekStart;
+  const label = `${isCurrentWeek ? 'שבוע נוכחי · ' : ''}${formatDateHe(days[0])} — ${formatDateHe(days[6])}`;
+  const prevDisabled = !weekFitsPeriod(weekStartShift(startIso, -1), period);
+  const nextDisabled = !weekFitsPeriod(weekStartShift(startIso, 1), period);
+  return `<nav class="ds-cal-nav manager-board-week-nav" aria-label="ניווט שבועי" dir="rtl">
+    <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-manager-board-week="-1" aria-label="שבוע קודם" ${prevDisabled ? 'disabled' : ''}>▶</button>
+    <span class="ds-cal-nav__label">${escapeHtml(label)}</span>
+    ${isCurrentWeek || !weekFitsPeriod(todayWeekStart, period) ? '' : '<button type="button" class="ds-btn ds-btn--sm ds-btn--today" data-manager-board-week-today>היום</button>'}
+    <button type="button" class="ds-btn ds-btn--sm ds-btn--nav-arrow" data-manager-board-week="1" aria-label="שבוע הבא" ${nextDisabled ? 'disabled' : ''}>◀</button>
+  </nav>`;
+}
+
+/** Reuse the existing week column and session card UI with the board's manager-filtered records. */
+export function renderManagerWeekCalendar(activities, schoolCalendar, startIso) {
+  const days = managerBoardWeekDays(startIso);
+  if (!days.length) return '';
+  const months = [...new Set(days.map((iso) => iso.slice(0, 7)))];
+  const meetings = months.flatMap((ym) => buildMeetingRows(activities, ym));
+  const schoolEvents = months.flatMap((ym) => schoolCalendarEventsForMonth(schoolCalendar, ym));
+  const meetingsByDate = new Map(days.map((iso) => [iso, []]));
+  const schoolByDate = new Map(days.map((iso) => [iso, []]));
+  meetings.forEach((meeting) => meetingsByDate.get(meeting.iso)?.push(meeting));
+  schoolEvents.forEach((event) => schoolByDate.get(event.iso)?.push(event));
+  const weekdays = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+  const today = localDateIso();
+  const columns = days.map((iso, index) => {
+    const dayMeetings = meetingsByDate.get(iso) || [];
+    const schoolLabel = (schoolByDate.get(iso) || [])[0]?.title || getHolidayLabel(iso) || '';
+    const cards = dayMeetings.map(({ activity }) => {
+      const rowId = normalizedText(activity.row_id || activity.id);
+      const instructors = [activity.instructor_name, activity.instructor_name_2].map(normalizedText).filter(Boolean).join(' · ') || 'ללא מדריך';
+      const time = [normalizedText(activity.start_time), normalizedText(activity.end_time)].filter(Boolean).join('–');
+      const title = normalizedText(activity.activity_name || activity.program_name) || 'ללא שם';
+      const meta = [normalizedText(activity.school), time, instructors].filter(Boolean).join(' · ');
+      return `<div class="ds-week-session-wrap" data-manager-board-day="${escapeHtml(iso)}" data-manager-board-row-id="${escapeAttr(rowId)}">
+        ${dsInteractiveCard({ variant: 'session', action: `managerboardsession|${iso}|${rowId}`, title, meta })}
+      </div>`;
+    }).join('');
+    return `<section class="ds-week-col${iso === today ? ' is-today' : ''}" data-day-idx="${index}" aria-label="${escapeHtml(iso)}">
+      <header class="ds-week-col__head">
+        <div class="ds-week-col__head-top">
+          <span class="ds-week-col__dow">${weekdays[index]}</span>
+          ${iso === today ? '<span class="ds-week-col__today-badge">היום</span>' : ''}
+          <span class="ds-week-col__count">${dayMeetings.length}</span>
+        </div>
+        <span class="ds-week-col__date">${escapeHtml(formatDateHe(iso))}</span>
+        ${schoolLabel ? `<span class="ds-week-col__holiday">${escapeHtml(schoolLabel)}</span>` : ''}
+      </header>
+      <div class="ds-week-col__body">${cards}</div>
+    </section>`;
+  }).join('');
+  return `<div class="ds-week-board manager-board-week-calendar" style="--week-cols:7" role="region" aria-label="לוח שבוע">${columns}</div>`;
+}
+
+function managerCalendarViewSwitchHtml() {
+  const nextView = selectedCalendarView === 'month' ? 'week' : 'month';
+  const nextLabel = nextView === 'week' ? 'תצוגת שבוע' : 'תצוגת חודש';
+  return `<div class="ds-activities-view-switcher manager-board-view-switcher" dir="rtl" aria-label="מעבר בין תצוגות פעילות">
+    <button type="button" class="ds-btn ds-btn--sm ds-btn--accent ds-activities-view-btn" data-manager-board-view-switch="${nextView}">${nextLabel}</button>
+  </div>`;
+}
+
 function managerSelectorHtml(managerNames, selected) {
   if (isSelfManager()) {
     return `<div class="manager-board-manager-fixed"><span>מנהל פעילות</span><strong>${escapeHtml(selected || currentUserName() || '—')}</strong></div>`;
@@ -725,13 +835,14 @@ function renderBoardMarkup(data, manager, ym) {
   const meetings = buildMeetingRows(activities, ym);
   const nextYm = shiftMonth(ym, 1);
   const nextMonthMeetings = buildMeetingRows(activities, nextYm);
+  const isWeek = selectedCalendarView === 'week';
   const schoolEvents = schoolCalendarEventsForMonth(data.schoolCalendar, ym);
   const managerNames = managerNamesFromData(data);
   const uniqueActivityRows = new Set(activities.map((activity) => normalizedText(activity.row_id || activity.id)).filter(Boolean));
   const activeTeam = activeTeamForManager(data, manager);
 
   return `
-    <section class="manager-board-screen" data-manager-board-root data-manager-board-period="${escapeAttr(period)}" data-manager-board-ym="${escapeAttr(ym)}" data-manager-board-school-year="${escapeAttr(instructorSchoolYear(period))}" dir="rtl">
+    <section class="manager-board-screen" data-manager-board-root data-manager-board-view="${selectedCalendarView}" data-manager-board-period="${escapeAttr(period)}" data-manager-board-ym="${escapeAttr(ym)}" data-manager-board-school-year="${escapeAttr(instructorSchoolYear(period))}" dir="rtl">
       <div class="manager-board-hero">
         <div class="manager-board-hero__title">
           <h1>לוח מנהל פעילות</h1>
@@ -746,11 +857,12 @@ function renderBoardMarkup(data, manager, ym) {
       ${workspaceShellHtml(activeTeamStripHtml(activeTeam, uniqueActivityRows.size))}
 
 
+      ${managerCalendarViewSwitchHtml()}
       <div class="manager-board-layout">
         <section class="manager-board-panel manager-board-panel--calendar" data-manager-board-monthly-region>
           <div class="manager-board-panel__head">
             <div>
-              <h2>לוח חודשי</h2>
+              <h2>${isWeek ? 'לוח שבועי' : 'לוח חודשי'}</h2>
               <p>${escapeHtml(manager || '—')} · ${escapeHtml(monthLabel(ym))}</p>
             </div>
             <div class="manager-board-legend" aria-label="מקרא">
@@ -758,7 +870,7 @@ function renderBoardMarkup(data, manager, ym) {
               <span><i class="is-end"></i>סיום קורס</span>
             </div>
           </div>
-          ${renderCalendar(ym, meetings, schoolEvents)}
+          ${isWeek ? managerWeekNavigationHtml(selectedWeekStart, period) + renderManagerWeekCalendar(activities, data.schoolCalendar, selectedWeekStart) : renderCalendar(ym, meetings, schoolEvents)}
         </section>
 
         <aside class="manager-board-side">
@@ -984,6 +1096,40 @@ function bindBoardControls(root, data) {
     });
   });
 
+  root.querySelector('[data-manager-board-view-switch]')?.addEventListener('click', (event) => {
+    const nextView = normalizedText(event.currentTarget.dataset.managerBoardViewSwitch);
+    if (nextView !== 'week' && nextView !== 'month') return;
+    if (nextView === 'week' && selectedCalendarView !== 'week') {
+      const today = localDateIso();
+      const target = today.slice(0, 7) === selectedYm ? today : `${selectedYm}-01`;
+      selectedWeekStart = managerBoardWeekStart(target);
+    } else if (nextView === 'month' && selectedCalendarView === 'week') {
+      selectedYm = managerBoardWeekDays(selectedWeekStart)[3]?.slice(0, 7) || selectedYm;
+    }
+    selectedCalendarView = nextView;
+    lastRenderedSignature = '';
+    void renderManagerBoard(false);
+  });
+
+  root.querySelectorAll('[data-manager-board-week]').forEach((button) => {
+    button.addEventListener('click', () => {
+      const next = weekStartShift(selectedWeekStart, Number(button.dataset.managerBoardWeek));
+      if (!weekFitsPeriod(next, data.period)) return;
+      selectedWeekStart = next;
+      selectedYm = managerBoardWeekDays(next)[3].slice(0, 7);
+      lastRenderedSignature = '';
+      void renderManagerBoard(false);
+    });
+  });
+  root.querySelector('[data-manager-board-week-today]')?.addEventListener('click', () => {
+    const next = managerBoardWeekStart(localDateIso());
+    if (!weekFitsPeriod(next, data.period)) return;
+    selectedWeekStart = next;
+    selectedYm = managerBoardWeekDays(next)[3].slice(0, 7);
+    lastRenderedSignature = '';
+    void renderManagerBoard(false);
+  });
+
   bindInstructorCenterButtons(root, data);
 }
 
@@ -1031,7 +1177,14 @@ function restoreSelections(data) {
     selectedMonth: selectedYm,
     selectedPeriod: selectedYmPeriod
   });
+  if (selectedYmPeriod && selectedYmPeriod !== normalizeGlobalActivityPeriod(period)) {
+    selectedWeekStart = '';
+  }
   selectedYmPeriod = normalizeGlobalActivityPeriod(period);
+  if (selectedCalendarView === 'week' && (!selectedWeekStart || !weekFitsPeriod(selectedWeekStart, period))) {
+    const today = localDateIso();
+    selectedWeekStart = managerBoardWeekStart(today.slice(0, 7) === selectedYm ? today : `${selectedYm}-01`);
+  }
 }
 
 async function renderManagerBoard(force = false) {
@@ -1041,7 +1194,7 @@ async function renderManagerBoard(force = false) {
 
   const period = normalizeGlobalActivityPeriod(state?.activityPeriodTab);
   const requestId = ++boardRequestId;
-  const provisionalSignature = `${period}|${selectedManager}|${selectedYm}`;
+  const provisionalSignature = `${period}|${selectedManager}|${selectedYm}|${selectedCalendarView}|${selectedWeekStart}`;
 
   if (!force && root.querySelector('[data-manager-board-root]') && lastRenderedSignature === provisionalSignature) {
     setBoardActiveNav();
@@ -1055,7 +1208,7 @@ async function renderManagerBoard(force = false) {
     const data = await loadBoardData(period);
     if (requestId !== boardRequestId || !managerBoardOpen) return;
     restoreSelections(data);
-    const signature = `${data.period}|${selectedManager}|${selectedYm}`;
+    const signature = `${data.period}|${selectedManager}|${selectedYm}|${selectedCalendarView}|${selectedWeekStart}`;
     root.innerHTML = renderBoardMarkup(data, selectedManager, selectedYm);
     lastRenderedSignature = signature;
     bindBoardControls(root, data);
@@ -1101,6 +1254,8 @@ function openManagerBoard() {
   managerBoardOpen = true;
   selectedYm = '';
   selectedYmPeriod = '';
+  selectedCalendarView = 'month';
+  selectedWeekStart = '';
   lastRenderedSignature = '';
 
   if (state.route !== 'dashboard') {

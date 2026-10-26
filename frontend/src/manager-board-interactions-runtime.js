@@ -180,6 +180,7 @@ async function openDayActivities(dayCell) {
   if (!boardRoot || !canUseManagerBoardInteractions()) return;
   const context = boardContext(boardRoot);
   const iso = dayCell.dataset.managerBoardDay || '';
+  const detailRowId = text(dayCell.dataset.managerBoardRowId);
   if (!context.manager || !iso) return;
 
   ui.openDrawer({
@@ -192,6 +193,13 @@ async function openDayActivities(dayCell) {
   try {
     const rows = await loadManagerActivities(context);
     dayRows = sortDayActivities(activitiesOnDate(rows, iso)).map(normalizeDrawerRow);
+    if (detailRowId) {
+      const activity = dayRows.find((row) => String(row.RowID) === detailRowId);
+      if (activity) {
+        await openActivityDetailDrawer(activity);
+        return;
+      }
+    }
   } catch (error) {
     ui.openDrawer({
       title: dateLabel,
@@ -223,6 +231,7 @@ function cleanupBoardPresentation(boardRoot) {
   instructorsPanel?.querySelector('.manager-board-panel__head p')?.remove();
 
   boardRoot.querySelectorAll('[data-manager-board-day]').forEach((dayCell) => {
+    if (dayCell.dataset.managerBoardRowId) return; // Weekly session already contains a real button.
     dayCell.setAttribute('role', 'button');
     dayCell.setAttribute('tabindex', '0');
     const dayNumber = text(dayCell.querySelector('.manager-board-calendar-day__number')?.textContent);
@@ -245,7 +254,7 @@ export function bindManagerBoardDayCells(boardRoot, openDay = openDayActivities)
       void openDay(dayCell);
     });
     dayCell.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter' && event.key !== ' ') return;
+      if (event.target !== dayCell || (event.key !== 'Enter' && event.key !== ' ')) return;
       event.preventDefault();
       event.stopPropagation();
       void openDay(dayCell);
