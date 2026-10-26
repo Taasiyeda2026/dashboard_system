@@ -66,6 +66,16 @@ async function loadInteractiveRuntimes() {
   ]);
 }
 
+test('manager day drawer is available to the admin and both activity managers only', async () => {
+  const [{ canUseManagerBoardInteractions }] = await loadInteractiveRuntimes();
+  for (const role of ['admin', 'activities_manager']) {
+    assert.equal(canUseManagerBoardInteractions(role), true, `Expected day drawer access for ${role}`);
+  }
+  for (const role of ['instructor', 'finance', 'operation_manager', '']) {
+    assert.equal(canUseManagerBoardInteractions(role), false, `Unexpected day drawer access for ${role}`);
+  }
+});
+
 test('live day cells open by click, keyboard and after innerHTML restore', async () => {
   const [{ bindManagerBoardDayCells }] = await loadInteractiveRuntimes();
   const root = document.getElementById('screenRoot');

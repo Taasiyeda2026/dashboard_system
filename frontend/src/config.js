@@ -515,3 +515,5 @@ config.HOTFIX_VERSION = 'attendance-cancellation-ceil-five-minutes-20261024-v1-'
 config.HOTFIX_VERSION = 'inspiration-game-sso-20261024-v1-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = 'activity-drawer-details-contacts-20261025-v1-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'manager-board-day-drawer-activities-managers-20261026-v1-' + config.HOTFIX_VERSION;
