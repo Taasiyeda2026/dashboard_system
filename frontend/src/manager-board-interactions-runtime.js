@@ -21,8 +21,10 @@ function text(value) {
   return String(value ?? '').trim().replace(/\s+/g, ' ');
 }
 
-function canUseManagerBoardInteractions() {
-  return text(state?.user?.role) === 'admin';
+const MANAGER_BOARD_DAY_DRAWER_ROLES = new Set(['admin', 'activities_manager']);
+
+export function canUseManagerBoardInteractions(role = state?.user?.role) {
+  return MANAGER_BOARD_DAY_DRAWER_ROLES.has(text(role));
 }
 
 function managerName(boardRoot) {
