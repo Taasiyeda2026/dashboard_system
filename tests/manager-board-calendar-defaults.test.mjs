@@ -100,7 +100,7 @@ test('manager week reuses seven day columns and shared session cards across mont
     date_2: '2026-12-02'
   };
   const html = renderManagerWeekCalendar([meeting], [], '2026-11-29');
-  assert.equal((html.match(/class="ds-week-col/g) || []).length, 7);
+  assert.equal((html.match(/<section class="ds-week-col(?: is-today)?"/g) || []).length, 7);
   assert.equal((html.match(/data-manager-board-row-id="manager-session-1"/g) || []).length, 2);
   assert.match(html, /data-manager-board-day="2026-11-29"/);
   assert.match(html, /data-manager-board-day="2026-12-02"/);
