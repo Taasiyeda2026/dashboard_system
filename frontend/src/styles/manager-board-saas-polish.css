@@ -728,10 +728,9 @@
   .manager-board-screen[data-manager-board-view="week"] .manager-board-side {
     grid-template-columns: 1fr;
   }
-  .manager-board-screen[data-manager-board-view="week"] .manager-board-panel--calendar {
-    overflow-x: auto;
-  }
-  .manager-board-screen[data-manager-board-view="week"] .manager-board-week-calendar {
-    min-width: 820px;
-  }
+}
+
+/* Keep the existing workspace tabs clean when the manager uses tracking or attendance. */
+.manager-board-screen:not(:has([data-manager-workspace-tab="management"].is-active)) .manager-board-view-switcher {
+  display: none;
 }
