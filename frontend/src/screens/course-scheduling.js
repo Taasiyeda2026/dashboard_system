@@ -36,7 +36,7 @@ import {
   translateSchedulingRouteError
 } from './course-scheduling-distance-build.js';
 import { instructionLanguageLabel } from './shared/instruction-language.js';
-import { DEFAULT_COURSE_SCHEDULING_PERIOD_KEY, filterMeetingsByCourseSchedulingPeriod, periodOptions, resolveCourseSchedulingPeriod } from './course-scheduling-periods.js';
+import { DEFAULT_COURSE_SCHEDULING_PERIOD_KEY, courseSchedulingAllowedEndDate, filterMeetingsByCourseSchedulingPeriod, periodOptions, resolveCourseSchedulingPeriod } from './course-scheduling-periods.js';
 import { OPERATIONAL_DISTRICTS, normalizeOperationalDistrict } from './shared/district-normalization.js';
 import { loadSchoolCalendarRows, loadPlanningSchoolCalendarRows } from './shared/school-calendar-data.js';
 import { formatWorkloadHours } from './course-scheduling-score.js';
@@ -1682,12 +1682,12 @@ function proposedMeetingsPanelHtml(candidate) {
   const movedCount = Number(candidate.movedMeetingsCount)
     || Number(candidate?.dateAdjustment?.movedCount)
     || adjustmentMeetings.filter((meeting) => meeting?.moved).length;
-  if (!meetings.length || !movedCount) {
+  if (!meetings.length || (!movedCount && candidate.hasOfficialDates !== false)) {
     return `<p class="course-scheduling-meetings-unchanged" data-proposed-meetings>מועדי הפעילות נשארים ללא שינוי</p>`;
   }
   const rows = adjustmentMeetings.map((meeting, index) => {
-    const moved = !!meeting.moved || text(meeting.original_date) !== text(meeting.date);
-    const original = meeting.original_date || meeting.date || '';
+    const moved = !!meeting.moved || (!!text(meeting.original_date) && text(meeting.original_date) !== text(meeting.date));
+    const original = meeting.original_date || '';
     const proposed = meeting.date || '';
     const time = [meeting.start_time || meeting.start, meeting.end_time || meeting.end].filter(Boolean).join('–') || '—';
     return `<tr class="${moved ? 'is-moved' : ''}">
@@ -1710,11 +1710,11 @@ function proposedMeetingsPanelHtml(candidate) {
 
 function halfOverflowWarningHtml(candidate) {
   if (!candidate?.halfOverflow && !candidate?.dateAdjustment?.exceedsHalf) return '';
-  const originalEnd = candidate.originalEndDate || candidate?.dateAdjustment?.meetings?.map((row) => row.original_date || row.date).filter(Boolean).sort().at(-1) || '';
+  const originalEnd = candidate.originalEndDate || candidate?.dateAdjustment?.meetings?.map((row) => row.original_date).filter(Boolean).sort().at(-1) || '';
   const proposedEnd = candidate.proposedEndDate || candidate?.dateAdjustment?.newEndDate || '';
   return `<div class="course-scheduling-half-overflow" data-half-overflow role="alert">
     <p><b>אזהרה:</b> המועדים המוצעים חורגים מתקופת המחצית. בעת השיבוץ הסופי תידרש הסכמה מפורשת.</p>
-    <p>תאריך סיום מקורי: <bdi dir="ltr">${escapeHtml(formatDateHe(originalEnd) || '—')}</bdi></p>
+    <p>תאריך סיום מקורי: <bdi dir="ltr">${escapeHtml(formatDateHe(originalEnd) || 'טרם נקבע')}</bdi></p>
     <p>תאריך סיום מוצע: <bdi dir="ltr">${escapeHtml(formatDateHe(proposedEnd) || '—')}</bdi></p>
   </div>`;
 }
@@ -1846,7 +1846,7 @@ function draftProposedMeetingsFromCourse(course = {}) {
     return {
       ...row,
       date,
-      original_date: text(original) || date,
+      original_date: text(original),
       moved: !!original && text(original) !== date,
       start_time: row.start_time || course.start_time,
       end_time: row.end_time || course.end_time
@@ -1854,19 +1854,20 @@ function draftProposedMeetingsFromCourse(course = {}) {
   });
   const movedCount = meetings.filter((meeting) => meeting.moved).length;
   const newEndDate = meetings.map((meeting) => meeting.date).filter(Boolean).sort().at(-1) || '';
-  const period = resolveCourseSchedulingPeriod(course.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY);
+  const allowedEnd = courseSchedulingAllowedEndDate(course.periodKey || DEFAULT_COURSE_SCHEDULING_PERIOD_KEY);
   return {
+    hasOfficialDates: official.length > 0,
     proposedMeetings: meetings,
     dateAdjustment: {
       meetings,
       movedCount,
       newEndDate,
-      exceedsHalf: !!period.end && !!newEndDate && newEndDate > period.end,
+      exceedsHalf: !!allowedEnd && !!newEndDate && newEndDate > allowedEnd,
       label: 'מועדים מוצעים בטיוטה',
       reason: 'הטיוטה שומרת מועדים מוצעים עד לאישור סופי'
     },
     movedMeetingsCount: movedCount,
-    halfOverflow: !!period.end && !!newEndDate && newEndDate > period.end,
+    halfOverflow: !!allowedEnd && !!newEndDate && newEndDate > allowedEnd,
     proposedEndDate: newEndDate,
     originalEndDate: official.map((meeting) => meeting.date).filter(Boolean).sort().at(-1) || ''
   };
@@ -5630,7 +5631,7 @@ export const courseSchedulingScreen = {
       const proposedSummary = draftProposedMeetingsFromCourse({ ...course, periodKey: selectedPeriodKey(state) });
       const proposedEnd = proposedSummary?.proposedEndDate || proposedMeetings?.at(-1)?.date || '';
       const originalEnd = proposedSummary?.originalEndDate || '';
-      const halfEnd = resolveCourseSchedulingPeriod(selectedPeriodKey(state))?.end || '';
+      const halfEnd = courseSchedulingAllowedEndDate(selectedPeriodKey(state));
       const exceedsHalf = !!proposedEnd && !!halfEnd && proposedEnd > halfEnd;
       const movedCount = Number(proposedSummary?.movedMeetingsCount) || 0;
       const requestedCount = Number(course.sessions);
@@ -5646,7 +5647,7 @@ export const courseSchedulingScreen = {
       }
       let approvalMessage = `לאשר את הטיוטה ולשבץ את ${course.draft_instructor_name || course.draft_emp_id}?`;
       if (movedCount > 0) {
-        approvalMessage = `הטיוטה כוללת ${movedCount} מועדים מוצעים (סיום מקורי ${formatDateHe(originalEnd) || '—'}, סיום מוצע ${formatDateHe(proposedEnd) || '—'}). לאשר את הטיוטה כשיבוץ סופי?`;
+        approvalMessage = `הטיוטה כוללת ${movedCount} מועדים מוצעים (סיום מקורי ${formatDateHe(originalEnd) || 'טרם נקבע'}, סיום מוצע ${formatDateHe(proposedEnd) || '—'}). לאשר את הטיוטה כשיבוץ סופי?`;
       }
       if (exceedsHalf) {
         // Deliberately distinct from the permanent-instructor/admin approval.
