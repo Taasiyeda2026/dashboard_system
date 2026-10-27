@@ -8,6 +8,11 @@ export const FIRST_HALF_CONTINUATION_END_DATE = '2027-02-28';
 
 export const DEFAULT_COURSE_SCHEDULING_PERIOD_KEY = 'first';
 
+/** The first half may continue through February without an exception. */
+export function courseSchedulingAllowedEndDate(key = DEFAULT_COURSE_SCHEDULING_PERIOD_KEY) {
+  return key === 'first' ? FIRST_HALF_CONTINUATION_END_DATE : resolveCourseSchedulingPeriod(key).end;
+}
+
 const text = (value) => String(value ?? '').trim();
 
 export function resolveCourseSchedulingPeriod(key = DEFAULT_COURSE_SCHEDULING_PERIOD_KEY) {
