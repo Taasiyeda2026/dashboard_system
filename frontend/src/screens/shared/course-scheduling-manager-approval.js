@@ -4,6 +4,25 @@ import { showToast } from './toast.js';
 
 export const COURSE_ASSIGNMENT_MANAGER_APPROVAL_REQUEST_TYPE = 'course_assignment_exception';
 
+// Share pending approval-state reads between rerenders; never cache completed states.
+const inFlightApprovalStates = new Map();
+
+function loadManagerApprovalState(courseId) {
+  const pending = inFlightApprovalStates.get(courseId);
+  if (pending) return pending;
+  const request = (async () => {
+    const { data, error } = await supabase.rpc('course_assignment_manager_approval_state', { p_activity_id: courseId });
+    if (error) throw error;
+    return firstRpcRow(data) || {};
+  })();
+  inFlightApprovalStates.set(courseId, request);
+  void request.then(
+    () => { if (inFlightApprovalStates.get(courseId) === request) inFlightApprovalStates.delete(courseId); },
+    () => { if (inFlightApprovalStates.get(courseId) === request) inFlightApprovalStates.delete(courseId); }
+  );
+  return request;
+}
+
 const text = (value) => String(value ?? '').trim();
 
 function firstRpcRow(data) {
@@ -18,7 +37,7 @@ function schedulingApprovalErrorMessage(error) {
     scheduling_conflict_detected: 'קיימת חפיפה עם שיבוץ אחר של המדריך',
     scheduling_instructor_unavailable: 'המדריך אינו זמין באחד ממפגשי הקורס',
     instructor_inactive: 'המדריך אינו פעיל',
-    scheduling_manager_approval_not_required: 'הטיוטה אינה דורשת אישור אדמין',
+    scheduling_manager_approval_not_required: 'הטיוטה אינה דורשת אישור מנהל',
     scheduling_draft_missing: 'הטיוטה כבר אינה קיימת',
     scheduling_manual_draft_missing: 'לא נמצאה בחירה ידנית תואמת לטיוטה',
     edit_request_already_reviewed: 'הבקשה כבר טופלה'
@@ -96,19 +115,19 @@ function approvalPanelHtml(state = {}) {
 
   if (status === 'approved') {
     return `<div class="course-scheduling-manager-approval is-approved" data-manager-approval-panel>
-      <strong>אושר על ידי אדמין</strong>
+      <strong>אושר על ידי מנהל</strong>
       <span>ניתן להשלים את השיבוץ.</span>
     </div>`;
   }
   if (status === 'pending') {
     return `<div class="course-scheduling-manager-approval is-pending" data-manager-approval-panel>
-      <strong>נשלח לאדמין לאישור</strong>
+      <strong>נשלח למנהל לאישור</strong>
       <span>${escapeHtml(reason)}</span>
     </div>`;
   }
   if (status === 'rejected') {
     return `<div class="course-scheduling-manager-approval is-rejected" data-manager-approval-panel>
-      <strong>הבקשה נדחתה על ידי אדמין</strong>
+      <strong>הבקשה נדחתה על ידי מנהל</strong>
       <span>${escapeHtml(reason)}. ניתן לבטל את הטיוטה ולבחור שיבוץ אחר.</span>
     </div>`;
   }
@@ -120,9 +139,9 @@ function approvalPanelHtml(state = {}) {
   }
 
   return `<div class="course-scheduling-manager-approval is-warning" data-manager-approval-panel>
-    <strong>נדרש אישור אדמין</strong>
+    <strong>נדרש אישור מנהל</strong>
     <span>${escapeHtml(reason)}</span>
-    <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-send-manager-approval>שלח לאדמין לאישור</button>
+    <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-send-manager-approval>שלח למנהל לאישור</button>
   </div>`;
 }
 
@@ -168,7 +187,7 @@ function applyApprovalUi({ host, confirmButton, approvalState, courseId }) {
         approvalState: { ...approvalState, request_id: request?.request_id, request_status: request?.status || 'pending' }
       });
       try { document.dispatchEvent(new CustomEvent('app:edit-requests-updated')); } catch { /* ignore */ }
-      showToast('נשלח לאדמין לאישור', 'success');
+      showToast('נשלח למנהל לאישור', 'success');
     } catch (error) {
       sendButton.disabled = false;
       showToast(schedulingApprovalErrorMessage(error), 'error');
@@ -179,7 +198,7 @@ function applyApprovalUi({ host, confirmButton, approvalState, courseId }) {
 /**
  * Adds the explicit manager-approval step to an existing manual scheduling draft.
  * This function only reads approval state on render. A request is created only after
- * the user explicitly presses "שלח לאדמין לאישור".
+ * the user explicitly presses "שלח למנהל לאישור".
  */
 export async function ensureCourseSchedulingManagerApproval(root, { state } = {}) {
   if (!root?.querySelector || !supabase) return;
@@ -191,19 +210,16 @@ export async function ensureCourseSchedulingManagerApproval(root, { state } = {}
   confirmButton.disabled = true;
   confirmButton.setAttribute('aria-disabled', 'true');
   const host = ensureApprovalPanelHost(detailRoot, confirmButton);
-  host.innerHTML = '<p class="course-scheduling-muted">בודק אם נדרש אישור אדמין…</p>';
+  host.innerHTML = '<p class="course-scheduling-muted">בודק אם נדרש אישור מנהל…</p>';
 
   try {
-    const { data, error } = await supabase.rpc('course_assignment_manager_approval_state', {
-      p_activity_id: courseId
-    });
-    if (error) throw error;
-    const approvalState = firstRpcRow(data) || {};
+    const approvalState = await loadManagerApprovalState(courseId);
 
     // Ignore a late response after the operator navigated to another course.
-    if (text(state?.courseSchedulingSelectedId) !== courseId) return;
+    if (text(state?.courseSchedulingSelectedId) !== courseId || host.isConnected === false) return;
     applyApprovalUi({ host, confirmButton, approvalState, courseId });
   } catch (error) {
+    if (text(state?.courseSchedulingSelectedId) !== courseId || host.isConnected === false) return;
     confirmButton.disabled = true;
     host.innerHTML = `<div class="course-scheduling-manager-approval is-rejected" data-manager-approval-panel>
       <strong>לא ניתן לבדוק את מצב האישור</strong>
