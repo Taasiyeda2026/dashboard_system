@@ -74,5 +74,5 @@ test('scheduling workspace wires approval state without replacing the existing d
 
 test('manager approval deployment bumps the service-worker cache', async () => {
   const source = await read('../frontend/sw.js');
-  assert.match(source, /const CACHE_VERSION = 1527;/);
+  assert.match(source, /const CACHE_VERSION = 2041;/);
 });
