@@ -96,7 +96,9 @@ Deno.serve(async(req:Request)=>{
   const action=String(input?.action||'');
   if(!['daily_prepare','daily_dispatch','manual','student_once'].includes(action))
     return json({ok:false,error:'invalid_action'},400);
-  if(action==='student_once' && (Date.now()<Date.parse('2026-10-28T09:11:00Z') || Date.now()>=Date.parse('2026-10-28T09:20:00Z')))\n    return json({ok:true,outside_window:true});\n  const local=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Jerusalem',
+  if(action==='student_once' && (Date.now()<Date.parse('2026-10-28T09:11:00Z') || Date.now()>=Date.parse('2026-10-28T09:20:00Z')))
+    return json({ok:true,outside_window:true});
+  const local=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Jerusalem',
     hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date());
   if(action==='daily_prepare'&&local!=='09:14')return json({ok:true,outside_window:true});
   if(action==='daily_dispatch'&&(local<'09:15'||local>='09:45'))
