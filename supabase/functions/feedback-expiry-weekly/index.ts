@@ -6,6 +6,7 @@ const SECRET_DIGEST = '5799221868b0bc9081f4d3cda7839928dd84c79d7b7680033f80283b4
 const GRAPH_CLIENT = 'b37ae8f7-0b03-4925-b0e4-f5cb8da95238';
 const GRAPH_TENANT = 'bb3f0918-c67d-4fee-b2db-e6a8eab891d1';
 const SENDER = 'office@think.org.il';
+const MAIL_DELIVERY_APPROVED = false; // explicit approval required before any send
 
 const reply = (v: unknown, status = 200) => new Response(JSON.stringify(v), {
   status, headers: {'Content-Type': 'application/json; charset=utf-8'}
@@ -31,33 +32,72 @@ const stage = (audience: string, s: string) =>
     : (s === 'pre' ? 'משוב צוות חינוכי - פתיחה' : 'משוב צוות חינוכי - סיום');
 
 type PendingItem = { audience:string;stage:string;program:string;subject_name:string;school:string;expired_at:string };
-type Digest = { ready:boolean; to_email:string; cc_emails:string[]; items:PendingItem[]; count:number };
+type Digest = { ready:boolean; to_name?:string; to_email:string; cc_emails:string[]; items:PendingItem[]; count:number };
 
-function emailMessage(payload: Digest) {
+/** Outlook-safe, RTL HTML. Exactly four columns, one row for each feedback campaign. */
+function emailMessage(payload: Digest, now = new Date()) {
   if (!validEmail(payload.to_email) || !Array.isArray(payload.cc_emails) ||
       !payload.cc_emails.length || payload.cc_emails.some((x) => !validEmail(x)) ||
       !Array.isArray(payload.items) || !payload.items.length) throw Error('mail_preflight_failed');
-  const rows = payload.items.map((item, i) =>
-    '<tr><td style="border:1px solid #ddd;padding:7px">'+(i+1)+'</td>' +
-    '<td style="border:1px solid #ddd;padding:7px">'+html(stage(item.audience,item.stage))+'</td>' +
-    '<td style="border:1px solid #ddd;padding:7px">'+html(item.subject_name)+'</td>' +
-    '<td style="border:1px solid #ddd;padding:7px">'+html(item.program)+'</td>' +
-    '<td style="border:1px solid #ddd;padding:7px">'+html(item.school)+'</td>' +
-    '<td style="border:1px solid #ddd;padding:7px">'+html(date(item.expired_at))+'</td></tr>'
-  ).join('');
-  const body = '<div dir="rtl" lang="he" style="font-family:Arial,sans-serif;line-height:1.6;font-size:15px">' +
-    '<p>שלום,</p><p>להלן המשובים שבאחריותך אשר פג תוקפם וטרם מולאו. '+
-    'יש להיכנס למערכת, לפתוח את <strong>משובים</strong>, לבחור את המשוב וללחוץ על <strong>עדכון תוקף</strong> כדי לאפשר את השלמתו.</p>' +
-    '<p><strong>משובים לטיפול: '+payload.items.length+'</strong></p>' +
-    '<table style="border-collapse:collapse;text-align:right"><thead><tr>' +
-    ['#','סוג משוב','מדריך / איש קשר','תוכנית','בית ספר','פג תוקף']
-    .map((label)=>'<th style="border:1px solid #ddd;padding:7px;background:#f5f5f5">'+html(label)+'</th>').join('') +
-    '</tr></thead><tbody>'+rows+'</tbody></table>' +
-    '<p><a href="https://taasiyeda2026.github.io/dashboard_system/">פתיחת דשבורד תעשיידע</a></p>' +
-    '<p>התוקף אינו משתנה אוטומטית. קישור המשוב הקיים נשמר לאחר העדכון.</p>' +
-    '<p>בברכה,<br>מערכת תעשיידע</p></div>';
+  const firstName = clean(payload.to_name).split(/\s+/)[0];
+  const greeting = firstName ? 'שלום ' + html(firstName) + ',' : 'שלום,';
+  const items = [...payload.items].sort((a,b) =>
+    clean(a.subject_name).localeCompare(clean(b.subject_name),'he') ||
+    clean(a.program).localeCompare(clean(b.program),'he') ||
+    clean(a.expired_at).localeCompare(clean(b.expired_at)));
+  const allInstructor = items.every((x) => x.audience === 'instructor');
+  const allInstructorPre = allInstructor && items.every((x) => x.stage === 'pre');
+  const allStaff = items.every((x) => x.audience === 'educational_staff');
+  const personHeader = allInstructor ? 'מדריך' : allStaff ? 'איש קשר' : 'מדריך / איש קשר';
+  const intro = allInstructorPre
+    ? 'נמצאו משובי פתיחה של מדריכים שפג תוקפם וטרם מולאו.'
+    : 'נמצאו משובים שפג תוקפם וטרם מולאו, ונדרש לעדכן את תוקפם במערכת.';
+  const rows = items.map((item, i) => {
+    const cell = (value:string, width:string, extra = '') =>
+      '<td width="' + width + '" style="padding:12px 7px;border:0;vertical-align:middle;' +
+      'font-size:16px;font-weight:400;text-align:right;' + extra + '">' + value + '</td>';
+    return '<tr>' +
+      cell(String(i + 1), '8%', 'text-align:center;') +
+      cell(html(item.subject_name), '30%') +
+      cell(html(item.program), '37%') +
+      cell('<span dir="ltr">' + html(date(item.expired_at)) + '</span>', '25%', 'white-space:nowrap;') +
+      '</tr>';
+  }).join('');
+  const heads = [
+    { text:'מספר', width:'8%', align:'center' },
+    { text:personHeader, width:'30%', align:'right' },
+    { text:'קורס', width:'37%', align:'right' },
+    { text:'תוקף', width:'25%', align:'right' }
+  ].map((h) =>
+    '<th width="'+h.width+'" scope="col" style="padding:12px 7px;border:0;text-align:'+h.align+
+    ';font-size:18px;font-weight:700">'+html(h.text)+'</th>').join('');
+  const surveyTab = allStaff ? 'צוות חינוכי' : allInstructor ? 'מדריכים' : 'הלשונית המתאימה';
+  const steps = [
+    allInstructor || allStaff
+      ? 'היכנס לדשבורד תעשיידע, לממשק "משובים" ולאחר מכן ללשונית "'+surveyTab+'".'
+      : 'היכנס לדשבורד תעשיידע ולממשק "משובים".',
+    'אתר את המשובים שפג תוקפם לפי הטבלה.',
+    'לחץ על "עדכון תוקף", בחר תאריך חדש ושמור.',
+    'שלח מחדש לנמענים את הקישור למילוי המשוב.'
+  ];
+  const body = '<div dir="rtl" lang="he" style="direction:rtl;text-align:right;font-family:Arial,Helvetica,sans-serif;' +
+    'font-size:16px;line-height:1.75;color:#111;max-width:920px;margin:0;padding:0">' +
+    '<p style="margin:0 0 22px">'+greeting+'</p>' +
+    '<p style="margin:0 0 28px">בבדיקה שבוצעה ביום <span dir="ltr">'+html(date(now))+
+    '</span> '+intro+'</p>' +
+    '<p style="margin:0 0 12px;font-size:17px;font-weight:bold;text-decoration:underline">פירוט המשובים לטיפול:</p>' +
+    '<table dir="rtl" role="table" width="100%" cellspacing="0" cellpadding="0" ' +
+    'style="direction:rtl;border-collapse:collapse;width:100%;table-layout:fixed;text-align:right;margin:0 0 34px">' +
+    '<thead><tr>'+heads+'</tr></thead><tbody>'+rows+'</tbody></table>' +
+    '<p style="font-size:17px;font-weight:bold;margin:24px 0 12px">מה נדרש לעשות?</p>' +
+    '<ol style="margin:0 0 25px;padding:0 28px 0 0;direction:rtl;text-align:right">' +
+    steps.map((step)=>'<li style="margin:0 0 3px;padding-right:2px">'+html(step)+'</li>').join('') +
+    '</ol>' +
+    '<p style="margin:24px 0 32px"><strong>שים לב:</strong> עדכון התוקף מפעיל מחדש את הקישור הקיים, ' +
+    'ללא צורך ביצירת משוב חדש.</p>' +
+    '<p style="margin:0">בברכה,<br>מערכת תעשיידע</p></div>';
   return {
-    subject: 'תעשיידע | דוח דו-שבועי: '+payload.items.length+' משובים שפג תוקפם',
+    subject: 'תעשיידע | דוח דו-שבועי: '+items.length+' משובים שפג תוקפם',
     body: {contentType:'HTML',content:body},
     toRecipients: [{emailAddress:{address:payload.to_email}}],
     ccRecipients: [...new Set(payload.cc_emails.map((x)=>x.toLowerCase()))]
@@ -65,6 +105,7 @@ function emailMessage(payload: Digest) {
       .map((address)=>({emailAddress:{address}}))
   };
 }
+
 function jwtClaims(token: string) {
   const part = token.split('.')[1]||'';
   return JSON.parse(atob(part.replace(/-/g,'+').replace(/_/g,'/')
@@ -95,6 +136,7 @@ Deno.serve(async(req:Request)=>{
     if(req.method!=='POST')return reply({ok:false,error:'method_not_allowed'},405);
     const header=req.headers.get('x-staff-dry-run-secret')||'';
     if(!header || await sha(header)!==SECRET_DIGEST)return reply({ok:false,error:'unauthorized'},401);
+    if(!MAIL_DELIVERY_APPROVED)return reply({ok:true,approval_required:true,mail_sent:0});
     const clock=localTime(new Date());
     const israelDay=[clock.year,clock.month,clock.day].join('-');
     const action=String((await req.json().catch(()=>({})))?.action||'');
