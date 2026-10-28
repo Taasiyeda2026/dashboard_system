@@ -150,6 +150,14 @@ export async function setActivityProgram(activityRowId, programKey, { applyToNam
   }));
 }
 
+/** Only assigned activity managers may extend an expired unanswered instructor form. */
+export async function extendAssignedInstructorFeedbackExpiry(campaignId, expiresAt) {
+  return unwrap(client().rpc('feedback_manager_extend_instructor_expiry', {
+    p_campaign_id: campaignId,
+    p_expires_at: expiresAt
+  }));
+}
+
 export async function updateCampaign(campaignId, action, { opensAt = null, expiresAt = null, channel = null } = {}) {
   return unwrap(client().rpc('feedback_admin_update_campaign', {
     p_campaign_id: campaignId,
