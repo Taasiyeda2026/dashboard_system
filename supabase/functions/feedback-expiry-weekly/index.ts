@@ -6,7 +6,7 @@ const SECRET_DIGEST = '5799221868b0bc9081f4d3cda7839928dd84c79d7b7680033f80283b4
 const GRAPH_CLIENT = 'b37ae8f7-0b03-4925-b0e4-f5cb8da95238';
 const GRAPH_TENANT = 'bb3f0918-c67d-4fee-b2db-e6a8eab891d1';
 const SENDER = 'office@think.org.il';
-const MAIL_DELIVERY_APPROVED = false; // explicit approval required before any send
+const MAIL_DELIVERY_APPROVED = true; // approved 2026-10-28: office@think.org.il to activity managers; idann@think.org.il CC only
 
 const reply = (v: unknown, status = 200) => new Response(JSON.stringify(v), {
   status, headers: {'Content-Type': 'application/json; charset=utf-8'}
@@ -99,12 +99,11 @@ function emailMessage(payload: Digest, now = new Date()) {
     'ללא צורך ביצירת משוב חדש.</p>' +
     '<p style="margin:0">בברכה,<br>מערכת תעשיידע</p></div>';
   return {
-    subject: 'תעשיידע | דוח דו-שבועי: '+items.length+' משובים שפג תוקפם',
+    subject: 'תעשיידע | '+items.length+' משובי '+(allInstructor ? 'מדריכים' : allStaff ? 'צוות חינוכי' : 'פעילויות')+' שפג תוקפם - נדרש טיפול',
     body: {contentType:'HTML',content:body},
     toRecipients: [{emailAddress:{address:payload.to_email}}],
-    ccRecipients: [...new Set(payload.cc_emails.map((x)=>x.toLowerCase()))]
-      .filter((x)=>x!==payload.to_email.toLowerCase())
-      .map((address)=>({emailAddress:{address}}))
+    // The administrator receives only a copy; never use the administrator as To.
+    ccRecipients: [{emailAddress:{address:'idann@think.org.il'}}]
   };
 }
 
