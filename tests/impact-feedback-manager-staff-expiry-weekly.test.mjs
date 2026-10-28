@@ -42,8 +42,30 @@ test('weekly manager digest uses source data and records one send per manager pe
   assert.match(sql, /status='unknown',graph_started_at=now\(\)/);
   assert.match(edge, /ccRecipients:/);
   assert.match(edge, /Graph|graph/);
-  assert.match(edge, /clock\.weekday!=='Sun'/);
-  assert.match(edge, /clock\.hour!=='08' \|\| clock\.minute!=='30'/);
-  assert.match(cron, /30 5,6 \* \* 0/);
+  assert.match(edge, /clock\.weekday==='Thu'/);
+  assert.match(edge, /daysSinceAnchor%14===0/);
+  assert.match(edge, /clock\.hour==='08' && clock\.minute==='30'/);
+  assert.match(cron, /30 5,6 \* \* 4/);
   assert.match(cron, /Asia\/Jerusalem/);
+});
+
+test('all feedback email sends stay disabled until the user reviews and approves', () => {
+  assert.match(edge, /const MAIL_DELIVERY_APPROVED = false/);
+  assert.match(edge, /if\(!MAIL_DELIVERY_APPROVED\)return reply\(\{ok:true,approval_required:true,mail_sent:0\}\)/);
+});
+
+test('manager email matches the reviewed four-column RTL format', () => {
+  assert.match(edge, /type Digest = \{ ready:boolean; to_name\?:string/);
+  assert.match(edge, /dir="rtl"/);
+  assert.match(edge, /'מספר'/);
+  assert.match(edge, /'מדריך'/);
+  assert.match(edge, /'קורס'/);
+  assert.match(edge, /'תוקף'/);
+  assert.match(edge, /פירוט המשובים לטיפול:/);
+  assert.match(edge, /מה נדרש לעשות\?/);
+  assert.match(edge, /עדכון התוקף מפעיל מחדש את הקישור הקיים/);
+  assert.match(edge, /ללא צורך ביצירת משוב חדש/);
+  const greeting = root('supabase/migrations/20261028194500_feedback_expiry_email_manager_greeting.sql');
+  assert.match(greeting, /'to_name',v_manager_name/);
+  assert.match(greeting, /u\.role='activities_manager' and u\.is_active is true/);
 });
