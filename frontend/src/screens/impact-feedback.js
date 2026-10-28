@@ -1821,11 +1821,20 @@ function slotCardHtml(group, slot, user) {
       ${campaign.status === 'active' ? `<button type="button" class="ifb-btn ifb-btn--danger" data-ifb-close="${id}">סגירה</button>` : `<button type="button" class="ifb-btn" data-ifb-reopen="${id}">פתיחה מחדש</button>`}`;
   }
   // Viewing all results remains unrestricted; only the right to change an expiry is team-scoped.
+  const canManagerExtendStudent = feedbackReadOnly && studentShareAllowed && isStudent
+    && campaign.status === 'active' && status.key === 'expired';
   const canManagerExtendStaff = feedbackReadOnly && staffShareAllowed && !isStudent
     && campaign.status === 'active' && status.key === 'expired'
     && Number(campaign.responses || 0) === 0 && recipient?.status !== 'completed'
     && !recipient?.completed_at;
-  const extendForm = canManagerExtendStaff
+  const extendForm = canManagerExtendStudent
+    ? `<details class="ifb-extend"><summary>עדכון תוקף</summary>
+        <form data-ifb-manager-student-extend="${id}">
+          <label class="ifb-field"><span>תוקף חדש עד</span><input type="date" name="expires"
+            min="${isoDay(Date.now() + DAY_MS)}" value="${isoDay(Date.now() + 7 * DAY_MS)}" required></label>
+          <button type="submit" class="ifb-btn ifb-btn--sm">שמירה</button>
+        </form></details>`
+    : canManagerExtendStaff
     ? `<details class="ifb-extend"><summary>עדכון תוקף</summary>
         <form data-ifb-manager-staff-extend="${id}">
           <label class="ifb-field"><span>תוקף חדש עד</span><input type="date" name="expires"
@@ -2414,7 +2423,10 @@ async function handleSubmit(host, event) {
     && feedbackViewerUser?.role === 'activities_manager' && feedbackViewerUser?.is_active !== false;
   const allowedManagerStaffExpiryForm = form.matches('[data-ifb-manager-staff-extend]')
     && feedbackViewerUser?.role === 'activities_manager' && feedbackViewerUser?.is_active !== false;
-  if (feedbackReadOnly && !allowedStaffOpenForm && !allowedManagerExpiryForm && !allowedManagerStaffExpiryForm) {
+  const allowedManagerStudentExpiryForm = form.matches('[data-ifb-manager-student-extend]')
+    && feedbackViewerUser?.role === 'activities_manager' && feedbackViewerUser?.is_active !== false;
+  if (feedbackReadOnly && !allowedStaffOpenForm && !allowedManagerExpiryForm && !allowedManagerStaffExpiryForm
+      && !allowedManagerStudentExpiryForm) {
     event.preventDefault(); return;
   }
   if (form.closest('[data-ifb-templates]')) return;
@@ -2430,6 +2442,26 @@ async function handleSubmit(host, event) {
       await extendAssignedInstructorFeedbackExpiry(form.dataset.ifbManagerExtend, expiryIso(expiryDay));
       showToast('תוקף המשוב עודכן. ניתן למלא את הקישור הקיים.');
       await afterInstructorCampaignChange(host);
+    } catch (error) {
+      if (button) button.disabled = false;
+      showToast(translateFeedbackError(error), 'error', 6000);
+    }
+    return;
+  }
+  if (form.matches('[data-ifb-manager-student-extend]')) {
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    if (button) button.disabled = true;
+    try {
+      const expiryDay = String(new FormData(form).get('expires') || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(expiryDay) || expiryDay <= isoDay(Date.now())) {
+        throw new Error('יש לבחור תאריך תוקף עתידי');
+      }
+      const { group } = campaignById(form.dataset.ifbManagerStudentExtend);
+      if (!group) throw new Error('לא נמצאה קבוצת המשוב');
+      await extendAssignedStudentFeedbackExpiry(form.dataset.ifbManagerStudentExtend, expiryIso(expiryDay));
+      showToast('תוקף משוב התלמידים עודכן. הקישור והתשובות הקיימים נשמרו.');
+      await afterCampaignChange(host, group.row_id);
     } catch (error) {
       if (button) button.disabled = false;
       showToast(translateFeedbackError(error), 'error', 6000);
