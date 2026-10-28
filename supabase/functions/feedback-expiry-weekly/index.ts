@@ -52,25 +52,35 @@ function emailMessage(payload: Digest, now = new Date()) {
   const intro = allInstructorPre
     ? 'נמצאו משובי פתיחה של מדריכים שפג תוקפם וטרם מולאו.'
     : 'נמצאו משובים שפג תוקפם וטרם מולאו, ונדרש לעדכן את תוקפם במערכת.';
+  // Word/Outlook ignores many web-style layout hints. Set explicit pixel widths,
+  // visible cell borders, cell padding and a fixed line height on EACH cell.
+  const widths = [42, 168, 192, 118]; // 520px total, RTL order: number | person | course | expiry
+  const cellStyle = (extra = '') =>
+    'border:1px solid #D5DEE7;padding:5px 7px;vertical-align:middle;' +
+    'font-family:Arial,Helvetica,sans-serif;font-size:12pt;font-weight:400;' +
+    'line-height:19px;mso-line-height-rule:exactly;text-align:right;' + extra;
   const rows = items.map((item, i) => {
-    const cell = (value:string, width:string, extra = '') =>
-      '<td width="' + width + '" style="padding:7px 5px;border:0;vertical-align:middle;' +
-      'font-size:14px;font-weight:400;text-align:right;overflow-wrap:break-word;' + extra + '">' + value + '</td>';
-    return '<tr>' +
-      cell(String(i + 1), '8%', 'text-align:center;') +
-      cell(html(item.subject_name), '30%') +
-      cell(html(item.program), '37%') +
-      cell('<span dir="ltr">' + html(date(item.expired_at)) + '</span>', '25%', 'white-space:nowrap;') +
-      '</tr>';
+    const cols = [
+      String(i + 1),
+      html(item.subject_name),
+      html(item.program),
+      '<span dir="ltr" style="direction:ltr;white-space:nowrap">' + html(date(item.expired_at)) + '</span>'
+    ];
+    return '<tr valign="middle">' + cols.map((value,index) =>
+      '<td width="' + widths[index] + '" align="' + (index === 0 ? 'center' : 'right') + '"' +
+      ' dir="' + (index === 3 ? 'ltr' : 'rtl') + '" bgcolor="#FFFFFF" style="' +
+      cellStyle(index === 0 ? 'text-align:center;' : index === 3 ? 'text-align:right;white-space:nowrap;' : '') +
+      '">' + value + '</td>').join('') + '</tr>';
   }).join('');
   const heads = [
-    { text:'מספר', width:'8%', align:'center' },
-    { text:personHeader, width:'30%', align:'right' },
-    { text:'קורס', width:'37%', align:'right' },
-    { text:'תוקף', width:'25%', align:'right' }
-  ].map((h) =>
-    '<th width="'+h.width+'" scope="col" style="padding:8px 5px;border:0;text-align:'+h.align+
-    ';font-size:15px;font-weight:700">'+html(h.text)+'</th>').join('');
+    'מספר',personHeader,'קורס','תוקף'
+  ].map((name,index) =>
+    '<th width="' + widths[index] + '" align="' + (index === 0 ? 'center' : 'right') + '"' +
+    ' dir="rtl" bgcolor="#EAF1F5" scope="col" style="' +
+    'border:1px solid #CAD6DF;padding:6px 7px;text-align:'+(index === 0 ? 'center' : 'right')+';' +
+    'font-family:Arial,Helvetica,sans-serif;font-size:12pt;font-weight:bold;' +
+    'line-height:19px;mso-line-height-rule:exactly;white-space:nowrap">' +
+    html(name) + '</th>').join('');
   const surveyTab = allStaff ? 'צוות חינוכי' : allInstructor ? 'מדריכים' : 'הלשונית המתאימה';
   const steps = [
     allInstructor || allStaff
@@ -88,8 +98,10 @@ function emailMessage(payload: Digest, now = new Date()) {
     '<p style="margin:0 0 28px">בבדיקה שבוצעה ביום <span dir="ltr">'+html(date(now))+
     '</span> '+intro+'</p>' +
     '<p style="margin:0 0 12px;font-size:17px;font-weight:bold;text-decoration:underline">פירוט המשובים לטיפול:</p>' +
-    '<table dir="rtl" role="table" width="630" cellspacing="0" cellpadding="0" ' +
-    'style="direction:rtl;border-collapse:collapse;width:630px;max-width:100%;table-layout:fixed;text-align:right;margin:0 0 28px">' +
+    '<table dir="rtl" align="right" border="1" bordercolor="#D5DEE7" role="table" width="520" ' +
+    'cellspacing="0" cellpadding="0" bgcolor="#FFFFFF" style="direction:rtl;' +
+    'border-collapse:collapse;border:1px solid #D5DEE7;width:520px;' +
+    'table-layout:fixed;text-align:right;margin:0 0 20px">' +
     '<thead><tr>'+heads+'</tr></thead><tbody>'+rows+'</tbody></table>' +
     '<p style="font-size:17px;font-weight:bold;margin:24px 0 12px">מה נדרש לעשות?</p>' +
     '<ol style="margin:0 0 25px;padding:0 28px 0 0;direction:rtl;text-align:right">' +
