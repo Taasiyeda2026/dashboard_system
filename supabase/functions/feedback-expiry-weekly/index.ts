@@ -141,40 +141,6 @@ Deno.serve(async(req:Request)=>{
     const clock=localTime(new Date());
     const israelDay=[clock.year,clock.month,clock.day].join('-');
     const action=String((await req.json().catch(()=>({})))?.action||'');
-    // One-time approved layout check: one recipient, office sender, no CC/BCC.
-    // This route will be removed immediately after one delivery attempt.
-    if(action==='send_test_idann_20261028') {
-      if(israelDay!=='2026-10-28')return reply({ok:false,error:'preview_window_closed'},403);
-      const testItems:PendingItem[] = [
-        ['לירון נחום-בלילה','ביומימיקרי'],
-        ['לירון נחום-בלילה','טכנולוגיות החלל'],
-        ['לירון נחום-בלילה','פורצות דרך'],
-        ['מוחמד סוילם','אופק פרימיום'],
-        ['מוחמד סוילם','ביומימיקרי'],
-        ['מוחמד סוילם','טכנולוגיות החלל'],
-        ['שחר זוביב','פורצות דרך']
-      ].map(([subject_name,program])=>({
-        audience:'instructor',stage:'pre',subject_name,program,school:'',
-        expired_at:'2026-10-27T17:00:00Z'
-      }));
-      const message=emailMessage({
-        ready:true,to_name:'עידן נחום',to_email:'idann@think.org.il',
-        cc_emails:['idann@think.org.il'],items:testItems,count:testItems.length
-      });
-      message.subject='בדיקת תצוגה בלבד | '+message.subject;
-      message.toRecipients=[{emailAddress:{address:'idann@think.org.il'}}];
-      message.ccRecipients=[];
-      const token=await graphToken();
-      const sent=await fetch('https://graph.microsoft.com/v1.0/users/'+encodeURIComponent(SENDER)+'/sendMail',{
-        method:'POST',
-        headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-        body:JSON.stringify({message,saveToSentItems:true}),
-        signal:AbortSignal.timeout(25000)
-      });
-      return reply({ok:sent.status===202,accepted:sent.status===202,
-        graph_http_status:sent.status,request_id:sent.headers.get('request-id')},
-        sent.status===202?200:502);
-    }
     if(action!=='scheduled' && action!=='send_now')
       return reply({ok:false,error:'invalid_action'},400);
     const localUtcDay=Date.UTC(Number(clock.year),Number(clock.month)-1,Number(clock.day));
