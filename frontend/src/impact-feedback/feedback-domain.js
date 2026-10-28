@@ -97,6 +97,7 @@ function toTime(value) {
  */
 export function campaignUiStatus(campaign, now = Date.now()) {
   if (!campaign) return { key: 'not_opened', label: 'טרם נפתח', tone: 'muted', responses: 0 };
+  if (campaign.not_required === true) return { key: 'not_required', label: 'לא נדרש', tone: 'muted', responses: 0 };
   const responses = Number(campaign.responses) || 0;
   const personal = campaign.audience !== 'student';
   const completed = personal && campaign.recipient?.status === 'completed';
@@ -211,7 +212,7 @@ export function sortStudentFeedbackGroups(groups = []) {
 }
 
 export function groupHasFeedback(group) {
-  return Array.isArray(group?.campaigns) && group.campaigns.length > 0;
+  return Array.isArray(group?.campaigns) && group.campaigns.some((campaign) => !campaign.not_required);
 }
 
 export function dashboardKpis(groups = [], now = Date.now()) {
