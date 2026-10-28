@@ -2431,7 +2431,7 @@ async function handleSubmit(host, event) {
     if (button) button.disabled = true;
     try {
       const expiryDay = String(new FormData(form).get('expires') || '').trim();
-      if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(expiryDay) || expiryDay <= isoDay(Date.now())) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(expiryDay) || expiryDay <= isoDay(Date.now())) {
         throw new Error('יש לבחור תאריך תוקף עתידי');
       }
       const { group } = campaignById(form.dataset.ifbManagerStaffExtend);
