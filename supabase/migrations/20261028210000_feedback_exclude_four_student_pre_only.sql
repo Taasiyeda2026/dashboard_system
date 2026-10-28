@@ -95,8 +95,7 @@ AS $function$
   join public.feedback_template_versions v on v.id = c.template_version_id
   join public.feedback_templates t on t.id = v.template_id
   where c.id = p_campaign_id;
-$function$
-
+$function$;
 
 -- Exclude exempt forms from collection denominator.
 CREATE OR REPLACE FUNCTION public.feedback_admin_course_summary_for_half(p_academic_year text, p_half text)
@@ -184,5 +183,4 @@ begin
   from camp
   group by grouping sets ((camp.pk, camp.aud, camp.stg), (camp.pk, camp.aud))
   order by 1, 2, 3;
-end $function$
-
+end $function$;
