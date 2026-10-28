@@ -2159,3 +2159,48 @@
 .ifb-admin.is-feedback-readonly [data-ifb-student-share-enabled="true"] :is(
   [data-ifb-qr], [data-ifb-copy]
 ) { display: inline-flex !important; }
+
+/* Compact, RTL operational tracking: do not stretch five short columns across a wide dashboard. */
+@media (min-width: 761px) {
+  .ifb-admin .ifb-monitoring-wrap {
+    width: min(100%, 1020px);
+    max-width: 1020px;
+    margin-inline-end: auto;
+    margin-inline-start: 0;
+  }
+  .ifb-admin .ifb-monitoring-table {
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
+    direction: rtl;
+  }
+  .ifb-admin .ifb-monitoring-table th,
+  .ifb-admin .ifb-monitoring-table td {
+    min-width: 0;
+    padding: 7px 6px;
+    text-align: right;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+    vertical-align: middle;
+  }
+  .ifb-admin .ifb-monitoring-table th:last-child,
+  .ifb-admin .ifb-monitoring-table td:last-child { text-align: center; }
+  .ifb-admin .ifb-monitoring-table .ifb-status { white-space: normal; }
+
+  /* Fixed column widths are preserved, but tables no longer spread across a large display. */
+  .ifb-admin .ifb-groups-table--students {
+    width: min(100%, 1100px);
+    max-width: 1100px;
+    table-layout: fixed;
+  }
+  .ifb-admin .ifb-groups-table--staff {
+    width: min(100%, 1220px);
+    max-width: 1220px;
+    table-layout: fixed;
+  }
+  .ifb-admin .ifb-groups-table--students th,
+  .ifb-admin .ifb-groups-table--students td,
+  .ifb-admin .ifb-groups-table--staff th,
+  .ifb-admin .ifb-groups-table--staff td { padding-inline: 5px; }
+}
+
