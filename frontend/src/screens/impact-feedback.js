@@ -711,60 +711,6 @@ function insightsHtml(facts) {
   </div>`;
 }
 
-function routineMonitoringHtml() {
-  // Present campaign metadata only: no detailed answer-facts or analysis RPCs.
-  const managerOnly = feedbackViewerUser?.role === 'activities_manager';
-  const entries = [];
-  const add = (campaign, person, school, program) => {
-    if (!campaign || campaign.not_required || !program || (ui.course && program !== ui.course)) return;
-    const status = campaignUiStatus(campaign);
-    const rec = campaign.recipient;
-    let sharing = 'לא תועד שיתוף';
-    if (campaign.audience === 'student') sharing = 'קישור / QR - ללא אישור הפצה';
-    else if (rec?.last_shared_at) sharing = 'שיתוף תועד: ' + fmtDate(rec.last_shared_at);
-    else if (status.key === 'completed') sharing = 'הושלם';
-    entries.push({ campaign, person: person || '—', school: school || '', program, status, sharing });
-  };
-  for (const group of ui.groups || []) {
-    if (managerOnly && !canShareAssignedActivityFeedback(feedbackViewerUser, group)) continue;
-    for (const campaign of group.campaigns || []) {
-      const person = campaign.audience === 'student'
-        ? (group.school || 'קבוצת תלמידים') : (campaign.recipient?.display_name || group.contact_name || 'צוות חינוכי');
-      add(campaign, person, campaign.audience === 'student' ? group.instructor_name : group.school, group.program_key);
-    }
-  }
-  for (const assignment of ui.instructorAssignments || []) {
-    if (managerOnly && !(assignment.activity_managers || []).some((name) =>
-      canShareAssignedActivityFeedback(feedbackViewerUser, { activity_manager: name }))) continue;
-    for (const campaign of [assignment.pre_campaign, assignment.final_campaign, assignment.final_b_campaign]) {
-      add(campaign, assignment.instructor_name || assignment.instructor_emp_id, '', assignment.program_key);
-    }
-  }
-  const order = { expired: 0, pending: 1, active: 2, collecting: 2, scheduled: 3, completed: 4, closed: 5 };
-  entries.sort((a, b) => (order[a.status.key] ?? 6) - (order[b.status.key] ?? 6)
-    || String(a.person).localeCompare(String(b.person), 'he')
-    || String(a.program).localeCompare(String(b.program), 'he'));
-  if (!entries.length) return emptyHtml('אין עדיין משובים במעקב בתחום האחריות שנבחר.');
-  const shown = entries.slice(0, 30);
-  const rows = shown.map((entry) => {
-    const campaign = entry.campaign;
-    const audience = AUDIENCE_LABELS[campaign.audience] || campaign.audience;
-    return '<tr><td data-label="נמען / קבוצה"><strong>' + esc(entry.person) + '</strong>' +
-      (entry.school ? '<span class="ifb-muted ifb-cell-sub">' + esc(entry.school) + '</span>' : '') + '</td>' +
-      '<td data-label="קורס">' + esc(programTitle(entry.program)) + '</td>' +
-      '<td data-label="סוג משוב">' + esc(audience + ' - ' + stageLabelFor(campaign.audience, campaign.stage)) + '</td>' +
-      '<td data-label="שיתוף">' + esc(entry.sharing) + '</td>' +
-      '<td data-label="מצב">' + tableStatusHtml(campaign) + '</td></tr>';
-  }).join('');
-  return '<p class="ifb-muted">' + (managerOnly ? 'משובים בפעילויות שבאחריותך. ' : '') +
-    'סטטוס שיתוף מוצג רק כשקיים תיעוד. העתקת קישור או QR אינם אישור שהמשוב נשלח.</p>' +
-    '<div class="ifb-table-wrap ifb-monitoring-wrap" dir="rtl"><table class="ifb-table ifb-monitoring-table"><caption class="ifb-sr">מעקב משובים שוטף</caption>' +
-    '<colgroup><col style="width:27%"><col style="width:24%"><col style="width:19%"><col style="width:17%"><col style="width:13%"></colgroup>' +
-    '<thead><tr><th>נמען / קבוצה</th><th>קורס</th><th>סוג משוב</th><th>שיתוף מתועד</th><th>סטטוס מילוי</th></tr></thead>' +
-    '<tbody>' + rows + '</tbody></table></div>' +
-    (entries.length > shown.length ? '<p class="ifb-muted">מוצגים ' + shown.length + ' מתוך ' + entries.length +
-    ' משובים. פירוט מלא זמין בלשוניות תלמידים, מדריכים וצוות חינוכי.</p>' : '');
-}
 function overviewHtml() {
   const o = ui.overview;
   const totals = overviewTotals(ui.summary || [], { programKey: ui.course, audience: o.audience, phase: o.phase });
@@ -792,7 +738,6 @@ function overviewHtml() {
   return `
     ${overviewFiltersHtml()}
     ${kpiStripHtml(kpis)}
-    ${sectionHtml('בקרה שוטפת - הפצה וסטטוס', routineMonitoringHtml())}
     ${sectionHtml('מעקב משובים לפי קורס', coursesTableHtml())}
     ${totals.responses && (audienceEntries.length > 1 || phaseEntries.length > 1) ? `<div class="ifb-grid-2">
       ${audienceEntries.length > 1 ? barListHtml('לפי קהל יעד', audienceEntries) : ''}
