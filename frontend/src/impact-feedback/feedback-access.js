@@ -50,3 +50,21 @@ export function canShareAssignedActivityFeedback(user, group) {
 export function canShareEducationalStaffFeedback(user, group) {
   return canShareAssignedActivityFeedback(user, group);
 }
+
+
+/**
+ * Display-only affordance for an activity manager to extend an expired and
+ * unanswered instructor survey belonging to at least one of their current
+ * instructor/program assignments. The SQL RPC revalidates ownership and status.
+ */
+export function canExtendAssignedInstructorExpiry(user, assignment, campaign, now = Date.now()) {
+  if (String(user?.role || '').trim().toLowerCase() !== 'activities_manager'
+    || user?.is_active === false || !campaign || campaign.audience !== 'instructor'
+    || campaign.status !== 'active' || campaign.recipient?.status === 'completed'
+    || campaign.recipient?.completed_at || Number(campaign.responses || 0) !== 0) return false;
+  const expiresAt = Date.parse(String(campaign.expires_at || ''));
+  if (!Number.isFinite(expiresAt) || expiresAt > now) return false;
+  if (assignment?.program_key !== campaign.program_key) return false;
+  const managers = Array.isArray(assignment?.activity_managers) ? assignment.activity_managers : [];
+  return managers.some((manager) => canShareAssignedActivityFeedback(user, { activity_manager: manager }));
+}
