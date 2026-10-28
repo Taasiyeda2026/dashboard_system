@@ -72,7 +72,8 @@ import {
   translateFeedbackError,
   updateCampaign,
   extendAssignedInstructorFeedbackExpiry,
-  extendAssignedStaffFeedbackExpiry
+  extendAssignedStaffFeedbackExpiry,
+  extendAssignedStudentFeedbackExpiry
 } from '../impact-feedback/feedback-api.js';
 import { campaignLink, copyText, openQrProjection, personalShareLinks } from '../impact-feedback/feedback-share.js';
 import { staffDeliveryStatus, staffStatusIndex } from '../impact-feedback/staff-delivery-status.js';
@@ -116,13 +117,21 @@ const TABS = [
 /** Data each tab needs; loaded per academic year and cached until refresh or a mutation. */
 const TAB_NEEDS = {
   // Every tab's results are scoped to the same activities and instructor cohorts.
-  overview: ['summary', 'facts', 'groups', 'assignments'],
-  students: ['summary', 'groups', 'assignments', 'facts'],
-  instructors: ['summary', 'assignments', 'groups', 'facts'],
-  staff: ['summary', 'groups', 'assignments', 'facts'],
+  overview: ['summary', 'groups', 'assignments'],
+  students: ['groups'],
+  instructors: ['assignments'],
+  staff: ['groups'],
   analysis: ['summary', 'groups', 'assignments', 'facts'],
   templates: []
 };
+
+function tabNeeds(tab = ui.tab) {
+  const base = TAB_NEEDS[tab] || [];
+  // Detailed question facts are fetched only when a course or analysis view is requested.
+  return ui.course && ['students','instructors','staff'].includes(tab)
+    ? [...new Set([...base,'summary','groups','assignments','facts'])]
+    : base;
+}
 
 const ui = {
   tab: 'overview',
@@ -431,7 +440,7 @@ function assignmentsSyncFingerprint(rows) {
 }
 
 function tabDataReady(tab = ui.tab) {
-  const needs = TAB_NEEDS[tab] || [];
+  const needs = tabNeeds(tab);
   return needs.every((need) => ({
     summary: ui.summary,
     facts: ui.facts,
@@ -509,7 +518,7 @@ function shellHtml(inner) {
   return `
     <div class="ifb-admin__head">
       <h1 class="ifb-admin__title">משובים</h1>
-      ${feedbackReadOnly ? `<p class="ifb-viewer-note">${feedbackCanEditWording ? 'ניתן לערוך נוסחי שאלות בעברית ובערבית בטיוטה · פרסום ושינוי מבנה השאלון בידי אדמין' : feedbackViewerUser?.role === 'activities_manager' ? 'צפייה וניתוח משובים · ניתן לעדכן תוקף של משובי מדריכים שפג תוקפם ושבאחריותך' : 'גישה לצפייה במשובים ובניתוח בלבד · ללא עריכה, תבניות או פעולות שליחה'}</p>` : ''}
+      ${feedbackReadOnly ? `<p class="ifb-viewer-note">${feedbackCanEditWording ? 'ניתן לערוך נוסחי שאלות בעברית ובערבית בטיוטה · פרסום ושינוי מבנה השאלון בידי אדמין' : feedbackViewerUser?.role === 'activities_manager' ? 'צפייה בכלל המשובים · הארכת תוקף למשובי תלמידים, מדריכים וצוות חינוכי באחריותך' : 'גישה לצפייה במשובים ובניתוח בלבד · ללא עריכה, תבניות או פעולות שליחה'}</p>` : ''}
       <button type="button" class="ifb-icon-btn ifb-icon-btn--lg" data-ifb-refresh title="טעינה מחדש של הנתונים" aria-label="טעינה מחדש של הנתונים">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"></path></svg>
       </button>
@@ -724,7 +733,8 @@ function overviewHtml() {
     .map((a) => [AUDIENCE_LABELS[a], totals.byAudience[a]]);
   const phaseEntries = ['pre', 'end'].filter((p) => (!o.phase || o.phase === p) && (totals.byPhase[p] || 0) > 0)
     .map((p) => [PHASE_LABELS[p], totals.byPhase[p]]);
-  const insights = totals.responses ? insightsHtml(overviewFacts()) : '';
+  // Operational overview does not compute detailed feedback analytics.
+  const insights = '';
   return `
     ${overviewFiltersHtml()}
     ${kpiStripHtml(kpis)}
@@ -2108,7 +2118,7 @@ function paint(host, { focusTab = false } = {}) {
 
 async function load(host, { force = false, focusTab = false } = {}) {
   ui.error = '';
-  const needs = ui.groupRowId ? ['groups'] : (TAB_NEEDS[ui.tab] || []);
+  const needs = ui.groupRowId ? ['groups'] : tabNeeds(ui.tab);
   const cacheWarm = !force
     && ui.programs.length
     && (ui.groupRowId ? Boolean(ui.groups) : tabDataReady(ui.tab));
@@ -2174,7 +2184,8 @@ function invalidateAggregates() {
 }
 
 async function refreshAggregates() {
-  await Promise.all([ensureSummary(true), ensureFacts(true)]);
+  // Operational campaign changes must not reload all answer-facts pages.
+  await ensureSummary(true);
 }
 
 async function afterCampaignChange(host, rowId) {
@@ -2538,7 +2549,7 @@ function resetYearScopedState() {
   inflight.facts = null;
 }
 
-function handleFilterInput(host, event) {
+async function handleFilterInput(host, event) {
   const el = event.target;
   if (el.matches('[data-ifb-course]')) {
     ui.course = el.value;
@@ -2546,7 +2557,8 @@ function handleFilterInput(host, event) {
     ui.analysis.contact = '';
     ui.analysis.group = '';
     ui.templates.templateId = null;
-    paint(host);
+    if (ui.course && ['students','instructors','staff','analysis'].includes(ui.tab)) await load(host);
+    else paint(host);
     return;
   }
   const map = [['f', ui.filters], ['i', ui.instructorFilters], ['o', ui.overview], ['a', ui.analysis]];
@@ -2873,7 +2885,14 @@ function mount(host, state) {
     if (event.target.matches('input[type="search"]')) handleFilterInput(host, event);
   });
   installActivityDateSync(host);
-  load(host, { force: true });
+  const cached = ui.programs.length && tabDataReady(ui.tab);
+  load(host, { force: false });
+  // Show cached operational status immediately; reconcile in the background.
+  if (cached && ui.tab === 'overview') {
+    Promise.all([ensureGroups(true), ensureInstructorAssignments(true), ensureSummary(true)])
+      .then(() => paint(host))
+      .catch((error) => console.warn('[impact-feedback:background-refresh]', translateFeedbackError(error)));
+  }
 }
 
 export const impactFeedbackScreen = {
