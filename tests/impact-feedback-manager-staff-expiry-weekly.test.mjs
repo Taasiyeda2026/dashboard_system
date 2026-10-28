@@ -49,9 +49,14 @@ test('weekly manager digest uses source data and records one send per manager pe
   assert.match(cron, /Asia\/Jerusalem/);
 });
 
-test('all feedback email sends stay disabled until the user reviews and approves', () => {
-  assert.match(edge, /const MAIL_DELIVERY_APPROVED = false/);
-  assert.match(edge, /if\(!MAIL_DELIVERY_APPROVED\)return reply\(\{ok:true,approval_required:true,mail_sent:0\}\)/);
+test('approved manager reminders use office mailbox and administrator CC only', () => {
+  assert.match(edge, /const MAIL_DELIVERY_APPROVED = true/);
+  assert.match(edge, /const SENDER = 'office@think.org.il'/);
+  assert.match(edge, /toRecipients: \[\{emailAddress:\{address:payload\.to_email\}\}\]/);
+  assert.match(edge, /ccRecipients: \[\{emailAddress:\{address:'idann@think.org.il'\}\}\]/);
+  assert.match(edge, /if\(!MAIL_DELIVERY_APPROVED\)return reply/);
+  assert.match(edge, /width="630"/);
+  assert.match(edge, /direction:rtl/);
 });
 
 test('manager email matches the reviewed four-column RTL format', () => {
