@@ -98,7 +98,7 @@ function emailMessage(payload: Digest, now = new Date()) {
     '<p style="margin:0 0 28px">בבדיקה שבוצעה ביום <span dir="ltr">'+html(date(now))+
     '</span> '+intro+'</p>' +
     '<p style="margin:0 0 12px;font-size:17px;font-weight:bold;text-decoration:underline">פירוט המשובים לטיפול:</p>' +
-    '<table dir="rtl" align="right" border="1" bordercolor="#D5DEE7" role="table" width="520" ' +
+    '<table dir="rtl" border="1" bordercolor="#D5DEE7" role="table" width="520" ' +
     'cellspacing="0" cellpadding="0" bgcolor="#FFFFFF" style="direction:rtl;' +
     'border-collapse:collapse;border:1px solid #D5DEE7;width:520px;' +
     'table-layout:fixed;text-align:right;margin:0 0 20px">' +
