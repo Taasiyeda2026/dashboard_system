@@ -71,7 +71,8 @@ import {
   scheduleInstructorTrainingFeedback,
   translateFeedbackError,
   updateCampaign,
-  extendAssignedInstructorFeedbackExpiry
+  extendAssignedInstructorFeedbackExpiry,
+  extendAssignedStaffFeedbackExpiry
 } from '../impact-feedback/feedback-api.js';
 import { campaignLink, copyText, openQrProjection, personalShareLinks } from '../impact-feedback/feedback-share.js';
 import { staffDeliveryStatus, staffStatusIndex } from '../impact-feedback/staff-delivery-status.js';
@@ -1809,11 +1810,23 @@ function slotCardHtml(group, slot, user) {
       <button type="button" class="ifb-btn" data-ifb-copy="${id}">העתקת קישור</button>
       ${campaign.status === 'active' ? `<button type="button" class="ifb-btn ifb-btn--danger" data-ifb-close="${id}">סגירה</button>` : `<button type="button" class="ifb-btn" data-ifb-reopen="${id}">פתיחה מחדש</button>`}`;
   }
-  const extendForm = status.key === 'expired' || (campaign.status === 'active' && status.key !== 'completed')
+  // Viewing all results remains unrestricted; only the right to change an expiry is team-scoped.
+  const canManagerExtendStaff = feedbackReadOnly && staffShareAllowed && !isStudent
+    && campaign.status === 'active' && status.key === 'expired'
+    && Number(campaign.responses || 0) === 0 && recipient?.status !== 'completed'
+    && !recipient?.completed_at;
+  const extendForm = canManagerExtendStaff
     ? `<details class="ifb-extend"><summary>עדכון תוקף</summary>
-        <form data-ifb-extend="${id}"><label class="ifb-field"><span>תוקף עד</span><input type="date" name="expires" min="${isoDay(Date.now() + DAY_MS)}" value="${campaign.expires_at ? isoDay(campaign.expires_at) : ''}"></label>
-        <button type="submit" class="ifb-btn ifb-btn--sm">שמירה</button></form></details>`
-    : '';
+        <form data-ifb-manager-staff-extend="${id}">
+          <label class="ifb-field"><span>תוקף חדש עד</span><input type="date" name="expires"
+            min="${isoDay(Date.now() + DAY_MS)}" value="${isoDay(Date.now() + 7 * DAY_MS)}" required></label>
+          <button type="submit" class="ifb-btn ifb-btn--sm">שמירה</button>
+        </form></details>`
+    : (!feedbackReadOnly && (status.key === 'expired' || (campaign.status === 'active' && status.key !== 'completed')))
+      ? `<details class="ifb-extend"><summary>עדכון תוקף</summary>
+          <form data-ifb-extend="${id}"><label class="ifb-field"><span>תוקף עד</span><input type="date" name="expires" min="${isoDay(Date.now() + DAY_MS)}" value="${campaign.expires_at ? isoDay(campaign.expires_at) : ''}"></label>
+          <button type="submit" class="ifb-btn ifb-btn--sm">שמירה</button></form></details>`
+      : '';
   return `<article class="ifb-slot" data-slot="${slot.key}" data-campaign="${id}"${staffShareAttr}${studentShareAttr}>
     <div class="ifb-slot__head">${title}${campaignStatusHtml(campaign)}</div>
     ${meta}
@@ -2388,7 +2401,11 @@ async function handleSubmit(host, event) {
     && form.closest('[data-ifb-staff-share-enabled="true"]');
   const allowedManagerExpiryForm = form.matches('[data-ifb-manager-extend]')
     && feedbackViewerUser?.role === 'activities_manager' && feedbackViewerUser?.is_active !== false;
-  if (feedbackReadOnly && !allowedStaffOpenForm && !allowedManagerExpiryForm) { event.preventDefault(); return; }
+  const allowedManagerStaffExpiryForm = form.matches('[data-ifb-manager-staff-extend]')
+    && feedbackViewerUser?.role === 'activities_manager' && feedbackViewerUser?.is_active !== false;
+  if (feedbackReadOnly && !allowedStaffOpenForm && !allowedManagerExpiryForm && !allowedManagerStaffExpiryForm) {
+    event.preventDefault(); return;
+  }
   if (form.closest('[data-ifb-templates]')) return;
   if (form.matches('[data-ifb-manager-extend]')) {
     event.preventDefault();
@@ -2402,6 +2419,25 @@ async function handleSubmit(host, event) {
       await extendAssignedInstructorFeedbackExpiry(form.dataset.ifbManagerExtend, expiryIso(expiryDay));
       showToast('תוקף המשוב עודכן. ניתן למלא את הקישור הקיים.');
       await afterInstructorCampaignChange(host);
+    } catch (error) {
+      if (button) button.disabled = false;
+      showToast(translateFeedbackError(error), 'error', 6000);
+    }
+    return;
+  }
+  if (form.matches('[data-ifb-manager-staff-extend]')) {
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    if (button) button.disabled = true;
+    try {
+      const expiryDay = String(new FormData(form).get('expires') || '').trim();
+      if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(expiryDay) || expiryDay <= isoDay(Date.now())) {
+        throw new Error('יש לבחור תאריך תוקף עתידי');
+      }
+      const { group } = campaignById(form.dataset.ifbManagerStaffExtend);
+      await extendAssignedStaffFeedbackExpiry(form.dataset.ifbManagerStaffExtend, expiryIso(expiryDay));
+      showToast('תוקף משוב הצוות החינוכי עודכן. הקישור הקיים נשאר בתוקף.');
+      await afterCampaignChange(host, group.row_id);
     } catch (error) {
       if (button) button.disabled = false;
       showToast(translateFeedbackError(error), 'error', 6000);
