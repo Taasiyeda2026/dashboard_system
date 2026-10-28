@@ -70,14 +70,15 @@ import {
   openInstructorCampaign,
   scheduleInstructorTrainingFeedback,
   translateFeedbackError,
-  updateCampaign
+  updateCampaign,
+  extendAssignedInstructorFeedbackExpiry
 } from '../impact-feedback/feedback-api.js';
 import { campaignLink, copyText, openQrProjection, personalShareLinks } from '../impact-feedback/feedback-share.js';
 import { staffDeliveryStatus, staffStatusIndex } from '../impact-feedback/staff-delivery-status.js';
 import { hasArabicAnswerText, arabicAnswerTranslationUrl } from '../impact-feedback/feedback-translation.js';
 import { renderTemplatesView, bindTemplatesView } from '../impact-feedback/feedback-templates-view.js';
 import '../impact-feedback/feedback-form.css';
-import { canViewImpactFeedback, canEditImpactFeedbackWording, canShareEducationalStaffFeedback, canShareAssignedActivityFeedback, isFeedbackAdmin, isFeedbackInstructor } from '../impact-feedback/feedback-access.js';
+import { canViewImpactFeedback, canEditImpactFeedbackWording, canShareEducationalStaffFeedback, canShareAssignedActivityFeedback, canExtendAssignedInstructorExpiry, isFeedbackAdmin, isFeedbackInstructor } from '../impact-feedback/feedback-access.js';
 import '../impact-feedback/impact-feedback-admin.css';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -507,7 +508,7 @@ function shellHtml(inner) {
   return `
     <div class="ifb-admin__head">
       <h1 class="ifb-admin__title">משובים</h1>
-      ${feedbackReadOnly ? `<p class="ifb-viewer-note">${feedbackCanEditWording ? 'ניתן לערוך נוסחי שאלות בעברית ובערבית בטיוטה · פרסום ושינוי מבנה השאלון בידי אדמין' : 'גישה לצפייה במשובים ובניתוח בלבד · ללא עריכה, תבניות או פעולות שליחה'}</p>` : ''}
+      ${feedbackReadOnly ? `<p class="ifb-viewer-note">${feedbackCanEditWording ? 'ניתן לערוך נוסחי שאלות בעברית ובערבית בטיוטה · פרסום ושינוי מבנה השאלון בידי אדמין' : feedbackViewerUser?.role === 'activities_manager' ? 'צפייה וניתוח משובים · ניתן לעדכן תוקף של משובי מדריכים שפג תוקפם ושבאחריותך' : 'גישה לצפייה במשובים ובניתוח בלבד · ללא עריכה, תבניות או פעולות שליחה'}</p>` : ''}
       <button type="button" class="ifb-icon-btn ifb-icon-btn--lg" data-ifb-refresh title="טעינה מחדש של הנתונים" aria-label="טעינה מחדש של הנתונים">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"></path></svg>
       </button>
@@ -1050,6 +1051,23 @@ function instructorCampaignActionsHtml(row, stage) {
   const status = campaignUiStatus(campaign);
   if (status.key === 'completed') {
     return `<div class="ifb-instructor-stage"><span class="ifb-muted ifb-instructor-stage__note" aria-label="משוב הושלם ונעול">נעול</span></div>`;
+  }
+  if (feedbackReadOnly) {
+    if (!canExtendAssignedInstructorExpiry(feedbackViewerUser, row, campaign)) {
+      return '<div class="ifb-instructor-stage"><span class="ifb-muted">—</span></div>';
+    }
+    return `<div class="ifb-instructor-stage">
+      <details class="ifb-extend ifb-instructor-expiry-manager">
+        <summary>עדכון תוקף</summary>
+        <form data-ifb-manager-extend="${esc(campaign.id)}">
+          <label class="ifb-field"><span>תוקף חדש עד</span>
+            <input type="date" name="expires" min="${isoDay(Date.now() + DAY_MS)}"
+              value="${isoDay(Date.now() + 7 * DAY_MS)}" required>
+          </label>
+          <button type="submit" class="ifb-btn ifb-btn--sm">שמירה</button>
+        </form>
+      </details>
+    </div>`;
   }
   const links = personalShareLinks(campaign, { programTitle: programTitle(row.program_key), schoolName: '' });
   const live = status.key === 'active' || status.key === 'collecting' || status.key === 'scheduled';
@@ -2368,8 +2386,28 @@ async function handleSubmit(host, event) {
   const form = event.target;
   const allowedStaffOpenForm = form.matches('[data-ifb-open-form]')
     && form.closest('[data-ifb-staff-share-enabled="true"]');
-  if (feedbackReadOnly && !allowedStaffOpenForm) { event.preventDefault(); return; }
+  const allowedManagerExpiryForm = form.matches('[data-ifb-manager-extend]')
+    && feedbackViewerUser?.role === 'activities_manager' && feedbackViewerUser?.is_active !== false;
+  if (feedbackReadOnly && !allowedStaffOpenForm && !allowedManagerExpiryForm) { event.preventDefault(); return; }
   if (form.closest('[data-ifb-templates]')) return;
+  if (form.matches('[data-ifb-manager-extend]')) {
+    event.preventDefault();
+    const button = form.querySelector('button[type="submit"]');
+    if (button) button.disabled = true;
+    try {
+      const expiryDay = String(new FormData(form).get('expires') || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(expiryDay) || expiryDay <= isoDay(Date.now())) {
+        throw new Error('יש לבחור תאריך תוקף עתידי');
+      }
+      await extendAssignedInstructorFeedbackExpiry(form.dataset.ifbManagerExtend, expiryIso(expiryDay));
+      showToast('תוקף המשוב עודכן. ניתן למלא את הקישור הקיים.');
+      await afterInstructorCampaignChange(host);
+    } catch (error) {
+      if (button) button.disabled = false;
+      showToast(translateFeedbackError(error), 'error', 6000);
+    }
+    return;
+  }
   if (form.matches('[data-ifb-instructor-open-form]')) {
     event.preventDefault();
     const data = new FormData(form);
