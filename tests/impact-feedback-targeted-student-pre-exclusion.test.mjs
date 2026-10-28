@@ -39,6 +39,6 @@ test('excluded pre-surveys are not shown as outstanding and preserve staff and c
 test('email table stays compact while dashboard has no unrequested monitoring table or overrides', () => {
   assert.doesNotMatch(screen, /routineMonitoringHtml|ifb-monitoring-table|בקרה שוטפת - הפצה וסטטוס/);
   assert.doesNotMatch(css, /Compact, RTL operational tracking|ifb-monitoring-wrap/);
-  assert.match(file('supabase/functions/feedback-expiry-weekly/index.ts'), /width="630"/);
+  assert.match(file('supabase/functions/feedback-expiry-weekly/index.ts'), /width="520"/);
   assert.match(file('supabase/functions/feedback-expiry-weekly/index.ts'), /direction:rtl/);
 });
