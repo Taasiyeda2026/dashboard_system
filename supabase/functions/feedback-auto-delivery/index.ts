@@ -94,9 +94,9 @@ Deno.serve(async(req:Request)=>{
     return json({ok:false,error:'unauthorized'},401);
   const input=await req.json().catch(()=>({}));
   const action=String(input?.action||'');
-  if(!['daily_prepare','daily_dispatch','manual'].includes(action))
+  if(!['daily_prepare','daily_dispatch','manual','student_once'].includes(action))
     return json({ok:false,error:'invalid_action'},400);
-  const local=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Jerusalem',
+  if(action==='student_once' && (Date.now()<Date.parse('2026-10-28T09:11:00Z') || Date.now()>=Date.parse('2026-10-28T09:20:00Z')))\n    return json({ok:true,outside_window:true});\n  const local=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Jerusalem',
     hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date());
   if(action==='daily_prepare'&&local!=='09:14')return json({ok:true,outside_window:true});
   if(action==='daily_dispatch'&&(local<'09:15'||local>='09:45'))
@@ -139,10 +139,10 @@ Deno.serve(async(req:Request)=>{
    return token;
   };
   // Preflight the real sender before creating any dispatchable campaigns.
-  if(action==='daily_prepare')await getGraphToken();
-  const mode=action==='manual'?'manual':'daily';
+  if(action==='daily_prepare'||action==='student_once')await getGraphToken();
+  const mode=action==='manual'?'manual':action==='student_once'?'student_once':'daily';
   let prepared:unknown;
-  if(action==='daily_prepare'||action==='manual'){
+  if(action==='daily_prepare'||action==='manual'||action==='student_once'){
     prepared=await rpc('feedback_auto_prepare',{p_mode:mode});
   }
   if(action==='daily_prepare')return json({ok:true,prepared});
