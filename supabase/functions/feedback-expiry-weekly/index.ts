@@ -54,8 +54,8 @@ function emailMessage(payload: Digest, now = new Date()) {
     : 'נמצאו משובים שפג תוקפם וטרם מולאו, ונדרש לעדכן את תוקפם במערכת.';
   const rows = items.map((item, i) => {
     const cell = (value:string, width:string, extra = '') =>
-      '<td width="' + width + '" style="padding:12px 7px;border:0;vertical-align:middle;' +
-      'font-size:16px;font-weight:400;text-align:right;' + extra + '">' + value + '</td>';
+      '<td width="' + width + '" style="padding:7px 5px;border:0;vertical-align:middle;' +
+      'font-size:14px;font-weight:400;text-align:right;overflow-wrap:break-word;' + extra + '">' + value + '</td>';
     return '<tr>' +
       cell(String(i + 1), '8%', 'text-align:center;') +
       cell(html(item.subject_name), '30%') +
@@ -69,8 +69,8 @@ function emailMessage(payload: Digest, now = new Date()) {
     { text:'קורס', width:'37%', align:'right' },
     { text:'תוקף', width:'25%', align:'right' }
   ].map((h) =>
-    '<th width="'+h.width+'" scope="col" style="padding:12px 7px;border:0;text-align:'+h.align+
-    ';font-size:18px;font-weight:700">'+html(h.text)+'</th>').join('');
+    '<th width="'+h.width+'" scope="col" style="padding:8px 5px;border:0;text-align:'+h.align+
+    ';font-size:15px;font-weight:700">'+html(h.text)+'</th>').join('');
   const surveyTab = allStaff ? 'צוות חינוכי' : allInstructor ? 'מדריכים' : 'הלשונית המתאימה';
   const steps = [
     allInstructor || allStaff
@@ -83,13 +83,13 @@ function emailMessage(payload: Digest, now = new Date()) {
       'שלח מחדש לנמענים את הקישור למילוי המשוב.'
   ];
   const body = '<div dir="rtl" lang="he" style="direction:rtl;text-align:right;font-family:Arial,Helvetica,sans-serif;' +
-    'font-size:16px;line-height:1.75;color:#111;max-width:920px;margin:0;padding:0">' +
+    'font-size:15px;line-height:1.65;color:#111;max-width:700px;margin:0;padding:0">' +
     '<p style="margin:0 0 22px">'+greeting+'</p>' +
     '<p style="margin:0 0 28px">בבדיקה שבוצעה ביום <span dir="ltr">'+html(date(now))+
     '</span> '+intro+'</p>' +
     '<p style="margin:0 0 12px;font-size:17px;font-weight:bold;text-decoration:underline">פירוט המשובים לטיפול:</p>' +
-    '<table dir="rtl" role="table" width="100%" cellspacing="0" cellpadding="0" ' +
-    'style="direction:rtl;border-collapse:collapse;width:100%;table-layout:fixed;text-align:right;margin:0 0 34px">' +
+    '<table dir="rtl" role="table" width="630" cellspacing="0" cellpadding="0" ' +
+    'style="direction:rtl;border-collapse:collapse;width:630px;max-width:100%;table-layout:fixed;text-align:right;margin:0 0 28px">' +
     '<thead><tr>'+heads+'</tr></thead><tbody>'+rows+'</tbody></table>' +
     '<p style="font-size:17px;font-weight:bold;margin:24px 0 12px">מה נדרש לעשות?</p>' +
     '<ol style="margin:0 0 25px;padding:0 28px 0 0;direction:rtl;text-align:right">' +
