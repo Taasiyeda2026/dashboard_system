@@ -173,13 +173,12 @@ export async function fetchAnswerFacts(filters = {}) {
   // A single RPC result is limited by PostgREST row caps. Stable ordering and
   // page ranges are essential: otherwise only the earliest submitted surveys show.
   return loadAllFeedbackFactPages(async (start, end) => {
-    const rows = await unwrap(client()
-      .rpc('feedback_admin_answer_facts', { p_filters: clean })
-      .order('submitted_at', { ascending: true })
-      .order('response_id', { ascending: true })
-      .order('sort_order', { ascending: true })
-      .order('answer_id', { ascending: true })
-      .range(start, end));
+    // This SQL RPC returns a promise and does not expose .order()/.range().
+    // The server sorts by submitted_at, response_id, sort_order, answer_id,
+    // then applies this validated, bounded page range.
+    const rows = await unwrap(client().rpc('feedback_admin_answer_facts', {
+      p_filters: { ...clean, __page_offset: start, __page_limit: end - start + 1 }
+    }));
     return Array.isArray(rows) ? rows : [];
   });
 }
