@@ -7,7 +7,9 @@ import { isElementaryPaperTemplate } from './feedback-paper-pdf-eligibility.js';
 import { loadAllFeedbackFactPages } from './feedback-facts-pagination.js';
 
 const ERROR_MESSAGES = {
-  feedback_forbidden: 'אין הרשאה – רק אדמין מנהל את מודול המשובים',
+  feedback_forbidden: 'אין הרשאה לבצע פעולה זו במשוב',
+  feedback_expiry_not_eligible: 'אפשר לעדכן תוקף רק למשוב שפג תוקפו וטרם מולא',
+  feedback_already_completed: 'המשוב כבר הושלם ולכן לא ניתן להאריך אותו',
   feedback_activity_not_found: 'הפעילות לא נמצאה',
   feedback_program_unresolved: 'לא זוהתה תוכנית משובים עבור הפעילות. בחרו תוכנית ידנית.',
   feedback_program_locked: 'לא ניתן לשנות תוכנית לאחר שנפתח משוב לקבוצה',
