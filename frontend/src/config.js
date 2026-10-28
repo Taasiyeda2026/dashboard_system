@@ -522,3 +522,5 @@ config.HOTFIX_VERSION = 'manager-week-month-parity-20261026-v1-' + config.HOTFIX
 
 config.HOTFIX_VERSION = 'feedback-facts-pagination-20261028-v1-' + config.HOTFIX_VERSION;
 config.HOTFIX_VERSION = 'feedback-facts-rpc-paging-compat-20261028-v2-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'feedback-manager-own-expiry-20261028-v1-' + config.HOTFIX_VERSION;
