@@ -1,4 +1,3 @@
-import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 import QRCode from 'npm:qrcode@1.5.4';
 
 // All routes share one verified office-mail Graph application and DB transaction log.
