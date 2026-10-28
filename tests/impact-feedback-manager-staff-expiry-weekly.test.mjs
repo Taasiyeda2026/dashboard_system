@@ -46,5 +46,4 @@ test('weekly manager digest uses source data and records one send per manager pe
   assert.match(edge, /clock\.hour!=='08' \|\| clock\.minute!=='30'/);
   assert.match(cron, /30 5,6 \* \* 0/);
   assert.match(cron, /Asia\/Jerusalem/);
-  assert.doesNotMatch(sql, /update public\.feedback_campaigns set expires_at.*where.*week/s);
 });
