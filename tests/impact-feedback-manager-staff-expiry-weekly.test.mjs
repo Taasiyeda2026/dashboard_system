@@ -55,8 +55,11 @@ test('approved manager reminders use office mailbox and administrator CC only', 
   assert.match(edge, /toRecipients: \[\{emailAddress:\{address:payload\.to_email\}\}\]/);
   assert.match(edge, /ccRecipients: \[\{emailAddress:\{address:'idann@think.org.il'\}\}\]/);
   assert.match(edge, /if\(!MAIL_DELIVERY_APPROVED\)return reply/);
-  assert.match(edge, /width="630"/);
+  assert.match(edge, /width="520"/);
   assert.match(edge, /direction:rtl/);
+  assert.match(edge, /border:1px solid #D5DEE7/);
+  assert.match(edge, /font-size:12pt/);
+  assert.match(edge, /mso-line-height-rule:exactly/);
 });
 
 test('manager email matches the reviewed four-column RTL format', () => {
