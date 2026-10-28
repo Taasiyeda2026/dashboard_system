@@ -1,6 +1,6 @@
 import 'jsr:@supabase/functions-js/edge-runtime.d.ts';
 
-// Weekly Sunday 08:30 Asia/Jerusalem. No automatic extension of any feedback expiry.
+// Every second Thursday 08:30 Asia/Jerusalem from 2026-11-12, plus one explicit first send on 2026-10-28. No automatic expiry extension.
 // Exactly one non-retried mail attempt per manager and week; the database is the audit log.
 const SECRET_DIGEST = '5799221868b0bc9081f4d3cda7839928dd84c79d7b7680033f80283b471a93f4';
 const GRAPH_CLIENT = 'b37ae8f7-0b03-4925-b0e4-f5cb8da95238';
@@ -17,7 +17,7 @@ const sha = async (s: string) => [...new Uint8Array(await crypto.subtle.digest('
   .map((x) => x.toString(16).padStart(2, '0')).join('');
 const validEmail = (s: unknown) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(clean(s));
 const localTime = (d: Date) => Object.fromEntries(new Intl.DateTimeFormat('en-GB', {
-  timeZone: 'Asia/Jerusalem', weekday: 'short', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+  timeZone: 'Asia/Jerusalem', weekday: 'short', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
 }).formatToParts(d).map((p) => [p.type, p.value]));
 const date = (v: unknown) => {
   const d = new Date(String(v));
@@ -57,7 +57,7 @@ function emailMessage(payload: Digest) {
     '<p>התוקף אינו משתנה אוטומטית. קישור המשוב הקיים נשמר לאחר העדכון.</p>' +
     '<p>בברכה,<br>מערכת תעשיידע</p></div>';
   return {
-    subject: 'תעשיידע | דוח שבועי: '+payload.items.length+' משובים שפג תוקפם',
+    subject: 'תעשיידע | דוח דו-שבועי: '+payload.items.length+' משובים שפג תוקפם',
     body: {contentType:'HTML',content:body},
     toRecipients: [{emailAddress:{address:payload.to_email}}],
     ccRecipients: [...new Set(payload.cc_emails.map((x)=>x.toLowerCase()))]
@@ -96,7 +96,18 @@ Deno.serve(async(req:Request)=>{
     const header=req.headers.get('x-staff-dry-run-secret')||'';
     if(!header || await sha(header)!==SECRET_DIGEST)return reply({ok:false,error:'unauthorized'},401);
     const clock=localTime(new Date());
-    if(clock.weekday!=='Sun' || clock.hour!=='08' || clock.minute!=='30')
+    const israelDay=[clock.year,clock.month,clock.day].join('-');
+    const action=String((await req.json().catch(()=>({})))?.action||'');
+    if(action!=='scheduled' && action!=='send_now')
+      return reply({ok:false,error:'invalid_action'},400);
+    const localUtcDay=Date.UTC(Number(clock.year),Number(clock.month)-1,Number(clock.day));
+    const anchorUtcDay=Date.UTC(2026,10,12);
+    const daysSinceAnchor=Math.round((localUtcDay-anchorUtcDay)/86400000);
+    const scheduled=clock.weekday==='Thu' && clock.hour==='08' && clock.minute==='30'
+      && daysSinceAnchor>=0 && daysSinceAnchor%14===0;
+    // The one-time first send is not a standing manual API.
+    const immediate=action==='send_now' && israelDay==='2026-10-28';
+    if((action==='scheduled'&&!scheduled)||(action==='send_now'&&!immediate))
       return reply({ok:true,outside_window:true});
     const url=Deno.env.get('SUPABASE_URL')||'';
     const key=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||'';
