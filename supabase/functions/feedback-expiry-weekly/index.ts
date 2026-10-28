@@ -74,11 +74,13 @@ function emailMessage(payload: Digest, now = new Date()) {
   const surveyTab = allStaff ? 'צוות חינוכי' : allInstructor ? 'מדריכים' : 'הלשונית המתאימה';
   const steps = [
     allInstructor || allStaff
-      ? 'היכנס לדשבורד תעשיידע, לממשק "משובים" ולאחר מכן ללשונית "'+surveyTab+'".'
+      ? 'היכנס לדשבורד תעשיידע < משובים < '+surveyTab+'.'
       : 'היכנס לדשבורד תעשיידע ולממשק "משובים".',
     'אתר את המשובים שפג תוקפם לפי הטבלה.',
     'לחץ על "עדכון תוקף", בחר תאריך חדש ושמור.',
-    'שלח מחדש לנמענים את הקישור למילוי המשוב.'
+    allInstructor ? 'שלח מחדש למדריכים את הקישור למילוי המשוב.' :
+      allStaff ? 'שלח מחדש לצוות החינוכי את הקישור למילוי המשוב.' :
+      'שלח מחדש לנמענים את הקישור למילוי המשוב.'
   ];
   const body = '<div dir="rtl" lang="he" style="direction:rtl;text-align:right;font-family:Arial,Helvetica,sans-serif;' +
     'font-size:16px;line-height:1.75;color:#111;max-width:920px;margin:0;padding:0">' +
