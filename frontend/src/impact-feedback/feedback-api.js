@@ -4,6 +4,7 @@
  */
 import { supabase } from '../supabase-client.js';
 import { isElementaryPaperTemplate } from './feedback-paper-pdf-eligibility.js';
+import { loadAllFeedbackFactPages } from './feedback-facts-pagination.js';
 
 const ERROR_MESSAGES = {
   feedback_forbidden: 'אין הרשאה – רק אדמין מנהל את מודול המשובים',
@@ -169,8 +170,18 @@ export async function fetchInstructorReviewItems(academicYear = null) {
 
 export async function fetchAnswerFacts(filters = {}) {
   const clean = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== '' && v !== null && v !== undefined));
-  const rows = await unwrap(client().rpc('feedback_admin_answer_facts', { p_filters: clean }));
-  return Array.isArray(rows) ? rows : [];
+  // A single RPC result is limited by PostgREST row caps. Stable ordering and
+  // page ranges are essential: otherwise only the earliest submitted surveys show.
+  return loadAllFeedbackFactPages(async (start, end) => {
+    const rows = await unwrap(client()
+      .rpc('feedback_admin_answer_facts', { p_filters: clean })
+      .order('submitted_at', { ascending: true })
+      .order('response_id', { ascending: true })
+      .order('sort_order', { ascending: true })
+      .order('answer_id', { ascending: true })
+      .range(start, end));
+    return Array.isArray(rows) ? rows : [];
+  });
 }
 
 // --- Templates --------------------------------------------------------------
