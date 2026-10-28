@@ -716,7 +716,7 @@ function routineMonitoringHtml() {
   const managerOnly = feedbackViewerUser?.role === 'activities_manager';
   const entries = [];
   const add = (campaign, person, school, program) => {
-    if (!campaign || !program || (ui.course && program !== ui.course)) return;
+    if (!campaign || campaign.not_required || !program || (ui.course && program !== ui.course)) return;
     const status = campaignUiStatus(campaign);
     const rec = campaign.recipient;
     let sharing = 'לא תועד שיתוף';
@@ -758,7 +758,8 @@ function routineMonitoringHtml() {
   }).join('');
   return '<p class="ifb-muted">' + (managerOnly ? 'משובים בפעילויות שבאחריותך. ' : '') +
     'סטטוס שיתוף מוצג רק כשקיים תיעוד. העתקת קישור או QR אינם אישור שהמשוב נשלח.</p>' +
-    '<div class="ifb-table-wrap" dir="rtl"><table class="ifb-table"><caption class="ifb-sr">מעקב משובים שוטף</caption>' +
+    '<div class="ifb-table-wrap ifb-monitoring-wrap" dir="rtl"><table class="ifb-table ifb-monitoring-table"><caption class="ifb-sr">מעקב משובים שוטף</caption>' +
+    '<colgroup><col style="width:27%"><col style="width:24%"><col style="width:19%"><col style="width:17%"><col style="width:13%"></colgroup>' +
     '<thead><tr><th>נמען / קבוצה</th><th>קורס</th><th>סוג משוב</th><th>שיתוף מתועד</th><th>סטטוס מילוי</th></tr></thead>' +
     '<tbody>' + rows + '</tbody></table></div>' +
     (entries.length > shown.length ? '<p class="ifb-muted">מוצגים ' + shown.length + ' מתוך ' + entries.length +
@@ -1838,6 +1839,12 @@ function slotCardHtml(group, slot, user) {
   const campaign = slotCampaign(group, slot);
   const status = campaignUiStatus(campaign);
   const title = `<h3 class="ifb-slot__title">${esc(slot.label)}</h3>`;
+  if (campaign?.not_required === true) {
+    return `<article class="ifb-slot" data-slot="${slot.key}" data-campaign="${esc(campaign.id)}">
+      <div class="ifb-slot__head">${title}${campaignStatusHtml(campaign)}</div>
+      <p class="ifb-muted">משוב פתיחה לתלמידים אינו נדרש בקבוצה זו. משובי הסיום ושאר הקהלים ממשיכים כרגיל.</p>
+    </article>`;
+  }
   if (!campaign) {
     return `<article class="ifb-slot" data-slot="${slot.key}"${staffShareAttr}${studentShareAttr}>
       <div class="ifb-slot__head">${title}${campaignStatusHtml(null)}</div>
