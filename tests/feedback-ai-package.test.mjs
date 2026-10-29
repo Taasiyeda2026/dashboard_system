@@ -125,3 +125,15 @@ test('workbook first instruction explicitly requests immediate analysis', () => 
   assert.equal(firstSheet.rows[1][0], 'התחל מיד - אין צורך באישור נוסף');
   assert.match(firstSheet.rows[1][1], /אל תשאל אם לנתח/);
 });
+
+
+test('default AI handoff asks for a short executive report while preserving all data analysis', () => {
+  const sheet = report(['student:pre', 'instructor:pre']).sheets[0];
+  const instructions = sheet.rows.map((r) => r.join(' ')).join('\n');
+  assert.match(instructions, /דוח ניהולי תמציתי/);
+  assert.match(instructions, /עד 3 עמודים/);
+  assert.match(instructions, /תשובות בערבית/);
+  assert.match(instructions, /תשובות תקפות/);
+  assert.match(instructions, /עד 5/);
+  assert.match(instructions, /פירוט.*לפי בקשה/);
+});
