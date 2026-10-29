@@ -43,10 +43,14 @@ export function staffDeliveryPresentation({
   if (status === 'failed') return { label: 'השליחה נכשלה', tone: 'warning' };
   if (status === 'needs_attention') {
     const issues = {
-      missing_selected_contact: 'חסר איש קשר',
-      missing_contact_email: 'חסרה כתובת מייל',
-      unresolved_program: 'לא זוהה קורס',
-      missing_end_time: 'חסרה שעת סיום מפגש',
+      missing_selected_contact: 'לא נשלח · חסר איש קשר',
+      missing_contact_email: 'לא נשלח · חסרה כתובת מייל',
+      missing_selected_contact_after_deadline: 'לא נשלח · חסר איש קשר',
+      missing_contact_email_after_deadline: 'לא נשלח · חסרה כתובת מייל',
+      opening_window_elapsed: 'לא נשלח · מועד השליחה חלף',
+      dispatch_window_elapsed: 'לא נשלח · מועד השליחה חלף',
+      unresolved_program: 'לא נשלח · לא זוהה קורס',
+      missing_end_time: 'לא נשלח · חסרה שעת סיום מפגש',
       overlapping_delivery: 'נדרש בירור שליחה כפולה',
       graph_response_lost: 'תוצאת השליחה לא ידועה',
       unknown: 'תוצאת השליחה לא ידועה'
@@ -66,7 +70,7 @@ export function staffDeliveryPresentation({
     const untilThursday = (4 - weekDay + 7) % 7;
     const cohortStart = shiftUtcDate(day, untilThursday - 6);
     if (startDate < cohortStart) {
-      return { label: 'לא נשלח · חלון השליחה חלף', tone: 'warning' };
+      return { label: 'לא נשלח · מועד השליחה חלף', tone: 'warning' };
     }
     return { label: 'שליחה בחמישי 08:00', tone: 'scheduled' };
   }
