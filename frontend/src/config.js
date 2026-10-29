@@ -530,3 +530,5 @@ config.HOTFIX_VERSION = 'central-notifications-review-20261029-v1-' + config.HOT
 config.HOTFIX_VERSION = 'notifications-staff-routing-visual-20261029-v2-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = 'feedback-staff-background-delivery-20261029-v1-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'finance-funder-billing-20261030-v1-' + config.HOTFIX_VERSION;

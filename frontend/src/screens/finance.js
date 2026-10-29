@@ -17,33 +17,18 @@ import {
   normalizeFinanceAttendanceExportType,
   summarizeFinanceAttendance
 } from './finance-attendance-summary.js';
-import {
-  FINANCE_COLLECTION_CLOSED,
-  FINANCE_COLLECTION_OPEN,
-  FINANCE_COLLECTION_TAB_ALL,
-  FINANCE_COLLECTION_TAB_CLOSED,
-  FINANCE_COLLECTION_TAB_OPEN,
-  FINANCE_NO_END_DATE_MONTH_KEY,
-  FINANCE_NO_END_DATE_MONTH_LABEL,
-  activityRowId,
-  activityStatusLabel,
-  attachCollectionTracking,
-  groupFinanceCollectionByEndMonth,
-  groupFinanceCollectionPayers,
-  money,
-  normalizeCollectionStatus,
-  normalizeFinanceCollectionTab,
-  summarizeFinanceCollectionTotals
-} from './finance-collection.js';
-import { ACTIVITY_SEASON_SCHOOL_2027, getActivityPeriodKey } from './shared/summer-activity.js';
-import { financeCycleCutoff, transactionActivitySummary } from './finance-transaction-accounts.js';
+import { activityRowId, normalizeFinanceCollectionTab } from './finance-collection.js';
+import { financeError } from './finance-errors.js';
+import { financeAccountBalances, paymentsBodyHtml, receiptsHtml, accountPaymentAllocation } from './finance-payments.js';
+import { prepareManualAccount, updateManualDraft, manualRequest, runManualAccount } from './finance-manual-account.js';
+import { financeToday } from './finance-transaction-accounts.js';
 import {
   handleTransactionSelection,
   runTransactionIssuance,
   transactionAccountsViewHtml
 } from './finance-transaction-issuance.js';
 
-export const FINANCE_COLLECTION_ACTIVITY_PERIOD = ACTIVITY_SEASON_SCHOOL_2027;
+export const FINANCE_COLLECTION_ACTIVITY_PERIOD = 'all';
 
 export {
   FINANCE_ATTENDANCE_COLUMNS,
@@ -167,7 +152,7 @@ function hubCardsHtml(user) {
       view: 'transactions',
       icon: 'transaction',
       title: 'חשבונות עסקה',
-      description: 'סבב גפן, הפקה ידנית והיסטוריית חשבונות'
+      description: 'חשבונות גפ״ן, חשבונות פתוחים להפקה והיסטוריה'
     }
   ];
   return `<div class="ds-fin-hub" dir="rtl">
@@ -328,23 +313,13 @@ function attendanceViewHtml(data, { state } = {}) {
   `);
 }
 
-function saveStatusHtml(rowId, saveState = {}) {
-  const status = saveState[rowId];
-  if (status === 'saved') return '<span class="ds-fin-save is-saved">נשמר</span>';
-  if (status === 'saving') return '<span class="ds-fin-save">שומר…</span>';
-  if (status && status !== 'saved' && status !== 'saving') {
-    return `<span class="ds-fin-save is-error">${escapeHtml(status)}</span>`;
-  }
-  return '<span class="ds-fin-save"></span>';
-}
-
 /** Collection-screen money display only: numeric 0 → ₪0; missing/invalid → — (do not change shared money()). */
 function collectionMoney(value) {
   if (value == null || typeof value === 'boolean') return '—';
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) return '—';
     if (value === 0) return '₪0';
-    return money(value);
+    return `₪${value.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
   const raw = String(value).trim();
   if (!raw) return '—';
@@ -353,110 +328,15 @@ function collectionMoney(value) {
   const amount = Number(cleaned);
   if (!Number.isFinite(amount)) return '—';
   if (amount === 0) return '₪0';
-  return money(value);
-}
-
-function collectionStackHtml(primary, metas = []) {
-  const metaHtml = (Array.isArray(metas) ? metas : [metas])
-    .filter((item) => item != null && String(item).trim() !== '')
-    .map((item) => `<div class="ds-fin-stack__meta">${item}</div>`)
-    .join('');
-  return `<div class="ds-fin-stack"><div class="ds-fin-stack__primary">${primary}</div>${metaHtml}</div>`;
-}
-
-function collectionActivityRowHtml(activity, saveState = {}) {
-  const id = escapeHtml(activityRowId(activity));
-  const status = normalizeCollectionStatus(activity.collection_status);
-  const expected = String(activity.expected_collection_date || '').slice(0, 10);
-  const tx = activity.transaction_summary || {};
-  const last = activity.last_transaction_account;
-  const planned = tx.plannedCount ?? 0;
-  const completed = tx.completedCount ?? 0;
-  const billed = tx.billedCount ?? 0;
-  const unbilledCount = tx.unbilledCount || 0;
-  const unbilledHours = tx.unbilledHours || 0;
-  const semel = activity.semel_mosad
-    ? escapeHtml(activity.semel_mosad)
-    : escapeHtml('חסר — חסום להפקה');
-  const lastAccountHtml = last
-    ? collectionStackHtml(
-      escapeHtml(String(last.transaction_account_number || '—')),
-      escapeHtml(String(last.issue_date || '').slice(0, 10) || '—')
-    )
-    : '—';
-  return `<tr data-fin-activity-id="${id}">
-    <td class="ds-fin-pay-table__activity">${collectionStackHtml(
-      escapeHtml(activity.activity_name || '—'),
-      `מס׳ גפ״ן: ${escapeHtml(activity.activity_no || '—')}`
-    )}</td>
-    <td class="ds-fin-pay-table__client">${collectionStackHtml(
-      escapeHtml(activity.school || '—'),
-      [escapeHtml(activity.authority || '—'), `סמל מוסד: ${semel}`]
-    )}</td>
-    <td>${escapeHtml(activity.funding || '—')}</td>
-    <td class="ds-fin-num">${escapeHtml(collectionMoney(activity.price))}</td>
-    <td class="ds-fin-pay-table__meetings">${escapeHtml(`מתוכנן ${planned} · בוצע ${completed} · חויב ${billed}`)}</td>
-    <td class="ds-fin-pay-table__unbilled">${collectionStackHtml(
-      escapeHtml(`${unbilledCount} מפגשים`),
-      [escapeHtml(`${unbilledHours} שעות`), escapeHtml(collectionMoney(tx.amount))]
-    )}</td>
-    <td class="ds-fin-pay-table__account">${lastAccountHtml}</td>
-    <td>${escapeHtml(activityStatusLabel(activity))}</td>
-    <td class="ds-fin-pay-table__edit">
-      <select class="ds-input ds-fin-inline" data-fin-collect-field="collection_status" data-fin-activity-id="${id}">
-        <option value="${FINANCE_COLLECTION_OPEN}"${status === FINANCE_COLLECTION_OPEN ? ' selected' : ''}>פתוח</option>
-        <option value="${FINANCE_COLLECTION_CLOSED}"${status === FINANCE_COLLECTION_CLOSED ? ' selected' : ''}>סגור</option>
-      </select>
-    </td>
-    <td class="ds-fin-pay-table__edit">
-      <input class="ds-input ds-fin-inline" type="date" data-fin-collect-field="expected_collection_date" data-fin-activity-id="${id}" value="${escapeHtml(expected)}">
-    </td>
-    <td class="ds-fin-pay-table__note">
-      <input class="ds-input ds-fin-inline" type="text" data-fin-collect-field="finance_note" data-fin-activity-id="${id}" value="${escapeHtml(activity.finance_note || '')}" placeholder="הערה">
-      ${saveStatusHtml(activityRowId(activity), saveState)}
-    </td>
-  </tr>`;
-}
-
-function payerCardHtml(group, tab, saveState = {}) {
-  const openMeta = tab === 'all'
-    ? `${group.activityCount} פעילויות · ${collectionMoney(group.totalAmount)} · ${group.openCount} פתוחות`
-    : `${group.activityCount} פעילויות · ${collectionMoney(group.totalAmount)}`;
-  const rows = group.activities.map((activity) => collectionActivityRowHtml(activity, saveState)).join('');
-  return `<details class="ds-fin-payer">
-    <summary>
-      <span class="ds-fin-payer__title">${escapeHtml(group.label)}</span>
-      <span class="ds-fin-payer__meta">${escapeHtml(openMeta)}</span>
-    </summary>
-    ${dsTableWrap(`<table class="ds-table ds-fin-pay-table" dir="rtl">
-      <thead><tr>
-        <th>פעילות</th>
-        <th>לקוח</th>
-        <th>גורם מימון</th>
-        <th class="ds-fin-num">מחיר</th>
-        <th>מפגשים</th>
-        <th>טרם חויב</th>
-        <th>חשבון אחרון</th>
-        <th>סטטוס פעילות</th>
-        <th>סטטוס גבייה</th>
-        <th>צפי לגבייה</th>
-        <th>הערה</th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`)}
-  </details>`;
-}
-
-function collectionMonthLabel(monthKey) {
-  if (monthKey === FINANCE_NO_END_DATE_MONTH_KEY) return FINANCE_NO_END_DATE_MONTH_LABEL;
-  return attendanceMonthLabel(monthKey) || monthKey;
+  return `₪${amount.toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 function collectionSummaryCardsHtml(totals = {}) {
   const cards = [
-    { label: 'סכום כל הפעילויות', value: collectionMoney(totals.totalAmount) },
-    { label: 'סה״כ לגבייה', value: collectionMoney(totals.openAmount) },
-    { label: 'סה״כ גבייה שבוצעה', value: collectionMoney(totals.closedAmount) }
+    { label: 'סכום חשבונות שהופקו', value: collectionMoney(totals.totalAmount) },
+    { label: 'חשבונות פתוחים למעקב', value: collectionMoney(totals.openAmount) },
+    { label: 'תקבולים שתועדו', value: collectionMoney(totals.closedAmount) },
+    { label: 'מועד גבייה חלף', value: String(totals.overdueCount || 0) }
   ];
   return `<div class="ds-fin-collect-summary" dir="rtl">
     ${cards.map((card) => `
@@ -468,59 +348,8 @@ function collectionSummaryCardsHtml(totals = {}) {
   </div>`;
 }
 
-function collectionMonthSectionHtml(month, tab, saveState = {}) {
-  const payers = month.payers || [];
-  if (!payers.length) return '';
-  const body = payers.map((group) => payerCardHtml(group, tab, saveState)).join('');
-  return `<section class="ds-fin-collect-month">
-    <header class="ds-fin-collect-month__head">
-      <h3 class="ds-fin-collect-month__title">${escapeHtml(collectionMonthLabel(month.monthKey))}</h3>
-      <span class="ds-fin-collect-month__meta">${escapeHtml(`${month.activityCount} פעילויות · ${collectionMoney(month.totalAmount)}`)}</span>
-    </header>
-    <div class="ds-fin-payers">${body}</div>
-  </section>`;
-}
-
-function buildFinanceCollectionActivities(data) {
-  return attachCollectionTracking(
-    (data.collectionActivities || []).filter(isFinanceCollectionActivity),
-    data.collectionTracking || []
-  ).map((activity) => {
-    const accounts = data.transactionContext?.accounts || [];
-    const lines = accounts.flatMap((account) => (account.finance_transaction_account_lines || []).map((line) => ({ ...line, account })));
-    const activityLines = lines.filter((line) => line.activity_row_id === activityRowId(activity) && line.account.document_status !== 'cancelled');
-    const billedSlots = activityLines.flatMap((line) => (line.finance_transaction_account_meetings || []).map((meeting) => meeting.meeting_slot));
-    const cancelledDates = (data.transactionContext?.cancelled || []).filter((row) => row.activity_id === activityRowId(activity)).map((row) => row.meeting_date);
-    const school = (data.transactionContext?.schools || []).find((row) => String(row.id) === String(activity.school_id));
-    const latest = activityLines.sort((a, b) => String(b.account.issue_date).localeCompare(String(a.account.issue_date)))[0];
-    return {
-      ...activity,
-      semel_mosad: school?.semel_mosad || '',
-      transaction_summary: transactionActivitySummary({ ...activity, semel_mosad: school?.semel_mosad || '' }, {
-        cutoff: financeCycleCutoff(),
-        cancelledDates,
-        billedSlots,
-        billedAmount: activityLines.reduce((sum, line) => sum + Number(line.amount || 0), 0)
-      }),
-      last_transaction_account: latest?.account || null
-    };
-  });
-}
-
 export function buildFinanceCollectionBodyHtml(data) {
-  const tab = normalizeFinanceCollectionTab(data.collectionTab);
-  const search = data.collectionSearch || '';
-  const activities = buildFinanceCollectionActivities(data);
-  const months = groupFinanceCollectionByEndMonth(activities, { tab, search });
-  const emptyMessage = tab === FINANCE_COLLECTION_TAB_CLOSED
-    ? 'אין פעילויות סגורות לגבייה.'
-    : tab === FINANCE_COLLECTION_TAB_OPEN
-      ? 'אין פעילויות פתוחות לגבייה.'
-      : 'אין פעילויות לתצוגה.';
-  if (data.collectionError) return dsEmptyState(data.collectionError);
-  if (data.collectionLoading && data.collectionActivities == null) return dsEmptyState('טוען מעקב גבייה…');
-  if (!months.length) return dsEmptyState(search ? 'לא נמצאו פעילויות התואמות לחיפוש.' : emptyMessage);
-  return months.map((month) => collectionMonthSectionHtml(month, tab, data.collectionSaveState || {})).join('');
+  return paymentsBodyHtml(data);
 }
 
 function syncFinanceCollectionTabs(root, tab) {
@@ -537,40 +366,27 @@ function updateFinanceCollectionBody(root, visit) {
 }
 
 function collectionViewHtml(data) {
-  const tab = normalizeFinanceCollectionTab(data.collectionTab);
-  const search = data.collectionSearch || '';
-  const activities = buildFinanceCollectionActivities(data);
-  const totals = summarizeFinanceCollectionTotals(activities);
-  const body = buildFinanceCollectionBodyHtml(data);
-  return dsScreenStack(`
-    <div class="ds-fin-collect-shell" dir="rtl">
-      ${backBarHtml('מעקב גבייה')}
-      ${collectionSummaryCardsHtml(totals)}
-      <div class="ds-fin-collect-toolbar">
-        <label class="ds-fin-collect-search">
-          <span class="ds-fin-collect-search__label">חיפוש</span>
-          <input class="ds-input" type="search" data-finance-collection-search value="${escapeHtml(search)}" placeholder="שם פעילות, רשות, בית ספר או גורם משלם" autocomplete="off">
-        </label>
-        <div class="ds-fin-tabs" role="tablist">
-          <button type="button" class="ds-fin-tab${tab === FINANCE_COLLECTION_TAB_OPEN ? ' is-active' : ''}" data-finance-collection-tab="${FINANCE_COLLECTION_TAB_OPEN}">פתוח</button>
-          <button type="button" class="ds-fin-tab${tab === FINANCE_COLLECTION_TAB_CLOSED ? ' is-active' : ''}" data-finance-collection-tab="${FINANCE_COLLECTION_TAB_CLOSED}">סגור</button>
-          <button type="button" class="ds-fin-tab${tab === FINANCE_COLLECTION_TAB_ALL ? ' is-active' : ''}" data-finance-collection-tab="${FINANCE_COLLECTION_TAB_ALL}">הכול</button>
-        </div>
-      </div>
-      <div class="ds-fin-collect-body" data-finance-collection-body>${body}</div>
-    </div>
-  `);
+  const accounts = financeAccountBalances(data);
+  const totals = { totalAmount: accounts.reduce((sum,a)=>sum+Number(a.total_amount),0), openAmount: accounts.reduce((sum,a)=>sum+a.balance,0),
+    closedAmount: accounts.reduce((sum,a)=>sum+a.paidAmount,0), overdueCount: accounts.filter(a=>a.balance>0&&a.payment_due_date<financeToday()).length };
+  const pending = (data.transactionContext?.billingRows || []).filter(row => Number(row.unbilledAmount)>0);
+  return dsScreenStack(`<div class="ds-fin-collect-shell" data-finance-account-collection dir="rtl">${backBarHtml('מעקב גבייה')}
+    ${data.paymentMessage ? `<p role="status">${escapeHtml(data.paymentMessage)}</p>` : ''}
+    ${collectionSummaryCardsHtml(totals)}
+    <div class="ds-fin-collect-toolbar"><label>חיפוש<input class="ds-input" type="search" data-finance-collection-search value="${escapeHtml(data.collectionSearch || '')}" placeholder="מספר חשבון, גורם משלם או בית ספר"></label>
+      <div class="ds-fin-tabs" role="tablist">${[['open','פתוח'],['closed','ארכיון חשבונות ששולמו'],['all','הכול']].map(([tab,label])=>`<button class="ds-fin-tab${data.collectionTab===tab?' is-active':''}" data-finance-collection-tab="${tab}">${label}</button>`).join('')}</div></div>
+    <div data-finance-collection-body>${buildFinanceCollectionBodyHtml(data)}</div>
+    ${receiptsHtml(data)}
+    <details class="ds-fin-payer"><summary>ממתין לחיוב</summary>${pending.map(row=>`<p>${escapeHtml(row.customerName)} · ${escapeHtml(row.activityName)} · ${escapeHtml(row.funding)} · ${escapeHtml(row.period?.slice(0,7)||'')} · ${escapeHtml(collectionMoney(row.unbilledAmount))}</p>`).join('')}</details>
+  </div>`);
 }
 
 function hubViewHtml(user) {
-  return dsScreenStack(`
-    ${dsPageHeader('כספים')}
-    ${hubCardsHtml(user)}
-  `);
+  return dsScreenStack(`${dsPageHeader('כספים')}${hubCardsHtml(user)}`);
 }
 
 function isFinanceCollectionActivity(row = {}) {
-  return getActivityPeriodKey(row) === FINANCE_COLLECTION_ACTIVITY_PERIOD;
+  return !!activityRowId(row);
 }
 
 async function ensureAttendanceLoaded(data, api, monthKey) {
@@ -632,38 +448,27 @@ async function ensureCollectionLoaded(data, api, { force = false } = {}) {
   data.collectionError = '';
   try {
     const transactionPromise = typeof api.financeTransactionContext === 'function'
-      ? api.financeTransactionContext().catch(() => ({ cancelled: [], accounts: [], schools: [] }))
-      : Promise.resolve({ cancelled: [], accounts: [], schools: [] });
-    const [activities, tracking, transactionContext] = await Promise.all([
-      api.allActivities({
-        select: FINANCE_COLLECTION_ACTIVITY_COLUMNS,
-        activity_period: FINANCE_COLLECTION_ACTIVITY_PERIOD
-      }),
-      typeof api.listFinanceCollectionTracking === 'function'
-        ? api.listFinanceCollectionTracking()
-        : Promise.resolve([]),
+      ? api.financeTransactionContext()
+      : Promise.reject(new Error('נתוני חשבונות העסקה אינם זמינים; ההפקה חסומה.'));
+    const [activities, transactionContext] = await Promise.all([
+      api.listFinanceActivities({ select: FINANCE_COLLECTION_ACTIVITY_COLUMNS }),
       transactionPromise
     ]);
     data.collectionPeriod = FINANCE_COLLECTION_ACTIVITY_PERIOD;
     data.collectionActivities = (Array.isArray(activities?.rows) ? activities.rows : [])
       .filter(isFinanceCollectionActivity);
-    data.collectionTracking = Array.isArray(tracking) ? tracking : [];
-    data.transactionContext = transactionContext;
+    const [billingRows, paymentContext] = await Promise.all([api.financeBillingPreview(data.collectionActivities.map(activityRowId)), api.financePaymentContext()]);
+    if (!paymentContext || !Array.isArray(paymentContext.balances)) throw new Error('נתוני התשלומים אינם זמינים');
+    data.paymentContext = paymentContext;
+    data.transactionContext = { ...transactionContext, billingRows };
   } catch (error) {
-    data.collectionError = error?.message || 'טעינת מעקב הגבייה נכשלה.';
+    data.transactionContext = null;
+    data.paymentContext = null;
+    data.collectionError = financeError(error);
     throw error;
   } finally {
     data.collectionLoading = false;
   }
-}
-
-function findActivity(data, rowId) {
-  return (data.collectionActivities || []).find((row) => activityRowId(row) === String(rowId || '').trim());
-}
-
-function findTracking(data, rowId) {
-  const id = String(rowId || '').trim();
-  return (data.collectionTracking || []).find((row) => String(row.activity_row_id || activityRowId(row)).trim() === id);
 }
 
 export const financeScreen = {
@@ -673,6 +478,7 @@ export const financeScreen = {
     if (!canAccessFinance(state?.user)) {
       return dsScreenStack(`${dsPageHeader('כספים', 'גישה מוגבלת')} ${dsEmptyState('אין הרשאה לצפייה בעמוד כספים.')}`);
     }
+    data.financeAdmin = state?.user?.role === 'admin';
     const requestedView = data?.view || 'hub';
     const view = canOpenFinanceView(state?.user, requestedView) ? requestedView : 'hub';
     if (view === 'attendance') return attendanceViewHtml(data, { state });
@@ -696,7 +502,45 @@ export const financeScreen = {
       }).catch(() => { visit.attendanceError = 'לא ניתן לטעון את חודש הנוכחות.'; refresh(); });
     }
 
+    const formValues = (form) => Object.fromEntries([...form.querySelectorAll('[name]')].map(field => [field.name, field.value]));
+    const financeAction = async (button, action) => {
+      if (visit.financeBusy) return;
+      visit.financeBusy = true; button.disabled = true;
+      try { await action(); await ensureCollectionLoaded(visit, api, { force: true }); visit.paymentMessage = 'נשמר'; }
+      catch (error) { await ensureCollectionLoaded(visit, api, { force: true }).catch(() => {}); visit.paymentMessage = financeError(error); visit.transactionActionMessage = visit.paymentMessage; }
+      finally { visit.financeBusy = false; button.disabled = false; refresh(); }
+    };
     const onClick = async (ev) => {
+      const paymentOpen = ev.target.closest('[data-finance-payment-open]');
+      if (paymentOpen) { visit.paymentAccountId = paymentOpen.dataset.financePaymentOpen; refresh(); return; }
+      const receiptSave = ev.target.closest('[data-finance-receipt-save]');
+      if (receiptSave) {
+        const form = receiptSave.closest('form'); if (!form.checkValidity()) { form.reportValidity(); return; }
+        const payload = formValues(form); const accountId = payload.account_id; delete payload.account_id;
+        await financeAction(receiptSave, async () => { const allocations = accountId ? accountPaymentAllocation(visit, accountId, payload.amount) : []; await api.recordFinanceReceipt(payload, allocations, crypto.randomUUID()); visit.paymentAccountId = ''; }); return;
+      }
+      const allocation = ev.target.closest('[data-finance-allocate]');
+      if (allocation) {
+        const form = allocation.closest('form'); const values = formValues(form); const [accountId,activity] = String(values.account_activity || '').split('|');
+        const key = [form.dataset.receiptId, accountId, activity, values.amount].join('|');
+        visit.receiptAllocationKeys ||= {};
+        visit.receiptAllocationKeys[key] ||= crypto.randomUUID();
+        await financeAction(allocation, async () => { await api.allocateFinanceReceipt(form.dataset.receiptId, [{ account_id:accountId, activity_row_id:activity, amount:Number(values.amount) }], visit.receiptAllocationKeys[key]); delete visit.receiptAllocationKeys[key]; }); return;
+      }
+      const correction = ev.target.closest('[data-finance-receipt-correct]');
+      if (correction) { const reason = window.prompt('סיבת תיקון התקבול'); if (reason?.trim()) await financeAction(correction, () => api.voidFinanceReceipt(correction.dataset.financeReceiptCorrect, reason)); return; }
+      const cancelAccount = ev.target.closest('[data-finance-account-cancel]');
+      if (cancelAccount) { const reason = window.prompt('סיבת ביטול החשבון'); if (reason?.trim()) await financeAction(cancelAccount, () => api.cancelIssuedFinanceAccount(cancelAccount.dataset.financeAccountCancel, reason)); return; }
+      const manualPreview = ev.target.closest('[data-finance-manual-preview]');
+      if (manualPreview) {
+        if (visit.financeBusy) return; visit.financeBusy = true; manualPreview.disabled = true;
+        try { const result = await api.previewFinanceManualAccount(manualRequest(visit)); visit.manualQuote = result.quote; visit.manualPdf = result.pdfBase64; visit.manualRequestId = crypto.randomUUID(); visit.transactionActionMessage = ''; }
+        catch (error) { visit.transactionActionMessage = financeError(error); }
+        finally { visit.financeBusy = false; refresh(); } return;
+      }
+      const manualConfirm = ev.target.closest('[data-finance-manual-confirm]');
+      if (manualConfirm) { await financeAction(manualConfirm, async () => { await runManualAccount(visit, api); visit.manualQuote = null; visit.manualPdf = ''; visit.transactionTab = 'history'; }); return; }
+
       if (ev.target.closest('[data-finance-clear-notification-filter]')) {
         visit.notificationEmployeeId = ''; refresh(); return;
       }
@@ -714,7 +558,7 @@ export const financeScreen = {
         }
         if (nextView === 'collection' || nextView === 'transactions') {
           refresh();
-          try { await ensureCollectionLoaded(visit, api); }
+          try { await ensureCollectionLoaded(visit, api, { force: true }); }
           catch { /* shown via visit.collectionError */ }
           refresh();
           return;
@@ -733,7 +577,7 @@ export const financeScreen = {
 
       const transactionRun = ev.target.closest('[data-finance-transaction-run]');
       if (transactionRun) {
-        if (visit.transactionRunning) return;
+        if (visit.transactionRunning || visit.financeBusy) return;
         const mode = String(transactionRun.dataset.financeTransactionRun || 'automatic');
         const label = mode === 'manual' ? 'החשבונות המסומנים' : 'סבב גפן';
         if (!window.confirm(`להפיק עכשיו את ${label}? לאחר ההפקה מספרי החשבונות והמפגשים יחויבו ולא ישתנו אוטומטית.`)) return;
@@ -741,13 +585,14 @@ export const financeScreen = {
         visit.transactionActionMessage = 'מפיק חשבונות עסקה…';
         refresh();
         try {
-          const results = await runTransactionIssuance(visit, api, mode);
-          visit.transactionActionMessage = `הופקו ${results.length} חשבונות עסקה. קובצי ה-PDF נשמרו ב-SharePoint וטיוטות Outlook הוכנו בהתאם לנמענים.`;
+          const results = await runTransactionIssuance(visit, api, mode, transactionRun.dataset.financeTransactionPeriod);
+          visit.transactionActionMessage = `הופקו ${results.length} חשבונות עסקה.${results.some(result => result.dispatched?.outlookStatus === 'failed') ? ' יצירת טיוטת המייל נכשלה.' : ''}`;
           if (mode === 'manual') visit.transactionManualSelected = {};
           await ensureCollectionLoaded(visit, api, { force: true });
           visit.transactionTab = 'history';
         } catch (error) {
-          visit.transactionActionMessage = error?.message || 'הפקת חשבונות העסקה נכשלה.';
+          await ensureCollectionLoaded(visit, api, { force: true }).catch(() => {});
+          visit.transactionActionMessage = financeError(error);
         } finally {
           visit.transactionRunning = false;
           refresh();
@@ -838,6 +683,30 @@ export const financeScreen = {
     };
 
     const onChange = async (ev) => {
+      const manualActivity = ev.target.closest('[data-finance-manual-activity]');
+      if (manualActivity) { prepareManualAccount(visit, manualActivity.value); refresh(); return; }
+      const manualFunding = ev.target.closest('[data-finance-manual-funding]');
+      if (manualFunding) { prepareManualAccount(visit, visit.manualActivityId, manualFunding.value); refresh(); return; }
+      const manualField = ev.target.closest('[data-finance-manual-field]');
+      if (manualField) { updateManualDraft(visit, manualField.dataset.financeManualField, manualField.value); refresh(); return; }
+      const accountField = ev.target.closest('[data-finance-account-field]');
+      if (accountField) {
+        const account = financeAccountBalances(visit).find(a => a.id === accountField.dataset.accountId); if (!account) return;
+        const next = { ...account, [accountField.dataset.financeAccountField]: accountField.value };
+        await financeAction(accountField, () => api.updateFinanceAccountTracking(account.id, next.expected_collection_date, next.finance_note)); return;
+      }
+
+      const monthPicker = ev.target.closest('[data-finance-transaction-month]');
+      if (monthPicker) {
+        const mode = monthPicker.dataset.financeTransactionMonth;
+        const month = String(monthPicker.value || '');
+        if (/^\d{4}-\d{2}$/.test(month) && month <= financeToday().slice(0, 7)) {
+          visit.transactionMonths = { ...visit.transactionMonths, [mode]: month };
+          visit.transactionManualSelected = {};
+        }
+        refresh();
+        return;
+      }
       const transactionSelect = ev.target.closest('[data-finance-transaction-select]');
       if (transactionSelect) {
         handleTransactionSelection(visit, transactionSelect.dataset.financeTransactionSelect, transactionSelect.checked);
@@ -861,54 +730,15 @@ export const financeScreen = {
         return;
       }
 
-      const field = ev.target.closest('[data-fin-collect-field]');
-      if (!field) return;
-      const rowId = String(field.dataset.finActivityId || '');
-      const key = String(field.dataset.finCollectField || '');
-      const activity = findActivity(visit, rowId);
-      if (!activity || !key) return;
-      const previous = {
-        collection_status: normalizeCollectionStatus(activity.collection_status),
-        expected_collection_date: String(activity.expected_collection_date || '').slice(0, 10) || null,
-        finance_note: String(activity.finance_note || '')
-      };
-      const next = { ...previous };
-      if (key === 'collection_status') next.collection_status = normalizeCollectionStatus(field.value);
-      if (key === 'expected_collection_date') next.expected_collection_date = String(field.value || '').slice(0, 10) || null;
-      if (key === 'finance_note') next.finance_note = String(field.value || '');
-      try {
-        const saved = await api.upsertFinanceCollectionTracking({
-          activity_row_id: rowId,
-          ...next
-        });
-        activity.collection_status = next.collection_status;
-        activity.expected_collection_date = next.expected_collection_date || '';
-        activity.finance_note = next.finance_note;
-        const existing = findTracking(visit, rowId);
-        const merged = {
-          ...(existing || {}),
-          ...(saved || {}),
-          activity_row_id: rowId,
-          collection_status: next.collection_status,
-          expected_collection_date: next.expected_collection_date,
-          finance_note: next.finance_note
-        };
-        if (existing) Object.assign(existing, merged);
-        else visit.collectionTracking = [...(visit.collectionTracking || []), merged];
-        visit.collectionSaveState = { ...(visit.collectionSaveState || {}), [rowId]: 'saved' };
-      } catch (error) {
-        activity.collection_status = previous.collection_status;
-        activity.expected_collection_date = previous.expected_collection_date || '';
-        activity.finance_note = previous.finance_note;
-        visit.collectionSaveState = {
-          ...(visit.collectionSaveState || {}),
-          [rowId]: error?.message || 'השמירה נכשלה'
-        };
-      }
-      refresh();
+
     };
 
     const onInput = (ev) => {
+      if (ev.target.matches('[data-finance-manual-search]')) {
+        clearTimeout(root._financeManualSearchTimer);
+        root._financeManualSearchTimer = setTimeout(() => { visit.manualSearch = ev.target.value; refresh(); const input = root.querySelector('[data-finance-manual-search]'); input?.focus(); input?.setSelectionRange(visit.manualSearch.length, visit.manualSearch.length); }, 200);
+      }
+
       if (ev.target.matches('[data-finance-collection-search]')) {
         clearTimeout(root._financeCollectionSearchTimer);
         root._financeCollectionSearchTimer = setTimeout(() => {
@@ -926,6 +756,7 @@ export const financeScreen = {
       root.removeEventListener('change', onChange);
       root.removeEventListener('input', onInput);
       clearTimeout(root._financeCollectionSearchTimer);
+      clearTimeout(root._financeManualSearchTimer);
     };
   }
 };

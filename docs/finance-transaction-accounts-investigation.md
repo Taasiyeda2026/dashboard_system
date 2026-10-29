@@ -1,3 +1,5 @@
+> תיעוד היסטורי של המימוש מאוגוסט 2026. כללי החיוב והגבייה העדכניים מתועדים ב־[finance-billing-and-payments.md](finance-billing-and-payments.md).
+
 # חשבונות עסקה — ממצאי investigation ומימוש מאושר
 
 תאריך בדיקה: 21.08.2026.

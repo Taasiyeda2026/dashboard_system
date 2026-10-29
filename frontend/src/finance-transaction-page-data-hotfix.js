@@ -61,6 +61,7 @@ async function readFinanceTransactionContext() {
       .from('finance_transaction_accounts')
       .select('*,finance_transaction_account_lines(*,finance_transaction_account_meetings(*))')
       .order('issue_date', { ascending: false })
+      .order('id', { ascending: false })
       .range(from, to)),
     readAllFinanceSchools()
   ]);
@@ -151,6 +152,15 @@ function patchFinanceApi(targetApi) {
       if (!financeRequest || !Array.isArray(result?.rows)) return result;
       const contacts = await readFinanceActivityContacts(result.rows);
       return { ...result, rows: result.rows.map((row) => applyResolvedActivityContact(row, contacts)) };
+    };
+  }
+
+  const originalFinanceActivities = targetApi.listFinanceActivities?.bind(targetApi);
+  if (originalFinanceActivities) {
+    targetApi.listFinanceActivities = async (filters = {}) => {
+      const result = await originalFinanceActivities({ ...filters, select: financeActivitySelect(filters.select) });
+      const contacts = await readFinanceActivityContacts(result.rows || []);
+      return { ...result, rows: (result.rows || []).map((row) => applyResolvedActivityContact(row, contacts)) };
     };
   }
 

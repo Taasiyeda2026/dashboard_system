@@ -22,6 +22,8 @@ function text(value) {
 }
 
 function ensureNoEndDateTab(root = document) {
+  if (root?.querySelector?.('[data-finance-account-collection]') || root?.matches?.('[data-finance-account-collection]')) return;
+
   root.querySelectorAll?.('.ds-fin-tabs[role="tablist"]').forEach((tabList) => {
     if (!tabList.closest('.ds-fin-collect-shell')) return;
     let button = tabList.querySelector(`[data-finance-collection-tab="${TAB_VALUE}"]`);
@@ -72,6 +74,7 @@ function addFilteredEmptyState(body, tab) {
 }
 
 function filterAndSortMonthSections(shell) {
+  if (shell?.matches?.('[data-finance-account-collection]')) return;
   const body = shell?.querySelector?.('[data-finance-collection-body]');
   if (!body) return;
   const tab = activeCollectionTab(shell);

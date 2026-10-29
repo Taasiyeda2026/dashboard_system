@@ -103,3 +103,7 @@ test('month sort key treats ללא תאריך סיום as the farthest group', (
   assert.equal(financeCollectionMonthSortKey(october), '2026-10');
   assert.equal(financeCollectionMonthSortKey(noEnd), '9999-99');
 });
+test('account-based collection keeps invoice cards and never adds legacy activity tabs or empty messages',()=>{
+  const dom=new JSDOM('<div data-finance-account-collection class="ds-fin-collect-shell"><div class="ds-fin-tabs" role="tablist"><button data-finance-collection-tab="open" class="is-active">פתוח</button></div><div data-finance-collection-body><details class="ds-fin-payer"><summary>עיריית רחובות</summary>8525</details></div></div>');
+  polishFinanceCollection(dom.window.document);assert.equal(dom.window.document.querySelector('[data-finance-collection-tab="no_end_date"]'),null);assert.equal(dom.window.document.querySelector('.ds-empty'),null);assert.match(dom.window.document.body.textContent,/8525/);dom.window.close();
+});
