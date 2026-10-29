@@ -164,7 +164,10 @@ export function groupActivitiesForDispatch(items = []) {
   const groups = new Map();
   for (const item of items) {
     const email = normalizeRecipientEmail(item.recipient_email);
-    const key = `${text(item.activity_season)}\u0000${text(item.school_id)}\u0000${email}`;
+    const cc = normalizeRecipientEmail(item.cc_email);
+    // A dispatch stores one CC address. Do not combine activities with different
+    // managers, or later status comparisons would use another activity's CC.
+    const key = `${text(item.activity_season)}\u0000${text(item.school_id)}\u0000${email}\u0000${cc}`;
     if (!groups.has(key)) {
       groups.set(key, {
         activity_season: text(item.activity_season),
