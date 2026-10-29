@@ -43,7 +43,9 @@ try {
       // A not_due opening is not automatically a pending email; its date controls
       // whether it is still in the future or has missed the dispatch window.
       assert.equal(await page.locator('.ifb-mail-status')
-        .filter({hasText:half==='first'?'לא נשלח · מועד השליחה חלף':'ממתין לתחילת הקורס'}).count(),2);
+        .filter({hasText:half==='first'?'לא נשלח · מועד השליחה חלף':'ממתין לתחילת הקורס'}).count(),1);
+      assert.equal(await page.locator('.ifb-mail-status')
+        .filter({hasText:'ממתין לסיום הקורס'}).count(),1);
       const overflow=await page.locator('.ifb-admin').evaluate(el=>el.scrollWidth>el.clientWidth+2);
       assert.equal(overflow,false,`no overflow at ${viewport.width}/${half}`);
     }
