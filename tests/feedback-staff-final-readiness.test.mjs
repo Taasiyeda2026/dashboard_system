@@ -53,7 +53,7 @@ test('premature final link expiry is surfaced without altering dates', () => {
 
 test('staff final management and list both use the actual-readiness state', () => {
   const source = readFileSync(new URL('../frontend/src/screens/impact-feedback.js', import.meta.url), 'utf8');
-  assert.match(source, /if \(stage === 'final'\) \{\s*const waiting = staffFinalWaiting\(g, campaign\)/);
+  assert.match(source, /const earlyFinal = slot\.audience === 'educational_staff' && slot\.stage === 'final'\s*\? staffFinalWaiting\(group, campaign\) : null/);
   assert.match(source, /const earlyFinal = slot\.audience === 'educational_staff' && slot\.stage === 'final'/);
   assert.match(source, /earlyFinal \? statusText\(earlyFinal\.label, earlyFinal\.tone\) : campaignStatusHtml\(campaign\)/);
   assert.match(source, /earlyFinal \? staffFinalWaitingHtml\(earlyFinal, \{ detailed: true \}\) : ''/);
