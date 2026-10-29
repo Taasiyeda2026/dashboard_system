@@ -87,7 +87,7 @@ export function staffMail(item, baseUrl) {
     ];
 
   return {
-    subject: `משוב ${stage === 'pre' ? 'פתיחה' : stage === 'mid' ? 'אמצע' : 'סיום'} | ${programTitle} | תעשיידע`,
+    subject: `משוב על פעילויות תעשיידע | ${programTitle}`,
     body: {
       contentType: 'HTML',
       content: [
