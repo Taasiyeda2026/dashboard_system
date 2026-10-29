@@ -180,7 +180,8 @@ export function bindActivitiesAdvancedFilters(root, state, scope, rerender) {
   root._activitiesAdvancedAbort = new AbortController();
   const signal = root._activitiesAdvancedAbort.signal;
   document.addEventListener('click', (event) => {
-    if (state.activitiesAdvancedFiltersOpen && !wrapper.contains(event.target)) toggle(false);
+    // Ignore a click whose original field was replaced by a synchronous rerender.
+    if (state.activitiesAdvancedFiltersOpen && event.target?.isConnected !== false && !wrapper.contains(event.target)) toggle(false);
   }, { signal });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && state.activitiesAdvancedFiltersOpen) {
