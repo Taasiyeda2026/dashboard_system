@@ -2253,6 +2253,15 @@
   font-variant-numeric: tabular-nums;
   margin-inline-start: auto;
 }
+.ifb-admin .ifb-ai-export__all-instructors {
+  width: 100%;
+  min-height: 29px;
+  margin-top: 8px;
+  padding: 4px 8px;
+  font-size: 11px;
+  white-space: normal;
+  line-height: 1.35;
+}
 .ifb-admin .ifb-ai-export__actions {
   display: flex;
   flex-wrap: wrap;
