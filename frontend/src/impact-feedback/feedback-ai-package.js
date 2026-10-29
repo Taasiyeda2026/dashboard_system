@@ -186,7 +186,7 @@ export function buildAiPackage({
   };
   const rawRows = raw.map((r) => [
     anonymize(responseAliases, r[0], 'משוב'),
-    r[1], r[2], r[3], r[4], r[5], r[6],
+    r[1], r[2], r[3] === 'mid' ? 'אמצע' : r[3], r[4], r[5], r[6],
     anonymize(schoolAliases, r[7], 'בית ספר'),
     r[8], r[9],
     anonymize(groupAliases, r[10], 'קבוצה'),
@@ -194,7 +194,7 @@ export function buildAiPackage({
   ]);
   const openRows = openAnswers(scopedFacts).map((a) => [
     AUDIENCE_LABELS[a.audience] || a.audience,
-    stageLabelFor(a.audience, a.stage), a.question_text || '', a.text || '',
+    a.stage === 'mid' ? 'אמצע' : stageLabelFor(a.audience, a.stage), a.question_text || '', a.text || '',
     anonymize(schoolAliases, a.school_name, 'בית ספר'),
     String(a.submitted_at || '').slice(0, 10)
   ]);
@@ -204,7 +204,7 @@ export function buildAiPackage({
     { name: 'בסיס הניתוח',
       headers: ['קהל', 'שלב', 'שאלונים שהוגשו', 'קבוצות מיוצגות', 'בתי ספר מיוצגים', 'דירוגים תקפים', 'סטטוס'],
       rows: stageOverview, widths: [18, 18, 18, 18, 18, 18, 26] },
-    ...AI_STAGE_GROUPS.map((g) => ({
+    ...AI_STAGE_GROUPS.filter((g) => slots.some((s) => s.audience === g.audience)).map((g) => ({
       name: g.label, ...metricsSheet(g.audience, slots, scopedFacts, metrics),
       widths: [18, 72, 20, 20, 22, 18, 15, 12, 12, 12, 12, 12, 12, 12, 44, 16]
     })),
