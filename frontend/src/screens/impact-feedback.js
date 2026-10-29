@@ -2161,7 +2161,7 @@ function slotCardHtml(group, slot, user) {
   if (!campaign) {
     return `<article class="ifb-slot" data-slot="${slot.key}"${staffShareAttr}${studentShareAttr}>
       <div class="ifb-slot__head">${title}${earlyFinal ? statusText(earlyFinal.label, earlyFinal.tone) : campaignStatusHtml(null)}</div>
-      ${openFormHtml(group, slot)}
+      ${earlyFinal ? '<p class="ifb-muted">משוב הסיום ייפתח רק לאחר שהקורס ומפגשיו הושלמו.</p>' : openFormHtml(group, slot)}
       ${staffScheduleHtml(group, slot)}
     </article>`;
   }
@@ -2187,6 +2187,8 @@ function slotCardHtml(group, slot, user) {
       ${campaign.status === 'active' ? `<button type="button" class="ifb-btn ifb-btn--danger" data-ifb-close="${id}">סגירה</button>` : `<button type="button" class="ifb-btn" data-ifb-reopen="${id}">פתיחה מחדש</button>`}`;
   } else if (status.key === 'completed') {
     actions = '<span class="ifb-muted">המשוב הושלם ונעול</span>';
+  } else if (earlyFinal) {
+    actions = '<span class="ifb-muted">קישור משוב הסיום נשמר אך אינו פעיל עד לסיום הקורס. אין לשתף אותו כעת.</span>';
   } else {
     const links = personalShareLinks(campaign, { programTitle: programTitle(group.program_key), schoolName: group.school });
     actions = `
