@@ -340,14 +340,13 @@ async function ensureStaffDelivery(force = false) {
   if (ui.year !== 'school_2027' || (!force && ui.staffDeliveryLoaded)) return;
   try {
     const [delivery, plan] = await Promise.all([fetchStaffDeliveryStatus(), fetchStaffSendPlan()]);
+    // The delivery RPC reports one row per activity and stage. Never spread a
+    // representative's sent status to other activities in the same cohort.
     ui.staffDelivery = staffStatusIndex(delivery);
     ui.staffPlans = new Map();
     for (const item of plan) {
-      const status = delivery.find((d) => d.stage === item.stage
-        && (item.activity_row_ids || []).includes(d.activity_row_id));
       for (const id of item.activity_row_ids || []) {
         ui.staffPlans.set(`${id}|${item.stage}`, item);
-        if (status) ui.staffDelivery.set(`${id}|${item.stage}`, status);
       }
     }
   } catch {
@@ -935,36 +934,10 @@ function groupsTableHtml(slots, scope) {
   if (scope === 'staff') {
     const phases = ['pre','mid','final'];
     const stageStatus = (g, stage) => {
-      const slot = slots.find((s) => s.stage === stage);
-      if (!g.program_key || !slot) return '<span class="ifb-muted">לא הותאם משוב</span>';
-      const campaign = slotCampaign(g, slot);
-      if (stage === 'final') {
-        const waiting = staffFinalWaiting(g, campaign);
-        if (waiting) return staffFinalWaitingHtml(waiting);
-      }
-      // Until the automatic dispatch creates a questionnaire, show one
-      // meaningful mail state rather than two ambiguous pending labels.
-      if (!campaign) {
-        // One email and one personal questionnaire may cover multiple activity rows.
-        if (ui.staffDelivery.get(`${g.row_id}|${stage}`)?.status === 'sent') {
-          return statusText('נשלח במשלוח משותף', 'success');
-        }
-        return staffEmailStatusHtml(g, stage, scope, { standalone: true });
-      }
-      const campaignStatus = campaignUiStatus(campaign);
-      const wasMailed = ui.staffDelivery.get(`${g.row_id}|${stage}`)?.status === 'sent';
-      // One concise result per stage; do not show "waiting for reply" beside
-      // another independent "mail sent" line for the same event.
-      if (campaignStatus.key === 'completed') return statusText('הושלם', 'success');
-      if (wasMailed && campaignStatus.key === 'active') {
-        return statusText('נשלח · ממתין לתשובה', 'pending');
-      }
-      if (wasMailed && campaignStatus.key === 'expired') {
-        return statusText('נשלח · פג תוקף', 'warning');
-      }
-      const surveyStatus = campaignStatus.key === 'active'
-        ? statusText('קישור פעיל', 'muted') : tableStatusHtml(campaign);
-      return surveyStatus + staffEmailStatusHtml(g, stage, scope);
+      // These columns describe whether our SYSTEM sent an invitation, not
+      // whether a link exists, a campaign expired or somebody answered it.
+      // Only feedback_staff_auto_status is evidence of automatic delivery.
+      return staffEmailStatusHtml(g, stage, scope, { standalone: true });
     };
     // One overview row per contact, with exact dates and stage progress for each activity.
     const staffActivities = (g) => g.staff_activities?.length ? g.staff_activities : [g];
