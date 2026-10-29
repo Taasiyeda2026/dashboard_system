@@ -110,16 +110,19 @@ test('approved Hebrew opening and closing emails use the selected contact name a
     assert.doesNotMatch(mail.subject,/פתיחה|סיום/);
     assert.doesNotMatch(mail.body.content,/\[שם איש הקשר\]|\[שם התוכנית\]/);
   }
-  assert.match(pre.body.content,/לאחר המפגשים הראשונים בתוכנית/);
-  assert.match(pre.body.content,/נשמח לשמוע את התרשמותך מהפעילות עד כה/);
-  assert.match(pre.body.content,/כדאי לדייק, לשפר או להתאים כבר בשלב זה של התוכנית/);
-  assert.match(pre.body.content,/להתאים אותה לצורכי התלמידים ובית הספר/);
+  assert.match(pre.body.content,/לקראת תחילת התוכנית/);
+  assert.match(pre.body.content,/הציפיות והצרכים שלכם/);
+  assert.match(pre.body.content,/להתאים את ההדרכה לקבוצה/);
+  assert.match(pre.body.content,/משוב תיאום ציפיות/);
+  const mid=staffMail({...item,stage:'mid'},baseUrl);
+  assert.match(mid.body.content,/במחצית התוכנית/);
+  assert.match(mid.body.content,/קושי שחשוב לטפל בו/);
   assert.match(final.body.content,/עם סיום התוכנית/);
   assert.match(final.body.content,/אילו חלקים היו משמעותיים במיוחד/);
   assert.match(final.body.content,/לשמר, לדייק או לשפר לקראת הפעילויות הבאות/);
   assert.match(final.body.content,/להתאים אותה לצורכי התלמידים ובית הספר/);
   assert.doesNotMatch(pre.body.content,/עם סיום התוכנית/);
-  assert.doesNotMatch(final.body.content,/לאחר המפגשים הראשונים/);
+  assert.doesNotMatch(final.body.content,/לקראת תחילת התוכנית/);
   assert.throws(()=>staffMail({...item,token:'invalid'},baseUrl));
   assert.throws(()=>staffMail({...item,stage:'invalid'},baseUrl));
   assert.throws(()=>staffMail({...item,program_title:''},baseUrl));
