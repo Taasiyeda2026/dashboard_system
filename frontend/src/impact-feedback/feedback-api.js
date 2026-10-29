@@ -388,3 +388,21 @@ export async function deleteSavedPaperPdf(record) {
     await client().storage.from(PAPER_PDF_BUCKET).remove([record.storage_path]);
   }
 }
+
+/** Admin-only actionable reports from educational-staff midpoint questionnaires. */
+export async function fetchStaffMidIssues(academicYear) {
+  const query = client().from('feedback_staff_mid_issues')
+    .select('response_id,campaign_id,activity_row_id,academic_year,activity_start_date,program_key,school_name,contact_name,activity_manager,severity,areas,details,contact_requested,status,assigned_to,resolution_notes,created_at,updated_at')
+    .order('created_at', { ascending: false }).limit(500);
+  return unwrap(academicYear ? query.eq('academic_year', academicYear) : query);
+}
+
+/** Admin update, protected by table RLS and restricted to follow-up fields. */
+export async function updateStaffMidIssue(responseId, { status, assignedTo, resolutionNotes }) {
+  return unwrap(client().from('feedback_staff_mid_issues')
+    .update({ status, assigned_to: String(assignedTo || '').slice(0, 160),
+      resolution_notes: String(resolutionNotes || '').slice(0, 2000) })
+    .eq('response_id', responseId)
+    .select('response_id,status,assigned_to,resolution_notes,updated_at')
+    .single());
+}
