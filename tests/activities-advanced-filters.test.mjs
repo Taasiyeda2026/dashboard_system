@@ -101,8 +101,10 @@ test('icon-only toggle and inline panel provide all filters and active state', (
 
 test('inline panel toggles and stays open after selecting a filter', () => {
   const previousDocument = globalThis.document;
+  const previousAbortController = globalThis.AbortController;
   const dom = new JSDOM('<main id="root"></main>', { url: 'https://example.test/' });
   globalThis.document = dom.window.document;
+  globalThis.AbortController = dom.window.AbortController;
   try {
     const root = dom.window.document.getElementById('root');
     const state = { listFilters: {}, activitiesInstructorStatusFilter: 'all', activitiesAdvancedFiltersOpen: false };
@@ -138,6 +140,7 @@ test('inline panel toggles and stays open after selecting a filter', () => {
     assert.equal(root.querySelector('[data-activities-advanced-panel]').hidden, true);
   } finally {
     globalThis.document = previousDocument;
+    globalThis.AbortController = previousAbortController;
     dom.window.close();
   }
 });
