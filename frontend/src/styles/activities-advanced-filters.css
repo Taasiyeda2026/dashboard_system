@@ -1,0 +1,130 @@
+/* Advanced filter popover belongs to the existing All Activities toolbar. */
+.ds-activities-main-toolbar {
+  position: relative;
+  overflow: visible;
+}
+.ds-act-advanced {
+  position: relative;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.ds-act-advanced__toggle {
+  white-space: nowrap;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  min-height: 36px;
+  color: #344459;
+  background: #fff;
+}
+.ds-act-advanced__toggle.is-active {
+  background: #e8f8fd;
+  border-color: #64c8df;
+  color: #087e9e;
+  font-weight: 750;
+}
+.ds-act-advanced__toggle:hover,
+.ds-act-advanced__toggle:focus-visible {
+  border-color: #0e9cbd;
+}
+.ds-act-advanced__panel[hidden] { display: none !important; }
+.ds-act-advanced__panel {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 10px);
+  z-index: 950;
+  width: min(640px, calc(100vw - 52px));
+  max-height: min(70vh, 640px);
+  overflow: auto;
+  box-sizing: border-box;
+  padding: 18px;
+  border: 1px solid #d7e3ed;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 14px 40px rgb(31 52 74 / 18%);
+  color: #24364a;
+  text-align: right;
+}
+.ds-act-advanced__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 11px;
+  border-bottom: 1px solid #e8edf3;
+  font-size: 16px;
+}
+.ds-act-advanced__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  color: #536579;
+  font-size: 22px;
+}
+.ds-act-advanced__close:hover { background: #eff5f9; }
+.ds-act-advanced__group { padding-block: 13px 4px; }
+.ds-act-advanced__group + .ds-act-advanced__group { border-top: 1px solid #f0f3f6; }
+.ds-act-advanced__group h3 {
+  margin: 0 0 10px;
+  color: #164c65;
+  font-size: 13px;
+  font-weight: 750;
+}
+.ds-act-advanced__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 11px;
+}
+.ds-act-advanced__field {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 650;
+  color: #3d5063;
+}
+.ds-act-advanced__field .ds-input {
+  min-height: 35px;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border-color: #d4dfe9;
+  border-radius: 8px;
+  color: #273b50;
+  background-color: #fff;
+  font-size: 13px;
+}
+.ds-act-advanced__field .ds-input:disabled {
+  background: #f4f6f8;
+  color: #9aa8b6;
+}
+.ds-act-advanced__footer {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding-top: 14px;
+  margin-top: 10px;
+  border-top: 1px solid #e8edf3;
+}
+@media (max-width: 800px) {
+  .ds-act-advanced__panel {
+    position: fixed;
+    inset: 12vh 4vw auto 4vw;
+    width: auto;
+    max-height: 75vh;
+    padding: 14px;
+    z-index: 9999;
+  }
+  .ds-act-advanced__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 440px) {
+  .ds-act-advanced__grid { grid-template-columns: minmax(0, 1fr); }
+}
