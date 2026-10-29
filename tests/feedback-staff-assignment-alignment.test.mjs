@@ -56,7 +56,8 @@ test('consolidated dashboard retains exact per-activity dates, statuses and navi
   assert.match(screen,/class="ifb-staff-activity-breakdown"/);
   assert.match(screen,/earlyFinal \? '<p class="ifb-muted">משוב הסיום ייפתח רק לאחר שהקורס/);
   assert.match(screen,/else if \(earlyFinal\) \{/);
-  assert.match(screen,/נשלח במשלוח משותף/);
+  assert.match(screen,/return staffEmailStatusHtml\(g, stage, scope, \{ standalone: true \}\);/);
+  assert.doesNotMatch(screen,/נשלח במשלוח משותף/);
   assert.match(screen,/אין ליצור הזמנה כפולה/);
 });
 
@@ -66,4 +67,28 @@ test('educational-staff action picker contains management buttons only, with no 
   assert.match(actions,/class="ifb-staff-group-action"/);
   assert.match(actions,/data-ifb-open-group="\\$\\{esc\\(a\\.row_id\\)\\}"/);
   assert.doesNotMatch(actions,/stageStatus\\(|fmtDate\\(|ifb-staff-breakdown-stage|ifb-staff-breakdown-item/);
+});
+
+test('only the system delivery log determines each educational-staff table status',()=>{
+  const renderer=screen.split('const stageStatus = (g, stage) => {')[1]?.split('// One overview row per contact')[0];
+  assert.ok(renderer);
+  assert.match(renderer,/staffEmailStatusHtml/);
+  assert.doesNotMatch(renderer,/campaignUiStatus|campaignStatus|completed_at|slotCampaign/);
+  const loader=screen.split('async function ensureStaffDelivery(force = false) {')[1]?.split('/** The status of an early manual closing link')[0];
+  assert.ok(loader);
+  assert.match(loader,/staffStatusIndex\(delivery\)/);
+  assert.doesNotMatch(loader,/delivery\.find\(/);
+  assert.doesNotMatch(loader,/ui\.staffDelivery\.set\(/);
+});
+
+test('deployed read-only RPC maps accepted activity memberships without resending',()=>{
+  const statusSql=readFileSync(new URL('../supabase/migrations/20261029200900_feedback_staff_system_delivery_status_per_activity.sql',import.meta.url),'utf8');
+  assert.match(statusSql,/CREATE OR REPLACE FUNCTION public\.feedback_staff_auto_status\(\)/);
+  assert.match(statusSql,/private\.feedback_can_view_results\(\)/);
+  assert.match(statusSql,/CROSS JOIN LATERAL unnest\(batch\.member_row_ids\)/);
+  assert.match(statusSql,/i\.activity_row_id=ANY\(o\.member_row_ids\)/);
+  assert.match(statusSql,/e\.recorded_status = 'accepted'|e\.recorded_status='accepted'/);
+  assert.match(statusSql,/opening_window_elapsed/);
+  assert.match(statusSql,/missing_contact_email_after_deadline/);
+  assert.doesNotMatch(statusSql,/\bINSERT\s+INTO\b|\bUPDATE\s+public\.|\bDELETE\s+FROM\b|\bnet\.http_post\b/i);
 });
