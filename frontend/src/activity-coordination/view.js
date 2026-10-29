@@ -3,6 +3,7 @@ import { COORDINATION_STATUS, groupActivitiesForDispatch } from './domain.js';
 
 export const STATUS_PRESENTATION = Object.freeze({
   [COORDINATION_STATUS.SENT]: { icon: '✅', label: 'נשלח', className: 'is-sent' },
+  [COORDINATION_STATUS.CHANGED_SINCE_SENT]: { icon: '⚠', label: 'נדרש אישור מעודכן', className: 'is-changed' },
   [COORDINATION_STATUS.MISSING_DETAILS]: { icon: '⚠️', label: 'חסרים פרטים', className: 'is-missing' },
   [COORDINATION_STATUS.READY]: { icon: '○', label: 'מוכן לשליחה', className: 'is-ready' }
 });
@@ -58,8 +59,9 @@ function clearCoordinationOutlookAction(progress) {
 }
 
 export function coordinationUiStatus(item = {}) {
-  if ([COORDINATION_STATUS.SENT, COORDINATION_STATUS.CHANGED_SINCE_SENT].includes(item.status)) return COORDINATION_STATUS.SENT;
   if (!item.readiness?.ready || item.technical_blocker) return COORDINATION_STATUS.MISSING_DETAILS;
+  if (item.status === COORDINATION_STATUS.CHANGED_SINCE_SENT) return COORDINATION_STATUS.CHANGED_SINCE_SENT;
+  if (item.status === COORDINATION_STATUS.SENT) return COORDINATION_STATUS.SENT;
   return COORDINATION_STATUS.READY;
 }
 
@@ -79,7 +81,7 @@ export function coordinationStatusHtml(item, { action = false } = {}) {
   const buttonLabel = item?.status === COORDINATION_STATUS.CHANGED_SINCE_SENT ? 'שליחת אישור מעודכן' : 'אישור תיאום';
   const button = action && item?.readiness?.ready && !item?.technical_blocker && ![COORDINATION_STATUS.DRAFT, COORDINATION_STATUS.SENT].includes(item?.status)
     ? `<button type="button" class="coordination-send-link" data-coordination-send="${escapeHtml(item.activity_row_id)}">${buttonLabel}</button>` : '';
-  const changed = item?.status === COORDINATION_STATUS.CHANGED_SINCE_SENT ? '<small class="coordination-changed-note">הפרטים השתנו מאז השליחה</small>' : '';
+  const changed = uiStatus === COORDINATION_STATUS.CHANGED_SINCE_SENT ? '<small class="coordination-changed-note">הפרטים השתנו מאז השליחה</small>' : '';
   if (uiStatus === COORDINATION_STATUS.MISSING_DETAILS) {
     return `<span class="coordination-missing-list" title="${escapeHtml(title)}"><span aria-hidden="true">⚠</span> חסרים: ${coordinationMissingDetails(item).map(escapeHtml).join(', ')}</span>`;
   }
@@ -90,6 +92,9 @@ export function coordinationStatusHtml(item, { action = false } = {}) {
 }
 
 export function coordinationDrawerActionHtml(item) {
+  if (coordinationUiStatus(item) === COORDINATION_STATUS.MISSING_DETAILS) {
+    return '<span class="coordination-missing-list">חסרים פרטים לאישור תיאום</span>';
+  }
   if (item?.status === COORDINATION_STATUS.SENT) {
     return '<span class="coordination-drawer-sent"><span class="coordination-drawer-sent__check" aria-hidden="true">✓</span> אישור תיאום נשלח</span>';
   }
@@ -105,6 +110,7 @@ export function renderCoordinationWorkspace(context = {}, { canManage = false } 
   const byStatus = {
     [COORDINATION_STATUS.MISSING_DETAILS]: items.filter((item) => coordinationUiStatus(item) === COORDINATION_STATUS.MISSING_DETAILS),
     [COORDINATION_STATUS.READY]: items.filter((item) => coordinationUiStatus(item) === COORDINATION_STATUS.READY),
+    [COORDINATION_STATUS.CHANGED_SINCE_SENT]: items.filter((item) => coordinationUiStatus(item) === COORDINATION_STATUS.CHANGED_SINCE_SENT),
     [COORDINATION_STATUS.SENT]: items.filter((item) => coordinationUiStatus(item) === COORDINATION_STATUS.SENT)
   };
   const schoolGroups = (sectionItems) => {
@@ -126,10 +132,10 @@ export function renderCoordinationWorkspace(context = {}, { canManage = false } 
     const sectionItems = byStatus[status];
     const groups = schoolGroups(sectionItems);
     return `<section class="coordination-section coordination-section--${status}" data-coordination-section="${status}">
-      <header class="coordination-section__header"><h3>${escapeHtml(title)} <span>${sectionItems.length}</span></h3>${actions && canManage ? `<div class="coordination-toolbar"><button type="button" class="ds-btn ds-btn--sm" data-coordination-select-ready>סמן מוכנים</button><button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-coordination-prepare>הכנת מיילים</button><span data-coordination-progress role="status" aria-live="polite"></span></div>` : ''}</header>
+      <header class="coordination-section__header"><h3>${escapeHtml(title)} <span>${sectionItems.length}</span></h3>${actions && canManage ? `<div class="coordination-toolbar"><button type="button" class="ds-btn ds-btn--sm" data-coordination-select-status="${status}">סמן ${status === COORDINATION_STATUS.CHANGED_SINCE_SENT ? 'לעדכון' : 'מוכנים'}</button><button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-coordination-prepare="${status}">${status === COORDINATION_STATUS.CHANGED_SINCE_SENT ? 'הכנת אישורים מעודכנים' : 'הכנת מיילים'}</button><span data-coordination-progress role="status" aria-live="polite"></span></div>` : ''}</header>
       ${sectionItems.length ? `<div class="coordination-schools">${Array.from(groups.entries()).map(([key, group]) => `<section class="coordination-school" data-coordination-school data-school-key="${escapeHtml(key)}">
-        <header>${status === COORDINATION_STATUS.READY && canManage && group.some((item) => item.status === COORDINATION_STATUS.READY) ? '<label><input type="checkbox" data-coordination-school-select> ' : ''}<strong>${escapeHtml(group[0].snapshot?.school?.name || 'בית ספר')}</strong>${status === COORDINATION_STATUS.READY && canManage && group.some((item) => item.status === COORDINATION_STATUS.READY) ? '</label>' : ''}<span>${group.length} פעילויות</span></header>
-        <div class="coordination-rows">${group.map((item) => `<label class="coordination-row" data-coordination-row data-status="${status}">${status === COORDINATION_STATUS.READY && canManage && item.status === COORDINATION_STATUS.READY ? `<input type="checkbox" data-coordination-item value="${escapeHtml(item.activity_row_id)}">` : ''}<span class="coordination-row__details"><strong>${escapeHtml(item.snapshot?.program?.name || '')}</strong>${detailsHtml(item)}</span><span class="coordination-row__state">${coordinationStatusHtml(item)}</span></label>`).join('')}</div>
+        <header>${actions && canManage && group.some((item) => item.status === status) ? '<label><input type="checkbox" data-coordination-school-select> ' : ''}<strong>${escapeHtml(group[0].snapshot?.school?.name || 'בית ספר')}</strong>${actions && canManage && group.some((item) => item.status === status) ? '</label>' : ''}<span>${group.length} פעילויות</span></header>
+        <div class="coordination-rows">${group.map((item) => `<label class="coordination-row" data-coordination-row data-status="${status}">${actions && canManage && item.status === status ? `<input type="checkbox" data-coordination-item value="${escapeHtml(item.activity_row_id)}">` : ''}<span class="coordination-row__details"><strong>${escapeHtml(item.snapshot?.program?.name || '')}</strong>${detailsHtml(item)}</span><span class="coordination-row__state">${coordinationStatusHtml(item)}</span></label>`).join('')}</div>
       </section>`).join('')}</div>` : '<p class="coordination-section__empty">אין פעילויות במצב זה.</p>'}
     </section>`;
   };
@@ -140,13 +146,16 @@ export function renderCoordinationWorkspace(context = {}, { canManage = false } 
       </div>
       <div class="coordination-workspace__right">
         ${sectionHtml(COORDINATION_STATUS.READY, 'מוכנים לשליחה', { actions: true })}
+        ${sectionHtml(COORDINATION_STATUS.CHANGED_SINCE_SENT, 'נדרש אישור מעודכן', { actions: true })}
         ${sectionHtml(COORDINATION_STATUS.SENT, 'נשלח')}
       </div>
     </div>
   </section>`;
 }
 
-export function bindCoordinationWorkspace(root, context, { loginHint = '', onChanged = () => {} } = {}) {
+export function bindCoordinationWorkspace(root, context, {
+  loginHint = '', onChanged = () => {}, beforePrepare = async (items) => items
+} = {}) {
   root.querySelectorAll('[data-coordination-school-select]').forEach((box) => box.addEventListener('change', () => {
     box.closest('[data-coordination-school]').querySelectorAll('[data-coordination-row]').forEach((row) => {
       if (row.hidden) return;
@@ -154,33 +163,44 @@ export function bindCoordinationWorkspace(root, context, { loginHint = '', onCha
       if (item) item.checked = box.checked;
     });
   }));
-  root.querySelector('[data-coordination-select-ready]')?.addEventListener('click', () => {
-    root.querySelectorAll('[data-coordination-item]').forEach((item) => {
-      const row = item.closest('[data-coordination-row]');
-      item.checked = !item.disabled && row?.dataset.status === COORDINATION_STATUS.READY;
+  root.querySelectorAll('[data-coordination-select-status]').forEach((button) => button.addEventListener('click', () => {
+    button.closest('[data-coordination-section]')?.querySelectorAll('[data-coordination-item]').forEach((item) => {
+      item.checked = !item.disabled;
     });
-  });
-  root.querySelector('[data-coordination-prepare]')?.addEventListener('click', async () => {
-    const ids = new Set(Array.from(root.querySelectorAll('[data-coordination-item]:checked')).map((item) => item.value));
+  }));
+  root.querySelectorAll('[data-coordination-prepare]').forEach((button) => button.addEventListener('click', async () => {
+    const section = button.closest('[data-coordination-section]');
+    const ids = new Set(Array.from(section?.querySelectorAll('[data-coordination-item]:checked') || []).map((item) => item.value));
     const selected = context.items.filter((item) => ids.has(item.activity_row_id));
-    const groups = groupActivitiesForDispatch(selected);
     if (!selected.length) return;
+    const groups = groupActivitiesForDispatch(selected);
     if (!globalThis.confirm(`יוכנו ${groups.length} טיוטות מייל עבור ${selected.length} פעילויות. להמשיך?`)) return;
-    const progress = root.querySelector('[data-coordination-progress]');
+    const progress = section.querySelector('[data-coordination-progress]');
     clearCoordinationOutlookAction(progress);
-    const { prepareCoordinationDrafts } = await import('./outlook.js');
-    const results = await prepareCoordinationDrafts(selected, { loginHint, onProgress: ({ current, total }) => { progress.textContent = `מכין מיילים ${current} מתוך ${total}`; } });
-    const succeeded = results.filter((item) => item.ok && !item.value?.existing).length;
-    const existing = results.filter((item) => item.ok && item.value?.existing).length;
-    const failed = results.filter((item) => !item.ok).length;
-    const firstSuccessful = results.find((result) => result.ok);
-    const firstFailure = results.find((result) => !result.ok);
-    if (firstSuccessful) revealCoordinationDraft(firstSuccessful, null, globalThis, progress);
-    progress.textContent = failed
-      ? `נוצרו ${succeeded} טיוטות · ${existing} כבר היו מוכנות · ${failed} נכשלו: ${firstFailure?.error?.message || 'בדקו את חיבור Microsoft 365 ונסו שוב.'}`
-      : `נוצרו ${succeeded} טיוטות${existing ? ` · ${existing} כבר היו מוכנות` : ''}${firstSuccessful ? ' · המייל הראשון מוכן ב-Outlook' : ''}.`;
-    await onChanged(results);
-  });
+    button.disabled = true;
+    try {
+      const fresh = await beforePrepare(selected);
+      const { prepareCoordinationDrafts } = await import('./outlook.js');
+      const results = await prepareCoordinationDrafts(fresh, {
+        loginHint,
+        onProgress: ({ current, total }) => { progress.textContent = `מכין מיילים ${current} מתוך ${total}`; }
+      });
+      const succeeded = results.filter((item) => item.ok && !item.value?.existing).length;
+      const existing = results.filter((item) => item.ok && item.value?.existing).length;
+      const failed = results.filter((item) => !item.ok).length;
+      const firstSuccessful = results.find((result) => result.ok);
+      const firstFailure = results.find((result) => !result.ok);
+      if (firstSuccessful) revealCoordinationDraft(firstSuccessful, null, globalThis, progress);
+      progress.textContent = failed
+        ? `נוצרו ${succeeded} טיוטות · ${existing} כבר היו מוכנות · ${failed} נכשלו: ${firstFailure?.error?.message || 'בדקו את חיבור Microsoft 365 ונסו שוב.'}`
+        : `נוצרו ${succeeded} טיוטות${existing ? ` · ${existing} כבר היו מוכנות` : ''}${firstSuccessful ? ' · המייל הראשון מוכן ב-Outlook' : ''}.`;
+      await onChanged(results);
+    } catch (error) {
+      progress.textContent = `לא ניתן להכין אישורים: ${error?.message || 'נסו לרענן את הנתונים.'}`;
+    } finally {
+      button.disabled = false;
+    }
+  }));
 }
 
 export function renderCoordinationActivityModal(item) {
@@ -201,7 +221,9 @@ export function renderCoordinationActivityModal(item) {
   </section>`;
 }
 
-export function bindCoordinationActivityModal(root, item, { loginHint = '', onChanged = () => {} } = {}) {
+export function bindCoordinationActivityModal(root, item, {
+  loginHint = '', onChanged = () => {}, beforePrepare = async (items) => items
+} = {}) {
   root.querySelector('[data-coordination-modal-prepare]')?.addEventListener('click', async (event) => {
     const button = event.currentTarget;
     const progress = root.querySelector('[data-coordination-modal-progress]');
@@ -209,8 +231,9 @@ export function bindCoordinationActivityModal(root, item, { loginHint = '', onCh
     button.disabled = true;
     progress.textContent = 'מכין את המייל והמסמכים…';
     try {
+      const fresh = await beforePrepare([item]);
       const { prepareCoordinationDrafts } = await import('./outlook.js');
-      const results = await prepareCoordinationDrafts([item], { loginHint });
+      const results = await prepareCoordinationDrafts(fresh, { loginHint });
       const failed = results.find((result) => !result.ok);
       if (failed) throw failed.error;
       const successful = results.find((result) => result.ok);
