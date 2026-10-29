@@ -28,6 +28,24 @@ function managerContacts(settings = {}) {
   return new Map(rows.map((item) => [String(item?.name || '').trim(), item]));
 }
 
+// Bypass the dashboard's short post-save activity cache. Even within that
+// window, a coordination PDF must be created from persisted rows.
+export async function loadLatestCoordinationActivities() {
+  const rows = [];
+  const pageSize = 500;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase.from('activities')
+      .select('*')
+      .eq('activity_season', 'school_2027')
+      .order('row_id')
+      .range(offset, offset + pageSize - 1);
+    if (error) throw new Error(error.message || 'activity_coordination_activities_load_failed');
+    rows.push(...(data || []));
+    if ((data || []).length < pageSize) break;
+  }
+  return { rows };
+}
+
 export async function loadActivityCoordinationContext(activities = [], settings = {}) {
   const canSend = await activityCoordinationSendAccess();
   if (!canSend) return { items: [], byActivityId: new Map(), access: 'denied' };
@@ -47,6 +65,18 @@ export async function loadActivityCoordinationContext(activities = [], settings 
     if (result?.error) throw new Error(result.error.message || 'activity_coordination_load_failed');
   }
   const statusByActivity = new Map((statuses.data || []).map((item) => [String(item.activity_row_id), item]));
+  // The PDF hash alone does not describe the delivery: a changed recipient or
+  // CC must also allow a new approval without invalidating historical hashes.
+  const dispatchIds = [...new Set((statuses.data || [])
+    .flatMap((item) => [item.latest_sent_dispatch_id, item.active_draft_dispatch_id])
+    .filter(Boolean))];
+  const dispatchResult = dispatchIds.length
+    ? await supabase.from('activity_coordination_dispatches')
+      .select('id,school_id,recipient_email,cc_email').in('id', dispatchIds)
+    : { data: [] };
+  if (dispatchResult.error) throw new Error(dispatchResult.error.message || 'activity_coordination_delivery_load_failed');
+  const dispatchById = new Map((dispatchResult.data || []).map((item) => [String(item.id), item]));
+  if (dispatchById.size !== dispatchIds.length) throw new Error('לא ניתן לאמת את פרטי השליחה הקודמים. נסו לרענן.');
   const contactById = new Map((contacts.data || []).map((item) => [Number(item.id), item]));
   const instructorById = new Map((instructors.data || []).map((item) => [Number(item.emp_id), item]));
   const primaryEmailByContact = new Map();
@@ -77,7 +107,18 @@ export async function loadActivityCoordinationContext(activities = [], settings 
       activityManager: manager
     });
     const hash = await documentDataHash({ document_version: COORDINATION_DOCUMENT_VERSION, snapshot });
-    const persisted = statusByActivity.get(rowId(activity)) || {};
+    const statusRecord = statusByActivity.get(rowId(activity)) || {};
+    const sentDispatch = dispatchById.get(String(statusRecord.latest_sent_dispatch_id || '')) || {};
+    const draftDispatch = dispatchById.get(String(statusRecord.active_draft_dispatch_id || '')) || {};
+    const persisted = {
+      ...statusRecord,
+      latest_sent_recipient_email: sentDispatch.recipient_email || '',
+      latest_sent_cc_email: sentDispatch.cc_email || '',
+      latest_sent_school_id: sentDispatch.school_id == null ? '' : String(sentDispatch.school_id),
+      active_draft_recipient_email: draftDispatch.recipient_email || '',
+      active_draft_cc_email: draftDispatch.cc_email || '',
+      active_draft_school_id: draftDispatch.school_id == null ? '' : String(draftDispatch.school_id)
+    };
     const readiness = readinessForActivity(activityForReadiness);
     const recipientEmail = normalizeRecipientEmail(
       primaryEmailByContact.get(Number(activity.school_contact_id))
@@ -87,6 +128,11 @@ export async function loadActivityCoordinationContext(activities = [], settings 
       || contact.email
     );
     const hasValidSchoolId = validCoordinationSchoolId(activity.school_id);
+    const delivery = {
+      school_id: String(activity.school_id || ''),
+      recipient_email: recipientEmail,
+      cc_email: normalizeRecipientEmail(manager.email)
+    };
     items.push({
       activity,
       activity_season: String(activity.activity_season || ''),
@@ -97,13 +143,19 @@ export async function loadActivityCoordinationContext(activities = [], settings 
       readiness,
       recipient_email: recipientEmail,
       technical_blocker: !hasValidSchoolId ? 'חסר מזהה בית ספר תקין' : (recipientEmail ? '' : 'חסרה כתובת מייל פעילה לנמען'),
-      cc_email: normalizeRecipientEmail(manager.email),
+      cc_email: delivery.cc_email,
+      delivery,
       cc_warning: manager.email ? '' : 'לא נמצאה כתובת CC למנהל/ת הפעילות',
       status: coordinationStatus({
         readiness,
         currentHash: hash,
-        latestSent: persisted.latest_sent_document_data_hash ? { document_data_hash: persisted.latest_sent_document_data_hash } : null,
-        activeDraft: persisted.active_draft_document_data_hash ? { document_data_hash: persisted.active_draft_document_data_hash } : null
+        currentDelivery: delivery,
+        latestSent: persisted.latest_sent_document_data_hash ? {
+          document_data_hash: persisted.latest_sent_document_data_hash, ...sentDispatch
+        } : null,
+        activeDraft: persisted.active_draft_document_data_hash ? {
+          document_data_hash: persisted.active_draft_document_data_hash, ...draftDispatch
+        } : null
       }),
       persisted
     });

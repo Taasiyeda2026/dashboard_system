@@ -1,6 +1,6 @@
 import { supabase } from '../supabase-client.js';
 import { addGraphFileAttachment, createGraphDraft, delegatedMailToken, deleteGraphDraft, graphMailRequest, sendGraphMessage } from '../microsoft/graph-mail.js';
-import { coordinationMailContent, coordinationPdfFilename, documentDataHash, groupActivitiesForDispatch } from './domain.js';
+import { coordinationDeliveryMatches, coordinationMailContent, coordinationPdfFilename, documentDataHash, groupActivitiesForDispatch } from './domain.js';
 import { blobToBase64, generateActivityCoordinationPdf } from './pdf.js';
 import { COORDINATION_DOCUMENT_VERSION, finishDispatch, markDispatchDraft, recordReconciliationException, reserveDispatch } from './data.js';
 
@@ -39,7 +39,13 @@ async function replaceStaleDrafts(group, token) {
   for (const item of group.activities || []) {
     const persisted = item.persisted || {};
     if (!persisted.active_draft_dispatch_id || !persisted.graph_message_id) continue;
-    if (persisted.active_draft_document_data_hash === item.document_data_hash) continue;
+    const draftDelivery = {
+      school_id: persisted.active_draft_school_id,
+      recipient_email: persisted.active_draft_recipient_email,
+      cc_email: persisted.active_draft_cc_email
+    };
+    if (persisted.active_draft_document_data_hash === item.document_data_hash
+      && coordinationDeliveryMatches(item.delivery, draftDelivery)) continue;
     stale.set(String(persisted.active_draft_dispatch_id), {
       id: persisted.active_draft_dispatch_id,
       graphMessageId: persisted.graph_message_id
@@ -66,6 +72,7 @@ export async function prepareCoordinationDraftGroup(group, { token } = {}) {
     season: group.activity_season,
     school_id: String(group.school_id),
     recipient_email: group.recipient_email,
+    cc_recipients: coordinationCcRecipients(group).sort(),
     items: group.activities.map((item) => `${item.activity_row_id}:${item.document_data_hash}`).sort()
   });
   const correlationId = crypto.randomUUID();

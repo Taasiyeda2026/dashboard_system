@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   COORDINATION_STATUS,
   buildActivityDocumentSnapshot,
+  coordinationDeliveryMatches,
   coordinationStatus,
   documentDataHash,
   groupActivitiesForDispatch,
@@ -70,6 +71,10 @@ test('dispatch grouping uses season, school, and normalized recipient email', ()
   const same = [1, 2, 3].map((id) => ({ row_id: String(id), activity_season: 'school_2027', school_id: 5, recipient_email: ' School@Example.org ' }));
   assert.equal(groupActivitiesForDispatch(same).length, 1);
   assert.equal(groupActivitiesForDispatch([...same, { ...same[0], row_id: '4', recipient_email: 'other@example.org' }]).length, 2);
+  assert.equal(groupActivitiesForDispatch([
+    { ...same[0], cc_email: 'manager-a@example.org' },
+    { ...same[1], cc_email: 'manager-b@example.org' }
+  ]).length, 2);
 });
 
 test('status precedence uses verified sent, current draft, then readiness', () => {
@@ -82,6 +87,24 @@ test('status precedence uses verified sent, current draft, then readiness', () =
   assert.equal(coordinationStatus({ readiness: ready, currentHash: 'b', latestSent: { document_data_hash: 'a' } }), COORDINATION_STATUS.CHANGED_SINCE_SENT);
   assert.equal(coordinationStatus({ readiness: ready, currentHash: 'b', latestSent: { document_data_hash: 'a' }, activeDraft: { document_data_hash: 'b' } }), COORDINATION_STATUS.DRAFT);
   assert.equal(coordinationStatus({ readiness: ready, currentHash: 'b', activeDraft: null }), COORDINATION_STATUS.READY);
+});
+
+test('delivery changes require a revised approval without changing the historical PDF hash', () => {
+  const ready = { ready: true };
+  const delivery = { recipient_email: 'school@example.org', cc_email: 'manager@example.org', school_id: '12' };
+  const prior = { document_data_hash: 'same', ...delivery };
+  const params = { readiness: ready, currentHash: 'same', currentDelivery: delivery, latestSent: prior };
+  assert.equal(coordinationStatus(params), COORDINATION_STATUS.SENT);
+  assert.equal(coordinationDeliveryMatches(delivery, prior), true);
+  assert.equal(coordinationStatus({ ...params, currentDelivery: { ...delivery, recipient_email: 'new@example.org' } }), COORDINATION_STATUS.CHANGED_SINCE_SENT);
+  assert.equal(coordinationStatus({ ...params, currentDelivery: { ...delivery, cc_email: 'new-manager@example.org' } }), COORDINATION_STATUS.CHANGED_SINCE_SENT);
+  assert.equal(coordinationStatus({ ...params, currentDelivery: { ...delivery, school_id: '13' } }), COORDINATION_STATUS.CHANGED_SINCE_SENT);
+  assert.equal(coordinationStatus({ ...params, currentDelivery: { ...delivery, cc_email: '' } }), COORDINATION_STATUS.CHANGED_SINCE_SENT);
+  assert.equal(coordinationStatus({
+    ...params, currentDelivery: { ...delivery, cc_email: 'NEW@example.org' },
+    activeDraft: { document_data_hash: 'same', recipient_email: 'school@example.org', cc_email: 'NEW@example.org', school_id: 12 }
+  }), COORDINATION_STATUS.DRAFT);
+  assert.equal(coordinationStatus({ ...params, readiness: { ready: false, missing: ['date_2'] } }), COORDINATION_STATUS.MISSING_DETAILS);
 });
 
 test('coordination requires a positive bigint-compatible school id before dispatch', () => {

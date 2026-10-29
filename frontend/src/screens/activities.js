@@ -65,7 +65,7 @@ import { activityCreateGefenValue, enhanceAddActivityGefenOrderUi } from '../act
 import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from '../permissions.js';
 import { hasPermission } from '../permission-policy.js';
 import { bindInstructorScheduling } from './instructor-scheduling-workflow.js';
-import { loadActivityCoordinationContext } from '../activity-coordination/data.js';
+import { loadActivityCoordinationContext, loadLatestCoordinationActivities } from '../activity-coordination/data.js';
 import { COORDINATION_STATUS } from '../activity-coordination/domain.js';
 import { bindCoordinationActivityModal, bindCoordinationWorkspace, coordinationDrawerActionHtml, coordinationUiStatus, reconcileVisibleDrafts, renderCoordinationActivityModal, renderCoordinationWorkspace } from '../activity-coordination/view.js';
 const taasiyedaLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
@@ -468,7 +468,7 @@ function activityPeriodTabsHtml(rows, activeYearKey, state = {}) {
   const countFor = (tabKey) => {
     if (yearKey === ACTIVITY_SEASON_SCHOOL_2027 && tabKey === ACTIVITIES_INNER_TAB_COORDINATION) {
       const coordinationItems = Array.isArray(state?.activityCoordination?.items) ? state.activityCoordination.items : [];
-      return coordinationItems.filter((item) => coordinationUiStatus(item) === COORDINATION_STATUS.READY).length;
+      return coordinationItems.filter((item) => [COORDINATION_STATUS.READY, COORDINATION_STATUS.CHANGED_SINCE_SENT].includes(coordinationUiStatus(item))).length;
     }
     return activityRowsForInnerTab(rows, { ...state, activityPeriodTab: yearKey, activitiesInnerTab: tabKey }).length;
   };
@@ -2187,6 +2187,40 @@ export const activitiesScreen = {
   },
 
   bind({ root, data, state, rerender, rerenderActivitiesView, ui, api, clearScreenDataCache, loadActivityCoordination = loadActivityCoordinationContext }) {
+    // Reload persisted activity rows before presenting or preparing approvals.
+    async function refreshCoordinationContext() {
+      const source = loadActivityCoordination === loadActivityCoordinationContext
+        ? await loadLatestCoordinationActivities()
+        : (typeof api?.activities === 'function'
+          ? await api.activities({ activity_type: 'all', include_inactive: true })
+          : data);
+      const enriched = typeof api?.enrichActivitiesContacts === 'function'
+        ? await api.enrichActivitiesContacts(source).catch(() => source)
+        : source;
+      const rows = Array.isArray(enriched?.rows) ? enriched.rows : (source?.rows || []);
+      const context = await loadActivityCoordination(rows, state.clientSettings || {});
+      state.activityCoordination = context;
+      state.activityCoordinationLoaded = true;
+      state.activityCoordinationError = '';
+      return context;
+    }
+    async function beforeCoordinationPrepare(selected) {
+      const latest = await refreshCoordinationContext();
+      const fresh = selected.map((item) => latest.byActivityId?.get?.(item.activity_row_id));
+      const changed = fresh.some((item, index) => !item
+        || item.document_data_hash !== selected[index].document_data_hash
+        || item.recipient_email !== selected[index].recipient_email
+        || item.cc_email !== selected[index].cc_email
+        || item.school_id !== selected[index].school_id
+        || item.status !== selected[index].status
+        || !item.readiness?.ready || Boolean(item.technical_blocker));
+      if (changed) {
+        rerender();
+        showToast('פרטי אישור התיאום השתנו. הרשימה רועננה; בדקו את הפרטים ובחרו מחדש.', 'warning');
+        throw new Error('הנתונים השתנו מאז פתיחת האישור. בדקו ובחרו מחדש.');
+      }
+      return fresh;
+    }
     const contactPromise = data?._contactEnrichmentPromise;
     const contactGeneration = data?._activitiesLoadGeneration;
     if (contactPromise && !data._contactEnrichmentApplied) {
@@ -2212,10 +2246,14 @@ export const activitiesScreen = {
         rerender();
       }));
       const refresh = async () => {
-        state.activityCoordination = await loadActivityCoordinationContext(data?.rows || [], state.clientSettings || {});
+        await refreshCoordinationContext();
         rerender();
       };
-      bindCoordinationWorkspace(coordinationRoot, state.activityCoordination, { loginHint: state?.user?.email || '', onChanged: refresh });
+      bindCoordinationWorkspace(coordinationRoot, state.activityCoordination, {
+        loginHint: state?.user?.email || '',
+        onChanged: refresh,
+        beforePrepare: beforeCoordinationPrepare
+      });
       const reconciliationOptions = {
         loginHint: state?.user?.email || state?.user?.auth_email || '',
         authUserId: state?.user?.auth_user_id || ''
@@ -2789,29 +2827,41 @@ export const activitiesScreen = {
         ui.closeDrawer?.();
         document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'course-scheduling' } }));
       });
-      contentRoot.querySelector('[data-coordination-approval]')?.addEventListener('click', (event) => {
+      contentRoot.querySelector('[data-coordination-approval]')?.addEventListener('click', async (event) => {
         const form = event.currentTarget.closest('[data-drawer-form]');
         const rowId = String(form?.dataset.rowId || '');
-        const item = state.activityCoordination?.byActivityId?.get?.(rowId);
-        ui.openModal?.({
-          title: 'אישור תיאום',
-          content: renderCoordinationActivityModal(item),
-          modalClass: 'ds-modal--coordination-activity',
-          keepDrawerOpen: true
-        });
-        const modalRoot = document.querySelector('.ds-modal__content');
-        if (item && modalRoot) bindCoordinationActivityModal(modalRoot, item, {
-          loginHint: state?.user?.email || '',
-          onChanged: async () => {
-            state.activityCoordination = await loadActivityCoordinationContext(data?.rows || [], state.clientSettings || {});
-            const updated = state.activityCoordination?.byActivityId?.get?.(rowId);
+        try {
+          const context = await refreshCoordinationContext();
+          const item = context?.byActivityId?.get?.(rowId);
+          ui.openModal?.({
+            title: 'אישור תיאום',
+            content: renderCoordinationActivityModal(item),
+            modalClass: 'ds-modal--coordination-activity',
+            keepDrawerOpen: true
+          });
+          const modalRoot = document.querySelector('.ds-modal__content');
+          if (!item || !modalRoot) return;
+          const updateModal = async () => {
+            const current = await refreshCoordinationContext();
+            const updated = current?.byActivityId?.get?.(rowId);
             modalRoot.innerHTML = renderCoordinationActivityModal(updated);
-            if (updated) bindCoordinationActivityModal(modalRoot, updated, { loginHint: state?.user?.email || '' });
+            if (updated) bindCoordinationActivityModal(modalRoot, updated, {
+              loginHint: state?.user?.email || '',
+              onChanged: updateModal,
+              beforePrepare: beforeCoordinationPrepare
+            });
             const action = contentRoot.querySelector('[data-activity-actions]');
             if (action && updated) action.innerHTML = coordinationDrawerActionHtml(updated);
             rerender();
-          }
-        });
+          };
+          bindCoordinationActivityModal(modalRoot, item, {
+            loginHint: state?.user?.email || '',
+            onChanged: updateModal,
+            beforePrepare: beforeCoordinationPrepare
+          });
+        } catch (error) {
+          showToast(error?.message || 'לא ניתן לרענן את אישור התיאום.', 'error');
+        }
       });
     }
 
@@ -3067,7 +3117,7 @@ export const activitiesScreen = {
           state.activitiesMonthYm = '';
         }
         ensureActivityListFilters(state, ACTIVITIES_SCOPE).visibleCount = 200;
-        if (requestedTab !== ACTIVITIES_INNER_TAB_COORDINATION || state.activityCoordinationLoaded) {
+        if (requestedTab !== ACTIVITIES_INNER_TAB_COORDINATION) {
           rerenderLocal();
           return;
         }
@@ -3076,11 +3126,7 @@ export const activitiesScreen = {
           state.activityCoordinationError = '';
           rerenderLocal();
           state.activityCoordinationPromise = Promise.resolve()
-            .then(() => loadActivityCoordination(activitiesRows, state.clientSettings || {}))
-            .then((coordination) => {
-              state.activityCoordination = coordination;
-              state.activityCoordinationLoaded = true;
-            })
+            .then(() => refreshCoordinationContext())
             .catch((error) => {
               state.activityCoordination = { items: [], byActivityId: new Map() };
               state.activityCoordinationError = String(error?.message || error);
@@ -3637,21 +3683,26 @@ export const activitiesScreen = {
       pop.classList.add('is-open');
     }, rowSig);
 
-    root.addEventListener('click', (ev) => {
+    root.addEventListener('click', async (ev) => {
       const send = ev.target.closest('[data-coordination-send]');
       if (send) {
         ev.stopPropagation();
         const item = state.activityCoordination?.byActivityId?.get?.(send.dataset.coordinationSend);
         if (!item || !item.recipient_email) { showToast(item?.technical_blocker || 'לא ניתן להכין אישור.', 'error'); return; }
-        if (item.status === 'sent' && !globalThis.confirm('האישור כבר נשלח עבור אותם נתונים. להכין טיוטה נוספת?')) return;
         send.disabled = true;
-        import('../activity-coordination/outlook.js').then(({ prepareCoordinationDrafts }) => prepareCoordinationDrafts([item], { loginHint: state?.user?.email || '' })).then(async (results) => {
+        try {
+          const fresh = await beforeCoordinationPrepare([item]);
+          const { prepareCoordinationDrafts } = await import('../activity-coordination/outlook.js');
+          const results = await prepareCoordinationDrafts(fresh, { loginHint: state?.user?.email || '' });
           const failed = results.find((result) => !result.ok);
           if (failed) throw failed.error;
           showToast('טיוטת אישור התיאום הוכנה ב-Outlook.', 'success');
-          state.activityCoordination = await loadActivityCoordinationContext(data?.rows || [], state.clientSettings || {});
+          await refreshCoordinationContext();
           rerender();
-        }).catch((error) => { showToast(error?.message || 'לא ניתן להכין את הטיוטה.', 'error'); send.disabled = false; });
+        } catch (error) {
+          showToast(error?.message || 'לא ניתן להכין את הטיוטה.', 'error');
+          send.disabled = false;
+        }
         return;
       }
       const rowNode = ev.target.closest('.ds-data-row');

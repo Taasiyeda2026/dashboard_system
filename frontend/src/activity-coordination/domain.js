@@ -164,7 +164,10 @@ export function groupActivitiesForDispatch(items = []) {
   const groups = new Map();
   for (const item of items) {
     const email = normalizeRecipientEmail(item.recipient_email);
-    const key = `${text(item.activity_season)}\u0000${text(item.school_id)}\u0000${email}`;
+    const cc = normalizeRecipientEmail(item.cc_email);
+    // A dispatch stores one CC address. Do not combine activities with different
+    // managers, or later status comparisons would use another activity's CC.
+    const key = `${text(item.activity_season)}\u0000${text(item.school_id)}\u0000${email}\u0000${cc}`;
     if (!groups.has(key)) {
       groups.set(key, {
         activity_season: text(item.activity_season),
@@ -178,11 +181,23 @@ export function groupActivitiesForDispatch(items = []) {
   return Array.from(groups.values());
 }
 
-export function coordinationStatus({ readiness, currentHash = '', latestSent = null, activeDraft = null } = {}) {
-  if (latestSent?.document_data_hash === currentHash) return COORDINATION_STATUS.SENT;
-  if (activeDraft?.document_data_hash && activeDraft.document_data_hash === currentHash) return COORDINATION_STATUS.DRAFT;
-  if (latestSent?.document_data_hash) return COORDINATION_STATUS.CHANGED_SINCE_SENT;
+export function coordinationDeliveryMatches(current = {}, stored = {}) {
+  return normalizeRecipientEmail(current.recipient_email) === normalizeRecipientEmail(stored.recipient_email)
+    && normalizeRecipientEmail(current.cc_email) === normalizeRecipientEmail(stored.cc_email)
+    && text(current.school_id) === text(stored.school_id);
+}
+
+export function coordinationStatus({
+  readiness, currentHash = '', latestSent = null, activeDraft = null, currentDelivery = null
+} = {}) {
+  // A sent document must not disguise missing mandatory fields after an edit.
   if (readiness && !readiness.ready) return COORDINATION_STATUS.MISSING_DETAILS;
+  const matches = (record) => Boolean(record?.document_data_hash)
+    && record.document_data_hash === currentHash
+    && (!currentDelivery || coordinationDeliveryMatches(currentDelivery, record));
+  if (matches(latestSent)) return COORDINATION_STATUS.SENT;
+  if (matches(activeDraft)) return COORDINATION_STATUS.DRAFT;
+  if (latestSent?.document_data_hash) return COORDINATION_STATUS.CHANGED_SINCE_SENT;
   if (readiness?.ready) return COORDINATION_STATUS.READY;
   return COORDINATION_STATUS.NOT_SENT;
 }

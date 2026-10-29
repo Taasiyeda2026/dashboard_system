@@ -51,8 +51,8 @@ test('prepared coordination draft exposes an Outlook action without a blocking p
   assert.deepEqual(opened, [exactLink]);
 });
 
-test('workspace exposes only the three requested UI states and lists concrete missing details', () => {
-  assert.deepEqual(Object.values(STATUS_PRESENTATION).map(({ label }) => label), ['נשלח', 'חסרים פרטים', 'מוכן לשליחה']);
+test('workspace exposes a distinct revised-approval state and lists concrete missing details', () => {
+  assert.deepEqual(Object.values(STATUS_PRESENTATION).map(({ label }) => label), ['נשלח', 'נדרש אישור מעודכן', 'חסרים פרטים', 'מוכן לשליחה']);
   const missing = {
     ...readyItem,
     status: COORDINATION_STATUS.MISSING_DETAILS,
@@ -68,13 +68,14 @@ test('workspace exposes only the three requested UI states and lists concrete mi
   assert.doesNotMatch(html, /ללא|לא צוין|coordination-kpi|data-coordination-filter/);
 });
 
-test('workspace keeps missing on one side and ready plus sent together on the other side', () => {
+test('workspace keeps missing separate and makes ready and changed approvals independently actionable', () => {
   const school = { school_id: 2 };
   const snapshot = { school: { name: 'אלון' }, program: { name: 'רובוטיקה' }, contact: {} };
   const missing = { ...readyItem, activity_row_id: 'missing', status: COORDINATION_STATUS.MISSING_DETAILS, readiness: { ready: false, missing: ['contact'] }, activity: school, snapshot };
   const ready = { ...readyItem, activity_row_id: 'ready', activity: school, snapshot, recipient_email: 'school@example.com' };
   const sent = { ...readyItem, activity_row_id: 'sent', status: COORDINATION_STATUS.SENT, activity: school, snapshot, recipient_email: 'school@example.com' };
-  const context = { items: [missing, ready, sent] };
+  const changed = { ...readyItem, activity_row_id: 'changed', status: COORDINATION_STATUS.CHANGED_SINCE_SENT, activity: school, snapshot, recipient_email: 'school@example.com' };
+  const context = { items: [missing, ready, sent, changed] };
   const html = renderCoordinationWorkspace(context, { canManage: true });
 
   const dom = new JSDOM(`<main>${html}</main>`);
@@ -87,22 +88,26 @@ test('workspace keeps missing on one side and ready plus sent together on the ot
   assert.equal(columns.children[0].querySelector('[data-coordination-section="missing_details"]') !== null, true);
   assert.equal(columns.children[0].querySelector('[data-coordination-section="ready"]'), null);
   assert.equal(columns.children[1].querySelector('[data-coordination-section="ready"]') !== null, true);
+  assert.equal(columns.children[1].querySelector('[data-coordination-section="changed_since_sent"]') !== null, true);
   assert.equal(columns.children[1].querySelector('[data-coordination-section="sent"]') !== null, true);
 
-  assert.equal((html.match(/data-coordination-section=/g) || []).length, 3);
-  assert.equal((html.match(/data-coordination-school-select/g) || []).length, 1);
-  assert.equal((html.match(/data-coordination-item/g) || []).length, 1);
-  assert.match(columns.children[1].innerHTML, /data-coordination-select-ready[\s\S]*data-coordination-prepare/);
+  assert.equal((html.match(/data-coordination-section=/g) || []).length, 4);
+  assert.equal((html.match(/data-coordination-school-select/g) || []).length, 2);
+  assert.equal((html.match(/data-coordination-item/g) || []).length, 2);
+  assert.match(columns.children[1].innerHTML, /data-coordination-select-status="ready"[\s\S]*data-coordination-prepare="ready"/);
   assert.match(html, />סמן מוכנים<\/button>/);
   assert.match(html, />הכנת מיילים<\/button>/);
+  assert.match(html, />הכנת אישורים מעודכנים<\/button>/);
   assert.doesNotMatch(html, /שליחת מוכנים|בחר את כל המוכנים לשליחה/);
 
   bindCoordinationWorkspace(root, context);
-  root.querySelector('[data-coordination-select-ready]').click();
+  root.querySelector('[data-coordination-select-status="ready"]').click();
   assert.deepEqual(Array.from(root.querySelectorAll('[data-coordination-item]:checked'), (input) => input.value), ['ready']);
+  root.querySelector('[data-coordination-select-status="changed_since_sent"]').click();
+  assert.deepEqual(Array.from(root.querySelectorAll('[data-coordination-item]:checked'), (input) => input.value).sort(), ['changed', 'ready']);
 });
 
-test('changed activity remains sent and single-activity modal contains no workspace controls', () => {
+test('changed activity is not falsely displayed as sent and modal offers an updated approval', () => {
   const changed = {
     ...readyItem,
     status: COORDINATION_STATUS.CHANGED_SINCE_SENT,
@@ -113,9 +118,9 @@ test('changed activity remains sent and single-activity modal contains no worksp
     },
     recipient_email: 'noa@example.com', cc_email: 'manager@example.com'
   };
-  assert.equal(coordinationUiStatus(changed), COORDINATION_STATUS.SENT);
+  assert.equal(coordinationUiStatus(changed), COORDINATION_STATUS.CHANGED_SINCE_SENT);
   const html = renderCoordinationActivityModal(changed);
-  assert.match(html, /נשלח/);
+  assert.match(html, /נדרש אישור מעודכן/);
   assert.match(html, /הפרטים השתנו מאז השליחה/);
   assert.match(html, /הכנת מייל מעודכן ב-Outlook/);
   assert.match(html, /data-activity-id="7"/);
