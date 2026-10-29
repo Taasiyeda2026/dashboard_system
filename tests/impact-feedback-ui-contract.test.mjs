@@ -203,7 +203,7 @@ test('tab switches and group-back reuse cache; refresh and mutations force fresh
 
 
 test('group management shows activity data as read-only identity, without a course assignment UI', () => {
-  const group = screen.slice(screen.indexOf('function groupViewHtml(group)'), screen.indexOf('// Export', screen.indexOf('function groupViewHtml(group)')));
+  const group = screen.slice(screen.indexOf('function groupViewHtml(group, user)'), screen.indexOf('// Export', screen.indexOf('function groupViewHtml(group, user)')));
   assert.match(group, /const activityTitle = group\.activity_name \|\|/);
   assert.match(group, /<h2 class="ifb-group-head__title">\$\{esc\(group\.school/);
   assert.match(group, /<p class="ifb-group-head__program">\$\{esc\(activityTitle\)\}<\/p>/);
@@ -547,7 +547,7 @@ test('student and staff tables interleave each feedback stage with its correspon
   const bodyFinal=tbody.indexOf("scope === 'staff' ? 'final' : 'post'");
   assert.ok(bodyStart>=0 && bodyPre>bodyStart && bodyEnd>bodyPre && bodyFinal>bodyEnd);
   const cols=t.slice(t.indexOf('<colgroup>'),t.indexOf('</colgroup>'));
-  assert.match(cols, /ifb-gw-date--start[^']*ifb-gw-stage[^']*ifb-gw-date--end[^']*ifb-gw-stage/);
+  assert.match(cols, /ifb-gw-date--start[\\s\\S]*?ifb-gw-stage[\\s\\S]*?ifb-gw-date--end[\\s\\S]*?ifb-gw-stage/);
 });
 
 test('second half uses a separate campaign and the existing final questionnaire', () => {
