@@ -2284,3 +2284,46 @@
   .ifb-admin .ifb-ai-export__groups { grid-template-columns: minmax(0, 1fr); }
   .ifb-admin .ifb-ai-export__course { width: 100%; max-width: 100%; }
 }
+
+/* Educational-staff feedback: same dashboard density, no oversized empty panels. */
+.ifb-admin .ifb-staff-intro { font-size: 12px; line-height: 1.5; color: var(--ifb-a-muted); margin: 0 0 5px; }
+.ifb-admin .ifb-staff-table { width: 100%; min-width: 0; table-layout: fixed; direction: rtl; }
+.ifb-admin .ifb-staff-table col.ifb-sw-school { width: 17%; }
+.ifb-admin .ifb-staff-table col.ifb-sw-course { width: 14%; }
+.ifb-admin .ifb-staff-table col.ifb-sw-people { width: 17%; }
+.ifb-admin .ifb-staff-table col.ifb-sw-dates { width: 11%; }
+.ifb-admin .ifb-staff-table col.ifb-sw-status { width: 11%; }
+.ifb-admin .ifb-staff-table col.ifb-sw-action { width: 8%; }
+.ifb-admin .ifb-staff-table th, .ifb-admin .ifb-staff-table td {
+  padding: 8px 7px; font-size: 11.5px; line-height: 1.45; vertical-align: middle; overflow-wrap: anywhere;
+}
+.ifb-admin .ifb-staff-table thead th { background: #e8f5fa; color: var(--ifb-a-text); font-size: 11px; font-weight: 700; }
+.ifb-admin .ifb-staff-table .ifb-staff-sub { display: block; color: var(--ifb-a-muted); font-size: 10.5px; margin-top: 2px; font-weight: 400; }
+.ifb-admin .ifb-staff-table .ifb-staff-stage { text-align: center; }
+.ifb-admin .ifb-staff-table .ifb-mail-status { display: block; font-size: 10px; line-height: 1.3; margin-top: 3px; }
+.ifb-admin .ifb-staff-table .ifb-mail-plan { display: block; margin-top: 2px; }
+.ifb-admin .ifb-staff-table .ifb-staff-action { text-align: center; }
+.ifb-admin .ifb-staff-table .ifb-staff-action .ifb-btn { width: auto; min-width: 52px; }
+.ifb-admin .ifb-staff-schedule { border-top: 1px solid var(--ifb-a-divider); padding-top: 8px; margin-top: 2px; }
+.ifb-admin .ifb-staff-schedule > summary { cursor: pointer; font-size: 12px; font-weight: 650; }
+.ifb-admin .ifb-staff-schedule form { display: grid; gap: 8px; margin-top: 8px; }
+.ifb-admin .ifb-staff-schedule input[type="date"] { max-width: 200px; }
+@media (min-width: 1040px) {
+  .ifb-admin .ifb-group-detail--staff .ifb-slots--staff {
+    grid-template-columns: repeat(3,minmax(0,1fr)); align-items: start;
+  }
+  .ifb-admin .ifb-group-detail--staff .ifb-slots--staff .ifb-slot { padding: 12px; gap: 8px; }
+  .ifb-admin .ifb-group-detail--staff .ifb-slots--staff .ifb-slot .ifb-meta {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+  }
+}
+@media (min-width: 761px) and (max-width: 1120px) {
+  .ifb-admin .ifb-staff-table { min-width: 1050px; }
+}
+@media (max-width: 760px) {
+  .ifb-admin .ifb-staff-table { min-width: 0; }
+  .ifb-admin .ifb-staff-table tbody tr { margin-bottom: 10px; }
+  .ifb-admin .ifb-staff-table tbody td, .ifb-admin .ifb-staff-table tbody th { text-align: start; }
+  .ifb-admin .ifb-staff-table .ifb-staff-stage { text-align: start; }
+  .ifb-admin .ifb-staff-table .ifb-staff-action { text-align: start; }
+}
