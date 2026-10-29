@@ -7,7 +7,7 @@ const app=process.env.E2E_APP_URL || 'http://127.0.0.1:5173';
 assert.ok(['127.0.0.1','localhost'].includes(new URL(app).hostname));
 const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH || '/usr/bin/chromium',headless:true,args:['--no-sandbox']});
 const states=['not_due','pending','sent','failed','needs_attention'];
-const labels=['טרם הגיע מועד','ממתין לשליחה','נשלח','נכשל','דורש טיפול'];
+const labels=['ממתין לשליחה','נשלח','השליחה נכשלה','דרושה בדיקת שליחה'];
 const groups=states.flatMap((_,i)=>['first','second'].map(half=>({
   row_id:`${half}-${i}`,program_key:'trailblazers',program_source:'name',feedback_excluded:false,
   school:`בית ספר לדוגמה ${i+1}`,authority:'חיפה',contact_name:`איש קשר ${i+1}`,has_contact:true,
@@ -40,6 +40,10 @@ try {
       assert.equal(await page.locator('.ifb-groups-table--staff tbody tr').count(),5);
       assert.equal(await page.locator('.ifb-groups-table--staff th.ifb-col-stage').count(),2);
       for(const label of labels)assert.equal(await page.locator('.ifb-mail-status').filter({hasText:label}).count(),2);
+      // A not_due opening is not automatically a pending email; its date controls
+      // whether it is still in the future or has missed the dispatch window.
+      assert.equal(await page.locator('.ifb-mail-status')
+        .filter({hasText:half==='first'?'לא נשלח · מועד השליחה חלף':'ממתין לתחילת הקורס'}).count(),2);
       const overflow=await page.locator('.ifb-admin').evaluate(el=>el.scrollWidth>el.clientWidth+2);
       assert.equal(overflow,false,`no overflow at ${viewport.width}/${half}`);
     }
@@ -51,7 +55,7 @@ try {
     await page.locator('[data-ifb-tab="staff"]').click();
     await page.locator('[data-ifb-refresh]').click();
     await page.waitForFunction(()=>document.querySelectorAll('.ifb-mail-status').length===10 &&
-      [...document.querySelectorAll('.ifb-mail-status')].every(el=>el.textContent.includes('דורש טיפול')));
+      [...document.querySelectorAll('.ifb-mail-status')].every(el=>el.textContent.includes('סטטוס שליחה לא זמין')));
     assert.deepEqual(errors,[]);
     statusAvailable=true;await context.close();
     console.log(`PASS staff UI ${viewport.width}px: both halves, five labels, two columns, read failure, other audiences unchanged`);
