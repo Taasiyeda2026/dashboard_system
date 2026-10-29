@@ -87,11 +87,13 @@ function selectField(key, label, options, value) {
     + '</select></label>';
 }
 
-function dateField(key, label, value) {
+function dateField(key, label, value, min = '') {
+  const earliest = asDate(min);
   return '<label class="ds-act-advanced__field"><span>' + escapeHtml(label) + '</span>'
     + '<input type="date" class="ds-input ds-input--sm" data-activity-advanced-field="' + key
-    + '" aria-label="' + escapeHtml(label) + '" value="' + escapeHtml(asDate(value)) + '">'
-    + '</label>';
+    + '" aria-label="' + escapeHtml(label) + '" value="' + escapeHtml(asDate(value)) + '"'
+    + (earliest ? ' min="' + escapeHtml(earliest) + '"' : '')
+    + '></label>';
 }
 
 /** Icon-only control, matching the feedback screen filter affordance. */
@@ -114,7 +116,7 @@ export function activitiesAdvancedFiltersHtml(filters = {}, assignment = 'all', 
     + '<div class="ds-act-advanced__grid">'
     + selectField('advStartPresence', 'תאריך התחלה', PRESENCE_OPTIONS, filters.advStartPresence)
     + dateField('advMeetingFrom', 'מפגש מתאריך', filters.advMeetingFrom)
-    + dateField('advMeetingTo', 'מפגש עד תאריך', filters.advMeetingTo)
+    + dateField('advMeetingTo', 'מפגש עד תאריך', filters.advMeetingTo, filters.advMeetingFrom)
     + selectField('assignment', 'מצב שיבוץ', ASSIGNMENT_OPTIONS, assignment)
     + selectField('advPricePresence', 'מחיר פעילות', PRESENCE_OPTIONS, filters.advPricePresence)
     + '</div>'
@@ -150,7 +152,20 @@ export function bindActivitiesAdvancedFilters(root, state, scope, rerender) {
         state.allActivitiesStatusFilter = 'all';
       } else if (ADVANCED_ACTIVITY_FILTER_KEYS.includes(field)) {
         const filters = ensureActivityListFilters(state, scope);
-        filters[field] = value;
+        if (field === 'advMeetingFrom') {
+          const from = asDate(value);
+          const to = asDate(filters.advMeetingTo);
+          filters.advMeetingFrom = from;
+          // Anchor the second calendar to the newly selected month/day, and
+          // never leave the upper bound earlier than the lower bound.
+          if (from && (!to || to < from)) filters.advMeetingTo = from;
+        } else if (field === 'advMeetingTo') {
+          const from = asDate(filters.advMeetingFrom);
+          const to = asDate(value);
+          filters.advMeetingTo = from && to && to < from ? from : to;
+        } else {
+          filters[field] = value;
+        }
       }
       ensureActivityListFilters(state, scope).visibleCount = 200;
       rerender();
