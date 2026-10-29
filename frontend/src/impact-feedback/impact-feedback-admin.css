@@ -2342,3 +2342,37 @@
   .ifb-admin .ifb-staff-table .ifb-mail-status { text-align: start; }
   .ifb-admin .ifb-staff-table .ifb-mail-status .ifb-status { justify-content: flex-start; }
 }
+
+/* Staff final: never imply completion is expected before the course actually ends. */
+.ifb-admin .ifb-staff-final-waiting {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 3px;
+  font-size: 11px;
+  line-height: 1.4;
+  min-width: 0;
+}
+.ifb-admin .ifb-staff-final-note {
+  font-size: 10.5px;
+  font-weight: 400;
+  color: var(--ifb-a-muted);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.ifb-admin .ifb-staff-final-note--warning {
+  color: var(--ifb-a-warning, #a56709);
+  font-weight: 600;
+}
+.ifb-admin .ifb-staff-final-waiting--detail {
+  justify-items: start;
+  text-align: start;
+  padding: 0 2px;
+  gap: 4px;
+}
+.ifb-admin .ifb-staff-final-waiting--detail .ifb-staff-final-note {
+  font-size: 12px;
+}
+@media (max-width:760px) {
+  .ifb-admin .ifb-staff-final-waiting { justify-items: start; }
+}
