@@ -58,7 +58,7 @@ export function staffMail(item, baseUrl) {
   if (base.protocol !== 'https:' || base.username || base.password) throw new Error('invalid_feedback_base_url');
   if (!/^[A-Za-z0-9_-]{32,128}$/.test(item.token || '')) throw new Error('invalid_personal_token');
   const stage = item.stage;
-  if (stage !== 'pre' && stage !== 'final') throw new Error('invalid_stage');
+  if (!['pre', 'mid', 'final'].includes(stage)) throw new Error('invalid_stage');
   const programTitle = String(item.program_title ?? '').replace(/[\r\n]+/g, ' ').trim();
   if (!programTitle) throw new Error('missing_program_title');
   // The name belongs to the selected contacts_schools record, not a legacy
@@ -71,9 +71,14 @@ export function staffMail(item, baseUrl) {
 
   const paragraphs = stage === 'pre'
     ? [
-      `לאחר המפגשים הראשונים בתוכנית <strong>${program}</strong>, נשמח לשמוע את התרשמותך מהפעילות עד כה.`,
-      'חשוב לנו לדעת האם יש נושאים שכדאי לדייק, לשפר או להתאים כבר בשלב זה של התוכנית.',
-      'נודה לך על הקדשת מספר דקות למילוי משוב קצר, שיסייע לנו להמשיך ולשפר את הפעילות ולהתאים אותה לצורכי התלמידים ובית הספר.'
+      `לקראת תחילת התוכנית <strong>${program}</strong>, נשמח להכיר את הציפיות והצרכים שלכם ואת נקודת הפתיחה של התלמידים.`,
+      'תשובותיך יסייעו לנו להתאים את ההדרכה לקבוצה ולהיערך למפגשים באופן מיטבי.',
+      'נודה לך על הקדשת מספר דקות למילוי משוב תיאום ציפיות קצר.'
+    ]
+    : stage === 'mid' ? [
+      `במחצית התוכנית <strong>${program}</strong>, חשוב לנו להבין כיצד המפגשים מתקדמים.`,
+      'נשמח לדעת מה עובד היטב והאם קיים קושי שחשוב לטפל בו כבר במפגשים הקרובים.',
+      'נודה לך על מילוי משוב אמצע קצר שמאפשר לנו לשפר בזמן אמת.'
     ]
     : [
       `עם סיום התוכנית <strong>${program}</strong>, נשמח לשמוע את התרשמותך מהפעילות שהתקיימה.`,
@@ -82,7 +87,7 @@ export function staffMail(item, baseUrl) {
     ];
 
   return {
-    subject: `משוב על פעילויות תעשיידע | ${programTitle}`,
+    subject: `משוב ${stage === 'pre' ? 'פתיחה' : stage === 'mid' ? 'אמצע' : 'סיום'} | ${programTitle} | תעשיידע`,
     body: {
       contentType: 'HTML',
       content: [
