@@ -126,8 +126,7 @@ export function staffFinalExpiryWarning({ expiresAt, endDate, now = Date.now() }
   if (!expiresAt || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(endDate || '')) return '';
   const expiresMs = Date.parse(expiresAt);
   if (!Number.isFinite(expiresMs)) return '';
-  if (endDate < localIsraelDay(now)) return '';
-  // The expected closing survey date is the day after the official course end.
-  return expiresMs < Date.parse(endDate + 'T23:59:59+02:00')
-    ? 'תוקף הקישור מסתיים לפני סיום הקורס' : '';
+  // Staff final feedback is sent after the last course day, not before it.
+  return localIsraelDay(expiresMs) <= endDate
+    ? 'תוקף הקישור יפוג לפני שליחת משוב הסיום - יש לעדכן תוקף' : '';
 }
