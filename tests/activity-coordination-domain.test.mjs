@@ -71,6 +71,10 @@ test('dispatch grouping uses season, school, and normalized recipient email', ()
   const same = [1, 2, 3].map((id) => ({ row_id: String(id), activity_season: 'school_2027', school_id: 5, recipient_email: ' School@Example.org ' }));
   assert.equal(groupActivitiesForDispatch(same).length, 1);
   assert.equal(groupActivitiesForDispatch([...same, { ...same[0], row_id: '4', recipient_email: 'other@example.org' }]).length, 2);
+  assert.equal(groupActivitiesForDispatch([
+    { ...same[0], cc_email: 'manager-a@example.org' },
+    { ...same[1], cc_email: 'manager-b@example.org' }
+  ]).length, 2);
 });
 
 test('status precedence uses verified sent, current draft, then readiness', () => {
