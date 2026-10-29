@@ -18,7 +18,7 @@ const facts = [
   mk('course-c','pre','c1','shared','שאלה בנוסח אחר',3),
   mk('course-a','final','a3','end','איכות ההדרכה בפועל?',4),
   mk('course-b','final_b','b2','end','איכות ההדרכה בפועל?',5),
-  mk('course-a','final','a4','arabic','كانت التجربة جيدة جدا',null,'free_text'),
+  mk('course-a','final','a4','arabic','הערה על הקורס','كانت التجربة جيدة جدا','free_text'),
 ];
 const programs = [
   {key:'course-a',title:'קורס א׳'}, {key:'course-b',title:'קורס ב׳'},
