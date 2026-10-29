@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import {
   applyActivitiesAdvancedFilters,
+  activitySessionDates,
   advancedActivitiesFilterCount,
   activitiesAdvancedFiltersHtml,
   activitiesAdvancedFilterToggleHtml,
@@ -13,6 +14,7 @@ const ready = {
   RowID: 'ready',
   start_date: '2026-11-02',
   end_date: '2026-12-16',
+  meeting_dates: ['2026-11-02', '2026-11-23', '2026-12-16'],
   price: 0,
   school: 'אלתיאם',
   funding: 'רשות',
@@ -34,6 +36,8 @@ const later = {
   RowID: 'later',
   start_date: '2027-01-10',
   end_date: '',
+  date_1: '2027-01-10',
+  date_12: '2027-03-30',
   price: '9450',
   school: '',
   linked_schools_json: '[{"school_name":"בית ספר נוסף"}]',
@@ -45,12 +49,37 @@ const later = {
 const rows = [ready, missing, later];
 const ids = (filters) => applyActivitiesAdvancedFilters(rows, filters).map((row) => row.RowID);
 
-test('date availability uses start_date, not date_1; optional range is inclusive', () => {
+test('start/end date presence is independent of which session dates are scheduled', () => {
   assert.deepEqual(ids({ advStartPresence: 'missing' }), ['missing']);
   assert.deepEqual(ids({ advStartPresence: 'present' }), ['ready', 'later']);
-  assert.deepEqual(ids({ advStartFrom: '2026-11-02', advStartTo: '2026-11-02' }), ['ready']);
-  assert.deepEqual(ids({ advStartFrom: '2026-12-01' }), ['later']);
-  assert.deepEqual(ids({ advStartTo: '2026-12-31' }), ['ready']);
+  assert.deepEqual(ids({ advEndPresence: 'missing' }), ['missing', 'later']);
+  assert.deepEqual(ids({ advStartPresence: 'missing', advMeetingFrom: '2026-11-10', advMeetingTo: '2026-11-10' }), ['missing']);
+});
+
+test('range matches ANY meeting in the range, not just the activity start date', () => {
+  assert.deepEqual(ids({ advMeetingFrom: '2026-11-23', advMeetingTo: '2026-11-23' }), ['ready']);
+  assert.deepEqual(ids({ advMeetingFrom: '2026-11-10', advMeetingTo: '2026-11-10' }), ['missing']);
+  assert.deepEqual(ids({ advMeetingFrom: '2027-03-30', advMeetingTo: '2027-03-30' }), ['later']);
+  assert.deepEqual(ids({ advMeetingFrom: '2026-11-11', advMeetingTo: '2026-11-22' }), []);
+  assert.deepEqual(ids({ advMeetingFrom: '2027-01-01' }), ['later']);
+  assert.deepEqual(ids({ advMeetingTo: '2026-11-11' }), ['ready', 'missing']);
+});
+
+test('date scan supports meetings array, date_cols, 35 date columns and schedule objects', () => {
+  const all = activitySessionDates({
+    start_date: '2026-07-01',
+    end_date: '2027-05-01',
+    meeting_dates: ['2026-11-01', { date: '2026-11-05' }],
+    date_cols: ['2026-12-02', '2026-11-01'],
+    date_35: '2027-04-01',
+    Date3: '2026-12-03',
+    meeting_schedule: [{ date: '2027-01-15' }, { meeting_date: '2027-02-15' }]
+  });
+  assert.deepEqual(all, ['2026-11-01', '2026-11-05', '2026-12-02', '2026-12-03', '2027-01-15', '2027-02-15', '2027-04-01']);
+  assert.deepEqual(activitySessionDates({ start_date: '2026-01-01', end_date: '2026-12-31' }), []);
+  assert.equal(applyActivitiesAdvancedFilters([{ start_date: '2026-01-01', end_date: '2026-12-31' }],
+    { advMeetingFrom: '2026-11-01', advMeetingTo: '2026-11-30' }).length, 0,
+  'start/end dates alone do not imply a meeting exists');
 });
 
 test('price presence treats zero as entered and null as missing', () => {
@@ -58,30 +87,15 @@ test('price presence treats zero as entered and null as missing', () => {
   assert.deepEqual(ids({ advPricePresence: 'missing' }), ['missing']);
 });
 
-test('school presence includes multi-school links and not only school text', () => {
-  assert.deepEqual(ids({ advSchoolPresence: 'present' }), ['ready', 'later']);
-  assert.deepEqual(ids({ advSchoolPresence: 'missing' }), ['missing']);
-});
-
-test('funding presence accepts linked funding sources', () => {
-  assert.deepEqual(ids({ advFundingPresence: 'present' }), ['ready', 'later']);
-  assert.deepEqual(ids({ advFundingPresence: 'missing' }), ['missing']);
-});
-
-test('end-date and both-time completeness filters remain independent', () => {
-  assert.deepEqual(ids({ advEndPresence: 'missing' }), ['missing', 'later']);
-  assert.deepEqual(ids({ advHoursPresence: 'present' }), ['ready', 'later']);
-  assert.deepEqual(ids({ advHoursPresence: 'missing' }), ['missing']);
-});
-
 test('advanced fields compose without changing input rows', () => {
-  assert.deepEqual(ids({ advStartPresence: 'present', advPricePresence: 'present', advEndPresence: 'missing' }), ['later']);
+  assert.deepEqual(ids({ advStartPresence: 'present', advPricePresence: 'present', advEndPresence: 'missing', advMeetingFrom: '2027-03-01' }), ['later']);
+  assert.deepEqual(ids({ advSchoolPresence: 'missing', advFundingPresence: 'missing', advHoursPresence: 'missing' }), ['ready', 'missing', 'later'], 'removed filters are ignored');
   assert.deepEqual(ids({}), ['ready', 'missing', 'later']);
   assert.equal(rows.length, 3);
 });
 
 test('icon-only toggle and inline panel provide all filters and active state', () => {
-  assert.equal(advancedActivitiesFilterCount({ advStartFrom: '2026-11-01', advPricePresence: 'missing' }, 'assigned'), 3);
+  assert.equal(advancedActivitiesFilterCount({ advMeetingFrom: '2026-11-01', advPricePresence: 'missing' }, 'assigned'), 3);
   const filters = { advStartPresence: 'missing', advPricePresence: 'missing' };
   const toggle = activitiesAdvancedFilterToggleHtml(filters, 'draft', true);
   const panel = activitiesAdvancedFiltersHtml(filters, 'draft', true);
@@ -93,7 +107,13 @@ test('icon-only toggle and inline panel provide all filters and active state', (
   assert.doesNotMatch(toggle, /<button[^>]*>[א-ת]/);
   assert.match(panel, /data-activities-advanced-panel/);
   assert.match(panel, /data-activity-advanced-field="assignment"/);
-  assert.match(panel, /data-activity-advanced-field="advStartFrom"[^>]*disabled/);
+  assert.match(panel, /data-activity-advanced-field="advMeetingFrom"/);
+  assert.match(panel, /data-activity-advanced-field="advMeetingTo"/);
+  assert.match(panel, /data-activity-advanced-field="advEndPresence"/);
+  assert.match(panel, /data-activity-advanced-field="advPricePresence"/);
+  assert.doesNotMatch(panel, /advStartFrom|advStartTo|advSchoolPresence|advFundingPresence|advHoursPresence/);
+  assert.equal((panel.match(/data-activity-advanced-field=/g) || []).length, 6);
+  assert.equal(advancedActivitiesFilterCount({ advSchoolPresence: 'missing', advHoursPresence: 'present' }, 'all'), 0);
   assert.doesNotMatch(panel, /סינון מתקדם/);
   assert.match(activitiesAdvancedFiltersHtml({}, 'all', false), /hidden/);
   assert.doesNotMatch(activitiesAdvancedFilterToggleHtml({}, 'all', false), /ds-act-advanced__indicator/);
