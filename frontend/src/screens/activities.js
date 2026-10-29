@@ -65,7 +65,7 @@ import { activityCreateGefenValue, enhanceAddActivityGefenOrderUi } from '../act
 import { canEditDirect, canAddActivityDirect, canRequestEdit, canRequestCreateActivity, canReviewRequests } from '../permissions.js';
 import { hasPermission } from '../permission-policy.js';
 import { bindInstructorScheduling } from './instructor-scheduling-workflow.js';
-import { loadActivityCoordinationContext } from '../activity-coordination/data.js';
+import { loadActivityCoordinationContext, loadLatestCoordinationActivities } from '../activity-coordination/data.js';
 import { COORDINATION_STATUS } from '../activity-coordination/domain.js';
 import { bindCoordinationActivityModal, bindCoordinationWorkspace, coordinationDrawerActionHtml, coordinationUiStatus, reconcileVisibleDrafts, renderCoordinationActivityModal, renderCoordinationWorkspace } from '../activity-coordination/view.js';
 const taasiyedaLogoSrc = new URL('../../assets/logo1.png', import.meta.url).href;
@@ -2189,10 +2189,15 @@ export const activitiesScreen = {
   bind({ root, data, state, rerender, rerenderActivitiesView, ui, api, clearScreenDataCache, loadActivityCoordination = loadActivityCoordinationContext }) {
     // Reload persisted activity rows before presenting or preparing approvals.
     async function refreshCoordinationContext() {
-      const source = typeof api?.activities === 'function'
-        ? await api.activities({ activity_type: 'all', include_inactive: true })
-        : data;
-      const rows = Array.isArray(source?.rows) ? source.rows : (data?.rows || []);
+      const source = loadActivityCoordination === loadActivityCoordinationContext
+        ? await loadLatestCoordinationActivities()
+        : (typeof api?.activities === 'function'
+          ? await api.activities({ activity_type: 'all', include_inactive: true })
+          : data);
+      const enriched = typeof api?.enrichActivitiesContacts === 'function'
+        ? await api.enrichActivitiesContacts(source).catch(() => source)
+        : source;
+      const rows = Array.isArray(enriched?.rows) ? enriched.rows : (source?.rows || []);
       const context = await loadActivityCoordination(rows, state.clientSettings || {});
       state.activityCoordination = context;
       state.activityCoordinationLoaded = true;
