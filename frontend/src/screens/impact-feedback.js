@@ -1732,47 +1732,45 @@ function instructorRecommendationsHtml(facts) {
 
 
 /** AI handoff lives in Analysis only. It never changes survey records or the overview. */
+/** Compact course-specific AI export; all detailed instructions live in Excel. */
 function analysisAiPackageHtml() {
-  const slots = AI_STAGE_GROUPS.flatMap((group) => group.stages.map((stage) => ({
-    audience: group.audience, groupName: group.label, stage: stage.stage,
-    label: stage.label, key: group.audience + ':' + stage.stage
-  })));
   const currentFacts = ui.course ? courseFacts() : [];
-  const count = (slot) => {
-    const facts = aiFactsForSelection(currentFacts, [slot.key]);
+  const countFor = (key) => {
+    const facts = aiFactsForSelection(currentFacts, [key]);
     return new Set(facts.map((f) => f.response_id).filter(Boolean)).size;
   };
-  const stageOptions = AI_STAGE_GROUPS.map((group) => {
-    const choices = slots.filter((slot) => slot.audience === group.audience);
-    const selectedN = choices.filter((slot) => ui.aiSelectedStages.has(slot.key)).length;
-    return '<fieldset class="ifb-ai-stage-group" style="border:1px solid var(--border-color,#dbe3e9);border-radius:10px;padding:10px 14px;margin:0">' +
-      '<legend style="font-weight:700;padding:0 6px">' + esc(group.label) + '</legend>' +
-      '<div style="display:flex;flex-wrap:wrap;gap:10px 18px">' + choices.map((slot) =>
-        '<label style="display:inline-flex;gap:6px;align-items:center;cursor:pointer">' +
-        '<input type="checkbox" data-ifb-ai-stage="' + esc(slot.key) + '"' +
-        (ui.aiSelectedStages.has(slot.key) ? ' checked' : '') + '>' +
-        '<span>' + esc(slot.label) + (ui.course ? ' <small class="ifb-muted">(' + count(slot) + ' שאלונים)</small>' : '') + '</span></label>'
-      ).join('') + '</div>' +
-      '<p class="ifb-muted" style="margin:6px 0 0;font-size:.8rem">' + selectedN + ' מתוך ' + choices.length + ' שלבים נבחרו</p>' +
+  const groups = AI_STAGE_GROUPS.map((group) => {
+    const rows = group.stages.map(({ stage, label }) => {
+      const key = group.audience + ':' + stage;
+      const checked = ui.aiSelectedStages.has(key);
+      return '<label class="ifb-ai-export__option">' +
+        '<input type="checkbox" data-ifb-ai-stage="' + esc(key) + '"' + (checked ? ' checked' : '') + '>' +
+        '<span class="ifb-ai-export__stage">' + esc(label) + '</span>' +
+        (ui.course ? '<span class="ifb-ai-export__count">' + countFor(key) + '</span>' : '') +
+        '</label>';
+    }).join('');
+    return '<fieldset class="ifb-ai-export__group">' +
+      '<legend>' + esc(group.label) + '</legend>' +
+      '<div class="ifb-ai-export__options">' + rows + '</div>' +
       '</fieldset>';
   }).join('');
-  const n = ui.aiSelectedStages.size;
-  return '<section class="ifb-panel ifb-ai-export" aria-label="הפקת קובץ לניתוח AI" style="margin-block:16px;padding:16px">' +
-    '<h2 style="margin-top:0">העברת משובים לניתוח ב-ChatGPT</h2>' +
-    '<p>בחרו קורס ואת שלבי המשוב הרצויים. יופק <strong>קובץ Excel אחד</strong> המכיל נתונים, כמויות (N), השוואות תקפות ופרומפט ניתוח מקצועי.</p>' +
-    '<label class="ifb-field"><span>קורס לניתוח</span><select data-ifb-course>' +
-    optionList(ui.programs.map((p) => p.key), ui.course, 'בחרו קורס', programTitle) +
-    '</select></label>' +
-    '<div style="display:grid;gap:10px;margin:12px 0">' + stageOptions + '</div>' +
-    '<div class="ifb-slot__actions">' +
+  return '<section class="ifb-panel ifb-ai-export" aria-label="העברת נתונים לניתוח">' +
+    '<div class="ifb-ai-export__heading">' +
+      '<h2>ניתוח באמצעות ChatGPT</h2>' +
+      '<span class="ifb-ai-export__sub">בחרו קורס ושלבי משוב</span>' +
+    '</div>' +
+    '<label class="ifb-field ifb-ai-export__course"><span>קורס</span>' +
+      '<select data-ifb-course aria-label="קורס לניתוח">' +
+      optionList(ui.programs.map((p) => p.key), ui.course, 'בחרו קורס', programTitle) +
+      '</select>' +
+    '</label>' +
+    '<div class="ifb-ai-export__groups">' + groups + '</div>' +
+    '<div class="ifb-ai-export__actions">' +
       '<button type="button" class="ifb-btn ifb-btn--primary" data-ifb-ai-package' +
-      (!ui.course || !n ? ' disabled' : '') +
-      '>הורדת קובץ Excel ל-ChatGPT</button>' +
+      (!ui.course || !ui.aiSelectedStages.size ? ' disabled' : '') +
+      '>הורדת Excel</button>' +
       '<a class="ifb-btn" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">פתיחת ChatGPT</a>' +
     '</div>' +
-    '<p class="ifb-muted" style="margin-bottom:0">לאחר ההורדה, צרפו את הקובץ ל-ChatGPT ובקשו: "נתח את הקובץ לפי הגיליון הנחיות AI". ' +
-    'הקובץ מכיל את כל השלבים שנבחרו בלבד; שלב ללא תשובות יופיע במפורש כטרם מולא. ' +
-    'תשובות פתוחות עלולות להכיל פרטים מזהים שהוקלדו באופן חופשי - יש לבדוק לפני העברה מחוץ לארגון.</p>' +
   '</section>';
 }
 
