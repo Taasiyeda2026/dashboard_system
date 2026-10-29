@@ -84,11 +84,6 @@ try{
  assert.equal((await identities.idan.service.page()).rows.some(n=>n.entity_key===reportId&&n.event_type==='resubmitted'),true);
  assert.equal((await identities.idan.service.tasks()).some(n=>n.entity_key===reportId),false);
  results.push({case:'personal report submitted, returned, resubmitted and approved with private recipient history',passed:true,limit:'direct status write path; named production correction RPC is not defined in repository fixture'});
- await ok(identities.staff.client.rpc('av2_submit_attendance_month',{p_month_key:'2026-10',p_submitted_by_name:identities.staff.name}));
- assert.equal((await identities.manager.service.tasks()).some(t=>t.entity_key==='20|2026-10'),true);
- const staffApproval=await identities.manager.client.rpc('manager_finalize_attendance_month_review',{p_employee_id:'20',p_month_key:'2026-10',p_manager_name:identities.manager.name});
- assert.ok(staffApproval.error?.message.includes('permission_denied'));
- results.push({case:'headquarters event routes to actual manager',passed:true,remaining:'existing attendance approval RPC rejects staff absent from contacts_instructors; business authorization was not expanded'});
  assert.equal((await identities.outsider.service.page()).rows.length,0);assert.equal(wire.outsider.length,0);
  const foreign=(await identities.toni.service.page()).rows[0];assert.equal(await identities.outsider.service.markRead(foreign.id),false);
  assert.deepEqual(await identities.outsider.service.details([foreign]),{});

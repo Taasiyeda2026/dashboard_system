@@ -4,8 +4,8 @@
 
 ## Changes in this review
 
-- Attendance manager notification routing now combines `contacts_instructors.direct_manager` with `employee_profiles.direct_manager`, linking staff through `employee_profiles.user_id → users.user_id` and employee IDs. Missing managers, contradictory roster managers, conflicting employee IDs or multiple active users with the same manager name produce a routing exception, with no broadcast. Explicit reviewed assignments retain their existing precedence.
-- Staff notification labels now resolve the employee's name from the staff roster. Recipient/RLS checks remain required.
+- Attendance applies to **instructors only**: instructor → direct manager from `contacts_instructors.direct_manager` → Idan final approval → Idan payroll dispatch → Toni. The staff-roster attendance routing and label fallback have been removed. No business approval RPC or permission was changed.
+- Headquarters personal reports remain a separate process: submission/resubmission to Idan, correction/approval/payment updates to the report owner. Staff attendance approval is outside scope and is **not a merge blocker**.
 - A task awaiting the next approval is styled red even when its triggering event records the previous approval. Completed updates can remain green. Reading a notification does not close its task.
 - Frontend release marker refreshed; dashboard `CACHE_VERSION` is 2046. No new cache/precache paths or automatic browser workflow were added.
 
@@ -13,10 +13,10 @@
 
 | Check | Result | Scope and limits |
 | --- | --- | --- |
-| Staff manager routing | Passed, 1 focused PGlite case with multiple assertions | Staff without instructor row; employee label; unrelated recipient isolation; missing manager; conflicting rosters; conflicting employee IDs; duplicate manager names. No general recipient fallback. |
-| Instructor attendance routing and missing/ambiguous assignment | Passed, 2 existing PGlite cases selected with the initial routing change | Server-trigger state changes and recipient selection. Not actual Auth/PostgREST/RPC/Realtime integration. |
-| Existing staff manager approval RPC | Blocker reproduced, 1 passing diagnostic case | Executes the **unchanged** `manager_finalize_attendance_month_review` body from `20261013042258_unified_attendance_travel_time_cancellation.sql`. Staff notification reaches the manager, but approval raises `payroll_attendance_permission_denied`. |
-| Notification label RLS | Passed, 1 focused PGlite case after label-query changes | Cross-user notification/label isolation, forbidden client writes and internal function access. |
+| Instructor-only routing and no staff fallback | Passed, 1 focused PGlite case after scope correction | A staff profile without an instructor record creates no manager notification/task. For an instructor, a conflicting staff profile cannot override the instructor's manager or display name. |
+| Staff personal report independence | Passed, 1 focused PGlite case after scope correction | Staff member has no instructor record: submission, correction, resubmission, approval and payment retain Idan/owner routing; unrelated users receive nothing; tasks close correctly. |
+| Instructor attendance chain and missing/ambiguous assignment | Passed, 2 existing PGlite cases rerun after scope correction | Instructor → manager → Idan → payroll dispatch → Toni, including reopening and missing recipient exception. Server-trigger state changes, not actual Auth/PostgREST/RPC/Realtime integration. |
+| Notification label RLS | Passed, 1 focused PGlite case rerun after scope correction | Cross-user notification/label isolation, forbidden client writes and internal function access. |
 | UI regression | Passed, 4 focused cases | Existing edit request groups, names/escaping, read versus task state, tabs/history filters, empty state, many rows and pending-stage styling. DOM tests, not business approval execution. |
 | Actual browser rendering | Passed, 3 viewport scenarios | System Chromium 151 via Playwright; 1440×1000, 390×844 and 320×740. Real screen components, navigation renderer and application CSS, synthetic labelled test data and test service only. |
 | New local integration scripts | Syntax checks passed | **Not executed** against a running Supabase stack. Syntax success is not integration success. |
@@ -25,7 +25,7 @@ The browser checks exercised all three tabs, unread clearing while tasks stay op
 
 Evidence: [machine-readable browser results](browser-results.json), [desktop tasks](desktop-pending.png), [mobile updates](mobile-updates.png), [small mobile history](small-mobile-history.png), [desktop empty state](desktop-empty.png).
 
-Focused DB runs were repeated only after relevant SQL/fixture changes: first staff routing, then staff labels, then contradictory-ID/name cases. UI rendering was repeated after correcting pending-task styling; screenshot capture was corrected to disable transitions. These repetitions are not counted as additional unique cases. The previous delivery's 52 passing scenarios, build and nine reproduced legacy failures are historical results in the implementation plan, not a fresh full-suite run. No new build was needed for this focused rendering/SQL change; real Vite/Chromium rendering and targeted tests were used.
+After the user clarified instructor-only attendance, five focused DB cases passed in one run. Existing routing/RLS cases were rerun because their SQL resolver/label query changed; two new cases verify scope exclusion and preservation of staff personal reports. The earlier staff attendance diagnostic was removed because that process is not required. The earlier UI checks and screenshots remain applicable: no frontend changed in this correction, so they were not rerun. The previous delivery's 52 passing scenarios, build and nine reproduced legacy failures are historical results in the implementation plan, not a fresh full-suite run. No build or cache bump was needed for this SQL/test/documentation-only correction; frontend cache version remains 2046.
 
 ## Isolated Supabase attempt and unverified requirements
 
@@ -39,7 +39,7 @@ The CLI was stopped. The Docker daemon uses the `vfs` storage driver; no daemon/
 
 Consequently, the following remain **NOT VERIFIED** end to end:
 
-- Employee → manager → Idan final approval → Idan payroll dispatch → Toni using real authenticated business RPCs and real WebSockets.
+- Instructor → manager → Idan final approval → Idan payroll dispatch → Toni using real authenticated business RPCs and real WebSockets.
 - Proposal awaiting signature, actual signature approval and return for correction through the existing production screen/action path. Trigger-level status fixtures from the earlier DB tests do not verify signing/PDF permissions.
 - Personal report submission → correction → resubmission → approval through the complete authenticated UI/RPC path. The named `request_personal_report_correction` definition is not provided by the reduced local fixture; status updates do not substitute for that RPC.
 - Two-user/two-tab delivery, read synchronization, automatic task closure and duplicate prevention over actual Realtime. The earlier client-contract/DOM/RLS tests cover individual behaviors only.
@@ -48,9 +48,8 @@ Consequently, the following remain **NOT VERIFIED** end to end:
 
 ## Merge blockers and next steps
 
-1. **Staff approval authorization mismatch:** the existing manager RPC checks `contacts_instructors` (lines 1032–1039 in the source migration) rather than the staff roster. Routing is fixed, but the requested staff process is not executable by that manager in the reduced reproduction. No instructor rows were fabricated and the business RPC was not broadened. Confirm the intended staff approval path and review its authorization against the existing employee-manager sources before changing it. Add both positive staff approval and negative unrelated-manager tests for the agreed path.
-2. **Full-stack acceptance remains blocked by local Docker storage.** Rerun on a sufficiently provisioned isolated Docker host, or provide another explicitly nonproduction environment. Apply the PR migration there only and complete the above acceptance matrix. Do not substitute production for this environment.
-3. Resolve/review the known assignment exceptions (including Idan's own report and missing/ambiguous owners) before any separately authorized initialization. Toni's privileges were not promoted automatically.
+1. **Full-stack acceptance remains blocked by local Docker storage.** Rerun on a sufficiently provisioned isolated Docker host, or provide another explicitly nonproduction environment. Apply the PR migration there only and complete the above acceptance matrix. Do not substitute production for this environment. The instructor business RPC remains unchanged; staff attendance authorization is not required and is not a blocker.
+2. Resolve/review the known assignment exceptions (including Idan's own personal report and missing/ambiguous owners) before any separately authorized initialization. Toni's privileges were not promoted automatically.
 
 ## Manual reproduction
 
