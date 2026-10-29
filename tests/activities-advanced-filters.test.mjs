@@ -1,10 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { JSDOM } from 'jsdom';
 import {
   applyActivitiesAdvancedFilters,
   advancedActivitiesFilterCount,
   activitiesAdvancedFiltersHtml,
-  activitiesAdvancedFilterToggleHtml
+  activitiesAdvancedFilterToggleHtml,
+  bindActivitiesAdvancedFilters
 } from '../frontend/src/screens/shared/activities-advanced-filters.js';
 
 const ready = {
@@ -95,4 +97,47 @@ test('icon-only toggle and inline panel provide all filters and active state', (
   assert.doesNotMatch(panel, /סינון מתקדם/);
   assert.match(activitiesAdvancedFiltersHtml({}, 'all', false), /hidden/);
   assert.doesNotMatch(activitiesAdvancedFilterToggleHtml({}, 'all', false), /ds-act-advanced__indicator/);
+});
+
+test('inline panel toggles and stays open after selecting a filter', () => {
+  const previousDocument = globalThis.document;
+  const dom = new JSDOM('<main id="root"></main>', { url: 'https://example.test/' });
+  globalThis.document = dom.window.document;
+  try {
+    const root = dom.window.document.getElementById('root');
+    const state = { listFilters: {}, activitiesInstructorStatusFilter: 'all', activitiesAdvancedFiltersOpen: false };
+    let rerenders = 0;
+    const render = () => {
+      rerenders += 1;
+      const filters = state.listFilters.activities || {};
+      root.innerHTML = '<div class="ds-activities-main-toolbar">'
+        + activitiesAdvancedFilterToggleHtml(filters, state.activitiesInstructorStatusFilter, state.activitiesAdvancedFiltersOpen)
+        + '</div>'
+        + activitiesAdvancedFiltersHtml(filters, state.activitiesInstructorStatusFilter, state.activitiesAdvancedFiltersOpen);
+      bindActivitiesAdvancedFilters(root, state, 'activities', render);
+    };
+    render();
+    const button = root.querySelector('[data-activities-advanced-toggle]');
+    assert.equal(button.getAttribute('aria-expanded'), 'false');
+    assert.equal(root.querySelector('[data-activities-advanced-panel]').hidden, true);
+    button.click();
+    assert.equal(state.activitiesAdvancedFiltersOpen, true);
+    assert.equal(button.getAttribute('aria-expanded'), 'true');
+    assert.equal(root.querySelector('[data-activities-advanced-panel]').hidden, false);
+
+    const price = root.querySelector('[data-activity-advanced-field="advPricePresence"]');
+    price.value = 'missing';
+    price.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    assert.equal(state.listFilters.activities.advPricePresence, 'missing');
+    assert.equal(root.querySelector('[data-activities-advanced-panel]').hidden, false);
+    assert.equal(rerenders, 2, 'client filter change re-renders without extra fetches');
+    assert.ok(root.querySelector('.ds-act-advanced__indicator'));
+
+    root.querySelector('[data-activities-advanced-close]').click();
+    assert.equal(state.activitiesAdvancedFiltersOpen, false);
+    assert.equal(root.querySelector('[data-activities-advanced-panel]').hidden, true);
+  } finally {
+    globalThis.document = previousDocument;
+    dom.window.close();
+  }
 });
