@@ -468,7 +468,7 @@ function activityPeriodTabsHtml(rows, activeYearKey, state = {}) {
   const countFor = (tabKey) => {
     if (yearKey === ACTIVITY_SEASON_SCHOOL_2027 && tabKey === ACTIVITIES_INNER_TAB_COORDINATION) {
       const coordinationItems = Array.isArray(state?.activityCoordination?.items) ? state.activityCoordination.items : [];
-      return coordinationItems.filter((item) => coordinationUiStatus(item) === COORDINATION_STATUS.READY).length;
+      return coordinationItems.filter((item) => [COORDINATION_STATUS.READY, COORDINATION_STATUS.CHANGED_SINCE_SENT].includes(coordinationUiStatus(item))).length;
     }
     return activityRowsForInnerTab(rows, { ...state, activityPeriodTab: yearKey, activitiesInnerTab: tabKey }).length;
   };
@@ -2187,6 +2187,35 @@ export const activitiesScreen = {
   },
 
   bind({ root, data, state, rerender, rerenderActivitiesView, ui, api, clearScreenDataCache, loadActivityCoordination = loadActivityCoordinationContext }) {
+    // Reload persisted activity rows before presenting or preparing approvals.
+    async function refreshCoordinationContext() {
+      const source = typeof api?.activities === 'function'
+        ? await api.activities({ activity_type: 'all', include_inactive: true })
+        : data;
+      const rows = Array.isArray(source?.rows) ? source.rows : (data?.rows || []);
+      const context = await loadActivityCoordination(rows, state.clientSettings || {});
+      state.activityCoordination = context;
+      state.activityCoordinationLoaded = true;
+      state.activityCoordinationError = '';
+      return context;
+    }
+    async function beforeCoordinationPrepare(selected) {
+      const latest = await refreshCoordinationContext();
+      const fresh = selected.map((item) => latest.byActivityId?.get?.(item.activity_row_id));
+      const changed = fresh.some((item, index) => !item
+        || item.document_data_hash !== selected[index].document_data_hash
+        || item.recipient_email !== selected[index].recipient_email
+        || item.cc_email !== selected[index].cc_email
+        || item.school_id !== selected[index].school_id
+        || item.status !== selected[index].status
+        || !item.readiness?.ready || Boolean(item.technical_blocker));
+      if (changed) {
+        rerender();
+        showToast('פרטי אישור התיאום השתנו. הרשימה רועננה; בדקו את הפרטים ובחרו מחדש.', 'warning');
+        throw new Error('הנתונים השתנו מאז פתיחת האישור. בדקו ובחרו מחדש.');
+      }
+      return fresh;
+    }
     const contactPromise = data?._contactEnrichmentPromise;
     const contactGeneration = data?._activitiesLoadGeneration;
     if (contactPromise && !data._contactEnrichmentApplied) {
@@ -2212,10 +2241,14 @@ export const activitiesScreen = {
         rerender();
       }));
       const refresh = async () => {
-        state.activityCoordination = await loadActivityCoordinationContext(data?.rows || [], state.clientSettings || {});
+        await refreshCoordinationContext();
         rerender();
       };
-      bindCoordinationWorkspace(coordinationRoot, state.activityCoordination, { loginHint: state?.user?.email || '', onChanged: refresh });
+      bindCoordinationWorkspace(coordinationRoot, state.activityCoordination, {
+        loginHint: state?.user?.email || '',
+        onChanged: refresh,
+        beforePrepare: beforeCoordinationPrepare
+      });
       const reconciliationOptions = {
         loginHint: state?.user?.email || state?.user?.auth_email || '',
         authUserId: state?.user?.auth_user_id || ''
@@ -3067,7 +3100,7 @@ export const activitiesScreen = {
           state.activitiesMonthYm = '';
         }
         ensureActivityListFilters(state, ACTIVITIES_SCOPE).visibleCount = 200;
-        if (requestedTab !== ACTIVITIES_INNER_TAB_COORDINATION || state.activityCoordinationLoaded) {
+        if (requestedTab !== ACTIVITIES_INNER_TAB_COORDINATION) {
           rerenderLocal();
           return;
         }
@@ -3076,11 +3109,7 @@ export const activitiesScreen = {
           state.activityCoordinationError = '';
           rerenderLocal();
           state.activityCoordinationPromise = Promise.resolve()
-            .then(() => loadActivityCoordination(activitiesRows, state.clientSettings || {}))
-            .then((coordination) => {
-              state.activityCoordination = coordination;
-              state.activityCoordinationLoaded = true;
-            })
+            .then(() => refreshCoordinationContext())
             .catch((error) => {
               state.activityCoordination = { items: [], byActivityId: new Map() };
               state.activityCoordinationError = String(error?.message || error);
