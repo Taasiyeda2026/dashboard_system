@@ -223,7 +223,7 @@ test('missing feedback templates are handled internally without exposing course 
   assert.match(screen, /לתוכנית זו טרם הותאמה תבנית משוב/);
   assert.match(screen, /if \(!group\.program_key\)/);
   assert.doesNotMatch(screen, /בחירת קורס ידנית|שמירת קורס|חזרה לזיהוי אוטומטי/);
-  assert.match(screen, /visibleSlots\.map\(\(slot\) => slotCardHtml\(group, slot\)\)/);
+  assert.match(screen, /visibleSlots\.map\(\(slot\) => slotCardHtml\(group, slot, user\)\)/);
   assert.match(screen, /const visibleSlots = staffView \? GROUP_SLOTS\.filter\(\(slot\) => slot\.audience === 'educational_staff'\) : GROUP_SLOTS;/);
 });
 
@@ -357,7 +357,7 @@ test('staff group detail focuses on staff questionnaires, data and open answers'
   assert.match(groupView, /staffFacts = staffView && facts \? factsFor\(facts, 'educational_staff'\) : \[\]/);
   assert.match(groupView, /questionTableHtml\(staffFacts, \{ caption: 'תוצאות משוב הצוות החינוכי' \}\)/);
   assert.match(groupView, /staffOpenAnswers = staffView && facts \? openAnswers\(staffFacts\) : \[\]/);
-  assert.match(groupView, /visibleSlots\.map\(\(slot\) => slotCardHtml\(group, slot\)\)/);
+  assert.match(groupView, /visibleSlots\.map\(\(slot\) => slotCardHtml\(group, slot, user\)\)/);
   assert.match(groupView, /ifb-slots--staff/);
   assert.match(groupView, /ifb-group-answers/);
   assert.match(styles, /\.ifb-slots--staff \{\s*display: grid;\s*grid-template-columns: minmax\(0, 540px\)/);
@@ -547,7 +547,7 @@ test('student and staff tables interleave each feedback stage with its correspon
   const bodyFinal=tbody.indexOf("scope === 'staff' ? 'final' : 'post'");
   assert.ok(bodyStart>=0 && bodyPre>bodyStart && bodyEnd>bodyPre && bodyFinal>bodyEnd);
   const cols=t.slice(t.indexOf('<colgroup>'),t.indexOf('</colgroup>'));
-  assert.match(cols, /ifb-gw-date--start[\\s\\S]*?ifb-gw-stage[\\s\\S]*?ifb-gw-date--end[\\s\\S]*?ifb-gw-stage/);
+  assert.match(cols, /ifb-gw-date--start[\s\S]*?ifb-gw-stage[\s\S]*?ifb-gw-date--end[\s\S]*?ifb-gw-stage/);
 });
 
 test('second half uses a separate campaign and the existing final questionnaire', () => {
@@ -785,8 +785,8 @@ test('impact-feedback preserves admin/Israa access and adds read-only operationa
   assert.match(screen, /feedbackReadOnly = !isFeedbackAdmin\(state\?\.user\)/);
   assert.match(screen, /visibleFeedbackTabs\(\)\.map/);
   assert.match(screen, /function visibleFeedbackTabs\(\) \{\s+return isLimitedFeedbackViewer\(\) \? TABS\.filter/);
-  assert.match(screen, /if \(feedbackReadOnly && !allowedStaffOpenForm\) \{ event\.preventDefault\(\); return; \}/);
-  assert.match(screen, /feedbackReadOnly && !allowedStaffShareClick && t\.closest/);
+  assert.match(screen, /feedbackReadOnly && !allowedStaffShareClick && !allowedStudentShareClick/);
+  assert.match(screen, /feedbackReadOnly && !allowedStaffShareClick && !allowedStudentShareClick && t\.closest/);
   assert.match(styles, /\.ifb-admin\.is-feedback-readonly :is/);
   assert.match(styles, /\[data-ifb-close\]/);
   assert.match(styles, /\[data-ifb-share\]/);
