@@ -532,8 +532,11 @@ test('twelve instructor columns sum to exactly 100 percent and missing B dates r
   assert.match(styles, /\.ifb-instructor-table-wrap \{\s*width: 100%;\s*max-width: 100%;\s*min-width: 0;/);
 });
 
-test('student and staff tables interleave each feedback stage with its corresponding course date', () => {
-  const t=screen.slice(screen.indexOf('function groupsTableHtml('),screen.indexOf('function optionBarsHtml('));
+test('student columns retain their date-stage sequence while staff uses the compact three-stage layout', () => {
+  const all=screen.slice(screen.indexOf('function groupsTableHtml('),screen.indexOf('function optionBarsHtml('));
+  const split=all.indexOf('  // The course column is shown for all courses');
+  assert.ok(split>0, 'student table should follow the dedicated staff branch');
+  const t=all.slice(split);
   const head=t.slice(t.indexOf('<thead><tr>'),t.indexOf('</thead>'));
   const start=head.indexOf('תחילת קורס');
   const pre=head.indexOf("slot.stage === 'pre'");
@@ -548,6 +551,19 @@ test('student and staff tables interleave each feedback stage with its correspon
   assert.ok(bodyStart>=0 && bodyPre>bodyStart && bodyEnd>bodyPre && bodyFinal>bodyEnd);
   const cols=t.slice(t.indexOf('<colgroup>'),t.indexOf('</colgroup>'));
   assert.match(cols, /ifb-gw-date--start[\s\S]*?ifb-gw-stage[\s\S]*?ifb-gw-date--end[\s\S]*?ifb-gw-stage/);
+
+  // Staff stages were deliberately consolidated into three columns, after dates.
+  const staff=all.slice(all.indexOf("if (scope === 'staff') {"),split);
+  const staffHead=staff.slice(staff.indexOf('<thead><tr>'),staff.indexOf('</thead>'));
+  const order=['בית ספר ורשות','קורס','אנשי קשר','תקופת הקורס','פתיחה','אמצע','סיום','פעולה'];
+  let position=-1;
+  for (const label of order) {
+    const next=staffHead.indexOf(label,position+1);
+    assert.ok(next>position, 'staff table heading order: '+label);
+    position=next;
+  }
+  assert.match(staff, /ifb-staff-table/);
+  assert.match(staff, /const phases = \['pre','mid','final'\]/);
 });
 
 test('second half uses a separate campaign and the existing final questionnaire', () => {
