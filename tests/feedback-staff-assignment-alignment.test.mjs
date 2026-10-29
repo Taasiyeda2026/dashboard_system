@@ -56,4 +56,6 @@ test('consolidated dashboard retains exact per-activity dates, statuses and navi
   assert.match(screen,/class="ifb-staff-activity-breakdown"/);
   assert.match(screen,/earlyFinal \? '<p class="ifb-muted">משוב הסיום ייפתח רק לאחר שהקורס/);
   assert.match(screen,/else if \(earlyFinal\) \{/);
+  assert.match(screen,/נשלח במשלוח משותף/);
+  assert.match(screen,/אין ליצור הזמנה כפולה/);
 });
