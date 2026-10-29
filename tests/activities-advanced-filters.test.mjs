@@ -54,6 +54,12 @@ test('start/end date presence is independent of which session dates are schedule
   assert.deepEqual(ids({ advStartPresence: 'present' }), ['ready', 'later']);
   assert.deepEqual(ids({ advEndPresence: 'missing' }), ['missing', 'later']);
   assert.deepEqual(ids({ advStartPresence: 'missing', advMeetingFrom: '2026-11-10', advMeetingTo: '2026-11-10' }), ['missing']);
+  assert.deepEqual(
+    applyActivitiesAdvancedFilters([{ start_date: '', date_start: '2026-11-01', end_date: '', date_end: '2026-12-20' }],
+      { advStartPresence: 'present', advEndPresence: 'present' }).length,
+    1,
+    'fallback start/end fields are considered when primary values are empty'
+  );
 });
 
 test('range matches ANY meeting in the range, not just the activity start date', () => {
