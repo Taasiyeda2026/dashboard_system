@@ -5,7 +5,7 @@
  * reproduces the unfiltered educational-staff list; never from a second
  * activities query, alternate contact lookup or arbitrary UI filters.
  */
-export const STAFF_FEEDBACK_STAGES = Object.freeze(['pre', 'final']);
+export const STAFF_FEEDBACK_STAGES = Object.freeze(['pre', 'mid', 'final']);
 export const STAFF_YEAR = 'school_2027';
 export const ISRAEL_ZONE = 'Asia/Jerusalem';
 
