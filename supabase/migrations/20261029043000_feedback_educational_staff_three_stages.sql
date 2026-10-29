@@ -366,7 +366,7 @@ begin
       end if;
 
       select count(*) into prev_q_count from public.feedback_template_questions where version_id=new_version_id;
-      if prev_q_count < case st when 'pre' then 9 when 'mid' then 16 else 21 end then
+      if prev_q_count < (case st when 'pre' then 9 when 'mid' then 16 else 21 end) then
          raise exception 'Insufficient question count for %/%: %',p.key,st,prev_q_count;
       end if;
       -- Partial unique indexes permit one published and one draft version per template.
@@ -377,4 +377,4 @@ begin
       update public.feedback_templates set current_version_id=new_version_id where id=t.id;
     end loop;
   end loop;
-end $seed_staff_three_stage$;
+end; $seed_staff_three_stage$;
