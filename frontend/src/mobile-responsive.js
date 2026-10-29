@@ -58,8 +58,11 @@ export function syncFilterToolbar(toolbar) {
   }
   toolbar.dataset.mobileFiltersReady = '1';
   Array.from(toolbar.children).forEach((child) => {
-    if (child !== button && !child.matches?.('input[type="search"], .ds-pa-search, .ds-filter-field--search')) child.classList.add('mobile-filter-detail');
-    if (child.matches?.('input[type="search"], .ds-pa-search, .ds-filter-field--search')) child.classList.remove('mobile-filter-detail');
+    // Keep the icon-only advanced filters control accessible on mobile, even
+    // while the standard toolbar filters are collapsed behind their toggle.
+    const alwaysVisible = child.matches?.('input[type="search"], .ds-pa-search, .ds-filter-field--search, [data-activities-advanced-toggle]');
+    if (child !== button && !alwaysVisible) child.classList.add('mobile-filter-detail');
+    if (alwaysVisible) child.classList.remove('mobile-filter-detail');
   });
   if (!filterHandlers.has(toolbar)) {
     const handler = () => updateFilterButton(toolbar);

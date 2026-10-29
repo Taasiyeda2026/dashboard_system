@@ -48,7 +48,7 @@ import { filterSchoolCalendarRowsBySector } from './shared/school-calendar-logic
 import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQueryValue } from './shared/route-query.js';
 import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
 import { activityInstructorAssignmentState, activityMatchesInstructorStatusFilter } from './shared/activity-instructor-filter.js';
-import { applyActivitiesAdvancedFilters, activitiesAdvancedFiltersHtml, bindActivitiesAdvancedFilters } from './shared/activities-advanced-filters.js';
+import { applyActivitiesAdvancedFilters, activitiesAdvancedFiltersHtml, activitiesAdvancedFilterToggleHtml, bindActivitiesAdvancedFilters } from './shared/activities-advanced-filters.js';
 import {
   applyMissingScheduleFilter,
   MISSING_SCHEDULE_FILTER_STORAGE_KEY
@@ -2120,14 +2120,15 @@ export const activitiesScreen = {
     const mainToolbar = `${missingScheduleBanner}<div class="ds-activities-main-toolbar" dir="rtl" data-local-filters="${ACTIVITIES_SCOPE}">
       <input type="search" class="ds-input ds-input--sm ds-activities-search-sm" data-filter-search="${ACTIVITIES_SCOPE}" value="${escapeHtml(listFilters.q || '')}" placeholder="חיפוש" aria-label="חיפוש פעילויות" title="חיפוש לפי מזהה, פעילות, מדריך, רשות, בית ספר, סטטוס, תאריך או סמל מוסד" />
       ${bareFilters}
-      ${activitiesAdvancedFiltersHtml(listFilters, state.activitiesInstructorStatusFilter, !!state.activitiesAdvancedFiltersOpen)}
+      ${activitiesAdvancedFilterToggleHtml(listFilters, state.activitiesInstructorStatusFilter, !!state.activitiesAdvancedFiltersOpen)}
       <div class="ds-activities-main-toolbar__actions">
         <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי כל הסינונים" title="ניקוי כל הסינונים">ניקוי כל הסינונים</button>
         ${canUseLayout ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn ds-activities-toolbar-btn--layout" data-activity-layout-list title="פריסת פעילות לבתי ספר עם שיבוץ מלא">פריסת פעילות</button>` : ''}
         ${isAdmin ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn" data-activities-export-all title="ייצוא הפעילויות בלשונית הפעילה לאקסל">ייצוא לאקסל</button>` : ''}
         ${canAddActivity ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ${isCreateRequestOnly ? 'ds-activities-toolbar-btn' : 'ds-btn--icon-only'}" data-activities-add-btn aria-label="${isCreateRequestOnly ? 'בקשה להוספת פעילות' : 'הוספת פעילות'}" title="${isCreateRequestOnly ? 'בקשה להוספת פעילות' : 'הוספת פעילות'}">${isCreateRequestOnly ? 'בקשה להוספת פעילות' : '+'}</button>` : ''}
       </div>
-    </div>`;
+    </div>
+    ${activitiesAdvancedFiltersHtml(listFilters, state.activitiesInstructorStatusFilter, !!state.activitiesAdvancedFiltersOpen)}`;
 
     const usesMonthNavigation = activityPeriodUsesMonthNavigation(state);
     const summerShowAll = isSummerTab && !!state.activitiesSummerShowAll;
