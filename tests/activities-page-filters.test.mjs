@@ -503,6 +503,8 @@ test('activities render: assignment status separates pending approval from truly
   const advancedToggle = activitiesDocument.querySelector('[data-activities-advanced-toggle]');
   const advancedPanel = activitiesDocument.querySelector('[data-activities-advanced-panel]');
   assert.ok(advancedToggle.closest('.ds-activities-main-toolbar'), 'icon remains in existing filter bar');
+  const searchField = activitiesDocument.querySelector('.ds-activities-main-toolbar [data-filter-search="activities"]');
+  assert.equal(searchField?.nextElementSibling, advancedToggle, 'advanced filter icon is immediately next to search, before crowded dropdowns');
   assert.equal(advancedPanel.previousElementSibling?.classList.contains('ds-activities-main-toolbar'), true, 'panel expands below toolbar instead of overlaying data');
   assert.match(advancedToggle.innerHTML, /<svg/);
   assert.equal(advancedToggle.textContent.trim(), '', 'no visible advanced-filter text');
