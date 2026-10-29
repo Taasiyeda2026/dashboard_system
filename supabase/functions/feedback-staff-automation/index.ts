@@ -91,7 +91,7 @@ Deno.serve(async (req: Request) => {
    const items = previewEligibility(candidates, {activationAt});
    // Do not expose names, emails, tokens or group members in external response/logs.
    return reply({ok:true,dry_run:true,mail_sent:0,outbox_written:0,
-     israel:israelClock(asOf),staff_rows:candidates.length / 2,
+     israel:israelClock(asOf),staff_rows:candidates.length / 3,
      would_queue:items.filter((i) => i.status==='would_queue').length,
      by_stage_and_status:summarizeCandidatePreview(candidates,{activationAt}),
      note:'No scheduling or sending is enabled in simulation'});
