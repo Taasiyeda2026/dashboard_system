@@ -911,7 +911,7 @@ function groupsTableHtml(slots, scope) {
             })()}
             ${scope === 'staff' ? (() => {
               const slot = slots.find((s) => s.stage === 'mid');
-              return `<td class="ifb-center ifb-col-stage" data-label="משוב אמצע">${g.program_key && slot ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}</td>`;
+              return `<td class="ifb-center ifb-col-stage" data-label="משוב אמצע">${g.program_key && slot ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}${staffEmailStatusHtml(g, 'mid', scope)}</td>`;
             })() : ''}
             <td data-label="סיום קורס" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(g.end_date)}</td>
             ${(() => {
