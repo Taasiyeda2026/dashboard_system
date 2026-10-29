@@ -7167,7 +7167,7 @@ export const api = {
     assertAnyPermission(['view_finance_collection', 'manage_finance_transactions'], 'finance_tools_forbidden');
     const rows = [];
     for (let from = 0; ; from += 1000) {
-      const { data, error } = await supabase.from('activities').select(select || '*').order('row_id', { ascending: true }).range(from, from + 999);
+      const { data, error } = await supabase.from('activities').select(select || '*').eq('activity_season', 'school_2027').order('row_id', { ascending: true }).range(from, from + 999);
       if (error) throw new Error(error.message || 'finance_activities_read_failed');
       rows.push(...(data || []));
       if ((data || []).length < 1000) return { rows };
