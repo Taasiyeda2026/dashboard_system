@@ -89,3 +89,45 @@ export function staffDeliveryPresentation({
   }
   return staffDeliveryStatus(status);
 }
+
+/**
+ * Staff closing questionnaire eligibility is governed by the canonical Activities
+ * end date AND the actual (non-cancelled) last meeting, not by when a personal link
+ * happened to be created or manually shared.
+ *
+ * A staff closing campaign may already exist before its send date. Such an early
+ * campaign must never be labelled "ממתין למילוי" merely because its link is active.
+ */
+export function staffFinalReadiness({
+  endDate, eligibilityAt, eligibilityStatus, now = Date.now()
+} = {}) {
+  const localDay = localIsraelDay(now);
+  if (!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(endDate || '')) {
+    return { ready: false, label: 'ממתין לתאריך סיום', tone: 'muted' };
+  }
+  if (endDate >= localDay) {
+    return { ready: false, label: 'ממתין לסיום הקורס', tone: 'muted' };
+  }
+  const dueMs = Date.parse(eligibilityAt || '');
+  if (!Number.isFinite(dueMs)) {
+    return { ready: false, label: 'ממתין להשלמת מפגשי הקורס', tone: 'muted' };
+  }
+  if (dueMs > new Date(now).getTime()) {
+    return { ready: false, label: 'ממתין להשלמת מפגשי הקורס', tone: 'muted' };
+  }
+  if (eligibilityStatus === 'not_due' || eligibilityStatus === 'unscheduled') {
+    return { ready: false, label: 'ממתין למועד שליחת הסיום', tone: 'muted' };
+  }
+  return { ready: true, label: '', tone: 'muted' };
+}
+
+/** An old personal link might expire before the course has even finished. */
+export function staffFinalExpiryWarning({ expiresAt, endDate, now = Date.now() } = {}) {
+  if (!expiresAt || !/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(endDate || '')) return '';
+  const expiresMs = Date.parse(expiresAt);
+  if (!Number.isFinite(expiresMs)) return '';
+  if (endDate < localIsraelDay(now)) return '';
+  // The expected closing survey date is the day after the official course end.
+  return expiresMs < Date.parse(endDate + 'T23:59:59+02:00')
+    ? 'תוקף הקישור מסתיים לפני סיום הקורס' : '';
+}
