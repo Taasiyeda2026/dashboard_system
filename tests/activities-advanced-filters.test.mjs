@@ -49,16 +49,15 @@ const later = {
 const rows = [ready, missing, later];
 const ids = (filters) => applyActivitiesAdvancedFilters(rows, filters).map((row) => row.RowID);
 
-test('start/end date presence is independent of which session dates are scheduled', () => {
+test('start-date presence is independent of the scheduled meeting dates', () => {
   assert.deepEqual(ids({ advStartPresence: 'missing' }), ['missing']);
   assert.deepEqual(ids({ advStartPresence: 'present' }), ['ready', 'later']);
-  assert.deepEqual(ids({ advEndPresence: 'missing' }), ['missing', 'later']);
   assert.deepEqual(ids({ advStartPresence: 'missing', advMeetingFrom: '2026-11-10', advMeetingTo: '2026-11-10' }), ['missing']);
   assert.deepEqual(
     applyActivitiesAdvancedFilters([{ start_date: '', date_start: '2026-11-01', end_date: '', date_end: '2026-12-20' }],
-      { advStartPresence: 'present', advEndPresence: 'present' }).length,
+      { advStartPresence: 'present' }).length,
     1,
-    'fallback start/end fields are considered when primary values are empty'
+    'fallback start date is considered when primary value is empty'
   );
 });
 
@@ -94,7 +93,7 @@ test('price presence treats zero as entered and null as missing', () => {
 });
 
 test('advanced fields compose without changing input rows', () => {
-  assert.deepEqual(ids({ advStartPresence: 'present', advPricePresence: 'present', advEndPresence: 'missing', advMeetingFrom: '2027-03-01' }), ['later']);
+  assert.deepEqual(ids({ advStartPresence: 'present', advPricePresence: 'present', advMeetingFrom: '2027-03-01' }), ['later']);
   assert.deepEqual(ids({ advSchoolPresence: 'missing', advFundingPresence: 'missing', advHoursPresence: 'missing' }), ['ready', 'missing', 'later'], 'removed filters are ignored');
   assert.deepEqual(ids({}), ['ready', 'missing', 'later']);
   assert.equal(rows.length, 3);
@@ -115,10 +114,11 @@ test('icon-only toggle and inline panel provide all filters and active state', (
   assert.match(panel, /data-activity-advanced-field="assignment"/);
   assert.match(panel, /data-activity-advanced-field="advMeetingFrom"/);
   assert.match(panel, /data-activity-advanced-field="advMeetingTo"/);
-  assert.match(panel, /data-activity-advanced-field="advEndPresence"/);
+  assert.doesNotMatch(panel, /data-activity-advanced-field="advEndPresence"/);
   assert.match(panel, /data-activity-advanced-field="advPricePresence"/);
   assert.doesNotMatch(panel, /advStartFrom|advStartTo|advSchoolPresence|advFundingPresence|advHoursPresence/);
-  assert.equal((panel.match(/data-activity-advanced-field=/g) || []).length, 6);
+  assert.equal((panel.match(/data-activity-advanced-field=/g) || []).length, 5);
+  assert.equal(advancedActivitiesFilterCount({ advEndPresence: 'missing' }), 0, 'legacy removed date filter is not counted');
   assert.equal(advancedActivitiesFilterCount({ advSchoolPresence: 'missing', advHoursPresence: 'present' }, 'all'), 0);
   assert.doesNotMatch(panel, /סינון מתקדם/);
   assert.match(activitiesAdvancedFiltersHtml({}, 'all', false), /hidden/);
