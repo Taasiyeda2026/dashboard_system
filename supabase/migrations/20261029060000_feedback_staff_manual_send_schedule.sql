@@ -50,7 +50,7 @@ begin
  on conflict (group_key,stage) do update set send_on=excluded.send_on, updated_at=now(), created_by=auth.uid();
  -- An already prepared but not dispatched row must not bypass a postponement.
  update public.feedback_staff_auto_outbox o
- set send_after=greatest(o.send_after,(p_send_on::timestamp + time '08:00') at time zone 'Asia/Jerusalem'),
+ set send_after=greatest(o.send_after,(p_send_on + time '08:00') at time zone 'Asia/Jerusalem'),
      updated_at=now()
  where o.stage=p_stage
    and (o.group_key=c.group_key or o.member_row_ids && c.member_row_ids)
