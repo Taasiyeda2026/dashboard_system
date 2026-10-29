@@ -1,0 +1,32 @@
+name: Feedback targeted audit
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/feedback-targeted-audit.yml']
+  workflow_dispatch:
+
+permissions: {contents: read}
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    strategy:
+      fail-fast: false
+      matrix:
+        suite:
+          - "tests/feedback-staff-weekly-display.test.mjs tests/feedback-staff-final-readiness.test.mjs tests/feedback-staff-delivery.test.mjs"
+          - "tests/impact-feedback-ui-contract.test.mjs tests/impact-feedback-theme.test.mjs"
+          - "tests/impact-feedback-domain.test.mjs tests/impact-feedback-analysis.test.mjs tests/impact-feedback-load-cache.test.mjs"
+          - "tests/impact-feedback-instructor-access.test.mjs tests/feedback-staff-manager-sharing.test.mjs tests/impact-feedback-manager-expiry.test.mjs"
+          - "tests/impact-feedback-conditional-questions.test.mjs tests/impact-feedback-facts-pagination.test.mjs tests/impact-feedback-arabic-answer-translation.test.mjs"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Audit isolated test suite
+        run: timeout 180s node --test ${{ matrix.suite }}
