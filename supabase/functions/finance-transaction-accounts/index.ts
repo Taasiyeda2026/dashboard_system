@@ -157,41 +157,58 @@ async function buildPdf(account: any) {
   drawRight(page, regular, "עמותה מס': 580210094", y); y -= 13;
   drawRight(page, regular, "אימייל: toni@think.org.il", y); y -= 25;
   drawRight(page, regular, `תאריך: ${date(account.issue_date)}`, y, 10); y -= 28;
-  drawRight(page, bold, `חשבון עסקה | ${account.transaction_account_number} | מקור`, y, 17);
+  drawRight(page, bold, `חשבון עסקה | ${account.transaction_account_number} | ${account.transaction_account_number === "טיוטה" ? "טיוטה" : "מקור"}`, y, 17);
   page.drawLine({ start: { x: 30, y: y - 7 }, end: { x: 565, y: y - 7 }, thickness: 1, color: rgb(0.1, 0.35, 0.55) });
   y -= 34;
   drawRight(page, bold, `לכבוד: ${account.customer_name_snapshot}`, y, 11); y -= 16;
   drawRight(page, regular, `מספר לקוח: ${account.institution_symbol}`, y, 10); y -= 26;
   drawRight(page, bold, 'תוכניות חינוכיות – שנת תשפ"ז', y, 13); y -= 32;
 
-  const widths = [205, 78, 78, 84, 90];
-  drawTableRow(page, bold, ['תוכנית / פעילות', 'מס׳ גפ״ן', 'שעות לחיוב', 'מחיר לשעה', 'סכום'], widths, y, 25, true);
+  const widths = [175, 60, 48, 65, 87, 100];
+  drawTableRow(page, bold, ['תוכנית / פעילות', 'מס׳ גפ״ן', 'מפגשים', 'שעות', 'מחיר למפגש', 'סכום'], widths, y, 25, true);
   y -= 25;
 
   for (const line of account.finance_transaction_account_lines || []) {
     const detailRows = line.finance_transaction_account_meetings || [];
-    const needed = 25 + 22 + 20 + (detailRows.length * 18) + 14;
+    const needed = 25 + 22 + 17 + 20 + (detailRows.length * 18) + 14;
     if (y - needed < 55) {
       page = doc.addPage([595, 842]);
       y = 800;
-      drawTableRow(page, bold, ['תוכנית / פעילות', 'מס׳ גפ״ן', 'שעות לחיוב', 'מחיר לשעה', 'סכום'], widths, y, 25, true);
+      drawTableRow(page, bold, ['תוכנית / פעילות', 'מס׳ גפ״ן', 'מפגשים', 'שעות', 'מחיר למפגש', 'סכום'], widths, y, 25, true);
       y -= 25;
     }
     drawTableRow(page, regular, [
       clean(line.activity_name_snapshot),
       clean(line.gefen_number_snapshot) || '—',
+      clean(line.quantity_snapshot || detailRows.length),
       clean(line.billed_hours),
-      money(line.hourly_rate_snapshot),
+      money(line.unit_price_snapshot ?? Number(line.hourly_rate_snapshot) * 1.5),
       money(line.amount)
     ], widths, y, 25, false);
     y -= 34;
+    if (line.service_description_snapshot && line.service_description_snapshot !== line.activity_name_snapshot) {
+      const words = clean(line.service_description_snapshot).split(/\s+/);
+      let wrapped = "";
+      for (const word of words) {
+        if (regular.widthOfTextAtSize(rtl(wrapped + " " + word), 9) > 510 && wrapped) {
+          if (y < 75) { page = doc.addPage([595, 842]); y = 800; }
+          drawRight(page, regular, wrapped, y, 9); y -= 14; wrapped = word;
+        } else wrapped = wrapped ? wrapped + " " + word : word;
+      }
+      if (wrapped) { if (y < 75) { page = doc.addPage([595, 842]); y = 800; } drawRight(page, regular, wrapped, y, 9); y -= 18; }
+    }
+    if (line.school_name_snapshot) { if (y < 100) { page = doc.addPage([595, 842]); y = 800; } drawRight(page, regular, `בית ספר: ${clean(line.school_name_snapshot)}`, y, 9); y -= 17; }
+    drawRight(page, bold, line.billing_coverage === "full_funding" ? `מממן: ${clean(line.funding_snapshot)} | מלוא חלק המממן` : `מממן: ${clean(line.funding_snapshot)} | ${line.billing_rule === 'completion' ? 'חודש סיום' : 'חודש ביצוע'}: ${clean(line.performance_month).slice(0,7) || 'סיום פעילות'}`, y, 9); y -= 17;
+    if (detailRows.length) {
     drawRight(page, bold, 'פירוט ביצוע לחיוב', y, 9); y -= 20;
     const detailWidths = [390, 145];
     drawTableRow(page, bold, ['תאריך', 'שעות'], detailWidths, y, 20, true);
     y -= 20;
     for (const meeting of detailRows) {
+      if (y < 75) { page = doc.addPage([595, 842]); y = 800; }
       drawTableRow(page, regular, [date(meeting.meeting_date), '1.5'], detailWidths, y, 18, false);
       y -= 18;
+    }
     }
     y -= 12;
   }
@@ -215,6 +232,9 @@ Deno.serve(async (req) => {
   let graphAccessToken = "";
   let uploadedItemId = "";
   let finalized = false;
+  let admin: ReturnType<typeof createClient> | null = null;
+  const dispatchToken = crypto.randomUUID();
+  let leaseAcquired = false;
 
   try {
     const auth = req.headers.get("authorization") || "";
@@ -224,14 +244,23 @@ Deno.serve(async (req) => {
     if (!url || !anon || !service) throw new Error("supabase_function_not_configured");
 
     userClient = createClient(url, anon, { global: { headers: { Authorization: auth } } });
-    const { data: allowed, error: allowError } = await userClient.rpc("app_can_access_finance");
+    const { data: allowed, error: allowError } = await userClient.rpc("finance_transaction_can_issue");
     if (allowError || !allowed) throw new Error("not_authorized");
 
     const body = await req.json();
+    if (body.preview === true) {
+      const manual = body.manual || {};
+      const { data: quote, error: quoteError } = await userClient.rpc("finance_manual_account_quote", {
+        p_activity: manual.activity, p_funder: manual.funder, p_month: manual.month, p_draft: manual.draft || {}
+      });
+      if (quoteError) throw quoteError;
+      const previewBytes = await buildPdf(quote);
+      return new Response(JSON.stringify({ quote, pdfBase64: base64(previewBytes) }), { headers: { ...cors, "Content-Type": "application/json" } });
+    }
     accountId = clean(body.accountId);
     if (!accountId) throw new Error("account_required");
 
-    const admin = createClient(url, service);
+    admin = createClient(url, service);
     const { data: account, error } = await admin
       .from("finance_transaction_accounts")
       .select("*,finance_transaction_account_lines(*,finance_transaction_account_meetings(*))")
@@ -249,6 +278,11 @@ Deno.serve(async (req) => {
       }), { headers: { ...cors, "Content-Type": "application/json" } });
     }
 
+    const { error: leaseError } = await admin.rpc("acquire_finance_dispatch", { p_account_id: accountId, p_token: dispatchToken });
+    if (leaseError) throw leaseError;
+    leaseAcquired = true;
+    const { error: validationError } = await admin.rpc("validate_finance_dispatch", { p_account_id: accountId, p_token: dispatchToken });
+    if (validationError) throw validationError;
     graphAccessToken = await graphToken();
     await validateTransactionFolder(graphAccessToken);
 
@@ -271,7 +305,8 @@ Deno.serve(async (req) => {
       const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)))
         .map((x) => x.toString(16).padStart(2, "0"))
         .join("");
-      const { data: finalizedAccount, error: finalizeError } = await admin.rpc("finalize_finance_transaction_account", {
+      const { data: finalizedAccount, error: finalizeError } = await admin.rpc("finalize_finance_billing", {
+        p_token: dispatchToken,
         p_account_id: accountId,
         p_filename: filename,
         p_pdf_sha256: hash,
@@ -285,7 +320,11 @@ Deno.serve(async (req) => {
       finalized = true;
     } else {
       finalized = true;
-      bytes = await buildPdf(account);
+      const stored = await fetch(`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(account.sharepoint_drive_id)}/items/${encodeURIComponent(account.sharepoint_item_id)}/content`, { headers: { Authorization: `Bearer ${graphAccessToken}` } });
+      if (!stored.ok) throw new Error("issued_pdf_download_failed");
+      bytes = new Uint8Array(await stored.arrayBuffer());
+      const storedHash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))).map((x) => x.toString(16).padStart(2, "0")).join("");
+      if (storedHash !== account.pdf_sha256) throw new Error("issued_pdf_hash_mismatch");
     }
 
     const recipients = recipientAddresses(account.customer_email_snapshot);
@@ -299,14 +338,18 @@ Deno.serve(async (req) => {
     try {
       const sender = clean(Deno.env.get("MS_MAIL_SENDER"));
       if (!sender) throw new Error("mail_sender_not_configured");
-      const draft = await graph(graphAccessToken, `/users/${encodeURIComponent(sender)}/messages`, {
+      const propertyId = "String {fe840b5e-3427-421b-a522-224fbb1c2c65} Name FinanceAccountId";
+      const filter = `singleValueExtendedProperties/Any(ep: ep/id eq '${propertyId}' and ep/value eq '${accountId}')`;
+      const previous = await graph(graphAccessToken, `/users/${encodeURIComponent(sender)}/messages?$filter=${encodeURIComponent(filter)}&$select=id&$top=1`);
+      const draft = previous.value?.[0] || await graph(graphAccessToken, `/users/${encodeURIComponent(sender)}/messages`, {
         method: "POST",
         body: JSON.stringify({
           subject: `חשבון עסקה ${account.transaction_account_number} – תעשיידע – ${account.customer_name_snapshot}`,
           body: {
             contentType: "Text",
-            content: `שלום,\n\nמצורף חשבון עסקה מס׳ ${account.transaction_account_number} עבור הפעילויות שבוצעו בתקופה הרלוונטית.\n\nנשמח להסדרת התשלום בהתאם לתנאי התשלום המפורטים בחשבון.`
+            content: account.collection_status === "paid" ? `שלום,\n\nמצורף חשבון עסקה מס׳ ${account.transaction_account_number}. יתרת החשבון שולמה במלואה.` : `שלום,\n\nמצורף חשבון עסקה מס׳ ${account.transaction_account_number} עבור הפעילויות שבוצעו בתקופה הרלוונטית.\n\nנשמח להסדרת התשלום בהתאם לתנאי התשלום המפורטים בחשבון.`
           },
+          singleValueExtendedProperties: [{ id: propertyId, value: accountId }],
           toRecipients: recipients.map((address) => ({ emailAddress: { address } })),
           attachments: [{
             "@odata.type": "#microsoft.graph.fileAttachment",
@@ -316,11 +359,12 @@ Deno.serve(async (req) => {
           }]
         })
       });
-      await admin.rpc("mark_finance_transaction_outlook", {
+      const { error: markError } = await admin.rpc("mark_finance_transaction_outlook", {
         p_account_id: accountId,
         p_status: "draft_ready",
         p_message_id: draft.id
       });
+      if (markError) throw markError;
       return new Response(JSON.stringify({ accountId, filename, outlookStatus: "draft_ready", recipients }), {
         headers: { ...cors, "Content-Type": "application/json" }
       });
@@ -339,22 +383,26 @@ Deno.serve(async (req) => {
     }
   } catch (error) {
     const message = clean((error as Error).message) || "transaction_dispatch_failed";
-    if (!finalized && uploadedItemId && graphAccessToken) {
+    if (leaseAcquired && !finalized && accountId && admin) {
       try {
-        await graph(graphAccessToken, `/drives/${encodeURIComponent(TRANSACTION_DRIVE_ID)}/items/${encodeURIComponent(uploadedItemId)}`, { method: "DELETE" });
-      } catch { /* best-effort orphan cleanup */ }
-    }
-    if (!finalized && accountId && userClient) {
-      try {
-        await userClient.rpc("cancel_generating_finance_transaction_account", {
+        const { error: cancelError } = await admin.rpc("cancel_finance_dispatch", {
+          p_token: dispatchToken,
           p_account_id: accountId,
           p_reason: `dispatch_failed:${message.slice(0, 240)}`
         });
-      } catch { /* a concurrently finalized account must not be cancelled */ }
+        // Only remove the upload after the server confirms this dispatch still
+        // owns a generating reservation. A lost finalize response must never
+        // delete an already-issued document, or another worker's upload.
+        if (!cancelError && uploadedItemId && graphAccessToken) {
+          await graph(graphAccessToken, `/drives/${encodeURIComponent(TRANSACTION_DRIVE_ID)}/items/${encodeURIComponent(uploadedItemId)}`, { method: "DELETE" });
+        }
+      } catch { /* preserve any document whose cancellation was not confirmed */ }
     }
     return new Response(JSON.stringify({ error: message }), {
       status: 400,
       headers: { ...cors, "Content-Type": "application/json" }
     });
+  } finally {
+    if (leaseAcquired && admin) await admin.rpc("release_finance_dispatch", { p_account_id: accountId, p_token: dispatchToken });
   }
 });

@@ -1,134 +1,56 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import {
-  TRANSACTION_MODE_AUTOMATIC,
-  TRANSACTION_MODE_MANUAL,
-  buildTransactionPreview,
-  financePaymentDueDate,
-  hasGefenFunding,
-  transactionActivitySummary
-} from '../frontend/src/screens/finance-transaction-accounts.js';
-
-const activity = (extra = {}) => ({
-  row_id: 'a1',
-  school: 'אלון',
-  semel_mosad: '123456',
-  activity_name: 'חלל',
-  activity_no: '57651',
-  funding: 'גפן',
-  price: 9000,
-  sessions: '10',
-  date_1: '2026-10-01',
-  date_2: '2026-10-02',
-  date_3: '2026-12-01',
-  contact_email: 'school@example.org',
-  ...extra
+import { transactionAccountsViewHtml, transactionPreviewForVisit, transactionSelectionKey, runTransactionIssuance, transactionMonth, transactionBacklog } from '../frontend/src/screens/finance-transaction-issuance.js';
+import { financeCycleCutoff } from '../frontend/src/screens/finance-transaction-accounts.js';
+const row=(extra={})=>({activityRowId:'a',activityName:'קורס א',fundingSourceId:'g',funding:'גפ״ן',gefenFunding:true,
+  period:'2026-09-01',customerName:'בית ספר א',institutionSymbol:'123',payerName:'בית ספר א',customerEmail:'school@example.test',
+  plannedCount:4,completedCount:2,billedCount:0,unbilledCount:2,unbilledHours:3,unbilledSlots:[{slot:1,date:'2026-09-01'},{slot:2,date:'2026-09-02'}],
+  fundingAmount:5000,issuableAmount:2500,unbilledAmount:2500,eligible:true,blockedReason:'',...extra});
+const data=(rows,extra={})=>({transactionContext:{billingRows:rows,accounts:[]},transactionMonths:{automatic:'2026-09',manual:'2026-09'},...extra});
+const html=d=>transactionAccountsViewHtml(d,x=>`<h1>${x}</h1>`);
+test('Gefen groups multiple courses by school and selected performance month only',()=>{
+  const d=data([row(),row({activityRowId:'b',activityName:'קורס ב'}),row({activityRowId:'old',period:'2026-08-01'}),row({activityRowId:'other',fundingSourceId:'r',gefenFunding:false,funding:'רשות'})]);
+  const p=transactionPreviewForVisit(d);assert.equal(p.accounts.length,1);assert.equal(p.accounts[0].lines.length,2);assert.equal(p.totals.amount,5000);
+  const view=html(d);assert.match(view,/חשבונות עסקה - גפן/);assert.match(view,/חשבונות עסקה - פתוח/);assert.match(view,/type="month"/);
+  assert.match(view,/קורס ב/);assert.match(view,/בית ספר א · 123/);assert.match(view,/פירוט מפגשים/);assert.match(view,/ממתינים להפקה מחודשים קודמים/);assert.match(view,/2026-08/);
+  assert.equal(transactionBacklog(d,'automatic').length,1);
+  d.transactionMonths.automatic='2026-08';assert.equal(transactionPreviewForVisit(d).totals.amount,2500);
 });
-
-test('Gefen detection includes mixed funding and common quote spellings', () => {
-  assert.equal(hasGefenFunding('גפן'), true);
-  assert.equal(hasGefenFunding('גפ"ן'), true);
-  assert.equal(hasGefenFunding('גפ״ן + ויצו'), true);
-  assert.equal(hasGefenFunding('רמי שני + גפן'), true);
-  assert.equal(hasGefenFunding('רשות'), false);
+test('open accounts uses completion month and funder grouping; mixed shares remain separate',()=>{
+  const other=row({fundingSourceId:'r',funding:'רשות',gefenFunding:false,issuableAmount:7000});
+  const d=data([row(),other,row({activityRowId:'future',gefenFunding:false,eligible:false,period:'2026-11-01'})],{transactionTab:'manual',transactionManualSelected:{[transactionSelectionKey(other)]:true}});
+  assert.equal(transactionPreviewForVisit(d,'manual').totals.amount,7000);
+  const view=html(d);assert.match(view,/חודש סיום הפעילות/);assert.match(view,/בית ספר א/);assert.doesNotMatch(view,/future/);
+  assert.equal(transactionPreviewForVisit(d,'automatic').totals.amount,2500);
 });
-
-test('automatic mode is Gefen-only and keeps the three-meeting threshold', () => {
-  const twoGefen = transactionActivitySummary(activity(), { cutoff: '2026-10-31', mode: TRANSACTION_MODE_AUTOMATIC });
-  const threeGefen = transactionActivitySummary(activity({ date_3: '2026-10-03' }), { cutoff: '2026-10-31', mode: TRANSACTION_MODE_AUTOMATIC });
-  const otherFunding = transactionActivitySummary(activity({ funding: 'רשות', date_3: '2026-10-03' }), { cutoff: '2026-10-31', mode: TRANSACTION_MODE_AUTOMATIC });
-  assert.equal(twoGefen.eligible, false);
-  assert.equal(threeGefen.eligible, true);
-  assert.equal(otherFunding.eligible, false);
+test('default is previous completed month; future month is rejected and blocked rows cannot issue',()=>{
+  assert.equal(transactionMonth({},'automatic'),financeCycleCutoff().slice(0,7));
+  assert.equal(transactionMonth({transactionMonths:{automatic:'2099-01'}},'automatic'),financeCycleCutoff().slice(0,7));
+  const d=data([row({blockedReason:'חסרה חלוקת מימון תקינה',eligible:false})]);
+  assert.equal(transactionPreviewForVisit(d).accounts.length,0);assert.match(html(d),/חסרה חלוקת מימון תקינה/);
+  assert.equal(transactionPreviewForVisit(data([row()],{collectionError:'לא נטען'})).accounts.length,0);
 });
-
-test('manual mode allows any funding source with at least one performed-unbilled meeting', () => {
-  const manual = transactionActivitySummary(activity({ funding: 'רשות' }), { cutoff: '2026-10-31', mode: TRANSACTION_MODE_MANUAL });
-  assert.equal(manual.unbilledCount, 2);
-  assert.equal(manual.eligible, true);
+test('issuance sends funder, exact month, slots and displayed amount to server and then dispatches',async()=>{
+  const d=data([row()]);const calls=[];
+  await runTransactionIssuance(d,{reserveFinanceTransactionAccount:async p=>{calls.push(p);return{id:'reserved'};},dispatchFinanceTransactionAccount:async p=>{assert.equal(p.accountId,'reserved');return{};}},'automatic');
+  assert.deepEqual(calls[0].lines,[{activity_row_id:'a',funding_source_id:'g',performance_month:'2026-09-01',expected_amount:2500,meeting_slots:[1,2],issue_mode:'automatic'}]);
 });
-
-test('manual preview requires explicit activity selection', () => {
-  const all = [activity({ funding: 'רשות' })];
-  assert.equal(buildTransactionPreview(all, { cutoff: '2026-10-31', mode: TRANSACTION_MODE_MANUAL, activityIds: [] }).accounts.length, 0);
-  assert.equal(buildTransactionPreview(all, { cutoff: '2026-10-31', mode: TRANSACTION_MODE_MANUAL, activityIds: ['a1'] }).accounts.length, 1);
+test('history retains existing document statuses and URLs independently of month selector',()=>{
+  const d=data([],{transactionTab:'history'});d.transactionContext.accounts=[{transaction_account_number:8525,issue_date:'2026-07-01',total_amount:500,document_status:'issued',sharepoint_web_url:'https://example.test/pdf',finance_transaction_account_lines:[]}];
+  const view=html(d);assert.match(view,/8525/);assert.match(view,/פתח PDF/);assert.doesNotMatch(view,/type="month"/);
 });
-
-test('automatic preview includes mixed Gefen but excludes non-Gefen', () => {
-  const preview = buildTransactionPreview([
-    activity({ row_id: 'g1', funding: 'גפן + ויצו', date_3: '2026-10-03' }),
-    activity({ row_id: 'r1', funding: 'רשות', date_3: '2026-10-03' })
-  ], { cutoff: '2026-10-31', mode: TRANSACTION_MODE_AUTOMATIC });
-  assert.equal(preview.accounts.length, 1);
-  assert.equal(preview.accounts[0].lines.length, 1);
-  assert.equal(preview.accounts[0].lines[0].activityRowId, 'g1');
+test('backlog survives month/year selection without duplicate totals and can issue original month',async()=>{
+  const d=data([row({period:'2025-12-01'}),row({activityRowId:'next',period:'2026-01-01'}),row({activityRowId:'selected',period:'2026-09-01'})]);
+  assert.equal(transactionBacklog(d,'automatic').length,2);assert.equal(transactionPreviewForVisit(d).totals.amount,2500);
+  d.transactionMonths.automatic='2025-12';
+  assert.equal(transactionBacklog(d,'automatic').length,2);assert.equal(transactionPreviewForVisit(d).totals.amount,2500);
+  let sent;
+  await runTransactionIssuance(d,{reserveFinanceTransactionAccount:async p=>{sent=p;return{id:'x'};},dispatchFinanceTransactionAccount:async()=>({})},'automatic','2026-01');
+  assert.equal(sent.lines[0].performance_month,'2026-01-01');assert.equal(sent.lines[0].activity_row_id,'next');
 });
-
-test('automatic blocked list only reports Gefen activities', () => {
-  const preview = buildTransactionPreview([
-    activity({ row_id: 'g1', funding: 'גפן', semel_mosad: '', date_3: '2026-10-03' }),
-    activity({ row_id: 'r1', funding: 'רשות', semel_mosad: '', date_3: '2026-10-03' })
-  ], { cutoff: '2026-10-31', mode: TRANSACTION_MODE_AUTOMATIC });
-  assert.equal(preview.blocked.length, 1);
-  assert.equal(preview.blocked[0].activityRowId, 'g1');
-});
-
-test('grouped account collects unique activity contact emails', () => {
-  const preview = buildTransactionPreview([
-    activity({ row_id: 'a1', contact_email: 'one@example.org', date_3: '2026-10-03' }),
-    activity({ row_id: 'a2', contact_email: 'two@example.org', date_3: '2026-10-03' })
-  ], { cutoff: '2026-10-31', mode: TRANSACTION_MODE_AUTOMATIC });
-  assert.deepEqual(preview.accounts[0].customerEmails.sort(), ['one@example.org', 'two@example.org']);
-});
-
-test('שוטף + 30 is end of issue month plus 30 calendar days', () => {
-  assert.equal(financePaymentDueDate('2026-11-05'), '2026-12-30');
-  assert.equal(financePaymentDueDate('2027-01-10'), '2027-03-02');
-});
-
-test('finance page uses complete paginated school catalog and the dashboard-resolved activity contact', () => {
-  const hotfix = fs.readFileSync('frontend/src/finance-transaction-page-data-hotfix.js', 'utf8');
-  const issuance = fs.readFileSync('frontend/src/screens/finance-transaction-issuance.js', 'utf8');
-  assert.match(hotfix, /const PAGE_SIZE = 1000/);
-  assert.match(hotfix, /\.range\(from, to\)/);
-  assert.match(hotfix, /school_contact_id/);
-  assert.match(hotfix, /resolved_contact_email/);
-  assert.match(issuance, /resolved_contact_email/);
-  assert.match(issuance, /filter\(\(row\) => row\.transaction_summary\.manualEligible\)/);
-  assert.doesNotMatch(issuance, /manualEligible \|\| row\.transaction_summary\.blockedReason/);
-});
-
-test('migration enforces automatic Gefen mode while preserving manual issuance for all funding', () => {
-  const sql = fs.readFileSync('supabase/migrations/20260821203000_finance_transaction_issuance_modes.sql', 'utf8');
-  assert.match(sql, /issue_mode text not null default 'manual'/);
-  assert.match(sql, /finance_is_gefen_funding/);
-  assert.match(sql, /automatic_requires_gefen/);
-  assert.match(sql, /v_issue_mode='automatic'[\s\S]*minimum_three_meetings/);
-  assert.match(sql, /funding_snapshot/);
-  assert.match(sql, /payment_due_date/);
-});
-
-test('PDF is fixed to the approved Site9 transaction folder and includes payment instructions', () => {
-  const source = fs.readFileSync('supabase/functions/finance-transaction-accounts/index.ts', 'utf8');
-  assert.match(source, /b!AtuGFxdZBk6FLP0KPlKdH27mOwNzeTRErL1YKP0yl5EP6fDqQimqQ4QpOG6yQbMh/);
-  assert.match(source, /01LT7GPE6FW7O7REM6WJBIXX6II2IDYTXM/);
-  assert.match(source, /לתשלום עד/);
-  assert.match(source, /בנק הפועלים סניף 611 חשבון 300120/);
-  assert.match(source, /למוטב בלבד/);
-  assert.doesNotMatch(source, /body\.driveId|body\.folderItemId/);
-});
-
-test('Outlook recipients come from account activity-contact snapshot and support multiple addresses', () => {
-  const source = fs.readFileSync('supabase/functions/finance-transaction-accounts/index.ts', 'utf8');
-  assert.match(source, /recipientAddresses\(account\.customer_email_snapshot\)/);
-  assert.match(source, /toRecipients: recipients\.map/);
-});
-
-test('fatal dispatch failure releases generating reservation and cleans uploaded orphan best-effort', () => {
-  const source = fs.readFileSync('supabase/functions/finance-transaction-accounts/index.ts', 'utf8');
-  assert.match(source, /cancel_generating_finance_transaction_account/);
-  assert.match(source, /dispatch_failed:/);
-  assert.match(source, /uploadedItemId[\s\S]*method: "DELETE"/);
-  assert.match(source, /if \(!finalized/);
+test('dispatch failure releases own reservation through guarded cancellation',async()=>{
+  let cancelled;
+  await assert.rejects(runTransactionIssuance(data([row()]),{reserveFinanceTransactionAccount:async()=>({id:'x'}),
+    dispatchFinanceTransactionAccount:async()=>{throw Error('test failed');},cancelFinanceTransactionReservation:async id=>{cancelled=id;}},'automatic'),/test failed/);
+  assert.equal(cancelled,'x');
 });

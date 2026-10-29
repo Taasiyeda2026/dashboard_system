@@ -1,14 +1,12 @@
 import '../finance-transaction-page-data-hotfix.js';
+import { manualAccountViewHtml } from './finance-manual-account.js';
 import { escapeHtml } from './shared/html.js';
 import { dsEmptyState, dsScreenStack, dsTableWrap } from './shared/layout.js';
-import { activityRowId, money } from './finance-collection.js';
 import {
   TRANSACTION_MODE_AUTOMATIC,
   TRANSACTION_MODE_MANUAL,
-  buildTransactionPreview,
   financeCycleCutoff,
-  financeToday,
-  transactionActivitySummary
+  financeToday
 } from './finance-transaction-accounts.js';
 
 const text = (value) => String(value ?? '').trim();
@@ -30,75 +28,53 @@ function statusLabel(status) {
   })[value] || value || '—';
 }
 
-function contextMaps(data) {
-  const accounts = data.transactionContext?.accounts || [];
-  const cancelledByActivity = {};
-  for (const row of data.transactionContext?.cancelled || []) {
-    const key = text(row.activity_id);
-    if (!key) continue;
-    (cancelledByActivity[key] ||= []).push(row.meeting_date);
-  }
-  const billedSlotsByActivity = {};
-  const billedAmountByActivity = {};
-  for (const account of accounts) {
-    if (account.document_status === 'cancelled') continue;
-    for (const line of account.finance_transaction_account_lines || []) {
-      const key = text(line.activity_row_id);
-      if (!key) continue;
-      billedAmountByActivity[key] = (billedAmountByActivity[key] || 0) + Number(line.amount || 0);
-      for (const meeting of line.finance_transaction_account_meetings || []) {
-        (billedSlotsByActivity[key] ||= []).push(Number(meeting.meeting_slot));
-      }
-    }
-  }
-  return { cancelledByActivity, billedSlotsByActivity, billedAmountByActivity };
+export function transactionMonth(data, mode) {
+  const month = data.transactionMonths?.[mode] || financeCycleCutoff().slice(0, 7);
+  return /^\d{4}-\d{2}$/.test(month) && month <= financeToday().slice(0, 7) ? month : financeCycleCutoff().slice(0, 7);
 }
 
-function enrichFinanceActivity(activity = {}, schoolMap = new Map()) {
-  const school = schoolMap.get(String(activity.school_id));
-  return {
-    ...activity,
-    semel_mosad: text(activity.semel_mosad) || text(school?.semel_mosad),
-    contact_email: text(activity.resolved_contact_email) || text(activity.contact_email)
-  };
+function monthPicker(data, mode) {
+  return `<label class="ds-fin-collect-search"><span>${mode === TRANSACTION_MODE_AUTOMATIC ? 'חודש ביצוע' : 'חודש סיום הפעילות'}</span>
+    <input class="ds-input" type="month" data-finance-transaction-month="${mode}" value="${transactionMonth(data, mode)}" max="${financeToday().slice(0, 7)}"></label>`;
 }
 
-export function transactionIssuanceActivities(data, { mode = TRANSACTION_MODE_AUTOMATIC, cutoff } = {}) {
-  const schoolMap = new Map((data.transactionContext?.schools || []).map((row) => [String(row.id), row]));
-  const maps = contextMaps(data);
-  const effectiveCutoff = cutoff || (mode === TRANSACTION_MODE_MANUAL ? financeToday() : financeCycleCutoff());
-  return (data.collectionActivities || []).map((activity) => {
-    const enriched = enrichFinanceActivity(activity, schoolMap);
-    return {
-      ...enriched,
-      transaction_summary: transactionActivitySummary(enriched, {
-        cutoff: effectiveCutoff,
-        cancelledDates: maps.cancelledByActivity[activityRowId(activity)] || [],
-        billedSlots: maps.billedSlotsByActivity[activityRowId(activity)] || [],
-        billedAmount: maps.billedAmountByActivity[activityRowId(activity)] || 0,
-        mode
-      })
-    };
-  });
+export const transactionSelectionKey = (row) => [row.activityRowId, row.fundingSourceId, row.period || 'completion'].join(':');
+
+export function transactionBacklog(data, mode) {
+  const selected = transactionMonth(data, mode);
+  return (data.transactionContext?.billingRows || []).filter((row) => row.gefenFunding === (mode === TRANSACTION_MODE_AUTOMATIC)
+    && row.eligible && !row.blockedReason && row.period && row.period.slice(0, 7) < financeToday().slice(0, 7)
+    && row.period.slice(0, 7) !== selected);
+}
+
+export function transactionIssuanceActivities(data, { mode = TRANSACTION_MODE_AUTOMATIC } = {}) {
+  return (data.transactionContext?.billingRows || [])
+    .filter((row) => row.gefenFunding === (mode === TRANSACTION_MODE_AUTOMATIC) || (!row.fundingSourceId && row.blockedReason))
+    .filter((row) => row.period?.slice(0, 7) === transactionMonth(data, mode) || (!row.period && row.blockedReason))
+    .map((row) => ({ row_id: row.activityRowId, transaction_summary: row }));
 }
 
 export function transactionPreviewForVisit(data, mode = TRANSACTION_MODE_AUTOMATIC) {
-  const effectiveMode = mode === TRANSACTION_MODE_MANUAL ? TRANSACTION_MODE_MANUAL : TRANSACTION_MODE_AUTOMATIC;
-  const cutoff = effectiveMode === TRANSACTION_MODE_MANUAL ? financeToday() : financeCycleCutoff();
-  const maps = contextMaps(data);
-  const schoolMap = new Map((data.transactionContext?.schools || []).map((row) => [String(row.id), row]));
-  const activities = (data.collectionActivities || []).map((activity) => enrichFinanceActivity(activity, schoolMap));
-  const options = {
-    mode: effectiveMode,
-    cutoff,
-    ...maps
-  };
-  if (effectiveMode === TRANSACTION_MODE_MANUAL) {
-    options.activityIds = Object.entries(data.transactionManualSelected || {})
-      .filter(([, checked]) => checked)
-      .map(([id]) => id);
+  const rows = transactionIssuanceActivities(data, { mode }).map((row) => row.transaction_summary);
+  const accounts = new Map();
+  if (!data.collectionError) for (const row of rows.filter((row) => row.eligible && !row.blockedReason)) {
+    if (mode === TRANSACTION_MODE_MANUAL && !data.transactionManualSelected?.[transactionSelectionKey(row)]) continue;
+    const key = [row.institutionSymbol, row.fundingSourceId, row.payerKey || row.payerName, row.period || 'completion'].join(':');
+    if (!accounts.has(key)) accounts.set(key, { institutionSymbol: row.institutionSymbol, customerName: row.payerName,
+      schoolName: row.customerName, funding: row.funding, period: row.period, customerEmails: [], lines: [], totalAmount: 0 });
+    const account = accounts.get(key);
+    account.lines.push(row);
+    account.totalAmount += Number(row.issuableAmount);
+    if (row.customerEmail && !account.customerEmails.includes(row.customerEmail)) account.customerEmails.push(row.customerEmail);
   }
-  return buildTransactionPreview(activities, options);
+  const result = [...accounts.values()];
+  return { mode, cutoff: mode === TRANSACTION_MODE_MANUAL ? financeToday() : financeCycleCutoff(), accounts: result,
+    blocked: rows.filter((row) => row.blockedReason), deferred: rows.filter((row) => !row.eligible && !row.blockedReason),
+    totals: { schools: new Set(result.map((row) => row.institutionSymbol)).size,
+      activities: new Set(result.flatMap((account) => account.lines.map((line) => line.activityRowId))).size,
+      meetings: result.reduce((sum, a) => sum + a.lines.reduce((n, l) => n + l.unbilledCount, 0), 0),
+      hours: result.reduce((sum, a) => sum + a.lines.reduce((n, l) => n + l.unbilledHours, 0), 0),
+      amount: result.reduce((sum, a) => sum + a.totalAmount, 0) } };
 }
 
 function summaryCards(preview) {
@@ -119,73 +95,72 @@ function summaryCards(preview) {
   </div>`;
 }
 
-function accountPreviewHtml(account) {
-  const emails = account.customerEmails?.length ? account.customerEmails.join(', ') : 'חסר נמען';
-  const rows = account.lines.map((line) => `<tr>
-    <td>${escapeHtml(line.activityName || line.activityRowId || '—')}</td>
-    <td>${escapeHtml(line.gefenNumber || '—')}</td>
-    <td>${escapeHtml(line.funding || '—')}</td>
-    <td>${escapeHtml(`${line.unbilledCount} מפגשים`)}</td>
-    <td>${escapeHtml(`${line.unbilledHours} שעות`)}</td>
-    <td>${escapeHtml(formatAmount(line.issuableAmount))}</td>
-  </tr>`).join('');
-  return `<details class="ds-fin-payer" open>
-    <summary><span class="ds-fin-payer__title">${escapeHtml(account.customerName || 'בית ספר')}</span><span class="ds-fin-payer__meta">${escapeHtml(`${account.institutionSymbol} · ${formatAmount(account.totalAmount)}`)}</span></summary>
-    <div style="padding:10px 12px"><strong>נמען:</strong> ${escapeHtml(emails)}</div>
-    ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>פעילות</th><th>מס׳ גפ״ן</th><th>גורם מימון</th><th>מפגשים</th><th>שעות</th><th>סכום</th></tr></thead><tbody>${rows}</tbody></table>`)}
-  </details>`;
+function billingLineHtml(line, data, mode) {
+  const select = mode === TRANSACTION_MODE_MANUAL
+    ? `<input type="checkbox" aria-label="בחירת ${escapeHtml(line.activityName)}" data-finance-transaction-select="${escapeHtml(transactionSelectionKey(line))}"${data.transactionManualSelected?.[transactionSelectionKey(line)] ? ' checked' : ''}>` : '';
+  return `<tr><td>${select}${escapeHtml(line.activityName || line.activityRowId)}</td>
+    <td>${escapeHtml(line.customerName || '—')}</td><td>${escapeHtml(line.period?.slice(0, 7) || 'סיום פעילות')}</td>
+    <td>${escapeHtml(`מתוכנן ${line.plannedCount} · בוצע ${line.completedCount} · חויב ${line.billedCount} · יתרה ${line.unbilledCount}`)}</td>
+    <td>${escapeHtml(formatAmount(line.fundingAmount))}</td><td>${escapeHtml(formatAmount(line.issuableAmount))}<details><summary>פירוט מפגשים</summary>${line.unbilledSlots.map((slot) => `<div>מפגש ${slot.slot} · ${escapeHtml(formatDate(slot.date))} · 1.5 שעות</div>`).join('')}</details></td></tr>`;
 }
 
-function automaticView(data) {
-  const preview = transactionPreviewForVisit(data, TRANSACTION_MODE_AUTOMATIC);
-  const body = preview.accounts.length
-    ? preview.accounts.map(accountPreviewHtml).join('')
-    : dsEmptyState('אין כרגע חשבונות גפן הזכאים להפקה בסבב החודשי.');
-  return `
-    <div class="ds-fin-collect-toolbar" dir="rtl">
-      <div><strong>סבב גפן אוטומטי</strong><br><small>נקודת חיתוך: ${escapeHtml(formatDate(preview.cutoff))}. נכללים גפן וכל שילוב הכולל גפן בלבד.</small></div>
-      <button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="automatic"${preview.accounts.length ? '' : ' disabled'}>הפק את סבב חשבונות העסקה</button>
-    </div>
-    ${summaryCards(preview)}
-    ${body}`;
+function pendingGroupHtml(rows, data, mode) {
+  const groups = new Map();
+  for (const row of rows) {
+    const key = [row.period, mode === TRANSACTION_MODE_AUTOMATIC ? row.institutionSymbol : (row.payerKey || row.fundingSourceId)].join(':');
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+  }
+  return [...groups.values()].sort((a,b) => a[0].period.localeCompare(b[0].period)).map((lines) => {
+    const row = lines[0];
+    return `<details class="ds-fin-payer"><summary>${escapeHtml(row.period.slice(0,7))} · ${escapeHtml(mode === TRANSACTION_MODE_AUTOMATIC ? `${row.customerName} · ${row.institutionSymbol}` : row.payerName)} · ${lines.length} חיובים · ${escapeHtml(formatAmount(lines.reduce((sum,line) => sum + Number(line.issuableAmount),0)))}</summary>
+      ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>פעילות</th><th>מוסד</th><th>${mode === TRANSACTION_MODE_AUTOMATIC ? 'חודש ביצוע' : 'חודש סיום'}</th><th>מפגשים</th><th>חלק המממן</th><th>להפקה</th></tr></thead><tbody>${lines.map((line) => billingLineHtml(line,data,mode)).join('')}</tbody></table>`)}
+      <button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="${mode}" data-finance-transaction-period="${row.period.slice(0,7)}">${mode === TRANSACTION_MODE_AUTOMATIC ? 'הפק חשבונות לחודש זה' : 'הפק חשבונות מסומנים לחודש זה'}</button></details>`;
+  }).join('');
 }
 
-function manualView(data) {
-  const rows = transactionIssuanceActivities(data, { mode: TRANSACTION_MODE_MANUAL, cutoff: financeToday() })
-    .filter((row) => row.transaction_summary.manualEligible)
-    .map((row) => {
-      const tx = row.transaction_summary;
-      const checked = data.transactionManualSelected?.[activityRowId(row)] === true;
-      const disabled = tx.blockedReason || !tx.manualEligible;
-      const recipient = text(row.resolved_contact_email) || text(row.contact_email) || 'חסר';
-      return `<tr>
-        <td><input type="checkbox" data-finance-transaction-select="${escapeHtml(activityRowId(row))}"${checked ? ' checked' : ''}${disabled ? ' disabled' : ''}></td>
-        <td>${escapeHtml(row.school || '—')}</td>
-        <td>${escapeHtml(row.activity_name || '—')}</td>
-        <td>${escapeHtml(row.funding || '—')}</td>
-        <td>${escapeHtml(row.semel_mosad || '—')}</td>
-        <td>${escapeHtml(recipient)}</td>
-        <td>${escapeHtml(`${tx.unbilledCount} | ${tx.unbilledHours} | ${money(tx.unbilledAmount)}`)}</td>
-        <td>${escapeHtml(tx.blockedReason || 'מוכן להפקה ידנית')}</td>
-      </tr>`;
-    }).join('');
-  const preview = transactionPreviewForVisit(data, TRANSACTION_MODE_MANUAL);
-  return `
-    <div class="ds-fin-collect-toolbar" dir="rtl">
-      <div><strong>הפקה ידנית</strong><br><small>זמינה לכל גורמי המימון. מוצגות רק פעילויות שבהן יש מפגשים שבוצעו וטרם חויבו עד היום.</small></div>
-      <button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="manual"${preview.accounts.length ? '' : ' disabled'}>הפק חשבונות מסומנים</button>
-    </div>
-    ${summaryCards(preview)}
-    ${rows ? dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th></th><th>בית ספר</th><th>פעילות</th><th>גורם מימון</th><th>סמל מוסד</th><th>נמען</th><th>בוצע וטרם חויב</th><th>מצב</th></tr></thead><tbody>${rows}</tbody></table>`) : dsEmptyState('אין פעילויות עם ביצוע שטרם חויב.')} `;
+function billingView(data, mode) {
+  const preview = transactionPreviewForVisit(data, mode);
+  const backlog = transactionBacklog(data, mode);
+  const rows = transactionIssuanceActivities(data, { mode }).map((row) => row.transaction_summary);
+  const ready = rows.filter((row) => row.eligible && !row.blockedReason);
+  const groups = new Map();
+  for (const row of ready) {
+    const key = mode === TRANSACTION_MODE_AUTOMATIC ? row.institutionSymbol : (row.payerKey || row.fundingSourceId);
+    if (!groups.has(key)) groups.set(key, { payer: mode === TRANSACTION_MODE_AUTOMATIC ? `${row.customerName} · ${row.institutionSymbol}` : row.payerName, funding: row.funding, lines: [] });
+    groups.get(key).lines.push(row);
+  }
+  const body = [...groups.values()].map((group) => `<details class="ds-fin-payer" open>
+    <summary><span class="ds-fin-payer__title">${escapeHtml(group.payer)}</span>
+    <span class="ds-fin-payer__meta">${escapeHtml(`${new Set(group.lines.map((line) => line.activityRowId)).size} פעילויות · ${group.lines.reduce((sum, line) => sum + line.unbilledCount, 0)} מפגשים · ${group.lines.reduce((sum, line) => sum + line.unbilledHours, 0)} שעות · ${formatAmount(group.lines.reduce((sum, line) => sum + Number(line.issuableAmount), 0))}`)}</span></summary>
+    ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>פעילות</th><th>מוסד</th><th>${mode === TRANSACTION_MODE_AUTOMATIC ? 'חודש ביצוע' : 'חודש סיום'}</th><th>מפגשים</th><th>חלק המממן</th><th>להפקה</th></tr></thead>
+    <tbody>${group.lines.map((line) => billingLineHtml(line, data, mode)).join('')}</tbody></table>`)}</details>`).join('');
+  // Open accounts lists eligible amounts only. Blocked activities remain visible
+  // in a separate explanation, without becoming issuable rows.
+  const blocked = [...new Map((data.transactionContext?.billingRows || []).filter((row) => row.gefenFunding === (mode === TRANSACTION_MODE_AUTOMATIC) || !row.fundingSourceId).filter((row) => row.blockedReason).map((row) => [row.activityRowId + ':' + row.fundingSourceId, row])).values()];
+  const blockedHtml = blocked.length ? `<details class="ds-fin-payer"><summary>פעילויות חסומות להפקה (${blocked.length})</summary>
+    ${blocked.map((row) => `<p>${escapeHtml(row.customerName)} · ${escapeHtml(row.activityName)} · ${escapeHtml(row.funding)}: ${escapeHtml(row.blockedReason)}${row.financialAdjustment ? ` · ${escapeHtml(formatAmount(row.financialAdjustment))}` : ''}</p>`).join('')}</details>` : '';
+  const total = { ...preview, totals: { schools: new Set(ready.map((row) => row.institutionSymbol)).size,
+    activities: new Set(ready.map((row) => row.activityRowId)).size,
+    meetings: ready.reduce((sum, row) => sum + row.unbilledCount, 0), hours: ready.reduce((sum, row) => sum + row.unbilledHours, 0),
+    amount: ready.reduce((sum, row) => sum + Number(row.issuableAmount), 0) } };
+  return `<div class="ds-fin-collect-toolbar" dir="rtl"><div><strong>${mode === TRANSACTION_MODE_AUTOMATIC ? 'חשבונות עסקה - גפן' : 'חשבונות עסקה - פתוח'}</strong><br>
+</div>
+    <button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="${mode}"${preview.accounts.length ? '' : ' disabled'}>${mode === TRANSACTION_MODE_AUTOMATIC ? 'הפק את סבב חשבונות העסקה' : 'הפק חשבונות מסומנים'}</button></div>
+    <details class="ds-fin-payer" open><summary>ממתינים להפקה מחודשים קודמים · ${backlog.length} חיובים · ${escapeHtml(formatAmount(backlog.reduce((sum,row) => sum + Number(row.issuableAmount),0)))}</summary>
+    ${pendingGroupHtml(backlog,data,mode) || '<p>אין יתרות מחודשים אחרים שהסתיימו.</p>'}</details>
+    ${monthPicker(data, mode)}${summaryCards(total)}${body || dsEmptyState('אין חשבונות הזכאים להפקה כרגע.')}${blockedHtml}`;
 }
 
 function historyView(data) {
   const accounts = (data.transactionContext?.accounts || []).slice().sort((a, b) => Number(b.transaction_account_number || 0) - Number(a.transaction_account_number || 0));
   if (!accounts.length) return dsEmptyState('טרם הופקו חשבונות עסקה.');
   return accounts.map((account) => {
+    const balance = data.paymentContext?.balances?.find(row => row.accountId === account.id);
+    const actualCollectionStatus = balance ? Number(balance.balance) <= 0 ? 'paid' : Number(balance.paidAmount) > 0 ? 'partially_paid' : 'awaiting_payment' : account.collection_status;
     const lines = (account.finance_transaction_account_lines || []).map((line) => `<tr>
       <td>${escapeHtml(line.activity_name_snapshot || '—')}</td>
-      <td>${escapeHtml(line.funding_snapshot || '—')}</td>
+      <td>${escapeHtml(line.funding_snapshot || '—')} · ${escapeHtml(line.school_name_snapshot || '')}</td>
       <td>${escapeHtml(String(line.billed_hours || 0))}</td>
       <td>${escapeHtml(formatAmount(line.amount))}</td>
     </tr>`).join('');
@@ -198,8 +173,11 @@ function historyView(data) {
         <span>לתשלום עד: <strong>${escapeHtml(formatDate(account.payment_due_date))}</strong></span>
         <span>מסמך: <strong>${escapeHtml(statusLabel(account.document_status))}</strong></span>
         <span>Outlook: <strong>${escapeHtml(statusLabel(account.outlook_status))}</strong></span>
-        <span>גבייה: <strong>${escapeHtml(statusLabel(account.collection_status))}</strong></span>
+        <span>גבייה: <strong>${escapeHtml(statusLabel(actualCollectionStatus))}</strong></span>
+        ${balance ? `<span>שולם: ${escapeHtml(formatAmount(balance.paidAmount))} · יתרה: ${escapeHtml(formatAmount(balance.balance))}</span>` : ''}
         ${pdf}
+        ${data.financeAdmin && account.document_status !== 'cancelled' ? `<button class="ds-btn ds-btn--ghost" data-finance-account-cancel="${escapeHtml(account.id)}">ביטול חשבון</button>` : ''}
+        ${account.cancellation_reason ? `<span>${escapeHtml(account.cancellation_reason)}</span>` : ''}
       </div>
       ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>פעילות</th><th>גורם מימון</th><th>שעות</th><th>סכום</th></tr></thead><tbody>${lines}</tbody></table>`)}
     </details>`;
@@ -207,19 +185,20 @@ function historyView(data) {
 }
 
 export function transactionAccountsViewHtml(data, backBarHtml) {
-  const tab = ['manual', 'history'].includes(data.transactionTab) ? data.transactionTab : 'automatic';
+  const tab = ['manual', 'history', 'editable'].includes(data.transactionTab) ? data.transactionTab : 'automatic';
   const action = data.transactionActionMessage
     ? `<div class="ds-empty-state" style="margin-bottom:12px">${escapeHtml(data.transactionActionMessage)}</div>`
     : '';
-  const body = tab === 'manual' ? manualView(data) : tab === 'history' ? historyView(data) : automaticView(data);
+  const body = data.collectionError ? dsEmptyState(data.collectionError) : tab === 'history' ? historyView(data) : tab === 'editable' ? manualAccountViewHtml(data) : billingView(data, tab);
   return dsScreenStack(`
     ${backBarHtml('חשבונות עסקה')}
     <div class="ds-fin-collect-shell" dir="rtl">
       ${action}
       <div class="ds-fin-tabs" role="tablist" style="margin-bottom:14px">
-        <button type="button" class="ds-fin-tab${tab === 'automatic' ? ' is-active' : ''}" data-finance-transaction-tab="automatic">סבב גפן</button>
-        <button type="button" class="ds-fin-tab${tab === 'manual' ? ' is-active' : ''}" data-finance-transaction-tab="manual">הפקה ידנית</button>
+        <button type="button" class="ds-fin-tab${tab === 'automatic' ? ' is-active' : ''}" data-finance-transaction-tab="automatic">חשבונות עסקה - גפן</button>
+        <button type="button" class="ds-fin-tab${tab === 'manual' ? ' is-active' : ''}" data-finance-transaction-tab="manual">חשבונות עסקה - פתוח</button>
         <button type="button" class="ds-fin-tab${tab === 'history' ? ' is-active' : ''}" data-finance-transaction-tab="history">היסטוריה</button>
+        <button type="button" class="ds-fin-tab${tab === 'editable' ? ' is-active' : ''}" data-finance-transaction-tab="editable">הפקה ידנית</button>
       </div>
       ${body}
     </div>
@@ -234,8 +213,9 @@ function uuid() {
   });
 }
 
-export async function runTransactionIssuance(data, api, mode) {
-  const preview = transactionPreviewForVisit(data, mode);
+export async function runTransactionIssuance(data, api, mode, month = transactionMonth(data, mode)) {
+  const scoped = { ...data, transactionMonths: { ...data.transactionMonths, [mode]: month } };
+  const preview = transactionPreviewForVisit(scoped, mode);
   if (!preview.accounts.length) throw new Error('אין חשבונות מוכנים להפקה.');
   const results = [];
   for (const account of preview.accounts) {
@@ -247,11 +227,20 @@ export async function runTransactionIssuance(data, api, mode) {
       customerEmail: (account.customerEmails || []).join(';'),
       lines: account.lines.map((line) => ({
         activity_row_id: line.activityRowId,
+        funding_source_id: line.fundingSourceId,
+        performance_month: line.period,
+        expected_amount: line.issuableAmount,
         meeting_slots: line.unbilledSlots.map((slot) => slot.slot),
         issue_mode: mode
       }))
     });
-    const dispatched = await api.dispatchFinanceTransactionAccount({ accountId: reserved.id });
+    let dispatched;
+    try { dispatched = await api.dispatchFinanceTransactionAccount({ accountId: reserved.id }); }
+    catch (error) {
+      // Safe server cancellation refuses issued accounts and active dispatch leases.
+      await api.cancelFinanceTransactionReservation?.(reserved.id).catch(() => {});
+      throw error;
+    }
     results.push({ reserved, dispatched });
   }
   return results;

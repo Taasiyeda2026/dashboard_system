@@ -7163,6 +7163,16 @@ export const api = {
     if (error) throw new Error(error.message || 'finance_collection_tracking_save_failed');
     return data || {};
   },
+  listFinanceActivities: async ({ select } = {}) => {
+    assertAnyPermission(['view_finance_collection', 'manage_finance_transactions'], 'finance_tools_forbidden');
+    const rows = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase.from('activities').select(select || '*').order('row_id', { ascending: true }).range(from, from + 999);
+      if (error) throw new Error(error.message || 'finance_activities_read_failed');
+      rows.push(...(data || []));
+      if ((data || []).length < 1000) return { rows };
+    }
+  },
   listFinanceTransactionAccounts: async () => {
     assertPermission('manage_finance_transactions', 'finance_transactions_forbidden');
     const { data, error } = await supabase.from('finance_transaction_accounts')
@@ -7182,6 +7192,51 @@ export const api = {
     if (failed) throw new Error(failed.error.message || 'finance_transaction_context_failed');
     return { cancelled: cancelled.data || [], accounts: accounts.data || [], schools: schools.data || [] };
   },
+  financeBillingPreview: async (activityIds = []) => {
+    assertAnyPermission(['view_finance_collection', 'manage_finance_transactions'], 'finance_tools_forbidden');
+    const rows = [];
+    for (let index = 0; index < activityIds.length; index += 200) {
+      const { data, error } = await supabase.rpc('finance_billing_preview', { p_activity_ids: activityIds.slice(index, index + 200) });
+      if (error) throw new Error(error.message || 'finance_billing_preview_failed');
+      if (!Array.isArray(data)) throw new Error('finance_billing_preview_invalid');
+      rows.push(...data);
+    }
+    return rows;
+  },
+  financePaymentContext: async () => {
+    assertAnyPermission(['view_finance_collection', 'manage_finance_transactions'], 'finance_tools_forbidden');
+    const { data, error } = await supabase.rpc('finance_payment_context'); if (error) throw error;
+    if (!data || !Array.isArray(data.balances) || !Array.isArray(data.receipts) || !Array.isArray(data.allocations)) throw new Error('נתוני התשלומים אינם זמינים');
+    return data;
+  },
+  recordFinanceReceipt: async (receipt, allocations = [], idempotencyKey) => {
+    assertPermission('view_finance_collection', 'finance_collection_forbidden');
+    const { data, error } = await supabase.rpc('finance_record_receipt', { p_idempotency_key: idempotencyKey, p_receipt: receipt, p_allocations: allocations }); if (error) throw error; return data;
+  },
+  allocateFinanceReceipt: async (receiptId, allocations, operationId) => {
+    assertPermission('view_finance_collection', 'finance_collection_forbidden');
+    const { error } = await supabase.rpc('finance_allocate_receipt', { p_receipt_id: receiptId, p_allocations: allocations, p_operation_id: operationId || null }); if (error) throw error;
+  },
+  voidFinanceReceipt: async (receiptId, reason) => {
+    assertPermission('view_finance_collection', 'finance_collection_forbidden');
+    const { error } = await supabase.rpc('finance_void_receipt', { p_receipt_id: receiptId, p_reason: reason }); if (error) throw error;
+  },
+  updateFinanceAccountTracking: async (accountId, expectedDate, note) => {
+    assertPermission('view_finance_collection', 'finance_collection_forbidden');
+    const { error } = await supabase.rpc('finance_update_account_tracking', { p_account_id: accountId, p_expected_date: expectedDate || null, p_note: note }); if (error) throw error;
+  },
+  cancelIssuedFinanceAccount: async (accountId, reason) => {
+    assertPermission('manage_finance_transactions', 'finance_transactions_forbidden');
+    const { error } = await supabase.rpc('finance_cancel_issued_account', { p_account_id: accountId, p_reason: reason }); if (error) throw error;
+  },
+  previewFinanceManualAccount: async (manual) => {
+    assertPermission('manage_finance_transactions', 'finance_transactions_forbidden');
+    const { data, error } = await supabase.functions.invoke('finance-transaction-accounts', { body: { preview: true, manual } }); if (error) throw error; if (data?.error) throw Error(data.error); return data;
+  },
+  reserveFinanceManualAccount: async (manual) => {
+    assertPermission('manage_finance_transactions', 'finance_transactions_forbidden');
+    const { data, error } = await supabase.rpc('reserve_finance_manual_account', { p_idempotency_key: manual.idempotencyKey, p_activity: manual.activity, p_funder: manual.funder, p_month: manual.month, p_draft: manual.draft, p_expected_revision: manual.revision }); if (error) throw error; return data;
+  },
   reserveFinanceTransactionAccount: async (payload = {}) => {
     assertPermission('manage_finance_transactions', 'finance_transactions_forbidden');
     const { data, error } = await supabase.rpc('reserve_finance_transaction_account', {
@@ -7194,6 +7249,13 @@ export const api = {
     });
     if (error) throw new Error(error.message || 'finance_transaction_account_reserve_failed');
     return data;
+  },
+  cancelFinanceTransactionReservation: async (accountId) => {
+    assertPermission('manage_finance_transactions', 'finance_transactions_forbidden');
+    const { error } = await supabase.rpc('cancel_generating_finance_transaction_account', {
+      p_account_id: accountId, p_reason: 'client_dispatch_failed'
+    });
+    if (error) throw error;
   },
   dispatchFinanceTransactionAccount: async (body = {}) => {
     assertPermission('manage_finance_transactions', 'finance_transactions_forbidden');

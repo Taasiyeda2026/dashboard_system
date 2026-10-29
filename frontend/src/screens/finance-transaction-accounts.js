@@ -1,5 +1,4 @@
 export const TRANSACTION_MEETING_HOURS = 1.5;
-export const TRANSACTION_MIN_MEETINGS = 3;
 export const FINANCE_TIME_ZONE = 'Asia/Jerusalem';
 export const TRANSACTION_MODE_AUTOMATIC = 'automatic';
 export const TRANSACTION_MODE_MANUAL = 'manual';
@@ -11,7 +10,7 @@ function israelParts(now = new Date()) {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: FINANCE_TIME_ZONE,
     year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', hourCycle: 'h23'
+    hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
   }).formatToParts(now);
   return Object.fromEntries(parts.map((part) => [part.type, part.value]));
 }
@@ -28,13 +27,13 @@ export function financeCycleCutoff(now = new Date()) {
   return previousDay.toISOString().slice(0, 10);
 }
 
-export function financePaymentDueDate(issueDate = financeToday()) {
+export function financePaymentDueDate(issueDate = financeToday(), days = 30) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text(issueDate));
   if (!match) return '';
   const year = Number(match[1]);
   const month = Number(match[2]);
   const monthEnd = new Date(Date.UTC(year, month, 0));
-  monthEnd.setUTCDate(monthEnd.getUTCDate() + 30);
+  monthEnd.setUTCDate(monthEnd.getUTCDate() + days);
   return monthEnd.toISOString().slice(0, 10);
 }
 
@@ -73,12 +72,12 @@ export function plannedMeetingCount(activity = {}, slots = activityMeetingSlots(
 }
 
 function minutes(value) {
-  const match = /^(\d{1,2}):(\d{2})/.exec(text(value));
+  const match = /^(\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(text(value));
   if (!match) return null;
   const hour = Number(match[1]);
   const minute = Number(match[2]);
   if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
-  return hour * 60 + minute;
+  return hour * 3600 + minute * 60 + Number(match[3] || 0);
 }
 
 function completedByCutoff(slot, activity, cutoff, now) {
@@ -90,165 +89,20 @@ function completedByCutoff(slot, activity, cutoff, now) {
   const endMinutes = minutes(activity.end_time);
   if (endMinutes == null) return false;
   const p = israelParts(now);
-  return (Number(p.hour) * 60 + Number(p.minute)) >= endMinutes;
+  return (Number(p.hour) * 3600 + Number(p.minute) * 60 + Number(p.second)) > endMinutes;
 }
 
-function billedSlotNumbers(slots, billedSlots = [], billedDates = []) {
-  const explicit = new Set((billedSlots || [])
-    .map((value) => Number(value?.slot ?? value?.meeting_slot ?? value))
-    .filter(Number.isFinite));
-  if (explicit.size) return explicit;
-
-  const counts = new Map();
-  for (const value of billedDates || []) {
-    const date = iso(value);
-    if (date) counts.set(date, (counts.get(date) || 0) + 1);
-  }
-  const resolved = new Set();
-  for (const slot of slots) {
-    const left = counts.get(slot.date) || 0;
-    if (left > 0) {
-      resolved.add(slot.slot);
-      counts.set(slot.date, left - 1);
-    }
-  }
-  return resolved;
-}
-
-export function transactionActivitySummary(activity = {}, {
-  cutoff = financeCycleCutoff(),
-  cancelledDates = [],
-  billedSlots = [],
-  billedDates = [],
-  billedAmount = 0,
-  mode = TRANSACTION_MODE_AUTOMATIC,
-  now = new Date()
-} = {}) {
+// Descriptive progress only. Billing eligibility and amounts come exclusively
+// from finance_billing_preview and are recalculated again by the reservation RPC.
+export function financeActivityFacts(activity = {}, { cancelledDates = [], now = new Date() } = {}) {
   const slots = activityMeetingSlots(activity);
   const plannedCount = plannedMeetingCount(activity, slots);
-  const cancelled = new Set(cancelledDates.map(iso).filter(Boolean));
-  const billedSlotSet = billedSlotNumbers(slots, billedSlots, billedDates);
-  const slotIsBilled = (slot) => billedSlotSet.has(slot.slot);
-
-  const nonCancelledSlots = slots.filter((slot) => !cancelled.has(slot.date));
-  const completedSlots = nonCancelledSlots.filter((slot) => completedByCutoff(slot, activity, cutoff, now));
-  const unbilledSlots = completedSlots.filter((slot) => !slotIsBilled(slot));
-  const billedCount = slots.filter(slotIsBilled).length;
-  const finished = plannedCount > 0
-    && slots.length >= plannedCount
-    && nonCancelledSlots.every((slot) => completedByCutoff(slot, activity, cutoff, now));
-
-  const price = Number(String(activity.price ?? '').replace(/[₪,\s]/g, ''));
-  const hourlyRate = plannedCount > 0 && Number.isFinite(price)
-    ? price / (plannedCount * TRANSACTION_MEETING_HOURS)
-    : 0;
-  const unbilledHours = unbilledSlots.length * TRANSACTION_MEETING_HOURS;
-  const unbilledAmount = unbilledHours * hourlyRate;
-  const isFinal = finished && unbilledSlots.length > 0;
-  const automaticEligible = hasGefenFunding(activity.funding)
-    && (unbilledSlots.length >= TRANSACTION_MIN_MEETINGS || isFinal);
-  const manualEligible = unbilledSlots.length > 0;
-  const eligible = mode === TRANSACTION_MODE_MANUAL ? manualEligible : automaticEligible;
-  const targetRatio = plannedCount > 0 ? Math.min(nonCancelledSlots.length, plannedCount) / plannedCount : 0;
-  const closingTarget = Number.isFinite(price) ? price * targetRatio : 0;
-  const issuableAmount = eligible
-    ? (isFinal ? Math.max(0, closingTarget - Number(billedAmount || 0)) : unbilledAmount)
-    : 0;
-  const amount = eligible ? issuableAmount : unbilledAmount;
-
-  let blockedReason = '';
-  if (!text(activity.semel_mosad)) blockedReason = 'חסר סמל מוסד';
-  else if (!Number.isFinite(price) || price < 0) blockedReason = 'מחיר פעילות אינו תקין';
-  else if (!plannedCount) blockedReason = 'חסר מספר מפגשים מתוכננים';
-  else if (cutoff > financeToday(now)) blockedReason = 'נקודת החיתוך עתידית';
-
-  return {
-    activityRowId: text(activity.row_id),
-    activityName: text(activity.activity_name),
-    gefenNumber: text(activity.activity_no),
-    institutionSymbol: text(activity.semel_mosad),
-    customerName: text(activity.school),
-    customerEmail: text(activity.contact_email),
-    funding: text(activity.funding),
-    gefenFunding: hasGefenFunding(activity.funding),
-    plannedCount,
-    scheduledCount: slots.length,
-    completedCount: completedSlots.length,
-    billedCount,
-    unbilledSlots,
-    unbilledDates: unbilledSlots.map((slot) => slot.date),
-    unbilledCount: unbilledSlots.length,
-    unbilledHours,
-    unbilledAmount,
-    hourlyRate,
-    amount,
-    issuableAmount,
-    automaticEligible,
-    manualEligible,
-    eligible,
-    closingBill: eligible && isFinal,
-    blockedReason
-  };
-}
-
-function uniqueEmails(values = []) {
-  const map = new Map();
-  for (const raw of values) {
-    for (const value of text(raw).split(/[;,]/)) {
-      const email = text(value);
-      if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) map.set(email.toLowerCase(), email);
-    }
-  }
-  return [...map.values()];
-}
-
-export function buildTransactionPreview(activities = [], options = {}) {
-  const mode = options.mode === TRANSACTION_MODE_MANUAL ? TRANSACTION_MODE_MANUAL : TRANSACTION_MODE_AUTOMATIC;
-  const selectionProvided = Array.isArray(options.activityIds);
-  const selected = new Set((options.activityIds || []).map((value) => text(value)).filter(Boolean));
-  const summaries = activities.map((activity) => transactionActivitySummary(activity, {
-    cutoff: options.cutoff,
-    cancelledDates: options.cancelledByActivity?.[activity.row_id] || [],
-    billedSlots: options.billedSlotsByActivity?.[activity.row_id] || [],
-    billedDates: options.billedByActivity?.[activity.row_id] || [],
-    billedAmount: options.billedAmountByActivity?.[activity.row_id] || 0,
-    mode,
-    now: options.now || new Date()
-  }));
-  const relevantSummaries = mode === TRANSACTION_MODE_AUTOMATIC
-    ? summaries.filter((row) => row.gefenFunding)
-    : summaries;
-  const candidates = relevantSummaries.filter((row) => row.eligible
-    && !row.blockedReason
-    && (!selectionProvided || selected.has(row.activityRowId)));
-  const accounts = new Map();
-  for (const item of candidates) {
-    if (!accounts.has(item.institutionSymbol)) accounts.set(item.institutionSymbol, {
-      institutionSymbol: item.institutionSymbol,
-      customerName: item.customerName,
-      customerEmails: [],
-      lines: [], totalAmount: 0
-    });
-    const account = accounts.get(item.institutionSymbol);
-    account.lines.push(item);
-    account.customerEmails = uniqueEmails([...account.customerEmails, item.customerEmail]);
-    account.totalAmount += item.issuableAmount;
-  }
-  const rows = [...accounts.values()];
-  return {
-    mode,
-    cutoff: options.cutoff,
-    accounts: rows,
-    deferred: relevantSummaries.filter((row) => !row.eligible && !row.blockedReason),
-    blocked: relevantSummaries.filter((row) => row.blockedReason),
-    totals: {
-      schools: rows.length,
-      activities: rows.reduce((sum, row) => sum + row.lines.length, 0),
-      meetings: rows.reduce((sum, row) => sum + row.lines.reduce((n, line) => n + line.unbilledCount, 0), 0),
-      hours: rows.reduce((sum, row) => sum + row.lines.reduce((n, line) => n + line.unbilledHours, 0), 0),
-      amount: rows.reduce((sum, row) => sum + row.totalAmount, 0)
-    }
-  };
+  const cancelled = new Set(cancelledDates.map(iso));
+  const active = slots.filter((slot) => !cancelled.has(slot.date));
+  const completed = active.filter((slot) => completedByCutoff(slot, activity, financeToday(now), now));
+  return { plannedCount, scheduledCount: slots.length, completedCount: completed.length,
+    cancelledCount: slots.length - active.length, completedSlots: completed,
+    finished: plannedCount > 0 && slots.length === plannedCount && completed.length === active.length };
 }
 
 export function transactionDraftContent(number, schoolName) {
