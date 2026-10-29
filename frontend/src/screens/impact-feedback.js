@@ -1378,7 +1378,7 @@ function staffHtml() {
        ${openAnswersDisclosure(facts, 'הערות פתוחות')}`
     : selectCourseHint('תוצאות לכל שאלה');
   return `
-    ${sectionHtml('מעקב ותזמון משובים', `<p class="ifb-staff-intro">שלושה שלבים לכל קורס: פתיחה, אמצע וסיום. השליחה האוטומטית מתבצעת ב-08:00 לפי התקדמות הקורס. לתזמון מועד מאוחר יותר בחרו ״ניהול״.</p>${groupsTableHtml(STAFF_SLOTS, 'staff')}`)}
+    ${sectionHtml('מעקב ותזמון משובים', `<p class="ifb-staff-intro">שלושה שלבים לכל קורס: פתיחה, אמצע וסיום. משובי פתיחה ואמצע נשלחים בבדיקה שבועית ביום חמישי ב-08:00. משוב סיום נשלח בהתאם לסיום הקורס. לתזמון שלב אמצע או סיום בחרו ״ניהול״.</p>${groupsTableHtml(STAFF_SLOTS, 'staff')}`)}
     ${staffIssuesHtml()}
     ${ui.course ? sectionHtml('תוצאות', results, { actions: exportButtonHtml('audience:educational_staff') }) : ''}`;
 }
@@ -2066,11 +2066,10 @@ function staffScheduleHtml(group, slot) {
   const current = plan?.send_on || '';
   const tomorrow = isoDay(Date.now() + DAY_MS);
   // Opening surveys are not deliverable after the activity has already started.
-  const openingTooLate = slot.stage === 'pre' && String(group.start_date || '') <= tomorrow;
-  if (openingTooLate && !current) return '';
+  if (slot.stage === 'pre') return '<p class="ifb-muted ifb-staff-weekly-note">שליחה שבועית אוטומטית: חמישי 08:00, לקורסים שהחלו במהלך שבעת הימים האחרונים.</p>';
   return `<details class="ifb-staff-schedule">
     <summary>תזמון שליחת מייל</summary>
-    <p class="ifb-muted">מועד השליחה: 08:00 (שעון ישראל). השליחה תתבצע רק לאחר שהמשוב יהיה זכאי להפצה.</p>
+    <p class="ifb-muted">${slot.stage === 'mid' ? 'משוב אמצע נשלח בימי חמישי ב-08:00, רק לאחר המפגש האמצעי.' : 'משוב סיום נשלח לאחר סיום הקורס.'} ניתן לדחות את המשלוח לתאריך עתידי; השליחה תתבצע במועד הזכאות הראשון שלאחריו.</p>
     <form data-ifb-staff-schedule="${esc(group.row_id)}" data-stage="${esc(slot.stage)}">
       <label class="ifb-field"><span>לא לפני תאריך</span>
         <input type="date" name="send_on" min="${tomorrow}" ${slot.stage === 'pre' ? `max="${isoDay(new Date(String(group.start_date)+'T12:00:00').getTime()-DAY_MS)}"` : ''}
