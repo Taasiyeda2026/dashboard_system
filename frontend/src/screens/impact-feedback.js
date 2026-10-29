@@ -7,7 +7,7 @@
  * Server enforces admin access (RLS + admin-checked RPCs); the client check is only UX.
  */
 import * as XLSX from 'xlsx';
-import { AI_STAGE_GROUPS, AI_DEFAULT_SELECTION, aiFactsForSelection, buildAiPackage } from '../impact-feedback/feedback-ai-package.js';
+import { AI_STAGE_GROUPS, AI_DEFAULT_SELECTION, aiFactsForSelection, aiChatGptStartUrl, buildAiPackage } from '../impact-feedback/feedback-ai-package.js';
 import { buildAllInstructorAiPackage } from '../impact-feedback/feedback-instructor-all-ai-package.js';
 import { escapeHtml as esc } from './shared/html.js';
 import { showToast } from './shared/toast.js';
@@ -1773,7 +1773,7 @@ function analysisAiPackageHtml() {
       '<button type="button" class="ifb-btn ifb-btn--primary" data-ifb-ai-package' +
       (!ui.course || !ui.aiSelectedStages.size ? ' disabled' : '') +
       '>הורדת Excel</button>' +
-      '<a class="ifb-btn" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">פתיחת ChatGPT</a>' +
+      '<a class="ifb-btn" href="' + esc(aiChatGptStartUrl()) + '" target="_blank" rel="noopener noreferrer" title="פתיחת שיחה עם בקשת ניתוח מוכנה">ניתוח ב-ChatGPT</a>' +
     '</div>' +
   '</section>';
 }
