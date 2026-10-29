@@ -241,12 +241,12 @@ test('collection card refreshes account balances and live activities on every en
   assert.equal(api.counts.listFinanceActivities,2); assert.equal(api.counts.allActivities,0);
 });
 
-test('collection loads every activity period independently of the dashboard year selection', async () => {
-  const api=mockApi({activities:[activity({row_id:'Y27'}),activity({row_id:'Y26',activity_season:'regular'})]});
-  const data=createFinanceVisitState(); const {host}=mount(data,{api,activityPeriodTab:'regular'});
+test('collection is restricted to school_2027 even if the dashboard selected a previous year', async () => {
+  const api=mockApi({activities:[activity({row_id:'Y27'}),activity({row_id:'Y26',activity_season:'school_2026'})]});
+  const data=createFinanceVisitState(); const {host}=mount(data,{api,activityPeriodTab:'school_2026'});
   host.querySelector('[data-finance-open="collection"]').click(); await flush();
-  assert.equal(api.lastArgs.financeActivities.activity_period,undefined);
-  assert.deepEqual(data.collectionActivities.map(a=>a.row_id),['Y27','Y26']);
+  assert.equal(data.collectionPeriod,'school_2027');
+  assert.deepEqual(data.collectionActivities.map(a=>a.row_id),['Y27']);
 });
 
 test('attendance is not loaded until the attendance card is clicked', async () => {
