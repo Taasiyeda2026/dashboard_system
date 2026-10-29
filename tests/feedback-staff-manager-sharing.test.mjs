@@ -62,6 +62,7 @@ test('staff feedback slot renders for manager and admin without an undefined sta
     campaignUiStatus: () => ({ key: 'not_started' }),
     campaignStatusHtml: () => '',
     openFormHtml: () => '',
+    staffScheduleHtml: () => '',
     esc: (value) => String(value)
   });
   const group = { activity_manager: 'הילה רוזן' };
@@ -101,6 +102,8 @@ test('assigned managers can present and copy existing student links, but cannot 
     fmtDate: () => '',
     isoDay: () => '',
     DAY_MS: 86400000,
+    feedbackReadOnly: true,
+    staffScheduleHtml: () => '',
     esc: (value) => String(value)
   });
   const slot = { audience: 'student', stage: 'pre', key: 'student:pre', label: 'תלמידים – פתיחה' };
