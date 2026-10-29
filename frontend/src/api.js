@@ -1,3 +1,4 @@
+import { notifyWorkflowChanged } from './notifications/events.js';
 import { state, setSession, clearScreenDataCache } from './state.js';
 import { deletePersistedCacheByPrefixes } from './cache-persist.js';
 import { hebrewRole } from './screens/shared/ui-hebrew.js';
@@ -4917,7 +4918,12 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
   // Viewing one's own requests never grants permission to approve others.
   const canViewEditRequests = canReviewRequests || canRequestEdit || canRequestCreateActivity(flat)
     || permissionFlagYes(flat.view_edit_requests)
-    || (role !== 'instructor' && permissionFlagYes(flat.view_activities));
+    || (role !== 'instructor' && permissionFlagYes(flat.view_activities))
+    || effectivePersonalReportsAccess(flat, profileRow)
+    || permissionFlagYes(flat.view_attendance_control)
+    || permissionFlagYes(flat.view_finance_payroll)
+    || permissionFlagYes(flat.view_proposals_agreements)
+    || flat.is_active === true;
   if (canViewEditRequests && !allowedRoutes.includes('edit-requests')) {
     allowedRoutes.push('edit-requests');
   }
@@ -6981,6 +6987,7 @@ export const api = {
     };
     const { data, error } = await supabase.rpc('manager_finalize_attendance_month_review', payload);
     if (error) throw new Error(error.message || 'manager_finalize_attendance_month_review_failed');
+    notifyWorkflowChanged();
     return data || {};
   },
   managerReopenAttendanceMonthForEmployee: async ({
@@ -6993,6 +7000,7 @@ export const api = {
       p_month_key: String(month_key || '').trim()
     });
     if (error) throw new Error(error.message || 'manager_reopen_attendance_month_for_employee_failed');
+    notifyWorkflowChanged();
     return data || {};
   },
   adminFinalizeAttendanceMonthPayroll: async ({
@@ -7007,6 +7015,7 @@ export const api = {
       p_final_approved_by_name: String(final_approved_by_name || '').trim() || null
     });
     if (error) throw new Error(error.message || 'admin_finalize_attendance_month_payroll_failed');
+    notifyWorkflowChanged();
     return data || {};
   },
   adminSendAttendanceMonthToPayroll: async ({
@@ -7021,6 +7030,7 @@ export const api = {
       p_sent_by_name: String(sent_by_name || '').trim() || null
     });
     if (error) throw new Error(error.message || 'admin_send_attendance_month_to_payroll_failed');
+    notifyWorkflowChanged();
     return data || {};
   },
   adminSendAttendanceMonthToPayrollBatch: async ({
@@ -7038,6 +7048,7 @@ export const api = {
       p_sent_by_name: String(sent_by_name || '').trim() || null
     });
     if (error) throw new Error(error.message || 'admin_send_attendance_month_to_payroll_batch_failed');
+    notifyWorkflowChanged();
     return data || {};
   },
   listAttendancePayrollDispatches: async ({ monthKey = '', employeeIds = [] } = {}) => {
@@ -7064,6 +7075,7 @@ export const api = {
       p_reason: String(reason || '').trim() || null
     });
     if (error) throw new Error(error.message || 'admin_reopen_attendance_month_for_correction_failed');
+    notifyWorkflowChanged();
     return data || {};
   },
   adminSubmitAttendanceMonthOnBehalf: async ({
@@ -7080,6 +7092,7 @@ export const api = {
       p_reason: normalizedReason
     });
     if (error) throw new Error(error.message || 'admin_submit_attendance_month_on_behalf_failed');
+    notifyWorkflowChanged();
     return data || {};
   },
   savePayrollControlApproval: async ({
@@ -8205,6 +8218,7 @@ export const api = {
       .select(PROPOSALS_AGREEMENTS_COLUMNS)
       .single();
     if (error) throw new Error(error.message || 'proposals_agreement_status_update_failed');
+    notifyWorkflowChanged();
     return { ok: true, row: normalizeProposalAgreementRow(data) };
   },
   requestProposalFinalPdf: async (id, payload = {}) => {
@@ -8288,6 +8302,7 @@ export const api = {
       .select(PROPOSALS_AGREEMENTS_COLUMNS)
       .single();
     if (error) throw new Error(error.message || 'proposal_lock_and_send_failed');
+    notifyWorkflowChanged();
     return { ok: true, row: normalizeProposalAgreementRow(data) };
   },
   uploadProposalFinalPdf: async (id, payload = {}) => {

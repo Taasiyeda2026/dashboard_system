@@ -1,3 +1,4 @@
+import { approvalNavigationBadges } from '../../notifications/badges.js';
 import { escapeHtml } from './html.js';
 
 function itemLabelHtml(item, counts = {}) {
@@ -8,15 +9,8 @@ function itemLabelHtml(item, counts = {}) {
     return `${label} <span class="ds-nav-count-badge" aria-label="${escapeHtml(String(count))} חריגות">(${escapeHtml(String(count))})</span>`;
   }
   if (item.route === 'edit-requests') {
-    const incoming=Number(counts.editRequestsIncoming)||0;
-    const sent=Number(counts.editRequestsSent)||0;
-    if(incoming+sent>0) {
-      return label+
-        (incoming>0?` <span class="ds-nav-count-badge ds-nav-count-badge--edit-requests" title="ממתינות לטיפולי" aria-label="${incoming} בקשות ממתינות לטיפולי">${escapeHtml(String(incoming))}</span>`:'')+
-        (sent>0?` <span class="ds-nav-count-badge ds-nav-count-badge--edit-requests-sent" title="שלחתי – ממתינות לתשובה" aria-label="${sent} בקשות ששלחתי וממתינות לתשובה">${escapeHtml(String(sent))}</span>`:'');
-    }
-    const count=Number(counts.editRequests)||0;
-    return count>0?`${label} <span class="ds-nav-count-badge ds-nav-count-badge--edit-requests" aria-label="${count} בקשות פתוחות">${escapeHtml(String(count))}</span>`:label;
+    return label+approvalNavigationBadges({incoming:counts.editRequestsIncoming,sent:counts.editRequestsSent,
+      tasks:counts.notificationTasks,unread:counts.notificationUnread,legacyTotal:counts.editRequests});
   }
   return label;
 }
@@ -29,7 +23,7 @@ export const ACT_SUBNAV_ITEMS = [
   { route: 'instructors',   label: 'מדריכים',        icon: '👥' },
   { route: 'archive',       label: 'ארכיון',         icon: '🗄️' },
   { route: 'contacts',      label: 'אנשי קשר',       icon: '📇' },
-  { route: 'edit-requests', label: 'אישורי עריכה',   icon: '✅' },
+  { route: 'edit-requests', label: 'אישורים',   icon: '✅' },
 ];
 
 function visibleSubnavItems(availableRoutes) {

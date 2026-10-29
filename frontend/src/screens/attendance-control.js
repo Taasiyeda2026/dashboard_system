@@ -2595,9 +2595,10 @@ function openAttendanceControlWindow(api, state) {
   popup.focus();
 }
 
-export function bindAttendanceControl(root, { api, state = {}, standalone = false } = {}) {
+export function bindAttendanceControl(root, { api, state = {}, standalone = false, initialTarget = null } = {}) {
   const panel = root?.querySelector('[data-attendance-control]'); if (!panel) return;
   const monthInput = panel.querySelector('[data-attendance-month]');
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(initialTarget?.monthKey || '')) monthInput.value = initialTarget.monthKey;
   const teamInput = panel.querySelector('[data-attendance-team]');
   const instructorWrap = panel.querySelector('[data-attendance-instructor-wrap]');
   const instructorInput = panel.querySelector('[data-attendance-instructor]');
@@ -2920,7 +2921,17 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     try { openAttendanceControlWindow(api, state); } catch (error) { window.alert(error.message); }
   });
   panel.querySelector('[data-attendance-close]')?.addEventListener('click', () => standalone ? root.ownerDocument.defaultView.close() : (panel.hidden = true));
-  if (standalone) refreshTeamRoster({ preserveSelection: false });
+  if (standalone) void refreshTeamRoster({ preserveSelection: false }).then(async () => {
+    if (!initialTarget || !employees) return;
+    const employeeId = txt(initialTarget.employeeId);
+    const employee = employees.find(row => txt(row.employeeId || row.EmployeeId || row.ID) === employeeId);
+    if (!employee) { status.textContent = 'אין הרשאה לעובד או שהשיוך השתנה.'; return; }
+    teamInput.value = txt(employee.team || employee.Team);
+    if (canChooseTeam) { fillInstructorOptions(teamInput.value); instructorInput.value = employeeId; }
+    await loadAttendanceReview();
+    const detail = [...results.querySelectorAll('details[data-payroll-employee]')].find(el => el.dataset.payrollEmployee === employeeId);
+    if (detail) { detail.open = true; detail.scrollIntoView?.({ block: 'start' }); }
+  });
   const loadAttendanceReview = async ({ successMessage = '' } = {}) => {
     run.disabled = true; status.textContent = 'טוען את נתוני הנוכחות והדשבורד ומבצע בקרת נוכחות…';
     try {

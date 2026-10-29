@@ -1,3 +1,5 @@
+import { notifyWorkflowChanged } from '../notifications/events.js';
+import { consumeNotificationTarget } from '../notifications/target.js';
 /**
  * Personal Reports Screen — דוחות אישיים
  *
@@ -35,6 +37,8 @@ function canManagePersonalReports(user = {}) {
   if (isAdminRole(user?.display_role || user?.role)) return true;
   return permissionYes(user?.personal_reports_manager);
 }
+
+function canWritePersonalReports() { return prSession?.profile?.can_write_personal_reports === true; }
 
 function profileCanManagePersonalReports(profile = {}) {
   if (profile?.can_manage_personal_reports === true) return true;
@@ -102,6 +106,7 @@ let prSelectedReport = null;
 let prViewAsEmployee = null;
 let prScreenMode     = PR_SCREEN_MODES.MY_REPORTS;
 let isPersonalReportsUnlocked = false;
+let pendingNotificationReport = null;
 let _dashboardUser   = null;   // stored on bind() so all rerender() calls have it
 let _prShellAbort    = null;
 let _prScreenBound   = false;
@@ -768,6 +773,7 @@ function resetPersonalReportsAuth() {
   prViewAsEmployee = null;
   prScreenMode     = PR_SCREEN_MODES.MY_REPORTS;
   isPersonalReportsUnlocked = false;
+  pendingNotificationReport = null;
   _prScreenBound   = false;
   bumpPersonalReportsLoadGeneration();
   invalidatePersonalReportsLoadCache({ allReports: true });
@@ -1050,6 +1056,8 @@ async function authenticateInternalEmployee(dashboardUser, accessCode) {
     can_manage_personal_reports: canManagePersonalReports(user)
   };
 
+  const { data: canWrite, error: writeError } = await supabase.rpc('pr_is_admin');
+  profile.can_write_personal_reports = !writeError && canWrite === true;
   return { user: { id: authUserId }, profile, needsInternalAuth: false };
 }
 
@@ -1194,11 +1202,13 @@ async function submitReport(reportId, signatureFullName) {
     })
     .eq('id', reportId);
   if (error) throw error;
+  notifyWorkflowChanged();
 }
 
 async function adminUpdateReport(reportId, fields) {
   const { error } = await supabase.from('personal_reports').update(fields).eq('id', reportId);
   if (error) throw error;
+  notifyWorkflowChanged();
 }
 
 async function adminTransferApprovedReportsToPayment(reportIds) {
@@ -1215,17 +1225,18 @@ async function adminTransferApprovedReportsToPayment(reportIds) {
     .in('id', ids)
     .eq('status', 'approved');
   if (error) throw error;
+  notifyWorkflowChanged();
 }
 
 async function adminReturnReportForCorrection(reportId, correctionNote) {
   const note = String(correctionNote || '').trim();
   if (!note) throw new Error('correction_note_required');
-  const { error } = await supabase.rpc('return_personal_report_for_correction', {
+  const { error } = await supabase.rpc('request_personal_report_correction', {
     p_report_id: reportId,
     p_correction_note: note
   });
-  if (!error) return;
-  if (!/function .*return_personal_report_for_correction|schema cache|PGRST202/i.test(String(error.message || error.code || ''))) {
+  if (!error) { notifyWorkflowChanged(); return; }
+  if (!/function .*request_personal_report_correction|schema cache|PGRST202/i.test(String(error.message || error.code || ''))) {
     throw error;
   }
   const report = await loadReportRow(reportId, { force: true });
@@ -1241,6 +1252,7 @@ async function adminReturnReportForCorrection(reportId, correctionNote) {
     })
     .eq('id', reportId);
   if (fallbackError) throw fallbackError;
+  notifyWorkflowChanged();
 }
 
 async function fetchDeclaredTravel(reportId) {
@@ -2600,7 +2612,7 @@ function employeeReportsManagementHtml(rows, filters = _prLastAdminFilters) {
             <button class="pr-btn pr-btn--secondary pr-btn--sm" data-pr-action="export-admin-table" type="button">${escapeHtml(adminExportButtonLabel(filters.status || ''))}</button>
             <button class="pr-btn pr-btn--ghost pr-btn--sm" data-pr-action="clear-admin-filters" type="button">נקה סינון</button>
             <button class="pr-btn pr-btn--primary pr-btn--sm" data-pr-action="print-admin-reports-pdf" type="button">PDF מסכם לכל העובדים</button>
-            <button class="pr-btn pr-btn--primary pr-btn--sm" data-pr-action="transfer-approved-to-payment" type="button">העבר מאושרים לתשלום</button>
+            ${canWritePersonalReports() ? '<button class="pr-btn pr-btn--primary pr-btn--sm" data-pr-action="transfer-approved-to-payment" type="button">העבר מאושרים לתשלום</button>' : ''}
           </div>
         </div>
         ${rows.length === 0 ? dsEmptyState('אין עובדים להצגה לחודש הנבחר') : `
@@ -3050,16 +3062,16 @@ function adminReportViewHtml(report, travel, expenses, absences, attachments) {
           <h2 class="pr-section-title">הערות כספים</h2>
           <textarea class="pr-input" id="pr-admin-notes" rows="3"
             placeholder="הוסף הערה לעובד…">${escapeHtml(report.finance_notes || '')}</textarea>
-          <button class="pr-btn pr-btn--primary" data-pr-action="admin-save-notes"
+          <button ${canWritePersonalReports() ? '' : 'disabled'} class="pr-btn pr-btn--primary" data-pr-action="admin-save-notes"
             data-report-id="${escapeHtml(report.id)}" style="margin-top:8px">שמור הערות</button>
         </div>
         <div class="pr-actions pr-admin-detail-actions">
           <button class="pr-btn pr-btn--ghost" data-pr-action="download-report-pdf" data-report-id="${escapeHtml(report.id)}">הורדת PDF</button>
-          ${['submitted', 'reviewed', 'approved'].includes(report.status) ? `
+          ${canWritePersonalReports() && ['submitted', 'reviewed', 'approved'].includes(report.status) ? `
             ${report.status !== 'approved' ? `<button class="pr-btn pr-btn--primary" data-pr-action="admin-approve" data-report-id="${escapeHtml(report.id)}">✔ אשר דוח</button>` : ''}
             <button class="pr-btn pr-btn--warning" data-pr-action="admin-return" data-report-id="${escapeHtml(report.id)}">↩ החזרה לתיקון</button>
           ` : ''}
-          ${report.status === 'approved' ? `
+          ${canWritePersonalReports() && report.status === 'approved' ? `
             <button class="pr-btn pr-btn--primary" data-pr-action="admin-mark-paid" data-report-id="${escapeHtml(report.id)}">₪ סמן כהועבר לתשלום</button>
           ` : ''}
         </div>
@@ -3706,6 +3718,7 @@ function bindEmployeeReportsManagement(root) {
     }
 
     if (action === 'transfer-approved-to-payment') {
+      if (!canWritePersonalReports()) return;
       try {
         const filters = readAdminFilters(root);
         const monthValue = clampAdminMonthFilterValue(filters.month || defaultMonthFilterValue());
@@ -3765,6 +3778,7 @@ function bindAdminReportView(root) {
     if (!btn) return;
     const action = btn.dataset.prAction;
     const reportId = btn.dataset.reportId;
+    if (['admin-approve','admin-return','admin-mark-paid','admin-save-notes'].includes(action) && !canWritePersonalReports()) return;
 
     if (action === 'back-to-admin') {
       _prActiveView = { kind: 'employee-reports-management' };
@@ -3947,6 +3961,14 @@ async function rerender(root, dashboardUser = dashboardUserForAuth(), { forceRel
     bindInternalEmployeeLogin(root);
     return;
   }
+  if (pendingNotificationReport) {
+    const target = pendingNotificationReport;
+    pendingNotificationReport = null;
+    if (target.authUserId === prSession.user.id) {
+      await safeOpenReportDetail(root, target.reportId, profileCanManagePersonalReports(prSession.profile), { forceReload: true });
+      return;
+    }
+  }
   if (prScreenMode === PR_SCREEN_MODES.REVIEWS && !prViewAsEmployee) {
     await renderAnnualReviewsScreen(root);
   } else if (profileCanManagePersonalReports(prSession.profile) && prScreenMode === PR_SCREEN_MODES.MY_REPORTS && !prViewAsEmployee) {
@@ -4013,6 +4035,8 @@ export const personalReportsScreen = {
     if (personalReportsPermissionsPending(state)) return;
     if (!canAccessPersonalReports(state?.user)) return;
     _dashboardUser = state?.user || _dashboardUser || null;
+    const target = consumeNotificationTarget(state, 'personal-reports');
+    if (target) pendingNotificationReport = target;
     const view = prRoot?.ownerDocument?.defaultView || globalThis.window;
     const preserveSession = _prScreenBound && isPersonalReportsUnlocked && prSession;
     const preserveLoginScreen = _prScreenBound && !isPersonalReportsUnlocked;
@@ -4024,7 +4048,9 @@ export const personalReportsScreen = {
 
     if (preserveSession) {
       _prScreenBound = true;
-      if (needsShellRerender) {
+      if (target) {
+        void rerender(prRoot, _dashboardUser, { forceReload: true });
+      } else if (needsShellRerender) {
         void restorePersonalReportsShellView(prRoot);
       }
     } else if (preserveLoginScreen) {
@@ -4035,6 +4061,7 @@ export const personalReportsScreen = {
       }
     } else {
       resetPersonalReportsAuth();
+      if (target) pendingNotificationReport = target;
       prSession = sessionFromDashboardState(state);
       _prScreenBound = true;
       void rerender(prRoot, _dashboardUser);
@@ -4053,6 +4080,7 @@ export const personalReportsScreen = {
     const onPageShow = (event) => {
       if (!event.persisted) return;
       resetPersonalReportsAuth();
+      if (target) pendingNotificationReport = target;
       prSession = sessionFromDashboardState(state);
       rerender(prRoot, _dashboardUser);
     };

@@ -1,3 +1,4 @@
+import { consumeNotificationTarget } from './notifications/target.js';
 import { state } from './state.js';
 import { api } from './api.js';
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
@@ -827,7 +828,7 @@ function standaloneHtml(monthKey = currentMonthKey()) {
   </section>`;
 }
 
-async function openStandalone(button) {
+async function openStandalone(button, notificationTarget = null) {
   if (!isAdmin()) return;
   ensureStyles();
   const screenRoot = button.closest('#screenRoot') || document.getElementById('screenRoot') || document.getElementById('app');
@@ -838,14 +839,19 @@ async function openStandalone(button) {
   if (!hub) return;
   hub.classList.add(HIDDEN_CLASS);
   const pending = await loadAdminPendingSummary();
-  const monthKey = resolveAdminAttendanceDefaultMonth({
+  const monthKey = notificationTarget?.monthKey || resolveAdminAttendanceDefaultMonth({
     pendingByMonth: pending.rows || [],
     currentMonth: currentMonthKey()
   });
   applyAdminHubPendingBadge(pending.total || 0);
   hub.insertAdjacentHTML('afterend', standaloneHtml(monthKey));
   const root = screenRoot.querySelector(`[${STANDALONE_ATTRIBUTE}]`);
-  void renderData(root, monthKey);
+  await renderData(root, monthKey);
+  if (notificationTarget?.employeeId && root?.isConnected) {
+    const action = [...root.querySelectorAll('[data-admin-attendance-final],[data-admin-attendance-send-payroll],[data-admin-attendance-records]')].find(el => el.getAttribute('data-admin-attendance-final') === notificationTarget.employeeId || el.getAttribute('data-admin-attendance-send-payroll') === notificationTarget.employeeId || el.getAttribute('data-admin-attendance-records') === notificationTarget.employeeId);
+    action?.closest('tr')?.scrollIntoView?.({ block: 'center' });
+    action?.focus?.();
+  }
 }
 
 function closeStandalone(root) {
@@ -905,6 +911,11 @@ function sync() {
   ensureStyles();
   patchAdminHubTile();
   separateFromManagerBoard();
+  const hub = document.querySelector('.admin-management-home');
+  if (hub && isAdmin()) {
+    const target = consumeNotificationTarget(state, 'admin-home');
+    if (target) void openStandalone(hub, target);
+  }
 }
 
 function scheduleSync() {
