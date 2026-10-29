@@ -944,7 +944,13 @@ function groupsTableHtml(slots, scope) {
       }
       // Until the automatic dispatch creates a questionnaire, show one
       // meaningful mail state rather than two ambiguous pending labels.
-      if (!campaign) return staffEmailStatusHtml(g, stage, scope, { standalone: true });
+      if (!campaign) {
+        // One email and one personal questionnaire may cover multiple activity rows.
+        if (ui.staffDelivery.get(`${g.row_id}|${stage}`)?.status === 'sent') {
+          return statusText('נשלח במשלוח משותף', 'success');
+        }
+        return staffEmailStatusHtml(g, stage, scope, { standalone: true });
+      }
       const campaignStatus = campaignUiStatus(campaign);
       const wasMailed = ui.staffDelivery.get(`${g.row_id}|${stage}`)?.status === 'sent';
       // One concise result per stage; do not show "waiting for reply" beside
@@ -2190,10 +2196,16 @@ function slotCardHtml(group, slot, user) {
     </article>`;
   }
   if (!campaign) {
+    const coveredBySharedMail = slot.audience === 'educational_staff'
+      && ui.staffDelivery.get(`${group.row_id}|${slot.stage}`)?.status === 'sent';
     return `<article class="ifb-slot" data-slot="${slot.key}"${staffShareAttr}${studentShareAttr}>
-      <div class="ifb-slot__head">${title}${earlyFinal ? statusText(earlyFinal.label, earlyFinal.tone) : campaignStatusHtml(null)}</div>
-      ${earlyFinal ? '<p class="ifb-muted">משוב הסיום ייפתח רק לאחר שהקורס ומפגשיו הושלמו.</p>' : openFormHtml(group, slot)}
-      ${staffScheduleHtml(group, slot)}
+      <div class="ifb-slot__head">${title}${coveredBySharedMail
+        ? statusText('נשלח במשלוח משותף', 'success')
+        : earlyFinal ? statusText(earlyFinal.label, earlyFinal.tone) : campaignStatusHtml(null)}</div>
+      ${coveredBySharedMail ? '<p class="ifb-muted">פעילות זו נכללה במשלוח משותף לאותו איש קשר ולאותו שלב. השאלון נמצא בפעילות הנציגה של המשלוח, ואין ליצור הזמנה כפולה.</p>'
+        : earlyFinal ? '<p class="ifb-muted">משוב הסיום ייפתח רק לאחר שהקורס ומפגשיו הושלמו.</p>'
+        : openFormHtml(group, slot)}
+      ${coveredBySharedMail ? '' : staffScheduleHtml(group, slot)}
     </article>`;
   }
   const isStudent = slot.audience === 'student';
