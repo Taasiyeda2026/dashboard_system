@@ -297,7 +297,7 @@ begin
     raise notice 'staff-three-stage-20261029 already exists, no template changes';
     return;
   end if;
-  for p in select key,title from public.feedback_programs where is_active order by sort_order loop
+  for p in select key,title from public.feedback_programs order by sort_order loop
     foreach st in array array['pre','mid','final']::text[] loop
       select x.* into t from public.feedback_templates x
       where x.program_key=p.key and x.audience='educational_staff' and x.stage=st;
