@@ -94,16 +94,24 @@ function dateField(key, label, value, disabled) {
     + '></label>';
 }
 
-export function activitiesAdvancedFiltersHtml(filters = {}, assignment = 'all', open = false) {
+/** Icon-only control, matching the feedback screen filter affordance. */
+export function activitiesAdvancedFilterToggleHtml(filters = {}, assignment = 'all', open = false) {
   const count = advancedActivitiesFilterCount(filters, assignment);
+  return '<button type="button" class="ds-act-advanced__toggle'
+    + (count ? ' is-active' : '')
+    + '" data-activities-advanced-toggle aria-controls="activities-advanced-filters-panel" aria-expanded="'
+    + (open ? 'true' : 'false')
+    + '" aria-label="אפשרויות סינון נוספות" title="אפשרויות סינון נוספות">'
+    + '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6h16M7 12h10M10 18h4"/></svg>'
+    + (count ? '<span class="ds-act-advanced__indicator" aria-hidden="true"></span>' : '')
+    + '</button>';
+}
+
+/** Full-width inline disclosure below the activity toolbar, not a floating overlay. */
+export function activitiesAdvancedFiltersHtml(filters = {}, assignment = 'all', open = false) {
   const noStart = filters.advStartPresence === 'missing';
-  return '<div class="ds-act-advanced" data-activities-advanced>'
-    + '<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn ds-act-advanced__toggle'
-    + (count ? ' is-active' : '') + '" data-activities-advanced-toggle aria-controls="activities-advanced-filters-panel" aria-expanded="'
-    + (open ? 'true' : 'false') + '">סינון מתקדם' + (count ? ' (' + count + ')' : '') + ' ▾</button>'
-    + '<section id="activities-advanced-filters-panel" class="ds-act-advanced__panel" dir="rtl" role="group" aria-label="סינון מתקדם של פעילויות"'
+  return '<section id="activities-advanced-filters-panel" class="ds-act-advanced__panel" data-activities-advanced-panel dir="rtl" role="group" aria-label="אפשרויות סינון נוספות"'
     + (open ? '' : ' hidden') + '>'
-    + '<div class="ds-act-advanced__heading"><strong>סינון מתקדם</strong><button type="button" class="ds-act-advanced__close" data-activities-advanced-close aria-label="סגירה">×</button></div>'
     + '<div class="ds-act-advanced__group"><h3>תאריכים</h3><div class="ds-act-advanced__grid">'
     + selectField('advStartPresence', 'תאריך התחלה', [['', 'כל הפעילויות'], ['present', 'עם תאריך'], ['missing', 'ללא תאריך']], filters.advStartPresence)
     + dateField('advStartFrom', 'מתאריך התחלה', filters.advStartFrom, noStart)
@@ -119,33 +127,29 @@ export function activitiesAdvancedFiltersHtml(filters = {}, assignment = 'all', 
     + selectField('advFundingPresence', 'מקור מימון', PRESENCE_OPTIONS, filters.advFundingPresence)
     + selectField('advHoursPresence', 'שעות התחלה וסיום', PRESENCE_OPTIONS, filters.advHoursPresence)
     + '</div></div>'
-    + '<div class="ds-act-advanced__footer"><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-activities-advanced-reset>ניקוי סינון מתקדם</button>'
-    + '<button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-activities-advanced-close>סגירה</button></div>'
-    + '</section></div>';
+    + '<div class="ds-act-advanced__footer"><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-activities-advanced-reset>ניקוי הבחירות</button>'
+    + '<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-activities-advanced-close>סגירה</button></div>'
+    + '</section>';
 }
 
-/**
- * Keep the popover open while a selected value re-renders the activity table.
- * Dismissal does not reset values; the global Clear button does.
- */
+/** Inline filters remain open during selection and close only on user action. */
 export function bindActivitiesAdvancedFilters(root, state, scope, rerender) {
-  const wrapper = root.querySelector('[data-activities-advanced]');
-  if (!wrapper) return;
-  const button = wrapper.querySelector('[data-activities-advanced-toggle]');
-  const panel = wrapper.querySelector('.ds-act-advanced__panel');
+  const button = root.querySelector('[data-activities-advanced-toggle]');
+  const panel = root.querySelector('[data-activities-advanced-panel]');
+  if (!button || !panel) return;
   const toggle = (next) => {
     state.activitiesAdvancedFiltersOpen = !!next;
     panel.hidden = !next;
     button.setAttribute('aria-expanded', next ? 'true' : 'false');
   };
   button?.addEventListener('click', () => toggle(!state.activitiesAdvancedFiltersOpen));
-  wrapper.querySelectorAll('[data-activities-advanced-close]').forEach((node) => {
+  panel.querySelectorAll('[data-activities-advanced-close]').forEach((node) => {
     node.addEventListener('click', () => {
       toggle(false);
       button.focus();
     });
   });
-  wrapper.querySelectorAll('[data-activity-advanced-field]').forEach((node) => {
+  panel.querySelectorAll('[data-activity-advanced-field]').forEach((node) => {
     node.addEventListener('change', (event) => {
       const field = event.target?.dataset?.activityAdvancedField;
       const value = event.target?.value || '';
@@ -167,7 +171,7 @@ export function bindActivitiesAdvancedFilters(root, state, scope, rerender) {
       rerender();
     });
   });
-  wrapper.querySelector('[data-activities-advanced-reset]')?.addEventListener('click', () => {
+  panel.querySelector('[data-activities-advanced-reset]')?.addEventListener('click', () => {
     const filters = ensureActivityListFilters(state, scope);
     ADVANCED_ACTIVITY_FILTER_KEYS.forEach((key) => { filters[key] = ''; });
     filters.visibleCount = 200;
@@ -179,10 +183,6 @@ export function bindActivitiesAdvancedFilters(root, state, scope, rerender) {
   root._activitiesAdvancedAbort?.abort();
   root._activitiesAdvancedAbort = new AbortController();
   const signal = root._activitiesAdvancedAbort.signal;
-  document.addEventListener('click', (event) => {
-    // Ignore a click whose original field was replaced by a synchronous rerender.
-    if (state.activitiesAdvancedFiltersOpen && event.target?.isConnected !== false && !wrapper.contains(event.target)) toggle(false);
-  }, { signal });
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && state.activitiesAdvancedFiltersOpen) {
       toggle(false);
