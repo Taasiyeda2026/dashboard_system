@@ -3,6 +3,7 @@ import { createNotificationService } from './notifications/service.js';
 import { createNotificationRuntime } from './notifications/runtime.js';
 import { api } from './api.js';
 import './styles/approvals-nav-status.css';
+import './styles/activities-advanced-filters.css';
 import { config } from './config.js';
 import { ACTIVE_ACTIVITY_SEASON, globalActivityPeriodLabel, globalActivityPeriodFullLabel, globalActivityPeriodOptions, normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 import { state, setSession, defaultClientSettings, setGlobalActivityPeriod, setArchiveActivityPeriod } from './state.js';
