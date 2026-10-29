@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   AI_STAGE_GROUPS,
+  aiChatGptStartUrl,
   aiFactsForSelection,
   buildAiPackage
 } from '../frontend/src/impact-feedback/feedback-ai-package.js';
@@ -106,4 +107,21 @@ test('Arabic free-text remains original and is explicitly marked for complete He
   assert.equal(rows[0][5], 'ערבית - נדרש תרגום מלא');
   const prompt = out.sheets.find((sheet) => sheet.name === 'הנחיות AI').rows;
   assert.ok(prompt.some((row) => row.some((cell) => String(cell).includes('חובה לתרגם במלואן'))));
+});
+
+
+test('opening ChatGPT preloads a concrete analysis request with no extra instructions', () => {
+  const url = new URL(aiChatGptStartUrl());
+  assert.equal(url.origin, 'https://chatgpt.com');
+  assert.ok(url.searchParams.get('q').includes('בלי לשאול מה לעשות'));
+  assert.ok(url.searchParams.get('q').includes('גיליון "הנחיות AI"'));
+  assert.ok(url.searchParams.get('q').includes('כל קורס בנפרד'));
+  assert.ok(url.href.length < 2000);
+});
+
+test('workbook first instruction explicitly requests immediate analysis', () => {
+  const firstSheet = report(['instructor:pre']).sheets[0];
+  assert.equal(firstSheet.name, 'הנחיות AI');
+  assert.equal(firstSheet.rows[1][0], 'התחל מיד - אין צורך באישור נוסף');
+  assert.match(firstSheet.rows[1][1], /אל תשאל אם לנתח/);
 });
