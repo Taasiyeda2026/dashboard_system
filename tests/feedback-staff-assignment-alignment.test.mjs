@@ -59,3 +59,11 @@ test('consolidated dashboard retains exact per-activity dates, statuses and navi
   assert.match(screen,/נשלח במשלוח משותף/);
   assert.match(screen,/אין ליצור הזמנה כפולה/);
 });
+
+test('educational-staff action picker contains management buttons only, with no duplicate stage statuses or dates',()=>{
+  const actions = screen.split('const actionsHtml = (g) => {')[1]?.split('const output = filtered.length ?')[0];
+  assert.ok(actions, 'staff action renderer exists');
+  assert.match(actions,/class="ifb-staff-group-action"/);
+  assert.match(actions,/data-ifb-open-group="\\$\\{esc\\(a\\.row_id\\)\\}"/);
+  assert.doesNotMatch(actions,/stageStatus\\(|fmtDate\\(|ifb-staff-breakdown-stage|ifb-staff-breakdown-item/);
+});
