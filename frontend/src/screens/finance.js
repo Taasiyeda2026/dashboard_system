@@ -28,7 +28,7 @@ import {
   transactionAccountsViewHtml
 } from './finance-transaction-issuance.js';
 
-export const FINANCE_COLLECTION_ACTIVITY_PERIOD = 'all';
+export const FINANCE_COLLECTION_ACTIVITY_PERIOD = 'school_2027';
 
 export {
   FINANCE_ATTENDANCE_COLUMNS,
@@ -454,13 +454,47 @@ async function ensureCollectionLoaded(data, api, { force = false } = {}) {
       api.listFinanceActivities({ select: FINANCE_COLLECTION_ACTIVITY_COLUMNS }),
       transactionPromise
     ]);
+    // Finance is scoped to the current school year, NOT the calendar year.
+    // Autumn 2026 meetings of school_2027 remain visible; school_2026 never enters billing.
+    const currentActivities = (Array.isArray(activities?.rows) ? activities.rows : [])
+      .filter((activity) => activity.activity_season === FINANCE_COLLECTION_ACTIVITY_PERIOD && isFinanceCollectionActivity(activity));
+    const visibleActivityIds = new Set(currentActivities.map((activity) => String(activityRowId(activity))));
+    const [billingRows, paymentContext] = await Promise.all([
+      api.financeBillingPreview([...visibleActivityIds]),
+      api.financePaymentContext()
+    ]);
+    if (!paymentContext || !Array.isArray(paymentContext.balances) || !Array.isArray(paymentContext.receipts) || !Array.isArray(paymentContext.allocations)) {
+      throw new Error('נתוני התשלומים אינם זמינים');
+    }
+    // An invoice belongs to this year only if all of its lines reference this year's activities.
+    // Exclude old orphaned/cancelled test invoices without activity lines as well.
+    const visibleAccounts = (transactionContext.accounts || []).filter((account) => {
+      const lines = account.finance_transaction_account_lines;
+      return Array.isArray(lines) && lines.length > 0
+        && lines.every((line) => visibleActivityIds.has(String(line.activity_row_id)));
+    });
+    const visibleAccountIds = new Set(visibleAccounts.map((account) => account.id));
+    const allocatedReceiptIds = new Set(paymentContext.allocations
+      .filter((allocation) => visibleAccountIds.has(allocation.account_id))
+      .map((allocation) => allocation.receipt_id));
+    const visibleReceipts = paymentContext.receipts.filter((receipt) =>
+      visibleActivityIds.has(String(receipt.activity_row_id)) || allocatedReceiptIds.has(receipt.id));
+    const visibleReceiptIds = new Set(visibleReceipts.map((receipt) => receipt.id));
     data.collectionPeriod = FINANCE_COLLECTION_ACTIVITY_PERIOD;
-    data.collectionActivities = (Array.isArray(activities?.rows) ? activities.rows : [])
-      .filter(isFinanceCollectionActivity);
-    const [billingRows, paymentContext] = await Promise.all([api.financeBillingPreview(data.collectionActivities.map(activityRowId)), api.financePaymentContext()]);
-    if (!paymentContext || !Array.isArray(paymentContext.balances)) throw new Error('נתוני התשלומים אינם זמינים');
-    data.paymentContext = paymentContext;
-    data.transactionContext = { ...transactionContext, billingRows };
+    data.collectionActivities = currentActivities;
+    data.paymentContext = {
+      ...paymentContext,
+      balances: paymentContext.balances.filter((balance) => visibleAccountIds.has(balance.accountId)),
+      receipts: visibleReceipts,
+      // Keep allocations across years for included receipts so their unallocated balance is accurate.
+      allocations: paymentContext.allocations.filter((allocation) => visibleReceiptIds.has(allocation.receipt_id))
+    };
+    data.transactionContext = {
+      ...transactionContext,
+      accounts: visibleAccounts,
+      cancelled: (transactionContext.cancelled || []).filter((row) => visibleActivityIds.has(String(row.activity_id))),
+      billingRows: (billingRows || []).filter((row) => visibleActivityIds.has(String(row.activityRowId)))
+    };
   } catch (error) {
     data.transactionContext = null;
     data.paymentContext = null;
