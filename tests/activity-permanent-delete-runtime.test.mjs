@@ -24,8 +24,10 @@ test('read-only historical activities continue to use the existing mutation guar
   assert.match(source, /activitySeason: String\(form\.getAttribute\('data-activity-season'\)/);
 });
 
-test('admin deletion warns that sent coordination remains available for audit', () => {
-  assert.match(source, /adminDeleting/);
+test('admin and operations deletion warns that sent coordination and approvals remain available for audit', () => {
+  assert.match(source, /privilegedDeleting/);
+  assert.match(source, /'admin', 'operation_manager'/);
+  assert.match(source, /גם אישורים, נוכחות ונתוני כספים קיימים יישמרו/);
   assert.match(source, /תיאום, המסמך והיסטוריית השליחה יישמרו/);
   assert.match(source, /הסרה אינה מבטלת הודעה שכבר נשלחה לבית הספר/);
   assert.match(source, /הפעילות הוסרה מהמסכים הפעילים/);
