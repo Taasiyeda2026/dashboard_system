@@ -7,6 +7,7 @@
  * Server enforces admin access (RLS + admin-checked RPCs); the client check is only UX.
  */
 import * as XLSX from 'xlsx';
+import { AI_STAGE_GROUPS, AI_DEFAULT_SELECTION, aiFactsForSelection, aiSelectedSlots, buildAiPackage } from '../impact-feedback/feedback-ai-package.js';
 import { escapeHtml as esc } from './shared/html.js';
 import { showToast } from './shared/toast.js';
 import { ACTIVE_ACTIVITY_SEASON, normalizeGlobalActivityPeriod } from './shared/summer-activity.js';
@@ -144,6 +145,7 @@ const ui = {
   overview: { audience: '', phase: '' },
   filters: { authority: '', school: '', instructor: '', manager: '', status: '', search: '' },
   analysis: { audience: 'instructor', stage: 'pre', instructor: '', contact: '', group: '' },
+  aiSelectedStages: new Set(AI_DEFAULT_SELECTION),
   results: { drill: '' },
   templates: { templateId: null, versionId: null, previewBand: '' },
   instructorFilters: { instructor: '', manager: '', status: '' },
@@ -1728,6 +1730,90 @@ function instructorRecommendationsHtml(facts) {
     }).join('')+'</ul>';
 }
 
+
+/** AI handoff lives in Analysis only. It never changes survey records or the overview. */
+function analysisAiPackageHtml() {
+  const slots = AI_STAGE_GROUPS.flatMap((group) => group.stages.map((stage) => ({
+    audience: group.audience, groupName: group.label, stage: stage.stage,
+    label: stage.label, key: group.audience + ':' + stage.stage
+  })));
+  const currentFacts = ui.course ? courseFacts() : [];
+  const count = (slot) => {
+    const facts = aiFactsForSelection(currentFacts, [slot.key]);
+    return new Set(facts.map((f) => f.response_id).filter(Boolean)).size;
+  };
+  const stageOptions = AI_STAGE_GROUPS.map((group) => {
+    const choices = slots.filter((slot) => slot.audience === group.audience);
+    const selectedN = choices.filter((slot) => ui.aiSelectedStages.has(slot.key)).length;
+    return '<fieldset class="ifb-ai-stage-group" style="border:1px solid var(--border-color,#dbe3e9);border-radius:10px;padding:10px 14px;margin:0">' +
+      '<legend style="font-weight:700;padding:0 6px">' + esc(group.label) + '</legend>' +
+      '<div style="display:flex;flex-wrap:wrap;gap:10px 18px">' + choices.map((slot) =>
+        '<label style="display:inline-flex;gap:6px;align-items:center;cursor:pointer">' +
+        '<input type="checkbox" data-ifb-ai-stage="' + esc(slot.key) + '"' +
+        (ui.aiSelectedStages.has(slot.key) ? ' checked' : '') + '>' +
+        '<span>' + esc(slot.label) + (ui.course ? ' <small class="ifb-muted">(' + count(slot) + ' שאלונים)</small>' : '') + '</span></label>'
+      ).join('') + '</div>' +
+      '<p class="ifb-muted" style="margin:6px 0 0;font-size:.8rem">' + selectedN + ' מתוך ' + choices.length + ' שלבים נבחרו</p>' +
+      '</fieldset>';
+  }).join('');
+  const n = ui.aiSelectedStages.size;
+  return '<section class="ifb-panel ifb-ai-export" aria-label="הפקת קובץ לניתוח AI" style="margin-block:16px;padding:16px">' +
+    '<h2 style="margin-top:0">העברת משובים לניתוח ב-ChatGPT</h2>' +
+    '<p>בחרו קורס ואת שלבי המשוב הרצויים. יופק <strong>קובץ Excel אחד</strong> המכיל נתונים, כמויות (N), השוואות תקפות ופרומפט ניתוח מקצועי.</p>' +
+    '<label class="ifb-field"><span>קורס לניתוח</span><select data-ifb-course>' +
+    optionList(ui.programs.map((p) => p.key), ui.course, 'בחרו קורס', programTitle) +
+    '</select></label>' +
+    '<div style="display:grid;gap:10px;margin:12px 0">' + stageOptions + '</div>' +
+    '<div class="ifb-slot__actions">' +
+      '<button type="button" class="ifb-btn ifb-btn--primary" data-ifb-ai-package' +
+      (!ui.course || !n ? ' disabled' : '') +
+      '>הורדת קובץ Excel ל-ChatGPT</button>' +
+      '<a class="ifb-btn" href="https://chatgpt.com/" target="_blank" rel="noopener noreferrer">פתיחת ChatGPT</a>' +
+    '</div>' +
+    '<p class="ifb-muted" style="margin-bottom:0">לאחר ההורדה, צרפו את הקובץ ל-ChatGPT ובקשו: "נתח את הקובץ לפי הגיליון הנחיות AI". ' +
+    'הקובץ מכיל את כל השלבים שנבחרו בלבד; שלב ללא תשובות יופיע במפורש כטרם מולא. ' +
+    'תשובות פתוחות עלולות להכיל פרטים מזהים שהוקלדו באופן חופשי - יש לבדוק לפני העברה מחוץ לארגון.</p>' +
+  '</section>';
+}
+
+function exportAiWorkbook() {
+  if (!ui.course || !ui.aiSelectedStages.size) {
+    showToast('בחרו קורס ושלב משוב אחד לפחות', 'info');
+    return;
+  }
+  const facts = courseFacts();
+  const selected = [...ui.aiSelectedStages];
+  const includedFacts = aiFactsForSelection(facts, selected);
+  const selectedResponseIds = new Set(includedFacts.map((f) => f.response_id));
+  const output = buildAiPackage({
+    facts,
+    selected,
+    title: programTitle(ui.course),
+    academicYear: ui.year,
+    half: ui.feedbackHalf === 'first' ? 'מחצית א׳' : 'מחצית ב׳',
+    metrics: ui.metrics,
+    programs: ui.programs,
+    instructorRecommendations: scopedInstructorRecommendations(facts)
+      .filter((r) => selectedResponseIds.has(r.response_id))
+  });
+  const wb = XLSX.utils.book_new();
+  wb.Workbook = { Views: [{ RTL: true }] };
+  for (const sheet of output.sheets) {
+    const aoa = sheet.headers ? [sheet.headers, ...sheet.rows] : sheet.rows;
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = sheet.widths.map((wch) => ({ wch }));
+    if (sheet.headers && ws['!ref']) ws['!autofilter'] = { ref: ws['!ref'] };
+    XLSX.utils.book_append_sheet(wb, ws, sheet.name);
+  }
+  const safeCourse = String(programTitle(ui.course)).replace(/[\/?%*:|"<>]/g, '_');
+  const filename = 'ניתוח-משובים-' + safeCourse + '-' + isoDay(Date.now()) + '.xlsx';
+  const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  downloadBlob(new Blob([data], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  }), filename);
+  showToast('קובץ הניתוח הכולל הנחיות AI ונתוני מקור הורד למחשב', 'success');
+}
+
 /** Raw questionnaire answers only. Keep analytics in their existing audience tabs. */
 function analysisHtml() {
   const fullAnswers = ui.analysis.audience === 'instructor'
@@ -1736,6 +1822,7 @@ function analysisHtml() {
       ? sectionHtml('תשובות צוות חינוכי — לפי איש קשר וקורס', staffFullResponsesHtml())
       : sectionHtml('תשובות תלמידים — לפי קורס ובית ספר', studentFullResponsesHtml());
   return `
+    ${analysisAiPackageHtml()}
     ${analysisFiltersHtml()}
     ${fullAnswers}`;
 }
@@ -2394,6 +2481,14 @@ async function handleClick(host, event) {
     }
     return;
   }
+  if (t.closest('[data-ifb-ai-package]')) {
+    try { exportAiWorkbook(); }
+    catch (error) {
+      console.error('[feedback-ai-export]', error);
+      showToast('הפקת הקובץ נכשלה. לא שונו נתוני משוב.', 'error', 5000);
+    }
+    return;
+  }
   const aiExport = t.closest('[data-ifb-ai-export]');
   if (aiExport) { exportAiAnalysis(aiExport.dataset.ifbAiExport); return; }
   const exp = t.closest('[data-ifb-export]');
@@ -2589,6 +2684,15 @@ function resetYearScopedState() {
 
 async function handleFilterInput(host, event) {
   const el = event.target;
+  if (el.matches('[data-ifb-ai-stage]')) {
+    const key = el.dataset.ifbAiStage;
+    const known = AI_STAGE_GROUPS.some((g) => g.stages.some((s) => g.audience + ':' + s.stage === key));
+    if (!known) return;
+    if (el.checked) ui.aiSelectedStages.add(key);
+    else ui.aiSelectedStages.delete(key);
+    paint(host);
+    return;
+  }
   if (el.matches('[data-ifb-course]')) {
     ui.course = el.value;
     ui.analysis.instructor = '';
