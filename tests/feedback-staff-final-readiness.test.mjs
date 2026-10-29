@@ -57,5 +57,5 @@ test('staff final management and list both use the actual-readiness state', () =
   assert.match(source, /const earlyFinal = slot\.audience === 'educational_staff' && slot\.stage === 'final'/);
   assert.match(source, /earlyFinal \? statusText\(earlyFinal\.label, earlyFinal\.tone\) : campaignStatusHtml\(campaign\)/);
   assert.match(source, /earlyFinal \? staffFinalWaitingHtml\(earlyFinal, \{ detailed: true \}\) : ''/);
-  assert.match(source, /שיתוף משוב הסיום יתאפשר לאחר השלמת הקורס/);
+  assert.match(source, /משוב הסיום עדיין אינו מיועד להפצה אוטומטית/);
 });
