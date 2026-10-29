@@ -1318,12 +1318,12 @@ function closeMobileNav() {
 function buildScreenDataCacheKey(route, cacheState = state) {
   const activityPeriod = normalizeGlobalActivityPeriod(cacheState?.activityPeriodTab || 'regular');
   // Projection/version stamp so 2026/2027 and list-shape changes never share one cache entry.
-  // Bump when activities list projection columns change (e.g. funding) so stale
+  // Bump when activities list projection columns change so stale
   // cached rows without the new fields are not reused.
   const projection = 'p4';
-  // p4: stores all rows without row-count truncation (compact per-row shape).
-  // Old p3 entries (slice(0,60/80) rows) are intentionally excluded.
-  const activitiesProjection = 'p4';
+  // p5: price is included in activity list rows (required by price presence filter).
+  // p4 and older activity caches omit price, so must not be reused.
+  const activitiesProjection = 'p5';
   const withActivityPeriod = (base) => `${base}:period:${activityPeriod}:proj:${projection}`;
   if (route === 'activities') {
     return `activities:periods:proj:${activitiesProjection}`;
