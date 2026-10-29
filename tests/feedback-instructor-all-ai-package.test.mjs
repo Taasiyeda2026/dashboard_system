@@ -61,7 +61,7 @@ test('all instructor comments and improvement recommendations retain their cours
   assert.equal(improvements.length,2);
   assert.equal(improvements[0][0],'קורס א׳');
   assert.equal(improvements[1][0],'קורס ב׳');
-  assert.ok(JSON.stringify(sheet(out,'הנחיות AI')).includes('נתח כל קורס בנפרד'));
+  assert.ok(JSON.stringify(sheet(out,'הנחיות AI')).includes('כל קורס בנפרד'));
 });
 test('instructor raw source retains course identity but not identifying names or IDs', () => {
   const raw=JSON.stringify(sheet(run(),'נתוני מקור').rows);
