@@ -80,3 +80,16 @@ test('non-instructors and other academic years do not leak into export', () => {
   const raw=JSON.stringify(sheet(output,'נתוני מקור').rows);
   assert.doesNotMatch(raw,/שאלת תלמיד/);
 });
+
+
+test('full instructor analysis defaults to a concise course-first executive report', () => {
+  const workbook=run();
+  const instructions=sheet(workbook,'הנחיות AI').rows.map((r) => r.join(' ')).join('\n');
+  assert.match(instructions, /עד 3 עמודים/);
+  assert.match(instructions, /כל קורס בנפרד/);
+  assert.match(instructions, /מגמות רוחב/);
+  assert.match(instructions, /עד 5 ממצאים/);
+  assert.match(instructions, /עד 5 פעולות/);
+  assert.match(instructions, /לפי בקשת המשתמש בלבד/);
+  assert.match(instructions, /תרגם לצורך הניתוח את כל התשובות בערבית/);
+});
