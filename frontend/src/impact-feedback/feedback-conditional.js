@@ -23,6 +23,11 @@ export function conditionalQuestionVisible(question, answers = {}, questions = [
       return Array.isArray(value) ? value.length > 0 : typeof value === 'string'
         ? value.trim().length > 0 : value !== null && value !== undefined;
     }
+    if (rule.operator === 'in') {
+      const allowed = Array.isArray(rule.values) ? rule.values.map(String) : [];
+      return !Array.isArray(value) && value !== undefined && value !== null &&
+        allowed.includes(String(value));
+    }
     if (rule.operator === 'not_equals') {
       return value !== undefined && value !== null && value !== '' &&
         !Array.isArray(value) && String(value) !== String(rule.value ?? '');

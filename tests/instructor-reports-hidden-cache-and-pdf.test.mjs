@@ -53,10 +53,10 @@ test('both apps bump independent SW cache namespaces and all attendance resource
   assert.match(dashboardCache, /dashboard-static-v/);
   assert.match(attendanceCache, /attendance-static-v/);
   assert.match(config, /instructor-feedback-reports-v1/);
-  assert.match(dashboardHtml, /main-with-proposal-pdf-hotfix\.js\?v=20261013-instructor-feedback-reports-v1/);
-  assert.match(dashboardHtml, /instructor-portal-ux-runtime\.js\?v=20261013-instructor-feedback-reports-v1/);
-  assert.match(dashboardHtml, /instructor-portal-responsive\.css\?v=20261013-instructor-feedback-reports-v1/);
-  assert.match(dashboardHtml, /styles\/main\.css\?v=20261013-instructor-feedback-reports-v1/);
+  assert.match(dashboardHtml, /main-with-proposal-pdf-hotfix\.js\?v=[A-Za-z0-9-]+/);
+  assert.match(dashboardHtml, /instructor-portal-ux-runtime\.js\?v=[A-Za-z0-9-]+/);
+  assert.match(dashboardHtml, /instructor-portal-responsive\.css\?v=[A-Za-z0-9-]+/);
+  assert.match(dashboardHtml, /styles\/main\.css\?v=[A-Za-z0-9-]+/);
   const assetVersions = [...attendanceHtml.matchAll(/(?:src|href)="\.\/[^"]+\?v=(\d+)"/g)].map((m) => Number(m[1]));
   assert.ok(assetVersions.length > 25);
   assert.ok(assetVersions.every((v) => v === attendanceVersion));

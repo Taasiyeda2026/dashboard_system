@@ -24,6 +24,7 @@ export const SLOTS = Object.freeze([
   { key: 'student:pre', audience: 'student', stage: 'pre', label: 'תלמידים – פתיחה', short: 'פתיחה' },
   { key: 'student:post', audience: 'student', stage: 'post', label: 'תלמידים – סיום', short: 'סיום' },
   { key: 'educational_staff:pre', audience: 'educational_staff', stage: 'pre', label: 'צוות חינוכי – פתיחה', short: 'פתיחה' },
+  { key: 'educational_staff:mid', audience: 'educational_staff', stage: 'mid', label: 'צוות חינוכי – אמצע', short: 'אמצע' },
   { key: 'educational_staff:final', audience: 'educational_staff', stage: 'final', label: 'צוות חינוכי – סיום', short: 'סיום' },
   { key: 'instructor:pre', audience: 'instructor', stage: 'pre', label: 'מדריך – פתיחה', short: 'מדריך פתיחה' },
   { key: 'instructor:final', audience: 'instructor', stage: 'final', label: 'מדריך – סיום', short: 'מדריך סיום' }
@@ -361,14 +362,14 @@ export function shareMessage({ audience, stage = '', recipientName = '', program
   }
   if (audience === 'educational_staff') {
     // The link is already individual; do not repeat the recipient's school or technical details.
-    return `${greeting}\nנשמח לקבל ממך משוב ${stage === 'pre' ? 'פתיחה' : 'סיום'} קצר על התוכנית "${programTitle}".\nהמשוב חשוב לנו כדי ללמוד מהניסיון שלך, לדייק ולשפר את התוכניות שלנו.\nלמילוי המשוב:\n${url}\nתודה רבה,\nצוות תעשיידע`;
+    return `${greeting}\nנשמח לקבל ממך משוב ${stage === 'pre' ? 'פתיחה' : stage === 'mid' ? 'אמצע' : 'סיום'} קצר על התוכנית "${programTitle}".\nהמשוב חשוב לנו כדי ללמוד מהניסיון שלך, לדייק ולשפר את התוכניות שלנו.\nלמילוי המשוב:\n${url}\nתודה רבה,\nצוות תעשיידע`;
   }
   return `משוב התוכנית "${programTitle}" – ממלאים כאן:\n${url}`;
 }
 
 export function shareSubject(audience, programTitle, stage = '') {
   if (audience === 'instructor') return `משוב מדריך – ${stage === 'pre' ? 'פתיחה' : 'סיום'} – ${programTitle}`;
-  if (audience === 'educational_staff') return `משוב צוות חינוכי – ${stage === 'pre' ? 'פתיחה' : 'סיום'} – ${programTitle}`;
+  if (audience === 'educational_staff') return `משוב צוות חינוכי – ${stage === 'pre' ? 'פתיחה' : stage === 'mid' ? 'אמצע' : 'סיום'} – ${programTitle}`;
   return `משוב – ${programTitle}`;
 }
 
@@ -600,17 +601,17 @@ export function filterFacts(facts = [], filters = {}) {
 export const AUDIENCE_STAGES = Object.freeze({
   student: ['pre', 'post'],
   instructor: ['pre', 'final', 'final_b'],
-  educational_staff: ['pre', 'final']
+  educational_staff: ['pre', 'mid', 'final']
 });
 
 export const AUDIENCE_ORDER = Object.freeze(['student', 'instructor', 'educational_staff']);
 
 /** Measurement phase used by the overview: opening (student pre, instructor pre) vs end (the rest). */
 export function stagePhase(audience, stage) {
-  return stage === 'pre' ? 'pre' : 'end';
+  return stage === 'pre' ? 'pre' : stage === 'mid' && audience === 'educational_staff' ? 'mid' : 'end';
 }
 
-export const PHASE_LABELS = Object.freeze({ pre: 'פתיחה', end: 'סיום' });
+export const PHASE_LABELS = Object.freeze({ pre: 'פתיחה', mid: 'אמצע', end: 'סיום' });
 
 export function stageLabelFor(audience, stage) {
   if (audience === 'instructor') return stage === 'pre' ? 'פתיחה (אחרי הכשרה)' : stage === 'final_b' ? 'סיום מחצית ב׳' : 'סיום מחצית א׳';
@@ -697,7 +698,8 @@ export function overviewTotals(rows = [], { programKey = '', audience = '', phas
     const n = num(r.responses);
     responses += n;
     byAudience[r.audience] = (byAudience[r.audience] || 0) + n;
-    byPhase[stagePhase(r.audience, r.stage)] += n;
+    const phaseKey = stagePhase(r.audience, r.stage);
+    byPhase[phaseKey] = (byPhase[phaseKey] || 0) + n;
   }
   // Unique people: per course+audience "all" rows (PRE and FINAL by the same instructor = one person).
   // A phase filter would split the same person across rows, so it is reported per stage instead.

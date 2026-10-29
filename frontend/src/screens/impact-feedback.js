@@ -63,6 +63,8 @@ import {
   fetchCourseSummary,
   fetchGroups,
   fetchStaffDeliveryStatus,
+  fetchStaffMidIssues,
+  updateStaffMidIssue,
   fetchInstructorAssignments,
   fetchInstructorPortalItems,
   downloadSavedPaperPdf,
@@ -100,7 +102,8 @@ const inflight = {
   groups: null,
   assignments: null,
   summary: null,
-  facts: null
+  facts: null,
+  issues: null
 };
 /** Minimum valid answers before a question is ranked as a strength / improvement area. */
 const MIN_N_RANKING = 5;
@@ -122,7 +125,7 @@ const TAB_NEEDS = {
   overview: ['summary', 'groups', 'assignments'],
   students: ['groups'],
   instructors: ['assignments'],
-  staff: ['groups'],
+  staff: ['groups', 'issues'],
   analysis: ['summary', 'groups', 'assignments', 'facts'],
   templates: []
 };
@@ -155,6 +158,8 @@ const ui = {
   groupsYear: null,
   staffDelivery: new Map(),
   staffDeliveryLoaded: false,
+  staffIssues: null,
+  staffIssuesYear: null,
   instructorAssignments: null,
   instructorAssignmentsYear: null,
   summary: null,
@@ -407,6 +412,25 @@ async function ensureFacts(force = false) {
   return task;
 }
 
+async function ensureStaffIssues(force = false) {
+  if (!force && ui.staffIssues && ui.staffIssuesYear === ui.year) return;
+  if (inflight.issues) return inflight.issues;
+  const year = ui.year;
+  const task = (async () => {
+    try {
+      // Restricted viewers can read regular feedback but must not access admin-only issue follow-up.
+      const records = isFeedbackAdmin(feedbackViewerUser) ? await fetchStaffMidIssues(year) : [];
+      if (ui.year !== year) return;
+      ui.staffIssues = Array.isArray(records) ? records : [];
+      ui.staffIssuesYear = year;
+    } finally {
+      if (inflight.issues === task) inflight.issues = null;
+    }
+  })();
+  inflight.issues = task;
+  return task;
+}
+
 async function ensureGroupFacts(rowId, force = false) {
   if (!force && ui.groupFacts.has(rowId)) return ui.groupFacts.get(rowId);
   const facts = await fetchAnswerFacts({ activity_row_id: rowId });
@@ -448,7 +472,8 @@ function tabDataReady(tab = ui.tab) {
     summary: ui.summary,
     facts: ui.facts,
     groups: ui.groups,
-    assignments: ui.instructorAssignments
+    assignments: ui.instructorAssignments,
+    issues: ui.staffIssues
   })[need]);
 }
 
@@ -566,7 +591,7 @@ function overviewFiltersHtml() {
   return filterDisclosureHtml('overview', `<div class="ifb-filters ifb-filters--inline" data-ifb-filters="overview">
     ${courseFilterFieldHtml()}
     <label class="ifb-field"><span>קהל יעד</span><select data-o="audience">${optionList(AUDIENCE_ORDER, o.audience, 'כל הקהלים', (a) => AUDIENCE_LABELS[a])}</select></label>
-    <label class="ifb-field"><span>שלב המשוב</span><select data-o="phase">${optionList(['pre', 'end'], o.phase, 'פתיחה וסיום', (p) => PHASE_LABELS[p])}</select></label>
+    <label class="ifb-field"><span>שלב המשוב</span><select data-o="phase">${optionList(['pre', 'mid', 'end'], o.phase, 'כל השלבים', (p) => PHASE_LABELS[p])}</select></label>
   </div>`, active);
 }
 
@@ -643,6 +668,7 @@ function coursesTableHtml() {
     { audience: 'instructor', stage: 'pre', label: 'מדריכים – פתיחה' },
     { audience: 'instructor', stage: 'final', label: 'מדריכים – סיום' },
     { audience: 'educational_staff', stage: 'pre', label: 'צוות חינוכי – פתיחה' },
+    { audience: 'educational_staff', stage: 'mid', label: 'צוות חינוכי – אמצע' },
     { audience: 'educational_staff', stage: 'final', label: 'צוות חינוכי – סיום' }
   ].filter((c) => (!o.audience || c.audience === o.audience)
     && (!o.phase || stagePhase(c.audience, c.stage) === o.phase));
@@ -734,7 +760,7 @@ function overviewHtml() {
   ];
   const audienceEntries = AUDIENCE_ORDER.filter((a) => (!o.audience || o.audience === a) && (totals.byAudience[a] || 0) > 0)
     .map((a) => [AUDIENCE_LABELS[a], totals.byAudience[a]]);
-  const phaseEntries = ['pre', 'end'].filter((p) => (!o.phase || o.phase === p) && (totals.byPhase[p] || 0) > 0)
+  const phaseEntries = ['pre', 'mid', 'end'].filter((p) => (!o.phase || o.phase === p) && (totals.byPhase[p] || 0) > 0)
     .map((p) => [PHASE_LABELS[p], totals.byPhase[p]]);
   // Operational overview does not compute detailed feedback analytics.
   const insights = '';
@@ -853,7 +879,7 @@ function groupsTableHtml(slots, scope) {
           ${showCourse ? '<col class="ifb-gw-course">' : ''}
           <col class="ifb-gw-person">
           ${scope === 'staff' ? '<col class="ifb-gw-instructor">' : ''}
-          <col class="ifb-gw-date ifb-gw-date--start"><col class="ifb-gw-stage"><col class="ifb-gw-date ifb-gw-date--end"><col class="ifb-gw-stage">
+          <col class="ifb-gw-date ifb-gw-date--start"><col class="ifb-gw-stage">${scope === 'staff' ? '<col class="ifb-gw-stage">' : ''}<col class="ifb-gw-date ifb-gw-date--end"><col class="ifb-gw-stage">
           <col class="ifb-gw-actions">
         </colgroup>
         <thead><tr>
@@ -864,6 +890,7 @@ function groupsTableHtml(slots, scope) {
           ${scope === 'staff' ? '<th scope="col">מדריך/ה בקורס</th>' : ''}
           <th scope="col" class="ifb-center ifb-col-date">תחילת קורס</th>
           <th scope="col" class="ifb-center ifb-col-stage">${esc(slots.find((slot) => slot.stage === 'pre')?.label || 'משוב פתיחה')}</th>
+          ${scope === 'staff' ? '<th scope="col" class="ifb-center ifb-col-stage">צוות חינוכי – אמצע</th>' : ''}
           <th scope="col" class="ifb-center ifb-col-date">סיום קורס</th>
           <th scope="col" class="ifb-center ifb-col-stage">${esc(slots.find((slot) => slot.stage === (scope === 'staff' ? 'final' : 'post'))?.label || 'משוב סיום')}</th>
           <th scope="col"><span class="ifb-sr">פעולות</span></th>
@@ -882,6 +909,10 @@ function groupsTableHtml(slots, scope) {
               const slot = slots.find((s) => s.stage === 'pre');
               return `<td class="ifb-center ifb-col-stage" data-label="${esc(slot?.label || 'משוב פתיחה')}">${g.program_key && slot ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}${staffEmailStatusHtml(g, 'pre', scope)}</td>`;
             })()}
+            ${scope === 'staff' ? (() => {
+              const slot = slots.find((s) => s.stage === 'mid');
+              return `<td class="ifb-center ifb-col-stage" data-label="משוב אמצע">${g.program_key && slot ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}${staffEmailStatusHtml(g, 'mid', scope)}</td>`;
+            })() : ''}
             <td data-label="סיום קורס" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(g.end_date)}</td>
             ${(() => {
               const slot = slots.find((s) => s.stage === (scope === 'staff' ? 'final' : 'post'));
@@ -1230,17 +1261,71 @@ function instructorsHtml() {
 // Tab 4 — צוות חינוכי
 // ---------------------------------------------------------------------------
 
+function staffIssuesHtml() {
+  if (!isFeedbackAdmin(feedbackViewerUser)) return '';
+  const items = (ui.staffIssues || []).filter((item) =>
+    (!ui.course || item.program_key === ui.course) &&
+    studentFeedbackPeriodForGroup({ start_date: item.activity_start_date }) === ui.feedbackHalf
+  ).sort((a, b) => {
+    const severityRank = { urgent: 0, significant: 1, minor: 2 };
+    const statusRank = { open: 0, in_progress: 1, resolved: 2 };
+    return (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9)
+      || (severityRank[a.severity] ?? 9) - (severityRank[b.severity] ?? 9)
+      || String(b.created_at).localeCompare(String(a.created_at));
+  });
+  if (!items.length) return sectionHtml('טיפול בפניות ממשוב האמצע',
+    '<p class="ifb-muted">לא נמצאו דיווחי קושי המחייבים טיפול בטווח שנבחר.</p>');
+  const statuses = { open: 'ממתין לטיפול', in_progress: 'בטיפול', resolved: 'טופל' };
+  const priorities = { minor: 'קושי קל', significant: 'קושי משמעותי', urgent: 'קושי דחוף' };
+  const labels = { instructor:'מדריך/ה', content:'תוכן וקצב', participation:'התאמה לתלמידים',
+    coordination:'תיאום', equipment:'ציוד וחומרים', service:'תקשורת ושירות', other:'אחר' };
+  const openCount = items.filter((i) => i.status !== 'resolved').length;
+  const cards = items.map((item) => `
+    <details class="ifb-disclosure" data-ifb-issue-row="${esc(item.response_id)}">
+      <summary>
+        <strong>${esc(priorities[item.severity] || item.severity)}</strong> ·
+        ${esc(programTitle(item.program_key))} · ${esc(item.school_name || 'בית ספר לא ידוע')} ·
+        ${esc(statuses[item.status] || item.status)}
+      </summary>
+      <div class="ifb-panel ifb-panel--tight">
+        <p><strong>איש קשר:</strong> ${esc(item.contact_name || 'לא צוין')}
+          · <strong>מועד דיווח:</strong> ${fmtDate(item.created_at)}</p>
+        <p><strong>נושאים:</strong> ${esc((item.areas || []).map((area) => labels[area] || area).join(', ') || 'לא פורט')}</p>
+        <p><strong>תיאור הקושי:</strong> ${esc(item.details || 'לא נמסר פירוט')}</p>
+        <p><strong>בקשת יצירת קשר:</strong> ${item.contact_requested === null ? 'לא צוין' : item.contact_requested ? 'כן' : 'לא'}</p>
+        <div class="ifb-form-grid" data-ifb-issue-controls>
+          <label class="ifb-field"><span>סטטוס טיפול</span>
+            <select name="status">${Object.entries(statuses).map(([key,label]) =>
+              `<option value="${key}"${item.status===key?' selected':''}>${esc(label)}</option>`).join('')}</select>
+          </label>
+          <label class="ifb-field"><span>אחראי/ת לטיפול</span>
+            <input name="assigned_to" maxlength="160" value="${esc(item.assigned_to || item.activity_manager || '')}">
+          </label>
+          <label class="ifb-field"><span>עדכון ופתרון</span>
+            <textarea name="resolution_notes" rows="2" maxlength="2000">${esc(item.resolution_notes || '')}</textarea>
+          </label>
+          <div><button class="ifb-btn ifb-btn--primary" type="button" data-ifb-issue-save="${esc(item.response_id)}">שמירת הטיפול</button></div>
+        </div>
+      </div>
+    </details>`).join('');
+  return sectionHtml('טיפול בפניות ממשוב האמצע',
+    `<p class="ifb-muted">${openCount} פניות שטרם נסגרו · ${items.length} פניות בסך הכול</p>${cards}`);
+}
+
 function staffHtml() {
   const facts = courseFacts().filter((f) => f.audience === 'educational_staff');
   const results = ui.course
     ? `${collectionLineHtml('educational_staff')}
        <h3 class="ifb-subhead">משוב פתיחה – ציפיות ונקודת מוצא</h3>
        ${questionTableHtml(factsFor(facts, 'educational_staff', 'pre'), { caption: 'צוות חינוכי – פתיחה' })}
+       <h3 class="ifb-subhead">משוב אמצע – בדיקת מצב וזיהוי קשיים</h3>
+       ${questionTableHtml(factsFor(facts, 'educational_staff', 'mid'), { caption: 'צוות חינוכי – אמצע' })}
        <h3 class="ifb-subhead">משוב סיום – הערכת התוכנית</h3>
        ${questionTableHtml(factsFor(facts, 'educational_staff', 'final'), { caption: 'צוות חינוכי – סיום' })}
        ${openAnswersDisclosure(facts, 'הערות פתוחות')}`
     : selectCourseHint('תוצאות לכל שאלה');
   return `
+    ${staffIssuesHtml()}
     ${sectionHtml('הפצה ומעקב לפי קבוצה', groupsTableHtml(STAFF_SLOTS, 'staff'))}
     ${sectionHtml('תוצאות', results, { actions: ui.course ? exportButtonHtml('audience:educational_staff') : '' })}`;
 }
@@ -2287,6 +2372,7 @@ async function load(host, { force = false, focusTab = false } = {}) {
     // Assignments before summary avoids a useless parallel race; summary no longer
     // re-runs the heavy assignments RPC on the server (see migration).
     const loaders = {
+      issues: () => ensureStaffIssues(force),
       summary: () => ensureSummary(force),
       facts: () => ensureFacts(force),
       groups: () => ensureGroups(force),
@@ -2402,6 +2488,34 @@ async function handleClick(host, event) {
     '[data-ifb-qr]', '[data-ifb-copy]', '[data-ifb-extend]'
   ].join(','))) {
     event.preventDefault();
+    return;
+  }
+  const saveIssueButton = t.closest('[data-ifb-issue-save]');
+  if (saveIssueButton) {
+    if (!isFeedbackAdmin(feedbackViewerUser)) return;
+    const row = saveIssueButton.closest('[data-ifb-issue-row]');
+    const controls = row?.querySelector('[data-ifb-issue-controls]');
+    if (!controls) return;
+    const responseId = saveIssueButton.dataset.ifbIssueSave;
+    const status = controls.querySelector('[name="status"]')?.value;
+    const assignedTo = controls.querySelector('[name="assigned_to"]')?.value || '';
+    const resolutionNotes = controls.querySelector('[name="resolution_notes"]')?.value || '';
+    if (!['open','in_progress','resolved'].includes(status)) return;
+    if (status === 'resolved' && !resolutionNotes.trim()) {
+      showToast('יש לתעד את פתרון הבעיה לפני סגירתה', 'warning');
+      return;
+    }
+    saveIssueButton.disabled = true;
+    try {
+      const saved = await updateStaffMidIssue(responseId, { status, assignedTo, resolutionNotes });
+      ui.staffIssues = (ui.staffIssues || []).map((issue) =>
+        issue.response_id === responseId ? { ...issue, ...saved } : issue);
+      showToast('הטיפול בפנייה עודכן', 'success');
+      paint(host);
+    } catch (error) {
+      saveIssueButton.disabled = false;
+      showToast(translateFeedbackError(error), 'error');
+    }
     return;
   }
   const translateButton = t.closest('[data-ifb-arabic-translate]');
