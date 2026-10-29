@@ -17,6 +17,21 @@ function installStyles() {
       min-width: 96px !important;
       max-width: 145px !important;
     }
+    /* All Activities: let search fill spare desktop space without changing other toolbars. */
+    #app .ds-activities-main-toolbar[data-local-filters="activities"] .ds-activities-search-sm {
+      flex: 2 1 175px !important;
+      width: 185px !important;
+      min-width: 130px !important;
+      max-width: 255px !important;
+    }
+    @media (max-width: 820px) {
+      #app .ds-activities-main-toolbar[data-local-filters="activities"] .ds-activities-search-sm {
+        flex: 1 1 100% !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        max-width: 100% !important;
+      }
+    }
     #app .ds-activities-main-toolbar .ds-filter-select-inline {
       flex: 1 1 88px !important;
       width: 98px !important;
