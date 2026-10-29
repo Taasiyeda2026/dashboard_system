@@ -1,4 +1,38 @@
 /* All Activities uses the same inline expand/collapse model as Feedback. */
+/* Keep the trigger prominent next to search even when all eight select filters are present. */
+#app .ds-activities-main-toolbar [data-activities-advanced-toggle] {
+  display: inline-flex !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  flex: 0 0 40px !important;
+  width: 40px !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  padding: 0 !important;
+  position: relative;
+  z-index: 2;
+  background: #edfaff !important;
+  color: #007f9d !important;
+  border: 1px solid #67bcd3 !important;
+  border-radius: 9px !important;
+  cursor: pointer;
+}
+#app .ds-activities-main-toolbar [data-activities-advanced-toggle]:hover,
+#app .ds-activities-main-toolbar [data-activities-advanced-toggle]:focus-visible {
+  background: #d9f4fd !important;
+  border-color: #008fb0 !important;
+  outline: 2px solid #8dd5e6;
+  outline-offset: 2px;
+}
+#app .ds-activities-main-toolbar [data-activities-advanced-toggle] svg {
+  display: block;
+  flex: 0 0 20px;
+  min-width: 20px;
+  min-height: 20px;
+  color: inherit;
+}
 .ds-act-advanced__toggle {
   position: relative;
   display: inline-flex;
