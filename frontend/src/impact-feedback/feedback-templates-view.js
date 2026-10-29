@@ -67,6 +67,7 @@ function templateSlotLabel(slot) {
   if (slot.key === 'instructor:pre') return 'מדריכים – פתיחה (אחרי הכשרה)';
   if (slot.key === 'instructor:final') return 'מדריכים – סיום';
   if (slot.key === 'educational_staff:pre') return 'צוות חינוכי – פתיחה';
+  if (slot.key === 'educational_staff:mid') return 'צוות חינוכי – אמצע';
   return 'צוות חינוכי – סיום';
 }
 
@@ -118,6 +119,7 @@ function listHtml(ui, { readOnly = false, canEditWording = false } = {}) {
         'student:pre': 'תלמידים (התחלה)',
         'student:post': 'תלמידים (סיום)',
         'educational_staff:pre': 'צוות חינוכי (התחלה)',
+        'educational_staff:mid': 'צוות חינוכי (אמצע)',
         'educational_staff:final': 'צוות חינוכי (סיום)',
         'instructor:pre': 'מדריכים (התחלה)',
         'instructor:final': 'מדריכים (סיום)'
