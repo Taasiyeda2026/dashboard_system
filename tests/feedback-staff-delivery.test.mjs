@@ -110,9 +110,9 @@ test('approved Hebrew opening and closing emails use the selected contact name a
     assert.doesNotMatch(mail.subject,/פתיחה|סיום/);
     assert.doesNotMatch(mail.body.content,/\[שם איש הקשר\]|\[שם התוכנית\]/);
   }
-  assert.match(pre.body.content,/לקראת תחילת התוכנית/);
+  assert.match(pre.body.content,/עם תחילת התוכנית/);
   assert.match(pre.body.content,/הציפיות והצרכים שלכם/);
-  assert.match(pre.body.content,/להתאים את ההדרכה לקבוצה/);
+  assert.match(pre.body.content,/להתאים את המשך ההדרכה לצורכי הקבוצה/);
   assert.match(pre.body.content,/משוב תיאום ציפיות/);
   const mid=staffMail({...item,stage:'mid'},baseUrl);
   assert.match(mid.body.content,/במחצית התוכנית/);
