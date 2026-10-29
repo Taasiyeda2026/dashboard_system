@@ -977,17 +977,15 @@ function groupsTableHtml(slots, scope) {
       const groupRows = staffActivities(g);
       if (groupRows.length === 1) return `<button type="button" class="ifb-btn ifb-btn--sm"
         data-ifb-open-group="${esc(g.row_id)}" aria-label="ניהול ותזמון משובים: ${esc(g.school || '')}">ניהול</button>`;
+      // The action column only navigates to a group; phase statuses already appear in the table.
       return `<details class="ifb-staff-activity-breakdown">
-        <summary>${groupRows.length} פעילויות</summary>
+        <summary aria-label="בחירת קבוצה לניהול משובים">ניהול</summary>
         <div class="ifb-staff-breakdown-list">
-          ${groupRows.map((a) => `<div class="ifb-staff-breakdown-item">
-            <div><strong>${esc([a.grade,a.class_group].filter(Boolean).join(' · ') || a.activity_name || 'קבוצה')}</strong>
-              <span class="ifb-staff-sub">${fmtDate(a.start_date)} - ${fmtDate(a.end_date)}</span></div>
-            ${phases.map((stage) => `<div class="ifb-staff-breakdown-stage">
-              <span class="ifb-staff-sub">${esc({pre:'פתיחה',mid:'אמצע',final:'סיום'}[stage])}</span>
-              ${stageStatus(a,stage)}</div>`).join('')}
-            <button type="button" class="ifb-btn ifb-btn--sm" data-ifb-open-group="${esc(a.row_id)}">ניהול קבוצה</button>
-          </div>`).join('')}
+          ${groupRows.map((a, index) => {
+            const label = [a.grade, a.class_group].filter(Boolean).join(' · ') || a.activity_name || `קבוצה ${index + 1}`;
+            return `<button type="button" class="ifb-staff-group-action" data-ifb-open-group="${esc(a.row_id)}"
+              aria-label="ניהול משובי ${esc(label)}">${esc(label)}</button>`;
+          }).join('')}
         </div>
       </details>`;
     };
