@@ -499,6 +499,13 @@ test('activities render: assignment status separates pending approval from truly
   // Assignment selection moved into the advanced popover to avoid duplicate filters.
   assert.match(allHtml, /data-activities-advanced-toggle/);
   assert.match(allHtml, /data-activity-advanced-field="assignment"/);
+  const activitiesDocument = new JSDOM(allHtml).window.document;
+  const advancedToggle = activitiesDocument.querySelector('[data-activities-advanced-toggle]');
+  const advancedPanel = activitiesDocument.querySelector('[data-activities-advanced-panel]');
+  assert.ok(advancedToggle.closest('.ds-activities-main-toolbar'), 'icon remains in existing filter bar');
+  assert.equal(advancedPanel.previousElementSibling?.classList.contains('ds-activities-main-toolbar'), true, 'panel expands below toolbar instead of overlaying data');
+  assert.match(advancedToggle.innerHTML, /<svg/);
+  assert.equal(advancedToggle.textContent.trim(), '', 'no visible advanced-filter text');
   assert.match(allHtml, /<option value="all" selected>כל המצבים<\/option>/);
   assert.match(allHtml, /<option value="unassigned">ללא מדריך<\/option>/);
   assert.match(allHtml, /<option value="draft">ממתין לאישור<\/option>/);
