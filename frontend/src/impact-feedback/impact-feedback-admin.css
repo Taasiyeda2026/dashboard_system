@@ -2376,3 +2376,34 @@
 @media (max-width:760px) {
   .ifb-admin .ifb-staff-final-waiting { justify-items: start; }
 }
+
+/* School-contact rows remain consolidated, but every activity is inspectable. */
+.ifb-admin .ifb-staff-activity-breakdown { text-align: start; min-width: 0; }
+.ifb-admin .ifb-staff-activity-breakdown > summary {
+  cursor: pointer; color: var(--ifb-a-text); font-weight: 650;
+  text-decoration: underline; text-underline-offset: 3px;
+  white-space: normal; line-height: 1.4;
+}
+.ifb-admin .ifb-staff-breakdown-list {
+  margin-top: 8px; display: grid; gap: 8px; width: max-content;
+  min-width: 220px; max-width: min(310px, 72vw); font-size: 11px;
+}
+.ifb-admin .ifb-staff-breakdown-item {
+  border: 1px solid var(--ifb-a-divider); border-radius: 7px;
+  background: var(--ifb-a-card, white); padding: 8px;
+  display: grid; gap: 5px; text-align: start; overflow-wrap: anywhere;
+}
+.ifb-admin .ifb-staff-breakdown-item .ifb-staff-sub {
+  font-weight: 400; line-height: 1.35;
+}
+.ifb-admin .ifb-staff-breakdown-stage {
+  display: grid; gap: 3px; align-items: start;
+  grid-template-columns: 45px minmax(0,1fr);
+}
+.ifb-admin .ifb-staff-breakdown-stage .ifb-mail-status,
+.ifb-admin .ifb-staff-breakdown-stage .ifb-staff-final-waiting {
+  text-align: start; justify-items: start;
+}
+@media (max-width:760px) {
+  .ifb-admin .ifb-staff-breakdown-list { max-width: min(100%, 85vw); min-width: 0; }
+}
