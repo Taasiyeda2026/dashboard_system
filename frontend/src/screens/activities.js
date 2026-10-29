@@ -49,7 +49,6 @@ import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQuer
 import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
 import { activityInstructorAssignmentState, activityMatchesInstructorStatusFilter } from './shared/activity-instructor-filter.js';
 import { applyActivitiesAdvancedFilters, activitiesAdvancedFiltersHtml, bindActivitiesAdvancedFilters } from './shared/activities-advanced-filters.js';
-import '../styles/activities-advanced-filters.css';
 import {
   applyMissingScheduleFilter,
   MISSING_SCHEDULE_FILTER_STORAGE_KEY
