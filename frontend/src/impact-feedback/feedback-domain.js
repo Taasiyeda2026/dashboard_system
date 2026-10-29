@@ -18,7 +18,7 @@ export const AUDIENCE_LABELS = Object.freeze({
   instructor: 'מדריך'
 });
 
-export const STAGE_LABELS = Object.freeze({ pre: 'פתיחה', post: 'סיום', final: 'סיום' });
+export const STAGE_LABELS = Object.freeze({ pre: 'פתיחה', mid: 'אמצע', post: 'סיום', final: 'סיום', final_b: 'סיום מחצית ב׳' });
 
 export const SLOTS = Object.freeze([
   { key: 'student:pre', audience: 'student', stage: 'pre', label: 'תלמידים – פתיחה', short: 'פתיחה' },
@@ -184,7 +184,7 @@ export function filterFeedbackFactsForHalf(facts = [], groups = [], instructorAs
     }
     const key = String(fact.activity_row_id || '');
     return groupHalf.get(key) === half &&
-      (fact.audience !== 'educational_staff' || fact.stage === 'pre' || staffClosingEligible.has(key));
+      (fact.audience !== 'educational_staff' || fact.stage === 'pre' || fact.stage === 'mid' || staffClosingEligible.has(key));
   });
 }
 
@@ -614,7 +614,7 @@ export const PHASE_LABELS = Object.freeze({ pre: 'פתיחה', end: 'סיום' }
 
 export function stageLabelFor(audience, stage) {
   if (audience === 'instructor') return stage === 'pre' ? 'פתיחה (אחרי הכשרה)' : stage === 'final_b' ? 'סיום מחצית ב׳' : 'סיום מחצית א׳';
-  if (audience === 'educational_staff') return stage === 'pre' ? 'פתיחה' : 'סיום';
+  if (audience === 'educational_staff') return stage === 'pre' ? 'פתיחה' : stage === 'mid' ? 'אמצע' : 'סיום';
   return stage === 'pre' ? 'פתיחה' : 'סיום';
 }
 
