@@ -2167,16 +2167,21 @@ function slotCardHtml(group, slot, user) {
     </article>`;
   }
   if (!campaign) {
-    const coveredBySharedMail = slot.audience === 'educational_staff'
-      && ui.staffDelivery.get(`${group.row_id}|${slot.stage}`)?.status === 'sent';
+    const mailRecord = slot.audience === 'educational_staff'
+      ? ui.staffDelivery.get(`${group.row_id}|${slot.stage}`) : null;
+    // A user-requested manual sent mark is NOT evidence of a shared email.
+    const manuallyMarkedSent = mailRecord?.status === 'sent'
+      && mailRecord?.reason === 'manually_marked_sent_without_dispatch';
+    const coveredBySharedMail = mailRecord?.status === 'sent' && !manuallyMarkedSent;
     return `<article class="ifb-slot" data-slot="${slot.key}"${staffShareAttr}${studentShareAttr}>
-      <div class="ifb-slot__head">${title}${coveredBySharedMail
-        ? statusText('נשלח במשלוח משותף', 'success')
+      <div class="ifb-slot__head">${title}${manuallyMarkedSent
+        ? statusText('נשלח', 'success')
+        : coveredBySharedMail ? statusText('נשלח במשלוח משותף', 'success')
         : earlyFinal ? statusText(earlyFinal.label, earlyFinal.tone) : campaignStatusHtml(null)}</div>
-      ${coveredBySharedMail ? '<p class="ifb-muted">פעילות זו נכללה במשלוח משותף לאותו איש קשר ולאותו שלב. השאלון נמצא בפעילות הנציגה של המשלוח, ואין ליצור הזמנה כפולה.</p>'
+      ${manuallyMarkedSent ? '' : coveredBySharedMail ? '<p class="ifb-muted">פעילות זו נכללה במשלוח משותף לאותו איש קשר ולאותו שלב. השאלון נמצא בפעילות הנציגה של המשלוח, ואין ליצור הזמנה כפולה.</p>'
         : earlyFinal ? '<p class="ifb-muted">משוב הסיום ייפתח רק לאחר שהקורס ומפגשיו הושלמו.</p>'
         : openFormHtml(group, slot)}
-      ${coveredBySharedMail ? '' : staffScheduleHtml(group, slot)}
+      ${manuallyMarkedSent || coveredBySharedMail ? '' : staffScheduleHtml(group, slot)}
     </article>`;
   }
   const isStudent = slot.audience === 'student';
