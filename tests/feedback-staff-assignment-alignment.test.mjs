@@ -18,3 +18,42 @@ test('staff table reads the same academic-year activity groups instead of a seco
   assert.match(screen,/if \(scope === 'staff'\)/);
   assert.match(screen,/groupsTableHtml\(STAFF_SLOTS, 'staff'\)/);
 });
+
+test('stage dispatch windows are grouped AFTER computing individual activity meeting dates',()=>{
+  const stageSql = readFileSync(new URL('../supabase/migrations/20261029110000_feedback_staff_activity_week_buckets.sql',import.meta.url),'utf8');
+  assert.match(stageSql, /source_slots as \(/);
+  assert.match(stageSql, /join keyed s on s\.row_id=sl\.row_id/);
+  assert.match(stageSql, /expanded as \(/);
+  assert.match(stageSql, /stage_batches as \(/);
+  assert.match(stageSql, /partition by v\.row_id/);
+  assert.match(stageSql, /e\.stage='pre'/);
+  assert.match(stageSql, /e\.stage='mid'/);
+  assert.match(stageSql, /e\.stage='final'/);
+  assert.match(stageSql, /e\.batch_key/);
+  assert.match(stageSql, /array_agg\(row_id order by row_id\)/);
+});
+test('a previously mailed representative does not block other activities in later weeks',()=>{
+  const guards=readFileSync(new URL('../supabase/migrations/20261029111000_feedback_staff_week_batches_legacy_delivery_guards.sql',import.meta.url),'utf8');
+  assert.match(guards, /o\.activity_row_id=any\(c\.member_row_ids\)/);
+  assert.match(guards, /x\.activity_row_id=any\(o\.member_row_ids\)/);
+  assert.match(guards, /o\.group_key=c\.group_key/);
+  assert.doesNotMatch(guards, /existing\.member_row_ids\|\|c\.member_row_ids/);
+});
+test('staff closing link checks completed course on the server and retains the existing URL',()=>{
+  const finalSql=readFileSync(new URL('../supabase/migrations/20261029112000_feedback_staff_final_completion_link_gate.sql',import.meta.url),'utf8');
+  assert.match(finalSql, /private\.feedback_staff_final_activity_ready/);
+  assert.match(finalSql, /public\.scheduling_effective_end_time/);
+  assert.match(finalSql, /course_meeting_cancellations/);
+  assert.match(finalSql, /when c\.audience='educational_staff' and c\.stage='final'/);
+  assert.match(finalSql, /feedback_staff_final_course_not_completed/);
+  assert.match(finalSql, /update public\.feedback_campaigns c set/);
+  assert.doesNotMatch(finalSql, /update public\.feedback_recipients set token/);
+});
+test('consolidated dashboard retains exact per-activity dates, statuses and navigation',()=>{
+  assert.match(screen,/staff_activities: activitiesByGroup\.get\(key\)/);
+  assert.match(screen,/const stageSummary = \(g, stage\)/);
+  assert.match(screen,/data-ifb-open-group="\$\{esc\(a\.row_id\)\}"/);
+  assert.match(screen,/class="ifb-staff-activity-breakdown"/);
+  assert.match(screen,/earlyFinal \? '<p class="ifb-muted">משוב הסיום ייפתח רק לאחר שהקורס/);
+  assert.match(screen,/else if \(earlyFinal\) \{/);
+});
