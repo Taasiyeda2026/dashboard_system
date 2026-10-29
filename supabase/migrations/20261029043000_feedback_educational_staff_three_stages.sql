@@ -230,6 +230,42 @@ begin
   order by 1, 2, 3;
 end $function$;
 
+CREATE OR REPLACE FUNCTION private.feedback_question_visible(p_answers jsonb, p_scoring jsonb)
+ RETURNS boolean
+ LANGUAGE plpgsql
+ IMMUTABLE
+ SET search_path TO ''
+AS $function$
+DECLARE
+  v_rule jsonb := p_scoring->'visible_when';
+  v_parent jsonb;
+  v_id text;
+  v_operator text;
+BEGIN
+  IF v_rule IS NULL OR v_rule = 'null'::jsonb THEN RETURN true; END IF;
+  IF jsonb_typeof(v_rule) <> 'object' THEN RETURN false; END IF;
+  v_id := v_rule->>'parent_id';
+  v_operator := v_rule->>'operator';
+  IF coalesce(v_id,'') = '' OR coalesce(v_operator,'') NOT IN ('nonempty','not_equals','in') THEN RETURN false; END IF;
+  v_parent := p_answers -> v_id;
+  IF v_parent IS NULL OR v_parent = 'null'::jsonb THEN RETURN false; END IF;
+  IF v_operator = 'nonempty' THEN
+    IF jsonb_typeof(v_parent) = 'array' THEN RETURN jsonb_array_length(v_parent) > 0; END IF;
+    IF jsonb_typeof(v_parent) = 'string' THEN RETURN length(btrim(v_parent #>> '{}')) > 0; END IF;
+    RETURN false;
+  END IF;
+  IF v_operator = 'in' THEN
+    IF jsonb_typeof(v_parent) NOT IN ('string','number','boolean')
+      OR jsonb_typeof(v_rule->'values') <> 'array' THEN RETURN false; END IF;
+    RETURN EXISTS (
+      SELECT 1 FROM jsonb_array_elements_text(v_rule->'values') AS allowed(choice)
+      WHERE allowed.choice = v_parent #>> '{}'
+    );
+  END IF;
+  IF jsonb_typeof(v_parent) NOT IN ('string','number','boolean') THEN RETURN false; END IF;
+  RETURN v_parent #>> '{}' <> coalesce(v_rule->>'value','');
+END $function$;
+
 insert into public.feedback_questions
 (question_key,program_key,metric_key,question_type,audiences,stages,is_comparison,wording,options,scoring,default_required,sort_order,is_active)
 values
