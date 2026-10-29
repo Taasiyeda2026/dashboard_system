@@ -900,6 +900,7 @@ function groupsTableHtml(slots, scope) {
         const sorted = sortEducationalStaffFeedbackGroups(matching);
         const unique = new Map();
         const instructorsByGroup = new Map();
+        const activitiesByGroup = new Map();
         for (const group of sorted) {
           // No known contact: keep rows separate rather than merge unknown people.
           const contact = String(group.contact_name || '').trim().replace(/\\s+/g, ' ').toLocaleLowerCase('he');
@@ -909,6 +910,8 @@ function groupsTableHtml(slots, scope) {
             ? JSON.stringify([course, contact, school])
             : JSON.stringify(['unidentified', group.row_id]);
           if (!instructorsByGroup.has(key)) instructorsByGroup.set(key, new Set());
+          if (!activitiesByGroup.has(key)) activitiesByGroup.set(key, []);
+          activitiesByGroup.get(key).push(group);
           if (String(group.instructor_name || '').trim()) instructorsByGroup.get(key).add(String(group.instructor_name).trim());
           const previous = unique.get(key);
           const coverage = (item) => STAFF_SLOTS.filter((slot) => Boolean(slotCampaign(item, slot))).length;
@@ -921,7 +924,8 @@ function groupsTableHtml(slots, scope) {
         }
         return [...unique.entries()].map(([key, group]) => ({
           ...group,
-          staff_instructor_names: [...(instructorsByGroup.get(key) || [])]
+          staff_instructor_names: [...(instructorsByGroup.get(key) || [])],
+          staff_activities: activitiesByGroup.get(key) || [group]
         }));
       })()
       : matching.sort((a, b) =>
@@ -956,6 +960,31 @@ function groupsTableHtml(slots, scope) {
         ? statusText('קישור פעיל', 'muted') : tableStatusHtml(campaign);
       return surveyStatus + staffEmailStatusHtml(g, stage, scope);
     };
+    // One overview row per contact, with exact dates and stage progress for each activity.
+    const staffActivities = (g) => g.staff_activities?.length ? g.staff_activities : [g];
+    const stageSummary = (g, stage) => {
+      const values = staffActivities(g).map((a) => stageStatus(a, stage));
+      return values.every((v) => v === values[0])
+        ? values[0] : `${statusText('סטטוסים שונים', 'muted')}<span class="ifb-staff-sub">פירוט לפי פעילות</span>`;
+    };
+    const actionsHtml = (g) => {
+      const groupRows = staffActivities(g);
+      if (groupRows.length === 1) return `<button type="button" class="ifb-btn ifb-btn--sm"
+        data-ifb-open-group="${esc(g.row_id)}" aria-label="ניהול ותזמון משובים: ${esc(g.school || '')}">ניהול</button>`;
+      return `<details class="ifb-staff-activity-breakdown">
+        <summary>${groupRows.length} פעילויות</summary>
+        <div class="ifb-staff-breakdown-list">
+          ${groupRows.map((a) => `<div class="ifb-staff-breakdown-item">
+            <div><strong>${esc([a.grade,a.class_group].filter(Boolean).join(' · ') || a.activity_name || 'קבוצה')}</strong>
+              <span class="ifb-staff-sub">${fmtDate(a.start_date)} - ${fmtDate(a.end_date)}</span></div>
+            ${phases.map((stage) => `<div class="ifb-staff-breakdown-stage">
+              <span class="ifb-staff-sub">${esc({pre:'פתיחה',mid:'אמצע',final:'סיום'}[stage])}</span>
+              ${stageStatus(a,stage)}</div>`).join('')}
+            <button type="button" class="ifb-btn ifb-btn--sm" data-ifb-open-group="${esc(a.row_id)}">ניהול קבוצה</button>
+          </div>`).join('')}
+        </div>
+      </details>`;
+    };
     const output = filtered.length ? `
       <div class="ifb-table-wrap ifb-staff-table-wrap">
         <table class="ifb-table ifb-staff-table">
@@ -973,11 +1002,13 @@ function groupsTableHtml(slots, scope) {
               <td data-label="קורס">${g.program_key ? esc(programTitle(g.program_key)) : '<span class="ifb-muted">טרם הותאם משוב</span>'}</td>
               <td data-label="אנשי קשר"><strong>${esc(g.contact_name || 'לא הוגדר איש קשר')}</strong>
                 <span class="ifb-staff-sub">מדריך/ה: ${esc(g.staff_instructor_names?.join(', ') || 'לא שובץ/ה')}</span></td>
-              <td data-label="תקופת הקורס" class="ifb-staff-dates">${fmtDate(g.start_date)}
-                <span class="ifb-staff-sub">עד ${fmtDate(g.end_date)}</span></td>
-              ${phases.map(stage => `<td class="ifb-staff-stage" data-label="${esc({pre:'פתיחה',mid:'אמצע',final:'סיום'}[stage])}">${stageStatus(g,stage)}</td>`).join('')}
-              <td data-label="פעולה" class="ifb-staff-action"><button type="button" class="ifb-btn ifb-btn--sm"
-                data-ifb-open-group="${esc(g.row_id)}" aria-label="ניהול ותזמון משובים: ${esc(g.school || '')}">ניהול</button></td>
+              <td data-label="תקופת הקורס" class="ifb-staff-dates">
+                ${fmtDate(staffActivities(g).map((a)=>a.start_date).sort()[0])}
+                <span class="ifb-staff-sub">עד ${fmtDate(staffActivities(g).map((a)=>a.end_date).filter(Boolean).sort().at(-1)||g.end_date)}</span>
+                ${staffActivities(g).length>1 ? `<span class="ifb-staff-sub">${staffActivities(g).length} פעילויות</span>` : ''}
+              </td>
+              ${phases.map(stage => `<td class="ifb-staff-stage" data-label="${esc({pre:'פתיחה',mid:'אמצע',final:'סיום'}[stage])}">${stageSummary(g,stage)}</td>`).join('')}
+              <td data-label="פעולה" class="ifb-staff-action">${actionsHtml(g)}</td>
             </tr>`).join('')}</tbody>
         </table>
       </div>` : emptyHtml('לא נמצאו קבוצות התואמות לסינון.');
