@@ -909,7 +909,16 @@ function groupsTableHtml(slots, scope) {
       if (!campaign) return staffEmailStatusHtml(g, stage, scope, { standalone: true });
       const campaignStatus = campaignUiStatus(campaign);
       const wasMailed = ui.staffDelivery.get(`${g.row_id}|${stage}`)?.status === 'sent';
-      const surveyStatus = campaignStatus.key === 'active' && !wasMailed
+      // One concise result per stage; do not show "waiting for reply" beside
+      // another independent "mail sent" line for the same event.
+      if (campaignStatus.key === 'completed') return statusText('הושלם', 'success');
+      if (wasMailed && campaignStatus.key === 'active') {
+        return statusText('נשלח · ממתין לתשובה', 'pending');
+      }
+      if (wasMailed && campaignStatus.key === 'expired') {
+        return statusText('נשלח · פג תוקף', 'warning');
+      }
+      const surveyStatus = campaignStatus.key === 'active'
         ? statusText('קישור פעיל', 'muted') : tableStatusHtml(campaign);
       return surveyStatus + staffEmailStatusHtml(g, stage, scope);
     };
