@@ -692,13 +692,14 @@ export function overviewTotals(rows = [], { programKey = '', audience = '', phas
     && (!phase || stagePhase(r.audience, r.stage) === phase));
   const courses = new Set(stageRows.filter((r) => num(r.campaigns) > 0).map((r) => r.program_key));
   const byAudience = Object.fromEntries(AUDIENCE_ORDER.map((a) => [a, 0]));
-  const byPhase = { pre: 0, mid: 0, end: 0 };
+  const byPhase = { pre: 0, end: 0 };
   let responses = 0;
   for (const r of stageRows) {
     const n = num(r.responses);
     responses += n;
     byAudience[r.audience] = (byAudience[r.audience] || 0) + n;
-    byPhase[stagePhase(r.audience, r.stage)] += n;
+    const phaseKey = stagePhase(r.audience, r.stage);
+    byPhase[phaseKey] = (byPhase[phaseKey] || 0) + n;
   }
   // Unique people: per course+audience "all" rows (PRE and FINAL by the same instructor = one person).
   // A phase filter would split the same person across rows, so it is reported per stage instead.
