@@ -388,7 +388,8 @@ function staffFinalWaitingHtml(waiting, { detailed = false } = {}) {
     ? '<span class="ifb-staff-final-note">בוצעה פעולת שיתוף ידנית לפני סיום הקורס</span>' : '';
   const warning = waiting.warning
     ? `<span class="ifb-staff-final-note ifb-staff-final-note--warning">${esc(waiting.warning)}</span>` : '';
-  return `<div class="ifb-staff-final-waiting${detailed ? ' ifb-staff-final-waiting--detail' : ''}">${statusText(waiting.label, waiting.tone)}${shareText}${warning}</div>`;
+  if (detailed && !shareText && !warning) return '';
+  return `<div class="ifb-staff-final-waiting${detailed ? ' ifb-staff-final-waiting--detail' : ''}">${detailed ? '' : statusText(waiting.label, waiting.tone)}${shareText}${warning}</div>`;
 }
 
 function staffEmailStatusHtml(group, stage, scope, { standalone = false } = {}) {
