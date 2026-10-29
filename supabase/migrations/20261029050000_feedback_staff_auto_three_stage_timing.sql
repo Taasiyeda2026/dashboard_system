@@ -1,11 +1,7 @@
--- Three-stage automated feedback candidate timing.
--- Opening: two days before the first scheduled date; never retroactively after start.
--- Midpoint: after half the scheduled active sessions. Closing: existing final rule.
--- Existing accepted pre email history remains untouched.
-alter table public.feedback_staff_auto_outbox
-  drop constraint if exists feedback_staff_auto_outbox_stage_check;
-alter table public.feedback_staff_auto_outbox
-  add constraint feedback_staff_auto_outbox_stage_check
+-- Staff automated three-stage timing: opening before, midpoint halfway, final after end.
+-- Existing accepted email dispatch records are not modified.
+alter table public.feedback_staff_auto_outbox drop constraint if exists feedback_staff_auto_outbox_stage_check;
+alter table public.feedback_staff_auto_outbox add constraint feedback_staff_auto_outbox_stage_check
   check (stage in ('pre','mid','final'));
 
 CREATE OR REPLACE FUNCTION public.feedback_staff_auto_candidates(p_now timestamp with time zone DEFAULT now())
@@ -98,7 +94,8 @@ counts as (
     (select count(*)::int from ordered_slots os where os.row_key=s.row_key) as active_scheduled,
     (select os.ends_at from ordered_slots os where os.row_key=s.row_key and os.ordinal=2) as after_second,
     (select os.ends_at from ordered_slots os where os.row_key=s.row_key and os.ordinal =
-      greatest(1,ceil((case when s.sessions ~ '^[0-9]{1,2}
+      greatest(1,ceil((case when s.sessions ~ '^[0-9]{1,2}$' then s.sessions::int
+       else (select count(*) from ordered_slots os2 where os2.row_key=s.row_key) end)/2.0)::int)) as after_half,
     (select max(os.ends_at) from ordered_slots os where os.row_key=s.row_key) as after_last,
     case when s.sessions ~ '^[0-9]{1,2}$' then s.sessions::int end as expected_count
  from selected s
@@ -132,56 +129,6 @@ select
    -- ('פתוח'/'סגור') is deliberately NOT a filter.
    when e.stage='pre' and e.start_date <= (p_now at time zone 'Asia/Jerusalem')::date
      then 'not_due'
-   when e.stage='final' and (p_now at time zone 'Asia/Jerusalem')::date < date '2026-11-20'
-     then 'not_due'
-   when e.program_key is null then 'unresolved_program'
-   when e.school_contact_id is null
-     or not exists(select 1 from public.contacts_schools cs where cs.id=e.school_contact_id)
-     then 'missing_selected_contact'
-   when e.contact_email is null
-     or e.contact_email !~* '^[A-Z0-9._%+-]+@[A-Z0-9.-]+[.][A-Z]{2,}$'
-     then 'missing_contact_email'
-   when e.end_time is null then 'missing_end_time'
-   when e.due_at is null then 'unscheduled'
-   when e.due_at > p_now then 'not_due'
-   else 'eligible'
- end as status,
- e.active_scheduled,e.expected_count
-from expanded e
-order by e.cohort,e.row_id,e.stage
-$function$
- then s.sessions::int
-       else (select count(*) from ordered_slots os2 where os2.row_key=s.row_key) end)/2.0)::int)) as after_half,
-    (select max(os.ends_at) from ordered_slots os where os.row_key=s.row_key) as after_last,
-    case when s.sessions ~ '^[0-9]{1,2}$' then s.sessions::int end as expected_count
- from selected s
-),
-expanded as (
- select s.*,x.stage,
-   case when x.stage='pre' then c.after_second
-        -- Only an actually finished course is final-feedback eligible:
-        -- its official end date is past, all expected ACTIVE meetings have
-        -- happened (cancelled sessions need a replacement), and neither the
-        -- final meeting nor the declared end date lies in the future.
-        -- Waiting until midnight after end_date avoids premature 05:00 sends.
-        when c.expected_count is not null and c.expected_count>0
-          and c.active_scheduled>=c.expected_count
-          and s.end_date is not null and c.after_last is not null
-          then greatest(c.after_last,
-            (s.end_date + 1)::timestamp at time zone 'Asia/Jerusalem')
-   end as due_at,
-   c.active_scheduled,c.expected_count
- from selected s
- join counts c on c.row_key=s.row_key
- cross join (values('pre'),('final')) x(stage)
-)
-select
- e.row_key,e.cohort,e.row_id,e.members,e.program_key,e.school,
- e.contact_name,e.school_contact_id,e.contact_email,e.stage,e.due_at,
- case
-   -- The supplemental completed-course final check starts on Nov 20, 2026.
-   -- The pre-feedback channel is unchanged. The status of the activity
-   -- ('פתוח'/'סגור') is deliberately NOT a filter.
    when e.stage='final' and (p_now at time zone 'Asia/Jerusalem')::date < date '2026-11-20'
      then 'not_due'
    when e.program_key is null then 'unresolved_program'
