@@ -2,8 +2,7 @@ import { escapeHtml } from './html.js';
 import { ensureActivityListFilters } from './activity-list-filters.js';
 
 export const ADVANCED_ACTIVITY_FILTER_KEYS = [
-  'advStartPresence', 'advStartFrom', 'advStartTo', 'advEndPresence',
-  'advPricePresence', 'advSchoolPresence', 'advFundingPresence', 'advHoursPresence'
+  'advStartPresence', 'advEndPresence', 'advMeetingFrom', 'advMeetingTo', 'advPricePresence'
 ];
 
 const PRESENCE_OPTIONS = [
@@ -29,20 +28,24 @@ function asDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : '';
 }
 
-function hasSchool(row) {
-  if ([row?.school, row?.legacy_school, row?.single_school_name, row?.linked_school_names].some(isEntered)) return true;
-  const raw = row?.linked_schools_json;
-  let links = Array.isArray(raw) ? raw : [];
-  if (!links.length && typeof raw === 'string' && raw.trim().startsWith('[')) {
-    try { links = JSON.parse(raw); } catch { links = []; }
+/** List scheduled meeting dates on the activity, not its start/end range. */
+export function activitySessionDates(row = {}) {
+  const dates = new Set();
+  const add = (value) => {
+    const candidate = value && typeof value === 'object'
+      ? (value.date ?? value.meeting_date ?? value.meetingDate)
+      : value;
+    const date = asDate(candidate);
+    if (date) dates.add(date);
+  };
+  for (const key of ['meeting_dates', 'date_cols', 'meeting_schedule']) {
+    if (Array.isArray(row?.[key])) row[key].forEach(add);
   }
-  return Array.isArray(links) && links.some((school) => isEntered(school?.school_name));
-}
-
-function hasFunding(row) {
-  if (isEntered(row?.funding)) return true;
-  return Array.isArray(row?.funding_sources)
-    && row.funding_sources.some((source) => isEntered(source?.name));
+  for (let i = 1; i <= 35; i += 1) {
+    add(row?.[`date_${i}`]);
+    add(row?.[`Date${i}`]);
+  }
+  return [...dates].sort();
 }
 
 function passesPresence(value, actual) {
@@ -55,20 +58,20 @@ function passesPresence(value, actual) {
  * activities tab. No database writes or additional requests are needed.
  */
 export function applyActivitiesAdvancedFilters(rows = [], filters = {}) {
-  const from = asDate(filters.advStartFrom);
-  const to = asDate(filters.advStartTo);
+  const from = asDate(filters.advMeetingFrom);
+  const to = asDate(filters.advMeetingTo);
   return (Array.isArray(rows) ? rows : []).filter((row) => {
     const start = asDate(row?.start_date ?? row?.date_start);
     const end = asDate(row?.end_date ?? row?.date_end);
     if (!passesPresence(filters.advStartPresence, !!start)) return false;
-    if (from && (!start || start < from)) return false;
-    if (to && (!start || start > to)) return false;
     if (!passesPresence(filters.advEndPresence, !!end)) return false;
-    // 0 is an entered price, rather than an empty field.
+    if (from || to) {
+      const matchingMeeting = activitySessionDates(row).some((date) =>
+        (!from || date >= from) && (!to || date <= to));
+      if (!matchingMeeting) return false;
+    }
+    // A recorded price of 0 is still a filled-in value.
     if (!passesPresence(filters.advPricePresence, isEntered(row?.price))) return false;
-    if (!passesPresence(filters.advSchoolPresence, hasSchool(row))) return false;
-    if (!passesPresence(filters.advFundingPresence, hasFunding(row))) return false;
-    if (!passesPresence(filters.advHoursPresence, isEntered(row?.start_time) && isEntered(row?.end_time))) return false;
     return true;
   });
 }
@@ -86,12 +89,11 @@ function selectField(key, label, options, value) {
     + '</select></label>';
 }
 
-function dateField(key, label, value, disabled) {
+function dateField(key, label, value) {
   return '<label class="ds-act-advanced__field"><span>' + escapeHtml(label) + '</span>'
     + '<input type="date" class="ds-input ds-input--sm" data-activity-advanced-field="' + key
-    + '" aria-label="' + escapeHtml(label) + '" value="' + escapeHtml(asDate(value)) + '"'
-    + (disabled ? ' disabled title="לסינון טווח יש לבחור פעילות עם תאריך התחלה"' : '')
-    + '></label>';
+    + '" aria-label="' + escapeHtml(label) + '" value="' + escapeHtml(asDate(value)) + '">'
+    + '</label>';
 }
 
 /** Icon-only control, matching the feedback screen filter affordance. */
@@ -109,25 +111,18 @@ export function activitiesAdvancedFilterToggleHtml(filters = {}, assignment = 'a
 
 /** Full-width inline disclosure below the activity toolbar, not a floating overlay. */
 export function activitiesAdvancedFiltersHtml(filters = {}, assignment = 'all', open = false) {
-  const noStart = filters.advStartPresence === 'missing';
   return '<section id="activities-advanced-filters-panel" class="ds-act-advanced__panel" data-activities-advanced-panel dir="rtl" role="group" aria-label="אפשרויות סינון נוספות"'
     + (open ? '' : ' hidden') + '>'
-    + '<div class="ds-act-advanced__group"><h3>תאריכים</h3><div class="ds-act-advanced__grid">'
-    + selectField('advStartPresence', 'תאריך התחלה', [['', 'כל הפעילויות'], ['present', 'עם תאריך'], ['missing', 'ללא תאריך']], filters.advStartPresence)
-    + dateField('advStartFrom', 'מתאריך התחלה', filters.advStartFrom, noStart)
-    + dateField('advStartTo', 'עד תאריך התחלה', filters.advStartTo, noStart)
+    + '<div class="ds-act-advanced__grid">'
+    + selectField('advStartPresence', 'תאריך התחלה', PRESENCE_OPTIONS, filters.advStartPresence)
     + selectField('advEndPresence', 'תאריך סיום', PRESENCE_OPTIONS, filters.advEndPresence)
-    + '</div></div>'
-    + '<div class="ds-act-advanced__group"><h3>שיבוץ מדריכים</h3><div class="ds-act-advanced__grid">'
+    + dateField('advMeetingFrom', 'מפגש מתאריך', filters.advMeetingFrom)
+    + dateField('advMeetingTo', 'מפגש עד תאריך', filters.advMeetingTo)
     + selectField('assignment', 'מצב שיבוץ', ASSIGNMENT_OPTIONS, assignment)
-    + '</div></div>'
-    + '<div class="ds-act-advanced__group"><h3>שלמות נתונים</h3><div class="ds-act-advanced__grid">'
-    + selectField('advPricePresence', 'מחיר לפעילות', PRESENCE_OPTIONS, filters.advPricePresence)
-    + selectField('advSchoolPresence', 'בית ספר', PRESENCE_OPTIONS, filters.advSchoolPresence)
-    + selectField('advFundingPresence', 'מקור מימון', PRESENCE_OPTIONS, filters.advFundingPresence)
-    + selectField('advHoursPresence', 'שעות התחלה וסיום', PRESENCE_OPTIONS, filters.advHoursPresence)
-    + '</div></div>'
-    + '<div class="ds-act-advanced__footer"><button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-activities-advanced-reset>ניקוי הבחירות</button>'
+    + selectField('advPricePresence', 'מחיר פעילות', PRESENCE_OPTIONS, filters.advPricePresence)
+    + '</div>'
+    + '<div class="ds-act-advanced__footer"><span class="ds-act-advanced__hint">הטווח נבדק מול כל תאריכי המפגשים של הפעילות</span>'
+    + '<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-activities-advanced-reset>ניקוי</button>'
     + '<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost" data-activities-advanced-close>סגירה</button></div>'
     + '</section>';
 }
@@ -159,13 +154,6 @@ export function bindActivitiesAdvancedFilters(root, state, scope, rerender) {
       } else if (ADVANCED_ACTIVITY_FILTER_KEYS.includes(field)) {
         const filters = ensureActivityListFilters(state, scope);
         filters[field] = value;
-        if (field === 'advStartPresence' && value === 'missing') {
-          filters.advStartFrom = '';
-          filters.advStartTo = '';
-        }
-        if ((field === 'advStartFrom' || field === 'advStartTo') && value) {
-          filters.advStartPresence = 'present';
-        }
       }
       ensureActivityListFilters(state, scope).visibleCount = 200;
       rerender();
