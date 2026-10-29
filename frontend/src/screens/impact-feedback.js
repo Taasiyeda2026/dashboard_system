@@ -82,7 +82,7 @@ import {
   extendAssignedStudentFeedbackExpiry
 } from '../impact-feedback/feedback-api.js';
 import { campaignLink, copyText, openQrProjection, personalShareLinks } from '../impact-feedback/feedback-share.js';
-import { staffDeliveryStatus, staffStatusIndex } from '../impact-feedback/staff-delivery-status.js';
+import { staffDeliveryPresentation, staffStatusIndex } from '../impact-feedback/staff-delivery-status.js';
 import { hasArabicAnswerText, arabicAnswerTranslationUrl } from '../impact-feedback/feedback-translation.js';
 import { renderTemplatesView, bindTemplatesView } from '../impact-feedback/feedback-templates-view.js';
 import '../impact-feedback/feedback-form.css';
@@ -359,12 +359,23 @@ async function ensureStaffDelivery(force = false) {
   ui.staffDeliveryLoaded = true;
 }
 
-function staffEmailStatusHtml(group, stage, scope) {
+function staffEmailStatusHtml(group, stage, scope, { standalone = false } = {}) {
   if (scope !== 'staff' || ui.year !== 'school_2027') return '';
-  const value = ui.staffDelivery.get(`${group.row_id}|${stage}`);
-  const { label, tone } = staffDeliveryStatus(value?.status);
-  const plan = ui.staffPlans.get(`${group.row_id}|${stage}`);
-  return `<span class="ifb-cell-sub ifb-mail-status" aria-label="שליחת מייל: ${esc(label)}">${statusText(`מייל: ${label}`, tone)}${plan?.send_on && value?.status !== 'sent' ? `<span class="ifb-mail-plan">לא לפני ${fmtDate(plan.send_on)}, 08:00</span>` : ''}</span>`;
+  const key = `${group.row_id}|${stage}`;
+  const value = ui.staffDelivery.get(key);
+  const plan = ui.staffPlans.get(key);
+  const { label, tone } = staffDeliveryPresentation({
+    stage, status: value?.status, reason: value?.reason || plan?.eligibility_status,
+    startDate: group.start_date, eligibilityAt: plan?.automatic_due_at,
+    scheduledOn: plan?.send_on
+  });
+  const presentationLabel = standalone ? label : `מייל: ${label}`;
+  const manualPlan = plan?.send_on && value?.status !== 'sent'
+    ? `<span class="ifb-mail-plan">לא לפני ${fmtDate(plan.send_on)}, 08:00</span>` : '';
+  const midDate = stage === 'mid' && value?.status === 'not_due'
+    && plan?.automatic_due_at && Date.parse(plan.automatic_due_at) > Date.now()
+    ? `<span class="ifb-mail-plan">מפגש אמצעי: ${fmtDate(plan.automatic_due_at)}</span>` : '';
+  return `<span class="ifb-cell-sub ifb-mail-status" aria-label="שליחת מייל: ${esc(label)}">${statusText(presentationLabel, tone)}${midDate}${manualPlan}</span>`;
 }
 
 async function ensureInstructorAssignments(force = false) {
@@ -888,12 +899,19 @@ function groupsTableHtml(slots, scope) {
     const phases = ['pre','mid','final'];
     const stageStatus = (g, stage) => {
       const slot = slots.find((s) => s.stage === stage);
-      if (stage === 'final' && !hasCourseEndDate(g)) {
-        return '<span class="ifb-muted">ממתין לסיום הקורס</span>';
+      if (!g.program_key || !slot) return '<span class="ifb-muted">לא הותאם משוב</span>';
+      const campaign = slotCampaign(g, slot);
+      if (stage === 'final' && !hasCourseEndDate(g) && !campaign) {
+        return statusText('ממתין לתאריך סיום', 'muted');
       }
-      return g.program_key && slot
-        ? tableStatusHtml(slotCampaign(g, slot)) + staffEmailStatusHtml(g, stage, scope)
-        : '<span class="ifb-muted">—</span>';
+      // Until the automatic dispatch creates a questionnaire, show one
+      // meaningful mail state rather than two ambiguous pending labels.
+      if (!campaign) return staffEmailStatusHtml(g, stage, scope, { standalone: true });
+      const campaignStatus = campaignUiStatus(campaign);
+      const wasMailed = ui.staffDelivery.get(`${g.row_id}|${stage}`)?.status === 'sent';
+      const surveyStatus = campaignStatus.key === 'active' && !wasMailed
+        ? statusText('קישור פעיל', 'muted') : tableStatusHtml(campaign);
+      return surveyStatus + staffEmailStatusHtml(g, stage, scope);
     };
     const output = filtered.length ? `
       <div class="ifb-table-wrap ifb-staff-table-wrap">
