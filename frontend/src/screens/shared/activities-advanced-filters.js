@@ -102,7 +102,7 @@ export function activitiesAdvancedFilterToggleHtml(filters = {}, assignment = 'a
     + '" data-activities-advanced-toggle aria-controls="activities-advanced-filters-panel" aria-expanded="'
     + (open ? 'true' : 'false')
     + '" aria-label="אפשרויות סינון נוספות" title="אפשרויות סינון נוספות">'
-    + '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 6h16M7 12h10M10 18h4"/></svg>'
+    + '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M4 6h16M7 12h10M10 18h4"/></svg>'
     + (count ? '<span class="ds-act-advanced__indicator" aria-hidden="true"></span>' : '')
     + '</button>';
 }
