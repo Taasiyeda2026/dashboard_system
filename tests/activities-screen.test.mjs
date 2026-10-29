@@ -157,7 +157,7 @@ test('activities initial load does not load coordination data', async () => {
   assert.equal(state.activitiesInnerTab, 'year_all');
 });
 
-test('coordination tab loads once, shows local loading, and reuses successful data', async () => {
+test('coordination tab shows local loading, avoids duplicate inflight requests, and refreshes on reentry', async () => {
   const previousWindow = globalThis.window;
   const previousDocument = globalThis.document;
   const previousAbortController = globalThis.AbortController;
@@ -205,7 +205,9 @@ test('coordination tab loads once, shows local loading, and reuses successful da
     root.querySelector('[data-activity-period-tab="year_all"]').click();
     root.querySelector('[data-activity-period-tab="coordination_approvals"]').click();
     await Promise.resolve();
-    assert.equal(loadCalls, 1);
+    assert.equal(loadCalls, 2);
+    resolveLoad(coordination);
+    await state.activityCoordinationPromise;
     root.querySelector('[data-activity-period-tab="year_all"]').click();
   } finally {
     if (previousWindow === undefined) delete globalThis.window;
