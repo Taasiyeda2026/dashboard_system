@@ -343,7 +343,12 @@ async function ensureStaffDelivery(force = false) {
     ui.staffDelivery = staffStatusIndex(delivery);
     ui.staffPlans = new Map();
     for (const item of plan) {
-      for (const id of item.activity_row_ids || []) ui.staffPlans.set(`${id}|${item.stage}`, item);
+      const status = delivery.find((d) => d.stage === item.stage
+        && (item.activity_row_ids || []).includes(d.activity_row_id));
+      for (const id of item.activity_row_ids || []) {
+        ui.staffPlans.set(`${id}|${item.stage}`, item);
+        if (status) ui.staffDelivery.set(`${id}|${item.stage}`, status);
+      }
     }
   } catch {
     // During rollout the migration may not yet exist. Never report false success,
@@ -2792,7 +2797,7 @@ async function handleSubmit(host, event) {
     try {
       const automatic = event.submitter?.value === 'automatic';
       const day = String(new FormData(form).get('send_on') || '').trim();
-      if (!automatic && (!/^\\d{4}-\\d{2}-\\d{2}$/.test(day) || day <= isoDay(Date.now()))) {
+      if (!automatic && (!/^\d{4}-\d{2}-\d{2}$/.test(day) || day <= isoDay(Date.now()))) {
         throw new Error('יש לבחור תאריך עתידי');
       }
       await scheduleStaffSend(form.dataset.ifbStaffSchedule, form.dataset.stage, automatic ? null : day);
