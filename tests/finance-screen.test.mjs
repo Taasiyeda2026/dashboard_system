@@ -930,7 +930,7 @@ test('finance payer key uses stable ids so spelling variants do not split groups
 });
 
 test('collection search debounces invoice filtering without recreating the input', async () => {
-  const api=mockApi({accounts:[invoice(),invoice({id:'other',transaction_account_number:8526,customer_name_snapshot:'נהרייה',finance_transaction_account_lines:[]})]});
+  const api=mockApi({activities:[activity()],accounts:[invoice(),invoice({id:'other',transaction_account_number:8526,customer_name_snapshot:'נהרייה',finance_transaction_account_lines:[]})]});
   const {host,window}=mount(createFinanceVisitState(),{api});host.querySelector('[data-finance-open="collection"]').click();await flush();
   const input=host.querySelector('[data-finance-collection-search]');input.focus();input.value='רחובות';input.dispatchEvent(new window.Event('input',{bubbles:true}));
   assert.equal(host.querySelector('[data-finance-collection-search]'),input);await new Promise(r=>setTimeout(r,280));
@@ -1062,7 +1062,7 @@ test('orphan tracking rows are not shown as activities', () => {
 });
 
 test('collection tracking updates one invoice and retains the separate invoice from the same activity', async () => {
-  const accounts=[invoice(),invoice({id:'INV-2',transaction_account_number:8526})];const api=mockApi({accounts});
+  const accounts=[invoice(),invoice({id:'INV-2',transaction_account_number:8526})];const api=mockApi({activities:[activity()],accounts});
   const {host}=mount(createFinanceVisitState(),{api});host.querySelector('[data-finance-open="collection"]').click();await flush();
   const note=host.querySelector('[data-account-id="INV-1"][data-finance-account-field="finance_note"]');note.value='לתזכורת';note.dispatchEvent(new host.ownerDocument.defaultView.Event('change',{bubbles:true}));await flush();
   assert.equal(api.counts.updateFinanceAccountTracking,1);assert.equal(accounts[0].finance_note,'לתזכורת');assert.equal(accounts[1].finance_note,'');assert.match(host.innerHTML,/נשמר/);
@@ -1098,7 +1098,7 @@ test('team is filled from the existing employee mapping when the snapshot has no
 });
 
 test('invoice date and note save; a rejected change reloads the committed tracking values', async () => {
-  const accounts=[invoice()];const api=mockApi({accounts});const save=api.updateFinanceAccountTracking;
+  const accounts=[invoice()];const api=mockApi({activities:[activity()],accounts});const save=api.updateFinanceAccountTracking;
   api.updateFinanceAccountTracking=async(id,date,note)=>{if(note==='רע')throw Error('שמירה נכשלה');return save(id,date,note);};
   const {host}=mount(createFinanceVisitState(),{api});host.querySelector('[data-finance-open="collection"]').click();await flush();
   const change=async(field,value)=>{const input=host.querySelector('[data-finance-account-field="'+field+'"]');input.value=value;input.dispatchEvent(new host.ownerDocument.defaultView.Event('change',{bubbles:true}));await flush();};
