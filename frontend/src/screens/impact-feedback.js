@@ -82,7 +82,7 @@ import {
   extendAssignedStudentFeedbackExpiry
 } from '../impact-feedback/feedback-api.js';
 import { campaignLink, copyText, openQrProjection, personalShareLinks } from '../impact-feedback/feedback-share.js';
-import { staffDeliveryPresentation, staffStatusIndex } from '../impact-feedback/staff-delivery-status.js';
+import { staffDeliveryPresentation, staffStatusIndex, staffFinalReadiness, staffFinalExpiryWarning } from '../impact-feedback/staff-delivery-status.js';
 import { hasArabicAnswerText, arabicAnswerTranslationUrl } from '../impact-feedback/feedback-translation.js';
 import { renderTemplatesView, bindTemplatesView } from '../impact-feedback/feedback-templates-view.js';
 import '../impact-feedback/feedback-form.css';
@@ -357,6 +357,38 @@ async function ensureStaffDelivery(force = false) {
     ui.staffPlans = new Map();
   }
   ui.staffDeliveryLoaded = true;
+}
+
+
+/** The status of an early manual closing link is not the course's final-feedback status. */
+function staffFinalWaiting(group, campaign = null) {
+  const plan = ui.staffPlans.get(`${group.row_id}|final`);
+  const mailStatus = ui.staffDelivery.get(`${group.row_id}|final`)?.status;
+  // Preserve historical completed feedback and genuinely accepted automatic emails.
+  if (campaign?.recipient?.status === 'completed' || campaign?.recipient?.completed_at
+      || Number(campaign?.responses || 0) > 0 || mailStatus === 'sent') return null;
+  const readiness = staffFinalReadiness({
+    endDate: group.end_date,
+    eligibilityAt: plan?.automatic_due_at,
+    eligibilityStatus: plan?.eligibility_status
+  });
+  if (readiness.ready) return null;
+  return {
+    ...readiness,
+    sharedEarly: Boolean(campaign?.recipient?.last_shared_at),
+    warning: staffFinalExpiryWarning({
+      expiresAt: campaign?.expires_at, endDate: group.end_date
+    })
+  };
+}
+
+function staffFinalWaitingHtml(waiting, { detailed = false } = {}) {
+  if (!waiting) return '';
+  const shareText = waiting.sharedEarly
+    ? '<span class="ifb-staff-final-note">בוצעה פעולת שיתוף ידנית לפני סיום הקורס</span>' : '';
+  const warning = waiting.warning
+    ? `<span class="ifb-staff-final-note ifb-staff-final-note--warning">${esc(waiting.warning)}</span>` : '';
+  return `<div class="ifb-staff-final-waiting${detailed ? ' ifb-staff-final-waiting--detail' : ''}">${statusText(waiting.label, waiting.tone)}${shareText}${warning}</div>`;
 }
 
 function staffEmailStatusHtml(group, stage, scope, { standalone = false } = {}) {
@@ -901,8 +933,9 @@ function groupsTableHtml(slots, scope) {
       const slot = slots.find((s) => s.stage === stage);
       if (!g.program_key || !slot) return '<span class="ifb-muted">לא הותאם משוב</span>';
       const campaign = slotCampaign(g, slot);
-      if (stage === 'final' && !hasCourseEndDate(g) && !campaign) {
-        return statusText('ממתין לתאריך סיום', 'muted');
+      if (stage === 'final') {
+        const waiting = staffFinalWaiting(g, campaign);
+        if (waiting) return staffFinalWaitingHtml(waiting);
       }
       // Until the automatic dispatch creates a questionnaire, show one
       // meaningful mail state rather than two ambiguous pending labels.
@@ -2115,6 +2148,8 @@ function slotCardHtml(group, slot, user) {
   const studentShareAttr = studentShareAllowed ? ' data-ifb-student-share-enabled="true"' : '';
   const campaign = slotCampaign(group, slot);
   const status = campaignUiStatus(campaign);
+  const earlyFinal = slot.audience === 'educational_staff' && slot.stage === 'final'
+    ? staffFinalWaiting(group, campaign) : null;
   const title = `<h3 class="ifb-slot__title">${esc(slot.label)}</h3>`;
   if (campaign?.not_required === true) {
     return `<article class="ifb-slot" data-slot="${slot.key}" data-campaign="${esc(campaign.id)}">
@@ -2124,8 +2159,8 @@ function slotCardHtml(group, slot, user) {
   }
   if (!campaign) {
     return `<article class="ifb-slot" data-slot="${slot.key}"${staffShareAttr}${studentShareAttr}>
-      <div class="ifb-slot__head">${title}${campaignStatusHtml(null)}</div>
-      ${openFormHtml(group, slot)}
+      <div class="ifb-slot__head">${title}${earlyFinal ? statusText(earlyFinal.label, earlyFinal.tone) : campaignStatusHtml(null)}</div>
+      ${earlyFinal ? '<p class="ifb-muted">משוב הסיום ייפתח לאחר השלמת הקורס.</p>' : openFormHtml(group, slot)}
       ${staffScheduleHtml(group, slot)}
     </article>`;
   }
@@ -2151,6 +2186,8 @@ function slotCardHtml(group, slot, user) {
       ${campaign.status === 'active' ? `<button type="button" class="ifb-btn ifb-btn--danger" data-ifb-close="${id}">סגירה</button>` : `<button type="button" class="ifb-btn" data-ifb-reopen="${id}">פתיחה מחדש</button>`}`;
   } else if (status.key === 'completed') {
     actions = '<span class="ifb-muted">המשוב הושלם ונעול</span>';
+  } else if (earlyFinal) {
+    actions = '<span class="ifb-muted">שיתוף משוב הסיום יתאפשר לאחר השלמת הקורס</span>';
   } else {
     const links = personalShareLinks(campaign, { programTitle: programTitle(group.program_key), schoolName: group.school });
     actions = `
@@ -2186,7 +2223,8 @@ function slotCardHtml(group, slot, user) {
           <button type="submit" class="ifb-btn ifb-btn--sm">שמירה</button></form></details>`
       : '';
   return `<article class="ifb-slot" data-slot="${slot.key}" data-campaign="${id}"${staffShareAttr}${studentShareAttr}>
-    <div class="ifb-slot__head">${title}${campaignStatusHtml(campaign)}</div>
+    <div class="ifb-slot__head">${title}${earlyFinal ? statusText(earlyFinal.label, earlyFinal.tone) : campaignStatusHtml(campaign)}</div>
+    ${earlyFinal ? staffFinalWaitingHtml(earlyFinal, { detailed: true }) : ''}
     ${meta}
     <div class="ifb-slot__actions">${actions}</div>
     ${extendForm}
