@@ -74,7 +74,10 @@ function metricsSheet(audience, chosenSlots, scopedFacts, metrics) {
       continue;
     }
     for (const q of stats) {
-      const options = Object.entries(q.optionCounts || {}).map(([name, n]) => name + ': ' + n).join('; ');
+      const optionLabels = new Map((q.options || []).map((option) =>
+        [String(option.value), String(option.label || option.label_ar || option.value)]));
+      const options = Object.entries(q.optionCounts || {}).map(([name, n]) =>
+        (optionLabels.get(name) || name) + ': ' + n).join('; ');
       rows.push([
         slot.stageLabel, q.text, q.question_type, metricsByKey.get(q.metric_key) || q.metric_key || '',
         q.n, q.na, q.avg ?? '', ...q.dist, q.yes, q.no, options,
@@ -103,11 +106,11 @@ function compareSlots(audience, first, second, stageFacts) {
   return rows;
 }
 
-function instructions({ title, academicYear, half, selectedSlots, stageOverview }) {
+function instructions({ title, topic, academicYear, half, selectedSlots, stageOverview }) {
   const lines = [
     'הנחיות מקצועיות לניתוח משובי תעשיידע ב-ChatGPT',
     'קובץ Excel זה הוא המקור היחיד לנתונים. קרא את כל הגיליונות הרלוונטיים לפני כתיבת הדוח.',
-    'תוכנית: ' + title + ' | שנה: ' + academicYearLabel(academicYear) + ' | תקופה: ' + half,
+    'תוכנית: ' + title + ' | נושא: ' + (topic || title) + ' | שנה: ' + academicYearLabel(academicYear) + ' | תקופה: ' + half,
     'שלבים שנבחרו: ' + selectedSlots.map((s) => s.audienceLabel + ' - ' + s.stageLabel).join('; '),
     'הנתונים יכולים להצטבר לאורך השנה. שלב שלא נבחר או טרם נאספו בו תשובות אינו ראיה לכישלון התוכנית.',
     'חובה לציין בכל ממצא: קהל, שלב, נוסח השאלה, מספר שאלונים שהוגשו בשלב ומספר תשובות תקפות (N) לשאלה. בצוות חינוכי ציין גם מספר בתי הספר המיוצגים כשזמין.',
@@ -133,6 +136,7 @@ function instructions({ title, academicYear, half, selectedSlots, stageOverview 
     ['שדה', 'תוכן'],
     ['בקשה להתחלת הניתוח', 'נתח את קובץ ה-Excel המצורף לפי ההנחיות בגיליון "הנחיות AI" והצג דוח מקצועי מבוסס נתונים.'],
     ['קורס', title],
+    ['נושא התוכנית', topic || title],
     ['שנת לימודים', academicYearLabel(academicYear)],
     ['תקופה', half],
     ['שלבים שנבחרו', selectedSlots.map((s) => s.audienceLabel + ' - ' + s.stageLabel).join(', ')],
@@ -146,7 +150,7 @@ function instructions({ title, academicYear, half, selectedSlots, stageOverview 
  * anonymized: no names, employee numbers, campaign UUIDs or respondent UUIDs.
  */
 export function buildAiPackage({
-  facts = [], selected = AI_DEFAULT_SELECTION, title = '', academicYear = '',
+  facts = [], selected = AI_DEFAULT_SELECTION, title = '', topic = '', academicYear = '',
   half = 'מחצית א׳', metrics = [], programs = [], instructorRecommendations = []
 } = {}) {
   const slots = aiSelectedSlots(selected);
@@ -200,7 +204,7 @@ export function buildAiPackage({
   ]);
   const sheets = [
     { name: 'הנחיות AI', headers: null,
-      rows: instructions({ title, academicYear, half, selectedSlots: slots, stageOverview }), widths: [27, 115] },
+      rows: instructions({ title, topic, academicYear, half, selectedSlots: slots, stageOverview }), widths: [27, 115] },
     { name: 'בסיס הניתוח',
       headers: ['קהל', 'שלב', 'שאלונים שהוגשו', 'קבוצות מיוצגות', 'בתי ספר מיוצגים', 'דירוגים תקפים', 'סטטוס'],
       rows: stageOverview, widths: [18, 18, 18, 18, 18, 18, 26] },
