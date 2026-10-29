@@ -7,7 +7,7 @@
  * Server enforces admin access (RLS + admin-checked RPCs); the client check is only UX.
  */
 import * as XLSX from 'xlsx';
-import { AI_STAGE_GROUPS, AI_DEFAULT_SELECTION, aiFactsForSelection, aiSelectedSlots, buildAiPackage } from '../impact-feedback/feedback-ai-package.js';
+import { AI_STAGE_GROUPS, AI_DEFAULT_SELECTION, aiFactsForSelection, buildAiPackage } from '../impact-feedback/feedback-ai-package.js';
 import { escapeHtml as esc } from './shared/html.js';
 import { showToast } from './shared/toast.js';
 import { ACTIVE_ACTIVITY_SEASON, normalizeGlobalActivityPeriod } from './shared/summer-activity.js';
@@ -1776,13 +1776,21 @@ function analysisAiPackageHtml() {
   '</section>';
 }
 
-function exportAiWorkbook() {
+async function exportAiWorkbook() {
   if (!ui.course || !ui.aiSelectedStages.size) {
     showToast('בחרו קורס ושלב משוב אחד לפחות', 'info');
     return;
   }
-  const facts = courseFacts();
+  // Refresh on user-initiated export: a dashboard tab may stay open while more
+  // questionnaires are submitted. Never export a stale in-memory snapshot.
+  const original = [ui.course, ui.year, ui.feedbackHalf].join('|');
   const selected = [...ui.aiSelectedStages];
+  await ensureFacts(true);
+  if ([ui.course, ui.year, ui.feedbackHalf].join('|') !== original) {
+    showToast('הקורס או התקופה השתנו. יש להפעיל מחדש את הייצוא.', 'info');
+    return;
+  }
+  const facts = courseFacts();
   const includedFacts = aiFactsForSelection(facts, selected);
   const selectedResponseIds = new Set(includedFacts.map((f) => f.response_id));
   const output = buildAiPackage({
@@ -2482,7 +2490,7 @@ async function handleClick(host, event) {
     return;
   }
   if (t.closest('[data-ifb-ai-package]')) {
-    try { exportAiWorkbook(); }
+    try { await exportAiWorkbook(); }
     catch (error) {
       console.error('[feedback-ai-export]', error);
       showToast('הפקת הקובץ נכשלה. לא שונו נתוני משוב.', 'error', 5000);
