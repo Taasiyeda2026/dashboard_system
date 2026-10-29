@@ -1,0 +1,35 @@
+name: Feedback full audit (read-only)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/feedback-full-audit.yml'
+      - 'frontend/src/impact-feedback/**'
+      - 'frontend/src/screens/impact-feedback.js'
+      - 'tests/*feedback*.test.mjs'
+      - 'supabase/functions/feedback-*/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  feedback-unit-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Unit and interface contract tests
+        run: |
+          find tests -maxdepth 1 -name '*feedback*.test.mjs' ! -name '*postgres*' -print0 | xargs -0 node --test
+      - name: Production build
+        env:
+          VITE_BASE: /dashboard_system/
+        run: npm run build
