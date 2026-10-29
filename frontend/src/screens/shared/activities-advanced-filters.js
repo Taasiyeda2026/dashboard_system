@@ -61,8 +61,8 @@ export function applyActivitiesAdvancedFilters(rows = [], filters = {}) {
   const from = asDate(filters.advMeetingFrom);
   const to = asDate(filters.advMeetingTo);
   return (Array.isArray(rows) ? rows : []).filter((row) => {
-    const start = asDate(row?.start_date ?? row?.date_start);
-    const end = asDate(row?.end_date ?? row?.date_end);
+    const start = asDate(row?.start_date) || asDate(row?.date_start);
+    const end = asDate(row?.end_date) || asDate(row?.date_end);
     if (!passesPresence(filters.advStartPresence, !!start)) return false;
     if (!passesPresence(filters.advEndPresence, !!end)) return false;
     if (from || to) {
