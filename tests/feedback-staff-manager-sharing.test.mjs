@@ -61,6 +61,7 @@ test('staff feedback slot renders for manager and admin without an undefined sta
     slotCampaign: () => null,
     campaignUiStatus: () => ({ key: 'not_started' }),
     campaignStatusHtml: () => '',
+    ui: { staffDelivery: new Map() },
     openFormHtml: () => '',
     staffScheduleHtml: () => '',
     esc: (value) => String(value)
