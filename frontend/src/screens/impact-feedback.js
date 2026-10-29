@@ -419,7 +419,7 @@ async function ensureStaffIssues(force = false) {
   const task = (async () => {
     try {
       // Restricted viewers can read regular feedback but must not access admin-only issue follow-up.
-      const records = feedbackReadOnly ? [] : await fetchStaffMidIssues(year);
+      const records = isFeedbackAdmin(feedbackViewerUser) ? await fetchStaffMidIssues(year) : [];
       if (ui.year !== year) return;
       ui.staffIssues = Array.isArray(records) ? records : [];
       ui.staffIssuesYear = year;
@@ -1262,7 +1262,7 @@ function instructorsHtml() {
 // ---------------------------------------------------------------------------
 
 function staffIssuesHtml() {
-  if (feedbackReadOnly) return '';
+  if (!isFeedbackAdmin(feedbackViewerUser)) return '';
   const items = (ui.staffIssues || []).filter((item) =>
     (!ui.course || item.program_key === ui.course) &&
     studentFeedbackPeriodForGroup({ start_date: item.activity_start_date }) === ui.feedbackHalf
@@ -2492,7 +2492,7 @@ async function handleClick(host, event) {
   }
   const saveIssueButton = t.closest('[data-ifb-issue-save]');
   if (saveIssueButton) {
-    if (feedbackReadOnly) return;
+    if (!isFeedbackAdmin(feedbackViewerUser)) return;
     const row = saveIssueButton.closest('[data-ifb-issue-row]');
     const controls = row?.querySelector('[data-ifb-issue-controls]');
     if (!controls) return;
