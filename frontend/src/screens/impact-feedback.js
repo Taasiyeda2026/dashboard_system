@@ -389,7 +389,7 @@ function staffFinalWaitingHtml(waiting, { detailed = false } = {}) {
   const warning = waiting.warning
     ? `<span class="ifb-staff-final-note ifb-staff-final-note--warning">${esc(waiting.warning)}</span>` : '';
   if (detailed && !shareText && !warning) return '';
-  return `<div class="ifb-staff-final-waiting${detailed ? ' ifb-staff-final-waiting--detail' : ''}">${detailed ? '' : statusText(waiting.label, waiting.tone)}${shareText}${warning}</div>`;
+  return `<div class="ifb-staff-final-waiting${detailed ? ' ifb-staff-final-waiting--detail' : ''}">${detailed ? '' : statusText(waiting.label, waiting.tone)}${shareText}${warning}${detailed ? '<span class="ifb-staff-final-note">משוב הסיום עדיין אינו מיועד להפצה אוטומטית.</span>' : ''}</div>`;
 }
 
 function staffEmailStatusHtml(group, stage, scope, { standalone = false } = {}) {
@@ -2161,7 +2161,7 @@ function slotCardHtml(group, slot, user) {
   if (!campaign) {
     return `<article class="ifb-slot" data-slot="${slot.key}"${staffShareAttr}${studentShareAttr}>
       <div class="ifb-slot__head">${title}${earlyFinal ? statusText(earlyFinal.label, earlyFinal.tone) : campaignStatusHtml(null)}</div>
-      ${earlyFinal ? '<p class="ifb-muted">משוב הסיום ייפתח לאחר השלמת הקורס.</p>' : openFormHtml(group, slot)}
+      ${openFormHtml(group, slot)}
       ${staffScheduleHtml(group, slot)}
     </article>`;
   }
@@ -2187,8 +2187,6 @@ function slotCardHtml(group, slot, user) {
       ${campaign.status === 'active' ? `<button type="button" class="ifb-btn ifb-btn--danger" data-ifb-close="${id}">סגירה</button>` : `<button type="button" class="ifb-btn" data-ifb-reopen="${id}">פתיחה מחדש</button>`}`;
   } else if (status.key === 'completed') {
     actions = '<span class="ifb-muted">המשוב הושלם ונעול</span>';
-  } else if (earlyFinal) {
-    actions = '<span class="ifb-muted">שיתוף משוב הסיום יתאפשר לאחר השלמת הקורס</span>';
   } else {
     const links = personalShareLinks(campaign, { programTitle: programTitle(group.program_key), schoolName: group.school });
     actions = `
