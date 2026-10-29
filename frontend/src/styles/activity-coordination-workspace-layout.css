@@ -50,17 +50,20 @@
   font-size: .72rem;
 }
 
-.coordination-section--ready .coordination-section__header {
+.coordination-section--ready .coordination-section__header,
+.coordination-section--changed_since_sent .coordination-section__header {
   align-items: flex-start;
   flex-direction: column;
 }
 
-.coordination-section--ready .coordination-toolbar {
+.coordination-section--ready .coordination-toolbar,
+.coordination-section--changed_since_sent .coordination-toolbar {
   width: 100%;
   gap: 6px;
 }
 
-.coordination-section--ready .coordination-toolbar .ds-btn {
+.coordination-section--ready .coordination-toolbar .ds-btn,
+.coordination-section--changed_since_sent .coordination-toolbar .ds-btn {
   min-height: 34px;
   padding: 6px 10px;
   font-size: .74rem;
@@ -114,6 +117,22 @@
   font-size: .7rem;
   line-height: 1.45;
 }
+
+.coordination-status.is-changed,
+.coordination-section--changed_since_sent .coordination-changed-note {
+  color: #a05a0d;
+}
+
+.coordination-section--changed_since_sent .coordination-school {
+  border-color: #eed8b6;
+}
+
+.coordination-section--changed_since_sent .coordination-section__header h3 span {
+  background: #fff0d9;
+  color: #995b15;
+}
+
+
 
 .coordination-section__empty {
   min-height: 54px;
