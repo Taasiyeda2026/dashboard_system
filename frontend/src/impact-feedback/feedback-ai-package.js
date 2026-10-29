@@ -28,6 +28,25 @@ export const AI_STAGE_GROUPS = Object.freeze([
   ] }
 ]);
 
+/**
+ * Generic, non-sensitive starter prompt. It can be placed in a ChatGPT deep link;
+ * the actual detailed instructions and all data remain inside the XLSX attachment.
+ * The link only primes the new conversation; it never transmits the workbook.
+ */
+export const AI_CHATGPT_STARTER = [
+  'אני מצרף/ת לשיחה קובץ Excel לניתוח משובים של תעשיידע.',
+  'זוהי בקשה לביצוע הניתוח המלא, ולא בקשה לבחון אם אני מעוניין/ת בניתוח.',
+  'לאחר צירוף הקובץ, קרא/י תחילה את הגיליון "הנחיות AI" ופעל/י לפי כל ההוראות שבו בלי לשאול מה לנתח ובלי לבקש פרומפט נוסף.',
+  'בצע/י את הניתוח מיד על כל הנתונים והשלבים שנכללו בקובץ; אם זה דוח כל המדריכים, נתח/י קודם כל קורס בנפרד ורק לאחר מכן מגמות משותפות.',
+  'חובה לציין מספר שאלונים ותשובות תקפות (N), לבדוק השוואות, לנתח תשובות פתוחות ולתרגם במלואן לעברית תשובות בערבית.',
+  'הפק/י דוח מקצועי בעברית עם ממצאים, ראיות והמלצות מעשיות לשיפור.',
+  'אם הקובץ עוד לא צורף, אל תנסה/י לנתח נתונים ללא מקור; הבקשה תבוצע מיד לאחר שאצרף אותו באותה שיחה.'
+].join('\n');
+
+export function aiChatGptStartUrl() {
+  return 'https://chatgpt.com/?q=' + encodeURIComponent(AI_CHATGPT_STARTER);
+}
+
 export const AI_DEFAULT_SELECTION = Object.freeze([
   'educational_staff:pre', 'student:pre', 'instructor:pre'
 ]);
