@@ -283,6 +283,20 @@ test('All Activities price filter receives actual activity price and fresh list 
   assert.equal(missingPrice.price, null, 'normalization must not manufacture prices');
 });
 
+test('All Activities price presence chooses priced and unpriced activities independently', () => {
+  const rows = [
+    { RowID: 'WITH-PRICE', activity_name: 'קורס מתומחר', activity_season: 'school_2027', activity_type: 'course',
+      status: 'פתוח', authority: 'רחובות', school: 'אלון', price: 9450 },
+    { RowID: 'WITHOUT-PRICE', activity_name: 'קורס ללא מחיר', activity_season: 'school_2027', activity_type: 'course',
+      status: 'פתוח', authority: 'רחובות', school: 'דקל', price: null }
+  ];
+  const period = { activityPeriodTab: 'school_2027', activitiesInnerTab: 'year_all' };
+  const withPrice = activitiesScreen.render({ rows }, { state: withFilters(baseState(period), { advPricePresence: 'present' }) });
+  const withoutPrice = activitiesScreen.render({ rows }, { state: withFilters(baseState(period), { advPricePresence: 'missing' }) });
+  assert.deepEqual(renderedRowIds(withPrice), ['WITH-PRICE']);
+  assert.deepEqual(renderedRowIds(withoutPrice), ['WITHOUT-PRICE']);
+});
+
 test('normalizeActivityRow keeps funding and maps null/blank to empty string without inventing values', () => {
   assert.equal(normalizeActivityRow({ row_id: '1', funding: 'גפן' }).funding, 'גפן');
   assert.equal(normalizeActivityRow({ row_id: '2', funding: 'רמי שני' }).funding, 'רמי שני');
