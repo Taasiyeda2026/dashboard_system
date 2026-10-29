@@ -971,7 +971,7 @@ function groupsTableHtml(slots, scope) {
     const stageSummary = (g, stage) => {
       const values = staffActivities(g).map((a) => stageStatus(a, stage));
       return values.every((v) => v === values[0])
-        ? values[0] : `${statusText('סטטוסים שונים', 'muted')}<span class="ifb-staff-sub">פירוט לפי פעילות</span>`;
+        ? values[0] : `${statusText('סטטוסים שונים', 'muted')}<span class="ifb-staff-sub">לצפייה בחרו קבוצה בניהול</span>`;
     };
     const actionsHtml = (g) => {
       const groupRows = staffActivities(g);
