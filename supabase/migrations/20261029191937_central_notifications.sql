@@ -17,7 +17,7 @@ create table private.dashboard_notification_events (
 create table private.dashboard_notification_assignments (
   domain text not null check(domain in ('personal_report','proposal','attendance')),
   entity_key text not null, stage text not null,
-  recipient_auth_user_id uuid not null references auth.users(id),
+  recipient_auth_user_id uuid not null references auth.users(id) on delete cascade,
   primary key(domain,entity_key,stage,recipient_auth_user_id)
 );
 create table private.dashboard_notification_routing_issues (
@@ -27,7 +27,7 @@ create table private.dashboard_notification_routing_issues (
 create table public.dashboard_notifications (
   id uuid primary key default gen_random_uuid(),
   event_id uuid not null references private.dashboard_notification_events(id),
-  recipient_auth_user_id uuid not null references auth.users(id),
+  recipient_auth_user_id uuid not null references auth.users(id) on delete cascade,
   domain text not null, entity_key text not null, event_type text not null,
   stage text not null, created_at timestamptz not null default now(), read_at timestamptz,
   unique(event_id,recipient_auth_user_id)
@@ -37,7 +37,7 @@ create index dashboard_notifications_unread on public.dashboard_notifications(re
 create table public.dashboard_notification_tasks (
   id uuid primary key default gen_random_uuid(),
   event_id uuid not null references private.dashboard_notification_events(id),
-  recipient_auth_user_id uuid not null references auth.users(id),
+  recipient_auth_user_id uuid not null references auth.users(id) on delete cascade,
   domain text not null, entity_key text not null, stage text not null,
   created_at timestamptz not null default now(), closed_at timestamptz,
   close_reason text,
@@ -66,19 +66,36 @@ $$;
 
 create function private.notification_recipients(p_domain text,p_key text,p_stage text)
 returns table(recipient uuid) language plpgsql stable security definer set search_path=public,private,pg_temp as $$
-declare v_owner uuid; v_label text; v_reference text; v_candidates uuid[]; v_self_report boolean:=false;
+declare v_owner uuid; v_label text; v_reference text; v_candidates uuid[]; v_self_report boolean:=false; v_assignment_key text;
 begin
+ if p_domain='personal_report' and p_stage='employee' then
+  select r.employee_id into v_owner from public.personal_reports r where r.id::text=p_key;
+  return query select v_owner where private.notification_capable(v_owner,p_domain,p_stage); return;
+ end if;
+ if p_domain='attendance' and p_stage='employee' then
+  select array_agg(distinct u.auth_user_id) into v_candidates from public.users u
+    where u.is_active and u.emp_id=split_part(p_key,'|',1) and u.auth_user_id is not null;
+  if cardinality(v_candidates)=1 then
+   return query select v_candidates[1] where private.notification_capable(v_candidates[1],p_domain,p_stage);
+  end if; return;
+ end if;
  v_self_report:=p_domain='personal_report' and p_stage='review' and exists(
    select 1 from public.personal_reports pr join public.users u on u.auth_user_id=pr.employee_id
    where pr.id::text=p_key and u.username='idann');
- -- Explicit individual appointments. No role-wide broadcast.
+ -- Document-specific appointment overrides the named process-wide appointment.
+ -- An ambiguous explicit assignment is a routing issue, never a fan-out.
+ v_assignment_key:=case when v_self_report or exists(select 1 from private.dashboard_notification_assignments
+  where domain=p_domain and entity_key=p_key and stage=p_stage) then p_key else '*' end;
  select array_agg(distinct a.recipient_auth_user_id) into v_candidates
  from private.dashboard_notification_assignments a
- where a.domain=p_domain and a.stage=p_stage and (a.entity_key=p_key or (a.entity_key='*' and not v_self_report))
+ where a.domain=p_domain and a.stage=p_stage and a.entity_key=v_assignment_key
  and not (p_domain='personal_report' and p_stage='review' and exists(
    select 1 from public.personal_reports pr where pr.id::text=p_key and pr.employee_id=a.recipient_auth_user_id));
- if coalesce(cardinality(v_candidates),0)>0 then
-   return query select x from unnest(v_candidates) x where private.notification_capable(x,p_domain,p_stage); return;
+ if exists(select 1 from private.dashboard_notification_assignments where domain=p_domain and entity_key=v_assignment_key and stage=p_stage) then
+   if cardinality(v_candidates)=1 then
+    return query select v_candidates[1] where private.notification_capable(v_candidates[1],p_domain,p_stage);
+   end if;
+   return;
  end if;
  if v_self_report then return;end if;
  if p_domain='personal_report' then

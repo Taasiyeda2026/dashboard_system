@@ -191,3 +191,21 @@ test('reviewed initialization is idempotent and does not invent historic payroll
  assert.equal(await scalar("select count(*) from dashboard_notifications where event_type='dispatched_to_payroll'"),0);
  await identity('employee');await assert.rejects(()=>db.exec('select private.initialize_dashboard_notifications()'),/permission denied/);
 });
+
+test('specific appointment overrides the default, ambiguity never fans out, and recipient deletion is unblocked',async t=>{
+ if(!required(t))return;
+ const temporary='66666666-6666-4666-8666-666666666666';
+ await db.query('insert into auth.users values($1)',[temporary]);
+ await db.query("insert into users(user_id,auth_user_id,username,role,is_active,full_name) values('temporary',$1,'temporary','admin',true,'temporary')",[temporary]);
+ await db.query("insert into private.dashboard_notification_assignments values('proposal',$1,'sign',$2)",[P,temporary]);
+ await db.query("insert into proposals_agreements(id,created_by,status) values($1,'employee','pending_approval')",[P]);
+ assert.equal(await scalar('select count(*) from dashboard_notification_tasks where closed_at is null'),1);
+ assert.equal(await scalar('select recipient_auth_user_id::text from dashboard_notification_tasks where closed_at is null'),temporary);
+ await db.query("insert into private.dashboard_notification_assignments values('proposal',$1,'sign',$2)",[P,U.idan]);
+ await db.exec(`update proposals_agreements set status='draft';update proposals_agreements set status='pending_approval'`);
+ assert.equal(await scalar('select count(*) from dashboard_notification_tasks where closed_at is null'),0);
+ assert.equal(await scalar('select count(*) from private.dashboard_notification_routing_issues'),1);
+ await db.query('delete from auth.users where id=$1',[temporary]);
+ assert.equal(await scalar(`select count(*) from dashboard_notifications where recipient_auth_user_id='${temporary}'`),0);
+ await db.query("delete from private.dashboard_notification_assignments where domain='proposal' and entity_key=$1",[P]);
+});
