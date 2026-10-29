@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import {
   applyActivitiesAdvancedFilters,
   advancedActivitiesFilterCount,
-  activitiesAdvancedFiltersHtml
+  activitiesAdvancedFiltersHtml,
+  activitiesAdvancedFilterToggleHtml
 } from '../frontend/src/screens/shared/activities-advanced-filters.js';
 
 const ready = {
@@ -77,12 +78,21 @@ test('advanced fields compose without changing input rows', () => {
   assert.equal(rows.length, 3);
 });
 
-test('popover exposes assignment and date filters and reports active filter count', () => {
+test('icon-only toggle and inline panel provide all filters and active state', () => {
   assert.equal(advancedActivitiesFilterCount({ advStartFrom: '2026-11-01', advPricePresence: 'missing' }, 'assigned'), 3);
-  const html = activitiesAdvancedFiltersHtml({ advStartPresence: 'missing', advPricePresence: 'missing' }, 'draft', true);
-  assert.match(html, /aria-expanded="true"/);
-  assert.match(html, /data-activity-advanced-field="assignment"/);
-  assert.match(html, /data-activity-advanced-field="advStartFrom"[^>]*disabled/);
-  assert.match(html, /סינון מתקדם \(3\)/);
+  const filters = { advStartPresence: 'missing', advPricePresence: 'missing' };
+  const toggle = activitiesAdvancedFilterToggleHtml(filters, 'draft', true);
+  const panel = activitiesAdvancedFiltersHtml(filters, 'draft', true);
+  assert.match(toggle, /aria-expanded="true"/);
+  assert.match(toggle, /data-activities-advanced-toggle/);
+  assert.match(toggle, /<svg/);
+  assert.match(toggle, /ds-act-advanced__indicator/);
+  assert.doesNotMatch(toggle, /סינון מתקדם/);
+  assert.doesNotMatch(toggle, /<button[^>]*>[א-ת]/);
+  assert.match(panel, /data-activities-advanced-panel/);
+  assert.match(panel, /data-activity-advanced-field="assignment"/);
+  assert.match(panel, /data-activity-advanced-field="advStartFrom"[^>]*disabled/);
+  assert.doesNotMatch(panel, /סינון מתקדם/);
   assert.match(activitiesAdvancedFiltersHtml({}, 'all', false), /hidden/);
+  assert.doesNotMatch(activitiesAdvancedFilterToggleHtml({}, 'all', false), /ds-act-advanced__indicator/);
 });
