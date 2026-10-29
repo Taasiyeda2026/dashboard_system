@@ -63,6 +63,8 @@ import {
   fetchCourseSummary,
   fetchGroups,
   fetchStaffDeliveryStatus,
+  fetchStaffSendPlan,
+  scheduleStaffSend,
   fetchStaffMidIssues,
   updateStaffMidIssue,
   fetchInstructorAssignments,
@@ -157,6 +159,7 @@ const ui = {
   groups: null,
   groupsYear: null,
   staffDelivery: new Map(),
+  staffPlans: new Map(),
   staffDeliveryLoaded: false,
   staffIssues: null,
   staffIssuesYear: null,
@@ -336,11 +339,17 @@ async function ensureGroups(force = false) {
 async function ensureStaffDelivery(force = false) {
   if (ui.year !== 'school_2027' || (!force && ui.staffDeliveryLoaded)) return;
   try {
-    ui.staffDelivery = staffStatusIndex(await fetchStaffDeliveryStatus());
+    const [delivery, plan] = await Promise.all([fetchStaffDeliveryStatus(), fetchStaffSendPlan()]);
+    ui.staffDelivery = staffStatusIndex(delivery);
+    ui.staffPlans = new Map();
+    for (const item of plan) {
+      for (const id of item.activity_row_ids || []) ui.staffPlans.set(`${id}|${item.stage}`, item);
+    }
   } catch {
     // During rollout the migration may not yet exist. Never report false success,
     // and keep the existing survey UI usable if the status read is unavailable.
     ui.staffDelivery = new Map();
+    ui.staffPlans = new Map();
   }
   ui.staffDeliveryLoaded = true;
 }
@@ -349,7 +358,8 @@ function staffEmailStatusHtml(group, stage, scope) {
   if (scope !== 'staff' || ui.year !== 'school_2027') return '';
   const value = ui.staffDelivery.get(`${group.row_id}|${stage}`);
   const { label, tone } = staffDeliveryStatus(value?.status);
-  return `<span class="ifb-cell-sub ifb-mail-status" aria-label="שליחת מייל: ${esc(label)}">${statusText(`מייל: ${label}`, tone)}</span>`;
+  const plan = ui.staffPlans.get(`${group.row_id}|${stage}`);
+  return `<span class="ifb-cell-sub ifb-mail-status" aria-label="שליחת מייל: ${esc(label)}">${statusText(`מייל: ${label}`, tone)}${plan?.send_on && value?.status !== 'sent' ? `<span class="ifb-mail-plan">לא לפני ${fmtDate(plan.send_on)}, 08:00</span>` : ''}</span>`;
 }
 
 async function ensureInstructorAssignments(force = false) {
@@ -868,6 +878,45 @@ function groupsTableHtml(slots, scope) {
       : matching.sort((a, b) =>
         Number(groupHasFeedback(b)) - Number(groupHasFeedback(a)) ||
         String(a.school).localeCompare(String(b.school), 'he'));
+
+  if (scope === 'staff') {
+    const phases = ['pre','mid','final'];
+    const stageStatus = (g, stage) => {
+      const slot = slots.find((s) => s.stage === stage);
+      if (stage === 'final' && !hasCourseEndDate(g)) {
+        return '<span class="ifb-muted">ממתין לסיום הקורס</span>';
+      }
+      return g.program_key && slot
+        ? tableStatusHtml(slotCampaign(g, slot)) + staffEmailStatusHtml(g, stage, scope)
+        : '<span class="ifb-muted">—</span>';
+    };
+    const output = filtered.length ? `
+      <div class="ifb-table-wrap ifb-staff-table-wrap">
+        <table class="ifb-table ifb-staff-table">
+          <caption class="ifb-sr">שלושה שלבי משוב לצוות החינוכי לפי קורס ובית ספר</caption>
+          <colgroup><col class="ifb-sw-school"><col class="ifb-sw-course"><col class="ifb-sw-people">
+            <col class="ifb-sw-dates"><col class="ifb-sw-status"><col class="ifb-sw-status">
+            <col class="ifb-sw-status"><col class="ifb-sw-action"></colgroup>
+          <thead><tr><th scope="col">בית ספר ורשות</th><th scope="col">קורס</th>
+            <th scope="col">אנשי קשר</th><th scope="col">תקופת הקורס</th>
+            <th scope="col">פתיחה</th><th scope="col">אמצע</th><th scope="col">סיום</th><th scope="col">פעולה</th></tr></thead>
+          <tbody>${filtered.map((g) => `
+            <tr data-row="${esc(g.row_id)}">
+              <th scope="row" data-label="בית ספר ורשות"><strong>${esc(g.school || '—')}</strong>
+                <span class="ifb-staff-sub">${esc(g.authority || '—')}${g.grade || g.class_group ? ' · ' + esc([g.grade,g.class_group].filter(Boolean).join(' · ')) : ''}</span></th>
+              <td data-label="קורס">${g.program_key ? esc(programTitle(g.program_key)) : '<span class="ifb-muted">טרם הותאם משוב</span>'}</td>
+              <td data-label="אנשי קשר"><strong>${esc(g.contact_name || 'לא הוגדר איש קשר')}</strong>
+                <span class="ifb-staff-sub">מדריך/ה: ${esc(g.staff_instructor_names?.join(', ') || 'לא שובץ/ה')}</span></td>
+              <td data-label="תקופת הקורס" class="ifb-staff-dates">${fmtDate(g.start_date)}
+                <span class="ifb-staff-sub">עד ${fmtDate(g.end_date)}</span></td>
+              ${phases.map(stage => `<td class="ifb-staff-stage" data-label="${esc({pre:'פתיחה',mid:'אמצע',final:'סיום'}[stage])}">${stageStatus(g,stage)}</td>`).join('')}
+              <td data-label="פעולה" class="ifb-staff-action"><button type="button" class="ifb-btn ifb-btn--sm"
+                data-ifb-open-group="${esc(g.row_id)}" aria-label="ניהול ותזמון משובים: ${esc(g.school || '')}">ניהול</button></td>
+            </tr>`).join('')}</tbody>
+        </table>
+      </div>` : emptyHtml('לא נמצאו קבוצות התואמות לסינון.');
+    return `${groupFiltersHtml(inHalf, scope)}${output}`;
+  }
   // The course column is shown for all courses or when the source activity has no matching feedback template.
   const showCourse = !ui.course || filtered.some((g) => !g.program_key);
   const body = filtered.length ? `
@@ -1273,8 +1322,7 @@ function staffIssuesHtml() {
       || (severityRank[a.severity] ?? 9) - (severityRank[b.severity] ?? 9)
       || String(b.created_at).localeCompare(String(a.created_at));
   });
-  if (!items.length) return sectionHtml('טיפול בפניות ממשוב האמצע',
-    '<p class="ifb-muted">לא נמצאו דיווחי קושי המחייבים טיפול בטווח שנבחר.</p>');
+  if (!items.length) return '';
   const statuses = { open: 'ממתין לטיפול', in_progress: 'בטיפול', resolved: 'טופל' };
   const priorities = { minor: 'קושי קל', significant: 'קושי משמעותי', urgent: 'קושי דחוף' };
   const labels = { instructor:'מדריך/ה', content:'תוכן וקצב', participation:'התאמה לתלמידים',
@@ -1325,9 +1373,9 @@ function staffHtml() {
        ${openAnswersDisclosure(facts, 'הערות פתוחות')}`
     : selectCourseHint('תוצאות לכל שאלה');
   return `
+    ${sectionHtml('מעקב ותזמון משובים', `<p class="ifb-staff-intro">שלושה שלבים לכל קורס: פתיחה, אמצע וסיום. השליחה האוטומטית מתבצעת ב-08:00 לפי התקדמות הקורס. לתזמון מועד מאוחר יותר בחרו ״ניהול״.</p>${groupsTableHtml(STAFF_SLOTS, 'staff')}`)}
     ${staffIssuesHtml()}
-    ${sectionHtml('הפצה ומעקב לפי קבוצה', groupsTableHtml(STAFF_SLOTS, 'staff'))}
-    ${sectionHtml('תוצאות', results, { actions: ui.course ? exportButtonHtml('audience:educational_staff') : '' })}`;
+    ${ui.course ? sectionHtml('תוצאות', results, { actions: exportButtonHtml('audience:educational_staff') }) : ''}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -2001,6 +2049,34 @@ function openFormHtml(group, slot) {
     </form>`;
 }
 
+
+/** Explicit admin-only postponement. The scheduler still verifies course eligibility and deduplicates mail. */
+function staffScheduleHtml(group, slot) {
+  if (slot.audience !== 'educational_staff' || !isFeedbackAdmin(feedbackViewerUser)
+      || ui.year !== 'school_2027' || !group.program_key || !hasCourseStartDate(group)) return '';
+  const key = `${group.row_id}|${slot.stage}`;
+  const delivery = ui.staffDelivery.get(key)?.status;
+  if (delivery === 'sent' || delivery === 'sending' || delivery === 'unknown') return '';
+  const plan = ui.staffPlans.get(key);
+  const current = plan?.send_on || '';
+  const tomorrow = isoDay(Date.now() + DAY_MS);
+  // Opening surveys are not deliverable after the activity has already started.
+  const openingTooLate = slot.stage === 'pre' && String(group.start_date || '') <= tomorrow;
+  if (openingTooLate && !current) return '';
+  return `<details class="ifb-staff-schedule">
+    <summary>תזמון שליחת מייל</summary>
+    <p class="ifb-muted">מועד השליחה: 08:00 (שעון ישראל). השליחה תתבצע רק לאחר שהמשוב יהיה זכאי להפצה.</p>
+    <form data-ifb-staff-schedule="${esc(group.row_id)}" data-stage="${esc(slot.stage)}">
+      <label class="ifb-field"><span>לא לפני תאריך</span>
+        <input type="date" name="send_on" min="${tomorrow}" ${slot.stage === 'pre' ? `max="${isoDay(new Date(String(group.start_date)+'T12:00:00').getTime()-DAY_MS)}"` : ''}
+          value="${esc(current || tomorrow)}" required></label>
+      <div class="ifb-slot__actions"><button class="ifb-btn ifb-btn--primary ifb-btn--sm" type="submit" name="operation" value="save">שמירת תזמון</button>
+      ${current ? '<button class="ifb-btn ifb-btn--sm" type="submit" name="operation" value="automatic" formnovalidate>חזרה לאוטומטי</button>' : ''}</div>
+    </form>
+    ${current ? `<p class="ifb-muted">מועד שנשמר: ${fmtDate(current)}, 08:00</p>` : ''}
+  </details>`;
+}
+
 function slotCardHtml(group, slot, user) {
   const staffShareAllowed = slot.audience === 'educational_staff' && canShareEducationalStaffFeedback(user, group);
   const staffShareAttr = staffShareAllowed ? ' data-ifb-staff-share-enabled="true"' : '';
@@ -2019,6 +2095,7 @@ function slotCardHtml(group, slot, user) {
     return `<article class="ifb-slot" data-slot="${slot.key}"${staffShareAttr}${studentShareAttr}>
       <div class="ifb-slot__head">${title}${campaignStatusHtml(null)}</div>
       ${openFormHtml(group, slot)}
+      ${staffScheduleHtml(group, slot)}
     </article>`;
   }
   const isStudent = slot.audience === 'student';
@@ -2082,6 +2159,7 @@ function slotCardHtml(group, slot, user) {
     ${meta}
     <div class="ifb-slot__actions">${actions}</div>
     ${extendForm}
+    ${staffScheduleHtml(group, slot)}
   </article>`;
 }
 
@@ -2706,6 +2784,27 @@ async function handleSubmit(host, event) {
     event.preventDefault(); return;
   }
   if (form.closest('[data-ifb-templates]')) return;
+  if (form.matches('[data-ifb-staff-schedule]')) {
+    event.preventDefault();
+    if (!isFeedbackAdmin(feedbackViewerUser)) return;
+    const button = event.submitter || form.querySelector('button[type="submit"]');
+    if (button) button.disabled = true;
+    try {
+      const automatic = event.submitter?.value === 'automatic';
+      const day = String(new FormData(form).get('send_on') || '').trim();
+      if (!automatic && (!/^\\d{4}-\\d{2}-\\d{2}$/.test(day) || day <= isoDay(Date.now()))) {
+        throw new Error('יש לבחור תאריך עתידי');
+      }
+      await scheduleStaffSend(form.dataset.ifbStaffSchedule, form.dataset.stage, automatic ? null : day);
+      await ensureStaffDelivery(true);
+      showToast(automatic ? 'השליחה חזרה לתזמון אוטומטי' : 'מועד השליחה נשמר בהצלחה', 'success');
+      paint(host);
+    } catch (error) {
+      if (button) button.disabled = false;
+      showToast(translateFeedbackError(error), 'error', 6000);
+    }
+    return;
+  }
   if (form.matches('[data-ifb-manager-extend]')) {
     event.preventDefault();
     const button = form.querySelector('button[type="submit"]');
@@ -2839,6 +2938,7 @@ function resetYearScopedState() {
   ui.groups = null;
   ui.groupsYear = null;
   ui.staffDelivery.clear();
+  ui.staffPlans.clear();
   ui.staffDeliveryLoaded = false;
   ui.instructorAssignments = null;
   ui.instructorAssignmentsYear = null;
