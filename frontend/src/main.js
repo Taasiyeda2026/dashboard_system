@@ -1,3 +1,6 @@
+import { approvalNavigationBadges } from './notifications/badges.js';
+import { createNotificationService } from './notifications/service.js';
+import { createNotificationRuntime } from './notifications/runtime.js';
 import { api } from './api.js';
 import './styles/approvals-nav-status.css';
 import { config } from './config.js';
@@ -24,6 +27,17 @@ import { bootstrapLocalBaselineMonitor } from './local-baseline-monitor.js';
 import { installInstructorObservationRuntime } from './instructor-observation-runtime.js';
 
 const app = document.getElementById('app');
+const notificationService = createNotificationService(supabase);
+const notificationRuntime = createNotificationRuntime({
+  client: supabase, service: notificationService,
+  onCounts(counts) {
+    state.notificationTaskCount = counts.tasks;
+    state.notificationUnreadCount = counts.unread;
+    updateNavCountBadges();
+  },
+  onChange() { document.dispatchEvent(new CustomEvent('app:notifications-changed')); }
+});
+
 installInstructorObservationRuntime({ getUser: () => state.user });
 bootstrapLocalBaselineMonitor({
   buildEnabled: import.meta.env.DEV || import.meta.env.VITE_DS_BASELINE_MONITOR === 'true',
@@ -735,7 +749,7 @@ function isActiveInstructorPilotUser(user = state?.user || {}) {
   return [user.emp_id, user.employee_id, user.user_id].map((v) => String(v || '').trim()).some((id) => ACTIVE_INSTRUCTOR_EMP_IDS.has(id));
 }
 function instructorOnlyRoutes() {
-  return ['instructor-dashboard', 'instructor-work-schedule', 'instructor-calendar', 'my-data', 'instructor-completion-approvals', 'instructor-guidelines', 'impact-feedback'];
+  return ['instructor-dashboard', 'instructor-work-schedule', 'instructor-calendar', 'my-data', 'instructor-completion-approvals', 'instructor-guidelines', 'impact-feedback', 'edit-requests'];
 }
 
 const INSTRUCTOR_MOBILE_NAV = [
@@ -743,6 +757,7 @@ const INSTRUCTOR_MOBILE_NAV = [
   { route: 'my-data', short: 'פעילויות', icon: '📋' },
   { route: 'instructor-calendar', short: 'לוח שנה', icon: '📅' },
   { route: 'impact-feedback', short: 'משובים', icon: '📝' },
+  { route: 'edit-requests', short: 'אישורים', icon: '✅' },
   { route: null, short: 'נוכחות', icon: '✅', externalUrl: config.instructorAttendanceUrl },
   { route: null, short: 'מצגות', icon: '📂', externalUrlBlank: config.instructorPresentationsUrl }
 ];
@@ -755,7 +770,7 @@ function instructorBottomNavHtml(currentRoute) {
     if (externalUrl) {
       return `<button type="button" class="instructor-bottom-nav__btn" data-external-url="${escapeHtml(externalUrl)}" aria-label="${escapeHtml(short)}"><span class="instructor-bottom-nav__icon" aria-hidden="true">${icon}</span><span class="instructor-bottom-nav__label">${escapeHtml(short)}</span></button>`;
     }
-    return `<button type="button" class="instructor-bottom-nav__btn${route === currentRoute ? ' is-active' : ''}" data-route="${route}" aria-label="${escapeHtml(screenLabels[route] || short)}"><span class="instructor-bottom-nav__icon" aria-hidden="true">${icon}</span><span class="instructor-bottom-nav__label">${escapeHtml(short)}</span></button>`;
+    return `<button type="button" class="instructor-bottom-nav__btn${route === currentRoute ? ' is-active' : ''}" data-route="${route}" aria-label="${escapeHtml(screenLabels[route] || short)}"><span class="instructor-bottom-nav__icon" aria-hidden="true">${icon}</span><span class="instructor-bottom-nav__label">${escapeHtml(short)}${route === 'edit-requests' ? approvalNavigationBadges({incoming:state.openEditRequestsIncomingCount,sent:state.openEditRequestsSentCount,tasks:state.notificationTaskCount,unread:state.notificationUnreadCount}) : ''}</span></button>`;
   }).join('');
   return `<nav class="instructor-bottom-nav" aria-label="ניווט מדריך">${buttons}</nav>`;
 }
@@ -1014,16 +1029,11 @@ function exceptionsNavCount() {
 function navLabelHtmlForRoute(route) {
   const baseLabel = screenLabels[route] || 'מסך';
   if (route === 'edit-requests') {
-    const label=escapeHtml(baseLabel);
-    const incoming=Number(state.openEditRequestsIncomingCount)||0;
-    const sent=Number(state.openEditRequestsSentCount)||0;
-    if(incoming+sent>0) {
-      return label+
-        (incoming>0?' <span class="ds-nav-count-badge ds-nav-count-badge--edit-requests" title="ממתינות לטיפולי" aria-label="'+incoming+' בקשות ממתינות לטיפולי">'+incoming+'</span>':'')+
-        (sent>0?' <span class="ds-nav-count-badge ds-nav-count-badge--edit-requests-sent" title="שלחתי – ממתינות לתשובה" aria-label="'+sent+' בקשות ששלחתי וממתינות לתשובה">'+sent+'</span>':'');
-    }
-    const count=Number(state.openEditRequestsCount)||0;
-    return count>0?label+' <span class="ds-nav-count-badge ds-nav-count-badge--edit-requests" aria-label="'+count+' בקשות פתוחות">'+count+'</span>':label;
+    return escapeHtml(baseLabel)+approvalNavigationBadges({
+      incoming: state.openEditRequestsIncomingCount, sent: state.openEditRequestsSentCount,
+      tasks: state.notificationTaskCount, unread: state.notificationUnreadCount,
+      legacyTotal: state.openEditRequestsCount
+    });
   }
   if (route === 'proposals-agreements') {
     const count = proposalsNavCount();
@@ -1043,8 +1053,12 @@ function navLabelHtmlForRoute(route) {
 function updateNavCountBadges() {
   if (typeof document === 'undefined') return;
   ['exceptions', 'edit-requests', 'proposals-agreements'].forEach((route) => {
-    document.querySelectorAll(`[data-route="${route}"] .ds-act-nav-item__label`).forEach((node) => {
+    document.querySelectorAll(`[data-route="${route}"] .ds-act-nav-item__label, [data-act-subnav="${route}"] .ds-act-nav-item__label`).forEach((node) => {
       node.innerHTML = navLabelHtmlForRoute(route);
+    });
+    document.querySelectorAll(`.instructor-bottom-nav__btn[data-route="${route}"]`).forEach((node) => {
+      const label = node.querySelector('.instructor-bottom-nav__label');
+      if (label) label.innerHTML = navLabelHtmlForRoute(route);
     });
     document.querySelectorAll(`.shell-nav__btn[data-route="${route}"]`).forEach((node) => {
       node.innerHTML = navLabelHtmlForRoute(route);
@@ -1175,7 +1189,8 @@ function shell(content) {
     operationsManagement: state.operationsManagement
   }, { exceptions: exceptionsNavCount(), editRequests: Number(state.openEditRequestsCount) || 0,
       editRequestsIncoming: Number(state.openEditRequestsIncomingCount) || 0,
-      editRequestsSent: Number(state.openEditRequestsSentCount) || 0 });
+      editRequestsSent: Number(state.openEditRequestsSentCount) || 0,
+      notificationTasks: state.notificationTaskCount, notificationUnread: state.notificationUnreadCount });
   const headerTechHtml = '';
   const instructorMobileHeader = isInstructorUser
     ? `<div class="shell-top__instr-meta"><span class="shell-top__instr-user">${displayName}</span><button type="button" class="shell-logout-btn shell-logout-btn--mobile" aria-label="התנתקות" title="התנתקות"><span aria-hidden="true">⏻</span></button></div>`
@@ -2228,9 +2243,15 @@ function bindShell() {
 
   /* Allow any screen to navigate programmatically via custom event */
   document.addEventListener('app:navigate', (e) => {
+    const target = e?.detail?.notificationTarget;
+    if (target && isAllowedRoute(target.route)) {
+      state.notificationTarget = { ...target, authUserId: state.user?.auth_user_id };
+      delete state.screenDataCache[target.route];
+    }
     navigateToRoute(e?.detail?.route, { force: e?.detail?.force === true });
   });
 
+  document.addEventListener('app:notifications-refresh', () => { void notificationRuntime.refresh(); });
   document.addEventListener('app:edit-requests-updated', () => {
     refreshOpenEditRequestsCount().catch(() => {});
   });
@@ -2346,6 +2367,7 @@ let _isRendering = false;
 let _pendingRender = false;
 
 async function render() {
+  notificationRuntime.switchUser(state.token ? state.user?.auth_user_id : '');
   if (_isRendering) {
     _pendingRender = true;
     return;

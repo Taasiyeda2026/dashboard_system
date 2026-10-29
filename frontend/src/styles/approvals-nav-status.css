@@ -20,3 +20,45 @@
  .ds-er-status-overview{gap:6px}
  .ds-er-status-overview span{padding:6px 8px;font-size:11.5px}
 }
+
+.ds-notification-task-badge,.ds-notification-unread-badge{display:inline-flex;align-items:center;justify-content:center;min-width:18px;padding:2px 5px;border-radius:999px;font-size:11px;font-weight:800;vertical-align:middle}
+.ds-notification-task-badge{background:var(--ds-danger,#b91c1c);color:#fff}
+.ds-notification-unread-badge{background:var(--ds-accent-soft,#e8eef6);color:var(--ds-accent,#1a3358);border:1px solid var(--ds-border,#c8cdd8)}
+.ds-notification{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px;border-bottom:1px solid #dce4ee}
+.ds-notification.is-unread{background:var(--ds-pastel-sky,#edf6ff);border-inline-start:3px solid var(--ds-accent,#1a3358)}
+.ds-notification time{color:#526579;font-size:12px}
+[data-notification-inbox]{background:#fff;border:1px solid #dce4ee;border-radius:10px;padding:12px;margin-bottom:18px}
+/* Compact personal approvals workspace; use the dashboard typography and controls. */
+.ds-notification-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--ds-danger,#b91c1c);margin-inline:4px;vertical-align:middle}
+[data-notification-inbox]{padding:0;border:0;background:transparent;min-width:0}
+.ds-notification-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.ds-notification-tabs [aria-selected=true]{background:var(--ds-accent,#1a3358);color:#fff}
+[data-notification-panel]{border:1px solid var(--ds-border,#dce4ee);border-radius:9px;background:var(--ds-surface,#fff);min-width:0}
+[data-notification-panel][hidden]{display:none}
+.ds-notification-empty{margin:0;padding:14px;color:var(--ds-text-muted,#526579);font-size:13px}
+.ds-notification-text{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px;overflow-wrap:anywhere}
+.ds-notification-text span{font-size:12px;color:var(--ds-text-muted,#526579)}
+.ds-notification-icon{flex:0 0 22px;color:var(--ds-accent,#1a3358)}
+.ds-notification-icon svg{width:20px;height:20px}
+.ds-notification-actions{display:flex;gap:6px;flex-wrap:wrap}
+.ds-notification.is-historical{color:var(--ds-text-muted,#637080);background:var(--ds-surface,#fff)}
+.ds-notification.is-historical .ds-notification-text span{color:var(--ds-text-muted,#637080)}
+.ds-notification-sent{padding:10px 12px}
+.ds-notification-sent summary{cursor:pointer;font-size:13px;font-weight:600}
+.ds-notification-filters{display:flex;flex-wrap:wrap;gap:8px;padding:10px}
+.ds-notification-filters label{display:flex;flex-direction:column;gap:4px;font-size:12px;min-width:0}
+.ds-notification-filters input,.ds-notification-filters select{max-width:100%;box-sizing:border-box}
+@media(max-width:610px){
+ .ds-notification{gap:8px;padding:10px;align-items:flex-start}
+ .ds-notification-text{flex-basis:calc(100% - 32px)}
+ .ds-notification time{margin-inline-start:30px}
+ .ds-notification-actions{margin-inline-start:auto}
+ .ds-notification-actions .ds-btn,.ds-notification-tabs .ds-btn{min-height:40px}
+ .ds-notification-filters label{flex:1 1 120px}
+}
+
+.ds-notification[data-completed=true]:not(.is-historical) .ds-notification-text span{color:var(--ds-success,#15803d)}
+.ds-notification-routing{padding:10px 12px;border-inline-start:3px solid var(--ds-danger,#b91c1c);font-size:13px}
+.ds-notification-routing p{margin:6px 0 0}
+
+.ds-notification[data-task=true]:not(.is-historical) .ds-notification-text span{color:var(--ds-danger,#b91c1c)}

@@ -79,7 +79,13 @@ function openNewReport(dateStr = '') {
 async function focusLatestReopenedMonth() {
   if (state.previewMode || !state.instructor?.empId) return;
   try {
-    const monthKey = await getLatestReopenedMonth(state.instructor.empId);
+    const requested = new URL(window.location.href).searchParams;
+    const requestedMonth = requested.get('notification_month');
+    const sameEmployee = requested.get('notification_employee') === String(state.instructor.empId);
+    const validRequestedMonth = sameEmployee && /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth || '');
+    const monthKey = validRequestedMonth ? requestedMonth : await getLatestReopenedMonth(state.instructor.empId);
+    if (validRequestedMonth) state.screen = 'my-reports';
+
     const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(String(monthKey || ''));
     if (!match) return;
     state.currentYear = Number(match[1]);

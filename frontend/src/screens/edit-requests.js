@@ -1,3 +1,7 @@
+import { createNotificationService } from '../notifications/service.js';
+import { bindNotificationInbox } from '../notifications/view.js';
+import { supabase } from '../supabase-client.js';
+import { openPayrollControlWindow } from './shared/payroll-control-launcher.js';
 import { escapeHtml } from './shared/html.js';
 import { hebrewColumn, hebrewActivityType } from './shared/ui-hebrew.js';
 import {
@@ -266,7 +270,7 @@ export function renderGroup(group, canReview, {readOnly=false}={}) {
     const schedulingSummary = [activityType, school, authority].filter(Boolean).join(' · ') || '—';
 
     return `
-    <article class="ds-er-group" data-status="${escapeHtml(group.status || '')}" data-request-id="${escapeHtml(group.request_id)}" data-request-type="${escapeHtml(requestType)}">
+    <article class="ds-er-group" data-requested-date="${escapeHtml(group.requested_at || '')}" data-status="${escapeHtml(group.status || '')}" data-request-id="${escapeHtml(group.request_id)}" data-request-type="${escapeHtml(requestType)}">
       <header class="ds-er-card-head">
         <h3 class="ds-er-card-title">${escapeHtml(requestTypeLabel(requestType))}: ${escapeHtml(titleName)}</h3>
         <div>${dsStatusChip(statusLabel(group.status), statusVariant(group.status))}</div>
@@ -296,7 +300,7 @@ export function renderGroup(group, canReview, {readOnly=false}={}) {
       : '';
 
     return `
-    <article class="ds-er-group" data-status="${escapeHtml(group.status || '')}" data-request-id="${escapeHtml(group.request_id)}" data-request-type="${escapeHtml(requestType)}">
+    <article class="ds-er-group" data-requested-date="${escapeHtml(group.requested_at || '')}" data-status="${escapeHtml(group.status || '')}" data-request-id="${escapeHtml(group.request_id)}" data-request-type="${escapeHtml(requestType)}">
       <header class="ds-er-card-head">
         <h3 class="ds-er-card-title">${escapeHtml(requestTypeLabel(requestType))}: ${escapeHtml(titleName)}</h3>
         <div>${dsStatusChip(statusLabel(group.status), statusVariant(group.status))}</div>
@@ -391,7 +395,7 @@ export function renderGroup(group, canReview, {readOnly=false}={}) {
   `;
 
   return `
-    <article class="ds-er-group" data-status="${escapeHtml(group.status || '')}" data-request-id="${escapeHtml(group.request_id)}" data-request-type="${escapeHtml(requestType)}">
+    <article class="ds-er-group" data-requested-date="${escapeHtml(group.requested_at || '')}" data-status="${escapeHtml(group.status || '')}" data-request-id="${escapeHtml(group.request_id)}" data-request-type="${escapeHtml(requestType)}">
       <header class="ds-er-card-head">
         <div class="ds-er-card-heading">
           <p class="ds-er-card-kicker">${escapeHtml(requestTypeLabel(requestType))}</p>
@@ -458,40 +462,47 @@ export const editRequestsScreen = {
   render(data) {
     const {incoming,ownOpen,ownResolved}=approvalViewBuckets(data);
     const canReview=!!data?.canReviewWorkflow || !!data?.canReview;
-    const incomingHtml=incoming.length?incoming.map(g=>renderGroup(g,canReview)).join(''):
-      dsEmptyState('אין כרגע בקשות הממתינות לטיפולך');
-    const ownOpenHtml=ownOpen.length?ownOpen.map(g=>renderGroup(g,false,{readOnly:true})).join(''):
-      dsEmptyState('אין בקשות ששלחת וממתינות לתשובה');
-    const ownResolvedHtml=ownResolved.length?ownResolved.map(g=>renderGroup(g,false,{readOnly:true})).join(''):
-      dsEmptyState('אין בקשות שטופלו להצגה');
-    const title=canReview?'אישורים – טיפול ומעקב':'אישורים – מעקב אחר הבקשות שלי';
-    const summary='<div class="ds-er-status-overview" dir="rtl" aria-label="סטטוס האישורים">'+
-      (canReview?'<span>ממתינות לטיפולי: <strong>'+incoming.length+'</strong></span>':'')+
-      '<span>שלחתי וממתינות לתשובה: <strong>'+ownOpen.length+'</strong></span>'+
-      '<span>בקשות ששלחתי וטופלו: <strong>'+ownResolved.length+'</strong></span></div>';
-
+    const legacy = (rows, review, readOnly = false) => rows.map(g => renderGroup(g,review,{readOnly})).join('');
     return dsScreenStack(`
-      ${dsPageHeader(title,'בקשות פתוחות נשארות במעקב עד לקבלת החלטה. בקשות שטופלו נשמרות עם סטטוס אושר או נדחה.')}
-      ${summary}
-      ${canReview?dsCard({
-        title: `ממתינות לטיפולי (${incoming.length})`,
-        padded:false,
-        body:`<div class="ds-er-list" data-er-incoming>${incomingHtml}</div>`
-      }):''}
-      ${dsCard({
-        title:`בקשות ששלחתי – ממתינות לתשובה (${ownOpen.length})`,
-        padded:false,
-        body:`<div class="ds-er-list" data-er-sent-pending>${ownOpenHtml}</div>`
-      })}
-      ${dsCard({
-        title:`בקשות ששלחתי – טופלו (${ownResolved.length})`,
-        padded:false,
-        body:`<div class="ds-er-list" data-er-sent-resolved>${ownResolvedHtml}</div>`
-      })}
+      ${dsPageHeader('אישורים','משימות הממתינות לטיפולך ועדכונים בתהליכי האישור.')}
+      <section data-notification-inbox data-incoming-count="${incoming.length}" data-sent-count="${ownOpen.length}" dir="rtl">
+        <div class="ds-er-status-overview" aria-label="סטטוס האישורים">
+          <span>ממתינים לטיפולי <strong data-notification-task-count>${incoming.length}</strong></span>
+          <span>עדכונים חדשים <strong data-notification-unread-count>0</strong></span>
+          <span>בקשות ששלחתי <strong>${ownOpen.length}</strong></span>
+        </div>
+        <div class="ds-notification-tabs" role="tablist" aria-label="סוגי אישורים">
+          <button class="ds-btn" type="button" role="tab" id="approvals-pending-tab" data-notification-tab="pending" aria-controls="approvals-pending" aria-selected="true">ממתינים לטיפולי</button>
+          <button class="ds-btn" type="button" role="tab" id="approvals-updates-tab" data-notification-tab="updates" aria-controls="approvals-updates" aria-selected="false">עדכונים</button>
+          <button class="ds-btn" type="button" role="tab" id="approvals-history-tab" data-notification-tab="history" aria-controls="approvals-history" aria-selected="false">היסטוריה</button>
+        </div>
+        <section role="tabpanel" id="approvals-pending" aria-labelledby="approvals-pending-tab" data-notification-panel="pending">
+          <div data-notification-issues></div>
+          <div data-notification-tasks></div>
+          <div class="ds-er-list" data-er-incoming>${legacy(incoming,canReview)}</div>
+          <p class="ds-notification-empty" data-notification-empty${incoming.length ? ' hidden' : ''}>אין כרגע משימות הממתינות לטיפולך.</p>
+        </section>
+        <section role="tabpanel" id="approvals-updates" aria-labelledby="approvals-updates-tab" data-notification-panel="updates" hidden>
+          <div data-notification-updates><p>טוען עדכונים…</p></div>
+          ${ownOpen.length ? `<details class="ds-notification-sent"><summary>בקשות ששלחתי — ממתינות למענה (${ownOpen.length})</summary><div class="ds-er-list" data-er-sent-pending>${legacy(ownOpen,false,true)}</div></details>` : ''}
+        </section>
+        <section role="tabpanel" id="approvals-history" aria-labelledby="approvals-history-tab" data-notification-panel="history" hidden>
+          <div class="ds-filter-bar ds-notification-filters">
+            <label>סוג תהליך<select class="ds-input" data-notification-filter="domain"><option value="">הכול</option><option value="personal_report">דוחות אישיים</option><option value="attendance">נוכחות</option><option value="proposal">הצעות מחיר</option><option value="edit_request">בקשות עריכה</option></select></label>
+            <label>מתאריך<input class="ds-input" type="date" data-notification-filter="from"></label>
+            <label>עד תאריך<input class="ds-input" type="date" data-notification-filter="to"></label>
+          </div>
+          <div data-notification-history></div>
+          ${ownResolved.length ? `<div data-notification-legacy-history><h2 class="ds-card__title">בקשות עריכה שטופלו</h2><div class="ds-er-list" data-er-sent-resolved>${legacy(ownResolved,false,true)}</div></div>` : ''}
+        </section>
+      </section>
     `);
   },
-  bind({ root, api, rerender, clearScreenDataCache }) {
+  bind({ root, api, state, rerender, clearScreenDataCache }) {
     if (!root) return;
+    const service = createNotificationService(supabase);
+    bindNotificationInbox({ root, service, state, openAttendance: openPayrollControlWindow,
+      refreshCounts: () => document.dispatchEvent(new CustomEvent('app:notifications-refresh')) });
 
     root.querySelectorAll('[data-action]').forEach((btn) => {
       btn.addEventListener('click', async () => {

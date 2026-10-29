@@ -27,23 +27,26 @@ test('edit requests screen hides empty requests and keeps non-empty field rows',
   assert.match(html, /הערות/);
   assert.match(html, /ישן/);
   assert.match(html, /חדש/);
-  assert.match(html, /בקשות פתוחות \(1\)/);
+  assert.match(html, /data-incoming-count="1"/);
   assert.match(html, /מה מבוקש לשנות\?/);
 });
 
 test('edit requests screen hides review actions for non-reviewers', () => {
   const html = editRequestsScreen.render({
     canReview: false,
+    currentUserId: 'me',
     groups: [
       {
         request_id: 'REQ-MINE',
+        requested_by_user_id: 'me',
         status: 'pending',
         fields: [{ field_name: 'notes', old_value: 'ישן', new_value: 'חדש' }]
       }
     ]
   });
 
-  assert.match(html, /בקשות פעילות שהגשת/);
+  assert.match(html, /data-er-sent-pending/);
+  assert.match(html, /REQ-MINE/);
   assert.doesNotMatch(html, /data-action="approve"/);
   assert.doesNotMatch(html, /data-action="reject"/);
 });

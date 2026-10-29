@@ -1,0 +1,60 @@
+{
+  "engine": "system Chromium",
+  "fixture": "synthetic visual data; real production components and CSS",
+  "results": [
+    {
+      "viewport": "desktop",
+      "width": 1440,
+      "height": 1000,
+      "passed": true,
+      "checks": [
+        "real Chromium render",
+        "RTL",
+        "three tabs",
+        "unread clear",
+        "task stays open after read",
+        "legacy requests retained",
+        "empty state",
+        "150 tasks",
+        "no horizontal overflow",
+        "no external requests"
+      ]
+    },
+    {
+      "viewport": "mobile",
+      "width": 390,
+      "height": 844,
+      "passed": true,
+      "checks": [
+        "real Chromium render",
+        "RTL",
+        "three tabs",
+        "unread clear",
+        "task stays open after read",
+        "legacy requests retained",
+        "empty state",
+        "150 tasks",
+        "no horizontal overflow",
+        "no external requests"
+      ]
+    },
+    {
+      "viewport": "small-mobile",
+      "width": 320,
+      "height": 740,
+      "passed": true,
+      "checks": [
+        "real Chromium render",
+        "RTL",
+        "three tabs",
+        "unread clear",
+        "task stays open after read",
+        "legacy requests retained",
+        "empty state",
+        "150 tasks",
+        "no horizontal overflow",
+        "no external requests"
+      ]
+    }
+  ]
+}

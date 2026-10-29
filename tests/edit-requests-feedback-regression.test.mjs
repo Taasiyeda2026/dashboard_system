@@ -1,3 +1,4 @@
+import { headerNavGridHtml } from '../frontend/src/screens/shared/act-nav-grid.js';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
@@ -22,7 +23,7 @@ test('admin edit request badge and review permission include can_review_requests
   assert.match(apiSource, /canReviewEditRequestsUser/);
   assert.match(apiSource, /return canReviewRequests\(user\)/);
   assert.match(apiSource, /\.in\('status',\s*openStatuses\)/);
-  assert.match(mainSource, /ds-nav-count-badge--edit-requests/);
+  assert.match(mainSource, /approvalNavigationBadges/);
   assert.match(mainSource, /app:edit-requests-updated/);
 });
 
@@ -45,9 +46,6 @@ test('exceptions save flow explains resolved exception removal and offers activi
 
 
 test('approval header distinguishes approvals awaiting my action from approvals I sent',async()=>{
- const navSource=await readFile(new URL('../frontend/src/screens/shared/act-nav-grid.js',import.meta.url),'utf8');
- const code=navSource.replace(/^import .*?;\s*$/gm,'').replace(/^export /gm,'');
- const {headerNavGridHtml}=runInNewContext(code+'\n({headerNavGridHtml})',{escapeHtml:v=>String(v)});
  const html=headerNavGridHtml({routes:['activities','edit-requests'],route:'edit-requests'},
    {editRequests:5,editRequestsIncoming:3,editRequestsSent:2});
  assert.match(html,/title="ממתינות לטיפולי"/);
@@ -117,11 +115,11 @@ test('approval indicator refreshes on request changes and when another user comp
  assert.match(source,/setInterval\(\(\) =>/);
  assert.match(source,/openEditRequestsSentCount/);
  assert.match(source,/openEditRequestsIncomingCount/);
- assert.match(source,/ds-nav-count-badge--edit-requests-sent/);
+ assert.match(source,/openEditRequestsSentCount/);
  const screen=await readFile(EDIT_REQUESTS_FILE,'utf8');
  assert.match(screen,/data-er-sent-pending/);
  assert.match(screen,/data-er-sent-resolved/);
- assert.match(screen,/readOnly:true/);
+ assert.match(screen,/legacy\(ownOpen,false,true\)/);
 });
 
 
@@ -132,9 +130,9 @@ test('the approval header route is visible to Gil, Hila, Eden and all activity-e
  assert.ok(start>0 && end>start,'Canonical bootstrap contains edit-requests route eligibility');
  const expression=source.slice(start,end+1)+'; return canViewEditRequests;';
  const eligible=(user)=>new Function('role','flat','canReviewRequests','canRequestEdit',
-   'canRequestCreateActivity','permissionFlagYes',expression)(
+   'canRequestCreateActivity','permissionFlagYes','effectivePersonalReportsAccess','profileRow',expression)(
      user.role,user.permissions,!!user.review,!!user.canRequest,()=>!!user.canCreate,
-     value=>value==='yes' || value===true);
+     value=>value==='yes' || value===true,()=>false,null);
  for(const [name,user] of Object.entries({
    'גיל נאמן':{role:'activities_manager',permissions:{view_activities:'yes'},canRequest:true},
    'הילה רוזן':{role:'activities_manager',permissions:{view_activities:'yes'},review:true},

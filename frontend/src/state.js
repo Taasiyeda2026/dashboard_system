@@ -124,6 +124,9 @@ export const state = {
   screenDataCache: {},
   /** Sidebar badge for open approval requests (null = not loaded yet). */
   openEditRequestsCount: null,
+  notificationTaskCount: 0,
+  notificationUnreadCount: 0,
+  notificationTarget: null,
   /** Pending requests to review and submitted requests awaiting an answer. */
   openEditRequestsIncomingCount: null,
   openEditRequestsSentCount: null,
@@ -196,6 +199,11 @@ export function setSession(session) {
     state.clientSettings = defaultClientSettings();
     state.screenDataCache = {};
     state.openEditRequestsCount = null;
+    state.openEditRequestsIncomingCount = null;
+    state.openEditRequestsSentCount = null;
+    state.notificationTaskCount = 0;
+    state.notificationUnreadCount = 0;
+    state.notificationTarget = null;
     state.pendingApprovedProposalsCount = null;
     state.authSessionReady = false;
     state.permissionsReady = false;
@@ -241,6 +249,11 @@ export function setSession(session) {
   cleanupLegacyCalendarMonthLocalStorage(state.user.user_id);
   state.screenDataCache = {};
   state.openEditRequestsCount = null;
+  state.openEditRequestsIncomingCount = null;
+  state.openEditRequestsSentCount = null;
+  state.notificationTaskCount = 0;
+  state.notificationUnreadCount = 0;
+  state.notificationTarget = null;
   state.pendingApprovedProposalsCount = null;
   localStorage.setItem('dashboard_token', session.token);
   localStorage.setItem('dashboard_user', JSON.stringify(state.user));

@@ -1,3 +1,4 @@
+import { consumeNotificationTarget } from '../notifications/target.js';
 import { proposalProgramDisplay, PROPOSAL_PROGRAM_DISPLAY_VERSION } from '../proposal-program-display.js';
 import { escapeHtml } from './shared/html.js';
 import { mergeFetchedContactsWithInserted, persistNewClientContact } from '../client-contact-persistence.js';
@@ -7000,6 +7001,16 @@ export const proposalsAgreementsScreen = {
       await renderProposalDetailWorkspace(row);
       await fillProposalDetailItems(row);
     };
+    const notificationTarget = consumeNotificationTarget(state, 'proposals-agreements');
+    if (notificationTarget) {
+      void api.proposalAgreementDetail(notificationTarget.proposalId).then(response => {
+        if (signal.aborted || state.user?.auth_user_id !== notificationTarget.authUserId) return;
+        const row = response?.row;
+        if (!row) return;
+        if (!data.rows.some(item => text(item.id) === text(row.id))) data.rows.push(row);
+        return openProposalDetails(row.id, { returnTo: 'home', openSource: 'notification' });
+      }).catch(() => showToast('לא ניתן לפתוח את ההצעה בהרשאות הנוכחיות.', 'error'));
+    }
     const loadSelectedClientProposals = async (file) => {
       if (!file || typeof api.proposalsAgreements !== 'function') return;
       const schoolId = text(file.school_id);

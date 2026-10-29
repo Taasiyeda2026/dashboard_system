@@ -43,6 +43,8 @@ export const MANAGED_ROUTE_PERMISSIONS = Object.freeze(Object.fromEntries(
 export function enforceManagedRoutes(routes = [], user = {}) {
   if (String(user?.role || user?.display_role || '').trim() === 'admin') return [...new Set(routes)];
   return [...new Set(routes)].filter((route) => {
+    // Personal inbox visibility is distinct from permission to approve requests.
+    if (route === 'edit-requests') return user.is_active !== false;
     const candidates = CAPABILITY_REGISTRY.filter((item) => !item.adminOnly && !item.context && (item.route === route || item.routes?.includes(route)));
     return !candidates.length || candidates.some((item) => hasPermission(user, item.permission));
   });

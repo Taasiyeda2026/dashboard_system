@@ -10,7 +10,7 @@ function canOpenPayrollControl(state = {}) {
  * Keep the window.open call synchronous so browsers treat it as part of the user's click,
  * then lazy-load the existing attendance-control modules to keep Node/shared-nav imports browser-safe.
  */
-export function openPayrollControlWindow(state = {}) {
+export function openPayrollControlWindow(state = {}, target = null) {
   if (!canOpenPayrollControl(state)) {
     throw new Error('אין הרשאה לפתוח את בקרת הנוכחות.');
   }
@@ -44,7 +44,7 @@ export function openPayrollControlWindow(state = {}) {
 
     const popupRoot = popup.document.querySelector('[data-payroll-window]');
     popupRoot.querySelector('[data-attendance-control]').hidden = false;
-    bindAttendanceControl(popupRoot, { api, state, standalone: true });
+    bindAttendanceControl(popupRoot, { api, state, standalone: true, initialTarget: target });
     popup.focus();
   }).catch((error) => {
     try { popup.close(); } catch {}
