@@ -87,3 +87,23 @@ test('mid-stage selected before collection remains explicitly empty', () => {
 test('empty selection is never silently exported', () => {
   assert.throws(() => report([]), /יש לבחור/);
 });
+
+
+test('Arabic free-text remains original and is explicitly marked for complete Hebrew translation', () => {
+  const arabic = fact({
+    audience: 'educational_staff', stage: 'pre', response: 'arabic-staff',
+    question: 'arabic-comment', value: 'كانت الأنشطة مفيدة وأريد المزيد من التجارب',
+    type: 'free_text'
+  });
+  const out = buildAiPackage({
+    facts: [arabic], selected: ['educational_staff:pre'],
+    title: 'ביומימיקרי יסודי', academicYear: 'school_2027',
+    metrics: [], programs: [{ key: 'biomimicry', title: 'ביומימיקרי יסודי' }]
+  });
+  const rows = out.sheets.find((sheet) => sheet.name === 'תשובות פתוחות').rows;
+  assert.equal(rows.length, 1);
+  assert.match(rows[0][4], /كانت الأنشطة/);
+  assert.equal(rows[0][5], 'ערבית - נדרש תרגום מלא');
+  const prompt = out.sheets.find((sheet) => sheet.name === 'הנחיות AI').rows;
+  assert.ok(prompt.some((row) => row.some((cell) => String(cell).includes('חובה לתרגם במלואן'))));
+});
