@@ -566,7 +566,7 @@ function overviewFiltersHtml() {
   return filterDisclosureHtml('overview', `<div class="ifb-filters ifb-filters--inline" data-ifb-filters="overview">
     ${courseFilterFieldHtml()}
     <label class="ifb-field"><span>קהל יעד</span><select data-o="audience">${optionList(AUDIENCE_ORDER, o.audience, 'כל הקהלים', (a) => AUDIENCE_LABELS[a])}</select></label>
-    <label class="ifb-field"><span>שלב המשוב</span><select data-o="phase">${optionList(['pre', 'end'], o.phase, 'פתיחה וסיום', (p) => PHASE_LABELS[p])}</select></label>
+    <label class="ifb-field"><span>שלב המשוב</span><select data-o="phase">${optionList(['pre', 'mid', 'end'], o.phase, 'כל השלבים', (p) => PHASE_LABELS[p])}</select></label>
   </div>`, active);
 }
 
@@ -643,6 +643,7 @@ function coursesTableHtml() {
     { audience: 'instructor', stage: 'pre', label: 'מדריכים – פתיחה' },
     { audience: 'instructor', stage: 'final', label: 'מדריכים – סיום' },
     { audience: 'educational_staff', stage: 'pre', label: 'צוות חינוכי – פתיחה' },
+    { audience: 'educational_staff', stage: 'mid', label: 'צוות חינוכי – אמצע' },
     { audience: 'educational_staff', stage: 'final', label: 'צוות חינוכי – סיום' }
   ].filter((c) => (!o.audience || c.audience === o.audience)
     && (!o.phase || stagePhase(c.audience, c.stage) === o.phase));
@@ -734,7 +735,7 @@ function overviewHtml() {
   ];
   const audienceEntries = AUDIENCE_ORDER.filter((a) => (!o.audience || o.audience === a) && (totals.byAudience[a] || 0) > 0)
     .map((a) => [AUDIENCE_LABELS[a], totals.byAudience[a]]);
-  const phaseEntries = ['pre', 'end'].filter((p) => (!o.phase || o.phase === p) && (totals.byPhase[p] || 0) > 0)
+  const phaseEntries = ['pre', 'mid', 'end'].filter((p) => (!o.phase || o.phase === p) && (totals.byPhase[p] || 0) > 0)
     .map((p) => [PHASE_LABELS[p], totals.byPhase[p]]);
   // Operational overview does not compute detailed feedback analytics.
   const insights = '';
@@ -853,7 +854,7 @@ function groupsTableHtml(slots, scope) {
           ${showCourse ? '<col class="ifb-gw-course">' : ''}
           <col class="ifb-gw-person">
           ${scope === 'staff' ? '<col class="ifb-gw-instructor">' : ''}
-          <col class="ifb-gw-date ifb-gw-date--start"><col class="ifb-gw-stage"><col class="ifb-gw-date ifb-gw-date--end"><col class="ifb-gw-stage">
+          <col class="ifb-gw-date ifb-gw-date--start"><col class="ifb-gw-stage">${scope === 'staff' ? '<col class="ifb-gw-stage">' : ''}<col class="ifb-gw-date ifb-gw-date--end"><col class="ifb-gw-stage">
           <col class="ifb-gw-actions">
         </colgroup>
         <thead><tr>
@@ -864,6 +865,7 @@ function groupsTableHtml(slots, scope) {
           ${scope === 'staff' ? '<th scope="col">מדריך/ה בקורס</th>' : ''}
           <th scope="col" class="ifb-center ifb-col-date">תחילת קורס</th>
           <th scope="col" class="ifb-center ifb-col-stage">${esc(slots.find((slot) => slot.stage === 'pre')?.label || 'משוב פתיחה')}</th>
+          ${scope === 'staff' ? '<th scope="col" class="ifb-center ifb-col-stage">צוות חינוכי – אמצע</th>' : ''}
           <th scope="col" class="ifb-center ifb-col-date">סיום קורס</th>
           <th scope="col" class="ifb-center ifb-col-stage">${esc(slots.find((slot) => slot.stage === (scope === 'staff' ? 'final' : 'post'))?.label || 'משוב סיום')}</th>
           <th scope="col"><span class="ifb-sr">פעולות</span></th>
@@ -882,6 +884,10 @@ function groupsTableHtml(slots, scope) {
               const slot = slots.find((s) => s.stage === 'pre');
               return `<td class="ifb-center ifb-col-stage" data-label="${esc(slot?.label || 'משוב פתיחה')}">${g.program_key && slot ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}${staffEmailStatusHtml(g, 'pre', scope)}</td>`;
             })()}
+            ${scope === 'staff' ? (() => {
+              const slot = slots.find((s) => s.stage === 'mid');
+              return `<td class="ifb-center ifb-col-stage" data-label="משוב אמצע">${g.program_key && slot ? tableStatusHtml(slotCampaign(g, slot)) : '<span class="ifb-muted">—</span>'}</td>`;
+            })() : ''}
             <td data-label="סיום קורס" class="ifb-center ifb-nowrap ifb-col-date">${fmtDate(g.end_date)}</td>
             ${(() => {
               const slot = slots.find((s) => s.stage === (scope === 'staff' ? 'final' : 'post'));
@@ -1236,6 +1242,8 @@ function staffHtml() {
     ? `${collectionLineHtml('educational_staff')}
        <h3 class="ifb-subhead">משוב פתיחה – ציפיות ונקודת מוצא</h3>
        ${questionTableHtml(factsFor(facts, 'educational_staff', 'pre'), { caption: 'צוות חינוכי – פתיחה' })}
+       <h3 class="ifb-subhead">משוב אמצע – בדיקת מצב וזיהוי קשיים</h3>
+       ${questionTableHtml(factsFor(facts, 'educational_staff', 'mid'), { caption: 'צוות חינוכי – אמצע' })}
        <h3 class="ifb-subhead">משוב סיום – הערכת התוכנית</h3>
        ${questionTableHtml(factsFor(facts, 'educational_staff', 'final'), { caption: 'צוות חינוכי – סיום' })}
        ${openAnswersDisclosure(facts, 'הערות פתוחות')}`
