@@ -19,7 +19,7 @@ jobs:
       fail-fast: false
       matrix:
         suite:
-          - "tests/feedback-staff-weekly-display.test.mjs tests/feedback-staff-final-readiness.test.mjs tests/feedback-staff-delivery.test.mjs"
+          - "tests/feedback-staff-weekly-display.test.mjs tests/feedback-staff-final-readiness.test.mjs tests/feedback-staff-delivery.test.mjs tests/feedback-staff-assignment-alignment.test.mjs"
           - "tests/impact-feedback-ui-contract.test.mjs tests/impact-feedback-theme.test.mjs"
           - "tests/impact-feedback-domain.test.mjs tests/impact-feedback-analysis.test.mjs tests/impact-feedback-load-cache.test.mjs"
           - "tests/impact-feedback-instructor-access.test.mjs tests/feedback-staff-manager-sharing.test.mjs tests/impact-feedback-manager-expiry.test.mjs"
