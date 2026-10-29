@@ -2822,29 +2822,41 @@ export const activitiesScreen = {
         ui.closeDrawer?.();
         document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'course-scheduling' } }));
       });
-      contentRoot.querySelector('[data-coordination-approval]')?.addEventListener('click', (event) => {
+      contentRoot.querySelector('[data-coordination-approval]')?.addEventListener('click', async (event) => {
         const form = event.currentTarget.closest('[data-drawer-form]');
         const rowId = String(form?.dataset.rowId || '');
-        const item = state.activityCoordination?.byActivityId?.get?.(rowId);
-        ui.openModal?.({
-          title: 'אישור תיאום',
-          content: renderCoordinationActivityModal(item),
-          modalClass: 'ds-modal--coordination-activity',
-          keepDrawerOpen: true
-        });
-        const modalRoot = document.querySelector('.ds-modal__content');
-        if (item && modalRoot) bindCoordinationActivityModal(modalRoot, item, {
-          loginHint: state?.user?.email || '',
-          onChanged: async () => {
-            state.activityCoordination = await loadActivityCoordinationContext(data?.rows || [], state.clientSettings || {});
-            const updated = state.activityCoordination?.byActivityId?.get?.(rowId);
+        try {
+          const context = await refreshCoordinationContext();
+          const item = context?.byActivityId?.get?.(rowId);
+          ui.openModal?.({
+            title: 'אישור תיאום',
+            content: renderCoordinationActivityModal(item),
+            modalClass: 'ds-modal--coordination-activity',
+            keepDrawerOpen: true
+          });
+          const modalRoot = document.querySelector('.ds-modal__content');
+          if (!item || !modalRoot) return;
+          const updateModal = async () => {
+            const current = await refreshCoordinationContext();
+            const updated = current?.byActivityId?.get?.(rowId);
             modalRoot.innerHTML = renderCoordinationActivityModal(updated);
-            if (updated) bindCoordinationActivityModal(modalRoot, updated, { loginHint: state?.user?.email || '' });
+            if (updated) bindCoordinationActivityModal(modalRoot, updated, {
+              loginHint: state?.user?.email || '',
+              onChanged: updateModal,
+              beforePrepare: beforeCoordinationPrepare
+            });
             const action = contentRoot.querySelector('[data-activity-actions]');
             if (action && updated) action.innerHTML = coordinationDrawerActionHtml(updated);
             rerender();
-          }
-        });
+          };
+          bindCoordinationActivityModal(modalRoot, item, {
+            loginHint: state?.user?.email || '',
+            onChanged: updateModal,
+            beforePrepare: beforeCoordinationPrepare
+          });
+        } catch (error) {
+          showToast(error?.message || 'לא ניתן לרענן את אישור התיאום.', 'error');
+        }
       });
     }
 
@@ -3666,21 +3678,26 @@ export const activitiesScreen = {
       pop.classList.add('is-open');
     }, rowSig);
 
-    root.addEventListener('click', (ev) => {
+    root.addEventListener('click', async (ev) => {
       const send = ev.target.closest('[data-coordination-send]');
       if (send) {
         ev.stopPropagation();
         const item = state.activityCoordination?.byActivityId?.get?.(send.dataset.coordinationSend);
         if (!item || !item.recipient_email) { showToast(item?.technical_blocker || 'לא ניתן להכין אישור.', 'error'); return; }
-        if (item.status === 'sent' && !globalThis.confirm('האישור כבר נשלח עבור אותם נתונים. להכין טיוטה נוספת?')) return;
         send.disabled = true;
-        import('../activity-coordination/outlook.js').then(({ prepareCoordinationDrafts }) => prepareCoordinationDrafts([item], { loginHint: state?.user?.email || '' })).then(async (results) => {
+        try {
+          const fresh = await beforeCoordinationPrepare([item]);
+          const { prepareCoordinationDrafts } = await import('../activity-coordination/outlook.js');
+          const results = await prepareCoordinationDrafts(fresh, { loginHint: state?.user?.email || '' });
           const failed = results.find((result) => !result.ok);
           if (failed) throw failed.error;
           showToast('טיוטת אישור התיאום הוכנה ב-Outlook.', 'success');
-          state.activityCoordination = await loadActivityCoordinationContext(data?.rows || [], state.clientSettings || {});
+          await refreshCoordinationContext();
           rerender();
-        }).catch((error) => { showToast(error?.message || 'לא ניתן להכין את הטיוטה.', 'error'); send.disabled = false; });
+        } catch (error) {
+          showToast(error?.message || 'לא ניתן להכין את הטיוטה.', 'error');
+          send.disabled = false;
+        }
         return;
       }
       const rowNode = ev.target.closest('.ds-data-row');
