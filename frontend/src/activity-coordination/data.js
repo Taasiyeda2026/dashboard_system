@@ -28,6 +28,24 @@ function managerContacts(settings = {}) {
   return new Map(rows.map((item) => [String(item?.name || '').trim(), item]));
 }
 
+// Bypass the dashboard's short post-save activity cache. Even within that
+// window, a coordination PDF must be created from persisted rows.
+export async function loadLatestCoordinationActivities() {
+  const rows = [];
+  const pageSize = 500;
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase.from('activities')
+      .select('*')
+      .eq('activity_season', 'school_2027')
+      .order('row_id')
+      .range(offset, offset + pageSize - 1);
+    if (error) throw new Error(error.message || 'activity_coordination_activities_load_failed');
+    rows.push(...(data || []));
+    if ((data || []).length < pageSize) break;
+  }
+  return { rows };
+}
+
 export async function loadActivityCoordinationContext(activities = [], settings = {}) {
   const canSend = await activityCoordinationSendAccess();
   if (!canSend) return { items: [], byActivityId: new Map(), access: 'denied' };
