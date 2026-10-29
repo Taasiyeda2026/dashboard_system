@@ -2119,8 +2119,8 @@ export const activitiesScreen = {
       : '';
     const mainToolbar = `${missingScheduleBanner}<div class="ds-activities-main-toolbar" dir="rtl" data-local-filters="${ACTIVITIES_SCOPE}">
       <input type="search" class="ds-input ds-input--sm ds-activities-search-sm" data-filter-search="${ACTIVITIES_SCOPE}" value="${escapeHtml(listFilters.q || '')}" placeholder="חיפוש" aria-label="חיפוש פעילויות" title="חיפוש לפי מזהה, פעילות, מדריך, רשות, בית ספר, סטטוס, תאריך או סמל מוסד" />
-      ${bareFilters}
       ${activitiesAdvancedFilterToggleHtml(listFilters, state.activitiesInstructorStatusFilter, !!state.activitiesAdvancedFiltersOpen)}
+      ${bareFilters}
       <div class="ds-activities-main-toolbar__actions">
         <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי כל הסינונים" title="ניקוי כל הסינונים">ניקוי כל הסינונים</button>
         ${canUseLayout ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn ds-activities-toolbar-btn--layout" data-activity-layout-list title="פריסת פעילות לבתי ספר עם שיבוץ מלא">פריסת פעילות</button>` : ''}
