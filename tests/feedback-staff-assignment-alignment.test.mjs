@@ -65,8 +65,8 @@ test('educational-staff action picker contains management buttons only, with no 
   const actions = screen.split('const actionsHtml = (g) => {')[1]?.split('const output = filtered.length ?')[0];
   assert.ok(actions, 'staff action renderer exists');
   assert.match(actions,/class="ifb-staff-group-action"/);
-  assert.match(actions,/data-ifb-open-group="\\$\\{esc\\(a\\.row_id\\)\\}"/);
-  assert.doesNotMatch(actions,/stageStatus\\(|fmtDate\\(|ifb-staff-breakdown-stage|ifb-staff-breakdown-item/);
+  assert.match(actions,/data-ifb-open-group="\$\{esc\(a\.row_id\)\}"/);
+  assert.doesNotMatch(actions,/stageStatus\(|fmtDate\(|ifb-staff-breakdown-stage|ifb-staff-breakdown-item/);
 });
 
 test('only the system delivery log determines each educational-staff table status',()=>{
