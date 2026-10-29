@@ -1797,6 +1797,7 @@ async function exportAiWorkbook() {
     facts,
     selected,
     title: programTitle(ui.course),
+    topic: ui.programs.find((program) => program.key === ui.course)?.topic || '',
     academicYear: ui.year,
     half: ui.feedbackHalf === 'first' ? 'מחצית א׳' : 'מחצית ב׳',
     metrics: ui.metrics,
