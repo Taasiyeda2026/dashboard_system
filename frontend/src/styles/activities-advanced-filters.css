@@ -88,68 +88,66 @@
   box-sizing: border-box;
   width: 100%;
   max-width: 100%;
-  margin: 8px 0 12px;
-  padding: 12px 14px;
+  margin: 6px 0 10px;
+  padding: 10px 12px 8px;
   border: 1px solid #e0e9f1;
-  border-radius: 12px;
+  border-radius: 10px;
   background: #fff;
   box-shadow: none;
   color: #26394e;
   text-align: right;
 }
-.ds-act-advanced__group { padding: 6px 0 10px; }
-.ds-act-advanced__group + .ds-act-advanced__group {
-  padding-top: 12px;
-  border-top: 1px solid #eef3f7;
-}
-.ds-act-advanced__group h3 {
-  margin: 0 0 8px;
-  color: #617188;
-  font-size: 12px;
-  font-weight: 700;
-}
 .ds-act-advanced__grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 9px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  align-items: end;
+  gap: 8px;
 }
 .ds-act-advanced__field {
   display: grid;
-  gap: 5px;
+  gap: 4px;
   min-width: 0;
   color: #66758c;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 650;
 }
 .ds-act-advanced__field .ds-input {
   box-sizing: border-box;
   min-width: 0;
   width: 100%;
-  min-height: 36px;
-  padding: 5px 9px;
+  min-height: 34px;
+  padding: 4px 8px;
   border: 1px solid #d7e1ed;
   border-radius: 8px;
   background: #fff;
   color: #273b50;
-  font-size: 13px;
-}
-.ds-act-advanced__field .ds-input:disabled {
-  background: #f5f7fa;
-  color: #9ba8b7;
+  font-size: 12px;
 }
 .ds-act-advanced__footer {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   justify-content: flex-end;
-  gap: 8px;
-  padding-top: 11px;
-  margin-top: 2px;
-  border-top: 1px solid #edf2f6;
+  gap: 6px;
+  margin-top: 7px;
 }
-@media (max-width: 900px) {
+.ds-act-advanced__footer .ds-btn {
+  min-height: 26px;
+  padding: 3px 9px;
+  font-size: 11px;
+}
+.ds-act-advanced__hint {
+  margin-inline-end: auto;
+  color: #748297;
+  font-size: 11px;
+}
+@media (max-width: 1100px) {
+  .ds-act-advanced__grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
   .ds-act-advanced__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ds-act-advanced__panel { padding: 9px; }
 }
-@media (max-width: 450px) {
-  .ds-act-advanced__panel { padding: 10px; }
+@media (max-width: 380px) {
   .ds-act-advanced__grid { grid-template-columns: 1fr; }
 }
