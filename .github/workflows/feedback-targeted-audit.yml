@@ -3,7 +3,10 @@ name: Feedback targeted audit
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/feedback-targeted-audit.yml']
+    paths:
+      - '.github/workflows/feedback-targeted-audit.yml'
+      - 'tests/*feedback*.test.mjs'
+      - 'frontend/src/impact-feedback/**'
   workflow_dispatch:
 
 permissions: {contents: read}
