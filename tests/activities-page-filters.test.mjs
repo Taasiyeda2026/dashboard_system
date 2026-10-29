@@ -40,6 +40,8 @@ const {
 const { normalizeActivityRow } = await import('../frontend/src/api.js');
 
 const apiSource = readFileSync(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
+const activitiesApprovedUiSource = readFileSync(new URL('../frontend/src/activities-approved-ui-fix.js', import.meta.url), 'utf8');
+const mainSource = readFileSync(new URL('../frontend/src/main.js', import.meta.url), 'utf8');
 const opsSource = readFileSync(new URL('../frontend/src/screens/operations-management.js', import.meta.url), 'utf8');
 
 function baseState(overrides = {}) {
@@ -269,6 +271,41 @@ test('ACTIVITY_LIST_COLUMNS and ACTIVITY_TABLE_COLUMNS include funding', () => {
   // Operations projection intentionally untouched by this activities-page fix.
   assert.equal(opsBlock.includes("'funding'"), false);
   assert.doesNotMatch(opsSource, /EMPTY_FUNDING_FILTER_VALUE|activityFundingFilterValue/);
+});
+
+test('All Activities price filter receives actual activity price and fresh list cache', () => {
+  const tableColumns = apiSource.match(/const ACTIVITY_TABLE_COLUMNS = \[([\s\S]*?)\]\.join/)?.[1] || '';
+  assert.match(tableColumns, /'price'/, 'activity list query must select real price column');
+  assert.match(apiSource, /const select = filters\?\.select \|\| ACTIVITY_TABLE_COLUMNS/);
+  assert.match(mainSource, /const activitiesProjection = 'p5'/, 'change projection key to invalidate price-less cached rows');
+  const priced = normalizeActivityRow({ row_id: 'PRICED', price: 9450 });
+  const missingPrice = normalizeActivityRow({ row_id: 'MISSING', price: null });
+  assert.equal(priced.price, 9450, 'normalization must keep the price');
+  assert.equal(missingPrice.price, null, 'normalization must not manufacture prices');
+});
+
+test('All Activities price presence chooses priced and unpriced activities independently', () => {
+  const rows = [
+    { RowID: 'WITH-PRICE', activity_name: 'קורס מתומחר', activity_season: 'school_2027', activity_type: 'course',
+      status: 'פתוח', authority: 'רחובות', school: 'אלון', price: 9450 },
+    { RowID: 'WITHOUT-PRICE', activity_name: 'קורס ללא מחיר', activity_season: 'school_2027', activity_type: 'course',
+      status: 'פתוח', authority: 'רחובות', school: 'דקל', price: null }
+  ];
+  const period = { activityPeriodTab: 'school_2027', activitiesInnerTab: 'year_all' };
+  const withPrice = activitiesScreen.render({ rows }, { state: withFilters(baseState(period), { advPricePresence: 'present' }) });
+  const withoutPrice = activitiesScreen.render({ rows }, { state: withFilters(baseState(period), { advPricePresence: 'missing' }) });
+  assert.deepEqual(renderedRowIds(withPrice), ['WITH-PRICE']);
+  assert.deepEqual(renderedRowIds(withoutPrice), ['WITHOUT-PRICE']);
+});
+
+test('All Activities search uses spare toolbar width and preserves mobile layout', () => {
+  const css = activitiesApprovedUiSource;
+  assert.match(css, /#app \.ds-activities-main-toolbar\[data-local-filters="activities"\] \.ds-activities-search-sm \{/);
+  assert.match(css, /flex: 2 1 175px !important/);
+  assert.match(css, /max-width: 255px !important/);
+  assert.match(css, /@media \(max-width: 820px\)/);
+  assert.match(css, /flex: 1 1 100% !important/);
+  assert.match(css, /max-width: 100% !important/);
 });
 
 test('normalizeActivityRow keeps funding and maps null/blank to empty string without inventing values', () => {

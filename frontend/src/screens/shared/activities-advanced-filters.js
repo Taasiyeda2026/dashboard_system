@@ -2,7 +2,7 @@ import { escapeHtml } from './html.js';
 import { ensureActivityListFilters } from './activity-list-filters.js';
 
 export const ADVANCED_ACTIVITY_FILTER_KEYS = [
-  'advStartPresence', 'advEndPresence', 'advMeetingFrom', 'advMeetingTo', 'advPricePresence'
+  'advStartPresence', 'advMeetingFrom', 'advMeetingTo', 'advPricePresence'
 ];
 
 const PRESENCE_OPTIONS = [
@@ -62,9 +62,7 @@ export function applyActivitiesAdvancedFilters(rows = [], filters = {}) {
   const to = asDate(filters.advMeetingTo);
   return (Array.isArray(rows) ? rows : []).filter((row) => {
     const start = asDate(row?.start_date) || asDate(row?.date_start);
-    const end = asDate(row?.end_date) || asDate(row?.date_end);
     if (!passesPresence(filters.advStartPresence, !!start)) return false;
-    if (!passesPresence(filters.advEndPresence, !!end)) return false;
     if (from || to) {
       const matchingMeeting = activitySessionDates(row).some((date) =>
         (!from || date >= from) && (!to || date <= to));
@@ -115,7 +113,6 @@ export function activitiesAdvancedFiltersHtml(filters = {}, assignment = 'all', 
     + (open ? '' : ' hidden') + '>'
     + '<div class="ds-act-advanced__grid">'
     + selectField('advStartPresence', 'תאריך התחלה', PRESENCE_OPTIONS, filters.advStartPresence)
-    + selectField('advEndPresence', 'תאריך סיום', PRESENCE_OPTIONS, filters.advEndPresence)
     + dateField('advMeetingFrom', 'מפגש מתאריך', filters.advMeetingFrom)
     + dateField('advMeetingTo', 'מפגש עד תאריך', filters.advMeetingTo)
     + selectField('assignment', 'מצב שיבוץ', ASSIGNMENT_OPTIONS, assignment)
