@@ -40,6 +40,7 @@ const {
 const { normalizeActivityRow } = await import('../frontend/src/api.js');
 
 const apiSource = readFileSync(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
+const mainSource = readFileSync(new URL('../frontend/src/main.js', import.meta.url), 'utf8');
 const opsSource = readFileSync(new URL('../frontend/src/screens/operations-management.js', import.meta.url), 'utf8');
 
 function baseState(overrides = {}) {
@@ -269,6 +270,17 @@ test('ACTIVITY_LIST_COLUMNS and ACTIVITY_TABLE_COLUMNS include funding', () => {
   // Operations projection intentionally untouched by this activities-page fix.
   assert.equal(opsBlock.includes("'funding'"), false);
   assert.doesNotMatch(opsSource, /EMPTY_FUNDING_FILTER_VALUE|activityFundingFilterValue/);
+});
+
+test('All Activities price filter receives actual activity price and fresh list cache', () => {
+  const tableColumns = apiSource.match(/const ACTIVITY_TABLE_COLUMNS = \[([\s\S]*?)\]\.join/)?.[1] || '';
+  assert.match(tableColumns, /'price'/, 'activity list query must select real price column');
+  assert.match(apiSource, /const select = filters\?\.select \|\| ACTIVITY_TABLE_COLUMNS/);
+  assert.match(mainSource, /const activitiesProjection = 'p5'/, 'change projection key to invalidate price-less cached rows');
+  const priced = normalizeActivityRow({ row_id: 'PRICED', price: 9450 });
+  const missingPrice = normalizeActivityRow({ row_id: 'MISSING', price: null });
+  assert.equal(priced.price, 9450, 'normalization must keep the price');
+  assert.equal(missingPrice.price, null, 'normalization must not manufacture prices');
 });
 
 test('normalizeActivityRow keeps funding and maps null/blank to empty string without inventing values', () => {
