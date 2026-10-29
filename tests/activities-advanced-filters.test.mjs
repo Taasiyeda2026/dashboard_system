@@ -125,6 +125,62 @@ test('icon-only toggle and inline panel provide all filters and active state', (
   assert.doesNotMatch(activitiesAdvancedFilterToggleHtml({}, 'all', false), /ds-act-advanced__indicator/);
 });
 
+test('meeting end calendar starts at first selected date and cannot precede it', () => {
+  const previousDocument = globalThis.document;
+  const previousAbortController = globalThis.AbortController;
+  const dom = new JSDOM('<main id="root"></main>', { url: 'https://example.test/' });
+  globalThis.document = dom.window.document;
+  globalThis.AbortController = dom.window.AbortController;
+  try {
+    const root = document.querySelector('#root');
+    const state = {
+      listFilters: { activities: { q: '', appliedQ: '', visibleCount: 200 } },
+      activitiesInstructorStatusFilter: 'all',
+      activitiesAdvancedFiltersOpen: true
+    };
+    const render = () => {
+      const filters = state.listFilters.activities;
+      root.innerHTML = '<div class="ds-activities-main-toolbar">'
+        + activitiesAdvancedFilterToggleHtml(filters, 'all', true)
+        + '</div>'
+        + activitiesAdvancedFiltersHtml(filters, 'all', true);
+      bindActivitiesAdvancedFilters(root, state, 'activities', render);
+    };
+    const field = (key) => root.querySelector('[data-activity-advanced-field="' + key + '"]');
+    const change = (key, value) => {
+      field(key).value = value;
+      field(key).dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    };
+    render();
+    assert.equal(field('advMeetingTo').getAttribute('min'), null);
+
+    change('advMeetingFrom', '2027-05-12');
+    assert.equal(state.listFilters.activities.advMeetingFrom, '2027-05-12');
+    assert.equal(state.listFilters.activities.advMeetingTo, '2027-05-12');
+    assert.equal(field('advMeetingTo').value, '2027-05-12', 'end calendar opens on selected start date');
+    assert.equal(field('advMeetingTo').min, '2027-05-12', 'earlier days cannot be selected');
+
+    change('advMeetingTo', '2027-06-02');
+    change('advMeetingFrom', '2027-05-20');
+    assert.equal(field('advMeetingTo').value, '2027-06-02', 'preserve a valid later end date');
+    assert.equal(field('advMeetingTo').min, '2027-05-20');
+
+    change('advMeetingFrom', '2027-07-01');
+    assert.equal(field('advMeetingTo').value, '2027-07-01', 'move end date forward when start exceeds it');
+    assert.equal(field('advMeetingTo').min, '2027-07-01');
+
+    change('advMeetingTo', '2027-06-01');
+    assert.equal(field('advMeetingTo').value, '2027-07-01', 'reject manually entered earlier end date');
+
+    change('advMeetingFrom', '');
+    assert.equal(field('advMeetingTo').getAttribute('min'), null, 'removing start removes end date restriction');
+  } finally {
+    globalThis.document = previousDocument;
+    globalThis.AbortController = previousAbortController;
+    dom.window.close();
+  }
+});
+
 test('inline panel toggles and stays open after selecting a filter', () => {
   const previousDocument = globalThis.document;
   const previousAbortController = globalThis.AbortController;
