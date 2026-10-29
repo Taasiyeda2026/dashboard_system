@@ -2327,3 +2327,18 @@
   .ifb-admin .ifb-staff-table .ifb-staff-stage { text-align: start; }
   .ifb-admin .ifb-staff-table .ifb-staff-action { text-align: start; }
 }
+
+/* Weekly staff feedback status: readable without duplicate "not opened" lines. */
+.ifb-admin .ifb-staff-table .ifb-mail-status { text-align: center; }
+.ifb-admin .ifb-staff-table .ifb-mail-status .ifb-status {
+  display: inline-flex; justify-content: center; align-items: baseline;
+  flex-wrap: wrap; gap: 3px; white-space: normal; line-height: 1.35;
+}
+.ifb-admin .ifb-staff-table .ifb-mail-plan {
+  display: block; margin: 3px auto 0; font-size: 10px;
+  line-height: 1.4; color: var(--ifb-a-muted);
+}
+@media (max-width: 760px) {
+  .ifb-admin .ifb-staff-table .ifb-mail-status { text-align: start; }
+  .ifb-admin .ifb-staff-table .ifb-mail-status .ifb-status { justify-content: flex-start; }
+}
