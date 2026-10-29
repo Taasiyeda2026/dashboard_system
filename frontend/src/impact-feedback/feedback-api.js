@@ -82,6 +82,21 @@ export async function fetchStaffDeliveryStatus() {
   return Array.isArray(rows) ? rows : [];
 }
 
+/** Read-only staff delivery dates and any explicit admin postponement. */
+export async function fetchStaffSendPlan() {
+  const rows = await unwrap(client().rpc('feedback_staff_send_plan'));
+  return Array.isArray(rows) ? rows : [];
+}
+
+/** Schedule a staff email no earlier than a chosen Israeli calendar day (08:00). */
+export async function scheduleStaffSend(activityRowId, stage, sendOn = null) {
+  return unwrap(client().rpc('feedback_staff_admin_schedule', {
+    p_activity_row_id: String(activityRowId),
+    p_stage: stage,
+    p_send_on: sendOn
+  }));
+}
+
 /** Course × audience × stage collection figures (questionnaires, invited, unique respondents). */
 export async function fetchCourseSummary(academicYear = null, half = 'first') {
   // Collection metrics must use the same course cohort as the visible facts.
