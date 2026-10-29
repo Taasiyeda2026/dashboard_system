@@ -10,7 +10,7 @@ export function notificationRowsHtml(rows, { tasks = false, historical = false }
     const month = row.month_key && /^\d{4}-(0[1-9]|1[0-2])$/.test(row.month_key)
       ? new Date(`${row.month_key}-15T12:00:00Z`).toLocaleDateString('he-IL', { month: 'long', year: 'numeric', timeZone: 'Asia/Jerusalem' }) : '';
     const state = tasks ? (historical ? 'הטיפול הסתיים' : taskLabels[row.stage] || 'משימה ממתינה') : eventLabels[row.event_type] || 'עדכון בתהליך';
-    return `<article data-completed="${historical || ['approved','manager_approved','admin_approved','dispatched_to_payroll','sent_to_payment'].includes(row.event_type)}" class="ds-notification${historical ? ' is-historical' : ''}${!tasks && !row.read_at ? ' is-unread' : ''}">
+    return `<article data-task="${tasks}" data-completed="${historical || (!tasks && ['approved','manager_approved','admin_approved','dispatched_to_payroll','sent_to_payment'].includes(row.event_type))}" class="ds-notification${historical ? ' is-historical' : ''}${!tasks && !row.read_at ? ' is-unread' : ''}">
       <span class="ds-notification-icon">${hubIcon(row.domain === 'attendance' ? 'attendance' : row.domain === 'proposal' ? 'transaction' : 'file')}</span>
       <div class="ds-notification-text"><strong>${escapeHtml(title)}${month ? ` — ${escapeHtml(month)}` : ''}</strong><span>${escapeHtml(state)}</span></div>
       <time datetime="${escapeHtml(row.created_at)}">${escapeHtml(new Date(row.created_at).toLocaleString('he-IL', { timeZone: 'Asia/Jerusalem' }))}</time>

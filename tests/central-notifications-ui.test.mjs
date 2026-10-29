@@ -88,3 +88,9 @@ test('an active employee can open their own inbox without gaining approval permi
  }
  assert.equal(canOpenRoute({role:'employee',is_active:false},'edit-requests'),false);
 });
+
+
+test('a pending next-stage task is not styled as a completed event',()=>{
+ const html=notificationRowsHtml([{id,domain:'attendance',entity_key:'10|2026-10',stage:'final_review',event_type:'manager_approved',created_at:'2026-10-29T12:00:00Z'}],{tasks:true});
+ assert.match(html,/data-task="true" data-completed="false"/);
+});

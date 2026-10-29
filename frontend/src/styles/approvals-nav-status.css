@@ -60,3 +60,5 @@
 .ds-notification[data-completed=true]:not(.is-historical) .ds-notification-text span{color:var(--ds-success,#15803d)}
 .ds-notification-routing{padding:10px 12px;border-inline-start:3px solid var(--ds-danger,#b91c1c);font-size:13px}
 .ds-notification-routing p{margin:6px 0 0}
+
+.ds-notification[data-task=true]:not(.is-historical) .ds-notification-text span{color:var(--ds-danger,#b91c1c)}

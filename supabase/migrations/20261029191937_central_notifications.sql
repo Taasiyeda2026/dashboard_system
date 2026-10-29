@@ -110,7 +110,25 @@ begin
      select array_agg(distinct u.auth_user_id) into v_candidates from public.users u
        where u.is_active and u.emp_id=split_part(p_key,'|',1) and u.auth_user_id is not null;
    elsif p_stage='manager_review' then
-     select ci.direct_manager into v_label from public.contacts_instructors ci where ci.emp_id::text=split_part(p_key,'|',1);
+     if exists(select 1 from public.employee_profiles ep join public.users owner on owner.user_id=ep.user_id
+       where owner.is_active and split_part(p_key,'|',1) in (ep.emp_id,owner.emp_id)
+         and nullif(btrim(ep.emp_id),'') is not null and nullif(btrim(owner.emp_id),'') is not null
+         and btrim(ep.emp_id)<>btrim(owner.emp_id)) then return; end if;
+     -- Both canonical rosters can describe an employee. Combine them before
+     -- resolving the manager: contradictory sources must not silently win.
+     select case when count(distinct lower(btrim(label)))=1 then min(btrim(label)) end
+       into v_label
+     from (
+       select ci.direct_manager label from public.contacts_instructors ci
+         where ci.emp_id::text=split_part(p_key,'|',1)
+       union all
+       select ep.direct_manager from public.employee_profiles ep
+         join public.users owner on owner.user_id=ep.user_id
+         where coalesce(nullif(btrim(ep.emp_id),''),nullif(btrim(owner.emp_id),''))=split_part(p_key,'|',1)
+           and owner.is_active=true
+     ) roster
+     where nullif(btrim(label),'') is not null;
+
    else return; end if;
  elsif p_domain='proposal' and p_stage='responsible' then
    select pr.created_by into v_reference from public.proposals_agreements pr where pr.id::text=p_key;
@@ -195,11 +213,16 @@ returns jsonb language sql stable security definer set search_path=public,privat
   when 'personal_report' then jsonb_build_object('subject_label',coalesce((select p.full_name from public.profiles p where p.id=pr.employee_id),'דוח אישי'),
     'month_key',pr.report_year::text||'-'||lpad(pr.report_month::text,2,'0'))
   when 'proposal' then jsonb_build_object('subject_label','הצעת מחיר'||coalesce(' מס׳ '||nullif(pa.quote_number,''),'')||coalesce(' — '||nullif(pa.client_authority,''),''))
-  when 'attendance' then jsonb_build_object('subject_label',coalesce(ci.full_name,'נוכחות'),'month_key',split_part(v.entity_key,'|',2)) end label
+  when 'attendance' then jsonb_build_object('subject_label',coalesce(ci.full_name,staff.full_name,'נוכחות'),'month_key',split_part(v.entity_key,'|',2)) end label
   from visible v
   left join public.personal_reports pr on v.domain='personal_report' and pr.id::text=v.entity_key
   left join public.proposals_agreements pa on v.domain='proposal' and pa.id::text=v.entity_key
   left join public.contacts_instructors ci on v.domain='attendance' and ci.emp_id::text=split_part(v.entity_key,'|',1)
+ left join lateral (
+   select max(coalesce(nullif(ep.full_name,''),nullif(u.full_name,''),u.name)) full_name
+   from public.users u left join public.employee_profiles ep on ep.user_id=u.user_id
+   where u.is_active and coalesce(nullif(btrim(ep.emp_id),''),u.emp_id)=split_part(v.entity_key,'|',1)
+ ) staff on v.domain='attendance'
  ) select coalesce(jsonb_object_agg(id::text,label),'{}'::jsonb) from labels
 $$;
 revoke all on function public.dashboard_notification_labels(uuid[]) from public,anon;
@@ -209,13 +232,18 @@ grant execute on function public.dashboard_notification_labels(uuid[]) to authen
 create function public.dashboard_notification_routing_issues()
 returns table(domain text,subject_label text,stage text) language sql stable security definer set search_path=public,private,pg_temp as $$
  select e.domain,case e.domain when 'personal_report' then coalesce(p.full_name,'דוח אישי')||' — דוח אישי'
- when 'proposal' then 'הצעת מחיר'||coalesce(' מס׳ '||pa.quote_number,'') else coalesce(ci.full_name,'עובד')||' — נוכחות' end, i.stage
+ when 'proposal' then 'הצעת מחיר'||coalesce(' מס׳ '||pa.quote_number,'') else coalesce(ci.full_name,staff.full_name,'עובד')||' — נוכחות' end, i.stage
  from private.dashboard_notification_routing_issues i join private.dashboard_notification_events e on e.id=i.event_id
  join private.dashboard_notification_versions v on v.domain=e.domain and v.entity_key=e.entity_key and v.revision=e.revision
  left join public.personal_reports pr on e.domain='personal_report' and pr.id::text=e.entity_key
  left join public.profiles p on p.id=pr.employee_id
  left join public.proposals_agreements pa on e.domain='proposal' and pa.id::text=e.entity_key
  left join public.contacts_instructors ci on e.domain='attendance' and ci.emp_id::text=split_part(e.entity_key,'|',1)
+ left join lateral (
+   select max(coalesce(nullif(ep.full_name,''),nullif(u.full_name,''),u.name)) full_name
+   from public.users u left join public.employee_profiles ep on ep.user_id=u.user_id
+   where u.is_active and coalesce(nullif(btrim(ep.emp_id),''),u.emp_id)=split_part(e.entity_key,'|',1)
+ ) staff on e.domain='attendance'
  where exists(select 1 from public.users u where u.auth_user_id=auth.uid() and u.is_active and u.role='admin' and u.username='idann')
  order by i.created_at desc limit 100
 $$;

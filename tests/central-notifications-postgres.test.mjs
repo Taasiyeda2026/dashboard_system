@@ -21,7 +21,7 @@ before(async () => {
  create table auth.users(id uuid primary key);
  create table public.users(user_id text,auth_user_id uuid,username text,role text,is_active boolean default true,full_name text,name text,emp_id text,permissions jsonb default '{}',approve_proposals_agreements boolean,manage_proposals_agreements boolean);
  create table public.profiles(id uuid primary key,email text,full_name text,role text,is_active boolean,can_access_personal_reports boolean);
- create table public.employee_profiles(user_id text,direct_manager text);
+ create table public.employee_profiles(user_id text,emp_id text,direct_manager text,full_name text);
  create table public.contacts_instructors(emp_id bigint primary key,full_name text,direct_manager text);
  create table public.personal_reports(id uuid primary key default gen_random_uuid(),employee_id uuid,report_month int,report_year int,status text);
  create table public.proposals_agreements(id uuid primary key default gen_random_uuid(),created_by text,status text,archived_at timestamptz,quote_number text,client_authority text);
@@ -208,4 +208,42 @@ test('specific appointment overrides the default, ambiguity never fans out, and 
  await db.query('delete from auth.users where id=$1',[temporary]);
  assert.equal(await scalar(`select count(*) from dashboard_notifications where recipient_auth_user_id='${temporary}'`),0);
  await db.query("delete from private.dashboard_notification_assignments where domain='proposal' and entity_key=$1",[P]);
+});
+
+test('attendance staff manager routing uses employee_profiles, rejects missing and contradictory roster assignments',async t=>{
+ if(!required(t))return;
+ // Headquarters employee has no contacts_instructors row.
+ await db.query("insert into employee_profiles(user_id,emp_id,direct_manager) values('employee','10','manager')");
+ await db.exec("delete from contacts_instructors where emp_id=10;insert into attendance_month_approvals(emp_id,month_key,status) values(10,'2026-11','submitted')");
+ await identity('manager');assert.equal(await scalar('select count(*) from dashboard_notification_tasks where closed_at is null'),1);
+ const taskId=await scalar('select id from dashboard_notification_tasks where closed_at is null');
+ const labels=(await db.query('select dashboard_notification_labels($1) labels',[[taskId]])).rows[0].labels;
+ assert.equal(labels[taskId].subject_label,'employee');
+ await identity('other');assert.equal(await scalar('select count(*) from dashboard_notification_tasks where closed_at is null'),0);
+ await admin();await db.exec("update employee_profiles set direct_manager=null where emp_id='10';insert into attendance_month_approvals(emp_id,month_key,status) values(10,'2026-12','submitted')");
+ assert.equal(await scalar('select count(*) from private.dashboard_notification_routing_issues'),1);
+ await db.exec("update employee_profiles set direct_manager='manager' where emp_id='10';insert into contacts_instructors(emp_id,full_name,direct_manager) values(10,'employee','idan');insert into attendance_month_approvals(emp_id,month_key,status) values(10,'2027-01','submitted')");
+ assert.equal(await scalar('select count(*) from private.dashboard_notification_routing_issues'),2);
+ await db.exec("update contacts_instructors set direct_manager='manager' where emp_id=10;update employee_profiles set emp_id='999' where user_id='employee';insert into attendance_month_approvals(emp_id,month_key,status) values(10,'2027-02','submitted')");
+ assert.equal(await scalar('select count(*) from private.dashboard_notification_routing_issues'),3);
+ await db.exec("update employee_profiles set emp_id='10';update users set full_name='manager' where user_id='other';insert into attendance_month_approvals(emp_id,month_key,status) values(10,'2027-03','submitted')");
+ assert.equal(await scalar('select count(*) from private.dashboard_notification_routing_issues'),4);
+ await db.exec("update users set full_name='other' where user_id='other'");
+ // Restore fixture roster so other cases are independent.
+ await db.exec("delete from employee_profiles;update contacts_instructors set direct_manager='manager' where emp_id=10");
+});
+
+test('existing attendance manager RPC rejects a headquarters employee outside the instructor roster',async t=>{
+ if(!required(t))return;
+ await db.exec("alter table contacts_instructors add column if not exists active text default 'yes'");
+ await db.query("insert into employee_profiles(user_id,emp_id,direct_manager,full_name) values('other','11','manager','other')");
+ await db.exec("delete from contacts_instructors where emp_id=11;insert into attendance_month_approvals(emp_id,month_key,status) values(11,'2026-10','submitted')");
+ const source=await readFile(new URL('../supabase/migrations/20261013042258_unified_attendance_travel_time_cancellation.sql',import.meta.url),'utf8');
+ const begin=source.indexOf('create or replace function public.manager_finalize_attendance_month_review(');
+ const body=source.indexOf('$$',begin);const end=source.indexOf('$$;',body+2)+3;
+ await db.exec(source.slice(begin,end));
+ await identity('manager');
+ assert.equal(await scalar("select count(*) from dashboard_notification_tasks where closed_at is null"),1,'notification routes by the actual staff source');
+ await assert.rejects(()=>db.query('select manager_finalize_attendance_month_review($1,$2,$3)',['11','2026-10','manager']),/payroll_attendance_permission_denied/);
+ await admin();await db.exec("delete from employee_profiles where user_id='other';insert into contacts_instructors(emp_id,full_name,direct_manager) values(11,'other','manager')");
 });

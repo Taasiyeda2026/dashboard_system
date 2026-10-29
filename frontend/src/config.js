@@ -526,3 +526,5 @@ config.HOTFIX_VERSION = 'feedback-facts-rpc-paging-compat-20261028-v2-' + config
 config.HOTFIX_VERSION = 'feedback-manager-own-expiry-20261028-v1-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = 'central-notifications-review-20261029-v1-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'notifications-staff-routing-visual-20261029-v2-' + config.HOTFIX_VERSION;
