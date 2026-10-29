@@ -48,6 +48,8 @@ import { filterSchoolCalendarRowsBySector } from './shared/school-calendar-logic
 import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQueryValue } from './shared/route-query.js';
 import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
 import { activityInstructorAssignmentState, activityMatchesInstructorStatusFilter } from './shared/activity-instructor-filter.js';
+import { applyActivitiesAdvancedFilters, activitiesAdvancedFiltersHtml, bindActivitiesAdvancedFilters } from './shared/activities-advanced-filters.js';
+import '../styles/activities-advanced-filters.css';
 import {
   applyMissingScheduleFilter,
   MISSING_SCHEDULE_FILTER_STORAGE_KEY
@@ -1248,7 +1250,7 @@ function prepareActivitiesFilterBaseRows(rows, state, settings) {
 function applyActivitiesLocalFilters(rows, state, settings) {
   const filters = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
   const baseRows = prepareActivitiesFilterBaseRows(rows, state, settings);
-  return applyLocalFilters(baseRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS }).sort(compareActivityDefaultOrder);
+  return applyActivitiesAdvancedFilters(applyLocalFilters(baseRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS }), filters).sort(compareActivityDefaultOrder);
 }
 
 function buildActivitiesDiagnostics(allRows, state, finalRows) {
@@ -1922,8 +1924,9 @@ export const activitiesScreen = {
       bare: true,
       dependent: true
     });
-    const filteredRows = applyLocalFilters(filterOptionRows, listFilters, { filterFields: ACTIVITY_FILTER_FIELDS })
-      .sort(compareActivityDefaultOrder);
+    const filteredRows = applyActivitiesAdvancedFilters(
+      applyLocalFilters(filterOptionRows, listFilters, { filterFields: ACTIVITY_FILTER_FIELDS }), listFilters
+    ).sort(compareActivityDefaultOrder);
     const { visible: safeRows, hasMore, total, nextCount } = splitVisibleRows(filteredRows, listFilters);
     const canSeePrivateNotes = canReviewActivityRequests(state);
     const hideEmpIds    = !!state?.clientSettings?.hide_emp_id_on_screens;
@@ -2115,13 +2118,10 @@ export const activitiesScreen = {
     const missingScheduleBanner = state.activitiesMissingScheduleOnly
       ? `<p class="scheduling-warning" role="status" data-missing-schedule-filter-banner>מוצגים רק קורסים פתוחים של תשפ״ז שחסר להם תאריך התחלה או שעת התחלה. <button type="button" class="ds-link-btn" data-clear-missing-schedule-filter>הצג את כל הפעילויות</button></p>`
       : '';
-    const instructorStatusFilterHtml = is2027Tab
-      ? `<select class="ds-input ds-filter-select-inline" data-activities-instructor-status-filter aria-label="מצב שיבוץ" title="מצב שיבוץ">${ACTIVITIES_INSTRUCTOR_STATUS_FILTERS.map((filter) => `<option value="${filter.key}"${state.activitiesInstructorStatusFilter === filter.key ? ' selected' : ''}>מצב שיבוץ: ${filter.label}</option>`).join('')}</select>`
-      : '';
     const mainToolbar = `${missingScheduleBanner}<div class="ds-activities-main-toolbar" dir="rtl" data-local-filters="${ACTIVITIES_SCOPE}">
       <input type="search" class="ds-input ds-input--sm ds-activities-search-sm" data-filter-search="${ACTIVITIES_SCOPE}" value="${escapeHtml(listFilters.q || '')}" placeholder="חיפוש" aria-label="חיפוש פעילויות" title="חיפוש לפי מזהה, פעילות, מדריך, רשות, בית ספר, סטטוס, תאריך או סמל מוסד" />
-      ${instructorStatusFilterHtml}
       ${bareFilters}
+      ${activitiesAdvancedFiltersHtml(listFilters, state.activitiesInstructorStatusFilter, !!state.activitiesAdvancedFiltersOpen)}
       <div class="ds-activities-main-toolbar__actions">
         <button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn" data-filter-clear="${ACTIVITIES_SCOPE}" aria-label="ניקוי כל הסינונים" title="ניקוי כל הסינונים">ניקוי כל הסינונים</button>
         ${canUseLayout ? `<button type="button" class="ds-btn ds-btn--sm ds-btn--ghost ds-activities-toolbar-btn ds-activities-toolbar-btn--layout" data-activity-layout-list title="פריסת פעילות לבתי ספר עם שיבוץ מלא">פריסת פעילות</button>` : ''}
@@ -3035,15 +3035,9 @@ export const activitiesScreen = {
       state.activityFinanceStatus = '';
       state.allActivitiesStatusFilter = 'all';
       state.activitiesInstructorStatusFilter = 'all';
+      state.activitiesAdvancedFiltersOpen = false;
     } });
-    root.querySelector('[data-activities-instructor-status-filter]')?.addEventListener('change', (event) => {
-      state.activitiesInstructorStatusFilter = normalizeActivitiesInstructorStatusFilter(event.target.value);
-      // Keep the legacy mixed status value neutral; assignment status now has its own control.
-      state.allActivitiesStatusFilter = 'all';
-      const filters = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
-      filters.visibleCount = Math.max(200, Number(filters.visibleCount) || 0);
-      rerenderLocal();
-    });
+    bindActivitiesAdvancedFilters(root, state, ACTIVITIES_SCOPE, rerenderLocal);
     async function loadAllActivitiesForAdmin() {
       return typeof api.allActivities === 'function' ? api.allActivities() : api.activities({ activity_type: 'all' });
     }
