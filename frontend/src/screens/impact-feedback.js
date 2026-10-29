@@ -161,6 +161,7 @@ const ui = {
   staffDelivery: new Map(),
   staffPlans: new Map(),
   staffDeliveryLoaded: false,
+  staffDeliveryLoading: false,
   staffIssues: null,
   staffIssuesYear: null,
   instructorAssignments: null,
@@ -336,26 +337,47 @@ async function ensureGroups(force = false) {
   return task;
 }
 
+let staffDeliveryGeneration = 0;
+
 async function ensureStaffDelivery(force = false) {
-  if (ui.year !== 'school_2027' || (!force && ui.staffDeliveryLoaded)) return;
-  try {
-    const [delivery, plan] = await Promise.all([fetchStaffDeliveryStatus(), fetchStaffSendPlan()]);
-    // The delivery RPC reports one row per activity and stage. Never spread a
-    // representative's sent status to other activities in the same cohort.
-    ui.staffDelivery = staffStatusIndex(delivery);
-    ui.staffPlans = new Map();
-    for (const item of plan) {
-      for (const id of item.activity_row_ids || []) {
-        ui.staffPlans.set(`${id}|${item.stage}`, item);
+  if (ui.year !== 'school_2027') return;
+  if (inflight.staffDelivery) return inflight.staffDelivery;
+  if (!force && ui.staffDeliveryLoaded) return;
+  const generation = staffDeliveryGeneration;
+  ui.staffDeliveryLoading = true;
+  const task = (async () => {
+    try {
+      const results = await Promise.allSettled([fetchStaffDeliveryStatus(), fetchStaffSendPlan()]);
+      if (results.some((result) => result.status === 'rejected')) return;
+      const [delivery, plan] = results.map((result) => result.value);
+      if (generation !== staffDeliveryGeneration) return;
+      // Keep the RPC's exact per-activity evidence; plans never imply delivery.
+      ui.staffDelivery = staffStatusIndex(delivery);
+      ui.staffPlans = new Map();
+      for (const item of plan) {
+        for (const id of item.activity_row_ids || []) {
+          ui.staffPlans.set(`${id}|${item.stage}`, item);
+        }
       }
+      ui.staffDeliveryLoaded = true;
+    } catch {
+      // Retain the last verified data on a refresh failure; allow retry on revisit.
+    } finally {
+      if (generation === staffDeliveryGeneration) ui.staffDeliveryLoading = false;
+      if (inflight.staffDelivery === task) inflight.staffDelivery = null;
     }
-  } catch {
-    // During rollout the migration may not yet exist. Never report false success,
-    // and keep the existing survey UI usable if the status read is unavailable.
-    ui.staffDelivery = new Map();
-    ui.staffPlans = new Map();
-  }
-  ui.staffDeliveryLoaded = true;
+  })();
+  inflight.staffDelivery = task;
+  return task;
+}
+
+function refreshStaffDeliveryInBackground(host, force = false) {
+  const task = ensureStaffDelivery(force);
+  if (!task || typeof task.then !== 'function') return;
+  if (ui.staffDeliveryLoading && ui.programs.length && tabDataReady(ui.tab)) paint(host);
+  task.then(() => {
+    if (host.isConnected && ui.tab === 'staff') paint(host);
+  });
 }
 
 
@@ -393,6 +415,7 @@ function staffFinalWaitingHtml(waiting, { detailed = false } = {}) {
 
 function staffEmailStatusHtml(group, stage, scope, { standalone = false } = {}) {
   if (scope !== 'staff' || ui.year !== 'school_2027') return '';
+  if (ui.staffDeliveryLoading) return '<span class="ifb-cell-sub ifb-mail-status" role="status">מתעדכן</span>';
   const key = `${group.row_id}|${stage}`;
   const value = ui.staffDelivery.get(key);
   const plan = ui.staffPlans.get(key);
@@ -2526,7 +2549,7 @@ function paint(host, { focusTab = false } = {}) {
 async function load(host, { force = false, focusTab = false } = {}) {
   ui.error = '';
   const needs = ui.groupRowId ? ['groups'] : tabNeeds(ui.tab);
-  const cacheWarm = !force
+  const cacheWarm = (!force || ui.tab === 'staff')
     && ui.programs.length
     && (ui.groupRowId ? Boolean(ui.groups) : tabDataReady(ui.tab));
   if (!cacheWarm) {
@@ -2535,7 +2558,7 @@ async function load(host, { force = false, focusTab = false } = {}) {
   }
   try {
     await ensureDefinitions();
-    if (ui.tab === 'staff') await ensureStaffDelivery(force);
+    if (ui.tab === 'staff') refreshStaffDeliveryInBackground(host, force);
     // Assignments before summary avoids a useless parallel race; summary no longer
     // re-runs the heavy assignments RPC on the server (see migration).
     const loaders = {
@@ -2617,7 +2640,7 @@ async function switchTab(host, key, { focusTab = false } = {}) {
   ui.templates.templateId = null;
   // Reuse in-memory year-scoped data; forced reload is reserved for entry/refresh/mutations.
   if (ui.programs.length && tabDataReady(key)) {
-    if (key === 'staff') await ensureStaffDelivery();
+    if (key === 'staff') refreshStaffDeliveryInBackground(host);
     paint(host, { focusTab });
     return;
   }
@@ -3029,6 +3052,9 @@ function resetYearScopedState() {
   ui.staffDelivery.clear();
   ui.staffPlans.clear();
   ui.staffDeliveryLoaded = false;
+  ui.staffDeliveryLoading = false;
+  staffDeliveryGeneration += 1;
+  inflight.staffDelivery = null;
   ui.instructorAssignments = null;
   ui.instructorAssignmentsYear = null;
   ui.summary = null;
@@ -3135,7 +3161,7 @@ function installActivityDateSync(host) {
         }
       } else {
         const groups = await fetchGroups(year);
-        if (tab === 'staff') await ensureStaffDelivery(true);
+        if (tab === 'staff') refreshStaffDeliveryInBackground(host, true);
         if (controller.signal.aborted || !host.isConnected || year !== ui.year ||
             tab !== ui.tab || ui.groupRowId) return;
         if (groupsSyncFingerprint(groups) !== groupsSyncFingerprint(ui.groups)) {
