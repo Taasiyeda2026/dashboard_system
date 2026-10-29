@@ -1,4 +1,5 @@
 import { getActivityDateColumns } from './shared/format-date.js';
+import { activityMeetingSlots, financeToday, transactionActivitySummary } from './finance-transaction-accounts.js';
 
 export const FINANCE_UNFUNDED_PAYER_LABEL = 'ללא גורם מימון';
 export const FINANCE_COLLECTION_OPEN = 'open';
@@ -76,7 +77,8 @@ export function financeActivityEndDate(row = {}) {
   const latestMeeting = getActivityDateColumns(row).reduce((max, dateKey) => (
     !max || dateKey > max ? dateKey : max
   ), '');
-  return endDate || latestMeeting || '';
+  // Live meeting slots are authoritative when the end_date field lags behind a reschedule.
+  return latestMeeting || endDate || '';
 }
 
 export function financeActivityEndMonthKey(row = {}) {
@@ -192,6 +194,35 @@ export function attachCollectionTracking(activities = [], trackingRows = []) {
   });
 }
 
+/** Finance must not bill an activity that has been cancelled or soft-deleted in Operations. */
+export function isCollectibleActivity(row = {}) {
+  return !['נמחק', 'בוטל', 'מבוטל'].includes(txt(row.status));
+}
+
+/** Attendance-free progress: only the current meeting dates in activities and cancellation facts matter. */
+export function financeActivityProgress(activity = {}, { cancelledDates = [], now = new Date() } = {}) {
+  const summary = transactionActivitySummary(activity, {
+    cutoff: financeToday(now),
+    cancelledDates,
+    now
+  });
+  const cancellations = new Set(cancelledDates.map(normalizeIsoDate).filter(Boolean));
+  const cancelledCount = activityMeetingSlots(activity).filter((slot) => cancellations.has(slot.date)).length;
+  return {
+    plannedCount: summary.plannedCount,
+    scheduledCount: summary.scheduledCount,
+    completedCount: summary.completedCount,
+    cancelledCount,
+    remainingScheduledCount: summary.scheduledCount - cancelledCount - summary.completedCount
+  };
+}
+
+export function financeCollectionIsOverdue(activity = {}, today = financeToday()) {
+  const due = normalizeIsoDate(activity.expected_collection_date);
+  return normalizeCollectionStatus(activity.collection_status) === FINANCE_COLLECTION_OPEN
+    && !!due && due < today;
+}
+
 export function activityStatusLabel(row = {}) {
   return txt(row.status) || '—';
 }
@@ -229,12 +260,14 @@ export function filterFinanceCollectionActivities(activities = [], { tab = FINAN
   });
 }
 
-export function summarizeFinanceCollectionTotals(activities = []) {
+export function summarizeFinanceCollectionTotals(activities = [], today = financeToday()) {
   let totalAmount = 0;
   let openAmount = 0;
   let closedAmount = 0;
   let openCount = 0;
   let closedCount = 0;
+  let overdueCount = 0;
+  let missingDueDateCount = 0;
   for (const activity of activities || []) {
     const price = num(activity.price ?? activity.amount ?? activity.activity_price);
     totalAmount += price;
@@ -244,6 +277,8 @@ export function summarizeFinanceCollectionTotals(activities = []) {
     } else {
       openAmount += price;
       openCount += 1;
+      if (financeCollectionIsOverdue(activity, today)) overdueCount += 1;
+      if (!normalizeIsoDate(activity.expected_collection_date)) missingDueDateCount += 1;
     }
   }
   return {
@@ -252,7 +287,9 @@ export function summarizeFinanceCollectionTotals(activities = []) {
     closedAmount,
     activityCount: (activities || []).length,
     openCount,
-    closedCount
+    closedCount,
+    overdueCount,
+    missingDueDateCount
   };
 }
 
@@ -283,7 +320,13 @@ export function groupFinanceCollectionPayers(activities = [], { tab = FINANCE_CO
   return [...groups.values()]
     .map((group) => ({
       ...group,
-      activityCount: group.activities.length
+      activityCount: group.activities.length,
+      activities: group.activities.sort((a, b) => {
+        const overdue = Number(financeCollectionIsOverdue(b)) - Number(financeCollectionIsOverdue(a));
+        if (overdue) return overdue;
+        return (normalizeIsoDate(a.expected_collection_date) || '9999-12-31')
+          .localeCompare(normalizeIsoDate(b.expected_collection_date) || '9999-12-31');
+      })
     }))
     .sort((a, b) => a.label.localeCompare(b.label, 'he'));
 }
