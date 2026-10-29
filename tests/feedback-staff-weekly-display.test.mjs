@@ -37,7 +37,7 @@ test('sent, waiting for reply, or uncertain are never mistaken for not due', () 
   assert.equal(staffDeliveryPresentation({stage:'pre',status:'scheduled',startDate:'2026-10-25',
     now:thursday}).label,'שליחה היום ב-08:00');
   assert.equal(staffDeliveryPresentation({stage:'pre',status:'needs_attention',
-    reason:'missing_contact_email',now:thursday}).label,'חסרה כתובת מייל');
+    reason:'missing_contact_email',now:thursday}).label,'לא נשלח · חסרה כתובת מייל');
   assert.equal(staffDeliveryPresentation({stage:'pre',now:thursday}).label,'סטטוס שליחה לא זמין');
 });
 
