@@ -184,9 +184,9 @@ import { translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
         if (form.dataset.deleteInFlight === 'yes') return;
         const rowId = String(form.getAttribute('data-row-id') || '').trim();
         if (!rowId) return;
-        const adminDeleting = String(context.state?.user?.role || state?.user?.role || '').trim() === 'admin';
-        const confirmationText = adminDeleting
-          ? 'האם להסיר את הפעילות מהמסכים הפעילים? אם כבר נשלח עבורה תיאום, המסמך והיסטוריית השליחה יישמרו לצורכי בקרה. פעילויות ללא תיעוד עשויות להימחק לצמיתות. הסרה אינה מבטלת הודעה שכבר נשלחה לבית הספר.'
+        const privilegedDeleting = ['admin', 'operation_manager'].includes(String(context.state?.user?.role || state?.user?.role || '').trim());
+        const confirmationText = privilegedDeleting
+          ? 'האם להסיר את הפעילות מהמסכים הפעילים? אם כבר נשלח עבורה תיאום, המסמך והיסטוריית השליחה יישמרו לצורכי בקרה. גם אישורים, נוכחות ונתוני כספים קיימים יישמרו. פעילויות ללא תיעוד עשויות להימחק לצמיתות. הסרה אינה מבטלת הודעה שכבר נשלחה לבית הספר.'
           : 'האם למחוק את הפעילות לצמיתות? לא ניתן לשחזר את הפעילות לאחר המחיקה.';
         const confirmed = window.confirm(confirmationText);
         if (!confirmed) return;
@@ -200,7 +200,7 @@ import { translateApiErrorForUser } from './screens/shared/ui-hebrew.js';
           context.clearScreenDataCache?.('activities');
           context.clearScreenDataCache?.('operations-management');
           context.ui?.closeDrawer?.();
-          showToast(adminDeleting
+          showToast(privilegedDeleting
             ? 'הפעילות הוסרה מהמסכים הפעילים. אם נשלח תיאום, היסטוריית השליחה נשמרה.'
             : 'הפעילות נמחקה לצמיתות.', 'success', 3400);
           context.rerender?.();
