@@ -68,3 +68,46 @@ test('one failed RPC keeps the pair coalesced until the other RPC settles', asyn
   const second=x.context.ensure(true);assert.deepEqual(x.calls,{status:1,plan:1});
   x.plan.resolve([]);await Promise.all([first,second]);assert.equal(x.ui.staffDeliveryLoading,false);
 });
+
+function installEntryFunctions(x) {
+  const paints=[];
+  Object.assign(x.ui,{tab:'staff',programs:[{}],groups:[{row_id:'a'}],templates:{},loading:false});
+  Object.assign(x.context,{
+    visibleFeedbackTabs:()=>[{key:'staff'}],tabNeeds:()=>['groups','issues'],tabDataReady:()=>true,
+    paint:()=>{ assert.equal(x.ui.loading,false); paints.push(true); },
+    ensureDefinitions:async()=>{},ensureGroups:async()=>{},ensureStaffIssues:async()=>{},
+    ensureSummary:async()=>{},ensureFacts:async()=>{},ensureInstructorAssignments:async()=>{},
+    translateFeedbackError:e=>String(e)
+  });
+  const helper=source.slice(source.indexOf('function refreshStaffDeliveryInBackground'),source.indexOf('\n\n/**',source.indexOf('function refreshStaffDeliveryInBackground')));
+  const loader=source.slice(source.indexOf('async function load(host,'),source.indexOf('\nfunction campaignById'));
+  const switcher=source.slice(source.indexOf('async function switchTab('),source.indexOf('\nfunction handleTabKeys'));
+  vm.runInContext(helper+loader+switcher+';globalThis.loadTable=load;globalThis.switchTabForTest=switchTab;',x.context);
+  return paints;
+}
+
+test('revisiting cached staff tab works even when the delivery loader returns no Promise', async()=>{
+  const x=setup();const paints=installEntryFunctions(x);
+  const status={activity_row_id:'a',stage:'pre',status:'sent'};
+  x.ui.staffDeliveryLoaded=true;x.ui.staffDelivery.set('a|pre',status);
+  const host={isConnected:true};
+  await x.context.switchTabForTest(host,'staff');
+  // Exercise the helper contract when a cache-hit loader returns synchronously.
+  x.context.ensureStaffDelivery=()=>undefined;
+  await x.context.switchTabForTest(host,'staff');
+  assert.deepEqual(x.calls,{status:0,plan:0});
+  assert.equal(x.ui.staffDelivery.get('a|pre'),status);
+  assert.equal(x.ui.staffDeliveryLoading,false);assert.ok(paints.length>=2);
+});
+
+test('opening feedback in school_2026 works without a delivery Promise or delivery reads',async()=>{
+  const x=setup();const paints=installEntryFunctions(x);x.ui.year='school_2026';
+  const host={isConnected:true};
+  await x.context.loadTable(host);
+  assert.equal(x.ui.error,'');
+  // A skipped unsupported-year loader is also allowed to return synchronously.
+  x.context.ensureStaffDelivery=()=>undefined;
+  await x.context.loadTable(host);
+  assert.equal(x.ui.error,'');assert.deepEqual(x.calls,{status:0,plan:0});
+  assert.equal(x.ui.staffDeliveryLoading,false);assert.ok(paints.length>=2);
+});

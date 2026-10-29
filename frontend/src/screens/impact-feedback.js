@@ -373,6 +373,7 @@ async function ensureStaffDelivery(force = false) {
 
 function refreshStaffDeliveryInBackground(host, force = false) {
   const task = ensureStaffDelivery(force);
+  if (!task || typeof task.then !== 'function') return;
   if (ui.staffDeliveryLoading && ui.programs.length && tabDataReady(ui.tab)) paint(host);
   task.then(() => {
     if (host.isConnected && ui.tab === 'staff') paint(host);
