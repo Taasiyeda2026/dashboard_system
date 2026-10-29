@@ -8,6 +8,7 @@
  */
 import * as XLSX from 'xlsx';
 import { AI_STAGE_GROUPS, AI_DEFAULT_SELECTION, aiFactsForSelection, buildAiPackage } from '../impact-feedback/feedback-ai-package.js';
+import { buildAllInstructorAiPackage } from '../impact-feedback/feedback-instructor-all-ai-package.js';
 import { escapeHtml as esc } from './shared/html.js';
 import { showToast } from './shared/toast.js';
 import { ACTIVE_ACTIVITY_SEASON, normalizeGlobalActivityPeriod } from './shared/summer-activity.js';
@@ -1752,6 +1753,9 @@ function analysisAiPackageHtml() {
     return '<fieldset class="ifb-ai-export__group">' +
       '<legend>' + esc(group.label) + '</legend>' +
       '<div class="ifb-ai-export__options">' + rows + '</div>' +
+      (group.audience === 'instructor' ?
+        '<button type="button" class="ifb-btn ifb-btn--sm ifb-ai-export__all-instructors" data-ifb-ai-instructors-all>' +
+        'כל משובי המדריכים - כל הקורסים</button>' : '') +
       '</fieldset>';
   }).join('');
   return '<section class="ifb-panel ifb-ai-export" aria-label="העברת נתונים לניתוח">' +
@@ -1819,6 +1823,48 @@ async function exportAiWorkbook() {
     type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
   }), filename);
   showToast('קובץ הניתוח הכולל הנחיות AI ונתוני מקור הורד למחשב', 'success');
+}
+
+/**
+ * All instructor programs, across both semesters of the selected academic year.
+ * Instructor comments must be analyzed course-first, then across courses.
+ */
+async function exportAllInstructorsAiWorkbook() {
+  const year = ui.year;
+  await ensureFacts(true);
+  if (ui.year !== year) {
+    showToast('שנת הלימודים השתנתה. הפעילו מחדש את הייצוא.', 'info');
+    return;
+  }
+  // Intentionally do not call courseFacts()/semesterFacts(): this export covers
+  // every course and both semesters in the selected year.
+  const facts = (ui.facts || []).filter((f) =>
+    f.audience === 'instructor' && f.academic_year === year);
+  const responseIds = new Set(facts.filter((f) => ['final', 'final_b'].includes(f.stage))
+    .map((f) => String(f.response_id)));
+  const output = buildAllInstructorAiPackage({
+    facts,
+    programs: ui.programs.map((p) => ({ ...p, title: programTitle(p.key) })),
+    metrics: ui.metrics,
+    academicYear: year,
+    instructorRecommendations: (ui.instructorReviewItems || [])
+      .filter((r) => responseIds.has(String(r.response_id)))
+  });
+  const wb = XLSX.utils.book_new();
+  wb.Workbook = { Views: [{ RTL: true }] };
+  for (const sheet of output.sheets) {
+    const aoa = sheet.headers ? [sheet.headers, ...sheet.rows] : sheet.rows;
+    const ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws['!cols'] = sheet.widths.map((wch) => ({ wch }));
+    if (sheet.headers && ws['!ref']) ws['!autofilter'] = { ref: ws['!ref'] };
+    XLSX.utils.book_append_sheet(wb, ws, sheet.name);
+  }
+  const data = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+  downloadBlob(new Blob([data], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+  }), 'ניתוח-כל-משובי-המדריכים-' + academicYearLabel(year).replace(/[\\/?%*:|"<>]/g, '_') +
+    '-' + isoDay(Date.now()) + '.xlsx');
+  showToast('קובץ כל משובי המדריכים הורד, כולל חלוקה לכל קורס ומגמות רוחב', 'success');
 }
 
 /** Raw questionnaire answers only. Keep analytics in their existing audience tabs. */
@@ -2485,6 +2531,14 @@ async function handleClick(host, event) {
       else if (group) await afterCampaignChange(host, group.row_id);
     } catch (error) {
       showToast(translateFeedbackError(error), 'error', 5000);
+    }
+    return;
+  }
+  if (t.closest('[data-ifb-ai-instructors-all]')) {
+    try { await exportAllInstructorsAiWorkbook(); }
+    catch (error) {
+      console.error('[feedback-ai-instructors-all]', error);
+      showToast('הפקת דוח המדריכים נכשלה.', 'error', 5000);
     }
     return;
   }
