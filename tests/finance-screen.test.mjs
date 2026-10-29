@@ -102,9 +102,11 @@ function activity(overrides = {}) {
   };
 }
 
-function mockApi({ activities = [], tracking = [], approvals = [], employees = [], attendanceRecords = [] } = {}) {
+function mockApi({ activities = [], tracking = [], approvals = [], employees = [], attendanceRecords = [], accounts = [], balances = [] } = {}) {
   const counts = {
     allActivities: 0,
+    listFinanceActivities: 0,
+    updateFinanceAccountTracking: 0,
     listPayrollControlApprovals: 0,
     attendanceControlTeams: 0,
     attendanceControlRecords: 0,
@@ -117,6 +119,11 @@ function mockApi({ activities = [], tracking = [], approvals = [], employees = [
     counts,
     store,
     lastArgs,
+    listFinanceActivities: async (params = {}) => { counts.listFinanceActivities++; lastArgs.financeActivities = params; return { rows: activities }; },
+    financeTransactionContext: async () => ({accounts, schools: [], cancelled: []}),
+    financeBillingPreview: async () => [],
+    financePaymentContext: async () => ({balances, receipts: [], allocations: []}),
+    updateFinanceAccountTracking: async (id, date, note) => { counts.updateFinanceAccountTracking++; const a=accounts.find(a=>a.id===id); Object.assign(a,{expected_collection_date:date,finance_note:note}); },
     allActivities: async (params = {}) => {
       counts.allActivities += 1;
       lastArgs.allActivities = params;
@@ -160,8 +167,7 @@ function mockApi({ activities = [], tracking = [], approvals = [], employees = [
 }
 
 async function flush() {
-  await Promise.resolve();
-  await Promise.resolve();
+  await new Promise(resolve => setTimeout(resolve, 0));
 }
 
 function mount(data, { api, user = financeUser, activityPeriodTab = 'school_2027' } = {}) {
@@ -216,40 +222,31 @@ test('entering finance does not load activities, attendance, or payroll approval
   assert.doesNotMatch(financeScreen.load.toString(), /allActivities|listPayrollControlApprovals|attendanceControlRecords/);
 });
 
-test('collection card loads allActivities once and returning to it does not reload', async () => {
-  const api = mockApi({ activities: [activity()] });
-  const data = createFinanceVisitState();
-  const { host } = mount(data, { api });
-  host.querySelector('[data-finance-open="collection"]').click();
-  await flush();
-  assert.equal(api.counts.allActivities, 1);
-  assert.equal(api.counts.listPayrollControlApprovals, 0);
-  host.querySelector('[data-finance-open="hub"]').click();
-  await flush();
-  host.querySelector('[data-finance-open="attendance"]').click();
-  await flush();
-  host.querySelector('[data-finance-open="hub"]').click();
-  await flush();
-  host.querySelector('[data-finance-open="collection"]').click();
-  await flush();
-  assert.equal(api.counts.allActivities, 1);
+function invoice(overrides={}) {
+  return {id:'INV-1', document_status:'issued',transaction_account_number:8525,total_amount:1000,
+    issue_date:'2026-08-01',payment_due_date:'2026-09-30',customer_name_snapshot:'עיריית רחובות',
+    payer_identity_snapshot:'עיריית רחובות',payer_key_snapshot:'authority:auth-1',finance_note:'',
+    sharepoint_web_url:'https://files.example/original.pdf',
+    finance_transaction_account_lines:[{activity_row_id:'ACT-1',activity_name_snapshot:'קורס רובוטיקה',school_name_snapshot:'בית ספר הרצל',funding_source_id:'r',amount:1000}],...overrides};
+}
+function collectionData(accounts=[invoice()], balances=[]) {
+  return {...createFinanceVisitState(),view:'collection',transactionContext:{accounts,billingRows:[]},paymentContext:{balances,receipts:[],allocations:[]}};
+}
+
+test('collection card refreshes account balances and live activities on every entry without loading payroll', async () => {
+  const api=mockApi({activities:[activity()],accounts:[invoice()]}); const data=createFinanceVisitState(); const {host}=mount(data,{api});
+  host.querySelector('[data-finance-open="collection"]').click(); await flush();
+  assert.equal(api.counts.listFinanceActivities,1); assert.match(host.innerHTML,/8525/); assert.equal(api.counts.listPayrollControlApprovals,0);
+  host.querySelector('[data-finance-open="hub"]').click(); host.querySelector('[data-finance-open="collection"]').click(); await flush();
+  assert.equal(api.counts.listFinanceActivities,2); assert.equal(api.counts.allActivities,0);
 });
 
-test('collection tracking always requests and shows school_2027 activities even if the global period is regular', async () => {
-  const api = mockApi({
-    activities: [
-      activity({ row_id: 'Y27', activity_name: 'קורס תשפז', activity_season: 'school_2027' }),
-      activity({ row_id: 'Y26', activity_name: 'קורס תשפו', activity_season: 'regular', school: 'בית ספר 2026' })
-    ]
-  });
-  const data = createFinanceVisitState();
-  const { host } = mount(data, { api, activityPeriodTab: 'regular' });
-  host.querySelector('[data-finance-open="collection"]').click();
-  await flush();
-  assert.equal(api.lastArgs.allActivities.activity_period, FINANCE_COLLECTION_ACTIVITY_PERIOD);
-  assert.equal(api.lastArgs.allActivities.activity_period, 'school_2027');
-  assert.match(host.innerHTML, /קורס תשפז/);
-  assert.doesNotMatch(host.innerHTML, /קורס תשפו|בית ספר 2026/);
+test('collection loads every activity period independently of the dashboard year selection', async () => {
+  const api=mockApi({activities:[activity({row_id:'Y27'}),activity({row_id:'Y26',activity_season:'regular'})]});
+  const data=createFinanceVisitState(); const {host}=mount(data,{api,activityPeriodTab:'regular'});
+  host.querySelector('[data-finance-open="collection"]').click(); await flush();
+  assert.equal(api.lastArgs.financeActivities.activity_period,undefined);
+  assert.deepEqual(data.collectionActivities.map(a=>a.row_id),['Y27','Y26']);
 });
 
 test('attendance is not loaded until the attendance card is clicked', async () => {
@@ -932,29 +929,12 @@ test('finance payer key uses stable ids so spelling variants do not split groups
   assert.equal(payers[0].activityCount, 2);
 });
 
-test('collection search debounces list filtering without recreating the input', async () => {
-  const api = mockApi({
-    activities: [
-      activity({ row_id: 'S1', activity_name: 'קורס רחובות', end_date: '2027-04-10', authority: 'עיריית רחובות' }),
-      activity({ row_id: 'S2', activity_name: 'סדנה אחרת', end_date: '2027-04-11', authority: 'ראשון לציון' })
-    ]
-  });
-  const data = createFinanceVisitState();
-  const { host, window } = mount(data, { api });
-  host.querySelector('[data-finance-open="collection"]').click();
-  await flush();
-  await flush();
-  const input = host.querySelector('[data-finance-collection-search]');
-  assert.ok(input);
-  input.focus();
-  input.value = 'רחובות';
-  input.dispatchEvent(new window.Event('input', { bubbles: true }));
-  assert.equal(host.querySelector('[data-finance-collection-search]'), input);
-  assert.equal(window.document.activeElement, input);
-  await new Promise((resolve) => setTimeout(resolve, 280));
-  assert.equal(host.querySelector('[data-finance-collection-search]'), input);
-  assert.match(host.querySelector('[data-finance-collection-body]')?.innerHTML || '', /קורס רחובות/);
-  assert.doesNotMatch(host.querySelector('[data-finance-collection-body]')?.innerHTML || '', /סדנה אחרת/);
+test('collection search debounces invoice filtering without recreating the input', async () => {
+  const api=mockApi({accounts:[invoice(),invoice({id:'other',transaction_account_number:8526,customer_name_snapshot:'נהרייה',finance_transaction_account_lines:[]})]});
+  const {host,window}=mount(createFinanceVisitState(),{api});host.querySelector('[data-finance-open="collection"]').click();await flush();
+  const input=host.querySelector('[data-finance-collection-search]');input.focus();input.value='רחובות';input.dispatchEvent(new window.Event('input',{bubbles:true}));
+  assert.equal(host.querySelector('[data-finance-collection-search]'),input);await new Promise(r=>setTimeout(r,280));
+  assert.equal(window.document.activeElement,input);assert.match(host.querySelector('[data-finance-collection-body]').textContent,/8525/);assert.doesNotMatch(host.querySelector('[data-finance-collection-body]').textContent,/8526/);
 });
 
 test('activity without tracking defaults to open and closed collection is hidden from the open tab', () => {
@@ -1020,9 +1000,9 @@ test('collection tabs and search filter together by end month and payer grouping
 
 test('collection summary cards total open and closed without double counting', () => {
   const rows = attachCollectionTracking([
-    activity({ row_id: '1', price: 100 }),
-    activity({ row_id: '2', price: 250 }),
-    activity({ row_id: '3', price: 150 })
+    activity({ row_id: '1', price: 999, billed_amount: 100 }),
+    activity({ row_id: '2', price: 999, billed_amount: 250 }),
+    activity({ row_id: '3', price: 999, billed_amount: 150 })
   ], [{ activity_row_id: '2', collection_status: 'closed' }]);
   const totals = summarizeFinanceCollectionTotals(rows);
   assert.equal(totals.totalAmount, 500);
@@ -1031,130 +1011,24 @@ test('collection summary cards total open and closed without double counting', (
   assert.equal(totals.totalAmount, totals.openAmount + totals.closedAmount);
 });
 
-test('collection UI keeps a compact centered shell with summary cards search and three tabs', () => {
-  const html = financeScreen.render({
-    ...createFinanceVisitState(),
-    view: 'collection',
-    collectionActivities: [
-      activity({ row_id: 'UI-1', end_date: '2027-07-01', authority: 'עיריית רחובות' })
-    ],
-    collectionTracking: [],
-    collectionTab: 'open',
-    collectionSearch: ''
-  }, { state: { user: financeUser } });
-  assert.match(html, /ds-fin-collect-shell/);
-  assert.match(html, /ds-fin-collect-shell[\s\S]*ds-fin-backbar/);
-  assert.match(html, /סכום כל הפעילויות/);
-  assert.match(html, /סה״כ לגבייה/);
-  assert.match(html, /סה״כ גבייה שבוצעה/);
-  assert.match(html, /data-finance-collection-search/);
-  assert.match(html, /data-finance-collection-tab="closed"/);
-  assert.match(html, /ds-fin-collect-month/);
-  assert.doesNotMatch(html, /פעילויות לפי משלם/);
-  assert.equal([...html.matchAll(/מעקב גבייה/g)].length, 1);
+test('collection UI keeps the dashboard shell with account totals, search and archive', () => {
+  const html=financeScreen.render(collectionData(),{state:{user:financeUser}});
+  for(const value of ['ds-fin-collect-shell','סכום חשבונות שהופקו','חשבונות פתוחים למעקב','תקבולים שתועדו','data-finance-collection-search','data-finance-collection-tab="closed"','ארכיון חשבונות ששולמו'])assert.ok(html.includes(value),value);
+  assert.equal([...html.matchAll(/מעקב גבייה/g)].length,1);
 });
 
-test('collection pay table stacks related fields without dropping original info or editable save attrs', () => {
-  const html = financeScreen.render({
-    ...createFinanceVisitState(),
-    view: 'collection',
-    collectionActivities: [
-      activity({
-        row_id: 'LAYOUT-1',
-        activity_name: 'סדנת חלל',
-        activity_no: 'G-778',
-        authority: 'עיריית רחובות',
-        school: 'בית ספר הרצל',
-        funding: 'גפ״ן',
-        price: 0,
-        status: 'פתוח',
-        end_date: '2027-07-01'
-      })
-    ],
-    collectionTracking: [{
-      activity_row_id: 'LAYOUT-1',
-      collection_status: 'open',
-      expected_collection_date: '2026-09-20',
-      finance_note: 'לתזכורת'
-    }],
-    collectionTab: 'open',
-    collectionSearch: ''
-  }, { state: { user: financeUser } });
-
-  assert.match(html, /ds-fin-pay-table/);
-  assert.match(html, /<th>פעילות<\/th>/);
-  assert.match(html, /<th>לקוח<\/th>/);
-  assert.match(html, /<th>גורם מימון<\/th>/);
-  assert.match(html, /<th[^>]*>מחיר<\/th>/);
-  assert.match(html, /<th>מפגשים<\/th>/);
-  assert.match(html, /<th>טרם חויב<\/th>/);
-  assert.match(html, /<th>חשבון אחרון<\/th>/);
-  assert.match(html, /<th>סטטוס פעילות<\/th>/);
-  assert.match(html, /<th>סטטוס גבייה<\/th>/);
-  assert.match(html, /<th>צפי לגבייה<\/th>/);
-  assert.match(html, /<th>הערה<\/th>/);
-  assert.doesNotMatch(html, /<th>רשות<\/th>/);
-  assert.doesNotMatch(html, /<th>בית ספר<\/th>/);
-  assert.doesNotMatch(html, /<th>סמל מוסד<\/th>/);
-  assert.doesNotMatch(html, /<th>מס׳ גפ״ן<\/th>/);
-  assert.doesNotMatch(html, /<th>מפגשים מתוכננים<\/th>/);
-
-  assert.match(html, /סדנת חלל/);
-  assert.match(html, /מס׳ גפ״ן:\s*G-778/);
-  assert.match(html, /בית ספר הרצל/);
-  assert.match(html, /עיריית רחובות/);
-  assert.match(html, /סמל מוסד:\s*חסר — חסום להפקה/);
-  assert.match(html, /גפ״ן/);
-  assert.match(html, /₪0/);
-  assert.match(html, /מתוכנן 0 · בוצע 0 · חויב 0/);
-  assert.match(html, /0 מפגשים/);
-  assert.match(html, /0 שעות/);
-  assert.match(html, /data-fin-collect-field="collection_status"/);
-  assert.match(html, /data-fin-activity-id="LAYOUT-1"/);
-  assert.match(html, /value="2026-09-20"/);
-  assert.match(html, /value="לתזכורת"/);
-  assert.match(html, /ds-fin-stack/);
-  assert.match(html, /<select[^>]*data-fin-collect-field="collection_status"/);
-  assert.match(html, /<input[^>]*type="date"[^>]*data-fin-collect-field="expected_collection_date"/);
-  assert.match(html, /<input[^>]*type="text"[^>]*data-fin-collect-field="finance_note"/);
+test('collection account table preserves original document, due date and editable tracking without activity closure', () => {
+  const html=financeScreen.render(collectionData([invoice({expected_collection_date:'2026-09-20',finance_note:'לתזכורת'})]),{state:{user:financeUser}});
+  for(const value of ['8525','קורס רובוטיקה','בית ספר הרצל','עיריית רחובות','2026-09-30','https://files.example/original.pdf','value="2026-09-20"','value="לתזכורת"','data-account-id="INV-1"','data-finance-account-field="finance_note"','data-finance-payment-open="INV-1"'])assert.ok(html.includes(value),value);
+  assert.doesNotMatch(html,/data-fin-collect-field="collection_status"/);
 });
 
-
-test('collection money shows ₪0 for numeric zero and em dash for missing price', () => {
-  const zeroHtml = financeScreen.render({
-    ...createFinanceVisitState(),
-    view: 'collection',
-    collectionActivities: [
-      activity({
-        row_id: 'ZERO-1',
-        activity_name: 'פעילות אפס',
-        price: 0,
-        end_date: '2027-07-01'
-      })
-    ],
-    collectionTracking: [],
-    collectionTab: 'open',
-    collectionSearch: ''
-  }, { state: { user: financeUser } });
-  assert.match(zeroHtml, /<td class="ds-fin-num">₪0<\/td>/);
-
-  const missingHtml = financeScreen.render({
-    ...createFinanceVisitState(),
-    view: 'collection',
-    collectionActivities: [
-      activity({
-        row_id: 'MISS-1',
-        activity_name: 'פעילות חסרה',
-        price: null,
-        end_date: '2027-07-01'
-      })
-    ],
-    collectionTracking: [],
-    collectionTab: 'open',
-    collectionSearch: ''
-  }, { state: { user: financeUser } });
-  assert.match(missingHtml, /<td class="ds-fin-num">—<\/td>/);
-  assert.doesNotMatch(missingHtml, /<td class="ds-fin-num">₪0<\/td>/);
+test('collection summaries use recorded payments and invoice balances rather than activity prices', () => {
+  const d=collectionData([invoice()],[{accountId:'INV-1',paidAmount:250,balance:750}]);
+  d.collectionActivities=[activity({price:999999})];
+  const dom=new JSDOM(financeScreen.render(d,{state:{user:financeUser}}));
+  const totals=[...dom.window.document.querySelectorAll('.ds-fin-collect-summary-card__value')].map(n=>n.textContent);
+  assert.match(totals[0],/1,000/);assert.match(totals[1],/750/);assert.match(totals[2],/250/);assert.doesNotMatch(totals.join(' '),/999,999/);
 });
 
 test('collection keeps payer grouping inside each end month section', () => {
@@ -1187,22 +1061,11 @@ test('orphan tracking rows are not shown as activities', () => {
   assert.match(html, /קורס רובוטיקה/);
 });
 
-test('collection status, date, and note are saved and visible after reload from tracking', async () => {
-  const api = mockApi({ activities: [activity({ row_id: 'SAVE-1' })] });
-  const data = createFinanceVisitState();
-  const { host } = mount(data, { api });
-  host.querySelector('[data-finance-open="collection"]').click();
-  await flush();
-  host.querySelector('[data-finance-collection-tab="all"]').click();
-  await flush();
-  const status = host.querySelector('[data-fin-collect-field="collection_status"]');
-  status.value = 'closed';
-  status.dispatchEvent(new host.ownerDocument.defaultView.Event('change', { bubbles: true }));
-  await flush();
-  assert.equal(api.counts.upsertFinanceCollectionTracking, 1);
-  assert.match(host.innerHTML, /נשמר/);
-  const reloaded = attachCollectionTracking([activity({ row_id: 'SAVE-1' })], api.store);
-  assert.equal(reloaded[0].collection_status, 'closed');
+test('collection tracking updates one invoice and retains the separate invoice from the same activity', async () => {
+  const accounts=[invoice(),invoice({id:'INV-2',transaction_account_number:8526})];const api=mockApi({accounts});
+  const {host}=mount(createFinanceVisitState(),{api});host.querySelector('[data-finance-open="collection"]').click();await flush();
+  const note=host.querySelector('[data-account-id="INV-1"][data-finance-account-field="finance_note"]');note.value='לתזכורת';note.dispatchEvent(new host.ownerDocument.defaultView.Event('change',{bubbles:true}));await flush();
+  assert.equal(api.counts.updateFinanceAccountTracking,1);assert.equal(accounts[0].finance_note,'לתזכורת');assert.equal(accounts[1].finance_note,'');assert.match(host.innerHTML,/נשמר/);
 });
 
 test('backend collection RPCs and RLS require finance access, including admin', () => {
@@ -1234,43 +1097,14 @@ test('team is filled from the existing employee mapping when the snapshot has no
   assert.equal(row.employmentType, 'תעשיידע');
 });
 
-test('date and note collection fields save, and a failed save does not keep the uncommitted UI value', async () => {
-  const api = mockApi({ activities: [activity({ row_id: 'SAVE-2' })] });
-  api.upsertFinanceCollectionTracking = async (payload) => {
-    api.counts.upsertFinanceCollectionTracking += 1;
-    if (payload.finance_note === 'רע') throw new Error('שמירה נכשלה');
-    const next = {
-      activity_row_id: payload.activity_row_id,
-      collection_status: payload.collection_status,
-      expected_collection_date: payload.expected_collection_date,
-      finance_note: payload.finance_note
-    };
-    api.store.splice(0, api.store.length, next);
-    return next;
-  };
-  const data = createFinanceVisitState();
-  const { host } = mount(data, { api });
-  host.querySelector('[data-finance-open="collection"]').click();
-  await flush();
-  const date = host.querySelector('[data-fin-collect-field="expected_collection_date"]');
-  date.value = '2026-09-15';
-  date.dispatchEvent(new host.ownerDocument.defaultView.Event('change', { bubbles: true }));
-  await flush();
-  const note = host.querySelector('[data-fin-collect-field="finance_note"]');
-  note.value = 'לתזכורת';
-  note.dispatchEvent(new host.ownerDocument.defaultView.Event('change', { bubbles: true }));
-  await flush();
-  const reloaded = attachCollectionTracking([activity({ row_id: 'SAVE-2' })], api.store);
-  assert.equal(reloaded[0].expected_collection_date, '2026-09-15');
-  assert.equal(reloaded[0].finance_note, 'לתזכורת');
-  const failing = host.querySelector('[data-fin-collect-field="finance_note"]');
-  failing.value = 'רע';
-  failing.dispatchEvent(new host.ownerDocument.defaultView.Event('change', { bubbles: true }));
-  await flush();
-  assert.match(host.innerHTML, /שמירה נכשלה/);
-  const afterFail = attachCollectionTracking([activity({ row_id: 'SAVE-2' })], api.store);
-  assert.equal(afterFail[0].finance_note, 'לתזכורת');
-  assert.match(host.querySelector('[data-fin-collect-field="finance_note"]').value, /לתזכורת/);
+test('invoice date and note save; a rejected change reloads the committed tracking values', async () => {
+  const accounts=[invoice()];const api=mockApi({accounts});const save=api.updateFinanceAccountTracking;
+  api.updateFinanceAccountTracking=async(id,date,note)=>{if(note==='רע')throw Error('שמירה נכשלה');return save(id,date,note);};
+  const {host}=mount(createFinanceVisitState(),{api});host.querySelector('[data-finance-open="collection"]').click();await flush();
+  const change=async(field,value)=>{const input=host.querySelector('[data-finance-account-field="'+field+'"]');input.value=value;input.dispatchEvent(new host.ownerDocument.defaultView.Event('change',{bubbles:true}));await flush();};
+  await change('expected_collection_date','2026-09-15');await change('finance_note','לתזכורת');
+  assert.equal(accounts[0].expected_collection_date,'2026-09-15');assert.equal(accounts[0].finance_note,'לתזכורת');
+  await change('finance_note','רע');assert.equal(accounts[0].finance_note,'לתזכורת');assert.equal(host.querySelector('[data-finance-account-field="finance_note"]').value,'לתזכורת');assert.match(host.innerHTML,/לא ניתן להשלים|שמירה נכשלה/);
 });
 
 test('admin users retain finance access', () => {
