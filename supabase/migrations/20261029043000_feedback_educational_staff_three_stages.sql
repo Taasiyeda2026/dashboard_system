@@ -141,8 +141,7 @@ begin
   end if;
 
   return private.feedback_campaign_json(v_campaign);
-end $function$
-
+end $function$;
 
 CREATE OR REPLACE FUNCTION public.feedback_admin_course_summary_for_half(p_academic_year text, p_half text)
  RETURNS TABLE(program_key text, audience text, stage text, campaigns integer, groups integer, responses integer, invited integer, completed integer, unique_respondents integer, unidentified_responses integer, participants_total integer, participants_campaigns integer, responses_with_participants integer, first_response_at timestamp with time zone, last_response_at timestamp with time zone)
@@ -229,8 +228,7 @@ begin
   from camp
   group by grouping sets ((camp.pk, camp.aud, camp.stg), (camp.pk, camp.aud))
   order by 1, 2, 3;
-end $function$
-
+end $function$;
 
 insert into public.feedback_questions
 (question_key,program_key,metric_key,question_type,audiences,stages,is_comparison,wording,options,scoring,default_required,sort_order,is_active)
