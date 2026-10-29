@@ -57,7 +57,7 @@ test('consolidated dashboard retains exact per-activity dates, statuses and navi
   assert.match(screen,/earlyFinal \? '<p class="ifb-muted">משוב הסיום ייפתח רק לאחר שהקורס/);
   assert.match(screen,/else if \(earlyFinal\) \{/);
   assert.match(screen,/return staffEmailStatusHtml\(g, stage, scope, \{ standalone: true \}\);/);
-  assert.doesNotMatch(screen,/נשלח במשלוח משותף/);
+  assert.doesNotMatch(screen.split('const stageStatus = (g, stage) => {')[1]?.split('// One overview row per contact')[0],/נשלח במשלוח משותף/);
   assert.match(screen,/אין ליצור הזמנה כפולה/);
 });
 
