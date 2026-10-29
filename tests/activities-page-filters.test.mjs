@@ -496,11 +496,13 @@ test('activities render: assignment status separates pending approval from truly
     activityPeriodTab: 'school_2027',
     activitiesInnerTab: 'year_all'
   }), {}) });
-  assert.match(allHtml, /data-activities-instructor-status-filter/);
-  assert.match(allHtml, /מצב שיבוץ: הכול/);
-  assert.match(allHtml, /מצב שיבוץ: ללא מדריך/);
-  assert.match(allHtml, /מצב שיבוץ: ממתין לאישור/);
-  assert.match(allHtml, /מצב שיבוץ: משובץ/);
+  // Assignment selection moved into the advanced popover to avoid duplicate filters.
+  assert.match(allHtml, /data-activities-advanced-toggle/);
+  assert.match(allHtml, /data-activity-advanced-field="assignment"/);
+  assert.match(allHtml, /<option value="all" selected>כל המצבים<\/option>/);
+  assert.match(allHtml, /<option value="unassigned">ללא מדריך<\/option>/);
+  assert.match(allHtml, /<option value="draft">ממתין לאישור<\/option>/);
+  assert.match(allHtml, /<option value="assigned">משובץ<\/option>/);
 });
 
 test('activities render: domain filter supports E/Y/EY for 2027 and filters rows', () => {
