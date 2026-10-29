@@ -40,6 +40,7 @@ const {
 const { normalizeActivityRow } = await import('../frontend/src/api.js');
 
 const apiSource = readFileSync(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
+const activitiesApprovedUiSource = readFileSync(new URL('../frontend/src/activities-approved-ui-fix.js', import.meta.url), 'utf8');
 const mainSource = readFileSync(new URL('../frontend/src/main.js', import.meta.url), 'utf8');
 const opsSource = readFileSync(new URL('../frontend/src/screens/operations-management.js', import.meta.url), 'utf8');
 
@@ -295,6 +296,16 @@ test('All Activities price presence chooses priced and unpriced activities indep
   const withoutPrice = activitiesScreen.render({ rows }, { state: withFilters(baseState(period), { advPricePresence: 'missing' }) });
   assert.deepEqual(renderedRowIds(withPrice), ['WITH-PRICE']);
   assert.deepEqual(renderedRowIds(withoutPrice), ['WITHOUT-PRICE']);
+});
+
+test('All Activities search uses spare toolbar width and preserves mobile layout', () => {
+  const css = activitiesApprovedUiSource;
+  assert.match(css, /#app \.ds-activities-main-toolbar\[data-local-filters="activities"\] \.ds-activities-search-sm \{/);
+  assert.match(css, /flex: 2 1 175px !important/);
+  assert.match(css, /max-width: 255px !important/);
+  assert.match(css, /@media \(max-width: 820px\)/);
+  assert.match(css, /flex: 1 1 100% !important/);
+  assert.match(css, /max-width: 100% !important/);
 });
 
 test('normalizeActivityRow keeps funding and maps null/blank to empty string without inventing values', () => {
