@@ -863,7 +863,15 @@ export const financeScreen = {
     const onInput = (ev) => {
       if (ev.target.matches('[data-finance-manual-search]')) {
         clearTimeout(root._financeManualSearchTimer);
-        root._financeManualSearchTimer = setTimeout(() => { visit.manualSearch = ev.target.value; refresh(); const input = root.querySelector('[data-finance-manual-search]'); input?.focus(); input?.setSelectionRange(visit.manualSearch.length, visit.manualSearch.length); }, 200);
+        const searchValue = ev.target.value;
+        root._financeManualSearchTimer = setTimeout(() => {
+          visit.manualSelectionExpanded = Boolean(root.querySelector('[data-finance-manual-selection]')?.open);
+          visit.manualSearch = searchValue;
+          refresh();
+          const input = root.querySelector('[data-finance-manual-search]');
+          input?.focus();
+          input?.setSelectionRange(visit.manualSearch.length, visit.manualSearch.length);
+        }, 200);
       }
 
       if (ev.target.matches('[data-finance-collection-search]')) {
