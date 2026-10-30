@@ -35,6 +35,16 @@ test('tour drawer displays its location and a short editable input with no count
   dom.window.close();
 });
 
+test('historical tour has no location field or caption at all', () => {
+  const html = activityWorkDrawerHtml({ ...tour, activity_season: 'regular' });
+  const dom = new JSDOM(`<main>${html}</main>`);
+  const doc = dom.window.document;
+  assert.equal(doc.querySelector('[data-tour-location-field]'), null);
+  assert.equal(doc.querySelector('[name="tour_location"]'), null);
+  assert.doesNotMatch(doc.body.textContent, /מיקום הסיור/);
+  dom.window.close();
+});
+
 test('non-tour drawer keeps tour field hidden', () => {
   const dom = new JSDOM(`<main>${activityWorkDrawerHtml({ ...tour, activity_type: 'course', item_type: 'course', tour_location: null })}</main>`);
   const field = dom.window.document.querySelector('[data-tour-location-field]');
@@ -77,11 +87,14 @@ test('create form, edit save and Supabase API all enforce tour-only 15-character
   ]);
   assert.match(activities, /data-tour-location-field hidden[^\n]*maxlength="15"/);
   assert.match(activities, /function syncAddTourLocation\(form\)/);
-  assert.match(activities, /selectedType === 'tour' \? \{ tour_location: get\('tour_location'\)/);
-  assert.match(editor, /initialType === 'tour'\) changes\.tour_location = null/);
+  assert.match(activities, /selectedType === 'tour' && activitySeason === ACTIVITY_SEASON_SCHOOL_2027/);
+  assert.match(editor, /isSchool2027TourScope && initialType === 'tour'/);
   assert.match(api, /'tour_location'/);
   assert.match(api, /invalid_tour_location_length/);
   assert.match(api, /tour_location_requires_tour/);
+  assert.match(api, /tour_location_requires_school_2027/);
   assert.match(api, /required_instructor_gender,tour_location/);
   assert.match(migration, /char_length\(tour_location\) <= 15/);
+  const restrictedMigration = await readFile(new URL('../supabase/migrations/20261030190000_restrict_tour_location_to_school_2027.sql', import.meta.url), 'utf8');
+  assert.match(restrictedMigration, /coalesce\(activity_season, ''\) = 'school_2027'/);
 });
