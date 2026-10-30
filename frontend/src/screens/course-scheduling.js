@@ -1166,6 +1166,22 @@ function courseListCardHtml(row, selectedId, state = {}) {
   </div>`;
 }
 
+// Sorting occurs on the displayed rows, not on activities stored in Supabase.
+// Unnamed schools are listed last and ties have a stable, predictable order.
+export function sortCourseRowsBySchool(rows = []) {
+  const compareHe = (left, right) => left.localeCompare(right, 'he', { numeric: true, sensitivity: 'base' });
+  return [...rows].sort((left, right) => {
+    const schoolLeft = text(left.course?.school);
+    const schoolRight = text(right.course?.school);
+    if (!schoolLeft) return schoolRight ? 1 : compareHe(text(left.id), text(right.id));
+    if (!schoolRight) return -1;
+    return compareHe(schoolLeft, schoolRight)
+      || compareHe(text(left.course?.authority), text(right.course?.authority))
+      || compareHe(text(left.course?.activity_name), text(right.course?.activity_name))
+      || compareHe(text(left.id), text(right.id));
+  });
+}
+
 export function courseListHtml(rowModels, selectedId, state = {}) {
   const statusFilter = text(state.courseSchedulingBusinessStatus || 'all');
   const focusMode = isCourseSchedulingFocusMode(state);
@@ -1178,12 +1194,10 @@ export function courseListHtml(rowModels, selectedId, state = {}) {
   const visibleRows = filterCourseRowModelsBySearch(statusFilter === 'all'
     ? workingRows
     : workingRows.filter((row) => row.bucket === statusFilter), state.courseSchedulingListSearch);
-  // Paginate after applying the operational status order, otherwise a page
-  // can still start with unassigned activities simply because of source order.
-  const statusOrder = { assigned: 0, draft: 1, open: 2 };
-  const prioritizedRows = [...visibleRows].sort((a, b) =>
-    (statusOrder[a.bucket] ?? 3) - (statusOrder[b.bucket] ?? 3));
-  const windowed = courseListWindow(prioritizedRows, state.courseSchedulingListPage);
+  // The "all" and "unassigned" views must be one alphabetic list by school,
+  // not split into status groups. Sort before pagination for consistent pages.
+  const sortedRows = sortCourseRowsBySchool(visibleRows);
+  const windowed = courseListWindow(sortedRows, state.courseSchedulingListPage);
   state.courseSchedulingListPage = windowed.page;
   const selectedGroup = LIST_GROUPS.find((group) => group.key === statusFilter);
   const filterContext = statusFilter === 'all'
@@ -1208,7 +1222,10 @@ export function courseListHtml(rowModels, selectedId, state = {}) {
   }
   const header = '<div class="course-scheduling-compact-table-head" aria-hidden="true"><span>בית ספר</span><span>פעילות</span><span>מועד</span><span>מדריך</span><span>מצב</span><span>פעולה</span></div>';
   const pager = `<nav aria-label="עמודי פעילויות" class="course-scheduling-detail-actions"><button type="button" data-course-list-page="${windowed.page - 1}"${windowed.page === 0 ? ' disabled' : ''}>הקודם</button><span role="status">עמוד ${windowed.page + 1} מתוך ${windowed.pages} · ${windowed.total} פעילויות</span><button type="button" data-course-list-page="${windowed.page + 1}"${windowed.page + 1 === windowed.pages ? ' disabled' : ''}>הבא</button></nav>`;
-  return toolbar + '<div data-course-list-body>' + filterContext + pager + header + searchEmpty + groups.map((group) => `<section class="course-scheduling-course-group"><h3>${escapeHtml(group.label)} <span class="course-scheduling-badge">${group.rows.length}</span></h3>${group.rows.map((row) => courseListCardHtml(row, selectedId, state)).join('')}</section>`).join('') + '</div>';
+  const listContents = statusFilter === 'all'
+    ? windowed.rows.map((row) => courseListCardHtml(row, selectedId, state)).join('')
+    : groups.map((group) => `<section class="course-scheduling-course-group"><h3>${escapeHtml(group.label)} <span class="course-scheduling-badge">${group.rows.length}</span></h3>${group.rows.map((row) => courseListCardHtml(row, selectedId, state)).join('')}</section>`).join('');
+  return toolbar + '<div data-course-list-body>' + filterContext + pager + header + searchEmpty + listContents + '</div>';
 }
 
 
