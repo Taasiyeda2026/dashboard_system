@@ -730,18 +730,15 @@ export const financeScreen = {
     const onChange = async (ev) => {
       const funderFilter = ev.target.closest('[data-finance-manual-funder-filter]');
       if (funderFilter) {
+        // A payer change starts a new selection; never carry invoices for the previous payer.
         visit.manualFunderFilter = funderFilter.value || '';
-        const valid = new Set(manualFilteredActivities(visit).map(activity => activity.row_id));
-        visit.manualSelectedActivityIds = selectedManualActivityIds(visit).filter(id => valid.has(id));
-        visit.manualActivityDrafts = Object.fromEntries(
-          Object.entries(visit.manualActivityDrafts || {}).filter(([id]) => valid.has(id))
-        );
-        if (!valid.has(visit.manualActivityId)) focusManualActivity(visit, visit.manualSelectedActivityIds[0] || '');
-        else {
-          prepareManualAccount(visit, visit.manualActivityId);
-          saveActiveManualDraft(visit);
-        }
-        visit.manualBatchPreviews = null;
+        visit.manualSelectedActivityIds = [];
+        visit.manualActivityDrafts = {};
+        visit.manualActivityId = '';
+        visit.manualFundingKey = '';
+        visit.manualDraft = null;
+        visit.manualQuote = null; visit.manualPdf = '';
+        visit.manualBatchPreviews = null; visit.manualBatchIssued = {};
         refresh(); return;
       }
       const multiActivity = ev.target.closest('[data-finance-manual-select-activity]');
