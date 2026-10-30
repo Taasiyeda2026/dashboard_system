@@ -23,7 +23,12 @@ async function harness(options={}) {
     if(name==='finalize_finance_billing') {Object.assign(account,{document_status:'issued',pdf_sha256:args.p_pdf_sha256});return{data:{...account}};}
     return{data:null};
   };
-  const client={rpc,from:()=>({select:()=>({eq:()=>({single:async()=>({data:account})})})})};
+  const client={rpc,from:(table)=>table==='activities'
+    ? {select:()=>({in:async(_key,ids)=>({data:ids.map(id=>({
+      row_id:id,activity_type:options.activityTypes?.[id]||'course',activity_season:'school_2027'
+    }))})})}
+    : ({select:()=>({eq:()=>({single:async()=>({data:account})})})})};
+
   const fetch=async(url,opts={})=>{
     calls.push({type:'fetch',url,method:opts.method||'GET'});
     if(url.startsWith('https://raw.githubusercontent.com/')) {
@@ -135,9 +140,15 @@ test('realistic three-line Hebrew invoice renders on one page with selectable gl
   const account={
     transaction_account_number:8529,customer_name_snapshot:'תמיר',institution_symbol:'563113',
     issue_date:'2026-10-30',payment_due_date:'2026-11-30',total_amount:1305,
-    finance_transaction_account_lines:[structuredClone(line),structuredClone(line),structuredClone(line)]
+    finance_transaction_account_lines:[
+      {...structuredClone(line), activity_row_id:'ACT-8529-1'},
+      {...structuredClone(line), activity_row_id:'ACT-8529-2'},
+      {...structuredClone(line), activity_row_id:'ACT-8529-3'}
+    ]
   };
-  const r=await harness({account});
+  const r=await harness({account,activityTypes:{
+    'ACT-8529-1':'workshop','ACT-8529-2':'workshop','ACT-8529-3':'workshop'
+  }});
   assert.equal(r.response.status,200,JSON.stringify(r.body));
   const document=await PDFDocument.load(r.pdf);
   assert.equal(document.getPageCount(),1,'a short three-line invoice must not create an orphaned payment page');
@@ -150,7 +161,12 @@ test('realistic three-line Hebrew invoice renders on one page with selectable gl
   assert.match(glyphs,/1305|1,305/);
   assert.match(glyphs,/30.10.2026/);
   assert.match(glyphs,/30.11.2026/);
-  assert.ok((glyphs.match(/[א-ת]/g)||[]).length>100,'Hebrew must remain vector, selectable PDF text');
+  assert.ok((glyphs.match(/[א-ת]/g)||[]).length>50,'Hebrew must remain vector, selectable PDF text');
+  assert.doesNotMatch(glyphs,/60025/,'workshops must not show Gefen number');
+  assert.equal((glyphs.match(/435\.00/g)||[]).length,1,'identical workshops must be consolidated to a single unit-price cell');
+  assert.match(glyphs,/500/);
+  assert.match(glyphs,/300120/);
+  assert.doesNotMatch(glyphs,/611/,'former bank branch must not be printed');
   // pdfjs loaded document can be collected after the test; no destroy method on this proxy.
 });
 
@@ -160,4 +176,55 @@ test('full Hebrew fonts and logical-order drawing prevent the former stripped-gl
   assert.match(edgeSource,/embedFont\(boldBytes, \{ subset: false \}\)/);
   assert.match(edgeSource,/function drawLogicalRight\(/);
   assert.doesNotMatch(edgeSource,/font\.widthOfTextAtSize\(rtl\(/);
+});
+
+
+test('course invoices summarize each actual course with hours, meetings and hourly rate; do not merge different course IDs',async()=>{
+  const base={
+    activity_name_snapshot:'יישומי AI',gefen_number_snapshot:'53819',
+    school_name_snapshot:'מרחבים',billing_rule:'monthly',
+    quantity_snapshot:2,billed_hours:3,amount:900,hourly_rate_snapshot:300,
+    unit_price_snapshot:450,finance_transaction_account_meetings:[]
+  };
+  const r=await harness({account:{
+    total_amount:1950,finance_transaction_account_lines:[
+      {...base,activity_row_id:'COURSE-1',amount:900},
+      {...base,activity_row_id:'COURSE-1',amount:900},
+      {...base,activity_row_id:'COURSE-2',quantity_snapshot:1,billed_hours:1.5,amount:150,hourly_rate_snapshot:100}
+    ]
+  },activityTypes:{'COURSE-1':'course','COURSE-2':'course'}});
+  assert.equal(r.response.status,200,JSON.stringify(r.body));
+  const pdf=await getDocument({data:new Uint8Array(r.pdf),useSystemFonts:false}).promise;
+  const items=(await (await pdf.getPage(1)).getTextContent()).items;
+  const txt=items.map(i=>i.str||'').join(' ');
+  assert.equal(pdf.numPages,1);
+  assert.equal((txt.match(/53819/g)||[]).length,2,'one course row for COURSE-1 and another for COURSE-2');
+  assert.match(txt,/1950|1,950/);
+  assert.match(txt,/300\.00/);
+  assert.match(txt,/900|1,800/);
+});
+
+test('mixed payer invoice uses workshop and course layouts in the same document',async()=>{
+  const r=await harness({account:{
+    total_amount:735,finance_transaction_account_lines:[
+      {activity_row_id:'C',activity_name_snapshot:'תוכנית חלל',gefen_number_snapshot:'57646',quantity_snapshot:2,billed_hours:3,amount:300},
+      {activity_row_id:'W',activity_name_snapshot:'סדנת מייקרים',gefen_number_snapshot:'99999',quantity_snapshot:1,billed_hours:1.5,amount:435,unit_price_snapshot:435}
+    ]
+  },activityTypes:{C:'course',W:'tour'}});
+  assert.equal(r.response.status,200,JSON.stringify(r.body));
+  const doc=await getDocument({data:new Uint8Array(r.pdf),useSystemFonts:false}).promise;
+  const glyphs=(await (await doc.getPage(1)).getTextContent()).items.map(i=>i.str||'').join(' ');
+  assert.match(glyphs,/57646/);
+  assert.doesNotMatch(glyphs,/99999/,'tour Gefen number is excluded');
+  assert.match(glyphs,/735\.00/);
+});
+
+test('the PDF source never prints billing internals and bank details are exact',async()=>{
+  const edge=await readFile(new URL('../supabase/functions/finance-transaction-accounts/index.ts',import.meta.url),'utf8');
+  const rendering=edge.slice(edge.indexOf('async function buildPdf('),edge.indexOf('\nDeno.serve('));
+  assert.doesNotMatch(rendering,/מממן:|חודש סיום|חודש ביצוע|מפגש לחיוב|פירוט ביצוע לחיוב/, 'no internal billing details or Gefen in service columns');
+  assert.match(rendering,/בנק הפועלים 12, סניף 500 הרימון, חשבון 300120/);
+  assert.doesNotMatch(rendering,/\(ע"ר\)/);
+  assert.match(rendering,/מחיר לשעה/);
+  assert.match(rendering,/מחיר ליחידה/);
 });
