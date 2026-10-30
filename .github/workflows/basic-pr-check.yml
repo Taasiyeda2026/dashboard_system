@@ -260,6 +260,7 @@ jobs:
               tests/course-meeting-substitute-permissions.test.mjs \
               tests/course-scheduling-planning-tab.test.mjs \
               tests/course-scheduling-current-plan-report.test.mjs \
+              tests/course-scheduling-semester-planning-report.test.mjs \
               tests/course-scheduling-school-name-order.test.mjs \
               tests/course-scheduling-planning-invalidate.test.mjs \
               tests/course-scheduling-planning-self-invalidation.test.mjs \
