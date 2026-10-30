@@ -229,7 +229,7 @@ test('main scheduling workboard exposes only open, draft and assigned business s
   }, { state });
 
   assert.match(html, /data-cs-ui="simple-workboard-20260924-v1"/);
-  assert.match(html, /<span>פתוח<\/span>/);
+  assert.match(html, /<span>ללא מדריך<\/span>/);
   assert.match(html, /<span>ממתין לאישור<\/span>/);
   assert.match(html, /<span>משובץ<\/span>/);
   assert.doesNotMatch(html, /הצעות מוכנות/);
