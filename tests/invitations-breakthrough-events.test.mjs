@@ -53,7 +53,7 @@ test('switches immediately to female guest lecture and back, retaining correct t
   assert.equal(ui.el('card').querySelector('.c-sub-event'), null);
   assert.equal(ui.el('card').querySelector('.c-course').textContent, 'במסגרת קורס ״פורצות דרך״');
   assert.equal(ui.el('card').querySelector('.c-opening').textContent,
-    "קורס ״פורצות דרך״ משלב יזמות טכנולוגית והעצמה נשית, ומעודד את התלמידות לחלום בגדול, לפתח רעיונות ולהאמין ביכולתן להוביל שינוי. דרך היכרות עם נשים שהעזו לפרוץ גבולות, הן מגלות כיצד אומץ, יצירתיות, נחישות ואמונה עצמית יכולים להפוך שאיפות להישגים משמעותיים ולפתוח דלתות לאפשרויות חדשות.");
+    "קורס ״פורצות דרך״ משלב יזמות טכנולוגית והעצמה נשית ומעודד את התלמידות לחלום בגדול, לפתח רעיונות ולהאמין ביכולתן להוביל שינוי. דרך היכרות עם נשים שהעזו לפרוץ גבולות, הן מגלות כיצד אומץ, יצירתיות, נחישות ואמונה עצמית יכולים להפוך שאיפות להישגים משמעותיים ולפתוח דלתות לאפשרויות חדשות.");
   assert.equal(ui.el('b1-editor').style.display, 'none');
   assert.equal(ui.el('b1').value, '');
   assert.equal(ui.el('b2').value,
@@ -285,7 +285,7 @@ test('approved breakthrough guest lecture remains word-for-word in A5 print', ()
   ui.change('lec-name', 'דנה לוי', 'input');
   ui.change('lec-role', 'מנהלת פיתוח', 'input');
   ui.change('lec-org', 'חברה לדוגמה', 'input');
-  const expectedOpening = "קורס ״פורצות דרך״ משלב יזמות טכנולוגית והעצמה נשית, ומעודד את התלמידות לחלום בגדול, לפתח רעיונות ולהאמין ביכולתן להוביל שינוי. דרך היכרות עם נשים שהעזו לפרוץ גבולות, הן מגלות כיצד אומץ, יצירתיות, נחישות ואמונה עצמית יכולים להפוך שאיפות להישגים משמעותיים ולפתוח דלתות לאפשרויות חדשות.";
+  const expectedOpening = "קורס ״פורצות דרך״ משלב יזמות טכנולוגית והעצמה נשית ומעודד את התלמידות לחלום בגדול, לפתח רעיונות ולהאמין ביכולתן להוביל שינוי. דרך היכרות עם נשים שהעזו לפרוץ גבולות, הן מגלות כיצד אומץ, יצירתיות, נחישות ואמונה עצמית יכולים להפוך שאיפות להישגים משמעותיים ולפתוח דלתות לאפשרויות חדשות.";
   const expectedMeeting = "מפגש מעצים ומעורר השראה עם אישה פורצת דרך, שתשתף במסעה האישי, בחלומות שהפכה למציאות ובאתגרים שהתגברה עליהם בדרך ותספר על ההחלטות, התובנות והרגעים המשמעותיים שעיצבו את דרכה.";
   assert.equal(ui.el('card').querySelector('.c-title').textContent, 'הזמנה להרצאת אורחת של:');
   assert.equal(ui.el('card').querySelector('.c-lecturer-identity').textContent, 'דנה לוי, מנהלת פיתוח - חברה לדוגמה');
@@ -339,7 +339,7 @@ test('breakthrough guest lecture layout expands text and balances A5 spacing wit
   const css = document.getElementById('invitation-generator-styles').textContent;
   assert.equal(card.classList.contains('layout-breakthrough-lecture'), true);
   assert.match(css, /\.preview #card\.layout-breakthrough-lecture\{zoom:\.60\}/);
-  assert.match(css, /#card\.layout-breakthrough-lecture \.c-opening\{width:84%;padding-inline:2mm;text-align:right;font-size:4\.3mm;line-height:1\.4/);
+  assert.match(css, /#card\.layout-breakthrough-lecture \.c-opening\{width:84%;padding-inline:2mm;text-align:center;font-size:4\.3mm;line-height:1\.4/);
   assert.match(css, /#card\.layout-breakthrough-lecture \.c-details-box\{width:82%;padding:2\.1mm 3mm/);
   assert.match(css, /#card\.layout-breakthrough-lecture \.c-title\.guest-lecture\{font-size:8\.7mm;margin-bottom:2\.1mm/);
   assert.match(css, /#card\.layout-breakthrough-lecture \.c-participants-box\{width:69%;padding:2mm 5\.2mm/);
@@ -388,5 +388,29 @@ test('breakthrough guest lecture layout expands text and balances A5 spacing wit
   ui.change('course-sel', 'רוקחים עולם');
   ui.change('ev-type', 'lecture');
   assert.equal(card.classList.contains('layout-breakthrough-lecture'), false);
+  ui.dom.window.close();
+});
+
+test('guest lecture opening matches approved punctuation and remains centered in preview and print', () => {
+  const ui = mount();
+  ui.change('course-sel', 'פורצות דרך');
+  ui.change('ev-type', 'lecture');
+  const approvedOpening = "קורס ״פורצות דרך״ משלב יזמות טכנולוגית והעצמה נשית ומעודד את התלמידות לחלום בגדול, לפתח רעיונות ולהאמין ביכולתן להוביל שינוי. דרך היכרות עם נשים שהעזו לפרוץ גבולות, הן מגלות כיצד אומץ, יצירתיות, נחישות ואמונה עצמית יכולים להפוך שאיפות להישגים משמעותיים ולפתוח דלתות לאפשרויות חדשות.";
+  assert.equal(ui.el('card').querySelector('.c-opening').textContent, approvedOpening);
+  assert.doesNotMatch(ui.el('card').querySelector('.c-opening').textContent, /נשית, ומעודד/);
+  const styles = document.getElementById('invitation-generator-styles').textContent;
+  assert.match(styles, /#card\.layout-breakthrough-lecture \.c-opening\{[^}]*text-align:center/);
+
+  let printed = '';
+  ui.dom.window.open = () => ({ document: {
+    write(html) { printed = html; }, close() {}, set title(_) {}
+  }});
+  ui.el('print-btn').click();
+  assert.ok(printed.includes(approvedOpening));
+  assert.ok(printed.includes('text-align:center;font-size:4.3mm'));
+  assert.doesNotMatch(printed, /נשית, ומעודד/);
+
+  ui.change('ev-type', 'end');
+  assert.equal(ui.el('card').classList.contains('layout-breakthrough-lecture'), false);
   ui.dom.window.close();
 });
