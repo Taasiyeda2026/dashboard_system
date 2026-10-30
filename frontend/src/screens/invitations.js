@@ -188,18 +188,19 @@ function ensureStyles() {
 .invitation-screen-root #card.layout-breakthrough-lecture .c-title.guest-lecture{font-size:8.7mm;margin-bottom:2.1mm;line-height:1.12}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-lecturer-identity{font-weight:800;margin-bottom:1.6mm;max-width:98%;line-height:1.25}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-course,.invitation-screen-root #card.layout-breakthrough-lecture .c-course .course-main{font-size:6mm;font-weight:650;line-height:1.18}
-.invitation-screen-root #card.layout-breakthrough-lecture .c-school,.invitation-screen-root #card.layout-breakthrough-lecture .c-year{margin:1mm 0;font-size:4.2mm}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-school{margin:1mm 0;font-size:4.2mm;width:100%;text-align:center}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-divider{width:78%;margin:0 auto 1mm}
-.invitation-screen-root #card.layout-breakthrough-lecture .c-opening{width:84%;padding-inline:2mm;text-align:center;font-size:4.3mm;line-height:1.4;margin:0 auto}
-.invitation-screen-root #card.layout-breakthrough-lecture .c-opening .c-opening-highlight{color:color-mix(in srgb,var(--accent-color,#a40461) 35%,#333 65%);font-weight:600}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-opening{width:84%;padding-inline:2mm;text-align:center;font-size:3.8mm;line-height:1.4;margin:0 auto}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-opening strong{font-weight:650;color:color-mix(in srgb,var(--course-color,#5b0143) 65%,#333 35%)}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-opening .c-opening-highlight{color:color-mix(in srgb,var(--course-color,#5b0143) 35%,#29232e 65%);font-weight:550}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-details-box{width:82%;padding:2.1mm 3mm;gap:1.4mm;border-color:rgba(31,53,77,.2);background:rgba(255,255,255,.65);margin:0 auto}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-details-top{gap:2mm}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-detail-separator{color:rgba(31,53,77,.48);padding:0 .5mm;font-weight:400}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-info-row{font-size:4.2mm;line-height:1.4;gap:3px}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-details-location{font-size:4.2mm;line-height:1.35}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-section-title{width:84%;padding-inline:2mm;font-size:4.4mm;line-height:1.25;margin:0 auto .9mm}
-.invitation-screen-root #card.layout-breakthrough-lecture .c-para{width:84%;padding-inline:2mm;font-size:4.3mm;line-height:1.4;margin:0 auto}
-.invitation-screen-root #card.layout-breakthrough-lecture .c-participants-box{width:69%;padding:2mm 5.2mm;margin:0 auto;border-color:rgba(31,53,77,.14)}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-para{width:84%;padding-inline:2mm;font-size:3.8mm;line-height:1.4;margin:0 auto}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-participants-box{width:69%;padding:2mm 5.2mm;margin:0 auto 3.5mm;border-color:rgba(31,53,77,.14)}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-part-title,.invitation-screen-root #card.layout-breakthrough-lecture .c-part-line,.invitation-screen-root #card.layout-breakthrough-lecture .c-part-line strong,.invitation-screen-root #card.layout-breakthrough-lecture .c-part-line span{font-size:3.3mm;line-height:1.32}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-closing{font-size:5.4mm;margin:0 auto 1mm;padding-top:0}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-footer{bottom:4.8mm;width:max-content;max-width:94%;padding:1.1mm 3.6mm}
@@ -210,20 +211,20 @@ function ensureStyles() {
 .invitation-screen-root #card.layout-breakthrough-lecture .c-details-box,.invitation-screen-root #card.layout-breakthrough-lecture .c-section-title,.invitation-screen-root #card.layout-breakthrough-lecture .c-participants-box,.invitation-screen-root #card.layout-breakthrough-lecture .c-closing{margin-top:auto}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-compact .c-main{padding:1mm 6mm 14mm}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-compact .c-title.guest-lecture{font-size:7.5mm}
-.invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-compact .c-opening,.invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-compact .c-para{width:87%;font-size:3.7mm;line-height:1.3}
+.invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-compact .c-opening,.invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-compact .c-para{width:87%;font-size:3.2mm;line-height:1.3}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-compact .c-section-title{font-size:4mm;width:87%}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-compact .c-details-box{width:85%;padding:1.5mm 3mm}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-compact .c-info-row{font-size:3.85mm}
-.invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-compact .c-participants-box{width:75%;padding:1.5mm 4mm}
+.invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-compact .c-participants-box{width:75%;padding:1.5mm 4mm;margin-bottom:2.5mm}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-main{padding:1mm 5.5mm 13mm}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-logos--lecture{padding-top:5mm}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-logo-item{height:11mm}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-title.guest-lecture{font-size:6.8mm}
-.invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-opening,.invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-para{width:90%;padding-inline:1mm;font-size:3.4mm;line-height:1.24}
+.invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-opening,.invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-para{width:90%;padding-inline:1mm;font-size:2.9mm;line-height:1.24}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-section-title{width:90%;padding-inline:1mm;font-size:3.5mm}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-details-box{width:88%;padding:1mm 2mm}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-info-row{font-size:3.65mm}
-.invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-participants-box{width:78%;padding:1mm 3.5mm}
+.invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-participants-box{width:78%;padding:1mm 3.5mm;margin-bottom:2mm}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-footer-sentence{font-size:2.3mm}
 
 .invitation-screen-root #card.fit-a5-compact .c-title{font-size:9.5mm}
@@ -1039,7 +1040,7 @@ export const invitationsScreen = {
           ${isLecture && lecturerIdentity ? `<div class="c-lecturer-identity" style="color:${c1};font-size:${lecturerFontSize}mm">${esc(lecturerIdentity)}</div>` : ''}
           ${isLecture ? '' : `<div class="c-sub-event" style="color:${c1}">${getHeaderEventText(type, evLabel)}</div>`}
           <div class="c-course" style="color:${c3}">${getCourseDisplayHTML(course)}</div>
-          ${(school || grade) ? `<div class="c-school">כיתה <strong>${esc(grade || '____')}</strong> | בית ספר <strong>${esc(school || '______')}</strong> | <strong>${esc(year)}</strong></div>` : `<div class="c-year">${esc(year)}</div>`}
+          ${(school || grade) ? `<div class="c-school">כיתה <strong>${esc(grade || '____')}</strong> | בית ספר <strong>${esc(school || '______')}</strong>${breakthroughLecture ? '' : ` | <strong>${esc(year)}</strong>`}</div>` : (breakthroughLecture ? '' : `<div class="c-year">${esc(year)}</div>`)}
           <div class="c-divider"></div>
           ${opening}
           <div class="c-box c-details-box">

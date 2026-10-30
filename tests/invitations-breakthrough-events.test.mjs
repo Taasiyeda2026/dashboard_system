@@ -290,7 +290,7 @@ test('approved breakthrough guest lecture remains word-for-word in A5 print', ()
   assert.equal(ui.el('card').querySelector('.c-title').textContent, 'הזמנה להרצאת אורחת של:');
   assert.equal(ui.el('card').querySelector('.c-lecturer-identity').textContent, 'דנה לוי, מנהלת פיתוח - חברה לדוגמה');
   assert.equal(ui.el('card').querySelector('.c-course').textContent, 'במסגרת קורס ״פורצות דרך״');
-  assert.equal(ui.el('card').querySelector('.c-year').textContent, 'תשפ״ז');
+  assert.equal(ui.el('card').querySelector('.c-year'), null);
   assert.equal(ui.el('card').querySelector('.c-opening').textContent, expectedOpening);
   assert.equal(ui.el('card').querySelector('.c-section-title').textContent, 'מה מצפה לנו?');
   assert.equal(ui.el('card').querySelector('.c-section-title').nextElementSibling.textContent, expectedMeeting);
@@ -339,10 +339,10 @@ test('breakthrough guest lecture layout expands text and balances A5 spacing wit
   const css = document.getElementById('invitation-generator-styles').textContent;
   assert.equal(card.classList.contains('layout-breakthrough-lecture'), true);
   assert.match(css, /\.preview #card\.layout-breakthrough-lecture\{zoom:\.60\}/);
-  assert.match(css, /#card\.layout-breakthrough-lecture \.c-opening\{width:84%;padding-inline:2mm;text-align:center;font-size:4\.3mm;line-height:1\.4/);
+  assert.match(css, /#card\.layout-breakthrough-lecture \.c-opening\{width:84%;padding-inline:2mm;text-align:center;font-size:3\.8mm;line-height:1\.4/);
   assert.match(css, /#card\.layout-breakthrough-lecture \.c-details-box\{width:82%;padding:2\.1mm 3mm/);
   assert.match(css, /#card\.layout-breakthrough-lecture \.c-title\.guest-lecture\{font-size:8\.7mm;margin-bottom:2\.1mm/);
-  assert.match(css, /#card\.layout-breakthrough-lecture \.c-participants-box\{width:69%;padding:2mm 5\.2mm/);
+  assert.match(css, /#card\.layout-breakthrough-lecture \.c-participants-box\{width:69%;padding:2mm 5\.2mm;margin:0 auto 3\.5mm/);
   assert.match(css, /#card\.layout-breakthrough-lecture \.c-footer-sentence\{font-size:2\.35mm/);
   assert.match(css, /#card\.layout-breakthrough-lecture \.c-details-box,#card\.layout-breakthrough-lecture \.c-section-title/);
   assert.match(css, /#card\.layout-breakthrough-lecture \.c-main\{padding:2mm 6\.5mm 16mm\}/);
@@ -410,7 +410,7 @@ test('guest lecture opening matches approved punctuation and remains centered in
   }});
   ui.el('print-btn').click();
   assert.equal(new JSDOM(printed).window.document.querySelector('#card .c-opening').textContent, approvedOpening);
-  assert.ok(printed.includes('text-align:center;font-size:4.3mm'));
+  assert.ok(printed.includes('text-align:center;font-size:3.8mm'));
   assert.doesNotMatch(printed, /נשית, ומעודד/);
 
   ui.change('ev-type', 'end');
@@ -506,7 +506,7 @@ test('guest lecture uses the same subtle emphasis for both approved passages in 
   assert.equal(p.querySelectorAll('strong').length, 2);
   assert.ok([...p.querySelectorAll('strong')].every(el => el.textContent === 'פורצות דרך'));
   const styles = document.getElementById('invitation-generator-styles').textContent;
-  assert.match(styles, /#card\.layout-breakthrough-lecture \.c-opening \.c-opening-highlight\{color:color-mix\(in srgb,var\(--accent-color,#a40461\) 35%,#333 65%\);font-weight:600\}/);
+  assert.match(styles, /#card\.layout-breakthrough-lecture \.c-opening \.c-opening-highlight\{color:color-mix\(in srgb,var\(--course-color,#5b0143\) 35%,#29232e 65%\);font-weight:550\}/);
 
   let printed = '';
   ui.dom.window.open = () => ({ document: {
@@ -520,5 +520,50 @@ test('guest lecture uses the same subtle emphasis for both approved passages in 
 
   ui.change('ev-type', 'end');
   assert.equal(ui.el('card').querySelector('.c-opening-highlight'), null);
+  ui.dom.window.close();
+});
+
+test('guest lecture hides school year, centers school and grade, and keeps A5 readability adjustments', () => {
+  const ui = mount();
+  ui.change('course-sel', 'פורצות דרך');
+  ui.change('ev-type', 'lecture');
+  ui.change('grade', 'ה׳5', 'input');
+  ui.change('school', 'סמילנסקי', 'input');
+  const card = ui.el('card');
+  const css = document.getElementById('invitation-generator-styles').textContent;
+  const school = card.querySelector('.c-school');
+
+  assert.ok(school);
+  assert.match(school.textContent, /כיתה ה׳5/);
+  assert.match(school.textContent, /בית ספר סמילנסקי/);
+  assert.doesNotMatch(school.textContent, /תשפ״ז/);
+  assert.equal(card.querySelector('.c-year'), null);
+  assert.match(css, /#card\.layout-breakthrough-lecture \.c-school\{margin:1mm 0;font-size:4\.2mm;width:100%;text-align:center\}/);
+
+  assert.match(css, /#card\.layout-breakthrough-lecture \.c-opening\{[^}]*font-size:3\.8mm/);
+  assert.match(css, /#card\.layout-breakthrough-lecture \.c-para\{[^}]*font-size:3\.8mm/);
+  assert.match(css, /#card\.layout-breakthrough-lecture\.fit-a5-compact \.c-opening,#card\.layout-breakthrough-lecture\.fit-a5-compact \.c-para\{[^}]*font-size:3\.2mm/);
+  assert.match(css, /#card\.layout-breakthrough-lecture\.fit-a5-tight \.c-opening,#card\.layout-breakthrough-lecture\.fit-a5-tight \.c-para\{[^}]*font-size:2\.9mm/);
+  assert.match(css, /#card\.layout-breakthrough-lecture \.c-participants-box\{[^}]*margin:0 auto 3\.5mm/);
+  assert.match(css, /#card\.layout-breakthrough-lecture \.c-opening strong\{font-weight:650;color:color-mix/);
+  assert.match(css, /#card\.layout-breakthrough-lecture \.c-opening \.c-opening-highlight\{[^}]*font-weight:550/);
+  assert.equal(card.querySelectorAll('.c-opening .c-opening-highlight').length, 2);
+
+  let printedHtml = '';
+  ui.dom.window.open = () => ({document: {
+    write(html) { printedHtml = html; }, close() {}, set title(_) {}
+  }});
+  ui.el('print-btn').click();
+  const printed = new JSDOM(printedHtml).window.document;
+  const printedSchool = printed.querySelector('#card .c-school');
+  assert.ok(printedSchool);
+  assert.equal(printedSchool.textContent, school.textContent);
+  assert.doesNotMatch(printedSchool.textContent, /תשפ״ז/);
+  assert.equal(printed.querySelector('#card .c-year'), null);
+  assert.ok(printedHtml.includes('text-align:center'));
+  assert.equal(printed.querySelector('#card .c-opening').textContent, card.querySelector('.c-opening').textContent);
+
+  ui.change('ev-type', 'end');
+  assert.match(ui.el('card').querySelector('.c-school').textContent, /תשפ״ז/);
   ui.dom.window.close();
 });
