@@ -312,7 +312,7 @@ function coreDetails(form, body, row, existingValues) {
       viewValue: (row.funding_sources || []).map((source) => source?.name).filter(clean).join(' + ') || row.funding,
       editControls: fundingControls
     }),
-    makeField(doc, { label: 'מיקום הסיור', viewValue: row.tour_location, editControls: tourLocationControls, className: 'activity-drawer-inline__field--tour-location' }),
+    String(row.activity_season || '').trim() === 'school_2027' ? makeField(doc, { label: 'מיקום הסיור', viewValue: row.tour_location, editControls: tourLocationControls, className: 'activity-drawer-inline__field--tour-location' }) : null,
     instructorLimited ? null : makeEditOnlyActivityField(doc, { label: 'מחיר', editControls: priceControls }),
     makeEditOnlyActivityField(doc, { label: 'מגדר', editControls: genderControls, className: 'activity-drawer-inline__field--gender' }),
     makeEditOnlyActivityField(doc, { label: 'שפת הדרכה', editControls: languageControls, className: 'activity-drawer-inline__field--language' }),
