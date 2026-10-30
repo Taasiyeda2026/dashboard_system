@@ -31,7 +31,7 @@ test('tour drawer displays its location and a short editable input with no count
   assert.equal(input.maxLength, 15);
   assert.equal(input.value, tour.tour_location);
   assert.match(doc.body.textContent, /מיקום הסיור/);
-  assert.doesNotMatch(doc.body.textContent, /0\\/15|11\\/15|מונה תווים/);
+  assert.doesNotMatch(doc.body.textContent, /0\/15|11\/15|מונה תווים/);
   dom.window.close();
 });
 
@@ -75,13 +75,13 @@ test('create form, edit save and Supabase API all enforce tour-only 15-character
     readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8'),
     readFile(new URL('../supabase/migrations/20261030145300_add_tour_location_to_activities.sql', import.meta.url), 'utf8')
   ]);
-  assert.match(activities, /data-tour-location-field hidden[^\\n]*maxlength="15"/);
-  assert.match(activities, /function syncAddTourLocation\\(form\\)/);
-  assert.match(activities, /selectedType === 'tour' \\? \\{ tour_location: get\\('tour_location'\\)/);
-  assert.match(editor, /initialType === 'tour'\\) changes\\.tour_location = null/);
+  assert.match(activities, /data-tour-location-field hidden[^\n]*maxlength="15"/);
+  assert.match(activities, /function syncAddTourLocation\(form\)/);
+  assert.match(activities, /selectedType === 'tour' \? \{ tour_location: get\('tour_location'\)/);
+  assert.match(editor, /initialType === 'tour'\) changes\.tour_location = null/);
   assert.match(api, /'tour_location'/);
   assert.match(api, /invalid_tour_location_length/);
   assert.match(api, /tour_location_requires_tour/);
   assert.match(api, /required_instructor_gender,tour_location/);
-  assert.match(migration, /char_length\\(tour_location\\) <= 15/);
+  assert.match(migration, /char_length\(tour_location\) <= 15/);
 });
