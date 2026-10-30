@@ -873,6 +873,23 @@ export function crossCourseCore(facts = [], { audience = 'student', stage = '' }
   return { programKeys, rows };
 }
 
+/** Keep saved answers and only the unanswered questions visible at submission. */
+function completeResponseAnswers(answers) {
+  const questions = answers.map((fact) => ({
+    id: fact.scoring?.__template_question_id || fact.question_id,
+    visible_when: fact.scoring?.visible_when
+  }));
+  const values = Object.fromEntries(answers.filter((fact) => fact.answer_id != null).map((fact) => [
+    fact.scoring?.__template_question_id || fact.question_id,
+    fact.value_number ?? fact.value_bool ?? fact.value_text ??
+      (fact.question_type === 'single_select' ? fact.value_options?.[0] : fact.value_options)
+  ]));
+  const visible = new Set(activeFeedbackQuestions(questions, values).map((question) => question.id));
+  // Stable sort retains the server's template-question ID tie-breaker, just as the public form does.
+  return answers.filter((fact) => fact.answer_id != null || visible.has(fact.scoring?.__template_question_id || fact.question_id))
+    .sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
+}
+
 /**
  * One complete submitted instructor form, grouped by person and then course.
  * Unlike comparisons, this does not require matching questions or a minimum N.
@@ -918,8 +935,7 @@ export function groupInstructorFullResponses(facts = [], { programKey = '', stag
       ...course,
       responses: [...course.responses.values()].map((response) => ({
         ...response,
-        answers: response.answers.sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0)
-          || String(a.question_id).localeCompare(String(b.question_id)))
+        answers: completeResponseAnswers(response.answers)
       })).sort((a, b) => String(a.submittedAt || '').localeCompare(String(b.submittedAt || '')))
     })).sort((a, b) => a.programKey.localeCompare(b.programKey))
   })).sort((a, b) => a.name.localeCompare(b.name, 'he') || a.key.localeCompare(b.key));
@@ -953,8 +969,7 @@ export function groupEducationalStaffFullResponses(facts = [], { programKey = ''
       programKey: course.programKey,
       responses: [...course.responses.values()].map((response) => ({
         ...response,
-        answers: response.answers.sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0)
-          || String(a.question_id).localeCompare(String(b.question_id)))
+        answers: completeResponseAnswers(response.answers)
       })).sort((a, b) => String(a.submittedAt || '').localeCompare(String(b.submittedAt || '')))
     })).sort((a, b) => a.programKey.localeCompare(b.programKey))
   })).sort((a, b) => a.name.localeCompare(b.name, 'he') || a.schoolName.localeCompare(b.schoolName, 'he'));
@@ -971,11 +986,11 @@ export function groupStudentFullResponses(facts = [], { programKey = '', stage =
     if (fact.audience !== 'student' || !fact.response_id) continue;
     if (programKey && fact.program_key !== programKey) continue;
     if (stage && fact.stage !== stage) continue;
+    const key = 'group:' + String(fact.activity_row_id || fact.campaign_id || fact.response_id);
+    if (groupKey && key !== groupKey) continue;
     const courseKey = String(fact.program_key || '');
     if (!courses.has(courseKey)) courses.set(courseKey, { programKey: courseKey, groups: new Map() });
     const course = courses.get(courseKey);
-    const key = 'group:' + String(fact.activity_row_id || fact.campaign_id || fact.response_id);
-    if (groupKey && key !== groupKey) continue;
     if (!course.groups.has(key)) course.groups.set(key, {
       key, schoolName: String(fact.school_name || 'בית ספר לא צוין'),
       authorityName: String(fact.authority_name || ''), grade: String(fact.grade || ''),
@@ -994,8 +1009,7 @@ export function groupStudentFullResponses(facts = [], { programKey = '', stage =
       key: group.key, schoolName: group.schoolName, authorityName: group.authorityName, grade: group.grade,
       responses: [...group.groups.values()].map((response) => ({
         ...response,
-        answers: response.answers.sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0)
-          || String(a.question_id).localeCompare(String(b.question_id)))
+        answers: completeResponseAnswers(response.answers)
       })).sort((a, b) => String(a.submittedAt || '').localeCompare(String(b.submittedAt || '')))
     })).sort((a, b) => a.schoolName.localeCompare(b.schoolName, 'he') || a.key.localeCompare(b.key))
   })).sort((a, b) => a.programKey.localeCompare(b.programKey));

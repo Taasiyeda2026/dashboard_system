@@ -56,12 +56,12 @@ test('anonymous name fallback does not discard an instructor form when assignmen
 test('analysis tab renders full instructor submissions and keeps the per-course and per-instructor filters', () => {
   assert.match(screen, /analysis: \{ audience: 'instructor', stage: 'pre', instructor: '', contact: '', group: '' \}/);
   assert.match(screen, /function instructorFullResponsesHtml\(\)/);
-  assert.match(screen, /groupInstructorFullResponses\(semesterFacts\(\)/);
+  assert.match(screen, /groupInstructorFullResponses\(semesterQuestionnaireFacts\(\)/);
   assert.match(screen, /data-a="instructor"/);
   assert.match(screen, /sectionHtml\('תשובות מדריכים — לפי מדריך וקורס', instructorFullResponsesHtml\(\)/);
   assert.match(screen, /completeInstructorAnswerValueHtml\(fact\)/);
   assert.match(screen, /esc\(fact\.question_text \|\| 'שאלה'\)/);
-  assert.match(screen, /esc\(String\(fact\.value_text \?\? ''\)\)/);
+  assert.match(screen, /esc\(answer\)/);
   assert.match(styles, /\.ifb-admin \.ifb-full-answer-raw \{ white-space: pre-wrap;/);
 });
 
@@ -123,8 +123,8 @@ test('anonymous student forms are grouped by course and school group, never by p
 });
 
 test('all three audience views expose raw saved answers and selectors without identifying students', () => {
-  assert.match(screen, /groupEducationalStaffFullResponses\(semesterFacts\(\)/);
-  assert.match(screen, /groupStudentFullResponses\(semesterFacts\(\)/);
+  assert.match(screen, /groupEducationalStaffFullResponses\(semesterQuestionnaireFacts\(\)/);
+  assert.match(screen, /groupStudentFullResponses\(semesterQuestionnaireFacts\(\)/);
   assert.match(screen, /data-a="contact"/);
   assert.match(screen, /data-a="group"/);
   assert.match(screen, /sectionHtml\('תשובות צוות חינוכי — לפי איש קשר וקורס', staffFullResponsesHtml\(\)/);
