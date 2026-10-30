@@ -310,12 +310,97 @@ export function syncManualActivitySelectionUi(root, data) {
   [...next.children].slice(1).forEach(element => manual.appendChild(element));
 }
 
+// Object URLs (rather than data: URLs) prevent the browser/Acrobat extension
+// from rendering a large Base64 string instead of the PDF preview.
+export function manualPdfPreviewFilename(quote = {}, { count = 0 } = {}) {
+  const payer = text(quote.customer_name_snapshot || 'לקוח').replace(/[\\/:*?"<>|\x00-\x1f]/g, ' ').replace(/\s+/g, ' ').trim();
+  const issueDate = text(quote.issue_date).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const displayDate = issueDate ? `${issueDate[3]}.${issueDate[2]}.${issueDate[1]}` : '';
+  return ['טיוטת חשבון עסקה', payer, count > 1 ? `${count} פעילויות` : '', displayDate]
+    .filter(Boolean).join(' - ') + '.pdf';
+}
+
+export function clearManualPdfPreviewUrls(root, urlApi = URL) {
+  for (const cached of root?._financeManualPdfPreviewUrls?.values() || []) {
+    urlApi.revokeObjectURL?.(cached.url);
+  }
+  if (root) root._financeManualPdfPreviewUrls = new Map();
+}
+
+export function syncManualPdfPreviewDom(root, data, scope = globalThis) {
+  if (!root) return;
+  const urlApi = scope.URL;
+  if (typeof urlApi?.createObjectURL !== 'function' || typeof scope.atob !== 'function') return;
+  const previews = new Map();
+  if (data.manualConsolidatedPreview) {
+    const value = data.manualConsolidatedPreview;
+    previews.set('consolidated', { base64: value.pdfBase64,
+      name: manualPdfPreviewFilename(value.quote, {count: value.items.length}) });
+  } else if (Array.isArray(data.manualBatchPreviews) && data.manualBatchPreviews.length > 1) {
+    data.manualBatchPreviews.forEach((value, i) => {
+      previews.set(String(i), { base64: value.pdfBase64,
+        name: manualPdfPreviewFilename(value.quote) });
+    });
+  } else if (data.manualPdf) {
+    previews.set('single', { base64: data.manualPdf,
+      name: manualPdfPreviewFilename(data.manualQuote || data.manualDraft) });
+  }
+  root._financeManualPdfPreviewUrls ||= new Map();
+  const cache = root._financeManualPdfPreviewUrls;
+  for (const [key, previous] of cache) {
+    const current = previews.get(key);
+    if (!current || current.base64 !== previous.base64) {
+      urlApi.revokeObjectURL(previous.url);
+      cache.delete(key);
+    }
+  }
+  for (const [key, descriptor] of previews) {
+    if (!cache.has(key)) {
+      const binary = scope.atob(descriptor.base64);
+      const bytes = Uint8Array.from(binary, char => char.charCodeAt(0));
+      const url = urlApi.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+      cache.set(key, {url, base64: descriptor.base64});
+    }
+    const url = cache.get(key).url;
+    const frame = [...root.querySelectorAll('[data-finance-manual-pdf-frame]')]
+      .find(node => node.dataset.financeManualPdfFrame === key);
+    if (frame && frame.getAttribute('src') !== url + '#toolbar=0') {
+      frame.setAttribute('src', url + '#toolbar=0');
+    }
+    const download = [...root.querySelectorAll('[data-finance-manual-pdf-download]')]
+      .find(node => node.dataset.financeManualPdfDownload === key);
+    if (download) {
+      download.setAttribute('href', url);
+      download.setAttribute('download', descriptor.name);
+    }
+  }
+}
+
+// The editor targets one selected activity, but the payer invoice contains all
+// selected schools. List every line and its share to prevent a single school
+// appearing to represent a consolidated invoice.
+export function manualConsolidatedActivityRows(data) {
+  const activities = new Map((data.collectionActivities || []).map(activity => [activity.row_id, activity]));
+  return selectedManualActivityIds(data).map(id => {
+    const activity = activities.get(id) || {};
+    const draft = id === data.manualActivityId ? data.manualDraft : data.manualActivityDrafts?.[id]?.draft;
+    return {
+      id, school: text(activity.school) || 'ללא בית ספר',
+      activity: text(activity.activity_name) || 'פעילות',
+      amount: Number(draft?.amount) || 0
+    };
+  }).sort((a,b) =>
+    [a.school,a.activity].join(' ').localeCompare([b.school,b.activity].join(' '),'he'));
+}
+
 export function manualAccountViewHtml(data) {
   const activities=manualFilteredActivities(data);
   const funderOptions=manualFundingFilterOptions(data);
   const source=(data.collectionActivities||[]).find(a=>a.row_id===data.manualActivityId);const d=data.manualDraft||{};const rows=manualFundingRowsForSelection(data);
   const selectedSummary = manualSelectedFundingSummary(data);
   const consolidated = selectedSummary.count > 1;
+  const selectedRows = consolidated ? manualConsolidatedActivityRows(data) : [];
+  const schoolCount = new Set(selectedRows.map(row => row.school)).size;
   const displayedTotal = data.manualConsolidatedPreview?.quote?.total_amount ?? selectedSummary.amount;
   const field=(label,key,type='text')=>{
     const money = key === 'amount' || key === 'unit_price';
@@ -345,13 +430,22 @@ export function manualAccountViewHtml(data) {
       </div>
     </details></section>
     ${consolidated?`<div class="ds-fin-manual__batch-total" data-finance-manual-batch-total style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;padding:8px 0 4px;">
-      <strong>חשבון מרוכז · ${selectedSummary.count} פעילויות</strong>
+      <strong>חשבון מרוכז · ${selectedSummary.count} פעילויות · ${schoolCount} בתי ספר</strong>
       <strong>סכום כולל: ${formatManualMoney(displayedTotal)} ₪</strong>
       <span style="flex-basis:100%;font-size:12px">פרטי החיוב שלהלן מתייחסים לפעילות אחת לעריכה. החשבון המרוכז כולל את כל הפעילויות שנבחרו.</span>
-    </div>`:''}
+    </div>
+    <details class="ds-fin-manual__selected-schools" open>
+      <summary>פירוט כל בתי הספר והפעילויות בחשבון (${selectedRows.length})</summary>
+      <div style="max-height:250px;overflow:auto;margin-top:8px">
+        <table class="ds-table" style="width:100%;font-size:13px">
+          <thead><tr><th>בית ספר</th><th>פעילות</th><th>חלק המממן (₪)</th></tr></thead>
+          <tbody>${selectedRows.map(row=>`<tr><td>${e(row.school)}</td><td>${e(row.activity)}</td><td dir="ltr" style="text-align:right">${formatManualMoney(row.amount)}</td></tr>`).join('')}</tbody>
+        </table>
+      </div>
+    </details>`:''}
     ${source?`<div class="ds-fin-manual__funding-grid"><label>גורם מימון וחודש<select class="ds-input" data-finance-manual-funding>${rows.map(r=>`<option value="${e(r.fundingSourceId+'|'+(r.period||r.manualMonth))}"${data.manualFundingKey===r.fundingSourceId+'|'+(r.period||r.manualMonth)?' selected':''}>${e(r.funding)} · ${e((r.period||r.manualMonth)?.slice(0,7)||'ללא חודש')} · ${formatManualMoney((r.eligible?r.issuableAmount:r.fullFundingAmount)||0)} ₪</option>`).join('')}</select></label>
     <label>בסיס החיוב<select class="ds-input" data-finance-manual-field="billing_basis"><option value="performance"${d.billing_basis==='performance'?' selected':''}>מפגשים שבוצעו</option><option value="full_funding"${d.billing_basis==='full_funding'?' selected':''}>מלוא חלק המממן</option></select></label></div>
-    <form data-finance-manual-form class="ds-fin-manual__form"><section class="ds-fin-manual__section"><h3>${consolidated?'פרטי הפעילות לעריכה':'פרטי חשבון'}</h3><div class="ds-fin-manual__grid">${field('גורם משלם','customer_name')}${field('בית ספר','school_name')}${field(rows.find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===data.manualFundingKey)?.gefenFunding?'סמל מוסד':'מספר לקוח (אם קיים)','institution_symbol')}${field('מספר תוכנית','program_number')}
+    <form data-finance-manual-form class="ds-fin-manual__form"><section class="ds-fin-manual__section"><h3>${consolidated?'פרטי הפעילות לעריכה':'פרטי חשבון'}</h3><div class="ds-fin-manual__grid">${field('גורם משלם','customer_name')}${field(consolidated?'בית ספר בפעילות הנערכת':'בית ספר','school_name')}${field(rows.find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===data.manualFundingKey)?.gefenFunding?'סמל מוסד':'מספר לקוח (אם קיים)','institution_symbol')}${field('מספר תוכנית','program_number')}
     ${field('תיאור השירות','description')}${field(consolidated?'דוא״ל המממן לכל החשבון (להפריד בפסיק)':'דוא״ל נמען (להפריד בפסיק)','customer_email','email')}</div></section>
     <section class="ds-fin-manual__section"><h3>פרטי חיוב</h3><div class="ds-fin-manual__grid">${field('מפגשים לחיוב','quantity','number')}${field('שעות לחיוב','hours','number')}${field('מחיר למפגש','unit_price','number')}${field(consolidated?'סכום פעילות זו':'סכום החשבון','amount','number')}
     </div></section>
@@ -359,15 +453,18 @@ export function manualAccountViewHtml(data) {
     <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" type="button" data-finance-manual-preview>הצגת ${selectedManualActivityIds(data).length>1?'החשבון המרוכז':'החשבון'} לבדיקה (PDF)</button></div></form>
     ${data.manualConsolidatedPreview?`<div class="ds-fin-manual__preview">
       <p>חשבון עסקה מרוכז אחד עבור ${data.manualConsolidatedPreview.items.length} פעילויות. כל פעילות וסכומה מוצגים במסמך.</p>
-      <iframe title="תצוגה מקדימה של חשבון מרוכז" src="data:application/pdf;base64,${e(data.manualConsolidatedPreview.pdfBase64)}"></iframe>
+      <iframe title="תצוגה מקדימה של חשבון מרוכז" data-finance-manual-pdf-frame="consolidated"></iframe>
+      <div class="ds-fin-manual__actions"><a class="ds-btn" data-finance-manual-pdf-download="consolidated">הורדת PDF עם שם החשבון</a></div>
       <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" data-finance-manual-confirm>אישור והפקת חשבון מרוכז אחד</button></div>
     </div>`:data.manualBatchPreviews?.length>1?`<div class="ds-fin-manual__batch-previews">
       <p>כל פעילות תופק כחשבון נפרד. יש לעיין בחשבונות לפני אישור ההפקה.</p>
       ${data.manualBatchPreviews.map((p,i)=>`<details class="ds-fin-manual__section"${i===0?' open':''}><summary>${e((data.collectionActivities||[]).find(a=>a.row_id===p.activityId)?.school||p.activityId)} · חשבון ${i+1}</summary>
-        <iframe title="תצוגה מקדימה של חשבון ${i+1}" src="data:application/pdf;base64,${e(p.pdfBase64)}"></iframe>
+        <iframe title="תצוגה מקדימה של חשבון ${i+1}" data-finance-manual-pdf-frame="${i}"></iframe>
+        <a class="ds-btn" data-finance-manual-pdf-download="${i}">הורדת PDF עם שם החשבון</a>
       </details>`).join('')}
       <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" data-finance-manual-confirm>אישור והפקת ${data.manualBatchPreviews.length} חשבונות</button></div>
-    </div>`:data.manualPdf?`<div class="ds-fin-manual__preview"><iframe title="תצוגה מקדימה של חשבון העסקה" src="data:application/pdf;base64,${e(data.manualPdf)}"></iframe>
+    </div>`:data.manualPdf?`<div class="ds-fin-manual__preview"><iframe title="תצוגה מקדימה של חשבון העסקה" data-finance-manual-pdf-frame="single"></iframe>
+      <div class="ds-fin-manual__actions"><a class="ds-btn" data-finance-manual-pdf-download="single">הורדת PDF עם שם החשבון</a></div>
       <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" data-finance-manual-confirm>אישור והפקת חשבון</button></div></div>`:''}`:''}</div>`;
 }
 export async function runManualAccount(data,api) {
