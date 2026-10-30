@@ -20,7 +20,7 @@ import {
 import { activityRowId, normalizeFinanceCollectionTab } from './finance-collection.js';
 import { financeError } from './finance-errors.js';
 import { financeAccountBalances, paymentsBodyHtml, receiptsHtml, accountPaymentAllocation } from './finance-payments.js';
-import { prepareManualAccount, updateManualDraft, manualFilteredActivities, selectedManualActivityIds, toggleManualActivity, toggleAllVisibleManualActivities, syncManualActivitySelectionUi, focusManualActivity, saveActiveManualDraft, previewSelectedManualAccounts, runSelectedManualAccounts } from './finance-manual-account.js';
+import { prepareManualAccount, updateManualDraft, manualFilteredActivities, selectedManualActivityIds, toggleManualActivity, toggleAllVisibleManualActivities, syncManualActivitySelectionUi, normalizeManualRecipientEmails, focusManualActivity, saveActiveManualDraft, previewSelectedManualAccounts, runSelectedManualAccounts } from './finance-manual-account.js';
 import { financeToday } from './finance-transaction-accounts.js';
 import {
   handleTransactionSelection,
@@ -797,6 +797,11 @@ export const financeScreen = {
       if (manualFunding) { prepareManualAccount(visit, visit.manualActivityId, manualFunding.value); saveActiveManualDraft(visit); visit.manualBatchPreviews = null; syncManualActivitySelectionUi(root, visit); return; }
       const manualField = ev.target.closest('[data-finance-manual-field]');
       if (manualField) {
+        // Normalize pasted semicolon-separated addresses before native HTML validation.
+        // An email input with "multiple" accepts commas, not semicolons.
+        if (manualField.dataset.financeManualField === 'customer_email') {
+          manualField.value = normalizeManualRecipientEmails(manualField.value);
+        }
         if (!manualField.checkValidity()) { manualField.reportValidity(); return; }
         if (updateManualDraft(visit, manualField.dataset.financeManualField, manualField.value) === false) {
           manualField.setCustomValidity('יש להזין סכום תקין; פסיק משמש להפרדת אלפים.');

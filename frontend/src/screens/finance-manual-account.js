@@ -17,6 +17,10 @@ export function parseManualMoney(value) {
   if (!/^(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:[.][0-9]+)?$/.test(raw)) return NaN;
   return Number(raw.replace(/,/g, ''));
 }
+// HTML email[multiple] accepts comma-separated recipients, not semicolons.
+export function normalizeManualRecipientEmails(value) {
+  return text(value).replace(/[;\r\n]+/g, ',').split(',').map(text).filter(Boolean).join(', ');
+}
 export function manualFundingRows(data) {
   return (data.transactionContext?.billingRows||[]).filter(r=>r.activityRowId===data.manualActivityId&&r.fundingSourceId);
 }
@@ -79,7 +83,7 @@ export function prepareManualAccount(data,activityId,fundingKey,basis) {
   const days=/^(רשות|רשויות|authority|ויצו|wizo)$/i.test(text(row?.funding).replace(/["׳״\s]/g,''))?45:30;
   data.manualDraft={billing_basis:full?'full_funding':'performance',customer_name:row?.payerName||'',school_name:source.school||'',institution_symbol:row?.gefenFunding?(row?.institutionSymbol||''):'',program_number:source.activity_no||'',
     description:source.activity_name||'',quantity,hours:quantity*1.5,unit_price:quantity?amount/quantity:0,amount,
-    issue_date:financeToday(),payment_due_date:financePaymentDueDate(financeToday(),days),customer_email:row?.customerEmail||'',override_reason:''};
+    issue_date:financeToday(),payment_due_date:financePaymentDueDate(financeToday(),days),customer_email:normalizeManualRecipientEmails(row?.customerEmail),override_reason:''};
   data.manualQuote=null;data.manualPdf='';data.manualConsolidatedPreview=null;
 }
 // Each selected activity keeps its own edited invoice; multi-select never combines unrelated payers.
@@ -89,6 +93,7 @@ export function selectedManualActivityIds(data) {
 }
 export function saveActiveManualDraft(data) {
   if (!data.manualActivityId || !data.manualDraft) return;
+  data.manualDraft.customer_email = normalizeManualRecipientEmails(data.manualDraft.customer_email);
   data.manualActivityDrafts ||= {};
   data.manualActivityDrafts[data.manualActivityId] = {
     draft: { ...data.manualDraft }, fundingKey: data.manualFundingKey
@@ -219,7 +224,8 @@ export async function runSelectedManualAccounts(data, api) {
 }
 export function updateManualDraft(data,key,value) {
   if(key==='billing_basis'){prepareManualAccount(data,data.manualActivityId,data.manualFundingKey,value);return;}
-  const safeValue = key === 'amount' || key === 'unit_price' ? parseManualMoney(value) : value;
+  const safeValue = key === 'amount' || key === 'unit_price' ? parseManualMoney(value)
+    : key === 'customer_email' ? normalizeManualRecipientEmails(value) : value;
   if ((key === 'amount' || key === 'unit_price') && !Number.isFinite(safeValue)) return false;
   data.manualDraft={...data.manualDraft,[key]:safeValue};const d=data.manualDraft;
   if(key==='quantity'){d.hours=Number(value)*1.5;d.amount=Math.round(Number(value)*Number(d.unit_price)*100)/100;}
@@ -281,10 +287,12 @@ export function manualAccountViewHtml(data) {
   const source=(data.collectionActivities||[]).find(a=>a.row_id===data.manualActivityId);const d=data.manualDraft||{};const rows=manualFundingRowsForSelection(data);
   const field=(label,key,type='text')=>{
     const money = key === 'amount' || key === 'unit_price';
-    const display = money ? formatManualMoney(d[key], { unitPrice: key === 'unit_price' }) : d[key];
+    const display = money ? formatManualMoney(d[key], { unitPrice: key === 'unit_price' })
+      : key === 'customer_email' ? normalizeManualRecipientEmails(d[key]) : d[key];
     const attributes = money
       ? ' inputmode="decimal" dir="ltr" pattern="[0-9]{1,3}(?:,[0-9]{3})*(?:[.][0-9]+)?|[0-9]+(?:[.][0-9]+)?" required'
-      : type === 'number' ? ' min="0" step="0.01"' : '';
+      : type === 'number' ? ' min="0" step="0.01"'
+      : key === 'customer_email' ? ' multiple autocomplete="off" dir="ltr" placeholder="email@example.com, email2@example.com"' : '';
     return `<label class="ds-fin-manual__field">${label}<input class="ds-input" type="${money ? 'text' : type}"${attributes} data-finance-manual-field="${key}" value="${e(display)}"></label>`;
   };
   return `<div class="ds-fin-manual" dir="rtl"><section class="ds-fin-manual__section"><h3 data-finance-manual-heading>${selectedManualActivityIds(data).length>1?'חשבון מרוכז לגורם מימון':'בחירת פעילות'}</h3><div class="ds-fin-manual__activity-grid">
@@ -307,7 +315,7 @@ export function manualAccountViewHtml(data) {
     ${source?`<div class="ds-fin-manual__funding-grid"><label>גורם מימון וחודש<select class="ds-input" data-finance-manual-funding>${rows.map(r=>`<option value="${e(r.fundingSourceId+'|'+(r.period||r.manualMonth))}"${data.manualFundingKey===r.fundingSourceId+'|'+(r.period||r.manualMonth)?' selected':''}>${e(r.funding)} · ${e((r.period||r.manualMonth)?.slice(0,7)||'ללא חודש')} · ${formatManualMoney((r.eligible?r.issuableAmount:r.fullFundingAmount)||0)} ₪</option>`).join('')}</select></label>
     <label>בסיס החיוב<select class="ds-input" data-finance-manual-field="billing_basis"><option value="performance"${d.billing_basis==='performance'?' selected':''}>מפגשים שבוצעו</option><option value="full_funding"${d.billing_basis==='full_funding'?' selected':''}>מלוא חלק המממן</option></select></label></div>
     <form data-finance-manual-form class="ds-fin-manual__form"><section class="ds-fin-manual__section"><h3>פרטי חשבון</h3><div class="ds-fin-manual__grid">${field('גורם משלם','customer_name')}${field('בית ספר','school_name')}${field(rows.find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===data.manualFundingKey)?.gefenFunding?'סמל מוסד':'מספר לקוח (אם קיים)','institution_symbol')}${field('מספר תוכנית','program_number')}
-    ${field('תיאור השירות','description')}${field('דוא״ל נמען','customer_email','email')}</div></section>
+    ${field('תיאור השירות','description')}${field('דוא״ל נמען (להפריד בפסיק)','customer_email','email')}</div></section>
     <section class="ds-fin-manual__section"><h3>פרטי חיוב</h3><div class="ds-fin-manual__grid">${field('מפגשים לחיוב','quantity','number')}${field('שעות לחיוב','hours','number')}${field('מחיר למפגש','unit_price','number')}${field('סכום החשבון','amount','number')}
     </div></section>
     <section class="ds-fin-manual__section"><h3>מועדים</h3><div class="ds-fin-manual__grid">${field('תאריך הפקה','issue_date','date')}${field('מועד תשלום','payment_due_date','date')}</div></section><details class="ds-fin-manual__extra"><summary>פרטים נוספים</summary><div class="ds-fin-manual__grid">${field('סיבת חריגה','override_reason')}</div></details>

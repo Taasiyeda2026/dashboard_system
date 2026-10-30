@@ -556,3 +556,5 @@ config.HOTFIX_VERSION = 'client-file-invoice-recipient-role-20261030-v1-' + conf
 config.HOTFIX_VERSION = 'finance-tour-quantity-instead-of-meetings-20261030-v1-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = 'finance-manual-bulk-select-no-collapse-20261030-v1-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'finance-manual-multi-recipient-comma-20261030-v1-' + config.HOTFIX_VERSION;

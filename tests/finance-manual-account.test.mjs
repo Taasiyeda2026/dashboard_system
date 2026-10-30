@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { manualAccountViewHtml,prepareManualAccount,updateManualDraft,runManualAccount,manualFundingFilterOptions,manualFilteredActivities,toggleManualActivity,saveActiveManualDraft,previewSelectedManualAccounts,runSelectedManualAccounts,formatManualMoney,parseManualMoney } from '../frontend/src/screens/finance-manual-account.js';
+import { JSDOM } from 'jsdom';
+import { manualAccountViewHtml,prepareManualAccount,updateManualDraft,runManualAccount,manualFundingFilterOptions,manualFilteredActivities,toggleManualActivity,saveActiveManualDraft,previewSelectedManualAccounts,runSelectedManualAccounts,formatManualMoney,parseManualMoney,normalizeManualRecipientEmails } from '../frontend/src/screens/finance-manual-account.js';
 const data=()=>({collectionActivities:[{row_id:'a',school:'בית ספר',authority:'עיריית רחובות',activity_name:'קורס',activity_no:'123'}],transactionContext:{billingRows:[{activityRowId:'a',fundingSourceId:'r',funding:'רשות',payerName:'עיריית רחובות',period:'2026-09-01',institutionSymbol:'123',unbilledCount:2,issuableAmount:7000,eligible:true}]}});
 test('manual wizard selects existing activity/funder and edits document fields without touching source data',()=>{
   const d=data();const source=JSON.stringify(d.collectionActivities);prepareManualAccount(d,'a');
@@ -176,4 +177,25 @@ test('money input formatting retains enough unit-price precision for server amou
   const parsed=parseManualMoney(shown);
   assert.equal(Math.round(parsed*11*100)/100,2500);
   assert.match(shown,/^227\.2727/);
+});
+
+
+test('email recipient field supports multiple comma-separated addresses and normalizes legacy semicolons', () => {
+  const d=data();
+  d.transactionContext.billingRows[0].customerEmail='finance@example.com;manager@example.com';
+  prepareManualAccount(d,'a');
+  assert.equal(d.manualDraft.customer_email,'finance@example.com, manager@example.com');
+  const dom=new JSDOM(manualAccountViewHtml(d));
+  const input=dom.window.document.querySelector('[data-finance-manual-field="customer_email"]');
+  assert.equal(input.type,'email');
+  assert.equal(input.multiple,true,'native HTML multi-recipient validation must be enabled');
+  assert.equal(input.value,'finance@example.com, manager@example.com');
+  assert.equal(input.checkValidity(),true,'both recipients are valid');
+  assert.equal(normalizeManualRecipientEmails('first@example.com; second@example.com, third@example.com'),
+    'first@example.com, second@example.com, third@example.com');
+  assert.equal(updateManualDraft(d,'customer_email','one@example.com;two@example.com'),undefined);
+  assert.equal(d.manualDraft.customer_email,'one@example.com, two@example.com');
+  input.value='one@example.com, invalid-email';
+  assert.equal(input.checkValidity(),false,'an invalid recipient must still be rejected');
+  dom.window.close();
 });
