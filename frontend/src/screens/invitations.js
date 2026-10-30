@@ -60,6 +60,9 @@ const LEGACY_BREAKTHROUGH_END_B2 = "התלמידות יציגו את התוצר�
 // Preserve the previous guest-lecture default only to refresh unchanged saved drafts.
 const LEGACY_BREAKTHROUGH_LECTURE_B2 = "מפגש מעצים ומעורר השראה עם אישה פורצת דרך, שתשתף במסעה האישי, בחלומות שהפכה למציאות ובאתגרים שהתגברה עליהם. הזדמנות לתלמידות לגלות את הכוח הטמון בהן, להאמין בעצמן ולקבל השראה לחלום בגדול, לפרוץ גבולות ולהעז להגשים את שאיפותיהן.";
 
+// Previous approved guest lecture copy is kept only for migrating unchanged drafts.
+const LEGACY_BREAKTHROUGH_LECTURE_APPROVED_B2 = "מפגש מעצים ומעורר השראה עם אישה פורצת דרך, שתשתף במסעה האישי, בחלומות שהפכה למציאות ובאתגרים שהתגברה עליהם בדרך ותספר על ההחלטות, התובנות והרגעים המשמעותיים שעיצבו את דרכה.";
+
 // Exact event-specific copy for the "פורצות דרך" course.
 const BREAKTHROUGH_EVENT_TEXTS = {
   end: {
@@ -70,7 +73,7 @@ const BREAKTHROUGH_EVENT_TEXTS = {
   lecture: {
     opening: "קורס ״פורצות דרך״ משלב יזמות טכנולוגית והעצמה נשית ומעודד את התלמידות לחלום בגדול, לפתח רעיונות ולהאמין ביכולתן להוביל שינוי. דרך היכרות עם נשים שהעזו לפרוץ גבולות, הן מגלות כיצד אומץ, יצירתיות, נחישות ואמונה עצמית יכולים להפוך שאיפות להישגים משמעותיים ולפתוח דלתות לאפשרויות חדשות.",
     b1: '',
-    b2: "מפגש מעצים ומעורר השראה עם אישה פורצת דרך, שתשתף במסעה האישי, בחלומות שהפכה למציאות ובאתגרים שהתגברה עליהם בדרך ותספר על ההחלטות, התובנות והרגעים המשמעותיים שעיצבו את דרכה."
+    b2: "מפגש מעורר השראה עם אישה פורצת דרך, שתחשוף את הסיפור שמאחורי הצלחתה – החלומות שהעזה להגשים, האתגרים שניצבו בדרכה והרגעים שבהם בחרה לא לוותר. מסע אישי ומרתק אל ההחלטות, התובנות ונקודות המפנה שעיצבו את דרכה והפכו את שאיפותיה למציאות."
   }
 };
 
@@ -198,8 +201,10 @@ function ensureStyles() {
 .invitation-screen-root #card.layout-breakthrough-lecture .c-participants-box{width:69%;padding:2mm 5.2mm;margin:0 auto;border-color:rgba(31,53,77,.14)}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-part-title,.invitation-screen-root #card.layout-breakthrough-lecture .c-part-line,.invitation-screen-root #card.layout-breakthrough-lecture .c-part-line strong,.invitation-screen-root #card.layout-breakthrough-lecture .c-part-line span{font-size:3.3mm;line-height:1.32}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-closing{font-size:5.4mm;margin:0 auto 1mm;padding-top:0}
-.invitation-screen-root #card.layout-breakthrough-lecture .c-footer{bottom:4.8mm;max-width:94%;padding:1.1mm 3.6mm}
-.invitation-screen-root #card.layout-breakthrough-lecture .c-footer-sentence{font-size:2.7mm;line-height:1.22;font-weight:800;gap:.8mm;text-shadow:0 .12mm .14mm rgba(0,0,0,.19)}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-footer{bottom:4.8mm;width:max-content;max-width:94%;padding:1.1mm 3.6mm}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-footer-sentence{font-size:2.35mm;line-height:1.22;font-weight:800;gap:.55mm;flex-wrap:nowrap;white-space:nowrap;text-shadow:0 .12mm .14mm rgba(0,0,0,.19)}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-footer-sentence span{white-space:nowrap;flex-shrink:0}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-closing{white-space:nowrap}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-divider{margin-top:auto}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-details-box,.invitation-screen-root #card.layout-breakthrough-lecture .c-section-title,.invitation-screen-root #card.layout-breakthrough-lecture .c-participants-box,.invitation-screen-root #card.layout-breakthrough-lecture .c-closing{margin-top:auto}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-compact .c-main{padding:1mm 6mm 14mm}
@@ -218,7 +223,7 @@ function ensureStyles() {
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-details-box{width:88%;padding:1mm 2mm}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-info-row{font-size:3.65mm}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-participants-box{width:78%;padding:1mm 3.5mm}
-.invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-footer-sentence{font-size:2.4mm}
+.invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-footer-sentence{font-size:2.3mm}
 
 .invitation-screen-root #card.fit-a5-compact .c-title{font-size:9.5mm}
 .invitation-screen-root #card.fit-a5-compact .c-title.guest-lecture{font-size:7mm}
@@ -430,7 +435,7 @@ export const invitationsScreen = {
 
     function isKnownSuggestedText(value) {
       const clean = (value || '').trim();
-      if (!clean || clean === LEGACY_BREAKTHROUGH_END_B2 || clean === LEGACY_BREAKTHROUGH_LECTURE_B2) return true;
+      if (!clean || clean === LEGACY_BREAKTHROUGH_END_B2 || clean === LEGACY_BREAKTHROUGH_LECTURE_B2 || clean === LEGACY_BREAKTHROUGH_LECTURE_APPROVED_B2) return true;
 
       return [SUGGESTED_TEXTS_BY_COURSE, LEGACY_PREMIUM_SUGGESTIONS, BREAKTHROUGH_EVENT_TEXTS].some((library) =>
         Object.values(library).some((set) =>
@@ -695,7 +700,9 @@ export const invitationsScreen = {
           if (savedFields.b2 === LEGACY_BREAKTHROUGH_END_B2) {
             savedFields.b2 = BREAKTHROUGH_EVENT_TEXTS.end.b2;
           }
-          if (savedFields['ev-type'] === 'lecture' && savedFields.b2 === LEGACY_BREAKTHROUGH_LECTURE_B2) {
+          if (savedFields['ev-type'] === 'lecture' &&
+              (savedFields.b2 === LEGACY_BREAKTHROUGH_LECTURE_B2 ||
+               savedFields.b2 === LEGACY_BREAKTHROUGH_LECTURE_APPROVED_B2)) {
             savedFields.b2 = BREAKTHROUGH_EVENT_TEXTS.lecture.b2;
           }
           const savedColors = ['c1', 'c2', 'c3'].reduce((result, key) => {
