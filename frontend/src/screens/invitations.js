@@ -198,8 +198,10 @@ function ensureStyles() {
 .invitation-screen-root #card.layout-breakthrough-lecture .c-participants-box{width:69%;padding:2mm 5.2mm;margin:0 auto;border-color:rgba(31,53,77,.14)}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-part-title,.invitation-screen-root #card.layout-breakthrough-lecture .c-part-line,.invitation-screen-root #card.layout-breakthrough-lecture .c-part-line strong,.invitation-screen-root #card.layout-breakthrough-lecture .c-part-line span{font-size:3.3mm;line-height:1.32}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-closing{font-size:5.4mm;margin:0 auto 1mm;padding-top:0}
-.invitation-screen-root #card.layout-breakthrough-lecture .c-footer{bottom:4.8mm;max-width:94%;padding:1.1mm 3.6mm}
-.invitation-screen-root #card.layout-breakthrough-lecture .c-footer-sentence{font-size:2.7mm;line-height:1.22;font-weight:800;gap:.8mm;text-shadow:0 .12mm .14mm rgba(0,0,0,.19)}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-footer{bottom:4.8mm;width:max-content;max-width:94%;padding:1.1mm 3.6mm}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-footer-sentence{font-size:2.35mm;line-height:1.22;font-weight:800;gap:.55mm;flex-wrap:nowrap;white-space:nowrap;text-shadow:0 .12mm .14mm rgba(0,0,0,.19)}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-footer-sentence span{white-space:nowrap;flex-shrink:0}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-closing{white-space:nowrap}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-divider{margin-top:auto}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-details-box,.invitation-screen-root #card.layout-breakthrough-lecture .c-section-title,.invitation-screen-root #card.layout-breakthrough-lecture .c-participants-box,.invitation-screen-root #card.layout-breakthrough-lecture .c-closing{margin-top:auto}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-compact .c-main{padding:1mm 6mm 14mm}
@@ -218,7 +220,7 @@ function ensureStyles() {
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-details-box{width:88%;padding:1mm 2mm}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-info-row{font-size:3.65mm}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-participants-box{width:78%;padding:1mm 3.5mm}
-.invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-footer-sentence{font-size:2.4mm}
+.invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-footer-sentence{font-size:2.3mm}
 
 .invitation-screen-root #card.fit-a5-compact .c-title{font-size:9.5mm}
 .invitation-screen-root #card.fit-a5-compact .c-title.guest-lecture{font-size:7mm}
