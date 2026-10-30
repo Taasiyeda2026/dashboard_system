@@ -341,13 +341,21 @@ test('breakthrough guest lecture layout expands text and balances A5 spacing wit
   assert.match(css, /\.preview #card\.layout-breakthrough-lecture\{zoom:\.60\}/);
   assert.match(css, /#card\.layout-breakthrough-lecture \.c-opening\{width:84%;padding-inline:2mm;text-align:right;font-size:4\.3mm;line-height:1\.4/);
   assert.match(css, /#card\.layout-breakthrough-lecture \.c-details-box\{width:82%;padding:2\.1mm 3mm/);
+  assert.match(css, /#card\.layout-breakthrough-lecture \.c-title\.guest-lecture\{font-size:8\.7mm;margin-bottom:2\.1mm/);
+  assert.match(css, /#card\.layout-breakthrough-lecture \.c-participants-box\{width:69%;padding:2mm 5\.2mm/);
+  assert.match(css, /#card\.layout-breakthrough-lecture \.c-footer-sentence\{font-size:2\.7mm/);
   assert.match(css, /#card\.layout-breakthrough-lecture \.c-details-box,#card\.layout-breakthrough-lecture \.c-section-title/);
   assert.match(css, /#card\.layout-breakthrough-lecture \.c-main\{padding:2mm 6\.5mm 16mm\}/);
   assert.match(css, /#card\.layout-breakthrough-lecture\.fit-a5-tight \.c-main\{padding:1mm 5\.5mm 13mm\}/);
-  assert.equal(card.querySelectorAll('.c-logos > .c-logo-item').length, 4);
+  assert.equal(card.querySelectorAll('.c-logos > .c-logo-item').length, 2);
   assert.equal(card.querySelector('.c-lecturer-identity').textContent, 'דנה לוי, מנהלת חדשנות - חברת טכנולוגיה');
   assert.match(card.querySelector('.c-lecturer-identity').getAttribute('style'), /font-size:5\.2mm/);
   assert.match(card.querySelector('.c-details-box').textContent, /10:00/);
+  const detailRows = [...card.querySelectorAll('.c-details-top .c-info-row')];
+  assert.equal(detailRows.length, 2, 'day and date combined, then time');
+  assert.equal(detailRows[0].textContent, '📅 יום ראשון·06.12.2026');
+  assert.equal(detailRows[1].textContent, 'שעה 10:00');
+  assert.doesNotMatch(card.querySelector('.c-details-box').textContent, /⏰|🗓️/);
   assert.match(card.querySelector('.c-details-box').textContent, /בית הספר/);
   assert.equal(card.querySelector('.c-closing').textContent, 'נשמח לראותכם!');
 
@@ -362,11 +370,14 @@ test('breakthrough guest lecture layout expands text and balances A5 spacing wit
   assert.ok(printedHtml.includes(opening));
   assert.ok(printedHtml.includes(conclusion));
   assert.ok(printedHtml.includes('נשמח לראותכם!'));
+  assert.doesNotMatch(printedHtml, /לוגו בית הספר|לוגו חברת המרצה/);
+  assert.ok(printedHtml.includes('📅'));
+  assert.ok(printedHtml.includes('שעה '));
   assert.match(printedHtml, /#card\.layout-breakthrough-lecture \.c-opening/);
 
   ui.change('ev-type', 'end');
   assert.equal(card.classList.contains('layout-breakthrough-lecture'), false);
-  assert.equal(card.querySelectorAll('.c-logos > .c-logo-item').length, 3);
+  assert.equal(card.querySelectorAll('.c-logos > .c-logo-item').length, 2);
   let endPrint = '';
   ui.dom.window.open = () => ({ document: {
     write(html) { endPrint = html; }, close() {}, set title(_) {}
