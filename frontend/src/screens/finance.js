@@ -570,6 +570,8 @@ export const financeScreen = {
       if (cancelAccount) { const reason = window.prompt('סיבת ביטול החשבון'); if (reason?.trim()) await financeAction(cancelAccount, () => api.cancelIssuedFinanceAccount(cancelAccount.dataset.financeAccountCancel, reason)); return; }
       const manualPreview = ev.target.closest('[data-finance-manual-preview]');
       if (manualPreview) {
+        const form = root.querySelector('[data-finance-manual-form]');
+        if (form && !form.checkValidity()) { form.reportValidity(); return; }
         if (visit.financeBusy) return; visit.financeBusy = true; manualPreview.disabled = true;
         try { await previewSelectedManualAccounts(visit, api); visit.transactionActionMessage = ''; }
         catch (error) { visit.transactionActionMessage = financeError(error); }
@@ -761,7 +763,16 @@ export const financeScreen = {
       const manualFunding = ev.target.closest('[data-finance-manual-funding]');
       if (manualFunding) { prepareManualAccount(visit, visit.manualActivityId, manualFunding.value); saveActiveManualDraft(visit); visit.manualBatchPreviews = null; refresh(); return; }
       const manualField = ev.target.closest('[data-finance-manual-field]');
-      if (manualField) { updateManualDraft(visit, manualField.dataset.financeManualField, manualField.value); saveActiveManualDraft(visit); refresh(); return; }
+      if (manualField) {
+        if (!manualField.checkValidity()) { manualField.reportValidity(); return; }
+        if (updateManualDraft(visit, manualField.dataset.financeManualField, manualField.value) === false) {
+          manualField.setCustomValidity('יש להזין סכום תקין; פסיק משמש להפרדת אלפים.');
+          manualField.reportValidity();
+          return;
+        }
+        manualField.setCustomValidity('');
+        saveActiveManualDraft(visit); refresh(); return;
+      }
       const accountField = ev.target.closest('[data-finance-account-field]');
       if (accountField) {
         const account = financeAccountBalances(visit).find(a => a.id === accountField.dataset.accountId); if (!account) return;
