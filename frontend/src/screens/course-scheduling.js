@@ -835,7 +835,6 @@ function workboardInstructorLabel(row = {}) {
     return text(planning.instructorName || planning.instructorEmpId) || '—';
   }
   return '—';
-
 }
 
 function courseRowModel(course, resultByCourseId, planningByCourseId = new Map()) {
@@ -902,7 +901,8 @@ function summaryCardsHtml(rowModels = [], state = {}) {
       class="course-scheduling-summary-card course-scheduling-summary-card--button${toneClass}${active ? ' is-active' : ''}"
       data-business-summary-filter="${key}"
       aria-pressed="${active ? 'true' : 'false'}"
-      aria-label="${escapeHtml(`${label}: ${value} פעילויות. לחץ לסינון הטבלה`)}">
+      aria-label="${escapeHtml(`${label}: ${value} פעילויות. לחץ לסינון הטבלה`)}"
+      title="${key === 'open' ? 'פעילות שטרם נשמר לה מדריך או טיוטת שיבוץ' : escapeHtml(label)}">
       <b>${value}</b><span>${label}</span>
     </button>`;
   }).join('');
@@ -1218,7 +1218,7 @@ export function schedulingPlanningStatusHtml(state = {}, { snapshotStale = false
   if (error) {
     return `<div class="course-scheduling-auto-plan is-error" role="status" data-planning-status aria-busy="false">
       <span data-planning-status-message><strong>ההצעות לא עודכנו.</strong> ${escapeHtml(error)}</span>
-      ${SCHEDULING_AGENT_OWNS_COMPUTE ? '<span class="course-scheduling-agent-compute">החישוב מתבצע בסוכן השיבוצים</span>' : '<button type="button" class="course-scheduling-workboard-secondary" data-run-course-planning>נסה שוב</button>'}
+      ${SCHEDULING_AGENT_OWNS_COMPUTE ? '<span class="course-scheduling-agent-compute">עדכון ההמלצות מנוהל בנפרד</span>' : '<button type="button" class="course-scheduling-workboard-secondary" data-run-course-planning>נסה שוב</button>'}
     </div>`;
   }
   if (loading) {
@@ -1241,21 +1241,21 @@ export function schedulingPlanningStatusHtml(state = {}, { snapshotStale = false
   if (!calculatedAt) {
     return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
       <span data-planning-status-message><strong>אין עדיין תכנון שמור.</strong> החישוב יתחיל רק כשתבחר לבנות הצעות.</span>
-      ${SCHEDULING_AGENT_OWNS_COMPUTE ? '<span class="course-scheduling-agent-compute">החישוב מתבצע בסוכן השיבוצים</span>' : '<button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>בנה הצעות</button>'}
+      ${SCHEDULING_AGENT_OWNS_COMPUTE ? '<span class="course-scheduling-agent-compute">עדכון ההמלצות מנוהל בנפרד</span>' : '<button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>בנה הצעות</button>'}
     </div>`;
   }
   if (state.courseSchedulingPlanningStale) {
     const reason = text(state.courseSchedulingPlanningStaleReason) || 'נתוני התכנון השתנו';
     return `<div class="course-scheduling-auto-plan is-warning" role="status" data-planning-status aria-busy="false">
       <span data-planning-status-message><strong>התכנון השמור אינו עדכני.</strong> ${escapeHtml(reason)}.</span>
-      ${SCHEDULING_AGENT_OWNS_COMPUTE ? '<span class="course-scheduling-agent-compute">החישוב מתבצע בסוכן השיבוצים</span>' : '<button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>עדכן</button>'}
+      ${SCHEDULING_AGENT_OWNS_COMPUTE ? '<span class="course-scheduling-agent-compute">עדכון ההמלצות מנוהל בנפרד</span>' : '<button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>עדכן</button>'}
     </div>`;
   }
   if (pendingRecalc > 0 || hardGateInvalid > 0) {
     const count = Math.max(pendingRecalc, hardGateInvalid);
     return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
       <span data-planning-status-message><strong>נדרש עדכון · ${count} פעילויות</strong></span>
-      ${SCHEDULING_AGENT_OWNS_COMPUTE ? '<span class="course-scheduling-agent-compute">החישוב מתבצע בסוכן השיבוצים</span>' : '<button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>עדכן</button>'}
+      ${SCHEDULING_AGENT_OWNS_COMPUTE ? '<span class="course-scheduling-agent-compute">עדכון ההמלצות מנוהל בנפרד</span>' : '<button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>עדכן</button>'}
     </div>`;
   }
   return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
