@@ -90,3 +90,27 @@ test('invoice tabs include a single orange SharePoint folder shortcut for all mo
     dom.window.close();
   }
 });
+
+
+test('invoice recipient list deduplicates contact and administrator for one school',()=>{
+  const preview=transactionPreviewForVisit(data([
+    row({activityRowId:'a',financeSchoolId:101,customerEmail:'teacher@example.test;ADMIN@example.test'}),
+    row({activityRowId:'b',financeSchoolId:101,customerEmail:'admin@example.test;teacher@example.test'})
+  ]));
+  assert.deepEqual(preview.accounts[0].customerEmails,['teacher@example.test','admin@example.test']);
+});
+
+test('a sponsor invoice spanning two schools never receives unrelated school contacts',()=>{
+  const preview=transactionPreviewForVisit(data([
+    row({gefenFunding:false,activityRowId:'w1',financeSchoolId:11,payerKey:'funding:sponsor',customerEmail:'one@example.test'}),
+    row({gefenFunding:false,activityRowId:'w2',financeSchoolId:22,payerKey:'funding:sponsor',customerEmail:'two@example.test'})
+  ],{transactionMonths:{manual:'2026-09'}}),'manual');
+  assert.equal(preview.accounts.length,0,'manual invoices require selection before an account is drafted');
+  const selected=data([
+    row({gefenFunding:false,activityRowId:'w1',financeSchoolId:11,payerKey:'funding:sponsor',customerEmail:'one@example.test'}),
+    row({gefenFunding:false,activityRowId:'w2',financeSchoolId:22,payerKey:'funding:sponsor',customerEmail:'two@example.test'})
+  ],{transactionMonths:{manual:'2026-09'},transactionManualSelected:{'w1:g:2026-09-01':true,'w2:g:2026-09-01':true}});
+  const groups=transactionPreviewForVisit(selected,'manual').accounts;
+  assert.equal(groups.length,1);
+  assert.deepEqual(groups[0].customerEmails,[]);
+});

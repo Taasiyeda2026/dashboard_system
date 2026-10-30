@@ -494,11 +494,29 @@ async function ensureCollectionLoaded(data, api, { force = false } = {}) {
       // Keep allocations across years for included receipts so their unallocated balance is accurate.
       allocations: paymentContext.allocations.filter((allocation) => visibleReceiptIds.has(allocation.receipt_id))
     };
+    // Finance email recipients are resolved from the selected activity contact
+    // and the separate school administrator, not from a stale activity email.
+    // The reservation RPC persists the combined list on each new invoice.
+    const activityById = new Map(currentActivities.map(activity => [String(activityRowId(activity)), activity]));
+    const recipientList = (values) => [...new Map(values
+      .flatMap(value => String(value || '').split(/[;,]/))
+      .map(value => value.trim()).filter(value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+      .map(value => [value.toLowerCase(), value])).values()].join(';');
     data.transactionContext = {
       ...transactionContext,
       accounts: visibleAccounts,
       cancelled: (transactionContext.cancelled || []).filter((row) => visibleActivityIds.has(String(row.activity_id))),
-      billingRows: (billingRows || []).filter((row) => visibleActivityIds.has(String(row.activityRowId)))
+      billingRows: (billingRows || []).filter((row) => visibleActivityIds.has(String(row.activityRowId))).map(row => {
+        const activity = activityById.get(String(row.activityRowId));
+        return {
+          ...row,
+          financeSchoolId: activity?.school_id ?? null,
+          customerEmail: activity
+            ? recipientList([activity.resolved_contact_email || activity.contact_email,
+              activity.finance_administrator_email])
+            : row.customerEmail
+        };
+      })
     };
   } catch (error) {
     data.transactionContext = null;

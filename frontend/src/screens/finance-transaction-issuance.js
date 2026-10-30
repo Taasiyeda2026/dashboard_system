@@ -69,6 +69,16 @@ export function transactionPreviewForVisit(data, mode = TRANSACTION_MODE_AUTOMAT
     if (row.customerEmail && !account.customerEmails.includes(row.customerEmail)) account.customerEmails.push(row.customerEmail);
   }
   const result = [...accounts.values()];
+  for (const account of result) {
+    const schools = new Set(account.lines.map(row => String(row.financeSchoolId || row.institutionSymbol || row.customerName || '')).filter(Boolean));
+    // A consolidated sponsor/authority invoice covering different schools
+    // must not be addressed to contacts of the other schools.
+    if (schools.size > 1) account.customerEmails = [];
+    else account.customerEmails = [...new Map(account.customerEmails
+      .flatMap(email => String(email).split(/[;,]/))
+      .map(email => email.trim()).filter(Boolean)
+      .map(email => [email.toLowerCase(), email])).values()];
+  }
   return { mode, cutoff: mode === TRANSACTION_MODE_MANUAL ? financeToday() : financeCycleCutoff(), accounts: result,
     blocked: rows.filter((row) => row.blockedReason), deferred: rows.filter((row) => !row.eligible && !row.blockedReason),
     totals: { schools: new Set(result.map((row) => row.institutionSymbol)).size,
