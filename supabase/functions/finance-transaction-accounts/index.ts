@@ -6,7 +6,10 @@ import bidiFactory from "npm:bidi-js@1.0.3";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization,apikey,content-type"
+  // The browser's Supabase client always sends x-client-info. Without it Chrome
+  // accepts OPTIONS but blocks the PDF POST before it reaches this function.
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-retry-count, traceparent, tracestate, baggage",
+  "Access-Control-Allow-Methods": "POST, OPTIONS"
 };
 const clean = (value: unknown) => String(value ?? "").trim();
 const bidi = bidiFactory();
