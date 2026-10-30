@@ -45,6 +45,20 @@ test('workboard and summary expose avoidable school fragmentation', () => {
   assert.match(html, /2 פעילויות · ⚠ מפוצל ל־2 ימים — ניתן לצמצם/);
 });
 
+test('daily scheduling summary has only business statuses; planning metric stays in collapsed details', () => {
+  const html = render([planningRow('a'), planningRow('b')]);
+  const summary = html.split('<section class="course-scheduling-summary"')[1]?.split('</section>')[0] || '';
+  assert.equal((summary.match(/data-business-summary-filter=/g) || []).length, 4);
+  assert.match(summary, /ללא מדריך/);
+  assert.match(summary, /ממתין לאישור/);
+  assert.match(summary, /משובץ/);
+  assert.doesNotMatch(summary, /data-school-fragmentation-filter|בתי ספר מפוצלים/);
+  const planning = html.split('<details class="course-scheduling-planning-disclosure"')[1]?.split('</details>')[0] || '';
+  assert.match(planning, /data-school-fragmentation-filter/);
+  assert.match(planning, /בתי ספר מפוצלים: 1/);
+  assert.doesNotMatch(html, /data-planning-disclosure open/);
+});
+
 test('fragmented-school filter coexists with status/focus/search rendering', () => {
   const html = render([planningRow('a'), planningRow('b')], {
     courseSchedulingSchoolFragmentationFilter: true,
