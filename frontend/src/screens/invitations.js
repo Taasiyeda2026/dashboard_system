@@ -137,7 +137,8 @@ function ensureStyles() {
 .invitation-screen-root .c-logo-item img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
 .invitation-screen-root .c-main{padding:1.5mm 6mm 2mm;flex:1;display:flex;flex-direction:column;align-items:center;text-align:center}
 .invitation-screen-root .c-title{font-weight:900;line-height:1;margin-bottom:0;font-size:14mm}
-.invitation-screen-root .c-title.breakthrough-lecture{font-size:8.5mm;line-height:1.1;margin-bottom:2mm}
+.invitation-screen-root .c-title.guest-lecture{font-size:8.5mm;line-height:1.1;margin-bottom:1.2mm}
+.invitation-screen-root .c-lecturer-identity{font-weight:700;line-height:1.2;text-align:center;white-space:nowrap;max-width:100%;margin:0 auto 1.4mm;direction:rtl}
 .invitation-screen-root .c-sub-event{font-weight:700;line-height:1.05;margin-bottom:1mm;font-size:9mm}
 .invitation-screen-root .c-course{font-weight:500;line-height:1.08;margin-bottom:1mm;font-size:7mm}
 .invitation-screen-root .c-course .course-main{display:block;font-size:7mm;line-height:1.05;font-weight:500}
@@ -168,7 +169,7 @@ function ensureStyles() {
 .invitation-screen-root .c-footer{position:absolute;bottom:5.2mm;left:50%;transform:translateX(-50%);z-index:5;width:auto;max-width:88%;background:#fff;border:.35mm solid rgba(26,58,92,.18);border-radius:6mm;padding:.9mm 4mm;min-height:0;pointer-events:none;box-shadow:0 .6mm 2mm rgba(0,0,0,.06)}
 .invitation-screen-root .c-footer-sentence{font-size:2.1mm;line-height:1.15;font-weight:600;letter-spacing:0;text-shadow:none;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:1.2mm;white-space:normal}
 .invitation-screen-root #card.fit-a5-compact .c-title{font-size:9.5mm}
-.invitation-screen-root #card.fit-a5-compact .c-title.breakthrough-lecture{font-size:7mm}
+.invitation-screen-root #card.fit-a5-compact .c-title.guest-lecture{font-size:7mm}
 .invitation-screen-root #card.fit-a5-compact .c-sub-event{font-size:5mm}
 .invitation-screen-root #card.fit-a5-compact .c-course,.invitation-screen-root #card.fit-a5-compact .c-course .course-main{font-size:5.4mm}
 .invitation-screen-root #card.fit-a5-compact .c-course .course-sub{font-size:4.7mm}
@@ -180,7 +181,7 @@ function ensureStyles() {
 .invitation-screen-root #card.fit-a5-compact .c-part-title,.invitation-screen-root #card.fit-a5-compact .c-part-line{font-size:2.75mm;line-height:1.22}
 .invitation-screen-root #card.fit-a5-compact .c-closing{font-size:4.7mm}
 .invitation-screen-root #card.fit-a5-tight .c-title{font-size:8.8mm}
-.invitation-screen-root #card.fit-a5-tight .c-title.breakthrough-lecture{font-size:6.4mm}
+.invitation-screen-root #card.fit-a5-tight .c-title.guest-lecture{font-size:6.4mm}
 .invitation-screen-root #card.fit-a5-tight .c-sub-event{font-size:4.6mm}
 .invitation-screen-root #card.fit-a5-tight .c-course,.invitation-screen-root #card.fit-a5-tight .c-course .course-main{font-size:5mm}
 .invitation-screen-root #card.fit-a5-tight .c-course .course-sub{font-size:4.4mm}
@@ -575,7 +576,7 @@ export const invitationsScreen = {
         'b2',
         'closing1',
         'lec-name',
-        'lec-topic',
+        'lec-role',
         'lec-org',
         'tour-place',
         'tour-org'
@@ -804,9 +805,9 @@ export const invitationsScreen = {
         extra.innerHTML = `
           <div class="field-row" style="margin-top:4px">
             <div><span class="lbl">שם המרצה</span><input type="text" id="lec-name"></div>
-            <div><span class="lbl">נושא</span><input type="text" id="lec-topic"></div>
+            <div><span class="lbl">תפקיד</span><input type="text" id="lec-role"></div>
           </div>
-          <div style="margin-top:4px"><span class="lbl">חברה / מוסד</span><input type="text" id="lec-org"></div>`;
+          <div style="margin-top:4px"><span class="lbl">חברה</span><input type="text" id="lec-org"></div>`;
       } else if (type === 'tour') {
         extra.innerHTML = `
           <div class="field-row" style="margin-top:4px">
@@ -915,13 +916,17 @@ export const invitationsScreen = {
       const evLabel = type === 'end' ? 'למפגש הסיום' : type === 'lecture' ? 'להרצאת אורח' : 'לסיור לימודי';
       const breakthroughCopy = course === 'פורצות דרך' ? BREAKTHROUGH_EVENT_TEXTS[type] : null;
       const breakthroughLecture = course === 'פורצות דרך' && type === 'lecture';
-      const lectureDetails = breakthroughLecture
-        ? [
-            ['מרצה', $('lec-name')?.value],
-            ['נושא', $('lec-topic')?.value],
-            ['חברה / מוסד', $('lec-org')?.value]
-          ].filter(([, value]) => (value || '').trim())
-        : [];
+      const isLecture = type === 'lecture';
+      const lecturerName = ($('lec-name')?.value || '').trim();
+      const lecturerRole = ($('lec-role')?.value || '').trim();
+      const lecturerCompany = ($('lec-org')?.value || '').trim();
+      const lecturerIdentity = [
+        [lecturerName, lecturerRole].filter(Boolean).join(', '),
+        lecturerCompany
+      ].filter(Boolean).join(' - ');
+      const lecturerFontSize = lecturerIdentity.length > 90 ? 2.4
+        : lecturerIdentity.length > 65 ? 2.8
+        : lecturerIdentity.length > 45 ? 3.4 : 4;
 
       let opening = '';
 
@@ -930,11 +935,7 @@ export const invitationsScreen = {
       } else if (type === 'end') {
         opening = `<div class="c-opening">אנו שמחים להזמינכם למפגש הסיום של קורס <strong>${esc(getCourseOpeningText(course))}</strong>${premiumCompany ? ` בשיתוף <strong>${esc(premiumCompany)}</strong>` : ''}, שהתקיים בבית הספר במסגרת התוכניות החינוכיות של תעשיידע.</div>`;
       } else if (type === 'lecture') {
-        const lecturer = $('lec-name')?.value || '';
-        const topic = $('lec-topic')?.value || '';
-        const org = $('lec-org')?.value || '';
-
-        opening = `<div class="c-opening">אנו שמחים להזמינכם <strong>${evLabel}</strong>${lecturer ? ` עם <strong>${esc(lecturer)}</strong>` : ''}${topic ? ` | <strong>${esc(topic)}</strong>` : ''}${org ? ` — ${esc(org)}` : ''}</div>`;
+        opening = `<div class="c-opening">אנו שמחים להזמינכם <strong>${evLabel}</strong></div>`;
       } else {
         const place = $('tour-place')?.value || '';
         const org = $('tour-org')?.value || '';
@@ -956,8 +957,9 @@ export const invitationsScreen = {
       return `
         ${logosBarHTML(false)}
         <div class="c-main">
-          <div class="c-title${breakthroughLecture ? ' breakthrough-lecture' : ''}" style="color:${c1}">${breakthroughLecture ? 'הזמנה להרצאת אורחת' : 'הזמנה'}</div>
-          ${breakthroughLecture ? '' : `<div class="c-sub-event" style="color:${c1}">${getHeaderEventText(type, evLabel)}</div>`}
+          <div class="c-title${isLecture ? ' guest-lecture' : ''}" style="color:${c1}">${isLecture ? (breakthroughLecture ? 'הזמנה להרצאת אורחת של:' : 'הזמנה להרצאת אורח של:') : 'הזמנה'}</div>
+          ${isLecture && lecturerIdentity ? `<div class="c-lecturer-identity" style="color:${c1};font-size:${lecturerFontSize}mm">${esc(lecturerIdentity)}</div>` : ''}
+          ${isLecture ? '' : `<div class="c-sub-event" style="color:${c1}">${getHeaderEventText(type, evLabel)}</div>`}
           <div class="c-course" style="color:${c3}">${getCourseDisplayHTML(course)}</div>
           ${(school || grade) ? `<div class="c-school">כיתה <strong>${esc(grade || '____')}</strong> | בית ספר <strong>${esc(school || '______')}</strong> | <strong>${esc(year)}</strong></div>` : `<div class="c-year">${esc(year)}</div>`}
           <div class="c-divider"></div>
@@ -969,7 +971,6 @@ export const invitationsScreen = {
               ${time ? `<div class="c-info-row">⏰ <strong>${esc(time)}</strong></div>` : ''}
             </div>
             ${location ? `<div class="c-info-row c-details-location">📍 ${esc(location)}</div>` : ''}
-            ${lectureDetails.map(([label, value]) => `<div class="c-info-row"><strong>${esc(label)}:</strong> ${esc(value)}</div>`).join('')}
           </div>
           ${b1 && !breakthroughLecture ? `<div class="c-para">${esc(b1)}</div>` : ''}
           ${b2 ? `<div class="c-section-title">${course === 'פורצות דרך' ? 'מה מצפה לנו?' : 'מה מצפה לנו:'}</div><div class="c-para">${esc(b2)}</div>` : ''}
