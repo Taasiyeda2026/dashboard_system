@@ -115,7 +115,15 @@ function drawRight(page: PDFPage, font: PDFFont, value: string, y: number, size 
   drawLogicalRight(page, font, value, y, size, rightX, 30);
 }
 function drawCell(page: PDFPage, font: PDFFont, value: string, x: number, y: number, width: number, size = 8.5) {
-  drawLogicalRight(page, font, value, y + 7, size, x + width - 5, x + 5);
+  // A sponsor's invoice may span many schools: keep each school's name legible
+  // on its own line, without squeezing it beside the course title.
+  const parts = String(value ?? '').split('\n').slice(0, 2);
+  if (parts.length === 1) {
+    drawLogicalRight(page, font, parts[0], y + 7, size, x + width - 5, x + 5);
+  } else {
+    drawLogicalRight(page, font, parts[0], y + 16, size, x + width - 5, x + 5);
+    drawLogicalRight(page, font, parts[1], y + 4, size, x + width - 5, x + 5);
+  }
 }
 
 function drawTableRow(page: PDFPage, font: PDFFont, values: string[], widths: number[], y: number, height = 24, fill = false) {
@@ -263,8 +271,11 @@ async function buildPdf(account: any) {
     }
     y -= 22;
   };
+  const consolidatedFunder = account.issue_mode === 'manual'
+    && (account.finance_transaction_account_lines || []).length > 1
+    && (account.finance_transaction_account_lines || []).every((line: { billing_rule?: string }) => line.billing_rule === 'completion');
   const displayName = (row: InvoiceRenderRow) =>
-    row.school ? `${row.name} - ${row.school}` : row.name;
+    row.school ? (consolidatedFunder ? `${row.name}\n${row.school}` : `${row.name} - ${row.school}`) : row.name;
   const count = (number: number) => Number.isInteger(number)
     ? String(number) : String(Number(number.toFixed(2)));
   drawSection('קורסים',
