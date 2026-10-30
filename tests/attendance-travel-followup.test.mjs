@@ -7,7 +7,7 @@ import { applyAttendanceDayRouteKilometers, applyDashboardRouteKilometers } from
 const container=process.env.ATTENDANCE_TRAVEL_FOLLOWUP_TEST_CONTAINER;
 if(container && container!=='attendance-travel-followup-test') throw new Error('Use the disposable attendance-travel-followup-test container');
 const read=p=>readFile(new URL('../'+p,import.meta.url),'utf8');
-const migration=await read('supabase/migrations/20261030203143_attendance_travel_followup.sql')+'\n'+await read('supabase/migrations/20261030210018_attendance_control_resolved_course_meetings.sql');
+const migration=await read('supabase/migrations/20261030203143_attendance_travel_followup.sql')+'\n'+await read('supabase/migrations/20261030210018_attendance_control_resolved_course_meetings.sql')+'\n'+await read('supabase/migrations/20261030215700_attendance_legacy_training_destination.sql');
 const sql=q=>execFileSync('docker',['--host=unix:///var/run/docker.sock','exec','-i',container,'psql','-X','-Atq','-v','ON_ERROR_STOP=1','-U','postgres','-d','codex_attendance_travel_followup'],{input:q,encoding:'utf8',stdio:['pipe','pipe','pipe']}).trim();
 const json=q=>JSON.parse(sql(q));
 const enabled=t=>{if(container)return true;t.skip('Set ATTENDANCE_TRAVEL_FOLLOWUP_TEST_CONTAINER to the disposable local container');return false;};
@@ -175,6 +175,21 @@ test('dated course source honors historical and secondary assignments, cancellat
  assert.deepEqual(planned(),[]);
  assert.equal(sql("select jsonb_array_length(get_payroll_attendance_course_activities(array[2::bigint],'2026-10-01','2026-10-31'))"),'0');
  assert.throws(()=>sql("set test.actor='none';select get_payroll_attendance_course_activities(null,null,null)"),/payroll_attendance_auth_required/);
+});
+test('November legacy physical venue reaches both control sources without rewriting the report',t=>{
+ if(!enabled(t))return;
+ const training='44444444-4444-4444-8444-444444444444';
+ sql("insert into attendance_records(id,emp_id,report_date,activity_type,training_mode,authority_name_snapshot,roundtrip_km) values('"+training+"',1,'2026-11-02','הכשרה','physical','legacy venue',250)");
+ const before=snapshot();
+ const loc=()=>json("select to_jsonb(l)from get_payroll_attendance_location_contexts(array[1::bigint],'2026-11-01','2026-11-30') l where record_id='"+training+"'");
+ assert.equal(loc().destination_address,'legacy venue');assert.equal(loc().is_remote,false);
+ const embedded=json("select get_manager_attendance_review_snapshot(1,'2026-11')");
+ assert.equal(embedded.locations[0].destination_address,'legacy venue');
+ assert.equal(snapshot(),before);
+ sql("update attendance_records set destination_address_snapshot='explicit venue' where id='"+training+"'");
+ assert.equal(loc().destination_address,'explicit venue');
+ sql("update attendance_records set training_mode='online',destination_address_snapshot=null where id='"+training+"'");
+ assert.equal(loc().destination_address,null);assert.equal(loc().is_remote,true);
 });
 test('route cache returns one JSON value beyond the PostgREST row limit',t=>{
  if(!enabled(t))return;
