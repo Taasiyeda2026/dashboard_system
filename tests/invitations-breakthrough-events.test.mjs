@@ -343,7 +343,7 @@ test('breakthrough guest lecture layout expands text and balances A5 spacing wit
   assert.match(css, /#card\.layout-breakthrough-lecture \.c-details-box\{width:82%;padding:2\.1mm 3mm/);
   assert.match(css, /#card\.layout-breakthrough-lecture \.c-title\.guest-lecture\{font-size:8\.7mm;margin-bottom:2\.1mm/);
   assert.match(css, /#card\.layout-breakthrough-lecture \.c-participants-box\{width:69%;padding:2mm 5\.2mm/);
-  assert.match(css, /#card\.layout-breakthrough-lecture \.c-footer-sentence\{font-size:2\.7mm/);
+  assert.match(css, /#card\.layout-breakthrough-lecture \.c-footer-sentence\{font-size:2\.35mm/);
   assert.match(css, /#card\.layout-breakthrough-lecture \.c-details-box,#card\.layout-breakthrough-lecture \.c-section-title/);
   assert.match(css, /#card\.layout-breakthrough-lecture \.c-main\{padding:2mm 6\.5mm 16mm\}/);
   assert.match(css, /#card\.layout-breakthrough-lecture\.fit-a5-tight \.c-main\{padding:1mm 5\.5mm 13mm\}/);
@@ -412,5 +412,33 @@ test('guest lecture opening matches approved punctuation and remains centered in
 
   ui.change('ev-type', 'end');
   assert.equal(ui.el('card').classList.contains('layout-breakthrough-lecture'), false);
+  ui.dom.window.close();
+});
+
+test('A5 breakthrough print keeps the footer slogan and closing on one line', () => {
+  const ui = mount();
+  ui.change('course-sel', 'פורצות דרך');
+  ui.change('ev-type', 'lecture');
+  const card = ui.el('card');
+  const footer = card.querySelector('.c-footer');
+  const sentence = footer.querySelector('.c-footer-sentence');
+  assert.ok(sentence);
+  assert.equal(sentence.querySelectorAll('span').length, 6);
+  assert.equal(card.querySelector('.c-closing').textContent, 'נשמח לראותכם!');
+
+  const css = document.getElementById('invitation-generator-styles').textContent;
+  assert.match(css, /#card\.layout-breakthrough-lecture \.c-footer\{[^}]*width:max-content;max-width:94%/);
+  assert.match(css, /#card\.layout-breakthrough-lecture \.c-footer-sentence\{[^}]*flex-wrap:nowrap;white-space:nowrap/);
+  assert.match(css, /#card\.layout-breakthrough-lecture \.c-footer-sentence span\{white-space:nowrap;flex-shrink:0\}/);
+  assert.match(css, /#card\.layout-breakthrough-lecture \.c-closing\{white-space:nowrap\}/);
+
+  let printed = '';
+  ui.dom.window.open = () => ({ document: {
+    write(html) { printed = html; }, close() {}, set title(_) {}
+  }});
+  ui.el('print-btn').click();
+  assert.ok(printed.includes('flex-wrap:nowrap;white-space:nowrap'));
+  assert.ok(printed.includes('width:max-content;max-width:94%'));
+  assert.ok(printed.includes('נשמח לראותכם!'));
   ui.dom.window.close();
 });
