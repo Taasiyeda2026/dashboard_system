@@ -16,8 +16,7 @@ const BG_URLS = [
 ];
 
 const DEFAULT_PARTS = [
-  { t: 'גב׳', n: 'יעל אביב', r: 'מנהלת תחום חינוך ופדגוגיה, תעשיידע' },
-  { t: 'גב׳', n: 'הילה רוזן', r: 'אחראית הדרכה ומנחת הקבוצה, תעשיידע' }
+  { t: 'גב׳', n: 'יעל אביב', r: 'מנהלת תחום חינוך ופדגוגיה, תעשיידע' }
 ];
 
 const SUGGESTED_TEXTS_BY_COURSE = {
@@ -33,6 +32,18 @@ const SUGGESTED_TEXTS_BY_COURSE = {
     b1: 'לאורך התהליך נחשפו התלמידים לעולם הבינה המלאכותית: הם הכירו כיצד נתונים, אלגוריתמים, חשיבה ביקורתית וכלים טכנולוגיים יכולים לסייע בפתרון בעיות, ביצירת רעיונות ובפיתוח תהליכי למידה חדשניים.',
     b2: 'התלמידים יציגו את התוצרים והרעיונות שפיתחו, וישתפו בדרך שבה סקרנות, חשיבה יצירתית, טכנולוגיה ובינה מלאכותית התחברו לחוויית למידה משמעותית ועדכנית.'
   },
+  'יזמות פרימיום': {
+    b1: 'במהלך הקורס יצאו התלמידים למסע יזמי לפיתוח רעיון למוצר: הם זיהו צורך, חקרו קהל יעד, גיבשו פתרון מקורי וחיברו בין יצירתיות, חשיבה עסקית וטכנולוגיה.',
+    b2: 'במפגש התלמידים יציגו את הרעיונות והמוצרים שפיתחו, ויספרו כיצד חשיבה יזמית, עבודת צוות וחדשנות הובילו אותם משלב הרעיון ועד לתוצר.'
+  },
+  default: {
+    b1: 'לאורך התהליך השתתפו התלמידים במסע למידה חווייתי, שבו חקרו רעיונות, התנסו בכלים מעשיים וגילו כיצד ידע, יצירתיות וטכנולוגיה מתחברים ללמידה משמעותית.',
+    b2: 'התלמידים יציגו את התוצרים והרעיונות שפיתחו, וישתפו בדרך שבה סקרנות, חשיבה יצירתית ועבודת צוות התחברו לחוויית למידה פעילה ומשמעותית.'
+  }
+};
+
+// Legacy recommendations are needed only to migrate saved browser drafts safely.
+const LEGACY_PREMIUM_SUGGESTIONS = {
   'יזמות פרימיום – אסם': {
     b1: 'לאורך התהליך השתתפו התלמידים במסע יזמי לפיתוח רעיון למוצר: הם זיהו צורך, חקרו קהל יעד, גיבשו פתרון מקורי וחיברו בין יצירתיות, חשיבה עסקית וטכנולוגיה, תוך דגש על איכות, בטיחות ואחריות בהשראת עולמות התוכן של אסם.',
     b2: 'התלמידים יציגו את הרעיונות והמוצרים שפיתחו, וישתפו בדרך שבה חשיבה יזמית, עבודת צוות, חדשנות ותהליך פיתוח מוצר התחברו להבנה עמוקה של איכות ובטיחות כחלק מחוויית למידה משמעותית.'
@@ -41,10 +52,6 @@ const SUGGESTED_TEXTS_BY_COURSE = {
     b1: 'לאורך התהליך השתתפו התלמידים במסע יזמי לפיתוח רעיון למוצר: הם זיהו צורך, חקרו קהל יעד, גיבשו פתרון מקורי וחיברו בין יצירתיות, חשיבה עסקית וטכנולוגיה בהשראת עולמות התוכן של מארוול.',
     b2: 'התלמידים יציגו את הרעיונות והמוצרים שפיתחו, וישתפו בדרך שבה חשיבה יזמית, עבודת צוות, חדשנות ותהליך פיתוח מוצר התחברו לחוויית למידה משמעותית.'
   },
-  default: {
-    b1: 'לאורך התהליך השתתפו התלמידים במסע למידה חווייתי, שבו חקרו רעיונות, התנסו בכלים מעשיים וגילו כיצד ידע, יצירתיות וטכנולוגיה מתחברים ללמידה משמעותית.',
-    b2: 'התלמידים יציגו את התוצרים והרעיונות שפיתחו, וישתפו בדרך שבה סקרנות, חשיבה יצירתית ועבודת צוות התחברו לחוויית למידה פעילה ומשמעותית.'
-  }
 };
 
 function ensureStyles() {
@@ -196,14 +203,17 @@ function makeScreenHtml() {
             <option value="ביומימיקרי – המצאות בהשראת הטבע">קורס ביומימיקרי</option>
             <option value="רוקחים עולם">רוקחים עולם</option>
             <option value="בינה מלאכותית – חשיבה ביקורתית במציאות טכנולוגית">בינה מלאכותית</option>
-            <option value="יזמות פרימיום – אסם">יזמות פרימיום - אסם</option>
-            <option value="יזמות פרימיום – מארוול">יזמות פרימיום - מארוול</option>
+            <option value="יזמות פרימיום">יזמות פרימיום</option>
             <option value="__c">אחר...</option>
           </select>
         </div>
       </div>
 
       <input type="text" id="course-custom" placeholder="שם קורס" style="display:none">
+      <div id="premium-company-row" style="display:none">
+        <span class="lbl">שם החברה המאמצת</span>
+        <input type="text" id="premium-company" placeholder="לדוגמה: אסם" autocomplete="off">
+      </div>
 
       <div class="field-row trio">
         <div class="color-pair"><input type="color" id="c1" value="#1a3a5c"><label>כותרת ראשית</label></div>
@@ -216,7 +226,7 @@ function makeScreenHtml() {
       <div class="field-row trio">
         <div><span class="lbl">בית ספר</span><input type="text" id="school" placeholder='ע"ש הרצל'></div>
         <div><span class="lbl">כיתה</span><input type="text" id="grade" placeholder="ז׳2"></div>
-        <div><span class="lbl">שנה</span><select id="year"><option>תשפ״ו</option><option>תשפ״ז</option></select></div>
+        <div><span class="lbl">שנה</span><select id="year"><option value="תשפ״ז">תשפ״ז</option></select></div>
       </div>
 
       <div class="field-row">
@@ -320,6 +330,10 @@ export const invitationsScreen = {
       return selected === '__c' ? ($('course-custom').value || '') : selected;
     }
 
+    function getPremiumCompany() {
+      return getCourseName() === 'יזמות פרימיום' ? ($('premium-company')?.value || '').trim() : '';
+    }
+
     function getSuggestedSetForCurrentCourse() {
       return SUGGESTED_TEXTS_BY_COURSE[getCourseName()] || SUGGESTED_TEXTS_BY_COURSE.default;
     }
@@ -328,8 +342,10 @@ export const invitationsScreen = {
       const clean = (value || '').trim();
       if (!clean) return true;
 
-      return Object.values(SUGGESTED_TEXTS_BY_COURSE).some((set) =>
-        Object.values(set).some((text) => (text || '').trim() === clean)
+      return [SUGGESTED_TEXTS_BY_COURSE, LEGACY_PREMIUM_SUGGESTIONS].some((library) =>
+        Object.values(library).some((set) =>
+          Object.values(set).some((text) => (text || '').trim() === clean)
+        )
       );
     }
 
@@ -483,6 +499,7 @@ export const invitationsScreen = {
         'ev-type',
         'course-sel',
         'course-custom',
+        'premium-company',
         'c1',
         'c2',
         'c3',
@@ -515,8 +532,9 @@ export const invitationsScreen = {
     function applyFields(fields = {}) {
       Object.entries(fields).forEach(([id, value]) => {
         const el = $(id);
-        if (el) el.value = value;
+        if (el && id !== 'year') el.value = value;
       });
+      $('year').value = 'תשפ״ז';
     }
 
     function saveState() {
@@ -543,10 +561,26 @@ export const invitationsScreen = {
         isRestoring = true;
         const state = JSON.parse(raw);
 
-        savedFields = state.fields || {};
+        savedFields = { ...(state.fields || {}) };
+        const legacyCompany = {
+          'יזמות פרימיום – אסם': 'אסם',
+          'יזמות פרימיום – מארוול': 'מארוול'
+        }[savedFields['course-sel']];
+        if (legacyCompany) {
+          savedFields['course-sel'] = 'יזמות פרימיום';
+          savedFields['premium-company'] = savedFields['premium-company'] || legacyCompany;
+          ['b1', 'b2'].forEach((id) => {
+            if (isKnownSuggestedText(savedFields[id])) {
+              savedFields[id] = SUGGESTED_TEXTS_BY_COURSE['יזמות פרימיום'][id];
+            }
+          });
+        }
+        savedFields.year = 'תשפ״ז';
         applyFields(savedFields);
 
-        if (Array.isArray(state.parts)) parts = state.parts;
+        if (Array.isArray(state.parts)) {
+          parts = state.parts.filter((participant) => (participant?.n || '').trim() !== 'הילה רוזן');
+        }
         if (typeof state.selBg === 'number') selBg = Math.min(Math.max(state.selBg, 0), BG_URLS.length - 1);
         if (Array.isArray(state.logoOrder)) logoOrder = state.logoOrder;
         if (state.customLogos && typeof state.customLogos === 'object') customLogos = state.customLogos;
@@ -608,16 +642,12 @@ export const invitationsScreen = {
     }
 
     function getCourseDisplayHTML(course) {
-      if (course === 'יזמות פרימיום – אסם') {
-        return '<span class="course-main">של קורס יזמות פרימיום</span><span class="course-company">בליווי חברה מאמצת: אסם</span>';
-      }
-
-      if (course === 'יזמות פרימיום – מארוול') {
-        return '<span class="course-main">של קורס יזמות פרימיום</span><span class="course-company">בליווי חברה מאמצת: מארוול</span>';
+      if (course === 'יזמות פרימיום') {
+        const company = getPremiumCompany();
+        return `<span class="course-main">של קורס יזמות פרימיום</span>${company ? `<span class="course-company">בליווי ${esc(company)}</span>` : ''}`;
       }
 
       const courseParts = getCourseParts(course);
-
       return `<span class="course-main">של קורס ${esc(courseParts.name)}</span>${courseParts.subtitle ? `<span class="course-sub">${esc(courseParts.subtitle)}</span>` : ''}`;
     }
 
@@ -626,15 +656,12 @@ export const invitationsScreen = {
     }
 
     function getCourseOpeningText(course) {
-      return course === 'יזמות פרימיום – אסם' || course === 'יזמות פרימיום – מארוול'
-        ? 'יזמות פרימיום'
-        : course;
+      return course;
     }
 
     function getCourseFileNameText(course) {
       if (course === 'ביומימיקרי – המצאות בהשראת הטבע') return 'ביומימיקרי';
-      if (course === 'יזמות פרימיום – אסם') return 'יזמות פרימיום אסם';
-      if (course === 'יזמות פרימיום – מארוול') return 'יזמות פרימיום מארוול';
+      if (course === 'יזמות פרימיום') return ['יזמות פרימיום', getPremiumCompany()].filter(Boolean).join(' ');
 
       return (course || 'קורס').replace(/קורס\s*/g, '').trim() || 'קורס';
     }
@@ -752,13 +779,14 @@ export const invitationsScreen = {
       const b1 = $('b1').value;
       const b2 = $('b2').value;
       const course = getCourseName();
+      const premiumCompany = getPremiumCompany();
       const closing = $('closing1').value || 'נשמח לראותכם!';
       const evLabel = type === 'end' ? 'למפגש הסיום' : type === 'lecture' ? 'להרצאת אורח' : 'לסיור לימודי';
 
       let opening = '';
 
       if (type === 'end') {
-        opening = `<div class="c-opening">אנו שמחים להזמינכם למפגש הסיום של קורס <strong>${esc(getCourseOpeningText(course))}</strong>, שהתקיים בבית הספר במסגרת התוכניות החינוכיות של תעשיידע.</div>`;
+        opening = `<div class="c-opening">אנו שמחים להזמינכם למפגש הסיום של קורס <strong>${esc(getCourseOpeningText(course))}</strong>${premiumCompany ? ` בשיתוף <strong>${esc(premiumCompany)}</strong>` : ''}, שהתקיים בבית הספר במסגרת התוכניות החינוכיות של תעשיידע.</div>`;
       } else if (type === 'lecture') {
         const lecturer = $('lec-name')?.value || '';
         const topic = $('lec-topic')?.value || '';
@@ -813,6 +841,7 @@ export const invitationsScreen = {
       if (!courseCustom) return;
 
       courseCustom.style.display = $('course-sel').value === '__c' ? 'block' : 'none';
+      $('premium-company-row').style.display = $('course-sel').value === 'יזמות פרימיום' ? 'block' : 'none';
 
       const colorVars = getColorVars();
       $('card').setAttribute('style', colorVars.style);
@@ -945,7 +974,7 @@ window.onafterprint=function(){setTimeout(function(){window.close()},250)};
     function doReset() {
       localStorage.removeItem(STORAGE_KEY);
 
-      ['school', 'grade', 'ev-loc', 'b1', 'b2', 'course-custom'].forEach((id) => {
+      ['school', 'grade', 'ev-loc', 'b1', 'b2', 'course-custom', 'premium-company'].forEach((id) => {
         const el = $(id);
         if (el) el.value = '';
       });
@@ -954,6 +983,7 @@ window.onafterprint=function(){setTimeout(function(){window.close()},250)};
       $('ev-time').value = '';
       $('ev-type').value = 'end';
       $('course-sel').selectedIndex = 0;
+      $('year').value = 'תשפ״ז';
       $('c1').value = '#1a3a5c';
       $('c2').value = '#1a8c6e';
       $('c3').value = '#1a8c6e';
@@ -1024,6 +1054,7 @@ window.onafterprint=function(){setTimeout(function(){window.close()},250)};
     function setupEvents() {
       [
         'course-custom',
+        'premium-company',
         'c1',
         'c2',
         'c3',
@@ -1118,9 +1149,11 @@ window.onafterprint=function(){setTimeout(function(){window.close()},250)};
 
     function runTests() {
       console.assert(typeof onCourseChange === 'function', 'onCourseChange exists');
-      console.assert(getCourseFileNameText('יזמות פרימיום – אסם').includes('אסם'), 'PDF filename keeps company');
+      console.assert($('year').options.length === 1 && $('year').value === 'תשפ״ז', 'only school year 2027 is offered');
+      console.assert(!parts.some((participant) => participant.n === 'הילה רוזן'), 'Hila is not suggested by default');
+      console.assert($('course-sel').querySelectorAll('option[value="יזמות פרימיום"]').length === 1, 'premium has one course choice');
+      console.assert(getCourseDisplayHTML('יזמות פרימיום').includes('של קורס יזמות פרימיום'), 'premium course display exists');
       console.assert(SUGGESTED_TEXTS_BY_COURSE['רוקחים עולם'].b1.includes('פארמצבטיקה'), 'pharmacy suggestion exists');
-      console.assert(getCourseDisplayHTML('יזמות פרימיום – מארוול').includes('בליווי חברה מאמצת: מארוול'), 'Marvel company line exists');
     }
 
     function boot() {
