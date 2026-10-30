@@ -49,7 +49,7 @@ test('switches immediately to female guest lecture and back, retaining correct t
   ui.change('course-sel', 'פורצות דרך');
   ui.change('ev-type', 'lecture');
   assert.equal(ui.el('ev-type').value, 'lecture');
-  assert.equal(ui.el('card').querySelector('.c-title').textContent, 'הזמנה להרצאת אורחת');
+  assert.equal(ui.el('card').querySelector('.c-title').textContent, 'הזמנה להרצאת אורחת של:');
   assert.equal(ui.el('card').querySelector('.c-sub-event'), null);
   assert.equal(ui.el('card').querySelector('.c-course').textContent, 'במסגרת קורס "פורצות דרך"');
   assert.equal(ui.el('card').querySelector('.c-opening').textContent,
@@ -60,7 +60,16 @@ test('switches immediately to female guest lecture and back, retaining correct t
     'מפגש מעצים ומעורר השראה עם אישה פורצת דרך, שתשתף במסעה האישי, בחלומות שהפכה למציאות ובאתגרים שהתגברה עליהם. הזדמנות לתלמידות לגלות את הכוח הטמון בהן, להאמין בעצמן ולקבל השראה לחלום בגדול, לפרוץ גבולות ולהעז להגשים את שאיפותיהן.');
   assert.match(ui.el('card').textContent, /להעז להגשים את שאיפותיהן/);
   ui.change('lec-name', 'דנה לדוגמה', 'input');
-  assert.match(ui.el('card').textContent, /מרצה: דנה לדוגמה/);
+  ui.change('lec-role', 'מנהלת פיתוח', 'input');
+  ui.change('lec-org', 'חברת לדוגמה', 'input');
+  const identity = ui.el('card').querySelector('.c-lecturer-identity');
+  assert.equal(identity.textContent, 'דנה לדוגמה, מנהלת פיתוח - חברת לדוגמה');
+  assert.equal(identity.previousElementSibling.textContent, 'הזמנה להרצאת אורחת של:');
+  assert.equal(identity.nextElementSibling.textContent, 'במסגרת קורס "פורצות דרך"');
+  assert.equal(identity.querySelectorAll('div').length, 0);
+  assert.equal(identity.style.whiteSpace, '');
+  assert.equal(ui.el('card').querySelectorAll('.c-lecturer-identity').length, 1);
+  assert.doesNotMatch(ui.el('card').querySelector('.c-details-box').textContent, /דנה לדוגמה|מנהלת פיתוח|חברת לדוגמה/);
   ui.change('ev-type', 'end');
   assert.equal(ui.el('ev-type').value, 'end');
   assert.equal(ui.el('card').querySelector('.c-sub-event').textContent, 'למפגש הסיום');
@@ -76,13 +85,18 @@ test('changing event type does not revert saved picker or erase lecture details'
   assert.match(ui.el('card').textContent, /להרצאת אורח/);
   assert.ok(ui.el('lec-name'));
   ui.change('lec-name', 'מרצה לדוגמה', 'input');
+  ui.change('lec-role', 'מהנדסת ראשית', 'input');
+  ui.change('lec-org', 'חברת דוגמה', 'input');
   ui.change('ev-type', 'tour');
   assert.equal(ui.el('ev-type').value, 'tour');
   assert.ok(ui.el('tour-place'));
   ui.change('ev-type', 'lecture');
   assert.equal(ui.el('ev-type').value, 'lecture');
   assert.equal(ui.el('lec-name').value, 'מרצה לדוגמה');
-  assert.match(ui.el('card').textContent, /מרצה לדוגמה/);
+  assert.equal(ui.el('lec-role').value, 'מהנדסת ראשית');
+  assert.equal(ui.el('lec-org').value, 'חברת דוגמה');
+  assert.equal(ui.el('card').querySelector('.c-title').textContent, 'הזמנה להרצאת אורח של:');
+  assert.equal(ui.el('card').querySelector('.c-lecturer-identity').textContent, 'מרצה לדוגמה, מהנדסת ראשית - חברת דוגמה');
   ui.change('ev-type', 'end');
   assert.equal(ui.el('ev-type').value, 'end');
   assert.equal(JSON.parse(localStorage.getItem('taasiyeda_invitation_builder_state_v4')).fields['ev-type'], 'end');
@@ -185,5 +199,48 @@ test('background picker shows all repository backgrounds in a compact five-colum
   assert.equal([...ui.el('bg-row').querySelectorAll('.bg-th')][9].classList.contains('sel'), true);
   assert.match(ui.el('cbg').style.backgroundImage, /background-9\\.png/);
   assert.equal(JSON.parse(localStorage.getItem('taasiyeda_invitation_builder_state_v4')).selBg, 9);
+  ui.dom.window.close();
+});
+
+test('guest lecturer identity is printable in one line without repeated details', () => {
+  const ui = mount();
+  ui.change('course-sel', 'פורצות דרך');
+  ui.change('ev-type', 'lecture');
+  assert.equal(ui.el('lec-name').previousElementSibling.textContent, 'שם המרצה');
+  assert.equal(ui.el('lec-role').previousElementSibling.textContent, 'תפקיד');
+  assert.equal(ui.el('lec-org').previousElementSibling.textContent, 'חברה');
+  assert.equal(ui.el('lec-topic'), null);
+
+  ui.change('lec-name', 'ד"ר תמר לוי', 'input');
+  ui.change('lec-role', 'מנהלת מחקר', 'input');
+  ui.change('lec-org', 'טכנולוגיות ישראל', 'input');
+
+  const expected = 'ד"ר תמר לוי, מנהלת מחקר - טכנולוגיות ישראל';
+  assert.equal(ui.el('card').querySelector('.c-lecturer-identity').textContent, expected);
+  assert.equal(ui.el('card').querySelectorAll('.c-lecturer-identity').length, 1);
+  assert.match(document.getElementById('invitation-generator-styles').textContent, /\.c-lecturer-identity\{[^}]*white-space:nowrap/);
+
+  let printed = '';
+  ui.dom.window.open = () => ({ document: {
+    write(html) { printed = html; }, close() {}, set title(_) {}
+  }});
+  ui.el('print-btn').click();
+  assert.ok(printed.includes('הזמנה להרצאת אורחת של:'));
+  assert.ok(printed.includes(expected.replaceAll('"', '&quot;')));
+  assert.equal((printed.match(/class="c-lecturer-identity"/g) || []).length, 1);
+  ui.dom.window.close();
+});
+
+test('guest lecture identity handles partially completed fields without dangling separators', () => {
+  const ui = mount({ 'ev-type': 'lecture', 'course-sel': 'פורצות דרך' });
+  assert.equal(ui.el('card').querySelector('.c-lecturer-identity'), null);
+  ui.change('lec-name', 'רחל', 'input');
+  assert.equal(ui.el('card').querySelector('.c-lecturer-identity').textContent, 'רחל');
+  ui.change('lec-org', 'מעבדה', 'input');
+  assert.equal(ui.el('card').querySelector('.c-lecturer-identity').textContent, 'רחל - מעבדה');
+  ui.change('lec-role', 'חוקרת', 'input');
+  assert.equal(ui.el('card').querySelector('.c-lecturer-identity').textContent, 'רחל, חוקרת - מעבדה');
+  ui.change('ev-type', 'end');
+  assert.equal(ui.el('card').querySelector('.c-lecturer-identity'), null);
   ui.dom.window.close();
 });
