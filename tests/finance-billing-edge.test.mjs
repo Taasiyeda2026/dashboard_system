@@ -151,7 +151,7 @@ test('realistic three-line Hebrew invoice renders on one page with selectable gl
   assert.match(glyphs,/30.10.2026/);
   assert.match(glyphs,/30.11.2026/);
   assert.ok((glyphs.match(/[א-ת]/g)||[]).length>100,'Hebrew must remain vector, selectable PDF text');
-  await pdf.destroy();
+  // pdfjs loaded document can be collected after the test; no destroy method on this proxy.
 });
 
 test('full Hebrew fonts and logical-order drawing prevent the former stripped-glyph regression',async()=>{
