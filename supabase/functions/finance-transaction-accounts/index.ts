@@ -220,7 +220,7 @@ async function buildPdf(account: any) {
   page.drawImage(logo, { x: 32, y: 754, width: 112, height: 48 });
   drawRight(page, bold, 'תעשיידע – תעשייה למען חינוך מתקדם ע"ר', y, 9); y -= 14;
   drawRight(page, regular, "דניאל פריש 3, תל אביב", y); y -= 13;
-  drawRight(page, regular, "טלפון: 03-5370368", y); y -= 13;
+  drawRight(page, regular, "טלפון: 055-4548890", y); y -= 13;
   drawRight(page, regular, "עמותה מס': 580210094", y); y -= 13;
   drawRight(page, regular, "אימייל: toni@think.org.il", y); y -= 25;
   drawRight(page, regular, `תאריך: ${date(account.issue_date)}`, y, 10); y -= 28;
@@ -286,7 +286,7 @@ async function buildPdf(account: any) {
   drawRight(page, bold, `סה"כ לתשלום: ${money(account.total_amount)}`, y, 13); y -= 26;
   drawRight(page, bold, `לתשלום עד: ${date(account.payment_due_date)}`, y, 11); y -= 30;
   drawRight(page, bold, 'פרטי חשבון בנק להעברה:', y, 10); y -= 17;
-  drawRight(page, regular, 'בנק הפועלים 12, סניף 500 הרימון, חשבון 300120', y, 10); y -= 19;
+  drawRight(page, regular, 'בנק הפועלים 12  |  סניף 500 הרימון  |  חשבון 300120', y, 10); y -= 19;
   drawRight(page, regular, 'או בשיק לפקודת: תעשיידע - תעשייה למען חינוך מתקדם ע"ר', y, 10); y -= 19;
   drawRight(page, regular, 'יש לציין: "למוטב בלבד" עם קרוס.', y, 10);
 
