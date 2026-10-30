@@ -135,11 +135,11 @@ function drawTableRow(page: PDFPage, font: PDFFont, values: string[], widths: nu
 
 async function buildPdf(account: any) {
   const [regularBytes, boldBytes, logoBytes] = await Promise.all([
-    fetch("https://raw.githubusercontent.com/Taasiyeda2026/dashboard_system/main/frontend/assets/fonts/Arimo-Regular.ttf").then((r) => {
+    fetch("https://raw.githubusercontent.com/Taasiyeda2026/dashboard_system/main/frontend/assets/fonts/Alef-Regular.ttf").then((r) => {
       if (!r.ok) throw new Error("pdf_regular_font_load_failed");
       return r.arrayBuffer();
     }),
-    fetch("https://raw.githubusercontent.com/Taasiyeda2026/dashboard_system/main/frontend/assets/fonts/Arimo-Bold.ttf").then((r) => {
+    fetch("https://raw.githubusercontent.com/Taasiyeda2026/dashboard_system/main/frontend/assets/fonts/Alef-Bold.ttf").then((r) => {
       if (!r.ok) throw new Error("pdf_bold_font_load_failed");
       return r.arrayBuffer();
     }),
