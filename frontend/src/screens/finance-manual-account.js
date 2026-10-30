@@ -6,11 +6,12 @@ export function manualFundingRows(data) {
 }
 
 // Filter by the *actual funder*, not by the school. Each local authority remains distinct.
-const normalizedFunder = (value) => text(value).replace(/[״׳"']/g, '').replace(/\\s+/g, ' ').trim().toLocaleLowerCase('he');
+const normalizedFunder = (value) => text(value).replace(/[״׳"']/g, '').replace(/\s+/g, ' ').trim().toLocaleLowerCase('he');
 const isGenericAuthority = (value) => /^(?:רשות|רשויות|authority)$/i.test(normalizedFunder(value));
 export function manualActivityFunders(data, activity) {
   const rows = (data.transactionContext?.billingRows || []).filter(row => row.activityRowId === activity.row_id);
-  const names = [...rows.map(row => row.funding), ...text(activity.funding).split(/\\s*\\+\\s*/)]
+  const assigned = rows.filter(row => row.fundingSourceId);
+  const names = (assigned.length ? assigned.map(row => row.funding) : text(activity.funding).split(/\s*\+\s*/))
     .map(text).filter(Boolean);
   if (!names.length) return [{ key: 'unassigned', label: 'ללא גורם מימון' }];
   const funders = new Map();
