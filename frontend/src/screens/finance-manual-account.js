@@ -111,6 +111,16 @@ export function focusManualActivity(data, activityId) {
   }
   data.manualQuote = null; data.manualPdf = ''; data.manualBatchPreviews = null; data.manualConsolidatedPreview = null;
 }
+// Batch selection applies only to the currently shown activities of a selected payer.
+// Keep the same per-activity draft initialization and invoice safeguards as individual selection.
+export function toggleAllVisibleManualActivities(data, checked) {
+  if (!data.manualFunderFilter) return;
+  const ids = manualFilteredActivities(data).map(activity => activity.row_id);
+  for (const id of ids) {
+    if (selectedManualActivityIds(data).includes(id) !== checked) toggleManualActivity(data, id, checked);
+  }
+}
+
 export function toggleManualActivity(data, activityId, checked) {
   const ids = selectedManualActivityIds(data).filter(id => id !== activityId);
   if (checked) ids.push(activityId);
@@ -227,6 +237,44 @@ export function manualRequest(data) {
   if(!data.manualActivityId||!funder||!month)throw Error('יש לבחור פעילות וגורם מימון');
   return{activity:data.manualActivityId,funder,month,draft:data.manualDraft};
 }
+// Update only the manual invoice editor and selection indicators in place.
+// The original <details> and its checkbox nodes are retained, so the list
+// stays expanded and scrolling does not jump on every checked activity.
+export function syncManualActivitySelectionUi(root, data) {
+  const manual = root?.querySelector('.ds-fin-manual');
+  if (!manual) return;
+  const frame = root.ownerDocument.createElement('div');
+  frame.innerHTML = manualAccountViewHtml(data);
+  const next = frame.firstElementChild;
+  const head = manual.firstElementChild;
+  const nextHead = next.firstElementChild;
+  const heading = head.querySelector('[data-finance-manual-heading]');
+  if (heading) heading.textContent = nextHead.querySelector('[data-finance-manual-heading]').textContent;
+  const currentActivity = head.querySelector('[data-finance-manual-activity]');
+  const updatedActivity = nextHead.querySelector('[data-finance-manual-activity]');
+  if (currentActivity && updatedActivity) {
+    currentActivity.parentElement.replaceWith(updatedActivity.parentElement);
+  }
+  const selected = new Set(selectedManualActivityIds(data));
+  head.querySelectorAll('[data-finance-manual-select-activity]').forEach(input => {
+    input.checked = selected.has(input.value);
+  });
+  const summary = head.querySelector('[data-finance-manual-selection-summary]');
+  if (summary) summary.textContent = nextHead.querySelector('[data-finance-manual-selection-summary]').textContent;
+  const master = head.querySelector('[data-finance-manual-select-all]');
+  if (master) {
+    const inputs = [...head.querySelectorAll('[data-finance-manual-select-activity]')];
+    const checkedCount = inputs.filter(input => input.checked).length;
+    master.checked = inputs.length > 0 && checkedCount === inputs.length;
+    master.indeterminate = checkedCount > 0 && checkedCount < inputs.length;
+  }
+  const count = head.querySelector('[data-finance-manual-selection-count]');
+  if (count) count.textContent = nextHead.querySelector('[data-finance-manual-selection-count]').textContent;
+  // Replace only the editor (which may change its active activity), not its disclosure.
+  [...manual.children].slice(1).forEach(element => element.remove());
+  [...next.children].slice(1).forEach(element => manual.appendChild(element));
+}
+
 export function manualAccountViewHtml(data) {
   const activities=manualFilteredActivities(data);
   const funderOptions=manualFundingFilterOptions(data);
@@ -239,15 +287,19 @@ export function manualAccountViewHtml(data) {
       : type === 'number' ? ' min="0" step="0.01"' : '';
     return `<label class="ds-fin-manual__field">${label}<input class="ds-input" type="${money ? 'text' : type}"${attributes} data-finance-manual-field="${key}" value="${e(display)}"></label>`;
   };
-  return `<div class="ds-fin-manual" dir="rtl"><section class="ds-fin-manual__section"><h3>${selectedManualActivityIds(data).length>1?'חשבון מרוכז לגורם מימון':'בחירת פעילות'}</h3><div class="ds-fin-manual__activity-grid">
+  return `<div class="ds-fin-manual" dir="rtl"><section class="ds-fin-manual__section"><h3 data-finance-manual-heading>${selectedManualActivityIds(data).length>1?'חשבון מרוכז לגורם מימון':'בחירת פעילות'}</h3><div class="ds-fin-manual__activity-grid">
     <label>גורם מימון<select class="ds-input" data-finance-manual-funder-filter>
       <option value="">כל גורמי המימון</option>
       ${funderOptions.map(f=>`<option value="${e(f.key)}"${data.manualFunderFilter===f.key?' selected':''}>${e(f.label)}</option>`).join('')}
     </select></label>
     <label>חיפוש פעילות<input class="ds-input" data-finance-manual-search value="${e(data.manualSearch)}" placeholder="בית ספר, רשות או פעילות"></label>
-    <label>${selectedManualActivityIds(data).length>1?'פעילות לעריכה':'פעילות'}<select class="ds-input" data-finance-manual-activity><option value="">בחירת פעילות קיימת</option>${activities.map(a=>`<option value="${e(a.row_id)}"${a.row_id===data.manualActivityId?' selected':''}>${e(a.school)} | ${e(a.authority)} | ${e(a.activity_name)}</option>`).join('')}</select></label></div>
-    <details class="ds-fin-manual__selection">
-      <summary>${selectedManualActivityIds(data).length>1?`${selectedManualActivityIds(data).length} פעילויות נבחרו · שינוי הבחירה`:'בחירת פעילויות נוספות'}</summary>
+    <label data-finance-manual-active-label>${selectedManualActivityIds(data).length>1?'פעילות לעריכה':'פעילות'}<select class="ds-input" data-finance-manual-activity><option value="">בחירת פעילות קיימת</option>${activities.map(a=>`<option value="${e(a.row_id)}"${a.row_id===data.manualActivityId?' selected':''}>${e(a.school)} | ${e(a.authority)} | ${e(a.activity_name)}</option>`).join('')}</select></label></div>
+    <details class="ds-fin-manual__selection" data-finance-manual-selection${data.manualSelectionExpanded?' open':''}>
+      <summary data-finance-manual-selection-summary>${selectedManualActivityIds(data).length>1?`${selectedManualActivityIds(data).length} פעילויות נבחרו · שינוי הבחירה`:'בחירת פעילויות נוספות'}</summary>
+      <div class="ds-fin-manual__selection-toolbar" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:8px 0;">
+        <label><input type="checkbox" data-finance-manual-select-all${activities.length && activities.every(a=>selectedManualActivityIds(data).includes(a.row_id))?' checked':''}${data.manualFunderFilter?'':' disabled title="יש לבחור גורם מימון תחילה"'}> סמן הכל</label>
+        <span data-finance-manual-selection-count>${activities.filter(a=>selectedManualActivityIds(data).includes(a.row_id)).length} מתוך ${activities.length} פעילויות מוצגות</span>
+      </div>
       <div class="ds-fin-manual__choices" role="group" aria-label="בחירה מרובה של פעילויות">
         ${activities.map(a=>`<label class="ds-fin-manual__choice"><input type="checkbox" value="${e(a.row_id)}" data-finance-manual-select-activity${selectedManualActivityIds(data).includes(a.row_id)?' checked':''}><span>${e(a.school)} | ${e(a.authority)} | ${e(a.activity_name)}</span></label>`).join('')}
       </div>
@@ -259,7 +311,7 @@ export function manualAccountViewHtml(data) {
     <section class="ds-fin-manual__section"><h3>פרטי חיוב</h3><div class="ds-fin-manual__grid">${field('מפגשים לחיוב','quantity','number')}${field('שעות לחיוב','hours','number')}${field('מחיר למפגש','unit_price','number')}${field('סכום החשבון','amount','number')}
     </div></section>
     <section class="ds-fin-manual__section"><h3>מועדים</h3><div class="ds-fin-manual__grid">${field('תאריך הפקה','issue_date','date')}${field('מועד תשלום','payment_due_date','date')}</div></section><details class="ds-fin-manual__extra"><summary>פרטים נוספים</summary><div class="ds-fin-manual__grid">${field('סיבת חריגה','override_reason')}</div></details>
-    <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" type="button" data-finance-manual-preview>הצגת ${selectedManualActivityIds(data).length>1?'החשבונות':'החשבון'} לבדיקה (PDF)</button></div></form>
+    <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" type="button" data-finance-manual-preview>הצגת ${selectedManualActivityIds(data).length>1?'החשבון המרוכז':'החשבון'} לבדיקה (PDF)</button></div></form>
     ${data.manualConsolidatedPreview?`<div class="ds-fin-manual__preview">
       <p>חשבון עסקה מרוכז אחד עבור ${data.manualConsolidatedPreview.items.length} פעילויות. כל פעילות וסכומה מוצגים במסמך.</p>
       <iframe title="תצוגה מקדימה של חשבון מרוכז" src="data:application/pdf;base64,${e(data.manualConsolidatedPreview.pdfBase64)}"></iframe>
