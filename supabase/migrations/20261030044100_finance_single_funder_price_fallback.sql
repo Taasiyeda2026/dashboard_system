@@ -81,6 +81,10 @@ begin
   select coalesce(sum(afs.amount),0), coalesce(bool_or(afs.amount is null or afs.amount<0),true)
     into total_funding,invalid_funding from finance_private.resolved_funding_rows(p_activity) afs;
   if reason='' and (invalid_funding or total_funding<>p_activity.price) then reason := 'חסרה חלוקת מימון תקינה התואמת למחיר הפעילות'; end if;
+  -- A combined funding label cannot be treated as a single payer.
+  if reason='' and position('+' in coalesce(p_activity.funding,''))>0
+    and (select count(*) from public.activity_funding_sources a where a.activity_id=p_activity.id)<2
+  then reason := 'גורם מימון משולב מחייב חלוקה למממנים נפרדים'; end if;
   if reason='' and exists(select 1 from public.finance_transaction_account_lines l join public.finance_transaction_accounts a on a.id=l.account_id
     where l.activity_row_id=p_activity.row_id and l.funding_source_id is null and a.document_status<>'cancelled' and (a.document_status<>'generating' or a.created_at>p_now-interval '15 minutes')) then
     reason := 'חשבון קודם ללא שיוך למממן — נדרש בירור לפני חיוב נוסף';
