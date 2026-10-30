@@ -290,7 +290,7 @@ test('stale shared planning stays labeled while the instructor table and manual 
   assert.match(html, /data-planning-completion-overview/);
   assert.match(html, /data-planning-overview-currency/);
   assert.match(html, /data-open-manual-course="stale-undated"/);
-  assert.match(html, /אין מועד קבוע מבית הספר — המערכת תציע תאריך, שעה ומדריך/);
+  assert.match(html, /אין מועד קבוע — הפעילות שייכת למחצית א׳ ונדרשת לתכנון/);
 });
 
 test('unresolved planning rows stay collapsed and compact with an explicit reason column', () => {
