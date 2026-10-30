@@ -42,6 +42,20 @@ const SUGGESTED_TEXTS_BY_COURSE = {
   }
 };
 
+// Exact event-specific copy for the "פורצות דרך" course.
+const BREAKTHROUGH_EVENT_TEXTS = {
+  end: {
+    opening: "הנכם מוזמנים למפגש הסיום של קורס \"פורצות דרך\", שהתקיים בבית הספר במסגרת התוכניות החינוכיות של תעשיידע.",
+    b1: "במהלך הקורס יצאו התלמידות למסע מעצים ומעורר השראה, שבו הכירו נשים פורצות דרך מתחומים שונים, נחשפו לסיפורי הצלחה ולהתמודדות עם אתגרים וגילו כיצד אומץ, נחישות, יצירתיות ואמונה עצמית יכולים להוביל להישגים משמעותיים וליצירת שינוי.",
+    b2: "התלמידות יציגו את התוצרים והתובנות שאספו לאורך הקורס, ישתפו בסיפורים שעוררו בהן השראה ויבטאו את החלומות והשאיפות שלהן לעתיד. הזדמנות לחגוג את הדרך שעברו, את הכוחות שגילו בעצמן ואת האומץ לחלום בגדול ולסלול דרך משלהן."
+  },
+  lecture: {
+    opening: "קורס \"פורצות דרך\" מזמין את התלמידות להכיר נשים מעוררות השראה מתחומים שונים ולגלות כיצד אומץ, יצירתיות ונחישות יכולים להוביל להישגים משמעותיים וליצירת שינוי.",
+    b1: '',
+    b2: "מפגש מעצים ומעורר השראה עם אישה פורצת דרך, שתשתף במסעה האישי, בחלומות שהפכה למציאות ובאתגרים שהתגברה עליהם. הזדמנות לתלמידות לגלות את הכוח הטמון בהן, להאמין בעצמן ולקבל השראה לחלום בגדול, לפרוץ גבולות ולהעז להגשים את שאיפותיהן."
+  }
+};
+
 // Legacy recommendations are needed only to migrate saved browser drafts safely.
 const LEGACY_PREMIUM_SUGGESTIONS = {
   'יזמות פרימיום – אסם': {
@@ -108,6 +122,7 @@ function ensureStyles() {
 .invitation-screen-root .c-logo-item img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
 .invitation-screen-root .c-main{padding:1.5mm 6mm 2mm;flex:1;display:flex;flex-direction:column;align-items:center;text-align:center}
 .invitation-screen-root .c-title{font-weight:900;line-height:1;margin-bottom:0;font-size:14mm}
+.invitation-screen-root .c-title.breakthrough-lecture{font-size:8.5mm;line-height:1.1;margin-bottom:2mm}
 .invitation-screen-root .c-sub-event{font-weight:700;line-height:1.05;margin-bottom:1mm;font-size:9mm}
 .invitation-screen-root .c-course{font-weight:500;line-height:1.08;margin-bottom:1mm;font-size:7mm}
 .invitation-screen-root .c-course .course-main{display:block;font-size:7mm;line-height:1.05;font-weight:500}
@@ -138,6 +153,7 @@ function ensureStyles() {
 .invitation-screen-root .c-footer{position:absolute;bottom:5.2mm;left:50%;transform:translateX(-50%);z-index:5;width:auto;max-width:88%;background:#fff;border:.35mm solid rgba(26,58,92,.18);border-radius:6mm;padding:.9mm 4mm;min-height:0;pointer-events:none;box-shadow:0 .6mm 2mm rgba(0,0,0,.06)}
 .invitation-screen-root .c-footer-sentence{font-size:2.1mm;line-height:1.15;font-weight:600;letter-spacing:0;text-shadow:none;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:1.2mm;white-space:normal}
 .invitation-screen-root #card.fit-a5-compact .c-title{font-size:9.5mm}
+.invitation-screen-root #card.fit-a5-compact .c-title.breakthrough-lecture{font-size:7mm}
 .invitation-screen-root #card.fit-a5-compact .c-sub-event{font-size:5mm}
 .invitation-screen-root #card.fit-a5-compact .c-course,.invitation-screen-root #card.fit-a5-compact .c-course .course-main{font-size:5.4mm}
 .invitation-screen-root #card.fit-a5-compact .c-course .course-sub{font-size:4.7mm}
@@ -149,6 +165,7 @@ function ensureStyles() {
 .invitation-screen-root #card.fit-a5-compact .c-part-title,.invitation-screen-root #card.fit-a5-compact .c-part-line{font-size:2.75mm;line-height:1.22}
 .invitation-screen-root #card.fit-a5-compact .c-closing{font-size:4.7mm}
 .invitation-screen-root #card.fit-a5-tight .c-title{font-size:8.8mm}
+.invitation-screen-root #card.fit-a5-tight .c-title.breakthrough-lecture{font-size:6.4mm}
 .invitation-screen-root #card.fit-a5-tight .c-sub-event{font-size:4.6mm}
 .invitation-screen-root #card.fit-a5-tight .c-course,.invitation-screen-root #card.fit-a5-tight .c-course .course-main{font-size:5mm}
 .invitation-screen-root #card.fit-a5-tight .c-course .course-sub{font-size:4.4mm}
@@ -204,6 +221,7 @@ function makeScreenHtml() {
             <option value="רוקחים עולם">רוקחים עולם</option>
             <option value="בינה מלאכותית – חשיבה ביקורתית במציאות טכנולוגית">בינה מלאכותית</option>
             <option value="יזמות פרימיום">יזמות פרימיום</option>
+            <option value="פורצות דרך">פורצות דרך</option>
             <option value="__c">אחר...</option>
           </select>
         </div>
@@ -239,7 +257,7 @@ function makeScreenHtml() {
 
       <div class="sep"></div>
 
-      <div>
+      <div id="b1-editor">
         <span class="lbl">פסקה 1</span>
         <textarea id="b1" maxlength="240" placeholder="לאורך התהליך יצאו התלמידים למסע חקר..."></textarea>
         <button class="suggest-btn" type="button" id="suggest-b1">השתמש בניסוח מומלץ לקורס</button>
@@ -335,6 +353,9 @@ export const invitationsScreen = {
     }
 
     function getSuggestedSetForCurrentCourse() {
+      if (getCourseName() === 'פורצות דרך') {
+        return BREAKTHROUGH_EVENT_TEXTS[$('ev-type').value] || SUGGESTED_TEXTS_BY_COURSE.default;
+      }
       return SUGGESTED_TEXTS_BY_COURSE[getCourseName()] || SUGGESTED_TEXTS_BY_COURSE.default;
     }
 
@@ -342,7 +363,7 @@ export const invitationsScreen = {
       const clean = (value || '').trim();
       if (!clean) return true;
 
-      return [SUGGESTED_TEXTS_BY_COURSE, LEGACY_PREMIUM_SUGGESTIONS].some((library) =>
+      return [SUGGESTED_TEXTS_BY_COURSE, LEGACY_PREMIUM_SUGGESTIONS, BREAKTHROUGH_EVENT_TEXTS].some((library) =>
         Object.values(library).some((set) =>
           Object.values(set).some((text) => (text || '').trim() === clean)
         )
@@ -354,7 +375,7 @@ export const invitationsScreen = {
 
       ['b1', 'b2'].forEach((id) => {
         const el = $(id);
-        if (!el || !set[id]) return;
+        if (!el || !Object.prototype.hasOwnProperty.call(set, id)) return;
         if (isKnownSuggestedText(el.value)) el.value = set[id];
       });
     }
@@ -367,7 +388,7 @@ export const invitationsScreen = {
     function applySuggestedText(id) {
       const set = getSuggestedSetForCurrentCourse();
       const el = $(id);
-      if (!el || !set[id]) return;
+      if (!el || !Object.prototype.hasOwnProperty.call(set, id)) return;
 
       el.value = set[id];
       up();
@@ -642,6 +663,10 @@ export const invitationsScreen = {
     }
 
     function getCourseDisplayHTML(course) {
+      if (course === 'פורצות דרך') {
+        const introduction = $('ev-type').value === 'lecture' ? 'במסגרת קורס' : 'של קורס';
+        return `<span class="course-main">${introduction} &quot;פורצות דרך&quot;</span>`;
+      }
       if (course === 'יזמות פרימיום') {
         const company = getPremiumCompany();
         return `<span class="course-main">של קורס יזמות פרימיום</span>${company ? `<span class="course-company">בליווי ${esc(company)}</span>` : ''}`;
@@ -668,7 +693,7 @@ export const invitationsScreen = {
 
     function getEventFileNameText(type) {
       if (type === 'end') return 'מפגש סיום';
-      if (type === 'lecture') return 'הרצאת אורח';
+      if (type === 'lecture') return getCourseName() === 'פורצות דרך' ? 'הרצאת אורחת' : 'הרצאת אורח';
       if (type === 'tour') return 'סיור לימודי';
       return 'אירוע';
     }
@@ -680,6 +705,11 @@ export const invitationsScreen = {
     function onTypeChange() {
       const type = $('ev-type').value;
       const extra = $('extra');
+
+      // Preserve previously entered event details without restoring the old event type.
+      extra.querySelectorAll('input').forEach((input) => {
+        savedFields[input.id] = input.value;
+      });
       extra.innerHTML = '';
 
       if (type === 'lecture') {
@@ -698,10 +728,13 @@ export const invitationsScreen = {
       }
 
       extra.querySelectorAll('input').forEach((input) => {
+        if (Object.prototype.hasOwnProperty.call(savedFields, input.id)) {
+          input.value = savedFields[input.id];
+        }
         input.oninput = up;
       });
 
-      applyFields(savedFields);
+      if (getCourseName() === 'פורצות דרך') refreshSuggestedTextsForCourse();
       up();
     }
 
@@ -782,10 +815,21 @@ export const invitationsScreen = {
       const premiumCompany = getPremiumCompany();
       const closing = $('closing1').value || 'נשמח לראותכם!';
       const evLabel = type === 'end' ? 'למפגש הסיום' : type === 'lecture' ? 'להרצאת אורח' : 'לסיור לימודי';
+      const breakthroughCopy = course === 'פורצות דרך' ? BREAKTHROUGH_EVENT_TEXTS[type] : null;
+      const breakthroughLecture = course === 'פורצות דרך' && type === 'lecture';
+      const lectureDetails = breakthroughLecture
+        ? [
+            ['מרצה', $('lec-name')?.value],
+            ['נושא', $('lec-topic')?.value],
+            ['חברה / מוסד', $('lec-org')?.value]
+          ].filter(([, value]) => (value || '').trim())
+        : [];
 
       let opening = '';
 
-      if (type === 'end') {
+      if (breakthroughCopy) {
+        opening = `<div class="c-opening">${esc(breakthroughCopy.opening)}</div>`;
+      } else if (type === 'end') {
         opening = `<div class="c-opening">אנו שמחים להזמינכם למפגש הסיום של קורס <strong>${esc(getCourseOpeningText(course))}</strong>${premiumCompany ? ` בשיתוף <strong>${esc(premiumCompany)}</strong>` : ''}, שהתקיים בבית הספר במסגרת התוכניות החינוכיות של תעשיידע.</div>`;
       } else if (type === 'lecture') {
         const lecturer = $('lec-name')?.value || '';
@@ -814,8 +858,8 @@ export const invitationsScreen = {
       return `
         ${logosBarHTML(false)}
         <div class="c-main">
-          <div class="c-title" style="color:${c1}">הזמנה</div>
-          <div class="c-sub-event" style="color:${c1}">${getHeaderEventText(type, evLabel)}</div>
+          <div class="c-title${breakthroughLecture ? ' breakthrough-lecture' : ''}" style="color:${c1}">${breakthroughLecture ? 'הזמנה להרצאת אורחת' : 'הזמנה'}</div>
+          ${breakthroughLecture ? '' : `<div class="c-sub-event" style="color:${c1}">${getHeaderEventText(type, evLabel)}</div>`}
           <div class="c-course" style="color:${c3}">${getCourseDisplayHTML(course)}</div>
           ${(school || grade) ? `<div class="c-school">כיתה <strong>${esc(grade || '____')}</strong> | בית ספר <strong>${esc(school || '______')}</strong> | <strong>${esc(year)}</strong></div>` : `<div class="c-year">${esc(year)}</div>`}
           <div class="c-divider"></div>
@@ -827,9 +871,10 @@ export const invitationsScreen = {
               ${time ? `<div class="c-info-row">⏰ <strong>${esc(time)}</strong></div>` : ''}
             </div>
             ${location ? `<div class="c-info-row c-details-location">📍 ${esc(location)}</div>` : ''}
+            ${lectureDetails.map(([label, value]) => `<div class="c-info-row"><strong>${esc(label)}:</strong> ${esc(value)}</div>`).join('')}
           </div>
-          ${b1 ? `<div class="c-para">${esc(b1)}</div>` : ''}
-          ${b2 ? `<div class="c-section-title">מה מצפה לנו:</div><div class="c-para">${esc(b2)}</div>` : ''}
+          ${b1 && !breakthroughLecture ? `<div class="c-para">${esc(b1)}</div>` : ''}
+          ${b2 ? `<div class="c-section-title">${course === 'פורצות דרך' ? 'מה מצפה לנו?' : 'מה מצפה לנו:'}</div><div class="c-para">${esc(b2)}</div>` : ''}
           <div class="c-box c-participants-box">${participantsHTML}</div>
           <div class="c-closing" style="color:${c3}">${esc(closing)}</div>
         </div>
@@ -841,6 +886,7 @@ export const invitationsScreen = {
       if (!courseCustom) return;
 
       courseCustom.style.display = $('course-sel').value === '__c' ? 'block' : 'none';
+      $('b1-editor').style.display = getCourseName() === 'פורצות דרך' && $('ev-type').value === 'lecture' ? 'none' : 'block';
       $('premium-company-row').style.display = $('course-sel').value === 'יזמות פרימיום' ? 'block' : 'none';
 
       const colorVars = getColorVars();
@@ -1154,6 +1200,7 @@ window.onafterprint=function(){setTimeout(function(){window.close()},250)};
       console.assert($('course-sel').querySelectorAll('option[value="יזמות פרימיום"]').length === 1, 'premium has one course choice');
       console.assert(getCourseDisplayHTML('יזמות פרימיום').includes('של קורס יזמות פרימיום'), 'premium course display exists');
       console.assert(SUGGESTED_TEXTS_BY_COURSE['רוקחים עולם'].b1.includes('פארמצבטיקה'), 'pharmacy suggestion exists');
+      console.assert($('course-sel').querySelector('option[value="פורצות דרך"]') !== null, 'breakthrough course exists');
     }
 
     function boot() {
