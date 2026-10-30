@@ -208,7 +208,6 @@ test('2027 monthly membership uses actual date points without filling date range
   assert.doesNotMatch(archiveHtml, /מפגש באוקטובר/);
 });
 
-
 test('2027 archive displays every closed activity for the entire school year regardless of selected month', () => {
   const archiveRows = [
     ...rows,
@@ -229,7 +228,7 @@ test('2027 archive displays every closed activity for the entire school year reg
   assert.doesNotMatch(html, /מחוקה בתשפז/);
   assert.doesNotMatch(html, /רגיל סגור 1/);
   assert.match(html, /ארכיון תשפ״ז · 4 פעילויות/);
-  assert.match(html, /data-activity-period-tab="year_archive"[\\s\\S]*?<strong>4<\\/strong>/);
+  assert.match(html, /data-activity-period-tab="year_archive"[\s\S]*?<strong>4<\/strong>/);
   assert.doesNotMatch(html, /data-activities-month-prev/);
   assert.doesNotMatch(html, /data-activities-month-next/);
   assert.doesNotMatch(html, /ארכיון תשפ״ז · אוקטובר/);
