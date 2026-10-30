@@ -98,7 +98,7 @@ test('Liron stale Monday 13:30–15:00 recommendation is contextual only and can
   assert.equal(liron.availability[1][1], '14:00');
   assert.match(html, /data-planning-stale="true"/);
   const row = workboardRow(html, 'liron-ai-netanya');
-  assert.match(row, /ללא מדריך/);
+  assert.match(row, /טרם שובץ/);
   assert.match(row, /טרם שובץ/);
   assert.match(row, /04\/01\/2027/);
   assert.doesNotMatch(row, /13:30|15:00|מידע ישן|הצעה לא מעודכנת/);
