@@ -579,7 +579,7 @@ function locationInstructorDistance(cache, employeeId, location, homeAddress = '
   const address = normalizedRouteAddress(location.address);
   const home = normalizedRouteAddress(homeAddress);
   if (address && home && address === home) return 0;
-  if (!address || !home) return null;
+  if (!address || !home) return instructorLocationDistance(cache, employeeId, location, homeAddress);
   const hit = cache.find((row) => (
     (
       (location.entityKey && txt(row.origin_entity_key) === location.entityKey)
@@ -1913,14 +1913,19 @@ function formatTravelMinutesClock(value) {
   return Math.floor(totalMinutes / 60) + ':' + String(totalMinutes % 60).padStart(2, '0');
 }
 
-function travelCompensationDisplay(source = {}) {
+export function travelCompensationDisplay(source = {}) {
   const status = txt(source.travelCalculationStatus);
-  if (!status) return [];
+  const hasReport = ['reportedOutboundMinutes', 'reportedReturnMinutes',
+    'reportedCancellationBeforeMinutes', 'reportedCancellationAfterMinutes']
+    .some((key) => source[key] != null);
+  const relevant = hasReport || (txt(source.reviewStatus) && txt(source.reviewStatus) !== 'none')
+    || Number(source.calculatedCancellationMinutes) > 0 || Number(source.approvedCancellationMinutes) > 0;
+  if (!status || source.isRemoteDestination === true) return [];
   if (status === 'resolved') {
     const rows = [
       ['זמן נסיעה הלוך', formatTravelMinutesClock(source.outboundTravelMinutes)],
       ['זמן נסיעה חזור', formatTravelMinutesClock(source.returnTravelMinutes)],
-      ['ביטול זמן', formatTravelMinutesClock(source.finalCancellationMinutes)],
+      ...(relevant ? [['ביטול זמן', formatTravelMinutesClock(source.finalCancellationMinutes)]] : []),
       ['מקור חישוב', 'מחושב אוטומטית לפי זמן הנסיעה']
     ];
     if (source.manuallyOverridden && source.calculatedCancellationMinutes != null) {
@@ -1928,6 +1933,7 @@ function travelCompensationDisplay(source = {}) {
     }
     return rows;
   }
+  if (!relevant) return [];
   if (status === 'pending') return [['ביטול זמן', 'ממתין לחישוב זמן הנסיעה']];
   if (status === 'unavailable') {
     const reason = txt(source.travelFailureCode);
@@ -1935,7 +1941,15 @@ function travelCompensationDisplay(source = {}) {
       ? 'לא ניתן לחשב – חסרה כתובת מדריך'
       : reason === 'destination_address_missing'
         ? 'לא ניתן לחשב – חסרה כתובת יעד'
-        : 'חישוב זמן הנסיעה לא זמין';
+        : reason === 'reconcile_failed'
+          ? 'שמירת חישוב זמן הנסיעה נכשלה'
+          : reason === 'location_review_required'
+            ? 'מסלול הנסיעה דורש אימות מיקום'
+            : reason === 'route_data_invalid'
+              ? 'התקבלו נתוני מסלול לא תקינים'
+              : reason === 'cache_read_failed' || reason === 'cache_write_failed'
+                ? 'קריאה או שמירה של מסלול הנסיעה נכשלה'
+                : 'חישוב זמן הנסיעה לא זמין';
     return [['ביטול זמן', label]];
   }
   return [];

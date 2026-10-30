@@ -11,6 +11,7 @@
  */
 
 import { createIcon } from '../components/icon.js';
+import { reportedKilometers } from '../services/reported-kilometers.js';
 import { createInputField, createSelectField } from '../components/field.js';
 import { createTimePicker } from '../components/time-picker.js';
 import { createMiniCalendar } from '../components/mini-calendar.js';
@@ -731,7 +732,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
   hoursDisplay.append(hoursLabel, hoursValue);
   form.append(startTimeField.wrap, endTimeField.wrap, hoursDisplay);
 
-  const kmField  = createInputField({ id: 'edit-km', label: 'ק"מ הלוך-חזור', type: 'number', value: String(record.roundtrip_km || 0), attrs: { min: '0', step: '1' } });
+  const kmField  = createInputField({ id: 'edit-km', label: 'ק״מ הלוך־חזור (יש להזין 0 אם אין)', type: 'number', value: record.roundtrip_km != null ? String(record.roundtrip_km) : '', attrs: { min: '0', step: '1', placeholder: 'יש להזין מספר' } });
   const expField = createInputField({ id: 'edit-expenses', label: 'הוצאות (₪)', type: 'number', value: String(record.expenses || 0), attrs: { min: '0', step: '0.01' } });
   const publicTransportWrap = document.createElement('label');
   publicTransportWrap.className = 'av2-report__transport-toggle';
@@ -932,6 +933,10 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     }
 
     const missing = [];
+    const kmValue = reportedKilometers(kmField.input.value, {
+      online: isZoom, publicTransport: publicTransportToggle.checked, activityType: reportType,
+    });
+    if (kmValue == null) missing.push('קילומטרים לדיווח, או 0 אם אין');
     if (!startTime || !endTime) missing.push('שעות');
     if (startTime && endTime && totalHours <= 0) missing.push('שעת סיום חייבת להיות מאוחרת מהתחלה');
     if (!reportType) missing.push('סוג פעילות');
@@ -980,7 +985,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
         program_name:            isOperations || isBaseTraining ? null : (record.program_name ?? null),
         cancellation_before_minutes: cancellationToggle.checked ? cancellationMinutesForSave(beforeCancellationField.input.value, record, 'cancellation_before_minutes') : null,
         cancellation_after_minutes:  cancellationToggle.checked ? cancellationMinutesForSave(afterCancellationField.input.value, record, 'cancellation_after_minutes') : null,
-        roundtrip_km:            isZoom || publicTransportToggle.checked ? 0 : (kmField.input.value ? Number(kmField.input.value) : 0),
+        roundtrip_km:            kmValue,
         public_transport:        !isZoom && publicTransportToggle.checked,
         public_transport_cost:   !isZoom && publicTransportToggle.checked ? Number(publicTransportCostField.input.value || 0) : 0,
         expenses:                expField.input.value ? Number(expField.input.value) : 0,
