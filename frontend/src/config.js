@@ -539,3 +539,5 @@ config.HOTFIX_VERSION = 'finance-current-month-multi-activity-effective-funding-
 
 config.HOTFIX_VERSION = 'finance-current-month-on-tab-entry-20261030-v1-' + config.HOTFIX_VERSION;
 config.HOTFIX_VERSION = 'finance-optional-customer-id-20261030-v1-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'finance-no-stray-tab-thousands-comma-20261030-v1-' + config.HOTFIX_VERSION;
