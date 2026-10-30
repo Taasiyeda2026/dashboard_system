@@ -60,6 +60,9 @@ const LEGACY_BREAKTHROUGH_END_B2 = "התלמידות יציגו את התוצר�
 // Preserve the previous guest-lecture default only to refresh unchanged saved drafts.
 const LEGACY_BREAKTHROUGH_LECTURE_B2 = "מפגש מעצים ומעורר השראה עם אישה פורצת דרך, שתשתף במסעה האישי, בחלומות שהפכה למציאות ובאתגרים שהתגברה עליהם. הזדמנות לתלמידות לגלות את הכוח הטמון בהן, להאמין בעצמן ולקבל השראה לחלום בגדול, לפרוץ גבולות ולהעז להגשים את שאיפותיהן.";
 
+// Previous approved guest lecture copy is kept only for migrating unchanged drafts.
+const LEGACY_BREAKTHROUGH_LECTURE_APPROVED_B2 = "מפגש מעצים ומעורר השראה עם אישה פורצת דרך, שתשתף במסעה האישי, בחלומות שהפכה למציאות ובאתגרים שהתגברה עליהם בדרך ותספר על ההחלטות, התובנות והרגעים המשמעותיים שעיצבו את דרכה.";
+
 // Exact event-specific copy for the "פורצות דרך" course.
 const BREAKTHROUGH_EVENT_TEXTS = {
   end: {
@@ -70,7 +73,7 @@ const BREAKTHROUGH_EVENT_TEXTS = {
   lecture: {
     opening: "קורס ״פורצות דרך״ משלב יזמות טכנולוגית והעצמה נשית ומעודד את התלמידות לחלום בגדול, לפתח רעיונות ולהאמין ביכולתן להוביל שינוי. דרך היכרות עם נשים שהעזו לפרוץ גבולות, הן מגלות כיצד אומץ, יצירתיות, נחישות ואמונה עצמית יכולים להפוך שאיפות להישגים משמעותיים ולפתוח דלתות לאפשרויות חדשות.",
     b1: '',
-    b2: "מפגש מעצים ומעורר השראה עם אישה פורצת דרך, שתשתף במסעה האישי, בחלומות שהפכה למציאות ובאתגרים שהתגברה עליהם בדרך ותספר על ההחלטות, התובנות והרגעים המשמעותיים שעיצבו את דרכה."
+    b2: "מפגש מעורר השראה עם אישה פורצת דרך, שתחשוף את הסיפור שמאחורי הצלחתה – החלומות שהעזה להגשים, האתגרים שניצבו בדרכה והרגעים שבהם בחרה לא לוותר. מסע אישי ומרתק אל ההחלטות, התובנות ונקודות המפנה שעיצבו את דרכה והפכו את שאיפותיה למציאות."
   }
 };
 
@@ -432,7 +435,7 @@ export const invitationsScreen = {
 
     function isKnownSuggestedText(value) {
       const clean = (value || '').trim();
-      if (!clean || clean === LEGACY_BREAKTHROUGH_END_B2 || clean === LEGACY_BREAKTHROUGH_LECTURE_B2) return true;
+      if (!clean || clean === LEGACY_BREAKTHROUGH_END_B2 || clean === LEGACY_BREAKTHROUGH_LECTURE_B2 || clean === LEGACY_BREAKTHROUGH_LECTURE_APPROVED_B2) return true;
 
       return [SUGGESTED_TEXTS_BY_COURSE, LEGACY_PREMIUM_SUGGESTIONS, BREAKTHROUGH_EVENT_TEXTS].some((library) =>
         Object.values(library).some((set) =>
@@ -697,7 +700,9 @@ export const invitationsScreen = {
           if (savedFields.b2 === LEGACY_BREAKTHROUGH_END_B2) {
             savedFields.b2 = BREAKTHROUGH_EVENT_TEXTS.end.b2;
           }
-          if (savedFields['ev-type'] === 'lecture' && savedFields.b2 === LEGACY_BREAKTHROUGH_LECTURE_B2) {
+          if (savedFields['ev-type'] === 'lecture' &&
+              (savedFields.b2 === LEGACY_BREAKTHROUGH_LECTURE_B2 ||
+               savedFields.b2 === LEGACY_BREAKTHROUGH_LECTURE_APPROVED_B2)) {
             savedFields.b2 = BREAKTHROUGH_EVENT_TEXTS.lecture.b2;
           }
           const savedColors = ['c1', 'c2', 'c3'].reduce((result, key) => {
