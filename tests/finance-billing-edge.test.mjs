@@ -224,7 +224,8 @@ test('the PDF source never prints billing internals and bank details are exact',
   const rendering=edge.slice(edge.indexOf('async function buildPdf('),edge.indexOf('\nDeno.serve('));
   assert.doesNotMatch(rendering,/מממן:|חודש סיום|חודש ביצוע|מפגש לחיוב|פירוט ביצוע לחיוב/, 'no internal billing details or Gefen in service columns');
   assert.ok(rendering.includes("'בנק הפועלים 12  |  סניף 500 הרימון  |  חשבון 300120'"),'bank number 12 and separators are printed exactly');
-  assert.ok(rendering.includes('"טלפון: 055-4548890"'),'invoice phone must be 055-4548890');
+  assert.match(rendering,/טלפון: 055-4548890/,'invoice phone must be 055-4548890 in the shared letterhead');
+  assert.match(rendering,/דניאל פריש 3, תל אביב \| טלפון: 055-4548890/,'invoice address and phone share the workshop-style header line');
   assert.doesNotMatch(rendering,/03-5370368|סניף 611|בנק הפועלים 12, סניף/);
   assert.doesNotMatch(rendering,/\(ע"ר\)/);
   assert.match(rendering,/מחיר לשעה/);
