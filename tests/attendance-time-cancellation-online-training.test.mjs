@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { reportedKilometers } from '../attendance/src/services/reported-kilometers.js';
 import {
   parseAutomaticCancellationLabel,
   reconcileChangedTravelContext,
@@ -151,7 +152,10 @@ test('scheduled online training reloads without location or travel data', () => 
 test('online training has no location, kilometres, public transport, or cancellation', () => {
   assert.match(newReport, /const hasNoLocation = isOpen \|\| isOnline;/);
   assert.match(newReport, /const usesPublicTransport = !isOnline/);
-  assert.match(newReport, /const kmValue = \(!isOnline/);
+  assert.match(newReport, /const kmValue = reportedKilometers\(kmField\.input\.value,[\s\S]*online: isOnline \|\| isTeamOnline/);
+  assert.match(newReport, /roundtrip_km:\s*kmValue/);
+  assert.equal(reportedKilometers('99', { online: true }), 0);
+  assert.equal(reportedKilometers('99', { online: false }), 99);
   assert.match(service, /onlineTraining.*roundtrip_km: 0/s);
   assert.match(migration, /training_mode = 'online'[\s\S]*destination_address_snapshot := null/);
 });
