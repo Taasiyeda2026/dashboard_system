@@ -772,6 +772,16 @@ export function bindActivityEditForm(contentRoot, {
         }
       }
     }
+    if (saveType !== 'tour') {
+      delete changes.tour_location;
+      // Clear a previous tour destination when the activity is deliberately retyped.
+      if (initialType === 'tour') changes.tour_location = null;
+    } else if (Object.prototype.hasOwnProperty.call(changes, 'tour_location')
+      && Array.from(String(changes.tour_location ?? '')).length > 15) {
+      setStatus(statusEl, 'is-error', 'מיקום הסיור מוגבל ל-15 תווים');
+      showToast('מיקום הסיור מוגבל ל-15 תווים', 'error', 2600);
+      return;
+    }
     const supportsParticipants = saveType === 'workshop' || saveType === 'escape_room';
     if (!supportsParticipants) {
       delete changes.participants_count;
@@ -1093,6 +1103,11 @@ export function bindActivityEditForm(contentRoot, {
     updateEndDateDisplay(form);
     syncActivityEndTimeOptions(form.querySelector('[name="start_time"]'), form.querySelector('[name="end_time"]'));
     const typeEl = form.querySelector('[name="activity_type"]');
+    const syncTourLocation = () => {
+      const isTour = normalizeActivityTypeKey(typeEl?.value) === 'tour';
+      form.querySelectorAll('[data-tour-location-field]').forEach((field) => { field.hidden = !isTour; });
+    };
+    syncTourLocation();
     const nameSel = form.querySelector('[data-role="activity-name-select"]');
     if (nameSel) nameSel.disabled = !normalizeActivityTypeKey(typeEl?.value);
     if (typeEl) form.dataset.activityNameType = normalizeActivityTypeKey(typeEl.value);
@@ -1151,6 +1166,7 @@ export function bindActivityEditForm(contentRoot, {
         const typeEl = ev.target.closest('[name="activity_type"]');
         if (typeEl) {
           const newType = normalizeActivityTypeKey(typeEl.value);
+          syncTourLocation();
           const previousType = normalizeActivityTypeKey(form.dataset.activityNameType);
           if (newType === previousType) return;
           form.dataset.activityCatalogDirty = 'yes';
