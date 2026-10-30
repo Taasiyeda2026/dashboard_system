@@ -3492,9 +3492,12 @@ export const courseSchedulingScreen = {
         const unrecoverableGlobalContextChange = contextResolution?.unrecoverableGlobalContextChange === true;
         const existingRows = (shared?.rows || [])
           .filter((entry) => currentCourseIds.includes(text(entry.activityId)))
-          .map((entry) => entry.lockedOption
-            ? applyPlanningLockToRow(entry.row, entry.lockedOption, scope.periodKey)
-            : entry.row);
+          .map((entry) => {
+            const row = entry.lockedOption
+              ? applyPlanningLockToRow(entry.row, entry.lockedOption, scope.periodKey)
+              : entry.row;
+            return row ? { ...row, needsRecalc: entry.needsRecalc === true } : row;
+          });
         const engineUpgradeOptimizationScopes = engineChanged
           ? planningEngineUpgradeOptimizationScopes({
               shared,

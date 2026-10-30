@@ -11,7 +11,7 @@ import { resolveCourseSchedulingPeriod } from '../course-scheduling-periods.js';
 import { isSchedulingActivityActive, schedulingActivityTypeCategory, isFullDaySchedulingActivity, isCourseSchedulingTargetActivity } from '../shared/activity-scheduling-eligibility.js';
 import { normalizeOperationalDistrict } from '../shared/district-normalization.js';
 import { compileConstraints, createOccupancy, candidateFailures, staticFailures, meetingFailures, knownRoute,
-  ensureRoute, ensureCandidateRoutes, validatePlanWithRoutes, officialMeetings, isProtectedActivity, activeInstructor, validatePlan, ENGINE_VERSION, text, activityId, minute, weekday, addDays } from './constraints.js';
+  ensureRoute, ensureCandidateRoutes, validatePlanWithRoutes, officialMeetings, isProtectedActivity, isStaleUnprotectedPlanningRow, activeInstructor, validatePlan, ENGINE_VERSION, text, activityId, minute, weekday, addDays } from './constraints.js';
 
 const stamp = value => {const seconds=Math.round(value*60), result=`${String(Math.floor(seconds/3600)).padStart(2,'0')}:${String(Math.floor(seconds/60)%60).padStart(2,'0')}`;return seconds%60?result+':'+String(seconds%60).padStart(2,'0'):result;};
 const covered = row => !!row.instructorEmpId;
@@ -154,7 +154,13 @@ export async function buildPlan(input = {}) {
       const row = { ...rowFor(a, lock.meetings), ...lock, kind: 'planning-locked', status: 'נקבע בתכנון', planningLocked: true };
       rows.set(id, row); anchors.push(row); continue;
     }
-    if (!affected.has(id) && previous.has(id)) { const row = previous.get(id); rows.set(id, row); anchors.push(row); }
+    if (!affected.has(id) && previous.has(id)) {
+      const row = previous.get(id);
+      // Keep the stored proposal visible for identity/incremental save, but never
+      // treat a dirty unprotected proposal as a lawful occupancy or certified assignment.
+      rows.set(id, row?.needsRecalc === true ? { ...row, needsRecalc: true } : row);
+      if (!isStaleUnprotectedPlanningRow(row, a, null)) anchors.push(row);
+    }
     else if (a.draft_emp_id && a.draft_proposed_meetings?.length) anchors.push({ ...rowFor(a, a.draft_proposed_meetings), instructorEmpId: text(a.draft_emp_id), kind: 'draft' });
   }
   const occupancy = createOccupancy(context, anchors), queue = targets.filter(a => affected.has(activityId(a)) && !rows.has(activityId(a)));
