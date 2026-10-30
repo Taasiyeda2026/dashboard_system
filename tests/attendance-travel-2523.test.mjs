@@ -70,7 +70,7 @@ test('return cache loading uses the same scoped read RPC as the manager snapshot
     {origin_key:'school',destination_key:'home',distance_km:12.339},
   ];
   const calls=[];
-  const db={rpc:async(name,args)=>{calls.push({name,args});return {data:routes,error:null};},from:table=>{
+  const db={rpc:async(name,args)=>{calls.push({name,args});return {data:name==='get_payroll_attendance_route_cache'?routes:[],error:null};},from:table=>{
     const query={select:()=>query,eq:()=>query,gte:()=>query,lte:()=>query,in:()=>query,
       then:(resolve,reject)=>Promise.resolve({data:[],error:null}).then(resolve,reject)};
     return query;
@@ -83,7 +83,7 @@ test('return cache loading uses the same scoped read RPC as the manager snapshot
   assert.equal(result.travelCache.length,2);
   assert.equal(result.travelCache.find(r=>r.destination_key==='home').distance_km,12.339);
   assert.equal(result.travelSourceAvailable,true);
-  assert.equal(JSON.stringify(calls),JSON.stringify([{name:'get_payroll_attendance_route_cache',args:{p_employee_ids:[1550],p_from_date:'2026-10-01',p_to_date:'2026-10-31'}}]));
+  assert.equal(JSON.stringify(calls),JSON.stringify(['get_payroll_attendance_route_cache','get_payroll_attendance_course_activities'].map(name=>({name,args:{p_employee_ids:[1550],p_from_date:'2026-10-01',p_to_date:'2026-10-31'}}))));
 });
 
 async function invokeEdge({ reconcileError = false, cacheError = null, suspect = false, provider = null, contextError = null } = {}) {

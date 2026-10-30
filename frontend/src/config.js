@@ -572,3 +572,5 @@ config.HOTFIX_VERSION = 'finance-workshop-course-shared-header-compact-actions-2
 config.HOTFIX_VERSION = 'finance-unified-letterhead-seven-course-columns-20261030-v1-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = 'attendance-travel-followup-20261030-v1-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'attendance-dated-course-control-20261030-v1-' + config.HOTFIX_VERSION;
