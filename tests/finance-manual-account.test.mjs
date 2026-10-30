@@ -60,8 +60,8 @@ test('manual issuance filters by actual funder, not school; mixed funding select
   assert.equal(d.manualFundingKey,'r|2027-02-01');
   const html=manualAccountViewHtml(d);
   assert.match(html,/data-finance-manual-funder-filter/);
-  assert.match(html,/value="r\\|2027-02-01"/);
-  assert.doesNotMatch(html,/value="g\\|2026-10-01"/);
+  assert.match(html,/value="r\|2027-02-01"/);
+  assert.doesNotMatch(html,/value="g\|2026-10-01"/);
   assert.match(html,/אוסישקין \| נהרייה \| ביומימיקרי/);
   assert.doesNotMatch(html,/הרצל \| עכו \| ביומימיקרי/);
 });
