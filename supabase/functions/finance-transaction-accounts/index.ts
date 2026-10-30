@@ -143,7 +143,7 @@ function drawTableRow(page: PDFPage, font: PDFFont, values: string[], widths: nu
 
 
 type InvoiceRenderRow = { category: string; name: string; school: string; gefen: string; quantity: number; hours: number; amount: number; unitPrice: number; hourlyPrice: number; };
-function invoiceRenderRows(lines: any[]): { courses: InvoiceRenderRow[]; services: InvoiceRenderRow[] } {
+function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { courses: InvoiceRenderRow[]; services: InvoiceRenderRow[] } {
   const courses = new Map<string, InvoiceRenderRow>();
   const services = new Map<string, InvoiceRenderRow>();
   for (const line of lines || []) {
@@ -166,7 +166,9 @@ function invoiceRenderRows(lines: any[]): { courses: InvoiceRenderRow[]; service
     // combine into one quantity row, even across separate activity records.
     // Courses: one line per actual course ID, combining all billed meetings.
     const key = service
-      ? JSON.stringify([category, name, school, Number(unitPrice.toFixed(6))])
+      ? (keepDistinctActivities && clean(line.activity_row_id)
+        ? `activity:${clean(line.activity_row_id)}`
+        : JSON.stringify([category, name, school, Number(unitPrice.toFixed(6))]))
       : clean(line.activity_row_id) || JSON.stringify([name, school, gefen, Number(line.hourly_rate_snapshot || 0)]);
     const existing = group.get(key);
     if (existing) {
@@ -243,7 +245,10 @@ async function buildPdf(account: any) {
   }
   drawRight(page, bold, 'תוכניות חינוכיות – שנת תשפ"ז', y, 13); y -= 32;
 
-  const { courses, services } = invoiceRenderRows(account.finance_transaction_account_lines || []);
+  const consolidatedFunder = account.issue_mode === 'manual'
+    && (account.finance_transaction_account_lines || []).length > 1
+    && (account.finance_transaction_account_lines || []).every((line: { billing_rule?: string }) => line.billing_rule === 'completion');
+  const { courses, services } = invoiceRenderRows(account.finance_transaction_account_lines || [], consolidatedFunder);
   // Each section uses the appropriate, minimal accounting columns. Both
   // sections may appear on one invoice for the same payer.
   const drawSection = (title: string, columns: string[], widths: number[],
@@ -271,9 +276,6 @@ async function buildPdf(account: any) {
     }
     y -= 22;
   };
-  const consolidatedFunder = account.issue_mode === 'manual'
-    && (account.finance_transaction_account_lines || []).length > 1
-    && (account.finance_transaction_account_lines || []).every((line: { billing_rule?: string }) => line.billing_rule === 'completion');
   const displayName = (row: InvoiceRenderRow) =>
     row.school ? (consolidatedFunder ? `${row.name}\n${row.school}` : `${row.name} - ${row.school}`) : row.name;
   const count = (number: number) => Number.isInteger(number)
