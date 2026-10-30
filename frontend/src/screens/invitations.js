@@ -693,7 +693,7 @@ export const invitationsScreen = {
 
     function getEventFileNameText(type) {
       if (type === 'end') return 'מפגש סיום';
-      if (type === 'lecture') return 'הרצאת אורח';
+      if (type === 'lecture') return getCourseName() === 'פורצות דרך' ? 'הרצאת אורחת' : 'הרצאת אורח';
       if (type === 'tour') return 'סיור לימודי';
       return 'אירוע';
     }
@@ -817,6 +817,13 @@ export const invitationsScreen = {
       const evLabel = type === 'end' ? 'למפגש הסיום' : type === 'lecture' ? 'להרצאת אורח' : 'לסיור לימודי';
       const breakthroughCopy = course === 'פורצות דרך' ? BREAKTHROUGH_EVENT_TEXTS[type] : null;
       const breakthroughLecture = course === 'פורצות דרך' && type === 'lecture';
+      const lectureDetails = breakthroughLecture
+        ? [
+            ['מרצה', $('lec-name')?.value],
+            ['נושא', $('lec-topic')?.value],
+            ['חברה / מוסד', $('lec-org')?.value]
+          ].filter(([, value]) => (value || '').trim())
+        : [];
 
       let opening = '';
 
@@ -864,9 +871,10 @@ export const invitationsScreen = {
               ${time ? `<div class="c-info-row">⏰ <strong>${esc(time)}</strong></div>` : ''}
             </div>
             ${location ? `<div class="c-info-row c-details-location">📍 ${esc(location)}</div>` : ''}
+            ${lectureDetails.map(([label, value]) => `<div class="c-info-row"><strong>${esc(label)}:</strong> ${esc(value)}</div>`).join('')}
           </div>
           ${b1 && !breakthroughLecture ? `<div class="c-para">${esc(b1)}</div>` : ''}
-          ${b2 ? `<div class="c-section-title">מה מצפה לנו:</div><div class="c-para">${esc(b2)}</div>` : ''}
+          ${b2 ? `<div class="c-section-title">${course === 'פורצות דרך' ? 'מה מצפה לנו?' : 'מה מצפה לנו:'}</div><div class="c-para">${esc(b2)}</div>` : ''}
           <div class="c-box c-participants-box">${participantsHTML}</div>
           <div class="c-closing" style="color:${c3}">${esc(closing)}</div>
         </div>
