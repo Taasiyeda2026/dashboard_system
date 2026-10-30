@@ -1154,6 +1154,28 @@ test('manual sponsor selection stays expanded, selects all visible activities, a
   assert.equal(master.checked,true);
   assert.match(details.querySelector('[data-finance-manual-selection-count]').textContent,/3 מתוך 3/);
   assert.match(host.textContent,/חשבון מרוכז לגורם מימון/);
+  assert.equal(host.querySelector('[data-finance-manual-field="school_name"]'),null,
+    'select all must never open a specific school editor');
+  assert.ok(host.querySelector('[data-finance-manual-bulk-field="customer_name"]'));
+  assert.equal(host.querySelector('[data-finance-manual-activity]').value,'',
+    'select all must not auto-select Tamar Ariel or any school');
+  assert.ok(host.querySelector('[data-finance-manual-preview]'),
+    'payer-level editor must keep the PDF preview action');
+  const bulkEmail=host.querySelector('[data-finance-manual-bulk-field="customer_email"]');
+  bulkEmail.value='finance@example.com;manager@example.com';
+  bulkEmail.dispatchEvent(new window.Event('change',{bubbles:true}));
+  assert.deepEqual(d.manualSelectedActivityIds.length,3);
+  assert.equal(d.manualFunderRecipientEmail,'finance@example.com, manager@example.com');
+  const chooseSchool=host.querySelector('[data-finance-manual-activity]');
+  chooseSchool.value='b';
+  chooseSchool.dispatchEvent(new window.Event('change',{bubbles:true}));
+  assert.ok(host.querySelector('[data-finance-manual-field="school_name"]'),
+    'a school editor appears only on explicit user selection');
+  const backToPayer=host.querySelector('[data-finance-manual-activity]');
+  backToPayer.value='';
+  backToPayer.dispatchEvent(new window.Event('change',{bubbles:true}));
+  assert.equal(host.querySelector('[data-finance-manual-field="school_name"]'),null);
+  assert.equal(d.manualSelectedActivityIds.length,3,'closing the school editor must not deselect any activity');
   items[1].checked=false;
   items[1].dispatchEvent(new window.Event('change',{bubbles:true}));
   assert.equal(d.manualSelectedActivityIds.length,2);
