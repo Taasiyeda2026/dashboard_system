@@ -8,7 +8,7 @@ const LOGOS = {
 
 const BG_URLS = [
   { type: 'solid', label: 'לבן', value: '#ffffff' },
-  ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => ({
+  ...Array.from({ length: 14 }, (_, index) => index + 1).map((n) => ({
     type: 'image',
     label: `רקע ${n}`,
     value: `${ASSET_BASE}backgrounds/background-${n}.png`

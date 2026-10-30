@@ -184,20 +184,27 @@ test('existing breakthrough draft picks up new preset only if its saved colors w
 });
 
 
-test('background picker shows all repository backgrounds in a compact five-column gallery', () => {
+test('background picker shows all 14 repository backgrounds in three rows of five', () => {
   const ui = mount();
   const thumbs = [...ui.el('bg-row').querySelectorAll('.bg-th')];
-  assert.equal(thumbs.length, 10, 'white + nine repository backgrounds');
+  assert.equal(thumbs.length, 15, 'white + fourteen repository backgrounds');
   assert.equal(thumbs[0].style.backgroundColor, 'rgb(255, 255, 255)');
-  assert.match(thumbs[9].style.backgroundImage, /background-9\\.png/);
+  for (let i = 1; i <= 14; i++) {
+    assert.ok(thumbs[i].style.backgroundImage.includes(`background-${i}.png`), `Background ${i} is available in numeric order`);
+  }
   const styles = document.getElementById('invitation-generator-styles').textContent;
   assert.match(styles, /\.bg-row\{display:grid;grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/);
   assert.match(styles, /\.bg-th\{width:100%;min-width:0;height:auto/);
 
-  thumbs[9].click();
+  thumbs[14].click();
   assert.equal(ui.el('bg-row').querySelectorAll('.bg-th.sel').length, 1);
-  assert.equal([...ui.el('bg-row').querySelectorAll('.bg-th')][9].classList.contains('sel'), true);
-  assert.match(ui.el('cbg').style.backgroundImage, /background-9\\.png/);
+  assert.equal([...ui.el('bg-row').querySelectorAll('.bg-th')][14].classList.contains('sel'), true);
+  assert.ok(ui.el('cbg').style.backgroundImage.includes('background-14.png'));
+  assert.equal(JSON.parse(localStorage.getItem('taasiyeda_invitation_builder_state_v4')).selBg, 14);
+
+  // The previous ninth background still maps to its original index.
+  [...ui.el('bg-row').querySelectorAll('.bg-th')][9].click();
+  assert.ok(ui.el('cbg').style.backgroundImage.includes('background-9.png'));
   assert.equal(JSON.parse(localStorage.getItem('taasiyeda_invitation_builder_state_v4')).selBg, 9);
   ui.dom.window.close();
 });
