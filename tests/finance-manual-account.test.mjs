@@ -77,58 +77,60 @@ test('funder filter includes old single-funder records even if allocation detail
   assert.deepEqual(manualFilteredActivities(d).map(a=>a.row_id),['missing']);
 });
 
-test('selecting multiple activities keeps independent editable amounts and previews each PDF', async () => {
+test('multiple activities for one financer issue exactly one account with all lines', async () => {
   const d=data();
   d.collectionActivities.push({...d.collectionActivities[0],row_id:'b',school:'בית ספר שני'});
   d.transactionContext.billingRows.push({...d.transactionContext.billingRows[0],activityRowId:'b',issuableAmount:4300});
   d.manualFunderFilter='authority:name:עיריית רחובות';
   toggleManualActivity(d,'a',true);
-  assert.equal(d.manualActivityId,'a');
   toggleManualActivity(d,'b',true);
-  assert.equal(d.manualActivityId,'b');
   updateManualDraft(d,'amount',4000);
   saveActiveManualDraft(d);
-  assert.deepEqual(d.manualSelectedActivityIds,['a','b']);
   const requests=[];
   const api={
-    previewFinanceManualAccount:async request=>{ requests.push(request);return {quote:{revision:'rev-'+request.activity},pdfBase64:'PDF'+request.activity};},
-    reserveFinanceManualAccount:async payload=>({id:'invoice-'+payload.activity}),
+    previewFinanceFunderBatchAccount:async items=>{
+      requests.push(items);
+      return {quote:{revision:'combined-rev',total_amount:11000,finance_transaction_account_lines:[{},{}]},pdfBase64:'COMBINEDPDF'};
+    },
+    reserveFinanceFunderBatchAccount:async request=>({id:'one-account',total_amount:11000,request}),
     dispatchFinanceTransactionAccount:async payload=>({document:'issued',id:payload.accountId})
   };
   const previews=await previewSelectedManualAccounts(d,api);
-  assert.equal(previews.length,2);
-  assert.equal(requests[0].activity,'a');assert.equal(requests[0].draft.amount,7000);
-  assert.equal(requests[1].activity,'b');assert.equal(requests[1].draft.amount,4000);
+  assert.equal(previews.length,1);
+  assert.equal(requests.length,1);
+  assert.deepEqual(requests[0].map(item=>item.activity),['a','b']);
+  assert.equal(requests[0][0].draft.amount,7000);
+  assert.equal(requests[0][1].draft.amount,4000);
   const view=manualAccountViewHtml(d);
-  assert.match(view,/בחירה מרובה של פעילויות/);
-  assert.match(view,/אישור והפקת 2 חשבונות/);
-  assert.match(view,/PDFa/);assert.match(view,/PDFb/);
-  const sent=await runSelectedManualAccounts(d,api);
-  assert.equal(sent.length,2);
-  assert.equal(sent[0].reserved.id,'invoice-a');
-  assert.equal(sent[1].reserved.id,'invoice-b');
+  assert.match(view,/אישור והפקת חשבון מרוכז אחד/);
+  assert.match(view,/COMBINEDPDF/);
+  assert.doesNotMatch(view,/אישור והפקת 2 חשבונות/);
+  const issued=await runSelectedManualAccounts(d,api);
+  assert.equal(issued.length,1);
+  assert.equal(issued[0].reserved.id,'one-account');
+  assert.equal(issued[0].reserved.request.revision,'combined-rev');
 });
-test('batch issuance requires a funder, and a failed second invoice never reissues the first',async()=>{
+test('multi-activity preview requires a financer, invalidates on edit, and cancels failed dispatch',async()=>{
   const d=data();
   d.collectionActivities.push({...d.collectionActivities[0],row_id:'b'});
   d.transactionContext.billingRows.push({...d.transactionContext.billingRows[0],activityRowId:'b'});
   toggleManualActivity(d,'a',true);
   toggleManualActivity(d,'b',true);
-  await assert.rejects(previewSelectedManualAccounts(d,{previewFinanceManualAccount:async()=>({})}),/גורם מימון/);
+  await assert.rejects(previewSelectedManualAccounts(d,{}),/גורם מימון/);
   d.manualFunderFilter='authority:name:עיריית רחובות';
-  await previewSelectedManualAccounts(d,{previewFinanceManualAccount:async p=>({quote:{revision:'rev-'+p.activity},pdfBase64:'pdf'})});
-  let attempts=[],failSecond=true;
-  const api={
-    reserveFinanceManualAccount:async p=>{attempts.push(p.activity);return{id:'a-'+p.activity}},
-    dispatchFinanceTransactionAccount:async p=>{if(p.accountId==='a-b'&&failSecond)throw Error('dispatch failed');return{id:p.accountId}},
-    cancelFinanceTransactionReservation:async()=>{}
-  };
-  await assert.rejects(runSelectedManualAccounts(d,api),/הופקו 1 מתוך 2/);
-  failSecond=false;
-  await runSelectedManualAccounts(d,api);
-  assert.deepEqual(attempts,['a','b','b']);
+  const api={previewFinanceFunderBatchAccount:async()=>({quote:{revision:'r1'},pdfBase64:'pdf'})};
+  await previewSelectedManualAccounts(d,api);
+  updateManualDraft(d,'description','edited');
+  assert.equal(d.manualConsolidatedPreview,null);
+  await previewSelectedManualAccounts(d,api);
+  let cancelled='';
+  await assert.rejects(runSelectedManualAccounts(d,{
+    reserveFinanceFunderBatchAccount:async()=>({id:'one'}),
+    dispatchFinanceTransactionAccount:async()=>{throw Error('dispatch failed');},
+    cancelFinanceTransactionReservation:async id=>{cancelled=id}
+  }),/dispatch failed/);
+  assert.equal(cancelled,'one');
 });
-
 test('non-school payer does not inherit a school semel or invent a customer number',()=>{
   const d=data();d.transactionContext.billingRows[0].gefenFunding=false;
   d.transactionContext.billingRows[0].institutionSymbol='211466';
