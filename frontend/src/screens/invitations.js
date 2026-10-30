@@ -68,7 +68,7 @@ const BREAKTHROUGH_EVENT_TEXTS = {
     b2: "התלמידות יציגו את התוצרים והתובנות שאספו לאורך הקורס, ישתפו בסיפורים שעוררו בהן השראה ויבטאו את החלומות והשאיפות שלהן לעתיד."
   },
   lecture: {
-    opening: "קורס ״פורצות דרך״ משלב יזמות טכנולוגית והעצמה נשית, ומעודד את התלמידות לחלום בגדול, לפתח רעיונות ולהאמין ביכולתן להוביל שינוי. דרך היכרות עם נשים שהעזו לפרוץ גבולות, הן מגלות כיצד אומץ, יצירתיות, נחישות ואמונה עצמית יכולים להפוך שאיפות להישגים משמעותיים ולפתוח דלתות לאפשרויות חדשות.",
+    opening: "קורס ״פורצות דרך״ משלב יזמות טכנולוגית והעצמה נשית ומעודד את התלמידות לחלום בגדול, לפתח רעיונות ולהאמין ביכולתן להוביל שינוי. דרך היכרות עם נשים שהעזו לפרוץ גבולות, הן מגלות כיצד אומץ, יצירתיות, נחישות ואמונה עצמית יכולים להפוך שאיפות להישגים משמעותיים ולפתוח דלתות לאפשרויות חדשות.",
     b1: '',
     b2: "מפגש מעצים ומעורר השראה עם אישה פורצת דרך, שתשתף במסעה האישי, בחלומות שהפכה למציאות ובאתגרים שהתגברה עליהם בדרך ותספר על ההחלטות, התובנות והרגעים המשמעותיים שעיצבו את דרכה."
   }
@@ -187,7 +187,7 @@ function ensureStyles() {
 .invitation-screen-root #card.layout-breakthrough-lecture .c-course,.invitation-screen-root #card.layout-breakthrough-lecture .c-course .course-main{font-size:6mm;font-weight:650;line-height:1.18}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-school,.invitation-screen-root #card.layout-breakthrough-lecture .c-year{margin:1mm 0;font-size:4.2mm}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-divider{width:78%;margin:0 auto 1mm}
-.invitation-screen-root #card.layout-breakthrough-lecture .c-opening{width:84%;padding-inline:2mm;text-align:right;font-size:4.3mm;line-height:1.4;margin:0 auto}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-opening{width:84%;padding-inline:2mm;text-align:center;font-size:4.3mm;line-height:1.4;margin:0 auto}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-details-box{width:82%;padding:2.1mm 3mm;gap:1.4mm;border-color:rgba(31,53,77,.2);background:rgba(255,255,255,.65);margin:0 auto}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-details-top{gap:2mm}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-detail-separator{color:rgba(31,53,77,.48);padding:0 .5mm;font-weight:400}
