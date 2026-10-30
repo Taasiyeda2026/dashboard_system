@@ -3155,7 +3155,8 @@ export const activitiesScreen = {
     const addActivitySig = { signal: root._addActivityAbort.signal };
 
     function syncAddTourLocation(form) {
-      const isTour = normalizeActivityTypeKey(form.querySelector('[data-add-activity-type]')?.value) === 'tour';
+      const isTour = normalizeActivitySeason(form.querySelector('[name="activity_season"]')?.value) === ACTIVITY_SEASON_SCHOOL_2027
+        && normalizeActivityTypeKey(form.querySelector('[data-add-activity-type]')?.value) === 'tour';
       const field = form.querySelector('[data-tour-location-field]');
       const input = field?.querySelector('[name="tour_location"]');
       if (field) field.hidden = !isTour;
@@ -3222,6 +3223,7 @@ export const activitiesScreen = {
       form.querySelector('[data-add-activity-name]')?.addEventListener('change', () => {
         refreshActivityNameSelect(form);
       }, addActivitySig);
+      form.querySelector('[name="activity_season"]')?.addEventListener('change', () => syncAddTourLocation(form), addActivitySig);
       bindAddActivitySessionCountSync(form, addActivitySig);
       enhanceAddActivityGefenOrderUi(form);
       const rebuildSessions = async () => {
@@ -3383,7 +3385,9 @@ export const activitiesScreen = {
         school: schoolValue,
         grade: get('grade'),
         class_group: get('class_group'),
-        ...(selectedType === 'tour' ? { tour_location: get('tour_location') || null } : {}),
+        ...(selectedType === 'tour' && activitySeason === ACTIVITY_SEASON_SCHOOL_2027
+          ? { tour_location: get('tour_location') || null }
+          : {}),
         activity_type: selectedType || get('activity_type'),
         item_type: selectedType || get('activity_type'),
         activity_season: activitySeason,
