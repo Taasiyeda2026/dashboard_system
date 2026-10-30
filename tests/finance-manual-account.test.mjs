@@ -128,3 +128,21 @@ test('batch issuance requires a funder, and a failed second invoice never reissu
   await runSelectedManualAccounts(d,api);
   assert.deepEqual(attempts,['a','b','b']);
 });
+
+test('non-school payer does not inherit a school semel or invent a customer number',()=>{
+  const d=data();d.transactionContext.billingRows[0].gefenFunding=false;
+  d.transactionContext.billingRows[0].institutionSymbol='211466';
+  prepareManualAccount(d,'a');
+  assert.equal(d.manualDraft.institution_symbol,'');
+  const html=manualAccountViewHtml(d);
+  assert.match(html,/מספר לקוח \(אם קיים\)/);
+  assert.match(html,/הצגת החשבון לבדיקה \(PDF\)/);
+  assert.doesNotMatch(html,/סמל מוסד \/ מספר לקוח/);
+});
+test('Gefen payer retains school institution symbol',()=>{
+  const d=data();d.transactionContext.billingRows[0].gefenFunding=true;
+  d.transactionContext.billingRows[0].institutionSymbol='211466';
+  prepareManualAccount(d,'a');
+  assert.equal(d.manualDraft.institution_symbol,'211466');
+  assert.match(manualAccountViewHtml(d),/סמל מוסד/);
+});
