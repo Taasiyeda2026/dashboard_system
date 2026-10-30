@@ -2486,7 +2486,9 @@ export const courseSchedulingScreen = {
       && !planningRows.some((row) => row?.needsRecalc === true)
     );
     const reportPlanningRows = planningReportCurrent ? planningRows : null;
+    const reportPeriodKey = selectedPeriodKey(state) === 'second' ? 'second' : 'first';
     const overviewOptions = {
+      periodKey: reportPeriodKey,
       operationalOnly: !planningReportCurrent,
       pendingChanges: (state.courseSchedulingPlanningAffectedIds || []).length,
       schoolYearTotal: allInterfaceCourses.length,
@@ -2502,9 +2504,10 @@ export const courseSchedulingScreen = {
       const completionRows = buildPlanningCompletionRows({
         activities: data.activities || [],
         planningRows: reportPlanningRows || [],
-        includeManualActivities: canManuallySchedule(state.user)
+        includeManualActivities: canManuallySchedule(state.user),
+        periodKey: reportPeriodKey
       });
-      completionCache = { rows: reportPlanningRows, activities: data.activities, optionsKey: overviewOptionsKey,
+      completionCache = { rows: reportPlanningRows, completionRows, activities: data.activities, optionsKey: overviewOptionsKey,
         html: planningCompletionOverviewHtml(completionRows, overviewOptions) };
       data._planningCompletionCache = completionCache;
     }
@@ -4722,8 +4725,12 @@ export const courseSchedulingScreen = {
       if (!detailRow) return;
       const opening = detailRow.hidden;
       if (opening && !detailRow.querySelector('.course-planning-completion-detail-panel')) {
-        const completion = buildPlanningCompletionRows({ activities: data.activities || [], planningRows: state.courseSchedulingPlanningRows || [], includeManualActivities: canManuallySchedule(state.user) });
-        detailRow.innerHTML = planningCompletionInstructorDetailsHtml(completion, detailKey);
+        // Reuse the validated (or saved-only) report data. Rebuilding details
+        // directly from stale proposal rows would reintroduce obsolete names.
+        const completion = data._planningCompletionCache?.completionRows || [];
+        detailRow.innerHTML = planningCompletionInstructorDetailsHtml(completion, detailKey, {
+          periodKey: selectedPeriodKey(state) === 'second' ? 'second' : 'first'
+        });
       }
       state.courseSchedulingExpandedInstructorIds = opening
         ? [...new Set([...(state.courseSchedulingExpandedInstructorIds || []), detailKey])]
