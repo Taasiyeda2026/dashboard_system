@@ -574,3 +574,5 @@ config.HOTFIX_VERSION = 'finance-unified-letterhead-seven-course-columns-2026103
 config.HOTFIX_VERSION = 'attendance-travel-followup-20261030-v1-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = 'attendance-dated-course-control-20261030-v1-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'attendance-transit-km-comparison-20261030-v1-' + config.HOTFIX_VERSION;

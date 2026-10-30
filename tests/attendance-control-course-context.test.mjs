@@ -51,3 +51,13 @@ test('an unresolved physical stop keeps all course bundle components unavailable
  const dashboard=await load(reports,[activity('class-a','10:00','12:00'),activity('class-b','12:00','14:00')]);
  assert.ok(dashboard.filter(x=>!x.__profile).every(x=>x.kilometers==null));
 });
+test('public transport zero km is not compared against a driving route; car discrepancies remain visible',()=>{
+ const attendance=report({kilometers:0,workHours:2,endTime:'12:00',activityId:'class-a',publicTransport:true,publicTransportCost:29});
+ const dashboard={employeeId:'1',date,activityId:'class-a',schoolId:10,school:'School',program:'Program',activityType:'course',startTime:'10:00',endTime:'12:00',workHours:2,kilometers:43.12};
+ const before=structuredClone(attendance);
+ const transit=compareAttendanceRows([attendance],[dashboard]).comparisons[0];
+ assert.equal(transit.differences.some(x=>x.key==='kilometers'),false);
+ assert.equal(transit.final.kilometers,0);assert.equal(transit.final.publicTransportCost,29);
+ assert.deepEqual(attendance,before);
+ assert.equal(compareAttendanceRows([{...attendance,publicTransport:false,publicTransportCost:0}],[dashboard]).comparisons[0].differences.some(x=>x.key==='kilometers'),true);
+});
