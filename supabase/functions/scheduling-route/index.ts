@@ -648,6 +648,8 @@ function streetAddress(...candidates: unknown[]) {
 }
 
 function isRemotePayrollActivity(activity: Record<string, unknown>) {
+  if ((text(activity.activity_type) === 'הכשרה' && activity.training_mode === 'online')
+    || (text(activity.activity_type) === 'תפעול' && activity.operation_meeting_mode === 'online')) return true;
   const haystack = `${text(activity.school)} ${text(activity.activity_name || activity.program_name || activity.name)}`;
   return /zoom|זום/u.test(haystack.toLocaleLowerCase('he-IL'));
 }
@@ -815,6 +817,16 @@ function payrollSchoolSchoolPair(origin: PayrollSchool, destination: PayrollScho
   };
 }
 
+function attendanceDestinationAddress(row: Record<string, unknown>) {
+  const explicit = text(row.destination_address_snapshot);
+  if (explicit) return explicit;
+  // The training form used this legacy field for its venue. Read it only for
+  // ordinary physical training; never infer a destination from a municipality.
+  return text(row.activity_type) === 'הכשרה' && row.training_mode === 'physical'
+    && !text(row.training_schedule_id) && row.school_id == null
+    ? text(row.authority_name_snapshot) : '';
+}
+
 function genericLocationEntityKey(row: Record<string, unknown>) {
   const activityType = cacheKey(text(row.activity_type));
   const kind = activityType.includes('הכשרה')
@@ -824,14 +836,14 @@ function genericLocationEntityKey(row: Record<string, unknown>) {
       : 'external';
   const rawLabel = text(row.activity_name_snapshot || row.program_name || row.school_name_snapshot || kind);
   const label = cacheKey(rawLabel);
-  const address = cacheKey(text(row.destination_address_snapshot));
+  const address = cacheKey(attendanceDestinationAddress(row));
   if (kind === 'training' && label.replace(/\s+/g, '') === 'הכשרתבסיס') return 'training:base_training';
   if (kind === 'operation') return `operation:${rawLabel.toLowerCase().trim()}`;
   return `location:${kind}:${label}:${address}`;
 }
 
 function genericAttendanceLocation(row: Record<string, unknown>): PayrollLocation | null {
-  const address = text(row.destination_address_snapshot);
+  const address = attendanceDestinationAddress(row);
   if (!address) return null;
   return {
     authority_id: row.authority_id == null ? null : Number(row.authority_id),
@@ -1079,7 +1091,7 @@ async function loadPayrollMonthPairs(db: DbClient, month: string, employeeIds: n
   const dateColumns = Array.from({ length: 35 }, (_, index) => `date_${index + 1}`).join(',');
   const attendanceBaseQuery = db
     .from('attendance_records')
-    .select('id,emp_id,activity_row_id,report_date,start_time,activity_type,activity_name_snapshot,authority_id,authority_name_snapshot,school_id,school_name_snapshot,program_name,destination_address_snapshot,generation_kind')
+    .select('id,emp_id,activity_row_id,report_date,start_time,activity_type,activity_name_snapshot,authority_id,authority_name_snapshot,school_id,school_name_snapshot,program_name,destination_address_snapshot,generation_kind,training_mode,training_schedule_id,operation_meeting_mode')
     .gte('report_date', range.fromDate)
     .lte('report_date', range.toDate);
   const attendancePromise = employeeFilter.size
@@ -1268,6 +1280,9 @@ async function loadPayrollMonthPairs(db: DbClient, month: string, employeeIds: n
       school: text(row.school_name_snapshot || linkedActivity.school)
     };
     const remoteProbe: Record<string, unknown> = {
+      activity_type: row.activity_type,
+      training_mode: row.training_mode,
+      operation_meeting_mode: row.operation_meeting_mode,
       school: schoolSource.school,
       activity_name: text(row.activity_name_snapshot || row.program_name)
     };
