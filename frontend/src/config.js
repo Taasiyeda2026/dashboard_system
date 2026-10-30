@@ -563,8 +563,6 @@ config.HOTFIX_VERSION = 'finance-consolidated-total-payer-recipients-20261030-v1
 
 config.HOTFIX_VERSION = 'finance-blob-pdf-named-download-logo-20261030-v1-' + config.HOTFIX_VERSION;
 
-<<<<<<< HEAD
-config.HOTFIX_VERSION = 'scheduling-stale-recalc-anchors-20261030-v1-' + config.HOTFIX_VERSION;
-=======
 config.HOTFIX_VERSION = 'finance-payer-only-bulk-editor-20261030-v1-' + config.HOTFIX_VERSION;
->>>>>>> origin/main
+
+config.HOTFIX_VERSION = 'scheduling-stale-recalc-anchors-20261030-v1-' + config.HOTFIX_VERSION;
