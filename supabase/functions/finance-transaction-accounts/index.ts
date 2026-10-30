@@ -114,16 +114,11 @@ function drawLogicalRight(page: PDFPage, font: PDFFont, value: unknown, y: numbe
 function drawRight(page: PDFPage, font: PDFFont, value: string, y: number, size = 9, rightX = 565) {
   drawLogicalRight(page, font, value, y, size, rightX, 30);
 }
-function drawCell(page: PDFPage, font: PDFFont, value: string, x: number, y: number, width: number, size = 8.5) {
-  // A sponsor's invoice may span many schools: keep each school's name legible
-  // on its own line, without squeezing it beside the course title.
-  const parts = String(value ?? '').split('\n').slice(0, 2);
-  if (parts.length === 1) {
-    drawLogicalRight(page, font, parts[0], y + 7, size, x + width - 5, x + 5);
-  } else {
-    drawLogicalRight(page, font, parts[0], y + 16, size, x + width - 5, x + 5);
-    drawLogicalRight(page, font, parts[1], y + 4, size, x + width - 5, x + 5);
-  }
+function drawCell(page: PDFPage, font: PDFFont, value: string, x: number, y: number, width: number, size = 8.5, height = 25) {
+  const parts = String(value ?? '').split('\n').slice(0, 3);
+  const firstBaseline = y + (height + (parts.length - 1) * 12) / 2 - 4;
+  parts.forEach((line, index) =>
+    drawLogicalRight(page, font, line, firstBaseline - index * 12, size, x + width - 5, x + 5));
 }
 
 function drawTableRow(page: PDFPage, font: PDFFont, values: string[], widths: number[], y: number, height = 24, fill = false) {
@@ -137,7 +132,7 @@ function drawTableRow(page: PDFPage, font: PDFFont, values: string[], widths: nu
       borderColor: rgb(0.72, 0.76, 0.8),
       ...(fill ? { color: rgb(0.95, 0.97, 0.98) } : {})
     });
-    drawCell(page, font, value, x, y, width, fill ? 8.2 : 8.5);
+    drawCell(page, font, value, x, y, width, fill ? 8.2 : 8.5, height);
   });
 }
 
@@ -266,7 +261,7 @@ async function buildPdf(account: any) {
     rows: InvoiceRenderRow[], values: (row: InvoiceRenderRow) => string[]) => {
     if (!rows.length) return;
     const headerHeight = 25;
-    const rowHeight = 30;
+    const rowHeight = 34;
     if (y < 55 + headerHeight + rowHeight + 22) {
       page = doc.addPage([595, 842]);
       y = 800;
@@ -291,14 +286,26 @@ async function buildPdf(account: any) {
     row.school ? (consolidatedFunder ? `${row.name}\n${row.school}` : `${row.name} - ${row.school}`) : row.name;
   const count = (number: number) => Number.isInteger(number)
     ? String(number) : String(Number(number.toFixed(2)));
+  // Use the *same four-column invoice grid* for courses, workshops and tours.
+  // Course-only metadata (Gefen number + meeting count) stays visible in the
+  // second description line rather than crowding the invoice with six columns.
+  const commonWidths = [265, 65, 100, 105];
+  const courseDetails = (row: InvoiceRenderRow) => {
+    const metadata = [
+      row.school,
+      row.gefen ? `מס' גפ״ן ${row.gefen}` : '',
+      `${count(row.quantity)} מפגשים`
+    ].filter(Boolean).join(' · ');
+    return [row.name, metadata].filter(Boolean).join('\n');
+  };
   drawSection('קורסים',
-    ['תוכנית / קורס', 'מספר גפ״ן', 'שעות', 'מפגשים', 'מחיר לשעה', 'סה״כ'],
-    [190, 62, 48, 50, 95, 90], courses,
-    (row) => [displayName(row), row.gefen || '—', count(row.hours),
-      count(row.quantity), money(row.hourlyPrice), money(row.amount)]);
+    ['תוכנית / קורס', 'שעות', 'מחיר לשעה', 'סה״כ'],
+    commonWidths, courses,
+    (row) => [courseDetails(row), count(row.hours),
+      money(row.hourlyPrice), money(row.amount)]);
   drawSection('סדנאות וסיורים',
     ['פעילות', 'כמות', 'מחיר ליחידה', 'סה״כ'],
-    [265, 65, 100, 105], services,
+    commonWidths, services,
     (row) => [displayName(row), count(row.quantity), money(row.unitPrice), money(row.amount)]);
   // Invoices never reveal funding source, activity-completion period or
   // internal meeting-level billing details; those remain in the database.
