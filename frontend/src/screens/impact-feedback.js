@@ -173,6 +173,7 @@ const ui = {
   programs: [],
   facts: null,
   factsYear: null,
+  questionnaireFacts: null,
   instructorReviewItems: [],
   groupFacts: new Map(),
   openForms: new Set(),
@@ -478,11 +479,12 @@ async function ensureFacts(force = false) {
   const task = (async () => {
     try {
       const [rows, extendedItems] = await Promise.all([
-        fetchAnswerFacts({ academic_year: year }),
+        fetchAnswerFacts({ academic_year: year, __complete_questionnaires: true }),
         fetchInstructorReviewItems(year)
       ]);
       if (year !== ui.year) return;
-      ui.facts = rows;
+      ui.questionnaireFacts = rows;
+      ui.facts = rows.filter((fact) => fact.answer_id != null);
       ui.instructorReviewItems = extendedItems;
       ui.factsYear = year;
     } finally {
@@ -578,6 +580,11 @@ function needsReady() {
 /** The half-year view has one source of truth for facts on every tab. */
 function semesterFacts() {
   return filterFeedbackFactsForHalf(ui.facts || [], ui.groups || [], ui.instructorAssignments || [], ui.feedbackHalf);
+}
+
+/** Complete version snapshots for raw forms, including unanswered questions. */
+function semesterQuestionnaireFacts() {
+  return filterFeedbackFactsForHalf(ui.questionnaireFacts || [], ui.groups || [], ui.instructorAssignments || [], ui.feedbackHalf);
 }
 
 /** Facts of the selected course and selected scheduling half. */
@@ -1566,7 +1573,7 @@ function analysisFiltersHtml() {
 
 /** Instructor choices reflect actual submitted forms in the selected course and half. */
 function instructorAnswersFilterHtml(stage) {
-  const people = groupInstructorFullResponses(semesterFacts(), {
+  const people = groupInstructorFullResponses(semesterQuestionnaireFacts(), {
     stage, programKey: ui.course, assignments: ui.instructorAssignments || []
   });
   return '<label class="ifb-field"><span>מדריך</span><select data-a="instructor">' +
@@ -1594,6 +1601,7 @@ function completeInstructorAnswerValueHtml(fact) {
   }
   if (fact.question_type === 'free_text' || fact.value_text != null) {
     const answer = String(fact.value_text ?? '');
+    if (!answer) return '<span class="ifb-muted">לא נענה</span>';
     return '<div class="ifb-full-answer-raw" dir="auto">' + esc(answer) + '</div>' +
       (fact.question_type === 'free_text' && hasArabicAnswerText(answer)
         ? '<button type="button" class="ifb-btn ifb-btn--sm ifb-full-answer-translate" ' +
@@ -1607,7 +1615,7 @@ function completeInstructorAnswerValueHtml(fact) {
 
 /** Every question and its original reply; no averages, shared-question threshold or truncation. */
 function instructorFullResponsesHtml() {
-  const people = groupInstructorFullResponses(semesterFacts(), {
+  const people = groupInstructorFullResponses(semesterQuestionnaireFacts(), {
     programKey: ui.course,
     stage: ui.analysis.stage,
     instructorKey: ui.analysis.instructor,
@@ -1649,7 +1657,7 @@ function instructorFullResponsesHtml() {
 
 /** Only contacts and school groups with submitted answers appear in the selectors. */
 function staffAnswersFilterHtml(stage) {
-  const people = groupEducationalStaffFullResponses(semesterFacts(), { stage, programKey: ui.course });
+  const people = groupEducationalStaffFullResponses(semesterQuestionnaireFacts(), { stage, programKey: ui.course });
   return '<label class="ifb-field"><span>איש קשר</span><select data-a="contact">' +
     '<option value="">כל אנשי הקשר</option>' +
     people.map((person) => '<option value="' + esc(person.key) + '"' +
@@ -1658,7 +1666,7 @@ function staffAnswersFilterHtml(stage) {
 }
 
 function studentAnswersFilterHtml(stage) {
-  const courses = groupStudentFullResponses(semesterFacts(), { stage, programKey: ui.course });
+  const courses = groupStudentFullResponses(semesterQuestionnaireFacts(), { stage, programKey: ui.course });
   const groups = new Map();
   for (const course of courses) for (const group of course.groups) {
     if (!groups.has(group.key)) groups.set(group.key,
@@ -1684,7 +1692,7 @@ function completeFeedbackFormHtml(response, { audience, index = 0 } = {}) {
 }
 
 function staffFullResponsesHtml() {
-  const people = groupEducationalStaffFullResponses(semesterFacts(), {
+  const people = groupEducationalStaffFullResponses(semesterQuestionnaireFacts(), {
     programKey: ui.course, stage: ui.analysis.stage, contactKey: ui.analysis.contact
   });
   const total = people.reduce((sum, person) => sum +
@@ -1708,7 +1716,7 @@ function staffFullResponsesHtml() {
 }
 
 function studentFullResponsesHtml() {
-  const courses = groupStudentFullResponses(semesterFacts(), {
+  const courses = groupStudentFullResponses(semesterQuestionnaireFacts(), {
     programKey: ui.course, stage: ui.analysis.stage, groupKey: ui.analysis.group
   }).filter((course) => course.groups.length);
   const total = courses.reduce((sum, course) => sum +
@@ -2606,6 +2614,7 @@ function campaignById(id) {
 /** Collection figures and results change with every campaign action. */
 function invalidateAggregates() {
   ui.facts = null;
+  ui.questionnaireFacts = null;
   ui.summary = null;
   ui.factsYear = null;
   ui.summaryYear = null;
@@ -2722,7 +2731,7 @@ async function handleClick(host, event) {
   if (moreStudent) {
     const courseKey = moreStudent.dataset.ifbStudentMore;
     const groupKey = moreStudent.dataset.ifbStudentGroup;
-    const group = groupStudentFullResponses(semesterFacts(), {
+    const group = groupStudentFullResponses(semesterQuestionnaireFacts(), {
       programKey: courseKey, stage: ui.analysis.stage, groupKey
     }).find((course) => course.programKey === courseKey)?.groups.find((item) => item.key === groupKey);
     if (!group) return;
@@ -3059,6 +3068,7 @@ function resetYearScopedState() {
   ui.instructorAssignmentsYear = null;
   ui.summary = null;
   ui.facts = null;
+  ui.questionnaireFacts = null;
   ui.summaryYear = null;
   ui.factsYear = null;
   ui.summaryHalf = null;
