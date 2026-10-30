@@ -318,6 +318,12 @@ jobs:
           PLANNING_INVALIDATION_REQUIRE_DB: '1'
         run: node --test tests/course-scheduling-checkpoint-commit-postgres.test.mjs
 
+      # Admission has its own disposable database; never tests against production.
+      - name: Verify safe automatic scheduling admission against isolated PostgreSQL
+        env:
+          SCHEDULING_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dashboard_test
+        run: node --test tests/scheduling-agent-durable-postgres.test.mjs
+
       # Staff-feedback tests rebuild their own disposable Postgres schema.
       # Run after the planning checks, never in parallel on the same database.
       - name: Test staff feedback 20 November completion against PostgreSQL 16
