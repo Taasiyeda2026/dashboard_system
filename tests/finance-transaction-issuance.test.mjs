@@ -113,7 +113,38 @@ test('a sponsor invoice spanning two schools never receives unrelated school con
   ],{transactionMonths:{manual:'2026-09'},transactionManualSelected:{'w1:g:2026-09-01':true,'w2:g:2026-09-01':true}});
   const groups=transactionPreviewForVisit(selected,'manual').accounts;
   assert.equal(groups.length,1);
+  assert.equal(groups[0].institutionSymbol,'','a sponsor invoice must not inherit any school symbol');
+  assert.equal(groups[0].lines.length,2);
   assert.deepEqual(groups[0].customerEmails,[]);
+});
+test('Gefen continues issuing separate accounts for each school, even across a shared billing month',()=>{
+  const preview=transactionPreviewForVisit(data([
+    row({activityRowId:'a',institutionSymbol:'111',payerKey:'school:a'}),
+    row({activityRowId:'b',institutionSymbol:'222',payerKey:'school:b'})
+  ]),'automatic');
+  assert.equal(preview.accounts.length,2);
+  assert.deepEqual(preview.accounts.map(x=>x.institutionSymbol).sort(),['111','222']);
+});
+test('one sponsor with two completed activities across different schools creates one account for issuance',async()=>{
+  const lines=[
+    row({gefenFunding:false,activityRowId:'s1',fundingSourceId:'sponsor',institutionSymbol:'111',
+      payerKey:'funding:sponsor',payerName:'חברת תעשייה',customerName:'בית ספר א',issuableAmount:1250}),
+    row({gefenFunding:false,activityRowId:'s2',fundingSourceId:'sponsor',institutionSymbol:'222',
+      payerKey:'funding:sponsor',payerName:'חברת תעשייה',customerName:'בית ספר ב',issuableAmount:1500})
+  ];
+  const selected=Object.fromEntries(lines.map(line=>[transactionSelectionKey(line),true]));
+  const d=data(lines,{transactionMonths:{manual:'2026-09'},transactionManualSelected:selected});
+  const preview=transactionPreviewForVisit(d,'manual');
+  assert.equal(preview.accounts.length,1);
+  assert.equal(preview.accounts[0].totalAmount,2750);
+  const requests=[];
+  await runTransactionIssuance(d,{
+    reserveFinanceTransactionAccount:async p=>{requests.push(p);return{id:'one'};},
+    dispatchFinanceTransactionAccount:async()=>({})
+  },'manual');
+  assert.equal(requests.length,1);
+  assert.equal(requests[0].lines.length,2);
+  assert.equal(requests[0].institutionSymbol,'');
 });
 
 test('a tour is one quantity, not a course meeting or 1.5 billing hours',()=>{
