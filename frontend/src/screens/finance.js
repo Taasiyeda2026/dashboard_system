@@ -20,7 +20,7 @@ import {
 import { activityRowId, normalizeFinanceCollectionTab } from './finance-collection.js';
 import { financeError } from './finance-errors.js';
 import { financeAccountBalances, paymentsBodyHtml, receiptsHtml, accountPaymentAllocation } from './finance-payments.js';
-import { prepareManualAccount, updateManualDraft, manualFilteredActivities, selectedManualActivityIds, toggleManualActivity, toggleAllVisibleManualActivities, syncManualActivitySelectionUi, normalizeManualRecipientEmails, focusManualActivity, saveActiveManualDraft, previewSelectedManualAccounts, runSelectedManualAccounts, syncManualPdfPreviewDom, clearManualPdfPreviewUrls } from './finance-manual-account.js';
+import { prepareManualAccount, updateManualDraft, manualFilteredActivities, selectedManualActivityIds, toggleManualActivity, toggleAllVisibleManualActivities, syncManualActivitySelectionUi, normalizeManualRecipientEmails, updateManualConsolidatedField, focusManualActivity, saveActiveManualDraft, previewSelectedManualAccounts, runSelectedManualAccounts, syncManualPdfPreviewDom, clearManualPdfPreviewUrls } from './finance-manual-account.js';
 import { financeToday } from './finance-transaction-accounts.js';
 import {
   handleTransactionSelection,
@@ -124,6 +124,7 @@ export function createFinanceVisitState(now = new Date()) {
     manualActivityDrafts: {},
     manualBatchPreviews: null,
     manualConsolidatedPreview: null,
+    manualBulkEditingActivityId: '',
     manualFunderRecipientEmail: '',
     manualSelectionExpanded: false,
     transactionManualSelected: {},
@@ -606,6 +607,7 @@ export const financeScreen = {
           await runSelectedManualAccounts(visit, api);
           visit.manualQuote = null; visit.manualPdf = ''; visit.manualBatchPreviews = null; visit.manualConsolidatedPreview = null;
           visit.manualSelectedActivityIds = []; visit.manualActivityDrafts = {};
+          visit.manualBulkEditingActivityId = '';
           visit.manualActivityId = ''; visit.manualFundingKey = ''; visit.manualDraft = null;
           visit.transactionTab = 'history';
         }); return;
@@ -770,6 +772,7 @@ export const financeScreen = {
         visit.manualSelectedActivityIds = [];
         visit.manualActivityDrafts = {};
         visit.manualFunderRecipientEmail = '';
+        visit.manualBulkEditingActivityId = '';
         visit.manualActivityId = '';
         visit.manualFundingKey = '';
         visit.manualDraft = null;
@@ -791,9 +794,26 @@ export const financeScreen = {
       }
       const manualActivity = ev.target.closest('[data-finance-manual-activity]');
       if (manualActivity) {
-        if (manualActivity.value) toggleManualActivity(visit, manualActivity.value, true);
-        else toggleManualActivity(visit, visit.manualActivityId, false);
+        if (manualActivity.value) {
+          if (selectedManualActivityIds(visit).includes(manualActivity.value)) focusManualActivity(visit, manualActivity.value);
+          else toggleManualActivity(visit, manualActivity.value, true);
+          visit.manualBulkEditingActivityId = manualActivity.value;
+        } else if (selectedManualActivityIds(visit).length > 1) {
+          visit.manualBulkEditingActivityId = '';
+        } else {
+          toggleManualActivity(visit, visit.manualActivityId, false);
+        }
         syncManualActivitySelectionUi(root, visit); return;
+      }
+      const bulkField = ev.target.closest('[data-finance-manual-bulk-field]');
+      if (bulkField) {
+        if (bulkField.dataset.financeManualBulkField === 'customer_email') {
+          bulkField.value = normalizeManualRecipientEmails(bulkField.value);
+        }
+        if (!bulkField.checkValidity()) { bulkField.reportValidity(); return; }
+        updateManualConsolidatedField(visit, bulkField.dataset.financeManualBulkField, bulkField.value);
+        syncManualActivitySelectionUi(root, visit);
+        return;
       }
       const manualFunding = ev.target.closest('[data-finance-manual-funding]');
       if (manualFunding) { prepareManualAccount(visit, visit.manualActivityId, manualFunding.value); saveActiveManualDraft(visit); visit.manualBatchPreviews = null; syncManualActivitySelectionUi(root, visit); return; }
