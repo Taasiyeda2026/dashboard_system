@@ -124,6 +124,7 @@ export function createFinanceVisitState(now = new Date()) {
     manualActivityDrafts: {},
     manualBatchPreviews: null,
     manualConsolidatedPreview: null,
+    manualFunderRecipientEmail: '',
     manualSelectionExpanded: false,
     transactionManualSelected: {},
     transactionActionMessage: '',
@@ -768,6 +769,7 @@ export const financeScreen = {
         visit.manualFunderFilter = funderFilter.value || '';
         visit.manualSelectedActivityIds = [];
         visit.manualActivityDrafts = {};
+        visit.manualFunderRecipientEmail = '';
         visit.manualActivityId = '';
         visit.manualFundingKey = '';
         visit.manualDraft = null;
