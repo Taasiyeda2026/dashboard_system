@@ -26,6 +26,12 @@ function ensureNoEndDateTab(root = document) {
 
   root.querySelectorAll?.('.ds-fin-tabs[role="tablist"]').forEach((tabList) => {
     if (!tabList.closest('.ds-fin-collect-shell')) return;
+    // Only the legacy collection tabs may have a "no end date" filter.
+    // Transaction accounts reuse the same visual tab style, but are not collection tabs.
+    if (!tabList.querySelector('[data-finance-collection-tab="open"], [data-finance-collection-tab="closed"]')) {
+      tabList.querySelector(`[data-finance-collection-tab="${TAB_VALUE}"]`)?.remove();
+      return;
+    }
     let button = tabList.querySelector(`[data-finance-collection-tab="${TAB_VALUE}"]`);
     if (!button) {
       button = tabList.ownerDocument.createElement('button');
