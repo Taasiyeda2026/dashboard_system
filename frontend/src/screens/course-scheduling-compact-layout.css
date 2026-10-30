@@ -1045,3 +1045,29 @@
   background: var(--cs-surface);
   box-shadow: none;
 }
+
+/* Readable, dashboard-consistent paging instead of browser-default miniature buttons. */
+.course-scheduling-screen.is-simple-workboard [data-course-list-body] > nav.course-scheduling-detail-actions {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 8px 12px;
+  color: var(--cs-text-muted);
+  font-size: .8rem;
+}
+.course-scheduling-screen.is-simple-workboard [data-course-list-body] > nav.course-scheduling-detail-actions button {
+  min-height: 30px;
+  padding: 4px 10px;
+  border: 1px solid var(--cs-border-strong);
+  border-radius: 6px;
+  background: var(--cs-surface);
+  color: var(--cs-text);
+  font: inherit;
+  cursor: pointer;
+}
+.course-scheduling-screen.is-simple-workboard [data-course-list-body] > nav.course-scheduling-detail-actions button:disabled {
+  opacity: .42;
+  cursor: default;
+}
