@@ -336,3 +336,5 @@ jobs:
         run: node --test tests/finance-billing-edge.test.mjs tests/finance-pdf-dispatch-grants.test.mjs
       - name: Verify invoice recipient mapping and email privacy
         run: node --test tests/finance-invoice-recipients.test.mjs tests/finance-transaction-issuance.test.mjs
+      - name: Verify billing administrator role in client file
+        run: node --test tests/client-file-invoice-recipient.test.mjs

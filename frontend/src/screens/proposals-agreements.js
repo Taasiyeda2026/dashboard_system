@@ -10,6 +10,8 @@ import { hasPermission } from '../permission-policy.js';
 import { ProposalEditorController } from '../proposal-editor-controller.js';
 import { ensureFeature } from '../feature-loaders.js';
 import { externalClientDocumentsHtml, mountClientExternalDocuments } from '../client-file-external-documents.js';
+import { supabase } from '../supabase-client.js';
+import { clientFileWithInvoiceRecipient, clientInvoiceRecipientRole } from '../client-file-invoice-recipient.js';
 
 export { countPendingApprovedProposals, isProposalApprovedPendingSend };
 
@@ -5864,13 +5866,15 @@ function clientContactsHtml(file = {}, canManage = false) {
   if (!file.contacts.length) return '<p class="ds-client-empty">לא הוגדרו אנשי קשר לתיק זה.</p>';
   return file.contacts.map((contact, index) => {
     const name = text(contact.contact_name) || 'איש קשר';
-    const role = text(contact.contact_role) || 'ללא תפקיד';
+    const role = clientInvoiceRecipientRole(contact.contact_role, contact.invoice_recipient);
     const phone = contactPhonePresentation(contact);
     const email = text(contact.email);
-    return `<article class="ds-client-contact">
+    const billingEmail = text(contact.invoice_recipient_email);
+    const additionalBillingEmail = contact.invoice_recipient && billingEmail && billingEmail.toLowerCase() !== email.toLowerCase();
+    return `<article class="ds-client-contact"${contact.invoice_recipient ? ' data-pa-invoice-recipient' : ''}>
     <div class="ds-client-contact__identity"><strong>${escapeHtml(name)}</strong><span>${escapeHtml(role)}</span></div>
-    <div class="ds-client-contact__channels">${phone.value ? `<span>${escapeHtml(phone.label)}: <a href="tel:${escapeHtml(phone.value)}">${escapeHtml(phone.value)}</a></span>` : '<span>אין טלפון</span>'}${email ? `<a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a>` : '<span>אין דוא״ל</span>'}</div>
-    ${canManage ? `<div class="ds-client-contact__actions"><button type="button" data-pa-client-edit-contact="${index}" title="עריכת איש קשר" aria-label="עריכת איש קשר">✎</button><button type="button" data-pa-client-delete-contact="${index}" title="הסרת איש קשר" aria-label="הסרת איש קשר">🗑</button></div>` : ''}
+    <div class="ds-client-contact__channels">${phone.value ? `<span>${escapeHtml(phone.label)}: <a href="tel:${escapeHtml(phone.value)}">${escapeHtml(phone.value)}</a></span>` : '<span>אין טלפון</span>'}${email ? `<a href="mailto:${escapeHtml(email)}">${escapeHtml(email)}</a>` : '<span>אין דוא״ל</span>'}${additionalBillingEmail ? `<span>דוא״ל לחשבון עסקה: <a href="mailto:${escapeHtml(billingEmail)}">${escapeHtml(billingEmail)}</a></span>` : ''}</div>
+    ${canManage && !contact.invoice_recipient_virtual ? `<div class="ds-client-contact__actions"><button type="button" data-pa-client-edit-contact="${index}" title="עריכת איש קשר" aria-label="עריכת איש קשר">✎</button><button type="button" data-pa-client-delete-contact="${index}" title="הסרת איש קשר" aria-label="הסרת איש קשר">🗑</button></div>` : ''}
   </article>`;
   }).join('');
 }
@@ -6827,11 +6831,28 @@ export const proposalsAgreementsScreen = {
       rows: [...clientHomeSnapshot.rows, ...clientSearchServerRows],
       contactOptions
     });
-    const currentClientFile = () => buildClientFiles({
-      ...data,
-      rows: [...(Array.isArray(data.rows) ? data.rows : []), ...clientSearchServerRows],
-      contactOptions
-    }).find((file) => file.key === selectedClientKey) || null;
+    const invoiceRecipientCache = new Map();
+    const loadClientInvoiceRecipient = async (file) => {
+      const schoolId = String(file?.school_id ?? '').trim();
+      if (!schoolId || invoiceRecipientCache.has(schoolId) || !supabase) return;
+      const { data: recipient, error } = await supabase
+        .from('finance_school_invoice_recipients')
+        .select('school_id,recipient_name,recipient_email,recipient_mobile,contact_id')
+        .eq('school_id', schoolId)
+        .maybeSingle();
+      if (error) throw error;
+      invoiceRecipientCache.set(schoolId, recipient || null);
+    };
+    const currentClientFile = () => {
+      const file = buildClientFiles({
+        ...data,
+        rows: [...(Array.isArray(data.rows) ? data.rows : []), ...clientSearchServerRows],
+        contactOptions
+      }).find((candidate) => candidate.key === selectedClientKey) || null;
+      if (!file) return null;
+      const billingRecipient = invoiceRecipientCache.get(String(file.school_id || ''));
+      return clientFileWithInvoiceRecipient(file, billingRecipient);
+    };
     const fillProposalDetailItems = async (row) => {
       const id = text(row?.id);
       const itemsHost = clientWorkspace?.querySelector('[data-pa-drawer-items]');
@@ -7047,6 +7068,10 @@ export const proposalsAgreementsScreen = {
       const selectedFile = currentClientFile();
       if (typeof api.proposalsAgreements === 'function') {
         await loadSelectedClientProposals(selectedFile);
+      }
+      if (selectedFile?.school_id) {
+        try { await loadClientInvoiceRecipient(selectedFile); }
+        catch (error) { console.warn('[client-file] invoice recipient lookup failed', error); }
       }
       if (signal.aborted || !root.isConnected) return;
       proposalDetailContext = null;
