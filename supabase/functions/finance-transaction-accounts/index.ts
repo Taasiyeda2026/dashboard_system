@@ -114,13 +114,12 @@ function drawLogicalRight(page: PDFPage, font: PDFFont, value: unknown, y: numbe
 function drawRight(page: PDFPage, font: PDFFont, value: string, y: number, size = 9, rightX = 565) {
   drawLogicalRight(page, font, value, y, size, rightX, 30);
 }
-function drawCell(page: PDFPage, font: PDFFont, value: string, x: number, y: number, width: number, size = 8.5, height = 25) {
-  // Seven-column course rows have narrower school/course cells. Wrap names
-  // into up to three readable lines instead of shrinking text to invisibility.
+// Calculate wrapping once, then size each row to its real contents. Normal
+// invoice rows stay compact; only long school/course names grow modestly.
+function invoiceCellLines(font: PDFFont, value: string, width: number, size: number): string[] {
   const maxWidth = width - 10;
   const lines: string[] = [];
-  const explicit = String(value ?? '').split('\n');
-  for (const text of explicit) {
+  for (const text of String(value ?? '').split('\n')) {
     const words = text.trim().split(/\s+/).filter(Boolean);
     if (!words.length) { lines.push(''); continue; }
     let current = '';
@@ -135,8 +134,16 @@ function drawCell(page: PDFPage, font: PDFFont, value: string, x: number, y: num
     }
     if (current) lines.push(current);
   }
-  const parts = lines.slice(0, 3);
-  const lineSpacing = height >= 40 ? 11 : 12;
+  return lines.slice(0, 3);
+}
+function invoiceRowHeight(font: PDFFont, values: string[], widths: number[], size = 8.5): number {
+  const mostLines = Math.max(1, ...values.map((value, index) =>
+    invoiceCellLines(font, value, widths[index], size).length));
+  return 25 + (mostLines - 1) * 9; // 25 / 34 / 43 pt, never 43 for every course
+}
+function drawCell(page: PDFPage, font: PDFFont, value: string, x: number, y: number, width: number, size = 8.5, height = 25) {
+  const parts = invoiceCellLines(font, value, width, size);
+  const lineSpacing = 10.5;
   const firstBaseline = y + (height + (parts.length - 1) * lineSpacing) / 2 - 4;
   parts.forEach((line, index) =>
     drawLogicalRight(page, font, line, firstBaseline - index * lineSpacing, size, x + width - 5, x + 5));
@@ -247,7 +254,7 @@ async function buildPdf(account: any) {
   // A single letterhead for every account type, matching the workshop invoice
   // reference: logo left, publisher details right, divider, document title,
   // date, customer and academic-year heading. Repeat on continuation pages.
-  const drawInvoiceHeader = (targetPage: PDFPage): number => {
+  const drawInvoiceHeader = (targetPage: PDFPage, continuation = false): number => {
     const logoScale = Math.min(132 / logo.width, 70 / logo.height);
     const logoWidth = logo.width * logoScale;
     const logoHeight = logo.height * logoScale;
@@ -267,9 +274,12 @@ async function buildPdf(account: any) {
     });
 
     drawRight(targetPage, bold, draft
-      ? 'טיוטת חשבון עסקה | לבדיקה בלבד'
-      : `חשבון עסקה מס׳ ${account.transaction_account_number} | מקור`, 687, 17);
+      ? (continuation ? 'טיוטת חשבון עסקה | המשך' : 'טיוטת חשבון עסקה | לבדיקה בלבד')
+      : `חשבון עסקה מס׳ ${account.transaction_account_number} | ${continuation ? 'המשך' : 'מקור'}`, 687, 17);
     drawRight(targetPage, regular, `תאריך הפקה: ${date(account.issue_date)}`, 659, 10);
+    // Recipient/customer information belongs to the first page ONLY.
+    // Do not repeat "לכבוד" above bank details on a continuation page.
+    if (continuation) return 625;
     drawRight(targetPage, bold, `לכבוד: ${account.customer_name_snapshot}`, 629, 11);
 
     if (clean(account.institution_symbol)) {
@@ -294,26 +304,28 @@ async function buildPdf(account: any) {
     rows: InvoiceRenderRow[], values: (row: InvoiceRenderRow) => string[]) => {
     if (!rows.length) return;
     const headerHeight = columns.length === 7 ? 30 : 25;
-    const rowHeight = columns.length === 7 ? 43 : 34;
-    if (y < 55 + headerHeight + rowHeight + 22) {
+    const firstRowHeight = invoiceRowHeight(regular, values(rows[0]), widths);
+    if (y < 55 + headerHeight + firstRowHeight + 22) {
       page = doc.addPage([595, 842]);
-      y = drawInvoiceHeader(page);
+      y = drawInvoiceHeader(page, true);
     }
     drawRight(page, bold, title, y, 11);
     y -= 23;
     drawTableRow(page, bold, columns, widths, y - headerHeight, headerHeight, true);
     y -= headerHeight;
     for (const row of rows) {
+      const cellValues = values(row);
+      const rowHeight = invoiceRowHeight(regular, cellValues, widths);
       if (y < 55 + rowHeight) {
         page = doc.addPage([595, 842]);
-        y = drawInvoiceHeader(page);
+        y = drawInvoiceHeader(page, true);
         drawTableRow(page, bold, columns, widths, y - headerHeight, headerHeight, true);
         y -= headerHeight;
       }
-      drawTableRow(page, regular, values(row), widths, y - rowHeight, rowHeight, false);
+      drawTableRow(page, regular, cellValues, widths, y - rowHeight, rowHeight, false);
       y -= rowHeight;
     }
-    y -= 22;
+    y -= 17;
   };
   const displayName = (row: InvoiceRenderRow) =>
     row.school ? (consolidatedFunder ? `${row.name}\n${row.school}` : `${row.name} - ${row.school}`) : row.name;
@@ -336,12 +348,17 @@ async function buildPdf(account: any) {
   // Invoices never reveal funding source, activity-completion period or
   // internal meeting-level billing details; those remain in the database.
 
-  // The payment block occupies about 110 pt. Three short items fit on a
-  // single A4 page with a 35 pt bottom margin; do not create a mostly empty
-  // second page for a 3-line invoice.
-  if (y < 145) { page = doc.addPage([595, 842]); y = drawInvoiceHeader(page); }
+  // Keep payment details together. On a payment-only continuation page use
+  // only the document heading, never a second "לכבוד" customer block.
+  if (y < 173) { page = doc.addPage([595, 842]); y = drawInvoiceHeader(page, true); }
   drawRight(page, bold, `סה"כ לתשלום: ${money(account.total_amount)}`, y, 13); y -= 26;
-  drawRight(page, bold, `לתשלום עד: ${date(account.payment_due_date)}`, y, 11); y -= 30;
+  drawRight(page, bold, `לתשלום עד: ${date(account.payment_due_date)}`, y, 11); y -= 27;
+  // A quiet separator between the total/due date and the bank transfer info.
+  page.drawLine({
+    start: { x: 30, y: y + 7 }, end: { x: 565, y: y + 7 },
+    thickness: 0.6, color: rgb(0.86, 0.89, 0.92)
+  });
+  y -= 11;
   drawRight(page, bold, 'פרטי חשבון בנק להעברה:', y, 10); y -= 17;
   drawRight(page, regular, 'בנק הפועלים 12  |  סניף 500 הרימון  |  חשבון 300120', y, 10); y -= 19;
   drawRight(page, regular, 'או בשיק לפקודת: תעשיידע - תעשייה למען חינוך מתקדם ע"ר', y, 10); y -= 19;
