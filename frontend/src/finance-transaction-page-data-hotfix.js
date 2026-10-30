@@ -112,7 +112,23 @@ async function readFinanceActivityContacts(rows = []) {
   return [...new Map([...linked, ...schoolContacts].map((row) => [String(row.id), row])).values()];
 }
 
-function applyResolvedActivityContact(row = {}, contacts = []) {
+
+async function readFinanceInvoiceRecipients(rows = []) {
+  const schoolIds = [...new Set(rows.map(row => Number(row.school_id)).filter(Number.isSafeInteger))];
+  if (!schoolIds.length) return [];
+  const recipients = [];
+  for (let i = 0; i < schoolIds.length; i += CONTACT_BATCH_SIZE) {
+    const { data, error } = await supabase
+      .from('finance_school_invoice_recipients')
+      .select('school_id,recipient_name,recipient_email,contact_id')
+      .in('school_id', schoolIds.slice(i, i + CONTACT_BATCH_SIZE));
+    if (error) throw error;
+    recipients.push(...(data || []));
+  }
+  return recipients;
+}
+
+function applyResolvedActivityContact(row = {}, contacts = [], invoiceRecipients = []) {
   const active = contacts.filter(contactIsActive);
   const savedId = text(row.school_contact_id);
   let selected = savedId
@@ -125,15 +141,39 @@ function applyResolvedActivityContact(row = {}, contacts = []) {
       ? active.filter((contact) => text(contact.school_id) === schoolId)
       : [];
     if (matches.length === 1) selected = matches[0];
+    else if (matches.length > 1) {
+      // Importing the administrator must not erase the previously resolvable
+      // sole activity contact when there is exactly one non-administrator.
+      const nonAdministrators = matches.filter(contact =>
+        !['מנהלנית', 'מנהלן', 'מנהלן/ית'].includes(text(contact.contact_role)));
+      if (nonAdministrators.length === 1) selected = nonAdministrators[0];
+    }
   }
 
   const resolvedEmail = text(selected?.email) || text(row.contact_email);
+  // The payer's invoice recipient is explicitly assigned by institution symbol.
+  // A principal may be that recipient; never infer the billing role from a job title.
+  const designated = invoiceRecipients.find(recipient =>
+    text(recipient.school_id) === text(row.school_id));
+  const schoolAdministrators = !designated ? active.filter(contact =>
+    text(contact.school_id) === text(row.school_id)
+    && ['מנהלנית', 'מנהלן', 'מנהלן/ית'].includes(text(contact.contact_role))
+    && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text(contact.email))) : [];
+  const distinctAdminEmails = [...new Set(schoolAdministrators.map(contact => text(contact.email).toLowerCase()))];
+  const administrator = distinctAdminEmails.length === 1
+    ? schoolAdministrators.find(contact => text(contact.email).toLowerCase() === distinctAdminEmails[0])
+    : null;
+  const designatedEmail = text(designated?.recipient_email);
   return {
     ...row,
     resolved_contact_email: resolvedEmail,
     resolved_contact_name: text(selected?.contact_name) || text(row.contact_name),
     resolved_contact_phone: text(selected?.mobile) || text(selected?.phone) || text(row.contact_phone),
     resolved_contact_role: text(selected?.contact_role) || text(row.contact_role),
+    finance_administrator_email: designatedEmail || text(administrator?.email),
+    finance_administrator_name: text(designated?.recipient_name) || text(administrator?.contact_name),
+    finance_administrator_id: designated?.contact_id ?? administrator?.id ?? null,
+    finance_administrator_ambiguous: distinctAdminEmails.length > 1,
     contact_email: resolvedEmail
   };
 }
@@ -150,8 +190,8 @@ function patchFinanceApi(targetApi) {
         : filters;
       const result = await originalAllActivities(patchedFilters);
       if (!financeRequest || !Array.isArray(result?.rows)) return result;
-      const contacts = await readFinanceActivityContacts(result.rows);
-      return { ...result, rows: result.rows.map((row) => applyResolvedActivityContact(row, contacts)) };
+      const [contacts, invoiceRecipients] = await Promise.all([readFinanceActivityContacts(result.rows), readFinanceInvoiceRecipients(result.rows)]);
+      return { ...result, rows: result.rows.map((row) => applyResolvedActivityContact(row, contacts, invoiceRecipients)) };
     };
   }
 
@@ -159,8 +199,8 @@ function patchFinanceApi(targetApi) {
   if (originalFinanceActivities) {
     targetApi.listFinanceActivities = async (filters = {}) => {
       const result = await originalFinanceActivities({ ...filters, select: financeActivitySelect(filters.select) });
-      const contacts = await readFinanceActivityContacts(result.rows || []);
-      return { ...result, rows: (result.rows || []).map((row) => applyResolvedActivityContact(row, contacts)) };
+      const [contacts, invoiceRecipients] = await Promise.all([readFinanceActivityContacts(result.rows || []), readFinanceInvoiceRecipients(result.rows || [])]);
+      return { ...result, rows: (result.rows || []).map((row) => applyResolvedActivityContact(row, contacts, invoiceRecipients)) };
     };
   }
 
@@ -185,5 +225,6 @@ export {
   isFinanceActivityRequest,
   patchFinanceApi,
   readAllPages,
-  readFinanceActivityContacts
+  readFinanceActivityContacts,
+  readFinanceInvoiceRecipients
 };
