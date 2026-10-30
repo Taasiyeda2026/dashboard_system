@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { manualAccountViewHtml,prepareManualAccount,updateManualDraft,runManualAccount,manualFundingFilterOptions,manualFilteredActivities,toggleManualActivity,focusManualActivity,saveActiveManualDraft,previewSelectedManualAccounts,runSelectedManualAccounts,formatManualMoney,parseManualMoney,normalizeManualRecipientEmails,manualSelectedFundingSummary,manualSelectionSnapshot,updateManualConsolidatedField,manualPdfPreviewFilename,syncManualPdfPreviewDom,clearManualPdfPreviewUrls,manualConsolidatedActivityRows } from '../frontend/src/screens/finance-manual-account.js';
+import { manualAccountViewHtml,prepareManualAccount,updateManualDraft,runManualAccount,manualFundingFilterOptions,manualFilteredActivities,toggleManualActivity,focusManualActivity,saveActiveManualDraft,previewSelectedManualAccounts,runSelectedManualAccounts,formatManualMoney,parseManualMoney,normalizeManualRecipientEmails,manualSelectedFundingSummary,manualSelectionSnapshot,updateManualConsolidatedField,manualPdfPreviewFilename,syncManualPdfPreviewDom,clearManualPdfPreviewUrls,activateManualPdfPreview,manualConsolidatedActivityRows } from '../frontend/src/screens/finance-manual-account.js';
 const data=()=>({collectionActivities:[{row_id:'a',school:'בית ספר',authority:'עיריית רחובות',activity_name:'קורס',activity_no:'123'}],transactionContext:{billingRows:[{activityRowId:'a',fundingSourceId:'r',funding:'רשות',payerName:'עיריית רחובות',period:'2026-09-01',institutionSymbol:'123',unbilledCount:2,issuableAmount:7000,eligible:true}]}});
 test('manual wizard selects existing activity/funder and edits document fields without touching source data',()=>{
   const d=data();const source=JSON.stringify(d.collectionActivities);prepareManualAccount(d,'a');
@@ -103,9 +103,10 @@ test('multiple activities for one financer issue exactly one account with all li
   assert.equal(requests[0][0].draft.amount,7000);
   assert.equal(requests[0][1].draft.amount,4000);
   const view=manualAccountViewHtml(d);
-  assert.match(view,/אישור והפקת חשבון מרוכז אחד/);
-  assert.match(view,/data-finance-manual-pdf-frame="consolidated"/);
+  assert.match(view,/אישור והפקת חשבון מרוכז/);
+  assert.match(view,/data-finance-manual-pdf-open="consolidated"/);
   assert.match(view,/data-finance-manual-pdf-download="consolidated"/);
+  assert.doesNotMatch(view,/<iframe/,'PDF extension cannot hijack an embedded viewer');
   assert.doesNotMatch(view,/COMBINEDPDF/,'base64 must not be embedded into HTML');
   assert.doesNotMatch(view,/אישור והפקת 2 חשבונות/);
   const issued=await runSelectedManualAccounts(d,api);
@@ -279,11 +280,23 @@ test('consolidated invoice previews use Blob URLs and download under a descripti
     atob:(value)=>Buffer.from(value,'base64').toString('binary')
   };
   syncManualPdfPreviewDom(root,d,scope);
-  const frame=root.querySelector('[data-finance-manual-pdf-frame="consolidated"]');
-  const link=root.querySelector('[data-finance-manual-pdf-download="consolidated"]');
-  assert.equal(frame.getAttribute('src'),'blob:invoice-preview-1#toolbar=0');
-  assert.equal(link.getAttribute('href'),'blob:invoice-preview-1');
-  assert.equal(link.getAttribute('download'),'טיוטת חשבון עסקה - רמי שני - 29 פעילויות - 30.10.2026.pdf');
+  assert.equal(root.querySelector('iframe'),null);
+  assert.ok(root.querySelector('[data-finance-manual-pdf-open="consolidated"]'));
+  assert.ok(root.querySelector('[data-finance-manual-pdf-download="consolidated"]'));
+  const opens=[];
+  const clicked=[];
+  const originalClick=dom.window.HTMLAnchorElement.prototype.click;
+  dom.window.HTMLAnchorElement.prototype.click=function(){
+    clicked.push({href:this.getAttribute('href'),filename:this.download});
+  };
+  assert.equal(activateManualPdfPreview(root,'consolidated','open',{open:(...args)=>opens.push(args)}),true);
+  assert.deepEqual(opens,[['blob:invoice-preview-1','_blank','noopener']]);
+  assert.equal(activateManualPdfPreview(root,'consolidated','download',scope),true);
+  assert.deepEqual(clicked,[{
+    href:'blob:invoice-preview-1',
+    filename:'טיוטת חשבון עסקה - רמי שני - 29 פעילויות - 30.10.2026.pdf'
+  }]);
+  dom.window.HTMLAnchorElement.prototype.click=originalClick;
   syncManualPdfPreviewDom(root,d,scope);
   assert.equal(count,1,'re-render with the same PDF must reuse its Blob URL');
   d.manualConsolidatedPreview=null;
@@ -301,7 +314,8 @@ test('single-invoice PDF preview also provides a named download rather than inli
   d.manualPdf='JVBERi0=';
   const html=manualAccountViewHtml(d);
   assert.match(html,/data-finance-manual-pdf-download="single"/);
-  assert.match(html,/data-finance-manual-pdf-frame="single"/);
+  assert.match(html,/data-finance-manual-pdf-open="single"/);
+  assert.doesNotMatch(html,/<iframe/);
   assert.equal(html.includes('data:application/pdf;base64'),false);
 });
 
