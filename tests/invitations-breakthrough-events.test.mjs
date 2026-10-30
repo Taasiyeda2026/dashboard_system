@@ -53,7 +53,7 @@ test('switches immediately to female guest lecture and back, retaining correct t
   assert.equal(ui.el('card').querySelector('.c-sub-event'), null);
   assert.equal(ui.el('card').querySelector('.c-course').textContent, 'במסגרת קורס ״פורצות דרך״');
   assert.equal(ui.el('card').querySelector('.c-opening').textContent,
-    "קורס ״פורצות דרך״ משלב יזמות טכנולוגית והעצמה נשית ומעודד את התלמידות לחלום בגדול, לפתח רעיונות ולהאמין ביכולתן להוביל שינוי. דרך היכרות עם נשים שהעזו לפרוץ גבולות, הן מגלות כיצד אומץ, יצירתיות, נחישות ואמונה עצמית יכולים להפוך שאיפות להישגים משמעותיים ולפתוח דלתות לאפשרויות חדשות.");
+    "קורס ״פורצות דרך״ מזמין את התלמידות למסע מעורר השראה המשלב יזמות טכנולוגית, מנהיגות, יצירתיות והעצמה נשית. לאורך המסע הן לומדות לפתח רעיונות, להתמודד עם אתגרים ולהפוך יוזמות למציאות. בהשראת סיפוריהן של נשים פורצות דרך, הן מגלות כיצד נחישות, תעוזה ואמונה עצמית יכולות לפרוץ גבולות, להפוך שאיפות להישגים ולפתוח בפניהן עולם של אפשרויות.");
   assert.equal(ui.el('b1-editor').style.display, 'none');
   assert.equal(ui.el('b1').value, '');
   assert.equal(ui.el('b2').value,
@@ -285,7 +285,7 @@ test('approved breakthrough guest lecture remains word-for-word in A5 print', ()
   ui.change('lec-name', 'דנה לוי', 'input');
   ui.change('lec-role', 'מנהלת פיתוח', 'input');
   ui.change('lec-org', 'חברה לדוגמה', 'input');
-  const expectedOpening = "קורס ״פורצות דרך״ משלב יזמות טכנולוגית והעצמה נשית ומעודד את התלמידות לחלום בגדול, לפתח רעיונות ולהאמין ביכולתן להוביל שינוי. דרך היכרות עם נשים שהעזו לפרוץ גבולות, הן מגלות כיצד אומץ, יצירתיות, נחישות ואמונה עצמית יכולים להפוך שאיפות להישגים משמעותיים ולפתוח דלתות לאפשרויות חדשות.";
+  const expectedOpening = "קורס ״פורצות דרך״ מזמין את התלמידות למסע מעורר השראה המשלב יזמות טכנולוגית, מנהיגות, יצירתיות והעצמה נשית. לאורך המסע הן לומדות לפתח רעיונות, להתמודד עם אתגרים ולהפוך יוזמות למציאות. בהשראת סיפוריהן של נשים פורצות דרך, הן מגלות כיצד נחישות, תעוזה ואמונה עצמית יכולות לפרוץ גבולות, להפוך שאיפות להישגים ולפתוח בפניהן עולם של אפשרויות.";
   const expectedMeeting = "מפגש מעורר השראה עם אישה פורצת דרך, שתחשוף את הסיפור שמאחורי הצלחתה – החלומות שהעזה להגשים, האתגרים שניצבו בדרכה והרגעים שבהם בחרה לא לוותר. מסע אישי ומרתק אל ההחלטות, התובנות ונקודות המפנה שעיצבו את דרכה והפכו את שאיפותיה למציאות.";
   assert.equal(ui.el('card').querySelector('.c-title').textContent, 'הזמנה להרצאת אורחת של:');
   assert.equal(ui.el('card').querySelector('.c-lecturer-identity').textContent, 'דנה לוי, מנהלת פיתוח - חברה לדוגמה');
@@ -301,7 +301,7 @@ test('approved breakthrough guest lecture remains word-for-word in A5 print', ()
     write(html) { printedHtml = html; }, close() {}, set title(_) {}
   }});
   ui.el('print-btn').click();
-  assert.ok(printedHtml.includes(expectedOpening));
+  assert.ok(printedHtml.includes(expectedOpening.replaceAll('פורצות דרך', '<strong>פורצות דרך</strong>')));
   assert.ok(printedHtml.includes(expectedMeeting));
   assert.ok(printedHtml.includes('במסגרת קורס ״פורצות דרך״'));
   assert.ok(printedHtml.includes('הזמנה להרצאת אורחת של:'));
@@ -367,7 +367,7 @@ test('breakthrough guest lecture layout expands text and balances A5 spacing wit
   }});
   ui.el('print-btn').click();
   assert.match(printedHtml, /id="card" class="layout-breakthrough-lecture"/);
-  assert.ok(printedHtml.includes(opening));
+  assert.ok(printedHtml.includes(opening.replaceAll('פורצות דרך', '<strong>פורצות דרך</strong>')));
   assert.ok(printedHtml.includes(conclusion));
   assert.ok(printedHtml.includes('נשמח לראותכם!'));
   assert.doesNotMatch(printedHtml, /לוגו בית הספר|לוגו חברת המרצה/);
@@ -395,8 +395,11 @@ test('guest lecture opening matches approved punctuation and remains centered in
   const ui = mount();
   ui.change('course-sel', 'פורצות דרך');
   ui.change('ev-type', 'lecture');
-  const approvedOpening = "קורס ״פורצות דרך״ משלב יזמות טכנולוגית והעצמה נשית ומעודד את התלמידות לחלום בגדול, לפתח רעיונות ולהאמין ביכולתן להוביל שינוי. דרך היכרות עם נשים שהעזו לפרוץ גבולות, הן מגלות כיצד אומץ, יצירתיות, נחישות ואמונה עצמית יכולים להפוך שאיפות להישגים משמעותיים ולפתוח דלתות לאפשרויות חדשות.";
+  const approvedOpening = "קורס ״פורצות דרך״ מזמין את התלמידות למסע מעורר השראה המשלב יזמות טכנולוגית, מנהיגות, יצירתיות והעצמה נשית. לאורך המסע הן לומדות לפתח רעיונות, להתמודד עם אתגרים ולהפוך יוזמות למציאות. בהשראת סיפוריהן של נשים פורצות דרך, הן מגלות כיצד נחישות, תעוזה ואמונה עצמית יכולות לפרוץ גבולות, להפוך שאיפות להישגים ולפתוח בפניהן עולם של אפשרויות.";
   assert.equal(ui.el('card').querySelector('.c-opening').textContent, approvedOpening);
+  const emphasized = [...ui.el('card').querySelectorAll('.c-opening strong')];
+  assert.equal(emphasized.length, 2, 'both instances of פורצות דרך emphasized');
+  assert.ok(emphasized.every((el) => el.textContent === 'פורצות דרך'));
   assert.doesNotMatch(ui.el('card').querySelector('.c-opening').textContent, /נשית, ומעודד/);
   const styles = document.getElementById('invitation-generator-styles').textContent;
   assert.match(styles, /#card\.layout-breakthrough-lecture \.c-opening\{[^}]*text-align:center/);
@@ -406,7 +409,7 @@ test('guest lecture opening matches approved punctuation and remains centered in
     write(html) { printed = html; }, close() {}, set title(_) {}
   }});
   ui.el('print-btn').click();
-  assert.ok(printed.includes(approvedOpening));
+  assert.ok(printed.includes(approvedOpening.replaceAll('פורצות דרך', '<strong>פורצות דרך</strong>')));
   assert.ok(printed.includes('text-align:center;font-size:4.3mm'));
   assert.doesNotMatch(printed, /נשית, ומעודד/);
 
@@ -472,4 +475,22 @@ test('new guest lecture paragraph replaces the previous approved default but pre
   });
   assert.equal(customized.el('b2').value, 'נוסח אישי שלא משנים');
   customized.dom.window.close();
+});
+
+test('only guest lecture introduction emphasizes course words and other event templates remain unchanged', () => {
+  const ui = mount();
+  ui.change('course-sel', 'פורצות דרך');
+  ui.change('ev-type', 'lecture');
+  const intro = ui.el('card').querySelector('.c-opening');
+  assert.equal(intro.querySelectorAll('strong').length, 2);
+  assert.equal(intro.querySelectorAll('strong')[0].textContent, 'פורצות דרך');
+  assert.equal(intro.querySelectorAll('strong')[1].textContent, 'פורצות דרך');
+  const css = document.getElementById('invitation-generator-styles').textContent;
+  assert.match(css, /#card\.layout-breakthrough-lecture \.c-opening\{[^}]*text-align:center/);
+
+  ui.change('ev-type', 'end');
+  assert.equal(ui.el('card').querySelector('.c-opening').textContent,
+    'הנכם מוזמנים למפגש הסיום של קורס "פורצות דרך", שהתקיים בבית הספר במסגרת התוכניות החינוכיות של תעשיידע.');
+  assert.equal(ui.el('card').querySelector('.c-opening strong'), null);
+  ui.dom.window.close();
 });
