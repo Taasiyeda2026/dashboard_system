@@ -201,3 +201,123 @@
 @media (max-width: 640px) {
   .ds-fin-expense-dialog__item { grid-template-columns: 1fr; }
 }
+
+
+/* Finance / manual invoice: simple, responsive form with readable activity selection. */
+.ds-fin-manual {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+  width: 100%;
+}
+
+.ds-fin-manual__section,
+.ds-fin-manual__extra {
+  min-width: 0;
+  border: 1px solid var(--ds-border);
+  border-radius: 12px;
+  background: var(--ds-surface);
+  padding: 16px 18px;
+}
+
+.ds-fin-manual__section h3 {
+  margin: 0 0 14px;
+  font-size: 0.96rem;
+  font-weight: 700;
+  color: var(--ds-text);
+}
+
+.ds-fin-manual label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ds-text-secondary);
+}
+
+.ds-fin-manual label .ds-input {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  min-height: 38px;
+  color: var(--ds-text);
+}
+
+.ds-fin-manual__activity-grid,
+.ds-fin-manual__funding-grid,
+.ds-fin-manual__grid {
+  display: grid;
+  gap: 12px 14px;
+  align-items: start;
+  min-width: 0;
+}
+
+.ds-fin-manual__activity-grid {
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.7fr);
+}
+
+.ds-fin-manual__funding-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ds-fin-manual__grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ds-fin-manual__form {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.ds-fin-manual__grid input[type="number"] {
+  font-variant-numeric: tabular-nums;
+}
+
+.ds-fin-manual__extra summary {
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.ds-fin-manual__extra[open] summary {
+  margin-bottom: 12px;
+}
+
+.ds-fin-manual__actions {
+  display: flex;
+  justify-content: flex-start;
+  gap: 10px;
+}
+
+.ds-fin-manual__preview {
+  min-width: 0;
+}
+
+.ds-fin-manual__preview iframe {
+  box-sizing: border-box;
+  width: 100%;
+  height: min(680px, 70vh);
+  border: 1px solid var(--ds-border);
+  border-radius: 12px;
+  background: var(--ds-surface);
+  margin-bottom: 12px;
+}
+
+@media (max-width: 780px) {
+  .ds-fin-manual__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .ds-fin-manual__section,
+  .ds-fin-manual__extra { padding: 13px; }
+  .ds-fin-manual__activity-grid,
+  .ds-fin-manual__funding-grid,
+  .ds-fin-manual__grid { grid-template-columns: minmax(0, 1fr); }
+  .ds-fin-manual__actions .ds-btn { width: 100%; }
+}

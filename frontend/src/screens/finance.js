@@ -369,7 +369,6 @@ function collectionViewHtml(data) {
   const accounts = financeAccountBalances(data);
   const totals = { totalAmount: accounts.reduce((sum,a)=>sum+Number(a.total_amount),0), openAmount: accounts.reduce((sum,a)=>sum+a.balance,0),
     closedAmount: accounts.reduce((sum,a)=>sum+a.paidAmount,0), overdueCount: accounts.filter(a=>a.balance>0&&a.payment_due_date<financeToday()).length };
-  const pending = (data.transactionContext?.billingRows || []).filter(row => Number(row.unbilledAmount)>0);
   return dsScreenStack(`<div class="ds-fin-collect-shell" data-finance-account-collection dir="rtl">${backBarHtml('מעקב גבייה')}
     ${data.paymentMessage ? `<p role="status">${escapeHtml(data.paymentMessage)}</p>` : ''}
     ${collectionSummaryCardsHtml(totals)}
@@ -377,7 +376,7 @@ function collectionViewHtml(data) {
       <div class="ds-fin-tabs" role="tablist">${[['open','פתוח'],['closed','ארכיון חשבונות ששולמו'],['all','הכול']].map(([tab,label])=>`<button class="ds-fin-tab${data.collectionTab===tab?' is-active':''}" data-finance-collection-tab="${tab}">${label}</button>`).join('')}</div></div>
     <div data-finance-collection-body>${buildFinanceCollectionBodyHtml(data)}</div>
     ${receiptsHtml(data)}
-    <details class="ds-fin-payer"><summary>ממתין לחיוב</summary>${pending.map(row=>`<p>${escapeHtml(row.customerName)} · ${escapeHtml(row.activityName)} · ${escapeHtml(row.funding)} · ${escapeHtml(row.period?.slice(0,7)||'')} · ${escapeHtml(collectionMoney(row.unbilledAmount))}</p>`).join('')}</details>
+
   </div>`);
 }
 

@@ -8,6 +8,9 @@ test('manual wizard selects existing activity/funder and edits document fields w
   updateManualDraft(d,'description','תיאור למסמך');updateManualDraft(d,'amount',6000);
   assert.equal(d.manualDraft.unit_price,3000);assert.equal(JSON.stringify(d.collectionActivities),source);
   const html=manualAccountViewHtml(d);assert.match(html,/בחירת פעילות קיימת/);assert.match(html,/תיאור למסמך/);assert.doesNotMatch(html,/data-finance-manual-confirm/);
+  assert.match(html,/<option value="a" selected>בית ספר \| עיריית רחובות \| קורס<\/option>/);
+  assert.doesNotMatch(html,/בית ספר · קורס · a|ds-fin-manual__selected/);
+  assert.match(html,/ds-fin-manual__activity-grid|ds-fin-manual__grid/);
 });
 test('editing invalidates preview; only a reviewed PDF can be confirmed with its server revision',async()=>{
   const d=data();prepareManualAccount(d,'a');await assert.rejects(runManualAccount(d,{}),/מקדימה/);
