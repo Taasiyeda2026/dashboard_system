@@ -20,6 +20,8 @@ try {
   })+'\n');
 } catch(error) {
   const code=String(error?.code||error?.message||'canary_failed').replace(/[^a-zA-Z0-9_-]/g,'').slice(0,75);
-  const failures=Array.isArray(error?.failures) ? error.failures : [];\n  const reasons=failures.slice(0,8).map(f=>({reason:String(f?.reason||f?.code||'unknown').slice(0,64),firstCourseId:String(f?.firstCourseId||'').slice(0,90),secondCourseId:String(f?.secondCourseId||'').slice(0,90)}));\n  process.stdout.write(JSON.stringify({status:'readonly_canary_failed',code,failureCount:failures.length,reasons})+'\n');
+  const failures=Array.isArray(error?.failures) ? error.failures : [];
+  const reasons=failures.slice(0,8).map(f=>({reason:String(f?.reason||f?.code||'unknown').slice(0,64),firstCourseId:String(f?.firstCourseId||'').slice(0,90),secondCourseId:String(f?.secondCourseId||'').slice(0,90)}));
+  process.stdout.write(JSON.stringify({status:'readonly_canary_failed',code,failureCount:failures.length,reasons})+'\n');
   process.exitCode=1;
 }
