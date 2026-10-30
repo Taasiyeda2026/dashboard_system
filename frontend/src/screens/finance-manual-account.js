@@ -43,11 +43,20 @@ export function manualFilteredActivities(data) {
     .filter(activity => [activity.row_id, activity.school, activity.activity_name, activity.authority].join(' ').toLocaleLowerCase().includes(query))
     .sort((a,b) => [a.school,a.authority,a.activity_name].join(' ').localeCompare([b.school,b.authority,b.activity_name].join(' '),'he'));
 }
+export function manualFundingRowsForSelection(data) {
+  const rows = manualFundingRows(data);
+  if (!data.manualFunderFilter) return rows;
+  const source = (data.collectionActivities || []).find(a => a.row_id === data.manualActivityId);
+  if (!source) return [];
+  return rows.filter(row =>
+    manualActivityFunders({ transactionContext: { billingRows: [row] } }, source)
+      .some(funder => funder.key === data.manualFunderFilter));
+}
 export function prepareManualAccount(data,activityId,fundingKey,basis) {
   data.manualActivityId=activityId;const rows=manualFundingRows(data);
   const source=(data.collectionActivities||[]).find(a=>a.row_id===activityId)||{};
-  const filteredRows = data.manualFunderFilter ? rows.filter(r=>manualActivityFunders({...data,transactionContext:{billingRows:[r]}},source).some(f=>f.key===data.manualFunderFilter)) : rows;
-  const row=rows.find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===fundingKey)||filteredRows.find(r=>r.eligible||(!r.fullFundingBlockedReason&&Number(r.fullFundingAmount)>0))||filteredRows[0];
+  const filteredRows=manualFundingRowsForSelection(data);
+  const row=filteredRows.find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===fundingKey)||filteredRows.find(r=>r.eligible||(!r.fullFundingBlockedReason&&Number(r.fullFundingAmount)>0))||filteredRows[0];
   data.manualFundingKey=row?`${row.fundingSourceId}|${row.period||row.manualMonth}`:'';
   const full=(basis||(row?.eligible?'performance':'full_funding'))==='full_funding';
   const quantity=Number((full?row?.plannedCount:row?.unbilledCount)||0),amount=Number((full?row?.fullFundingAmount:row?.issuableAmount)||0);
@@ -78,7 +87,7 @@ export function manualRequest(data) {
 export function manualAccountViewHtml(data) {
   const activities=manualFilteredActivities(data);
   const funderOptions=manualFundingFilterOptions(data);
-  const source=(data.collectionActivities||[]).find(a=>a.row_id===data.manualActivityId);const d=data.manualDraft||{};const rows=manualFundingRows(data);
+  const source=(data.collectionActivities||[]).find(a=>a.row_id===data.manualActivityId);const d=data.manualDraft||{};const rows=manualFundingRowsForSelection(data);
   const field=(label,key,type='text')=>`<label class="ds-fin-manual__field">${label}<input class="ds-input" type="${type}"${type==='number'?' min="0" step="0.01"':''} data-finance-manual-field="${key}" value="${e(d[key])}"></label>`;
   return `<div class="ds-fin-manual" dir="rtl"><section class="ds-fin-manual__section"><h3>בחירת פעילות</h3><div class="ds-fin-manual__activity-grid">
     <label>גורם מימון<select class="ds-input" data-finance-manual-funder-filter>
