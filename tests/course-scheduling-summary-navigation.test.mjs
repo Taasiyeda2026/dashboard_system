@@ -35,7 +35,7 @@ test('workboard row actions explain single-course workflows clearly', () => {
 
 test('stale planning keeps the instructor summary visible with a currency notice', () => {
   assert.match(screen, /data-planning-overview-currency/);
-  assert.match(screen, /טבלת המדריכים מוצגת לפי השיבוצים והטיוטות הקיימים והתכנון השמור/);
+  assert.match(screen, /הדוח משלב שיבוצים וטיוטות קיימים עם הצעות תכנון/);
   assert.doesNotMatch(screen, /טבלת תכנון המדריכים תוצג לאחר/);
   assert.match(screen, /\$\{completionCache\.html\}/);
 });
