@@ -4,11 +4,60 @@ const text=v=>String(v??'').trim();
 export function manualFundingRows(data) {
   return (data.transactionContext?.billingRows||[]).filter(r=>r.activityRowId===data.manualActivityId&&r.fundingSourceId);
 }
+
+// Filter by the *actual funder*, not by the school. Each local authority remains distinct.
+const normalizedFunder = (value) => text(value).replace(/[״׳"']/g, '').replace(/\s+/g, ' ').trim().toLocaleLowerCase('he');
+const isGenericAuthority = (value) => /^(?:רשות|רשויות|authority)$/i.test(normalizedFunder(value));
+export function manualActivityFunders(data, activity) {
+  const rows = (data.transactionContext?.billingRows || []).filter(row => row.activityRowId === activity.row_id);
+  const assigned = rows.filter(row => row.fundingSourceId);
+  const names = (assigned.length ? assigned.map(row => row.funding) : text(activity.funding).split(/\s*\+\s*/))
+    .map(text).filter(Boolean);
+  if (!names.length) return [{ key: 'unassigned', label: 'ללא גורם מימון' }];
+  const funders = new Map();
+  for (const name of names) {
+    const row = rows.find(item => normalizedFunder(item.funding) === normalizedFunder(name));
+    const authority = text(activity.authority || row?.payerName);
+    const key = isGenericAuthority(name)
+      ? 'authority:' + (text(activity.authority_id || row?.authorityId) || 'name:' + normalizedFunder(authority))
+      : 'funder:' + normalizedFunder(name);
+    const label = isGenericAuthority(name) ? (authority ? 'רשות - ' + authority : 'רשות לא מזוהה') : name;
+    if (!funders.has(key)) funders.set(key, { key, label });
+  }
+  return [...funders.values()];
+}
+export function manualFundingFilterOptions(data) {
+  const funders = new Map();
+  for (const activity of data.collectionActivities || []) {
+    for (const funder of manualActivityFunders(data, activity)) {
+      if (!funders.has(funder.key)) funders.set(funder.key, funder);
+    }
+  }
+  return [...funders.values()].sort((a,b) => a.label.localeCompare(b.label, 'he'));
+}
+export function manualFilteredActivities(data) {
+  const query = text(data.manualSearch).toLocaleLowerCase();
+  const fundingKey = text(data.manualFunderFilter);
+  return (data.collectionActivities || [])
+    .filter(activity => !fundingKey || manualActivityFunders(data, activity).some(funder => funder.key === fundingKey))
+    .filter(activity => [activity.row_id, activity.school, activity.activity_name, activity.authority].join(' ').toLocaleLowerCase().includes(query))
+    .sort((a,b) => [a.school,a.authority,a.activity_name].join(' ').localeCompare([b.school,b.authority,b.activity_name].join(' '),'he'));
+}
+export function manualFundingRowsForSelection(data) {
+  const rows = manualFundingRows(data);
+  if (!data.manualFunderFilter) return rows;
+  const source = (data.collectionActivities || []).find(a => a.row_id === data.manualActivityId);
+  if (!source) return [];
+  return rows.filter(row =>
+    manualActivityFunders({ transactionContext: { billingRows: [row] } }, source)
+      .some(funder => funder.key === data.manualFunderFilter));
+}
 export function prepareManualAccount(data,activityId,fundingKey,basis) {
   data.manualActivityId=activityId;const rows=manualFundingRows(data);
-  const row=rows.find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===fundingKey)||rows.find(r=>r.eligible||(!r.fullFundingBlockedReason&&Number(r.fullFundingAmount)>0))||rows[0];
-  data.manualFundingKey=row?`${row.fundingSourceId}|${row.period||row.manualMonth}`:'';
   const source=(data.collectionActivities||[]).find(a=>a.row_id===activityId)||{};
+  const filteredRows=manualFundingRowsForSelection(data);
+  const row=filteredRows.find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===fundingKey)||filteredRows.find(r=>r.eligible||(!r.fullFundingBlockedReason&&Number(r.fullFundingAmount)>0))||filteredRows[0];
+  data.manualFundingKey=row?`${row.fundingSourceId}|${row.period||row.manualMonth}`:'';
   const full=(basis||(row?.eligible?'performance':'full_funding'))==='full_funding';
   const quantity=Number((full?row?.plannedCount:row?.unbilledCount)||0),amount=Number((full?row?.fullFundingAmount:row?.issuableAmount)||0);
   const days=/^(רשות|רשויות|authority|ויצו|wizo)$/i.test(text(row?.funding).replace(/["׳״\s]/g,''))?45:30;
@@ -36,11 +85,16 @@ export function manualRequest(data) {
   return{activity:data.manualActivityId,funder,month,draft:data.manualDraft};
 }
 export function manualAccountViewHtml(data) {
-  const query=text(data.manualSearch).toLocaleLowerCase();
-  const activities=(data.collectionActivities||[]).filter(a=>[a.row_id,a.school,a.activity_name,a.authority].join(' ').toLocaleLowerCase().includes(query)).sort((a,b)=>[a.school,a.authority,a.activity_name].join(' ').localeCompare([b.school,b.authority,b.activity_name].join(' '),'he'));
-  const source=(data.collectionActivities||[]).find(a=>a.row_id===data.manualActivityId);const d=data.manualDraft||{};const rows=manualFundingRows(data);
+  const activities=manualFilteredActivities(data);
+  const funderOptions=manualFundingFilterOptions(data);
+  const source=(data.collectionActivities||[]).find(a=>a.row_id===data.manualActivityId);const d=data.manualDraft||{};const rows=manualFundingRowsForSelection(data);
   const field=(label,key,type='text')=>`<label class="ds-fin-manual__field">${label}<input class="ds-input" type="${type}"${type==='number'?' min="0" step="0.01"':''} data-finance-manual-field="${key}" value="${e(d[key])}"></label>`;
-  return `<div class="ds-fin-manual" dir="rtl"><section class="ds-fin-manual__section"><h3>בחירת פעילות</h3><div class="ds-fin-manual__activity-grid"><label>חיפוש פעילות<input class="ds-input" data-finance-manual-search value="${e(data.manualSearch)}" placeholder="בית ספר, רשות או פעילות"></label>
+  return `<div class="ds-fin-manual" dir="rtl"><section class="ds-fin-manual__section"><h3>בחירת פעילות</h3><div class="ds-fin-manual__activity-grid">
+    <label>גורם מימון<select class="ds-input" data-finance-manual-funder-filter>
+      <option value="">כל גורמי המימון</option>
+      ${funderOptions.map(f=>`<option value="${e(f.key)}"${data.manualFunderFilter===f.key?' selected':''}>${e(f.label)}</option>`).join('')}
+    </select></label>
+    <label>חיפוש פעילות<input class="ds-input" data-finance-manual-search value="${e(data.manualSearch)}" placeholder="בית ספר, רשות או פעילות"></label>
     <label>פעילות<select class="ds-input" data-finance-manual-activity><option value="">בחירת פעילות קיימת</option>${activities.map(a=>`<option value="${e(a.row_id)}"${a.row_id===data.manualActivityId?' selected':''}>${e(a.school)} | ${e(a.authority)} | ${e(a.activity_name)}</option>`).join('')}</select></label></div></section>
     ${source?`<div class="ds-fin-manual__funding-grid"><label>גורם מימון וחודש<select class="ds-input" data-finance-manual-funding>${rows.map(r=>`<option value="${e(r.fundingSourceId+'|'+(r.period||r.manualMonth))}"${data.manualFundingKey===r.fundingSourceId+'|'+(r.period||r.manualMonth)?' selected':''}>${e(r.funding)} · ${e((r.period||r.manualMonth)?.slice(0,7)||'ללא חודש')} · ${Number((r.eligible?r.issuableAmount:r.fullFundingAmount)||0).toFixed(2)} ₪</option>`).join('')}</select></label>
     <label>בסיס החיוב<select class="ds-input" data-finance-manual-field="billing_basis"><option value="performance"${d.billing_basis==='performance'?' selected':''}>מפגשים שבוצעו</option><option value="full_funding"${d.billing_basis==='full_funding'?' selected':''}>מלוא חלק המממן</option></select></label></div>

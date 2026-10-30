@@ -534,3 +534,4 @@ config.HOTFIX_VERSION = 'feedback-staff-background-delivery-20261029-v1-' + conf
 config.HOTFIX_VERSION = 'finance-funder-billing-20261030-v1-' + config.HOTFIX_VERSION;
 config.HOTFIX_VERSION = 'finance-school-2027-isolation-20261030-v1-' + config.HOTFIX_VERSION;
 config.HOTFIX_VERSION = 'finance-clean-issuance-ui-20261030-v1-' + config.HOTFIX_VERSION;
+config.HOTFIX_VERSION = 'finance-manual-funder-filter-20261030-v1-' + config.HOTFIX_VERSION;
