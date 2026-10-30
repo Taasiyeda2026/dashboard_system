@@ -570,3 +570,5 @@ config.HOTFIX_VERSION = 'scheduling-stale-recalc-anchors-20261030-v1-' + config.
 config.HOTFIX_VERSION = 'finance-workshop-course-shared-header-compact-actions-20261030-v2-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = 'finance-unified-letterhead-seven-course-columns-20261030-v1-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'attendance-travel-followup-20261030-v1-' + config.HOTFIX_VERSION;

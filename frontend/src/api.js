@@ -7508,7 +7508,6 @@ export const api = {
       .gte('report_date', fromDate)
       .lte('report_date', toDate);
     const attendanceIdentityRows = attendanceSchoolsResult.error ? [] : (attendanceSchoolsResult.data || []);
-    const attendanceSchoolIds = attendanceIdentityRows.map((row) => Number(row.school_id)).filter(Number.isFinite);
     let effectiveCatalog = catalog;
     if (compactScope) {
       const compactSchools = [
@@ -7546,35 +7545,14 @@ export const api = {
         authorityLookup: buildAuthorityCatalogLookup(compactAuthorities)
       };
     }
-    const attendanceLocationAddresses = attendanceSchoolsResult.error
-      ? []
-      : [...new Set((attendanceSchoolsResult.data || [])
-        .map((row) => String(row.destination_address_snapshot || '').trim())
-        .filter(Boolean))];
-    const schoolIds = [...new Set([
-      ...activities.map((row) => Number(row.school_id)).filter(Number.isFinite),
-      ...attendanceSchoolIds
-    ])];
-    const routeReads = [];
-    const numericEmpIds = ids.map(Number).filter(Number.isFinite);
-    // Address-only directed routes written by attendance have no instructor/school
-    // metadata. Read both home directions as well, without changing reported km.
-    const instructorAddresses = [...new Set((contactsResult.data || [])
-      .map((row) => String(row.address || '').trim()).filter(Boolean))];
-    if (numericEmpIds.length) routeReads.push(supabase.from('scheduling_travel_cache').select('*').in('origin_instructor_emp_id', numericEmpIds));
-    if (schoolIds.length) routeReads.push(supabase.from('scheduling_travel_cache').select('*').in('origin_school_id', schoolIds).in('destination_school_id', schoolIds));
-    for (let offset = 0; offset < instructorAddresses.length; offset += 40) {
-      const addresses = instructorAddresses.slice(offset, offset + 40);
-      routeReads.push(supabase.from('scheduling_travel_cache').select('*').in('origin_address', addresses));
-      routeReads.push(supabase.from('scheduling_travel_cache').select('*').in('destination_address', addresses));
-    }
-    if (attendanceLocationAddresses.length) {
-      routeReads.push(supabase.from('scheduling_travel_cache').select('*').in('origin_address', attendanceLocationAddresses));
-      routeReads.push(supabase.from('scheduling_travel_cache').select('*').in('destination_address', attendanceLocationAddresses));
-    }
-    const routeResults = await Promise.all(routeReads);
-    const travelCache = [...new Map(routeResults.flatMap((result) => result.error ? [] : (result.data || []))
-      .map((row) => [`${row.origin_key}|${row.destination_key}`, row])).values()];
+    // Use the same authorized directed cache and legacy school aliases as the
+    // manager snapshot. This read never builds routes or changes reported km.
+    const routeResult = await supabase.rpc('get_payroll_attendance_route_cache', {
+      p_employee_ids: ids.map(Number).filter(Number.isFinite),
+      p_from_date: fromDate,
+      p_to_date: toDate
+    });
+    const travelCache = routeResult.error ? [] : (routeResult.data || []);
 
     const userRows = usersResult.error ? [] : usersResult.data || [];
     const authIds = userRows.map((row) => row.auth_user_id).filter(Boolean);
@@ -7598,7 +7576,7 @@ export const api = {
       proposalGroupAliases: Array.isArray(proposalGroupAliases) ? proposalGroupAliases : [],
       trainingSchedule: trainingScheduleResult.error ? [] : (trainingScheduleResult.data || []),
       expenseSourceAvailable: Boolean(authIds.length),
-      travelSourceAvailable: routeResults.every((result) => !result.error)
+      travelSourceAvailable: !routeResult.error
     };
   },
   activities: async (filters, options) => {
