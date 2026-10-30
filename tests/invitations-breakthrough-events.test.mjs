@@ -57,9 +57,9 @@ test('switches immediately to female guest lecture and back, retaining correct t
   assert.equal(ui.el('b1-editor').style.display, 'none');
   assert.equal(ui.el('b1').value, '');
   assert.equal(ui.el('b2').value,
-    "מפגש מעצים ומעורר השראה עם אישה פורצת דרך, שתשתף במסעה האישי, בחלומות שהפכה למציאות ובאתגרים שהתגברה עליהם בדרך ותספר על ההחלטות, התובנות והרגעים המשמעותיים שעיצבו את דרכה.");
+    "מפגש מעורר השראה עם אישה פורצת דרך, שתחשוף את הסיפור שמאחורי הצלחתה – החלומות שהעזה להגשים, האתגרים שניצבו בדרכה והרגעים שבהם בחרה לא לוותר. מסע אישי ומרתק אל ההחלטות, התובנות ונקודות המפנה שעיצבו את דרכה והפכו את שאיפותיה למציאות.");
   assert.equal(ui.el('card').querySelector('.c-section-title').textContent, 'מה מצפה לנו?');
-  assert.equal(ui.el('card').querySelector('.c-section-title').nextElementSibling.textContent, "מפגש מעצים ומעורר השראה עם אישה פורצת דרך, שתשתף במסעה האישי, בחלומות שהפכה למציאות ובאתגרים שהתגברה עליהם בדרך ותספר על ההחלטות, התובנות והרגעים המשמעותיים שעיצבו את דרכה.");
+  assert.equal(ui.el('card').querySelector('.c-section-title').nextElementSibling.textContent, "מפגש מעורר השראה עם אישה פורצת דרך, שתחשוף את הסיפור שמאחורי הצלחתה – החלומות שהעזה להגשים, האתגרים שניצבו בדרכה והרגעים שבהם בחרה לא לוותר. מסע אישי ומרתק אל ההחלטות, התובנות ונקודות המפנה שעיצבו את דרכה והפכו את שאיפותיה למציאות.");
   assert.equal(ui.el('card').querySelector('.c-closing').textContent, 'נשמח לראותכם!');
   assert.doesNotMatch(ui.el('card').textContent, /הזדמנות לתלמידות לגלות את הכוח/);
   ui.change('lec-name', 'דנה לדוגמה', 'input');
@@ -286,7 +286,7 @@ test('approved breakthrough guest lecture remains word-for-word in A5 print', ()
   ui.change('lec-role', 'מנהלת פיתוח', 'input');
   ui.change('lec-org', 'חברה לדוגמה', 'input');
   const expectedOpening = "קורס ״פורצות דרך״ משלב יזמות טכנולוגית והעצמה נשית ומעודד את התלמידות לחלום בגדול, לפתח רעיונות ולהאמין ביכולתן להוביל שינוי. דרך היכרות עם נשים שהעזו לפרוץ גבולות, הן מגלות כיצד אומץ, יצירתיות, נחישות ואמונה עצמית יכולים להפוך שאיפות להישגים משמעותיים ולפתוח דלתות לאפשרויות חדשות.";
-  const expectedMeeting = "מפגש מעצים ומעורר השראה עם אישה פורצת דרך, שתשתף במסעה האישי, בחלומות שהפכה למציאות ובאתגרים שהתגברה עליהם בדרך ותספר על ההחלטות, התובנות והרגעים המשמעותיים שעיצבו את דרכה.";
+  const expectedMeeting = "מפגש מעורר השראה עם אישה פורצת דרך, שתחשוף את הסיפור שמאחורי הצלחתה – החלומות שהעזה להגשים, האתגרים שניצבו בדרכה והרגעים שבהם בחרה לא לוותר. מסע אישי ומרתק אל ההחלטות, התובנות ונקודות המפנה שעיצבו את דרכה והפכו את שאיפותיה למציאות.";
   assert.equal(ui.el('card').querySelector('.c-title').textContent, 'הזמנה להרצאת אורחת של:');
   assert.equal(ui.el('card').querySelector('.c-lecturer-identity').textContent, 'דנה לוי, מנהלת פיתוח - חברה לדוגמה');
   assert.equal(ui.el('card').querySelector('.c-course').textContent, 'במסגרת קורס ״פורצות דרך״');
@@ -311,7 +311,7 @@ test('approved breakthrough guest lecture remains word-for-word in A5 print', ()
 
 test('only previous suggested lecture copy is refreshed in existing drafts', () => {
   const oldSuggestion = "מפגש מעצים ומעורר השראה עם אישה פורצת דרך, שתשתף במסעה האישי, בחלומות שהפכה למציאות ובאתגרים שהתגברה עליהם. הזדמנות לתלמידות לגלות את הכוח הטמון בהן, להאמין בעצמן ולקבל השראה לחלום בגדול, לפרוץ גבולות ולהעז להגשים את שאיפותיהן.";
-  const approvedSuggestion = "מפגש מעצים ומעורר השראה עם אישה פורצת דרך, שתשתף במסעה האישי, בחלומות שהפכה למציאות ובאתגרים שהתגברה עליהם בדרך ותספר על ההחלטות, התובנות והרגעים המשמעותיים שעיצבו את דרכה.";
+  const approvedSuggestion = "מפגש מעורר השראה עם אישה פורצת דרך, שתחשוף את הסיפור שמאחורי הצלחתה – החלומות שהעזה להגשים, האתגרים שניצבו בדרכה והרגעים שבהם בחרה לא לוותר. מסע אישי ומרתק אל ההחלטות, התובנות ונקודות המפנה שעיצבו את דרכה והפכו את שאיפותיה למציאות.";
   const stale = mount({ 'course-sel':'פורצות דרך', 'ev-type':'lecture', b2:oldSuggestion });
   assert.equal(stale.el('b2').value, approvedSuggestion);
   assert.equal(stale.el('card').querySelector('.c-section-title').nextElementSibling.textContent, approvedSuggestion);
@@ -441,4 +441,35 @@ test('A5 breakthrough print keeps the footer slogan and closing on one line', ()
   assert.ok(printed.includes('width:max-content;max-width:94%'));
   assert.ok(printed.includes('נשמח לראותכם!'));
   ui.dom.window.close();
+});
+
+test('new guest lecture paragraph replaces the previous approved default but preserves manual drafts', () => {
+  const previousDefault = "מפגש מעצים ומעורר השראה עם אישה פורצת דרך, שתשתף במסעה האישי, בחלומות שהפכה למציאות ובאתגרים שהתגברה עליהם בדרך ותספר על ההחלטות, התובנות והרגעים המשמעותיים שעיצבו את דרכה.";
+  const newDefault = "מפגש מעורר השראה עם אישה פורצת דרך, שתחשוף את הסיפור שמאחורי הצלחתה – החלומות שהעזה להגשים, האתגרים שניצבו בדרכה והרגעים שבהם בחרה לא לוותר. מסע אישי ומרתק אל ההחלטות, התובנות ונקודות המפנה שעיצבו את דרכה והפכו את שאיפותיה למציאות.";
+
+  const saved = mount({
+    'course-sel': 'פורצות דרך',
+    'ev-type': 'lecture',
+    b2: previousDefault
+  });
+  assert.equal(saved.el('b2').value, newDefault);
+  assert.equal(saved.el('card').querySelector('.c-section-title').nextElementSibling.textContent, newDefault);
+  assert.equal(JSON.parse(localStorage.getItem('taasiyeda_invitation_builder_state_v4')).fields.b2, newDefault);
+
+  let printed = '';
+  saved.dom.window.open = () => ({ document: {
+    write(html) { printed = html; }, close() {}, set title(_) {}
+  }});
+  saved.el('print-btn').click();
+  assert.ok(printed.includes(newDefault));
+  assert.equal(printed.includes(previousDefault), false);
+  saved.dom.window.close();
+
+  const customized = mount({
+    'course-sel': 'פורצות דרך',
+    'ev-type': 'lecture',
+    b2: 'נוסח אישי שלא משנים'
+  });
+  assert.equal(customized.el('b2').value, 'נוסח אישי שלא משנים');
+  customized.dom.window.close();
 });
