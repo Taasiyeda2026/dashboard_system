@@ -7551,7 +7551,7 @@ export function planningCompletionInstructorDetailsHtml(rows, detailKey) {
   return item ? instructorCompletionDetailHtml(item) : '<td colspan="7"></td>';
 }
 
-export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, schoolYearTotal = null, expandedInstructorIds = null } = {}) {
+export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, schoolYearTotal = null, expandedInstructorIds = null, operationalOnly = false } = {}) {
   const firstHalfRows = (rows || []).filter(planningRowIsFirstHalf);
   const overview = planningInstructorCompletionOverview(firstHalfRows);
 
@@ -7651,8 +7651,10 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
   return `<section class="course-planning-completion-overview" data-planning-completion-overview>
     <div class="course-planning-section-heading course-planning-workplan-heading">
       <div>
-        <strong>תוכנית עבודה מלאה — מחצית א׳</strong>
-        <span class="course-planning-workplan-summary">${coverage.total} פעילויות · ${coverage.team} לצוות הקיים · ${coverage.recruitment} לגיוס${coverage.unresolved ? ` · ${coverage.unresolved} לטיפול` : ''}</span>
+        <strong>${operationalOnly ? 'שיבוצים שמורים — מחצית א׳' : 'תוכנית עבודה מלאה — מחצית א׳'}</strong>
+        <span class="course-planning-workplan-summary">${operationalOnly
+          ? `${coverage.total} פעילויות · ${totals.live} משובצות · ${totals.drafts} טיוטות · ${coverage.unresolved} טרם שובצו`
+          : `${coverage.total} פעילויות · ${coverage.team} לצוות הקיים · ${coverage.recruitment} לגיוס${coverage.unresolved ? ` · ${coverage.unresolved} לטיפול` : ''}`}</span>
       </div>
     </div>
     ${recruitmentProfileRows.length ? `<details class="course-planning-recruitment-models">
@@ -7682,7 +7684,7 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
     <section class="course-planning-team-plan">
       <div class="course-planning-section-heading">
         <div>
-          <strong>תכנון לצוות הקיים</strong>
+          <strong>${operationalOnly ? 'שיבוצים וטיוטות קיימים' : 'תכנון לצוות הקיים'}</strong>
         </div>
       </div>
       <div class="course-planning-completion-table-wrap">
