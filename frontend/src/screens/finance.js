@@ -376,7 +376,7 @@ function collectionViewHtml(data) {
       <div class="ds-fin-tabs" role="tablist">${[['open','פתוח'],['closed','ארכיון חשבונות ששולמו'],['all','הכול']].map(([tab,label])=>`<button class="ds-fin-tab${data.collectionTab===tab?' is-active':''}" data-finance-collection-tab="${tab}">${label}</button>`).join('')}</div></div>
     <div data-finance-collection-body>${buildFinanceCollectionBodyHtml(data)}</div>
     ${receiptsHtml(data)}
-    
+
   </div>`);
 }
 
