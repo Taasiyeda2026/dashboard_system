@@ -15,6 +15,18 @@ const BG_URLS = [
   }))
 ];
 
+const DEFAULT_INVITATION_COLORS = Object.freeze({
+  c1: '#1a3a5c', // Primary heading
+  c2: '#1a8c6e', // Section headings
+  c3: '#1a8c6e'  // Course name and closing
+});
+
+const BREAKTHROUGH_COLORS = Object.freeze({
+  c1: '#1f354d',
+  c2: '#a40461',
+  c3: '#5b0143'
+});
+
 const DEFAULT_PARTS = [
   { t: 'גב׳', n: 'יעל אביב', r: 'מנהלת תחום חינוך ופדגוגיה, תעשיידע' }
 ];
@@ -384,7 +396,32 @@ export const invitationsScreen = {
       });
     }
 
+    function readColors() {
+      return {
+        c1: $('c1').value,
+        c2: $('c2').value,
+        c3: $('c3').value
+      };
+    }
+
+    function colorsMatch(colors, palette) {
+      return ['c1', 'c2', 'c3'].every((key) => (colors[key] || '').toLowerCase() === palette[key]);
+    }
+
+    function applyColorPalette(palette) {
+      ['c1', 'c2', 'c3'].forEach((id) => {
+        $(id).value = palette[id];
+      });
+    }
+
     function onCourseChange() {
+      const colors = readColors();
+      if (getCourseName() === 'פורצות דרך') {
+        applyColorPalette(BREAKTHROUGH_COLORS);
+      } else if (colorsMatch(colors, BREAKTHROUGH_COLORS)) {
+        // Only replace the course preset, never manually adjusted colors.
+        applyColorPalette(DEFAULT_INVITATION_COLORS);
+      }
       refreshSuggestedTextsForCourse();
       up();
     }
@@ -601,6 +638,17 @@ export const invitationsScreen = {
           });
         }
         savedFields.year = 'תשפ״ז';
+        if (savedFields['course-sel'] === 'פורצות דרך') {
+          const savedColors = ['c1', 'c2', 'c3'].reduce((result, key) => {
+            result[key] = savedFields[key] || DEFAULT_INVITATION_COLORS[key];
+            return result;
+          }, {});
+          // An existing draft still using the generic defaults should receive
+          // the new course defaults. Never override user-selected colors.
+          if (colorsMatch(savedColors, DEFAULT_INVITATION_COLORS)) {
+            Object.assign(savedFields, BREAKTHROUGH_COLORS);
+          }
+        }
         applyFields(savedFields);
 
         if (Array.isArray(state.parts)) {
@@ -1080,9 +1128,7 @@ window.onafterprint=function(){setTimeout(function(){window.close()},250)};
       $('ev-type').value = 'end';
       $('course-sel').selectedIndex = 0;
       $('year').value = 'תשפ״ז';
-      $('c1').value = '#1a3a5c';
-      $('c2').value = '#1a8c6e';
-      $('c3').value = '#1a8c6e';
+      applyColorPalette(DEFAULT_INVITATION_COLORS);
       $('closing1').value = 'נשמח לראותכם!';
 
       parts = makeDefaultParts();
@@ -1271,6 +1317,7 @@ window.onafterprint=function(){setTimeout(function(){window.close()},250)};
       console.assert($('lecturer-company-logo-chip') !== null, 'lecturer company logo upload slot exists');
       console.assert(SUGGESTED_TEXTS_BY_COURSE['רוקחים עולם'].b1.includes('פארמצבטיקה'), 'pharmacy suggestion exists');
       console.assert($('course-sel').querySelector('option[value="פורצות דרך"]') !== null, 'breakthrough course exists');
+      console.assert(colorsMatch(BREAKTHROUGH_COLORS, { c1: '#1f354d', c2: '#a40461', c3: '#5b0143' }), 'breakthrough preset colors');
     }
 
     function boot() {

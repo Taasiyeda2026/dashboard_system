@@ -101,3 +101,70 @@ test('existing other-course suggestions and premium company remain functional', 
   assert.equal(ui.el('premium-company-row').style.display, 'none');
   ui.dom.window.close();
 });
+
+
+test('breakthrough course uses requested colors in picker, A5 preview and print', () => {
+  const ui = mount();
+  assert.equal(ui.el('c1').value, '#1a3a5c');
+  assert.equal(ui.el('c2').value, '#1a8c6e');
+  assert.equal(ui.el('c3').value, '#1a8c6e');
+
+  ui.change('course-sel', 'פורצות דרך');
+  assert.equal(ui.el('c1').value, '#1f354d');
+  assert.equal(ui.el('c2').value, '#a40461');
+  assert.equal(ui.el('c3').value, '#5b0143');
+  assert.match(ui.el('card').getAttribute('style'), /--accent-color:#a40461/);
+  assert.match(ui.el('card').querySelector('.c-title').getAttribute('style'), /#1f354d/);
+  assert.match(ui.el('card').querySelector('.c-course').getAttribute('style'), /#5b0143/);
+
+  let printedHtml = '';
+  ui.dom.window.open = () => ({ document: {
+    write(html) { printedHtml = html; }, close() {}, set title(_) {}
+  }});
+  ui.el('print-btn').click();
+  assert.match(printedHtml, /--main-color:#1f354d/);
+  assert.match(printedHtml, /--accent-color:#a40461/);
+  assert.match(printedHtml, /--course-color:#5b0143/);
+
+  ui.change('ev-type', 'lecture');
+  assert.equal(ui.el('c1').value, '#1f354d');
+  assert.equal(ui.el('c2').value, '#a40461');
+  assert.equal(ui.el('c3').value, '#5b0143');
+
+  ui.change('course-sel', 'רוקחים עולם');
+  assert.equal(ui.el('c1').value, '#1a3a5c');
+  assert.equal(ui.el('c2').value, '#1a8c6e');
+  assert.equal(ui.el('c3').value, '#1a8c6e');
+  ui.dom.window.close();
+});
+
+test('manual colors remain editable and are not overridden by changing event type', () => {
+  const ui = mount();
+  ui.change('course-sel', 'פורצות דרך');
+  ui.change('c2', '#ab2367', 'input');
+  ui.change('ev-type', 'lecture');
+  assert.equal(ui.el('c2').value, '#ab2367');
+  ui.change('course-sel', 'רוקחים עולם');
+  assert.equal(ui.el('c2').value, '#ab2367');
+  ui.el('reset-btn').click();
+  assert.equal(ui.el('c1').value, '#1a3a5c');
+  assert.equal(ui.el('c2').value, '#1a8c6e');
+  assert.equal(ui.el('c3').value, '#1a8c6e');
+  ui.dom.window.close();
+});
+
+test('existing breakthrough draft picks up new preset only if its saved colors were unchanged', () => {
+  const oldDefault = { c1: '#1a3a5c', c2: '#1a8c6e', c3: '#1a8c6e' };
+  const ui = mount({ 'course-sel': 'פורצות דרך', ...oldDefault });
+  assert.equal(ui.el('c1').value, '#1f354d');
+  assert.equal(ui.el('c2').value, '#a40461');
+  assert.equal(ui.el('c3').value, '#5b0143');
+  assert.equal(JSON.parse(localStorage.getItem('taasiyeda_invitation_builder_state_v4')).fields.c2, '#a40461');
+  ui.dom.window.close();
+
+  const custom = mount({ 'course-sel': 'פורצות דרך', ...oldDefault, c2: '#aa1166' });
+  assert.equal(custom.el('c1').value, '#1a3a5c');
+  assert.equal(custom.el('c2').value, '#aa1166');
+  assert.equal(custom.el('c3').value, '#1a8c6e');
+  custom.dom.window.close();
+});
