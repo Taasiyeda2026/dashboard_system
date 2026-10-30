@@ -123,6 +123,7 @@ export function createFinanceVisitState(now = new Date()) {
     manualSelectedActivityIds: [],
     manualActivityDrafts: {},
     manualBatchPreviews: null,
+    manualConsolidatedPreview: null,
     transactionManualSelected: {},
     transactionActionMessage: '',
     transactionRunning: false
@@ -601,7 +602,7 @@ export const financeScreen = {
       if (manualConfirm) {
         await financeAction(manualConfirm, async () => {
           await runSelectedManualAccounts(visit, api);
-          visit.manualQuote = null; visit.manualPdf = ''; visit.manualBatchPreviews = null;
+          visit.manualQuote = null; visit.manualPdf = ''; visit.manualBatchPreviews = null; visit.manualConsolidatedPreview = null;
           visit.manualSelectedActivityIds = []; visit.manualActivityDrafts = {};
           visit.manualActivityId = ''; visit.manualFundingKey = ''; visit.manualDraft = null;
           visit.transactionTab = 'history';
@@ -769,7 +770,7 @@ export const financeScreen = {
         visit.manualFundingKey = '';
         visit.manualDraft = null;
         visit.manualQuote = null; visit.manualPdf = '';
-        visit.manualBatchPreviews = null; visit.manualBatchIssued = {};
+        visit.manualBatchPreviews = null; visit.manualConsolidatedPreview = null; visit.manualBatchIssued = {};
         refresh(); return;
       }
       const multiActivity = ev.target.closest('[data-finance-manual-select-activity]');

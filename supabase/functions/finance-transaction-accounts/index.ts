@@ -115,7 +115,15 @@ function drawRight(page: PDFPage, font: PDFFont, value: string, y: number, size 
   drawLogicalRight(page, font, value, y, size, rightX, 30);
 }
 function drawCell(page: PDFPage, font: PDFFont, value: string, x: number, y: number, width: number, size = 8.5) {
-  drawLogicalRight(page, font, value, y + 7, size, x + width - 5, x + 5);
+  // A sponsor's invoice may span many schools: keep each school's name legible
+  // on its own line, without squeezing it beside the course title.
+  const parts = String(value ?? '').split('\n').slice(0, 2);
+  if (parts.length === 1) {
+    drawLogicalRight(page, font, parts[0], y + 7, size, x + width - 5, x + 5);
+  } else {
+    drawLogicalRight(page, font, parts[0], y + 16, size, x + width - 5, x + 5);
+    drawLogicalRight(page, font, parts[1], y + 4, size, x + width - 5, x + 5);
+  }
 }
 
 function drawTableRow(page: PDFPage, font: PDFFont, values: string[], widths: number[], y: number, height = 24, fill = false) {
@@ -135,7 +143,7 @@ function drawTableRow(page: PDFPage, font: PDFFont, values: string[], widths: nu
 
 
 type InvoiceRenderRow = { category: string; name: string; school: string; gefen: string; quantity: number; hours: number; amount: number; unitPrice: number; hourlyPrice: number; };
-function invoiceRenderRows(lines: any[]): { courses: InvoiceRenderRow[]; services: InvoiceRenderRow[] } {
+function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { courses: InvoiceRenderRow[]; services: InvoiceRenderRow[] } {
   const courses = new Map<string, InvoiceRenderRow>();
   const services = new Map<string, InvoiceRenderRow>();
   for (const line of lines || []) {
@@ -158,7 +166,9 @@ function invoiceRenderRows(lines: any[]): { courses: InvoiceRenderRow[]; service
     // combine into one quantity row, even across separate activity records.
     // Courses: one line per actual course ID, combining all billed meetings.
     const key = service
-      ? JSON.stringify([category, name, school, Number(unitPrice.toFixed(6))])
+      ? (keepDistinctActivities && clean(line.activity_row_id)
+        ? `activity:${clean(line.activity_row_id)}`
+        : JSON.stringify([category, name, school, Number(unitPrice.toFixed(6))]))
       : clean(line.activity_row_id) || JSON.stringify([name, school, gefen, Number(line.hourly_rate_snapshot || 0)]);
     const existing = group.get(key);
     if (existing) {
@@ -235,7 +245,10 @@ async function buildPdf(account: any) {
   }
   drawRight(page, bold, 'תוכניות חינוכיות – שנת תשפ"ז', y, 13); y -= 32;
 
-  const { courses, services } = invoiceRenderRows(account.finance_transaction_account_lines || []);
+  const consolidatedFunder = account.issue_mode === 'manual'
+    && (account.finance_transaction_account_lines || []).length > 1
+    && (account.finance_transaction_account_lines || []).every((line: { billing_rule?: string }) => line.billing_rule === 'completion');
+  const { courses, services } = invoiceRenderRows(account.finance_transaction_account_lines || [], consolidatedFunder);
   // Each section uses the appropriate, minimal accounting columns. Both
   // sections may appear on one invoice for the same payer.
   const drawSection = (title: string, columns: string[], widths: number[],
@@ -264,7 +277,7 @@ async function buildPdf(account: any) {
     y -= 22;
   };
   const displayName = (row: InvoiceRenderRow) =>
-    row.school ? `${row.name} - ${row.school}` : row.name;
+    row.school ? (consolidatedFunder ? `${row.name}\n${row.school}` : `${row.name} - ${row.school}`) : row.name;
   const count = (number: number) => Number.isInteger(number)
     ? String(number) : String(Number(number.toFixed(2)));
   drawSection('קורסים',
@@ -318,10 +331,13 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     if (body.preview === true) {
+      const consolidated = Array.isArray(body.funderBatch);
       const manual = body.manual || {};
-      const { data: quote, error: quoteError } = await userClient.rpc("finance_manual_account_quote", {
-        p_activity: manual.activity, p_funder: manual.funder, p_month: manual.month, p_draft: manual.draft || {}
-      });
+      const { data: quote, error: quoteError } = consolidated
+        ? await userClient.rpc("finance_funder_batch_quote", { p_items: body.funderBatch })
+        : await userClient.rpc("finance_manual_account_quote", {
+          p_activity: manual.activity, p_funder: manual.funder, p_month: manual.month, p_draft: manual.draft || {}
+        });
       if (quoteError) throw quoteError;
       await attachActivityTypes(quote, createClient(url, service));
       const previewBytes = await buildPdf(quote);

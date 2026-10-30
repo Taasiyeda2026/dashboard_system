@@ -7260,6 +7260,21 @@ export const api = {
     assertPermission('manage_finance_transactions', 'finance_transactions_forbidden');
     const { data, error } = await supabase.functions.invoke('finance-transaction-accounts', { body: { preview: true, manual } }); if (error) throw error; if (data?.error) throw Error(data.error); return data;
   },
+  previewFinanceFunderBatchAccount: async (items) => {
+    assertPermission('manage_finance_transactions', 'finance_transactions_forbidden');
+    const { data, error } = await supabase.functions.invoke('finance-transaction-accounts', { body: { preview: true, funderBatch: items } });
+    if (error) throw error;
+    if (data?.error) throw Error(data.error);
+    return data;
+  },
+  reserveFinanceFunderBatchAccount: async ({ items, revision, idempotencyKey }) => {
+    assertPermission('manage_finance_transactions', 'finance_transactions_forbidden');
+    const { data, error } = await supabase.rpc('reserve_finance_funder_batch_account', {
+      p_idempotency_key: idempotencyKey, p_items: items, p_expected_revision: revision
+    });
+    if (error) throw error;
+    return data;
+  },
   reserveFinanceManualAccount: async (manual) => {
     assertPermission('manage_finance_transactions', 'finance_transactions_forbidden');
     const { data, error } = await supabase.rpc('reserve_finance_manual_account', { p_idempotency_key: manual.idempotencyKey, p_activity: manual.activity, p_funder: manual.funder, p_month: manual.month, p_draft: manual.draft, p_expected_revision: manual.revision }); if (error) throw error; return data;

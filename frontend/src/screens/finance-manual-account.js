@@ -80,7 +80,7 @@ export function prepareManualAccount(data,activityId,fundingKey,basis) {
   data.manualDraft={billing_basis:full?'full_funding':'performance',customer_name:row?.payerName||'',school_name:source.school||'',institution_symbol:row?.gefenFunding?(row?.institutionSymbol||''):'',program_number:source.activity_no||'',
     description:source.activity_name||'',quantity,hours:quantity*1.5,unit_price:quantity?amount/quantity:0,amount,
     issue_date:financeToday(),payment_due_date:financePaymentDueDate(financeToday(),days),customer_email:row?.customerEmail||'',override_reason:''};
-  data.manualQuote=null;data.manualPdf='';
+  data.manualQuote=null;data.manualPdf='';data.manualConsolidatedPreview=null;
 }
 // Each selected activity keeps its own edited invoice; multi-select never combines unrelated payers.
 export function selectedManualActivityIds(data) {
@@ -109,7 +109,7 @@ export function focusManualActivity(data, activityId) {
       saveActiveManualDraft(data);
     }
   }
-  data.manualQuote = null; data.manualPdf = ''; data.manualBatchPreviews = null;
+  data.manualQuote = null; data.manualPdf = ''; data.manualBatchPreviews = null; data.manualConsolidatedPreview = null;
 }
 export function toggleManualActivity(data, activityId, checked) {
   const ids = selectedManualActivityIds(data).filter(id => id !== activityId);
@@ -117,7 +117,7 @@ export function toggleManualActivity(data, activityId, checked) {
   data.manualSelectedActivityIds = ids;
   if (!checked && data.manualActivityDrafts) delete data.manualActivityDrafts[activityId];
   if (checked || !ids.includes(data.manualActivityId)) focusManualActivity(data, checked ? activityId : ids[0] || '');
-  else { data.manualBatchPreviews = null; data.manualQuote = null; data.manualPdf = ''; }
+  else { data.manualBatchPreviews = null; data.manualConsolidatedPreview = null; data.manualQuote = null; data.manualPdf = ''; }
 }
 export function manualSelectionSnapshot(data, activityId) {
   const item = data.manualActivityDrafts?.[activityId];
@@ -133,6 +133,23 @@ export async function previewSelectedManualAccounts(data, api) {
   const ids = selectedManualActivityIds(data);
   if (!ids.length) throw new Error('יש לבחור פעילות');
   if (ids.length > 1 && !data.manualFunderFilter) throw new Error('להפקה של כמה פעילויות יש לבחור גורם מימון');
+  if (ids.length > 1) {
+    // One financer, one document, regardless of the number of funded schools.
+    // The backend checks the payer identity and each individual funding allocation.
+    const items = ids.map(id => manualSelectionSnapshot(data, id));
+    const output = await api.previewFinanceFunderBatchAccount(items);
+    if (!output?.quote?.revision || !output?.pdfBase64)
+      throw new Error('לא התקבלה תצוגה מקדימה תקינה לחשבון המרוכז');
+    data.manualConsolidatedPreview = {
+      items, quote: output.quote, pdfBase64: output.pdfBase64,
+      idempotencyKey: crypto.randomUUID()
+    };
+    data.manualBatchPreviews = null;
+    data.manualQuote = null;
+    data.manualPdf = '';
+    return [data.manualConsolidatedPreview];
+  }
+  data.manualConsolidatedPreview = null;
   const previews = [];
   for (const id of ids) {
     const request = manualSelectionSnapshot(data,id);
@@ -149,6 +166,24 @@ export async function previewSelectedManualAccounts(data, api) {
   return previews;
 }
 export async function runSelectedManualAccounts(data, api) {
+  const consolidated = data.manualConsolidatedPreview;
+  if (consolidated) {
+    if (consolidated.items.length !== selectedManualActivityIds(data).length)
+      throw new Error('יש לחדש את התצוגה המקדימה של החשבון המרוכז');
+    const reserved = await api.reserveFinanceFunderBatchAccount({
+      items: consolidated.items,
+      revision: consolidated.quote.revision,
+      idempotencyKey: consolidated.idempotencyKey
+    });
+    let sent;
+    try {
+      sent = await api.dispatchFinanceTransactionAccount({ accountId: reserved.id });
+    } catch (error) {
+      await api.cancelFinanceTransactionReservation?.(reserved.id).catch(() => {});
+      throw error;
+    }
+    return [{ reserved, sent }];
+  }
   const previews = data.manualBatchPreviews;
   if (!Array.isArray(previews) || previews.length < 2) return [await runManualAccount(data,api)];
   if (previews.length !== selectedManualActivityIds(data).length) throw new Error('יש לחדש תצוגה מקדימה');
@@ -185,7 +220,7 @@ export function updateManualDraft(data,key,value) {
     const days=/^(רשות|רשויות|authority|ויצו|wizo)$/i.test(text(row?.funding).replace(/["׳״\s]/g,''))?45:30;
     d.payment_due_date=financePaymentDueDate(value,days);
   }
-  data.manualQuote=null;data.manualPdf='';data.manualBatchPreviews=null;
+  data.manualQuote=null;data.manualPdf='';data.manualBatchPreviews=null;data.manualConsolidatedPreview=null;
 }
 export function manualRequest(data) {
   const [funder,month]=text(data.manualFundingKey).split('|');
@@ -204,7 +239,7 @@ export function manualAccountViewHtml(data) {
       : type === 'number' ? ' min="0" step="0.01"' : '';
     return `<label class="ds-fin-manual__field">${label}<input class="ds-input" type="${money ? 'text' : type}"${attributes} data-finance-manual-field="${key}" value="${e(display)}"></label>`;
   };
-  return `<div class="ds-fin-manual" dir="rtl"><section class="ds-fin-manual__section"><h3>בחירת פעילות</h3><div class="ds-fin-manual__activity-grid">
+  return `<div class="ds-fin-manual" dir="rtl"><section class="ds-fin-manual__section"><h3>${selectedManualActivityIds(data).length>1?'חשבון מרוכז לגורם מימון':'בחירת פעילות'}</h3><div class="ds-fin-manual__activity-grid">
     <label>גורם מימון<select class="ds-input" data-finance-manual-funder-filter>
       <option value="">כל גורמי המימון</option>
       ${funderOptions.map(f=>`<option value="${e(f.key)}"${data.manualFunderFilter===f.key?' selected':''}>${e(f.label)}</option>`).join('')}
@@ -225,7 +260,11 @@ export function manualAccountViewHtml(data) {
     </div></section>
     <section class="ds-fin-manual__section"><h3>מועדים</h3><div class="ds-fin-manual__grid">${field('תאריך הפקה','issue_date','date')}${field('מועד תשלום','payment_due_date','date')}</div></section><details class="ds-fin-manual__extra"><summary>פרטים נוספים</summary><div class="ds-fin-manual__grid">${field('סיבת חריגה','override_reason')}</div></details>
     <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" type="button" data-finance-manual-preview>הצגת ${selectedManualActivityIds(data).length>1?'החשבונות':'החשבון'} לבדיקה (PDF)</button></div></form>
-    ${data.manualBatchPreviews?.length>1?`<div class="ds-fin-manual__batch-previews">
+    ${data.manualConsolidatedPreview?`<div class="ds-fin-manual__preview">
+      <p>חשבון עסקה מרוכז אחד עבור ${data.manualConsolidatedPreview.items.length} פעילויות. כל פעילות וסכומה מוצגים במסמך.</p>
+      <iframe title="תצוגה מקדימה של חשבון מרוכז" src="data:application/pdf;base64,${e(data.manualConsolidatedPreview.pdfBase64)}"></iframe>
+      <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" data-finance-manual-confirm>אישור והפקת חשבון מרוכז אחד</button></div>
+    </div>`:data.manualBatchPreviews?.length>1?`<div class="ds-fin-manual__batch-previews">
       <p>כל פעילות תופק כחשבון נפרד. יש לעיין בחשבונות לפני אישור ההפקה.</p>
       ${data.manualBatchPreviews.map((p,i)=>`<details class="ds-fin-manual__section"${i===0?' open':''}><summary>${e((data.collectionActivities||[]).find(a=>a.row_id===p.activityId)?.school||p.activityId)} · חשבון ${i+1}</summary>
         <iframe title="תצוגה מקדימה של חשבון ${i+1}" src="data:application/pdf;base64,${e(p.pdfBase64)}"></iframe>

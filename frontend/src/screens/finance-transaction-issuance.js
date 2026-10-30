@@ -82,8 +82,11 @@ export function transactionPreviewForVisit(data, mode = TRANSACTION_MODE_AUTOMAT
   const accounts = new Map();
   if (!data.collectionError) for (const row of rows.filter((row) => row.eligible && !row.blockedReason)) {
     if (mode === TRANSACTION_MODE_MANUAL && !data.transactionManualSelected?.[transactionSelectionKey(row)]) continue;
-    const key = [row.institutionSymbol, row.fundingSourceId, row.payerKey || row.payerName, row.period || 'completion'].join(':');
-    if (!accounts.has(key)) accounts.set(key, { institutionSymbol: row.institutionSymbol, customerName: row.payerName,
+    // Gefen remains per school. Every other payer gets one account across schools.
+    const key = mode === TRANSACTION_MODE_AUTOMATIC
+      ? [row.institutionSymbol, row.fundingSourceId, row.payerKey || row.payerName, row.period || 'completion'].join(':')
+      : [row.fundingSourceId, row.payerKey || row.payerName, row.period || 'completion'].join(':');
+    if (!accounts.has(key)) accounts.set(key, { institutionSymbol: mode === TRANSACTION_MODE_AUTOMATIC ? row.institutionSymbol : '', customerName: row.payerName,
       schoolName: row.customerName, funding: row.funding, period: row.period, customerEmails: [], lines: [], totalAmount: 0 });
     const account = accounts.get(key);
     account.lines.push(row);
