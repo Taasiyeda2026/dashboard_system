@@ -339,8 +339,8 @@ export function syncManualActivitySelectionUi(root, data) {
   [...next.children].slice(1).forEach(element => manual.appendChild(element));
 }
 
-// Object URLs (rather than data: URLs) prevent the browser/Acrobat extension
-// from rendering a large Base64 string instead of the PDF preview.
+// Some PDF browser extensions replace embedded iframes with an empty grey panel.
+// Keep a named Blob and open it only on an explicit user click.
 export function manualPdfPreviewFilename(quote = {}, { count = 0 } = {}) {
   const payer = text(quote.customer_name_snapshot || 'לקוח').replace(/[\\/:*?"<>|\x00-\x1f]/g, ' ').replace(/\s+/g, ' ').trim();
   const issueDate = text(quote.issue_date).match(/^(\d{4})-(\d{2})-(\d{2})/);
@@ -388,21 +388,51 @@ export function syncManualPdfPreviewDom(root, data, scope = globalThis) {
       const binary = scope.atob(descriptor.base64);
       const bytes = Uint8Array.from(binary, char => char.charCodeAt(0));
       const url = urlApi.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
-      cache.set(key, {url, base64: descriptor.base64});
+      cache.set(key, {url, base64: descriptor.base64, name: descriptor.name});
     }
-    const url = cache.get(key).url;
-    const frame = [...root.querySelectorAll('[data-finance-manual-pdf-frame]')]
-      .find(node => node.dataset.financeManualPdfFrame === key);
-    if (frame && frame.getAttribute('src') !== url + '#toolbar=0') {
-      frame.setAttribute('src', url + '#toolbar=0');
-    }
-    const download = [...root.querySelectorAll('[data-finance-manual-pdf-download]')]
-      .find(node => node.dataset.financeManualPdfDownload === key);
-    if (download) {
-      download.setAttribute('href', url);
-      download.setAttribute('download', descriptor.name);
-    }
+    cache.get(key).name = descriptor.name;
   }
+}
+
+// These actions run from a direct click so popup blocking is not bypassed.
+// A named download always uses the actual generated PDF bytes, never a screenshot.
+export function activateManualPdfPreview(root, key, action, scope = globalThis) {
+  const preview = root?._financeManualPdfPreviewUrls?.get(String(key));
+  if (!preview?.url) return false;
+  if (action === 'open') {
+    const open = scope.open || root.ownerDocument.defaultView?.open;
+    if (typeof open !== 'function') return false;
+    open.call(scope, preview.url, '_blank', 'noopener');
+    return true;
+  }
+  if (action !== 'download') return false;
+  const link = root.ownerDocument.createElement('a');
+  link.href = preview.url;
+  link.download = preview.name;
+  link.hidden = true;
+  root.appendChild(link);
+  link.click();
+  link.remove();
+  return true;
+}
+
+// One compact review surface; no empty Acrobat extension and no stacked buttons.
+export function manualPdfReviewHtml({key, title, detail, confirmLabel = ''}) {
+  return `<section class="ds-fin-manual__review" aria-label="${e(title)}">
+    <div class="ds-fin-manual__review-document">
+      <span class="ds-fin-manual__review-file" aria-hidden="true">PDF</span>
+      <div class="ds-fin-manual__review-info">
+        <strong>${e(title)}</strong>
+        <span>${e(detail)}</span>
+        <small>טיוטה לבדיקה בלבד · טרם הופק חשבון עסקה</small>
+      </div>
+    </div>
+    <div class="ds-fin-manual__review-actions">
+      <button type="button" class="ds-btn" data-finance-manual-pdf-open="${e(key)}">צפייה בטיוטה</button>
+      <button type="button" class="ds-btn" data-finance-manual-pdf-download="${e(key)}">הורדת PDF</button>
+      ${confirmLabel ? `<button type="button" class="ds-btn ds-btn--primary" data-finance-manual-confirm>${e(confirmLabel)}</button>` : ''}
+    </div>
+  </section>`;
 }
 
 // The editor targets one selected activity, but the payer invoice contains all
@@ -498,21 +528,32 @@ export function manualAccountViewHtml(data) {
     </div></section>
     <section class="ds-fin-manual__section"><h3>מועדים</h3><div class="ds-fin-manual__grid">${field('תאריך הפקה','issue_date','date')}${field('מועד תשלום','payment_due_date','date')}</div></section><details class="ds-fin-manual__extra"><summary>פרטים נוספים</summary><div class="ds-fin-manual__grid">${field('סיבת חריגה','override_reason')}</div></details>
     <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" type="button" data-finance-manual-preview>הצגת ${selectedManualActivityIds(data).length>1?'החשבון המרוכז':'החשבון'} לבדיקה (PDF)</button></div></form>`:''}
-    ${source ? `${data.manualConsolidatedPreview?`<div class="ds-fin-manual__preview">
-      <p>חשבון עסקה מרוכז אחד עבור ${data.manualConsolidatedPreview.items.length} פעילויות. כל פעילות וסכומה מוצגים במסמך.</p>
-      <iframe title="תצוגה מקדימה של חשבון מרוכז" data-finance-manual-pdf-frame="consolidated"></iframe>
-      <div class="ds-fin-manual__actions"><a class="ds-btn" data-finance-manual-pdf-download="consolidated">הורדת PDF עם שם החשבון</a></div>
-      <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" data-finance-manual-confirm>אישור והפקת חשבון מרוכז אחד</button></div>
-    </div>`:data.manualBatchPreviews?.length>1?`<div class="ds-fin-manual__batch-previews">
-      <p>כל פעילות תופק כחשבון נפרד. יש לעיין בחשבונות לפני אישור ההפקה.</p>
-      ${data.manualBatchPreviews.map((p,i)=>`<details class="ds-fin-manual__section"${i===0?' open':''}><summary>${e((data.collectionActivities||[]).find(a=>a.row_id===p.activityId)?.school||p.activityId)} · חשבון ${i+1}</summary>
-        <iframe title="תצוגה מקדימה של חשבון ${i+1}" data-finance-manual-pdf-frame="${i}"></iframe>
-        <a class="ds-btn" data-finance-manual-pdf-download="${i}">הורדת PDF עם שם החשבון</a>
-      </details>`).join('')}
-      <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" data-finance-manual-confirm>אישור והפקת ${data.manualBatchPreviews.length} חשבונות</button></div>
-    </div>`:data.manualPdf?`<div class="ds-fin-manual__preview"><iframe title="תצוגה מקדימה של חשבון העסקה" data-finance-manual-pdf-frame="single"></iframe>
-      <div class="ds-fin-manual__actions"><a class="ds-btn" data-finance-manual-pdf-download="single">הורדת PDF עם שם החשבון</a></div>
-      <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" data-finance-manual-confirm>אישור והפקת חשבון</button></div></div>`:''}`:''}</div>`;
+    ${source ? `${data.manualConsolidatedPreview
+      ? manualPdfReviewHtml({
+          key:'consolidated',
+          title:'טיוטת חשבון עסקה מרוכז',
+          detail:`${data.manualConsolidatedPreview.quote.customer_name_snapshot || d.customer_name || ''} · ${data.manualConsolidatedPreview.items.length} פעילויות · ${formatManualMoney(data.manualConsolidatedPreview.quote.total_amount)} ₪`,
+          confirmLabel:'אישור והפקת חשבון מרוכז'
+        })
+      : data.manualBatchPreviews?.length > 1
+        ? `<div class="ds-fin-manual__batch-previews">
+            <p>טיוטות נפרדות לבדיקה לפני ההפקה.</p>
+            ${data.manualBatchPreviews.map((p,i)=>manualPdfReviewHtml({
+              key:String(i), title:`טיוטת חשבון ${i+1}`,
+              detail:(data.collectionActivities||[]).find(a=>a.row_id===p.activityId)?.school || p.activityId
+            })).join('')}
+            <div class="ds-fin-manual__review-actions">
+              <button type="button" class="ds-btn ds-btn--primary" data-finance-manual-confirm>אישור והפקת ${data.manualBatchPreviews.length} חשבונות</button>
+            </div>
+          </div>`
+        : data.manualPdf
+          ? manualPdfReviewHtml({
+              key:'single',
+              title:'טיוטת חשבון עסקה',
+              detail:data.manualQuote?.customer_name_snapshot || d.customer_name || '',
+              confirmLabel:'אישור והפקת חשבון'
+            })
+          : ''}` : ''}</div>`;
 }
 export async function runManualAccount(data,api) {
   if(!data.manualQuote?.revision)throw Error('יש לפתוח תצוגה מקדימה עדכנית');
