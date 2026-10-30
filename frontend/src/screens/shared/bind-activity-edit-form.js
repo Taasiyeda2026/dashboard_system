@@ -772,10 +772,11 @@ export function bindActivityEditForm(contentRoot, {
         }
       }
     }
-    if (saveType !== 'tour') {
+    const isSchool2027TourScope = String(form.getAttribute('data-activity-season') || '') === 'school_2027';
+    if (!isSchool2027TourScope || saveType !== 'tour') {
       delete changes.tour_location;
-      // Clear a previous tour destination when the activity is deliberately retyped.
-      if (initialType === 'tour') changes.tour_location = null;
+      // Clear only a 2027 tour destination when its activity is deliberately retyped.
+      if (isSchool2027TourScope && initialType === 'tour' && saveType !== 'tour') changes.tour_location = null;
     } else if (Object.prototype.hasOwnProperty.call(changes, 'tour_location')
       && Array.from(String(changes.tour_location ?? '')).length > 15) {
       setStatus(statusEl, 'is-error', 'מיקום הסיור מוגבל ל-15 תווים');
@@ -1104,7 +1105,8 @@ export function bindActivityEditForm(contentRoot, {
     syncActivityEndTimeOptions(form.querySelector('[name="start_time"]'), form.querySelector('[name="end_time"]'));
     const typeEl = form.querySelector('[name="activity_type"]');
     const syncTourLocation = () => {
-      const isTour = normalizeActivityTypeKey(typeEl?.value) === 'tour';
+      const isTour = String(form.getAttribute('data-activity-season') || '') === 'school_2027'
+        && normalizeActivityTypeKey(typeEl?.value) === 'tour';
       form.querySelectorAll('[data-tour-location-field]').forEach((field) => { field.hidden = !isTour; });
     };
     syncTourLocation();
