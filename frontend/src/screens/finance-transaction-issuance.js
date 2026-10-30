@@ -135,21 +135,23 @@ function billingView(data, mode) {
     <span class="ds-fin-payer__meta">${escapeHtml(`${new Set(group.lines.map((line) => line.activityRowId)).size} פעילויות · ${group.lines.reduce((sum, line) => sum + line.unbilledCount, 0)} מפגשים · ${group.lines.reduce((sum, line) => sum + line.unbilledHours, 0)} שעות · ${formatAmount(group.lines.reduce((sum, line) => sum + Number(line.issuableAmount), 0))}`)}</span></summary>
     ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>פעילות</th><th>מוסד</th><th>${mode === TRANSACTION_MODE_AUTOMATIC ? 'חודש ביצוע' : 'חודש סיום'}</th><th>מפגשים</th><th>חלק המממן</th><th>להפקה</th></tr></thead>
     <tbody>${group.lines.map((line) => billingLineHtml(line, data, mode)).join('')}</tbody></table>`)}</details>`).join('');
-  // Open accounts lists eligible amounts only. Blocked activities remain visible
-  // in a separate explanation, without becoming issuable rows.
-  const blocked = [...new Map((data.transactionContext?.billingRows || []).filter((row) => row.gefenFunding === (mode === TRANSACTION_MODE_AUTOMATIC) || !row.fundingSourceId).filter((row) => row.blockedReason).map((row) => [row.activityRowId + ':' + row.fundingSourceId, row])).values()];
-  const blockedHtml = blocked.length ? `<details class="ds-fin-payer"><summary>פעילויות חסומות להפקה (${blocked.length})</summary>
-    ${blocked.map((row) => `<p>${escapeHtml(row.customerName)} · ${escapeHtml(row.activityName)} · ${escapeHtml(row.funding)}: ${escapeHtml(row.blockedReason)}${row.financialAdjustment ? ` · ${escapeHtml(formatAmount(row.financialAdjustment))}` : ''}</p>`).join('')}</details>` : '';
+  // Keep eligibility reasons in server-side validation; they are not accounting documents.
+  // The issuance screen shows only issuable accounts, not technical diagnostics.
   const total = { ...preview, totals: { schools: new Set(ready.map((row) => row.institutionSymbol)).size,
     activities: new Set(ready.map((row) => row.activityRowId)).size,
     meetings: ready.reduce((sum, row) => sum + row.unbilledCount, 0), hours: ready.reduce((sum, row) => sum + row.unbilledHours, 0),
     amount: ready.reduce((sum, row) => sum + Number(row.issuableAmount), 0) } };
-  return `<div class="ds-fin-collect-toolbar" dir="rtl"><div><strong>${mode === TRANSACTION_MODE_AUTOMATIC ? 'חשבונות עסקה - גפן' : 'חשבונות עסקה - פתוח'}</strong><br>
-</div>
-    <button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="${mode}"${preview.accounts.length ? '' : ' disabled'}>${mode === TRANSACTION_MODE_AUTOMATIC ? 'הפק את סבב חשבונות העסקה' : 'הפק חשבונות מסומנים'}</button></div>
-    <details class="ds-fin-payer" open><summary>ממתינים להפקה מחודשים קודמים · ${backlog.length} חיובים · ${escapeHtml(formatAmount(backlog.reduce((sum,row) => sum + Number(row.issuableAmount),0)))}</summary>
-    ${pendingGroupHtml(backlog,data,mode) || '<p>אין יתרות מחודשים אחרים שהסתיימו.</p>'}</details>
-    ${monthPicker(data, mode)}${summaryCards(total)}${body || dsEmptyState('אין חשבונות הזכאים להפקה כרגע.')}${blockedHtml}`;
+  const backlogHtml = backlog.length
+    ? `<details class="ds-fin-payer" open><summary>ממתינים להפקה מחודשים קודמים · ${backlog.length} חיובים · ${escapeHtml(formatAmount(backlog.reduce((sum,row) => sum + Number(row.issuableAmount),0)))}</summary>
+      ${pendingGroupHtml(backlog,data,mode)}</details>`
+    : '';
+  return `<div class="ds-fin-collect-toolbar" dir="rtl">
+    <strong>${mode === TRANSACTION_MODE_AUTOMATIC ? 'חשבונות עסקה - גפן' : 'חשבונות עסקה - פתוח'}</strong>
+    ${preview.accounts.length ? `<button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="${mode}">${mode === TRANSACTION_MODE_AUTOMATIC ? 'הפק את סבב חשבונות העסקה' : 'הפק חשבונות מסומנים'}</button>` : ''}</div>
+    ${backlogHtml}
+    ${monthPicker(data, mode)}
+    ${ready.length ? summaryCards(total) : ''}
+    ${body || dsEmptyState('אין חשבונות להפקה בחודש שנבחר.')}`;
 }
 
 function historyView(data) {
