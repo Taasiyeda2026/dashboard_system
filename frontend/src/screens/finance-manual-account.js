@@ -376,12 +376,31 @@ export function syncManualPdfPreviewDom(root, data, scope = globalThis) {
   }
 }
 
+// The editor targets one selected activity, but the payer invoice contains all
+// selected schools. List every line and its share to prevent a single school
+// appearing to represent a consolidated invoice.
+export function manualConsolidatedActivityRows(data) {
+  const activities = new Map((data.collectionActivities || []).map(activity => [activity.row_id, activity]));
+  return selectedManualActivityIds(data).map(id => {
+    const activity = activities.get(id) || {};
+    const draft = id === data.manualActivityId ? data.manualDraft : data.manualActivityDrafts?.[id]?.draft;
+    return {
+      id, school: text(activity.school) || 'ללא בית ספר',
+      activity: text(activity.activity_name) || 'פעילות',
+      amount: Number(draft?.amount) || 0
+    };
+  }).sort((a,b) =>
+    [a.school,a.activity].join(' ').localeCompare([b.school,b.activity].join(' '),'he'));
+}
+
 export function manualAccountViewHtml(data) {
   const activities=manualFilteredActivities(data);
   const funderOptions=manualFundingFilterOptions(data);
   const source=(data.collectionActivities||[]).find(a=>a.row_id===data.manualActivityId);const d=data.manualDraft||{};const rows=manualFundingRowsForSelection(data);
   const selectedSummary = manualSelectedFundingSummary(data);
   const consolidated = selectedSummary.count > 1;
+  const selectedRows = consolidated ? manualConsolidatedActivityRows(data) : [];
+  const schoolCount = new Set(selectedRows.map(row => row.school)).size;
   const displayedTotal = data.manualConsolidatedPreview?.quote?.total_amount ?? selectedSummary.amount;
   const field=(label,key,type='text')=>{
     const money = key === 'amount' || key === 'unit_price';
@@ -411,13 +430,22 @@ export function manualAccountViewHtml(data) {
       </div>
     </details></section>
     ${consolidated?`<div class="ds-fin-manual__batch-total" data-finance-manual-batch-total style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;padding:8px 0 4px;">
-      <strong>חשבון מרוכז · ${selectedSummary.count} פעילויות</strong>
+      <strong>חשבון מרוכז · ${selectedSummary.count} פעילויות · ${schoolCount} בתי ספר</strong>
       <strong>סכום כולל: ${formatManualMoney(displayedTotal)} ₪</strong>
       <span style="flex-basis:100%;font-size:12px">פרטי החיוב שלהלן מתייחסים לפעילות אחת לעריכה. החשבון המרוכז כולל את כל הפעילויות שנבחרו.</span>
-    </div>`:''}
+    </div>
+    <details class="ds-fin-manual__selected-schools" open>
+      <summary>פירוט כל בתי הספר והפעילויות בחשבון (${selectedRows.length})</summary>
+      <div style="max-height:250px;overflow:auto;margin-top:8px">
+        <table class="ds-table" style="width:100%;font-size:13px">
+          <thead><tr><th>בית ספר</th><th>פעילות</th><th>חלק המממן (₪)</th></tr></thead>
+          <tbody>${selectedRows.map(row=>`<tr><td>${e(row.school)}</td><td>${e(row.activity)}</td><td dir="ltr" style="text-align:right">${formatManualMoney(row.amount)}</td></tr>`).join('')}</tbody>
+        </table>
+      </div>
+    </details>`:''}
     ${source?`<div class="ds-fin-manual__funding-grid"><label>גורם מימון וחודש<select class="ds-input" data-finance-manual-funding>${rows.map(r=>`<option value="${e(r.fundingSourceId+'|'+(r.period||r.manualMonth))}"${data.manualFundingKey===r.fundingSourceId+'|'+(r.period||r.manualMonth)?' selected':''}>${e(r.funding)} · ${e((r.period||r.manualMonth)?.slice(0,7)||'ללא חודש')} · ${formatManualMoney((r.eligible?r.issuableAmount:r.fullFundingAmount)||0)} ₪</option>`).join('')}</select></label>
     <label>בסיס החיוב<select class="ds-input" data-finance-manual-field="billing_basis"><option value="performance"${d.billing_basis==='performance'?' selected':''}>מפגשים שבוצעו</option><option value="full_funding"${d.billing_basis==='full_funding'?' selected':''}>מלוא חלק המממן</option></select></label></div>
-    <form data-finance-manual-form class="ds-fin-manual__form"><section class="ds-fin-manual__section"><h3>${consolidated?'פרטי הפעילות לעריכה':'פרטי חשבון'}</h3><div class="ds-fin-manual__grid">${field('גורם משלם','customer_name')}${field('בית ספר','school_name')}${field(rows.find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===data.manualFundingKey)?.gefenFunding?'סמל מוסד':'מספר לקוח (אם קיים)','institution_symbol')}${field('מספר תוכנית','program_number')}
+    <form data-finance-manual-form class="ds-fin-manual__form"><section class="ds-fin-manual__section"><h3>${consolidated?'פרטי הפעילות לעריכה':'פרטי חשבון'}</h3><div class="ds-fin-manual__grid">${field('גורם משלם','customer_name')}${field(consolidated?'בית ספר בפעילות הנערכת':'בית ספר','school_name')}${field(rows.find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===data.manualFundingKey)?.gefenFunding?'סמל מוסד':'מספר לקוח (אם קיים)','institution_symbol')}${field('מספר תוכנית','program_number')}
     ${field('תיאור השירות','description')}${field(consolidated?'דוא״ל המממן לכל החשבון (להפריד בפסיק)':'דוא״ל נמען (להפריד בפסיק)','customer_email','email')}</div></section>
     <section class="ds-fin-manual__section"><h3>פרטי חיוב</h3><div class="ds-fin-manual__grid">${field('מפגשים לחיוב','quantity','number')}${field('שעות לחיוב','hours','number')}${field('מחיר למפגש','unit_price','number')}${field(consolidated?'סכום פעילות זו':'סכום החשבון','amount','number')}
     </div></section>
