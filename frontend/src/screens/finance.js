@@ -20,7 +20,7 @@ import {
 import { activityRowId, normalizeFinanceCollectionTab } from './finance-collection.js';
 import { financeError } from './finance-errors.js';
 import { financeAccountBalances, paymentsBodyHtml, receiptsHtml, accountPaymentAllocation } from './finance-payments.js';
-import { prepareManualAccount, updateManualDraft, manualRequest, runManualAccount } from './finance-manual-account.js';
+import { prepareManualAccount, updateManualDraft, manualRequest, runManualAccount, manualFilteredActivities } from './finance-manual-account.js';
 import { financeToday } from './finance-transaction-accounts.js';
 import {
   handleTransactionSelection,
@@ -117,6 +117,7 @@ export function createFinanceVisitState(now = new Date()) {
     collectionError: '',
     collectionSaveState: {},
     transactionTab: 'automatic',
+    manualFunderFilter: '',
     transactionManualSelected: {},
     transactionActionMessage: '',
     transactionRunning: false
@@ -716,6 +717,20 @@ export const financeScreen = {
     };
 
     const onChange = async (ev) => {
+      const funderFilter = ev.target.closest('[data-finance-manual-funder-filter]');
+      if (funderFilter) {
+        visit.manualFunderFilter = funderFilter.value || '';
+        if (!manualFilteredActivities(visit).some(a => a.row_id === visit.manualActivityId)) {
+          visit.manualActivityId = '';
+          visit.manualFundingKey = '';
+          visit.manualDraft = null;
+          visit.manualQuote = null;
+          visit.manualPdf = '';
+        } else if (visit.manualActivityId) {
+          prepareManualAccount(visit, visit.manualActivityId);
+        }
+        refresh(); return;
+      }
       const manualActivity = ev.target.closest('[data-finance-manual-activity]');
       if (manualActivity) { prepareManualAccount(visit, manualActivity.value); refresh(); return; }
       const manualFunding = ev.target.closest('[data-finance-manual-funding]');
