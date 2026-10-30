@@ -46,5 +46,5 @@ test('payment details have a subtle separator and do not repeat the addressee', 
   assert.match(pdf,/start: \{ x: 30, y: y \+ 7 \}, end: \{ x: 565, y: y \+ 7 \}/);
   assert.match(pdf,/thickness: 0\.6, color: rgb\(0\.86, 0\.89, 0\.92\)/);
   assert.match(pdf,/if \(y < 173\) \{ page = doc\.addPage\(\[595, 842\]\); y = drawInvoiceHeader\(page, true\); \}/);
-  assert.equal((pdf.match(/לכבוד:/g) || []).length, 1,'the recipient is drawn only in the first-page header');
+  assert.equal((pdf.match(/drawRight\(targetPage, bold, `לכבוד:/g) || []).length, 1,'the recipient is drawn only in the first-page header');
 });
