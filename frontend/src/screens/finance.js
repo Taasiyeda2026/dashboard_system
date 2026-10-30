@@ -825,7 +825,13 @@ export const financeScreen = {
           manualField.value = normalizeManualRecipientEmails(manualField.value);
         }
         if (!manualField.checkValidity()) { manualField.reportValidity(); return; }
-        if (updateManualDraft(visit, manualField.dataset.financeManualField, manualField.value) === false) {
+        const fieldKey = manualField.dataset.financeManualField;
+        const sharedPayerField = selectedManualActivityIds(visit).length > 1
+          && ['customer_name','customer_email','institution_symbol','issue_date','payment_due_date','override_reason'].includes(fieldKey);
+        const updated = sharedPayerField
+          ? updateManualConsolidatedField(visit, fieldKey, manualField.value)
+          : updateManualDraft(visit, fieldKey, manualField.value);
+        if (updated === false) {
           manualField.setCustomValidity('יש להזין סכום תקין; פסיק משמש להפרדת אלפים.');
           manualField.reportValidity();
           return;
