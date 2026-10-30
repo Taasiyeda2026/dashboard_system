@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { manualAccountViewHtml,prepareManualAccount,updateManualDraft,runManualAccount,manualFundingFilterOptions,manualFilteredActivities,toggleManualActivity,saveActiveManualDraft,previewSelectedManualAccounts,runSelectedManualAccounts,formatManualMoney,parseManualMoney,normalizeManualRecipientEmails,manualSelectedFundingSummary,manualSelectionSnapshot,manualPdfPreviewFilename,syncManualPdfPreviewDom,clearManualPdfPreviewUrls } from '../frontend/src/screens/finance-manual-account.js';
+import { manualAccountViewHtml,prepareManualAccount,updateManualDraft,runManualAccount,manualFundingFilterOptions,manualFilteredActivities,toggleManualActivity,saveActiveManualDraft,previewSelectedManualAccounts,runSelectedManualAccounts,formatManualMoney,parseManualMoney,normalizeManualRecipientEmails,manualSelectedFundingSummary,manualSelectionSnapshot,manualPdfPreviewFilename,syncManualPdfPreviewDom,clearManualPdfPreviewUrls,manualConsolidatedActivityRows } from '../frontend/src/screens/finance-manual-account.js';
 const data=()=>({collectionActivities:[{row_id:'a',school:'בית ספר',authority:'עיריית רחובות',activity_name:'קורס',activity_no:'123'}],transactionContext:{billingRows:[{activityRowId:'a',fundingSourceId:'r',funding:'רשות',payerName:'עיריית רחובות',period:'2026-09-01',institutionSymbol:'123',unbilledCount:2,issuableAmount:7000,eligible:true}]}});
 test('manual wizard selects existing activity/funder and edits document fields without touching source data',()=>{
   const d=data();const source=JSON.stringify(d.collectionActivities);prepareManualAccount(d,'a');
@@ -300,4 +300,31 @@ test('single-invoice PDF preview also provides a named download rather than inli
   assert.match(html,/data-finance-manual-pdf-download="single"/);
   assert.match(html,/data-finance-manual-pdf-frame="single"/);
   assert.equal(html.includes('data:application/pdf;base64'),false);
+});
+
+test('consolidated invoice shows every school, not only the school of the active activity',()=>{
+  const d=data();
+  d.manualFunderFilter='funder:רמי שני';
+  d.collectionActivities=Array.from({length:29},(_,i)=>({
+    row_id:'act'+i, school:'בית ספר '+(i+1),activity_name:'קורס '+(i+1)
+  }));
+  d.manualActivityId='act0';
+  d.manualSelectedActivityIds=d.collectionActivities.map(a=>a.row_id);
+  d.manualDraft={amount:10000};
+  d.manualActivityDrafts=Object.fromEntries(d.collectionActivities.map((a,i)=>[a.row_id,{
+    draft:{amount:i===28?5750:10000}, fundingKey:'s|2026-11-01'
+  }]));
+  // Exercise a large mixed-amount consolidated selection.
+  assert.equal(manualConsolidatedActivityRows(d).length,29);
+  const html=manualAccountViewHtml(d);
+  const document=new JSDOM(html).window.document;
+  assert.match(html,/29 פעילויות · 29 בתי ספר/);
+  assert.match(html,/סכום כולל: 285,750\\.00 ₪/);
+  const table=document.querySelector('.ds-fin-manual__selected-schools table');
+  assert.ok(table,'a consolidated invoice must list the schools');
+  assert.equal(table.querySelectorAll('tbody tr').length,29);
+  assert.ok(table.textContent.includes('בית ספר 29'));
+  assert.ok(table.textContent.includes('קורס 29'));
+  assert.match(html,/בית ספר בפעילות הנערכת/,'the editor must identify its one active school');
+  assert.equal(document.querySelector('.ds-fin-manual__selected-schools').open,true);
 });
