@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
+import { readFileSync } from 'node:fs';
 import { transactionAccountsViewHtml, FINANCE_TRANSACTION_SHAREPOINT_FOLDER_URL, transactionPreviewForVisit, transactionSelectionKey, runTransactionIssuance, transactionMonth, transactionBacklog } from '../frontend/src/screens/finance-transaction-issuance.js';
 import { financeToday } from '../frontend/src/screens/finance-transaction-accounts.js';
 const row=(extra={})=>({activityRowId:'a',activityName:'קורס א',fundingSourceId:'g',funding:'גפ״ן',gefenFunding:true,
@@ -150,7 +151,7 @@ test('course and tour on the same invoice retain separate quantity and hours',()
 });
 
 test('tour database billing migration derives a single unit independent of sessions',()=>{
-  const {readFileSync}=await import('node:fs');
+  // Verify the database migration treats tours as quantity-based services.
   const sql=readFileSync(new URL('../supabase/migrations/20261030190000_finance_tour_quantity_without_meetings.sql',import.meta.url),'utf8');
   assert.match(sql,/activity_type,''\)\)\)='tour' then 1/);
   assert.match(sql,/scheduled<planned and lower\(btrim\(coalesce\(p_activity\.activity_type,''\)\)\)<>'tour'/);
