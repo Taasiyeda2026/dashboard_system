@@ -318,6 +318,8 @@ jobs:
           PLANNING_INVALIDATION_REQUIRE_DB: '1'
         run: node --test tests/course-scheduling-checkpoint-commit-postgres.test.mjs
 
+      - name: Verify two-course incremental planning canary with protected assignments
+        run: node --test tests/scheduling-agent-small-safe-canary.test.mjs
       # Admission has its own disposable database; never tests against production.
       - name: Verify safe automatic scheduling admission against isolated PostgreSQL
         env:
