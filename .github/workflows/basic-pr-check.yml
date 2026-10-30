@@ -322,3 +322,5 @@ jobs:
         env:
           STAFF_DELIVERY_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dashboard_test
         run: node --test tests/feedback-staff-delivery-postgres.test.mjs
+      - name: Verify finance PDF dispatch and read-only grants
+        run: node --test tests/finance-billing-edge.test.mjs tests/finance-pdf-dispatch-grants.test.mjs

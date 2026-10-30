@@ -7287,7 +7287,18 @@ export const api = {
   dispatchFinanceTransactionAccount: async (body = {}) => {
     assertPermission('manage_finance_transactions', 'finance_transactions_forbidden');
     const { data, error } = await supabase.functions.invoke('finance-transaction-accounts', { body });
-    if (error) throw new Error(error.message || 'finance_transaction_account_dispatch_failed');
+    if (error) {
+      // FunctionsHttpError otherwise hides the JSON error returned by our Edge function.
+      const server = typeof error.context?.json === 'function'
+        ? await error.context.json().catch(() => null)
+        : null;
+      if (server?.error && typeof server.error === 'string') throw new Error(server.error);
+      if (error.name === 'FunctionsFetchError' || /Failed to send a request to the Edge Function/i.test(error.message || '')) {
+        throw new Error('finance_pdf_connection_failed');
+      }
+      if ([401,403].includes(Number(error.context?.status))) throw new Error('finance_pdf_authorization_failed');
+      throw new Error('finance_pdf_dispatch_failed');
+    }
     if (data?.error) throw new Error(data.error);
     return data;
   },
