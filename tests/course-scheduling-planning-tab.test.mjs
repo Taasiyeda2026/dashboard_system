@@ -1053,7 +1053,8 @@ test('v28 upgrade rescues saved recruitment with existing staff without a genera
   const row = result.rows.find((item) => item.courseId === 'rescue-upgrade');
   assert.equal(row.kind, 'proposal');
   assert.equal(row.instructorEmpId, '1');
-  assert.equal(row.startDate, '2026-10-12');
+  // 01.10 + 14 days is 15.10; this instructor works Mondays, so 19.10.
+  assert.equal(row.startDate, '2026-10-19');
   assert.equal(result.newEngineMetrics.activitiesComputed,1);
   assert.ok(phases.includes('אימות סופי — מנוע חדש'));
   assert.ok(!phases.includes('מיצוי צוות קיים לפני גיוס'), 'upgrade rescue must not fall into the deep base-planning path');
