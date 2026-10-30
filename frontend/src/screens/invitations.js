@@ -177,25 +177,29 @@ function ensureStyles() {
 /* A5 guest lecture — preserve the approved content and background. */
 .invitation-screen-root .preview #card.layout-breakthrough-lecture{zoom:.60}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-logos--lecture{padding:7mm 9mm 2mm;gap:1.4mm}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-logos--lecture .c-logo-item{flex:0 1 30mm}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-logo-item{height:13mm}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-logo-item img{filter:drop-shadow(0 .3mm .8mm rgba(255,255,255,.75))}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-logo-sep{height:9mm;background:rgba(31,53,77,.15)}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-main{padding:2mm 6.5mm 16mm}
-.invitation-screen-root #card.layout-breakthrough-lecture .c-title.guest-lecture{font-size:8.7mm;margin-bottom:1mm;line-height:1.12}
-.invitation-screen-root #card.layout-breakthrough-lecture .c-lecturer-identity{font-weight:800;margin-bottom:1.3mm;max-width:98%;line-height:1.25}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-title.guest-lecture{font-size:8.7mm;margin-bottom:2.1mm;line-height:1.12}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-lecturer-identity{font-weight:800;margin-bottom:1.6mm;max-width:98%;line-height:1.25}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-course,.invitation-screen-root #card.layout-breakthrough-lecture .c-course .course-main{font-size:6mm;font-weight:650;line-height:1.18}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-school,.invitation-screen-root #card.layout-breakthrough-lecture .c-year{margin:1mm 0;font-size:4.2mm}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-divider{width:78%;margin:0 auto 1mm}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-opening{width:84%;padding-inline:2mm;text-align:right;font-size:4.3mm;line-height:1.4;margin:0 auto}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-details-box{width:82%;padding:2.1mm 3mm;gap:1.4mm;border-color:rgba(31,53,77,.2);background:rgba(255,255,255,.65);margin:0 auto}
-.invitation-screen-root #card.layout-breakthrough-lecture .c-details-top{gap:2.6mm}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-details-top{gap:2mm}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-detail-separator{color:rgba(31,53,77,.48);padding:0 .5mm;font-weight:400}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-info-row{font-size:4.2mm;line-height:1.4;gap:3px}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-details-location{font-size:4.2mm;line-height:1.35}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-section-title{width:84%;padding-inline:2mm;font-size:4.4mm;line-height:1.25;margin:0 auto .9mm}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-para{width:84%;padding-inline:2mm;font-size:4.3mm;line-height:1.4;margin:0 auto}
-.invitation-screen-root #card.layout-breakthrough-lecture .c-participants-box{width:73%;padding:1.6mm 4mm;margin:0 auto}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-participants-box{width:69%;padding:2mm 5.2mm;margin:0 auto;border-color:rgba(31,53,77,.14)}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-part-title,.invitation-screen-root #card.layout-breakthrough-lecture .c-part-line,.invitation-screen-root #card.layout-breakthrough-lecture .c-part-line strong,.invitation-screen-root #card.layout-breakthrough-lecture .c-part-line span{font-size:3.3mm;line-height:1.32}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-closing{font-size:5.4mm;margin:0 auto 1mm;padding-top:0}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-footer{bottom:4.8mm;max-width:94%;padding:1.1mm 3.6mm}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-footer-sentence{font-size:2.7mm;line-height:1.22;font-weight:800;gap:.8mm;text-shadow:0 .12mm .14mm rgba(0,0,0,.19)}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-divider{margin-top:auto}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-details-box,.invitation-screen-root #card.layout-breakthrough-lecture .c-section-title,.invitation-screen-root #card.layout-breakthrough-lecture .c-participants-box,.invitation-screen-root #card.layout-breakthrough-lecture .c-closing{margin-top:auto}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-compact .c-main{padding:1mm 6mm 14mm}
@@ -204,7 +208,7 @@ function ensureStyles() {
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-compact .c-section-title{font-size:4mm;width:87%}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-compact .c-details-box{width:85%;padding:1.5mm 3mm}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-compact .c-info-row{font-size:3.85mm}
-.invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-compact .c-participants-box{width:78%;padding:1mm 3mm}
+.invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-compact .c-participants-box{width:75%;padding:1.5mm 4mm}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-main{padding:1mm 5.5mm 13mm}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-logos--lecture{padding-top:5mm}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-logo-item{height:11mm}
@@ -213,7 +217,8 @@ function ensureStyles() {
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-section-title{width:90%;padding-inline:1mm;font-size:3.5mm}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-details-box{width:88%;padding:1mm 2mm}
 .invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-info-row{font-size:3.65mm}
-.invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-participants-box{width:80%}
+.invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-participants-box{width:78%;padding:1mm 3.5mm}
+.invitation-screen-root #card.layout-breakthrough-lecture.fit-a5-tight .c-footer-sentence{font-size:2.4mm}
 
 .invitation-screen-root #card.fit-a5-compact .c-title{font-size:9.5mm}
 .invitation-screen-root #card.fit-a5-compact .c-title.guest-lecture{font-size:7mm}
@@ -889,12 +894,13 @@ export const invitationsScreen = {
         if (customLogos['lecturer-company']) {
           return `<div class="${className}"><img src="${customLogos['lecturer-company']}"></div>`;
         }
-        return `<div class="${className}" style="border:1px dashed rgba(26,58,92,.35);border-radius:6px;color:rgba(26,58,92,.55);font-size:${textSize}px">לוגו חברת המרצה</div>`;
+        // Empty slots remain available for upload in the editor, not on the invitation.
+        return '';
       }
       if (id === 'school') {
         if (customLogos.school) return `<div class="${className}"><img src="${customLogos.school}"></div>`;
 
-        return `<div class="${className}" style="border:1px dashed rgba(26,58,92,.35);border-radius:6px;color:rgba(26,58,92,.55);font-size:${textSize}px">לוגו בית הספר</div>`;
+        return '';
       }
 
       if (id === 'mohe') {
@@ -1021,9 +1027,10 @@ export const invitationsScreen = {
           ${opening}
           <div class="c-box c-details-box">
             <div class="c-details-top">
-              ${date ? `<div class="c-info-row">🗓️ <strong>${date.day}</strong></div>` : ''}
-              ${date ? `<div class="c-info-row">📅 <strong>${date.date}</strong></div>` : ''}
-              ${time ? `<div class="c-info-row">⏰ <strong>${esc(time)}</strong></div>` : ''}
+              ${date ? (breakthroughLecture
+                ? `<div class="c-info-row">📅 <strong>${date.day}</strong><span class="c-detail-separator">·</span><strong>${date.date}</strong></div>`
+                : `<div class="c-info-row">🗓️ <strong>${date.day}</strong></div><div class="c-info-row">📅 <strong>${date.date}</strong></div>`) : ''}
+              ${time ? `<div class="c-info-row">${breakthroughLecture ? 'שעה ' : '⏰ '}<strong>${esc(time)}</strong></div>` : ''}
             </div>
             ${location ? `<div class="c-info-row c-details-location">📍 ${esc(location)}</div>` : ''}
           </div>
