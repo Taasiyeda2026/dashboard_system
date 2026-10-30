@@ -176,7 +176,7 @@ Deno.serve(async(req:Request)=>{
       activityUpdatedAt:x.activity_updated_at,lockedOption:x.locked_option,
       needsRecalc:x.needs_recalc
     }));
-    const targets=planningRefreshTargets({stored,activities,serverTime:end.serverTime});
+    const targets=canary ? [] : planningRefreshTargets({stored,activities,serverTime:end.serverTime});
     return output({
       sourceRevision:String(start.sourceRevision),
       workspace:{...start.workspace,id:workspace.id},
