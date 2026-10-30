@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { manualAccountViewHtml,prepareManualAccount,updateManualDraft,runManualAccount,manualFundingFilterOptions,manualFilteredActivities,toggleManualActivity,saveActiveManualDraft,previewSelectedManualAccounts,runSelectedManualAccounts,formatManualMoney,parseManualMoney,normalizeManualRecipientEmails,manualSelectedFundingSummary,manualSelectionSnapshot } from '../frontend/src/screens/finance-manual-account.js';
+import { manualAccountViewHtml,prepareManualAccount,updateManualDraft,runManualAccount,manualFundingFilterOptions,manualFilteredActivities,toggleManualActivity,saveActiveManualDraft,previewSelectedManualAccounts,runSelectedManualAccounts,formatManualMoney,parseManualMoney,normalizeManualRecipientEmails,manualSelectedFundingSummary,manualSelectionSnapshot,manualPdfPreviewFilename,syncManualPdfPreviewDom,clearManualPdfPreviewUrls } from '../frontend/src/screens/finance-manual-account.js';
 const data=()=>({collectionActivities:[{row_id:'a',school:'בית ספר',authority:'עיריית רחובות',activity_name:'קורס',activity_no:'123'}],transactionContext:{billingRows:[{activityRowId:'a',fundingSourceId:'r',funding:'רשות',payerName:'עיריית רחובות',period:'2026-09-01',institutionSymbol:'123',unbilledCount:2,issuableAmount:7000,eligible:true}]}});
 test('manual wizard selects existing activity/funder and edits document fields without touching source data',()=>{
   const d=data();const source=JSON.stringify(d.collectionActivities);prepareManualAccount(d,'a');
@@ -104,7 +104,9 @@ test('multiple activities for one financer issue exactly one account with all li
   assert.equal(requests[0][1].draft.amount,4000);
   const view=manualAccountViewHtml(d);
   assert.match(view,/אישור והפקת חשבון מרוכז אחד/);
-  assert.match(view,/COMBINEDPDF/);
+  assert.match(view,/data-finance-manual-pdf-frame="consolidated"/);
+  assert.match(view,/data-finance-manual-pdf-download="consolidated"/);
+  assert.doesNotMatch(view,/COMBINEDPDF/,'base64 must not be embedded into HTML');
   assert.doesNotMatch(view,/אישור והפקת 2 חשבונות/);
   const issued=await runSelectedManualAccounts(d,api);
   assert.equal(issued.length,1);
@@ -248,4 +250,54 @@ test('Gefen manual invoice keeps its original school recipients',()=>{
   d.transactionContext.billingRows[0].gefenFunding=true;
   prepareManualAccount(d,'a');
   assert.equal(d.manualDraft.customer_email,'school@example.com, principal@example.com');
+});
+
+test('consolidated invoice previews use Blob URLs and download under a descriptive filename',()=>{
+  const d=data();
+  prepareManualAccount(d,'a');
+  const pdfBase64=Buffer.from('%PDF-1.4\\nminimal sample').toString('base64');
+  d.manualConsolidatedPreview={
+    items:Array.from({length:29},(_,i)=>({activity:'activity'+i})),
+    quote:{customer_name_snapshot:'רמי שני',issue_date:'2026-10-30',total_amount:265750},
+    pdfBase64
+  };
+  const html=manualAccountViewHtml(d);
+  assert.doesNotMatch(html,/data:application\\/pdf;base64/);
+  assert.doesNotMatch(html,/%PDF-1.4|minimal sample/);
+  const dom=new JSDOM(html);
+  const root=dom.window.document.body;
+  const revoked=[];
+  let count=0;
+  const scope={
+    URL:{
+      createObjectURL:()=>`blob:invoice-preview-${++count}`,
+      revokeObjectURL:(url)=>revoked.push(url)
+    },
+    atob:(value)=>Buffer.from(value,'base64').toString('binary')
+  };
+  syncManualPdfPreviewDom(root,d,scope);
+  const frame=root.querySelector('[data-finance-manual-pdf-frame="consolidated"]');
+  const link=root.querySelector('[data-finance-manual-pdf-download="consolidated"]');
+  assert.equal(frame.getAttribute('src'),'blob:invoice-preview-1#toolbar=0');
+  assert.equal(link.getAttribute('href'),'blob:invoice-preview-1');
+  assert.equal(link.getAttribute('download'),'טיוטת חשבון עסקה - רמי שני - 29 פעילויות - 30.10.2026.pdf');
+  syncManualPdfPreviewDom(root,d,scope);
+  assert.equal(count,1,'re-render with the same PDF must reuse its Blob URL');
+  d.manualConsolidatedPreview=null;
+  syncManualPdfPreviewDom(root,d,scope);
+  assert.deepEqual(revoked,['blob:invoice-preview-1']);
+  clearManualPdfPreviewUrls(root,scope.URL);
+  assert.equal(manualPdfPreviewFilename({customer_name_snapshot:'רמי/שני',issue_date:'2026-10-30'}),
+    'טיוטת חשבון עסקה - רמי שני - 30.10.2026.pdf');
+  dom.window.close();
+});
+
+test('single-invoice PDF preview also provides a named download rather than inline base64',()=>{
+  const d=data();prepareManualAccount(d,'a');
+  d.manualQuote={customer_name_snapshot:'עיריית רחובות',issue_date:'2026-10-30'};
+  d.manualPdf='JVBERi0=';
+  const html=manualAccountViewHtml(d);
+  assert.match(html,/data-finance-manual-pdf-download="single"/);
+  assert.match(html,/data-finance-manual-pdf-frame="single"/);
+  assert.doesNotMatch(html,/data:application\\/pdf;base64/);
 });
