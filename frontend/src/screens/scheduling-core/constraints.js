@@ -170,6 +170,10 @@ export function sameSchedule(a = [], b = []) {
   const projection = rows => rows.map((m,i) => [text(m.date).slice(0, 10), canonicalTime(m.start_time), canonicalTime(m.end_time), +m.meeting_no || i+1]);
   return JSON.stringify(projection(a)) === JSON.stringify(projection(b));
 }
+/** Stored proposals flagged for recalculation are visible but not lawful anchors. */
+export function isStaleUnprotectedPlanningRow(row, activity, lock = null) {
+  return row?.needsRecalc === true && !isProtectedActivity(activity) && !lock;
+}
 export function validatePlan(input) {
   const context = input.constraintContext || compileConstraints(input), rows = input.rows || [], failures = [], warnings = [], seen = new Set();
   const present = new Set(rows.map(r => r.courseId));
@@ -179,7 +183,13 @@ export function validatePlan(input) {
     if (a.draft_emp_id && a.draft_proposed_meetings?.length) return [{ courseId: activityId(a), instructorEmpId: text(a.draft_emp_id), meetings: a.draft_proposed_meetings }];
     return [];
   });
-  const occupancy = createOccupancy(context, [...externalAnchors, ...rows]), committed = new Map((input.committedRows || []).map(r => [r.courseId, r]));
+  // Dirty unprotected proposals stay in the result set for identity/save scope,
+  // but they must not occupy the certified calendar or fail whole-plan validation.
+  const occupancyRows = [...externalAnchors, ...rows.filter((row) => {
+    const activity = context.byActivity.get(row.courseId);
+    return !isStaleUnprotectedPlanningRow(row, activity, input.lockedOptions?.[row.courseId]);
+  })];
+  const occupancy = createOccupancy(context, occupancyRows), committed = new Map((input.committedRows || []).map(r => [r.courseId, r]));
   for (const row of rows) {
     const a = context.byActivity.get(row.courseId);
     if (!a || seen.has(row.courseId)) { failures.push({ courseId: row.courseId, reason: a ? 'duplicate_activity' : 'unknown_activity' }); continue; } seen.add(row.courseId);
@@ -190,6 +200,12 @@ export function validatePlan(input) {
     if (protectedActivity && (row.meetings || []).some((m,i) => meetingEmpId(m,row.instructorEmpId) !== meetingEmpId(official[i] || {},a.emp_id || a.emp_id_2))) failures.push({ courseId: row.courseId, reason: 'protected_meeting_instructor_changed' });
     if (protectedActivity && (text(row.instructorEmpId) !== text(a.emp_id || a.emp_id_2) || !sameSchedule(row.meetings, official))) failures.push({ courseId: row.courseId, reason: 'protected_assignment_changed' });
     if (lock && (!sameSchedule(row.meetings, lock.meetings) || text(row.instructorEmpId) !== text(lock.instructorEmpId))) failures.push({ courseId: row.courseId, reason: 'planning_lock_changed' });
+    // Dirty unprotected proposals remain visible but are not certified here; they
+    // must not fail official-date or occupancy checks until recalculated.
+    if (isStaleUnprotectedPlanningRow(row, a, lock)) {
+      warnings.push({ courseId: row.courseId, reason: 'stale_needs_recalc', empId: text(row.instructorEmpId), needsRecalc: true });
+      continue;
+    }
     if (!protectedActivity && official.length && !sameSchedule(row.meetings, official)) failures.push({ courseId: row.courseId, reason: 'official_dates_changed' });
     if (!row.instructorEmpId) continue;
     const issues = candidateFailures(context, occupancy, a, row).map(f => ({ ...f, courseId: row.courseId }));

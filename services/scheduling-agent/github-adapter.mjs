@@ -71,8 +71,14 @@ export function prepareServerPlanningSnapshot(payload, {now = new Date()} = {}) 
     activities:baseActivities,instructors:activeSchedulingInstructors(contacts),
     profiles,rules,exceptions,schoolCalendar:calendar,catalog,periodKey:'year'
   };
-  const trustedRows=stored.map(x=>x.lockedOption
-    ? applyPlanningLockToRow(x.row,x.lockedOption,'year'):x.row).filter(Boolean);
+  const trustedRows=stored.map(x=>{
+    const row=x.lockedOption
+      ? applyPlanningLockToRow(x.row,x.lockedOption,'year'):x.row;
+    if(!row)return null;
+    // needs_recalc lives on the workspace wrapper; stamp it onto the engine row
+    // so point planning can refuse stale unprotected proposals as occupancy anchors.
+    return {...row,needsRecalc:x.needsRecalc===true};
+  }).filter(Boolean);
   if(stored.some(x=>!x||!x.activityId||!x.row) ||
     new Set(stored.map(x=>x.activityId)).size!==stored.length) {
     throw new WorkerTransportError('workspace_rows_invalid');
