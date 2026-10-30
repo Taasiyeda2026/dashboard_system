@@ -39,7 +39,7 @@ test('course has exact event-specific closing copy without truncation', () => {
     'במהלך הקורס יצאו התלמידות למסע מעצים ומעורר השראה, שבו הכירו נשים פורצות דרך מתחומים שונים, נחשפו לסיפורי הצלחה ולהתמודדות עם אתגרים וגילו כיצד אומץ, נחישות, יצירתיות ואמונה עצמית יכולים להוביל להישגים משמעותיים וליצירת שינוי.');
   assert.equal(ui.el('b2').value,
     'התלמידות יציגו את התוצרים והתובנות שאספו לאורך הקורס, ישתפו בסיפורים שעוררו בהן השראה ויבטאו את החלומות והשאיפות שלהן לעתיד. הזדמנות לחגוג את הדרך שעברו, את הכוחות שגילו בעצמן ואת האומץ לחלום בגדול ולסלול דרך משלהן.');
-  assert.equal(ui.el('card').querySelector('.c-section-title').textContent, 'מה מצפה לנו:');
+  assert.equal(ui.el('card').querySelector('.c-section-title').textContent, 'מה מצפה לנו?');
   assert.match(ui.el('card').textContent, /האומץ לחלום בגדול ולסלול דרך משלהן/);
   ui.dom.window.close();
 });
@@ -59,6 +59,8 @@ test('switches immediately to female guest lecture and back, retaining correct t
   assert.equal(ui.el('b2').value,
     'מפגש מעצים ומעורר השראה עם אישה פורצת דרך, שתשתף במסעה האישי, בחלומות שהפכה למציאות ובאתגרים שהתגברה עליהם. הזדמנות לתלמידות לגלות את הכוח הטמון בהן, להאמין בעצמן ולקבל השראה לחלום בגדול, לפרוץ גבולות ולהעז להגשים את שאיפותיהן.');
   assert.match(ui.el('card').textContent, /להעז להגשים את שאיפותיהן/);
+  ui.change('lec-name', 'דנה לדוגמה', 'input');
+  assert.match(ui.el('card').textContent, /מרצה: דנה לדוגמה/);
   ui.change('ev-type', 'end');
   assert.equal(ui.el('ev-type').value, 'end');
   assert.equal(ui.el('card').querySelector('.c-sub-event').textContent, 'למפגש הסיום');
