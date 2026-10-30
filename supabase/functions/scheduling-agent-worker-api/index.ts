@@ -122,7 +122,7 @@ Deno.serve(async(req:Request)=>{
 
     // Full snapshot uses multiple DB requests but protects against mixed
     // versions by comparing authoritative preflight both BEFORE and AFTER.
-    const start=await (canary ? client.rpc('get_scheduling_planning_preflight',{p_period_key:'year',p_district:''}).then(({data,error})=>{if(error)throw Error('canary_preflight_unavailable');return data;}) : command('preflight',args));
+    const start=await (canary ? command('probe',{}).then(p=>({sourceRevision:p.sourceRevision,workspace:{revision:p.workspaceRevision}})) : command('preflight',args));
     const {data:workspace,error:workspaceError}=await client.from('scheduling_agent_worker_workspaces')
       .select('id,revision').eq('period_key','year').eq('district','').single();
     if(workspaceError||!workspace?.id||String(workspace.revision)!==String(start?.workspace?.revision)){
@@ -162,7 +162,7 @@ Deno.serve(async(req:Request)=>{
       paged('course_meeting_cancellations','activity_id,meeting_date',q=>q.order('meeting_date'),10000),
       paged('scheduling_agent_worker_intents','activity_id,emp_id,status,version',q=>q.eq('status','active').order('activity_id'),10000)
     ]);
-    const end=await (canary ? client.rpc('get_scheduling_planning_preflight',{p_period_key:'year',p_district:''}).then(({data,error})=>{if(error)throw Error('canary_preflight_unavailable');return data;}) : command('preflight',args));
+    const end=await (canary ? command('probe',{}).then(p=>({sourceRevision:p.sourceRevision,workspace:{revision:p.workspaceRevision}})) : command('preflight',args));
     if(String(start?.sourceRevision)!==String(end?.sourceRevision)
         ||String(start?.workspace?.revision)!==String(end?.workspace?.revision)) {
       throw Error('worker_snapshot_revision_changed');
