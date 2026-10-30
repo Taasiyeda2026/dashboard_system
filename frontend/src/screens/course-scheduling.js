@@ -1178,7 +1178,12 @@ export function courseListHtml(rowModels, selectedId, state = {}) {
   const visibleRows = filterCourseRowModelsBySearch(statusFilter === 'all'
     ? workingRows
     : workingRows.filter((row) => row.bucket === statusFilter), state.courseSchedulingListSearch);
-  const windowed = courseListWindow(visibleRows, state.courseSchedulingListPage);
+  // Paginate after applying the operational status order, otherwise a page
+  // can still start with unassigned activities simply because of source order.
+  const statusOrder = { assigned: 0, draft: 1, open: 2 };
+  const prioritizedRows = [...visibleRows].sort((a, b) =>
+    (statusOrder[a.bucket] ?? 3) - (statusOrder[b.bucket] ?? 3));
+  const windowed = courseListWindow(prioritizedRows, state.courseSchedulingListPage);
   state.courseSchedulingListPage = windowed.page;
   const selectedGroup = LIST_GROUPS.find((group) => group.key === statusFilter);
   const filterContext = statusFilter === 'all'
