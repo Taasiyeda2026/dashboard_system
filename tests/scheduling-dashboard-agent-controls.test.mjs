@@ -473,6 +473,26 @@ test('planning is optional and the long annual instructor report stays folded un
  }finally{f.close();}
 });
 
+test('selected activity opens in a dismissible sheet without altering the workboard or assignment',()=>{
+ const f=ui();try{
+  const screen=f.root.querySelector('.course-scheduling-screen');
+  const list=f.root.querySelector('[data-course-list]');
+  const detail=f.root.querySelector('[data-course-detail]');
+  const close=detail.querySelector('[data-close-course-detail]');
+  const count=list.querySelectorAll('[data-course-card]').length;
+  assert.ok(screen.classList.contains('has-selected-course'));
+  assert.equal(detail.classList.contains('is-open'),true);
+  assert.ok(close);
+  assert.equal(close.getAttribute('aria-label'),'סגור פרטי פעילות');
+  close.click();
+  assert.equal(f.state.courseSchedulingSelectedId,'');
+  assert.equal(f.root.querySelector('[data-course-detail]').classList.contains('is-open'),false);
+  assert.equal(f.root.querySelector('[data-course-list]').querySelectorAll('[data-course-card]').length,count);
+  assert.equal(f.data.activities[0].emp_id,undefined);
+  assert.equal(f.calls.filter(c=>c.name==='scheduling_dashboard_assignment').length,0);
+ }finally{f.close();}
+});
+
 test('activity notes are escaped, labeled, and operational private notes are role-restricted',()=>{
  const activity={notes:'תיאום מול בית הספר <script>alert(1)</script>',scheduling_note:'רביעי בלבד',operations_private_notes:'הערה תפעולית פנימית'};
  const admin=selectedCourseNotesHtml(activity,{role:'admin'});
