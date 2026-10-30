@@ -161,7 +161,11 @@ async function buildPdf(account: any) {
   page.drawLine({ start: { x: 30, y: y - 7 }, end: { x: 565, y: y - 7 }, thickness: 1, color: rgb(0.1, 0.35, 0.55) });
   y -= 34;
   drawRight(page, bold, `לכבוד: ${account.customer_name_snapshot}`, y, 11); y -= 16;
-  drawRight(page, regular, `מספר לקוח: ${account.institution_symbol}`, y, 10); y -= 26;
+  if (clean(account.institution_symbol)) {
+    const schoolBilling = account.finance_transaction_account_lines?.some((line: { billing_rule?: string }) => line.billing_rule === 'monthly');
+    drawRight(page, regular, `${schoolBilling ? 'סמל מוסד' : 'מספר לקוח'}: ${clean(account.institution_symbol)}`, y, 10);
+    y -= 26;
+  }
   drawRight(page, bold, 'תוכניות חינוכיות – שנת תשפ"ז', y, 13); y -= 32;
 
   const widths = [175, 60, 48, 65, 87, 100];
