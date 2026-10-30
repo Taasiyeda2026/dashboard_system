@@ -43,7 +43,9 @@ function triggerFindAction(screen, courseId) {
 }
 
 function createTableHeader(coursesRoot) {
-  if (coursesRoot.querySelector(':scope > .course-scheduling-compact-table-head')) return;
+  // The native workboard owns its six-column header inside [data-course-list-body].
+  // Never prepend the four-column legacy header on top of it.
+  if (coursesRoot.querySelector('.course-scheduling-compact-table-head')) return;
   const header = document.createElement('div');
   header.className = 'course-scheduling-compact-table-head';
   header.setAttribute('aria-hidden', 'true');
@@ -54,17 +56,8 @@ function createTableHeader(coursesRoot) {
 function enhanceCourseCard(screen, card) {
   const courseId = String(card.dataset.courseCard || '').trim();
   if (isNativeCompactRow(card)) {
-    card.classList.toggle('is-selected', card.classList.contains('is-selected'));
-    card.querySelector('[data-course-row-action]')?.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      pendingFindCourseId = courseId;
-      if (card.classList.contains('is-selected')) {
-        triggerFindAction(screen, courseId);
-        return;
-      }
-      card.click();
-    }, { once: true });
+    // Native workboard actions are already bound by course-scheduling.js.
+    // Legacy interceptors previously swallowed the first real action click.
     return;
   }
   if (card.closest('.course-scheduling-compact-row')) return;
@@ -149,7 +142,7 @@ function enhanceScreen(screen) {
   const coursesRoot = screen.querySelector('.course-scheduling-courses');
   if (!coursesRoot) return;
 
-  createTableHeader(coursesRoot);
+  if (!screen.classList.contains('is-simple-workboard')) createTableHeader(coursesRoot);
   coursesRoot.querySelectorAll('[data-course-card]').forEach((card) => enhanceCourseCard(screen, card));
 
   const rows = coursesRoot.querySelectorAll('.course-scheduling-compact-row');
