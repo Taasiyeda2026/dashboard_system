@@ -223,8 +223,22 @@ test('the PDF source never prints billing internals and bank details are exact',
   const edge=await readFile(new URL('../supabase/functions/finance-transaction-accounts/index.ts',import.meta.url),'utf8');
   const rendering=edge.slice(edge.indexOf('async function buildPdf('),edge.indexOf('\nDeno.serve('));
   assert.doesNotMatch(rendering,/מממן:|חודש סיום|חודש ביצוע|מפגש לחיוב|פירוט ביצוע לחיוב/, 'no internal billing details or Gefen in service columns');
-  assert.match(rendering,/בנק הפועלים 12, סניף 500 הרימון, חשבון 300120/);
+  assert.ok(rendering.includes("'בנק הפועלים 12  |  סניף 500 הרימון  |  חשבון 300120'"),'bank number 12 and separators are printed exactly');
+  assert.ok(rendering.includes('"טלפון: 055-4548890"'),'invoice phone must be 055-4548890');
+  assert.doesNotMatch(rendering,/03-5370368|סניף 611|בנק הפועלים 12, סניף/);
   assert.doesNotMatch(rendering,/\(ע"ר\)/);
   assert.match(rendering,/מחיר לשעה/);
   assert.match(rendering,/מחיר ליחידה/);
+});
+
+test('generated PDF contains updated invoice contact and both bank separators',async()=>{
+  const r=await harness();
+  assert.equal(r.response.status,200,JSON.stringify(r.body));
+  const pdf=await getDocument({data:new Uint8Array(r.pdf),useSystemFonts:false}).promise;
+  const glyphs=(await (await pdf.getPage(1)).getTextContent()).items.map(i=>i.str||'').join(' ');
+  assert.match(glyphs,/055-4548890/);
+  assert.match(glyphs,/300120/);
+  assert.match(glyphs,/500/);
+  assert.ok((glyphs.match(/\|/g)||[]).length>=2,'both bank separators should remain selectable text');
+  assert.doesNotMatch(glyphs,/03-5370368/);
 });
