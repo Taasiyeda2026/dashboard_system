@@ -7305,17 +7305,26 @@ function planningCompletionDateRange(row = {}) {
   };
 }
 
-function planningRowIsFirstHalf(row = {}) {
-  const period = firstHalfCountingPeriod();
+function planningRowBelongsToSemester(row = {}, periodKey = 'first') {
+  const key = periodKey === 'second' ? 'second' : 'first';
+  const period = key === 'first' ? firstHalfCountingPeriod() : resolveCourseSchedulingPeriod('second');
   const dates = planningCompletionDateRange(row);
-  if (!dates.startDate && !dates.endDate) return true;
+  // With no official date, planning belongs to the first half until the
+  // school supplies a date. A first-half course continuing in February
+  // remains in the first half; its meetings still block the second half.
+  if (!dates.startDate && !dates.endDate) return key === 'first';
   const startDate = dates.startDate || dates.endDate;
-  const endDate = dates.endDate || dates.startDate;
-  return startDate <= period.end && endDate >= period.start;
+  return startDate >= period.start && startDate <= period.end;
 }
 
-export function buildPlanningCompletionRows({ activities = [], planningRows = [], includeManualActivities = false } = {}) {
-  const firstHalf = firstHalfCountingPeriod();
+function planningRowIsFirstHalf(row = {}) {
+  return planningRowBelongsToSemester(row, 'first');
+}
+
+export function buildPlanningCompletionRows({ activities = [], planningRows = [], includeManualActivities = false, periodKey = 'first' } = {}) {
+  const semesterKey = periodKey === 'second' ? 'second' : 'first';
+  const semesterPeriod = semesterKey === 'second' ? resolveCourseSchedulingPeriod('second') : firstHalfCountingPeriod();
+  const semesterLabel = semesterKey === 'second' ? 'ב׳' : 'א׳';
   const byId = new Map((planningRows || []).map((row) => [text(row?.courseId), row]));
   const rows = [];
 
@@ -7326,13 +7335,14 @@ export function buildPlanningCompletionRows({ activities = [], planningRows = []
       && schedulingActivityTypeCategory(activity.activity_type ?? activity.type ?? activity.item_type))) continue;
     const dates = officialPlanningDates(activity);
     const firstOfficialDate = dates[0] || '';
-    if (firstOfficialDate && (firstOfficialDate < firstHalf.start || firstOfficialDate > firstHalf.end)) continue;
+    if (!firstOfficialDate && semesterKey === 'second') continue;
+    if (firstOfficialDate && (firstOfficialDate < semesterPeriod.start || firstOfficialDate > semesterPeriod.end)) continue;
 
     const activityId = idOf(activity);
     const assigned = !!text(activity.emp_id);
     const draft = !assigned && !!text(activity.draft_emp_id);
     if (assigned || draft) {
-      rows.push(liveRow(activity, 'first'));
+      rows.push(liveRow(activity, semesterKey));
       continue;
     }
 
@@ -7345,7 +7355,7 @@ export function buildPlanningCompletionRows({ activities = [], planningRows = []
     rows.push({
       ...missingOverviewRow(activity, []),
       reason: dates.length
-        ? 'הפעילות במחצית א׳ אך עדיין אין לה שיבוץ בתכנון'
+        ? `הפעילות במחצית ${semesterLabel} אך עדיין אין לה שיבוץ בתכנון`
         : 'אין מועד קבוע — הפעילות שייכת למחצית א׳ ונדרשת לתכנון'
     });
   }
@@ -7353,14 +7363,15 @@ export function buildPlanningCompletionRows({ activities = [], planningRows = []
   return rows;
 }
 
-export function planningInstructorCompletionOverview(rows = []) {
+export function planningInstructorCompletionOverview(rows = [], { periodKey = 'first' } = {}) {
+  const semesterKey = periodKey === 'second' ? 'second' : 'first';
   const firstHalf = firstHalfCountingPeriod();
   const groups = new Map();
 
   for (const row of rows || []) {
     const empId = text(row?.instructorEmpId);
     const name = text(row?.instructorName);
-    if (!empId || !name || !planningRowIsFirstHalf(row)) continue;
+    if (!empId || !name || !planningRowBelongsToSemester(row, semesterKey)) continue;
 
     const key = empId || name;
     if (!groups.has(key)) {
@@ -7432,8 +7443,8 @@ export function planningInstructorCompletionOverview(rows = []) {
     if (activityType === 'קורס') group.courseCount += 1;
     else group.otherActivityCount += 1;
     if (!dates.startDate) group.undatedCount += 1;
-    if (dates.endDate && dates.endDate > firstHalf.end && dates.endDate <= FIRST_HALF_CONTINUATION_END_DATE) group.continuationCount += 1;
-    if (row.halfOverflow === true || (dates.endDate && dates.endDate > FIRST_HALF_CONTINUATION_END_DATE)) group.overflowCount += 1;
+    if (semesterKey === 'first' && dates.endDate && dates.endDate > firstHalf.end && dates.endDate <= FIRST_HALF_CONTINUATION_END_DATE) group.continuationCount += 1;
+    if (row.halfOverflow === true || (semesterKey === 'first' && dates.endDate && dates.endDate > FIRST_HALF_CONTINUATION_END_DATE)) group.overflowCount += 1;
   }
 
   return [...groups.values()].map((group) => {
@@ -7491,8 +7502,8 @@ export function planningInstructorCompletionOverview(rows = []) {
 }
 
 
-export function planningFullWorkPlanCoverage(rows = []) {
-  const firstHalfRows = (rows || []).filter(planningRowIsFirstHalf);
+export function planningFullWorkPlanCoverage(rows = [], { periodKey = 'first' } = {}) {
+  const firstHalfRows = (rows || []).filter((row) => planningRowBelongsToSemester(row, periodKey));
   const team = firstHalfRows.filter((row) => !!text(row?.instructorEmpId)).length;
   const recruitment = firstHalfRows.filter((row) => row?.kind === 'recruitment').length;
   const unresolved = firstHalfRows.length - team - recruitment;
@@ -7545,15 +7556,17 @@ function instructorCompletionDetailHtml(item) {
             </div>
           </td>`;
 }
-export function planningCompletionInstructorDetailsHtml(rows, detailKey) {
-  const item = planningInstructorCompletionOverview((rows || []).filter(planningRowIsFirstHalf))
+export function planningCompletionInstructorDetailsHtml(rows, detailKey, { periodKey = 'first' } = {}) {
+  const item = planningInstructorCompletionOverview(rows || [], { periodKey })
     .find(item => text(item.empId || item.name) === text(detailKey));
   return item ? instructorCompletionDetailHtml(item) : '<td colspan="7"></td>';
 }
 
-export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, schoolYearTotal = null, expandedInstructorIds = null, operationalOnly = false } = {}) {
-  const firstHalfRows = (rows || []).filter(planningRowIsFirstHalf);
-  const overview = planningInstructorCompletionOverview(firstHalfRows);
+export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, schoolYearTotal = null, expandedInstructorIds = null, operationalOnly = false, periodKey = 'first' } = {}) {
+  const semesterKey = periodKey === 'second' ? 'second' : 'first';
+  const semesterLabel = semesterKey === 'second' ? 'ב׳' : 'א׳';
+  const firstHalfRows = (rows || []).filter((row) => planningRowBelongsToSemester(row, semesterKey));
+  const overview = planningInstructorCompletionOverview(firstHalfRows, { periodKey: semesterKey });
 
   const totals = firstHalfRows.reduce((acc, row) => {
     const activityType = text(row?.activityType) || 'קורס';
@@ -7567,8 +7580,8 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
     else if (row.kind === 'recruitment') acc.recruitment += 1;
     else acc.unresolved += 1;
     if (!dates.startDate) acc.undated += 1;
-    if (dates.endDate && dates.endDate > firstHalfCountingPeriod().end && dates.endDate <= FIRST_HALF_CONTINUATION_END_DATE) acc.continuation += 1;
-    if (row.halfOverflow === true || (dates.endDate && dates.endDate > FIRST_HALF_CONTINUATION_END_DATE)) acc.overflow += 1;
+    if (semesterKey === 'first' && dates.endDate && dates.endDate > firstHalfCountingPeriod().end && dates.endDate <= FIRST_HALF_CONTINUATION_END_DATE) acc.continuation += 1;
+    if (row.halfOverflow === true || (semesterKey === 'first' && dates.endDate && dates.endDate > FIRST_HALF_CONTINUATION_END_DATE)) acc.overflow += 1;
     return acc;
   }, {
     activities: 0,
@@ -7644,14 +7657,14 @@ export function planningCompletionOverviewHtml(rows = [], { pendingChanges = 0, 
     .map((district) => `${district} ${recruitmentProfilesByDistrict[district]}`)
     .join(' · ');
 
-  const coverage = planningFullWorkPlanCoverage(firstHalfRows);
+  const coverage = planningFullWorkPlanCoverage(firstHalfRows, { periodKey: semesterKey });
   const unresolvedRows = firstHalfRows.filter((row) =>
     !text(row?.instructorEmpId) && row.kind !== 'recruitment'
   );
   return `<section class="course-planning-completion-overview" data-planning-completion-overview>
     <div class="course-planning-section-heading course-planning-workplan-heading">
       <div>
-        <strong>${operationalOnly ? 'שיבוצים שמורים — מחצית א׳' : 'תוכנית עבודה מלאה — מחצית א׳'}</strong>
+        <strong>${operationalOnly ? `שיבוצים שמורים — מחצית ${semesterLabel}` : `תוכנית עבודה מלאה — מחצית ${semesterLabel}`}</strong>
         <span class="course-planning-workplan-summary">${operationalOnly
           ? `${coverage.total} פעילויות · ${totals.live} משובצות · ${totals.drafts} טיוטות · ${coverage.unresolved} טרם שובצו`
           : `${coverage.total} פעילויות · ${coverage.team} לצוות הקיים · ${coverage.recruitment} לגיוס${coverage.unresolved ? ` · ${coverage.unresolved} לטיפול` : ''}`}</span>
