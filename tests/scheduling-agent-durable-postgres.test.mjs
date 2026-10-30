@@ -30,8 +30,11 @@ test('durable queue on isolated PostgreSQL', {skip:!url},async t=>{
  }
  async function reset(){
   await query('truncate scheduling_agent_alerts,staff_messages,scheduling_agent_team_optimization_jobs,scheduling_agent_worker_audit,scheduling_planning_run_leases,fixture_saves,net.fixture_requests');
-  await query('update scheduling_agent_worker_settings set enabled=true,autonomous_enabled=true');
-  await query('update scheduling_planning_workspaces set revision=1');
+  await query('update scheduling_agent_worker_settings set enabled=true,autonomous_enabled=true,auto_enqueue_enabled=false');
+  await query("update scheduling_agent_auto_enqueue_state set last_requested_source_revision=-1,last_requested_at=null,last_job_id=null");
+  await query("update scheduling_planning_source_state set revision=7,updated_at=clock_timestamp()");
+  await query('truncate scheduling_planning_rows');
+  await query('update scheduling_planning_workspaces set revision=1,validated_source_revision=7');
   await query("update fixture_validation set dirty_count=0,engine_version='planning-v38-20261015-transition-30-45',reject_save=false");
  }
  async function enqueue(){return (await query("insert into scheduling_agent_team_optimization_jobs(created_by,mode) values($1,'incremental') returning id",[owner])).rows[0].id;}
@@ -40,9 +43,14 @@ test('durable queue on isolated PostgreSQL', {skip:!url},async t=>{
   dataFingerprint:'synthetic',contextFingerprint:'synthetic',rows:[{activityId:'synthetic-course',row:{courseId:'synthetic-course'}}]});
  try{
   await query(read('./fixtures/scheduling-agent-infra.sql'));
+  // The durable fixture predates the production source freshness columns.
+  await query("alter table scheduling_planning_source_state add column updated_at timestamptz not null default clock_timestamp()");
+  await query("alter table scheduling_planning_workspaces add column validated_source_revision bigint not null default 7");
+  await query("alter table scheduling_planning_rows add column needs_recalc boolean not null default false");
   await query(read('../supabase/migrations/20261015121500_scheduling_agent_team_optimization_queue.sql'));
   await query(read('../supabase/migrations/20261015170000_scheduling_agent_worker_oidc_control.sql'));
   await query(read('../supabase/migrations/20261016000000_scheduling_agent_durable_wakeup.sql'));
+  await query(read('../supabase/migrations/20261030172000_scheduling_agent_guarded_auto_enqueue.sql'));
   await query('insert into users(auth_user_id,is_active,role) values($1,true,\'admin\');',[owner]);
   await query('insert into scheduling_agent_control values(true,$1)',[owner]);
   await query("insert into scheduling_planning_workspaces values(gen_random_uuid(),'year','',1)");
@@ -194,6 +202,57 @@ test('durable queue on isolated PostgreSQL', {skip:!url},async t=>{
     assert.equal((await c.query("select scheduling_agent_alert_command('reserve') result")).rows[0].result.reserved,false);await c.query('rollback');
    }finally{c.release();}
    assert.equal((await query("select has_table_privilege('authenticated','scheduling_agent_alerts','select') allowed")).rows[0].allowed,false);
+  });
+  await t.test('automatic admission is off by default and never enqueues a large stale plan by installing a migration',async()=>{
+   await reset();
+   await query("insert into scheduling_planning_rows(workspace_id,activity_id,row_data,needs_recalc) select id,'dirty-2027','{\"kind\":\"proposal\"}'::jsonb,true from scheduling_planning_workspaces");
+   await query("update scheduling_planning_source_state set revision=8,updated_at=clock_timestamp()-interval '4 minutes'");
+   await query('select scheduling_agent_wakeup_tick()');
+   assert.equal((await query('select count(*)::int n from scheduling_agent_team_optimization_jobs')).rows[0].n,0);
+   assert.equal((await query('select auto_enqueue_enabled from scheduling_agent_worker_settings')).rows[0].auto_enqueue_enabled,false);
+   assert.equal((await query("select has_function_privilege('authenticated','scheduling_agent_enqueue_dirty_once()','execute') allowed")).rows[0].allowed,false);
+  });
+  await t.test('automatic admission merges changes and enqueues a single eligible incremental request',async()=>{
+   await reset();
+   await query("update scheduling_agent_worker_settings set auto_enqueue_enabled=true");
+   await query("insert into scheduling_planning_rows(workspace_id,activity_id,row_data,needs_recalc) select id,'dirty-2027','{\"kind\":\"proposal\"}'::jsonb,true from scheduling_planning_workspaces");
+   await query("update scheduling_planning_source_state set revision=8,updated_at=clock_timestamp()-interval '1 minute'");
+   await query('select scheduling_agent_wakeup_tick()');
+   assert.equal((await query('select count(*)::int n from scheduling_agent_team_optimization_jobs')).rows[0].n,0,'debounce source edits');
+
+   await query("update scheduling_planning_source_state set updated_at=clock_timestamp()-interval '4 minutes'");
+   await Promise.all([query('select scheduling_agent_wakeup_tick()'),query('select scheduling_agent_wakeup_tick()')]);
+   const jobs=await query("select id,status,mode from scheduling_agent_team_optimization_jobs");
+   assert.equal(jobs.rows.length,1,'no duplicate even with overlapping supervisor ticks');
+   assert.equal(jobs.rows[0].status,'queued');
+   assert.equal(jobs.rows[0].mode,'incremental');
+   assert.equal((await query("select count(*)::int n from scheduling_agent_worker_audit where event_type='automatic_source_update_requested'")).rows[0].n,1);
+   await query("update scheduling_agent_team_optimization_jobs set status='completed'");
+   await query('select scheduling_agent_wakeup_tick()');
+   assert.equal((await query('select count(*)::int n from scheduling_agent_team_optimization_jobs')).rows[0].n,1,'same source does not reenqueue');
+  });
+  await t.test('automatic plan stops on failed job rather than retrying every source revision',async()=>{
+   await reset();
+   await query('update scheduling_agent_worker_settings set auto_enqueue_enabled=true');
+   await query("insert into scheduling_planning_rows(workspace_id,activity_id,row_data,needs_recalc) select id,'dirty-2027','{\"kind\":\"recruitment\"}'::jsonb,true from scheduling_planning_workspaces");
+   await query("update scheduling_planning_source_state set revision=8,updated_at=clock_timestamp()-interval '4 minutes'");
+   await query('select scheduling_agent_wakeup_tick()');
+   await query("update scheduling_agent_team_optimization_jobs set status='failed',failure_code='planning_final_validation_failed'");
+   await query("update scheduling_agent_auto_enqueue_state set last_requested_at=clock_timestamp()-interval '6 minutes'");
+   await query("update scheduling_planning_source_state set revision=9,updated_at=clock_timestamp()-interval '4 minutes'");
+   await query('select scheduling_agent_wakeup_tick()');
+   assert.equal((await query('select count(*)::int n from scheduling_agent_team_optimization_jobs')).rows[0].n,1,'a failed automatic job disables further enqueue until human intervention');
+  });
+  await t.test('clean workspace and valid shared plan never enqueue an automatic run',async()=>{
+   await reset();
+   await query('update scheduling_agent_worker_settings set auto_enqueue_enabled=true');
+   await query("update scheduling_planning_source_state set revision=8,updated_at=clock_timestamp()-interval '4 minutes'");
+   await query('select scheduling_agent_wakeup_tick()');
+   assert.equal((await query('select count(*)::int n from scheduling_agent_team_optimization_jobs')).rows[0].n,0,'no dirty planning rows');
+   await query("insert into scheduling_planning_rows(workspace_id,activity_id,row_data,needs_recalc) select id,'test','{\"kind\":\"live\"}'::jsonb,true from scheduling_planning_workspaces");
+   await query('update scheduling_planning_workspaces set validated_source_revision=8');
+   await query('select scheduling_agent_wakeup_tick()');
+   assert.equal((await query('select count(*)::int n from scheduling_agent_team_optimization_jobs')).rows[0].n,0,'already validated');
   });
   await t.test('human identities denied and success without receipt rejected',async()=>{
    await reset();await enqueue();await assert.rejects(command('claim',{},'authenticated'),/worker_machine_identity_required/);
