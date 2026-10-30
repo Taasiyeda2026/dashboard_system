@@ -354,6 +354,33 @@ test('choosing the recommended instructor through manual picker still awaits ser
  }finally{f.close();}
 });
 
+test('manual assignment replaces the selected activity sheet and restores it on close', async () => {
+ const f=ui({activityFields:{sessions:'2'},rpcImpl:async name =>
+  name==='scheduling_manual_capabilities'
+   ? {data:{apiVersion:'manual-operations-v1',enabled:true}}
+   : {data:[]}
+ });
+ try {
+  await settle();
+  const activityId=f.state.courseSchedulingSelectedId;
+  assert.ok(f.root.querySelector('[data-course-detail].is-open'), 'activity sheet is open before editing');
+  f.root.querySelector('[data-open-manual-course]').click();
+  assert.ok(f.root.querySelector('[data-manual-operations-overlay]'));
+  assert.ok(f.root.querySelector('.is-manual-editor-open'));
+  assert.ok(!f.root.querySelector('[data-course-detail].is-open'), 'activity sheet is hidden during editing');
+  assert.equal(f.root.querySelector('[data-course-detail] [data-course-work-panel]'),null);
+  assert.equal(f.root.querySelectorAll('[aria-modal="true"]').length,1, 'only one modal is active');
+  assert.equal(f.state.courseSchedulingSelectedId,activityId);
+
+  f.root.querySelector('[data-manual-operation-close]').click();
+  assert.equal(f.root.querySelector('[data-manual-operations-overlay]'),null);
+  assert.equal(f.root.querySelector('.is-manual-editor-open'),null);
+  assert.ok(f.root.querySelector('[data-course-detail].is-open'), 'activity sheet returns when the editor closes');
+  assert.equal(f.state.courseSchedulingSelectedId,activityId);
+  assert.equal(f.calls.filter(x=>x.name==='commit_scheduling_manual_assignment').length,0);
+ } finally {f.close();}
+});
+
 test('Eden uses the enabled independent instructor and date editor with her own route acknowledgement', async () => {
  const requests=[];
  const f=ui({activityFields:{sessions:'1'},rpcImpl:async(name,args)=>{
