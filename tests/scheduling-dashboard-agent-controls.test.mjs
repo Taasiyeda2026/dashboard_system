@@ -438,6 +438,41 @@ test('operator workboard prioritizes manual assignment above deferred agent plan
  }finally{f.close();}
 });
 
+test('refresh is part of filters and the daily workboard uses understandable statuses', () => {
+ const f=ui();try{
+  const scope=f.root.querySelector('.course-scheduling-scope');
+  const refresh=f.root.querySelector('[data-refresh-assignment-data]');
+  assert.ok(scope?.contains(refresh),'refresh is within the existing filter row');
+  assert.equal(f.root.querySelector('.course-scheduling-operator-toolbar'),null);
+  const labels=[...f.root.querySelectorAll('.course-scheduling-summary-card span')].map(el=>el.textContent.trim());
+  assert.deepEqual(labels,['סה״כ','משובץ','ממתין לאישור','טרם שובץ']);
+  assert.match(f.root.querySelector('[data-business-summary-filter="open"]').title,/טרם נשמר לה מדריך או טיוטת שיבוץ/);
+  const row=f.root.querySelector('[data-course-card]');
+  assert.ok(row);
+  assert.equal(row.querySelector('.course-scheduling-compact-instructor').textContent.trim(),'—');
+  assert.match(row.textContent,/טרם שובץ/);
+  assert.equal(row.querySelector('.course-scheduling-school-context'),null);
+  assert.equal(row.querySelector('.course-scheduling-workboard-alert'),null);
+ }finally{f.close();}
+});
+
+test('planning is optional and the long annual instructor report stays folded until requested',()=>{
+ const f=ui();try{
+  const plan=f.root.querySelector('[data-planning-disclosure]');
+  const report=f.root.querySelector('[data-planning-report]');
+  assert.ok(plan&&report);
+  assert.equal(plan.open,false);
+  assert.equal(report.open,false);
+  assert.match(plan.querySelector('summary').textContent,/המלצות תכנון וצרכי גיוס/);
+  assert.match(plan.querySelector('summary').textContent,/אינו משנה שיבוצים שמורים/);
+  assert.ok(report.querySelector('.course-planning-completion-table'));
+  report.open=true;
+  report.dispatchEvent(new window.Event('toggle'));
+  f.render();
+  assert.equal(f.root.querySelector('[data-planning-report]').open,true);
+ }finally{f.close();}
+});
+
 test('activity notes are escaped, labeled, and operational private notes are role-restricted',()=>{
  const activity={notes:'תיאום מול בית הספר <script>alert(1)</script>',scheduling_note:'רביעי בלבד',operations_private_notes:'הערה תפעולית פנימית'};
  const admin=selectedCourseNotesHtml(activity,{role:'admin'});

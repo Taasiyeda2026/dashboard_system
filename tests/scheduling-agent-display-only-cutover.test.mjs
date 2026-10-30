@@ -14,6 +14,6 @@ test('dashboard can display planning data but cannot start a browser optimizatio
 
 test('dashboard hides local recalculate buttons when agent owns computation',()=>{
  assert.match(screen,/SCHEDULING_AGENT_OWNS_COMPUTE \? '<span class="course-scheduling-agent-compute">/);
- assert.match(screen,/החישוב מתבצע בסוכן השיבוצים/);
+ assert.match(screen,/עדכון ההמלצות מנוהל בנפרד/);
  assert.match(screen,/loadSharedPlanningDisplayWorkspace/);
 });

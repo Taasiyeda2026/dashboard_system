@@ -597,7 +597,7 @@ function schedulingScopeHtml(allCourses = [], state = {}, allActivities = allCou
   const displayStart = periodKey === 'first' ? FIRST_HALF_COUNT_START_DATE : period.start;
   const periodRange = `${formatDateHeDots(displayStart)} – ${formatDateHeDots(period.end)}`;
   const selectedBusinessStatus = text(state.courseSchedulingBusinessStatus || 'all');
-  const businessStatusOptions = [['all', 'הכול'], ['open', 'ללא מדריך'], ['draft', 'ממתין לאישור'], ['assigned', 'משובץ']]
+  const businessStatusOptions = [['all', 'הכול'], ['assigned', 'משובץ'], ['draft', 'ממתין לאישור'], ['open', 'טרם שובץ']]
     .map(([value, label]) => `<option value="${value}"${value === selectedBusinessStatus ? ' selected' : ''}>${label}</option>`).join('');
   return `<section class="course-scheduling-scope"><div class="course-scheduling-scope-inner">
     <div class="course-scheduling-tabs course-scheduling-tabs--inner">${periodButtons}</div>
@@ -605,6 +605,7 @@ function schedulingScopeHtml(allCourses = [], state = {}, allActivities = allCou
     <label class="course-scheduling-filter-label">רשות<select class="course-scheduling-input" data-authority-filter>${authoritySelectHtml}</select></label>
     <label class="course-scheduling-filter-label">מצב<select class="course-scheduling-input" data-business-status-filter>${businessStatusOptions}</select></label>
     <p class="course-scheduling-period-range course-scheduling-period-range--push">${escapeHtml(periodRange)}</p>
+    <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary course-scheduling-filter-refresh" data-refresh-assignment-data title="טעינת נתוני שיבוץ מעודכנים" aria-label="רענן נתוני שיבוץ">רענן</button>
   </div></section>`;
 }
 function activeTab(state) {
@@ -667,7 +668,7 @@ export function compactMeetingsHtml(activity) {
 }
 
 const BUSINESS_STATUS = Object.freeze({
-  open: 'ללא מדריך',
+  open: 'טרם שובץ',
   draft: 'ממתין לאישור',
   assigned: 'משובץ'
 });
@@ -795,7 +796,9 @@ function workboardAlert(row = {}) {
 
 function workboardMeetings(row = {}) {
   if (row.isAssigned) return activityMeetings(row.course);
-  // An obsolete planning proposal is never the source of official dates in the workboard.
+  // The everyday workboard shows only saved dates or confirmed drafts.
+  // Agent suggestions belong to the optional planning details.
+  if (!row.hasActualDraft && !row.hasPlanningDraft) return activityMeetings(row.course);
   if (row.planningRow?.needsRecalc === true) {
     return row.hasActualDraft ? schedulingCalendarMeetings(row.course) : activityMeetings(row.course);
   }
@@ -810,10 +813,10 @@ function workboardMeetings(row = {}) {
 function workboardScheduleLabel(row = {}) {
   const meetings = workboardMeetings(row);
   const first = meetings[0] || {};
-  const validProposal = row.planningRow?.needsRecalc !== true;
-  const startDate = text(first.date || (validProposal ? row.planningRow?.startDate : '') || row.course?.start_date);
-  const startTime = text(first.start_time || (validProposal ? row.planningRow?.startTime : '') || row.course?.start_time);
-  const endTime = text(first.end_time || (validProposal ? row.planningRow?.endTime : '') || row.course?.end_time);
+  const validDraftProposal = row.hasPlanningDraft && row.planningRow?.needsRecalc !== true;
+  const startDate = text(first.date || (validDraftProposal ? row.planningRow?.startDate : '') || row.course?.start_date);
+  const startTime = text(first.start_time || (validDraftProposal ? row.planningRow?.startTime : '') || row.course?.start_time);
+  const endTime = text(first.end_time || (validDraftProposal ? row.planningRow?.endTime : '') || row.course?.end_time);
   if (!startDate && !startTime) return 'טרם נקבע';
   const parts = [];
   if (startDate) parts.push(formatDateHe(startDate));
@@ -826,18 +829,12 @@ function workboardInstructorLabel(row = {}) {
   const course = row.course || {};
   const planning = row.planningRow || {};
   if (row.isAssigned) return text(course.instructor_name || course.emp_id) || '—';
-  // Never present an expired recommended instructor as an operational assignment.
-  if (planning.needsRecalc === true) {
-    return row.hasActualDraft ? text(course.draft_instructor_name || course.draft_emp_id) || '—' : 'טרם שובץ';
-  }
-  if (planning.kind === 'recruitment') {
-    return text(planning.recruitmentProfileLabel) || 'נדרש גיוס';
-  }
-  if (row.hasReplannedDraft) {
-    return text(planning.instructorName || planning.instructorEmpId) || 'נדרש גיוס';
-  }
+  // Only persisted drafts or expressly locked choices count as an instructor selection.
   if (row.hasActualDraft) return text(course.draft_instructor_name || course.draft_emp_id) || '—';
-  return text(planning.instructorName || planning.instructorEmpId) || 'טרם נקבע';
+  if (row.hasPlanningDraft && planning.needsRecalc !== true) {
+    return text(planning.instructorName || planning.instructorEmpId) || '—';
+  }
+  return '—';
 }
 
 function courseRowModel(course, resultByCourseId, planningByCourseId = new Map()) {
@@ -885,18 +882,18 @@ export function stalePlanningRowForDisplay(row = {}) {
 }
 
 const LIST_GROUPS = [
-  { key: 'open', label: 'ללא מדריך' },
+  { key: 'assigned', label: 'משובץ' },
   { key: 'draft', label: 'ממתין לאישור' },
-  { key: 'assigned', label: 'משובץ' }
+  { key: 'open', label: 'טרם שובץ' }
 ];
 
 function summaryCardsHtml(rowModels = [], state = {}) {
   const selected = text(state.courseSchedulingBusinessStatus || 'all');
   const cards = [
     ['all', 'סה״כ', rowModels.length, ''],
-    ['open', 'ללא מדריך', rowModels.filter((row) => row.bucket === 'open').length, ' course-scheduling-summary-card--waiting'],
+    ['assigned', 'משובץ', rowModels.filter((row) => row.bucket === 'assigned').length, ' course-scheduling-summary-card--ready'],
     ['draft', 'ממתין לאישור', rowModels.filter((row) => row.bucket === 'draft').length, ' course-scheduling-summary-card--draft'],
-    ['assigned', 'משובץ', rowModels.filter((row) => row.bucket === 'assigned').length, ' course-scheduling-summary-card--ready']
+    ['open', 'טרם שובץ', rowModels.filter((row) => row.bucket === 'open').length, ' course-scheduling-summary-card--waiting']
   ];
   const statusCards = cards.map(([key, label, value, toneClass]) => {
     const active = selected === key;
@@ -904,7 +901,8 @@ function summaryCardsHtml(rowModels = [], state = {}) {
       class="course-scheduling-summary-card course-scheduling-summary-card--button${toneClass}${active ? ' is-active' : ''}"
       data-business-summary-filter="${key}"
       aria-pressed="${active ? 'true' : 'false'}"
-      aria-label="${escapeHtml(`${label}: ${value} פעילויות. לחץ לסינון הטבלה`)}">
+      aria-label="${escapeHtml(`${label}: ${value} פעילויות. לחץ לסינון הטבלה`)}"
+      title="${key === 'open' ? 'פעילות שטרם נשמר לה מדריך או טיוטת שיבוץ' : escapeHtml(label)}">
       <b>${value}</b><span>${label}</span>
     </button>`;
   }).join('');
@@ -1147,13 +1145,13 @@ function courseListCardHtml(row, selectedId, state = {}) {
   const authority = text(c.authority) || '—';
   const courseName = text(c.activity_name) || '—';
   const expanded = text(state.courseSchedulingAlternativesCourseId) === row.id;
-  const alert = row.alert && row.planningRow?.needsRecalc !== true
-    ? `<small class="course-scheduling-workboard-alert">⚠ ${escapeHtml(row.alert)}</small>`
-    : '';
+  // Operational rows display the saved assignment, not engine recommendations or diagnostics.
+  // Planning explanations remain available in the activity detail / advanced planning section.
+  const alert = '';
   const searchText = escapeHtml(courseRowSearchHaystack(row));
   const staleClass = row.planningRow?.needsRecalc === true ? ' is-planning-stale' : '';
   return `<div class="course-scheduling-compact-row course-scheduling-course-card${selectedClass}${staleClass}" data-course-card="${escapeHtml(row.id)}" data-search-text="${searchText}" data-course-scroll-target="${row.id === selectedId ? 'selected' : ''}" data-planning-stale="${row.planningRow?.needsRecalc === true ? 'true' : 'false'}" role="button" tabindex="0" aria-label="${escapeHtml(`${school}, ${authority}, ${courseName}, ${row.statusLabel}`)}">
-    <span class="course-scheduling-compact-cell course-scheduling-compact-school" title="${escapeHtml(school)}"><strong>${escapeHtml(school)}</strong><small>${escapeHtml(authority)}</small>${schoolPlanningContextHtml(row)}</span>
+    <span class="course-scheduling-compact-cell course-scheduling-compact-school" title="${escapeHtml(school)}"><strong>${escapeHtml(school)}</strong><small>${escapeHtml(authority)}</small></span>
     <strong class="course-scheduling-compact-cell course-scheduling-compact-course" title="${escapeHtml(courseName)}">${escapeHtml(courseName)}</strong>
     <span class="course-scheduling-compact-cell course-scheduling-workboard-schedule"><bdi dir="ltr">${escapeHtml(row.scheduleLabel)}</bdi></span>
     <span class="course-scheduling-compact-cell course-scheduling-compact-instructor" title="${escapeHtml(row.instructorLabel)}">${escapeHtml(row.instructorLabel)}</span>
@@ -1180,7 +1178,12 @@ export function courseListHtml(rowModels, selectedId, state = {}) {
   const visibleRows = filterCourseRowModelsBySearch(statusFilter === 'all'
     ? workingRows
     : workingRows.filter((row) => row.bucket === statusFilter), state.courseSchedulingListSearch);
-  const windowed = courseListWindow(visibleRows, state.courseSchedulingListPage);
+  // Paginate after applying the operational status order, otherwise a page
+  // can still start with unassigned activities simply because of source order.
+  const statusOrder = { assigned: 0, draft: 1, open: 2 };
+  const prioritizedRows = [...visibleRows].sort((a, b) =>
+    (statusOrder[a.bucket] ?? 3) - (statusOrder[b.bucket] ?? 3));
+  const windowed = courseListWindow(prioritizedRows, state.courseSchedulingListPage);
   state.courseSchedulingListPage = windowed.page;
   const selectedGroup = LIST_GROUPS.find((group) => group.key === statusFilter);
   const filterContext = statusFilter === 'all'
@@ -1220,7 +1223,7 @@ export function schedulingPlanningStatusHtml(state = {}, { snapshotStale = false
   if (error) {
     return `<div class="course-scheduling-auto-plan is-error" role="status" data-planning-status aria-busy="false">
       <span data-planning-status-message><strong>ההצעות לא עודכנו.</strong> ${escapeHtml(error)}</span>
-      ${SCHEDULING_AGENT_OWNS_COMPUTE ? '<span class="course-scheduling-agent-compute">החישוב מתבצע בסוכן השיבוצים</span>' : '<button type="button" class="course-scheduling-workboard-secondary" data-run-course-planning>נסה שוב</button>'}
+      ${SCHEDULING_AGENT_OWNS_COMPUTE ? '<span class="course-scheduling-agent-compute">עדכון ההמלצות מנוהל בנפרד</span>' : '<button type="button" class="course-scheduling-workboard-secondary" data-run-course-planning>נסה שוב</button>'}
     </div>`;
   }
   if (loading) {
@@ -1243,21 +1246,21 @@ export function schedulingPlanningStatusHtml(state = {}, { snapshotStale = false
   if (!calculatedAt) {
     return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
       <span data-planning-status-message><strong>אין עדיין תכנון שמור.</strong> החישוב יתחיל רק כשתבחר לבנות הצעות.</span>
-      ${SCHEDULING_AGENT_OWNS_COMPUTE ? '<span class="course-scheduling-agent-compute">החישוב מתבצע בסוכן השיבוצים</span>' : '<button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>בנה הצעות</button>'}
+      ${SCHEDULING_AGENT_OWNS_COMPUTE ? '<span class="course-scheduling-agent-compute">עדכון ההמלצות מנוהל בנפרד</span>' : '<button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>בנה הצעות</button>'}
     </div>`;
   }
   if (state.courseSchedulingPlanningStale) {
     const reason = text(state.courseSchedulingPlanningStaleReason) || 'נתוני התכנון השתנו';
     return `<div class="course-scheduling-auto-plan is-warning" role="status" data-planning-status aria-busy="false">
       <span data-planning-status-message><strong>התכנון השמור אינו עדכני.</strong> ${escapeHtml(reason)}.</span>
-      ${SCHEDULING_AGENT_OWNS_COMPUTE ? '<span class="course-scheduling-agent-compute">החישוב מתבצע בסוכן השיבוצים</span>' : '<button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>עדכן</button>'}
+      ${SCHEDULING_AGENT_OWNS_COMPUTE ? '<span class="course-scheduling-agent-compute">עדכון ההמלצות מנוהל בנפרד</span>' : '<button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>עדכן</button>'}
     </div>`;
   }
   if (pendingRecalc > 0 || hardGateInvalid > 0) {
     const count = Math.max(pendingRecalc, hardGateInvalid);
     return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
       <span data-planning-status-message><strong>נדרש עדכון · ${count} פעילויות</strong></span>
-      ${SCHEDULING_AGENT_OWNS_COMPUTE ? '<span class="course-scheduling-agent-compute">החישוב מתבצע בסוכן השיבוצים</span>' : '<button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>עדכן</button>'}
+      ${SCHEDULING_AGENT_OWNS_COMPUTE ? '<span class="course-scheduling-agent-compute">עדכון ההמלצות מנוהל בנפרד</span>' : '<button type="button" class="course-scheduling-workboard-primary" data-run-course-planning>עדכן</button>'}
     </div>`;
   }
   return `<div class="course-scheduling-auto-plan is-ready" role="status" data-planning-status aria-busy="false">
@@ -2490,10 +2493,7 @@ export const courseSchedulingScreen = {
       ${tab === 'maintenance'
         ? maintenanceTabHtml(state)
         : `${schedulingScopeHtml(allInterfaceCourses, state, data.activities || [])}
-      <div class="course-scheduling-operator-toolbar" role="status">
-        ${data._is_stale ? '<span class="course-scheduling-alert">מוצג עותק שמור; פעולות שמירה ייפתחו לאחר הרענון.</span>' : ''}
-        <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-refresh-assignment-data>רענן נתוני שיבוץ</button>
-      </div>
+      ${data._is_stale ? '<p class="course-scheduling-alert" role="status">מוצג עותק שמור; יש לרענן לפני שמירת שיבוץ.</p>' : ''}
       <p data-course-scheduling-error class="course-scheduling-alert"${state.courseSchedulingError ? '' : ' hidden'}>${escapeHtml(state.courseSchedulingError || '')}</p>
       <section class="course-scheduling-summary" aria-label="סיכום פעילויות לפי מצב">${summaryCardsHtml(rowModels, state)}</section>
       <div class="course-scheduling-layout course-scheduling-layout--courses">
@@ -2506,17 +2506,18 @@ export const courseSchedulingScreen = {
       </div>
       <details class="course-scheduling-planning-disclosure" data-planning-disclosure${state.courseSchedulingPlanningOverviewOpen === true ? ' open' : ''}>
         <summary>
-          <strong>תכנון הסוכן וצרכי גיוס</strong>
-          <span>${!state.courseSchedulingPlanningSharedLoaded || state.courseSchedulingPlanningLoading || state.courseSchedulingPlanningStale
-            ? 'הצעות התכנון אינן מעודכנות · שיבוץ ידני זמין'
-            : 'הצעות למדריכים, תוכנית עבודה וצרכי גיוס'}</span>
+          <strong>המלצות תכנון וצרכי גיוס</strong>
+          <span>מידע לתכנון בלבד · אינו משנה שיבוצים שמורים</span>
         </summary>
         <div class="course-scheduling-planning-disclosure__body">
           ${schedulingPlanningStatusHtml(state, { snapshotStale: data._is_stale === true })}
-          ${fragmentedSchoolsFilterHtml(rowModels, state)}
-          ${!state.courseSchedulingPlanningSharedLoaded || state.courseSchedulingPlanningLoading || state.courseSchedulingPlanningStale
-            ? '<p class="course-scheduling-alert" role="status" data-planning-overview-currency>טבלת המדריכים מוצגת לפי השיבוצים והטיוטות הקיימים והתכנון השמור. הצעות התכנון ממתינות לעדכון; אפשר לשבץ פעילות ידנית.</p>' : ''}
-          ${completionCache.html}
+          <details class="course-scheduling-planning-report" data-planning-report${state.courseSchedulingPlanningReportOpen === true ? ' open' : ''}>
+            <summary>הצג תוכנית עבודה מפורטת לפי מדריכים</summary>
+            ${fragmentedSchoolsFilterHtml(rowModels, state)}
+            ${!state.courseSchedulingPlanningSharedLoaded || state.courseSchedulingPlanningLoading || state.courseSchedulingPlanningStale
+              ? '<p class="course-scheduling-planning-note" data-planning-overview-currency>הדוח משלב שיבוצים וטיוטות קיימים עם הצעות תכנון. הצעות התכנון ממתינות לעדכון; שיבוץ רגיל זמין.</p>' : ''}
+            ${completionCache.html}
+          </details>
         </div>
       </details>
       `}
@@ -2596,6 +2597,9 @@ export const courseSchedulingScreen = {
     bindManualOperationsEditor(root, state, manualOperations);
     root.querySelector('[data-planning-disclosure]')?.addEventListener('toggle', event => {
       state.courseSchedulingPlanningOverviewOpen = event.currentTarget.open;
+    });
+    root.querySelector('[data-planning-report]')?.addEventListener('toggle', event => {
+      state.courseSchedulingPlanningReportOpen = event.currentTarget.open;
     });
     const openManualOperations = (course, initial = {}) => {
       if (!canEdit || !canManuallySchedule(state.user) || !data._manualOperationsAvailable || !course) return false;
