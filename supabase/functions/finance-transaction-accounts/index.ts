@@ -115,10 +115,31 @@ function drawRight(page: PDFPage, font: PDFFont, value: string, y: number, size 
   drawLogicalRight(page, font, value, y, size, rightX, 30);
 }
 function drawCell(page: PDFPage, font: PDFFont, value: string, x: number, y: number, width: number, size = 8.5, height = 25) {
-  const parts = String(value ?? '').split('\n').slice(0, 3);
-  const firstBaseline = y + (height + (parts.length - 1) * 12) / 2 - 4;
+  // Seven-column course rows have narrower school/course cells. Wrap names
+  // into up to three readable lines instead of shrinking text to invisibility.
+  const maxWidth = width - 10;
+  const lines: string[] = [];
+  const explicit = String(value ?? '').split('\n');
+  for (const text of explicit) {
+    const words = text.trim().split(/\s+/).filter(Boolean);
+    if (!words.length) { lines.push(''); continue; }
+    let current = '';
+    for (const word of words) {
+      const candidate = current ? `${current} ${word}` : word;
+      if (current && logicalTextWidth(font, candidate, size) > maxWidth && lines.length < 2) {
+        lines.push(current);
+        current = word;
+      } else {
+        current = candidate;
+      }
+    }
+    if (current) lines.push(current);
+  }
+  const parts = lines.slice(0, 3);
+  const lineSpacing = height >= 40 ? 11 : 12;
+  const firstBaseline = y + (height + (parts.length - 1) * lineSpacing) / 2 - 4;
   parts.forEach((line, index) =>
-    drawLogicalRight(page, font, line, firstBaseline - index * 12, size, x + width - 5, x + 5));
+    drawLogicalRight(page, font, line, firstBaseline - index * lineSpacing, size, x + width - 5, x + 5));
 }
 
 function drawTableRow(page: PDFPage, font: PDFFont, values: string[], widths: number[], y: number, height = 24, fill = false) {
@@ -223,36 +244,42 @@ async function buildPdf(account: any) {
   doc.setTitle(draft
     ? `טיוטת חשבון עסקה - ${clean(account.customer_name_snapshot)}`
     : `חשבון עסקה ${clean(account.transaction_account_number)} - ${clean(account.customer_name_snapshot)}`);
-  // One shared header for courses, workshops and tours, on every targetPage.
-  // Consolidated course invoices must retain the same workshop letterhead.
+  // A single letterhead for every account type, matching the workshop invoice
+  // reference: logo left, publisher details right, divider, document title,
+  // date, customer and academic-year heading. Repeat on continuation pages.
   const drawInvoiceHeader = (targetPage: PDFPage): number => {
-    let y = 805;
+    const logoScale = Math.min(132 / logo.width, 70 / logo.height);
+    const logoWidth = logo.width * logoScale;
+    const logoHeight = logo.height * logoScale;
+    targetPage.drawImage(logo, {
+      x: 35, y: 804 - logoHeight, width: logoWidth, height: logoHeight
+    });
 
-  // Keep the source logo's aspect ratio: stretching to an arbitrary 112x48
-  // distorted/cropped the wordmark in the generated invoice.
-  const logoScale = Math.min(145 / logo.width, 64 / logo.height);
-  const logoWidth = logo.width * logoScale;
-  const logoHeight = logo.height * logoScale;
-  targetPage.drawImage(logo, { x: 32, y: 807 - logoHeight, width: logoWidth, height: logoHeight });
-  drawRight(targetPage, bold, 'תעשיידע – תעשייה למען חינוך מתקדם ע"ר', y, 9); y -= 14;
-  drawRight(targetPage, regular, "דניאל פריש 3, תל אביב", y); y -= 13;
-  drawRight(targetPage, regular, "טלפון: 055-4548890", y); y -= 13;
-  drawRight(targetPage, regular, "עמותה מס': 580210094", y); y -= 13;
-  drawRight(targetPage, regular, "אימייל: toni@think.org.il", y); y -= 25;
-  drawRight(targetPage, regular, `תאריך: ${date(account.issue_date)}`, y, 10); y -= 28;
-  drawRight(targetPage, bold, draft
-    ? 'טיוטת חשבון עסקה | לבדיקה בלבד'
-    : `חשבון עסקה | ${account.transaction_account_number} | מקור`, y, 17);
-  targetPage.drawLine({ start: { x: 30, y: y - 7 }, end: { x: 565, y: y - 7 }, thickness: 1, color: rgb(0.1, 0.35, 0.55) });
-  y -= 34;
-  drawRight(targetPage, bold, `לכבוד: ${account.customer_name_snapshot}`, y, 11); y -= 16;
-  if (clean(account.institution_symbol)) {
-    const schoolBilling = account.finance_transaction_account_lines?.some((line: { billing_rule?: string }) => line.billing_rule === 'monthly');
-    drawRight(targetPage, regular, `${schoolBilling ? 'סמל מוסד' : 'מספר לקוח'}: ${clean(account.institution_symbol)}`, y, 10);
-    y -= 26;
-  }
-  drawRight(targetPage, bold, 'תוכניות חינוכיות – שנת תשפ"ז', y, 13); y -= 32;
-    return y;
+    drawRight(targetPage, bold, 'תעשיידע – תעשייה למען חינוך מתקדם ע"ר', 797, 11);
+    drawRight(targetPage, regular, 'דניאל פריש 3, תל אביב | טלפון: 055-4548890', 776, 9.5);
+    drawRight(targetPage, regular, "עמותה מס': 580210094 | אימייל: toni@think.org.il", 758, 9.5);
+
+    // Unlike the older course PDF, the dividing rule belongs below the
+    // publisher's letterhead, not below the invoice title.
+    targetPage.drawLine({
+      start: { x: 30, y: 719 }, end: { x: 565, y: 719 },
+      thickness: 1.2, color: rgb(0.83, 0.88, 0.92)
+    });
+
+    drawRight(targetPage, bold, draft
+      ? 'טיוטת חשבון עסקה | לבדיקה בלבד'
+      : `חשבון עסקה מס׳ ${account.transaction_account_number} | מקור`, 687, 17);
+    drawRight(targetPage, regular, `תאריך הפקה: ${date(account.issue_date)}`, 659, 10);
+    drawRight(targetPage, bold, `לכבוד: ${account.customer_name_snapshot}`, 629, 11);
+
+    if (clean(account.institution_symbol)) {
+      const schoolBilling = account.finance_transaction_account_lines?.some(
+        (line: { billing_rule?: string }) => line.billing_rule === 'monthly');
+      drawRight(targetPage, regular,
+        `${schoolBilling ? 'סמל מוסד' : 'מספר לקוח'}: ${clean(account.institution_symbol)}`, 608, 10);
+    }
+    drawRight(targetPage, bold, 'תוכניות חינוכיות – שנת תשפ"ז', 573, 13);
+    return 545;
   };
   let page = doc.addPage([595, 842]);
   let y = drawInvoiceHeader(page);
@@ -266,8 +293,8 @@ async function buildPdf(account: any) {
   const drawSection = (title: string, columns: string[], widths: number[],
     rows: InvoiceRenderRow[], values: (row: InvoiceRenderRow) => string[]) => {
     if (!rows.length) return;
-    const headerHeight = 25;
-    const rowHeight = 34;
+    const headerHeight = columns.length === 7 ? 30 : 25;
+    const rowHeight = columns.length === 7 ? 43 : 34;
     if (y < 55 + headerHeight + rowHeight + 22) {
       page = doc.addPage([595, 842]);
       y = drawInvoiceHeader(page);
@@ -292,26 +319,19 @@ async function buildPdf(account: any) {
     row.school ? (consolidatedFunder ? `${row.name}\n${row.school}` : `${row.name} - ${row.school}`) : row.name;
   const count = (number: number) => Number.isInteger(number)
     ? String(number) : String(Number(number.toFixed(2)));
-  // Use the *same four-column invoice grid* for courses, workshops and tours.
-  // Course-only metadata (Gefen number + meeting count) stays visible in the
-  // second description line rather than crowding the invoice with six columns.
-  const commonWidths = [265, 65, 100, 105];
-  const courseDetails = (row: InvoiceRenderRow) => {
-    const metadata = [
-      row.school,
-      row.gefen ? `מס' גפ״ן ${row.gefen}` : '',
-      `${count(row.quantity)} מפגשים`
-    ].filter(Boolean).join(' · ');
-    return [row.name, metadata].filter(Boolean).join('\n');
-  };
+  // Course invoices use the seven accounting columns requested by finance.
+  // Workshops and tours retain their own four-column quantity-based table.
+  // Both share the exact same letterhead, typography and grid styling.
+  const courseWidths = [94, 119, 56, 42, 46, 80, 98]; // A4 printable width: 535
+  const serviceWidths = [265, 65, 100, 105];
   drawSection('קורסים',
-    ['תוכנית / קורס', 'שעות', 'מחיר לשעה', 'סה״כ'],
-    commonWidths, courses,
-    (row) => [courseDetails(row), count(row.hours),
-      money(row.hourlyPrice), money(row.amount)]);
+    ['שם בית הספר', 'תוכנית / קורס', 'מספר גפ״ן', 'שעות', 'מפגשים', 'מחיר לשעה', 'סה״כ'],
+    courseWidths, courses,
+    (row) => [row.school || '—', row.name, row.gefen || '—',
+      count(row.hours), count(row.quantity), money(row.hourlyPrice), money(row.amount)]);
   drawSection('סדנאות וסיורים',
     ['פעילות', 'כמות', 'מחיר ליחידה', 'סה״כ'],
-    commonWidths, services,
+    serviceWidths, services,
     (row) => [displayName(row), count(row.quantity), money(row.unitPrice), money(row.amount)]);
   // Invoices never reveal funding source, activity-completion period or
   // internal meeting-level billing details; those remain in the database.
