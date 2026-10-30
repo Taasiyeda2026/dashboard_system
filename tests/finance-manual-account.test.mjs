@@ -199,4 +199,3 @@ test('email recipient field supports multiple comma-separated addresses and norm
   assert.equal(input.checkValidity(),false,'an invalid recipient must still be rejected');
   dom.window.close();
 });
-
