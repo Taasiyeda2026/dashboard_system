@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { financeActivityEndDate } from '../frontend/src/screens/finance-collection.js';
 import { financeScreen, createFinanceVisitState } from '../frontend/src/screens/finance.js';
-import { financeToday } from '../frontend/src/screens/finance-transaction-accounts.js';
+import { financeToday, financePaymentDueDate } from '../frontend/src/screens/finance-transaction-accounts.js';
 import { financeAccountBalances, paymentsBodyHtml, accountPaymentAllocation } from '../frontend/src/screens/finance-payments.js';
 const user={role:'admin'};
 const base={row_id:'a',school_id:1,authority_id:1,school:'בית ספר',funding:'גפן + רשות',activity_name:'פעילות',sessions:'2',price:12000,activity_season:'school_2027',date_1:'2026-08-01',date_2:'2026-09-01'};
@@ -201,4 +201,10 @@ test('paid invoices appear in archive with no payment action and remain accessib
   assert.equal(row.querySelector('[data-finance-payment-open]'),null);
   assert.ok(row.querySelector('a[href="https://example.test/pdf"]'));
   dom.window.close();
+});
+
+test('due date is calculated from the end of invoice issue month, never the activity month',()=>{
+  assert.equal(financePaymentDueDate('2026-11-10',30),'2026-12-30');
+  assert.equal(financePaymentDueDate('2026-11-10',45),'2027-01-14');
+  assert.equal(financePaymentDueDate('2026-11-10',60),'2027-01-29');
 });
