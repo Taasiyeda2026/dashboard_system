@@ -1017,9 +1017,14 @@ test('collection UI keeps the dashboard shell with account totals, search and ar
   assert.equal([...html.matchAll(/מעקב גבייה/g)].length,1);
 });
 
-test('collection account table preserves original document, due date and editable tracking without activity closure', () => {
+test('collection shows five invoice fields with due date, PDF link and payment action', () => {
   const html=financeScreen.render(collectionData([invoice({expected_collection_date:'2026-09-20',finance_note:'לתזכורת'})]),{state:{user:financeUser}});
-  for(const value of ['8525','קורס רובוטיקה','בית ספר הרצל','עיריית רחובות','2026-09-30','https://files.example/original.pdf','value="2026-09-20"','value="לתזכורת"','data-account-id="INV-1"','data-finance-account-field="finance_note"','data-finance-payment-open="INV-1"'])assert.ok(html.includes(value),value);
+  for(const value of ['8525','עיריית רחובות','2026-09-30','https://files.example/original.pdf','data-finance-payment-open="INV-1"'])assert.ok(html.includes(value),value);
+  const doc=new JSDOM(html).window.document;
+  const table=doc.querySelector('.ds-fin-collect-accounts');
+  assert.ok(table);
+  for(const omitted of ['קורס רובוטיקה','בית ספר הרצל','value="2026-09-20"','value="לתזכורת"','data-finance-account-field="finance_note"'])
+    assert.ok(!table.innerHTML.includes(omitted),omitted);
   assert.doesNotMatch(html,/data-fin-collect-field="collection_status"/);
 });
 
@@ -1061,11 +1066,13 @@ test('orphan tracking rows are not shown as activities', () => {
   assert.match(html, /קורס רובוטיקה/);
 });
 
-test('collection tracking updates one invoice and retains the separate invoice from the same activity', async () => {
+test('collection keeps two distinct invoice records without extra tracking columns', async () => {
   const accounts=[invoice(),invoice({id:'INV-2',transaction_account_number:8526})];const api=mockApi({activities:[activity()],accounts});
   const {host}=mount(createFinanceVisitState(),{api});host.querySelector('[data-finance-open="collection"]').click();await flush();
-  const note=host.querySelector('[data-account-id="INV-1"][data-finance-account-field="finance_note"]');note.value='לתזכורת';note.dispatchEvent(new host.ownerDocument.defaultView.Event('change',{bubbles:true}));await flush();
-  assert.equal(api.counts.updateFinanceAccountTracking,1);assert.equal(accounts[0].finance_note,'לתזכורת');assert.equal(accounts[1].finance_note,'');assert.match(host.innerHTML,/נשמר/);
+  assert.match(host.textContent,/8525/);assert.match(host.textContent,/8526/);
+  assert.equal(host.querySelectorAll('.ds-fin-collect-accounts tbody tr').length,2);
+  assert.equal(host.querySelectorAll('[data-finance-account-field]').length,0);
+  assert.equal(api.counts.updateFinanceAccountTracking,0);
 });
 
 test('backend collection RPCs and RLS require finance access, including admin', () => {
@@ -1097,14 +1104,15 @@ test('team is filled from the existing employee mapping when the snapshot has no
   assert.equal(row.employmentType, 'תעשיידע');
 });
 
-test('invoice date and note save; a rejected change reloads the committed tracking values', async () => {
-  const accounts=[invoice()];const api=mockApi({activities:[activity()],accounts});const save=api.updateFinanceAccountTracking;
-  api.updateFinanceAccountTracking=async(id,date,note)=>{if(note==='רע')throw Error('שמירה נכשלה');return save(id,date,note);};
+test('collection searches invoice number without exposing internal tracking fields', async () => {
+  const accounts=[invoice(),invoice({id:'INV-2',transaction_account_number:8526})];const api=mockApi({activities:[activity()],accounts});
   const {host}=mount(createFinanceVisitState(),{api});host.querySelector('[data-finance-open="collection"]').click();await flush();
-  const change=async(field,value)=>{const input=host.querySelector('[data-finance-account-field="'+field+'"]');input.value=value;input.dispatchEvent(new host.ownerDocument.defaultView.Event('change',{bubbles:true}));await flush();};
-  await change('expected_collection_date','2026-09-15');await change('finance_note','לתזכורת');
-  assert.equal(accounts[0].expected_collection_date,'2026-09-15');assert.equal(accounts[0].finance_note,'לתזכורת');
-  await change('finance_note','רע');assert.equal(accounts[0].finance_note,'לתזכורת');assert.equal(host.querySelector('[data-finance-account-field="finance_note"]').value,'לתזכורת');assert.match(host.innerHTML,/לא ניתן להשלים|שמירה נכשלה/);
+  const input=host.querySelector('[data-finance-collection-search]');
+  input.value='8526';input.dispatchEvent(new host.ownerDocument.defaultView.Event('input',{bubbles:true}));
+  await new Promise(resolve=>setTimeout(resolve,300));
+  const body=host.querySelector('[data-finance-collection-body]');
+  assert.match(body.textContent,/8526/);assert.doesNotMatch(body.textContent,/8525/);
+  assert.equal(body.querySelector('[data-finance-account-field]'),null);
 });
 
 test('admin users retain finance access', () => {

@@ -542,3 +542,5 @@ config.HOTFIX_VERSION = 'finance-optional-customer-id-20261030-v1-' + config.HOT
 
 config.HOTFIX_VERSION = 'finance-no-stray-tab-thousands-comma-20261030-v1-' + config.HOTFIX_VERSION;
 config.HOTFIX_VERSION = 'finance-transaction-selection-stable-bulk-20261030-v1-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'finance-collection-minimal-due-date-five-columns-20261030-v1-' + config.HOTFIX_VERSION;
