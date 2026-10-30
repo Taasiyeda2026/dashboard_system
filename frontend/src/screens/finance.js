@@ -379,7 +379,7 @@ function collectionViewHtml(data) {
     ${data.paymentMessage ? `<p role="status">${escapeHtml(data.paymentMessage)}</p>` : ''}
     ${collectionSummaryCardsHtml(totals)}
     <div class="ds-fin-collect-toolbar"><label>חיפוש<input class="ds-input" type="search" data-finance-collection-search value="${escapeHtml(data.collectionSearch || '')}" placeholder="מספר חשבון או גורם משלם"></label>
-      <div class="ds-fin-tabs" role="tablist">${[['open','פתוחים'],['closed','ארכיון חשבונות ששולמו']].map(([tab,label)=>`<button class="ds-fin-tab${data.collectionTab===tab?' is-active':''}" data-finance-collection-tab="${tab}">${label}</button>`).join('')}</div></div>
+      <div class="ds-fin-tabs" role="tablist">${[['open','פתוחים'],['closed','ארכיון חשבונות ששולמו']].map(([tab,label])=>`<button class="ds-fin-tab${data.collectionTab===tab?' is-active':''}" data-finance-collection-tab="${tab}">${label}</button>`).join('')}</div></div>
     <div data-finance-collection-body>${buildFinanceCollectionBodyHtml(data)}</div>
     ${receiptsHtml(data)}
 
