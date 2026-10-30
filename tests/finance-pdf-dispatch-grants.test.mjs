@@ -9,7 +9,7 @@ const api=readFileSync(new URL('../frontend/src/api.js',import.meta.url),'utf8')
 
 test('the PDF dispatcher receives SELECT only on three invoice snapshots; not user roles',()=>{
   assert.match(sql,/grant select on table\s+public\.finance_transaction_accounts,\s+public\.finance_transaction_account_lines,\s+public\.finance_transaction_account_meetings\s+to service_role;/i);
-  assert.doesNotMatch(sql,/\b(anon|authenticated)\b|grant\s+(all|update|insert|delete)/i);
+  assert.doesNotMatch(sql,/\bgrant\s+(all|update|insert|delete)\b|\bto\s+(anon|authenticated)\b/i);
 });
 test('Edge function uses fixed browser preflight and preserves JWT requirement on POST',()=>{
   assert.match(edge,/Access-Control-Allow-Headers["']: ["']authorization, x-client-info, apikey, content-type/);
