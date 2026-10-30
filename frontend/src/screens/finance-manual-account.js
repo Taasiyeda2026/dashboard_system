@@ -185,13 +185,13 @@ export function manualAccountViewHtml(data) {
       ${funderOptions.map(f=>`<option value="${e(f.key)}"${data.manualFunderFilter===f.key?' selected':''}>${e(f.label)}</option>`).join('')}
     </select></label>
     <label>חיפוש פעילות<input class="ds-input" data-finance-manual-search value="${e(data.manualSearch)}" placeholder="בית ספר, רשות או פעילות"></label>
-    <label>פעילות לעריכה<select class="ds-input" data-finance-manual-activity><option value="">בחירת פעילות קיימת</option>${activities.map(a=>`<option value="${e(a.row_id)}"${a.row_id===data.manualActivityId?' selected':''}>${e(a.school)} | ${e(a.authority)} | ${e(a.activity_name)}</option>`).join('')}</select></label></div>
-    <div class="ds-fin-manual__selection">
-      <strong>פעילויות להפקה · ${selectedManualActivityIds(data).length} נבחרו</strong>
+    <label>${selectedManualActivityIds(data).length>1?'פעילות לעריכה':'פעילות'}<select class="ds-input" data-finance-manual-activity><option value="">בחירת פעילות קיימת</option>${activities.map(a=>`<option value="${e(a.row_id)}"${a.row_id===data.manualActivityId?' selected':''}>${e(a.school)} | ${e(a.authority)} | ${e(a.activity_name)}</option>`).join('')}</select></label></div>
+    <details class="ds-fin-manual__selection">
+      <summary>${selectedManualActivityIds(data).length>1?`${selectedManualActivityIds(data).length} פעילויות נבחרו · שינוי הבחירה`:'בחירת פעילויות נוספות'}</summary>
       <div class="ds-fin-manual__choices" role="group" aria-label="בחירה מרובה של פעילויות">
         ${activities.map(a=>`<label class="ds-fin-manual__choice"><input type="checkbox" value="${e(a.row_id)}" data-finance-manual-select-activity${selectedManualActivityIds(data).includes(a.row_id)?' checked':''}><span>${e(a.school)} | ${e(a.authority)} | ${e(a.activity_name)}</span></label>`).join('')}
       </div>
-    </div></section>
+    </details></section>
     ${source?`<div class="ds-fin-manual__funding-grid"><label>גורם מימון וחודש<select class="ds-input" data-finance-manual-funding>${rows.map(r=>`<option value="${e(r.fundingSourceId+'|'+(r.period||r.manualMonth))}"${data.manualFundingKey===r.fundingSourceId+'|'+(r.period||r.manualMonth)?' selected':''}>${e(r.funding)} · ${e((r.period||r.manualMonth)?.slice(0,7)||'ללא חודש')} · ${Number((r.eligible?r.issuableAmount:r.fullFundingAmount)||0).toFixed(2)} ₪</option>`).join('')}</select></label>
     <label>בסיס החיוב<select class="ds-input" data-finance-manual-field="billing_basis"><option value="performance"${d.billing_basis==='performance'?' selected':''}>מפגשים שבוצעו</option><option value="full_funding"${d.billing_basis==='full_funding'?' selected':''}>מלוא חלק המממן</option></select></label></div>
     <form data-finance-manual-form class="ds-fin-manual__form"><section class="ds-fin-manual__section"><h3>פרטי חשבון</h3><div class="ds-fin-manual__grid">${field('גורם משלם','customer_name')}${field('בית ספר','school_name')}${field('סמל מוסד / מספר לקוח','institution_symbol')}${field('מספר תוכנית','program_number')}
