@@ -273,8 +273,15 @@
   min-width: 0;
 }
 
-.ds-fin-manual__grid input[type="number"] {
+.ds-fin-manual__grid input[type="number"],
+.ds-fin-manual__grid [data-finance-manual-field="amount"],
+.ds-fin-manual__grid [data-finance-manual-field="unit_price"] {
   font-variant-numeric: tabular-nums;
+}
+.ds-fin-manual__grid [data-finance-manual-field="amount"],
+.ds-fin-manual__grid [data-finance-manual-field="unit_price"] {
+  direction: ltr;
+  text-align: right;
 }
 
 .ds-fin-manual__extra summary {
