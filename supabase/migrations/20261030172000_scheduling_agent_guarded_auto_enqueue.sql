@@ -8,7 +8,7 @@ create table if not exists public.scheduling_agent_auto_enqueue_state (
   singleton boolean primary key default true check (singleton),
   last_requested_source_revision bigint not null default -1,
   last_requested_at timestamptz,
-  last_job_id uuid references public.scheduling_agent_team_optimization_jobs(id)
+  last_job_id uuid
 );
 insert into public.scheduling_agent_auto_enqueue_state(singleton)
 values(true) on conflict(singleton) do nothing;
