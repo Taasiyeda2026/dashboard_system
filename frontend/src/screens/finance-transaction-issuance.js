@@ -96,6 +96,13 @@ function summaryCards(preview) {
   </div>`;
 }
 
+function groupSelectAllHtml(lines, data, mode) {
+  if (mode !== TRANSACTION_MODE_MANUAL) return '';
+  const keys = [...new Set(lines.map(transactionSelectionKey))];
+  const selected = keys.filter((key) => data.transactionManualSelected?.[key]).length;
+  return `<label class="ds-fin-transaction-all"><input type="checkbox" data-finance-transaction-select-all aria-label="סימון כל החשבונות בקבוצה"${selected===keys.length ? ' checked' : ''}${selected>0 && selected<keys.length?' data-indeterminate="true"':''}> סמן הכל</label>`;
+}
+
 function billingLineHtml(line, data, mode) {
   const select = mode === TRANSACTION_MODE_MANUAL
     ? `<input type="checkbox" aria-label="בחירת ${escapeHtml(line.activityName)}" data-finance-transaction-select="${escapeHtml(transactionSelectionKey(line))}"${data.transactionManualSelected?.[transactionSelectionKey(line)] ? ' checked' : ''}>` : '';
@@ -114,9 +121,9 @@ function pendingGroupHtml(rows, data, mode) {
   }
   return [...groups.values()].sort((a,b) => a[0].period.localeCompare(b[0].period)).map((lines) => {
     const row = lines[0];
-    return `<details class="ds-fin-payer"><summary>${escapeHtml(row.period.slice(0,7))} · ${escapeHtml(mode === TRANSACTION_MODE_AUTOMATIC ? `${row.customerName} · ${row.institutionSymbol}` : row.payerName)} · ${lines.length} חיובים · ${escapeHtml(formatAmount(lines.reduce((sum,line) => sum + Number(line.issuableAmount),0)))}</summary>
-      ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>פעילות</th><th>מוסד</th><th>${mode === TRANSACTION_MODE_AUTOMATIC ? 'חודש ביצוע' : 'חודש סיום'}</th><th>מפגשים</th><th>חלק המממן</th><th>להפקה</th></tr></thead><tbody>${lines.map((line) => billingLineHtml(line,data,mode)).join('')}</tbody></table>`)}
-      <button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="${mode}" data-finance-transaction-period="${row.period.slice(0,7)}">${mode === TRANSACTION_MODE_AUTOMATIC ? 'הפק חשבונות לחודש זה' : 'הפק חשבונות מסומנים לחודש זה'}</button></details>`;
+    return `<details class="ds-fin-payer" data-finance-transaction-group><summary>${escapeHtml(row.period.slice(0,7))} · ${escapeHtml(mode === TRANSACTION_MODE_AUTOMATIC ? `${row.customerName} · ${row.institutionSymbol}` : row.payerName)} · ${lines.length} חיובים · ${escapeHtml(formatAmount(lines.reduce((sum,line) => sum + Number(line.issuableAmount),0)))}</summary>
+      ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>פעילות ${groupSelectAllHtml(lines,data,mode)}</th><th>מוסד</th><th>${mode === TRANSACTION_MODE_AUTOMATIC ? 'חודש ביצוע' : 'חודש סיום'}</th><th>מפגשים</th><th>חלק המממן</th><th>להפקה</th></tr></thead><tbody>${lines.map((line) => billingLineHtml(line,data,mode)).join('')}</tbody></table>`)}
+      <button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="${mode}" data-finance-transaction-period="${row.period.slice(0,7)}"${mode === TRANSACTION_MODE_MANUAL && !transactionBacklog(data, mode).some((line) => line.period.slice(0,7) === row.period.slice(0,7) && data.transactionManualSelected?.[transactionSelectionKey(line)]) ? ' disabled' : ''}>${mode === TRANSACTION_MODE_AUTOMATIC ? 'הפק חשבונות לחודש זה' : 'הפק חשבונות מסומנים לחודש זה'}</button></details>`;
   }).join('');
 }
 
@@ -131,10 +138,10 @@ function billingView(data, mode) {
     if (!groups.has(key)) groups.set(key, { payer: mode === TRANSACTION_MODE_AUTOMATIC ? `${row.customerName} · ${row.institutionSymbol}` : row.payerName, funding: row.funding, lines: [] });
     groups.get(key).lines.push(row);
   }
-  const body = [...groups.values()].map((group) => `<details class="ds-fin-payer" open>
+  const body = [...groups.values()].map((group) => `<details class="ds-fin-payer" data-finance-transaction-group open>
     <summary><span class="ds-fin-payer__title">${escapeHtml(group.payer)}</span>
     <span class="ds-fin-payer__meta">${escapeHtml(`${new Set(group.lines.map((line) => line.activityRowId)).size} פעילויות · ${group.lines.reduce((sum, line) => sum + line.unbilledCount, 0)} מפגשים · ${group.lines.reduce((sum, line) => sum + line.unbilledHours, 0)} שעות · ${formatAmount(group.lines.reduce((sum, line) => sum + Number(line.issuableAmount), 0))}`)}</span></summary>
-    ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>פעילות</th><th>מוסד</th><th>${mode === TRANSACTION_MODE_AUTOMATIC ? 'חודש ביצוע' : 'חודש סיום'}</th><th>מפגשים</th><th>חלק המממן</th><th>להפקה</th></tr></thead>
+    ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>פעילות ${groupSelectAllHtml(group.lines,data,mode)}</th><th>מוסד</th><th>${mode === TRANSACTION_MODE_AUTOMATIC ? 'חודש ביצוע' : 'חודש סיום'}</th><th>מפגשים</th><th>חלק המממן</th><th>להפקה</th></tr></thead>
     <tbody>${group.lines.map((line) => billingLineHtml(line, data, mode)).join('')}</tbody></table>`)}</details>`).join('');
   // Keep eligibility reasons in server-side validation; they are not accounting documents.
   // The issuance screen shows only issuable accounts, not technical diagnostics.
@@ -148,7 +155,11 @@ function billingView(data, mode) {
     : '';
   return `<div class="ds-fin-collect-toolbar" dir="rtl">
     <strong>${mode === TRANSACTION_MODE_AUTOMATIC ? 'חשבונות עסקה - גפן' : 'חשבונות עסקה - פתוח'}</strong>
-    ${preview.accounts.length ? `<button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="${mode}">${mode === TRANSACTION_MODE_AUTOMATIC ? 'הפק את סבב חשבונות העסקה' : 'הפק חשבונות מסומנים'}</button>` : ''}</div>
+    ${mode === TRANSACTION_MODE_MANUAL && ready.length
+      ? `<button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-main-run data-finance-transaction-run="${mode}"${preview.accounts.length ? '' : ' style="display:none" disabled'}>הפק חשבונות מסומנים</button>`
+      : preview.accounts.length
+        ? `<button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="${mode}">הפק את סבב חשבונות העסקה</button>`
+        : ''}</div>
     ${backlogHtml}
     ${monthPicker(data, mode)}
     ${ready.length ? summaryCards(total) : ''}
@@ -251,4 +262,40 @@ export async function runTransactionIssuance(data, api, mode, month = transactio
 
 export function handleTransactionSelection(data, rowId, checked) {
   data.transactionManualSelected = { ...(data.transactionManualSelected || {}), [text(rowId)]: checked === true };
+}
+
+export function handleTransactionGroupSelection(data, keys, checked) {
+  const selection = { ...(data.transactionManualSelected || {}) };
+  for (const key of new Set(keys)) selection[text(key)] = checked === true;
+  data.transactionManualSelected = selection;
+}
+
+// Update checkbox state in-place. Re-rendering the entire screen on each click
+// destroys <details> nodes, which collapses the user's expanded billing period.
+export function syncTransactionSelectionUi(root, data) {
+  if (!root) return;
+  const selection = data.transactionManualSelected || {};
+  root.querySelectorAll('[data-finance-transaction-select]').forEach((checkbox) => {
+    checkbox.checked = selection[checkbox.dataset.financeTransactionSelect] === true;
+  });
+  root.querySelectorAll('[data-finance-transaction-group]').forEach((group) => {
+    const all = group.querySelector('[data-finance-transaction-select-all]');
+    if (!all) return;
+    const entries = [...group.querySelectorAll('[data-finance-transaction-select]')];
+    const checked = entries.filter((checkbox) => checkbox.checked).length;
+    all.checked = entries.length > 0 && checked === entries.length;
+    all.indeterminate = checked > 0 && checked < entries.length;
+  });
+  const main = root.querySelector('[data-finance-transaction-main-run]');
+  if (main) {
+    const canIssue = transactionPreviewForVisit(data, TRANSACTION_MODE_MANUAL).accounts.length > 0;
+    main.disabled = !canIssue;
+    main.style.display = canIssue ? '' : 'none';
+  }
+  const selectedBacklogMonths = new Set(transactionBacklog(data, TRANSACTION_MODE_MANUAL)
+    .filter((row) => selection[transactionSelectionKey(row)] === true)
+    .map((row) => row.period.slice(0,7)));
+  root.querySelectorAll('[data-finance-transaction-run="manual"][data-finance-transaction-period]').forEach((button) => {
+    button.disabled = !selectedBacklogMonths.has(button.dataset.financeTransactionPeriod);
+  });
 }

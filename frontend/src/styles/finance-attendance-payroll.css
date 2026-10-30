@@ -373,3 +373,22 @@
   border: 1px solid var(--ds-border);
   border-radius: 10px;
 }
+
+
+/* Select an entire payer/month without rebuilding expanded billing sections. */
+.ds-fin-transaction-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-inline-start: 12px;
+  white-space: nowrap;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.ds-fin-transaction-all input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+}

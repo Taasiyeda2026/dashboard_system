@@ -24,6 +24,8 @@ import { prepareManualAccount, updateManualDraft, manualFilteredActivities, sele
 import { financeToday } from './finance-transaction-accounts.js';
 import {
   handleTransactionSelection,
+  handleTransactionGroupSelection,
+  syncTransactionSelectionUi,
   runTransactionIssuance,
   transactionAccountsViewHtml
 } from './finance-transaction-issuance.js';
@@ -791,10 +793,20 @@ export const financeScreen = {
         refresh();
         return;
       }
+      const selectGroup = ev.target.closest('[data-finance-transaction-select-all]');
+      if (selectGroup) {
+        const group = selectGroup.closest('[data-finance-transaction-group]');
+        const keys = [...(group?.querySelectorAll('[data-finance-transaction-select]') || [])]
+          .map((checkbox) => checkbox.dataset.financeTransactionSelect);
+        handleTransactionGroupSelection(visit, keys, selectGroup.checked);
+        syncTransactionSelectionUi(root, visit);
+        return;
+      }
       const transactionSelect = ev.target.closest('[data-finance-transaction-select]');
       if (transactionSelect) {
         handleTransactionSelection(visit, transactionSelect.dataset.financeTransactionSelect, transactionSelect.checked);
-        refresh();
+        // The checkboxes and action buttons can update without rebuilding the expanded table.
+        syncTransactionSelectionUi(root, visit);
         return;
       }
 
@@ -832,6 +844,7 @@ export const financeScreen = {
       }
     };
 
+    syncTransactionSelectionUi(root, visit);
     root.addEventListener('click', onClick);
     root.addEventListener('change', onChange);
     root.addEventListener('input', onInput);
