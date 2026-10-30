@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { transactionAccountsViewHtml, transactionPreviewForVisit, transactionSelectionKey, runTransactionIssuance, transactionMonth, transactionBacklog } from '../frontend/src/screens/finance-transaction-issuance.js';
+import { JSDOM } from 'jsdom';
+import { transactionAccountsViewHtml, FINANCE_TRANSACTION_SHAREPOINT_FOLDER_URL, transactionPreviewForVisit, transactionSelectionKey, runTransactionIssuance, transactionMonth, transactionBacklog } from '../frontend/src/screens/finance-transaction-issuance.js';
 import { financeToday } from '../frontend/src/screens/finance-transaction-accounts.js';
 const row=(extra={})=>({activityRowId:'a',activityName:'קורס א',fundingSourceId:'g',funding:'גפ״ן',gefenFunding:true,
   period:'2026-09-01',customerName:'בית ספר א',institutionSymbol:'123',payerName:'בית ספר א',customerEmail:'school@example.test',
@@ -68,4 +69,24 @@ test('technical reasons remain excluded from the visible list, but valid backlog
   assert.match(view,/ממתינים להפקה מחודשים קודמים/);
   assert.match(view,/2026-08/);
   assert.doesNotMatch(view,/חסר מימון|חסומות להפקה|אין יתרות מחודשים אחרים/);
+});
+
+test('invoice tabs include a single orange SharePoint folder shortcut for all modes',()=>{
+  assert.equal(FINANCE_TRANSACTION_SHAREPOINT_FOLDER_URL,
+    'https://think365orgil.sharepoint.com/Site9/Shared%20Documents/%D7%A2%D7%99%D7%93%D7%9F%20-%20%D7%98%D7%95%D7%A0%D7%99/%D7%97%D7%A9%D7%91%D7%95%D7%A0%D7%95%D7%AA%20%D7%A2%D7%A1%D7%A7%D7%94%20-%20%D7%AA%D7%A9%D7%A4%D7%96');
+  for (const tab of ['automatic','manual','history','editable']) {
+    const dom=new JSDOM(html(data([], {transactionTab:tab})));
+    const {document}=dom.window;
+    const anchors=document.querySelectorAll('.ds-fin-transaction-folder-link');
+    assert.equal(anchors.length,1,tab);
+    const folder=anchors[0];
+    assert.equal(folder.getAttribute('href'), FINANCE_TRANSACTION_SHAREPOINT_FOLDER_URL);
+    assert.equal(folder.getAttribute('target'), '_blank');
+    assert.match(folder.getAttribute('rel')||'', /noopener/);
+    assert.match(folder.getAttribute('aria-label')||'', /פתיחת תיקיית חשבונות עסקה/);
+    assert.ok(folder.querySelector('svg[aria-hidden="true"]'),'folder icon is graphical, not an extra text button');
+    assert.equal(document.querySelectorAll('.ds-fin-transaction-nav [data-finance-transaction-tab]').length,4,'original four invoice tabs remain unchanged');
+    assert.equal(document.querySelectorAll('.ds-fin-transaction-nav [role="tablist"] > a').length,0,'folder must not become a selectable tab');
+    dom.window.close();
+  }
 });
