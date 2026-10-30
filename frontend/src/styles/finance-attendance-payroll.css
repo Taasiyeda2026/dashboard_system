@@ -403,3 +403,59 @@
 .ds-fin-collect-extra { align-self: center; }
 .ds-fin-collect-extra summary { cursor: pointer; }
 .ds-fin-collect-extra label { display: block; margin-top: 8px; }
+
+/* Invoice SharePoint shortcut: mirrors the orange folder beside "Management"
+   on the team manager board, without introducing another transaction tab. */
+.ds-fin-transaction-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.ds-fin-transaction-nav .ds-fin-tabs {
+  margin-bottom: 0;
+}
+.ds-fin-transaction-folder-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  box-sizing: border-box;
+  border: 1px solid #e49a00;
+  border-radius: 9px;
+  background: #ffad00;
+  color: #fff;
+  box-shadow: 0 3px 10px rgba(245, 158, 11, 0.38);
+  text-decoration: none;
+  cursor: pointer;
+  transition: transform .15s ease, background .15s ease, box-shadow .15s ease;
+}
+.ds-fin-transaction-folder-link:hover {
+  background: #f59e0b;
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(245, 158, 11, 0.46);
+}
+.ds-fin-transaction-folder-link:focus-visible {
+  outline: 3px solid rgba(14, 165, 233, 0.35);
+  outline-offset: 2px;
+}
+.ds-fin-transaction-folder-link svg {
+  display: block;
+  width: 21px;
+  height: 21px;
+}
+@media (max-width: 720px) {
+  .ds-fin-transaction-folder-link {
+    flex-basis: 32px;
+    width: 32px;
+    height: 32px;
+  }
+  .ds-fin-transaction-folder-link svg {
+    width: 19px;
+    height: 19px;
+  }
+}
