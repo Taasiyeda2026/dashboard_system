@@ -114,3 +114,46 @@ test('a sponsor invoice spanning two schools never receives unrelated school con
   assert.equal(groups.length,1);
   assert.deepEqual(groups[0].customerEmails,[]);
 });
+
+test('a tour is one quantity, not a course meeting or 1.5 billing hours',()=>{
+  const trip=row({activityRowId:'trip',activityName:'התנסות בתעשייה',activityType:'tour',
+    plannedCount:1,scheduledCount:1,completedCount:1,unbilledCount:1,unbilledHours:0,
+    unbilledSlots:[{slot:1,date:'2026-09-10'}],issuableAmount:3000,fundingAmount:3000});
+  const d=data([trip]);
+  const preview=transactionPreviewForVisit(d);
+  assert.equal(preview.totals.units,1);
+  assert.equal(preview.totals.meetings,0);
+  assert.equal(preview.totals.hours,0);
+  assert.equal(preview.totals.amount,3000);
+  const view=html(d);
+  assert.match(view,/כמות סדנאות\/סיורים/);
+  assert.match(view,/כמות 1/);
+  assert.match(view,/<th>כמות<\/th>/);
+  assert.match(view,/פירוט מועדי פעילות/);
+  assert.doesNotMatch(view,/פירוט מפגשים|1\.5 שעות|שעות לחיוב|מפגשים לחיוב/);
+});
+
+test('course and tour on the same invoice retain separate quantity and hours',()=>{
+  const trip=row({activityRowId:'trip',activityName:'סיור',activityType:'tour',
+    unbilledCount:1,unbilledHours:0,unbilledSlots:[{slot:1,date:'2026-09-12'}],
+    fundingAmount:3000,issuableAmount:3000});
+  const d=data([row(),trip]);
+  const p=transactionPreviewForVisit(d);
+  assert.equal(p.totals.meetings,2);
+  assert.equal(p.totals.hours,3);
+  assert.equal(p.totals.units,1);
+  assert.equal(p.totals.amount,5500);
+  const view=html(d);
+  assert.match(view,/<th>מפגשים \/ כמות<\/th>/);
+  assert.match(view,/פירוט מפגשים/);
+  assert.match(view,/פירוט מועדי פעילות/);
+});
+
+test('tour database billing migration derives a single unit independent of sessions',()=>{
+  const {readFileSync}=await import('node:fs');
+  const sql=readFileSync(new URL('../supabase/migrations/20261030190000_finance_tour_quantity_without_meetings.sql',import.meta.url),'utf8');
+  assert.match(sql,/activity_type,''\)\)\)='tour' then 1/);
+  assert.match(sql,/scheduled<planned and lower\(btrim\(coalesce\(p_activity\.activity_type,''\)\)\)<>'tour'/);
+  assert.match(sql,/'activityType',p_activity\.activity_type/);
+  assert.match(sql,/'unbilledHours',case when lower/);
+});
