@@ -3,9 +3,9 @@ import { israelTodayIso } from './course-scheduling-meetings.js';
 const asDate = value => String(value ?? '').trim().slice(0, 10);
 const validDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value);
 
-/** Minimum lead time for new, undated course recommendations: seven calendar
+/** Minimum lead time for new, undated course recommendations: fourteen calendar
  * days in Asia/Jerusalem. Official dates/approved assignments are not shifted. */
-export const UNDATED_COURSE_LEAD_DAYS = 7;
+export const UNDATED_COURSE_LEAD_DAYS = 14;
 
 export function earliestUndatedCourseStart(today = '') {
   const reference = asDate(today);

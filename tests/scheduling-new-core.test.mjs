@@ -142,3 +142,26 @@ test('official date without school hours stays unresolved and never becomes recr
 test('missing activity data is not certified as recruitment even when no instructor exists',async()=>{const data=input([activity('a',{school_id:null})]);data.instructors=[];const plan=await buildDynamicCoursePlan(data);assert.equal(plan.rows[0].kind,'missing');assert.equal(plan.rows[0].diagnostics.recruitmentCertified,false);});
 
 test('flexible Arab or Druze Saturday can use explicit positive date availability without weekly availability',async()=>{for(const sector of ['arab','druze']){const data=input([activity('a',{date_1:null,start_date:'2026-10-17',calendar_sector:sector})]);for(const r of Object.values(data.rules))r.find(day=>day.weekday===6).available=false;data.exceptions={'1':[{exception_date:'2026-10-17',available:true,start_time:'08:00',end_time:'16:00'}]};const plan=await buildDynamicCoursePlan(data);assert.equal(plan.rows[0].instructorEmpId,'1');assert.equal(plan.rows[0].meetings[0].date,'2026-10-17');assert.equal(plan.finalPlanValidation.valid,true);}});
+
+
+test('year planner keeps undated first-half activity in its semester when fourteen-day floor passes January',async()=>{
+ const a=activity('undated-year-boundary',{date_1:null,start_date:null});
+ const data=input([a],{today:'2027-01-25',periodKey:'year'});
+ const original=JSON.stringify(data.activities);
+ const plan=await buildDynamicCoursePlan(data);
+ assert.equal(plan.finalPlanValidation.valid,true);
+ assert.equal(plan.rows.length,1);
+ const row=plan.rows[0];
+ assert.equal(row.courseId,'undated-year-boundary');
+ assert.ok(!row.instructorEmpId,'no silent assignment in the wrong semester');
+ assert.ok(!(row.meetings||[]).some(m=>m.date>='2027-01-31'),'no second-half proposal for undated first-half course');
+ assert.equal(JSON.stringify(data.activities),original,'planning never modifies official dates');
+});
+
+test('fourteen-day rule does not move a school-provided official start date',async()=>{
+ const a=activity('school-fixed',{date_1:'2026-11-02',start_date:'2026-11-02'});
+ const data=input([a],{today:'2026-10-30',periodKey:'year'});
+ const plan=await buildDynamicCoursePlan(data);
+ assert.equal(plan.finalPlanValidation.valid,true);
+ assert.equal(plan.rows[0].meetings?.[0]?.date,'2026-11-02');
+});

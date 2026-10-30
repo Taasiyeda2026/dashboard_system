@@ -244,6 +244,7 @@ jobs:
             npm ci --ignore-scripts --no-audit --no-fund
             node --test \
               tests/scheduling-new-core.test.mjs \
+              tests/scheduling-undated-week-lead.test.mjs \
               tests/course-scheduling-stage3-optimization.test.mjs \
               tests/course-scheduling-contract-restoration.test.mjs \
               tests/course-scheduling-date-adjustments.test.mjs \
@@ -326,6 +327,11 @@ jobs:
         env:
           SCHEDULING_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dashboard_test
         run: node --test tests/scheduling-agent-durable-postgres.test.mjs
+
+      - name: Verify fourteen-day scheduling guard in isolated PostgreSQL
+        env:
+          SCHEDULING_TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/dashboard_test
+        run: node --test tests/scheduling-undated-fortnight-postgres.test.mjs
 
       # Staff-feedback tests rebuild their own disposable Postgres schema.
       # Run after the planning checks, never in parallel on the same database.
