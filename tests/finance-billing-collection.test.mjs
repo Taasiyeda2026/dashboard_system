@@ -85,3 +85,34 @@ test('school_2026 invoices, receipts and orphaned test documents never appear in
   assert.doesNotMatch(root.textContent,/8626|8525/);
   root._financeUnbind();dom.window.close();
 });
+
+test('manual issuance funder selector filters activities before the invoice is edited',()=>{
+  const d=createFinanceVisitState();d.view='transactions';d.transactionTab='editable';
+  d.collectionActivities=[
+    {row_id:'mixed',school:'אוסישקין',authority:'נהרייה',authority_id:11,activity_name:'ביומימיקרי',funding:'גפן + רשות'},
+    {row_id:'industry',school:'הרצל',authority:'עכו',authority_id:22,activity_name:'חלל',funding:'רמי שני'}
+  ];
+  d.transactionContext={accounts:[],cancelled:[],schools:[],billingRows:[
+    {activityRowId:'mixed',fundingSourceId:'gefen',funding:'גפן',period:'2026-10-01',eligible:true,unbilledCount:1,issuableAmount:1000},
+    {activityRowId:'mixed',fundingSourceId:'authority',funding:'רשות',period:'2027-02-01',eligible:true,unbilledCount:1,issuableAmount:2000},
+    {activityRowId:'industry',fundingSourceId:'industry',funding:'רמי שני',period:'2027-02-01',eligible:true,unbilledCount:1,issuableAmount:5000}
+  ]};
+  const dom=new JSDOM('<div id="app"></div>'),root=dom.window.document.querySelector('#app'),state={user:{role:'admin'}};
+  const refresh=()=>{root.innerHTML=financeScreen.render(d,{state});};refresh();
+  financeScreen.bind({root,data:d,state,api:{},rerender:refresh});
+  const filter=root.querySelector('[data-finance-manual-funder-filter]');
+  filter.value='funder:רמי שני';
+  filter.dispatchEvent(new dom.window.Event('change',{bubbles:true}));
+  assert.equal(d.manualFunderFilter,'funder:רמי שני');
+  const choices=[...root.querySelectorAll('[data-finance-manual-activity] option')].map(o=>o.value).filter(Boolean);
+  assert.deepEqual(choices,['industry']);
+  const activitySelect=root.querySelector('[data-finance-manual-activity]');
+  activitySelect.value='industry';activitySelect.dispatchEvent(new dom.window.Event('change',{bubbles:true}));
+  assert.equal(d.manualActivityId,'industry');
+  assert.equal(d.manualFundingKey,'industry|2027-02-01');
+  const filter2=root.querySelector('[data-finance-manual-funder-filter]');filter2.value='funder:גפן';
+  filter2.dispatchEvent(new dom.window.Event('change',{bubbles:true}));
+  assert.equal(d.manualActivityId,'');
+  assert.deepEqual([...root.querySelectorAll('[data-finance-manual-activity] option')].map(o=>o.value).filter(Boolean),['mixed']);
+  root._financeUnbind();dom.window.close();
+});
