@@ -262,7 +262,7 @@ test('consolidated invoice previews use Blob URLs and download under a descripti
     pdfBase64
   };
   const html=manualAccountViewHtml(d);
-  assert.doesNotMatch(html,/data:application\\/pdf;base64/);
+  assert.equal(html.includes('data:application/pdf;base64'),false);
   assert.doesNotMatch(html,/%PDF-1.4|minimal sample/);
   const dom=new JSDOM(html);
   const root=dom.window.document.body;
@@ -299,5 +299,5 @@ test('single-invoice PDF preview also provides a named download rather than inli
   const html=manualAccountViewHtml(d);
   assert.match(html,/data-finance-manual-pdf-download="single"/);
   assert.match(html,/data-finance-manual-pdf-frame="single"/);
-  assert.doesNotMatch(html,/data:application\\/pdf;base64/);
+  assert.equal(html.includes('data:application/pdf;base64'),false);
 });
