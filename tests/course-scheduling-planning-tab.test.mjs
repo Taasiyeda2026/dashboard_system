@@ -230,6 +230,12 @@ test('main scheduling workboard exposes only open, draft and assigned business s
 
   assert.match(html, /data-cs-ui="simple-workboard-20260924-v1"/);
   assert.match(html, /<span>טרם שובץ<\/span>/);
+  const assignedPos = html.indexOf('data-course-card="assigned-plan"');
+  const draftPos = html.indexOf('data-course-card="draft-plan"');
+  const openPos = html.indexOf('data-course-card="open-plan"');
+  assert.ok(assignedPos !== -1 && draftPos !== -1 && openPos !== -1);
+  assert.ok(assignedPos < draftPos && draftPos < openPos,
+    'approved assignments are listed before pending approval, then unscheduled activities');
   assert.match(html, /<span>ממתין לאישור<\/span>/);
   assert.match(html, /<span>משובץ<\/span>/);
   assert.doesNotMatch(html, /הצעות מוכנות/);
