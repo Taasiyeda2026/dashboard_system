@@ -1119,3 +1119,60 @@ test('admin users retain finance access', () => {
   assert.equal(canAccessFinance({ role: 'admin', finance_access: false }), true);
   assert.equal(canAccessFinance(blockedUser), false);
 });
+
+
+test('manual sponsor selection stays expanded, selects all visible activities, and never rebuilds the checkbox list', () => {
+  const d={...createFinanceVisitState(),view:'transactions',transactionTab:'editable',
+    manualFunderFilter:'funder:רמי שני',
+    collectionActivities:[
+      activity({row_id:'a',school:'א',funding:'רמי שני'}),
+      activity({row_id:'b',school:'ב',funding:'רמי שני'}),
+      activity({row_id:'c',school:'ג',funding:'רמי שני'}),
+      activity({row_id:'other',school:'ד',funding:'מממן אחר'})
+    ],
+    transactionContext:{accounts:[],billingRows:['a','b','c','other'].map(rowId=>({
+      activityRowId:rowId,fundingSourceId:rowId==='other'?'other':'sponsor',
+      funding:rowId==='other'?'מממן אחר':'רמי שני',payerName:rowId==='other'?'מממן אחר':'רמי שני',
+      gefenFunding:false,plannedCount:10,eligible:false,fullFundingAmount:3000,
+      fullFundingBlockedReason:'',manualMonth:'2026-11-01'
+    }))}};
+  const {host,window}=mount(d,{api:mockApi()});
+  const details=host.querySelector('[data-finance-manual-selection]');
+  details.open=true;
+  const items=[...details.querySelectorAll('[data-finance-manual-select-activity]')];
+  assert.equal(items.length,3,'selection belongs to the chosen funder only');
+  assert.equal(host.querySelector('[data-finance-manual-select-all]').checked,false);
+  const master=details.querySelector('[data-finance-manual-select-all]');
+  master.checked=true;
+  master.dispatchEvent(new window.Event('change',{bubbles:true}));
+  assert.equal(d.manualSelectedActivityIds.length,3);
+  assert.deepEqual([...d.manualSelectedActivityIds].sort(),['a','b','c']);
+  assert.equal(Object.keys(d.manualActivityDrafts).length,3,'every selected activity has its own funding draft');
+  assert.strictEqual(host.querySelector('[data-finance-manual-selection]'),details,'disclosure DOM node must stay mounted');
+  assert.strictEqual(details.querySelectorAll('[data-finance-manual-select-activity]')[0],items[0],'checkboxes must not be reconstructed');
+  assert.equal(details.open,true,'list must stay open');
+  assert.equal(master.checked,true);
+  assert.match(details.querySelector('[data-finance-manual-selection-count]').textContent,/3 מתוך 3/);
+  assert.match(host.textContent,/חשבון מרוכז לגורם מימון/);
+  items[1].checked=false;
+  items[1].dispatchEvent(new window.Event('change',{bubbles:true}));
+  assert.equal(d.manualSelectedActivityIds.length,2);
+  assert.equal(master.indeterminate,true,'partial selection should mark select-all as mixed');
+  assert.equal(details.open,true);
+  master.checked=false;
+  master.dispatchEvent(new window.Event('change',{bubbles:true}));
+  assert.deepEqual(d.manualSelectedActivityIds,[]);
+  assert.equal(details.open,true);
+  assert.equal(details.querySelector('[data-finance-manual-select-all]').checked,false);
+  assert.equal(host.querySelector('[data-finance-manual-form]'),null,'no account editor when nothing selected');
+});
+
+test('manual select-all is unavailable until a payer has been selected', () => {
+  const d={...createFinanceVisitState(),view:'transactions',transactionTab:'editable',
+    collectionActivities:[activity({row_id:'a',funding:'רמי שני'})],
+    transactionContext:{accounts:[],billingRows:[{activityRowId:'a',fundingSourceId:'s',funding:'רמי שני'}]}};
+  const {host}=mount(d,{api:mockApi()});
+  const master=host.querySelector('[data-finance-manual-select-all]');
+  assert.ok(master.disabled);
+  assert.equal(d.manualSelectedActivityIds.length,0);
+});
