@@ -239,6 +239,6 @@ test('generated PDF contains updated invoice contact and both bank separators',a
   assert.match(glyphs,/055-4548890/);
   assert.match(glyphs,/300120/);
   assert.match(glyphs,/500/);
-  assert.ok((glyphs.match(/\\|/g)||[]).length>=2,'both bank separators should remain selectable text');
+  assert.ok((glyphs.match(/\|/g)||[]).length>=2,'both bank separators should remain selectable text');
   assert.doesNotMatch(glyphs,/03-5370368/);
 });
