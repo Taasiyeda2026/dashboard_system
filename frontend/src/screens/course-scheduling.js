@@ -2472,7 +2472,22 @@ export const courseSchedulingScreen = {
           periodKey: activePlanningPeriodKey
         });
     const planningByCourseId = new Map(planningRows.map((row) => [text(row?.courseId), row]));
+    // A partially outdated planning workspace is not a current work plan.
+    // In that case the instructor report must be built from saved activities
+    // only: never count old proposals as assigned or as recruitment needs.
+    const planningReportCurrent = Boolean(
+      state.courseSchedulingPlanningSharedLoaded
+      && state.courseSchedulingPlanningCalculatedAt
+      && !data._is_stale
+      && !state.courseSchedulingPlanningStale
+      && !state.courseSchedulingPlanningLoading
+      && !(state.courseSchedulingPlanningAffectedIds || []).length
+      && !(Number(state.courseSchedulingPlanningHardGateInvalidCount) > 0)
+      && !planningRows.some((row) => row?.needsRecalc === true)
+    );
+    const reportPlanningRows = planningReportCurrent ? planningRows : null;
     const overviewOptions = {
+      operationalOnly: !planningReportCurrent,
       pendingChanges: (state.courseSchedulingPlanningAffectedIds || []).length,
       schoolYearTotal: allInterfaceCourses.length,
       expandedInstructorIds: state.courseSchedulingExpandedInstructorIds || []
@@ -2482,10 +2497,14 @@ export const courseSchedulingScreen = {
       activityVersions: (data.activities || []).map(a => [idOf(a), a.updated_at, a.emp_id, a.draft_emp_id])
     });
     let completionCache = data._planningCompletionCache;
-    if (!completionCache || completionCache.rows !== planningRows || completionCache.activities !== data.activities
+    if (!completionCache || completionCache.rows !== reportPlanningRows || completionCache.activities !== data.activities
       || completionCache.optionsKey !== overviewOptionsKey) {
-      const completionRows = buildPlanningCompletionRows({ activities: data.activities || [], planningRows, includeManualActivities: canManuallySchedule(state.user) });
-      completionCache = { rows: planningRows, activities: data.activities, optionsKey: overviewOptionsKey,
+      const completionRows = buildPlanningCompletionRows({
+        activities: data.activities || [],
+        planningRows: reportPlanningRows || [],
+        includeManualActivities: canManuallySchedule(state.user)
+      });
+      completionCache = { rows: reportPlanningRows, activities: data.activities, optionsKey: overviewOptionsKey,
         html: planningCompletionOverviewHtml(completionRows, overviewOptions) };
       data._planningCompletionCache = completionCache;
     }
@@ -2529,11 +2548,11 @@ export const courseSchedulingScreen = {
         </summary>
         <div class="course-scheduling-planning-disclosure__body">
           ${schedulingPlanningStatusHtml(state, { snapshotStale: data._is_stale === true })}
-          <details class="course-scheduling-planning-report" data-planning-report${state.courseSchedulingPlanningReportOpen === true ? ' open' : ''}>
-            <summary>הצג תוכנית עבודה מפורטת לפי מדריכים</summary>
-            ${fragmentedSchoolsFilterHtml(rowModels, state)}
-            ${!state.courseSchedulingPlanningSharedLoaded || state.courseSchedulingPlanningLoading || state.courseSchedulingPlanningStale
-              ? '<p class="course-scheduling-planning-note" data-planning-overview-currency>הדוח משלב שיבוצים וטיוטות קיימים עם הצעות תכנון. הצעות התכנון ממתינות לעדכון; שיבוץ רגיל זמין.</p>' : ''}
+          <details class="course-scheduling-planning-report" data-planning-report data-planning-report-mode="${planningReportCurrent ? 'current' : 'operational-only'}"${state.courseSchedulingPlanningReportOpen === true ? ' open' : ''}>
+            <summary>${planningReportCurrent ? 'הצג תוכנית עבודה לפי מדריכים' : 'הצג שיבוצים קיימים לפי מדריכים'}</summary>
+            ${planningReportCurrent ? fragmentedSchoolsFilterHtml(rowModels, state) : ''}
+            ${!planningReportCurrent
+              ? '<p class="course-scheduling-planning-note" data-planning-overview-currency>המלצות התכנון אינן מעודכנות ולכן אינן מוצגות בדוח. הרשימה להלן מבוססת רק על שיבוצים וטיוטות שנשמרו בפעילויות. שיבוץ ידני עדיין זמין.</p>' : ''}
             ${completionCache.html}
           </details>
         </div>

@@ -71,7 +71,7 @@ for (const user of [eden, {role:'admin'}]) test(user.role+' keeps the instructor
   f.state.courseSchedulingPlanningRows=[{courseId:course.row_id,kind:'proposal',needsRecalc:true,_detailsDeferred:true,instructorEmpId:'7',instructorName:instructor.full_name,meetings:[{date:'2026-11-01',start_time:'10:00',end_time:'11:00'}]}];
   f.render();
   assert.ok(f.root.querySelector('.course-planning-completion-table'));
-  assert.match(f.root.querySelector('[data-planning-overview-currency]').textContent,/ממתינות לעדכון/);
+  assert.match(f.root.querySelector('[data-planning-overview-currency]').textContent,/אינן מעודכנות ולכן אינן מוצגות בדוח/);
   f.root.querySelector('[data-open-manual-course]').click();await settle();
   assert.ok(f.root.querySelector('[data-manual-candidate="8"]'));
   f.root.querySelector('[data-manual-candidate="8"]').click();
