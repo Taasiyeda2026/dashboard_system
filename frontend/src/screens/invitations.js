@@ -71,7 +71,7 @@ const BREAKTHROUGH_EVENT_TEXTS = {
     b2: "התלמידות יציגו את התוצרים והתובנות שאספו לאורך הקורס, ישתפו בסיפורים שעוררו בהן השראה ויבטאו את החלומות והשאיפות שלהן לעתיד."
   },
   lecture: {
-    opening: "קורס ״פורצות דרך״ משלב יזמות טכנולוגית והעצמה נשית ומעודד את התלמידות לחלום בגדול, לפתח רעיונות ולהאמין ביכולתן להוביל שינוי. דרך היכרות עם נשים שהעזו לפרוץ גבולות, הן מגלות כיצד אומץ, יצירתיות, נחישות ואמונה עצמית יכולים להפוך שאיפות להישגים משמעותיים ולפתוח דלתות לאפשרויות חדשות.",
+    opening: "קורס ״פורצות דרך״ מזמין את התלמידות למסע מעורר השראה המשלב יזמות טכנולוגית, מנהיגות, יצירתיות והעצמה נשית. לאורך המסע הן לומדות לפתח רעיונות, להתמודד עם אתגרים ולהפוך יוזמות למציאות. בהשראת סיפוריהן של נשים פורצות דרך, הן מגלות כיצד נחישות, תעוזה ואמונה עצמית יכולות לפרוץ גבולות, להפוך שאיפות להישגים ולפתוח בפניהן עולם של אפשרויות.",
     b1: '',
     b2: "מפגש מעורר השראה עם אישה פורצת דרך, שתחשוף את הסיפור שמאחורי הצלחתה – החלומות שהעזה להגשים, האתגרים שניצבו בדרכה והרגעים שבהם בחרה לא לוותר. מסע אישי ומרתק אל ההחלטות, התובנות ונקודות המפנה שעיצבו את דרכה והפכו את שאיפותיה למציאות."
   }
@@ -999,7 +999,13 @@ export const invitationsScreen = {
       let opening = '';
 
       if (breakthroughCopy) {
-        opening = `<div class="c-opening">${esc(breakthroughCopy.opening)}</div>`;
+        // Escape first, then emphasize only the approved course wording in the
+        // guest lecture opening. Keep the original wording unchanged in textContent.
+        const openingContent = esc(breakthroughCopy.opening);
+        const formattedOpening = breakthroughLecture
+          ? openingContent.replaceAll('פורצות דרך', '<strong>פורצות דרך</strong>')
+          : openingContent;
+        opening = `<div class="c-opening">${formattedOpening}</div>`;
       } else if (type === 'end') {
         opening = `<div class="c-opening">אנו שמחים להזמינכם למפגש הסיום של קורס <strong>${esc(getCourseOpeningText(course))}</strong>${premiumCompany ? ` בשיתוף <strong>${esc(premiumCompany)}</strong>` : ''}, שהתקיים בבית הספר במסגרת התוכניות החינוכיות של תעשיידע.</div>`;
       } else if (type === 'lecture') {
