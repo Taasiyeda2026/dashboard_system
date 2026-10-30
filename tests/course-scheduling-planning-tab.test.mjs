@@ -229,7 +229,7 @@ test('main scheduling workboard exposes only open, draft and assigned business s
   }, { state });
 
   assert.match(html, /data-cs-ui="simple-workboard-20260924-v1"/);
-  assert.match(html, /<span>ללא מדריך<\/span>/);
+  assert.match(html, /<span>טרם שובץ<\/span>/);
   assert.match(html, /<span>ממתין לאישור<\/span>/);
   assert.match(html, /<span>משובץ<\/span>/);
   assert.doesNotMatch(html, /הצעות מוכנות/);
@@ -275,7 +275,7 @@ test('stale shared planning stays labeled while the instructor table and manual 
 
   assert.match(html, /התכנון השמור אינו עדכני/);
   assert.match(html, /גרסת מנוע התכנון השתנתה מאז החישוב האחרון/);
-  assert.match(html, /החישוב מתבצע בסוכן השיבוצים/);
+  assert.match(html, /עדכון ההמלצות מנוהל בנפרד/);
   assert.match(html, /data-planning-completion-overview/);
   assert.match(html, /data-planning-overview-currency/);
   assert.match(html, /data-open-manual-course="stale-undated"/);
