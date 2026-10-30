@@ -25,7 +25,7 @@
 .course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-period-range--push { margin-inline-start: auto; }
 .course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-filter-label { display: inline-flex; align-items: center; gap: 6px; font-size: 0.82rem; font-weight: 700; color: var(--cs-text-muted); white-space: nowrap; flex: 0 0 auto; }
 .course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-filter-label .course-scheduling-input { min-height: 34px; }
-.course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-summary { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; border: 0; border-radius: 0; overflow: visible; background: transparent; }
+.course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; border: 0; border-radius: 0; overflow: visible; background: transparent; }
 .course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-summary-card { min-width: 0; min-height: 46px; padding: 7px 8px; justify-content: center; border: 1px solid #e1e7ec; border-radius: 8px; background: var(--cs-surface); gap: 5px; }
 .course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-summary-card:first-child { border-inline-start: 1px solid #e1e7ec; }
 .course-scheduling-screen.is-compact-symmetric-layout .course-scheduling-summary-card b { font-size: 1rem; }
@@ -369,7 +369,7 @@
 }
 
 .course-scheduling-screen.is-simple-workboard .course-scheduling-summary {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .course-scheduling-screen.is-simple-workboard .course-scheduling-layout--courses {
@@ -388,11 +388,9 @@
 }
 
 .course-scheduling-screen.is-simple-workboard .course-scheduling-courses {
-  max-height: calc(100vh - 250px);
-  min-height: 360px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  overscroll-behavior: contain;
+  max-height: none;
+  min-height: 0;
+  overflow: visible;
   border: 0;
   border-radius: 0;
   padding: 8px 8px 10px;
@@ -1033,4 +1031,17 @@
     min-height: 42px;
     font-size: .82rem;
   }
+}
+
+/* Keep the operational table in the normal page flow: one scrollbar, not two. */
+.course-scheduling-screen.is-simple-workboard.is-compact-symmetric-layout .course-scheduling-courses {
+  max-height: none;
+  min-height: 0;
+  overflow: visible;
+}
+
+/* Stale recommendations are dealt with in the advanced planning section, not highlighted as broken assignments. */
+.course-scheduling-screen.is-simple-workboard .course-scheduling-course-card.is-planning-stale:not(.is-selected) {
+  background: var(--cs-surface);
+  box-shadow: none;
 }
