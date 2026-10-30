@@ -1614,6 +1614,9 @@ export function compareAttendanceRows(attendanceRows, dashboardRows, options = {
       const dashboardValue = key === 'workHours' ? rowWorkHours(dashboard) : type === 'activityType' ? activityTypeDisplayLabel(dashboard[key]) : dashboard[key];
       if (dashboard?.__trainingSchedule && ['school', 'authority', 'meetingNo', 'expenses'].includes(key)) return [];
       if (key === 'kilometers') {
+        // Public transport is reimbursed by cost, not by the driving-route km.
+        // Keep that system route available without treating a valid zero as a discrepancy.
+        if (asBoolean(attendance.publicTransport)) return [];
         const attendanceKm = optionalNumber(attendanceValue);
         const dashboardKm = optionalNumber(dashboardValue);
         if (attendanceKm == null && dashboardKm == null) return [];
