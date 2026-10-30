@@ -91,6 +91,7 @@ function ensureStyles() {
 .invitation-screen-root .bg-th{height:48px;border-radius:4px;border:2px solid transparent;cursor:pointer;background-size:cover;background-position:center;background-color:#dde;aspect-ratio:148/210}
 .invitation-screen-root .bg-th.sel{border-color:#1a8c6e}
 .invitation-screen-root .logo-row{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.invitation-screen-root .logo-row .lchip[data-id="lecturer-company"]{cursor:pointer}
 .invitation-screen-root .lchip{display:flex;align-items:center;gap:4px;background:#fff;border:1px solid #d0d4dc;border-radius:12px;padding:2px 8px;font-size:11px;cursor:grab;user-select:none;white-space:nowrap}
 .invitation-screen-root .lchip.ghost{opacity:.35}
 .invitation-screen-root .lchip-placeholder{border-style:dashed;color:#8a6d1d;background:#fffaf0}
@@ -117,6 +118,8 @@ function ensureStyles() {
 .invitation-screen-root .cframe{position:absolute;inset:5mm;border-radius:10px;border:1.5px solid rgba(255,255,255,.55);pointer-events:none;z-index:3}
 .invitation-screen-root .cwrap{position:relative;z-index:2;flex:1;display:flex;flex-direction:column}
 .invitation-screen-root .c-logos{display:flex;align-items:center;justify-content:center;gap:1mm;padding:7mm 10mm 1mm;background:transparent;border-bottom:none}
+.invitation-screen-root .c-logos--lecture{padding-left:5mm;padding-right:5mm}
+.invitation-screen-root .c-logos--lecture .c-logo-item{width:30mm;min-width:0;flex:1 1 0}
 .invitation-screen-root .c-logo-item{width:32mm;height:14mm;display:flex;align-items:center;justify-content:center;gap:4px;font-size:10px;font-weight:800;color:#1a3a5c;line-height:1.2}
 .invitation-screen-root .c-logo-sep{width:1px;height:26px;background:rgba(26,58,92,.2);flex-shrink:0}
 .invitation-screen-root .c-logo-item img{max-width:100%;max-height:100%;width:auto;height:auto;object-fit:contain}
@@ -193,11 +196,12 @@ function makeScreenHtml() {
   <div class="app">
     <div class="panel">
       <div>
-        <span class="lbl">לוגואים — גרור לסדר</span>
+        <span class="lbl" id="logo-caption">לוגואים — גרור לסדר</span>
         <div class="logo-row" id="logo-zone">
           <div class="lchip" draggable="true" data-id="mohe"><img id="mohe-chip-img" src="" style="height:16px;display:none"> משרד החינוך</div>
           <div class="lchip" draggable="true" data-id="taas"><img id="taas-chip-img" src="" style="height:16px;display:none"> תעשיידע</div>
           <div class="lchip lchip-placeholder" draggable="true" data-id="school" id="school-logo-chip"><img id="school-chip-img" src="" style="height:16px;display:none"> לוגו בית ספר</div>
+          <div class="lchip lchip-placeholder" draggable="false" data-id="lecturer-company" id="lecturer-company-logo-chip" style="display:none"><img id="lecturer-company-chip-img" src="" style="height:16px;display:none"> לוגו חברת המרצה</div>
           <div class="lchip lchip-add" id="logo-add">＋ לוגו נוסף</div>
         </div>
         <input type="file" id="logo-file" accept="image/*" style="display:none">
@@ -603,7 +607,7 @@ export const invitationsScreen = {
           parts = state.parts.filter((participant) => (participant?.n || '').trim() !== 'הילה רוזן');
         }
         if (typeof state.selBg === 'number') selBg = Math.min(Math.max(state.selBg, 0), BG_URLS.length - 1);
-        if (Array.isArray(state.logoOrder)) logoOrder = state.logoOrder;
+        if (Array.isArray(state.logoOrder)) logoOrder = state.logoOrder.filter((id) => id !== 'lecturer-company');
         if (state.customLogos && typeof state.customLogos === 'object') customLogos = state.customLogos;
 
         isRestoring = false;
@@ -615,7 +619,7 @@ export const invitationsScreen = {
 
     function rebuildCustomLogoChips() {
       Object.entries(customLogos).forEach(([id, src]) => {
-        if (id === 'school' || host.querySelector(`[data-id="${id}"]`)) return;
+        if (id === 'school' || id === 'lecturer-company' || host.querySelector(`[data-id="${id}"]`)) return;
 
         const chip = document.createElement('div');
         chip.className = 'lchip';
@@ -639,6 +643,42 @@ export const invitationsScreen = {
         schoolChipImg.src = customLogos.school;
         schoolChipImg.style.display = 'inline-block';
       }
+      const lecturerCompanyChipImg = $('lecturer-company-chip-img');
+      if (customLogos['lecturer-company'] && lecturerCompanyChipImg) {
+        lecturerCompanyChipImg.src = customLogos['lecturer-company'];
+        lecturerCompanyChipImg.style.display = 'inline-block';
+      }
+    }
+
+    function syncLogoChipsForEvent() {
+      const isLecture = $('ev-type').value === 'lecture';
+      const zone = $('logo-zone');
+      const addButton = $('logo-add');
+      const requiredLogoIds = ['mohe', 'taas', 'school'];
+      const visibleLogoIds = isLecture
+        ? [...requiredLogoIds, 'lecturer-company']
+        : logoOrder.filter((id) => id !== 'lecturer-company');
+
+      $('lecturer-company-logo-chip').style.display = isLecture ? '' : 'none';
+      addButton.style.display = isLecture ? 'none' : '';
+      $('logo-caption').textContent = isLecture
+        ? 'לוגואים — משרד החינוך, תעשיידע, בית הספר וחברת המרצה'
+        : 'לוגואים — גרור לסדר';
+
+      zone.querySelectorAll('.lchip[data-id]').forEach((chip) => {
+        const id = chip.dataset.id;
+        if (id === 'lecturer-company') return;
+        chip.style.display = isLecture && !requiredLogoIds.includes(id) ? 'none' : '';
+        chip.draggable = !isLecture;
+        chip.style.cursor = isLecture ? (id === 'school' ? 'pointer' : 'default') : 'grab';
+      });
+
+      visibleLogoIds.forEach((id) => {
+        const chip = zone.querySelector(`[data-id="${id}"]`);
+        if (chip) zone.insertBefore(chip, addButton);
+      });
+      // Keep the inactive fourth chip out of the normal three-logo layout.
+      if (!isLecture) zone.insertBefore($('lecturer-company-logo-chip'), addButton);
     }
 
     function fmtDate(value) {
@@ -735,10 +775,18 @@ export const invitationsScreen = {
       });
 
       if (getCourseName() === 'פורצות דרך') refreshSuggestedTextsForCourse();
+      syncLogoChipsForEvent();
+      setupDrag();
       up();
     }
 
     function logoItemHTML(id, size, textSize, className) {
+      if (id === 'lecturer-company') {
+        if (customLogos['lecturer-company']) {
+          return `<div class="${className}"><img src="${customLogos['lecturer-company']}"></div>`;
+        }
+        return `<div class="${className}" style="border:1px dashed rgba(26,58,92,.35);border-radius:6px;color:rgba(26,58,92,.55);font-size:${textSize}px">לוגו חברת המרצה</div>`;
+      }
       if (id === 'school') {
         if (customLogos.school) return `<div class="${className}"><img src="${customLogos.school}"></div>`;
 
@@ -777,14 +825,16 @@ export const invitationsScreen = {
           </div>`;
       }
 
-      let items = '';
+      const isLecture = $('ev-type').value === 'lecture';
+      const activeLogoOrder = isLecture
+        ? ['mohe', 'taas', 'school', 'lecturer-company']
+        : logoOrder.filter((id) => id !== 'lecturer-company');
+      const items = activeLogoOrder
+        .map((id) => logoItemHTML(id, 56, 10, 'c-logo-item'))
+        .filter(Boolean)
+        .join('<div class="c-logo-sep"></div>');
 
-      logoOrder.forEach((id, index) => {
-        if (index > 0) items += '<div class="c-logo-sep"></div>';
-        items += logoItemHTML(id, 56, 10, 'c-logo-item');
-      });
-
-      return `<div class="c-logos">${items}</div>`;
+      return `<div class="c-logos${isLecture ? ' c-logos--lecture' : ''}">${items}</div>`;
     }
 
     function getColorVars() {
@@ -1041,14 +1091,16 @@ window.onafterprint=function(){setTimeout(function(){window.close()},250)};
       customLogos = {};
       savedFields = {};
 
-      const schoolChip = $('school-chip-img');
-      if (schoolChip) {
-        schoolChip.src = '';
-        schoolChip.style.display = 'none';
+      for (const id of ['school-chip-img', 'lecturer-company-chip-img']) {
+        const image = $(id);
+        if (image) {
+          image.src = '';
+          image.style.display = 'none';
+        }
       }
 
       queryAll('#logo-zone .lchip[data-id]').forEach((chip) => {
-        if (!['mohe', 'taas', 'school'].includes(chip.dataset.id)) chip.remove();
+        if (!['mohe', 'taas', 'school', 'lecturer-company'].includes(chip.dataset.id)) chip.remove();
       });
 
       onTypeChange();
@@ -1135,6 +1187,11 @@ window.onafterprint=function(){setTimeout(function(){window.close()},250)};
         $('logo-file').click();
       };
 
+      $('lecturer-company-logo-chip').onclick = () => {
+        logoUploadTarget = 'lecturer-company';
+        $('logo-file').click();
+      };
+
       $('logo-add').onclick = () => {
         logoUploadTarget = null;
         $('logo-file').click();
@@ -1161,6 +1218,18 @@ window.onafterprint=function(){setTimeout(function(){window.close()},250)};
 
             logoUploadTarget = null;
             setupDrag();
+            up();
+            return;
+          }
+
+          if (logoUploadTarget === 'lecturer-company') {
+            customLogos['lecturer-company'] = imageSrc;
+            const chipImage = $('lecturer-company-chip-img');
+            if (chipImage) {
+              chipImage.src = imageSrc;
+              chipImage.style.display = 'inline-block';
+            }
+            logoUploadTarget = null;
             up();
             return;
           }
@@ -1199,6 +1268,7 @@ window.onafterprint=function(){setTimeout(function(){window.close()},250)};
       console.assert(!parts.some((participant) => participant.n === 'הילה רוזן'), 'Hila is not suggested by default');
       console.assert($('course-sel').querySelectorAll('option[value="יזמות פרימיום"]').length === 1, 'premium has one course choice');
       console.assert(getCourseDisplayHTML('יזמות פרימיום').includes('של קורס יזמות פרימיום'), 'premium course display exists');
+      console.assert($('lecturer-company-logo-chip') !== null, 'lecturer company logo upload slot exists');
       console.assert(SUGGESTED_TEXTS_BY_COURSE['רוקחים עולם'].b1.includes('פארמצבטיקה'), 'pharmacy suggestion exists');
       console.assert($('course-sel').querySelector('option[value="פורצות דרך"]') !== null, 'breakthrough course exists');
     }

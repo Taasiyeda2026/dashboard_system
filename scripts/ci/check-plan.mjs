@@ -20,7 +20,7 @@ export const TEST_GROUPS = Object.freeze({
   finance: ['tests/finance-screen.test.mjs'],
   // instructor-area-screen is a legacy mixed-domain suite with known base failures;
   // Quick PR runs the maintained workspace/permission contracts instead.
-  invitations: ['tests/invitations-breakthrough-events.test.mjs', 'tests/invitations-premium-company.test.mjs'],
+  invitations: ['tests/invitations-breakthrough-events.test.mjs', 'tests/invitations-premium-company.test.mjs', 'tests/invitations-lecturer-company-logo.test.mjs'],
   instructors: [
     'tests/instructors-unified-workspace.test.mjs',
     'tests/instructor-scheduling-permissions.test.mjs',
