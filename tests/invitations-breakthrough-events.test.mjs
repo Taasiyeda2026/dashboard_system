@@ -168,3 +168,22 @@ test('existing breakthrough draft picks up new preset only if its saved colors w
   assert.equal(custom.el('c3').value, '#1a8c6e');
   custom.dom.window.close();
 });
+
+
+test('background picker shows all repository backgrounds in a compact five-column gallery', () => {
+  const ui = mount();
+  const thumbs = [...ui.el('bg-row').querySelectorAll('.bg-th')];
+  assert.equal(thumbs.length, 10, 'white + nine repository backgrounds');
+  assert.equal(thumbs[0].style.backgroundColor, 'rgb(255, 255, 255)');
+  assert.match(thumbs[9].style.backgroundImage, /background-9\\.png/);
+  const styles = document.getElementById('invitation-generator-styles').textContent;
+  assert.match(styles, /\.bg-row\{display:grid;grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/);
+  assert.match(styles, /\.bg-th\{width:100%;min-width:0;height:auto/);
+
+  thumbs[9].click();
+  assert.equal(ui.el('bg-row').querySelectorAll('.bg-th.sel').length, 1);
+  assert.equal([...ui.el('bg-row').querySelectorAll('.bg-th')][9].classList.contains('sel'), true);
+  assert.match(ui.el('cbg').style.backgroundImage, /background-9\\.png/);
+  assert.equal(JSON.parse(localStorage.getItem('taasiyeda_invitation_builder_state_v4')).selBg, 9);
+  ui.dom.window.close();
+});
