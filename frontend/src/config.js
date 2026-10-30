@@ -550,3 +550,5 @@ config.HOTFIX_VERSION = 'finance-pdf-dispatch-cors-service-read-20261030-v1-' + 
 config.HOTFIX_VERSION = 'finance-transaction-sharepoint-folder-20261030-v1-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = 'finance-invoice-recipients-school-mapping-20261030-v1-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'client-file-invoice-recipient-role-20261030-v1-' + config.HOTFIX_VERSION;
