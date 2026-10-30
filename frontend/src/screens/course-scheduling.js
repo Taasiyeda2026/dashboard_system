@@ -597,7 +597,7 @@ function schedulingScopeHtml(allCourses = [], state = {}, allActivities = allCou
   const displayStart = periodKey === 'first' ? FIRST_HALF_COUNT_START_DATE : period.start;
   const periodRange = `${formatDateHeDots(displayStart)} – ${formatDateHeDots(period.end)}`;
   const selectedBusinessStatus = text(state.courseSchedulingBusinessStatus || 'all');
-  const businessStatusOptions = [['all', 'הכול'], ['open', 'פתוח'], ['draft', 'ממתין לאישור'], ['assigned', 'משובץ']]
+  const businessStatusOptions = [['all', 'הכול'], ['open', 'ללא מדריך'], ['draft', 'ממתין לאישור'], ['assigned', 'משובץ']]
     .map(([value, label]) => `<option value="${value}"${value === selectedBusinessStatus ? ' selected' : ''}>${label}</option>`).join('');
   return `<section class="course-scheduling-scope"><div class="course-scheduling-scope-inner">
     <div class="course-scheduling-tabs course-scheduling-tabs--inner">${periodButtons}</div>
@@ -667,7 +667,7 @@ export function compactMeetingsHtml(activity) {
 }
 
 const BUSINESS_STATUS = Object.freeze({
-  open: 'פתוח',
+  open: 'ללא מדריך',
   draft: 'ממתין לאישור',
   assigned: 'משובץ'
 });
@@ -876,7 +876,7 @@ export function stalePlanningRowForDisplay(row = {}) {
 }
 
 const LIST_GROUPS = [
-  { key: 'open', label: 'פתוח' },
+  { key: 'open', label: 'ללא מדריך' },
   { key: 'draft', label: 'ממתין לאישור' },
   { key: 'assigned', label: 'משובץ' }
 ];
@@ -885,7 +885,7 @@ function summaryCardsHtml(rowModels = [], state = {}) {
   const selected = text(state.courseSchedulingBusinessStatus || 'all');
   const cards = [
     ['all', 'סה״כ', rowModels.length, ''],
-    ['open', 'פתוח', rowModels.filter((row) => row.bucket === 'open').length, ' course-scheduling-summary-card--waiting'],
+    ['open', 'ללא מדריך', rowModels.filter((row) => row.bucket === 'open').length, ' course-scheduling-summary-card--waiting'],
     ['draft', 'ממתין לאישור', rowModels.filter((row) => row.bucket === 'draft').length, ' course-scheduling-summary-card--draft'],
     ['assigned', 'משובץ', rowModels.filter((row) => row.bucket === 'assigned').length, ' course-scheduling-summary-card--ready']
   ];
@@ -899,16 +899,22 @@ function summaryCardsHtml(rowModels = [], state = {}) {
       <b>${value}</b><span>${label}</span>
     </button>`;
   }).join('');
+  return statusCards;
+}
+
+// School-day packing is an optional planning diagnostic, not a scheduling status.
+// Keep the existing filter available within the collapsed planning section.
+function fragmentedSchoolsFilterHtml(rowModels = [], state = {}) {
   const fragmentedSchools = new Set(rowModels
     .filter((row) => row.planningRow?.needsRecalc !== true && row.planningRow?.schoolPlanning?.packingStatus === 'avoidable_split')
     .map((row) => text(row.planningRow?.schoolId))
     .filter(Boolean));
   const active = state.courseSchedulingSchoolFragmentationFilter === true;
-  return `${statusCards}<button type="button"
-    class="course-scheduling-summary-card course-scheduling-summary-card--button course-scheduling-summary-card--waiting${active ? ' is-active' : ''}"
+  return `<button type="button"
+    class="course-scheduling-workboard-secondary"
     data-school-fragmentation-filter aria-pressed="${active ? 'true' : 'false'}"
     aria-label="בתי ספר מפוצלים: ${fragmentedSchools.size}. לחץ לסינון הטבלה">
-    <b>${fragmentedSchools.size}</b><span>בתי ספר מפוצלים</span>
+    בתי ספר מפוצלים: ${fragmentedSchools.size}
   </button>`;
 }
 
@@ -2498,6 +2504,7 @@ export const courseSchedulingScreen = {
         </summary>
         <div class="course-scheduling-planning-disclosure__body">
           ${schedulingPlanningStatusHtml(state, { snapshotStale: data._is_stale === true })}
+          ${fragmentedSchoolsFilterHtml(rowModels, state)}
           ${!state.courseSchedulingPlanningSharedLoaded || state.courseSchedulingPlanningLoading || state.courseSchedulingPlanningStale
             ? '<p class="course-scheduling-alert" role="status" data-planning-overview-currency>טבלת המדריכים מוצגת לפי השיבוצים והטיוטות הקיימים והתכנון השמור. הצעות התכנון ממתינות לעדכון; אפשר לשבץ פעילות ידנית.</p>' : ''}
           ${completionCache.html}
