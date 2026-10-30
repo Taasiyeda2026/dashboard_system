@@ -1,6 +1,22 @@
 import { escapeHtml as e } from './shared/html.js';
 import { financeToday, financePaymentDueDate } from './finance-transaction-accounts.js';
 const text=v=>String(v??'').trim();
+// Display grouped amounts without changing the values sent to the billing RPC.
+export function formatManualMoney(value, { unitPrice = false } = {}) {
+  if (value === '' || value == null) return '';
+  const amount = Number(String(value).replace(/,/g, ''));
+  if (!Number.isFinite(amount)) return text(value);
+  return amount.toLocaleString('en-US', {
+    useGrouping: true,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: unitPrice ? 14 : 2
+  });
+}
+export function parseManualMoney(value) {
+  const raw = text(value);
+  if (!/^(?:[0-9]+|[0-9]{1,3}(?:,[0-9]{3})+)(?:[.][0-9]+)?$/.test(raw)) return NaN;
+  return Number(raw.replace(/,/g, ''));
+}
 export function manualFundingRows(data) {
   return (data.transactionContext?.billingRows||[]).filter(r=>r.activityRowId===data.manualActivityId&&r.fundingSourceId);
 }
@@ -158,7 +174,9 @@ export async function runSelectedManualAccounts(data, api) {
 }
 export function updateManualDraft(data,key,value) {
   if(key==='billing_basis'){prepareManualAccount(data,data.manualActivityId,data.manualFundingKey,value);return;}
-  data.manualDraft={...data.manualDraft,[key]:value};const d=data.manualDraft;
+  const safeValue = key === 'amount' || key === 'unit_price' ? parseManualMoney(value) : value;
+  if ((key === 'amount' || key === 'unit_price') && !Number.isFinite(safeValue)) return false;
+  data.manualDraft={...data.manualDraft,[key]:safeValue};const d=data.manualDraft;
   if(key==='quantity'){d.hours=Number(value)*1.5;d.amount=Math.round(Number(value)*Number(d.unit_price)*100)/100;}
   if(key==='unit_price')d.amount=Math.round(Number(d.quantity)*Number(value)*100)/100;
   if(key==='amount'&&Number(d.quantity)>0)d.unit_price=Number(value)/Number(d.quantity);
@@ -178,7 +196,14 @@ export function manualAccountViewHtml(data) {
   const activities=manualFilteredActivities(data);
   const funderOptions=manualFundingFilterOptions(data);
   const source=(data.collectionActivities||[]).find(a=>a.row_id===data.manualActivityId);const d=data.manualDraft||{};const rows=manualFundingRowsForSelection(data);
-  const field=(label,key,type='text')=>`<label class="ds-fin-manual__field">${label}<input class="ds-input" type="${type}"${type==='number'?' min="0" step="0.01"':''} data-finance-manual-field="${key}" value="${e(d[key])}"></label>`;
+  const field=(label,key,type='text')=>{
+    const money = key === 'amount' || key === 'unit_price';
+    const display = money ? formatManualMoney(d[key], { unitPrice: key === 'unit_price' }) : d[key];
+    const attributes = money
+      ? ' inputmode="decimal" dir="ltr" pattern="[0-9]{1,3}(?:,[0-9]{3})*(?:[.][0-9]+)?|[0-9]+(?:[.][0-9]+)?" required'
+      : type === 'number' ? ' min="0" step="0.01"' : '';
+    return `<label class="ds-fin-manual__field">${label}<input class="ds-input" type="${money ? 'text' : type}"${attributes} data-finance-manual-field="${key}" value="${e(display)}"></label>`;
+  };
   return `<div class="ds-fin-manual" dir="rtl"><section class="ds-fin-manual__section"><h3>בחירת פעילות</h3><div class="ds-fin-manual__activity-grid">
     <label>גורם מימון<select class="ds-input" data-finance-manual-funder-filter>
       <option value="">כל גורמי המימון</option>
@@ -192,7 +217,7 @@ export function manualAccountViewHtml(data) {
         ${activities.map(a=>`<label class="ds-fin-manual__choice"><input type="checkbox" value="${e(a.row_id)}" data-finance-manual-select-activity${selectedManualActivityIds(data).includes(a.row_id)?' checked':''}><span>${e(a.school)} | ${e(a.authority)} | ${e(a.activity_name)}</span></label>`).join('')}
       </div>
     </details></section>
-    ${source?`<div class="ds-fin-manual__funding-grid"><label>גורם מימון וחודש<select class="ds-input" data-finance-manual-funding>${rows.map(r=>`<option value="${e(r.fundingSourceId+'|'+(r.period||r.manualMonth))}"${data.manualFundingKey===r.fundingSourceId+'|'+(r.period||r.manualMonth)?' selected':''}>${e(r.funding)} · ${e((r.period||r.manualMonth)?.slice(0,7)||'ללא חודש')} · ${Number((r.eligible?r.issuableAmount:r.fullFundingAmount)||0).toFixed(2)} ₪</option>`).join('')}</select></label>
+    ${source?`<div class="ds-fin-manual__funding-grid"><label>גורם מימון וחודש<select class="ds-input" data-finance-manual-funding>${rows.map(r=>`<option value="${e(r.fundingSourceId+'|'+(r.period||r.manualMonth))}"${data.manualFundingKey===r.fundingSourceId+'|'+(r.period||r.manualMonth)?' selected':''}>${e(r.funding)} · ${e((r.period||r.manualMonth)?.slice(0,7)||'ללא חודש')} · ${formatManualMoney((r.eligible?r.issuableAmount:r.fullFundingAmount)||0)} ₪</option>`).join('')}</select></label>
     <label>בסיס החיוב<select class="ds-input" data-finance-manual-field="billing_basis"><option value="performance"${d.billing_basis==='performance'?' selected':''}>מפגשים שבוצעו</option><option value="full_funding"${d.billing_basis==='full_funding'?' selected':''}>מלוא חלק המממן</option></select></label></div>
     <form data-finance-manual-form class="ds-fin-manual__form"><section class="ds-fin-manual__section"><h3>פרטי חשבון</h3><div class="ds-fin-manual__grid">${field('גורם משלם','customer_name')}${field('בית ספר','school_name')}${field(rows.find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===data.manualFundingKey)?.gefenFunding?'סמל מוסד':'מספר לקוח (אם קיים)','institution_symbol')}${field('מספר תוכנית','program_number')}
     ${field('תיאור השירות','description')}${field('דוא״ל נמען','customer_email','email')}</div></section>
