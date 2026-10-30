@@ -12,7 +12,7 @@ const EXPECTED_REPO='Taasiyeda2026/dashboard_system';
 const EXPECTED_REPO_ID='1212938814';
 const EXPECTED_WORKFLOW=EXPECTED_REPO+'/.github/workflows/scheduling-agent-worker.yml@refs/heads/main';
 const ALLOWED_ACTIONS=new Set([
-  'probe','claim','lease','heartbeat','preflight','snapshot','persist','finish','release'
+  'probe','claim','lease','heartbeat','preflight','snapshot','canary_snapshot','persist','finish','release'
 ]);
 
 const encoder=new TextEncoder();
@@ -117,11 +117,12 @@ Deno.serve(async(req:Request)=>{
       'engineVersion','rows','validationOnly']){
       if(Object.hasOwn(body,key))args[key]=body[key];
     }
-    if(action!=='snapshot')return output(await command(action,args));
+    if(action!=='snapshot' && action!=='canary_snapshot')return output(await command(action,args));
+    const canary = action==='canary_snapshot';
 
     // Full snapshot uses multiple DB requests but protects against mixed
     // versions by comparing authoritative preflight both BEFORE and AFTER.
-    const start=await command('preflight',args);
+    const start=await (canary ? client.rpc('get_scheduling_planning_preflight',{p_period_key:'year',p_district:''}).then(({data,error})=>{if(error)throw Error('canary_preflight_unavailable');return data;}) : command('preflight',args));
     const {data:workspace,error:workspaceError}=await client.from('scheduling_agent_worker_workspaces')
       .select('id,revision').eq('period_key','year').eq('district','').single();
     if(workspaceError||!workspace?.id||String(workspace.revision)!==String(start?.workspace?.revision)){
@@ -161,7 +162,7 @@ Deno.serve(async(req:Request)=>{
       paged('course_meeting_cancellations','activity_id,meeting_date',q=>q.order('meeting_date'),10000),
       paged('scheduling_agent_worker_intents','activity_id,emp_id,status,version',q=>q.eq('status','active').order('activity_id'),10000)
     ]);
-    const end=await command('preflight',args);
+    const end=await (canary ? client.rpc('get_scheduling_planning_preflight',{p_period_key:'year',p_district:''}).then(({data,error})=>{if(error)throw Error('canary_preflight_unavailable');return data;}) : command('preflight',args));
     if(String(start?.sourceRevision)!==String(end?.sourceRevision)
         ||String(start?.workspace?.revision)!==String(end?.workspace?.revision)) {
       throw Error('worker_snapshot_revision_changed');
@@ -182,7 +183,7 @@ Deno.serve(async(req:Request)=>{
       activities,instructors,schoolLocations,externalBlockers,meetingInstructorHistory,
       profiles,rules,exceptions,schoolCalendar,catalog,routes,
       existingRows:planningRows,cancellations,planningIntents,
-      targetCourseIds:[...targets],
+      targetCourseIds:canary ? ['school_2027_096','ACT-6fb4456b-5d05-401d-904f-411c1d9562fb','ACT-9c40feb7-e990-4aa3-a59e-29cc111f496c'] : [...targets],
       sourceComplete:true,routesComplete:true,
       schoolCalendarComplete:true,catalogComplete:true
     });
