@@ -1056,7 +1056,7 @@ function addActivityModalHtml(settings, activityPeriodTab = '') {
         <label class="ds-activity-add-field"><span>כיתה / שכבה</span><select class="ds-input" name="grade">${optionsHtml(gradeOptions, '', '— בחרו כיתה —')}</select></label>
         ${authorityField}
         ${schoolField}
-        <label class="ds-activity-add-field ds-activity-add-field--compact" data-tour-location-field hidden><span>מיקום הסיור</span><input class="ds-input" name="tour_location" type="text" maxlength="15" placeholder="מיקום הסיור" autocomplete="off" disabled></label>
+        <label class="ds-activity-add-field ds-activity-add-field--compact" data-tour-location-field hidden style="display:none!important"><span>מיקום הסיור</span><input class="ds-input" name="tour_location" type="text" maxlength="15" placeholder="מיקום הסיור" autocomplete="off" disabled></label>
 
         <label class="ds-activity-add-field" data-participants-count-section hidden><span>מספר משתתפים מעודכן</span><input class="ds-input" name="participants_count" type="number" min="1" step="1" inputmode="numeric" data-participants-count-input></label>
 
@@ -3159,7 +3159,13 @@ export const activitiesScreen = {
         && normalizeActivityTypeKey(form.querySelector('[data-add-activity-type]')?.value) === 'tour';
       const field = form.querySelector('[data-tour-location-field]');
       const input = field?.querySelector('[name="tour_location"]');
-      if (field) field.hidden = !isTour;
+      if (field) {
+        field.hidden = !isTour;
+        // Grid/flex author styles can override the browser's default [hidden] rule.
+        // Enforce actual display:none on non-tours, including before the modal is bound.
+        if (isTour) field.style.removeProperty('display');
+        else field.style.setProperty('display', 'none', 'important');
+      }
       if (input) {
         input.disabled = !isTour;
         if (!isTour) input.value = '';

@@ -1098,6 +1098,36 @@ test('activity add form refreshes activity_name options and clears stale name wh
     const typeSelect = form.querySelector('[data-add-activity-type]');
     const nameSelect = form.querySelector('[data-add-activity-name]');
     const noInput = form.querySelector('[data-add-activity-no]');
+    const locationField = form.querySelector('[data-tour-location-field]');
+    const locationInput = locationField.querySelector('[name="tour_location"]');
+
+    // Regression: grid/flex form CSS must not display [hidden] tour location
+    // for a course, workshop, escape room, after-school activity or no type.
+    assert.equal(locationField.hidden, true);
+    assert.equal(locationField.style.display, 'none');
+    assert.equal(locationField.style.getPropertyPriority('display'), 'important');
+    assert.equal(locationInput.disabled, true);
+    for (const type of ['course', 'workshop', 'escape_room', 'after_school']) {
+      typeSelect.value = type;
+      typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+      assert.equal(locationField.hidden, true, type);
+      assert.equal(locationField.style.display, 'none', type);
+      assert.equal(locationField.style.getPropertyPriority('display'), 'important', type);
+      assert.equal(locationInput.disabled, true, type);
+    }
+
+    typeSelect.value = 'tour';
+    typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    assert.equal(locationField.hidden, false);
+    assert.equal(locationField.style.display, '');
+    assert.equal(locationInput.disabled, false);
+    assert.equal(locationInput.maxLength, 15);
+    locationInput.value = 'מפעל אשקלון';
+    typeSelect.value = 'course';
+    typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
+    assert.equal(locationField.style.display, 'none');
+    assert.equal(locationInput.value, '');
+    assert.equal(locationInput.disabled, true);
 
     typeSelect.value = 'escape_room';
     typeSelect.dispatchEvent(new dom.window.Event('change', { bubbles: true }));
