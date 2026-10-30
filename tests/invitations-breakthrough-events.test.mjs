@@ -51,21 +51,24 @@ test('switches immediately to female guest lecture and back, retaining correct t
   assert.equal(ui.el('ev-type').value, 'lecture');
   assert.equal(ui.el('card').querySelector('.c-title').textContent, 'הזמנה להרצאת אורחת של:');
   assert.equal(ui.el('card').querySelector('.c-sub-event'), null);
-  assert.equal(ui.el('card').querySelector('.c-course').textContent, 'במסגרת קורס "פורצות דרך"');
+  assert.equal(ui.el('card').querySelector('.c-course').textContent, 'במסגרת קורס ״פורצות דרך״');
   assert.equal(ui.el('card').querySelector('.c-opening').textContent,
-    'קורס "פורצות דרך" מזמין את התלמידות להכיר נשים מעוררות השראה מתחומים שונים ולגלות כיצד אומץ, יצירתיות ונחישות יכולים להוביל להישגים משמעותיים וליצירת שינוי.');
+    "קורס ״פורצות דרך״ משלב יזמות טכנולוגית והעצמה נשית, ומעודד את התלמידות לחלום בגדול, לפתח רעיונות ולהאמין ביכולתן להוביל שינוי. דרך היכרות עם נשים שהעזו לפרוץ גבולות, הן מגלות כיצד אומץ, יצירתיות, נחישות ואמונה עצמית יכולים להפוך שאיפות להישגים משמעותיים ולפתוח דלתות לאפשרויות חדשות.");
   assert.equal(ui.el('b1-editor').style.display, 'none');
   assert.equal(ui.el('b1').value, '');
   assert.equal(ui.el('b2').value,
-    'מפגש מעצים ומעורר השראה עם אישה פורצת דרך, שתשתף במסעה האישי, בחלומות שהפכה למציאות ובאתגרים שהתגברה עליהם. הזדמנות לתלמידות לגלות את הכוח הטמון בהן, להאמין בעצמן ולקבל השראה לחלום בגדול, לפרוץ גבולות ולהעז להגשים את שאיפותיהן.');
-  assert.match(ui.el('card').textContent, /להעז להגשים את שאיפותיהן/);
+    "מפגש מעצים ומעורר השראה עם אישה פורצת דרך, שתשתף במסעה האישי, בחלומות שהפכה למציאות ובאתגרים שהתגברה עליהם בדרך ותספר על ההחלטות, התובנות והרגעים המשמעותיים שעיצבו את דרכה.");
+  assert.equal(ui.el('card').querySelector('.c-section-title').textContent, 'מה מצפה לנו?');
+  assert.equal(ui.el('card').querySelector('.c-section-title').nextElementSibling.textContent, "מפגש מעצים ומעורר השראה עם אישה פורצת דרך, שתשתף במסעה האישי, בחלומות שהפכה למציאות ובאתגרים שהתגברה עליהם בדרך ותספר על ההחלטות, התובנות והרגעים המשמעותיים שעיצבו את דרכה.");
+  assert.equal(ui.el('card').querySelector('.c-closing').textContent, 'נשמח לראותכם!');
+  assert.doesNotMatch(ui.el('card').textContent, /הזדמנות לתלמידות לגלות את הכוח/);
   ui.change('lec-name', 'דנה לדוגמה', 'input');
   ui.change('lec-role', 'מנהלת פיתוח', 'input');
   ui.change('lec-org', 'חברת לדוגמה', 'input');
   const identity = ui.el('card').querySelector('.c-lecturer-identity');
   assert.equal(identity.textContent, 'דנה לדוגמה, מנהלת פיתוח - חברת לדוגמה');
   assert.equal(identity.previousElementSibling.textContent, 'הזמנה להרצאת אורחת של:');
-  assert.equal(identity.nextElementSibling.textContent, 'במסגרת קורס "פורצות דרך"');
+  assert.equal(identity.nextElementSibling.textContent, 'במסגרת קורס ״פורצות דרך״');
   assert.equal(identity.querySelectorAll('div').length, 0);
   assert.equal(identity.style.whiteSpace, '');
   assert.equal(ui.el('card').querySelectorAll('.c-lecturer-identity').length, 1);
@@ -273,4 +276,49 @@ test('saved breakthrough drafts replace only the old recommended ending, not cus
   });
   assert.equal(editedDraft.el('b2').value, 'נוסח אישי שכתב המשתמש ואין לשנות אותו');
   editedDraft.dom.window.close();
+});
+
+test('approved breakthrough guest lecture remains word-for-word in A5 print', () => {
+  const ui = mount();
+  ui.change('course-sel', 'פורצות דרך');
+  ui.change('ev-type', 'lecture');
+  ui.change('lec-name', 'דנה לוי', 'input');
+  ui.change('lec-role', 'מנהלת פיתוח', 'input');
+  ui.change('lec-org', 'חברה לדוגמה', 'input');
+  const expectedOpening = "קורס ״פורצות דרך״ משלב יזמות טכנולוגית והעצמה נשית, ומעודד את התלמידות לחלום בגדול, לפתח רעיונות ולהאמין ביכולתן להוביל שינוי. דרך היכרות עם נשים שהעזו לפרוץ גבולות, הן מגלות כיצד אומץ, יצירתיות, נחישות ואמונה עצמית יכולים להפוך שאיפות להישגים משמעותיים ולפתוח דלתות לאפשרויות חדשות.";
+  const expectedMeeting = "מפגש מעצים ומעורר השראה עם אישה פורצת דרך, שתשתף במסעה האישי, בחלומות שהפכה למציאות ובאתגרים שהתגברה עליהם בדרך ותספר על ההחלטות, התובנות והרגעים המשמעותיים שעיצבו את דרכה.";
+  assert.equal(ui.el('card').querySelector('.c-title').textContent, 'הזמנה להרצאת אורחת של:');
+  assert.equal(ui.el('card').querySelector('.c-lecturer-identity').textContent, 'דנה לוי, מנהלת פיתוח - חברה לדוגמה');
+  assert.equal(ui.el('card').querySelector('.c-course').textContent, 'במסגרת קורס ״פורצות דרך״');
+  assert.equal(ui.el('card').querySelector('.c-year').textContent, 'תשפ״ז');
+  assert.equal(ui.el('card').querySelector('.c-opening').textContent, expectedOpening);
+  assert.equal(ui.el('card').querySelector('.c-section-title').textContent, 'מה מצפה לנו?');
+  assert.equal(ui.el('card').querySelector('.c-section-title').nextElementSibling.textContent, expectedMeeting);
+  assert.equal(ui.el('card').querySelector('.c-closing').textContent, 'נשמח לראותכם!');
+
+  let printedHtml = '';
+  ui.dom.window.open = () => ({ document: {
+    write(html) { printedHtml = html; }, close() {}, set title(_) {}
+  }});
+  ui.el('print-btn').click();
+  assert.ok(printedHtml.includes(expectedOpening));
+  assert.ok(printedHtml.includes(expectedMeeting));
+  assert.ok(printedHtml.includes('במסגרת קורס ״פורצות דרך״'));
+  assert.ok(printedHtml.includes('הזמנה להרצאת אורחת של:'));
+  assert.ok(printedHtml.includes('נשמח לראותכם!'));
+  ui.dom.window.close();
+});
+
+test('only previous suggested lecture copy is refreshed in existing drafts', () => {
+  const oldSuggestion = "מפגש מעצים ומעורר השראה עם אישה פורצת דרך, שתשתף במסעה האישי, בחלומות שהפכה למציאות ובאתגרים שהתגברה עליהם. הזדמנות לתלמידות לגלות את הכוח הטמון בהן, להאמין בעצמן ולקבל השראה לחלום בגדול, לפרוץ גבולות ולהעז להגשים את שאיפותיהן.";
+  const approvedSuggestion = "מפגש מעצים ומעורר השראה עם אישה פורצת דרך, שתשתף במסעה האישי, בחלומות שהפכה למציאות ובאתגרים שהתגברה עליהם בדרך ותספר על ההחלטות, התובנות והרגעים המשמעותיים שעיצבו את דרכה.";
+  const stale = mount({ 'course-sel':'פורצות דרך', 'ev-type':'lecture', b2:oldSuggestion });
+  assert.equal(stale.el('b2').value, approvedSuggestion);
+  assert.equal(stale.el('card').querySelector('.c-section-title').nextElementSibling.textContent, approvedSuggestion);
+  assert.equal(JSON.parse(localStorage.getItem('taasiyeda_invitation_builder_state_v4')).fields.b2, approvedSuggestion);
+  stale.dom.window.close();
+
+  const edited = mount({ 'course-sel':'פורצות דרך', 'ev-type':'lecture', b2:'נוסח אישי שהוזן ידנית' });
+  assert.equal(edited.el('b2').value, 'נוסח אישי שהוזן ידנית');
+  edited.dom.window.close();
 });
