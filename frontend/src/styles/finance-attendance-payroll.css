@@ -392,3 +392,14 @@
   margin: 0;
   cursor: pointer;
 }
+
+
+/* Compact collection: five essential accounting fields, with payment in the balance cell. */
+.ds-fin-collect-accounts { width: 100%; min-width: 650px; }
+.ds-fin-collect-accounts th,
+.ds-fin-collect-accounts td { vertical-align: middle; }
+.ds-fin-collect-accounts .ds-fin-num { font-variant-numeric: tabular-nums; }
+.ds-fin-collect-payment-action { display: inline-flex; margin-inline-start: 10px; white-space: nowrap; }
+.ds-fin-collect-extra { align-self: center; }
+.ds-fin-collect-extra summary { cursor: pointer; }
+.ds-fin-collect-extra label { display: block; margin-top: 8px; }
