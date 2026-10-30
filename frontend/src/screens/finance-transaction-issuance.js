@@ -121,7 +121,7 @@ function summaryCards(preview) {
     ...(preview.totals.containsUnits ? [['כמות סדנאות/סיורים', preview.totals.units]] : []),
     ['סכום להפקה', formatAmount(preview.totals.amount)]
   ];
-  return `<div class="ds-fin-transaction-summary" dir="rtl" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,140px));gap:8px;justify-content:center;width:fit-content;max-width:100%;margin:12px auto 16px;">
+  return `<div class="ds-fin-transaction-summary" dir="rtl" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;width:fit-content;max-width:100%;margin:12px auto 16px;">
     ${cards.map(([label, value]) => `
       <article class="ds-fin-collect-summary-card" style="box-sizing:border-box;width:140px;min-height:62px;padding:9px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">
         <span class="ds-fin-collect-summary-card__label" style="font-size:12px;line-height:1.25;white-space:nowrap;">${escapeHtml(label)}</span>
