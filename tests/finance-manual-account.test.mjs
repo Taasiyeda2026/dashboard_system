@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { manualAccountViewHtml,prepareManualAccount,updateManualDraft,runManualAccount,manualFundingFilterOptions,manualFilteredActivities,toggleManualActivity,saveActiveManualDraft,previewSelectedManualAccounts,runSelectedManualAccounts } from '../frontend/src/screens/finance-manual-account.js';
+import { manualAccountViewHtml,prepareManualAccount,updateManualDraft,runManualAccount,manualFundingFilterOptions,manualFilteredActivities,toggleManualActivity,saveActiveManualDraft,previewSelectedManualAccounts,runSelectedManualAccounts,formatManualMoney,parseManualMoney } from '../frontend/src/screens/finance-manual-account.js';
 const data=()=>({collectionActivities:[{row_id:'a',school:'בית ספר',authority:'עיריית רחובות',activity_name:'קורס',activity_no:'123'}],transactionContext:{billingRows:[{activityRowId:'a',fundingSourceId:'r',funding:'רשות',payerName:'עיריית רחובות',period:'2026-09-01',institutionSymbol:'123',unbilledCount:2,issuableAmount:7000,eligible:true}]}});
 test('manual wizard selects existing activity/funder and edits document fields without touching source data',()=>{
   const d=data();const source=JSON.stringify(d.collectionActivities);prepareManualAccount(d,'a');
@@ -145,4 +145,33 @@ test('Gefen payer retains school institution symbol',()=>{
   prepareManualAccount(d,'a');
   assert.equal(d.manualDraft.institution_symbol,'211466');
   assert.match(manualAccountViewHtml(d),/סמל מוסד/);
+});
+
+test('manual invoice displays grouped payer amounts and keeps numeric values in the draft',()=>{
+  assert.equal(formatManualMoney(17500),'17,500.00');
+  assert.equal(formatManualMoney(4500),'4,500.00');
+  assert.equal(parseManualMoney('17,500.00'),17500);
+  assert.equal(parseManualMoney('1,250.75'),1250.75);
+  assert.equal(parseManualMoney('1250.75'),1250.75);
+  assert.ok(Number.isNaN(parseManualMoney('1,25.00')));
+  const d=data();prepareManualAccount(d,'a');
+  const html=manualAccountViewHtml(d);
+  assert.match(html,/7,000\.00 ₪/);
+  assert.match(html,/data-finance-manual-field="amount" value="7,000\.00"/);
+  assert.match(html,/data-finance-manual-field="unit_price" value="3,500\.00"/);
+  updateManualDraft(d,'amount','6,500.50');
+  assert.equal(d.manualDraft.amount,6500.5);
+  assert.equal(d.manualDraft.unit_price,3250.25);
+  updateManualDraft(d,'unit_price','1,250.00');
+  assert.equal(d.manualDraft.unit_price,1250);
+  assert.equal(d.manualDraft.amount,2500);
+  assert.ok(Number.isFinite(d.manualDraft.amount));
+});
+test('money input formatting retains enough unit-price precision for server amount validation',()=>{
+  const d=data();d.transactionContext.billingRows[0].unbilledCount=11;d.transactionContext.billingRows[0].issuableAmount=2500;
+  prepareManualAccount(d,'a');
+  const shown=formatManualMoney(d.manualDraft.unit_price,{unitPrice:true});
+  const parsed=parseManualMoney(shown);
+  assert.equal(Math.round(parsed*11*100)/100,2500);
+  assert.match(shown,/^227\.2727/);
 });
