@@ -20,7 +20,7 @@ import {
 import { activityRowId, normalizeFinanceCollectionTab } from './finance-collection.js';
 import { financeError } from './finance-errors.js';
 import { financeAccountBalances, paymentsBodyHtml, receiptsHtml, accountPaymentAllocation } from './finance-payments.js';
-import { prepareManualAccount, updateManualDraft, manualRequest, runManualAccount, manualFilteredActivities } from './finance-manual-account.js';
+import { prepareManualAccount, updateManualDraft, manualFilteredActivities, selectedManualActivityIds, toggleManualActivity, focusManualActivity, saveActiveManualDraft, previewSelectedManualAccounts, runSelectedManualAccounts } from './finance-manual-account.js';
 import { financeToday } from './finance-transaction-accounts.js';
 import {
   handleTransactionSelection,
@@ -118,6 +118,9 @@ export function createFinanceVisitState(now = new Date()) {
     collectionSaveState: {},
     transactionTab: 'automatic',
     manualFunderFilter: '',
+    manualSelectedActivityIds: [],
+    manualActivityDrafts: {},
+    manualBatchPreviews: null,
     transactionManualSelected: {},
     transactionActionMessage: '',
     transactionRunning: false
@@ -568,12 +571,20 @@ export const financeScreen = {
       const manualPreview = ev.target.closest('[data-finance-manual-preview]');
       if (manualPreview) {
         if (visit.financeBusy) return; visit.financeBusy = true; manualPreview.disabled = true;
-        try { const result = await api.previewFinanceManualAccount(manualRequest(visit)); visit.manualQuote = result.quote; visit.manualPdf = result.pdfBase64; visit.manualRequestId = crypto.randomUUID(); visit.transactionActionMessage = ''; }
+        try { await previewSelectedManualAccounts(visit, api); visit.transactionActionMessage = ''; }
         catch (error) { visit.transactionActionMessage = financeError(error); }
         finally { visit.financeBusy = false; refresh(); } return;
       }
       const manualConfirm = ev.target.closest('[data-finance-manual-confirm]');
-      if (manualConfirm) { await financeAction(manualConfirm, async () => { await runManualAccount(visit, api); visit.manualQuote = null; visit.manualPdf = ''; visit.transactionTab = 'history'; }); return; }
+      if (manualConfirm) {
+        await financeAction(manualConfirm, async () => {
+          await runSelectedManualAccounts(visit, api);
+          visit.manualQuote = null; visit.manualPdf = ''; visit.manualBatchPreviews = null;
+          visit.manualSelectedActivityIds = []; visit.manualActivityDrafts = {};
+          visit.manualActivityId = ''; visit.manualFundingKey = ''; visit.manualDraft = null;
+          visit.transactionTab = 'history';
+        }); return;
+      }
 
       if (ev.target.closest('[data-finance-clear-notification-filter]')) {
         visit.notificationEmployeeId = ''; refresh(); return;
@@ -720,23 +731,31 @@ export const financeScreen = {
       const funderFilter = ev.target.closest('[data-finance-manual-funder-filter]');
       if (funderFilter) {
         visit.manualFunderFilter = funderFilter.value || '';
-        if (!manualFilteredActivities(visit).some(a => a.row_id === visit.manualActivityId)) {
-          visit.manualActivityId = '';
-          visit.manualFundingKey = '';
-          visit.manualDraft = null;
-          visit.manualQuote = null;
-          visit.manualPdf = '';
-        } else if (visit.manualActivityId) {
+        const valid = new Set(manualFilteredActivities(visit).map(activity => activity.row_id));
+        visit.manualSelectedActivityIds = selectedManualActivityIds(visit).filter(id => valid.has(id));
+        visit.manualActivityDrafts = Object.fromEntries(
+          Object.entries(visit.manualActivityDrafts || {}).filter(([id]) => valid.has(id))
+        );
+        if (!valid.has(visit.manualActivityId)) focusManualActivity(visit, visit.manualSelectedActivityIds[0] || '');
+        else {
           prepareManualAccount(visit, visit.manualActivityId);
+          saveActiveManualDraft(visit);
         }
+        visit.manualBatchPreviews = null;
         refresh(); return;
       }
+      const multiActivity = ev.target.closest('[data-finance-manual-select-activity]');
+      if (multiActivity) { toggleManualActivity(visit, multiActivity.value, multiActivity.checked); refresh(); return; }
       const manualActivity = ev.target.closest('[data-finance-manual-activity]');
-      if (manualActivity) { prepareManualAccount(visit, manualActivity.value); refresh(); return; }
+      if (manualActivity) {
+        if (manualActivity.value) toggleManualActivity(visit, manualActivity.value, true);
+        else toggleManualActivity(visit, visit.manualActivityId, false);
+        refresh(); return;
+      }
       const manualFunding = ev.target.closest('[data-finance-manual-funding]');
-      if (manualFunding) { prepareManualAccount(visit, visit.manualActivityId, manualFunding.value); refresh(); return; }
+      if (manualFunding) { prepareManualAccount(visit, visit.manualActivityId, manualFunding.value); saveActiveManualDraft(visit); visit.manualBatchPreviews = null; refresh(); return; }
       const manualField = ev.target.closest('[data-finance-manual-field]');
-      if (manualField) { updateManualDraft(visit, manualField.dataset.financeManualField, manualField.value); refresh(); return; }
+      if (manualField) { updateManualDraft(visit, manualField.dataset.financeManualField, manualField.value); saveActiveManualDraft(visit); refresh(); return; }
       const accountField = ev.target.closest('[data-finance-account-field]');
       if (accountField) {
         const account = financeAccountBalances(visit).find(a => a.id === accountField.dataset.accountId); if (!account) return;
