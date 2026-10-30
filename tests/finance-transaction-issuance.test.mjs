@@ -97,7 +97,7 @@ test('invoice recipient list deduplicates contact and administrator for one scho
     row({activityRowId:'a',financeSchoolId:101,customerEmail:'teacher@example.test;ADMIN@example.test'}),
     row({activityRowId:'b',financeSchoolId:101,customerEmail:'admin@example.test;teacher@example.test'})
   ]));
-  assert.deepEqual(preview.accounts[0].customerEmails,['teacher@example.test','ADMIN@example.test']);
+  assert.deepEqual(preview.accounts[0].customerEmails,['teacher@example.test','admin@example.test']);
 });
 
 test('a sponsor invoice spanning two schools never receives unrelated school contacts',()=>{
