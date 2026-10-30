@@ -64,3 +64,11 @@ test('four summary cards fill the width and the list uses one page scrollbar', (
   assert.match(compactCss, /\.course-scheduling-screen\.is-simple-workboard\.is-compact-symmetric-layout \.course-scheduling-courses \{[^}]*max-height: none;[^}]*overflow: visible;/);
   assert.match(compactCss, /\[data-course-list-body\] > nav\.course-scheduling-detail-actions button/);
 });
+
+test('selected workboard does not squeeze six columns into half width', () => {
+  assert.match(compactCss, /\.course-scheduling-screen\.is-compact-symmetric-layout\.is-simple-workboard\.has-selected-course \.course-scheduling-layout--courses \{\s*grid-template-columns:\s*minmax\(0, 1fr\)/);
+  assert.match(compactCss, /\.course-scheduling-screen\.is-compact-symmetric-layout\.is-simple-workboard \.course-scheduling-detail\.is-open \{[\s\S]*?position:\s*fixed;/);
+  assert.match(compactCss, /\.course-scheduling-screen\.is-simple-workboard \.course-scheduling-detail-close \{/);
+  assert.match(screen, /data-close-course-detail/);
+  assert.match(screen, /renderOpenedCourse\(''\)/);
+});
