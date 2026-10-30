@@ -243,3 +243,28 @@ test('generated PDF contains updated invoice contact and both bank separators',a
   assert.ok((glyphs.match(/\|/g)||[]).length>=2,'both bank separators should remain selectable text');
   assert.doesNotMatch(glyphs,/03-5370368/);
 });
+
+test('multi-page course invoice keeps payment section together without repeating addressee',async()=>{
+  const lines=Array.from({length:29},(_,i)=>({
+    activity_row_id:'COURSE-29-'+i,
+    activity_name_snapshot:'בינה מלאכותית וחדשנות',
+    school_name_snapshot:'בית ספר '+(i+1),
+    gefen_number_snapshot:'9545',
+    billing_rule:'completion',quantity_snapshot:8,billed_hours:12,
+    amount:10000,unit_price_snapshot:1250,
+    finance_transaction_account_meetings:[]
+  }));
+  const result=await harness({account:{
+    customer_name_snapshot:'רמי שני',
+    institution_symbol:'',
+    total_amount:290000,
+    finance_transaction_account_lines:lines
+  }});
+  assert.equal(result.response.status,200,JSON.stringify(result.body));
+  const doc=await getDocument({data:new Uint8Array(result.pdf),useSystemFonts:false}).promise;
+  assert.ok(doc.numPages>=2,'a 29-activity invoice should span multiple pages');
+  const last=(await (await doc.getPage(doc.numPages)).getTextContent()).items
+    .map(item=>item.str||'').join('');
+  assert.match(last,/300120/,'the final page must include the bank transfer account');
+  assert.doesNotMatch(last,/ל\s*כ\s*ב\s*ו\s*ד/,'the last page must not reprint the customer greeting');
+});
