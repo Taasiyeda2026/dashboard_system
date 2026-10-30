@@ -5345,6 +5345,7 @@ const ALLOWED_ACTIVITY_COLUMNS = new Set([
   'school',
   'grade',
   'class_group',
+  'tour_location',
   'activity_type',
   'item_type',
   'activity_season',
@@ -5502,6 +5503,10 @@ function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true 
       nextValue = domain || null;
     } else if (key === 'activity_type' || key === 'item_type') {
       nextValue = normalizeActivityTypeValue(rawValue) || null;
+    } else if (key === 'tour_location') {
+      const location = String(rawValue ?? '').trim();
+      if (Array.from(location).length > 15) throw new Error('invalid_tour_location_length');
+      nextValue = location || null;
     } else if (key === 'instruction_language') {
       const language = String(rawValue ?? '').trim().toLowerCase();
       if (language && !['he', 'ar'].includes(language)) throw new Error('invalid_instruction_language');
@@ -5688,6 +5693,9 @@ async function upsertActivityToSupabase(payload = {}) {
   assertNewActivityHasNoInstructors(act);
   await validateActivityInstructorBindingsOrThrow(act);
   const row = sanitizeActivityPayloadForSupabase(synchronizeStartDateAndFirstMeeting(sanitizeActivityPayload(act)), { includeRowId: true });
+  if (row.tour_location && normalizeActivityTypeValue(row.activity_type) !== 'tour') {
+    throw new Error('tour_location_requires_tour');
+  }
   const rawSchoolIds = Array.isArray(act.school_ids) ? act.school_ids.map((id) => String(id || '').trim()).filter(Boolean) : [];
   if (rawSchoolIds.length > 1 && !act.school_id) row.school_id = null;
   const derivedEnd = deriveEndDateFromDates(row);
@@ -5752,7 +5760,7 @@ function assertSupabaseActivityUpdateApplied(operation, requestedChanges = {}, r
     const isDate = key === 'start_date' || key === 'end_date' || /^date_\d+$/.test(key);
     const isCatalogIdentity = ['activity_name', 'activity_no', 'gefen_number', 'sessions'].includes(key);
     const isSchedulingRequirement = ['instruction_language', 'required_instructor_gender'].includes(key);
-    if (!isDate && !isCatalogIdentity && !isSchedulingRequirement) continue;
+    if (!isDate && !isCatalogIdentity && !isSchedulingRequirement && key !== 'tour_location') continue;
     const expected = isDate
       ? (normalizeDateFieldForSupabase(expectedRaw) || '')
       : String(expectedRaw ?? '').trim();
@@ -6062,11 +6070,21 @@ async function updateActivityInSupabase(payload = {}) {
   const mappedChanges = mapMeetingDateFieldNamesToSupabase(rawChanges);
   const { data: existingInstructorRow, error: existingInstructorError } = await supabase
     .from('activities')
-    .select('instructor_name,instructor_name_2,emp_id,emp_id_2,activity_season,start_date')
+    .select('instructor_name,instructor_name_2,emp_id,emp_id_2,activity_season,start_date,activity_type')
     .eq('row_id', rowId)
     .maybeSingle();
   if (existingInstructorError) throw buildSupabaseMutationError('saveActivity', existingInstructorError, 'save_failed');
   assertActivityPeriodEditable({ activity: existingInstructorRow, changes: rawChanges });
+  const effectiveActivityType = normalizeActivityTypeValue(
+    mappedChanges.activity_type || mappedChanges.item_type || existingInstructorRow?.activity_type
+  );
+  if (effectiveActivityType !== 'tour') {
+    if (String(mappedChanges.tour_location ?? '').trim()) throw new Error('tour_location_requires_tour');
+    if (normalizeActivityTypeValue(existingInstructorRow?.activity_type) === 'tour'
+      && Object.prototype.hasOwnProperty.call(mappedChanges, 'activity_type')) {
+      mappedChanges.tour_location = null;
+    }
+  }
   await validateActivityInstructorBindingsOrThrow({ ...(existingInstructorRow || {}), ...rawChanges });
   let existingForNormalization = null;
   const needsExisting = Object.keys(mappedChanges).some((key) => ['activity_type', 'item_type', 'activity_family', 'activity_name', 'activity_no', 'gefen_number', 'sessions', 'start_date', 'end_date', 'date_1', 'status'].includes(key) || /^date_\d+$/.test(key));
@@ -6197,7 +6215,7 @@ async function updateActivityInSupabase(payload = {}) {
   }
   const { data: freshDbRow, error: freshDbError } = await supabase
     .from('activities')
-    .select(`${activityDateSelectColumns()},activity_name,activity_no,gefen_number,sessions,price,instruction_language,required_instructor_gender`)
+    .select(`${activityDateSelectColumns()},activity_name,activity_no,gefen_number,sessions,price,instruction_language,required_instructor_gender,tour_location`)
     .eq('row_id', rowId)
     .maybeSingle();
   if (freshDbError) throw buildSupabaseMutationError('saveActivity', freshDbError, 'save_failed');
