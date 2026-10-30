@@ -72,3 +72,10 @@ test('selected workboard does not squeeze six columns into half width', () => {
   assert.match(screen, /data-close-course-detail/);
   assert.match(screen, /renderOpenedCourse\(''\)/);
 });
+
+test('manual editor is the sole active sheet and stands above the selection layer', () => {
+  assert.match(screen, /const manualEditorOpen = Boolean\(state\.courseSchedulingManualOperation\)/);
+  assert.match(screen, /selectedId && !manualEditorOpen && selectedRow\?\.course/);
+  assert.match(compactCss, /\.is-manual-editor-open \[data-course-detail\] \{\s*display:\s*none !important;/);
+  assert.match(compactCss, /\[data-manual-operations-overlay\] \{\s*z-index:\s*180;/);
+});
