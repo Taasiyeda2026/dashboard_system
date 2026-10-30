@@ -200,8 +200,15 @@ function rowOccursInMonth(row, month) {
   return activityDatePoints(row).some((date) => date.startsWith(month));
 }
 
+function isAnnual2027ArchiveTab(targetState = {}) {
+  return cleanText(targetState.activitiesInnerTab) === INNER_TAB_ARCHIVE
+    && selectedYearKey(targetState.activityPeriodTab) === ACTIVITY_SEASON_SCHOOL_2027;
+}
+
 function isMonthNavigationTab(targetState = {}) {
-  return MONTH_NAVIGATION_TABS.has(cleanText(targetState.activitiesInnerTab));
+  // Only the 2027 archive is annual. Keep all other tabs' month behavior unchanged.
+  return !isAnnual2027ArchiveTab(targetState)
+    && MONTH_NAVIGATION_TABS.has(cleanText(targetState.activitiesInnerTab));
 }
 
 function monthRangeForState(targetState = {}) {
@@ -331,6 +338,13 @@ activitiesScreen.render = function renderWithCorrectTabScopes(data, context = {}
   const renderData = { ...data, rows: renderRows };
   let html = originalRender(renderData, context);
   html = replaceAllTabCounts(html, originalRows, targetState);
+
+  if (isAnnual2027ArchiveTab(targetState)) {
+    const visibleCount = renderedVisibleCount(html, rowsForSelectedInnerTab(originalRows, targetState).length);
+    html = replaceTitleNavigation(html, `<nav class="ds-activities-title-row" aria-label="ארכיון תשפ״ז" dir="rtl">
+      <h2 class="ds-activities-page-title">${escapeHtml(innerTabLabel(targetState))} · ${visibleCount} פעילויות</h2>
+    </nav>`);
+  }
 
   if (isMonthNavigationTab(targetState)) {
     const tabRows = rowsForSelectedInnerTab(originalRows, targetState);
