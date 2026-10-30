@@ -87,8 +87,15 @@ function* schedules(context, a, empId, spec, input, previous, occupancy) {
   // School-supplied start_date is an official anchor, not a new recommendation.
   const officialStart = text(a.start_date).slice(0, 10);
   const start = officialStart || [period.start, earliestUndatedCourseStart(input.today), '2026-10-12'].sort().at(-1);
-  const end = period.key === 'first' ? '2027-02-28' : year.end;
-  if (previous?.meetings?.length && previous.meetings[0].date >= start) {
+  // Undated courses belong to the first half, including during a year-wide run.
+  // Do not silently move an undated first-half course into the second half when
+  // the fourteen-day lead pushes the earliest start beyond 29 January.
+  const firstHalfUndated = !officialStart && period.key === 'year';
+  const latestStart = officialStart || (firstHalfUndated ? resolveCourseSchedulingPeriod('first').end : period.end);
+  const end = period.key === 'first' || firstHalfUndated ? '2027-02-28' : year.end;
+  if (previous?.meetings?.length && previous.meetings[0].date >= start
+      && previous.meetings[0].date <= latestStart
+      && previous.meetings.every(m => m.date <= end)) {
     yield previous.meetings;
     if(previous.instructorEmpId===empId){const blocks=classifyMeetingAvailabilityBlocks({meetings:previous.meetings,rules:input.rules?.[empId]||[],exceptions:input.exceptions?.[empId]||[]});
       if(blocks.instructorExceptionCount>0&&blocks.recoverable){const shifted=[];let nextAllowed=previous.meetings[0].date,changed=false;
@@ -98,7 +105,7 @@ function* schedules(context, a, empId, spec, input, previous, occupancy) {
       }
     }
   }
-  for (let date = start; date <= (a.start_date ? text(a.start_date).slice(0, 10) : period.end); date = addDays(date, 1)) {
+  for (let date = start; date <= latestStart; date = addDays(date, 1)) {
     const day = weekday(date), dayRules = context.exceptions.get(empId)?.get(date) || context.rules.get(empId)?.get(day) || [];
     if (day === 5 && context.profiles[empId]?.friday_allowed !== true) continue;
     if (day === 6 && !['arab', 'druze'].includes(a.calendar_sector)) continue;
