@@ -178,8 +178,8 @@ export function updateManualDraft(data,key,value) {
   if ((key === 'amount' || key === 'unit_price') && !Number.isFinite(safeValue)) return false;
   data.manualDraft={...data.manualDraft,[key]:safeValue};const d=data.manualDraft;
   if(key==='quantity'){d.hours=Number(value)*1.5;d.amount=Math.round(Number(value)*Number(d.unit_price)*100)/100;}
-  if(key==='unit_price')d.amount=Math.round(Number(d.quantity)*Number(value)*100)/100;
-  if(key==='amount'&&Number(d.quantity)>0)d.unit_price=Number(value)/Number(d.quantity);
+  if(key==='unit_price')d.amount=Math.round(Number(d.quantity)*Number(safeValue)*100)/100;
+  if(key==='amount'&&Number(d.quantity)>0)d.unit_price=Number(safeValue)/Number(d.quantity);
   if(key==='issue_date'){
     const row=manualFundingRows(data).find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===data.manualFundingKey);
     const days=/^(רשות|רשויות|authority|ויצו|wizo)$/i.test(text(row?.funding).replace(/["׳״\s]/g,''))?45:30;
