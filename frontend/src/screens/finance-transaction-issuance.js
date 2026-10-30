@@ -29,8 +29,9 @@ function statusLabel(status) {
 }
 
 export function transactionMonth(data, mode) {
-  const month = data.transactionMonths?.[mode] || financeCycleCutoff().slice(0, 7);
-  return /^\d{4}-\d{2}$/.test(month) && month <= financeToday().slice(0, 7) ? month : financeCycleCutoff().slice(0, 7);
+  const currentMonth = financeToday().slice(0, 7);
+  const month = data.transactionMonths?.[mode] || currentMonth;
+  return /^\d{4}-\d{2}$/.test(month) && month <= currentMonth ? month : currentMonth;
 }
 
 function monthPicker(data, mode) {
