@@ -191,6 +191,7 @@ function ensureStyles() {
 .invitation-screen-root #card.layout-breakthrough-lecture .c-school,.invitation-screen-root #card.layout-breakthrough-lecture .c-year{margin:1mm 0;font-size:4.2mm}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-divider{width:78%;margin:0 auto 1mm}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-opening{width:84%;padding-inline:2mm;text-align:center;font-size:4.3mm;line-height:1.4;margin:0 auto}
+.invitation-screen-root #card.layout-breakthrough-lecture .c-opening .c-opening-highlight{color:color-mix(in srgb,var(--accent-color,#a40461) 35%,#333 65%);font-weight:600}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-details-box{width:82%;padding:2.1mm 3mm;gap:1.4mm;border-color:rgba(31,53,77,.2);background:rgba(255,255,255,.65);margin:0 auto}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-details-top{gap:2mm}
 .invitation-screen-root #card.layout-breakthrough-lecture .c-detail-separator{color:rgba(31,53,77,.48);padding:0 .5mm;font-weight:400}
@@ -1003,7 +1004,10 @@ export const invitationsScreen = {
         // guest lecture opening. Keep the original wording unchanged in textContent.
         const openingContent = esc(breakthroughCopy.opening);
         const formattedOpening = breakthroughLecture
-          ? openingContent.replaceAll('פורצות דרך', '<strong>פורצות דרך</strong>')
+          ? openingContent
+              .replaceAll('פורצות דרך', '<strong>פורצות דרך</strong>')
+              .replace("יזמות טכנולוגית, מנהיגות, יצירתיות והעצמה נשית", `<span class="c-opening-highlight">${"יזמות טכנולוגית, מנהיגות, יצירתיות והעצמה נשית"}</span>`)
+              .replace("הן מגלות כיצד נחישות, תעוזה ואמונה עצמית יכולות לפרוץ גבולות, להפוך שאיפות להישגים ולפתוח בפניהן עולם של אפשרויות.", `<span class="c-opening-highlight">${"הן מגלות כיצד נחישות, תעוזה ואמונה עצמית יכולות לפרוץ גבולות, להפוך שאיפות להישגים ולפתוח בפניהן עולם של אפשרויות."}</span>`)
           : openingContent;
         opening = `<div class="c-opening">${formattedOpening}</div>`;
       } else if (type === 'end') {

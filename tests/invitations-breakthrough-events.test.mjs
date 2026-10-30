@@ -301,7 +301,7 @@ test('approved breakthrough guest lecture remains word-for-word in A5 print', ()
     write(html) { printedHtml = html; }, close() {}, set title(_) {}
   }});
   ui.el('print-btn').click();
-  assert.ok(printedHtml.includes(expectedOpening.replaceAll('פורצות דרך', '<strong>פורצות דרך</strong>')));
+  assert.equal(new JSDOM(printedHtml).window.document.querySelector('#card .c-opening').textContent, expectedOpening);
   assert.ok(printedHtml.includes(expectedMeeting));
   assert.ok(printedHtml.includes('במסגרת קורס ״פורצות דרך״'));
   assert.ok(printedHtml.includes('הזמנה להרצאת אורחת של:'));
@@ -367,7 +367,7 @@ test('breakthrough guest lecture layout expands text and balances A5 spacing wit
   }});
   ui.el('print-btn').click();
   assert.match(printedHtml, /id="card" class="layout-breakthrough-lecture"/);
-  assert.ok(printedHtml.includes(opening.replaceAll('פורצות דרך', '<strong>פורצות דרך</strong>')));
+  assert.equal(new JSDOM(printedHtml).window.document.querySelector('#card .c-opening').textContent, opening);
   assert.ok(printedHtml.includes(conclusion));
   assert.ok(printedHtml.includes('נשמח לראותכם!'));
   assert.doesNotMatch(printedHtml, /לוגו בית הספר|לוגו חברת המרצה/);
@@ -409,7 +409,7 @@ test('guest lecture opening matches approved punctuation and remains centered in
     write(html) { printed = html; }, close() {}, set title(_) {}
   }});
   ui.el('print-btn').click();
-  assert.ok(printed.includes(approvedOpening.replaceAll('פורצות דרך', '<strong>פורצות דרך</strong>')));
+  assert.equal(new JSDOM(printed).window.document.querySelector('#card .c-opening').textContent, approvedOpening);
   assert.ok(printed.includes('text-align:center;font-size:4.3mm'));
   assert.doesNotMatch(printed, /נשית, ומעודד/);
 
@@ -492,5 +492,33 @@ test('only guest lecture introduction emphasizes course words and other event te
   assert.equal(ui.el('card').querySelector('.c-opening').textContent,
     'הנכם מוזמנים למפגש הסיום של קורס "פורצות דרך", שהתקיים בבית הספר במסגרת התוכניות החינוכיות של תעשיידע.');
   assert.equal(ui.el('card').querySelector('.c-opening strong'), null);
+  ui.dom.window.close();
+});
+
+test('guest lecture uses the same subtle emphasis for both approved passages in preview and PDF', () => {
+  const ui = mount();
+  ui.change('course-sel', 'פורצות דרך');
+  ui.change('ev-type', 'lecture');
+  const p = ui.el('card').querySelector('.c-opening');
+  const emphasis = [...p.querySelectorAll('.c-opening-highlight')];
+  const approvedFragments = ["יזמות טכנולוגית, מנהיגות, יצירתיות והעצמה נשית", "הן מגלות כיצד נחישות, תעוזה ואמונה עצמית יכולות לפרוץ גבולות, להפוך שאיפות להישגים ולפתוח בפניהן עולם של אפשרויות."];
+  assert.deepEqual(emphasis.map(el => el.textContent), approvedFragments);
+  assert.equal(p.querySelectorAll('strong').length, 2);
+  assert.ok([...p.querySelectorAll('strong')].every(el => el.textContent === 'פורצות דרך'));
+  const styles = document.getElementById('invitation-generator-styles').textContent;
+  assert.match(styles, /#card\.layout-breakthrough-lecture \.c-opening \.c-opening-highlight\{color:color-mix\(in srgb,var\(--accent-color,#a40461\) 35%,#333 65%\);font-weight:600\}/);
+
+  let printed = '';
+  ui.dom.window.open = () => ({ document: {
+    write(html) { printed = html; }, close() {}, set title(_) {}
+  }});
+  ui.el('print-btn').click();
+  const printOpening = new JSDOM(printed).window.document.querySelector('#card .c-opening');
+  assert.equal(printOpening.textContent, p.textContent);
+  assert.deepEqual([...printOpening.querySelectorAll('.c-opening-highlight')].map(el => el.textContent), approvedFragments);
+  assert.equal(printOpening.querySelectorAll('strong').length, 2);
+
+  ui.change('ev-type', 'end');
+  assert.equal(ui.el('card').querySelector('.c-opening-highlight'), null);
   ui.dom.window.close();
 });
