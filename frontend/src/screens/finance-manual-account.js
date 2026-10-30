@@ -310,6 +310,72 @@ export function syncManualActivitySelectionUi(root, data) {
   [...next.children].slice(1).forEach(element => manual.appendChild(element));
 }
 
+// Object URLs (rather than data: URLs) prevent the browser/Acrobat extension
+// from rendering a large Base64 string instead of the PDF preview.
+export function manualPdfPreviewFilename(quote = {}, { count = 0 } = {}) {
+  const payer = text(quote.customer_name_snapshot || 'לקוח').replace(/[\\/:*?"<>|\x00-\x1f]/g, ' ').replace(/\s+/g, ' ').trim();
+  const issueDate = text(quote.issue_date).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  const displayDate = issueDate ? `${issueDate[3]}.${issueDate[2]}.${issueDate[1]}` : '';
+  return ['טיוטת חשבון עסקה', payer, count > 1 ? `${count} פעילויות` : '', displayDate]
+    .filter(Boolean).join(' - ') + '.pdf';
+}
+
+export function clearManualPdfPreviewUrls(root, urlApi = URL) {
+  for (const cached of root?._financeManualPdfPreviewUrls?.values() || []) {
+    urlApi.revokeObjectURL?.(cached.url);
+  }
+  if (root) root._financeManualPdfPreviewUrls = new Map();
+}
+
+export function syncManualPdfPreviewDom(root, data, scope = globalThis) {
+  if (!root) return;
+  const urlApi = scope.URL;
+  if (typeof urlApi?.createObjectURL !== 'function' || typeof scope.atob !== 'function') return;
+  const previews = new Map();
+  if (data.manualConsolidatedPreview) {
+    const value = data.manualConsolidatedPreview;
+    previews.set('consolidated', { base64: value.pdfBase64,
+      name: manualPdfPreviewFilename(value.quote, {count: value.items.length}) });
+  } else if (Array.isArray(data.manualBatchPreviews) && data.manualBatchPreviews.length > 1) {
+    data.manualBatchPreviews.forEach((value, i) => {
+      previews.set(String(i), { base64: value.pdfBase64,
+        name: manualPdfPreviewFilename(value.quote) });
+    });
+  } else if (data.manualPdf) {
+    previews.set('single', { base64: data.manualPdf,
+      name: manualPdfPreviewFilename(data.manualQuote || data.manualDraft) });
+  }
+  root._financeManualPdfPreviewUrls ||= new Map();
+  const cache = root._financeManualPdfPreviewUrls;
+  for (const [key, previous] of cache) {
+    const current = previews.get(key);
+    if (!current || current.base64 !== previous.base64) {
+      urlApi.revokeObjectURL(previous.url);
+      cache.delete(key);
+    }
+  }
+  for (const [key, descriptor] of previews) {
+    if (!cache.has(key)) {
+      const binary = scope.atob(descriptor.base64);
+      const bytes = Uint8Array.from(binary, char => char.charCodeAt(0));
+      const url = urlApi.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+      cache.set(key, {url, base64: descriptor.base64});
+    }
+    const url = cache.get(key).url;
+    const frame = [...root.querySelectorAll('[data-finance-manual-pdf-frame]')]
+      .find(node => node.dataset.financeManualPdfFrame === key);
+    if (frame && frame.getAttribute('src') !== url + '#toolbar=0') {
+      frame.setAttribute('src', url + '#toolbar=0');
+    }
+    const download = [...root.querySelectorAll('[data-finance-manual-pdf-download]')]
+      .find(node => node.dataset.financeManualPdfDownload === key);
+    if (download) {
+      download.setAttribute('href', url);
+      download.setAttribute('download', descriptor.name);
+    }
+  }
+}
+
 export function manualAccountViewHtml(data) {
   const activities=manualFilteredActivities(data);
   const funderOptions=manualFundingFilterOptions(data);
@@ -359,15 +425,18 @@ export function manualAccountViewHtml(data) {
     <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" type="button" data-finance-manual-preview>הצגת ${selectedManualActivityIds(data).length>1?'החשבון המרוכז':'החשבון'} לבדיקה (PDF)</button></div></form>
     ${data.manualConsolidatedPreview?`<div class="ds-fin-manual__preview">
       <p>חשבון עסקה מרוכז אחד עבור ${data.manualConsolidatedPreview.items.length} פעילויות. כל פעילות וסכומה מוצגים במסמך.</p>
-      <iframe title="תצוגה מקדימה של חשבון מרוכז" src="data:application/pdf;base64,${e(data.manualConsolidatedPreview.pdfBase64)}"></iframe>
+      <iframe title="תצוגה מקדימה של חשבון מרוכז" data-finance-manual-pdf-frame="consolidated"></iframe>
+      <div class="ds-fin-manual__actions"><a class="ds-btn" data-finance-manual-pdf-download="consolidated">הורדת PDF עם שם החשבון</a></div>
       <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" data-finance-manual-confirm>אישור והפקת חשבון מרוכז אחד</button></div>
     </div>`:data.manualBatchPreviews?.length>1?`<div class="ds-fin-manual__batch-previews">
       <p>כל פעילות תופק כחשבון נפרד. יש לעיין בחשבונות לפני אישור ההפקה.</p>
       ${data.manualBatchPreviews.map((p,i)=>`<details class="ds-fin-manual__section"${i===0?' open':''}><summary>${e((data.collectionActivities||[]).find(a=>a.row_id===p.activityId)?.school||p.activityId)} · חשבון ${i+1}</summary>
-        <iframe title="תצוגה מקדימה של חשבון ${i+1}" src="data:application/pdf;base64,${e(p.pdfBase64)}"></iframe>
+        <iframe title="תצוגה מקדימה של חשבון ${i+1}" data-finance-manual-pdf-frame="${i}"></iframe>
+        <a class="ds-btn" data-finance-manual-pdf-download="${i}">הורדת PDF עם שם החשבון</a>
       </details>`).join('')}
       <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" data-finance-manual-confirm>אישור והפקת ${data.manualBatchPreviews.length} חשבונות</button></div>
-    </div>`:data.manualPdf?`<div class="ds-fin-manual__preview"><iframe title="תצוגה מקדימה של חשבון העסקה" src="data:application/pdf;base64,${e(data.manualPdf)}"></iframe>
+    </div>`:data.manualPdf?`<div class="ds-fin-manual__preview"><iframe title="תצוגה מקדימה של חשבון העסקה" data-finance-manual-pdf-frame="single"></iframe>
+      <div class="ds-fin-manual__actions"><a class="ds-btn" data-finance-manual-pdf-download="single">הורדת PDF עם שם החשבון</a></div>
       <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" data-finance-manual-confirm>אישור והפקת חשבון</button></div></div>`:''}`:''}</div>`;
 }
 export async function runManualAccount(data,api) {
