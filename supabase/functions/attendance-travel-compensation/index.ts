@@ -22,10 +22,14 @@ async function googleRoute(origin: string, destination: string, key: string) {
     body: JSON.stringify({ origin: { address: origin }, destination: { address: destination }, travelMode: 'DRIVE' })
   });
   if (!result.ok) throw new Error('route_service_unavailable');
-  const route = (await result.json())?.routes?.[0];
+  let payload;
+  try { payload = await result.json(); } catch { throw new Error('route_data_invalid'); }
+  const route = payload?.routes?.[0];
+  if (!route) throw new Error('route_not_found');
   const distance = Number(route?.distanceMeters) / 1000;
   const seconds = Number.parseFloat(text(route?.duration).replace(/s$/i, ''));
-  if (!Number.isFinite(distance) || !Number.isFinite(seconds)) throw new Error('route_not_found');
+  if (route.distanceMeters == null || !/^\d+(?:\.\d+)?s$/.test(text(route.duration))
+    || !Number.isFinite(distance) || distance < 0 || !Number.isFinite(seconds)) throw new Error('route_data_invalid');
   return { distance_km: distance, duration_minutes: Math.ceil(seconds / 60) };
 }
 
@@ -36,7 +40,9 @@ async function route(db: any, origin: string, destination: string, key: string) 
     .eq('origin_key', originKey).eq('destination_key', destinationKey).maybeSingle();
   if (error) throw new Error('cache_read_failed');
   if (cached?.location_suspect === true) throw new Error('location_review_required'); // No automatic recalculation.
-  if (cached && Number.isFinite(Number(cached.duration_minutes))
+  if (cached && cached.duration_minutes != null && cached.distance_km != null
+    && Number.isFinite(Number(cached.duration_minutes)) && Number(cached.duration_minutes) >= 0
+    && Number.isFinite(Number(cached.distance_km)) && Number(cached.distance_km) >= 0
     && (!text(cached.origin_address) || text(cached.origin_address) === origin)
     && (!text(cached.destination_address) || text(cached.destination_address) === destination)) {
     return { distance_km: Number(cached.distance_km), duration_minutes: Number(cached.duration_minutes) };
@@ -127,7 +133,11 @@ Deno.serve(async (req) => {
       p_failure_code: null,
       p_distance_km: oneWayKm
     });
-    if (error) throw new Error('reconcile_failed');
+    if (error) {
+      // Keep diagnostics bounded: database error text may contain private row data.
+      console.error('[attendance-travel-compensation] reconcile failed', { code: error.code });
+      throw new Error('reconcile_failed');
+    }
     // Instructor-reachable response: never expose system travel minutes/distance.
     // Managers compare via payroll/control RPCs that read DB columns server-side.
     return response({
@@ -138,12 +148,14 @@ Deno.serve(async (req) => {
       show_travel_report_reminder: oneWayKm > 40
     });
   } catch (error) {
-    const reason = ['route_not_found','cache_read_failed','cache_write_failed'].includes(text((error as Error)?.message))
+    const reason = ['reconcile_failed','location_review_required','route_not_found','route_data_invalid',
+      'cache_read_failed','cache_write_failed'].includes(text((error as Error)?.message))
       ? text((error as Error).message) : 'route_service_unavailable';
     // Attendance travel remains unchanged. A failed route calculation additionally
     // records missing directed segments for MANUAL maintenance (deduplicated, no retry loop).
     // A queue failure must never prevent reconciliation/payroll error reporting.
-    if (context.origin_address && context.destination_address) {
+    if (['route_service_unavailable', 'route_not_found', 'route_data_invalid'].includes(reason)
+      && context.origin_address && context.destination_address) {
       await Promise.allSettled([
         db.rpc('scheduling_queue_missing_route', {
           p_origin: context.origin_address, p_destination: context.destination_address,
@@ -165,6 +177,9 @@ Deno.serve(async (req) => {
       p_failure_code: reason,
       p_distance_km: null
     });
-    return response({ eligible: true, status: 'unavailable', failure_code: reason }, 503);
+    return response({ eligible: true, status: 'unavailable', failure_code: reason },
+      reason === 'reconcile_failed' || reason.startsWith('cache_') ? 500
+        : reason === 'location_review_required' || reason === 'route_not_found' ? 422
+        : reason === 'route_data_invalid' ? 502 : 503);
   }
 });

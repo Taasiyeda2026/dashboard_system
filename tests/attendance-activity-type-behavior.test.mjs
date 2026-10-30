@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
+import { reportedKilometers } from '../attendance/src/services/reported-kilometers.js';
 import {
   HEBREW_ACTIVITY_TYPES,
   ONLINE_REPORT_TYPE,
@@ -98,7 +99,10 @@ test('Legacy Zoom data remains normalized while the current UI removes Zoom from
   assert.match(reportsSource, /ONLINE_REPORT_TYPE, OPERATIONS_REPORT_TYPE/);
   assert.match(reportsSource, /isOperations \? 'פרטי תפעול \*' : 'שם פעילות'/);
   assert.match(reportsSource, /kmField\.input\.disabled = true/);
-  assert.match(reportsSource, /roundtrip_km:\s*isZoom \|\| publicTransportToggle\.checked \? 0/);
+  assert.match(reportsSource, /reportedKilometers\(kmField\.input\.value,[\s\S]*online: isZoom, publicTransport: publicTransportToggle\.checked/);
+  assert.match(reportsSource, /roundtrip_km:\s*kmValue/);
+  assert.equal(reportedKilometers('99', { online: true }), 0);
+  assert.equal(reportedKilometers('99', { publicTransport: true }), 0);
 
   assert.match(trainingRuntimeSource, /const ZOOM_LABEL = 'זום'/);
   assert.match(trainingRuntimeSource, /option\.value === 'online'/);

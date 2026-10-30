@@ -7557,8 +7557,17 @@ export const api = {
     ])];
     const routeReads = [];
     const numericEmpIds = ids.map(Number).filter(Number.isFinite);
+    // Address-only directed routes written by attendance have no instructor/school
+    // metadata. Read both home directions as well, without changing reported km.
+    const instructorAddresses = [...new Set((contactsResult.data || [])
+      .map((row) => String(row.address || '').trim()).filter(Boolean))];
     if (numericEmpIds.length) routeReads.push(supabase.from('scheduling_travel_cache').select('*').in('origin_instructor_emp_id', numericEmpIds));
     if (schoolIds.length) routeReads.push(supabase.from('scheduling_travel_cache').select('*').in('origin_school_id', schoolIds).in('destination_school_id', schoolIds));
+    for (let offset = 0; offset < instructorAddresses.length; offset += 40) {
+      const addresses = instructorAddresses.slice(offset, offset + 40);
+      routeReads.push(supabase.from('scheduling_travel_cache').select('*').in('origin_address', addresses));
+      routeReads.push(supabase.from('scheduling_travel_cache').select('*').in('destination_address', addresses));
+    }
     if (attendanceLocationAddresses.length) {
       routeReads.push(supabase.from('scheduling_travel_cache').select('*').in('origin_address', attendanceLocationAddresses));
       routeReads.push(supabase.from('scheduling_travel_cache').select('*').in('destination_address', attendanceLocationAddresses));

@@ -6,6 +6,7 @@
  */
 
 import { createIcon } from '../components/icon.js';
+import { reportedKilometers } from '../services/reported-kilometers.js';
 import { createInputField, createSelectField } from '../components/field.js';
 import { createSearchableSelect } from '../components/searchable-select.js';
 import { createCompactSelect } from '../components/compact-select.js';
@@ -1361,10 +1362,10 @@ export function renderNewReportScreen(container, {
 
     kmField = createInputField({
       id: 'av2-km',
-      label: 'קילומטר',
+      label: 'ק״מ הלוך־חזור (יש להזין 0 אם אין)',
       type: 'number',
-      value: prefill?.roundtrip_km ? String(prefill.roundtrip_km) : '',
-      attrs: { min: '0', step: '1', placeholder: '0' },
+      value: prefill?.roundtrip_km != null ? String(prefill.roundtrip_km) : '',
+      attrs: { min: '0', step: '1', placeholder: 'יש להזין מספר' },
     });
 
     const publicTransportToggle = document.createElement('label');
@@ -1834,9 +1835,15 @@ export function renderNewReportScreen(container, {
       const programName = activity?.program_name || activityNameSnapshot || null;
 
       const usesPublicTransport = !isOnline && !isTeamOnline && publicTransportInput.checked;
-      const kmValue = (!isOnline && !isTeamOnline && !usesPublicTransport && kmField.input.value)
-        ? Number(kmField.input.value)
-        : 0;
+      const kmValue = reportedKilometers(kmField.input.value, {
+        online: isOnline || isTeamOnline, publicTransport: usesPublicTransport, activityType: reportType,
+      });
+      if (kmValue == null) {
+        errorEl.textContent = 'יש להזין קילומטרים לדיווח, או 0 אם אין קילומטרים לדיווח.';
+        errorEl.hidden = false;
+        kmField.input.focus();
+        return;
+      }
       const publicTransportCost = usesPublicTransport && publicTransportCostField.input.value
         ? Number(publicTransportCostField.input.value)
         : 0;
