@@ -2483,8 +2483,9 @@ export const courseSchedulingScreen = {
         : null);
 
     const focusMode = isCourseSchedulingFocusMode(state);
+    const manualEditorOpen = Boolean(state.courseSchedulingManualOperation);
     return dsScreenStack(`${instructorsWorkspaceNavStylesHtml()}
-    <div class="course-scheduling-screen is-compact-symmetric-layout is-simple-workboard${focusMode ? ' is-activity-focus' : ''}${selectedId ? ' has-selected-course' : ''}" dir="rtl" data-cs-ui="simple-workboard-20260924-v1" data-cs-tab="${escapeHtml(tab)}">
+    <div class="course-scheduling-screen is-compact-symmetric-layout is-simple-workboard${focusMode ? ' is-activity-focus' : ''}${selectedId ? ' has-selected-course' : ''}${manualEditorOpen ? ' is-manual-editor-open' : ''}" dir="rtl" data-cs-ui="simple-workboard-20260924-v1" data-cs-tab="${escapeHtml(tab)}">
       ${instructorsWorkspaceHeaderHtml({
         activeTab: tab === 'maintenance' ? 'maintenance' : 'scheduling',
         state
@@ -2498,8 +2499,8 @@ export const courseSchedulingScreen = {
       <section class="course-scheduling-summary" aria-label="סיכום פעילויות לפי מצב">${summaryCardsHtml(rowModels, state)}</section>
       <div class="course-scheduling-layout course-scheduling-layout--courses">
         <aside class="course-scheduling-courses" data-course-list tabindex="-1" aria-label="טבלת פעילויות">${courseListHtml(rowModels, selectedId, state)}</aside>
-        <section class="course-scheduling-detail${selectedId ? ' is-open' : ''}" data-course-detail>${
-          selectedId && selectedRow?.course
+        <section class="course-scheduling-detail${selectedId && !manualEditorOpen ? ' is-open' : ''}" data-course-detail>${
+          selectedId && !manualEditorOpen && selectedRow?.course
             ? '<button type="button" class="course-scheduling-detail-close" data-close-course-detail aria-label="סגור פרטי פעילות">סגור פרטי פעילות ✕</button>' + selectedCoursePanelHtml(selectedRow, state)
             : ''
         }</section>

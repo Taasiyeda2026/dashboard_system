@@ -1141,3 +1141,15 @@
     padding: 12px;
   }
 }
+
+/* Exactly one active surface: the manual editor replaces the selection sheet.
+   The selected activity remains in state and its sheet returns when editing closes. */
+.course-scheduling-screen.is-simple-workboard.is-manual-editor-open [data-course-detail] {
+  display: none !important;
+}
+
+/* The editor's backdrop must cover the floating detail sheet layer (z-index: 120).
+   Previously the backdrop was z-index: 40 and both dialogs stayed visible. */
+.course-scheduling-screen.is-simple-workboard [data-manual-operations-overlay] {
+  z-index: 180;
+}
