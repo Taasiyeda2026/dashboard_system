@@ -497,8 +497,8 @@ export function manualAccountViewHtml(data) {
     <section class="ds-fin-manual__section"><h3>פרטי חיוב</h3><div class="ds-fin-manual__grid">${field('מפגשים לחיוב','quantity','number')}${field('שעות לחיוב','hours','number')}${field('מחיר למפגש','unit_price','number')}${field(consolidated?'סכום פעילות זו':'סכום החשבון','amount','number')}
     </div></section>
     <section class="ds-fin-manual__section"><h3>מועדים</h3><div class="ds-fin-manual__grid">${field('תאריך הפקה','issue_date','date')}${field('מועד תשלום','payment_due_date','date')}</div></section><details class="ds-fin-manual__extra"><summary>פרטים נוספים</summary><div class="ds-fin-manual__grid">${field('סיבת חריגה','override_reason')}</div></details>
-    <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" type="button" data-finance-manual-preview>הצגת ${selectedManualActivityIds(data).length>1?'החשבון המרוכז':'החשבון'} לבדיקה (PDF)</button></div></form>
-    ${data.manualConsolidatedPreview?`<div class="ds-fin-manual__preview">
+    <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" type="button" data-finance-manual-preview>הצגת ${selectedManualActivityIds(data).length>1?'החשבון המרוכז':'החשבון'} לבדיקה (PDF)</button></div></form>`:''}
+    ${source ? `${data.manualConsolidatedPreview?`<div class="ds-fin-manual__preview">
       <p>חשבון עסקה מרוכז אחד עבור ${data.manualConsolidatedPreview.items.length} פעילויות. כל פעילות וסכומה מוצגים במסמך.</p>
       <iframe title="תצוגה מקדימה של חשבון מרוכז" data-finance-manual-pdf-frame="consolidated"></iframe>
       <div class="ds-fin-manual__actions"><a class="ds-btn" data-finance-manual-pdf-download="consolidated">הורדת PDF עם שם החשבון</a></div>
