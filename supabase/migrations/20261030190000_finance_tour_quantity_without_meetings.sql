@@ -19,6 +19,13 @@ begin
     into slots from generate_series(1,35) n
     where nullif(to_jsonb(p_activity)->>format('date_%s',n),'') is not null;
   scheduled := jsonb_array_length(slots);
+  -- Pricing for tours depends on transportation and participant count.
+  -- Until agreed, it is pending procurement rather than a failed invoice.
+  -- This branch can never authorize issuance: the reservation recomputes rows.
+  if lower(btrim(coalesce(p_activity.activity_type,'')))='tour'
+     and (p_activity.price is null or p_activity.price<=0) then
+    return '[]'::jsonb;
+  end if;
   planned := case when lower(btrim(coalesce(p_activity.activity_type,'')))='tour' then 1 when btrim(coalesce(p_activity.sessions,'')) ~ '^[1-9][0-9]? then btrim(p_activity.sessions)::integer when nullif(btrim(p_activity.sessions),'') is null then scheduled else 0 end;
   if lower(btrim(coalesce(p_activity.status,''))) in ('נמחק','בוטל','מבוטל','deleted','cancelled','canceled') then return '[]'::jsonb;
   elsif p_activity.price is null or p_activity.price<=0 then reason := 'מחיר פעילות אינו תקין';
