@@ -271,6 +271,7 @@ function coreDetails(form, body, row, existingValues) {
   const managerControls = extractFieldControls(form, ['activity_manager']);
   const instructorControls = extractFieldControls(form, ['emp_id']);
   const classControls = extractFieldControls(form, ['grade', 'class_group']);
+  const tourLocationControls = extractFieldControls(form, ['tour_location']);
   const timeControls = extractFieldControls(form, ['start_time', 'end_time']);
   const genderControls = extractStandaloneControl(form, 'required_instructor_gender');
   const languageControls = extractStandaloneControl(form, 'instruction_language');
@@ -311,6 +312,7 @@ function coreDetails(form, body, row, existingValues) {
       viewValue: (row.funding_sources || []).map((source) => source?.name).filter(clean).join(' + ') || row.funding,
       editControls: fundingControls
     }),
+    makeField(doc, { label: 'מיקום הסיור', viewValue: row.tour_location, editControls: tourLocationControls, className: 'activity-drawer-inline__field--tour-location' }),
     instructorLimited ? null : makeEditOnlyActivityField(doc, { label: 'מחיר', editControls: priceControls }),
     makeEditOnlyActivityField(doc, { label: 'מגדר', editControls: genderControls, className: 'activity-drawer-inline__field--gender' }),
     makeEditOnlyActivityField(doc, { label: 'שפת הדרכה', editControls: languageControls, className: 'activity-drawer-inline__field--language' }),
@@ -330,7 +332,9 @@ function coreDetails(form, body, row, existingValues) {
 
   const typeSelect = form.querySelector('[name="activity_type"]');
   const syncParticipantsVisibility = () => {
-    const supportsParticipants = ['workshop', 'escape_room'].includes(normalizeType(typeSelect?.value || activityType));
+    const selectedType = normalizeType(typeSelect?.value || activityType);
+    grid.querySelector('.activity-drawer-inline__field--tour-location')?.toggleAttribute('hidden', selectedType !== 'tour');
+    const supportsParticipants = ['workshop', 'escape_room'].includes(selectedType);
     grid.querySelector('.activity-drawer-inline__field--participants')?.toggleAttribute('hidden', !supportsParticipants);
     form.querySelector('[data-participants-count-section]')?.toggleAttribute('hidden', !supportsParticipants);
   };

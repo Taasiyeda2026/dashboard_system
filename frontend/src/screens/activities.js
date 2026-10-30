@@ -1056,6 +1056,7 @@ function addActivityModalHtml(settings, activityPeriodTab = '') {
         <label class="ds-activity-add-field"><span>כיתה / שכבה</span><select class="ds-input" name="grade">${optionsHtml(gradeOptions, '', '— בחרו כיתה —')}</select></label>
         ${authorityField}
         ${schoolField}
+        <label class="ds-activity-add-field ds-activity-add-field--compact" data-tour-location-field hidden><span>מיקום הסיור</span><input class="ds-input" name="tour_location" type="text" maxlength="15" placeholder="מיקום הסיור" autocomplete="off" disabled></label>
 
         <label class="ds-activity-add-field" data-participants-count-section hidden><span>מספר משתתפים מעודכן</span><input class="ds-input" name="participants_count" type="number" min="1" step="1" inputmode="numeric" data-participants-count-input></label>
 
@@ -3153,6 +3154,17 @@ export const activitiesScreen = {
     root._addActivityAbort = new AbortController();
     const addActivitySig = { signal: root._addActivityAbort.signal };
 
+    function syncAddTourLocation(form) {
+      const isTour = normalizeActivityTypeKey(form.querySelector('[data-add-activity-type]')?.value) === 'tour';
+      const field = form.querySelector('[data-tour-location-field]');
+      const input = field?.querySelector('[name="tour_location"]');
+      if (field) field.hidden = !isTour;
+      if (input) {
+        input.disabled = !isTour;
+        if (!isTour) input.value = '';
+      }
+    }
+
     function refreshActivityNameSelect(form) {
       const typeSel = form.querySelector('[data-add-activity-type]');
       const nameSel = form.querySelector('[data-add-activity-name]');
@@ -3160,6 +3172,7 @@ export const activitiesScreen = {
       if (!typeSel || !nameSel || !noInput) return;
       const all = decodeJsonAttr(form.dataset.addActivityNames, []);
       const type = normalizeActivityTypeKey(typeSel.value);
+      syncAddTourLocation(form);
       const hasTagged = all.some((o) => String(o?.parent_value || o?.activity_type || '').trim());
       let list = type ? all.filter((o) => activityTypeMatches(o?.parent_value || o?.activity_type, type)) : [];
       if (type && !list.length && !hasTagged) list = all;
@@ -3370,6 +3383,7 @@ export const activitiesScreen = {
         school: schoolValue,
         grade: get('grade'),
         class_group: get('class_group'),
+        ...(selectedType === 'tour' ? { tour_location: get('tour_location') || null } : {}),
         activity_type: selectedType || get('activity_type'),
         item_type: selectedType || get('activity_type'),
         activity_season: activitySeason,
