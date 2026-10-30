@@ -20,7 +20,7 @@ import {
 import { activityRowId, normalizeFinanceCollectionTab } from './finance-collection.js';
 import { financeError } from './finance-errors.js';
 import { financeAccountBalances, paymentsBodyHtml, receiptsHtml, accountPaymentAllocation } from './finance-payments.js';
-import { prepareManualAccount, updateManualDraft, manualFilteredActivities, selectedManualActivityIds, toggleManualActivity, toggleAllVisibleManualActivities, syncManualActivitySelectionUi, normalizeManualRecipientEmails, focusManualActivity, saveActiveManualDraft, previewSelectedManualAccounts, runSelectedManualAccounts } from './finance-manual-account.js';
+import { prepareManualAccount, updateManualDraft, manualFilteredActivities, selectedManualActivityIds, toggleManualActivity, toggleAllVisibleManualActivities, syncManualActivitySelectionUi, normalizeManualRecipientEmails, focusManualActivity, saveActiveManualDraft, previewSelectedManualAccounts, runSelectedManualAccounts, syncManualPdfPreviewDom, clearManualPdfPreviewUrls } from './finance-manual-account.js';
 import { financeToday } from './finance-transaction-accounts.js';
 import {
   handleTransactionSelection,
@@ -553,7 +553,7 @@ export const financeScreen = {
     if (typeof root._financeUnbind === 'function') root._financeUnbind();
 
     const target = consumeNotificationTarget(state, 'finance');
-    const refresh = () => rerender?.();
+    const refresh = () => { rerender?.(); syncManualPdfPreviewDom(root, visit); };
     if (target && canOpenFinanceView(state?.user, 'attendance')) {
       visit.view = 'attendance'; visit.attendanceMonth = target.monthKey;
       visit.notificationEmployeeId = target.employeeId;
@@ -891,6 +891,7 @@ export const financeScreen = {
     };
 
     syncTransactionSelectionUi(root, visit);
+    syncManualPdfPreviewDom(root, visit);
     root.addEventListener('click', onClick);
     root.addEventListener('change', onChange);
     root.addEventListener('input', onInput);
@@ -900,6 +901,7 @@ export const financeScreen = {
       root.removeEventListener('input', onInput);
       clearTimeout(root._financeCollectionSearchTimer);
       clearTimeout(root._financeManualSearchTimer);
+      clearManualPdfPreviewUrls(root);
     };
   }
 };
