@@ -552,3 +552,5 @@ config.HOTFIX_VERSION = 'finance-transaction-sharepoint-folder-20261030-v1-' + c
 config.HOTFIX_VERSION = 'finance-invoice-recipients-school-mapping-20261030-v1-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = 'client-file-invoice-recipient-role-20261030-v1-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'finance-tour-quantity-instead-of-meetings-20261030-v1-' + config.HOTFIX_VERSION;

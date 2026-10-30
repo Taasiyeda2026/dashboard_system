@@ -40,6 +40,28 @@ function monthPicker(data, mode) {
 }
 
 export const transactionSelectionKey = (row) => [row.activityRowId, row.fundingSourceId, row.period || 'completion'].join(':');
+const serviceActivity = (row) => ['tour','workshop'].includes(text(row.activityType || row.activity_type).toLowerCase());
+const invoiceQuantity = (row) => Number(row.unbilledCount || 0);
+function progressHeading(lines) {
+  const units = lines.some(serviceActivity);
+  const courses = lines.some(row => !serviceActivity(row));
+  return units ? (courses ? 'מפגשים / כמות' : 'כמות') : 'מפגשים';
+}
+function activityProgress(row) {
+  if (serviceActivity(row)) return `כמות ${invoiceQuantity(row)}`;
+  return `מתוכנן ${row.plannedCount} · בוצע ${row.completedCount} · חויב ${row.billedCount} · יתרה ${row.unbilledCount}`;
+}
+function groupProgress(lines) {
+  const courses = lines.filter(row => !serviceActivity(row));
+  const services = lines.filter(serviceActivity);
+  return [
+    `${new Set(lines.map(row => row.activityRowId)).size} פעילויות`,
+    ...(courses.length ? [`${courses.reduce((sum,row)=>sum+Number(row.unbilledCount||0),0)} מפגשים`,
+      `${courses.reduce((sum,row)=>sum+Number(row.unbilledHours||0),0)} שעות`] : []),
+    ...(services.length ? [`${services.reduce((sum,row)=>sum+invoiceQuantity(row),0)} סדנאות/סיורים`] : [])
+  ].join(' · ');
+}
+
 
 export function transactionBacklog(data, mode) {
   const selected = transactionMonth(data, mode);
@@ -83,8 +105,11 @@ export function transactionPreviewForVisit(data, mode = TRANSACTION_MODE_AUTOMAT
     blocked: rows.filter((row) => row.blockedReason), deferred: rows.filter((row) => !row.eligible && !row.blockedReason),
     totals: { schools: new Set(result.map((row) => row.institutionSymbol)).size,
       activities: new Set(result.flatMap((account) => account.lines.map((line) => line.activityRowId))).size,
-      meetings: result.reduce((sum, a) => sum + a.lines.reduce((n, l) => n + l.unbilledCount, 0), 0),
-      hours: result.reduce((sum, a) => sum + a.lines.reduce((n, l) => n + l.unbilledHours, 0), 0),
+      meetings: result.reduce((sum, a) => sum + a.lines.filter(l => !serviceActivity(l)).reduce((n, l) => n + Number(l.unbilledCount || 0), 0), 0),
+      hours: result.reduce((sum, a) => sum + a.lines.filter(l => !serviceActivity(l)).reduce((n, l) => n + Number(l.unbilledHours || 0), 0), 0),
+      units: result.reduce((sum, a) => sum + a.lines.filter(serviceActivity).reduce((n, l) => n + invoiceQuantity(l), 0), 0),
+      containsCourses: result.some(a => a.lines.some(l => !serviceActivity(l))),
+      containsUnits: result.some(a => a.lines.some(serviceActivity)),
       amount: result.reduce((sum, a) => sum + a.totalAmount, 0) } };
 }
 
@@ -92,11 +117,11 @@ function summaryCards(preview) {
   const cards = [
     ['בתי ספר', preview.totals.schools],
     ['פעילויות', preview.totals.activities],
-    ['מפגשים לחיוב', preview.totals.meetings],
-    ['שעות לחיוב', preview.totals.hours],
+    ...(preview.totals.containsCourses !== false ? [['מפגשים לחיוב', preview.totals.meetings], ['שעות לחיוב', preview.totals.hours]] : []),
+    ...(preview.totals.containsUnits ? [['כמות סדנאות/סיורים', preview.totals.units]] : []),
     ['סכום להפקה', formatAmount(preview.totals.amount)]
   ];
-  return `<div class="ds-fin-transaction-summary" dir="rtl" style="display:grid;grid-template-columns:repeat(5,140px);gap:8px;justify-content:center;width:fit-content;max-width:100%;margin:12px auto 16px;">
+  return `<div class="ds-fin-transaction-summary" dir="rtl" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;width:fit-content;max-width:100%;margin:12px auto 16px;">
     ${cards.map(([label, value]) => `
       <article class="ds-fin-collect-summary-card" style="box-sizing:border-box;width:140px;min-height:62px;padding:9px 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;">
         <span class="ds-fin-collect-summary-card__label" style="font-size:12px;line-height:1.25;white-space:nowrap;">${escapeHtml(label)}</span>
@@ -118,8 +143,8 @@ function billingLineHtml(line, data, mode) {
     ? `<input type="checkbox" aria-label="בחירת ${escapeHtml(line.activityName)}" data-finance-transaction-select="${escapeHtml(transactionSelectionKey(line))}"${data.transactionManualSelected?.[transactionSelectionKey(line)] ? ' checked' : ''}>` : '';
   return `<tr><td>${select}${escapeHtml(line.activityName || line.activityRowId)}</td>
     <td>${escapeHtml(line.customerName || '—')}</td><td>${escapeHtml(line.period?.slice(0, 7) || 'סיום פעילות')}</td>
-    <td>${escapeHtml(`מתוכנן ${line.plannedCount} · בוצע ${line.completedCount} · חויב ${line.billedCount} · יתרה ${line.unbilledCount}`)}</td>
-    <td>${escapeHtml(formatAmount(line.fundingAmount))}</td><td>${escapeHtml(formatAmount(line.issuableAmount))}<details><summary>פירוט מפגשים</summary>${line.unbilledSlots.map((slot) => `<div>מפגש ${slot.slot} · ${escapeHtml(formatDate(slot.date))} · 1.5 שעות</div>`).join('')}</details></td></tr>`;
+    <td>${escapeHtml(activityProgress(line))}</td>
+    <td>${escapeHtml(formatAmount(line.fundingAmount))}</td><td>${escapeHtml(formatAmount(line.issuableAmount))}<details><summary>${serviceActivity(line) ? 'פירוט מועדי פעילות' : 'פירוט מפגשים'}</summary>${line.unbilledSlots.map((slot) => `<div>${serviceActivity(line) ? 'מועד פעילות' : `מפגש ${slot.slot}`} · ${escapeHtml(formatDate(slot.date))}${serviceActivity(line) ? '' : ' · 1.5 שעות'}</div>`).join('')}</details></td></tr>`;
 }
 
 function pendingGroupHtml(rows, data, mode) {
@@ -132,7 +157,7 @@ function pendingGroupHtml(rows, data, mode) {
   return [...groups.values()].sort((a,b) => a[0].period.localeCompare(b[0].period)).map((lines) => {
     const row = lines[0];
     return `<details class="ds-fin-payer" data-finance-transaction-group><summary>${escapeHtml(row.period.slice(0,7))} · ${escapeHtml(mode === TRANSACTION_MODE_AUTOMATIC ? `${row.customerName} · ${row.institutionSymbol}` : row.payerName)} · ${lines.length} חיובים · ${escapeHtml(formatAmount(lines.reduce((sum,line) => sum + Number(line.issuableAmount),0)))}</summary>
-      ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>פעילות ${groupSelectAllHtml(lines,data,mode)}</th><th>מוסד</th><th>${mode === TRANSACTION_MODE_AUTOMATIC ? 'חודש ביצוע' : 'חודש סיום'}</th><th>מפגשים</th><th>חלק המממן</th><th>להפקה</th></tr></thead><tbody>${lines.map((line) => billingLineHtml(line,data,mode)).join('')}</tbody></table>`)}
+      ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>פעילות ${groupSelectAllHtml(lines,data,mode)}</th><th>מוסד</th><th>${mode === TRANSACTION_MODE_AUTOMATIC ? 'חודש ביצוע' : 'חודש סיום'}</th><th>${escapeHtml(progressHeading(lines))}</th><th>חלק המממן</th><th>להפקה</th></tr></thead><tbody>${lines.map((line) => billingLineHtml(line,data,mode)).join('')}</tbody></table>`)}
       <button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="${mode}" data-finance-transaction-period="${row.period.slice(0,7)}"${mode === TRANSACTION_MODE_MANUAL && !transactionBacklog(data, mode).some((line) => line.period.slice(0,7) === row.period.slice(0,7) && data.transactionManualSelected?.[transactionSelectionKey(line)]) ? ' disabled' : ''}>${mode === TRANSACTION_MODE_AUTOMATIC ? 'הפק חשבונות לחודש זה' : 'הפק חשבונות מסומנים לחודש זה'}</button></details>`;
   }).join('');
 }
@@ -150,14 +175,18 @@ function billingView(data, mode) {
   }
   const body = [...groups.values()].map((group) => `<details class="ds-fin-payer" data-finance-transaction-group open>
     <summary><span class="ds-fin-payer__title">${escapeHtml(group.payer)}</span>
-    <span class="ds-fin-payer__meta">${escapeHtml(`${new Set(group.lines.map((line) => line.activityRowId)).size} פעילויות · ${group.lines.reduce((sum, line) => sum + line.unbilledCount, 0)} מפגשים · ${group.lines.reduce((sum, line) => sum + line.unbilledHours, 0)} שעות · ${formatAmount(group.lines.reduce((sum, line) => sum + Number(line.issuableAmount), 0))}`)}</span></summary>
-    ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>פעילות ${groupSelectAllHtml(group.lines,data,mode)}</th><th>מוסד</th><th>${mode === TRANSACTION_MODE_AUTOMATIC ? 'חודש ביצוע' : 'חודש סיום'}</th><th>מפגשים</th><th>חלק המממן</th><th>להפקה</th></tr></thead>
+    <span class="ds-fin-payer__meta">${escapeHtml(`${groupProgress(group.lines)} · ${formatAmount(group.lines.reduce((sum, line) => sum + Number(line.issuableAmount), 0))}`)}</span></summary>
+    ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>פעילות ${groupSelectAllHtml(group.lines,data,mode)}</th><th>מוסד</th><th>${mode === TRANSACTION_MODE_AUTOMATIC ? 'חודש ביצוע' : 'חודש סיום'}</th><th>${escapeHtml(progressHeading(group.lines))}</th><th>חלק המממן</th><th>להפקה</th></tr></thead>
     <tbody>${group.lines.map((line) => billingLineHtml(line, data, mode)).join('')}</tbody></table>`)}</details>`).join('');
   // Keep eligibility reasons in server-side validation; they are not accounting documents.
   // The issuance screen shows only issuable accounts, not technical diagnostics.
   const total = { ...preview, totals: { schools: new Set(ready.map((row) => row.institutionSymbol)).size,
     activities: new Set(ready.map((row) => row.activityRowId)).size,
-    meetings: ready.reduce((sum, row) => sum + row.unbilledCount, 0), hours: ready.reduce((sum, row) => sum + row.unbilledHours, 0),
+    meetings: ready.filter(row => !serviceActivity(row)).reduce((sum,row)=>sum+Number(row.unbilledCount||0),0),
+    hours: ready.filter(row => !serviceActivity(row)).reduce((sum,row)=>sum+Number(row.unbilledHours||0),0),
+    units: ready.filter(serviceActivity).reduce((sum,row)=>sum+invoiceQuantity(row),0),
+    containsCourses: ready.some(row => !serviceActivity(row)),
+    containsUnits: ready.some(serviceActivity),
     amount: ready.reduce((sum, row) => sum + Number(row.issuableAmount), 0) } };
   const backlogHtml = backlog.length
     ? `<details class="ds-fin-payer" open><summary>ממתינים להפקה מחודשים קודמים · ${backlog.length} חיובים · ${escapeHtml(formatAmount(backlog.reduce((sum,row) => sum + Number(row.issuableAmount),0)))}</summary>
