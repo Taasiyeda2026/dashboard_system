@@ -62,34 +62,28 @@ test('cancellation errors require a claim or review context, including an explic
   assert.ok(travelCompensationDisplay({ travelCalculationStatus: 'resolved', reviewStatus: 'awaiting_report', calculatedCancellationMinutes: 20 }).length);
 });
 
-test('return cache loading includes address-only reverse rows without metadata', async () => {
+test('return cache loading uses the same scoped read RPC as the manager snapshot', async () => {
   const api = await read('frontend/src/api.js');
   const block = api.split('attendanceControlDashboardSources: async')[1].split('\n  },\n  activities: async')[0];
-  const contacts=Array.from({length:41},(_,i)=>({emp_id:i+1,address:'home-'+i}));
-  const routes=[
-    {origin_key:'home-0',destination_key:'school',origin_address:'home-0',destination_address:'school',origin_instructor_emp_id:1,destination_school_id:10,distance_km:26.522},
-    {origin_key:'school',destination_key:'home-0',origin_address:'school',destination_address:'home-0',distance_km:12.339},
-    {origin_key:'school',destination_key:'home-40',origin_address:'school',destination_address:'home-40',distance_km:7},
+  const routes = [
+    {origin_key:'home',destination_key:'school',distance_km:26.522},
+    {origin_key:'school',destination_key:'home',distance_km:12.339},
   ];
-  const addressBatches=[];
-  const db={from:table=>{
-    let data=table==='contacts_instructors'?contacts:table==='attendance_records'?[{school_id:10}]:table==='scheduling_travel_cache'?routes:[];
-    const query={select:()=>query,eq:()=>query,gte:()=>query,lte:()=>query,
-      in:(column,values)=>{if(table==='scheduling_travel_cache'){
-        if(column.endsWith('_address'))addressBatches.push(values.length);
-        data=data.filter(row=>values.includes(row[column]));
-      }return query;},
-      then:(resolve,reject)=>Promise.resolve({data,error:null}).then(resolve,reject)};
+  const calls=[];
+  const db={rpc:async(name,args)=>{calls.push({name,args});return {data:routes,error:null};},from:table=>{
+    const query={select:()=>query,eq:()=>query,gte:()=>query,lte:()=>query,in:()=>query,
+      then:(resolve,reject)=>Promise.resolve({data:[],error:null}).then(resolve,reject)};
     return query;
   }};
   const context=vm.createContext({supabase:db,assertPermission:()=>{},
     ACTIVITY_OPERATIONS_COLUMNS:'',ACTIVITY_SEASON_REGULAR:'',ACTIVITY_SEASON_SUMMER_2026:'',ACTIVITY_SEASON_SCHOOL_2027:'',
     readAllActivitiesRowsSupabase:async()=>[],readAuthoritySchoolCatalog:async()=>({}),readProposalGroupAliasesFromSupabase:async()=>[]});
   const fn=vm.runInContext('(async '+block+'\n})',context);
-  const result=await fn({employeeIds:['1'],fromDate:'2026-10-01',toDate:'2026-10-31',skipRouteBuild:true});
-  assert.equal(result.travelCache.length,3,'directed rows are loaded and deduplicated');
-  assert.equal(result.travelCache.find(r=>r.destination_key==='home-0').distance_km,12.339);
-  assert.deepEqual(addressBatches,[40,40,1,1]);
+  const result=await fn({employeeIds:['1550'],fromDate:'2026-10-01',toDate:'2026-10-31',skipRouteBuild:true});
+  assert.equal(result.travelCache.length,2);
+  assert.equal(result.travelCache.find(r=>r.destination_key==='home').distance_km,12.339);
+  assert.equal(result.travelSourceAvailable,true);
+  assert.equal(JSON.stringify(calls),JSON.stringify([{name:'get_payroll_attendance_route_cache',args:{p_employee_ids:[1550],p_from_date:'2026-10-01',p_to_date:'2026-10-31'}}]));
 });
 
 async function invokeEdge({ reconcileError = false, cacheError = null, suspect = false, provider = null, contextError = null } = {}) {

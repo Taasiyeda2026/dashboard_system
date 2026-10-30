@@ -517,19 +517,19 @@ export function attendanceDateScope(attendanceRows = [], month = '') {
 }
 
 function usableDistance(row) {
-  if (!row || row.distance_km == null || row.distance_km === '') return null;
+  if (!row || row.location_suspect === true || row.distance_km == null || row.distance_km === '') return null;
   const value = Number(row.distance_km);
   return Number.isFinite(value) && value >= 0 ? value : null;
 }
 
 function instructorSchoolDistance(cache, employeeId, schoolId) {
-  const hit = cache.find((row) => txt(row.origin_instructor_emp_id) === txt(employeeId) && Number(row.destination_school_id) === Number(schoolId));
+  const hit = cache.find((row) => usableDistance(row) != null && txt(row.origin_instructor_emp_id) === txt(employeeId) && Number(row.destination_school_id) === Number(schoolId));
   return usableDistance(hit);
 }
 
 function schoolSchoolDistance(cache, originSchoolId, destinationSchoolId) {
   if (Number(originSchoolId) === Number(destinationSchoolId)) return 0;
-  const hit = cache.find((row) => Number(row.origin_school_id) === Number(originSchoolId) && Number(row.destination_school_id) === Number(destinationSchoolId));
+  const hit = cache.find((row) => usableDistance(row) != null && Number(row.origin_school_id) === Number(originSchoolId) && Number(row.destination_school_id) === Number(destinationSchoolId));
   return usableDistance(hit);
 }
 
@@ -561,7 +561,7 @@ function instructorLocationDistance(cache, employeeId, location, originAddress =
   const address = normalizedRouteAddress(location.address);
   const homeAddress = normalizedRouteAddress(originAddress);
   const hit = cache.find((row) => (
-    (
+    usableDistance(row) != null && (
       txt(row.origin_instructor_emp_id) === txt(employeeId)
       || (homeAddress && normalizedRouteAddress(row.origin_address) === homeAddress)
     )
@@ -580,15 +580,18 @@ function locationInstructorDistance(cache, employeeId, location, homeAddress = '
   const home = normalizedRouteAddress(homeAddress);
   if (address && home && address === home) return 0;
   if (!address || !home) return instructorLocationDistance(cache, employeeId, location, homeAddress);
-  const hit = cache.find((row) => (
+  const candidates = cache.filter((row) => (
     (
       (location.entityKey && txt(row.origin_entity_key) === location.entityKey)
       || normalizedRouteAddress(row.origin_address) === address
     )
     && normalizedRouteAddress(row.destination_address) === home
   ));
-  const reverseDistance = usableDistance(hit);
+  const reverseDistance = usableDistance(candidates.find((row) => usableDistance(row) != null));
   if (reverseDistance != null) return reverseDistance;
+  // A known unusable return must remain unavailable, not become a symmetric
+  // estimate that hides a quarantined route. Other valid return rows may be used.
+  if (candidates.length) return null;
   // Older cache rows sometimes contain only instructor -> destination. Preserve
   // their legacy symmetric fallback, while preferring the real reverse route
   // whenever both directional Google routes are available.
@@ -607,7 +610,7 @@ function locationLocationDistance(cache, origin, destination) {
   const originAddress = normalizedRouteAddress(origin.address);
   const destinationAddress = normalizedRouteAddress(destination.address);
   const hit = cache.find((row) => (
-    ((origin.entityKey && txt(row.origin_entity_key) === origin.entityKey)
+    usableDistance(row) != null && ((origin.entityKey && txt(row.origin_entity_key) === origin.entityKey)
       || (originAddress && normalizedRouteAddress(row.origin_address) === originAddress))
     && ((destination.entityKey && txt(row.destination_entity_key) === destination.entityKey)
       || (destinationAddress && normalizedRouteAddress(row.destination_address) === destinationAddress))
