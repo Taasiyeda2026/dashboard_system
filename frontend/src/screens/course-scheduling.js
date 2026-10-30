@@ -795,6 +795,10 @@ function workboardAlert(row = {}) {
 
 function workboardMeetings(row = {}) {
   if (row.isAssigned) return activityMeetings(row.course);
+  // An obsolete planning proposal is never the source of official dates in the workboard.
+  if (row.planningRow?.needsRecalc === true) {
+    return row.hasActualDraft ? schedulingCalendarMeetings(row.course) : activityMeetings(row.course);
+  }
   if (row.hasReplannedDraft && Array.isArray(row.planningRow?.meetings) && row.planningRow.meetings.length) {
     return row.planningRow.meetings;
   }
@@ -806,21 +810,26 @@ function workboardMeetings(row = {}) {
 function workboardScheduleLabel(row = {}) {
   const meetings = workboardMeetings(row);
   const first = meetings[0] || {};
-  const startDate = text(first.date || row.planningRow?.startDate || row.course?.start_date);
-  const startTime = text(first.start_time || row.planningRow?.startTime || row.course?.start_time);
-  const endTime = text(first.end_time || row.planningRow?.endTime || row.course?.end_time);
+  const validProposal = row.planningRow?.needsRecalc !== true;
+  const startDate = text(first.date || (validProposal ? row.planningRow?.startDate : '') || row.course?.start_date);
+  const startTime = text(first.start_time || (validProposal ? row.planningRow?.startTime : '') || row.course?.start_time);
+  const endTime = text(first.end_time || (validProposal ? row.planningRow?.endTime : '') || row.course?.end_time);
   if (!startDate && !startTime) return 'טרם נקבע';
   const parts = [];
   if (startDate) parts.push(formatDateHe(startDate));
   if (startTime && endTime) parts.push(formatTimeRangeShort(startTime, endTime));
   const label = parts.join(' · ') || 'טרם נקבע';
-  return row.planningRow?.needsRecalc === true ? `${label} · מידע ישן` : label;
+  return label;
 }
 
 function workboardInstructorLabel(row = {}) {
   const course = row.course || {};
   const planning = row.planningRow || {};
   if (row.isAssigned) return text(course.instructor_name || course.emp_id) || '—';
+  // Never present an expired recommended instructor as an operational assignment.
+  if (planning.needsRecalc === true) {
+    return row.hasActualDraft ? text(course.draft_instructor_name || course.draft_emp_id) || '—' : 'טרם שובץ';
+  }
   if (planning.kind === 'recruitment') {
     return text(planning.recruitmentProfileLabel) || 'נדרש גיוס';
   }
@@ -1138,7 +1147,7 @@ function courseListCardHtml(row, selectedId, state = {}) {
   const authority = text(c.authority) || '—';
   const courseName = text(c.activity_name) || '—';
   const expanded = text(state.courseSchedulingAlternativesCourseId) === row.id;
-  const alert = row.alert
+  const alert = row.alert && row.planningRow?.needsRecalc !== true
     ? `<small class="course-scheduling-workboard-alert">⚠ ${escapeHtml(row.alert)}</small>`
     : '';
   const searchText = escapeHtml(courseRowSearchHaystack(row));
