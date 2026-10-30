@@ -1071,3 +1071,73 @@
   opacity: .42;
   cursor: default;
 }
+
+
+/* Selected activities use a non-destructive details sheet.
+   The six-column workboard always retains its full desktop width. */
+.course-scheduling-screen.is-compact-symmetric-layout.is-simple-workboard.has-selected-course .course-scheduling-layout--courses {
+  grid-template-columns: minmax(0, 1fr);
+}
+.course-scheduling-screen.is-compact-symmetric-layout.is-simple-workboard .course-scheduling-courses {
+  width: 100%;
+  min-width: 0;
+}
+.course-scheduling-screen.is-compact-symmetric-layout.is-simple-workboard .course-scheduling-detail.is-open {
+  position: fixed;
+  left: 16px;
+  right: auto;
+  top: clamp(100px, 22vh, 200px);
+  bottom: 16px;
+  width: min(590px, calc(100vw - 32px));
+  min-width: 0;
+  min-height: 0;
+  max-height: calc(100dvh - clamp(100px, 22vh, 200px) - 16px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 14px 16px 20px;
+  border: 1px solid var(--cs-border-strong);
+  border-radius: 12px;
+  background: var(--cs-surface);
+  box-shadow: 0 12px 38px rgba(19, 42, 59, .22);
+  z-index: 120;
+  scrollbar-gutter: stable;
+}
+.course-scheduling-screen.is-simple-workboard .course-scheduling-detail-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: start;
+  min-height: 32px;
+  padding: 5px 12px;
+  margin: 0;
+  border: 1px solid var(--cs-border-strong);
+  border-radius: 7px;
+  background: var(--cs-surface-soft);
+  color: var(--cs-text);
+  font: inherit;
+  font-size: .83rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.course-scheduling-screen.is-simple-workboard .course-scheduling-detail-close:hover {
+  border-color: var(--cs-accent);
+}
+.course-scheduling-screen.is-simple-workboard .course-scheduling-detail-close:focus-visible {
+  outline: 2px solid var(--cs-accent);
+  outline-offset: 2px;
+}
+@media (max-width: 900px) {
+  .course-scheduling-screen.is-compact-symmetric-layout.is-simple-workboard .course-scheduling-detail.is-open {
+    top: 64px;
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    width: auto;
+    max-height: calc(100dvh - 72px);
+    padding: 12px;
+  }
+}
