@@ -20,7 +20,7 @@ import {
 import { activityRowId, normalizeFinanceCollectionTab } from './finance-collection.js';
 import { financeError } from './finance-errors.js';
 import { financeAccountBalances, paymentsBodyHtml, receiptsHtml, accountPaymentAllocation } from './finance-payments.js';
-import { prepareManualAccount, updateManualDraft, manualFilteredActivities, selectedManualActivityIds, toggleManualActivity, toggleAllVisibleManualActivities, syncManualActivitySelectionUi, normalizeManualRecipientEmails, updateManualConsolidatedField, focusManualActivity, saveActiveManualDraft, previewSelectedManualAccounts, runSelectedManualAccounts, syncManualPdfPreviewDom, clearManualPdfPreviewUrls } from './finance-manual-account.js';
+import { prepareManualAccount, updateManualDraft, manualFilteredActivities, selectedManualActivityIds, toggleManualActivity, toggleAllVisibleManualActivities, syncManualActivitySelectionUi, normalizeManualRecipientEmails, updateManualConsolidatedField, focusManualActivity, saveActiveManualDraft, previewSelectedManualAccounts, runSelectedManualAccounts, syncManualPdfPreviewDom, clearManualPdfPreviewUrls, activateManualPdfPreview } from './finance-manual-account.js';
 import { financeToday } from './finance-transaction-accounts.js';
 import {
   handleTransactionSelection,
@@ -592,6 +592,20 @@ export const financeScreen = {
       if (correction) { const reason = window.prompt('סיבת תיקון התקבול'); if (reason?.trim()) await financeAction(correction, () => api.voidFinanceReceipt(correction.dataset.financeReceiptCorrect, reason)); return; }
       const cancelAccount = ev.target.closest('[data-finance-account-cancel]');
       if (cancelAccount) { const reason = window.prompt('סיבת ביטול החשבון'); if (reason?.trim()) await financeAction(cancelAccount, () => api.cancelIssuedFinanceAccount(cancelAccount.dataset.financeAccountCancel, reason)); return; }
+      const pdfOpen = ev.target.closest('[data-finance-manual-pdf-open]');
+      if (pdfOpen) {
+        if (!activateManualPdfPreview(root, pdfOpen.dataset.financeManualPdfOpen, 'open', window)) {
+          window.alert('התצוגה אינה זמינה. יש להציג את הטיוטה מחדש.');
+        }
+        return;
+      }
+      const pdfDownload = ev.target.closest('[data-finance-manual-pdf-download]');
+      if (pdfDownload) {
+        if (!activateManualPdfPreview(root, pdfDownload.dataset.financeManualPdfDownload, 'download', window)) {
+          window.alert('ההורדה אינה זמינה. יש להציג את הטיוטה מחדש.');
+        }
+        return;
+      }
       const manualPreview = ev.target.closest('[data-finance-manual-preview]');
       if (manualPreview) {
         const form = root.querySelector('[data-finance-manual-form]');
