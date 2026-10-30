@@ -12,7 +12,7 @@ const account=(extra={})=>({id:'x',document_status:'issued',transaction_account_
 const data=()=>({...createFinanceVisitState(),view:'collection',collectionActivities:[base],paymentContext:{receipts:[],allocations:[],balances:[{accountId:'x',paidAmount:1000,balance:1500}]},transactionContext:{schools:[],cancelled:[],billingRows:[],accounts:[account()]}});
 test('collection tracks invoice identity, actual recorded payments and remaining balance without activity closure',()=>{
   const d=data();assert.equal(financeAccountBalances(d)[0].balance,1500);
-  const view=financeScreen.render(d,{state:{user}});assert.match(view,/תקבולים שתועדו/);assert.match(view,/באיחור/);assert.match(view,/8525/);assert.match(view,/1,500.00/);assert.match(view,/data-finance-account-field="finance_note"/);
+  const view=financeScreen.render(d,{state:{user}});assert.match(view,/תקבולים שתועדו/);assert.match(view,/באיחור/);assert.match(view,/8525/);assert.match(view,/1,500.00/);assert.doesNotMatch(view,/data-finance-account-field="finance_note"/);
   assert.doesNotMatch(view,/data-fin-collect-field="collection_status"/);
   assert.equal(financeActivityEndDate({...base,end_date:'2026-07-01'}),'2026-09-01');
 });
@@ -131,4 +131,74 @@ test('entering either billing tab defaults to the current month, even after an o
   root.querySelector('[data-finance-transaction-tab="automatic"]').click();
   assert.equal(d.transactionMonths.automatic,financeToday().slice(0,7));
   root._financeUnbind();dom.window.close();
+});
+
+
+test('collection displays exactly five accounting columns without unnecessary fields or statuses',()=>{
+  const d=data();
+  const dom=new JSDOM(paymentsBodyHtml(d));
+  const doc=dom.window.document;
+  const headers=[...doc.querySelectorAll('.ds-fin-collect-accounts thead th')].map(th=>th.textContent.trim());
+  assert.deepEqual(headers,['מספר חשבון','גורם משלם','סכום החשבון','מועד תשלום','יתרה לתשלום']);
+  assert.equal(doc.querySelectorAll('.ds-fin-collect-accounts tbody tr').length,1);
+  const cells=[...doc.querySelectorAll('.ds-fin-collect-accounts tbody tr td')];
+  assert.equal(cells.length,5);
+  assert.match(cells[0].textContent,/8525/);
+  assert.ok(cells[0].querySelector('a[href="https://example.test/pdf"]'),'PDF is accessible through the invoice number');
+  assert.match(cells[2].textContent,/2,500.00/);
+  assert.match(cells[3].textContent,/2026-10-01/);
+  assert.match(cells[4].textContent,/1,500.00/);
+  assert.ok(cells[4].querySelector('[data-finance-payment-open="x"]'),'payment is still recordable without extra column');
+  assert.equal(doc.querySelector('[data-finance-account-field]'),null);
+  dom.window.close();
+});
+
+test('November-issued September activity is tracked and ordered by December/January due dates',()=>{
+  const d=data();
+  d.transactionContext.accounts=[
+    account({id:'second',transaction_account_number:8602,issue_date:'2026-11-10',payment_due_date:'2027-01-14',total_amount:3000}),
+    account({id:'first',transaction_account_number:8601,issue_date:'2026-11-10',payment_due_date:'2026-12-30',total_amount:2500})
+  ];
+  d.paymentContext.balances=[{accountId:'second',paidAmount:0,balance:3000},{accountId:'first',paidAmount:0,balance:2500}];
+  const dom=new JSDOM(paymentsBodyHtml(d));
+  const numbers=[...dom.window.document.querySelectorAll('.ds-fin-collect-accounts tbody tr td:first-child')].map(td=>td.textContent.trim());
+  assert.deepEqual(numbers,['8601','8602'],'due dates determine order rather than invoice issue date or activity date');
+  assert.match(dom.window.document.body.textContent,/2026-12-30/);
+  assert.match(dom.window.document.body.textContent,/2027-01-14/);
+  assert.doesNotMatch(dom.window.document.querySelector('.ds-fin-collect-accounts').textContent,/2026-09-01/);
+  dom.window.close();
+});
+
+test('linked payment form uses account payer automatically and does not require repeated funding selection',()=>{
+  const d=data();
+  d.paymentAccountId='x';
+  const dom=new JSDOM(paymentsBodyHtml(d));
+  const form=dom.window.document.querySelector('[data-finance-payment-form]');
+  assert.ok(form);
+  assert.equal(form.querySelector('[name="payer_name"]').value,'עיריית רחובות');
+  assert.equal(form.querySelector('[name="payer_key"]').value,'authority:1');
+  assert.equal(form.querySelector('[name="funding_source_id"]').value,'r');
+  assert.deepEqual([...form.querySelectorAll('input:not([type="hidden"])')].map(input=>input.name),[
+    'amount','received_date','reference','document_reference'
+  ]);
+  assert.equal(form.querySelector('[name="amount"]').value,'1500.00');
+  assert.equal(form.querySelector('[name="amount"]').max,'1500');
+  assert.match(form.textContent,/שמירת תקבול/);
+  dom.window.close();
+});
+
+test('paid invoices appear in archive with no payment action and remain accessible by PDF',()=>{
+  const d=data();
+  d.paymentContext.balances=[{accountId:'x',paidAmount:2500,balance:0}];
+  assert.doesNotMatch(paymentsBodyHtml(d),/8525/);
+  d.collectionTab='closed';
+  const dom=new JSDOM(paymentsBodyHtml(d));
+  const row=dom.window.document.querySelector('.ds-fin-collect-accounts tbody tr');
+  assert.ok(row);
+  assert.equal(row.querySelectorAll('td').length,5);
+  assert.match(row.textContent,/8525/);
+  assert.match(row.textContent,/0.00/);
+  assert.equal(row.querySelector('[data-finance-payment-open]'),null);
+  assert.ok(row.querySelector('a[href="https://example.test/pdf"]'));
+  dom.window.close();
 });
