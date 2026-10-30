@@ -135,6 +135,7 @@ test('main scheduling workboard exposes only open, draft and assigned business s
     {
       ...baseCourse,
       row_id: 'open-plan',
+      school: 'אורנים',
       start_date: '2026-10-11',
       date_1: '2026-10-11',
       start_time: '08:00',
@@ -143,6 +144,7 @@ test('main scheduling workboard exposes only open, draft and assigned business s
     {
       ...baseCourse,
       row_id: 'draft-plan',
+      school: 'ברושים',
       start_date: '2026-10-12',
       date_1: '2026-10-12',
       start_time: '10:00',
@@ -151,6 +153,7 @@ test('main scheduling workboard exposes only open, draft and assigned business s
     {
       ...baseCourse,
       row_id: 'assigned-plan',
+      school: 'גנים',
       start_date: '2026-10-13',
       date_1: '2026-10-13',
       start_time: '12:00',
@@ -234,8 +237,10 @@ test('main scheduling workboard exposes only open, draft and assigned business s
   const draftPos = html.indexOf('data-course-card="draft-plan"');
   const openPos = html.indexOf('data-course-card="open-plan"');
   assert.ok(assignedPos !== -1 && draftPos !== -1 && openPos !== -1);
-  assert.ok(assignedPos < draftPos && draftPos < openPos,
-    'approved assignments are listed before pending approval, then unscheduled activities');
+  assert.ok(openPos < draftPos && draftPos < assignedPos,
+    'all activities are listed alphabetically by school, regardless of assignment status');
+  assert.doesNotMatch(html, /<h3>משובץ <span class="course-scheduling-badge">/,
+    'the all view has no status group headings that interrupt school ordering');
   assert.match(html, /<span>ממתין לאישור<\/span>/);
   assert.match(html, /<span>משובץ<\/span>/);
   assert.doesNotMatch(html, /הצעות מוכנות/);
