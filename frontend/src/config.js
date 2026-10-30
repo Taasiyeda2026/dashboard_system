@@ -536,3 +536,5 @@ config.HOTFIX_VERSION = 'finance-school-2027-isolation-20261030-v1-' + config.HO
 config.HOTFIX_VERSION = 'finance-clean-issuance-ui-20261030-v1-' + config.HOTFIX_VERSION;
 config.HOTFIX_VERSION = 'finance-manual-funder-filter-20261030-v1-' + config.HOTFIX_VERSION;
 config.HOTFIX_VERSION = 'finance-current-month-multi-activity-effective-funding-20261030-v1-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'finance-current-month-on-tab-entry-20261030-v1-' + config.HOTFIX_VERSION;

@@ -594,6 +594,11 @@ export const financeScreen = {
         const nextView = String(openBtn.dataset.financeOpen || 'hub');
         if (!canOpenFinanceView(state?.user, nextView)) return;
         visit.view = nextView;
+        if (nextView === 'transactions') {
+          const currentMonth = financeToday().slice(0, 7);
+          visit.transactionMonths = { automatic: currentMonth, manual: currentMonth };
+          visit.transactionManualSelected = {};
+        }
         if (nextView === 'attendance') {
           refresh();
           try { await ensureAttendanceLoaded(visit, api, visit.attendanceMonth); }
@@ -615,6 +620,10 @@ export const financeScreen = {
       const transactionTab = ev.target.closest('[data-finance-transaction-tab]');
       if (transactionTab) {
         visit.transactionTab = String(transactionTab.dataset.financeTransactionTab || 'automatic');
+        if (visit.transactionTab === 'automatic' || visit.transactionTab === 'manual') {
+          visit.transactionMonths = { ...visit.transactionMonths, [visit.transactionTab]: financeToday().slice(0, 7) };
+          visit.transactionManualSelected = {};
+        }
         visit.transactionActionMessage = '';
         refresh();
         return;
