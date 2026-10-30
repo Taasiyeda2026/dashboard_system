@@ -20,7 +20,7 @@ import {
 import { activityRowId, normalizeFinanceCollectionTab } from './finance-collection.js';
 import { financeError } from './finance-errors.js';
 import { financeAccountBalances, paymentsBodyHtml, receiptsHtml, accountPaymentAllocation } from './finance-payments.js';
-import { prepareManualAccount, updateManualDraft, manualFilteredActivities, selectedManualActivityIds, toggleManualActivity, focusManualActivity, saveActiveManualDraft, previewSelectedManualAccounts, runSelectedManualAccounts } from './finance-manual-account.js';
+import { prepareManualAccount, updateManualDraft, manualFilteredActivities, selectedManualActivityIds, toggleManualActivity, toggleAllVisibleManualActivities, syncManualActivitySelectionUi, focusManualActivity, saveActiveManualDraft, previewSelectedManualAccounts, runSelectedManualAccounts } from './finance-manual-account.js';
 import { financeToday } from './finance-transaction-accounts.js';
 import {
   handleTransactionSelection,
@@ -124,6 +124,7 @@ export function createFinanceVisitState(now = new Date()) {
     manualActivityDrafts: {},
     manualBatchPreviews: null,
     manualConsolidatedPreview: null,
+    manualSelectionExpanded: false,
     transactionManualSelected: {},
     transactionActionMessage: '',
     transactionRunning: false
@@ -762,6 +763,7 @@ export const financeScreen = {
     const onChange = async (ev) => {
       const funderFilter = ev.target.closest('[data-finance-manual-funder-filter]');
       if (funderFilter) {
+        visit.manualSelectionExpanded = Boolean(root.querySelector('[data-finance-manual-selection]')?.open);
         // A payer change starts a new selection; never carry invoices for the previous payer.
         visit.manualFunderFilter = funderFilter.value || '';
         visit.manualSelectedActivityIds = [];
@@ -773,16 +775,26 @@ export const financeScreen = {
         visit.manualBatchPreviews = null; visit.manualConsolidatedPreview = null; visit.manualBatchIssued = {};
         refresh(); return;
       }
+      const selectAll = ev.target.closest('[data-finance-manual-select-all]');
+      if (selectAll) {
+        toggleAllVisibleManualActivities(visit, selectAll.checked);
+        syncManualActivitySelectionUi(root, visit);
+        return;
+      }
       const multiActivity = ev.target.closest('[data-finance-manual-select-activity]');
-      if (multiActivity) { toggleManualActivity(visit, multiActivity.value, multiActivity.checked); refresh(); return; }
+      if (multiActivity) {
+        toggleManualActivity(visit, multiActivity.value, multiActivity.checked);
+        syncManualActivitySelectionUi(root, visit);
+        return;
+      }
       const manualActivity = ev.target.closest('[data-finance-manual-activity]');
       if (manualActivity) {
         if (manualActivity.value) toggleManualActivity(visit, manualActivity.value, true);
         else toggleManualActivity(visit, visit.manualActivityId, false);
-        refresh(); return;
+        syncManualActivitySelectionUi(root, visit); return;
       }
       const manualFunding = ev.target.closest('[data-finance-manual-funding]');
-      if (manualFunding) { prepareManualAccount(visit, visit.manualActivityId, manualFunding.value); saveActiveManualDraft(visit); visit.manualBatchPreviews = null; refresh(); return; }
+      if (manualFunding) { prepareManualAccount(visit, visit.manualActivityId, manualFunding.value); saveActiveManualDraft(visit); visit.manualBatchPreviews = null; syncManualActivitySelectionUi(root, visit); return; }
       const manualField = ev.target.closest('[data-finance-manual-field]');
       if (manualField) {
         if (!manualField.checkValidity()) { manualField.reportValidity(); return; }
@@ -792,7 +804,7 @@ export const financeScreen = {
           return;
         }
         manualField.setCustomValidity('');
-        saveActiveManualDraft(visit); refresh(); return;
+        saveActiveManualDraft(visit); syncManualActivitySelectionUi(root, visit); return;
       }
       const accountField = ev.target.closest('[data-finance-account-field]');
       if (accountField) {
