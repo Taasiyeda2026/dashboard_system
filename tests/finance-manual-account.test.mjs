@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { manualAccountViewHtml,prepareManualAccount,updateManualDraft,runManualAccount,manualFundingFilterOptions,manualFilteredActivities,toggleManualActivity,saveActiveManualDraft,previewSelectedManualAccounts,runSelectedManualAccounts,formatManualMoney,parseManualMoney,normalizeManualRecipientEmails } from '../frontend/src/screens/finance-manual-account.js';
+import { manualAccountViewHtml,prepareManualAccount,updateManualDraft,runManualAccount,manualFundingFilterOptions,manualFilteredActivities,toggleManualActivity,saveActiveManualDraft,previewSelectedManualAccounts,runSelectedManualAccounts,formatManualMoney,parseManualMoney,normalizeManualRecipientEmails,manualSelectedFundingSummary,manualSelectionSnapshot } from '../frontend/src/screens/finance-manual-account.js';
 const data=()=>({collectionActivities:[{row_id:'a',school:'בית ספר',authority:'עיריית רחובות',activity_name:'קורס',activity_no:'123'}],transactionContext:{billingRows:[{activityRowId:'a',fundingSourceId:'r',funding:'רשות',payerName:'עיריית רחובות',period:'2026-09-01',institutionSymbol:'123',unbilledCount:2,issuableAmount:7000,eligible:true}]}});
 test('manual wizard selects existing activity/funder and edits document fields without touching source data',()=>{
   const d=data();const source=JSON.stringify(d.collectionActivities);prepareManualAccount(d,'a');
@@ -198,4 +198,54 @@ test('email recipient field supports multiple comma-separated addresses and norm
   input.value='one@example.com, invalid-email';
   assert.equal(input.checkValidity(),false,'an invalid recipient must still be rejected');
   dom.window.close();
+});
+
+test('consolidated funder displays the total of all selected activities, not only the active one',async()=>{
+  const d={...data(),manualFunderFilter:'funder:רמי שני',collectionActivities:[],transactionContext:{billingRows:[]}};
+  for(const [id,amount,school] of [['a',10000,'א'],['b',7000,'ב'],['c',5000,'ג']]){
+    d.collectionActivities.push({row_id:id,school,activity_name:'בינה מלאכותית',activity_no:'9545',funding:'רמי שני'});
+    d.transactionContext.billingRows.push({
+      activityRowId:id,fundingSourceId:'s',funding:'רמי שני',payerName:'רמי שני',
+      customerEmail:school+'@example.com',period:'2026-11-01',manualMonth:'2026-11-01',
+      plannedCount:8,eligible:false,fullFundingAmount:amount,fullFundingBlockedReason:'',issuableAmount:0,
+      gefenFunding:false
+    });
+    toggleManualActivity(d,id,true);
+  }
+  assert.equal(manualSelectedFundingSummary(d).amount,22000);
+  const html=manualAccountViewHtml(d);
+  assert.match(html,/חשבון מרוכז · 3 פעילויות/);
+  assert.match(html,/סכום כולל: 22,000\.00 ₪/);
+  assert.match(html,/סכום פעילות זו/);
+  assert.match(html,/פרטי הפעילות לעריכה/);
+  assert.doesNotMatch(html,/סכום החשבון/);
+  assert.equal(d.manualDraft.customer_email,'','non-Gefen payer must not inherit school contact email');
+
+  updateManualDraft(d,'customer_email','payer@example.com;finance@example.com');
+  saveActiveManualDraft(d);
+  assert.equal(d.manualFunderRecipientEmail,'payer@example.com, finance@example.com');
+  const requests=[];
+  await previewSelectedManualAccounts(d,{previewFinanceFunderBatchAccount:async items=>{
+    requests.push(items);
+    return {quote:{revision:'sponsor-revision',total_amount:22000},pdfBase64:'PDF'};
+  }});
+  assert.equal(requests.length,1);
+  assert.equal(requests[0].length,3);
+  assert.deepEqual(requests[0].map(item=>item.draft.amount),[10000,7000,5000]);
+  assert.deepEqual(requests[0].map(item=>item.draft.customer_email),Array(3).fill('payer@example.com, finance@example.com'));
+  assert.equal(requests[0].every(item=>item.draft.customer_name==='רמי שני'),true);
+  assert.match(manualAccountViewHtml(d),/סכום כולל: 22,000\.00 ₪/);
+
+  // When editing a different activity, the financer recipient remains common.
+  toggleManualActivity(d,'b',true);
+  assert.equal(d.manualDraft.customer_email,'payer@example.com, finance@example.com');
+  assert.equal(manualSelectionSnapshot(d,'a').draft.customer_email,'payer@example.com, finance@example.com');
+});
+
+test('Gefen manual invoice keeps its original school recipients',()=>{
+  const d=data();
+  d.transactionContext.billingRows[0].customerEmail='school@example.com;principal@example.com';
+  d.transactionContext.billingRows[0].gefenFunding=true;
+  prepareManualAccount(d,'a');
+  assert.equal(d.manualDraft.customer_email,'school@example.com, principal@example.com');
 });
