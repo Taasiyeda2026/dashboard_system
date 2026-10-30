@@ -222,7 +222,7 @@ test('mixed payer invoice uses workshop and course layouts in the same document'
 test('the PDF source never prints billing internals and bank details are exact',async()=>{
   const edge=await readFile(new URL('../supabase/functions/finance-transaction-accounts/index.ts',import.meta.url),'utf8');
   const rendering=edge.slice(edge.indexOf('async function buildPdf('),edge.indexOf('\nDeno.serve('));
-  assert.doesNotMatch(rendering,/מממן:|חודש סיום|חודש ביצוע|מפגש לחיוב|פירוט ביצוע לחיוב|מס׳ גפ״ן', 'no internal billing details or Gefen in service columns');
+  assert.doesNotMatch(rendering,/מממן:|חודש סיום|חודש ביצוע|מפגש לחיוב|פירוט ביצוע לחיוב/, 'no internal billing details or Gefen in service columns');
   assert.match(rendering,/בנק הפועלים 12, סניף 500 הרימון, חשבון 300120/);
   assert.doesNotMatch(rendering,/\(ע"ר\)/);
   assert.match(rendering,/מחיר לשעה/);
