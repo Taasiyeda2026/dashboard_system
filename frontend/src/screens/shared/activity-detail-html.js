@@ -597,6 +597,10 @@ function blockAssignment(row, { settings = {} } = {}) {
           ${invalidSchoolLink ? '<p class="ds-error-text" role="alert">בית הספר השמור אינו שייך לרשות של הפעילות. יש לתקן את השיוך לפני השמירה.</p>' : ''}`
         )}
         <input type="hidden" name="school_id" value="${escapeHtml(String(row.school_id || ''))}" data-role="activity-school-id">
+        <div class="activity-drawer__field activity-drawer__field--tour-location" data-tour-location-field${normalizeActivityTypeKey(row.activity_type || row.item_type) === 'tour' ? '' : ' hidden'}>
+          <label class="activity-drawer__label">מיקום הסיור</label>
+          ${inputHtml({ name: 'tour_location', value: row.tour_location, attrs: 'maxlength="15" placeholder="מיקום הסיור" autocomplete="off"' })}
+        </div>
         ${fieldEditOnly(
           'כיתה / קבוצה',
           `<div class="activity-drawer__field-controls activity-drawer__field-controls--inline">
@@ -806,6 +810,7 @@ function blockViewOnce(row, { settings = {}, hideFunding = false, hideInstructor
         ${hideInstructors ? '' : viewField(twoInstructors ? 'מדריך/ה 1' : 'מדריך/ה', viewVal(instr1))}
         ${hideInstructors || !twoInstructors ? '' : viewField('מדריך/ה 2', viewVal(instr2))}
         ${viewField('כיתה / קבוצה', classLabel)}
+        ${normalizeActivityTypeKey(row.activity_type || row.item_type) === 'tour' ? viewField('מיקום הסיור', String(row.tour_location || '').trim()) : ''}
         ${viewField('שעות', hoursLabel)}
         ${hideFunding ? '' : viewField('מימון', fundingDisplay)}
       </div>
@@ -1404,6 +1409,7 @@ export function activityRowDetailHtml(row, { privateNote = null, hideActivityNo 
     <div>רשות: ${escapeHtml(fallback(row.authority))}</div>
     <div>שכבה: ${escapeHtml(fallback(row.grade))}</div>
     <div>קבוצה/כיתה: ${escapeHtml(fallback(row.class_group))}</div>
+    ${normalizeActivityTypeKey(row.activity_type || row.item_type) === 'tour' ? `<div>מיקום הסיור: ${escapeHtml(fallback(row.tour_location))}</div>` : ''}
     <div>שעות: ${escapeHtml(formatTimeRangeShort(row.start_time, row.end_time))}</div>
     ${hideFunding ? '' : `<div>מימון: ${escapeHtml(fallback(row.funding))}</div>`}
     <div>תאריכי מפגשים: ${escapeHtml(formatActivityDateColumnsHe(row))}</div>
