@@ -8,7 +8,7 @@ const LOGOS = {
 
 const BG_URLS = [
   { type: 'solid', label: 'לבן', value: '#ffffff' },
-  ...[1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({
+  ...[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => ({
     type: 'image',
     label: `רקע ${n}`,
     value: `${ASSET_BASE}backgrounds/background-${n}.png`
@@ -99,8 +99,8 @@ function ensureStyles() {
 .invitation-screen-root .color-pair{display:flex;gap:6px;align-items:center}
 .invitation-screen-root .color-pair label{font-size:11px;color:#666}
 .invitation-screen-root .color-pair input[type=color]{width:26px;height:22px;border:1px solid #d0d4dc;border-radius:4px;padding:1px;cursor:pointer;background:none}
-.invitation-screen-root .bg-row{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
-.invitation-screen-root .bg-th{height:48px;border-radius:4px;border:2px solid transparent;cursor:pointer;background-size:cover;background-position:center;background-color:#dde;aspect-ratio:148/210}
+.invitation-screen-root .bg-row{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;align-items:start}
+.invitation-screen-root .bg-th{width:100%;min-width:0;height:auto;border-radius:4px;border:2px solid transparent;cursor:pointer;background-size:cover;background-position:center;background-color:#dde;aspect-ratio:148/210}
 .invitation-screen-root .bg-th.sel{border-color:#1a8c6e}
 .invitation-screen-root .logo-row{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
 .invitation-screen-root .logo-row .lchip[data-id="lecturer-company"]{cursor:pointer}
