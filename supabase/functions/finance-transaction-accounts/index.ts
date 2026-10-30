@@ -224,17 +224,28 @@ async function buildPdf(account: any) {
   const regular = await doc.embedFont(regularBytes, { subset: false });
   const bold = await doc.embedFont(boldBytes, { subset: false });
   const logo = await doc.embedPng(logoBytes);
+  const draft = clean(account.transaction_account_number) === 'טיוטה';
+  doc.setTitle(draft
+    ? `טיוטת חשבון עסקה - ${clean(account.customer_name_snapshot)}`
+    : `חשבון עסקה ${clean(account.transaction_account_number)} - ${clean(account.customer_name_snapshot)}`);
   let page = doc.addPage([595, 842]);
   let y = 805;
 
-  page.drawImage(logo, { x: 32, y: 754, width: 112, height: 48 });
+  // Keep the source logo's aspect ratio: stretching to an arbitrary 112x48
+  // distorted/cropped the wordmark in the generated invoice.
+  const logoScale = Math.min(145 / logo.width, 64 / logo.height);
+  const logoWidth = logo.width * logoScale;
+  const logoHeight = logo.height * logoScale;
+  page.drawImage(logo, { x: 32, y: 807 - logoHeight, width: logoWidth, height: logoHeight });
   drawRight(page, bold, 'תעשיידע – תעשייה למען חינוך מתקדם ע"ר', y, 9); y -= 14;
   drawRight(page, regular, "דניאל פריש 3, תל אביב", y); y -= 13;
   drawRight(page, regular, "טלפון: 055-4548890", y); y -= 13;
   drawRight(page, regular, "עמותה מס': 580210094", y); y -= 13;
   drawRight(page, regular, "אימייל: toni@think.org.il", y); y -= 25;
   drawRight(page, regular, `תאריך: ${date(account.issue_date)}`, y, 10); y -= 28;
-  drawRight(page, bold, `חשבון עסקה | ${account.transaction_account_number} | ${account.transaction_account_number === "טיוטה" ? "טיוטה" : "מקור"}`, y, 17);
+  drawRight(page, bold, draft
+    ? 'טיוטת חשבון עסקה | לבדיקה בלבד'
+    : `חשבון עסקה | ${account.transaction_account_number} | מקור`, y, 17);
   page.drawLine({ start: { x: 30, y: y - 7 }, end: { x: 565, y: y - 7 }, thickness: 1, color: rgb(0.1, 0.35, 0.55) });
   y -= 34;
   drawRight(page, bold, `לכבוד: ${account.customer_name_snapshot}`, y, 11); y -= 16;
@@ -245,7 +256,7 @@ async function buildPdf(account: any) {
   }
   drawRight(page, bold, 'תוכניות חינוכיות – שנת תשפ"ז', y, 13); y -= 32;
 
-  const consolidatedFunder = account.issue_mode === 'manual'
+  const consolidatedFunder = (account.billing_basis === 'consolidated' || account.issue_mode === 'manual')
     && (account.finance_transaction_account_lines || []).length > 1
     && (account.finance_transaction_account_lines || []).every((line: { billing_rule?: string }) => line.billing_rule === 'completion');
   const { courses, services } = invoiceRenderRows(account.finance_transaction_account_lines || [], consolidatedFunder);
@@ -302,6 +313,10 @@ async function buildPdf(account: any) {
   drawRight(page, regular, 'בנק הפועלים 12  |  סניף 500 הרימון  |  חשבון 300120', y, 10); y -= 19;
   drawRight(page, regular, 'או בשיק לפקודת: תעשיידע - תעשייה למען חינוך מתקדם ע"ר', y, 10); y -= 19;
   drawRight(page, regular, 'יש לציין: "למוטב בלבד" עם קרוס.', y, 10);
+  const pages = doc.getPages();
+  pages.forEach((part, index) => {
+    drawLogicalRight(part, regular, `עמוד ${index + 1} מתוך ${pages.length}`, 26, 8, 565, 30);
+  });
 
   return new Uint8Array(await doc.save());
 }
