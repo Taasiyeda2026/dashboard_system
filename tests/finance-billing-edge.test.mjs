@@ -48,8 +48,15 @@ async function harness(options={}) {
   const injected = 'const { PDFDocument, rgb, fontkit, bidiFactory, createClient, fetch, Deno } = globalThis.__financeTestDeps;\n' + script;
   await import('data:text/javascript;base64,'+Buffer.from(injected).toString('base64')+'#'+crypto.randomUUID());
   delete globalThis.__financeTestDeps;
-  const response=await handler(new Request('https://function.test',{method:'POST',headers:{authorization:'Bearer mock'},body:JSON.stringify(options.preview?{preview:true,manual:{activity:'a',funder:'g',month:'2026-09-01',draft:{}}}:{accountId:'account'})}));
-  return{response,body:await response.json(),calls,pdf,account};
+  const request = options.preflight
+    ? new Request('https://function.test', { method:'OPTIONS', headers: {
+      origin:'https://taasiyeda2026.github.io',
+      'access-control-request-method':'POST',
+      'access-control-request-headers':'authorization, x-client-info, apikey, content-type'
+    } })
+    : new Request('https://function.test',{method:'POST',headers:{authorization:'Bearer mock'},body:JSON.stringify(options.preview?{preview:true,manual:{activity:'a',funder:'g',month:'2026-09-01',draft:{}}}:{accountId:'account'})});
+  const response=await handler(request);
+  return{response,body:options.preflight?await response.text():await response.json(),calls,pdf,account};
 }
 test('full mocked pipeline renders actual PDF, validates SharePoint, finalizes and creates draft only',async()=>{
   const r=await harness();assert.equal(r.response.status,200,JSON.stringify(r.body));assert.equal(r.body.outlookStatus,'draft_ready');
@@ -105,4 +112,12 @@ test('full-funding manual preview renders a contract invoice without claiming fu
   const quote=fixture();Object.assign(quote.finance_transaction_account_lines[0],{billing_coverage:'full_funding',quantity_snapshot:4,finance_transaction_account_meetings:[],school_name_snapshot:'בית ספר א'});
   const r=await harness({preview:true,quote});assert.equal(r.response.status,200);assert.ok((await PDFDocument.load(Buffer.from(r.body.pdfBase64,'base64'))).getPageCount()>0);
   assert.ok(!r.calls.some(c=>c.name==='acquire_finance_dispatch'||c.url?.includes('graph.microsoft.com')));
+});
+
+test('Chrome preflight permits Supabase request headers before the actual PDF POST',async()=>{
+  const r=await harness({preflight:true});
+  assert.equal(r.response.status,200);
+  assert.match(r.response.headers.get('Access-Control-Allow-Headers')||'',/x-client-info/);
+  assert.match(r.response.headers.get('Access-Control-Allow-Methods')||'',/POST/);
+  assert.equal(r.calls.length,0,'preflight must not reserve, dispatch or create a document');
 });
