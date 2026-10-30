@@ -7307,6 +7307,11 @@ function planningCompletionDateRange(row = {}) {
 
 function planningRowBelongsToSemester(row = {}, periodKey = 'first') {
   const key = periodKey === 'second' ? 'second' : 'first';
+  // The originating activity owns the semester: never reclassify it using an
+  // optimizer's suggested dates (or generated dates for an undated course).
+  if (row?.reportSemester === 'first' || row?.reportSemester === 'second') {
+    return row.reportSemester === key;
+  }
   const period = key === 'first' ? firstHalfCountingPeriod() : resolveCourseSchedulingPeriod('second');
   const dates = planningCompletionDateRange(row);
   // With no official date, planning belongs to the first half until the
@@ -7342,18 +7347,19 @@ export function buildPlanningCompletionRows({ activities = [], planningRows = []
     const assigned = !!text(activity.emp_id);
     const draft = !assigned && !!text(activity.draft_emp_id);
     if (assigned || draft) {
-      rows.push(liveRow(activity, semesterKey));
+      rows.push({ ...liveRow(activity, semesterKey), reportSemester: semesterKey });
       continue;
     }
 
     const planningRow = byId.get(activityId);
     if (planningRow && !['live', 'draft'].includes(planningRow.kind)) {
-      rows.push(planningRow);
+      rows.push({ ...planningRow, reportSemester: semesterKey });
       continue;
     }
 
     rows.push({
       ...missingOverviewRow(activity, []),
+      reportSemester: semesterKey,
       reason: dates.length
         ? `הפעילות במחצית ${semesterLabel} אך עדיין אין לה שיבוץ בתכנון`
         : 'אין מועד קבוע — הפעילות שייכת למחצית א׳ ונדרשת לתכנון'
