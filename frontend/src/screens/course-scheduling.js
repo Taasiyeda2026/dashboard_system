@@ -4,7 +4,7 @@ import { reusablePointWorkspace, refreshCommittedPointWorkspace } from './course
 import { undatedProposalNeedsNewStart } from './course-scheduling-start-policy.js';
 import { schedulingPointWorker } from './course-scheduling-worker-client.js';
 import { courseListWindow } from './course-scheduling-display-data.js';
-import { runPlanningPreflight, createPlanningRunDeadlineCheckpoint, startPlanningLeaseHeartbeat, planningLeaseWaitMessage, throwIfPlanningRunInvalidated } from './course-scheduling-preflight.js';
+import { runPlanningPreflight, createPlanningRunDeadlineCheckpoint, startPlanningLeaseHeartbeat, planningLeaseWaitMessage, throwIfPlanningRunInvalidated, isServerValidatedPlanningDisplay } from './course-scheduling-preflight.js';
 import { readSchedulingSessionCache, writeSchedulingSessionCacheAsync, schedulingSessionIdentity } from './course-scheduling-session-cache.js';
 import { supabase } from '../supabase-client.js';
 import { hasPermission } from '../permission-policy.js';
@@ -2925,14 +2925,15 @@ export const courseSchedulingScreen = {
         : null;
       // Agent-owned server state is authoritative; compare source revisions
       // rather than treating representation differences as a source mutation.
-      const serverSourceRevision = text(serverPreflight?.sourceRevision);
-      const validatedSourceRevision = text(serverPreflight?.workspace?.validatedSourceRevision);
-      const serverCertified = !!workspace
-        && !!serverSourceRevision
-        && serverSourceRevision === validatedSourceRevision
-        && text(serverPreflight?.workspace?.engineVersion) === storedEngineVersion
-        && Number(serverPreflight?.dirtyCount) === 0
-        && !engineChanged;
+      // dirtyCount (needs_recalc + undated-lead aging) must not revoke display
+      // certification — those rows stay visible via needsRecalc / start policy.
+      const serverCertified = isServerValidatedPlanningDisplay({
+        workspace,
+        serverPreflight,
+        storedEngineVersion,
+        currentEngineVersion: PLANNING_ENGINE_VERSION,
+        engineChanged
+      });
       const inputChanged = !serverCertified && contextResolution?.contextChanged === true;
       const unrecoverableGlobalContextChange = contextResolution?.unrecoverableGlobalContextChange === true;
       const engineUpgradeAffectedIds = engineChanged
@@ -2943,20 +2944,25 @@ export const courseSchedulingScreen = {
             currentEngineVersion: PLANNING_ENGINE_VERSION
           })
         : [];
-      const affectedIds = serverCertified ? [] : !workspace
-        ? currentCourseIds
-        : unrecoverableGlobalContextChange
+      const needsRecalcIds = (shared?.rows || [])
+        .filter((entry) => entry?.needsRecalc === true && currentCourseIds.includes(text(entry.activityId)))
+        .map((entry) => text(entry.activityId));
+      const affectedIds = serverCertified
+        ? needsRecalcIds
+        : !workspace
           ? currentCourseIds
-          : [...new Set([
-              ...sharedPlanningAffectedCourseIds({
-                shared,
-                activities: snapshot?.activities || [],
-                currentCourseIds,
-                contextDiff: contextResolution?.contextDiff || null,
-                unrecoverableGlobalContextChange: false
-              }),
-              ...engineUpgradeAffectedIds
-            ])];
+          : unrecoverableGlobalContextChange
+            ? currentCourseIds
+            : [...new Set([
+                ...sharedPlanningAffectedCourseIds({
+                  shared,
+                  activities: snapshot?.activities || [],
+                  currentCourseIds,
+                  contextDiff: contextResolution?.contextDiff || null,
+                  unrecoverableGlobalContextChange: false
+                }),
+                ...engineUpgradeAffectedIds
+              ])];
 
       const sharedRows = (shared?.rows || [])
         .filter((entry) => currentCourseIds.includes(text(entry.activityId)))
