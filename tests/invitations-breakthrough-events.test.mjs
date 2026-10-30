@@ -322,3 +322,60 @@ test('only previous suggested lecture copy is refreshed in existing drafts', () 
   assert.equal(edited.el('b2').value, 'נוסח אישי שהוזן ידנית');
   edited.dom.window.close();
 });
+
+
+test('breakthrough guest lecture layout expands text and balances A5 spacing without changing copy', () => {
+  const ui = mount();
+  ui.change('course-sel', 'פורצות דרך');
+  ui.change('ev-type', 'lecture');
+  ui.change('lec-name', 'דנה לוי', 'input');
+  ui.change('lec-role', 'מנהלת חדשנות', 'input');
+  ui.change('lec-org', 'חברת טכנולוגיה', 'input');
+  ui.change('ev-date', '2026-12-06', 'change');
+  ui.change('ev-time', '10:00', 'change');
+  ui.change('ev-loc', 'בית הספר', 'input');
+
+  const card = ui.el('card');
+  const css = document.getElementById('invitation-generator-styles').textContent;
+  assert.equal(card.classList.contains('layout-breakthrough-lecture'), true);
+  assert.match(css, /\.preview #card\.layout-breakthrough-lecture\{zoom:\.60\}/);
+  assert.match(css, /#card\.layout-breakthrough-lecture \.c-opening\{width:84%;padding-inline:2mm;text-align:right;font-size:4\.3mm;line-height:1\.4/);
+  assert.match(css, /#card\.layout-breakthrough-lecture \.c-details-box\{width:82%;padding:2\.1mm 3mm/);
+  assert.match(css, /#card\.layout-breakthrough-lecture \.c-details-box,#card\.layout-breakthrough-lecture \.c-section-title/);
+  assert.match(css, /#card\.layout-breakthrough-lecture \.c-main\{padding:2mm 6\.5mm 16mm\}/);
+  assert.match(css, /#card\.layout-breakthrough-lecture\.fit-a5-tight \.c-main\{padding:1mm 5\.5mm 13mm\}/);
+  assert.equal(card.querySelectorAll('.c-logos > .c-logo-item').length, 4);
+  assert.equal(card.querySelector('.c-lecturer-identity').textContent, 'דנה לוי, מנהלת חדשנות - חברת טכנולוגיה');
+  assert.match(card.querySelector('.c-lecturer-identity').getAttribute('style'), /font-size:5\.2mm/);
+  assert.match(card.querySelector('.c-details-box').textContent, /10:00/);
+  assert.match(card.querySelector('.c-details-box').textContent, /בית הספר/);
+  assert.equal(card.querySelector('.c-closing').textContent, 'נשמח לראותכם!');
+
+  const opening = card.querySelector('.c-opening').textContent;
+  const conclusion = card.querySelector('.c-section-title').nextElementSibling.textContent;
+  let printedHtml = '';
+  ui.dom.window.open = () => ({ document: {
+    write(html) { printedHtml = html; }, close() {}, set title(_) {}
+  }});
+  ui.el('print-btn').click();
+  assert.match(printedHtml, /id="card" class="layout-breakthrough-lecture"/);
+  assert.ok(printedHtml.includes(opening));
+  assert.ok(printedHtml.includes(conclusion));
+  assert.ok(printedHtml.includes('נשמח לראותכם!'));
+  assert.match(printedHtml, /#card\.layout-breakthrough-lecture \.c-opening/);
+
+  ui.change('ev-type', 'end');
+  assert.equal(card.classList.contains('layout-breakthrough-lecture'), false);
+  assert.equal(card.querySelectorAll('.c-logos > .c-logo-item').length, 3);
+  let endPrint = '';
+  ui.dom.window.open = () => ({ document: {
+    write(html) { endPrint = html; }, close() {}, set title(_) {}
+  }});
+  ui.el('print-btn').click();
+  assert.doesNotMatch(endPrint, /id="card" class="layout-breakthrough-lecture"/);
+
+  ui.change('course-sel', 'רוקחים עולם');
+  ui.change('ev-type', 'lecture');
+  assert.equal(card.classList.contains('layout-breakthrough-lecture'), false);
+  ui.dom.window.close();
+});
