@@ -446,7 +446,7 @@ test('refresh is part of filters and the daily workboard uses understandable sta
   assert.equal(f.root.querySelector('.course-scheduling-operator-toolbar'),null);
   const labels=[...f.root.querySelectorAll('.course-scheduling-summary-card span')].map(el=>el.textContent.trim());
   assert.deepEqual(labels,['סה״כ','משובץ','ממתין לאישור','טרם שובץ']);
-  assert.match(f.root.querySelector('[data-business-summary-filter="open"]').title,/לא נשמר לה מדריך או טיוטת שיבוץ/);
+  assert.match(f.root.querySelector('[data-business-summary-filter="open"]').title,/טרם נשמר לה מדריך או טיוטת שיבוץ/);
   const row=f.root.querySelector('[data-course-card]');
   assert.ok(row);
   assert.equal(row.querySelector('.course-scheduling-compact-instructor').textContent.trim(),'—');
