@@ -83,6 +83,12 @@ function render(rows, activities = [activity()]) {
   });
 }
 
+function workboardRow(html, id) {
+  const start = html.indexOf(`data-course-card="${id}"`);
+  assert.ok(start >= 0, `Expected workboard row ${id}`);
+  return html.slice(start, html.indexOf('</div>', start));
+}
+
 test('Liron stale Monday 13:30–15:00 recommendation is contextual only and cannot be selected', () => {
   const stale = stalePlanningRowForDisplay(proposal('liron-ai-netanya', {
     date: '2027-01-04', start_time: '13:30', end_time: '15:00'
@@ -91,9 +97,12 @@ test('Liron stale Monday 13:30–15:00 recommendation is contextual only and can
 
   assert.equal(liron.availability[1][1], '14:00');
   assert.match(html, /data-planning-stale="true"/);
-  assert.match(html, /הצעה לא מעודכנת · נדרש עדכון תכנון/);
-  assert.match(html, /13:30–15:00 · מידע ישן/);
-  assert.match(html, /aria-disabled="true">נדרש עדכון תכנון/);
+  const row = workboardRow(html, 'liron-ai-netanya');
+  assert.match(row, /ללא מדריך/);
+  assert.match(row, /טרם שובץ/);
+  assert.match(row, /04\/01\/2027/);
+  assert.doesNotMatch(row, /13:30|15:00|מידע ישן|הצעה לא מעודכנת/);
+  assert.match(row, /data-open-manual-course/);
   assert.doesNotMatch(html, /data-planning-pick-option/);
   assert.doesNotMatch(html, /data-confirm-planning-draft/);
   assert.doesNotMatch(html, /data-planning-unlock/);
@@ -107,8 +116,10 @@ test('Liron stale proposal after range_max is also blocked', () => {
   const html = render([stale], [course]);
 
   assert.ok(stale.meetings[0].date > course.range_max);
-  assert.match(html, /15\/02\/2027/);
-  assert.match(html, /מידע ישן/);
+  const row = workboardRow(html, 'liron-industry-holon');
+  assert.match(row, /04\/01\/2027/);
+  assert.doesNotMatch(row, /15\/02\/2027|מידע ישן|לירון נחום-בלילה/);
+  assert.match(row, /טרם שובץ/);
   assert.doesNotMatch(html, /data-planning-pick-option/);
 });
 

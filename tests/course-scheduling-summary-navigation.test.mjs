@@ -5,6 +5,8 @@ import { readFileSync } from 'node:fs';
 const screen = readFileSync(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
 const baseCss = readFileSync(new URL('../frontend/src/screens/course-scheduling.css', import.meta.url), 'utf8');
 const densityCss = readFileSync(new URL('../frontend/src/screens/course-scheduling-density-polish.css', import.meta.url), 'utf8');
+const compactCss = readFileSync(new URL('../frontend/src/screens/course-scheduling-compact-layout.css', import.meta.url), 'utf8');
+const compactEnhancer = readFileSync(new URL('../frontend/src/screens/course-scheduling-compact-layout.js', import.meta.url), 'utf8');
 
 test('summary totals are accessible status filters for the activity table', () => {
   assert.match(screen, /data-business-summary-filter="\$\{key\}"/);
@@ -43,4 +45,22 @@ test('active summary filter has pointer, focus and selected styling', () => {
   assert.match(baseCss, /course-scheduling-summary-card--button\.is-active/);
   assert.match(densityCss, /course-scheduling-summary-card--button\.is-active/);
   assert.match(densityCss, /box-shadow:\s*inset 0 -3px 0 var\(--cs-accent\)/);
+});
+
+test('native six-column workboard does not receive a second legacy header or hijack its first action click', () => {
+  assert.match(screen, /const header = '<div class="course-scheduling-compact-table-head"/);
+  assert.match(compactEnhancer, /if \(!screen\.classList\.contains\('is-simple-workboard'\)\) createTableHeader\(coursesRoot\)/);
+  assert.match(compactEnhancer, /coursesRoot\.querySelector\('\.course-scheduling-compact-table-head'\)/);
+  const start = compactEnhancer.indexOf('if (isNativeCompactRow(card)) {');
+  const end = compactEnhancer.indexOf("if (card.closest('.course-scheduling-compact-row'))", start);
+  assert.ok(start >= 0 && end > start, 'native row enhancer branch exists');
+  const nativeRowBranch = compactEnhancer.slice(start, end);
+  assert.match(nativeRowBranch, /return;/);
+  assert.doesNotMatch(nativeRowBranch, /addEventListener|stopPropagation|\.click\(/);
+});
+
+test('four summary cards fill the width and the list uses one page scrollbar', () => {
+  assert.match(compactCss, /\.course-scheduling-screen\.is-simple-workboard \.course-scheduling-summary \{\s*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
+  assert.match(compactCss, /\.course-scheduling-screen\.is-simple-workboard\.is-compact-symmetric-layout \.course-scheduling-courses \{[^}]*max-height: none;[^}]*overflow: visible;/);
+  assert.match(compactCss, /\[data-course-list-body\] > nav\.course-scheduling-detail-actions button/);
 });
