@@ -54,12 +54,15 @@ const SUGGESTED_TEXTS_BY_COURSE = {
   }
 };
 
+// Keep the previous suggested text to migrate unchanged drafts safely.
+const LEGACY_BREAKTHROUGH_END_B2 = "התלמידות יציגו את התוצרים והתובנות שאספו לאורך הקורס, ישתפו בסיפורים שעוררו בהן השראה ויבטאו את החלומות והשאיפות שלהן לעתיד. הזדמנות לחגוג את הדרך שעברו, את הכוחות שגילו בעצמן ואת האומץ לחלום בגדול ולסלול דרך משלהן.";
+
 // Exact event-specific copy for the "פורצות דרך" course.
 const BREAKTHROUGH_EVENT_TEXTS = {
   end: {
     opening: "הנכם מוזמנים למפגש הסיום של קורס \"פורצות דרך\", שהתקיים בבית הספר במסגרת התוכניות החינוכיות של תעשיידע.",
     b1: "במהלך הקורס יצאו התלמידות למסע מעצים ומעורר השראה, שבו הכירו נשים פורצות דרך מתחומים שונים, נחשפו לסיפורי הצלחה ולהתמודדות עם אתגרים וגילו כיצד אומץ, נחישות, יצירתיות ואמונה עצמית יכולים להוביל להישגים משמעותיים וליצירת שינוי.",
-    b2: "התלמידות יציגו את התוצרים והתובנות שאספו לאורך הקורס, ישתפו בסיפורים שעוררו בהן השראה ויבטאו את החלומות והשאיפות שלהן לעתיד. הזדמנות לחגוג את הדרך שעברו, את הכוחות שגילו בעצמן ואת האומץ לחלום בגדול ולסלול דרך משלהן."
+    b2: "התלמידות יציגו את התוצרים והתובנות שאספו לאורך הקורס, ישתפו בסיפורים שעוררו בהן השראה ויבטאו את החלומות והשאיפות שלהן לעתיד."
   },
   lecture: {
     opening: "קורס \"פורצות דרך\" מזמין את התלמידות להכיר נשים מעוררות השראה מתחומים שונים ולגלות כיצד אומץ, יצירתיות ונחישות יכולים להוביל להישגים משמעותיים וליצירת שינוי.",
@@ -378,7 +381,7 @@ export const invitationsScreen = {
 
     function isKnownSuggestedText(value) {
       const clean = (value || '').trim();
-      if (!clean) return true;
+      if (!clean || clean === LEGACY_BREAKTHROUGH_END_B2) return true;
 
       return [SUGGESTED_TEXTS_BY_COURSE, LEGACY_PREMIUM_SUGGESTIONS, BREAKTHROUGH_EVENT_TEXTS].some((library) =>
         Object.values(library).some((set) =>
@@ -640,6 +643,9 @@ export const invitationsScreen = {
         }
         savedFields.year = 'תשפ״ז';
         if (savedFields['course-sel'] === 'פורצות דרך') {
+          if (savedFields.b2 === LEGACY_BREAKTHROUGH_END_B2) {
+            savedFields.b2 = BREAKTHROUGH_EVENT_TEXTS.end.b2;
+          }
           const savedColors = ['c1', 'c2', 'c3'].reduce((result, key) => {
             result[key] = savedFields[key] || DEFAULT_INVITATION_COLORS[key];
             return result;

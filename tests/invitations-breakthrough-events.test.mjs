@@ -38,9 +38,9 @@ test('course has exact event-specific closing copy without truncation', () => {
   assert.equal(ui.el('b1').value,
     'במהלך הקורס יצאו התלמידות למסע מעצים ומעורר השראה, שבו הכירו נשים פורצות דרך מתחומים שונים, נחשפו לסיפורי הצלחה ולהתמודדות עם אתגרים וגילו כיצד אומץ, נחישות, יצירתיות ואמונה עצמית יכולים להוביל להישגים משמעותיים וליצירת שינוי.');
   assert.equal(ui.el('b2').value,
-    'התלמידות יציגו את התוצרים והתובנות שאספו לאורך הקורס, ישתפו בסיפורים שעוררו בהן השראה ויבטאו את החלומות והשאיפות שלהן לעתיד. הזדמנות לחגוג את הדרך שעברו, את הכוחות שגילו בעצמן ואת האומץ לחלום בגדול ולסלול דרך משלהן.');
+    'התלמידות יציגו את התוצרים והתובנות שאספו לאורך הקורס, ישתפו בסיפורים שעוררו בהן השראה ויבטאו את החלומות והשאיפות שלהן לעתיד.');
   assert.equal(ui.el('card').querySelector('.c-section-title').textContent, 'מה מצפה לנו?');
-  assert.match(ui.el('card').textContent, /האומץ לחלום בגדול ולסלול דרך משלהן/);
+  assert.doesNotMatch(ui.el('card').textContent, /הזדמנות לחגוג את הדרך שעברו/);
   ui.dom.window.close();
 });
 
@@ -74,7 +74,7 @@ test('switches immediately to female guest lecture and back, retaining correct t
   assert.equal(ui.el('ev-type').value, 'end');
   assert.equal(ui.el('card').querySelector('.c-sub-event').textContent, 'למפגש הסיום');
   assert.equal(ui.el('b1-editor').style.display, 'block');
-  assert.match(ui.el('b2').value, /לסלול דרך משלהן/);
+  assert.equal(ui.el('b2').value, 'התלמידות יציגו את התוצרים והתובנות שאספו לאורך הקורס, ישתפו בסיפורים שעוררו בהן השראה ויבטאו את החלומות והשאיפות שלהן לעתיד.');
   ui.dom.window.close();
 });
 
@@ -250,4 +250,27 @@ test('guest lecture identity handles partially completed fields without dangling
   ui.change('ev-type', 'end');
   assert.equal(ui.el('card').querySelector('.c-lecturer-identity'), null);
   ui.dom.window.close();
+});
+
+test('saved breakthrough drafts replace only the old recommended ending, not custom edits', () => {
+  const previousSuggested = "התלמידות יציגו את התוצרים והתובנות שאספו לאורך הקורס, ישתפו בסיפורים שעוררו בהן השראה ויבטאו את החלומות והשאיפות שלהן לעתיד. הזדמנות לחגוג את הדרך שעברו, את הכוחות שגילו בעצמן ואת האומץ לחלום בגדול ולסלול דרך משלהן.";
+  const updatedSuggested = "התלמידות יציגו את התוצרים והתובנות שאספו לאורך הקורס, ישתפו בסיפורים שעוררו בהן השראה ויבטאו את החלומות והשאיפות שלהן לעתיד.";
+
+  const oldDraft = mount({
+    'course-sel': 'פורצות דרך',
+    'ev-type': 'end',
+    b2: previousSuggested
+  });
+  assert.equal(oldDraft.el('b2').value, updatedSuggested);
+  assert.equal(oldDraft.el('card').querySelector('.c-section-title').nextElementSibling.textContent, updatedSuggested);
+  assert.equal(JSON.parse(localStorage.getItem('taasiyeda_invitation_builder_state_v4')).fields.b2, updatedSuggested);
+  oldDraft.dom.window.close();
+
+  const editedDraft = mount({
+    'course-sel': 'פורצות דרך',
+    'ev-type': 'end',
+    b2: 'נוסח אישי שכתב המשתמש ואין לשנות אותו'
+  });
+  assert.equal(editedDraft.el('b2').value, 'נוסח אישי שכתב המשתמש ואין לשנות אותו');
+  editedDraft.dom.window.close();
 });
