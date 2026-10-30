@@ -546,3 +546,5 @@ config.HOTFIX_VERSION = 'finance-transaction-selection-stable-bulk-20261030-v1-'
 config.HOTFIX_VERSION = 'finance-collection-minimal-due-date-five-columns-20261030-v1-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = 'finance-pdf-dispatch-cors-service-read-20261030-v1-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'finance-transaction-sharepoint-folder-20261030-v1-' + config.HOTFIX_VERSION;
