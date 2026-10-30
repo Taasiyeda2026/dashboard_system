@@ -5,6 +5,7 @@ import { stripTypeScriptTypes } from 'node:module';
 import { PDFDocument, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import bidiFactory from 'bidi-js';
+import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 const source=await readFile(new URL('../supabase/functions/finance-transaction-accounts/index.ts',import.meta.url),'utf8');
 const script=stripTypeScriptTypes(source.replace(/^import .*;\n/gm,''),{mode:'transform'});
 const fixture=()=>({id:'account',document_status:'generating',outlook_status:'pending',transaction_account_number:8525,
@@ -120,4 +121,43 @@ test('Chrome preflight permits Supabase request headers before the actual PDF PO
   assert.match(r.response.headers.get('Access-Control-Allow-Headers')||'',/x-client-info/);
   assert.match(r.response.headers.get('Access-Control-Allow-Methods')||'',/POST/);
   assert.equal(r.calls.length,0,'preflight must not reserve, dispatch or create a document');
+});
+
+
+test('realistic three-line Hebrew invoice renders on one page with selectable glyphs and intact dates',async()=>{
+  const line={
+    activity_name_snapshot:'תמיר - המחזור מתחיל בבית',gefen_number_snapshot:'60025',
+    school_name_snapshot:'מרחבים',funding_snapshot:'תמיר',billing_rule:'completion',
+    performance_month:'2026-09-01',billed_hours:1.5,quantity_snapshot:1,
+    unit_price_snapshot:435,amount:435,
+    finance_transaction_account_meetings:[{meeting_date:'2026-09-30'}]
+  };
+  const account={
+    transaction_account_number:8529,customer_name_snapshot:'תמיר',institution_symbol:'563113',
+    issue_date:'2026-10-30',payment_due_date:'2026-11-30',total_amount:1305,
+    finance_transaction_account_lines:[structuredClone(line),structuredClone(line),structuredClone(line)]
+  };
+  const r=await harness({account});
+  assert.equal(r.response.status,200,JSON.stringify(r.body));
+  const document=await PDFDocument.load(r.pdf);
+  assert.equal(document.getPageCount(),1,'a short three-line invoice must not create an orphaned payment page');
+  const pdf=await getDocument({data:new Uint8Array(r.pdf),useSystemFonts:false}).promise;
+  assert.equal(pdf.numPages,1);
+  const p=await pdf.getPage(1);
+  const content=await p.getTextContent();
+  const glyphs=content.items.map(item=>item.str||'').join(' ');
+  assert.match(glyphs,/8529/);
+  assert.match(glyphs,/1305|1,305/);
+  assert.match(glyphs,/30.10.2026/);
+  assert.match(glyphs,/30.11.2026/);
+  assert.ok((glyphs.match(/[א-ת]/g)||[]).length>100,'Hebrew must remain vector, selectable PDF text');
+  await pdf.destroy();
+});
+
+test('full Hebrew fonts and logical-order drawing prevent the former stripped-glyph regression',async()=>{
+  const edgeSource=await readFile(new URL('../supabase/functions/finance-transaction-accounts/index.ts',import.meta.url),'utf8');
+  assert.match(edgeSource,/embedFont\(regularBytes, \{ subset: false \}\)/);
+  assert.match(edgeSource,/embedFont\(boldBytes, \{ subset: false \}\)/);
+  assert.match(edgeSource,/function drawLogicalRight\(/);
+  assert.doesNotMatch(edgeSource,/font\.widthOfTextAtSize\(rtl\(/);
 });
