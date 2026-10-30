@@ -35,6 +35,38 @@ export class PlanningLeaseLostError extends Error {
   }
 }
 
+/**
+ * Display currency for a saved planning workspace.
+ *
+ * When the server has validated the workspace against the current source
+ * revision on the same engine, local context-fingerprint representation
+ * differences must not mark the whole plan stale or hide proposals.
+ *
+ * Preflight dirtyCount still decides whether a planning RUN is needed
+ * (needs_recalc and undated-lead aging) via runPlanningPreflight — that path
+ * stays separate on purpose. Do not require dirtyCount === 0 here.
+ */
+export function isServerValidatedPlanningDisplay({
+  workspace = null,
+  serverPreflight = null,
+  storedEngineVersion = '',
+  currentEngineVersion = '',
+  engineChanged = false
+} = {}) {
+  const serverSourceRevision = String(serverPreflight?.sourceRevision ?? '').trim();
+  const validatedSourceRevision = String(serverPreflight?.workspace?.validatedSourceRevision ?? '').trim();
+  const preflightEngine = String(serverPreflight?.workspace?.engineVersion ?? '').trim();
+  const stored = String(storedEngineVersion ?? '').trim();
+  const current = String(currentEngineVersion ?? '').trim();
+  return !!workspace
+    && !!serverSourceRevision
+    && serverSourceRevision === validatedSourceRevision
+    && !!preflightEngine
+    && preflightEngine === stored
+    && stored === current
+    && engineChanged !== true;
+}
+
 // No snapshot, fingerprint, route, or planner callback can run through this gate.
 export async function runPlanningPreflight({ load, acquire, scope, runId, engineVersion, forceFull = false }) {
   const stop = planningPerfTimer('preflight');
