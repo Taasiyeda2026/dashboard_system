@@ -156,9 +156,9 @@ test('manual invoice displays grouped payer amounts and keeps numeric values in 
   assert.ok(Number.isNaN(parseManualMoney('1,25.00')));
   const d=data();prepareManualAccount(d,'a');
   const html=manualAccountViewHtml(d);
-  assert.match(html,/7,000\\.00 ₪/);
-  assert.match(html,/data-finance-manual-field="amount" value="7,000\\.00"/);
-  assert.match(html,/data-finance-manual-field="unit_price" value="3,500\\.00"/);
+  assert.match(html,/7,000\.00 ₪/);
+  assert.match(html,/data-finance-manual-field="amount" value="7,000\.00"/);
+  assert.match(html,/data-finance-manual-field="unit_price" value="3,500\.00"/);
   updateManualDraft(d,'amount','6,500.50');
   assert.equal(d.manualDraft.amount,6500.5);
   assert.equal(d.manualDraft.unit_price,3250.25);
@@ -170,5 +170,5 @@ test('money input formatting retains enough unit-price precision for server amou
   const shown=formatManualMoney(d.manualDraft.unit_price,{unitPrice:true});
   const parsed=parseManualMoney(shown);
   assert.equal(Math.round(parsed*11*100)/100,2500);
-  assert.match(shown,/^227\\.2727/);
+  assert.match(shown,/^227\.2727/);
 });
