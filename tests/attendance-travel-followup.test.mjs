@@ -7,7 +7,7 @@ import { applyAttendanceDayRouteKilometers, applyDashboardRouteKilometers } from
 const container=process.env.ATTENDANCE_TRAVEL_FOLLOWUP_TEST_CONTAINER;
 if(container && container!=='attendance-travel-followup-test') throw new Error('Use the disposable attendance-travel-followup-test container');
 const read=p=>readFile(new URL('../'+p,import.meta.url),'utf8');
-const migration=await read('supabase/migrations/20261030203143_attendance_travel_followup.sql');
+const migration=await read('supabase/migrations/20261030203143_attendance_travel_followup.sql')+'\n'+await read('supabase/migrations/20261030210018_attendance_control_resolved_course_meetings.sql');
 const sql=q=>execFileSync('docker',['--host=unix:///var/run/docker.sock','exec','-i',container,'psql','-X','-Atq','-v','ON_ERROR_STOP=1','-U','postgres','-d','codex_attendance_travel_followup'],{input:q,encoding:'utf8',stdio:['pipe','pipe','pipe']}).trim();
 const json=q=>JSON.parse(sql(q));
 const enabled=t=>{if(container)return true;t.skip('Set ATTENDANCE_TRAVEL_FOLLOWUP_TEST_CONTAINER to the disposable local container');return false;};
@@ -60,7 +60,7 @@ test('definition-only migration preserves reports, approvals, payroll, cache and
  if(!enabled(t))return;
  assert.equal(unchanged,true);
  assert.equal(sql("select proacl::text from pg_proc where oid='get_manager_attendance_review_snapshot(bigint,text)'::regprocedure"),aclBefore);
- for(const sig of ['get_payroll_attendance_route_cache(bigint[],date,date)','get_payroll_attendance_location_contexts(bigint[],date,date)']){
+ for(const sig of ['get_payroll_attendance_route_cache(bigint[],date,date)','get_payroll_attendance_location_contexts(bigint[],date,date)','get_payroll_attendance_course_activities(bigint[],date,date)']){
   assert.equal(sql("select has_function_privilege('anon','"+sig+"','execute')"),'f');
   assert.equal(sql("select has_function_privilege('authenticated','"+sig+"','execute')"),'t');
  }
@@ -158,6 +158,23 @@ test('cache reader rejects anonymous access and cannot expand employee scope thr
  assert.deepEqual(cache(),[]);
  assert.equal(sql("select jsonb_array_length(get_payroll_attendance_route_cache(array[2::bigint],'2026-10-01','2026-10-31'))"),'0');
  assert.throws(()=>sql("set test.actor='none';select get_payroll_attendance_route_cache(null,null,null)"),/payroll_attendance_auth_required/);
+});
+test('dated course source honors historical and secondary assignments, cancellations and access scope',t=>{
+ if(!enabled(t))return;
+ const planned=()=>json("select get_payroll_attendance_course_activities(array[1::bigint],'2026-10-01','2026-10-31')");
+ sql("update activities set emp_id=2; insert into course_meeting_instructor_history values('ACT-1','2026-10-25','1')");
+ const before=snapshot(),rows=planned();
+ assert.equal(rows.length,1);assert.equal(rows[0].emp_id,1);
+ assert.equal(rows[0].meetings[0].date,'2026-10-25');
+ assert.equal(rows[0].school_id,10);
+ assert.deepEqual(manager().course_activities,rows);
+ assert.equal(snapshot(),before);
+ sql("truncate course_meeting_instructor_history; update activities set emp_id_2='1'");
+ assert.equal(planned().length,1);
+ sql("insert into course_meeting_cancellations values('ACT-1','2026-10-25')");
+ assert.deepEqual(planned(),[]);
+ assert.equal(sql("select jsonb_array_length(get_payroll_attendance_course_activities(array[2::bigint],'2026-10-01','2026-10-31'))"),'0');
+ assert.throws(()=>sql("set test.actor='none';select get_payroll_attendance_course_activities(null,null,null)"),/payroll_attendance_auth_required/);
 });
 test('route cache returns one JSON value beyond the PostgREST row limit',t=>{
  if(!enabled(t))return;

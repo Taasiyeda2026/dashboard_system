@@ -7547,11 +7547,16 @@ export const api = {
     }
     // Use the same authorized directed cache and legacy school aliases as the
     // manager snapshot. This read never builds routes or changes reported km.
-    const routeResult = await supabase.rpc('get_payroll_attendance_route_cache', {
+    const controlParams = {
       p_employee_ids: ids.map(Number).filter(Number.isFinite),
       p_from_date: fromDate,
       p_to_date: toDate
-    });
+    };
+    const [routeResult, courseResult] = await Promise.all([
+      supabase.rpc('get_payroll_attendance_route_cache', controlParams),
+      supabase.rpc('get_payroll_attendance_course_activities', controlParams)
+    ]);
+    if (courseResult.error) throw new Error('טעינת שיבוצי הקורסים ההיסטוריים נכשלה.');
     const travelCache = routeResult.error ? [] : (routeResult.data || []);
 
     const userRows = usersResult.error ? [] : usersResult.data || [];
@@ -7568,6 +7573,7 @@ export const api = {
     }
     return {
       activities,
+      courseActivities: courseResult.data || [],
       contacts: contactsResult.data || [],
       travelCache,
       expenses,

@@ -244,6 +244,7 @@ api.managerAttendanceReviewSnapshot = async function ({ employeeId = '', monthKe
     records,
     sources: {
       activities: Array.isArray(payload.activities) ? payload.activities : [],
+      courseActivities: Array.isArray(payload.course_activities) ? payload.course_activities : null,
       contacts: Array.isArray(payload.contacts) ? payload.contacts : [],
       travelCache: Array.isArray(payload.travel_cache) ? payload.travel_cache : [],
       expenses: Array.isArray(payload.expenses) ? payload.expenses : [],

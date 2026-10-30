@@ -721,7 +721,27 @@ export function applyAttendanceDayRouteKilometers(rows = [], attendanceRows = []
     stops.filter((stop) => stop.isZoom && stop.dashboard).forEach((stop) => { stop.dashboard.kilometers = 0; });
     if (!physicalStops.length) continue;
 
-    const linkedRows = [...new Set(physicalStops.map((stop) => stop.dashboard).filter(Boolean))];
+    // A business-course report can cover several classes and have no single
+    // activity id. Reuse the comparison's existing bundle matching, then put
+    // its route on the first component only so it is counted once in the day.
+    const bundledStops = physicalStops.filter((stop) => !stop.dashboard
+      && !txt(stop.attendance.activityId)
+      && !isAttendanceOnlyActivityType(stop.attendance.activityType));
+    if (bundledStops.length) {
+      const reserved = new Set(physicalStops.map((stop) => stop.dashboard).filter(Boolean));
+      const sample = physicalStops[0].attendance;
+      const candidates = rows.filter((row) => !row.__profile && !row.__routeOnly
+        && !reserved.has(row) && txt(row.employeeId) === txt(sample.employeeId)
+        && row.date === sample.date);
+      const assignments = assignDashboardBundles(bundledStops.map((stop) => ({ attendance: stop.attendance })), candidates, rows.__payrollIdentityContext);
+      bundledStops.forEach((stop, index) => {
+        if (!assignments[index]) return;
+        stop.dashboard = assignments[index].bundle;
+        stop.routeComponents = assignments[index].componentRows;
+      });
+    }
+
+    const linkedRows = [...new Set(physicalStops.flatMap((stop) => stop.routeComponents || [stop.dashboard]).filter(Boolean))];
     linkedRows.forEach((row) => { row.kilometers = null; });
 
     physicalStops.forEach((stop) => { stop.location = routeLocationFromStop(stop); });
@@ -744,6 +764,9 @@ export function applyAttendanceDayRouteKilometers(rows = [], attendanceRows = []
         return;
       }
       stop.dashboard.kilometers = Math.round((incoming + returnHome) * 100) / 100;
+      stop.routeComponents?.forEach((row, componentIndex) => {
+        row.kilometers = componentIndex === 0 ? stop.dashboard.kilometers : 0;
+      });
     });
 
     if (routeUnavailable) linkedRows.forEach((row) => { row.kilometers = null; });
@@ -773,8 +796,11 @@ export async function loadAttendanceDashboardDataset(attendanceRows, api, month 
   const scope = attendanceDateScope(attendanceRows, month);
   if (!scope.employeeIds.length || !scope.fromDate || !api?.attendanceControlDashboardSources) return [];
   const sources = await api.attendanceControlDashboardSources(scope);
+  const activities = Array.isArray(sources.courseActivities)
+    ? [...(sources.activities || []).filter((activity) => !['course', 'קורס'].includes(normalizeActivityTypeKey(activity.activity_type))), ...sources.courseActivities]
+    : sources.activities;
   const sourceRows = [
-    ...buildDashboardAttendanceRows(sources.activities, sources.contacts),
+    ...buildDashboardAttendanceRows(activities, sources.contacts),
     ...buildTrainingScheduleDashboardRows(sources.trainingSchedule || [], attendanceRows, scope.employeeIds)
   ].filter((row) => (month ? row.date.startsWith(`${month}-`) : scope.dates.has(row.date)) && scope.employeeIds.includes(row.employeeId));
   const rows = aggregateDashboardAttendanceRows(sourceRows);
