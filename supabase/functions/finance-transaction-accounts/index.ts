@@ -12,27 +12,13 @@ const cors = {
   "Access-Control-Allow-Methods": "POST, OPTIONS"
 };
 const clean = (value: unknown) => String(value ?? "").trim();
-const bidi = bidiFactory();
+// Hebrew is placed explicitly from right to left in the PDF. Do not let
+// fontkit re-run bidirectional layout on already-reversed mixed text.
 
 // חשבונות עסקה - תשפז
 // Site9 / Shared Documents / עידן - טוני / חשבונות עסקה - תשפז
 const TRANSACTION_DRIVE_ID = "b!AtuGFxdZBk6FLP0KPlKdH27mOwNzeTRErL1YKP0yl5EP6fDqQimqQ4QpOG6yQbMh";
 const TRANSACTION_FOLDER_ID = "01LT7GPE6FW7O7REM6WJBIXX6II2IDYTXM";
-
-function rtl(value: unknown) {
-  const source = clean(value);
-  const chars = source.split("");
-  for (const [left, right] of bidi.getReorderSegments(source, bidi.getEmbeddingLevels(source, "rtl"))) {
-    let i = left;
-    let j = right;
-    while (i < j) {
-      [chars[i], chars[j]] = [chars[j], chars[i]];
-      i += 1;
-      j -= 1;
-    }
-  }
-  return chars.join("");
-}
 
 const money = (value: unknown) => `${Number(value || 0).toLocaleString("he-IL", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₪`;
 const date = (value: unknown) => {
@@ -98,21 +84,38 @@ async function validateTransactionFolder(token: string) {
   }
 }
 
-function drawRight(page: PDFPage, font: PDFFont, value: string, y: number, size = 9, rightX = 565) {
-  const rendered = rtl(value);
-  page.drawText(rendered, { x: rightX - font.widthOfTextAtSize(rendered, size), y, size, font, color: rgb(0.08, 0.12, 0.18) });
+// pdf-lib/fontkit cannot reliably render a pre-reordered Hebrew + number string:
+// it applies another bidi pass, reversing dates and dispersing glyphs. Place each
+// Hebrew glyph explicitly RTL; leave contiguous Latin/numeric tokens in LTR order.
+// This remains selectable/vector text in the PDF, not an image or screenshot.
+function logicalRuns(value: unknown): string[] {
+  return clean(value).match(/[A-Za-z0-9][A-Za-z0-9.,/@%:+\-]*|./gu) || [];
 }
-
+function logicalTextWidth(font: PDFFont, value: unknown, size: number): number {
+  return logicalRuns(value).reduce((width, run) => width + font.widthOfTextAtSize(run, size), 0);
+}
+function drawLogicalRight(page: PDFPage, font: PDFFont, value: unknown, y: number, size: number, rightX: number, leftX: number) {
+  const runs = logicalRuns(value);
+  const measured = logicalTextWidth(font, value, size);
+  // Keep table values inside their actual column, rather than silently
+  // overlapping the adjacent cell when a school or activity name is long.
+  const effectiveSize = measured > rightX - leftX
+    ? size * (rightX - leftX) / measured : size;
+  let cursor = rightX;
+  for (const run of runs) {
+    cursor -= font.widthOfTextAtSize(run, effectiveSize);
+    if (!run.trim()) continue;
+    page.drawText(run, {
+      x: cursor, y, size: effectiveSize, font,
+      color: rgb(0.08, 0.12, 0.18)
+    });
+  }
+}
+function drawRight(page: PDFPage, font: PDFFont, value: string, y: number, size = 9, rightX = 565) {
+  drawLogicalRight(page, font, value, y, size, rightX, 30);
+}
 function drawCell(page: PDFPage, font: PDFFont, value: string, x: number, y: number, width: number, size = 8.5) {
-  const rendered = rtl(value);
-  page.drawText(rendered, {
-    x: x + width - font.widthOfTextAtSize(rendered, size) - 5,
-    y: y + 7,
-    size,
-    font,
-    color: rgb(0.08, 0.12, 0.18),
-    maxWidth: Math.max(10, width - 10)
-  });
+  drawLogicalRight(page, font, value, y + 7, size, x + width - 5, x + 5);
 }
 
 function drawTableRow(page: PDFPage, font: PDFFont, values: string[], widths: number[], y: number, height = 24, fill = false) {
@@ -147,8 +150,8 @@ async function buildPdf(account: any) {
   ]);
   const doc = await PDFDocument.create();
   doc.registerFontkit(fontkit);
-  const regular = await doc.embedFont(regularBytes, { subset: true });
-  const bold = await doc.embedFont(boldBytes, { subset: true });
+  const regular = await doc.embedFont(regularBytes, { subset: false });
+  const bold = await doc.embedFont(boldBytes, { subset: false });
   const logo = await doc.embedPng(logoBytes);
   let page = doc.addPage([595, 842]);
   let y = 805;
@@ -197,7 +200,7 @@ async function buildPdf(account: any) {
       const words = clean(line.service_description_snapshot).split(/\s+/);
       let wrapped = "";
       for (const word of words) {
-        if (regular.widthOfTextAtSize(rtl(wrapped + " " + word), 9) > 510 && wrapped) {
+        if (logicalTextWidth(regular, wrapped + " " + word, 9) > 510 && wrapped) {
           if (y < 75) { page = doc.addPage([595, 842]); y = 800; }
           drawRight(page, regular, wrapped, y, 9); y -= 14; wrapped = word;
         } else wrapped = wrapped ? wrapped + " " + word : word;
@@ -220,7 +223,10 @@ async function buildPdf(account: any) {
     y -= 12;
   }
 
-  if (y < 155) { page = doc.addPage([595, 842]); y = 800; }
+  // The payment block occupies about 110 pt. Three short items fit on a
+  // single A4 page with a 35 pt bottom margin; do not create a mostly empty
+  // second page for a 3-line invoice.
+  if (y < 145) { page = doc.addPage([595, 842]); y = 800; }
   drawRight(page, bold, `סה"כ לתשלום: ${money(account.total_amount)}`, y, 13); y -= 26;
   drawRight(page, bold, `לתשלום עד: ${date(account.payment_due_date)}`, y, 11); y -= 30;
   drawRight(page, bold, 'פרטי חשבון בנק להעברה:', y, 10); y -= 17;
