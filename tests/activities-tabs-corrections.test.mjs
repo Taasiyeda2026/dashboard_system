@@ -207,3 +207,51 @@ test('2027 monthly membership uses actual date points without filling date range
   assert.match(archiveHtml, /סגורה באוקטובר/);
   assert.doesNotMatch(archiveHtml, /מפגש באוקטובר/);
 });
+
+test('2027 archive displays every closed activity for the entire school year regardless of selected month', () => {
+  const archiveRows = [
+    ...rows,
+    { RowID: 'SCHOOL-2027-CLOSED-OCT', activity_name: 'סגורה באוקטובר', activity_season: 'school_2027', start_date: '2026-10-03', status: 'סגור' },
+    { RowID: 'SCHOOL-2027-CLOSED-FEB', activity_name: 'סגורה בפברואר', activity_season: 'school_2027', start_date: '2027-02-03', status: 'closed' },
+    { RowID: 'SCHOOL-2027-CLOSED-UNDATED', activity_name: 'סגורה ללא תאריך', activity_season: 'school_2027', status: 'סגור' },
+    { RowID: 'SCHOOL-2027-DELETED', activity_name: 'מחוקה בתשפז', activity_season: 'school_2027', start_date: '2026-10-04', status: 'נמחק' }
+  ];
+  const archiveState = baseState('year_archive', 'school_2027');
+  archiveState.activitiesMonthYm = '2026-10';
+  const html = activitiesScreen.render({ rows: archiveRows }, { state: archiveState });
+
+  assert.match(html, /תשפז סגור/); // September
+  assert.match(html, /סגורה באוקטובר/);
+  assert.match(html, /סגורה בפברואר/);
+  assert.match(html, /סגורה ללא תאריך/);
+  assert.doesNotMatch(html, /תשפז פתוח/);
+  assert.doesNotMatch(html, /מחוקה בתשפז/);
+  assert.doesNotMatch(html, /רגיל סגור 1/);
+  assert.match(html, /ארכיון תשפ״ז · 4 פעילויות/);
+  assert.match(html, /data-activity-period-tab="year_archive"[\s\S]*?<strong>4<\/strong>/);
+  assert.doesNotMatch(html, /data-activities-month-prev/);
+  assert.doesNotMatch(html, /data-activities-month-next/);
+  assert.doesNotMatch(html, /ארכיון תשפ״ז · אוקטובר/);
+
+  archiveState.activitiesMonthYm = '2027-06';
+  const laterMonthHtml = activitiesScreen.render({ rows: archiveRows }, { state: archiveState });
+  assert.match(laterMonthHtml, /ארכיון תשפ״ז · 4 פעילויות/);
+  assert.match(laterMonthHtml, /סגורה באוקטובר/);
+  assert.match(laterMonthHtml, /סגורה בפברואר/);
+});
+
+test('only the 2027 archive loses month filtering; 2026 archive and 2027 active remain monthly', () => {
+  const oldArchive = baseState('year_archive', 'regular');
+  oldArchive.activitiesMonthYm = '2026-01';
+  const oldHtml = activitiesScreen.render({ rows }, { state: oldArchive });
+  assert.match(oldHtml, /רגיל סגור 1/);
+  assert.doesNotMatch(oldHtml, /רגיל סגור 2/);
+  assert.match(oldHtml, /data-activities-month-prev/);
+
+  const active2027 = baseState('school_2027', 'school_2027');
+  active2027.activitiesMonthYm = '2026-10';
+  const activeHtml = activitiesScreen.render({ rows }, { state: active2027 });
+  assert.match(activeHtml, /פעילויות תשפ״ז · אוקטובר 2026/);
+  assert.match(activeHtml, /data-activities-month-next/);
+  assert.doesNotMatch(activeHtml, /תשפז סגור/);
+});
