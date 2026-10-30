@@ -157,4 +157,5 @@ test('tour database billing migration derives a single unit independent of sessi
   assert.match(sql,/scheduled<planned and lower\(btrim\(coalesce\(p_activity\.activity_type,''\)\)\)<>'tour'/);
   assert.match(sql,/'activityType',p_activity\.activity_type/);
   assert.match(sql,/'unbilledHours',case when lower/);
+  assert.match(sql,/p_activity\.price is null or p_activity\.price<=0/);
 });
