@@ -162,6 +162,9 @@ test('manual invoice displays grouped payer amounts and keeps numeric values in 
   updateManualDraft(d,'amount','6,500.50');
   assert.equal(d.manualDraft.amount,6500.5);
   assert.equal(d.manualDraft.unit_price,3250.25);
+  updateManualDraft(d,'unit_price','1,250.00');
+  assert.equal(d.manualDraft.unit_price,1250);
+  assert.equal(d.manualDraft.amount,2500);
   assert.ok(Number.isFinite(d.manualDraft.amount));
 });
 test('money input formatting retains enough unit-price precision for server amount validation',()=>{
