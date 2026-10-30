@@ -119,9 +119,10 @@ function drawCell(page: PDFPage, font: PDFFont, value: string, x: number, y: num
 }
 
 function drawTableRow(page: PDFPage, font: PDFFont, values: string[], widths: number[], y: number, height = 24, fill = false) {
-  let x = 30;
+  let x = 565;
   values.forEach((value, index) => {
     const width = widths[index];
+    x -= width;
     page.drawRectangle({
       x, y, width, height,
       borderWidth: 0.6,
@@ -129,8 +130,68 @@ function drawTableRow(page: PDFPage, font: PDFFont, values: string[], widths: nu
       ...(fill ? { color: rgb(0.95, 0.97, 0.98) } : {})
     });
     drawCell(page, font, value, x, y, width, fill ? 8.2 : 8.5);
-    x += width;
   });
+}
+
+
+type InvoiceRenderRow = { category: string; name: string; school: string; gefen: string; quantity: number; hours: number; amount: number; unitPrice: number; hourlyPrice: number; };
+function invoiceRenderRows(lines: any[]): { courses: InvoiceRenderRow[]; services: InvoiceRenderRow[] } {
+  const courses = new Map<string, InvoiceRenderRow>();
+  const services = new Map<string, InvoiceRenderRow>();
+  for (const line of lines || []) {
+    const category = clean(line.activity_type_snapshot || line.activity_type).toLowerCase();
+    // Unknown legacy snapshots use the course layout; live issuance and
+    // previews resolve every activity's actual type before calling buildPdf.
+    const service = ['workshop', 'tour', 'סדנה', 'סיור'].includes(category);
+    const amount = Number(line.amount || 0);
+    const statedQty = Number(line.quantity_snapshot);
+    const quantity = Number.isFinite(statedQty) && statedQty > 0 ? statedQty
+      : (line.finance_transaction_account_meetings?.length || 1);
+    const hours = Math.max(0, Number(line.billed_hours || 0));
+    const name = clean(line.service_description_snapshot || line.activity_name_snapshot);
+    const school = clean(line.school_name_snapshot);
+    const gefen = clean(line.gefen_number_snapshot);
+    const unitPrice = Number(line.unit_price_snapshot) > 0
+      ? Number(line.unit_price_snapshot) : amount / quantity;
+    const group = service ? services : courses;
+    // Workshops/tours: identical items at the same unit price + school
+    // combine into one quantity row, even across separate activity records.
+    // Courses: one line per actual course ID, combining all billed meetings.
+    const key = service
+      ? JSON.stringify([category, name, school, Number(unitPrice.toFixed(6))])
+      : clean(line.activity_row_id) || JSON.stringify([name, school, gefen, Number(line.hourly_rate_snapshot || 0)]);
+    const existing = group.get(key);
+    if (existing) {
+      existing.quantity += quantity;
+      existing.hours += hours;
+      existing.amount += amount;
+      existing.unitPrice = existing.amount / existing.quantity;
+      existing.hourlyPrice = existing.hours > 0 ? existing.amount / existing.hours : 0;
+    } else {
+      group.set(key, {
+        category: service ? 'service' : 'course', name, school, gefen,
+        quantity, hours, amount, unitPrice,
+        hourlyPrice: hours > 0 ? amount / hours : Number(line.hourly_rate_snapshot || 0)
+      });
+    }
+  }
+  return { courses: [...courses.values()], services: [...services.values()] };
+}
+async function attachActivityTypes(account: any, client: ReturnType<typeof createClient>) {
+  const lines = account?.finance_transaction_account_lines || [];
+  const ids = [...new Set(lines.map((line: any) => clean(line.activity_row_id)).filter(Boolean))];
+  if (!ids.length) return account;
+  const { data, error } = await client.from('activities')
+    .select('row_id,activity_type,activity_season').in('row_id', ids);
+  if (error) throw new Error('invoice_activity_types_unavailable');
+  const byId = new Map((data || []).filter((a: any) => a.activity_season === 'school_2027')
+    .map((a: any) => [clean(a.row_id), clean(a.activity_type)]));
+  for (const line of lines) {
+    const type = byId.get(clean(line.activity_row_id));
+    if (!type) throw new Error('invoice_activity_type_missing');
+    line.activity_type_snapshot = type;
+  }
+  return account;
 }
 
 async function buildPdf(account: any) {
@@ -174,54 +235,49 @@ async function buildPdf(account: any) {
   }
   drawRight(page, bold, 'תוכניות חינוכיות – שנת תשפ"ז', y, 13); y -= 32;
 
-  const widths = [175, 60, 48, 65, 87, 100];
-  drawTableRow(page, bold, ['תוכנית / פעילות', 'מס׳ גפ״ן', 'מפגשים', 'שעות', 'מחיר למפגש', 'סכום'], widths, y, 25, true);
-  y -= 25;
-
-  for (const line of account.finance_transaction_account_lines || []) {
-    const detailRows = line.finance_transaction_account_meetings || [];
-    const needed = 25 + 22 + 17 + 20 + (detailRows.length * 18) + 14;
-    if (y - needed < 55) {
+  const { courses, services } = invoiceRenderRows(account.finance_transaction_account_lines || []);
+  // Each section uses the appropriate, minimal accounting columns. Both
+  // sections may appear on one invoice for the same payer.
+  const drawSection = (title: string, columns: string[], widths: number[],
+    rows: InvoiceRenderRow[], values: (row: InvoiceRenderRow) => string[]) => {
+    if (!rows.length) return;
+    const headerHeight = 25;
+    const rowHeight = 30;
+    if (y < 55 + headerHeight + rowHeight + 22) {
       page = doc.addPage([595, 842]);
       y = 800;
-      drawTableRow(page, bold, ['תוכנית / פעילות', 'מס׳ גפ״ן', 'מפגשים', 'שעות', 'מחיר למפגש', 'סכום'], widths, y, 25, true);
-      y -= 25;
     }
-    drawTableRow(page, regular, [
-      clean(line.activity_name_snapshot),
-      clean(line.gefen_number_snapshot) || '—',
-      clean(line.quantity_snapshot || detailRows.length),
-      clean(line.billed_hours),
-      money(line.unit_price_snapshot ?? Number(line.hourly_rate_snapshot) * 1.5),
-      money(line.amount)
-    ], widths, y, 25, false);
-    y -= 34;
-    if (line.service_description_snapshot && line.service_description_snapshot !== line.activity_name_snapshot) {
-      const words = clean(line.service_description_snapshot).split(/\s+/);
-      let wrapped = "";
-      for (const word of words) {
-        if (logicalTextWidth(regular, wrapped + " " + word, 9) > 510 && wrapped) {
-          if (y < 75) { page = doc.addPage([595, 842]); y = 800; }
-          drawRight(page, regular, wrapped, y, 9); y -= 14; wrapped = word;
-        } else wrapped = wrapped ? wrapped + " " + word : word;
+    drawRight(page, bold, title, y, 11);
+    y -= 23;
+    drawTableRow(page, bold, columns, widths, y - headerHeight, headerHeight, true);
+    y -= headerHeight;
+    for (const row of rows) {
+      if (y < 55 + rowHeight) {
+        page = doc.addPage([595, 842]);
+        y = 800;
+        drawTableRow(page, bold, columns, widths, y - headerHeight, headerHeight, true);
+        y -= headerHeight;
       }
-      if (wrapped) { if (y < 75) { page = doc.addPage([595, 842]); y = 800; } drawRight(page, regular, wrapped, y, 9); y -= 18; }
+      drawTableRow(page, regular, values(row), widths, y - rowHeight, rowHeight, false);
+      y -= rowHeight;
     }
-    if (line.school_name_snapshot) { if (y < 100) { page = doc.addPage([595, 842]); y = 800; } drawRight(page, regular, `בית ספר: ${clean(line.school_name_snapshot)}`, y, 9); y -= 17; }
-    drawRight(page, bold, line.billing_coverage === "full_funding" ? `מממן: ${clean(line.funding_snapshot)} | מלוא חלק המממן` : `מממן: ${clean(line.funding_snapshot)} | ${line.billing_rule === 'completion' ? 'חודש סיום' : 'חודש ביצוע'}: ${clean(line.performance_month).slice(0,7) || 'סיום פעילות'}`, y, 9); y -= 17;
-    if (detailRows.length) {
-    drawRight(page, bold, 'פירוט ביצוע לחיוב', y, 9); y -= 20;
-    const detailWidths = [390, 145];
-    drawTableRow(page, bold, ['תאריך', 'שעות'], detailWidths, y, 20, true);
-    y -= 20;
-    for (const meeting of detailRows) {
-      if (y < 75) { page = doc.addPage([595, 842]); y = 800; }
-      drawTableRow(page, regular, [date(meeting.meeting_date), '1.5'], detailWidths, y, 18, false);
-      y -= 18;
-    }
-    }
-    y -= 12;
-  }
+    y -= 22;
+  };
+  const displayName = (row: InvoiceRenderRow) =>
+    row.school ? `${row.name} - ${row.school}` : row.name;
+  const count = (number: number) => Number.isInteger(number)
+    ? String(number) : String(Number(number.toFixed(2)));
+  drawSection('קורסים',
+    ['תוכנית / קורס', 'מספר גפ״ן', 'שעות', 'מפגשים', 'מחיר לשעה', 'סה״כ'],
+    [190, 62, 48, 50, 95, 90], courses,
+    (row) => [displayName(row), row.gefen || '—', count(row.hours),
+      count(row.quantity), money(row.hourlyPrice), money(row.amount)]);
+  drawSection('סדנאות וסיורים',
+    ['פעילות', 'כמות', 'מחיר ליחידה', 'סה״כ'],
+    [265, 65, 100, 105], services,
+    (row) => [displayName(row), count(row.quantity), money(row.unitPrice), money(row.amount)]);
+  // Invoices never reveal funding source, activity-completion period or
+  // internal meeting-level billing details; those remain in the database.
 
   // The payment block occupies about 110 pt. Three short items fit on a
   // single A4 page with a 35 pt bottom margin; do not create a mostly empty
@@ -230,8 +286,8 @@ async function buildPdf(account: any) {
   drawRight(page, bold, `סה"כ לתשלום: ${money(account.total_amount)}`, y, 13); y -= 26;
   drawRight(page, bold, `לתשלום עד: ${date(account.payment_due_date)}`, y, 11); y -= 30;
   drawRight(page, bold, 'פרטי חשבון בנק להעברה:', y, 10); y -= 17;
-  drawRight(page, regular, 'בנק הפועלים סניף 611 חשבון 300120', y, 10); y -= 19;
-  drawRight(page, regular, 'או בשיק לפקודת: תעשיידע - תעשייה למען חינוך מתקדם (ע"ר)', y, 10); y -= 19;
+  drawRight(page, regular, 'בנק הפועלים 12, סניף 500 הרימון, חשבון 300120', y, 10); y -= 19;
+  drawRight(page, regular, 'או בשיק לפקודת: תעשיידע - תעשייה למען חינוך מתקדם ע"ר', y, 10); y -= 19;
   drawRight(page, regular, 'יש לציין: "למוטב בלבד" עם קרוס.', y, 10);
 
   return new Uint8Array(await doc.save());
@@ -267,6 +323,7 @@ Deno.serve(async (req) => {
         p_activity: manual.activity, p_funder: manual.funder, p_month: manual.month, p_draft: manual.draft || {}
       });
       if (quoteError) throw quoteError;
+      await attachActivityTypes(quote, createClient(url, service));
       const previewBytes = await buildPdf(quote);
       return new Response(JSON.stringify({ quote, pdfBase64: base64(previewBytes) }), { headers: { ...cors, "Content-Type": "application/json" } });
     }
@@ -302,6 +359,7 @@ Deno.serve(async (req) => {
     let bytes: Uint8Array;
     let filename = account.generated_filename;
     if (account.document_status === "generating") {
+      await attachActivityTypes(account, admin);
       bytes = await buildPdf(account);
       filename = `חשבון עסקה ${account.transaction_account_number} - ${clean(account.customer_name_snapshot).replace(/[\\/:*?\"<>|]/g, " ")} - ${date(account.issue_date)}.pdf`;
       const upload = await fetch(
