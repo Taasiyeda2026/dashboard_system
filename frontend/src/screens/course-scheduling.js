@@ -1338,7 +1338,7 @@ function selectedCourseWorkPanelHeaderHtml(row, state = {}) {
   const course = row?.course || {};
   const schedule = workboardScheduleLabel(row);
   const instructor = workboardInstructorLabel(row);
-  const alert = text(row?.alert);
+  const alert = row?.planningRow?.needsRecalc === true ? '' : text(row?.alert);
   const statusClass = row.bucket === 'draft' ? ' is-status-draft' : (row.bucket === 'assigned' ? ' is-status-ready' : ' is-status-warning');
   const statusHtml = row.bucket === 'assigned'
     ? `<div class="course-scheduling-work-panel__assignment" aria-label="${escapeHtml(`${row.statusLabel || ''} · ${instructor}`)}">
@@ -2500,7 +2500,7 @@ export const courseSchedulingScreen = {
         <aside class="course-scheduling-courses" data-course-list tabindex="-1" aria-label="טבלת פעילויות">${courseListHtml(rowModels, selectedId, state)}</aside>
         <section class="course-scheduling-detail${selectedId ? ' is-open' : ''}" data-course-detail>${
           selectedId && selectedRow?.course
-            ? selectedCoursePanelHtml(selectedRow, state)
+            ? '<button type="button" class="course-scheduling-detail-close" data-close-course-detail aria-label="סגור פרטי פעילות">סגור פרטי פעילות ✕</button>' + selectedCoursePanelHtml(selectedRow, state)
             : ''
         }</section>
       </div>
@@ -5092,7 +5092,7 @@ export const courseSchedulingScreen = {
       const selectedCourse = courseById.get(selectedId);
       const selectedRow = selectedCourse ? courseRowModel(selectedCourse, resultByCourseId, planningById) : null;
       const template = document.createElement('template');
-      template.innerHTML = `<section class="course-scheduling-detail${selectedId ? ' is-open' : ''}" data-course-detail>${selectedRow ? selectedCoursePanelHtml(selectedRow, state) : ''}</section>`;
+      template.innerHTML = `<section class="course-scheduling-detail${selectedId ? ' is-open' : ''}" data-course-detail>${selectedRow ? '<button type="button" class="course-scheduling-detail-close" data-close-course-detail aria-label="סגור פרטי פעילות">סגור פרטי פעילות ✕</button>' + selectedCoursePanelHtml(selectedRow, state) : ''}</section>`;
       oldDetail.replaceWith(template.content.firstElementChild);
       root.querySelector('.course-scheduling-screen')?.classList.toggle('has-selected-course', !!selectedId);
       const refreshIds = new Set(courseId ? [courseId] : []);
@@ -5204,6 +5204,13 @@ export const courseSchedulingScreen = {
     const bindingRoot = includeRootControls ? root : detailRoot;
     const selectedCourseId = state.courseSchedulingSelectedId;
     const selectedCourse = courseById.get(selectedCourseId);
+    detailRoot.querySelector('[data-close-course-detail]')?.addEventListener('click', () => {
+      state.courseSchedulingSelectedId = '';
+      state.courseSchedulingSelectedCandidateId = '';
+      state.courseSchedulingExpandedCandidateId = '';
+      state.courseSchedulingShowAllCandidates = false;
+      renderOpenedCourse('');
+    });
 
     // Direct operator choice: no agent query or national/point planning run.
     // A save still uses the existing server validations and approval flow.
