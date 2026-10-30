@@ -27,7 +27,7 @@ test('default is previous completed month; future month is rejected and blocked 
   assert.equal(transactionMonth({},'automatic'),financeCycleCutoff().slice(0,7));
   assert.equal(transactionMonth({transactionMonths:{automatic:'2099-01'}},'automatic'),financeCycleCutoff().slice(0,7));
   const d=data([row({blockedReason:'חסרה חלוקת מימון תקינה',eligible:false})]);
-  assert.equal(transactionPreviewForVisit(d).accounts.length,0);assert.match(html(d),/חסרה חלוקת מימון תקינה/);
+  assert.equal(transactionPreviewForVisit(d).accounts.length,0);assert.doesNotMatch(html(d),/חסרה חלוקת מימון תקינה|פעילויות חסומות|חשבונות חסומים/);
   assert.equal(transactionPreviewForVisit(data([row()],{collectionError:'לא נטען'})).accounts.length,0);
 });
 test('issuance sends funder, exact month, slots and displayed amount to server and then dispatches',async()=>{
@@ -53,4 +53,18 @@ test('dispatch failure releases own reservation through guarded cancellation',as
   await assert.rejects(runTransactionIssuance(data([row()]),{reserveFinanceTransactionAccount:async()=>({id:'x'}),
     dispatchFinanceTransactionAccount:async()=>{throw Error('test failed');},cancelFinanceTransactionReservation:async id=>{cancelled=id;}},'automatic'),/test failed/);
   assert.equal(cancelled,'x');
+});
+
+test('empty months show only a concise empty state without internal diagnostics or zero-value cards',()=>{
+  const d=data([]);const view=html(d);
+  assert.match(view,/אין חשבונות להפקה בחודש שנבחר/);
+  assert.doesNotMatch(view,/אין יתרות מחודשים אחרים|ממתינים להפקה מחודשים קודמים|פעילויות חסומות|חשבונות חסומים/);
+  assert.doesNotMatch(view,/ds-fin-transaction-summary|data-finance-transaction-run=/);
+});
+test('technical reasons remain excluded from the visible list, but valid backlog stays visible',()=>{
+  const d=data([row({activityRowId:'aug',period:'2026-08-01'}),row({activityRowId:'blocked',blockedReason:'חסר מימון',eligible:false})]);
+  const view=html(d);
+  assert.match(view,/ממתינים להפקה מחודשים קודמים/);
+  assert.match(view,/2026-08/);
+  assert.doesNotMatch(view,/חסר מימון|חסומות להפקה|אין יתרות מחודשים אחרים/);
 });
