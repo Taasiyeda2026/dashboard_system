@@ -5693,8 +5693,13 @@ async function upsertActivityToSupabase(payload = {}) {
   assertNewActivityHasNoInstructors(act);
   await validateActivityInstructorBindingsOrThrow(act);
   const row = sanitizeActivityPayloadForSupabase(synchronizeStartDateAndFirstMeeting(sanitizeActivityPayload(act)), { includeRowId: true });
-  if (row.tour_location && normalizeActivityTypeValue(row.activity_type) !== 'tour') {
-    throw new Error('tour_location_requires_tour');
+  if (Object.prototype.hasOwnProperty.call(row, 'tour_location')) {
+    if (normalizeActivitySeason(row.activity_season) !== ACTIVITY_SEASON_SCHOOL_2027) {
+      throw new Error('tour_location_requires_school_2027');
+    }
+    if (row.tour_location && normalizeActivityTypeValue(row.activity_type) !== 'tour') {
+      throw new Error('tour_location_requires_tour');
+    }
   }
   const rawSchoolIds = Array.isArray(act.school_ids) ? act.school_ids.map((id) => String(id || '').trim()).filter(Boolean) : [];
   if (rawSchoolIds.length > 1 && !act.school_id) row.school_id = null;
@@ -6075,12 +6080,16 @@ async function updateActivityInSupabase(payload = {}) {
     .maybeSingle();
   if (existingInstructorError) throw buildSupabaseMutationError('saveActivity', existingInstructorError, 'save_failed');
   assertActivityPeriodEditable({ activity: existingInstructorRow, changes: rawChanges });
+  const is2027Activity = normalizeActivitySeason(existingInstructorRow?.activity_season) === ACTIVITY_SEASON_SCHOOL_2027;
+  if (!is2027Activity && Object.prototype.hasOwnProperty.call(mappedChanges, 'tour_location')) {
+    throw new Error('tour_location_requires_school_2027');
+  }
   const effectiveActivityType = normalizeActivityTypeValue(
     mappedChanges.activity_type || mappedChanges.item_type || existingInstructorRow?.activity_type
   );
   if (effectiveActivityType !== 'tour') {
     if (String(mappedChanges.tour_location ?? '').trim()) throw new Error('tour_location_requires_tour');
-    if (normalizeActivityTypeValue(existingInstructorRow?.activity_type) === 'tour'
+    if (is2027Activity && normalizeActivityTypeValue(existingInstructorRow?.activity_type) === 'tour'
       && Object.prototype.hasOwnProperty.call(mappedChanges, 'activity_type')) {
       mappedChanges.tour_location = null;
     }
