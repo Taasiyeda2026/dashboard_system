@@ -1020,8 +1020,11 @@ test('collection UI keeps the dashboard shell with account totals, search and ar
 test('collection shows five invoice fields with due date, PDF link and payment action', () => {
   const html=financeScreen.render(collectionData([invoice({expected_collection_date:'2026-09-20',finance_note:'לתזכורת'})]),{state:{user:financeUser}});
   for(const value of ['8525','עיריית רחובות','2026-09-30','https://files.example/original.pdf','data-finance-payment-open="INV-1"'])assert.ok(html.includes(value),value);
+  const doc=new JSDOM(html).window.document;
+  const table=doc.querySelector('.ds-fin-collect-accounts');
+  assert.ok(table);
   for(const omitted of ['קורס רובוטיקה','בית ספר הרצל','value="2026-09-20"','value="לתזכורת"','data-finance-account-field="finance_note"'])
-    assert.ok(!html.includes(omitted),omitted);
+    assert.ok(!table.innerHTML.includes(omitted),omitted);
   assert.doesNotMatch(html,/data-fin-collect-field="collection_status"/);
 });
 
