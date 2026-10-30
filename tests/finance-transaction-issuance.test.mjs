@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { transactionAccountsViewHtml, transactionPreviewForVisit, transactionSelectionKey, runTransactionIssuance, transactionMonth, transactionBacklog } from '../frontend/src/screens/finance-transaction-issuance.js';
-import { financeCycleCutoff } from '../frontend/src/screens/finance-transaction-accounts.js';
+import { financeToday } from '../frontend/src/screens/finance-transaction-accounts.js';
 const row=(extra={})=>({activityRowId:'a',activityName:'קורס א',fundingSourceId:'g',funding:'גפ״ן',gefenFunding:true,
   period:'2026-09-01',customerName:'בית ספר א',institutionSymbol:'123',payerName:'בית ספר א',customerEmail:'school@example.test',
   plannedCount:4,completedCount:2,billedCount:0,unbilledCount:2,unbilledHours:3,unbilledSlots:[{slot:1,date:'2026-09-01'},{slot:2,date:'2026-09-02'}],
@@ -23,9 +23,10 @@ test('open accounts uses completion month and funder grouping; mixed shares rema
   const view=html(d);assert.match(view,/חודש סיום הפעילות/);assert.match(view,/בית ספר א/);assert.doesNotMatch(view,/future/);
   assert.equal(transactionPreviewForVisit(d,'automatic').totals.amount,2500);
 });
-test('default is previous completed month; future month is rejected and blocked rows cannot issue',()=>{
-  assert.equal(transactionMonth({},'automatic'),financeCycleCutoff().slice(0,7));
-  assert.equal(transactionMonth({transactionMonths:{automatic:'2099-01'}},'automatic'),financeCycleCutoff().slice(0,7));
+test('default is current month; future month is rejected and blocked rows cannot issue',()=>{
+  assert.equal(transactionMonth({},'automatic'),financeToday().slice(0,7));
+  assert.equal(transactionMonth({transactionMonths:{automatic:'2099-01'}},'automatic'),financeToday().slice(0,7));
+  assert.equal(transactionMonth({},'manual'),financeToday().slice(0,7));
   const d=data([row({blockedReason:'חסרה חלוקת מימון תקינה',eligible:false})]);
   assert.equal(transactionPreviewForVisit(d).accounts.length,0);assert.doesNotMatch(html(d),/חסרה חלוקת מימון תקינה|פעילויות חסומות|חשבונות חסומים/);
   assert.equal(transactionPreviewForVisit(data([row()],{collectionError:'לא נטען'})).accounts.length,0);

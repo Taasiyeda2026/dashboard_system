@@ -66,6 +66,96 @@ export function prepareManualAccount(data,activityId,fundingKey,basis) {
     issue_date:financeToday(),payment_due_date:financePaymentDueDate(financeToday(),days),customer_email:row?.customerEmail||'',override_reason:''};
   data.manualQuote=null;data.manualPdf='';
 }
+// Each selected activity keeps its own edited invoice; multi-select never combines unrelated payers.
+export function selectedManualActivityIds(data) {
+  const ids = Array.isArray(data.manualSelectedActivityIds) ? data.manualSelectedActivityIds : [];
+  return [...new Set([...ids, ...(data.manualActivityId ? [data.manualActivityId] : [])])];
+}
+export function saveActiveManualDraft(data) {
+  if (!data.manualActivityId || !data.manualDraft) return;
+  data.manualActivityDrafts ||= {};
+  data.manualActivityDrafts[data.manualActivityId] = {
+    draft: { ...data.manualDraft }, fundingKey: data.manualFundingKey
+  };
+}
+export function focusManualActivity(data, activityId) {
+  saveActiveManualDraft(data);
+  if (!activityId) {
+    data.manualActivityId = ''; data.manualDraft = null; data.manualFundingKey = '';
+  } else {
+    const cached = data.manualActivityDrafts?.[activityId];
+    if (cached) {
+      data.manualActivityId = activityId;
+      data.manualDraft = { ...cached.draft };
+      data.manualFundingKey = cached.fundingKey;
+    } else {
+      prepareManualAccount(data, activityId);
+      saveActiveManualDraft(data);
+    }
+  }
+  data.manualQuote = null; data.manualPdf = ''; data.manualBatchPreviews = null;
+}
+export function toggleManualActivity(data, activityId, checked) {
+  const ids = selectedManualActivityIds(data).filter(id => id !== activityId);
+  if (checked) ids.push(activityId);
+  data.manualSelectedActivityIds = ids;
+  if (!checked && data.manualActivityDrafts) delete data.manualActivityDrafts[activityId];
+  if (checked || !ids.includes(data.manualActivityId)) focusManualActivity(data, checked ? activityId : ids[0] || '');
+  else { data.manualBatchPreviews = null; data.manualQuote = null; data.manualPdf = ''; }
+}
+export function manualSelectionSnapshot(data, activityId) {
+  const item = data.manualActivityDrafts?.[activityId];
+  if (!item) throw new Error('יש לבחור פרטי חיוב לכל פעילות שנבחרה');
+  const scoped = { ...data, manualActivityId: activityId, manualFundingKey: item.fundingKey, manualDraft: { ...item.draft } };
+  const allowed = manualFundingRowsForSelection(scoped).some(r =>
+    `${r.fundingSourceId}|${r.period || r.manualMonth}` === item.fundingKey);
+  if (!allowed) throw new Error('גורם המימון שנבחר אינו מתאים לאחת הפעילויות');
+  return manualRequest(scoped);
+}
+export async function previewSelectedManualAccounts(data, api) {
+  saveActiveManualDraft(data);
+  const ids = selectedManualActivityIds(data);
+  if (!ids.length) throw new Error('יש לבחור פעילות');
+  if (ids.length > 1 && !data.manualFunderFilter) throw new Error('להפקה של כמה פעילויות יש לבחור גורם מימון');
+  const previews = [];
+  for (const id of ids) {
+    const request = manualSelectionSnapshot(data,id);
+    const output = await api.previewFinanceManualAccount(request);
+    if (!output?.quote?.revision || !output?.pdfBase64) throw new Error('לא התקבלה תצוגה מקדימה תקינה');
+    previews.push({ activityId:id, request, quote:output.quote, pdfBase64:output.pdfBase64,
+      idempotencyKey:crypto.randomUUID() });
+  }
+  data.manualBatchPreviews = previews.length > 1 ? previews : null;
+  if (previews.length === 1) {
+    data.manualQuote=previews[0].quote;data.manualPdf=previews[0].pdfBase64;
+    data.manualRequestId=previews[0].idempotencyKey;
+  }
+  return previews;
+}
+export async function runSelectedManualAccounts(data, api) {
+  const previews = data.manualBatchPreviews;
+  if (!Array.isArray(previews) || previews.length < 2) return [await runManualAccount(data,api)];
+  if (previews.length !== selectedManualActivityIds(data).length) throw new Error('יש לחדש תצוגה מקדימה');
+  data.manualBatchIssued ||= {};
+  const issued = [];
+  for (const p of previews) {
+    if (data.manualBatchIssued[p.idempotencyKey]) { issued.push(data.manualBatchIssued[p.idempotencyKey]); continue; }
+    try {
+      const reserved = await api.reserveFinanceManualAccount({
+        ...p.request, revision:p.quote.revision,idempotencyKey:p.idempotencyKey
+      });
+      let sent;
+      try { sent = await api.dispatchFinanceTransactionAccount({ accountId:reserved.id }); }
+      catch(error) { await api.cancelFinanceTransactionReservation?.(reserved.id).catch(()=>{});throw error; }
+      const result = { reserved, sent };
+      data.manualBatchIssued[p.idempotencyKey] = result;
+      issued.push(result);
+    } catch(error) {
+      throw new Error(`הופקו ${issued.length} מתוך ${previews.length} חשבונות. ${error.message || 'ההפקה נעצרה'}`);
+    }
+  }
+  return issued;
+}
 export function updateManualDraft(data,key,value) {
   if(key==='billing_basis'){prepareManualAccount(data,data.manualActivityId,data.manualFundingKey,value);return;}
   data.manualDraft={...data.manualDraft,[key]:value};const d=data.manualDraft;
@@ -77,7 +167,7 @@ export function updateManualDraft(data,key,value) {
     const days=/^(רשות|רשויות|authority|ויצו|wizo)$/i.test(text(row?.funding).replace(/["׳״\s]/g,''))?45:30;
     d.payment_due_date=financePaymentDueDate(value,days);
   }
-  data.manualQuote=null;data.manualPdf='';
+  data.manualQuote=null;data.manualPdf='';data.manualBatchPreviews=null;
 }
 export function manualRequest(data) {
   const [funder,month]=text(data.manualFundingKey).split('|');
@@ -95,7 +185,13 @@ export function manualAccountViewHtml(data) {
       ${funderOptions.map(f=>`<option value="${e(f.key)}"${data.manualFunderFilter===f.key?' selected':''}>${e(f.label)}</option>`).join('')}
     </select></label>
     <label>חיפוש פעילות<input class="ds-input" data-finance-manual-search value="${e(data.manualSearch)}" placeholder="בית ספר, רשות או פעילות"></label>
-    <label>פעילות<select class="ds-input" data-finance-manual-activity><option value="">בחירת פעילות קיימת</option>${activities.map(a=>`<option value="${e(a.row_id)}"${a.row_id===data.manualActivityId?' selected':''}>${e(a.school)} | ${e(a.authority)} | ${e(a.activity_name)}</option>`).join('')}</select></label></div></section>
+    <label>${selectedManualActivityIds(data).length>1?'פעילות לעריכה':'פעילות'}<select class="ds-input" data-finance-manual-activity><option value="">בחירת פעילות קיימת</option>${activities.map(a=>`<option value="${e(a.row_id)}"${a.row_id===data.manualActivityId?' selected':''}>${e(a.school)} | ${e(a.authority)} | ${e(a.activity_name)}</option>`).join('')}</select></label></div>
+    <details class="ds-fin-manual__selection">
+      <summary>${selectedManualActivityIds(data).length>1?`${selectedManualActivityIds(data).length} פעילויות נבחרו · שינוי הבחירה`:'בחירת פעילויות נוספות'}</summary>
+      <div class="ds-fin-manual__choices" role="group" aria-label="בחירה מרובה של פעילויות">
+        ${activities.map(a=>`<label class="ds-fin-manual__choice"><input type="checkbox" value="${e(a.row_id)}" data-finance-manual-select-activity${selectedManualActivityIds(data).includes(a.row_id)?' checked':''}><span>${e(a.school)} | ${e(a.authority)} | ${e(a.activity_name)}</span></label>`).join('')}
+      </div>
+    </details></section>
     ${source?`<div class="ds-fin-manual__funding-grid"><label>גורם מימון וחודש<select class="ds-input" data-finance-manual-funding>${rows.map(r=>`<option value="${e(r.fundingSourceId+'|'+(r.period||r.manualMonth))}"${data.manualFundingKey===r.fundingSourceId+'|'+(r.period||r.manualMonth)?' selected':''}>${e(r.funding)} · ${e((r.period||r.manualMonth)?.slice(0,7)||'ללא חודש')} · ${Number((r.eligible?r.issuableAmount:r.fullFundingAmount)||0).toFixed(2)} ₪</option>`).join('')}</select></label>
     <label>בסיס החיוב<select class="ds-input" data-finance-manual-field="billing_basis"><option value="performance"${d.billing_basis==='performance'?' selected':''}>מפגשים שבוצעו</option><option value="full_funding"${d.billing_basis==='full_funding'?' selected':''}>מלוא חלק המממן</option></select></label></div>
     <form data-finance-manual-form class="ds-fin-manual__form"><section class="ds-fin-manual__section"><h3>פרטי חשבון</h3><div class="ds-fin-manual__grid">${field('גורם משלם','customer_name')}${field('בית ספר','school_name')}${field('סמל מוסד / מספר לקוח','institution_symbol')}${field('מספר תוכנית','program_number')}
@@ -103,8 +199,14 @@ export function manualAccountViewHtml(data) {
     <section class="ds-fin-manual__section"><h3>פרטי חיוב</h3><div class="ds-fin-manual__grid">${field('מפגשים לחיוב','quantity','number')}${field('שעות לחיוב','hours','number')}${field('מחיר למפגש','unit_price','number')}${field('סכום החשבון','amount','number')}
     </div></section>
     <section class="ds-fin-manual__section"><h3>מועדים</h3><div class="ds-fin-manual__grid">${field('תאריך הפקה','issue_date','date')}${field('מועד תשלום','payment_due_date','date')}</div></section><details class="ds-fin-manual__extra"><summary>פרטים נוספים</summary><div class="ds-fin-manual__grid">${field('סיבת חריגה','override_reason')}</div></details>
-    <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" type="button" data-finance-manual-preview>תצוגה מקדימה</button></div></form>
-    ${data.manualPdf?`<div class="ds-fin-manual__preview"><iframe title="תצוגה מקדימה של חשבון העסקה" src="data:application/pdf;base64,${e(data.manualPdf)}"></iframe>
+    <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" type="button" data-finance-manual-preview>תצוגה מקדימה${selectedManualActivityIds(data).length>1?' לכל החשבונות':''}</button></div></form>
+    ${data.manualBatchPreviews?.length>1?`<div class="ds-fin-manual__batch-previews">
+      <p>כל פעילות תופק כחשבון נפרד. יש לעיין בכל התצוגות המקדימות לפני האישור.</p>
+      ${data.manualBatchPreviews.map((p,i)=>`<details class="ds-fin-manual__section"${i===0?' open':''}><summary>${e((data.collectionActivities||[]).find(a=>a.row_id===p.activityId)?.school||p.activityId)} · חשבון ${i+1}</summary>
+        <iframe title="תצוגה מקדימה של חשבון ${i+1}" src="data:application/pdf;base64,${e(p.pdfBase64)}"></iframe>
+      </details>`).join('')}
+      <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" data-finance-manual-confirm>אישור והפקת ${data.manualBatchPreviews.length} חשבונות</button></div>
+    </div>`:data.manualPdf?`<div class="ds-fin-manual__preview"><iframe title="תצוגה מקדימה של חשבון העסקה" src="data:application/pdf;base64,${e(data.manualPdf)}"></iframe>
       <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" data-finance-manual-confirm>אישור והפקת חשבון</button></div></div>`:''}`:''}</div>`;
 }
 export async function runManualAccount(data,api) {

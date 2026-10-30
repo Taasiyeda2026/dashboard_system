@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { manualAccountViewHtml,prepareManualAccount,updateManualDraft,runManualAccount,manualFundingFilterOptions,manualFilteredActivities } from '../frontend/src/screens/finance-manual-account.js';
+import { manualAccountViewHtml,prepareManualAccount,updateManualDraft,runManualAccount,manualFundingFilterOptions,manualFilteredActivities,toggleManualActivity,saveActiveManualDraft,previewSelectedManualAccounts,runSelectedManualAccounts } from '../frontend/src/screens/finance-manual-account.js';
 const data=()=>({collectionActivities:[{row_id:'a',school:'בית ספר',authority:'עיריית רחובות',activity_name:'קורס',activity_no:'123'}],transactionContext:{billingRows:[{activityRowId:'a',fundingSourceId:'r',funding:'רשות',payerName:'עיריית רחובות',period:'2026-09-01',institutionSymbol:'123',unbilledCount:2,issuableAmount:7000,eligible:true}]}});
 test('manual wizard selects existing activity/funder and edits document fields without touching source data',()=>{
   const d=data();const source=JSON.stringify(d.collectionActivities);prepareManualAccount(d,'a');
@@ -75,4 +75,56 @@ test('funder filter includes old single-funder records even if allocation detail
   assert.ok(options.some(f=>f.key==='unassigned'));
   d.manualFunderFilter='funder:גפן';
   assert.deepEqual(manualFilteredActivities(d).map(a=>a.row_id),['missing']);
+});
+
+test('selecting multiple activities keeps independent editable amounts and previews each PDF', async () => {
+  const d=data();
+  d.collectionActivities.push({...d.collectionActivities[0],row_id:'b',school:'בית ספר שני'});
+  d.transactionContext.billingRows.push({...d.transactionContext.billingRows[0],activityRowId:'b',issuableAmount:4300});
+  d.manualFunderFilter='authority:name:עיריית רחובות';
+  toggleManualActivity(d,'a',true);
+  assert.equal(d.manualActivityId,'a');
+  toggleManualActivity(d,'b',true);
+  assert.equal(d.manualActivityId,'b');
+  updateManualDraft(d,'amount',4000);
+  saveActiveManualDraft(d);
+  assert.deepEqual(d.manualSelectedActivityIds,['a','b']);
+  const requests=[];
+  const api={
+    previewFinanceManualAccount:async request=>{ requests.push(request);return {quote:{revision:'rev-'+request.activity},pdfBase64:'PDF'+request.activity};},
+    reserveFinanceManualAccount:async payload=>({id:'invoice-'+payload.activity}),
+    dispatchFinanceTransactionAccount:async payload=>({document:'issued',id:payload.accountId})
+  };
+  const previews=await previewSelectedManualAccounts(d,api);
+  assert.equal(previews.length,2);
+  assert.equal(requests[0].activity,'a');assert.equal(requests[0].draft.amount,7000);
+  assert.equal(requests[1].activity,'b');assert.equal(requests[1].draft.amount,4000);
+  const view=manualAccountViewHtml(d);
+  assert.match(view,/בחירה מרובה של פעילויות/);
+  assert.match(view,/אישור והפקת 2 חשבונות/);
+  assert.match(view,/PDFa/);assert.match(view,/PDFb/);
+  const sent=await runSelectedManualAccounts(d,api);
+  assert.equal(sent.length,2);
+  assert.equal(sent[0].reserved.id,'invoice-a');
+  assert.equal(sent[1].reserved.id,'invoice-b');
+});
+test('batch issuance requires a funder, and a failed second invoice never reissues the first',async()=>{
+  const d=data();
+  d.collectionActivities.push({...d.collectionActivities[0],row_id:'b'});
+  d.transactionContext.billingRows.push({...d.transactionContext.billingRows[0],activityRowId:'b'});
+  toggleManualActivity(d,'a',true);
+  toggleManualActivity(d,'b',true);
+  await assert.rejects(previewSelectedManualAccounts(d,{previewFinanceManualAccount:async()=>({})}),/גורם מימון/);
+  d.manualFunderFilter='authority:name:עיריית רחובות';
+  await previewSelectedManualAccounts(d,{previewFinanceManualAccount:async p=>({quote:{revision:'rev-'+p.activity},pdfBase64:'pdf'})});
+  let attempts=[],failSecond=true;
+  const api={
+    reserveFinanceManualAccount:async p=>{attempts.push(p.activity);return{id:'a-'+p.activity}},
+    dispatchFinanceTransactionAccount:async p=>{if(p.accountId==='a-b'&&failSecond)throw Error('dispatch failed');return{id:p.accountId}},
+    cancelFinanceTransactionReservation:async()=>{}
+  };
+  await assert.rejects(runSelectedManualAccounts(d,api),/הופקו 1 מתוך 2/);
+  failSecond=false;
+  await runSelectedManualAccounts(d,api);
+  assert.deepEqual(attempts,['a','b','b']);
 });
