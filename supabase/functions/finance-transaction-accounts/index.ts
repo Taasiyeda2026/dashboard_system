@@ -318,10 +318,13 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     if (body.preview === true) {
+      const consolidated = Array.isArray(body.funderBatch);
       const manual = body.manual || {};
-      const { data: quote, error: quoteError } = await userClient.rpc("finance_manual_account_quote", {
-        p_activity: manual.activity, p_funder: manual.funder, p_month: manual.month, p_draft: manual.draft || {}
-      });
+      const { data: quote, error: quoteError } = consolidated
+        ? await userClient.rpc("finance_funder_batch_quote", { p_items: body.funderBatch })
+        : await userClient.rpc("finance_manual_account_quote", {
+          p_activity: manual.activity, p_funder: manual.funder, p_month: manual.month, p_draft: manual.draft || {}
+        });
       if (quoteError) throw quoteError;
       await attachActivityTypes(quote, createClient(url, service));
       const previewBytes = await buildPdf(quote);
