@@ -290,7 +290,7 @@ function activityPeriodRows(rows, periodKey) {
 }
 
 function isMarketingProcessActivity(row = {}) {
-  return String(row.status || '').trim() === 'תהליך שיווק';
+  return row.marketing_stage === true || row.marketing_stage === 'true';
 }
 
 function activeActivitiesYearRows(rows, yearKey) {
