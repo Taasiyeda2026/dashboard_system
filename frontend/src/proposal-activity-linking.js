@@ -114,6 +114,8 @@ function injectStyles() {
       color: #64748b;
       font-size: .76rem;
     }
+    .proposal-activity-creator__language { min-width: 112px; padding: 7px; border: 1px solid var(--ds-border, #d7dde5); border-radius: 8px; background: #fff; font: inherit; font-size: .82rem; }
+    .proposal-activity-creator__actions { display: flex; gap: 8px; align-items: center; }
     .proposal-activity-creator__button {
       min-width: 138px;
       border: 0;
@@ -265,8 +267,15 @@ function bindProposalCreatorHost(root, host) {
     button.textContent = 'יוצר פעילויות…';
 
     try {
-      const { data: result, error } = await supabase.rpc('create_activity_from_proposal_item', {
-        p_proposal_item_id: proposalItemId
+      const languageSelect = button.closest('[data-proposal-item-id]')?.querySelector('[data-proposal-item-language]');
+      const language = languageSelect?.value || '';
+      if (!['he', 'ar'].includes(language)) {
+        languageSelect?.focus();
+        throw new Error('יש לבחור שפת הדרכה: עברית או ערבית');
+      }
+      const { data: result, error } = await supabase.rpc('create_activity_from_proposal_item_with_language', {
+        p_proposal_item_id: proposalItemId,
+        p_instruction_language: language
       });
       if (error) throw error;
 
@@ -277,7 +286,10 @@ function bindProposalCreatorHost(root, host) {
       else toast(`${createdCount} שורות פעילות נוצרו בהצלחה.`);
     } catch (error) {
       console.error('[proposal-activity-create]', error);
-      toast(error?.message || 'יצירת הפעילויות נכשלה.', 'error');
+      const message = String(error?.message || '');
+      toast(/instruction_language_required|activities_school_2027_explicit_language_required/.test(message)
+        ? 'יש לבחור שפת הדרכה: עברית או ערבית'
+        : 'יצירת הפעילויות נכשלה. נא לנסות שוב או לפנות למנהל המערכת.', 'error');
     } finally {
       pendingProposalItemIds.delete(proposalItemId);
       refreshProposalCreators();
@@ -324,12 +336,18 @@ function renderProposalCreator(root, proposal, data) {
             ${escapeHtml(clean(item.item_name))}
             ${createdMeta ? `<span class="proposal-activity-creator__meta">${escapeHtml(createdMeta)}</span>` : ''}
           </div>
+          <div class="proposal-activity-creator__actions">
+            <select class="proposal-activity-creator__language" data-proposal-item-language aria-label="שפת הדרכה עבור ${escapeHtml(clean(item.item_name))}" ${complete || pending || !canCreateActivitiesFromProposal() ? "disabled" : ""}>
+              <option value="">שפת הדרכה</option>
+              <option value="he">עברית</option>
+              <option value="ar">ערבית</option>
+            </select>
           <button type="button"
             class="proposal-activity-creator__button"
             data-create-activity-from-proposal-item="${proposalItemId}"
             ${complete || pending || !canCreateActivitiesFromProposal() ? 'disabled' : ''}>
             ${pending ? 'יוצר פעילויות…' : creationButtonText(requiredCount, createdCount)}
-          </button>
+          </button></div>
         </div>
       `;
     }).join('')}
