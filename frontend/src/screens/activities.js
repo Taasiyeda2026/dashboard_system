@@ -289,12 +289,16 @@ function activityPeriodRows(rows, periodKey) {
   return (Array.isArray(rows) ? rows : []).filter((row) => activityYearKey(row) === activeKey);
 }
 
+function isMarketingProcessActivity(row = {}) {
+  return String(row.status || '').trim() === 'תהליך שיווק';
+}
+
 function activeActivitiesYearRows(rows, yearKey) {
-  return activityPeriodRows(rows, yearKey).filter((row) => !isDeletedActivity(row) && !isClosedActivity(row) && isActiveActivity(row));
+  return activityPeriodRows(rows, yearKey).filter((row) => !isMarketingProcessActivity(row) && !isDeletedActivity(row) && !isClosedActivity(row) && isActiveActivity(row));
 }
 
 function archivedActivitiesYearRows(rows, yearKey) {
-  return activityPeriodRows(rows, yearKey).filter((row) => isClosedActivity(row));
+  return activityPeriodRows(rows, yearKey).filter((row) => !isMarketingProcessActivity(row) && isClosedActivity(row));
 }
 
 /**
@@ -303,7 +307,7 @@ function archivedActivitiesYearRows(rows, yearKey) {
  * same list so a rendered row is always openable.
  */
 function allYearActivitiesRows(rows, yearKey) {
-  return activityPeriodRows(rows, yearKey).filter((row) => !isDeletedActivity(row) && !isCancelledActivity(row));
+  return activityPeriodRows(rows, yearKey).filter((row) => !isMarketingProcessActivity(row) && !isDeletedActivity(row) && !isCancelledActivity(row));
 }
 
 function regular2026Rows(rows) {
@@ -361,7 +365,7 @@ function activityRowsForInnerTab(rows, state = {}) {
   const yearKey = normalizeActivityPeriodTab(state.activityPeriodTab);
   const tabKey = normalizeActivitiesInnerTab(state.activitiesInnerTab, yearKey, state);
   return cachedRowsValue(activityPeriodRowsCache, rows, `${yearKey}:${tabKey}`, () => {
-    if (tabKey === ACTIVITIES_INNER_TAB_MARKETING) return [];
+    if (tabKey === ACTIVITIES_INNER_TAB_MARKETING) return activityPeriodRows(rows, yearKey).filter(isMarketingProcessActivity);
     if (tabKey === ACTIVITIES_INNER_TAB_ARCHIVE) return archivedActivitiesYearRows(rows, yearKey);
     if (tabKey === ACTIVITIES_INNER_TAB_ALL) return allYearActivitiesRows(rows, yearKey);
     if (yearKey === ACTIVITY_SEASON_SCHOOL_2027) return activeActivitiesYearRows(rows, yearKey);
@@ -1899,10 +1903,6 @@ export const activitiesScreen = {
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
     state.activitiesInnerTab = normalizeActivitiesInnerTab(state.activitiesInnerTab, state.activityPeriodTab, state);
     ensureActivityPeriodMonth(state, allRows);
-    if (state.activityPeriodTab === ACTIVITY_SEASON_SCHOOL_2027 && state.activitiesInnerTab === ACTIVITIES_INNER_TAB_MARKETING) {
-      const periodTabs = activityPeriodTabsHtml(allRows, state.activityPeriodTab, state);
-      return dsScreenStack(`<section class="ds-activities-screen" dir="rtl"><h2 class="ds-activities-page-title">תהליך שיווק · תשפ״ז</h2>${periodTabs}<div class="ds-card"><div class="ds-card__body"><div class="ds-empty" role="status"><p class="ds-empty__msg">אין פעילויות בתהליך שיווק</p></div></div></div></section>`);
-    }
     if (state.activityPeriodTab === ACTIVITY_SEASON_SCHOOL_2027 && state.activitiesInnerTab === ACTIVITIES_INNER_TAB_COORDINATION) {
       const periodTabs = activityPeriodTabsHtml(allRows, state.activityPeriodTab, state);
       const error = state.activityCoordinationError ? `<p class="ds-error-text" role="alert">לא ניתן לטעון את נתוני אישורי התיאום: ${escapeHtml(state.activityCoordinationError)}</p>` : '';
