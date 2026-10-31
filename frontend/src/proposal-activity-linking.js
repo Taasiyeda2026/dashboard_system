@@ -287,7 +287,7 @@ function bindProposalCreatorHost(root, host) {
     } catch (error) {
       console.error('[proposal-activity-create]', error);
       const message = String(error?.message || '');
-      toast(/instruction_language_required|activities_school_2027_explicit_language_required/.test(message)
+      toast(/יש לבחור שפת הדרכה|instruction_language_required|activities_school_2027_explicit_language_required/.test(message)
         ? 'יש לבחור שפת הדרכה: עברית או ערבית'
         : 'יצירת הפעילויות נכשלה. נא לנסות שוב או לפנות למנהל המערכת.', 'error');
     } finally {
