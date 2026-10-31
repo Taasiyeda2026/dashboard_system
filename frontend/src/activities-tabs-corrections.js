@@ -1,5 +1,5 @@
 import { state } from './state.js';
-import { activitiesScreen } from './screens/activities.js';
+import { activitiesScreen, isMarketingProcessActivity } from './screens/activities.js';
 import {
   ACTIVITY_SEASON_REGULAR,
   ACTIVITY_SEASON_SUMMER_2026,
@@ -69,7 +69,7 @@ function isCancelled(row) {
 }
 
 function isVisibleActivity(row) {
-  return !isDeleted(row) && !isCancelled(row);
+  return !isDeleted(row) && !isCancelled(row) && !isMarketingProcessActivity(row);
 }
 
 function selectedYearKey(activityPeriodTab) {
