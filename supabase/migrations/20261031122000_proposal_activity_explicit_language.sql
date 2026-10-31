@@ -228,7 +228,7 @@ begin
     'activity', coalesce(v_activities -> 0, 'null'::jsonb)
   );
 end;
-$function$
+$function$;
 
 REVOKE ALL ON FUNCTION public.create_activity_from_proposal_item_with_language(uuid,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.create_activity_from_proposal_item_with_language(uuid,text) TO authenticated, service_role;
