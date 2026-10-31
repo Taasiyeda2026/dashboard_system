@@ -289,8 +289,12 @@ function activityPeriodRows(rows, periodKey) {
   return (Array.isArray(rows) ? rows : []).filter((row) => activityYearKey(row) === activeKey);
 }
 
+// Compatibility fallback until the directory view exposes marketing_stage.
+const MARKETING_PROCESS_INITIAL_ROW_IDS = new Set(["ACT-069fe301-c668-4091-a598-7e4ea6a2919e","ACT-9e60f442-33e0-44fb-8591-21349f859b17","ACT-85f3a220-e40c-44d5-b762-d05eca3ce252","PAI-b3a655b5-380b-4048-a3e5-0ec8ad159ac5","PAI-57455eaf-1b66-438e-b6bf-fde67c839dd1","PAI-ae276b4c-9042-4ae0-acff-41fbb558e9b0","ACT-8b3d1333-67d4-4b02-89fc-76686e173e3b","PAI-57455eaf-1b66-438e-b6bf-fde67c839dd1-2","PAI-ae276b4c-9042-4ae0-acff-41fbb558e9b0-2","PAI-ae276b4c-9042-4ae0-acff-41fbb558e9b0-3","PAI-ae276b4c-9042-4ae0-acff-41fbb558e9b0-4","ACT-b94df22c-5297-4352-a153-be38f33bb3d7","ACT-4f2720d5-e8c1-43e1-a810-fbe4ea823db4","ACT-71591401-4c96-4fd7-b428-9a7f5c8869c3","PAI-037508d7-05e9-4655-8d57-d906e8d9effd","ACT-b9931cca-0dfd-4a9d-82d4-85855230f399","school_2027_113","school_2027_115","school_2027_112","school_2027_114"]);
 function isMarketingProcessActivity(row = {}) {
-  return row.marketing_stage === true || row.marketing_stage === 'true';
+  if (row.marketing_stage === true || row.marketing_stage === 'true') return true;
+  if (row.marketing_stage === false || row.marketing_stage === 'false') return false;
+  return MARKETING_PROCESS_INITIAL_ROW_IDS.has(String(row.RowID || row.row_id || '').trim());
 }
 
 function activeActivitiesYearRows(rows, yearKey) {
