@@ -1682,7 +1682,17 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
   stats.already_valid_count += skipped;
   stats.phase = cursor.phase;
 
-  const outcomes = await mapWithConcurrency(slice, BATCH_CONCURRENCY, (pair) => processPair(db, pair, key));
+  // Quota failures are batch-wide, not bad addresses. Stop launching new
+  // provider calls after the first 429 and keep any successful cache writes.
+  let providerQuotaReached = false;
+  const outcomes = await mapWithConcurrency(slice, Math.min(BATCH_CONCURRENCY, 2), async (pair) => {
+    if (providerQuotaReached) {
+      return { dbError: null, failed: true, failure: failureForPair(pair, 'route_provider_rate_limited') };
+    }
+    const outcome = await processPair(db, pair, key);
+    if (outcome.failure?.reason === 'route_provider_rate_limited') providerQuotaReached = true;
+    return outcome;
+  });
   const dbError = outcomes.find((outcome) => outcome && typeof outcome === 'object' && 'dbError' in outcome && outcome.dbError)?.dbError || null;
 
   for (const outcome of outcomes) {
@@ -1707,6 +1717,21 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
   stats.existing_count = Math.min(stats.required_count, stats.existing_count + successfulInserts);
   stats.missing_count = Math.max(0, stats.missing_count - successfulInserts);
   stats.refresh_required_count = Math.max(0, stats.refresh_required_count - successfulRefreshes);
+
+  if (providerQuotaReached) {
+    // Do not advance the build cursor past items left uncalculated by a 429.
+    // Cache writes from successful pairs stay persisted; the next run
+    // rechecks them and only asks Google for genuinely missing routes.
+    return jsonResponse({
+      error: 'route_provider_rate_limited',
+      reason: 'route_provider_rate_limited',
+      ...stats,
+      remaining_count: stats.missing_count + stats.refresh_required_count,
+      next_cursor: encodeCursor(cursor),
+      done: false,
+      failures: stats.failures.slice(0, 50)
+    }, 429);
+  }
 
   if (dbError) {
     return jsonResponse({
