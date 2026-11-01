@@ -476,6 +476,6 @@
 .ifb-form .ifb-q[hidden] { display: none !important; }
 
 /* 0–10 options preserve their stored choice IDs in both RTL languages. */
-.ifb-choices--numeric { display: flex; flex-wrap: wrap; gap: .5rem; }
+.ifb-choices--numeric { display: flex; flex-wrap: wrap; gap: .5rem; direction: ltr; }
 .ifb-choices--numeric .ifb-choice { flex: 0 0 auto; min-width: 2.75rem; }
 .ifb-question-heading { margin-block: 1.5rem .75rem; }
