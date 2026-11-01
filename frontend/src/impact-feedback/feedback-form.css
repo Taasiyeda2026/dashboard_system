@@ -568,3 +568,26 @@
   .ifb-q--staff-final .ifb-rate { max-width: 100%; gap: 4px; }
   .ifb-shell.is-adult .ifb-q--staff-final .ifb-rate:has(.ifb-rate__caption) .ifb-rate__face { min-height: 35px; font-size: 15px; }
 }
+
+
+/* Compact five-band numeric range scale, RTL/LTR and narrow screens. */
+.ifb-q--staff-final .ifb-range-five {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: clamp(4px, 1vw, 9px);
+  max-width: 390px;
+  margin-inline: auto;
+  direction: ltr;
+}
+.ifb-q--staff-final .ifb-range-five__option { position: relative; display: block; min-width: 0; cursor: pointer; }
+.ifb-q--staff-final .ifb-range-five__option input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.ifb-q--staff-final .ifb-range-five__option span {
+  box-sizing: border-box; display: grid; place-items: center; min-height: 40px;
+  padding: 7px 2px; border: 1px solid var(--ifb-line); border-radius: 10px;
+  background: #fbfcfe; font-size: clamp(12px, 1.6vw, 15px); font-weight: 600;
+  color: var(--ifb-ink); font-variant-numeric: tabular-nums;
+}
+.ifb-q--staff-final .ifb-range-five__option input:checked + span { background: #eef1f7; border-color: #65748f; }
+.ifb-q--staff-final .ifb-range-five__option input:focus-visible + span { outline: 3px solid var(--ifb-focus); outline-offset: 2px; }
+.ifb-q--staff-final .ifb-rate__ends { max-width: 390px; margin: 9px auto 0; font-size: 11px; gap: 12px; }
+@media(max-width: 420px) { .ifb-q--staff-final .ifb-range-five__option span { min-height: 36px; } }
