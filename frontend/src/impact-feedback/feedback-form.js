@@ -87,6 +87,22 @@ function ratingHtml(q, value, young, lang = 'he', approvedStudentScale = false) 
 }
 
 function choiceHtml(q, value, multiple, lang = 'he') {
+  if (!multiple && answerRules(q).scale_endpoints) {
+    const buckets = [
+      { label: '0–1', numbers: ['0', '1'], representative: '0' },
+      { label: '2–3', numbers: ['2', '3'], representative: '2' },
+      { label: '4–6', numbers: ['4', '5', '6'], representative: '5' },
+      { label: '7–8', numbers: ['7', '8'], representative: '8' },
+      { label: '9–10', numbers: ['9', '10'], representative: '10' },
+    ];
+    const options = Array.isArray(q.options) ? q.options : [];
+    return `<div class="ifb-range-five" role="radiogroup" aria-label="${esc(q.text)}">${buckets.map((bucket) => {
+      const option = options.find((o) => bucket.numbers.includes(String(o.label ?? o.value)));
+      if (!option) return '';
+      const checked = bucket.numbers.some((n) => options.some((o) => String(o.label ?? o.value) === n && o.value === value));
+      return `<label class="ifb-range-five__option"><input type="radio" name="q-${esc(q.id)}" value="${esc(option.value)}" data-qid="${esc(q.id)}" data-kind="single"${checked ? ' checked' : ''}><span>${bucket.label}</span></label>`;
+    }).join('')}</div>`;
+  }
   const selected = new Set(multiple ? (Array.isArray(value) ? value : []) : [value]);
   const options = Array.isArray(q.options) ? q.options : [];
   return `<div class="ifb-choices${answerRules(q).scale_endpoints ? ' ifb-choices--numeric' : ''}${multiple ? ' is-multi' : ''}" role="${multiple ? 'group' : 'radiogroup'}" aria-label="${esc(q.text)}">
