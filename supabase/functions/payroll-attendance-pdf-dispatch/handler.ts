@@ -554,7 +554,7 @@ async function buildPdfBytes(payload: {
 
   const drawHeader = (first = true) => {
     page.drawRectangle({ x: LEFT, y: first ? 744 : 760, width: CONTENT_W, height: first ? 68 : 42, color: rgb(0.95, 0.97, 1) });
-    drawRtl("תעשיידע — דוח נוכחות חודשי", RIGHT - 14, first ? 782 : 782, first ? 17 : 13, bold, rgb(0.10, 0.27, 0.52));
+    drawRtl("תעשיידע — דוח נוכחות חודשי", RIGHT - 14, first ? 782 : 782, first ? 15 : 12, bold, rgb(0.10, 0.27, 0.52));
     if (first) {
       drawRtl(`${payload.employeeName}  |  ${hebrewMonthYearLabel(payload.monthKey)}`, RIGHT - 14, 758, 10, regular, rgb(0.28, 0.34, 0.44));
       y = 724;
@@ -642,48 +642,45 @@ async function buildPdfBytes(payload: {
       // sizing every row from the lines it will actually draw. The previous
       // fixed base height omitted the secondary line, so expense/travel text
       // could fall below the box and be overdrawn by the next record.
-      const primaryLines = wrapLogical(
-        `${index + 1}. ${date}  |  ${activity}  |  ${time}  |  ${hours} שעות`,
-        bold,
-        8.6,
-        CONTENT_W - 24,
-      );
-      const details = [place, secondary].filter(Boolean).join(" | ");
-      const detailLines = details ? wrapLogical(details, regular, 7.8, CONTENT_W - 24) : [];
-      const noteLines = notes ? wrapLogical(`הערה: ${notes}`, regular, 7.6, CONTENT_W - 24) : [];
-      const PRIMARY_STEP = 10;
-      const DETAIL_STEP = 9.5;
-      const ROW_TOP_AND_BOTTOM = 10;
-      const ROW_GAP = 2.5;
-      const blockHeight = ROW_TOP_AND_BOTTOM
-        + primaryLines.length * PRIMARY_STEP
-        + (detailLines.length + noteLines.length) * DETAIL_STEP;
-      ensureSpace(blockHeight + ROW_GAP);
+      // Separate date/time from the activity description: mixed Hebrew and
+      // numeric runs in a single dense line were difficult to read in Acrobat.
+      const heading = `${index + 1}.  ${date}   |   ${activity}`;
+      const headingLines = wrapLogical(heading, bold, 9.4, CONTENT_W - 160);
+      const timing = `${time}   |   ${hours} שעות`;
+      const placeLines = place ? wrapLogical(place, regular, 8.5, CONTENT_W - 28) : [];
+      const detailLines = secondary ? wrapLogical(secondary, regular, 8.2, CONTENT_W - 28) : [];
+      const noteLines = notes ? wrapLogical(`הערה: ${notes}`, regular, 8.1, CONTENT_W - 28) : [];
+      const HEADER_STEP = 14;
+      const DETAIL_STEP = 12;
+      const blockHeight = 17 + Math.max(1, headingLines.length) * HEADER_STEP
+        + (placeLines.length + detailLines.length + noteLines.length) * DETAIL_STEP + 5;
+      ensureSpace(blockHeight + 5);
 
       page.drawRectangle({
-        x: LEFT,
-        y: y - blockHeight,
-        width: CONTENT_W,
-        height: blockHeight,
-        borderColor: rgb(0.9, 0.92, 0.95),
-        borderWidth: 0.6,
-        color: index % 2 === 0 ? rgb(1, 1, 1) : rgb(0.992, 0.995, 1),
+        x: LEFT, y: y - blockHeight, width: CONTENT_W, height: blockHeight,
+        borderColor: rgb(0.88, 0.91, 0.95), borderWidth: 0.6,
+        color: index % 2 === 0 ? rgb(1, 1, 1) : rgb(0.975, 0.985, 0.998),
       });
-
-      let localY = y - 10;
-      for (const line of primaryLines) {
-        drawRtl(line, RIGHT - 10, localY, 8.6, bold);
-        localY -= PRIMARY_STEP;
+      let localY = y - 17;
+      for (const line of headingLines) {
+        drawRtl(line, RIGHT - 13, localY, 9.4, bold, rgb(0.12, 0.22, 0.36));
+        localY -= HEADER_STEP;
+      }
+      // Fixed left-hand zone prevents duration from running into the title.
+      drawRtl(timing, LEFT + 153, y - 17, 8.4, regular, rgb(0.22, 0.34, 0.49));
+      for (const line of placeLines) {
+        drawRtl(line, RIGHT - 13, localY, 8.5, regular, rgb(0.22, 0.29, 0.39));
+        localY -= DETAIL_STEP;
       }
       for (const line of detailLines) {
-        drawRtl(line, RIGHT - 10, localY, 7.8, regular, rgb(0.28, 0.34, 0.44));
+        drawRtl(line, RIGHT - 13, localY, 8.2, regular, rgb(0.32, 0.40, 0.50));
         localY -= DETAIL_STEP;
       }
       for (const line of noteLines) {
-        drawRtl(line, RIGHT - 10, localY, 7.6, regular, rgb(0.42, 0.46, 0.54));
+        drawRtl(line, RIGHT - 13, localY, 8.1, regular, rgb(0.40, 0.47, 0.55));
         localY -= DETAIL_STEP;
       }
-      y -= blockHeight + ROW_GAP;
+      y -= blockHeight + 5;
     }
   }
 
