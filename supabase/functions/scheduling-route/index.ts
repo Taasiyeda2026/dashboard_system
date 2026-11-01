@@ -1,6 +1,20 @@
 import { parseGoogleRouteMetrics } from './route-metrics.js';
 import { selectPendingRouteBatch } from './pending-batch.js';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import {
+  cacheKey as sharedCacheKey,
+  createRouteMetrics,
+  demandSchoolIdSet,
+  filterPairsByDemandLinks,
+  filterSchoolPairsByDemandSchools,
+  isSuspectBlocked,
+  isUsableCachedRoute,
+  noteCacheHit,
+  noteCacheMiss,
+  noteGoogleCall,
+  routeFlightKey,
+  withRouteSingleflight
+} from '../_shared/travel-cache-contract.js';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -65,7 +79,21 @@ function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: corsHeaders });
 }
 
-const cacheKey = (value: string) => value.toLowerCase().replace(/\s+/g, ' ').trim();
+const cacheKey = (value: string) => sharedCacheKey(value);
+
+async function computeRouteDeduped(
+  origin: string,
+  destination: string,
+  key: string,
+  metrics?: ReturnType<typeof createRouteMetrics>
+) {
+  // Database-First callers must check cache before this. Singleflight collapses
+  // concurrent Google requests for the same directed query string.
+  return withRouteSingleflight(routeFlightKey(origin, destination), async () => {
+    noteGoogleCall(metrics);
+    return computeRoute(origin, destination, key);
+  });
+}
 
 function localityCompareKey(value: string) {
   const normalized = value
@@ -411,26 +439,14 @@ function isFiniteMetric(value: unknown) {
 }
 
 function hasUsableMetrics(cached: Record<string, unknown> | null | undefined, pair?: TravelPair) {
-  if (!cached || cached.location_suspect === true) return false;
-  if (!isFiniteMetric(cached.distance_km) || !isFiniteMetric(cached.duration_minutes)) return false;
-  const distance = Number(cached.distance_km);
-  const duration = Number(cached.duration_minutes);
-  if (distance < 0 || duration < 0) return false;
-  const sameLocation = pair
-    ? isSamePlace(pair.origin_address, pair.destination_address)
-    : isSamePlace(text(cached.origin_address) || text(cached.origin_key), text(cached.destination_address) || text(cached.destination_key));
-  // A verified two-school campus may have a genuine zero driving leg.
-  // Only honor the explicitly audited, typed pair; never extend this to generic same-city addresses.
-  const sharedCampusZero = distance === 0 && duration === 0
-    && cached.provider === 'manager_verified_shared_campus'
-    && cached.origin_type === 'school' && cached.destination_type === 'school'
-    && Number(cached.origin_school_id) > 0
-    && Number(cached.destination_school_id) > 0
-    && Number(cached.origin_school_id) !== Number(cached.destination_school_id);
-  if ((distance === 0 || duration === 0) && !sameLocation
-    && !(distance === 0 && duration === 0 && cached.provider === 'google_verified_zero')
-    && !sharedCampusZero) return false;
-  return true;
+  if (isSuspectBlocked(cached)) return false;
+  const origin = pair?.origin_address || text(cached?.origin_address) || text(cached?.origin_key);
+  const destination = pair?.destination_address || text(cached?.destination_address) || text(cached?.destination_key);
+  return isUsableCachedRoute(cached as Record<string, unknown>, origin, destination, {
+    sameLocation: pair
+      ? isSamePlace(pair.origin_address, pair.destination_address)
+      : isSamePlace(origin, destination)
+  });
 }
 
 function needsRefresh(cached: Record<string, unknown> | null | undefined, now = Date.now()) {
@@ -1456,7 +1472,12 @@ async function inspectPair(db: DbClient, pair: TravelPair) {
   };
 }
 
-async function processPair(db: DbClient, pair: TravelPair, key: string): Promise<PairOutcome> {
+async function processPair(
+  db: DbClient,
+  pair: TravelPair,
+  key: string,
+  metrics?: ReturnType<typeof createRouteMetrics>
+): Promise<PairOutcome> {
   const existing = await findCachedByEntities(db, pair);
   if (existing.error) return { dbError: existing.error };
 
@@ -1487,8 +1508,10 @@ async function processPair(db: DbClient, pair: TravelPair, key: string): Promise
   const wasUsableCurrentRoute = isUsableForPair(matching, pair);
 
   if (isCacheValid(matching, pair)) {
+    noteCacheHit(metrics);
     return { dbError: null, alreadyValid: true };
   }
+  noteCacheMiss(metrics);
 
   // Same normalized address stays local zero — no Maps API call. Still skip upsert
   // when a valid same-address row already exists (checked above).
@@ -1508,7 +1531,12 @@ async function processPair(db: DbClient, pair: TravelPair, key: string): Promise
     };
   }
 
-  const route = await computeRoute(pair.query_origin_address, pair.query_destination_address, key);
+  const route = await computeRouteDeduped(
+    pair.query_origin_address,
+    pair.query_destination_address,
+    key,
+    metrics
+  );
   if (!route.ok) {
     // Never persist a failure as a valid cache row.
     return { dbError: null, failed: true, failure: failureForPair(pair, route.reason) };
@@ -1531,7 +1559,42 @@ async function processPair(db: DbClient, pair: TravelPair, key: string): Promise
   };
 }
 
+async function loadDemandInstructorSchoolLinks(db: DbClient) {
+  const links: Array<{ emp_id: number; school_id: number }> = [];
+  const seen = new Set<string>();
+  const pageSize = 1000;
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await db
+      .from('activities')
+      .select('emp_id,emp_id_2,school_id,activity_season,status')
+      .eq('activity_season', 'school_2027')
+      .range(from, from + pageSize - 1);
+    if (error) return { error, links: [] as Array<{ emp_id: number; school_id: number }> };
+    const rows = (data || []) as Record<string, unknown>[];
+    for (const row of rows) {
+      if (PAYROLL_SKIPPED_STATUSES.has(text(row.status || '').toLocaleLowerCase('he-IL'))) continue;
+      const schoolId = row.school_id == null ? null : Number(row.school_id);
+      if (schoolId == null || !Number.isFinite(schoolId) || schoolId <= 0) continue;
+      for (const empRaw of [row.emp_id, row.emp_id_2]) {
+        const empId = numericEmpId(empRaw);
+        if (empId == null) continue;
+        const key = `${empId}->${schoolId}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        links.push({ emp_id: empId, school_id: schoolId });
+      }
+    }
+    if (rows.length < pageSize) break;
+  }
+  return { error: null, links };
+}
+
 async function runBuildCache(db: DbClient, key: string, payload: Record<string, unknown>) {
+  const metrics = createRouteMetrics(
+    text(payload.coverage_only) === 'true' || text(payload.mode).toLowerCase() === 'coverage'
+      ? 'scheduling_coverage'
+      : 'scheduling_build'
+  );
   const scopeRaw = text(payload.scope || 'all').toLowerCase();
   const limit = Math.min(
     MAX_BATCH_LIMIT,
@@ -1597,11 +1660,24 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
     const deduped = dedupeAuthoritySchools(schoolsWithAddress);
     duplicateCount = deduped.duplicateCount;
 
+    // Database-First demand universe: only instructor↔school pairs that appear on
+    // live school_2027 activities. Never precompute the full cartesian matrix.
+    const demandResult = await loadDemandInstructorSchoolLinks(db);
+    if (demandResult.error) return jsonResponse({ error: 'demand_activity_lookup_failed' }, 500);
+    const demandLinks = demandResult.links;
+    const demandSchools = demandSchoolIdSet(demandLinks);
+
     instructorPairs = (scope === 'instructor_school' || scope === 'all')
-      ? dedupeTravelPairs(buildInstructorSchoolPairs(instructors, deduped.schools))
+      ? dedupeTravelPairs(filterPairsByDemandLinks(
+        buildInstructorSchoolPairs(instructors, deduped.schools),
+        demandLinks
+      ))
       : [];
     schoolPairs = (scope === 'school_school' || scope === 'all')
-      ? dedupeTravelPairs(buildSchoolSchoolPairs(deduped.schools))
+      ? dedupeTravelPairs(filterSchoolPairsByDemandSchools(
+        buildSchoolSchoolPairs(deduped.schools),
+        demandSchools
+      ))
       : [];
     if (scope === 'all' && instructorPairs.length) {
       const instructorRouteKeys = new Set(instructorPairs.map((pair) => `${pair.origin_key}->${pair.destination_key}`));
@@ -1659,7 +1735,7 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
   stats.refresh_required_count = 0;
 
   if (payload.coverage_only === true || text(payload.mode).toLowerCase() === 'coverage') {
-    return jsonResponse({ calculated: true, coverage: true, ...stats, done: true });
+    return jsonResponse({ calculated: true, coverage: true, ...stats, done: true, route_metrics: metrics });
   }
 
   const initialPhase: BuildCursor['phase'] = scope === 'school_school'
@@ -1689,7 +1765,7 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
     if (providerQuotaReached) {
       return { dbError: null, failed: true, failure: failureForPair(pair, 'route_provider_rate_limited') };
     }
-    const outcome = await processPair(db, pair, key);
+    const outcome = await processPair(db, pair, key, metrics);
     if (outcome.failure?.reason === 'route_provider_rate_limited') providerQuotaReached = true;
     return outcome;
   });
@@ -1770,7 +1846,8 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
   return jsonResponse({
     calculated: true,
     build: true,
-    ...stats
+    ...stats,
+    route_metrics: metrics
   });
 }
 
@@ -1900,13 +1977,15 @@ async function resolveDynamicRoutePair(
   db: DbClient,
   googleKey: string,
   pair: RouteLookupPayload,
-  cached: Record<string, unknown> | null | undefined
+  cached: Record<string, unknown> | null | undefined,
+  metrics?: ReturnType<typeof createRouteMetrics>
 ) {
   const hadPrevious = !!cached;
-  if (cached?.location_suspect === true) {
+  if (isSuspectBlocked(cached)) {
     return { calculated: false as const, reason: 'location_review_required', error: 'location_review_required' };
   }
   if (cached && isLookupCacheValid(cached, pair.origin, pair.destination)) {
+    noteCacheHit(metrics);
     return {
       calculated: true as const,
       cached: true as const,
@@ -1916,13 +1995,14 @@ async function resolveDynamicRoutePair(
       duration_minutes: Number(cached.duration_minutes)
     };
   }
+  noteCacheMiss(metrics);
 
   if (isSamePlace(pair.origin, pair.destination)) {
     const zero = await persistDynamicRoute(db, pair, { distance_km: 0, duration_minutes: 0, provider: 'same_school' }, hadPrevious);
     return zero;
   }
 
-  const route = await computeRoute(pair.queryOrigin, pair.queryDestination, googleKey);
+  const route = await computeRouteDeduped(pair.queryOrigin, pair.queryDestination, googleKey, metrics);
   if (!route.ok) {
     return {
       calculated: false as const,
@@ -1934,6 +2014,7 @@ async function resolveDynamicRoutePair(
 }
 
 async function runBatchDynamicRouteLookup(db: DbClient, googleKey: string, payload: Record<string, unknown>) {
+  const metrics = createRouteMetrics('scheduling_lookup');
   const rawPairs = Array.isArray(payload.pairs) ? payload.pairs as DynamicRouteRequest[] : [];
   if (!rawPairs.length) return jsonResponse({ error: 'missing_pairs' }, 400);
   if (rawPairs.length > MAX_BATCH_LOOKUP_PAIRS) {
@@ -1956,12 +2037,11 @@ async function runBatchDynamicRouteLookup(db: DbClient, googleKey: string, paylo
 
   const results: Record<string, Record<string, unknown>> = {};
   const unresolved: RouteLookupPayload[] = [];
-  let cacheHits = 0;
 
   for (const pair of pairs) {
     const cached = cacheByRoute.get(`${pair.originKey}->${pair.destinationKey}`) || null;
     if (cached && isLookupCacheValid(cached, pair.origin, pair.destination)) {
-      cacheHits += 1;
+      noteCacheHit(metrics);
       results[pair.routeKey] = {
         calculated: true,
         cached: true,
@@ -1977,18 +2057,14 @@ async function runBatchDynamicRouteLookup(db: DbClient, googleKey: string, paylo
 
   const googleOutcomes = await mapWithConcurrency(unresolved, BATCH_LOOKUP_GOOGLE_CONCURRENCY, async (pair) => {
     const cached = cacheByRoute.get(`${pair.originKey}->${pair.destinationKey}`) || null;
-    const outcome = await resolveDynamicRoutePair(db, googleKey, pair, cached);
+    const outcome = await resolveDynamicRoutePair(db, googleKey, pair, cached, metrics);
     return { pair, outcome };
   });
 
-  let googleCalls = 0;
   for (const item of googleOutcomes) {
     if (item instanceof Error) continue;
     const { pair, outcome } = item;
     results[pair.routeKey] = outcome as Record<string, unknown>;
-    if (outcome.calculated && outcome.cached === false && outcome.reason !== 'cache_write_failed') {
-      googleCalls += 1;
-    }
   }
 
   return jsonResponse({
@@ -1997,10 +2073,11 @@ async function runBatchDynamicRouteLookup(db: DbClient, googleKey: string, paylo
     results,
     stats: {
       requested: pairs.length,
-      cache_hits: cacheHits,
-      google_calls: googleCalls,
+      cache_hits: metrics.cache_hits,
+      google_calls: metrics.google_calls,
       unresolved: unresolved.length
-    }
+    },
+    route_metrics: metrics
   });
 }
 
@@ -2109,26 +2186,40 @@ Deno.serve(async (req) => {
     .maybeSingle();
   if (cacheReadError) return jsonResponse({ calculated: false, reason: 'cache_read_failed', error: 'cache_read_failed' }, 500);
 
+  const metrics = createRouteMetrics('scheduling_lookup');
   const hadPrevious = !!cached;
-  if (cached?.location_suspect === true) {
-    return jsonResponse({ calculated: false, reason: 'location_review_required', error: 'location_review_required' }, 409);
+  if (isSuspectBlocked(cached)) {
+    return jsonResponse({
+      calculated: false,
+      reason: 'location_review_required',
+      error: 'location_review_required',
+      route_metrics: metrics
+    }, 409);
   }
   if (cached && hasUsableMetrics(cached) && (!text(cached.origin_address) || text(cached.origin_address) === origin)
     && (!text(cached.destination_address) || text(cached.destination_address) === destination)) {
+    noteCacheHit(metrics);
     return jsonResponse({
       calculated: true,
       cached: true,
       renewed: false,
       needs_refresh: needsRefresh(cached),
       distance_km: Number(cached.distance_km),
-      duration_minutes: Number(cached.duration_minutes)
+      duration_minutes: Number(cached.duration_minutes),
+      route_metrics: metrics
     });
   }
+  noteCacheMiss(metrics);
 
   // Same address text is not sufficient proof of identical physical school locations.
   if (isSamePlace(origin, destination) && originSchoolName && destinationSchoolName
       && localityCompareKey(originSchoolName) !== localityCompareKey(destinationSchoolName)) {
-    return jsonResponse({ calculated: false, reason: 'ambiguous_school_location', error: 'ambiguous_school_location' }, 409);
+    return jsonResponse({
+      calculated: false,
+      reason: 'ambiguous_school_location',
+      error: 'ambiguous_school_location',
+      route_metrics: metrics
+    }, 409);
   }
   // Same normalized address: zero local route only when no separate school identity is supplied.
   if (isSamePlace(origin, destination)) {
@@ -2146,21 +2237,27 @@ Deno.serve(async (req) => {
       query_destination_address: queryDestination
     });
     if (cacheWriteError) {
-      return jsonResponse({ calculated: false, reason: 'cache_write_failed', error: 'cache_write_failed' }, 500);
+      return jsonResponse({
+        calculated: false,
+        reason: 'cache_write_failed',
+        error: 'cache_write_failed',
+        route_metrics: metrics
+      }, 500);
     }
     return jsonResponse({
       calculated: true,
       cached: false,
       renewed: hadPrevious,
       distance_km: 0,
-      duration_minutes: 0
+      duration_minutes: 0,
+      route_metrics: metrics
     });
   }
 
-  const route = await computeRoute(queryOrigin, queryDestination, key);
+  const route = await computeRouteDeduped(queryOrigin, queryDestination, key, metrics);
   if (!route.ok) {
     return jsonResponse(
-      { calculated: false, reason: route.reason, error: route.reason },
+      { calculated: false, reason: route.reason, error: route.reason, route_metrics: metrics },
       route.reason === 'route_not_found' ? 422 : 502
     );
   }
@@ -2179,7 +2276,12 @@ Deno.serve(async (req) => {
     query_destination_address: queryDestination
   });
   if (cacheWriteError) {
-    return jsonResponse({ calculated: false, reason: 'cache_write_failed', error: 'cache_write_failed' }, 500);
+    return jsonResponse({
+      calculated: false,
+      reason: 'cache_write_failed',
+      error: 'cache_write_failed',
+      route_metrics: metrics
+    }, 500);
   }
 
   return jsonResponse({
@@ -2187,6 +2289,7 @@ Deno.serve(async (req) => {
     cached: false,
     renewed: hadPrevious,
     distance_km: route.distance_km,
-    duration_minutes: route.duration_minutes
+    duration_minutes: route.duration_minutes,
+    route_metrics: metrics
   });
 });

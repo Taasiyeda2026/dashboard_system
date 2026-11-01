@@ -1,4 +1,16 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import {
+  cacheKey,
+  createRouteMetrics,
+  createRouteSingleflight,
+  isSuspectBlocked,
+  isUsableCachedRoute,
+  noteCacheHit,
+  noteCacheMiss,
+  noteGoogleCall,
+  routeFlightKey,
+  text
+} from '../_shared/travel-cache-contract.js';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -11,12 +23,10 @@ const GREENWORK_ADDRESS = '6RVR+XM, יקום';
 const GREENWORK_QUERY = 'Greenwork, 6RVR+XM, יקום, ישראל';
 const CACHE_EXPIRES_AT = '9999-12-31T23:59:59.999Z';
 const CONCURRENCY = 4;
+const withRouteSingleflight = createRouteSingleflight();
 
 const response = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: corsHeaders });
-
-const text = (value: unknown) => String(value ?? '').trim();
-const cacheKey = (value: string) => value.toLowerCase().replace(/\s+/g, ' ').trim();
 
 function constantTimeMatch(expected: string, provided: string) {
   const enc = new TextEncoder();
@@ -53,7 +63,15 @@ async function googleRoute(origin: string, destination: string, key: string) {
   return { distance_km: distance, duration_minutes: Math.ceil(seconds / 60) };
 }
 
-async function cachedRoute(db: any, origin: string, destination: string, key: string, queryOrigin?: string, queryDestination?: string) {
+async function cachedRoute(
+  db: any,
+  origin: string,
+  destination: string,
+  key: string,
+  metrics: ReturnType<typeof createRouteMetrics>,
+  queryOrigin?: string,
+  queryDestination?: string
+) {
   const originKey = cacheKey(origin);
   const destinationKey = cacheKey(destination);
   const { data: cached, error } = await db.from('scheduling_travel_cache').select('*')
@@ -61,48 +79,70 @@ async function cachedRoute(db: any, origin: string, destination: string, key: st
     .eq('destination_key', destinationKey)
     .maybeSingle();
   if (error) throw new Error('cache_read_failed');
-  if (cached?.location_suspect === true) throw new Error('location_review_required'); // Await explicit location verification.
+  if (isSuspectBlocked(cached)) throw new Error('location_review_required'); // Await explicit location verification.
 
-  const cachedDistance = Number(cached?.distance_km);
-  const cachedDuration = Number(cached?.duration_minutes);
-  if (
-    cached
-    && Number.isFinite(cachedDistance)
-    && Number.isFinite(cachedDuration)
-    && cachedDistance >= 0
-    && cachedDuration >= 0
-    && (!text(cached.origin_address) || text(cached.origin_address) === origin)
-    && (!text(cached.destination_address) || text(cached.destination_address) === destination)
-  ) {
-    return { distance_km: cachedDistance, duration_minutes: cachedDuration, cached: true };
+  if (isUsableCachedRoute(cached, origin, destination)) {
+    noteCacheHit(metrics);
+    return {
+      distance_km: Number(cached.distance_km),
+      duration_minutes: Number(cached.duration_minutes),
+      cached: true
+    };
   }
+  noteCacheMiss(metrics);
 
-  const calculated = originKey === destinationKey
-    ? { distance_km: 0, duration_minutes: 0 }
-    : await googleRoute(queryOrigin || origin, queryDestination || destination, key);
-
-  const { error: writeError } = await db.from('scheduling_travel_cache').upsert({
-    origin_key: originKey,
-    destination_key: destinationKey,
-    distance_km: calculated.distance_km,
-    duration_minutes: calculated.duration_minutes,
-    provider: originKey === destinationKey ? 'same_school' : 'google',
-    calculated_at: new Date().toISOString(),
-    expires_at: CACHE_EXPIRES_AT,
-    origin_address: origin,
-    destination_address: destination,
-    query_origin_address: queryOrigin || origin,
-    query_destination_address: queryDestination || destination
+  const calculated = await withRouteSingleflight(routeFlightKey(originKey, destinationKey), async () => {
+    const { data: again, error: againError } = await db.from('scheduling_travel_cache').select('*')
+      .eq('origin_key', originKey)
+      .eq('destination_key', destinationKey)
+      .maybeSingle();
+    if (againError) throw new Error('cache_read_failed');
+    if (isSuspectBlocked(again)) throw new Error('location_review_required');
+    if (isUsableCachedRoute(again, origin, destination)) {
+      noteCacheHit(metrics);
+      return {
+        distance_km: Number(again.distance_km),
+        duration_minutes: Number(again.duration_minutes),
+        cached: true
+      };
+    }
+    if (originKey === destinationKey) {
+      return { distance_km: 0, duration_minutes: 0, cached: false };
+    }
+    noteGoogleCall(metrics);
+    const google = await googleRoute(queryOrigin || origin, queryDestination || destination, key);
+    return { ...google, cached: false };
   });
-  if (writeError) throw new Error('cache_write_failed');
-  return { ...calculated, cached: false };
+
+  if (!calculated.cached) {
+    const { error: writeError } = await db.from('scheduling_travel_cache').upsert({
+      origin_key: originKey,
+      destination_key: destinationKey,
+      distance_km: calculated.distance_km,
+      duration_minutes: calculated.duration_minutes,
+      provider: originKey === destinationKey ? 'same_school' : 'google',
+      calculated_at: new Date().toISOString(),
+      expires_at: CACHE_EXPIRES_AT,
+      origin_address: origin,
+      destination_address: destination,
+      query_origin_address: queryOrigin || origin,
+      query_destination_address: queryDestination || destination
+    });
+    if (writeError) throw new Error('cache_write_failed');
+  }
+  return calculated;
 }
 
-async function instructorRoute(db: any, address: string, key: string) {
+async function instructorRoute(
+  db: any,
+  address: string,
+  key: string,
+  metrics: ReturnType<typeof createRouteMetrics>
+) {
   const addressQuery = address + ', ישראל';
   const [outbound, returning] = await Promise.all([
-    cachedRoute(db, address, GREENWORK_ADDRESS, key, addressQuery, GREENWORK_QUERY),
-    cachedRoute(db, GREENWORK_ADDRESS, address, key, GREENWORK_QUERY, addressQuery)
+    cachedRoute(db, address, GREENWORK_ADDRESS, key, metrics, addressQuery, GREENWORK_QUERY),
+    cachedRoute(db, GREENWORK_ADDRESS, address, key, metrics, GREENWORK_QUERY, addressQuery)
   ]);
   return {
     outbound_travel_minutes: outbound.duration_minutes,
@@ -199,9 +239,10 @@ Deno.serve(async (req) => {
     let cached = 0;
     let reconciledPending = 0;
     let reconcileFailed = 0;
+    const metrics = createRouteMetrics('base_training');
     const results = await mapWithConcurrency(active, CONCURRENCY, async (row: any) => {
       try {
-        const route = await instructorRoute(db, text(row.address), googleKey);
+        const route = await instructorRoute(db, text(row.address), googleKey, metrics);
         if (route.cached) cached += 1;
         const reconciliation = await reconcilePendingBaseTraining(db, Number(row.emp_id), route);
         reconciledPending += reconciliation.resolved;
@@ -220,7 +261,8 @@ Deno.serve(async (req) => {
       cached,
       failed,
       reconciled_pending: reconciledPending,
-      reconcile_failed: reconcileFailed
+      reconcile_failed: reconcileFailed,
+      route_metrics: metrics
     });
   }
 
@@ -238,8 +280,9 @@ Deno.serve(async (req) => {
     return response({ ok: false, status: 'unavailable', reason: 'instructor_address_missing' }, 422);
   }
 
+  const metrics = createRouteMetrics('base_training');
   try {
-    const route = await instructorRoute(db, address, googleKey);
+    const route = await instructorRoute(db, address, googleKey, metrics);
     const reconciliation = await reconcilePendingBaseTraining(db, empId, route);
     const oneWayKm = Math.max(
       Number(route.outbound_distance_km) || 0,
@@ -252,9 +295,15 @@ Deno.serve(async (req) => {
       destination_label: 'Greenwork, יקום',
       show_travel_report_reminder: oneWayKm > 40,
       reconciled_pending: reconciliation.resolved,
-      reconcile_failed: reconciliation.failed
+      reconcile_failed: reconciliation.failed,
+      route_metrics: metrics
     });
   } catch (error) {
-    return response({ ok: false, status: 'unavailable', reason: text((error as Error)?.message) || 'route_service_unavailable' }, 502);
+    return response({
+      ok: false,
+      status: 'unavailable',
+      reason: text((error as Error)?.message) || 'route_service_unavailable',
+      route_metrics: metrics
+    }, 502);
   }
 });
