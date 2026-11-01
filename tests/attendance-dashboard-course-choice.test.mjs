@@ -64,7 +64,9 @@ test('course clock times are never padded, while 45/90-minute paid hours remain 
     ['10:00', '10:45', 1],
     ['10:00', '11:30', 2],
     ['10:00', '12:00', 2],
-    ['10:00', '11:25', 1.42],
+    ['10:00', '11:25', 2],
+    ['10:00', '11:40', 2],
+    ['10:00', '11:45', 2],
   ];
   for (const [start_time, end_time, paidHours] of cases) {
     const resolved = resolveDashboardCourseChoice(buildDashboardCourseOptions([{ ...base, start_time, end_time }])[0], [{ ...base, start_time, end_time }]);

@@ -554,7 +554,7 @@ function sharePointRootButton(schoolYear) {
 function buildScopedAttendanceApi(roster, snapshot = null, preloadedRecords = null) {
   const rosterIds = new Set(roster.map((row) => text(row.emp_id)).filter(Boolean));
   const snapshotRecords = Array.isArray(snapshot?.records) ? snapshot.records : null;
-  const scopedPreloadedRecords = (snapshotRecords || (Array.isArray(preloadedRecords) ? preloadedRecords : null))
+  let scopedPreloadedRecords = (snapshotRecords || (Array.isArray(preloadedRecords) ? preloadedRecords : null))
     ?.filter((row) => rosterIds.has(rawEmployeeId(row))) || null;
   const syntheticEmployees = roster.map((row) => ({
     employeeId: text(row.emp_id),
@@ -615,11 +615,14 @@ function buildScopedAttendanceApi(roster, snapshot = null, preloadedRecords = nu
       if (prop === 'attendanceControlMonthWorkflowStatuses' && snapshot) {
         return async () => Array.isArray(snapshot.workflow) ? snapshot.workflow : [];
       }
-      if (prop === 'attendanceControlUpdateRecord' || prop === 'attendanceControlApproveRecord') {
+      if (prop === 'attendanceControlUpdateRecord' || prop === 'attendanceControlApproveRecord'
+          || prop === 'reviewAttendanceTravelCompensation') {
         return async (...args) => {
           const value = await target[prop](...args);
           attendanceReviewSnapshotCache.clear();
           attendanceSummaryCache.clear();
+          snapshot = null;
+          scopedPreloadedRecords = null;
           return value;
         };
       }
