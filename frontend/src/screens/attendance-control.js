@@ -1023,7 +1023,12 @@ function displayDashboardWorkHours(dashboard) {
   if (!dashboard) return '—';
   const hours = rowWorkHours(dashboard);
   if (hours != null) return formatDurationHours(hours);
-  if (dashboard.payrollHoursRequireReview) return 'לא ניתן לחשב';
+  if (dashboard.payrollHoursRequireReview) {
+    const minutes = calculateWorkHours(dashboard.startTime, dashboard.endTime) * 60;
+    return minutes > 0
+      ? `משך מתוכנן ${formatDurationHours(minutes / 60)} – לא תואם יחידת שעות שכר`
+      : 'אין נתוני שעות תקינים בתכנון – נדרשת בדיקה';
+  }
   return '—';
 }
 
@@ -1975,7 +1980,17 @@ export function travelCompensationDisplay(source = {}) {
     const rows = [
       ['זמן נסיעה הלוך', formatTravelMinutesClock(source.outboundTravelMinutes)],
       ['זמן נסיעה חזור', formatTravelMinutesClock(source.returnTravelMinutes)],
-      ...(relevant ? [['ביטול זמן', formatTravelMinutesClock(source.finalCancellationMinutes)]] : []),
+      ...(relevant ? [
+        ['ביטול זמן מחושב', source.calculatedCancellationMinutes == null ? 'טרם חושב' : formatTravelMinutesClock(source.calculatedCancellationMinutes)],
+        ['סטטוס ביטול זמן', ({
+          awaiting_report: 'ממתין לדיווח המדריך',
+          auto_matched: 'תואם – ממתין לאישור מנהל',
+          pending_review: 'ממתין להחלטת מנהל',
+          approved: 'אושר',
+          rejected: 'נדחה'
+        })[txt(source.reviewStatus)] || (source.approvedCancellationMinutes != null ? 'אושר' : 'טרם הוכרע')],
+        ['ביטול זמן מאושר לתשלום', source.approvedCancellationMinutes == null ? 'טרם אושר' : formatTravelMinutesClock(source.approvedCancellationMinutes)]
+      ] : []),
       ['מקור חישוב', 'מחושב אוטומטית לפי זמן הנסיעה']
     ];
     if (source.manuallyOverridden && source.calculatedCancellationMinutes != null) {
