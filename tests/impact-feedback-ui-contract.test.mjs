@@ -745,7 +745,7 @@ test('five student syllabi use the approved age-appropriate bilingual layout and
   assert.match(publicForm, /const syllabusStudent = isSyllabusStudent\(payload\)/);
   assert.match(publicForm, /const approvedStudentScale = biomimicryArabic \|\| syllabusStudent/);
   assert.match(publicForm, /const femaleStudent = syllabusStudent && payload\.program_key === 'trailblazers'/);
-  assert.match(publicForm, /introHtml\(arabic \? payload\.intro_text_ar : payload\.intro_text, arabic \? 'ar' : 'he', approvedStudentScale\)/);
+  assert.match(publicForm, /introHtml\(arabic \? payload\.intro_text_ar : payload\.intro_text, arabic \? 'ar' : 'he', approvedStudentScale \|\| \(payload\.audience === 'educational_staff' && payload\.stage === 'final'\)\)/);
   assert.match(publicForm, /approvedFreeTextIntroHtml\(arabic, femaleStudent, biomimicryArabic\)/);
   assert.match(publicForm, /اقرأن كل جملة/);
   assert.match(publicForm, /קראו כל משפט/);

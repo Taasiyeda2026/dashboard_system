@@ -12,8 +12,12 @@
 export function conditionalQuestionVisible(question, answers = {}, questions = []) {
   const byId = new Map(questions.map((q) => [String(q.id), q]));
   const visibility = (item, seen) => {
-    const rule = item?.visible_when;
+    const rule = item?.visible_when || item?.scoring?.visible_when;
     if (!rule) return true;
+    if (Array.isArray(rule.any)) {
+      return rule.any.length > 0 && rule.any.some((branch) =>
+        visibility({ ...item, visible_when: branch }, seen));
+    }
     if (!rule.parent_id || seen.has(String(item.id))) return false;
     const parent = byId.get(String(rule.parent_id));
     if (!parent || seen.has(String(parent.id))) return false;
