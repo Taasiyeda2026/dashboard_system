@@ -214,7 +214,7 @@ const DAILY_KM_TOLERANCE = 5;
 function dashboardPayrollHours(startTime, endTime) {
   const minutes = calculateWorkHours(startTime, endTime) * 60;
   if (Math.abs(minutes - 45) < 0.01) return 1;
-  if (Math.abs(minutes - 90) < 0.01) return 2;
+  if (minutes >= 80 && minutes <= 90) return 2;
   if (minutes >= 120 && Math.abs(minutes % 15) < 0.01) return minutes / 60;
   return null;
 }
