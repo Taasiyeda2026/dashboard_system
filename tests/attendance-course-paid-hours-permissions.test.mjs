@@ -18,7 +18,7 @@ test('helper remains inaccessible to the API roles and does not require private 
 });
 
 test('existing paid hours and approval rules are preserved', () => {
-  assert.match(sql, /paid_minutes'\\)::integer is distinct from 120/i);
+  assert.ok(sql.includes("(v_work->>'paid_minutes')::integer is distinct from 120"));
   assert.match(sql, /p_row\\.total_hours := 2;/i);
   assert.match(sql, /attendance_manager_record_reviews/i);
   assert.match(sql, /attendance_month_approvals/i);
