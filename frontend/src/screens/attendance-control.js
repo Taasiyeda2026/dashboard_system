@@ -214,7 +214,7 @@ const DAILY_KM_TOLERANCE = 5;
 function dashboardPayrollHours(startTime, endTime) {
   const minutes = calculateWorkHours(startTime, endTime) * 60;
   if (Math.abs(minutes - 45) < 0.01) return 1;
-  if (Math.abs(minutes - 90) < 0.01) return 2;
+  if (minutes >= 80 && minutes <= 90) return 2;
   if (minutes >= 120 && Math.abs(minutes % 15) < 0.01) return minutes / 60;
   return null;
 }
@@ -1026,8 +1026,8 @@ function displayDashboardWorkHours(dashboard) {
   if (dashboard.payrollHoursRequireReview) {
     const minutes = calculateWorkHours(dashboard.startTime, dashboard.endTime) * 60;
     return minutes > 0
-      ? `משך מתוכנן ${formatDurationHours(minutes / 60)} – לא תואם יחידת שעות שכר`
-      : 'אין נתוני שעות תקינים בתכנון – נדרשת בדיקה';
+      ? formatDurationHours(minutes / 60)
+      : '—';
   }
   return '—';
 }
@@ -1991,7 +1991,7 @@ export function travelCompensationDisplay(source = {}) {
         })[txt(source.reviewStatus)] || (source.approvedCancellationMinutes != null ? 'אושר' : 'טרם הוכרע')],
         ['ביטול זמן מאושר לתשלום', source.approvedCancellationMinutes == null ? 'טרם אושר' : formatTravelMinutesClock(source.approvedCancellationMinutes)]
       ] : []),
-      ['מקור חישוב', 'מחושב אוטומטית לפי זמן הנסיעה']
+      ['', '']
     ];
     if (source.manuallyOverridden && source.calculatedCancellationMinutes != null) {
       rows.push(['ביטול זמן מחושב במקור', formatTravelMinutesClock(source.calculatedCancellationMinutes)]);
@@ -2242,7 +2242,7 @@ export function resultsHtml(result, month = '', options = {}) {
     }
     travelCompensationDisplay(source).forEach(([label, value]) => {
       if (!includeCancellation && label.startsWith('ביטול זמן')) return;
-      if (hasValue(value)) parts.push(`${label}: ${value}`);
+      if (label && hasValue(value)) parts.push(`${label}: ${value}`);
     });
     return parts.length
       ? `<div class="attendance-control__report-meta"><strong>נסיעות</strong>${parts.map((part) => `<span>${shown(part)}</span>`).join('')}</div>`
