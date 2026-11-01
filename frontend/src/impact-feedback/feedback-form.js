@@ -158,7 +158,7 @@ function introHtml(text, lang = 'he', showApprovedFullText = false) {
   const source = String(text || '').trim();
   if (!source) return '';
   if (source.startsWith('לצוות החינוכי שלום,') && source.endsWith('תודה על הקדשת הזמן ועל שיתוף הפעולה!')) {
-    const lines = source.split(/\\r?\\n|\\\\n/).map((line) => line.trim()).filter(Boolean);
+    const lines = source.split(/\r?\n|\\n/).map((line) => line.trim()).filter(Boolean);
     return `<div class="ifb-hero__intro ifb-hero__intro--staff-final" dir="rtl">${lines.map((line, i) =>
       `<p class="${i === 0 ? 'ifb-hero__lead' : i === lines.length - 1 ? 'ifb-hero__guidance' : 'ifb-hero__details'}">${i === 0 || i === lines.length - 1 ? `<strong>${esc(line)}</strong>` : esc(line)}</p>`
     ).join('')}</div>`;
