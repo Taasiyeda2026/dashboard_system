@@ -262,7 +262,7 @@ export function dashboardCourseWork(rows = []) {
   }
   const paidMinutes = sessions.reduce((sum, [start, end]) => {
     const scheduledMinutes = end - start;
-    return sum + (scheduledMinutes === 45 ? 60 : scheduledMinutes === 90 ? 120 : scheduledMinutes);
+    return sum + (scheduledMinutes === 45 ? 60 : scheduledMinutes >= 80 && scheduledMinutes <= 90 ? 120 : scheduledMinutes);
   }, 0);
   return {
     startTime: formatClockMinutes(Math.min(...sessions.map(row => row[0]))),
