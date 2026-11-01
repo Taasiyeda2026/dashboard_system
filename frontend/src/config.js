@@ -580,3 +580,5 @@ config.HOTFIX_VERSION = 'attendance-transit-km-comparison-20261030-v1-' + config
 config.HOTFIX_VERSION = 'planning-display-server-certified-20261030-v1-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = 'feedback-complete-questionnaires-20261031-v1-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-staff-final-2546-20261101-v1`;

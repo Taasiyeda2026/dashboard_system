@@ -1597,7 +1597,7 @@ function completeInstructorAnswerValueHtml(fact) {
     return fact.value_bool === true ? 'כן' : fact.value_bool === false ? 'לא' : 'לא נענה';
   }
   if (fact.question_type === 'single_select' || fact.question_type === 'multi_select') {
-    return '<span dir="auto">' + esc(values.map((v) => labels[String(v)] || String(v)).join(' · ') || 'לא נענה') + '</span>';
+    return '<span dir="auto">' + esc([values.map((v) => labels[String(v)] || String(v)).join(' · '), fact.value_text].filter(Boolean).join(' — ') || 'לא נענה') + '</span>';
   }
   if (fact.question_type === 'free_text' || fact.value_text != null) {
     const answer = String(fact.value_text ?? '');

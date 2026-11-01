@@ -560,7 +560,7 @@ export function multiSelectDistribution(facts = []) {
 
 export function openAnswers(facts = []) {
   return facts
-    .filter((f) => f.question_type === 'free_text' && String(f.value_text || '').trim())
+    .filter((f) => (f.question_type === 'free_text' || f.scoring?.other_value) && String(f.value_text || '').trim())
     .map((f) => ({
       answer_id: f.answer_id,
       text: String(f.value_text).trim(),
@@ -1075,7 +1075,7 @@ function answerDisplayValue(fact, optionLabels = {}) {
   if (fact.question_type === 'rating_1_5') return isNaFact(fact) ? 'לא רלוונטי' : (fact.value_number ?? '');
   if (fact.question_type === 'yes_no') return fact.value_bool === true ? 'כן' : fact.value_bool === false ? 'לא' : '';
   if (fact.question_type === 'single_select' || fact.question_type === 'multi_select') {
-    return (fact.value_options || []).map((v) => labels[v] || v).join(', ');
+    return [(fact.value_options || []).map((v) => labels[v] || v).join(', '), fact.value_text].filter(Boolean).join(' — ');
   }
   return fact.value_text ?? '';
 }
