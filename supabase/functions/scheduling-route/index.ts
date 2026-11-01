@@ -1718,6 +1718,21 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
   stats.missing_count = Math.max(0, stats.missing_count - successfulInserts);
   stats.refresh_required_count = Math.max(0, stats.refresh_required_count - successfulRefreshes);
 
+  if (providerQuotaReached) {
+    // Do not advance the build cursor past items left uncalculated by a 429.
+    // Cache writes from successful pairs stay persisted; the next run
+    // rechecks them and only asks Google for genuinely missing routes.
+    return jsonResponse({
+      error: 'route_provider_rate_limited',
+      reason: 'route_provider_rate_limited',
+      ...stats,
+      remaining_count: stats.missing_count + stats.refresh_required_count,
+      next_cursor: encodeCursor(cursor),
+      done: false,
+      failures: stats.failures.slice(0, 50)
+    }, 429);
+  }
+
   if (dbError) {
     return jsonResponse({
       error: 'cache_write_failed',
