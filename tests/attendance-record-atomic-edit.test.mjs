@@ -86,17 +86,19 @@ function sourceRecord(overrides = {}) {
   };
 }
 
-async function mountControl({ approved = false, failUpdate = { value: false }, records = null } = {}) {
+async function mountControl({ approved = false, failUpdate = { value: false }, records = null, activities = [] } = {}) {
   const updateCalls = [];
   const approvalCalls = [];
+  const travelReviewCalls = [];
   const api = {
+    reviewAttendanceTravelCompensation: async (payload) => { travelReviewCalls.push(payload); return {}; },
     attendanceControlTeams: async () => ([
       { employeeId: '1507', employeeName: 'דנה בדיקה', team: 't1', Team: 't1', role: 'instructor' },
       { employeeId: 'm1', employeeName: 'מנהל', team: 't1', Team: 't1', role: 'manager' }
     ]),
     attendanceControlRecords: async () => (records || [sourceRecord()]).map((row) => ({ ...row })),
     attendanceControlDashboardSources: async () => ({
-      activities: [],
+      activities,
       contacts: [{ emp_id: 1507, full_name: 'דנה בדיקה', home_address: 'תל אביב' }],
       travelCache: [],
       expenses: [],
@@ -155,6 +157,7 @@ async function mountControl({ approved = false, failUpdate = { value: false }, r
     status: host.querySelector('[data-attendance-status]'),
     updateCalls,
     approvalCalls,
+    travelReviewCalls,
     failUpdate
   };
 }
@@ -302,4 +305,71 @@ test('public transport and kilometers remain mutually exclusive in one atomic sa
   assert.equal(ctx.updateCalls[0].fields.publicTransport, true);
   assert.equal(ctx.updateCalls[0].fields.publicTransportCost, 18.5);
   assert.equal(ctx.updateCalls[0].fields.kilometers, 0);
+});
+
+
+test('saving course notes preserves the two paid hours and actual 90 minute window', { concurrency: false }, async () => {
+  const ctx = await mountControl({ records: [sourceRecord({ activityType: 'קורס', ActivityType: 'קורס', endTime: '10:30', EndTime: '10:30', workHours: 2, WorkHours: 2 })] });
+  const report = enterEdit(ctx);
+  setInput(ctx, report, 'notes', 'תיקון מנהל');
+  report.querySelector('[data-attendance-save-record]').click();
+  await wait(120);
+  assert.equal(ctx.updateCalls.length, 1);
+  assert.equal(ctx.updateCalls[0].fields.notes, 'תיקון מנהל');
+  assert.equal(ctx.updateCalls[0].fields.workHours, 2);
+  assert.ok(ctx.updateCalls[0].fields.endTime == null || ctx.updateCalls[0].fields.endTime === '10:30');
+});
+
+test('editing course times shows and saves two paid hours for a 100 minute lesson', { concurrency: false }, async () => {
+  const ctx = await mountControl({ records: [sourceRecord({ activityType: 'קורס', ActivityType: 'קורס' })] });
+  const report = enterEdit(ctx);
+  setInput(ctx, report, 'endTime', '10:40');
+  assert.equal(inputFor(report, 'workHours').value, '2:00');
+  report.querySelector('[data-attendance-save-record]').click();
+  await wait(120);
+  assert.equal(ctx.updateCalls.length, 1);
+  assert.equal(ctx.updateCalls[0].fields.workHours, 2);
+  assert.equal(ctx.updateCalls[0].fields.endTime, '10:40');
+});
+
+test('cancellation correction saves its source and minutes then reloads successfully', { concurrency: false }, async () => {
+  const ctx = await mountControl({ records: [sourceRecord({ reviewStatus: 'pending_review', reportedCancellationBeforeMinutes: 15, reportedCancellationAfterMinutes: 15, sourceAttendanceRecordId: RECORD_ID })] });
+  const button = ctx.results.querySelector('[data-travel-review="correct"]');
+  assert.ok(button);
+  button.click();
+  await wait(30);
+  assert.equal(ctx.travelReviewCalls.length, 0, 'empty correction must not silently save zero');
+  ctx.results.querySelector('[data-travel-correct-minutes]').value = '25';
+  button.click();
+  await wait(160);
+  assert.deepEqual(ctx.travelReviewCalls, [{ source_id: RECORD_ID, decision: 'correct', approved_minutes: 25 }]);
+  assert.match(ctx.status.textContent, /החלטת ביטול הזמן נשמרה/);
+});
+
+
+test('editing a grouped course note keeps four paid hours across its full window', { concurrency: false }, async () => {
+  const ctx = await mountControl({ records: [sourceRecord({ activityType: 'קורס', ActivityType: 'קורס', endTime: '12:20', EndTime: '12:20', workHours: 4, WorkHours: 4 })] });
+  const report = enterEdit(ctx);
+  setInput(ctx, report, 'notes', 'קורס עם שני מפגשים');
+  report.querySelector('[data-attendance-save-record]').click();
+  await wait(120);
+  assert.equal(ctx.updateCalls.length, 1);
+  assert.equal(ctx.updateCalls[0].fields.workHours, 4);
+});
+
+
+test('matched course comparison exposes instructor cancellation before manager approval', { concurrency: false }, async () => {
+  const ctx = await mountControl({
+    records: [sourceRecord({ activityType: 'קורס', ActivityType: 'קורס', programName: 'ביומימיקרי', ProgramName: 'ביומימיקרי', reviewStatus: 'pending_review', reportedCancellationBeforeMinutes: 20, reportedCancellationAfterMinutes: 165, sourceAttendanceRecordId: RECORD_ID })],
+    activities: [{ row_id: 'ACT-test', emp_id: 1507, activity_name: 'ביומימיקרי', activity_type: 'course', authority_name: 'תל אביב', single_school_name: 'מיקום א', start_time: '09:00', end_time: '10:00', date_1: '2026-09-20' }]
+  });
+  assert.match(ctx.results.textContent, /בדיקת ביטול זמן/);
+  assert.match(ctx.results.textContent, /0:20 \/ 2:45/);
+  assert.match(ctx.results.textContent, /3:05/);
+  const button = ctx.results.querySelector('[data-travel-review="correct"]');
+  assert.ok(button, 'course comparison must expose cancellation decisions');
+  ctx.results.querySelector('[data-travel-correct-minutes]').value = '120';
+  button.click();
+  await wait(160);
+  assert.equal(ctx.travelReviewCalls[0].approved_minutes, 120);
 });

@@ -210,11 +210,11 @@ const ATTENDANCE_GRACE_END_MINUTES   = 10;
 const DAILY_KM_TOLERANCE = 5;
 
 // School-clock time and paid work hours are separate. No paid-time padding
-// may shift the source times. Unusual sub-120-minute timetables need review.
+// may shift the source times. Unusual timetables outside the lesson allowance need review.
 function dashboardPayrollHours(startTime, endTime) {
   const minutes = calculateWorkHours(startTime, endTime) * 60;
   if (Math.abs(minutes - 45) < 0.01) return 1;
-  if (minutes >= 80 && minutes <= 90) return 2;
+  if (minutes >= 80 && minutes <= 120) return 2;
   if (minutes >= 120 && Math.abs(minutes % 15) < 0.01) return minutes / 60;
   return null;
 }
@@ -1310,7 +1310,8 @@ export function applyAttendanceManualCorrection(entry, changes = {}) {
   entry.managerRecordApproved = false;
   const base = entry.final || entry.attendance;
   const merged = { ...base, ...changes };
-  const timesChanged = Object.hasOwn(changes, 'startTime') || Object.hasOwn(changes, 'endTime');
+  const timesChanged = (Object.hasOwn(changes, 'startTime') && timeText(changes.startTime) !== timeText(base.startTime))
+    || (Object.hasOwn(changes, 'endTime') && timeText(changes.endTime) !== timeText(base.endTime));
   entry.final = enforceAttendanceTravelMode({
     ...merged,
     workHours: timesChanged
@@ -2488,7 +2489,7 @@ export function resultsHtml(result, month = '', options = {}) {
     </div>`;
   };
 
-  const manualReportTable = (row, { cancellation = false, entry = null, attachedCancellation = null } = {}) => {
+  const manualReportTable = (row, { cancellation = false, entry = null, attachedCancellation = null, cancellationOnly = false } = {}) => {
     const display = entry?.final || row;
     const source = row?._source || display?._source || {};
     const autoCancellation = source.generationKind === 'travel_time_cancellation'
@@ -2526,10 +2527,11 @@ export function resultsHtml(result, month = '', options = {}) {
             <button type="button" class="ds-btn ds-btn--sm" data-travel-review="correct">תיקון</button>
           </div>`
         : `<p class="attendance-control__manual-note">סטטוס בקרה: ${escapeHtml(reviewStatus)} · מאושר: ${escapeHtml(approvedValue)}</p>`;
-      const reportDetails = autoCancellation ? '' : parameterReviewTable(entry || { attendance: row, final: display, differences: [] }, { attendanceOnly: true, attachedCancellation });
-      return `${reportDetails}<div class="attendance-control__comparison-wrap"><p class="attendance-control__comparison-title">בדיקת ביטול זמן</p><table class="attendance-control__comparison-table attendance-control__parameter-table"><thead><tr><th>פרמטר</th><th>דיווח מדריך</th><th>חישוב מערכת</th><th>סטטוס</th><th>פעולות</th></tr></thead><tbody>${rows}</tbody></table>${actions}</div>${attachmentsHtml(display)}`;
+      const reportDetails = autoCancellation || cancellationOnly ? '' : parameterReviewTable(entry || { attendance: row, final: display, differences: [] }, { attendanceOnly: true, attachedCancellation });
+      return `${reportDetails}<div class="attendance-control__comparison-wrap"><p class="attendance-control__comparison-title">בדיקת ביטול זמן</p><table class="attendance-control__comparison-table attendance-control__parameter-table"><thead><tr><th>פרמטר</th><th>דיווח מדריך</th><th>חישוב מערכת</th><th>סטטוס</th><th>פעולות</th></tr></thead><tbody>${rows}</tbody></table>${actions}</div>${cancellationOnly ? '' : attachmentsHtml(display)}`;
     }
 
+    if (cancellationOnly) return '';
     return `${parameterReviewTable(entry || { attendance: row, final: display, differences: [] }, { attendanceOnly: true, attachedCancellation })}${attachmentsHtml(display)}`;
   };
 
@@ -2555,7 +2557,7 @@ export function resultsHtml(result, month = '', options = {}) {
       body = `${manualReportTable(row, { cancellation: true, entry: item })}${managerActionsHtml(item)}`;
     } else if (kind === 'comparison') {
       const missingMatch = item.unmatched ? '<p class="attendance-control__missing-match">לא נמצאה פעילות תואמת בדשבורד</p>' : '';
-      body = `${missingMatch}${parameterReviewTable(item, { attachedCancellation })}${travelSummaryHtml(row, item, { includeCancellation: !attachedCancellation })}${attachmentsHtml(item.final || row)}${managerActionsHtml(item)}`;
+      body = `${missingMatch}${parameterReviewTable(item, { attachedCancellation })}${manualReportTable(row, { entry: item, attachedCancellation, cancellationOnly: true })}${travelSummaryHtml(row, item, { includeCancellation: !attachedCancellation })}${attachmentsHtml(item.final || row)}${managerActionsHtml(item)}`;
     } else {
       body = `${manualReportTable(row, { entry: item, attachedCancellation })}${travelSummaryHtml(row, item, { includeCancellation: !attachedCancellation })}${managerActionsHtml(item)}`;
     }
@@ -3076,6 +3078,9 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     const report = input?.closest?.('.attendance-control__report');
     if (!input || report?.dataset.recordEditing !== '1') return false;
     const field = txt(input.dataset.fieldKey);
+    const entry = [...(result?.comparisons || []), ...(result?.notCompared || [])]
+      .find((item) => item.id === txt(input.dataset.attendanceManualInput));
+    if (!entry) return false;
     if (field === 'startTime' || field === 'endTime') {
       const startInput = report.querySelector('[data-attendance-manual-input][data-field-key="startTime"]');
       const endInput = report.querySelector('[data-attendance-manual-input][data-field-key="endTime"]');
@@ -3084,7 +3089,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       const endTime = timeText(endInput?.value);
       if (workHoursInput && startTime && endTime) {
         workHoursInput.value = attendanceTimeRangeIsValid(startTime, endTime)
-          ? formatDurationHours(calculateWorkHours(startTime, endTime))
+          ? formatDurationHours(correctedAttendanceWorkHours({ ...(entry.final || entry.attendance), startTime, endTime }))
           : '';
       }
     }
@@ -3184,8 +3189,9 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       }
       let approvedMinutes = null;
       if (decision === 'correct') {
-        approvedMinutes = Number(wrap?.querySelector('[data-travel-correct-minutes]')?.value);
-        if (!Number.isFinite(approvedMinutes) || approvedMinutes < 0) {
+        const rawMinutes = txt(wrap?.querySelector('[data-travel-correct-minutes]')?.value);
+        approvedMinutes = Number(rawMinutes);
+        if (!rawMinutes || !Number.isInteger(approvedMinutes) || approvedMinutes < 0) {
           setStatusMessage('יש להזין דקות מאושרות לתיקון.', { error: true });
           return;
         }
@@ -3353,10 +3359,10 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         if (!attendanceTimeRangeIsValid(startTime, endTime)) {
           throw new Error('כדי לשמור את הרשומה, שעת הסיום חייבת להיות מאוחרת משעת ההתחלה.');
         }
-        if (Object.hasOwn(changes, 'startTime') || Object.hasOwn(changes, 'endTime')) {
+        if (startTime !== timeText(current.startTime) || endTime !== timeText(current.endTime)) {
           changes.startTime = startTime;
           changes.endTime = endTime;
-          changes.workHours = calculateWorkHours(startTime, endTime);
+          changes.workHours = correctedAttendanceWorkHours({ ...current, startTime, endTime });
         }
 
         if (Object.hasOwn(changes, 'publicTransport') || Object.hasOwn(changes, 'publicTransportCost') || Object.hasOwn(changes, 'kilometers')) {
