@@ -7439,49 +7439,14 @@ export const api = {
     const rows = [...new Map(periodRows.flat().map((row) => [String(row?.row_id || ''), row])).values()];
     return { rows, _source: 'supabase_metadata' };
   },
-  attendanceControlDashboardSources: async ({ employeeIds = [], fromDate = '', toDate = '', skipRouteBuild = false, compactScope = false } = {}) => {
+  attendanceControlDashboardSources: async ({ employeeIds = [], fromDate = '', toDate = '', skipRouteBuild = true, compactScope = false } = {}) => {
     assertPermission('view_attendance_control', 'attendance_control_forbidden');
     const ids = [...new Set((employeeIds || []).map((value) => String(value || '').trim()).filter(Boolean))];
     if (!ids.length || !fromDate || !toDate) return { activities: [], contacts: [], travelCache: [], expenses: [] };
-    const routeMonth = /^\d{4}-\d{2}-\d{2}$/.test(fromDate)
-      && /^\d{4}-\d{2}-\d{2}$/.test(toDate)
-      && fromDate.slice(0, 7) === toDate.slice(0, 7)
-      ? fromDate.slice(0, 7)
-      : '';
-    const routeEmployeeIds = ids.map(Number).filter((value) => Number.isInteger(value) && value > 0);
-    if (!skipRouteBuild && routeMonth && routeEmployeeIds.length && supabase?.functions?.invoke) {
-      try {
-        const invokeRouteBuild = async (body) => {
-          const { data, error } = await supabase.functions.invoke('scheduling-route', { body });
-          if (error) throw error;
-          if (data?.error) throw new Error(String(data.error));
-          return data || {};
-        };
-        const routeScope = {
-          scope: 'payroll_month',
-          month: routeMonth,
-          employee_ids: routeEmployeeIds
-        };
-        const coverage = await invokeRouteBuild({ mode: 'coverage', ...routeScope });
-        if ((Number(coverage?.missing_count) || 0) > 0) {
-          let cursor = null;
-          for (let batchNo = 0; batchNo < 50; batchNo += 1) {
-            const batch = await invokeRouteBuild({
-              mode: 'build_cache',
-              ...routeScope,
-              cursor,
-              limit: 40
-            });
-            cursor = batch?.next_cursor || null;
-            if (batch?.done || !cursor) break;
-          }
-        }
-      } catch (error) {
-        // Route completion is best-effort: existing cache remains usable and unresolved
-        // segments stay visible for manager review instead of blocking attendance control.
-        console.warn('[attendance-control] automatic route completion failed:', error);
-      }
-    }
+    // Database-First: never auto-run build_cache / Google from attendance control.
+    // Coverage remains readable from scheduling_travel_cache; missing routes stay visible
+    // until an explicit maintenance/payroll action fills them.
+    void skipRouteBuild;
     const activitySelect = `${ACTIVITY_OPERATIONS_COLUMNS},authority_id,activity_no`;
     const [regular, summer, school2027, contactsResult, usersResult, catalog, proposalGroupAliases, trainingScheduleResult] = await Promise.all([
       readAllActivitiesRowsSupabase({ activityPeriod: ACTIVITY_SEASON_REGULAR, select: activitySelect, startDate: fromDate, endDate: toDate, employeeIds: compactScope ? ids : [] }),

@@ -589,3 +589,5 @@ config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-staff-final-scale-direction-20
 config.HOTFIX_VERSION = 'attendance-manager-paid-hours-save-20261101-v1-' + config.HOTFIX_VERSION;
 
 config.HOTFIX_VERSION = 'admin-attendance-overall-totals-20261101-v1-' + config.HOTFIX_VERSION;
+
+config.HOTFIX_VERSION = 'database-first-routes-20261102-v1-' + config.HOTFIX_VERSION;
