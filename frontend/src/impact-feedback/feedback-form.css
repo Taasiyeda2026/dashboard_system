@@ -521,3 +521,50 @@
   .ifb-shell.is-adult .ifb-rate:has(.ifb-rate__caption) .ifb-rate__face { min-height: 39px; border-radius: 10px; }
   .ifb-shell.is-adult .ifb-rate:has(.ifb-rate__caption) .ifb-rate__caption { font-size: 10px; }
 }
+
+
+/* Staff final only: restrained, compact controls and less visual noise. */
+.ifb-q--staff-final {
+  padding: 16px 18px 18px;
+  margin-block: 10px;
+}
+.ifb-q--staff-final .ifb-q__title {
+  font-size: clamp(15px, 1.7vw, 18px);
+  font-weight: 650;
+  line-height: 1.45;
+  margin-bottom: 12px;
+}
+.ifb-q--staff-final .ifb-q__num {
+  font-size: 12px;
+  font-weight: 650;
+  width: 28px;
+  height: 28px;
+}
+.ifb-q--staff-final .ifb-rate {
+  max-width: 385px;
+  margin-inline: auto;
+  gap: 7px;
+}
+.ifb-shell.is-adult .ifb-q--staff-final .ifb-rate:has(.ifb-rate__caption) .ifb-rate__face {
+  min-height: 35px;
+  max-height: 45px;
+  aspect-ratio: auto;
+  border-radius: 9px;
+  font-size: 16px;
+  font-weight: 600;
+  border-width: 1px;
+}
+.ifb-shell.is-adult .ifb-q--staff-final .ifb-rate:has(.ifb-rate__caption) .ifb-rate__caption {
+  font-size: 10px;
+  line-height: 1.3;
+}
+.ifb-q--staff-final .ifb-rate__na {
+  font-size: 12px;
+  margin-top: 7px;
+}
+.ifb-q--staff-final .ifb-rate__na input { width: 16px; height: 16px; }
+@media (max-width: 480px) {
+  .ifb-q--staff-final { padding: 14px 12px 16px; }
+  .ifb-q--staff-final .ifb-rate { max-width: 100%; gap: 4px; }
+  .ifb-shell.is-adult .ifb-q--staff-final .ifb-rate:has(.ifb-rate__caption) .ifb-rate__face { min-height: 35px; font-size: 15px; }
+}

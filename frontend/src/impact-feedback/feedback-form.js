@@ -111,7 +111,7 @@ function textHtml(q, value, lang = 'he') {
 
 function questionHeadingHtml(q, lang) {
   const rules = answerRules(q);
-  const title = lang === 'ar' ? rules.section_title_ar : rules.section_title;
+  const title = rules.rating_scale === 'staff_final' || rules.question_number ? '' : (lang === 'ar' ? rules.section_title_ar : rules.section_title);
   const instruction = lang === 'ar' ? rules.instruction_ar : rules.instruction;
   return title || instruction ? `<section data-heading-for="${esc(q.id)}" class="ifb-question-heading">${title ? `<h2>${esc(title)}</h2>` : ''}${instruction ? `<p>${esc(instruction)}</p>` : ''}</section>` : '';
 }
@@ -131,7 +131,7 @@ function questionHtml(q, index, answers, young, lang = 'he', approvedStudentScal
   if (q.type === 'free_text' && rules.max_length) control += `<p data-counter-for="${esc(q.id)}">${[...String(value || '')].length} / ${Number(rules.max_length)}</p>`;
   return `
     ${questionHeadingHtml(q, lang)}
-    <fieldset class="ifb-q${isAnswered(q, value) ? ' is-answered' : ''}" data-question="${esc(q.id)}">
+    <fieldset class="ifb-q${rules.question_number ? ' ifb-q--staff-final' : ''}${isAnswered(q, value) ? ' is-answered' : ''}" data-question="${esc(q.id)}">
       <legend class="ifb-q__title">
         <span class="ifb-q__num" aria-hidden="true">${index + 1}</span>
         <span>${esc(q.text)}${q.required ? '' : ` <span class="ifb-q__optional">(${arLabel('לא חובה', 'اختياري', lang)})</span>`}</span>
