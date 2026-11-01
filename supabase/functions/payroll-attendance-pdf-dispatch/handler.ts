@@ -645,7 +645,7 @@ async function buildPdfBytes(payload: {
       // Separate date/time from the activity description: mixed Hebrew and
       // numeric runs in a single dense line were difficult to read in Acrobat.
       const heading = `${index + 1}.  ${date}   |   ${activity}`;
-      const headingLines = wrapLogical(heading, bold, 9.4, CONTENT_W - 160);
+      const headingLines = wrapLogical(heading, bold, 9.4, CONTENT_W - 195);
       const timing = `${time}   |   ${hours} שעות`;
       const placeLines = place ? wrapLogical(place, regular, 8.5, CONTENT_W - 28) : [];
       const detailLines = secondary ? wrapLogical(secondary, regular, 8.2, CONTENT_W - 28) : [];
