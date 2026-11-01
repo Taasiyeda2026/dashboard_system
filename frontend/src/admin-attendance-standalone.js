@@ -3,8 +3,10 @@ import { state } from './state.js';
 import { api } from './api.js';
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 import { escapeHtml } from './screens/shared/html.js';
+import { buildAdminAttendanceTotals, adminAttendanceTotalsHtml } from './admin-attendance-totals.js';
 import {
-  resolveAdminAttendanceDefaultMonth
+  resolveAdminAttendanceDefaultMonth,
+  attendanceMonthDateRange
 } from './screens/attendance-control.js?v=20261005-manager-reopen-hierarchy-v1';
 
 const ADMIN_ROLE = 'admin';
@@ -85,6 +87,8 @@ function ensureStyles() {
     .admin-attendance-standalone__summary article { border:1px solid var(--color-border,#dbe3ec); border-radius:10px; padding:8px 12px; background:var(--color-surface,#fff); }
     .admin-attendance-standalone__summary span { display:block; color:var(--color-text-secondary,#64748b); font-size:11px; margin-bottom:2px; }
     .admin-attendance-standalone__summary strong { font-size:18px; line-height:1.1; }
+    .admin-attendance-totals { margin-bottom:18px; }
+    .admin-attendance-totals h2 { margin:0 0 8px; font-size:15px; }
     .admin-attendance-standalone__batch { min-width:180px; border:1px solid var(--color-primary,#2563eb); border-radius:10px; padding:8px 14px; background:var(--color-primary,#2563eb); color:#fff; cursor:pointer; font:inherit; font-weight:700; }
     .admin-attendance-standalone__batch:disabled { opacity:.45; cursor:not-allowed; }
     .admin-attendance-team { border:1px solid var(--color-border,#dbe3ec); border-radius:16px; background:var(--color-surface,#fff); margin-bottom:14px; overflow:hidden; }
@@ -589,12 +593,14 @@ async function renderData(root, monthKey, message = '') {
     const previousContext = root.__adminAttendanceContext || {};
     const employees = await loadEmployees(monthKey);
     const ids = employees.map(employeeId).filter(Boolean);
-    const [workflowRows, finalRows, dispatchRows] = await Promise.all([
+    const { fromDate, toDate } = attendanceMonthDateRange(monthKey);
+    const [workflowRows, finalRows, dispatchRows, records] = await Promise.all([
       api.attendanceControlMonthWorkflowStatuses({ monthKey, employeeIds: ids }),
       api.listPayrollControlApprovals({ monthKey, employeeIds: ids, statuses: ['admin_approved', 'approved_for_payroll'] }),
       typeof api.listAttendancePayrollDispatches === 'function'
         ? api.listAttendancePayrollDispatches({ monthKey, employeeIds: ids })
-        : Promise.resolve([])
+        : Promise.resolve([]),
+      ids.length ? api.attendanceControlRecords({ employeeIds: ids, fromDate, toDate }) : Promise.resolve([])
     ]);
     if (token !== renderToken || !root.isConnected) return;
     const workflowByEmployee = new Map((workflowRows || []).map((row) => [text(row.employee_id || row.employeeId), row]));
@@ -607,11 +613,12 @@ async function renderData(root, monthKey, message = '') {
     const approvedSnapshots = previousContext.monthKey === monthKey && previousContext.approvedSnapshots instanceof Map
       ? previousContext.approvedSnapshots
       : new Map();
-    root.__adminAttendanceContext = { employees, workflowByEmployee, finalByEmployee, dispatchByEmployee, approvedSnapshots, monthKey };
+    const totals = buildAdminAttendanceTotals(records || [], { monthKey, employeeIds: ids });
+    root.__adminAttendanceContext = { employees, workflowByEmployee, finalByEmployee, dispatchByEmployee, approvedSnapshots, monthKey, totals };
     const modeEl = root.querySelector('[data-admin-attendance-mode]');
     if (modeEl) modeEl.textContent = monthMode(monthKey).label;
     if (body) body.innerHTML = employees.length
-      ? `${summaryHtml(employees, workflowByEmployee, finalByEmployee, dispatchByEmployee, monthKey)}${groupsHtml(employees, workflowByEmployee, finalByEmployee, dispatchByEmployee, monthKey)}`
+      ? `${adminAttendanceTotalsHtml(totals, monthKey)}${summaryHtml(employees, workflowByEmployee, finalByEmployee, dispatchByEmployee, monthKey)}${groupsHtml(employees, workflowByEmployee, finalByEmployee, dispatchByEmployee, monthKey)}`
       : '<div class="admin-attendance-empty">לא נמצאו עובדים להצגה בחודש שנבחר.</div>';
   } catch (error) {
     if (token !== renderToken || !root.isConnected) return;
