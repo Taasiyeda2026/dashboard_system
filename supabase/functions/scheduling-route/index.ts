@@ -1682,7 +1682,17 @@ async function runBuildCache(db: DbClient, key: string, payload: Record<string, 
   stats.already_valid_count += skipped;
   stats.phase = cursor.phase;
 
-  const outcomes = await mapWithConcurrency(slice, BATCH_CONCURRENCY, (pair) => processPair(db, pair, key));
+  // Quota failures are batch-wide, not bad addresses. Stop launching new
+  // provider calls after the first 429 and keep any successful cache writes.
+  let providerQuotaReached = false;
+  const outcomes = await mapWithConcurrency(slice, Math.min(BATCH_CONCURRENCY, 2), async (pair) => {
+    if (providerQuotaReached) {
+      return { dbError: null, failed: true, failure: failureForPair(pair, 'route_provider_rate_limited') };
+    }
+    const outcome = await processPair(db, pair, key);
+    if (outcome.failure?.reason === 'route_provider_rate_limited') providerQuotaReached = true;
+    return outcome;
+  });
   const dbError = outcomes.find((outcome) => outcome && typeof outcome === 'object' && 'dbError' in outcome && outcome.dbError)?.dbError || null;
 
   for (const outcome of outcomes) {
