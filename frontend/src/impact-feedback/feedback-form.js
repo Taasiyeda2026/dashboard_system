@@ -97,7 +97,7 @@ function choiceHtml(q, value, multiple, lang = 'he') {
     ];
     const options = Array.isArray(q.options) ? q.options : [];
     return `<div class="ifb-range-five" role="radiogroup" aria-label="${esc(q.text)}">${buckets.map((bucket) => {
-      const option = options.find((o) => bucket.numbers.includes(String(o.label ?? o.value)));
+      const option = options.find((o) => String(o.label ?? o.value) === bucket.representative);
       if (!option) return '';
       const checked = bucket.numbers.some((n) => options.some((o) => String(o.label ?? o.value) === n && o.value === value));
       return `<label class="ifb-range-five__option"><input type="radio" name="q-${esc(q.id)}" value="${esc(option.value)}" data-qid="${esc(q.id)}" data-kind="single"${checked ? ' checked' : ''}><span>${bucket.label}</span></label>`;
