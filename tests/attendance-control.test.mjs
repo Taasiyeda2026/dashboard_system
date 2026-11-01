@@ -1987,12 +1987,12 @@ test('planned training schedule hours are calculated from start and end times', 
       id: 'training-hours',
       managerResolved: 'auto_ok',
       attendance: {
-        employeeId: '1535', date: '2026-09-24', activityType: 'הכשרה', program: 'פורצות דרך',
+        employeeId: '1535', date: '2026-09-24', activityType: 'הכשרה', trainingMode: 'online', program: 'פורצות דרך',
         startTime: '10:00', endTime: '12:30', workHours: 2.5
       },
       dashboard: rows[0],
       final: {
-        employeeId: '1535', date: '2026-09-24', activityType: 'הכשרה', program: 'פורצות דרך',
+        employeeId: '1535', date: '2026-09-24', activityType: 'הכשרה', trainingMode: 'online', program: 'פורצות דרך',
         startTime: '10:00', endTime: '12:30', workHours: 2.5
       },
       differences: [],

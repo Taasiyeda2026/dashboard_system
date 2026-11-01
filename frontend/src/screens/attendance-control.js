@@ -91,6 +91,20 @@ export function isAttendanceOnlyActivityType(value) {
   return ATTENDANCE_ONLY_ACTIVITY_TYPES.has(normalizeAttendanceName(value));
 }
 
+export function attendanceTrainingDetails(row = {}) {
+  if (!isTrainingAttendanceType(row.activityType)) return null;
+  const mode = txt(row.trainingMode ?? row.training_mode ?? row._source?.trainingMode ?? row._source?.training_mode);
+  if (mode === 'online') return { mode, label: 'זום', kilometers: '0 ק״מ – הכשרה בזום', issue: false };
+  if (mode !== 'physical') return { mode, label: 'חסר מידע – נדרשת בדיקה', kilometers: 'חסר מידע – נדרשת בדיקה', issue: true };
+  const location = txt(row.destinationAddress || row.destinationEntityKey);
+  const km = optionalNumber(row.kilometers);
+  return {
+    mode, label: 'פרונטלי',
+    kilometers: `${km == null ? 'חסר מידע' : `${km} ק״מ · דווח`}${location ? '' : ' · מיקום חסר או לא מזוהה – נדרשת בדיקה'}`,
+    issue: !location || km == null
+  };
+}
+
 export function normalizeAttendanceName(value) {
   return txt(value).normalize('NFKD').toLowerCase()
     .replace(/[׳״'"`´’‘“”.,;:()\[\]{}\-_/\\\u05BE\u2010-\u2015]/g, '')
@@ -465,6 +479,7 @@ export function normalizeAttendanceApiRows(records = []) {
       team: lookupText(row.team || row.Team), date: excelDate(row.attendanceDate || row.AttendanceDate || row.date),
       startTime: timeText(row.startTime || row.StartTime || row.start), endTime: timeText(row.endTime || row.EndTime || row.end),
       workHours: optionalNumber(row.workHours ?? row.WorkHours ?? row.hours), activityType: lookupText(row.activityType || row.ActivityType || row.activity),
+      trainingMode: txt(row.trainingMode ?? row.training_mode),
       school: txt(row.schoolName || row.SchoolName || row.school), authority: txt(row.municipality || row.Municipality || row.authority),
       program: txt(row.programName || row.ProgramName || row.program), meetingNo: txt(row.sessionNumber || row.SessionNumber || row.session),
       kilometers: optionalNumber(row.kilometers ?? row.Kilometers ?? row.km),
@@ -705,12 +720,14 @@ export function applyAttendanceDayRouteKilometers(rows = [], attendanceRows = []
     if (isAttendanceTravelTimeCancellation(attendance)
       || normalizeAttendanceName(attendance?.activityType).includes('ביטולזמן')) continue;
 
-    const isZoom = attendance.isRemoteDestination === true
-      || /zoom|זום/u.test(normalizeAttendanceName(`${attendance?.school || ''} ${attendance?.program || ''} ${attendance?.activityType || ''}`));
+    const training = attendanceTrainingDetails(attendance);
+    const isZoom = training ? training.mode === 'online' : (attendance.isRemoteDestination === true
+      || /zoom|זום/u.test(normalizeAttendanceName(`${attendance?.school || ''} ${attendance?.program || ''} ${attendance?.activityType || ''}`)));
     const routeOnly = rows.find((row) => row?.__routeOnly
       && txt(row.sourceRecordId) === txt(attendance.recordId));
     const trainingPlan = plannedTrainingRouteRow(attendance, rows);
-    const dashboard = trainingPlan || routeOnly || nearestAttendanceRouteDashboardRow(attendance, rows);
+    const dashboard = training && !['physical', 'online'].includes(training.mode)
+      ? null : trainingPlan || routeOnly || nearestAttendanceRouteDashboardRow(attendance, rows);
     const key = `${txt(attendance.employeeId)}|${txt(attendance.date)}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push({ attendance, dashboard, isZoom });
@@ -808,6 +825,7 @@ export async function loadAttendanceDashboardDataset(attendanceRows, api, month 
 
   const routeOnlyRows = (attendanceRows || [])
     .filter((attendance) => isAttendanceOnlyActivityType(attendance.activityType)
+      && (!isTrainingAttendanceType(attendance.activityType) || attendanceTrainingDetails(attendance)?.mode === 'physical')
       && attendance.isRemoteDestination !== true
       && txt(attendance.destinationAddress))
     .map((attendance) => ({
@@ -2066,7 +2084,7 @@ export function attendanceControlStylesHtml() {
 .attendance-control__comparison-wrap{margin:12px 14px}.attendance-control__comparison-title{display:flex;align-items:center;gap:7px;margin:0 0 8px;font-weight:800;color:#193b66}.attendance-control__comparison-table{width:100%;border-collapse:separate;border-spacing:0;border:1px solid #dde6ef;border-radius:12px;overflow:hidden;background:#fff}.attendance-control__comparison-table th,.attendance-control__comparison-table td{padding:9px 11px;text-align:right;border-bottom:1px solid #e8edf3;vertical-align:middle}.attendance-control__comparison-table thead th{background:#f5f8fc;color:#52657b;font-size:.83rem;font-weight:800}.attendance-control__comparison-table tbody th{color:#44566d;font-size:.86rem;width:20%}.attendance-control__comparison-table tr:last-child th,.attendance-control__comparison-table tr:last-child td{border-bottom:0}.attendance-control__comparison-row--issue th,.attendance-control__comparison-row--issue td{background:transparent}.attendance-control__comparison-row--info th,.attendance-control__comparison-row--info td{background:#f7fbff}.attendance-control__comparison-table select,.attendance-control__comparison-table input{min-height:34px;max-width:150px}.attendance-control__manual-table{width:100%}.attendance-control__manual-table tbody th{width:34%}
 .attendance-control__parameter-table tbody th{width:16%}.attendance-control__parameter-table td:nth-child(2),.attendance-control__parameter-table td:nth-child(3){width:18%}.attendance-control__parameter-table td:nth-child(4){width:13%}.attendance-control__actions-cell{width:35%}.attendance-control__row-actions{display:grid;gap:6px}.attendance-control__row-action-buttons{display:flex;gap:5px;flex-wrap:wrap}.attendance-control__row-action-buttons .ds-btn{min-height:30px;padding:5px 8px;font-size:.78rem}.attendance-control__row-action-buttons .ds-btn.is-selected{border-color:#2d7ea3;background:#eaf7fb;color:#0b617d;font-weight:800}.attendance-control__row-custom{display:flex;align-items:center;gap:5px;flex-wrap:wrap}.attendance-control__row-custom[hidden]{display:none}.attendance-control__row-custom:not([hidden]){margin-top:4px}.attendance-control__row-custom .ds-input{width:130px}.attendance-control__row-decision{color:#466174;font-weight:700}.attendance-control__no-action,.attendance-control__empty-source{color:#94a3b8}.attendance-control__comparison-row--resolved th,.attendance-control__comparison-row--resolved td{background:#f5fbf7}
 .attendance-control__travel-cancellation-row th,.attendance-control__travel-cancellation-row td{border-top:2px solid #dce7ef}.attendance-control__travel-cancellation-row th{color:#0f6078}.attendance-control__row-actions--compact .attendance-control__row-custom{margin-top:0}
-.attendance-control__status-pill{display:inline-flex;align-items:center;justify-content:center;min-width:72px;padding:4px 8px;border-radius:999px;font-size:.78rem;font-weight:800;white-space:nowrap}.attendance-control__status-pill--ok{color:#137a45;background:#eaf8f0}.attendance-control__status-pill--issue{color:#b91c1c;background:transparent;min-width:0;padding:0;border-radius:0}.attendance-control__status-pill--info{color:#316da8;background:#eaf4ff}.attendance-control__row-status{font-weight:800;white-space:nowrap;color:#24824d}.attendance-control__row-status--issue,.attendance-control__field-value--issue{color:#b91c1c!important}.attendance-control__field-value--issue{font-weight:800}.attendance-control__missing-match{margin:8px 14px;color:#b91c1c;font-weight:800}.attendance-control__manual-note{margin:4px 0;color:#64748b;font-size:.9em}
+.attendance-control__status-pill{display:inline-flex;align-items:center;justify-content:center;min-width:72px;padding:4px 8px;border-radius:999px;font-size:.78rem;font-weight:800;white-space:nowrap}.attendance-control__status-pill--ok{color:#137a45;background:#eaf8f0}.attendance-control__status-pill--issue{color:#b91c1c;background:transparent;min-width:0;padding:0;border-radius:0}.attendance-control__status-pill--info{color:#316da8;background:#eaf4ff}.attendance-control__row-status{font-weight:800;white-space:nowrap;color:#316da8}.attendance-control__row-status--ok{color:#24824d}.attendance-control__status-pill--neutral{color:#64748b;background:#f1f5f9}.attendance-control__report-details-table{min-width:0!important;table-layout:auto!important;direction:rtl}.attendance-control__report-details-table th{width:30%!important}.attendance-control__report-details-table td{width:auto!important}.attendance-control__row-status--issue,.attendance-control__field-value--issue{color:#b91c1c!important}.attendance-control__field-value--issue{font-weight:800}.attendance-control__missing-match{margin:8px 14px;color:#b91c1c;font-weight:800}.attendance-control__manual-note{margin:4px 0;color:#64748b;font-size:.9em}
 .attendance-control__record-edit-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin:12px 14px 14px;padding-top:12px;border-top:1px solid #edf1f5}.attendance-control__record-edit-footer .attendance-control__record-edit-pending{margin-inline-end:auto;color:#316da8;font-weight:800}.attendance-control__record-edit-footer .ds-btn{min-height:36px}
 .attendance-control__manager-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;margin:12px 14px 14px;padding-top:12px;border-top:1px solid #edf1f5}.attendance-control__manager-actions>.ds-btn{min-height:36px}.attendance-control__manager-actions>.ds-input{width:160px;min-height:36px}.attendance-control__travel-edit{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap;width:100%}.attendance-control__travel-edit label{min-height:36px;display:flex;align-items:center;gap:6px;padding:0 8px;border:1px solid #dbe4ee;border-radius:8px;background:#fff}.attendance-control__travel-edit .ds-input{width:150px;min-height:36px}.attendance-control__attachments{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 14px 12px;color:#334155;font-size:.9em}.attendance-control__resolved-note{margin:0;color:#166534;font-weight:800}.attendance-control__report-km{margin:4px 0 8px;color:#475569;font-size:.92em}.attendance-control__day-km{padding:0 10px 6px;color:#475569;font-size:.92em}.attendance-control__export{margin-top:14px}
 @media(max-width:900px){.attendance-control{padding:12px}.attendance-control__day>summary{grid-template-columns:1fr 1fr auto}.attendance-control__reports{padding:8px}.attendance-control__comparison-wrap{overflow-x:auto;margin-inline:8px}.attendance-control__comparison-table{min-width:820px}.attendance-control__report-card{margin-inline:8px}.attendance-control__manager-actions{margin-inline:8px}.attendance-control__report-card-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -2077,6 +2095,19 @@ export function attendanceControlStylesHtml() {
 export function resultsHtml(result, month = '', options = {}) {
   const totals = attendanceAuditSummary(result);
   const workflowByEmployee = options.workflowByEmployee || {};
+  const trainingDetailsForRow = (row) => {
+    const training = attendanceTrainingDetails(row);
+    if (training?.mode !== 'physical') return training;
+    const route = (result.dashboardPopulation || []).find((item) => item.__routeOnly
+      && txt(item.sourceRecordId) && txt(item.sourceRecordId) === txt(row.recordId));
+    if (route) {
+      const calculated = optionalNumber(route.kilometers);
+      training.kilometers += calculated == null
+        ? ' · חישוב נסיעה חסר – נדרשת בדיקה' : ` · חישוב מערכת: ${calculated} ק״מ`;
+      training.issue ||= calculated == null || Math.abs(calculated - number(row.kilometers)) > DAILY_KM_TOLERANCE;
+    }
+    return training;
+  };
   const bypassMonthSubmissionGate = Boolean(options.bypassMonthSubmissionGate);
   let currentEmployeeCanMutate = true;
   const employees = new Map();
@@ -2249,6 +2280,7 @@ export function resultsHtml(result, month = '', options = {}) {
     if (!MANUAL_EDITABLE_FIELDS.has(key) && !TRAVEL_EDITABLE_FIELDS.has(key)) {
       return '<span class="attendance-control__no-action">—</span>';
     }
+    if (TRAVEL_EDITABLE_FIELDS.has(key) && trainingDetailsForRow(entry?.final || entry?.attendance)?.mode === 'online') return '<span class="attendance-control__no-action">—</span>';
     if (!currentEmployeeCanMutate || entry?.__recordEditing !== true) {
       return '<span class="attendance-control__no-action">—</span>';
     }
@@ -2332,9 +2364,12 @@ export function resultsHtml(result, month = '', options = {}) {
     const dashboardExpenses = optionalNumber(dashboard?.expenses);
 
     const displayRow = attendanceOnly ? current : attendance;
+    const training = trainingDetailsForRow(displayRow);
     const definitions = [
       { key: 'date', label: 'תאריך', left: dateLabel(displayRow.date), editValue: current.date, right: dashboard ? dateLabel(dashboard.date) : null, always: true },
       { key: 'activityType', label: 'סוג פעילות', left: activityTypeDisplayLabel(displayRow.activityType), editValue: current.activityType, right: dashboard ? activityTypeDisplayLabel(dashboard.activityType) : null, always: true },
+      { key: 'trainingMode', label: 'אופן קיום ההכשרה', left: training?.label, always: Boolean(training), visible: Boolean(training) },
+      { key: 'trainingLocation', label: 'מיקום ההכשרה', left: current.destinationAddress || current.school || 'חסר מידע – נדרשת בדיקה', visible: training?.mode === 'physical' },
       { key: 'authority', label: 'רשות / יישוב', left: displayRow.authority, editValue: current.authority, right: dashboard?.authority },
       { key: 'school', label: 'בית ספר / מיקום', left: displayRow.school, editValue: current.school, right: dashboard?.school },
       { key: 'program', label: 'תוכנית / קורס', left: displayRow.program, editValue: current.program, right: dashboard?.program },
@@ -2344,7 +2379,7 @@ export function resultsHtml(result, month = '', options = {}) {
       { key: 'workHours', label: 'סה״כ שעות', left: displayWorkHours(current), editValue: rowWorkHours(current), right: dashboard ? displayDashboardWorkHours(dashboard) : null, always: true, autoCalculated: true },
       { key: 'publicTransport', label: 'שימוש בתחבורה ציבורית', left: publicTransport ? 'כן' : 'לא', editValue: publicTransport, right: null, visible: publicTransport || (publicTransportCost != null && publicTransportCost > 0) },
       { key: 'publicTransportCost', label: 'תחבורה ציבורית (₪)', left: publicTransportCost, editValue: publicTransportCost, right: null, visible: publicTransport || (publicTransportCost != null && publicTransportCost > 0) },
-      { key: 'kilometers', label: 'ק״מ', left: attendanceKm, editValue: attendanceKm, right: dashboardKm, visible: !publicTransport },
+      { key: 'kilometers', label: 'ק״מ', left: training?.kilometers ?? attendanceKm, editValue: attendanceKm, right: dashboardKm, visible: Boolean(training) || !publicTransport },
       { key: 'expenses', label: 'הוצאות', left: attendanceExpenses, editValue: attendanceExpenses, right: dashboardExpenses, visible: (attendanceExpenses != null && attendanceExpenses > 0) || (dashboardExpenses != null && dashboardExpenses > 0) || diffByKey.has('expenses') },
       { key: 'expenseDetails', label: 'פירוט הוצאה', left: current.expenseDetails, editValue: current.expenseDetails, right: null, visible: (attendanceExpenses != null && attendanceExpenses > 0) && hasValue(current.expenseDetails) },
       { key: 'notes', label: 'הערות', left: current.notes, editValue: current.notes, right: null, visible: hasValue(current.notes) }
@@ -2363,7 +2398,8 @@ export function resultsHtml(result, month = '', options = {}) {
       const hasSystemValue = dashboard != null && right != null && txt(right) !== '';
       const systemMissing = dashboard != null && !hasSystemValue;
       const expenseIssue = key === 'expenses' && hasReviewExpense(attendance);
-      const issue = !autoCalculated && (Boolean(related && !related.decided) || (expenseIssue && !related?.decided));
+      const missingTrainingInfo = Boolean(training && ((key === 'trainingMode' && !['physical', 'online'].includes(training.mode)) || (['trainingLocation', 'kilometers'].includes(key) && training.issue)));
+      const issue = missingTrainingInfo || !autoCalculated && (Boolean(related && !related.decided) || (expenseIssue && !related?.decided));
 
       let statusClass = 'attendance-control__status-pill--info';
       let status = 'תואם';
@@ -2371,7 +2407,7 @@ export function resultsHtml(result, month = '', options = {}) {
         statusClass = 'attendance-control__status-pill--info';
         status = 'מחושב אוטומטית';
       } else if (related?.decided) {
-        statusClass = 'attendance-control__status-pill--ok';
+        statusClass = attendanceEntryIsResolved(entry) ? 'attendance-control__status-pill--ok' : 'attendance-control__status-pill--info';
         status = '✓ החלטה נשמרה';
       } else if (issue) {
         statusClass = 'attendance-control__status-pill--issue';
@@ -2406,7 +2442,9 @@ export function resultsHtml(result, month = '', options = {}) {
           </div>
         </div>${actions}`;
       }
-      const rowClass = issue ? 'attendance-control__comparison-row--issue' : related?.decided ? 'attendance-control__comparison-row--resolved' : '';
+      const rowClass = issue ? 'attendance-control__comparison-row--issue' : related?.decided && attendanceEntryIsResolved(entry) ? 'attendance-control__comparison-row--resolved' : '';
+
+      if (attendanceOnly) return `<tr class="${missingTrainingInfo ? 'attendance-control__comparison-row--issue' : ''}"><th>${escapeHtml(label)}</th><td>${shown(left)}</td>${editing ? `<td class="attendance-control__actions-cell">${actions}</td>` : ''}</tr>`;
 
       return `<tr class="${rowClass}"${related ? ` data-comparison="${escapeHtml(entry.id)}" data-field="${escapeHtml(key)}"` : ''}>
         <th>${escapeHtml(label)}</th>
@@ -2416,6 +2454,11 @@ export function resultsHtml(result, month = '', options = {}) {
         <td class="attendance-control__actions-cell">${actions}</td>
       </tr>`;
     }).join('');
+
+    if (attendanceOnly) {
+      const travelTable = attachedCancellation ? `<div class="attendance-control__comparison-wrap"><p class="attendance-control__comparison-title">ביטול זמן נסיעה</p><table class="attendance-control__comparison-table"><thead><tr><th>פרמטר</th><th>דיווח</th><th>חישוב מערכת</th><th>סטטוס</th><th>פעולות</th></tr></thead><tbody>${foldedTravelCancellationRowHtml(attachedCancellation)}</tbody></table></div>` : '';
+      return `<div class="attendance-control__comparison-wrap"><p class="attendance-control__comparison-title">פרטי הדיווח לבקרה <span class="attendance-control__status-pill attendance-control__status-pill--neutral">ללא השוואה לדשבורד</span></p><table class="attendance-control__comparison-table attendance-control__report-details-table"><thead><tr><th>פרט</th><th>דיווח</th>${editing ? '<th>עריכה</th>' : ''}</tr></thead><tbody>${rows}</tbody></table></div>${travelTable}`;
+    }
 
     const title = attendanceOnly
       ? 'פרטי הדיווח לבקרה'
@@ -2468,7 +2511,8 @@ export function resultsHtml(result, month = '', options = {}) {
             <button type="button" class="ds-btn ds-btn--sm" data-travel-review="correct">תיקון</button>
           </div>`
         : `<p class="attendance-control__manual-note">סטטוס בקרה: ${escapeHtml(reviewStatus)} · מאושר: ${escapeHtml(approvedValue)}</p>`;
-      return `<div class="attendance-control__comparison-wrap"><p class="attendance-control__comparison-title">בדיקת ביטול זמן</p><table class="attendance-control__comparison-table attendance-control__parameter-table"><thead><tr><th>פרמטר</th><th>דיווח מדריך</th><th>חישוב מערכת</th><th>סטטוס</th><th>פעולות</th></tr></thead><tbody>${rows}</tbody></table>${actions}</div>${attachmentsHtml(display)}`;
+      const reportDetails = autoCancellation ? '' : parameterReviewTable(entry || { attendance: row, final: display, differences: [] }, { attendanceOnly: true, attachedCancellation });
+      return `${reportDetails}<div class="attendance-control__comparison-wrap"><p class="attendance-control__comparison-title">בדיקת ביטול זמן</p><table class="attendance-control__comparison-table attendance-control__parameter-table"><thead><tr><th>פרמטר</th><th>דיווח מדריך</th><th>חישוב מערכת</th><th>סטטוס</th><th>פעולות</th></tr></thead><tbody>${rows}</tbody></table>${actions}</div>${attachmentsHtml(display)}`;
     }
 
     return `${parameterReviewTable(entry || { attendance: row, final: display, differences: [] }, { attendanceOnly: true, attachedCancellation })}${attachmentsHtml(display)}`;
@@ -2478,7 +2522,7 @@ export function resultsHtml(result, month = '', options = {}) {
     const editing = kind !== 'dashboard' && item?.__recordEditing === true;
     const row = kind === 'dashboard' ? item.dashboard : (item.final || item.attendance);
     const attachedCancellation = generatedCancellationBySource.get(entryRecordId(item)) || null;
-    const dataIssue = kind === 'comparison' ? comparisonHasIssue(item) : false;
+    const dataIssue = (kind === 'comparison' && comparisonHasIssue(item)) || Boolean(trainingDetailsForRow(row)?.issue);
     const approved = kind === 'dashboard' ? true : attendanceEntryIsResolved(item);
     const attachedApproved = attachedCancellation ? attendanceEntryIsResolved(attachedCancellation) : true;
     const cancellationEntry = isAttendanceTravelTimeCancellation(item)
@@ -2516,7 +2560,7 @@ export function resultsHtml(result, month = '', options = {}) {
           <button type="button" class="ds-btn" data-attendance-cancel-record="${escapeHtml(item.id)}">בטל</button>
         </div>`
       : '';
-    return `<section class="attendance-control__report" data-attendance-record-id="${escapeHtml(item.id)}" data-record-editing="${editing ? '1' : '0'}"><div class="attendance-control__report-line"><strong>${shown(`${row.startTime || '—'}–${row.endTime || '—'} | ${activityTypeDisplayLabel(row.activityType) || 'דיווח'}`)}</strong><div class="attendance-control__report-line-actions">${status}${recordActions}</div></div>${body}${editFooter}</section>`;
+    return `<section class="attendance-control__report" data-attendance-record-id="${escapeHtml(item.id)}" data-record-editing="${editing ? '1' : '0'}"><div class="attendance-control__report-line"><strong>${shown(`${row.startTime || '—'}–${row.endTime || '—'} | ${activityTypeDisplayLabel(row.activityType) || 'דיווח'}${trainingDetailsForRow(row)?.mode === 'online' ? ' – זום' : ''}`)}</strong><div class="attendance-control__report-line-actions">${status}${recordActions}</div></div>${body}${editFooter}</section>`;
   };
   const employeeHtml = [...employees.values()].sort((a, b) => a.name.localeCompare(b.name, 'he')).map((employee) => {
     const hasWorkflowRow = Object.prototype.hasOwnProperty.call(workflowByEmployee, employee.id);
@@ -2538,16 +2582,16 @@ export function resultsHtml(result, month = '', options = {}) {
         const attached = generatedCancellationBySource.get(entryRecordId(item));
         return !attendanceEntryIsResolved(item) || (attached ? !attendanceEntryIsResolved(attached) : false);
       });
-      const dataIssue = rows.some((entry) => entry.kind === 'comparison' && comparisonHasIssue(entry.item));
+      const dataIssue = needsApproval && rows.some((entry) => !attendanceEntryIsResolved(entry.item) && ((entry.kind === 'comparison' && comparisonHasIssue(entry.item)) || trainingDetailsForRow(entry.item.final || entry.item.attendance)?.issue));
       const dayStatus = !needsApproval ? '✓ אושר' : (dataIssue ? 'לבדיקה' : 'ממתין לאישור');
-      return `<details class="attendance-control__day${needsApproval ? '' : ' attendance-control__day--ok'}" data-payroll-date="${escapeHtml(date)}"><summary><span>${shown(dateLabel(date))}</span><span>${formatDurationHours(hours)} שעות</span><span class="attendance-control__row-status ${dataIssue ? 'attendance-control__row-status--issue' : ''}">${dayStatus}</span></summary><div class="attendance-control__reports">${rows.map((row) => reportHtml({ ...row, employeeId: employee.id, date })).join('')}</div></details>`;
+      return `<details class="attendance-control__day${needsApproval ? '' : ' attendance-control__day--ok'}" data-payroll-date="${escapeHtml(date)}"><summary><span>${shown(dateLabel(date))}</span><span>${formatDurationHours(hours)} שעות</span><span class="attendance-control__row-status ${dataIssue ? 'attendance-control__row-status--issue' : needsApproval ? '' : 'attendance-control__row-status--ok'}">${dayStatus}</span></summary><div class="attendance-control__reports">${rows.map((row) => reportHtml({ ...row, employeeId: employee.id, date })).join('')}</div></details>`;
     }).join('');
     const employeeEntries = allAttendanceEntries.filter((entry) => txt(entry.attendance?.employeeId) === employee.id);
     const totalRecordCount = employeeEntries.length;
     const approvedRecordCount = employeeEntries.filter(attendanceEntryIsResolved).length;
     const pendingRecordCount = Math.max(0, totalRecordCount - approvedRecordCount);
     const recordProgressHtml = totalRecordCount
-      ? `<span class="attendance-control__employee-record-progress">אושרו ${approvedRecordCount} מתוך ${totalRecordCount} רשומות</span>`
+      ? `<span class="attendance-control__employee-record-progress">אושרו ${approvedRecordCount} מתוך ${totalRecordCount} רשומות${pendingRecordCount ? ` · ${pendingRecordCount} ממתינות לאישור` : ''}</span>`
       : '';
     const approval = options.approvalsByEmployee?.[employee.id];
     const workflowHtml = `<p class="attendance-control__manual-note">סטטוס חודש: <strong>${escapeHtml(workflow.label)}</strong></p>`;
@@ -2597,6 +2641,7 @@ export function resultsHtml(result, month = '', options = {}) {
     // "לבדיקה" counts real data gaps / missing submission — not pending manager approval.
     const hasDataIssue = entries.some((entry) => {
       if (attendanceEntryIsResolved(entry)) return false;
+      if (trainingDetailsForRow(entry.final || entry.attendance)?.issue) return true;
       if (entry.unmatched || entry.source === 'attendance_not_compared') return Boolean(entry.unmatched);
       if ((entry.differences || []).some((difference) => !difference.decided)) return true;
       if (hasReviewExpense(entry.attendance)
