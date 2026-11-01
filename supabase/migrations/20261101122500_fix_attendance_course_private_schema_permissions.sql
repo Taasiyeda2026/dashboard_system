@@ -181,7 +181,7 @@ begin
   end if;
   return new;
 end
-$function$
+$function$;
 
 -- Retire the separate unprivileged trigger that caused 42501.
 drop trigger if exists trg_attendance_course_paid_hours on public.attendance_records;
