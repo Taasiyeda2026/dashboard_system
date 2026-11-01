@@ -433,6 +433,7 @@ function openPreview(ui, { readOnly = false } = {}) {
       text_ar: String(q.wording?.ar || '').replaceAll('{topic}', arabicTopics[program?.key] || program?.topic || ''),
       options: q.options || [],
       required: q.required,
+      scoring: q.scoring || {},
       allow_na: allowsNa(q),
       visible_when: q.scoring?.visible_when || null
     }))

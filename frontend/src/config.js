@@ -581,4 +581,5 @@ config.HOTFIX_VERSION = 'planning-display-server-certified-20261030-v1-' + confi
 
 config.HOTFIX_VERSION = 'feedback-complete-questionnaires-20261031-v1-' + config.HOTFIX_VERSION;
 
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-staff-final-2546-20261101-v1`;
 config.HOTFIX_VERSION = 'manager-attendance-training-review-20261101-v1-' + config.HOTFIX_VERSION;

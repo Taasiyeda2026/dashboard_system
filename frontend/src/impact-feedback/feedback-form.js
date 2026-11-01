@@ -5,6 +5,7 @@
  */
 import { mountInstructorExtendedReview } from './feedback-instructor-review.js';
 import { activeFeedbackQuestions } from './feedback-conditional.js';
+import { answerRules, otherAnswerKey, needsOtherAnswer, invalidFeedbackAnswers } from './feedback-answer-rules.js';
 import {
   RATING_EMOJI,
   RATING_LABELS,
@@ -64,30 +65,31 @@ function arabicHeadline(payload) {
 }
 
 function ratingHtml(q, value, young, lang = 'he', approvedStudentScale = false) {
-  const labels = approvedStudentScale && lang === 'ar' ? AR_BIOMIMICRY_RATING_LABELS : lang === 'ar' ? AR_RATING_LABELS : RATING_LABELS;
+  const staffScale = answerRules(q).rating_scale === 'staff_final';
+  const labels = staffScale ? (lang === 'ar' ? ['إطلاقًا', 'بدرجة قليلة', 'بدرجة متوسطة', 'بدرجة كبيرة', 'بدرجة كبيرة جدًا'] : ['כלל לא', 'במידה מועטה', 'במידה בינונית', 'במידה רבה', 'במידה רבה מאוד']) : approvedStudentScale && lang === 'ar' ? AR_BIOMIMICRY_RATING_LABELS : lang === 'ar' ? AR_RATING_LABELS : RATING_LABELS;
   const name = `q-${q.id}`;
   const buttons = [1, 2, 3, 4, 5].map((n) => `
     <label class="ifb-rate__opt${young ? ' is-emoji' : ''}">
       <input type="radio" name="${esc(name)}" value="${n}" data-qid="${esc(q.id)}" data-kind="rating"${Number(value) === n ? ' checked' : ''}>
       <span class="ifb-rate__face" aria-hidden="true">${approvedStudentScale ? ['①', '②', '③', '④', '⑤'][n - 1] : young ? RATING_EMOJI[n - 1] : n}</span>
       <span class="ifb-sr">${n} – ${esc(labels[n - 1])}</span>
-      ${young && !approvedStudentScale ? `<span class="ifb-rate__caption" aria-hidden="true">${esc(labels[n - 1])}</span>` : ''}
+      ${(young && !approvedStudentScale) || staffScale ? `<span class="ifb-rate__caption" aria-hidden="true">${esc(labels[n - 1])}</span>` : ''}
     </label>`).join('');
   const na = q.allow_na ? `
     <label class="ifb-rate__na">
       <input type="radio" name="${esc(name)}" value="na" data-qid="${esc(q.id)}" data-kind="rating"${value === 'na' ? ' checked' : ''}>
-      <span>${esc(arLabel(NA_LABEL, 'لا ينطبق / لم تتح لي فرصة التقييم', lang))}</span>
+      <span>${esc(arLabel(staffScale ? 'לא רלוונטי' : NA_LABEL, staffScale ? 'لا ينطبق' : 'لا ينطبق / لم تتح لي فرصة التقييم', lang))}</span>
     </label>` : '';
   return `
     <div class="ifb-rate${approvedStudentScale ? ' ifb-rate--arabic-biomimicry' : ''}" role="radiogroup" aria-label="${esc(q.text)}">${buttons}</div>
-    ${young || approvedStudentScale ? '' : `<div class="ifb-rate__ends" aria-hidden="true"><span>${esc(labels[0])}</span><span>${esc(labels[4])}</span></div>`}
+    ${young || approvedStudentScale || staffScale ? '' : `<div class="ifb-rate__ends" aria-hidden="true"><span>${esc(labels[0])}</span><span>${esc(labels[4])}</span></div>`}
     ${na}`;
 }
 
 function choiceHtml(q, value, multiple, lang = 'he') {
   const selected = new Set(multiple ? (Array.isArray(value) ? value : []) : [value]);
   const options = Array.isArray(q.options) ? q.options : [];
-  return `<div class="ifb-choices${multiple ? ' is-multi' : ''}" role="${multiple ? 'group' : 'radiogroup'}" aria-label="${esc(q.text)}">
+  return `<div class="ifb-choices${answerRules(q).scale_endpoints ? ' ifb-choices--numeric' : ''}${multiple ? ' is-multi' : ''}" role="${multiple ? 'group' : 'radiogroup'}" aria-label="${esc(q.text)}">
     ${options.map((o) => `
       <label class="ifb-choice">
         <input type="${multiple ? 'checkbox' : 'radio'}" name="q-${esc(q.id)}" value="${esc(o.value)}" data-qid="${esc(q.id)}" data-kind="${multiple ? 'multi' : 'single'}"${selected.has(o.value) ? ' checked' : ''}>
@@ -104,7 +106,14 @@ function yesNoHtml(q, value, lang = 'he') {
 }
 
 function textHtml(q, value, lang = 'he') {
-  return `<textarea class="ifb-text" rows="3" maxlength="2000" data-qid="${esc(q.id)}" data-kind="text" aria-label="${esc(q.text)}" placeholder="${arLabel('אפשר לכתוב כאן…', 'يمكنك الكتابة هنا…', lang)}">${esc(value || '')}</textarea>`;
+  return `<textarea class="ifb-text" rows="3" maxlength="${Number(answerRules(q).max_length) || 2000}" data-qid="${esc(q.id)}" data-kind="text" aria-label="${esc(q.text)}" placeholder="${arLabel('אפשר לכתוב כאן…', 'يمكنك الكتابة هنا…', lang)}">${esc(value || '')}</textarea>`;
+}
+
+function questionHeadingHtml(q, lang) {
+  const rules = answerRules(q);
+  const title = lang === 'ar' ? rules.section_title_ar : rules.section_title;
+  const instruction = lang === 'ar' ? rules.instruction_ar : rules.instruction;
+  return title || instruction ? `<section data-heading-for="${esc(q.id)}" class="ifb-question-heading">${title ? `<h2>${esc(title)}</h2>` : ''}${instruction ? `<p>${esc(instruction)}</p>` : ''}</section>` : '';
 }
 
 function questionHtml(q, index, answers, young, lang = 'he', approvedStudentScale = false) {
@@ -115,7 +124,13 @@ function questionHtml(q, index, answers, young, lang = 'he', approvedStudentScal
   else if (q.type === 'single_select') control = choiceHtml(q, value, false, lang);
   else if (q.type === 'multi_select') control = choiceHtml(q, value, true, lang);
   else control = textHtml(q, value, lang);
+  const rules = answerRules(q);
+  const endpoints = rules.scale_endpoints;
+  if (endpoints) control += `<div class="ifb-rate__ends"><span>0 – ${esc(lang === 'ar' ? endpoints.low_ar : endpoints.low)}</span><span>10 – ${esc(lang === 'ar' ? endpoints.high_ar : endpoints.high)}</span></div>`;
+  if (rules.other_value) control += `<label data-other-for="${esc(q.id)}"${needsOtherAnswer(q, value) ? '' : ' hidden'}>${arLabel('נא לפרט', 'يرجى التوضيح', lang)}<textarea class="ifb-text" rows="2" data-qid="${esc(q.id)}" data-kind="other" maxlength="${Number(rules.other_max_length) || 250}">${esc(answers[otherAnswerKey(q)] || '')}</textarea></label>`;
+  if (q.type === 'free_text' && rules.max_length) control += `<p data-counter-for="${esc(q.id)}">${[...String(value || '')].length} / ${Number(rules.max_length)}</p>`;
   return `
+    ${questionHeadingHtml(q, lang)}
     <fieldset class="ifb-q${isAnswered(q, value) ? ' is-answered' : ''}" data-question="${esc(q.id)}">
       <legend class="ifb-q__title">
         <span class="ifb-q__num" aria-hidden="true">${index + 1}</span>
@@ -123,6 +138,7 @@ function questionHtml(q, index, answers, young, lang = 'he', approvedStudentScal
       </legend>
       ${q.type === 'multi_select' ? `<p class="ifb-q__hint">${arLabel('אפשר לבחור כמה תשובות', 'يمكن اختيار أكثر من إجابة', lang)}</p>` : ''}
       ${control}
+      ${rules.empty_detail_text ? `<p class="ifb-q__hint">${esc(lang === 'ar' ? rules.empty_detail_text_ar : rules.empty_detail_text)}</p>` : ''}
       <p class="ifb-q__error" hidden>${arLabel('נשמח לתשובה לשאלה הזו', 'يرجى الإجابة عن هذا السؤال', lang)}</p>
     </fieldset>`;
 }
@@ -205,7 +221,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
         ${biomimicryArabic ? '' : `<p class="ifb-hero__kicker">${esc(arabic ? arabicHeadline(payload) : headline(payload))}</p>`}
         <h1 class="ifb-hero__title">${esc(biomimicryArabic ? (payload.stage === 'pre' ? 'استبيان بداية دورة البيوميمكري – المحاكاة الحيوية' : 'استبيان نهاية دورة البيوميمكري – المحاكاة الحيوية') : arabic ? (AR_PROGRAM_TITLES[payload.program_title] || payload.program_title || '') : (payload.program_title || ''))}</h1>
         ${payload.recipient_name ? `<p class="ifb-hero__hello">${arabic ? 'مرحبًا' : 'שלום'} ${esc(payload.recipient_name)}</p>` : ''}
-        ${introHtml(arabic ? payload.intro_text_ar : payload.intro_text, arabic ? 'ar' : 'he', approvedStudentScale)}
+        ${introHtml(arabic ? payload.intro_text_ar : payload.intro_text, arabic ? 'ar' : 'he', approvedStudentScale || (payload.audience === 'educational_staff' && payload.stage === 'final'))}
       </header>
       <div class="ifb-start" data-ifb-start-panel${hasStarted ? ' hidden' : ''}>
         <button type="button" class="ifb-start__btn" data-ifb-start>${arabic ? 'بدء الاستبيان' : 'התחלת המשוב'}</button>
@@ -264,6 +280,8 @@ export function mountFeedbackForm(container, payload, options = {}) {
       const node = form.querySelector(`[data-question="${CSS.escape(q.id)}"]`);
       if (!node) continue;
       node.hidden = !active;
+      const heading = form.querySelector(`[data-heading-for="${CSS.escape(q.id)}"]`);
+      if (heading) heading.hidden = !active;
       node.querySelectorAll('input,textarea,select').forEach((input) => {
         input.disabled = !active;
         if (!active) {
@@ -273,10 +291,20 @@ export function mountFeedbackForm(container, payload, options = {}) {
       });
       if (!active && Object.prototype.hasOwnProperty.call(answers, q.id)) {
         delete answers[q.id];
+        delete answers[otherAnswerKey(q)];
         node.classList.remove('is-answered', 'is-missing');
         node.querySelector('.ifb-q__error').hidden = true;
         didClear = true;
       }
+    }
+    for (const q of questions) {
+      const detail = form.querySelector(`[data-other-for="${CSS.escape(q.id)}"]`);
+      if (!detail) continue;
+      const enabled = activeFeedbackQuestions(questions, answers).some((item) => item.id === q.id) && needsOtherAnswer(q, answers[q.id]);
+      detail.hidden = !enabled;
+      const input = detail.querySelector('textarea');
+      input.disabled = !enabled;
+      if (!enabled) { input.value = ''; delete answers[otherAnswerKey(q)]; }
     }
     // Visible questions are numbered continuously even when a follow-up is hidden.
     let visibleIndex = 0;
@@ -284,7 +312,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
       const node = form.querySelector(`[data-question="${CSS.escape(q.id)}"]`);
       if (!node || node.hidden) continue;
       const number = node.querySelector('.ifb-q__num');
-      if (number) number.textContent = String(++visibleIndex);
+      if (number) number.textContent = String(answerRules(q).question_number || ++visibleIndex);
     }
     return didClear;
   }
@@ -318,6 +346,12 @@ export function mountFeedbackForm(container, payload, options = {}) {
     else if (kind === 'bool') answers[qid] = input.value === 'true';
     else if (kind === 'single') answers[qid] = input.value;
     else if (kind === 'multi') {
+      const exclusive = answerRules(questions.find((q) => q.id === qid)).exclusive_value;
+      if (input.checked && exclusive) {
+        for (const sibling of form.querySelectorAll(`input[data-qid="${CSS.escape(qid)}"]`)) {
+          if (sibling !== input && (input.value === exclusive || sibling.value === exclusive)) sibling.checked = false;
+        }
+      }
       answers[qid] = [...form.querySelectorAll(`input[data-qid="${CSS.escape(qid)}"]:checked`)].map((el) => el.value);
     }
     markQuestion(qid);
@@ -328,8 +362,11 @@ export function mountFeedbackForm(container, payload, options = {}) {
 
   form.addEventListener('input', (event) => {
     const input = event.target;
-    if (input?.dataset?.kind !== 'text') return;
-    answers[input.dataset.qid] = input.value;
+    if (!['text', 'other'].includes(input?.dataset?.kind)) return;
+    const q = questions.find((item) => item.id === input.dataset.qid);
+    answers[input.dataset.kind === 'other' ? otherAnswerKey(q) : q.id] = input.value;
+    const counter = form.querySelector(`[data-counter-for="${CSS.escape(q.id)}"]`);
+    if (counter) counter.textContent = `${[...input.value].length} / ${answerRules(q).max_length}`;
     markQuestion(input.dataset.qid);
     syncBranchVisibility();
     updateProgress();
@@ -363,6 +400,13 @@ export function mountFeedbackForm(container, payload, options = {}) {
       showMissing(missing);
       return;
     }
+    const invalid = invalidFeedbackAnswers(questions, answers);
+    if (invalid.length) {
+      showMissing(invalid);
+      submitError.textContent = arabic ? 'يرجى إكمال التوضيح والالتزام بالحد الأقصى للأحرف' : 'יש להשלים את הפירוט ולעמוד במגבלת התווים';
+      submitError.hidden = false;
+      return;
+    }
     if (extendedReview && !extendedReview.validate()) return;
     submitBtn.disabled = true;
     submitBtn.classList.add('is-busy');
@@ -372,6 +416,7 @@ export function mountFeedbackForm(container, payload, options = {}) {
       for (const q of activeFeedbackQuestions(questions, answers)) {
         const value = answers[q.id];
         if (!isAnswered(q, value)) continue;
+        if (needsOtherAnswer(q, value)) payloadAnswers[otherAnswerKey(q)] = String(answers[otherAnswerKey(q)]).trim();
         payloadAnswers[q.id] = q.type === 'free_text' ? String(value).trim() : value;
       }
       const result = await options.onSubmit?.(payloadAnswers, extendedReview?.getReview());

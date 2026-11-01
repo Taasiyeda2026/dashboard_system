@@ -1,0 +1,728 @@
+[
+  {
+    "number": 1,
+    "type": "rating_1_5",
+    "wording": {
+      "ar": "العمر",
+      "default": "גיל"
+    },
+    "options": [],
+    "scoring": {
+      "allow_na": true,
+      "question_number": 1,
+      "rating_scale": "staff_final",
+      "section_title": "האם התוכנית מתאימה לאוכלוסיית היעד בהיבטים של:",
+      "section_title_ar": "هل يتلاءم البرنامج مع الفئة المستهدفة من الجوانب التالية:"
+    }
+  },
+  {
+    "number": 2,
+    "type": "rating_1_5",
+    "wording": {
+      "ar": "مستوى الصعوبة",
+      "default": "רמת קושי"
+    },
+    "options": [],
+    "scoring": {
+      "allow_na": true,
+      "question_number": 2,
+      "rating_scale": "staff_final"
+    }
+  },
+  {
+    "number": 3,
+    "type": "rating_1_5",
+    "wording": {
+      "ar": "الملاءمة الثقافية",
+      "default": "התאמה תרבותית"
+    },
+    "options": [],
+    "scoring": {
+      "allow_na": true,
+      "question_number": 3,
+      "rating_scale": "staff_final"
+    }
+  },
+  {
+    "number": 4,
+    "type": "rating_1_5",
+    "wording": {
+      "ar": "إلى أي مدى تقيّم مهنية وخبرة الطاقم الذي ينفّذ البرنامج؟",
+      "default": "באיזו מידה היית מעריך את המקצועיות והמומחיות של הצוות המפעיל את התוכנית?"
+    },
+    "options": [],
+    "scoring": {
+      "allow_na": true,
+      "question_number": 4,
+      "rating_scale": "staff_final"
+    }
+  },
+  {
+    "number": 5,
+    "type": "rating_1_5",
+    "wording": {
+      "ar": "إلى أي مدى كانت التكلفة (السعر) الإجمالية للبرنامج مناسبة ومعقولة مقارنةً بالنشاط الذي نُفّذ؟",
+      "default": "באיזו מידה עלות (מחיר) סך התוכנית הייתה תואמת וסבירה ביחס לפעילות שהתקיימה?"
+    },
+    "options": [],
+    "scoring": {
+      "allow_na": true,
+      "question_number": 5,
+      "rating_scale": "staff_final"
+    }
+  },
+  {
+    "number": 6,
+    "type": "rating_1_5",
+    "wording": {
+      "ar": "إلى أي مدى يسهم البرنامج في تطوير وإثراء طاقم المؤسسة التربوية المشاركة فيه؟",
+      "default": "באיזו מידה התוכנית מקדמת ומעשירה את צוות המוסד החינוכי השותף לתוכנית?"
+    },
+    "options": [],
+    "scoring": {
+      "allow_na": true,
+      "question_number": 6,
+      "rating_scale": "staff_final"
+    }
+  },
+  {
+    "number": 7,
+    "type": "rating_1_5",
+    "wording": {
+      "ar": "بصورة عامة، ما مدى رضاك عن البرنامج؟",
+      "default": "באופן כללי עד כמה הנך שבע רצון מהתוכנית?"
+    },
+    "options": [],
+    "scoring": {
+      "allow_na": true,
+      "question_number": 7,
+      "rating_scale": "staff_final"
+    }
+  },
+  {
+    "number": 8,
+    "type": "rating_1_5",
+    "wording": {
+      "ar": "إلى أي مدى توصي مديرين آخرين باختيار البرنامج؟",
+      "default": "באיזו מידה תמליץ למנהלים נוספים לבחור בתוכנית?"
+    },
+    "options": [],
+    "scoring": {
+      "allow_na": true,
+      "question_number": 8,
+      "rating_scale": "staff_final"
+    }
+  },
+  {
+    "number": 9,
+    "type": "single_select",
+    "wording": {
+      "ar": "هل تنوي شراء هذا البرنامج أيضًا في السنة القادمة؟",
+      "default": "האם בכוונתך לרכוש תוכנית זו גם בשנה הבאה?"
+    },
+    "options": [
+      {
+        "label": "כן",
+        "value": "opt_0",
+        "label_ar": "نعم"
+      },
+      {
+        "label": "לא",
+        "value": "opt_1",
+        "label_ar": "لا"
+      },
+      {
+        "label": "אולי",
+        "value": "opt_2",
+        "label_ar": "ربما"
+      }
+    ],
+    "scoring": {
+      "question_number": 9,
+      "section_title": "רכישה חוזרת, עלות ותועלת",
+      "section_title_ar": "شراء البرنامج مجددًا والتكلفة والمنفعة"
+    }
+  },
+  {
+    "number": 10,
+    "type": "single_select",
+    "wording": {
+      "ar": "إذا لم تكن تنوي شراء البرنامج مجددًا، يُرجى اختيار السبب الرئيسي لذلك:",
+      "default": "במידה ואין בכוונתך לרכוש שוב, אנא בחר/י את הסיבה המרכזית לכך:"
+    },
+    "options": [
+      {
+        "label": "התוכנית אינה מתאימה לצורכי בית הספר",
+        "value": "opt_0",
+        "label_ar": "البرنامج غير ملائم لاحتياجات المدرسة"
+      },
+      {
+        "label": "התכנים אינם מתאימים לרמת התלמידים",
+        "value": "opt_1",
+        "label_ar": "مضامين البرنامج غير ملائمة لمستوى الطلاب"
+      },
+      {
+        "label": "איכות ההדרכה לא עמדה בציפיות",
+        "value": "opt_2",
+        "label_ar": "جودة الإرشاد لم تلبِّ التوقعات"
+      },
+      {
+        "label": "התוכנית לא השיגה את מטרותיה",
+        "value": "opt_3",
+        "label_ar": "البرنامج لم يحقق أهدافه"
+      },
+      {
+        "label": "קשיים בתיאום ובהפעלת התוכנית",
+        "value": "opt_4",
+        "label_ar": "صعوبات في تنسيق البرنامج وتنفيذه"
+      },
+      {
+        "label": "עלות התוכנית גבוהה ביחס לתועלת",
+        "value": "opt_5",
+        "label_ar": "تكلفة البرنامج مرتفعة مقارنةً بفائدته"
+      },
+      {
+        "label": "מגבלות תקציביות של בית הספר",
+        "value": "opt_6",
+        "label_ar": "قيود في ميزانية المدرسة"
+      },
+      {
+        "label": "העדפה לתוכנית אחרת",
+        "value": "opt_7",
+        "label_ar": "تفضيل برنامج آخر"
+      },
+      {
+        "label": "התוכנית הושלמה ואין צורך בהפעלתה מחדש",
+        "value": "opt_8",
+        "label_ar": "اكتمل البرنامج ولا توجد حاجة لتنفيذه مرة أخرى"
+      },
+      {
+        "label": "אחר",
+        "value": "opt_9",
+        "label_ar": "أخرى"
+      }
+    ],
+    "scoring": {
+      "question_number": 10,
+      "other_value": "opt_9",
+      "other_max_length": 250
+    }
+  },
+  {
+    "number": 11,
+    "type": "single_select",
+    "wording": {
+      "ar": "برأيك، ما نسبة المنفعة إلى تكلفة البرنامج؟",
+      "default": "להערכתך, מהו היחס בין העלות לתועלת של התוכנית?"
+    },
+    "options": [
+      {
+        "label": "0",
+        "value": "opt_0",
+        "label_ar": "0"
+      },
+      {
+        "label": "1",
+        "value": "opt_1",
+        "label_ar": "1"
+      },
+      {
+        "label": "2",
+        "value": "opt_2",
+        "label_ar": "2"
+      },
+      {
+        "label": "3",
+        "value": "opt_3",
+        "label_ar": "3"
+      },
+      {
+        "label": "4",
+        "value": "opt_4",
+        "label_ar": "4"
+      },
+      {
+        "label": "5",
+        "value": "opt_5",
+        "label_ar": "5"
+      },
+      {
+        "label": "6",
+        "value": "opt_6",
+        "label_ar": "6"
+      },
+      {
+        "label": "7",
+        "value": "opt_7",
+        "label_ar": "7"
+      },
+      {
+        "label": "8",
+        "value": "opt_8",
+        "label_ar": "8"
+      },
+      {
+        "label": "9",
+        "value": "opt_9",
+        "label_ar": "9"
+      },
+      {
+        "label": "10",
+        "value": "opt_10",
+        "label_ar": "10"
+      }
+    ],
+    "scoring": {
+      "question_number": 11,
+      "scale_endpoints": {
+        "low": "תועלת נמוכה ביחס לעלות",
+        "high": "תועלת גבוהה ביחס לעלות",
+        "low_ar": "منفعة منخفضة مقارنةً بالتكلفة",
+        "high_ar": "منفعة مرتفعة مقارنةً بالتكلفة"
+      }
+    }
+  },
+  {
+    "number": 12,
+    "type": "free_text",
+    "wording": {
+      "ar": "يمكنك ذكر إيجابيات البرنامج هنا",
+      "default": "באפשרותך לציין כאן את יתרונות התוכנית"
+    },
+    "options": [],
+    "scoring": {
+      "question_number": 12,
+      "max_length": 250
+    }
+  },
+  {
+    "number": 13,
+    "type": "free_text",
+    "wording": {
+      "ar": "يمكنك ذكر سلبيات البرنامج و/أو الصعوبات التي واجهتك فيه هنا",
+      "default": "באפשרותך לציין כאן את חסרונות ו/או הקשיים בתוכנית"
+    },
+    "options": [],
+    "scoring": {
+      "question_number": 13,
+      "max_length": 250
+    }
+  },
+  {
+    "number": 14,
+    "type": "rating_1_5",
+    "wording": {
+      "ar": "إلى أي مدى حقق البرنامج الأهداف التي اخترته من أجلها؟",
+      "default": "באיזו מידה התוכנית השיגה את המטרות לשמם התוכנית נבחרה על ידך?"
+    },
+    "options": [],
+    "scoring": {
+      "allow_na": true,
+      "question_number": 14,
+      "rating_scale": "staff_final",
+      "section_title": "השגת מטרות התוכנית",
+      "section_title_ar": "تحقيق أهداف البرنامج"
+    }
+  },
+  {
+    "number": 15,
+    "type": "rating_1_5",
+    "wording": {
+      "ar": "مضامين البرنامج ومحاوره الرئيسية",
+      "default": "תכני התוכנית ודגשיה"
+    },
+    "options": [],
+    "scoring": {
+      "allow_na": true,
+      "question_number": 15,
+      "rating_scale": "staff_final",
+      "section_title": "הלימה בין מאפייני התוכנית ליישומה",
+      "section_title_ar": "التطابق بين خصائص البرنامج وتطبيقه",
+      "instruction": "בשאלות הבאות ציין באיזו מידה הייתה הלימה בין המאפיינים המוצהרים של התוכנית (כפי שהוצגו בפנייך במערכת הגפ\"ן ועל ידי מנהלי התוכנית לפני ההחלטה על רכישתה של התוכנית) לבין יישומם בפועל בבית ספרך",
+      "instruction_ar": "في الأسئلة التالية، يُرجى تحديد مدى التطابق بين الخصائص المعلنة للبرنامج (كما عُرضت عليك في منظومة جفِن ومن قِبل المسؤولين عن البرنامج قبل اتخاذ قرار شرائه) وبين تطبيقها الفعلي في مدرستك."
+    }
+  },
+  {
+    "number": 16,
+    "type": "rating_1_5",
+    "wording": {
+      "ar": "تأهيل أفراد طاقم البرنامج",
+      "default": "ההכשרה של אנשי צוות התוכנית"
+    },
+    "options": [],
+    "scoring": {
+      "allow_na": true,
+      "question_number": 16,
+      "rating_scale": "staff_final"
+    }
+  },
+  {
+    "number": 17,
+    "type": "rating_1_5",
+    "wording": {
+      "ar": "الملاءمة لمضامين / أنشطة أخرى في المدرسة",
+      "default": "התאמה לתכנים / פעילויות נוספות בבית הספר"
+    },
+    "options": [],
+    "scoring": {
+      "allow_na": true,
+      "question_number": 17,
+      "rating_scale": "staff_final"
+    }
+  },
+  {
+    "number": 18,
+    "type": "rating_1_5",
+    "wording": {
+      "ar": "الملاءمة لاحتياجات الطلاب والطالبات وقدراتهم",
+      "default": "התאמה לצרכים וליכולות של התלמידים והתלמידות"
+    },
+    "options": [],
+    "scoring": {
+      "allow_na": true,
+      "question_number": 18,
+      "rating_scale": "staff_final"
+    }
+  },
+  {
+    "number": 19,
+    "type": "rating_1_5",
+    "wording": {
+      "ar": "الملاءمة للمرحلة العمرية التي خُصص لها البرنامج",
+      "default": "התאמה לשלב הגיל לו יועדה התוכנית"
+    },
+    "options": [],
+    "scoring": {
+      "allow_na": true,
+      "question_number": 19,
+      "rating_scale": "staff_final"
+    }
+  },
+  {
+    "number": 20,
+    "type": "rating_1_5",
+    "wording": {
+      "ar": "جودة المواد / المضامين",
+      "default": "איכות החומרים / התכנים"
+    },
+    "options": [],
+    "scoring": {
+      "allow_na": true,
+      "question_number": 20,
+      "rating_scale": "staff_final",
+      "section_title": "הלימה בין המתווה המתוכנן ליישום בפועל",
+      "section_title_ar": "التطابق بين الخطة والتنفيذ الفعلي",
+      "instruction": "בשאלות הבאות אנא ציין באיזו מידה הייתה הלימה בין המתווה המתוכנן של התוכנית לבין יישומו בפועל בבית ספרך",
+      "instruction_ar": "في الأسئلة التالية، يُرجى تحديد مدى التطابق بين الخطة الموضوعة للبرنامج وتنفيذها الفعلي في مدرستك."
+    }
+  },
+  {
+    "number": 21,
+    "type": "rating_1_5",
+    "wording": {
+      "ar": "جودة الطاقم المنفّذ",
+      "default": "איכות הצוות המפעיל"
+    },
+    "options": [],
+    "scoring": {
+      "allow_na": true,
+      "question_number": 21,
+      "rating_scale": "staff_final"
+    }
+  },
+  {
+    "number": 22,
+    "type": "rating_1_5",
+    "wording": {
+      "ar": "الموارد المخصصة لتأهيل الطاقم المدرسي",
+      "default": "תשומות להכשרת הצוות הבית ספרי"
+    },
+    "options": [],
+    "scoring": {
+      "allow_na": true,
+      "question_number": 22,
+      "rating_scale": "staff_final"
+    }
+  },
+  {
+    "number": 23,
+    "type": "rating_1_5",
+    "wording": {
+      "ar": "نُفّذ البرنامج بانتظام على مدار السنة",
+      "default": "התוכנית יושמה בעקביות במהלך השנה"
+    },
+    "options": [],
+    "scoring": {
+      "allow_na": true,
+      "question_number": 23,
+      "rating_scale": "staff_final",
+      "section_title": "תפעול התוכנית",
+      "section_title_ar": "تنفيذ البرنامج",
+      "instruction": "בשאלות הבאות אנא ציין באיזו מידה התקיימו ההיבטים השונים בתפעול התוכנית",
+      "instruction_ar": "في الأسئلة التالية، يُرجى تحديد مدى تحقق الجوانب المختلفة المتعلقة بتنفيذ البرنامج."
+    }
+  },
+  {
+    "number": 24,
+    "type": "rating_1_5",
+    "wording": {
+      "ar": "توفرت مرونة في تنفيذ البرنامج بما يتلاءم مع احتياجات المدرسة",
+      "default": "הייתה גמישות בהפעלת התוכנית בהתאם לצרכיי בית הספר"
+    },
+    "options": [],
+    "scoring": {
+      "allow_na": true,
+      "question_number": 24,
+      "rating_scale": "staff_final"
+    }
+  },
+  {
+    "number": 25,
+    "type": "rating_1_5",
+    "wording": {
+      "ar": "جرى إبلاغ الطاقم التربوي المسؤول بصورة منتظمة، وكان هناك تعاون بنّاء معه",
+      "default": "התקיים דיווח שוטף ושיתוף פעולה מקדם עם הצוות החינוכי המפעיל"
+    },
+    "options": [],
+    "scoring": {
+      "allow_na": true,
+      "question_number": 25,
+      "rating_scale": "staff_final"
+    }
+  },
+  {
+    "number": 26,
+    "type": "free_text",
+    "wording": {
+      "ar": "إذا لم يُنفّذ البرنامج بانتظام ومرونة مع إبلاغ مستمر، يُرجى توضيح الأسباب",
+      "default": "במידה ולא יושמה בעקביות, בגמישות ותוך דיווח שוטף אנא פרט/י את הסיבות לכך"
+    },
+    "options": [],
+    "scoring": {
+      "question_number": 26,
+      "max_length": 250
+    }
+  },
+  {
+    "number": 27,
+    "type": "single_select",
+    "wording": {
+      "ar": "هل كانت للبرنامج تأثيرات غير متوقعة؟",
+      "default": "האם היו לתוכנית השפעות לא צפויות?"
+    },
+    "options": [
+      {
+        "label": "כן",
+        "value": "opt_0",
+        "label_ar": "نعم"
+      },
+      {
+        "label": "לא",
+        "value": "opt_1",
+        "label_ar": "لا"
+      },
+      {
+        "label": "אולי",
+        "value": "opt_2",
+        "label_ar": "ربما"
+      }
+    ],
+    "scoring": {
+      "question_number": 27,
+      "section_title": "השפעות התוכנית",
+      "section_title_ar": "تأثيرات البرنامج"
+    }
+  },
+  {
+    "number": 28,
+    "type": "free_text",
+    "wording": {
+      "ar": "إذا أجبت بنعم أو ربما (بشأن التأثيرات غير المتوقعة للبرنامج)، يُرجى التوضيح",
+      "default": "במידה וענית כן או אולי (לתוכנית השפעות לא צפויות), אנא פרט/י"
+    },
+    "options": [],
+    "scoring": {
+      "question_number": 28
+    }
+  },
+  {
+    "number": 29,
+    "type": "single_select",
+    "wording": {
+      "ar": "كيف تقيّم تأثير البرنامج مقارنةً بالأهداف التي حددتها له؟",
+      "default": "כיצד היית מעריכ/ה את השפעת על התוכנית ביחס למטרות שהצבת לה?"
+    },
+    "options": [
+      {
+        "label": "0",
+        "value": "opt_0",
+        "label_ar": "0"
+      },
+      {
+        "label": "1",
+        "value": "opt_1",
+        "label_ar": "1"
+      },
+      {
+        "label": "2",
+        "value": "opt_2",
+        "label_ar": "2"
+      },
+      {
+        "label": "3",
+        "value": "opt_3",
+        "label_ar": "3"
+      },
+      {
+        "label": "4",
+        "value": "opt_4",
+        "label_ar": "4"
+      },
+      {
+        "label": "5",
+        "value": "opt_5",
+        "label_ar": "5"
+      },
+      {
+        "label": "6",
+        "value": "opt_6",
+        "label_ar": "6"
+      },
+      {
+        "label": "7",
+        "value": "opt_7",
+        "label_ar": "7"
+      },
+      {
+        "label": "8",
+        "value": "opt_8",
+        "label_ar": "8"
+      },
+      {
+        "label": "9",
+        "value": "opt_9",
+        "label_ar": "9"
+      },
+      {
+        "label": "10",
+        "value": "opt_10",
+        "label_ar": "10"
+      }
+    ],
+    "scoring": {
+      "question_number": 29,
+      "scale_endpoints": {
+        "low": "השפעה שלילית",
+        "high": "השפעה חיובית",
+        "low_ar": "تأثير سلبي",
+        "high_ar": "تأثير إيجابي"
+      }
+    }
+  },
+  {
+    "number": 30,
+    "type": "multi_select",
+    "wording": {
+      "ar": "ما أنواع الأدلة (الكمية أو غيرها) التي تستند إليها في هذا التقييم؟",
+      "default": "אילו סוגי עדויות (כמותיות או אחרות) יש להערכה זו שלך?"
+    },
+    "options": [
+      {
+        "label": "הישגי תלמידים ותוצאות הערכה",
+        "value": "opt_0",
+        "label_ar": "تحصيل الطلاب ونتائج التقييم"
+      },
+      {
+        "label": "תוצרים ועבודות של תלמידים",
+        "value": "opt_1",
+        "label_ar": "منتجات الطلاب وأعمالهم"
+      },
+      {
+        "label": "נתוני השתתפות ונוכחות",
+        "value": "opt_2",
+        "label_ar": "بيانات المشاركة والحضور"
+      },
+      {
+        "label": "תצפיות במהלך המפגשים",
+        "value": "opt_3",
+        "label_ar": "ملاحظات ومشاهدات أثناء اللقاءات"
+      },
+      {
+        "label": "משובים של תלמידים",
+        "value": "opt_4",
+        "label_ar": "آراء الطلاب وتقييماتهم"
+      },
+      {
+        "label": "משובים של מורים וצוות חינוכי",
+        "value": "opt_5",
+        "label_ar": "آراء المعلمين والطاقم التربوي"
+      },
+      {
+        "label": "שינוי במוטיבציה ובמעורבות התלמידים",
+        "value": "opt_6",
+        "label_ar": "تغيّر دافعية الطلاب ومشاركتهم"
+      },
+      {
+        "label": "יישום ידע ומיומנויות שנרכשו",
+        "value": "opt_7",
+        "label_ar": "تطبيق المعرفة والمهارات المكتسبة"
+      },
+      {
+        "label": "לא נאספו עדויות",
+        "value": "opt_8",
+        "label_ar": "لم تُجمع أدلة"
+      },
+      {
+        "label": "אחר",
+        "value": "opt_9",
+        "label_ar": "أخرى"
+      }
+    ],
+    "scoring": {
+      "question_number": 30,
+      "other_value": "opt_9",
+      "other_max_length": 250,
+      "exclusive_value": "opt_8"
+    }
+  },
+  {
+    "number": 31,
+    "type": "free_text",
+    "wording": {
+      "ar": "هل ترغب في إضافة تفاصيل؟",
+      "default": "היית רוצה להרחיב?"
+    },
+    "options": [],
+    "scoring": {
+      "question_number": 31,
+      "empty_detail_text": "אפשר להשיב: אין מה להוסיף",
+      "empty_detail_text_ar": "يمكن الإجابة: لا توجد تفاصيل إضافية"
+    }
+  },
+  {
+    "number": 32,
+    "type": "free_text",
+    "wording": {
+      "ar": "ما أبرز إنجاز أو تغيير لاحظته لدى الطلاب خلال البرنامج؟",
+      "default": "מהו ההישג או השינוי המשמעותי ביותר שראית אצל התלמידים במהלך התוכנית?"
+    },
+    "options": [],
+    "scoring": {
+      "question_number": 32,
+      "section_title": "שתי שאלות פתוחות משלימות של תעשיידע",
+      "section_title_ar": "سؤالان مفتوحان إضافيان من تاعسييداع"
+    }
+  },
+  {
+    "number": 33,
+    "type": "free_text",
+    "wording": {
+      "ar": "ما الذي ترى أنه من المهم الحفاظ عليه، وما الذي ينبغي تحسينه عند تنفيذ البرنامج مرة أخرى؟",
+      "default": "מה לדעתך חשוב לשמר ומה כדאי לשפר בהפעלה הבאה של התוכנית?"
+    },
+    "options": [],
+    "scoring": {
+      "question_number": 33
+    }
+  }
+]
