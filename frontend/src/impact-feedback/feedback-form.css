@@ -615,3 +615,40 @@
 @media (max-width: 480px) {
   .ifb-q--staff-final .ifb-q__title { font-size: 14px; line-height: 1.5; }
 }
+
+
+/* Staff final: obvious but restrained selected answers, keyboard-accessible. */
+.ifb-shell.is-adult .ifb-q--staff-final .ifb-rate__opt input:checked + .ifb-rate__face,
+.ifb-shell.is-adult .ifb-q--staff-final .ifb-range-five__option input:checked + span {
+  background: #dce7f2;
+  border: 2px solid #3e6289;
+  color: #173c61;
+  font-weight: 750;
+  box-shadow: inset 0 0 0 1px rgba(62,98,137,.12);
+  transform: none;
+}
+.ifb-q--staff-final .ifb-rate__opt input:checked ~ .ifb-rate__caption {
+  color: #173c61;
+  font-weight: 700;
+}
+.ifb-q--staff-final .ifb-choice:has(input:checked) {
+  background: #dce7f2;
+  border-color: #3e6289;
+  color: #173c61;
+  font-weight: 700;
+}
+.ifb-q--staff-final .ifb-choice input:checked + span {
+  color: #173c61;
+  font-weight: 700;
+}
+.ifb-q--staff-final .ifb-rate__na:has(input:checked) {
+  color: #173c61;
+  font-weight: 700;
+}
+@media (prefers-contrast: more) {
+  .ifb-shell.is-adult .ifb-q--staff-final .ifb-rate__opt input:checked + .ifb-rate__face,
+  .ifb-shell.is-adult .ifb-q--staff-final .ifb-range-five__option input:checked + span {
+    border-color: #153856;
+    background: #cbddeb;
+  }
+}
