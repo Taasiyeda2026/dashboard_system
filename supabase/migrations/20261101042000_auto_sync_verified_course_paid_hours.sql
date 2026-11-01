@@ -117,8 +117,7 @@ begin
   end if;
   return new;
 end
-$function$
-
+$function$;
 
 create or replace function attendance_private.sync_course_paid_hours()
 returns trigger language plpgsql set search_path = public, attendance_private as $$
