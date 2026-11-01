@@ -69,7 +69,7 @@ test('non-school physical location with a trusted address participates in the da
   ];
   const attendance = [{
     employeeId: '1530', date: '2026-09-15', startTime: '10:00', endTime: '15:00',
-    recordId: 'training-1', activityType: 'הכשרה', program: 'הכשרת בסיס',
+    recordId: 'training-1', activityType: 'הכשרה', trainingMode: 'physical', program: 'הכשרת בסיס',
     destinationAddress: '6RVR+XM, יקום', destinationEntityKey: 'training:base_training',
     destinationType: 'location'
   }];
@@ -92,7 +92,7 @@ test('legacy address-only cache route is valid for a non-school physical destina
   ];
   const attendance = [{
     employeeId: '1530', date: '2026-09-15', startTime: '10:00', endTime: '15:00',
-    recordId: 'training-legacy', activityType: 'הכשרה', program: 'הכשרת בסיס',
+    recordId: 'training-legacy', activityType: 'הכשרה', trainingMode: 'physical', program: 'הכשרת בסיס',
     originAddress: 'בית צפפה 14, ירושלים',
     destinationAddress: '6RVR+XM, יקום', destinationEntityKey: 'training:base_training',
     destinationType: 'location'
@@ -135,6 +135,7 @@ test('planned base training uses directional Google route mileage and surfaces a
     date: '2026-09-15',
     recordId: 'training-mohammad',
     activityType: 'הכשרה',
+    trainingMode: 'physical',
     program: 'הכשרת בסיס',
     startTime: '10:00',
     endTime: '15:00',

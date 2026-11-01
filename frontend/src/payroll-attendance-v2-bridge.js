@@ -63,6 +63,7 @@ function legacyRecord(row = {}, travel = null, { generated = false, location = n
     WorkHours: row.work_hours,
     activityType: text(row.activity_type),
     ActivityType: text(row.activity_type),
+    trainingMode: text(row.training_mode),
     schoolName: text(row.school_name),
     SchoolName: text(row.school_name),
     municipality: text(row.municipality),
