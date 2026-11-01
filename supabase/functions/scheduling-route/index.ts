@@ -158,24 +158,46 @@ function dedupeAuthoritySchools(schools: SchoolRow[]) {
 }
 
 async function computeRoute(origin: string, destination: string, key: string) {
-  const google = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Goog-Api-Key': key,
-      'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration,routes.legs.startLocation,routes.legs.endLocation'
-    },
-    body: JSON.stringify({
-      origin: { address: origin },
-      destination: { address: destination },
-      travelMode: 'DRIVE'
-    })
-  });
-  if (!google.ok) return { ok: false as const, reason: 'route_service_unavailable' };
-  const route = (await google.json())?.routes?.[0];
-  const metrics = parseGoogleRouteMetrics(route);
-  if (!metrics) return { ok: false as const, reason: 'route_not_found' };
-  return { ok: true as const, ...metrics };
+  // A provider failure must never be written to the cache as a valid route.
+  // Classify failures so callers can decide whether to retry or fix inputs.
+  let google: Response;
+  try {
+    google = await fetch('https://routes.googleapis.com/directions/v2:computeRoutes', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Goog-Api-Key': key,
+        'X-Goog-FieldMask': 'routes.distanceMeters,routes.duration,routes.legs.startLocation,routes.legs.endLocation'
+      },
+      body: JSON.stringify({
+        origin: { address: origin },
+        destination: { address: destination },
+        travelMode: 'DRIVE'
+      }),
+      signal: AbortSignal.timeout(20000)
+    });
+  } catch (error) {
+    console.error('scheduling_route_provider_network', error instanceof Error ? error.name : 'unknown');
+    return { ok: false as const, reason: 'route_service_unavailable' };
+  }
+  if (!google.ok) {
+    const status = google.status;
+    const reason = status === 429 ? 'route_provider_rate_limited'
+      : status === 403 || status === 401 ? 'route_provider_authorization_failed'
+      : status === 400 ? 'missing_or_invalid_locations'
+      : status === 404 ? 'route_not_found'
+      : 'route_service_unavailable';
+    console.error('scheduling_route_provider_http', status, reason);
+    return { ok: false as const, reason };
+  }
+  try {
+    const route = (await google.json())?.routes?.[0];
+    const metrics = parseGoogleRouteMetrics(route);
+    if (!metrics) return { ok: false as const, reason: 'route_not_found' };
+    return { ok: true as const, ...metrics };
+  } catch {
+    return { ok: false as const, reason: 'route_data_invalid' };
+  }
 }
 
 function emptyStats() {
