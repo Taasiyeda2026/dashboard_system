@@ -6,7 +6,7 @@ const container = process.env.MANAGER_ATTENDANCE_TEST_CONTAINER;
 if (container && container !== 'attendance-manager-review-test') throw new Error('Disposable manager attendance container required');
 const sql = query => execFileSync('docker', ['--host=unix:///var/run/docker.sock', 'exec', '-i', container,
   'psql', '-X', '-Atq', '-v', 'ON_ERROR_STOP=1', '-U', 'postgres'], { input: query, encoding: 'utf8' }).trim();
-const migration = readFileSync(new URL('../supabase/migrations/20261101011727_manager_attendance_training_review.sql', import.meta.url), 'utf8');
+const migration = readFileSync(new URL('../supabase/migrations/20261101012334_manager_attendance_training_review.sql', import.meta.url), 'utf8');
 const actor = (id, query) => sql(`begin; select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-00000000000${id}',true); ${query}; rollback;`).split('\n').slice(1).join('\n');
 const enabled = t => { if (!container) { t.skip('Set MANAGER_ATTENDANCE_TEST_CONTAINER to the disposable test container'); return false; } return true; };
 let dataPreserved;
