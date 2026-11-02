@@ -79,6 +79,7 @@ async function route(
     if (originKey === destinationKey) {
       return { distance_km: 0, duration_minutes: 0, fromCache: false };
     }
+    if (!key) throw new Error('google_key_not_configured');
     noteGoogleCall(metrics);
     const google = await googleRoute(origin, destination, key);
     return { ...google, fromCache: false };
@@ -96,6 +97,27 @@ async function route(
     if (writeError) throw new Error('cache_write_failed');
   }
   return { distance_km: calculated.distance_km, duration_minutes: calculated.duration_minutes };
+}
+
+async function readInstructorSchoolCachedPair(db: any, employeeId: number, schoolId: number) {
+  if (!Number.isInteger(employeeId) || !Number.isInteger(schoolId)) return null;
+  const { data: forwards, error } = await db.from('scheduling_travel_cache')
+    .select('*').eq('origin_instructor_emp_id', employeeId)
+    .eq('destination_school_id', schoolId).eq('location_suspect', false)
+    .order('calculated_at', { ascending: false }).limit(5);
+  if (error) throw new Error('cache_read_failed');
+  for (const forward of forwards || []) {
+    if (!isUsableCachedRoute(forward, forward.origin_address, forward.destination_address)) continue;
+    const { data: reverse, error: reverseError } = await db.from('scheduling_travel_cache')
+      .select('*').eq('origin_key', forward.destination_key)
+      .eq('destination_key', forward.origin_key).maybeSingle();
+    if (reverseError) throw new Error('cache_read_failed');
+    if (isSuspectBlocked(reverse)) throw new Error('location_review_required');
+    if (!isUsableCachedRoute(reverse, reverse?.origin_address, reverse?.destination_address)) continue;
+    return { outbound: { distance_km: Number(forward.distance_km), duration_minutes: Number(forward.duration_minutes) },
+      returning: { distance_km: Number(reverse.distance_km), duration_minutes: Number(reverse.duration_minutes) } };
+  }
+  return null;
 }
 
 Deno.serve(async (req) => {
@@ -144,22 +166,21 @@ Deno.serve(async (req) => {
     });
     return response({ eligible: true, status: 'unavailable', failure_code: context.context_error, route_metrics: metrics }, 422);
   }
-  if (!googleKey) {
-    await db.rpc('av2_reconcile_attendance_travel', {
-      p_source_id: sourceId,
-      p_fingerprint: context.fingerprint,
-      p_outbound: null,
-      p_return: null,
-      p_failure_code: 'google_key_not_configured',
-      p_distance_km: null
-    });
-    return response({ eligible: true, status: 'unavailable', failure_code: 'google_key_not_configured', route_metrics: metrics }, 503);
-  }
   try {
-    const [outbound, returning] = await Promise.all([
-      route(db, context.origin_address, context.destination_address, googleKey, metrics),
-      route(db, context.destination_address, context.origin_address, googleKey, metrics)
-    ]);
+    // Reuse both directed, verified Supabase routes by stable identities before any provider request.
+    const { data: sourceRow, error: sourceError } = await db.from('attendance_records')
+      .select('emp_id,school_id').eq('id', sourceId).single();
+    if (sourceError) throw new Error('attendance_context_invalid');
+    const cachedPair = await readInstructorSchoolCachedPair(
+      db, Number(sourceRow?.emp_id), Number(sourceRow?.school_id)
+    );
+    if (cachedPair) { noteCacheHit(metrics); noteCacheHit(metrics); }
+    const [outbound, returning] = cachedPair
+      ? [cachedPair.outbound, cachedPair.returning]
+      : await Promise.all([
+          route(db, context.origin_address, context.destination_address, googleKey, metrics),
+          route(db, context.destination_address, context.origin_address, googleKey, metrics)
+        ]);
     const oneWayKm = Math.max(
       Number(outbound.distance_km) || 0,
       Number(returning.distance_km) || 0
