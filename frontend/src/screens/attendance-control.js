@@ -2598,20 +2598,17 @@ export function resultsHtml(result, month = '', options = {}) {
     );
     const days = [...employee.days.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([date, rows]) => {
       rows.sort((left, right) => left.time.localeCompare(right.time));
-      const attendanceRows = rows.filter((row) => row.kind !== 'dashboard');
-      const attachedCancellations = rows
-        .map((entry) => generatedCancellationBySource.get(entryRecordId(entry.item)))
-        .filter(Boolean);
-      const hours = attendanceRows.reduce((sum, entry) => sum + (rowWorkHours(entry.item.final || entry.item.attendance) ?? 0), 0)
-        + attachedCancellations.reduce((sum, entry) => sum + (rowWorkHours(entry.final || entry.attendance) ?? 0), 0);
-      const needsApproval = rows.some((entry) => {
-        const item = entry.item;
+      return rows.map((row) => {
+        const item = row.item;
         const attached = generatedCancellationBySource.get(entryRecordId(item));
-        return !attendanceEntryIsResolved(item) || (attached ? !attendanceEntryIsResolved(attached) : false);
-      });
-      const dataIssue = needsApproval && rows.some((entry) => !attendanceEntryIsResolved(entry.item) && ((entry.kind === 'comparison' && comparisonHasIssue(entry.item)) || trainingDetailsForRow(entry.item.final || entry.item.attendance)?.issue));
-      const dayStatus = !needsApproval ? '✓ אושר' : (dataIssue ? 'לבדיקה' : 'ממתין לאישור');
-      return `<details class="attendance-control__day${needsApproval ? '' : ' attendance-control__day--ok'}" data-payroll-date="${escapeHtml(date)}"><summary><span>${shown(dateLabel(date))}</span><span>${formatDurationHours(hours)} שעות</span><span class="attendance-control__row-status ${dataIssue ? 'attendance-control__row-status--issue' : needsApproval ? '' : 'attendance-control__row-status--ok'}">${dayStatus}</span></summary><div class="attendance-control__reports">${rows.map((row) => reportHtml({ ...row, employeeId: employee.id, date })).join('')}</div></details>`;
+        const current = item.final || item.attendance || item.dashboard || {};
+        const hours = rowWorkHours(current);
+        const needsApproval = !attendanceEntryIsResolved(item) || (attached ? !attendanceEntryIsResolved(attached) : false);
+        const dataIssue = !attendanceEntryIsResolved(item) && ((row.kind === 'comparison' && comparisonHasIssue(item)) || trainingDetailsForRow(current)?.issue);
+        const rowStatus = !needsApproval ? '✓ אושר' : (dataIssue ? 'לבדיקה' : 'ממתין לאישור');
+        const label = activityTypeDisplayLabel(current.activityType) || 'דיווח';
+        return `<details class="attendance-control__day${needsApproval ? '' : ' attendance-control__day--ok'}" data-payroll-date="${escapeHtml(date)}" data-attendance-row-id="${escapeHtml(entryRecordId(item))}"><summary><span>${shown(dateLabel(date))} · ${shown(label)}</span><span>${formatDurationHours(hours)} שעות</span><span class="attendance-control__row-status ${dataIssue ? 'attendance-control__row-status--issue' : needsApproval ? '' : 'attendance-control__row-status--ok'}">${rowStatus}</span></summary><div class="attendance-control__reports">${reportHtml({ ...row, employeeId: employee.id, date })}</div></details>`;
+      }).join('');
     }).join('');
     const employeeEntries = allAttendanceEntries.filter((entry) => txt(entry.attendance?.employeeId) === employee.id);
     const totalRecordCount = employeeEntries.length;
