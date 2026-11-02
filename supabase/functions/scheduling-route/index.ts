@@ -429,11 +429,7 @@ function cacheRowPayload(pair: TravelPair, distanceKm: number, durationMinutes: 
 function addressesMatch(cached: Record<string, unknown> | null | undefined, pair: TravelPair) {
   if (!cached) return false;
   return text(cached.origin_address) === pair.origin_address
-    && text(cached.destination_address) === pair.destination_address
-    // Cache keys are canonical labels, not Google geocoding endpoints.
-    // Reject legacy route results computed with shortened/ambiguous queries.
-    && (pair.origin_type !== 'school' || text(cached.query_origin_address) === pair.query_origin_address)
-    && (pair.destination_type !== 'school' || text(cached.query_destination_address) === pair.query_destination_address);
+    && text(cached.destination_address) === pair.destination_address;
 }
 
 function isFiniteMetric(value: unknown) {
