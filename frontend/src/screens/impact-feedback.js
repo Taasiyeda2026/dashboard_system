@@ -2216,7 +2216,7 @@ function slotCardHtml(group, slot, user) {
         : earlyFinal ? statusText(earlyFinal.label, earlyFinal.tone) : campaignStatusHtml(null)}</div>
       ${coveredBySharedMail ? '<p class="ifb-muted">פעילות זו נכללה במשלוח משותף לאותו איש קשר ולאותו שלב. השאלון נמצא בפעילות הנציגה של המשלוח, ואין ליצור הזמנה כפולה.</p>'
         : earlyFinal ? '<p class="ifb-muted">משוב הסיום ייפתח רק לאחר שהקורס ומפגשיו הושלמו.</p>'
-        : `${manuallyMarkedSent ? '<p class="ifb-muted">סומן כנשלח ידנית, אך טרם נוצר קישור משוב. ניתן ליצור קישור קבוע ללא שליחה נוספת.</p>' : ''}${openFormHtml(group, slot)}`}
+        : `${openFormHtml(group, slot)}`}
       ${manuallyMarkedSent || coveredBySharedMail ? '' : staffScheduleHtml(group, slot)}
     </article>`;
   }
