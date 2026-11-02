@@ -2645,7 +2645,7 @@ export function resultsHtml(result, month = '', options = {}) {
           ? `<button type="button" class="ds-btn" data-attendance-add-record="${escapeHtml(employee.id)}" data-attendance-add-employee-name="${escapeHtml(employee.name)}" title="הוספת רשומה" aria-label="הוספת רשומה">+</button>`
           : '';
         const finalizeBtn = finalizeAllowed
-          ? `<button type="button" class="ds-btn ds-btn--primary" data-payroll-finish="${escapeHtml(employee.id)}" data-payroll-employee-name="${shown(employee.name)}"${pendingRecordCount ? ' disabled' : ''}>אישור מנהל</button>`
+          ? `<button type="button" class="ds-btn ds-btn--primary" data-payroll-finish="${escapeHtml(employee.id)}" data-payroll-employee-name="${shown(employee.name)}" data-payroll-pending-records="${pendingRecordCount}">אישור מנהל</button>`
           : '';
         const reopenNotice = submissionStatus === 'reopened' && !bypassMonthSubmissionGate
           ? '<span class="attendance-control__manual-note">המדריך חייב לסיים ולאשר מחדש את החודש לפני אישור מנהל.</span>'
@@ -3621,6 +3621,11 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     if (!finishBtn || !result) return;
     const employeeId = txt(finishBtn.dataset.payrollFinish);
     const employeeName = txt(finishBtn.dataset.payrollEmployeeName);
+    const pendingCount = Number(finishBtn.dataset.payrollPendingRecords || 0);
+    if (pendingCount > 0) {
+      setStatusMessage(`לא ניתן להשלים אישור מנהל: נותרו ${pendingCount} רשומות שדורשות אישור. יש לפתוח את הרשומות הממתינות, לטפל בהן ולאחר מכן ללחוץ שוב על אישור מנהל.`, { error: true });
+      return;
+    }
     const workflow = resolvePayrollMonthWorkflow(workflowByEmployee[employeeId] || {});
     if (workflow.status !== 'submitted') {
       setStatusMessage('לא ניתן לאשר מנהל לפני שהעובד השלים ואישר את החודש.', { error: true });
