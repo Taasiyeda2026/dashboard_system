@@ -429,7 +429,11 @@ function cacheRowPayload(pair: TravelPair, distanceKm: number, durationMinutes: 
 function addressesMatch(cached: Record<string, unknown> | null | undefined, pair: TravelPair) {
   if (!cached) return false;
   return text(cached.origin_address) === pair.origin_address
-    && text(cached.destination_address) === pair.destination_address;
+    && text(cached.destination_address) === pair.destination_address
+    // Cache keys are canonical labels, not Google geocoding endpoints.
+    // Reject legacy route results computed with shortened/ambiguous queries.
+    && text(cached.query_origin_address) === pair.query_origin_address
+    && text(cached.query_destination_address) === pair.query_destination_address;
 }
 
 function isFiniteMetric(value: unknown) {
@@ -817,6 +821,27 @@ function payrollInstructorSchoolPair(instructor: InstructorRow, school: PayrollS
     destination_key: cacheKey(destinationAddress),
     origin_entity_key: instructorEntityKey(instructor.emp_id),
     destination_entity_key: school.entity_key || schoolEntityKey(school)
+  };
+}
+
+// Keep the reverse journey tied to the same *qualified* geographic endpoints.
+// A bare street name such as "שבזי 9" must never become the Google origin.
+function reversePayrollPair(pair: TravelPair | null): TravelPair | null {
+  if (!pair) return null;
+  return {
+    ...pair,
+    origin_type: pair.destination_type,
+    destination_type: pair.origin_type,
+    origin_school_id: pair.destination_school_id,
+    destination_school_id: pair.origin_school_id,
+    origin_address: pair.destination_address,
+    destination_address: pair.origin_address,
+    query_origin_address: pair.query_destination_address,
+    query_destination_address: pair.query_origin_address,
+    origin_key: pair.destination_key,
+    destination_key: pair.origin_key,
+    origin_entity_key: pair.destination_entity_key,
+    destination_entity_key: pair.origin_entity_key
   };
 }
 
@@ -1289,7 +1314,7 @@ async function loadPayrollMonthPairs(db: DbClient, month: string, employeeIds: n
     for (let index = 1; index < sequence.length; index += 1) {
       addPair(payrollSchoolSchoolPair(sequence[index - 1].school, sequence[index].school));
     }
-    if (instructor) addPair(payrollInstructorSchoolPair(instructor, sequence[sequence.length - 1].school));
+    if (instructor) addPair(reversePayrollPair(payrollInstructorSchoolPair(instructor, sequence[sequence.length - 1].school)));
   }
 
 
@@ -1379,7 +1404,7 @@ async function loadPayrollMonthPairs(db: DbClient, month: string, employeeIds: n
     for (let index = 1; index < sequence.length; index += 1) {
       addPair(payrollLocationLocationPair(sequence[index - 1].location, sequence[index].location));
     }
-    if (instructor) addPair(payrollInstructorLocationPair(instructor, sequence[sequence.length - 1].location));
+    if (instructor) addPair(reversePayrollPair(payrollInstructorLocationPair(instructor, sequence[sequence.length - 1].location)));
   }
 
   const uniqueExceptions = [];
