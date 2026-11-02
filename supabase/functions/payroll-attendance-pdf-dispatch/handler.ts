@@ -616,44 +616,28 @@ async function buildPdfBytes(payload: {
       const date = formatDate(row.date) || "—";
       const time = `${clean(row.startTime) || "—"}–${clean(row.endTime) || "—"}`;
       const hours = formatDurationHours(row.workHours);
-      const place = [clean(row.program), clean(row.school), clean(row.authority)].filter(Boolean).join(" | ");
       const usesPublicTransport = row.publicTransport === true || row.publicTransport === "true" || row.publicTransport === 1;
-      const travelLabel = usesPublicTransport
-        ? `תחבורה ציבורית${toNumber(row.publicTransportCost) ? ` ₪${toNumber(row.publicTransportCost).toFixed(2)}` : ""}`
-        : (toNumber(row.kilometers) ? `${toNumber(row.kilometers).toFixed(0)} ק״מ` : "");
-      const expenseAmount = toNumber(row.expenses);
       const expenseDetails = clean(row.expenseDetails || row.expensesDetails);
       const attachmentNames = clean(row.attachmentsNames);
-      const expenseLabel = expenseAmount
-        ? [
-          `הוצאות ₪${expenseAmount.toFixed(2)}`,
-          expenseDetails ? `פירוט: ${expenseDetails}` : "",
-          attachmentNames ? `אסמכתאות: ${attachmentNames}` : "",
-        ].filter(Boolean).join(" · ")
-        : "";
-      const secondary = [
-        clean(row.meetingNo) ? `מפגש ${clean(row.meetingNo)}` : "",
-        travelLabel,
-        expenseLabel,
-      ].filter(Boolean).join(" | ");
-      const notes = clean(row.notes);
-
-      // Keep the attendance list dense enough for real monthly reports while
-      // sizing every row from the lines it will actually draw. The previous
-      // fixed base height omitted the secondary line, so expense/travel text
-      // could fall below the box and be overdrawn by the next record.
-      // Separate date/time from the activity description: mixed Hebrew and
-      // numeric runs in a single dense line were difficult to read in Acrobat.
+      // Show every field captured in the approval snapshot, including zero amounts.
+      // This is a faithful approved record, not a filtered payroll summary.
+      const details = [
+        `שעות: ${time} | סה״כ שעות: ${hours}`,
+        `תוכנית: ${clean(row.program) || "—"} | מוסד: ${clean(row.school) || "—"}`,
+        `רשות: ${clean(row.authority) || "—"} | מפגש: ${clean(row.meetingNo) || "—"}`,
+        `קילומטרים: ${toNumber(row.kilometers).toFixed(2)} ק״מ | תחבורה ציבורית: ${usesPublicTransport ? "כן" : "לא"} | עלות תחב״צ: ₪${toNumber(row.publicTransportCost).toFixed(2)}`,
+        `הוצאות: ₪${toNumber(row.expenses).toFixed(2)} | פירוט הוצאות: ${expenseDetails || "—"}`,
+        ...(attachmentNames ? [`אסמכתאות: ${attachmentNames}`] : []),
+        ...(clean(row.employmentType) ? [`סוג העסקה: ${clean(row.employmentType)}`] : []),
+        ...(clean(row.notes) ? [`הערות: ${clean(row.notes)}`] : []),
+      ];
       const heading = `${index + 1}.  ${date}   |   ${activity}`;
-      const headingLines = wrapLogical(heading, bold, 9.4, CONTENT_W - 195);
-      const timing = `${time}   |   ${hours} שעות`;
-      const placeLines = place ? wrapLogical(place, regular, 8.5, CONTENT_W - 28) : [];
-      const detailLines = secondary ? wrapLogical(secondary, regular, 8.2, CONTENT_W - 28) : [];
-      const noteLines = notes ? wrapLogical(`הערה: ${notes}`, regular, 8.1, CONTENT_W - 28) : [];
+      const headingLines = wrapLogical(heading, bold, 9.4, CONTENT_W - 28);
+      const detailLines = details.flatMap((detail) => wrapLogical(detail, regular, 8.3, CONTENT_W - 28));
       const HEADER_STEP = 14;
-      const DETAIL_STEP = 12;
-      const blockHeight = 17 + Math.max(1, headingLines.length) * HEADER_STEP
-        + (placeLines.length + detailLines.length + noteLines.length) * DETAIL_STEP + 5;
+      const DETAIL_STEP = 13;
+      const blockHeight = 20 + Math.max(1, headingLines.length) * HEADER_STEP
+        + detailLines.length * DETAIL_STEP + 5;
       ensureSpace(blockHeight + 5);
 
       page.drawRectangle({
@@ -666,18 +650,8 @@ async function buildPdfBytes(payload: {
         drawRtl(line, RIGHT - 13, localY, 9.4, bold, rgb(0.12, 0.22, 0.36));
         localY -= HEADER_STEP;
       }
-      // Fixed left-hand zone prevents duration from running into the title.
-      drawRtl(timing, LEFT + 153, y - 17, 8.4, regular, rgb(0.22, 0.34, 0.49));
-      for (const line of placeLines) {
-        drawRtl(line, RIGHT - 13, localY, 8.5, regular, rgb(0.22, 0.29, 0.39));
-        localY -= DETAIL_STEP;
-      }
       for (const line of detailLines) {
-        drawRtl(line, RIGHT - 13, localY, 8.2, regular, rgb(0.32, 0.40, 0.50));
-        localY -= DETAIL_STEP;
-      }
-      for (const line of noteLines) {
-        drawRtl(line, RIGHT - 13, localY, 8.1, regular, rgb(0.40, 0.47, 0.55));
+        drawRtl(line, RIGHT - 13, localY, 8.3, regular, rgb(0.28, 0.36, 0.47));
         localY -= DETAIL_STEP;
       }
       y -= blockHeight + 5;
