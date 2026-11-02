@@ -619,17 +619,36 @@ async function buildPdfBytes(payload: {
       const usesPublicTransport = row.publicTransport === true || row.publicTransport === "true" || row.publicTransport === 1;
       const expenseDetails = clean(row.expenseDetails || row.expensesDetails);
       const attachmentNames = clean(row.attachmentsNames);
-      // Show every field captured in the approval snapshot, including zero amounts.
-      // This is a faithful approved record, not a filtered payroll summary.
-      const details = [
-        `מוסד: ${clean(row.school) || "—"}`,
-        `רשות: ${clean(row.authority) || "—"} | מפגש: ${clean(row.meetingNo) || "—"}`,
-        `קילומטרים: ${toNumber(row.kilometers).toFixed(2)} ק״מ | תחבורה ציבורית: ${usesPublicTransport ? "כן" : "לא"} | עלות תחב״צ: ₪${toNumber(row.publicTransportCost).toFixed(2)}`,
-        `הוצאות: ₪${toNumber(row.expenses).toFixed(2)} | פירוט הוצאות: ${expenseDetails || "—"}`,
-        ...(attachmentNames ? [`אסמכתאות: ${attachmentNames}`] : []),
-        ...(clean(row.employmentType) ? [`סוג העסקה: ${clean(row.employmentType)}`] : []),
-        ...(clean(row.notes) ? [`הערות: ${clean(row.notes)}`] : []),
-      ];
+      // Only show relevant populated details; do not print placeholders or zero amounts.
+      const details: string[] = [];
+      const school = clean(row.school);
+      const authority = clean(row.authority);
+      const meeting = clean(row.meetingNo);
+      // Institution, authority and meeting are meaningful only for an in-person course.
+      // Training, Zoom/online and operations entries intentionally omit them.
+      const isCourse = /קורס/.test(activity);
+      const isRemote = /זום|zoom|מקוון|מרחוק|online/i.test([
+        activity, clean(row.program), school, clean(row.notes),
+      ].join(" "));
+      if (isCourse && !isRemote) {
+        if (school) details.push(`מוסד: ${school}`);
+        if (authority || meeting) details.push([
+          authority ? `רשות: ${authority}` : "",
+          meeting ? `מפגש: ${meeting}` : "",
+        ].filter(Boolean).join(" | "));
+      }
+      const km = toNumber(row.kilometers);
+      if (!usesPublicTransport && km > 0) details.push(`קילומטרים: ${Number(km.toFixed(2))} ק״מ`);
+      const publicTransportCost = toNumber(row.publicTransportCost);
+      if (usesPublicTransport) details.push(`תחבורה ציבורית${publicTransportCost > 0 ? ` | עלות: ₪${publicTransportCost.toFixed(2)}` : ""}`);
+      const expenses = toNumber(row.expenses);
+      if (expenses > 0 || expenseDetails) details.push([
+        expenses > 0 ? `הוצאות: ₪${expenses.toFixed(2)}` : "",
+        expenseDetails ? `פירוט: ${expenseDetails}` : "",
+      ].filter(Boolean).join(" | "));
+      if (attachmentNames && (expenses > 0 || expenseDetails)) details.push(`אסמכתאות: ${attachmentNames}`);
+      const notes = clean(row.notes);
+      if (notes) details.push(`הערות: ${notes}`);
       const program = clean(row.program);
       const activityTitle = program ? `${activity} – ${program}` : activity;
       const heading = `${date} | ${activityTitle}: ${time} | סה״כ: ${hours} שעות`;
@@ -637,8 +656,8 @@ async function buildPdfBytes(payload: {
       const detailLines = details.flatMap((detail) => wrapLogical(detail, regular, 8.3, CONTENT_W - 28));
       const HEADER_STEP = 14;
       const DETAIL_STEP = 13;
-      const blockHeight = 20 + Math.max(1, headingLines.length) * HEADER_STEP
-        + detailLines.length * DETAIL_STEP + 5;
+      const blockHeight = 9 + Math.max(1, headingLines.length) * HEADER_STEP
+        + detailLines.length * DETAIL_STEP + 8;
       ensureSpace(blockHeight + 5);
 
       page.drawRectangle({
