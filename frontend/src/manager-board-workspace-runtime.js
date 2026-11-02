@@ -774,6 +774,16 @@ async function renderAttendance(boardRoot, context, roster, renderToken) {
     <div class="manager-workspace-attendance-host" data-manager-attendance-host hidden></div>
   </section>`;
 
+  view.querySelector('[data-manager-attendance-host]')?.addEventListener('attendance-manager-month-approved', (event) => {
+    const employeeId = text(event.detail?.employeeId);
+    if (!employeeId || text(event.detail?.monthKey) !== context.ym) return;
+    attendanceSummaryCache.clear();
+    attendanceReviewSnapshotCache.clear();
+    embeddedAttendanceSignature = '';
+    lastContextSignature = '';
+    void renderWorkspace(true);
+  });
+
   view.querySelectorAll('[data-manager-attendance-open-employee]').forEach((button) => {
     button.addEventListener('click', async () => {
       const previousText = button.textContent;

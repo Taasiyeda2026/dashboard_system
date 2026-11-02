@@ -3685,6 +3685,10 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         manager_pdf_sharepoint_url: saved?.manager_pdf_sharepoint_url || ''
       };
       paintResults();
+      panel.dispatchEvent(new CustomEvent('attendance-manager-month-approved', {
+        bubbles: true,
+        detail: { employeeId, monthKey: result.month }
+      }));
       if (saved?.pdf_pending) {
         setStatusMessage('אישור המנהל נשמר והחודש ננעל. הפקת/שמירת ה-PDF נכשלה ותושלם אוטומטית ב־retry.', { error: true });
       } else if (saved?.mail_sent === false) {
