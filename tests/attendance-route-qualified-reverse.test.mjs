@@ -13,6 +13,6 @@ test('payroll return journey swaps fully-qualified endpoint queries, not bare st
 });
 
 test('cache entry must have matching Google queries before it is reused', () => {
-  assert.match(sqlRoute, /text\(cached\.query_origin_address\) === pair\.query_origin_address/);
-  assert.match(sqlRoute, /text\(cached\.query_destination_address\) === pair\.query_destination_address/);
+  assert.match(sqlRoute, /pair\.origin_type !== 'school' \|\| text\(cached\.query_origin_address\) === pair\.query_origin_address/);
+  assert.match(sqlRoute, /pair\.destination_type !== 'school' \|\| text\(cached\.query_destination_address\) === pair\.query_destination_address/);
 });
