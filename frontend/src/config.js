@@ -595,3 +595,4 @@ config.HOTFIX_VERSION = 'database-first-routes-20261102-v1-' + config.HOTFIX_VER
 config.HOTFIX_VERSION = `feedback-manager-staff-init-20261102-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `finance-pl-numbering-outlook-draft-action-20261102-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `finance-gefen-course-calendar-minimum-20261102-v1-${config.HOTFIX_VERSION}`;

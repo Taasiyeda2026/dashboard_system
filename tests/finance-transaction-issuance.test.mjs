@@ -33,6 +33,33 @@ test('default is current month; future month is rejected and blocked rows cannot
   assert.equal(transactionPreviewForVisit(d).accounts.length,0);assert.doesNotMatch(html(d),/חסרה חלוקת מימון תקינה|פעילויות חסומות|חשבונות חסומים/);
   assert.equal(transactionPreviewForVisit(data([row()],{collectionError:'לא נטען'})).accounts.length,0);
 });
+
+test('calendar minimum shows waiting courses with selected-month cumulative count and no issuance action',()=>{
+  const waiting = row({activityType:'course',period:'2026-10-01',completedCount:2,
+    eligible:false,issuableAmount:0,blockedReason:'ממתין להשלמת שלושה מפגשים',eligibilityStatus:'waiting_three_meetings'});
+  const d=data([waiting],{transactionMonths:{automatic:'2026-10'}});
+  const view=html(d);
+  assert.match(view,/ממתין להשלמת שלושה מפגשים/);
+  assert.match(view,/2 מתוך 3 עד סוף 2026-10/);
+  assert.match(view,/הספירה מצטברת מלוח המפגשים/);
+  assert.doesNotMatch(view,/data-finance-transaction-run=/);
+  assert.equal(transactionPreviewForVisit(d).accounts.length,0);
+});
+
+test('calendar carryover issues in November while October remains blocked',()=>{
+  const d=data([
+    row({period:'2026-10-01',eligible:false,issuableAmount:0,completedCount:2,
+      blockedReason:'ממתין להשלמת שלושה מפגשים',eligibilityStatus:'waiting_three_meetings'}),
+    row({period:'2026-11-01',completedCount:3,unbilledCount:3,unbilledSlots:[
+      {slot:1,date:'2026-10-01'},{slot:2,date:'2026-10-20'},{slot:3,date:'2026-11-01'}]})
+  ],{transactionMonths:{automatic:'2026-10'}});
+  assert.equal(transactionPreviewForVisit(d).accounts.length,0);
+  d.transactionMonths.automatic='2026-11';
+  const preview=transactionPreviewForVisit(d);
+  assert.equal(preview.accounts.length,1);
+  assert.deepEqual(preview.accounts[0].lines[0].unbilledSlots.map(s=>s.slot),[1,2,3]);
+  assert.doesNotMatch(html(d),/ממתין להשלמת שלושה מפגשים/);
+});
 test('issuance sends funder, exact month, slots and displayed amount to server and then dispatches',async()=>{
   const d=data([row()]);const calls=[];
   await runTransactionIssuance(d,{reserveFinanceTransactionAccount:async p=>{calls.push(p);return{id:'reserved'};},dispatchFinanceTransactionAccount:async p=>{assert.equal(p.accountId,'reserved');return{};}},'automatic');
