@@ -2247,6 +2247,14 @@ function slotCardHtml(group, slot, user) {
       <button type="button" class="ifb-btn" data-ifb-copy="${id}">העתקת קישור</button>
       ${campaign.status === 'active' ? `<button type="button" class="ifb-btn ifb-btn--danger" data-ifb-close="${id}">סגירה</button>` : `<button type="button" class="ifb-btn" data-ifb-reopen="${id}">פתיחה מחדש</button>`}`;
   }
+  // The stored recipient token is the canonical link, independent of mail dispatch status.
+  // Never generate a new token on render or resend merely to show a link.
+  if (slot.audience === 'educational_staff' && status.key !== 'completed') {
+    const existingUrl = campaignLink(campaign);
+    if (existingUrl) {
+      actions += `<div class="ifb-feedback-permalink"><span>קישור המשוב הקבוע:</span> <a href="${esc(existingUrl)}" target="_blank" rel="noopener noreferrer" dir="ltr">פתיחת קישור המשוב</a></div>`;
+    }
+  }
   // Viewing all results remains unrestricted; only the right to change an expiry is team-scoped.
   const canManagerExtendStudent = feedbackReadOnly && studentShareAllowed && isStudent
     && campaign.status === 'active' && status.key === 'expired';
