@@ -3672,7 +3672,15 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         setStatusMessage('אישור המנהל נשמר בהצלחה, החודש ננעל והדוח נשלח לעובד.');
       }
     } catch (error) {
-      if (txt(error?.message).includes('attendance_records_not_fully_approved')) {
+      if (txt(error?.message).includes('attendance_travel_reviews_pending')) {
+        const message = txt(error?.message);
+        const match = message.match(/attendance_travel_reviews_pending:(\\[[\\s\\S]*\\])/);
+        let pending = [];
+        try { pending = JSON.parse(match?.[1] || '[]'); } catch { /* keep safe fallback */ }
+        const dates = [...new Set(pending.map((row) => txt(row.report_date)).filter(Boolean))];
+        const detail = dates.length ? ` בתאריכים ${dates.map(dateLabel).join(', ')}` : '';
+        setStatusMessage(`לא ניתן לאשר את החודש: קיימות ${pending.length || 'כמה'} רשומות ביטול זמן שטרם נבדקו${detail}. פתח את הרשומות, בחר אישור / דחייה / תיקון של ביטול הזמן, ולאחר מכן אשר את החודש.`, { error: true });
+      } else if (txt(error?.message).includes('attendance_records_not_fully_approved')) {
         await loadRecordReviews();
         paintResults();
         setStatusMessage('האישור נעצר כי לפחות רשומת נוכחות אחת חסרה אישור תקף או השתנתה מאז האישור. הרשימה רועננה — יש לאשר אותה מחדש ולנסות שוב.', { error: true });
