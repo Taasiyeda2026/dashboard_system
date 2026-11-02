@@ -592,7 +592,19 @@ async function buildPdfBytes(payload: {
     return usesPt ? sum + toNumber(row.publicTransportCost) : sum;
   }, 0);
 
-  page.drawRectangle({ x: LEFT, y: y - 68, width: CONTENT_W, height: 68, borderColor: rgb(0.88, 0.9, 0.94), borderWidth: 0.7, color: rgb(0.99, 0.995, 1) });
+  // Hour totals are calculated from the approved snapshot, grouped by the reported activity type.
+  const hoursByType = new Map<string, number>();
+  for (const row of rows) {
+    const type = clean(row.activityType) || "אחר";
+    hoursByType.set(type, (hoursByType.get(type) || 0) + toNumber(row.workHours));
+  }
+  const hoursBreakdown = [...hoursByType.entries()]
+    .filter(([, hours]) => hours > 0)
+    .sort((a, b) => b[1] - a[1]);
+  const summaryLines = hoursBreakdown.flatMap(([type, hours]) =>
+    wrapLogical(`${type}: ${formatDurationHours(hours)} שעות`, regular, 9, CONTENT_W - 34));
+  const summaryExtra = summaryLines.length ? 14 + summaryLines.length * 14 : 0;
+  page.drawRectangle({ x: LEFT, y: y - (68 + summaryExtra), width: CONTENT_W, height: 68 + summaryExtra, borderColor: rgb(0.88, 0.9, 0.94), borderWidth: 0.7, color: rgb(0.99, 0.995, 1) });
   drawRtl(`${rows.length} דיווחים`, RIGHT - 22, y - 22, 10, bold);
   drawRtl(`${formatDurationHours(totalHours)} שעות`, RIGHT - 150, y - 22, 10, bold);
   drawRtl(`${totalKm.toFixed(0)} ק״מ`, RIGHT - 290, y - 22, 10, bold);
@@ -602,7 +614,15 @@ async function buildPdfBytes(payload: {
   if (hasPublicTransport) {
     drawRtl(`₪${totalPublicTransportCost.toFixed(2)} תחבורה ציבורית`, RIGHT - 250, y - 43, 8.5, regular, rgb(0.42, 0.46, 0.54));
   }
-  y -= 90;
+  if (summaryLines.length) {
+    drawRtl("חלוקת שעות לפי סוג פעילות", RIGHT - 22, y - 65, 9.5, bold, rgb(0.10, 0.27, 0.52));
+    let summaryY = y - 81;
+    for (const line of summaryLines) {
+      drawRtl(line, RIGHT - 22, summaryY, 9, regular);
+      summaryY -= 14;
+    }
+  }
+  y -= 90 + summaryExtra;
 
   drawRtl("פירוט דיווחי הנוכחות", RIGHT, y, 12, bold, rgb(0.10, 0.27, 0.52));
   y -= 20;
