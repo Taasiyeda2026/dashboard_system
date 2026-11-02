@@ -12,7 +12,8 @@ test('payroll return journey swaps fully-qualified endpoint queries, not bare st
   assert.match(sqlRoute, /addPair\(reversePayrollPair\(payrollInstructorLocationPair/);
 });
 
-test('cache entry must have matching Google queries before it is reused', () => {
-  assert.match(sqlRoute, /pair\.origin_type !== 'school' \|\| text\(cached\.query_origin_address\) === pair\.query_origin_address/);
-  assert.match(sqlRoute, /pair\.destination_type !== 'school' \|\| text\(cached\.query_destination_address\) === pair\.query_destination_address/);
+test('existing route cache remains recognized by canonical endpoint addresses', () => {
+  assert.match(sqlRoute, /text\\(cached\\.origin_address\\) === pair\\.origin_address/);
+  assert.match(sqlRoute, /text\\(cached\\.destination_address\\) === pair\\.destination_address/);
+  assert.doesNotMatch(sqlRoute, /pair\\.origin_type !== 'school' \\|\\| text\\(cached\\.query_origin_address\\)/);
 });
