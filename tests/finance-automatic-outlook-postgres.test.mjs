@@ -52,10 +52,10 @@ const recipients=async()=> (await db.query('select finance_transaction_recipient
 const finalize=()=>db.query("select finalize_finance_billing($1,$2,'original.pdf','hash','drive','folder','item','url')",[account.id,token]);
 check('server resolver includes current active school contacts, additional addresses and designated billing recipient only',async()=>{
   await db.query(`insert into contacts_schools values
-    (1,1,1,'school',null,'Teacher@Example.test; invalid','פעיל'),(2,1,1,'school',null,'admin@example.test','פעיל'),
+    (1,1,1,'school',null,'Teacher@Example.test;old@example.test; invalid','פעיל'),(2,1,1,'school',null,'admin@example.test','פעיל'),
     (3,1,1,'school',null,'inactive@example.test','לא פעיל'),(4,2,2,'school',null,'other-school@example.test','פעיל');
-    insert into contact_emails values(1,'SECOND@example.test',true),(1,'teacher@example.test',true),(2,'old@example.test',false);
-    insert into finance_school_invoice_recipients values(1,'billing@example.test',null);`);
+    insert into contact_emails values(1,'SECOND@example.test',true),(1,'teacher@example.test',true),(1,'old@example.test',false);
+    insert into finance_school_invoice_recipients values(1,'billing@example.test',null),(1,'old@example.test',1);`);
   const r=await recipients();assert.deepEqual(r.recipients,['admin@example.test','billing@example.test','second@example.test','teacher@example.test']);assert.equal(r.invalidCount,1);
 });
 check('authority payer excludes school contacts and stale browser snapshot; manual payer addresses remain explicit',async()=>{

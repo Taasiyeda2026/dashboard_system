@@ -68,19 +68,20 @@ begin
         and btrim(c.client_name)=(select name from public.funding_sources where id=account.funding_source_id_snapshot))
     )
   ), raw_addresses as (
-    select c.email value from contacts c where not exists(select 1 from public.contact_emails e
-      where e.contact_id=c.id and not e.active and lower(btrim(e.email))=lower(btrim(c.email)))
-    union all select e.email from public.contact_emails e join contacts c on c.id=e.contact_id where e.active
-    union all select r.recipient_email from public.finance_school_invoice_recipients r
+    select c.id contact_id,c.email value from contacts c
+    union all select e.contact_id,e.email from public.contact_emails e join contacts c on c.id=e.contact_id where e.active
+    union all select r.contact_id,r.recipient_email from public.finance_school_invoice_recipients r
       where account.payer_key_snapshot like 'school:%' and exists(select 1 from activity a where a.school_id=r.school_id)
         and (r.contact_id is null or exists(select 1 from contacts c where c.id=r.contact_id))
     -- Explicitly edited payer emails remain an additional source for sponsor invoices.
     -- School snapshots are deliberately not used: they can contain stale contact emails.
-    union all select account.customer_email_snapshot where account.payer_key_snapshot not like 'school:%' and account.manual_draft is not null
+    union all select null::bigint,account.customer_email_snapshot where account.payer_key_snapshot not like 'school:%' and account.manual_draft is not null
   ), addresses as (
     select distinct lower(btrim(part)) email from raw_addresses r
     cross join lateral regexp_split_to_table(coalesce(r.value,''),'[;,\n\r]+') part
     where btrim(part)<>''
+      and not exists(select 1 from public.contact_emails disabled where disabled.contact_id=r.contact_id
+        and not disabled.active and lower(btrim(disabled.email))=lower(btrim(part)))
   )
   select jsonb_build_object(
     'recipients',coalesce(jsonb_agg(email order by email) filter(where email ~ '^[^[:space:]@]+@[^[:space:]@]+[.][^[:space:]@]+$'),'[]'),

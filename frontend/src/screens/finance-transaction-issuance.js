@@ -23,7 +23,7 @@ function statusLabel(status) {
   const value = text(status);
   return ({
     generating: 'בהפקה', issued: 'הופק', mail_draft_ready: 'טיוטת מייל הוכנה', sent: 'נשלח', cancelled: 'בוטל',
-    pending: 'ממתין ליצירת טיוטה אוטומטית', draft_ready: 'טיוטה מוכנה', failed: 'נכשל', missing_recipient: 'חסר נמען',
+    pending: 'טרם נוצרה טיוטה', draft_ready: 'טיוטה מוכנה', failed: 'נכשל', missing_recipient: 'חסר נמען',
     needs_review:'נדרשת בדיקה לפני ניסיון נוסף', already_sent:'ההודעה כבר נשלחה מתיבת Outlook',
     awaiting_payment: 'ממתין לתשלום', partially_paid: 'שולם חלקית', paid: 'שולם'
   })[value] || value || '—';
