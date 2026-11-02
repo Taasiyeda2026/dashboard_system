@@ -479,6 +479,13 @@ Deno.serve(async (req) => {
       if (storedHash !== account.pdf_sha256) throw new Error("issued_pdf_hash_mismatch");
     }
 
+    // Issuing the PDF and preparing an Outlook draft are separate user actions.
+    if (body.createDraft !== true) {
+      return new Response(JSON.stringify({ accountId, filename, outlookStatus: account.outlook_status }), {
+        headers: { ...cors, "Content-Type": "application/json" }
+      });
+    }
+
     const recipients = recipientAddresses(account.customer_email_snapshot);
     if (!recipients.length) {
       await admin.rpc("mark_finance_transaction_outlook", { p_account_id: accountId, p_status: "missing_recipient" });

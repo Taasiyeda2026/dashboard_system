@@ -572,6 +572,26 @@ export const financeScreen = {
       finally { visit.financeBusy = false; button.disabled = false; refresh(); }
     };
     const onClick = async (ev) => {
+      const accountDraft = ev.target.closest('[data-finance-account-draft]');
+      if (accountDraft) {
+        if (visit.financeBusy || visit.transactionRunning) return;
+        const accountId = accountDraft.dataset.financeAccountDraft;
+        const account = visit.transactionContext?.accounts?.find(row => row.id === accountId);
+        if (!account || !['issued', 'mail_draft_ready', 'sent'].includes(account.document_status)) return;
+        visit.financeBusy = true; accountDraft.disabled = true;
+        visit.transactionActionMessage = 'יוצר טיוטת מייל…'; refresh();
+        try {
+          const result = await api.dispatchFinanceTransactionAccount({ accountId, createDraft: true });
+          if (result.outlookStatus === 'draft_ready') visit.transactionActionMessage = 'טיוטת המייל נוצרה עם חשבון העסקה המצורף.';
+          else if (result.outlookStatus === 'missing_recipient') visit.transactionActionMessage = 'לא נוצרה טיוטה: חסרה כתובת מייל של איש הקשר בחשבון.';
+          else visit.transactionActionMessage = 'יצירת טיוטת המייל נכשלה. ניתן לנסות שוב.';
+        } catch (error) { visit.transactionActionMessage = financeError(error); }
+        finally {
+          await ensureCollectionLoaded(visit, api, { force: true }).catch(() => {});
+          visit.financeBusy = false; refresh();
+        }
+        return;
+      }
       const paymentOpen = ev.target.closest('[data-finance-payment-open]');
       if (paymentOpen) { visit.paymentAccountId = paymentOpen.dataset.financePaymentOpen; refresh(); return; }
       const receiptSave = ev.target.closest('[data-finance-receipt-save]');

@@ -60,7 +60,7 @@ async function harness(options={}) {
       'access-control-request-method':'POST',
       'access-control-request-headers':'authorization, x-client-info, apikey, content-type'
     } })
-    : new Request('https://function.test',{method:'POST',headers:{authorization:'Bearer mock'},body:JSON.stringify(options.preview?{preview:true,manual:{activity:'a',funder:'g',month:'2026-09-01',draft:{}}}:{accountId:'account'})});
+    : new Request('https://function.test',{method:'POST',headers:{authorization:'Bearer mock'},body:JSON.stringify(options.preview?{preview:true,manual:{activity:'a',funder:'g',month:'2026-09-01',draft:{}}} :{accountId:'account',createDraft:true})});
   const response=await handler(request);
   return{response,body:options.preflight?await response.text():await response.json(),calls,pdf,account};
 }

@@ -209,7 +209,7 @@ function billingView(data, mode) {
 }
 
 function historyView(data) {
-  const accounts = (data.transactionContext?.accounts || []).slice().sort((a, b) => Number(b.transaction_account_number || 0) - Number(a.transaction_account_number || 0));
+  const accounts = (data.transactionContext?.accounts || []).slice().sort((a, b) => String(b.transaction_account_number || '').localeCompare(String(a.transaction_account_number || ''), 'en', { numeric: true }));
   if (!accounts.length) return dsEmptyState('טרם הופקו חשבונות עסקה.');
   return accounts.map((account) => {
     const balance = data.paymentContext?.balances?.find(row => row.accountId === account.id);
@@ -232,6 +232,7 @@ function historyView(data) {
         <span>גבייה: <strong>${escapeHtml(statusLabel(actualCollectionStatus))}</strong></span>
         ${balance ? `<span>שולם: ${escapeHtml(formatAmount(balance.paidAmount))} · יתרה: ${escapeHtml(formatAmount(balance.balance))}</span>` : ''}
         ${pdf}
+        ${['issued', 'mail_draft_ready', 'sent'].includes(account.document_status) ? `<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-finance-account-draft="${escapeHtml(account.id)}"${data.financeBusy ? ' disabled' : ''}>שליחה לאיש הקשר — טיוטת מייל</button>` : ''}
         ${data.financeAdmin && account.document_status !== 'cancelled' ? `<button class="ds-btn ds-btn--ghost" data-finance-account-cancel="${escapeHtml(account.id)}">ביטול חשבון</button>` : ''}
         ${account.cancellation_reason ? `<span>${escapeHtml(account.cancellation_reason)}</span>` : ''}
       </div>
