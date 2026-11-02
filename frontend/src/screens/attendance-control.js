@@ -603,7 +603,17 @@ function locationInstructorDistance(cache, employeeId, location, homeAddress = '
     && normalizedRouteAddress(row.destination_address) === home
   ));
   const reverseDistance = usableDistance(candidates.find((row) => usableDistance(row) != null));
-  if (reverseDistance != null) return reverseDistance;
+  if (reverseDistance != null) {
+    // A return route that is dramatically shorter/longer than the outbound
+    // route often indicates an ambiguous geocoded address (e.g. street only).
+    // Do not silently present the sum as a verified distance to the manager.
+    const outboundDistance = instructorLocationDistance(cache, employeeId, location, homeAddress);
+    if (outboundDistance != null && Math.abs(outboundDistance - reverseDistance) > 10
+      && Math.max(outboundDistance, reverseDistance) > Math.min(outboundDistance, reverseDistance) * 1.5) {
+      return null; // Existing manager-control review UI shows missing calculated km.
+    }
+    return reverseDistance;
+  }
   // A known unusable return must remain unavailable, not become a symmetric
   // estimate that hides a quarantined route. Other valid return rows may be used.
   if (candidates.length) return null;

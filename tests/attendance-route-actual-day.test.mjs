@@ -169,3 +169,51 @@ test('planned base training uses directional Google route mileage and surfaces a
   assert.equal(kmDiff.attendance, 285);
   assert.equal(kmDiff.dashboard, 267.5);
 });
+
+
+test('severe outbound/return mismatch is sent to manager review instead of showing misleading km', () => {
+  const rows = [{
+    employeeId: '1550', date: '2026-10-25', startTime: '13:00',
+    sourceRecordId: 'liron-bialik', destinationAddress: 'שבזי 9',
+    destinationEntityKey: 'school_id:2561', destinationType: 'school',
+    kilometers: null, __routeOnly: true
+  }];
+  const attendance = [{
+    employeeId: '1550', date: '2026-10-25', startTime: '13:00',
+    recordId: 'liron-bialik', activityType: 'קורס',
+    originAddress: 'עוזיאל 48 , רמת גן', destinationAddress: 'שבזי 9',
+    destinationEntityKey: 'school_id:2561', destinationType: 'school'
+  }];
+  const cache = [
+    { origin_instructor_emp_id: 1550, origin_address: 'עוזיאל 48 , רמת גן',
+      destination_address: 'שבזי 9', destination_entity_key: 'school_id:2561', distance_km: 29.522 },
+    { origin_address: 'שבזי 9', origin_entity_key: 'school_id:2561',
+      destination_address: 'עוזיאל 48 , רמת גן', distance_km: 12.339 }
+  ];
+  applyAttendanceDayRouteKilometers(rows, attendance, cache);
+  assert.equal(rows[0].kilometers, null, 'inconsistent cached route must require review');
+  assert.equal(attendance[0].kilometers, undefined, 'reported attendance stays untouched');
+});
+
+test('moderate directed differences remain calculated without altering attendance', () => {
+  const rows = [{
+    employeeId: '1550', date: '2026-10-25', startTime: '13:00',
+    sourceRecordId: 'moderate', destinationAddress: 'שבזי 9',
+    destinationEntityKey: 'school_id:2561', destinationType: 'school',
+    kilometers: null, __routeOnly: true
+  }];
+  const attendance = [{
+    employeeId: '1550', date: '2026-10-25', startTime: '13:00',
+    recordId: 'moderate', activityType: 'קורס',
+    originAddress: 'עוזיאל 48 , רמת גן', destinationAddress: 'שבזי 9',
+    destinationEntityKey: 'school_id:2561', destinationType: 'school'
+  }];
+  const cache = [
+    { origin_instructor_emp_id: 1550, origin_address: 'עוזיאל 48 , רמת גן',
+      destination_address: 'שבזי 9', destination_entity_key: 'school_id:2561', distance_km: 29.522 },
+    { origin_address: 'שבזי 9', origin_entity_key: 'school_id:2561',
+      destination_address: 'עוזיאל 48 , רמת גן', distance_km: 26.339 }
+  ];
+  applyAttendanceDayRouteKilometers(rows, attendance, cache);
+  assert.equal(rows[0].kilometers, 55.86);
+});
