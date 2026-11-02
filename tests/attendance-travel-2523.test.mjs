@@ -153,3 +153,13 @@ test('successful cached calculation keeps estimates server-side and uses the dis
   assert.equal(saved.args.p_outbound, 30);
   assert.doesNotMatch(JSON.stringify(r.body), /distance_km|travel_minutes|roundtrip_km/);
 });
+
+test('travel compensation checks verified instructor-school and exact reverse route before Google', () => {
+  assert.match(edgeSource, /async function readInstructorSchoolCachedPair\(/);
+  assert.match(edgeSource, /\.eq\('origin_instructor_emp_id', employeeId\)/);
+  assert.match(edgeSource, /\.eq\('destination_school_id', schoolId\)/);
+  assert.match(edgeSource, /\.eq\('origin_key', forward\.destination_key\)/);
+  assert.match(edgeSource, /\.eq\('destination_key', forward\.origin_key\)/);
+  assert.match(edgeSource, /isUsableCachedRoute\(reverse,/);
+  assert.match(edgeSource, /const \[outbound, returning\] = cachedPair/);
+});
