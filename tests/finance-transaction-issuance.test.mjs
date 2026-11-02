@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
-import { transactionAccountsViewHtml, FINANCE_TRANSACTION_SHAREPOINT_FOLDER_URL, transactionPreviewForVisit, transactionSelectionKey, runTransactionIssuance, transactionMonth, transactionBacklog } from '../frontend/src/screens/finance-transaction-issuance.js';
+import { transactionAccountsViewHtml, FINANCE_TRANSACTION_SHAREPOINT_FOLDER_URL, transactionPreviewForVisit, transactionSelectionKey, runTransactionIssuance, transactionIssuanceResultMessage, transactionMonth, transactionBacklog } from '../frontend/src/screens/finance-transaction-issuance.js';
 import { financeToday } from '../frontend/src/screens/finance-transaction-accounts.js';
 const row=(extra={})=>({activityRowId:'a',activityName:'קורס א',fundingSourceId:'g',funding:'גפ״ן',gefenFunding:true,
   period:'2026-09-01',customerName:'בית ספר א',institutionSymbol:'123',payerName:'בית ספר א',customerEmail:'school@example.test',
@@ -78,11 +78,36 @@ test('backlog survives month/year selection without duplicate totals and can iss
   await runTransactionIssuance(d,{reserveFinanceTransactionAccount:async p=>{sent=p;return{id:'x'};},dispatchFinanceTransactionAccount:async()=>({})},'automatic','2026-01');
   assert.equal(sent.lines[0].performance_month,'2026-01-01');assert.equal(sent.lines[0].activity_row_id,'next');
 });
-test('dispatch failure releases own reservation through guarded cancellation',async()=>{
+test('dispatch failure records partial outcome and releases only its own generating reservation',async()=>{
   let cancelled;
-  await assert.rejects(runTransactionIssuance(data([row()]),{reserveFinanceTransactionAccount:async()=>({id:'x'}),
-    dispatchFinanceTransactionAccount:async()=>{throw Error('test failed');},cancelFinanceTransactionReservation:async id=>{cancelled=id;}},'automatic'),/test failed/);
+  const results=await runTransactionIssuance(data([row()]),{reserveFinanceTransactionAccount:async()=>({id:'x'}),
+    dispatchFinanceTransactionAccount:async()=>{throw Error('test failed');},cancelFinanceTransactionReservation:async id=>{cancelled=id;}},'automatic');
+  assert.equal(results[0].error,'test failed');
   assert.equal(cancelled,'x');
+});
+
+test('monthly batch continues after one account fails and reports missing recipients separately',async()=>{
+  const d=data([row({institutionSymbol:'1'}),row({activityRowId:'b',institutionSymbol:'2'}),row({activityRowId:'c',institutionSymbol:'3'})]);
+  let count=0;
+  const results=await runTransactionIssuance(d,{reserveFinanceTransactionAccount:async()=>({id:String(++count)}),
+    dispatchFinanceTransactionAccount:async p=>{if(p.accountId==='1')throw Error('failed');return {outlookStatus:p.accountId==='2'?'draft_ready':'missing_recipient'};}},'automatic');
+  assert.equal(results.length,3);assert.equal(results[1].dispatched.outlookStatus,'draft_ready');
+  assert.match(transactionIssuanceResultMessage(results),/נשמרו 2 חשבונות/);assert.match(transactionIssuanceResultMessage(results),/חסרים נמענים ל-1/);
+});
+
+test('lost dispatch response retains request identity when cancellation refuses an issued account',async()=>{
+  const d=data([row()]);const keys=[];
+  const api={reserveFinanceTransactionAccount:async p=>{keys.push(p.idempotencyKey);return{id:'same'};},
+    dispatchFinanceTransactionAccount:async()=>{throw Error('response lost');},cancelFinanceTransactionReservation:async()=>{throw Error('account_not_cancellable');}};
+  await runTransactionIssuance(d,api,'automatic');await runTransactionIssuance(d,api,'automatic');
+  assert.equal(keys[0],keys[1]);
+});
+
+test('history shows recovery for failed drafts but no mandatory transfer button for ready drafts',()=>{
+  const d=data([],{transactionTab:'history'});
+  d.transactionContext.accounts=[{id:'failed',transaction_account_number:'Pl1',document_status:'issued',outlook_status:'failed'},
+    {id:'ready',transaction_account_number:'Pl2',document_status:'mail_draft_ready',outlook_status:'draft_ready'}];
+  const view=html(d);assert.match(view,/data-finance-account-draft="failed"/);assert.doesNotMatch(view,/data-finance-account-draft="ready"|שליחה לאיש הקשר/);
 });
 
 test('empty months show only a concise empty state without internal diagnostics or zero-value cards',()=>{

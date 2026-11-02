@@ -27,6 +27,7 @@ import {
   handleTransactionGroupSelection,
   syncTransactionSelectionUi,
   runTransactionIssuance,
+  transactionIssuanceResultMessage,
   transactionAccountsViewHtml
 } from './finance-transaction-issuance.js';
 
@@ -581,10 +582,12 @@ export const financeScreen = {
         visit.financeBusy = true; accountDraft.disabled = true;
         visit.transactionActionMessage = 'יוצר טיוטת מייל…'; refresh();
         try {
-          const result = await api.dispatchFinanceTransactionAccount({ accountId, createDraft: true });
+          const result = await api.dispatchFinanceTransactionAccount({ accountId });
           if (result.outlookStatus === 'draft_ready') visit.transactionActionMessage = 'טיוטת המייל נוצרה עם חשבון העסקה המצורף.';
           else if (result.outlookStatus === 'missing_recipient') visit.transactionActionMessage = 'לא נוצרה טיוטה: חסרה כתובת מייל של איש הקשר בחשבון.';
-          else visit.transactionActionMessage = 'יצירת טיוטת המייל נכשלה. ניתן לנסות שוב.';
+          else if (result.outlookStatus==='already_sent') visit.transactionActionMessage='ההודעה כבר נשלחה ב-Outlook; לא נוצרה טיוטה נוספת.';
+          else if (result.outlookStatus==='needs_review') visit.transactionActionMessage='תוצאת ניסיון קודם אינה ודאית. נדרשת בדיקת הטיוטה הקיימת לפני יצירה נוספת.';
+          else visit.transactionActionMessage = 'יצירת טיוטת המייל נכשלה. החשבון נשמר וניתן לנסות להשלים את הטיוטה.';
         } catch (error) { visit.transactionActionMessage = financeError(error); }
         finally {
           await ensureCollectionLoaded(visit, api, { force: true }).catch(() => {});
@@ -638,7 +641,9 @@ export const financeScreen = {
       const manualConfirm = ev.target.closest('[data-finance-manual-confirm]');
       if (manualConfirm) {
         await financeAction(manualConfirm, async () => {
-          await runSelectedManualAccounts(visit, api);
+          const results = await runSelectedManualAccounts(visit, api);
+          visit.transactionActionMessage = transactionIssuanceResultMessage(results.map(result=>
+            result.reserved ? {reserved:result.reserved,dispatched:result.sent} : {dispatched:result}));
           visit.manualQuote = null; visit.manualPdf = ''; visit.manualBatchPreviews = null; visit.manualConsolidatedPreview = null;
           visit.manualSelectedActivityIds = []; visit.manualActivityDrafts = {};
           visit.manualBulkEditingActivityId = '';
@@ -701,7 +706,7 @@ export const financeScreen = {
         refresh();
         try {
           const results = await runTransactionIssuance(visit, api, mode, transactionRun.dataset.financeTransactionPeriod);
-          visit.transactionActionMessage = `הופקו ${results.length} חשבונות עסקה.${results.some(result => result.dispatched?.outlookStatus === 'failed') ? ' יצירת טיוטת המייל נכשלה.' : ''}`;
+          visit.transactionActionMessage = transactionIssuanceResultMessage(results);
           if (mode === 'manual') visit.transactionManualSelected = {};
           await ensureCollectionLoaded(visit, api, { force: true });
           visit.transactionTab = 'history';

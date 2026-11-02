@@ -13,11 +13,13 @@ const fixture=()=>({id:'account',document_status:'generating',outlook_status:'pe
   finance_transaction_account_lines:[{activity_name_snapshot:'תוכנית חלל',funding_snapshot:'גפ״ן',performance_month:'2026-09-01',billed_hours:3,hourly_rate_snapshot:833.333,amount:2500,
     finance_transaction_account_meetings:[{meeting_date:'2026-09-01'},{meeting_date:'2026-09-02'}]}]});
 async function harness(options={}) {
-  const account=fixture();Object.assign(account,options.account);const calls=[];let handler;let pdf;
+  const account=fixture();Object.assign(account,options.account);const calls=[];let handler;let pdf;let draftPayload;
   const rpc=async(name,args)=>{
     calls.push({type:'rpc',name,args});
     if(name==='finance_manual_account_quote')return{data:options.quote||fixture()};
     if(name==='finance_transaction_can_issue')return{data:options.allowed!==false};
+    if(name==='finance_transaction_recipients')return{data:{recipients:['test@example.test'],invalidCount:0}};
+    if(name==='begin_finance_outlook_creation')return{data:true};
     if(name==='cancel_finance_dispatch'&&options.cancelFails)return{error:{message:'not_owned'}};
     if(name===options.rpcError)return{error:{message:'test_'+name}};
     if(name==='finalize_finance_billing') {Object.assign(account,{document_status:'issued',pdf_sha256:args.p_pdf_sha256});return{data:{...account}};}
@@ -40,9 +42,14 @@ async function harness(options={}) {
     if(opts.method==='DELETE')return new Response(null,{status:204});
     if(url.endsWith('/content'))return new Response(options.storedPdf);
     if(url.includes('/messages?$filter='))return Response.json({value:options.previousDraft?[{id:'old-draft'}]:[]});
+    if(url.includes('/messages/')&&url.endsWith('/attachments'))return Response.json({value:draftPayload?.attachments||[{
+      '@odata.type':'#microsoft.graph.fileAttachment',name:account.generated_filename||calls.find(c=>c.name==='finalize_finance_billing')?.args.p_filename,
+      contentType:'application/pdf',contentBytes:Buffer.from(pdf||options.storedPdf).toString('base64')
+    }]});
+    if(url.includes('/messages/'))return Response.json({id:options.previousDraft?'old-draft':'draft',isDraft:true,toRecipients:[{emailAddress:{address:'test@example.test'}}]});
     if(url.endsWith('/messages') && opts.method==='POST') {
       if(options.mailFails)return new Response('test',{status:500});
-      const payload=JSON.parse(opts.body);assert.equal(payload.attachments.length,1);assert.ok(payload.singleValueExtendedProperties[0].value);
+      const payload=JSON.parse(opts.body);draftPayload=payload;assert.equal(payload.attachments.length,1);assert.ok(payload.singleValueExtendedProperties[0].value);
       if(options.fullyPaid)assert.doesNotMatch(payload.body.content,/נשמח להסדרת/);
       assert.equal(Buffer.from(payload.attachments[0].contentBytes,'base64').subarray(0,4).toString(),'%PDF');
       return Response.json({id:'draft'});
@@ -72,6 +79,17 @@ test('full mocked pipeline renders actual PDF, validates SharePoint, finalizes a
   assert.equal(names.at(-1),'release_finance_dispatch');
   assert.ok(r.calls.filter(c=>c.type==='fetch').every(c=>!c.url.includes('/send')));
 });
+test('workshop and course issuance both finish with a real PDF attached to a verified Outlook draft',async()=>{
+  for(const type of ['workshop','course']) {
+    const r=await harness({activityTypes:{a:type},account:{total_amount:900,finance_transaction_account_lines:[{
+      activity_row_id:'a',activity_name_snapshot:'פעילות',school_name_snapshot:'מוסד',quantity_snapshot:3,unit_price_snapshot:300,
+      billed_hours:type==='course'?4.5:0,hourly_rate_snapshot:type==='course'?200:null,amount:900,performance_month:'2026-09-01',
+      finance_transaction_account_meetings:[{meeting_date:'2026-09-01'},{meeting_date:'2026-09-02'},{meeting_date:'2026-09-03'}]
+    }]}});
+    assert.equal(r.body.outlookStatus,'draft_ready',type);assert.ok((await PDFDocument.load(r.pdf)).getPageCount()>0);
+    assert.ok(r.calls.some(c=>c.url?.endsWith('/attachments')),type);
+  }
+});
 test('server rejects stale reservation before any PDF, SharePoint or Outlook request',async()=>{
   const r=await harness({rpcError:'validate_finance_dispatch'});assert.equal(r.response.status,400);
   assert.equal(r.calls.filter(c=>c.type==='fetch').length,0);
@@ -92,7 +110,7 @@ test('upload failure cancels temporary claims; finalization failure removes uplo
   assert.ok(final.calls.some(c=>c.method==='DELETE'));
 });
 test('Outlook failure preserves issued document; crash retry recovers existing draft',async()=>{
-  const failed=await harness({mailFails:true});assert.equal(failed.body.outlookStatus,'failed');
+  const failed=await harness({mailFails:true});assert.equal(failed.body.outlookStatus,'needs_review');
   assert.ok(!failed.calls.some(c=>c.name==='cancel_finance_dispatch'));
   const recovered=await harness({previousDraft:true});assert.equal(recovered.body.outlookStatus,'draft_ready');
   assert.ok(!recovered.calls.some(c=>c.url?.endsWith('/messages')&&c.method==='POST'));

@@ -557,7 +557,14 @@ export function manualAccountViewHtml(data) {
 }
 export async function runManualAccount(data,api) {
   if(!data.manualQuote?.revision)throw Error('יש לפתוח תצוגה מקדימה עדכנית');
-  const account=await api.reserveFinanceManualAccount({...manualRequest(data),revision:data.manualQuote.revision,idempotencyKey:data.manualRequestId||crypto.randomUUID()});
+  data.manualRequestId ||= crypto.randomUUID();
+  const account=await api.reserveFinanceManualAccount({...manualRequest(data),revision:data.manualQuote.revision,idempotencyKey:data.manualRequestId});
   try{return await api.dispatchFinanceTransactionAccount({accountId:account.id});}
-  catch(error){await api.cancelFinanceTransactionReservation?.(account.id).catch(()=>{});data.manualRequestId=crypto.randomUUID();throw error;}
+  catch(error){
+    if(api.cancelFinanceTransactionReservation) {
+      try { await api.cancelFinanceTransactionReservation(account.id);data.manualRequestId=crypto.randomUUID(); }
+      catch { /* keep the original identity if issuance succeeded or is still running */ }
+    }
+    throw error;
+  }
 }
