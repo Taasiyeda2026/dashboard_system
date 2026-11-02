@@ -666,7 +666,7 @@ export function applyDashboardRouteKilometers(rows = [], travelCache = []) {
       const returnHome = index === dayRows.length - 1 ? instructorSchoolDistance(travelCache, row.employeeId, row.schoolId) : 0;
       row.kilometers = incoming == null || returnHome == null ? null : Math.round((incoming + returnHome) * 100) / 100;
     });
-    if (dayRows.some((row) => row.kilometers == null)) allDayRows.forEach((row) => { row.kilometers = null; });
+    // Keep verified cached segments visible even when another stop lacks a route.
   }
   return rows;
 }
@@ -777,7 +777,6 @@ export function applyAttendanceDayRouteKilometers(rows = [], attendanceRows = []
     if (physicalStops.some((stop) => !stop.dashboard || !stop.location)) continue;
 
     physicalStops.sort((left, right) => timeText(left.attendance?.startTime).localeCompare(timeText(right.attendance?.startTime)));
-    let routeUnavailable = false;
     physicalStops.forEach((stop, index) => {
       const employeeId = txt(stop.attendance.employeeId);
       const incoming = index === 0
@@ -787,7 +786,6 @@ export function applyAttendanceDayRouteKilometers(rows = [], attendanceRows = []
         ? locationInstructorDistance(travelCache, employeeId, stop.location, stop.attendance.originAddress)
         : 0;
       if (incoming == null || returnHome == null) {
-        routeUnavailable = true;
         return;
       }
       stop.dashboard.kilometers = Math.round((incoming + returnHome) * 100) / 100;
@@ -796,7 +794,7 @@ export function applyAttendanceDayRouteKilometers(rows = [], attendanceRows = []
       });
     });
 
-    if (routeUnavailable) linkedRows.forEach((row) => { row.kilometers = null; });
+    // Missing segments remain unknown; do not discard independently verified segments.
   }
   return rows;
 }
