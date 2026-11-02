@@ -66,7 +66,7 @@ export function paymentsBodyHtml(data) {
   ].join(' ').toLocaleLowerCase().includes(query));
   // Collection is tracked by due date, never by the activity performance month.
   rows.sort((a,b)=>String(a.payment_due_date||'9999-12-31').localeCompare(String(b.payment_due_date||'9999-12-31'))
-    ||Number(a.transaction_account_number||0)-Number(b.transaction_account_number||0));
+    ||String(a.transaction_account_number||'').localeCompare(String(b.transaction_account_number||''),'en',{numeric:true}));
   const rowHtml=(a)=>`<tr${a.balance>0&&a.payment_due_date<financeToday()?' class="ds-fin-overdue"':''}>
     <td>${a.sharepoint_web_url?`<a href="${e(a.sharepoint_web_url)}" target="_blank" rel="noopener" title="פתיחת חשבון PDF">${e(a.transaction_account_number)}</a>`:e(a.transaction_account_number)}</td>
     <td>${e(a.customer_name_snapshot)}</td>
