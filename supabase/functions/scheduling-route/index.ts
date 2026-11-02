@@ -432,8 +432,8 @@ function addressesMatch(cached: Record<string, unknown> | null | undefined, pair
     && text(cached.destination_address) === pair.destination_address
     // Cache keys are canonical labels, not Google geocoding endpoints.
     // Reject legacy route results computed with shortened/ambiguous queries.
-    && text(cached.query_origin_address) === pair.query_origin_address
-    && text(cached.query_destination_address) === pair.query_destination_address;
+    && (pair.origin_type !== 'school' || text(cached.query_origin_address) === pair.query_origin_address)
+    && (pair.destination_type !== 'school' || text(cached.query_destination_address) === pair.query_destination_address);
 }
 
 function isFiniteMetric(value: unknown) {
