@@ -577,7 +577,7 @@ export const financeScreen = {
         if (visit.financeBusy || visit.transactionRunning) return;
         const accountId = accountDraft.dataset.financeAccountDraft;
         const account = visit.transactionContext?.accounts?.find(row => row.id === accountId);
-        if (!account || !['issued', 'mail_draft_ready', 'sent'].includes(account.document_status)) return;
+        if (!account || !['issued', 'mail_draft_ready'].includes(account.document_status)) return;
         visit.financeBusy = true; accountDraft.disabled = true;
         visit.transactionActionMessage = 'יוצר טיוטת מייל…'; refresh();
         try {
