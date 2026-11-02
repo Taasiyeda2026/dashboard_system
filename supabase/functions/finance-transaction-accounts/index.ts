@@ -60,17 +60,60 @@ async function graphToken() {
   return clean((await response.json()).access_token);
 }
 
+class GraphRequestError extends Error {
+  constructor(public status: number, message: string) { super(message); }
+}
 async function graph(token: string, path: string, options: RequestInit = {}) {
   const response = await fetch(`https://graph.microsoft.com/v1.0${path}`, {
     ...options,
     headers: {
       Authorization: `Bearer ${token}`,
+      Prefer: 'IdType="ImmutableId"',
       ...(options.body ? { "Content-Type": "application/json" } : {}),
       ...(options.headers || {})
     }
   });
-  if (!response.ok) throw new Error(`graph_request_failed:${response.status}:${(await response.text()).slice(0, 180)}`);
+  if (!response.ok) throw new GraphRequestError(response.status, `graph_request_failed:${response.status}:${(await response.text()).slice(0, 180)}`);
   return response.status === 204 ? null : response.json();
+}
+
+async function pdfHash(bytes: Uint8Array) {
+  return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)))
+    .map((x) => x.toString(16).padStart(2, '0')).join('');
+}
+function draftContent(account: any) {
+  const periods = (account.finance_transaction_account_lines || []).map((l: any) => clean(l.performance_month)).filter(Boolean).sort();
+  const period = periods.at(-1) || account.manual_draft?.source?.period || account.issue_date;
+  const month = new Intl.DateTimeFormat('he-IL', {month:'long',year:'numeric',timeZone:'Asia/Jerusalem'})
+    .format(new Date(`${clean(period).slice(0,7)}-15T12:00:00Z`));
+  return {
+    subject: `תעשיידע | חשבון עסקה – ${account.customer_name_snapshot} – ${month}`,
+    body: {contentType:'Text',content:`שלום רב,\n\nמצורף חשבון עסקה עבור הפעילות שבוצעה במסגרת תוכניות תעשיידע.\n\n${account.collection_status==='paid' ? 'יתרת החשבון שולמה במלואה.' : 'נודה להסדרת התשלום בהתאם לפרטי החשבון.'}\n\nבברכה,\nתעשיידע`}
+  };
+}
+async function verifyDraft(token: string, mailbox: string, id: string, filename: string, hash: string, recipients: string[]) {
+  const path = `/users/${encodeURIComponent(mailbox)}/messages/${encodeURIComponent(id)}`;
+  let message = await graph(token, `${path}?$select=id,isDraft,toRecipients`);
+  if (message.isDraft === false) return {id:message.id, isDraft:false};
+  if (message.isDraft !== true) throw new Error('draft_state_verification_failed');
+  const actual = recipientAddresses((message.toRecipients || []).map((r: any) => r.emailAddress?.address).join(';')).map(x=>x.toLowerCase()).sort();
+  const expected = recipients.map(x=>x.toLowerCase()).sort();
+  if (JSON.stringify(actual)!==JSON.stringify(expected)) {
+    await graph(token,path,{method:'PATCH',body:JSON.stringify({toRecipients:recipients.map(address=>({emailAddress:{address}}))})});
+    message = await graph(token, `${path}?$select=id,isDraft,toRecipients`);
+    if (message.isDraft !== true || JSON.stringify(recipientAddresses((message.toRecipients||[]).map((r:any)=>r.emailAddress?.address).join(';')).map(x=>x.toLowerCase()).sort())!==JSON.stringify(expected)) {
+      throw new Error('draft_recipient_verification_failed');
+    }
+  }
+  const attachments = await graph(token, `${path}/attachments`);
+  let verified = false;
+  for (const item of attachments.value || []) {
+    if (item['@odata.type']!=='#microsoft.graph.fileAttachment' || item.contentType!=='application/pdf' || item.name!==filename || !item.contentBytes || item.isInline) continue;
+    const bytes = Uint8Array.from(atob(item.contentBytes),(c)=>c.charCodeAt(0));
+    if (await pdfHash(bytes)===hash) verified=true;
+  }
+  if (!verified) throw new Error('draft_pdf_verification_failed');
+  return {id:message.id,isDraft:true};
 }
 
 async function validateTransactionFolder(token: string) {
@@ -382,6 +425,19 @@ Deno.serve(async (req) => {
   let admin: ReturnType<typeof createClient> | null = null;
   const dispatchToken = crypto.randomUUID();
   let leaseAcquired = false;
+  let knownMessageId = '';
+  let creationStarted = false;
+  let creationRejected = false;
+  let mailbox = '';
+  let recipients: string[] = [];
+
+  const markOutlook = async (status: string, error: string | null = null) => {
+    const result = await admin!.rpc('mark_finance_transaction_outlook', {
+      p_account_id:accountId,p_status:status,p_message_id:knownMessageId || null,p_error:error,
+      p_token:dispatchToken,p_recipients:recipients,p_mailbox:mailbox || null,p_creation_rejected:creationRejected
+    });
+    if (result.error) throw result.error;
+  };
 
   try {
     const auth = req.headers.get("authorization") || "";
@@ -390,12 +446,16 @@ Deno.serve(async (req) => {
     const service = clean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
     if (!url || !anon || !service) throw new Error("supabase_function_not_configured");
 
+    const body = await req.json();
+    admin = createClient(url, service);
     userClient = createClient(url, anon, { global: { headers: { Authorization: auth } } });
-    const { data: allowed, error: allowError } = await userClient.rpc("finance_transaction_can_issue");
+    const { data: allowed, error: allowError } = body.outlookJobToken
+      ? await admin.rpc('finance_authorize_outlook_job',{p_account_id:clean(body.accountId),p_token:clean(body.outlookJobToken)})
+      : await userClient.rpc("finance_transaction_can_issue");
     if (allowError || !allowed) throw new Error("not_authorized");
 
-    const body = await req.json();
     if (body.preview === true) {
+      if (body.outlookJobToken) throw new Error('not_authorized');
       const consolidated = Array.isArray(body.funderBatch);
       const manual = body.manual || {};
       const { data: quote, error: quoteError } = consolidated
@@ -418,33 +478,32 @@ Deno.serve(async (req) => {
       .eq("id", accountId)
       .single();
     if (error) throw error;
+    if (account.document_status==='sent') return Response.json({accountId,outlookStatus:'already_sent'},{headers:cors});
     if (!["generating", "issued", "mail_draft_ready"].includes(account.document_status)) throw new Error("account_not_dispatchable");
-
-    if (account.outlook_status === "draft_ready" && account.outlook_message_id) {
-      return new Response(JSON.stringify({
-        accountId,
-        filename: account.generated_filename,
-        outlookStatus: "draft_ready",
-        messageId: account.outlook_message_id
-      }), { headers: { ...cors, "Content-Type": "application/json" } });
-    }
 
     const { error: leaseError } = await admin.rpc("acquire_finance_dispatch", { p_account_id: accountId, p_token: dispatchToken });
     if (leaseError) throw leaseError;
     leaseAcquired = true;
+    // Read again after taking the lease: the previous worker may just have finished.
+    const fresh = await admin.from('finance_transaction_accounts')
+      .select('*,finance_transaction_account_lines(*,finance_transaction_account_meetings(*))').eq('id',accountId).single();
+    if (fresh.error) throw fresh.error;
+    Object.assign(account,fresh.data);
+    finalized = account.document_status!=='generating';
+    knownMessageId = clean(account.outlook_message_id);
     const { error: validationError } = await admin.rpc("validate_finance_dispatch", { p_account_id: accountId, p_token: dispatchToken });
     if (validationError) throw validationError;
     graphAccessToken = await graphToken();
-    await validateTransactionFolder(graphAccessToken);
 
     let bytes: Uint8Array;
     let filename = account.generated_filename;
     if (account.document_status === "generating") {
+      await validateTransactionFolder(graphAccessToken);
       await attachActivityTypes(account, admin);
       bytes = await buildPdf(account);
       filename = `חשבון עסקה ${account.transaction_account_number} - ${clean(account.customer_name_snapshot).replace(/[\\/:*?\"<>|]/g, " ")} - ${date(account.issue_date)}.pdf`;
       const upload = await fetch(
-        `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(TRANSACTION_DRIVE_ID)}/items/${encodeURIComponent(TRANSACTION_FOLDER_ID)}:/${encodeURIComponent(filename)}:/content?@microsoft.graph.conflictBehavior=replace`,
+        `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(TRANSACTION_DRIVE_ID)}/items/${encodeURIComponent(TRANSACTION_FOLDER_ID)}:/${encodeURIComponent(filename)}:/content?@microsoft.graph.conflictBehavior=fail`,
         {
           method: "PUT",
           headers: { Authorization: `Bearer ${graphAccessToken}`, "Content-Type": "application/pdf" },
@@ -479,69 +538,71 @@ Deno.serve(async (req) => {
       if (storedHash !== account.pdf_sha256) throw new Error("issued_pdf_hash_mismatch");
     }
 
-    // Issuing the PDF and preparing an Outlook draft are separate user actions.
-    if (body.createDraft !== true) {
-      return new Response(JSON.stringify({ accountId, filename, outlookStatus: account.outlook_status }), {
-        headers: { ...cors, "Content-Type": "application/json" }
-      });
-    }
-
-    const recipients = recipientAddresses(account.customer_email_snapshot);
+    // Document finalization queues a durable job in the same DB transaction.
+    // Every issuance also attempts the draft immediately; the browser need not click again.
+    const recipientResult = await admin.rpc('finance_transaction_recipients',{p_account_id:accountId});
+    if (recipientResult.error) throw recipientResult.error;
+    recipients = recipientAddresses((recipientResult.data?.recipients || []).join(';'));
     if (!recipients.length) {
-      await admin.rpc("mark_finance_transaction_outlook", { p_account_id: accountId, p_status: "missing_recipient" });
-      return new Response(JSON.stringify({ accountId, filename, outlookStatus: "missing_recipient" }), {
-        headers: { ...cors, "Content-Type": "application/json" }
-      });
+      await markOutlook('missing_recipient','no_valid_payer_email');
+      return Response.json({accountId,filename,outlookStatus:'missing_recipient',invalidRecipientCount:recipientResult.data?.invalidCount || 0},{headers:cors});
     }
-
-    try {
-      const sender = clean(Deno.env.get("MS_MAIL_SENDER"));
-      if (!sender) throw new Error("mail_sender_not_configured");
-      const propertyId = "String {fe840b5e-3427-421b-a522-224fbb1c2c65} Name FinanceAccountId";
+    mailbox = (knownMessageId || account.outlook_creation_started_at) && clean(account.outlook_mailbox)
+      ? clean(account.outlook_mailbox) : clean(Deno.env.get('MS_MAIL_SENDER'));
+    if (!mailbox) throw new Error('mail_sender_not_configured');
+    const propertyId = 'String {fe840b5e-3427-421b-a522-224fbb1c2c65} Name FinanceAccountId';
+    const mailboxPath = `/users/${encodeURIComponent(mailbox)}/messages`;
+    if (!knownMessageId) {
       const filter = `singleValueExtendedProperties/Any(ep: ep/id eq '${propertyId}' and ep/value eq '${accountId}')`;
-      const previous = await graph(graphAccessToken, `/users/${encodeURIComponent(sender)}/messages?$filter=${encodeURIComponent(filter)}&$select=id&$top=1`);
-      const draft = previous.value?.[0] || await graph(graphAccessToken, `/users/${encodeURIComponent(sender)}/messages`, {
-        method: "POST",
-        body: JSON.stringify({
-          subject: `חשבון עסקה ${account.transaction_account_number} – תעשיידע – ${account.customer_name_snapshot}`,
-          body: {
-            contentType: "Text",
-            content: account.collection_status === "paid" ? `שלום,\n\nמצורף חשבון עסקה מס׳ ${account.transaction_account_number}. יתרת החשבון שולמה במלואה.` : `שלום,\n\nמצורף חשבון עסקה מס׳ ${account.transaction_account_number} עבור הפעילויות שבוצעו בתקופה הרלוונטית.\n\nנשמח להסדרת התשלום בהתאם לתנאי התשלום המפורטים בחשבון.`
-          },
-          singleValueExtendedProperties: [{ id: propertyId, value: accountId }],
-          toRecipients: recipients.map((address) => ({ emailAddress: { address } })),
-          attachments: [{
-            "@odata.type": "#microsoft.graph.fileAttachment",
-            name: filename,
-            contentType: "application/pdf",
-            contentBytes: base64(bytes)
-          }]
-        })
-      });
-      const { error: markError } = await admin.rpc("mark_finance_transaction_outlook", {
-        p_account_id: accountId,
-        p_status: "draft_ready",
-        p_message_id: draft.id
-      });
-      if (markError) throw markError;
-      return new Response(JSON.stringify({ accountId, filename, outlookStatus: "draft_ready", recipients }), {
-        headers: { ...cors, "Content-Type": "application/json" }
-      });
-    } catch (mailError) {
-      await admin.rpc("mark_finance_transaction_outlook", {
-        p_account_id: accountId,
-        p_status: "failed",
-        p_error: clean((mailError as Error).message)
-      });
-      return new Response(JSON.stringify({
-        accountId,
-        filename,
-        outlookStatus: "failed",
-        warning: "החשבון הופק ונשמר, אך יצירת טיוטת המייל נכשלה."
-      }), { headers: { ...cors, "Content-Type": "application/json" } });
+      const previous = await graph(graphAccessToken, `${mailboxPath}?$filter=${encodeURIComponent(filter)}&$select=id,isDraft&$top=2`);
+      if (previous['@odata.nextLink'] || (previous.value || []).length>1) throw new Error('multiple_account_messages_require_review');
+      knownMessageId = clean(previous.value?.[0]?.id);
     }
+    if (!knownMessageId) {
+      // An unknown POST outcome must never be retried as another POST. A later
+      // invocation reconciles the account property first, then requests review.
+      if (account.outlook_creation_started_at) throw new Error('draft_creation_uncertain');
+      if (bytes.byteLength>=3*1024*1024) throw new Error('draft_pdf_too_large');
+      const intent = await admin.rpc('begin_finance_outlook_creation',{
+        p_account_id:accountId,p_token:dispatchToken,p_mailbox:mailbox,p_recipients:recipients
+      });
+      if (intent.error) throw intent.error;
+      if (intent.data!==true) throw new Error('draft_creation_uncertain');
+      creationStarted = true;
+      try {
+        const draft = await graph(graphAccessToken,mailboxPath,{
+          method:'POST',body:JSON.stringify({
+            ...draftContent(account),
+            singleValueExtendedProperties:[{id:propertyId,value:accountId}],
+            toRecipients:recipients.map(address=>({emailAddress:{address}})),
+            attachments:[{'@odata.type':'#microsoft.graph.fileAttachment',name:filename,contentType:'application/pdf',contentBytes:base64(bytes)}]
+          })
+        });
+        knownMessageId = clean(draft.id);
+        if (!knownMessageId) throw new Error('draft_creation_uncertain');
+      } catch (error) {
+        // A definitive client rejection means no message was created. Network,
+        // timeout and server errors keep the intent and cannot create duplicates.
+        creationRejected = error instanceof GraphRequestError && error.status>=400 && error.status<500 && ![408,429].includes(error.status);
+        throw error;
+      }
+    }
+    const verified = await verifyDraft(graphAccessToken,mailbox,knownMessageId,filename,account.pdf_sha256,recipients);
+    const outlookStatus = verified.isDraft ? 'draft_ready' : 'already_sent';
+    await markOutlook(outlookStatus);
+    return Response.json({accountId,filename,outlookStatus,messageId:knownMessageId,recipientCount:recipients.length,
+      invalidRecipientCount:recipientResult.data?.invalidCount || 0},{headers:cors});
   } catch (error) {
     const message = clean((error as Error).message) || "transaction_dispatch_failed";
+    if (leaseAcquired && finalized && accountId && admin) {
+      const review = message==='draft_creation_uncertain' || message==='multiple_account_messages_require_review'
+        || (creationStarted && !knownMessageId && !creationRejected);
+      const outlookStatus = review ? 'needs_review' : 'failed';
+      try { await markOutlook(outlookStatus,message); }
+      catch { return Response.json({accountId,error:'outlook_status_persistence_failed',documentPreserved:true},{status:500,headers:cors}); }
+      return Response.json({accountId,outlookStatus,documentPreserved:true,
+        warning:'החשבון נשמר. יצירת טיוטת הדוא״ל לא הושלמה; ניתן לראות את המצב בהיסטוריה.'},{headers:cors});
+    }
     if (leaseAcquired && !finalized && accountId && admin) {
       try {
         const { error: cancelError } = await admin.rpc("cancel_finance_dispatch", {
@@ -562,6 +623,9 @@ Deno.serve(async (req) => {
       headers: { ...cors, "Content-Type": "application/json" }
     });
   } finally {
-    if (leaseAcquired && admin) await admin.rpc("release_finance_dispatch", { p_account_id: accountId, p_token: dispatchToken });
+    if (leaseAcquired && admin) {
+      try { await admin.rpc("release_finance_dispatch", { p_account_id: accountId, p_token: dispatchToken }); }
+      catch { /* the bounded lease expires; never replace a completed response */ }
+    }
   }
 });

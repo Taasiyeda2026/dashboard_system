@@ -20,6 +20,14 @@ test('editing invalidates preview; only a reviewed PDF can be confirmed with its
   await runManualAccount(d,{reserveFinanceManualAccount:async p=>{payload=p;return{id:'x'};},dispatchFinanceTransactionAccount:async()=>({})});
   assert.equal(payload.activity,'a');assert.equal(payload.funder,'r');assert.equal(payload.revision,'server-version');
 });
+
+test('manual retry preserves the invoice request identity after an uncertain dispatch outcome',async()=>{
+  const d=data();prepareManualAccount(d,'a');d.manualQuote={revision:'v1'};const keys=[];
+  const api={reserveFinanceManualAccount:async p=>{keys.push(p.idempotencyKey);return{id:'existing'};},
+    dispatchFinanceTransactionAccount:async()=>{throw Error('response lost');},cancelFinanceTransactionReservation:async()=>{throw Error('already issued');}};
+  await assert.rejects(runManualAccount(d,api),/response lost/);await assert.rejects(runManualAccount(d,api),/response lost/);
+  assert.equal(keys[0],keys[1]);
+});
 test('manual search includes school activity authority and stable identifier; no new activity input exists',()=>{
   const d=data();d.manualSearch='רחובות';assert.match(manualAccountViewHtml(d),/value="a"/);
   d.manualSearch='אין פעילות כזו';assert.doesNotMatch(manualAccountViewHtml(d),/value="a"/);

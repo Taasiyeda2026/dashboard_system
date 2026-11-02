@@ -23,7 +23,8 @@ function statusLabel(status) {
   const value = text(status);
   return ({
     generating: 'בהפקה', issued: 'הופק', mail_draft_ready: 'טיוטת מייל הוכנה', sent: 'נשלח', cancelled: 'בוטל',
-    pending: 'ממתין', draft_ready: 'טיוטה מוכנה', failed: 'נכשל', missing_recipient: 'חסר נמען',
+    pending: 'טרם נוצרה טיוטה', draft_ready: 'טיוטה מוכנה', failed: 'נכשל', missing_recipient: 'חסר נמען',
+    needs_review:'נדרשת בדיקה לפני ניסיון נוסף', already_sent:'ההודעה כבר נשלחה מתיבת Outlook',
     awaiting_payment: 'ממתין לתשלום', partially_paid: 'שולם חלקית', paid: 'שולם'
   })[value] || value || '—';
 }
@@ -239,7 +240,7 @@ function historyView(data) {
         <span>גבייה: <strong>${escapeHtml(statusLabel(actualCollectionStatus))}</strong></span>
         ${balance ? `<span>שולם: ${escapeHtml(formatAmount(balance.paidAmount))} · יתרה: ${escapeHtml(formatAmount(balance.balance))}</span>` : ''}
         ${pdf}
-        ${['issued', 'mail_draft_ready'].includes(account.document_status) ? `<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-finance-account-draft="${escapeHtml(account.id)}"${data.financeBusy ? ' disabled' : ''}>שליחה לאיש הקשר — טיוטת מייל</button>` : ''}
+        ${['issued','mail_draft_ready'].includes(account.document_status) && ['pending','failed','missing_recipient','needs_review'].includes(account.outlook_status) ? `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-account-draft="${escapeHtml(account.id)}"${data.financeBusy ? ' disabled' : ''}>נסה להשלים את טיוטת הדוא״ל</button>` : ''}
         ${data.financeAdmin && account.document_status !== 'cancelled' ? `<button class="ds-btn ds-btn--ghost" data-finance-account-cancel="${escapeHtml(account.id)}">ביטול חשבון</button>` : ''}
         ${account.cancellation_reason ? `<span>${escapeHtml(account.cancellation_reason)}</span>` : ''}
       </div>
@@ -292,9 +293,14 @@ export async function runTransactionIssuance(data, api, mode, month = transactio
   const preview = transactionPreviewForVisit(scoped, mode);
   if (!preview.accounts.length) throw new Error('אין חשבונות מוכנים להפקה.');
   const results = [];
+  data.transactionRequestIds ||= {};
   for (const account of preview.accounts) {
-    const reserved = await api.reserveFinanceTransactionAccount({
-      idempotencyKey: uuid(),
+    const requestKey=JSON.stringify([mode,month,account.institutionSymbol,account.lines.map(line=>[line.activityRowId,line.fundingSourceId,line.period,line.issuableAmount,line.unbilledSlots])]);
+    data.transactionRequestIds[requestKey] ||= uuid();
+    let reserved;
+    try {
+    reserved = await api.reserveFinanceTransactionAccount({
+      idempotencyKey: data.transactionRequestIds[requestKey],
       cutoffDate: preview.cutoff,
       institutionSymbol: account.institutionSymbol,
       customerName: account.customerName,
@@ -308,16 +314,25 @@ export async function runTransactionIssuance(data, api, mode, month = transactio
         issue_mode: mode
       }))
     });
-    let dispatched;
-    try { dispatched = await api.dispatchFinanceTransactionAccount({ accountId: reserved.id }); }
-    catch (error) {
-      // Safe server cancellation refuses issued accounts and active dispatch leases.
-      await api.cancelFinanceTransactionReservation?.(reserved.id).catch(() => {});
-      throw error;
-    }
+    const dispatched = await api.dispatchFinanceTransactionAccount({ accountId: reserved.id });
     results.push({ reserved, dispatched });
+    } catch (error) {
+      if (reserved && api.cancelFinanceTransactionReservation) {
+        try { await api.cancelFinanceTransactionReservation(reserved.id); delete data.transactionRequestIds[requestKey]; }
+        catch { /* an issued account or active worker must remain intact */ }
+      }
+      results.push({reserved,error:String(error?.message || 'ההפקה לא הושלמה')});
+    }
   }
   return results;
+}
+
+export function transactionIssuanceResultMessage(results) {
+  const issued=results.filter(r=>!r.error || r.dispatched?.documentPreserved).length;
+  const ready=results.filter(r=>r.dispatched?.outlookStatus==='draft_ready').length;
+  const missing=results.filter(r=>r.dispatched?.outlookStatus==='missing_recipient').length;
+  const failed=results.filter(r=>r.error || ['failed','needs_review'].includes(r.dispatched?.outlookStatus)).length;
+  return `נשמרו ${issued} חשבונות עסקה. נוצרו ${ready} טיוטות דוא״ל.${missing ? ` חסרים נמענים ל-${missing} חשבונות.` : ''}${failed ? ` ${failed} פעולות לא הושלמו; הפרטים בהיסטוריה.` : ''}`;
 }
 
 export function handleTransactionSelection(data, rowId, checked) {
