@@ -53,11 +53,14 @@ export function readinessForActivity(activity = {}) {
   if (!text(activity.school)) missing.push('school');
   if (!text(activity.activity_name ?? activity.program_name)) missing.push('program');
   if (!text(activity.school_contact_id) && !text(activity.contact_name) && !text(activity.resolved_contact_name)) missing.push('contact');
-  if (!sessions) missing.push('sessions');
+  const scheduledDates = Array.from({ length: MAX_MEETINGS }, (_, index) =>
+    normalizedDate(activity[`date_${index + 1}`])).filter(Boolean).length;
+  if (!sessions) missing.push(scheduledDates ? 'sessions_unset_with_dates' : 'sessions');
   if (sessions) {
     for (let meeting = 1; meeting <= sessions; meeting += 1) {
       if (!normalizedDate(activity[`date_${meeting}`])) missing.push(`date_${meeting}`);
     }
+    if (scheduledDates > sessions) missing.push('sessions_date_mismatch');
   }
   if (!normalizedTime(activity.start_time)) missing.push('start_time');
   if (!normalizedTime(activity.end_time)) missing.push('end_time');
