@@ -3477,6 +3477,19 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         setStatusMessage('לא נמצאה רשומת הנוכחות לאישור.', { error: true });
         return;
       }
+      const sourceRecordId = attendanceEntryRecordId(entry);
+      const unresolvedTravel = [...(result?.comparisons || []), ...(result?.notCompared || [])].find((candidate) => {
+        if (!isAttendanceTravelTimeCancellation(candidate)) return false;
+        const row = candidate.attendance || candidate.final || candidate;
+        const source = row?._source || candidate?._source || {};
+        const linkedId = txt(source.sourceAttendanceRecordId || source.source_attendance_record_id || row.sourceAttendanceRecordId);
+        return linkedId === sourceRecordId
+          && ['awaiting_report', 'pending_review', 'auto_matched'].includes(txt(source.travelReviewStatus || source.reviewStatus || source.review_status));
+      });
+      if (unresolvedTravel) {
+        setStatusMessage('לא ניתן לאשר את הרשומה: ביטול זמן הנסיעה המשויך אליה עדיין ממתין לבקרת מנהל. יש לטפל בביטול הזמן לפני אישור הרשומה.', { error: true });
+        return;
+      }
       approveBtn.disabled = true;
       let writeSucceeded = false;
       try {
@@ -3499,9 +3512,12 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       } catch (error) {
         entry.managerRecordApproved = false;
         paintResults();
-        setStatusMessage(error?.message || (writeSucceeded
-          ? 'התיקון נשמר, אך אישור הרשומה לא נשמר. יש לנסות לאשר שוב.'
-          : 'אישור הרשומה נכשל.'), { error: true });
+        const travelPending = txt(error?.message).includes('attendance_travel_review_pending_for_record');
+        setStatusMessage(travelPending
+          ? 'לא ניתן לאשר את הרשומה: יש לבדוק תחילה את ביטול זמן הנסיעה המשויך אליה.'
+          : error?.message || (writeSucceeded
+            ? 'התיקון נשמר, אך אישור הרשומה לא נשמר. יש לנסות לאשר שוב.'
+            : 'אישור הרשומה נכשל.'), { error: true });
       } finally {
         approveBtn.disabled = false;
       }
