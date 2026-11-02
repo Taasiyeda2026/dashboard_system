@@ -53,14 +53,14 @@ test('generated travel-time cancellation is not treated as another route stop', 
   assert.equal(rows[0].kilometers, 200);
 });
 
-test('an unresolved additional physical stop makes the linked day route unavailable', () => {
+test('an unresolved additional physical stop preserves earlier verified inbound mileage', () => {
   const rows = dashboardRows().slice(0, 1);
   rows[0].kilometers = 200;
   applyAttendanceDayRouteKilometers(rows, [
     { employeeId: '1', date: '2026-09-02', startTime: '08:20', activityId: 'ACT-A', meetingNo: '1', activityType: 'קורס', school: 'בית ספר א' },
     { employeeId: '1', date: '2026-09-02', startTime: '13:00', activityId: '', activityType: 'תפעול', school: 'יעד אחר' }
   ], routeCache());
-  assert.equal(rows[0].kilometers, null);
+  assert.equal(rows[0].kilometers, 100, 'only the independently verified home-to-first leg is shown');
 });
 
 test('non-school physical location with a trusted address participates in the day route', () => {
