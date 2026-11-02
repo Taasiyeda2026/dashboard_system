@@ -14,6 +14,8 @@ const MISSING_LABELS = Object.freeze({
   contact: 'איש קשר',
   grade_class: 'כיתה / קבוצה',
   sessions: 'מספר מפגשים',
+  sessions_unset_with_dates: 'מספר מפגשים חסר בפעילות למרות שקיימים מועדים מתוכננים',
+  sessions_date_mismatch: 'מספר המועדים גדול ממספר המפגשים בפעילות',
   start_time: 'שעת התחלה',
   end_time: 'שעת סיום',
   instructor: 'מדריך/ה'
