@@ -3674,7 +3674,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     } catch (error) {
       if (txt(error?.message).includes('attendance_travel_reviews_pending')) {
         const message = txt(error?.message);
-        const match = message.match(/attendance_travel_reviews_pending:(\\[[\\s\\S]*\\])/);
+        const match = message.match(/attendance_travel_reviews_pending:(\[[\s\S]*\])/);
         let pending = [];
         try { pending = JSON.parse(match?.[1] || '[]'); } catch { /* keep safe fallback */ }
         const dates = [...new Set(pending.map((row) => txt(row.report_date)).filter(Boolean))];
