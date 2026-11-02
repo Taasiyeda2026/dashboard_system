@@ -622,8 +622,7 @@ async function buildPdfBytes(payload: {
       // Show every field captured in the approval snapshot, including zero amounts.
       // This is a faithful approved record, not a filtered payroll summary.
       const details = [
-        `שעות: ${time} | סה״כ שעות: ${hours}`,
-        `תוכנית: ${clean(row.program) || "—"} | מוסד: ${clean(row.school) || "—"}`,
+        `מוסד: ${clean(row.school) || "—"}`,
         `רשות: ${clean(row.authority) || "—"} | מפגש: ${clean(row.meetingNo) || "—"}`,
         `קילומטרים: ${toNumber(row.kilometers).toFixed(2)} ק״מ | תחבורה ציבורית: ${usesPublicTransport ? "כן" : "לא"} | עלות תחב״צ: ₪${toNumber(row.publicTransportCost).toFixed(2)}`,
         `הוצאות: ₪${toNumber(row.expenses).toFixed(2)} | פירוט הוצאות: ${expenseDetails || "—"}`,
@@ -631,7 +630,9 @@ async function buildPdfBytes(payload: {
         ...(clean(row.employmentType) ? [`סוג העסקה: ${clean(row.employmentType)}`] : []),
         ...(clean(row.notes) ? [`הערות: ${clean(row.notes)}`] : []),
       ];
-      const heading = `${index + 1}.  ${date}   |   ${activity}`;
+      const program = clean(row.program);
+      const activityTitle = program ? `${activity} – ${program}` : activity;
+      const heading = `${date} | ${activityTitle}: ${time} | סה״כ: ${hours} שעות`;
       const headingLines = wrapLogical(heading, bold, 9.4, CONTENT_W - 28);
       const detailLines = details.flatMap((detail) => wrapLogical(detail, regular, 8.3, CONTENT_W - 28));
       const HEADER_STEP = 14;
