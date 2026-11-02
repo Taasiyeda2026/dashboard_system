@@ -572,7 +572,10 @@ function routeLocationFromStop(stop = {}) {
 
 function instructorLocationDistance(cache, employeeId, location, originAddress = '') {
   if (!location) return null;
-  if (location.schoolId != null && !location.address) return instructorSchoolDistance(cache, employeeId, location.schoolId);
+  if (location.schoolId != null) {
+    const schoolRoute = instructorSchoolDistance(cache, employeeId, location.schoolId);
+    if (schoolRoute != null) return schoolRoute;
+  }
   const address = normalizedRouteAddress(location.address);
   const homeAddress = normalizedRouteAddress(originAddress);
   const hit = cache.find((row) => (
@@ -590,7 +593,10 @@ function instructorLocationDistance(cache, employeeId, location, originAddress =
 
 function locationInstructorDistance(cache, employeeId, location, homeAddress = '') {
   if (!location) return null;
-  if (location.schoolId != null && !location.address) return instructorSchoolDistance(cache, employeeId, location.schoolId);
+  if (location.schoolId != null) {
+    const schoolRoute = instructorSchoolDistance(cache, employeeId, location.schoolId);
+    if (schoolRoute != null) return schoolRoute;
+  }
   const address = normalizedRouteAddress(location.address);
   const home = normalizedRouteAddress(homeAddress);
   if (address && home && address === home) return 0;
