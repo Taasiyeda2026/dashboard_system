@@ -772,22 +772,20 @@ export function applyAttendanceDayRouteKilometers(rows = [], attendanceRows = []
     linkedRows.forEach((row) => { row.kilometers = null; });
 
     physicalStops.forEach((stop) => { stop.location = routeLocationFromStop(stop); });
-    // A physical stop is unresolved only when it has neither a school identity nor
-    // a trusted destination address. A null school_id by itself is not a missing route.
-    if (physicalStops.some((stop) => !stop.dashboard || !stop.location)) continue;
-
+    // Calculate each attendance stop from verified cached segments only.
+    // Missing destinations must not hide another record's independently verified leg.
     physicalStops.sort((left, right) => timeText(left.attendance?.startTime).localeCompare(timeText(right.attendance?.startTime)));
     physicalStops.forEach((stop, index) => {
+      if (!stop.dashboard || !stop.location) return;
       const employeeId = txt(stop.attendance.employeeId);
+      const previous = physicalStops[index - 1];
       const incoming = index === 0
         ? instructorLocationDistance(travelCache, employeeId, stop.location, stop.attendance.originAddress)
-        : locationLocationDistance(travelCache, physicalStops[index - 1].location, stop.location);
+        : previous?.location ? locationLocationDistance(travelCache, previous.location, stop.location) : null;
       const returnHome = index === physicalStops.length - 1
         ? locationInstructorDistance(travelCache, employeeId, stop.location, stop.attendance.originAddress)
         : 0;
-      if (incoming == null || returnHome == null) {
-        return;
-      }
+      if (incoming == null || returnHome == null) return;
       stop.dashboard.kilometers = Math.round((incoming + returnHome) * 100) / 100;
       stop.routeComponents?.forEach((row, componentIndex) => {
         row.kilometers = componentIndex === 0 ? stop.dashboard.kilometers : 0;
