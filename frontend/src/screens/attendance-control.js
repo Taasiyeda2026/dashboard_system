@@ -3621,16 +3621,32 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     if (!finishBtn || !result) return;
     const employeeId = txt(finishBtn.dataset.payrollFinish);
     const employeeName = txt(finishBtn.dataset.payrollEmployeeName);
+    const showApprovalFeedback = (message, error = true) => {
+      let notice = finishBtn.parentElement?.querySelector('[data-manager-month-approval-feedback]');
+      if (!notice) {
+        notice = finishBtn.ownerDocument.createElement('span');
+        notice.dataset.managerMonthApprovalFeedback = 'true';
+        notice.setAttribute('role', 'status');
+        notice.style.cssText = 'display:block;flex-basis:100%;padding:8px 0;font-size:13px;font-weight:600;color:#b91c1c;white-space:normal;';
+        finishBtn.parentElement?.appendChild(notice);
+      }
+      if (notice) {
+        notice.textContent = message;
+        notice.style.color = error ? '#b91c1c' : '#166534';
+      }
+      setStatusMessage(message, { error });
+    };
     const pendingCount = Number(finishBtn.dataset.payrollPendingRecords || 0);
     if (pendingCount > 0) {
-      setStatusMessage(`לא ניתן להשלים אישור מנהל: נותרו ${pendingCount} רשומות שדורשות אישור. יש לפתוח את הרשומות הממתינות, לטפל בהן ולאחר מכן ללחוץ שוב על אישור מנהל.`, { error: true });
+      showApprovalFeedback(`לא ניתן להשלים אישור מנהל: נותרו ${pendingCount} רשומות שדורשות אישור. יש לפתוח את הרשומות הממתינות ולטפל בהן.`);
       return;
     }
     const workflow = resolvePayrollMonthWorkflow(workflowByEmployee[employeeId] || {});
     if (workflow.status !== 'submitted') {
-      setStatusMessage('לא ניתן לאשר מנהל לפני שהעובד השלים ואישר את החודש.', { error: true });
+      showApprovalFeedback('לא ניתן לאשר מנהל לפני שהעובד השלים ואישר את החודש.');
       return;
     }
+    showApprovalFeedback('בודק את אישורי החודש…', false);
     finishBtn.disabled = true;
     try {
       const finishMod = await import('./payroll-control-finish.js?v=20261005-manager-pdf-decouple-v1');
