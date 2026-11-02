@@ -170,6 +170,12 @@ function billingView(data, mode) {
   const backlog = transactionBacklog(data, mode);
   const rows = transactionIssuanceActivities(data, { mode }).map((row) => row.transaction_summary);
   const ready = rows.filter((row) => row.eligible && !row.blockedReason);
+  const waiting = rows.filter((row) => row.eligibilityStatus === 'waiting_three_meetings');
+  const waitingHtml = waiting.length ? `<div class="ds-fin-payer" role="status">
+    <strong>ממתין להשלמת שלושה מפגשים</strong>
+    <ul>${waiting.map((row) => `<li>${escapeHtml(row.activityName)} · ${escapeHtml(row.customerName || '')} · ${Number(row.completedCount || 0)} מתוך 3 עד סוף ${escapeHtml(row.period?.slice(0, 7) || '')}</li>`).join('')}</ul>
+    <span>הספירה מצטברת מלוח המפגשים. הקורס ייבדק שוב בהפקה בחודש הבא.</span>
+  </div>` : '';
   const groups = new Map();
   for (const row of ready) {
     const key = mode === TRANSACTION_MODE_AUTOMATIC ? row.institutionSymbol : (row.payerKey || row.fundingSourceId);
@@ -204,6 +210,7 @@ function billingView(data, mode) {
         : ''}</div>
     ${backlogHtml}
     ${monthPicker(data, mode)}
+    ${waitingHtml}
     ${ready.length ? summaryCards(total) : ''}
     ${body || dsEmptyState('אין חשבונות להפקה בחודש שנבחר.')}`;
 }
