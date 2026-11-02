@@ -499,10 +499,15 @@ async function ensureStaffIssues(force = false) {
   if (!force && ui.staffIssues && ui.staffIssuesYear === ui.year) return;
   if (inflight.issues) return inflight.issues;
   const year = ui.year;
+  if (!isFeedbackAdmin(feedbackViewerUser)) {
+    ui.staffIssues = [];
+    ui.staffIssuesYear = year;
+    return;
+  }
   const task = (async () => {
     try {
       // Restricted viewers can read regular feedback but must not access admin-only issue follow-up.
-      const records = isFeedbackAdmin(feedbackViewerUser) ? await fetchStaffMidIssues(year) : [];
+      const records = await fetchStaffMidIssues(year);
       if (ui.year !== year) return;
       ui.staffIssues = Array.isArray(records) ? records : [];
       ui.staffIssuesYear = year;
