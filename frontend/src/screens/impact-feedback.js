@@ -2209,9 +2209,9 @@ function slotCardHtml(group, slot, user) {
         ? statusText('נשלח', 'success')
         : coveredBySharedMail ? statusText('נשלח במשלוח משותף', 'success')
         : earlyFinal ? statusText(earlyFinal.label, earlyFinal.tone) : campaignStatusHtml(null)}</div>
-      ${manuallyMarkedSent ? '' : coveredBySharedMail ? '<p class="ifb-muted">פעילות זו נכללה במשלוח משותף לאותו איש קשר ולאותו שלב. השאלון נמצא בפעילות הנציגה של המשלוח, ואין ליצור הזמנה כפולה.</p>'
+      ${coveredBySharedMail ? '<p class="ifb-muted">פעילות זו נכללה במשלוח משותף לאותו איש קשר ולאותו שלב. השאלון נמצא בפעילות הנציגה של המשלוח, ואין ליצור הזמנה כפולה.</p>'
         : earlyFinal ? '<p class="ifb-muted">משוב הסיום ייפתח רק לאחר שהקורס ומפגשיו הושלמו.</p>'
-        : openFormHtml(group, slot)}
+        : `${manuallyMarkedSent ? '<p class="ifb-muted">סומן כנשלח ידנית, אך טרם נוצר קישור משוב. ניתן ליצור קישור קבוע ללא שליחה נוספת.</p>' : ''}${openFormHtml(group, slot)}`}
       ${manuallyMarkedSent || coveredBySharedMail ? '' : staffScheduleHtml(group, slot)}
     </article>`;
   }
@@ -2246,6 +2246,14 @@ function slotCardHtml(group, slot, user) {
       <a class="ifb-btn${live && links.hasEmail ? '' : ' is-disabled'}" href="${esc(links.email)}" data-ifb-share="email" data-campaign="${id}" title="${links.hasEmail ? '' : 'לא קיימת כתובת מייל לנמען'}"${live && links.hasEmail ? '' : ' aria-disabled="true"'}>מייל</a>
       <button type="button" class="ifb-btn" data-ifb-copy="${id}">העתקת קישור</button>
       ${campaign.status === 'active' ? `<button type="button" class="ifb-btn ifb-btn--danger" data-ifb-close="${id}">סגירה</button>` : `<button type="button" class="ifb-btn" data-ifb-reopen="${id}">פתיחה מחדש</button>`}`;
+  }
+  // The stored recipient token is the canonical link, independent of mail dispatch status.
+  // Never generate a new token on render or resend merely to show a link.
+  if (slot.audience === 'educational_staff' && status.key !== 'completed') {
+    const existingUrl = campaignLink(campaign);
+    if (existingUrl) {
+      actions += `<div class="ifb-feedback-permalink"><span>קישור המשוב הקבוע:</span> <a href="${esc(existingUrl)}" target="_blank" rel="noopener noreferrer" dir="ltr">פתיחת קישור המשוב</a></div>`;
+    }
   }
   // Viewing all results remains unrestricted; only the right to change an expiry is team-scoped.
   const canManagerExtendStudent = feedbackReadOnly && studentShareAllowed && isStudent
