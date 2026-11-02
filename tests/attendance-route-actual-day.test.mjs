@@ -217,3 +217,11 @@ test('moderate directed differences remain calculated without altering attendanc
   applyAttendanceDayRouteKilometers(rows, attendance, cache);
   assert.equal(rows[0].kilometers, 55.86);
 });
+
+test('cached instructor-school ID is preferred even when activity includes a differently formatted address', () => {
+  const rows = [{ employeeId: '1528', date: '2026-10-13', startTime: '12:00', activityId: 'ACT-C', meetingNo: '2', schoolId: 527, school: 'מקיף דתי קנדי', destinationAddress: 'קנדי, עכו', kilometers: null }];
+  const attendance = [{ employeeId: '1528', date: '2026-10-13', startTime: '12:00', activityId: 'ACT-C', meetingNo: '2', activityType: 'קורס', school: 'מקיף דתי קנדי', destinationAddress: 'קנדי, עכו' }];
+  const cache = [{ origin_instructor_emp_id: 1528, destination_school_id: 527, origin_address: 'בית המדריך', destination_address: 'כתובת שמורה אחרת', distance_km: 14, location_suspect: false }];
+  applyAttendanceDayRouteKilometers(rows, attendance, cache);
+  assert.equal(rows[0].kilometers, 28);
+});
