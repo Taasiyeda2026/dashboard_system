@@ -624,11 +624,19 @@ async function buildPdfBytes(payload: {
       const school = clean(row.school);
       const authority = clean(row.authority);
       const meeting = clean(row.meetingNo);
-      if (school) details.push(`מוסד: ${school}`);
-      if (authority || meeting) details.push([
-        authority ? `רשות: ${authority}` : "",
-        meeting ? `מפגש: ${meeting}` : "",
-      ].filter(Boolean).join(" | "));
+      // Institution, authority and meeting are meaningful only for an in-person course.
+      // Training, Zoom/online and operations entries intentionally omit them.
+      const isCourse = /קורס/.test(activity);
+      const isRemote = /זום|zoom|מקוון|מרחוק|online/i.test([
+        activity, clean(row.program), school, clean(row.notes),
+      ].join(" "));
+      if (isCourse && !isRemote) {
+        if (school) details.push(`מוסד: ${school}`);
+        if (authority || meeting) details.push([
+          authority ? `רשות: ${authority}` : "",
+          meeting ? `מפגש: ${meeting}` : "",
+        ].filter(Boolean).join(" | "));
+      }
       const km = toNumber(row.kilometers);
       if (!usesPublicTransport && km > 0) details.push(`קילומטרים: ${Number(km.toFixed(2))} ק״מ`);
       const publicTransportCost = toNumber(row.publicTransportCost);
