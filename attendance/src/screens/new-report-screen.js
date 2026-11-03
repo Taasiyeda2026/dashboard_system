@@ -60,6 +60,7 @@ import {
 import { dashboardCourseChoiceKey } from '../services/activities-report.helpers.js';
 
 const TIME_MINUTE_STEP = 5;
+const DAILY_TRAVEL_START_DATE = '2026-11-04';
 const COURSE_REPORT_TYPE = 'קורס';
 const WORKSHOP_REPORT_TYPE = 'סדנה';
 const AUTO_TIME_REPORT_TYPES = new Set([COURSE_REPORT_TYPE, WORKSHOP_REPORT_TYPE]);
@@ -475,10 +476,14 @@ export function renderNewReportScreen(container, {
     syncMeetingFieldState();
   }
 
+  function isDailyTravelDate() {
+    return getReportDate() >= DAILY_TRAVEL_START_DATE;
+  }
+
   function syncTravelMode() {
     if (!kmField?.input || !publicTransportInput || !publicTransportCostWrap) return;
     const online = isOnlineActivity();
-    if (publicTransportToggleEl) publicTransportToggleEl.hidden = online;
+    if (publicTransportToggleEl) publicTransportToggleEl.hidden = online || isDailyTravelDate();
     if (online) {
       publicTransportInput.checked = false;
       publicTransportInput.disabled = true;
@@ -487,10 +492,10 @@ export function renderNewReportScreen(container, {
     }
 
     const usesPublicTransport = !online && publicTransportInput.checked;
-    kmField.wrap.hidden = online || usesPublicTransport;
+    kmField.wrap.hidden = online || usesPublicTransport || isDailyTravelDate();
     kmField.input.disabled = online || usesPublicTransport;
     kmField.input.readOnly = online || usesPublicTransport;
-    publicTransportCostWrap.hidden = !usesPublicTransport;
+    publicTransportCostWrap.hidden = !usesPublicTransport || isDailyTravelDate();
     publicTransportCostField.input.disabled = !usesPublicTransport;
 
     if (online || usesPublicTransport) kmField.input.value = '0';
@@ -500,7 +505,7 @@ export function renderNewReportScreen(container, {
 
   function syncInlineCancellationUi() {
     if (!cancellationToggle || !cancellationFields) return;
-    const eligible = canReportInlineCancellation({ activityType: getReportType(), online: isOnlineActivity() });
+    const eligible = !isDailyTravelDate() && canReportInlineCancellation({ activityType: getReportType(), online: isOnlineActivity() });
     cancellationToggle.parentElement.hidden = !eligible;
     if (!eligible) cancellationToggle.checked = false;
     cancellationFields.hidden = !eligible || !cancellationToggle.checked;
@@ -1008,6 +1013,7 @@ export function renderNewReportScreen(container, {
   async function onReportDateChange() {
     const dateToken = ++reportDateToken;
     const dateStr = getReportDate();
+    syncTravelMode();
     if (isCourseReportType()) {
       void refreshDashboardCourseOptions(coursePrefill || {});
       coursePrefill = null;
@@ -1495,7 +1501,7 @@ export function renderNewReportScreen(container, {
     expensesInner.append(expensesHeading, expenseFields, attachmentUi.section, notesField.wrap);
 
     const timesSection = makeFormSection(
-      'זמנים ונסיעות',
+      'שעות עבודה',
       'times',
       'av2-form-section__body--times',
       [timesGrid, expensesInner],
@@ -1835,8 +1841,8 @@ export function renderNewReportScreen(container, {
 
       const programName = activity?.program_name || activityNameSnapshot || null;
 
-      const usesPublicTransport = !isOnline && !isTeamOnline && publicTransportInput.checked;
-      const kmValue = reportedKilometers(kmField.input.value, {
+      const usesPublicTransport = !isDailyTravelDate() && !isOnline && !isTeamOnline && publicTransportInput.checked;
+      const kmValue = isDailyTravelDate() ? 0 : reportedKilometers(kmField.input.value, {
         online: isOnline || isTeamOnline, publicTransport: usesPublicTransport, activityType: reportType,
       });
       if (kmValue == null) {
@@ -1885,9 +1891,9 @@ export function renderNewReportScreen(container, {
           semel_mosad: hasNoLocation || isTraining ? null : (semelMosad || null),
           program_name: isOpen || isBaseTraining ? null : (activity?.program_name ?? null),
           program_name_snapshot: programName,
-          cancellation_before_minutes: cancellationToggle.checked
+          cancellation_before_minutes: !isDailyTravelDate() && cancellationToggle.checked
             ? cancellationMinutesForSave(cancellationBeforeField.input.value, originalCancellationRecord, 'cancellation_before_minutes') : null,
-          cancellation_after_minutes: cancellationToggle.checked
+          cancellation_after_minutes: !isDailyTravelDate() && cancellationToggle.checked
             ? cancellationMinutesForSave(cancellationAfterField.input.value, originalCancellationRecord, 'cancellation_after_minutes') : null,
           roundtrip_km: kmValue,
           public_transport: usesPublicTransport,
@@ -1901,7 +1907,7 @@ export function renderNewReportScreen(container, {
         const record = await createRecord(instructor.empId, payload);
         // Travel compensation is back-office processing. Never block or warn the
         // instructor: unresolved calculations remain visible to the team manager/admin.
-        void reconcileTravelCompensation(record.id).catch(() => null);
+        if (!isDailyTravelDate()) void reconcileTravelCompensation(record.id).catch(() => null);
         const failedFiles = await uploadPendingFiles(record.id);
         if (failedFiles.length) {
           savedRecordForAttachmentRetry = record;
