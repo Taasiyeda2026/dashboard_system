@@ -44,7 +44,8 @@ begin
   if v_emp is null or v_role not in ('instructor','מדריך') then
     raise exception 'attendance_travel_instructor_required' using errcode='42501';
   end if;
-  if p_date is null or not public.av2_can_write_month(p_date) then
+  if p_date is null or p_date < date '2026-11-04'
+     or not public.av2_can_write_month(p_date) then
     raise exception 'attendance_month_locked' using errcode='42501';
   end if;
   select count(*) into v_expected from public.attendance_records a
@@ -65,6 +66,9 @@ begin
     v_count:=jsonb_array_length(p_legs);
     if v_count <> v_expected+1 or v_count<2 or v_count>26 then
       raise exception 'attendance_travel_legs_count_mismatch' using errcode='22023';
+    end if;
+    if not public.av2_daily_travel_route_matches(v_emp,p_date,p_legs) then
+      raise exception 'attendance_travel_route_changed' using errcode='22023';
     end if;
     for i in 0..v_count-1 loop
       v_item:=p_legs->i;
@@ -178,6 +182,8 @@ begin
  if not found or v_row.review_status<>'pending_review' then
    raise exception 'attendance_travel_review_not_pending' using errcode='42501';
  end if;
+ if not v_row.no_travel and not public.av2_daily_travel_route_matches(p_emp_id,p_date,v_row.legs)
+ then raise exception 'attendance_travel_route_changed' using errcode='22023'; end if;
  update public.attendance_daily_travel_reports
  set review_status=case p_decision when 'approve' then 'approved'
    when 'correct' then 'corrected' else 'rejected' end,
