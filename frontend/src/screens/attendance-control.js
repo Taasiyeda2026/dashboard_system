@@ -2630,7 +2630,10 @@ export function resultsHtml(result, month = '', options = {}) {
     const minutes = record.no_travel ? 0 : optionalNumber(record.cancellation_minutes);
     const actions = record.review_status === 'pending_review' && currentEmployeeCanMutate
       ? '<button type="button" class="ds-btn ds-btn--sm" data-daily-travel-review="approve" data-daily-travel-employee="'+escapeHtml(employeeId)+'" data-daily-travel-date="'+escapeHtml(date)+'">אישור נסיעות</button>'+
-        '<button type="button" class="ds-btn ds-btn--sm" data-daily-travel-review="reject" data-daily-travel-employee="'+escapeHtml(employeeId)+'" data-daily-travel-date="'+escapeHtml(date)+'">דחייה</button>'
+        '<button type="button" class="ds-btn ds-btn--sm" data-daily-travel-review="reject" data-daily-travel-employee="'+escapeHtml(employeeId)+'" data-daily-travel-date="'+escapeHtml(date)+'">דחייה</button>'+
+        '<label>ק״מ מאושר <input class="ds-input ds-input--sm" data-daily-travel-correct-km type="number" min="0" max="10000" step="0.01" value="'+escapeHtml(String(km??0))+'"></label>'+
+        '<label>ביטול זמן מאושר (דקות) <input class="ds-input ds-input--sm" data-daily-travel-correct-minutes type="number" min="0" max="1440" step="1" value="'+escapeHtml(String(minutes??0))+'"></label>'+
+        '<button type="button" class="ds-btn ds-btn--sm" data-daily-travel-review="correct" data-daily-travel-employee="'+escapeHtml(employeeId)+'" data-daily-travel-date="'+escapeHtml(date)+'">תיקון ואישור</button>'
       : '';
     const legRows = Array.isArray(record.legs) ? record.legs.map(leg =>
       '<tr><td>'+shown(leg.from)+' ← '+shown(leg.to)+'</td><td>'+shown(leg.minutes)+' דקות</td><td>'+shown(leg.kilometers)+' ק״מ</td></tr>').join('') : '';
@@ -3264,10 +3267,24 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       const employeeId=txt(dailyReview.dataset.dailyTravelEmployee);
       const date=txt(dailyReview.dataset.dailyTravelDate);
       const decision=txt(dailyReview.dataset.dailyTravelReview);
-      if(!employeeId||!date||!['approve','reject'].includes(decision))return;
+      if(!employeeId||!date||!['approve','reject','correct'].includes(decision))return;
+      let km=null,minutes=null;
+      if(decision==='correct'){
+        const section=dailyReview.closest('.attendance-control__daily-travel');
+        const kmInput=section?.querySelector('[data-daily-travel-correct-km]');
+        const minutesInput=section?.querySelector('[data-daily-travel-correct-minutes]');
+        km=Number(kmInput?.value);
+        minutes=Number(minutesInput?.value);
+        if(!kmInput?.value || !minutesInput?.value
+          || !Number.isFinite(km) || km<0 || km>10000
+          || !Number.isInteger(minutes) || minutes<0 || minutes>1440){
+          setStatusMessage('יש להזין קילומטרים ודקות ביטול זמן תקינים.',{error:true});
+          return;
+        }
+      }
       dailyReview.disabled=true;
       try{
-        await api.attendanceControlReviewDailyTravel({employeeId,date,decision});
+        await api.attendanceControlReviewDailyTravel({employeeId,date,decision,km,minutes});
         const refreshed=await api.attendanceControlDailyTravelReports({
           employeeIds:[Number(employeeId)],
           fromDate:date,toDate:date
