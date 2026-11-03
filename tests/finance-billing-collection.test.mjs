@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { financeActivityEndDate } from '../frontend/src/screens/finance-collection.js';
 import { financeScreen, createFinanceVisitState } from '../frontend/src/screens/finance.js';
-import { financeToday, financePaymentDueDate } from '../frontend/src/screens/finance-transaction-accounts.js';
+import { financeToday, financePaymentDueDate, financeCycleCutoff } from '../frontend/src/screens/finance-transaction-accounts.js';
 import { financeAccountBalances, paymentsBodyHtml, accountPaymentAllocation } from '../frontend/src/screens/finance-payments.js';
 const user={role:'admin'};
 const base={row_id:'a',school_id:1,authority_id:1,school:'בית ספר',funding:'גפן + רשות',activity_name:'פעילות',sessions:'2',price:12000,activity_season:'school_2027',date_1:'2026-08-01',date_2:'2026-09-01'};
@@ -121,18 +121,19 @@ test('manual issuance funder selector filters activities before the invoice is e
   root._financeUnbind();dom.window.close();
 });
 
-test('entering either billing tab defaults to the current month, even after an old month was chosen',()=>{
+test('entering either billing tab defaults to the last closed month, even after an old month was chosen',t=>{
+  const previousWindow=globalThis.window;t.after(()=>{globalThis.window=previousWindow;});
   const d=data();d.view='transactions';
   const dom=new JSDOM('<div id="app"></div>'),root=dom.window.document.querySelector('#app'),state={user};
   const paint=()=>{root.innerHTML=financeScreen.render(d,{state});};paint();
-  financeScreen.bind({root,data:d,state,api:{},rerender:paint});
+  globalThis.window=dom.window;financeScreen.bind({root,data:d,state,api:{},rerender:paint});
   const earlier=root.querySelector('[data-finance-transaction-month="automatic"]');
   earlier.value='2026-09';earlier.dispatchEvent(new dom.window.Event('change',{bubbles:true}));
   assert.equal(d.transactionMonths.automatic,'2026-09');
   root.querySelector('[data-finance-transaction-tab="manual"]').click();
-  assert.equal(d.transactionMonths.manual,financeToday().slice(0,7));
+  assert.equal(d.transactionMonths.manual,financeCycleCutoff().slice(0,7));
   root.querySelector('[data-finance-transaction-tab="automatic"]').click();
-  assert.equal(d.transactionMonths.automatic,financeToday().slice(0,7));
+  assert.equal(d.transactionMonths.automatic,financeCycleCutoff().slice(0,7));
   root._financeUnbind();dom.window.close();
 });
 

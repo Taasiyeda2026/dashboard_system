@@ -1,5 +1,5 @@
 import { escapeHtml as e } from './shared/html.js';
-import { financeToday, financePaymentDueDate } from './finance-transaction-accounts.js';
+import { financeToday, financePaymentDueDate, TRANSACTION_MEETING_HOURS } from './finance-transaction-accounts.js';
 const text=v=>String(v??'').trim();
 function manualService(data) {
   const source=(data.collectionActivities||[]).find(a=>a.row_id===data.manualActivityId);
@@ -7,7 +7,13 @@ function manualService(data) {
   return ['workshop','tour'].includes(text(row?.activityType||source?.activity_type).toLowerCase());
 }
 export function manualHourlyRate(draft={}) {
-  return Number(draft.hours)>0 ? Number(draft.amount)/Number(draft.hours) : null;
+  const hours=Number(draft.planned_hours ?? draft.hours),price=Number(draft.activity_price ?? draft.amount);
+  return hours>0 ? price/hours : null;
+}
+function performanceSelection(row,quantity) {
+  const slots=(row.unbilledSlots||[]).slice().sort((a,b)=>a.slot-b.slot).slice(0,quantity);
+  if(slots.length)return {amount:Math.round(slots.reduce((n,s)=>n+Number(s.remainingAmount),0)*100)/100,hours:slots.reduce((n,s)=>n+Number(s.remainingHours ?? TRANSACTION_MEETING_HOURS),0)};
+  return {amount:Number(row.issuableAmount)*quantity/Number(row.unbilledCount),hours:quantity*TRANSACTION_MEETING_HOURS};
 }
 // Display grouped amounts without changing the values sent to the billing RPC.
 export function formatManualMoney(value, { unitPrice = false } = {}) {
@@ -98,7 +104,8 @@ export function prepareManualAccount(data,activityId,fundingKey,basis) {
   const days=/^(רשות|רשויות|authority|ויצו|wizo)$/i.test(text(row?.funding).replace(/["׳״\s]/g,''))?45:30;
   if (!data.manualFunderRecipientEmail) data.manualFunderRecipientEmail=normalizeManualRecipientEmails(row?.customerEmail);
   data.manualDraft={billing_basis:full?'full_funding':'performance',customer_name:row?.payerName||'',school_name:source.school||'',institution_symbol:row && manualRowPayer(row,source).key.startsWith('school:')?(row.institutionSymbol||''):'',program_number:source.activity_no||'',
-    description:source.activity_name||'',quantity,hours:quantity*1.5,unit_price:quantity?amount/quantity:0,amount,
+    description:source.activity_name||'',quantity,hours:manualService(data)?0:Number(full?(row?.plannedHours ?? quantity*TRANSACTION_MEETING_HOURS):(row?.unbilledHours ?? quantity*TRANSACTION_MEETING_HOURS)),unit_price:quantity?amount/quantity:0,amount,
+    activity_price:Number(row?.activityPrice ?? source.price ?? row?.fundingAmount ?? amount),planned_count:Number(row?.plannedCount || quantity),planned_hours:Number(row?.plannedHours ?? (row?.plannedCount || quantity)*TRANSACTION_MEETING_HOURS),
     issue_date:financeToday(),payment_due_date:financePaymentDueDate(financeToday(),days),customer_email:normalizeManualRecipientEmails(data.manualFunderRecipientEmail || row?.customerEmail),override_reason:''};
   data.manualQuote=null;data.manualPdf='';data.manualConsolidatedPreview=null;
 }
@@ -308,7 +315,7 @@ export function updateManualDraft(data,key,value) {
     : key === 'customer_email' ? normalizeManualRecipientEmails(value) : value;
   if ((key === 'amount' || key === 'unit_price') && !Number.isFinite(safeValue)) return false;
   const service=manualService(data);
-  if(key==='unit_price'&&!service)return false;
+  if(!service && (['unit_price','hours','amount'].includes(key) || (key==='quantity'&&data.manualDraft.billing_basis==='full_funding')))return false;
   data.manualDraft={...data.manualDraft,[key]:safeValue};const d=data.manualDraft;
   if (key === 'customer_email' && data.manualFunderFilter) {
     const fundingId = text(data.manualFundingKey).split('|')[0];
@@ -316,9 +323,12 @@ export function updateManualDraft(data,key,value) {
     if (row && !row.gefenFunding) data.manualFunderRecipientEmail = safeValue;
   }
   if(key==='quantity'){
-    d.hours=service?0:Number(value)*1.5;
-    if(service)d.amount=Math.round(Number(value)*Number(d.unit_price)*100)/100;
-    else if(Number(value)>0)d.unit_price=Number(d.amount)/Number(value);
+    if(service){d.hours=0;d.amount=Math.round(Number(value)*Number(d.unit_price)*100)/100;}
+    else {
+      const row=manualFundingRows(data).find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===data.manualFundingKey);
+      const selected=performanceSelection(row||{},Number(value));
+      d.hours=selected.hours;d.amount=selected.amount;d.unit_price=selected.amount/Number(value);
+    }
   }
   if(key==='unit_price'&&service)d.amount=Math.round(Number(d.quantity)*Number(safeValue)*100)/100;
   if(key==='amount'&&Number(d.quantity)>0)d.unit_price=Number(safeValue)/Number(d.quantity);
@@ -524,14 +534,15 @@ export function manualAccountViewHtml(data) {
         </select></label>
         ${ids.length>1?`<label>פעילות לעריכה<select class="ds-input" data-finance-manual-activity>${selectedRows.map(row=>`<option value="${e(row.id)}"${row.id===data.manualActivityId?' selected':''}>${e(row.activity)} · ${e(row.school)}</option>`).join('')}</select></label>`:''}
         <fieldset class="ds-fin-manual__billing"><legend>פרטי חיוב</legend><div class="ds-fin-manual__billing-row">
-          ${field(manualService(data)?'כמות':'מספר מפגשים','quantity','number')}
-          ${manualService(data)?field('מחיר ליחידה','unit_price'):field('מספר שעות','hours','number')}
-          ${field('מחיר הפעילות','amount')}
-          ${manualService(data)?'':`<label class="ds-fin-manual__field">מחיר שעתי מחושב<input class="ds-input" type="text" data-finance-manual-hourly-rate readonly value="${e(manualHourlyRate(d)===null?'—':formatManualMoney(manualHourlyRate(d)))}"></label>`}
-        </div></fieldset>
+          ${manualService(data)?`${field('כמות','quantity','number')}${field('מחיר ליחידה','unit_price')}${field('סכום לחיוב','amount')}`:`
+          <label class="ds-fin-manual__field">מפגשים לחיוב<input class="ds-input" type="number" min="1" max="${Number(rows.find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===data.manualFundingKey)?.unbilledCount||d.planned_count)}" step="1" data-finance-manual-field="quantity"${d.billing_basis==='full_funding'?' readonly':''} value="${e(d.quantity)}"><small>מתוך ${e(d.planned_count)}</small></label>
+          <label class="ds-fin-manual__field">שעות לחיוב<input class="ds-input" readonly value="${e(Number(Number(d.hours).toFixed(6)))}"><small>מתוך ${e(d.planned_hours)}</small></label>
+          <label class="ds-fin-manual__field">מחיר הפעילות<input class="ds-input" readonly value="${e(formatManualMoney(d.activity_price))}"></label>
+          <label class="ds-fin-manual__field">סכום לחיוב<input class="ds-input" readonly value="${e(formatManualMoney(d.amount))}"></label>`}
+        </div>${manualService(data)?'':`<small data-finance-manual-hourly-rate>מחיר שעתי מחושב: ${e(manualHourlyRate(d)===null?'—':formatManualMoney(manualHourlyRate(d)))} ₪</small>`}</fieldset>
         <details class="ds-fin-manual__selected-schools ds-fin-payer"><summary>הפעילויות בחשבון (${ids.length})</summary>
           <table class="ds-table"><thead><tr><th>פעילות</th><th>בית ספר</th><th>סכום לחיוב</th></tr></thead><tbody>
-          ${selectedRows.map(row=>`<tr><td>${e(row.activity)}</td><td>${e(row.school)}</td><td>${partial&&data.manualActivityDrafts?.[row.id]?.draft.billing_basis==='performance'
+          ${selectedRows.map(row=>`<tr><td>${e(row.activity)}</td><td>${e(row.school)}</td><td>${partial&&['workshop','tour'].includes((data.collectionActivities||[]).find(a=>a.row_id===row.id)?.activity_type)&&data.manualActivityDrafts?.[row.id]?.draft.billing_basis==='performance'
             ?`<input class="ds-input" type="text" inputmode="decimal" data-finance-manual-line-amount="${e(row.id)}" value="${e(formatManualMoney(row.amount))}">`
             :`${formatManualMoney(row.amount)} ₪`}</td></tr>`).join('')}</tbody></table>
         </details>

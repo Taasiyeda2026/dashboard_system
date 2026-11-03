@@ -222,7 +222,8 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
     const quantity = Number.isFinite(statedQty) && statedQty > 0 ? statedQty
       : (line.finance_transaction_account_meetings?.length || 1);
     const hours = Math.max(0, Number(line.billed_hours || 0));
-    const name = clean(line.service_description_snapshot || line.activity_name_snapshot);
+    const name = clean(line.service_description_snapshot || line.activity_name_snapshot)
+      + (!service && line.billing_coverage==='full_funding' ? ' — מלוא יתרת הפעילות' : '');
     const school = clean(line.school_name_snapshot);
     const gefen = clean(line.gefen_number_snapshot);
     const unitPrice = Number(line.unit_price_snapshot) > 0
@@ -249,7 +250,7 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
       group.set(key, {
         category: service ? 'service' : 'course', name, school, gefen, dates: [...new Set<string>(dates)].sort(),
         quantity, hours, amount, unitPrice,
-        hourlyPrice: hours > 0 ? amount / hours : Number(line.hourly_rate_snapshot || 0)
+        hourlyPrice: Number(line.hourly_rate_snapshot)>0 ? Number(line.hourly_rate_snapshot) : hours>0 ? amount/hours : 0
       });
     }
   }

@@ -1,6 +1,6 @@
 import test,{before,after,beforeEach} from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile} from 'node:fs/promises';
+import {readFile,writeFile} from 'node:fs/promises';
 import pg from 'pg';
 const url=process.env.FINANCE_TEST_DATABASE_URL;
 if(url){const u=new URL(url);if(!['127.0.0.1','localhost'].includes(u.hostname)||u.pathname!=='/codex_finance_test')throw Error('Disposable localhost finance test database only');}
@@ -32,7 +32,7 @@ before(async()=>{
   for(const name of ['20261029222210_finance_funder_billing','20261029224142_finance_receipts_manual_accounts',
     '20261030210000_finance_consolidated_funder_accounts','20261030044100_finance_single_funder_price_fallback','20261030051500_finance_optional_customer_identifier',
     '20261101192545_finance_service_quantity_snapshots','20261102191847_finance_gefen_course_monthly_minimum',
-    '20261102202405_finance_automatic_outlook_drafts','20261103191835_finance_original_issuer_outlook_mailbox','20261103211803_finance_delegated_invoice_drafts','20261103221311_finance_manual_payer_first'])await db.query(await read(`../supabase/migrations/${name}.sql`));
+    '20261102202405_finance_automatic_outlook_drafts','20261103191835_finance_original_issuer_outlook_mailbox','20261103211803_finance_delegated_invoice_drafts','20261103221311_finance_manual_payer_first','20261103231056_finance_course_performance_hours'])await db.query(await read(`../supabase/migrations/${name}.sql`));
 });
 after(async()=>{if(db)await db.end();});
 beforeEach(async()=>{
@@ -92,8 +92,8 @@ check('external sponsor consolidates different schools and uses sponsor contacts
 });
 check('partial performance leaves the correct funding balance and a school receipt uses the same payer identity',async()=>{
   await seedPayerActivity(2,'b',1,direct,8000,2);
-  const a=await reserveManual(manualItem('b',direct,'performance',{amount:3000,unit_price:1500}));await finishManual(a.id);
-  const q=await quoteManual(manualItem('b',direct));assert.equal(Number(q.total_amount),5000);
+  const a=await reserveManual(manualItem('b',direct,'performance',{quantity:1,hours:1.5,amount:4000,unit_price:4000}));await finishManual(a.id);
+  const q=await quoteManual(manualItem('b',direct));assert.equal(Number(q.total_amount),4000);
   const b=await reserveManual(manualItem('b',direct));await finishManual(b.id);
   await assert.rejects(quoteManual(manualItem('b',direct)),/billing_blocked/);
   const receipt={funding_source_id:direct,payer_key:'school:1',payer_name:'מוסד',activity_row_id:'b',amount:3000,received_date:'2026-11-01',reference:'school-payment'};
@@ -240,4 +240,74 @@ check('intent and status writes reject another mailbox and resolver requires bac
   await db.query("select set_config('test.role','authenticated',false)");await assert.rejects(resolveMailbox(),/backend_only/);
   for(const role of ['anon','authenticated'])assert.equal((await db.query("select has_function_privilege($1,'public.resolve_finance_outlook_mailbox(uuid,uuid)','EXECUTE') allowed",[role])).rows[0].allowed,false);
   assert.equal((await db.query("select has_function_privilege('service_role','public.resolve_finance_outlook_mailbox(uuid,uuid)','EXECUTE') allowed")).rows[0].allowed,true);
+});
+
+check('Google performance bills three of ten course meetings as 4.5 hours and 2400, rejecting forged prices and duplicate charges',async()=>{
+  await seedPayerActivity(2,'google',2,gefen);
+  await db.query("update activities set date_3='2026-10-03' where row_id='google'");
+  const request=manualItem('google',gefen,'performance'),q=await quoteManual(request),line=q.finance_transaction_account_lines[0];
+  assert.equal(Number(q.total_amount),2400);assert.equal(Number(line.billed_hours),4.5);assert.equal(Number(line.hourly_rate_snapshot),8000/15);
+  if(process.env.FINANCE_ACCEPTANCE_QUOTE_PATH)await writeFile(process.env.FINANCE_ACCEPTANCE_QUOTE_PATH,JSON.stringify(q));
+  assert.equal(Number(q.source.activityPrice),8000);assert.equal(Number(q.source.plannedHours),15);
+  assert.equal(line.finance_transaction_account_meetings.length,3);assert.ok(line.finance_transaction_account_meetings.every(m=>Number(m.hours)===1.5));
+  for(const draft of [{hours:3,amount:2400},{hours:4.5,amount:4000},{hours:4.5,amount:1600}])await assert.rejects(quoteManual(manualItem('google',gefen,'performance',draft)),/course_performance_mismatch|חורג/);
+  const a=await reserveManual(request);await finishManual(a.id);
+  assert.equal(Number((await db.query("select price from activities where row_id='google'")).rows[0].price),8000);
+  await assert.rejects(quoteManual(request),/billing_blocked/);
+  assert.equal((await db.query('select count(*)::int n from finance_billing_claims where account_id=$1',[a.id])).rows[0].n,3);
+});
+check('cancelled course meetings never enter billed hours and the cumulative Gefen minimum remains enforced',async()=>{
+  await seedPayerActivity(2,'cancelled',2,gefen);
+  await db.query("update activities set date_3='2026-10-03' where row_id='cancelled';insert into course_meeting_cancellations values('cancelled','2026-10-02')");
+  await assert.rejects(quoteManual(manualItem('cancelled',gefen,'performance')),/billing_blocked/);
+  await db.query("update activities set date_4='2026-10-04' where row_id='cancelled'");
+  const q=await quoteManual(manualItem('cancelled',gefen,'performance'));
+  assert.equal(Number(q.total_amount),2400);assert.equal(Number(q.finance_transaction_account_lines[0].billed_hours),4.5);
+  assert.deepEqual(q.selected_slots.map(s=>s.slot),[1,3,4]);
+});
+check('open monthly invoices can finalize without a school symbol and preserve sponsor separation',async()=>{
+  await seedPayerActivity(2,'open',2,sponsor,8000,2);
+  const r=(await db.query("select finance_private.billing_rows(a) r from activities a where row_id='open'")).rows[0].r[0];
+  const payload=[{activity_row_id:'open',funding_source_id:sponsor,performance_month:r.period,expected_amount:r.issuableAmount,meeting_slots:[1,2],issue_mode:'manual'}];
+  const a=(await db.query("select (reserve_finance_transaction_account($1,(now() at time zone 'Asia/Jerusalem')::date,'','',null,$2)).*",[crypto.randomUUID(),JSON.stringify(payload)])).rows[0];
+  await finishManual(a.id);assert.equal((await db.query('select document_status from finance_transaction_accounts where id=$1',[a.id])).rows[0].document_status,'issued');
+});
+check('course rounding allocates 100 across three meetings without exceeding funding',async()=>{
+  await seedPayerActivity(2,'rounding',2,direct,100,3);await db.query("update activities set date_3='2026-10-03' where row_id='rounding'");
+  const first=await reserveManual(manualItem('rounding',direct,'performance',{quantity:1}));await finishManual(first.id);
+  assert.equal(Number(first.total_amount),33.33);
+  const q=await quoteManual(manualItem('rounding',direct,'performance'));assert.equal(Number(q.total_amount),66.67);assert.equal(Number(q.finance_transaction_account_lines[0].billed_hours),3);
+  const second=await reserveManual(manualItem('rounding',direct,'performance'));await finishManual(second.id);
+  assert.equal(Number((await db.query("select sum(amount) amount from finance_transaction_account_lines where activity_row_id='rounding'")).rows[0].amount),100);
+});
+
+check('monthly range rejects current-month non-Gefen completion and accepts closed-period completion',async()=>{
+  await seedPayerActivity(2,'range',2,sponsor,8000,2);
+  await db.query("update activities set date_1='2026-11-01',date_2='2026-11-02' where row_id='range'");
+  const payload=[{activity_row_id:'range',funding_source_id:sponsor,performance_month:'2026-11-01',billing_range_end:'2026-10-01',expected_amount:8000,meeting_slots:[1,2],issue_mode:'manual'}];
+  await assert.rejects(db.query("select reserve_finance_transaction_account($1,(now() at time zone 'Asia/Jerusalem')::date,'','',null,$2)",[crypto.randomUUID(),JSON.stringify(payload)]),/invalid_monthly_billing_range/);
+  await db.query("update activities set date_1='2026-10-01',date_2='2026-10-02' where row_id='range'");payload[0].performance_month='2026-10-01';
+  const a=(await db.query("select (reserve_finance_transaction_account($1,(now() at time zone 'Asia/Jerusalem')::date,'','',null,$2)).*",[crypto.randomUUID(),JSON.stringify(payload)])).rows[0];await finishManual(a.id);
+});
+
+check('legacy partial monetary claims retain their history and only the remaining hours and money can be billed',async()=>{
+  await seedPayerActivity(2,'legacy-partial',2,direct,8000,2);
+  const old=(await db.query("insert into finance_transaction_accounts(idempotency_key,cutoff_date,institution_symbol,customer_name_snapshot,total_amount,payment_due_date,document_status,payer_key_snapshot) values($1,current_date,'248724','legacy',3000,current_date,'issued','school:2') returning id",[crypto.randomUUID()])).rows[0].id;
+  const line=(await db.query("insert into finance_transaction_account_lines(account_id,activity_row_id,activity_name_snapshot,funding_snapshot,activity_price_snapshot,planned_meeting_count_snapshot,hourly_rate_snapshot,billed_hours,amount,funding_source_id,funding_amount_snapshot,performance_month,billing_rule,quantity_snapshot,unit_price_snapshot) values($1,'legacy-partial','old','חוזה עצמאי',8000,2,1000,3,3000,$2,8000,'2026-10-01','completion',2,1500) returning id",[old,direct])).rows[0].id;
+  await db.query("insert into finance_billing_claims values('legacy-partial',$1,1,$2,1500,false),('legacy-partial',$1,2,$2,1500,false)",[direct,old]);
+  const before=(await db.query('select to_jsonb(a) snapshot from finance_transaction_account_lines a where id=$1',[line])).rows[0].snapshot;
+  const q=await quoteManual(manualItem('legacy-partial',direct,'performance'));
+  assert.equal(Number(q.total_amount),5000);assert.equal(Number(q.finance_transaction_account_lines[0].billed_hours),1.875);
+  const a=await reserveManual(manualItem('legacy-partial',direct,'performance'));await finishManual(a.id);
+  assert.deepEqual((await db.query('select to_jsonb(a) snapshot from finance_transaction_account_lines a where id=$1',[line])).rows[0].snapshot,before);
+  await assert.rejects(quoteManual(manualItem('legacy-partial',direct,'performance')),/billing_blocked/);
+});
+
+check('workshops and tours retain unit pricing and zero billed course hours under performance issuance',async()=>{
+  for(const [id,type,meetings] of [[2,'workshop',2],[3,'tour',1]]){
+    await seedPayerActivity(id,type,2,direct,8000,meetings);
+    await db.query('update activities set activity_type=$1,date_2=case when $1=\'tour\' then null else date_2 end where row_id=$1',[type]);
+    const request=manualItem(type,direct,'performance'),q=await quoteManual(request);assert.equal(Number(q.total_amount),8000);assert.equal(Number(q.finance_transaction_account_lines[0].billed_hours),0);assert.equal(q.finance_transaction_account_lines[0].hourly_rate_snapshot,null);
+    const a=await reserveManual(request);await finishManual(a.id);
+  }
 });

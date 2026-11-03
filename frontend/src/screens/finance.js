@@ -21,7 +21,7 @@ import { activityRowId, normalizeFinanceCollectionTab } from './finance-collecti
 import { financeError } from './finance-errors.js';
 import { financeAccountBalances, paymentsBodyHtml, receiptsHtml, accountPaymentAllocation } from './finance-payments.js';
 import { setManualBillingScope, prepareManualAccount, updateManualDraft, manualFilteredActivities, selectedManualActivityIds, toggleManualActivity, toggleAllVisibleManualActivities, syncManualActivitySelectionUi, normalizeManualRecipientEmails, updateManualConsolidatedField, focusManualActivity, saveActiveManualDraft, previewSelectedManualAccounts, runSelectedManualAccounts, syncManualPdfPreviewDom, clearManualPdfPreviewUrls, activateManualPdfPreview } from './finance-manual-account.js';
-import { financeToday } from './finance-transaction-accounts.js';
+import { financeToday, financeCycleCutoff } from './finance-transaction-accounts.js';
 import {
   handleTransactionSelection,
   handleTransactionGroupSelection,
@@ -670,7 +670,7 @@ export const financeScreen = {
         if (!canOpenFinanceView(state?.user, nextView)) return;
         visit.view = nextView;
         if (nextView === 'transactions') {
-          const currentMonth = financeToday().slice(0, 7);
+          const currentMonth = financeCycleCutoff().slice(0, 7);
           visit.transactionMonths = { automatic: currentMonth, manual: currentMonth };
           visit.transactionManualSelected = {};
         }
@@ -696,7 +696,7 @@ export const financeScreen = {
       if (transactionTab) {
         visit.transactionTab = String(transactionTab.dataset.financeTransactionTab || 'automatic');
         if (visit.transactionTab === 'automatic' || visit.transactionTab === 'manual') {
-          visit.transactionMonths = { ...visit.transactionMonths, [visit.transactionTab]: financeToday().slice(0, 7) };
+          visit.transactionMonths = { ...visit.transactionMonths, [visit.transactionTab]: financeCycleCutoff().slice(0, 7) };
           visit.transactionManualSelected = {};
         }
         visit.transactionActionMessage = '';
@@ -907,7 +907,7 @@ export const financeScreen = {
       if (monthPicker) {
         const mode = monthPicker.dataset.financeTransactionMonth;
         const month = String(monthPicker.value || '');
-        if (/^\d{4}-\d{2}$/.test(month) && month <= financeToday().slice(0, 7)) {
+        if (/^\d{4}-\d{2}$/.test(month) && month <= financeCycleCutoff().slice(0, 7)) {
           visit.transactionMonths = { ...visit.transactionMonths, [mode]: month };
           visit.transactionManualSelected = {};
         }

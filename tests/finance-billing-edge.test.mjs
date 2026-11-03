@@ -332,3 +332,21 @@ test('all 35 billed dates wrap without clipping and totals remain visible',async
   for(const m of line.finance_transaction_account_meetings){const [y,mo,d]=m.meeting_date.split('-');assert.ok(text.includes(`${d}.${mo}.${y}`),m.meeting_date);}
   assert.match(text,/3,500/);
 });
+
+
+test('Google performance PDF matches the server quote: 3 meetings 4.5 hours 2400 and 533.33 hourly',async()=>{
+  const quote=process.env.FINANCE_ACCEPTANCE_QUOTE_PATH ? JSON.parse(await readFile(process.env.FINANCE_ACCEPTANCE_QUOTE_PATH,'utf8')) : {...fixture(),total_amount:2400,finance_transaction_account_lines:[{activity_row_id:'google',activity_name_snapshot:'יישומי AI בשיתוף GOOGLE',activity_price_snapshot:8000,quantity_snapshot:3,billed_hours:4.5,hourly_rate_snapshot:8000/15,amount:2400,billing_coverage:'performance',finance_transaction_account_meetings:[1,2,3].map(n=>({meeting_date:`2026-10-0${n}`,hours:1.5}))}]};
+  assert.equal(Number(quote.total_amount),2400);assert.equal(Number(quote.finance_transaction_account_lines[0].activity_price_snapshot),8000);
+  const r=await harness({preview:true,quote,activityTypes:{google:'course'}});assert.equal(r.response.status,200);
+  const pdf=await getDocument({data:new Uint8Array(Buffer.from(r.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
+  const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');
+  assert.match(text,/2,400\.00/);assert.match(text,/533\.33/);assert.match(text,/4\.5/);
+  assert.ok(!r.calls.some(c=>c.name==='finalize_finance_billing'||c.method==='PUT'));
+});
+test('full remaining course PDF keeps the original hourly rate and labels the advance separately',async()=>{
+  const quote={...fixture(),total_amount:5000,finance_transaction_account_lines:[{activity_row_id:'ai',activity_name_snapshot:'AI',quantity_snapshot:10,billed_hours:15,hourly_rate_snapshot:8000/15,amount:5000,billing_coverage:'full_funding',finance_transaction_account_meetings:[]}]};
+  const r=await harness({preview:true,quote,activityTypes:{ai:'course'}});assert.equal(r.response.status,200);
+  const pdf=await getDocument({data:new Uint8Array(Buffer.from(r.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
+  const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');
+  assert.match(text,/5,000\.00/);assert.match(text,/533\.33/);assert.doesNotMatch(text,/333\.33/);
+});

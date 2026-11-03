@@ -5,6 +5,7 @@ import { escapeHtml } from './shared/html.js';
 import { dsEmptyState, dsScreenStack, dsTableWrap } from './shared/layout.js';
 import {
   TRANSACTION_MODE_AUTOMATIC,
+  TRANSACTION_MEETING_HOURS,
   TRANSACTION_MODE_MANUAL,
   financeCycleCutoff,
   financeToday
@@ -30,15 +31,18 @@ function statusLabel(status) {
   })[value] || value || '—';
 }
 
-export function transactionMonth(data, mode) {
-  const currentMonth = financeToday().slice(0, 7);
-  const month = data.transactionMonths?.[mode] || currentMonth;
-  return /^\d{4}-\d{2}$/.test(month) && month <= currentMonth ? month : currentMonth;
+export function transactionYearStart(data) {
+  const year=Number(/school_(\d{4})/.exec(data.collectionPeriod || 'school_2027')?.[1]);
+  return `${year-1}-09`;
 }
-
+export function transactionMonth(data, mode, now = new Date()) {
+  const lastClosed=financeCycleCutoff(now).slice(0,7);
+  const month=data.transactionMonths?.[mode];
+  return /^\d{4}-\d{2}$/.test(month||'') && month<=lastClosed && month>=transactionYearStart(data) ? month : lastClosed;
+}
 function monthPicker(data, mode) {
-  return `<label class="ds-fin-collect-search"><span>${mode === TRANSACTION_MODE_AUTOMATIC ? 'חודש ביצוע' : 'חודש סיום הפעילות'}</span>
-    <input class="ds-input" type="month" data-finance-transaction-month="${mode}" value="${transactionMonth(data, mode)}" max="${financeToday().slice(0, 7)}"></label>`;
+  return `<label class="ds-fin-collect-search"><span>חודש ביצוע</span>
+    <input class="ds-input" type="month" data-finance-transaction-month="${mode}" value="${transactionMonth(data,mode)}" min="${transactionYearStart(data)}" max="${financeCycleCutoff().slice(0,7)}"></label>`;
 }
 
 export const transactionSelectionKey = (row) => [row.activityRowId, row.fundingSourceId, row.period || 'completion'].join(':');
@@ -51,7 +55,7 @@ function progressHeading(lines) {
 }
 function activityProgress(row) {
   if (serviceActivity(row)) return `כמות ${invoiceQuantity(row)}`;
-  return `מתוכנן ${row.plannedCount} · בוצע ${row.completedCount} · חויב ${row.billedCount} · יתרה ${row.unbilledCount}`;
+  return `${row.unbilledCount} מתוך ${row.plannedCount} מפגשים | ${Number(Number(row.unbilledHours||0).toFixed(6))} מתוך ${row.plannedHours ?? row.plannedCount*TRANSACTION_MEETING_HOURS} שעות | מחיר פעילות ${formatAmount(row.activityPrice ?? row.fundingAmount)} | לחיוב ${formatAmount(row.issuableAmount)}`;
 }
 function groupProgress(lines) {
   const courses = lines.filter(row => !serviceActivity(row));
@@ -69,26 +73,22 @@ export function transactionBacklog(data, mode) {
   const selected = transactionMonth(data, mode);
   return (data.transactionContext?.billingRows || []).filter((row) => row.gefenFunding === (mode === TRANSACTION_MODE_AUTOMATIC)
     && row.eligible && !row.blockedReason && row.period
-    && (mode === TRANSACTION_MODE_AUTOMATIC ? row.period.slice(0, 7) < selected
-      : row.period.slice(0, 7) < financeToday().slice(0, 7) && row.period.slice(0, 7) !== selected));
+    && row.period.slice(0,7)>=transactionYearStart(data) && row.period.slice(0,7)<selected);
 }
 
 export function transactionIssuanceActivities(data, { mode = TRANSACTION_MODE_AUTOMATIC } = {}) {
   return (data.transactionContext?.billingRows || [])
     .filter((row) => row.gefenFunding === (mode === TRANSACTION_MODE_AUTOMATIC) || (!row.fundingSourceId && row.blockedReason))
-    .filter((row) => row.period?.slice(0, 7) === transactionMonth(data, mode) || (!row.period && row.blockedReason))
+    .filter((row) => row.period?.slice(0,7)>=transactionYearStart(data) && row.period?.slice(0, 7) === transactionMonth(data, mode) || (!row.period && row.blockedReason))
     .map((row) => ({ row_id: row.activityRowId, transaction_summary: row }));
 }
 
 export function transactionPreviewForVisit(data, mode = TRANSACTION_MODE_AUTOMATIC) {
   const selected = transactionIssuanceActivities(data, { mode }).map((row) => row.transaction_summary);
-  const candidates = mode === TRANSACTION_MODE_AUTOMATIC ? [...selected, ...transactionBacklog(data, mode)] : selected;
-  const rows = mode === TRANSACTION_MODE_AUTOMATIC
-    ? [...new Map(candidates.map(row => [JSON.stringify([transactionSelectionKey(row),row.institutionSymbol,row.payerKey || row.payerName]),row])).values()]
-    : selected;
+  const candidates=[...selected,...transactionBacklog(data,mode)];
+  const rows=[...new Map(candidates.map(row=>[JSON.stringify([transactionSelectionKey(row),row.institutionSymbol,row.payerKey || row.payerName]),row])).values()];
   const accounts = new Map();
   if (!data.collectionError) for (const row of rows.filter((row) => row.eligible && !row.blockedReason)) {
-    if (mode === TRANSACTION_MODE_MANUAL && !data.transactionManualSelected?.[transactionSelectionKey(row)]) continue;
     // Gefen remains per school. Every other payer gets one account across schools.
     const key = mode === TRANSACTION_MODE_AUTOMATIC
       ? [row.institutionSymbol, row.fundingSourceId, row.payerKey || row.payerName, row.period || 'completion'].join(':')
@@ -125,7 +125,7 @@ export function transactionPreviewForVisit(data, mode = TRANSACTION_MODE_AUTOMAT
 
 function summaryCards(preview) {
   const cards = [
-    ...(preview.mode === TRANSACTION_MODE_AUTOMATIC ? [['חשבונות עסקה', preview.accounts.length]] : []),
+    ['חשבונות עסקה',preview.accounts.length],
     ['בתי ספר', preview.totals.schools],
     ['פעילויות', preview.totals.activities],
     ...(preview.totals.containsCourses !== false ? [['מפגשים לחיוב', preview.totals.meetings], ['שעות לחיוב', preview.totals.hours]] : []),
@@ -150,12 +150,11 @@ function groupSelectAllHtml(lines, data, mode) {
 }
 
 function billingLineHtml(line, data, mode) {
-  const select = mode === TRANSACTION_MODE_MANUAL
-    ? `<input type="checkbox" aria-label="בחירת ${escapeHtml(line.activityName)}" data-finance-transaction-select="${escapeHtml(transactionSelectionKey(line))}"${data.transactionManualSelected?.[transactionSelectionKey(line)] ? ' checked' : ''}>` : '';
+  const select='';
   return `<tr><td>${select}${escapeHtml(line.activityName || line.activityRowId)}</td>
     <td>${escapeHtml(line.customerName || '—')}</td><td>${escapeHtml(line.period?.slice(0, 7) || 'סיום פעילות')}</td>
     <td>${escapeHtml(activityProgress(line))}</td>
-    <td>${escapeHtml(formatAmount(line.fundingAmount))}</td><td>${escapeHtml(formatAmount(line.issuableAmount))}<details><summary>${serviceActivity(line) ? 'פירוט מועדי פעילות' : 'פירוט מפגשים'}</summary>${line.unbilledSlots.map((slot) => `<div>${serviceActivity(line) ? 'מועד פעילות' : `מפגש ${slot.slot}`} · ${escapeHtml(formatDate(slot.date))}${serviceActivity(line) ? '' : ' · 1.5 שעות'}</div>`).join('')}</details></td></tr>`;
+    <td>${escapeHtml(formatAmount(line.fundingAmount))}</td><td>${escapeHtml(formatAmount(line.issuableAmount))}<details><summary>${serviceActivity(line) ? 'פירוט מועדי פעילות' : 'פירוט מפגשים'}</summary>${line.unbilledSlots.map((slot) => `<div>${serviceActivity(line) ? 'מועד פעילות' : `מפגש ${slot.slot}`} · ${escapeHtml(formatDate(slot.date))}${serviceActivity(line) ? '' : ` · ${Number(Number(slot.remainingHours ?? TRANSACTION_MEETING_HOURS).toFixed(6))} שעות`}</div>`).join('')}</details></td></tr>`;
 }
 
 function pendingGroupHtml(rows, data, mode) {
@@ -185,12 +184,12 @@ function billingView(data, mode) {
     ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>מוסד</th><th>קורס</th><th>מפגשים</th></tr></thead>
     <tbody>${waiting.map(row=>`<tr><td>${escapeHtml(row.customerName || '—')}</td><td>${escapeHtml(row.activityName)}</td><td>${Number(row.completedCount || 0)} מתוך 3</td></tr>`).join('')}</tbody></table>`)}
   </details>` : '';
-  if (mode === TRANSACTION_MODE_AUTOMATIC) {
+  {
     const selectedMonth = transactionMonth(data, mode);
     const current = preview.accounts.filter(account => account.period?.slice(0,7) === selectedMonth);
     const previous = preview.accounts.filter(account => account.period?.slice(0,7) < selectedMonth);
     const groupsHtml = (accounts, older = false) => accounts.map(account => `<details class="ds-fin-payer" data-finance-transaction-group>
-      <summary><span class="ds-fin-gefen-arrow" aria-hidden="true">▸</span><span class="ds-fin-payer__title">${escapeHtml(`${account.schoolName} · ${account.institutionSymbol}`)}${older ? ` · ${escapeHtml(account.period.slice(0,7))}` : ''}</span>
+      <summary><span class="ds-fin-gefen-arrow" aria-hidden="true">▸</span><span class="ds-fin-payer__title">${escapeHtml(mode===TRANSACTION_MODE_AUTOMATIC ? `${account.schoolName} · ${account.institutionSymbol}` : account.customerName)}${older ? ` · ${escapeHtml(account.period.slice(0,7))}` : ''}</span>
       <span class="ds-fin-payer__meta">${account.lines.length} חיובים · ${escapeHtml(formatAmount(account.totalAmount))}</span></summary>
       ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>פעילות</th><th>מוסד</th><th>חודש ביצוע</th><th>${escapeHtml(progressHeading(account.lines))}</th><th>חלק המממן</th><th>להפקה</th></tr></thead>
       <tbody>${account.lines.map(line => billingLineHtml(line,data,mode)).join('')}</tbody></table>`)}</details>`).join('');
@@ -200,47 +199,10 @@ function billingView(data, mode) {
       <section data-finance-gefen-current><h3>חשבונות החודש הנבחר</h3>
         ${groupsHtml(current) || dsEmptyState('אין חשבונות להפקה בחודש שנבחר.')}</section>
       ${previous.length ? `<section class="ds-fin-gefen-backlog" data-finance-gefen-backlog><h3>חיובים זכאים מחודשים קודמים</h3>${groupsHtml(previous,true)}</section>` : ''}
-      ${preview.accounts.length ? '<div class="ds-fin-gefen-issue"><button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="automatic">הפקת כל חשבונות העסקה</button></div>' : ''}
+      ${preview.accounts.length ? `<div class="ds-fin-gefen-issue"><button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="${mode}">הפקת כל חשבונות העסקה</button></div>` : ''}
       ${waitingHtml}
     </div>`;
   }
-  const groups = new Map();
-  for (const row of ready) {
-    const key = mode === TRANSACTION_MODE_AUTOMATIC ? row.institutionSymbol : (row.payerKey || row.fundingSourceId);
-    if (!groups.has(key)) groups.set(key, { payer: mode === TRANSACTION_MODE_AUTOMATIC ? `${row.customerName} · ${row.institutionSymbol}` : row.payerName, funding: row.funding, lines: [] });
-    groups.get(key).lines.push(row);
-  }
-  const body = [...groups.values()].map((group) => `<details class="ds-fin-payer" data-finance-transaction-group>
-    <summary><span class="ds-fin-payer__title">${escapeHtml(group.payer)}</span>
-    <span class="ds-fin-payer__meta">${escapeHtml(`${groupProgress(group.lines)} · ${formatAmount(group.lines.reduce((sum, line) => sum + Number(line.issuableAmount), 0))}`)}</span></summary>
-    ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>פעילות ${groupSelectAllHtml(group.lines,data,mode)}</th><th>מוסד</th><th>${mode === TRANSACTION_MODE_AUTOMATIC ? 'חודש ביצוע' : 'חודש סיום'}</th><th>${escapeHtml(progressHeading(group.lines))}</th><th>חלק המממן</th><th>להפקה</th></tr></thead>
-    <tbody>${group.lines.map((line) => billingLineHtml(line, data, mode)).join('')}</tbody></table>`)}</details>`).join('');
-  // Keep eligibility reasons in server-side validation; they are not accounting documents.
-  // The issuance screen shows only issuable accounts, not technical diagnostics.
-  const total = { ...preview, totals: { schools: new Set(ready.map((row) => row.institutionSymbol)).size,
-    activities: new Set(ready.map((row) => row.activityRowId)).size,
-    meetings: ready.filter(row => !serviceActivity(row)).reduce((sum,row)=>sum+Number(row.unbilledCount||0),0),
-    hours: ready.filter(row => !serviceActivity(row)).reduce((sum,row)=>sum+Number(row.unbilledHours||0),0),
-    units: ready.filter(serviceActivity).reduce((sum,row)=>sum+invoiceQuantity(row),0),
-    containsCourses: ready.some(row => !serviceActivity(row)),
-    containsUnits: ready.some(serviceActivity),
-    amount: ready.reduce((sum, row) => sum + Number(row.issuableAmount), 0) } };
-  const backlogHtml = backlog.length
-    ? `<details class="ds-fin-payer"><summary>ממתינים להפקה מחודשים קודמים · ${backlog.length} חיובים · ${escapeHtml(formatAmount(backlog.reduce((sum,row) => sum + Number(row.issuableAmount),0)))}</summary>
-      ${pendingGroupHtml(backlog,data,mode)}</details>`
-    : '';
-  return `<div class="ds-fin-collect-toolbar" dir="rtl">
-    <strong>${mode === TRANSACTION_MODE_AUTOMATIC ? 'חשבונות עסקה - גפן' : 'חשבונות עסקה - פתוח'}</strong>
-    ${mode === TRANSACTION_MODE_MANUAL && ready.length
-      ? `<button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-main-run data-finance-transaction-run="${mode}"${preview.accounts.length ? '' : ' style="display:none" disabled'}>הפק חשבונות מסומנים</button>`
-      : preview.accounts.length
-        ? `<button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="${mode}">הפק את סבב חשבונות העסקה</button>`
-        : ''}</div>
-    ${backlogHtml}
-    ${monthPicker(data, mode)}
-    ${waitingHtml}
-    ${ready.length ? summaryCards(total) : ''}
-    ${body || dsEmptyState('אין חשבונות להפקה בחודש שנבחר.')}`;
 }
 
 function historyView(data) {
@@ -326,11 +288,9 @@ export async function runTransactionIssuance(data, api, mode, month = transactio
   data.transactionRequestIds ||= {};
   // The server caps each period against cumulative billing. Complete older
   // periods first so a later charge cannot make an earlier snapshot stale.
-  const accounts = mode === TRANSACTION_MODE_AUTOMATIC
-    ? [...preview.accounts].sort((a,b)=>String(a.period || '').localeCompare(String(b.period || '')))
-    : preview.accounts;
+  const accounts=[...preview.accounts].sort((a,b)=>String(a.period||'').localeCompare(String(b.period||'')));
   for (const account of accounts) {
-    const requestKey=JSON.stringify([mode,mode === TRANSACTION_MODE_AUTOMATIC ? account.period?.slice(0,7) || month : month,account.institutionSymbol,account.lines.map(line=>[line.activityRowId,line.fundingSourceId,line.period,line.issuableAmount,line.unbilledSlots])]);
+    const requestKey=JSON.stringify([mode,account.period?.slice(0,7) || month,account.institutionSymbol,account.lines.map(line=>[line.activityRowId,line.fundingSourceId,line.period,line.issuableAmount,line.unbilledSlots])]);
     data.transactionRequestIds[requestKey] ||= uuid();
     let reserved;
     try {
@@ -344,6 +304,7 @@ export async function runTransactionIssuance(data, api, mode, month = transactio
         activity_row_id: line.activityRowId,
         funding_source_id: line.fundingSourceId,
         performance_month: line.period,
+        billing_range_end: transactionMonth(scoped,mode)+'-01',
         expected_amount: line.issuableAmount,
         meeting_slots: line.unbilledSlots.map((slot) => slot.slot),
         issue_mode: mode

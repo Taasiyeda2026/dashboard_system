@@ -3,28 +3,28 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
 import { transactionAccountsViewHtml, FINANCE_TRANSACTION_SHAREPOINT_FOLDER_URL, transactionPreviewForVisit, transactionSelectionKey, runTransactionIssuance, transactionIssuanceResultMessage, transactionMonth, transactionBacklog } from '../frontend/src/screens/finance-transaction-issuance.js';
-import { financeToday } from '../frontend/src/screens/finance-transaction-accounts.js';
+import { financeCycleCutoff, financeToday } from '../frontend/src/screens/finance-transaction-accounts.js';
 const row=(extra={})=>({activityRowId:'a',activityName:'קורס א',fundingSourceId:'g',funding:'גפ״ן',gefenFunding:true,
-  period:'2026-09-01',customerName:'בית ספר א',institutionSymbol:'123',payerName:'בית ספר א',customerEmail:'school@example.test',
-  plannedCount:4,completedCount:2,billedCount:0,unbilledCount:2,unbilledHours:3,unbilledSlots:[{slot:1,date:'2026-09-01'},{slot:2,date:'2026-09-02'}],
+  period:'2026-10-01',customerName:'בית ספר א',institutionSymbol:'123',payerName:'בית ספר א',customerEmail:'school@example.test',
+  plannedCount:4,completedCount:2,billedCount:0,unbilledCount:2,unbilledHours:3,unbilledSlots:[{slot:1,date:'2026-10-01'},{slot:2,date:'2026-10-02'}],
   fundingAmount:5000,issuableAmount:2500,unbilledAmount:2500,eligible:true,blockedReason:'',...extra});
-const data=(rows,extra={})=>({transactionContext:{billingRows:rows,accounts:[]},transactionMonths:{automatic:'2026-09',manual:'2026-09'},...extra});
+const data=(rows,extra={})=>({transactionContext:{billingRows:rows,accounts:[]},transactionMonths:{automatic:'2026-10',manual:'2026-10'},...extra});
 const html=d=>transactionAccountsViewHtml(d,x=>`<h1>${x}</h1>`);
 test('unified issuance processes original periods chronologically under cumulative server billing caps',async()=>{
-  const d=data([row({period:'2026-09-01',unbilledSlots:[{slot:3,date:'2026-09-01'},{slot:4,date:'2026-09-02'}]}),
-    row({period:'2026-08-01'})]);
+  const d=data([row({period:'2026-10-01',unbilledSlots:[{slot:3,date:'2026-10-01'},{slot:4,date:'2026-10-02'}]}),
+    row({period:'2026-09-01'})]);
   let billed=0;const periods=[];
   const results=await runTransactionIssuance(d,{
     reserveFinanceTransactionAccount:async p=>{
-      const line=p.lines[0],target=line.performance_month==='2026-08-01'?2500:5000;
+      const line=p.lines[0],target=line.performance_month==='2026-09-01'?2500:5000;
       if(line.expected_amount>target-billed)throw Error('stale_billing_preview');
       periods.push(line.performance_month);billed+=line.expected_amount;return{id:p.idempotencyKey};
     },dispatchFinanceTransactionAccount:async()=>({outlookStatus:'draft_ready'})
   },'automatic');
-  assert.ok(results.every(r=>!r.error));assert.equal(billed,5000);assert.deepEqual(periods,['2026-08-01','2026-09-01']);
+  assert.ok(results.every(r=>!r.error));assert.equal(billed,5000);assert.deepEqual(periods,['2026-09-01','2026-10-01']);
 });
 test('unified Gefen layout orders month summary current backlog single action and waiting; every group starts closed',()=>{
-  const d=data([row(),row({activityRowId:'older',period:'2026-08-01'}),
+  const d=data([row(),row({activityRowId:'older',period:'2026-09-01'}),
     row({activityRowId:'waiting',eligible:false,blockedReason:'minimum',eligibilityStatus:'waiting_three_meetings',issuableAmount:0})]);
   const view=html(d);const dom=new JSDOM(view);const doc=dom.window.document;
   const ordered=['data-finance-transaction-month','ds-fin-transaction-summary','data-finance-gefen-current','data-finance-gefen-backlog','data-finance-transaction-run="automatic"','data-finance-waiting-courses'];
@@ -40,15 +40,15 @@ test('unified Gefen layout orders month summary current backlog single action an
   const group=doc.querySelector('[data-finance-transaction-group]');group.querySelector('summary').click();assert.equal(group.open,true);
   group.querySelector('summary').click();assert.equal(group.open,false);
   group.open=true;
-  for(const month of ['2026-08','2026-09']) {
+  for(const month of ['2026-09','2026-10']) {
     d.transactionMonths.automatic=month;doc.body.innerHTML=html(d);assert.ok([...doc.querySelectorAll('details')].every(x=>!x.open));
   }
   doc.body.innerHTML=html(d);assert.ok([...doc.querySelectorAll('details')].every(x=>!x.open),'data refresh rerenders collapsed groups');
   dom.window.close();
 });
 test('one click issues all collapsed eligible groups exactly once with separate schools funders and periods',async()=>{
-  const lines=[row(),row({activityRowId:'older',period:'2026-08-01'}),row({activityRowId:'school2',institutionSymbol:'222',payerKey:'school:2'}),
-    row({activityRowId:'fund2',fundingSourceId:'g2'}),row({activityRowId:'future',period:'2026-10-01'}),
+  const lines=[row(),row({activityRowId:'older',period:'2026-09-01'}),row({activityRowId:'school2',institutionSymbol:'222',payerKey:'school:2'}),
+    row({activityRowId:'fund2',fundingSourceId:'g2'}),row({activityRowId:'future',period:'2026-11-01'}),
     row({activityRowId:'waiting',eligible:false,blockedReason:'minimum',eligibilityStatus:'waiting_three_meetings',issuableAmount:0})];
   const d=data([...lines,lines[1]]);const dom=new JSDOM(html(d));
   assert.ok([...dom.window.document.querySelectorAll('details')].every(x=>!x.open));
@@ -57,9 +57,9 @@ test('one click issues all collapsed eligible groups exactly once with separate 
   const result=await runTransactionIssuance(d,api,'automatic');
   assert.equal(result.length,4);assert.equal(requests.length,4);assert.equal(dispatches.length,4);
   assert.deepEqual(requests.flatMap(x=>x.lines.map(l=>l.activity_row_id)).sort(),['a','fund2','older','school2']);
-  const earlier=requests.find(x=>x.lines[0].activity_row_id==='older');assert.equal(earlier.lines[0].performance_month,'2026-08-01');
+  const earlier=requests.find(x=>x.lines[0].activity_row_id==='older');assert.equal(earlier.lines[0].performance_month,'2026-09-01');
   assert.ok(requests.every(x=>new Set(x.lines.map(l=>l.funding_source_id)).size===1));
-  d.transactionMonths.automatic='2026-08';await runTransactionIssuance(d,api,'automatic');
+  d.transactionMonths.automatic='2026-09';await runTransactionIssuance(d,api,'automatic');
   assert.equal(requests.at(-1).idempotencyKey,earlier.idempotencyKey,'same account keeps its idempotency key across month selection and retry');
   d.transactionContext.billingRows=[];assert.equal(transactionPreviewForVisit(d).accounts.length,0,'billed rows removed by authoritative refresh cannot be issued again');
   d.transactionTab='history';d.transactionContext.accounts=[{id:'issued',transaction_account_number:8525,document_status:'issued',finance_transaction_account_lines:[]}];
@@ -85,24 +85,24 @@ test('history displays original issuer mailbox and a clear authorization error w
   assert.doesNotMatch(view,/invoice_mailbox_access_denied/);
 });
 test('Gefen groups schools and original months while including eligible previous months',()=>{
-  const d=data([row(),row({activityRowId:'b',activityName:'קורס ב'}),row({activityRowId:'old',period:'2026-08-01'}),row({activityRowId:'other',fundingSourceId:'r',gefenFunding:false,funding:'רשות'})]);
-  const p=transactionPreviewForVisit(d);assert.equal(p.accounts.length,2);assert.equal(p.accounts.find(a=>a.period==='2026-09-01').lines.length,2);assert.equal(p.totals.amount,7500);
+  const d=data([row(),row({activityRowId:'b',activityName:'קורס ב'}),row({activityRowId:'old',period:'2026-09-01'}),row({activityRowId:'other',fundingSourceId:'r',gefenFunding:false,funding:'רשות'})]);
+  const p=transactionPreviewForVisit(d);assert.equal(p.accounts.length,2);assert.equal(p.accounts.find(a=>a.period==='2026-10-01').lines.length,2);assert.equal(p.totals.amount,7500);
   const view=html(d);assert.match(view,/חשבונות עסקה - גפן/);assert.match(view,/חשבונות עסקה - פתוח/);assert.match(view,/type="month"/);
-  assert.match(view,/קורס ב/);assert.match(view,/בית ספר א · 123/);assert.match(view,/פירוט מפגשים/);assert.match(view,/חיובים זכאים מחודשים קודמים/);assert.match(view,/2026-08/);
+  assert.match(view,/קורס ב/);assert.match(view,/בית ספר א · 123/);assert.match(view,/פירוט מפגשים/);assert.match(view,/חיובים זכאים מחודשים קודמים/);assert.match(view,/2026-09/);
   assert.equal(transactionBacklog(d,'automatic').length,1);
-  d.transactionMonths.automatic='2026-08';assert.equal(transactionPreviewForVisit(d).totals.amount,2500);
+  d.transactionMonths.automatic='2026-09';assert.equal(transactionPreviewForVisit(d).totals.amount,2500);
 });
 test('open accounts uses completion month and funder grouping; mixed shares remain separate',()=>{
   const other=row({fundingSourceId:'r',funding:'רשות',gefenFunding:false,issuableAmount:7000});
   const d=data([row(),other,row({activityRowId:'future',gefenFunding:false,eligible:false,period:'2026-11-01'})],{transactionTab:'manual',transactionManualSelected:{[transactionSelectionKey(other)]:true}});
   assert.equal(transactionPreviewForVisit(d,'manual').totals.amount,7000);
-  const view=html(d);assert.match(view,/חודש סיום הפעילות/);assert.match(view,/בית ספר א/);assert.doesNotMatch(view,/future/);
+  const view=html(d);assert.match(view,/חודש ביצוע/);assert.match(view,/בית ספר א/);assert.doesNotMatch(view,/future/);
   assert.equal(transactionPreviewForVisit(d,'automatic').totals.amount,2500);
 });
-test('default is current month; future month is rejected and blocked rows cannot issue',()=>{
-  assert.equal(transactionMonth({},'automatic'),financeToday().slice(0,7));
-  assert.equal(transactionMonth({transactionMonths:{automatic:'2099-01'}},'automatic'),financeToday().slice(0,7));
-  assert.equal(transactionMonth({},'manual'),financeToday().slice(0,7));
+test('default is previous closed month; future month is rejected and blocked rows cannot issue',()=>{
+  assert.equal(transactionMonth({},'automatic'),financeCycleCutoff().slice(0,7));
+  assert.equal(transactionMonth({transactionMonths:{automatic:'2099-01'}},'automatic'),financeCycleCutoff().slice(0,7));
+  assert.equal(transactionMonth({},'manual'),financeCycleCutoff().slice(0,7));
   const d=data([row({blockedReason:'חסרה חלוקת מימון תקינה',eligible:false})]);
   assert.equal(transactionPreviewForVisit(d).accounts.length,0);assert.doesNotMatch(html(d),/חסרה חלוקת מימון תקינה|פעילויות חסומות|חשבונות חסומים/);
   assert.equal(transactionPreviewForVisit(data([row()],{collectionError:'לא נטען'})).accounts.length,0);
@@ -123,7 +123,8 @@ test('calendar minimum shows waiting courses with selected-month cumulative coun
   assert.equal(transactionPreviewForVisit(d).accounts.length,0);
 });
 
-test('calendar carryover issues in November while October remains blocked',()=>{
+test('calendar carryover issues in November while October remains blocked',t=>{
+  t.mock.timers.enable({apis:['Date'],now:new Date('2026-12-04T10:00:00Z')});
   const d=data([
     row({period:'2026-10-01',eligible:false,issuableAmount:0,completedCount:2,
       blockedReason:'ממתין להשלמת שלושה מפגשים',eligibilityStatus:'waiting_three_meetings'}),
@@ -140,21 +141,19 @@ test('calendar carryover issues in November while October remains blocked',()=>{
 test('issuance sends funder, exact month, slots and displayed amount to server and then dispatches',async()=>{
   const d=data([row()]);const calls=[];
   await runTransactionIssuance(d,{reserveFinanceTransactionAccount:async p=>{calls.push(p);return{id:'reserved'};},dispatchFinanceTransactionAccount:async p=>{assert.equal(p.accountId,'reserved');return{};}},'automatic');
-  assert.deepEqual(calls[0].lines,[{activity_row_id:'a',funding_source_id:'g',performance_month:'2026-09-01',expected_amount:2500,meeting_slots:[1,2],issue_mode:'automatic'}]);
+  assert.deepEqual(calls[0].lines,[{activity_row_id:'a',funding_source_id:'g',performance_month:'2026-10-01',billing_range_end:'2026-10-01',expected_amount:2500,meeting_slots:[1,2],issue_mode:'automatic'}]);
 });
 test('history retains existing document statuses and URLs independently of month selector',()=>{
   const d=data([],{transactionTab:'history'});d.transactionContext.accounts=[{transaction_account_number:8525,issue_date:'2026-07-01',total_amount:500,document_status:'issued',sharepoint_web_url:'https://example.test/pdf',finance_transaction_account_lines:[]}];
   const view=html(d);assert.match(view,/8525/);assert.match(view,/פתח PDF/);assert.doesNotMatch(view,/type="month"/);
 });
-test('backlog survives month/year selection without duplicate totals and can issue original month',async()=>{
-  const d=data([row({period:'2025-12-01'}),row({activityRowId:'next',period:'2026-01-01'}),row({activityRowId:'selected',period:'2026-09-01'})]);
+test('backlog includes only the selected school year and can issue original closed months',async t=>{
+  t.mock.timers.enable({apis:['Date'],now:new Date('2027-01-10T10:00:00Z')});
+  const d=data([row({period:'2026-09-01'}),row({activityRowId:'next',period:'2026-10-01'}),row({activityRowId:'selected',period:'2026-12-01'}),row({activityRowId:'old-year',period:'2025-12-01'})],{transactionMonths:{automatic:'2026-12'}});
   assert.equal(transactionBacklog(d,'automatic').length,2);assert.equal(transactionPreviewForVisit(d).totals.amount,7500);
-  d.transactionMonths.automatic='2025-12';
-  assert.equal(transactionBacklog(d,'automatic').length,0);assert.equal(transactionPreviewForVisit(d).totals.amount,2500);
-  const sent=[];
-  await runTransactionIssuance(d,{reserveFinanceTransactionAccount:async p=>{sent.push(p);return{id:'x'};},dispatchFinanceTransactionAccount:async()=>({})},'automatic','2026-01');
-  assert.deepEqual(sent.map(p=>p.lines[0].performance_month).sort(),['2025-12-01','2026-01-01']);
-  assert.equal(sent.find(p=>p.lines[0].performance_month==='2026-01-01').lines[0].activity_row_id,'next');
+  d.transactionMonths.automatic='2026-09';assert.equal(transactionBacklog(d,'automatic').length,0);assert.equal(transactionPreviewForVisit(d).totals.amount,2500);
+  const sent=[];await runTransactionIssuance(d,{reserveFinanceTransactionAccount:async p=>{sent.push(p);return{id:'x'};},dispatchFinanceTransactionAccount:async()=>({})},'automatic','2026-10');
+  assert.deepEqual(sent.map(p=>p.lines[0].performance_month),['2026-09-01','2026-10-01']);
 });
 test('dispatch failure records partial outcome and releases only its own generating reservation',async()=>{
   let cancelled;
@@ -195,10 +194,10 @@ test('empty months show only a concise empty state without internal diagnostics 
   assert.doesNotMatch(view,/ds-fin-transaction-summary|data-finance-transaction-run=/);
 });
 test('technical reasons remain excluded from the visible list, but valid backlog stays visible',()=>{
-  const d=data([row({activityRowId:'aug',period:'2026-08-01'}),row({activityRowId:'blocked',blockedReason:'חסר מימון',eligible:false})]);
+  const d=data([row({activityRowId:'aug',period:'2026-09-01'}),row({activityRowId:'blocked',blockedReason:'חסר מימון',eligible:false})]);
   const view=html(d);
   assert.match(view,/חיובים זכאים מחודשים קודמים/);
-  assert.match(view,/2026-08/);
+  assert.match(view,/2026-09/);
   assert.doesNotMatch(view,/חסר מימון|חסומות להפקה|אין יתרות מחודשים אחרים/);
 });
 
@@ -235,12 +234,13 @@ test('a sponsor invoice spanning two schools never receives unrelated school con
   const preview=transactionPreviewForVisit(data([
     row({gefenFunding:false,activityRowId:'w1',financeSchoolId:11,payerKey:'funding:sponsor',customerEmail:'one@example.test'}),
     row({gefenFunding:false,activityRowId:'w2',financeSchoolId:22,payerKey:'funding:sponsor',customerEmail:'two@example.test'})
-  ],{transactionMonths:{manual:'2026-09'}}),'manual');
-  assert.equal(preview.accounts.length,0,'manual invoices require selection before an account is drafted');
+  ],{transactionMonths:{manual:'2026-10'}}),'manual');
+  assert.equal(preview.accounts.length,1,'monthly open invoices include all eligible rows without selecting or expanding them');
+  assert.deepEqual(preview.accounts[0].customerEmails,[]);
   const selected=data([
     row({gefenFunding:false,activityRowId:'w1',financeSchoolId:11,payerKey:'funding:sponsor',customerEmail:'one@example.test'}),
     row({gefenFunding:false,activityRowId:'w2',financeSchoolId:22,payerKey:'funding:sponsor',customerEmail:'two@example.test'})
-  ],{transactionMonths:{manual:'2026-09'},transactionManualSelected:{'w1:g:2026-09-01':true,'w2:g:2026-09-01':true}});
+  ],{transactionMonths:{manual:'2026-10'},transactionManualSelected:{'w1:g:2026-10-01':true,'w2:g:2026-10-01':true}});
   const groups=transactionPreviewForVisit(selected,'manual').accounts;
   assert.equal(groups.length,1);
   assert.equal(groups[0].institutionSymbol,'','a sponsor invoice must not inherit any school symbol');
@@ -263,7 +263,7 @@ test('one sponsor with two completed activities across different schools creates
       payerKey:'funding:sponsor',payerName:'חברת תעשייה',customerName:'בית ספר ב',issuableAmount:1500})
   ];
   const selected=Object.fromEntries(lines.map(line=>[transactionSelectionKey(line),true]));
-  const d=data(lines,{transactionMonths:{manual:'2026-09'},transactionManualSelected:selected});
+  const d=data(lines,{transactionMonths:{manual:'2026-10'},transactionManualSelected:selected});
   const preview=transactionPreviewForVisit(d,'manual');
   assert.equal(preview.accounts.length,1);
   assert.equal(preview.accounts[0].totalAmount,2750);
@@ -280,7 +280,7 @@ test('one sponsor with two completed activities across different schools creates
 test('a tour is one quantity, not a course meeting or 1.5 billing hours',()=>{
   const trip=row({activityRowId:'trip',activityName:'התנסות בתעשייה',activityType:'tour',
     plannedCount:1,scheduledCount:1,completedCount:1,unbilledCount:1,unbilledHours:0,
-    unbilledSlots:[{slot:1,date:'2026-09-10'}],issuableAmount:3000,fundingAmount:3000});
+    unbilledSlots:[{slot:1,date:'2026-10-10'}],issuableAmount:3000,fundingAmount:3000});
   const d=data([trip]);
   const preview=transactionPreviewForVisit(d);
   assert.equal(preview.totals.units,1);
@@ -297,7 +297,7 @@ test('a tour is one quantity, not a course meeting or 1.5 billing hours',()=>{
 
 test('course and tour on the same invoice retain separate quantity and hours',()=>{
   const trip=row({activityRowId:'trip',activityName:'סיור',activityType:'tour',
-    unbilledCount:1,unbilledHours:0,unbilledSlots:[{slot:1,date:'2026-09-12'}],
+    unbilledCount:1,unbilledHours:0,unbilledSlots:[{slot:1,date:'2026-10-12'}],
     fundingAmount:3000,issuableAmount:3000});
   const d=data([row(),trip]);
   const p=transactionPreviewForVisit(d);
