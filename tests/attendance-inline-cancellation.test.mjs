@@ -60,7 +60,7 @@ test('new-report cancellation is immediately after hours and before travel, with
   assert.doesNotMatch(create, /ביטול הזמן ייבדק בנפרד; שעות הפעילות אינן משתנות\./);
   assert.match(create, /cancellationFields\.hidden = !eligible \|\| !cancellationToggle\.checked/);
   assert.match(create, /cancellationToggle\.addEventListener\('change', syncInlineCancellationUi\)/);
-  assert.match(create, /cancellation_before_minutes: cancellationToggle\.checked/);
+  assert.match(create, /cancellation_before_minutes: !isDailyTravelDate\(\) && cancellationToggle\.checked/);
   assert.match(create, /total_hours: totalHours/);
 });
 
