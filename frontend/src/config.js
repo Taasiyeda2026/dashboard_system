@@ -598,3 +598,5 @@ config.HOTFIX_VERSION = `finance-pl-numbering-outlook-draft-action-20261102-v1-$
 config.HOTFIX_VERSION = `finance-gefen-course-calendar-minimum-20261102-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `finance-automatic-outlook-drafts-20261102-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `finance-draft-rollout-compatibility-20261102-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `finance-billed-dates-compact-waiting-20261103-v1-${config.HOTFIX_VERSION}`;

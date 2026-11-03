@@ -39,9 +39,12 @@ test('calendar minimum shows waiting courses with selected-month cumulative coun
     eligible:false,issuableAmount:0,blockedReason:'ממתין להשלמת שלושה מפגשים',eligibilityStatus:'waiting_three_meetings'});
   const d=data([waiting],{transactionMonths:{automatic:'2026-10'}});
   const view=html(d);
-  assert.match(view,/ממתין להשלמת שלושה מפגשים/);
-  assert.match(view,/2 מתוך 3 עד סוף 2026-10/);
-  assert.match(view,/הספירה מצטברת מלוח המפגשים/);
+  assert.match(view,/קורסים הממתינים להפקה/);
+  assert.match(view,/2 מתוך 3/);
+  const dom=new JSDOM(view);
+  const details=dom.window.document.querySelector('[data-finance-waiting-courses]');
+  assert.equal(details.open,false);assert.equal(details.querySelectorAll('tbody tr').length,1);
+  assert.equal(details.querySelectorAll('ul,li').length,0);dom.window.close();
   assert.doesNotMatch(view,/data-finance-transaction-run=/);
   assert.equal(transactionPreviewForVisit(d).accounts.length,0);
 });

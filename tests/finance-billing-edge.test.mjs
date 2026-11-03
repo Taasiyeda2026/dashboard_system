@@ -286,3 +286,36 @@ test('multi-page course invoice keeps payment section together without repeating
   assert.match(last,/300120/,'the final page must include the bank transfer account');
   assert.doesNotMatch(last,/ל\s*כ\s*ב\s*ו\s*ד/,'the last page must not reprint the customer greeting');
 });
+
+test('billed dates in course workshop tour and deferred preview PDFs use only attached meeting snapshots',async()=>{
+  for(const type of ['course','workshop','tour']) {
+    const meetings=[{meeting_date:'2026-11-03'},{meeting_date:'2026-10-05'},{meeting_date:'2026-10-12'}];
+    const line={activity_row_id:'a',activity_type_snapshot:type,activity_name_snapshot:'פעילות',school_name_snapshot:'מוסד',quantity_snapshot:3,
+      billed_hours:type==='course'?4.5:0,hourly_rate_snapshot:type==='course'?200:null,unit_price_snapshot:300,amount:900,
+      performance_month:'2026-11-01',finance_transaction_account_meetings:meetings};
+    for(const preview of [false,true]) {
+      const account={...fixture(),total_amount:900,finance_transaction_account_lines:[line]};
+      const r=await harness({preview,quote:account,account,activityTypes:{a:type}});
+      const bytes=preview?Buffer.from(r.body.pdfBase64,'base64'):r.pdf;
+      const pdf=await getDocument({data:new Uint8Array(bytes),useSystemFonts:false}).promise;
+      const text=(await (await pdf.getPage(1)).getTextContent()).items.map(i=>i.str||'').join(' ');
+      for(const value of ['05.10.2026','12.10.2026','03.11.2026'])assert.ok(text.includes(value),`${type} preview=${preview}: ${value}`);
+      assert.ok(text.indexOf('05.10.2026')<text.indexOf('12.10.2026'));
+      assert.ok(text.indexOf('12.10.2026')<text.indexOf('03.11.2026'));
+      assert.ok(!text.includes('01.09.2026'),'unrelated planned dates are not added');
+    }
+  }
+});
+test('all 35 billed dates wrap without clipping and totals remain visible',async()=>{
+  const line={activity_row_id:'a',activity_name_snapshot:'קורס',quantity_snapshot:35,billed_hours:52.5,amount:3500,hourly_rate_snapshot:3500/52.5,
+    finance_transaction_account_meetings:Array.from({length:35},(_,i)=>({meeting_date:new Date(Date.UTC(2026,8,i+1)).toISOString().slice(0,10)}))};
+  const r=await harness({account:{total_amount:3500,finance_transaction_account_lines:[line]}});
+  const pdf=await getDocument({data:new Uint8Array(r.pdf),useSystemFonts:false}).promise;
+  let text='';for(let n=1;n<=pdf.numPages;n++){
+    const items=(await (await pdf.getPage(n)).getTextContent()).items;
+    text+=items.map(i=>i.str||'').join(' ');
+    assert.ok(items.filter(i=>i.str?.trim()).every(i=>i.transform[5]>=20&&i.transform[5]<=810));
+  }
+  for(const m of line.finance_transaction_account_meetings){const [y,mo,d]=m.meeting_date.split('-');assert.ok(text.includes(`${d}.${mo}.${y}`),m.meeting_date);}
+  assert.match(text,/3,500/);
+});

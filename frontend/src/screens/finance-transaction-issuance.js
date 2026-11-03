@@ -171,12 +171,13 @@ function billingView(data, mode) {
   const backlog = transactionBacklog(data, mode);
   const rows = transactionIssuanceActivities(data, { mode }).map((row) => row.transaction_summary);
   const ready = rows.filter((row) => row.eligible && !row.blockedReason);
-  const waiting = rows.filter((row) => row.eligibilityStatus === 'waiting_three_meetings');
-  const waitingHtml = waiting.length ? `<div class="ds-fin-payer" role="status">
-    <strong>ממתין להשלמת שלושה מפגשים</strong>
-    <ul>${waiting.map((row) => `<li>${escapeHtml(row.activityName)} · ${escapeHtml(row.customerName || '')} · ${Number(row.completedCount || 0)} מתוך 3 עד סוף ${escapeHtml(row.period?.slice(0, 7) || '')}</li>`).join('')}</ul>
-    <span>הספירה מצטברת מלוח המפגשים. הקורס ייבדק שוב בהפקה בחודש הבא.</span>
-  </div>` : '';
+  const waiting = [...new Map(rows.filter((row) => row.eligibilityStatus === 'waiting_three_meetings')
+    .map(row=>[row.activityRowId,row])).values()];
+  const waitingHtml = waiting.length ? `<details class="ds-fin-payer" data-finance-waiting-courses>
+    <summary>קורסים הממתינים להפקה <span>(${waiting.length})</span></summary>
+    ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>מוסד</th><th>קורס</th><th>מפגשים</th></tr></thead>
+    <tbody>${waiting.map(row=>`<tr><td>${escapeHtml(row.customerName || '—')}</td><td>${escapeHtml(row.activityName)}</td><td>${Number(row.completedCount || 0)} מתוך 3</td></tr>`).join('')}</tbody></table>`)}
+  </details>` : '';
   const groups = new Map();
   for (const row of ready) {
     const key = mode === TRANSACTION_MODE_AUTOMATIC ? row.institutionSymbol : (row.payerKey || row.fundingSourceId);

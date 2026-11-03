@@ -137,7 +137,7 @@ function logicalRuns(value: unknown): string[] {
 function logicalTextWidth(font: PDFFont, value: unknown, size: number): number {
   return logicalRuns(value).reduce((width, run) => width + font.widthOfTextAtSize(run, size), 0);
 }
-function drawLogicalRight(page: PDFPage, font: PDFFont, value: unknown, y: number, size: number, rightX: number, leftX: number) {
+function drawLogicalRight(page: PDFPage, font: PDFFont, value: unknown, y: number, size: number, rightX: number, leftX: number, color = rgb(0.08, 0.12, 0.18)) {
   const runs = logicalRuns(value);
   const measured = logicalTextWidth(font, value, size);
   // Keep table values inside their actual column, rather than silently
@@ -150,7 +150,7 @@ function drawLogicalRight(page: PDFPage, font: PDFFont, value: unknown, y: numbe
     if (!run.trim()) continue;
     page.drawText(run, {
       x: cursor, y, size: effectiveSize, font,
-      color: rgb(0.08, 0.12, 0.18)
+      color
     });
   }
 }
@@ -168,7 +168,7 @@ function invoiceCellLines(font: PDFFont, value: string, width: number, size: num
     let current = '';
     for (const word of words) {
       const candidate = current ? `${current} ${word}` : word;
-      if (current && logicalTextWidth(font, candidate, size) > maxWidth && lines.length < 2) {
+      if (current && logicalTextWidth(font, candidate, size) > maxWidth) {
         lines.push(current);
         current = word;
       } else {
@@ -177,7 +177,7 @@ function invoiceCellLines(font: PDFFont, value: string, width: number, size: num
     }
     if (current) lines.push(current);
   }
-  return lines.slice(0, 3);
+  return lines;
 }
 function invoiceRowHeight(font: PDFFont, values: string[], widths: number[], size = 8.5): number {
   const mostLines = Math.max(1, ...values.map((value, index) =>
@@ -208,7 +208,7 @@ function drawTableRow(page: PDFPage, font: PDFFont, values: string[], widths: nu
 }
 
 
-type InvoiceRenderRow = { category: string; name: string; school: string; gefen: string; quantity: number; hours: number; amount: number; unitPrice: number; hourlyPrice: number; };
+type InvoiceRenderRow = { category: string; name: string; school: string; gefen: string; quantity: number; hours: number; amount: number; unitPrice: number; hourlyPrice: number; dates: string[]; };
 function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { courses: InvoiceRenderRow[]; services: InvoiceRenderRow[] } {
   const courses = new Map<string, InvoiceRenderRow>();
   const services = new Map<string, InvoiceRenderRow>();
@@ -236,8 +236,10 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
         ? `activity:${clean(line.activity_row_id)}`
         : JSON.stringify([category, name, school, Number(unitPrice.toFixed(6))]))
       : clean(line.activity_row_id) || JSON.stringify([name, school, gefen, Number(line.hourly_rate_snapshot || 0)]);
+    const dates = (line.finance_transaction_account_meetings || []).map((m: any)=>clean(m.meeting_date)).filter((d: string)=>/^\d{4}-\d{2}-\d{2}$/.test(d));
     const existing = group.get(key);
     if (existing) {
+      existing.dates = [...new Set([...existing.dates,...dates])].sort();
       existing.quantity += quantity;
       existing.hours += hours;
       existing.amount += amount;
@@ -245,7 +247,7 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
       existing.hourlyPrice = existing.hours > 0 ? existing.amount / existing.hours : 0;
     } else {
       group.set(key, {
-        category: service ? 'service' : 'course', name, school, gefen,
+        category: service ? 'service' : 'course', name, school, gefen, dates: [...new Set<string>(dates)].sort(),
         quantity, hours, amount, unitPrice,
         hourlyPrice: hours > 0 ? amount / hours : Number(line.hourly_rate_snapshot || 0)
       });
@@ -347,7 +349,9 @@ async function buildPdf(account: any) {
     rows: InvoiceRenderRow[], values: (row: InvoiceRenderRow) => string[]) => {
     if (!rows.length) return;
     const headerHeight = columns.length === 7 ? 30 : 25;
-    const firstRowHeight = invoiceRowHeight(regular, values(rows[0]), widths);
+    const detailLines = (row: InvoiceRenderRow) => row.dates.length ? invoiceCellLines(regular, `מועדי ביצוע: ${row.dates.map(date).join(', ')}`, 535, 7.5) : [];
+    const firstDetails = detailLines(rows[0]);
+    const firstRowHeight = invoiceRowHeight(regular, values(rows[0]), widths) + (firstDetails.length ? 8 + firstDetails.length * 10 : 0);
     if (y < 55 + headerHeight + firstRowHeight + 22) {
       page = doc.addPage([595, 842]);
       y = drawInvoiceHeader(page, true);
@@ -358,14 +362,21 @@ async function buildPdf(account: any) {
     y -= headerHeight;
     for (const row of rows) {
       const cellValues = values(row);
-      const rowHeight = invoiceRowHeight(regular, cellValues, widths);
+      const mainHeight = invoiceRowHeight(regular, cellValues, widths);
+      const detail = detailLines(row);
+      const detailHeight = detail.length ? 8 + detail.length * 10 : 0;
+      const rowHeight = mainHeight + detailHeight;
       if (y < 55 + rowHeight) {
         page = doc.addPage([595, 842]);
         y = drawInvoiceHeader(page, true);
         drawTableRow(page, bold, columns, widths, y - headerHeight, headerHeight, true);
         y -= headerHeight;
       }
-      drawTableRow(page, regular, cellValues, widths, y - rowHeight, rowHeight, false);
+      drawTableRow(page, regular, cellValues, widths, y - mainHeight, mainHeight, false);
+      if (detailHeight) {
+        page.drawRectangle({x:30,y:y-rowHeight,width:535,height:detailHeight,borderWidth:0.6,borderColor:rgb(0.72,0.76,0.8)});
+        detail.forEach((text,index)=>drawLogicalRight(page,regular,text,y-mainHeight-11-index*10,7.5,560,35,rgb(0.38,0.42,0.47)));
+      }
       y -= rowHeight;
     }
     y -= 17;
@@ -388,8 +399,7 @@ async function buildPdf(account: any) {
     ['פעילות', 'כמות', 'מחיר ליחידה', 'סה״כ'],
     serviceWidths, services,
     (row) => [displayName(row), count(row.quantity), money(row.unitPrice), money(row.amount)]);
-  // Invoices never reveal funding source, activity-completion period or
-  // internal meeting-level billing details; those remain in the database.
+  // Dates come exclusively from the billed meeting snapshots, including deferred months.
 
   // Keep payment details together. On a payment-only continuation page use
   // only the document heading, never a second "לכבוד" customer block.
