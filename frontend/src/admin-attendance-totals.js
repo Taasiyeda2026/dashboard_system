@@ -1,7 +1,7 @@
 import { activityTypeDisplayLabel } from './screens/shared/activity-options.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { reportedCancellationHours } from '../../attendance/src/components/monthly-report-summary.js';
-import { roundCancellationMinutesUp } from '../../attendance/src/services/cancellation-segments.js';
+import { isSuspectCancellationRequest, roundCancellationMinutesUp } from '../../attendance/src/services/cancellation-segments.js';
 
 const text = value => String(value ?? '').trim();
 const number = value => Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0;
@@ -46,7 +46,8 @@ export function buildAdminAttendanceTotals(records = [], { monthKey, employeeIds
     hoursByType.set(row.activity_type, (hoursByType.get(row.activity_type) || 0) + row.total_hours);
   }
   hoursByType.set('ביטול זמן', reportedCancellationHours(rows));
-  return { totalKilometers, totalHours: [...hoursByType.values()].reduce((sum, hours) => sum + hours, 0), hoursByType };
+  const suspectCancellationCount = rows.filter(isSuspectCancellationRequest).length;
+  return { totalKilometers, totalHours: [...hoursByType.values()].reduce((sum, hours) => sum + hours, 0), hoursByType, suspectCancellationCount };
 }
 
 function duration(hours) {
@@ -62,6 +63,7 @@ export function adminAttendanceTotalsHtml(totals, monthKey) {
       ${card('סה״כ ק״מ', totals.totalKilometers.toLocaleString('he-IL', { maximumFractionDigits: 1 }))}
       ${card('סה״כ שעות', duration(totals.totalHours))}
       ${[...totals.hoursByType].map(([type, hours]) => card(`שעות ${type}`, duration(hours))).join('')}
+      ${totals.suspectCancellationCount ? card('ביטול זמן חריג – לבדיקה', String(totals.suspectCancellationCount)) : ''}
     </div>
   </section>`;
 }

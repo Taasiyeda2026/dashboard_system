@@ -38,10 +38,17 @@ export function canReportInlineCancellation({ activityType = '', online = false 
   return Boolean(activityType) && activityType !== 'ביטול זמן' && !online;
 }
 
+export function isSuspectCancellationRequest(record = {}) {
+  const before = record.cancellation_before_minutes;
+  const after = record.cancellation_after_minutes;
+  return before != null && after != null
+    && [before, after].some(v => !Number.isFinite(Number(v)) || Number(v) < 0 || Number(v) >= 360);
+}
+
 export function cancellationRequestedMinutes(record = {}) {
   const before = record.cancellation_before_minutes;
   const after = record.cancellation_after_minutes;
-  if (before == null || after == null) return null;
+  if (before == null || after == null || isSuspectCancellationRequest(record)) return null;
   return roundCancellationMinutesUp(before) + roundCancellationMinutesUp(after);
 }
 
@@ -54,6 +61,7 @@ export function instructorReportedCancellationMinutes(record = {}) {
   const sourceBefore = record.cancellation_before_minutes;
   const sourceAfter = record.cancellation_after_minutes;
   if (sourceBefore != null && sourceAfter != null) {
+    if (isSuspectCancellationRequest(record)) return null;
     return roundCancellationMinutesUp(sourceBefore) + roundCancellationMinutesUp(sourceAfter);
   }
   const compensation = record.travel_compensation;
@@ -61,6 +69,7 @@ export function instructorReportedCancellationMinutes(record = {}) {
   const before = compensation.reported_before_cancellation_minutes;
   const after = compensation.reported_after_cancellation_minutes;
   if (before != null && after != null) {
+    if (isSuspectCancellationRequest({ cancellation_before_minutes: before, cancellation_after_minutes: after })) return null;
     return roundCancellationMinutesUp(before) + roundCancellationMinutesUp(after);
   }
   const requested = compensation.requested_cancellation_minutes;
