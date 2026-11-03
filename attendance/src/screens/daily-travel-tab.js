@@ -8,6 +8,9 @@ const LEG_LABELS = {outbound:'יציאה לפעילות הראשונה',between:
 
 export function createDailyTravelTab({empId, initialDate}) {
   const panel = document.createElement('section');
+  panel.id = 'av2-travel-tab-panel';
+  panel.setAttribute('role', 'tabpanel');
+  panel.setAttribute('aria-labelledby', 'av2-travel-tab-trigger');
   panel.className = 'av2-daily-travel av2-report__travel-tab';
   const title = document.createElement('h2');
   title.textContent = 'נסיעות וביטולים';
@@ -79,10 +82,11 @@ export function createDailyTravelTab({empId, initialDate}) {
     }
     showSummary();
   }
-  async function load(){
+  async function load({force=false}={}){
     if(loading)return;
     const date=dateField.input.value;
     if(!date)return;
+    if(!force && loadedDate===date)return;
     loading=true;save.disabled=true;reload.disabled=true;
     status.textContent='טוען נסיעות…';
     try{
@@ -118,7 +122,7 @@ export function createDailyTravelTab({empId, initialDate}) {
   }
   noTravel.addEventListener('change',showSummary);
   dateField.input.addEventListener('change',load);
-  reload.addEventListener('click',load);
+  reload.addEventListener('click',()=>load({force:true}));
   save.addEventListener('click',async()=>{
     if(loading || loadedDate!==dateField.input.value)return;
     showSummary();
