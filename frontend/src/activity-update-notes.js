@@ -83,20 +83,32 @@ export function enhanceActivityUpdateNotes(form) {
     try {
       await waitForSupabaseAuthSession();
       const { data, error } = await supabase.from('activity_update_notes')
-        .select('id,body,author_name,created_at')
+        .select('id,body,author_name,created_at,is_legacy,occurred_on,legacy_sequence')
         .eq('activity_row_id', activityId)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false });
       if (error) throw error;
       output.replaceChildren();
-      const notes = Array.isArray(data) ? data : [];
+      const notes = Array.isArray(data) ? [...data] : [];
+      const noteTime = (note) => note.is_legacy
+        ? (note.occurred_on ? Date.parse(note.occurred_on + 'T12:00:00Z') : 0)
+        : (Date.parse(note.created_at) || 0);
+      notes.sort((a, b) => {
+        const delta = noteTime(b) - noteTime(a);
+        if (delta) return delta;
+        if (a.is_legacy && b.is_legacy)
+          return (Number(a.legacy_sequence) || 0) - (Number(b.legacy_sequence) || 0);
+        return Number(b.id) - Number(a.id);
+      });
       if (!notes.length) {
         output.append(create(doc, 'p', 'activity-update-notes__empty', 'עדיין לא נוספו הערות.'));
         return;
       }
       const item = (note, latest) => {
         const line = create(doc, 'div', 'activity-update-notes__line' + (latest ? ' activity-update-notes__line--latest' : ''));
-        const stamp = create(doc, 'strong', 'activity-update-notes__stamp', `${dateHe(note.created_at)} · ${note.author_name}: `);
+        const stamp = create(doc, 'strong', 'activity-update-notes__stamp', note.is_legacy
+          ? (note.occurred_on ? `${dateHe(note.occurred_on)} · ${note.author_name}: ` : `${note.author_name}: `)
+          : `${dateHe(note.created_at)} · ${note.author_name}: `);
         line.append(stamp, doc.createTextNode(String(note.body || '')));
         return line;
       };
