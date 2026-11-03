@@ -96,10 +96,10 @@ export function renderMyReportsScreen(container, {
   wrap.append(inner);
   container.append(wrap);
 
-  loadAndRender({ instructor, year, month, contentArea, toolbar, onNewReport, onDuplicate });
+  loadAndRender({ instructor, year, month, contentArea, toolbar, onNewReport, onTravelReport, onDuplicate });
 }
 
-async function loadAndRender({ instructor, year, month, contentArea, toolbar, onNewReport, onDuplicate }) {
+async function loadAndRender({ instructor, year, month, contentArea, toolbar, onNewReport, onTravelReport, onDuplicate }) {
   const monthKey = getMonthKey(year, month);
 
   try {
@@ -133,7 +133,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
 
     contentArea.innerHTML = '';
 
-    const onRefresh = () => loadAndRender({ instructor, year, month, contentArea, toolbar, onNewReport, onDuplicate });
+    const onRefresh = () => loadAndRender({ instructor, year, month, contentArea, toolbar, onNewReport, onTravelReport, onDuplicate });
 
     // Status badge
     toolbar.innerHTML = '';
