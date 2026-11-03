@@ -1,3 +1,6 @@
+alter table public.attendance_daily_travel_audit
+ add column if not exists previous_approved_public_transport_cost numeric(12,2);
+
 alter table public.attendance_daily_travel_reports
  add column if not exists public_transport_cost numeric(12,2) not null default 0,
  add column if not exists approved_public_transport_cost numeric(12,2);
@@ -353,9 +356,9 @@ begin
     if found then
       insert into public.attendance_daily_travel_audit(
         emp_id,travel_date,previous_status,previous_approved_km,
-        previous_approved_cancellation_minutes,reason,actor)
+        previous_approved_cancellation_minutes,previous_approved_public_transport_cost,reason,actor)
       values(v_emp,v_date,v_old.review_status,v_old.approved_km,
-        v_old.approved_cancellation_minutes,'activity_changed',auth.uid());
+        v_old.approved_cancellation_minutes,v_old.approved_public_transport_cost,'activity_changed',auth.uid());
       update public.attendance_daily_travel_reports
       set review_status='pending_review',approved_km=null,
         approved_cancellation_minutes=null,approved_public_transport_cost=null,review_by=null,review_at=null,updated_at=now()
