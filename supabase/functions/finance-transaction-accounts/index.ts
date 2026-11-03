@@ -550,6 +550,14 @@ Deno.serve(async (req) => {
 
     // Document finalization queues a durable job in the same DB transaction.
     // Every issuance also attempts the draft immediately; the browser need not click again.
+    // Resolve ONLY the issuer captured by the reservation trigger. A worker or
+    // another finance user's retry must never supply or replace the mailbox.
+    const mailboxResult = await admin.rpc('resolve_finance_outlook_mailbox',{
+      p_account_id:accountId,p_token:dispatchToken
+    });
+    if (mailboxResult.error) throw mailboxResult.error;
+    mailbox = clean(mailboxResult.data);
+    if (!/^[^\s@]+@think\.org\.il$/.test(mailbox)) throw new Error('invoice_mailbox_not_authorized');
     const recipientResult = await admin.rpc('finance_transaction_recipients',{p_account_id:accountId});
     if (recipientResult.error) throw recipientResult.error;
     recipients = recipientAddresses((recipientResult.data?.recipients || []).join(';'));
@@ -557,9 +565,6 @@ Deno.serve(async (req) => {
       await markOutlook('missing_recipient','no_valid_payer_email');
       return Response.json({accountId,filename,outlookStatus:'missing_recipient',invalidRecipientCount:recipientResult.data?.invalidCount || 0},{headers:cors});
     }
-    mailbox = (knownMessageId || account.outlook_creation_started_at) && clean(account.outlook_mailbox)
-      ? clean(account.outlook_mailbox) : clean(Deno.env.get('MS_MAIL_SENDER'));
-    if (!mailbox) throw new Error('mail_sender_not_configured');
     const propertyId = 'String {fe840b5e-3427-421b-a522-224fbb1c2c65} Name FinanceAccountId';
     const mailboxPath = `/users/${encodeURIComponent(mailbox)}/messages`;
     if (!knownMessageId) {
@@ -603,15 +608,19 @@ Deno.serve(async (req) => {
     return Response.json({accountId,filename,outlookStatus,messageId:knownMessageId,recipientCount:recipients.length,
       invalidRecipientCount:recipientResult.data?.invalidCount || 0},{headers:cors});
   } catch (error) {
-    const message = clean((error as Error).message) || "transaction_dispatch_failed";
+    const message = mailbox && error instanceof GraphRequestError && [401,403,404].includes(error.status)
+      ? 'invoice_mailbox_access_denied' : clean((error as Error).message) || "transaction_dispatch_failed";
     if (leaseAcquired && finalized && accountId && admin) {
       const review = message==='draft_creation_uncertain' || message==='multiple_account_messages_require_review'
+        || message==='invoice_mailbox_existing_draft_mismatch' || message==='invoice_mailbox_identity_changed'
         || (creationStarted && !knownMessageId && !creationRejected);
       const outlookStatus = review ? 'needs_review' : 'failed';
       try { await markOutlook(outlookStatus,message); }
       catch { return Response.json({accountId,error:'outlook_status_persistence_failed',documentPreserved:true},{status:500,headers:cors}); }
-      return Response.json({accountId,outlookStatus,documentPreserved:true,
-        warning:'החשבון נשמר. יצירת טיוטת הדוא״ל לא הושלמה; ניתן לראות את המצב בהיסטוריה.'},{headers:cors});
+      return Response.json({accountId,outlookStatus,outlookError:message,documentPreserved:true,
+        warning:message.startsWith('invoice_mailbox_')
+          ? 'החשבון נשמר. לא ניתן ליצור טיוטה בתיבת המשתמש המקורי. יש לבדוק את כתובתו הארגונית ואת הרשאות Microsoft 365; לא נעשה שימוש בתיבה חלופית.'
+          : 'החשבון נשמר. יצירת טיוטת הדוא״ל לא הושלמה; ניתן לראות את המצב בהיסטוריה.'},{headers:cors});
     }
     if (leaseAcquired && !finalized && accountId && admin) {
       try {

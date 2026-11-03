@@ -18,6 +18,7 @@ async function harness(options={}) {
     calls.push({type:'rpc',name,args});
     if(name==='finance_manual_account_quote')return{data:options.quote||fixture()};
     if(name==='finance_transaction_can_issue')return{data:options.allowed!==false};
+    if(name==='resolve_finance_outlook_mailbox')return{data:'idann@think.org.il'};
     if(name==='finance_transaction_recipients')return{data:{recipients:['test@example.test'],invalidCount:0}};
     if(name==='begin_finance_outlook_creation')return{data:true};
     if(name==='cancel_finance_dispatch'&&options.cancelFails)return{error:{message:'not_owned'}};

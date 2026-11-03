@@ -9,7 +9,11 @@ export function financeError(error) {
     graph_not_configured:'חיבור SharePoint להפקת החשבונות אינו מוגדר.',
     graph_auth_failed:'החיבור ל־SharePoint נכשל. יש לבדוק את הרשאות השירות.',
     transaction_sharepoint_folder_invalid:'תיקיית שמירת חשבונות העסקה אינה זמינה.',
-    account_not_dispatchable:'החשבון אינו זמין להפקה. יש לרענן את הרשימה.'
+    account_not_dispatchable:'החשבון אינו זמין להפקה. יש לרענן את הרשימה.',
+    invoice_mailbox_not_authorized:'לא זוהתה תיבת דואר ארגונית מאומתת למשתמש שהפיק את החשבון, או שהרשאתו הכספית אינה פעילה. הטיוטה לא נוצרה.',
+    invoice_mailbox_identity_changed:'כתובת תיבת הדואר של המפיק המקורי השתנתה. נדרשת בדיקה לפני יצירת טיוטה; לא נעשה שימוש בתיבה אחרת.',
+    invoice_mailbox_existing_draft_mismatch:'לחשבון משויכת טיוטה בתיבה שאינה תיבת המפיק המקורי. נדרשת בדיקה כדי למנוע טיוטה כפולה.',
+    invoice_mailbox_access_denied:'Microsoft 365 אינו מאפשר גישה לתיבת המפיק המקורי. יש לבדוק את הרשאות התיבה; לא נעשה שימוש בתיבה חלופית.'
   });
   if(labels[message])return labels[message];
   if(/^sharepoint_upload_failed|^graph_request_failed|^issued_pdf_download_failed/.test(message)) return 'שמירת מסמך החשבון ב־SharePoint נכשלה. בדוק בהיסטוריה לפני ניסיון נוסף.';
