@@ -322,3 +322,58 @@
   .av2-daily-travel__leg-fields{grid-template-columns:minmax(0,1fr)}
   .av2-daily-travel{padding-bottom:max(18px,env(safe-area-inset-bottom,0px))}
 }
+
+
+/* Compact report-type navigation: aligned with the form, never full-screen width. */
+.av2-report__tabs {
+  width: min(100%, 420px);
+  max-width: 420px;
+  margin: 10px auto 18px;
+  padding: 4px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  border: 1px solid #d8e3f4;
+  border-radius: 12px;
+  background: #f3f7fd;
+}
+.av2-report__tabs .av2-btn {
+  flex: 1 1 0;
+  width: auto;
+  max-width: none;
+  min-width: 0;
+  min-height: 38px !important;
+  padding: 8px 12px !important;
+  border: 1px solid transparent !important;
+  border-radius: 9px !important;
+  background: transparent !important;
+  color: #526581 !important;
+  font-size: 0.83rem !important;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  box-shadow: none !important;
+}
+.av2-report__tabs .av2-btn.av2-report__tab--active {
+  background: #fff !important;
+  border-color: #c7d8f7 !important;
+  color: #2463df !important;
+  box-shadow: 0 1px 4px rgba(35,80,155,.09) !important;
+  font-weight: 700;
+}
+.av2-report__tabs .av2-btn:focus-visible {
+  outline: 2px solid #2463df !important;
+  outline-offset: 2px;
+}
+@media (max-width: 639px) {
+  .av2-report__tabs {
+    width: min(100%, 420px);
+    margin: 8px auto 14px;
+  }
+  .av2-report__tabs .av2-btn {
+    min-height: 44px !important;
+    padding: 10px 7px !important;
+    font-size: 0.82rem !important;
+  }
+}
