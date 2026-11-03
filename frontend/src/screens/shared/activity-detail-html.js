@@ -1275,10 +1275,10 @@ function blockNotes(row, { hidden = false } = {}) {
   const hasNote = Boolean(notesVal);
   return `
     <section class="activity-drawer__section activity-view-notes${hasNote ? '' : ' activity-view-notes--empty'}" data-notes-section>
-      ${hasNote ? `<span class="activity-view-notes__label">הערה</span>
+      ${hasNote ? `<span class="activity-view-notes__label">מידע נוסף</span>
       <div class="activity-view-notes__text" data-mode="view">${escapeHtml(notesVal)}</div>` : ''}
       <div class="activity-drawer__edit" data-mode="edit" hidden>
-        <div class="activity-view-notes__label">הערה</div>
+        <div class="activity-view-notes__label">מידע נוסף</div>
         ${textareaHtml({ name: 'notes', value: notesVal, rows: 2 })}
       </div>
     </section>
