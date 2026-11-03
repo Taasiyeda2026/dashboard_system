@@ -83,7 +83,7 @@ export function enhanceActivityUpdateNotes(form) {
     try {
       await waitForSupabaseAuthSession();
       const { data, error } = await supabase.from('activity_update_notes')
-        .select('id,body,author_name,created_at')
+        .select('id,body,author_name,created_at,is_legacy')
         .eq('activity_row_id', activityId)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false });
@@ -96,7 +96,9 @@ export function enhanceActivityUpdateNotes(form) {
       }
       const item = (note, latest) => {
         const line = create(doc, 'div', 'activity-update-notes__line' + (latest ? ' activity-update-notes__line--latest' : ''));
-        const stamp = create(doc, 'strong', 'activity-update-notes__stamp', `${dateHe(note.created_at)} · ${note.author_name}: `);
+        const stamp = create(doc, 'strong', 'activity-update-notes__stamp', note.is_legacy
+          ? `${note.author_name} · הערות היסטוריות: `
+          : `${dateHe(note.created_at)} · ${note.author_name}: `);
         line.append(stamp, doc.createTextNode(String(note.body || '')));
         return line;
       };
