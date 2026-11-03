@@ -1842,7 +1842,7 @@ export function renderNewReportScreen(container, {
       const programName = activity?.program_name || activityNameSnapshot || null;
 
       const usesPublicTransport = !isOnline && !isTeamOnline && publicTransportInput.checked;
-      const kmValue = reportedKilometers(kmField.input.value, {
+      let kmValue = reportedKilometers(kmField.input.value, {
         online: isOnline || isTeamOnline, publicTransport: usesPublicTransport, activityType: reportType,
       });
       if (!isDailyTravelDate() && kmValue == null) {
@@ -1851,6 +1851,7 @@ export function renderNewReportScreen(container, {
         kmField.input.focus();
         return;
       }
+      if (isDailyTravelDate()) kmValue = 0;
       const publicTransportCost = usesPublicTransport && publicTransportCostField.input.value
         ? Number(publicTransportCostField.input.value)
         : 0;
@@ -1895,7 +1896,7 @@ export function renderNewReportScreen(container, {
             ? cancellationMinutesForSave(cancellationBeforeField.input.value, originalCancellationRecord, 'cancellation_before_minutes') : null,
           cancellation_after_minutes: !isDailyTravelDate() && cancellationToggle.checked
             ? cancellationMinutesForSave(cancellationAfterField.input.value, originalCancellationRecord, 'cancellation_after_minutes') : null,
-          roundtrip_km: isDailyTravelDate() ? 0 : kmValue,
+          roundtrip_km: kmValue,
           public_transport: usesPublicTransport,
           public_transport_cost: publicTransportCost,
           expenses: expField.input.value ? Number(expField.input.value) : 0,
