@@ -1438,7 +1438,7 @@ function dashboardBundle(rows) {
   const meetingNumbers = ordered.flatMap((row) => row.meetingNumbers?.length ? row.meetingNumbers : [txt(row.meetingNo)].filter(Boolean));
   const activityIds = unique('activityId');
   const distinctMeetings = [...new Set(meetingNumbers)];
-  const meetingNo = activityIds.length > 1 && distinctMeetings.length !== 1 ? '' : (distinctMeetings.length === 1 ? distinctMeetings[0] : meetingNumbers.join(', '));
+  const meetingNo = distinctMeetings.join(', ');
   const joined = (key) => unique(key).join(' + ');
   const schoolIds = [...new Set(ordered.map((row) => row.schoolId).filter(Number.isFinite))];
   const authorityIds = [...new Set(ordered.map((row) => row.authorityId).filter(Number.isFinite))];
@@ -1450,7 +1450,7 @@ function dashboardBundle(rows) {
     workHours: ordered.some((row) => row.payrollHoursRequireReview) ? null : Math.round(ordered.reduce((sum, row) => sum + rowWorkHours(row), 0) * 100) / 100,
     payrollHoursRequireReview: ordered.some((row) => row.payrollHoursRequireReview),
     meetingCount: ordered.reduce((sum, row) => sum + (number(row.meetingCount) || 1), 0),
-    meetingNumbers: distinctMeetings.length === 1 ? distinctMeetings : (activityIds.length > 1 ? [] : meetingNumbers),
+    meetingNumbers: distinctMeetings,
     meetingNo,
     school: joined('school'), authority: joined('authority'), program: joined('program'), activityType: joined('activityType'),
     schoolId: schoolIds.length === 1 ? schoolIds[0] : null,
