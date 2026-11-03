@@ -1842,7 +1842,7 @@ export function renderNewReportScreen(container, {
       const programName = activity?.program_name || activityNameSnapshot || null;
 
       const usesPublicTransport = !isOnline && !isTeamOnline && publicTransportInput.checked;
-      let kmValue = reportedKilometers(kmField.input.value, {
+      const kmValue = reportedKilometers(kmField.input.value, {
         online: isOnline || isTeamOnline, publicTransport: usesPublicTransport, activityType: reportType,
       });
       if (!isDailyTravelDate() && kmValue == null) {
@@ -1851,7 +1851,6 @@ export function renderNewReportScreen(container, {
         kmField.input.focus();
         return;
       }
-      if (isDailyTravelDate()) kmValue = 0;
       const publicTransportCost = usesPublicTransport && publicTransportCostField.input.value
         ? Number(publicTransportCostField.input.value)
         : 0;
@@ -1905,6 +1904,7 @@ export function renderNewReportScreen(container, {
           ...scheduledTrainingFields,
         };
 
+        if (isDailyTravelDate()) payload.roundtrip_km = 0;
         const record = await createRecord(instructor.empId, payload);
         // Travel compensation is back-office processing. Never block or warn the
         // instructor: unresolved calculations remain visible to the team manager/admin.
