@@ -57,9 +57,16 @@ begin
         (a.date_34),
         (a.date_35)
     ) chosen(travel_date)
-    where (a.emp_id=v_emp or a.emp_id_2=v_emp::text)
+    left join public.course_meeting_instructor_history h
+      on h.activity_id=a.row_id and h.meeting_date=chosen.travel_date
+    where (btrim(coalesce(a.emp_id_2,''))=v_emp::text
+      or coalesce(h.emp_id,a.emp_id::text)=v_emp::text)
       and chosen.travel_date between v_from and v_to
       and coalesce(a.activity_type,'') not in ('זום','ביטול זמן')
+      and not exists (
+        select 1 from public.course_meeting_cancellations cmc
+        where cmc.activity_id=a.row_id and cmc.meeting_date=chosen.travel_date
+      )
     union all
     select tr.training_date, coalesce(nullif(tr.course_name,''),'הכשרה')
     from public.instructor_training_schedule tr
