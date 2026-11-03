@@ -55,7 +55,8 @@ begin
   if v_expected=0 then
     raise exception 'attendance_travel_day_without_physical_activity' using errcode='22023';
   end if;
-  if coalesce(p_no_travel,false) then
+  p_no_travel := coalesce(p_no_travel,false);
+  if p_no_travel then
     p_legs:='[]'::jsonb;
   else
     if p_legs is null or jsonb_typeof(p_legs)<>'array' then
@@ -93,7 +94,7 @@ begin
   end if;
   select * into v_row from public.attendance_daily_travel_reports
     where emp_id=v_emp and travel_date=p_date for update;
-  if found and v_row.review_status in ('approved','corrected','rejected') then
+  if found and v_row.review_status in ('approved','corrected') then
     raise exception 'attendance_travel_review_locked' using errcode='42501';
   end if;
   insert into public.attendance_daily_travel_reports(
