@@ -1939,7 +1939,7 @@ export const activitiesScreen = {
       applyLocalFilters(filterOptionRows, listFilters, { filterFields: ACTIVITY_FILTER_FIELDS }), listFilters
     ).sort(compareActivityDefaultOrder);
     const { visible: safeRows, hasMore, total, nextCount } = splitVisibleRows(filteredRows, listFilters);
-    const canSeePrivateNotes = canReviewActivityRequests(state);
+    const canSeePrivateNotes = String(state?.user?.role || '').trim() === 'operation_manager';
     const hideEmpIds    = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId     = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
@@ -2481,7 +2481,7 @@ export const activitiesScreen = {
       await doMarkActivityLayoutSent(group, button);
     }
     const filteredRows      = applyActivitiesLocalFilters(periodRows, state, state?.clientSettings);
-    const canSeePrivateNotes = canReviewActivityRequests(state);
+    const canSeePrivateNotes = String(state?.user?.role || '').trim() === 'operation_manager';
     const canEditActivity   = canDirectManageActivities(state) || canRequestActivityChanges(state);
     const hideEmpIds        = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId         = !!state?.clientSettings?.hide_row_id_in_ui;

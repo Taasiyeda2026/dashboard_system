@@ -21,7 +21,7 @@ function cacheSnapshot(identity, data) {
   // The authorized operator can fetch them again from the server on refresh.
   if (Array.isArray(snapshot.activities)) snapshot.activities = snapshot.activities.map(activity => {
     if (!activity || typeof activity !== 'object' || Array.isArray(activity)) return activity;
-    const { operations_private_notes, ...safeActivity } = activity;
+    const { operations_private_notes, private_note, ...safeActivity } = activity;
     return safeActivity;
   });
   snapshot._planningShared = compactPlanningWorkspace(snapshot._planningShared);

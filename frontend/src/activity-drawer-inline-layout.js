@@ -395,7 +395,7 @@ function simplifyNotes(form) {
     wrapper.className = 'activity-drawer-inline__field activity-drawer-inline__field--note';
     const label = doc.createElement('div');
     label.className = 'activity-drawer-inline__label';
-    label.textContent = 'הערות';
+    label.textContent = 'מידע נוסף';
     wrapper.append(label, notes);
     stack.append(wrapper);
   }

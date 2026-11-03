@@ -310,7 +310,7 @@ export const monthScreen = {
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
     const canEditActivity = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
-    const userRole = String(state?.user?.display_role || '');
+    const userRole = String(state?.user?.role || '');
     const showPrivateNote = userRole === 'operation_manager';
     const instructorLimited = userRole === 'instructor';
     bindLocalFilters(root, state, MONTH_SCOPE, rerender, { debounceMs: 150 });

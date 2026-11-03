@@ -94,7 +94,7 @@ export const operationsScreen = {
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
-    const canSeePrivateNotes = hasPermission(state?.user, 'manage_activity_archive');
+    const canSeePrivateNotes = String(state?.user?.role || '').trim() === 'operation_manager';
     const canEditActivity   = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
     const canDirectEdit     = !!state?.user?.can_edit_direct;
     const settings = state?.clientSettings || {};

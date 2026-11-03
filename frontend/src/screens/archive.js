@@ -316,7 +316,7 @@ export const archiveScreen = {
 
   bind({ root, data, state, rerender, ui, api }) {
     const rowsRef = () => (Array.isArray(data?.rows) ? data.rows : []);
-    const canSeePrivateNotes = hasPermission(state?.user, 'manage_activity_archive');
+    const canSeePrivateNotes = String(state?.user?.role || '').trim() === 'operation_manager';
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const hideRowId = !!state?.clientSettings?.hide_row_id_in_ui;
     const hideActivityNo = !!state?.clientSettings?.hide_activity_no_on_screens;
