@@ -5370,7 +5370,6 @@ const ALLOWED_ACTIVITY_COLUMNS = new Set([
   'notes',
   'finance_status',
   'finance_notes',
-  'operations_private_notes',
   'participants_count',
   'school_contact_id',
   'contact_name',
@@ -6269,7 +6268,16 @@ async function readActivityDetailFromSupabase(source_row_id, source_sheet) {
   const [normalized] = await enrichActivitiesWithFundingSources([normalizeActivityRow(data || {})]);
   const contactRows = await readContactsForSchool2027Activities([normalized]);
   const resolved = withResolvedSchool2027Contact(normalized, contactRows);
-  return { row: { ...resolved, private_note: resolved.operations_private_notes || '' } };
+  // Operational notes are never read from the broadly readable activities table.
+  let privateNote = '';
+  if (String(state?.user?.role || '').trim() === 'operation_manager') {
+    const { data: privateRow, error: privateError } = await supabase.from('operations_private_notes')
+      .select('note_text').eq('source_sheet', 'activities').eq('source_row_id', rowId).maybeSingle();
+    if (privateError) throw new Error(privateError.message || 'private_note_load_failed');
+    privateNote = String(privateRow?.note_text || '');
+  }
+  const { operations_private_notes: _discardPrivateColumn, ...safeRow } = resolved;
+  return { row: { ...safeRow, private_note: privateNote } };
 }
 
 async function readActivityDatesFromSupabase(source_row_id, source_sheet) {
@@ -9013,7 +9021,14 @@ export const api = {
       return api.submitEditRequest(payload);
     }
     if (!canEditDirect) throw new Error('forbidden_save_activity');
-    return updateActivityInSupabase(payload);
+    const changes = { ...(payload?.changes || {}) };
+    const hasPrivateNote = Object.prototype.hasOwnProperty.call(changes, 'operations_private_notes');
+    if (hasPrivateNote && userRole !== 'operation_manager') throw new Error('forbidden_private_note');
+    const privateNote = changes.operations_private_notes;
+    delete changes.operations_private_notes;
+    const result = await updateActivityInSupabase({ ...payload, changes });
+    if (hasPrivateNote) await api.savePrivateNote({ source_row_id: payload?.source_row_id || payload?.row_id || payload?.RowID, note: privateNote });
+    return result;
   },
   deleteActivity: async (source_row_id) => {
     const rowId = String(source_row_id || '').trim();
@@ -9319,15 +9334,22 @@ export const api = {
     return { ok: true };
   },
   savePrivateNote: async (a, b, c) => {
+    if (String(state?.user?.role || '').trim() !== 'operation_manager') throw new Error('forbidden_private_note');
     const payload = (typeof a === 'object' && a !== null)
       ? { source_row_id: a.source_row_id || a.row_id || a.RowID, note: a.note ?? a.note_text ?? '' }
       : { source_row_id: b, note: c };
     const rowId = String(payload.source_row_id || '').trim();
     if (!rowId) throw new Error('missing_row_id');
-    const { error } = await supabase
-      .from('activities')
-      .update({ operations_private_notes: String(payload.note || '') })
-      .eq('row_id', rowId);
+    await waitForSupabaseAuthSession();
+    const { error } = await supabase.from('operations_private_notes')
+      .upsert({
+        source_sheet: 'activities',
+        source_row_id: rowId,
+        note_text: String(payload.note || ''),
+        updated_at: new Date().toISOString(),
+        updated_by: String(state?.user?.user_id || ''),
+        active: 'yes'
+      }, { onConflict: 'source_sheet,source_row_id' });
     if (error) throw new Error(error.message || 'save_private_note_failed');
     return { ok: true };
   },
