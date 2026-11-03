@@ -6,6 +6,20 @@ alter table public.attendance_daily_travel_reports
  public_transport_cost between 0 and 10000 and
  (approved_public_transport_cost is null or approved_public_transport_cost between 0 and 10000)
  );
+-- A single daily summary may contain different transportation modes on different legs.
+-- Preserve the original mutually-exclusive rule for every regular attendance row.
+alter table public.attendance_records
+  drop constraint if exists attendance_records_single_travel_reimbursement;
+alter table public.attendance_records
+  add constraint attendance_records_single_travel_reimbursement check (
+    public_transport_cost >= 0 and roundtrip_km >= 0
+    and (
+      generation_kind='daily_travel_cancellation'
+      or ((not public_transport or roundtrip_km=0)
+          and (public_transport or public_transport_cost=0))
+    )
+  );
+
 alter table public.attendance_records drop constraint if exists attendance_records_generated_shape_check;
 alter table public.attendance_records add constraint attendance_records_generated_shape_check check(
  (generation_kind is null and source_attendance_record_id is null
