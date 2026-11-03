@@ -1649,6 +1649,7 @@ export function compareAttendanceRows(attendanceRows, dashboardRows, options = {
       const attendanceValue = key === 'workHours' ? rowWorkHours(attendance) : type === 'activityType' ? activityTypeDisplayLabel(attendance[key]) : attendance[key];
       const dashboardValue = key === 'workHours' ? rowWorkHours(dashboard) : type === 'activityType' ? activityTypeDisplayLabel(dashboard[key]) : dashboard[key];
       if (dashboard?.__trainingSchedule && ['school', 'authority', 'meetingNo', 'expenses'].includes(key)) return [];
+      if (key === 'kilometers' && txt(attendance.date) >= '2026-11-04') return [];
       if (key === 'kilometers') {
         // Public transport is reimbursed by cost, not by the driving-route km.
         // Keep that system route available without treating a valid zero as a discrepancy.
@@ -2421,7 +2422,7 @@ export function resultsHtml(result, month = '', options = {}) {
       { key: 'workHours', label: 'סה״כ שעות', left: displayWorkHours(current), editValue: rowWorkHours(current), right: dashboard ? displayDashboardWorkHours(dashboard) : null, always: true, autoCalculated: true },
       { key: 'publicTransport', label: 'שימוש בתחבורה ציבורית', left: publicTransport ? 'כן' : 'לא', editValue: publicTransport, right: null, visible: publicTransport || (publicTransportCost != null && publicTransportCost > 0) },
       { key: 'publicTransportCost', label: 'תחבורה ציבורית (₪)', left: publicTransportCost, editValue: publicTransportCost, right: null, visible: publicTransport || (publicTransportCost != null && publicTransportCost > 0) },
-      { key: 'kilometers', label: 'ק״מ', left: training?.kilometers ?? attendanceKm, editValue: attendanceKm, right: dashboardKm, visible: Boolean(training) || !publicTransport },
+      { key: 'kilometers', label: 'ק״מ', left: training?.kilometers ?? attendanceKm, editValue: attendanceKm, right: dashboardKm, visible: txt(displayRow.date) < '2026-11-04' && (Boolean(training) || !publicTransport) },
       { key: 'expenses', label: 'הוצאות', left: attendanceExpenses, editValue: attendanceExpenses, right: dashboardExpenses, visible: (attendanceExpenses != null && attendanceExpenses > 0) || (dashboardExpenses != null && dashboardExpenses > 0) || diffByKey.has('expenses') },
       { key: 'expenseDetails', label: 'פירוט הוצאה', left: current.expenseDetails, editValue: current.expenseDetails, right: null, visible: (attendanceExpenses != null && attendanceExpenses > 0) && hasValue(current.expenseDetails) },
       { key: 'notes', label: 'הערות', left: current.notes, editValue: current.notes, right: null, visible: hasValue(current.notes) }
@@ -2522,7 +2523,7 @@ export function resultsHtml(result, month = '', options = {}) {
       || isAttendanceTravelTimeCancellation(entry || row);
     const minutesLabel = (value) => `${Math.floor((Number(value) || 0) / 60)}:${String((Number(value) || 0) % 60).padStart(2, '0')}`;
 
-    if (autoCancellation || source.reviewStatus || source.reportedOutboundMinutes != null) {
+    if (txt(display.date || row.date) < '2026-11-04' && (autoCancellation || source.reviewStatus || source.reportedOutboundMinutes != null)) {
       const calculated = source.calculatedCancellationMinutes != null ? minutesLabel(source.calculatedCancellationMinutes) : '—';
       const inlineRequest = source.reportedCancellationBeforeMinutes != null
         && source.reportedCancellationAfterMinutes != null;
