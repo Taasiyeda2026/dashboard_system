@@ -1400,7 +1400,9 @@ export function renderNewReportScreen(container, {
 
     const timesGrid = document.createElement('div');
     timesGrid.className = 'av2-report__times-grid';
-    timesGrid.append(startPicker.wrap, endPicker.wrap, hoursDisplay, publicTransportToggle, kmField.wrap, publicTransportCostWrap);
+    const hoursFollowup = document.createElement('div');
+    hoursFollowup.className = 'av2-report__hours-followup';
+    timesGrid.append(startPicker.wrap, endPicker.wrap, hoursDisplay, hoursFollowup, publicTransportToggle, kmField.wrap, publicTransportCostWrap);
     baseTrainingRouteRow = document.createElement('div');
     baseTrainingRouteRow.className = 'av2-report__time-cancellation av2-report__base-training-route';
     baseTrainingRouteRow.hidden = true;
@@ -1500,7 +1502,8 @@ export function renderNewReportScreen(container, {
 
     const expensesInner = document.createElement('div');
     expensesInner.className = 'av2-report__expenses';
-    expensesInner.append(expensesHeading, expenseFields, attachmentUi.section, notesField.wrap);
+    expensesInner.append(expensesHeading, expenseFields, attachmentUi.section);
+    hoursFollowup.append(notesField.wrap);
 
     const timesSection = makeFormSection(
       'שעות עבודה',
@@ -1990,7 +1993,7 @@ export function renderNewReportScreen(container, {
       dailyTravel.panel.dataset.av2Visited = '1';
       showTab('travel');
     });
-    dateField.wrap.append(travelShortcut);
+    hoursFollowup.append(travelShortcut);
     attendanceTab.addEventListener('click',()=>showTab('attendance'));
     travelTab.addEventListener('click',()=>showTab('travel'));
     tabs.addEventListener('keydown',event=>{
