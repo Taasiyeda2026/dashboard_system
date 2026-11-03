@@ -1958,10 +1958,24 @@ export function buildCorrectedAttendanceWorkbook(comparisons, dashboardRows = []
     asBoolean(row.publicTransport ?? row.PublicTransport ?? row.public_transport)
       ? (optionalNumber(row.publicTransportCost ?? row.PublicTransportCost ?? row.public_transport_cost) ?? 0) : 0
   ]);
+  const travelHeaders = ['מספר עובד','תאריך','מקטע','מוצא','יעד','זמן נסיעה (דקות)','קילומטרים','ביטול זמן יומי','קילומטרים מאושרים','ביטול זמן מאושר','סטטוס'];
+  const travelRows = (options.dailyTravelReports || []).flatMap(report => {
+    const legs = Array.isArray(report.legs) && report.legs.length ? report.legs : [null];
+    return legs.map(leg=>[
+      txt(report.emp_id),txt(report.travel_date),
+      leg?.kind==='outbound'?'נסיעה ראשונה':leg?.kind==='return'?'נסיעה אחרונה':leg?.kind==='between'?'בין פעילויות':'ללא נסיעה',
+      txt(leg?.from),txt(leg?.to),
+      leg?.minutes ?? '',leg?.kilometers ?? '',
+      report.cancellation_minutes ?? '',
+      report.approved_km ?? '',report.approved_cancellation_minutes ?? '',
+      ({pending_review:'ממתין לאישור',approved:'אושר',corrected:'תוקן ואושר',rejected:'נדחה'})[report.review_status]||'ממתין לבדיקה'
+    ]);
+  });
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, detailSheet, 'פירוט מלא');
   XLSX.utils.book_append_sheet(workbook, styledSheet(MONTHLY_HEADERS, monthly), 'סיכום חודשי');
   XLSX.utils.book_append_sheet(workbook, styledSheet(DAILY_HEADERS, daily, [12, 18, 12, 14, 16, 11, 11, 11, 11, 12, 12, 24, 16]), 'תצוגה יומית');
+  XLSX.utils.book_append_sheet(workbook, styledSheet(travelHeaders, travelRows), 'נסיעות וביטולים');
   return workbook;
 }
 
@@ -3650,7 +3664,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       return;
     }
     if (clickEl.closest('[data-attendance-export]') && result) {
-      XLSX.writeFile(buildCorrectedAttendanceWorkbook([...result.comparisons, ...(result.notCompared || [])], result.dashboardPopulation), attendanceExportFilename(result.month), { compression: true });
+      XLSX.writeFile(buildCorrectedAttendanceWorkbook([...result.comparisons, ...(result.notCompared || [])], result.dashboardPopulation, {dailyTravelReports:result.dailyTravelReports}), attendanceExportFilename(result.month), { compression: true });
       return;
     }
     const kmApproveBtn = clickEl.closest('[data-km-approve-reported]');
