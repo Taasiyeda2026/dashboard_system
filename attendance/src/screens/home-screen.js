@@ -4,6 +4,8 @@
  */
 
 import { createIcon } from '../components/icon.js';
+import { getDailyTravelReports } from '../services/daily-travel.service.js';
+import { isZoomLocationReport } from '../services/attendance-location-policy.js';
 import { getMonthRecords, getMonthApproval, submitMonth, sourceAttendanceRecords } from '../services/attendance.service.js';
 import { canEditMonth, resolveMonthDisplayStatus, getMonthKey, formatMonthLabel } from '../services/month-gate.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
@@ -98,10 +100,10 @@ export function renderHomeScreen(container, {
   wrap.append(inner);
   container.append(wrap);
 
-  loadAndRender({ instructor, year, month, statsEl, actionStripEl, onMyReports });
+  loadAndRender({ instructor, year, month, statsEl, actionStripEl, onMyReports, onNewReport });
 }
 
-async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, onMyReports }) {
+async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, onMyReports, onNewReport }) {
   const monthKey = getMonthKey(year, month);
   try {
     const [records, approval] = await Promise.all([
@@ -123,7 +125,7 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
     // Action strip
     actionStripEl.innerHTML = '';
     actionStripEl.append(
-      buildActionStrip({ approval, year, month, instructor, records, sourceRecords, editable, onMyReports })
+      buildActionStrip({ approval, year, month, instructor, records, sourceRecords, editable, onMyReports, onNewReport })
     );
 
   } catch (err) {
@@ -134,7 +136,7 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
 
 // ── Compact action strip (no duplicated stats) ────────────────────────────────
 
-function buildActionStrip({ approval, year, month, instructor, records, sourceRecords, editable, onMyReports }) {
+function buildActionStrip({ approval, year, month, instructor, records, sourceRecords, editable, onMyReports, onNewReport }) {
   const strip = document.createElement('div');
   strip.className = 'av2-home__action-strip';
 
@@ -176,7 +178,11 @@ function buildActionStrip({ approval, year, month, instructor, records, sourceRe
     const xlLabel = document.createElement('span');
     xlLabel.textContent = 'Excel';
     xlBtn.append(xlLabel);
-    xlBtn.addEventListener('click', () => exportMonthToExcel(records, instructor, year, month));
+    xlBtn.addEventListener('click', () => (async()=>{
+      const reports=getMonthKey(year,month)>='2026-11'
+        ? await getDailyTravelReports(instructor.empId,getMonthKey(year,month)) : [];
+      exportMonthToExcel(records,instructor,year,month,reports);
+    })().catch(()=>{}));
     actions.append(xlBtn);
   }
 
@@ -190,7 +196,7 @@ function buildActionStrip({ approval, year, month, instructor, records, sourceRe
       ? `הגשה מחדש · ${formatMonthLabel(year, month)}`
       : 'סיום ואישור';
     submitBtn.append(createIcon('check-circle', { size: 14 }), submitLabel);
-    submitBtn.addEventListener('click', () => handleSubmit({ submitBtn, instructor, year, month, sourceRecords, strip }));
+    submitBtn.addEventListener('click', () => handleSubmit({ submitBtn, instructor, year, month, sourceRecords, strip, onNewReport }));
     actions.append(submitBtn);
   }
 
@@ -200,6 +206,44 @@ function buildActionStrip({ approval, year, month, instructor, records, sourceRe
 
 async function handleSubmit({ submitBtn, instructor, year, month, sourceRecords, strip }) {
   if (!sourceRecords.length) return;
+  if (getMonthKey(year,month)>='2026-11') {
+    try {
+      const physicalDays=[...new Set(sourceRecords.filter(row=>
+        row.report_date >= '2026-11-04'
+        && row.activity_type!=='ביטול זמן'
+        && !isZoomLocationReport({
+          activityType:row.activity_type,
+          trainingMode:row.training_mode,
+          operationMeetingMode:row.operation_meeting_mode,
+          operationName:row.activity_name_snapshot
+        })
+      ).map(row=>row.report_date))];
+      const reports=await getDailyTravelReports(instructor.empId,getMonthKey(year,month));
+      const reported=new Set(reports.map(row=>row.travel_date));
+      const missing=physicalDays.filter(date=>!reported.has(date));
+      const old=strip.querySelector('[data-travel-submit-warning]');
+      if(old)old.remove();
+      if(missing.length){
+        const warning=document.createElement('div');
+        warning.dataset.travelSubmitWarning='true';
+        warning.className='av2-home__travel-warning';
+        const msg=document.createElement('span');
+        msg.textContent='נותרו '+missing.length+' ימים ללא דיווח נסיעות';
+        const action=document.createElement('button');
+        action.type='button';action.className='av2-btn av2-btn--secondary';
+        action.textContent='השלמת נסיעות';
+        action.addEventListener('click',()=>onNewReport?.());
+        warning.append(msg,action);strip.append(warning);
+        return;
+      }
+    }catch(error){
+      const warning=document.createElement('p');
+      warning.className='av2-home__travel-warning';
+      warning.textContent='לא ניתן לבדוק את דיווחי הנסיעות';
+      strip.append(warning);
+      return;
+    }
+  }
   await openSubmitConfirmationDialog({
     monthLabel: formatMonthLabel(year, month), sourceCount: sourceRecords.length, trigger: submitBtn,
     onApprove: async () => {
