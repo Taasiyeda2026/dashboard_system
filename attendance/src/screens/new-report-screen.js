@@ -492,6 +492,7 @@ export function renderNewReportScreen(container, {
       publicTransportInput.disabled = false;
     }
 
+    if (isDailyTravelDate()) publicTransportInput.checked = false;
     const usesPublicTransport = !online && publicTransportInput.checked;
     kmField.wrap.hidden = online || usesPublicTransport || isDailyTravelDate();
     kmField.input.disabled = online || usesPublicTransport;
@@ -1842,7 +1843,7 @@ export function renderNewReportScreen(container, {
 
       const programName = activity?.program_name || activityNameSnapshot || null;
 
-      const usesPublicTransport = !isDailyTravelDate() && !isOnline && !isTeamOnline && publicTransportInput.checked;
+      const usesPublicTransport = !isOnline && !isTeamOnline && publicTransportInput.checked;
       const kmValue = reportedKilometers(kmField.input.value, {
         online: isOnline || isTeamOnline, publicTransport: usesPublicTransport, activityType: reportType,
       });
