@@ -524,7 +524,7 @@ export const exceptionsScreen = {
     try { sessionStorage.removeItem('ds_exceptions_save_notice'); } catch { /* ignore */ }
     const allRows   = prepareExceptionDisplayRows(data);
     bindLocalFilters(root, state, EXCEPTIONS_SCOPE, rerender, { debounceMs: 150 });
-    const canSeePrivateNotes = hasPermission(state?.user, 'manage_activity_archive');
+    const canSeePrivateNotes = String(state?.user?.role || '').trim() === 'operation_manager';
     const canEditActivity = !!(state?.user?.can_edit_direct || state?.user?.can_request_edit);
     const hideEmpIds = !!state?.clientSettings?.hide_emp_id_on_screens;
     const canDeleteActivity = canEditDirect(state?.user);
