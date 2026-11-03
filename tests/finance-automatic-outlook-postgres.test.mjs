@@ -26,7 +26,7 @@ before(async()=>{
     create table net.requests(id bigint generated always as identity,headers jsonb,body jsonb);
     create function net.http_post(url text,headers jsonb,body jsonb,timeout_milliseconds integer) returns bigint language sql as
       $$insert into net.requests(headers,body) values(headers,body) returning id$$;
-    create function cron.schedule(text,text,text) returns bigint language sql as $$select 1::bigint$$;`);
+    create function cron.schedule(text,text,text) returns bigint language sql as $$insert into cron.job values($1);select 1::bigint$$;`);
   for(const name of ['20260821190000_finance_transaction_accounts','20260821203000_finance_transaction_issuance_modes'])await db.query(await read(`../supabase/migrations/${name}.sql`));
   await db.query('alter function reserve_finance_transaction_account(uuid,date,text,text,text,jsonb) rename to reserve_finance_transaction_account_legacy_impl');
   for(const name of ['20261029222210_finance_funder_billing','20261029224142_finance_receipts_manual_accounts',
@@ -88,6 +88,7 @@ check('creation intent is single-use under the dispatch lease and cleared only a
   assert.equal((await begin()).rows[0].allowed,true);
 });
 check('retired cron and job capabilities cannot reach Outlook; pending accounts belong only to the original session',async()=>{
+  assert.equal((await db.query("select count(*)::int n from cron.job where jobname='finance-outlook-drafts'")).rows[0].n,0);
   await finalize();await db.query('select release_finance_dispatch($1,$2)',[account.id,token]);
   assert.equal((await db.query('select finance_private.dispatch_outlook_jobs() n')).rows[0].n,0);
   assert.equal((await db.query('select count(*)::int n from net.requests')).rows[0].n,0);
