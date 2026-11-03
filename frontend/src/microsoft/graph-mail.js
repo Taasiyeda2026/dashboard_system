@@ -1,6 +1,7 @@
 import { PublicClientApplication, InteractionRequiredAuthError } from '@azure/msal-browser';
 
 let msalClient;
+let msalInitialization;
 
 function microsoftConfig() {
   const runtime = globalThis.__DASHBOARD_CONFIG__ || {};
@@ -19,9 +20,17 @@ export async function delegatedMailToken(loginHint = '', { interactive = true } 
       auth: { clientId: config.clientId, authority: `https://login.microsoftonline.com/${config.tenantId}`, redirectUri: config.redirectUri },
       cache: { cacheLocation: 'sessionStorage', storeAuthStateInCookie: false }
     });
-    await msalClient.initialize();
-    await msalClient.handleRedirectPromise();
+    const client = msalClient;
+    msalInitialization = (async () => {
+      await client.initialize();
+      await client.handleRedirectPromise();
+    })().catch(error => {
+      msalClient = null;
+      msalInitialization = null;
+      throw error;
+    });
   }
+  await msalInitialization;
   const request = { scopes: ['Mail.ReadWrite'], loginHint: loginHint || undefined };
   const accounts = msalClient.getAllAccounts();
   const normalizedLoginHint = String(loginHint || '').trim().toLowerCase();
