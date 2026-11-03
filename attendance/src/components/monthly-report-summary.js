@@ -1,4 +1,4 @@
-import { instructorReportedCancellationMinutes, roundCancellationMinutesUp } from '../services/cancellation-segments.js';
+import { instructorReportedCancellationMinutes, isSuspectCancellationRequest, roundCancellationMinutesUp } from '../services/cancellation-segments.js';
 
 function numberValue(value) {
   const parsed = Number(value);
