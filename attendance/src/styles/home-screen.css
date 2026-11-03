@@ -113,3 +113,7 @@
   .av2-home__action-strip { flex-wrap: nowrap; gap: 10px; padding: 10px 14px; }
   .av2-home__strip-actions { margin-inline-start: auto; }
 }
+
+.av2-home__travel-warning{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;width:100%;margin:8px 0 0;padding:10px 12px;border-radius:9px;background:var(--av2-color-accent-subtle);font-size:.84rem;font-weight:600;box-sizing:border-box}
+.av2-home__travel-warning .av2-btn{min-height:44px}
+@media(max-width:639px){.av2-home__travel-warning{align-items:stretch;flex-direction:column}.av2-home__travel-warning .av2-btn{width:100%}}

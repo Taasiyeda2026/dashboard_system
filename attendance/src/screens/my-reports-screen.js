@@ -11,6 +11,7 @@
  */
 
 import { createIcon } from '../components/icon.js';
+import { getDailyTravelReports } from '../services/daily-travel.service.js';
 import { reportedKilometers } from '../services/reported-kilometers.js';
 import { createInputField, createSelectField } from '../components/field.js';
 import { createTimePicker } from '../components/time-picker.js';
@@ -110,6 +111,19 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     ]);
 
     const sourceRecords = sourceAttendanceRecords(records);
+    const dailyTravelReports = monthKey >= '2026-11'
+      ? await getDailyTravelReports(instructor.empId,monthKey) : [];
+    const dailyTravelByDate = new Map(dailyTravelReports.map(row=>[row.travel_date,row]));
+    const travelDays = [...new Set(sourceRecords.filter(row=>
+      row.report_date >= '2026-11-04'
+      && !isZoomLocationReport({
+        activityType:row.activity_type,
+        trainingMode:row.training_mode,
+        operationMeetingMode:row.operation_meeting_mode,
+        operationName:row.activity_name_snapshot
+      }) && row.activity_type !== 'ביטול זמן'
+    ).map(row=>row.report_date))].sort();
+    const missingTravel = travelDays.filter(date=>!dailyTravelByDate.has(date));
     const dashboardValidationByRecord = new Map(
       (dashboardValidation || []).map((item) => [String(item?.record_id || ''), item]),
     );
@@ -143,6 +157,27 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
       contentArea.append(lockMsg);
     }
 
+    if(travelDays.length){
+      const travelStatus=document.createElement('section');
+      travelStatus.className='av2-reports__travel-status';
+      const heading=document.createElement('strong');
+      heading.textContent='נסיעות וביטולים';
+      const count=document.createElement('span');
+      count.textContent=missingTravel.length
+        ? missingTravel.length+' ימים ללא דיווח נסיעות'
+        : 'דיווחי הנסיעות הושלמו';
+      travelStatus.append(heading,count);
+      if(missingTravel.length && editable){
+        const action=document.createElement('button');
+        action.type='button';
+        action.className='av2-btn av2-btn--secondary';
+        action.textContent='השלמת נסיעות';
+        action.addEventListener('click',()=>onNewReport?.());
+        travelStatus.append(action);
+      }
+      contentArea.append(travelStatus);
+    }
+
     // ── Toolbar buttons ──────────────────────────────────────────────────
     if (editable) {
       const addBtn = document.createElement('button');
@@ -163,7 +198,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
       const xlLabel = document.createElement('span');
       xlLabel.textContent = 'Excel';
       xlBtn.append(xlLabel);
-      xlBtn.addEventListener('click', () => exportMonthToExcel(records, instructor, year, month));
+      xlBtn.addEventListener('click', () => exportMonthToExcel(records, instructor, year, month, dailyTravelReports));
       toolbar.append(xlBtn);
     }
 
@@ -844,7 +879,8 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     authField.input.disabled = isScheduledTraining || reportType === 'הכשרה';
     schoolField.wrap.hidden = isOperations || reportType === 'הכשרה' || isZoom;
     trainingLocationField.wrap.hidden = reportType !== 'הכשרה' || isOnlineTraining;
-    const eligibleCancellation = canReportInlineCancellation({ activityType: reportType, online: isZoom });
+    const isDailyTravel=reportDateField.input.value >= '2026-11-04';
+    const eligibleCancellation = !isDailyTravel && canReportInlineCancellation({ activityType: reportType, online: isZoom });
     cancellationWrap.hidden = !eligibleCancellation;
     if (!eligibleCancellation) cancellationToggle.checked = false;
     cancellationFields.hidden = !eligibleCancellation || !cancellationToggle.checked;
@@ -854,9 +890,9 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     const usesTransport = !isZoom && publicTransportToggle.checked;
     publicTransportCostField.wrap.hidden = !usesTransport;
     publicTransportCostField.input.disabled = !usesTransport;
-    kmField.wrap.hidden = isZoom || usesTransport;
+    kmField.wrap.hidden = isZoom || usesTransport || isDailyTravel;
 
-    if (isZoom || isOnlineTraining || usesTransport) {
+    if (isZoom || isOnlineTraining || usesTransport || isDailyTravel) {
       if (!kmField.input.disabled) kmBeforeZoom = kmField.input.value;
       kmField.input.value = '0';
       kmField.input.readOnly = true;
@@ -868,6 +904,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
       if (wasDisabled) kmField.input.value = kmBeforeZoom;
     }
   }
+  reportDateField.input.addEventListener('change', syncEditTypeUi);
   typeField.input.addEventListener('change', syncEditTypeUi);
   teamModeField.input.addEventListener('change', syncEditTypeUi);
   trainingModeField.input.addEventListener('change', syncEditTypeUi);
@@ -933,10 +970,11 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     }
 
     const missing = [];
-    const kmValue = reportedKilometers(kmField.input.value, {
+    let kmValue = reportedKilometers(kmField.input.value, {
       online: isZoom, publicTransport: publicTransportToggle.checked, activityType: reportType,
     });
-    if (kmValue == null) missing.push('קילומטרים לדיווח, או 0 אם אין');
+    if (reportDateField.input.value < '2026-11-04' && kmValue == null) missing.push('קילומטרים לדיווח, או 0 אם אין');
+    if (reportDateField.input.value >= '2026-11-04') kmValue = 0;
     if (!startTime || !endTime) missing.push('שעות');
     if (startTime && endTime && totalHours <= 0) missing.push('שעת סיום חייבת להיות מאוחרת מהתחלה');
     if (!reportType) missing.push('סוג פעילות');
@@ -983,8 +1021,8 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
         semel_mosad:             isOperations || isBaseTraining || isZoom || isOnlineTraining || isScheduledTraining ? null : (record.semel_mosad ?? null),
         meeting_no:              isCourse && meetField.input.value ? Number(meetField.input.value) : null,
         program_name:            isOperations || isBaseTraining ? null : (record.program_name ?? null),
-        cancellation_before_minutes: cancellationToggle.checked ? cancellationMinutesForSave(beforeCancellationField.input.value, record, 'cancellation_before_minutes') : null,
-        cancellation_after_minutes:  cancellationToggle.checked ? cancellationMinutesForSave(afterCancellationField.input.value, record, 'cancellation_after_minutes') : null,
+        cancellation_before_minutes: reportDateField.input.value < '2026-11-04' && cancellationToggle.checked ? cancellationMinutesForSave(beforeCancellationField.input.value, record, 'cancellation_before_minutes') : null,
+        cancellation_after_minutes:  reportDateField.input.value < '2026-11-04' && cancellationToggle.checked ? cancellationMinutesForSave(afterCancellationField.input.value, record, 'cancellation_after_minutes') : null,
         roundtrip_km:            kmValue,
         public_transport:        !isZoom && publicTransportToggle.checked,
         public_transport_cost:   !isZoom && publicTransportToggle.checked ? Number(publicTransportCostField.input.value || 0) : 0,
@@ -994,7 +1032,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
       });
       overlay.remove();
       onRefresh();
-      void reconcileTravelCompensation(record.id).then(() => onRefresh()).catch(() => null);
+      if(reportDateField.input.value < '2026-11-04') void reconcileTravelCompensation(record.id).then(() => onRefresh()).catch(() => null);
     } catch (err) {
       errorEl.textContent = err.message;
       errorEl.hidden = false;

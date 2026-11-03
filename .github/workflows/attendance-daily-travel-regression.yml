@@ -1,0 +1,30 @@
+name: Daily attendance travel regression
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'attendance/src/**'
+      - 'frontend/src/screens/attendance-control.js'
+      - 'frontend/src/payroll-attendance-v2-bridge.js'
+      - 'supabase/migrations/20261104*'
+      - 'tests/attendance-daily-*.test.mjs'
+      - '.github/workflows/attendance-daily-travel-regression.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  attendance-daily-travel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run daily travel, export and attendance regressions
+        run: |
+          node --test tests/attendance-daily-travel-policy-20261103.test.mjs tests/attendance-daily-travel-manager-export-mobile.test.mjs tests/attendance-daily-payroll-once.test.mjs tests/attendance-employee-export.test.mjs
+      - name: Build production bundle
+        run: npm run build

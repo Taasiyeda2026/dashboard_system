@@ -11,6 +11,7 @@ import { createInputField, createSelectField } from '../components/field.js';
 import { createSearchableSelect } from '../components/searchable-select.js';
 import { createCompactSelect } from '../components/compact-select.js';
 import { createTimePicker } from '../components/time-picker.js';
+import { createDailyTravelTab } from './daily-travel-tab.js';
 import {
   getInstructorActivities,
   getTrainingScheduleForDate,
@@ -59,6 +60,7 @@ import {
 import { dashboardCourseChoiceKey } from '../services/activities-report.helpers.js';
 
 const TIME_MINUTE_STEP = 5;
+const DAILY_TRAVEL_START_DATE = '2026-11-04';
 const COURSE_REPORT_TYPE = 'קורס';
 const WORKSHOP_REPORT_TYPE = 'סדנה';
 const AUTO_TIME_REPORT_TYPES = new Set([COURSE_REPORT_TYPE, WORKSHOP_REPORT_TYPE]);
@@ -474,6 +476,10 @@ export function renderNewReportScreen(container, {
     syncMeetingFieldState();
   }
 
+  function isDailyTravelDate() {
+    return getReportDate() >= DAILY_TRAVEL_START_DATE;
+  }
+
   function syncTravelMode() {
     if (!kmField?.input || !publicTransportInput || !publicTransportCostWrap) return;
     const online = isOnlineActivity();
@@ -486,7 +492,7 @@ export function renderNewReportScreen(container, {
     }
 
     const usesPublicTransport = !online && publicTransportInput.checked;
-    kmField.wrap.hidden = online || usesPublicTransport;
+    kmField.wrap.hidden = online || usesPublicTransport || isDailyTravelDate();
     kmField.input.disabled = online || usesPublicTransport;
     kmField.input.readOnly = online || usesPublicTransport;
     publicTransportCostWrap.hidden = !usesPublicTransport;
@@ -499,7 +505,7 @@ export function renderNewReportScreen(container, {
 
   function syncInlineCancellationUi() {
     if (!cancellationToggle || !cancellationFields) return;
-    const eligible = canReportInlineCancellation({ activityType: getReportType(), online: isOnlineActivity() });
+    const eligible = !isDailyTravelDate() && canReportInlineCancellation({ activityType: getReportType(), online: isOnlineActivity() });
     cancellationToggle.parentElement.hidden = !eligible;
     if (!eligible) cancellationToggle.checked = false;
     cancellationFields.hidden = !eligible || !cancellationToggle.checked;
@@ -1007,6 +1013,7 @@ export function renderNewReportScreen(container, {
   async function onReportDateChange() {
     const dateToken = ++reportDateToken;
     const dateStr = getReportDate();
+    syncTravelMode();
     if (isCourseReportType()) {
       void refreshDashboardCourseOptions(coursePrefill || {});
       coursePrefill = null;
@@ -1494,7 +1501,7 @@ export function renderNewReportScreen(container, {
     expensesInner.append(expensesHeading, expenseFields, attachmentUi.section, notesField.wrap);
 
     const timesSection = makeFormSection(
-      'זמנים ונסיעות',
+      'שעות עבודה',
       'times',
       'av2-form-section__body--times',
       [timesGrid, expensesInner],
@@ -1838,7 +1845,7 @@ export function renderNewReportScreen(container, {
       const kmValue = reportedKilometers(kmField.input.value, {
         online: isOnline || isTeamOnline, publicTransport: usesPublicTransport, activityType: reportType,
       });
-      if (kmValue == null) {
+      if (!isDailyTravelDate() && kmValue == null) {
         errorEl.textContent = 'יש להזין קילומטרים לדיווח, או 0 אם אין קילומטרים לדיווח.';
         errorEl.hidden = false;
         kmField.input.focus();
@@ -1884,9 +1891,9 @@ export function renderNewReportScreen(container, {
           semel_mosad: hasNoLocation || isTraining ? null : (semelMosad || null),
           program_name: isOpen || isBaseTraining ? null : (activity?.program_name ?? null),
           program_name_snapshot: programName,
-          cancellation_before_minutes: cancellationToggle.checked
+          cancellation_before_minutes: !isDailyTravelDate() && cancellationToggle.checked
             ? cancellationMinutesForSave(cancellationBeforeField.input.value, originalCancellationRecord, 'cancellation_before_minutes') : null,
-          cancellation_after_minutes: cancellationToggle.checked
+          cancellation_after_minutes: !isDailyTravelDate() && cancellationToggle.checked
             ? cancellationMinutesForSave(cancellationAfterField.input.value, originalCancellationRecord, 'cancellation_after_minutes') : null,
           roundtrip_km: kmValue,
           public_transport: usesPublicTransport,
@@ -1897,10 +1904,11 @@ export function renderNewReportScreen(container, {
           ...scheduledTrainingFields,
         };
 
+        if (isDailyTravelDate()) payload.roundtrip_km = 0;
         const record = await createRecord(instructor.empId, payload);
         // Travel compensation is back-office processing. Never block or warn the
         // instructor: unresolved calculations remain visible to the team manager/admin.
-        void reconcileTravelCompensation(record.id).catch(() => null);
+        if (!isDailyTravelDate()) void reconcileTravelCompensation(record.id).catch(() => null);
         const failedFiles = await uploadPendingFiles(record.id);
         if (failedFiles.length) {
           savedRecordForAttachmentRetry = record;
@@ -1920,7 +1928,64 @@ export function renderNewReportScreen(container, {
       }
     });
 
-    formArea.append(form);
+    const tabs = document.createElement('div');
+    tabs.className = 'av2-report__tabs';
+    tabs.setAttribute('role', 'tablist');
+    const attendanceTab = document.createElement('button');
+    attendanceTab.type = 'button';
+    attendanceTab.className = 'av2-btn av2-btn--secondary';
+    attendanceTab.textContent = 'נוכחות';
+    attendanceTab.setAttribute('role','tab');
+    const travelTab = document.createElement('button');
+    travelTab.type = 'button';
+    travelTab.className = 'av2-btn av2-btn--secondary';
+    travelTab.textContent = 'נסיעות וביטולים';
+    travelTab.setAttribute('role','tab');
+    attendanceTab.id='av2-attendance-tab-trigger';
+    travelTab.id='av2-travel-tab-trigger';
+    attendanceTab.setAttribute('aria-controls','av2-attendance-tab-panel');
+    travelTab.setAttribute('aria-controls','av2-travel-tab-panel');
+    form.id='av2-attendance-tab-panel';
+    form.setAttribute('role','tabpanel');
+    form.setAttribute('aria-labelledby',attendanceTab.id);
+    tabs.append(attendanceTab, travelTab);
+    const dailyTravel = createDailyTravelTab({
+      empId: instructor.empId,
+      initialDate: dateField.input.value || defaultDate
+    });
+    function showTab(kind) {
+      const isAttendance = kind === 'attendance';
+      form.hidden = !isAttendance;
+      dailyTravel.panel.hidden = isAttendance;
+      attendanceTab.setAttribute('aria-selected',String(isAttendance));
+      travelTab.setAttribute('aria-selected',String(!isAttendance));
+      attendanceTab.tabIndex=isAttendance?0:-1;
+      travelTab.tabIndex=isAttendance?-1:0;
+      attendanceTab.classList.toggle('av2-report__tab--active',isAttendance);
+      travelTab.classList.toggle('av2-report__tab--active',!isAttendance);
+      if(!isAttendance){
+        if(dailyTravel.panel.dataset.av2Visited!=='1'){
+          dailyTravel.dateInput.value=dateField.input.value||defaultDate;
+          dailyTravel.panel.dataset.av2Visited='1';
+        }
+        void dailyTravel.load();
+      }
+    }
+    attendanceTab.addEventListener('click',()=>showTab('attendance'));
+    travelTab.addEventListener('click',()=>showTab('travel'));
+    tabs.addEventListener('keydown',event=>{
+      if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+      const tabsList=[attendanceTab,travelTab];
+      const index=tabsList.indexOf(event.target);
+      if(index<0)return;
+      event.preventDefault();
+      const nextIndex=event.key==='Home'?0:event.key==='End'?1:
+        (index+(event.key==='ArrowLeft'?-1:1)+2)%2;
+      showTab(nextIndex===0?'attendance':'travel');
+      tabsList[nextIndex].focus();
+    });
+    formArea.append(tabs,form,dailyTravel.panel);
+    showTab('attendance');
     void onReportDateChange();
   }
 

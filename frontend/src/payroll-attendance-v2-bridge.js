@@ -337,4 +337,25 @@ api.attendanceControlAttachmentSignedUrl = async function (storagePath = '') {
   return { signedUrl: text(data?.signedUrl) };
 };
 
+
+api.attendanceControlDailyTravelReports = async function ({employeeIds=[],fromDate='',toDate=''}={}) {
+  await waitForSupabaseAuthSession({timeoutMs:7000}).catch(()=>null);
+  const ids=[...new Set((employeeIds||[]).map(id=>Number(text(id))).filter(Number.isSafeInteger))];
+  const {data,error}=await supabase.rpc('av2_list_daily_travel_for_review',{
+    p_employee_ids:ids.length?ids:null,p_from_date:fromDate,p_to_date:toDate
+  });
+  if(error)throw new Error('טעינת דיווחי הנסיעות נכשלה');
+  return Array.isArray(data)?data:[];
+};
+
+api.attendanceControlReviewDailyTravel = async function ({employeeId,date,decision,km=null,minutes=null}={}) {
+  await waitForSupabaseAuthSession({timeoutMs:7000}).catch(()=>null);
+  const {data,error}=await supabase.rpc('av2_review_daily_travel',{
+    p_emp_id:Number(employeeId),p_date:date,p_decision:decision,
+    p_km:km,p_minutes:minutes
+  });
+  if(error)throw new Error(error.message||'בקרת הנסיעות נכשלה');
+  return data;
+};
+
 export { legacyRecord, normalizeAttachments };

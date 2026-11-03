@@ -1649,6 +1649,7 @@ export function compareAttendanceRows(attendanceRows, dashboardRows, options = {
       const attendanceValue = key === 'workHours' ? rowWorkHours(attendance) : type === 'activityType' ? activityTypeDisplayLabel(attendance[key]) : attendance[key];
       const dashboardValue = key === 'workHours' ? rowWorkHours(dashboard) : type === 'activityType' ? activityTypeDisplayLabel(dashboard[key]) : dashboard[key];
       if (dashboard?.__trainingSchedule && ['school', 'authority', 'meetingNo', 'expenses'].includes(key)) return [];
+      if (key === 'kilometers' && txt(attendance.date) >= '2026-11-04') return [];
       if (key === 'kilometers') {
         // Public transport is reimbursed by cost, not by the driving-route km.
         // Keep that system route available without treating a valid zero as a discrepancy.
@@ -1958,10 +1959,24 @@ export function buildCorrectedAttendanceWorkbook(comparisons, dashboardRows = []
     asBoolean(row.publicTransport ?? row.PublicTransport ?? row.public_transport)
       ? (optionalNumber(row.publicTransportCost ?? row.PublicTransportCost ?? row.public_transport_cost) ?? 0) : 0
   ]);
+  const travelHeaders = ['מספר עובד','תאריך','מקטע','מוצא','יעד','זמן נסיעה (דקות)','קילומטרים','ביטול זמן יומי','קילומטרים מאושרים','ביטול זמן מאושר','סטטוס'];
+  const travelRows = (options.dailyTravelReports || []).flatMap(report => {
+    const legs = Array.isArray(report.legs) && report.legs.length ? report.legs : [null];
+    return legs.map(leg=>[
+      txt(report.emp_id),txt(report.travel_date),
+      leg?.kind==='outbound'?'נסיעה ראשונה':leg?.kind==='return'?'נסיעה אחרונה':leg?.kind==='between'?'בין פעילויות':'ללא נסיעה',
+      txt(leg?.from),txt(leg?.to),
+      leg?.minutes ?? '',leg?.kilometers ?? '',
+      report.cancellation_minutes ?? '',
+      report.approved_km ?? '',report.approved_cancellation_minutes ?? '',
+      ({pending_review:'ממתין לאישור',approved:'אושר',corrected:'תוקן ואושר',rejected:'נדחה'})[report.review_status]||'ממתין לבדיקה'
+    ]);
+  });
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, detailSheet, 'פירוט מלא');
   XLSX.utils.book_append_sheet(workbook, styledSheet(MONTHLY_HEADERS, monthly), 'סיכום חודשי');
   XLSX.utils.book_append_sheet(workbook, styledSheet(DAILY_HEADERS, daily, [12, 18, 12, 14, 16, 11, 11, 11, 11, 12, 12, 24, 16]), 'תצוגה יומית');
+  XLSX.utils.book_append_sheet(workbook, styledSheet(travelHeaders, travelRows), 'נסיעות וביטולים');
   return workbook;
 }
 
@@ -2407,7 +2422,7 @@ export function resultsHtml(result, month = '', options = {}) {
       { key: 'workHours', label: 'סה״כ שעות', left: displayWorkHours(current), editValue: rowWorkHours(current), right: dashboard ? displayDashboardWorkHours(dashboard) : null, always: true, autoCalculated: true },
       { key: 'publicTransport', label: 'שימוש בתחבורה ציבורית', left: publicTransport ? 'כן' : 'לא', editValue: publicTransport, right: null, visible: publicTransport || (publicTransportCost != null && publicTransportCost > 0) },
       { key: 'publicTransportCost', label: 'תחבורה ציבורית (₪)', left: publicTransportCost, editValue: publicTransportCost, right: null, visible: publicTransport || (publicTransportCost != null && publicTransportCost > 0) },
-      { key: 'kilometers', label: 'ק״מ', left: training?.kilometers ?? attendanceKm, editValue: attendanceKm, right: dashboardKm, visible: Boolean(training) || !publicTransport },
+      { key: 'kilometers', label: 'ק״מ', left: training?.kilometers ?? attendanceKm, editValue: attendanceKm, right: dashboardKm, visible: txt(displayRow.date) < '2026-11-04' && (Boolean(training) || !publicTransport) },
       { key: 'expenses', label: 'הוצאות', left: attendanceExpenses, editValue: attendanceExpenses, right: dashboardExpenses, visible: (attendanceExpenses != null && attendanceExpenses > 0) || (dashboardExpenses != null && dashboardExpenses > 0) || diffByKey.has('expenses') },
       { key: 'expenseDetails', label: 'פירוט הוצאה', left: current.expenseDetails, editValue: current.expenseDetails, right: null, visible: (attendanceExpenses != null && attendanceExpenses > 0) && hasValue(current.expenseDetails) },
       { key: 'notes', label: 'הערות', left: current.notes, editValue: current.notes, right: null, visible: hasValue(current.notes) }
@@ -2508,7 +2523,7 @@ export function resultsHtml(result, month = '', options = {}) {
       || isAttendanceTravelTimeCancellation(entry || row);
     const minutesLabel = (value) => `${Math.floor((Number(value) || 0) / 60)}:${String((Number(value) || 0) % 60).padStart(2, '0')}`;
 
-    if (autoCancellation || source.reviewStatus || source.reportedOutboundMinutes != null) {
+    if (txt(display.date || row.date) < '2026-11-04' && (autoCancellation || source.reviewStatus || source.reportedOutboundMinutes != null)) {
       const calculated = source.calculatedCancellationMinutes != null ? minutesLabel(source.calculatedCancellationMinutes) : '—';
       const inlineRequest = source.reportedCancellationBeforeMinutes != null
         && source.reportedCancellationAfterMinutes != null;
@@ -2594,6 +2609,38 @@ export function resultsHtml(result, month = '', options = {}) {
       : '';
     return `<section class="attendance-control__report" data-attendance-record-id="${escapeHtml(item.id)}" data-record-editing="${editing ? '1' : '0'}"><div class="attendance-control__report-line"><strong>${shown(`${row.startTime || '—'}–${row.endTime || '—'} | ${activityTypeDisplayLabel(row.activityType) || 'דיווח'}${trainingDetailsForRow(row)?.mode === 'online' ? ' – זום' : ''}`)}</strong><div class="attendance-control__report-line-actions">${status}${recordActions}</div></div>${body}${editFooter}</section>`;
   };
+  const dailyTravelByDay = new Map((result.dailyTravelReports || [])
+    .map(row => [txt(row.emp_id) + '|' + txt(row.travel_date), row]));
+  const needsDailyTravel = (date,rows=[]) => date >= '2026-11-04' && rows.some(({item})=>{
+    const row=item?.attendance || item?.final || {};
+    const activity=normalizeAttendanceName(row.activityType);
+    return Boolean(row.date) && row.isRemoteDestination !== true
+      && activity !== normalizeAttendanceName('זום')
+      && activity !== normalizeAttendanceName('ביטול זמן')
+      && txt(row.trainingMode) !== 'online';
+  });
+  const dailyTravelHtml = (employeeId,date,dayRows=[]) => {
+    if (!needsDailyTravel(date,dayRows)) return '';
+    const record = dailyTravelByDay.get(employeeId+'|'+date);
+    if (!record) return '<div class="attendance-control__daily-travel attendance-control__daily-travel--missing">'+
+      '<strong>נסיעות וביטולים · '+shown(dateLabel(date))+'</strong><span>דיווח נסיעות חסר</span></div>';
+    const status = record.review_status === 'approved' || record.review_status === 'corrected'
+      ? 'אושר' : record.review_status === 'rejected' ? 'נדחה' : 'ממתין לאישור';
+    const km = record.no_travel ? 0 : optionalNumber(record.total_km);
+    const minutes = record.no_travel ? 0 : optionalNumber(record.cancellation_minutes);
+    const actions = record.review_status === 'pending_review' && currentEmployeeCanMutate
+      ? '<button type="button" class="ds-btn ds-btn--sm" data-daily-travel-review="approve" data-daily-travel-employee="'+escapeHtml(employeeId)+'" data-daily-travel-date="'+escapeHtml(date)+'">אישור נסיעות</button>'+
+        '<button type="button" class="ds-btn ds-btn--sm" data-daily-travel-review="reject" data-daily-travel-employee="'+escapeHtml(employeeId)+'" data-daily-travel-date="'+escapeHtml(date)+'">דחייה</button>'+
+        '<label>ק״מ מאושר <input class="ds-input ds-input--sm" data-daily-travel-correct-km type="number" min="0" max="10000" step="0.01" value="'+escapeHtml(String(km??0))+'"></label>'+
+        '<label>ביטול זמן מאושר (דקות) <input class="ds-input ds-input--sm" data-daily-travel-correct-minutes type="number" min="0" max="1440" step="1" value="'+escapeHtml(String(minutes??0))+'"></label>'+
+        '<button type="button" class="ds-btn ds-btn--sm" data-daily-travel-review="correct" data-daily-travel-employee="'+escapeHtml(employeeId)+'" data-daily-travel-date="'+escapeHtml(date)+'">תיקון ואישור</button>'
+      : '';
+    const legRows = Array.isArray(record.legs) ? record.legs.map(leg =>
+      '<tr><td>'+shown(leg.from)+' ← '+shown(leg.to)+'</td><td>'+shown(leg.minutes)+' דקות</td><td>'+shown(leg.kilometers)+' ק״מ</td></tr>').join('') : '';
+    return '<div class="attendance-control__daily-travel"><strong>נסיעות וביטולים · '+shown(dateLabel(date))+'</strong>'+
+      '<span>ק״מ: '+shown(km??'—')+' · ביטול זמן: '+shown(minutes??'—')+' דקות · '+shown(status)+'</span>'+
+      (legRows?'<table><tbody>'+legRows+'</tbody></table>':'')+actions+'</div>';
+  };
   const employeeHtml = [...employees.values()].sort((a, b) => a.name.localeCompare(b.name, 'he')).map((employee) => {
     const hasWorkflowRow = Object.prototype.hasOwnProperty.call(workflowByEmployee, employee.id);
     const workflow = resolvePayrollMonthWorkflow(hasWorkflowRow ? workflowByEmployee[employee.id] : { workflow_status: 'not_submitted' });
@@ -2615,12 +2662,19 @@ export function resultsHtml(result, month = '', options = {}) {
         return `<details class="attendance-control__day${needsApproval ? '' : ' attendance-control__day--ok'}" data-payroll-date="${escapeHtml(date)}" data-attendance-row-id="${escapeHtml(entryRecordId(item))}"><summary><span>${shown(dateLabel(date))} · ${shown(label)}</span><span>${formatDurationHours(hours)} שעות</span><span class="attendance-control__row-status ${dataIssue ? 'attendance-control__row-status--issue' : needsApproval ? '' : 'attendance-control__row-status--ok'}">${rowStatus}</span></summary><div class="attendance-control__reports">${reportHtml({ ...row, employeeId: employee.id, date })}</div></details>`;
       }).join('');
     }).join('');
+    const dailyTravelDays = [...employee.days.entries()].sort(([a],[b])=>a.localeCompare(b))
+      .map(([date,dayRows])=>dailyTravelHtml(employee.id,date,dayRows)).filter(Boolean).join('');
+    const pendingTravelDays = [...employee.days.entries()].filter(([date,dayRows])=>{
+      if(!needsDailyTravel(date,dayRows))return false;
+      const r=dailyTravelByDay.get(employee.id+'|'+date);
+      return !r || !['approved','corrected'].includes(r.review_status);
+    }).length;
     const employeeEntries = allAttendanceEntries.filter((entry) => txt(entry.attendance?.employeeId) === employee.id);
     const totalRecordCount = employeeEntries.length;
     const approvedRecordCount = employeeEntries.filter(attendanceEntryIsResolved).length;
     const pendingRecordCount = Math.max(0, totalRecordCount - approvedRecordCount);
     const recordProgressHtml = totalRecordCount
-      ? `<span class="attendance-control__employee-record-progress">אושרו ${approvedRecordCount} מתוך ${totalRecordCount} רשומות${pendingRecordCount ? ` · ${pendingRecordCount} ממתינות לאישור` : ''}</span>`
+      ? `<span class="attendance-control__employee-record-progress">אושרו ${approvedRecordCount} מתוך ${totalRecordCount} רשומות${pendingRecordCount ? ` · ${pendingRecordCount} ממתינות לאישור` : ''}${pendingTravelDays ? ` · ${pendingTravelDays} ימי נסיעות לבדיקה` : ''}</span>`
       : '';
     const approval = options.approvalsByEmployee?.[employee.id];
     const workflowHtml = `<p class="attendance-control__manual-note">סטטוס חודש: <strong>${escapeHtml(workflow.label)}</strong></p>`;
@@ -2648,7 +2702,7 @@ export function resultsHtml(result, month = '', options = {}) {
           ? `<button type="button" class="ds-btn" data-attendance-add-record="${escapeHtml(employee.id)}" data-attendance-add-employee-name="${escapeHtml(employee.name)}" title="הוספת רשומה" aria-label="הוספת רשומה">+</button>`
           : '';
         const finalizeBtn = finalizeAllowed
-          ? `<button type="button" class="ds-btn ds-btn--primary" data-payroll-finish="${escapeHtml(employee.id)}" data-payroll-employee-name="${shown(employee.name)}" data-payroll-pending-records="${pendingRecordCount}">אישור מנהל</button>`
+          ? `<button type="button" class="ds-btn ds-btn--primary" data-payroll-finish="${escapeHtml(employee.id)}" data-payroll-employee-name="${shown(employee.name)}" data-payroll-pending-records="${pendingRecordCount}" data-payroll-pending-travel="${pendingTravelDays}">אישור מנהל</button>`
           : '';
         const reopenNotice = submissionStatus === 'reopened' && !bypassMonthSubmissionGate
           ? '<span class="attendance-control__manual-note">המדריך חייב לסיים ולאשר מחדש את החודש לפני אישור מנהל.</span>'
@@ -2660,7 +2714,7 @@ export function resultsHtml(result, month = '', options = {}) {
       }
     }
     const readonlyAttr = currentEmployeeCanMutate ? '' : ' data-payroll-employee-readonly="1"';
-    return `<details class="attendance-control__employee" data-payroll-employee="${escapeHtml(employee.id)}"${readonlyAttr}><summary><strong>${shown(employee.name)}</strong>${recordProgressHtml}</summary>${workflowHtml}${managerApprovedHtml}${approvedHtml}${finishControls}<div class="attendance-control__employee-days">${days}</div></details>`;
+    return `<details class="attendance-control__employee" data-payroll-employee="${escapeHtml(employee.id)}"${readonlyAttr}><summary><strong>${shown(employee.name)}</strong>${recordProgressHtml}</summary>${workflowHtml}${managerApprovedHtml}${approvedHtml}${finishControls}${dailyTravelDays}<div class="attendance-control__employee-days">${days}</div></details>`;
   }).join('');
   const reviewEmployees = [...employees.values()].filter((employee) => {
     const hasWorkflowRow = Object.prototype.hasOwnProperty.call(workflowByEmployee, employee.id);
@@ -2678,7 +2732,12 @@ export function resultsHtml(result, month = '', options = {}) {
         && entry.managerResolved !== 'corrected') return true;
       return false;
     });
-    return hasDataIssue || (hasWorkflowRow && workflow.status === 'not_submitted');
+    const dailyTravelIssue=[...employee.days.entries()].some(([date,dayRows])=>{
+      if(!needsDailyTravel(date,dayRows))return false;
+      const r=dailyTravelByDay.get(employee.id+'|'+date);
+      return !r||!['approved','corrected'].includes(r.review_status);
+    });
+    return hasDataIssue || dailyTravelIssue || (hasWorkflowRow && workflow.status === 'not_submitted');
   }).length;
   const metricsHtml = `<details class="attendance-control__metrics-details" data-payroll-metrics><summary>פרטים</summary><div class="attendance-control__metrics"><span>שורות נוכחות ${totals.attendanceRows}</span><span>התאמות ${totals.fullMatches}</span><span>פערים ${totals.fieldMismatches}</span><span>ללא התאמה ${totals.unmatchedAttendance}</span></div></details>`;
   const overviewRows = [...(result.comparisons || []), ...(result.notCompared || [])].map((entry) => entry.final || entry.attendance || {}).filter(Boolean);
@@ -2831,8 +2890,17 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     try {
       const rows = await api.attendanceControlRecordReviews({ recordIds });
       const approved = new Set((rows || []).map((row) => txt(row.record_id || row.recordId)).filter(Boolean));
+      const travelApproved=new Set((result.dailyTravelReports||[])
+        .filter(row=>['approved','corrected'].includes(row.review_status))
+        .map(row=>txt(row.emp_id)+'|'+txt(row.travel_date)));
       for (const entry of entries) {
-        if (approved.has(attendanceEntryRecordId(entry))) approveAttendanceEntryCurrent(entry);
+        const attendance=entry.attendance||{};
+        const isDailyPayable=attendance.activityType==='ביטול זמן'
+          && attendance.program==='נסיעות וביטולים מאושרים';
+        if (approved.has(attendanceEntryRecordId(entry))
+          || (isDailyPayable && travelApproved.has(txt(attendance.employeeId)+'|'+txt(attendance.date)))) {
+          approveAttendanceEntryCurrent(entry);
+        }
       }
     } catch (error) {
       console.warn('[attendance-control] record reviews load failed', error);
@@ -3068,6 +3136,10 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       if (!attendanceRows.length) throw new Error(`לא נמצאו דיווחי נוכחות עבור ${monthLabel}`);
       const dashboardRows = await loadAttendanceDashboardDataset(attendanceRows, api, month);
       result = compareAttendanceRows(attendanceRows, dashboardRows); result.month = month;
+      const travelIds = [...new Set(attendanceRows.map(row => txt(row.employeeId)).filter(Boolean))];
+      result.dailyTravelReports = await api.attendanceControlDailyTravelReports({
+        employeeIds:travelIds,fromDate,toDate
+      });
       const employeeIds = [...new Set(attendanceRows.map((row) => txt(row.employeeId)).filter(Boolean))];
       title.textContent = `בקרת נוכחות – ${monthLabel}`;
       await Promise.all([loadApprovals(), loadWorkflowStatuses(month, employeeIds), loadRecordReviews()]);
@@ -3190,6 +3262,41 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       [...(result?.comparisons || []), ...(result?.notCompared || [])].find((entry) => entry.id === entryId) || null
     );
 
+    const dailyReview = clickEl.closest('[data-daily-travel-review]');
+    if(dailyReview){
+      const employeeId=txt(dailyReview.dataset.dailyTravelEmployee);
+      const date=txt(dailyReview.dataset.dailyTravelDate);
+      const decision=txt(dailyReview.dataset.dailyTravelReview);
+      if(!employeeId||!date||!['approve','reject','correct'].includes(decision))return;
+      let km=null,minutes=null;
+      if(decision==='correct'){
+        const section=dailyReview.closest('.attendance-control__daily-travel');
+        const kmInput=section?.querySelector('[data-daily-travel-correct-km]');
+        const minutesInput=section?.querySelector('[data-daily-travel-correct-minutes]');
+        km=Number(kmInput?.value);
+        minutes=Number(minutesInput?.value);
+        if(!kmInput?.value || !minutesInput?.value
+          || !Number.isFinite(km) || km<0 || km>10000
+          || !Number.isInteger(minutes) || minutes<0 || minutes>1440){
+          setStatusMessage('יש להזין קילומטרים ודקות ביטול זמן תקינים.',{error:true});
+          return;
+        }
+      }
+      dailyReview.disabled=true;
+      try{
+        await api.attendanceControlReviewDailyTravel({employeeId,date,decision,km,minutes});
+        const refreshed=await api.attendanceControlDailyTravelReports({
+          employeeIds:[Number(employeeId)],
+          fromDate:date,toDate:date
+        });
+        const oldRows=(result.dailyTravelReports||[]).filter(row=>
+          txt(row.emp_id)!==employeeId || txt(row.travel_date)!==date);
+        result.dailyTravelReports=[...oldRows,...refreshed];
+        await loadAttendanceReview({successMessage:'בקרת הנסיעות נשמרה'});
+      }catch(error){setStatusMessage(error.message||'שמירת בקרת הנסיעות נכשלה',{error:true});}
+      finally{dailyReview.disabled=false;}
+      return;
+    }
     const travelReviewBtn = clickEl.closest('[data-travel-review]');
     if (travelReviewBtn) {
       const wrap = travelReviewBtn.closest('[data-travel-source-id]');
@@ -3603,7 +3710,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       return;
     }
     if (clickEl.closest('[data-attendance-export]') && result) {
-      XLSX.writeFile(buildCorrectedAttendanceWorkbook([...result.comparisons, ...(result.notCompared || [])], result.dashboardPopulation), attendanceExportFilename(result.month), { compression: true });
+      XLSX.writeFile(buildCorrectedAttendanceWorkbook([...result.comparisons, ...(result.notCompared || [])], result.dashboardPopulation, {dailyTravelReports:result.dailyTravelReports}), attendanceExportFilename(result.month), { compression: true });
       return;
     }
     const kmApproveBtn = clickEl.closest('[data-km-approve-reported]');
@@ -3655,6 +3762,11 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       }
       setStatusMessage(message, { error });
     };
+    const pendingTravelCount=Number(finishBtn.dataset.payrollPendingTravel||0);
+    if(pendingTravelCount>0){
+      showApprovalFeedback('לא ניתן לאשר את החודש: נותרו '+pendingTravelCount+' ימי נסיעות ללא אישור.');
+      return;
+    }
     const pendingCount = Number(finishBtn.dataset.payrollPendingRecords || 0);
     if (pendingCount > 0) {
       showApprovalFeedback(`לא ניתן להשלים אישור מנהל: נותרו ${pendingCount} רשומות שדורשות אישור. יש לפתוח את הרשומות הממתינות ולטפל בהן.`);
