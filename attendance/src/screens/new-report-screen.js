@@ -1934,6 +1934,13 @@ export function renderNewReportScreen(container, {
     travelTab.className = 'av2-btn av2-btn--secondary';
     travelTab.textContent = 'נסיעות וביטולים';
     travelTab.setAttribute('role','tab');
+    attendanceTab.id='av2-attendance-tab-trigger';
+    travelTab.id='av2-travel-tab-trigger';
+    attendanceTab.setAttribute('aria-controls','av2-attendance-tab-panel');
+    travelTab.setAttribute('aria-controls','av2-travel-tab-panel');
+    form.id='av2-attendance-tab-panel';
+    form.setAttribute('role','tabpanel');
+    form.setAttribute('aria-labelledby',attendanceTab.id);
     tabs.append(attendanceTab, travelTab);
     const dailyTravel = createDailyTravelTab({
       empId: instructor.empId,
@@ -1945,12 +1952,25 @@ export function renderNewReportScreen(container, {
       dailyTravel.panel.hidden = isAttendance;
       attendanceTab.setAttribute('aria-selected',String(isAttendance));
       travelTab.setAttribute('aria-selected',String(!isAttendance));
+      attendanceTab.tabIndex=isAttendance?0:-1;
+      travelTab.tabIndex=isAttendance?-1:0;
       attendanceTab.classList.toggle('av2-report__tab--active',isAttendance);
       travelTab.classList.toggle('av2-report__tab--active',!isAttendance);
       if(!isAttendance)void dailyTravel.load();
     }
     attendanceTab.addEventListener('click',()=>showTab('attendance'));
     travelTab.addEventListener('click',()=>showTab('travel'));
+    tabs.addEventListener('keydown',event=>{
+      if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+      const tabsList=[attendanceTab,travelTab];
+      const index=tabsList.indexOf(event.target);
+      if(index<0)return;
+      event.preventDefault();
+      const nextIndex=event.key==='Home'?0:event.key==='End'?1:
+        (index+(event.key==='ArrowLeft'?-1:1)+2)%2;
+      showTab(nextIndex===0?'attendance':'travel');
+      tabsList[nextIndex].focus();
+    });
     formArea.append(tabs,form,dailyTravel.panel);
     showTab('attendance');
     void onReportDateChange();
