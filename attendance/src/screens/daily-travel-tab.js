@@ -65,11 +65,14 @@ export function createDailyTravelTab({empId, initialDate}) {
       legs[index][key]=raw===''?null:Number(raw);
     }
     const totals=summarizeDailyTravel(legs);
+    const publicTransportFare=legs.reduce((sum,leg)=>sum+
+      (leg.mode==='public_transport'?Number(leg.transportCost||0):0),0);
     summary.textContent=noTravel.checked ? 'ללא נסיעה'
       : totals.cancellationMinutes===null
         ? 'יש להשלים זמני נסיעה'
         : 'ביטול זמן: '+totals.cancellationMinutes+' דקות'
-          +(totals.kilometers===null?'':' · '+totals.kilometers+' ק״מ');
+          +(totals.kilometers===null?'':' · '+totals.kilometers+' ק״מ')
+          +(publicTransportFare>0?' · תחבורה ציבורית: ₪'+publicTransportFare.toFixed(2):'');
   }
   function renderLegs(){
     legsArea.replaceChildren();
@@ -92,8 +95,49 @@ export function createDailyTravelTab({empId, initialDate}) {
         field.input.addEventListener('input',showSummary);
         fields.append(field.wrap);
       }
+      const modeWrap=document.createElement('label');
+      modeWrap.className='av2-daily-travel__mode';
+      const modeText=document.createElement('span');
+      modeText.textContent='אמצעי נסיעה';
+      const mode=document.createElement('select');
+      mode.className='av2-field__select';
+      for(const [value,label] of [['car','רכב'],['public_transport','תחבורה ציבורית']]){
+        const opt=document.createElement('option');
+        opt.value=value;opt.textContent=label;mode.append(opt);
+      }
+      mode.value=leg.mode||'car';
+      leg.mode=mode.value;
+      modeWrap.append(modeText,mode);
+      const fare=createInputField({
+        id:'av2-leg-'+index+'-fare',label:'עלות נסיעה (₪)',type:'number',
+        value:leg.transportCost==null?'':String(leg.transportCost),
+        attrs:{min:'0',max:'10000',step:'0.01'}
+      });
+      function syncMode(){
+        leg.mode=mode.value;
+        const kmInput=fields.querySelector('[data-field="kilometers"]');
+        const transit=mode.value==='public_transport';
+        fare.wrap.hidden=!transit;
+        fare.input.disabled=!transit;
+        kmInput.disabled=transit;
+        if(transit){
+          kmInput.value='0';
+          leg.kilometers=0;
+        }else{
+          fare.input.value='0';
+          leg.transportCost=0;
+        }
+        showSummary();
+      }
+      mode.addEventListener('change',syncMode);
+      fare.input.addEventListener('input',()=>{
+        leg.transportCost=fare.input.value===''?0:Number(fare.input.value);
+        showSummary();
+      });
+      fields.append(modeWrap,fare.wrap);
       block.append(fields);
       legsArea.append(block);
+      syncMode();
     }
     showSummary();
   }
@@ -173,7 +217,8 @@ export function createDailyTravelTab({empId, initialDate}) {
       legs=available.map((leg,index)=>{
         const old=stored?.legs?.[index];
         const same=old && old.kind===leg.kind && old.from===leg.from && old.to===leg.to;
-        return {...leg,minutes:same?old.minutes:null,kilometers:same?old.kilometers:null};
+        return {...leg,minutes:same?old.minutes:null,kilometers:same?old.kilometers:null,
+          mode:same?(old.mode||'car'):'car',transportCost:same?Number(old.transportCost||0):0};
       });
       noTravel.checked=stored?.no_travel===true;
       noTravelLabel.hidden=!legs.length;
