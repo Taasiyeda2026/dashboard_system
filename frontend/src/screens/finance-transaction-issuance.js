@@ -68,8 +68,9 @@ function groupProgress(lines) {
 export function transactionBacklog(data, mode) {
   const selected = transactionMonth(data, mode);
   return (data.transactionContext?.billingRows || []).filter((row) => row.gefenFunding === (mode === TRANSACTION_MODE_AUTOMATIC)
-    && row.eligible && !row.blockedReason && row.period && row.period.slice(0, 7) < financeToday().slice(0, 7)
-    && row.period.slice(0, 7) !== selected);
+    && row.eligible && !row.blockedReason && row.period
+    && (mode === TRANSACTION_MODE_AUTOMATIC ? row.period.slice(0, 7) < selected
+      : row.period.slice(0, 7) < financeToday().slice(0, 7) && row.period.slice(0, 7) !== selected));
 }
 
 export function transactionIssuanceActivities(data, { mode = TRANSACTION_MODE_AUTOMATIC } = {}) {
@@ -80,7 +81,11 @@ export function transactionIssuanceActivities(data, { mode = TRANSACTION_MODE_AU
 }
 
 export function transactionPreviewForVisit(data, mode = TRANSACTION_MODE_AUTOMATIC) {
-  const rows = transactionIssuanceActivities(data, { mode }).map((row) => row.transaction_summary);
+  const selected = transactionIssuanceActivities(data, { mode }).map((row) => row.transaction_summary);
+  const candidates = mode === TRANSACTION_MODE_AUTOMATIC ? [...selected, ...transactionBacklog(data, mode)] : selected;
+  const rows = mode === TRANSACTION_MODE_AUTOMATIC
+    ? [...new Map(candidates.map(row => [JSON.stringify([transactionSelectionKey(row),row.institutionSymbol,row.payerKey || row.payerName]),row])).values()]
+    : selected;
   const accounts = new Map();
   if (!data.collectionError) for (const row of rows.filter((row) => row.eligible && !row.blockedReason)) {
     if (mode === TRANSACTION_MODE_MANUAL && !data.transactionManualSelected?.[transactionSelectionKey(row)]) continue;
@@ -120,6 +125,7 @@ export function transactionPreviewForVisit(data, mode = TRANSACTION_MODE_AUTOMAT
 
 function summaryCards(preview) {
   const cards = [
+    ...(preview.mode === TRANSACTION_MODE_AUTOMATIC ? [['חשבונות עסקה', preview.accounts.length]] : []),
     ['בתי ספר', preview.totals.schools],
     ['פעילויות', preview.totals.activities],
     ...(preview.totals.containsCourses !== false ? [['מפגשים לחיוב', preview.totals.meetings], ['שעות לחיוב', preview.totals.hours]] : []),
@@ -175,17 +181,36 @@ function billingView(data, mode) {
   const waiting = [...new Map(rows.filter((row) => row.eligibilityStatus === 'waiting_three_meetings')
     .map(row=>[row.activityRowId,row])).values()];
   const waitingHtml = waiting.length ? `<details class="ds-fin-payer" data-finance-waiting-courses>
-    <summary>קורסים הממתינים להפקה <span>(${waiting.length})</span></summary>
+    <summary>${mode === TRANSACTION_MODE_AUTOMATIC ? '<span class="ds-fin-gefen-arrow" aria-hidden="true">▸</span>' : ''}<span>קורסים הממתינים להשלמת שלושה מפגשים (${waiting.length})</span></summary>
     ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>מוסד</th><th>קורס</th><th>מפגשים</th></tr></thead>
     <tbody>${waiting.map(row=>`<tr><td>${escapeHtml(row.customerName || '—')}</td><td>${escapeHtml(row.activityName)}</td><td>${Number(row.completedCount || 0)} מתוך 3</td></tr>`).join('')}</tbody></table>`)}
   </details>` : '';
+  if (mode === TRANSACTION_MODE_AUTOMATIC) {
+    const selectedMonth = transactionMonth(data, mode);
+    const current = preview.accounts.filter(account => account.period?.slice(0,7) === selectedMonth);
+    const previous = preview.accounts.filter(account => account.period?.slice(0,7) < selectedMonth);
+    const groupsHtml = (accounts, older = false) => accounts.map(account => `<details class="ds-fin-payer" data-finance-transaction-group>
+      <summary><span class="ds-fin-gefen-arrow" aria-hidden="true">▸</span><span class="ds-fin-payer__title">${escapeHtml(`${account.schoolName} · ${account.institutionSymbol}`)}${older ? ` · ${escapeHtml(account.period.slice(0,7))}` : ''}</span>
+      <span class="ds-fin-payer__meta">${account.lines.length} חיובים · ${escapeHtml(formatAmount(account.totalAmount))}</span></summary>
+      ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>פעילות</th><th>מוסד</th><th>חודש ביצוע</th><th>${escapeHtml(progressHeading(account.lines))}</th><th>חלק המממן</th><th>להפקה</th></tr></thead>
+      <tbody>${account.lines.map(line => billingLineHtml(line,data,mode)).join('')}</tbody></table>`)}</details>`).join('');
+    return `<div class="ds-fin-gefen" dir="rtl">
+      ${monthPicker(data,mode)}
+      ${preview.accounts.length ? summaryCards(preview) : ''}
+      <section data-finance-gefen-current><h3>חשבונות החודש הנבחר</h3>
+        ${groupsHtml(current) || dsEmptyState('אין חשבונות להפקה בחודש שנבחר.')}</section>
+      ${previous.length ? `<section class="ds-fin-gefen-backlog" data-finance-gefen-backlog><h3>חיובים זכאים מחודשים קודמים</h3>${groupsHtml(previous,true)}</section>` : ''}
+      ${preview.accounts.length ? '<div class="ds-fin-gefen-issue"><button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="automatic">הפקת כל חשבונות העסקה</button></div>' : ''}
+      ${waitingHtml}
+    </div>`;
+  }
   const groups = new Map();
   for (const row of ready) {
     const key = mode === TRANSACTION_MODE_AUTOMATIC ? row.institutionSymbol : (row.payerKey || row.fundingSourceId);
     if (!groups.has(key)) groups.set(key, { payer: mode === TRANSACTION_MODE_AUTOMATIC ? `${row.customerName} · ${row.institutionSymbol}` : row.payerName, funding: row.funding, lines: [] });
     groups.get(key).lines.push(row);
   }
-  const body = [...groups.values()].map((group) => `<details class="ds-fin-payer" data-finance-transaction-group open>
+  const body = [...groups.values()].map((group) => `<details class="ds-fin-payer" data-finance-transaction-group>
     <summary><span class="ds-fin-payer__title">${escapeHtml(group.payer)}</span>
     <span class="ds-fin-payer__meta">${escapeHtml(`${groupProgress(group.lines)} · ${formatAmount(group.lines.reduce((sum, line) => sum + Number(line.issuableAmount), 0))}`)}</span></summary>
     ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>פעילות ${groupSelectAllHtml(group.lines,data,mode)}</th><th>מוסד</th><th>${mode === TRANSACTION_MODE_AUTOMATIC ? 'חודש ביצוע' : 'חודש סיום'}</th><th>${escapeHtml(progressHeading(group.lines))}</th><th>חלק המממן</th><th>להפקה</th></tr></thead>
@@ -201,7 +226,7 @@ function billingView(data, mode) {
     containsUnits: ready.some(serviceActivity),
     amount: ready.reduce((sum, row) => sum + Number(row.issuableAmount), 0) } };
   const backlogHtml = backlog.length
-    ? `<details class="ds-fin-payer" open><summary>ממתינים להפקה מחודשים קודמים · ${backlog.length} חיובים · ${escapeHtml(formatAmount(backlog.reduce((sum,row) => sum + Number(row.issuableAmount),0)))}</summary>
+    ? `<details class="ds-fin-payer"><summary>ממתינים להפקה מחודשים קודמים · ${backlog.length} חיובים · ${escapeHtml(formatAmount(backlog.reduce((sum,row) => sum + Number(row.issuableAmount),0)))}</summary>
       ${pendingGroupHtml(backlog,data,mode)}</details>`
     : '';
   return `<div class="ds-fin-collect-toolbar" dir="rtl">
@@ -299,8 +324,13 @@ export async function runTransactionIssuance(data, api, mode, month = transactio
   if (!preview.accounts.length) throw new Error('אין חשבונות מוכנים להפקה.');
   const results = [];
   data.transactionRequestIds ||= {};
-  for (const account of preview.accounts) {
-    const requestKey=JSON.stringify([mode,month,account.institutionSymbol,account.lines.map(line=>[line.activityRowId,line.fundingSourceId,line.period,line.issuableAmount,line.unbilledSlots])]);
+  // The server caps each period against cumulative billing. Complete older
+  // periods first so a later charge cannot make an earlier snapshot stale.
+  const accounts = mode === TRANSACTION_MODE_AUTOMATIC
+    ? [...preview.accounts].sort((a,b)=>String(a.period || '').localeCompare(String(b.period || '')))
+    : preview.accounts;
+  for (const account of accounts) {
+    const requestKey=JSON.stringify([mode,mode === TRANSACTION_MODE_AUTOMATIC ? account.period?.slice(0,7) || month : month,account.institutionSymbol,account.lines.map(line=>[line.activityRowId,line.fundingSourceId,line.period,line.issuableAmount,line.unbilledSlots])]);
     data.transactionRequestIds[requestKey] ||= uuid();
     let reserved;
     try {

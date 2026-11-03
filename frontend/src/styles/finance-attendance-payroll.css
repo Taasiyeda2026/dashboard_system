@@ -503,3 +503,12 @@
     height: 19px;
   }
 }
+/* Gefen groups start collapsed; native details supplies keyboard/expanded state. */
+.ds-fin-gefen { display: grid; gap: 12px; }
+.ds-fin-gefen section { display: grid; gap: 8px; }
+.ds-fin-gefen section > h3 { margin: 0; font-size: 1rem; }
+.ds-fin-gefen .ds-fin-payer__title { flex: 1; min-width: 0; }
+.ds-fin-gefen-arrow { display: inline-block; flex: 0 0 auto; color: var(--ds-text-muted); transform: rotate(180deg); }
+.ds-fin-gefen details[open] > summary > .ds-fin-gefen-arrow { transform: rotate(90deg); }
+.ds-fin-gefen-backlog { border-top: 1px solid var(--ds-border); padding-top: 12px; }
+.ds-fin-gefen-issue { display: flex; justify-content: center; padding: 4px 0; }

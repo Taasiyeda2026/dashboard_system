@@ -604,3 +604,5 @@ config.HOTFIX_VERSION = `finance-billed-dates-compact-waiting-20261103-v1-${conf
 config.HOTFIX_VERSION = `finance-original-issuer-mailbox-20261103-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `finance-delegated-outlook-20261103-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `finance-gefen-unified-issuance-20261103-v1-${config.HOTFIX_VERSION}`;
