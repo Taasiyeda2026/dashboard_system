@@ -11,6 +11,7 @@ import { createInputField, createSelectField } from '../components/field.js';
 import { createSearchableSelect } from '../components/searchable-select.js';
 import { createCompactSelect } from '../components/compact-select.js';
 import { createTimePicker } from '../components/time-picker.js';
+import { createDailyTravelTab } from './daily-travel-tab.js';
 import {
   getInstructorActivities,
   getTrainingScheduleForDate,
@@ -1920,7 +1921,38 @@ export function renderNewReportScreen(container, {
       }
     });
 
-    formArea.append(form);
+    const tabs = document.createElement('div');
+    tabs.className = 'av2-report__tabs';
+    tabs.setAttribute('role', 'tablist');
+    const attendanceTab = document.createElement('button');
+    attendanceTab.type = 'button';
+    attendanceTab.className = 'av2-btn av2-btn--secondary';
+    attendanceTab.textContent = 'נוכחות';
+    attendanceTab.setAttribute('role','tab');
+    const travelTab = document.createElement('button');
+    travelTab.type = 'button';
+    travelTab.className = 'av2-btn av2-btn--secondary';
+    travelTab.textContent = 'נסיעות וביטולים';
+    travelTab.setAttribute('role','tab');
+    tabs.append(attendanceTab, travelTab);
+    const dailyTravel = createDailyTravelTab({
+      empId: instructor.empId,
+      initialDate: dateField.input.value || defaultDate
+    });
+    function showTab(kind) {
+      const isAttendance = kind === 'attendance';
+      form.hidden = !isAttendance;
+      dailyTravel.panel.hidden = isAttendance;
+      attendanceTab.setAttribute('aria-selected',String(isAttendance));
+      travelTab.setAttribute('aria-selected',String(!isAttendance));
+      attendanceTab.classList.toggle('av2-report__tab--active',isAttendance);
+      travelTab.classList.toggle('av2-report__tab--active',!isAttendance);
+      if(!isAttendance)void dailyTravel.load();
+    }
+    attendanceTab.addEventListener('click',()=>showTab('attendance'));
+    travelTab.addEventListener('click',()=>showTab('travel'));
+    formArea.append(tabs,form,dailyTravel.panel);
+    showTab('attendance');
     void onReportDateChange();
   }
 
