@@ -452,6 +452,8 @@ begin
         select 1 from public.attendance_daily_travel_reports d
         where d.emp_id=ar.emp_id and d.travel_date=ar.report_date
           and d.review_status in ('approved','corrected')
+          and (d.no_travel is true
+               or public.av2_daily_travel_route_matches(d.emp_id,d.travel_date,d.legs))
       )
   ) then
     raise exception 'attendance_daily_travel_reviews_pending' using errcode='22023';
