@@ -11,6 +11,7 @@
  */
 
 import { createIcon } from '../components/icon.js';
+import { getDailyTravelReports } from '../services/daily-travel.service.js';
 import { reportedKilometers } from '../services/reported-kilometers.js';
 import { createInputField, createSelectField } from '../components/field.js';
 import { createTimePicker } from '../components/time-picker.js';
@@ -110,6 +111,20 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     ]);
 
     const sourceRecords = sourceAttendanceRecords(records);
+    const dailyTravelReports = monthKey + '-01' > '2026-11-30'
+      || monthKey >= '2026-11'
+      ? await getDailyTravelReports(instructor.empId,monthKey) : [];
+    const dailyTravelByDate = new Map(dailyTravelReports.map(row=>[row.travel_date,row]));
+    const travelDays = [...new Set(sourceRecords.filter(row=>
+      row.report_date >= '2026-11-04'
+      && !isZoomLocationReport({
+        activityType:row.activity_type,
+        trainingMode:row.training_mode,
+        operationMeetingMode:row.operation_meeting_mode,
+        operationName:row.activity_name_snapshot
+      }) && row.activity_type !== 'ביטול זמן'
+    ).map(row=>row.report_date))].sort();
+    const missingTravel = travelDays.filter(date=>!dailyTravelByDate.has(date));
     const dashboardValidationByRecord = new Map(
       (dashboardValidation || []).map((item) => [String(item?.record_id || ''), item]),
     );
@@ -141,6 +156,27 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
       lockMsg.className = 'av2-reports__lock-msg';
       lockMsg.textContent = editBlockReason(year, month, approval);
       contentArea.append(lockMsg);
+    }
+
+    if(travelDays.length){
+      const travelStatus=document.createElement('section');
+      travelStatus.className='av2-reports__travel-status';
+      const heading=document.createElement('strong');
+      heading.textContent='נסיעות וביטולים';
+      const count=document.createElement('span');
+      count.textContent=missingTravel.length
+        ? missingTravel.length+' ימים ללא דיווח נסיעות'
+        : 'דיווחי הנסיעות הושלמו';
+      travelStatus.append(heading,count);
+      if(missingTravel.length && editable){
+        const action=document.createElement('button');
+        action.type='button';
+        action.className='av2-btn av2-btn--secondary';
+        action.textContent='השלמת נסיעות';
+        action.addEventListener('click',()=>onNewReport?.());
+        travelStatus.append(action);
+      }
+      contentArea.append(travelStatus);
     }
 
     // ── Toolbar buttons ──────────────────────────────────────────────────
