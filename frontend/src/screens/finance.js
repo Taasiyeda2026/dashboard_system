@@ -541,6 +541,7 @@ export const financeScreen = {
       return dsScreenStack(`${dsPageHeader('כספים', 'גישה מוגבלת')} ${dsEmptyState('אין הרשאה לצפייה בעמוד כספים.')}`);
     }
     data.financeAdmin = state?.user?.role === 'admin';
+    data.financeAuthUserId = state?.user?.auth_user_id || '';
     const requestedView = data?.view || 'hub';
     const view = canOpenFinanceView(state?.user, requestedView) ? requestedView : 'hub';
     if (view === 'attendance') return attendanceViewHtml(data, { state });
@@ -573,6 +574,14 @@ export const financeScreen = {
       finally { visit.financeBusy = false; button.disabled = false; refresh(); }
     };
     const onClick = async (ev) => {
+      if (ev.target.closest('[data-finance-microsoft-connect]')) {
+        try {
+          const { delegatedMailToken } = await import('../microsoft/graph-mail.js');
+          await delegatedMailToken(state?.user?.email || state?.user?.auth_email || '');
+          visit.transactionActionMessage = 'Microsoft מחובר. הטיוטות של המפיק המקורי יושלמו אוטומטית.';
+        } catch { visit.transactionActionMessage = 'החיבור ל־Microsoft לא הושלם. החשבונות והמסמכים נשמרו.'; }
+        refresh(); return;
+      }
       const accountDraft = ev.target.closest('[data-finance-account-draft]');
       if (accountDraft) {
         if (visit.financeBusy || visit.transactionRunning) return;
@@ -584,6 +593,7 @@ export const financeScreen = {
         try {
           const result = await api.dispatchFinanceTransactionAccount({ accountId });
           if (result.outlookStatus === 'draft_ready') visit.transactionActionMessage = 'טיוטת המייל נוצרה עם חשבון העסקה המצורף.';
+          else if (result.outlookStatus === 'waiting_connection') visit.transactionActionMessage = 'החשבון נשמר. הטיוטה ממתינה לחיבור Microsoft של המפיק המקורי.';
           else if (result.outlookStatus === 'missing_recipient') visit.transactionActionMessage = 'לא נוצרה טיוטה: חסרה כתובת מייל של איש הקשר בחשבון.';
           else if (result.outlookStatus==='already_sent') visit.transactionActionMessage='ההודעה כבר נשלחה ב-Outlook; לא נוצרה טיוטה נוספת.';
           else if (result.outlookStatus==='needs_review') visit.transactionActionMessage='תוצאת ניסיון קודם אינה ודאית. נדרשת בדיקת הטיוטה הקיימת לפני יצירה נוספת.';
@@ -960,10 +970,16 @@ export const financeScreen = {
     root.addEventListener('click', onClick);
     root.addEventListener('change', onChange);
     root.addEventListener('input', onInput);
+    const onDraftsChanged = () => {
+      if (visit.view!=='transactions' || visit.financeBusy || visit.transactionRunning) return;
+      void ensureCollectionLoaded(visit, api, { force: true }).then(refresh).catch(() => {});
+    };
+    window.addEventListener('finance-invoice-drafts-changed', onDraftsChanged);
     root._financeUnbind = () => {
       root.removeEventListener('click', onClick);
       root.removeEventListener('change', onChange);
       root.removeEventListener('input', onInput);
+      window.removeEventListener('finance-invoice-drafts-changed', onDraftsChanged);
       clearTimeout(root._financeCollectionSearchTimer);
       clearTimeout(root._financeManualSearchTimer);
       clearManualPdfPreviewUrls(root);

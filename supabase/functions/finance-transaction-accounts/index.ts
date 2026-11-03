@@ -8,7 +8,7 @@ const cors = {
   "Access-Control-Allow-Origin": "*",
   // The browser's Supabase client always sends x-client-info. Without it Chrome
   // accepts OPTIONS but blocks the PDF POST before it reaches this function.
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-retry-count, traceparent, tracestate, baggage",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-retry-count, traceparent, tracestate, baggage, x-microsoft-mail-token",
   "Access-Control-Allow-Methods": "POST, OPTIONS"
 };
 const clean = (value: unknown) => String(value ?? "").trim();
@@ -92,7 +92,7 @@ function draftContent(account: any) {
   };
 }
 async function verifyDraft(token: string, mailbox: string, id: string, filename: string, hash: string, recipients: string[]) {
-  const path = `/users/${encodeURIComponent(mailbox)}/messages/${encodeURIComponent(id)}`;
+  const path = `/me/messages/${encodeURIComponent(id)}`;
   let message = await graph(token, `${path}?$select=id,isDraft,toRecipients`);
   if (message.isDraft === false) return {id:message.id, isDraft:false};
   if (message.isDraft !== true) throw new Error('draft_state_verification_failed');
@@ -439,6 +439,7 @@ Deno.serve(async (req) => {
   let creationStarted = false;
   let creationRejected = false;
   let mailbox = '';
+  let delegatedAccessToken = '';
   let recipients: string[] = [];
 
   const markOutlook = async (status: string, error: string | null = null) => {
@@ -459,9 +460,9 @@ Deno.serve(async (req) => {
     const body = await req.json();
     admin = createClient(url, service);
     userClient = createClient(url, anon, { global: { headers: { Authorization: auth } } });
-    const { data: allowed, error: allowError } = body.outlookJobToken
-      ? await admin.rpc('finance_authorize_outlook_job',{p_account_id:clean(body.accountId),p_token:clean(body.outlookJobToken)})
-      : await userClient.rpc("finance_transaction_can_issue");
+    // Retired server jobs have no delegated user grant and must not reach Graph.
+    if (body.outlookJobToken) throw new Error('not_authorized');
+    const { data: allowed, error: allowError } = await userClient.rpc("finance_transaction_can_issue");
     if (allowError || !allowed) throw new Error("not_authorized");
 
     if (body.preview === true) {
@@ -558,6 +559,19 @@ Deno.serve(async (req) => {
     if (mailboxResult.error) throw mailboxResult.error;
     mailbox = clean(mailboxResult.data);
     if (!/^[^\s@]+@think\.org\.il$/.test(mailbox)) throw new Error('invoice_mailbox_not_authorized');
+    const owner = await userClient.rpc('finance_delegated_account_owner',{p_account_id:accountId});
+    if (owner.error) throw owner.error;
+    delegatedAccessToken = clean(req.headers.get('x-microsoft-mail-token'));
+    if (owner.data!==true || !delegatedAccessToken) {
+      await markOutlook('waiting_connection',owner.data!==true ? 'invoice_original_issuer_required' : 'invoice_microsoft_connection_required');
+      return Response.json({accountId,filename,outlookStatus:'waiting_connection',documentPreserved:true},{headers:cors});
+    }
+    // Graph validates the opaque access token. Matching the immutable own and
+    // expected Drafts folder IDs proves mailbox identity without User.Read or
+    // trusting a loginHint, client claims, or access to a shared mailbox.
+    const ownFolder = await graph(delegatedAccessToken,'/me/mailFolders/drafts?$select=id');
+    const expectedFolder = await graph(delegatedAccessToken,`/users/${encodeURIComponent(mailbox)}/mailFolders/drafts?$select=id`);
+    if (!clean(ownFolder.id) || ownFolder.id!==expectedFolder.id) throw new Error('invoice_microsoft_account_mismatch');
     const recipientResult = await admin.rpc('finance_transaction_recipients',{p_account_id:accountId});
     if (recipientResult.error) throw recipientResult.error;
     recipients = recipientAddresses((recipientResult.data?.recipients || []).join(';'));
@@ -566,10 +580,10 @@ Deno.serve(async (req) => {
       return Response.json({accountId,filename,outlookStatus:'missing_recipient',invalidRecipientCount:recipientResult.data?.invalidCount || 0},{headers:cors});
     }
     const propertyId = 'String {fe840b5e-3427-421b-a522-224fbb1c2c65} Name FinanceAccountId';
-    const mailboxPath = `/users/${encodeURIComponent(mailbox)}/messages`;
+    const mailboxPath = '/me/messages';
     if (!knownMessageId) {
       const filter = `singleValueExtendedProperties/Any(ep: ep/id eq '${propertyId}' and ep/value eq '${accountId}')`;
-      const previous = await graph(graphAccessToken, `${mailboxPath}?$filter=${encodeURIComponent(filter)}&$select=id,isDraft&$top=2`);
+      const previous = await graph(delegatedAccessToken, `${mailboxPath}?$filter=${encodeURIComponent(filter)}&$select=id,isDraft&$top=2`);
       if (previous['@odata.nextLink'] || (previous.value || []).length>1) throw new Error('multiple_account_messages_require_review');
       knownMessageId = clean(previous.value?.[0]?.id);
     }
@@ -585,7 +599,7 @@ Deno.serve(async (req) => {
       if (intent.data!==true) throw new Error('draft_creation_uncertain');
       creationStarted = true;
       try {
-        const draft = await graph(graphAccessToken,mailboxPath,{
+        const draft = await graph(delegatedAccessToken,mailboxPath,{
           method:'POST',body:JSON.stringify({
             ...draftContent(account),
             singleValueExtendedProperties:[{id:propertyId,value:accountId}],
@@ -602,7 +616,7 @@ Deno.serve(async (req) => {
         throw error;
       }
     }
-    const verified = await verifyDraft(graphAccessToken,mailbox,knownMessageId,filename,account.pdf_sha256,recipients);
+    const verified = await verifyDraft(delegatedAccessToken,mailbox,knownMessageId,filename,account.pdf_sha256,recipients);
     const outlookStatus = verified.isDraft ? 'draft_ready' : 'already_sent';
     await markOutlook(outlookStatus);
     return Response.json({accountId,filename,outlookStatus,messageId:knownMessageId,recipientCount:recipients.length,
@@ -614,7 +628,7 @@ Deno.serve(async (req) => {
       const review = message==='draft_creation_uncertain' || message==='multiple_account_messages_require_review'
         || message==='invoice_mailbox_existing_draft_mismatch' || message==='invoice_mailbox_identity_changed'
         || (creationStarted && !knownMessageId && !creationRejected);
-      const outlookStatus = review ? 'needs_review' : 'failed';
+      const outlookStatus = message==='invoice_mailbox_access_denied' ? 'waiting_connection' : review ? 'needs_review' : 'failed';
       try { await markOutlook(outlookStatus,message); }
       catch { return Response.json({accountId,error:'outlook_status_persistence_failed',documentPreserved:true},{status:500,headers:cors}); }
       return Response.json({accountId,outlookStatus,outlookError:message,documentPreserved:true,

@@ -13,6 +13,7 @@ async function harness(options={}) {
   const state={account,message:null,recipients:['contact@example.test','admin@example.test']};
   const client={from:()=>({select:()=>({eq:()=>({single:async()=>({data:{...account}})})})}),rpc:async(name,args)=>{
     calls.push({name,args});
+    if(name==='finance_delegated_account_owner')return {data:options.ownerAllowed!==false};
     if(name==='finance_transaction_can_issue')return {data:options.authorized!==false};
     if(name==='finance_authorize_outlook_job')return {data:options.workerAuthorized===true};
     if(name==='acquire_finance_dispatch'){if(leased||options.leaseBusy)return {error:Error('dispatch_in_progress')};leased=true;}
@@ -32,6 +33,7 @@ async function harness(options={}) {
   }};
   const fetch=async(url,opts={})=>{
     calls.push({url,opts});assert.ok(!/\/send(?:Mail)?(?:$|\?)/i.test(url),'sending forbidden');
+    if(url.includes('/mailFolders/drafts?'))return options.delegate401?new Response('expired',{status:401}):Response.json({id:options.accountMismatch&&url.includes('/me/')?'other-folder':'owner-folder'});
     if(url.includes('login.microsoftonline.com'))return options.authFails?new Response('denied',{status:401}):Response.json({access_token:'token'});
     if(url.includes('?$select=id,name,folder'))return Response.json({id:'01LT7GPE6FW7O7REM6WJBIXX6II2IDYTXM',folder:{}});
     if(opts.method==='PUT')return Response.json({id:'item',webUrl:'https://test/pdf'});
@@ -57,7 +59,7 @@ async function harness(options={}) {
   const script=stripTypeScriptTypes(source.slice(0,source.indexOf('// pdf-lib/fontkit')).replace(/^import .*;\n/gm,'')+'\n'+source.slice(source.indexOf('Deno.serve(')),{mode:'transform'});
   const Deno={env:{get:k=>k==='MS_MAIL_SENDER'?'office@think.org.il':'configured'},serve:fn=>handler=fn};
   await new (Object.getPrototypeOf(async function(){}).constructor)('createClient','fetch','Deno','buildPdf','attachActivityTypes',script)(()=>client,fetch,Deno,async()=>bytes,async()=>{});
-  return {state,calls,options,invoke:async(body={})=>{const response=await handler(new Request('https://test',{method:'POST',body:JSON.stringify({accountId:'account',...body})}));return {response,body:await response.json()};}};
+  return {state,calls,options,invoke:async(body={})=>{const response=await handler(new Request('https://test',{method:'POST',headers:options.noToken?{}:{'x-microsoft-mail-token':'delegated-token'},body:JSON.stringify({accountId:'account',...body})}));return {response,body:await response.json()};}};
 }
 const posts=h=>h.calls.filter(c=>c.url?.endsWith('/messages')&&c.opts.method==='POST');
 test('issuance automatically saves PDF and creates a verified draft without a second action',async()=>{
@@ -83,11 +85,11 @@ test('OAuth failure is persisted independently of document success',async()=>{
   assert.ok(!h.calls.some(c=>c.name==='cancel_finance_dispatch'));
 });
 test('Graph read 403 is retryable without creating a message or premature intent',async()=>{
-  const h=await harness({readDenied:true});assert.equal((await h.invoke()).body.outlookStatus,'failed');assert.equal(posts(h).length,0);assert.ok(!h.state.account.outlook_creation_started_at);
+  const h=await harness({readDenied:true});assert.equal((await h.invoke()).body.outlookStatus,'waiting_connection');assert.equal(posts(h).length,0);assert.ok(!h.state.account.outlook_creation_started_at);
   h.options.readDenied=false;assert.equal((await h.invoke()).body.outlookStatus,'draft_ready');
 });
 test('definitive POST denial clears its intent for a safe permissions-corrected retry',async()=>{
-  const h=await harness({postDenied:true});assert.equal((await h.invoke()).body.outlookStatus,'failed');assert.equal(h.state.account.outlook_creation_started_at,null);
+  const h=await harness({postDenied:true});assert.equal((await h.invoke()).body.outlookStatus,'waiting_connection');assert.equal(h.state.account.outlook_creation_started_at,null);
   h.options.postDenied=false;assert.equal((await h.invoke()).body.outlookStatus,'draft_ready');assert.equal(posts(h).length,2);
 });
 test('lost POST response reconciles the account property without a second creation',async()=>{
@@ -111,7 +113,7 @@ test('database status failure cannot return a false success or cancel the docume
 test('lease contention and unauthorized worker tokens have no Graph side effects',async()=>{
   const busy=await harness({leaseBusy:true});assert.equal((await busy.invoke()).response.status,400);assert.equal(posts(busy).length,0);
   const denied=await harness();assert.equal((await denied.invoke({outlookJobToken:'wrong'})).response.status,400);assert.equal(denied.calls.filter(c=>c.url).length,0);
-  const valid=await harness({workerAuthorized:true,authorized:false});assert.equal((await valid.invoke({outlookJobToken:'valid'})).body.outlookStatus,'draft_ready');
+  const valid=await harness({workerAuthorized:true,authorized:false});assert.equal((await valid.invoke({outlookJobToken:'valid'})).response.status,400);
 });
 test('changed stored PDF never reaches Outlook or regenerates the invoice',async()=>{
   const h=await harness({badHash:true});assert.equal((await h.invoke()).body.outlookStatus,'failed');assert.equal(posts(h).length,0);
@@ -132,13 +134,41 @@ test('each issuer uses their own server-resolved mailbox despite a poisoned defa
   }
   assert.doesNotMatch(source,/MS_MAIL_SENDER/);
 });
-test('another finance user and a background capability retry the original mailbox and message',async()=>{
+test('retries stay in the original mailbox and retired background capabilities cannot dispatch',async()=>{
   const h=await harness({ownerMailbox:'toni@think.org.il',postDenied:true,workerAuthorized:true});
-  assert.equal((await h.invoke()).body.outlookStatus,'failed');h.options.postDenied=false;
+  assert.equal((await h.invoke()).body.outlookStatus,'waiting_connection');h.options.postDenied=false;
   await h.invoke({userEmail:'idann@think.org.il'});
-  await h.invoke({outlookJobToken:'valid',userEmail:'office@think.org.il'});
+  assert.equal((await h.invoke({outlookJobToken:'valid',userEmail:'office@think.org.il'})).response.status,400);
+  await h.invoke();
   assert.equal(h.state.account.outlook_mailbox,'toni@think.org.il');assert.equal(posts(h).length,2,'one rejected POST and one successful creation');
   assert.ok(h.calls.filter(c=>c.url?.includes('/users/')).every(c=>c.url.includes('toni%40think.org.il')));
+});
+test('a missing Microsoft session preserves PDF and waits without any Outlook request',async()=>{
+  const h=await harness({generating:true,noToken:true});const r=await h.invoke();
+  assert.equal(r.body.outlookStatus,'waiting_connection');assert.equal(r.body.documentPreserved,true);
+  assert.equal(h.state.account.document_status,'issued');assert.equal(posts(h).length,0);
+  assert.ok(!h.calls.some(c=>c.url?.includes('/me/')||c.url?.includes('/users/')));
+  assert.ok(h.calls.some(c=>c.name==='finalize_finance_billing'));
+  h.options.noToken=false;assert.equal((await h.invoke()).body.outlookStatus,'draft_ready');assert.equal(posts(h).length,1);
+});
+test('Graph proves mailbox identity even if a different Microsoft account has shared access to the target',async()=>{
+  const h=await harness({accountMismatch:true});const r=await h.invoke();
+  assert.equal(r.body.outlookStatus,'failed');assert.equal(r.body.outlookError,'invoice_microsoft_account_mismatch');
+  assert.equal(posts(h).length,0);assert.ok(!h.calls.some(c=>c.name==='begin_finance_outlook_creation'));
+  assert.ok(h.calls.some(c=>c.url?.includes('/me/mailFolders/drafts')));
+  assert.ok(h.calls.some(c=>c.url?.includes('/users/idann%40think.org.il/mailFolders/drafts')));
+});
+test('another dashboard user cannot use even a valid original-owner Microsoft token',async()=>{
+  const h=await harness({ownerAllowed:false});const r=await h.invoke();
+  assert.equal(r.body.outlookStatus,'waiting_connection');assert.equal(h.state.account.outlook_error,'invoice_original_issuer_required');
+  assert.ok(!h.calls.some(c=>c.url?.includes('/me/')||c.url?.includes('/users/')));
+});
+test('an expired Microsoft token waits for reconnect and never falls back to application credentials',async()=>{
+  const h=await harness({delegate401:true});assert.equal((await h.invoke()).body.outlookStatus,'waiting_connection');
+  assert.equal(posts(h).length,0);h.options.delegate401=false;assert.equal((await h.invoke()).body.outlookStatus,'draft_ready');
+  const mailCalls=h.calls.filter(c=>c.url?.includes('/me/')||c.url?.includes('/users/'));
+  assert.ok(mailCalls.every(c=>c.opts.headers.Authorization==='Bearer delegated-token'));
+  assert.ok(posts(h).every(c=>c.url.endsWith('/me/messages')));
 });
 test('unresolved or unauthorized owner preserves the issued PDF without accessing another mailbox',async()=>{
   for(const options of [{emptyMailbox:true},{mailboxError:'invoice_mailbox_not_authorized'},{mailboxError:'invoice_mailbox_identity_changed'},{mailboxError:'invoice_mailbox_existing_draft_mismatch'}]) {
