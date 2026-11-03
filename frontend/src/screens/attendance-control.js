@@ -2512,7 +2512,10 @@ export function resultsHtml(result, month = '', options = {}) {
       const calculated = source.calculatedCancellationMinutes != null ? minutesLabel(source.calculatedCancellationMinutes) : '—';
       const inlineRequest = source.reportedCancellationBeforeMinutes != null
         && source.reportedCancellationAfterMinutes != null;
-      const reportedCancel = inlineRequest
+      const suspectCancellation = inlineRequest &&
+        [source.reportedCancellationBeforeMinutes, source.reportedCancellationAfterMinutes]
+          .some(value => !Number.isFinite(Number(value)) || Number(value) < 0 || Number(value) >= 360);
+      const reportedCancel = inlineRequest && suspectCancellation ? 'דיווח חריג – נדרש תיקון' : inlineRequest
         ? minutesLabel(Number(source.reportedCancellationBeforeMinutes) + Number(source.reportedCancellationAfterMinutes))
         : (source.reportedOutboundMinutes != null && source.reportedReturnMinutes != null)
           ? minutesLabel(Math.max(0, Number(source.reportedOutboundMinutes) - 45) + Math.max(0, Number(source.reportedReturnMinutes) - 45))
@@ -2528,7 +2531,7 @@ export function resultsHtml(result, month = '', options = {}) {
           inlineRequest ? `${minutesLabel(source.reportedCancellationBeforeMinutes)} / ${minutesLabel(source.reportedCancellationAfterMinutes)}`
             : source.reportedOutboundMinutes != null ? `${source.reportedOutboundMinutes}/${source.reportedReturnMinutes}` : '—',
           '—', needsDecision && reviewStatus === 'awaiting_report'],
-        ['ביטול זמן מבוקש', reportedCancel, calculated, reviewStatus === 'pending_review'],
+        ['ביטול זמן מבוקש', reportedCancel, calculated, suspectCancellation || reviewStatus === 'pending_review'],
         ['מאושר לתשלום', approvedValue, calculated, needsDecision]
       ].map(([label, left, right, issue]) => `<tr class="${issue ? 'attendance-control__comparison-row--issue' : ''}"><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td>${shown(right)}</td><td><span class="attendance-control__status-pill ${issue ? 'attendance-control__status-pill--issue' : 'attendance-control__status-pill--info'}">${issue ? escapeHtml(reviewStatus) : 'תואם/סגור'}</span></td><td><span class="attendance-control__no-action">—</span></td></tr>`).join('');
       const actions = needsDecision
