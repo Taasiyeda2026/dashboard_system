@@ -597,3 +597,4 @@ config.HOTFIX_VERSION = `feedback-manager-staff-init-20261102-v1-${config.HOTFIX
 config.HOTFIX_VERSION = `finance-pl-numbering-outlook-draft-action-20261102-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `finance-gefen-course-calendar-minimum-20261102-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `finance-automatic-outlook-drafts-20261102-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `finance-draft-rollout-compatibility-20261102-v1-${config.HOTFIX_VERSION}`;

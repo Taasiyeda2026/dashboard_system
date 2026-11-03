@@ -7301,7 +7301,9 @@ export const api = {
   },
   dispatchFinanceTransactionAccount: async (body = {}) => {
     assertPermission('manage_finance_transactions', 'finance_transactions_forbidden');
-    const { data, error } = await supabase.functions.invoke('finance-transaction-accounts', { body });
+    // Rolling deployments can briefly serve the preceding Edge version, which
+    // requires this flag. The new version always creates drafts automatically.
+    const { data, error } = await supabase.functions.invoke('finance-transaction-accounts', { body: { ...body, createDraft: true } });
     if (error) {
       // FunctionsHttpError otherwise hides the JSON error returned by our Edge function.
       const server = typeof error.context?.json === 'function'
