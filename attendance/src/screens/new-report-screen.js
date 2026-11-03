@@ -1841,7 +1841,7 @@ export function renderNewReportScreen(container, {
 
       const programName = activity?.program_name || activityNameSnapshot || null;
 
-      const usesPublicTransport = !isDailyTravelDate() && !isOnline && !isTeamOnline && publicTransportInput.checked;
+      const usesPublicTransport = !isOnline && !isTeamOnline && publicTransportInput.checked && !isDailyTravelDate();
       const kmValue = isDailyTravelDate() ? 0 : reportedKilometers(kmField.input.value, {
         online: isOnline || isTeamOnline, publicTransport: usesPublicTransport, activityType: reportType,
       });
