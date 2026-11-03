@@ -10,13 +10,12 @@ test('Anglican Google AI course keeps 8000 as authoritative price and calculates
   assert.equal(d.manualDraft.quantity,10);assert.equal(d.manualDraft.hours,15);assert.equal(d.manualDraft.amount,8000);
   assert.equal(manualHourlyRate(d.manualDraft),8000/15);
   let doc=new JSDOM(manualAccountViewHtml(d)).window.document;
-  assert.equal(doc.querySelector('[data-finance-manual-hourly-rate]').value,'533.33');assert.equal(doc.querySelector('[data-finance-manual-hourly-rate]').readOnly,true);
+  assert.match(doc.querySelector('[data-finance-manual-hourly-rate]').textContent,/533.33/);
   assert.equal(doc.querySelectorAll('.ds-fin-manual__billing-row > label').length,4);
-  assert.deepEqual([...doc.querySelectorAll('.ds-fin-manual__billing-row > label')].map(x=>x.textContent),['מספר מפגשים','מספר שעות','מחיר הפעילות','מחיר שעתי מחושב']);
+  assert.deepEqual([...doc.querySelectorAll('.ds-fin-manual__billing-row > label')].map(x=>x.textContent),['מפגשים לחיובמתוך 10','שעות לחיובמתוך 15','מחיר הפעילות','סכום לחיוב']);
   assert.doesNotMatch(manualAccountViewHtml(d),/מחיר למפגש|גורם מימון וחודש/);
-  updateManualDraft(d,'quantity',9);assert.equal(d.manualDraft.amount,8000);assert.equal(d.manualDraft.unit_price,8000/9);
-  updateManualDraft(d,'hours',12);assert.equal(d.manualDraft.amount,8000);assert.equal(manualHourlyRate(d.manualDraft),8000/12);
-  updateManualDraft(d,'amount','7,500.00');assert.equal(manualHourlyRate(d.manualDraft),625);
+  for(const [key,value] of [['quantity',9],['hours',12],['amount','7,500.00']])assert.equal(updateManualDraft(d,key,value),false);
+  assert.equal(d.manualDraft.amount,8000);assert.equal(manualHourlyRate(d.manualDraft),8000/15);
   assert.equal(JSON.stringify(d.collectionActivities),original);
 });
 test('workshop and tour keep unit pricing when quantity or unit price changes',()=>{
@@ -41,8 +40,8 @@ test('payer-first selection separates Gefen schools and pre-fills permitted bala
 test('manual wizard selects existing activity/funder and edits document fields without touching source data',()=>{
   const d=data();const source=JSON.stringify(d.collectionActivities);prepareManualAccount(d,'a');
   assert.equal(d.manualDraft.amount,7000);assert.equal(d.manualDraft.quantity,2);assert.equal(d.manualFundingKey,'r|2026-09-01');
-  updateManualDraft(d,'description','תיאור למסמך');updateManualDraft(d,'amount',6000);
-  assert.equal(d.manualDraft.unit_price,3000);assert.equal(JSON.stringify(d.collectionActivities),source);
+  updateManualDraft(d,'description','תיאור למסמך');assert.equal(updateManualDraft(d,'amount',6000),false);
+  assert.equal(d.manualDraft.unit_price,3500);assert.equal(JSON.stringify(d.collectionActivities),source);
   const html=manualAccountViewHtml(d);assert.match(html,/הגורם המשלם/);assert.match(html,/תיאור למסמך/);assert.doesNotMatch(html,/data-finance-manual-confirm/);
   assert.match(html,/data-finance-manual-select-activity value="a" checked/);
   assert.doesNotMatch(html,/בית ספר · קורס · a/);
@@ -121,15 +120,15 @@ test('multiple activities for one financer issue exactly one account with all li
   d.manualFunderFilter='authority:עיריית רחובות';
   toggleManualActivity(d,'a',true);
   toggleManualActivity(d,'b',true);
-  updateManualDraft(d,'amount',4000);
+  assert.equal(updateManualDraft(d,'amount',4000),false);
   saveActiveManualDraft(d);
   const requests=[];
   const api={
     previewFinanceFunderBatchAccount:async items=>{
       requests.push(items);
-      return {quote:{revision:'combined-rev',total_amount:11000,finance_transaction_account_lines:[{},{}]},pdfBase64:'COMBINEDPDF'};
+      return {quote:{revision:'combined-rev',total_amount:11300,finance_transaction_account_lines:[{},{}]},pdfBase64:'COMBINEDPDF'};
     },
-    reserveFinanceFunderBatchAccount:async request=>({id:'one-account',total_amount:11000,request}),
+    reserveFinanceFunderBatchAccount:async request=>({id:'one-account',total_amount:11300,request}),
     dispatchFinanceTransactionAccount:async payload=>({document:'issued',id:payload.accountId})
   };
   const previews=await previewSelectedManualAccounts(d,api);
@@ -137,7 +136,7 @@ test('multiple activities for one financer issue exactly one account with all li
   assert.equal(requests.length,1);
   assert.deepEqual(requests[0].map(item=>item.activity),['a','b']);
   assert.equal(requests[0][0].draft.amount,7000);
-  assert.equal(requests[0][1].draft.amount,4000);
+  assert.equal(requests[0][1].draft.amount,4300);
   const view=manualAccountViewHtml(d);
   assert.match(view,/אישור והפקת חשבון מרוכז/);
   assert.match(view,/data-finance-manual-pdf-open="consolidated"/);
@@ -200,13 +199,11 @@ test('manual invoice displays grouped payer amounts and keeps numeric values in 
   const d=data();prepareManualAccount(d,'a');
   const html=manualAccountViewHtml(d);
   assert.match(html,/7,000\.00 ₪/);
-  assert.match(html,/data-finance-manual-field="amount" value="7,000\.00"/);
-  assert.match(html,/data-finance-manual-hourly-rate readonly value="2,333\.33"/);
-  updateManualDraft(d,'amount','6,500.50');
-  assert.equal(d.manualDraft.amount,6500.5);
-  assert.equal(d.manualDraft.unit_price,3250.25);
+  assert.match(html,/readonly value="7,000\.00"/);
+  assert.match(html,/מחיר שעתי מחושב: 2,333\.33/);
+  assert.equal(updateManualDraft(d,'amount','6,500.50'),false);
   assert.equal(updateManualDraft(d,'unit_price','1,250.00'),false);
-  assert.equal(d.manualDraft.amount,6500.5);
+  assert.equal(d.manualDraft.amount,7000);
   assert.ok(Number.isFinite(d.manualDraft.amount));
 });
 test('money input formatting retains enough unit-price precision for server amount validation',()=>{
@@ -414,4 +411,22 @@ test('bulk payer fields update every selected activity and preserve per-school f
   assert.match(second,/data-finance-manual-preview/);
   d.manualBulkEditingActivityId='';
   assert.doesNotMatch(manualAccountViewHtml(d),/בית ספר בפעילות הנערכת/);
+});
+
+test('manual course performance separates the 8000 activity price from 2400 billed for 3 of 10 meetings',()=>{
+  const d=data(),row=d.transactionContext.billingRows[0];d.collectionActivities[0].price=8000;
+  Object.assign(row,{plannedCount:10,plannedHours:15,activityPrice:8000,fundingAmount:8000,unbilledCount:3,unbilledHours:4.5,issuableAmount:2400,fullFundingAmount:8000,fullFundingBlockedReason:'',unbilledSlots:[1,2,3].map(slot=>({slot,date:`2026-10-0${slot}`,remainingAmount:800,remainingHours:1.5}))});
+  toggleManualActivity(d,'a',true);assert.equal(d.manualDraft.amount,8000);setManualBillingScope(d,'partial');
+  assert.equal(d.manualDraft.amount,2400);assert.equal(d.manualDraft.hours,4.5);assert.equal(d.manualDraft.planned_hours,15);assert.equal(d.manualDraft.activity_price,8000);assert.equal(manualHourlyRate(d.manualDraft),8000/15);
+  const doc=new JSDOM(manualAccountViewHtml(d)).window.document;
+  assert.deepEqual([...doc.querySelectorAll('.ds-fin-manual__billing-row input')].map(x=>x.value),['3','4.5','8,000.00','2,400.00']);
+  assert.match(doc.querySelector('[data-finance-manual-hourly-rate]').textContent,/533.33/);
+  updateManualDraft(d,'quantity',2);assert.equal(d.manualDraft.hours,3);assert.equal(d.manualDraft.amount,1600);
+  assert.equal(updateManualDraft(d,'amount',100),false);assert.equal(updateManualDraft(d,'hours',1),false);
+  setManualBillingScope(d,'full');assert.equal(d.manualDraft.amount,8000);assert.equal(d.manualDraft.hours,15);assert.equal(d.collectionActivities[0].price,8000);
+});
+
+test('course selection sums currency cents without floating point overbilling',()=>{
+  const d=data();Object.assign(d.transactionContext.billingRows[0],{unbilledCount:3,issuableAmount:0.3,unbilledSlots:[1,2,3].map(slot=>({slot,remainingAmount:0.1,remainingHours:1.5}))});
+  prepareManualAccount(d,'a');updateManualDraft(d,'quantity',3);assert.equal(d.manualDraft.amount,0.3);assert.equal(d.manualDraft.hours,4.5);
 });
