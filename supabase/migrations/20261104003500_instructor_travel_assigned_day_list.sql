@@ -60,6 +60,11 @@ begin
     where (a.emp_id=v_emp or a.emp_id_2=v_emp::text)
       and chosen.travel_date between v_from and v_to
       and coalesce(a.activity_type,'') not in ('זום','ביטול זמן')
+    union all
+    select tr.training_date, coalesce(nullif(tr.course_name,''),'הכשרה')
+    from public.instructor_training_schedule tr
+    where tr.emp_id=v_emp and tr.training_date between v_from and v_to
+      and coalesce(tr.is_online,false)=false
   ), recorded as (
     select ar.report_date travel_date,
       count(*)::integer physical_count,
