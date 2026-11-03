@@ -53,6 +53,7 @@ export function renderMyReportsScreen(container, {
   onPrevMonth,
   onNextMonth,
   onNewReport,
+  onTravelReport,
   onDuplicate,
 } = {}) {
   container.innerHTML = '';
@@ -276,6 +277,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
         instructor,
         activityTypes,
         onDuplicate,
+        onTravelReport,
         onRefresh,
         dayTotalHours: dailyTotalHoursByRecord.get(record),
         dashboardValidation: dashboardValidationByRecord.get(String(record.id)) || null,
@@ -369,7 +371,7 @@ function locationOrSchoolForRecord(record, baseTraining) {
   return school || '—';
 }
 
-function buildRecordRow({ record, generated, editable, instructor, activityTypes, onDuplicate, onRefresh, dayTotalHours = null, dashboardValidation = null }) {
+function buildRecordRow({ record, generated, editable, instructor, activityTypes, onDuplicate, onTravelReport, onRefresh, dayTotalHours = null, dashboardValidation = null }) {
   const row = document.createElement('div');
   row.className = 'av2-report-row';
   row.dataset.recordId = record.id;
@@ -476,6 +478,26 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
     dupBtn.append(createIcon('duplicate', { size: 14 }));
     dupBtn.addEventListener('click', (e) => { e.stopPropagation(); onDuplicate(record); });
     actionsCell.append(dupBtn);
+  }
+
+  if (onTravelReport && record.report_date >= '2026-11-04'
+      && !isZoomLocationReport({
+        activityType:record.activity_type,
+        trainingMode:record.training_mode,
+        operationMeetingMode:record.operation_meeting_mode,
+        operationName:record.activity_name_snapshot
+      }) && record.activity_type !== 'ביטול זמן') {
+    const travelBtn = document.createElement('button');
+    travelBtn.type = 'button';
+    travelBtn.className = 'av2-report__tiny-travel-btn av2-rr__travel-shortcut';
+    travelBtn.textContent = 'נסיעות';
+    travelBtn.title = 'מילוי נסיעות ליום הפעילות';
+    travelBtn.setAttribute('aria-label', 'מילוי נסיעות ליום ' + record.report_date);
+    travelBtn.addEventListener('click',event=>{
+      event.stopPropagation();
+      onTravelReport(record.report_date);
+    });
+    actionsCell.append(travelBtn);
   }
 
   // Edit + Delete (only when editable)
@@ -884,11 +906,11 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     cancellationWrap.hidden = !eligibleCancellation;
     if (!eligibleCancellation) cancellationToggle.checked = false;
     cancellationFields.hidden = !eligibleCancellation || !cancellationToggle.checked;
-    publicTransportWrap.hidden = isZoom;
-    publicTransportToggle.disabled = isZoom;
-    if (isZoom) publicTransportToggle.checked = false;
-    const usesTransport = !isZoom && publicTransportToggle.checked;
-    publicTransportCostField.wrap.hidden = !usesTransport;
+    publicTransportWrap.hidden = isZoom || isDailyTravel;
+    publicTransportToggle.disabled = isZoom || isDailyTravel;
+    if (isZoom || isDailyTravel) publicTransportToggle.checked = false;
+    const usesTransport = !isZoom && !isDailyTravel && publicTransportToggle.checked;
+    publicTransportCostField.wrap.hidden = isDailyTravel || !usesTransport;
     publicTransportCostField.input.disabled = !usesTransport;
     kmField.wrap.hidden = isZoom || usesTransport || isDailyTravel;
 

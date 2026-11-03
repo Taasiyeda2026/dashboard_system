@@ -206,14 +206,17 @@ export function exportMonthToExcel(records, instructor, year, month, dailyTravel
       'יעד': leg?.to || '',
       'זמן נסיעה (דקות)': leg?.minutes ?? '',
       'קילומטרים': leg?.kilometers ?? '',
+      'אמצעי נסיעה': leg?.mode==='public_transport'?'תחבורה ציבורית':'רכב',
+      'עלות תחבורה ציבורית (₪)': leg?.mode==='public_transport'?(Number(leg.transportCost)||0):0,
       'ביטול זמן יומי (דקות)': report.cancellation_minutes ?? '',
+      'תחבורה ציבורית מאושרת (₪)': report.approved_public_transport_cost ?? '',
       'סטטוס': report.review_status === 'approved' || report.review_status === 'corrected'
         ? 'אושר' : report.review_status === 'rejected' ? 'נדחה' : 'ממתין לאישור'
     }));
   });
   if(travelRows.length){
     const wsTravel=XLSX.utils.json_to_sheet(travelRows);
-    wsTravel['!cols']=[{wch:14},{wch:19},{wch:24},{wch:24},{wch:18},{wch:13},{wch:24},{wch:18}];
+    wsTravel['!cols']=[{wch:14},{wch:19},{wch:24},{wch:24},{wch:18},{wch:13},{wch:20},{wch:22},{wch:24},{wch:25},{wch:18}];
     XLSX.utils.book_append_sheet(wb,wsTravel,'נסיעות וביטולים');
   }
 

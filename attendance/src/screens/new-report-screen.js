@@ -119,6 +119,7 @@ function makeFormSection(title, variant, bodyClass, fields) {
 export function renderNewReportScreen(container, {
   instructor = {},
   defaultDate = localIsoDate(),
+  initialTab = 'attendance',
   prefillRecord = null,
   onBack,
   onSaved,
@@ -483,7 +484,7 @@ export function renderNewReportScreen(container, {
   function syncTravelMode() {
     if (!kmField?.input || !publicTransportInput || !publicTransportCostWrap) return;
     const online = isOnlineActivity();
-    if (publicTransportToggleEl) publicTransportToggleEl.hidden = online;
+    if (publicTransportToggleEl) publicTransportToggleEl.hidden = online || isDailyTravelDate();
     if (online) {
       publicTransportInput.checked = false;
       publicTransportInput.disabled = true;
@@ -491,12 +492,13 @@ export function renderNewReportScreen(container, {
       publicTransportInput.disabled = false;
     }
 
+    if (isDailyTravelDate()) publicTransportInput.checked = false;
     const usesPublicTransport = !online && publicTransportInput.checked;
     kmField.wrap.hidden = online || usesPublicTransport || isDailyTravelDate();
     kmField.input.disabled = online || usesPublicTransport;
     kmField.input.readOnly = online || usesPublicTransport;
-    publicTransportCostWrap.hidden = !usesPublicTransport;
-    publicTransportCostField.input.disabled = !usesPublicTransport;
+    publicTransportCostWrap.hidden = isDailyTravelDate() || !usesPublicTransport;
+    publicTransportCostField.input.disabled = isDailyTravelDate() || !usesPublicTransport;
 
     if (online || usesPublicTransport) kmField.input.value = '0';
     if (!usesPublicTransport) publicTransportCostField.input.value = '';
@@ -1904,7 +1906,11 @@ export function renderNewReportScreen(container, {
           ...scheduledTrainingFields,
         };
 
-        if (isDailyTravelDate()) payload.roundtrip_km = 0;
+        if (isDailyTravelDate()) {
+          payload.roundtrip_km = 0;
+          payload.public_transport = false;
+          payload.public_transport_cost = 0;
+        }
         const record = await createRecord(instructor.empId, payload);
         // Travel compensation is back-office processing. Never block or warn the
         // instructor: unresolved calculations remain visible to the team manager/admin.
@@ -1949,6 +1955,12 @@ export function renderNewReportScreen(container, {
     form.setAttribute('role','tabpanel');
     form.setAttribute('aria-labelledby',attendanceTab.id);
     tabs.append(attendanceTab, travelTab);
+    const travelShortcut = document.createElement('button');
+    travelShortcut.type = 'button';
+    travelShortcut.className = 'av2-report__tiny-travel-btn';
+    travelShortcut.textContent = 'מילוי נסיעות';
+    travelShortcut.title = 'מעבר לדיווח הנסיעות של היום שנבחר';
+    travelShortcut.setAttribute('aria-label', 'מילוי נסיעות ליום שנבחר');
     const dailyTravel = createDailyTravelTab({
       empId: instructor.empId,
       initialDate: dateField.input.value || defaultDate
@@ -1965,12 +1977,20 @@ export function renderNewReportScreen(container, {
       travelTab.classList.toggle('av2-report__tab--active',!isAttendance);
       if(!isAttendance){
         if(dailyTravel.panel.dataset.av2Visited!=='1'){
-          dailyTravel.dateInput.value=dateField.input.value||defaultDate;
+          dailyTravel.setDate(dateField.input.value||defaultDate);
           dailyTravel.panel.dataset.av2Visited='1';
         }
         void dailyTravel.load();
       }
     }
+    travelShortcut.addEventListener('click',()=>{
+      const day = dateField.input.value;
+      if (!day) { dateField.input.focus(); return; }
+      dailyTravel.setDate(day);
+      dailyTravel.panel.dataset.av2Visited = '1';
+      showTab('travel');
+    });
+    dateField.wrap.append(travelShortcut);
     attendanceTab.addEventListener('click',()=>showTab('attendance'));
     travelTab.addEventListener('click',()=>showTab('travel'));
     tabs.addEventListener('keydown',event=>{
@@ -1985,7 +2005,7 @@ export function renderNewReportScreen(container, {
       tabsList[nextIndex].focus();
     });
     formArea.append(tabs,form,dailyTravel.panel);
-    showTab('attendance');
+    showTab(initialTab === 'travel' ? 'travel' : 'attendance');
     void onReportDateChange();
   }
 

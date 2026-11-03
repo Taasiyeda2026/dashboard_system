@@ -49,8 +49,8 @@ test('the audit retains stored metrics, flags only defensible anomalies and neve
 
 test('edge routing does not replace a suspect route in background and maintains manual-only review', async () => {
   const edge = await read('../supabase/functions/scheduling-route/index.ts');
-  assert.match(edge, /cached\.location_suspect === true/);
-  assert.match(edge, /cached\?\.location_suspect === true/);
+  assert.match(edge, /isSuspectBlocked\(cached\)/);
+  assert.match(edge, /row\.location_suspect === true/);
   assert.match(edge, /ambiguous_school_location/);
   assert.match(edge, /location_review_required/);
   const screen = await read('../frontend/src/screens/course-scheduling.js');

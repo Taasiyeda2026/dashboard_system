@@ -19,9 +19,9 @@ test('manager Excel includes distinct daily travel rows, status and approved tot
   assert.equal(rows[1][2],'נסיעה ראשונה');
   assert.equal(rows[2][2],'בין פעילויות');
   assert.equal(rows[3][2],'נסיעה אחרונה');
-  assert.equal(rows[1][8],110);
-  assert.equal(rows[1][9],80);
-  assert.equal(rows[1][10],'אושר');
+  assert.equal(rows[1][10],110);
+  assert.equal(rows[1][11],80);
+  assert.equal(rows[1][13],'אושר');
 });
 
 test('mobile and desktop offer same independent tabs and accessible navigation',async()=>{
@@ -31,9 +31,9 @@ test('mobile and desktop offer same independent tabs and accessible navigation',
   assert.match(screen,/attendanceTab\.textContent = 'נוכחות'/);
   assert.match(screen,/travelTab\.textContent = 'נסיעות וביטולים'/);
   assert.match(screen,/form\.hidden = !isAttendance/);
-  assert.match(screen,/dailyTravel\.panel\.hidden = isAttendance/);
+ assert.ok(screen.includes('dailyTravel.setDate(day)'));
   assert.match(screen,/tabs\.addEventListener\('keydown'/);
-  assert.match(travel,/if\(!force && loadedDate===date\)return/);
+  assert.ok(travel.includes('loadedDate===requestedDay'));
   assert.match(travel,/saveDailyTravel\(loadedDate,legs,noTravel.checked\)/);
   assert.match(css,/@media\(max-width:639px\)/);
   assert.match(css,/min-height:44px/);

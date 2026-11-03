@@ -3,6 +3,15 @@ import { buildDailyTravelLegs, summarizeDailyTravel } from './daily-travel.js';
 import { getMonthRecords } from './attendance.service.js';
 import { isZoomLocationReport } from './attendance-location-policy.js';
 
+
+export async function getAssignedTravelDays({fromDate=null,toDate=null}={}) {
+  const {data,error}=await supabase.rpc('av2_list_instructor_travel_days',{
+    p_from:fromDate,p_to:toDate
+  });
+  if(error)throw new Error('לא ניתן לטעון את ימי הפעילות');
+  return Array.isArray(data)?data:[];
+}
+
 export async function getDailyTravelReport(empId, date) {
   const rows = await getDailyTravelReports(empId, date.slice(0,7));
   return rows.find(row => row.travel_date === date) || null;

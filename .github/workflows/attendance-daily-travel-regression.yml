@@ -25,6 +25,6 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run daily travel, export and attendance regressions
         run: |
-          node --test tests/attendance-daily-travel-policy-20261103.test.mjs tests/attendance-daily-travel-manager-export-mobile.test.mjs tests/attendance-daily-payroll-once.test.mjs tests/attendance-employee-export.test.mjs
+          node --test tests/attendance-daily-travel-policy-20261103.test.mjs tests/attendance-daily-travel-manager-export-mobile.test.mjs tests/attendance-daily-payroll-once.test.mjs tests/attendance-employee-export.test.mjs tests/attendance-tiny-travel-shortcut.test.mjs tests/attendance-assigned-travel-and-fares.test.mjs
       - name: Build production bundle
         run: npm run build
