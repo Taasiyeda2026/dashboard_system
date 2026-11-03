@@ -293,11 +293,11 @@ function renderScreen() {
     const requestedDate = state.newReportDate;
     state.prefillRecord = null;
     state.newReportDate = '';
+    // New reports default to today's local date, regardless of the month
+    // currently displayed in the calendar. A deliberately selected date
+    // and an existing record being edited retain their original dates.
     const now = new Date();
-    const sameMonth = state.currentYear === now.getFullYear() && state.currentMonth === now.getMonth() + 1;
-    const fallbackDate = sameMonth
-      ? `${state.currentYear}-${String(state.currentMonth).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`
-      : `${state.currentYear}-${String(state.currentMonth).padStart(2,'0')}-01`;
+    const fallbackDate = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
     renderNewReportScreen(appRoot, {
       instructor: state.instructor,
       defaultDate: requestedDate || fallbackDate,
