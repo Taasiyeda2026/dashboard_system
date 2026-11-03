@@ -1842,10 +1842,10 @@ export function renderNewReportScreen(container, {
       const programName = activity?.program_name || activityNameSnapshot || null;
 
       const usesPublicTransport = !isOnline && !isTeamOnline && publicTransportInput.checked;
-      const kmValue = isDailyTravelDate() ? 0 : reportedKilometers(kmField.input.value, {
+      const kmValue = reportedKilometers(kmField.input.value, {
         online: isOnline || isTeamOnline, publicTransport: usesPublicTransport, activityType: reportType,
       });
-      if (kmValue == null) {
+      if (!isDailyTravelDate() && kmValue == null) {
         errorEl.textContent = 'יש להזין קילומטרים לדיווח, או 0 אם אין קילומטרים לדיווח.';
         errorEl.hidden = false;
         kmField.input.focus();
@@ -1895,7 +1895,7 @@ export function renderNewReportScreen(container, {
             ? cancellationMinutesForSave(cancellationBeforeField.input.value, originalCancellationRecord, 'cancellation_before_minutes') : null,
           cancellation_after_minutes: !isDailyTravelDate() && cancellationToggle.checked
             ? cancellationMinutesForSave(cancellationAfterField.input.value, originalCancellationRecord, 'cancellation_after_minutes') : null,
-          roundtrip_km: kmValue,
+          roundtrip_km: isDailyTravelDate() ? 0 : kmValue,
           public_transport: usesPublicTransport,
           public_transport_cost: publicTransportCost,
           expenses: expField.input.value ? Number(expField.input.value) : 0,
