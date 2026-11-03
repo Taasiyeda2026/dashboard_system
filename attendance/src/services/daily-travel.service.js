@@ -20,24 +20,13 @@ export async function getDailyTravelReports(empId, month) {
 }
 
 export async function getDailyTravelActivityLegs(empId, date) {
-  const [year, month] = date.split('-').map(Number);
-  const records = await getMonthRecords(empId, year, month, {force:true});
-  const activities = records.filter(row => row.report_date === date)
-    .map(row => ({
-      recordId: row.id, date: row.report_date,
-      startTime: row.start_time, endTime: row.end_time,
-      activityType: row.activity_type,
-      generationKind: row.generation_kind,
-      destinationAddress: row.destination_address_snapshot,
-      school: row.school_name_snapshot || row.authority_name_snapshot,
-      isRemote: isZoomLocationReport({
-        activityType: row.activity_type,
-        trainingMode: row.training_mode,
-        operationMeetingMode: row.operation_meeting_mode,
-        operationName: row.activity_name_snapshot
-      })
-    }));
-  return buildDailyTravelLegs(activities);
+  const {data,error}=await supabase.rpc('av2_preview_daily_travel',{p_date:date});
+  if(error)throw new Error('לא ניתן לטעון את מסלול הנסיעה');
+  return Array.isArray(data) ? data.map(leg=>({
+    ...leg,
+    minutes:null,
+    kilometers:leg.kilometers == null ? null : Number(leg.kilometers)
+  })) : [];
 }
 
 export async function saveDailyTravel(date, legs, noTravel = false) {
