@@ -14,6 +14,9 @@ before(async()=>{
   await db.query('drop schema if exists finance_private cascade; drop schema if exists public cascade; drop schema if exists auth cascade; drop schema if exists net cascade; drop schema if exists vault cascade; drop schema if exists cron cascade; create schema public');
   await db.query(await read('./fixtures/finance-billing-schema.sql'));
   await db.query(`alter table activities add activity_type text default 'course',add activity_season text default 'school_2027',add school_contact_id bigint;
+    create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz);
+    create table public.users(auth_user_id uuid primary key,email text,is_active boolean,role text,permissions jsonb);
+    create function public.app_permission_parent(text) returns text language sql as $$select case when $1='manage_finance_transactions' then 'finance_access' end$$;
     create table contacts_schools(id bigint primary key,school_id bigint,authority_id bigint,client_type text,client_name text,email text,active text);
     create table contact_emails(contact_id bigint,email text,active boolean);
     create table finance_school_invoice_recipients(school_id bigint,recipient_email text,contact_id bigint);
@@ -29,16 +32,18 @@ before(async()=>{
   for(const name of ['20261029222210_finance_funder_billing','20261029224142_finance_receipts_manual_accounts',
     '20261030044100_finance_single_funder_price_fallback','20261030051500_finance_optional_customer_identifier',
     '20261101192545_finance_service_quantity_snapshots','20261102191847_finance_gefen_course_monthly_minimum',
-    '20261102202405_finance_automatic_outlook_drafts'])await db.query(await read(`../supabase/migrations/${name}.sql`));
+    '20261102202405_finance_automatic_outlook_drafts','20261103191835_finance_original_issuer_outlook_mailbox'])await db.query(await read(`../supabase/migrations/${name}.sql`));
 });
 after(async()=>{if(db)await db.end();});
 beforeEach(async()=>{
   if(!db)return;
-  await db.query(`truncate finance_private.outlook_jobs,net.requests,finance_private.payment_operations,finance_audit_events,
+  await db.query(`truncate public.users,auth.users,finance_private.outlook_jobs,net.requests,finance_private.payment_operations,finance_audit_events,
     finance_receipt_allocations,finance_receipts,finance_billing_claims,finance_transaction_account_meetings,
     finance_transaction_account_lines,finance_private.dispatch_leases,finance_transaction_accounts,activity_funding_sources,
     activities,schools,authorities,funding_sources,course_meeting_cancellations,contacts_schools,contact_emails,finance_school_invoice_recipients;
     select set_config('test.uid','44444444-4444-4444-8444-444444444444',false),set_config('test.app_role','admin',false),set_config('test.role','service_role',false);
+    insert into auth.users values('44444444-4444-4444-8444-444444444444','idann@think.org.il',now()),('55555555-5555-4555-8555-555555555555','toni@think.org.il',now());
+    insert into public.users values('44444444-4444-4444-8444-444444444444','idann@think.org.il',true,'admin','{}'),('55555555-5555-4555-8555-555555555555','toni@think.org.il',true,'finance','{"manage_finance_transactions":"yes","finance_access":"yes"}');
     insert into schools values(1,'123');insert into authorities values(1,'רשות');insert into funding_sources values('${gefen}','גפ״ן');
     insert into activities(id,row_id,school_id,authority_id,school,funding,price,sessions,activity_name,status,date_1,date_2,date_3)
       values(1,'a',1,1,'מוסד','גפ״ן',3000,'3','קורס','פתוח','2026-08-01','2026-08-20','2026-09-01');
@@ -75,7 +80,7 @@ check('billing finalization atomically queues exactly one draft without touching
   assert.equal((await db.query('select state from finance_private.outlook_jobs')).rows[0].state,'pending');
 });
 check('creation intent is single-use under the dispatch lease and cleared only after a definite rejection',async()=>{
-  await finalize();const begin=()=>db.query("select begin_finance_outlook_creation($1,$2,'office@example.test','[\"a@example.test\"]') allowed",[account.id,token]);
+  await finalize();const begin=()=>db.query("select begin_finance_outlook_creation($1,$2,'idann@think.org.il','[\"a@example.test\"]') allowed",[account.id,token]);
   assert.equal((await begin()).rows[0].allowed,true);assert.equal((await begin()).rows[0].allowed,false);
   await db.query("select mark_finance_transaction_outlook($1,'needs_review',null,'uncertain',$2)",[account.id,token]);
   assert.equal((await begin()).rows[0].allowed,false);
@@ -96,7 +101,7 @@ check('outbox retries use expiring account capabilities and cannot bypass JWT-ba
   assert.equal((await db.query("select has_function_privilege('anon','public.finance_transaction_recipients(uuid)','EXECUTE') allowed")).rows[0].allowed,false);
 });
 check('ready status closes the outbox while preserving original invoice metadata',async()=>{
-  await finalize();await db.query("select mark_finance_transaction_outlook($1,'draft_ready','immutable-message',null,$2,'[\"a@example.test\"]','office@example.test')",[account.id,token]);
+  await finalize();await db.query("select mark_finance_transaction_outlook($1,'draft_ready','immutable-message',null,$2,'[\"a@example.test\"]','idann@think.org.il')",[account.id,token]);
   const a=(await db.query('select * from finance_transaction_accounts')).rows[0];
   assert.equal(a.generated_filename,'original.pdf');assert.equal(a.pdf_sha256,'hash');assert.equal(a.outlook_message_id,'immutable-message');assert.deepEqual(a.outlook_recipients,['a@example.test']);
   assert.equal((await db.query('select state from finance_private.outlook_jobs')).rows[0].state,'ready');
@@ -111,4 +116,60 @@ check('worker exhaustion becomes visible and the already-deployed Gefen month ru
   const rows=(await db.query("select finance_private.billing_rows(jsonb_populate_record(a,'{\"id\":-1,\"row_id\":\"unbilled\",\"date_1\":\"2026-10-01\",\"date_2\":\"2026-10-20\",\"date_3\":\"2026-11-01\"}'),null,'2026-12-01T00:00:00+02:00') r from activities a")).rows[0].r;
   assert.equal(rows.find(r=>r.period==='2026-10-01').eligible,false);
   assert.equal(rows.find(r=>r.period==='2026-11-01').eligible,true);
+});
+
+const resolveMailbox=async()=> (await db.query('select resolve_finance_outlook_mailbox($1,$2) mailbox',[account.id,token])).rows[0].mailbox;
+check('reservation captures the server actor and mailbox; forged owner fields and later actor changes cannot redirect it',async()=>{
+  assert.equal(account.outlook_owner_id,'44444444-4444-4444-8444-444444444444');assert.equal(account.outlook_owner_mailbox,'idann@think.org.il');
+  const forged=(await db.query(`insert into finance_transaction_accounts(idempotency_key,cutoff_date,institution_symbol,customer_name_snapshot,total_amount,payment_due_date,
+    outlook_owner_id,outlook_owner_mailbox) values($1,current_date,'123','בדיקה',0,current_date,'55555555-5555-4555-8555-555555555555','toni@think.org.il') returning *`,[crypto.randomUUID()])).rows[0];
+  assert.equal(forged.outlook_owner_id,account.outlook_owner_id);assert.equal(forged.outlook_owner_mailbox,'idann@think.org.il');
+  await db.query("select set_config('test.uid','55555555-5555-4555-8555-555555555555',false)");
+  assert.equal(await resolveMailbox(),'idann@think.org.il');
+  await db.query("select set_config('test.uid','',false)");assert.equal(await resolveMailbox(),'idann@think.org.il','background worker has no user session');
+  await assert.rejects(db.query("update finance_transaction_accounts set outlook_owner_id='55555555-5555-4555-8555-555555555555' where id=$1",[account.id]),/invoice_mailbox_owner_immutable/);
+  await assert.rejects(db.query("update finance_transaction_accounts set outlook_owner_mailbox='toni@think.org.il' where id=$1",[account.id]),/invoice_mailbox_owner_immutable/);
+});
+check('finance issuer mailbox requires the same active finance permissions and a confirmed organizational Auth email',async()=>{
+  const lookup=async()=> (await db.query("select finance_private.issuer_outlook_mailbox('55555555-5555-4555-8555-555555555555') mailbox")).rows[0].mailbox;
+  assert.equal(await lookup(),'toni@think.org.il');
+  await db.query("update public.users set permissions='{}' where role='finance'");assert.equal(await lookup(),null);
+  await db.query("update public.users set permissions='{\"manage_finance_transactions\":\"yes\",\"finance_access\":\"no\"}' where role='finance'");assert.equal(await lookup(),null);
+  await db.query("update public.users set permissions='{\"manage_finance_transactions\":\"yes\",\"finance_access\":\"yes\"}',is_active=false where role='finance'");assert.equal(await lookup(),null);
+  await db.query("update public.users set is_active=true where role='finance'; update auth.users set email_confirmed_at=null where email='toni@think.org.il'");assert.equal(await lookup(),null);
+  await db.query("update auth.users set email_confirmed_at=now(),email='other@think.org.il' where email='toni@think.org.il'");assert.equal(await lookup(),null);
+  await db.query("update auth.users set email='toni@gmail.com' where email='other@think.org.il';update public.users set email='toni@gmail.com' where role='finance'");assert.equal(await lookup(),null);
+});
+check('revoked issuer and changed email stop retries rather than use the retrying user mailbox',async()=>{
+  await db.query("update public.users set is_active=false where role='admin'");await assert.rejects(resolveMailbox(),/invoice_mailbox_not_authorized/);
+  await db.query("update public.users set is_active=true,email='new@think.org.il' where role='admin';update auth.users set email='new@think.org.il' where email='idann@think.org.il'");
+  await assert.rejects(resolveMailbox(),/invoice_mailbox_identity_changed/);
+});
+check('an unknown legacy owner and an existing draft in another mailbox fail closed without changing message IDs',async()=>{
+  await finalize();
+  await db.query("update finance_transaction_accounts set outlook_message_id='legacy',outlook_mailbox='office@think.org.il' where id=$1",[account.id]);
+  await assert.rejects(resolveMailbox(),/invoice_mailbox_existing_draft_mismatch/);
+  assert.equal((await db.query('select outlook_message_id from finance_transaction_accounts where id=$1',[account.id])).rows[0].outlook_message_id,'legacy');
+  // Simulate a pre-migration account with no recorded creator, without disabling guards.
+  await db.query("select set_config('test.uid','',false)");
+  const legacy=(await db.query("insert into finance_transaction_accounts(idempotency_key,cutoff_date,institution_symbol,customer_name_snapshot,total_amount,payment_due_date,document_status) values($1,current_date,'123','legacy',0,current_date,'issued') returning id",[crypto.randomUUID()])).rows[0];
+  const lease=crypto.randomUUID();await db.query('select acquire_finance_dispatch($1,$2)',[legacy.id,lease]);
+  await assert.rejects(db.query('select resolve_finance_outlook_mailbox($1,$2)',[legacy.id,lease]),/invoice_mailbox_not_authorized/);
+});
+check('missing mailbox can be repaired only for the original issuer and then remains frozen',async()=>{
+  await db.query("update public.users set email=null where role='finance';select set_config('test.uid','55555555-5555-4555-8555-555555555555',false)");
+  const row=(await db.query("insert into finance_transaction_accounts(idempotency_key,cutoff_date,institution_symbol,customer_name_snapshot,total_amount,payment_due_date,document_status) values($1,current_date,'123','repair',0,current_date,'issued') returning *",[crypto.randomUUID()])).rows[0];
+  assert.equal(row.outlook_owner_mailbox,null);
+  const lease=crypto.randomUUID();await db.query('select acquire_finance_dispatch($1,$2)',[row.id,lease]);
+  await assert.rejects(db.query('select resolve_finance_outlook_mailbox($1,$2)',[row.id,lease]),/invoice_mailbox_not_authorized/);
+  await db.query("update public.users set email='toni@think.org.il' where role='finance';select set_config('test.uid','44444444-4444-4444-8444-444444444444',false)");
+  assert.equal((await db.query('select resolve_finance_outlook_mailbox($1,$2) mailbox',[row.id,lease])).rows[0].mailbox,'toni@think.org.il');
+});
+check('intent and status writes reject another mailbox and resolver requires backend role and a valid lease',async()=>{
+  await finalize();await assert.rejects(db.query("select begin_finance_outlook_creation($1,$2,'toni@think.org.il','[]')",[account.id,token]),/invoice_mailbox_identity_changed/);
+  await assert.rejects(db.query("select mark_finance_transaction_outlook($1,'draft_ready','id',null,$2,'[]','toni@think.org.il')",[account.id,token]),/invoice_mailbox_identity_changed/);
+  await assert.rejects(db.query('select resolve_finance_outlook_mailbox($1,$2)',[account.id,crypto.randomUUID()]),/dispatch_lease_expired/);
+  await db.query("select set_config('test.role','authenticated',false)");await assert.rejects(resolveMailbox(),/backend_only/);
+  for(const role of ['anon','authenticated'])assert.equal((await db.query("select has_function_privilege($1,'public.resolve_finance_outlook_mailbox(uuid,uuid)','EXECUTE') allowed",[role])).rows[0].allowed,false);
+  assert.equal((await db.query("select has_function_privilege('service_role','public.resolve_finance_outlook_mailbox(uuid,uuid)','EXECUTE') allowed")).rows[0].allowed,true);
 });

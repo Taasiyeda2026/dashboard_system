@@ -1,5 +1,6 @@
 import '../finance-transaction-page-data-hotfix.js';
 import { manualAccountViewHtml } from './finance-manual-account.js';
+import { financeError } from './finance-errors.js';
 import { escapeHtml } from './shared/html.js';
 import { dsEmptyState, dsScreenStack, dsTableWrap } from './shared/layout.js';
 import {
@@ -238,6 +239,8 @@ function historyView(data) {
         <span>לתשלום עד: <strong>${escapeHtml(formatDate(account.payment_due_date))}</strong></span>
         <span>מסמך: <strong>${escapeHtml(statusLabel(account.document_status))}</strong></span>
         <span>Outlook: <strong>${escapeHtml(statusLabel(account.outlook_status))}</strong></span>
+        ${account.outlook_owner_mailbox ? `<span>תיבת המפיק: ${escapeHtml(account.outlook_owner_mailbox)}</span>` : ''}
+        ${account.outlook_error ? `<span role="status">${escapeHtml(financeError(new Error(account.outlook_error)))}</span>` : ''}
         <span>גבייה: <strong>${escapeHtml(statusLabel(actualCollectionStatus))}</strong></span>
         ${balance ? `<span>שולם: ${escapeHtml(formatAmount(balance.paidAmount))} · יתרה: ${escapeHtml(formatAmount(balance.balance))}</span>` : ''}
         ${pdf}
