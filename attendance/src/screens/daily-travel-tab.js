@@ -40,6 +40,7 @@ export function createDailyTravelTab({empId, initialDate}) {
   let legs=[];
   let loadedDate='';
   let loading=false;
+  let locked=false;
   function showSummary(){
     legsArea.hidden=noTravel.checked;
     const inputs=[...legsArea.querySelectorAll('[data-daily-travel-leg]')];
@@ -102,29 +103,29 @@ export function createDailyTravelTab({empId, initialDate}) {
         return {...leg,minutes:same?old.minutes:null,kilometers:same?old.kilometers:null};
       });
       noTravel.checked=stored?.no_travel===true;
+      locked=false;
       noTravelLabel.hidden=!legs.length;
       save.hidden=!legs.length;
       status.textContent=!legs.length?'לא נמצאו פעילויות הדורשות נסיעה בתאריך זה'
         :stored?.review_status==='approved'||stored?.review_status==='corrected'
           ? 'הנסיעות אושרו'
           :stored?'דיווח נסיעות נשמר':'';
-      save.disabled=stored?.review_status==='approved'||stored?.review_status==='corrected'
-        ||stored?.review_status==='rejected';
+      locked=stored?.review_status==='approved'||stored?.review_status==='corrected';
+      save.disabled=locked;
       renderLegs();
     }catch(err){
       status.textContent=err.message||'טעינת הנסיעות נכשלה';
       loadedDate='';
     }finally{
       loading=false;reload.disabled=false;
-      if(loadedDate===date && !save.hidden
-        && !['הנסיעות אושרו'].includes(status.textContent))save.disabled=false;
+      if(loadedDate===date && !save.hidden && !locked)save.disabled=false;
     }
   }
   noTravel.addEventListener('change',showSummary);
   dateField.input.addEventListener('change',load);
   reload.addEventListener('click',()=>load({force:true}));
   save.addEventListener('click',async()=>{
-    if(loading || loadedDate!==dateField.input.value)return;
+    if(loading || locked || loadedDate!==dateField.input.value)return;
     showSummary();
     save.disabled=true;
     try{
@@ -132,7 +133,7 @@ export function createDailyTravelTab({empId, initialDate}) {
       status.textContent='הנסיעות נשמרו';
     }catch(error){
       status.textContent=error.message||'שמירת הנסיעות נכשלה';
-    }finally{save.disabled=false;}
+    }finally{save.disabled=locked;}
   });
   return {panel,load,dateInput:dateField.input};
 }
