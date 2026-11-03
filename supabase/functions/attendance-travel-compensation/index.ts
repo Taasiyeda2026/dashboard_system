@@ -99,7 +99,7 @@ async function route(
   return { distance_km: calculated.distance_km, duration_minutes: calculated.duration_minutes };
 }
 
-async function readInstructorSchoolCachedPair(db: any, employeeId: number, schoolId: number) {
+async function readInstructorSchoolCachedPair(db: any, employeeId: number, schoolId: number, originAddress: string, destinationAddress: string) {
   if (!Number.isInteger(employeeId) || !Number.isInteger(schoolId)) return null;
   const { data: forwards, error } = await db.from('scheduling_travel_cache')
     .select('*').eq('origin_instructor_emp_id', employeeId)
@@ -107,13 +107,14 @@ async function readInstructorSchoolCachedPair(db: any, employeeId: number, schoo
     .order('calculated_at', { ascending: false }).limit(5);
   if (error) throw new Error('cache_read_failed');
   for (const forward of forwards || []) {
-    if (!isUsableCachedRoute(forward, forward.origin_address, forward.destination_address)) continue;
+    // The school ID alone is not sufficient: a verified school address can change.
+    if (!isUsableCachedRoute(forward, originAddress, destinationAddress)) continue;
     const { data: reverse, error: reverseError } = await db.from('scheduling_travel_cache')
       .select('*').eq('origin_key', forward.destination_key)
       .eq('destination_key', forward.origin_key).maybeSingle();
     if (reverseError) throw new Error('cache_read_failed');
     if (isSuspectBlocked(reverse)) throw new Error('location_review_required');
-    if (!isUsableCachedRoute(reverse, reverse?.origin_address, reverse?.destination_address)) continue;
+    if (!isUsableCachedRoute(reverse, destinationAddress, originAddress)) continue;
     return { outbound: { distance_km: Number(forward.distance_km), duration_minutes: Number(forward.duration_minutes) },
       returning: { distance_km: Number(reverse.distance_km), duration_minutes: Number(reverse.duration_minutes) } };
   }
@@ -172,7 +173,8 @@ Deno.serve(async (req) => {
       .select('emp_id,school_id').eq('id', sourceId).single();
     if (sourceError) throw new Error('attendance_context_invalid');
     const cachedPair = await readInstructorSchoolCachedPair(
-      db, Number(sourceRow?.emp_id), Number(sourceRow?.school_id)
+      db, Number(sourceRow?.emp_id), Number(sourceRow?.school_id),
+      context.origin_address, context.destination_address
     );
     if (cachedPair) { noteCacheHit(metrics); noteCacheHit(metrics); }
     const [outbound, returning] = cachedPair

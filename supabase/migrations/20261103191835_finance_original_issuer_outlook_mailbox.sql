@@ -115,4 +115,3 @@ begin
 end $$;
 revoke all on function public.mark_finance_transaction_outlook(uuid,text,text,text,uuid,jsonb,text,boolean) from public,anon,authenticated;
 grant execute on function public.mark_finance_transaction_outlook(uuid,text,text,text,uuid,jsonb,text,boolean) to service_role;
-
