@@ -484,7 +484,7 @@ export function renderNewReportScreen(container, {
   function syncTravelMode() {
     if (!kmField?.input || !publicTransportInput || !publicTransportCostWrap) return;
     const online = isOnlineActivity();
-    if (publicTransportToggleEl) publicTransportToggleEl.hidden = online;
+    if (publicTransportToggleEl) publicTransportToggleEl.hidden = online || isDailyTravelDate();
     if (online) {
       publicTransportInput.checked = false;
       publicTransportInput.disabled = true;
@@ -496,8 +496,8 @@ export function renderNewReportScreen(container, {
     kmField.wrap.hidden = online || usesPublicTransport || isDailyTravelDate();
     kmField.input.disabled = online || usesPublicTransport;
     kmField.input.readOnly = online || usesPublicTransport;
-    publicTransportCostWrap.hidden = !usesPublicTransport;
-    publicTransportCostField.input.disabled = !usesPublicTransport;
+    publicTransportCostWrap.hidden = isDailyTravelDate() || !usesPublicTransport;
+    publicTransportCostField.input.disabled = isDailyTravelDate() || !usesPublicTransport;
 
     if (online || usesPublicTransport) kmField.input.value = '0';
     if (!usesPublicTransport) publicTransportCostField.input.value = '';
@@ -1842,7 +1842,7 @@ export function renderNewReportScreen(container, {
 
       const programName = activity?.program_name || activityNameSnapshot || null;
 
-      const usesPublicTransport = !isOnline && !isTeamOnline && publicTransportInput.checked;
+      const usesPublicTransport = !isDailyTravelDate() && !isOnline && !isTeamOnline && publicTransportInput.checked;
       const kmValue = reportedKilometers(kmField.input.value, {
         online: isOnline || isTeamOnline, publicTransport: usesPublicTransport, activityType: reportType,
       });
@@ -1905,7 +1905,11 @@ export function renderNewReportScreen(container, {
           ...scheduledTrainingFields,
         };
 
-        if (isDailyTravelDate()) payload.roundtrip_km = 0;
+        if (isDailyTravelDate()) {
+          payload.roundtrip_km = 0;
+          payload.public_transport = false;
+          payload.public_transport_cost = 0;
+        }
         const record = await createRecord(instructor.empId, payload);
         // Travel compensation is back-office processing. Never block or warn the
         // instructor: unresolved calculations remain visible to the team manager/admin.
@@ -1972,7 +1976,7 @@ export function renderNewReportScreen(container, {
       travelTab.classList.toggle('av2-report__tab--active',!isAttendance);
       if(!isAttendance){
         if(dailyTravel.panel.dataset.av2Visited!=='1'){
-          dailyTravel.dateInput.value=dateField.input.value||defaultDate;
+          dailyTravel.setDate(dateField.input.value||defaultDate);
           dailyTravel.panel.dataset.av2Visited='1';
         }
         void dailyTravel.load();
@@ -1981,7 +1985,7 @@ export function renderNewReportScreen(container, {
     travelShortcut.addEventListener('click',()=>{
       const day = dateField.input.value;
       if (!day) { dateField.input.focus(); return; }
-      dailyTravel.dateInput.value = day;
+      dailyTravel.setDate(day);
       dailyTravel.panel.dataset.av2Visited = '1';
       showTab('travel');
     });
