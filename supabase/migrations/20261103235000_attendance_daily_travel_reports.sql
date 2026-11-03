@@ -187,6 +187,7 @@ begin
    when 'correct' then p_minutes else null end,
  review_by=auth.uid(),review_at=now(),updated_at=now()
  where id=v_row.id returning * into v_row;
+ perform public.av2_sync_daily_travel_payable(p_emp_id,p_date);
  return jsonb_build_object('review_status',v_row.review_status,
     'approved_km',v_row.approved_km,
     'approved_cancellation_minutes',v_row.approved_cancellation_minutes);
