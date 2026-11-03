@@ -421,3 +421,26 @@
 @media(max-width:639px){
  .av2-daily-travel .av2-report__actions .av2-btn{min-height:44px}
 }
+
+.av2-report__hours-followup {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 9px;
+  min-width: 0;
+}
+.av2-report__hours-followup > .av2-field {
+  width: 100%;
+  min-width: 0;
+}
+.av2-report__hours-followup .av2-report__tiny-travel-btn {
+  align-self: flex-start;
+  margin: 0;
+}
+@media (max-width: 639px) {
+  .av2-report__hours-followup {
+    width: 100%;
+    gap: 10px;
+  }
+}
