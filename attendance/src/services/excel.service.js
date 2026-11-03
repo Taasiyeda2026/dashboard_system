@@ -39,7 +39,7 @@ function applyNumberFormat(XLSX, worksheet, columnIndex, startRow, endRow, forma
   }
 }
 
-export function exportMonthToExcel(records, instructor, year, month) {
+export function exportMonthToExcel(records, instructor, year, month, dailyTravelReports = []) {
   if (!window.XLSX) {
     alert('ספריית ה-Excel אינה זמינה. נסו לרענן את הדף.');
     return;
@@ -195,6 +195,27 @@ export function exportMonthToExcel(records, instructor, year, month) {
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws1, 'רשומות');
   XLSX.utils.book_append_sheet(wb, ws2, 'סיכום');
+  const travelRows = (dailyTravelReports || []).flatMap(report => {
+    const legs = Array.isArray(report.legs) && report.legs.length ? report.legs : [null];
+    return legs.map(leg => ({
+      'תאריך': report.travel_date,
+      'סוג נסיעה': leg?.kind==='outbound' ? 'נסיעה ראשונה' :
+        leg?.kind==='between' ? 'מעבר בין פעילויות' :
+          leg?.kind==='return' ? 'נסיעה אחרונה' : 'ללא נסיעה',
+      'מוצא': leg?.from || '',
+      'יעד': leg?.to || '',
+      'זמן נסיעה (דקות)': leg?.minutes ?? '',
+      'קילומטרים': leg?.kilometers ?? '',
+      'ביטול זמן יומי (דקות)': report.cancellation_minutes ?? '',
+      'סטטוס': report.review_status === 'approved' || report.review_status === 'corrected'
+        ? 'אושר' : report.review_status === 'rejected' ? 'נדחה' : 'ממתין לאישור'
+    }));
+  });
+  if(travelRows.length){
+    const wsTravel=XLSX.utils.json_to_sheet(travelRows);
+    wsTravel['!cols']=[{wch:14},{wch:19},{wch:24},{wch:24},{wch:18},{wch:13},{wch:24},{wch:18}];
+    XLSX.utils.book_append_sheet(wb,wsTravel,'נסיעות וביטולים');
+  }
 
   const pad = (n) => String(n).padStart(2, '0');
   const fileName = `נוכחות_${instructor.empId}_${year}-${pad(month)}.xlsx`;
