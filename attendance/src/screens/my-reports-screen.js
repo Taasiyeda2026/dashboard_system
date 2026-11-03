@@ -111,8 +111,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     ]);
 
     const sourceRecords = sourceAttendanceRecords(records);
-    const dailyTravelReports = monthKey + '-01' > '2026-11-30'
-      || monthKey >= '2026-11'
+    const dailyTravelReports = monthKey >= '2026-11'
       ? await getDailyTravelReports(instructor.empId,monthKey) : [];
     const dailyTravelByDate = new Map(dailyTravelReports.map(row=>[row.travel_date,row]));
     const travelDays = [...new Set(sourceRecords.filter(row=>
@@ -199,7 +198,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
       const xlLabel = document.createElement('span');
       xlLabel.textContent = 'Excel';
       xlBtn.append(xlLabel);
-      xlBtn.addEventListener('click', () => exportMonthToExcel(records, instructor, year, month));
+      xlBtn.addEventListener('click', () => exportMonthToExcel(records, instructor, year, month, dailyTravelReports));
       toolbar.append(xlBtn);
     }
 
