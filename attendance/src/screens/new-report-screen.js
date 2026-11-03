@@ -1963,7 +1963,13 @@ export function renderNewReportScreen(container, {
       travelTab.tabIndex=isAttendance?-1:0;
       attendanceTab.classList.toggle('av2-report__tab--active',isAttendance);
       travelTab.classList.toggle('av2-report__tab--active',!isAttendance);
-      if(!isAttendance)void dailyTravel.load();
+      if(!isAttendance){
+        if(dailyTravel.panel.dataset.av2Visited!=='1'){
+          dailyTravel.dateInput.value=dateField.input.value||defaultDate;
+          dailyTravel.panel.dataset.av2Visited='1';
+        }
+        void dailyTravel.load();
+      }
     }
     attendanceTab.addEventListener('click',()=>showTab('attendance'));
     travelTab.addEventListener('click',()=>showTab('travel'));
