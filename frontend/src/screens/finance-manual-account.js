@@ -1,6 +1,14 @@
 import { escapeHtml as e } from './shared/html.js';
 import { financeToday, financePaymentDueDate } from './finance-transaction-accounts.js';
 const text=v=>String(v??'').trim();
+function manualService(data) {
+  const source=(data.collectionActivities||[]).find(a=>a.row_id===data.manualActivityId);
+  const row=manualFundingRows(data).find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===data.manualFundingKey);
+  return ['workshop','tour'].includes(text(row?.activityType||source?.activity_type).toLowerCase());
+}
+export function manualHourlyRate(draft={}) {
+  return Number(draft.hours)>0 ? Number(draft.amount)/Number(draft.hours) : null;
+}
 // Display grouped amounts without changing the values sent to the billing RPC.
 export function formatManualMoney(value, { unitPrice = false } = {}) {
   if (value === '' || value == null) return '';
@@ -25,26 +33,32 @@ export function manualFundingRows(data) {
   return (data.transactionContext?.billingRows||[]).filter(r=>r.activityRowId===data.manualActivityId&&r.fundingSourceId);
 }
 
-// Filter by the *actual funder*, not by the school. Each local authority remains distinct.
-const normalizedFunder = (value) => text(value).replace(/[״׳"']/g, '').replace(/\s+/g, ' ').trim().toLocaleLowerCase('he');
-const isGenericAuthority = (value) => /^(?:רשות|רשויות|authority)$/i.test(normalizedFunder(value));
+// Payer identity comes from the server; Gefen is never a shared payer.
+const normalizedFunder = value => text(value).replace(/[״׳"']/g,'').replace(/\s+/g,' ').trim().toLocaleLowerCase('he');
+export function manualRowPayer(row, activity = {}) {
+  const name=normalizedFunder(row.funding);
+  const school=row.gefenFunding===true || name==='גפן' || name==='חוזה עצמאי';
+  const authority=/^(רשות|רשויות|authority)$/.test(name);
+  const key=text(row.payerKey) || (school ? 'school:'+text(activity.school_id || row.financeSchoolId || activity.school || row.customerName)
+    : authority ? 'authority:'+text(activity.authority_id || row.authorityId || activity.authority || row.payerName)
+    : 'funding:'+text(row.fundingSourceId));
+  return {key,label:text(row.payerName) || (key.startsWith('school:')?text(activity.school || row.customerName):authority?text(activity.authority):text(row.funding))};
+}
 export function manualActivityFunders(data, activity) {
-  const rows = (data.transactionContext?.billingRows || []).filter(row => row.activityRowId === activity.row_id);
-  const assigned = rows.filter(row => row.fundingSourceId);
-  const names = (assigned.length ? assigned.map(row => row.funding) : text(activity.funding).split(/\s*\+\s*/))
-    .map(text).filter(Boolean);
-  if (!names.length) return [{ key: 'unassigned', label: 'ללא גורם מימון' }];
-  const funders = new Map();
-  for (const name of names) {
-    const row = rows.find(item => normalizedFunder(item.funding) === normalizedFunder(name));
-    const authority = text(activity.authority || row?.payerName);
-    const key = isGenericAuthority(name)
-      ? 'authority:' + (text(activity.authority_id || row?.authorityId) || 'name:' + normalizedFunder(authority))
-      : 'funder:' + normalizedFunder(name);
-    const label = isGenericAuthority(name) ? (authority ? 'רשות - ' + authority : 'רשות לא מזוהה') : name;
-    if (!funders.has(key)) funders.set(key, { key, label });
-  }
-  return [...funders.values()];
+  const rows=(data.transactionContext?.billingRows||[]).filter(row=>row.activityRowId===activity.row_id && row.fundingSourceId);
+  return [...new Map(rows.map(row=>{const payer=manualRowPayer(row,activity);return[payer.key,payer];})).values()];
+}
+const fullAllowed = row => !row.fullFundingBlockedReason && Number(row.fullFundingAmount)>0;
+const performanceAllowed = row => row.eligible && !row.blockedReason && Number(row.issuableAmount)>0;
+export function manualActivityBalance(data, activityId) {
+  const scoped={...data,manualActivityId:activityId};
+  const rows=manualFundingRowsForSelection(scoped);
+  const amounts=new Map();
+  for(const row of rows)amounts.set(row.fundingSourceId,Math.max(amounts.get(row.fundingSourceId)||0,Number(row.fullFundingAmount ?? row.issuableAmount ?? 0)));
+  return [...amounts.values()].reduce((sum,amount)=>sum+amount,0);
+}
+export function manualActivityBillable(data, activityId) {
+  return manualFundingRowsForSelection({...data,manualActivityId:activityId}).some(row=>data.manualScope==='partial'?performanceAllowed(row):fullAllowed(row)||performanceAllowed(row));
 }
 export function manualFundingFilterOptions(data) {
   const funders = new Map();
@@ -58,6 +72,7 @@ export function manualFundingFilterOptions(data) {
 export function manualFilteredActivities(data) {
   const query = text(data.manualSearch).toLocaleLowerCase();
   const fundingKey = text(data.manualFunderFilter);
+  if (!fundingKey) return [];
   return (data.collectionActivities || [])
     .filter(activity => !fundingKey || manualActivityFunders(data, activity).some(funder => funder.key === fundingKey))
     .filter(activity => [activity.row_id, activity.school, activity.activity_name, activity.authority].join(' ').toLocaleLowerCase().includes(query))
@@ -76,14 +91,15 @@ export function prepareManualAccount(data,activityId,fundingKey,basis) {
   data.manualActivityId=activityId;const rows=manualFundingRows(data);
   const source=(data.collectionActivities||[]).find(a=>a.row_id===activityId)||{};
   const filteredRows=manualFundingRowsForSelection(data);
-  const row=filteredRows.find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===fundingKey)||filteredRows.find(r=>r.eligible||(!r.fullFundingBlockedReason&&Number(r.fullFundingAmount)>0))||filteredRows[0];
+  const row=filteredRows.find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===fundingKey)||filteredRows.find(r=>fullAllowed(r)||performanceAllowed(r))||filteredRows[0];
   data.manualFundingKey=row?`${row.fundingSourceId}|${row.period||row.manualMonth}`:'';
-  const full=(basis||(row?.eligible?'performance':'full_funding'))==='full_funding';
+  const full=(basis||(data.manualScope==='partial'&&performanceAllowed(row||{})?'performance':fullAllowed(row||{})?'full_funding':'performance'))==='full_funding';
   const quantity=Number((full?row?.plannedCount:row?.unbilledCount)||0),amount=Number((full?row?.fullFundingAmount:row?.issuableAmount)||0);
   const days=/^(רשות|רשויות|authority|ויצו|wizo)$/i.test(text(row?.funding).replace(/["׳״\s]/g,''))?45:30;
-  data.manualDraft={billing_basis:full?'full_funding':'performance',customer_name:row?.payerName||'',school_name:source.school||'',institution_symbol:row?.gefenFunding?(row?.institutionSymbol||''):'',program_number:source.activity_no||'',
+  if (!data.manualFunderRecipientEmail) data.manualFunderRecipientEmail=normalizeManualRecipientEmails(row?.customerEmail);
+  data.manualDraft={billing_basis:full?'full_funding':'performance',customer_name:row?.payerName||'',school_name:source.school||'',institution_symbol:row && manualRowPayer(row,source).key.startsWith('school:')?(row.institutionSymbol||''):'',program_number:source.activity_no||'',
     description:source.activity_name||'',quantity,hours:quantity*1.5,unit_price:quantity?amount/quantity:0,amount,
-    issue_date:financeToday(),payment_due_date:financePaymentDueDate(financeToday(),days),customer_email:normalizeManualRecipientEmails(row?.gefenFunding ? row?.customerEmail : data.manualFunderRecipientEmail),override_reason:''};
+    issue_date:financeToday(),payment_due_date:financePaymentDueDate(financeToday(),days),customer_email:normalizeManualRecipientEmails(data.manualFunderRecipientEmail || row?.customerEmail),override_reason:''};
   data.manualQuote=null;data.manualPdf='';data.manualConsolidatedPreview=null;
 }
 // Each selected activity keeps its own edited invoice; multi-select never combines unrelated payers.
@@ -136,7 +152,7 @@ export function focusManualActivity(data, activityId) {
 // Keep the same per-activity draft initialization and invoice safeguards as individual selection.
 export function toggleAllVisibleManualActivities(data, checked) {
   if (!data.manualFunderFilter) return;
-  const ids = manualFilteredActivities(data).map(activity => activity.row_id);
+  const ids = manualFilteredActivities(data).filter(activity=>manualActivityBillable(data,activity.row_id)).map(activity => activity.row_id);
   for (const id of ids) {
     if (selectedManualActivityIds(data).includes(id) !== checked) toggleManualActivity(data, id, checked);
   }
@@ -156,6 +172,18 @@ export function toggleManualActivity(data, activityId, checked) {
 // Shared account fields are deliberately edited separately from an individual
 // school's course fields. Distribute shared values to every selected draft so
 // the consolidated quote receives identical payer details for all activities.
+export function setManualBillingScope(data, scope) {
+  saveActiveManualDraft(data);
+  const ids=selectedManualActivityIds(data),active=data.manualActivityId;
+  data.manualScope=scope==='partial'?'partial':'full';
+  for(const id of ids){
+    const key=data.manualActivityDrafts?.[id]?.fundingKey;
+    const row=manualFundingRowsForSelection({...data,manualActivityId:id}).find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===key);
+    prepareManualAccount(data,id,key,data.manualScope==='partial'&&performanceAllowed(row||{})?'performance':undefined);
+    saveActiveManualDraft(data);
+  }
+  if(active)focusManualActivity(data,active);
+}
 export function updateManualConsolidatedField(data, key, value) {
   if (!['customer_name','customer_email','institution_symbol','issue_date','payment_due_date','override_reason'].includes(key)) return false;
   const normalized = key === 'customer_email' ? normalizeManualRecipientEmails(value) : value;
@@ -201,30 +229,30 @@ export async function previewSelectedManualAccounts(data, api) {
   const ids = selectedManualActivityIds(data);
   if (!ids.length) throw new Error('יש לבחור פעילות');
   if (ids.length > 1 && !data.manualFunderFilter) throw new Error('להפקה של כמה פעילויות יש לבחור גורם מימון');
-  if (ids.length > 1) {
-    // One financer, one document, regardless of the number of funded schools.
-    // The backend checks the payer identity and each individual funding allocation.
-    const items = ids.map(id => manualSelectionSnapshot(data, id));
-    const output = await api.previewFinanceFunderBatchAccount(items);
-    if (!output?.quote?.revision || !output?.pdfBase64)
-      throw new Error('לא התקבלה תצוגה מקדימה תקינה לחשבון המרוכז');
-    data.manualConsolidatedPreview = {
-      items, quote: output.quote, pdfBase64: output.pdfBase64,
-      idempotencyKey: crypto.randomUUID()
-    };
-    data.manualBatchPreviews = null;
-    data.manualQuote = null;
-    data.manualPdf = '';
+  const requests=ids.map(id=>({id,request:manualSelectionSnapshot(data,id)}));
+  const groups=new Map();
+  for(const entry of requests){
+    const row=(data.transactionContext?.billingRows||[]).find(r=>r.activityRowId===entry.id && r.fundingSourceId===entry.request.funder);
+    const gefen=row?.gefenFunding || normalizedFunder(row?.funding)==='גפן';
+    const key=gefen?'gefen:'+entry.id:entry.request.funder;
+    if(!groups.has(key))groups.set(key,[]);groups.get(key).push(entry);
+  }
+  if (ids.length > 1 && groups.size===1 && [...groups.values()][0].length>1) {
+    const items=requests.map(entry=>entry.request);
+    const output=await api.previewFinanceFunderBatchAccount(items);
+    if(!output?.quote?.revision || !output?.pdfBase64)throw new Error('לא התקבלה תצוגה מקדימה תקינה לחשבון המרוכז');
+    data.manualConsolidatedPreview={items,quote:output.quote,pdfBase64:output.pdfBase64,idempotencyKey:crypto.randomUUID()};
+    data.manualBatchPreviews=null;data.manualQuote=null;data.manualPdf='';
     return [data.manualConsolidatedPreview];
   }
   data.manualConsolidatedPreview = null;
   const previews = [];
-  for (const id of ids) {
-    const request = manualSelectionSnapshot(data,id);
-    const output = await api.previewFinanceManualAccount(request);
-    if (!output?.quote?.revision || !output?.pdfBase64) throw new Error('לא התקבלה תצוגה מקדימה תקינה');
-    previews.push({ activityId:id, request, quote:output.quote, pdfBase64:output.pdfBase64,
-      idempotencyKey:crypto.randomUUID() });
+  for (const entries of groups.values()) {
+    const items=entries.map(entry=>entry.request);
+    const request=items[0];
+    const output=items.length>1?await api.previewFinanceFunderBatchAccount(items):await api.previewFinanceManualAccount(request);
+    if(!output?.quote?.revision || !output?.pdfBase64)throw new Error('לא התקבלה תצוגה מקדימה תקינה');
+    previews.push({activityId:entries[0].id,request,...(items.length>1?{items}:{}),quote:output.quote,pdfBase64:output.pdfBase64,idempotencyKey:crypto.randomUUID()});
   }
   data.manualBatchPreviews = previews.length > 1 ? previews : null;
   if (previews.length === 1) {
@@ -254,15 +282,14 @@ export async function runSelectedManualAccounts(data, api) {
   }
   const previews = data.manualBatchPreviews;
   if (!Array.isArray(previews) || previews.length < 2) return [await runManualAccount(data,api)];
-  if (previews.length !== selectedManualActivityIds(data).length) throw new Error('יש לחדש תצוגה מקדימה');
+  if (previews.reduce((n,p)=>n+(p.items?.length||1),0) !== selectedManualActivityIds(data).length) throw new Error('יש לחדש תצוגה מקדימה');
   data.manualBatchIssued ||= {};
   const issued = [];
   for (const p of previews) {
     if (data.manualBatchIssued[p.idempotencyKey]) { issued.push(data.manualBatchIssued[p.idempotencyKey]); continue; }
     try {
-      const reserved = await api.reserveFinanceManualAccount({
-        ...p.request, revision:p.quote.revision,idempotencyKey:p.idempotencyKey
-      });
+      const reserved = p.items ? await api.reserveFinanceFunderBatchAccount({items:p.items,revision:p.quote.revision,idempotencyKey:p.idempotencyKey})
+        : await api.reserveFinanceManualAccount({...p.request, revision:p.quote.revision,idempotencyKey:p.idempotencyKey});
       let sent;
       try { sent = await api.dispatchFinanceTransactionAccount({ accountId:reserved.id }); }
       catch(error) { await api.cancelFinanceTransactionReservation?.(reserved.id).catch(()=>{});throw error; }
@@ -280,14 +307,20 @@ export function updateManualDraft(data,key,value) {
   const safeValue = key === 'amount' || key === 'unit_price' ? parseManualMoney(value)
     : key === 'customer_email' ? normalizeManualRecipientEmails(value) : value;
   if ((key === 'amount' || key === 'unit_price') && !Number.isFinite(safeValue)) return false;
+  const service=manualService(data);
+  if(key==='unit_price'&&!service)return false;
   data.manualDraft={...data.manualDraft,[key]:safeValue};const d=data.manualDraft;
   if (key === 'customer_email' && data.manualFunderFilter) {
     const fundingId = text(data.manualFundingKey).split('|')[0];
     const row = manualFundingRows(data).find(row => row.fundingSourceId === fundingId);
     if (row && !row.gefenFunding) data.manualFunderRecipientEmail = safeValue;
   }
-  if(key==='quantity'){d.hours=Number(value)*1.5;d.amount=Math.round(Number(value)*Number(d.unit_price)*100)/100;}
-  if(key==='unit_price')d.amount=Math.round(Number(d.quantity)*Number(safeValue)*100)/100;
+  if(key==='quantity'){
+    d.hours=service?0:Number(value)*1.5;
+    if(service)d.amount=Math.round(Number(value)*Number(d.unit_price)*100)/100;
+    else if(Number(value)>0)d.unit_price=Number(d.amount)/Number(value);
+  }
+  if(key==='unit_price'&&service)d.amount=Math.round(Number(d.quantity)*Number(safeValue)*100)/100;
   if(key==='amount'&&Number(d.quantity)>0)d.unit_price=Number(safeValue)/Number(d.quantity);
   if(key==='issue_date'){
     const row=manualFundingRows(data).find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===data.manualFundingKey);
@@ -327,7 +360,7 @@ export function syncManualActivitySelectionUi(root, data) {
   if (summary) summary.textContent = nextHead.querySelector('[data-finance-manual-selection-summary]').textContent;
   const master = head.querySelector('[data-finance-manual-select-all]');
   if (master) {
-    const inputs = [...head.querySelectorAll('[data-finance-manual-select-activity]')];
+    const inputs = [...head.querySelectorAll('[data-finance-manual-select-activity]')].filter(input=>!input.disabled);
     const checkedCount = inputs.filter(input => input.checked).length;
     master.checked = inputs.length > 0 && checkedCount === inputs.length;
     master.indeterminate = checkedCount > 0 && checkedCount < inputs.length;
@@ -453,82 +486,65 @@ export function manualConsolidatedActivityRows(data) {
 }
 
 export function manualAccountViewHtml(data) {
-  const activities=manualFilteredActivities(data);
-  const funderOptions=manualFundingFilterOptions(data);
-  const source=(data.collectionActivities||[]).find(a=>a.row_id===data.manualActivityId);const d=data.manualDraft||{};const rows=manualFundingRowsForSelection(data);
-  const selectedSummary = manualSelectedFundingSummary(data);
-  const consolidated = selectedSummary.count > 1;
-  const selectedRows = consolidated ? manualConsolidatedActivityRows(data) : [];
-  const schoolCount = new Set(selectedRows.map(row => row.school)).size;
-  const displayedTotal = data.manualConsolidatedPreview?.quote?.total_amount ?? selectedSummary.amount;
-  const bulkEditing = consolidated && Boolean(data.manualBulkEditingActivityId);
-  const bulkValue = (key) => key === 'customer_email' ? normalizeManualRecipientEmails(data.manualFunderRecipientEmail) : text(d[key]);
-  const batchField = (label,key,type='text') => `<label class="ds-fin-manual__field">${label}<input class="ds-input" type="${type}"${key==='customer_email'?' multiple dir="ltr" autocomplete="off"':''}${key==='customer_name'?' required':''} data-finance-manual-bulk-field="${key}" value="${e(bulkValue(key))}"></label>`;
-  const field=(label,key,type='text')=>{
-    const money = key === 'amount' || key === 'unit_price';
-    const display = money ? formatManualMoney(d[key], { unitPrice: key === 'unit_price' })
-      : key === 'customer_email' ? normalizeManualRecipientEmails(d[key]) : d[key];
-    const attributes = money
-      ? ' inputmode="decimal" dir="ltr" pattern="[0-9]{1,3}(?:,[0-9]{3})*(?:[.][0-9]+)?|[0-9]+(?:[.][0-9]+)?" required'
-      : type === 'number' ? ' min="0" step="0.01"'
-      : key === 'customer_email' ? ' multiple autocomplete="off" dir="ltr" placeholder="email@example.com, email2@example.com"' : '';
-    return `<label class="ds-fin-manual__field">${label}<input class="ds-input" type="${money ? 'text' : type}"${attributes} data-finance-manual-field="${key}" value="${e(display)}"></label>`;
-  };
-  return `<div class="ds-fin-manual" dir="rtl"><section class="ds-fin-manual__section"><h3 data-finance-manual-heading>${selectedManualActivityIds(data).length>1?'חשבון מרוכז לגורם מימון':'בחירת פעילות'}</h3><div class="ds-fin-manual__activity-grid">
-    <label>גורם מימון<select class="ds-input" data-finance-manual-funder-filter>
-      <option value="">כל גורמי המימון</option>
-      ${funderOptions.map(f=>`<option value="${e(f.key)}"${data.manualFunderFilter===f.key?' selected':''}>${e(f.label)}</option>`).join('')}
-    </select></label>
-    <label>חיפוש פעילות<input class="ds-input" data-finance-manual-search value="${e(data.manualSearch)}" placeholder="בית ספר, רשות או פעילות"></label>
-    <label data-finance-manual-active-label>${consolidated?'עריכת פעילות בודדת (רשות)':'פעילות'}<select class="ds-input" data-finance-manual-activity><option value="">${consolidated?'חשבון מרוכז — ללא בית ספר יחיד':'בחירת פעילות קיימת'}</option>${activities.map(a=>`<option value="${e(a.row_id)}"${a.row_id===(consolidated?data.manualBulkEditingActivityId:data.manualActivityId)?' selected':''}>${e(a.school)} | ${e(a.authority)} | ${e(a.activity_name)}</option>`).join('')}</select></label></div>
-    <details class="ds-fin-manual__selection" data-finance-manual-selection${data.manualSelectionExpanded?' open':''}>
-      <summary data-finance-manual-selection-summary>${selectedManualActivityIds(data).length>1?`${selectedManualActivityIds(data).length} פעילויות נבחרו · שינוי הבחירה`:'בחירת פעילויות נוספות'}</summary>
-      <div class="ds-fin-manual__selection-toolbar" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:8px 0;">
-        <label><input type="checkbox" data-finance-manual-select-all${activities.length && activities.every(a=>selectedManualActivityIds(data).includes(a.row_id))?' checked':''}${data.manualFunderFilter?'':' disabled title="יש לבחור גורם מימון תחילה"'}> סמן הכל</label>
-        <span data-finance-manual-selection-count>${activities.filter(a=>selectedManualActivityIds(data).includes(a.row_id)).length} מתוך ${activities.length} פעילויות מוצגות</span>
-      </div>
-      <div class="ds-fin-manual__choices" role="group" aria-label="בחירה מרובה של פעילויות">
-        ${activities.map(a=>`<label class="ds-fin-manual__choice"><input type="checkbox" value="${e(a.row_id)}" data-finance-manual-select-activity${selectedManualActivityIds(data).includes(a.row_id)?' checked':''}><span>${e(a.school)} | ${e(a.authority)} | ${e(a.activity_name)}</span></label>`).join('')}
-      </div>
-    </details></section>
-    ${consolidated?`<div class="ds-fin-manual__batch-total" data-finance-manual-batch-total style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;padding:8px 0 4px;">
-      <strong>חשבון מרוכז · ${selectedSummary.count} פעילויות · ${schoolCount} בתי ספר</strong>
-      <strong>סכום כולל: ${formatManualMoney(displayedTotal)} ₪</strong>
-      <span style="flex-basis:100%;font-size:12px">זהו חשבון של גורם המימון עבור כל הפעילויות שנבחרו. אין בית ספר יחיד לחשבון.</span>
-    </div>
-    <details class="ds-fin-manual__selected-schools" open>
-      <summary>פירוט כל בתי הספר והפעילויות בחשבון (${selectedRows.length})</summary>
-      <div style="max-height:250px;overflow:auto;margin-top:8px">
-        <table class="ds-table" style="width:100%;font-size:13px">
-          <thead><tr><th>בית ספר</th><th>פעילות</th><th>חלק המממן (₪)</th></tr></thead>
-          <tbody>${selectedRows.map(row=>`<tr><td>${e(row.school)}</td><td>${e(row.activity)}</td><td dir="ltr" style="text-align:right">${formatManualMoney(row.amount)}</td></tr>`).join('')}</tbody>
-        </table>
-      </div>
-    </details>`:''}
-    ${source && consolidated && !bulkEditing ? `<form data-finance-manual-form class="ds-fin-manual__form">
-      <section class="ds-fin-manual__section"><h3>פרטי החשבון המרוכז</h3>
-        <div class="ds-fin-manual__grid">
-          ${batchField('גורם משלם','customer_name')}
-          ${batchField('דוא״ל המממן (להפריד בפסיק)','customer_email','email')}
-          ${batchField('מספר לקוח (אם קיים)','institution_symbol')}
-          ${batchField('תאריך הפקה','issue_date','date')}
-          ${batchField('מועד תשלום','payment_due_date','date')}
-        </div>
-        <details class="ds-fin-manual__extra"><summary>פרטים נוספים</summary>
-          <div class="ds-fin-manual__grid">${batchField('סיבת חריגה','override_reason')}</div>
+  const activities=manualFilteredActivities(data),options=manualFundingFilterOptions(data);
+  const payer=options.find(p=>p.key===data.manualFunderFilter);
+  const ids=selectedManualActivityIds(data),summary=manualSelectedFundingSummary(data);
+  const d=data.manualDraft||{},rows=manualFundingRowsForSelection(data);
+  const source=(data.collectionActivities||[]).find(a=>a.row_id===data.manualActivityId);
+  const selectedRows=manualConsolidatedActivityRows(data);
+  const reviewed=Boolean(data.manualConsolidatedPreview||data.manualBatchPreviews?.length||data.manualPdf);
+  const field=(label,key,type='text')=>`<label class="ds-fin-manual__field">${label}<input class="ds-input" type="${type}"${type==='email'?' multiple dir="ltr"':type==='number'?` min="${key==='quantity'?1:0}" step="${key==='quantity'?1:'0.01'}"`:''} data-finance-manual-field="${key}" value="${e(key==='customer_email'?normalizeManualRecipientEmails(d[key]):['amount','unit_price'].includes(key)?formatManualMoney(d[key],{unitPrice:key==='unit_price'}):d[key]??'')}"></label>`;
+  const partial= data.manualScope==='partial';
+  return `<div class="ds-fin-manual" dir="rtl">
+    <section class="ds-fin-manual__section">
+      <h3 data-finance-manual-heading>הגורם המשלם</h3>
+      <label>למי להפיק<select class="ds-input" data-finance-manual-funder-filter><option value="">בחירת משלם</option>
+        ${options.map(p=>`<option value="${e(p.key)}"${p.key===data.manualFunderFilter?' selected':''}>${e(p.label)}</option>`).join('')}
+      </select></label>
+      ${payer?`<label>חיפוש פעילות<input class="ds-input" data-finance-manual-search value="${e(data.manualSearch)}" placeholder="שם פעילות או בית ספר"></label>
+      <details class="ds-fin-manual__selection ds-fin-payer" data-finance-manual-selection>
+        <summary data-finance-manual-selection-summary>${e(payer.label)} · ${activities.length} פעילויות · ${formatManualMoney(activities.reduce((n,a)=>n+manualActivityBalance(data,a.row_id),0))} ₪</summary>
+        <div class="ds-fin-manual__selection-toolbar"><label><input type="checkbox" data-finance-manual-select-all> סמן הכל</label>
+          <span data-finance-manual-selection-count>${ids.length} פעילויות נבחרו</span></div>
+        ${activities.map(activity=>`<details class="ds-fin-payer"><summary>
+          <label><input type="checkbox" data-finance-manual-select-activity value="${e(activity.row_id)}"${ids.includes(activity.row_id)?' checked':''}${manualActivityBillable(data,activity.row_id)?'':' disabled'}> ${e(activity.activity_name)}</label>
+          <span>${formatManualMoney(manualActivityBalance(data,activity.row_id))} ₪</span></summary>
+          <div class="ds-fin-manual__grid"><span>${e(activity.school)}</span><span>${e(activity.authority)}</span>
+            ${manualActivityBillable(data,activity.row_id)?'':'<span>אינה זמינה להפקה כעת</span>'}</div>
+        </details>`).join('')}
+      </details>`:''}
+    </section>
+    ${ids.length&&source?`<section class="ds-fin-manual__section">
+      <h3>בדיקה והפקה</h3>
+      <div class="ds-fin-manual__batch-total" data-finance-manual-batch-total><strong>${e(payer?.label||d.customer_name)} · ${summary.count} פעילויות · ${formatManualMoney(summary.amount)} ₪</strong></div>
+      <form data-finance-manual-form class="ds-fin-manual__form">
+        <label>היקף החיוב<select class="ds-input" data-finance-manual-scope>
+          <option value="full"${partial?'':' selected'}>מלוא היתרה המותרת להפקה</option>
+          <option value="partial"${partial?' selected':''}>חיוב חלקי לפי ביצוע</option>
+        </select></label>
+        ${ids.length>1?`<label>פעילות לעריכה<select class="ds-input" data-finance-manual-activity>${selectedRows.map(row=>`<option value="${e(row.id)}"${row.id===data.manualActivityId?' selected':''}>${e(row.activity)} · ${e(row.school)}</option>`).join('')}</select></label>`:''}
+        <fieldset class="ds-fin-manual__billing"><legend>פרטי חיוב</legend><div class="ds-fin-manual__billing-row">
+          ${field(manualService(data)?'כמות':'מספר מפגשים','quantity','number')}
+          ${manualService(data)?field('מחיר ליחידה','unit_price'):field('מספר שעות','hours','number')}
+          ${field('מחיר הפעילות','amount')}
+          ${manualService(data)?'':`<label class="ds-fin-manual__field">מחיר שעתי מחושב<input class="ds-input" type="text" data-finance-manual-hourly-rate readonly value="${e(manualHourlyRate(d)===null?'—':formatManualMoney(manualHourlyRate(d)))}"></label>`}
+        </div></fieldset>
+        <details class="ds-fin-manual__selected-schools ds-fin-payer"><summary>הפעילויות בחשבון (${ids.length})</summary>
+          <table class="ds-table"><thead><tr><th>פעילות</th><th>בית ספר</th><th>סכום לחיוב</th></tr></thead><tbody>
+          ${selectedRows.map(row=>`<tr><td>${e(row.activity)}</td><td>${e(row.school)}</td><td>${partial&&data.manualActivityDrafts?.[row.id]?.draft.billing_basis==='performance'
+            ?`<input class="ds-input" type="text" inputmode="decimal" data-finance-manual-line-amount="${e(row.id)}" value="${e(formatManualMoney(row.amount))}">`
+            :`${formatManualMoney(row.amount)} ₪`}</td></tr>`).join('')}</tbody></table>
         </details>
-      </section>
-      <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" type="button" data-finance-manual-preview>הצגת החשבון המרוכז לבדיקה (PDF)</button></div>
-    </form>` : ''}
-    ${source && (!consolidated || bulkEditing)?`<div class="ds-fin-manual__funding-grid"><label>גורם מימון וחודש<select class="ds-input" data-finance-manual-funding>${rows.map(r=>`<option value="${e(r.fundingSourceId+'|'+(r.period||r.manualMonth))}"${data.manualFundingKey===r.fundingSourceId+'|'+(r.period||r.manualMonth)?' selected':''}>${e(r.funding)} · ${e((r.period||r.manualMonth)?.slice(0,7)||'ללא חודש')} · ${formatManualMoney((r.eligible?r.issuableAmount:r.fullFundingAmount)||0)} ₪</option>`).join('')}</select></label>
-    <label>בסיס החיוב<select class="ds-input" data-finance-manual-field="billing_basis"><option value="performance"${d.billing_basis==='performance'?' selected':''}>מפגשים שבוצעו</option><option value="full_funding"${d.billing_basis==='full_funding'?' selected':''}>מלוא חלק המממן</option></select></label></div>
-    <form data-finance-manual-form class="ds-fin-manual__form"><section class="ds-fin-manual__section"><h3>${consolidated?'פרטי הפעילות לעריכה':'פרטי חשבון'}</h3><div class="ds-fin-manual__grid">${field('גורם משלם','customer_name')}${field(consolidated?'בית ספר בפעילות הנערכת':'בית ספר','school_name')}${field(rows.find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===data.manualFundingKey)?.gefenFunding?'סמל מוסד':'מספר לקוח (אם קיים)','institution_symbol')}${field('מספר תוכנית','program_number')}
-    ${field('תיאור השירות','description')}${field(consolidated?'דוא״ל המממן לכל החשבון (להפריד בפסיק)':'דוא״ל נמען (להפריד בפסיק)','customer_email','email')}</div></section>
-    <section class="ds-fin-manual__section"><h3>פרטי חיוב</h3><div class="ds-fin-manual__grid">${field('מפגשים לחיוב','quantity','number')}${field('שעות לחיוב','hours','number')}${field('מחיר למפגש','unit_price','number')}${field(consolidated?'סכום פעילות זו':'סכום החשבון','amount','number')}
-    </div></section>
-    <section class="ds-fin-manual__section"><h3>מועדים</h3><div class="ds-fin-manual__grid">${field('תאריך הפקה','issue_date','date')}${field('מועד תשלום','payment_due_date','date')}</div></section><details class="ds-fin-manual__extra"><summary>פרטים נוספים</summary><div class="ds-fin-manual__grid">${field('סיבת חריגה','override_reason')}</div></details>
-    <div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" type="button" data-finance-manual-preview>הצגת ${selectedManualActivityIds(data).length>1?'החשבון המרוכז':'החשבון'} לבדיקה (PDF)</button></div></form>`:''}
-    ${source ? `${data.manualConsolidatedPreview
+        <div class="ds-fin-manual__grid"><span>לקוח: ${e(d.customer_name)}</span><span dir="ltr">${e(d.customer_email)}</span></div>
+        ${new Set(rows.map(r=>r.fundingSourceId)).size>1 || (d.billing_basis==='performance'&&rows.length>1)?`<label>חלק המימון<select class="ds-input" data-finance-manual-funding>${rows.map(r=>`<option value="${e(r.fundingSourceId+'|'+(r.period||r.manualMonth))}"${data.manualFundingKey===r.fundingSourceId+'|'+(r.period||r.manualMonth)?' selected':''}>${e(r.funding)}${d.billing_basis==='performance'?' · '+e((r.period||r.manualMonth)?.slice(0,7)||''):''}</option>`).join('')}</select></label>`:''}
+        <details class="ds-fin-manual__extra ds-fin-payer"><summary>עריכת פרטי החשבון</summary>
+          <div class="ds-fin-manual__grid">${field('שם הלקוח','customer_name')}${field('נמענים','customer_email','email')}${field(rows.some(r=>r.gefenFunding)?'סמל מוסד':'מספר לקוח (אם קיים)','institution_symbol')}
+          ${ids.length===1?field('תיאור הפעילות','description'):''}${field('תאריך הפקה','issue_date','date')}${field('מועד תשלום','payment_due_date','date')}${field('סיבת חריגה','override_reason')}</div>
+        </details>
+        ${reviewed?'':'<div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" type="button" data-finance-manual-preview>הצגת החשבון לבדיקה (PDF)</button></div>'}
+      </form>
+    </section>`:''}
+    ${data.manualActivityId ? `${data.manualConsolidatedPreview
       ? manualPdfReviewHtml({
           key:'consolidated',
           title:'טיוטת חשבון עסקה מרוכז',

@@ -87,7 +87,9 @@ test('school_2026 invoices, receipts and orphaned test documents never appear in
   root._financeUnbind();dom.window.close();
 });
 
-test('manual issuance funder selector filters activities before the invoice is edited',()=>{
+test('manual issuance funder selector filters activities before the invoice is edited',t=>{
+  const previousWindow=globalThis.window;
+  t.after(()=>{globalThis.window=previousWindow;});
   const d=createFinanceVisitState();d.view='transactions';d.transactionTab='editable';
   d.collectionActivities=[
     {row_id:'mixed',school:'אוסישקין',authority:'נהרייה',authority_id:11,activity_name:'ביומימיקרי',funding:'גפן + רשות'},
@@ -100,21 +102,22 @@ test('manual issuance funder selector filters activities before the invoice is e
   ]};
   const dom=new JSDOM('<div id="app"></div>'),root=dom.window.document.querySelector('#app'),state={user:{role:'admin'}};
   const refresh=()=>{root.innerHTML=financeScreen.render(d,{state});};refresh();
+  globalThis.window=dom.window;
   financeScreen.bind({root,data:d,state,api:{},rerender:refresh});
   const filter=root.querySelector('[data-finance-manual-funder-filter]');
-  filter.value='funder:רמי שני';
+  filter.value='funding:industry';
   filter.dispatchEvent(new dom.window.Event('change',{bubbles:true}));
-  assert.equal(d.manualFunderFilter,'funder:רמי שני');
-  const choices=[...root.querySelectorAll('[data-finance-manual-activity] option')].map(o=>o.value).filter(Boolean);
+  assert.equal(d.manualFunderFilter,'funding:industry');
+  const choices=[...root.querySelectorAll('[data-finance-manual-select-activity]')].map(o=>o.value);
   assert.deepEqual(choices,['industry']);
-  const activitySelect=root.querySelector('[data-finance-manual-activity]');
-  activitySelect.value='industry';activitySelect.dispatchEvent(new dom.window.Event('change',{bubbles:true}));
+  const activitySelect=root.querySelector('[data-finance-manual-select-activity]');
+  activitySelect.checked=true;activitySelect.dispatchEvent(new dom.window.Event('change',{bubbles:true}));
   assert.equal(d.manualActivityId,'industry');
   assert.equal(d.manualFundingKey,'industry|2027-02-01');
-  const filter2=root.querySelector('[data-finance-manual-funder-filter]');filter2.value='funder:גפן';
+  const filter2=root.querySelector('[data-finance-manual-funder-filter]');filter2.value='school:אוסישקין';
   filter2.dispatchEvent(new dom.window.Event('change',{bubbles:true}));
   assert.equal(d.manualActivityId,'');
-  assert.deepEqual([...root.querySelectorAll('[data-finance-manual-activity] option')].map(o=>o.value).filter(Boolean),['mixed']);
+  assert.deepEqual([...root.querySelectorAll('[data-finance-manual-select-activity]')].map(o=>o.value),['mixed']);
   root._financeUnbind();dom.window.close();
 });
 

@@ -140,7 +140,7 @@ export function financePayerKey(row = {}) {
       label: FINANCE_UNFUNDED_PAYER_LABEL
     };
   }
-  if (isRowGefenFunding(row)) {
+  if (isRowGefenFunding(row) || compactToken(fundingName)==='חוזהעצמאי') {
     const schoolId = normalizeStableId(row.school_id ?? row.semel_mosad ?? row.single_school_id);
     const label = txt(row.school || row.single_school_name) || 'בית ספר ללא שם';
     return {

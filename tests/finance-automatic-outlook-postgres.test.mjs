@@ -30,9 +30,9 @@ before(async()=>{
   for(const name of ['20260821190000_finance_transaction_accounts','20260821203000_finance_transaction_issuance_modes'])await db.query(await read(`../supabase/migrations/${name}.sql`));
   await db.query('alter function reserve_finance_transaction_account(uuid,date,text,text,text,jsonb) rename to reserve_finance_transaction_account_legacy_impl');
   for(const name of ['20261029222210_finance_funder_billing','20261029224142_finance_receipts_manual_accounts',
-    '20261030044100_finance_single_funder_price_fallback','20261030051500_finance_optional_customer_identifier',
+    '20261030210000_finance_consolidated_funder_accounts','20261030044100_finance_single_funder_price_fallback','20261030051500_finance_optional_customer_identifier',
     '20261101192545_finance_service_quantity_snapshots','20261102191847_finance_gefen_course_monthly_minimum',
-    '20261102202405_finance_automatic_outlook_drafts','20261103191835_finance_original_issuer_outlook_mailbox','20261103211803_finance_delegated_invoice_drafts'])await db.query(await read(`../supabase/migrations/${name}.sql`));
+    '20261102202405_finance_automatic_outlook_drafts','20261103191835_finance_original_issuer_outlook_mailbox','20261103211803_finance_delegated_invoice_drafts','20261103221311_finance_manual_payer_first'])await db.query(await read(`../supabase/migrations/${name}.sql`));
 });
 after(async()=>{if(db)await db.end();});
 beforeEach(async()=>{
@@ -55,6 +55,60 @@ beforeEach(async()=>{
 });
 const recipients=async()=> (await db.query('select finance_transaction_recipients($1) r',[account.id])).rows[0].r;
 const finalize=()=>db.query("select finalize_finance_billing($1,$2,'original.pdf','hash','drive','folder','item','url')",[account.id,token]);
+const direct='66666666-6666-4666-8666-666666666666',sponsor='77777777-7777-4777-8777-777777777777';
+async function seedPayerActivity(id,rowId,schoolId,funder,amount=8000,meetings=10){
+  await db.query("insert into funding_sources values($1,$2) on conflict do nothing",[funder,funder===direct?'חוזה עצמאי':funder===sponsor?'מממן חיצוני':'גפ״ן']);
+  await db.query("insert into schools values($1,$2) on conflict do nothing",[schoolId,String(schoolId===1?123:248724)]);
+  await db.query(`insert into activities(id,row_id,school_id,authority_id,school,funding,price,sessions,activity_name,status,date_1,date_2)
+    values($1,$2,$3,1,$4,$5,$6,$7,'יישומי AI בשיתוף GOOGLE','פתוח','2026-10-01','2026-10-02')`,[id,rowId,schoolId,schoolId===1?'מוסד':'המשיח האנגליקאני',funder===direct?'חוזה עצמאי':funder===sponsor?'מממן חיצוני':'גפ״ן',amount,String(meetings)]);
+  await db.query('insert into activity_funding_sources values($1,$2,$3)',[id,funder,amount]);
+}
+const manualItem=(id,funder,basis='full_funding',extra={})=>({activity:id,funder,month:'2026-10-01',draft:{billing_basis:basis,...extra}});
+async function quoteManual(item){return(await db.query('select finance_manual_account_quote($1,$2,$3,$4) q',[item.activity,item.funder,item.month,item.draft])).rows[0].q;}
+async function reserveManual(item){const q=await quoteManual(item);return(await db.query('select (reserve_finance_manual_account($1,$2,$3,$4,$5,$6)).*',[crypto.randomUUID(),item.activity,item.funder,item.month,item.draft,q.revision])).rows[0];}
+async function finishManual(id){const lease=crypto.randomUUID();await db.query('select acquire_finance_dispatch($1,$2)',[id,lease]);await db.query("select finalize_finance_billing($1,$2,'manual.pdf','hash','drive','folder','item','url')",[id,lease]);await db.query('select release_finance_dispatch($1,$2)',[id,lease]);}
+check('school self-funding is a school payer with 8000 total, ten meetings, fifteen hours and automatic contacts',async()=>{
+  await seedPayerActivity(2,'ai',2,direct);
+  await db.query("insert into contacts_schools values(51,2,null,'school',null,'School@Example.test','פעיל');insert into contact_emails values(51,'principal@example.test',true)");
+  const q=await quoteManual(manualItem('ai',direct)),line=q.finance_transaction_account_lines[0];
+  assert.equal(q.payer_key_snapshot,'school:2');assert.equal(q.customer_name_snapshot,'המשיח האנגליקאני');
+  assert.equal(Number(q.total_amount),8000);assert.equal(Number(line.quantity_snapshot),10);assert.equal(Number(line.billed_hours),15);
+  assert.equal(q.customer_email_snapshot,'principal@example.test;school@example.test');assert.equal(q.source.gefenFunding,false,'school payer does not mean monthly Gefen');
+});
+check('one school can consolidate independent activities and a second issue cannot charge the funding again',async()=>{
+  await seedPayerActivity(2,'b',1,direct);await seedPayerActivity(3,'c',1,direct);
+  const items=[manualItem('b',direct),manualItem('c',direct)];
+  const q=(await db.query('select finance_funder_batch_quote($1) q',[JSON.stringify(items)])).rows[0].q;
+  assert.equal(q.payer_key_snapshot,'school:1');assert.equal(Number(q.total_amount),16000);
+  const a=(await db.query('select (reserve_finance_funder_batch_account($1,$2,$3)).*',[crypto.randomUUID(),JSON.stringify(items),q.revision])).rows[0];
+  await finishManual(a.id);assert.equal((await db.query('select count(*)::int n from finance_transaction_account_lines where account_id=$1',[a.id])).rows[0].n,2);
+  await assert.rejects(db.query('select reserve_finance_funder_batch_account($1,$2,$3)',[crypto.randomUUID(),JSON.stringify(items),q.revision]),/billing_blocked/);
+});
+check('external sponsor consolidates different schools and uses sponsor contacts rather than school contacts',async()=>{
+  await seedPayerActivity(2,'b',1,sponsor);await seedPayerActivity(3,'c',2,sponsor);
+  await db.query("insert into contacts_schools values(51,1,null,'school',null,'school@example.test','פעיל'),(52,null,null,'other','מממן חיצוני','sponsor@example.test','פעיל')");
+  const q=(await db.query('select finance_funder_batch_quote($1) q',[JSON.stringify([manualItem('b',sponsor),manualItem('c',sponsor)])])).rows[0].q;
+  assert.equal(q.payer_key_snapshot,'funding:'+sponsor);assert.equal(q.customer_email_snapshot,'sponsor@example.test');assert.equal(q.finance_transaction_account_lines.length,2);
+});
+check('partial performance leaves the correct funding balance and a school receipt uses the same payer identity',async()=>{
+  await seedPayerActivity(2,'b',1,direct,8000,2);
+  const a=await reserveManual(manualItem('b',direct,'performance',{amount:3000,unit_price:1500}));await finishManual(a.id);
+  const q=await quoteManual(manualItem('b',direct));assert.equal(Number(q.total_amount),5000);
+  const b=await reserveManual(manualItem('b',direct));await finishManual(b.id);
+  await assert.rejects(quoteManual(manualItem('b',direct)),/billing_blocked/);
+  const receipt={funding_source_id:direct,payer_key:'school:1',payer_name:'מוסד',activity_row_id:'b',amount:3000,received_date:'2026-11-01',reference:'school-payment'};
+  const id=(await db.query('select finance_record_receipt($1,$2) id',[crypto.randomUUID(),receipt])).rows[0].id;
+  assert.equal((await db.query('select payer_key from finance_receipts where id=$1',[id])).rows[0].payer_key,'school:1');
+});
+check('mixed funding keeps Gefen separate and a manual override cannot bypass the three calendar meetings',async()=>{
+  await seedPayerActivity(2,'b',1,direct,8000,10);
+  await db.query('update activity_funding_sources set amount=4000 where activity_id=2');
+  await db.query('insert into activity_funding_sources values(2,$1,4000)',[gefen]);
+  const school=await quoteManual(manualItem('b',direct));assert.equal(Number(school.total_amount),4000);
+  await assert.rejects(quoteManual(manualItem('b',gefen,'full_funding',{override_reason:'admin test'})),/billing_blocked/);
+  const rows=(await db.query("select finance_private.billing_rows(a) r from activities a where row_id='b'")).rows[0].r;
+  assert.ok(rows.filter(r=>r.gefenFunding).every(r=>!r.eligible));assert.ok(rows.filter(r=>!r.gefenFunding).every(r=>r.fundingSourceId===direct));
+});
 check('server resolver includes current active school contacts, additional addresses and designated billing recipient only',async()=>{
   await db.query(`insert into contacts_schools values
     (1,1,1,'school',null,'Teacher@Example.test;old@example.test; invalid','פעיל'),(2,1,1,'school',null,'admin@example.test','פעיל'),
