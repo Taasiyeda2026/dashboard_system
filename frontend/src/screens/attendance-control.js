@@ -3089,6 +3089,10 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       if (!attendanceRows.length) throw new Error(`לא נמצאו דיווחי נוכחות עבור ${monthLabel}`);
       const dashboardRows = await loadAttendanceDashboardDataset(attendanceRows, api, month);
       result = compareAttendanceRows(attendanceRows, dashboardRows); result.month = month;
+      const travelIds = [...new Set(attendanceRows.map(row => txt(row.employeeId)).filter(Boolean))];
+      result.dailyTravelReports = await api.attendanceControlDailyTravelReports({
+        employeeIds:travelIds,fromDate,toDate
+      });
       const employeeIds = [...new Set(attendanceRows.map((row) => txt(row.employeeId)).filter(Boolean))];
       title.textContent = `בקרת נוכחות – ${monthLabel}`;
       await Promise.all([loadApprovals(), loadWorkflowStatuses(month, employeeIds), loadRecordReviews()]);
@@ -3211,6 +3215,28 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       [...(result?.comparisons || []), ...(result?.notCompared || [])].find((entry) => entry.id === entryId) || null
     );
 
+    const dailyReview = clickEl.closest('[data-daily-travel-review]');
+    if(dailyReview){
+      const employeeId=txt(dailyReview.dataset.dailyTravelEmployee);
+      const date=txt(dailyReview.dataset.dailyTravelDate);
+      const decision=txt(dailyReview.dataset.dailyTravelReview);
+      if(!employeeId||!date||!['approve','reject'].includes(decision))return;
+      dailyReview.disabled=true;
+      try{
+        await api.attendanceControlReviewDailyTravel({employeeId,date,decision});
+        const refreshed=await api.attendanceControlDailyTravelReports({
+          employeeIds:[Number(employeeId)],
+          fromDate:date,toDate:date
+        });
+        const oldRows=(result.dailyTravelReports||[]).filter(row=>
+          txt(row.emp_id)!==employeeId || txt(row.travel_date)!==date);
+        result.dailyTravelReports=[...oldRows,...refreshed];
+        paintResults();
+        setStatusMessage('בקרת הנסיעות נשמרה');
+      }catch(error){setStatusMessage(error.message||'שמירת בקרת הנסיעות נכשלה',{error:true});}
+      finally{dailyReview.disabled=false;}
+      return;
+    }
     const travelReviewBtn = clickEl.closest('[data-travel-review]');
     if (travelReviewBtn) {
       const wrap = travelReviewBtn.closest('[data-travel-source-id]');
