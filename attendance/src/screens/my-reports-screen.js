@@ -970,10 +970,11 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     }
 
     const missing = [];
-    const kmValue = reportedKilometers(kmField.input.value, {
+    let kmValue = reportedKilometers(kmField.input.value, {
       online: isZoom, publicTransport: publicTransportToggle.checked, activityType: reportType,
     });
     if (reportDateField.input.value < '2026-11-04' && kmValue == null) missing.push('קילומטרים לדיווח, או 0 אם אין');
+    if (reportDateField.input.value >= '2026-11-04') kmValue = 0;
     if (!startTime || !endTime) missing.push('שעות');
     if (startTime && endTime && totalHours <= 0) missing.push('שעת סיום חייבת להיות מאוחרת מהתחלה');
     if (!reportType) missing.push('סוג פעילות');
@@ -1022,7 +1023,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
         program_name:            isOperations || isBaseTraining ? null : (record.program_name ?? null),
         cancellation_before_minutes: reportDateField.input.value < '2026-11-04' && cancellationToggle.checked ? cancellationMinutesForSave(beforeCancellationField.input.value, record, 'cancellation_before_minutes') : null,
         cancellation_after_minutes:  reportDateField.input.value < '2026-11-04' && cancellationToggle.checked ? cancellationMinutesForSave(afterCancellationField.input.value, record, 'cancellation_after_minutes') : null,
-        roundtrip_km:            reportDateField.input.value >= '2026-11-04' ? 0 : kmValue,
+        roundtrip_km:            kmValue,
         public_transport:        !isZoom && publicTransportToggle.checked,
         public_transport_cost:   !isZoom && publicTransportToggle.checked ? Number(publicTransportCostField.input.value || 0) : 0,
         expenses:                expField.input.value ? Number(expField.input.value) : 0,
