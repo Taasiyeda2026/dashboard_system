@@ -83,7 +83,7 @@ export function enhanceActivityUpdateNotes(form) {
     try {
       await waitForSupabaseAuthSession();
       const { data, error } = await supabase.from('activity_update_notes')
-        .select('id,body,author_name,created_at,is_legacy,occurred_on,legacy_sequence')
+        .select('id,body,author_name,created_at,is_legacy,occurred_on,legacy_sequence,saved_at')
         .eq('activity_row_id', activityId)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false });
@@ -91,7 +91,7 @@ export function enhanceActivityUpdateNotes(form) {
       output.replaceChildren();
       const notes = Array.isArray(data) ? [...data] : [];
       const noteTime = (note) => note.is_legacy
-        ? (note.occurred_on ? Date.parse(note.occurred_on + 'T12:00:00Z') : 0)
+        ? (note.saved_at ? Date.parse(note.saved_at) : (note.occurred_on ? Date.parse(note.occurred_on + 'T12:00:00Z') : 0))
         : (Date.parse(note.created_at) || 0);
       notes.sort((a, b) => {
         const delta = noteTime(b) - noteTime(a);
@@ -107,7 +107,7 @@ export function enhanceActivityUpdateNotes(form) {
       const item = (note, latest) => {
         const line = create(doc, 'div', 'activity-update-notes__line' + (latest ? ' activity-update-notes__line--latest' : ''));
         const stamp = create(doc, 'strong', 'activity-update-notes__stamp', note.is_legacy
-          ? (note.occurred_on ? `${dateHe(note.occurred_on)} · ${note.author_name}: ` : `${note.author_name}: `)
+          ? (note.saved_at ? `${dateHe(note.saved_at)} · ${note.author_name}: ` : (note.occurred_on ? `${dateHe(note.occurred_on)} · ${note.author_name}: ` : `${note.author_name}: `))
           : `${dateHe(note.created_at)} · ${note.author_name}: `);
         line.append(stamp, doc.createTextNode(String(note.body || '')));
         return line;
