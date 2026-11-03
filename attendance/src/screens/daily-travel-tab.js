@@ -45,7 +45,7 @@ export function createDailyTravelTab({empId, initialDate}) {
   reload.textContent='רענון';
   const actions=document.createElement('div');
   actions.className='av2-report__actions';
-  actions.append(save,reload);
+  actions.append(save);
   panel.append(title,daysWrap,dateField.wrap,status,legsArea,noTravelLabel,summary,actions);
 
   let legs=[];
@@ -251,6 +251,12 @@ export function createDailyTravelTab({empId, initialDate}) {
     try{
       await saveDailyTravel(loadedDate,legs,noTravel.checked);
       status.textContent='הנסיעות נשמרו';
+      const day=dayOptions.find(item=>item.date===loadedDate);
+      if(day){
+        day.review_status='pending_review';
+        const option=[...daySelect.options].find(item=>item.value===loadedDate);
+        if(option)option.textContent=displayDay(day);
+      }
     }catch(error){
       status.textContent=error.message||'שמירת הנסיעות נכשלה';
     }finally{save.disabled=locked;}
