@@ -2594,6 +2594,25 @@ export function resultsHtml(result, month = '', options = {}) {
       : '';
     return `<section class="attendance-control__report" data-attendance-record-id="${escapeHtml(item.id)}" data-record-editing="${editing ? '1' : '0'}"><div class="attendance-control__report-line"><strong>${shown(`${row.startTime || '—'}–${row.endTime || '—'} | ${activityTypeDisplayLabel(row.activityType) || 'דיווח'}${trainingDetailsForRow(row)?.mode === 'online' ? ' – זום' : ''}`)}</strong><div class="attendance-control__report-line-actions">${status}${recordActions}</div></div>${body}${editFooter}</section>`;
   };
+  const dailyTravelByDay = new Map((result.dailyTravelReports || [])
+    .map(row => [txt(row.emp_id) + '|' + txt(row.travel_date), row]));
+  const dailyTravelHtml = (employeeId,date) => {
+    const record = dailyTravelByDay.get(employeeId+'|'+date);
+    if (!record) return '';
+    const status = record.review_status === 'approved' || record.review_status === 'corrected'
+      ? 'אושר' : record.review_status === 'rejected' ? 'נדחה' : 'ממתין לאישור';
+    const km = record.no_travel ? 0 : optionalNumber(record.total_km);
+    const minutes = record.no_travel ? 0 : optionalNumber(record.cancellation_minutes);
+    const actions = record.review_status === 'pending_review' && currentEmployeeCanMutate
+      ? '<button type="button" class="ds-btn ds-btn--sm" data-daily-travel-review="approve" data-daily-travel-employee="'+escapeHtml(employeeId)+'" data-daily-travel-date="'+escapeHtml(date)+'">אישור נסיעות</button>'+
+        '<button type="button" class="ds-btn ds-btn--sm" data-daily-travel-review="reject" data-daily-travel-employee="'+escapeHtml(employeeId)+'" data-daily-travel-date="'+escapeHtml(date)+'">דחייה</button>'
+      : '';
+    const legRows = Array.isArray(record.legs) ? record.legs.map(leg =>
+      '<tr><td>'+shown(leg.from)+' ← '+shown(leg.to)+'</td><td>'+shown(leg.minutes)+' דקות</td><td>'+shown(leg.kilometers)+' ק״מ</td></tr>').join('') : '';
+    return '<div class="attendance-control__daily-travel"><strong>נסיעות וביטולים · '+shown(dateLabel(date))+'</strong>'+
+      '<span>ק״מ: '+shown(km??'—')+' · ביטול זמן: '+shown(minutes??'—')+' דקות · '+shown(status)+'</span>'+
+      (legRows?'<table><tbody>'+legRows+'</tbody></table>':'')+actions+'</div>';
+  };
   const employeeHtml = [...employees.values()].sort((a, b) => a.name.localeCompare(b.name, 'he')).map((employee) => {
     const hasWorkflowRow = Object.prototype.hasOwnProperty.call(workflowByEmployee, employee.id);
     const workflow = resolvePayrollMonthWorkflow(hasWorkflowRow ? workflowByEmployee[employee.id] : { workflow_status: 'not_submitted' });
@@ -2615,6 +2634,8 @@ export function resultsHtml(result, month = '', options = {}) {
         return `<details class="attendance-control__day${needsApproval ? '' : ' attendance-control__day--ok'}" data-payroll-date="${escapeHtml(date)}" data-attendance-row-id="${escapeHtml(entryRecordId(item))}"><summary><span>${shown(dateLabel(date))} · ${shown(label)}</span><span>${formatDurationHours(hours)} שעות</span><span class="attendance-control__row-status ${dataIssue ? 'attendance-control__row-status--issue' : needsApproval ? '' : 'attendance-control__row-status--ok'}">${rowStatus}</span></summary><div class="attendance-control__reports">${reportHtml({ ...row, employeeId: employee.id, date })}</div></details>`;
       }).join('');
     }).join('');
+    const dailyTravelDays = [...employee.days.keys()].sort()
+      .map(date => dailyTravelHtml(employee.id,date)).filter(Boolean).join('');
     const employeeEntries = allAttendanceEntries.filter((entry) => txt(entry.attendance?.employeeId) === employee.id);
     const totalRecordCount = employeeEntries.length;
     const approvedRecordCount = employeeEntries.filter(attendanceEntryIsResolved).length;
@@ -2660,7 +2681,7 @@ export function resultsHtml(result, month = '', options = {}) {
       }
     }
     const readonlyAttr = currentEmployeeCanMutate ? '' : ' data-payroll-employee-readonly="1"';
-    return `<details class="attendance-control__employee" data-payroll-employee="${escapeHtml(employee.id)}"${readonlyAttr}><summary><strong>${shown(employee.name)}</strong>${recordProgressHtml}</summary>${workflowHtml}${managerApprovedHtml}${approvedHtml}${finishControls}<div class="attendance-control__employee-days">${days}</div></details>`;
+    return `<details class="attendance-control__employee" data-payroll-employee="${escapeHtml(employee.id)}"${readonlyAttr}><summary><strong>${shown(employee.name)}</strong>${recordProgressHtml}</summary>${workflowHtml}${managerApprovedHtml}${approvedHtml}${finishControls}${dailyTravelDays}<div class="attendance-control__employee-days">${days}</div></details>`;
   }).join('');
   const reviewEmployees = [...employees.values()].filter((employee) => {
     const hasWorkflowRow = Object.prototype.hasOwnProperty.call(workflowByEmployee, employee.id);
