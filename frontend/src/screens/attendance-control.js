@@ -2887,8 +2887,17 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     try {
       const rows = await api.attendanceControlRecordReviews({ recordIds });
       const approved = new Set((rows || []).map((row) => txt(row.record_id || row.recordId)).filter(Boolean));
+      const travelApproved=new Set((result.dailyTravelReports||[])
+        .filter(row=>['approved','corrected'].includes(row.review_status))
+        .map(row=>txt(row.emp_id)+'|'+txt(row.travel_date)));
       for (const entry of entries) {
-        if (approved.has(attendanceEntryRecordId(entry))) approveAttendanceEntryCurrent(entry);
+        const attendance=entry.attendance||{};
+        const isDailyPayable=attendance.activityType==='ביטול זמן'
+          && attendance.program==='נסיעות וביטולים מאושרים';
+        if (approved.has(attendanceEntryRecordId(entry))
+          || (isDailyPayable && travelApproved.has(txt(attendance.employeeId)+'|'+txt(attendance.date)))) {
+          approveAttendanceEntryCurrent(entry);
+        }
       }
     } catch (error) {
       console.warn('[attendance-control] record reviews load failed', error);
@@ -3266,8 +3275,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         const oldRows=(result.dailyTravelReports||[]).filter(row=>
           txt(row.emp_id)!==employeeId || txt(row.travel_date)!==date);
         result.dailyTravelReports=[...oldRows,...refreshed];
-        paintResults();
-        setStatusMessage('בקרת הנסיעות נשמרה');
+        await loadAttendanceReview({successMessage:'בקרת הנסיעות נשמרה'});
       }catch(error){setStatusMessage(error.message||'שמירת בקרת הנסיעות נכשלה',{error:true});}
       finally{dailyReview.disabled=false;}
       return;
