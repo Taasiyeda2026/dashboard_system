@@ -880,7 +880,8 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     authField.input.disabled = isScheduledTraining || reportType === 'הכשרה';
     schoolField.wrap.hidden = isOperations || reportType === 'הכשרה' || isZoom;
     trainingLocationField.wrap.hidden = reportType !== 'הכשרה' || isOnlineTraining;
-    const eligibleCancellation = canReportInlineCancellation({ activityType: reportType, online: isZoom });
+    const isDailyTravel=reportDateField.input.value >= '2026-11-04';
+    const eligibleCancellation = !isDailyTravel && canReportInlineCancellation({ activityType: reportType, online: isZoom });
     cancellationWrap.hidden = !eligibleCancellation;
     if (!eligibleCancellation) cancellationToggle.checked = false;
     cancellationFields.hidden = !eligibleCancellation || !cancellationToggle.checked;
@@ -890,9 +891,9 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     const usesTransport = !isZoom && publicTransportToggle.checked;
     publicTransportCostField.wrap.hidden = !usesTransport;
     publicTransportCostField.input.disabled = !usesTransport;
-    kmField.wrap.hidden = isZoom || usesTransport;
+    kmField.wrap.hidden = isZoom || usesTransport || isDailyTravel;
 
-    if (isZoom || isOnlineTraining || usesTransport) {
+    if (isZoom || isOnlineTraining || usesTransport || isDailyTravel) {
       if (!kmField.input.disabled) kmBeforeZoom = kmField.input.value;
       kmField.input.value = '0';
       kmField.input.readOnly = true;
@@ -904,6 +905,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
       if (wasDisabled) kmField.input.value = kmBeforeZoom;
     }
   }
+  reportDateField.input.addEventListener('change', syncEditTypeUi);
   typeField.input.addEventListener('change', syncEditTypeUi);
   teamModeField.input.addEventListener('change', syncEditTypeUi);
   trainingModeField.input.addEventListener('change', syncEditTypeUi);
@@ -972,7 +974,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     const kmValue = reportedKilometers(kmField.input.value, {
       online: isZoom, publicTransport: publicTransportToggle.checked, activityType: reportType,
     });
-    if (kmValue == null) missing.push('קילומטרים לדיווח, או 0 אם אין');
+    if (reportDateField.input.value < '2026-11-04' && kmValue == null) missing.push('קילומטרים לדיווח, או 0 אם אין');
     if (!startTime || !endTime) missing.push('שעות');
     if (startTime && endTime && totalHours <= 0) missing.push('שעת סיום חייבת להיות מאוחרת מהתחלה');
     if (!reportType) missing.push('סוג פעילות');
@@ -1019,9 +1021,9 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
         semel_mosad:             isOperations || isBaseTraining || isZoom || isOnlineTraining || isScheduledTraining ? null : (record.semel_mosad ?? null),
         meeting_no:              isCourse && meetField.input.value ? Number(meetField.input.value) : null,
         program_name:            isOperations || isBaseTraining ? null : (record.program_name ?? null),
-        cancellation_before_minutes: cancellationToggle.checked ? cancellationMinutesForSave(beforeCancellationField.input.value, record, 'cancellation_before_minutes') : null,
-        cancellation_after_minutes:  cancellationToggle.checked ? cancellationMinutesForSave(afterCancellationField.input.value, record, 'cancellation_after_minutes') : null,
-        roundtrip_km:            kmValue,
+        cancellation_before_minutes: reportDateField.input.value < '2026-11-04' && cancellationToggle.checked ? cancellationMinutesForSave(beforeCancellationField.input.value, record, 'cancellation_before_minutes') : null,
+        cancellation_after_minutes:  reportDateField.input.value < '2026-11-04' && cancellationToggle.checked ? cancellationMinutesForSave(afterCancellationField.input.value, record, 'cancellation_after_minutes') : null,
+        roundtrip_km:            reportDateField.input.value >= '2026-11-04' ? 0 : kmValue,
         public_transport:        !isZoom && publicTransportToggle.checked,
         public_transport_cost:   !isZoom && publicTransportToggle.checked ? Number(publicTransportCostField.input.value || 0) : 0,
         expenses:                expField.input.value ? Number(expField.input.value) : 0,
@@ -1030,7 +1032,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
       });
       overlay.remove();
       onRefresh();
-      void reconcileTravelCompensation(record.id).then(() => onRefresh()).catch(() => null);
+      if(reportDateField.input.value < '2026-11-04') void reconcileTravelCompensation(record.id).then(() => onRefresh()).catch(() => null);
     } catch (err) {
       errorEl.textContent = err.message;
       errorEl.hidden = false;
