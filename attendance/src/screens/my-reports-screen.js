@@ -908,7 +908,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     cancellationFields.hidden = !eligibleCancellation || !cancellationToggle.checked;
     publicTransportWrap.hidden = isZoom || isDailyTravel;
     publicTransportToggle.disabled = isZoom || isDailyTravel;
-    if (isZoom) publicTransportToggle.checked = false;
+    if (isZoom || isDailyTravel) publicTransportToggle.checked = false;
     const usesTransport = !isZoom && !isDailyTravel && publicTransportToggle.checked;
     publicTransportCostField.wrap.hidden = isDailyTravel || !usesTransport;
     publicTransportCostField.input.disabled = !usesTransport;
@@ -1046,8 +1046,8 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
         cancellation_before_minutes: reportDateField.input.value < '2026-11-04' && cancellationToggle.checked ? cancellationMinutesForSave(beforeCancellationField.input.value, record, 'cancellation_before_minutes') : null,
         cancellation_after_minutes:  reportDateField.input.value < '2026-11-04' && cancellationToggle.checked ? cancellationMinutesForSave(afterCancellationField.input.value, record, 'cancellation_after_minutes') : null,
         roundtrip_km:            kmValue,
-        public_transport:        reportDateField.input.value < '2026-11-04' && !isZoom && publicTransportToggle.checked,
-        public_transport_cost:   reportDateField.input.value < '2026-11-04' && !isZoom && publicTransportToggle.checked ? Number(publicTransportCostField.input.value || 0) : 0,
+        public_transport:        !isZoom && publicTransportToggle.checked,
+        public_transport_cost:   !isZoom && publicTransportToggle.checked ? Number(publicTransportCostField.input.value || 0) : 0,
         expenses:                expField.input.value ? Number(expField.input.value) : 0,
         expense_details:         expDField.input.value.trim() || null,
         notes:                   notesField.input.value.trim() || null
