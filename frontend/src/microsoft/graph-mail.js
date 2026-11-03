@@ -36,7 +36,9 @@ export async function delegatedMailToken(loginHint = '', { interactive = true } 
     }
   }
   if (!interactive) return '';
-  return (await msalClient.acquireTokenPopup(request)).accessToken;
+  const result = await msalClient.acquireTokenPopup(request);
+  globalThis.window?.dispatchEvent(new Event('microsoft-mail-connected'));
+  return result.accessToken;
 }
 
 export async function graphMailRequest(token, path, options = {}) {

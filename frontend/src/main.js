@@ -2,6 +2,7 @@ import { approvalNavigationBadges } from './notifications/badges.js';
 import { createNotificationService } from './notifications/service.js';
 import { createNotificationRuntime } from './notifications/runtime.js';
 import { api } from './api.js';
+import { createFinanceInvoiceResumeRuntime } from './microsoft/finance-invoice-mail.js';
 import './styles/approvals-nav-status.css';
 import './styles/activities-advanced-filters.css';
 import { config } from './config.js';
@@ -2367,7 +2368,18 @@ function bindShell() {
 let _isRendering = false;
 let _pendingRender = false;
 
+const financeInvoiceResume = createFinanceInvoiceResumeRuntime({ getUser: () => state.user, api,
+  onChanged: () => { if (state.route === 'finance') {
+    clearScreenDataCacheForFinance();
+  } }
+});
+function clearScreenDataCacheForFinance() {
+  // The persisted statuses are loaded on the next finance navigation.
+  for (const key of Object.keys(state.screenDataCache || {})) if (key.includes('finance')) delete state.screenDataCache[key];
+  window.dispatchEvent(new Event('finance-invoice-drafts-changed'));
+}
 async function render() {
+  financeInvoiceResume.sync();
   notificationRuntime.switchUser(state.token ? state.user?.auth_user_id : '');
   if (_isRendering) {
     _pendingRender = true;

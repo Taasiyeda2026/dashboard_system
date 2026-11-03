@@ -24,7 +24,7 @@ function statusLabel(status) {
   const value = text(status);
   return ({
     generating: 'בהפקה', issued: 'הופק', mail_draft_ready: 'טיוטת מייל הוכנה', sent: 'נשלח', cancelled: 'בוטל',
-    pending: 'טרם נוצרה טיוטה', draft_ready: 'טיוטה מוכנה', failed: 'נכשל', missing_recipient: 'חסר נמען',
+    pending: 'ממתין לחיבור Microsoft', waiting_connection: 'ממתין לחיבור Microsoft', draft_ready: 'טיוטה מוכנה', failed: 'שגיאה הדורשת טיפול', missing_recipient: 'חסר נמען',
     needs_review:'נדרשת בדיקה לפני ניסיון נוסף', already_sent:'ההודעה כבר נשלחה מתיבת Outlook',
     awaiting_payment: 'ממתין לתשלום', partially_paid: 'שולם חלקית', paid: 'שולם'
   })[value] || value || '—';
@@ -241,6 +241,7 @@ function historyView(data) {
         <span>Outlook: <strong>${escapeHtml(statusLabel(account.outlook_status))}</strong></span>
         ${account.outlook_owner_mailbox ? `<span>תיבת המפיק: ${escapeHtml(account.outlook_owner_mailbox)}</span>` : ''}
         ${account.outlook_error ? `<span role="status">${escapeHtml(financeError(new Error(account.outlook_error)))}</span>` : ''}
+        ${(['pending','waiting_connection'].includes(account.outlook_status) || account.outlook_error==='invoice_microsoft_account_mismatch') && account.outlook_owner_id===data.financeAuthUserId ? '<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-microsoft-connect>חיבור Microsoft</button>' : ''}
         <span>גבייה: <strong>${escapeHtml(statusLabel(actualCollectionStatus))}</strong></span>
         ${balance ? `<span>שולם: ${escapeHtml(formatAmount(balance.paidAmount))} · יתרה: ${escapeHtml(formatAmount(balance.balance))}</span>` : ''}
         ${pdf}
@@ -335,8 +336,9 @@ export function transactionIssuanceResultMessage(results) {
   const issued=results.filter(r=>!r.error || r.dispatched?.documentPreserved).length;
   const ready=results.filter(r=>r.dispatched?.outlookStatus==='draft_ready').length;
   const missing=results.filter(r=>r.dispatched?.outlookStatus==='missing_recipient').length;
+  const waiting=results.filter(r=>r.dispatched?.outlookStatus==='waiting_connection').length;
   const failed=results.filter(r=>r.error || ['failed','needs_review'].includes(r.dispatched?.outlookStatus)).length;
-  return `נשמרו ${issued} חשבונות עסקה. נוצרו ${ready} טיוטות דוא״ל.${missing ? ` חסרים נמענים ל-${missing} חשבונות.` : ''}${failed ? ` ${failed} פעולות לא הושלמו; הפרטים בהיסטוריה.` : ''}`;
+  return `נשמרו ${issued} חשבונות עסקה. נוצרו ${ready} טיוטות דוא״ל.${waiting ? ` ${waiting} טיוטות ממתינות לחיבור Microsoft של המפיק המקורי ויושלמו אוטומטית לאחר החיבור.` : ''}${missing ? ` חסרים נמענים ל-${missing} חשבונות.` : ''}${failed ? ` ${failed} פעולות לא הושלמו; הפרטים בהיסטוריה.` : ''}`;
 }
 
 export function handleTransactionSelection(data, rowId, checked) {

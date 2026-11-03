@@ -10,12 +10,21 @@ const row=(extra={})=>({activityRowId:'a',activityName:'קורס א',fundingSour
   fundingAmount:5000,issuableAmount:2500,unbilledAmount:2500,eligible:true,blockedReason:'',...extra});
 const data=(rows,extra={})=>({transactionContext:{billingRows:rows,accounts:[]},transactionMonths:{automatic:'2026-09',manual:'2026-09'},...extra});
 const html=d=>transactionAccountsViewHtml(d,x=>`<h1>${x}</h1>`);
+test('waiting Microsoft status offers connection only to the original issuer and reports preserved invoices',()=>{
+  const d=data([],{transactionTab:'history',financeAuthUserId:'issuer'});
+  d.transactionContext.accounts=[{id:'a',document_status:'issued',outlook_status:'waiting_connection',outlook_owner_id:'issuer',
+    outlook_owner_mailbox:'toni@think.org.il',transaction_account_number:8525,finance_transaction_account_lines:[]}];
+  assert.match(html(d),/ממתין לחיבור Microsoft/);assert.match(html(d),/data-finance-microsoft-connect/);
+  assert.doesNotMatch(html({...d,financeAuthUserId:'other'}),/data-finance-microsoft-connect/);
+  const message=transactionIssuanceResultMessage([{dispatched:{outlookStatus:'waiting_connection',documentPreserved:true}}]);
+  assert.match(message,/נשמרו 1 חשבונות/);assert.match(message,/יושלמו אוטומטית לאחר החיבור/);
+});
 test('history displays original issuer mailbox and a clear authorization error without technical codes',()=>{
   const d=data([],{transactionTab:'history'});
   d.transactionContext.accounts=[{id:'issued',transaction_account_number:'8525',customer_name_snapshot:'מוסד',
     document_status:'issued',outlook_status:'failed',outlook_owner_mailbox:'toni@think.org.il',
     outlook_error:'invoice_mailbox_access_denied',finance_transaction_account_lines:[]}];
-  const view=html(d);assert.match(view,/toni@think.org.il/);assert.match(view,/Microsoft 365 אינו מאפשר גישה לתיבת המפיק המקורי/);
+  const view=html(d);assert.match(view,/toni@think.org.il/);assert.match(view,/החיבור ל־Microsoft פג או שאינו מאפשר גישה לתיבת המפיק המקורי/);
   assert.doesNotMatch(view,/invoice_mailbox_access_denied/);
 });
 test('Gefen groups multiple courses by school and selected performance month only',()=>{

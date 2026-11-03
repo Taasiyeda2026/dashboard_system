@@ -7299,11 +7299,19 @@ export const api = {
     });
     if (error) throw error;
   },
-  dispatchFinanceTransactionAccount: async (body = {}) => {
+  pendingFinanceDelegatedAccounts: async ({ reconnected = false } = {}) => {
+    assertPermission('manage_finance_transactions', 'finance_transactions_forbidden');
+    const { data, error } = await supabase.rpc('finance_pending_delegated_accounts', { p_reconnected: reconnected===true });
+    if (error) throw error;
+    return Array.isArray(data) ? data : [];
+  },
+  dispatchFinanceTransactionAccount: async (body = {}, options = {}) => {
     assertPermission('manage_finance_transactions', 'finance_transactions_forbidden');
     // Rolling deployments can briefly serve the preceding Edge version, which
     // requires this flag. The new version always creates drafts automatically.
-    const { data, error } = await supabase.functions.invoke('finance-transaction-accounts', { body: { ...body, createDraft: true } });
+    const { financeDelegatedHeaders } = await import('./microsoft/finance-invoice-mail.js');
+    const headers = options.mailHeaders || await financeDelegatedHeaders(state.user);
+    const { data, error } = await supabase.functions.invoke('finance-transaction-accounts', { body: { ...body, createDraft: true }, headers });
     if (error) {
       // FunctionsHttpError otherwise hides the JSON error returned by our Edge function.
       const server = typeof error.context?.json === 'function'

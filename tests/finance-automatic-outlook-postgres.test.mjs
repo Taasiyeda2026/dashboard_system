@@ -20,7 +20,7 @@ before(async()=>{
     create table contacts_schools(id bigint primary key,school_id bigint,authority_id bigint,client_type text,client_name text,email text,active text);
     create table contact_emails(contact_id bigint,email text,active boolean);
     create table finance_school_invoice_recipients(school_id bigint,recipient_email text,contact_id bigint);
-    create schema net;create schema vault;create schema cron;
+    create schema net;create schema vault;create schema cron;create table cron.job(jobname text);create function cron.unschedule(text) returns boolean language sql as $$delete from cron.job where jobname=$1 returning true$$;
     create table vault.decrypted_secrets(name text,decrypted_secret text);
     insert into vault.decrypted_secrets values('quote_signature_reminder_project_url','https://local.example'),('quote_signature_reminder_anon_key','test-public-jwt');
     create table net.requests(id bigint generated always as identity,headers jsonb,body jsonb);
@@ -32,7 +32,7 @@ before(async()=>{
   for(const name of ['20261029222210_finance_funder_billing','20261029224142_finance_receipts_manual_accounts',
     '20261030044100_finance_single_funder_price_fallback','20261030051500_finance_optional_customer_identifier',
     '20261101192545_finance_service_quantity_snapshots','20261102191847_finance_gefen_course_monthly_minimum',
-    '20261102202405_finance_automatic_outlook_drafts','20261103191835_finance_original_issuer_outlook_mailbox'])await db.query(await read(`../supabase/migrations/${name}.sql`));
+    '20261102202405_finance_automatic_outlook_drafts','20261103191835_finance_original_issuer_outlook_mailbox','20261103211803_finance_delegated_invoice_drafts'])await db.query(await read(`../supabase/migrations/${name}.sql`));
 });
 after(async()=>{if(db)await db.end();});
 beforeEach(async()=>{
@@ -87,18 +87,30 @@ check('creation intent is single-use under the dispatch lease and cleared only a
   await db.query("select mark_finance_transaction_outlook($1,'failed',null,'rejected',$2,null,null,true)",[account.id,token]);
   assert.equal((await begin()).rows[0].allowed,true);
 });
-check('outbox retries use expiring account capabilities and cannot bypass JWT-backed backend authorization',async()=>{
+check('retired cron and job capabilities cannot reach Outlook; pending accounts belong only to the original session',async()=>{
   await finalize();await db.query('select release_finance_dispatch($1,$2)',[account.id,token]);
-  assert.equal((await db.query('select finance_private.dispatch_outlook_jobs() n')).rows[0].n,1);
   assert.equal((await db.query('select finance_private.dispatch_outlook_jobs() n')).rows[0].n,0);
-  const request=(await db.query('select body from net.requests')).rows[0].body;
-  assert.equal((await db.query('select finance_authorize_outlook_job($1,$2) allowed',[account.id,request.outlookJobToken])).rows[0].allowed,true);
+  assert.equal((await db.query('select count(*)::int n from net.requests')).rows[0].n,0);
   assert.equal((await db.query('select finance_authorize_outlook_job($1,$2) allowed',[account.id,crypto.randomUUID()])).rows[0].allowed,false);
-  await db.query("update finance_private.outlook_jobs set dispatched_at=now()-interval '16 minutes'");
-  assert.equal((await db.query('select finance_authorize_outlook_job($1,$2) allowed',[account.id,request.outlookJobToken])).rows[0].allowed,false);
-  await db.query("select set_config('test.role','authenticated',false)");
-  await assert.rejects(recipients(),/backend_only/);
-  assert.equal((await db.query("select has_function_privilege('anon','public.finance_transaction_recipients(uuid)','EXECUTE') allowed")).rows[0].allowed,false);
+  assert.equal((await db.query('select finance_delegated_account_owner($1) allowed',[account.id])).rows[0].allowed,true);
+  let pending=(await db.query('select finance_pending_delegated_accounts() r')).rows[0].r;assert.equal(pending.length,1);
+  await db.query("select set_config('test.uid','55555555-5555-4555-8555-555555555555',false)");
+  assert.equal((await db.query('select finance_delegated_account_owner($1) allowed',[account.id])).rows[0].allowed,false);
+  pending=(await db.query('select finance_pending_delegated_accounts() r')).rows[0].r;assert.deepEqual(pending,[]);
+});
+check('waiting Microsoft connection preserves claims and reconnect immediately releases the original user pending work',async()=>{
+  await finalize();await db.query("select mark_finance_transaction_outlook($1,'waiting_connection',null,'invoice_microsoft_connection_required',$2)",[account.id,token]);
+  assert.equal((await db.query('select document_status from finance_transaction_accounts where id=$1',[account.id])).rows[0].document_status,'issued');
+  assert.equal((await db.query('select count(*)::int n from finance_billing_claims')).rows[0].n,3);
+  assert.deepEqual((await db.query('select finance_pending_delegated_accounts() r')).rows[0].r,[]);
+  assert.equal((await db.query('select finance_pending_delegated_accounts(true) r')).rows[0].r.length,1);
+  assert.equal((await db.query("select has_function_privilege('anon','public.finance_pending_delegated_accounts(boolean)','EXECUTE') allowed")).rows[0].allowed,false);
+});
+check('correcting a mismatched Microsoft session safely reopens only the original issuer account',async()=>{
+  await finalize();await db.query("select mark_finance_transaction_outlook($1,'failed',null,'invoice_microsoft_account_mismatch',$2)",[account.id,token]);
+  assert.equal((await db.query('select state from finance_private.outlook_jobs where account_id=$1',[account.id])).rows[0].state,'blocked');
+  assert.equal((await db.query('select finance_pending_delegated_accounts(true) r')).rows[0].r.length,1);
+  assert.equal((await db.query('select attempts from finance_private.outlook_jobs where account_id=$1',[account.id])).rows[0].attempts,0);
 });
 check('ready status closes the outbox while preserving original invoice metadata',async()=>{
   await finalize();await db.query("select mark_finance_transaction_outlook($1,'draft_ready','immutable-message',null,$2,'[\"a@example.test\"]','idann@think.org.il')",[account.id,token]);
@@ -112,6 +124,7 @@ check('ready status closes the outbox while preserving original invoice metadata
 check('worker exhaustion becomes visible and the already-deployed Gefen month rule is preserved',async()=>{
   await finalize();await db.query("update finance_private.outlook_jobs set attempts=10,next_retry_at=now()-interval '1 minute'");
   assert.equal((await db.query('select finance_private.dispatch_outlook_jobs() n')).rows[0].n,0);
+  await db.query("select mark_finance_transaction_outlook($1,'failed',null,'automatic_retry_exhausted',$2)",[account.id,token]);
   assert.equal((await db.query('select outlook_status from finance_transaction_accounts')).rows[0].outlook_status,'failed');
   const rows=(await db.query("select finance_private.billing_rows(jsonb_populate_record(a,'{\"id\":-1,\"row_id\":\"unbilled\",\"date_1\":\"2026-10-01\",\"date_2\":\"2026-10-20\",\"date_3\":\"2026-11-01\"}'),null,'2026-12-01T00:00:00+02:00') r from activities a")).rows[0].r;
   assert.equal(rows.find(r=>r.period==='2026-10-01').eligible,false);

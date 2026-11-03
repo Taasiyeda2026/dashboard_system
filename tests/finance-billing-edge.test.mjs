@@ -17,6 +17,7 @@ async function harness(options={}) {
   const rpc=async(name,args)=>{
     calls.push({type:'rpc',name,args});
     if(name==='finance_manual_account_quote')return{data:options.quote||fixture()};
+    if(name==='finance_delegated_account_owner')return {data:options.ownerAllowed!==false};
     if(name==='finance_transaction_can_issue')return{data:options.allowed!==false};
     if(name==='resolve_finance_outlook_mailbox')return{data:'idann@think.org.il'};
     if(name==='finance_transaction_recipients')return{data:{recipients:['test@example.test'],invalidCount:0}};
@@ -34,6 +35,7 @@ async function harness(options={}) {
 
   const fetch=async(url,opts={})=>{
     calls.push({type:'fetch',url,method:opts.method||'GET'});
+    if(url.includes('/mailFolders/drafts?'))return Response.json({id:'owner-folder'});
     if(url.startsWith('https://raw.githubusercontent.com/')) {
       const asset=url.split('/main/')[1];return new Response(await readFile(new URL('../'+asset,import.meta.url)));
     }
@@ -68,7 +70,7 @@ async function harness(options={}) {
       'access-control-request-method':'POST',
       'access-control-request-headers':'authorization, x-client-info, apikey, content-type'
     } })
-    : new Request('https://function.test',{method:'POST',headers:{authorization:'Bearer mock'},body:JSON.stringify(options.preview?{preview:true,manual:{activity:'a',funder:'g',month:'2026-09-01',draft:{}}} :{accountId:'account',createDraft:true})});
+    : new Request('https://function.test',{method:'POST',headers:{authorization:'Bearer mock','x-microsoft-mail-token':'delegated-token'},body:JSON.stringify(options.preview?{preview:true,manual:{activity:'a',funder:'g',month:'2026-09-01',draft:{}}} :{accountId:'account',createDraft:true})});
   const response=await handler(request);
   return{response,body:options.preflight?await response.text():await response.json(),calls,pdf,account};
 }
