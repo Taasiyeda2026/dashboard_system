@@ -9027,7 +9027,10 @@ export const api = {
     const privateNote = changes.operations_private_notes;
     delete changes.operations_private_notes;
     const result = await updateActivityInSupabase({ ...payload, changes });
-    if (hasPrivateNote) await api.savePrivateNote({ source_row_id: payload?.source_row_id || payload?.row_id || payload?.RowID, note: privateNote });
+    if (hasPrivateNote) {
+      await api.savePrivateNote({ source_row_id: payload?.source_row_id || payload?.row_id || payload?.RowID, note: privateNote });
+      if (result?.row) result.row.private_note = String(privateNote || '');
+    }
     return result;
   },
   deleteActivity: async (source_row_id) => {
