@@ -377,3 +377,29 @@
     font-size: 0.82rem !important;
   }
 }
+
+.av2-report__tiny-travel-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: auto;
+  min-width: 0;
+  min-height: 28px;
+  margin: 5px 0 0;
+  padding: 4px 9px;
+  border: 1px solid #b9cff8;
+  border-radius: 7px;
+  background: #f5f9ff;
+  color: #245bd0;
+  font: inherit;
+  font-size: .72rem;
+  font-weight: 600;
+  line-height: 1.15;
+  cursor: pointer;
+}
+.av2-report__tiny-travel-btn:hover {background:#e9f1ff}
+.av2-report__tiny-travel-btn:focus-visible {outline:2px solid #245bd0;outline-offset:2px}
+.av2-rr__travel-shortcut {min-height:28px;white-space:nowrap;margin:0}
+@media(max-width:639px) {
+  .av2-report__tiny-travel-btn {min-height:36px;padding:6px 10px}
+}
