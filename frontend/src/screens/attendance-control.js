@@ -2527,7 +2527,7 @@ export function resultsHtml(result, month = '', options = {}) {
       const needsDecision = ['awaiting_report', 'auto_matched', 'pending_review'].includes(reviewStatus);
       const sourceId = escapeHtml(source.sourceAttendanceRecordId || entryRecordId(entry) || '');
       const rows = [
-        [inlineRequest ? 'דיווח ביטול זמן (לפני/אחרי)' : 'דיווח זמן נסיעה (הלוך/חזור)',
+        [inlineRequest ? (suspectCancellation ? 'ערכים חריגים שהוזנו (לפני/אחרי)' : 'דיווח ביטול זמן (לפני/אחרי)') : 'דיווח זמן נסיעה (הלוך/חזור)',
           inlineRequest ? `${minutesLabel(source.reportedCancellationBeforeMinutes)} / ${minutesLabel(source.reportedCancellationAfterMinutes)}`
             : source.reportedOutboundMinutes != null ? `${source.reportedOutboundMinutes}/${source.reportedReturnMinutes}` : '—',
           '—', suspectCancellation || needsDecision],
