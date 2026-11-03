@@ -5,7 +5,7 @@ export function calculateTravelCancellationMinutes(outboundMinutes, returnMinute
 }
 
 export function isGeneratedTravelCancellation(record = {}) {
-  return record.generation_kind === 'travel_time_cancellation' && !!record.source_attendance_record_id;
+  return ['travel_time_cancellation', 'daily_travel_cancellation'].includes(record.generation_kind) && !!record.source_attendance_record_id;
 }
 
 export function sourceAttendanceRecords(records = []) {
