@@ -12,6 +12,16 @@ const fixture=()=>({id:'account',document_status:'generating',outlook_status:'pe
   customer_name_snapshot:'בית ספר א',institution_symbol:'123',customer_email_snapshot:'test@example.test',issue_date:'2026-10-01',payment_due_date:'2026-11-30',total_amount:2500,
   finance_transaction_account_lines:[{activity_name_snapshot:'תוכנית חלל',funding_snapshot:'גפ״ן',performance_month:'2026-09-01',billed_hours:3,hourly_rate_snapshot:833.333,amount:2500,
     finance_transaction_account_meetings:[{meeting_date:'2026-09-01'},{meeting_date:'2026-09-02'}]}]});
+test('Google AI course PDF preserves the 8000 activity price and derives 533.33 per hour for fifteen hours',async()=>{
+  const quote={...fixture(),customer_name_snapshot:'המשיח האנגליקאני',institution_symbol:'248724',total_amount:8000,
+    finance_transaction_account_lines:[{activity_row_id:'ai',activity_type_snapshot:'course',activity_name_snapshot:'יישומי AI בשיתוף GOOGLE',school_name_snapshot:'המשיח האנגליקאני',quantity_snapshot:10,billed_hours:15,hourly_rate_snapshot:8000/15,unit_price_snapshot:800,amount:8000,billing_coverage:'full_funding',finance_transaction_account_meetings:[]}]};
+  const r=await harness({preview:true,quote,activityTypes:{ai:'course'}});
+  assert.equal(r.response.status,200);assert.equal(r.body.quote.total_amount,8000);
+  const pdf=await getDocument({data:new Uint8Array(Buffer.from(r.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
+  const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');
+  assert.match(text,/8,000\.00/);assert.match(text,/533\.33/);assert.match(text,/248724/);assert.match(text,/15/);assert.match(text,/10/);
+  assert.ok(!r.calls.some(c=>c.name==='finalize_finance_billing'||c.method==='PUT'));
+});
 async function harness(options={}) {
   const account=fixture();Object.assign(account,options.account);const calls=[];let handler;let pdf;let draftPayload;
   const rpc=async(name,args)=>{

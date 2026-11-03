@@ -1,16 +1,51 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { manualAccountViewHtml,prepareManualAccount,updateManualDraft,runManualAccount,manualFundingFilterOptions,manualFilteredActivities,toggleManualActivity,focusManualActivity,saveActiveManualDraft,previewSelectedManualAccounts,runSelectedManualAccounts,formatManualMoney,parseManualMoney,normalizeManualRecipientEmails,manualSelectedFundingSummary,manualSelectionSnapshot,updateManualConsolidatedField,manualPdfPreviewFilename,syncManualPdfPreviewDom,clearManualPdfPreviewUrls,activateManualPdfPreview,manualConsolidatedActivityRows } from '../frontend/src/screens/finance-manual-account.js';
-const data=()=>({collectionActivities:[{row_id:'a',school:'בית ספר',authority:'עיריית רחובות',activity_name:'קורס',activity_no:'123'}],transactionContext:{billingRows:[{activityRowId:'a',fundingSourceId:'r',funding:'רשות',payerName:'עיריית רחובות',period:'2026-09-01',institutionSymbol:'123',unbilledCount:2,issuableAmount:7000,eligible:true}]}});
+import { manualAccountViewHtml,prepareManualAccount,updateManualDraft,runManualAccount,manualFundingFilterOptions,manualFilteredActivities,toggleManualActivity,focusManualActivity,saveActiveManualDraft,previewSelectedManualAccounts,runSelectedManualAccounts,formatManualMoney,parseManualMoney,normalizeManualRecipientEmails,manualSelectedFundingSummary,manualSelectionSnapshot,updateManualConsolidatedField,manualPdfPreviewFilename,syncManualPdfPreviewDom,clearManualPdfPreviewUrls,activateManualPdfPreview,manualConsolidatedActivityRows,manualHourlyRate,setManualBillingScope } from '../frontend/src/screens/finance-manual-account.js';
+const data=()=>({manualFunderFilter:'authority:עיריית רחובות',collectionActivities:[{row_id:'a',school:'בית ספר',authority:'עיריית רחובות',activity_name:'קורס',activity_no:'123'}],transactionContext:{billingRows:[{activityRowId:'a',fundingSourceId:'r',funding:'רשות',payerName:'עיריית רחובות',period:'2026-09-01',institutionSymbol:'123',unbilledCount:2,issuableAmount:7000,eligible:true}]}});
+test('Anglican Google AI course keeps 8000 as authoritative price and calculates hourly rate at full precision',()=>{
+  const d={manualFunderFilter:'school:652',collectionActivities:[{row_id:'ai',school_id:652,school:'המשיח האנגליקאני',activity_name:'יישומי AI בשיתוף GOOGLE',activity_type:'course',price:8000,sessions:'10'}],
+    transactionContext:{billingRows:[{activityRowId:'ai',activityType:'course',fundingSourceId:'independent',funding:'חוזה עצמאי',payerKey:'school:652',payerName:'המשיח האנגליקאני',institutionSymbol:'248724',period:null,manualMonth:'2026-11-01',plannedCount:10,fullFundingAmount:8000,fullFundingBlockedReason:'',customerEmail:'school@example.test',eligible:false}]}};
+  const original=JSON.stringify(d.collectionActivities);prepareManualAccount(d,'ai');
+  assert.equal(d.manualDraft.quantity,10);assert.equal(d.manualDraft.hours,15);assert.equal(d.manualDraft.amount,8000);
+  assert.equal(manualHourlyRate(d.manualDraft),8000/15);
+  let doc=new JSDOM(manualAccountViewHtml(d)).window.document;
+  assert.equal(doc.querySelector('[data-finance-manual-hourly-rate]').value,'533.33');assert.equal(doc.querySelector('[data-finance-manual-hourly-rate]').readOnly,true);
+  assert.equal(doc.querySelectorAll('.ds-fin-manual__billing-row > label').length,4);
+  assert.deepEqual([...doc.querySelectorAll('.ds-fin-manual__billing-row > label')].map(x=>x.textContent),['מספר מפגשים','מספר שעות','מחיר הפעילות','מחיר שעתי מחושב']);
+  assert.doesNotMatch(manualAccountViewHtml(d),/מחיר למפגש|גורם מימון וחודש/);
+  updateManualDraft(d,'quantity',9);assert.equal(d.manualDraft.amount,8000);assert.equal(d.manualDraft.unit_price,8000/9);
+  updateManualDraft(d,'hours',12);assert.equal(d.manualDraft.amount,8000);assert.equal(manualHourlyRate(d.manualDraft),8000/12);
+  updateManualDraft(d,'amount','7,500.00');assert.equal(manualHourlyRate(d.manualDraft),625);
+  assert.equal(JSON.stringify(d.collectionActivities),original);
+});
+test('workshop and tour keep unit pricing when quantity or unit price changes',()=>{
+  for(const activity_type of ['workshop','tour']){
+    const d=data();d.collectionActivities[0].activity_type=activity_type;prepareManualAccount(d,'a');
+    updateManualDraft(d,'quantity',3);assert.equal(d.manualDraft.amount,10500);assert.equal(d.manualDraft.hours,0);
+    updateManualDraft(d,'unit_price','3,000.00');assert.equal(d.manualDraft.amount,9000);
+    assert.doesNotMatch(manualAccountViewHtml(d),/data-finance-manual-hourly-rate/);assert.match(manualAccountViewHtml(d),/מחיר ליחידה/);
+  }
+});
+test('payer-first selection separates Gefen schools and pre-fills permitted balances and payer recipients',()=>{
+  const d={collectionActivities:[{row_id:'a',school_id:1,school:'א',activity_name:'קורס א'},{row_id:'b',school_id:2,school:'ב',activity_name:'קורס ב'}],transactionContext:{billingRows:[
+    {activityRowId:'a',fundingSourceId:'g',funding:'גפן',gefenFunding:true,payerKey:'school:1',payerName:'א',period:'2026-10-01',plannedCount:10,fullFundingAmount:8000,fullFundingBlockedReason:'',customerEmail:'a@example.test'},
+    {activityRowId:'b',fundingSourceId:'g',funding:'גפן',gefenFunding:true,payerKey:'school:2',payerName:'ב',period:'2026-10-01',plannedCount:10,fullFundingAmount:8000,fullFundingBlockedReason:'minimum',eligible:false}
+  ]}};
+  assert.deepEqual(manualFilteredActivities(d),[]);assert.deepEqual(manualFundingFilterOptions(d).map(x=>x.key),['school:1','school:2']);
+  d.manualFunderFilter='school:1';assert.deepEqual(manualFilteredActivities(d).map(x=>x.row_id),['a']);toggleManualActivity(d,'a',true);
+  assert.equal(d.manualDraft.billing_basis,'full_funding');assert.equal(d.manualDraft.amount,8000);assert.equal(d.manualDraft.customer_email,'a@example.test');
+  const doc=new JSDOM(manualAccountViewHtml(d)).window.document;assert.ok([...doc.querySelectorAll('details')].every(x=>!x.open));
+  const summary=doc.querySelector('[data-finance-manual-selection] > summary');summary.click();assert.equal(summary.parentElement.open,true);summary.click();assert.equal(summary.parentElement.open,false);
+});
 test('manual wizard selects existing activity/funder and edits document fields without touching source data',()=>{
   const d=data();const source=JSON.stringify(d.collectionActivities);prepareManualAccount(d,'a');
   assert.equal(d.manualDraft.amount,7000);assert.equal(d.manualDraft.quantity,2);assert.equal(d.manualFundingKey,'r|2026-09-01');
   updateManualDraft(d,'description','תיאור למסמך');updateManualDraft(d,'amount',6000);
   assert.equal(d.manualDraft.unit_price,3000);assert.equal(JSON.stringify(d.collectionActivities),source);
-  const html=manualAccountViewHtml(d);assert.match(html,/בחירת פעילות קיימת/);assert.match(html,/תיאור למסמך/);assert.doesNotMatch(html,/data-finance-manual-confirm/);
-  assert.match(html,/<option value="a" selected>בית ספר \| עיריית רחובות \| קורס<\/option>/);
-  assert.doesNotMatch(html,/בית ספר · קורס · a|ds-fin-manual__selected/);
+  const html=manualAccountViewHtml(d);assert.match(html,/הגורם המשלם/);assert.match(html,/תיאור למסמך/);assert.doesNotMatch(html,/data-finance-manual-confirm/);
+  assert.match(html,/data-finance-manual-select-activity value="a" checked/);
+  assert.doesNotMatch(html,/בית ספר · קורס · a/);
   assert.match(html,/ds-fin-manual__activity-grid|ds-fin-manual__grid/);
 });
 test('editing invalidates preview; only a reviewed PDF can be confirmed with its server revision',async()=>{
@@ -35,7 +70,7 @@ test('manual search includes school activity authority and stable identifier; no
 test('full funding before performance uses the selected financier budget and retains a separate basis',()=>{
   const d=data();Object.assign(d.transactionContext.billingRows[0],{eligible:false,period:null,manualMonth:'2026-12-01',plannedCount:4,unbilledCount:0,issuableAmount:0,fullFundingAmount:7000,fullFundingBlockedReason:''});
   prepareManualAccount(d,'a');assert.equal(d.manualDraft.billing_basis,'full_funding');assert.equal(d.manualDraft.amount,7000);assert.equal(d.manualDraft.quantity,4);assert.equal(d.manualFundingKey,'r|2026-12-01');
-  assert.match(manualAccountViewHtml(d),/מלוא חלק המממן/);
+  assert.match(manualAccountViewHtml(d),/מלוא היתרה המותרת להפקה/);
 });
 
 test('manual issuance filters by actual funder, not school; mixed funding selects the right share',()=>{
@@ -57,40 +92,33 @@ test('manual issuance filters by actual funder, not school; mixed funding select
   const options=manualFundingFilterOptions(d);
   assert.ok(options.some(f=>f.label==='רמי שני'));
   assert.equal(options.filter(f=>f.key.startsWith('authority:')).length,2);
-  const gefen=options.find(f=>f.label==='גפ״ן'||f.label==='גפן');
+  const gefen=options.find(f=>f.key.startsWith('school:')&&f.label==='אוסישקין');
   d.manualFunderFilter=gefen.key;
   assert.deepEqual(manualFilteredActivities(d).map(a=>a.row_id),['a','c']);
   prepareManualAccount(d,'a');
   assert.equal(d.manualFundingKey,'g|2026-10-01');
-  const authority=options.find(f=>f.label==='רשות - נהרייה');
+  const authority=options.find(f=>f.label==='נהרייה');
   d.manualFunderFilter=authority.key;
   assert.deepEqual(manualFilteredActivities(d).map(a=>a.row_id),['a']);
   prepareManualAccount(d,'a');
   assert.equal(d.manualFundingKey,'r|2027-02-01');
   const html=manualAccountViewHtml(d);
   assert.match(html,/data-finance-manual-funder-filter/);
-  assert.match(html,/value="r\|2027-02-01"/);
+  assert.match(html,/נהרייה/);
   assert.doesNotMatch(html,/value="g\|2026-10-01"/);
-  assert.match(html,/אוסישקין \| נהרייה \| ביומימיקרי/);
+  assert.match(html,/ביומימיקרי/);
   assert.doesNotMatch(html,/הרצל \| עכו \| ביומימיקרי/);
 });
-test('funder filter includes old single-funder records even if allocation details are missing',()=>{
-  const d={collectionActivities:[
-    {row_id:'missing',school:'שקמה',authority:'אשדוד',funding:'גפן',activity_name:'בינה מלאכותית'},
-    {row_id:'unassigned',school:'דקל',authority:'רחובות',funding:'',activity_name:'חלל'}],
-  transactionContext:{billingRows:[{activityRowId:'missing',fundingSourceId:null,funding:'גפן',blockedReason:'חסרה חלוקת מימון'}]}};
-  const options=manualFundingFilterOptions(d);
-  assert.ok(options.some(f=>f.key==='funder:גפן'));
-  assert.ok(options.some(f=>f.key==='unassigned'));
-  d.manualFunderFilter='funder:גפן';
-  assert.deepEqual(manualFilteredActivities(d).map(a=>a.row_id),['missing']);
+test('unresolved funding is not offered as a shared payer',()=>{
+  const d={collectionActivities:[{row_id:'missing',school:'שקמה',funding:'גפן'}],transactionContext:{billingRows:[{activityRowId:'missing',fundingSourceId:null,funding:'גפן',blockedReason:'חסרה חלוקה'}]}};
+  assert.deepEqual(manualFundingFilterOptions(d),[]);assert.deepEqual(manualFilteredActivities(d),[]);
 });
 
 test('multiple activities for one financer issue exactly one account with all lines', async () => {
   const d=data();
   d.collectionActivities.push({...d.collectionActivities[0],row_id:'b',school:'בית ספר שני'});
   d.transactionContext.billingRows.push({...d.transactionContext.billingRows[0],activityRowId:'b',issuableAmount:4300});
-  d.manualFunderFilter='authority:name:עיריית רחובות';
+  d.manualFunderFilter='authority:עיריית רחובות';
   toggleManualActivity(d,'a',true);
   toggleManualActivity(d,'b',true);
   updateManualDraft(d,'amount',4000);
@@ -128,8 +156,9 @@ test('multi-activity preview requires a financer, invalidates on edit, and cance
   d.transactionContext.billingRows.push({...d.transactionContext.billingRows[0],activityRowId:'b'});
   toggleManualActivity(d,'a',true);
   toggleManualActivity(d,'b',true);
+  d.manualFunderFilter='';
   await assert.rejects(previewSelectedManualAccounts(d,{}),/גורם מימון/);
-  d.manualFunderFilter='authority:name:עיריית רחובות';
+  d.manualFunderFilter='authority:עיריית רחובות';
   const api={previewFinanceFunderBatchAccount:async()=>({quote:{revision:'r1'},pdfBase64:'pdf'})};
   await previewSelectedManualAccounts(d,api);
   updateManualDraft(d,'description','edited');
@@ -154,7 +183,7 @@ test('non-school payer does not inherit a school semel or invent a customer numb
   assert.doesNotMatch(html,/סמל מוסד \/ מספר לקוח/);
 });
 test('Gefen payer retains school institution symbol',()=>{
-  const d=data();d.transactionContext.billingRows[0].gefenFunding=true;
+  const d=data();d.manualFunderFilter='school:בית ספר';d.transactionContext.billingRows[0].gefenFunding=true;
   d.transactionContext.billingRows[0].institutionSymbol='211466';
   prepareManualAccount(d,'a');
   assert.equal(d.manualDraft.institution_symbol,'211466');
@@ -172,13 +201,12 @@ test('manual invoice displays grouped payer amounts and keeps numeric values in 
   const html=manualAccountViewHtml(d);
   assert.match(html,/7,000\.00 ₪/);
   assert.match(html,/data-finance-manual-field="amount" value="7,000\.00"/);
-  assert.match(html,/data-finance-manual-field="unit_price" value="3,500\.00"/);
+  assert.match(html,/data-finance-manual-hourly-rate readonly value="2,333\.33"/);
   updateManualDraft(d,'amount','6,500.50');
   assert.equal(d.manualDraft.amount,6500.5);
   assert.equal(d.manualDraft.unit_price,3250.25);
-  updateManualDraft(d,'unit_price','1,250.00');
-  assert.equal(d.manualDraft.unit_price,1250);
-  assert.equal(d.manualDraft.amount,2500);
+  assert.equal(updateManualDraft(d,'unit_price','1,250.00'),false);
+  assert.equal(d.manualDraft.amount,6500.5);
   assert.ok(Number.isFinite(d.manualDraft.amount));
 });
 test('money input formatting retains enough unit-price precision for server amount validation',()=>{
@@ -200,7 +228,7 @@ test('email recipient field supports multiple comma-separated addresses and norm
   const input=dom.window.document.querySelector('[data-finance-manual-field="customer_email"]');
   assert.equal(input.type,'email');
   assert.equal(input.multiple,true,'native HTML multi-recipient validation must be enabled');
-  assert.equal(input.value,'finance@example.com, manager@example.com');
+  assert.equal(normalizeManualRecipientEmails(input.value),'finance@example.com, manager@example.com');
   assert.equal(input.checkValidity(),true,'both recipients are valid');
   assert.equal(normalizeManualRecipientEmails('first@example.com; second@example.com, third@example.com'),
     'first@example.com, second@example.com, third@example.com');
@@ -212,12 +240,12 @@ test('email recipient field supports multiple comma-separated addresses and norm
 });
 
 test('consolidated funder displays the total of all selected activities, not only the active one',async()=>{
-  const d={...data(),manualFunderFilter:'funder:רמי שני',collectionActivities:[],transactionContext:{billingRows:[]}};
+  const d={...data(),manualFunderFilter:'funding:s',collectionActivities:[],transactionContext:{billingRows:[]}};
   for(const [id,amount,school] of [['a',10000,'א'],['b',7000,'ב'],['c',5000,'ג']]){
     d.collectionActivities.push({row_id:id,school,activity_name:'בינה מלאכותית',activity_no:'9545',funding:'רמי שני'});
     d.transactionContext.billingRows.push({
       activityRowId:id,fundingSourceId:'s',funding:'רמי שני',payerName:'רמי שני',
-      customerEmail:school+'@example.com',period:'2026-11-01',manualMonth:'2026-11-01',
+      customerEmail:'finance@sponsor.example',period:'2026-11-01',manualMonth:'2026-11-01',
       plannedCount:8,eligible:false,fullFundingAmount:amount,fullFundingBlockedReason:'',issuableAmount:0,
       gefenFunding:false
     });
@@ -225,15 +253,15 @@ test('consolidated funder displays the total of all selected activities, not onl
   }
   assert.equal(manualSelectedFundingSummary(d).amount,22000);
   const html=manualAccountViewHtml(d);
-  assert.match(html,/חשבון מרוכז · 3 פעילויות/);
-  assert.match(html,/סכום כולל: 22,000\.00 ₪/);
-  assert.match(html,/פרטי החשבון המרוכז/);
+  assert.match(html,/3 פעילויות/);
+  assert.match(html,/22,000\.00 ₪/);
+  assert.match(html,/בדיקה והפקה/);
   assert.doesNotMatch(html,/בית ספר בפעילות הנערכת|סכום פעילות זו/);
-  assert.match(html,/חשבון מרוכז — ללא בית ספר יחיד/);
-  assert.match(html,/data-finance-manual-bulk-field="customer_email"/);
+  assert.doesNotMatch(html,/חשבון מרוכז — ללא בית ספר יחיד/);
+  assert.match(html,/data-finance-manual-field="customer_email"/);
   assert.match(html,/data-finance-manual-preview/);
   assert.doesNotMatch(html,/סכום החשבון/);
-  assert.equal(d.manualDraft.customer_email,'','non-Gefen payer must not inherit school contact email');
+  assert.equal(d.manualDraft.customer_email,'finance@sponsor.example','payer recipients arrive from the authoritative billing row');
 
   updateManualDraft(d,'customer_email','payer@example.com;finance@example.com');
   saveActiveManualDraft(d);
@@ -248,7 +276,7 @@ test('consolidated funder displays the total of all selected activities, not onl
   assert.deepEqual(requests[0].map(item=>item.draft.amount),[10000,7000,5000]);
   assert.deepEqual(requests[0].map(item=>item.draft.customer_email),Array(3).fill('payer@example.com, finance@example.com'));
   assert.equal(requests[0].every(item=>item.draft.customer_name==='רמי שני'),true);
-  assert.match(manualAccountViewHtml(d),/סכום כולל: 22,000\.00 ₪/);
+  assert.match(manualAccountViewHtml(d),/22,000\.00 ₪/);
 
   // When editing a different activity, the financer recipient remains common.
   toggleManualActivity(d,'b',true);
@@ -259,7 +287,7 @@ test('consolidated funder displays the total of all selected activities, not onl
 test('Gefen manual invoice keeps its original school recipients',()=>{
   const d=data();
   d.transactionContext.billingRows[0].customerEmail='school@example.com;principal@example.com';
-  d.transactionContext.billingRows[0].gefenFunding=true;
+  d.transactionContext.billingRows[0].gefenFunding=true;d.manualFunderFilter='school:בית ספר';
   prepareManualAccount(d,'a');
   assert.equal(d.manualDraft.customer_email,'school@example.com, principal@example.com');
 });
@@ -329,7 +357,7 @@ test('single-invoice PDF preview also provides a named download rather than inli
 
 test('consolidated invoice shows every school, not only the school of the active activity',()=>{
   const d=data();
-  d.manualFunderFilter='funder:רמי שני';
+  d.manualFunderFilter='funding:s';
   d.collectionActivities=Array.from({length:29},(_,i)=>({
     row_id:'act'+i, school:'בית ספר '+(i+1),activity_name:'קורס '+(i+1)
   }));
@@ -343,24 +371,24 @@ test('consolidated invoice shows every school, not only the school of the active
   assert.equal(manualConsolidatedActivityRows(d).length,29);
   const html=manualAccountViewHtml(d);
   const document=new JSDOM(html).window.document;
-  assert.match(html,/29 פעילויות · 29 בתי ספר/);
-  assert.match(html,/סכום כולל: 285,750\\.00 ₪/);
+  assert.match(html,/29 פעילויות/);
+  assert.match(html,/285,750\.00 ₪/);
   const table=document.querySelector('.ds-fin-manual__selected-schools table');
   assert.ok(table,'a consolidated invoice must list the schools');
   assert.equal(table.querySelectorAll('tbody tr').length,29);
   assert.ok(table.textContent.includes('בית ספר 29'));
   assert.ok(table.textContent.includes('קורס 29'));
-  assert.match(html,/חשבון מרוכז — ללא בית ספר יחיד/);
-  assert.match(html,/פרטי החשבון המרוכז/);
+  assert.doesNotMatch(html,/חשבון מרוכז — ללא בית ספר יחיד/);
+  assert.match(html,/בדיקה והפקה/);
   assert.doesNotMatch(html,/בית ספר בפעילות הנערכת|סכום פעילות זו/);
-  assert.equal(document.querySelector('[data-finance-manual-activity]').value,'');
-  assert.equal(document.querySelector('[data-finance-manual-bulk-field="customer_name"]').value,'');
-  assert.equal(document.querySelector('.ds-fin-manual__selected-schools').open,true);
+  assert.equal(document.querySelector('[data-finance-manual-activity]').value,'act0');
+  assert.equal(document.querySelector('[data-finance-manual-field="customer_name"]').value,'');
+  assert.equal(document.querySelector('.ds-fin-manual__selected-schools').open,false);
 });
 
 test('bulk payer fields update every selected activity and preserve per-school financial allocation',()=>{
   const d=data();
-  d.manualFunderFilter='authority:name:עיריית רחובות';
+  d.manualFunderFilter='authority:עיריית רחובות';
   d.collectionActivities.push({...d.collectionActivities[0],row_id:'b',school:'בית ספר שני'});
   d.transactionContext.billingRows.push({...d.transactionContext.billingRows[0],activityRowId:'b',issuableAmount:4300});
   toggleManualActivity(d,'a',true);
@@ -376,13 +404,13 @@ test('bulk payer fields update every selected activity and preserve per-school f
   assert.deepEqual(requests.map(row=>row.draft.institution_symbol),Array(2).fill('123'));
   assert.equal(manualSelectedFundingSummary(d).amount,original,'editing payer cannot change per-activity amounts');
   const first=manualAccountViewHtml(d);
-  assert.match(first,/פרטי החשבון המרוכז/);
+  assert.match(first,/בדיקה והפקה/);
   assert.doesNotMatch(first,/בית ספר בפעילות הנערכת/);
   d.manualBulkEditingActivityId='b';
   focusManualActivity(d,'b');
   const second=manualAccountViewHtml(d);
-  assert.match(second,/בית ספר בפעילות הנערכת/);
-  assert.match(second,/סכום פעילות זו/);
+  assert.match(second,/<option value="b" selected>/);
+  assert.equal(new JSDOM(second).window.document.querySelectorAll('.ds-fin-manual__selected-schools tbody tr').length,2);
   assert.match(second,/data-finance-manual-preview/);
   d.manualBulkEditingActivityId='';
   assert.doesNotMatch(manualAccountViewHtml(d),/בית ספר בפעילות הנערכת/);

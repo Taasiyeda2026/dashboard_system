@@ -512,3 +512,8 @@
 .ds-fin-gefen details[open] > summary > .ds-fin-gefen-arrow { transform: rotate(90deg); }
 .ds-fin-gefen-backlog { border-top: 1px solid var(--ds-border); padding-top: 12px; }
 .ds-fin-gefen-issue { display: flex; justify-content: center; padding: 4px 0; }
+.ds-fin-manual__billing { border: 0; margin: 0; padding: 0; min-width: 0; }
+.ds-fin-manual__billing > legend { padding: 0; margin-bottom: 8px; font-weight: 700; }
+.ds-fin-manual__billing-row { display: grid; grid-template-columns: minmax(0,110px) minmax(0,110px) minmax(0,145px) minmax(0,145px); gap: 12px; align-items: end; width: max-content; max-width: 100%; direction: rtl; }
+.ds-fin-manual__billing-row .ds-input { width: 100%; min-width: 0; box-sizing: border-box; }
+@media (max-width: 700px) { .ds-fin-manual__billing-row { grid-template-columns: repeat(2,minmax(0,1fr)); width: min(100%,320px); } }

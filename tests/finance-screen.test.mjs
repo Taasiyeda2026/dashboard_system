@@ -1123,7 +1123,7 @@ test('admin users retain finance access', () => {
 
 test('manual sponsor selection stays expanded, selects all visible activities, and never rebuilds the checkbox list', () => {
   const d={...createFinanceVisitState(),view:'transactions',transactionTab:'editable',
-    manualFunderFilter:'funder:רמי שני',
+    manualFunderFilter:'funding:sponsor',
     collectionActivities:[
       activity({row_id:'a',school:'א',funding:'רמי שני'}),
       activity({row_id:'b',school:'ב',funding:'רמי שני'}),
@@ -1138,6 +1138,7 @@ test('manual sponsor selection stays expanded, selects all visible activities, a
     }))}};
   const {host,window}=mount(d,{api:mockApi()});
   const details=host.querySelector('[data-finance-manual-selection]');
+  assert.equal(details.open,false,'payer selection starts collapsed');
   details.open=true;
   const items=[...details.querySelectorAll('[data-finance-manual-select-activity]')];
   assert.equal(items.length,3,'selection belongs to the chosen funder only');
@@ -1152,30 +1153,20 @@ test('manual sponsor selection stays expanded, selects all visible activities, a
   assert.strictEqual(details.querySelectorAll('[data-finance-manual-select-activity]')[0],items[0],'checkboxes must not be reconstructed');
   assert.equal(details.open,true,'list must stay open');
   assert.equal(master.checked,true);
-  assert.match(details.querySelector('[data-finance-manual-selection-count]').textContent,/3 מתוך 3/);
-  assert.match(host.textContent,/חשבון מרוכז לגורם מימון/);
-  assert.equal(host.querySelector('[data-finance-manual-field="school_name"]'),null,
-    'select all must never open a specific school editor');
-  assert.ok(host.querySelector('[data-finance-manual-bulk-field="customer_name"]'));
-  assert.equal(host.querySelector('[data-finance-manual-activity]').value,'',
-    'select all must not auto-select Tamar Ariel or any school');
-  assert.ok(host.querySelector('[data-finance-manual-preview]'),
-    'payer-level editor must keep the PDF preview action');
-  const bulkEmail=host.querySelector('[data-finance-manual-bulk-field="customer_email"]');
-  bulkEmail.value='finance@example.com;manager@example.com';
-  bulkEmail.dispatchEvent(new window.Event('change',{bubbles:true}));
-  assert.deepEqual(d.manualSelectedActivityIds.length,3);
+  assert.match(details.querySelector('[data-finance-manual-selection-count]').textContent,/3 פעילויות נבחרו/);
+  assert.match(host.querySelector('[data-finance-manual-batch-total]').textContent,/רמי שני.*3 פעילויות.*9,000.00/);
+  assert.ok(host.querySelector('[data-finance-manual-preview]'),'selected activities retain PDF review');
+  const email=host.querySelector('[data-finance-manual-field="customer_email"]');
+  email.value='finance@example.com;manager@example.com';
+  email.dispatchEvent(new window.Event('change',{bubbles:true}));
   assert.equal(d.manualFunderRecipientEmail,'finance@example.com, manager@example.com');
-  const chooseSchool=host.querySelector('[data-finance-manual-activity]');
-  chooseSchool.value='b';
-  chooseSchool.dispatchEvent(new window.Event('change',{bubbles:true}));
-  assert.ok(host.querySelector('[data-finance-manual-field="school_name"]'),
-    'a school editor appears only on explicit user selection');
-  const backToPayer=host.querySelector('[data-finance-manual-activity]');
-  backToPayer.value='';
-  backToPayer.dispatchEvent(new window.Event('change',{bubbles:true}));
-  assert.equal(host.querySelector('[data-finance-manual-field="school_name"]'),null);
-  assert.equal(d.manualSelectedActivityIds.length,3,'closing the school editor must not deselect any activity');
+  assert.ok(Object.values(d.manualActivityDrafts).every(item=>item.draft.customer_email===d.manualFunderRecipientEmail));
+  const chooseActivity=host.querySelector('[data-finance-manual-activity]');
+  chooseActivity.value='b';
+  chooseActivity.dispatchEvent(new window.Event('change',{bubbles:true}));
+  assert.equal(d.manualActivityId,'b');
+  assert.equal(d.manualSelectedActivityIds.length,3,'focusing one activity must not deselect the others');
+  assert.equal(host.querySelector('[data-finance-manual-field="quantity"]').value,'10');
   items[1].checked=false;
   items[1].dispatchEvent(new window.Event('change',{bubbles:true}));
   assert.equal(d.manualSelectedActivityIds.length,2);
@@ -1195,6 +1186,6 @@ test('manual select-all is unavailable until a payer has been selected', () => {
     transactionContext:{accounts:[],billingRows:[{activityRowId:'a',fundingSourceId:'s',funding:'רמי שני'}]}};
   const {host}=mount(d,{api:mockApi()});
   const master=host.querySelector('[data-finance-manual-select-all]');
-  assert.ok(master.disabled);
+  assert.equal(master,null);
   assert.equal(d.manualSelectedActivityIds.length,0);
 });

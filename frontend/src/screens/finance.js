@@ -20,7 +20,7 @@ import {
 import { activityRowId, normalizeFinanceCollectionTab } from './finance-collection.js';
 import { financeError } from './finance-errors.js';
 import { financeAccountBalances, paymentsBodyHtml, receiptsHtml, accountPaymentAllocation } from './finance-payments.js';
-import { prepareManualAccount, updateManualDraft, manualFilteredActivities, selectedManualActivityIds, toggleManualActivity, toggleAllVisibleManualActivities, syncManualActivitySelectionUi, normalizeManualRecipientEmails, updateManualConsolidatedField, focusManualActivity, saveActiveManualDraft, previewSelectedManualAccounts, runSelectedManualAccounts, syncManualPdfPreviewDom, clearManualPdfPreviewUrls, activateManualPdfPreview } from './finance-manual-account.js';
+import { setManualBillingScope, prepareManualAccount, updateManualDraft, manualFilteredActivities, selectedManualActivityIds, toggleManualActivity, toggleAllVisibleManualActivities, syncManualActivitySelectionUi, normalizeManualRecipientEmails, updateManualConsolidatedField, focusManualActivity, saveActiveManualDraft, previewSelectedManualAccounts, runSelectedManualAccounts, syncManualPdfPreviewDom, clearManualPdfPreviewUrls, activateManualPdfPreview } from './finance-manual-account.js';
 import { financeToday } from './finance-transaction-accounts.js';
 import {
   handleTransactionSelection,
@@ -516,10 +516,9 @@ async function ensureCollectionLoaded(data, api, { force = false } = {}) {
         return {
           ...row,
           financeSchoolId: activity?.school_id ?? null,
-          customerEmail: activity
-            ? recipientList([activity.resolved_contact_email || activity.contact_email,
-              activity.finance_administrator_email])
-            : row.customerEmail
+          customerEmail: typeof row.customerEmail==='string' ? row.customerEmail
+            : row.payerKey?.startsWith('school:') && activity
+              ? recipientList([activity.resolved_contact_email || activity.contact_email,activity.finance_administrator_email]) : ''
         };
       })
     };
@@ -815,12 +814,13 @@ export const financeScreen = {
     const onChange = async (ev) => {
       const funderFilter = ev.target.closest('[data-finance-manual-funder-filter]');
       if (funderFilter) {
-        visit.manualSelectionExpanded = Boolean(root.querySelector('[data-finance-manual-selection]')?.open);
+        visit.manualSelectionExpanded = false;
         // A payer change starts a new selection; never carry invoices for the previous payer.
         visit.manualFunderFilter = funderFilter.value || '';
         visit.manualSelectedActivityIds = [];
         visit.manualActivityDrafts = {};
         visit.manualFunderRecipientEmail = '';
+        visit.manualScope = 'full';
         visit.manualBulkEditingActivityId = '';
         visit.manualActivityId = '';
         visit.manualFundingKey = '';
@@ -866,6 +866,14 @@ export const financeScreen = {
       }
       const manualFunding = ev.target.closest('[data-finance-manual-funding]');
       if (manualFunding) { prepareManualAccount(visit, visit.manualActivityId, manualFunding.value); saveActiveManualDraft(visit); visit.manualBatchPreviews = null; syncManualActivitySelectionUi(root, visit); return; }
+      const scope=ev.target.closest('[data-finance-manual-scope]');
+      if(scope){setManualBillingScope(visit,scope.value);syncManualActivitySelectionUi(root,visit);return;}
+      const lineAmount=ev.target.closest('[data-finance-manual-line-amount]');
+      if(lineAmount){
+        focusManualActivity(visit,lineAmount.dataset.financeManualLineAmount);
+        if(updateManualDraft(visit,'amount',lineAmount.value)===false){lineAmount.setCustomValidity('יש להזין סכום תקין');lineAmount.reportValidity();return;}
+        saveActiveManualDraft(visit);syncManualActivitySelectionUi(root,visit);return;
+      }
       const manualField = ev.target.closest('[data-finance-manual-field]');
       if (manualField) {
         // Normalize pasted semicolon-separated addresses before native HTML validation.
