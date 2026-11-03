@@ -2611,9 +2611,19 @@ export function resultsHtml(result, month = '', options = {}) {
   };
   const dailyTravelByDay = new Map((result.dailyTravelReports || [])
     .map(row => [txt(row.emp_id) + '|' + txt(row.travel_date), row]));
-  const dailyTravelHtml = (employeeId,date) => {
+  const needsDailyTravel = (date,rows=[]) => date >= '2026-11-04' && rows.some(({item})=>{
+    const row=item?.attendance || item?.final || {};
+    const activity=normalizeAttendanceName(row.activityType);
+    return Boolean(row.date) && row.isRemoteDestination !== true
+      && activity !== normalizeAttendanceName('זום')
+      && activity !== normalizeAttendanceName('ביטול זמן')
+      && txt(row.trainingMode) !== 'online';
+  });
+  const dailyTravelHtml = (employeeId,date,dayRows=[]) => {
+    if (!needsDailyTravel(date,dayRows)) return '';
     const record = dailyTravelByDay.get(employeeId+'|'+date);
-    if (!record) return '';
+    if (!record) return '<div class="attendance-control__daily-travel attendance-control__daily-travel--missing">'+
+      '<strong>נסיעות וביטולים · '+shown(dateLabel(date))+'</strong><span>דיווח נסיעות חסר</span></div>';
     const status = record.review_status === 'approved' || record.review_status === 'corrected'
       ? 'אושר' : record.review_status === 'rejected' ? 'נדחה' : 'ממתין לאישור';
     const km = record.no_travel ? 0 : optionalNumber(record.total_km);
@@ -2649,14 +2659,19 @@ export function resultsHtml(result, month = '', options = {}) {
         return `<details class="attendance-control__day${needsApproval ? '' : ' attendance-control__day--ok'}" data-payroll-date="${escapeHtml(date)}" data-attendance-row-id="${escapeHtml(entryRecordId(item))}"><summary><span>${shown(dateLabel(date))} · ${shown(label)}</span><span>${formatDurationHours(hours)} שעות</span><span class="attendance-control__row-status ${dataIssue ? 'attendance-control__row-status--issue' : needsApproval ? '' : 'attendance-control__row-status--ok'}">${rowStatus}</span></summary><div class="attendance-control__reports">${reportHtml({ ...row, employeeId: employee.id, date })}</div></details>`;
       }).join('');
     }).join('');
-    const dailyTravelDays = [...employee.days.keys()].sort()
-      .map(date => dailyTravelHtml(employee.id,date)).filter(Boolean).join('');
+    const dailyTravelDays = [...employee.days.entries()].sort(([a],[b])=>a.localeCompare(b))
+      .map(([date,dayRows])=>dailyTravelHtml(employee.id,date,dayRows)).filter(Boolean).join('');
+    const pendingTravelDays = [...employee.days.entries()].filter(([date,dayRows])=>{
+      if(!needsDailyTravel(date,dayRows))return false;
+      const r=dailyTravelByDay.get(employee.id+'|'+date);
+      return !r || !['approved','corrected'].includes(r.review_status);
+    }).length;
     const employeeEntries = allAttendanceEntries.filter((entry) => txt(entry.attendance?.employeeId) === employee.id);
     const totalRecordCount = employeeEntries.length;
     const approvedRecordCount = employeeEntries.filter(attendanceEntryIsResolved).length;
     const pendingRecordCount = Math.max(0, totalRecordCount - approvedRecordCount);
     const recordProgressHtml = totalRecordCount
-      ? `<span class="attendance-control__employee-record-progress">אושרו ${approvedRecordCount} מתוך ${totalRecordCount} רשומות${pendingRecordCount ? ` · ${pendingRecordCount} ממתינות לאישור` : ''}</span>`
+      ? `<span class="attendance-control__employee-record-progress">אושרו ${approvedRecordCount} מתוך ${totalRecordCount} רשומות${pendingRecordCount ? ` · ${pendingRecordCount} ממתינות לאישור` : ''}${pendingTravelDays ? ` · ${pendingTravelDays} ימי נסיעות לבדיקה` : ''}</span>`
       : '';
     const approval = options.approvalsByEmployee?.[employee.id];
     const workflowHtml = `<p class="attendance-control__manual-note">סטטוס חודש: <strong>${escapeHtml(workflow.label)}</strong></p>`;
@@ -2684,7 +2699,7 @@ export function resultsHtml(result, month = '', options = {}) {
           ? `<button type="button" class="ds-btn" data-attendance-add-record="${escapeHtml(employee.id)}" data-attendance-add-employee-name="${escapeHtml(employee.name)}" title="הוספת רשומה" aria-label="הוספת רשומה">+</button>`
           : '';
         const finalizeBtn = finalizeAllowed
-          ? `<button type="button" class="ds-btn ds-btn--primary" data-payroll-finish="${escapeHtml(employee.id)}" data-payroll-employee-name="${shown(employee.name)}" data-payroll-pending-records="${pendingRecordCount}">אישור מנהל</button>`
+          ? `<button type="button" class="ds-btn ds-btn--primary" data-payroll-finish="${escapeHtml(employee.id)}" data-payroll-employee-name="${shown(employee.name)}" data-payroll-pending-records="${pendingRecordCount}" data-payroll-pending-travel="${pendingTravelDays}">אישור מנהל</button>`
           : '';
         const reopenNotice = submissionStatus === 'reopened' && !bypassMonthSubmissionGate
           ? '<span class="attendance-control__manual-note">המדריך חייב לסיים ולאשר מחדש את החודש לפני אישור מנהל.</span>'
@@ -2714,7 +2729,12 @@ export function resultsHtml(result, month = '', options = {}) {
         && entry.managerResolved !== 'corrected') return true;
       return false;
     });
-    return hasDataIssue || (hasWorkflowRow && workflow.status === 'not_submitted');
+    const dailyTravelIssue=[...employee.days.entries()].some(([date,dayRows])=>{
+      if(!needsDailyTravel(date,dayRows))return false;
+      const r=dailyTravelByDay.get(employee.id+'|'+date);
+      return !r||!['approved','corrected'].includes(r.review_status);
+    });
+    return hasDataIssue || dailyTravelIssue || (hasWorkflowRow && workflow.status === 'not_submitted');
   }).length;
   const metricsHtml = `<details class="attendance-control__metrics-details" data-payroll-metrics><summary>פרטים</summary><div class="attendance-control__metrics"><span>שורות נוכחות ${totals.attendanceRows}</span><span>התאמות ${totals.fullMatches}</span><span>פערים ${totals.fieldMismatches}</span><span>ללא התאמה ${totals.unmatchedAttendance}</span></div></details>`;
   const overviewRows = [...(result.comparisons || []), ...(result.notCompared || [])].map((entry) => entry.final || entry.attendance || {}).filter(Boolean);
@@ -3717,6 +3737,11 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       }
       setStatusMessage(message, { error });
     };
+    const pendingTravelCount=Number(finishBtn.dataset.payrollPendingTravel||0);
+    if(pendingTravelCount>0){
+      showApprovalFeedback('לא ניתן לאשר את החודש: נותרו '+pendingTravelCount+' ימי נסיעות ללא אישור.');
+      return;
+    }
     const pendingCount = Number(finishBtn.dataset.payrollPendingRecords || 0);
     if (pendingCount > 0) {
       showApprovalFeedback(`לא ניתן להשלים אישור מנהל: נותרו ${pendingCount} רשומות שדורשות אישור. יש לפתוח את הרשומות הממתינות ולטפל בהן.`);
