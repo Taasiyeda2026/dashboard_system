@@ -67,13 +67,13 @@ begin
     then return new; end if;
 
   for v_emp,v_date in
-    select distinct x.emp,x.day from (
+    select distinct x.emp,x.travel_day from (
       select case when tg_op<>'INSERT' then old.emp_id else null end emp,
-             case when tg_op<>'INSERT' then old.report_date else null end day
+             case when tg_op<>'INSERT' then old.report_date else null end travel_day
       union all
       select case when tg_op<>'DELETE' then new.emp_id else null end,
              case when tg_op<>'DELETE' then new.report_date else null end
-    ) x where x.emp is not null and x.day >= date '2026-11-04'
+    ) x where x.emp is not null and x.travel_day >= date '2026-11-04'
   loop
     select * into v_old from public.attendance_daily_travel_reports
       where emp_id=v_emp and travel_date=v_date
