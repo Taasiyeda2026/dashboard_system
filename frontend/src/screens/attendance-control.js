@@ -2536,7 +2536,7 @@ export function resultsHtml(result, month = '', options = {}) {
       ].map(([label, left, right, issue]) => `<tr class="${issue ? 'attendance-control__comparison-row--issue' : ''}"><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td>${shown(right)}</td><td><span class="attendance-control__status-pill ${issue ? 'attendance-control__status-pill--issue' : 'attendance-control__status-pill--info'}">${issue ? escapeHtml(reviewStatus) : 'תואם/סגור'}</span></td><td><span class="attendance-control__no-action">—</span></td></tr>`).join('');
       const actions = needsDecision
         ? `<div class="attendance-control__travel-review-actions" data-travel-source-id="${sourceId}">
-            <button type="button" class="ds-btn ds-btn--sm" data-travel-review="approve">אישור</button>
+            <button type="button" class="ds-btn ds-btn--sm" data-travel-review="approve" ${suspectCancellation ? 'disabled title="דיווח חריג – נדרש תיקון"' : ''}>אישור</button>
             <button type="button" class="ds-btn ds-btn--sm" data-travel-review="reject">דחייה</button>
             <label>תיקון דקות <input class="ds-input ds-input--sm" type="number" min="0" step="1" data-travel-correct-minutes></label>
             <button type="button" class="ds-btn ds-btn--sm" data-travel-review="correct">תיקון</button>
