@@ -290,3 +290,17 @@
   font-weight: 700;
   line-height: 1.4;
 }
+
+.av2-report__tabs{display:flex;gap:8px;margin-block:10px 14px}
+.av2-report__tabs .av2-btn{flex:1;min-width:0;font-size:.92rem}
+.av2-report__tab--active{background:var(--av2-color-accent-subtle)!important;color:var(--av2-color-accent)!important;border-color:var(--av2-color-accent)!important}
+.av2-report__form[hidden],.av2-report__travel-tab[hidden]{display:none!important}
+.av2-daily-travel{display:grid;gap:14px;max-width:860px;margin-inline:auto}
+.av2-daily-travel>h2{font-size:1rem;font-weight:700;margin:0}
+.av2-daily-travel__legs{display:grid;gap:10px}
+.av2-daily-travel__leg{background:var(--av2-color-surface);border:1px solid var(--av2-color-border);padding:12px;border-radius:10px;display:grid;gap:10px}
+.av2-daily-travel__leg>strong{font-size:.83rem}
+.av2-daily-travel__leg-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.av2-daily-travel__summary{margin:0;font-size:.91rem;font-weight:700}
+.av2-daily-travel__status{margin:0;font-size:.82rem}
+@media(max-width:500px){.av2-daily-travel__leg-fields{grid-template-columns:1fr}}
