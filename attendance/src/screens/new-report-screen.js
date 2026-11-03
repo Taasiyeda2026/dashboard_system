@@ -119,6 +119,7 @@ function makeFormSection(title, variant, bodyClass, fields) {
 export function renderNewReportScreen(container, {
   instructor = {},
   defaultDate = localIsoDate(),
+  initialTab = 'attendance',
   prefillRecord = null,
   onBack,
   onSaved,
@@ -1949,6 +1950,12 @@ export function renderNewReportScreen(container, {
     form.setAttribute('role','tabpanel');
     form.setAttribute('aria-labelledby',attendanceTab.id);
     tabs.append(attendanceTab, travelTab);
+    const travelShortcut = document.createElement('button');
+    travelShortcut.type = 'button';
+    travelShortcut.className = 'av2-report__tiny-travel-btn';
+    travelShortcut.textContent = 'מילוי נסיעות';
+    travelShortcut.title = 'מעבר לדיווח הנסיעות של היום שנבחר';
+    travelShortcut.setAttribute('aria-label', 'מילוי נסיעות ליום שנבחר');
     const dailyTravel = createDailyTravelTab({
       empId: instructor.empId,
       initialDate: dateField.input.value || defaultDate
@@ -1971,6 +1978,14 @@ export function renderNewReportScreen(container, {
         void dailyTravel.load();
       }
     }
+    travelShortcut.addEventListener('click',()=>{
+      const day = dateField.input.value;
+      if (!day) { dateField.input.focus(); return; }
+      dailyTravel.dateInput.value = day;
+      dailyTravel.panel.dataset.av2Visited = '1';
+      showTab('travel');
+    });
+    dateField.wrap.append(travelShortcut);
     attendanceTab.addEventListener('click',()=>showTab('attendance'));
     travelTab.addEventListener('click',()=>showTab('travel'));
     tabs.addEventListener('keydown',event=>{
@@ -1985,7 +2000,7 @@ export function renderNewReportScreen(container, {
       tabsList[nextIndex].focus();
     });
     formArea.append(tabs,form,dailyTravel.panel);
-    showTab('attendance');
+    showTab(initialTab === 'travel' ? 'travel' : 'attendance');
     void onReportDateChange();
   }
 
