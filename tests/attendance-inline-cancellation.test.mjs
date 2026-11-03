@@ -52,7 +52,7 @@ test('new and edit forms keep separate before/after segments and physical venue'
 });
 
 test('new-report cancellation is immediately after hours and before travel, with no redundant note', () => {
-  const hours = create.indexOf("timesGrid.append(startPicker.wrap, endPicker.wrap, hoursDisplay, publicTransportToggle, kmField.wrap, publicTransportCostWrap)");
+  const hours = create.indexOf("timesGrid.append(startPicker.wrap, endPicker.wrap, hoursDisplay, hoursFollowup, publicTransportToggle, kmField.wrap, publicTransportCostWrap)");
   const afterHours = create.indexOf('hoursDisplay.after(cancellationRow, cancellationFields)');
   const beforeTravel = create.indexOf('publicTransportToggle, kmField.wrap, publicTransportCostWrap', hours);
   assert.ok(hours >= 0 && beforeTravel > hours && afterHours > beforeTravel, 'cancellation is inserted after the hours node before transport and kilometers');
