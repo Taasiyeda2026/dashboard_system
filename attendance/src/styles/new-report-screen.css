@@ -415,3 +415,9 @@
  .av2-daily-travel__mode .av2-field__select{min-height:44px;font-size:16px}
  .av2-daily-travel__leg-fields{grid-template-columns:minmax(0,1fr)}
 }
+
+.av2-daily-travel .av2-report__actions{justify-content:center;align-items:center}
+.av2-daily-travel .av2-report__actions .av2-btn{flex:0 1 190px;max-width:190px;min-height:40px}
+@media(max-width:639px){
+ .av2-daily-travel .av2-report__actions .av2-btn{min-height:44px}
+}
