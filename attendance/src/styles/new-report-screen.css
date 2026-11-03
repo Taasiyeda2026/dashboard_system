@@ -403,3 +403,15 @@
 @media(max-width:639px) {
   .av2-report__tiny-travel-btn {min-height:36px;padding:6px 10px}
 }
+
+.av2-daily-travel__day-wrap{display:grid;gap:6px;width:100%;max-width:620px;margin-inline:auto}
+.av2-daily-travel__day-label{font-size:.83rem;font-weight:650}
+.av2-daily-travel__day-select{width:100%;max-width:100%;min-width:0;min-height:42px;padding:8px 12px;border-radius:10px;box-sizing:border-box;font-size:.87rem}
+.av2-daily-travel__mode{display:grid;gap:5px;font-size:.78rem;font-weight:600;min-width:0}
+.av2-daily-travel__mode .av2-field__select{width:100%;min-height:40px;box-sizing:border-box}
+.av2-daily-travel__leg-fields{grid-template-columns:repeat(2,minmax(0,1fr));align-items:end}
+@media(max-width:639px){
+ .av2-daily-travel__day-select{min-height:44px;font-size:16px}
+ .av2-daily-travel__mode .av2-field__select{min-height:44px;font-size:16px}
+ .av2-daily-travel__leg-fields{grid-template-columns:minmax(0,1fr)}
+}
