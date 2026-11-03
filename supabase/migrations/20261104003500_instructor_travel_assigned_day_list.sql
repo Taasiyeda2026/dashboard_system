@@ -12,7 +12,7 @@ begin
   if v_emp is null then
     raise exception 'attendance_travel_instructor_required' using errcode='42501';
   end if;
-  v_to:=least(coalesce(p_to,current_date),current_date);
+  v_to:=least(coalesce(p_to,(now() at time zone 'Asia/Jerusalem')::date),(now() at time zone 'Asia/Jerusalem')::date);
   v_from:=greatest(coalesce(p_from,v_to - interval '62 days')::date,date '2026-11-04');
   if v_to < v_from or v_to > v_from+interval '125 days' then
     raise exception 'attendance_travel_day_range_invalid' using errcode='22023';
