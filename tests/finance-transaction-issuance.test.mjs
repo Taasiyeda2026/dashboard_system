@@ -10,6 +10,19 @@ const row=(extra={})=>({activityRowId:'a',activityName:'קורס א',fundingSour
   fundingAmount:5000,issuableAmount:2500,unbilledAmount:2500,eligible:true,blockedReason:'',...extra});
 const data=(rows,extra={})=>({transactionContext:{billingRows:rows,accounts:[]},transactionMonths:{automatic:'2026-09',manual:'2026-09'},...extra});
 const html=d=>transactionAccountsViewHtml(d,x=>`<h1>${x}</h1>`);
+test('unified issuance processes original periods chronologically under cumulative server billing caps',async()=>{
+  const d=data([row({period:'2026-09-01',unbilledSlots:[{slot:3,date:'2026-09-01'},{slot:4,date:'2026-09-02'}]}),
+    row({period:'2026-08-01'})]);
+  let billed=0;const periods=[];
+  const results=await runTransactionIssuance(d,{
+    reserveFinanceTransactionAccount:async p=>{
+      const line=p.lines[0],target=line.performance_month==='2026-08-01'?2500:5000;
+      if(line.expected_amount>target-billed)throw Error('stale_billing_preview');
+      periods.push(line.performance_month);billed+=line.expected_amount;return{id:p.idempotencyKey};
+    },dispatchFinanceTransactionAccount:async()=>({outlookStatus:'draft_ready'})
+  },'automatic');
+  assert.ok(results.every(r=>!r.error));assert.equal(billed,5000);assert.deepEqual(periods,['2026-08-01','2026-09-01']);
+});
 test('unified Gefen layout orders month summary current backlog single action and waiting; every group starts closed',()=>{
   const d=data([row(),row({activityRowId:'older',period:'2026-08-01'}),
     row({activityRowId:'waiting',eligible:false,blockedReason:'minimum',eligibilityStatus:'waiting_three_meetings',issuableAmount:0})]);

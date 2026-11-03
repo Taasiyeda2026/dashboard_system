@@ -324,7 +324,12 @@ export async function runTransactionIssuance(data, api, mode, month = transactio
   if (!preview.accounts.length) throw new Error('אין חשבונות מוכנים להפקה.');
   const results = [];
   data.transactionRequestIds ||= {};
-  for (const account of preview.accounts) {
+  // The server caps each period against cumulative billing. Complete older
+  // periods first so a later charge cannot make an earlier snapshot stale.
+  const accounts = mode === TRANSACTION_MODE_AUTOMATIC
+    ? [...preview.accounts].sort((a,b)=>String(a.period || '').localeCompare(String(b.period || '')))
+    : preview.accounts;
+  for (const account of accounts) {
     const requestKey=JSON.stringify([mode,mode === TRANSACTION_MODE_AUTOMATIC ? account.period?.slice(0,7) || month : month,account.institutionSymbol,account.lines.map(line=>[line.activityRowId,line.fundingSourceId,line.period,line.issuableAmount,line.unbilledSlots])]);
     data.transactionRequestIds[requestKey] ||= uuid();
     let reserved;
