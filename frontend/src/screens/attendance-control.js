@@ -1959,7 +1959,7 @@ export function buildCorrectedAttendanceWorkbook(comparisons, dashboardRows = []
     asBoolean(row.publicTransport ?? row.PublicTransport ?? row.public_transport)
       ? (optionalNumber(row.publicTransportCost ?? row.PublicTransportCost ?? row.public_transport_cost) ?? 0) : 0
   ]);
-  const travelHeaders = ['מספר עובד','תאריך','מקטע','מוצא','יעד','זמן נסיעה (דקות)','קילומטרים','ביטול זמן יומי','קילומטרים מאושרים','ביטול זמן מאושר','סטטוס'];
+  const travelHeaders = ['מספר עובד','תאריך','מקטע','מוצא','יעד','זמן נסיעה (דקות)','קילומטרים','אמצעי נסיעה','עלות תחבורה ציבורית','ביטול זמן יומי','קילומטרים מאושרים','ביטול זמן מאושר','תחבורה ציבורית מאושרת','סטטוס'];
   const travelRows = (options.dailyTravelReports || []).flatMap(report => {
     const legs = Array.isArray(report.legs) && report.legs.length ? report.legs : [null];
     return legs.map(leg=>[
@@ -1967,8 +1967,11 @@ export function buildCorrectedAttendanceWorkbook(comparisons, dashboardRows = []
       leg?.kind==='outbound'?'נסיעה ראשונה':leg?.kind==='return'?'נסיעה אחרונה':leg?.kind==='between'?'בין פעילויות':'ללא נסיעה',
       txt(leg?.from),txt(leg?.to),
       leg?.minutes ?? '',leg?.kilometers ?? '',
+      leg?.mode==='public_transport'?'תחבורה ציבורית':'רכב',
+      leg?.mode==='public_transport'?(Number(leg.transportCost)||0):0,
       report.cancellation_minutes ?? '',
       report.approved_km ?? '',report.approved_cancellation_minutes ?? '',
+      report.approved_public_transport_cost ?? '',
       ({pending_review:'ממתין לאישור',approved:'אושר',corrected:'תוקן ואושר',rejected:'נדחה'})[report.review_status]||'ממתין לבדיקה'
     ]);
   });
@@ -2628,6 +2631,7 @@ export function resultsHtml(result, month = '', options = {}) {
       ? 'אושר' : record.review_status === 'rejected' ? 'נדחה' : 'ממתין לאישור';
     const km = record.no_travel ? 0 : optionalNumber(record.total_km);
     const minutes = record.no_travel ? 0 : optionalNumber(record.cancellation_minutes);
+    const fare=record.no_travel ? 0 : optionalNumber(record.public_transport_cost);
     const actions = record.review_status === 'pending_review' && currentEmployeeCanMutate
       ? '<button type="button" class="ds-btn ds-btn--sm" data-daily-travel-review="approve" data-daily-travel-employee="'+escapeHtml(employeeId)+'" data-daily-travel-date="'+escapeHtml(date)+'">אישור נסיעות</button>'+
         '<button type="button" class="ds-btn ds-btn--sm" data-daily-travel-review="reject" data-daily-travel-employee="'+escapeHtml(employeeId)+'" data-daily-travel-date="'+escapeHtml(date)+'">דחייה</button>'+
@@ -2636,9 +2640,9 @@ export function resultsHtml(result, month = '', options = {}) {
         '<button type="button" class="ds-btn ds-btn--sm" data-daily-travel-review="correct" data-daily-travel-employee="'+escapeHtml(employeeId)+'" data-daily-travel-date="'+escapeHtml(date)+'">תיקון ואישור</button>'
       : '';
     const legRows = Array.isArray(record.legs) ? record.legs.map(leg =>
-      '<tr><td>'+shown(leg.from)+' ← '+shown(leg.to)+'</td><td>'+shown(leg.minutes)+' דקות</td><td>'+shown(leg.kilometers)+' ק״מ</td></tr>').join('') : '';
+      '<tr><td>'+shown(leg.from)+' ← '+shown(leg.to)+'</td><td>'+shown(leg.minutes)+' דקות</td><td>'+shown(leg.kilometers)+' ק״מ</td><td>'+(leg.mode==='public_transport'?'תחבורה ציבורית · ₪'+shown(leg.transportCost||0):'רכב')+'</td></tr>').join('') : '';
     return '<div class="attendance-control__daily-travel"><strong>נסיעות וביטולים · '+shown(dateLabel(date))+'</strong>'+
-      '<span>ק״מ: '+shown(km??'—')+' · ביטול זמן: '+shown(minutes??'—')+' דקות · '+shown(status)+'</span>'+
+      '<span>ק״מ: '+shown(km??'—')+' · ביטול זמן: '+shown(minutes??'—')+' דקות'+(fare>0?' · תחבורה ציבורית: ₪'+shown(fare):'')+' · '+shown(status)+'</span>'+
       (legRows?'<table><tbody>'+legRows+'</tbody></table>':'')+actions+'</div>';
   };
   const employeeHtml = [...employees.values()].sort((a, b) => a.name.localeCompare(b.name, 'he')).map((employee) => {
