@@ -3,6 +3,7 @@ import { enhanceGefenOrderUi } from './activity-drawer-gefen-order-ui.js';
 import { applyActivityDrawerTypeLayoutFix } from './activity-drawer-type-layout-fix.js';
 import { polishActivityDrawerEditOptions } from './activity-drawer-edit-dedup.js';
 import { dockActivityDrawerActions } from './activity-drawer-floating-actions.js';
+import { enhanceActivityUpdateNotes } from './activity-update-notes.js';
 
 /**
  * Applies the stable visual structure of an already-mounted activity drawer.
@@ -29,6 +30,7 @@ export function applyActivityDrawerLayoutPipeline(contentRoot, settings = null) 
     changed = applyActivityDrawerTypeLayoutFix(form) || changed;
     if (settings) polishActivityDrawerEditOptions(form, settings);
     changed = dockActivityDrawerActions(form) || changed;
+    changed = enhanceActivityUpdateNotes(form) || changed;
   });
   return changed;
 }
