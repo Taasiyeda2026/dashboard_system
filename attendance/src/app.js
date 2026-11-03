@@ -24,6 +24,7 @@ const state = {
   currentMonth: today.getMonth() + 1,  // 1-based
   prefillRecord: null,           // attendance record to duplicate (cleared after use)
   newReportDate: '',             // optional date chosen from the calendar
+  newReportTab: 'attendance',
 };
 
 let appRoot = null;
@@ -71,8 +72,9 @@ function nextMonth() {
   renderScreen();
 }
 
-function openNewReport(dateStr = '') {
+function openNewReport(dateStr = '', tab = 'attendance') {
   state.newReportDate = String(dateStr || '').slice(0, 10);
+  state.newReportTab = tab === 'travel' ? 'travel' : 'attendance';
   navigate('new-report');
 }
 
@@ -291,8 +293,10 @@ function renderScreen() {
   if (state.screen === 'new-report') {
     const prefill = state.prefillRecord;
     const requestedDate = state.newReportDate;
+    const requestedTab = state.newReportTab;
     state.prefillRecord = null;
     state.newReportDate = '';
+    state.newReportTab = 'attendance';
     // New reports default to today's local date, regardless of the month
     // currently displayed in the calendar. A deliberately selected date
     // and an existing record being edited retain their original dates.
@@ -301,6 +305,7 @@ function renderScreen() {
     renderNewReportScreen(appRoot, {
       instructor: state.instructor,
       defaultDate: requestedDate || fallbackDate,
+      initialTab: requestedTab,
       prefillRecord: prefill,
       onBack: () => navigate('home'),
       onSaved: () => {},
@@ -315,6 +320,7 @@ function renderScreen() {
       onPrevMonth: prevMonth,
       onNextMonth: nextMonth,
       onNewReport: openNewReport,
+      onTravelReport: (date) => openNewReport(date,'travel'),
       onDuplicate: (record) => {
         state.prefillRecord = record;
         navigate('new-report');
