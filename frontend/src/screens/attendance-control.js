@@ -2527,13 +2527,13 @@ export function resultsHtml(result, month = '', options = {}) {
       const needsDecision = ['awaiting_report', 'auto_matched', 'pending_review'].includes(reviewStatus);
       const sourceId = escapeHtml(source.sourceAttendanceRecordId || entryRecordId(entry) || '');
       const rows = [
-        [inlineRequest ? 'דיווח ביטול זמן (לפני/אחרי)' : 'דיווח זמן נסיעה (הלוך/חזור)',
+        [inlineRequest ? (suspectCancellation ? 'ערכים חריגים שהוזנו (לפני/אחרי)' : 'דיווח ביטול זמן (לפני/אחרי)') : 'דיווח זמן נסיעה (הלוך/חזור)',
           inlineRequest ? `${minutesLabel(source.reportedCancellationBeforeMinutes)} / ${minutesLabel(source.reportedCancellationAfterMinutes)}`
             : source.reportedOutboundMinutes != null ? `${source.reportedOutboundMinutes}/${source.reportedReturnMinutes}` : '—',
-          '—', needsDecision && reviewStatus === 'awaiting_report'],
+          '—', suspectCancellation || needsDecision],
         ['ביטול זמן מבוקש', reportedCancel, calculated, suspectCancellation || reviewStatus === 'pending_review'],
         ['מאושר לתשלום', approvedValue, calculated, needsDecision]
-      ].map(([label, left, right, issue]) => `<tr class="${issue ? 'attendance-control__comparison-row--issue' : ''}"><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td>${shown(right)}</td><td><span class="attendance-control__status-pill ${issue ? 'attendance-control__status-pill--issue' : 'attendance-control__status-pill--info'}">${issue ? escapeHtml(reviewStatus) : 'תואם/סגור'}</span></td><td><span class="attendance-control__no-action">—</span></td></tr>`).join('');
+      ].map(([label, left, right, issue]) => `<tr class="${issue ? 'attendance-control__comparison-row--issue' : ''}"><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td>${shown(right)}</td><td><span class="attendance-control__status-pill ${issue ? 'attendance-control__status-pill--issue' : 'attendance-control__status-pill--info'}">${issue ? (suspectCancellation && label !== 'מאושר לתשלום' ? 'דיווח חריג – נדרש תיקון' : 'ממתין להחלטת מנהל') : (needsDecision ? 'ממתין לבדיקה' : 'תואם/סגור')}</span></td><td><span class="attendance-control__no-action">—</span></td></tr>`).join('');
       const actions = needsDecision
         ? `<div class="attendance-control__travel-review-actions" data-travel-source-id="${sourceId}">
             <button type="button" class="ds-btn ds-btn--sm" data-travel-review="approve" ${suspectCancellation ? 'disabled title="דיווח חריג – נדרש תיקון"' : ''}>אישור</button>
