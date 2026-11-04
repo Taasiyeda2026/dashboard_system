@@ -539,10 +539,10 @@ export function manualAccountViewHtml(data) {
   return `<div class="ds-fin-manual" dir="rtl">
     <section class="ds-fin-manual__section">
       <h3 data-finance-manual-heading>הגורם המשלם</h3>
-      <label>גורם מימון<select class="ds-input" data-finance-manual-funding-category><option value="">בחירת גורם מימון</option>
+      <label class="ds-fin-manual__payer-picker">גורם מימון<select class="ds-input" data-finance-manual-funding-category><option value="">בחירת גורם מימון</option>
         ${routes.map(r=>`<option value="${e(r.key)}"${r.key===routeKey?' selected':''}>${e(r.label)}</option>`).join('')}
       </select></label>
-      ${route?`<label>${e(route.payerLabel)}<select class="ds-input" data-finance-manual-funder-filter><option value="">בחירת ${e(route.payerLabel)}</option>
+      ${route?`<label class="ds-fin-manual__payer-picker">${e(route.payerLabel)}<select class="ds-input" data-finance-manual-funder-filter><option value="">בחירת ${e(route.payerLabel)}</option>
         ${options.map(p=>`<option value="${e(p.key)}"${p.key===data.manualFunderFilter?' selected':''}>${e(p.label)}</option>`).join('')}
       </select></label>`:''}
       ${payer?`<label>חיפוש פעילות<input class="ds-input" data-finance-manual-search value="${e(data.manualSearch)}" placeholder="שם פעילות או בית ספר"></label>

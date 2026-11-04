@@ -246,6 +246,15 @@
   color: var(--ds-text);
 }
 
+/* Native select popups follow the control width; keep the two-step payer selectors compact. */
+.ds-fin-manual label.ds-fin-manual__payer-picker {
+  width: min(100%, 400px);
+  max-width: 100%;
+}
+.ds-fin-manual label.ds-fin-manual__payer-picker .ds-input {
+  width: 100%;
+}
+
 .ds-fin-manual__activity-grid,
 .ds-fin-manual__funding-grid,
 .ds-fin-manual__grid {
