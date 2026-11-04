@@ -43,6 +43,10 @@ export function align2027ActivityDrawerTopActions(form) {
       changed = true;
     }
   }
+  // Hide the now-empty 2027 handoff wrapper, rather than leaving a blank
+  // assignment card in the content flow. The real button stays in the header.
+  const schedulingHandoff = form.querySelector('.activity-drawer__scheduling-status--header-handoff-2027');
+  if (schedulingHandoff) schedulingHandoff.hidden = !schedulingHandoff.querySelector('[data-open-activity-scheduling]');
 
   // The underlying button still handles starting edit via event delegation.
   const edit = form.querySelector('.activity-drawer__view-footer [data-action="start-edit"], .activity-drawer__header-actions [data-action="start-edit"]');
