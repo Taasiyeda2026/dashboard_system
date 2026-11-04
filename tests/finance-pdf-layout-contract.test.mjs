@@ -45,7 +45,7 @@ test('long school and course names wrap without overlapping adjoining columns', 
 test('payment details have a subtle separator and do not repeat the addressee', () => {
   assert.match(pdf,/start: \{ x: 30, y: y \+ 7 \}, end: \{ x: 565, y: y \+ 7 \}/);
   assert.match(pdf,/thickness: 0\.6, color: rgb\(0\.86, 0\.89, 0\.92\)/);
-  assert.match(pdf,/if \(y < 173\) \{ page = doc\.addPage\(\[595, 842\]\); y = drawInvoiceHeader\(page, true\); \}/);
+  assert.match(pdf,/if \(y < 192\) \{ page = doc\.addPage\(\[595, 842\]\); y = drawInvoiceHeader\(page, true\); \}/);
   assert.equal((pdf.match(/drawRight\(targetPage, bold, `לכבוד:/g) || []).length, 1,'the recipient is drawn only in the first-page header');
 });
 
@@ -66,4 +66,11 @@ test('customer-facing course descriptions remove internal full-balance labels an
   assert.match(pdf, /if \(title\) \{\s*drawRight\(page, bold, title, y, 11\)/);
   assert.match(pdf, /drawSection\('',/);
   assert.doesNotMatch(pdf, /drawSection\('קורסים'/);
+});
+
+test('invoice payment footer uses distinct vertical spacing between total, due date and bank', () => {
+  assert.match(pdf, /סה"כ לתשלום: \$\{money\(account\.total_amount\)\}\`, y, 13\); y -= 30;/);
+  assert.match(pdf, /לתשלום עד: \$\{date\(account\.payment_due_date\)\}\`, y, 11\); y -= 30;/);
+  assert.match(pdf, /y -= 15;\s*drawRight\(page, bold, 'פרטי חשבון בנק להעברה:', y, 10\)/);
+  assert.match(pdf, /if \(y < 192\)/, 'payment footer must fit above the page footer');
 });

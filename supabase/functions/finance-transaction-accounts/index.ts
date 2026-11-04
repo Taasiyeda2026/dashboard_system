@@ -419,15 +419,16 @@ async function buildPdf(account: any) {
 
   // Keep payment details together. On a payment-only continuation page use
   // only the document heading, never a second "לכבוד" customer block.
-  if (y < 173) { page = doc.addPage([595, 842]); y = drawInvoiceHeader(page, true); }
-  drawRight(page, bold, `סה"כ לתשלום: ${money(account.total_amount)}`, y, 13); y -= 23;
-  drawRight(page, bold, `לתשלום עד: ${date(account.payment_due_date)}`, y, 11); y -= 23;
-  // A quiet separator between the total/due date and the bank transfer info.
+  // Reserve enough space for the slightly airier payment footer on one page.
+  if (y < 192) { page = doc.addPage([595, 842]); y = drawInvoiceHeader(page, true); }
+  drawRight(page, bold, `סה"כ לתשלום: ${money(account.total_amount)}`, y, 13); y -= 30;
+  drawRight(page, bold, `לתשלום עד: ${date(account.payment_due_date)}`, y, 11); y -= 30;
+  // More separation before the quiet bank-details divider and heading.
   page.drawLine({
     start: { x: 30, y: y + 7 }, end: { x: 565, y: y + 7 },
     thickness: 0.6, color: rgb(0.86, 0.89, 0.92)
   });
-  y -= 11;
+  y -= 15;
   drawRight(page, bold, 'פרטי חשבון בנק להעברה:', y, 10); y -= 17;
   drawRight(page, regular, 'בנק הפועלים 12  |  סניף 500 הרימון  |  חשבון 300120', y, 10); y -= 19;
   drawRight(page, regular, 'או בשיק לפקודת: תעשיידע - תעשייה למען חינוך מתקדם ע"ר', y, 10); y -= 19;
