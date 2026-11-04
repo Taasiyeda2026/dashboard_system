@@ -821,7 +821,8 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     type: 'number', value: String(record.public_transport_cost || 0),
     attrs: { min: '0', step: '0.01' },
   });
-  form.append(publicTransportWrap, kmField.wrap, publicTransportCostField.wrap, expField.wrap);
+  form.append(publicTransportWrap, kmField.wrap, publicTransportCostField.wrap);
+  if(record.report_date<'2026-11-04')form.append(expField.wrap);
   const cancellationWrap = document.createElement('label');
   cancellationWrap.className = 'av2-report__transport-toggle av2-report__inline-cancellation-toggle';
   const cancellationToggle = document.createElement('input');
@@ -1066,8 +1067,8 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
         roundtrip_km:            kmValue,
         public_transport:        !isZoom && publicTransportToggle.checked,
         public_transport_cost:   !isZoom && publicTransportToggle.checked ? Number(publicTransportCostField.input.value || 0) : 0,
-        expenses:                expField.input.value ? Number(expField.input.value) : 0,
-        expense_details:         expDField.input.value.trim() || null,
+        expenses:                reportDateField.input.value >= '2026-11-04' ? 0 : (expField.input.value ? Number(expField.input.value) : 0),
+        expense_details:         reportDateField.input.value >= '2026-11-04' ? null : (expDField.input.value.trim() || null),
         notes:                   notesField.input.value.trim() || null
       });
       overlay.remove();
