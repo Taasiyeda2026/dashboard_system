@@ -68,7 +68,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   historicalEdit.textContent='עריכה';
   historicalEdit.hidden=true;
   historicalEdit.addEventListener('click',()=>{
-    if(historicalMonthApproval?.status!=='reopened' || !loadedDate)return;
+    if(!historicalEditable() || !loadedDate)return;
     historicalEditing=!historicalEditing;
     renderHistoricalDay(historicalDays.find(day=>day.date===loadedDate));
   });
@@ -108,6 +108,12 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   let historicalEditing=false;
   let historicalSaving=false;
   const formatDate=value=>String(value||'').split('-').reverse().join('.');
+  const isLegacyDay=date=>String(date||'')<'2026-11-04';
+  const historicalEditable=()=>{
+    const [year,month]=selectedMonth.split('-').map(Number);
+    return canEditMonth(year,month,historicalMonthApproval) &&
+      (selectedMonth>='2026-11' || historicalMonthApproval?.status==='reopened');
+  };
   const appendDetail=(wrap,label,value)=>{
     if(value===null || value===undefined || value==='')return;
     const row=document.createElement('div');
@@ -152,7 +158,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     block.append(fields);
   }
   async function saveHistoricalDay(){
-    if(historicalSaving || historicalMonthApproval?.status!=='reopened')return;
+    if(historicalSaving || !historicalEditable())return;
     const date=loadedDate;
     const [year,month]=selectedMonth.split('-').map(Number);
     historicalSaving=true;
@@ -160,7 +166,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     editorButtons.forEach(button=>button.disabled=true);
     try{
       const approval=await getMonthApproval(empId,selectedMonth,{force:true});
-      if(!canEditMonth(year,month,approval) || approval?.status!=='reopened')
+      if(!canEditMonth(year,month,approval) || (selectedMonth<'2026-11' && approval?.status!=='reopened'))
         throw new Error('החודש אינו פתוח עוד לעריכה');
       const forms=[...legsArea.querySelectorAll('[data-record-id]')];
       const changes=forms.map(form=>{
@@ -204,8 +210,9 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     if(!day){status.textContent='אין מידע לחודש זה';historicalEdit.hidden=true;return;}
     const approvalText=monthStatusLabel(historicalMonthApproval);
     status.textContent=approvalText;
-    historicalEdit.hidden=historicalMonthApproval?.status!=='reopened' || !day.records.length;
-    historicalEdit.textContent=historicalEditing?'ביטול עריכה':'עריכה';
+    historicalEdit.hidden=!historicalEditable() || !day.records.length;
+    historicalEdit.textContent='עריכה';
+    historicalEdit.classList.add('av2-daily-travel__action-sm');
     const report=day.dailyReport;
     if(report){
       const summaryCard=document.createElement('article');
@@ -477,6 +484,16 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     }
     const fetched=await getAssignedTravelDays({fromDate,toDate});
     dayOptions=fetched.filter(item=>item.date>='2026-11-04' && item.date?.slice(0,7)===selectedMonth);
+    if(selectedMonth==='2026-11'){
+      const historical=await readHistoricalAttendance(empId,selectedMonth);
+      historicalMonthApproval=historical.approval;
+      historicalDays=historicalTravelDays(historical.rows.filter(row=>isLegacyDay(row.report_date)),[]);
+      for(const day of historicalDays){
+        if(dayOptions.some(item=>item.date===day.date))continue;
+        dayOptions.push({date:day.date,activities:day.records.map(row=>row.activity_name_snapshot||row.activity_type).filter(Boolean).join(' · ')||'פעילות',ready:true,legacy:true});
+      }
+      dayOptions.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+    }
     daySelect.replaceChildren();
     if(!dayOptions.length){
       dateField.input.value='';
@@ -511,6 +528,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     if(!force && loadedDate===requestedDay && loadedDate!=='')return;
     loading=true;save.disabled=true;reload.disabled=true;
     historicalEdit.hidden=true;
+    historicalEditing=false;
     actions.replaceChildren(save);
     status.textContent='טוען נסיעות…';
     const token=++requestSequence;
@@ -521,7 +539,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         if(!hasDays)return;
       }
       const date=dateField.input.value;
-      if(isHistoricTravelMonth(selectedMonth)){
+      if(isHistoricTravelMonth(selectedMonth) || isLegacyDay(date)){
         renderHistoricalDay(historicalDays.find(day=>day.date===date));
         return;
       }
