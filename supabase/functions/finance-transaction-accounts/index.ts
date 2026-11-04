@@ -226,11 +226,16 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
     // Unknown legacy snapshots use the course layout; live issuance and
     // previews resolve every activity's actual type before calling buildPdf.
     const service = ['workshop', 'tour', 'סדנה', 'סיור'].includes(category);
+    const gefenFunding = isGefenInvoiceLine(line);
     const amount = Number(line.amount || 0);
     const statedQty = Number(line.quantity_snapshot);
     const quantity = Number.isFinite(statedQty) && statedQty > 0 ? statedQty
       : (line.finance_transaction_account_meetings?.length || 1);
-    const hours = Math.max(0, Number(line.billed_hours || 0));
+    // Gefen invoices are priced in educational hours (2 per 90-minute
+    // course meeting), not elapsed clock hours (1.5 per meeting).
+    // Do not change accounting totals or workshop/tour quantities.
+    const hours = gefenFunding && !service ? quantity * 2
+      : Math.max(0, Number(line.billed_hours || 0));
     // Billing coverage belongs to the accounting record, never to the customer-facing course name.
     // Legacy snapshots may already include internal coverage text. Strip it
     // only from the customer-facing rendered name, never from stored data.
@@ -239,7 +244,6 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
     const school = clean(line.school_name_snapshot);
     const gefen = clean(line.gefen_number_snapshot);
     const authority = clean(line.authority_name_snapshot);
-    const gefenFunding = isGefenInvoiceLine(line);
     const unitPrice = Number(line.unit_price_snapshot) > 0
       ? Number(line.unit_price_snapshot) : amount / quantity;
     const group = service ? services : courses;
@@ -264,7 +268,9 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
       group.set(key, {
         category: service ? 'service' : 'course', name, school, authority, gefen, gefenFunding, dates: [...new Set<string>(dates)].sort(),
         quantity, hours, amount, unitPrice,
-        hourlyPrice: Number(line.hourly_rate_snapshot)>0 ? Number(line.hourly_rate_snapshot) : hours>0 ? amount/hours : 0
+        hourlyPrice: gefenFunding && !service
+          ? (hours > 0 ? amount / hours : 0)
+          : Number(line.hourly_rate_snapshot)>0 ? Number(line.hourly_rate_snapshot) : hours>0 ? amount/hours : 0
       });
     }
   }
