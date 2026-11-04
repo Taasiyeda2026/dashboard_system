@@ -819,7 +819,11 @@ export const financeScreen = {
         // Switching routes resets the payer and any edited draft from another payer.
         visit.manualFundingCategory = fundingCategory.value || '';
         visit.manualSelectionExpanded = false;
-        visit.manualFunderFilter = '';
+        // For named sponsors the chosen funding source is already the payer.
+        // Only Gefen schools and municipal authorities require a second selector.
+        visit.manualFunderFilter = visit.manualFundingCategory &&
+          !['gefen','authority'].includes(visit.manualFundingCategory)
+            ? 'route:' + visit.manualFundingCategory : '';
         visit.manualSelectedActivityIds = [];
         visit.manualActivityDrafts = {};
         visit.manualFunderRecipientEmail = '';
