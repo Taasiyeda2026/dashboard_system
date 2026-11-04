@@ -1943,6 +1943,22 @@ export function buildCorrectedAttendanceWorkbook(comparisons, dashboardRows = []
     if (usesPublicTransport) item.publicTransportCost += optionalNumber(row.publicTransportCost ?? row.PublicTransportCost ?? row.public_transport_cost) || 0;
     const details = txt(row.expenseDetails || row.expensesDetails || row.ExpensesDetails); if (details) item.details.push(details);
   });
+  for(const expense of (options.expenseReports||[])){
+    if(expense.review_status!=='approved')continue;
+    const employeeId=txt(expense.emp_id);
+    if(!monthlyMap.has(employeeId)){
+      const employment=txt(expense.employment_type);
+      if(!normalizeAttendanceName(employment).includes(normalizeAttendanceName('תעשיידע')))continue;
+      monthlyMap.set(employeeId,{
+        name:txt(expense.employee_name)||employeeId,id:employeeId,hours:Array(8).fill(0),
+        km:0,expenses:0,publicTransportCost:0,zoomHours:0,
+        uncategorizedHours:0,totalHours:0,details:[]
+      });
+    }
+    const item=monthlyMap.get(employeeId);
+    item.expenses+=Number(expense.approved_amount)||0;
+    if(txt(expense.details))item.details.push(txt(expense.details));
+  }
   const monthly = [...monthlyMap.values()].map((item) => [
     item.name, item.id, ...item.hours.map(exportDuration), item.km, item.expenses, [...new Set(item.details)].join('; '),
     exportDuration(item.zoomHours), exportDuration(item.uncategorizedHours), exportDuration(item.totalHours),
@@ -1975,11 +1991,21 @@ export function buildCorrectedAttendanceWorkbook(comparisons, dashboardRows = []
       ({pending_review:'ממתין לאישור',approved:'אושר',corrected:'תוקן ואושר',rejected:'נדחה'})[report.review_status]||'ממתין לבדיקה'
     ]);
   });
+  const expenseHeaders=['מספר עובד','שם מדריך','תאריך הוצאה','סכום מדווח (₪)','סכום מאושר (₪)','פירוט','מסמכים','סטטוס'];
+  const expenseRows=(options.expenseReports||[]).map(expense=>[
+    txt(expense.emp_id),txt(expense.employee_name),txt(expense.expense_date),
+    Number(expense.amount)||0,
+    expense.review_status==='approved'?(Number(expense.approved_amount)||0):'',
+    txt(expense.details),
+    (expense.attachments||[]).map(att=>txt(att.file_name)).filter(Boolean).join(', '),
+    ({pending_review:'ממתין לאישור',approved:'אושר',rejected:'נדחה'})[expense.review_status]||'ממתין לבדיקה'
+  ]);
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, detailSheet, 'פירוט מלא');
   XLSX.utils.book_append_sheet(workbook, styledSheet(MONTHLY_HEADERS, monthly), 'סיכום חודשי');
   XLSX.utils.book_append_sheet(workbook, styledSheet(DAILY_HEADERS, daily, [12, 18, 12, 14, 16, 11, 11, 11, 11, 12, 12, 24, 16]), 'תצוגה יומית');
   XLSX.utils.book_append_sheet(workbook, styledSheet(travelHeaders, travelRows), 'נסיעות וביטולים');
+  XLSX.utils.book_append_sheet(workbook, styledSheet(expenseHeaders, expenseRows), 'הוצאות');
   return workbook;
 }
 
