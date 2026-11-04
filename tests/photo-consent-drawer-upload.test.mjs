@@ -8,12 +8,13 @@ const BINDER = new URL('../frontend/src/screens/shared/activity-photo-consent-dr
 const CLIENT = new URL('../frontend/src/screens/shared/photo-consent-client.js', import.meta.url);
 const MANAGER = new URL('../frontend/src/screens/photo-consent-workspace.js', import.meta.url);
 
-test('activity drawer renders an accessible small camera action for authorized dated activities only', async () => {
+test('activity drawer renders camera for authorized 2027 activities without requiring a start date', async () => {
   const src = await readFile(DRAWER, 'utf8');
   assert.match(src, /data-activity-photo-upload/);
   assert.match(src, /aria-label="העלאת אישור צילום"/);
   assert.match(src, /viewBox="0 0 24 24"/);
-  assert.match(src, /!!row\?\.start_date && \(canManagePhotoConsents &&/);
+  assert.match(src, /normalizeActivitySeason\(row\?\.activity_season\) === ACTIVITY_SEASON_SCHOOL_2027 \|\| !!row\?\.start_date/);
+  assert.match(src, /canManagePhotoConsents && Number\.isSafeInteger/);
   assert.match(src, /Number\.isSafeInteger\(Number\(row\?\.id\)\)/);
   assert.match(src, /canManagePhotoConsents: opts\.canManagePhotoConsents === true && !instructorLimited/);
 });
