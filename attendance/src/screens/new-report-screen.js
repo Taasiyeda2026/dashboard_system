@@ -1970,7 +1970,11 @@ export function renderNewReportScreen(container, {
     const travelShortcut = document.createElement('button');
     travelShortcut.type = 'button';
     travelShortcut.className = 'av2-report__tiny-travel-btn';
-    travelShortcut.textContent = 'מילוי נסיעות';
+    const travelIcon = createIcon('map-pin');
+    travelIcon.setAttribute('aria-hidden','true');
+    const travelText=document.createElement('span');
+    travelText.textContent='מילוי נסיעות';
+    travelShortcut.append(travelIcon,travelText);
     travelShortcut.title = 'מעבר לדיווח הנסיעות של היום שנבחר';
     travelShortcut.setAttribute('aria-label', 'מילוי נסיעות ליום שנבחר');
     const dailyTravel = createDailyTravelTab({
