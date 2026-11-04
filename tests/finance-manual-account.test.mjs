@@ -455,3 +455,17 @@ test('manual issuance asks for funding route first, then schools for Gefen or au
   assert.deepEqual([...doc.querySelectorAll('[data-finance-manual-funder-filter] option')].slice(1).map(o=>o.textContent),['עיריית רחובות']);
   assert.equal(manualSelectedFundingRoute({...d,manualFundingCategory:'',manualFunderFilter:'school:1'}),'gefen');
 });
+
+test('manual activity selector uses compact rows with aligned labels and no nested expansion cards',()=>{
+  const d=data();
+  const doc=new JSDOM(manualAccountViewHtml(d)).window.document;
+  const group=doc.querySelector('[data-finance-manual-selection]');
+  assert.ok(group);
+  assert.equal(group.querySelectorAll('details').length,0);
+  const rows=[...group.querySelectorAll('.ds-fin-manual__activity-row')];
+  assert.equal(rows.length,1);
+  assert.equal(rows[0].querySelectorAll('[data-finance-manual-select-activity]').length,1);
+  assert.match(rows[0].querySelector('.ds-fin-manual__activity-title').textContent,/קורס/);
+  assert.match(rows[0].querySelector('.ds-fin-manual__activity-price').textContent,/7,000/);
+  assert.ok(group.querySelector('.ds-fin-manual__selection-toolbar [data-finance-manual-select-all]'));
+});
