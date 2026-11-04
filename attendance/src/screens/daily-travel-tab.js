@@ -163,6 +163,30 @@ export function createDailyTravelTab({empId, initialDate}) {
       const fields=document.createElement('div');
       fields.className='av2-daily-travel__leg-fields';
       for(const [key,label] of [['minutes','זמן נסיעה (דקות)'],['kilometers','קילומטרים']]){
+        if(leg.kind==='between' && key==='minutes'){
+          const fixed=document.createElement('div');
+          fixed.className='av2-daily-travel__calculated-field';
+          const fieldLabel=document.createElement('span');
+          fieldLabel.className='av2-field__label';
+          fieldLabel.textContent='ביטול זמן בין פעילויות';
+          const value=document.createElement('strong');
+          value.textContent=String(leg.gapMinutes)+' דקות · מחושב משעות הפעילויות';
+          fixed.append(fieldLabel,value);
+          fields.append(fixed);
+          continue;
+        }
+        if(leg.kind==='between' && leg.sameLocation===true && key==='kilometers'){
+          const fixed=document.createElement('div');
+          fixed.className='av2-daily-travel__calculated-field';
+          const fieldLabel=document.createElement('span');
+          fieldLabel.className='av2-field__label';
+          fieldLabel.textContent='קילומטרים';
+          const value=document.createElement('strong');
+          value.textContent='0 ק״מ · אותו מיקום';
+          fixed.append(fieldLabel,value);
+          fields.append(fixed);
+          continue;
+        }
         const field=createInputField({
           id:'av2-leg-'+index+'-'+key,label,type:'number',
           value:leg[key] == null?'':String(leg[key]),
@@ -186,6 +210,7 @@ export function createDailyTravelTab({empId, initialDate}) {
       mode.value=leg.mode||'car';
       leg.mode=mode.value;
       modeWrap.append(modeText,mode);
+      if(leg.kind==='between' && leg.sameLocation===true)modeWrap.hidden=true;
       const fare=createInputField({
         id:'av2-leg-'+index+'-fare',label:'עלות נסיעה (₪)',type:'number',
         value:leg.transportCost==null?'':String(leg.transportCost),
@@ -195,6 +220,10 @@ export function createDailyTravelTab({empId, initialDate}) {
         leg.mode=mode.value;
         const kmInput=fields.querySelector('[data-field="kilometers"]');
         const transit=mode.value==='public_transport';
+        if(leg.kind==='between' && leg.sameLocation===true){
+          leg.mode='car';leg.kilometers=0;leg.transportCost=0;
+          fare.wrap.hidden=true;fare.input.disabled=true;showSummary();return;
+        }
         fare.wrap.hidden=!transit;
         fare.input.disabled=!transit;
         kmInput.disabled=transit;
@@ -358,11 +387,14 @@ export function createDailyTravelTab({empId, initialDate}) {
       legs=available.map((leg,index)=>{
         const old=stored?.legs?.[index];
         const same=old && old.kind===leg.kind && old.from===leg.from && old.to===leg.to;
-        return {...leg,minutes:same?old.minutes:null,kilometers:same?old.kilometers:null,
+        return {...leg,
+          minutes:leg.kind==='between'?leg.gapMinutes:(same?old.minutes:null),
+          kilometers:leg.kind==='between' && leg.sameLocation===true?0:(same?old.kilometers:null),
           mode:same?(old.mode||'car'):'car',transportCost:same?Number(old.transportCost||0):0};
       });
       noTravel.checked=stored?.no_travel===true;
-      noTravelLabel.hidden=!legs.length;
+      noTravelLabel.hidden=!legs.length || legs.some(leg=>leg.kind==='between');
+      if(noTravelLabel.hidden)noTravel.checked=false;
       save.hidden=!legs.length;
       status.textContent=!legs.length?'לא נמצאו פעילויות הדורשות נסיעה בתאריך זה'
         :stored?.review_status==='approved'||stored?.review_status==='corrected'
