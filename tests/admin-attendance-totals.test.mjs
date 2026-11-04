@@ -20,7 +20,8 @@ test('overview totals use stored paid course hours and separate every activity t
   assert.equal(totals.hoursByType.get('קורס'), 2);
   assert.equal(totals.hoursByType.get('הכשרה'), 1.5);
   assert.equal(totals.hoursByType.get('סדנה'), 1);
-  assert.equal(totals.hoursByType.get('זום'), 1);
+  assert.equal(totals.hoursByType.has('זום'), false);
+  assert.equal(totals.unclassifiedOnlineCount, 1);
 });
 
 test('month, employee scope and duplicate IDs prevent unrelated or repeated totals', () => {
@@ -146,4 +147,30 @@ test('online meeting with explicitly recorded underlying activity type counts as
   })], scope);
   assert.equal(totals.hoursByType.get('הכשרה'), 1);
   assert.equal(totals.unclassifiedOnlineCount, 0);
+});
+
+test('suspect cancellation warning opens the exact flagged records, not just a count', () => {
+  const totals = buildAdminAttendanceTotals([
+    row('bad', { reportedCancellationBeforeMinutes: 420, reportedCancellationAfterMinutes: 15, notes: 'ביטול זמן לבדיקה' }),
+    row('ok', { reportedCancellationBeforeMinutes: 15, reportedCancellationAfterMinutes: 15 }),
+    row('online', { activityType: 'זום', workHours: 0.67, notes: 'נהלים' })
+  ], scope);
+  assert.equal(totals.suspectCancellationCount, 1);
+  assert.deepEqual(totals.suspectCancellationRecords.map(r => r.id), ['bad']);
+  assert.equal(totals.unclassifiedOnlineCount, 1);
+  assert.deepEqual(totals.unclassifiedOnlineRecords.map(r => r.id), ['online']);
+  const doc = new JSDOM(adminAttendanceTotalsHtml(totals, scope.monthKey)).window.document;
+  assert.equal(doc.querySelector('[data-admin-attendance-review-kind="cancellation"]')?.getAttribute('aria-expanded'), 'false');
+  assert.equal(doc.querySelector('[data-admin-attendance-review-kind="online"]')?.getAttribute('aria-expanded'), 'false');
+  assert.equal(doc.querySelector('[data-admin-attendance-review-list]')?.hidden, true);
+});
+
+test('suspicious requests retain employee, date, and raw minute values for traceability', () => {
+  const totals = buildAdminAttendanceTotals([row('wrong', {
+    employeeId: '1508', attendanceDate: '2026-10-21',
+    reportedCancellationBeforeMinutes: 510, reportedCancellationAfterMinutes: 420
+  })], scope);
+  assert.equal(totals.suspectCancellationRecords[0].employeeId, '1508');
+  assert.equal(totals.suspectCancellationRecords[0].date, '2026-10-21');
+  assert.equal(totals.suspectCancellationRecords[0].cancellation_before_minutes, 510);
 });
