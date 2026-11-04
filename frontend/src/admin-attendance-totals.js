@@ -57,13 +57,26 @@ function duration(hours) {
 
 export function adminAttendanceTotalsHtml(totals, monthKey) {
   const card = (label, value) => `<article><span>${escapeHtml(label)}</span><strong dir="ltr">${escapeHtml(value)}</strong></article>`;
+  // Show only metrics that were actually reported in the selected month.
+  // Preserve calculated values and categories; this filters presentation only.
+  const cards = [];
+  if (number(totals.totalKilometers) > 0) {
+    cards.push(card('סה״כ ק״מ', totals.totalKilometers.toLocaleString('he-IL', { maximumFractionDigits: 1 })));
+  }
+  const preferredTypes = ['קורס', 'הכשרה', 'תפעול', 'סדנה', 'ביטול זמן'];
+  const remainingTypes = [...totals.hoursByType.keys()].filter(type => !preferredTypes.includes(type));
+  for (const type of [...preferredTypes, ...remainingTypes]) {
+    const hours = number(totals.hoursByType.get(type));
+    if (hours > 0) cards.push(card(`שעות ${type}`, duration(hours)));
+  }
+  // Cancellation anomalies are controls, not reporting categories: keep
+  // their warning visible without crowding the numeric metrics row.
+  const warning = number(totals.suspectCancellationCount) > 0
+    ? `<p class="admin-attendance-totals__warning" role="status">ביטול זמן חריג – לבדיקה: <strong>${escapeHtml(String(totals.suspectCancellationCount))}</strong></p>`
+    : '';
   return `<section class="admin-attendance-totals" data-admin-attendance-totals aria-label="סיכום דיווחי החודש">
     <h2>סיכום דיווחי ${escapeHtml(monthKey)}</h2>
-    <div class="admin-attendance-standalone__summary">
-      ${card('סה״כ ק״מ', totals.totalKilometers.toLocaleString('he-IL', { maximumFractionDigits: 1 }))}
-      ${card('סה״כ שעות', duration(totals.totalHours))}
-      ${[...totals.hoursByType].map(([type, hours]) => card(`שעות ${type}`, duration(hours))).join('')}
-      ${totals.suspectCancellationCount ? card('ביטול זמן חריג – לבדיקה', String(totals.suspectCancellationCount)) : ''}
-    </div>
+    ${cards.length ? `<div class="admin-attendance-standalone__summary">${cards.join('')}</div>` : '<p class="admin-attendance-totals__empty">אין דיווחים לחודש זה</p>'}
+    ${warning}
   </section>`;
 }
