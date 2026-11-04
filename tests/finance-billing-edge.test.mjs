@@ -50,7 +50,16 @@ async function harness(options={}) {
     calls.push({type:'fetch',url,method:opts.method||'GET'});
     if(url.includes('/mailFolders/drafts?'))return Response.json({id:'owner-folder'});
     if(url.startsWith('https://raw.githubusercontent.com/')) {
-      const asset=url.split('/main/')[1];return new Response(await readFile(new URL('../'+asset,import.meta.url)));
+      // Resolve pinned Assistant font URLs to local Hebrew TTF fixtures in
+      // hermetic tests; production still embeds real Assistant fonts.
+      const assistant=/\/TypeNetwork\/Assistant\/[a-f0-9]{40}\/fonts\/ttf\/Assistant-(Regular|Bold)\.ttf$/.exec(url);
+      if(assistant) {
+        const bytes=await readFile(new URL('../frontend/assets/fonts/Alef-'+assistant[1]+'.ttf',import.meta.url));
+        return new Response(bytes,{headers:{'Content-Type':'font/ttf'}});
+      }
+      const asset=url.split('/main/')[1];
+      if(!asset)throw new Error('Unexpected GitHub raw asset in PDF test: '+url);
+      return new Response(await readFile(new URL('../'+asset,import.meta.url)));
     }
     if(url.includes('login.microsoftonline.com'))return Response.json({access_token:'mock'});
     if(url.includes('?$select=id,name,folder'))return Response.json({id:'01LT7GPE6FW7O7REM6WJBIXX6II2IDYTXM',folder:{}});
