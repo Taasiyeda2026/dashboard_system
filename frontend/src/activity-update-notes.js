@@ -222,8 +222,18 @@ export function enhanceActivityUpdateNotes(form) {
     section.append(editor);
   }
 
-  // The timeline belongs at the very end, after existing view/edit action rows.
-  form.append(section);
+  // The timeline is part of the activity's SCROLLABLE content, not a flex
+  // sibling of the body. Appending it to the form leaves a full-height body
+  // above it, creating a large empty gap and hiding the notes below the footer.
+  // Primary details and "מידע נוסף" remain first; fixed action bars stay
+  // outside the scroller where the drawer's docking code placed them.
+  const scrollBody = form.querySelector(':scope > .activity-drawer-inline__body');
+  if (scrollBody) {
+    scrollBody.append(section);
+  } else {
+    // The standard (non-inline) drawer keeps its original behavior.
+    form.append(section);
+  }
 
   async function refresh() {
     output.textContent = 'טוען הערות...';
