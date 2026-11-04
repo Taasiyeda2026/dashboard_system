@@ -29,6 +29,6 @@ test('Gefen PDF uses All Activities price divided by planned meetings and 1.5 ho
  assert.match(pdf,/line\.activity_price_from_source \?\? line\.activity_price_snapshot/);
  assert.match(pdf,/line\.planned_sessions_from_source \?\? line\.planned_meeting_count_snapshot/);
  assert.match(pdf,/fullPrice \/ \(plannedMeetings \* 1\.5\)/);
- assert.match(pdf,/סה"כ כמות סדנאות:/);
+ assert.match(pdf,/const serviceLabel = hasWorkshops && hasTours/);
  assert.match(pdf,/drawRight\(page, regular, `לתשלום עד:/);
 });
