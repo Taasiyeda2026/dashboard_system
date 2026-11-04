@@ -412,8 +412,10 @@ test('non-Gefen sponsor PDF shows school authority course and total only',async(
   assert.equal(r.response.status,200,JSON.stringify(r.body));
   const pdf=await getDocument({data:new Uint8Array(Buffer.from(r.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
   const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');
+  // Hebrew glyph runs may be returned one character at a time by pdfjs.
+  const normalizedText=text.replace(/\s+/g,'');
   for(const word of ['אבן שמואל','שפיר','ביומימיקרי','הרצל','רחובות','יישומי AI','10,000.00','8,000.00'])
-    assert.ok(text.includes(word),word+' extracted PDF text: '+text);
+    assert.ok(normalizedText.includes(word.replace(/\s+/g,'')),word);
   for(const value of ['606.06','533.33','16.5','6089','53819','17.10.2026'])
     assert.ok(!text.includes(value),'non-Gefen invoice must not expose hourly/meeting detail: '+value);
   assert.ok(!r.calls.some(c=>c.name==='finalize_finance_billing'||c.method==='PUT'));
