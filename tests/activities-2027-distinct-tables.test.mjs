@@ -37,3 +37,12 @@ test('all 2027 table orders instructor before dates and scopes alignment styling
   assert.ok(style.includes('.ds-table--activities-2027-all thead th:nth-child(6)'));
   assert.ok(style.includes('.ds-table--activities-2027-all thead th:nth-child(7)'));
 });
+
+test('2027 table uses a heading-free card and sticky column headers', async () => {
+  assert.ok(activities.includes('ds-activities-table-card'));
+  assert.ok(activities.includes('state.activityPeriodTab === ACTIVITY_SEASON_SCHOOL_2027'));
+  const css = await readFile(new URL('../frontend/src/activities-approved-ui-fix.js', import.meta.url), 'utf8');
+  assert.ok(css.includes('.ds-activities-table-card .ds-table-wrap'));
+  assert.ok(css.includes('.ds-table--activities-2027 thead th'));
+  assert.ok(css.includes('position: sticky !important;'));
+});
