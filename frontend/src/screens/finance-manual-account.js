@@ -611,11 +611,16 @@ export function manualAccountViewHtml(data) {
         </details>`:''}
         <fieldset class="ds-fin-manual__billing"><legend>פרטי חיוב</legend><div class="ds-fin-manual__billing-row">
           ${manualService(data)?`${field('כמות','quantity','number')}${field('מחיר ליחידה','unit_price')}${field('סכום לחיוב','amount')}`:`
-          <label class="ds-fin-manual__field">מפגשים לחיוב<input class="ds-input" type="number" min="1" max="${Number(rows.find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===data.manualFundingKey)?.unbilledCount||d.planned_count)}" step="1" data-finance-manual-field="quantity"${d.billing_basis==='full_funding'?' readonly':''} value="${e(d.quantity)}"><small>מתוך ${e(d.planned_count)}</small></label>
-          <label class="ds-fin-manual__field">שעות לחיוב<input class="ds-input" readonly value="${e(Number(Number(d.hours).toFixed(6)))}"><small>מתוך ${e(d.planned_hours)}</small></label>
+          <label class="ds-fin-manual__field">מפגשים לחיוב | סה״כ מפגשים
+            <span class="ds-fin-manual__ratio" dir="ltr"><input class="ds-input" aria-label="מפגשים לחיוב" type="number" min="1" max="${Number(rows.find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===data.manualFundingKey)?.unbilledCount||d.planned_count)}" step="1" data-finance-manual-field="quantity"${d.billing_basis==='full_funding'?' readonly':''} value="${e(d.quantity)}"><span aria-hidden="true" class="ds-fin-manual__ratio-divider">|</span><output aria-label="סה״כ מפגשים">${e(d.planned_count)}</output></span>
+          </label>
+          <label class="ds-fin-manual__field">שעות לחיוב | סה״כ שעות
+            <span class="ds-fin-manual__ratio" dir="ltr"><input class="ds-input" aria-label="שעות לחיוב" readonly value="${e(Number(Number(d.hours).toFixed(6)))}"><span aria-hidden="true" class="ds-fin-manual__ratio-divider">|</span><output aria-label="סה״כ שעות">${e(d.planned_hours)}</output></span>
+          </label>
           <label class="ds-fin-manual__field">מחיר הפעילות<input class="ds-input" readonly value="${e(formatManualMoney(d.activity_price))}"></label>
+          <label class="ds-fin-manual__field">מחיר שעתי מחושב<input class="ds-input" data-finance-manual-hourly-rate readonly value="${e(manualHourlyRate(d)===null?'—':formatManualMoney(manualHourlyRate(d)))}"></label>
           <label class="ds-fin-manual__field">סכום לחיוב<input class="ds-input" readonly value="${e(formatManualMoney(d.amount))}"></label>`}
-        </div>${manualService(data)?'':`<small data-finance-manual-hourly-rate>מחיר שעתי מחושב: ${e(manualHourlyRate(d)===null?'—':formatManualMoney(manualHourlyRate(d)))} ₪</small>`}</fieldset>
+        </div></fieldset>
         <details class="ds-fin-manual__selected-schools ds-fin-payer"><summary>הפעילויות בחשבון (${ids.length})</summary>
           <table class="ds-table"><thead><tr><th>פעילות</th><th>בית ספר</th><th>רשות</th><th>סכום לחיוב</th></tr></thead><tbody>
           ${selectedRows.map(row=>`<tr><td>${e(row.activity)}</td><td>${e(row.school)}</td><td>${e((data.collectionActivities||[]).find(a=>a.row_id===row.id)?.authority||'—')}</td><td>${partial&&['workshop','tour'].includes((data.collectionActivities||[]).find(a=>a.row_id===row.id)?.activity_type)&&data.manualActivityDrafts?.[row.id]?.draft.billing_basis==='performance'
