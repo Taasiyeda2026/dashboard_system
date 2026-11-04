@@ -211,7 +211,7 @@
 }
 
 /* Unified reporting surface: travel follows the same 480px card design as expenses. */
-.av2-report .av2-report__travel-tab>h2{
+.av2-report .av2-daily-travel.av2-report__travel-tab>h2{
   text-align:start!important;
   font-size:1.02rem!important;
   font-weight:700!important;
