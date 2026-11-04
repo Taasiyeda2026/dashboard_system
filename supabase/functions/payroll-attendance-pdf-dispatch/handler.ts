@@ -552,19 +552,45 @@ async function buildPdfBytes(payload: {
     y -= options.gap || 0;
   };
 
+  // Match the approved visual reference: logo, large right-aligned title,
+  // turquoise separator and a pale employee/month strip.
+  let logo: Awaited<ReturnType<typeof pdf.embedPng>> | null = null;
+  try {
+    const source = await fetch('https://raw.githubusercontent.com/Taasiyeda2026/dashboard_system/main/frontend/assets/invitations/logos/taasiyeda-logo.png');
+    if (source.ok) logo = await pdf.embedPng(new Uint8Array(await source.arrayBuffer()));
+  } catch (error) {
+    console.warn('[payroll-attendance-pdf-dispatch] branding logo unavailable', error);
+  }
+  const turquoise = rgb(0.025, 0.56, 0.7);
+  const paleBlue = rgb(0.93, 0.97, 0.98);
+  const darkNavy = rgb(0.065, 0.12, 0.21);
+  const drawCentered = (value: unknown, center: number, atY: number, size: number, font = regular, color = darkNavy) => {
+    const rendered = pdfRtlText(value);
+    page.drawText(rendered, { x: center - font.widthOfTextAtSize(rendered, size) / 2, y: atY, size, font, color });
+  };
   const drawHeader = (first = true) => {
-    page.drawRectangle({ x: LEFT, y: first ? 744 : 760, width: CONTENT_W, height: first ? 68 : 42, color: rgb(0.95, 0.97, 1) });
-    drawRtl("תעשיידע — דוח נוכחות חודשי", RIGHT - 14, first ? 782 : 782, first ? 15 : 12, bold, rgb(0.10, 0.27, 0.52));
-    if (first) {
-      drawRtl(`${payload.employeeName}  |  ${hebrewMonthYearLabel(payload.monthKey)}`, RIGHT - 14, 758, 10, regular, rgb(0.28, 0.34, 0.44));
-      y = 724;
+    if (logo) {
+      const scale = Math.min(73 / logo.width, 58 / logo.height);
+      page.drawImage(logo, { x: LEFT + 2, y: 744, width: logo.width * scale, height: logo.height * scale });
     } else {
-      y = 742;
+      drawRtl('תעשיידע', LEFT + 76, 783, 10, bold, darkNavy);
+    }
+    drawRtl(first ? 'דוח נוכחות חודשי' : 'דוח נוכחות חודשי – המשך', RIGHT, 765, first ? 22 : 15, bold, darkNavy);
+    page.drawRectangle({ x: LEFT, y: 734, width: CONTENT_W, height: 3.5, color: turquoise });
+    if (first) {
+      const parts = monthKeyParts(payload.monthKey);
+      const firstDay = parts ? `01.${String(parts.month).padStart(2, '0')}.${parts.year}` : '';
+      const lastDay = parts ? `${new Date(Number(parts.year), parts.month, 0).getDate()}.${String(parts.month).padStart(2, '0')}.${parts.year}` : '';
+      page.drawRectangle({ x: LEFT, y: 696, width: CONTENT_W, height: 29, color: paleBlue });
+      drawCentered(`${payload.employeeName} | מספר עובד ${payload.employeeId} | חודש ${hebrewMonthName(payload.monthKey)} (${firstDay}–${lastDay})`, PAGE_W / 2, 705, 10.1, bold);
+      y = 685;
+    } else {
+      drawRtl(`${payload.employeeName} | ${hebrewMonthYearLabel(payload.monthKey)}`, RIGHT, 711, 9, regular, darkNavy);
+      y = 690;
     }
   };
 
   drawHeader(true);
-
   const snapshotRows = Array.isArray(payload.approvedSnapshot?.rows)
     ? payload.approvedSnapshot.rows as Record<string, unknown>[]
     : [];
