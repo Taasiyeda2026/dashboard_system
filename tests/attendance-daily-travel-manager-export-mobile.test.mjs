@@ -47,3 +47,16 @@ test('manager daily-travel review checks missing days and blocks finalization',a
   assert.match(screen,/api\.attendanceControlReviewDailyTravel/);
   assert.match(screen,/api\.attendanceControlDailyTravelReports/);
 });
+
+test('November travel begins on first of month while historical payroll remains untouched',async()=>{
+  const report=await readFile(new URL('../attendance/src/screens/daily-travel-tab.js',import.meta.url),'utf8');
+  const entry=await readFile(new URL('../attendance/src/screens/new-report-screen.js',import.meta.url),'utf8');
+  const control=await readFile(new URL('../frontend/src/screens/attendance-control.js',import.meta.url),'utf8');
+  const migration=await readFile(new URL('../supabase/migrations/20261104072000_november_daily_travel_cutover.sql',import.meta.url),'utf8');
+  assert.match(entry,/DAILY_TRAVEL_START_DATE = '2026-11-01'/);
+  assert.match(report,/isLegacyDay=date=>String\(date\|\|''\)<'2026-11-01'/);
+  assert.match(report,/historicalTravelDays\(historical.rows,\[\]\)/);
+  assert.match(control,/needsDailyTravel = \(date,rows=\[\]\) => date >= '2026-11-01'/);
+  assert.match(migration,/november_cutover_existing_payable_requires_reconciliation/);
+  assert.match(migration,/av2_november_travel_legacy_conflict/);
+});
