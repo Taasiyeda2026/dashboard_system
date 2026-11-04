@@ -548,14 +548,16 @@ export function manualAccountViewHtml(data) {
       ${payer?`<label>חיפוש פעילות<input class="ds-input" data-finance-manual-search value="${e(data.manualSearch)}" placeholder="שם פעילות או בית ספר"></label>
       <details class="ds-fin-manual__selection ds-fin-payer" data-finance-manual-selection>
         <summary data-finance-manual-selection-summary>${e(payer.label)} · ${activities.length} פעילויות · ${formatManualMoney(activities.reduce((n,a)=>n+manualActivityBalance(data,a.row_id),0))} ₪</summary>
-        <div class="ds-fin-manual__selection-toolbar"><label><input type="checkbox" data-finance-manual-select-all> סמן הכל</label>
+        <div class="ds-fin-manual__selection-toolbar"><label class="ds-fin-manual__select-all"><input type="checkbox" data-finance-manual-select-all> סמן הכל</label>
           <span data-finance-manual-selection-count>${ids.length} פעילויות נבחרו</span></div>
-        ${activities.map(activity=>`<details class="ds-fin-payer"><summary>
-          <label><input type="checkbox" data-finance-manual-select-activity value="${e(activity.row_id)}"${ids.includes(activity.row_id)?' checked':''}${manualActivityBillable(data,activity.row_id)?'':' disabled'}> ${e(activity.activity_name)}</label>
-          <span>${formatManualMoney(manualActivityBalance(data,activity.row_id))} ₪</span></summary>
-          <div class="ds-fin-manual__grid"><span>${e(activity.school)}</span><span>${e(activity.authority)}</span>
-            ${manualActivityBillable(data,activity.row_id)?'':'<span>אינה זמינה להפקה כעת</span>'}</div>
-        </details>`).join('')}
+        <div class="ds-fin-manual__activity-list">
+          ${activities.map(activity=>`<label class="ds-fin-manual__activity-row">
+            <input type="checkbox" data-finance-manual-select-activity value="${e(activity.row_id)}"${ids.includes(activity.row_id)?' checked':''}${manualActivityBillable(data,activity.row_id)?'':' disabled'}>
+            <span class="ds-fin-manual__activity-title">${e(activity.activity_name)}${manualActivityBillable(data,activity.row_id)?'':'<small>אינה זמינה להפקה כעת</small>'}</span>
+            <span class="ds-fin-manual__activity-school">${e(activity.school || activity.authority || '')}</span>
+            <strong class="ds-fin-manual__activity-price">${formatManualMoney(manualActivityBalance(data,activity.row_id))} ₪</strong>
+          </label>`).join('')}
+        </div>
       </details>`:''}
     </section>
     ${ids.length&&source?`<section class="ds-fin-manual__section">
