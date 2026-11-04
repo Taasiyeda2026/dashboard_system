@@ -42,7 +42,8 @@ async function harness(options={}) {
   };
   const client={rpc,from:(table)=>table==='activities'
     ? {select:()=>({in:async(_key,ids)=>({data:ids.map(id=>({
-      row_id:id,activity_type:options.activityTypes?.[id]||'course',activity_season:'school_2027',authority_id:options.authorityIds?.[id]||null
+      row_id:id,activity_type:options.activityTypes?.[id]||'course',activity_season:'school_2027',authority_id:options.authorityIds?.[id]||null,
+      price:options.activityPrices?.[id]??null,sessions:options.activitySessions?.[id]??null
     }))})})}
     : table==='authorities'
       ? {select:()=>({in:async(_key,ids)=>({data:ids.map(id=>({id,authority_name:options.authorityNames?.[id]||'רשות בדיקה'}))})})}
@@ -245,7 +246,7 @@ test('course invoices summarize each actual course with hours, meetings and hour
   assert.equal(pdf.numPages,1);
   assert.equal((txt.match(/53819/g)||[]).length,2,'one course row for COURSE-1 and another for COURSE-2');
   assert.match(txt,/1950|1,950/);
-  assert.match(txt,/225\.00/);
+  assert.match(txt,/300\.00/);
   assert.match(txt,/900|1,800/);
 });
 
@@ -354,21 +355,21 @@ test('all 35 billed dates wrap without clipping and totals remain visible',async
 });
 
 
-test('Google performance PDF shows 3 meetings as 6 academic hours and 400 hourly',async()=>{
+test('Google performance PDF shows three 90-minute meetings and rate based on full activity price',async()=>{
   const quote=process.env.FINANCE_ACCEPTANCE_QUOTE_PATH ? JSON.parse(await readFile(process.env.FINANCE_ACCEPTANCE_QUOTE_PATH,'utf8')) : {...fixture(),total_amount:2400,finance_transaction_account_lines:[{activity_row_id:'google',activity_name_snapshot:'יישומי AI בשיתוף GOOGLE',activity_price_snapshot:8000,billing_rule:'monthly',funding_snapshot:'גפ״ן',quantity_snapshot:3,billed_hours:4.5,hourly_rate_snapshot:8000/15,amount:2400,billing_coverage:'performance',finance_transaction_account_meetings:[1,2,3].map(n=>({meeting_date:`2026-10-0${n}`,hours:1.5}))}]};
   assert.equal(Number(quote.total_amount),2400);assert.equal(Number(quote.finance_transaction_account_lines[0].activity_price_snapshot),8000);
-  const r=await harness({preview:true,quote,activityTypes:{google:'course'}});assert.equal(r.response.status,200);
+  const r=await harness({preview:true,quote,activityTypes:{google:'course'},activityPrices:{google:8000},activitySessions:{google:'10'}});assert.equal(r.response.status,200);
   const pdf=await getDocument({data:new Uint8Array(Buffer.from(r.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
   const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');
-  assert.match(text,/2,400\.00/);assert.match(text,/400\.00/);assert.match(text,/6/);
+  assert.match(text,/2,400\.00/);assert.match(text,/533\.33/);assert.match(text,/4\.5/);
   assert.ok(!r.calls.some(c=>c.name==='finalize_finance_billing'||c.method==='PUT'));
 });
-test('full remaining course PDF keeps its original hourly rate converted to academic hours',async()=>{
+test('full remaining course PDF keeps original full-activity hourly rate even with reduced billed total',async()=>{
   const quote={...fixture(),total_amount:5000,finance_transaction_account_lines:[{activity_row_id:'ai',activity_name_snapshot:'AI',billing_rule:'monthly',funding_snapshot:'גפ״ן',quantity_snapshot:10,billed_hours:15,hourly_rate_snapshot:8000/15,amount:5000,billing_coverage:'full_funding',finance_transaction_account_meetings:[]}]};
   const r=await harness({preview:true,quote,activityTypes:{ai:'course'}});assert.equal(r.response.status,200);
   const pdf=await getDocument({data:new Uint8Array(Buffer.from(r.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
   const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');
-  assert.match(text,/5,000\.00/);assert.match(text,/400\.00/);assert.doesNotMatch(text,/250\.00/);
+  assert.match(text,/5,000\.00/);assert.match(text,/533\.33/);assert.doesNotMatch(text,/333\.33/);
 });
 
 
@@ -382,7 +383,7 @@ test('approved document revision uses the real shared PDF renderer and preserves
 test('approved replacement PDF reflects the server-approved changed price and recalculated hourly rate',async()=>{
   const quote=process.env.FINANCE_REVISION_PRICE_QUOTE?JSON.parse(await readFile(process.env.FINANCE_REVISION_PRICE_QUOTE,'utf8')):{...fixture(),transaction_account_number:'טיוטה חלופית',total_amount:2500,finance_transaction_account_lines:[{activity_row_id:'a',activity_price_snapshot:2500,billing_rule:'monthly',funding_snapshot:'גפ״ן',billed_hours:4.5,quantity_snapshot:3,hourly_rate_snapshot:2500/4.5,amount:2500}]};
   const r=await harness({revisionPreview:true,quote});assert.equal(r.response.status,200,JSON.stringify(r.body));const pdf=await getDocument({data:new Uint8Array(Buffer.from(r.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
-  const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');assert.match(text,/2,500\.00/);assert.match(text,/416\.67/);
+  const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');assert.match(text,/2,500\.00/);assert.match(text,/555\.56/);
 });
 test('a pending revision cannot reach PDF rendering through the actual Edge entrypoint',async()=>{
   const r=await harness({revisionPreview:true,revisionNotApproved:true});assert.equal(r.response.status,400);assert.equal(r.body.error,'revision_not_approved');assert.ok(!r.body.pdfBase64);assert.ok(!r.calls.some(c=>c.type==='fetch'));
@@ -432,5 +433,5 @@ test('monthly Gefen PDF keeps meetings, hours, hourly price and Gefen program nu
   assert.equal(r.response.status,200,JSON.stringify(r.body));
   const pdf=await getDocument({data:new Uint8Array(Buffer.from(r.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
   const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');
-  for(const val of ['53819','400.00','20','10','01.10.2026'])assert.ok(text.includes(val),val);
+  for(const val of ['53819','533.33','15','10','01.10.2026'])assert.ok(text.includes(val),val);
 });
