@@ -408,6 +408,18 @@
   border-radius: 0 !important;
 }
 
+/* School 2027: in edit mode the selected contact is already represented by
+   the dropdown. Hide read-only contact details and the extra selection
+   preview to avoid repeating name, phone and email two or three times.
+   Hidden inputs, dropdown and add-contact form remain fully functional. */
+.activity-drawer-inline-layout[data-activity-season="school_2027"][data-editing="yes"]
+  .activity-drawer-inline__field--support [data-contact-2027-section] [data-mode="view"],
+.activity-drawer-inline-layout[data-activity-season="school_2027"][data-editing="yes"]
+  .activity-drawer-inline__field--support [data-contact-2027-preview] {
+  display: none !important;
+}
+
+
 .activity-drawer-inline-layout[data-editing="yes"] .activity-drawer-inline__field--note textarea {
   inline-size: 100%;
   min-block-size: 96px;
