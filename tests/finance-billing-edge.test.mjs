@@ -477,3 +477,26 @@ test('Gefen invoice PDF mirrors the proposal alias for original 3604 only',async
     assert.match(content,/1,285\.71/);
   }
 });
+
+test('רוקחים עולם PDF shows Gefen 46091 even when the snapshot was mis-tagged 52279',async()=>{
+  const quote={
+    ...fixture(),customer_name_snapshot:'תיכון חדיגה',total_amount:1800,
+    finance_transaction_account_lines:[{
+      activity_row_id:'rokhim-wrong',activity_type_snapshot:'course',
+      activity_name_snapshot:'רוקחים עולם',service_description_snapshot:'רוקחים עולם',
+      gefen_number_snapshot:'52279',school_name_snapshot:'תיכון חדיגה',
+      billing_rule:'monthly',funding_snapshot:'גפ״ן',
+      quantity_snapshot:3,billed_hours:4.5,planned_meeting_count_snapshot:14,
+      activity_price_snapshot:17500,funding_amount_snapshot:17500,hourly_rate_snapshot:833.33,amount:1800,
+      finance_transaction_account_meetings:[]
+    }]
+  };
+  const result=await harness({preview:true,quote,activityTypes:{'rokhim-wrong':'course'},activityNumbers:{'rokhim-wrong':'52279'},activityPrices:{'rokhim-wrong':17500},activitySessions:{'rokhim-wrong':14}});
+  assert.equal(result.response.status,200,JSON.stringify(result.body));
+  assert.equal(result.body.quote.finance_transaction_account_lines[0].gefen_number_snapshot,'52279','stored snapshot unchanged by PDF render');
+  const pdfDoc=await getDocument({data:new Uint8Array(Buffer.from(result.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
+  const compact=(await(await pdfDoc.getPage(1)).getTextContent()).items.map(x=>x.str||'').join('').replace(/\s+/g,'');
+  assert.match(compact,/46091/);
+  assert.doesNotMatch(compact,/52279/);
+  assert.match(compact,/רוקחיםעולם/);
+});

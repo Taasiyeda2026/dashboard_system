@@ -104,7 +104,9 @@ test('default is previous closed month; future month is rejected and blocked row
   assert.equal(transactionMonth({transactionMonths:{automatic:'2099-01'}},'automatic'),financeCycleCutoff().slice(0,7));
   assert.equal(transactionMonth({},'manual'),financeCycleCutoff().slice(0,7));
   const d=data([row({blockedReason:'חסרה חלוקת מימון תקינה',eligible:false})]);
-  assert.equal(transactionPreviewForVisit(d).accounts.length,0);assert.doesNotMatch(html(d),/חסרה חלוקת מימון תקינה|פעילויות חסומות|חשבונות חסומים/);
+  assert.equal(transactionPreviewForVisit(d).accounts.length,0);
+  assert.match(html(d),/פעילויות חסומות להפקה/);
+  assert.match(html(d),/חסרה חלוקת מימון תקינה/);
   assert.equal(transactionPreviewForVisit(data([row()],{collectionError:'לא נטען'})).accounts.length,0);
 });
 
@@ -145,7 +147,7 @@ test('issuance sends funder, exact month, slots and displayed amount to server a
 });
 test('history retains existing document statuses and URLs independently of month selector',()=>{
   const d=data([],{transactionTab:'history'});d.transactionContext.accounts=[{transaction_account_number:8525,issue_date:'2026-07-01',total_amount:500,document_status:'issued',sharepoint_web_url:'https://example.test/pdf',finance_transaction_account_lines:[]}];
-  const view=html(d);assert.match(view,/8525/);assert.match(view,/פתח PDF/);assert.doesNotMatch(view,/type="month"/);
+  const view=html(d);assert.match(view,/8525/);assert.match(view,/>טיוטה</);assert.doesNotMatch(view,/פתח PDF|צפייה/);assert.doesNotMatch(view,/type="month"/);
 });
 test('backlog includes only the selected school year and can issue original closed months',async t=>{
   t.mock.timers.enable({apis:['Date'],now:new Date('2027-01-10T10:00:00Z')});
@@ -193,12 +195,14 @@ test('empty months show only a concise empty state without internal diagnostics 
   assert.doesNotMatch(view,/אין יתרות מחודשים אחרים|חיובים זכאים מחודשים קודמים|פעילויות חסומות|חשבונות חסומים/);
   assert.doesNotMatch(view,/ds-fin-transaction-summary|data-finance-transaction-run=/);
 });
-test('technical reasons remain excluded from the visible list, but valid backlog stays visible',()=>{
+test('blocked rows show a clear reason while valid backlog stays visible',()=>{
   const d=data([row({activityRowId:'aug',period:'2026-09-01'}),row({activityRowId:'blocked',blockedReason:'חסר מימון',eligible:false})]);
   const view=html(d);
   assert.match(view,/חיובים זכאים מחודשים קודמים/);
   assert.match(view,/2026-09/);
-  assert.doesNotMatch(view,/חסר מימון|חסומות להפקה|אין יתרות מחודשים אחרים/);
+  assert.match(view,/פעילויות חסומות להפקה/);
+  assert.match(view,/חסר מימון/);
+  assert.doesNotMatch(view,/אין יתרות מחודשים אחרים/);
 });
 
 test('invoice tabs include a single orange SharePoint folder shortcut for all modes',()=>{
