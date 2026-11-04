@@ -506,50 +506,10 @@ async function buildPdfBytes(payload: {
   let page = pdf.addPage([PAGE_W, PAGE_H]);
   let y = 792;
 
-  const ensureSpace = (height: number) => {
-    if (y - height >= 48) return;
-    page = pdf.addPage([PAGE_W, PAGE_H]);
-    y = 792;
-    drawHeader(false);
-  };
-
   const drawRtl = (logicalText: unknown, xRight: number, yPos: number, size: number, font = regular, color = rgb(0.13, 0.16, 0.22)) => {
     const pdfText = pdfRtlText(logicalText);
     const width = font.widthOfTextAtSize(pdfText, size);
     page.drawText(pdfText, { x: Math.max(LEFT, xRight - width), y: yPos, size, font, color });
-  };
-
-  const wrapLogical = (logicalText: unknown, font = regular, size = 9, maxWidth = CONTENT_W) => {
-    const source = clean(logicalText).replace(/\s+/g, " ");
-    if (!source) return [] as string[];
-    const words = source.split(" ");
-    const lines: string[] = [];
-    let current = "";
-    for (const word of words) {
-      const candidate = current ? `${current} ${word}` : word;
-      const width = font.widthOfTextAtSize(pdfRtlText(candidate), size);
-      if (current && width > maxWidth) {
-        lines.push(current);
-        current = word;
-      } else {
-        current = candidate;
-      }
-    }
-    if (current) lines.push(current);
-    return lines;
-  };
-
-  const drawWrapped = (logicalText: unknown, options: { font?: typeof regular; size?: number; color?: ReturnType<typeof rgb>; indent?: number; gap?: number } = {}) => {
-    const font = options.font || regular;
-    const size = options.size || 9;
-    const right = RIGHT - (options.indent || 0);
-    const lines = wrapLogical(logicalText, font, size, CONTENT_W - (options.indent || 0));
-    for (const line of lines) {
-      ensureSpace(size + 7);
-      drawRtl(line, right, y, size, font, options.color || rgb(0.18, 0.22, 0.3));
-      y -= size + 5;
-    }
-    y -= options.gap || 0;
   };
 
   // Match the approved visual reference: logo, large right-aligned title,
@@ -613,11 +573,6 @@ async function buildPdfBytes(payload: {
     return usesPt ? sum : sum + toNumber(row.kilometers);
   }, 0);
   const totalExpenses = rows.reduce((sum, row) => sum + toNumber(row.expenses), 0);
-  const totalPublicTransportCost = rows.reduce((sum, row) => {
-    const usesPt = row.publicTransport === true || row.publicTransport === "true" || row.publicTransport === 1;
-    return usesPt ? sum + toNumber(row.publicTransportCost) : sum;
-  }, 0);
-
   // Six summary boxes, arranged RTL in two rows like the shared reference.
   // Only source-approved values are used. Cancellation remains a separate type.
   const workDays = new Set(rows.filter(row => clean(row.activityType) !== 'ביטול זמן')
