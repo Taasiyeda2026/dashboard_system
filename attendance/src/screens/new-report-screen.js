@@ -125,6 +125,7 @@ export function renderNewReportScreen(container, {
   initialTab = 'attendance',
   prefillRecord = null,
   onBack,
+  onOpenMyReports,
   onSaved,
 } = {}) {
   container.innerHTML = '';
@@ -1979,7 +1980,8 @@ export function renderNewReportScreen(container, {
     tabs.append(attendanceTab, travelTab, expenseTab);
     const dailyTravel = createDailyTravelTab({
       empId: instructor.empId,
-      initialDate: dateField.input.value || defaultDate
+      initialDate: dateField.input.value || defaultDate,
+      onEditHistorical: (date) => onOpenMyReports?.(date)
     });
     const expensesPanel = createExpensesTab({
       instructor,initialDate:localIsoDate()
