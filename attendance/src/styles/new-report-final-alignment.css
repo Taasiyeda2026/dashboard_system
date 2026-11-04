@@ -277,3 +277,78 @@
   background:#f5f8fc;border:1px solid #dce6f2;border-radius:8px;
 }
 .av2-report .av2-daily-travel__leg-fields>[hidden]{display:none!important}
+
+/* Unified three-tab attendance reporting design. */
+.av2-report .av2-report__tabs{
+  width:min(100%,700px)!important;max-width:700px!important;
+  box-sizing:border-box!important;
+  margin:10px auto 16px!important;
+  padding:4px!important;
+  border:1px solid #d8e3f4!important;
+  border-radius:12px!important;
+  background:#f3f7fd!important;
+}
+.av2-report .av2-report__tabs>.av2-btn{
+  min-height:42px!important;max-height:none;
+  padding:8px 6px!important;
+  border-radius:9px!important;font-size:.83rem!important;
+}
+.av2-report .av2-report__form.av2-report__form--two-sections{
+  box-sizing:border-box!important;
+  margin-inline:auto!important;
+}
+.av2-report .av2-report__form>.av2-form-section{
+  border-color:#dce6f2!important;
+  border-radius:12px!important;
+  background:var(--av2-color-surface,#fff)!important;
+}
+.av2-report .av2-report__form>.av2-form-section .av2-form-section__title{
+  font-size:1.02rem!important;font-weight:700!important;
+  padding:11px 14px!important;
+  color:#18395b!important;
+}
+.av2-report .av2-report__form .av2-field__input,
+.av2-report .av2-report__form .av2-field__select{
+  box-sizing:border-box;min-height:38px;
+  font-size:.85rem;
+}
+.av2-report .av2-report__form .av2-report__hours-value{
+  min-height:38px;
+}
+.av2-report .av2-report__form>.av2-report__actions{
+  gap:10px!important;
+}
+.av2-report .av2-report__form>.av2-report__actions>.av2-btn{
+  flex:0 0 110px!important;width:110px!important;
+  min-width:110px!important;max-width:110px!important;
+  min-height:38px!important;
+  padding:7px 9px!important;
+  font-size:.83rem!important;
+}
+.av2-report .av2-report__hours-followup{
+  grid-column:1/-1!important;
+  background:transparent!important;
+  border:0!important;
+  padding:0!important;
+}
+.av2-report .av2-report__hours-followup:empty{display:none!important}
+.av2-report .av2-report__attendance-month{
+  width:min(100%,360px)!important;
+  max-width:360px!important;
+  margin:0 auto 14px!important;
+}
+.av2-report .av2-expenses-tab>h2,
+.av2-report .av2-daily-travel.av2-report__travel-tab>h2{
+  font-size:1.02rem!important;line-height:1.45!important;
+  font-weight:700!important;
+  color:#18395b!important;
+  margin:0!important;
+  text-align:start!important;
+}
+@media(max-width:767px){
+  .av2-report .av2-report__tabs{width:100%!important}
+  .av2-report .av2-report__form>.av2-report__actions>.av2-btn{
+    flex:0 0 110px!important;max-width:110px!important;
+    min-height:44px!important;
+  }
+}

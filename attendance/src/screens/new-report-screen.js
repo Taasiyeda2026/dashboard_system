@@ -1404,11 +1404,13 @@ export function renderNewReportScreen(container, {
     timesGrid.className = 'av2-report__times-grid';
     const hoursFollowup = document.createElement('div');
     hoursFollowup.className = 'av2-report__hours-followup';
-    timesGrid.append(startPicker.wrap, endPicker.wrap, hoursDisplay, hoursFollowup, publicTransportToggle, kmField.wrap, publicTransportCostWrap);
+    // Travel, kilometres and cancellation are reported only in the separate travel tab.
+    // Keep their legacy state adapters for unchanged historical record handling.
+    timesGrid.append(startPicker.wrap, endPicker.wrap, hoursDisplay, hoursFollowup);
     baseTrainingRouteRow = document.createElement('div');
     baseTrainingRouteRow.className = 'av2-report__time-cancellation av2-report__base-training-route';
     baseTrainingRouteRow.hidden = true;
-    timesGrid.append(baseTrainingRouteRow);
+    // The route preview is intentionally not rendered in Attendance.
 
     // Non-work cancellation segments stay inside the original activity report.
     const cancellationRow = document.createElement('label');
@@ -1444,7 +1446,7 @@ export function renderNewReportScreen(container, {
     cancellationFields.append(cancellationBeforeField.wrap, cancellationAfterField.wrap);
     // Position cancellation immediately after total hours, before transport/km.
     // The existing eligibility, validation and save flow remain unchanged.
-    hoursDisplay.after(cancellationRow, cancellationFields);
+    // Inline cancellation entry is no longer rendered in Attendance.
     cancellationToggle.addEventListener('change', syncInlineCancellationUi);
     syncInlineCancellationUi();
 
@@ -1470,7 +1472,7 @@ export function renderNewReportScreen(container, {
         detail += ' · תזכורת: הנסיעה מעל 40 ק״מ בכיוון אחד.';
       }
       compensationRow.innerHTML = `<strong>ביטול זמן נסיעה</strong><span>${reported ? 'דיווח נסיעה נשמר' : 'טרם דווח'}</span><small>${detail}</small>`;
-      timesGrid.append(compensationRow);
+      // Historical travel compensation is presented in the separate travel tab.
     }
 
     expField = createInputField({
@@ -1967,16 +1969,6 @@ export function renderNewReportScreen(container, {
     form.setAttribute('role','tabpanel');
     form.setAttribute('aria-labelledby',attendanceTab.id);
     tabs.append(attendanceTab, travelTab, expenseTab);
-    const travelShortcut = document.createElement('button');
-    travelShortcut.type = 'button';
-    travelShortcut.className = 'av2-report__tiny-travel-btn';
-    const travelIcon = createIcon('map-pin');
-    travelIcon.setAttribute('aria-hidden','true');
-    const travelText=document.createElement('span');
-    travelText.textContent='מילוי נסיעות';
-    travelShortcut.append(travelIcon,travelText);
-    travelShortcut.title = 'מעבר לדיווח הנסיעות של היום שנבחר';
-    travelShortcut.setAttribute('aria-label', 'מילוי נסיעות ליום שנבחר');
     const dailyTravel = createDailyTravelTab({
       empId: instructor.empId,
       initialDate: dateField.input.value || defaultDate
@@ -2098,14 +2090,6 @@ export function renderNewReportScreen(container, {
         void expensesPanel.load();
       }
     }
-    travelShortcut.addEventListener('click',()=>{
-      const day = dateField.input.value;
-      if (!day) { dateField.input.focus(); return; }
-      dailyTravel.setDate(day);
-      dailyTravel.panel.dataset.av2Visited = '1';
-      showTab('travel');
-    });
-    hoursFollowup.append(travelShortcut);
     attendanceTab.addEventListener('click',()=>showTab('attendance'));
     travelTab.addEventListener('click',()=>showTab('travel'));
     expenseTab.addEventListener('click',()=>showTab('expenses'));
