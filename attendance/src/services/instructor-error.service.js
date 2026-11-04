@@ -33,6 +33,15 @@ export function instructorAttendanceError(error, fallback = 'הפעולה נכש
   if (/expense/.test(haystack) && /locked|denied|42501/.test(haystack)) {
     return 'לא ניתן לשמור הוצאה לחודש שנעול. פנו למנהל אם נדרשת פתיחה מחדש.';
   }
+  if (/attendance_manual_cancellation_blocked_system_travel_path/.test(haystack)) {
+    return 'לא ניתן לדווח ביטול זמן ידני ליום שיש בו פעילות עם מסלול נסיעות במערכת. השתמשו בדיווח הנסיעות, או פנו למנהל לחריג.';
+  }
+  if (/attendance_double_cancellation_same_day/.test(haystack)) {
+    return 'קיים כפל ביטול זמן באותו יום. יש להשאיר מסלול תשלום אחד בלבד לפני העברה לשכר.';
+  }
+  if (/attendance_payroll_hold_active/.test(haystack)) {
+    return 'העברה לשכר מושהית לחודש זה. הסירו את ההשהיה רק אחרי רענון הדוח.';
+  }
   if (/duplicate|23505/.test(haystack)) {
     return 'כבר קיימת רשומה דומה. רעננו את הרשימה ובדקו לפני שמירה חוזרת.';
   }

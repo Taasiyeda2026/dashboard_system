@@ -614,3 +614,5 @@ config.HOTFIX_VERSION = `finance-closed-month-range-performance-basis-20261104-v
 config.HOTFIX_VERSION = `finance-history-revisions-admin-explicit-20261104-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `finance-transaction-accounts-stabilize-20261104-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `finance-rokhim-olam-gefen-46091-20261104-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `attendance-systemic-b-e-20261105-v1-${config.HOTFIX_VERSION}`;

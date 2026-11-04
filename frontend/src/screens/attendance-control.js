@@ -2568,19 +2568,24 @@ export function resultsHtml(result, month = '', options = {}) {
         ? minutesLabel(source.approvedCancellationMinutes)
         : 'טרם אושר';
       const reviewStatus = source.reviewStatus || 'none';
-      const needsDecision = ['awaiting_report', 'auto_matched', 'pending_review'].includes(reviewStatus);
+      const calculationStatus = txt(source.calculationStatus || source.travelCalculationStatus || '');
+      const hasGuideTravelReport = source.reportedOutboundMinutes != null && source.reportedReturnMinutes != null;
+      const needsDecision = ['awaiting_report', 'auto_matched', 'pending_review'].includes(reviewStatus)
+        || (calculationStatus === 'unavailable' && !['approved', 'corrected', 'rejected'].includes(reviewStatus));
+      const canApprove = hasGuideTravelReport && !suspectCancellation && reviewStatus !== 'awaiting_report';
       const sourceId = escapeHtml(source.sourceAttendanceRecordId || entryRecordId(entry) || '');
       const rows = [
         [inlineRequest ? (suspectCancellation ? 'ערכים חריגים שהוזנו (לפני/אחרי)' : 'דיווח ביטול זמן (לפני/אחרי)') : 'דיווח זמן נסיעה (הלוך/חזור)',
           inlineRequest ? `${minutesLabel(source.reportedCancellationBeforeMinutes)} / ${minutesLabel(source.reportedCancellationAfterMinutes)}`
             : source.reportedOutboundMinutes != null ? `${source.reportedOutboundMinutes}/${source.reportedReturnMinutes}` : '—',
-          '—', suspectCancellation || needsDecision],
-        ['ביטול זמן מבוקש', reportedCancel, calculated, suspectCancellation || reviewStatus === 'pending_review'],
+          calculationStatus === 'unavailable' ? 'חישוב לא זמין' : '—',
+          suspectCancellation || needsDecision],
+        ['ביטול זמן מבוקש', reportedCancel, calculated, suspectCancellation || reviewStatus === 'pending_review' || calculationStatus === 'unavailable'],
         ['מאושר לתשלום', approvedValue, calculated, needsDecision]
-      ].map(([label, left, right, issue]) => `<tr class="${issue ? 'attendance-control__comparison-row--issue' : ''}"><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td>${shown(right)}</td><td><span class="attendance-control__status-pill ${issue ? 'attendance-control__status-pill--issue' : 'attendance-control__status-pill--info'}">${issue ? (suspectCancellation && label !== 'מאושר לתשלום' ? 'דיווח חריג – נדרש תיקון' : 'ממתין להחלטת מנהל') : (needsDecision ? 'ממתין לבדיקה' : 'תואם/סגור')}</span></td><td><span class="attendance-control__no-action">—</span></td></tr>`).join('');
+      ].map(([label, left, right, issue]) => `<tr class="${issue ? 'attendance-control__comparison-row--issue' : ''}"><th>${escapeHtml(label)}</th><td>${shown(left)}</td><td>${shown(right)}</td><td><span class="attendance-control__status-pill ${issue ? 'attendance-control__status-pill--issue' : 'attendance-control__status-pill--info'}">${issue ? (suspectCancellation && label !== 'מאושר לתשלום' ? 'דיווח חריג – נדרש תיקון' : (calculationStatus === 'unavailable' ? 'נדרש תיקון או דחייה' : 'ממתין להחלטת מנהל')) : (needsDecision ? 'ממתין לבדיקה' : 'תואם/סגור')}</span></td><td><span class="attendance-control__no-action">—</span></td></tr>`).join('');
       const actions = needsDecision
         ? `<div class="attendance-control__travel-review-actions" data-travel-source-id="${sourceId}">
-            <button type="button" class="ds-btn ds-btn--sm" data-travel-review="approve" ${suspectCancellation ? 'disabled title="דיווח חריג – נדרש תיקון"' : ''}>אישור</button>
+            ${canApprove ? `<button type="button" class="ds-btn ds-btn--sm" data-travel-review="approve">אישור</button>` : '<span class="attendance-control__manual-note">לאישור נדרש דיווח הלוך/חזור של המדריך; ניתן לתקן דקות או לדחות.</span>'}
             <button type="button" class="ds-btn ds-btn--sm" data-travel-review="reject">דחייה</button>
             <label>תיקון דקות <input class="ds-input ds-input--sm" type="number" min="0" step="1" data-travel-correct-minutes></label>
             <button type="button" class="ds-btn ds-btn--sm" data-travel-review="correct">תיקון</button>
@@ -2765,8 +2770,12 @@ export function resultsHtml(result, month = '', options = {}) {
         const reopenNotice = submissionStatus === 'reopened' && !bypassMonthSubmissionGate
           ? '<span class="attendance-control__manual-note">המדריך חייב לסיים ולאשר מחדש את החודש לפני אישור מנהל.</span>'
           : '';
-        const pendingNotice = finalizeAllowed && pendingRecordCount
-          ? `<span class="attendance-control__manual-note">נותרו ${pendingRecordCount} רשומות לאישור.</span>`
+        const blockerParts = [];
+        if (pendingRecordCount) blockerParts.push(`${pendingRecordCount} רשומות לאישור`);
+        if (pendingTravelDays) blockerParts.push(`${pendingTravelDays} ימי נסיעות יומיות`);
+        if (pendingExpenses) blockerParts.push(`${pendingExpenses} הוצאות`);
+        const pendingNotice = finalizeAllowed && blockerParts.length
+          ? `<span class="attendance-control__manual-note" data-attendance-month-blockers>חוסם סגירת חודש: ${blockerParts.join(' · ')}. השלימו אישור/תיקון/דחייה לפני אישור מנהל.</span>`
           : '';
         finishControls = `<div class="attendance-control__employee-actions">${addRecordBtn}${finalizeBtn}${reopenNotice}${pendingNotice}</div>`;
       }

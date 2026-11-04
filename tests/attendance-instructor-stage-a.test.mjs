@@ -45,7 +45,8 @@ test('daily travel cutover is 2026-11-01 across instructor UI and Stage A migrat
 });
 
 test('attendance cache markers bumped for Stage A instructor release', () => {
-  assert.match(sw, /const CACHE_VERSION = 147;/);
-  assert.match(indexHtml, /\?v=147/);
-  assert.doesNotMatch(indexHtml, /\?v=146/);
+  // Stage A shipped at 147; systemic B–E continues on the same branch and bumps further.
+  assert.match(sw, /const CACHE_VERSION = 148;/);
+  assert.match(indexHtml, /\?v=148/);
+  assert.doesNotMatch(indexHtml, /\?v=147/);
 });

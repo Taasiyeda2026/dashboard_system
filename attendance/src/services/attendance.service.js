@@ -264,6 +264,38 @@ export async function createRecord(empId, payload) {
 
   if (isAdminPreviewRequested()) return createPreviewRecord(normalizedPayload);
 
+  // Manual ביטול זמן is an exception path only. Prefer the system travel flow
+  // for the same day; the DB trigger enforces the same rule.
+  if (String(normalizedPayload.activity_type || '').trim() === 'ביטול זמן') {
+    const reportDate = String(normalizedPayload.report_date || '').slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(reportDate)) {
+      const { data: sameDay, error: sameDayError } = await supabase
+        .from('attendance_records')
+        .select('id,activity_type,generation_kind,training_mode,operation_meeting_mode')
+        .eq('emp_id', empId)
+        .eq('report_date', reportDate)
+        .is('generation_kind', null)
+        .neq('activity_type', 'ביטול זמן')
+        .limit(20);
+      if (sameDayError) {
+        throw new Error(instructorAttendanceError(sameDayError, 'בדיקת כפל ביטול זמן נכשלה.'));
+      }
+      const blocks = (sameDay || []).some((row) => {
+        const type = String(row.activity_type || '');
+        if (type === 'זום') return false;
+        if (String(row.training_mode || '') === 'online') return false;
+        if (String(row.operation_meeting_mode || '') === 'online') return false;
+        return true;
+      });
+      if (blocks) {
+        throw new Error(instructorAttendanceError(
+          { message: 'attendance_manual_cancellation_blocked_system_travel_path' },
+          'לא ניתן לדווח ביטול זמן ידני ליום עם פעילות במסלול נסיעות.'
+        ));
+      }
+    }
+  }
+
   const row = {
     ...normalizedPayload,
     emp_id: empId,
