@@ -105,7 +105,7 @@ test('timeout before persistence verifies once and returns the original update e
 test('mixed-field edits remain on the existing full update path', async () => {
   const source = await readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
   const fastPath = source.indexOf("Object.keys(submittedChanges).length === 1");
-  const genericInstructorRead = source.indexOf(".select('instructor_name,instructor_name_2,emp_id,emp_id_2,activity_season,start_date')", fastPath);
+  const genericInstructorRead = source.indexOf(".select('instructor_name,instructor_name_2,emp_id,emp_id_2,activity_season,start_date,activity_type')", fastPath);
   const genericValidation = source.indexOf('await validateActivityInstructorBindingsOrThrow', genericInstructorRead);
 
   assert.ok(fastPath > 0);
