@@ -11,8 +11,9 @@ export function dailyTravelCancellationMinutes(legs = []) {
   let total = 0;
   for (const leg of legs) {
     if (!DAILY_TRAVEL_LEG_KINDS.includes(leg.kind)) return null;
-    if (leg.minutes == null || leg.minutes === '') return null;
-    const minutes = Number(leg.kind === 'between' ? leg.gapMinutes : leg.minutes);
+    const value = leg.kind === 'between' ? leg.gapMinutes : leg.minutes;
+    if (value == null || value === '') return null;
+    const minutes = Number(value);
     if (!Number.isInteger(minutes) || minutes < 0 || minutes > 1440) return null;
     total += leg.kind === 'between' ? minutes
       : Math.max(0, minutes - DAILY_TRAVEL_DEDUCTIBLE_MINUTES);
