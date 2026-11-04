@@ -618,21 +618,58 @@ async function buildPdfBytes(payload: {
     return usesPt ? sum + toNumber(row.publicTransportCost) : sum;
   }, 0);
 
-  page.drawRectangle({ x: LEFT, y: y - 68, width: CONTENT_W, height: 68, borderColor: rgb(0.88, 0.9, 0.94), borderWidth: 0.7, color: rgb(0.99, 0.995, 1) });
-  drawRtl(`${rows.length} דיווחים`, RIGHT - 22, y - 22, 10, bold);
-  drawRtl(`${formatDurationHours(totalHours)} שעות`, RIGHT - 150, y - 22, 10, bold);
-  drawRtl(`${totalKm.toFixed(0)} ק״מ`, RIGHT - 290, y - 22, 10, bold);
-  drawRtl(`₪${totalExpenses.toFixed(2)} הוצאות`, RIGHT - 405, y - 22, 10, bold);
-  const hasPublicTransport = rows.some((row) => row.publicTransport === true || row.publicTransport === "true" || row.publicTransport === 1);
-  drawRtl(`מספר עובד: ${payload.employeeId}`, RIGHT - 22, y - 43, 8.5, regular, rgb(0.42, 0.46, 0.54));
-  if (hasPublicTransport) {
-    drawRtl(`₪${totalPublicTransportCost.toFixed(2)} תחבורה ציבורית`, RIGHT - 250, y - 43, 8.5, regular, rgb(0.42, 0.46, 0.54));
+  // Six summary boxes, arranged RTL in two rows like the shared reference.
+  // Only source-approved values are used. Cancellation remains a separate type.
+  const workDays = new Set(rows.filter(row => clean(row.activityType) !== 'ביטול זמן')
+    .map(row => clean(row.date)).filter(Boolean)).size;
+  const hoursFor = (predicate: (type: string) => boolean) => rows.reduce((sum, row) =>
+    sum + (predicate(clean(row.activityType)) ? toNumber(row.workHours) : 0), 0);
+  const instruction = hoursFor(type => /^(קורס|סדנה|סדנאות)/.test(type));
+  const training = hoursFor(type => type === 'הכשרה');
+  const operations = hoursFor(type => type === 'תפעול');
+  const cancellation = hoursFor(type => type === 'ביטול זמן');
+  const other = totalHours - instruction - training - operations - cancellation;
+  const values: Array<[string, string]> = [
+    ['ימי עבודה', String(workDays)],
+    ['סה״כ קילומטר', String(Number(totalKm.toFixed(1)))],
+    ['סה״כ הוצאות', `₪${totalExpenses.toFixed(2)}`],
+    ['סה״כ שעות הדרכה', formatDurationHours(instruction)],
+    ['סה״כ שעות תפעול', formatDurationHours(operations)],
+    ['סה״כ שעות הכשרה', formatDurationHours(training)],
+  ];
+  const boxWidth = 131;
+  const boxGap = 15;
+  const firstBoxX = (PAGE_W - (3 * boxWidth + 2 * boxGap)) / 2;
+  for (let i = 0; i < values.length; i += 1) {
+    const col = 2 - i % 3;
+    const row = Math.floor(i / 3);
+    const x = firstBoxX + col * (boxWidth + boxGap);
+    const top = 674 - row * 78;
+    page.drawRectangle({ x, y: top - 65, width: boxWidth, height: 65,
+      borderColor: darkNavy, borderWidth: 1.1, color: rgb(1, 1, 1) });
+    drawCentered(values[i][0], x + boxWidth / 2, top - 24, 10.2, bold);
+    drawCentered(values[i][1], x + boxWidth / 2, top - 50, 12.2, bold);
   }
-  y -= 90;
-
-  drawRtl("פירוט דיווחי הנוכחות", RIGHT, y, 12, bold, rgb(0.10, 0.27, 0.52));
-  y -= 20;
-
+  // Additional work categories are retained in the detailed rows.
+  // Do not silently fold travel cancellation into teaching/training.
+  const extras = [
+    cancellation > 0 ? `ביטול זמן: ${formatDurationHours(cancellation)}` : '',
+    other > 0.001 ? `סוגי פעילות נוספים: ${formatDurationHours(other)}` : '',
+  ].filter(Boolean);
+  if (extras.length) drawRtl(extras.join(' | '), RIGHT, 507, 8.5, regular, rgb(0.31, 0.4, 0.48));
+  drawRtl('פירוט דיווחי נוכחות:', RIGHT, 489, 12.5, bold, darkNavy);
+  y = 474;
+  const cellEdges = [RIGHT, 490, 429, 230, 145, 90, LEFT];
+  const headers = ['תאריך', 'סוג', 'פעילות / פרטים', 'שעות דיווח', 'משך', 'ק״מ'];
+  const headerTable = () => {
+    page.drawRectangle({ x: LEFT, y: y - 25, width: CONTENT_W, height: 25, color: paleBlue });
+    for (let i = 0; i < headers.length; i += 1) {
+      drawCentered(headers[i], (cellEdges[i] + cellEdges[i + 1]) / 2, y - 17, 8.4, bold, rgb(0.23, 0.37, 0.43));
+    }
+    page.drawLine({ start: { x: LEFT, y: y - 25 }, end: { x: RIGHT, y: y - 25 }, thickness: 0.85, color: turquoise });
+    y -= 25;
+  };
+  headerTable();
   if (!rows.length) {
     drawWrapped("לא קיימים דיווחי נוכחות בחודש זה.", { size: 9.5 });
   } else {
