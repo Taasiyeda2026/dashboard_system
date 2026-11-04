@@ -701,7 +701,7 @@ async function buildPdfBytes(payload: {
     const description = parts.filter(Boolean).join(' · ');
     const maxDescription = cellEdges[2] - cellEdges[3] - 10;
     const needsTwoLines = regular.widthOfTextAtSize(pdfRtlText(description), 7.6) > maxDescription;
-    const rowHeight = needsTwoLines ? 28 : 21;
+    const rowHeight = needsTwoLines ? 25 : 19;
     if (y - rowHeight < 155) continuePage();
     page.drawRectangle({ x: LEFT, y: y - rowHeight, width: CONTENT_W, height: rowHeight,
       color: index % 2 === 0 ? rgb(1, 1, 1) : rgb(0.96, 0.98, 0.99) });
