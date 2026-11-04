@@ -663,3 +663,12 @@ test('approved PDF fallback and edge handler include public transport details', 
   assert.match(finish, /סה״כ עלות תחבורה ציבורית/);
   assert.equal(snapshotAttendanceRow(entry).publicTransport, true);
 });
+
+test('admin standalone exposes an inline record editor and guards approved months', () => {
+  assert.match(adminStandalone, /data-admin-attendance-edit/);
+  assert.match(adminStandalone, /openAdminAttendanceEmployeeEditor/);
+  assert.match(adminStandalone, /bindAttendanceControl\(host/);
+  assert.match(adminStandalone, /initialTarget: \{ employeeId: empId, monthKey \}/);
+  assert.match(adminStandalone, /adminReopenAttendanceMonthForCorrection/);
+  assert.match(adminStandalone, /status\.raw === 'sent_to_payroll'/);
+});
