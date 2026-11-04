@@ -421,8 +421,9 @@ async function buildPdf(account: any) {
     ? String(number) : String(Number(number.toFixed(2)));
   // Gefen alone requires expanded meeting/hour columns. Non-Gefen sources,
   // including courses, workshops and tours, receive one concise four-column table.
-  const gefenCourses = courses.filter(row => row.gefenFunding);
-  const otherFunding = [...courses.filter(row => !row.gefenFunding), ...services];
+  const allRows = [...courses, ...services];
+  const gefenCourses = allRows.filter(row => row.gefenFunding);
+  const otherFunding = allRows.filter(row => !row.gefenFunding);
   const courseWidths = [94, 119, 56, 42, 46, 80, 98]; // 535 points
   const compactWidths = [142, 106, 185, 102]; // 535 points
   drawSection('',
