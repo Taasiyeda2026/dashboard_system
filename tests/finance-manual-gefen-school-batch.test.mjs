@@ -24,11 +24,10 @@ test('manual PDF addresses courses to school, workshops to payer',()=>{
  assert.match(pdf,/\['workshop', 'tour', 'סדנה', 'סיור'\]/);
 });
 
-test('Gefen PDF uses All Activities price divided by planned meetings and 1.5 hours',()=>{
+test('Gefen PDF hourly uses this funder share divided by planned meetings and 1.5 hours',()=>{
  assert.match(pdf,/const hours = gefenFunding && !service \? quantity \* 1\.5/);
- assert.match(pdf,/line\.activity_price_from_source \?\? line\.activity_price_snapshot/);
- assert.match(pdf,/line\.planned_sessions_from_source \?\? line\.planned_meeting_count_snapshot/);
- assert.match(pdf,/fullPrice \/ \(plannedMeetings \* 1\.5\)/);
+ assert.match(pdf,/const funderAmount = Number\(line\.funding_amount_snapshot\)/);
+ assert.match(pdf,/funderAmount \/ \(plannedMeetings \* 1\.5\)/);
  assert.match(pdf,/const serviceLabel = hasWorkshops && hasTours/);
  assert.match(pdf,/drawRight\(page, regular, `לתשלום עד:/);
 });

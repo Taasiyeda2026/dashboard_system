@@ -703,5 +703,7 @@ test('multiple separate PDF previews stay collapsed with a single issuance contr
  assert.equal(list.querySelectorAll('[data-finance-manual-pdf-open]').length,0);
  assert.equal(list.querySelectorAll('[data-finance-manual-pdf-download]').length,2);
  assert.equal(doc.querySelectorAll('.ds-fin-manual__batch-previews [data-finance-manual-confirm]').length,1);
- assert.match(doc.querySelector('.ds-fin-manual__batch-review-header').textContent,/2 חשבונות מוכנים לבדיקה/);
+ assert.match(doc.querySelector('.ds-fin-manual__batch-review-header').textContent,/2 חשבונות יופקו/);
+ assert.match(doc.body.textContent,/טיוטות PDF לפי חשבון/);
+ assert.doesNotMatch(doc.body.textContent,/צפייה בחשבונות בנפרד/);
 });

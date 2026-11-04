@@ -1,13 +1,21 @@
 import { escapeHtml as e } from './shared/html.js';
 import { financeToday, financePaymentDueDate, TRANSACTION_MEETING_HOURS } from './finance-transaction-accounts.js';
 const text=v=>String(v??'').trim();
+// Customer-facing display only: original 3604 shows as 52279. Source rows stay unchanged.
+function displayManualGefenNumber(activity = {}) {
+  const code = text(activity.activity_no || activity.gefen_number);
+  return code === '3604' ? '52279' : (code || '—');
+}
 function manualService(data) {
   const source=(data.collectionActivities||[]).find(a=>a.row_id===data.manualActivityId);
   const row=manualFundingRows(data).find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===data.manualFundingKey);
   return ['workshop','tour'].includes(text(row?.activityType||source?.activity_type).toLowerCase());
 }
 export function manualHourlyRate(draft={}) {
-  const hours=Number(draft.planned_hours ?? draft.hours),price=Number(draft.activity_price ?? draft.amount);
+  const hours=Number(draft.planned_hours ?? draft.hours);
+  // Prefer this funder's share so mixed Gefen invoices show the funder hourly rate.
+  const funder=Number(draft.funding_amount);
+  const price=funder>0 ? funder : Number(draft.activity_price ?? draft.amount);
   return hours>0 ? price/hours : null;
 }
 function performanceSelection(row,quantity) {
@@ -154,7 +162,9 @@ export function prepareManualAccount(data,activityId,fundingKey,basis) {
   if (!data.manualFunderRecipientEmail) data.manualFunderRecipientEmail=normalizeManualRecipientEmails(row?.customerEmail);
   data.manualDraft={billing_basis:full?'full_funding':'performance',customer_name:row?.payerName||'',school_name:source.school||'',institution_symbol:row && manualRowPayer(row,source).key.startsWith('school:')?(row.institutionSymbol||''):'',program_number:source.activity_no||'',
     description:source.activity_name||'',quantity,hours:manualService(data)?0:Number(full?(row?.plannedHours ?? quantity*TRANSACTION_MEETING_HOURS):(row?.unbilledHours ?? quantity*TRANSACTION_MEETING_HOURS)),unit_price:quantity?amount/quantity:0,amount,
-    activity_price:Number(row?.activityPrice ?? source.price ?? row?.fundingAmount ?? amount),planned_count:Number(row?.plannedCount || quantity),planned_hours:Number(row?.plannedHours ?? (row?.plannedCount || quantity)*TRANSACTION_MEETING_HOURS),
+    activity_price:Number(row?.activityPrice ?? source.price ?? row?.fundingAmount ?? amount),
+    funding_amount:Number(row?.fundingAmount ?? (full?row?.fullFundingAmount:amount) ?? 0),
+    planned_count:Number(row?.plannedCount || quantity),planned_hours:Number(row?.plannedHours ?? (row?.plannedCount || quantity)*TRANSACTION_MEETING_HOURS),
     issue_date:financeToday(),payment_due_date:financePaymentDueDate(financeToday(),days),customer_email:normalizeManualRecipientEmails(data.manualFunderRecipientEmail || row?.customerEmail),override_reason:''};
   data.manualQuote=null;data.manualPdf='';data.manualConsolidatedPreview=null;
 }
@@ -307,24 +317,32 @@ export async function previewSelectedManualAccounts(data, api) {
     const key=gefen
       ? (fullGefen ? `gefen:${payerKey}:${entry.request.funder}` : `gefen:${entry.id}`)
       : entry.request.funder;
-    if(!groups.has(key))groups.set(key,[]);groups.get(key).push(entry);
+    const splitReason=gefen
+      ? (fullGefen
+        ? 'חשבון גפ״ן נפרד לפי בית ספר (חיוב מלא)'
+        : 'חשבון גפ״ן נפרד לפי בית ספר וביצוע שטרם חויב')
+      : 'חשבון מרוכז לפי גורם מממן זהה';
+    if(!groups.has(key))groups.set(key,{entries:[],splitReason,gefen});
+    groups.get(key).entries.push(entry);
   }
-  if (ids.length > 1 && groups.size===1 && [...groups.values()][0].length>1) {
+  if (ids.length > 1 && groups.size===1 && [...groups.values()][0].entries.length>1) {
     const items=requests.map(entry=>entry.request);
     const output=await api.previewFinanceFunderBatchAccount(items);
     if(!output?.quote?.revision || !output?.pdfBase64)throw new Error('לא התקבלה תצוגה מקדימה תקינה לחשבון המרוכז');
-    data.manualConsolidatedPreview={items,quote:output.quote,pdfBase64:output.pdfBase64,idempotencyKey:crypto.randomUUID()};
+    const group=[...groups.values()][0];
+    data.manualConsolidatedPreview={items,quote:output.quote,pdfBase64:output.pdfBase64,idempotencyKey:crypto.randomUUID(),splitReason:group.gefen?group.splitReason:'חשבון מרוכז לפי גורם מממן זהה'};
     data.manualBatchPreviews=null;data.manualQuote=null;data.manualPdf='';
     return [data.manualConsolidatedPreview];
   }
   data.manualConsolidatedPreview = null;
   const previews = [];
-  for (const entries of groups.values()) {
+  for (const group of groups.values()) {
+    const entries=group.entries;
     const items=entries.map(entry=>entry.request);
     const request=items[0];
     const output=items.length>1?await api.previewFinanceFunderBatchAccount(items):await api.previewFinanceManualAccount(request);
     if(!output?.quote?.revision || !output?.pdfBase64)throw new Error('לא התקבלה תצוגה מקדימה תקינה');
-    previews.push({activityId:entries[0].id,request,...(items.length>1?{items}:{}),quote:output.quote,pdfBase64:output.pdfBase64,idempotencyKey:crypto.randomUUID()});
+    previews.push({activityId:entries[0].id,request,...(items.length>1?{items}:{}),quote:output.quote,pdfBase64:output.pdfBase64,idempotencyKey:crypto.randomUUID(),splitReason:group.splitReason});
   }
   data.manualBatchPreviews = previews.length > 1 ? previews : null;
   if (previews.length === 1) {
@@ -604,7 +622,7 @@ export function manualAccountViewHtml(data) {
               <td class="ds-fin-manual__activity-school">${e(activity.school || '—')}</td>
               <td class="ds-fin-manual__activity-authority">${e(activity.authority || '—')}</td>
               <td class="ds-fin-manual__activity-title">${e(activity.activity_name)}${manualActivityBillable(data,activity.row_id)?'':'<small>אינה זמינה להפקה כעת</small>'}</td>
-              <td class="ds-fin-manual__activity-gefen" dir="ltr">${e(activity.activity_no || '—')}</td>
+              <td class="ds-fin-manual__activity-gefen" dir="ltr">${e(displayManualGefenNumber(activity))}</td>
               <td class="ds-fin-manual__activity-price">${formatManualMoney(manualActivityBalance(data,activity.row_id))} ₪</td>
             </tr>`).join('')}</tbody>
           </table>
@@ -650,23 +668,35 @@ export function manualAccountViewHtml(data) {
       </form>
     </section>`:''}
     ${ids.length && source ? `${data.manualConsolidatedPreview
-      ? manualPdfReviewHtml({
+      ? `${data.manualConsolidatedPreview.splitReason?`<p class="ds-fin-manual__split-reason" data-finance-manual-split-reason>${e(data.manualConsolidatedPreview.splitReason)}</p>`:''}${manualPdfReviewHtml({
           key:'consolidated',
           title:'חשבון מרוכז לבדיקה',
           detail:`${data.manualConsolidatedPreview.quote.customer_name_snapshot || d.customer_name || ''} · ${data.manualConsolidatedPreview.items.length} פעילויות · ${formatManualMoney(data.manualConsolidatedPreview.quote.total_amount)} ₪`,
           confirmLabel:'אישור והפקה'
-        })
+        })}`
       : data.manualBatchPreviews?.length > 1
         ? `<div class="ds-fin-manual__batch-previews">
             <div class="ds-fin-manual__batch-review-header">
-              <strong>${data.manualBatchPreviews.length} חשבונות מוכנים לבדיקה</strong>
+              <strong>${data.manualBatchPreviews.length} חשבונות יופקו</strong>
               <button type="button" class="ds-btn ds-btn--primary" data-finance-manual-confirm>אישור והפקת ${data.manualBatchPreviews.length} חשבונות</button>
             </div>
+            <ul class="ds-fin-manual__batch-split-summary" data-finance-manual-split-summary>
+              ${data.manualBatchPreviews.map((p,i)=>{
+                const requests=Array.isArray(p.items)?p.items:(p.request?[p.request]:[]);
+                const activityIds=requests.map(item=>item?.activity).filter(Boolean);
+                if(!activityIds.length && p.activityId) activityIds.push(p.activityId);
+                const names=activityIds.map(id=>{
+                  const activity=(data.collectionActivities||[]).find(a=>a.row_id===id);
+                  return activity?`${activity.activity_name || 'פעילות'} · ${activity.school || ''}`:id;
+                });
+                return `<li data-finance-manual-split-item="${i}"><strong>חשבון ${i+1}</strong> · ${e(names.join(', ') || p.activityId || 'חשבון')} · ${formatManualMoney(p.quote?.total_amount)} ₪ · ${e(p.splitReason || 'פיצול נדרש')}</li>`;
+              }).join('')}
+            </ul>
             <details class="ds-fin-manual__batch-preview-list">
-              <summary>צפייה בחשבונות בנפרד</summary>
+              <summary>טיוטות PDF לפי חשבון</summary>
               ${data.manualBatchPreviews.map((p,i)=>manualPdfReviewHtml({
                 key:String(i), title:`חשבון ${i+1}`,
-                detail:(data.collectionActivities||[]).find(a=>a.row_id===p.activityId)?.school || p.activityId
+                detail:`${(data.collectionActivities||[]).find(a=>a.row_id===p.activityId)?.school || p.activityId}${p.splitReason?` · ${p.splitReason}`:''}`
               })).join('')}
             </details>
           </div>`
