@@ -654,14 +654,17 @@ export function manualAccountViewHtml(data) {
         })
       : data.manualBatchPreviews?.length > 1
         ? `<div class="ds-fin-manual__batch-previews">
-            <p class="ds-fin-manual__batch-note">חשבונות מוכנים לבדיקה</p>
-            ${data.manualBatchPreviews.map((p,i)=>manualPdfReviewHtml({
-              key:String(i), title:`חשבון ${i+1}`,
-              detail:(data.collectionActivities||[]).find(a=>a.row_id===p.activityId)?.school || p.activityId
-            })).join('')}
-            <div class="ds-fin-manual__review-actions">
+            <div class="ds-fin-manual__batch-review-header">
+              <strong>${data.manualBatchPreviews.length} חשבונות מוכנים לבדיקה</strong>
               <button type="button" class="ds-btn ds-btn--primary" data-finance-manual-confirm>אישור והפקת ${data.manualBatchPreviews.length} חשבונות</button>
             </div>
+            <details class="ds-fin-manual__batch-preview-list">
+              <summary>צפייה בחשבונות בנפרד</summary>
+              ${data.manualBatchPreviews.map((p,i)=>manualPdfReviewHtml({
+                key:String(i), title:`חשבון ${i+1}`,
+                detail:(data.collectionActivities||[]).find(a=>a.row_id===p.activityId)?.school || p.activityId
+              })).join('')}
+            </details>
           </div>`
         : data.manualPdf
           ? manualPdfReviewHtml({
