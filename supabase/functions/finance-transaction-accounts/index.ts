@@ -269,7 +269,9 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
         category: service ? 'service' : 'course', name, school, authority, gefen, gefenFunding, dates: [...new Set<string>(dates)].sort(),
         quantity, hours, amount, unitPrice,
         hourlyPrice: gefenFunding && !service
-          ? (hours > 0 ? amount / hours : 0)
+          ? (Number(line.hourly_rate_snapshot) > 0
+            ? Number(line.hourly_rate_snapshot) * 1.5 / 2
+            : hours > 0 ? amount / hours : 0)
           : Number(line.hourly_rate_snapshot)>0 ? Number(line.hourly_rate_snapshot) : hours>0 ? amount/hours : 0
       });
     }
