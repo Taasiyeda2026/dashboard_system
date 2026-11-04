@@ -16,7 +16,7 @@ export function createDailyTravelTab({empId, initialDate}) {
   panel.setAttribute('aria-labelledby', 'av2-travel-tab-trigger');
   panel.className = 'av2-daily-travel av2-report__travel-tab';
   const title = document.createElement('h2');
-  title.textContent = 'נסיעות וביטולים';
+  title.textContent = 'דיווח נסיעות';
   const monthLabel=document.createElement('label');
   monthLabel.textContent='חודש דיווח';
   monthLabel.setAttribute('for','av2-travel-month-selector');
@@ -58,7 +58,10 @@ export function createDailyTravelTab({empId, initialDate}) {
   const actions=document.createElement('div');
   actions.className='av2-report__actions';
   actions.append(save);
-  panel.append(title,monthWrap,daysWrap,dateField.wrap,status,legsArea,noTravelLabel,summary,actions);
+  const reportCard=document.createElement('div');
+  reportCard.className='av2-daily-travel__report-card';
+  reportCard.append(monthWrap,daysWrap,dateField.wrap,status,legsArea,noTravelLabel,summary,actions);
+  panel.append(title,reportCard);
 
   let legs=[];
   let loadedDate='';
