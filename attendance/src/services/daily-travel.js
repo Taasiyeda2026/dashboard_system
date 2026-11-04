@@ -1,9 +1,9 @@
 /**
  * Travel is one daily chain, independent of the number of attendance reports.
- * The first and last legs have a 40-minute deductible. Every transfer between
+ * The first and last legs have a 45-minute deductible. Every transfer between
  * activities is payable from its first minute. No leg is ever duplicated.
  */
-export const DAILY_TRAVEL_DEDUCTIBLE_MINUTES = 40;
+export const DAILY_TRAVEL_DEDUCTIBLE_MINUTES = 45;
 export const DAILY_TRAVEL_LEG_KINDS = Object.freeze(['outbound', 'between', 'return']);
 
 export function dailyTravelCancellationMinutes(legs = []) {
@@ -11,8 +11,9 @@ export function dailyTravelCancellationMinutes(legs = []) {
   let total = 0;
   for (const leg of legs) {
     if (!DAILY_TRAVEL_LEG_KINDS.includes(leg.kind)) return null;
-    if (leg.minutes == null || leg.minutes === '') return null;
-    const minutes = Number(leg.minutes);
+    const value = leg.kind === 'between' ? leg.gapMinutes : leg.minutes;
+    if (value == null || value === '') return null;
+    const minutes = Number(value);
     if (!Number.isInteger(minutes) || minutes < 0 || minutes > 1440) return null;
     total += leg.kind === 'between' ? minutes
       : Math.max(0, minutes - DAILY_TRAVEL_DEDUCTIBLE_MINUTES);
@@ -30,11 +31,13 @@ export function summarizeDailyTravel(legs = []) {
     return { complete: false, kilometers: null, cancellationMinutes: null };
   }
   const minutes = dailyTravelCancellationMinutes(legs);
-  const kilometersValid = legs.every(leg => leg.kilometers != null
-    && leg.kilometers !== '' && Number.isFinite(Number(leg.kilometers))
-    && Number(leg.kilometers) >= 0);
+  const kilometersValid = legs.every(leg => {
+    if (leg.kind === 'between' && leg.sameLocation === true) return true;
+    return leg.kilometers != null && leg.kilometers !== ''
+      && Number.isFinite(Number(leg.kilometers)) && Number(leg.kilometers) >= 0;
+  });
   const kilometers = kilometersValid
-    ? Math.round(legs.reduce((sum, leg) => sum + Number(leg.kilometers), 0) * 100) / 100
+    ? Math.round(legs.reduce((sum, leg) => sum + (leg.kind === 'between' && leg.sameLocation === true ? 0 : Number(leg.kilometers)), 0) * 100) / 100
     : null;
   return { complete: minutes !== null && kilometers !== null, kilometers,
     cancellationMinutes: minutes };
