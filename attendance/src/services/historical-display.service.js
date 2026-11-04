@@ -97,7 +97,7 @@ export function historicalExpenses(rows = [], independent = []) {
   }
   for(const row of independent){
     const key='independent:'+row.id;
-    if(!items.has(key))items.set(key,{...row,id:key,source:'independent'});
+    if(!items.has(key))items.set(key,{...row,source:'independent'});
   }
   return [...items.values()].sort((a,b)=>String(b.expense_date).localeCompare(String(a.expense_date)));
 }
