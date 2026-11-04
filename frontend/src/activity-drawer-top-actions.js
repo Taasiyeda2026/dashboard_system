@@ -51,7 +51,8 @@ export function align2027ActivityDrawerTopActions(form) {
   // The underlying button still handles starting edit via event delegation.
   const edit = form.querySelector('.activity-drawer__view-footer [data-action="start-edit"], .activity-drawer__header-actions [data-action="start-edit"]');
   if (edit) {
-    setIcon(edit, 'edit', 'עריכת פעילות');
+    const isRequestOnly = form.dataset.canDirectEdit !== 'yes' && form.dataset.canRequestEdit === 'yes';
+    setIcon(edit, 'edit', isRequestOnly ? 'בקשת שינוי' : 'עריכת פעילות');
     if (edit.parentElement !== actions) {
       actions.insertBefore(edit, actions.querySelector('[data-ui-close-drawer]'));
       changed = true;
