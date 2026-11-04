@@ -606,7 +606,7 @@ test('deselecting final invoice activity clears the entire editor, previews and 
 test('manual invoice for Gefen alone exposes a readonly hourly rate, without affecting fixed price',()=>{
   const d={manualFundingCategory:'gefen',manualFunderFilter:'school:1',
     collectionActivities:[{row_id:'g',school:'גפן בית ספר',activity_name:'חלל',activity_type:'course',price:12000,activity_no:'57651'}],
-    transactionContext:{billingRows:[{activityRowId:'g',activityType:'course',fundingSourceId:'gf',funding:'גפן',gefenFunding:true,payerKey:'school:1',payerName:'גפן בית ספר',period:'2026-10-01',plannedCount:10,plannedHours:15,fullFundingAmount:12000,fullFundingBlockedReason:'',eligible:true}]}};
+    transactionContext:{billingRows:[{activityRowId:'g',activityType:'course',fundingSourceId:'gf',funding:'גפן',gefenFunding:true,payerKey:'school:1',payerName:'גפן בית ספר',period:'2026-10-01',plannedCount:10,plannedHours:15,activityPrice:12000,fundingAmount:12000,fullFundingAmount:12000,fullFundingBlockedReason:'',eligible:true}]}};
  toggleManualActivity(d,'g',true);
  const originalAmount=d.manualDraft.amount;
  const doc=new JSDOM(manualAccountViewHtml(d)).window.document;
@@ -614,6 +614,20 @@ test('manual invoice for Gefen alone exposes a readonly hourly rate, without aff
  assert.equal(doc.querySelector('[data-finance-manual-hourly-rate]').readOnly,true);
  assert.match(doc.querySelector('[data-finance-manual-hourly-rate]').value,/800/);
  assert.equal(d.manualDraft.amount,originalAmount);
+});
+
+test('manual Gefen mixed funding shows the funder hourly share, not the full course rate',()=>{
+  const d={manualFundingCategory:'gefen',manualFunderFilter:'school:1',
+    collectionActivities:[{row_id:'m',school:'בית ספר',activity_name:'קורס משולב',activity_type:'course',price:12000,activity_no:'53819'}],
+    transactionContext:{billingRows:[{activityRowId:'m',activityType:'course',fundingSourceId:'gf',funding:'גפן',gefenFunding:true,payerKey:'school:1',payerName:'בית ספר',period:'2026-10-01',plannedCount:10,plannedHours:15,activityPrice:12000,fundingAmount:6000,fullFundingAmount:6000,issuableAmount:1800,unbilledCount:3,unbilledHours:4.5,fullFundingBlockedReason:'',eligible:true,unbilledSlots:[1,2,3].map(slot=>({slot,date:`2026-10-0${slot}`,remainingAmount:600,remainingHours:1.5}))}]}};
+  setManualBillingScope(d,'partial');
+  toggleManualActivity(d,'m',true);
+  assert.equal(d.manualDraft.funding_amount,6000);
+  assert.equal(d.manualDraft.activity_price,12000);
+  assert.equal(manualHourlyRate(d.manualDraft),400);
+  const doc=new JSDOM(manualAccountViewHtml(d)).window.document;
+  assert.match(doc.querySelector('[data-finance-manual-hourly-rate]').value,/400/);
+  assert.doesNotMatch(doc.querySelector('[data-finance-manual-hourly-rate]').value,/800/);
 });
 
 test('no manual activity selected means no invoice summary editor or PDF even with stale focus',()=>{

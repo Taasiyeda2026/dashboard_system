@@ -7,8 +7,13 @@ function manualService(data) {
   return ['workshop','tour'].includes(text(row?.activityType||source?.activity_type).toLowerCase());
 }
 export function manualHourlyRate(draft={}) {
-  const hours=Number(draft.planned_hours ?? draft.hours),price=Number(draft.activity_price ?? draft.amount);
-  return hours>0 ? price/hours : null;
+  const hours=Number(draft.planned_hours ?? draft.hours);
+  if (!(hours > 0)) return null;
+  // Combined funding: show the billed funder's hourly share, not the full course rate.
+  const funding=Number(draft.funding_amount);
+  if (funding > 0) return funding / hours;
+  const price=Number(draft.activity_price ?? draft.amount);
+  return price > 0 ? price / hours : null;
 }
 function performanceSelection(row,quantity) {
   const slots=(row.unbilledSlots||[]).slice().sort((a,b)=>a.slot-b.slot).slice(0,quantity);
@@ -154,7 +159,9 @@ export function prepareManualAccount(data,activityId,fundingKey,basis) {
   if (!data.manualFunderRecipientEmail) data.manualFunderRecipientEmail=normalizeManualRecipientEmails(row?.customerEmail);
   data.manualDraft={billing_basis:full?'full_funding':'performance',customer_name:row?.payerName||'',school_name:source.school||'',institution_symbol:row && manualRowPayer(row,source).key.startsWith('school:')?(row.institutionSymbol||''):'',program_number:source.activity_no||'',
     description:source.activity_name||'',quantity,hours:manualService(data)?0:Number(full?(row?.plannedHours ?? quantity*TRANSACTION_MEETING_HOURS):(row?.unbilledHours ?? quantity*TRANSACTION_MEETING_HOURS)),unit_price:quantity?amount/quantity:0,amount,
-    activity_price:Number(row?.activityPrice ?? source.price ?? row?.fundingAmount ?? amount),planned_count:Number(row?.plannedCount || quantity),planned_hours:Number(row?.plannedHours ?? (row?.plannedCount || quantity)*TRANSACTION_MEETING_HOURS),
+    activity_price:Number(row?.activityPrice ?? source.price ?? row?.fundingAmount ?? amount),
+    funding_amount:Number(row?.fundingAmount ?? row?.fullFundingAmount ?? amount),
+    planned_count:Number(row?.plannedCount || quantity),planned_hours:Number(row?.plannedHours ?? (row?.plannedCount || quantity)*TRANSACTION_MEETING_HOURS),
     issue_date:financeToday(),payment_due_date:financePaymentDueDate(financeToday(),days),customer_email:normalizeManualRecipientEmails(data.manualFunderRecipientEmail || row?.customerEmail),override_reason:''};
   data.manualQuote=null;data.manualPdf='';data.manualConsolidatedPreview=null;
 }

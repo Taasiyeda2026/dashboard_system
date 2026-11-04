@@ -31,13 +31,14 @@ test('all invoices share the reference workshop letterhead on every PDF page', (
   assert.match(pdf, /תאריך הפקה:/);
   assert.match(pdf, /לכבוד:/);
   assert.match(pdf, /תוכניות חינוכיות – שנת תשפ"ז/);
-  assert.equal((pdf.match(/drawInvoiceHeader\(page, true\)/g) || []).length, 3, 'continuation pages use a compact header without the recipient');
+  assert.equal((pdf.match(/drawInvoiceHeader\(page, true\)/g) || []).length, 4, 'continuation pages use a compact header without the recipient');
   assert.match(pdf, /if \(continuation\) return 625;[\s\S]*?לכבוד:/, 'recipient block exists only after the continuation guard');
 });
 
 test('long school and course names wrap without overlapping adjoining columns', () => {
   assert.match(pdf, /logicalTextWidth\(font, candidate, size\) > maxWidth/);
-  assert.match(pdf, /const rowHeight = invoiceRowHeight\(regular, cellValues, widths\)/);
+  assert.match(pdf, /const mainHeight = invoiceRowHeight\(regular, cellValues, widths\)/);
+  assert.match(pdf, /const rowHeight = mainHeight \+ detailHeight/);
   assert.match(pdf, /const headerHeight = columns\.length === 7 \? 30 : 25/);
   assert.match(pdf, /return 25 \+ \(mostLines - 1\) \* 9/);
   assert.match(pdf, /function invoiceCellLines\(/);
@@ -47,7 +48,7 @@ test('long school and course names wrap without overlapping adjoining columns', 
 test('payment details have a subtle separator and do not repeat the addressee', () => {
   assert.match(pdf,/start: \{ x: 30, y: y \+ 7 \}, end: \{ x: 565, y: y \+ 7 \}/);
   assert.match(pdf,/thickness: 0\.6, color: rgb\(0\.86, 0\.89, 0\.92\)/);
-  assert.match(pdf,/if \(y < 192\) \{ page = doc\.addPage\(\[595, 842\]\); y = drawInvoiceHeader\(page, true\); \}/);
+  assert.match(pdf,/if \(y < 208\) \{ page = doc\.addPage\(\[595, 842\]\); y = drawInvoiceHeader\(page, true\); \}/);
   assert.equal((pdf.match(/drawRight\(targetPage, bold, `לכבוד:/g) || []).length, 1,'the recipient is drawn only in the first-page header');
 });
 
@@ -72,7 +73,12 @@ test('customer-facing course descriptions remove internal full-balance labels an
 
 test('invoice payment footer uses distinct vertical spacing between total, due date and bank', () => {
   assert.match(pdf, /סה"כ לתשלום: \$\{money\(account\.total_amount\)\}\`, y, 13\); y -= 30;/);
-  assert.match(pdf, /לתשלום עד: \$\{date\(account\.payment_due_date\)\}\`, y, 11\); y -= 30;/);
+  assert.match(pdf, /לתשלום עד: \$\{date\(account\.payment_due_date\)\}\`, y, 9\.5\); y -= 30;/);
   assert.match(pdf, /y -= 15;\s*drawRight\(page, bold, 'פרטי חשבון בנק להעברה:', y, 10\)/);
-  assert.match(pdf, /if \(y < 192\)/, 'payment footer must fit above the page footer');
+  assert.match(pdf, /if \(y < 208\)/, 'payment footer must fit above the page footer');
+});
+
+test('only Gefen courses use hour columns; workshops and tours stay compact', () => {
+  assert.match(pdf, /gefenFunding && row\.category === 'course'/);
+  assert.match(pdf, /!\(row\.gefenFunding && row\.category === 'course'\)/);
 });
