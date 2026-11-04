@@ -51,7 +51,8 @@ export function align2027ActivityDrawerTopActions(form) {
   // The underlying button still handles starting edit via event delegation.
   const edit = form.querySelector('.activity-drawer__view-footer [data-action="start-edit"], .activity-drawer__header-actions [data-action="start-edit"]');
   if (edit) {
-    setIcon(edit, 'edit', 'עריכת פעילות');
+    const isRequestOnly = form.dataset.canDirectEdit !== 'yes' && form.dataset.canRequestEdit === 'yes';
+    setIcon(edit, 'edit', isRequestOnly ? 'בקשת שינוי' : 'עריכת פעילות');
     if (edit.parentElement !== actions) {
       actions.insertBefore(edit, actions.querySelector('[data-ui-close-drawer]'));
       changed = true;
@@ -65,6 +66,15 @@ export function align2027ActivityDrawerTopActions(form) {
       actions.insertBefore(feedback, actions.querySelector('[data-ui-close-drawer]'));
       changed = true;
     }
+  }
+
+  // The toolbar is RTL: the close button is the first icon at the left.
+  // Place Edit immediately beside Close, followed by the remaining actions.
+  // Only reorder when necessary so observer reruns do not mutate the DOM.
+  const close = actions.querySelector('[data-ui-close-drawer]');
+  if (edit && close && edit.nextElementSibling !== close) {
+    actions.insertBefore(edit, close);
+    changed = true;
   }
 
   // The view footer becomes redundant once Edit and Feedback live in the header.
