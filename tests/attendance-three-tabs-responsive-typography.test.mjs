@@ -11,9 +11,9 @@ test('shared typography stylesheet is last and cache versions are consistent',as
     file('attendance/src/styles/report-tabs-responsive-typography.css'),
   ]);
   const links=[...html.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map(m=>m[1]);
-  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=145');
-  assert.match(sw,/const CACHE_VERSION = 145/);
-  assert.ok(links.every(s=>s.endsWith('?v=145')));
+  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=146');
+  assert.match(sw,/const CACHE_VERSION = 146/);
+  assert.ok(links.every(s=>s.endsWith('?v=146')));
   assert.match(css,/font-family:var\(--av2-font,inherit\)/);
   assert.match(css,/font-size:14\.5px!important/);
   assert.match(css,/font-size:17px!important/);
@@ -216,4 +216,16 @@ test('save attendance first and then instruct user to complete travel',async()=>
  assert.match(screen,/const kmValue = isDailyTravelDate\(\) \|\| kmField\.wrap\.isConnected===false/);
  assert.match(screen,/דיווח הנוכחות נשמר בהצלחה\. כעת יש להשלים דיווח נסיעות/);
  assert.match(screen,/successBanner\.scrollIntoView/);
+});
+
+test('reopened historical travel month links to existing reports editor without editing stored data',async()=>{
+ const travel=await file('attendance/src/screens/daily-travel-tab.js');
+ const report=await file('attendance/src/screens/new-report-screen.js');
+ const app=await file('attendance/src/app.js');
+ assert.match(travel,/historicalMonthApproval\?\.status==='reopened'/);
+ assert.match(travel,/historicalEdit\.hidden=.*day\.records\.length/);
+ assert.match(travel,/onEditHistorical\?\.\(dateField\.input\.value\)/);
+ assert.match(report,/onEditHistorical: \(date\) => onOpenMyReports\?\.\(date\)/);
+ assert.match(app,/onOpenMyReports: \(date\) =>/);
+ assert.match(app,/navigate\('my-reports'\)/);
 });
