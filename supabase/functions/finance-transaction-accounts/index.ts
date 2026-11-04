@@ -218,6 +218,22 @@ function isGefenInvoiceLine(line: any): boolean {
     .replace(/["'׳״\s_.\/\\-]/g, '');
   return ['גפן', 'gefen', 'gafan'].includes(normalized);
 }
+// Customer-document-only equivalent of proposal-program-display.js.
+// Keep the original activity number, accounting snapshots and program identity.
+function invoiceProposalProgramDisplay(line: any, service: boolean, gefenFunding: boolean) {
+  const name = clean(line.service_description_snapshot || line.activity_name_snapshot)
+    .replace(/\s*[—–-]\s*מלוא\s+יתרת\s+הפעילות\s*$/u, '').trim();
+  const gefen = clean(line.gefen_number_snapshot);
+  const activityNo = clean(line.activity_no_from_source || line.activity_no_snapshot);
+  const pricingKey = clean(line.source_pricing_key);
+  if (service || !gefenFunding || gefen !== '3604'
+    || (activityNo && activityNo !== '3604')
+    || (pricingKey && !['3604', 'gefen:3604'].includes(pricingKey))) {
+    return {name, gefen};
+  }
+  return {name: 'אופק פרימיום (פורצות דרך)', gefen: '52279'};
+}
+
 function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { courses: InvoiceRenderRow[]; services: InvoiceRenderRow[] } {
   const courses = new Map<string, InvoiceRenderRow>();
   const services = new Map<string, InvoiceRenderRow>();
@@ -239,10 +255,8 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
     // Billing coverage belongs to the accounting record, never to the customer-facing course name.
     // Legacy snapshots may already include internal coverage text. Strip it
     // only from the customer-facing rendered name, never from stored data.
-    const name = clean(line.service_description_snapshot || line.activity_name_snapshot)
-      .replace(/\s*[—–-]\s*מלוא\s+יתרת\s+הפעילות\s*$/u, '').trim();
+    const { name, gefen } = invoiceProposalProgramDisplay(line, service, gefenFunding);
     const school = clean(line.school_name_snapshot);
-    const gefen = clean(line.gefen_number_snapshot);
     const authority = clean(line.authority_name_snapshot);
     const unitPrice = Number(line.unit_price_snapshot) > 0
       ? Number(line.unit_price_snapshot) : amount / quantity;
@@ -289,7 +303,7 @@ async function attachActivityTypes(account: any, client: ReturnType<typeof creat
   const ids = [...new Set(lines.map((line: any) => clean(line.activity_row_id)).filter(Boolean))];
   if (!ids.length) return account;
   const { data, error } = await client.from('activities')
-    .select('row_id,activity_type,activity_season,authority_id,price,sessions').in('row_id', ids);
+    .select('row_id,activity_type,activity_season,authority_id,price,sessions,activity_no').in('row_id', ids);
   if (error) throw new Error('invoice_activity_types_unavailable');
   const validActivities = (data || []).filter((a: any) => a.activity_season === 'school_2027');
   const byId = new Map(validActivities.map((a: any) => [clean(a.row_id), a]));
@@ -305,6 +319,7 @@ async function attachActivityTypes(account: any, client: ReturnType<typeof creat
     const activity = byId.get(clean(line.activity_row_id));
     if (!activity) throw new Error('invoice_activity_type_missing');
     line.activity_type_snapshot = clean(activity.activity_type);
+    line.activity_no_from_source = clean(activity.activity_no);
     // Read from All Activities, without modifying the stored invoice or activity.
     line.activity_price_from_source = activity.price;
     line.planned_sessions_from_source = activity.sessions;

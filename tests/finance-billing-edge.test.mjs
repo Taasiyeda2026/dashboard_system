@@ -43,7 +43,8 @@ async function harness(options={}) {
   const client={rpc,from:(table)=>table==='activities'
     ? {select:()=>({in:async(_key,ids)=>({data:ids.map(id=>({
       row_id:id,activity_type:options.activityTypes?.[id]||'course',activity_season:'school_2027',authority_id:options.authorityIds?.[id]||null,
-      price:options.activityPrices?.[id]??null,sessions:options.activitySessions?.[id]??null
+      price:options.activityPrices?.[id]??null,sessions:options.activitySessions?.[id]??null,
+      activity_no:options.activityNumbers?.[id]??null
     }))})})}
     : table==='authorities'
       ? {select:()=>({in:async(_key,ids)=>({data:ids.map(id=>({id,authority_name:options.authorityNames?.[id]||'רשות בדיקה'}))})})}
@@ -434,4 +435,45 @@ test('monthly Gefen PDF keeps meetings, hours, hourly price and Gefen program nu
   const pdf=await getDocument({data:new Uint8Array(Buffer.from(r.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
   const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');
   for(const val of ['53819','533.33','15','10','01.10.2026'])assert.ok(text.includes(val),val);
+});
+
+
+test('Gefen invoice PDF mirrors the proposal alias for original 3604 only',async()=>{
+  const makeQuote=(code,name='פורצות דרך',funding='גפ״ן',type='course')=>({
+    ...fixture(),customer_name_snapshot:'מקיף דתי אמית קנדי',total_amount:1285.71,
+    finance_transaction_account_lines:[{
+      activity_row_id:'path',activity_type_snapshot:type,activity_name_snapshot:name,
+      service_description_snapshot:name,gefen_number_snapshot:code,school_name_snapshot:'מקיף דתי אמית קנדי',
+      billing_rule:funding==='גפ״ן'?'monthly':'completion',funding_snapshot:funding,
+      quantity_snapshot:3,billed_hours:4.5,planned_meeting_count_snapshot:14,
+      activity_price_snapshot:12000,hourly_rate_snapshot:571.43,amount:1285.71,
+      finance_transaction_account_meetings:[]
+    }]
+  });
+  for(const scenario of [
+    {code:'3604',source:'3604',name:'פורצות דרך',funding:'גפ״ן',type:'course',alias:true},
+    {code:'52279',source:'52279',name:'אופק פרימיום',funding:'גפ״ן',type:'course',alias:false},
+    {code:'3604',source:'3604',name:'פורצות דרך',funding:'רמי שני',type:'course',alias:false},
+    {code:'3604',source:'3604',name:'פורצות דרך',funding:'גפ״ן',type:'workshop',alias:false},
+    {code:'3604',source:'9545',name:'פורצות דרך',funding:'גפ״ן',type:'course',alias:false}
+  ]){
+    const quote=makeQuote(scenario.code,scenario.name,scenario.funding,scenario.type);
+    const result=await harness({preview:true,quote,activityTypes:{path:scenario.type},activityNumbers:{path:scenario.source},activityPrices:{path:12000},activitySessions:{path:14}});
+    assert.equal(result.response.status,200,scenario.name);
+    assert.equal(result.body.quote.finance_transaction_account_lines[0].gefen_number_snapshot,scenario.code,'source snapshots unchanged');
+    const pdf=await getDocument({data:new Uint8Array(Buffer.from(result.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
+    const content=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');
+    // pdfjs emits individually positioned Hebrew glyphs separated by spaces;
+    // compare compact visual text without changing actual PDF typography.
+    const compact=content.replace(/\s+/g,'');
+    if(scenario.alias){
+      assert.match(compact,/אופקפרימיום\(פורצותדרך\)/);
+      assert.match(compact,/52279/);
+      assert.doesNotMatch(compact,/3604/);
+    } else {
+      assert.doesNotMatch(compact,/אופקפרימיום\(פורצותדרך\)/);
+      assert.ok(compact.includes(scenario.name.replace(/\s+/g,'')),scenario.name);
+    }
+    assert.match(content,/1,285\.71/);
+  }
 });
