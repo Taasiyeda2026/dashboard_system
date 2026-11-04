@@ -2717,7 +2717,7 @@ export function resultsHtml(result, month = '', options = {}) {
         return `<details class="attendance-control__day${needsApproval ? '' : ' attendance-control__day--ok'}" data-payroll-date="${escapeHtml(date)}" data-attendance-row-id="${escapeHtml(entryRecordId(item))}"><summary><span>${shown(dateLabel(date))} · ${shown(label)}</span><span>${formatDurationHours(hours)} שעות</span><span class="attendance-control__row-status ${dataIssue ? 'attendance-control__row-status--issue' : needsApproval ? '' : 'attendance-control__row-status--ok'}">${rowStatus}</span></summary><div class="attendance-control__reports">${reportHtml({ ...row, employeeId: employee.id, date })}</div></details>`;
       }).join('');
     }).join('');
-    const expenseHtml=expenseReviewHtml(employee.id,currentEmployeeCanMutate);
+    const expenseHtml=expenseReviewHtml(employee.id,true);
     const pendingExpenses=(expenseReportsByEmployee.get(employee.id)||[])
       .filter(item=>item.review_status==='pending_review').length;
     const dailyTravelDays = [...employee.days.entries()].sort(([a],[b])=>a.localeCompare(b))
