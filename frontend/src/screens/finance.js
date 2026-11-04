@@ -814,6 +814,24 @@ export const financeScreen = {
     };
 
     const onChange = async (ev) => {
+      const fundingCategory = ev.target.closest('[data-finance-manual-funding-category]');
+      if (fundingCategory) {
+        // Switching routes resets the payer and any edited draft from another payer.
+        visit.manualFundingCategory = fundingCategory.value || '';
+        visit.manualSelectionExpanded = false;
+        visit.manualFunderFilter = '';
+        visit.manualSelectedActivityIds = [];
+        visit.manualActivityDrafts = {};
+        visit.manualFunderRecipientEmail = '';
+        visit.manualScope = 'full';
+        visit.manualBulkEditingActivityId = '';
+        visit.manualActivityId = '';
+        visit.manualFundingKey = '';
+        visit.manualDraft = null;
+        visit.manualQuote = null; visit.manualPdf = '';
+        visit.manualBatchPreviews = null; visit.manualConsolidatedPreview = null; visit.manualBatchIssued = {};
+        refresh(); return;
+      }
       const funderFilter = ev.target.closest('[data-finance-manual-funder-filter]');
       if (funderFilter) {
         visit.manualSelectionExpanded = false;

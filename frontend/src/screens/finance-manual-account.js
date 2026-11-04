@@ -66,10 +66,39 @@ export function manualActivityBalance(data, activityId) {
 export function manualActivityBillable(data, activityId) {
   return manualFundingRowsForSelection({...data,manualActivityId:activityId}).some(row=>data.manualScope==='partial'?performanceAllowed(row):fullAllowed(row)||performanceAllowed(row));
 }
+// Funding route is selected before the actual payer. Gefen is a route, never a shared payer.
+function manualFundingRoute(row) {
+  const normalized=normalizedFunder(row.funding);
+  if (row.gefenFunding || normalized==='גפן') return { key:'gefen', label:'גפ״ן', payerLabel:'בית ספר' };
+  if (/^(רשות|רשויות|authority)$/.test(normalized)) return { key:'authority', label:'רשות', payerLabel:'רשות' };
+  const label=text(row.funding)||'גורם מימון אחר';
+  return { key:'source:'+normalized, label, payerLabel:'גורם משלם' };
+}
+export function manualFundingRouteOptions(data) {
+  const routes=new Map();
+  for (const row of data.transactionContext?.billingRows||[]) {
+    if (!row.fundingSourceId || !(data.collectionActivities||[]).some(a=>a.row_id===row.activityRowId)) continue;
+    const route=manualFundingRoute(row);
+    routes.set(route.key,route);
+  }
+  return [...routes.values()].sort((a,b)=>a.label.localeCompare(b.label,'he'));
+}
+export function manualSelectedFundingRoute(data) {
+  if (data.manualFundingCategory) return data.manualFundingCategory;
+  if (!data.manualFunderFilter) return '';
+  const first=(data.transactionContext?.billingRows||[]).find(row=>{
+    const activity=(data.collectionActivities||[]).find(a=>a.row_id===row.activityRowId);
+    return activity && manualRowPayer(row,activity).key===data.manualFunderFilter;
+  });
+  return first ? manualFundingRoute(first).key : '';
+}
 export function manualFundingFilterOptions(data) {
   const funders = new Map();
+  const selectedRoute=manualSelectedFundingRoute(data);
   for (const activity of data.collectionActivities || []) {
-    for (const funder of manualActivityFunders(data, activity)) {
+    for (const row of (data.transactionContext?.billingRows||[]).filter(r=>r.activityRowId===activity.row_id && r.fundingSourceId)) {
+      if (selectedRoute && manualFundingRoute(row).key!==selectedRoute) continue;
+      const funder=manualRowPayer(row,activity);
       if (!funders.has(funder.key)) funders.set(funder.key, funder);
     }
   }
@@ -496,7 +525,9 @@ export function manualConsolidatedActivityRows(data) {
 }
 
 export function manualAccountViewHtml(data) {
-  const activities=manualFilteredActivities(data),options=manualFundingFilterOptions(data);
+  const activities=manualFilteredActivities(data),routes=manualFundingRouteOptions(data);
+  const routeKey=manualSelectedFundingRoute(data),route=routes.find(r=>r.key===routeKey);
+  const options=routeKey?manualFundingFilterOptions({...data,manualFundingCategory:routeKey}):[];
   const payer=options.find(p=>p.key===data.manualFunderFilter);
   const ids=selectedManualActivityIds(data),summary=manualSelectedFundingSummary(data);
   const d=data.manualDraft||{},rows=manualFundingRowsForSelection(data);
@@ -508,9 +539,12 @@ export function manualAccountViewHtml(data) {
   return `<div class="ds-fin-manual" dir="rtl">
     <section class="ds-fin-manual__section">
       <h3 data-finance-manual-heading>הגורם המשלם</h3>
-      <label>למי להפיק<select class="ds-input" data-finance-manual-funder-filter><option value="">בחירת משלם</option>
-        ${options.map(p=>`<option value="${e(p.key)}"${p.key===data.manualFunderFilter?' selected':''}>${e(p.label)}</option>`).join('')}
+      <label>גורם מימון<select class="ds-input" data-finance-manual-funding-category><option value="">בחירת גורם מימון</option>
+        ${routes.map(r=>`<option value="${e(r.key)}"${r.key===routeKey?' selected':''}>${e(r.label)}</option>`).join('')}
       </select></label>
+      ${route?`<label>${e(route.payerLabel)}<select class="ds-input" data-finance-manual-funder-filter><option value="">בחירת ${e(route.payerLabel)}</option>
+        ${options.map(p=>`<option value="${e(p.key)}"${p.key===data.manualFunderFilter?' selected':''}>${e(p.label)}</option>`).join('')}
+      </select></label>`:''}
       ${payer?`<label>חיפוש פעילות<input class="ds-input" data-finance-manual-search value="${e(data.manualSearch)}" placeholder="שם פעילות או בית ספר"></label>
       <details class="ds-fin-manual__selection ds-fin-payer" data-finance-manual-selection>
         <summary data-finance-manual-selection-summary>${e(payer.label)} · ${activities.length} פעילויות · ${formatManualMoney(activities.reduce((n,a)=>n+manualActivityBalance(data,a.row_id),0))} ₪</summary>
