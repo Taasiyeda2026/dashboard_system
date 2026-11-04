@@ -216,6 +216,42 @@ function installStyles() {
     #app .ds-table--activities-2027-all tbody td:first-child .ds-activities-program-cell {
       text-align: right !important;
     }
+
+    /* In school_2027 the table has no card title: remove inherited card
+       header spacing and unblock native sticky table headers on page scroll. */
+    #app .ds-activities-screen .ds-activities-table-card {
+      overflow: visible !important;
+      min-height: 0 !important;
+      margin-top: 0 !important;
+      padding-top: 0 !important;
+    }
+    #app .ds-activities-screen .ds-activities-table-card > .ds-card__body {
+      overflow: visible !important;
+      padding-top: 0 !important;
+      margin-top: 0 !important;
+    }
+    #app .ds-activities-screen .ds-activities-table-card .ds-table-wrap {
+      overflow: visible !important;
+      margin-top: 0 !important;
+      padding-top: 0 !important;
+    }
+    #app .ds-activities-screen .ds-activities-table-card .ds-table--activities-2027 {
+      border-collapse: separate !important;
+      border-spacing: 0 !important;
+    }
+    #app .ds-activities-screen .ds-activities-table-card .ds-table--activities-2027 thead {
+      position: static !important;
+    }
+    #app .ds-activities-screen .ds-activities-table-card .ds-table--activities-2027 thead tr {
+      position: static !important;
+    }
+    #app .ds-activities-screen .ds-activities-table-card .ds-table--activities-2027 thead th {
+      position: sticky !important;
+      top: 0 !important;
+      z-index: 60 !important;
+      background: #eaf6fa !important;
+      box-shadow: inset 0 -1px 0 #b7d7e4, 0 2px 4px rgba(15,23,42,.12) !important;
+    }
   `;
   document.head.appendChild(style);
 }
