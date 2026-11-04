@@ -46,3 +46,14 @@ test('2027 table uses a heading-free card and sticky column headers', async () =
   assert.ok(css.includes('.ds-table--activities-2027 thead th'));
   assert.ok(css.includes('position: sticky !important;'));
 });
+
+test('sticky 2027 table headings cover the top scroll inset with opaque paint', async () => {
+  const css = await readFile(new URL('../frontend/src/activities-approved-ui-fix.js', import.meta.url), 'utf8');
+  const rule = css.match(/#app \.ds-activities-screen \.ds-activities-table-card \.ds-table--activities-2027 thead th \{([\s\S]*?)\}/);
+  assert.ok(rule, 'scoped sticky header rule must exist');
+  assert.match(rule[1], /position: sticky !important/);
+  assert.match(rule[1], /top: -16px !important/);
+  assert.match(rule[1], /background: #eaf6fa !important/);
+  assert.match(rule[1], /border-bottom: 1px solid/);
+  assert.match(rule[1], /box-shadow:/);
+});
