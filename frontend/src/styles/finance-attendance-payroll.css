@@ -746,28 +746,27 @@
   color: var(--ds-text-secondary);
   white-space: nowrap;
 }
-.ds-fin-manual__activity-table th:nth-child(1) { width: 23%; }
-.ds-fin-manual__activity-table th:nth-child(2) { width: 19%; }
-.ds-fin-manual__activity-table th:nth-child(3) { width: 24%; }
-.ds-fin-manual__activity-table th:nth-child(4) { width: 14%; }
-.ds-fin-manual__activity-table th:nth-child(5) { width: 20%; }
-.ds-fin-manual__activity-row:hover { background: var(--ds-surface-muted,#f3f7f9); }
-.ds-fin-manual label.ds-fin-manual__activity-check {
-  display: inline-flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  width: auto;
-  color: var(--ds-text);
+.ds-fin-manual__activity-table th:nth-child(1) { width: 6%; }
+.ds-fin-manual__activity-table th:nth-child(2) { width: 21%; }
+.ds-fin-manual__activity-table th:nth-child(3) { width: 17%; }
+.ds-fin-manual__activity-table th:nth-child(4) { width: 22%; }
+.ds-fin-manual__activity-table th:nth-child(5) { width: 14%; }
+.ds-fin-manual__activity-table th:nth-child(6) { width: 20%; }
+.ds-fin-manual__activity-table th.ds-fin-manual__activity-select-col,
+.ds-fin-manual__activity-table td.ds-fin-manual__activity-select-col {
+  text-align: center;
+  padding-inline: 4px;
 }
-.ds-fin-manual__activity-check > input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  min-width: 16px;
+.ds-fin-manual__activity-select-col input[type="checkbox"] {
+  display: inline-block;
+  vertical-align: middle;
+  width: 17px;
+  height: 17px;
   margin: 0;
   accent-color: #0c98b9;
+  cursor: pointer;
 }
+.ds-fin-manual__activity-row:hover { background: var(--ds-surface-muted,#f3f7f9); }
 .ds-fin-manual__activity-title { min-width: 0; font-weight: 650; }
 .ds-fin-manual__activity-title small {
   display: block;
