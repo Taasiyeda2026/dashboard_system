@@ -95,14 +95,29 @@ export function manualSelectedFundingRoute(data) {
 export function manualFundingFilterOptions(data) {
   const funders = new Map();
   const selectedRoute=manualSelectedFundingRoute(data);
+  const rowsByActivity=new Map();
+  for (const row of data.transactionContext?.billingRows||[]) {
+    if (!row.fundingSourceId) continue;
+    if (!rowsByActivity.has(row.activityRowId)) rowsByActivity.set(row.activityRowId,[]);
+    rowsByActivity.get(row.activityRowId).push(row);
+  }
   for (const activity of data.collectionActivities || []) {
-    for (const row of (data.transactionContext?.billingRows||[]).filter(r=>r.activityRowId===activity.row_id && r.fundingSourceId)) {
+    for (const row of rowsByActivity.get(activity.row_id)||[]) {
       if (selectedRoute && manualFundingRoute(row).key!==selectedRoute) continue;
       const funder=manualRowPayer(row,activity);
-      if (!funders.has(funder.key)) funders.set(funder.key, funder);
+      if (!funders.has(funder.key)) funders.set(funder.key,{...funder,authorities:new Set()});
+      const authority=text(activity.authority || row.authorityName);
+      if (authority) funders.get(funder.key).authorities.add(authority);
     }
   }
-  return [...funders.values()].sort((a,b) => a.label.localeCompare(b.label, 'he'));
+  return [...funders.values()].map(({authorities,...payer})=>{
+    const names=[...authorities].sort((a,b)=>a.localeCompare(b,'he'));
+    // Keep the payer's server-defined identity unchanged; authority is context only.
+    const authorityLabel=names.length ? names.join(', ') : 'לא משויכת';
+    const ownAuthority=names.length===1 && normalizedFunder(payer.label)===normalizedFunder(names[0]);
+    return {...payer,authorityNames:names,displayLabel:ownAuthority
+      ? `${payer.label} · רשות` : `${payer.label} · רשות: ${authorityLabel}`};
+  }).sort((a,b)=>a.label.localeCompare(b.label,'he'));
 }
 export function manualFilteredActivities(data) {
   const query = text(data.manualSearch).toLocaleLowerCase();
@@ -543,18 +558,18 @@ export function manualAccountViewHtml(data) {
         ${routes.map(r=>`<option value="${e(r.key)}"${r.key===routeKey?' selected':''}>${e(r.label)}</option>`).join('')}
       </select></label>
       ${route?`<label class="ds-fin-manual__payer-picker">${e(route.payerLabel)}<select class="ds-input" data-finance-manual-funder-filter><option value="">בחירת ${e(route.payerLabel)}</option>
-        ${options.map(p=>`<option value="${e(p.key)}"${p.key===data.manualFunderFilter?' selected':''}>${e(p.label)}</option>`).join('')}
+        ${options.map(p=>`<option value="${e(p.key)}"${p.key===data.manualFunderFilter?' selected':''}>${e(p.displayLabel)}</option>`).join('')}
       </select></label>`:''}
       ${payer?`<label>חיפוש פעילות<input class="ds-input" data-finance-manual-search value="${e(data.manualSearch)}" placeholder="שם פעילות או בית ספר"></label>
       <details class="ds-fin-manual__selection ds-fin-payer" data-finance-manual-selection>
-        <summary data-finance-manual-selection-summary>${e(payer.label)} · ${activities.length} פעילויות · ${formatManualMoney(activities.reduce((n,a)=>n+manualActivityBalance(data,a.row_id),0))} ₪</summary>
+        <summary data-finance-manual-selection-summary>${e(payer.displayLabel)} · ${activities.length} פעילויות · ${formatManualMoney(activities.reduce((n,a)=>n+manualActivityBalance(data,a.row_id),0))} ₪</summary>
         <div class="ds-fin-manual__selection-toolbar"><label class="ds-fin-manual__select-all"><input type="checkbox" data-finance-manual-select-all> סמן הכל</label>
           <span data-finance-manual-selection-count>${ids.length} פעילויות נבחרו</span></div>
         <div class="ds-fin-manual__activity-list">
           ${activities.map(activity=>`<label class="ds-fin-manual__activity-row">
             <input type="checkbox" data-finance-manual-select-activity value="${e(activity.row_id)}"${ids.includes(activity.row_id)?' checked':''}${manualActivityBillable(data,activity.row_id)?'':' disabled'}>
             <span class="ds-fin-manual__activity-title">${e(activity.activity_name)}${manualActivityBillable(data,activity.row_id)?'':'<small>אינה זמינה להפקה כעת</small>'}</span>
-            <span class="ds-fin-manual__activity-school">${e(activity.school || activity.authority || '')}</span>
+            <span class="ds-fin-manual__activity-school">${e([activity.school,activity.authority && `רשות: ${activity.authority}`].filter(Boolean).join(' · ') || 'רשות לא משויכת')}</span>
             <strong class="ds-fin-manual__activity-price">${formatManualMoney(manualActivityBalance(data,activity.row_id))} ₪</strong>
           </label>`).join('')}
         </div>
