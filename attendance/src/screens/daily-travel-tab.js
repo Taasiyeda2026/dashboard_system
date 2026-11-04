@@ -2,7 +2,8 @@ import { createInputField } from '../components/field.js';
 import { createCompactSelect } from '../components/compact-select.js';
 import { createBoundedMonthPicker } from '../components/bounded-month-picker.js';
 import { summarizeDailyTravel } from '../services/daily-travel.js';
-import { getMonthApproval, updateRecord } from '../services/attendance.service.js';
+import { getMonthApproval, invalidateAttendanceCache } from '../services/attendance.service.js';
+import { supabase } from '../api/client.js';
 import { canEditMonth, formatMonthLabel } from '../services/month-gate.service.js';
 import { listInstructorDisplayMonths, readHistoricalAttendance, historicalTravelDays, isHistoricTravelMonth, monthStatusLabel } from '../services/historical-display.service.js';
 import {
@@ -188,7 +189,13 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
           cancellation_after_minutes:afterMinutes
         }};
       });
-      for(const change of changes)await updateRecord(change.id,empId,change.payload);
+      for(const change of changes){
+        const {data,error}=await supabase.from('attendance_records')
+          .update({...change.payload,updated_at:new Date().toISOString()})
+          .eq('id',change.id).eq('emp_id',Number(empId)).select('id').single();
+        if(error || !data)throw new Error(error?.message||'שמירת הנסיעות נכשלה');
+      }
+      invalidateAttendanceCache(empId);
       const historical=await readHistoricalAttendance(empId,selectedMonth);
       const reports=await getDailyTravelReports(empId,selectedMonth);
       historicalDays=historicalTravelDays(historical.rows,reports);
@@ -210,7 +217,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     if(!day){status.textContent='אין מידע לחודש זה';historicalEdit.hidden=true;return;}
     const approvalText=monthStatusLabel(historicalMonthApproval);
     status.textContent=approvalText;
-    historicalEdit.hidden=!historicalEditable() || !day.records.length;
+    historicalEdit.hidden=!historicalEditable() || historicalEditing || !day.records.length;
     historicalEdit.textContent='עריכה';
     historicalEdit.classList.add('av2-daily-travel__action-sm');
     const report=day.dailyReport;
