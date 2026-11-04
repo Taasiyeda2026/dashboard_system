@@ -157,6 +157,12 @@ export function createDailyTravelTab({empId, initialDate}) {
   }
   function setDate(date) {
     requestedDay=String(date||'').slice(0,10);
+    const targetMonth=requestedDay.slice(0,7);
+    if(monthsLoaded && [...monthSelect.options].some(option=>option.value===targetMonth) && targetMonth!==selectedMonth){
+      selectedMonth=targetMonth;
+      monthSelect.value=targetMonth;
+      dayOptions=[];
+    }
     dateField.input.value=requestedDay;
     if(dayOptions.some(item=>item.date===requestedDay)){
       daySelect.value=requestedDay;
@@ -276,8 +282,12 @@ export function createDailyTravelTab({empId, initialDate}) {
         :stored?.review_status==='approved'||stored?.review_status==='corrected'
           ? 'הנסיעות אושרו'
           :stored?'דיווח נסיעות נשמר':'';
-      locked=stored?.review_status==='approved'||stored?.review_status==='corrected';
+      const monthApproval=await getMonthApproval(empId,selectedMonth,{force:true});
+      const [reportYear,reportMonth]=selectedMonth.split('-').map(Number);
+      const monthEditable=canEditMonth(reportYear,reportMonth,monthApproval);
+      locked=!monthEditable || ((stored?.review_status==='approved'||stored?.review_status==='corrected') && monthApproval?.status!=='reopened');
       save.disabled=locked;
+      if(!monthEditable)status.textContent='החודש אינו פתוח לעריכה';
       renderLegs();
     }catch(err){
       status.textContent=err.message||'טעינת הנסיעות נכשלה';
