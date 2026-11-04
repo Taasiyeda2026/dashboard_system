@@ -959,7 +959,8 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
   const notesField = createInputField({ id: 'edit-notes',      label: 'הערות',        value: record.notes || '' });
   expDField.wrap.classList.add('av2-field--full');
   notesField.wrap.classList.add('av2-field--full');
-  form.append(expDField.wrap, notesField.wrap);
+  if(record.report_date<'2026-11-04')form.append(expDField.wrap);
+  form.append(notesField.wrap);
 
   const errorEl = document.createElement('p');
   errorEl.className = 'av2-report__error av2-field--full';
