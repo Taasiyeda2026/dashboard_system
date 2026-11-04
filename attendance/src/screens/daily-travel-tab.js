@@ -1,5 +1,8 @@
 import { createInputField } from '../components/field.js';
 import { summarizeDailyTravel } from '../services/daily-travel.js';
+import { getMonthApproval } from '../services/attendance.service.js';
+import { canEditMonth, formatMonthLabel } from '../services/month-gate.service.js';
+import { supabase } from '../api/client.js';
 import {
   getDailyTravelActivityLegs, getDailyTravelReport, getAssignedTravelDays, saveDailyTravel
 } from '../services/daily-travel.service.js';
@@ -14,6 +17,15 @@ export function createDailyTravelTab({empId, initialDate}) {
   panel.className = 'av2-daily-travel av2-report__travel-tab';
   const title = document.createElement('h2');
   title.textContent = 'נסיעות וביטולים';
+  const monthLabel=document.createElement('label');
+  monthLabel.textContent='חודש דיווח';
+  monthLabel.setAttribute('for','av2-travel-month-selector');
+  const monthSelect=document.createElement('select');
+  monthSelect.id='av2-travel-month-selector';
+  monthSelect.className='av2-field__select av2-daily-travel__month-select';
+  const monthWrap=document.createElement('div');
+  monthWrap.className='av2-daily-travel__month-wrap';
+  monthWrap.append(monthLabel,monthSelect);
   const dateField = createInputField({id:'av2-travel-date',label:'תאריך',type:'hidden',value:initialDate});
   dateField.wrap.hidden=true;
   const dayLabel=document.createElement('label');
@@ -46,7 +58,7 @@ export function createDailyTravelTab({empId, initialDate}) {
   const actions=document.createElement('div');
   actions.className='av2-report__actions';
   actions.append(save);
-  panel.append(title,daysWrap,dateField.wrap,status,legsArea,noTravelLabel,summary,actions);
+  panel.append(title,monthWrap,daysWrap,dateField.wrap,status,legsArea,noTravelLabel,summary,actions);
 
   let legs=[];
   let loadedDate='';
@@ -54,6 +66,8 @@ export function createDailyTravelTab({empId, initialDate}) {
   let locked=false;
   let dayOptions=[];
   let requestedDay=initialDate;
+  let selectedMonth=String(initialDate||'').slice(0,7);
+  let monthsLoaded=false;
   let requestSequence=0;
   function showSummary(){
     legsArea.hidden=noTravel.checked;
@@ -158,10 +172,44 @@ export function createDailyTravelTab({empId, initialDate}) {
       : 'נדרשת נוכחות';
     return formatDate+' · '+(day.activities||'פעילות')+' · '+state;
   }
+  async function refreshMonths(){
+    const now=new Date();
+    const currentMonth=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+    const previous=new Date(now.getFullYear(),now.getMonth()-1,1);
+    const previousMonth=`${previous.getFullYear()}-${String(previous.getMonth()+1).padStart(2,'0')}`;
+    const {data,error}=await supabase.from('attendance_month_approvals')
+      .select('month_key').eq('emp_id',empId).eq('status','reopened')
+      .order('month_key',{ascending:false});
+    if(error)throw new Error('לא ניתן לטעון חודשים שנפתחו לעריכה');
+    const reopened=(data||[]).map(row=>row.month_key).filter(key=>/^\d{4}-(0[1-9]|1[0-2])$/.test(key));
+    const candidates=[...new Set([...reopened,currentMonth,previousMonth])];
+    const allowed=[];
+    for(const key of candidates){
+      const [year,month]=key.split('-').map(Number);
+      const approval=await getMonthApproval(empId,key,{force:true});
+      if(canEditMonth(year,month,approval,now))allowed.push(key);
+    }
+    allowed.sort((a,b)=>b.localeCompare(a));
+    monthSelect.replaceChildren();
+    for(const key of allowed){
+      const [year,month]=key.split('-').map(Number);
+      const option=document.createElement('option');
+      option.value=key;
+      option.textContent=formatMonthLabel(year,month)+(reopened.includes(key)?' · נפתח לעריכה':'');
+      monthSelect.append(option);
+    }
+    selectedMonth=allowed.includes(selectedMonth)?selectedMonth:(reopened[0]&&allowed.includes(reopened[0])?reopened[0]:allowed[0]||'');
+    monthSelect.value=selectedMonth;
+    monthsLoaded=true;
+  }
   async function refreshDays(){
     daySelect.disabled=true;
-    const fetched=await getAssignedTravelDays();
-    dayOptions=fetched.filter(item=>item.date>='2026-11-04');
+    const [year,month]=selectedMonth.split('-').map(Number);
+    if(!year||!month){dayOptions=[];return false;}
+    const fromDate=selectedMonth+'-01';
+    const toDate=selectedMonth+'-'+String(new Date(year,month,0).getDate()).padStart(2,'0');
+    const fetched=await getAssignedTravelDays({fromDate,toDate});
+    dayOptions=fetched.filter(item=>item.date?.slice(0,7)===selectedMonth);
     daySelect.replaceChildren();
     if(!dayOptions.length){
       dateField.input.value='';
@@ -196,6 +244,7 @@ export function createDailyTravelTab({empId, initialDate}) {
     status.textContent='טוען נסיעות…';
     const token=++requestSequence;
     try{
+      if(!monthsLoaded)await refreshMonths();
       if(force || !dayOptions.length){
         const hasDays=await refreshDays();
         if(!hasDays)return;
@@ -239,6 +288,11 @@ export function createDailyTravelTab({empId, initialDate}) {
     }
   }
   noTravel.addEventListener('change',showSummary);
+  monthSelect.addEventListener('change',()=>{
+    selectedMonth=monthSelect.value;
+    requestedDay='';loadedDate='';dayOptions=[];
+    void load({force:true});
+  });
   daySelect.addEventListener('change',()=>{
     setDate(daySelect.value);
     void load();
@@ -246,6 +300,13 @@ export function createDailyTravelTab({empId, initialDate}) {
   reload.addEventListener('click',()=>load({force:true}));
   save.addEventListener('click',async()=>{
     if(loading || locked || loadedDate!==dateField.input.value)return;
+    const monthKey=loadedDate.slice(0,7);
+    const [year,month]=monthKey.split('-').map(Number);
+    const approval=await getMonthApproval(empId,monthKey,{force:true});
+    if(!canEditMonth(year,month,approval)){
+      status.textContent='החודש נעול לדיווח. נדרש לפתוח אותו מחדש לעריכה.';
+      return;
+    }
     showSummary();
     save.disabled=true;
     try{
