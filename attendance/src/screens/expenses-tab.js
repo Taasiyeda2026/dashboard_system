@@ -90,6 +90,11 @@ export function createExpensesTab({instructor,initialDate}={}){
     status.textContent='';
   }
   reset.addEventListener('click',()=>{
+    const hasChanges=Boolean(
+      editing || amount.input.value.trim() || details.input.value.trim()
+      || fileInput.files?.length
+    );
+    if(hasChanges && !window.confirm('לבטל את מילוי ההוצאה ללא שמירה?'))return;
     resetForm({resetDate:true});
     void refresh();
   });
