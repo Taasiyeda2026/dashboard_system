@@ -274,7 +274,7 @@ test('the PDF source never prints billing internals and bank details are exact',
   assert.doesNotMatch(rendering,/03-5370368|סניף 611|בנק הפועלים 12, סניף/);
   assert.doesNotMatch(rendering,/\(ע"ר\)/);
   assert.match(rendering,/מחיר לשעה/);
-  assert.match(rendering,/\['שם בית הספר', 'רשות', 'תוכנית \/ קורס', 'סה״כ'\]/);
+  assert.match(rendering,/\['שם בית הספר', 'תוכנית \/ קורס', 'רשות', 'סה״כ'\]/);
 });
 
 test('generated PDF contains updated invoice contact and both bank separators',async()=>{
@@ -413,7 +413,7 @@ test('non-Gefen sponsor PDF shows school authority course and total only',async(
   const pdf=await getDocument({data:new Uint8Array(Buffer.from(r.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
   const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');
   for(const word of ['אבן שמואל','שפיר','ביומימיקרי','הרצל','רחובות','יישומי AI','10,000.00','8,000.00'])
-    assert.ok(text.includes(word),word);
+    assert.ok(text.includes(word),word+' extracted PDF text: '+text);
   for(const value of ['606.06','533.33','16.5','6089','53819','17.10.2026'])
     assert.ok(!text.includes(value),'non-Gefen invoice must not expose hourly/meeting detail: '+value);
   assert.ok(!r.calls.some(c=>c.name==='finalize_finance_billing'||c.method==='PUT'));
