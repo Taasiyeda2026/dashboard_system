@@ -11,9 +11,9 @@ test('shared typography stylesheet is last and cache versions are consistent',as
     file('attendance/src/styles/report-tabs-responsive-typography.css'),
   ]);
   const links=[...html.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map(m=>m[1]);
-  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=135');
-  assert.match(sw,/const CACHE_VERSION = 135/);
-  assert.ok(links.every(s=>s.endsWith('?v=135')));
+  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=136');
+  assert.match(sw,/const CACHE_VERSION = 136/);
+  assert.ok(links.every(s=>s.endsWith('?v=136')));
   assert.match(css,/font-family:var\(--av2-font,inherit\)/);
   assert.match(css,/font-size:14\.5px!important/);
   assert.match(css,/font-size:17px!important/);
@@ -48,4 +48,12 @@ test('typography contract is visual only and does not alter pay or attendance da
  assert.doesNotMatch(css,/position:fixed|transform:scale\(/);
  assert.doesNotMatch(html,/supabase\/migrations/);
  assert.doesNotMatch(css,/\.av2-report__form-area \{[^}]*display:none/);
+});
+
+test('time inputs are two readable hour/minute selectors, never squeezed into half-width cells',async()=>{
+ const css=await file('attendance/src/styles/report-tabs-responsive-typography.css');
+ assert.match(css,/\.av2-report \.av2-report__form \.av2-report__times-grid\{[\s\S]*?grid-template-columns:minmax\(0,1fr\)!important/);
+ assert.match(css,/\.av2-report \.av2-report__form \.av2-time-picker\{[\s\S]*?width:196px!important/);
+ assert.match(css,/\.av2-report \.av2-report__form \.av2-time-picker__part\{[\s\S]*?flex:1 1 0!important/);
+ assert.match(css,/\.av2-report \.av2-report__form \.av2-time-picker__part \.av2-csel__trigger\{[\s\S]*?font-size:16px!important/);
 });
