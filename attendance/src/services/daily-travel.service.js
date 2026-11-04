@@ -33,7 +33,7 @@ export async function getDailyTravelActivityLegs(empId, date) {
   if(error)throw new Error('לא ניתן לטעון את מסלול הנסיעה');
   return Array.isArray(data) ? data.map(leg=>({
     ...leg,
-    minutes:leg.kind==='between'?Number(leg.gapMinutes):null,
+    minutes:leg.kind==='between' && leg.gapMinutes!=null?Number(leg.gapMinutes):null,
     kilometers:leg.kind==='between' && leg.sameLocation===true ? 0 : null
   })) : [];
 }
