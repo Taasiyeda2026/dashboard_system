@@ -37,7 +37,7 @@ test('רוקחים עולם always displays Gefen 46091 even when a row was mis-
   assert.equal(displayGefenProgramNumber({ activityName: 'אופק פרימיום', gefenNumber: '52279', activityNo: '52279' }), '52279');
   assert.match(pdf, /רוקחים\\s\*עולם/);
   assert.match(pdf, /gefen: '46091'/);
-  const migration = readFileSync(new URL('../supabase/migrations/20261104215818_finance_rokhim_olam_gefen_46091_only.sql', import.meta.url), 'utf8');
+  const migration = readFileSync(new URL('../supabase/migrations/20261104220642_finance_rokhim_olam_gefen_46091_only.sql', import.meta.url), 'utf8');
   assert.match(migration, /activity_no = '46091'/);
   assert.match(migration, /gefen_number = '46091'/);
   assert.doesNotMatch(migration, /set[\s\S]*price\s*=/i);

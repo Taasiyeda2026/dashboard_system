@@ -1,7 +1,9 @@
 -- Canonical identity: "רוקחים עולם" = Gefen 46091 only.
 -- Corrects mis-mapped תשפ״ז activity identity fields without touching prices,
 -- sessions, funding text/amounts, or historical invoice snapshots/documents.
--- Production apply requires separate owner approval after reviewing the audit rows.
+-- Applied in production as version 20261104220642 (2026-11-04). Do not re-run.
+-- Repo filename matches supabase_migrations.schema_migrations to prevent a
+-- second apply via db push.
 
 create table if not exists public.finance_rokhim_olam_gefen_fix_audit_20261104 (
   row_id text primary key,
