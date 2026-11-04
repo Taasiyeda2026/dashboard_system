@@ -549,12 +549,12 @@ test('manual invoice activities render school authority and Gefen code in separa
   const doc=new JSDOM(manualAccountViewHtml(d)).window.document;
   const table=doc.querySelector('.ds-fin-manual__activity-table');
   assert.ok(table);
-  assert.deepEqual([...table.querySelectorAll('thead th')].map(x=>x.textContent),['בחירה · פעילות','בית ספר','רשות','מספר גפ״ן','סכום לחיוב']);
+  assert.deepEqual([...table.querySelectorAll('thead th')].map(x=>x.textContent),['בית ספר','רשות','בחירה · פעילות','מספר גפ״ן','סכום לחיוב']);
   const cells=[...table.querySelectorAll('tbody tr td')];
   assert.equal(cells.length,5);
-  assert.match(cells[0].textContent,/ביומימיקרי/);
-  assert.equal(cells[1].textContent,'אזורי אבן שמואל');
-  assert.equal(cells[2].textContent,'שפיר');
+  assert.equal(cells[0].textContent,'אזורי אבן שמואל');
+  assert.equal(cells[1].textContent,'שפיר');
+  assert.match(cells[2].textContent,/ביומימיקרי/);
   assert.equal(cells[3].textContent,'6089');
   assert.match(cells[4].textContent,/10,000/);
   assert.equal(table.querySelectorAll('[data-finance-manual-select-activity]').length,1);
