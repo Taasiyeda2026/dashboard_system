@@ -2835,7 +2835,7 @@ function openAttendanceControlWindow(api, state) {
   popup.focus();
 }
 
-export function bindAttendanceControl(root, { api, state = {}, standalone = false, initialTarget = null } = {}) {
+export function bindAttendanceControl(root, { api, state = {}, standalone = false, initialTarget = null, onClose = null } = {}) {
   const panel = root?.querySelector('[data-attendance-control]'); if (!panel) return;
   const monthInput = panel.querySelector('[data-attendance-month]');
   if (/^\d{4}-(0[1-9]|1[0-2])$/.test(initialTarget?.monthKey || '')) monthInput.value = initialTarget.monthKey;
@@ -3169,7 +3169,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
   root.querySelector('[data-attendance-open]')?.addEventListener('click', () => {
     try { openAttendanceControlWindow(api, state); } catch (error) { window.alert(error.message); }
   });
-  panel.querySelector('[data-attendance-close]')?.addEventListener('click', () => standalone ? root.ownerDocument.defaultView.close() : (panel.hidden = true));
+  panel.querySelector('[data-attendance-close]')?.addEventListener('click', () => typeof onClose === 'function' ? onClose() : standalone ? root.ownerDocument.defaultView.close() : (panel.hidden = true));
   if (standalone) void refreshTeamRoster({ preserveSelection: false }).then(async () => {
     if (!initialTarget || !employees) return;
     const employeeId = txt(initialTarget.employeeId);
