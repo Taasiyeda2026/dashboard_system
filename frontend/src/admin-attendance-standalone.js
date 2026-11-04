@@ -8,7 +8,7 @@ import { attendanceControlHtml, attendanceControlStylesHtml, bindAttendanceContr
 import {
   resolveAdminAttendanceDefaultMonth,
   attendanceMonthDateRange
-} from './screens/attendance-control.js?v=20261005-manager-reopen-hierarchy-v1';
+} from './screens/attendance-control.js?v=20261105-systemic-b-e-v1';
 
 const ADMIN_ROLE = 'admin';
 const LEGACY_MANAGER_TAB = 'payroll-attendance';
@@ -395,7 +395,8 @@ function actionButtons(empId, workflowRow, finalApproval, monthKey, priorDispatc
   const finalButton = canApprove && status.raw === 'manager_approved' && !finalApproval
     ? iconActionButton({ label: 'אישור סופי', icon: 'approve', attr: 'data-admin-attendance-final', empId, primary: true })
     : '';
-  const sendButton = canApprove && text(finalApproval?.status) === 'admin_approved'
+  const holdActive = workflowRow?.payroll_hold === true || workflowRow?.payrollHold === true;
+  const sendButton = canApprove && text(finalApproval?.status) === 'admin_approved' && !holdActive
     ? iconActionButton({ label: 'העבר לשכר', icon: 'payroll', attr: 'data-admin-attendance-send-payroll', empId, primary: true })
     : '';
   const managerPdfUrl = text(workflowRow.manager_pdf_sharepoint_url);
@@ -412,7 +413,18 @@ function actionButtons(empId, workflowRow, finalApproval, monthKey, priorDispatc
   const releaseButton = canApprove && ['submitted', 'manager_approved', 'admin_approved', 'sent_to_payroll'].includes(status.raw)
     ? iconActionButton({ label: status.raw === 'sent_to_payroll' ? 'פתח לעדכון' : 'שחרור נעילה', icon: 'unlock', attr: 'data-admin-attendance-release', empId })
     : '';
-  return `<div class="admin-attendance-actions">${editButton}${finalButton}${sendButton}${recordsButton}${pdfButton}${releaseButton}</div>`;
+  const holdButton = canApprove && ['manager_approved', 'admin_approved'].includes(status.raw)
+    ? iconActionButton({
+      label: holdActive ? 'שחרור השהיית שכר' : 'השהיית העברה לשכר',
+      icon: 'unlock',
+      attr: holdActive ? 'data-admin-attendance-clear-hold' : 'data-admin-attendance-hold',
+      empId
+    })
+    : '';
+  const holdNote = holdActive
+    ? '<span class="admin-attendance-hold-note">מושהה לשכר — רעננו דוח ואז שחררו השהיה</span>'
+    : '';
+  return `<div class="admin-attendance-actions">${editButton}${finalButton}${sendButton}${holdButton}${recordsButton}${pdfButton}${releaseButton}${holdNote}</div>`;
 }
 
 function approvedNumber(value) {
@@ -820,17 +832,14 @@ async function handleAction(button, root) {
       const final = context.finalByEmployee?.get(editEmpId) || {};
       const dispatch = context.dispatchByEmployee?.get(editEmpId) || {};
       const status = workflowStatus(workflow, final, monthKey, dispatch);
+      // Point edits stay on the locked/approved month. Explicit reopen remains
+      // only on the dedicated release/unlock control — never automatic here.
       if (['manager_approved', 'admin_approved', 'sent_to_payroll'].includes(status.raw)) {
-        const explanation = status.raw === 'sent_to_payroll'
-          ? 'החודש כבר הועבר לשכר. פתיחתו לתיקון תחייב אישור מחדש והעברה מחודשת לשכר.'
-          : 'החודש כבר אושר. פתיחה לתיקון תבטל את האישורים הקודמים ותחייב דיווח ואישור מחדש.';
-        if (!window.confirm(`${explanation}\nלהמשיך לעריכה?`)) return;
-        await api.adminReopenAttendanceMonthForCorrection({
-          employee_id: editEmpId, month_key: monthKey,
-          reason: 'תיקון רשומת נוכחות בידי מנהל מערכת'
-        });
-        await renderData(root, monthKey, 'החודש נפתח לתיקון; לאחר השמירה יידרשו אישורי חודש מחדש.');
-        await refreshPendingBadge(true);
+        window.alert(
+          status.raw === 'sent_to_payroll'
+            ? 'החודש כבר הועבר לשכר. תיקון נקודתי יתועד וישהה העברה חוזרת עד רענון הדוח. לפתיחה מלאה מחדש השתמשו בשחרור הנעילה.'
+            : 'החודש כבר אושר. תיקון נקודתי יתועד ולא יבטל אישורים. לפתיחה מלאה מחדש השתמשו בשחרור הנעילה.'
+        );
       }
       openAdminAttendanceEmployeeEditor(root, editEmpId, monthKey, text(root.__adminAttendanceReviewRecordId || ''));
       root.__adminAttendanceReviewRecordId = '';
@@ -863,6 +872,32 @@ async function handleAction(button, root) {
       setMessage(root, 'דוח המנהל נוצר ונשמר ב-SharePoint. כעת ניתן לבצע אישור סופי.');
     } catch (error) {
       setMessage(root, error?.message || 'שחזור דוח המנהל נכשל.', true);
+    } finally {
+      button.disabled = false;
+    }
+    return;
+  }
+  const holdEmpId = text(button.dataset.adminAttendanceHold);
+  const clearHoldEmpId = text(button.dataset.adminAttendanceClearHold);
+  if (holdEmpId || clearHoldEmpId) {
+    button.disabled = true;
+    try {
+      const empId = holdEmpId || clearHoldEmpId;
+      const holding = Boolean(holdEmpId);
+      await api.adminSetAttendancePayrollHold({
+        employee_id: empId,
+        month_key: monthKey,
+        hold: holding,
+        reason: holding ? 'השהיה ידנית עד מחזור התשלום המתאים' : ''
+      });
+      const workflow = root.__adminAttendanceContext?.workflowByEmployee?.get(empId) || {};
+      workflow.payroll_hold = holding;
+      workflow.payroll_hold_reason = holding ? 'השהיה ידנית עד מחזור התשלום המתאים' : null;
+      root.__adminAttendanceContext?.workflowByEmployee?.set(empId, workflow);
+      refreshAdminAttendanceEmployeeRow(root, empId);
+      setMessage(root, holding ? 'ההעברה לשכר הושהתה לחודש זה.' : 'השהיית השכר בוטלה.');
+    } catch (error) {
+      setMessage(root, error?.message || 'עדכון השהיית שכר נכשל.', true);
     } finally {
       button.disabled = false;
     }
@@ -924,10 +959,34 @@ async function handleAction(button, root) {
     await renderData(root, monthKey, 'החודש שוחרר ונפתח לתיקון.');
     await refreshPendingBadge(true);
   } catch (error) {
-    setMessage(root, error?.message || 'הפעולה נכשלה.', true);
+    setMessage(root, adminAttendanceActionError(error), true);
   } finally {
     button.disabled = false;
   }
+}
+
+function adminAttendanceActionError(error, fallback = 'הפעולה נכשלה.') {
+  const raw = String(error?.message || error || '');
+  if (/attendance_payroll_hold_active/i.test(raw)) {
+    return 'העברה לשכר מושהית לחודש זה. רעננו את הדוח ושחררו את ההשהיה לפני השליחה.';
+  }
+  if (/attendance_double_cancellation_same_day/i.test(raw)) {
+    return 'קיים כפל ביטול זמן באותו יום. יש להשאיר מסלול תשלום אחד לפני העברה לשכר.';
+  }
+  if (/attendance_expense_reviews_pending/i.test(raw)) {
+    return 'יש הוצאות שממתינות לאישור מנהל לפני העברה לשכר.';
+  }
+  if (/attendance_daily_travel_reviews_pending|attendance_travel_reviews_pending/i.test(raw)) {
+    return 'יש דיווחי נסיעות שממתינים לאישור מנהל לפני העברה לשכר.';
+  }
+  if (/attendance_records_not_fully_approved/i.test(raw)) {
+    return 'לא כל רשומות הנוכחות אושרו לפני חתימת המנהל.';
+  }
+  if (/attendance_payable_changed_after_manager_approval/i.test(raw)) {
+    return 'התשלום השתנה אחרי אישור המנהל. יש לאשר מחדש לפני העברה לשכר.';
+  }
+  if (/[\u0590-\u05FF]/.test(raw) && raw.length <= 220) return raw;
+  return fallback;
 }
 
 async function handleBatchPayroll(root) {
@@ -936,9 +995,15 @@ async function handleBatchPayroll(root) {
   const context = root.__adminAttendanceContext || {};
   const readyIds = (context.employees || [])
     .map(employeeId)
-    .filter((id) => text(context.finalByEmployee?.get(id)?.status) === 'admin_approved');
+    .filter((id) => {
+      const final = context.finalByEmployee?.get(id);
+      const workflow = context.workflowByEmployee?.get(id) || {};
+      if (text(final?.status) !== 'admin_approved') return false;
+      if (workflow.payroll_hold === true || workflow.payrollHold === true) return false;
+      return true;
+    });
   if (!readyIds.length) {
-    setMessage(root, 'אין עובדים שמוכנים להעברה לשכר.');
+    setMessage(root, 'אין עובדים שמוכנים להעברה לשכר (כולל סינון השהיות).');
     return;
   }
   if (!window.confirm(`יועברו לשכר ${readyIds.length} עובדים שמוכנים לכך. להמשיך?`)) return;
@@ -974,7 +1039,7 @@ async function handleBatchPayroll(root) {
       await renderData(root, monthKey, `${sent} עובדים הועברו לשכר.`);
     }
   } catch (error) {
-    setMessage(root, error?.message || 'העברת העובדים לשכר נכשלה.', true);
+    setMessage(root, adminAttendanceActionError(error, 'העברת העובדים לשכר נכשלה.'), true);
   } finally {
     if (button?.isConnected) button.disabled = false;
   }
@@ -1049,7 +1114,7 @@ async function openControlMode(root) {
   setMessage(root, '', false);
   host.innerHTML = '<div class="admin-attendance-loading">טוען את ממשק הבקרה הקיים…</div>';
   try {
-    const attendance = await import('./screens/attendance-control.js?v=20261005-manager-reopen-hierarchy-v1');
+    const attendance = await import('./screens/attendance-control.js?v=20261105-systemic-b-e-v1');
     host.innerHTML = `${attendance.attendanceControlStylesHtml()}${attendance.attendanceControlHtml()}`;
     const panel = host.querySelector('[data-attendance-control]');
     if (panel) panel.hidden = false;
@@ -1210,7 +1275,7 @@ function handleClick(event) {
     window.setTimeout(() => void handleBatchPayroll(root), 0);
     return;
   }
-  const action = target.closest('[data-admin-attendance-edit], [data-admin-attendance-final], [data-admin-attendance-send-payroll], [data-admin-attendance-release], [data-admin-attendance-records], [data-admin-attendance-pdf], [data-admin-attendance-repair-pdf]');
+  const action = target.closest('[data-admin-attendance-edit], [data-admin-attendance-final], [data-admin-attendance-send-payroll], [data-admin-attendance-release], [data-admin-attendance-records], [data-admin-attendance-pdf], [data-admin-attendance-repair-pdf], [data-admin-attendance-hold], [data-admin-attendance-clear-hold]');
   if (action) window.setTimeout(() => void handleAction(action, root), 0);
 }
 

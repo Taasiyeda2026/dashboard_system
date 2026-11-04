@@ -79,13 +79,15 @@ export function resolveMonthDisplayStatus(approval, editable) {
 /** Short human-readable reason why a month is locked (for UI messages). */
 export function editBlockReason(year, month, approval, now = new Date()) {
   const status = approval?.status ?? 'open';
-  if (status === 'locked') return 'החודש אושר על ידי המנהל ונעול לעריכה';
-  if (status === 'approved_for_payroll') return 'החודש אושר סופית לשכר';
-  if (status === 'submitted') return 'החודש אושר על ידך ונמצא בבקרת מנהל. ניתן לפנות למנהל במקרה שנדרש תיקון.';
+  if (status === 'locked') return 'החודש אושר על ידי המנהל ונעול לעריכה (כולל נסיעות והוצאות).';
+  if (status === 'approved_for_payroll') return 'החודש אושר סופית לשכר ונעול לעריכה.';
+  if (status === 'submitted') {
+    return 'החודש כבר הוגש ונעול לעריכה (כולל נסיעות והוצאות). השלמה אפשרית רק אחרי שהמנהל יפתח את החודש מחדש.';
+  }
   const key = getMonthKey(year, month);
   const currentKey = getMonthKey(now.getFullYear(), now.getMonth() + 1);
   if (key > currentKey) return 'לא ניתן לדווח עבור תאריך עתידי.';
-  return 'תקופת הדיווח לחודש זה הסתיימה. לא ניתן להוסיף או לערוך דיווחים.';
+  return 'תקופת הדיווח לחודש זה הסתיימה. חודש שנפתח מחדש ניתן לבחור ידנית מהניווט החודשי.';
 }
 
 /**
