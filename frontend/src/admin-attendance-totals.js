@@ -19,7 +19,14 @@ export function buildAdminAttendanceTotals(records = [], { monthKey, employeeIds
     if (id && seen.has(id)) continue;
     if (id) seen.add(id);
     const rawType = text(first(row, ['activityType', 'ActivityType', 'activity_type']));
-    const type = rawType === 'סדנאות קיץ' ? 'סדנה' : rawType === 'מקוון' ? 'זום' : activityTypeDisplayLabel(rawType) || 'אחר';
+    // Zoom/online describes delivery mode, not the actual work category.
+    // Do not guess training/course/operations from meeting notes or names.
+    const modeOnlyType = ['זום', 'מקוון', 'zoom', 'online'].includes(rawType.toLowerCase());
+    const explicitWorkType = text(first(row, ['workActivityType', 'work_activity_type', 'underlyingActivityType', 'underlying_activity_type']));
+    const resolvedType = modeOnlyType && explicitWorkType && !['זום', 'מקוון', 'zoom', 'online'].includes(explicitWorkType.toLowerCase())
+      ? explicitWorkType : rawType;
+    const type = modeOnlyType && resolvedType === rawType
+      ? '' : resolvedType === 'סדנאות קיץ' ? 'סדנה' : activityTypeDisplayLabel(resolvedType) || 'אחר';
     const outbound = first(row, ['reportedOutboundMinutes', 'reported_outbound_minutes']);
     const inbound = first(row, ['reportedReturnMinutes', 'reported_return_minutes']);
     rows.push({
@@ -38,16 +45,23 @@ export function buildAdminAttendanceTotals(records = [], { monthKey, employeeIds
         ? 0 : number(first(row, ['kilometers', 'Kilometers', 'roundtrip_km']))
     });
   }
-  const hoursByType = new Map(['קורס', 'סדנה', 'הכשרה', 'תפעול', 'ביטול זמן', 'זום'].map(type => [type, 0]));
+  const hoursByType = new Map(['קורס', 'סדנה', 'הכשרה', 'תפעול', 'ביטול זמן'].map(type => [type, 0]));
+  let unclassifiedOnlineHours = 0;
+  let unclassifiedOnlineCount = 0;
   let totalKilometers = 0;
   for (const row of rows) {
     if (row.generation_kind === 'travel_time_cancellation' || row.activity_type === 'ביטול זמן') continue;
     totalKilometers += row.kilometers;
+    if (!row.activity_type) {
+      unclassifiedOnlineHours += row.total_hours;
+      unclassifiedOnlineCount += 1;
+      continue;
+    }
     hoursByType.set(row.activity_type, (hoursByType.get(row.activity_type) || 0) + row.total_hours);
   }
   hoursByType.set('ביטול זמן', reportedCancellationHours(rows));
   const suspectCancellationCount = rows.filter(isSuspectCancellationRequest).length;
-  return { totalKilometers, totalHours: [...hoursByType.values()].reduce((sum, hours) => sum + hours, 0), hoursByType, suspectCancellationCount };
+  return { totalKilometers, totalHours: [...hoursByType.values()].reduce((sum, hours) => sum + hours, 0) + unclassifiedOnlineHours, hoursByType, suspectCancellationCount, unclassifiedOnlineHours, unclassifiedOnlineCount };
 }
 
 function duration(hours) {
@@ -74,9 +88,13 @@ export function adminAttendanceTotalsHtml(totals, monthKey) {
   const warning = number(totals.suspectCancellationCount) > 0
     ? `<p class="admin-attendance-totals__warning" role="status">ביטול זמן חריג – לבדיקה: <strong>${escapeHtml(String(totals.suspectCancellationCount))}</strong></p>`
     : '';
+  const onlineReview = number(totals.unclassifiedOnlineCount) > 0
+    ? `<p class="admin-attendance-totals__warning" role="status">${escapeHtml(String(totals.unclassifiedOnlineCount))} דיווחי זום ללא סוג פעילות – נדרש סיווג (${escapeHtml(duration(totals.unclassifiedOnlineHours))} שעות)</p>`
+    : '';
   return `<section class="admin-attendance-totals" data-admin-attendance-totals aria-label="סיכום דיווחי החודש">
     <h2>סיכום דיווחי ${escapeHtml(monthKey)}</h2>
     ${cards.length ? `<div class="admin-attendance-standalone__summary">${cards.join('')}</div>` : '<p class="admin-attendance-totals__empty">אין דיווחים לחודש זה</p>'}
     ${warning}
+    ${onlineReview}
   </section>`;
 }
