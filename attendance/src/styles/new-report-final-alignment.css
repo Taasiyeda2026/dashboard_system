@@ -265,3 +265,15 @@
     min-height:44px!important;
   }
 }
+
+/* The between-activity gap is computed, not an editable number input. */
+.av2-report .av2-daily-travel__calculated-field{
+  display:grid;align-content:start;gap:6px;min-width:0;
+}
+.av2-report .av2-daily-travel__calculated-field strong{
+  font-size:.83rem;font-weight:650;color:#244260;
+  min-height:38px;display:flex;align-items:center;
+  padding:7px 9px;box-sizing:border-box;
+  background:#f5f8fc;border:1px solid #dce6f2;border-radius:8px;
+}
+.av2-report .av2-daily-travel__leg-fields>[hidden]{display:none!important}
