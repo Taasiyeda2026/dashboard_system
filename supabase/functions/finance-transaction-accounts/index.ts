@@ -185,15 +185,22 @@ function invoiceRowHeight(font: PDFFont, values: string[], widths: number[], siz
     invoiceCellLines(font, value, widths[index], size).length));
   return 25 + (mostLines - 1) * 9; // 25 / 34 / 43 pt, never 43 for every course
 }
-function drawCell(page: PDFPage, font: PDFFont, value: string, x: number, y: number, width: number, size = 8.5, height = 25) {
+function drawCell(page: PDFPage, font: PDFFont, value: string, x: number, y: number, width: number, size = 8.5, height = 25, center = false) {
   const parts = invoiceCellLines(font, value, width, size);
   const lineSpacing = 10.5;
   const firstBaseline = y + (height + (parts.length - 1) * lineSpacing) / 2 - 4;
-  parts.forEach((line, index) =>
-    drawLogicalRight(page, font, line, firstBaseline - index * lineSpacing, size, x + width - 5, x + 5));
+  parts.forEach((line, index) => {
+    if (center) {
+      const logicalWidth = logicalTextWidth(font, line, size);
+      drawLogicalRight(page, font, line, firstBaseline - index * lineSpacing, size,
+        x + (width + logicalWidth) / 2, x + (width - logicalWidth) / 2);
+    } else {
+      drawLogicalRight(page, font, line, firstBaseline - index * lineSpacing, size, x + width - 5, x + 5);
+    }
+  });
 }
 
-function drawTableRow(page: PDFPage, font: PDFFont, values: string[], widths: number[], y: number, height = 24, fill = false) {
+function drawTableRow(page: PDFPage, font: PDFFont, values: string[], widths: number[], y: number, height = 24, fill = false, centeredColumns: number[] = []) {
   let x = 565;
   values.forEach((value, index) => {
     const width = widths[index];
@@ -204,7 +211,7 @@ function drawTableRow(page: PDFPage, font: PDFFont, values: string[], widths: nu
       borderColor: rgb(0.72, 0.76, 0.8),
       ...(fill ? { color: rgb(0.95, 0.97, 0.98) } : {})
     });
-    drawCell(page, font, value, x, y, width, fill ? 8.2 : 8.5, height);
+    drawCell(page, font, value, x, y, width, fill ? 8.2 : 8.5, height, centeredColumns.includes(index));
   });
 }
 
@@ -349,7 +356,7 @@ async function buildPdf(account: any) {
   // Each section uses the appropriate, minimal accounting columns. Both
   // sections may appear on one invoice for the same payer.
   const drawSection = (title: string, columns: string[], widths: number[],
-    rows: InvoiceRenderRow[], values: (row: InvoiceRenderRow) => string[]) => {
+    rows: InvoiceRenderRow[], values: (row: InvoiceRenderRow) => string[], centeredColumns: number[] = []) => {
     if (!rows.length) return;
     const headerHeight = columns.length === 7 ? 30 : 25;
     const detailLines = (row: InvoiceRenderRow) => row.dates.length ? invoiceCellLines(regular, `מועדי ביצוע: ${row.dates.map(date).join(', ')}`, 535, 7.5) : [];
@@ -359,9 +366,8 @@ async function buildPdf(account: any) {
       page = doc.addPage([595, 842]);
       y = drawInvoiceHeader(page, true);
     }
-    drawRight(page, bold, title, y, 11);
-    y -= 23;
-    drawTableRow(page, bold, columns, widths, y - headerHeight, headerHeight, true);
+    if (title) { drawRight(page, bold, title, y, 11); y -= 23; }
+    drawTableRow(page, bold, columns, widths, y - headerHeight, headerHeight, true, centeredColumns);
     y -= headerHeight;
     for (const row of rows) {
       const cellValues = values(row);
@@ -375,7 +381,7 @@ async function buildPdf(account: any) {
         drawTableRow(page, bold, columns, widths, y - headerHeight, headerHeight, true);
         y -= headerHeight;
       }
-      drawTableRow(page, regular, cellValues, widths, y - mainHeight, mainHeight, false);
+      drawTableRow(page, regular, cellValues, widths, y - mainHeight, mainHeight, false, centeredColumns);
       if (detailHeight) {
         page.drawRectangle({x:30,y:y-rowHeight,width:535,height:detailHeight,borderWidth:0.6,borderColor:rgb(0.72,0.76,0.8)});
         detail.forEach((text,index)=>drawLogicalRight(page,regular,text,y-mainHeight-11-index*10,7.5,560,35,rgb(0.38,0.42,0.47)));
@@ -393,11 +399,11 @@ async function buildPdf(account: any) {
   // Both share the exact same letterhead, typography and grid styling.
   const courseWidths = [94, 119, 56, 42, 46, 80, 98]; // A4 printable width: 535
   const serviceWidths = [265, 65, 100, 105];
-  drawSection('קורסים',
+  drawSection('',
     ['שם בית הספר', 'תוכנית / קורס', 'מספר גפ״ן', 'שעות', 'מפגשים', 'מחיר לשעה', 'סה״כ'],
     courseWidths, courses,
     (row) => [row.school || '—', row.name, row.gefen || '—',
-      count(row.hours), count(row.quantity), money(row.hourlyPrice), money(row.amount)]);
+      count(row.hours), count(row.quantity), money(row.hourlyPrice), money(row.amount)], [3, 4]);
   drawSection('סדנאות וסיורים',
     ['פעילות', 'כמות', 'מחיר ליחידה', 'סה״כ'],
     serviceWidths, services,
