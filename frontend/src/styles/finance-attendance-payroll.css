@@ -412,15 +412,60 @@
   text-align: right;
 }
 
-.ds-fin-manual__extra summary {
+/* Editable account details are optional; present the disclosure as a normal compact button. */
+.ds-fin-manual__form > .ds-fin-manual__extra {
+  width: fit-content;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.ds-fin-manual__extra > summary.ds-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: auto;
+  min-height: 38px;
+  padding: 8px 14px;
   font-size: 0.84rem;
   font-weight: 600;
   cursor: pointer;
+  list-style: none;
+  border: 1px solid var(--ds-border);
+  border-radius: 8px;
 }
-
-.ds-fin-manual__extra[open] summary {
-  margin-bottom: 12px;
+.ds-fin-manual__extra > summary.ds-btn::-webkit-details-marker { display: none; }
+.ds-fin-manual__extra > summary.ds-btn:focus-visible {
+  outline: 2px solid #0c98b9;
+  outline-offset: 2px;
 }
+.ds-fin-manual__extra[open] {
+  width: 100%;
+  max-width: 808px;
+  padding: 12px;
+  border: 1px solid var(--ds-border);
+  border-radius: 10px;
+}
+.ds-fin-manual__extra[open] summary { margin-bottom: 12px; }
+.ds-fin-manual__review-more { position: relative; }
+.ds-fin-manual__review-more > summary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 7px 12px;
+  border: 1px solid var(--ds-border);
+  border-radius: 8px;
+  font-size: .8rem;
+  cursor: pointer;
+  list-style: none;
+}
+.ds-fin-manual__review-more > summary::-webkit-details-marker { display: none; }
+.ds-fin-manual__review-more > summary:focus-visible { outline: 2px solid #0c98b9; outline-offset: 2px; }
+.ds-fin-manual__review-more[open] { display: flex; align-items: center; gap: 8px; }
+.ds-fin-manual__review-more[open] > .ds-btn { font-size: .8rem; }
+.ds-fin-manual__batch-note { margin: 0; font-size: .85rem; font-weight: 650; }
 
 .ds-fin-manual__actions {
   display: flex;
