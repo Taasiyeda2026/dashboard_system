@@ -3196,9 +3196,10 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         { selectedTeam, selectedInstructor }
       );
       const expenseRows=await api.attendanceControlExpenseReports({fromDate,toDate});
-      const filteredExpenses=expenseRows.filter(row=>
-        (!selectedInstructor || txt(row.emp_id)===selectedInstructor || txt(row.employee_name)===selectedInstructor)
-        && (!selectedTeam || txt(row.team)===selectedTeam));
+      const filteredExpenses=filterAttendanceControlScopeRows(
+        expenseRows.map(row=>({...row,employeeId:txt(row.emp_id),team:txt(row.team)})),
+        { selectedTeam, selectedInstructor }
+      );
       if (!attendanceRows.length && !filteredExpenses.length)
         throw new Error(`לא נמצאו דיווחי נוכחות או הוצאות עבור ${monthLabel}`);
       const dashboardRows = attendanceRows.length
