@@ -680,3 +680,13 @@ test('admin attendance summary table reserves real width for actions without des
   assert.match(adminStandalone, /\.admin-attendance-actions \.admin-attendance-icon-action \{ width:30px; height:30px;/);
   assert.match(adminStandalone, /@media \(max-width:760px\) \{\s*\.admin-attendance-table \{ min-width:680px; \}/);
 });
+
+test('admin alert drilldown lists records and navigates to exact source record', async () => {
+  const editor = await readFile(new URL('../frontend/src/screens/attendance-control.js', import.meta.url), 'utf8');
+  assert.match(adminStandalone, /function renderAdminAttendanceReviewList\(root, kind\)/);
+  assert.match(adminStandalone, /data-admin-attendance-review-edit/);
+  assert.match(adminStandalone, /data-admin-attendance-review-record/);
+  assert.match(adminStandalone, /initialTarget: \{ employeeId: empId, monthKey, recordId \}/);
+  assert.match(editor, /initialTarget\?\.recordId/);
+  assert.match(editor, /data-attendance-row-id/);
+});
