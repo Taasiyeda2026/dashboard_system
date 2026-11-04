@@ -65,6 +65,7 @@ begin
      set expense_date=p_expense_date,amount=p_amount,details=btrim(p_details),
      updated_at=now()
    where id=p_expense_id and emp_id=v_emp and review_status in ('pending_review','rejected')
+     and public.av2_can_write_month(expense_date)
    returning * into v_row;
    if not found then raise exception 'expense_not_editable' using errcode='42501';end if;
    update public.attendance_expense_reports set review_status='pending_review',
@@ -88,7 +89,8 @@ begin
  if p_from is null or p_to is null or p_to<p_from or p_to>p_from+interval '93 days'
  then raise exception 'expense_date_range_invalid' using errcode='22023';end if;
  select coalesce(jsonb_agg(jsonb_build_object(
-   'id',e.id,'emp_id',e.emp_id,'expense_date',e.expense_date,
+   'id',e.id,'emp_id',e.emp_id,'employee_name',coalesce(ci.full_name,e.emp_id::text),
+   'employment_type',coalesce(ci.employment_type,''),'expense_date',e.expense_date,
    'amount',e.amount,'details',e.details,
    'review_status',e.review_status,'approved_amount',e.approved_amount,
    'attachments',coalesce((select jsonb_agg(jsonb_build_object(
@@ -151,6 +153,11 @@ begin
  where id=p_expense_id for update;
  if not found or v_row.review_status<>'pending_review' then
    raise exception 'expense_not_pending' using errcode='42501';end if;
+ if exists(select 1 from public.payroll_control_approvals a
+  where a.employee_id=v_row.emp_id::text
+    and a.month_key=to_char(v_row.expense_date,'YYYY-MM')
+    and a.status='approved_for_payroll') then
+   raise exception 'expense_payroll_locked' using errcode='42501';end if;
  if v_role in ('manager','instructor_manager','activities_manager') then
    select direct_manager into v_manager from public.contacts_instructors where emp_id=v_row.emp_id limit 1;
    if lower(trim(coalesce(v_manager,'')))<>lower(trim(v_name)) then
