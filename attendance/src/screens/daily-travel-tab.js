@@ -1,5 +1,6 @@
 import { createInputField } from '../components/field.js';
 import { createCompactSelect } from '../components/compact-select.js';
+import { createBoundedMonthPicker } from '../components/bounded-month-picker.js';
 import { summarizeDailyTravel } from '../services/daily-travel.js';
 import { getMonthApproval } from '../services/attendance.service.js';
 import { canEditMonth, formatMonthLabel } from '../services/month-gate.service.js';
@@ -26,7 +27,8 @@ export function createDailyTravelTab({empId, initialDate}) {
   monthSelect.className='av2-field__select av2-daily-travel__month-select';
   const monthWrap=document.createElement('div');
   monthWrap.className='av2-daily-travel__month-wrap';
-  monthWrap.append(monthLabel,monthSelect);
+  const monthPicker=createBoundedMonthPicker(monthSelect);
+  monthWrap.append(monthLabel,monthSelect,monthPicker.wrap);
   const dateField = createInputField({id:'av2-travel-date',label:'תאריך',type:'hidden',value:initialDate});
   dateField.wrap.hidden=true;
   const dayLabel=document.createElement('label');
@@ -273,6 +275,7 @@ export function createDailyTravelTab({empId, initialDate}) {
     if(monthsLoaded && [...monthSelect.options].some(option=>option.value===targetMonth) && targetMonth!==selectedMonth){
       selectedMonth=targetMonth;
       monthSelect.value=targetMonth;
+      monthPicker.sync();
       dayOptions=[];
     }
     dateField.input.value=requestedDay;
@@ -305,6 +308,7 @@ export function createDailyTravelTab({empId, initialDate}) {
     selectedMonth=allowed.includes(selectedMonth)?selectedMonth:
       allowed.includes(currentMonth)?currentMonth:allowed[0]||'';
     monthSelect.value=selectedMonth;
+    monthPicker.sync();
     monthsLoaded=true;
   }
   async function refreshDays(){
