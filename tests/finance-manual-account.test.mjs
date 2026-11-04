@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { manualAccountViewHtml,prepareManualAccount,updateManualDraft,runManualAccount,manualFundingFilterOptions,manualFilteredActivities,toggleManualActivity,focusManualActivity,saveActiveManualDraft,previewSelectedManualAccounts,runSelectedManualAccounts,formatManualMoney,parseManualMoney,normalizeManualRecipientEmails,manualSelectedFundingSummary,manualSelectionSnapshot,updateManualConsolidatedField,manualPdfPreviewFilename,syncManualPdfPreviewDom,clearManualPdfPreviewUrls,activateManualPdfPreview,manualConsolidatedActivityRows,manualHourlyRate,setManualBillingScope } from '../frontend/src/screens/finance-manual-account.js';
+import { manualAccountViewHtml,prepareManualAccount,updateManualDraft,runManualAccount,manualFundingFilterOptions,manualFundingRouteOptions,manualSelectedFundingRoute,manualFilteredActivities,toggleManualActivity,focusManualActivity,saveActiveManualDraft,previewSelectedManualAccounts,runSelectedManualAccounts,formatManualMoney,parseManualMoney,normalizeManualRecipientEmails,manualSelectedFundingSummary,manualSelectionSnapshot,updateManualConsolidatedField,manualPdfPreviewFilename,syncManualPdfPreviewDom,clearManualPdfPreviewUrls,activateManualPdfPreview,manualConsolidatedActivityRows,manualHourlyRate,setManualBillingScope } from '../frontend/src/screens/finance-manual-account.js';
 const data=()=>({manualFunderFilter:'authority:עיריית רחובות',collectionActivities:[{row_id:'a',school:'בית ספר',authority:'עיריית רחובות',activity_name:'קורס',activity_no:'123'}],transactionContext:{billingRows:[{activityRowId:'a',fundingSourceId:'r',funding:'רשות',payerName:'עיריית רחובות',period:'2026-09-01',institutionSymbol:'123',unbilledCount:2,issuableAmount:7000,eligible:true}]}});
 test('Anglican Google AI course keeps 8000 as authoritative price and calculates hourly rate at full precision',()=>{
   const d={manualFunderFilter:'school:652',collectionActivities:[{row_id:'ai',school_id:652,school:'המשיח האנגליקאני',activity_name:'יישומי AI בשיתוף GOOGLE',activity_type:'course',price:8000,sessions:'10'}],
@@ -429,4 +429,29 @@ test('manual course performance separates the 8000 activity price from 2400 bill
 test('course selection sums currency cents without floating point overbilling',()=>{
   const d=data();Object.assign(d.transactionContext.billingRows[0],{unbilledCount:3,issuableAmount:0.3,unbilledSlots:[1,2,3].map(slot=>({slot,remainingAmount:0.1,remainingHours:1.5}))});
   prepareManualAccount(d,'a');updateManualDraft(d,'quantity',3);assert.equal(d.manualDraft.amount,0.3);assert.equal(d.manualDraft.hours,4.5);
+});
+
+test('manual issuance asks for funding route first, then schools for Gefen or authorities for municipality funding',()=>{
+  const d={collectionActivities:[
+    {row_id:'g1',school_id:1,school:'בית ספר א',activity_name:'ביומימיקרי'},
+    {row_id:'g2',school_id:2,school:'בית ספר ב',activity_name:'חלל'},
+    {row_id:'r1',authority_id:5,authority:'עיריית רחובות',school:'בית ספר ג',activity_name:'הכשרה'}
+  ],transactionContext:{billingRows:[
+    {activityRowId:'g1',fundingSourceId:'g',funding:'גפ״ן',gefenFunding:true,payerKey:'school:1',payerName:'בית ספר א'},
+    {activityRowId:'g2',fundingSourceId:'g',funding:'גפן',gefenFunding:true,payerKey:'school:2',payerName:'בית ספר ב'},
+    {activityRowId:'r1',fundingSourceId:'r',funding:'רשות',payerKey:'authority:5',payerName:'עיריית רחובות'}
+  ]}};
+  assert.deepEqual(manualFundingRouteOptions(d).map(r=>r.key),['gefen','authority']);
+  const first=new JSDOM(manualAccountViewHtml(d)).window.document;
+  assert.ok(first.querySelector('[data-finance-manual-funding-category]'));
+  assert.equal(first.querySelector('[data-finance-manual-funder-filter]'),null);
+  d.manualFundingCategory='gefen';
+  let doc=new JSDOM(manualAccountViewHtml(d)).window.document;
+  assert.match(doc.querySelector('[data-finance-manual-funder-filter]').parentElement.textContent,/בית ספר/);
+  assert.deepEqual([...doc.querySelectorAll('[data-finance-manual-funder-filter] option')].slice(1).map(o=>o.textContent),['בית ספר א','בית ספר ב']);
+  d.manualFundingCategory='authority';
+  doc=new JSDOM(manualAccountViewHtml(d)).window.document;
+  assert.match(doc.querySelector('[data-finance-manual-funder-filter]').parentElement.textContent,/רשות/);
+  assert.deepEqual([...doc.querySelectorAll('[data-finance-manual-funder-filter] option')].slice(1).map(o=>o.textContent),['עיריית רחובות']);
+  assert.equal(manualSelectedFundingRoute({...d,manualFundingCategory:'',manualFunderFilter:'school:1'}),'gefen');
 });
