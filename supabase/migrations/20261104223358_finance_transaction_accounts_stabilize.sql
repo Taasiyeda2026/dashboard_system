@@ -1,6 +1,8 @@
 -- Stabilize transaction-account billing: prevent double-settling the same
 -- activity/funder/slot, and surface generic stale errors with field-level reasons.
 -- No historical account amounts, numbers, or activity source rows are rewritten.
+-- Applied in production as version 20261104223358. Do not re-run.
+-- Repo filename matches supabase_migrations.schema_migrations.
 
 -- One active settlement claim per activity + funder + meeting slot.
 -- Cancelled / expired reservations delete their claims first, so this does not

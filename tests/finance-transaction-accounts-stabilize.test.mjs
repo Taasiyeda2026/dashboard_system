@@ -7,7 +7,7 @@ import { displayGefenProgramNumber, transactionAccountsViewHtml } from '../front
 import { manualHourlyRate, prepareManualAccount } from '../frontend/src/screens/finance-manual-account.js';
 
 const pdf = readFileSync(new URL('../supabase/functions/finance-transaction-accounts/index.ts', import.meta.url), 'utf8');
-const migration = readFileSync(new URL('../supabase/migrations/20261104214003_finance_transaction_accounts_stabilize.sql', import.meta.url), 'utf8');
+const migration = readFileSync(new URL('../supabase/migrations/20261104223358_finance_transaction_accounts_stabilize.sql', import.meta.url), 'utf8');
 const errors = readFileSync(new URL('../frontend/src/screens/finance-errors.js', import.meta.url), 'utf8');
 const sw = readFileSync(new URL('../frontend/sw.js', import.meta.url), 'utf8');
 const config = readFileSync(new URL('../frontend/src/config.js', import.meta.url), 'utf8');
