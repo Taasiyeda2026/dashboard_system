@@ -11,9 +11,9 @@ test('shared typography stylesheet is last and cache versions are consistent',as
     file('attendance/src/styles/report-tabs-responsive-typography.css'),
   ]);
   const links=[...html.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map(m=>m[1]);
-  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=138');
-  assert.match(sw,/const CACHE_VERSION = 138/);
-  assert.ok(links.every(s=>s.endsWith('?v=138')));
+  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=139');
+  assert.match(sw,/const CACHE_VERSION = 139/);
+  assert.ok(links.every(s=>s.endsWith('?v=139')));
   assert.match(css,/font-family:var\(--av2-font,inherit\)/);
   assert.match(css,/font-size:14\.5px!important/);
   assert.match(css,/font-size:17px!important/);
@@ -87,4 +87,17 @@ test('notes field is labeled הערות, without altering its storage identifier
  assert.match(screen,/id: 'av2-notes',[\s\S]*?label: 'הערות'/);
  assert.match(screen,/placeholder: 'הערות \(אופציונלי\)'/);
  assert.doesNotMatch(screen,/label: 'הערות נוספות'/);
+});
+
+test('attendance heading is accessible but not duplicated visually, and month chooser is compact',async()=>{
+ const screen=await file('attendance/src/screens/new-report-screen.js');
+ const css=await file('attendance/src/styles/report-tabs-responsive-typography.css');
+ const contract=css.slice(css.indexOf('/*\n * Calm visual hierarchy'));
+ assert.match(screen,/title\.classList\.add\('av2-report__title--sr-only'\)/);
+ assert.match(contract,/\.av2-report \.av2-report__title--sr-only\{/);
+ assert.match(contract,/\.av2-report \.av2-report__attendance-month\{[\s\S]*?flex-direction:row!important/);
+ assert.match(contract,/width:170px!important/);
+ assert.match(contract,/font-size:12\.5px!important;font-weight:600!important/);
+ assert.match(contract,/font-size:16px!important;font-weight:700!important/);
+ assert.match(contract,/\.av2-report \.av2-report__form \.av2-time-picker__part \.av2-csel__trigger/);
 });

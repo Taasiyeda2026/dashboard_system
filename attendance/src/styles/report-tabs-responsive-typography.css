@@ -430,3 +430,122 @@
     font-size:14px!important;
   }
 }
+
+/*
+ * Calm visual hierarchy for New Report.
+ * Keep time-picker numerals and mobile touch sizes unchanged.
+ */
+.av2-report .av2-report__title--sr-only{
+  position:absolute!important;
+  width:1px!important;height:1px!important;
+  overflow:hidden!important;
+  clip-path:inset(50%)!important;
+  white-space:nowrap!important;
+  padding:0!important;margin:-1px!important;border:0!important;
+}
+.av2-report .av2-report__header{
+  min-height:24px!important;
+  justify-content:flex-start!important;
+  padding:0!important;
+}
+.av2-report .av2-report__header .av2-btn--icon{
+  width:28px!important;height:28px!important;
+}
+.av2-report .av2-report__tabs>.av2-btn,
+.av2-report .av2-report__tabs>.av2-btn:nth-child(2){
+  font-size:14px!important;font-weight:550!important;
+}
+.av2-report .av2-report__tabs>.av2-btn[aria-selected="true"]{
+  font-weight:700!important;
+}
+/* Section headings stay distinct; field labels no longer compete with them. */
+.av2-report .av2-report__form>.av2-form-section .av2-form-section__title,
+.av2-report .av2-expenses-tab>h2,
+.av2-report .av2-expenses-tab>h3,
+.av2-report .av2-daily-travel.av2-report__travel-tab>h2{
+  font-size:16px!important;font-weight:700!important;
+  line-height:1.4!important;color:#284361!important;
+}
+.av2-report .av2-report__form-area .av2-field__label,
+.av2-report .av2-report__form-area .av2-report__hours-label,
+.av2-report .av2-daily-travel__day-label,
+.av2-report .av2-daily-travel__month-wrap>label,
+.av2-report .av2-daily-travel__day-wrap>label,
+.av2-report .av2-expenses-tab__files>.av2-field__label,
+.av2-report .av2-daily-travel__mode>span{
+  font-size:12.5px!important;font-weight:600!important;
+  color:#52657a!important;line-height:1.45!important;
+}
+.av2-report .av2-report__form-area .av2-field__input,
+.av2-report .av2-report__form-area .av2-field__select,
+.av2-report .av2-report__form-area .av2-ssel__trigger,
+.av2-report .av2-report__form-area .av2-csel__trigger{
+  font-size:14px!important;font-weight:450!important;
+  color:#34465e!important;
+}
+.av2-report .av2-report__form-area .av2-ssel__trigger-text[data-empty="false"],
+.av2-report .av2-report__form-area .av2-csel__trigger-text[data-empty="false"]{
+  font-size:14px!important;font-weight:450!important;
+  color:#34465e!important;
+}
+.av2-report .av2-report__form-area .av2-ssel__trigger-text[data-empty="true"],
+.av2-report .av2-report__form-area .av2-csel__trigger-text[data-empty="true"]{
+  font-size:13px!important;font-weight:400!important;color:#8491a3!important;
+}
+.av2-report .av2-report__form-area .av2-field__input::placeholder,
+.av2-report .av2-report__form-area textarea::placeholder,
+.av2-report .av2-report__form-area .av2-ssel__search::placeholder{
+  font-size:13px!important;font-weight:400!important;color:#8491a3!important;
+}
+.av2-report .av2-report__form-area .av2-report__hours-value{
+  font-size:15px!important;font-weight:650!important;
+}
+.av2-report .av2-report__form .av2-time-picker__part .av2-csel__trigger,
+.av2-report .av2-report__form .av2-time-picker__part .av2-csel__trigger-text{
+  font-size:16px!important;font-weight:600!important;
+}
+/* Compact month control, always centered and inline instead of a full-wide row. */
+.av2-report .av2-report__attendance-month{
+  display:flex!important;flex-direction:row!important;
+  align-items:center!important;justify-content:center!important;
+  gap:9px!important;
+  width:max-content!important;max-width:100%!important;
+  margin:0 auto 8px!important;
+}
+.av2-report .av2-report__attendance-month>label{
+  white-space:nowrap!important;margin:0!important;
+  font-size:12.5px!important;font-weight:600!important;
+  color:#52657a!important;
+}
+.av2-report .av2-report__attendance-month>.av2-daily-travel__month-select{
+  width:170px!important;min-width:0!important;max-width:170px!important;
+  min-height:36px!important;
+  padding-inline:8px!important;
+  font-size:13.5px!important;font-weight:500!important;
+  color:#34465e!important;
+}
+@media (min-width:768px){
+  .av2-report .av2-report__header{min-height:0!important;height:0!important;overflow:visible!important}
+  .av2-report .av2-report__header>.av2-btn--icon{display:none!important}
+  .av2-report .av2-report__attendance-month{margin-bottom:7px!important}
+}
+@media (max-width:767px){
+  .av2-report .av2-report__attendance-month{
+    width:max-content!important;max-width:100%!important;
+    gap:8px!important;margin-bottom:10px!important;
+  }
+  .av2-report .av2-report__attendance-month>.av2-daily-travel__month-select{
+    width:170px!important;max-width:170px!important;
+    min-height:44px!important;font-size:16px!important;
+  }
+  .av2-report .av2-report__form-area .av2-field__input,
+  .av2-report .av2-report__form-area .av2-field__select,
+  .av2-report .av2-report__form-area .av2-ssel__trigger,
+  .av2-report .av2-report__form-area .av2-csel__trigger{
+    font-size:16px!important;
+  }
+  .av2-report .av2-report__tabs>.av2-btn,
+  .av2-report .av2-report__tabs>.av2-btn:nth-child(2){
+    font-size:13.5px!important;
+  }
+}
