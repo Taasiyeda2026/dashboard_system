@@ -248,7 +248,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         const part=document.createElement('div');part.className='av2-daily-travel__legacy-detail';
         const label=document.createElement('span');label.textContent=[leg.from,leg.to].filter(Boolean).join(' ← ');
         part.append(label);
-        const values=[leg.minutes==null?'':durationValue(leg.minutes)+' שעות',leg.kilometers==null?'':leg.kilometers+' ק״מ'].filter(Boolean);
+        const values=[leg.minutes==null?'':formatTripDuration(leg.minutes)+' שעות',leg.kilometers==null?'':leg.kilometers+' ק״מ'].filter(Boolean);
         if(values.length){const v=document.createElement('strong');v.textContent=values.join(' · ');part.append(v);}
         summaryCard.append(part);
       }
@@ -299,6 +299,21 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       actions.append(hint,confirm,cancel);
     }
   }
+  // Employee-facing durations are HH:MM; the API continues to store minutes.
+  const formatTripDuration=value=>{
+    if(value===null || value===undefined || value==='')return '';
+    const minutes=Number(value);
+    return Number.isInteger(minutes)&&minutes>=0
+      ? String(Math.floor(minutes/60)).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0'):'';
+  };
+  const parseTripDuration=value=>{
+    const raw=String(value??'').trim();
+    if(raw==='')return null;
+    if(!/^\\d{1,2}:[0-5]\\d$/.test(raw))return NaN;
+    const [hours,minutes]=raw.split(':').map(Number);
+    const total=hours*60+minutes;
+    return total<=1440?total:NaN;
+  };
   function showSummary(){
     legsArea.hidden=noTravel.checked;
     const inputs=[...legsArea.querySelectorAll('[data-daily-travel-leg]')];
@@ -306,15 +321,15 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       const index=Number(input.dataset.dailyTravelLeg);
       const key=input.dataset.field;
       const raw=input.value.trim();
-      legs[index][key]=raw===''?null:Number(raw);
+      legs[index][key]=key==='minutes'?parseTripDuration(raw):(raw===''?null:Number(raw));
     }
     const totals=summarizeDailyTravel(legs);
     const publicTransportFare=legs.reduce((sum,leg)=>sum+
       (leg.mode==='public_transport'?Number(leg.transportCost||0):0),0);
     summary.textContent=noTravel.checked ? 'ללא נסיעה'
       : totals.cancellationMinutes===null
-        ? 'יש להשלים זמני נסיעה'
-        : 'ביטול זמן: '+totals.cancellationMinutes+' דקות'
+        ? 'יש להשלים זמני נסיעה בפורמט שעות:דקות (לדוגמה 01:30)'
+        : 'ביטול זמן מחושב: '+formatTripDuration(totals.cancellationMinutes)+' שעות'
           +(totals.kilometers===null?'':' · '+totals.kilometers+' ק״מ')
           +(publicTransportFare>0?' · תחבורה ציבורית: ₪'+publicTransportFare.toFixed(2):'');
   }
@@ -328,7 +343,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       block.append(heading);
       const fields=document.createElement('div');
       fields.className='av2-daily-travel__leg-fields';
-      for(const [key,label] of [['minutes','זמן נסיעה (דקות)'],['kilometers','קילומטרים']]){
+      for(const [key,label] of [['minutes','זמן נסיעה בפועל (שעות:דקות)'],['kilometers','קילומטרים']]){
         if(leg.kind==='between' && key==='minutes'){
           const fixed=document.createElement('div');
           fixed.className='av2-daily-travel__calculated-field';
@@ -336,7 +351,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
           fieldLabel.className='av2-field__label';
           fieldLabel.textContent='ביטול זמן בין פעילויות';
           const value=document.createElement('strong');
-          value.textContent=String(leg.gapMinutes)+' דקות · מחושב משעות הפעילויות';
+          value.textContent=formatTripDuration(leg.gapMinutes)+' שעות · מחושב משעות הפעילויות';
           fixed.append(fieldLabel,value);
           fields.append(fixed);
           continue;
@@ -354,9 +369,9 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
           continue;
         }
         const field=createInputField({
-          id:'av2-leg-'+index+'-'+key,label,type:'number',
-          value:leg[key] == null?'':String(leg[key]),
-          attrs:{min:'0',max:key==='minutes'?'1440':'2000',step:key==='minutes'?'1':'0.01'}
+          id:'av2-leg-'+index+'-'+key,label,type:key==='minutes'?'text':'number',
+          value:key==='minutes'?formatTripDuration(leg[key]):(leg[key]==null?'':String(leg[key])),
+          attrs:key==='minutes'?{placeholder:'01:30',inputmode:'numeric',maxlength:'5'}:{min:'0',max:'2000',step:'0.01'}
         });
         field.input.dataset.dailyTravelLeg=String(index);
         field.input.dataset.field=key;
@@ -635,6 +650,10 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       return;
     }
     showSummary();
+    if(!noTravel.checked && legs.some(leg=>leg.kind!=='between' && !Number.isInteger(leg.minutes))){
+      status.textContent='יש להזין את זמן הנסיעה בפורמט שעות:דקות (לדוגמה 01:30)';
+      return;
+    }
     save.disabled=true;
     try{
       await saveDailyTravel(loadedDate,legs,noTravel.checked);
