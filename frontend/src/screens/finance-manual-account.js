@@ -517,21 +517,22 @@ export function activateManualPdfPreview(root, key, action, scope = globalThis) 
   return true;
 }
 
-// One compact review surface; no empty Acrobat extension and no stacked buttons.
+// Minimal, two-step issuance: review the generated PDF, then explicitly approve issuance.
+// Downloading a pre-issue draft is an optional action, never a required step.
 export function manualPdfReviewHtml({key, title, detail, confirmLabel = ''}) {
   return `<section class="ds-fin-manual__review" aria-label="${e(title)}">
     <div class="ds-fin-manual__review-document">
-      <span class="ds-fin-manual__review-file" aria-hidden="true">PDF</span>
       <div class="ds-fin-manual__review-info">
         <strong>${e(title)}</strong>
         <span>${e(detail)}</span>
-        <small>טיוטה לבדיקה בלבד · טרם הופק חשבון עסקה</small>
       </div>
     </div>
     <div class="ds-fin-manual__review-actions">
-      <button type="button" class="ds-btn" data-finance-manual-pdf-open="${e(key)}">צפייה בטיוטה</button>
-      <button type="button" class="ds-btn" data-finance-manual-pdf-download="${e(key)}">הורדת PDF</button>
+      <button type="button" class="ds-btn" data-finance-manual-pdf-open="${e(key)}">צפייה בחשבון</button>
       ${confirmLabel ? `<button type="button" class="ds-btn ds-btn--primary" data-finance-manual-confirm>${e(confirmLabel)}</button>` : ''}
+      <details class="ds-fin-manual__review-more"><summary>עוד</summary>
+        <button type="button" class="ds-btn" data-finance-manual-pdf-download="${e(key)}">הורדת טיוטת PDF</button>
+      </details>
     </div>
   </section>`;
 }
@@ -637,37 +638,40 @@ export function manualAccountViewHtml(data) {
         </details>
         <div class="ds-fin-manual__contact-summary"><span>לקוח: ${e(d.customer_name)}</span><span dir="ltr">${e(d.customer_email)}</span></div>
         ${new Set(rows.map(r=>r.fundingSourceId)).size>1 || (d.billing_basis==='performance'&&rows.length>1)?`<label class="ds-fin-manual__control">חלק המימון<select class="ds-input" data-finance-manual-funding>${rows.map(r=>`<option value="${e(r.fundingSourceId+'|'+(r.period||r.manualMonth))}"${data.manualFundingKey===r.fundingSourceId+'|'+(r.period||r.manualMonth)?' selected':''}>${e(r.funding)}${d.billing_basis==='performance'?' · '+e((r.period||r.manualMonth)?.slice(0,7)||''):''}</option>`).join('')}</select></label>`:''}
-        <details class="ds-fin-manual__extra ds-fin-payer"><summary>עריכת פרטי החשבון</summary>
+        <details class="ds-fin-manual__extra ds-fin-payer"><summary class="ds-btn ds-btn--secondary">עריכת פרטי חשבון</summary>
           <div class="ds-fin-manual__grid">${field('שם הלקוח','customer_name')}${field('נמענים','customer_email','email')}${field(rows.some(r=>r.gefenFunding)?'סמל מוסד':'מספר לקוח (אם קיים)','institution_symbol')}
           ${ids.length===1?field('תיאור הפעילות','description'):''}${field('תאריך הפקה','issue_date','date')}${field('מועד תשלום','payment_due_date','date')}${field('סיבת חריגה','override_reason')}</div>
         </details>
-        ${reviewed?'':'<div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" type="button" data-finance-manual-preview>הצגת החשבון לבדיקה (PDF)</button></div>'}
+        ${reviewed?'':'<div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" type="button" data-finance-manual-preview>בדיקת החשבון</button></div>'}
       </form>
     </section>`:''}
     ${ids.length && source ? `${data.manualConsolidatedPreview
       ? manualPdfReviewHtml({
           key:'consolidated',
-          title:'טיוטת חשבון עסקה מרוכז',
+          title:'חשבון מרוכז לבדיקה',
           detail:`${data.manualConsolidatedPreview.quote.customer_name_snapshot || d.customer_name || ''} · ${data.manualConsolidatedPreview.items.length} פעילויות · ${formatManualMoney(data.manualConsolidatedPreview.quote.total_amount)} ₪`,
-          confirmLabel:'אישור והפקת חשבון מרוכז'
+          confirmLabel:'אישור והפקה'
         })
       : data.manualBatchPreviews?.length > 1
         ? `<div class="ds-fin-manual__batch-previews">
-            <p>טיוטות נפרדות לבדיקה לפני ההפקה.</p>
-            ${data.manualBatchPreviews.map((p,i)=>manualPdfReviewHtml({
-              key:String(i), title:`טיוטת חשבון ${i+1}`,
-              detail:(data.collectionActivities||[]).find(a=>a.row_id===p.activityId)?.school || p.activityId
-            })).join('')}
-            <div class="ds-fin-manual__review-actions">
+            <div class="ds-fin-manual__batch-review-header">
+              <strong>${data.manualBatchPreviews.length} חשבונות מוכנים לבדיקה</strong>
               <button type="button" class="ds-btn ds-btn--primary" data-finance-manual-confirm>אישור והפקת ${data.manualBatchPreviews.length} חשבונות</button>
             </div>
+            <details class="ds-fin-manual__batch-preview-list">
+              <summary>צפייה בחשבונות בנפרד</summary>
+              ${data.manualBatchPreviews.map((p,i)=>manualPdfReviewHtml({
+                key:String(i), title:`חשבון ${i+1}`,
+                detail:(data.collectionActivities||[]).find(a=>a.row_id===p.activityId)?.school || p.activityId
+              })).join('')}
+            </details>
           </div>`
         : data.manualPdf
           ? manualPdfReviewHtml({
               key:'single',
-              title:'טיוטת חשבון עסקה',
+              title:'חשבון לבדיקה',
               detail:data.manualQuote?.customer_name_snapshot || d.customer_name || '',
-              confirmLabel:'אישור והפקת חשבון'
+              confirmLabel:'אישור והפקה'
             })
           : ''}` : ''}</div>`;
 }
