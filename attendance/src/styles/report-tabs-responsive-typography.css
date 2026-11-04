@@ -1,0 +1,229 @@
+/*
+ * Shared typography and responsive contract for the three New Report tabs.
+ * Loaded last to reconcile older desktop/mobile CSS without changing report logic.
+ * All sizes use px because the attendance app's base font is 13px.
+ */
+.av2-report .av2-report__form-area,
+.av2-report .av2-report__form-area *,
+.av2-report .av2-report__form-area *::before,
+.av2-report .av2-report__form-area *::after{
+  box-sizing:border-box;
+}
+.av2-report .av2-report__form-area{
+  width:100%;max-width:100%;min-width:0;
+  font-family:var(--av2-font,inherit);
+  color:var(--av2-color-text,#18395b);
+}
+.av2-report .av2-report__tabs{
+  width:min(100%,700px)!important;
+  max-width:700px!important;
+  min-width:0!important;
+  display:grid!important;
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:5px!important;
+  margin:10px auto 18px!important;
+  padding:4px!important;
+  direction:rtl;
+}
+.av2-report .av2-report__tabs>.av2-btn,
+.av2-report .av2-report__tabs>.av2-btn:nth-child(2){
+  width:100%!important;min-width:0!important;max-width:none!important;
+  min-height:44px!important;
+  padding:10px 6px!important;
+  font-family:inherit!important;
+  font-size:14.5px!important;
+  font-weight:650!important;
+  line-height:1.4!important;
+  text-align:center!important;
+  white-space:normal!important;
+  overflow-wrap:anywhere;
+  letter-spacing:0!important;
+}
+.av2-report .av2-report__tabs>.av2-btn[aria-selected="true"]{
+  font-weight:750!important;
+}
+/* Unified content hierarchy on desktop and mobile. */
+.av2-report .av2-report__form>.av2-form-section .av2-form-section__title,
+.av2-report .av2-expenses-tab>h2,
+.av2-report .av2-expenses-tab>h3,
+.av2-report .av2-daily-travel.av2-report__travel-tab>h2{
+  font-size:17px!important;font-weight:750!important;
+  line-height:1.45!important;letter-spacing:0!important;
+  color:#18395b!important;text-align:start!important;
+}
+.av2-report .av2-report__form>.av2-form-section .av2-form-section__title{
+  padding:12px 14px!important;
+}
+.av2-report .av2-expenses-tab,
+.av2-report .av2-daily-travel.av2-report__travel-tab{
+  width:min(100%,480px)!important;max-width:480px!important;
+  min-width:0!important;margin-inline:auto!important;
+  gap:14px!important;
+}
+.av2-report .av2-expenses-tab__form,
+.av2-report .av2-daily-travel__report-card{
+  width:100%!important;max-width:480px!important;min-width:0!important;
+  padding:16px!important;border-radius:12px!important;
+  display:grid;gap:12px!important;
+}
+.av2-report .av2-report__form,
+.av2-report .av2-report__form>.av2-form-section,
+.av2-report .av2-report__form>.av2-form-section .av2-form-section__body,
+.av2-report .av2-report__times-grid,
+.av2-report .av2-expenses-tab__fields-row,
+.av2-report .av2-daily-travel__leg-fields,
+.av2-report .av2-daily-travel__legs{
+  min-width:0;max-width:100%;
+}
+.av2-report .av2-report__form-area .av2-field__label,
+.av2-report .av2-report__form-area .av2-report__hours-label,
+.av2-report .av2-daily-travel__day-label,
+.av2-report .av2-daily-travel__month-wrap>label,
+.av2-report .av2-daily-travel__day-wrap>label,
+.av2-report .av2-expenses-tab__files>.av2-field__label,
+.av2-report .av2-daily-travel__mode>span{
+  font-size:13.5px!important;
+  font-weight:650!important;
+  line-height:1.5!important;
+  color:#344d6c!important;
+}
+.av2-report .av2-report__form-area .av2-field__input,
+.av2-report .av2-report__form-area .av2-field__select,
+.av2-report .av2-report__form-area .av2-ssel__trigger,
+.av2-report .av2-report__form-area .av2-csel__trigger,
+.av2-report .av2-report__form-area .av2-ssel__search,
+.av2-report .av2-report__form-area .av2-ssel__option,
+.av2-report .av2-report__form-area .av2-csel__option,
+.av2-report .av2-report__form-area .av2-time-picker__part .av2-csel__trigger,
+.av2-report .av2-daily-travel__report-card .av2-daily-travel__day-select,
+.av2-report .av2-daily-travel__report-card .av2-daily-travel__month-select{
+  font-family:inherit!important;
+  font-size:14.5px!important;
+  font-weight:500!important;
+  line-height:1.45!important;
+  min-height:40px!important;
+  max-width:100%!important;
+}
+.av2-report .av2-report__form-area .av2-time-picker__part .av2-csel__trigger{
+  min-height:38px!important;
+  padding-inline:5px!important;
+}
+.av2-report .av2-time-picker__part{min-width:0!important;flex:0 1 64px!important}
+.av2-report .av2-time-picker{max-width:100%!important}
+.av2-report .av2-report__hours-value{
+  min-height:40px!important;font-size:16px!important;font-weight:750!important;
+}
+.av2-report .av2-daily-travel__leg>strong,
+.av2-report .av2-daily-travel__legacy-card>strong,
+.av2-report .av2-expenses-tab__item-top strong{
+  font-size:14.5px!important;font-weight:700!important;line-height:1.5!important;
+  overflow-wrap:anywhere;
+}
+.av2-report .av2-report__form-area .av2-daily-travel__summary,
+.av2-report .av2-report__form-area .av2-expenses-tab__status,
+.av2-report .av2-report__form-area .av2-daily-travel__status,
+.av2-report .av2-report__form-area .av2-expenses-tab__month-status,
+.av2-report .av2-report__form-area .av2-report__history-status,
+.av2-report .av2-report__form-area .av2-report__error,
+.av2-report .av2-report__form-area .av2-daily-travel__legacy-detail,
+.av2-report .av2-report__form-area .av2-expenses-tab__item{
+  font-size:14px!important;line-height:1.5!important;overflow-wrap:anywhere;
+}
+.av2-report .av2-report__form-area small,
+.av2-report .av2-report__form-area .av2-expenses-tab__files small,
+.av2-report .av2-report__form-area .av2-daily-travel__calculated-field strong{
+  font-size:13px!important;line-height:1.5!important;
+}
+.av2-report .av2-report__form-area .av2-report__actions>.av2-btn,
+.av2-report .av2-expenses-tab__actions>.av2-btn,
+.av2-report .av2-daily-travel__report-card>.av2-report__actions>.av2-btn{
+  flex:0 0 110px!important;
+  width:110px!important;min-width:0!important;max-width:110px!important;
+  min-height:40px!important;padding:8px!important;
+  font-family:inherit!important;font-size:14px!important;
+  font-weight:650!important;line-height:1.35!important;
+}
+.av2-report .av2-report__form-area .av2-expenses-tab__edit{
+  width:auto!important;max-width:100%!important;
+  padding:8px 12px!important;font-size:13.5px!important;
+}
+.av2-report .av2-report__form-area .av2-expenses-tab__files input[type=file]{
+  font-family:inherit;font-size:13.5px!important;line-height:1.45;
+  min-width:0;max-width:100%;
+}
+.av2-report .av2-report__form-area .av2-expenses-tab__files input[type=file]::file-selector-button{
+  font-family:inherit;font-size:13.5px!important;
+}
+.av2-report .av2-daily-travel__report-card .av2-daily-travel__legacy-detail{
+  gap:10px;flex-wrap:wrap;
+}
+.av2-report .av2-report__form-area :is(.av2-field__input,.av2-field__select,.av2-csel__trigger,.av2-ssel__trigger,.av2-btn):focus-visible{
+  outline:2px solid #2563eb!important;outline-offset:2px!important;
+}
+.av2-report .av2-report__form-area [hidden]{display:none!important}
+@media(min-width:768px){
+  .av2-report .av2-report__form.av2-report__form--two-sections{
+    width:min(100%,700px)!important;max-width:700px!important;
+    display:grid!important;
+    grid-template-columns:repeat(2,minmax(0,330px))!important;
+    gap:16px 20px!important;justify-content:center!important;
+  }
+  .av2-report .av2-report__form.av2-report__form--two-sections>.av2-form-section{
+    width:100%!important;max-width:330px!important;
+  }
+}
+@media(max-width:767px){
+  .av2-report .av2-report__form-area{padding-inline:0!important}
+  .av2-report .av2-report__tabs{width:100%!important;margin:8px auto 14px!important}
+  .av2-report .av2-report__tabs>.av2-btn,
+  .av2-report .av2-report__tabs>.av2-btn:nth-child(2){
+    min-height:46px!important;font-size:14px!important;
+    padding:8px 3px!important;
+  }
+  .av2-report .av2-report__form.av2-report__form--two-sections{
+    width:100%!important;max-width:100%!important;
+    display:flex!important;flex-direction:column!important;
+    gap:12px!important;
+  }
+  .av2-report .av2-report__form.av2-report__form--two-sections>.av2-form-section{
+    width:100%!important;max-width:100%!important;
+  }
+  .av2-report .av2-report__form-area .av2-field__input,
+  .av2-report .av2-report__form-area .av2-field__select,
+  .av2-report .av2-report__form-area .av2-ssel__trigger,
+  .av2-report .av2-report__form-area .av2-csel__trigger,
+  .av2-report .av2-report__form-area .av2-ssel__search,
+  .av2-report .av2-report__form-area .av2-time-picker__part .av2-csel__trigger,
+  .av2-report .av2-daily-travel__report-card .av2-daily-travel__day-select,
+  .av2-report .av2-daily-travel__report-card .av2-daily-travel__month-select{
+    font-size:16px!important;min-height:44px!important;
+  }
+  .av2-report .av2-report__form-area .av2-report__actions>.av2-btn,
+  .av2-report .av2-expenses-tab__actions>.av2-btn,
+  .av2-report .av2-daily-travel__report-card>.av2-report__actions>.av2-btn{
+    min-height:44px!important;font-size:14px!important;
+  }
+  .av2-report .av2-expenses-tab__form,
+  .av2-report .av2-daily-travel__report-card{padding:12px!important}
+  .av2-report .av2-expenses-tab__fields-row{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+}
+@media(max-width:420px){
+  .av2-report .av2-report__tabs{gap:3px!important;padding:3px!important}
+  .av2-report .av2-report__tabs>.av2-btn,
+  .av2-report .av2-report__tabs>.av2-btn:nth-child(2){font-size:13.5px!important;line-height:1.25!important}
+  .av2-report .av2-expenses-tab__fields-row,
+  .av2-report .av2-daily-travel__leg-fields{
+    grid-template-columns:minmax(0,1fr)!important;
+  }
+}
+@media(max-width:340px){
+  .av2-report .av2-report__tabs>.av2-btn,
+  .av2-report .av2-report__tabs>.av2-btn:nth-child(2){
+    font-size:13.5px!important;padding:8px 2px!important;min-height:50px!important;
+  }
+  .av2-report .av2-report__form-area .av2-report__actions>.av2-btn,
+  .av2-report .av2-expenses-tab__actions>.av2-btn,
+  .av2-report .av2-daily-travel__report-card>.av2-report__actions>.av2-btn{
+    flex:0 1 110px!important;max-width:110px!important;
+  }
+}
