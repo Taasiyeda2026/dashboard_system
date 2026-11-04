@@ -360,7 +360,15 @@ async function buildPdf(account: any) {
     // Recipient/customer information belongs to the first page ONLY.
     // Do not repeat "לכבוד" above bank details on a continuation page.
     if (continuation) return 625;
-    drawRight(targetPage, bold, `לכבוד: ${account.customer_name_snapshot}`, 629, 11);
+    // Manual accounts are addressed to their billed school, rather than the payer snapshot.
+    const billedSchools = [...new Set((account.finance_transaction_account_lines || [])
+      .map((line: { school_name_snapshot?: string }) => clean(line.school_name_snapshot)).filter(Boolean))];
+    const addressee = account.issue_mode === 'manual' && billedSchools.length
+      ? (billedSchools.length === 1
+        ? `בית הספר: ${billedSchools[0]}`
+        : `בתי הספר: ${billedSchools.join(', ')}`)
+      : clean(account.customer_name_snapshot);
+    drawRight(targetPage, bold, `לכבוד: ${addressee}`, 629, 11);
 
     if (clean(account.institution_symbol)) {
       const schoolBilling = account.finance_transaction_account_lines?.some(
@@ -436,12 +444,24 @@ async function buildPdf(account: any) {
     ['שם בית הספר', 'תוכנית / קורס', 'רשות', 'סה״כ'],
     compactWidths, otherFunding,
     (row) => [row.school || '—', row.name, row.authority || '—', money(row.amount)], false);
+  // Services (workshops/tours) have quantities, even when the compact invoice
+  // intentionally omits hours and meetings from its accounting rows.
+  const serviceQuantity = services.reduce((total, row) => total + row.quantity, 0);
+  if (services.length) {
+    if (y < 225) { page = doc.addPage([595, 842]); y = drawInvoiceHeader(page, true); }
+    y -= 13;
+    drawRight(page, bold, `סה"כ כמות סדנאות/סיורים: ${count(serviceQuantity)}`, y, 10);
+    y -= 21;
+  }
   // Dates come exclusively from the billed meeting snapshots, including deferred months.
 
   // Keep payment details together. On a payment-only continuation page use
   // only the document heading, never a second "לכבוד" customer block.
   // Reserve enough space for the slightly airier payment footer on one page.
-  if (y < 192) { page = doc.addPage([595, 842]); y = drawInvoiceHeader(page, true); }
+  // Keep a visible gap after the table (and quantity subtotal). The payment
+  // header must never render into the bottom border of the last table row.
+  if (y < 208) { page = doc.addPage([595, 842]); y = drawInvoiceHeader(page, true); }
+  y -= 20;
   drawRight(page, bold, `סה"כ לתשלום: ${money(account.total_amount)}`, y, 13); y -= 30;
   drawRight(page, bold, `לתשלום עד: ${date(account.payment_due_date)}`, y, 11); y -= 30;
   // More separation before the quiet bank-details divider and heading.
