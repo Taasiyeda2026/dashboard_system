@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {
   historicalExpenses,historicalTravelDays,groupHistoricalActivityDays,
   isHistoricTravelMonth,monthRange,monthStatusLabel
-} from '../attendance/src/services/historical-display.service.js';
+} from '../attendance/src/services/historical-display-model.js';
 
 test('historical travel displays only stored fields and existing activity dates',()=>{
  const source=[
