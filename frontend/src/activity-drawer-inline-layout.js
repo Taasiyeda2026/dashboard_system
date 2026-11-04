@@ -444,6 +444,11 @@ function compactDates(form) {
   const dates = form.querySelector('[data-dates-section]');
   if (!dates) return;
   dates.classList.add('activity-drawer-inline__dates');
+  // Only course progress gets the concise inline "label: N of M" treatment.
+  // Keep the existing progress-meta node intact for asynchronous date updates.
+  if (dates.querySelector('.activity-drawer__section-title')?.textContent?.trim() === 'התקדמות הקורס') {
+    dates.dataset.compactCourseProgress = 'yes';
+  }
   dates.querySelectorAll('.activity-drawer__progress-row[data-mode="view"]').forEach((row) => {
     row.removeAttribute('data-mode');
     row.hidden = false;
