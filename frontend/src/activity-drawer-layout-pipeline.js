@@ -4,6 +4,7 @@ import { applyActivityDrawerTypeLayoutFix } from './activity-drawer-type-layout-
 import { polishActivityDrawerEditOptions } from './activity-drawer-edit-dedup.js';
 import { dockActivityDrawerActions } from './activity-drawer-floating-actions.js';
 import { enhanceActivityUpdateNotes } from './activity-update-notes.js';
+import { align2027ActivityDrawerTopActions } from './activity-drawer-top-actions.js';
 
 /**
  * Applies the stable visual structure of an already-mounted activity drawer.
@@ -31,6 +32,7 @@ export function applyActivityDrawerLayoutPipeline(contentRoot, settings = null) 
     if (settings) polishActivityDrawerEditOptions(form, settings);
     changed = dockActivityDrawerActions(form) || changed;
     changed = enhanceActivityUpdateNotes(form) || changed;
+    changed = align2027ActivityDrawerTopActions(form) || changed;
   });
   return changed;
 }
