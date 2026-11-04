@@ -101,9 +101,10 @@ export function createExpensesTab({instructor,initialDate}={}){
   async function refresh(){
     const token=++loadToken;
     selectedMonth=(date.input.value||todayLocal()).slice(0,7);
-    const validMonth=/^20\\d{2}-(0[1-9]|1[0-2])$/;
+    const validMonth=/^20\d{2}-(0[1-9]|1[0-2])$/;
     if(!validMonth.test(selectedMonth)){
-      monthStatus.textContent='יש לבחור תאריך הוצאה תקין';
+      monthStatus.textContent='';
+      list.textContent='';
       return;
     }
     list.textContent='טוען הוצאות…';

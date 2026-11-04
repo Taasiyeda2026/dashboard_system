@@ -11,9 +11,9 @@ test('shared typography stylesheet is last and cache versions are consistent',as
     file('attendance/src/styles/report-tabs-responsive-typography.css'),
   ]);
   const links=[...html.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map(m=>m[1]);
-  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=142');
-  assert.match(sw,/const CACHE_VERSION = 142/);
-  assert.ok(links.every(s=>s.endsWith('?v=142')));
+  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=143');
+  assert.match(sw,/const CACHE_VERSION = 143/);
+  assert.ok(links.every(s=>s.endsWith('?v=143')));
   assert.match(css,/font-family:var\(--av2-font,inherit\)/);
   assert.match(css,/font-size:14\.5px!important/);
   assert.match(css,/font-size:17px!important/);
@@ -154,4 +154,26 @@ test('attendance cards and tabs are compact and total hours exactly matches time
  assert.match(final,/grid-template-columns:minmax\(0,1fr\)!important/);
  assert.match(final,/@media \(max-width:767px\)/);
  assert.doesNotMatch(final,/overflow:hidden|height:100vh/);
+});
+
+test('travel day options use bounded custom picker and native element stays hidden',async()=>{
+ const ui=await file('attendance/src/screens/daily-travel-tab.js');
+ const css=await file('attendance/src/styles/report-tabs-responsive-typography.css');
+ assert.match(ui,/import \{ createCompactSelect \} from '\.\.\/components\/compact-select\.js'/);
+ assert.match(ui,/daySelect\.hidden=true/);
+ assert.match(ui,/maxHeight:248/);
+ assert.match(ui,/dayPicker\.setOptions\(\[\.\.\.daySelect\.options\]/);
+ assert.match(ui,/daySelect\.dispatchEvent\(new Event\('change'\)\)/);
+ assert.match(css,/\.av2-daily-travel__day-picker \.av2-csel__panel\{[\s\S]*?max-height:248px!important/);
+ assert.match(css,/max-height:min\(248px,42vh\)!important/);
+});
+test('expenses month validation accepts standard YYYY-MM dates and does not warn on initial load',async()=>{
+ const src=await file('attendance/src/screens/expenses-tab.js');
+ const match=src.match(/const validMonth=(\/[^;]+\/);/);
+ assert.ok(match,'date regex must be declared');
+ const rx=new RegExp(match[1].slice(1,-1));
+ assert.equal(rx.test('2026-11'),true);
+ assert.equal(rx.test('2026-10'),true);
+ assert.equal(rx.test('2026-13'),false);
+ assert.doesNotMatch(src,/monthStatus\.textContent='יש לבחור תאריך הוצאה תקין'/);
 });
