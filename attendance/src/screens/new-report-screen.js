@@ -1697,6 +1697,8 @@ export function renderNewReportScreen(container, {
         buildForm(null, reportDate);
         successBanner.textContent = 'דיווח הנוכחות נשמר בהצלחה. כעת יש להשלים דיווח נסיעות בלשונית ״נסיעות וביטולים״, אם היו נסיעות.';
         successBanner.hidden = false;
+        successBanner.setAttribute('role','status');
+        successBanner.scrollIntoView({block:'nearest',behavior:'smooth'});
       }, 500);
     }
 
