@@ -8,6 +8,8 @@ import bidiFactory from 'bidi-js';
 import { getDocument } from 'pdfjs-dist/legacy/build/pdf.mjs';
 const source=await readFile(new URL('../supabase/functions/finance-transaction-accounts/index.ts',import.meta.url),'utf8');
 const script=stripTypeScriptTypes(source.replace(/^import .*;\n/gm,''),{mode:'transform'});
+const revisionScript=stripTypeScriptTypes(await readFile(new URL('../supabase/functions/finance-transaction-accounts/revision-dispatch.ts',import.meta.url),'utf8'),{mode:'transform'});
+const {handleInvoiceRevision,updateInvoiceDraft}=new Function(revisionScript.replace(/export /g,'')+';return {handleInvoiceRevision,updateInvoiceDraft};')();
 const fixture=()=>({id:'account',document_status:'generating',outlook_status:'pending',transaction_account_number:8525,
   customer_name_snapshot:'בית ספר א',institution_symbol:'123',customer_email_snapshot:'test@example.test',issue_date:'2026-10-01',payment_due_date:'2026-11-30',total_amount:2500,
   finance_transaction_account_lines:[{activity_name_snapshot:'תוכנית חלל',funding_snapshot:'גפ״ן',performance_month:'2026-09-01',billed_hours:3,hourly_rate_snapshot:833.333,amount:2500,
@@ -27,6 +29,7 @@ async function harness(options={}) {
   const rpc=async(name,args)=>{
     calls.push({type:'rpc',name,args});
     if(name==='finance_manual_account_quote')return{data:options.quote||fixture()};
+    if(name==='finance_invoice_revision_quote')return options.revisionNotApproved?{error:Error('revision_not_approved')}:{data:options.quote||fixture()};
     if(name==='finance_delegated_account_owner')return {data:options.ownerAllowed!==false};
     if(name==='finance_transaction_can_issue')return{data:options.allowed!==false};
     if(name==='resolve_finance_outlook_mailbox')return{data:'idann@think.org.il'};
@@ -70,8 +73,8 @@ async function harness(options={}) {
     throw new Error('Unexpected outbound call: '+url);
   };
   globalThis.__financeTestDeps = {PDFDocument,rgb,fontkit,bidiFactory,createClient:()=>client,fetch,Response,Request,URLSearchParams,Uint8Array,crypto,TextEncoder,btoa,console,
-    Deno:{env:{get:k=>({SUPABASE_URL:'https://supabase.test',SUPABASE_ANON_KEY:'test',SUPABASE_SERVICE_ROLE_KEY:'test',MS_TENANT_ID:'test',MS_CLIENT_ID:'test',MS_CLIENT_SECRET:'test',MS_MAIL_SENDER:'test@example.test'})[k]},serve:fn=>{handler=fn;}}};
-  const injected = 'const { PDFDocument, rgb, fontkit, bidiFactory, createClient, fetch, Deno } = globalThis.__financeTestDeps;\n' + script;
+    handleInvoiceRevision,updateInvoiceDraft,Deno:{env:{get:k=>({SUPABASE_URL:'https://supabase.test',SUPABASE_ANON_KEY:'test',SUPABASE_SERVICE_ROLE_KEY:'test',MS_TENANT_ID:'test',MS_CLIENT_ID:'test',MS_CLIENT_SECRET:'test',MS_MAIL_SENDER:'test@example.test'})[k]},serve:fn=>{handler=fn;}}};
+  const injected = 'const { PDFDocument, rgb, fontkit, bidiFactory, createClient, fetch, Deno, handleInvoiceRevision, updateInvoiceDraft } = globalThis.__financeTestDeps;\n' + script;
   await import('data:text/javascript;base64,'+Buffer.from(injected).toString('base64')+'#'+crypto.randomUUID());
   delete globalThis.__financeTestDeps;
   const request = options.preflight
@@ -80,7 +83,7 @@ async function harness(options={}) {
       'access-control-request-method':'POST',
       'access-control-request-headers':'authorization, x-client-info, apikey, content-type'
     } })
-    : new Request('https://function.test',{method:'POST',headers:{authorization:'Bearer mock','x-microsoft-mail-token':'delegated-token'},body:JSON.stringify(options.preview?{preview:true,manual:{activity:'a',funder:'g',month:'2026-09-01',draft:{}}} :{accountId:'account',createDraft:true})});
+    : new Request('https://function.test',{method:'POST',headers:{authorization:'Bearer mock','x-microsoft-mail-token':'delegated-token'},body:JSON.stringify(options.revisionPreview?{revisionId:'revision',revisionPreview:true}:options.preview?{preview:true,manual:{activity:'a',funder:'g',month:'2026-09-01',draft:{}}} :{accountId:'account',createDraft:true})});
   const response=await handler(request);
   return{response,body:options.preflight?await response.text():await response.json(),calls,pdf,account};
 }
@@ -349,4 +352,28 @@ test('full remaining course PDF keeps the original hourly rate and labels the ad
   const pdf=await getDocument({data:new Uint8Array(Buffer.from(r.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
   const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');
   assert.match(text,/5,000\.00/);assert.match(text,/533\.33/);assert.doesNotMatch(text,/333\.33/);
+});
+
+
+test('approved document revision uses the real shared PDF renderer and preserves its original number and amount',async()=>{
+  const quote=process.env.FINANCE_REVISION_DOC_QUOTE?JSON.parse(await readFile(process.env.FINANCE_REVISION_DOC_QUOTE,'utf8')):{...fixture(),transaction_account_number:'Pl26000170',customer_name_snapshot:'Corrected customer',total_amount:3000,finance_transaction_account_lines:[{activity_row_id:'a',service_description_snapshot:'Corrected description',billed_hours:4.5,quantity_snapshot:3,hourly_rate_snapshot:3000/4.5,amount:3000}]};
+  const r=await harness({revisionPreview:true,quote});assert.equal(r.response.status,200,JSON.stringify(r.body));assert.equal(String(r.body.quote.transaction_account_number),String(quote.transaction_account_number));
+  const pdf=await getDocument({data:new Uint8Array(Buffer.from(r.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
+  const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');assert.match(text,/3,000\.00/);assert.ok(text.includes(String(quote.transaction_account_number)));
+  assert.ok(!r.calls.some(c=>c.method==='PUT'||c.name==='finalize_finance_billing'||c.url?.includes('/messages')));
+});
+test('approved replacement PDF reflects the server-approved changed price and recalculated hourly rate',async()=>{
+  const quote=process.env.FINANCE_REVISION_PRICE_QUOTE?JSON.parse(await readFile(process.env.FINANCE_REVISION_PRICE_QUOTE,'utf8')):{...fixture(),transaction_account_number:'טיוטה חלופית',total_amount:2500,finance_transaction_account_lines:[{activity_row_id:'a',activity_price_snapshot:2500,billed_hours:4.5,quantity_snapshot:3,hourly_rate_snapshot:2500/4.5,amount:2500}]};
+  const r=await harness({revisionPreview:true,quote});assert.equal(r.response.status,200,JSON.stringify(r.body));const pdf=await getDocument({data:new Uint8Array(Buffer.from(r.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
+  const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');assert.match(text,/2,500\.00/);assert.match(text,/555\.56/);
+});
+test('a pending revision cannot reach PDF rendering through the actual Edge entrypoint',async()=>{
+  const r=await harness({revisionPreview:true,revisionNotApproved:true});assert.equal(r.response.status,400);assert.equal(r.body.error,'revision_not_approved');assert.ok(!r.body.pdfBase64);assert.ok(!r.calls.some(c=>c.type==='fetch'));
+});
+test('an already sent account with no message ID never creates a replacement message automatically',async()=>{
+  const r=await harness({account:{document_status:'issued',outlook_status:'already_sent',outlook_message_id:null}});assert.equal(r.response.status,200);assert.equal(r.body.outlookStatus,'already_sent');assert.ok(!r.calls.some(c=>c.type==='fetch'));
+});
+test('revision PDF output is deterministic for safe reconciliation after an uncertain SharePoint upload',async()=>{
+  const quote={...fixture(),revision_created_at:'2026-11-04T00:00:00Z'};
+  const first=await harness({preview:true,quote:structuredClone(quote)}),second=await harness({preview:true,quote:structuredClone(quote)});assert.equal(first.response.status,200);assert.equal(second.response.status,200);assert.equal(Buffer.compare(Buffer.from(first.body.pdfBase64,'base64'),Buffer.from(second.body.pdfBase64,'base64')),0);
 });

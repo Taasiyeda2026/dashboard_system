@@ -1,3 +1,4 @@
+import {bindInvoiceRevisions} from './finance-invoice-revisions.js';
 import { hubIcon } from './shared/process-icons.js';
 import { consumeNotificationTarget } from '../notifications/target.js';
 import { escapeHtml } from './shared/html.js';
@@ -700,6 +701,7 @@ export const financeScreen = {
           visit.transactionManualSelected = {};
         }
         visit.transactionActionMessage = '';
+        if(visit.transactionTab==='history'&&visit.financeAdmin&&api.financeInvoiceRevisionContext){const result=await api.financeInvoiceRevisionContext(null);visit.invoiceRevisionAdminRequests=result.requests||[];visit.invoiceRevisionAdminLoaded=true;}
         refresh();
         return;
       }
@@ -975,6 +977,7 @@ export const financeScreen = {
 
     syncTransactionSelectionUi(root, visit);
     syncManualPdfPreviewDom(root, visit);
+    bindInvoiceRevisions({root,data:visit,api,refresh,reload:()=>ensureCollectionLoaded(visit,api,{force:true})});
     root.addEventListener('click', onClick);
     root.addEventListener('change', onChange);
     root.addEventListener('input', onInput);
@@ -988,6 +991,7 @@ export const financeScreen = {
       root.removeEventListener('change', onChange);
       root.removeEventListener('input', onInput);
       window.removeEventListener('finance-invoice-drafts-changed', onDraftsChanged);
+      root._invoiceRevisionUnbind?.();
       clearTimeout(root._financeCollectionSearchTimer);
       clearTimeout(root._financeManualSearchTimer);
       clearManualPdfPreviewUrls(root);

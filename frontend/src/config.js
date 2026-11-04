@@ -610,3 +610,5 @@ config.HOTFIX_VERSION = `finance-gefen-unified-issuance-20261103-v1-${config.HOT
 config.HOTFIX_VERSION = `finance-manual-payer-course-total-20261104-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `finance-closed-month-range-performance-basis-20261104-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `finance-history-revisions-admin-explicit-20261104-v1-${config.HOTFIX_VERSION}`;

@@ -7313,6 +7313,32 @@ export const api = {
     if (error) throw error;
     return Array.isArray(data) ? data : [];
   },
+  financeInvoiceRevisionContext: async (accountId=null) => {
+    assertPermission('manage_finance_transactions','finance_transactions_forbidden');
+    const {data,error}=await supabase.rpc('finance_invoice_revision_context',{p_account_id:accountId});if(error)throw error;return data;
+  },
+  requestFinanceInvoiceRevision: async ({accountId,key,baseHash,proposed,adminApproveFinancial=false}) => {
+    assertPermission('manage_finance_transactions','finance_transactions_forbidden');
+    const {data,error}=await supabase.rpc('finance_request_invoice_revision',{p_account_id:accountId,p_key:key,p_base_hash:baseHash,p_proposed:proposed,p_admin_approve:adminApproveFinancial===true});if(error)throw error;return data;
+  },
+  decideFinanceInvoiceRevision: async (id,approve,reason='') => {
+    assertPermission('manage_finance_transactions','finance_transactions_forbidden');
+    const {data,error}=await supabase.rpc('finance_decide_invoice_revision',{p_id:id,p_approve:approve,p_reason:reason});if(error)throw error;return data;
+  },
+  withdrawFinanceInvoiceRevision: async id => {
+    assertPermission('manage_finance_transactions','finance_transactions_forbidden');
+    const {error}=await supabase.rpc('finance_withdraw_invoice_revision',{p_id:id});if(error)throw error;
+  },
+  previewFinanceInvoiceRevision: async id => {
+    assertPermission('manage_finance_transactions','finance_transactions_forbidden');
+    const {data,error}=await supabase.functions.invoke('finance-transaction-accounts',{body:{revisionId:id,revisionPreview:true}});if(error){const server=await error.context?.json?.().catch(()=>null);throw Error(server?.error||error.message);}if(data?.error)throw Error(data.error);return data;
+  },
+  applyFinanceInvoiceRevision: async (id,revision) => {
+    assertPermission('manage_finance_transactions','finance_transactions_forbidden');
+    const {financeDelegatedHeaders}=await import('./microsoft/finance-invoice-mail.js');const headers=await financeDelegatedHeaders(state.user);
+    const {data,error}=await supabase.functions.invoke('finance-transaction-accounts',{body:{revisionId:id,revision},headers});if(error){const server=await error.context?.json?.().catch(()=>null);throw Error(server?.error||error.message);}if(data?.error)throw Error(data.error);
+    try{const mail=await api.dispatchFinanceTransactionAccount({accountId:data.accountId},{mailHeaders:headers});return {...data,...mail};}catch{return {...data,outlookStatus:'waiting_connection',documentPreserved:true};}
+  },
   dispatchFinanceTransactionAccount: async (body = {}, options = {}) => {
     assertPermission('manage_finance_transactions', 'finance_transactions_forbidden');
     // Rolling deployments can briefly serve the preceding Edge version, which
