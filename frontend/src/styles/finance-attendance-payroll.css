@@ -533,8 +533,29 @@
   margin-top: 12px;
 }
 .ds-fin-manual__selection > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 14px;
   cursor: pointer;
+  list-style: none;
+  font-weight: 650;
 }
+.ds-fin-manual__selection > summary::-webkit-details-marker { display: none; }
+.ds-fin-manual__selection > summary::after {
+  content: '⌄';
+  flex: 0 0 auto;
+  color: var(--ds-text-secondary);
+  font-size: 22px;
+  line-height: 1;
+  transform: rotate(90deg);
+  transition: transform 150ms ease;
+}
+.ds-fin-manual__selection[open] > summary::after { transform: rotate(0deg); }
+.ds-fin-manual__selection > summary:hover { background: var(--ds-surface-muted, #f3f7f9); }
+.ds-fin-manual__selection > summary:focus-visible { outline: 2px solid #0c98b9; outline-offset: 2px; }
+
 .ds-fin-manual__selection-toolbar {
   display: flex;
   flex-direction: row;
