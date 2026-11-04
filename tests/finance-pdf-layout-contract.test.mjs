@@ -13,12 +13,12 @@ test('Gefen courses alone use the detailed seven-column invoice', () => {
 });
 
 test('every non-Gefen course, workshop and tour uses only school, authority, course and total', () => {
-  assert.match(pdf, /const compactWidths = \[142, 106, 185, 102\]/);
-  assert.match(pdf, /\['שם בית הספר', 'רשות', 'תוכנית \/ קורס', 'סה״כ'\]/);
+  assert.match(pdf, /const compactWidths = \[142, 185, 106, 102\]/);
+  assert.match(pdf, /\['שם בית הספר', 'תוכנית \/ קורס', 'רשות', 'סה״כ'\]/);
   assert.match(pdf, /compactWidths, otherFunding/);
-  assert.match(pdf, /\(row\) => \[row\.school \|\| '—', row\.authority \|\| '—', row\.name, money\(row\.amount\)\], false\)/);
+  assert.match(pdf, /\(row\) => \[row\.school \|\| '—', row\.name, row\.authority \|\| '—', money\(row\.amount\)\], false\)/);
   assert.match(pdf, /showDates && row\.dates\.length/);
-  assert.equal([142, 106, 185, 102].reduce((n,w)=>n+w,0),535);
+  assert.equal([142, 185, 106, 102].reduce((n,w)=>n+w,0),535);
 });
 
 test('all invoices share the reference workshop letterhead on every PDF page', () => {
