@@ -162,6 +162,32 @@ function installStyles() {
     .ds-modal--scheduling .scheduling-workspace__status:empty {
       display: none !important;
     }
+
+    /* School 2027 operational tab only: align headers and values identically.
+       1-4 program/authority/school/instructor right; 5-7 dates center;
+       8 additional information right. Other 2027 tabs are unaffected. */
+    #app .ds-table--activities-2027-active thead th:nth-child(-n+4),
+    #app .ds-table--activities-2027-active tbody td:nth-child(-n+4),
+    #app .ds-table--activities-2027-active thead th:nth-child(8),
+    #app .ds-table--activities-2027-active tbody td:nth-child(8) {
+      text-align: right !important;
+      vertical-align: middle !important;
+    }
+    #app .ds-table--activities-2027-active thead th:nth-child(n+5):nth-child(-n+7),
+    #app .ds-table--activities-2027-active tbody td:nth-child(n+5):nth-child(-n+7) {
+      text-align: center !important;
+      vertical-align: middle !important;
+    }
+    #app .ds-table--activities-2027-active tbody td:nth-child(n+5):nth-child(-n+7) .ds-activities-date {
+      display: inline-block;
+      text-align: center !important;
+      margin-inline: auto;
+    }
+    #app .ds-table--activities-2027-active tbody td:nth-child(-n+4) .ds-activities-cell-ellipsis,
+    #app .ds-table--activities-2027-active tbody td:nth-child(8) .ds-activities-cell-ellipsis,
+    #app .ds-table--activities-2027-active tbody td:first-child .ds-activities-program-cell {
+      text-align: right !important;
+    }
   `;
   document.head.appendChild(style);
 }
