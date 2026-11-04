@@ -121,8 +121,10 @@ function ensureStyles() {
     .admin-attendance-team__head h2 { margin:0; font-size:16px; }
     .admin-attendance-team__head span { color:var(--color-text-secondary,#64748b); font-size:12px; }
     .admin-attendance-table-wrap { overflow-x:auto; overflow-y:visible; max-width:100%; }
-    .admin-attendance-table { width:100%; border-collapse:collapse; table-layout:fixed; min-width:0; }
-    .admin-attendance-table th,.admin-attendance-table td { text-align:right; padding:8px 5px; border-bottom:1px solid var(--color-border,#edf1f5); vertical-align:middle; font-size:13px; }
+    .admin-attendance-table { width:100%; border-collapse:collapse; table-layout:fixed; min-width:1040px; }
+    .admin-attendance-table th,.admin-attendance-table td { text-align:right; padding:10px 12px; border-bottom:1px solid var(--color-border,#edf1f5); border-inline-end:1px solid #dce5ef; vertical-align:middle; font-size:13px; }
+    .admin-attendance-table th:last-child,.admin-attendance-table td:last-child { border-inline-end:0; }
+    .admin-attendance-table tbody tr:hover { background:#f8fbff; }
     .admin-attendance-table th { color:var(--color-text-secondary,#64748b); font-size:12px; font-weight:700; background:rgba(248,250,252,.65); }
     .admin-attendance-table tr:last-child td { border-bottom:0; }
     .admin-attendance-person strong { display:block; font-size:13px; }
@@ -151,20 +153,17 @@ function ensureStyles() {
     .admin-attendance-preview__summary article { padding:7px 9px; border:1px solid #e2e8f0; border-radius:9px; background:#f8fafc; }
     .admin-attendance-preview__summary span { display:block; color:#64748b; font-size:10px; }
     .admin-attendance-preview__summary strong { display:block; margin-top:2px; font-size:13px; }
-    .admin-attendance-table th:nth-child(n+2):nth-child(-n+4),
-    .admin-attendance-table td:nth-child(n+2):nth-child(-n+4) {
-      text-align:center;
-    }
-    .admin-attendance-table td:nth-child(5) { overflow-wrap:anywhere; }
+    .admin-attendance-table th:nth-child(n+4):nth-child(-n+6),
+    .admin-attendance-table td:nth-child(n+4):nth-child(-n+6) { text-align:center; }
+    .admin-attendance-table th:nth-child(2),.admin-attendance-table td:nth-child(2) { text-align:center; }
+    .admin-attendance-table td:nth-child(7) { overflow-wrap:normal; }
     .admin-attendance-table td:last-child { min-width:0; }
-    /* Desktop: six columns always fit the available main content width.
-       Only the detailed approved-snapshot grid is independently scrollable. */
-    .admin-attendance-table td:last-child { overflow-wrap:anywhere; }
+    .admin-attendance-table .admin-attendance-actions { justify-content:flex-start; }
     .admin-attendance-actions > button:not(.admin-attendance-icon-action) {
       max-width:100%; white-space:normal; line-height:1.25;
     }
     @media (max-width:760px) {
-      .admin-attendance-table { min-width:680px; }
+      .admin-attendance-table { min-width:1040px; }
     }
     .admin-attendance-preview__table-wrap { overflow:auto; border:1px solid #e2e8f0; border-radius:9px; }
     .admin-attendance-preview__table { width:100%; min-width:1180px; border-collapse:collapse; table-layout:auto; }
@@ -547,7 +546,9 @@ function employeeMainRowHtml(employee, workflowByEmployee, finalByEmployee, disp
   const priorDispatch = dispatchByEmployee.get(id) || null;
   const status = workflowStatus(workflow, finalApproval, monthKey, priorDispatch);
   return `<tr data-admin-attendance-row="${escapeHtml(id)}">
-    <td class="admin-attendance-person"><strong>${escapeHtml(text(employee.full_name) || id)}</strong><small>${escapeHtml(id)}${text(employee.employment_type) ? ` · ${escapeHtml(text(employee.employment_type))}` : ''}</small></td>
+    <td class="admin-attendance-person"><strong>${escapeHtml(text(employee.full_name) || id)}</strong></td>
+    <td class="admin-attendance-employee-id">${escapeHtml(id)}</td>
+    <td class="admin-attendance-employment">${escapeHtml(text(employee.employment_type) || '—')}</td>
     <td>${approvalCell('employee', workflow.submitted_by_name, workflow.submitted_at)}</td>
     <td>${approvalCell('manager', workflow.manager_approved_by_name, workflow.manager_approved_at)}</td>
     <td>${approvalCell('admin', finalApproval?.approved_by_name, finalApproval?.approved_at)}</td>
@@ -566,15 +567,15 @@ function groupsHtml(employees, workflowByEmployee, finalByEmployee, dispatchByEm
       const status = workflowStatus(workflow, finalApproval, monthKey, priorDispatch);
       const mainRow = employeeMainRowHtml(employee, workflowByEmployee, finalByEmployee, dispatchByEmployee, monthKey);
       const previewRow = ['manager_approved', 'admin_approved', 'sent_to_payroll'].includes(status.raw)
-        ? `<tr class="admin-attendance-preview-row" data-admin-attendance-preview-row="${escapeHtml(id)}" hidden><td colspan="6"><div class="admin-attendance-preview__empty">טוען את הרשומות שאושרו…</div></td></tr>`
+        ? `<tr class="admin-attendance-preview-row" data-admin-attendance-preview-row="${escapeHtml(id)}" hidden><td colspan="8"><div class="admin-attendance-preview__empty">טוען את הרשומות שאושרו…</div></td></tr>`
         : '';
       return `${mainRow}${previewRow}`;
     }).join('');
     return `<section class="admin-attendance-team">
       <header class="admin-attendance-team__head"><h2>${escapeHtml(manager)}</h2><span>${rows.length} עובדים · ${escapeHtml(monthKey)}</span></header>
       <div class="admin-attendance-table-wrap"><table class="admin-attendance-table">
-        <colgroup><col style="width:21%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:13%"><col style="width:39%"></colgroup>
-        <thead><tr><th>עובד</th><th>אישור עובד</th><th>אישור מנהל</th><th>אישור אדמין</th><th>סטטוס</th><th>פעולות</th></tr></thead>
+        <colgroup><col style="width:17%"><col style="width:9%"><col style="width:12%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:12%"><col style="width:20%"></colgroup>
+        <thead><tr><th>שם העובד</th><th>מספר עובד</th><th>סוג העסקה</th><th>אישור עובד</th><th>אישור מנהל</th><th>אישור אדמין</th><th>סטטוס</th><th>פעולות</th></tr></thead>
         <tbody>${body}</tbody>
       </table></div>
     </section>`;
