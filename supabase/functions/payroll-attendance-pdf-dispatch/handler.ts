@@ -670,94 +670,98 @@ async function buildPdfBytes(payload: {
     y -= 25;
   };
   headerTable();
-  if (!rows.length) {
-    drawWrapped("לא קיימים דיווחי נוכחות בחודש זה.", { size: 9.5 });
-  } else {
-    for (let index = 0; index < rows.length; index += 1) {
-      const row = rows[index] || {};
-      const activity = clean(row.activityType) || "פעילות";
-      const date = formatDate(row.date) || "—";
-      const time = `${clean(row.startTime) || "—"}–${clean(row.endTime) || "—"}`;
-      const hours = formatDurationHours(row.workHours);
-      const usesPublicTransport = row.publicTransport === true || row.publicTransport === "true" || row.publicTransport === 1;
-      const expenseDetails = clean(row.expenseDetails || row.expensesDetails);
-      const attachmentNames = clean(row.attachmentsNames);
-      // Only show relevant populated details; do not print placeholders or zero amounts.
-      const details: string[] = [];
-      const school = clean(row.school);
-      const authority = clean(row.authority);
-      const meeting = clean(row.meetingNo);
-      // Institution, authority and meeting are meaningful only for an in-person course.
-      // Training, Zoom/online and operations entries intentionally omit them.
-      const isCourse = /קורס/.test(activity);
-      const isRemote = /זום|zoom|מקוון|מרחוק|online/i.test([
-        activity, clean(row.program), school, clean(row.notes),
-      ].join(" "));
-      if (isCourse && !isRemote) {
-        if (school) details.push(`מוסד: ${school}`);
-        if (authority || meeting) details.push([
-          authority ? `רשות: ${authority}` : "",
-          meeting ? `מפגש: ${meeting}` : "",
-        ].filter(Boolean).join(" | "));
-      }
-      const km = toNumber(row.kilometers);
-      if (!usesPublicTransport && km > 0) details.push(`קילומטרים: ${Number(km.toFixed(2))} ק״מ`);
-      const publicTransportCost = toNumber(row.publicTransportCost);
-      if (usesPublicTransport) details.push(`תחבורה ציבורית${publicTransportCost > 0 ? ` | עלות: ₪${publicTransportCost.toFixed(2)}` : ""}`);
-      const expenses = toNumber(row.expenses);
-      if (expenses > 0 || expenseDetails) details.push([
-        expenses > 0 ? `הוצאות: ₪${expenses.toFixed(2)}` : "",
-        expenseDetails ? `פירוט: ${expenseDetails}` : "",
-      ].filter(Boolean).join(" | "));
-      if (attachmentNames && (expenses > 0 || expenseDetails)) details.push(`אסמכתאות: ${attachmentNames}`);
-      const notes = clean(row.notes);
-      if (notes) details.push(`הערות: ${notes}`);
-      const program = clean(row.program);
-      const activityTitle = program ? `${activity} – ${program}` : activity;
-      const heading = `${date} | ${activityTitle}: ${time} | סה״כ: ${hours} שעות`;
-      const headingLines = wrapLogical(heading, bold, 9.4, CONTENT_W - 28);
-      const detailLines = details.flatMap((detail) => wrapLogical(detail, regular, 8.3, CONTENT_W - 28));
-      const HEADER_STEP = 14;
-      const DETAIL_STEP = 13;
-      const blockHeight = 9 + Math.max(1, headingLines.length) * HEADER_STEP
-        + detailLines.length * DETAIL_STEP + 8;
-      ensureSpace(blockHeight + 5);
-
-      page.drawRectangle({
-        x: LEFT, y: y - blockHeight, width: CONTENT_W, height: blockHeight,
-        borderColor: rgb(0.88, 0.91, 0.95), borderWidth: 0.6,
-        color: index % 2 === 0 ? rgb(1, 1, 1) : rgb(0.975, 0.985, 0.998),
-      });
-      let localY = y - 17;
-      for (const line of headingLines) {
-        drawRtl(line, RIGHT - 13, localY, 9.4, bold, rgb(0.12, 0.22, 0.36));
-        localY -= HEADER_STEP;
-      }
-      for (const line of detailLines) {
-        drawRtl(line, RIGHT - 13, localY, 8.3, regular, rgb(0.28, 0.36, 0.47));
-        localY -= DETAIL_STEP;
-      }
-      y -= blockHeight + 5;
+  const fitCell = (value: unknown, maxWidth: number, size: number, font = regular) => {
+    const source = clean(value);
+    if (font.widthOfTextAtSize(pdfRtlText(source), size) <= maxWidth) return source;
+    let low = 0;
+    let high = source.length;
+    while (low < high) {
+      const n = Math.ceil((low + high) / 2);
+      if (font.widthOfTextAtSize(pdfRtlText(source.slice(0, n) + '…'), size) <= maxWidth) low = n;
+      else high = n - 1;
     }
+    return source.slice(0, low).trimEnd() + '…';
+  };
+  const continuePage = () => {
+    page = pdf.addPage([PAGE_W, PAGE_H]);
+    drawHeader(false);
+    headerTable();
+  };
+  if (!rows.length) {
+    drawCentered('לא קיימים דיווחים בחודש זה', PAGE_W / 2, y - 24, 10);
+    y -= 40;
+  }
+  for (let index = 0; index < rows.length; index += 1) {
+    const row = rows[index] || {};
+    const type = clean(row.activityType) || 'פעילות';
+    const program = clean(row.program) || clean(row.activityNameSnapshot);
+    const parts = [program || '—'];
+    if (type === 'קורס' && clean(row.school)) parts.push(clean(row.school));
+    if (type === 'קורס' && clean(row.meetingNo)) parts.push(`מפגש ${clean(row.meetingNo)}`);
+    const description = parts.filter(Boolean).join(' · ');
+    const maxDescription = cellEdges[2] - cellEdges[3] - 10;
+    const needsTwoLines = regular.widthOfTextAtSize(pdfRtlText(description), 7.6) > maxDescription;
+    const rowHeight = needsTwoLines ? 28 : 21;
+    if (y - rowHeight < 155) continuePage();
+    page.drawRectangle({ x: LEFT, y: y - rowHeight, width: CONTENT_W, height: rowHeight,
+      color: index % 2 === 0 ? rgb(1, 1, 1) : rgb(0.96, 0.98, 0.99) });
+    const baseline = y - (rowHeight + 8) / 2;
+    drawCentered(formatDate(row.date), (cellEdges[0] + cellEdges[1]) / 2, baseline, 7.7);
+    drawCentered(fitCell(type, cellEdges[1] - cellEdges[2] - 7, 7.8),
+      (cellEdges[1] + cellEdges[2]) / 2, baseline, 7.8);
+    if (needsTwoLines) {
+      const words = description.split(/\s+/);
+      let first = '';
+      let cursor = 0;
+      while (cursor < words.length && regular.widthOfTextAtSize(
+        pdfRtlText([first, words[cursor]].filter(Boolean).join(' ')), 7.6) <= maxDescription) {
+        first = [first, words[cursor]].filter(Boolean).join(' ');
+        cursor += 1;
+      }
+      if (!first) first = fitCell(description, maxDescription, 7.6);
+      const second = fitCell(words.slice(cursor).join(' '), maxDescription, 7.6);
+      drawCentered(first, (cellEdges[2] + cellEdges[3]) / 2, y - 11, 7.6);
+      if (second) drawCentered(second, (cellEdges[2] + cellEdges[3]) / 2, y - 21, 7.6);
+    } else {
+      drawCentered(description, (cellEdges[2] + cellEdges[3]) / 2, baseline, 7.6);
+    }
+    const startTime = clean(row.startTime);
+    const endTime = clean(row.endTime);
+    drawCentered(startTime && endTime ? `${startTime.slice(0, 5)}–${endTime.slice(0, 5)}` : '—',
+      (cellEdges[3] + cellEdges[4]) / 2, baseline, 7.6);
+    drawCentered(formatDurationHours(row.workHours),
+      (cellEdges[4] + cellEdges[5]) / 2, baseline, 8);
+    const km = toNumber(row.kilometers);
+    const usesPt = row.publicTransport === true || row.publicTransport === 'true';
+    drawCentered(usesPt || km <= 0 ? '—' : String(Number(km.toFixed(1))),
+      (cellEdges[5] + cellEdges[6]) / 2, baseline, 8);
+    page.drawLine({ start: { x: LEFT, y: y - rowHeight },
+      end: { x: RIGHT, y: y - rowHeight }, thickness: 0.4, color: rgb(0.83, 0.88, 0.9) });
+    y -= rowHeight;
   }
 
-  ensureSpace(126);
-  y -= 4;
-  drawRtl("אישורים", RIGHT, y, 12, bold, rgb(0.10, 0.27, 0.52));
-  y -= 18;
-
-  const approvalBox = (title: string, name: string, at: string) => {
-    page.drawRectangle({ x: LEFT, y: y - 49, width: CONTENT_W, height: 49, borderColor: rgb(0.86, 0.9, 0.88), borderWidth: 0.7, color: rgb(0.96, 0.99, 0.97) });
-    drawRtl(`${title}: ${name || "—"}`, RIGHT - 12, y - 17, 9.3, bold, rgb(0.05, 0.38, 0.25));
-    drawRtl(`אושר במערכת  |  ${formatApprovalTime(at)}`, RIGHT - 12, y - 35, 8.4, regular, rgb(0.24, 0.43, 0.35));
-    y -= 58;
-  };
-
-  approvalBox("אישור עובד", payload.employeeApprovalName, payload.employeeApprovalAt);
-  approvalBox("אישור מנהל", payload.managerApprovalName, payload.managerApprovalAt);
-
-  drawRtl("המסמך הופק ממערכת הנוכחות של תעשיידע ומהווה תיעוד של הנתונים שאושרו במערכת.", RIGHT, 28, 7.5, regular, rgb(0.5, 0.54, 0.6));
-
+  // Approval data is the existing approved snapshot; no signatures are invented.
+  if (y < 155) {
+    page = pdf.addPage([PAGE_W, PAGE_H]);
+    drawHeader(false);
+    y = 679;
+  }
+  const approvalTop = Math.min(151, y - 20);
+  drawRtl('אישור וחתימה', RIGHT, approvalTop, 12.8, bold, darkNavy);
+  page.drawLine({ start: { x: LEFT, y: approvalTop - 8 },
+    end: { x: RIGHT, y: approvalTop - 8 }, thickness: 0.9, color: turquoise });
+  const workerX = RIGHT - 128;
+  const managerX = LEFT + 128;
+  drawCentered('אישור המדריך:', workerX, approvalTop - 31, 9.6, bold);
+  drawCentered(`חתימה דיגיטלית של ${payload.employeeApprovalName || payload.employeeName}`,
+    workerX, approvalTop - 50, 8.7);
+  drawCentered(formatApprovalTime(payload.employeeApprovalAt) || 'לא אושר',
+    workerX, approvalTop - 65, 8.2, regular, rgb(0.3, 0.39, 0.47));
+  drawCentered('אישור המנהל:', managerX, approvalTop - 31, 9.6, bold);
+  drawCentered(`חתימה דיגיטלית של ${payload.managerApprovalName || '—'}`,
+    managerX, approvalTop - 50, 8.7);
+  drawCentered(formatApprovalTime(payload.managerApprovalAt) || 'לא אושר',
+    managerX, approvalTop - 65, 8.2, regular, rgb(0.3, 0.39, 0.47));
   const bytes = await pdf.save();
   return new Uint8Array(bytes);
 }
