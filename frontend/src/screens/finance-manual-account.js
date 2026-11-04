@@ -583,7 +583,9 @@ export function manualAccountViewHtml(data) {
           <option value="full"${partial?'':' selected'}>מלוא היתרה המותרת להפקה</option>
           <option value="partial"${partial?' selected':''}>חיוב חלקי לפי ביצוע</option>
         </select></label>
-        ${ids.length>1?`<label>פעילות לעריכה<select class="ds-input" data-finance-manual-activity>${selectedRows.map(row=>`<option value="${e(row.id)}"${row.id===data.manualActivityId?' selected':''}>${e(row.activity)} · ${e(row.school)}</option>`).join('')}</select></label>`:''}
+        ${ids.length>1?`<details class="ds-fin-manual__optional-edit"><summary>עריכת פעילות (לפי הצורך)</summary>
+          <label>בחירת פעילות לעריכה<select class="ds-input" data-finance-manual-activity>${selectedRows.map(row=>`<option value="${e(row.id)}"${row.id===data.manualActivityId?' selected':''}>${e(row.activity)} · ${e(row.school)}</option>`).join('')}</select></label>
+        </details>`:''}
         <fieldset class="ds-fin-manual__billing"><legend>פרטי חיוב</legend><div class="ds-fin-manual__billing-row">
           ${manualService(data)?`${field('כמות','quantity','number')}${field('מחיר ליחידה','unit_price')}${field('סכום לחיוב','amount')}`:`
           <label class="ds-fin-manual__field">מפגשים לחיוב<input class="ds-input" type="number" min="1" max="${Number(rows.find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===data.manualFundingKey)?.unbilledCount||d.planned_count)}" step="1" data-finance-manual-field="quantity"${d.billing_basis==='full_funding'?' readonly':''} value="${e(d.quantity)}"><small>מתוך ${e(d.planned_count)}</small></label>
