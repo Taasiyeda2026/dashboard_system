@@ -308,6 +308,13 @@ function renderScreen() {
       initialTab: requestedTab,
       prefillRecord: prefill,
       onBack: () => navigate('home'),
+      onOpenMyReports: (date) => {
+        const [year,month]=String(date||'').split('-').map(Number);
+        if(year>=2020 && month>=1 && month<=12){
+          state.currentYear=year;state.currentMonth=month;
+        }
+        navigate('my-reports');
+      },
       onSaved: () => {},
     });
 
