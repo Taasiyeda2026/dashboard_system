@@ -2,7 +2,7 @@ import { createInputField } from '../components/field.js';
 import { createCompactSelect } from '../components/compact-select.js';
 import { createBoundedMonthPicker } from '../components/bounded-month-picker.js';
 import { summarizeDailyTravel } from '../services/daily-travel.js';
-import { getMonthApproval } from '../services/attendance.service.js';
+import { getMonthApproval, updateRecord } from '../services/attendance.service.js';
 import { canEditMonth, formatMonthLabel } from '../services/month-gate.service.js';
 import { listInstructorDisplayMonths, readHistoricalAttendance, historicalTravelDays, isHistoricTravelMonth, monthStatusLabel } from '../services/historical-display.service.js';
 import {
@@ -65,11 +65,12 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   const historicalEdit=document.createElement('button');
   historicalEdit.type='button';
   historicalEdit.className='av2-btn av2-btn--secondary av2-daily-travel__historical-edit';
-  historicalEdit.textContent='עריכה בדיווחים שלי';
+  historicalEdit.textContent='עריכה';
   historicalEdit.hidden=true;
   historicalEdit.addEventListener('click',()=>{
-    if(historicalMonthApproval?.status==='reopened' && dateField.input.value)
-      onEditHistorical?.(dateField.input.value);
+    if(historicalMonthApproval?.status!=='reopened' || !loadedDate)return;
+    historicalEditing=!historicalEditing;
+    renderHistoricalDay(historicalDays.find(day=>day.date===loadedDate));
   });
   const legsArea = document.createElement('div');
   legsArea.className = 'av2-daily-travel__legs';
@@ -104,6 +105,8 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   let requestSequence=0;
   let historicalDays=[];
   let historicalMonthApproval=null;
+  let historicalEditing=false;
+  let historicalSaving=false;
   const formatDate=value=>String(value||'').split('-').reverse().join('.');
   const appendDetail=(wrap,label,value)=>{
     if(value===null || value===undefined || value==='')return;
@@ -113,6 +116,87 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     const val=document.createElement('strong');val.textContent=String(value);
     row.append(key,val);wrap.append(row);
   };
+  const durationValue=minutes=>{
+    if(minutes==null)return '';
+    const n=Number(minutes);
+    return Number.isFinite(n)?String(Math.floor(n/60))+':'+String(n%60).padStart(2,'0'):'';
+  };
+  const parseDuration=value=>{
+    const raw=String(value||'').trim();
+    if(!/^(?:\d{1,2}):[0-5]\d$/.test(raw))return null;
+    const [hours,minutes]=raw.split(':').map(Number);
+    const total=hours*60+minutes;
+    return total>=0 && total<360?total:null;
+  };
+  function addHistoricalEditor(block,record){
+    const fields=document.createElement('div');
+    fields.className='av2-daily-travel__inline-fields';
+    fields.dataset.recordId=record.id;
+    const data=[
+      ['roundtrip_km','קילומטרים (הלוך וחזור)',record.roundtrip_km,'number'],
+      ['cancellation_before_minutes','ביטול זמן לפני הפעילות (משך שעות:דקות)',durationValue(record.cancellation_before_minutes),'text'],
+      ['cancellation_after_minutes','ביטול זמן אחרי הפעילות (משך שעות:דקות)',durationValue(record.cancellation_after_minutes),'text']
+    ];
+    for(const [field,label,value,type] of data){
+      const wrapper=document.createElement('label');
+      const heading=document.createElement('span');heading.textContent=label;
+      const input=document.createElement('input');
+      input.className='av2-field__input';input.type=type;
+      input.dataset.historicalField=field;
+      input.value=value==null?'':String(value);
+      if(type==='number'){
+        input.min='0';input.max='2000';input.step='0.01';input.inputMode='decimal';
+      }else{input.placeholder='0:00';input.inputMode='text';}
+      wrapper.append(heading,input);fields.append(wrapper);
+    }
+    block.append(fields);
+  }
+  async function saveHistoricalDay(){
+    if(historicalSaving || historicalMonthApproval?.status!=='reopened')return;
+    const date=loadedDate;
+    const [year,month]=selectedMonth.split('-').map(Number);
+    historicalSaving=true;
+    const editorButtons=[...reportCard.querySelectorAll('[data-historical-action]')];
+    editorButtons.forEach(button=>button.disabled=true);
+    try{
+      const approval=await getMonthApproval(empId,selectedMonth,{force:true});
+      if(!canEditMonth(year,month,approval) || approval?.status!=='reopened')
+        throw new Error('החודש אינו פתוח עוד לעריכה');
+      const forms=[...legsArea.querySelectorAll('[data-record-id]')];
+      const changes=forms.map(form=>{
+        const value=key=>form.querySelector('[data-historical-field="'+key+'"]')?.value.trim()??'';
+        const km=value('roundtrip_km');
+        const before=value('cancellation_before_minutes');
+        const after=value('cancellation_after_minutes');
+        const kmNumber=km===''?null:Number(km);
+        if(kmNumber!==null && (!Number.isFinite(kmNumber)||kmNumber<0||kmNumber>2000))
+          throw new Error('יש להזין מספר קילומטרים תקין');
+        if((before==='')!== (after===''))throw new Error('יש למלא את שני משכי ביטול הזמן או להשאיר את שניהם ריקים');
+        const beforeMinutes=before===''?null:parseDuration(before);
+        const afterMinutes=after===''?null:parseDuration(after);
+        if((before!=='' && beforeMinutes===null)||(after!=='' && afterMinutes===null))
+          throw new Error('משך ביטול זמן חייב להיות בשעות:דקות ובטווח של פחות מ־6 שעות לכל כיוון');
+        return {id:form.dataset.recordId,payload:{
+          roundtrip_km:kmNumber,
+          cancellation_before_minutes:beforeMinutes,
+          cancellation_after_minutes:afterMinutes
+        }};
+      });
+      for(const change of changes)await updateRecord(change.id,empId,change.payload);
+      const historical=await readHistoricalAttendance(empId,selectedMonth);
+      const reports=await getDailyTravelReports(empId,selectedMonth);
+      historicalDays=historicalTravelDays(historical.rows,reports);
+      historicalMonthApproval=historical.approval;
+      historicalEditing=false;
+      renderHistoricalDay(historicalDays.find(day=>day.date===date));
+      status.textContent='השינויים נשמרו';
+    }catch(error){
+      status.textContent=error.message||'שמירת השינויים נכשלה';
+    }finally{
+      historicalSaving=false;
+      editorButtons.forEach(button=>button.disabled=false);
+    }
+  }
   function renderHistoricalDay(day){
     locked=true;loadedDate=day?.date||'';
     legs=[];legsArea.replaceChildren();
@@ -120,7 +204,8 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     if(!day){status.textContent='אין מידע לחודש זה';historicalEdit.hidden=true;return;}
     const approvalText=monthStatusLabel(historicalMonthApproval);
     status.textContent=approvalText;
-    historicalEdit.hidden=historicalMonthApproval?.status!=='reopened' || !day.records.length || typeof onEditHistorical!=='function';
+    historicalEdit.hidden=historicalMonthApproval?.status!=='reopened' || !day.records.length;
+    historicalEdit.textContent=historicalEditing?'ביטול עריכה':'עריכה';
     const report=day.dailyReport;
     if(report){
       const summaryCard=document.createElement('article');
@@ -150,9 +235,13 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       block.append(header);
       appendDetail(block,'שעות פעילות',record.start_time&&record.end_time
         ? String(record.start_time).slice(0,5)+'–'+String(record.end_time).slice(0,5):null);
-      appendDetail(block,'קילומטרים',record.roundtrip_km==null?null:record.roundtrip_km+' ק״מ');
-      appendDetail(block,'זמן נסיעה לפני',record.cancellation_before_minutes==null?null:record.cancellation_before_minutes+' דקות');
-      appendDetail(block,'זמן נסיעה אחרי',record.cancellation_after_minutes==null?null:record.cancellation_after_minutes+' דקות');
+      if(historicalEditing){
+        addHistoricalEditor(block,record);
+      }else{
+        appendDetail(block,'קילומטרים',record.roundtrip_km==null?null:record.roundtrip_km+' ק״מ');
+        appendDetail(block,'זמן נסיעה לפני',record.cancellation_before_minutes==null?null:record.cancellation_before_minutes+' דקות');
+        appendDetail(block,'זמן נסיעה אחרי',record.cancellation_after_minutes==null?null:record.cancellation_after_minutes+' דקות');
+      }
       appendDetail(block,'תחבורה ציבורית',record.public_transport_cost>0?'₪'+record.public_transport_cost:null);
       const travel=record.travel_compensation;
       if(travel){
@@ -163,6 +252,20 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     }
     if(!day.records.length&&!report)status.textContent='אין נתונים ליום זה';
     legsArea.hidden=false;
+    actions.replaceChildren();
+    if(historicalEditing){
+      const hint=document.createElement('small');
+      hint.textContent='יש להזין משך זמן, לא שעת שעון (לדוגמה 1:00 = 60 דקות).';
+      const confirm=document.createElement('button');
+      confirm.type='button';confirm.className='av2-btn av2-btn--primary av2-daily-travel__action-sm';
+      confirm.dataset.historicalAction='save';confirm.textContent='שמירה';
+      confirm.addEventListener('click',()=>void saveHistoricalDay());
+      const cancel=document.createElement('button');
+      cancel.type='button';cancel.className='av2-btn av2-btn--secondary av2-daily-travel__action-sm';
+      cancel.dataset.historicalAction='cancel';cancel.textContent='ביטול';
+      cancel.addEventListener('click',()=>{historicalEditing=false;renderHistoricalDay(day);});
+      actions.append(hint,confirm,cancel);
+    }
   }
   function showSummary(){
     legsArea.hidden=noTravel.checked;
@@ -280,6 +383,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     showSummary();
   }
   function setDate(date) {
+    historicalEditing=false;
     requestedDay=String(date||'').slice(0,10);
     const targetMonth=requestedDay.slice(0,7);
     if(monthsLoaded && [...monthSelect.options].some(option=>option.value===targetMonth) && targetMonth!==selectedMonth){
@@ -407,6 +511,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     if(!force && loadedDate===requestedDay && loadedDate!=='')return;
     loading=true;save.disabled=true;reload.disabled=true;
     historicalEdit.hidden=true;
+    actions.replaceChildren(save);
     status.textContent='טוען נסיעות…';
     const token=++requestSequence;
     try{
@@ -466,6 +571,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   }
   noTravel.addEventListener('change',showSummary);
   monthSelect.addEventListener('change',()=>{
+    historicalEditing=false;
     selectedMonth=monthSelect.value;
     requestedDay='';loadedDate='';dayOptions=[];
     dayPicker.setOptions([]);dayPicker.select.disabled=true;
