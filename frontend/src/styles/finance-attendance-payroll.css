@@ -608,44 +608,75 @@
   accent-color: #0c98b9;
 }
 .ds-fin-manual__activity-list {
-  display: grid;
-  gap: 0;
   margin: 0 10px 10px;
   border: 1px solid var(--ds-border);
   border-radius: 10px;
-  overflow: hidden;
+  overflow-x: auto;
+  min-width: 0;
 }
-.ds-fin-manual label.ds-fin-manual__activity-row {
-  display: grid;
-  grid-template-columns: 18px minmax(0, 1.5fr) minmax(0, 1fr) minmax(110px, .7fr);
-  gap: 12px;
+.ds-fin-manual__activity-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+  text-align: right;
+  direction: rtl;
+  font-size: .82rem;
+}
+.ds-fin-manual__activity-table th,
+.ds-fin-manual__activity-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--ds-border);
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+.ds-fin-manual__activity-table tr:last-child td { border-bottom: 0; }
+.ds-fin-manual__activity-table th {
+  background: var(--ds-surface-muted,#f3f7f9);
+  font-weight: 650;
+  color: var(--ds-text-secondary);
+  white-space: nowrap;
+}
+.ds-fin-manual__activity-table th:nth-child(1) { width: 23%; }
+.ds-fin-manual__activity-table th:nth-child(2) { width: 19%; }
+.ds-fin-manual__activity-table th:nth-child(3) { width: 24%; }
+.ds-fin-manual__activity-table th:nth-child(4) { width: 14%; }
+.ds-fin-manual__activity-table th:nth-child(5) { width: 20%; }
+.ds-fin-manual__activity-row:hover { background: var(--ds-surface-muted,#f3f7f9); }
+.ds-fin-manual label.ds-fin-manual__activity-check {
+  display: inline-flex;
+  flex-direction: row;
   align-items: center;
-  min-height: 52px;
-  padding: 10px 14px;
-  color: var(--ds-text);
+  gap: 10px;
   cursor: pointer;
+  width: auto;
+  color: var(--ds-text);
 }
-.ds-fin-manual__activity-row + .ds-fin-manual__activity-row {
-  border-top: 1px solid var(--ds-border);
+.ds-fin-manual__activity-check > input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  margin: 0;
+  accent-color: #0c98b9;
 }
-.ds-fin-manual__activity-row:hover { background: var(--ds-surface-muted, #f3f7f9); }
-.ds-fin-manual__activity-title { font-weight: 650; min-width: 0; }
+.ds-fin-manual__activity-title { min-width: 0; font-weight: 650; }
 .ds-fin-manual__activity-title small {
   display: block;
   font-size: .75rem;
   font-weight: 400;
   color: var(--ds-text-secondary);
 }
-.ds-fin-manual__activity-school { min-width: 0; color: var(--ds-text-secondary); }
-.ds-fin-manual__activity-price { text-align: left; direction: ltr; white-space: nowrap; font-variant-numeric: tabular-nums; }
-@media (max-width: 700px) {
-  .ds-fin-manual label.ds-fin-manual__activity-row {
-    grid-template-columns: 18px minmax(0,1fr) auto;
-    gap: 8px;
-    padding: 10px;
-  }
-  .ds-fin-manual__activity-school { grid-column: 2; }
-  .ds-fin-manual__activity-price { grid-column: 3; grid-row: 1 / span 2; }
+.ds-fin-manual__activity-school,
+.ds-fin-manual__activity-authority { color: var(--ds-text-secondary); }
+.ds-fin-manual__activity-gefen { text-align: center; font-variant-numeric: tabular-nums; }
+.ds-fin-manual__activity-price {
+  text-align: left;
+  direction: ltr;
+  white-space: nowrap;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 850px) {
+  .ds-fin-manual__activity-table { min-width: 760px; }
 }
 
 /* Existing financial values remain the default; editing another selected activity is opt-in. */
