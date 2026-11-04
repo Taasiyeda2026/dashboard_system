@@ -75,3 +75,61 @@
     flex:1 1 120px!important;min-width:0!important;max-width:160px!important;min-height:44px!important;
   }
 }
+
+/* Expenses: compact centered form, no month selector, no full-width controls. */
+.av2-report .av2-expenses-tab{
+  width:min(100%,480px)!important;max-width:480px!important;
+  margin-inline:auto!important;gap:14px!important;
+}
+.av2-report .av2-expenses-tab>h2,
+.av2-report .av2-expenses-tab>h3{
+  font-size:1.02rem!important;font-weight:700!important;
+  text-align:start;margin:0!important;color:#18395b;
+}
+.av2-report .av2-expenses-tab__form{
+  width:100%!important;max-width:480px!important;box-sizing:border-box;
+  padding:16px!important;gap:12px!important;
+}
+.av2-report .av2-expenses-tab__fields-row{
+  display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);
+  gap:12px;min-width:0;
+}
+.av2-report .av2-expenses-tab__fields-row>.av2-field{
+  width:100%!important;min-width:0!important;
+}
+.av2-report .av2-expenses-tab__form .av2-field__input{
+  width:100%!important;max-width:100%!important;min-height:38px!important;
+}
+.av2-report .av2-expenses-tab__files{
+  display:grid;gap:6px;min-width:0;
+}
+.av2-report .av2-expenses-tab__files input[type=file]{
+  box-sizing:border-box;width:100%;min-width:0;max-width:100%;
+  padding:8px;border:1px dashed #b9cce6;border-radius:8px;
+  background:#f9fbff;color:#27466b;font-size:.8rem;
+}
+.av2-report .av2-expenses-tab__files input[type=file]::file-selector-button{
+  background:#eff5ff;border:1px solid #b7cefa;border-radius:6px;
+  color:#245bd0;padding:6px 10px;margin-inline-end:8px;
+  font-family:inherit;font-size:.8rem;cursor:pointer;
+}
+.av2-report .av2-expenses-tab__upload-text{display:none}
+.av2-report .av2-expenses-tab__actions{
+  display:flex!important;align-items:center!important;
+  justify-content:center!important;gap:10px!important;
+  margin-top:6px!important;
+}
+.av2-report .av2-expenses-tab__actions>.av2-btn{
+  flex:0 0 110px!important;width:110px!important;min-width:0!important;
+  max-width:110px!important;min-height:38px!important;
+  padding:7px 10px!important;font-size:.83rem!important;
+}
+.av2-report .av2-expenses-tab__list{width:100%;max-width:480px}
+@media(max-width:480px){
+  .av2-report .av2-expenses-tab{width:100%!important}
+  .av2-report .av2-expenses-tab__form{padding:12px!important}
+  .av2-report .av2-expenses-tab__fields-row{grid-template-columns:minmax(0,1fr);gap:10px}
+  .av2-report .av2-expenses-tab__actions>.av2-btn{
+    flex:0 1 110px!important;min-height:44px!important;
+  }
+}
