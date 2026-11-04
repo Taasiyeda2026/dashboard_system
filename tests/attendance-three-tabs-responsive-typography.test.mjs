@@ -11,9 +11,9 @@ test('shared typography stylesheet is last and cache versions are consistent',as
     file('attendance/src/styles/report-tabs-responsive-typography.css'),
   ]);
   const links=[...html.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map(m=>m[1]);
-  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=136');
-  assert.match(sw,/const CACHE_VERSION = 136/);
-  assert.ok(links.every(s=>s.endsWith('?v=136')));
+  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=137');
+  assert.match(sw,/const CACHE_VERSION = 137/);
+  assert.ok(links.every(s=>s.endsWith('?v=137')));
   assert.match(css,/font-family:var\(--av2-font,inherit\)/);
   assert.match(css,/font-size:14\.5px!important/);
   assert.match(css,/font-size:17px!important/);
@@ -56,4 +56,16 @@ test('time inputs are two readable hour/minute selectors, never squeezed into ha
  assert.match(css,/\.av2-report \.av2-report__form \.av2-time-picker\{[\s\S]*?width:196px!important/);
  assert.match(css,/\.av2-report \.av2-report__form \.av2-time-picker__part\{[\s\S]*?flex:1 1 0!important/);
  assert.match(css,/\.av2-report \.av2-report__form \.av2-time-picker__part \.av2-csel__trigger\{[\s\S]*?font-size:16px!important/);
+});
+
+test('desktop viewport-fit is compact without hiding overflow, and mobile stays scrollable',async()=>{
+ const css=await file('attendance/src/styles/report-tabs-responsive-typography.css');
+ const desktop=css.slice(css.indexOf('/*\n * Desktop viewport-fit density'));
+ assert.match(desktop,/@media \(min-width: 768px\)/);
+ assert.match(desktop,/@media \(min-width: 768px\) and \(max-height: 800px\)/);
+ assert.match(desktop,/\.av2-report \.av2-report__tabs\{[\s\S]*?margin:4px auto 10px!important/);
+ assert.match(desktop,/\.av2-report \.av2-report__form \.av2-report__times-grid\{[\s\S]*?gap:8px!important/);
+ assert.match(desktop,/\.av2-report \.av2-report__form>\.av2-report__actions\{[\s\S]*?margin:5px auto 0!important/);
+ assert.match(desktop,/height:auto!important;overflow:visible!important/);
+ assert.doesNotMatch(desktop,/overflow:hidden|height:100vh|position:fixed/);
 });
