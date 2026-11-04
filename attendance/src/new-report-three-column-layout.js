@@ -21,6 +21,21 @@ function injectStyle() {
       display: none !important;
     }
 
+    /* Two real sections after expenses moved into a separate tab. */
+    @media (min-width: 768px) {
+      .av2-report__form.av2-report__form--two-sections {
+        width: min(100%, 700px) !important;
+        grid-template-columns: repeat(2, minmax(0, 330px)) !important;
+        justify-content: center !important;
+        margin-inline: auto !important;
+        column-gap: 20px !important;
+      }
+      .av2-report__form.av2-report__form--two-sections > .av2-form-section {
+        width: 100% !important;
+        max-width: 330px !important;
+      }
+    }
+
     .av2-expenses-toggle {
       width: 100%;
       display: flex;
@@ -278,7 +293,11 @@ function enhanceForm(form) {
   if (!timesSection) return;
 
   const expensesInner = timesSection.querySelector('.av2-report__expenses');
-  if (!expensesInner) return;
+  if (!expensesInner) {
+    form.classList.add('av2-report__form--two-sections');
+    form.dataset.av2ThreeColumnLayout = 'yes';
+    return;
+  }
 
   const oldSubtitle = expensesInner.querySelector(':scope > .av2-form-section__subtitle');
   if (oldSubtitle) oldSubtitle.setAttribute('aria-hidden', 'true');
