@@ -898,3 +898,19 @@
 }
 .ds-fin-manual__optional-edit > summary { cursor: pointer; font-size: .83rem; font-weight: 600; }
 .ds-fin-manual__optional-edit > label { margin-top: 10px; }
+
+/* Batch drafts remain available for review, but do not fill the screen by default. */
+.ds-fin-manual__batch-previews { display: grid; gap: 12px; min-width: 0; }
+.ds-fin-manual__batch-review-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 14px;
+  border: 1px solid var(--ds-border);
+  border-radius: 10px;
+}
+.ds-fin-manual__batch-preview-list { border: 1px solid var(--ds-border); border-radius: 10px; padding: 10px 12px; }
+.ds-fin-manual__batch-preview-list > summary { cursor: pointer; font-size: .84rem; font-weight: 600; }
+.ds-fin-manual__batch-preview-list[open] > .ds-fin-manual__review { margin-top: 8px; }
