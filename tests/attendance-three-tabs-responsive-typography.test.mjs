@@ -11,9 +11,9 @@ test('shared typography stylesheet is last and cache versions are consistent',as
     file('attendance/src/styles/report-tabs-responsive-typography.css'),
   ]);
   const links=[...html.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map(m=>m[1]);
-  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=143');
-  assert.match(sw,/const CACHE_VERSION = 143/);
-  assert.ok(links.every(s=>s.endsWith('?v=143')));
+  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=144');
+  assert.match(sw,/const CACHE_VERSION = 144/);
+  assert.ok(links.every(s=>s.endsWith('?v=144')));
   assert.match(css,/font-family:var\(--av2-font,inherit\)/);
   assert.match(css,/font-size:14\.5px!important/);
   assert.match(css,/font-size:17px!important/);
@@ -145,7 +145,7 @@ test('mobile and desktop display only the active tab including expenses and trav
 
 test('attendance cards and tabs are compact and total hours exactly matches time picker width',async()=>{
  const css=await file('attendance/src/styles/report-tabs-responsive-typography.css');
- const final=css.slice(css.lastIndexOf('/* Compact proportional Attendance cards'));
+ const final=css.slice(css.lastIndexOf('/* Compact proportional Attendance cards'),css.indexOf('/* Travel day dropdown:'));
  assert.match(final,/\.av2-report \.av2-report__tabs\{[\s\S]*?max-width:616px!important/);
  assert.match(final,/grid-template-columns:repeat\(2,minmax\(0,300px\)\)!important/);
  assert.match(final,/column-gap:16px!important/);
@@ -164,7 +164,7 @@ test('travel day options use bounded custom picker and native element stays hidd
  assert.match(ui,/maxHeight:248/);
  assert.match(ui,/dayPicker\.setOptions\(\[\.\.\.daySelect\.options\]/);
  assert.match(ui,/daySelect\.dispatchEvent\(new Event\('change'\)\)/);
- assert.match(css,/\.av2-daily-travel__day-picker \.av2-csel__panel\{[\s\S]*?max-height:248px!important/);
+ assert.match(css,/\.av2-daily-travel__day-picker \.av2-csel__options\{[\s\S]*?max-height:248px!important/);
  assert.match(css,/max-height:min\(248px,42vh\)!important/);
 });
 test('expenses month validation accepts standard YYYY-MM dates and does not warn on initial load',async()=>{
@@ -176,4 +176,23 @@ test('expenses month validation accepts standard YYYY-MM dates and does not warn
  assert.equal(rx.test('2026-10'),true);
  assert.equal(rx.test('2026-13'),false);
  assert.doesNotMatch(src,/monthStatus\.textContent='יש לבחור תאריך הוצאה תקין'/);
+});
+
+test('travel day picker has exactly one scrolling element and informative historical labels',async()=>{
+ const css=await file('attendance/src/styles/report-tabs-responsive-typography.css');
+ const ui=await file('attendance/src/screens/daily-travel-tab.js');
+ const panel=css.match(/\.av2-report \.av2-daily-travel__report-card \.av2-daily-travel__day-picker \.av2-csel__panel\{([^}]+)\}/);
+ assert.ok(panel);
+ assert.match(panel[1],/overflow:hidden!important/);
+ assert.doesNotMatch(panel[1],/overflow-y:auto!important/);
+ assert.match(css,/\.av2-daily-travel__day-picker \.av2-csel__options\{[\s\S]*?overflow-y:auto!important/);
+ assert.match(ui,/row\.school_name_snapshot\|\|row\.authority_name_snapshot/);
+ assert.match(ui,/row\.program_name_snapshot\|\|row\.activity_name_snapshot/);
+ assert.match(ui,/יום פעילות – תאריך ומיקום/);
+});
+
+test('desktop three-tab reporting UI has 85 percent density and mobile stays readable',async()=>{
+ const css=await file('attendance/src/styles/report-tabs-responsive-typography.css');
+ assert.match(css,/@media \(min-width:981px\)\{[\s\S]*?\.av2-report \.av2-report__form-area\{[\s\S]*?zoom:\.85/);
+ assert.match(css,/@media \(max-width:980px\)\{[\s\S]*?zoom:1/);
 });
