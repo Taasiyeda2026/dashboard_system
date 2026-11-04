@@ -334,14 +334,18 @@
   width: 100%;
   box-sizing: border-box;
 }
-.ds-fin-manual__form > .ds-fin-manual__billing { max-width: 808px; }
+.ds-fin-manual__form > .ds-fin-manual__billing { max-width: 900px; }
 .ds-fin-manual__form > .ds-fin-manual__selected-schools { max-width: 100%; }
-.ds-fin-manual__form > .ds-fin-manual__extra { max-width: 808px; }
-.ds-fin-manual__billing-row {
-  grid-template-columns: 175px 175px 145px 145px 145px;
+.ds-fin-manual__form > .ds-fin-manual__extra { max-width: 320px; }
+.ds-fin-manual__form > .ds-fin-manual__extra[open] { max-width: 808px; }
+.ds-fin-collect-shell .ds-fin-manual__billing-row {
+  grid-template-columns: 175px 175px 145px 145px;
   width: fit-content;
   max-width: 100%;
   gap: 12px;
+}
+.ds-fin-collect-shell .ds-fin-manual__billing-row--with-hourly {
+  grid-template-columns: 175px 175px 145px 145px 145px;
 }
 .ds-fin-manual__billing-row .ds-fin-manual__field { width: 100%; min-width: 0; }
 .ds-fin-manual__ratio {
@@ -382,7 +386,7 @@
   text-align: center;
 }
 @media (max-width: 1020px) {
-  .ds-fin-collect-shell .ds-fin-manual__billing-row {
+  .ds-fin-collect-shell .ds-fin-manual__billing-row--with-hourly {
     grid-template-columns: repeat(3,minmax(0,175px));
     width: 100%;
   }
@@ -844,7 +848,7 @@
   border: 1px solid var(--ds-border);
   border-radius: 9px;
   padding: 9px 12px;
-  width: min(100%, 400px);
+  width: min(100%, 320px);
   box-sizing: border-box;
 }
 .ds-fin-manual__optional-edit > summary { cursor: pointer; font-size: .83rem; font-weight: 600; }

@@ -10,11 +10,10 @@ test('Anglican Google AI course keeps 8000 as authoritative price and calculates
   assert.equal(d.manualDraft.quantity,10);assert.equal(d.manualDraft.hours,15);assert.equal(d.manualDraft.amount,8000);
   assert.equal(manualHourlyRate(d.manualDraft),8000/15);
   let doc=new JSDOM(manualAccountViewHtml(d)).window.document;
-  assert.equal(doc.querySelector('[data-finance-manual-hourly-rate]').value,'533.33');
-  assert.equal(doc.querySelector('[data-finance-manual-hourly-rate]').readOnly,true);
-  assert.equal(doc.querySelectorAll('.ds-fin-manual__billing-row > label').length,5);
+  assert.equal(doc.querySelector('[data-finance-manual-hourly-rate]'),null);
+  assert.equal(doc.querySelectorAll('.ds-fin-manual__billing-row > label').length,4);
   assert.deepEqual([...doc.querySelectorAll('.ds-fin-manual__billing-row > label')].map(x=>x.firstChild.textContent.trim()),
-    ['מפגשים לחיוב | סה״כ מפגשים','שעות לחיוב | סה״כ שעות','מחיר הפעילות','מחיר שעתי מחושב','סכום לחיוב']);
+    ['מפגשים לחיוב | סה״כ מפגשים','שעות לחיוב | סה״כ שעות','מחיר הפעילות','סכום לחיוב']);
   const meetingRatio=doc.querySelectorAll('.ds-fin-manual__ratio')[0];
   const hoursRatio=doc.querySelectorAll('.ds-fin-manual__ratio')[1];
   assert.equal(meetingRatio.querySelector('[data-finance-manual-field="quantity"]').value,'10');
@@ -602,4 +601,29 @@ test('deselecting final invoice activity clears the entire editor, previews and 
  assert.equal(doc.querySelector('[data-finance-manual-preview]'),null);
  assert.equal(doc.querySelector('[data-finance-manual-selection-count]').textContent,'0 פעילויות נבחרו');
  assert.equal(doc.querySelector('[data-finance-manual-select-activity]').checked,false);
+});
+
+test('manual invoice for Gefen alone exposes a readonly hourly rate, without affecting fixed price',()=>{
+  const d={manualFundingCategory:'gefen',manualFunderFilter:'school:1',
+    collectionActivities:[{row_id:'g',school:'גפן בית ספר',activity_name:'חלל',activity_type:'course',price:12000,activity_no:'57651'}],
+    transactionContext:{billingRows:[{activityRowId:'g',activityType:'course',fundingSourceId:'gf',funding:'גפן',gefenFunding:true,payerKey:'school:1',payerName:'גפן בית ספר',period:'2026-10-01',plannedCount:10,plannedHours:15,fullFundingAmount:12000,fullFundingBlockedReason:'',eligible:true}]}};
+ toggleManualActivity(d,'g',true);
+ const originalAmount=d.manualDraft.amount;
+ const doc=new JSDOM(manualAccountViewHtml(d)).window.document;
+ assert.equal(doc.querySelectorAll('.ds-fin-manual__billing-row > label').length,5);
+ assert.equal(doc.querySelector('[data-finance-manual-hourly-rate]').readOnly,true);
+ assert.match(doc.querySelector('[data-finance-manual-hourly-rate]').value,/800/);
+ assert.equal(d.manualDraft.amount,originalAmount);
+});
+
+test('no manual activity selected means no invoice summary editor or PDF even with stale focus',()=>{
+ const d={manualFundingCategory:'source:רמי שני',manualFunderFilter:'route:source:רמי שני',
+   manualSelectedActivityIds:[],manualActivityId:'a',manualDraft:{amount:10000,planned_count:10,quantity:10},
+   collectionActivities:[{row_id:'a',school:'בית ספר',activity_name:'חלל'}],
+   transactionContext:{billingRows:[{activityRowId:'a',fundingSourceId:'s',funding:'רמי שני',payerName:'רמי שני',fullFundingAmount:10000}]}};
+ const doc=new JSDOM(manualAccountViewHtml(d)).window.document;
+ assert.equal(doc.querySelector('[data-finance-manual-form]'),null);
+ assert.equal(doc.querySelector('[data-finance-manual-batch-total]'),null);
+ assert.equal(doc.querySelector('[data-finance-manual-preview]'),null);
+ assert.equal(doc.querySelector('[data-finance-manual-selection-count]').textContent,'0 פעילויות נבחרו');
 });
