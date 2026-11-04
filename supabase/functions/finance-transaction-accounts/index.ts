@@ -274,16 +274,22 @@ async function attachActivityTypes(account: any, client: ReturnType<typeof creat
   return account;
 }
 
+// Licensed Assistant TTFs (SIL OFL 1.1) are pinned to a fixed upstream commit.
+// Both font programs are fully embedded in the PDF below, so recipients do not
+// need Assistant (or any other Hebrew font) installed on their machines.
+const ASSISTANT_FONT_BASE = "https://raw.githubusercontent.com/TypeNetwork/Assistant/2b5ffdccb0216ccbdbdc8a623f3b935fc5b5e04a/fonts/ttf";
+async function fetchPdfFont(url: string, failureCode: string): Promise<ArrayBuffer> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(failureCode);
+  const bytes = await response.arrayBuffer();
+  if (bytes.byteLength < 1000) throw new Error(failureCode);
+  return bytes;
+}
+
 async function buildPdf(account: any) {
   const [regularBytes, boldBytes, logoBytes] = await Promise.all([
-    fetch("https://raw.githubusercontent.com/Taasiyeda2026/dashboard_system/main/frontend/assets/fonts/Alef-Regular.ttf").then((r) => {
-      if (!r.ok) throw new Error("pdf_regular_font_load_failed");
-      return r.arrayBuffer();
-    }),
-    fetch("https://raw.githubusercontent.com/Taasiyeda2026/dashboard_system/main/frontend/assets/fonts/Alef-Bold.ttf").then((r) => {
-      if (!r.ok) throw new Error("pdf_bold_font_load_failed");
-      return r.arrayBuffer();
-    }),
+    fetchPdfFont(`${ASSISTANT_FONT_BASE}/Assistant-Regular.ttf`, "pdf_assistant_regular_font_load_failed"),
+    fetchPdfFont(`${ASSISTANT_FONT_BASE}/Assistant-Bold.ttf`, "pdf_assistant_bold_font_load_failed"),
     fetch("https://raw.githubusercontent.com/Taasiyeda2026/dashboard_system/main/frontend/assets/logo1.png").then((r) => {
       if (!r.ok) throw new Error("pdf_logo_load_failed");
       return r.arrayBuffer();
@@ -292,6 +298,8 @@ async function buildPdf(account: any) {
   const doc = await PDFDocument.create();
   if(account.revision_created_at){doc.setCreationDate(new Date(account.revision_created_at));doc.setModificationDate(new Date(account.revision_created_at));}
   doc.registerFontkit(fontkit);
+  // Full embedding (not merely a CSS font-family hint): the PDF contains both
+  // Assistant font files and remains portable across Windows, Mac and mobile.
   const regular = await doc.embedFont(regularBytes, { subset: false });
   const bold = await doc.embedFont(boldBytes, { subset: false });
   const logo = await doc.embedPng(logoBytes);

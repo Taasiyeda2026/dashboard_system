@@ -48,3 +48,15 @@ test('payment details have a subtle separator and do not repeat the addressee', 
   assert.match(pdf,/if \(y < 173\) \{ page = doc\.addPage\(\[595, 842\]\); y = drawInvoiceHeader\(page, true\); \}/);
   assert.equal((pdf.match(/drawRight\(targetPage, bold, `לכבוד:/g) || []).length, 1,'the recipient is drawn only in the first-page header');
 });
+
+test('draft and final transaction PDFs fully embed Assistant Regular and Bold', () => {
+  assert.match(pdf, /const ASSISTANT_FONT_BASE = "https:\/\/raw\.githubusercontent\.com\/TypeNetwork\/Assistant\/[a-f0-9]{40}\/fonts\/ttf"/);
+  assert.match(pdf, /fetchPdfFont\(`\$\{ASSISTANT_FONT_BASE\}\/Assistant-Regular\.ttf`/);
+  assert.match(pdf, /fetchPdfFont\(`\$\{ASSISTANT_FONT_BASE\}\/Assistant-Bold\.ttf`/);
+  assert.match(pdf, /doc\.registerFontkit\(fontkit\)/);
+  assert.match(pdf, /const regular = await doc\.embedFont\(regularBytes, \{ subset: false \}\)/);
+  assert.match(pdf, /const bold = await doc\.embedFont\(boldBytes, \{ subset: false \}\)/);
+  assert.doesNotMatch(pdf, /assets\/fonts\/Alef-(Regular|Bold)\.ttf/);
+  assert.match(pdf, /const draft = clean\(account\.transaction_account_number\) === 'טיוטה'/);
+  assert.equal((pdf.match(/async function buildPdf\(account: any\)/g) || []).length,1);
+});
