@@ -16,6 +16,7 @@ import {
 import { activityWorkDrawerHtml, patchDrawerDatesSection } from './shared/activity-detail-html.js';
 import { displayedActivityProgramName } from './shared/activity-program-display-name.js';
 import { bindActivityPhotoConsentUpload } from './shared/activity-photo-consent-drawer.js';
+import { loadLatest2027ActivityUpdates, latestUpdateDisplay } from './shared/activity-list-latest-notes.js';
 import {
   ensureActivityListFilters,
   prepareRowsForSearch,
@@ -1462,7 +1463,7 @@ function putCachedActivityDates(summaryRow, data, s) {
  * Returns '' if all dates have passed or none exist.
  */
 function nextMeetingDate(row) {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayYmdForActivityDefaults();
   const dates = [];
   // Collect from meeting_dates / date_cols array (already normalised)
   const cols = Array.isArray(row?.meeting_dates) ? row.meeting_dates
@@ -1882,6 +1883,18 @@ export const activitiesScreen = {
     };
     const loadedRows = Array.isArray(result?.rows) ? result.rows : [];
     ensureActivityPeriodMonth(state, loadedRows);
+    // The all-activities 2027 tab displays the last update from the timeline,
+    // not the activities.notes field (which is now "מידע נוסף").
+    if (state.activityPeriodTab === ACTIVITY_SEASON_SCHOOL_2027) {
+      try {
+        state.latest2027ActivityNotes = await loadLatest2027ActivityUpdates(loadedRows);
+        state.latest2027ActivityNotesError = '';
+      } catch (error) {
+        state.latest2027ActivityNotes = Object.create(null);
+        state.latest2027ActivityNotesError = String(error?.message || error);
+        console.warn('[activities] 2027 notes load failed', error);
+      }
+    }
     const contactEnrichment = Promise.resolve()
       .then(() => api.enrichActivitiesContacts?.(result))
       .then((enriched) => (enriched && Array.isArray(enriched.rows) ? enriched : result))
@@ -1959,6 +1972,8 @@ export const activitiesScreen = {
     }, {});
     const isSummerTab = state.activityPeriodTab === ACTIVITY_SEASON_REGULAR && state.activitiesInnerTab === ACTIVITIES_INNER_TAB_SUMMER_2026;
     const is2027Tab = state.activityPeriodTab === ACTIVITY_SEASON_SCHOOL_2027;
+    const is2027AllTab = is2027Tab && state.activitiesInnerTab === ACTIVITIES_INNER_TAB_ALL;
+    const is2027ActivitiesTab = is2027Tab && state.activitiesInnerTab === ACTIVITIES_INNER_TAB_2027;
     const tableRows = safeRows
       .map((row) => {
         const instructorMeta = activityInstructorMeta(row, { hideEmpIds, instructorByEmpId });
@@ -2012,18 +2027,27 @@ export const activitiesScreen = {
           const startHe2027 = formatDateHe(row.start_date) || '—';
           const endRaw2027 = String(row?.end_date || row?.date_end || '').trim() || String(row?.start_date || '').trim();
           const endHe2027 = endRaw2027 ? formatDateHe(endRaw2027) || '—' : '—';
-          const contactCell2027 = school2027ContactCellHtml(row);
-          const notes2027 = escapeHtml(String(row.notes || '—'));
+          const contactCell2027 = is2027AllTab ? school2027ContactCellHtml(row) : '';
+          const nextDate = is2027ActivitiesTab ? nextMeetingDate(row) : '';
+          const nextHe = nextDate ? (formatDateHe(nextDate) || nextDate) : '—';
+          const latest = is2027AllTab
+            ? state?.latest2027ActivityNotes?.[String(row.RowID || row.row_id || '').trim()]
+            : null;
+          const noteOrInfo = is2027AllTab
+            ? (latestUpdateDisplay(latest) || (state.latest2027ActivityNotesError ? 'לא ניתן לטעון הערות' : '—'))
+            : String(row.notes || '—');
+          const safeNoteOrInfo = escapeHtml(noteOrInfo);
           return `
       <tr class="ds-data-row ds-activities-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
         <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name" title="${activityName}">${activityName}</strong><span class="ds-activities-program-type" title="${activityTypeLabel}">${activityTypeLabel}</span>${editStatusBadge}</div></td>
         <td class="ds-activities-col ds-activities-col--authority"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(row.authority || '—')}">${escapeHtml(row.authority || '—')}</span></td>
         <td class="ds-activities-col ds-activities-col--school"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(getActivitySchoolDisplayName(row) || '—')}">${escapeHtml(getActivitySchoolDisplayName(row) || '—')}</span></td>
-        <td class="ds-activities-col ds-activities-col--contact-name">${contactCell2027}</td>
+        ${is2027AllTab ? `<td class="ds-activities-col ds-activities-col--contact-name">${contactCell2027}</td>` : ''}
         <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(startHe2027)}</time></td>
         <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(endHe2027)}</time></td>
         <td class="ds-activities-col ds-activities-col--instructor">${instructorDisplay}</td>
-        <td class="ds-activities-col ds-activities-col--notes"><span class="ds-activities-cell-ellipsis" title="${notes2027}">${notes2027}</span></td>
+        ${is2027ActivitiesTab ? `<td class="ds-activities-col ds-activities-col--meetings"><time class="ds-activities-date" title="${escapeHtml(nextDate)}">${escapeHtml(nextHe)}</time></td>` : ''}
+        <td class="ds-activities-col ds-activities-col--notes"><span class="ds-activities-cell-ellipsis" title="${safeNoteOrInfo}">${safeNoteOrInfo}</span></td>
       </tr>
     `;
         }
@@ -2091,13 +2115,14 @@ export const activitiesScreen = {
                   <col class="ds-activities-col--program">
                   <col class="ds-activities-col--authority">
                   <col class="ds-activities-col--school">
-                  <col class="ds-activities-col--contact-name">
+                  ${is2027AllTab ? '<col class="ds-activities-col--contact-name">' : ''}
                   <col class="ds-activities-col--date">
                   <col class="ds-activities-col--date">
                   <col class="ds-activities-col--instructor">
+                  ${is2027ActivitiesTab ? '<col class="ds-activities-col--meetings">' : ''}
                   <col class="ds-activities-col--notes">
                 </colgroup>
-                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th><th>איש קשר</th><th>תאריך התחלה</th><th>תאריך סיום</th><th>מדריך</th><th>הערות</th></tr></thead>`
+                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th>${is2027AllTab ? '<th>איש קשר</th>' : ''}<th>תאריך התחלה</th><th>תאריך סיום</th><th>מדריך</th>${is2027ActivitiesTab ? '<th>המפגש הבא</th>' : ''}<th>${is2027AllTab ? 'הערה אחרונה' : 'מידע נוסף'}</th></tr></thead>`
         : `<colgroup>
                   <col class="ds-activities-col--program">
                   <col class="ds-activities-col--authority">
