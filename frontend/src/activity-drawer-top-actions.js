@@ -67,6 +67,15 @@ export function align2027ActivityDrawerTopActions(form) {
     }
   }
 
+  // The toolbar is RTL: the close button is the first icon at the left.
+  // Place Edit immediately beside Close, followed by the remaining actions.
+  // Only reorder when necessary so observer reruns do not mutate the DOM.
+  const close = actions.querySelector('[data-ui-close-drawer]');
+  if (edit && close && edit.nextElementSibling !== close) {
+    actions.insertBefore(edit, close);
+    changed = true;
+  }
+
   // The view footer becomes redundant once Edit and Feedback live in the header.
   const footer = form.querySelector(':scope > .activity-drawer__view-footer');
   if (footer) footer.hidden = footer.childElementCount === 0;
