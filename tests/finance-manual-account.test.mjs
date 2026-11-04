@@ -10,9 +10,17 @@ test('Anglican Google AI course keeps 8000 as authoritative price and calculates
   assert.equal(d.manualDraft.quantity,10);assert.equal(d.manualDraft.hours,15);assert.equal(d.manualDraft.amount,8000);
   assert.equal(manualHourlyRate(d.manualDraft),8000/15);
   let doc=new JSDOM(manualAccountViewHtml(d)).window.document;
-  assert.match(doc.querySelector('[data-finance-manual-hourly-rate]').textContent,/533.33/);
-  assert.equal(doc.querySelectorAll('.ds-fin-manual__billing-row > label').length,4);
-  assert.deepEqual([...doc.querySelectorAll('.ds-fin-manual__billing-row > label')].map(x=>x.textContent),['מפגשים לחיובמתוך 10','שעות לחיובמתוך 15','מחיר הפעילות','סכום לחיוב']);
+  assert.equal(doc.querySelector('[data-finance-manual-hourly-rate]').value,'533.33');
+  assert.equal(doc.querySelector('[data-finance-manual-hourly-rate]').readOnly,true);
+  assert.equal(doc.querySelectorAll('.ds-fin-manual__billing-row > label').length,5);
+  assert.deepEqual([...doc.querySelectorAll('.ds-fin-manual__billing-row > label')].map(x=>x.firstChild.textContent.trim()),
+    ['מפגשים לחיוב | סה״כ מפגשים','שעות לחיוב | סה״כ שעות','מחיר הפעילות','מחיר שעתי מחושב','סכום לחיוב']);
+  const meetingRatio=doc.querySelectorAll('.ds-fin-manual__ratio')[0];
+  const hoursRatio=doc.querySelectorAll('.ds-fin-manual__ratio')[1];
+  assert.equal(meetingRatio.querySelector('[data-finance-manual-field="quantity"]').value,'10');
+  assert.equal(meetingRatio.querySelector('output').textContent,'10');
+  assert.equal(hoursRatio.querySelector('input').value,'15');
+  assert.equal(hoursRatio.querySelector('output').textContent,'15');
   assert.doesNotMatch(manualAccountViewHtml(d),/מחיר למפגש|גורם מימון וחודש/);
   for(const [key,value] of [['quantity',9],['hours',12],['amount','7,500.00']])assert.equal(updateManualDraft(d,key,value),false);
   assert.equal(d.manualDraft.amount,8000);assert.equal(manualHourlyRate(d.manualDraft),8000/15);
