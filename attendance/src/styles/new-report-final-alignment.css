@@ -1,0 +1,77 @@
+/* New report only: centered layout, clear hierarchy and quiet secondary travel action.
+   Deliberately leaves report fields, values, visibility rules and save handlers unchanged. */
+.av2-report .av2-report__form-area{width:100%;min-width:0;align-items:center!important}
+.av2-report .av2-report__tabs{
+  width:min(100%,700px)!important;max-width:700px!important;
+  margin:10px auto 18px!important;align-self:center!important;
+  display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  gap:6px!important;justify-content:center!important;
+}
+.av2-report .av2-report__tabs>.av2-btn,
+.av2-report .av2-report__tabs>.av2-btn:nth-child(2){
+  width:100%!important;min-width:0!important;min-height:44px!important;
+  flex:none!important;padding:9px 10px!important;
+  font-size:.84rem!important;font-weight:650!important;
+}
+@media(min-width:768px){
+  .av2-report .av2-report__form.av2-report__form--two-sections{
+    width:min(100%,700px)!important;
+    max-width:700px!important;
+    grid-template-columns:repeat(2,minmax(0,330px))!important;
+    gap:16px 20px!important;
+    justify-content:center!important;
+    margin-inline:auto!important;
+  }
+  .av2-report .av2-report__form.av2-report__form--two-sections>.av2-form-section{
+    width:100%!important;max-width:330px!important;min-width:0!important;
+  }
+}
+.av2-report .av2-report__form>.av2-form-section .av2-form-section__title{
+  font-size:1.08rem!important;font-weight:750!important;
+  line-height:1.45!important;letter-spacing:0!important;
+  color:#1a375b!important;
+}
+.av2-report .av2-report__form>.av2-report__actions{
+  grid-column:1/-1!important;width:100%!important;
+  display:flex!important;justify-content:center!important;
+  align-items:center!important;gap:10px!important;
+  margin:8px auto 0!important;
+}
+.av2-report .av2-report__form>.av2-report__actions>.av2-btn{
+  flex:0 1 130px!important;min-width:112px!important;
+  max-width:150px!important;min-height:42px!important;
+}
+.av2-report .av2-report__hours-followup{
+  display:flex;flex-direction:column;align-items:stretch!important;gap:8px!important;
+}
+.av2-report .av2-report__hours-followup>.av2-field{width:100%!important}
+.av2-report .av2-report__hours-followup>.av2-report__tiny-travel-btn{
+  display:inline-flex!important;align-self:flex-start!important;
+  width:auto!important;max-width:100%!important;min-height:30px!important;
+  padding:3px 2px!important;margin:0!important;
+  background:transparent!important;border:0!important;box-shadow:none!important;
+  color:#285fbe!important;font-size:.8rem!important;font-weight:600!important;
+  border-radius:4px!important;
+}
+.av2-report .av2-report__hours-followup>.av2-report__tiny-travel-btn:hover{
+  background:transparent!important;color:#174a9c!important;text-decoration:underline;
+}
+.av2-report .av2-report__hours-followup>.av2-report__tiny-travel-btn:focus-visible{
+  outline:2px solid #285fbe!important;outline-offset:3px;
+}
+/* Avoid painting the unused pale background row while preserving populated details. */
+.av2-report .av2-report__base-training-route[hidden],
+.av2-report .av2-report__time-cancellation[hidden],
+.av2-report .av2-report__inline-cancellation[hidden],
+.av2-report .av2-report__inline-cancellation-toggle[hidden],
+.av2-report .av2-report__base-training-route:empty,
+.av2-report .av2-report__time-cancellation:empty{display:none!important;padding:0!important;margin:0!important;border:0!important}
+@media(max-width:767px){
+  .av2-report .av2-report__tabs{width:100%!important;max-width:100%!important;gap:4px!important}
+  .av2-report .av2-report__tabs>.av2-btn{font-size:.76rem!important;padding:8px 4px!important}
+  .av2-report .av2-report__form{width:100%!important;max-width:100%!important;margin-inline:auto!important}
+  .av2-report .av2-report__form>.av2-form-section .av2-form-section__title{font-size:1.02rem!important}
+  .av2-report .av2-report__form>.av2-report__actions>.av2-btn{
+    flex:1 1 120px!important;min-width:0!important;max-width:160px!important;min-height:44px!important;
+  }
+}
