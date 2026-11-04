@@ -4,6 +4,7 @@
  * re-entered — the module reads school/program/instructor/contact from the activity.
  */
 import { state } from '../state.js';
+import { align2027ActivityDrawerTopActions } from '../activity-drawer-top-actions.js';
 
 const BUTTON_ATTR = 'data-impact-feedback-open';
 
@@ -47,20 +48,19 @@ export function enhanceActivityDrawers(root = document) {
     const is2027 = String(form.dataset.activitySeason || '').trim() === 'school_2027';
     if (is2027 && form.classList.contains('activity-drawer-inline-layout')) {
       const body = form.querySelector(':scope > .activity-drawer-inline__body');
-      if (!body) return;
+      const headerActions = form.querySelector('.activity-drawer__header-actions');
+      if (!body || !headerActions) return;
       const schedulingActions = body.querySelector('[data-activity-scheduling-status] .activity-drawer__scheduling-actions');
-      let target = schedulingActions;
-      if (!target) {
-        target = form.ownerDocument.createElement('div');
-        target.className = 'activity-drawer__scheduling-actions activity-drawer__scheduling-actions--standalone';
-        body.append(target);
-      }
+      let target = headerActions;
+
       // Rehome a button that an earlier observer pass might have already
       // attached to the floating footer before the inline layout was mounted.
       const button = existingButton || createButton(form);
-      button.className = 'ds-btn ds-btn--sm activity-drawer__feedback-shortcut';
-      button.textContent = 'משובים';
-      if (button.parentElement !== target) target.append(button);
+      button.className = 'activity-drawer__feedback-shortcut';
+      if (button.parentElement !== target) {
+        target.insertBefore(button, target.querySelector('[data-ui-close-drawer]'));
+      }
+      align2027ActivityDrawerTopActions(form);
       return;
     }
     if (existingButton || !footer) return;
