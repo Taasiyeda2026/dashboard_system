@@ -695,7 +695,24 @@ export const financeScreen = {
 
       const transactionTab = ev.target.closest('[data-finance-transaction-tab]');
       if (transactionTab) {
-        visit.transactionTab = String(transactionTab.dataset.financeTransactionTab || 'automatic');
+        const nextTransactionTab = String(transactionTab.dataset.financeTransactionTab || 'automatic');
+        if (nextTransactionTab === 'editable' && visit.transactionTab !== 'editable') {
+          // A new manual issuing session starts without any preselected activity.
+          // Keep the selected funding category but never carry stale invoice details.
+          visit.manualSelectedActivityIds = [];
+          visit.manualActivityId = '';
+          visit.manualDraft = null;
+          visit.manualFundingKey = '';
+          visit.manualActivityDrafts = {};
+          visit.manualQuote = null;
+          visit.manualPdf = '';
+          visit.manualBatchPreviews = null;
+          visit.manualConsolidatedPreview = null;
+          visit.manualBatchIssued = {};
+          visit.manualBulkEditingActivityId = '';
+          visit.manualScope = 'full';
+        }
+        visit.transactionTab = nextTransactionTab;
         if (visit.transactionTab === 'automatic' || visit.transactionTab === 'manual') {
           visit.transactionMonths = { ...visit.transactionMonths, [visit.transactionTab]: financeCycleCutoff().slice(0, 7) };
           visit.transactionManualSelected = {};
