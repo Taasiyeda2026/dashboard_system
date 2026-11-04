@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { manualAccountViewHtml,prepareManualAccount,updateManualDraft,runManualAccount,manualFundingFilterOptions,manualFundingRouteOptions,manualSelectedFundingRoute,manualFilteredActivities,selectedManualActivityIds,toggleManualActivity,focusManualActivity,saveActiveManualDraft,previewSelectedManualAccounts,runSelectedManualAccounts,formatManualMoney,parseManualMoney,normalizeManualRecipientEmails,manualSelectedFundingSummary,manualSelectionSnapshot,updateManualConsolidatedField,manualPdfPreviewFilename,syncManualPdfPreviewDom,clearManualPdfPreviewUrls,activateManualPdfPreview,manualConsolidatedActivityRows,manualHourlyRate,setManualBillingScope } from '../frontend/src/screens/finance-manual-account.js';
+import { manualAccountViewHtml,prepareManualAccount,updateManualDraft,runManualAccount,manualFundingFilterOptions,manualFundingRouteOptions,manualSelectedFundingRoute,manualFilteredActivities,selectedManualActivityIds,toggleManualActivity,focusManualActivity,saveActiveManualDraft,previewSelectedManualAccounts,runSelectedManualAccounts,formatManualMoney,parseManualMoney,normalizeManualRecipientEmails,manualSelectedFundingSummary,manualSelectionSnapshot,updateManualConsolidatedField,manualPdfPreviewFilename,manualPdfReviewHtml,syncManualPdfPreviewDom,clearManualPdfPreviewUrls,activateManualPdfPreview,manualConsolidatedActivityRows,manualHourlyRate,setManualBillingScope } from '../frontend/src/screens/finance-manual-account.js';
 const data=()=>({manualFunderFilter:'authority:עיריית רחובות',collectionActivities:[{row_id:'a',school:'בית ספר',authority:'עיריית רחובות',activity_name:'קורס',activity_no:'123'}],transactionContext:{billingRows:[{activityRowId:'a',fundingSourceId:'r',funding:'רשות',payerName:'עיריית רחובות',period:'2026-09-01',institutionSymbol:'123',unbilledCount:2,issuableAmount:7000,eligible:true}]}});
 test('Anglican Google AI course keeps 8000 as authoritative price and calculates hourly rate at full precision',()=>{
   const d={manualFunderFilter:'school:652',collectionActivities:[{row_id:'ai',school_id:652,school:'המשיח האנגליקאני',activity_name:'יישומי AI בשיתוף GOOGLE',activity_type:'course',price:8000,sessions:'10'}],
@@ -664,4 +664,28 @@ test('bulk invoices list all selected activities without a default activity edit
  assert.equal(doc.querySelector('[data-finance-manual-activity]').value,'');
  assert.equal(doc.querySelector('.ds-fin-manual__billing-row'),null);
  assert.equal(doc.querySelectorAll('.ds-fin-manual__selected-schools tbody tr').length,2);
+});
+
+test('manual account detail editing looks like a compact action without expanding by default',()=>{
+ const d=data();
+ toggleManualActivity(d,'a',true);
+ const doc=new JSDOM(manualAccountViewHtml(d)).window.document;
+ const extra=doc.querySelector('.ds-fin-manual__extra');
+ assert.ok(extra);
+ assert.equal(extra.open,false);
+ assert.match(extra.querySelector('summary').className,/ds-btn/);
+ assert.equal(extra.querySelector('summary').textContent,'עריכת פרטי חשבון');
+ assert.equal(doc.querySelector('[data-finance-manual-preview]').textContent,'בדיקת החשבון');
+});
+test('after generating PDF the flow has two primary actions and optional download under More',()=>{
+ const doc=new JSDOM(manualPdfReviewHtml({key:'single',title:'חשבון לבדיקה',detail:'ויצו · 3 פעילויות · 22,000 ₪',confirmLabel:'אישור והפקה'})).window.document;
+ assert.equal(doc.querySelectorAll('[data-finance-manual-pdf-open]').length,1);
+ assert.equal(doc.querySelectorAll('[data-finance-manual-confirm]').length,1);
+ assert.equal(doc.querySelector('[data-finance-manual-confirm]').textContent,'אישור והפקה');
+ const more=doc.querySelector('.ds-fin-manual__review-more');
+ assert.ok(more);
+ assert.equal(more.open,false);
+ assert.ok(more.querySelector('[data-finance-manual-pdf-download]'));
+ assert.equal(doc.querySelectorAll('.ds-fin-manual__review-file').length,0);
+ assert.doesNotMatch(doc.body.textContent,/טרם הופק חשבון עסקה|טיוטה לבדיקה בלבד/);
 });
