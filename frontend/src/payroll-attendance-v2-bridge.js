@@ -274,6 +274,30 @@ api.attendanceControlTeams = async function ({ monthKey = '' } = {}) {
   return syntheticEmployeesFromRecords((Array.isArray(data) ? data : []).map(rosterRecord));
 };
 
+function adminCorrectPatchFromFields(fields = {}) {
+  const patch = {};
+  if (Object.hasOwn(fields, 'startTime') || Object.hasOwn(fields, 'start_time')) {
+    patch.start_time = fields.startTime ?? fields.start_time ?? null;
+  }
+  if (Object.hasOwn(fields, 'endTime') || Object.hasOwn(fields, 'end_time')) {
+    patch.end_time = fields.endTime ?? fields.end_time ?? null;
+  }
+  if (Object.hasOwn(fields, 'workHours') || Object.hasOwn(fields, 'total_hours')) {
+    patch.total_hours = fields.workHours ?? fields.total_hours ?? null;
+  }
+  if (Object.hasOwn(fields, 'kilometers') || Object.hasOwn(fields, 'roundtrip_km')) {
+    patch.roundtrip_km = fields.kilometers ?? fields.roundtrip_km ?? null;
+  }
+  if (Object.hasOwn(fields, 'cancellationBeforeMinutes') || Object.hasOwn(fields, 'cancellation_before_minutes')) {
+    patch.cancellation_before_minutes = fields.cancellationBeforeMinutes ?? fields.cancellation_before_minutes ?? null;
+  }
+  if (Object.hasOwn(fields, 'cancellationAfterMinutes') || Object.hasOwn(fields, 'cancellation_after_minutes')) {
+    patch.cancellation_after_minutes = fields.cancellationAfterMinutes ?? fields.cancellation_after_minutes ?? null;
+  }
+  if (Object.hasOwn(fields, 'notes')) patch.notes = fields.notes ?? null;
+  return patch;
+}
+
 api.attendanceControlUpdateRecord = async function (recordId, fields = {}) {
   const id = text(recordId);
   if (!id) throw new Error('חסר מזהה רשומת נוכחות לעדכון.');
@@ -282,9 +306,41 @@ api.attendanceControlUpdateRecord = async function (recordId, fields = {}) {
     p_record_id: id,
     p_fields: fields && typeof fields === 'object' ? fields : {}
   });
-  if (error) throw new Error(error.message || 'attendance_record_supabase_update_failed');
-  if (data?.success === false) throw new Error(text(data.message || data.error) || 'עדכון רשומת נוכחות נכשל.');
-  return data || { success: true, recordId: id };
+  if (!error && data?.success !== false) return data || { success: true, recordId: id };
+
+  const message = text(error?.message || data?.message || data?.error || '');
+  const lockedMonth = /attendance_month_locked|attendance_month_not_submitted|attendance_permission_denied|manager_attendance/i.test(message);
+  if (!lockedMonth) {
+    if (error) throw new Error(error.message || 'attendance_record_supabase_update_failed');
+    throw new Error(message || 'עדכון רשומת נוכחות נכשל.');
+  }
+
+  // Admin pinpoint path: correct without reopening the month.
+  const { data: corrected, error: correctError } = await supabase.rpc('admin_correct_attendance_record', {
+    p_record_id: id,
+    p_patch: adminCorrectPatchFromFields(fields),
+    p_reason: 'תיקון נקודתי ממסך בקרת נוכחות'
+  });
+  if (correctError) {
+    throw new Error(
+      /attendance_permission_denied|42501/i.test(text(correctError.message))
+        ? (message || 'עדכון רשומת נוכחות נכשל.')
+        : (correctError.message || 'תיקון נקודתי נכשל.')
+    );
+  }
+  return { success: true, recordId: id, pinpoint: true, ...(corrected || {}) };
+};
+
+api.adminSetAttendancePayrollHold = async function ({ employee_id, month_key, hold = true, reason = '' } = {}) {
+  await waitForSupabaseAuthSession({ timeoutMs: 7000 }).catch(() => null);
+  const { data, error } = await supabase.rpc('admin_set_attendance_payroll_hold', {
+    p_employee_id: String(employee_id || '').trim(),
+    p_month_key: String(month_key || '').trim(),
+    p_hold: Boolean(hold),
+    p_reason: String(reason || '').trim() || null
+  });
+  if (error) throw new Error(error.message || 'עדכון השהיית שכר נכשל.');
+  return data;
 };
 
 api.attendanceControlCreateRecord = async function (employeeId, fields = {}) {

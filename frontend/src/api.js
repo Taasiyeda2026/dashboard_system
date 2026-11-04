@@ -6903,6 +6903,18 @@ export const api = {
     }
     return response;
   },
+  adminSetAttendancePayrollHold: async function ({ employee_id, month_key, hold = true, reason = '' } = {}) {
+    assertPermission('view_attendance_control', 'attendance_control_forbidden');
+    await waitForSupabaseAuthSession({ timeoutMs: 7000 }).catch(() => null);
+    const { data, error } = await supabase.rpc('admin_set_attendance_payroll_hold', {
+      p_employee_id: String(employee_id || '').trim(),
+      p_month_key: String(month_key || '').trim(),
+      p_hold: Boolean(hold),
+      p_reason: String(reason || '').trim() || null
+    });
+    if (error) throw new Error(error.message || 'עדכון השהיית שכר נכשל.');
+    return data;
+  },
   listPayrollControlApprovals: async ({ monthKey = '', employeeIds = [], statuses = ['approved_for_payroll'] } = {}) => {
     assertAnyPermission(['view_attendance_control', 'view_finance_payroll'], 'payroll_approvals_forbidden');
     const normalizedStatuses = Array.isArray(statuses)

@@ -5,7 +5,6 @@ import { renderMyReportsScreen } from './screens/my-reports-screen.js';
 import { createBottomNav } from './components/bottom-nav.js';
 import { signInWithUsername, signOut, getExistingSession } from './auth/auth.service.js';
 import { resolveInstructorIdentity, resolveAdminPreviewIdentity } from './auth/identity.service.js';
-import { getLatestReopenedMonth } from './services/attendance.service.js';
 import {
   getPreviewApprovalStatus,
   isAdminPreviewRequested,
@@ -21,7 +20,7 @@ const state = {
   screen:       'home',          // 'home' | 'new-report' | 'my-reports'
   instructor:   null,            // { userId, name, empId }
   currentYear:  today.getFullYear(),
-  currentMonth: today.getMonth() + 1,  // 1-based
+  currentMonth: today.getMonth() + 1,  // 1-based — always the calendar default
   prefillRecord: null,           // attendance record to duplicate (cleared after use)
   newReportDate: '',             // optional date chosen from the calendar
   newReportTab: 'attendance',
@@ -78,23 +77,27 @@ function openNewReport(dateStr = '', tab = 'attendance') {
   navigate('new-report');
 }
 
-async function focusLatestReopenedMonth() {
+/**
+ * Deep-link from a manager notification only. Do not auto-jump to a reopened
+ * month — the calendar default stays the current month; reopened months remain
+ * reachable via the normal month picker.
+ */
+async function applyNotificationMonthFocus() {
   if (state.previewMode || !state.instructor?.empId) return;
   try {
     const requested = new URL(window.location.href).searchParams;
     const requestedMonth = requested.get('notification_month');
     const sameEmployee = requested.get('notification_employee') === String(state.instructor.empId);
-    const validRequestedMonth = sameEmployee && /^\d{4}-(0[1-9]|1[0-2])$/.test(requestedMonth || '');
-    const monthKey = validRequestedMonth ? requestedMonth : await getLatestReopenedMonth(state.instructor.empId);
-    if (validRequestedMonth) state.screen = 'my-reports';
-
-    const match = /^(\d{4})-(0[1-9]|1[0-2])$/.exec(String(monthKey || ''));
+    const match = sameEmployee
+      ? /^(\d{4})-(0[1-9]|1[0-2])$/.exec(String(requestedMonth || ''))
+      : null;
     if (!match) return;
+    state.screen = 'my-reports';
     state.currentYear = Number(match[1]);
     state.currentMonth = Number(match[2]);
   } catch (error) {
     // A focus hint must never block sign-in; normal month navigation remains available.
-    console.warn('[Attendance] reopened month focus unavailable', error);
+    console.warn('[Attendance] notification month focus unavailable', error);
   }
 }
 
@@ -121,7 +124,7 @@ async function handleLoginSubmit({ username, code }) {
   const now = new Date();
   state.currentYear  = now.getFullYear();
   state.currentMonth = now.getMonth() + 1;
-  await focusLatestReopenedMonth();
+  await applyNotificationMonthFocus();
   renderScreen();
 }
 
@@ -359,7 +362,10 @@ async function bootstrap() {
     try {
       state.instructor = await resolveCurrentIdentity();
       state.loggedIn   = true;
-      await focusLatestReopenedMonth();
+      const now = new Date();
+      state.currentYear = now.getFullYear();
+      state.currentMonth = now.getMonth() + 1;
+      await applyNotificationMonthFocus();
     } catch {
       if (!state.previewMode) await signOut().catch(() => {});
     }
