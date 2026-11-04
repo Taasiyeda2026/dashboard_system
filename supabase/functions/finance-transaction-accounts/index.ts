@@ -185,22 +185,15 @@ function invoiceRowHeight(font: PDFFont, values: string[], widths: number[], siz
     invoiceCellLines(font, value, widths[index], size).length));
   return 25 + (mostLines - 1) * 9; // 25 / 34 / 43 pt, never 43 for every course
 }
-function drawCell(page: PDFPage, font: PDFFont, value: string, x: number, y: number, width: number, size = 8.5, height = 25, center = false) {
+function drawCell(page: PDFPage, font: PDFFont, value: string, x: number, y: number, width: number, size = 8.5, height = 25) {
   const parts = invoiceCellLines(font, value, width, size);
   const lineSpacing = 10.5;
   const firstBaseline = y + (height + (parts.length - 1) * lineSpacing) / 2 - 4;
-  parts.forEach((line, index) => {
-    if (center) {
-      const logicalWidth = logicalTextWidth(font, line, size);
-      drawLogicalRight(page, font, line, firstBaseline - index * lineSpacing, size,
-        x + (width + logicalWidth) / 2, x + (width - logicalWidth) / 2);
-    } else {
-      drawLogicalRight(page, font, line, firstBaseline - index * lineSpacing, size, x + width - 5, x + 5);
-    }
-  });
+  parts.forEach((line, index) =>
+    drawLogicalRight(page, font, line, firstBaseline - index * lineSpacing, size, x + width - 5, x + 5));
 }
 
-function drawTableRow(page: PDFPage, font: PDFFont, values: string[], widths: number[], y: number, height = 24, fill = false, centeredColumns: number[] = []) {
+function drawTableRow(page: PDFPage, font: PDFFont, values: string[], widths: number[], y: number, height = 24, fill = false) {
   let x = 565;
   values.forEach((value, index) => {
     const width = widths[index];
@@ -211,7 +204,7 @@ function drawTableRow(page: PDFPage, font: PDFFont, values: string[], widths: nu
       borderColor: rgb(0.72, 0.76, 0.8),
       ...(fill ? { color: rgb(0.95, 0.97, 0.98) } : {})
     });
-    drawCell(page, font, value, x, y, width, fill ? 8.2 : 8.5, height, centeredColumns.includes(index));
+    drawCell(page, font, value, x, y, width, fill ? 8.2 : 8.5, height);
   });
 }
 
@@ -230,8 +223,8 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
     const quantity = Number.isFinite(statedQty) && statedQty > 0 ? statedQty
       : (line.finance_transaction_account_meetings?.length || 1);
     const hours = Math.max(0, Number(line.billed_hours || 0));
-    const name = clean(line.service_description_snapshot || line.activity_name_snapshot)
-      + (!service && line.billing_coverage==='full_funding' ? ' — מלוא יתרת הפעילות' : '');
+    // Billing coverage belongs to the accounting record, never to the customer-facing course name.
+    const name = clean(line.service_description_snapshot || line.activity_name_snapshot);
     const school = clean(line.school_name_snapshot);
     const gefen = clean(line.gefen_number_snapshot);
     const unitPrice = Number(line.unit_price_snapshot) > 0
@@ -344,7 +337,7 @@ async function buildPdf(account: any) {
         `${schoolBilling ? 'סמל מוסד' : 'מספר לקוח'}: ${clean(account.institution_symbol)}`, 608, 10);
     }
     drawRight(targetPage, bold, 'תוכניות חינוכיות – שנת תשפ"ז', 573, 13);
-    return 545;
+    return 551;
   };
   let page = doc.addPage([595, 842]);
   let y = drawInvoiceHeader(page);
@@ -356,7 +349,7 @@ async function buildPdf(account: any) {
   // Each section uses the appropriate, minimal accounting columns. Both
   // sections may appear on one invoice for the same payer.
   const drawSection = (title: string, columns: string[], widths: number[],
-    rows: InvoiceRenderRow[], values: (row: InvoiceRenderRow) => string[], centeredColumns: number[] = []) => {
+    rows: InvoiceRenderRow[], values: (row: InvoiceRenderRow) => string[]) => {
     if (!rows.length) return;
     const headerHeight = columns.length === 7 ? 30 : 25;
     const detailLines = (row: InvoiceRenderRow) => row.dates.length ? invoiceCellLines(regular, `מועדי ביצוע: ${row.dates.map(date).join(', ')}`, 535, 7.5) : [];
@@ -366,8 +359,9 @@ async function buildPdf(account: any) {
       page = doc.addPage([595, 842]);
       y = drawInvoiceHeader(page, true);
     }
-    if (title) { drawRight(page, bold, title, y, 11); y -= 23; }
-    drawTableRow(page, bold, columns, widths, y - headerHeight, headerHeight, true, centeredColumns);
+    drawRight(page, bold, title, y, 11);
+    y -= 18;
+    drawTableRow(page, bold, columns, widths, y - headerHeight, headerHeight, true);
     y -= headerHeight;
     for (const row of rows) {
       const cellValues = values(row);
@@ -381,14 +375,14 @@ async function buildPdf(account: any) {
         drawTableRow(page, bold, columns, widths, y - headerHeight, headerHeight, true);
         y -= headerHeight;
       }
-      drawTableRow(page, regular, cellValues, widths, y - mainHeight, mainHeight, false, centeredColumns);
+      drawTableRow(page, regular, cellValues, widths, y - mainHeight, mainHeight, false);
       if (detailHeight) {
         page.drawRectangle({x:30,y:y-rowHeight,width:535,height:detailHeight,borderWidth:0.6,borderColor:rgb(0.72,0.76,0.8)});
         detail.forEach((text,index)=>drawLogicalRight(page,regular,text,y-mainHeight-11-index*10,7.5,560,35,rgb(0.38,0.42,0.47)));
       }
       y -= rowHeight;
     }
-    y -= 17;
+    y -= 11;
   };
   const displayName = (row: InvoiceRenderRow) =>
     row.school ? (consolidatedFunder ? `${row.name}\n${row.school}` : `${row.name} - ${row.school}`) : row.name;
@@ -399,11 +393,11 @@ async function buildPdf(account: any) {
   // Both share the exact same letterhead, typography and grid styling.
   const courseWidths = [94, 119, 56, 42, 46, 80, 98]; // A4 printable width: 535
   const serviceWidths = [265, 65, 100, 105];
-  drawSection('',
+  drawSection('קורסים',
     ['שם בית הספר', 'תוכנית / קורס', 'מספר גפ״ן', 'שעות', 'מפגשים', 'מחיר לשעה', 'סה״כ'],
     courseWidths, courses,
     (row) => [row.school || '—', row.name, row.gefen || '—',
-      count(row.hours), count(row.quantity), money(row.hourlyPrice), money(row.amount)], [3, 4]);
+      count(row.hours), count(row.quantity), money(row.hourlyPrice), money(row.amount)]);
   drawSection('סדנאות וסיורים',
     ['פעילות', 'כמות', 'מחיר ליחידה', 'סה״כ'],
     serviceWidths, services,
@@ -413,8 +407,8 @@ async function buildPdf(account: any) {
   // Keep payment details together. On a payment-only continuation page use
   // only the document heading, never a second "לכבוד" customer block.
   if (y < 173) { page = doc.addPage([595, 842]); y = drawInvoiceHeader(page, true); }
-  drawRight(page, bold, `סה"כ לתשלום: ${money(account.total_amount)}`, y, 13); y -= 26;
-  drawRight(page, bold, `לתשלום עד: ${date(account.payment_due_date)}`, y, 11); y -= 27;
+  drawRight(page, bold, `סה"כ לתשלום: ${money(account.total_amount)}`, y, 13); y -= 23;
+  drawRight(page, bold, `לתשלום עד: ${date(account.payment_due_date)}`, y, 11); y -= 23;
   // A quiet separator between the total/due date and the bank transfer info.
   page.drawLine({
     start: { x: 30, y: y + 7 }, end: { x: 565, y: y + 7 },
