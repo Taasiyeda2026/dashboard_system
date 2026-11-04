@@ -154,6 +154,11 @@ begin
  where id=p_expense_id for update;
  if not found or v_row.review_status<>'pending_review' then
    raise exception 'expense_not_pending' using errcode='42501';end if;
+ if exists(select 1 from public.attendance_month_approvals a
+  where a.emp_id=v_row.emp_id
+    and a.month_key=to_char(v_row.expense_date,'YYYY-MM')
+    and a.status in ('locked','approved_for_payroll')) then
+   raise exception 'expense_month_approved' using errcode='42501';end if;
  if exists(select 1 from public.payroll_control_approvals a
   where a.employee_id=v_row.emp_id::text
     and a.month_key=to_char(v_row.expense_date,'YYYY-MM')
