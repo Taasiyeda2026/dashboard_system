@@ -200,6 +200,51 @@ export function enhanceActivityUpdateNotes(form) {
         min-inline-size: 0 !important;
         min-width: 0 !important;
       }
+      /* 2027: the note composer is a single horizontal row. */
+      .activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-update-notes__composer {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 10px !important;
+        margin: 7px 0 0 !important;
+        min-width: 0 !important;
+      }
+      .activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-update-notes__composer > .activity-update-notes__input {
+        flex: 1 1 0% !important;
+        align-self: center !important;
+        width: auto !important;
+        min-width: 0 !important;
+        min-height: 48px !important;
+      }
+      .activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-update-notes__composer > .activity-update-notes__actions {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        flex: 0 0 auto !important;
+        align-self: center !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      .activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-update-notes__composer .activity-update-notes__save {
+        min-height: 34px !important;
+        margin: 0 !important;
+        white-space: nowrap !important;
+      }
+      .activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-update-notes__history-host {
+        display: block !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        margin: 7px 0 0 !important;
+        padding: 0 !important;
+      }
+      .activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-update-notes__history-host:empty {
+        display: none !important;
+      }
+      .activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-update-notes__history-host details[open] {
+        max-height: 240px !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
+      }
       @media (max-width: 640px) {
         .activity-update-notes .activity-update-notes__items { max-height: 160px !important; }
         .activity-update-notes { margin-top: 9px !important; padding-top: 8px !important; }
@@ -207,6 +252,7 @@ export function enhanceActivityUpdateNotes(form) {
     `;
     (doc.head || doc.documentElement).append(style);
   }
+  const is2027 = form.dataset.activitySeason === 'school_2027';
   const section = create(doc, 'section', 'activity-update-notes');
   section.dataset.activityUpdateNotes = 'yes';
   section.dataset.hasNotes = 'loading';
@@ -251,6 +297,10 @@ export function enhanceActivityUpdateNotes(form) {
     section.append(editor);
   }
 
+  // History belongs below the composer for 2027; latest stays above it.
+  const historyHost = is2027 ? create(doc, 'div', 'activity-update-notes__history-host') : null;
+  if (historyHost) section.append(historyHost);
+
   // The timeline is part of the activity's SCROLLABLE content, not a flex
   // sibling of the body. Appending it to the form leaves a full-height body
   // above it, creating a large empty gap and hiding the notes below the footer.
@@ -275,6 +325,7 @@ export function enhanceActivityUpdateNotes(form) {
         .order('id', { ascending: false });
       if (error) throw error;
       output.replaceChildren();
+      historyHost?.replaceChildren();
       const notes = Array.isArray(data) ? [...data] : [];
       section.dataset.hasNotes = notes.length ? 'yes' : 'no';
       const noteTime = (note) => note.is_legacy
@@ -306,7 +357,7 @@ export function enhanceActivityUpdateNotes(form) {
         const summary = create(doc, 'summary', 'activity-update-notes__history-toggle', `הערות קודמות (${notes.length - 1})`);
         details.append(summary);
         notes.slice(1).forEach((note) => details.append(item(note, false)));
-        output.append(details);
+        (historyHost || output).append(details);
       }
     } catch (error) {
       section.dataset.hasNotes = 'error';
