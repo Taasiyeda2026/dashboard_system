@@ -127,3 +127,18 @@ test('hidden panels override forced desktop grid and flex in all three tabs',asy
  assert.match(ui,/dailyTravel\.panel\.hidden = !isTravel/);
  assert.match(ui,/expensesPanel\.panel\.hidden = !isExpenses/);
 });
+
+test('mobile and desktop display only the active tab including expenses and travel',async()=>{
+ const css=await file('attendance/src/styles/report-tabs-responsive-typography.css');
+ const panelRule=css.slice(css.lastIndexOf('/* Highest-priority tab visibility contract.'));
+ assert.ok(css.indexOf('@media(max-width:767px)')>=0);
+ assert.ok(css.indexOf('@media(min-width:768px)')>=0);
+ assert.match(panelRule,/\.av2-report__form-area > \.av2-report__form\[hidden\]/);
+ assert.match(panelRule,/\.av2-report__form-area > \.av2-daily-travel\[hidden\]/);
+ assert.match(panelRule,/\.av2-report__form-area > \.av2-expenses-tab\[hidden\]/);
+ assert.match(panelRule,/\[role="tabpanel"\]\[hidden\]/);
+ assert.ok(css.lastIndexOf('/* Highest-priority tab visibility contract.') >
+   css.lastIndexOf('@media(max-width:767px)'), 'visibility override must load after mobile rules');
+ assert.ok(css.lastIndexOf('/* Highest-priority tab visibility contract.') >
+   css.lastIndexOf('@media(min-width:768px)'), 'visibility override must load after desktop rules');
+});
