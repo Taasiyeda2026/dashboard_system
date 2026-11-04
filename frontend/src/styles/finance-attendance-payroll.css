@@ -526,3 +526,77 @@
 .ds-fin-manual__billing-row { display: grid; grid-template-columns: minmax(0,110px) minmax(0,110px) minmax(0,145px) minmax(0,145px); gap: 12px; align-items: end; width: max-content; max-width: 100%; direction: rtl; }
 .ds-fin-manual__billing-row .ds-input { width: 100%; min-width: 0; box-sizing: border-box; }
 @media (max-width: 700px) { .ds-fin-manual__billing-row { grid-template-columns: repeat(2,minmax(0,1fr)); width: min(100%,320px); } }
+
+/* Manual invoice selection: compact, accessible activity list; no nested payer cards. */
+.ds-fin-manual__selection {
+  display: block;
+  margin-top: 12px;
+}
+.ds-fin-manual__selection > summary {
+  cursor: pointer;
+}
+.ds-fin-manual__selection-toolbar {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+}
+.ds-fin-manual label.ds-fin-manual__select-all {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+  cursor: pointer;
+}
+.ds-fin-manual__select-all input,
+.ds-fin-manual__activity-row > input {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: #0c98b9;
+}
+.ds-fin-manual__activity-list {
+  display: grid;
+  gap: 0;
+  margin: 0 10px 10px;
+  border: 1px solid var(--ds-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.ds-fin-manual label.ds-fin-manual__activity-row {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1.5fr) minmax(0, 1fr) minmax(110px, .7fr);
+  gap: 12px;
+  align-items: center;
+  min-height: 52px;
+  padding: 10px 14px;
+  color: var(--ds-text);
+  cursor: pointer;
+}
+.ds-fin-manual__activity-row + .ds-fin-manual__activity-row {
+  border-top: 1px solid var(--ds-border);
+}
+.ds-fin-manual__activity-row:hover { background: var(--ds-surface-muted, #f3f7f9); }
+.ds-fin-manual__activity-title { font-weight: 650; min-width: 0; }
+.ds-fin-manual__activity-title small {
+  display: block;
+  font-size: .75rem;
+  font-weight: 400;
+  color: var(--ds-text-secondary);
+}
+.ds-fin-manual__activity-school { min-width: 0; color: var(--ds-text-secondary); }
+.ds-fin-manual__activity-price { text-align: left; direction: ltr; white-space: nowrap; font-variant-numeric: tabular-nums; }
+@media (max-width: 700px) {
+  .ds-fin-manual label.ds-fin-manual__activity-row {
+    grid-template-columns: 18px minmax(0,1fr) auto;
+    gap: 8px;
+    padding: 10px;
+  }
+  .ds-fin-manual__activity-school { grid-column: 2; }
+  .ds-fin-manual__activity-price { grid-column: 3; grid-row: 1 / span 2; }
+}
