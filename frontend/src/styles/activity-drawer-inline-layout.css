@@ -834,3 +834,80 @@
     justify-content: flex-start !important;
   }
 }
+
+
+/* 2027: ~30% smaller visual toolbar (32px -> 23px) with compact glyphs.
+   Real interactive buttons remain accessible by keyboard and keep their event
+   handlers; title/aria-label provides the full action name. */
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__header-actions {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 5px !important;
+}
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__header-actions > button {
+  position: relative !important;
+  display: inline-grid !important;
+  place-items: center !important;
+  flex: 0 0 23px !important;
+  width: 23px !important;
+  height: 23px !important;
+  min-width: 23px !important;
+  min-height: 23px !important;
+  max-width: 23px !important;
+  max-height: 23px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border-radius: 50% !important;
+  line-height: 1 !important;
+  font-size: 13px !important;
+  font-weight: 650 !important;
+  color: #f8fafc !important;
+  border: 1px solid rgba(255,255,255,.46) !important;
+  background: rgba(255,255,255,.11) !important;
+  box-shadow: none !important;
+  box-sizing: border-box !important;
+  text-decoration: none !important;
+}
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__header-actions > button:hover,
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__header-actions > button:focus-visible {
+  background: rgba(255,255,255,.26) !important;
+  border-color: white !important;
+}
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__header-actions > button:focus-visible {
+  outline: 2px solid #a5ecff !important;
+  outline-offset: 2px !important;
+}
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__header-actions > button[hidden] {
+  display: none !important;
+}
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__header-actions svg {
+  display: block !important;
+  width: 13px !important;
+  height: 13px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  stroke: currentColor !important;
+}
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__header-actions .activity-drawer__photo-upload.is-photo-consent-saved {
+  background: #166534 !important;
+  color: #fff !important;
+  border-color: #14532d !important;
+}
+.activity-drawer-inline-layout[data-activity-season="school_2027"][data-editing="yes"] .activity-drawer__header-actions [data-action="start-edit"] {
+  display: none !important;
+}
+/* Never leave a floating empty edit footer behind after moving its button. */
+.activity-drawer-inline-layout[data-activity-season="school_2027"] > .activity-drawer__view-footer:empty,
+.activity-drawer-inline-layout[data-activity-season="school_2027"] > .activity-drawer__view-footer[hidden] {
+  display: none !important;
+}
+/* The scheduling summary stays informative but no longer contains a second
+   large action button. */
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__scheduling-status--compact-2027 {
+  padding: 7px 11px !important;
+  margin-bottom: 9px !important;
+}
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__scheduling-status--compact-2027 .activity-drawer__scheduling-actions:empty {
+  display: none !important;
+}
