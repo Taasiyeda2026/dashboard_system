@@ -683,3 +683,64 @@
     width:196px!important;max-width:100%!important;
   }
 }
+
+/* Travel day dropdown: bounded in-card custom list, no giant native OS menu. */
+.av2-report .av2-daily-travel__report-card .av2-daily-travel__native-day-select[hidden]{
+  display:none!important;
+}
+.av2-report .av2-daily-travel__report-card .av2-daily-travel__day-picker{
+  width:100%!important;max-width:100%!important;min-width:0!important;
+  position:relative;z-index:1;
+}
+.av2-report .av2-daily-travel__report-card .av2-daily-travel__day-picker .av2-csel__trigger{
+  width:100%!important;min-width:0!important;max-width:100%!important;
+  min-height:40px!important;
+  padding:7px 11px!important;
+  border:1px solid #d0dceb!important;
+  border-radius:9px!important;
+  background:#fff!important;
+  color:#34465e!important;
+  font-size:14px!important;font-weight:450!important;
+  text-align:start!important;
+}
+.av2-report .av2-daily-travel__report-card .av2-daily-travel__day-picker .av2-csel__trigger-text{
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  min-width:0;flex:1 1 auto;text-align:start;
+}
+.av2-report .av2-daily-travel__report-card .av2-daily-travel__day-picker .av2-csel__panel{
+  z-index:40!important;
+  max-height:248px!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  background:#fff!important;
+  box-shadow:0 8px 22px rgba(35,61,96,.12);
+}
+.av2-report .av2-daily-travel__report-card .av2-daily-travel__day-picker .av2-csel__option{
+  font-size:13.5px!important;line-height:1.4!important;
+  min-height:34px!important;
+  padding:7px 10px!important;
+  white-space:normal!important;
+  overflow-wrap:anywhere;
+}
+/* Historical months are read-only. Keep their activity information compact. */
+.av2-report .av2-daily-travel__report-card .av2-daily-travel__legacy-card{
+  padding:10px 11px!important;
+  gap:7px!important;
+}
+.av2-report .av2-daily-travel__report-card .av2-daily-travel__legacy-card>strong{
+  font-size:13px!important;font-weight:650!important;
+  line-height:1.4!important;
+}
+.av2-report .av2-daily-travel__report-card .av2-daily-travel__legacy-detail{
+  font-size:12.5px!important;gap:5px!important;
+  line-height:1.4!important;
+}
+@media(max-width:767px){
+  .av2-report .av2-daily-travel__report-card .av2-daily-travel__day-picker .av2-csel__trigger{
+    min-height:44px!important;
+    font-size:16px!important;
+  }
+  .av2-report .av2-daily-travel__report-card .av2-daily-travel__day-picker .av2-csel__panel{
+    max-height:min(248px,42vh)!important;
+  }
+}
