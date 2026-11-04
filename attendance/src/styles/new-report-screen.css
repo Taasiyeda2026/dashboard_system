@@ -444,3 +444,36 @@
     gap: 10px;
   }
 }
+
+/* Three compact independently saved sections. */
+.av2-report__tabs {width:min(100%,600px);max-width:600px}
+.av2-report__tabs .av2-btn{font-size:.8rem!important;padding:8px 8px!important}
+.av2-report__tabs .av2-btn:nth-child(2){flex:1.5 1 0}
+.av2-expenses-tab[hidden],.av2-report__travel-tab[hidden],.av2-report__form[hidden]{display:none!important}
+.av2-expenses-tab{display:grid;gap:16px;max-width:660px;width:100%;margin-inline:auto}
+.av2-expenses-tab h2,.av2-expenses-tab h3{margin:0;font-size:1rem}
+.av2-expenses-tab__form{display:grid;gap:13px;background:var(--av2-color-surface,#fff);border:1px solid var(--av2-color-border,#dce6f2);padding:16px;border-radius:12px;min-width:0}
+.av2-expenses-tab__form .av2-field{min-width:0}
+.av2-expenses-tab__form .av2-field__input{width:100%;box-sizing:border-box;min-height:42px}
+.av2-expenses-tab__files{display:grid;gap:6px}
+.av2-expenses-tab__files input{max-width:100%;min-width:0}
+.av2-expenses-tab__files small{font-size:.76rem;color:var(--av2-color-text-muted)}
+.av2-expenses-tab__actions{display:flex;justify-content:center;flex-wrap:wrap;gap:8px}
+.av2-expenses-tab__actions .av2-btn{min-height:42px;flex:0 1 160px}
+.av2-expenses-tab__status{min-height:0;margin:0;font-size:.84rem}
+.av2-expenses-tab__status:empty{display:none}
+.av2-expenses-tab__list{display:grid;gap:10px}
+.av2-expenses-tab__item{display:grid;gap:8px;padding:13px;background:var(--av2-color-surface,#fff);border:1px solid var(--av2-color-border,#dce6f2);border-radius:11px;min-width:0}
+.av2-expenses-tab__item-top{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;font-size:.86rem}
+.av2-expenses-tab__item p{margin:0;font-size:.84rem;overflow-wrap:anywhere}
+.av2-expenses-tab__review-status{font-size:.78rem;color:var(--av2-color-text-muted)}
+.av2-expenses-tab__receipts{display:flex;flex-wrap:wrap;gap:6px}
+.av2-expenses-tab__receipts .av2-btn,.av2-expenses-tab__edit{min-height:35px;font-size:.8rem}
+.av2-expenses-tab__edit{justify-self:start}
+@media(max-width:639px){
+ .av2-report__tabs{width:min(100%,600px);gap:3px}
+ .av2-report__tabs .av2-btn{font-size:.75rem!important;min-height:44px!important;padding:9px 5px!important;white-space:normal!important}
+ .av2-expenses-tab__form{padding:12px}
+ .av2-expenses-tab__form .av2-field__input{min-height:44px;font-size:16px}
+ .av2-expenses-tab__actions .av2-btn{min-height:44px}
+}
