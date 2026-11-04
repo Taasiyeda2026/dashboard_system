@@ -673,12 +673,16 @@ test('admin standalone exposes an inline record editor and guards approved month
   assert.match(adminStandalone, /status\.raw === 'sent_to_payroll'/);
 });
 
-test('admin attendance summary table reserves real width for actions without desktop overflow', () => {
-  assert.match(adminStandalone, /<colgroup><col style="width:21%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:13%"><col style="width:39%"><\/colgroup>/);
-  assert.match(adminStandalone, /\.admin-attendance-table \{ width:100%; border-collapse:collapse; table-layout:fixed; min-width:0; \}/);
+test('admin attendance shows eight ordered columns with vertical borders and usable actions', () => {
+  assert.match(adminStandalone, /<th>שם העובד<\/th><th>מספר עובד<\/th><th>סוג העסקה<\/th><th>אישור עובד<\/th><th>אישור מנהל<\/th><th>אישור אדמין<\/th><th>סטטוס<\/th><th>פעולות<\/th>/);
+  assert.match(adminStandalone, /<colgroup><col style="width:17%"><col style="width:9%"><col style="width:12%"><col style="width:10%"><col style="width:10%"><col style="width:10%"><col style="width:12%"><col style="width:20%"><\/colgroup>/);
+  assert.match(adminStandalone, /\.admin-attendance-table \{ width:100%; border-collapse:collapse; table-layout:fixed; min-width:1040px; \}/);
+  assert.match(adminStandalone, /border-inline-end:1px solid #dce5ef/);
+  assert.match(adminStandalone, /class="admin-attendance-employee-id"/);
+  assert.match(adminStandalone, /class="admin-attendance-employment"/);
+  assert.match(adminStandalone, /<td colspan="8">/);
   assert.match(adminStandalone, /\.admin-attendance-actions \{[^}]*flex-wrap:wrap; justify-content:flex-start; min-width:0; max-width:100%;/);
   assert.match(adminStandalone, /\.admin-attendance-actions \.admin-attendance-icon-action \{ width:30px; height:30px;/);
-  assert.match(adminStandalone, /@media \(max-width:760px\) \{\s*\.admin-attendance-table \{ min-width:680px; \}/);
 });
 
 test('admin alert drilldown lists records and navigates to exact source record', async () => {
