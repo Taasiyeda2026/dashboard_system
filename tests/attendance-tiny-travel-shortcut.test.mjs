@@ -7,7 +7,7 @@ test('instructor attendance shortcut opens the selected day in travel without sa
  const screen=await readFile(new URL('../attendance/src/screens/new-report-screen.js',import.meta.url),'utf8');
  assert.match(app,/onTravelReport: \(date\) => openNewReport\(date,'travel'\)/);
  assert.match(app,/initialTab: requestedTab/);
- assert.match(screen,/travelShortcut\.textContent = 'מילוי נסיעות'/);
+ assert.match(screen,/travelText\.textContent='מילוי נסיעות'/);
  assert.ok(screen.includes('dailyTravel.setDate(day)'));
  assert.match(screen,/showTab\('travel'\)/);
 });
