@@ -208,7 +208,7 @@ test('realistic three-line Hebrew invoice renders on one page with selectable gl
   assert.match(glyphs,/30.11.2026/);
   assert.ok((glyphs.match(/[א-ת]/g)||[]).length>50,'Hebrew must remain vector, selectable PDF text');
   assert.doesNotMatch(glyphs,/60025/,'workshops must not show Gefen number');
-  assert.equal((glyphs.match(/1,305\.00/g)||[]).length,2,'total is shown in the activity row and payment summary');
+  assert.ok((glyphs.match(/1,305\.00/g)||[]).length>=1,'compact invoice keeps the amount without quantity pricing');
   assert.match(glyphs,/500/);
   assert.match(glyphs,/300120/);
   assert.doesNotMatch(glyphs,/611/,'former bank branch must not be printed');
@@ -380,7 +380,7 @@ test('approved document revision uses the real shared PDF renderer and preserves
   assert.ok(!r.calls.some(c=>c.method==='PUT'||c.name==='finalize_finance_billing'||c.url?.includes('/messages')));
 });
 test('approved replacement PDF reflects the server-approved changed price and recalculated hourly rate',async()=>{
-  const quote=process.env.FINANCE_REVISION_PRICE_QUOTE?JSON.parse(await readFile(process.env.FINANCE_REVISION_PRICE_QUOTE,'utf8')):{...fixture(),transaction_account_number:'טיוטה חלופית',total_amount:2500,finance_transaction_account_lines:[{activity_row_id:'a',activity_price_snapshot:2500,billed_hours:4.5,quantity_snapshot:3,hourly_rate_snapshot:2500/4.5,amount:2500}]};
+  const quote=process.env.FINANCE_REVISION_PRICE_QUOTE?JSON.parse(await readFile(process.env.FINANCE_REVISION_PRICE_QUOTE,'utf8')):{...fixture(),transaction_account_number:'טיוטה חלופית',total_amount:2500,finance_transaction_account_lines:[{activity_row_id:'a',activity_price_snapshot:2500,billing_rule:'monthly',funding_snapshot:'גפ״ן',billed_hours:4.5,quantity_snapshot:3,hourly_rate_snapshot:2500/4.5,amount:2500}]};
   const r=await harness({revisionPreview:true,quote});assert.equal(r.response.status,200,JSON.stringify(r.body));const pdf=await getDocument({data:new Uint8Array(Buffer.from(r.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
   const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');assert.match(text,/2,500\.00/);assert.match(text,/555\.56/);
 });
@@ -393,4 +393,42 @@ test('an already sent account with no message ID never creates a replacement mes
 test('revision PDF output is deterministic for safe reconciliation after an uncertain SharePoint upload',async()=>{
   const quote={...fixture(),revision_created_at:'2026-11-04T00:00:00Z'};
   const first=await harness({preview:true,quote:structuredClone(quote)}),second=await harness({preview:true,quote:structuredClone(quote)});assert.equal(first.response.status,200);assert.equal(second.response.status,200);assert.equal(Buffer.compare(Buffer.from(first.body.pdfBase64,'base64'),Buffer.from(second.body.pdfBase64,'base64')),0);
+});
+
+test('non-Gefen sponsor PDF shows school authority course and total only',async()=>{
+  const account={...fixture(),customer_name_snapshot:'רמי שני',total_amount:18000,
+    finance_transaction_account_lines:[
+      {activity_row_id:'SCHOOL-A',activity_name_snapshot:'ביומימיקרי',school_name_snapshot:'אבן שמואל',
+        gefen_number_snapshot:'6089',billing_rule:'completion',funding_snapshot:'רמי שני',
+        quantity_snapshot:11,billed_hours:16.5,hourly_rate_snapshot:606.06,amount:10000,
+        finance_transaction_account_meetings:[{meeting_date:'2026-10-17'}]},
+      {activity_row_id:'SCHOOL-B',activity_name_snapshot:'יישומי AI',school_name_snapshot:'הרצל',
+        gefen_number_snapshot:'53819',billing_rule:'completion',funding_snapshot:'רמי שני',
+        quantity_snapshot:10,billed_hours:15,hourly_rate_snapshot:533.33,amount:8000,
+        finance_transaction_account_meetings:[]}
+    ]};
+  const r=await harness({preview:true,quote:account,activityTypes:{'SCHOOL-A':'course','SCHOOL-B':'course'},
+    authorityIds:{'SCHOOL-A':20,'SCHOOL-B':25},authorityNames:{20:'שפיר',25:'רחובות'}});
+  assert.equal(r.response.status,200,JSON.stringify(r.body));
+  const pdf=await getDocument({data:new Uint8Array(Buffer.from(r.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
+  const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');
+  for(const word of ['אבן שמואל','שפיר','ביומימיקרי','הרצל','רחובות','יישומי AI','10,000.00','8,000.00'])
+    assert.ok(text.includes(word),word);
+  for(const value of ['606.06','533.33','16.5','6089','53819','17.10.2026'])
+    assert.ok(!text.includes(value),'non-Gefen invoice must not expose hourly/meeting detail: '+value);
+  assert.ok(!r.calls.some(c=>c.name==='finalize_finance_billing'||c.method==='PUT'));
+});
+
+test('monthly Gefen PDF keeps meetings, hours, hourly price and Gefen program number',async()=>{
+  const quote={...fixture(),total_amount:8000,finance_transaction_account_lines:[{
+    activity_row_id:'GEFEN-A',activity_name_snapshot:'יישומי AI',school_name_snapshot:'ביאליק',
+    gefen_number_snapshot:'53819',billing_rule:'monthly',funding_snapshot:'גפ״ן',billed_hours:15,
+    quantity_snapshot:10,hourly_rate_snapshot:8000/15,amount:8000,
+    finance_transaction_account_meetings:[{meeting_date:'2026-10-01'}]}]};
+  const r=await harness({preview:true,quote,activityTypes:{'GEFEN-A':'course'},
+    authorityIds:{'GEFEN-A':4},authorityNames:{4:'יבנה'}});
+  assert.equal(r.response.status,200,JSON.stringify(r.body));
+  const pdf=await getDocument({data:new Uint8Array(Buffer.from(r.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
+  const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');
+  for(const val of ['53819','533.33','15','10','01.10.2026'])assert.ok(text.includes(val),val);
 });
