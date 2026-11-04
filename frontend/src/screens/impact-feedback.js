@@ -929,32 +929,21 @@ function groupsTableHtml(slots, scope) {
     ? sortStudentFeedbackGroups(matching)
     : scope === 'staff'
       ? (() => {
-        // Display a single staff row per course + contact + school, without
-        // altering the underlying activities or their feedback campaigns.
+        // Show each activity separately: its own contact, campaign stages and actions.
+        // Combining by school/course/contact masked activities without campaigns.
         const sorted = sortEducationalStaffFeedbackGroups(matching);
         const unique = new Map();
         const instructorsByGroup = new Map();
         const activitiesByGroup = new Map();
         for (const group of sorted) {
-          // No known contact: keep rows separate rather than merge unknown people.
-          const contact = String(group.contact_name || '').trim().replace(/\\s+/g, ' ').toLocaleLowerCase('he');
-          const school = String(group.school || '').trim().replace(/\\s+/g, ' ').toLocaleLowerCase('he');
-          const course = String(group.program_key || '').trim();
-          const key = contact && school && course
-            ? JSON.stringify([course, contact, school])
-            : JSON.stringify(['unidentified', group.row_id]);
+          // An activity row is the source of truth, even when another activity
+          // has the same school, course and educational staff contact.
+          const key = String(group.row_id);
           if (!instructorsByGroup.has(key)) instructorsByGroup.set(key, new Set());
           if (!activitiesByGroup.has(key)) activitiesByGroup.set(key, []);
           activitiesByGroup.get(key).push(group);
           if (String(group.instructor_name || '').trim()) instructorsByGroup.get(key).add(String(group.instructor_name).trim());
-          const previous = unique.get(key);
-          const coverage = (item) => STAFF_SLOTS.filter((slot) => Boolean(slotCampaign(item, slot))).length;
-          if (!previous || coverage(group) > coverage(previous)
-            || (coverage(group) === coverage(previous) && Number(groupHasFeedback(group)) > Number(groupHasFeedback(previous)))
-            || (coverage(group) === coverage(previous) && Number(groupHasFeedback(group)) === Number(groupHasFeedback(previous))
-              && String(group.end_date || '') > String(previous.end_date || ''))) {
-            unique.set(key, group);
-          }
+          unique.set(key, group);
         }
         return [...unique.entries()].map(([key, group]) => ({
           ...group,
