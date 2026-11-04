@@ -788,7 +788,8 @@ async function repairMissingManagerPdf(root, employeeId, monthKey) {
   const context = root.__adminAttendanceContext || {};
   const workflow = context.workflowByEmployee?.get(employeeId) || {};
   if (text(workflow.manager_pdf_sharepoint_url)) return workflow.manager_pdf_sharepoint_url;
-  if (workflow.status !== 'locked' || !workflow.manager_approved_at) {
+  const stage = workflowStatus(workflow, context.finalByEmployee?.get(employeeId), monthKey, context.dispatchByEmployee?.get(employeeId));
+  if (stage.raw !== 'manager_approved' || !workflow.manager_approved_at) {
     throw new Error('לא קיים אישור מנהל נעול שמאפשר שחזור PDF.');
   }
   const result = await api.attendanceManagerApprovalArtifacts({
