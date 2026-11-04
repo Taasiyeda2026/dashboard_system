@@ -11,9 +11,9 @@ test('shared typography stylesheet is last and cache versions are consistent',as
     file('attendance/src/styles/report-tabs-responsive-typography.css'),
   ]);
   const links=[...html.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map(m=>m[1]);
-  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=139');
-  assert.match(sw,/const CACHE_VERSION = 139/);
-  assert.ok(links.every(s=>s.endsWith('?v=139')));
+  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=140');
+  assert.match(sw,/const CACHE_VERSION = 140/);
+  assert.ok(links.every(s=>s.endsWith('?v=140')));
   assert.match(css,/font-family:var\(--av2-font,inherit\)/);
   assert.match(css,/font-size:14\.5px!important/);
   assert.match(css,/font-size:17px!important/);
@@ -100,4 +100,16 @@ test('attendance heading is accessible but not duplicated visually, and month ch
  assert.match(contract,/font-size:12\.5px!important;font-weight:600!important/);
  assert.match(contract,/font-size:16px!important;font-weight:700!important/);
  assert.match(contract,/\.av2-report \.av2-report__form \.av2-time-picker__part \.av2-csel__trigger/);
+});
+
+test('save/cancel action buttons are compact and consistent in all three report tabs',async()=>{
+ const css=await file('attendance/src/styles/report-tabs-responsive-typography.css');
+ const last=css.slice(css.indexOf('/* Compact consistent save/cancel actions'));
+ assert.match(last,/\.av2-report \.av2-report__form>\.av2-report__actions>\.av2-btn/);
+ assert.match(last,/\.av2-report \.av2-expenses-tab__actions>\.av2-btn/);
+ assert.match(last,/\.av2-report \.av2-daily-travel__report-card>\.av2-report__actions>\.av2-btn/);
+ assert.match(last,/width:80px!important/);
+ assert.match(last,/height:32px!important/);
+ assert.match(last,/font-size:12px!important/);
+ assert.match(last,/min-height:40px!important/);
 });

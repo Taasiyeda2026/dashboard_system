@@ -1509,6 +1509,12 @@ export function renderNewReportScreen(container, {
     expensesInner.className = 'av2-report__expenses';
     expensesInner.append(expensesHeading, expenseFields, attachmentUi.section);
     hoursFollowup.append(notesField.wrap);
+    const travelShortcut = document.createElement('button');
+    travelShortcut.type = 'button';
+    travelShortcut.className = 'av2-report__tiny-travel-btn';
+    travelShortcut.setAttribute('aria-label', 'מילוי נסיעות – מעבר ללשונית נסיעות וביטולים');
+    travelShortcut.append(createIcon('map-pin'), document.createTextNode('מילוי נסיעות'));
+    hoursFollowup.append(travelShortcut);
 
     const timesSection = makeFormSection(
       'שעות עבודה',
@@ -2091,6 +2097,13 @@ export function renderNewReportScreen(container, {
         void expensesPanel.load();
       }
     }
+    travelShortcut.addEventListener('click',()=>{
+      // Navigation only: retain all unsaved Attendance inputs without saving them.
+      // Always honor the currently selected activity date, including repeat visits.
+      dailyTravel.setDate(dateField.input.value||defaultDate);
+      showTab('travel');
+      travelTab.focus();
+    });
     attendanceTab.addEventListener('click',()=>showTab('attendance'));
     travelTab.addEventListener('click',()=>showTab('travel'));
     expenseTab.addEventListener('click',()=>showTab('expenses'));
