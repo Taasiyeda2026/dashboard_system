@@ -66,6 +66,13 @@
   line-height: 1.2;
 }
 
+/* Keep the 2027 course title comfortably below the dark header edge,
+   closer to the status/location chips, without changing icon placement. */
+.activity-drawer-inline-layout[data-activity-season="school_2027"]:not([data-editing="yes"]) .activity-drawer__title {
+  margin-top: 8px !important;
+  margin-bottom: 2px !important;
+}
+
 .activity-drawer-inline-layout .activity-drawer__meta--tags {
   gap: 6px;
 }
