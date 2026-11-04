@@ -1,7 +1,7 @@
 -- Every source travel report must be reviewed before final payroll approval.
 -- Also forbids a late travel decision/payable after the manager's signature.
 CREATE OR REPLACE FUNCTION public.av2_assert_payroll_travel_review_ready(p_emp_id bigint,p_month_key text,p_manager_approved_at timestamptz)
-RETURNS void LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO 'public' AS $
+RETURNS void LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO 'public' AS $guard$
 DECLARE v_role text;
 BEGIN
   SELECT lower(btrim(coalesce(u.role,''))) INTO v_role FROM public.users u
@@ -55,7 +55,7 @@ BEGIN
         OR (NOT d.no_travel AND NOT public.av2_daily_travel_route_matches(d.emp_id,d.travel_date,d.legs)))
   ) THEN RAISE EXCEPTION 'attendance_daily_travel_reviews_pending' USING ERRCODE='22023'; END IF;
 END;
-$$;
+$guard$;
 REVOKE ALL ON FUNCTION public.av2_assert_payroll_travel_review_ready(bigint,text,timestamptz) FROM PUBLIC,anon;
 GRANT EXECUTE ON FUNCTION public.av2_assert_payroll_travel_review_ready(bigint,text,timestamptz) TO authenticated;
 
