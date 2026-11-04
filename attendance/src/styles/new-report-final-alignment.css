@@ -133,3 +133,79 @@
     flex:0 1 110px!important;min-height:44px!important;
   }
 }
+
+/* Travel and cancellation: compact, centered controls without stretching. */
+.av2-report .av2-daily-travel.av2-report__travel-tab{
+  width:min(100%,480px)!important;
+  max-width:480px!important;
+  margin-inline:auto!important;
+  display:grid;
+  justify-items:stretch;
+  gap:12px!important;
+}
+.av2-report .av2-daily-travel.av2-report__travel-tab>h2{
+  margin:2px 0 0!important;
+  font-size:1.05rem!important;
+  font-weight:750!important;
+  text-align:center!important;
+  color:#18395b;
+}
+.av2-report .av2-report__travel-tab>.av2-daily-travel__month-wrap,
+.av2-report .av2-report__travel-tab>.av2-daily-travel__day-wrap{
+  width:min(100%,270px)!important;
+  max-width:270px!important;
+  margin-inline:auto!important;
+  min-width:0!important;
+}
+.av2-report .av2-report__travel-tab .av2-daily-travel__month-select,
+.av2-report .av2-report__travel-tab .av2-daily-travel__day-select{
+  width:100%!important;
+  min-width:0!important;
+  max-width:100%!important;
+  min-height:40px!important;
+  box-sizing:border-box!important;
+}
+.av2-report .av2-report__travel-tab>.av2-daily-travel__status,
+.av2-report .av2-report__travel-tab>.av2-daily-travel__summary{
+  text-align:center;
+  font-size:.83rem;
+}
+.av2-report .av2-report__travel-tab>.av2-daily-travel__legs{
+  width:100%;min-width:0;max-width:480px;margin-inline:auto;
+  gap:10px;
+}
+.av2-report .av2-report__travel-tab .av2-daily-travel__leg{
+  padding:12px!important;
+}
+.av2-report .av2-report__travel-tab .av2-daily-travel__leg-fields{
+  grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  gap:9px!important;
+}
+.av2-report .av2-report__travel-tab>.av2-report__actions{
+  width:100%!important;
+  display:flex!important;
+  justify-content:center!important;
+  align-items:center!important;
+  gap:10px!important;
+  margin-inline:auto!important;
+}
+.av2-report .av2-report__travel-tab>.av2-report__actions>.av2-btn{
+  flex:0 0 118px!important;
+  width:118px!important;
+  min-width:118px!important;
+  max-width:118px!important;
+  min-height:38px!important;
+  padding:7px 8px!important;
+  font-size:.81rem!important;
+}
+@media(max-width:480px){
+  .av2-report .av2-daily-travel.av2-report__travel-tab{
+    width:100%!important;
+  }
+  .av2-report .av2-report__travel-tab .av2-daily-travel__leg-fields{
+    grid-template-columns:minmax(0,1fr)!important;
+  }
+  .av2-report .av2-report__travel-tab>.av2-report__actions>.av2-btn{
+    min-height:44px!important;
+  }
+}
