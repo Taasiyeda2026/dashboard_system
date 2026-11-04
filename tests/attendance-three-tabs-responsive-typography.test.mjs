@@ -11,9 +11,9 @@ test('shared typography stylesheet is last and cache versions are consistent',as
     file('attendance/src/styles/report-tabs-responsive-typography.css'),
   ]);
   const links=[...html.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map(m=>m[1]);
-  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=140');
-  assert.match(sw,/const CACHE_VERSION = 140/);
-  assert.ok(links.every(s=>s.endsWith('?v=140')));
+  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=141');
+  assert.match(sw,/const CACHE_VERSION = 141/);
+  assert.ok(links.every(s=>s.endsWith('?v=141')));
   assert.match(css,/font-family:var\(--av2-font,inherit\)/);
   assert.match(css,/font-size:14\.5px!important/);
   assert.match(css,/font-size:17px!important/);
@@ -112,4 +112,18 @@ test('save/cancel action buttons are compact and consistent in all three report 
  assert.match(last,/height:32px!important/);
  assert.match(last,/font-size:12px!important/);
  assert.match(last,/min-height:40px!important/);
+});
+
+test('hidden panels override forced desktop grid and flex in all three tabs',async()=>{
+ const css=await file('attendance/src/styles/report-tabs-responsive-typography.css');
+ const ui=await file('attendance/src/screens/new-report-screen.js');
+ const last=css.slice(css.lastIndexOf('/* Highest-priority tab visibility contract.'));
+ assert.match(last,/\.av2-report__form\[hidden\]/);
+ assert.match(last,/\.av2-report__history\[hidden\]/);
+ assert.match(last,/\.av2-daily-travel\[hidden\]/);
+ assert.match(last,/\.av2-expenses-tab\[hidden\]/);
+ assert.match(last,/display:none!important/);
+ assert.match(ui,/form\.hidden = !isAttendance/);
+ assert.match(ui,/dailyTravel\.panel\.hidden = !isTravel/);
+ assert.match(ui,/expensesPanel\.panel\.hidden = !isExpenses/);
 });
