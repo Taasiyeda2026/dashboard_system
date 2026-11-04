@@ -463,13 +463,16 @@ test('Gefen invoice PDF mirrors the proposal alias for original 3604 only',async
     assert.equal(result.body.quote.finance_transaction_account_lines[0].gefen_number_snapshot,scenario.code,'source snapshots unchanged');
     const pdf=await getDocument({data:new Uint8Array(Buffer.from(result.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
     const content=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');
+    // pdfjs emits individually positioned Hebrew glyphs separated by spaces;
+    // compare compact visual text without changing actual PDF typography.
+    const compact=content.replace(/\s+/g,'');
     if(scenario.alias){
-      assert.match(content,/אופק פרימיום \(פורצות דרך\)/);
-      assert.match(content,/52279/);
-      assert.doesNotMatch(content,/3604/);
+      assert.match(compact,/אופקפרימיום\(פורצותדרך\)/);
+      assert.match(compact,/52279/);
+      assert.doesNotMatch(compact,/3604/);
     } else {
-      assert.doesNotMatch(content,/אופק פרימיום \(פורצות דרך\)/);
-      assert.match(content,new RegExp(scenario.name));
+      assert.doesNotMatch(compact,/אופקפרימיום\(פורצותדרך\)/);
+      assert.ok(compact.includes(scenario.name.replace(/\s+/g,'')),scenario.name);
     }
     assert.match(content,/1,285\.71/);
   }
