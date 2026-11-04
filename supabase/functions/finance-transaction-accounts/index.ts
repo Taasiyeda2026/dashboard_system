@@ -209,7 +209,15 @@ function drawTableRow(page: PDFPage, font: PDFFont, values: string[], widths: nu
 }
 
 
-type InvoiceRenderRow = { category: string; name: string; school: string; gefen: string; quantity: number; hours: number; amount: number; unitPrice: number; hourlyPrice: number; dates: string[]; };
+type InvoiceRenderRow = { category: string; name: string; school: string; authority: string; gefen: string; gefenFunding: boolean; quantity: number; hours: number; amount: number; unitPrice: number; hourlyPrice: number; dates: string[]; };
+function isGefenInvoiceLine(line: any): boolean {
+  if (clean(line.billing_rule).toLowerCase() === 'monthly') return true;
+  // Legacy rows can omit billing_rule. Use the stored funding route, not
+  // whether the activity is a course or has a Gefen catalogue number.
+  const normalized = clean(line.funding_snapshot).toLowerCase()
+    .replace(/["'׳״\s_.\/\\-]/g, '');
+  return ['גפן', 'gefen', 'gafan'].includes(normalized);
+}
 function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { courses: InvoiceRenderRow[]; services: InvoiceRenderRow[] } {
   const courses = new Map<string, InvoiceRenderRow>();
   const services = new Map<string, InvoiceRenderRow>();
@@ -230,6 +238,8 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
       .replace(/\s*[—–-]\s*מלוא\s+יתרת\s+הפעילות\s*$/u, '').trim();
     const school = clean(line.school_name_snapshot);
     const gefen = clean(line.gefen_number_snapshot);
+    const authority = clean(line.authority_name_snapshot);
+    const gefenFunding = isGefenInvoiceLine(line);
     const unitPrice = Number(line.unit_price_snapshot) > 0
       ? Number(line.unit_price_snapshot) : amount / quantity;
     const group = service ? services : courses;
@@ -238,9 +248,9 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
     // Courses: one line per actual course ID, combining all billed meetings.
     const key = service
       ? (keepDistinctActivities && clean(line.activity_row_id)
-        ? `activity:${clean(line.activity_row_id)}`
-        : JSON.stringify([category, name, school, Number(unitPrice.toFixed(6))]))
-      : clean(line.activity_row_id) || JSON.stringify([name, school, gefen, Number(line.hourly_rate_snapshot || 0)]);
+        ? JSON.stringify(['activity', clean(line.activity_row_id), authority, gefenFunding, clean(line.funding_source_id) || clean(line.funding_snapshot)])
+        : JSON.stringify([category, name, school, authority, gefenFunding, Number(unitPrice.toFixed(6))]))
+      : JSON.stringify([clean(line.activity_row_id), name, school, authority, gefenFunding, clean(line.funding_source_id) || clean(line.funding_snapshot)]);
     const dates = (line.finance_transaction_account_meetings || []).map((m: any)=>clean(m.meeting_date)).filter((d: string)=>/^\d{4}-\d{2}-\d{2}$/.test(d));
     const existing = group.get(key);
     if (existing) {
@@ -252,7 +262,7 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
       existing.hourlyPrice = existing.hours > 0 ? existing.amount / existing.hours : 0;
     } else {
       group.set(key, {
-        category: service ? 'service' : 'course', name, school, gefen, dates: [...new Set<string>(dates)].sort(),
+        category: service ? 'service' : 'course', name, school, authority, gefen, gefenFunding, dates: [...new Set<string>(dates)].sort(),
         quantity, hours, amount, unitPrice,
         hourlyPrice: Number(line.hourly_rate_snapshot)>0 ? Number(line.hourly_rate_snapshot) : hours>0 ? amount/hours : 0
       });
@@ -265,14 +275,25 @@ async function attachActivityTypes(account: any, client: ReturnType<typeof creat
   const ids = [...new Set(lines.map((line: any) => clean(line.activity_row_id)).filter(Boolean))];
   if (!ids.length) return account;
   const { data, error } = await client.from('activities')
-    .select('row_id,activity_type,activity_season').in('row_id', ids);
+    .select('row_id,activity_type,activity_season,authority_id').in('row_id', ids);
   if (error) throw new Error('invoice_activity_types_unavailable');
-  const byId = new Map((data || []).filter((a: any) => a.activity_season === 'school_2027')
-    .map((a: any) => [clean(a.row_id), clean(a.activity_type)]));
+  const validActivities = (data || []).filter((a: any) => a.activity_season === 'school_2027');
+  const byId = new Map(validActivities.map((a: any) => [clean(a.row_id), a]));
+  const authorityIds = [...new Set(validActivities.map((a: any) => a.authority_id).filter((id: unknown) => id !== null && id !== undefined))];
+  const authorities = new Map<string, string>();
+  if (authorityIds.length) {
+    const {data: names, error: namesError} = await client.from('authorities')
+      .select('id,authority_name').in('id', authorityIds);
+    if (namesError) throw new Error('invoice_authority_names_unavailable');
+    (names || []).forEach((a: any) => authorities.set(clean(a.id), clean(a.authority_name)));
+  }
   for (const line of lines) {
-    const type = byId.get(clean(line.activity_row_id));
-    if (!type) throw new Error('invoice_activity_type_missing');
-    line.activity_type_snapshot = type;
+    const activity = byId.get(clean(line.activity_row_id));
+    if (!activity) throw new Error('invoice_activity_type_missing');
+    line.activity_type_snapshot = clean(activity.activity_type);
+    // Enrichment for rendering only, with no financial snapshot/database mutation.
+    line.authority_name_snapshot = authorities.get(clean(activity.authority_id))
+      || clean(line.authority_name_snapshot) || '';
   }
   return account;
 }
@@ -360,10 +381,10 @@ async function buildPdf(account: any) {
   // Each section uses the appropriate, minimal accounting columns. Both
   // sections may appear on one invoice for the same payer.
   const drawSection = (title: string, columns: string[], widths: number[],
-    rows: InvoiceRenderRow[], values: (row: InvoiceRenderRow) => string[]) => {
+    rows: InvoiceRenderRow[], values: (row: InvoiceRenderRow) => string[], showDates = true) => {
     if (!rows.length) return;
     const headerHeight = columns.length === 7 ? 30 : 25;
-    const detailLines = (row: InvoiceRenderRow) => row.dates.length ? invoiceCellLines(regular, `מועדי ביצוע: ${row.dates.map(date).join(', ')}`, 535, 7.5) : [];
+    const detailLines = (row: InvoiceRenderRow) => showDates && row.dates.length ? invoiceCellLines(regular, `מועדי ביצוע: ${row.dates.map(date).join(', ')}`, 535, 7.5) : [];
     const firstDetails = detailLines(rows[0]);
     const firstRowHeight = invoiceRowHeight(regular, values(rows[0]), widths) + (firstDetails.length ? 8 + firstDetails.length * 10 : 0);
     if (y < 55 + headerHeight + firstRowHeight + 22) {
@@ -397,24 +418,24 @@ async function buildPdf(account: any) {
     }
     y -= 11;
   };
-  const displayName = (row: InvoiceRenderRow) =>
-    row.school ? (consolidatedFunder ? `${row.name}\n${row.school}` : `${row.name} - ${row.school}`) : row.name;
   const count = (number: number) => Number.isInteger(number)
     ? String(number) : String(Number(number.toFixed(2)));
-  // Course invoices use the seven accounting columns requested by finance.
-  // Workshops and tours retain their own four-column quantity-based table.
-  // Both share the exact same letterhead, typography and grid styling.
-  const courseWidths = [94, 119, 56, 42, 46, 80, 98]; // A4 printable width: 535
-  const serviceWidths = [265, 65, 100, 105];
+  // Gefen alone requires expanded meeting/hour columns. Non-Gefen sources,
+  // including courses, workshops and tours, receive one concise four-column table.
+  const allRows = [...courses, ...services];
+  const gefenCourses = allRows.filter(row => row.gefenFunding);
+  const otherFunding = allRows.filter(row => !row.gefenFunding);
+  const courseWidths = [94, 119, 56, 42, 46, 80, 98]; // 535 points
+  const compactWidths = [142, 185, 106, 102]; // 535 points
   drawSection('',
     ['שם בית הספר', 'תוכנית / קורס', 'מספר גפ״ן', 'שעות', 'מפגשים', 'מחיר לשעה', 'סה״כ'],
-    courseWidths, courses,
+    courseWidths, gefenCourses,
     (row) => [row.school || '—', row.name, row.gefen || '—',
       count(row.hours), count(row.quantity), money(row.hourlyPrice), money(row.amount)]);
-  drawSection('סדנאות וסיורים',
-    ['פעילות', 'כמות', 'מחיר ליחידה', 'סה״כ'],
-    serviceWidths, services,
-    (row) => [displayName(row), count(row.quantity), money(row.unitPrice), money(row.amount)]);
+  drawSection('',
+    ['שם בית הספר', 'תוכנית / קורס', 'רשות', 'סה״כ'],
+    compactWidths, otherFunding,
+    (row) => [row.school || '—', row.name, row.authority || '—', money(row.amount)], false);
   // Dates come exclusively from the billed meeting snapshots, including deferred months.
 
   // Keep payment details together. On a payment-only continuation page use

@@ -4,19 +4,21 @@ import { readFileSync } from 'node:fs';
 
 const pdf = readFileSync(new URL('../supabase/functions/finance-transaction-accounts/index.ts', import.meta.url), 'utf8');
 
-test('courses use the exact seven requested columns in right-to-left order', () => {
+test('Gefen courses alone use the detailed seven-column invoice', () => {
   assert.match(pdf, /const courseWidths = \[94, 119, 56, 42, 46, 80, 98\]/);
   assert.match(pdf, /\['שם בית הספר', 'תוכנית \/ קורס', 'מספר גפ״ן', 'שעות', 'מפגשים', 'מחיר לשעה', 'סה״כ'\]/);
-  assert.match(pdf, /drawSection\('',[\s\S]*?courseWidths, courses/);
+  assert.match(pdf, /drawSection\('',[\s\S]*?courseWidths, gefenCourses/);
   assert.match(pdf, /\(row\) => \[row\.school \|\| '—', row\.name, row\.gefen \|\| '—',[\s\S]*?count\(row\.hours\), count\(row\.quantity\), money\(row\.hourlyPrice\), money\(row\.amount\)\]/);
   assert.equal([94, 119, 56, 42, 46, 80, 98].reduce((sum, w) => sum + w, 0), 535);
 });
 
-test('workshops and tours retain four-column quantity-based invoicing', () => {
-  assert.match(pdf, /const serviceWidths = \[265, 65, 100, 105\]/);
-  assert.match(pdf, /\['פעילות', 'כמות', 'מחיר ליחידה', 'סה״כ'\]/);
-  assert.match(pdf, /drawSection\('סדנאות וסיורים',[\s\S]*?serviceWidths, services/);
-  assert.match(pdf, /money\(row\.unitPrice\), money\(row\.amount\)/);
+test('every non-Gefen course, workshop and tour uses only school, authority, course and total', () => {
+  assert.match(pdf, /const compactWidths = \[142, 185, 106, 102\]/);
+  assert.match(pdf, /\['שם בית הספר', 'תוכנית \/ קורס', 'רשות', 'סה״כ'\]/);
+  assert.match(pdf, /compactWidths, otherFunding/);
+  assert.match(pdf, /\(row\) => \[row\.school \|\| '—', row\.name, row\.authority \|\| '—', money\(row\.amount\)\], false\)/);
+  assert.match(pdf, /showDates && row\.dates\.length/);
+  assert.equal([142, 185, 106, 102].reduce((n,w)=>n+w,0),535);
 });
 
 test('all invoices share the reference workshop letterhead on every PDF page', () => {
