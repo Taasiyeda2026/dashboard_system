@@ -8,7 +8,7 @@ export {
   historicalTravelDays,historicalExpenses,monthStatusLabel
 } from './historical-display-model.js';
 
-export const HISTORICAL_TRAVEL_CUTOFF = '2026-11-04';
+export const HISTORICAL_TRAVEL_CUTOFF = '2026-11-01';
 export const monthFromDate = value => String(value || '').slice(0, 7);
 export function monthLabel(key) {
   const {year, month} = monthRange(key);
