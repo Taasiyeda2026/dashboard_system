@@ -5,7 +5,7 @@ import { hasPermission } from '../permission-policy.js';
 export async function financeDelegatedHeaders(user, tokenProvider) {
   try {
     const provider = tokenProvider || (await import('./graph-mail.js')).delegatedMailToken;
-    const token = await provider(user?.email || user?.auth_email || '', { interactive: false });
+    const token = await provider(user?.auth_email || user?.email || '', { interactive: false });
     return token ? { 'x-microsoft-mail-token': token } : {};
   } catch { return {}; } // PDF issuance must survive an unavailable Microsoft session.
 }
