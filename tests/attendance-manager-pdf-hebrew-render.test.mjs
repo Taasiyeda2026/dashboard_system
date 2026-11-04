@@ -210,26 +210,30 @@ test('production attendance PDF uses Alef subset fonts and preserves one byte st
   assert.match(handler, /mailSent: !mailSuppressed && !mailError/);
   assert.match(handler, /\(wantsForceRegenerate \|\| suppressEmail\) && !isRetryCaller/);
   assert.match(handler, /function formatDurationHours\(value: unknown\)/);
-  assert.match(handler, /formatDurationHours\(totalHours\)/);
-  assert.match(handler, /const hours = formatDurationHours\(row\.workHours\)/);
-  assert.match(handler, /אסמכתאות:/);
-  assert.match(handler, /expenseDetails/);
+  assert.match(handler, /formatDurationHours\(instruction\)/);
+  assert.match(handler, /formatDurationHours\(row\.workHours\)/);
+  assert.match(handler, /function formatDurationHours\(value: unknown\)/);
+  assert.match(handler, /const totalExpenses = rows\.reduce/);
   assert.doesNotMatch(handler, /totalHours\.toFixed\(2\)/);
   assert.doesNotMatch(handler, /const hours = toNumber\(row\.workHours\)\.toFixed\(2\)/);
 });
 
-test('production attendance PDF sizes rows from rendered content and keeps normal months compact', async () => {
+test('production attendance PDF uses the approved six-box design and readable RTL table', async () => {
   const handler = await readFile(new URL('../supabase/functions/payroll-attendance-pdf-dispatch/handler.ts', import.meta.url), 'utf8');
-
-  assert.match(handler, /const headingLines = wrapLogical/);
-  assert.match(handler, /const placeLines = place/);
-  assert.match(handler, /const detailLines = secondary/);
-  assert.match(handler, /const blockHeight = 17/);
-  assert.match(handler, /drawRtl\(timing, LEFT/);
-  assert.match(handler, /y -= blockHeight/);
-  assert.doesNotMatch(handler, /const blockHeight = 49/);
+  for (const title of ['ימי עבודה', 'סה״כ קילומטר', 'סה״כ הוצאות', 'סה״כ שעות הדרכה', 'סה״כ שעות תפעול', 'סה״כ שעות הכשרה']) {
+    assert.ok(handler.includes(title), `missing KPI: ${title}`);
+  }
+  for (const title of ['תאריך', 'סוג', 'פעילות / פרטים', 'שעות דיווח', 'משך', 'ק״מ']) {
+    assert.ok(handler.includes(title), `missing table header: ${title}`);
+  }
+  assert.match(handler, /taasiyeda-logo\.png/);
+  assert.match(handler, /const rowHeight = needsTwoLines \? 28 : 21/);
+  assert.match(handler, /if \(y - rowHeight < 155\) continuePage\(\)/);
+  assert.match(handler, /if \(y < 155\)/);
+  assert.match(handler, /חתימה דיגיטלית של/);
+  assert.match(handler, /function formatDurationHours/);
+  assert.match(handler, /const cancellation = hoursFor\(type => type === 'ביטול זמן'\)/);
 });
-
 test('production attendance PDF orders rows by calendar date and time', async () => {
   const handler = await readFile(new URL('../supabase/functions/payroll-attendance-pdf-dispatch/handler.ts', import.meta.url), 'utf8');
 
