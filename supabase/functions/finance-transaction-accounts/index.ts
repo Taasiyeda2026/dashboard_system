@@ -223,8 +223,8 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
     const quantity = Number.isFinite(statedQty) && statedQty > 0 ? statedQty
       : (line.finance_transaction_account_meetings?.length || 1);
     const hours = Math.max(0, Number(line.billed_hours || 0));
-    const name = clean(line.service_description_snapshot || line.activity_name_snapshot)
-      + (!service && line.billing_coverage==='full_funding' ? ' — מלוא יתרת הפעילות' : '');
+    // Billing coverage belongs to the accounting record, never to the customer-facing course name.
+    const name = clean(line.service_description_snapshot || line.activity_name_snapshot);
     const school = clean(line.school_name_snapshot);
     const gefen = clean(line.gefen_number_snapshot);
     const unitPrice = Number(line.unit_price_snapshot) > 0
@@ -337,7 +337,7 @@ async function buildPdf(account: any) {
         `${schoolBilling ? 'סמל מוסד' : 'מספר לקוח'}: ${clean(account.institution_symbol)}`, 608, 10);
     }
     drawRight(targetPage, bold, 'תוכניות חינוכיות – שנת תשפ"ז', 573, 13);
-    return 545;
+    return 551;
   };
   let page = doc.addPage([595, 842]);
   let y = drawInvoiceHeader(page);
@@ -360,7 +360,7 @@ async function buildPdf(account: any) {
       y = drawInvoiceHeader(page, true);
     }
     drawRight(page, bold, title, y, 11);
-    y -= 23;
+    y -= 18;
     drawTableRow(page, bold, columns, widths, y - headerHeight, headerHeight, true);
     y -= headerHeight;
     for (const row of rows) {
@@ -382,7 +382,7 @@ async function buildPdf(account: any) {
       }
       y -= rowHeight;
     }
-    y -= 17;
+    y -= 11;
   };
   const displayName = (row: InvoiceRenderRow) =>
     row.school ? (consolidatedFunder ? `${row.name}\n${row.school}` : `${row.name} - ${row.school}`) : row.name;
@@ -407,8 +407,8 @@ async function buildPdf(account: any) {
   // Keep payment details together. On a payment-only continuation page use
   // only the document heading, never a second "לכבוד" customer block.
   if (y < 173) { page = doc.addPage([595, 842]); y = drawInvoiceHeader(page, true); }
-  drawRight(page, bold, `סה"כ לתשלום: ${money(account.total_amount)}`, y, 13); y -= 26;
-  drawRight(page, bold, `לתשלום עד: ${date(account.payment_due_date)}`, y, 11); y -= 27;
+  drawRight(page, bold, `סה"כ לתשלום: ${money(account.total_amount)}`, y, 13); y -= 23;
+  drawRight(page, bold, `לתשלום עד: ${date(account.payment_due_date)}`, y, 11); y -= 23;
   // A quiet separator between the total/due date and the bank transfer info.
   page.drawLine({
     start: { x: 30, y: y + 7 }, end: { x: 565, y: y + 7 },
