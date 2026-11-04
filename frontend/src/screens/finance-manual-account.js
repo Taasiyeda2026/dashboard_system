@@ -561,13 +561,15 @@ export function manualAccountViewHtml(data) {
   return `<div class="ds-fin-manual" dir="rtl">
     <section class="ds-fin-manual__section">
       <h3 data-finance-manual-heading>הפקה לפי גורם מימון</h3>
+      <div class="ds-fin-manual__selectors">
       <label class="ds-fin-manual__payer-picker">גורם מימון<select class="ds-input" data-finance-manual-funding-category><option value="">בחירת גורם מימון</option>
         ${routes.map(r=>`<option value="${e(r.key)}"${r.key===routeKey?' selected':''}>${e(r.label)}</option>`).join('')}
       </select></label>
       ${route && (routeKey==='gefen'||routeKey==='authority')?`<label class="ds-fin-manual__payer-picker">${e(route.payerLabel)}<select class="ds-input" data-finance-manual-funder-filter><option value="">בחירת ${e(route.payerLabel)}</option>
         ${options.map(p=>`<option value="${e(p.key)}"${p.key===data.manualFunderFilter?' selected':''}>${e(p.displayLabel)}</option>`).join('')}
       </select></label>`:''}
-      ${payer && data.manualFunderFilter?`<label>חיפוש פעילות<input class="ds-input" data-finance-manual-search value="${e(data.manualSearch)}" placeholder="שם פעילות, בית ספר או רשות"></label>
+      </div>
+      ${payer && data.manualFunderFilter?`<label class="ds-fin-manual__search-picker">חיפוש פעילות<input class="ds-input" data-finance-manual-search value="${e(data.manualSearch)}" placeholder="שם פעילות, בית ספר או רשות"></label>
       <details class="ds-fin-manual__selection ds-fin-payer" data-finance-manual-selection>
         <summary data-finance-manual-selection-summary>${e(payer.displayLabel)} · ${activities.length} פעילויות · ${formatManualMoney(activities.reduce((n,a)=>n+manualActivityBalance(data,a.row_id),0))} ₪</summary>
         <div class="ds-fin-manual__selection-toolbar"><label class="ds-fin-manual__select-all"><input type="checkbox" data-finance-manual-select-all> סמן הכל</label>
