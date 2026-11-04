@@ -2,6 +2,7 @@ import { supabase } from '../api/client.js';
 import { buildDailyTravelLegs, summarizeDailyTravel } from './daily-travel.js';
 import { getMonthRecords } from './attendance.service.js';
 import { isZoomLocationReport } from './attendance-location-policy.js';
+import { instructorAttendanceError } from './instructor-error.service.js';
 
 
 export async function getAssignedTravelDays({fromDate=null,toDate=null}={}) {
@@ -45,7 +46,7 @@ export async function saveDailyTravel(date, legs, noTravel = false) {
   const { data,error } = await supabase.rpc('av2_save_daily_travel', {
     p_date:date,p_legs:noTravel?[]:legs,p_no_travel:Boolean(noTravel)
   });
-  if(error) throw new Error(error.message || 'שמירת הנסיעות נכשלה');
+  if(error) throw new Error(instructorAttendanceError(error, 'שמירת הנסיעות נכשלה. נסו שוב.'));
   return data;
 }
 

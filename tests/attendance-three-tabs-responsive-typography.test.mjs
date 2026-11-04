@@ -11,9 +11,9 @@ test('shared typography stylesheet is last and cache versions are consistent',as
     file('attendance/src/styles/report-tabs-responsive-typography.css'),
   ]);
   const links=[...html.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map(m=>m[1]);
-  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=146');
-  assert.match(sw,/const CACHE_VERSION = 146/);
-  assert.ok(links.every(s=>s.endsWith('?v=146')));
+  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=147');
+  assert.match(sw,/const CACHE_VERSION = 147/);
+  assert.ok(links.every(s=>s.endsWith('?v=147')));
   assert.match(css,/font-family:var\(--av2-font,inherit\)/);
   assert.match(css,/font-size:14\.5px!important/);
   assert.match(css,/font-size:17px!important/);

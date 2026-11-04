@@ -1,5 +1,6 @@
 import { supabase } from '../api/client.js';
 import { uploadAttachment,deleteAttachment,getSignedUrl } from './storage.service.js';
+import { instructorAttendanceError } from './instructor-error.service.js';
 
 export async function listExpenseReports({fromDate,toDate,employeeIds=null}={}) {
   const {data,error}=await supabase.rpc('av2_list_expenses',{
@@ -19,7 +20,7 @@ export async function saveExpenseReport({date,amount,details,id=null}={}) {
   const {data,error}=await supabase.rpc('av2_save_expense',{
     p_expense_date:date,p_amount:value,p_details:String(details).trim(),p_expense_id:id||null
   });
-  if(error)throw new Error(error.message||'שמירת ההוצאה נכשלה');
+  if(error)throw new Error(instructorAttendanceError(error,'שמירת ההוצאה נכשלה. נסו שוב.'));
   return data;
 }
 

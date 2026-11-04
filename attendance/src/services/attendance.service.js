@@ -26,11 +26,13 @@ import {
 } from './travel-compensation.js';
 import { isZoomLocationReport } from './attendance-location-policy.js';
 import { instructorReportHours } from '../components/monthly-report-summary.js';
+import { instructorAttendanceError } from './instructor-error.service.js';
 export {
   isGeneratedTravelCancellation,
   sourceAttendanceRecords,
   toInstructorTravelCompensationView,
 } from './travel-compensation.js';
+export { instructorAttendanceError } from './instructor-error.service.js';
 
 const LEGACY_SUMMER_WORKSHOP = 'סדנאות קיץ';
 const WORKSHOP_LABEL = 'סדנה';
@@ -274,7 +276,7 @@ export async function createRecord(empId, payload) {
     .select()
     .single();
 
-  if (error) throw new Error(`שגיאה בשמירת רשומה: ${error.message}`);
+  if (error) throw new Error(instructorAttendanceError(error, 'שמירת הרשומה נכשלה. נסו שוב.'));
   invalidateAttendanceCache(empId);
   return normalizeAttendanceRecord(data);
 }
@@ -337,7 +339,7 @@ export async function reportTravelTime(sourceRecordId, outboundMinutes, returnMi
     p_outbound_minutes: Math.max(0, Math.round(Number(outboundMinutes) || 0)),
     p_return_minutes: Math.max(0, Math.round(Number(returnMinutes) || 0))
   });
-  if (error) throw new Error(error.message || 'דיווח זמן הנסיעה נכשל');
+  if (error) throw new Error(instructorAttendanceError(error, 'דיווח זמן הנסיעה נכשל. נסו שוב.'));
   monthRecordsCache.clear();
   return toInstructorTravelCompensationView(data || {});
 }
@@ -396,7 +398,7 @@ export async function updateRecord(recordId, empId, payload) {
     .select()
     .single();
 
-  if (error) throw new Error(`שגיאה בעדכון רשומה: ${error.message}`);
+  if (error) throw new Error(instructorAttendanceError(error, 'עדכון הרשומה נכשל. נסו שוב.'));
   invalidateAttendanceCache(empId);
   return normalizeAttendanceRecord(data);
 }
@@ -417,16 +419,16 @@ export async function deleteRecord(recordId, empId) {
     .eq('id', recordId)
     .eq('emp_id', empId);
 
-  if (error) throw new Error(`שגיאה במחיקת רשומה: ${error.message}`);
+  if (error) throw new Error(instructorAttendanceError(error, 'מחיקת הרשומה נכשלה. נסו שוב.'));
   invalidateAttendanceCache(empId);
 }
 
 // ─── Month Approvals ─────────────────────────────────────────────────────────
 
 /**
- * Returns the newest month explicitly reopened for this instructor, if any.
- * Reopened corrections take precedence over the calendar default so an instructor
- * cannot accidentally submit the current month while a prior month awaits resubmission.
+ * Newest month explicitly reopened for this instructor, if any.
+ * Used for optional UI hints only — login/bootstrap must keep the current
+ * calendar month as the default; reopened months stay manually selectable.
  */
 export async function getLatestReopenedMonth(empId) {
   if (isAdminPreviewRequested()) return null;
@@ -440,7 +442,7 @@ export async function getLatestReopenedMonth(empId) {
     .limit(1)
     .maybeSingle();
 
-  if (error) throw new Error(`שגיאה בבדיקת חודש שנפתח מחדש: ${error.message}`);
+  if (error) throw new Error(instructorAttendanceError(error, 'בדיקת חודש שנפתח מחדש נכשלה.'));
   return data?.month_key || null;
 }
 
@@ -500,7 +502,7 @@ export async function submitMonth(empId, monthKey, submittedByName = '') {
     p_submitted_by_name: String(submittedByName || '').trim()
   });
 
-  if (error) throw new Error(`שגיאה בהגשת חודש: ${error.message}`);
+  if (error) throw new Error(instructorAttendanceError(error, 'הגשת החודש נכשלה. נסו שוב.'));
   invalidateAttendanceCache(empId);
   return data;
 }
