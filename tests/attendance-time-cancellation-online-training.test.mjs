@@ -152,7 +152,7 @@ test('scheduled online training reloads without location or travel data', () => 
 test('online training has no location, kilometres, public transport, or cancellation', () => {
   assert.match(newReport, /const hasNoLocation = isOpen \|\| isOnline;/);
   assert.match(newReport, /const usesPublicTransport = !isOnline/);
-  assert.match(newReport, /const kmValue = reportedKilometers\(kmField\.input\.value,[\s\S]*online: isOnline \|\| isTeamOnline/);
+  assert.match(newReport, /const legacyKm = reportedKilometers\(kmField\.input\.value,[\s\S]*online: isOnline \|\| isTeamOnline/);
   assert.match(newReport, /roundtrip_km:\s*kmValue/);
   assert.equal(reportedKilometers('99', { online: true }), 0);
   assert.equal(reportedKilometers('99', { online: false }), 99);

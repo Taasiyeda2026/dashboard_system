@@ -11,9 +11,9 @@ test('shared typography stylesheet is last and cache versions are consistent',as
     file('attendance/src/styles/report-tabs-responsive-typography.css'),
   ]);
   const links=[...html.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map(m=>m[1]);
-  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=144');
-  assert.match(sw,/const CACHE_VERSION = 144/);
-  assert.ok(links.every(s=>s.endsWith('?v=144')));
+  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=145');
+  assert.match(sw,/const CACHE_VERSION = 145/);
+  assert.ok(links.every(s=>s.endsWith('?v=145')));
   assert.match(css,/font-family:var\(--av2-font,inherit\)/);
   assert.match(css,/font-size:14\.5px!important/);
   assert.match(css,/font-size:17px!important/);
@@ -195,4 +195,25 @@ test('desktop three-tab reporting UI has 85 percent density and mobile stays rea
  const css=await file('attendance/src/styles/report-tabs-responsive-typography.css');
  assert.match(css,/@media \(min-width:981px\)\{[\s\S]*?\.av2-report \.av2-report__form-area\{[\s\S]*?zoom:\.85/);
  assert.match(css,/@media \(max-width:980px\)\{[\s\S]*?zoom:1/);
+});
+
+test('native month selects are hidden behind same-width custom month menus',async()=>{
+ const comp=await file('attendance/src/components/bounded-month-picker.js');
+ const screen=await file('attendance/src/screens/new-report-screen.js');
+ const travel=await file('attendance/src/screens/daily-travel-tab.js');
+ const css=await file('attendance/src/styles/report-tabs-responsive-typography.css');
+ assert.match(comp,/nativeSelect\.hidden=true/);
+ assert.match(comp,/maxHeight=180/);
+ assert.match(comp,/nativeSelect\.dispatchEvent\(new Event\('change'/);
+ assert.match(screen,/createBoundedMonthPicker\(attendanceMonthSelect\)/);
+ assert.match(travel,/createBoundedMonthPicker\(monthSelect\)/);
+ assert.match(css,/\.av2-report__bounded-month-picker[\s\S]*?width:165px!important/);
+ assert.match(css,/\.av2-report__bounded-month-picker \.av2-csel__panel\{[\s\S]*?width:100%!important/);
+});
+test('save attendance first and then instruct user to complete travel',async()=>{
+ const screen=await file('attendance/src/screens/new-report-screen.js');
+ assert.doesNotMatch(screen,/יש להזין קילומטרים לדיווח, או 0 אם אין קילומטרים לדיווח/);
+ assert.match(screen,/const kmValue = isDailyTravelDate\(\) \|\| kmField\.wrap\.isConnected===false/);
+ assert.match(screen,/דיווח הנוכחות נשמר בהצלחה\. כעת יש להשלים דיווח נסיעות/);
+ assert.match(screen,/successBanner\.scrollIntoView/);
 });
