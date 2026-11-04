@@ -28,6 +28,7 @@ import {
   handleTransactionGroupSelection,
   syncTransactionSelectionUi,
   runTransactionIssuance,
+  automaticMixedFundingProgramReview,
   transactionIssuanceResultMessage,
   transactionAccountsViewHtml
 } from './finance-transaction-issuance.js';
@@ -730,6 +731,24 @@ export const financeScreen = {
         if (visit.transactionRunning || visit.financeBusy) return;
         const mode = String(transactionRun.dataset.financeTransactionRun || 'automatic');
         const label = mode === 'manual' ? 'החשבונות המסומנים' : 'סבב גפן';
+        if (mode === 'automatic') {
+          const month = transactionRun.dataset.financeTransactionPeriod
+            || visit.transactionMonths?.automatic || financeCycleCutoff().slice(0, 7);
+          const mixed = automaticMixedFundingProgramReview(visit, month);
+          const invalid = mixed.filter(row => !row.valid);
+          if (invalid.length) {
+            visit.transactionActionMessage = 'הפקת גפ״ן נחסמה: מספר גפ״ן חסר או אינו תואם לרשומת הפעילות. יש לתקן את כל הפעילויות לפני ההפקה.';
+            refresh();
+            return;
+          }
+          if (mixed.length) {
+            const review = mixed.map(row => `${row.school} | ${row.course} | מספר גפ״ן ${row.code}`).join('\n');
+            const response = window.prompt(
+              `בקרה לפני הפקת גפ״ן: נמצאו ${mixed.length} פעילויות במימון משולב.\n\n${review}\n\nההפקה תחייב רק את חלק הגפ״ן, ולא את מימון השותף. בדוק את מספרי הגפ״ן מול ההזמנות והקלד ״מאשר״ כדי להמשיך.`
+            );
+            if (response?.trim() !== 'מאשר') return;
+          }
+        }
         if (!window.confirm(`להפיק עכשיו את ${label}? לאחר ההפקה מספרי החשבונות והמפגשים יחויבו ולא ישתנו אוטומטית.`)) return;
         visit.transactionRunning = true;
         visit.transactionActionMessage = 'מפיק חשבונות עסקה…';
