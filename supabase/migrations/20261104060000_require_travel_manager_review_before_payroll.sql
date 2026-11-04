@@ -292,3 +292,95 @@ begin
 end;
 $function$
 ;
+
+CREATE OR REPLACE FUNCTION public.admin_send_attendance_month_to_payroll_batch(p_month_key text, p_employee_ids text[] DEFAULT NULL::text[], p_sent_by_name text DEFAULT NULL::text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ SET search_path TO 'public'
+AS $function$
+declare
+  v_role text;
+  v_actor_name text;
+  v_sent integer := 0;
+  v_candidate record;
+begin
+  if coalesce(trim(p_month_key), '') !~ '^[0-9]{4}-(0[1-9]|1[0-2])$' then
+    raise exception 'invalid_month_key' using errcode = '22023';
+  end if;
+
+  select
+    lower(trim(coalesce(u.role, ''))),
+    coalesce(
+      nullif(trim(coalesce(p_sent_by_name, '')), ''),
+      nullif(trim(coalesce(u.full_name, '')), ''),
+      nullif(trim(coalesce(u.name, '')), ''),
+      nullif(trim(coalesce(u.username, '')), '')
+    )
+  into v_role, v_actor_name
+  from public.users u
+  where u.auth_user_id = auth.uid()
+    and u.is_active = true
+  limit 1;
+
+  if v_role is null then
+    raise exception 'payroll_attendance_auth_required' using errcode = '42501';
+  end if;
+  if v_role <> 'admin' then
+    raise exception 'payroll_attendance_permission_denied' using errcode = '42501';
+  end if;
+
+  FOR v_candidate IN
+    SELECT p.employee_id, a.manager_approved_at
+    FROM public.payroll_control_approvals p
+    LEFT JOIN public.attendance_month_approvals a
+      ON a.emp_id=p.employee_id::bigint AND a.month_key=p.month_key AND a.status='locked'
+    WHERE p.month_key=trim(p_month_key) AND p.status='admin_approved'
+      AND (p_employee_ids IS NULL OR p.employee_id=ANY(p_employee_ids))
+  LOOP
+    PERFORM public.av2_assert_payroll_travel_review_ready(
+      v_candidate.employee_id::bigint,trim(p_month_key),v_candidate.manager_approved_at);
+  END LOOP;
+
+  with updated as (
+    update public.payroll_control_approvals p
+    set status = 'approved_for_payroll',
+        payroll_dispatched_at = now(),
+        payroll_dispatched_by_user_id = auth.uid(),
+        payroll_dispatched_by_name = coalesce(v_actor_name, ''),
+        updated_at = now()
+    where p.month_key = trim(p_month_key)
+      and p.status = 'admin_approved'
+      and (
+        p_employee_ids is null
+        or p.employee_id = any(p_employee_ids)
+      )
+    returning p.*
+  ), logged as (
+    insert into public.payroll_attendance_dispatches (
+      approval_id,
+      employee_id,
+      month_key,
+      dispatched_at,
+      dispatched_by_user_id,
+      dispatched_by_name
+    )
+    select
+      u.id,
+      u.employee_id,
+      u.month_key,
+      u.payroll_dispatched_at,
+      auth.uid(),
+      coalesce(v_actor_name, '')
+    from updated u
+    on conflict (approval_id) do nothing
+    returning 1
+  )
+  select count(*)::integer into v_sent from updated;
+
+  return jsonb_build_object(
+    'month_key', trim(p_month_key),
+    'sent_count', v_sent
+  );
+end;
+$function$
+;
