@@ -1,6 +1,6 @@
 import { createInputField } from '../components/field.js';
 import {listExpenseReports,saveExpenseReport,attachExpenseReceipt,expenseReceiptSignedUrl} from '../services/expense-reports.service.js';
-import {listInstructorDisplayMonths,readHistoricalAttendance,historicalExpenses,monthRange,monthLabel,monthStatusLabel} from '../services/historical-display.service.js';
+import {readHistoricalAttendance,historicalExpenses,monthRange,monthLabel,monthStatusLabel} from '../services/historical-display.service.js';
 
 const STATUS={pending_review:'ממתין לאישור',approved:'אושר',rejected:'נדרש תיקון'};
 const todayLocal=()=>{
@@ -19,20 +19,13 @@ export function createExpensesTab({instructor,initialDate}={}){
   panel.hidden=true;
 
   const heading=document.createElement('h2');
-  heading.textContent='הוצאות';
-  const monthWrap=document.createElement('div');
-  monthWrap.className='av2-daily-travel__month-wrap';
-  const monthTitle=document.createElement('label');
-  monthTitle.textContent='חודש דיווח';
-  monthTitle.htmlFor='av2-expense-month-select';
-  const monthSelect=document.createElement('select');
-  monthSelect.id='av2-expense-month-select';
-  monthSelect.className='av2-field__select av2-daily-travel__month-select';
-  monthWrap.append(monthTitle,monthSelect);
+  heading.textContent='דיווח הוצאות';
   const monthStatus=document.createElement('p');
   monthStatus.className='av2-expenses-tab__month-status';
   const form=document.createElement('form');
   form.className='av2-expenses-tab__form';
+  const fieldsRow=document.createElement('div');
+  fieldsRow.className='av2-expenses-tab__fields-row';
   form.noValidate=true;
   const date=createInputField({id:'av2-expense-date',label:'תאריך הוצאה',
     type:'date',value:initialDate||todayLocal()});
@@ -52,57 +45,70 @@ export function createExpensesTab({instructor,initialDate}={}){
   fileInput.accept='.pdf,.jpg,.jpeg,.png,.webp';
   const fileHint=document.createElement('small');
   fileHint.textContent='PDF או תמונה, עד 10MB לקובץ';
-  filesWrap.append(fileLabel,fileInput,fileHint);
+  const uploadText=document.createElement('span');
+  uploadText.className='av2-expenses-tab__upload-text';
+  uploadText.textContent='צירוף קובץ';
+  fileInput.setAttribute('aria-label','צירוף מסמכים להוצאה');
+  filesWrap.append(fileLabel,uploadText,fileInput,fileHint);
+  fileInput.addEventListener('change',()=>{
+    uploadText.textContent=fileInput.files?.length
+      ?(fileInput.files.length===1?fileInput.files[0].name:fileInput.files.length+' קבצים נבחרו')
+      :'צירוף קובץ';
+  });
   const status=document.createElement('p');
   status.className='av2-expenses-tab__status';
   status.setAttribute('role','status');
   const save=document.createElement('button');
   save.type='submit';save.className='av2-btn av2-btn--primary';
-  save.textContent='שמירת הוצאה';
+  save.textContent='שמירה';
   const reset=document.createElement('button');
   reset.type='button';reset.className='av2-btn av2-btn--secondary';
-  reset.textContent='הוצאה חדשה';
+  reset.textContent='ביטול';
   const actions=document.createElement('div');
   actions.className='av2-expenses-tab__actions';
   actions.append(save,reset);
-  form.append(date.wrap,amount.wrap,details.wrap,filesWrap,status,actions);
+  fieldsRow.append(date.wrap,amount.wrap);
+  form.append(fieldsRow,details.wrap,filesWrap,status,actions);
   const listHeading=document.createElement('h3');
   listHeading.textContent='ההוצאות שלי';
   const list=document.createElement('div');
   list.className='av2-expenses-tab__list';
-  panel.append(heading,monthWrap,monthStatus,form,listHeading,list);
-  let reports=[],editing=null,loadToken=0,monthsLoaded=false;
+  panel.append(heading,form,monthStatus,listHeading,list);
+  let reports=[],editing=null,loadToken=0;
   const currentMonth=todayLocal().slice(0,7);
-  let selectedMonth=currentMonth;
+  let selectedMonth=(date.input.value||todayLocal()).slice(0,7);
   let historicalView=false;
 
-  function resetForm(){
+  function resetForm({resetDate=false}={}){
     editing=null;
+    if(resetDate)date.input.value=todayLocal();
     amount.input.value='';
     details.input.value='';
     fileInput.value='';
-    save.textContent='שמירת הוצאה';
+    uploadText.textContent='צירוף קובץ';
+    save.textContent='שמירה';
     status.textContent='';
   }
-  reset.addEventListener('click',resetForm);
+  reset.addEventListener('click',()=>{
+    const hasChanges=Boolean(
+      editing || amount.input.value.trim() || details.input.value.trim()
+      || fileInput.files?.length
+    );
+    if(hasChanges && !window.confirm('לבטל את מילוי ההוצאה ללא שמירה?'))return;
+    resetForm({resetDate:true});
+    void refresh();
+  });
   async function refresh(){
     const token=++loadToken;
+    selectedMonth=(date.input.value||todayLocal()).slice(0,7);
+    const validMonth=/^20\\d{2}-(0[1-9]|1[0-2])$/;
+    if(!validMonth.test(selectedMonth)){
+      monthStatus.textContent='יש לבחור תאריך הוצאה תקין';
+      return;
+    }
     list.textContent='טוען הוצאות…';
     try{
-      if(!monthsLoaded){
-        const months=await listInstructorDisplayMonths(instructor.empId);
-        monthSelect.replaceChildren();
-        for(const month of months){
-          const option=document.createElement('option');
-          option.value=month;option.textContent=monthLabel(month);
-          monthSelect.append(option);
-        }
-        if(!months.includes(selectedMonth))selectedMonth=months.includes(currentMonth)
-          ?currentMonth:months[0]||currentMonth;
-        monthSelect.value=selectedMonth;
-        monthsLoaded=true;
-      }
-      const {year,month,from,to}=monthRange(selectedMonth);
+      const {from,to}=monthRange(selectedMonth);
       historicalView=selectedMonth!==currentMonth;
       const [independent,history]=await Promise.all([
         listExpenseReports({fromDate:from,toDate:to,employeeIds:[instructor.empId]}),
@@ -110,8 +116,13 @@ export function createExpensesTab({instructor,initialDate}={}){
       ]);
       if(token!==loadToken)return;
       reports=historicalExpenses(history.rows,independent);
-      form.hidden=historicalView;
-      monthStatus.textContent=historicalView?monthStatusLabel(history.approval):'';
+      // An older reporting month is displayed read-only; do not hide the date
+      // field, otherwise the user cannot return to the active period.
+      form.hidden=false;
+      save.disabled=historicalView;
+      monthStatus.textContent=historicalView
+        ?monthLabel(selectedMonth)+' · צפייה בלבד · '+monthStatusLabel(history.approval)
+        :'';
       renderList();
     }catch(err){
       if(token===loadToken)list.textContent=err.message||'לא ניתן לטעון את ההוצאות';
@@ -174,15 +185,16 @@ export function createExpensesTab({instructor,initialDate}={}){
       list.append(item);
     }
   }
-  monthSelect.addEventListener('change',()=>{
-    selectedMonth=monthSelect.value;
-    resetForm();
+  date.input.addEventListener('change',()=>{
+    if(editing)resetForm();
     void refresh();
   });
-  date.input.addEventListener('change',()=>{resetForm();});
   form.addEventListener('submit',async event=>{
     event.preventDefault();
-    if(historicalView)return;
+    if(historicalView){
+      status.textContent='חודש קודם מוצג לצפייה בלבד';
+      return;
+    }
     const chosen=Array.from(fileInput.files||[]);
     const invalid=chosen.find(file=>file.size<=0 || file.size>10*1024*1024
       || !['application/pdf','image/jpeg','image/png','image/webp'].includes(file.type));
@@ -201,7 +213,7 @@ export function createExpensesTab({instructor,initialDate}={}){
             employeeId:instructor.empId,email:instructor.email||''});
         }catch{failed.push(file.name);}
       }
-      resetForm();
+      resetForm({resetDate:true});
       status.textContent=failed.length
         ? 'ההוצאה נשמרה, אך לא ניתן היה לצרף: '+failed.join(', ')
         : 'ההוצאה נשמרה';
