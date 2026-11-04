@@ -2612,6 +2612,31 @@ export function resultsHtml(result, month = '', options = {}) {
       : '';
     return `<section class="attendance-control__report" data-attendance-record-id="${escapeHtml(item.id)}" data-record-editing="${editing ? '1' : '0'}"><div class="attendance-control__report-line"><strong>${shown(`${row.startTime || '—'}–${row.endTime || '—'} | ${activityTypeDisplayLabel(row.activityType) || 'דיווח'}${trainingDetailsForRow(row)?.mode === 'online' ? ' – זום' : ''}`)}</strong><div class="attendance-control__report-line-actions">${status}${recordActions}</div></div>${body}${editFooter}</section>`;
   };
+  const expenseReportsByEmployee = new Map();
+  for(const expense of (result.expenseReports || [])){
+    const id=txt(expense.emp_id);
+    if(!expenseReportsByEmployee.has(id))expenseReportsByEmployee.set(id,[]);
+    expenseReportsByEmployee.get(id).push(expense);
+    ensureEmployee(id,txt(expense.employee_name));
+  }
+  const expenseReviewHtml = (employeeId,editable) =>
+    (expenseReportsByEmployee.get(employeeId)||[]).map(expense=>{
+      const status=expense.review_status==='approved'?'אושר'
+        :expense.review_status==='rejected'?'נדחה':'ממתין לאישור';
+      const amount=optionalNumber(expense.amount)||0;
+      const documents=(expense.attachments||[]).map(att=>
+        '<button type="button" class="ds-btn ds-btn--sm" data-attendance-open-attachment="'+escapeHtml(txt(att.storage_path))+'">'+shown(att.file_name||'מסמך')+'</button>'
+      ).join('');
+      const actions=editable&&expense.review_status==='pending_review'
+        ? '<button type="button" class="ds-btn ds-btn--sm" data-expense-review="approve" data-expense-id="'+escapeHtml(expense.id)+'">אישור הוצאה</button>'+
+          '<button type="button" class="ds-btn ds-btn--sm" data-expense-review="reject" data-expense-id="'+escapeHtml(expense.id)+'">דחייה</button>'+
+          '<label>סכום מאושר (₪) <input class="ds-input ds-input--sm" data-expense-approved-amount type="number" min="0" max="100000" step="0.01" value="'+escapeHtml(String(amount))+'"></label>'+
+          '<button type="button" class="ds-btn ds-btn--sm" data-expense-review="correct" data-expense-id="'+escapeHtml(expense.id)+'">תיקון ואישור</button>' : '';
+      return '<article class="attendance-control__daily-travel attendance-control__expense">'+
+        '<strong>הוצאה · '+shown(dateLabel(expense.expense_date))+'</strong>'+
+        '<span>₪'+shown(amount.toFixed(2))+' · '+shown(status)+'</span>'+
+        '<p>'+shown(expense.details)+'</p>'+documents+actions+'</article>';
+    }).join('');
   const dailyTravelByDay = new Map((result.dailyTravelReports || [])
     .map(row => [txt(row.emp_id) + '|' + txt(row.travel_date), row]));
   const needsDailyTravel = (date,rows=[]) => date >= '2026-11-04' && rows.some(({item})=>{
@@ -2666,6 +2691,9 @@ export function resultsHtml(result, month = '', options = {}) {
         return `<details class="attendance-control__day${needsApproval ? '' : ' attendance-control__day--ok'}" data-payroll-date="${escapeHtml(date)}" data-attendance-row-id="${escapeHtml(entryRecordId(item))}"><summary><span>${shown(dateLabel(date))} · ${shown(label)}</span><span>${formatDurationHours(hours)} שעות</span><span class="attendance-control__row-status ${dataIssue ? 'attendance-control__row-status--issue' : needsApproval ? '' : 'attendance-control__row-status--ok'}">${rowStatus}</span></summary><div class="attendance-control__reports">${reportHtml({ ...row, employeeId: employee.id, date })}</div></details>`;
       }).join('');
     }).join('');
+    const expenseHtml=expenseReviewHtml(employee.id,currentEmployeeCanMutate);
+    const pendingExpenses=(expenseReportsByEmployee.get(employee.id)||[])
+      .filter(item=>item.review_status==='pending_review').length;
     const dailyTravelDays = [...employee.days.entries()].sort(([a],[b])=>a.localeCompare(b))
       .map(([date,dayRows])=>dailyTravelHtml(employee.id,date,dayRows)).filter(Boolean).join('');
     const pendingTravelDays = [...employee.days.entries()].filter(([date,dayRows])=>{
@@ -2706,7 +2734,7 @@ export function resultsHtml(result, month = '', options = {}) {
           ? `<button type="button" class="ds-btn" data-attendance-add-record="${escapeHtml(employee.id)}" data-attendance-add-employee-name="${escapeHtml(employee.name)}" title="הוספת רשומה" aria-label="הוספת רשומה">+</button>`
           : '';
         const finalizeBtn = finalizeAllowed
-          ? `<button type="button" class="ds-btn ds-btn--primary" data-payroll-finish="${escapeHtml(employee.id)}" data-payroll-employee-name="${shown(employee.name)}" data-payroll-pending-records="${pendingRecordCount}" data-payroll-pending-travel="${pendingTravelDays}">אישור מנהל</button>`
+          ? `<button type="button" class="ds-btn ds-btn--primary" data-payroll-finish="${escapeHtml(employee.id)}" data-payroll-employee-name="${shown(employee.name)}" data-payroll-pending-records="${pendingRecordCount}" data-payroll-pending-travel="${pendingTravelDays}" data-payroll-pending-expenses="${pendingExpenses}">אישור מנהל</button>`
           : '';
         const reopenNotice = submissionStatus === 'reopened' && !bypassMonthSubmissionGate
           ? '<span class="attendance-control__manual-note">המדריך חייב לסיים ולאשר מחדש את החודש לפני אישור מנהל.</span>'
@@ -2718,7 +2746,7 @@ export function resultsHtml(result, month = '', options = {}) {
       }
     }
     const readonlyAttr = currentEmployeeCanMutate ? '' : ' data-payroll-employee-readonly="1"';
-    return `<details class="attendance-control__employee" data-payroll-employee="${escapeHtml(employee.id)}"${readonlyAttr}><summary><strong>${shown(employee.name)}</strong>${recordProgressHtml}</summary>${workflowHtml}${managerApprovedHtml}${approvedHtml}${finishControls}${dailyTravelDays}<div class="attendance-control__employee-days">${days}</div></details>`;
+    return `<details class="attendance-control__employee" data-payroll-employee="${escapeHtml(employee.id)}"${readonlyAttr}><summary><strong>${shown(employee.name)}</strong>${recordProgressHtml}</summary>${workflowHtml}${managerApprovedHtml}${approvedHtml}${finishControls}${expenseHtml}${dailyTravelDays}<div class="attendance-control__employee-days">${days}</div></details>`;
   }).join('');
   const reviewEmployees = [...employees.values()].filter((employee) => {
     const hasWorkflowRow = Object.prototype.hasOwnProperty.call(workflowByEmployee, employee.id);
@@ -3134,17 +3162,29 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       const { fromDate, toDate } = attendanceMonthDateRange(month);
       const records = await api.attendanceControlRecords({ fromDate, toDate });
       const attendanceRows = filterAttendanceControlScopeRows(
-        filterAttendanceRowsByMonth(normalizeAttendanceApiRows(records), month),
+        filterAttendanceRowsByMonth(normalizeAttendanceApiRows(records)
+          .filter(row=>normalizeAttendanceName(row.activityType)!==normalizeAttendanceName('הוצאות')), month),
         { selectedTeam, selectedInstructor }
       );
-      if (!attendanceRows.length) throw new Error(`לא נמצאו דיווחי נוכחות עבור ${monthLabel}`);
-      const dashboardRows = await loadAttendanceDashboardDataset(attendanceRows, api, month);
+      const expenseRows=await api.attendanceControlExpenseReports({fromDate,toDate});
+      const filteredExpenses=expenseRows.filter(row=>
+        (!selectedInstructor || txt(row.emp_id)===selectedInstructor || txt(row.employee_name)===selectedInstructor)
+        && (!selectedTeam || txt(row.team)===selectedTeam));
+      if (!attendanceRows.length && !filteredExpenses.length)
+        throw new Error(`לא נמצאו דיווחי נוכחות או הוצאות עבור ${monthLabel}`);
+      const dashboardRows = attendanceRows.length
+        ? await loadAttendanceDashboardDataset(attendanceRows, api, month) : [];
       result = compareAttendanceRows(attendanceRows, dashboardRows); result.month = month;
-      const travelIds = [...new Set(attendanceRows.map(row => txt(row.employeeId)).filter(Boolean))];
-      result.dailyTravelReports = await api.attendanceControlDailyTravelReports({
-        employeeIds:travelIds,fromDate,toDate
-      });
-      const employeeIds = [...new Set(attendanceRows.map((row) => txt(row.employeeId)).filter(Boolean))];
+      result.expenseReports=filteredExpenses;
+      const employeeIds = [...new Set([
+        ...attendanceRows.map(row=>txt(row.employeeId)),
+        ...filteredExpenses.map(row=>txt(row.emp_id))
+      ].filter(Boolean))];
+      result.dailyTravelReports = attendanceRows.length
+        ? await api.attendanceControlDailyTravelReports({
+            employeeIds:attendanceRows.map(row=>Number(row.employeeId))
+              .filter(Number.isSafeInteger),fromDate,toDate
+          }) : [];
       title.textContent = `בקרת נוכחות – ${monthLabel}`;
       await Promise.all([loadApprovals(), loadWorkflowStatuses(month, employeeIds), loadRecordReviews()]);
       paintResults();
@@ -3266,6 +3306,30 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       [...(result?.comparisons || []), ...(result?.notCompared || [])].find((entry) => entry.id === entryId) || null
     );
 
+    const expenseReview=clickEl.closest('[data-expense-review]');
+    if(expenseReview){
+      const id=txt(expenseReview.dataset.expenseId);
+      const decision=txt(expenseReview.dataset.expenseReview);
+      if(!id||!['approve','reject','correct'].includes(decision))return;
+      let amount=null;
+      if(decision==='correct'){
+        const input=expenseReview.closest('.attendance-control__expense')
+          ?.querySelector('[data-expense-approved-amount]');
+        amount=Number(input?.value);
+        if(!input?.value||!Number.isFinite(amount)||amount<0||amount>100000){
+          setStatusMessage('יש להזין סכום מאושר תקין.',{error:true});
+          return;
+        }
+      }
+      expenseReview.disabled=true;
+      try{
+        await api.attendanceControlReviewExpense({id,decision,amount});
+        await loadAttendanceReview({successMessage:'בקרת ההוצאה נשמרה'});
+      }catch(error){
+        setStatusMessage(error.message||'אישור ההוצאה נכשל',{error:true});
+      }finally{expenseReview.disabled=false;}
+      return;
+    }
     const dailyReview = clickEl.closest('[data-daily-travel-review]');
     if(dailyReview){
       const employeeId=txt(dailyReview.dataset.dailyTravelEmployee);
@@ -3714,7 +3778,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       return;
     }
     if (clickEl.closest('[data-attendance-export]') && result) {
-      XLSX.writeFile(buildCorrectedAttendanceWorkbook([...result.comparisons, ...(result.notCompared || [])], result.dashboardPopulation, {dailyTravelReports:result.dailyTravelReports}), attendanceExportFilename(result.month), { compression: true });
+      XLSX.writeFile(buildCorrectedAttendanceWorkbook([...result.comparisons, ...(result.notCompared || [])], result.dashboardPopulation, {dailyTravelReports:result.dailyTravelReports,expenseReports:result.expenseReports}), attendanceExportFilename(result.month), { compression: true });
       return;
     }
     const kmApproveBtn = clickEl.closest('[data-km-approve-reported]');
@@ -3766,6 +3830,11 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       }
       setStatusMessage(message, { error });
     };
+    const pendingExpenseCount=Number(finishBtn.dataset.payrollPendingExpenses||0);
+    if(pendingExpenseCount>0){
+      showApprovalFeedback('לא ניתן לסגור את החודש: נותרו '+pendingExpenseCount+' הוצאות לבדיקה.');
+      return;
+    }
     const pendingTravelCount=Number(finishBtn.dataset.payrollPendingTravel||0);
     if(pendingTravelCount>0){
       showApprovalFeedback('לא ניתן לאשר את החודש: נותרו '+pendingTravelCount+' ימי נסיעות ללא אישור.');
