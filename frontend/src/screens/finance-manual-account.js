@@ -299,7 +299,14 @@ export async function previewSelectedManualAccounts(data, api) {
   for(const entry of requests){
     const row=(data.transactionContext?.billingRows||[]).find(r=>r.activityRowId===entry.id && r.fundingSourceId===entry.request.funder);
     const gefen=row?.gefenFunding || normalizedFunder(row?.funding)==='גפן';
-    const key=gefen?'gefen:'+entry.id:entry.request.funder;
+    // Full-funding Gefen courses are consolidated per actual school and funder.
+    // Do not combine partial/performance billing or different schools.
+    const activity=(data.collectionActivities||[]).find(a=>a.row_id===entry.id)||{};
+    const payerKey=manualRowPayer(row||{},activity).key;
+    const fullGefen=gefen && entry.request.draft?.billing_basis==='full_funding';
+    const key=gefen
+      ? (fullGefen ? `gefen:${payerKey}:${entry.request.funder}` : `gefen:${entry.id}`)
+      : entry.request.funder;
     if(!groups.has(key))groups.set(key,[]);groups.get(key).push(entry);
   }
   if (ids.length > 1 && groups.size===1 && [...groups.values()][0].length>1) {
