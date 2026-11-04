@@ -7,7 +7,7 @@ const pdf = readFileSync(new URL('../supabase/functions/finance-transaction-acco
 test('courses use the exact seven requested columns in right-to-left order', () => {
   assert.match(pdf, /const courseWidths = \[94, 119, 56, 42, 46, 80, 98\]/);
   assert.match(pdf, /\['שם בית הספר', 'תוכנית \/ קורס', 'מספר גפ״ן', 'שעות', 'מפגשים', 'מחיר לשעה', 'סה״כ'\]/);
-  assert.match(pdf, /drawSection\('קורסים',[\s\S]*?courseWidths, courses/);
+  assert.match(pdf, /drawSection\('',[\s\S]*?courseWidths, courses/);
   assert.match(pdf, /\(row\) => \[row\.school \|\| '—', row\.name, row\.gefen \|\| '—',[\s\S]*?count\(row\.hours\), count\(row\.quantity\), money\(row\.hourlyPrice\), money\(row\.amount\)\]/);
   assert.equal([94, 119, 56, 42, 46, 80, 98].reduce((sum, w) => sum + w, 0), 535);
 });
@@ -59,4 +59,11 @@ test('draft and final transaction PDFs fully embed Assistant Regular and Bold', 
   assert.doesNotMatch(pdf, /assets\/fonts\/Alef-(Regular|Bold)\.ttf/);
   assert.match(pdf, /const draft = clean\(account\.transaction_account_number\) === 'טיוטה'/);
   assert.equal((pdf.match(/async function buildPdf\(account: any\)/g) || []).length,1);
+});
+
+test('customer-facing course descriptions remove internal full-balance labels and omit Courses subheading', () => {
+  assert.match(pdf, /replace\(\/\\s\*\[—–-\]\\s\*מלוא\\s\+יתרת\\s\+הפעילות\\s\*\$\/u, ''\)/);
+  assert.match(pdf, /if \(title\) \{\s*drawRight\(page, bold, title, y, 11\)/);
+  assert.match(pdf, /drawSection\('',/);
+  assert.doesNotMatch(pdf, /drawSection\('קורסים'/);
 });
