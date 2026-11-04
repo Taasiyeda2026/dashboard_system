@@ -510,7 +510,7 @@ function headerHtml(row, { mode = 'single', summaryDate = '', exportAction = tru
             <h2 class="activity-drawer__title">${escapeHtml(fallback(row?.activity_name))}</h2>
             <div class="activity-drawer__meta activity-drawer__meta--tags">${metaTags}</div>
           </div>
-          ${headerActionsHtml(exportAction, !!row?.start_date && (canManagePhotoConsents && Number.isSafeInteger(Number(row?.id)) && Number(row?.id) > 0 || canUploadOwnPhotoConsent && !!String(row?.row_id || row?.RowID || '').trim()), canUploadOwnPhotoConsent ? String(row?.row_id || row?.RowID) : Number(row?.id))}
+          ${headerActionsHtml(exportAction, (normalizeActivitySeason(row?.activity_season) === ACTIVITY_SEASON_SCHOOL_2027 || !!row?.start_date) && (canManagePhotoConsents && Number.isSafeInteger(Number(row?.id)) && Number(row?.id) > 0 || canUploadOwnPhotoConsent && !!String(row?.row_id || row?.RowID || '').trim()), canUploadOwnPhotoConsent ? String(row?.row_id || row?.RowID) : Number(row?.id))}
         </div>
       </div>
     `;
