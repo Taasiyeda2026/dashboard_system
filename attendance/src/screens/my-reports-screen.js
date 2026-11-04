@@ -12,6 +12,7 @@
 
 import { createIcon } from '../components/icon.js';
 import { getDailyTravelReports } from '../services/daily-travel.service.js';
+import { listExpenseReports } from '../services/expense-reports.service.js';
 import { reportedKilometers } from '../services/reported-kilometers.js';
 import { createInputField, createSelectField } from '../components/field.js';
 import { createTimePicker } from '../components/time-picker.js';
@@ -112,6 +113,12 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     ]);
 
     const sourceRecords = sourceAttendanceRecords(records);
+    const expenseReports=monthKey>='2026-11'
+      ? await listExpenseReports({
+          fromDate:monthKey+'-01',
+          toDate:monthKey+'-'+String(new Date(year,month,0).getDate()).padStart(2,'0'),
+          employeeIds:[instructor.empId]
+        }) : [];
     const dailyTravelReports = monthKey >= '2026-11'
       ? await getDailyTravelReports(instructor.empId,monthKey) : [];
     const dailyTravelByDate = new Map(dailyTravelReports.map(row=>[row.travel_date,row]));
@@ -191,7 +198,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
       toolbar.append(addBtn);
     }
 
-    if (sourceRecords.length > 0) {
+    if (sourceRecords.length > 0 || expenseReports.length > 0) {
       const xlBtn = document.createElement('button');
       xlBtn.type = 'button';
       xlBtn.className = 'av2-btn av2-btn--secondary';
@@ -199,7 +206,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
       const xlLabel = document.createElement('span');
       xlLabel.textContent = 'Excel';
       xlBtn.append(xlLabel);
-      xlBtn.addEventListener('click', () => exportMonthToExcel(records, instructor, year, month, dailyTravelReports));
+      xlBtn.addEventListener('click', () => exportMonthToExcel(records, instructor, year, month, dailyTravelReports, expenseReports));
       toolbar.append(xlBtn);
     }
 
@@ -229,6 +236,17 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
 
     const monthlySummary = buildMonthlySummaryGrid(records);
     if (monthlySummary) contentArea.append(monthlySummary);
+    if(expenseReports.length){
+      const expenseStatus=document.createElement('p');
+      expenseStatus.className='av2-reports__expense-status';
+      const approved=expenseReports.filter(row=>row.review_status==='approved')
+        .reduce((sum,row)=>sum+Number(row.approved_amount||0),0);
+      const pending=expenseReports.filter(row=>row.review_status==='pending_review').length;
+      expenseStatus.textContent='הוצאות החודש: '+expenseReports.length
+        +' · אושרו ₪'+approved.toFixed(2)
+        +(pending?' · '+pending+' ממתינות לאישור':'');
+      contentArea.append(expenseStatus);
+    }
 
     // ── Empty state ───────────────────────────────────────────────────────
     if (!sourceRecords.length) {
@@ -803,7 +821,8 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     type: 'number', value: String(record.public_transport_cost || 0),
     attrs: { min: '0', step: '0.01' },
   });
-  form.append(publicTransportWrap, kmField.wrap, publicTransportCostField.wrap, expField.wrap);
+  form.append(publicTransportWrap, kmField.wrap, publicTransportCostField.wrap);
+  if(record.report_date<'2026-11-04')form.append(expField.wrap);
   const cancellationWrap = document.createElement('label');
   cancellationWrap.className = 'av2-report__transport-toggle av2-report__inline-cancellation-toggle';
   const cancellationToggle = document.createElement('input');
@@ -940,7 +959,8 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
   const notesField = createInputField({ id: 'edit-notes',      label: 'הערות',        value: record.notes || '' });
   expDField.wrap.classList.add('av2-field--full');
   notesField.wrap.classList.add('av2-field--full');
-  form.append(expDField.wrap, notesField.wrap);
+  if(record.report_date<'2026-11-04')form.append(expDField.wrap);
+  form.append(notesField.wrap);
 
   const errorEl = document.createElement('p');
   errorEl.className = 'av2-report__error av2-field--full';
@@ -1048,8 +1068,8 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
         roundtrip_km:            kmValue,
         public_transport:        !isZoom && publicTransportToggle.checked,
         public_transport_cost:   !isZoom && publicTransportToggle.checked ? Number(publicTransportCostField.input.value || 0) : 0,
-        expenses:                expField.input.value ? Number(expField.input.value) : 0,
-        expense_details:         expDField.input.value.trim() || null,
+        expenses:                reportDateField.input.value >= '2026-11-04' ? 0 : (expField.input.value ? Number(expField.input.value) : 0),
+        expense_details:         reportDateField.input.value >= '2026-11-04' ? null : (expDField.input.value.trim() || null),
         notes:                   notesField.input.value.trim() || null
       });
       overlay.remove();

@@ -39,7 +39,7 @@ function applyNumberFormat(XLSX, worksheet, columnIndex, startRow, endRow, forma
   }
 }
 
-export function exportMonthToExcel(records, instructor, year, month, dailyTravelReports = []) {
+export function exportMonthToExcel(records, instructor, year, month, dailyTravelReports = [], expenseReports = []) {
   if (!window.XLSX) {
     alert('ספריית ה-Excel אינה זמינה. נסו לרענן את הדף.');
     return;
@@ -150,6 +150,8 @@ export function exportMonthToExcel(records, instructor, year, month, dailyTravel
     totalKm += km;
     totalExpenses += expenses;
   }
+  totalExpenses+=(expenseReports||[]).filter(report=>report.review_status==='approved')
+    .reduce((sum,report)=>sum+Number(report.approved_amount||0),0);
   // The attendance report shows instructor-reported cancellation, not payroll approval.
   // This export total follows the displayed subtotals; payroll data is unchanged.
   byType['ביטול זמן'] ||= { hours: 0, sessions: 0, km: 0, expenses: 0 };
@@ -218,6 +220,20 @@ export function exportMonthToExcel(records, instructor, year, month, dailyTravel
     const wsTravel=XLSX.utils.json_to_sheet(travelRows);
     wsTravel['!cols']=[{wch:14},{wch:19},{wch:24},{wch:24},{wch:18},{wch:13},{wch:20},{wch:22},{wch:24},{wch:25},{wch:18}];
     XLSX.utils.book_append_sheet(wb,wsTravel,'נסיעות וביטולים');
+  }
+
+  if((expenseReports||[]).length){
+    const rows=expenseReports.map(expense=>({
+      'תאריך':expense.expense_date,
+      'סכום מדווח (₪)':Number(expense.amount)||0,
+      'סכום מאושר (₪)':expense.review_status==='approved'?(Number(expense.approved_amount)||0):'',
+      'פירוט':expense.details||'',
+      'מסמכים':(expense.attachments||[]).map(att=>att.file_name||'').filter(Boolean).join(', '),
+      'סטטוס':({pending_review:'ממתין לאישור',approved:'אושר',rejected:'נדחה'})[expense.review_status]||'ממתין לבדיקה'
+    }));
+    const expensesSheet=XLSX.utils.json_to_sheet(rows);
+    expensesSheet['!cols']=[{wch:15},{wch:20},{wch:20},{wch:50},{wch:40},{wch:20}];
+    XLSX.utils.book_append_sheet(wb,expensesSheet,'הוצאות');
   }
 
   const pad = (n) => String(n).padStart(2, '0');

@@ -5,6 +5,7 @@
 
 import { createIcon } from '../components/icon.js';
 import { getDailyTravelReports } from '../services/daily-travel.service.js';
+import { listExpenseReports } from '../services/expense-reports.service.js';
 import { isZoomLocationReport } from '../services/attendance-location-policy.js';
 import { getMonthRecords, getMonthApproval, submitMonth, sourceAttendanceRecords } from '../services/attendance.service.js';
 import { canEditMonth, resolveMonthDisplayStatus, getMonthKey, formatMonthLabel } from '../services/month-gate.service.js';
@@ -112,11 +113,16 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
     ]);
 
     const sourceRecords = sourceAttendanceRecords(records);
+    const expenseReports=monthKey>='2026-11' ? await listExpenseReports({
+      fromDate:monthKey+'-01',
+      toDate:monthKey+'-'+String(new Date(year,month,0).getDate()).padStart(2,'0'),
+      employeeIds:[instructor.empId]
+    }) : [];
     const editable = canEditMonth(year, month, approval);
 
     // Instructor-only monthly totals. No individual records are shown on Home.
     statsEl.innerHTML = '';
-    const homeStats = buildHomeSummaryStats(records);
+    const homeStats = buildHomeSummaryStats(records,expenseReports);
     statsEl.hidden = homeStats.length === 0;
     homeStats.forEach((item) => {
       statsEl.append(buildStat(item.value, item.label, item.icon));
@@ -125,7 +131,7 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
     // Action strip
     actionStripEl.innerHTML = '';
     actionStripEl.append(
-      buildActionStrip({ approval, year, month, instructor, records, sourceRecords, editable, onMyReports, onNewReport })
+      buildActionStrip({ approval, year, month, instructor, records, sourceRecords, expenseReports, editable, onMyReports, onNewReport })
     );
 
   } catch (err) {
@@ -136,7 +142,7 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
 
 // ── Compact action strip (no duplicated stats) ────────────────────────────────
 
-function buildActionStrip({ approval, year, month, instructor, records, sourceRecords, editable, onMyReports, onNewReport }) {
+function buildActionStrip({ approval, year, month, instructor, records, sourceRecords, expenseReports, editable, onMyReports, onNewReport }) {
   const strip = document.createElement('div');
   strip.className = 'av2-home__action-strip';
 
@@ -170,7 +176,7 @@ function buildActionStrip({ approval, year, month, instructor, records, sourceRe
   actions.append(viewLink);
 
   // Excel button
-  if (sourceRecords.length > 0) {
+  if (sourceRecords.length > 0 || expenseReports.length > 0) {
     const xlBtn = document.createElement('button');
     xlBtn.type = 'button';
     xlBtn.className = 'av2-btn av2-btn--secondary av2-home__action-btn av2-home__excel-btn';
@@ -181,7 +187,7 @@ function buildActionStrip({ approval, year, month, instructor, records, sourceRe
     xlBtn.addEventListener('click', () => (async()=>{
       const reports=getMonthKey(year,month)>='2026-11'
         ? await getDailyTravelReports(instructor.empId,getMonthKey(year,month)) : [];
-      exportMonthToExcel(records,instructor,year,month,reports);
+      exportMonthToExcel(records,instructor,year,month,reports,expenseReports);
     })().catch(()=>{}));
     actions.append(xlBtn);
   }
@@ -313,11 +319,12 @@ function cancellationHours(records) {
   return reportedCancellationHours(records);
 }
 
-export function buildHomeSummaryStats(records = []) {
+export function buildHomeSummaryStats(records = [], expenseReports = []) {
   const rows = Array.isArray(records) ? records : [];
   const sourceRows = sourceAttendanceRecords(rows);
   const km = sourceRows.reduce((sum, record) => sum + Number(record?.roundtrip_km || 0), 0);
-  const expenses = sourceRows.reduce((sum, record) => sum + Number(record?.expenses || 0), 0);
+  const expenses = sourceRows.reduce((sum, record) => sum + Number(record?.expenses || 0), 0)
+    + (expenseReports||[]).reduce((sum,report)=>sum+Number(report?.amount||0),0);
 
   const items = [
     { key: 'course',       label: 'סה״כ קורס',       numericValue: hoursForType(sourceRows, 'קורס'),   icon: 'clock-3', valueType: 'hours' },

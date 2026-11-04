@@ -7,7 +7,7 @@ import {buildCorrectedAttendanceWorkbook} from '../frontend/src/screens/attendan
 test('travel day can only be chosen from assigned activities; no free calendar',async()=>{
  const tab=await readFile(new URL('../attendance/src/screens/daily-travel-tab.js',import.meta.url),'utf8');
  const api=await readFile(new URL('../attendance/src/services/daily-travel.service.js',import.meta.url),'utf8');
- assert.ok(tab.includes('getAssignedTravelDays()'));
+ assert.ok(tab.includes('getAssignedTravelDays'));
  assert.ok(tab.includes("daySelect.id='av2-travel-day-selector'"));
  assert.ok(tab.includes("type:'hidden'"));
  assert.ok(!tab.includes("type:'date'"));

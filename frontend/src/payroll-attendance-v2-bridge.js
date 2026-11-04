@@ -358,4 +358,25 @@ api.attendanceControlReviewDailyTravel = async function ({employeeId,date,decisi
   return data;
 };
 
+
+api.attendanceControlExpenseReports = async function ({employeeIds=[],fromDate='',toDate=''}={}) {
+  await waitForSupabaseAuthSession({timeoutMs:7000}).catch(()=>null);
+  const ids=[...new Set((employeeIds||[]).map(id=>Number(text(id))).filter(Number.isSafeInteger))];
+  const {data,error}=await supabase.rpc('av2_list_expenses',{
+    p_emp_ids:ids.length?ids:null,p_from:fromDate,p_to:toDate
+  });
+  if(error)throw new Error('טעינת דיווחי ההוצאות נכשלה');
+  return Array.isArray(data)?data:[];
+};
+
+api.attendanceControlReviewExpense = async function ({id,decision,amount=null}={}) {
+  await waitForSupabaseAuthSession({timeoutMs:7000}).catch(()=>null);
+  const {data,error}=await supabase.rpc('av2_review_expense',{
+    p_expense_id:id,p_decision:decision,
+    p_amount:decision==='correct'?Number(amount):null
+  });
+  if(error)throw new Error(error.message||'אישור ההוצאה נכשל');
+  return data;
+};
+
 export { legacyRecord, normalizeAttachments };

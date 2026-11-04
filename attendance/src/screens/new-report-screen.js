@@ -12,6 +12,7 @@ import { createSearchableSelect } from '../components/searchable-select.js';
 import { createCompactSelect } from '../components/compact-select.js';
 import { createTimePicker } from '../components/time-picker.js';
 import { createDailyTravelTab } from './daily-travel-tab.js';
+import { createExpensesTab } from './expenses-tab.js';
 import {
   getInstructorActivities,
   getTrainingScheduleForDate,
@@ -1509,7 +1510,7 @@ export function renderNewReportScreen(container, {
       'שעות עבודה',
       'times',
       'av2-form-section__body--times',
-      [timesGrid, expensesInner],
+      [timesGrid],
     );
 
     form.append(activitySection, timesSection);
@@ -1903,8 +1904,8 @@ export function renderNewReportScreen(container, {
           roundtrip_km: kmValue,
           public_transport: usesPublicTransport,
           public_transport_cost: publicTransportCost,
-          expenses: expField.input.value ? Number(expField.input.value) : 0,
-          expense_details: expDetailField.input.value.trim() || null,
+          expenses: 0,
+          expense_details: null,
           notes: notesField.input.value.trim() || null,
           ...scheduledTrainingFields,
         };
@@ -1950,6 +1951,13 @@ export function renderNewReportScreen(container, {
     travelTab.className = 'av2-btn av2-btn--secondary';
     travelTab.textContent = 'נסיעות וביטולים';
     travelTab.setAttribute('role','tab');
+    const expenseTab = document.createElement('button');
+    expenseTab.type = 'button';
+    expenseTab.className = 'av2-btn av2-btn--secondary';
+    expenseTab.textContent = 'הוצאות';
+    expenseTab.setAttribute('role','tab');
+    expenseTab.id='av2-expenses-tab-trigger';
+    expenseTab.setAttribute('aria-controls','av2-expenses-tab-panel');
     attendanceTab.id='av2-attendance-tab-trigger';
     travelTab.id='av2-travel-tab-trigger';
     attendanceTab.setAttribute('aria-controls','av2-attendance-tab-panel');
@@ -1957,7 +1965,7 @@ export function renderNewReportScreen(container, {
     form.id='av2-attendance-tab-panel';
     form.setAttribute('role','tabpanel');
     form.setAttribute('aria-labelledby',attendanceTab.id);
-    tabs.append(attendanceTab, travelTab);
+    tabs.append(attendanceTab, travelTab, expenseTab);
     const travelShortcut = document.createElement('button');
     travelShortcut.type = 'button';
     travelShortcut.className = 'av2-report__tiny-travel-btn';
@@ -1968,22 +1976,33 @@ export function renderNewReportScreen(container, {
       empId: instructor.empId,
       initialDate: dateField.input.value || defaultDate
     });
+    const expensesPanel = createExpensesTab({
+      instructor,initialDate:localIsoDate()
+    });
     function showTab(kind) {
       const isAttendance = kind === 'attendance';
+      const isTravel = kind === 'travel';
+      const isExpenses = kind === 'expenses';
       form.hidden = !isAttendance;
-      dailyTravel.panel.hidden = isAttendance;
-      attendanceTab.setAttribute('aria-selected',String(isAttendance));
-      travelTab.setAttribute('aria-selected',String(!isAttendance));
-      attendanceTab.tabIndex=isAttendance?0:-1;
-      travelTab.tabIndex=isAttendance?-1:0;
-      attendanceTab.classList.toggle('av2-report__tab--active',isAttendance);
-      travelTab.classList.toggle('av2-report__tab--active',!isAttendance);
-      if(!isAttendance){
+      dailyTravel.panel.hidden = !isTravel;
+      expensesPanel.panel.hidden = !isExpenses;
+      for(const [tab,active] of [
+        [attendanceTab,isAttendance],[travelTab,isTravel],[expenseTab,isExpenses]
+      ]){
+        tab.setAttribute('aria-selected',String(active));
+        tab.tabIndex=active?0:-1;
+        tab.classList.toggle('av2-report__tab--active',active);
+      }
+      if(isTravel){
         if(dailyTravel.panel.dataset.av2Visited!=='1'){
           dailyTravel.setDate(dateField.input.value||defaultDate);
           dailyTravel.panel.dataset.av2Visited='1';
         }
         void dailyTravel.load();
+      }
+      if(isExpenses && expensesPanel.panel.dataset.av2Visited!=='1'){
+        expensesPanel.panel.dataset.av2Visited='1';
+        void expensesPanel.load();
       }
     }
     travelShortcut.addEventListener('click',()=>{
@@ -1996,18 +2015,19 @@ export function renderNewReportScreen(container, {
     hoursFollowup.append(travelShortcut);
     attendanceTab.addEventListener('click',()=>showTab('attendance'));
     travelTab.addEventListener('click',()=>showTab('travel'));
+    expenseTab.addEventListener('click',()=>showTab('expenses'));
     tabs.addEventListener('keydown',event=>{
       if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
-      const tabsList=[attendanceTab,travelTab];
+      const tabsList=[attendanceTab,travelTab,expenseTab];
       const index=tabsList.indexOf(event.target);
       if(index<0)return;
       event.preventDefault();
-      const nextIndex=event.key==='Home'?0:event.key==='End'?1:
-        (index+(event.key==='ArrowLeft'?-1:1)+2)%2;
-      showTab(nextIndex===0?'attendance':'travel');
+      const nextIndex=event.key==='Home'?0:event.key==='End'?2:
+        (index+(event.key==='ArrowLeft'?-1:1)+3)%3;
+      showTab(['attendance','travel','expenses'][nextIndex]);
       tabsList[nextIndex].focus();
     });
-    formArea.append(tabs,form,dailyTravel.panel);
+    formArea.append(tabs,form,dailyTravel.panel,expensesPanel.panel);
     showTab(initialTab === 'travel' ? 'travel' : 'attendance');
     void onReportDateChange();
   }

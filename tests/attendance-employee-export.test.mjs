@@ -23,7 +23,7 @@ test('employee workbook uses curated columns, H:MM hours and a populated daily s
     { employeeId: '11', employmentType: 'כוח אדם' }
   ]);
 
-  assert.deepEqual(workbook.SheetNames, ['פירוט מלא', 'סיכום חודשי', 'תצוגה יומית', 'נסיעות וביטולים']);
+  assert.deepEqual(workbook.SheetNames, ['פירוט מלא', 'סיכום חודשי', 'תצוגה יומית', 'נסיעות וביטולים', 'הוצאות']);
   const detail = sheetRows(workbook, 'פירוט מלא');
   const monthly = sheetRows(workbook, 'סיכום חודשי');
   const daily = sheetRows(workbook, 'תצוגה יומית');
