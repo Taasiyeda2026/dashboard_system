@@ -23,3 +23,9 @@ test('manual PDF addresses courses to school, workshops to payer',()=>{
  assert.match(pdf,/account\.issue_mode === 'manual' && isCourseOnly && billedSchools\.length/);
  assert.match(pdf,/\['workshop', 'tour', 'סדנה', 'סיור'\]/);
 });
+
+test('Gefen PDF displays two educational hours per course meeting and correct rate',()=>{
+ assert.match(pdf,/const hours = gefenFunding && !service \? quantity \* 2/);
+ assert.match(pdf,/hourlyPrice: gefenFunding && !service/);
+ assert.match(pdf,/hours > 0 \? amount \/ hours : 0/);
+});
