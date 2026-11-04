@@ -146,7 +146,7 @@ test('multiple activities for one financer issue exactly one account with all li
   assert.equal(requests[0][1].draft.amount,4300);
   const view=manualAccountViewHtml(d);
   assert.match(view,/אישור והפקת חשבון מרוכז/);
-  assert.match(view,/data-finance-manual-pdf-open="consolidated"/);
+  assert.doesNotMatch(view,/data-finance-manual-pdf-open="consolidated"/);
   assert.match(view,/data-finance-manual-pdf-download="consolidated"/);
   assert.doesNotMatch(view,/<iframe/,'PDF extension cannot hijack an embedded viewer');
   assert.doesNotMatch(view,/COMBINEDPDF/,'base64 must not be embedded into HTML');
@@ -321,7 +321,7 @@ test('consolidated invoice previews use Blob URLs and download under a descripti
   };
   syncManualPdfPreviewDom(root,d,scope);
   assert.equal(root.querySelector('iframe'),null);
-  assert.ok(root.querySelector('[data-finance-manual-pdf-open="consolidated"]'));
+  assert.equal(root.querySelector('[data-finance-manual-pdf-open="consolidated"]'),null);
   assert.ok(root.querySelector('[data-finance-manual-pdf-download="consolidated"]'));
   const opens=[];
   const clicked=[];
@@ -354,7 +354,7 @@ test('single-invoice PDF preview also provides a named download rather than inli
   d.manualPdf='JVBERi0=';
   const html=manualAccountViewHtml(d);
   assert.match(html,/data-finance-manual-pdf-download="single"/);
-  assert.match(html,/data-finance-manual-pdf-open="single"/);
+  assert.doesNotMatch(html,/data-finance-manual-pdf-open="single"/);
   assert.doesNotMatch(html,/<iframe/);
   assert.equal(html.includes('data:application/pdf;base64'),false);
 });
@@ -677,15 +677,14 @@ test('manual account detail editing looks like a compact action without expandin
  assert.equal(extra.querySelector('summary').textContent,'עריכת פרטי חשבון');
  assert.equal(doc.querySelector('[data-finance-manual-preview]').textContent,'בדיקת החשבון');
 });
-test('after generating PDF the flow has two primary actions and optional download under More',()=>{
+test('after generating PDF only draft download and explicit issuance are shown',()=>{
  const doc=new JSDOM(manualPdfReviewHtml({key:'single',title:'חשבון לבדיקה',detail:'ויצו · 3 פעילויות · 22,000 ₪',confirmLabel:'אישור והפקה'})).window.document;
- assert.equal(doc.querySelectorAll('[data-finance-manual-pdf-open]').length,1);
+ assert.equal(doc.querySelectorAll('[data-finance-manual-pdf-open]').length,0);
  assert.equal(doc.querySelectorAll('[data-finance-manual-confirm]').length,1);
  assert.equal(doc.querySelector('[data-finance-manual-confirm]').textContent,'אישור והפקה');
- const more=doc.querySelector('.ds-fin-manual__review-more');
- assert.ok(more);
- assert.equal(more.open,false);
- assert.ok(more.querySelector('[data-finance-manual-pdf-download]'));
+ assert.equal(doc.querySelectorAll('[data-finance-manual-pdf-download]').length,1);
+ assert.equal(doc.querySelector('[data-finance-manual-pdf-download]').textContent,'טיוטה (PDF)');
+ assert.equal(doc.querySelector('.ds-fin-manual__review-more'),null);
  assert.equal(doc.querySelectorAll('.ds-fin-manual__review-file').length,0);
  assert.doesNotMatch(doc.body.textContent,/טרם הופק חשבון עסקה|טיוטה לבדיקה בלבד/);
 });
@@ -701,7 +700,8 @@ test('multiple separate PDF previews stay collapsed with a single issuance contr
  const list=doc.querySelector('.ds-fin-manual__batch-preview-list');
  assert.ok(list);
  assert.equal(list.open,false);
- assert.equal(list.querySelectorAll('[data-finance-manual-pdf-open]').length,2);
+ assert.equal(list.querySelectorAll('[data-finance-manual-pdf-open]').length,0);
+ assert.equal(list.querySelectorAll('[data-finance-manual-pdf-download]').length,2);
  assert.equal(doc.querySelectorAll('.ds-fin-manual__batch-previews [data-finance-manual-confirm]').length,1);
  assert.match(doc.querySelector('.ds-fin-manual__batch-review-header').textContent,/2 חשבונות מוכנים לבדיקה/);
 });

@@ -517,8 +517,8 @@ export function activateManualPdfPreview(root, key, action, scope = globalThis) 
   return true;
 }
 
-// Minimal, two-step issuance: review the generated PDF, then explicitly approve issuance.
-// Downloading a pre-issue draft is an optional action, never a required step.
+// Minimal invoice flow: optional draft download and a separate explicit issuance approval.
+// Do not duplicate draft download with another PDF viewing action.
 export function manualPdfReviewHtml({key, title, detail, confirmLabel = ''}) {
   return `<section class="ds-fin-manual__review" aria-label="${e(title)}">
     <div class="ds-fin-manual__review-document">
@@ -528,11 +528,8 @@ export function manualPdfReviewHtml({key, title, detail, confirmLabel = ''}) {
       </div>
     </div>
     <div class="ds-fin-manual__review-actions">
-      <button type="button" class="ds-btn" data-finance-manual-pdf-open="${e(key)}">צפייה בחשבון</button>
+      <button type="button" class="ds-btn" data-finance-manual-pdf-download="${e(key)}">טיוטה (PDF)</button>
       ${confirmLabel ? `<button type="button" class="ds-btn ds-btn--primary" data-finance-manual-confirm>${e(confirmLabel)}</button>` : ''}
-      <details class="ds-fin-manual__review-more"><summary>עוד</summary>
-        <button type="button" class="ds-btn" data-finance-manual-pdf-download="${e(key)}">הורדת טיוטת PDF</button>
-      </details>
     </div>
   </section>`;
 }
