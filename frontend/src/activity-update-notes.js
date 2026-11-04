@@ -172,6 +172,34 @@ export function enhanceActivityUpdateNotes(form) {
         padding: 4px 12px !important;
         font-size: 12px !important;
       }
+      /* Empty timeline: no title, blank-state text or decorative separator. */
+      .activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-update-notes[data-has-notes="no"] {
+        border-top: 0 !important;
+        margin-top: 0 !important;
+        padding-top: 0 !important;
+      }
+      .activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-update-notes[data-has-notes="no"] .activity-update-notes__title,
+      .activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-update-notes[data-has-notes="no"] .activity-update-notes__items {
+        display: none !important;
+      }
+      /* The compose field must use the whole activity scroll-body width. */
+      .activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-update-notes,
+      .activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-update-notes__composer,
+      .activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-update-notes__input {
+        inline-size: 100% !important;
+        width: 100% !important;
+        max-inline-size: none !important;
+        max-width: none !important;
+        box-sizing: border-box !important;
+        align-self: stretch !important;
+      }
+      .activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-update-notes__composer {
+        margin-top: 4px !important;
+      }
+      .activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-update-notes__input {
+        min-inline-size: 0 !important;
+        min-width: 0 !important;
+      }
       @media (max-width: 640px) {
         .activity-update-notes .activity-update-notes__items { max-height: 160px !important; }
         .activity-update-notes { margin-top: 9px !important; padding-top: 8px !important; }
@@ -181,6 +209,7 @@ export function enhanceActivityUpdateNotes(form) {
   }
   const section = create(doc, 'section', 'activity-update-notes');
   section.dataset.activityUpdateNotes = 'yes';
+  section.dataset.hasNotes = 'loading';
   section.append(create(doc, 'h3', 'activity-update-notes__title', 'הערות'));
   const output = create(doc, 'div', 'activity-update-notes__items');
   output.setAttribute('aria-live', 'polite');
@@ -247,6 +276,7 @@ export function enhanceActivityUpdateNotes(form) {
       if (error) throw error;
       output.replaceChildren();
       const notes = Array.isArray(data) ? [...data] : [];
+      section.dataset.hasNotes = notes.length ? 'yes' : 'no';
       const noteTime = (note) => note.is_legacy
         ? (note.saved_at ? Date.parse(note.saved_at) : (note.occurred_on ? Date.parse(note.occurred_on + 'T12:00:00Z') : 0))
         : (Date.parse(note.created_at) || 0);
@@ -258,7 +288,8 @@ export function enhanceActivityUpdateNotes(form) {
         return Number(b.id) - Number(a.id);
       });
       if (!notes.length) {
-        output.append(create(doc, 'p', 'activity-update-notes__empty', 'עדיין לא נוספו הערות.'));
+        // Do not waste drawer height with a title or placeholder when empty.
+        // The full-width new-note editor remains available.
         return;
       }
       const item = (note, latest) => {
@@ -278,6 +309,7 @@ export function enhanceActivityUpdateNotes(form) {
         output.append(details);
       }
     } catch (error) {
+      section.dataset.hasNotes = 'error';
       output.textContent = 'לא ניתן לטעון את ההערות כרגע.';
       console.error('[activity-update-notes] load failed', error);
     }
