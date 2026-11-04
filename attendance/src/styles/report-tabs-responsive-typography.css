@@ -612,3 +612,13 @@
     min-height:40px!important;
   }
 }
+
+/* Highest-priority tab visibility contract. A desktop display:grid!important
+   must never override the HTML hidden state when switching tabs. */
+.av2-report .av2-report__form-area > .av2-report__form[hidden],
+.av2-report .av2-report__form-area > .av2-report__history[hidden],
+.av2-report .av2-report__form-area > .av2-daily-travel[hidden],
+.av2-report .av2-report__form-area > .av2-expenses-tab[hidden],
+.av2-report .av2-report__form-area [role="tabpanel"][hidden]{
+  display:none!important;
+}
