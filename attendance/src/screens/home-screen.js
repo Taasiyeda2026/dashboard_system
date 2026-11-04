@@ -122,7 +122,7 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
 
     // Instructor-only monthly totals. No individual records are shown on Home.
     statsEl.innerHTML = '';
-    const homeStats = buildHomeSummaryStats(records);
+    const homeStats = buildHomeSummaryStats(records,expenseReports);
     statsEl.hidden = homeStats.length === 0;
     homeStats.forEach((item) => {
       statsEl.append(buildStat(item.value, item.label, item.icon));
@@ -319,11 +319,12 @@ function cancellationHours(records) {
   return reportedCancellationHours(records);
 }
 
-export function buildHomeSummaryStats(records = []) {
+export function buildHomeSummaryStats(records = [], expenseReports = []) {
   const rows = Array.isArray(records) ? records : [];
   const sourceRows = sourceAttendanceRecords(rows);
   const km = sourceRows.reduce((sum, record) => sum + Number(record?.roundtrip_km || 0), 0);
-  const expenses = sourceRows.reduce((sum, record) => sum + Number(record?.expenses || 0), 0);
+  const expenses = sourceRows.reduce((sum, record) => sum + Number(record?.expenses || 0), 0)
+    + (expenseReports||[]).reduce((sum,report)=>sum+Number(report?.amount||0),0);
 
   const items = [
     { key: 'course',       label: 'סה״כ קורס',       numericValue: hoursForType(sourceRows, 'קורס'),   icon: 'clock-3', valueType: 'hours' },
