@@ -2,7 +2,7 @@ import { createInputField } from '../components/field.js';
 import { summarizeDailyTravel } from '../services/daily-travel.js';
 import { getMonthApproval } from '../services/attendance.service.js';
 import { canEditMonth, formatMonthLabel } from '../services/month-gate.service.js';
-import { supabase } from '../api/client.js';
+import { listInstructorDisplayMonths, readHistoricalAttendance, historicalTravelDays, isHistoricTravelMonth, monthStatusLabel } from '../services/historical-display.service.js';
 import {
   getDailyTravelActivityLegs, getDailyTravelReport, getAssignedTravelDays, saveDailyTravel
 } from '../services/daily-travel.service.js';
@@ -69,6 +69,67 @@ export function createDailyTravelTab({empId, initialDate}) {
   let selectedMonth=String(initialDate||'').slice(0,7);
   let monthsLoaded=false;
   let requestSequence=0;
+  let historicalDays=[];
+  let historicalMonthApproval=null;
+  const formatDate=value=>String(value||'').split('-').reverse().join('.');
+  const appendDetail=(wrap,label,value)=>{
+    if(value===null || value===undefined || value==='')return;
+    const row=document.createElement('div');
+    row.className='av2-daily-travel__legacy-detail';
+    const key=document.createElement('span');key.textContent=label;
+    const val=document.createElement('strong');val.textContent=String(value);
+    row.append(key,val);wrap.append(row);
+  };
+  function renderHistoricalDay(day){
+    locked=true;loadedDate=day?.date||'';
+    legs=[];legsArea.replaceChildren();
+    noTravelLabel.hidden=true;save.hidden=true;summary.textContent='';
+    if(!day){status.textContent='אין מידע לחודש זה';return;}
+    const approvalText=monthStatusLabel(historicalMonthApproval);
+    status.textContent=approvalText;
+    const report=day.dailyReport;
+    if(report){
+      const summaryCard=document.createElement('article');
+      summaryCard.className='av2-daily-travel__leg av2-daily-travel__legacy-card';
+      const heading=document.createElement('strong');heading.textContent='נסיעות · '+formatDate(day.date);
+      summaryCard.append(heading);
+      appendDetail(summaryCard,'קילומטרים',report.total_km==null?null:report.total_km+' ק״מ');
+      appendDetail(summaryCard,'ביטול זמן',report.cancellation_minutes==null?null:report.cancellation_minutes+' דקות');
+      appendDetail(summaryCard,'סטטוס נסיעה',report.review_status==='approved'||report.review_status==='corrected'?'אושר':
+        report.review_status==='rejected'?'נדחה':report.review_status==='pending_review'?'ממתין לאישור':null);
+      for(const leg of Array.isArray(report.legs)?report.legs:[]){
+        const part=document.createElement('div');part.className='av2-daily-travel__legacy-detail';
+        const label=document.createElement('span');label.textContent=[leg.from,leg.to].filter(Boolean).join(' ← ');
+        part.append(label);
+        const values=[leg.minutes==null?'':leg.minutes+' דקות',leg.kilometers==null?'':leg.kilometers+' ק״מ'].filter(Boolean);
+        if(values.length){const v=document.createElement('strong');v.textContent=values.join(' · ');part.append(v);}
+        summaryCard.append(part);
+      }
+      legsArea.append(summaryCard);
+    }
+    for(const record of day.records){
+      const block=document.createElement('article');
+      block.className='av2-daily-travel__leg av2-daily-travel__legacy-card';
+      const header=document.createElement('strong');
+      header.textContent=[record.activity_type,record.program_name_snapshot||record.activity_name_snapshot||record.program_name,
+        record.school_name_snapshot||record.authority_name_snapshot].filter(Boolean).join(' · ');
+      block.append(header);
+      appendDetail(block,'שעות פעילות',record.start_time&&record.end_time
+        ? String(record.start_time).slice(0,5)+'–'+String(record.end_time).slice(0,5):null);
+      appendDetail(block,'קילומטרים',record.roundtrip_km==null?null:record.roundtrip_km+' ק״מ');
+      appendDetail(block,'זמן נסיעה לפני',record.cancellation_before_minutes==null?null:record.cancellation_before_minutes+' דקות');
+      appendDetail(block,'זמן נסיעה אחרי',record.cancellation_after_minutes==null?null:record.cancellation_after_minutes+' דקות');
+      appendDetail(block,'תחבורה ציבורית',record.public_transport_cost>0?'₪'+record.public_transport_cost:null);
+      const travel=record.travel_compensation;
+      if(travel){
+        appendDetail(block,'זמן נסיעה מדווח',travel.reportedOutboundMinutes==null && travel.reportedReturnMinutes==null?null:
+          [travel.reportedOutboundMinutes,travel.reportedReturnMinutes].filter(v=>v!=null).join(' / ')+' דקות');
+      }
+      legsArea.append(block);
+    }
+    if(!day.records.length&&!report)status.textContent='אין נתונים ליום זה';
+    legsArea.hidden=false;
+  }
   function showSummary(){
     legsArea.hidden=noTravel.checked;
     const inputs=[...legsArea.querySelectorAll('[data-daily-travel-leg]')];
@@ -179,33 +240,18 @@ export function createDailyTravelTab({empId, initialDate}) {
     return formatDate+' · '+(day.activities||'פעילות')+' · '+state;
   }
   async function refreshMonths(){
-    const now=new Date();
-    const currentMonth=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-    const previous=new Date(now.getFullYear(),now.getMonth()-1,1);
-    const previousMonth=`${previous.getFullYear()}-${String(previous.getMonth()+1).padStart(2,'0')}`;
-    const {data,error}=await supabase.from('attendance_month_approvals')
-      .select('month_key').eq('emp_id',empId).eq('status','reopened')
-      .order('month_key',{ascending:false});
-    if(error)throw new Error('לא ניתן לטעון חודשים שנפתחו לעריכה');
-    const reopened=(data||[]).map(row=>row.month_key).filter(key=>/^\d{4}-(0[1-9]|1[0-2])$/.test(key));
-    const candidates=[...new Set([...reopened,currentMonth,previousMonth])];
-    const allowed=[];
-    for(const key of candidates){
-      const [year,month]=key.split('-').map(Number);
-      const approval=await getMonthApproval(empId,key,{force:true});
-      // Daily-travel RPC starts on 2026-11-04. Older reopened months use legacy attendance reporting.
-      if(key>='2026-11' && canEditMonth(year,month,approval,now))allowed.push(key);
-    }
-    allowed.sort((a,b)=>b.localeCompare(a));
+    const allowed=await listInstructorDisplayMonths(empId);
+    const currentMonth=new Date().getFullYear()+'-'+String(new Date().getMonth()+1).padStart(2,'0');
     monthSelect.replaceChildren();
     for(const key of allowed){
       const [year,month]=key.split('-').map(Number);
       const option=document.createElement('option');
       option.value=key;
-      option.textContent=formatMonthLabel(year,month)+(reopened.includes(key)?' · נפתח לעריכה':'');
+      option.textContent=formatMonthLabel(year,month);
       monthSelect.append(option);
     }
-    selectedMonth=allowed.includes(selectedMonth)?selectedMonth:(reopened[0]&&allowed.includes(reopened[0])?reopened[0]:allowed[0]||'');
+    selectedMonth=allowed.includes(selectedMonth)?selectedMonth:
+      allowed.includes(currentMonth)?currentMonth:allowed[0]||'';
     monthSelect.value=selectedMonth;
     monthsLoaded=true;
   }
@@ -215,6 +261,38 @@ export function createDailyTravelTab({empId, initialDate}) {
     if(!year||!month){dayOptions=[];return false;}
     const fromDate=selectedMonth+'-01';
     const toDate=selectedMonth+'-'+String(new Date(year,month,0).getDate()).padStart(2,'0');
+    if(isHistoricTravelMonth(selectedMonth)){
+      const [historical,storedReports]=await Promise.all([
+        readHistoricalAttendance(empId,selectedMonth),
+        getDailyTravelReports(empId,selectedMonth)
+      ]);
+      historicalMonthApproval=historical.approval;
+      historicalDays=historicalTravelDays(historical.rows,storedReports);
+      dayOptions=historicalDays.map(day=>({
+        date:day.date,activities:day.records.map(row=>row.activity_type).filter(Boolean).join(' · '),
+        ready:true,review_status:day.dailyReport?.review_status||null
+      }));
+      daySelect.replaceChildren();
+      for(const day of dayOptions){
+        const option=document.createElement('option');
+        option.value=day.date;
+        option.textContent=formatDate(day.date)+' · '+(day.activities||'פעילות');
+        daySelect.append(option);
+      }
+      if(!dayOptions.length){
+        requestedDay='';dateField.input.value='';
+        status.textContent='אין דיווחים לחודש זה';
+        legsArea.replaceChildren();save.hidden=true;noTravelLabel.hidden=true;
+        summary.textContent='';
+        return false;
+      }
+      const chosen=dayOptions.find(day=>day.date===requestedDay)||dayOptions[0];
+      daySelect.value=chosen.date;
+      dateField.input.value=chosen.date;
+      requestedDay=chosen.date;
+      daySelect.disabled=false;
+      return true;
+    }
     const fetched=await getAssignedTravelDays({fromDate,toDate});
     dayOptions=fetched.filter(item=>item.date>='2026-11-04' && item.date?.slice(0,7)===selectedMonth);
     daySelect.replaceChildren();
@@ -257,6 +335,10 @@ export function createDailyTravelTab({empId, initialDate}) {
         if(!hasDays)return;
       }
       const date=dateField.input.value;
+      if(isHistoricTravelMonth(selectedMonth)){
+        renderHistoricalDay(historicalDays.find(day=>day.date===date));
+        return;
+      }
       const day=dayOptions.find(item=>item.date===date);
       if(!day || !day.ready){
         status.textContent='יש להשלים תחילה דיווח נוכחות ליום זה';

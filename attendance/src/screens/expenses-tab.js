@@ -1,5 +1,6 @@
 import { createInputField } from '../components/field.js';
 import {listExpenseReports,saveExpenseReport,attachExpenseReceipt,expenseReceiptSignedUrl} from '../services/expense-reports.service.js';
+import {listInstructorDisplayMonths,readHistoricalAttendance,historicalExpenses,monthRange,monthLabel,monthStatusLabel} from '../services/historical-display.service.js';
 
 const STATUS={pending_review:'ממתין לאישור',approved:'אושר',rejected:'נדרש תיקון'};
 const todayLocal=()=>{
@@ -19,6 +20,17 @@ export function createExpensesTab({instructor,initialDate}={}){
 
   const heading=document.createElement('h2');
   heading.textContent='הוצאות';
+  const monthWrap=document.createElement('div');
+  monthWrap.className='av2-daily-travel__month-wrap';
+  const monthTitle=document.createElement('label');
+  monthTitle.textContent='חודש דיווח';
+  monthTitle.htmlFor='av2-expense-month-select';
+  const monthSelect=document.createElement('select');
+  monthSelect.id='av2-expense-month-select';
+  monthSelect.className='av2-field__select av2-daily-travel__month-select';
+  monthWrap.append(monthTitle,monthSelect);
+  const monthStatus=document.createElement('p');
+  monthStatus.className='av2-expenses-tab__month-status';
   const form=document.createElement('form');
   form.className='av2-expenses-tab__form';
   form.noValidate=true;
@@ -58,8 +70,11 @@ export function createExpensesTab({instructor,initialDate}={}){
   listHeading.textContent='ההוצאות שלי';
   const list=document.createElement('div');
   list.className='av2-expenses-tab__list';
-  panel.append(heading,form,listHeading,list);
-  let reports=[],editing=null,loadToken=0;
+  panel.append(heading,monthWrap,monthStatus,form,listHeading,list);
+  let reports=[],editing=null,loadToken=0,monthsLoaded=false;
+  const currentMonth=todayLocal().slice(0,7);
+  let selectedMonth=currentMonth;
+  let historicalView=false;
 
   function resetForm(){
     editing=null;
@@ -72,16 +87,31 @@ export function createExpensesTab({instructor,initialDate}={}){
   reset.addEventListener('click',resetForm);
   async function refresh(){
     const token=++loadToken;
-    const value=date.input.value||todayLocal();
-    const year=Number(value.slice(0,4)),month=Number(value.slice(5,7));
-    const first=value.slice(0,7)+'-01';
-    const last=value.slice(0,7)+'-'+String(new Date(year,month,0).getDate()).padStart(2,'0');
     list.textContent='טוען הוצאות…';
     try{
-      const rows=await listExpenseReports({fromDate:first,toDate:last,
-        employeeIds:[instructor.empId]});
+      if(!monthsLoaded){
+        const months=await listInstructorDisplayMonths(instructor.empId);
+        monthSelect.replaceChildren();
+        for(const month of months){
+          const option=document.createElement('option');
+          option.value=month;option.textContent=monthLabel(month);
+          monthSelect.append(option);
+        }
+        if(!months.includes(selectedMonth))selectedMonth=months.includes(currentMonth)
+          ?currentMonth:months[0]||currentMonth;
+        monthSelect.value=selectedMonth;
+        monthsLoaded=true;
+      }
+      const {year,month,from,to}=monthRange(selectedMonth);
+      historicalView=selectedMonth!==currentMonth;
+      const [independent,history]=await Promise.all([
+        listExpenseReports({fromDate:from,toDate:to,employeeIds:[instructor.empId]}),
+        readHistoricalAttendance(instructor.empId,selectedMonth)
+      ]);
       if(token!==loadToken)return;
-      reports=rows;
+      reports=historicalExpenses(history.rows,independent);
+      form.hidden=historicalView;
+      monthStatus.textContent=historicalView?monthStatusLabel(history.approval):'';
       renderList();
     }catch(err){
       if(token===loadToken)list.textContent=err.message||'לא ניתן לטעון את ההוצאות';
@@ -102,7 +132,7 @@ export function createExpensesTab({instructor,initialDate}={}){
       const info=document.createElement('strong');
       info.textContent=row.expense_date+' · '+fmtAmount(row.amount);
       const badge=document.createElement('span');
-      badge.textContent=STATUS[row.review_status]||'ממתין לאישור';
+      badge.textContent=row.source==='legacy'?'דיווח קודם':(STATUS[row.review_status]||'ממתין לאישור');
       badge.className='av2-expenses-tab__review-status';
       top.append(info,badge);
       const description=document.createElement('p');
@@ -123,7 +153,7 @@ export function createExpensesTab({instructor,initialDate}={}){
         attachments.append(link);
       }
       item.append(attachments);
-      if(row.review_status!=='approved'){
+      if(!historicalView && row.source==='independent' && row.review_status!=='approved'){
         const edit=document.createElement('button');
         edit.type='button';
         edit.className='av2-btn av2-btn--secondary av2-expenses-tab__edit';
@@ -144,9 +174,15 @@ export function createExpensesTab({instructor,initialDate}={}){
       list.append(item);
     }
   }
-  date.input.addEventListener('change',()=>{resetForm();void refresh();});
+  monthSelect.addEventListener('change',()=>{
+    selectedMonth=monthSelect.value;
+    resetForm();
+    void refresh();
+  });
+  date.input.addEventListener('change',()=>{resetForm();});
   form.addEventListener('submit',async event=>{
     event.preventDefault();
+    if(historicalView)return;
     const chosen=Array.from(fileInput.files||[]);
     const invalid=chosen.find(file=>file.size<=0 || file.size>10*1024*1024
       || !['application/pdf','image/jpeg','image/png','image/webp'].includes(file.type));

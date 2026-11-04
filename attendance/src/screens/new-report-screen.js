@@ -13,6 +13,7 @@ import { createCompactSelect } from '../components/compact-select.js';
 import { createTimePicker } from '../components/time-picker.js';
 import { createDailyTravelTab } from './daily-travel-tab.js';
 import { createExpensesTab } from './expenses-tab.js';
+import { listInstructorDisplayMonths,readHistoricalAttendance,monthLabel,monthStatusLabel } from '../services/historical-display.service.js';
 import {
   getInstructorActivities,
   getTrainingScheduleForDate,
@@ -1969,7 +1970,11 @@ export function renderNewReportScreen(container, {
     const travelShortcut = document.createElement('button');
     travelShortcut.type = 'button';
     travelShortcut.className = 'av2-report__tiny-travel-btn';
-    travelShortcut.textContent = 'מילוי נסיעות';
+    const travelIcon = createIcon('map-pin');
+    travelIcon.setAttribute('aria-hidden','true');
+    const travelText=document.createElement('span');
+    travelText.textContent='מילוי נסיעות';
+    travelShortcut.append(travelIcon,travelText);
     travelShortcut.title = 'מעבר לדיווח הנסיעות של היום שנבחר';
     travelShortcut.setAttribute('aria-label', 'מילוי נסיעות ליום שנבחר');
     const dailyTravel = createDailyTravelTab({
@@ -1979,11 +1984,99 @@ export function renderNewReportScreen(container, {
     const expensesPanel = createExpensesTab({
       instructor,initialDate:localIsoDate()
     });
+    const attendanceMonthWrap=document.createElement('div');
+    attendanceMonthWrap.className='av2-daily-travel__month-wrap av2-report__attendance-month';
+    const attendanceMonthLabel=document.createElement('label');
+    attendanceMonthLabel.textContent='חודש דיווח';
+    attendanceMonthLabel.htmlFor='av2-attendance-month-select';
+    const attendanceMonthSelect=document.createElement('select');
+    attendanceMonthSelect.id='av2-attendance-month-select';
+    attendanceMonthSelect.className='av2-field__select av2-daily-travel__month-select';
+    attendanceMonthWrap.append(attendanceMonthLabel,attendanceMonthSelect);
+    const historyPanel=document.createElement('section');
+    historyPanel.className='av2-report__history';
+    historyPanel.hidden=true;
+    const historyStatus=document.createElement('p');
+    historyStatus.className='av2-report__history-status';
+    const historyList=document.createElement('div');
+    historyList.className='av2-report__history-list';
+    historyPanel.append(historyStatus,historyList);
+    const attendanceCurrentMonth=localIsoDate().slice(0,7);
+    let attendanceSelectedMonth=attendanceCurrentMonth;
+    let historyRequest=0;
+    async function loadHistory(){
+      const token=++historyRequest;
+      historyList.textContent='טוען דיווחים…';
+      try{
+        const key=attendanceSelectedMonth;
+        const [year,month]=key.split('-').map(Number);
+        const result=await readHistoricalAttendance(instructor.empId,key);
+        if(token!==historyRequest || !formArea.contains(historyPanel))return;
+        historyStatus.textContent=monthStatusLabel(result.approval);
+        historyList.replaceChildren();
+        const seen=new Set();
+        for(const record of result.rows){
+          if(!record.id || seen.has(record.id))continue;
+          seen.add(record.id);
+          const card=document.createElement('article');
+          card.className='av2-report__history-card';
+          const head=document.createElement('strong');
+          head.textContent=[String(record.report_date||'').split('-').reverse().join('.'),
+            record.activity_type].filter(Boolean).join(' · ');
+          card.append(head);
+          const info=document.createElement('p');
+          info.textContent=[record.program_name_snapshot||record.activity_name_snapshot||record.program_name,
+            record.school_name_snapshot||record.authority_name_snapshot].filter(Boolean).join(' · ');
+          if(info.textContent)card.append(info);
+          const hours=document.createElement('small');
+          hours.textContent=record.start_time&&record.end_time
+            ?String(record.start_time).slice(0,5)+'–'+String(record.end_time).slice(0,5):'';
+          if(hours.textContent)card.append(hours);
+          historyList.append(card);
+        }
+        if(!historyList.children.length)historyList.textContent='אין דיווחי נוכחות לחודש זה';
+      }catch(error){
+        if(token===historyRequest)historyList.textContent=error.message||'לא ניתן לטעון דיווחים';
+      }
+    }
+    function syncAttendanceMonth(){
+      const historical=attendanceSelectedMonth!==attendanceCurrentMonth;
+      const active=attendanceTab.getAttribute('aria-selected')==='true';
+      form.hidden=!active||historical;
+      historyPanel.hidden=!active||!historical;
+      attendanceMonthWrap.hidden=!active;
+      if(active&&historical)void loadHistory();
+    }
+    attendanceMonthSelect.addEventListener('change',()=>{
+      attendanceSelectedMonth=attendanceMonthSelect.value;
+      syncAttendanceMonth();
+    });
+    void listInstructorDisplayMonths(instructor.empId).then(months=>{
+      if(!formArea.contains(attendanceMonthWrap))return;
+      attendanceMonthSelect.replaceChildren();
+      for(const key of months){
+        const option=document.createElement('option');
+        option.value=key;
+        option.textContent=monthLabel(key);
+        attendanceMonthSelect.append(option);
+      }
+      if(!months.includes(attendanceSelectedMonth))attendanceSelectedMonth=months[0]||attendanceCurrentMonth;
+      attendanceMonthSelect.value=attendanceSelectedMonth;
+      syncAttendanceMonth();
+    }).catch(()=>{
+      const option=document.createElement('option');
+      option.value=attendanceCurrentMonth;option.textContent=monthLabel(attendanceCurrentMonth);
+      attendanceMonthSelect.replaceChildren(option);
+    });
+
     function showTab(kind) {
       const isAttendance = kind === 'attendance';
       const isTravel = kind === 'travel';
       const isExpenses = kind === 'expenses';
-      form.hidden = !isAttendance;
+      form.hidden = !isAttendance || attendanceSelectedMonth!==attendanceCurrentMonth;
+      historyPanel.hidden = !isAttendance || attendanceSelectedMonth===attendanceCurrentMonth;
+      attendanceMonthWrap.hidden=!isAttendance;
+      if(isAttendance && attendanceSelectedMonth!==attendanceCurrentMonth)void loadHistory();
       dailyTravel.panel.hidden = !isTravel;
       expensesPanel.panel.hidden = !isExpenses;
       for(const [tab,active] of [
@@ -2027,7 +2120,7 @@ export function renderNewReportScreen(container, {
       showTab(['attendance','travel','expenses'][nextIndex]);
       tabsList[nextIndex].focus();
     });
-    formArea.append(tabs,form,dailyTravel.panel,expensesPanel.panel);
+    formArea.append(tabs,attendanceMonthWrap,form,historyPanel,dailyTravel.panel,expensesPanel.panel);
     showTab(initialTab === 'travel' ? 'travel' : 'attendance');
     void onReportDateChange();
   }
