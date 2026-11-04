@@ -2043,11 +2043,10 @@ export const activitiesScreen = {
         <td class="ds-activities-col ds-activities-col--authority"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(row.authority || '—')}">${escapeHtml(row.authority || '—')}</span></td>
         <td class="ds-activities-col ds-activities-col--school"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(getActivitySchoolDisplayName(row) || '—')}">${escapeHtml(getActivitySchoolDisplayName(row) || '—')}</span></td>
         ${is2027AllTab ? `<td class="ds-activities-col ds-activities-col--contact-name">${contactCell2027}</td>` : ''}
-        ${is2027ActivitiesTab ? `<td class="ds-activities-col ds-activities-col--instructor">${instructorDisplay}</td>` : ''}
+        <td class="ds-activities-col ds-activities-col--instructor">${instructorDisplay}</td>
         <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(startHe2027)}</time></td>
         ${is2027ActivitiesTab ? `<td class="ds-activities-col ds-activities-col--meetings"><time class="ds-activities-date" title="${escapeHtml(nextDate)}">${escapeHtml(nextHe)}</time></td>` : ''}
         <td class="ds-activities-col ds-activities-col--date"><time class="ds-activities-date">${escapeHtml(endHe2027)}</time></td>
-        ${is2027AllTab ? `<td class="ds-activities-col ds-activities-col--instructor">${instructorDisplay}</td>` : ''}
         <td class="ds-activities-col ds-activities-col--notes"><span class="ds-activities-cell-ellipsis" title="${safeNoteOrInfo}">${safeNoteOrInfo}</span></td>
       </tr>
     `;
@@ -2117,14 +2116,13 @@ export const activitiesScreen = {
                   <col class="ds-activities-col--authority">
                   <col class="ds-activities-col--school">
                   ${is2027AllTab ? '<col class="ds-activities-col--contact-name">' : ''}
-                  ${is2027ActivitiesTab ? '<col class="ds-activities-col--instructor">' : ''}
+                  <col class="ds-activities-col--instructor">
                   <col class="ds-activities-col--date">
                   ${is2027ActivitiesTab ? '<col class="ds-activities-col--meetings">' : ''}
                   <col class="ds-activities-col--date">
-                  ${is2027AllTab ? '<col class="ds-activities-col--instructor">' : ''}
                   <col class="ds-activities-col--notes">
                 </colgroup>
-                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th>${is2027AllTab ? '<th>איש קשר</th>' : ''}${is2027ActivitiesTab ? '<th>מדריך</th>' : ''}<th>תאריך התחלה</th>${is2027ActivitiesTab ? '<th>המפגש הבא</th>' : ''}<th>תאריך סיום</th>${is2027AllTab ? '<th>מדריך</th>' : ''}<th>${is2027AllTab ? 'הערה אחרונה' : 'מידע נוסף'}</th></tr></thead>`
+                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th>${is2027AllTab ? '<th>איש קשר</th>' : ''}<th>מדריך</th><th>תאריך התחלה</th>${is2027ActivitiesTab ? '<th>המפגש הבא</th>' : ''}<th>תאריך סיום</th><th>${is2027AllTab ? 'הערה אחרונה' : 'מידע נוסף'}</th></tr></thead>`
         : `<colgroup>
                   <col class="ds-activities-col--program">
                   <col class="ds-activities-col--authority">
@@ -2145,7 +2143,7 @@ export const activitiesScreen = {
               : (monthRows.length === 0)
                 ? 'אין פעילויות להצגה בחודש הנבחר'
                 : 'לא נמצאו פעילויות התואמות לסינון הנוכחי')
-        : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--activities-list${is2027Tab ? ' ds-table--activities-2027' : ''}${is2027ActivitiesTab ? ' ds-table--activities-2027-active' : ''}" dir="rtl">
+        : dsTableWrap(`<table class="ds-table ds-table--interactive ds-table--activities-list${is2027Tab ? ' ds-table--activities-2027' : ''}${is2027ActivitiesTab ? ' ds-table--activities-2027-active' : ''}${is2027AllTab ? ' ds-table--activities-2027-all' : ''}" dir="rtl">
                 ${tableColsHtml}
                 <tbody>${tableRows}</tbody>
               </table>`) + loadMoreHtml;
