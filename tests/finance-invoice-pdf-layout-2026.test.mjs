@@ -9,8 +9,9 @@ test('manual invoice addressee uses billed school from snapshot', () => {
   assert.match(pdf, /בית הספר:/);
   assert.match(pdf, /school_name_snapshot/);
 });
-test('workshop and tour invoice prints a summed quantity from service lines', () => {
-  assert.match(pdf, /serviceQuantity = services\.reduce\(\(total, row\) => total \+ row\.quantity, 0\)/);
+test('workshop and tour invoice prints quantity column and a summed quantity from service lines', () => {
+  assert.match(pdf, /serviceQuantity = serviceRows\.reduce\(\(total, row\) => total \+ row\.quantity, 0\)/);
+  assert.match(pdf, /\['שם בית הספר', 'סדנה \/ סיור', 'רשות', 'כמות', 'סה״כ'\]/);
   assert.match(pdf, /סה"כ כמות \$\{serviceLabel\}/);
   assert.match(pdf, /hasWorkshops && hasTours \? 'סדנאות וסיורים'/);
 });

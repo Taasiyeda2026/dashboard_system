@@ -24,12 +24,11 @@ test('manual PDF addresses courses to school, workshops to payer',()=>{
  assert.match(pdf,/\['workshop', 'tour', 'סדנה', 'סיור'\]/);
 });
 
-test('Gefen PDF hourly price prefers funder share, then planned meetings and 1.5 hours',()=>{
+test('Gefen PDF hourly uses this funder share divided by planned meetings and 1.5 hours',()=>{
  assert.match(pdf,/const hours = gefenFunding && !service \? quantity \* 1\.5/);
- assert.match(pdf,/line\.planned_sessions_from_source \?\? line\.planned_meeting_count_snapshot/);
- assert.match(pdf,/funding_amount_snapshot/);
- assert.match(pdf,/fundingAmount \/ \(plannedMeetings \* 1\.5\)/);
- assert.match(pdf,/snapshotRate > 0 \? return snapshotRate|if \(snapshotRate > 0\) return snapshotRate/);
+ assert.match(pdf,/planned_sessions_from_source \?\? line\.planned_meeting_count_snapshot/);
+ assert.match(pdf,/const funderAmount = Number\(line\.funding_amount_snapshot\)/);
+ assert.match(pdf,/funderAmount \/ \(plannedMeetings \* 1\.5\)/);
  assert.match(pdf,/gefenFunding && row\.category === 'course'/);
  assert.match(pdf,/const serviceLabel = hasWorkshops && hasTours/);
  assert.match(pdf,/drawRight\(page, regular, `לתשלום עד:/);

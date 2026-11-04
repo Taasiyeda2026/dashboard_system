@@ -17,7 +17,7 @@ test('both tabs include eligible unissued September through October only, with o
     const doc=new JSDOM(transactionAccountsViewHtml(d,x=>x)).window.document;
     assert.equal(doc.querySelector('[data-finance-transaction-month]').value,'2026-10');assert.equal(doc.querySelector('[data-finance-transaction-month]').max,'2026-10');
     assert.ok([...doc.querySelectorAll('details')].every(x=>!x.open));assert.equal(doc.querySelectorAll('[data-finance-transaction-run]').length,1);assert.match(doc.querySelector('[data-finance-transaction-run]').textContent,/הפקת כל חשבונות העסקה/);
-    assert.match(doc.body.textContent,/3 מתוך 10 מפגשים.*4.5 מתוך 15 שעות.*8,000.00.*2,400.00/);
+    assert.match(doc.body.textContent,/3\/10[\s\S]*4\.5\/15[\s\S]*8,000\.00[\s\S]*2,400\.00/);
     const group=doc.querySelector('[data-finance-transaction-group]');group.querySelector('summary').click();assert.ok(group.open);group.querySelector('summary').click();assert.equal(group.open,false);
     assert.doesNotMatch(doc.body.textContent,/old-year|august|current|billed/);
   }

@@ -49,6 +49,17 @@ function monthPicker(data, mode) {
 export const transactionSelectionKey = (row) => [row.activityRowId, row.fundingSourceId, row.period || 'completion'].join(':');
 const serviceActivity = (row) => ['tour','workshop'].includes(text(row.activityType || row.activity_type).toLowerCase());
 const invoiceQuantity = (row) => Number(row.unbilledCount || 0);
+// Customer-facing Gefen display only. Source activity_no / snapshots stay unchanged
+// until an approved data migration rewrites them. Poratzot keeps the 3604→52279
+// alias; רוקחים עולם is always shown as 46091.
+export function displayGefenProgramNumber(line = {}) {
+  const name = text(line.activityName || line.activity_name);
+  if (/רוקחים\s*עולם/u.test(name)) return '46091';
+  const gefen = text(line.gefenNumber || line.gefen_number);
+  const activityNo = text(line.activityNo || line.activity_no || line.sourceActivityNo);
+  if (gefen === '3604' && (!activityNo || activityNo === '3604')) return '52279';
+  return gefen || 'לא הוגדר';
+}
 function progressHeading(lines) {
   const units = lines.some(serviceActivity);
   const courses = lines.some(row => !serviceActivity(row));
@@ -198,7 +209,7 @@ function billingLineHtml(line, data, mode) {
       <div>${slots.map(slot => `<div>${serviceActivity(line) ? 'מועד פעילות' : `מפגש ${escapeHtml(slot.slot)}`} · ${escapeHtml(formatDate(slot.date))}${serviceActivity(line) ? '' : ` · ${compactNumber(slot.remainingHours ?? TRANSACTION_MEETING_HOURS)} שעות`}</div>`).join('')}</div>
     </details>` : '';
   return `<tr>
-    <td><strong>${escapeHtml(line.activityName || line.activityRowId)}</strong>${line.gefenFunding ? `<small class="ds-fin-transaction-program" style="display:block;color:var(--ds-text-muted,#64748b)">מספר גפ״ן: ${escapeHtml(line.gefenNumber || 'לא הוגדר')}</small>` : ''}${school}${meetingDetails}</td>
+    <td><strong>${escapeHtml(line.activityName || line.activityRowId)}</strong>${line.gefenFunding ? `<small class="ds-fin-transaction-program" style="display:block;color:var(--ds-text-muted,#64748b)">מספר גפ״ן: ${escapeHtml(displayGefenProgramNumber(line))}</small>` : ''}${school}${meetingDetails}</td>
     <td>${escapeHtml(formatAmount(line.activityPrice ?? line.fundingAmount))}</td>
     <td>${escapeHtml(activityMeetings(line))}</td>
     <td>${escapeHtml(activityHours(line))}</td>
@@ -238,6 +249,14 @@ function billingView(data, mode) {
     ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>מוסד</th><th>קורס</th><th>מפגשים</th></tr></thead>
     <tbody>${waiting.map(row=>`<tr><td>${escapeHtml(row.customerName || '—')}</td><td>${escapeHtml(row.activityName)}</td><td>${Number(row.completedCount || 0)} מתוך 3</td></tr>`).join('')}</tbody></table>`)}
   </details>` : '';
+  const blocked = [...new Map(rows
+    .filter((row) => row.blockedReason && row.eligibilityStatus !== 'waiting_three_meetings')
+    .map((row) => [`${row.activityRowId}:${row.fundingSourceId || ''}:${row.period || ''}`, row])).values()];
+  const blockedHtml = blocked.length ? `<details class="ds-fin-payer" data-finance-blocked-rows>
+    <summary>${mode === TRANSACTION_MODE_AUTOMATIC ? '<span class="ds-fin-gefen-arrow" aria-hidden="true">▸</span>' : ''}<span>פעילויות חסומות להפקה (${blocked.length})</span></summary>
+    ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>מוסד</th><th>פעילות</th><th>סיבת החסימה</th></tr></thead>
+    <tbody>${blocked.map(row=>`<tr><td>${escapeHtml(row.customerName || row.payerName || '—')}</td><td>${escapeHtml(row.activityName || row.activityRowId || '—')}</td><td>${escapeHtml(String(row.blockedReason).replace(/^billing_blocked:/,''))}</td></tr>`).join('')}</tbody></table>`)}
+  </details>` : '';
   {
     const selectedMonth = transactionMonth(data, mode);
     const current = preview.accounts.filter(account => account.period?.slice(0,7) === selectedMonth);
@@ -254,6 +273,7 @@ function billingView(data, mode) {
       ${previous.length ? `<section class="ds-fin-gefen-backlog" data-finance-gefen-backlog><h3>חיובים זכאים מחודשים קודמים</h3>${groupsHtml(previous,true)}</section>` : ''}
       ${preview.accounts.length ? `<div class="ds-fin-gefen-issue"><button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="${mode}">הפקת כל חשבונות העסקה</button></div>` : ''}
       ${waitingHtml}
+      ${blockedHtml}
     </div>`;
   }
 }
@@ -271,7 +291,7 @@ function historyView(data) {
       <td>${escapeHtml(formatAmount(line.amount))}</td>
     </tr>`).join('');
     const pdf = account.sharepoint_web_url
-      ? `<a class="ds-btn ds-btn--ghost ds-btn--sm" href="${escapeHtml(account.sharepoint_web_url)}" target="_blank" rel="noopener">פתח PDF</a>`
+      ? `<a class="ds-btn ds-btn--ghost ds-btn--sm" href="${escapeHtml(account.sharepoint_web_url)}" target="_blank" rel="noopener">טיוטה</a>`
       : '';
     return `<details class="ds-fin-payer">
       <summary><span class="ds-fin-payer__title">חשבון ${escapeHtml(String(account.transaction_account_number))} · ${escapeHtml(account.customer_name_snapshot || '')}</span><span class="ds-fin-payer__meta">${escapeHtml(`${formatDate(account.issue_date)} · ${formatAmount(account.total_amount)}`)}</span></summary>
@@ -285,7 +305,7 @@ function historyView(data) {
         <span>גבייה: <strong>${escapeHtml(statusLabel(actualCollectionStatus))}</strong></span>
         ${balance ? `<span>שולם: ${escapeHtml(formatAmount(balance.paidAmount))} · יתרה: ${escapeHtml(formatAmount(balance.balance))}</span>` : ''}
         ${pdf}
-        <button class="ds-btn ds-btn--ghost" data-invoice-revision-open="${escapeHtml(account.id)}">${['issued','mail_draft_ready','sent'].includes(account.document_status)?'עריכה והפקה מחדש':'גרסאות ופרטי התיקון'}</button>
+        <button class="ds-btn ds-btn--ghost" data-invoice-revision-open="${escapeHtml(account.id)}">${['issued','mail_draft_ready','sent'].includes(account.document_status)?'עריכה':'גרסאות ופרטי התיקון'}</button>
         ${account.replaces_account_id?`<button class="ds-btn ds-btn--ghost" data-invoice-revision-open="${escapeHtml(account.replaces_account_id)}">חשבון מקורי שבוטל</button>`:''}
         ${account.replaced_by_account_id?`<button class="ds-btn ds-btn--ghost" data-invoice-revision-open="${escapeHtml(account.replaced_by_account_id)}">חשבון חלופי</button>`:''}
         ${['issued','mail_draft_ready'].includes(account.document_status) && ['pending','failed','missing_recipient','needs_review'].includes(account.outlook_status) ? `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-account-draft="${escapeHtml(account.id)}"${data.financeBusy ? ' disabled' : ''}>נסה להשלים את טיוטת הדוא״ל</button>` : ''}

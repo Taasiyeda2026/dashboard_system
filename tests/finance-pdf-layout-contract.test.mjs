@@ -12,13 +12,18 @@ test('Gefen courses alone use the detailed seven-column invoice', () => {
   assert.equal([94, 119, 56, 42, 46, 80, 98].reduce((sum, w) => sum + w, 0), 535);
 });
 
-test('every non-Gefen course, workshop and tour uses only school, authority, course and total', () => {
+test('non-Gefen courses use school, authority, course and total; workshops show quantity without hourly', () => {
   assert.match(pdf, /const compactWidths = \[142, 185, 106, 102\]/);
+  assert.match(pdf, /const serviceWidths = \[120, 155, 100, 60, 100\]/);
   assert.match(pdf, /\['שם בית הספר', 'תוכנית \/ קורס', 'רשות', 'סה״כ'\]/);
-  assert.match(pdf, /compactWidths, otherFunding/);
+  assert.match(pdf, /\['שם בית הספר', 'סדנה \/ סיור', 'רשות', 'כמות', 'סה״כ'\]/);
+  assert.match(pdf, /compactWidths, otherCourses/);
+  assert.match(pdf, /serviceWidths, serviceRows/);
   assert.match(pdf, /\(row\) => \[row\.school \|\| '—', row\.name, row\.authority \|\| '—', money\(row\.amount\)\], false\)/);
+  assert.match(pdf, /\(row\) => \[row\.school \|\| '—', row\.name, row\.authority \|\| '—', count\(row\.quantity\), money\(row\.amount\)\], false\)/);
   assert.match(pdf, /showDates && row\.dates\.length/);
   assert.equal([142, 185, 106, 102].reduce((n,w)=>n+w,0),535);
+  assert.equal([120, 155, 100, 60, 100].reduce((n,w)=>n+w,0),535);
 });
 
 test('all invoices share the reference workshop letterhead on every PDF page', () => {
@@ -78,7 +83,9 @@ test('invoice payment footer uses distinct vertical spacing between total, due d
   assert.match(pdf, /if \(y < 208\)/, 'payment footer must fit above the page footer');
 });
 
-test('only Gefen courses use hour columns; workshops and tours stay compact', () => {
+test('only Gefen courses use hour columns; workshops and tours use service quantity rows', () => {
   assert.match(pdf, /gefenFunding && row\.category === 'course'/);
-  assert.match(pdf, /!\(row\.gefenFunding && row\.category === 'course'\)/);
+  assert.match(pdf, /serviceWidths, serviceRows/);
+  assert.match(pdf, /\['שם בית הספר', 'סדנה \/ סיור', 'רשות', 'כמות', 'סה״כ'\]/);
+  assert.doesNotMatch(pdf, /compactWidths, otherFunding/);
 });

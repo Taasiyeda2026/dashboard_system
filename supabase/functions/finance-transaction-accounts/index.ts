@@ -223,6 +223,11 @@ function isGefenInvoiceLine(line: any): boolean {
 function invoiceProposalProgramDisplay(line: any, service: boolean, gefenFunding: boolean) {
   const name = clean(line.service_description_snapshot || line.activity_name_snapshot)
     .replace(/\s*[—–-]\s*מלוא\s+יתרת\s+הפעילות\s*$/u, '').trim();
+  // Canonical identity for customer documents: רוקחים עולם is always Gefen 46091.
+  // Do not let a mis-mapped 52279 on the activity row leak into the PDF.
+  if (!service && /רוקחים\s*עולם/u.test(name)) {
+    return {name, gefen: '46091'};
+  }
   const gefen = clean(line.gefen_number_snapshot);
   const activityNo = clean(line.activity_no_from_source || line.activity_no_snapshot);
   const pricingKey = clean(line.source_pricing_key);
@@ -247,9 +252,9 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
     const statedQty = Number(line.quantity_snapshot);
     const quantity = Number.isFinite(statedQty) && statedQty > 0 ? statedQty
       : (line.finance_transaction_account_meetings?.length || 1);
-    // Every session is 90 minutes. Show actual elapsed hours for billed
-    // meetings while deriving the contractual hourly rate from the ENTIRE
-    // activity price / planned sessions / 1.5, not the current invoice amount.
+    // Every course session is 90 minutes. Gefen course hours follow quantity×1.5.
+    // Hourly rate must use THIS FUNDER'S share of the activity price, never the
+    // full course price beside a partial amount on mixed-funding invoices.
     const hours = gefenFunding && !service ? quantity * 1.5
       : Math.max(0, Number(line.billed_hours || 0));
     // Billing coverage belongs to the accounting record, never to the customer-facing course name.
@@ -260,21 +265,17 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
     const authority = clean(line.authority_name_snapshot);
     const unitPrice = Number(line.unit_price_snapshot) > 0
       ? Number(line.unit_price_snapshot) : amount / quantity;
-    // Gefen course hourly price must match the billed funder's share of the
-    // course price (funding_amount / plannedMeetings / 1.5), never the full
-    // course rate beside a partial amount on combined-funding invoices.
-    const gefenCourseHourlyPrice = () => {
-      const plannedMeetings = Number(line.planned_sessions_from_source ?? line.planned_meeting_count_snapshot);
-      const snapshotRate = Number(line.hourly_rate_snapshot);
-      if (snapshotRate > 0) return snapshotRate;
-      const fundingAmount = Number(line.funding_amount_snapshot);
-      if (fundingAmount > 0 && Number.isInteger(plannedMeetings) && plannedMeetings > 0) {
-        return fundingAmount / (plannedMeetings * 1.5);
+    // Gefen course hourly must use THIS funder's share / planned meetings / 1.5,
+    // never the full course price beside a partial amount on mixed funding.
+    const plannedMeetings = Number(line.planned_sessions_from_source ?? line.planned_meeting_count_snapshot);
+    const funderAmount = Number(line.funding_amount_snapshot);
+    const gefenHourly = (() => {
+      if (funderAmount > 0 && Number.isInteger(plannedMeetings) && plannedMeetings > 0) {
+        return funderAmount / (plannedMeetings * 1.5);
       }
-      const fullPrice = Number(line.activity_price_from_source ?? line.activity_price_snapshot);
-      return fullPrice > 0 && Number.isInteger(plannedMeetings) && plannedMeetings > 0
-        ? fullPrice / (plannedMeetings * 1.5) : 0;
-    };
+      if (Number(line.hourly_rate_snapshot) > 0) return Number(line.hourly_rate_snapshot);
+      return hours > 0 ? amount / hours : 0;
+    })();
     const group = service ? services : courses;
     // Workshops/tours: identical items at the same unit price + school
     // combine into one quantity row, even across separate activity records.
@@ -300,7 +301,7 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
         category: service ? 'service' : 'course', name, school, authority, gefen, gefenFunding, dates: [...new Set<string>(dates)].sort(),
         quantity, hours, amount, unitPrice,
         hourlyPrice: gefenFunding && !service
-          ? gefenCourseHourlyPrice()
+          ? gefenHourly
           : Number(line.hourly_rate_snapshot)>0 ? Number(line.hourly_rate_snapshot) : hours>0 ? amount/hours : 0
       });
     }
@@ -477,9 +478,11 @@ async function buildPdf(account: any) {
   // tours — even when funded by Gefen — use the compact layout without hour price.
   const allRows = [...courses, ...services];
   const gefenCourses = allRows.filter(row => row.gefenFunding && row.category === 'course');
-  const otherFunding = allRows.filter(row => !(row.gefenFunding && row.category === 'course'));
+  const otherCourses = allRows.filter(row => !row.gefenFunding && row.category === 'course');
+  const serviceRows = allRows.filter(row => row.category === 'service');
   const courseWidths = [94, 119, 56, 42, 46, 80, 98]; // 535 points
   const compactWidths = [142, 185, 106, 102]; // 535 points
+  const serviceWidths = [120, 155, 100, 60, 100]; // 535 points: school, name, authority, qty, total
   drawSection('',
     ['שם בית הספר', 'תוכנית / קורס', 'מספר גפ״ן', 'שעות', 'מפגשים', 'מחיר לשעה', 'סה״כ'],
     courseWidths, gefenCourses,
@@ -487,12 +490,15 @@ async function buildPdf(account: any) {
       count(row.hours), count(row.quantity), money(row.hourlyPrice), money(row.amount)]);
   drawSection('',
     ['שם בית הספר', 'תוכנית / קורס', 'רשות', 'סה״כ'],
-    compactWidths, otherFunding,
+    compactWidths, otherCourses,
     (row) => [row.school || '—', row.name, row.authority || '—', money(row.amount)], false);
-  // Services (workshops/tours) have quantities, even when the compact invoice
-  // intentionally omits hours and meetings from its accounting rows.
-  const serviceQuantity = services.reduce((total, row) => total + row.quantity, 0);
-  if (services.length) {
+  // Workshops/tours: school, authority, name, total quantity, amount. Never hourly.
+  drawSection('',
+    ['שם בית הספר', 'סדנה / סיור', 'רשות', 'כמות', 'סה״כ'],
+    serviceWidths, serviceRows,
+    (row) => [row.school || '—', row.name, row.authority || '—', count(row.quantity), money(row.amount)], false);
+  const serviceQuantity = serviceRows.reduce((total, row) => total + row.quantity, 0);
+  if (serviceRows.length) {
     const types = (account.finance_transaction_account_lines || [])
       .map((line: any) => clean(line.activity_type_snapshot || line.activity_type).toLowerCase());
     const hasWorkshops = types.some((type: string) => ['workshop', 'סדנה'].includes(type));
