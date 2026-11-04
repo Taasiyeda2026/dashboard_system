@@ -559,3 +559,16 @@ test('manual invoice activities render school authority and Gefen code in separa
   assert.match(cells[4].textContent,/10,000/);
   assert.equal(table.querySelectorAll('[data-finance-manual-select-activity]').length,1);
 });
+
+test('transaction account editing keeps bounded field groups without changing existing invoice data',()=>{
+  const d=data();
+  prepareManualAccount(d,'a');
+  const original=JSON.stringify(d.manualDraft);
+  const doc=new JSDOM(manualAccountViewHtml(d)).window.document;
+  assert.ok(doc.querySelector('.ds-fin-manual__selectors'));
+  assert.ok(doc.querySelector('label.ds-fin-manual__control [data-finance-manual-scope]'));
+  assert.ok(doc.querySelector('.ds-fin-manual__billing-row'));
+  assert.ok(doc.querySelector('.ds-fin-manual__contact-summary'));
+  assert.ok(doc.querySelector('.ds-fin-manual__extra .ds-fin-manual__grid'));
+  assert.equal(JSON.stringify(d.manualDraft),original);
+});

@@ -595,12 +595,12 @@ export function manualAccountViewHtml(data) {
       <h3>בדיקה והפקה</h3>
       <div class="ds-fin-manual__batch-total" data-finance-manual-batch-total><strong>${e(payer?.label||d.customer_name)} · ${summary.count} פעילויות · ${formatManualMoney(summary.amount)} ₪</strong></div>
       <form data-finance-manual-form class="ds-fin-manual__form">
-        <label>היקף החיוב<select class="ds-input" data-finance-manual-scope>
+        <label class="ds-fin-manual__control">היקף החיוב<select class="ds-input" data-finance-manual-scope>
           <option value="full"${partial?'':' selected'}>מלוא היתרה המותרת להפקה</option>
           <option value="partial"${partial?' selected':''}>חיוב חלקי לפי ביצוע</option>
         </select></label>
         ${ids.length>1?`<details class="ds-fin-manual__optional-edit"><summary>עריכת פעילות (לפי הצורך)</summary>
-          <label>בחירת פעילות לעריכה<select class="ds-input" data-finance-manual-activity>${selectedRows.map(row=>`<option value="${e(row.id)}"${row.id===data.manualActivityId?' selected':''}>${e(row.activity)} · ${e(row.school)}</option>`).join('')}</select></label>
+          <label class="ds-fin-manual__control">בחירת פעילות לעריכה<select class="ds-input" data-finance-manual-activity>${selectedRows.map(row=>`<option value="${e(row.id)}"${row.id===data.manualActivityId?' selected':''}>${e(row.activity)} · ${e(row.school)}</option>`).join('')}</select></label>
         </details>`:''}
         <fieldset class="ds-fin-manual__billing"><legend>פרטי חיוב</legend><div class="ds-fin-manual__billing-row">
           ${manualService(data)?`${field('כמות','quantity','number')}${field('מחיר ליחידה','unit_price')}${field('סכום לחיוב','amount')}`:`
@@ -615,8 +615,8 @@ export function manualAccountViewHtml(data) {
             ?`<input class="ds-input" type="text" inputmode="decimal" data-finance-manual-line-amount="${e(row.id)}" value="${e(formatManualMoney(row.amount))}">`
             :`${formatManualMoney(row.amount)} ₪`}</td></tr>`).join('')}</tbody></table>
         </details>
-        <div class="ds-fin-manual__grid"><span>לקוח: ${e(d.customer_name)}</span><span dir="ltr">${e(d.customer_email)}</span></div>
-        ${new Set(rows.map(r=>r.fundingSourceId)).size>1 || (d.billing_basis==='performance'&&rows.length>1)?`<label>חלק המימון<select class="ds-input" data-finance-manual-funding>${rows.map(r=>`<option value="${e(r.fundingSourceId+'|'+(r.period||r.manualMonth))}"${data.manualFundingKey===r.fundingSourceId+'|'+(r.period||r.manualMonth)?' selected':''}>${e(r.funding)}${d.billing_basis==='performance'?' · '+e((r.period||r.manualMonth)?.slice(0,7)||''):''}</option>`).join('')}</select></label>`:''}
+        <div class="ds-fin-manual__contact-summary"><span>לקוח: ${e(d.customer_name)}</span><span dir="ltr">${e(d.customer_email)}</span></div>
+        ${new Set(rows.map(r=>r.fundingSourceId)).size>1 || (d.billing_basis==='performance'&&rows.length>1)?`<label class="ds-fin-manual__control">חלק המימון<select class="ds-input" data-finance-manual-funding>${rows.map(r=>`<option value="${e(r.fundingSourceId+'|'+(r.period||r.manualMonth))}"${data.manualFundingKey===r.fundingSourceId+'|'+(r.period||r.manualMonth)?' selected':''}>${e(r.funding)}${d.billing_basis==='performance'?' · '+e((r.period||r.manualMonth)?.slice(0,7)||''):''}</option>`).join('')}</select></label>`:''}
         <details class="ds-fin-manual__extra ds-fin-payer"><summary>עריכת פרטי החשבון</summary>
           <div class="ds-fin-manual__grid">${field('שם הלקוח','customer_name')}${field('נמענים','customer_email','email')}${field(rows.some(r=>r.gefenFunding)?'סמל מוסד':'מספר לקוח (אם קיים)','institution_symbol')}
           ${ids.length===1?field('תיאור הפעילות','description'):''}${field('תאריך הפקה','issue_date','date')}${field('מועד תשלום','payment_due_date','date')}${field('סיבת חריגה','override_reason')}</div>

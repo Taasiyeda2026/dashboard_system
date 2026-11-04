@@ -299,14 +299,52 @@
 }
 
 .ds-fin-manual__grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 260px));
+  justify-content: start;
+  max-width: 808px;
 }
 
 .ds-fin-manual__form {
   display: grid;
   gap: 14px;
   min-width: 0;
+  justify-items: start;
 }
+.ds-fin-manual__form > * { max-width: 100%; min-width: 0; }
+.ds-fin-manual label.ds-fin-manual__control {
+  width: min(100%, 320px);
+  max-width: 100%;
+}
+.ds-fin-manual__contact-summary {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  max-width: 100%;
+  font-size: .84rem;
+}
+.ds-fin-manual__contact-summary span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ds-fin-manual__contact-summary span[dir="ltr"] { text-align: right; }
+.ds-fin-manual__form > .ds-fin-manual__billing,
+.ds-fin-manual__form > .ds-fin-manual__selected-schools,
+.ds-fin-manual__form > .ds-fin-manual__extra {
+  width: 100%;
+  box-sizing: border-box;
+}
+.ds-fin-manual__form > .ds-fin-manual__billing { max-width: 808px; }
+.ds-fin-manual__form > .ds-fin-manual__selected-schools { max-width: 100%; }
+.ds-fin-manual__form > .ds-fin-manual__extra { max-width: 808px; }
+.ds-fin-manual__billing-row {
+  grid-template-columns: 110px 110px 145px 145px;
+  width: fit-content;
+  max-width: 100%;
+  gap: 12px;
+}
+.ds-fin-manual__billing-row .ds-fin-manual__field { width: 100%; min-width: 0; }
+
 
 .ds-fin-manual__grid input[type="number"],
 .ds-fin-manual__grid [data-finance-manual-field="amount"],
@@ -403,6 +441,7 @@
   .ds-fin-manual__activity-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .ds-fin-manual__grid { max-width: 552px; }
   .ds-fin-manual__activity-grid label:last-child { grid-column: 1 / -1; }
 }
 
@@ -539,6 +578,77 @@
   }
 }
 /* Gefen groups start collapsed; native details supplies keyboard/expanded state. */
+/* Account-wide sizing: equal control heights and bounded field widths in all four account tabs. */
+.ds-fin-collect-shell {
+  --fin-account-field-height: 40px;
+  --fin-account-field-width: 320px;
+  --fin-account-field-gap: 12px;
+  min-width: 0;
+}
+.ds-fin-collect-shell .ds-fin-gefen label.ds-fin-collect-search {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  width: min(100%, var(--fin-account-field-width));
+  max-width: 100%;
+  font-size: .82rem;
+}
+.ds-fin-collect-shell .ds-fin-gefen .ds-fin-collect-search .ds-input,
+.ds-fin-collect-shell .ds-fin-manual__selectors .ds-input,
+.ds-fin-collect-shell .ds-fin-manual__search-picker .ds-input,
+.ds-fin-collect-shell .ds-fin-manual__control .ds-input,
+.ds-fin-collect-shell .ds-fin-manual__grid .ds-input,
+.ds-fin-collect-shell [data-invoice-revision-editor] .ds-input {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  min-height: var(--fin-account-field-height);
+}
+.ds-fin-collect-shell .ds-fin-manual__selectors {
+  grid-template-columns: repeat(2, minmax(0, var(--fin-account-field-width)));
+  max-width: calc(var(--fin-account-field-width) * 2 + var(--fin-account-field-gap));
+  gap: var(--fin-account-field-gap);
+}
+.ds-fin-collect-shell .ds-fin-manual label.ds-fin-manual__search-picker {
+  max-width: calc(var(--fin-account-field-width) * 2 + var(--fin-account-field-gap));
+}
+.ds-fin-collect-shell .ds-fin-manual__grid > label,
+.ds-fin-collect-shell [data-invoice-revision-editor] .ds-fin-manual__grid > label {
+  width: 100%;
+  min-width: 0;
+}
+.ds-fin-collect-shell .ds-fin-manual__batch-total,
+.ds-fin-collect-shell .ds-fin-payer,
+.ds-fin-collect-shell .ds-fin-gefen section {
+  min-width: 0;
+}
+.ds-fin-collect-shell .ds-fin-payer > summary {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 780px) {
+  .ds-fin-collect-shell .ds-fin-manual__grid {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+    max-width: 552px;
+  }
+}
+@media (max-width: 560px) {
+  .ds-fin-collect-shell { --fin-account-field-height: 44px; }
+  .ds-fin-collect-shell .ds-fin-manual__selectors,
+  .ds-fin-collect-shell .ds-fin-manual__grid {
+    grid-template-columns: minmax(0,1fr);
+    max-width: var(--fin-account-field-width);
+  }
+  .ds-fin-collect-shell .ds-fin-manual__billing-row {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+    width: 100%;
+    max-width: var(--fin-account-field-width);
+    gap: 10px;
+  }
+  .ds-fin-collect-shell .ds-fin-manual__billing-row .ds-input { min-height: 44px; }
+}
 .ds-fin-gefen { display: grid; gap: 12px; }
 .ds-fin-gefen section { display: grid; gap: 8px; }
 .ds-fin-gefen section > h3 { margin: 0; font-size: 1rem; }
