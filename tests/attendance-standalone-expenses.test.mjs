@@ -10,7 +10,7 @@ test('new report has three independent tabs; expenses do not attach to attendanc
  assert.ok(src.includes('tabs.append(attendanceTab, travelTab, expenseTab)'));
  assert.ok(src.includes('expensesPanel.panel.hidden = !isExpenses'));
  assert.ok(src.includes('expensesPanel.load()'));
- assert.ok(src.includes('formArea.append(tabs,form,dailyTravel.panel,expensesPanel.panel)'));
+ assert.ok(src.includes('formArea.append(tabs,attendanceMonthWrap,form,historyPanel,dailyTravel.panel,expensesPanel.panel)'));
  assert.ok(src.includes('[timesGrid]'));
  assert.ok(!src.includes('[timesGrid, expensesInner]'));
  assert.ok(src.includes('expenses: 0'));
@@ -23,7 +23,7 @@ test('standalone expenses have separate save, date, details, receipts, edits and
  assert.ok(ui.includes("saveExpenseReport({"));
  assert.ok(ui.includes('attachExpenseReceipt({'));
  assert.ok(ui.includes('fileInput.multiple=true'));
- assert.ok(ui.includes("listExpenseReports({fromDate:first,toDate:last"));
+ assert.ok(ui.includes("listExpenseReports({fromDate:from,toDate:to"));
  assert.ok(ui.includes("amount.input.value=row.amount") || ui.includes("amount.input.value=String(row.amount)"));
  assert.ok(!ui.includes('activityId'));
  assert.ok(service.includes("av2_save_expense"));
