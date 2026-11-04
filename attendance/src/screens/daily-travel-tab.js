@@ -564,9 +564,20 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       const historical=await readHistoricalAttendance(empId,selectedMonth);
       historicalMonthApproval=historical.approval;
       historicalDays=historicalTravelDays(historical.rows.filter(row=>isLegacyDay(row.report_date)),[]);
-      for(const day of historicalDays){
+      // Existing attendance days must be available even when not present in the
+      // assigned-day RPC. Employees may complete travel later in the month.
+      for(const day of historicalTravelDays(historical.rows,[])){
         if(dayOptions.some(item=>item.date===day.date))continue;
-        dayOptions.push({date:day.date,activities:day.records.map(row=>row.activity_name_snapshot||row.activity_type).filter(Boolean).join(' · ')||'פעילות',ready:true,legacy:true});
+        const physical=day.records.filter(row=>row.generation_kind==null
+          && row.start_time && row.end_time
+          && row.activity_type!=='ביטול זמן' && row.activity_type!=='זום'
+          && row.training_mode!=='online' && row.operation_meeting_mode!=='online');
+        if(!physical.length)continue;
+        dayOptions.push({
+          date:day.date,
+          activities:physical.map(row=>row.activity_name_snapshot||row.activity_type).filter(Boolean).join(' · ')||'פעילות',
+          ready:true,review_status:'missing',legacy:isLegacyDay(day.date)
+        });
       }
       dayOptions.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
     }
