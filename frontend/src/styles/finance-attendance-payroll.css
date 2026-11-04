@@ -533,8 +533,29 @@
   margin-top: 12px;
 }
 .ds-fin-manual__selection > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 14px;
   cursor: pointer;
+  list-style: none;
+  font-weight: 650;
 }
+.ds-fin-manual__selection > summary::-webkit-details-marker { display: none; }
+.ds-fin-manual__selection > summary::after {
+  content: '⌄';
+  flex: 0 0 auto;
+  color: var(--ds-text-secondary);
+  font-size: 22px;
+  line-height: 1;
+  transform: rotate(90deg);
+  transition: transform 150ms ease;
+}
+.ds-fin-manual__selection[open] > summary::after { transform: rotate(0deg); }
+.ds-fin-manual__selection > summary:hover { background: var(--ds-surface-muted, #f3f7f9); }
+.ds-fin-manual__selection > summary:focus-visible { outline: 2px solid #0c98b9; outline-offset: 2px; }
+
 .ds-fin-manual__selection-toolbar {
   display: flex;
   flex-direction: row;
@@ -600,3 +621,14 @@
   .ds-fin-manual__activity-school { grid-column: 2; }
   .ds-fin-manual__activity-price { grid-column: 3; grid-row: 1 / span 2; }
 }
+
+/* Existing financial values remain the default; editing another selected activity is opt-in. */
+.ds-fin-manual__optional-edit {
+  border: 1px solid var(--ds-border);
+  border-radius: 9px;
+  padding: 9px 12px;
+  width: min(100%, 400px);
+  box-sizing: border-box;
+}
+.ds-fin-manual__optional-edit > summary { cursor: pointer; font-size: .83rem; font-weight: 600; }
+.ds-fin-manual__optional-edit > label { margin-top: 10px; }

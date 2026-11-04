@@ -469,3 +469,33 @@ test('manual activity selector uses compact rows with aligned labels and no nest
   assert.match(rows[0].querySelector('.ds-fin-manual__activity-price').textContent,/7,000/);
   assert.ok(group.querySelector('.ds-fin-manual__selection-toolbar [data-finance-manual-select-all]'));
 });
+
+test('payer options include authority context without changing payer identities',()=>{
+  const d={manualFundingCategory:'gefen',collectionActivities:[
+    {row_id:'a',school:'א',authority:'עכו',activity_name:'חלל'},
+    {row_id:'b',school:'ב',authority:'נהרייה',activity_name:'חלל'}
+  ],transactionContext:{billingRows:[
+    {activityRowId:'a',fundingSourceId:'g',funding:'גפ״ן',gefenFunding:true,payerKey:'school:a',payerName:'א'},
+    {activityRowId:'b',fundingSourceId:'g',funding:'גפ״ן',gefenFunding:true,payerKey:'school:b',payerName:'ב'}
+  ]}};
+  const options=manualFundingFilterOptions(d);
+  assert.deepEqual(options.map(p=>p.key),['school:a','school:b']);
+  assert.deepEqual(options.map(p=>p.displayLabel),['א · רשות: עכו','ב · רשות: נהרייה']);
+  const doc=new JSDOM(manualAccountViewHtml(d)).window.document;
+  assert.deepEqual([...doc.querySelectorAll('[data-finance-manual-funder-filter] option')].slice(1).map(x=>x.textContent),options.map(p=>p.displayLabel));
+});
+test('manual activity editing is optional and initially collapsed while source invoice values remain visible',()=>{
+  const d={collectionActivities:[{row_id:'a',school:'א',authority:'חיפה',activity_name:'חלל'},{row_id:'b',school:'ב',authority:'חיפה',activity_name:'ביומימיקרי'}],transactionContext:{billingRows:[
+    {activityRowId:'a',fundingSourceId:'r',funding:'רשות',payerKey:'authority:1',payerName:'חיפה',fullFundingAmount:4000,plannedCount:4,plannedHours:6},
+    {activityRowId:'b',fundingSourceId:'r',funding:'רשות',payerKey:'authority:1',payerName:'חיפה',fullFundingAmount:4000,plannedCount:4,plannedHours:6}
+  ]},manualFunderFilter:'authority:1'};
+  toggleManualActivity(d,'a',true);
+  toggleManualActivity(d,'b',true);
+  const doc=new JSDOM(manualAccountViewHtml(d)).window.document;
+  const disclosure=doc.querySelector('.ds-fin-manual__optional-edit');
+  assert.ok(disclosure);
+  assert.equal(disclosure.open,false);
+  assert.ok(disclosure.querySelector('[data-finance-manual-activity]'));
+  assert.ok(doc.querySelector('.ds-fin-manual__billing-row'));
+  assert.match(doc.querySelector('[data-finance-manual-selection-summary]').textContent,/רשות/);
+});
