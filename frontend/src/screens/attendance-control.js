@@ -2732,8 +2732,8 @@ export function resultsHtml(result, month = '', options = {}) {
     const approvedRecordCount = employeeEntries.filter(attendanceEntryIsResolved).length;
     const pendingRecordCount = Math.max(0, totalRecordCount - approvedRecordCount);
     const recordProgressHtml = totalRecordCount
-      ? `<span class="attendance-control__employee-record-progress">אושרו ${approvedRecordCount} מתוך ${totalRecordCount} רשומות${pendingRecordCount ? ` · ${pendingRecordCount} ממתינות לאישור` : ''}${pendingTravelDays ? ` · ${pendingTravelDays} ימי נסיעות לבדיקה` : ''}</span>`
-      : '';
+      ? `<span class="attendance-control__employee-record-progress">אושרו ${approvedRecordCount} מתוך ${totalRecordCount} רשומות${pendingRecordCount ? ` · ${pendingRecordCount} ממתינות לאישור` : ''}${pendingTravelDays ? ` · ${pendingTravelDays} ימי נסיעות לבדיקה` : ''}${pendingExpenses ? ` · ${pendingExpenses} הוצאות לבדיקה` : ''}</span>`
+      : (pendingExpenses ? `<span class="attendance-control__employee-record-progress">${pendingExpenses} הוצאות לבדיקה</span>` : '');
     const approval = options.approvalsByEmployee?.[employee.id];
     const workflowHtml = `<p class="attendance-control__manual-note">סטטוס חודש: <strong>${escapeHtml(workflow.label)}</strong></p>`;
     const managerApprovedAt = workflowByEmployee[employee.id]?.manager_approved_at;
@@ -2795,7 +2795,10 @@ export function resultsHtml(result, month = '', options = {}) {
       const r=dailyTravelByDay.get(employee.id+'|'+date);
       return !r||!['approved','corrected'].includes(r.review_status);
     });
-    return hasDataIssue || dailyTravelIssue || (hasWorkflowRow && workflow.status === 'not_submitted');
+    const expensesNeedReview=(expenseReportsByEmployee.get(employee.id)||[])
+      .some(expense=>expense.review_status==='pending_review');
+    return hasDataIssue || dailyTravelIssue || expensesNeedReview
+      || (hasWorkflowRow && workflow.status === 'not_submitted');
   }).length;
   const metricsHtml = `<details class="attendance-control__metrics-details" data-payroll-metrics><summary>פרטים</summary><div class="attendance-control__metrics"><span>שורות נוכחות ${totals.attendanceRows}</span><span>התאמות ${totals.fullMatches}</span><span>פערים ${totals.fieldMismatches}</span><span>ללא התאמה ${totals.unmatchedAttendance}</span></div></details>`;
   const overviewRows = [...(result.comparisons || []), ...(result.notCompared || [])].map((entry) => entry.final || entry.attendance || {}).filter(Boolean);
