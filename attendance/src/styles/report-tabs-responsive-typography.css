@@ -820,3 +820,20 @@
     max-height:min(180px,38vh)!important;
   }
 }
+
+/* Reopened historical months: clear route into the existing record editor. */
+.av2-report .av2-daily-travel__report-card>.av2-daily-travel__historical-edit{
+  justify-self:center!important;
+  width:auto!important;max-width:100%!important;
+  min-height:36px!important;
+  padding:7px 12px!important;
+  font-size:13px!important;font-weight:600!important;
+}
+.av2-report .av2-daily-travel__report-card>.av2-daily-travel__historical-edit[hidden]{
+  display:none!important;
+}
+@media(max-width:767px){
+  .av2-report .av2-daily-travel__report-card>.av2-daily-travel__historical-edit{
+    min-height:44px!important;
+  }
+}
