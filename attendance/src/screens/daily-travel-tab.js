@@ -11,7 +11,7 @@ import {
 
 const LEG_LABELS = {outbound:'יציאה לפעילות הראשונה',between:'מעבר בין פעילויות',return:'חזרה מהפעילות האחרונה'};
 
-export function createDailyTravelTab({empId, initialDate}) {
+export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   const panel = document.createElement('section');
   panel.id = 'av2-travel-tab-panel';
   panel.setAttribute('role', 'tabpanel');
@@ -62,6 +62,15 @@ export function createDailyTravelTab({empId, initialDate}) {
   const status = document.createElement('p');
   status.className = 'av2-daily-travel__status';
   status.setAttribute('role','status');
+  const historicalEdit=document.createElement('button');
+  historicalEdit.type='button';
+  historicalEdit.className='av2-btn av2-btn--secondary av2-daily-travel__historical-edit';
+  historicalEdit.textContent='עריכת דיווחי היום';
+  historicalEdit.hidden=true;
+  historicalEdit.addEventListener('click',()=>{
+    if(historicalMonthApproval?.status==='reopened' && dateField.input.value)
+      onEditHistorical?.(dateField.input.value);
+  });
   const legsArea = document.createElement('div');
   legsArea.className = 'av2-daily-travel__legs';
   const noTravelLabel = document.createElement('label');
@@ -81,7 +90,7 @@ export function createDailyTravelTab({empId, initialDate}) {
   actions.append(save);
   const reportCard=document.createElement('div');
   reportCard.className='av2-daily-travel__report-card';
-  reportCard.append(monthWrap,daysWrap,dateField.wrap,status,legsArea,noTravelLabel,summary,actions);
+  reportCard.append(monthWrap,daysWrap,dateField.wrap,status,historicalEdit,legsArea,noTravelLabel,summary,actions);
   panel.append(title,reportCard);
 
   let legs=[];
@@ -108,9 +117,10 @@ export function createDailyTravelTab({empId, initialDate}) {
     locked=true;loadedDate=day?.date||'';
     legs=[];legsArea.replaceChildren();
     noTravelLabel.hidden=true;save.hidden=true;summary.textContent='';
-    if(!day){status.textContent='אין מידע לחודש זה';return;}
+    if(!day){status.textContent='אין מידע לחודש זה';historicalEdit.hidden=true;return;}
     const approvalText=monthStatusLabel(historicalMonthApproval);
     status.textContent=approvalText;
+    historicalEdit.hidden=historicalMonthApproval?.status!=='reopened' || !day.records.length || typeof onEditHistorical!=='function';
     const report=day.dailyReport;
     if(report){
       const summaryCard=document.createElement('article');
@@ -396,6 +406,7 @@ export function createDailyTravelTab({empId, initialDate}) {
     if(loading)return;
     if(!force && loadedDate===requestedDay && loadedDate!=='')return;
     loading=true;save.disabled=true;reload.disabled=true;
+    historicalEdit.hidden=true;
     status.textContent='טוען נסיעות…';
     const token=++requestSequence;
     try{
