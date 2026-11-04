@@ -231,10 +231,10 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
     const statedQty = Number(line.quantity_snapshot);
     const quantity = Number.isFinite(statedQty) && statedQty > 0 ? statedQty
       : (line.finance_transaction_account_meetings?.length || 1);
-    // Gefen invoices are priced in educational hours (2 per 90-minute
-    // course meeting), not elapsed clock hours (1.5 per meeting).
-    // Do not change accounting totals or workshop/tour quantities.
-    const hours = gefenFunding && !service ? quantity * 2
+    // Every session is 90 minutes. Show actual elapsed hours for billed
+    // meetings while deriving the contractual hourly rate from the ENTIRE
+    // activity price / planned sessions / 1.5, not the current invoice amount.
+    const hours = gefenFunding && !service ? quantity * 1.5
       : Math.max(0, Number(line.billed_hours || 0));
     // Billing coverage belongs to the accounting record, never to the customer-facing course name.
     // Legacy snapshots may already include internal coverage text. Strip it
@@ -263,15 +263,21 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
       existing.hours += hours;
       existing.amount += amount;
       existing.unitPrice = existing.amount / existing.quantity;
-      existing.hourlyPrice = existing.hours > 0 ? existing.amount / existing.hours : 0;
+      if (!existing.gefenFunding || existing.category !== 'course') {
+        existing.hourlyPrice = existing.hours > 0 ? existing.amount / existing.hours : 0;
+      }
     } else {
       group.set(key, {
         category: service ? 'service' : 'course', name, school, authority, gefen, gefenFunding, dates: [...new Set<string>(dates)].sort(),
         quantity, hours, amount, unitPrice,
         hourlyPrice: gefenFunding && !service
-          ? (Number(line.hourly_rate_snapshot) > 0
-            ? Number(line.hourly_rate_snapshot) * 1.5 / 2
-            : hours > 0 ? amount / hours : 0)
+          ? (() => {
+              const fullPrice = Number(line.activity_price_from_source ?? line.activity_price_snapshot);
+              const plannedMeetings = Number(line.planned_sessions_from_source ?? line.planned_meeting_count_snapshot);
+              return fullPrice > 0 && Number.isInteger(plannedMeetings) && plannedMeetings > 0
+                ? fullPrice / (plannedMeetings * 1.5)
+                : Number(line.hourly_rate_snapshot) > 0 ? Number(line.hourly_rate_snapshot) : 0;
+            })()
           : Number(line.hourly_rate_snapshot)>0 ? Number(line.hourly_rate_snapshot) : hours>0 ? amount/hours : 0
       });
     }
@@ -283,7 +289,7 @@ async function attachActivityTypes(account: any, client: ReturnType<typeof creat
   const ids = [...new Set(lines.map((line: any) => clean(line.activity_row_id)).filter(Boolean))];
   if (!ids.length) return account;
   const { data, error } = await client.from('activities')
-    .select('row_id,activity_type,activity_season,authority_id').in('row_id', ids);
+    .select('row_id,activity_type,activity_season,authority_id,price,sessions').in('row_id', ids);
   if (error) throw new Error('invoice_activity_types_unavailable');
   const validActivities = (data || []).filter((a: any) => a.activity_season === 'school_2027');
   const byId = new Map(validActivities.map((a: any) => [clean(a.row_id), a]));
@@ -299,6 +305,9 @@ async function attachActivityTypes(account: any, client: ReturnType<typeof creat
     const activity = byId.get(clean(line.activity_row_id));
     if (!activity) throw new Error('invoice_activity_type_missing');
     line.activity_type_snapshot = clean(activity.activity_type);
+    // Read from All Activities, without modifying the stored invoice or activity.
+    line.activity_price_from_source = activity.price;
+    line.planned_sessions_from_source = activity.sessions;
     // Enrichment for rendering only, with no financial snapshot/database mutation.
     line.authority_name_snapshot = authorities.get(clean(activity.authority_id))
       || clean(line.authority_name_snapshot) || '';
@@ -462,7 +471,7 @@ async function buildPdf(account: any) {
   if (services.length) {
     if (y < 225) { page = doc.addPage([595, 842]); y = drawInvoiceHeader(page, true); }
     y -= 13;
-    drawRight(page, bold, `סה"כ כמות סדנאות/סיורים: ${count(serviceQuantity)}`, y, 10);
+    drawRight(page, bold, `סה"כ כמות סדנאות: ${count(serviceQuantity)}`, y, 10);
     y -= 21;
   }
   // Dates come exclusively from the billed meeting snapshots, including deferred months.
@@ -475,7 +484,7 @@ async function buildPdf(account: any) {
   if (y < 208) { page = doc.addPage([595, 842]); y = drawInvoiceHeader(page, true); }
   y -= 20;
   drawRight(page, bold, `סה"כ לתשלום: ${money(account.total_amount)}`, y, 13); y -= 30;
-  drawRight(page, bold, `לתשלום עד: ${date(account.payment_due_date)}`, y, 11); y -= 30;
+  drawRight(page, regular, `לתשלום עד: ${date(account.payment_due_date)}`, y, 9.5); y -= 30;
   // More separation before the quiet bank-details divider and heading.
   page.drawLine({
     start: { x: 30, y: y + 7 }, end: { x: 565, y: y + 7 },
