@@ -1977,7 +1977,7 @@ export function renderNewReportScreen(container, {
       initialDate: dateField.input.value || defaultDate
     });
     const expensesPanel = createExpensesTab({
-      instructor,initialDate:dateField.input.value || defaultDate
+      instructor,initialDate:localIsoDate()
     });
     function showTab(kind) {
       const isAttendance = kind === 'attendance';
