@@ -338,12 +338,63 @@
 .ds-fin-manual__form > .ds-fin-manual__selected-schools { max-width: 100%; }
 .ds-fin-manual__form > .ds-fin-manual__extra { max-width: 808px; }
 .ds-fin-manual__billing-row {
-  grid-template-columns: 110px 110px 145px 145px;
+  grid-template-columns: 175px 175px 145px 145px 145px;
   width: fit-content;
   max-width: 100%;
   gap: 12px;
 }
 .ds-fin-manual__billing-row .ds-fin-manual__field { width: 100%; min-width: 0; }
+.ds-fin-manual__ratio {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto minmax(0,.8fr);
+  align-items: center;
+  min-width: 0;
+  height: var(--fin-account-field-height,40px);
+  border: 1px solid var(--ds-border);
+  border-radius: 8px;
+  background: var(--ds-surface,#fff);
+  overflow: hidden;
+  font-variant-numeric: tabular-nums;
+}
+.ds-fin-manual__ratio .ds-input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: 0 !important;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  text-align: center;
+  padding: 0 4px;
+  background: transparent;
+}
+.ds-fin-manual__ratio output {
+  min-width: 0;
+  text-align: center;
+  white-space: nowrap;
+  color: var(--ds-text);
+}
+.ds-fin-manual__ratio-divider { color: var(--ds-text-secondary); font-weight: 600; padding-inline: 2px; }
+.ds-fin-manual__ratio:focus-within { outline: 2px solid rgba(12,152,185,.35); outline-offset: 1px; }
+.ds-fin-manual__billing-row [data-finance-manual-hourly-rate] {
+  font-variant-numeric: tabular-nums;
+  direction: ltr;
+  text-align: center;
+}
+@media (max-width: 1020px) {
+  .ds-fin-collect-shell .ds-fin-manual__billing-row {
+    grid-template-columns: repeat(3,minmax(0,175px));
+    width: 100%;
+  }
+}
+@media (max-width: 700px) {
+  .ds-fin-collect-shell .ds-fin-manual__billing-row {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+    width: 100%;
+    max-width: 380px;
+  }
+}
+
 
 
 .ds-fin-manual__grid input[type="number"],
