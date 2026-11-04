@@ -324,12 +324,13 @@ export function createDailyTravelTab({empId, initialDate}) {
       dayOptions=historicalDays.map(day=>{
         const schools=[...new Set(day.records.map(row=>
           row.school_name_snapshot||row.authority_name_snapshot||'').filter(Boolean))];
-        const location=schools.length>1?schools.slice(0,2).join(' / '):schools[0]||'';
-        const activityCount=day.records.length;
+        const programs=[...new Set(day.records.map(row=>
+          row.program_name_snapshot||row.activity_name_snapshot||row.program_name||row.activity_type||'').filter(Boolean))];
+        const location=schools.slice(0,2).join(' / ');
+        const activity=programs.slice(0,2).join(' / ');
         return {
           date:day.date,
-          activities:location || (activityCount>0
-            ?activityCount+' פעילויות':'דיווח נסיעות'),
+          activities:[activity,location].filter(Boolean).join(' – ')||'דיווח נסיעות',
           ready:true,review_status:day.dailyReport?.review_status||null
         };
       });
