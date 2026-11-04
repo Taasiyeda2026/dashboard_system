@@ -10,6 +10,7 @@ import { reportedKilometers } from '../services/reported-kilometers.js';
 import { createInputField, createSelectField } from '../components/field.js';
 import { createSearchableSelect } from '../components/searchable-select.js';
 import { createCompactSelect } from '../components/compact-select.js';
+import { createBoundedMonthPicker } from '../components/bounded-month-picker.js';
 import { createTimePicker } from '../components/time-picker.js';
 import { createDailyTravelTab } from './daily-travel-tab.js';
 import { createExpensesTab } from './expenses-tab.js';
@@ -1694,7 +1695,7 @@ export function renderNewReportScreen(container, {
       window.setTimeout(() => {
         onSaved?.(record);
         buildForm(null, reportDate);
-        successBanner.textContent = 'הדיווח נשמר בהצלחה. אפשר להזין דיווח נוסף.';
+        successBanner.textContent = 'דיווח הנוכחות נשמר בהצלחה. כעת יש להשלים דיווח נסיעות בלשונית ״נסיעות וביטולים״, אם היו נסיעות.';
         successBanner.hidden = false;
       }, 500);
     }
@@ -1858,15 +1859,13 @@ export function renderNewReportScreen(container, {
       const programName = activity?.program_name || activityNameSnapshot || null;
 
       const usesPublicTransport = !isOnline && !isTeamOnline && publicTransportInput.checked;
-      const kmValue = reportedKilometers(kmField.input.value, {
+      // Kilometres are reported separately in נסיעות וביטולים. Never block
+      // saving attendance because its kilometres input is no longer displayed.
+      const legacyKm = reportedKilometers(kmField.input.value, {
         online: isOnline || isTeamOnline, publicTransport: usesPublicTransport, activityType: reportType,
       });
-      if (!isDailyTravelDate() && kmValue == null) {
-        errorEl.textContent = 'יש להזין קילומטרים לדיווח, או 0 אם אין קילומטרים לדיווח.';
-        errorEl.hidden = false;
-        kmField.input.focus();
-        return;
-      }
+      const kmValue = isDailyTravelDate() || kmField.wrap.isConnected===false
+        ? 0 : (legacyKm ?? 0);
       const publicTransportCost = usesPublicTransport && publicTransportCostField.input.value
         ? Number(publicTransportCostField.input.value)
         : 0;
@@ -1991,7 +1990,8 @@ export function renderNewReportScreen(container, {
     const attendanceMonthSelect=document.createElement('select');
     attendanceMonthSelect.id='av2-attendance-month-select';
     attendanceMonthSelect.className='av2-field__select av2-daily-travel__month-select';
-    attendanceMonthWrap.append(attendanceMonthLabel,attendanceMonthSelect);
+    const monthPicker=createBoundedMonthPicker(attendanceMonthSelect);
+    attendanceMonthWrap.append(attendanceMonthLabel,attendanceMonthSelect,monthPicker.wrap);
     const historyPanel=document.createElement('section');
     historyPanel.className='av2-report__history';
     historyPanel.hidden=true;
@@ -2061,11 +2061,13 @@ export function renderNewReportScreen(container, {
       }
       if(!months.includes(attendanceSelectedMonth))attendanceSelectedMonth=months[0]||attendanceCurrentMonth;
       attendanceMonthSelect.value=attendanceSelectedMonth;
+      monthPicker.sync();
       syncAttendanceMonth();
     }).catch(()=>{
       const option=document.createElement('option');
       option.value=attendanceCurrentMonth;option.textContent=monthLabel(attendanceCurrentMonth);
       attendanceMonthSelect.replaceChildren(option);
+      monthPicker.sync();
     });
 
     function showTab(kind) {
