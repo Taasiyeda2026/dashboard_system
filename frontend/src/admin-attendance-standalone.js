@@ -1087,7 +1087,7 @@ function handleClick(event) {
     window.setTimeout(() => void handleBatchPayroll(root), 0);
     return;
   }
-  const action = target.closest('[data-admin-attendance-final], [data-admin-attendance-send-payroll], [data-admin-attendance-release], [data-admin-attendance-records], [data-admin-attendance-pdf]');
+  const action = target.closest('[data-admin-attendance-edit], [data-admin-attendance-final], [data-admin-attendance-send-payroll], [data-admin-attendance-release], [data-admin-attendance-records], [data-admin-attendance-pdf]');
   if (action) window.setTimeout(() => void handleAction(action, root), 0);
 }
 
