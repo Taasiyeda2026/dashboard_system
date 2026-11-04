@@ -120,7 +120,7 @@ begin
     and (p_to_date is null or e.expense_date<=p_to_date)
     and (v_role in ('admin','operation_manager','finance')
       or (v_role in ('activities_manager','manager','instructor_manager')
-        and lower(trim(coalesce(ci.direct_manager,'')))=lower(trim(coalesce(v_own_name,''))))
+        and lower(trim(coalesce(ci.direct_manager,'')))=lower(trim(coalesce(v_own_name,'')))))
   order by e.expense_date,e.emp_id;
 end
 $function$
