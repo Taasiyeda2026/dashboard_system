@@ -141,8 +141,8 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     fields.dataset.recordId=record.id;
     const data=[
       ['roundtrip_km','קילומטרים (הלוך וחזור)',record.roundtrip_km,'number'],
-      ['cancellation_before_minutes','ביטול זמן לפני הפעילות (משך שעות:דקות)',durationValue(record.cancellation_before_minutes),'text'],
-      ['cancellation_after_minutes','ביטול זמן אחרי הפעילות (משך שעות:דקות)',durationValue(record.cancellation_after_minutes),'text']
+      ['cancellation_before_minutes','ביטול זמן היסטורי – מקטע יציאה (שעות:דקות)',durationValue(record.cancellation_before_minutes),'text'],
+      ['cancellation_after_minutes','ביטול זמן היסטורי – מקטע חזרה (שעות:דקות)',durationValue(record.cancellation_after_minutes),'text']
     ];
     for(const [field,label,value,type] of data){
       const wrapper=document.createElement('label');
@@ -221,20 +221,34 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     historicalEdit.textContent='עריכה';
     historicalEdit.classList.add('av2-daily-travel__action-sm');
     const report=day.dailyReport;
+    // Historic attendance has legacy cancellation fields, not verified travel-leg durations.
+    // Keep presentation grouped by workday without inventing outbound/return travel times.
+    const daySummary=document.createElement('article');
+    daySummary.className='av2-daily-travel__leg av2-daily-travel__legacy-card';
+    const dayHeading=document.createElement('strong');
+    dayHeading.textContent='סיכום יום עבודה · '+formatDate(day.date);
+    daySummary.append(dayHeading);
+    const historicKm=day.records.reduce((sum,row)=>sum+(Number(row.roundtrip_km)||0),0);
+    const historicCancellation=day.records.reduce((sum,row)=>
+      sum+(Number(row.cancellation_before_minutes)||0)+(Number(row.cancellation_after_minutes)||0),0);
+    appendDetail(daySummary,'קילומטרים בדיווחי הנוכחות',historicKm+' ק״מ');
+    appendDetail(daySummary,'ביטול זמן בדיווחי הנוכחות',durationValue(historicCancellation)+' שעות');
+    if(!report)appendDetail(daySummary,'מקור הנתונים','רשומות נוכחות היסטוריות – לא קיים פירוט מסלול נסיעה מאומת');
+    legsArea.append(daySummary);
     if(report){
       const summaryCard=document.createElement('article');
       summaryCard.className='av2-daily-travel__leg av2-daily-travel__legacy-card';
       const heading=document.createElement('strong');heading.textContent='נסיעות · '+formatDate(day.date);
       summaryCard.append(heading);
       appendDetail(summaryCard,'קילומטרים',report.total_km==null?null:report.total_km+' ק״מ');
-      appendDetail(summaryCard,'ביטול זמן',report.cancellation_minutes==null?null:report.cancellation_minutes+' דקות');
+      appendDetail(summaryCard,'ביטול זמן מאושר / מדווח',report.cancellation_minutes==null?null:durationValue(report.cancellation_minutes)+' שעות');
       appendDetail(summaryCard,'סטטוס נסיעה',report.review_status==='approved'||report.review_status==='corrected'?'אושר':
         report.review_status==='rejected'?'נדחה':report.review_status==='pending_review'?'ממתין לאישור':null);
       for(const leg of Array.isArray(report.legs)?report.legs:[]){
         const part=document.createElement('div');part.className='av2-daily-travel__legacy-detail';
         const label=document.createElement('span');label.textContent=[leg.from,leg.to].filter(Boolean).join(' ← ');
         part.append(label);
-        const values=[leg.minutes==null?'':leg.minutes+' דקות',leg.kilometers==null?'':leg.kilometers+' ק״מ'].filter(Boolean);
+        const values=[leg.minutes==null?'':durationValue(leg.minutes)+' שעות',leg.kilometers==null?'':leg.kilometers+' ק״מ'].filter(Boolean);
         if(values.length){const v=document.createElement('strong');v.textContent=values.join(' · ');part.append(v);}
         summaryCard.append(part);
       }
@@ -250,11 +264,15 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       appendDetail(block,'שעות פעילות',record.start_time&&record.end_time
         ? String(record.start_time).slice(0,5)+'–'+String(record.end_time).slice(0,5):null);
       if(historicalEditing){
+        const note=document.createElement('small');
+        note.textContent='עריכת נתוני עבר: אלו שדות ביטול זמן מקוריים, ולא דיווחי זמן נסיעה בפועל.';
+        block.append(note);
         addHistoricalEditor(block,record);
       }else{
-        appendDetail(block,'קילומטרים',record.roundtrip_km==null?null:record.roundtrip_km+' ק״מ');
-        appendDetail(block,'זמן נסיעה לפני',record.cancellation_before_minutes==null?null:record.cancellation_before_minutes+' דקות');
-        appendDetail(block,'זמן נסיעה אחרי',record.cancellation_after_minutes==null?null:record.cancellation_after_minutes+' דקות');
+        appendDetail(block,'קילומטרים בדיווח המקורי',record.roundtrip_km==null?null:record.roundtrip_km+' ק״מ');
+        const cancelMinutes=(Number(record.cancellation_before_minutes)||0)+(Number(record.cancellation_after_minutes)||0);
+        if(record.cancellation_before_minutes!=null || record.cancellation_after_minutes!=null)
+          appendDetail(block,'ביטול זמן היסטורי',durationValue(cancelMinutes)+' שעות');
       }
       appendDetail(block,'תחבורה ציבורית',record.public_transport_cost>0?'₪'+record.public_transport_cost:null);
       const travel=record.travel_compensation;
@@ -269,7 +287,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     actions.replaceChildren();
     if(historicalEditing){
       const hint=document.createElement('small');
-      hint.textContent='יש להזין משך זמן, לא שעת שעון (לדוגמה 1:00 = 60 דקות).';
+      hint.textContent='עריכת נתוני עבר בלבד: הזינו שעות:דקות (למשל 01:30). הערכים אינם זמני נסיעה מאומתים.';
       const confirm=document.createElement('button');
       confirm.type='button';confirm.className='av2-btn av2-btn--primary av2-daily-travel__action-sm';
       confirm.dataset.historicalAction='save';confirm.textContent='שמירה';
