@@ -1969,16 +1969,6 @@ export function renderNewReportScreen(container, {
     form.setAttribute('role','tabpanel');
     form.setAttribute('aria-labelledby',attendanceTab.id);
     tabs.append(attendanceTab, travelTab, expenseTab);
-    const travelShortcut = document.createElement('button');
-    travelShortcut.type = 'button';
-    travelShortcut.className = 'av2-report__tiny-travel-btn';
-    const travelIcon = createIcon('map-pin');
-    travelIcon.setAttribute('aria-hidden','true');
-    const travelText=document.createElement('span');
-    travelText.textContent='מילוי נסיעות';
-    travelShortcut.append(travelIcon,travelText);
-    travelShortcut.title = 'מעבר לדיווח הנסיעות של היום שנבחר';
-    travelShortcut.setAttribute('aria-label', 'מילוי נסיעות ליום שנבחר');
     const dailyTravel = createDailyTravelTab({
       empId: instructor.empId,
       initialDate: dateField.input.value || defaultDate
@@ -2100,14 +2090,6 @@ export function renderNewReportScreen(container, {
         void expensesPanel.load();
       }
     }
-    travelShortcut.addEventListener('click',()=>{
-      const day = dateField.input.value;
-      if (!day) { dateField.input.focus(); return; }
-      dailyTravel.setDate(day);
-      dailyTravel.panel.dataset.av2Visited = '1';
-      showTab('travel');
-    });
-    // No travel-entry action is shown inside the Attendance form.
     attendanceTab.addEventListener('click',()=>showTab('attendance'));
     travelTab.addEventListener('click',()=>showTab('travel'));
     expenseTab.addEventListener('click',()=>showTab('expenses'));
