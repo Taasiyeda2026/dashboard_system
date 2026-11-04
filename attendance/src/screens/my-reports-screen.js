@@ -171,8 +171,9 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
       const heading=document.createElement('strong');
       heading.textContent='נסיעות וביטולים';
       const count=document.createElement('span');
+      const isCurrentReportMonth = year===new Date().getFullYear() && month===new Date().getMonth()+1;
       count.textContent=missingTravel.length
-        ? missingTravel.length+' ימים ללא דיווח נסיעות'
+        ? missingTravel.length+(isCurrentReportMonth?' ימי נסיעה להשלמה עד סוף החודש':' ימים ללא דיווח נסיעות')
         : 'דיווחי הנסיעות הושלמו';
       travelStatus.append(heading,count);
       if(missingTravel.length && editable){
