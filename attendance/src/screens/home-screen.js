@@ -215,7 +215,7 @@ async function handleSubmit({ submitBtn, instructor, year, month, sourceRecords,
   if (getMonthKey(year,month)>='2026-11') {
     try {
       const physicalDays=[...new Set(sourceRecords.filter(row=>
-        row.report_date >= '2026-11-04'
+        row.report_date >= '2026-11-01'
         && row.activity_type!=='ביטול זמן'
         && !isZoomLocationReport({
           activityType:row.activity_type,
