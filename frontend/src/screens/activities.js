@@ -2218,7 +2218,7 @@ export const activitiesScreen = {
       ${periodTabs}
       ${showDiag ? activitiesDiagnosticsHtml(diagnostics) : ''}
       ${mainToolbar}
-      ${dsCard({ body: tableSection, padded: false })}
+      ${state.activityPeriodTab === ACTIVITY_SEASON_SCHOOL_2027 ? `<section class="ds-card ds-activities-table-card"><div class="ds-card__body">${tableSection}</div></section>` : dsCard({ body: tableSection, padded: false })}
     </section>`);
     return html;
   },
