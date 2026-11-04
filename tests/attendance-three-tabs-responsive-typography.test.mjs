@@ -11,9 +11,9 @@ test('shared typography stylesheet is last and cache versions are consistent',as
     file('attendance/src/styles/report-tabs-responsive-typography.css'),
   ]);
   const links=[...html.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map(m=>m[1]);
-  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=137');
-  assert.match(sw,/const CACHE_VERSION = 137/);
-  assert.ok(links.every(s=>s.endsWith('?v=137')));
+  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=138');
+  assert.match(sw,/const CACHE_VERSION = 138/);
+  assert.ok(links.every(s=>s.endsWith('?v=138')));
   assert.match(css,/font-family:var\(--av2-font,inherit\)/);
   assert.match(css,/font-size:14\.5px!important/);
   assert.match(css,/font-size:17px!important/);
@@ -68,4 +68,23 @@ test('desktop viewport-fit is compact without hiding overflow, and mobile stays 
  assert.match(desktop,/\.av2-report \.av2-report__form>\.av2-report__actions\{[\s\S]*?margin:5px auto 0!important/);
  assert.match(desktop,/height:auto!important;overflow:visible!important/);
  assert.doesNotMatch(desktop,/overflow:hidden|height:100vh|position:fixed/);
+});
+
+test('unselected dropdown hints are subtle, while selected values retain their appearance',async()=>{
+ const css=await file('attendance/src/styles/report-tabs-responsive-typography.css');
+ const select=await file('attendance/src/components/searchable-select.js');
+ const compact=await file('attendance/src/components/compact-select.js');
+ const last=css.slice(css.indexOf('/* Unselected values are hints'));
+ assert.match(last,/\.av2-ssel__trigger-text\[data-empty="true"\]/);
+ assert.match(last,/\.av2-csel__trigger-text\[data-empty="true"\]/);
+ assert.match(last,/color:#718096!important/);
+ assert.match(last,/font-size:13\.5px!important/);
+ assert.match(select,/triggerText\.dataset\.empty = selectedLabel \? 'false' : 'true'/);
+ assert.match(compact,/triggerText\.dataset\.empty = lbl \? 'false' : 'true'/);
+});
+test('notes field is labeled הערות, without altering its storage identifier',async()=>{
+ const screen=await file('attendance/src/screens/new-report-screen.js');
+ assert.match(screen,/id: 'av2-notes',[\s\S]*?label: 'הערות'/);
+ assert.match(screen,/placeholder: 'הערות \(אופציונלי\)'/);
+ assert.doesNotMatch(screen,/label: 'הערות נוספות'/);
 });

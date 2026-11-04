@@ -1492,8 +1492,8 @@ export function renderNewReportScreen(container, {
 
     notesField = createInputField({
       id: 'av2-notes',
-      label: 'הערות נוספות',
-      placeholder: 'הערות נוספות (אופציונלי)',
+      label: 'הערות',
+      placeholder: 'הערות (אופציונלי)',
       value: prefill?.notes || '',
     });
 

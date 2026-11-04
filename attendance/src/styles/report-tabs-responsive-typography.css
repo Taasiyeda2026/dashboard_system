@@ -400,3 +400,33 @@
   .av2-report{height:auto!important;overflow:visible!important}
   .av2-report .av2-report__form-area{height:auto!important;overflow:visible!important}
 }
+
+/* Unselected values are hints, not user-entered content.
+   Keep selected labels readable; only the empty state is lighter and smaller. */
+.av2-report .av2-report__form-area .av2-ssel__trigger-text[data-empty="true"],
+.av2-report .av2-report__form-area .av2-csel__trigger-text[data-empty="true"]{
+  color:#718096!important;
+  font-size:13.5px!important;
+  font-weight:400!important;
+  line-height:1.45!important;
+}
+.av2-report .av2-report__form-area .av2-field__input::placeholder,
+.av2-report .av2-report__form-area textarea::placeholder,
+.av2-report .av2-report__form-area .av2-ssel__search::placeholder{
+  color:#718096!important;
+  font-size:13.5px!important;
+  font-weight:400!important;
+  opacity:1!important;
+}
+.av2-report .av2-report__form-area .av2-field__select:has(option:checked[value=""]){
+  color:#718096!important;
+  font-size:13.5px!important;
+  font-weight:400!important;
+}
+@media(max-width:767px){
+  /* Keep mobile controls at 16px to avoid browser auto-zoom; shrink hint text only. */
+  .av2-report .av2-report__form-area .av2-ssel__trigger-text[data-empty="true"],
+  .av2-report .av2-report__form-area .av2-csel__trigger-text[data-empty="true"]{
+    font-size:14px!important;
+  }
+}
