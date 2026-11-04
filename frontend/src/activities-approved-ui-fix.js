@@ -245,12 +245,18 @@ function installStyles() {
     #app .ds-activities-screen .ds-activities-table-card .ds-table--activities-2027 thead tr {
       position: static !important;
     }
+    /* The table scroll viewport starts slightly below the fixed app bar.
+       Pull the pinned header into that inset so a strip of scrolled data
+       cannot appear above the headings. Text size and alignment stay intact. */
     #app .ds-activities-screen .ds-activities-table-card .ds-table--activities-2027 thead th {
       position: sticky !important;
-      top: 0 !important;
-      z-index: 60 !important;
+      top: -16px !important;
+      z-index: 80 !important;
       background: #eaf6fa !important;
-      box-shadow: inset 0 -1px 0 #b7d7e4, 0 2px 4px rgba(15,23,42,.12) !important;
+      background-clip: padding-box !important;
+      opacity: 1 !important;
+      border-bottom: 1px solid #a8cbd9 !important;
+      box-shadow: inset 0 -1px 0 #b7d7e4, 0 2px 5px rgba(15,23,42,.11) !important;
     }
   `;
   document.head.appendChild(style);
