@@ -191,7 +191,10 @@ test('activity drawer shows scheduling status card and open-scheduling CTA', () 
   const status = rendered.querySelector('[data-activity-scheduling-status]');
   assert.ok(status);
   assert.match(status.textContent, /מצב שיבוץ/);
-  assert.match(status.textContent, /משובץ · ורד עליאן/);
+  assert.match(status.textContent, /מצב שיבוץ:\s*משובץ/);
+  assert.doesNotMatch(status.textContent, /ורד עליאן|10:00|11:30|09\/09\/2026/);
+  assert.equal(status.querySelector('[data-scheduling-status-schedule]'), null);
+  assert.ok(status.querySelector('.activity-drawer__scheduling-actions [data-open-activity-scheduling]'));
   assert.equal(rendered.querySelector('[data-open-activity-scheduling]')?.textContent.trim(), 'פתח שיבוץ');
   assert.equal(rendered.querySelector('[data-activity-actions] [data-open-activity-scheduling]'), null);
 

@@ -1309,14 +1309,24 @@ function activitySchedulingStatusCardHtml(row, { canSchedule = false, planningRo
   if (startTime && endTime) scheduleParts.push(formatTimeRangeShort(startTime, endTime));
   else if (startTime) scheduleParts.push(startTime);
   const scheduleLabel = scheduleParts.join(' · ');
-  return `<div class="activity-drawer__scheduling-status" data-activity-scheduling-status>
+  // In the 2027 inline drawer the instructor, dates and hours already appear
+  // above in dedicated fields. Keep just the assignment state and its action.
+  const compact2027 = normalizeActivitySeason(row.activity_season) === ACTIVITY_SEASON_SCHOOL_2027;
+  const displayStatus = compact2027 && summary.assignment === 'assigned'
+    ? 'משובץ'
+    : compact2027 && summary.assignment === 'draft'
+      ? 'ממתין לאישור'
+      : summary.statusLabel;
+  return `<div class="activity-drawer__scheduling-status${compact2027 ? ' activity-drawer__scheduling-status--compact-2027' : ''}" data-activity-scheduling-status>
     <div class="activity-drawer__scheduling-status-body">
-      <strong>מצב שיבוץ</strong>
-      <span data-scheduling-status-label>${escapeHtml(summary.statusLabel)}</span>
-      ${scheduleLabel ? `<small data-scheduling-status-schedule><bdi dir="ltr">${escapeHtml(scheduleLabel)}</bdi></small>` : ''}
+      <strong>מצב שיבוץ:</strong>
+      <span data-scheduling-status-label>${escapeHtml(displayStatus)}</span>
+      ${!compact2027 && scheduleLabel ? `<small data-scheduling-status-schedule><bdi dir="ltr">${escapeHtml(scheduleLabel)}</bdi></small>` : ''}
       ${summary.hasProposal ? `<span class="activity-drawer__scheduling-proposal" data-scheduling-status-proposal>${escapeHtml(summary.proposalLabel)}</span>` : ''}
     </div>
-    <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-open-activity-scheduling>פתח שיבוץ</button>
+    <div class="activity-drawer__scheduling-actions">
+      <button type="button" class="ds-btn ds-btn--sm ds-btn--primary" data-open-activity-scheduling>פתח שיבוץ</button>
+    </div>
   </div>`;
 }
 

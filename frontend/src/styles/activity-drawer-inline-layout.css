@@ -732,3 +732,105 @@
     padding: 7px 10px !important;
   }
 }
+
+
+/* 2027 drawer: one compact assignment/action row, no duplicated schedule
+   or instructor details already presented in the core grid. */
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__scheduling-status--compact-2027 {
+  box-sizing: border-box;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px 14px !important;
+  min-height: 0 !important;
+  padding: 10px 12px !important;
+  margin: 0 0 12px !important;
+  border: 1px solid #d9e3ed !important;
+  border-radius: 10px !important;
+  background: #fff !important;
+  box-shadow: none !important;
+}
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__scheduling-status--compact-2027 .activity-drawer__scheduling-status-body {
+  display: flex !important;
+  flex: 1 1 auto !important;
+  align-items: center !important;
+  flex-wrap: wrap !important;
+  min-width: 0 !important;
+  gap: 4px 7px !important;
+  margin: 0 !important;
+  text-align: right !important;
+  line-height: 1.35 !important;
+}
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__scheduling-status--compact-2027 .activity-drawer__scheduling-status-body > strong {
+  font-size: 12px !important;
+  color: #64748b !important;
+  font-weight: 700 !important;
+}
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__scheduling-status--compact-2027 [data-scheduling-status-label] {
+  font-size: 14px !important;
+  font-weight: 750 !important;
+  line-height: 1.35 !important;
+  color: #172033 !important;
+}
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__scheduling-actions {
+  display: flex !important;
+  align-items: center !important;
+  flex: 0 0 auto !important;
+  flex-wrap: wrap !important;
+  gap: 6px !important;
+}
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__scheduling-actions > button {
+  box-sizing: border-box !important;
+  min-width: 0 !important;
+  min-height: 32px !important;
+  padding: 5px 10px !important;
+  margin: 0 !important;
+  border-radius: 7px !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  line-height: 1.35 !important;
+  box-shadow: none !important;
+  white-space: nowrap !important;
+}
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__feedback-shortcut {
+  border: 1px solid #ccd9e6 !important;
+  background: #f8fafc !important;
+  color: #17617a !important;
+}
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__feedback-shortcut:hover,
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__feedback-shortcut:focus-visible {
+  background: #e8f4f8 !important;
+  border-color: #96bdcc !important;
+}
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__scheduling-actions--standalone {
+  margin: 4px 0 12px !important;
+}
+
+/* Contact values should read as normal information, not three underlined
+   links. Keep tel/mailto links functional and give them a subtle focus ring. */
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer-inline__field--support [data-contact-2027-section] .activity-view-field__value,
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer-inline__field--support [data-contact-2027-section] a,
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer-inline__field--support [data-contact-2027-section] a:visited,
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer-inline__field--support [data-contact-2027-section] a:hover {
+  text-decoration: none !important;
+  text-decoration-line: none !important;
+  border-bottom: 0 !important;
+  box-shadow: none !important;
+  color: #172033 !important;
+}
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer-inline__field--support [data-contact-2027-section] a:focus-visible {
+  text-decoration: none !important;
+  outline: 2px solid #7fb5d1 !important;
+  outline-offset: 2px !important;
+  border-radius: 2px !important;
+}
+@media (max-width: 640px) {
+  .activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__scheduling-status--compact-2027 {
+    flex-wrap: wrap !important;
+    padding: 9px 10px !important;
+  }
+  .activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__scheduling-actions {
+    width: 100% !important;
+    justify-content: flex-start !important;
+  }
+}
