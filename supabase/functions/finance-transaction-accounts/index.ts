@@ -224,7 +224,10 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
       : (line.finance_transaction_account_meetings?.length || 1);
     const hours = Math.max(0, Number(line.billed_hours || 0));
     // Billing coverage belongs to the accounting record, never to the customer-facing course name.
-    const name = clean(line.service_description_snapshot || line.activity_name_snapshot);
+    // Legacy snapshots may already include internal coverage text. Strip it
+    // only from the customer-facing rendered name, never from stored data.
+    const name = clean(line.service_description_snapshot || line.activity_name_snapshot)
+      .replace(/\s*[—–-]\s*מלוא\s+יתרת\s+הפעילות\s*$/u, '').trim();
     const school = clean(line.school_name_snapshot);
     const gefen = clean(line.gefen_number_snapshot);
     const unitPrice = Number(line.unit_price_snapshot) > 0
@@ -367,8 +370,10 @@ async function buildPdf(account: any) {
       page = doc.addPage([595, 842]);
       y = drawInvoiceHeader(page, true);
     }
-    drawRight(page, bold, title, y, 11);
-    y -= 18;
+    if (title) {
+      drawRight(page, bold, title, y, 11);
+      y -= 18;
+    }
     drawTableRow(page, bold, columns, widths, y - headerHeight, headerHeight, true);
     y -= headerHeight;
     for (const row of rows) {
@@ -401,7 +406,7 @@ async function buildPdf(account: any) {
   // Both share the exact same letterhead, typography and grid styling.
   const courseWidths = [94, 119, 56, 42, 46, 80, 98]; // A4 printable width: 535
   const serviceWidths = [265, 65, 100, 105];
-  drawSection('קורסים',
+  drawSection('',
     ['שם בית הספר', 'תוכנית / קורס', 'מספר גפ״ן', 'שעות', 'מפגשים', 'מחיר לשעה', 'סה״כ'],
     courseWidths, courses,
     (row) => [row.school || '—', row.name, row.gefen || '—',
