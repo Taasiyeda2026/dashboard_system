@@ -54,10 +54,16 @@ function progressHeading(lines) {
   const courses = lines.some(row => !serviceActivity(row));
   return units ? (courses ? 'מפגשים / כמות' : 'כמות') : 'מפגשים';
 }
-function activityProgress(row) {
-  if (serviceActivity(row)) return `כמות ${invoiceQuantity(row)}`;
-  return `${row.unbilledCount} מתוך ${row.plannedCount} מפגשים | ${Number(Number(row.unbilledHours||0).toFixed(6))} מתוך ${row.plannedHours ?? row.plannedCount*TRANSACTION_MEETING_HOURS} שעות | מחיר פעילות ${formatAmount(row.activityPrice ?? row.fundingAmount)} | לחיוב ${formatAmount(row.issuableAmount)}`;
+function compactNumber(value) {
+  return Number(Number(value || 0).toFixed(6)).toLocaleString('he-IL', { maximumFractionDigits: 6 });
 }
+function activityMeetings(row) {
+  return serviceActivity(row) ? `כמות ${compactNumber(invoiceQuantity(row))}` : `${compactNumber(row.unbilledCount)}/${compactNumber(row.plannedCount)}`;
+}
+function activityHours(row) {
+  return serviceActivity(row) ? '—' : `${compactNumber(row.unbilledHours)}/${compactNumber(row.plannedHours ?? row.plannedCount * TRANSACTION_MEETING_HOURS)}`;
+}
+
 function groupProgress(lines) {
   const courses = lines.filter(row => !serviceActivity(row));
   const services = lines.filter(serviceActivity);
@@ -151,11 +157,25 @@ function groupSelectAllHtml(lines, data, mode) {
 }
 
 function billingLineHtml(line, data, mode) {
-  const select='';
-  return `<tr><td>${select}${escapeHtml(line.activityName || line.activityRowId)}</td>
-    <td>${escapeHtml(line.customerName || '—')}</td><td>${escapeHtml(line.period?.slice(0, 7) || 'סיום פעילות')}</td>
-    <td>${escapeHtml(activityProgress(line))}</td>
-    <td>${escapeHtml(formatAmount(line.fundingAmount))}</td><td>${escapeHtml(formatAmount(line.issuableAmount))}<details><summary>${serviceActivity(line) ? 'פירוט מועדי פעילות' : 'פירוט מפגשים'}</summary>${line.unbilledSlots.map((slot) => `<div>${serviceActivity(line) ? 'מועד פעילות' : `מפגש ${slot.slot}`} · ${escapeHtml(formatDate(slot.date))}${serviceActivity(line) ? '' : ` · ${Number(Number(slot.remainingHours ?? TRANSACTION_MEETING_HOURS).toFixed(6))} שעות`}</div>`).join('')}</details></td></tr>`;
+  const slots = Array.isArray(line.unbilledSlots) ? line.unbilledSlots : [];
+  const school = mode === TRANSACTION_MODE_MANUAL && line.customerName
+    ? `<small class="ds-fin-transaction-school" style="display:block;color:var(--ds-text-muted,#64748b)">${escapeHtml(line.customerName)}</small>` : '';
+  const meetingDetails = slots.length
+    ? `<details class="ds-fin-transaction-meetings"><summary>${serviceActivity(line) ? 'פירוט מועדי פעילות' : 'פירוט מפגשים'}</summary>
+      <div>${slots.map(slot => `<div>${serviceActivity(line) ? 'מועד פעילות' : `מפגש ${escapeHtml(slot.slot)}`} · ${escapeHtml(formatDate(slot.date))}${serviceActivity(line) ? '' : ` · ${compactNumber(slot.remainingHours ?? TRANSACTION_MEETING_HOURS)} שעות`}</div>`).join('')}</div>
+    </details>` : '';
+  return `<tr>
+    <td><strong>${escapeHtml(line.activityName || line.activityRowId)}</strong>${school}${meetingDetails}</td>
+    <td>${escapeHtml(formatAmount(line.activityPrice ?? line.fundingAmount))}</td>
+    <td>${escapeHtml(activityMeetings(line))}</td>
+    <td>${escapeHtml(activityHours(line))}</td>
+    <td><strong>${escapeHtml(formatAmount(line.issuableAmount))}</strong></td>
+  </tr>`;
+}
+function billingTableHtml(lines, data, mode) {
+  return dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr>
+    <th>פעילות ${groupSelectAllHtml(lines,data,mode)}</th><th>מחיר הפעילות</th><th>${escapeHtml(progressHeading(lines))}</th><th>שעות</th><th>סכום לחיוב</th>
+  </tr></thead><tbody>${lines.map(line => billingLineHtml(line,data,mode)).join('')}</tbody></table>`);
 }
 
 function pendingGroupHtml(rows, data, mode) {
@@ -168,7 +188,7 @@ function pendingGroupHtml(rows, data, mode) {
   return [...groups.values()].sort((a,b) => a[0].period.localeCompare(b[0].period)).map((lines) => {
     const row = lines[0];
     return `<details class="ds-fin-payer" data-finance-transaction-group><summary>${escapeHtml(row.period.slice(0,7))} · ${escapeHtml(mode === TRANSACTION_MODE_AUTOMATIC ? `${row.customerName} · ${row.institutionSymbol}` : row.payerName)} · ${lines.length} חיובים · ${escapeHtml(formatAmount(lines.reduce((sum,line) => sum + Number(line.issuableAmount),0)))}</summary>
-      ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>פעילות ${groupSelectAllHtml(lines,data,mode)}</th><th>מוסד</th><th>${mode === TRANSACTION_MODE_AUTOMATIC ? 'חודש ביצוע' : 'חודש סיום'}</th><th>${escapeHtml(progressHeading(lines))}</th><th>חלק המממן</th><th>להפקה</th></tr></thead><tbody>${lines.map((line) => billingLineHtml(line,data,mode)).join('')}</tbody></table>`)}
+      ${billingTableHtml(lines,data,mode)}
       <button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="${mode}" data-finance-transaction-period="${row.period.slice(0,7)}"${mode === TRANSACTION_MODE_MANUAL && !transactionBacklog(data, mode).some((line) => line.period.slice(0,7) === row.period.slice(0,7) && data.transactionManualSelected?.[transactionSelectionKey(line)]) ? ' disabled' : ''}>${mode === TRANSACTION_MODE_AUTOMATIC ? 'הפק חשבונות לחודש זה' : 'הפק חשבונות מסומנים לחודש זה'}</button></details>`;
   }).join('');
 }
@@ -192,8 +212,7 @@ function billingView(data, mode) {
     const groupsHtml = (accounts, older = false) => accounts.map(account => `<details class="ds-fin-payer" data-finance-transaction-group>
       <summary><span class="ds-fin-gefen-arrow" aria-hidden="true">▸</span><span class="ds-fin-payer__title">${escapeHtml(mode===TRANSACTION_MODE_AUTOMATIC ? `${account.schoolName} · ${account.institutionSymbol}` : account.customerName)}${older ? ` · ${escapeHtml(account.period.slice(0,7))}` : ''}</span>
       <span class="ds-fin-payer__meta">${account.lines.length} חיובים · ${escapeHtml(formatAmount(account.totalAmount))}</span></summary>
-      ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>פעילות</th><th>מוסד</th><th>חודש ביצוע</th><th>${escapeHtml(progressHeading(account.lines))}</th><th>חלק המממן</th><th>להפקה</th></tr></thead>
-      <tbody>${account.lines.map(line => billingLineHtml(line,data,mode)).join('')}</tbody></table>`)}</details>`).join('');
+      ${billingTableHtml(account.lines,data,mode)}</details>`).join('');
     return `<div class="ds-fin-gefen" dir="rtl">
       ${monthPicker(data,mode)}
       ${preview.accounts.length ? summaryCards(preview) : ''}
