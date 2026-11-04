@@ -2,14 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 
-test('instructor travel entry opens from dedicated tab or my-reports link, not attendance form',async()=>{
+test('instructor travel entry opens from attendance shortcut or my-reports link',async()=>{
  const app=await readFile(new URL('../attendance/src/app.js',import.meta.url),'utf8');
  const screen=await readFile(new URL('../attendance/src/screens/new-report-screen.js',import.meta.url),'utf8');
  assert.match(app,/onTravelReport: \(date\) => openNewReport\(date,'travel'\)/);
  assert.match(app,/initialTab: requestedTab/);
- assert.doesNotMatch(screen,/travelText\.textContent='מילוי נסיעות'/);
+ assert.match(screen,/travelShortcut\.append\(createIcon\('map-pin'\), document\.createTextNode\('מילוי נסיעות'\)\)/);
  assert.ok(screen.includes('dailyTravel.setDate(dateField.input.value||defaultDate)'));
- assert.match(screen,/showTab\('travel'\)/);
+ assert.match(screen,/travelShortcut\.addEventListener\('click',[\s\S]*?showTab\('travel'\)/);
 });
 
 test('my reports offers a tiny travel shortcut on physical attendance rows',async()=>{
