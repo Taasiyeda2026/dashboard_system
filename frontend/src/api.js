@@ -6959,7 +6959,8 @@ export const api = {
     manager_approval_at = '',
     employee_approval_name = '',
     employee_approval_at = '',
-    approved_snapshot = {}
+    approved_snapshot = {},
+    suppress_email = false
   } = {}) => {
     assertPermission('view_attendance_control', 'attendance_control_forbidden');
     const body = {
@@ -6970,7 +6971,8 @@ export const api = {
       managerApprovalAt: String(manager_approval_at || '').trim() || undefined,
       employeeApprovalName: String(employee_approval_name || '').trim() || undefined,
       employeeApprovalAt: String(employee_approval_at || '').trim() || undefined,
-      approvedSnapshot: approved_snapshot || {}
+      approvedSnapshot: approved_snapshot || {},
+      suppressEmail: suppress_email === true
     };
     const { data, error } = await supabase.functions.invoke('payroll-attendance-pdf-dispatch', { body });
     if (error || data?.error) {

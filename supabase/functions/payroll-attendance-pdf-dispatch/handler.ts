@@ -753,7 +753,7 @@ Deno.serve(async (req) => {
     const isSecretRetry = wantsRetry && await verifyTriggerSecret(req, supabaseUrl, supabaseServiceRole);
     const isRetryCaller = wantsRetry && (isSecretRetry || isServiceCaller);
     if (wantsRetry && !isRetryCaller) throw new Error("not_authorized");
-    if ((wantsForceRegenerate || suppressEmail) && !isRetryCaller) throw new Error("not_authorized");
+    if (wantsForceRegenerate && !isRetryCaller) throw new Error("not_authorized");
 
     if (!employeeId || !monthKey) throw new Error("employee_id_and_month_required");
 
@@ -765,6 +765,9 @@ Deno.serve(async (req) => {
       if (!currentUser?.is_active || !["admin", "operation_manager", "activities_manager", "manager", "instructor_manager"].includes(role)) {
         throw new Error("not_authorized");
       }
+      // A logged-in admin may repair a missing PDF without emailing the employee.
+      // This does not allow force regeneration or changing an existing approval.
+      if (suppressEmail && role !== "admin") throw new Error("not_authorized");
     }
 
     const monthApprovalRows = await restReadService(
@@ -782,6 +785,9 @@ Deno.serve(async (req) => {
     const existingPdfVersion = Number(approvalRow.manager_pdf_version || 0);
     const isLockedApproval = approvalStatus === "locked" && Boolean(clean(approvalRow.manager_approved_at));
     const isSubmittedApproval = approvalStatus === "submitted";
+    if (suppressEmail && !isRetryCaller && (!isLockedApproval || existingPdfUrl)) {
+      throw new Error("not_authorized");
+    }
 
     if (!isSubmittedApproval && !isLockedApproval) {
       throw new Error("employee_month_not_submitted");
@@ -864,7 +870,7 @@ Deno.serve(async (req) => {
       `עובד ${employeeId}`,
     );
     const employeeEmail = clean(contact?.email || user?.auth_email || user?.email).toLowerCase();
-    if (!employeeEmail) throw new Error("employee_email_missing");
+    if (!employeeEmail && !suppressEmail) throw new Error("employee_email_missing");
 
     const monthText = hebrewMonthYearLabel(monthKey);
     const monthFolderName = hebrewMonthName(monthKey);

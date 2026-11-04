@@ -405,7 +405,9 @@ function actionButtons(empId, workflowRow, finalApproval, monthKey, priorDispatc
     : '';
   const pdfButton = managerPdfUrl || finalPdfPath
     ? iconActionButton({ label: 'פתיחת PDF', icon: 'pdf', attr: 'data-admin-attendance-pdf', empId })
-    : (status.raw === 'manager_approved' ? '<span class="admin-attendance-status is-pending">PDF ממתין</span>' : '');
+    : (status.raw === 'manager_approved'
+      ? iconActionButton({ label: 'הפקת PDF חסר', icon: 'pdf', attr: 'data-admin-attendance-repair-pdf', empId })
+      : '');
   const editButton = iconActionButton({ label: 'עריכת דיווחי העובד', icon: 'edit', attr: 'data-admin-attendance-edit', empId });
   const releaseButton = canApprove && ['submitted', 'manager_approved', 'admin_approved', 'sent_to_payroll'].includes(status.raw)
     ? iconActionButton({ label: status.raw === 'sent_to_payroll' ? 'פתח לעדכון' : 'שחרור נעילה', icon: 'unlock', attr: 'data-admin-attendance-release', empId })
@@ -782,6 +784,31 @@ function openAdminAttendanceEmployeeEditor(root, empId, monthKey, recordId = '')
   });
 }
 
+async function repairMissingManagerPdf(root, employeeId, monthKey) {
+  const context = root.__adminAttendanceContext || {};
+  const workflow = context.workflowByEmployee?.get(employeeId) || {};
+  if (text(workflow.manager_pdf_sharepoint_url)) return workflow.manager_pdf_sharepoint_url;
+  const stage = workflowStatus(workflow, context.finalByEmployee?.get(employeeId), monthKey, context.dispatchByEmployee?.get(employeeId));
+  if (stage.raw !== 'manager_approved' || !workflow.manager_approved_at) {
+    throw new Error('לא קיים אישור מנהל נעול שמאפשר שחזור PDF.');
+  }
+  const result = await api.attendanceManagerApprovalArtifacts({
+    employee_id: employeeId,
+    month_key: monthKey,
+    suppress_email: true
+  });
+  if (!result?.attachedToApproval || !text(result?.sharepointWebUrl)) {
+    throw new Error('הפקת PDF הסתיימה ללא קישור מאומת לרשומת האישור.');
+  }
+  workflow.manager_pdf_sharepoint_url = result.sharepointWebUrl;
+  workflow.manager_pdf_sharepoint_item_id = result.sharepointItemId || null;
+  workflow.manager_pdf_file_name = result.fileName || '';
+  workflow.manager_pdf_version = result.managerPdfVersion || 1;
+  context.workflowByEmployee?.set(employeeId, workflow);
+  refreshAdminAttendanceEmployeeRow(root, employeeId);
+  return result.sharepointWebUrl;
+}
+
 async function handleAction(button, root) {
   const monthKey = text(root.querySelector('[data-admin-attendance-month]')?.value) || currentMonthKey();
   const editEmpId = text(button.dataset.adminAttendanceEdit);
@@ -818,6 +845,7 @@ async function handleAction(button, root) {
   const sendPayrollEmpId = text(button.dataset.adminAttendanceSendPayroll);
   const releaseEmpId = text(button.dataset.adminAttendanceRelease);
   const pdfEmpId = text(button.dataset.adminAttendancePdf);
+  const repairPdfEmpId = text(button.dataset.adminAttendanceRepairPdf);
   const recordsEmpId = text(button.dataset.adminAttendanceRecords);
   if (recordsEmpId) {
     try { await toggleApprovedSnapshot(root, button, recordsEmpId); } catch (error) { setMessage(root, error?.message || 'טעינת הרשומות המאושרות נכשלה.', true); }
@@ -825,6 +853,19 @@ async function handleAction(button, root) {
   }
   if (pdfEmpId) {
     try { await openPdf(root, pdfEmpId); } catch (error) { setMessage(root, error?.message || 'פתיחת ה-PDF נכשלה.', true); }
+    return;
+  }
+  if (repairPdfEmpId) {
+    button.disabled = true;
+    try {
+      setMessage(root, 'מפיק PDF חסר מתוך אישור המנהל השמור, ללא שליחת מייל…');
+      await repairMissingManagerPdf(root, repairPdfEmpId, monthKey);
+      setMessage(root, 'דוח המנהל נוצר ונשמר ב-SharePoint. כעת ניתן לבצע אישור סופי.');
+    } catch (error) {
+      setMessage(root, error?.message || 'שחזור דוח המנהל נכשל.', true);
+    } finally {
+      button.disabled = false;
+    }
     return;
   }
   if (!finalEmpId && !sendPayrollEmpId && !releaseEmpId) return;
@@ -835,6 +876,11 @@ async function handleAction(button, root) {
   button.disabled = true;
   try {
     if (finalEmpId) {
+      const workflow = root.__adminAttendanceContext?.workflowByEmployee?.get(finalEmpId) || {};
+      if (!text(workflow.manager_pdf_sharepoint_url)) {
+        setMessage(root, 'משלים PDF חסר לפני אישור סופי, ללא שליחת מייל…');
+        await repairMissingManagerPdf(root, finalEmpId, monthKey);
+      }
       setMessage(root, 'שומר אישור סופי…');
       const saved = await api.adminFinalizeAttendanceMonthPayroll({
         employee_id: finalEmpId,
@@ -1164,7 +1210,7 @@ function handleClick(event) {
     window.setTimeout(() => void handleBatchPayroll(root), 0);
     return;
   }
-  const action = target.closest('[data-admin-attendance-edit], [data-admin-attendance-final], [data-admin-attendance-send-payroll], [data-admin-attendance-release], [data-admin-attendance-records], [data-admin-attendance-pdf]');
+  const action = target.closest('[data-admin-attendance-edit], [data-admin-attendance-final], [data-admin-attendance-send-payroll], [data-admin-attendance-release], [data-admin-attendance-records], [data-admin-attendance-pdf], [data-admin-attendance-repair-pdf]');
   if (action) window.setTimeout(() => void handleAction(action, root), 0);
 }
 
