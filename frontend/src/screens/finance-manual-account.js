@@ -160,8 +160,10 @@ export function prepareManualAccount(data,activityId,fundingKey,basis) {
 }
 // Each selected activity keeps its own edited invoice; multi-select never combines unrelated payers.
 export function selectedManualActivityIds(data) {
-  const ids = Array.isArray(data.manualSelectedActivityIds) ? data.manualSelectedActivityIds : [];
-  return [...new Set([...ids, ...(data.manualActivityId ? [data.manualActivityId] : [])])];
+  // An explicit checkbox selection is authoritative; a focused editor must never
+  // silently re-select an activity after the user deselects everything.
+  if (Array.isArray(data.manualSelectedActivityIds)) return [...new Set(data.manualSelectedActivityIds)];
+  return data.manualActivityId ? [data.manualActivityId] : [];
 }
 // Sum the edited amounts for all selected activities; the server validates the final total.
 export function manualSelectedFundingSummary(data) {
@@ -224,6 +226,13 @@ export function toggleManualActivity(data, activityId, checked) {
   if (!checked && data.manualActivityDrafts) delete data.manualActivityDrafts[activityId];
   if (checked || !ids.includes(data.manualActivityId)) focusManualActivity(data, checked ? activityId : ids[0] || '');
   else { data.manualBatchPreviews = null; data.manualConsolidatedPreview = null; data.manualQuote = null; data.manualPdf = ''; }
+  if (!ids.length) {
+    // Deselecting the last checkbox also clears the editor and preview state.
+    data.manualActivityId = ''; data.manualDraft = null; data.manualFundingKey = '';
+    data.manualActivityDrafts = {};
+    data.manualQuote = null; data.manualPdf = '';
+    data.manualBatchPreviews = null; data.manualConsolidatedPreview = null;
+  }
 }
 // Shared account fields are deliberately edited separately from an individual
 // school's course fields. Distribute shared values to every selected draft so
@@ -576,14 +585,12 @@ export function manualAccountViewHtml(data) {
           <span data-finance-manual-selection-count>${ids.length} פעילויות נבחרו</span></div>
         <div class="ds-fin-manual__activity-list" role="region" aria-label="פעילויות לבחירה" tabindex="0">
           <table class="ds-fin-manual__activity-table">
-            <thead><tr><th scope="col">בית ספר</th><th scope="col">רשות</th><th scope="col">בחירה · פעילות</th><th scope="col">מספר גפ״ן</th><th scope="col">סכום לחיוב</th></tr></thead>
+            <thead><tr><th scope="col" class="ds-fin-manual__activity-select-col">בחירה</th><th scope="col">בית ספר</th><th scope="col">רשות</th><th scope="col">פעילות</th><th scope="col">מספר גפ״ן</th><th scope="col">סכום לחיוב</th></tr></thead>
             <tbody>${activities.map(activity=>`<tr class="ds-fin-manual__activity-row">
+              <td class="ds-fin-manual__activity-select-col"><input type="checkbox" data-finance-manual-select-activity aria-label="בחירת ${e(activity.activity_name)} · ${e(activity.school)}" value="${e(activity.row_id)}"${ids.includes(activity.row_id)?' checked':''}${manualActivityBillable(data,activity.row_id)?'':' disabled'}></td>
               <td class="ds-fin-manual__activity-school">${e(activity.school || '—')}</td>
               <td class="ds-fin-manual__activity-authority">${e(activity.authority || '—')}</td>
-              <td><label class="ds-fin-manual__activity-check">
-                <input type="checkbox" data-finance-manual-select-activity value="${e(activity.row_id)}"${ids.includes(activity.row_id)?' checked':''}${manualActivityBillable(data,activity.row_id)?'':' disabled'}>
-                <span class="ds-fin-manual__activity-title">${e(activity.activity_name)}${manualActivityBillable(data,activity.row_id)?'':'<small>אינה זמינה להפקה כעת</small>'}</span>
-              </label></td>
+              <td class="ds-fin-manual__activity-title">${e(activity.activity_name)}${manualActivityBillable(data,activity.row_id)?'':'<small>אינה זמינה להפקה כעת</small>'}</td>
               <td class="ds-fin-manual__activity-gefen" dir="ltr">${e(activity.activity_no || '—')}</td>
               <td class="ds-fin-manual__activity-price">${formatManualMoney(manualActivityBalance(data,activity.row_id))} ₪</td>
             </tr>`).join('')}</tbody>
