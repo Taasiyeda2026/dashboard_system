@@ -235,6 +235,42 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     appendDetail(daySummary,'ביטול זמן בדיווחי הנוכחות',durationValue(historicCancellation)+' שעות');
     if(!report)appendDetail(daySummary,'מקור הנתונים','רשומות נוכחות היסטוריות – לא קיים פירוט מסלול נסיעה מאומת');
     legsArea.append(daySummary);
+    if(!report){
+      const activities=day.records
+        .filter(row=>row.generation_kind==null && row.start_time && row.end_time
+          && row.activity_type!=='ביטול זמן' && row.activity_type!=='זום'
+          && row.training_mode!=='online' && row.operation_meeting_mode!=='online')
+        .slice().sort((a,b)=>String(a.start_time).localeCompare(String(b.start_time))
+          || String(a.id).localeCompare(String(b.id)));
+      if(activities.length){
+        const route=document.createElement('article');
+        route.className='av2-daily-travel__leg av2-daily-travel__legacy-card';
+        const routeTitle=document.createElement('strong');
+        routeTitle.textContent='מסלול יום העבודה · תצוגת נתוני עבר';
+        route.append(routeTitle);
+        const destination=row=>row.school_name_snapshot||row.destination_address_snapshot
+          ||row.authority_name_snapshot||'מיקום הפעילות';
+        const segment=(from,to,minutes)=>{
+          const item=document.createElement('div');
+          item.className='av2-daily-travel__legacy-detail';
+          const label=document.createElement('span');
+          label.textContent=from+' ← '+to;
+          const value=document.createElement('strong');
+          value.textContent=minutes==null?'זמן נסיעה לא דווח':formatTripDuration(minutes)+' שעות נסיעה מדווחות';
+          item.append(label,value);route.append(item);
+        };
+        segment('בית',destination(activities[0]),
+          activities[0].travel_compensation?.reportedOutboundMinutes);
+        for(let i=1;i<activities.length;i++)
+          segment(destination(activities[i-1]),destination(activities[i]),null);
+        segment(destination(activities.at(-1)),'בית',
+          activities.at(-1).travel_compensation?.reportedReturnMinutes);
+        const note=document.createElement('small');
+        note.textContent='סדר התחנות לפי שעות הפעילות. כתובות ומקטעי מעבר אינם מאומתים; לא בוצע חישוב או שינוי שכר.';
+        route.append(note);
+        legsArea.append(route);
+      }
+    }
     if(report){
       const summaryCard=document.createElement('article');
       summaryCard.className='av2-daily-travel__leg av2-daily-travel__legacy-card';
@@ -278,7 +314,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       const travel=record.travel_compensation;
       if(travel){
         appendDetail(block,'זמן נסיעה מדווח',travel.reportedOutboundMinutes==null && travel.reportedReturnMinutes==null?null:
-          [travel.reportedOutboundMinutes,travel.reportedReturnMinutes].filter(v=>v!=null).join(' / ')+' דקות');
+          [travel.reportedOutboundMinutes,travel.reportedReturnMinutes].filter(v=>v!=null).map(formatTripDuration).join(' / ')+' שעות');
       }
       legsArea.append(block);
     }
