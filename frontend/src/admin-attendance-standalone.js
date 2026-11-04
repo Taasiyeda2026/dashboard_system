@@ -113,7 +113,7 @@ function ensureStyles() {
     .admin-attendance-team__head span { color:var(--color-text-secondary,#64748b); font-size:12px; }
     .admin-attendance-table-wrap { overflow-x:auto; overflow-y:visible; max-width:100%; }
     .admin-attendance-table { width:100%; border-collapse:collapse; table-layout:fixed; min-width:0; }
-    .admin-attendance-table th,.admin-attendance-table td { text-align:right; padding:8px 7px; border-bottom:1px solid var(--color-border,#edf1f5); vertical-align:middle; font-size:13px; }
+    .admin-attendance-table th,.admin-attendance-table td { text-align:right; padding:8px 5px; border-bottom:1px solid var(--color-border,#edf1f5); vertical-align:middle; font-size:13px; }
     .admin-attendance-table th { color:var(--color-text-secondary,#64748b); font-size:12px; font-weight:700; background:rgba(248,250,252,.65); }
     .admin-attendance-table tr:last-child td { border-bottom:0; }
     .admin-attendance-person strong { display:block; font-size:13px; }
@@ -127,7 +127,7 @@ function ensureStyles() {
     .admin-attendance-approval-popover dl { display:grid; grid-template-columns:auto 1fr; gap:4px 8px; margin:0; font-size:12px; }
     .admin-attendance-approval-popover dt { color:var(--color-text-secondary,#64748b); }
     .admin-attendance-approval-popover dd { margin:0; }
-    .admin-attendance-actions { display:flex; align-items:center; gap:4px; flex-wrap:wrap; min-width:0; }
+    .admin-attendance-actions { display:flex; align-items:center; gap:4px; flex-wrap:wrap; justify-content:flex-start; min-width:0; max-width:100%; }
     .admin-attendance-actions button { border:1px solid var(--color-border,#dbe3ec); border-radius:8px; padding:6px 9px; background:var(--color-surface,#fff); color:var(--color-text,#172033); cursor:pointer; font:inherit; font-size:11px; white-space:nowrap; }
     .admin-attendance-actions .admin-attendance-icon-action { width:30px; height:30px; padding:0; display:inline-flex; align-items:center; justify-content:center; flex:0 0 30px; }
     .admin-attendance-icon-action svg { width:18px; height:18px; display:block; fill:none; stroke:currentColor; stroke-width:1.9; stroke-linecap:round; stroke-linejoin:round; pointer-events:none; }
@@ -142,6 +142,12 @@ function ensureStyles() {
     .admin-attendance-preview__summary article { padding:7px 9px; border:1px solid #e2e8f0; border-radius:9px; background:#f8fafc; }
     .admin-attendance-preview__summary span { display:block; color:#64748b; font-size:10px; }
     .admin-attendance-preview__summary strong { display:block; margin-top:2px; font-size:13px; }
+    .admin-attendance-table th:nth-child(n+2):nth-child(-n+4),
+    .admin-attendance-table td:nth-child(n+2):nth-child(-n+4) {
+      text-align:center;
+    }
+    .admin-attendance-table td:nth-child(5) { overflow-wrap:anywhere; }
+    .admin-attendance-table td:last-child { min-width:0; }
     /* Desktop: six columns always fit the available main content width.
        Only the detailed approved-snapshot grid is independently scrollable. */
     .admin-attendance-table td:last-child { overflow-wrap:anywhere; }
@@ -558,7 +564,7 @@ function groupsHtml(employees, workflowByEmployee, finalByEmployee, dispatchByEm
     return `<section class="admin-attendance-team">
       <header class="admin-attendance-team__head"><h2>${escapeHtml(manager)}</h2><span>${rows.length} עובדים · ${escapeHtml(monthKey)}</span></header>
       <div class="admin-attendance-table-wrap"><table class="admin-attendance-table">
-        <colgroup><col style="width:23%"><col style="width:11%"><col style="width:11%"><col style="width:11%"><col style="width:15%"><col style="width:29%"></colgroup>
+        <colgroup><col style="width:21%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:13%"><col style="width:39%"></colgroup>
         <thead><tr><th>עובד</th><th>אישור עובד</th><th>אישור מנהל</th><th>אישור אדמין</th><th>סטטוס</th><th>פעולות</th></tr></thead>
         <tbody>${body}</tbody>
       </table></div>

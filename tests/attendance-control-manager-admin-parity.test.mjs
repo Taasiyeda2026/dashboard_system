@@ -674,9 +674,9 @@ test('admin standalone exposes an inline record editor and guards approved month
 });
 
 test('admin attendance summary table reserves real width for actions without desktop overflow', () => {
-  assert.match(adminStandalone, /<colgroup><col style="width:23%"><col style="width:11%"><col style="width:11%"><col style="width:11%"><col style="width:15%"><col style="width:29%"><\/colgroup>/);
+  assert.match(adminStandalone, /<colgroup><col style="width:21%"><col style="width:9%"><col style="width:9%"><col style="width:9%"><col style="width:13%"><col style="width:39%"><\/colgroup>/);
   assert.match(adminStandalone, /\.admin-attendance-table \{ width:100%; border-collapse:collapse; table-layout:fixed; min-width:0; \}/);
-  assert.match(adminStandalone, /\.admin-attendance-actions \{[^}]*flex-wrap:wrap; min-width:0;/);
+  assert.match(adminStandalone, /\.admin-attendance-actions \{[^}]*flex-wrap:wrap; justify-content:flex-start; min-width:0; max-width:100%;/);
   assert.match(adminStandalone, /\.admin-attendance-actions \.admin-attendance-icon-action \{ width:30px; height:30px;/);
   assert.match(adminStandalone, /@media \(max-width:760px\) \{\s*\.admin-attendance-table \{ min-width:680px; \}/);
 });
