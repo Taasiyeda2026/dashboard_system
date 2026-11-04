@@ -23,6 +23,6 @@ test('attendance form has no travel or cancellation entry; separate travel tab r
  assert.ok(src.includes('timesGrid.append(startPicker.wrap, endPicker.wrap, hoursDisplay, hoursFollowup)'));
  assert.ok(!src.includes('hoursDisplay.after(cancellationRow, cancellationFields)'));
  assert.ok(!src.includes('timesGrid.append(baseTrainingRouteRow)'));
- assert.ok(!src.includes('travelShortcut'));
+ assert.ok(src.includes('hoursFollowup.append(travelShortcut)'));
  assert.ok(src.includes("travelTab.textContent = 'נסיעות וביטולים'"));
 });
