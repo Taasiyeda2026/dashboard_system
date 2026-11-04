@@ -227,7 +227,7 @@ test('production attendance PDF uses the approved six-box design and readable RT
     assert.ok(handler.includes(title), `missing table header: ${title}`);
   }
   assert.match(handler, /taasiyeda-logo\.png/);
-  assert.match(handler, /const rowHeight = needsTwoLines \? 28 : 21/);
+  assert.match(handler, /const rowHeight = needsTwoLines \? 25 : 19/);
   assert.match(handler, /if \(y - rowHeight < 155\) continuePage\(\)/);
   assert.match(handler, /if \(y < 155\)/);
   assert.match(handler, /חתימה דיגיטלית של/);
