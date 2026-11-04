@@ -21,14 +21,15 @@ test('physical km claims distinguish blank from explicit zero, without replacing
   assert.equal(reportedKilometers('', { publicTransport: true }), 0);
 });
 
-test('both create and edit validate km before saving and retain a saved explicit zero', async () => {
-  for (const file of ['new-report-screen.js', 'my-reports-screen.js']) {
-    const source = await read('attendance/src/screens/' + file);
-    assert.match(source, /reportedKilometers\(kmField\.input\.value/);
-    assert.match(source, /roundtrip_km:\s+kmValue/);
-    assert.match(source, /roundtrip_km != null/);
-    assert.match(source, /kmValue == null/);
-  }
+test('existing-record edits validate km; new attendance saves before separate travel report', async () => {
+  const edit=await read('attendance/src/screens/my-reports-screen.js');
+  assert.match(edit,/reportedKilometers\(kmField\.input\.value/);
+  assert.match(edit,/roundtrip_km != null/);
+  assert.match(edit,/kmValue == null/);
+  const create=await read('attendance/src/screens/new-report-screen.js');
+  assert.match(create,/reportedKilometers\(kmField\.input\.value/);
+  assert.match(create,/roundtrip_km:\s+kmValue/);
+  assert.doesNotMatch(create,/יש להזין קילומטרים לדיווח, או 0 אם אין קילומטרים לדיווח/);
 });
 
 test('online training and online operations do not invalidate a mixed physical workday', () => {
