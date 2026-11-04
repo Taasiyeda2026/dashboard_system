@@ -144,7 +144,8 @@ export function renderNewReportScreen(container, {
   backBtn.addEventListener('click', () => onBack?.());
   const title = document.createElement('h1');
   title.className = 'av2-report__title';
-  title.textContent = 'דיווח חדש';
+  title.textContent = 'דיווחי נוכחות, נסיעות והוצאות';
+  title.classList.add('av2-report__title--sr-only');
   header.append(backBtn, title);
 
   const lockBanner = document.createElement('div');
