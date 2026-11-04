@@ -63,7 +63,7 @@ import {
 import { dashboardCourseChoiceKey } from '../services/activities-report.helpers.js';
 
 const TIME_MINUTE_STEP = 5;
-const DAILY_TRAVEL_START_DATE = '2026-11-04';
+const DAILY_TRAVEL_START_DATE = '2026-11-01';
 const COURSE_REPORT_TYPE = 'קורס';
 const WORKSHOP_REPORT_TYPE = 'סדנה';
 const AUTO_TIME_REPORT_TYPES = new Set([COURSE_REPORT_TYPE, WORKSHOP_REPORT_TYPE]);
