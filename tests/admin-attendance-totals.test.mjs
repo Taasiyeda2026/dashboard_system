@@ -104,3 +104,29 @@ test('overview loads the selected month and places totals ahead of approvals and
   assert.equal(root.__adminAttendanceContext.totals.totalHours, 2);
   dom.window.close();
 });
+
+test('admin overview shows only nonzero reported categories and keeps review alerts separate', () => {
+  const totals = buildAdminAttendanceTotals([
+    row('course', { workHours: 2, kilometers: 12 }),
+    row('training', { activityType: 'הכשרה', workHours: 1.5, kilometers: 0 })
+  ], scope);
+  const document = new JSDOM(adminAttendanceTotalsHtml(totals, scope.monthKey)).window.document;
+  const cardLabels = [...document.querySelectorAll('.admin-attendance-standalone__summary article span')].map(node => node.textContent);
+  assert.deepEqual(cardLabels, ['סה״כ ק״מ', 'שעות קורס', 'שעות הכשרה']);
+  assert.equal(document.querySelector('.admin-attendance-totals__warning'), null);
+});
+
+test('empty month displays no empty metric cards; cancellation review stays visible', () => {
+  const totals = buildAdminAttendanceTotals([], scope);
+  totals.suspectCancellationCount = 10;
+  const document = new JSDOM(adminAttendanceTotalsHtml(totals, scope.monthKey)).window.document;
+  assert.equal(document.querySelectorAll('.admin-attendance-standalone__summary article').length, 0);
+  assert.match(document.querySelector('.admin-attendance-totals__empty').textContent, /אין דיווחים/);
+  assert.match(document.querySelector('.admin-attendance-totals__warning').textContent, /10/);
+});
+
+test('additional genuinely reported activity types remain visible', () => {
+  const totals = buildAdminAttendanceTotals([row('zoom', { activityType: 'מקוון', workHours: 1, kilometers: 0 })], scope);
+  const document = new JSDOM(adminAttendanceTotalsHtml(totals, scope.monthKey)).window.document;
+  assert.deepEqual([...document.querySelectorAll('.admin-attendance-standalone__summary article span')].map(n => n.textContent), ['שעות זום']);
+});
