@@ -360,10 +360,14 @@ async function buildPdf(account: any) {
     // Recipient/customer information belongs to the first page ONLY.
     // Do not repeat "לכבוד" above bank details on a continuation page.
     if (continuation) return 625;
-    // Manual accounts are addressed to their billed school, rather than the payer snapshot.
-    const billedSchools = [...new Set((account.finance_transaction_account_lines || [])
+    // Only manually issued COURSE invoices are addressed to the billed school.
+    // Workshops and tours must retain their actual payer/customer addressee.
+    const billedLines = account.finance_transaction_account_lines || [];
+    const isCourseOnly = billedLines.length > 0 && billedLines.every((line: any) =>
+      ['course', 'קורס'].includes(clean(line.activity_type_snapshot || line.activity_type).toLowerCase()));
+    const billedSchools = [...new Set(billedLines
       .map((line: { school_name_snapshot?: string }) => clean(line.school_name_snapshot)).filter(Boolean))];
-    const addressee = account.issue_mode === 'manual' && billedSchools.length
+    const addressee = account.issue_mode === 'manual' && isCourseOnly && billedSchools.length
       ? (billedSchools.length === 1
         ? `בית הספר: ${billedSchools[0]}`
         : `בתי הספר: ${billedSchools.join(', ')}`)
