@@ -28,3 +28,12 @@ test('next meeting uses the Israel-local date and future scheduled dates', () =>
   assert.match(activities, /function nextMeetingDate\(row\) \{\s*const today = todayYmdForActivityDefaults\(\)/);
   assert.match(activities, /dates\.filter\(\(d\) => d >= today\)\.sort\(\)/);
 });
+
+test('all 2027 table orders instructor before dates and scopes alignment styling', async () => {
+  assert.ok(activities.includes("'<th>איש קשר</th>' : ''}<th>מדריך</th><th>תאריך התחלה</th>"));
+  assert.ok(activities.includes('ds-table--activities-2027-all'));
+  const style = await readFile(new URL('../frontend/src/activities-approved-ui-fix.js', import.meta.url), 'utf8');
+  assert.ok(style.includes('.ds-table--activities-2027-all thead th:nth-child(-n+5)'));
+  assert.ok(style.includes('.ds-table--activities-2027-all thead th:nth-child(6)'));
+  assert.ok(style.includes('.ds-table--activities-2027-all thead th:nth-child(7)'));
+});
