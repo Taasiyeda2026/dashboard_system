@@ -4,6 +4,7 @@ import { api } from './api.js';
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { buildAdminAttendanceTotals, adminAttendanceTotalsHtml } from './admin-attendance-totals.js';
+import { attendanceControlHtml, attendanceControlStylesHtml, bindAttendanceControl } from './screens/attendance-control.js';
 import {
   resolveAdminAttendanceDefaultMonth,
   attendanceMonthDateRange
@@ -87,6 +88,18 @@ function ensureStyles() {
     .admin-attendance-standalone__summary article { border:1px solid var(--color-border,#dbe3ec); border-radius:10px; padding:8px 12px; background:var(--color-surface,#fff); }
     .admin-attendance-standalone__summary span { display:block; color:var(--color-text-secondary,#64748b); font-size:11px; margin-bottom:2px; }
     .admin-attendance-standalone__summary strong { font-size:18px; line-height:1.1; }
+    .admin-attendance-editor-host {
+      position:fixed; inset:0; z-index:10020; overflow:auto;
+      padding:24px; box-sizing:border-box; background:rgba(15,23,42,.48);
+    }
+    .admin-attendance-editor-host .attendance-control {
+      display:block; max-width:1200px; margin:12px auto;
+      background:#fff; box-shadow:0 12px 45px rgba(15,23,42,.25);
+    }
+    @media(max-width:640px) {
+      .admin-attendance-editor-host { padding:6px; }
+      .admin-attendance-editor-host .attendance-control { margin:0 auto; }
+    }
     .admin-attendance-totals { margin-bottom:18px; }
     .admin-attendance-totals h2 { margin:0 0 8px; font-size:15px; }
     .admin-attendance-totals__warning { display:inline-block; margin:8px 0 0; padding:5px 9px; border:1px solid #f3cd91; border-radius:7px; background:#fff8e9; color:#8c4318; font-size:12px; font-weight:600; }
@@ -369,10 +382,11 @@ function actionButtons(empId, workflowRow, finalApproval, monthKey, priorDispatc
   const pdfButton = managerPdfUrl || finalPdfPath
     ? iconActionButton({ label: 'פתיחת PDF', icon: 'pdf', attr: 'data-admin-attendance-pdf', empId })
     : (status.raw === 'manager_approved' ? '<span class="admin-attendance-status is-pending">PDF ממתין</span>' : '');
+  const editButton = iconActionButton({ label: 'עריכת דיווחי העובד', icon: 'edit', attr: 'data-admin-attendance-edit', empId });
   const releaseButton = canApprove && ['submitted', 'manager_approved', 'admin_approved', 'sent_to_payroll'].includes(status.raw)
     ? iconActionButton({ label: status.raw === 'sent_to_payroll' ? 'פתח לעדכון' : 'שחרור נעילה', icon: 'unlock', attr: 'data-admin-attendance-release', empId })
     : '';
-  return `<div class="admin-attendance-actions">${finalButton}${sendButton}${recordsButton}${pdfButton}${releaseButton}</div>`;
+  return `<div class="admin-attendance-actions">${editButton}${finalButton}${sendButton}${recordsButton}${pdfButton}${releaseButton}</div>`;
 }
 
 function approvedNumber(value) {
@@ -693,8 +707,60 @@ async function refreshPendingBadge(force = false) {
   return summary;
 }
 
+function openAdminAttendanceEmployeeEditor(root, empId, monthKey) {
+  root.querySelector('[data-admin-attendance-editor-host]')?.remove();
+  const host = root.ownerDocument.createElement('section');
+  host.className = 'admin-attendance-editor-host';
+  host.setAttribute('data-admin-attendance-editor-host', '');
+  host.setAttribute('role', 'dialog');
+  host.setAttribute('aria-modal', 'true');
+  host.setAttribute('aria-label', 'עריכת דיווחי נוכחות');
+  host.innerHTML = `${attendanceControlStylesHtml()}${attendanceControlHtml()}`;
+  root.append(host);
+  const panel = host.querySelector('[data-attendance-control]');
+  if (panel) panel.hidden = false;
+  const close = () => {
+    host.remove();
+    void renderData(root, monthKey);
+  };
+  bindAttendanceControl(host, {
+    api, state, standalone: true,
+    initialTarget: { employeeId: empId, monthKey },
+    onClose: close
+  });
+}
+
 async function handleAction(button, root) {
   const monthKey = text(root.querySelector('[data-admin-attendance-month]')?.value) || currentMonthKey();
+  const editEmpId = text(button.dataset.adminAttendanceEdit);
+  if (editEmpId) {
+    button.disabled = true;
+    try {
+      const context = root.__adminAttendanceContext || {};
+      const workflow = context.workflowByEmployee?.get(editEmpId) || {};
+      const final = context.finalByEmployee?.get(editEmpId) || {};
+      const dispatch = context.dispatchByEmployee?.get(editEmpId) || {};
+      const status = workflowStatus(workflow, final, monthKey, dispatch);
+      if (['manager_approved', 'admin_approved', 'sent_to_payroll'].includes(status.raw)) {
+        const explanation = status.raw === 'sent_to_payroll'
+          ? 'החודש כבר הועבר לשכר. פתיחתו לתיקון תחייב אישור מחדש והעברה מחודשת לשכר.'
+          : 'החודש כבר אושר. פתיחה לתיקון תבטל את האישורים הקודמים ותחייב דיווח ואישור מחדש.';
+        if (!window.confirm(`${explanation}\nלהמשיך לעריכה?`)) return;
+        await api.adminReopenAttendanceMonthForCorrection({
+          employee_id: editEmpId, month_key: monthKey,
+          reason: 'תיקון רשומת נוכחות בידי מנהל מערכת'
+        });
+        await renderData(root, monthKey, 'החודש נפתח לתיקון; לאחר השמירה יידרשו אישורי חודש מחדש.');
+        await refreshPendingBadge(true);
+      }
+      openAdminAttendanceEmployeeEditor(root, editEmpId, monthKey);
+    } catch (error) {
+      setMessage(root, error?.message || 'פתיחת עריכת הנוכחות נכשלה.', true);
+    } finally {
+      button.disabled = false;
+    }
+    return;
+  }
   const finalEmpId = text(button.dataset.adminAttendanceFinal);
   const sendPayrollEmpId = text(button.dataset.adminAttendanceSendPayroll);
   const releaseEmpId = text(button.dataset.adminAttendanceRelease);
