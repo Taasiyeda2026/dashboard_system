@@ -570,7 +570,8 @@ export function manualAccountViewHtml(data) {
   const source=ids.includes(data.manualActivityId)
     ? (data.collectionActivities||[]).find(a=>a.row_id===data.manualActivityId) : null;
   const showHourly=routeKey==='gefen';
-  const selectedRows=manualConsolidatedActivityRows(data);
+  const selectedRows=manualConsolidatedActivityRows({...data,manualSelectedActivityIds:ids});
+  const editingOne=ids.length===1 || (ids.length>1 && data.manualBulkEditingActivityId===data.manualActivityId && ids.includes(data.manualActivityId));
   const reviewed=Boolean(data.manualConsolidatedPreview||data.manualBatchPreviews?.length||data.manualPdf);
   const field=(label,key,type='text')=>`<label class="ds-fin-manual__field">${label}<input class="ds-input" type="${type}"${type==='email'?' multiple dir="ltr"':type==='number'?` min="${key==='quantity'?1:0}" step="${key==='quantity'?1:'0.01'}"`:''} data-finance-manual-field="${key}" value="${e(key==='customer_email'?normalizeManualRecipientEmails(d[key]):['amount','unit_price'].includes(key)?formatManualMoney(d[key],{unitPrice:key==='unit_price'}):d[key]??'')}"></label>`;
   const partial= data.manualScope==='partial';
@@ -587,7 +588,7 @@ export function manualAccountViewHtml(data) {
       </div>
       ${payer && data.manualFunderFilter?`<label class="ds-fin-manual__search-picker">חיפוש פעילות<input class="ds-input" data-finance-manual-search value="${e(data.manualSearch)}" placeholder="שם פעילות, בית ספר או רשות"></label>
       <details class="ds-fin-manual__selection ds-fin-payer" data-finance-manual-selection>
-        <summary data-finance-manual-selection-summary>${e(payer.displayLabel)} · ${activities.length} פעילויות · ${formatManualMoney(activities.reduce((n,a)=>n+manualActivityBalance(data,a.row_id),0))} ₪</summary>
+        <summary data-finance-manual-selection-summary>${e(payer.displayLabel)} · ${activities.length} פעילויות זמינות · ${ids.length} נבחרו</summary>
         <div class="ds-fin-manual__selection-toolbar"><label class="ds-fin-manual__select-all"><input type="checkbox" data-finance-manual-select-all> סמן הכל</label>
           <span data-finance-manual-selection-count>${ids.length} פעילויות נבחרו</span></div>
         <div class="ds-fin-manual__activity-list" role="region" aria-label="פעילויות לבחירה" tabindex="0">
@@ -607,16 +608,16 @@ export function manualAccountViewHtml(data) {
     </section>
     ${ids.length&&source?`<section class="ds-fin-manual__section">
       <h3>בדיקה והפקה</h3>
-      <div class="ds-fin-manual__batch-total" data-finance-manual-batch-total><strong>${e(payer?.label||d.customer_name)} · ${summary.count} פעילויות · ${formatManualMoney(summary.amount)} ₪</strong></div>
+      <div class="ds-fin-manual__batch-total" data-finance-manual-batch-total><strong>${e(payer?.label||d.customer_name)} · ${summary.count} פעילויות שנבחרו · ${formatManualMoney(summary.amount)} ₪</strong></div>
       <form data-finance-manual-form class="ds-fin-manual__form">
         <label class="ds-fin-manual__control">היקף החיוב<select class="ds-input" data-finance-manual-scope>
           <option value="full"${partial?'':' selected'}>מלוא היתרה המותרת להפקה</option>
           <option value="partial"${partial?' selected':''}>חיוב חלקי לפי ביצוע</option>
         </select></label>
-        ${ids.length>1?`<details class="ds-fin-manual__optional-edit"><summary>עריכת פעילות (לפי הצורך)</summary>
-          <label class="ds-fin-manual__control">בחירת פעילות לעריכה<select class="ds-input" data-finance-manual-activity>${selectedRows.map(row=>`<option value="${e(row.id)}"${row.id===data.manualActivityId?' selected':''}>${e(row.activity)} · ${e(row.school)}</option>`).join('')}</select></label>
+        ${ids.length>1?`<details class="ds-fin-manual__optional-edit"><summary>עריכת פעילות מסוימת (לפי הצורך)</summary>
+          <label class="ds-fin-manual__control">בחירת פעילות לעריכה<select class="ds-input" data-finance-manual-activity><option value=""${editingOne?'':' selected'}>בחירת פעילות לעריכה</option>${selectedRows.map(row=>`<option value="${e(row.id)}"${row.id===data.manualBulkEditingActivityId?' selected':''}>${e(row.activity)} · ${e(row.school)}</option>`).join('')}</select></label>
         </details>`:''}
-        <fieldset class="ds-fin-manual__billing"><legend>פרטי חיוב</legend><div class="ds-fin-manual__billing-row${showHourly?' ds-fin-manual__billing-row--with-hourly':''}">
+        ${editingOne?`<fieldset class="ds-fin-manual__billing"><legend>פרטי חיוב</legend><div class="ds-fin-manual__billing-row${showHourly?' ds-fin-manual__billing-row--with-hourly':''}">
           ${manualService(data)?`${field('כמות','quantity','number')}${field('מחיר ליחידה','unit_price')}${field('סכום לחיוב','amount')}`:`
           <label class="ds-fin-manual__field">מפגשים לחיוב | סה״כ מפגשים
             <span class="ds-fin-manual__ratio" dir="ltr"><input class="ds-input" aria-label="מפגשים לחיוב" type="number" min="1" max="${Number(rows.find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===data.manualFundingKey)?.unbilledCount||d.planned_count)}" step="1" data-finance-manual-field="quantity"${d.billing_basis==='full_funding'?' readonly':''} value="${e(d.quantity)}"><span aria-hidden="true" class="ds-fin-manual__ratio-divider">|</span><output aria-label="סה״כ מפגשים">${e(d.planned_count)}</output></span>
@@ -627,8 +628,8 @@ export function manualAccountViewHtml(data) {
           <label class="ds-fin-manual__field">מחיר הפעילות<input class="ds-input" readonly value="${e(formatManualMoney(d.activity_price))}"></label>
           ${showHourly?`<label class="ds-fin-manual__field">מחיר שעתי מחושב<input class="ds-input" data-finance-manual-hourly-rate readonly value="${e(manualHourlyRate(d)===null?'—':formatManualMoney(manualHourlyRate(d)))}"></label>`:''}
           <label class="ds-fin-manual__field">סכום לחיוב<input class="ds-input" readonly value="${e(formatManualMoney(d.amount))}"></label>`}
-        </div></fieldset>
-        <details class="ds-fin-manual__selected-schools ds-fin-payer"><summary>הפעילויות בחשבון (${ids.length})</summary>
+        </div></fieldset>`:''}
+        <details class="ds-fin-manual__selected-schools ds-fin-payer"${ids.length>1?' open':''}><summary>פירוט הפעילויות שנבחרו (${ids.length})</summary>
           <table class="ds-table"><thead><tr><th>פעילות</th><th>בית ספר</th><th>רשות</th><th>סכום לחיוב</th></tr></thead><tbody>
           ${selectedRows.map(row=>`<tr><td>${e(row.activity)}</td><td>${e(row.school)}</td><td>${e((data.collectionActivities||[]).find(a=>a.row_id===row.id)?.authority||'—')}</td><td>${partial&&['workshop','tour'].includes((data.collectionActivities||[]).find(a=>a.row_id===row.id)?.activity_type)&&data.manualActivityDrafts?.[row.id]?.draft.billing_basis==='performance'
             ?`<input class="ds-input" type="text" inputmode="decimal" data-finance-manual-line-amount="${e(row.id)}" value="${e(formatManualMoney(row.amount))}">`
@@ -643,7 +644,7 @@ export function manualAccountViewHtml(data) {
         ${reviewed?'':'<div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" type="button" data-finance-manual-preview>הצגת החשבון לבדיקה (PDF)</button></div>'}
       </form>
     </section>`:''}
-    ${data.manualActivityId ? `${data.manualConsolidatedPreview
+    ${ids.length && source ? `${data.manualConsolidatedPreview
       ? manualPdfReviewHtml({
           key:'consolidated',
           title:'טיוטת חשבון עסקה מרוכז',
