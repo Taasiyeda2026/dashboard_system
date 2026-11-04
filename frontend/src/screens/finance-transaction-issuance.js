@@ -90,6 +90,39 @@ export function transactionIssuanceActivities(data, { mode = TRANSACTION_MODE_AU
     .map((row) => ({ row_id: row.activityRowId, transaction_summary: row }));
 }
 
+// An automatic Gefen batch must expose every mixed-funded activity and its
+// actual program number before it can reserve invoice numbers. The review is
+// drawn from the same billing snapshot as the invoice, not a course-name map.
+export function automaticMixedFundingProgramReview(data, month) {
+  const scoped = { ...data, transactionMonths: { ...data.transactionMonths, automatic: month } };
+  const preview = transactionPreviewForVisit(scoped, TRANSACTION_MODE_AUTOMATIC);
+  const allRows = data.transactionContext?.billingRows || [];
+  const activities = data.collectionActivities || [];
+  const seen = new Set();
+  const result = [];
+  for (const account of preview.accounts) for (const line of account.lines) {
+    const activityId = String(line.activityRowId || '');
+    if (!activityId || seen.has(activityId)) continue;
+    const hasOtherFunding = allRows.some(row => row.activityRowId === activityId
+      && row.fundingSourceId && row.fundingSourceId !== line.fundingSourceId
+      && row.gefenFunding === false);
+    if (!hasOtherFunding) continue;
+    seen.add(activityId);
+    const activity = activities.find(row => String(row.row_id) === activityId);
+    const code = String(line.gefenNumber || '').trim();
+    const sourceCode = String(activity?.gefen_number || activity?.activity_no || '').trim();
+    result.push({
+      activityId,
+      school: String(activity?.school || line.customerName || account.schoolName || ''),
+      course: String(line.activityName || ''),
+      code,
+      sourceCode,
+      valid: /^\\d+$/.test(code) && (!sourceCode || sourceCode === code)
+    });
+  }
+  return result;
+}
+
 export function transactionPreviewForVisit(data, mode = TRANSACTION_MODE_AUTOMATIC) {
   const selected = transactionIssuanceActivities(data, { mode }).map((row) => row.transaction_summary);
   const candidates=[...selected,...transactionBacklog(data,mode)];
@@ -165,7 +198,7 @@ function billingLineHtml(line, data, mode) {
       <div>${slots.map(slot => `<div>${serviceActivity(line) ? 'מועד פעילות' : `מפגש ${escapeHtml(slot.slot)}`} · ${escapeHtml(formatDate(slot.date))}${serviceActivity(line) ? '' : ` · ${compactNumber(slot.remainingHours ?? TRANSACTION_MEETING_HOURS)} שעות`}</div>`).join('')}</div>
     </details>` : '';
   return `<tr>
-    <td><strong>${escapeHtml(line.activityName || line.activityRowId)}</strong>${school}${meetingDetails}</td>
+    <td><strong>${escapeHtml(line.activityName || line.activityRowId)}</strong>${line.gefenFunding ? `<small class="ds-fin-transaction-program" style="display:block;color:var(--ds-text-muted,#64748b)">מספר גפ״ן: ${escapeHtml(line.gefenNumber || 'לא הוגדר')}</small>` : ''}${school}${meetingDetails}</td>
     <td>${escapeHtml(formatAmount(line.activityPrice ?? line.fundingAmount))}</td>
     <td>${escapeHtml(activityMeetings(line))}</td>
     <td>${escapeHtml(activityHours(line))}</td>
