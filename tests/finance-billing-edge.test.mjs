@@ -438,6 +438,49 @@ test('monthly Gefen PDF keeps meetings, hours, hourly price and Gefen program nu
 });
 
 
+test('combined-funding Gefen PDF prints the funder hourly share, not the full course rate',async()=>{
+  const quote={...fixture(),total_amount:1800,finance_transaction_account_lines:[{
+    activity_row_id:'MIX-1',activity_name_snapshot:'קורס משולב',school_name_snapshot:'ביאליק',
+    gefen_number_snapshot:'53819',billing_rule:'monthly',funding_snapshot:'גפ״ן',
+    activity_price_snapshot:12000,funding_amount_snapshot:6000,planned_meeting_count_snapshot:10,
+    quantity_snapshot:3,billed_hours:4.5,hourly_rate_snapshot:400,amount:1800,
+    finance_transaction_account_meetings:[{meeting_date:'2026-10-01'},{meeting_date:'2026-10-08'},{meeting_date:'2026-10-15'}]
+  }]};
+  const r=await harness({preview:true,quote,activityTypes:{'MIX-1':'course'},
+    activityPrices:{'MIX-1':12000},activitySessions:{'MIX-1':'10'},
+    authorityIds:{'MIX-1':4},authorityNames:{4:'יבנה'}});
+  assert.equal(r.response.status,200,JSON.stringify(r.body));
+  const pdf=await getDocument({data:new Uint8Array(Buffer.from(r.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
+  const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');
+  assert.match(text,/1,800\.00/);
+  assert.match(text,/400\.00/);
+  // Full course hour rate (800.00) must not appear as its own amount cell.
+  assert.doesNotMatch(text,/(?<![,\d])800\.00/);
+  assert.match(text,/4\.5/);
+});
+
+test('Gefen-funded workshop PDF stays compact without hour price columns',async()=>{
+  const quote={...fixture(),total_amount:2400,finance_transaction_account_lines:[{
+    activity_row_id:'WS-1',activity_type_snapshot:'workshop',activity_name_snapshot:'סדנת חלל',
+    school_name_snapshot:'ביאליק',gefen_number_snapshot:'11111',billing_rule:'monthly',
+    funding_snapshot:'גפ״ן',quantity_snapshot:3,billed_hours:0,unit_price_snapshot:800,
+    hourly_rate_snapshot:null,amount:2400,finance_transaction_account_meetings:[]
+  }]};
+  const r=await harness({preview:true,quote,activityTypes:{'WS-1':'workshop'},
+    authorityIds:{'WS-1':4},authorityNames:{4:'יבנה'}});
+  assert.equal(r.response.status,200,JSON.stringify(r.body));
+  const pdf=await getDocument({data:new Uint8Array(Buffer.from(r.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
+  const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');
+  const compact=text.replace(/\s+/g,'');
+  assert.ok(compact.includes('ביאליק'));
+  assert.ok(compact.includes('סדנתחלל') || text.includes('סדנת חלל'));
+  assert.match(text,/2,400\.00/);
+  assert.match(compact,/כמותסדנאות:3|סה"ככמותסדנאות:3/);
+  for (const value of ['מחיר לשעה','11111']) {
+    assert.ok(!text.includes(value),'Gefen workshop must not expose course hour columns: '+value);
+  }
+});
+
 test('Gefen invoice PDF mirrors the proposal alias for original 3604 only',async()=>{
   const makeQuote=(code,name='פורצות דרך',funding='גפ״ן',type='course')=>({
     ...fixture(),customer_name_snapshot:'מקיף דתי אמית קנדי',total_amount:1285.71,

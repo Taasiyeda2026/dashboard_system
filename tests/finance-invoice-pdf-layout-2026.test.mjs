@@ -13,6 +13,7 @@ test('workshop and tour invoice prints quantity column and a summed quantity fro
   assert.match(pdf, /serviceQuantity = serviceRows\.reduce\(\(total, row\) => total \+ row\.quantity, 0\)/);
   assert.match(pdf, /\['שם בית הספר', 'סדנה \/ סיור', 'רשות', 'כמות', 'סה״כ'\]/);
   assert.match(pdf, /סה"כ כמות \$\{serviceLabel\}/);
+  assert.match(pdf, /hasWorkshops && hasTours \? 'סדנאות וסיורים'/);
 });
 test('payment summary has clear spacing after detail table and quantity', () => {
   assert.match(pdf, /if \(y < 208\) \{ page = doc\.addPage/);

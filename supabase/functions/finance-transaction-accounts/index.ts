@@ -265,7 +265,9 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
     const authority = clean(line.authority_name_snapshot);
     const unitPrice = Number(line.unit_price_snapshot) > 0
       ? Number(line.unit_price_snapshot) : amount / quantity;
-    const plannedMeetings = Number(line.planned_meeting_count_snapshot);
+    // Gefen course hourly must use THIS funder's share / planned meetings / 1.5,
+    // never the full course price beside a partial amount on mixed funding.
+    const plannedMeetings = Number(line.planned_sessions_from_source ?? line.planned_meeting_count_snapshot);
     const funderAmount = Number(line.funding_amount_snapshot);
     const gefenHourly = (() => {
       if (funderAmount > 0 && Number.isInteger(plannedMeetings) && plannedMeetings > 0) {
@@ -472,8 +474,8 @@ async function buildPdf(account: any) {
   };
   const count = (number: number) => Number.isInteger(number)
     ? String(number) : String(Number(number.toFixed(2)));
-  // Gefen alone requires expanded meeting/hour columns. Non-Gefen sources,
-  // including courses, workshops and tours, receive one concise four-column table.
+  // Expanded meeting/hour columns are for Gefen COURSES only. Workshops and
+  // tours — even when funded by Gefen — use the compact layout without hour price.
   const allRows = [...courses, ...services];
   const gefenCourses = allRows.filter(row => row.gefenFunding && row.category === 'course');
   const otherCourses = allRows.filter(row => !row.gefenFunding && row.category === 'course');

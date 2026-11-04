@@ -15,10 +15,12 @@ function manualService(data) {
 }
 export function manualHourlyRate(draft={}) {
   const hours=Number(draft.planned_hours ?? draft.hours);
+  if (!(hours > 0)) return null;
   // Prefer this funder's share so mixed Gefen invoices show the funder hourly rate.
   const funder=Number(draft.funding_amount);
-  const price=funder>0 ? funder : Number(draft.activity_price ?? draft.amount);
-  return hours>0 ? price/hours : null;
+  if (funder > 0) return funder / hours;
+  const price=Number(draft.activity_price ?? draft.amount);
+  return price > 0 ? price / hours : null;
 }
 function performanceSelection(row,quantity) {
   const slots=(row.unbilledSlots||[]).slice().sort((a,b)=>a.slot-b.slot).slice(0,quantity);

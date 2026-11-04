@@ -82,3 +82,10 @@ test('invoice payment footer uses distinct vertical spacing between total, due d
   assert.match(pdf, /y -= 15;\s*drawRight\(page, bold, 'פרטי חשבון בנק להעברה:', y, 10\)/);
   assert.match(pdf, /if \(y < 208\)/, 'payment footer must fit above the page footer');
 });
+
+test('only Gefen courses use hour columns; workshops and tours use service quantity rows', () => {
+  assert.match(pdf, /gefenFunding && row\.category === 'course'/);
+  assert.match(pdf, /serviceWidths, serviceRows/);
+  assert.match(pdf, /\['שם בית הספר', 'סדנה \/ סיור', 'רשות', 'כמות', 'סה״כ'\]/);
+  assert.doesNotMatch(pdf, /compactWidths, otherFunding/);
+});

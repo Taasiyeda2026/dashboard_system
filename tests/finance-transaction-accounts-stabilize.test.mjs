@@ -108,7 +108,8 @@ test('workshop PDF rows expose quantity without hourly columns', () => {
 });
 
 test('deployable frontend cache markers were bumped for this stabilize release', () => {
-  assert.match(sw, /const CACHE_VERSION = 2089;/);
+  assert.match(sw, /const CACHE_VERSION = 2090;/);
   assert.match(config, /finance-transaction-accounts-stabilize-20261104-v1/);
   assert.match(config, /finance-rokhim-olam-gefen-46091-20261104-v1/);
+  assert.match(config, /finance-invoice-hourly-pdf-align-20261105-v1/);
 });
