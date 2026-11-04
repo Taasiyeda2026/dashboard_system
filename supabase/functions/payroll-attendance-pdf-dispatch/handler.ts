@@ -725,6 +725,9 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "method_not_allowed" }, 405);
 
+  let diagnosticStage = "initialization";
+  let diagnosticEmployeeId = "";
+  let diagnosticMonthKey = "";
   try {
     const supabaseUrl = clean(Deno.env.get("SUPABASE_URL"));
     const supabaseAnonKey = clean(Deno.env.get("SUPABASE_ANON_KEY"));
@@ -738,6 +741,8 @@ Deno.serve(async (req) => {
     const employeeId = clean(body?.employeeId || body?.employee_id);
     const employeeNameInput = clean(body?.employeeName || body?.employee_name);
     const monthKey = clean(body?.monthKey || body?.month_key);
+    diagnosticEmployeeId = employeeId;
+    diagnosticMonthKey = monthKey;
     let managerApprovalName = clean(body?.managerApprovalName || body?.manager_approval_name);
     let managerApprovalAt = clean(body?.managerApprovalAt || body?.manager_approval_at);
     let employeeApprovalName = clean(body?.employeeApprovalName || body?.employee_approval_name);
@@ -770,6 +775,7 @@ Deno.serve(async (req) => {
       if (suppressEmail && role !== "admin") throw new Error("not_authorized");
     }
 
+    diagnosticStage = "read-month-approval";
     const monthApprovalRows = await restReadService(
       supabaseUrl,
       supabaseServiceRole,
@@ -848,6 +854,7 @@ Deno.serve(async (req) => {
       });
     }
 
+    diagnosticStage = "read-employee-details";
     const contactRows = await restReadService(
       supabaseUrl,
       supabaseServiceRole,
@@ -875,6 +882,7 @@ Deno.serve(async (req) => {
     const monthText = hebrewMonthYearLabel(monthKey);
     const monthFolderName = hebrewMonthName(monthKey);
     const nextVersion = Number.isFinite(existingPdfVersion) && existingPdfVersion > 0 ? existingPdfVersion + 1 : 1;
+    diagnosticStage = "render-pdf";
     const pdfBytes = await buildPdfBytes({
       employeeName,
       employeeId,
@@ -886,12 +894,15 @@ Deno.serve(async (req) => {
       approvedSnapshot,
     });
 
+    diagnosticStage = "resolve-employee-folder";
     const mapping = await loadEmployeeFolderMapping(supabaseUrl, supabaseServiceRole, employeeId, monthKey);
     const folderWebUrl = clean(mapping?.folder_web_url);
     if (!folderWebUrl) throw new Error("employee_personal_folder_not_mapped");
 
+    diagnosticStage = "microsoft-graph-auth";
     const graphAccessToken = await graphToken();
     const fallbackDriveId = clean(Deno.env.get("MS_SHAREPOINT_DRIVE_ID")) || DEFAULT_DRIVE_ID;
+    diagnosticStage = "resolve-sharepoint-folder";
     const employeeRoot = await resolveEmployeeFolderRoot(graphAccessToken, folderWebUrl, fallbackDriveId);
     const payrollFolder = await ensureChildFolder(graphAccessToken, employeeRoot.driveId, employeeRoot.itemId, PAYROLL_SUBFOLDER);
     const monthFolder = await ensureChildFolder(graphAccessToken, employeeRoot.driveId, payrollFolder.id, monthFolderName);
@@ -900,6 +911,7 @@ Deno.serve(async (req) => {
     // Upload a new unique PDF for this approval snapshot. Duplicate prevention for
     // retries is enforced by returning existing manager_pdf_* metadata above and
     // by attach_manager_attendance_month_pdf idempotency in the database.
+    diagnosticStage = "upload-sharepoint-pdf";
     const uploaded = await uploadUniquePdf(
       graphAccessToken,
       employeeRoot.driveId,
@@ -916,6 +928,7 @@ Deno.serve(async (req) => {
       const attachRpc = wantsForceRegenerate
         ? "replace_manager_attendance_month_pdf"
         : "attach_manager_attendance_month_pdf";
+      diagnosticStage = "attach-pdf-to-approval";
       const attached = await restRpcService(supabaseUrl, supabaseServiceRole, attachRpc, {
         p_employee_id: employeeId,
         p_month_key: monthKey,
@@ -1027,6 +1040,11 @@ Deno.serve(async (req) => {
     });
   } catch (error) {
     const message = clean((error as Error)?.message) || "payroll_attendance_pdf_dispatch_failed";
+    console.error("[payroll-attendance-pdf-dispatch] failed", {
+      employeeId: diagnosticEmployeeId, monthKey: diagnosticMonthKey,
+      stage: diagnosticStage, error: message,
+      stack: (error as Error)?.stack?.slice(0, 1200) || "",
+    });
     const status = message === "not_authorized" ? 403 : 500;
     return json({ error: message }, status);
   }
