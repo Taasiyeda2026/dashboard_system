@@ -89,6 +89,9 @@ function ensureStyles() {
     .admin-attendance-standalone__summary strong { font-size:18px; line-height:1.1; }
     .admin-attendance-totals { margin-bottom:18px; }
     .admin-attendance-totals h2 { margin:0 0 8px; font-size:15px; }
+    .admin-attendance-totals__warning { display:inline-block; margin:8px 0 0; padding:5px 9px; border:1px solid #f3cd91; border-radius:7px; background:#fff8e9; color:#8c4318; font-size:12px; font-weight:600; }
+    .admin-attendance-totals__warning strong { font-weight:800; }
+    .admin-attendance-totals__empty { margin:0; color:var(--color-text-secondary,#64748b); font-size:13px; }
     .admin-attendance-standalone__batch { min-width:180px; border:1px solid var(--color-primary,#2563eb); border-radius:10px; padding:8px 14px; background:var(--color-primary,#2563eb); color:#fff; cursor:pointer; font:inherit; font-weight:700; }
     .admin-attendance-standalone__batch:disabled { opacity:.45; cursor:not-allowed; }
     .admin-attendance-team { border:1px solid var(--color-border,#dbe3ec); border-radius:16px; background:var(--color-surface,#fff); margin-bottom:14px; overflow:hidden; }
