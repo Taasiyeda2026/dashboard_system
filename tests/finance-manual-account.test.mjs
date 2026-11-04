@@ -385,9 +385,9 @@ test('consolidated invoice shows every school, not only the school of the active
   assert.doesNotMatch(html,/חשבון מרוכז — ללא בית ספר יחיד/);
   assert.match(html,/בדיקה והפקה/);
   assert.doesNotMatch(html,/בית ספר בפעילות הנערכת|סכום פעילות זו/);
-  assert.equal(document.querySelector('[data-finance-manual-activity]').value,'act0');
+  assert.equal(document.querySelector('[data-finance-manual-activity]').value,'');
   assert.equal(document.querySelector('[data-finance-manual-field="customer_name"]').value,'');
-  assert.equal(document.querySelector('.ds-fin-manual__selected-schools').open,false);
+  assert.equal(document.querySelector('.ds-fin-manual__selected-schools').open,true);
 });
 
 test('bulk payer fields update every selected activity and preserve per-school financial allocation',()=>{
@@ -503,7 +503,7 @@ test('manual activity editing is optional and initially collapsed while source i
   assert.ok(disclosure);
   assert.equal(disclosure.open,false);
   assert.ok(disclosure.querySelector('[data-finance-manual-activity]'));
-  assert.ok(doc.querySelector('.ds-fin-manual__billing-row'));
+  assert.equal(doc.querySelector('.ds-fin-manual__billing-row'),null,'bulk mode must not show one arbitrary activity');
   assert.match(doc.querySelector('[data-finance-manual-selection-summary]').textContent,/רשות/);
 });
 
@@ -626,4 +626,42 @@ test('no manual activity selected means no invoice summary editor or PDF even wi
  assert.equal(doc.querySelector('[data-finance-manual-batch-total]'),null);
  assert.equal(doc.querySelector('[data-finance-manual-preview]'),null);
  assert.equal(doc.querySelector('[data-finance-manual-selection-count]').textContent,'0 פעילויות נבחרו');
+});
+
+test('bulk payer with 31 selected activities shows the full selection, not one activity billing fields',()=>{
+ const d={manualFundingCategory:'source:ויצו',manualFunderFilter:'route:source:ויצו',
+   collectionActivities:[],transactionContext:{billingRows:[]}};
+ for(let i=0;i<31;i++){
+   const id='course-'+i;
+   d.collectionActivities.push({row_id:id,school:'בית ספר '+i,authority:'רשות '+i,activity_name:'קורס '+i});
+   d.transactionContext.billingRows.push({activityRowId:id,fundingSourceId:'w',funding:'ויצו',payerName:'ויצו',
+     fullFundingAmount:10000,plannedCount:10,plannedHours:15,fullFundingBlockedReason:'',eligible:true});
+   toggleManualActivity(d,id,true);
+ }
+ let doc=new JSDOM(manualAccountViewHtml(d)).window.document;
+ assert.match(doc.querySelector('[data-finance-manual-selection-summary]').textContent,/31 פעילויות זמינות · 31 נבחרו/);
+ assert.equal(doc.querySelector('.ds-fin-manual__selected-schools').open,true);
+ assert.equal(doc.querySelectorAll('.ds-fin-manual__selected-schools tbody tr').length,31);
+ assert.equal(doc.querySelector('.ds-fin-manual__billing-row'),null);
+ assert.equal(doc.querySelector('[data-finance-manual-activity]').value,'');
+ d.manualBulkEditingActivityId=d.manualActivityId;
+ doc=new JSDOM(manualAccountViewHtml(d)).window.document;
+ assert.ok(doc.querySelector('.ds-fin-manual__billing-row'));
+ assert.equal(doc.querySelectorAll('.ds-fin-manual__selected-schools tbody tr').length,31);
+ d.manualSelectedActivityIds=[];
+ doc=new JSDOM(manualAccountViewHtml(d)).window.document;
+ assert.match(doc.querySelector('[data-finance-manual-selection-summary]').textContent,/31 פעילויות זמינות · 0 נבחרו/);
+ assert.equal(doc.querySelector('[data-finance-manual-form]'),null);
+ assert.equal(doc.querySelector('[data-finance-manual-batch-total]'),null);
+});
+
+test('bulk invoices list all selected activities without a default activity editing choice',()=>{
+ const d=data();
+ d.collectionActivities.push({...d.collectionActivities[0],row_id:'b',activity_name:'קורס ב'});
+ d.transactionContext.billingRows.push({...d.transactionContext.billingRows[0],activityRowId:'b'});
+ toggleManualActivity(d,'a',true);toggleManualActivity(d,'b',true);
+ const doc=new JSDOM(manualAccountViewHtml(d)).window.document;
+ assert.equal(doc.querySelector('[data-finance-manual-activity]').value,'');
+ assert.equal(doc.querySelector('.ds-fin-manual__billing-row'),null);
+ assert.equal(doc.querySelectorAll('.ds-fin-manual__selected-schools tbody tr').length,2);
 });
