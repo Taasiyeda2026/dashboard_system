@@ -65,7 +65,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   const historicalEdit=document.createElement('button');
   historicalEdit.type='button';
   historicalEdit.className='av2-btn av2-btn--secondary av2-daily-travel__historical-edit';
-  historicalEdit.textContent='עריכת דיווחי היום';
+  historicalEdit.textContent='עריכה בדיווחים שלי';
   historicalEdit.hidden=true;
   historicalEdit.addEventListener('click',()=>{
     if(historicalMonthApproval?.status==='reopened' && dateField.input.value)
