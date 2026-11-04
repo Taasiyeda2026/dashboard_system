@@ -426,16 +426,16 @@ async function buildPdf(account: any) {
   const gefenCourses = allRows.filter(row => row.gefenFunding);
   const otherFunding = allRows.filter(row => !row.gefenFunding);
   const courseWidths = [94, 119, 56, 42, 46, 80, 98]; // 535 points
-  const compactWidths = [142, 106, 185, 102]; // 535 points
+  const compactWidths = [142, 185, 106, 102]; // 535 points
   drawSection('',
     ['שם בית הספר', 'תוכנית / קורס', 'מספר גפ״ן', 'שעות', 'מפגשים', 'מחיר לשעה', 'סה״כ'],
     courseWidths, gefenCourses,
     (row) => [row.school || '—', row.name, row.gefen || '—',
       count(row.hours), count(row.quantity), money(row.hourlyPrice), money(row.amount)]);
   drawSection('',
-    ['שם בית הספר', 'רשות', 'תוכנית / קורס', 'סה״כ'],
+    ['שם בית הספר', 'תוכנית / קורס', 'רשות', 'סה״כ'],
     compactWidths, otherFunding,
-    (row) => [row.school || '—', row.authority || '—', row.name, money(row.amount)], false);
+    (row) => [row.school || '—', row.name, row.authority || '—', money(row.amount)], false);
   // Dates come exclusively from the billed meeting snapshots, including deferred months.
 
   // Keep payment details together. On a payment-only continuation page use
