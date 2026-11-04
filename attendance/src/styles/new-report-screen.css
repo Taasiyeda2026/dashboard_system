@@ -477,3 +477,42 @@
  .av2-expenses-tab__form .av2-field__input{min-height:44px;font-size:16px}
  .av2-expenses-tab__actions .av2-btn{min-height:44px}
 }
+
+/* Historical months reuse the existing report cards, without editable fields. */
+.av2-report__attendance-month,
+.av2-expenses-tab > .av2-daily-travel__month-wrap{
+  width:min(100%,360px);margin:0 auto 12px;
+}
+.av2-report__attendance-month select,
+.av2-expenses-tab > .av2-daily-travel__month-wrap select{
+  width:100%;min-height:40px;max-width:100%;box-sizing:border-box;
+}
+.av2-report__history[hidden],
+.av2-report__attendance-month[hidden],
+.av2-expenses-tab__form[hidden]{display:none!important}
+.av2-report__history{width:min(100%,720px);margin-inline:auto;display:grid;gap:12px;min-width:0}
+.av2-report__history-status,.av2-expenses-tab__month-status{
+  margin:0;font-size:.83rem;font-weight:600;color:#546684;text-align:center;
+}
+.av2-report__history-status:empty,.av2-expenses-tab__month-status:empty{display:none}
+.av2-report__history-list{display:grid;gap:10px;min-width:0}
+.av2-report__history-card,
+.av2-daily-travel__legacy-card{
+  border:1px solid #dce6f2;background:#fff;border-radius:12px;
+  padding:12px 14px;min-width:0;overflow-wrap:anywhere;
+}
+.av2-report__history-card{display:grid;gap:6px}
+.av2-report__history-card strong{font-size:.9rem;color:#243b59}
+.av2-report__history-card p{font-size:.84rem;color:#485b75;margin:0}
+.av2-report__history-card small{font-size:.8rem;color:#546684}
+.av2-daily-travel__legacy-card{display:grid;gap:9px}
+.av2-daily-travel__legacy-detail{display:flex;justify-content:space-between;
+  align-items:baseline;flex-wrap:wrap;gap:6px;font-size:.83rem}
+.av2-daily-travel__legacy-detail span{color:#546684}
+.av2-daily-travel__legacy-detail strong{font-weight:600;color:#243b59}
+@media(max-width:639px){
+  .av2-report__attendance-month,.av2-expenses-tab > .av2-daily-travel__month-wrap{
+    width:100%;max-width:360px
+  }
+  .av2-report__history-card,.av2-daily-travel__legacy-card{padding:11px}
+}
