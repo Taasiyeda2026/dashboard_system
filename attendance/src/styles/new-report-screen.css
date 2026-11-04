@@ -606,3 +606,12 @@
     min-height:44px;flex:1 1 120px;max-width:160px;
   }
 }
+
+/* Compact inline editing for historical travel records */
+.av2-daily-travel__inline-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;min-width:0}
+.av2-daily-travel__inline-fields label{display:flex;flex-direction:column;gap:3px;min-width:0;font-size:.78rem;color:#546684}
+.av2-daily-travel__inline-fields .av2-field__input{width:100%;min-width:0;min-height:34px;padding:6px 9px;font-size:.85rem;border-radius:8px}
+.av2-daily-travel__action-sm{width:auto!important;min-width:0!important;min-height:30px!important;padding:4px 10px!important;font-size:.78rem!important;line-height:1.2!important}
+.av2-daily-travel__report-card .av2-report__actions:has([data-historical-action]){display:flex;justify-content:center;align-items:center;gap:7px;flex-wrap:wrap}
+.av2-daily-travel__report-card .av2-report__actions:has([data-historical-action]) small{width:100%;text-align:center;color:#63718b;font-size:.73rem}
+@media(max-width:480px){.av2-daily-travel__inline-fields{grid-template-columns:1fr}}
