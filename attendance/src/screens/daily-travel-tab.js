@@ -193,7 +193,8 @@ export function createDailyTravelTab({empId, initialDate}) {
     for(const key of candidates){
       const [year,month]=key.split('-').map(Number);
       const approval=await getMonthApproval(empId,key,{force:true});
-      if(canEditMonth(year,month,approval,now))allowed.push(key);
+      // Daily-travel RPC starts on 2026-11-04. Older reopened months use legacy attendance reporting.
+      if(key>='2026-11' && canEditMonth(year,month,approval,now))allowed.push(key);
     }
     allowed.sort((a,b)=>b.localeCompare(a));
     monthSelect.replaceChildren();
@@ -215,7 +216,7 @@ export function createDailyTravelTab({empId, initialDate}) {
     const fromDate=selectedMonth+'-01';
     const toDate=selectedMonth+'-'+String(new Date(year,month,0).getDate()).padStart(2,'0');
     const fetched=await getAssignedTravelDays({fromDate,toDate});
-    dayOptions=fetched.filter(item=>item.date?.slice(0,7)===selectedMonth);
+    dayOptions=fetched.filter(item=>item.date>='2026-11-04' && item.date?.slice(0,7)===selectedMonth);
     daySelect.replaceChildren();
     if(!dayOptions.length){
       dateField.input.value='';
