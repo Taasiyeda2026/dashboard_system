@@ -161,7 +161,7 @@ function billingLineHtml(line, data, mode) {
   const school = mode === TRANSACTION_MODE_MANUAL && line.customerName
     ? `<small class="ds-fin-transaction-school" style="display:block;color:var(--ds-text-muted,#64748b)">${escapeHtml(line.customerName)}</small>` : '';
   const meetingDetails = slots.length
-    ? `<details class="ds-fin-transaction-meetings"><summary>${serviceActivity(line) ? 'מועדי פעילות' : 'פירוט מפגשים'}</summary>
+    ? `<details class="ds-fin-transaction-meetings"><summary>${serviceActivity(line) ? 'פירוט מועדי פעילות' : 'פירוט מפגשים'}</summary>
       <div>${slots.map(slot => `<div>${serviceActivity(line) ? 'מועד פעילות' : `מפגש ${escapeHtml(slot.slot)}`} · ${escapeHtml(formatDate(slot.date))}${serviceActivity(line) ? '' : ` · ${compactNumber(slot.remainingHours ?? TRANSACTION_MEETING_HOURS)} שעות`}</div>`).join('')}</div>
     </details>` : '';
   return `<tr>
@@ -174,7 +174,7 @@ function billingLineHtml(line, data, mode) {
 }
 function billingTableHtml(lines, data, mode) {
   return dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr>
-    <th>פעילות ${groupSelectAllHtml(lines,data,mode)}</th><th>מחיר הפעילות</th><th>מפגשים</th><th>שעות</th><th>סכום לחיוב</th>
+    <th>פעילות ${groupSelectAllHtml(lines,data,mode)}</th><th>מחיר הפעילות</th><th>${escapeHtml(progressHeading(lines))}</th><th>שעות</th><th>סכום לחיוב</th>
   </tr></thead><tbody>${lines.map(line => billingLineHtml(line,data,mode)).join('')}</tbody></table>`);
 }
 
