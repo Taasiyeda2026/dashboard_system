@@ -709,9 +709,9 @@
 }
 .av2-report .av2-daily-travel__report-card .av2-daily-travel__day-picker .av2-csel__panel{
   z-index:40!important;
-  max-height:248px!important;
-  overflow-y:auto!important;
-  overflow-x:hidden!important;
+  /* Inner options own scrolling; never create two adjacent scrollbars. */
+  max-height:none!important;
+  overflow:hidden!important;
   background:#fff!important;
   box-shadow:0 8px 22px rgba(35,61,96,.12);
 }
@@ -740,7 +740,29 @@
     min-height:44px!important;
     font-size:16px!important;
   }
-  .av2-report .av2-daily-travel__report-card .av2-daily-travel__day-picker .av2-csel__panel{
+  .av2-report .av2-daily-travel__report-card .av2-daily-travel__day-picker .av2-csel__options{
     max-height:min(248px,42vh)!important;
+  }
+}
+
+/* Single internal scrollbar; the popup frame never scrolls separately. */
+.av2-report .av2-daily-travel__report-card .av2-daily-travel__day-picker .av2-csel__options{
+  max-height:248px!important;
+  overflow-y:auto!important;
+  overflow-x:hidden!important;
+  scrollbar-width:thin;
+  overscroll-behavior:contain;
+}
+/* Desktop: shared three-tab reporting area feels like ~85% browser zoom.
+   Do not shrink mobile/tablet inputs or touch targets. */
+@media (min-width:981px){
+  .av2-report .av2-report__form-area{
+    zoom:.85;
+    margin-inline:auto!important;
+  }
+}
+@media (max-width:980px){
+  .av2-report .av2-report__form-area{
+    zoom:1;
   }
 }
