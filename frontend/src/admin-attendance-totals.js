@@ -30,7 +30,10 @@ export function buildAdminAttendanceTotals(records = [], { monthKey, employeeIds
     const outbound = first(row, ['reportedOutboundMinutes', 'reported_outbound_minutes']);
     const inbound = first(row, ['reportedReturnMinutes', 'reported_return_minutes']);
     rows.push({
-      id, activity_type: type,
+      id, employeeId: emp, date,
+      activity_name: text(first(row, ['activityName', 'activity_name_snapshot', 'programName', 'program_name'])),
+      notes: text(first(row, ['notes', 'Notes'])),
+      activity_type: type,
       total_hours: number(first(row, ['workHours', 'WorkHours', 'total_hours'])),
       generation_kind: first(row, ['generationKind', 'generation_kind']),
       source_attendance_record_id: first(row, ['sourceAttendanceRecordId', 'source_attendance_record_id']),
@@ -60,8 +63,13 @@ export function buildAdminAttendanceTotals(records = [], { monthKey, employeeIds
     hoursByType.set(row.activity_type, (hoursByType.get(row.activity_type) || 0) + row.total_hours);
   }
   hoursByType.set('ביטול זמן', reportedCancellationHours(rows));
-  const suspectCancellationCount = rows.filter(isSuspectCancellationRequest).length;
-  return { totalKilometers, totalHours: [...hoursByType.values()].reduce((sum, hours) => sum + hours, 0) + unclassifiedOnlineHours, hoursByType, suspectCancellationCount, unclassifiedOnlineHours, unclassifiedOnlineCount };
+  const suspectCancellationRecords = rows.filter(isSuspectCancellationRequest);
+  const unclassifiedOnlineRecords = rows.filter(row =>
+    !row.activity_type && row.generation_kind !== 'travel_time_cancellation');
+  const suspectCancellationCount = suspectCancellationRecords.length;
+  return { totalKilometers, totalHours: [...hoursByType.values()].reduce((sum, hours) => sum + hours, 0) + unclassifiedOnlineHours,
+    hoursByType, suspectCancellationCount, suspectCancellationRecords, unclassifiedOnlineHours, unclassifiedOnlineCount, unclassifiedOnlineRecords };
+
 }
 
 function duration(hours) {
@@ -86,15 +94,16 @@ export function adminAttendanceTotalsHtml(totals, monthKey) {
   // Cancellation anomalies are controls, not reporting categories: keep
   // their warning visible without crowding the numeric metrics row.
   const warning = number(totals.suspectCancellationCount) > 0
-    ? `<p class="admin-attendance-totals__warning" role="status">ביטול זמן חריג – לבדיקה: <strong>${escapeHtml(String(totals.suspectCancellationCount))}</strong></p>`
+    ? `<button type="button" class="admin-attendance-totals__warning admin-attendance-totals__review-trigger" data-admin-attendance-review-kind="cancellation" aria-expanded="false">ביטול זמן חריג – לבדיקה: <strong>${escapeHtml(String(totals.suspectCancellationCount))}</strong> · הצג דיווחים</button>`
     : '';
   const onlineReview = number(totals.unclassifiedOnlineCount) > 0
-    ? `<p class="admin-attendance-totals__warning" role="status">${escapeHtml(String(totals.unclassifiedOnlineCount))} דיווחי זום ללא סוג פעילות – נדרש סיווג (${escapeHtml(duration(totals.unclassifiedOnlineHours))} שעות)</p>`
+    ? `<button type="button" class="admin-attendance-totals__warning admin-attendance-totals__review-trigger" data-admin-attendance-review-kind="online" aria-expanded="false">${escapeHtml(String(totals.unclassifiedOnlineCount))} דיווחי זום ללא סוג פעילות – נדרש סיווג (${escapeHtml(duration(totals.unclassifiedOnlineHours))} שעות) · הצג דיווחים</button>`
     : '';
   return `<section class="admin-attendance-totals" data-admin-attendance-totals aria-label="סיכום דיווחי החודש">
     <h2>סיכום דיווחי ${escapeHtml(monthKey)}</h2>
     ${cards.length ? `<div class="admin-attendance-standalone__summary">${cards.join('')}</div>` : '<p class="admin-attendance-totals__empty">אין דיווחים לחודש זה</p>'}
     ${warning}
     ${onlineReview}
+    <div class="admin-attendance-totals__review-list" data-admin-attendance-review-list hidden></div>
   </section>`;
 }

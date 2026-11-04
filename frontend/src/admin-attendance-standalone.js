@@ -104,6 +104,15 @@ function ensureStyles() {
     .admin-attendance-totals h2 { margin:0 0 8px; font-size:15px; }
     .admin-attendance-totals__warning { display:inline-block; margin:8px 0 0; padding:5px 9px; border:1px solid #f3cd91; border-radius:7px; background:#fff8e9; color:#8c4318; font-size:12px; font-weight:600; }
     .admin-attendance-totals__warning strong { font-weight:800; }
+    .admin-attendance-totals__review-trigger { appearance:none; font:inherit; cursor:pointer; text-align:right; }
+    .admin-attendance-totals__review-trigger:hover { border-color:#ca8b42; }
+    .admin-attendance-totals__review-list { margin-top:10px; overflow-x:auto; border:1px solid #dbe3ec; border-radius:10px; background:#fff; }
+    .admin-attendance-totals__review-list[hidden] { display:none; }
+    .admin-attendance-totals__review-table { border-collapse:collapse; width:100%; min-width:550px; font-size:12px; }
+    .admin-attendance-totals__review-table th,.admin-attendance-totals__review-table td { padding:8px; border-bottom:1px solid #edf1f5; text-align:right; }
+    .admin-attendance-totals__review-table th { background:#f1f5f9; }
+    .admin-attendance-totals__review-table button { padding:5px 10px; border:1px solid #93c5fd; border-radius:7px; color:#075985; background:#f0f9ff; cursor:pointer; font:inherit; white-space:nowrap; }
+
     .admin-attendance-totals__empty { margin:0; color:var(--color-text-secondary,#64748b); font-size:13px; }
     .admin-attendance-standalone__batch { min-width:180px; border:1px solid var(--color-primary,#2563eb); border-radius:10px; padding:8px 14px; background:var(--color-primary,#2563eb); color:#fff; cursor:pointer; font:inherit; font-weight:700; }
     .admin-attendance-standalone__batch:disabled { opacity:.45; cursor:not-allowed; }
@@ -723,7 +732,33 @@ async function refreshPendingBadge(force = false) {
   return summary;
 }
 
-function openAdminAttendanceEmployeeEditor(root, empId, monthKey) {
+function renderAdminAttendanceReviewList(root, kind) {
+  const context = root.__adminAttendanceContext || {};
+  const list = root.querySelector('[data-admin-attendance-review-list]');
+  if (!list) return;
+  const rows = kind === 'cancellation'
+    ? context.totals?.suspectCancellationRecords || []
+    : context.totals?.unclassifiedOnlineRecords || [];
+  const employeeNames = new Map((context.employees || []).map(employee =>
+    [employeeId(employee), text(employee.full_name || employee.name || '')]));
+  const heading = kind === 'cancellation' ? 'ביטולי זמן חריגים' : 'דיווחים מקוונים ללא סיווג';
+  const line = record => {
+    const empId = text(record.employeeId);
+    const name = employeeNames.get(empId) || empId;
+    const detail = kind === 'cancellation'
+      ? `לפני: ${escapeHtml(String(record.cancellation_before_minutes ?? '—'))} דקות · אחרי: ${escapeHtml(String(record.cancellation_after_minutes ?? '—'))} דקות`
+      : `${escapeHtml(record.activity_name || record.notes || '—')} · ${Math.round(record.total_hours * 60)} דקות`;
+    return `<tr><td>${escapeHtml(name)} · ${escapeHtml(empId)}</td><td dir="ltr">${escapeHtml(record.date)}</td><td>${detail}</td><td><button type="button" data-admin-attendance-review-edit="${escapeHtml(empId)}" data-admin-attendance-review-record="${escapeHtml(record.id)}" aria-label="פתח דיווח של ${escapeHtml(name)} בתאריך ${escapeHtml(record.date)}">פתח דיווח</button></td></tr>`;
+  };
+  list.innerHTML = `<table class="admin-attendance-totals__review-table"><thead><tr><th colspan="4">${heading} (${rows.length})</th></tr><tr><th>עובד</th><th>תאריך</th><th>פרטי הדיווח</th><th>פעולה</th></tr></thead><tbody>${rows.map(line).join('')}</tbody></table>`;
+  list.hidden = false;
+  list.dataset.reviewKind = kind;
+  root.querySelectorAll('[data-admin-attendance-review-kind]').forEach(button => {
+    button.setAttribute('aria-expanded', String(button.dataset.adminAttendanceReviewKind === kind));
+  });
+}
+
+function openAdminAttendanceEmployeeEditor(root, empId, monthKey, recordId = '') {
   root.querySelector('[data-admin-attendance-editor-host]')?.remove();
   const host = root.ownerDocument.createElement('section');
   host.className = 'admin-attendance-editor-host';
@@ -741,7 +776,7 @@ function openAdminAttendanceEmployeeEditor(root, empId, monthKey) {
   };
   bindAttendanceControl(host, {
     api, state, standalone: true,
-    initialTarget: { employeeId: empId, monthKey },
+    initialTarget: { employeeId: empId, monthKey, recordId },
     onClose: close
   });
 }
@@ -769,7 +804,8 @@ async function handleAction(button, root) {
         await renderData(root, monthKey, 'החודש נפתח לתיקון; לאחר השמירה יידרשו אישורי חודש מחדש.');
         await refreshPendingBadge(true);
       }
-      openAdminAttendanceEmployeeEditor(root, editEmpId, monthKey);
+      openAdminAttendanceEmployeeEditor(root, editEmpId, monthKey, text(root.__adminAttendanceReviewRecordId || ''));
+      root.__adminAttendanceReviewRecordId = '';
     } catch (error) {
       setMessage(root, error?.message || 'פתיחת עריכת הנוכחות נכשלה.', true);
     } finally {
@@ -1088,6 +1124,31 @@ function handleClick(event) {
       return;
     }
     closeStandalone(root);
+    return;
+  }
+  const reviewTrigger = target.closest('[data-admin-attendance-review-kind]');
+  if (reviewTrigger) {
+    event.preventDefault();
+    const list = root.querySelector('[data-admin-attendance-review-list]');
+    const kind = reviewTrigger.dataset.adminAttendanceReviewKind;
+    if (list && !list.hidden && list.dataset.reviewKind === kind) {
+      list.hidden = true;
+      reviewTrigger.setAttribute('aria-expanded', 'false');
+    } else renderAdminAttendanceReviewList(root, kind);
+    return;
+  }
+  const reviewEdit = target.closest('[data-admin-attendance-review-edit]');
+  if (reviewEdit) {
+    event.preventDefault();
+    const id = text(reviewEdit.dataset.adminAttendanceReviewEdit);
+    if (!id) return;
+    // Reuse the existing approval-aware edit action, do not bypass payroll controls.
+    const rowEditButton = [...root.querySelectorAll('[data-admin-attendance-edit]')]
+      .find(button => button.dataset.adminAttendanceEdit === id);
+    if (rowEditButton) {
+      root.__adminAttendanceReviewRecordId = text(reviewEdit.dataset.adminAttendanceReviewRecord);
+      void handleAction(rowEditButton, root);
+    } else setMessage(root, 'לא נמצאה פעולת עריכה עבור העובד בחודש שנבחר.', true);
     return;
   }
   if (target.closest('[data-admin-attendance-refresh]')) {
