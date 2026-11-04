@@ -125,8 +125,25 @@ test('empty month displays no empty metric cards; cancellation review stays visi
   assert.match(document.querySelector('.admin-attendance-totals__warning').textContent, /10/);
 });
 
-test('additional genuinely reported activity types remain visible', () => {
-  const totals = buildAdminAttendanceTotals([row('zoom', { activityType: 'מקוון', workHours: 1, kilometers: 0 })], scope);
+test('Zoom is an online mode, not an activity category', () => {
+  const totals = buildAdminAttendanceTotals([
+    row('zoom', { activityType: 'זום', workHours: 2/3, kilometers: 0 }),
+    row('course-online', { activityType: 'קורס', workHours: 2, trainingMode: 'online', kilometers: 0 })
+  ], scope);
+  assert.equal(totals.hoursByType.has('זום'), false);
+  assert.equal(totals.unclassifiedOnlineCount, 1);
+  assert.ok(Math.abs(totals.unclassifiedOnlineHours - 2/3) < 0.00001);
+  assert.equal(totals.hoursByType.get('קורס'), 2);
   const document = new JSDOM(adminAttendanceTotalsHtml(totals, scope.monthKey)).window.document;
-  assert.deepEqual([...document.querySelectorAll('.admin-attendance-standalone__summary article span')].map(n => n.textContent), ['שעות זום']);
+  const labels = [...document.querySelectorAll('.admin-attendance-standalone__summary article span')].map(n => n.textContent);
+  assert.deepEqual(labels, ['שעות קורס']);
+  assert.match(document.querySelector('.admin-attendance-totals__warning').textContent, /דיווחי זום ללא סוג פעילות/);
+});
+
+test('online meeting with explicitly recorded underlying activity type counts as that category', () => {
+  const totals = buildAdminAttendanceTotals([row('meeting', {
+    activityType: 'מקוון', workActivityType: 'הכשרה', workHours: 1
+  })], scope);
+  assert.equal(totals.hoursByType.get('הכשרה'), 1);
+  assert.equal(totals.unclassifiedOnlineCount, 0);
 });
