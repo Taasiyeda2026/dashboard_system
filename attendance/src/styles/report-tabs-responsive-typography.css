@@ -766,3 +766,57 @@
     zoom:1;
   }
 }
+
+/* Month dropdowns: one compact control and a same-width popup, never the
+   browser's unbounded native <select> menu. */
+.av2-report .av2-report__attendance-month>.av2-daily-travel__month-select[hidden],
+.av2-report .av2-daily-travel__report-card .av2-daily-travel__month-select[hidden]{
+  display:none!important;
+}
+.av2-report .av2-report__attendance-month .av2-report__bounded-month-picker,
+.av2-report .av2-daily-travel__report-card .av2-report__bounded-month-picker{
+  position:relative!important;
+  width:165px!important;max-width:165px!important;
+  min-width:0!important;flex:0 0 165px!important;
+}
+.av2-report .av2-report__attendance-month .av2-report__bounded-month-picker .av2-csel__trigger,
+.av2-report .av2-daily-travel__report-card .av2-report__bounded-month-picker .av2-csel__trigger{
+  width:100%!important;max-width:100%!important;
+  min-height:36px!important;
+  padding:6px 9px!important;
+  font-size:13.5px!important;font-weight:500!important;
+  white-space:nowrap!important;
+}
+.av2-report .av2-report__bounded-month-picker .av2-csel__panel{
+  width:100%!important;max-width:100%!important;min-width:0!important;
+  overflow:hidden!important;
+  z-index:65!important;
+  box-shadow:0 8px 18px rgba(29,57,96,.12)!important;
+}
+.av2-report .av2-report__bounded-month-picker .av2-csel__options{
+  max-height:180px!important;overflow-y:auto!important;
+  overflow-x:hidden!important;scrollbar-width:thin;
+}
+.av2-report .av2-report__bounded-month-picker .av2-csel__option{
+  padding:8px 9px!important;min-height:32px!important;
+  font-size:13.5px!important;text-align:right!important;
+  white-space:normal!important;
+}
+.av2-report .av2-daily-travel__report-card>.av2-daily-travel__month-wrap{
+  display:flex!important;flex-direction:row!important;
+  align-items:center!important;justify-content:center!important;
+  gap:9px!important;width:max-content!important;
+  max-width:100%!important;margin-inline:auto!important;
+}
+.av2-report .av2-daily-travel__report-card>.av2-daily-travel__month-wrap>label{
+  margin:0!important;font-size:12.5px!important;
+  white-space:nowrap!important;
+}
+@media(max-width:767px){
+  .av2-report .av2-report__bounded-month-picker .av2-csel__trigger{
+    min-height:44px!important;font-size:16px!important;
+  }
+  .av2-report .av2-report__bounded-month-picker .av2-csel__options{
+    max-height:min(180px,38vh)!important;
+  }
+}
