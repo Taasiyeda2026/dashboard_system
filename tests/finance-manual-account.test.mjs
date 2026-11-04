@@ -549,14 +549,15 @@ test('manual invoice activities render school authority and Gefen code in separa
   const doc=new JSDOM(manualAccountViewHtml(d)).window.document;
   const table=doc.querySelector('.ds-fin-manual__activity-table');
   assert.ok(table);
-  assert.deepEqual([...table.querySelectorAll('thead th')].map(x=>x.textContent),['בית ספר','רשות','בחירה · פעילות','מספר גפ״ן','סכום לחיוב']);
+  assert.deepEqual([...table.querySelectorAll('thead th')].map(x=>x.textContent),['בחירה','בית ספר','רשות','פעילות','מספר גפ״ן','סכום לחיוב']);
   const cells=[...table.querySelectorAll('tbody tr td')];
-  assert.equal(cells.length,5);
-  assert.equal(cells[0].textContent,'אזורי אבן שמואל');
-  assert.equal(cells[1].textContent,'שפיר');
-  assert.match(cells[2].textContent,/ביומימיקרי/);
-  assert.equal(cells[3].textContent,'6089');
-  assert.match(cells[4].textContent,/10,000/);
+  assert.equal(cells.length,6);
+  assert.ok(cells[0].querySelector('[data-finance-manual-select-activity]'));
+  assert.equal(cells[1].textContent,'אזורי אבן שמואל');
+  assert.equal(cells[2].textContent,'שפיר');
+  assert.match(cells[3].textContent,/ביומימיקרי/);
+  assert.equal(cells[4].textContent,'6089');
+  assert.match(cells[5].textContent,/10,000/);
   assert.equal(table.querySelectorAll('[data-finance-manual-select-activity]').length,1);
 });
 
@@ -571,4 +572,26 @@ test('transaction account editing keeps bounded field groups without changing ex
   assert.ok(doc.querySelector('.ds-fin-manual__contact-summary'));
   assert.ok(doc.querySelector('.ds-fin-manual__extra .ds-fin-manual__grid'));
   assert.equal(JSON.stringify(d.manualDraft),original);
+});
+
+test('deselecting final invoice activity clears the entire editor, previews and selection',()=>{
+ const d={
+   manualFundingCategory:'source:עלבד',manualFunderFilter:'route:source:עלבד',
+   collectionActivities:[{row_id:'x',activity_name:'ביומימיקרי',school:'אזורי אבן שמואל',authority:'שפיר',activity_no:'6089'}],
+   transactionContext:{billingRows:[{activityRowId:'x',fundingSourceId:'f',funding:'עלבד',payerName:'עלבד',payerKey:'funding:f',plannedCount:10,fullFundingAmount:10000,eligible:true,issuableAmount:10000}]}
+ };
+ toggleManualActivity(d,'x',true);
+ assert.deepEqual(selectedManualActivityIds(d),['x']);
+ assert.ok(new JSDOM(manualAccountViewHtml(d)).window.document.querySelector('[data-finance-manual-form]'));
+ d.manualPdf='fake-preview';d.manualQuote={revision:'fake'};
+ toggleManualActivity(d,'x',false);
+ assert.deepEqual(selectedManualActivityIds(d),[]);
+ assert.equal(d.manualActivityId,'');
+ assert.equal(d.manualDraft,null);
+ assert.equal(d.manualPdf,'');
+ const doc=new JSDOM(manualAccountViewHtml(d)).window.document;
+ assert.equal(doc.querySelector('[data-finance-manual-form]'),null);
+ assert.equal(doc.querySelector('[data-finance-manual-preview]'),null);
+ assert.equal(doc.querySelector('[data-finance-manual-selection-count]').textContent,'0 פעילויות נבחרו');
+ assert.equal(doc.querySelector('[data-finance-manual-select-activity]').checked,false);
 });
