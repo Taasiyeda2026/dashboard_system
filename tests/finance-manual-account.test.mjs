@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
-import { manualAccountViewHtml,prepareManualAccount,updateManualDraft,runManualAccount,manualFundingFilterOptions,manualFundingRouteOptions,manualSelectedFundingRoute,manualFilteredActivities,toggleManualActivity,focusManualActivity,saveActiveManualDraft,previewSelectedManualAccounts,runSelectedManualAccounts,formatManualMoney,parseManualMoney,normalizeManualRecipientEmails,manualSelectedFundingSummary,manualSelectionSnapshot,updateManualConsolidatedField,manualPdfPreviewFilename,syncManualPdfPreviewDom,clearManualPdfPreviewUrls,activateManualPdfPreview,manualConsolidatedActivityRows,manualHourlyRate,setManualBillingScope } from '../frontend/src/screens/finance-manual-account.js';
+import { manualAccountViewHtml,prepareManualAccount,updateManualDraft,runManualAccount,manualFundingFilterOptions,manualFundingRouteOptions,manualSelectedFundingRoute,manualFilteredActivities,selectedManualActivityIds,toggleManualActivity,focusManualActivity,saveActiveManualDraft,previewSelectedManualAccounts,runSelectedManualAccounts,formatManualMoney,parseManualMoney,normalizeManualRecipientEmails,manualSelectedFundingSummary,manualSelectionSnapshot,updateManualConsolidatedField,manualPdfPreviewFilename,syncManualPdfPreviewDom,clearManualPdfPreviewUrls,activateManualPdfPreview,manualConsolidatedActivityRows,manualHourlyRate,setManualBillingScope } from '../frontend/src/screens/finance-manual-account.js';
 const data=()=>({manualFunderFilter:'authority:עיריית רחובות',collectionActivities:[{row_id:'a',school:'בית ספר',authority:'עיריית רחובות',activity_name:'קורס',activity_no:'123'}],transactionContext:{billingRows:[{activityRowId:'a',fundingSourceId:'r',funding:'רשות',payerName:'עיריית רחובות',period:'2026-09-01',institutionSymbol:'123',unbilledCount:2,issuableAmount:7000,eligible:true}]}});
 test('Anglican Google AI course keeps 8000 as authoritative price and calculates hourly rate at full precision',()=>{
   const d={manualFunderFilter:'school:652',collectionActivities:[{row_id:'ai',school_id:652,school:'המשיח האנגליקאני',activity_name:'יישומי AI בשיתוף GOOGLE',activity_type:'course',price:8000,sessions:'10'}],
@@ -42,7 +42,7 @@ test('manual wizard selects existing activity/funder and edits document fields w
   assert.equal(d.manualDraft.amount,7000);assert.equal(d.manualDraft.quantity,2);assert.equal(d.manualFundingKey,'r|2026-09-01');
   updateManualDraft(d,'description','תיאור למסמך');assert.equal(updateManualDraft(d,'amount',6000),false);
   assert.equal(d.manualDraft.unit_price,3500);assert.equal(JSON.stringify(d.collectionActivities),source);
-  const html=manualAccountViewHtml(d);assert.match(html,/הגורם המשלם/);assert.match(html,/תיאור למסמך/);assert.doesNotMatch(html,/data-finance-manual-confirm/);
+  const html=manualAccountViewHtml(d);assert.match(html,/הפקה לפי גורם מימון/);assert.match(html,/תיאור למסמך/);assert.doesNotMatch(html,/data-finance-manual-confirm/);
   assert.match(html,/data-finance-manual-select-activity value="a" checked/);
   assert.doesNotMatch(html,/בית ספר · קורס · a/);
   assert.match(html,/ds-fin-manual__activity-grid|ds-fin-manual__grid/);
@@ -498,4 +498,44 @@ test('manual activity editing is optional and initially collapsed while source i
   assert.ok(disclosure.querySelector('[data-finance-manual-activity]'));
   assert.ok(doc.querySelector('.ds-fin-manual__billing-row'));
   assert.match(doc.querySelector('[data-finance-manual-selection-summary]').textContent,/רשות/);
+});
+
+test('named sponsors are selected once as financing source with no duplicate payer field',()=>{
+ const d={
+   manualFundingCategory:'source:ויצו',manualFunderFilter:'route:source:ויצו',
+   collectionActivities:[
+    {row_id:'a',school:'בית ספר א',authority:'חדרה',activity_name:'ביומימיקרי',activity_no:'53828'},
+    {row_id:'b',school:'בית ספר ב',authority:'עכו',activity_name:'חלל',activity_no:'57651'}
+   ],
+   transactionContext:{billingRows:[
+    {activityRowId:'a',fundingSourceId:'w',funding:'ויצו',payerName:'ויצו',payerKey:'funding:w',fullFundingAmount:8000},
+    {activityRowId:'b',fundingSourceId:'w',funding:'ויצו',payerName:'ויצו',payerKey:'funding:w',fullFundingAmount:9000}
+   ]}
+ };
+ assert.deepEqual(manualFilteredActivities(d).map(a=>a.row_id),['a','b']);
+ const html=manualAccountViewHtml(d);const doc=new JSDOM(html).window.document;
+ assert.equal(doc.querySelectorAll('[data-finance-manual-funding-category]').length,1);
+ assert.equal(doc.querySelectorAll('[data-finance-manual-funder-filter]').length,0);
+ assert.equal(doc.querySelectorAll('.ds-fin-manual__selectors label').length,1);
+ assert.match(doc.querySelector('[data-finance-manual-selection-summary]').textContent,/ויצו · 2 פעילויות/);
+ assert.doesNotMatch(doc.querySelector('[data-finance-manual-selection-summary]').textContent,/חדרה, עכו/);
+ assert.match(doc.querySelector('.ds-fin-manual__activity-school').textContent,/בית ספר: בית ספר א.*רשות: חדרה.*מספר גפ״ן: 53828/);
+ toggleManualActivity(d,'a',true);toggleManualActivity(d,'b',true);
+ assert.deepEqual(selectedManualActivityIds(d).sort(),['a','b']);
+ assert.equal(d.manualDraft.customer_name,'ויצו');
+});
+test('municipal funding still requires authority, and Gefen still requires separate school selection',()=>{
+ const d={collectionActivities:[
+  {row_id:'a',school:'א',authority:'רחובות',activity_name:'חלל'},
+  {row_id:'b',school:'ב',authority:'נהרייה',activity_name:'ביומימיקרי'}
+ ],transactionContext:{billingRows:[
+  {activityRowId:'a',fundingSourceId:'r',funding:'רשות',payerName:'רחובות',payerKey:'authority:1'},
+  {activityRowId:'b',fundingSourceId:'g',funding:'גפ״ן',gefenFunding:true,payerName:'ב',payerKey:'school:2'}
+ ]}};
+ for(const [route,label] of [['authority','רשות'],['gefen','בית ספר']]){
+  d.manualFundingCategory=route;d.manualFunderFilter='';
+  const doc=new JSDOM(manualAccountViewHtml(d)).window.document;
+  assert.match(doc.querySelector('[data-finance-manual-funder-filter]').parentElement.textContent,new RegExp(label));
+  assert.equal(doc.querySelector('[data-finance-manual-selection]'),null);
+ }
 });
