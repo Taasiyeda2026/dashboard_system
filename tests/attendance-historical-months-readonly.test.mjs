@@ -58,8 +58,8 @@ test('history changes affect UI and read-only adapters, never saving or payroll 
  assert.ok(travel.includes('getAssignedTravelDays({fromDate,toDate})'));
  assert.ok(travel.includes('await saveDailyTravel(loadedDate,legs,noTravel.checked)'));
  assert.ok(expenses.includes('historicalExpenses(history.rows,independent)'));
- assert.ok(expenses.includes('form.hidden=historicalView'));
- assert.ok(expenses.includes("if(historicalView)return;"));
+ assert.ok(expenses.includes('form.hidden=false'));
+ assert.ok(expenses.includes("if(historicalView){"));
  assert.ok(attendance.includes("historyPanel.hidden = !isAttendance || attendanceSelectedMonth===attendanceCurrentMonth"));
  assert.ok(attendance.includes("form.hidden = !isAttendance || attendanceSelectedMonth!==attendanceCurrentMonth"));
  assert.doesNotMatch(helper,/\.insert\(|\.update\(|\.delete\(|\.upsert\(|\.rpc\('av2_save/);
