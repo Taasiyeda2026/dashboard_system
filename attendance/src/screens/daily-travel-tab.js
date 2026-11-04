@@ -109,7 +109,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   let historicalEditing=false;
   let historicalSaving=false;
   const formatDate=value=>String(value||'').split('-').reverse().join('.');
-  const isLegacyDay=date=>String(date||'')<'2026-11-04';
+  const isLegacyDay=date=>String(date||'')<'2026-11-01';
   const historicalEditable=()=>{
     const [year,month]=selectedMonth.split('-').map(Number);
     return canEditMonth(year,month,historicalMonthApproval) &&
@@ -559,7 +559,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       return true;
     }
     const fetched=await getAssignedTravelDays({fromDate,toDate});
-    dayOptions=fetched.filter(item=>item.date>='2026-11-04' && item.date?.slice(0,7)===selectedMonth);
+    dayOptions=fetched.filter(item=>item.date>='2026-11-01' && item.date?.slice(0,7)===selectedMonth);
     if(selectedMonth==='2026-11'){
       const historical=await readHistoricalAttendance(empId,selectedMonth);
       historicalMonthApproval=historical.approval;
