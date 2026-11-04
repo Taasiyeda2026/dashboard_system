@@ -1,8 +1,10 @@
 import { escapeHtml as e } from './shared/html.js';
 import { financeToday, financePaymentDueDate, TRANSACTION_MEETING_HOURS } from './finance-transaction-accounts.js';
 const text=v=>String(v??'').trim();
-// Customer-facing display only: original 3604 shows as 52279. Source rows stay unchanged.
+// Customer-facing display only. Poratzot 3604→52279; רוקחים עולם always 46091.
+// Source rows stay unchanged until the approved data migration runs.
 function displayManualGefenNumber(activity = {}) {
+  if (/רוקחים\s*עולם/u.test(text(activity.activity_name))) return '46091';
   const code = text(activity.activity_no || activity.gefen_number);
   return code === '3604' ? '52279' : (code || '—');
 }

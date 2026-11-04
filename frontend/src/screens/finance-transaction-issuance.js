@@ -49,8 +49,12 @@ function monthPicker(data, mode) {
 export const transactionSelectionKey = (row) => [row.activityRowId, row.fundingSourceId, row.period || 'completion'].join(':');
 const serviceActivity = (row) => ['tour','workshop'].includes(text(row.activityType || row.activity_type).toLowerCase());
 const invoiceQuantity = (row) => Number(row.unbilledCount || 0);
-// Customer-facing Gefen display only. Source activity_no / snapshots stay unchanged.
+// Customer-facing Gefen display only. Source activity_no / snapshots stay unchanged
+// until an approved data migration rewrites them. Poratzot keeps the 3604→52279
+// alias; רוקחים עולם is always shown as 46091.
 export function displayGefenProgramNumber(line = {}) {
+  const name = text(line.activityName || line.activity_name);
+  if (/רוקחים\s*עולם/u.test(name)) return '46091';
   const gefen = text(line.gefenNumber || line.gefen_number);
   const activityNo = text(line.activityNo || line.activity_no || line.sourceActivityNo);
   if (gefen === '3604' && (!activityNo || activityNo === '3604')) return '52279';

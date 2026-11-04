@@ -223,6 +223,11 @@ function isGefenInvoiceLine(line: any): boolean {
 function invoiceProposalProgramDisplay(line: any, service: boolean, gefenFunding: boolean) {
   const name = clean(line.service_description_snapshot || line.activity_name_snapshot)
     .replace(/\s*[—–-]\s*מלוא\s+יתרת\s+הפעילות\s*$/u, '').trim();
+  // Canonical identity for customer documents: רוקחים עולם is always Gefen 46091.
+  // Do not let a mis-mapped 52279 on the activity row leak into the PDF.
+  if (!service && /רוקחים\s*עולם/u.test(name)) {
+    return {name, gefen: '46091'};
+  }
   const gefen = clean(line.gefen_number_snapshot);
   const activityNo = clean(line.activity_no_from_source || line.activity_no_snapshot);
   const pricingKey = clean(line.source_pricing_key);

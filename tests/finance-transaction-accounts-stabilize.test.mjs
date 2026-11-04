@@ -31,6 +31,20 @@ test('Poratzot display alias maps 3604 to 52279 without rewriting source identit
   assert.match(pdf, /gefen !== '3604'/);
 });
 
+test('רוקחים עולם always displays Gefen 46091 even when a row was mis-tagged 52279', () => {
+  assert.equal(displayGefenProgramNumber({ activityName: 'רוקחים עולם', gefenNumber: '52279', activityNo: '52279' }), '46091');
+  assert.equal(displayGefenProgramNumber({ activityName: 'רוקחים עולם', gefenNumber: '46091' }), '46091');
+  assert.equal(displayGefenProgramNumber({ activityName: 'אופק פרימיום', gefenNumber: '52279', activityNo: '52279' }), '52279');
+  assert.match(pdf, /רוקחים\\s\*עולם/);
+  assert.match(pdf, /gefen: '46091'/);
+  const migration = readFileSync(new URL('../supabase/migrations/20261104215818_finance_rokhim_olam_gefen_46091_only.sql', import.meta.url), 'utf8');
+  assert.match(migration, /activity_no = '46091'/);
+  assert.match(migration, /gefen_number = '46091'/);
+  assert.doesNotMatch(migration, /set[\s\S]*price\s*=/i);
+  assert.doesNotMatch(migration, /sessions\s*=/);
+  assert.doesNotMatch(migration, /funding\s*=/);
+});
+
 test('claims uniqueness and field-level stale reasons are enforced in stabilize migration', () => {
   assert.match(migration, /finance_billing_claims_settled_slot_unique/);
   assert.match(migration, /activity_row_id, funding_source_id, meeting_slot/);
@@ -94,6 +108,7 @@ test('workshop PDF rows expose quantity without hourly columns', () => {
 });
 
 test('deployable frontend cache markers were bumped for this stabilize release', () => {
-  assert.match(sw, /const CACHE_VERSION = 2088;/);
+  assert.match(sw, /const CACHE_VERSION = 2089;/);
   assert.match(config, /finance-transaction-accounts-stabilize-20261104-v1/);
+  assert.match(config, /finance-rokhim-olam-gefen-46091-20261104-v1/);
 });
