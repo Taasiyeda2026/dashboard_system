@@ -469,9 +469,14 @@ async function buildPdf(account: any) {
   // intentionally omits hours and meetings from its accounting rows.
   const serviceQuantity = services.reduce((total, row) => total + row.quantity, 0);
   if (services.length) {
+    const types = (account.finance_transaction_account_lines || [])
+      .map((line: any) => clean(line.activity_type_snapshot || line.activity_type).toLowerCase());
+    const hasWorkshops = types.some((type: string) => ['workshop', 'סדנה'].includes(type));
+    const hasTours = types.some((type: string) => ['tour', 'סיור'].includes(type));
+    const serviceLabel = hasWorkshops && hasTours ? 'סדנאות וסיורים' : hasTours ? 'סיורים' : 'סדנאות';
     if (y < 225) { page = doc.addPage([595, 842]); y = drawInvoiceHeader(page, true); }
     y -= 13;
-    drawRight(page, bold, `סה"כ כמות סדנאות: ${count(serviceQuantity)}`, y, 10);
+    drawRight(page, bold, `סה"כ כמות ${serviceLabel}: ${count(serviceQuantity)}`, y, 10);
     y -= 21;
   }
   // Dates come exclusively from the billed meeting snapshots, including deferred months.
