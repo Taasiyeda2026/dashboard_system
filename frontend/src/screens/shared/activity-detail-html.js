@@ -1300,6 +1300,15 @@ function canOpenActivityScheduling(row = {}) {
 
 function activitySchedulingStatusCardHtml(row, { canSchedule = false, planningRow = null } = {}) {
   if (!canSchedule || !canOpenActivityScheduling(row)) return '';
+  // The 2027 drawer already shows instructor assignment in the primary grid.
+  // Keep the real scheduling button only as a handoff for the header toolbar.
+  // It will be moved there by align2027ActivityDrawerTopActions; the empty
+  // wrapper is hidden so it cannot produce an extra section or scroll space.
+  if (normalizeActivitySeason(row.activity_season) === ACTIVITY_SEASON_SCHOOL_2027) {
+    return `<div class="activity-drawer__scheduling-status activity-drawer__scheduling-status--header-handoff-2027" data-activity-scheduling-status>
+      <button type="button" data-open-activity-scheduling aria-label="פתח שיבוץ" title="פתח שיבוץ">פתח שיבוץ</button>
+    </div>`;
+  }
   const summary = activitySchedulingStatusSummary(row, planningRow);
   const startDate = String(row?.start_date || row?.date_1 || '').trim();
   const startTime = String(row?.start_time || '').trim();
