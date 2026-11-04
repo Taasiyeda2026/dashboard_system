@@ -215,7 +215,7 @@ function isGefenInvoiceLine(line: any): boolean {
   // Legacy rows can omit billing_rule. Use the stored funding route, not
   // whether the activity is a course or has a Gefen catalogue number.
   const normalized = clean(line.funding_snapshot).toLowerCase()
-    .replace(/["'׳״\\s_\\-./\\\\]/g, '');
+    .replace(/["'׳״\s_.\/\\-]/g, '');
   return ['גפן', 'gefen', 'gafan'].includes(normalized);
 }
 function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { courses: InvoiceRenderRow[]; services: InvoiceRenderRow[] } {
