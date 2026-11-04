@@ -1,4 +1,5 @@
 import { createInputField } from '../components/field.js';
+import { createCompactSelect } from '../components/compact-select.js';
 import { summarizeDailyTravel } from '../services/daily-travel.js';
 import { getMonthApproval } from '../services/attendance.service.js';
 import { canEditMonth, formatMonthLabel } from '../services/month-gate.service.js';
@@ -31,13 +32,31 @@ export function createDailyTravelTab({empId, initialDate}) {
   const dayLabel=document.createElement('label');
   dayLabel.className='av2-daily-travel__day-label';
   dayLabel.textContent='יום פעילות';
-  dayLabel.setAttribute('for','av2-travel-day-selector');
+  dayLabel.setAttribute('for','av2-travel-day-selector-trigger');
   const daySelect=document.createElement('select');
   daySelect.id='av2-travel-day-selector';
-  daySelect.className='av2-field__select av2-daily-travel__day-select';
+  daySelect.className='av2-field__select av2-daily-travel__day-select av2-daily-travel__native-day-select';
+  daySelect.hidden=true;
+  const dayPicker=createCompactSelect({
+    id:'av2-travel-day-selector',options:[],placeholder:'בחר יום פעילות',
+    ariaLabel:'יום פעילות',maxHeight:248
+  });
+  dayPicker.select.disabled=true;
+  dayPicker.wrap.classList.add('av2-daily-travel__day-picker');
+  dayPicker.select.addEventListener('change',()=>{
+    daySelect.value=dayPicker.select.value;
+    daySelect.dispatchEvent(new Event('change'));
+  });
+  function syncDayPicker(){
+    dayPicker.setOptions([...daySelect.options].map(option=>({
+      value:option.value,label:option.textContent
+    })));
+    dayPicker.select.value=daySelect.value;
+    dayPicker.select.disabled=daySelect.disabled;
+  }
   const daysWrap=document.createElement('div');
   daysWrap.className='av2-daily-travel__day-wrap';
-  daysWrap.append(dayLabel,daySelect);
+  daysWrap.append(dayLabel,daySelect,dayPicker.wrap);
   const status = document.createElement('p');
   status.className = 'av2-daily-travel__status';
   status.setAttribute('role','status');
@@ -259,6 +278,7 @@ export function createDailyTravelTab({empId, initialDate}) {
     dateField.input.value=requestedDay;
     if(dayOptions.some(item=>item.date===requestedDay)){
       daySelect.value=requestedDay;
+      dayPicker.select.value=requestedDay;
     }
     loadedDate='';
   }
@@ -289,6 +309,7 @@ export function createDailyTravelTab({empId, initialDate}) {
   }
   async function refreshDays(){
     daySelect.disabled=true;
+    dayPicker.select.disabled=true;
     const [year,month]=selectedMonth.split('-').map(Number);
     if(!year||!month){dayOptions=[];return false;}
     const fromDate=selectedMonth+'-01';
@@ -316,6 +337,7 @@ export function createDailyTravelTab({empId, initialDate}) {
         status.textContent='אין דיווחים לחודש זה';
         legsArea.replaceChildren();save.hidden=true;noTravelLabel.hidden=true;
         summary.textContent='';
+        syncDayPicker();
         return false;
       }
       const chosen=dayOptions.find(day=>day.date===requestedDay)||dayOptions[0];
@@ -323,6 +345,7 @@ export function createDailyTravelTab({empId, initialDate}) {
       dateField.input.value=chosen.date;
       requestedDay=chosen.date;
       daySelect.disabled=false;
+      syncDayPicker();
       return true;
     }
     const fetched=await getAssignedTravelDays({fromDate,toDate});
@@ -336,6 +359,7 @@ export function createDailyTravelTab({empId, initialDate}) {
       save.hidden=true;
       noTravelLabel.hidden=true;
       summary.textContent='';
+      syncDayPicker();
       return false;
     }
     for(const day of dayOptions){
@@ -352,6 +376,7 @@ export function createDailyTravelTab({empId, initialDate}) {
     dateField.input.value=chosen.date;
     requestedDay=chosen.date;
     daySelect.disabled=false;
+    syncDayPicker();
     return true;
   }
   async function load({force=false}={}){
@@ -419,6 +444,7 @@ export function createDailyTravelTab({empId, initialDate}) {
   monthSelect.addEventListener('change',()=>{
     selectedMonth=monthSelect.value;
     requestedDay='';loadedDate='';dayOptions=[];
+    dayPicker.setOptions([]);dayPicker.select.disabled=true;
     void load({force:true});
   });
   daySelect.addEventListener('change',()=>{
