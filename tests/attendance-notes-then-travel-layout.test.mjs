@@ -6,8 +6,8 @@ test('attendance notes remain after hours; travel entry belongs solely to separa
  const src=await readFile(new URL('../attendance/src/screens/new-report-screen.js',import.meta.url),'utf8');
  assert.match(src,/timesGrid\.append\(startPicker\.wrap, endPicker\.wrap, hoursDisplay, hoursFollowup\)/);
  assert.match(src,/hoursFollowup\.append\(notesField\.wrap\)/);
- assert.doesNotMatch(src,/hoursFollowup\.append\(travelShortcut\)/);
- assert.doesNotMatch(src,/travelShortcut\.addEventListener/);
+ assert.match(src,/hoursFollowup\.append\(travelShortcut\)/);
+ assert.match(src,/travelShortcut\.addEventListener\('click'/);
  assert.doesNotMatch(src,/timesGrid\.append\(baseTrainingRouteRow\)/);
 });
 
