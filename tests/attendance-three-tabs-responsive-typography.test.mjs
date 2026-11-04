@@ -11,9 +11,9 @@ test('shared typography stylesheet is last and cache versions are consistent',as
     file('attendance/src/styles/report-tabs-responsive-typography.css'),
   ]);
   const links=[...html.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map(m=>m[1]);
-  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=141');
-  assert.match(sw,/const CACHE_VERSION = 141/);
-  assert.ok(links.every(s=>s.endsWith('?v=141')));
+  assert.equal(links.at(-1),'./src/styles/report-tabs-responsive-typography.css?v=142');
+  assert.match(sw,/const CACHE_VERSION = 142/);
+  assert.ok(links.every(s=>s.endsWith('?v=142')));
   assert.match(css,/font-family:var\(--av2-font,inherit\)/);
   assert.match(css,/font-size:14\.5px!important/);
   assert.match(css,/font-size:17px!important/);
@@ -141,4 +141,17 @@ test('mobile and desktop display only the active tab including expenses and trav
    css.lastIndexOf('@media(max-width:767px)'), 'visibility override must load after mobile rules');
  assert.ok(css.lastIndexOf('/* Highest-priority tab visibility contract.') >
    css.lastIndexOf('@media(min-width:768px)'), 'visibility override must load after desktop rules');
+});
+
+test('attendance cards and tabs are compact and total hours exactly matches time picker width',async()=>{
+ const css=await file('attendance/src/styles/report-tabs-responsive-typography.css');
+ const final=css.slice(css.lastIndexOf('/* Compact proportional Attendance cards'));
+ assert.match(final,/\.av2-report \.av2-report__tabs\{[\s\S]*?max-width:616px!important/);
+ assert.match(final,/grid-template-columns:repeat\(2,minmax\(0,300px\)\)!important/);
+ assert.match(final,/column-gap:16px!important/);
+ assert.match(final,/\.av2-report \.av2-report__form \.av2-report__hours-value\{[\s\S]*?width:196px!important/);
+ assert.match(final,/@media \(min-width:768px\) and \(max-width:980px\)/);
+ assert.match(final,/grid-template-columns:minmax\(0,1fr\)!important/);
+ assert.match(final,/@media \(max-width:767px\)/);
+ assert.doesNotMatch(final,/overflow:hidden|height:100vh/);
 });
