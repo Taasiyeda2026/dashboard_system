@@ -18,13 +18,11 @@ test('tab navigation and save/cancel pair are centered, section headings slightl
  assert.match(block,/\.av2-form-section__title\s*\{[^}]*font-size:1\.02rem!important/);
  assert.match(block,/@media \(max-width:767px\)/);
 });
-test('travel shortcut is a small icon-text secondary link and hidden travel row never paints',async()=>{
+test('attendance form has no travel or cancellation entry; separate travel tab retains reporting',async()=>{
  const src=await readFile(new URL('../attendance/src/screens/new-report-screen.js',import.meta.url),'utf8');
- const css=await readFile(new URL('../attendance/src/styles/new-report-screen.css',import.meta.url),'utf8');
- assert.ok(src.includes("const travelIcon = createIcon('map-pin')"));
- assert.ok(src.includes("travelText.textContent='מילוי נסיעות'"));
- assert.ok(src.includes("hoursFollowup.append(travelShortcut)"));
- assert.ok(css.includes('.av2-report__base-training-route[hidden]'));
- assert.ok(css.includes('.av2-report__time-cancellation[hidden]'));
- assert.ok(css.includes('display:none!important'));
+ assert.ok(src.includes('timesGrid.append(startPicker.wrap, endPicker.wrap, hoursDisplay, hoursFollowup)'));
+ assert.ok(!src.includes('hoursDisplay.after(cancellationRow, cancellationFields)'));
+ assert.ok(!src.includes('timesGrid.append(baseTrainingRouteRow)'));
+ assert.ok(!src.includes('travelShortcut'));
+ assert.ok(src.includes("travelTab.textContent = 'נסיעות וביטולים'"));
 });
