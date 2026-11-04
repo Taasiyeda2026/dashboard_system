@@ -636,9 +636,9 @@
   color: var(--ds-text-secondary);
   white-space: nowrap;
 }
-.ds-fin-manual__activity-table th:nth-child(1) { width: 24%; }
-.ds-fin-manual__activity-table th:nth-child(2) { width: 23%; }
-.ds-fin-manual__activity-table th:nth-child(3) { width: 19%; }
+.ds-fin-manual__activity-table th:nth-child(1) { width: 23%; }
+.ds-fin-manual__activity-table th:nth-child(2) { width: 19%; }
+.ds-fin-manual__activity-table th:nth-child(3) { width: 24%; }
 .ds-fin-manual__activity-table th:nth-child(4) { width: 14%; }
 .ds-fin-manual__activity-table th:nth-child(5) { width: 20%; }
 .ds-fin-manual__activity-row:hover { background: var(--ds-surface-muted,#f3f7f9); }
