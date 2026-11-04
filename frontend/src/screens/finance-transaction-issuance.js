@@ -117,7 +117,7 @@ export function automaticMixedFundingProgramReview(data, month) {
       course: String(line.activityName || ''),
       code,
       sourceCode,
-      valid: /^\\d+$/.test(code) && (!sourceCode || sourceCode === code)
+      valid: /^\d+$/.test(code) && (!sourceCode || sourceCode === code)
     });
   }
   return result;
