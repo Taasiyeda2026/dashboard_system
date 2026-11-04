@@ -577,7 +577,7 @@ export const financeScreen = {
       if (ev.target.closest('[data-finance-microsoft-connect]')) {
         try {
           const { delegatedMailToken } = await import('../microsoft/graph-mail.js');
-          await delegatedMailToken(state?.user?.email || state?.user?.auth_email || '');
+          await delegatedMailToken(state?.user?.auth_email || state?.user?.email || '');
           visit.transactionActionMessage = 'Microsoft מחובר. הטיוטות של המפיק המקורי יושלמו אוטומטית.';
         } catch { visit.transactionActionMessage = 'החיבור ל־Microsoft לא הושלם. החשבונות והמסמכים נשמרו.'; }
         refresh(); return;
@@ -651,6 +651,8 @@ export const financeScreen = {
       const manualConfirm = ev.target.closest('[data-finance-manual-confirm]');
       if (manualConfirm) {
         await financeAction(manualConfirm, async () => {
+          const { delegatedMailToken } = await import('../microsoft/graph-mail.js');
+          await delegatedMailToken(state?.user?.auth_email || state?.user?.email || '', { interactive: true });
           const results = await runSelectedManualAccounts(visit, api);
           visit.transactionActionMessage = transactionIssuanceResultMessage(results.map(result=>
             result.reserved ? {reserved:result.reserved,dispatched:result.sent} : {dispatched:result}));
@@ -733,6 +735,8 @@ export const financeScreen = {
         visit.transactionActionMessage = 'מפיק חשבונות עסקה…';
         refresh();
         try {
+          const { delegatedMailToken } = await import('../microsoft/graph-mail.js');
+          await delegatedMailToken(state?.user?.auth_email || state?.user?.email || '', { interactive: true });
           const results = await runTransactionIssuance(visit, api, mode, transactionRun.dataset.financeTransactionPeriod);
           visit.transactionActionMessage = transactionIssuanceResultMessage(results);
           if (mode === 'manual') visit.transactionManualSelected = {};
