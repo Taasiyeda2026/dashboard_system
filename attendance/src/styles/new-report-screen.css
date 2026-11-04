@@ -516,3 +516,93 @@
   }
   .av2-report__history-card,.av2-daily-travel__legacy-card{padding:11px}
 }
+
+/* Clean New Report presentation: the two attendance cards are a centered group. */
+.av2-report__form-area{align-items:center}
+.av2-report__tabs{
+  align-self:center;
+  justify-content:center;
+  width:min(100%,560px);
+  max-width:560px;
+  margin-inline:auto;
+}
+.av2-report__tabs > .av2-btn{
+  min-height:42px!important;
+  font-size:.85rem!important;
+  font-weight:650!important;
+}
+.av2-report__form{
+  margin-inline:auto;
+}
+.av2-report__form > .av2-form-section{
+  min-width:0;
+}
+.av2-report__form > .av2-form-section .av2-form-section__title{
+  font-size:1.02rem!important;
+  font-weight:750!important;
+  line-height:1.45;
+  color:#18395b!important;
+  background:#f1f6fd!important;
+  border-bottom:1px solid #dce7f5!important;
+}
+.av2-report__actions{
+  grid-column:1/-1;
+  width:100%;
+  justify-content:center!important;
+  align-items:center!important;
+  gap:10px;
+  margin-inline:auto;
+}
+.av2-report__actions .av2-report__save,
+.av2-report__actions .av2-report__cancel{
+  flex:0 0 126px;
+  min-width:126px;
+  min-height:40px;
+}
+.av2-report__hours-followup{
+  align-items:flex-start;
+  gap:11px;
+}
+.av2-report__hours-followup .av2-report__tiny-travel-btn{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  min-height:30px;
+  padding:3px 2px;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  color:#245bd0;
+  font-size:.81rem;
+  font-weight:650;
+  box-shadow:none;
+  text-decoration:none;
+}
+.av2-report__hours-followup .av2-report__tiny-travel-btn:hover{
+  color:#174aaf;
+  background:transparent;
+  text-decoration:underline;
+}
+.av2-report__tiny-travel-btn svg{width:15px;height:15px;flex:none}
+.av2-report__hours-followup .av2-report__tiny-travel-btn:focus-visible{
+  outline:2px solid #245bd0;outline-offset:3px;border-radius:4px;
+}
+/* Hidden legacy travel containers must not paint empty tinted placeholders. */
+.av2-report__base-training-route[hidden],
+.av2-report__time-cancellation[hidden],
+.av2-report__inline-cancellation[hidden],
+.av2-report__inline-cancellation-toggle[hidden]{
+  display:none!important;
+}
+@media (max-width:767px){
+  .av2-report__tabs{width:min(100%,560px);max-width:100%;margin-inline:auto}
+  .av2-report__tabs>.av2-btn{font-size:.76rem!important;min-height:44px!important}
+  .av2-report__form{margin-inline:auto}
+  .av2-report__form>.av2-form-section .av2-form-section__title{
+    padding:12px 15px!important;font-size:1rem!important;
+  }
+  .av2-report__actions .av2-report__save,
+  .av2-report__actions .av2-report__cancel{
+    min-height:44px;flex:1 1 120px;max-width:160px;
+  }
+}
