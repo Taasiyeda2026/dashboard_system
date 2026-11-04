@@ -16,7 +16,7 @@ const fixture=()=>({id:'account',document_status:'generating',outlook_status:'pe
     finance_transaction_account_meetings:[{meeting_date:'2026-09-01'},{meeting_date:'2026-09-02'}]}]});
 test('Google AI course PDF preserves the 8000 activity price and derives 533.33 per hour for fifteen hours',async()=>{
   const quote={...fixture(),customer_name_snapshot:'המשיח האנגליקאני',institution_symbol:'248724',total_amount:8000,
-    finance_transaction_account_lines:[{activity_row_id:'ai',activity_type_snapshot:'course',activity_name_snapshot:'יישומי AI בשיתוף GOOGLE',school_name_snapshot:'המשיח האנגליקאני',quantity_snapshot:10,billed_hours:15,hourly_rate_snapshot:8000/15,unit_price_snapshot:800,amount:8000,billing_coverage:'full_funding',finance_transaction_account_meetings:[]}]};
+    finance_transaction_account_lines:[{activity_row_id:'ai',activity_type_snapshot:'course',activity_name_snapshot:'יישומי AI בשיתוף GOOGLE',school_name_snapshot:'המשיח האנגליקאני',quantity_snapshot:10,billed_hours:15,hourly_rate_snapshot:8000/15,unit_price_snapshot:800,amount:8000,billing_coverage:'full_funding',billing_rule:'monthly',funding_snapshot:'גפ״ן',finance_transaction_account_meetings:[]}]};
   const r=await harness({preview:true,quote,activityTypes:{ai:'course'}});
   assert.equal(r.response.status,200);assert.equal(r.body.quote.total_amount,8000);
   const pdf=await getDocument({data:new Uint8Array(Buffer.from(r.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
@@ -42,9 +42,11 @@ async function harness(options={}) {
   };
   const client={rpc,from:(table)=>table==='activities'
     ? {select:()=>({in:async(_key,ids)=>({data:ids.map(id=>({
-      row_id:id,activity_type:options.activityTypes?.[id]||'course',activity_season:'school_2027'
+      row_id:id,activity_type:options.activityTypes?.[id]||'course',activity_season:'school_2027',authority_id:options.authorityIds?.[id]||null
     }))})})}
-    : ({select:()=>({eq:()=>({single:async()=>({data:account})})})})};
+    : table==='authorities'
+      ? {select:()=>({in:async(_key,ids)=>({data:ids.map(id=>({id,authority_name:options.authorityNames?.[id]||'רשות בדיקה'}))})})}
+      : ({select:()=>({eq:()=>({single:async()=>({data:account})})})})};
 
   const fetch=async(url,opts={})=>{
     calls.push({type:'fetch',url,method:opts.method||'GET'});
@@ -206,7 +208,7 @@ test('realistic three-line Hebrew invoice renders on one page with selectable gl
   assert.match(glyphs,/30.11.2026/);
   assert.ok((glyphs.match(/[א-ת]/g)||[]).length>50,'Hebrew must remain vector, selectable PDF text');
   assert.doesNotMatch(glyphs,/60025/,'workshops must not show Gefen number');
-  assert.equal((glyphs.match(/435\.00/g)||[]).length,1,'identical workshops must be consolidated to a single unit-price cell');
+  assert.equal((glyphs.match(/1,305\.00/g)||[]).length,2,'total is shown in the activity row and payment summary');
   assert.match(glyphs,/500/);
   assert.match(glyphs,/300120/);
   assert.doesNotMatch(glyphs,/611/,'former bank branch must not be printed');
@@ -250,7 +252,7 @@ test('course invoices summarize each actual course with hours, meetings and hour
 test('mixed payer invoice uses workshop and course layouts in the same document',async()=>{
   const r=await harness({account:{
     total_amount:735,finance_transaction_account_lines:[
-      {activity_row_id:'C',activity_name_snapshot:'תוכנית חלל',gefen_number_snapshot:'57646',quantity_snapshot:2,billed_hours:3,amount:300},
+      {activity_row_id:'C',activity_name_snapshot:'תוכנית חלל',gefen_number_snapshot:'57646',billing_rule:'monthly',funding_snapshot:'גפ״ן',quantity_snapshot:2,billed_hours:3,amount:300},
       {activity_row_id:'W',activity_name_snapshot:'סדנת מייקרים',gefen_number_snapshot:'99999',quantity_snapshot:1,billed_hours:1.5,amount:435,unit_price_snapshot:435}
     ]
   },activityTypes:{C:'course',W:'tour'}});
@@ -272,7 +274,7 @@ test('the PDF source never prints billing internals and bank details are exact',
   assert.doesNotMatch(rendering,/03-5370368|סניף 611|בנק הפועלים 12, סניף/);
   assert.doesNotMatch(rendering,/\(ע"ר\)/);
   assert.match(rendering,/מחיר לשעה/);
-  assert.match(rendering,/מחיר ליחידה/);
+  assert.match(rendering,/\['שם בית הספר', 'רשות', 'תוכנית \/ קורס', 'סה״כ'\]/);
 });
 
 test('generated PDF contains updated invoice contact and both bank separators',async()=>{
@@ -317,6 +319,7 @@ test('billed dates in course workshop tour and deferred preview PDFs use only at
     const meetings=[{meeting_date:'2026-11-03'},{meeting_date:'2026-10-05'},{meeting_date:'2026-10-12'}];
     const line={activity_row_id:'a',activity_type_snapshot:type,activity_name_snapshot:'פעילות',school_name_snapshot:'מוסד',quantity_snapshot:3,
       billed_hours:type==='course'?4.5:0,hourly_rate_snapshot:type==='course'?200:null,unit_price_snapshot:300,amount:900,
+      billing_rule:type==='course'?'monthly':'completion',funding_snapshot:type==='course'?'גפ״ן':'מממן אחר',
       performance_month:'2026-11-01',finance_transaction_account_meetings:meetings};
     for(const preview of [false,true]) {
       const account={...fixture(),total_amount:900,finance_transaction_account_lines:[line]};
@@ -324,15 +327,20 @@ test('billed dates in course workshop tour and deferred preview PDFs use only at
       const bytes=preview?Buffer.from(r.body.pdfBase64,'base64'):r.pdf;
       const pdf=await getDocument({data:new Uint8Array(bytes),useSystemFonts:false}).promise;
       const text=(await (await pdf.getPage(1)).getTextContent()).items.map(i=>i.str||'').join(' ');
-      for(const value of ['05.10.2026','12.10.2026','03.11.2026'])assert.ok(text.includes(value),`${type} preview=${preview}: ${value}`);
-      assert.ok(text.indexOf('05.10.2026')<text.indexOf('12.10.2026'));
-      assert.ok(text.indexOf('12.10.2026')<text.indexOf('03.11.2026'));
+      for(const value of ['05.10.2026','12.10.2026','03.11.2026']) {
+        if(type==='course') assert.ok(text.includes(value),`${type} preview=${preview}: ${value}`);
+        else assert.ok(!text.includes(value),`non-Gefen ${type} has no extended meeting list`);
+      }
+      if(type==='course') {
+        assert.ok(text.indexOf('05.10.2026')<text.indexOf('12.10.2026'));
+        assert.ok(text.indexOf('12.10.2026')<text.indexOf('03.11.2026'));
+      }
       assert.ok(!text.includes('01.09.2026'),'unrelated planned dates are not added');
     }
   }
 });
 test('all 35 billed dates wrap without clipping and totals remain visible',async()=>{
-  const line={activity_row_id:'a',activity_name_snapshot:'קורס',quantity_snapshot:35,billed_hours:52.5,amount:3500,hourly_rate_snapshot:3500/52.5,
+  const line={activity_row_id:'a',activity_name_snapshot:'קורס',billing_rule:'monthly',funding_snapshot:'גפ״ן',quantity_snapshot:35,billed_hours:52.5,amount:3500,hourly_rate_snapshot:3500/52.5,
     finance_transaction_account_meetings:Array.from({length:35},(_,i)=>({meeting_date:new Date(Date.UTC(2026,8,i+1)).toISOString().slice(0,10)}))};
   const r=await harness({account:{total_amount:3500,finance_transaction_account_lines:[line]}});
   const pdf=await getDocument({data:new Uint8Array(r.pdf),useSystemFonts:false}).promise;
@@ -347,7 +355,7 @@ test('all 35 billed dates wrap without clipping and totals remain visible',async
 
 
 test('Google performance PDF matches the server quote: 3 meetings 4.5 hours 2400 and 533.33 hourly',async()=>{
-  const quote=process.env.FINANCE_ACCEPTANCE_QUOTE_PATH ? JSON.parse(await readFile(process.env.FINANCE_ACCEPTANCE_QUOTE_PATH,'utf8')) : {...fixture(),total_amount:2400,finance_transaction_account_lines:[{activity_row_id:'google',activity_name_snapshot:'יישומי AI בשיתוף GOOGLE',activity_price_snapshot:8000,quantity_snapshot:3,billed_hours:4.5,hourly_rate_snapshot:8000/15,amount:2400,billing_coverage:'performance',finance_transaction_account_meetings:[1,2,3].map(n=>({meeting_date:`2026-10-0${n}`,hours:1.5}))}]};
+  const quote=process.env.FINANCE_ACCEPTANCE_QUOTE_PATH ? JSON.parse(await readFile(process.env.FINANCE_ACCEPTANCE_QUOTE_PATH,'utf8')) : {...fixture(),total_amount:2400,finance_transaction_account_lines:[{activity_row_id:'google',activity_name_snapshot:'יישומי AI בשיתוף GOOGLE',activity_price_snapshot:8000,billing_rule:'monthly',funding_snapshot:'גפ״ן',quantity_snapshot:3,billed_hours:4.5,hourly_rate_snapshot:8000/15,amount:2400,billing_coverage:'performance',finance_transaction_account_meetings:[1,2,3].map(n=>({meeting_date:`2026-10-0${n}`,hours:1.5}))}]};
   assert.equal(Number(quote.total_amount),2400);assert.equal(Number(quote.finance_transaction_account_lines[0].activity_price_snapshot),8000);
   const r=await harness({preview:true,quote,activityTypes:{google:'course'}});assert.equal(r.response.status,200);
   const pdf=await getDocument({data:new Uint8Array(Buffer.from(r.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
@@ -356,7 +364,7 @@ test('Google performance PDF matches the server quote: 3 meetings 4.5 hours 2400
   assert.ok(!r.calls.some(c=>c.name==='finalize_finance_billing'||c.method==='PUT'));
 });
 test('full remaining course PDF keeps the original hourly rate and labels the advance separately',async()=>{
-  const quote={...fixture(),total_amount:5000,finance_transaction_account_lines:[{activity_row_id:'ai',activity_name_snapshot:'AI',quantity_snapshot:10,billed_hours:15,hourly_rate_snapshot:8000/15,amount:5000,billing_coverage:'full_funding',finance_transaction_account_meetings:[]}]};
+  const quote={...fixture(),total_amount:5000,finance_transaction_account_lines:[{activity_row_id:'ai',activity_name_snapshot:'AI',billing_rule:'monthly',funding_snapshot:'גפ״ן',quantity_snapshot:10,billed_hours:15,hourly_rate_snapshot:8000/15,amount:5000,billing_coverage:'full_funding',finance_transaction_account_meetings:[]}]};
   const r=await harness({preview:true,quote,activityTypes:{ai:'course'}});assert.equal(r.response.status,200);
   const pdf=await getDocument({data:new Uint8Array(Buffer.from(r.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
   const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');
