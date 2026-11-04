@@ -1,8 +1,14 @@
 -- Every source travel report must be reviewed before final payroll approval.
 -- Also forbids a late travel decision/payable after the manager's signature.
 CREATE OR REPLACE FUNCTION public.av2_assert_payroll_travel_review_ready(p_emp_id bigint,p_month_key text,p_manager_approved_at timestamptz)
-RETURNS void LANGUAGE plpgsql STABLE SET search_path TO 'public' AS $$
+RETURNS void LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path TO 'public' AS $
+DECLARE v_role text;
 BEGIN
+  SELECT lower(btrim(coalesce(u.role,''))) INTO v_role FROM public.users u
+  WHERE u.auth_user_id=auth.uid() AND u.is_active=true LIMIT 1;
+  IF v_role IS DISTINCT FROM 'admin' THEN
+    RAISE EXCEPTION 'payroll_attendance_permission_denied' USING ERRCODE='42501';
+  END IF;
   IF p_manager_approved_at IS NULL THEN
     RAISE EXCEPTION 'attendance_month_manager_signature_missing' USING ERRCODE='22023';
   END IF;
@@ -50,7 +56,8 @@ BEGIN
   ) THEN RAISE EXCEPTION 'attendance_daily_travel_reviews_pending' USING ERRCODE='22023'; END IF;
 END;
 $$;
-REVOKE ALL ON FUNCTION public.av2_assert_payroll_travel_review_ready(bigint,text,timestamptz) FROM PUBLIC,anon,authenticated;
+REVOKE ALL ON FUNCTION public.av2_assert_payroll_travel_review_ready(bigint,text,timestamptz) FROM PUBLIC,anon;
+GRANT EXECUTE ON FUNCTION public.av2_assert_payroll_travel_review_ready(bigint,text,timestamptz) TO authenticated;
 
 CREATE OR REPLACE FUNCTION public.admin_finalize_attendance_month_payroll(p_employee_id text, p_month_key text, p_final_approved_by_name text DEFAULT NULL::text)
  RETURNS jsonb
