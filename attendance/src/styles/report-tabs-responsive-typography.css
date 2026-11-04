@@ -219,7 +219,7 @@
 @media(max-width:340px){
   .av2-report .av2-report__tabs>.av2-btn,
   .av2-report .av2-report__tabs>.av2-btn:nth-child(2){
-    font-size:12.5px!important;padding:8px 2px!important;
+    font-size:13.5px!important;padding:8px 2px!important;min-height:50px!important;
   }
   .av2-report .av2-report__form-area .av2-report__actions>.av2-btn,
   .av2-report .av2-expenses-tab__actions>.av2-btn,
