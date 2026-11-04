@@ -248,7 +248,7 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
     // Courses: one line per actual course ID, combining all billed meetings.
     const key = service
       ? (keepDistinctActivities && clean(line.activity_row_id)
-        ? `activity:${clean(line.activity_row_id)}`
+        ? JSON.stringify(['activity', clean(line.activity_row_id), authority, gefenFunding, clean(line.funding_source_id) || clean(line.funding_snapshot)])
         : JSON.stringify([category, name, school, authority, gefenFunding, Number(unitPrice.toFixed(6))]))
       : JSON.stringify([clean(line.activity_row_id), name, school, authority, gefenFunding, clean(line.funding_source_id) || clean(line.funding_snapshot)]);
     const dates = (line.finance_transaction_account_meetings || []).map((m: any)=>clean(m.meeting_date)).filter((d: string)=>/^\d{4}-\d{2}-\d{2}$/.test(d));
@@ -292,7 +292,8 @@ async function attachActivityTypes(account: any, client: ReturnType<typeof creat
     if (!activity) throw new Error('invoice_activity_type_missing');
     line.activity_type_snapshot = clean(activity.activity_type);
     // Enrichment for rendering only, with no financial snapshot/database mutation.
-    line.authority_name_snapshot = authorities.get(clean(activity.authority_id)) || '';
+    line.authority_name_snapshot = authorities.get(clean(activity.authority_id))
+      || clean(line.authority_name_snapshot) || '';
   }
   return account;
 }
