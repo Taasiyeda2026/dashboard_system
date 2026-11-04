@@ -689,3 +689,19 @@ test('after generating PDF the flow has two primary actions and optional downloa
  assert.equal(doc.querySelectorAll('.ds-fin-manual__review-file').length,0);
  assert.doesNotMatch(doc.body.textContent,/טרם הופק חשבון עסקה|טיוטה לבדיקה בלבד/);
 });
+
+test('multiple separate PDF previews stay collapsed with a single issuance control',()=>{
+ const d=data();
+ toggleManualActivity(d,'a',true);
+ d.manualBatchPreviews=[
+  {activityId:'a',quote:{revision:'a'},pdfBase64:'JVBERi0='},
+  {activityId:'b',quote:{revision:'b'},pdfBase64:'JVBERi0='}
+ ];
+ const doc=new JSDOM(manualAccountViewHtml(d)).window.document;
+ const list=doc.querySelector('.ds-fin-manual__batch-preview-list');
+ assert.ok(list);
+ assert.equal(list.open,false);
+ assert.equal(list.querySelectorAll('[data-finance-manual-pdf-open]').length,2);
+ assert.equal(doc.querySelectorAll('.ds-fin-manual__batch-previews [data-finance-manual-confirm]').length,1);
+ assert.match(doc.querySelector('.ds-fin-manual__batch-review-header').textContent,/2 חשבונות מוכנים לבדיקה/);
+});
