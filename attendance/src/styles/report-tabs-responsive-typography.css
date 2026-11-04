@@ -622,3 +622,64 @@
 .av2-report .av2-report__form-area [role="tabpanel"][hidden]{
   display:none!important;
 }
+
+/* Compact proportional Attendance cards, matching time and total-hours widths.
+   The tab switcher aligns to the two-card content instead of spanning 700px. */
+.av2-report .av2-report__tabs{
+  width:min(100%,616px)!important;
+  max-width:616px!important;
+  gap:4px!important;
+}
+.av2-report .av2-report__form .av2-report__hours-display{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:flex-start!important;
+  min-width:0!important;
+}
+.av2-report .av2-report__form .av2-report__hours-value{
+  box-sizing:border-box!important;
+  width:196px!important;
+  min-width:0!important;
+  max-width:100%!important;
+  align-self:flex-start!important;
+  margin-inline-end:auto!important;
+}
+@media (min-width:981px){
+  .av2-report .av2-report__form.av2-report__form--two-sections{
+    width:min(100%,616px)!important;
+    max-width:616px!important;
+    grid-template-columns:repeat(2,minmax(0,300px))!important;
+    column-gap:16px!important;
+    justify-content:center!important;
+    align-items:start!important;
+  }
+  .av2-report .av2-report__form.av2-report__form--two-sections > .av2-form-section{
+    width:300px!important;
+    max-width:300px!important;
+    min-width:0!important;
+    align-self:start!important;
+  }
+  .av2-report .av2-report__form.av2-report__form--two-sections > .av2-form-section .av2-form-section__body{
+    padding-inline:12px!important;
+  }
+}
+/* Tablet / narrower desktop: avoid forcing two 300px cards into a narrow pane. */
+@media (min-width:768px) and (max-width:980px){
+  .av2-report .av2-report__form.av2-report__form--two-sections{
+    width:min(100%,320px)!important;
+    max-width:320px!important;
+    grid-template-columns:minmax(0,1fr)!important;
+    row-gap:12px!important;
+    justify-content:center!important;
+  }
+  .av2-report .av2-report__form.av2-report__form--two-sections > .av2-form-section{
+    width:100%!important;max-width:320px!important;min-width:0!important;
+  }
+}
+/* Mobile keeps single-column full available width; only its total matches time picker. */
+@media (max-width:767px){
+  .av2-report .av2-report__tabs{width:100%!important;max-width:100%!important}
+  .av2-report .av2-report__form .av2-report__hours-value{
+    width:196px!important;max-width:100%!important;
+  }
+}
