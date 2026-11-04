@@ -309,7 +309,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   const parseTripDuration=value=>{
     const raw=String(value??'').trim();
     if(raw==='')return null;
-    if(!/^\\d{1,2}:[0-5]\\d$/.test(raw))return NaN;
+    if(!/^\d{1,2}:[0-5]\d$/.test(raw))return NaN;
     const [hours,minutes]=raw.split(':').map(Number);
     const total=hours*60+minutes;
     return total<=1440?total:NaN;
