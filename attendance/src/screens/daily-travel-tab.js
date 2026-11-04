@@ -31,7 +31,7 @@ export function createDailyTravelTab({empId, initialDate}) {
   dateField.wrap.hidden=true;
   const dayLabel=document.createElement('label');
   dayLabel.className='av2-daily-travel__day-label';
-  dayLabel.textContent='יום פעילות';
+  dayLabel.textContent='יום פעילות – תאריך ומיקום';
   dayLabel.setAttribute('for','av2-travel-day-selector-trigger');
   const daySelect=document.createElement('select');
   daySelect.id='av2-travel-day-selector';
@@ -321,15 +321,23 @@ export function createDailyTravelTab({empId, initialDate}) {
       ]);
       historicalMonthApproval=historical.approval;
       historicalDays=historicalTravelDays(historical.rows,storedReports);
-      dayOptions=historicalDays.map(day=>({
-        date:day.date,activities:day.records.map(row=>row.activity_type).filter(Boolean).join(' · '),
-        ready:true,review_status:day.dailyReport?.review_status||null
-      }));
+      dayOptions=historicalDays.map(day=>{
+        const schools=[...new Set(day.records.map(row=>
+          row.school_name_snapshot||row.authority_name_snapshot||'').filter(Boolean))];
+        const location=schools.length>1?schools.slice(0,2).join(' / '):schools[0]||'';
+        const activityCount=day.records.length;
+        return {
+          date:day.date,
+          activities:location || (activityCount>0
+            ?activityCount+' פעילויות':'דיווח נסיעות'),
+          ready:true,review_status:day.dailyReport?.review_status||null
+        };
+      });
       daySelect.replaceChildren();
       for(const day of dayOptions){
         const option=document.createElement('option');
         option.value=day.date;
-        option.textContent=formatDate(day.date)+' · '+(day.activities||'פעילות');
+        option.textContent=formatDate(day.date)+' · '+(day.activities||'דיווח נסיעות');
         daySelect.append(option);
       }
       if(!dayOptions.length){
