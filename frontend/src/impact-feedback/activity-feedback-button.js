@@ -42,7 +42,7 @@ export function enhanceActivityDrawers(root = document) {
     // A footer shortcut was being rendered as a floating overlay beside Edit.
     // For 2027 keep feedback near the scheduling shortcut in the scrollable
     // content instead; avoid creating a second button on MutationObserver reruns.
-    if (form.querySelector(`[${BUTTON_ATTR}]`)) return;
+    const existingButton = form.querySelector(`[${BUTTON_ATTR}]`);
     const footer = form.querySelector('.activity-drawer__view-footer');
     const is2027 = String(form.dataset.activitySeason || '').trim() === 'school_2027';
     if (is2027 && form.classList.contains('activity-drawer-inline-layout')) {
@@ -55,13 +55,15 @@ export function enhanceActivityDrawers(root = document) {
         target.className = 'activity-drawer__scheduling-actions activity-drawer__scheduling-actions--standalone';
         body.append(target);
       }
-      const button = createButton(form);
+      // Rehome a button that an earlier observer pass might have already
+      // attached to the floating footer before the inline layout was mounted.
+      const button = existingButton || createButton(form);
       button.className = 'ds-btn ds-btn--sm activity-drawer__feedback-shortcut';
       button.textContent = 'משובים';
-      target.append(button);
+      if (button.parentElement !== target) target.append(button);
       return;
     }
-    if (!footer) return;
+    if (existingButton || !footer) return;
     footer.append(createButton(form));
   });
 }
