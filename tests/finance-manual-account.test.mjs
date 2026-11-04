@@ -539,3 +539,23 @@ test('municipal funding still requires authority, and Gefen still requires separ
   assert.equal(doc.querySelector('[data-finance-manual-selection]'),null);
  }
 });
+
+test('manual invoice activities render school authority and Gefen code in separate table columns',()=>{
+  const d={
+    manualFundingCategory:'source:עלבד',manualFunderFilter:'route:source:עלבד',
+    collectionActivities:[{row_id:'x',activity_name:'ביומימיקרי',school:'אזורי אבן שמואל',authority:'שפיר',activity_no:'6089'}],
+    transactionContext:{billingRows:[{activityRowId:'x',fundingSourceId:'f',funding:'עלבד',payerName:'עלבד',payerKey:'funding:f',fullFundingAmount:10000,eligible:true,issuableAmount:10000}]}
+  };
+  const doc=new JSDOM(manualAccountViewHtml(d)).window.document;
+  const table=doc.querySelector('.ds-fin-manual__activity-table');
+  assert.ok(table);
+  assert.deepEqual([...table.querySelectorAll('thead th')].map(x=>x.textContent),['בחירה · פעילות','בית ספר','רשות','מספר גפ״ן','סכום לחיוב']);
+  const cells=[...table.querySelectorAll('tbody tr td')];
+  assert.equal(cells.length,5);
+  assert.match(cells[0].textContent,/ביומימיקרי/);
+  assert.equal(cells[1].textContent,'אזורי אבן שמואל');
+  assert.equal(cells[2].textContent,'שפיר');
+  assert.equal(cells[3].textContent,'6089');
+  assert.match(cells[4].textContent,/10,000/);
+  assert.equal(table.querySelectorAll('[data-finance-manual-select-activity]').length,1);
+});
