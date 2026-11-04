@@ -911,3 +911,14 @@
 .activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__scheduling-status--compact-2027 .activity-drawer__scheduling-actions:empty {
   display: none !important;
 }
+
+/* The instructor/assignment state is already shown in the primary activity
+   fields. Once the scheduling command is moved to the header, its legacy
+   handoff wrapper must not occupy a separate row or any vertical space. */
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__scheduling-status--header-handoff-2027[hidden],
+.activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__scheduling-status--header-handoff-2027:not(:has([data-open-activity-scheduling])) {
+  display: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  min-height: 0 !important;
+}
