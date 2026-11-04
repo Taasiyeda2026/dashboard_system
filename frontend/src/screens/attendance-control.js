@@ -3179,7 +3179,19 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     if (canChooseTeam) { fillInstructorOptions(teamInput.value); instructorInput.value = employeeId; }
     await loadAttendanceReview();
     const detail = [...results.querySelectorAll('details[data-payroll-employee]')].find(el => el.dataset.payrollEmployee === employeeId);
-    if (detail) { detail.open = true; detail.scrollIntoView?.({ block: 'start' }); }
+    if (detail) {
+      detail.open = true;
+      const recordId = txt(initialTarget?.recordId);
+      const record = recordId
+        ? [...detail.querySelectorAll('details[data-attendance-row-id]')]
+            .find(el => el.dataset.attendanceRowId === recordId)
+        : null;
+      if (record) {
+        record.open = true;
+        record.scrollIntoView?.({ block: 'center' });
+        record.classList.add('attendance-control__focused-record');
+      } else detail.scrollIntoView?.({ block: 'start' });
+    }
   });
   const loadAttendanceReview = async ({ successMessage = '' } = {}) => {
     run.disabled = true; status.textContent = 'טוען את נתוני הנוכחות והדשבורד ומבצע בקרת נוכחות…';
