@@ -57,3 +57,12 @@ test('sticky 2027 table headings cover the top scroll inset with opaque paint', 
   assert.match(rule[1], /border-bottom: 1px solid/);
   assert.match(rule[1], /box-shadow:/);
 });
+
+test('the pinned 2027 headings have white separator and restore the full page header on activation', async () => {
+  const css = await readFile(new URL('../frontend/src/activities-approved-ui-fix.js', import.meta.url), 'utf8');
+  assert.ok(activities.includes('data-activities-restore-header'));
+  assert.ok(activities.includes("root.querySelector('.ds-activities-screen')?.scrollIntoView"));
+  assert.ok(activities.includes("ev.target.matches?.('[data-activities-restore-header]')"));
+  assert.ok(css.includes('0 4px 0 #fff'));
+  assert.ok(css.includes('[data-activities-restore-header]:focus-visible th'));
+});
