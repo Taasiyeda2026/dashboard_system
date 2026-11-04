@@ -3,6 +3,10 @@ export function financeError(error) {
   if(error?.code==='23505'||/unique constraint|duplicate key/.test(message))return 'הרשומה כבר קיימת. יש לבדוק את האסמכתה.';
   const labels={payment_payer_or_activity_mismatch:'התקבול אינו תואם לגורם המשלם או לפעילות.',receipt_already_allocated:'התקבול כבר שויך.',payment_exceeds_account_balance:'הסכום חורג מיתרת החשבון.',receipt_already_voided:'התקבול כבר בוטל.',dispatch_in_progress:'הפקת החשבון כבר מתבצעת.',stale_billing_reservation:'נתוני הפעילות השתנו. יש לעדכן את התצוגה המקדימה.',stale_billing_preview:'נתוני החיוב השתנו. יש לעדכן את התצוגה.',advance_payment_changed:'נתוני התקבולים השתנו. יש לעדכן את התצוגה המקדימה.',finance_collection_permission_denied:'אין הרשאה לביצוע הפעולה.',finance_transactions_permission_denied:'אין הרשאה לביצוע הפעולה.',cancellation_requires_admin_and_reason:'ביטול חשבון דורש הרשאת מנהל וסיבה.',payment_correction_permission_denied:'תיקון התקבול דורש את רושם התקבול או מנהל.'};
   Object.assign(labels, {
+    document_corrected_requires_send_decision:'המסמך תוקן. ההודעה כבר נשלחה ונדרשת החלטה על שליחתו מחדש.',
+    invoice_revision_draft_update_pending:'המסמך תוקן. טיוטת Outlook ממתינה לעדכון בחיבור המפיק המקורי.',
+    invoice_replaced_by_corrected_account:'החשבון בוטל והוחלף בחשבון מתוקן מקושר.',
+    finance_decision_required:'נדרשת החלטת כספים נפרדת לפני שינוי החשבון.',
     invoice_microsoft_connection_required:'הטיוטה תושלם אוטומטית לאחר חיבור Microsoft של המפיק המקורי.',
     invoice_original_issuer_required:'הטיוטה ממתינה לחיבור המשתמש שהפיק במקור את החשבון.',
     invoice_microsoft_account_mismatch:'חשבון Microsoft המחובר אינו תיבת המפיק המקורי. יש להתחבר לחשבון הארגוני הנכון.',

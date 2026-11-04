@@ -32,12 +32,12 @@ before(async()=>{
   for(const name of ['20261029222210_finance_funder_billing','20261029224142_finance_receipts_manual_accounts',
     '20261030210000_finance_consolidated_funder_accounts','20261030044100_finance_single_funder_price_fallback','20261030051500_finance_optional_customer_identifier',
     '20261101192545_finance_service_quantity_snapshots','20261102191847_finance_gefen_course_monthly_minimum',
-    '20261102202405_finance_automatic_outlook_drafts','20261103191835_finance_original_issuer_outlook_mailbox','20261103211803_finance_delegated_invoice_drafts','20261103221311_finance_manual_payer_first','20261103231056_finance_course_performance_hours'])await db.query(await read(`../supabase/migrations/${name}.sql`));
+    '20261102202405_finance_automatic_outlook_drafts','20261103191835_finance_original_issuer_outlook_mailbox','20261103211803_finance_delegated_invoice_drafts','20261103221311_finance_manual_payer_first','20261103231056_finance_course_performance_hours','20261104000410_finance_invoice_history_revisions'])await db.query(await read(`../supabase/migrations/${name}.sql`));
 });
 after(async()=>{if(db)await db.end();});
 beforeEach(async()=>{
   if(!db)return;
-  await db.query(`truncate public.users,auth.users,finance_private.outlook_jobs,net.requests,finance_private.payment_operations,finance_audit_events,
+  await db.query(`truncate finance_private.invoice_versions,finance_private.invoice_revisions,public.users,auth.users,finance_private.outlook_jobs,net.requests,finance_private.payment_operations,finance_audit_events,
     finance_receipt_allocations,finance_receipts,finance_billing_claims,finance_transaction_account_meetings,
     finance_transaction_account_lines,finance_private.dispatch_leases,finance_transaction_accounts,activity_funding_sources,
     activities,schools,authorities,funding_sources,course_meeting_cancellations,contacts_schools,contact_emails,finance_school_invoice_recipients;
@@ -310,4 +310,176 @@ check('workshops and tours retain unit pricing and zero billed course hours unde
     const request=manualItem(type,direct,'performance'),q=await quoteManual(request);assert.equal(Number(q.total_amount),8000);assert.equal(Number(q.finance_transaction_account_lines[0].billed_hours),0);assert.equal(q.finance_transaction_account_lines[0].hourly_rate_snapshot,null);
     const a=await reserveManual(request);await finishManual(a.id);
   }
+});
+
+const revisionContext=async(id=account.id)=>(await db.query('select finance_invoice_revision_context($1) v',[id])).rows[0].v;
+const revisionDraft=c=>({customer_name_snapshot:c.account.customer_name_snapshot,customer_email_snapshot:c.account.customer_email_snapshot||'',issue_date:c.account.issue_date,payment_due_date:c.account.payment_due_date,
+ lines:c.account.finance_transaction_account_lines.map(l=>({id:l.id,school_name_snapshot:l.school_name_snapshot||'',service_description_snapshot:l.service_description_snapshot||l.activity_name_snapshot,activity_price_snapshot:l.activity_price_snapshot,quantity_snapshot:l.quantity_snapshot??l.finance_transaction_account_meetings.length,billed_hours:l.billed_hours,amount:l.amount}))});
+const requestRevision=async(draft,ctx)=>(await db.query('select finance_request_invoice_revision($1,$2,$3,$4) r',[account.id,crypto.randomUUID(),ctx.baseHash,JSON.stringify(draft)])).rows[0].r;
+async function issuedRevisionBase(){await finalize();await db.query('select release_finance_dispatch($1,$2)',[account.id,token]);return revisionContext();}
+const quoteRevision=async id=>(await db.query('select finance_invoice_revision_quote($1) q',[id])).rows[0].q;
+async function beginRevision(id,q){const lease=crypto.randomUUID();const stage=(await db.query("select begin_finance_invoice_revision($1,$2,$3,'44444444-4444-4444-8444-444444444444') s",[id,lease,q.revision])).rows[0].s;return {stage,lease};}
+const finishRevision=async(id,q,lease,mail='unknown')=>{try{return await db.query('select finish_finance_invoice_revision($1,$2,$3,$4,$5,\'drive\',\'folder\',$6,$7,$8) r',[id,lease,q.revision,'revised.pdf','a'.repeat(64),'revision-item','https://example.test/revised.pdf',mail]);}finally{await db.query('select release_finance_dispatch((select account_id from finance_private.invoice_revisions where id=$1),$2)',[id,lease]);}};
+check('document revision preserves account number, claims, previous PDF and original financial snapshots',async()=>{
+ const c=await issuedRevisionBase(),draft=revisionDraft(c);draft.customer_name_snapshot='שם מתוקן';draft.customer_email_snapshot='corrected@example.test';draft.lines[0].service_description_snapshot='תיאור מתוקן';draft.lines[0].school_name_snapshot='בית ספר מתוקן';
+ const before=(await db.query('select to_jsonb(c) c from finance_billing_claims c where account_id=$1 order by meeting_slot',[account.id])).rows;
+ const r=await requestRevision(draft,c);assert.equal(r.financial,false);assert.equal(r.status,'approved');
+ const q=await quoteRevision(r.id);if(process.env.FINANCE_REVISION_DOC_QUOTE)await writeFile(process.env.FINANCE_REVISION_DOC_QUOTE,JSON.stringify(q));assert.equal(String(q.transaction_account_number),String(c.account.transaction_account_number));assert.equal(q.total_amount,c.account.total_amount);
+ const {lease}=await beginRevision(r.id,q);await finishRevision(r.id,q,lease);
+ const after=await revisionContext();assert.equal(after.account.transaction_account_number,c.account.transaction_account_number);assert.equal(after.account.customer_name_snapshot,'שם מתוקן');assert.equal(after.account.document_revision,1);assert.equal(after.versions.length,2);
+ assert.equal(after.versions[1].snapshot.pdf_sha256,'hash');assert.equal(after.versions[0].snapshot.pdf_sha256,'a'.repeat(64));
+ assert.deepEqual((await db.query('select to_jsonb(c) c from finance_billing_claims c where account_id=$1 order by meeting_slot',[account.id])).rows,before);
+ assert.equal(after.account.finance_transaction_account_lines[0].amount,c.account.finance_transaction_account_lines[0].amount);
+ assert.equal(after.account.finance_transaction_account_lines[0].service_description_snapshot,'תיאור מתוקן');
+ assert.deepEqual((await db.query('select finance_transaction_recipients($1) r',[account.id])).rows[0].r.recipients,['corrected@example.test']);
+ assert.equal((await quoteRevision(r.id)).applied,true,'lost response retries cannot create another version');
+});
+check('financial revision needs explicit admin approval even for its admin requester and replaces only after the PDF is stored',async()=>{
+ const c=await issuedRevisionBase(),draft=revisionDraft(c);Object.assign(draft.lines[0],{quantity_snapshot:2,billed_hours:3,amount:2000});
+ const r=await requestRevision(draft,c);assert.equal(r.status,'pending_admin');await assert.rejects(quoteRevision(r.id),/revision_not_approved/);
+ await db.query("select set_config('test.app_role','finance',false)");await assert.rejects(db.query('select finance_decide_invoice_revision($1,true)',[r.id]),/admin_required/);
+ await db.query("select set_config('test.app_role','admin',false)");await db.query('select finance_decide_invoice_revision($1,true)',[r.id]);
+ const q=await quoteRevision(r.id),{stage,lease}=await beginRevision(r.id,q);
+ assert.equal((await db.query('select document_status from finance_transaction_accounts where id=$1',[account.id])).rows[0].document_status,'issued');
+ assert.equal((await db.query('select count(*)::int n from finance_billing_claims where account_id=$1',[account.id])).rows[0].n,3,'upload failure leaves original claims intact');
+ assert.notEqual(stage.quote.transaction_account_number,c.account.transaction_account_number);
+ const result=(await finishRevision(r.id,q,lease)).rows[0].r;
+ const old=(await db.query('select * from finance_transaction_accounts where id=$1',[account.id])).rows[0],replacement=(await db.query('select * from finance_transaction_accounts where id=$1',[result.accountId])).rows[0];
+ assert.equal(old.document_status,'cancelled');assert.equal(old.replaced_by_account_id,replacement.id);assert.equal(replacement.replaces_account_id,old.id);assert.equal(replacement.document_status,'issued');assert.equal(Number(replacement.total_amount),2000);
+ assert.equal(replacement.outlook_owner_id,old.outlook_owner_id);assert.equal((await db.query('select count(*)::int n from finance_billing_claims where account_id=$1',[old.id])).rows[0].n,0);
+ assert.equal((await db.query('select count(*)::int n from finance_billing_claims where account_id=$1',[replacement.id])).rows[0].n,2);
+ assert.equal((await revisionContext(old.id)).versions[0].snapshot.total_amount,c.account.total_amount);
+});
+check('admin rejection leaves the original invoice and financial claims unchanged',async()=>{
+ const c=await issuedRevisionBase(),draft=revisionDraft(c);Object.assign(draft.lines[0],{quantity_snapshot:2,billed_hours:3,amount:2000});const r=await requestRevision(draft,c);
+ await db.query("select finance_decide_invoice_revision($1,false,'לא מאושר')",[r.id]);await assert.rejects(quoteRevision(r.id),/revision_not_approved/);
+ const after=await revisionContext();assert.equal(after.account.total_amount,c.account.total_amount);assert.equal(after.account.document_status,'issued');assert.equal(after.requests[0].status,'rejected');
+});
+
+check('approved price correction reduces a sole uncommitted funding contract and preserves the cancelled invoice history',async()=>{
+ const c=await issuedRevisionBase(),draft=revisionDraft(c);Object.assign(draft.lines[0],{activity_price_snapshot:2500,amount:2500});
+ const r=await requestRevision(draft,c);assert.equal(r.status,'pending_admin');
+ assert.equal(Number((await db.query("select price from activities where row_id='a'")).rows[0].price),3000);
+ await db.query('select finance_decide_invoice_revision($1,true)',[r.id]);const q=await quoteRevision(r.id);if(process.env.FINANCE_REVISION_PRICE_QUOTE)await writeFile(process.env.FINANCE_REVISION_PRICE_QUOTE,JSON.stringify(q));const {lease}=await beginRevision(r.id,q);await finishRevision(r.id,q,lease);
+ assert.equal(Number((await db.query("select price from activities where row_id='a'")).rows[0].price),2500);
+ assert.equal(Number((await db.query('select amount from activity_funding_sources where activity_id=1')).rows[0].amount),2500);
+ assert.equal((await revisionContext(account.id)).versions[0].snapshot.finance_transaction_account_lines[0].activity_price_snapshot,3000);
+});
+check('paid or sent financial corrections wait for a separate finance decision even after admin approval',async()=>{
+ const c=await issuedRevisionBase();await db.query("update finance_transaction_accounts set collection_status='paid' where id=$1",[account.id]);
+ const current=await revisionContext(),draft=revisionDraft(current);Object.assign(draft.lines[0],{quantity_snapshot:2,billed_hours:3,amount:2000});const r=await requestRevision(draft,current);
+ const decided=(await db.query('select finance_decide_invoice_revision($1,true) r',[r.id])).rows[0].r;assert.equal(decided.status,'finance_review_required');
+ await assert.rejects(quoteRevision(r.id),/revision_not_approved/);assert.equal((await revisionContext()).account.document_status,'issued');
+ await db.query('select finance_withdraw_invoice_revision($1)',[r.id]);await db.query("update finance_transaction_accounts set collection_status='awaiting_payment',outlook_status='already_sent' where id=$1",[account.id]);
+ const sent=await revisionContext(),d2=revisionDraft(sent);Object.assign(d2.lines[0],{quantity_snapshot:2,billed_hours:3,amount:2000});const r2=await requestRevision(d2,sent);
+ assert.equal((await db.query('select finance_decide_invoice_revision($1,true) r',[r2.id])).rows[0].r.status,'finance_review_required');
+});
+check('late payment and stale document changes block financial replacement without releasing the original claims',async()=>{
+ const c=await issuedRevisionBase(),draft=revisionDraft(c);Object.assign(draft.lines[0],{quantity_snapshot:2,billed_hours:3,amount:2000});const r=await requestRevision(draft,c);await db.query('select finance_decide_invoice_revision($1,true)',[r.id]);const q=await quoteRevision(r.id),{lease}=await beginRevision(r.id,q);
+ await db.query("update finance_transaction_accounts set collection_status='paid' where id=$1",[account.id]);await assert.rejects(finishRevision(r.id,q,lease),/finance_decision_required/);
+ assert.equal((await db.query('select count(*)::int n from finance_billing_claims where account_id=$1',[account.id])).rows[0].n,3);
+ assert.equal((await db.query('select finance_revision_require_review($1) flagged',[r.id])).rows[0].flagged,true);
+});
+check('revision endpoints reject payer reassignment, browser approval bypass, invalid hours, and unauthorized roles',async()=>{
+ const c=await issuedRevisionBase(),draft=revisionDraft(c);
+ await assert.rejects(requestRevision({...draft,payer_key_snapshot:'school:other'},c),/invalid_revision_fields/);
+ const altered=structuredClone(draft);altered.lines[0].funding_source_id=direct;await assert.rejects(requestRevision(altered,c),/revision_activity_identity_immutable/);
+ Object.assign(draft.lines[0],{billed_hours:2,amount:2000});const r=await requestRevision(draft,c);await assert.rejects(db.query('select finance_decide_invoice_revision($1,true)',[r.id]),/revision_billing_mismatch/);await assert.rejects(quoteRevision(r.id),/revision_not_approved/);
+ await db.query("select set_config('test.role','authenticated',false)");await assert.rejects(db.query("select begin_finance_invoice_revision($1,$2,'forged','44444444-4444-4444-8444-444444444444')",[r.id,crypto.randomUUID()]),/backend_only/);
+ for(const role of ['anon','authenticated']){
+  assert.equal((await db.query("select has_function_privilege($1,'public.finish_finance_invoice_revision(uuid,uuid,text,text,text,text,text,text,text,text)','EXECUTE') allowed",[role])).rows[0].allowed,false);
+  assert.equal((await db.query("select has_table_privilege($1,'finance_private.invoice_revisions','UPDATE') allowed",[role])).rows[0].allowed,false);
+  assert.equal((await db.query("select has_table_privilege($1,'finance_private.invoice_versions','DELETE') allowed",[role])).rows[0].allowed,false);
+ }
+ await db.query("select set_config('test.app_role','instructor',false),set_config('test.permission','false',false)");await assert.rejects(revisionContext(),/finance_transactions_permission_denied/);
+});
+check('nonfinancial corrections remain available on paid invoices and old concurrent bases cannot be applied',async()=>{
+ await issuedRevisionBase();await db.query("update finance_transaction_accounts set collection_status='paid' where id=$1",[account.id]);const c=await revisionContext(),draft=revisionDraft(c);draft.customer_name_snapshot='פרט מתוקן';const r=await requestRevision(draft,c),q=await quoteRevision(r.id),{lease}=await beginRevision(r.id,q);await finishRevision(r.id,q,lease);
+ assert.equal((await revisionContext()).account.collection_status,'paid');
+ await assert.rejects(requestRevision({...draft,customer_name_snapshot:'ישן'},c),/invoice_revision_stale/);
+});
+
+check('changed source contracts invalidate an approved financial request and withdrawn reservations cannot affect the original',async()=>{
+ const c=await issuedRevisionBase(),draft=revisionDraft(c);Object.assign(draft.lines[0],{quantity_snapshot:2,billed_hours:3,amount:2000});const r=await requestRevision(draft,c);await db.query('select finance_decide_invoice_revision($1,true)',[r.id]);
+ await db.query("update activities set activity_name='שינוי חדש' where row_id='a'");await assert.rejects(quoteRevision(r.id),/invoice_revision_stale/);await db.query('select finance_withdraw_invoice_revision($1)',[r.id]);
+ const fresh=await revisionContext(),d2=revisionDraft(fresh);Object.assign(d2.lines[0],{quantity_snapshot:2,billed_hours:3,amount:2000});const r2=await requestRevision(d2,fresh);await db.query('select finance_decide_invoice_revision($1,true)',[r2.id]);const q=await quoteRevision(r2.id),{stage,lease}=await beginRevision(r2.id,q);
+ await db.query('select release_finance_dispatch($1,$2)',[account.id,lease]);await db.query('select finance_withdraw_invoice_revision($1)',[r2.id]);
+ assert.equal((await db.query('select document_status from finance_transaction_accounts where id=$1',[stage.accountId])).rows[0].document_status,'cancelled');assert.equal((await revisionContext()).account.document_status,'issued');
+ await assert.rejects(finishRevision(r2.id,q,lease),/dispatch_lease_expired/);
+ await assert.rejects(db.query("update finance_private.invoice_versions set snapshot='{}' where account_id=$1",[account.id]),/invoice_versions_are_immutable/);
+});
+
+check('revised documents queue a same-owner delegated draft update and preserve sent-message decisions',async()=>{
+ const c=await issuedRevisionBase();await db.query("update finance_private.outlook_jobs set state='ready' where account_id=$1",[account.id]);
+ const draft=revisionDraft(c);draft.customer_email_snapshot='new@example.test';const r=await requestRevision(draft,c),q=await quoteRevision(r.id),{lease}=await beginRevision(r.id,q);await finishRevision(r.id,q,lease);
+ const pending=(await db.query('select finance_pending_delegated_accounts() pending')).rows[0].pending;assert.ok(pending.some(a=>a.id===account.id));
+ await db.query("select set_config('test.uid','55555555-5555-4555-8555-555555555555',false),set_config('test.permission','true',false)");assert.ok(!(await db.query('select finance_pending_delegated_accounts() pending')).rows[0].pending.some(a=>a.id===account.id));
+ await db.query("select set_config('test.uid','44444444-4444-4444-8444-444444444444',false)");await db.query("update finance_transaction_accounts set outlook_status='already_sent' where id=$1",[account.id]);
+ const sent=await revisionContext(),next=revisionDraft(sent);next.customer_name_snapshot='תיקון אחרי שליחה';const r2=await requestRevision(next,sent),q2=await quoteRevision(r2.id),b2=await beginRevision(r2.id,q2);await finishRevision(r2.id,q2,b2.lease);
+ assert.equal((await revisionContext()).account.outlook_status,'already_sent');assert.equal((await revisionContext()).versions[0].actor_name,'idann@think.org.il');
+});
+
+check('an actually allocated receipt blocks financial replacement while text corrections preserve payments and balances',async()=>{
+ const c=await issuedRevisionBase();
+ const receipt={funding_source_id:gefen,payer_key:'school:1',payer_name:'מוסד',activity_row_id:'a',amount:3000,received_date:'2026-11-04',reference:'paid-before-correction'};
+ await db.query('select finance_record_receipt($1,$2,$3)',[crypto.randomUUID(),JSON.stringify(receipt),JSON.stringify([{account_id:account.id,activity_row_id:'a',amount:3000}])]);
+ const allocations=(await db.query('select to_jsonb(a) a from finance_receipt_allocations a where account_id=$1',[account.id])).rows;
+ const paid=await revisionContext(),draft=revisionDraft(paid);Object.assign(draft.lines[0],{quantity_snapshot:2,billed_hours:3,amount:2000});const r=await requestRevision(draft,paid);
+ assert.equal((await db.query('select finance_decide_invoice_revision($1,true) r',[r.id])).rows[0].r.status,'finance_review_required');await db.query('select finance_withdraw_invoice_revision($1)',[r.id]);
+ const fresh=await revisionContext(),details=revisionDraft(fresh);details.customer_name_snapshot='תיקון שם לאחר תשלום';const meta=await requestRevision(details,fresh),q=await quoteRevision(meta.id),b=await beginRevision(meta.id,q);await finishRevision(meta.id,q,b.lease);
+ assert.equal(Number((await db.query('select finance_private.account_paid($1) paid',[account.id])).rows[0].paid),3000);
+ assert.deepEqual((await db.query('select to_jsonb(a) a from finance_receipt_allocations a where account_id=$1',[account.id])).rows,allocations);assert.equal((await revisionContext()).account.collection_status,'paid');
+});
+
+check('approved price changes use the same cent allocation as the canonical billing engine',async()=>{
+ await seedPayerActivity(2,'cent-revision',2,direct,100,3);await db.query("update activities set date_3='2026-10-03' where row_id='cent-revision'");
+ const created=await reserveManual(manualItem('cent-revision',direct,'performance',{quantity:1}));await finishManual(created.id);
+ const c=await revisionContext(created.id),draft=revisionDraft(c);Object.assign(draft.lines[0],{activity_price_snapshot:95,amount:31.67});
+ const r=(await db.query('select finance_request_invoice_revision($1,$2,$3,$4) r',[created.id,crypto.randomUUID(),c.baseHash,JSON.stringify(draft)])).rows[0].r;
+ await db.query('select finance_decide_invoice_revision($1,true)',[r.id]);const q=await quoteRevision(r.id);assert.equal(Number(q.total_amount),31.67);
+ const b=await beginRevision(r.id,q);await finishRevision(r.id,q,b.lease);await db.query('select release_finance_dispatch($1,$2)',[created.id,b.lease]);
+ assert.equal(Number((await db.query("select sum(l.amount) amount from finance_transaction_account_lines l join finance_transaction_accounts a on a.id=l.account_id where l.activity_row_id='cent-revision' and a.document_status<>'cancelled'")).rows[0].amount),31.67);
+});
+
+check('Outlook retry metadata does not stale a reviewed document correction, but payer reassignment blocks a financial correction',async()=>{
+ const c=await issuedRevisionBase(),draft=revisionDraft(c);draft.customer_name_snapshot='שם נבדק';const r=await requestRevision(draft,c),q=await quoteRevision(r.id);
+ await db.query("update finance_transaction_accounts set outlook_attempted_at=now(),outlook_error='temporary' where id=$1",[account.id]);const b=await beginRevision(r.id,q);await finishRevision(r.id,q,b.lease);
+ const updated=await revisionContext(),d=revisionDraft(updated);Object.assign(d.lines[0],{quantity_snapshot:2,billed_hours:3,amount:2000});
+ await db.query("insert into schools values(2,'248724');update activities set school_id=2 where row_id='a'");
+ const f=await requestRevision(d,updated);await assert.rejects(db.query('select finance_decide_invoice_revision($1,true)',[f.id]),/revision_payer_identity_changed/);
+});
+
+check('an administrator explicitly approves a financial edit in one action without waiting on their own request',async()=>{
+ const c=await issuedRevisionBase(),draft=revisionDraft(c);Object.assign(draft.lines[0],{quantity_snapshot:2,billed_hours:3,amount:2000});
+ const key=crypto.randomUUID(),params=[account.id,key,c.baseHash,JSON.stringify(draft),true];
+ const r=(await db.query('select finance_request_invoice_revision($1,$2,$3,$4,$5) r',params)).rows[0].r;
+ assert.equal(r.status,'approved');assert.equal(r.decided_by,r.requested_by);assert.ok(r.decided_at);assert.equal(Number((await quoteRevision(r.id)).total_amount),2000);
+ const again=(await db.query('select finance_request_invoice_revision($1,$2,$3,$4,$5) r',params)).rows[0].r;assert.equal(again.id,r.id);
+ assert.equal((await db.query("select count(*)::int n from finance_audit_events where event_type='invoice_revision_approved' and details->>'revision_id'=$1",[r.id])).rows[0].n,1);
+ await db.query('select finance_withdraw_invoice_revision($1)',[r.id]);await db.query("select set_config('test.app_role','finance',false),set_config('test.permission','true',false)");
+ await assert.rejects(db.query('select finance_request_invoice_revision($1,$2,$3,$4,true)',[account.id,crypto.randomUUID(),c.baseHash,JSON.stringify(draft)]),/admin_required/);
+});
+
+check('finance requests and administrator decisions retain distinct actors and the replacement keeps the original mailbox',async()=>{
+ const c=await issuedRevisionBase(),draft=revisionDraft(c);Object.assign(draft.lines[0],{quantity_snapshot:2,billed_hours:3,amount:2000});
+ await db.query("select set_config('test.uid','55555555-5555-4555-8555-555555555555',false),set_config('test.app_role','finance',false),set_config('test.permission','true',false)");const r=await requestRevision(draft,c);assert.equal(r.status,'pending_admin');assert.equal(r.requested_name,'toni@think.org.il');
+ await assert.rejects(db.query('select finance_invoice_revision_context(null)'),/admin_required/);
+ await db.query("select set_config('test.uid','44444444-4444-4444-8444-444444444444',false),set_config('test.app_role','admin',false)");await db.query('select finance_decide_invoice_revision($1,true)',[r.id]);
+ await db.query("select set_config('test.uid','55555555-5555-4555-8555-555555555555',false),set_config('test.app_role','finance',false)");const q=await quoteRevision(r.id),lease=crypto.randomUUID();
+ const stage=(await db.query("select begin_finance_invoice_revision($1,$2,$3,'55555555-5555-4555-8555-555555555555') s",[r.id,lease,q.revision])).rows[0].s;await finishRevision(r.id,q,lease);
+ const row=(await db.query('select requested_by,decided_by,applied_by from finance_private.invoice_revisions where id=$1',[r.id])).rows[0];assert.notEqual(row.requested_by,row.decided_by);assert.equal(row.requested_by,row.applied_by);
+ assert.equal((await db.query('select outlook_owner_id from finance_transaction_accounts where id=$1',[stage.accountId])).rows[0].outlook_owner_id,'44444444-4444-4444-8444-444444444444');
+});
+check('date corrections require admin, reject future issue dates and keep the original number and balances',async()=>{
+ const c=await issuedRevisionBase(),draft=revisionDraft(c),dates=(await db.query("select ((now() at time zone 'Asia/Jerusalem')::date+1)::text tomorrow,($1::date+1)::text due",[c.account.payment_due_date])).rows[0];draft.payment_due_date=dates.due;
+ await db.query("select set_config('test.app_role','finance',false),set_config('test.permission','true',false)");await assert.rejects(requestRevision(draft,c),/revision_dates_require_admin/);
+ await db.query("select set_config('test.app_role','admin',false)");await assert.rejects(requestRevision({...draft,issue_date:dates.tomorrow},c),/invalid_revision_details/);
+ const r=await requestRevision(draft,c);assert.equal(r.financial,false);const q=await quoteRevision(r.id),b=await beginRevision(r.id,q);await finishRevision(r.id,q,b.lease);
+ const after=await revisionContext();assert.equal(after.account.transaction_account_number,c.account.transaction_account_number);assert.equal(after.account.total_amount,c.account.total_amount);assert.equal(after.account.payment_due_date,dates.due);
+});
+
+check('a financial replacement preserves an administrator-approved due date from its reviewed quote',async()=>{
+ const c=await issuedRevisionBase(),draft=revisionDraft(c);Object.assign(draft.lines[0],{quantity_snapshot:2,billed_hours:3,amount:2000});draft.payment_due_date=(await db.query('select ($1::date+5)::text due',[c.account.payment_due_date])).rows[0].due;
+ const r=await requestRevision(draft,c);await db.query('select finance_decide_invoice_revision($1,true)',[r.id]);const q=await quoteRevision(r.id);assert.equal(q.payment_due_date,draft.payment_due_date);const b=await beginRevision(r.id,q);const result=(await finishRevision(r.id,q,b.lease)).rows[0].r;
+ assert.equal((await db.query('select payment_due_date::text due from finance_transaction_accounts where id=$1',[result.accountId])).rows[0].due,draft.payment_due_date);
 });

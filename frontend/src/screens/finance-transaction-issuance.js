@@ -1,3 +1,4 @@
+import {invoiceRevisionEditorHtml,invoiceRevisionAdminHtml} from './finance-invoice-revisions.js';
 import '../finance-transaction-page-data-hotfix.js';
 import { manualAccountViewHtml } from './finance-manual-account.js';
 import { financeError } from './finance-errors.js';
@@ -207,8 +208,8 @@ function billingView(data, mode) {
 
 function historyView(data) {
   const accounts = (data.transactionContext?.accounts || []).slice().sort((a, b) => String(b.transaction_account_number || '').localeCompare(String(a.transaction_account_number || ''), 'en', { numeric: true }));
-  if (!accounts.length) return dsEmptyState('טרם הופקו חשבונות עסקה.');
-  return accounts.map((account) => {
+  if (!accounts.length) return invoiceRevisionAdminHtml(data)+dsEmptyState('טרם הופקו חשבונות עסקה.');
+  return invoiceRevisionAdminHtml(data)+invoiceRevisionEditorHtml(data)+accounts.map((account) => {
     const balance = data.paymentContext?.balances?.find(row => row.accountId === account.id);
     const actualCollectionStatus = balance ? Number(balance.balance) <= 0 ? 'paid' : Number(balance.paidAmount) > 0 ? 'partially_paid' : 'awaiting_payment' : account.collection_status;
     const lines = (account.finance_transaction_account_lines || []).map((line) => `<tr>
@@ -232,6 +233,9 @@ function historyView(data) {
         <span>גבייה: <strong>${escapeHtml(statusLabel(actualCollectionStatus))}</strong></span>
         ${balance ? `<span>שולם: ${escapeHtml(formatAmount(balance.paidAmount))} · יתרה: ${escapeHtml(formatAmount(balance.balance))}</span>` : ''}
         ${pdf}
+        <button class="ds-btn ds-btn--ghost" data-invoice-revision-open="${escapeHtml(account.id)}">${['issued','mail_draft_ready','sent'].includes(account.document_status)?'עריכה והפקה מחדש':'גרסאות ופרטי התיקון'}</button>
+        ${account.replaces_account_id?`<button class="ds-btn ds-btn--ghost" data-invoice-revision-open="${escapeHtml(account.replaces_account_id)}">חשבון מקורי שבוטל</button>`:''}
+        ${account.replaced_by_account_id?`<button class="ds-btn ds-btn--ghost" data-invoice-revision-open="${escapeHtml(account.replaced_by_account_id)}">חשבון חלופי</button>`:''}
         ${['issued','mail_draft_ready'].includes(account.document_status) && ['pending','failed','missing_recipient','needs_review'].includes(account.outlook_status) ? `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-account-draft="${escapeHtml(account.id)}"${data.financeBusy ? ' disabled' : ''}>נסה להשלים את טיוטת הדוא״ל</button>` : ''}
         ${data.financeAdmin && account.document_status !== 'cancelled' ? `<button class="ds-btn ds-btn--ghost" data-finance-account-cancel="${escapeHtml(account.id)}">ביטול חשבון</button>` : ''}
         ${account.cancellation_reason ? `<span>${escapeHtml(account.cancellation_reason)}</span>` : ''}

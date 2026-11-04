@@ -1,3 +1,4 @@
+import { handleInvoiceRevision, updateInvoiceDraft } from './revision-dispatch.ts';
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { PDFDocument, PDFFont, PDFPage, rgb } from "npm:pdf-lib@1.17.1";
@@ -289,6 +290,7 @@ async function buildPdf(account: any) {
     })
   ]);
   const doc = await PDFDocument.create();
+  if(account.revision_created_at){doc.setCreationDate(new Date(account.revision_created_at));doc.setModificationDate(new Date(account.revision_created_at));}
   doc.registerFontkit(fontkit);
   const regular = await doc.embedFont(regularBytes, { subset: false });
   const bold = await doc.embedFont(boldBytes, { subset: false });
@@ -466,6 +468,12 @@ Deno.serve(async (req) => {
     const { data: allowed, error: allowError } = await userClient.rpc("finance_transaction_can_issue");
     if (allowError || !allowed) throw new Error("not_authorized");
 
+    if(body.revisionId){
+      try {
+        const result=await handleInvoiceRevision({buildPdf,attachActivityTypes,pdfHash,base64,graph,graphToken,validateTransactionFolder,fetch,drive:TRANSACTION_DRIVE_ID,folder:TRANSACTION_FOLDER_ID},userClient,admin,body,req.headers);
+        return Response.json(result,{headers:cors});
+      }catch(error){return Response.json({error:String((error as any)?.message||error),documentPreserved:true},{status:400,headers:cors});}
+    }
     if (body.preview === true) {
       if (body.outlookJobToken) throw new Error('not_authorized');
       const consolidated = Array.isArray(body.funderBatch);
@@ -490,7 +498,7 @@ Deno.serve(async (req) => {
       .eq("id", accountId)
       .single();
     if (error) throw error;
-    if (account.document_status==='sent') return Response.json({accountId,outlookStatus:'already_sent'},{headers:cors});
+    if (account.document_status==='sent' || account.outlook_status==='already_sent') return Response.json({accountId,outlookStatus:'already_sent'},{headers:cors});
     if (!["generating", "issued", "mail_draft_ready"].includes(account.document_status)) throw new Error("account_not_dispatchable");
 
     const { error: leaseError } = await admin.rpc("acquire_finance_dispatch", { p_account_id: accountId, p_token: dispatchToken });
@@ -616,6 +624,11 @@ Deno.serve(async (req) => {
         creationRejected = error instanceof GraphRequestError && error.status>=400 && error.status<500 && ![408,429].includes(error.status);
         throw error;
       }
+    }
+    if(knownMessageId && (account.document_revision>0 || account.replaces_account_id)){
+      const previous=await admin.rpc('finance_invoice_pdf_versions',{p_account_id:accountId});
+      if(previous.error)throw previous.error;
+      await updateInvoiceDraft({graph,draftContent,pdfHash,base64,verifyDraft},delegatedAccessToken,account,bytes,filename,recipients,previous.data||[]);
     }
     const verified = await verifyDraft(delegatedAccessToken,mailbox,knownMessageId,filename,account.pdf_sha256,recipients);
     const outlookStatus = verified.isDraft ? 'draft_ready' : 'already_sent';
