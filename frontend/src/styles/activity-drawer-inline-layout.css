@@ -844,6 +844,8 @@
   flex-wrap: nowrap !important;
   align-items: center !important;
   gap: 5px !important;
+  /* Lower the icon row by 5px without growing the dark header. */
+  transform: translateY(5px);
 }
 .activity-drawer-inline-layout[data-activity-season="school_2027"] .activity-drawer__header-actions > button {
   position: relative !important;
