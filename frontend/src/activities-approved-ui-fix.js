@@ -188,6 +188,34 @@ function installStyles() {
     #app .ds-table--activities-2027-active tbody td:first-child .ds-activities-program-cell {
       text-align: right !important;
     }
+
+    /* School 2027 ALL activities tab: textual fields 1-5,8 right-aligned;
+       start/end dates (6,7) centered. Only this inner tab is affected. */
+    #app .ds-table--activities-2027-all thead th:nth-child(-n+5),
+    #app .ds-table--activities-2027-all tbody td:nth-child(-n+5),
+    #app .ds-table--activities-2027-all thead th:nth-child(8),
+    #app .ds-table--activities-2027-all tbody td:nth-child(8) {
+      text-align: right !important;
+      vertical-align: middle !important;
+    }
+    #app .ds-table--activities-2027-all thead th:nth-child(6),
+    #app .ds-table--activities-2027-all thead th:nth-child(7),
+    #app .ds-table--activities-2027-all tbody td:nth-child(6),
+    #app .ds-table--activities-2027-all tbody td:nth-child(7) {
+      text-align: center !important;
+      vertical-align: middle !important;
+    }
+    #app .ds-table--activities-2027-all tbody td:nth-child(6) .ds-activities-date,
+    #app .ds-table--activities-2027-all tbody td:nth-child(7) .ds-activities-date {
+      display: inline-block;
+      text-align: center !important;
+      margin-inline: auto;
+    }
+    #app .ds-table--activities-2027-all tbody td:nth-child(-n+5) .ds-activities-cell-ellipsis,
+    #app .ds-table--activities-2027-all tbody td:nth-child(8) .ds-activities-cell-ellipsis,
+    #app .ds-table--activities-2027-all tbody td:first-child .ds-activities-program-cell {
+      text-align: right !important;
+    }
   `;
   document.head.appendChild(style);
 }
