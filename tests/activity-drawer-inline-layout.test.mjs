@@ -516,3 +516,11 @@ test('an archive-style async detail replacement receives the layout immediately'
   assert.match(archiveSource, /contentNode\.innerHTML\s*=\s*reopenBtn \+ activityWorkDrawerHtml\([\s\S]*?applyActivityDrawerLayoutPipeline\(contentNode, settings\);/);
   dom.window.close();
 });
+
+test('2027 contact edit mode does not duplicate read-only data or selected preview', async () => {
+  const css = await readFile(new URL('../frontend/src/styles/activity-drawer-inline-layout.css', import.meta.url), 'utf8');
+  assert.match(css, /\[data-activity-season="school_2027"\]\[data-editing="yes"\]/);
+  assert.match(css, /\[data-contact-2027-section\] \[data-mode="view"\]/);
+  assert.match(css, /\[data-contact-2027-preview\]/);
+  assert.match(css, /display: none !important/);
+});
