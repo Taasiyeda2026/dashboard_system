@@ -1406,7 +1406,7 @@ export function renderNewReportScreen(container, {
     hoursFollowup.className = 'av2-report__hours-followup';
     // Travel, kilometres and cancellation are reported only in the separate travel tab.
     // Keep their legacy state adapters for unchanged historical record handling.
-    timesGrid.append(startPicker.wrap, endPicker.wrap, hoursDisplay);
+    timesGrid.append(startPicker.wrap, endPicker.wrap, hoursDisplay, hoursFollowup);
     baseTrainingRouteRow = document.createElement('div');
     baseTrainingRouteRow.className = 'av2-report__time-cancellation av2-report__base-training-route';
     baseTrainingRouteRow.hidden = true;
