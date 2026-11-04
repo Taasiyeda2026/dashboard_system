@@ -9092,7 +9092,7 @@ export const api = {
     const syncedChanges = applyInstructorEmpSync(catalogAwareChanges);
     const { data: existingInstructorRow, error: existingInstructorError } = await supabase
       .from('activities')
-      .select('instructor_name,instructor_name_2,emp_id,emp_id_2,activity_season,start_date')
+      .select('*')
       .eq('row_id', rowId)
       .maybeSingle();
     if (existingInstructorError) throw buildSupabaseMutationError('submitEditRequest', existingInstructorError, 'submit_edit_request_failed');
@@ -9134,18 +9134,15 @@ export const api = {
     let snapshotName = '';
     let snapshotSchool = '';
     let snapshotAuthority = '';
-    try {
-      const { row: liveRow } = await readActivityDetailFromSupabase(rowId, sourceSheet);
-      if (liveRow) {
-        snapshotName = String(liveRow.activity_name || '').trim();
-        snapshotSchool = String(liveRow.school || '').trim();
-        snapshotAuthority = String(liveRow.authority || '').trim();
-        for (const key of changedKeys) {
-          originalValuesMap[key] = String(liveRow[key] ?? '').trim();
-        }
-      }
-    } catch {
-      originalValuesMap = {};
+    // Reuse the already-authorized single-row snapshot instead of loading a
+    // full activity detail (meetings, related data and multiple round trips).
+    // A request should never fail or stall because the approval metadata reloads.
+    const liveRow = existingInstructorRow || {};
+    snapshotName = String(liveRow.activity_name || '').trim();
+    snapshotSchool = String(liveRow.school || '').trim();
+    snapshotAuthority = String(liveRow.authority || '').trim();
+    for (const key of changedKeys) {
+      originalValuesMap[key] = String(liveRow[key] ?? '').trim();
     }
     const row = {
       request_id: `REQ-${Date.now()}`,
@@ -9186,6 +9183,20 @@ export const api = {
         payload: row,
         error
       });
+      // A proxy timeout can occur after INSERT committed. Check the stable
+      // request id before treating the operation as failed; never retry INSERT.
+      if (String(error?.code || '').startsWith('5') ||
+          /timeout|gateway|fetch failed|network/i.test(String(error?.message || ''))) {
+        const { data: confirmed } = await supabase.from('edit_requests')
+          .select('request_id,status')
+          .eq('request_id', row.request_id)
+          .maybeSingle();
+        if (confirmed?.request_id === row.request_id) {
+          logActivityMutationDebug('success-after-timeout', 'submitEditRequest', debugPayload, { table: 'edit_requests', request_id: row.request_id });
+          return { request_id: row.request_id, status: confirmed.status || 'pending' };
+        }
+        throw new Error('save_timeout');
+      }
       throw buildSupabaseMutationError('submitEditRequest', error, 'submit_edit_request_failed');
     }
     logActivityMutationDebug('success', 'submitEditRequest', debugPayload, { table: 'edit_requests', request_id: row.request_id });
