@@ -39,8 +39,29 @@ export function enhanceActivityDrawers(root = document) {
   if (!isAdmin()) return;
   root.querySelectorAll?.('form[data-drawer-form][data-row-id]').forEach((form) => {
     if (!String(form.dataset.rowId || '').trim()) return;
+    // A footer shortcut was being rendered as a floating overlay beside Edit.
+    // For 2027 keep feedback near the scheduling shortcut in the scrollable
+    // content instead; avoid creating a second button on MutationObserver reruns.
+    if (form.querySelector(`[${BUTTON_ATTR}]`)) return;
     const footer = form.querySelector('.activity-drawer__view-footer');
-    if (!footer || footer.querySelector(`[${BUTTON_ATTR}]`)) return;
+    const is2027 = String(form.dataset.activitySeason || '').trim() === 'school_2027';
+    if (is2027 && form.classList.contains('activity-drawer-inline-layout')) {
+      const body = form.querySelector(':scope > .activity-drawer-inline__body');
+      if (!body) return;
+      const schedulingActions = body.querySelector('[data-activity-scheduling-status] .activity-drawer__scheduling-actions');
+      let target = schedulingActions;
+      if (!target) {
+        target = form.ownerDocument.createElement('div');
+        target.className = 'activity-drawer__scheduling-actions activity-drawer__scheduling-actions--standalone';
+        body.append(target);
+      }
+      const button = createButton(form);
+      button.className = 'ds-btn ds-btn--sm activity-drawer__feedback-shortcut';
+      button.textContent = 'משובים';
+      target.append(button);
+      return;
+    }
+    if (!footer) return;
     footer.append(createButton(form));
   });
 }
