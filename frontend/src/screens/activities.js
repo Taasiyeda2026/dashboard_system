@@ -2122,7 +2122,7 @@ export const activitiesScreen = {
                   <col class="ds-activities-col--date">
                   <col class="ds-activities-col--notes">
                 </colgroup>
-                <thead><tr><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th>${is2027AllTab ? '<th>איש קשר</th>' : ''}<th>מדריך</th><th>תאריך התחלה</th>${is2027ActivitiesTab ? '<th>המפגש הבא</th>' : ''}<th>תאריך סיום</th><th>${is2027AllTab ? 'הערה אחרונה' : 'מידע נוסף'}</th></tr></thead>`
+                <thead><tr tabindex="0" title="לחיצה להחזרת כותרת המסך והסינונים" data-activities-restore-header><th>תוכנית / סוג</th><th>רשות</th><th>בית ספר</th>${is2027AllTab ? '<th>איש קשר</th>' : ''}<th>מדריך</th><th>תאריך התחלה</th>${is2027ActivitiesTab ? '<th>המפגש הבא</th>' : ''}<th>תאריך סיום</th><th>${is2027AllTab ? 'הערה אחרונה' : 'מידע נוסף'}</th></tr></thead>`
         : `<colgroup>
                   <col class="ds-activities-col--program">
                   <col class="ds-activities-col--authority">
@@ -3759,6 +3759,16 @@ export const activitiesScreen = {
         }
         return;
       }
+      // Restore the navigation and filters without manually scrolling back.
+      // The existing delegated handler avoids additional listeners or observers.
+      if (ev.target.closest('[data-activities-restore-header]')) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        root.querySelector('.ds-activities-screen')?.scrollIntoView({
+          behavior: 'smooth', block: 'start'
+        });
+        return;
+      }
       const rowNode = ev.target.closest('.ds-data-row');
       if (!rowNode) return;
       if (ev.target.closest('[data-contact-popover]')) return;
@@ -3770,6 +3780,11 @@ export const activitiesScreen = {
     }, rowSig);
     root.addEventListener('keydown', (ev) => {
       if (ev.key !== 'Enter' && ev.key !== ' ') return;
+      if (ev.target.matches?.('[data-activities-restore-header]')) {
+        ev.preventDefault();
+        ev.target.click();
+        return;
+      }
       const rowNode = ev.target.closest('.ds-data-row');
       if (!rowNode) return;
       ev.preventDefault();
