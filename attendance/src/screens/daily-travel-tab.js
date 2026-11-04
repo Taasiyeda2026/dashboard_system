@@ -4,7 +4,7 @@ import { getMonthApproval } from '../services/attendance.service.js';
 import { canEditMonth, formatMonthLabel } from '../services/month-gate.service.js';
 import { listInstructorDisplayMonths, readHistoricalAttendance, historicalTravelDays, isHistoricTravelMonth, monthStatusLabel } from '../services/historical-display.service.js';
 import {
-  getDailyTravelActivityLegs, getDailyTravelReport, getAssignedTravelDays, saveDailyTravel
+  getDailyTravelActivityLegs, getDailyTravelReport, getDailyTravelReports, getAssignedTravelDays, saveDailyTravel
 } from '../services/daily-travel.service.js';
 
 const LEG_LABELS = {outbound:'יציאה לפעילות הראשונה',between:'מעבר בין פעילויות',return:'חזרה מהפעילות האחרונה'};
