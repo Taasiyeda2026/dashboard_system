@@ -120,11 +120,23 @@ begin
       if v_kind='between' then
         select greatest(0,(extract(epoch from (next_a.start_time-prev_a.end_time))/60)::integer),
           ((prev_a.school_id is not null and prev_a.school_id=next_a.school_id)
-           or (coalesce(nullif(lower(btrim(prev_a.destination_address_snapshot)),''),'#')
-              = coalesce(nullif(lower(btrim(next_a.destination_address_snapshot)),''),'##')))
+           or (
+              coalesce(nullif(lower(btrim(prev_a.destination_address_snapshot)),''),
+                nullif(lower(btrim(prev_school.route_verified_address)),''),
+                nullif(lower(btrim(prev_a.school_name_snapshot)),''),
+                nullif(lower(btrim(prev_a.authority_name_snapshot)),''),
+                '#') =
+              coalesce(nullif(lower(btrim(next_a.destination_address_snapshot)),''),
+                nullif(lower(btrim(next_school.route_verified_address)),''),
+                nullif(lower(btrim(next_a.school_name_snapshot)),''),
+                nullif(lower(btrim(next_a.authority_name_snapshot)),''),
+                '##')
+            ))
         into v_gap_minutes,v_same_location
         from public.attendance_records prev_a
         join public.attendance_records next_a on next_a.id=(v_item->>'toRecordId')::uuid
+        left join public.schools prev_school on prev_school.id=prev_a.school_id
+        left join public.schools next_school on next_school.id=next_a.school_id
         where prev_a.id=(v_item->>'fromRecordId')::uuid
           and prev_a.emp_id=v_emp and next_a.emp_id=v_emp
           and prev_a.report_date=p_date and next_a.report_date=p_date;
