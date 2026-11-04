@@ -90,7 +90,8 @@ begin
  then raise exception 'expense_date_range_invalid' using errcode='22023';end if;
  select coalesce(jsonb_agg(jsonb_build_object(
    'id',e.id,'emp_id',e.emp_id,'employee_name',coalesce(ci.full_name,e.emp_id::text),
-   'employment_type',coalesce(ci.employment_type,''),'expense_date',e.expense_date,
+   'employment_type',coalesce(ci.employment_type,''),
+   'team',coalesce(ci.direct_manager,''),'expense_date',e.expense_date,
    'amount',e.amount,'details',e.details,
    'review_status',e.review_status,'approved_amount',e.approved_amount,
    'attachments',coalesce((select jsonb_agg(jsonb_build_object(
