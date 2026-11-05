@@ -5,16 +5,16 @@ import { readFileSync } from 'node:fs';
 const pdf = readFileSync(new URL('../supabase/functions/finance-transaction-accounts/index.ts', import.meta.url), 'utf8');
 
 test('Gefen courses alone use the detailed seven-column invoice', () => {
-  assert.match(pdf, /const courseWidths = \[94, 119, 56, 42, 46, 80, 98\]/);
+  assert.match(pdf, /const courseWidths = \[100, 125, 58, 42, 46, 74, 90\]/);
   assert.match(pdf, /\['שם בית הספר', 'תוכנית \/ קורס', 'מספר גפ״ן', 'שעות', 'מפגשים', 'מחיר לשעה', 'סה״כ'\]/);
   assert.match(pdf, /drawSection\('',[\s\S]*?courseWidths, gefenCourses/);
   assert.match(pdf, /\(row\) => \[row\.school \|\| '—', row\.name, row\.gefen \|\| '—',[\s\S]*?count\(row\.hours\), count\(row\.quantity\), money\(row\.hourlyPrice\), money\(row\.amount\)\]/);
-  assert.equal([94, 119, 56, 42, 46, 80, 98].reduce((sum, w) => sum + w, 0), 535);
+  assert.equal([100, 125, 58, 42, 46, 74, 90].reduce((sum, w) => sum + w, 0), 535);
 });
 
 test('non-Gefen courses use school, authority, course and total; workshops show quantity without hourly', () => {
-  assert.match(pdf, /const compactWidths = \[142, 185, 106, 102\]/);
-  assert.match(pdf, /const serviceWidths = \[120, 155, 100, 60, 100\]/);
+  assert.match(pdf, /const compactWidths = \[130, 175, 110, 120\]/);
+  assert.match(pdf, /const serviceWidths = \[118, 150, 100, 62, 105\]/);
   assert.match(pdf, /\['שם בית הספר', 'תוכנית \/ קורס', 'רשות', 'סה״כ'\]/);
   assert.match(pdf, /\['שם בית הספר', 'סדנה \/ סיור', 'רשות', 'כמות', 'סה״כ'\]/);
   assert.match(pdf, /compactWidths, otherCourses/);
@@ -22,8 +22,8 @@ test('non-Gefen courses use school, authority, course and total; workshops show 
   assert.match(pdf, /\(row\) => \[row\.school \|\| '—', row\.name, row\.authority \|\| '—', money\(row\.amount\)\], false\)/);
   assert.match(pdf, /\(row\) => \[row\.school \|\| '—', row\.name, row\.authority \|\| '—', count\(row\.quantity\), money\(row\.amount\)\], false\)/);
   assert.match(pdf, /showDates && row\.dates\.length/);
-  assert.equal([142, 185, 106, 102].reduce((n,w)=>n+w,0),535);
-  assert.equal([120, 155, 100, 60, 100].reduce((n,w)=>n+w,0),535);
+  assert.equal([130, 175, 110, 120].reduce((n,w)=>n+w,0),535);
+  assert.equal([118, 150, 100, 62, 105].reduce((n,w)=>n+w,0),535);
 });
 
 test('all invoices share the reference workshop letterhead on every PDF page', () => {
@@ -51,9 +51,9 @@ test('long school and course names wrap without overlapping adjoining columns', 
 });
 
 test('payment details have a subtle separator and do not repeat the addressee', () => {
-  assert.match(pdf,/start: \{ x: 30, y: y \+ 7 \}, end: \{ x: 565, y: y \+ 7 \}/);
+  assert.match(pdf,/start: \{ x: 30, y: y \+ 6 \}, end: \{ x: 565, y: y \+ 6 \}/);
   assert.match(pdf,/thickness: 0\.6, color: rgb\(0\.86, 0\.89, 0\.92\)/);
-  assert.match(pdf,/if \(y < 208\) \{ page = doc\.addPage\(\[595, 842\]\); y = drawInvoiceHeader\(page, true\); \}/);
+  assert.match(pdf,/if \(y < 200\) \{ page = doc\.addPage\(\[595, 842\]\); y = drawInvoiceHeader\(page, true\); \}/);
   assert.equal((pdf.match(/drawRight\(targetPage, bold, `לכבוד:/g) || []).length, 1,'the recipient is drawn only in the first-page header');
 });
 
@@ -77,10 +77,10 @@ test('customer-facing course descriptions remove internal full-balance labels an
 });
 
 test('invoice payment footer uses distinct vertical spacing between total, due date and bank', () => {
-  assert.match(pdf, /סה"כ לתשלום: \$\{money\(account\.total_amount\)\}\`, y, 13\); y -= 30;/);
-  assert.match(pdf, /לתשלום עד: \$\{date\(account\.payment_due_date\)\}\`, y, 9\.5\); y -= 30;/);
-  assert.match(pdf, /y -= 15;\s*drawRight\(page, bold, 'פרטי חשבון בנק להעברה:', y, 10\)/);
-  assert.match(pdf, /if \(y < 208\)/, 'payment footer must fit above the page footer');
+  assert.match(pdf, /סה"כ לתשלום: \$\{money\(account\.total_amount\)\}\`, y, 14\); y -= 26;/);
+  assert.match(pdf, /לתשלום עד: \$\{date\(account\.payment_due_date\)\}\`, y, 10\); y -= 24;/);
+  assert.match(pdf, /y -= 14;\s*drawRight\(page, bold, 'פרטי חשבון בנק להעברה:', y, 10\.5\)/);
+  assert.match(pdf, /if \(y < 200\)/, 'payment footer must fit above the page footer');
 });
 
 test('only Gefen courses use hour columns; workshops and tours use service quantity rows', () => {

@@ -1,25 +1,49 @@
 import {escapeHtml as e} from './shared/html.js';
 import {formatManualMoney,normalizeManualRecipientEmails,manualPdfReviewHtml,syncManualPdfPreviewDom,activateManualPdfPreview} from './finance-manual-account.js';
 const text=v=>String(v??'').trim();
-const labels={customer_name_snapshot:'שם הלקוח',customer_email_snapshot:'נמענים',school_name_snapshot:'בית הספר',service_description_snapshot:'תיאור הפעילות',issue_date:'תאריך הפקה',payment_due_date:'מועד תשלום',activity_price_snapshot:'מחיר הפעילות',quantity_snapshot:'מספר מפגשים / כמות',billed_hours:'שעות',amount:'סכום לחיוב'};
+const labels={customer_name_snapshot:'נמען החשבון',customer_email_snapshot:'איש קשר / נמעני מייל',school_name_snapshot:'בית הספר',service_description_snapshot:'טקסט חופשי בחשבון',issue_date:'תאריך הפקה',payment_due_date:'מועד תשלום',activity_price_snapshot:'מחיר הקורס',quantity_snapshot:'מספר מפגשים לחיוב / כמות',meeting_unit_price:'מחיר למפגש',billed_hours:'שעות',amount:'סכום לחיוב'};
 const status=s=>({pending_admin:'ממתין לאישור אדמין',approved:'מוכן לתצוגה מקדימה',rendering:'ממתין להשלמת ההפקה',applied:'התיקון נשמר',rejected:'הבקשה נדחתה או בוטלה',finance_review_required:'אושר באדמין · נדרשת החלטת כספים נפרדת'})[s]||s;
 const active=r=>['pending_admin','approved','rendering','finance_review_required'].includes(r.status);
 export function invoiceRevisionDraft(account){return {customer_name_snapshot:account.customer_name_snapshot,customer_email_snapshot:normalizeManualRecipientEmails(account.customer_email_snapshot),issue_date:account.issue_date,payment_due_date:account.payment_due_date,
- lines:(account.finance_transaction_account_lines||[]).map(l=>({id:l.id,school_name_snapshot:l.school_name_snapshot||'',service_description_snapshot:l.service_description_snapshot||l.activity_name_snapshot,
- activity_price_snapshot:Number(l.activity_price_snapshot),quantity_snapshot:Number(l.quantity_snapshot??l.finance_transaction_account_meetings?.length??0),billed_hours:Number(l.billed_hours),amount:Number(l.amount)}))};}
+ lines:(account.finance_transaction_account_lines||[]).map(l=>{
+  const quantity=Number(l.quantity_snapshot??l.finance_transaction_account_meetings?.length??0);
+  const planned=Number(l.planned_meeting_count_snapshot)||quantity||1;
+  const amount=Number(l.amount);
+  const price=Number(l.activity_price_snapshot);
+  const service=Number(l.billed_hours)===0;
+  return {id:l.id,school_name_snapshot:l.school_name_snapshot||'',service_description_snapshot:l.service_description_snapshot||l.activity_name_snapshot,
+ activity_price_snapshot:price,quantity_snapshot:quantity,billed_hours:Number(l.billed_hours),amount,
+ meeting_unit_price:service?(quantity>0?Math.round(amount/quantity*100)/100:0):Math.round(price/planned*100)/100};})};}
 export function revisionIsFinancial(original,draft){const old=invoiceRevisionDraft(original);return draft.lines.some(l=>{const prior=old.lines.find(x=>x.id===l.id);return !prior||['activity_price_snapshot','quantity_snapshot','billed_hours','amount'].some(k=>Number(l[k])!==Number(prior[k]));});}
 export function editInvoiceRevision(data,key,value,lineId){
  const d=data.invoiceRevisionDraft;if(!d)return;
  if(lineId){const l=d.lines.find(x=>x.id===lineId);if(!l)return;
-  l[key]=['activity_price_snapshot','quantity_snapshot','billed_hours','amount'].includes(key)?Number(value):value;
   const old=data.invoiceRevisionContext.account.finance_transaction_account_lines.find(x=>x.id===lineId);
   const service=Number(old.billed_hours)===0;
-  if(!service&&key==='quantity_snapshot')l.billed_hours=l.quantity_snapshot*1.5;
-  if(!service&&key==='billed_hours'&&Number.isInteger(l.billed_hours/1.5))l.quantity_snapshot=l.billed_hours/1.5;
-  if(['activity_price_snapshot','quantity_snapshot','billed_hours'].includes(key)){
-   const factor=l.activity_price_snapshot/Number(old.activity_price_snapshot);
-   l.amount=Math.round((old.billing_coverage==='full_funding'?Number(old.amount)*factor:service?Number(old.unit_price_snapshot)*l.quantity_snapshot*factor:Number(old.funding_amount_snapshot)*factor*l.billed_hours/(Number(old.planned_meeting_count_snapshot)*1.5))*100)/100;
+  if(key==='meeting_unit_price'){
+   const unit=Number(value);
+   if(!Number.isFinite(unit)||unit<0)return;
+   l.meeting_unit_price=unit;
+   if(service){l.amount=Math.round(unit*Number(l.quantity_snapshot)*100)/100;l.activity_price_snapshot=Math.round(unit*Number(old.planned_meeting_count_snapshot||l.quantity_snapshot)*100)/100;}
+   else {
+    const planned=Number(old.planned_meeting_count_snapshot)||1;
+    l.activity_price_snapshot=Math.round(unit*planned*100)/100;
+    const factor=l.activity_price_snapshot/Number(old.activity_price_snapshot);
+    l.amount=Math.round((old.billing_coverage==='full_funding'?Number(old.amount)*factor:Number(old.funding_amount_snapshot)*factor*l.billed_hours/(planned*1.5))*100)/100;
+   }
+  } else {
+   l[key]=['activity_price_snapshot','quantity_snapshot','billed_hours','amount'].includes(key)?Number(value):value;
+   if(!service&&key==='quantity_snapshot')l.billed_hours=l.quantity_snapshot*1.5;
+   if(!service&&key==='billed_hours'&&Number.isInteger(l.billed_hours/1.5))l.quantity_snapshot=l.billed_hours/1.5;
+   if(['activity_price_snapshot','quantity_snapshot','billed_hours'].includes(key)){
+    const factor=l.activity_price_snapshot/Number(old.activity_price_snapshot);
+    l.amount=Math.round((old.billing_coverage==='full_funding'?Number(old.amount)*factor:service?Number(old.unit_price_snapshot||old.amount/Math.max(1,Number(old.quantity_snapshot)))*l.quantity_snapshot*factor:Number(old.funding_amount_snapshot)*factor*l.billed_hours/(Number(old.planned_meeting_count_snapshot)*1.5))*100)/100;
+   }
   }
+  const planned=Number(old.planned_meeting_count_snapshot)||Number(l.quantity_snapshot)||1;
+  l.meeting_unit_price=service
+   ? (Number(l.quantity_snapshot)>0?Math.round(Number(l.amount)/Number(l.quantity_snapshot)*100)/100:0)
+   : Math.round(Number(l.activity_price_snapshot)/planned*100)/100;
  }else d[key]=key==='customer_email_snapshot'?normalizeManualRecipientEmails(value):value;
  data.invoiceRevisionPreview=null;
 }
@@ -36,26 +60,26 @@ export function invoiceRevisionApprovalHtml(data){
  const before=invoiceRevisionDraft(data.invoiceRevisionContext.account),after=data.invoiceRevisionDraft,changes=[];
  for(const k of ['customer_name_snapshot','customer_email_snapshot','issue_date','payment_due_date'])if(text(before[k])!==text(after[k]))changes.push({key:k,old:before[k],next:after[k]});
  for(const l of after.lines){const old=before.lines.find(x=>x.id===l.id);for(const k of Object.keys(labels).filter(k=>k in l))if(text(old[k])!==text(l[k]))changes.push({key:k,old:old[k],next:l[k]});}
- return `<table class="ds-table"><thead><tr><th>שינוי לאישור</th><th>לפני</th><th>אחרי</th></tr></thead><tbody>${changes.map(c=>`<tr><td>${e(labels[c.key])}</td><td>${e(c.old)}</td><td>${e(c.next)}</td></tr>`).join('')}</tbody></table><p>לאחר האישור ושמירת המסמך יופק חשבון חלופי המקושר לחשבון המקורי שיבוטל.</p>`;
+ return `<table class="ds-table"><thead><tr><th>שינוי לאישור</th><th>לפני</th><th>אחרי</th></tr></thead><tbody>${changes.map(c=>`<tr><td>${e(labels[c.key])}</td><td>${e(c.old)}</td><td>${e(c.next)}</td></tr>`).join('')}</tbody></table><p>לאחר האישור ושמירת המסמך יישמר מספר החשבון, המסמך הקודם יישמר בגרסאות, ונתוני פעילויות תשפ״ז לא ישתנו.</p>`;
 }
 export function invoiceRevisionEditorHtml(data){
  const c=data.invoiceRevisionContext,d=data.invoiceRevisionDraft;if(!c||!d)return data.invoiceRevisionMessage?`<p role="status">${e(data.invoiceRevisionMessage)}</p>`:'';
  const r=data.invoiceRevisionRequest,locked=Boolean(r&&active(r)),cancelled=c.account.document_status==='cancelled',financial=revisionIsFinancial(c.account,d),preview=data.invoiceRevisionPreview;
  const field=(key,value,lineId='',type='text')=>`<label>${e(labels[key])}<input class="ds-input" type="${type}"${key==='customer_email_snapshot'?' multiple dir="ltr"':''}${locked||cancelled||(['issue_date','payment_due_date'].includes(key)&&!data.financeAdmin)?' readonly':''} data-invoice-revision-field="${key}"${lineId?` data-line-id="${e(lineId)}"`:''} value="${e(value)}"${type==='number'?' min="0" step="any"':''}></label>`;
- return `<section class="ds-fin-manual" dir="rtl" data-invoice-revision-editor><h3>עריכה והפקה מחדש · חשבון ${e(c.account.transaction_account_number)}</h3>
+ return `<section class="ds-fin-manual" dir="rtl" data-invoice-revision-editor><h3>עריכת חשבון · ${e(c.account.transaction_account_number)}</h3>
  <p>משלם: ${e(c.account.payer_identity_snapshot||c.account.customer_name_snapshot)} · מוסד ${e(c.account.institution_symbol||'—')}</p>
  ${data.invoiceRevisionMessage?`<p role="status">${e(data.invoiceRevisionMessage)}</p>`:''}
  ${r?`<p role="status">${e(status(r.status))}</p>`:''}
- ${financial&&!locked&&!cancelled?'<p>תיקון כספי יוביל לחשבון חלופי המקושר לחשבון המקורי שיבוטל, לאחר אישור ושמירת המסמך.</p>':''}
+ ${financial&&!locked&&!cancelled?'<p>תיקון כספי נשמר על אותו מספר חשבון. המסמך הקודם נשמר בגרסאות, ופעילויות תשפ״ז אינן משתנות.</p>':''}
  <form data-invoice-revision-form><div class="ds-fin-manual__grid">${field('customer_name_snapshot',d.customer_name_snapshot)}${field('customer_email_snapshot',d.customer_email_snapshot,'','email')}${field('issue_date',d.issue_date,'','date')}${field('payment_due_date',d.payment_due_date,'','date')}</div>
- ${d.lines.map(l=>{const old=c.account.finance_transaction_account_lines.find(x=>x.id===l.id);return `<details class="ds-fin-payer"><summary data-invoice-revision-line-summary="${e(l.id)}">${e(old.activity_name_snapshot)} · ${formatManualMoney(l.amount)} ₪</summary><div class="ds-fin-manual__grid">${field('school_name_snapshot',l.school_name_snapshot,l.id)}${field('service_description_snapshot',l.service_description_snapshot,l.id)}</div>
- <div class="ds-fin-manual__grid">${field('activity_price_snapshot',l.activity_price_snapshot,l.id,'number')}${field('quantity_snapshot',l.quantity_snapshot,l.id,'number')}${Number(old.billed_hours)>0?field('billed_hours',l.billed_hours,l.id,'number'):''}${field('amount',l.amount,l.id,'number')}</div>
- ${Number(l.billed_hours)>0?`<small data-invoice-revision-hourly="${e(l.id)}">מחיר שעתי מחושב: ${formatManualMoney(Number(old.funding_amount_snapshot)/Number(old.activity_price_snapshot)*l.activity_price_snapshot/(Number(old.planned_meeting_count_snapshot)*1.5))} ₪</small>`:''}</details>`;}).join('')}
+ ${d.lines.map(l=>{const old=c.account.finance_transaction_account_lines.find(x=>x.id===l.id);return `<details class="ds-fin-payer" open><summary data-invoice-revision-line-summary="${e(l.id)}">${e(old.activity_name_snapshot)} · ${formatManualMoney(l.amount)} ₪</summary><div class="ds-fin-manual__grid">${field('school_name_snapshot',l.school_name_snapshot,l.id)}${field('service_description_snapshot',l.service_description_snapshot,l.id)}</div>
+ <div class="ds-fin-manual__grid">${field('activity_price_snapshot',l.activity_price_snapshot,l.id,'number')}${field('meeting_unit_price',l.meeting_unit_price,l.id,'number')}${field('quantity_snapshot',l.quantity_snapshot,l.id,'number')}${Number(old.billed_hours)>0?field('billed_hours',l.billed_hours,l.id,'number'):''}<label>${e(labels.amount)}<input class="ds-input" readonly value="${e(formatManualMoney(l.amount))}" data-invoice-revision-amount="${e(l.id)}"></label></div>
+ ${Number(l.billed_hours)>0?`<small data-invoice-revision-hourly="${e(l.id)}">מחיר שעתי מחושב: ${formatManualMoney(Number(old.funding_amount_snapshot)/Number(old.activity_price_snapshot)*l.activity_price_snapshot/(Number(old.planned_meeting_count_snapshot)*1.5))} ₪</small>`:''}<p class="ds-fin-manual__recalc" data-invoice-revision-recalc="${e(l.id)}">סכום מחושב מחדש: <strong>${formatManualMoney(l.amount)} ₪</strong></p></details>`;}).join('')}
  <div data-invoice-revision-approval-summary>${invoiceRevisionApprovalHtml(data)}</div>
  ${!cancelled&&(!locked||['approved','rendering'].includes(r?.status))?`<button class="ds-btn ds-btn--primary" type="button" data-invoice-revision-preview>${!locked&&financial?(data.financeAdmin?'אישור השינוי הכספי ותצוגה מקדימה':'בקשת אישור אדמין'):'תצוגה מקדימה'}</button>`:''}
  ${locked?'<button class="ds-btn" type="button" data-invoice-revision-withdraw>ביטול הבקשה</button>':''}
  <button class="ds-btn ds-btn--ghost" type="button" data-invoice-revision-close>סגירה</button></form>
- ${preview?manualPdfReviewHtml({key:'single',title:preview.quote.revision_financial?'תצוגה מקדימה של החשבון החלופי':'תצוגה מקדימה של החשבון המתוקן',detail:`${formatManualMoney(preview.quote.total_amount)} ₪`,confirmLabel:preview.quote.revision_financial?'אישור ושמירת החשבון החלופי':'אישור ושמירת המסמך המתוקן'}).replaceAll('data-finance-manual-','data-invoice-revision-'):''}
+ ${preview?manualPdfReviewHtml({key:'single',title:preview.quote.revision_financial?'תצוגה מקדימה אחרי תיקון כספי':'תצוגה מקדימה של החשבון המתוקן',detail:`חשבון ${e(c.account.transaction_account_number)} · ${formatManualMoney(preview.quote.total_amount)} ₪`,confirmLabel:preview.quote.revision_financial?'אישור ושמירת התיקון':'אישור ושמירת המסמך המתוקן'}).replaceAll('data-finance-manual-','data-invoice-revision-'):''}
  <details class="ds-fin-payer"><summary>גרסאות ובקשות קודמות</summary>${(c.versions||[]).map(v=>`<p>גרסה ${e(v.version)} · ${e(v.actor_name||'')} · ${e(new Date(v.created_at).toLocaleString('he-IL',{timeZone:'Asia/Jerusalem'}))} · <a href="${e(v.snapshot.sharepoint_web_url)}" target="_blank" rel="noopener">פתיחת PDF</a>${!locked&&!cancelled&&v.version<Number(c.account.document_revision||0)?` · <button class="ds-btn ds-btn--ghost" type="button" data-invoice-revision-restore="${e(v.version)}">שחזור פרטי הגרסה</button>`:''}</p>`).join('')}
  ${(c.requests||[]).map(x=>`<p>${e(status(x.status))} · ${e(x.requested_name)} · ${e(new Date(x.requested_at).toLocaleString('he-IL',{timeZone:'Asia/Jerusalem'}))}${x.decided_name?' · החלטת אדמין: '+e(x.decided_name):''}</p>`).join('')}
  ${(c.events||[]).map(x=>`<p>${e(({invoice_revision_requested:'נפתח תיקון',invoice_revision_approved:'אושר שינוי כספי',invoice_revision_rejected:'נדחתה בקשת תיקון',invoice_revision_applied:'נשמר חשבון מתוקן',invoice_revision_withdrawn:'בוטלה בקשת תיקון'})[x.type]||'עודכן התיקון')} · ${e(x.actor)} · ${e(new Date(x.at).toLocaleString('he-IL',{timeZone:'Asia/Jerusalem'}))}</p>`).join('')}</details></section>`;
@@ -79,9 +103,12 @@ export function bindInvoiceRevisions({root,data,api,refresh,reload}){
    else if(target.hasAttribute('data-invoice-revision-withdraw')){await api.withdrawFinanceInvoiceRevision(data.invoiceRevisionRequest.id);await open(data.invoiceRevisionContext.account.id);await loadAdmin();}
    else if(target.hasAttribute('data-invoice-revision-preview')){
     if(!root.querySelector('[data-invoice-revision-form]')?.reportValidity())return;
-    if(!data.invoiceRevisionRequest){data.invoiceRevisionRequest=await api.requestFinanceInvoiceRevision({accountId:data.invoiceRevisionContext.account.id,key:crypto.randomUUID(),baseHash:data.invoiceRevisionContext.baseHash,proposed:data.invoiceRevisionDraft,adminApproveFinancial:data.financeAdmin&&revisionIsFinancial(data.invoiceRevisionContext.account,data.invoiceRevisionDraft)});}
+    if(!data.invoiceRevisionRequest){
+     const proposed={...data.invoiceRevisionDraft,lines:data.invoiceRevisionDraft.lines.map(({meeting_unit_price,...line})=>line)};
+     data.invoiceRevisionRequest=await api.requestFinanceInvoiceRevision({accountId:data.invoiceRevisionContext.account.id,key:crypto.randomUUID(),baseHash:data.invoiceRevisionContext.baseHash,proposed,adminApproveFinancial:data.financeAdmin&&revisionIsFinancial(data.invoiceRevisionContext.account,data.invoiceRevisionDraft)});
+    }
     if(data.invoiceRevisionRequest.status==='pending_admin'){data.invoiceRevisionMessage='הבקשה נשמרה וממתינה לאישור אדמין. החשבון המקורי לא השתנה.';await loadAdmin();}
-    else if(data.invoiceRevisionRequest.status==='finance_review_required'){data.invoiceRevisionMessage='השינוי אושר באדמין, אך החשבון מחייב החלטת כספים נפרדת לפני ביטול והפקת חשבון חלופי.';await loadAdmin();}
+    else if(data.invoiceRevisionRequest.status==='finance_review_required'){data.invoiceRevisionMessage='השינוי אושר באדמין, אך החשבון מחייב החלטת כספים נפרדת לפני שמירת התיקון על אותו מספר חשבון.';await loadAdmin();}
     else data.invoiceRevisionPreview=await api.previewFinanceInvoiceRevision(data.invoiceRevisionRequest.id);
    }else if(target.hasAttribute('data-invoice-revision-confirm')){
     const r=await api.applyFinanceInvoiceRevision(data.invoiceRevisionRequest.id,data.invoiceRevisionPreview.quote.revision);data.invoiceRevisionPreview=null;
@@ -106,6 +133,8 @@ export function bindInvoiceRevisions({root,data,api,refresh,reload}){
   for(const line of data.invoiceRevisionDraft.lines){
    const old=data.invoiceRevisionContext.account.finance_transaction_account_lines.find(x=>x.id===line.id);
    const summary=root.querySelector(`[data-invoice-revision-line-summary="${line.id}"]`);if(summary)summary.textContent=`${old.activity_name_snapshot} · ${formatManualMoney(line.amount)} ₪`;
+   const amount=root.querySelector(`[data-invoice-revision-amount="${line.id}"]`);if(amount)amount.value=formatManualMoney(line.amount);
+   const recalc=root.querySelector(`[data-invoice-revision-recalc="${line.id}"]`);if(recalc)recalc.innerHTML=`סכום מחושב מחדש: <strong>${formatManualMoney(line.amount)} ₪</strong>`;
    const hourly=root.querySelector(`[data-invoice-revision-hourly="${line.id}"]`);if(hourly)hourly.textContent=`מחיר שעתי מחושב: ${formatManualMoney(Number(old.funding_amount_snapshot)/Number(old.activity_price_snapshot)*line.activity_price_snapshot/(Number(old.planned_meeting_count_snapshot)*1.5))} ₪`;
   }
  };

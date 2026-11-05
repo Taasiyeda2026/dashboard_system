@@ -402,18 +402,8 @@ async function buildPdf(account: any) {
     // Recipient/customer information belongs to the first page ONLY.
     // Do not repeat "לכבוד" above bank details on a continuation page.
     if (continuation) return 625;
-    // Only manually issued COURSE invoices are addressed to the billed school.
-    // Workshops and tours must retain their actual payer/customer addressee.
-    const billedLines = account.finance_transaction_account_lines || [];
-    const isCourseOnly = billedLines.length > 0 && billedLines.every((line: any) =>
-      ['course', 'קורס'].includes(clean(line.activity_type_snapshot || line.activity_type).toLowerCase()));
-    const billedSchools = [...new Set(billedLines
-      .map((line: { school_name_snapshot?: string }) => clean(line.school_name_snapshot)).filter(Boolean))];
-    const addressee = account.issue_mode === 'manual' && isCourseOnly && billedSchools.length
-      ? (billedSchools.length === 1
-        ? `בית הספר: ${billedSchools[0]}`
-        : `בתי הספר: ${billedSchools.join(', ')}`)
-      : clean(account.customer_name_snapshot);
+    // Always address the paying party. Schools appear only in the line table.
+    const addressee = clean(account.customer_name_snapshot) || clean(account.payer_identity_snapshot);
     drawRight(targetPage, bold, `לכבוד: ${addressee}`, 629, 11);
 
     if (clean(account.institution_symbol)) {
@@ -438,7 +428,7 @@ async function buildPdf(account: any) {
     rows: InvoiceRenderRow[], values: (row: InvoiceRenderRow) => string[], showDates = true) => {
     if (!rows.length) return;
     const headerHeight = columns.length === 7 ? 30 : 25;
-    const detailLines = (row: InvoiceRenderRow) => showDates && row.dates.length ? invoiceCellLines(regular, `מועדי ביצוע: ${row.dates.map(date).join(', ')}`, 535, 7.5) : [];
+    const detailLines = (row: InvoiceRenderRow) => showDates && row.dates.length ? invoiceCellLines(regular, `מועדי ביצוע: ${row.dates.map(date).join(', ')}`, 535, 8) : [];
     const firstDetails = detailLines(rows[0]);
     const firstRowHeight = invoiceRowHeight(regular, values(rows[0]), widths) + (firstDetails.length ? 8 + firstDetails.length * 10 : 0);
     if (y < 55 + headerHeight + firstRowHeight + 22) {
@@ -480,9 +470,9 @@ async function buildPdf(account: any) {
   const gefenCourses = allRows.filter(row => row.gefenFunding && row.category === 'course');
   const otherCourses = allRows.filter(row => !row.gefenFunding && row.category === 'course');
   const serviceRows = allRows.filter(row => row.category === 'service');
-  const courseWidths = [94, 119, 56, 42, 46, 80, 98]; // 535 points
-  const compactWidths = [142, 185, 106, 102]; // 535 points
-  const serviceWidths = [120, 155, 100, 60, 100]; // 535 points: school, name, authority, qty, total
+  const courseWidths = [100, 125, 58, 42, 46, 74, 90]; // 535 points — tighter totals column
+  const compactWidths = [130, 175, 110, 120]; // 535 points — non-Gefen: no hours/meetings
+  const serviceWidths = [118, 150, 100, 62, 105]; // 535 points: school, name, authority, qty, total
   drawSection('',
     ['שם בית הספר', 'תוכנית / קורס', 'מספר גפ״ן', 'שעות', 'מפגשים', 'מחיר לשעה', 'סה״כ'],
     courseWidths, gefenCourses,
@@ -516,19 +506,18 @@ async function buildPdf(account: any) {
   // Reserve enough space for the slightly airier payment footer on one page.
   // Keep a visible gap after the table (and quantity subtotal). The payment
   // header must never render into the bottom border of the last table row.
-  if (y < 208) { page = doc.addPage([595, 842]); y = drawInvoiceHeader(page, true); }
-  y -= 20;
-  drawRight(page, bold, `סה"כ לתשלום: ${money(account.total_amount)}`, y, 13); y -= 30;
-  drawRight(page, regular, `לתשלום עד: ${date(account.payment_due_date)}`, y, 9.5); y -= 30;
-  // More separation before the quiet bank-details divider and heading.
+  if (y < 200) { page = doc.addPage([595, 842]); y = drawInvoiceHeader(page, true); }
+  y -= 16;
+  drawRight(page, bold, `סה"כ לתשלום: ${money(account.total_amount)}`, y, 14); y -= 26;
+  drawRight(page, regular, `לתשלום עד: ${date(account.payment_due_date)}`, y, 10); y -= 24;
   page.drawLine({
-    start: { x: 30, y: y + 7 }, end: { x: 565, y: y + 7 },
+    start: { x: 30, y: y + 6 }, end: { x: 565, y: y + 6 },
     thickness: 0.6, color: rgb(0.86, 0.89, 0.92)
   });
-  y -= 15;
-  drawRight(page, bold, 'פרטי חשבון בנק להעברה:', y, 10); y -= 17;
-  drawRight(page, regular, 'בנק הפועלים 12  |  סניף 500 הרימון  |  חשבון 300120', y, 10); y -= 19;
-  drawRight(page, regular, 'או בשיק לפקודת: תעשיידע - תעשייה למען חינוך מתקדם ע"ר', y, 10); y -= 19;
+  y -= 14;
+  drawRight(page, bold, 'פרטי חשבון בנק להעברה:', y, 10.5); y -= 16;
+  drawRight(page, regular, 'בנק הפועלים 12  |  סניף 500 הרימון  |  חשבון 300120', y, 10); y -= 17;
+  drawRight(page, regular, 'או בשיק לפקודת: תעשיידע - תעשייה למען חינוך מתקדם ע"ר', y, 10); y -= 17;
   drawRight(page, regular, 'יש לציין: "למוטב בלבד" עם קרוס.', y, 10);
   const pages = doc.getPages();
   pages.forEach((part, index) => {

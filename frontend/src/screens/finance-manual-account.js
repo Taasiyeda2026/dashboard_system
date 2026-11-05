@@ -557,7 +557,7 @@ export function manualPdfReviewHtml({key, title, detail, confirmLabel = ''}) {
       </div>
     </div>
     <div class="ds-fin-manual__review-actions">
-      <button type="button" class="ds-btn" data-finance-manual-pdf-download="${e(key)}">טיוטה (PDF)</button>
+      <button type="button" class="ds-btn" data-finance-manual-pdf-download="${e(key)}">מסמך PDF</button>
       ${confirmLabel ? `<button type="button" class="ds-btn ds-btn--primary" data-finance-manual-confirm>${e(confirmLabel)}</button>` : ''}
     </div>
   </section>`;
@@ -604,7 +604,7 @@ export function manualAccountViewHtml(data) {
   const partial= data.manualScope==='partial';
   return `<div class="ds-fin-manual" dir="rtl">
     <section class="ds-fin-manual__section">
-      <h3 data-finance-manual-heading>הפקה לפי גורם מימון</h3>
+      <h3 data-finance-manual-heading>הפקה עם עריכה</h3>
       <div class="ds-fin-manual__selectors">
       <label class="ds-fin-manual__payer-picker">גורם מימון<select class="ds-input" data-finance-manual-funding-category><option value="">בחירת גורם מימון</option>
         ${routes.map(r=>`<option value="${e(r.key)}"${r.key===routeKey?' selected':''}>${e(r.label)}</option>`).join('')}
@@ -656,17 +656,17 @@ export function manualAccountViewHtml(data) {
           ${showHourly?`<label class="ds-fin-manual__field">מחיר שעתי מחושב<input class="ds-input" data-finance-manual-hourly-rate readonly value="${e(manualHourlyRate(d)===null?'—':formatManualMoney(manualHourlyRate(d)))}"></label>`:''}
           <label class="ds-fin-manual__field">סכום לחיוב<input class="ds-input" readonly value="${e(formatManualMoney(d.amount))}"></label>`}
         </div></fieldset>`:''}
-        <details class="ds-fin-manual__selected-schools ds-fin-payer"${ids.length>1?' open':''}><summary>פירוט הפעילויות שנבחרו (${ids.length})</summary>
+        ${ids.length>1?`<details class="ds-fin-manual__selected-schools ds-fin-payer" open><summary>פירוט הפעילויות שנבחרו (${ids.length})</summary>
           <table class="ds-table"><thead><tr><th>פעילות</th><th>בית ספר</th><th>רשות</th><th>סכום לחיוב</th></tr></thead><tbody>
           ${selectedRows.map(row=>`<tr><td>${e(row.activity)}</td><td>${e(row.school)}</td><td>${e((data.collectionActivities||[]).find(a=>a.row_id===row.id)?.authority||'—')}</td><td>${partial&&['workshop','tour'].includes((data.collectionActivities||[]).find(a=>a.row_id===row.id)?.activity_type)&&data.manualActivityDrafts?.[row.id]?.draft.billing_basis==='performance'
             ?`<input class="ds-input" type="text" inputmode="decimal" data-finance-manual-line-amount="${e(row.id)}" value="${e(formatManualMoney(row.amount))}">`
             :`${formatManualMoney(row.amount)} ₪`}</td></tr>`).join('')}</tbody></table>
-        </details>
-        <div class="ds-fin-manual__contact-summary"><span>לקוח: ${e(d.customer_name)}</span><span dir="ltr">${e(d.customer_email)}</span></div>
+        </details>`:''}
+        <div class="ds-fin-manual__contact-summary"><span>נמען: ${e(d.customer_name)}</span><span dir="ltr">${e(d.customer_email)}</span></div>
         ${new Set(rows.map(r=>r.fundingSourceId)).size>1 || (d.billing_basis==='performance'&&rows.length>1)?`<label class="ds-fin-manual__control">חלק המימון<select class="ds-input" data-finance-manual-funding>${rows.map(r=>`<option value="${e(r.fundingSourceId+'|'+(r.period||r.manualMonth))}"${data.manualFundingKey===r.fundingSourceId+'|'+(r.period||r.manualMonth)?' selected':''}>${e(r.funding)}${d.billing_basis==='performance'?' · '+e((r.period||r.manualMonth)?.slice(0,7)||''):''}</option>`).join('')}</select></label>`:''}
-        <details class="ds-fin-manual__extra ds-fin-payer"><summary class="ds-btn ds-btn--secondary">עריכת פרטי חשבון</summary>
-          <div class="ds-fin-manual__grid">${field('שם הלקוח','customer_name')}${field('נמענים','customer_email','email')}${field(rows.some(r=>r.gefenFunding)?'סמל מוסד':'מספר לקוח (אם קיים)','institution_symbol')}
-          ${ids.length===1?field('תיאור הפעילות','description'):''}${field('תאריך הפקה','issue_date','date')}${field('מועד תשלום','payment_due_date','date')}${field('סיבת חריגה','override_reason')}</div>
+        <details class="ds-fin-manual__extra ds-fin-payer"><summary class="ds-btn ds-btn--secondary">עריכת נמען ופרטי חשבון</summary>
+          <div class="ds-fin-manual__grid">${field('נמען החשבון','customer_name')}${field('איש קשר / נמעני מייל','customer_email','email')}${field(rows.some(r=>r.gefenFunding)?'סמל מוסד':'מספר לקוח (אם קיים)','institution_symbol')}
+          ${ids.length===1?field('טקסט חופשי בחשבון','description'):''}${field('תאריך הפקה','issue_date','date')}${field('מועד תשלום','payment_due_date','date')}${field('סיבת חריגה','override_reason')}</div>
         </details>
         ${reviewed?'':'<div class="ds-fin-manual__actions"><button class="ds-btn ds-btn--primary" type="button" data-finance-manual-preview>בדיקת החשבון</button></div>'}
       </form>

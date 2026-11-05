@@ -9,9 +9,24 @@ const tick=()=>new Promise(r=>setTimeout(r,0));
 function mount(d,api){const dom=new JSDOM('<div id="root"></div>'),root=dom.window.document.querySelector('#root');const paint=()=>root.innerHTML=invoiceRevisionAdminHtml(d)+invoiceRevisionEditorHtml(d);paint();bindInvoiceRevisions({root,data:d,api,refresh:paint,reload:async()=>{}});return {dom,root};}
 test('history edit is prefilled, keeps payer identities fixed, and retains previous version links',()=>{
  const d=data(),doc=new JSDOM(invoiceRevisionEditorHtml(d)).window.document;
- assert.equal(doc.querySelector('[data-invoice-revision-field="customer_name_snapshot"]').value,'בית ספר');assert.equal(doc.querySelector('[data-invoice-revision-field="amount"]').value,'2400');
+ assert.equal(doc.querySelector('[data-invoice-revision-field="customer_name_snapshot"]').value,'בית ספר');
+ assert.equal(doc.querySelector('[data-invoice-revision-amount]').value,'2,400.00');
+ assert.equal(doc.querySelector('[data-invoice-revision-field="meeting_unit_price"]').value,'800');
  assert.equal(doc.querySelector('[data-invoice-revision-field="issue_date"]').readOnly,true);assert.equal(doc.querySelector('[data-invoice-revision-field="funding_source_id"]'),null);assert.equal(doc.querySelector('[data-invoice-revision-field="activity_row_id"]'),null);
- assert.ok([...doc.querySelectorAll('details')].every(x=>!x.open));assert.equal(doc.querySelector('a').href,'https://example.test/original.pdf');assert.match(doc.body.textContent,/533.33/);assert.equal(revisionIsFinancial(d.invoiceRevisionContext.account,d.invoiceRevisionDraft),false);
+ assert.ok(doc.querySelector('[data-invoice-revision-line-summary]').closest('details').open);
+ assert.ok([...doc.querySelectorAll('details')].filter(x=>!x.querySelector('[data-invoice-revision-line-summary]')).every(x=>!x.open));
+ assert.equal(doc.querySelector('a').href,'https://example.test/original.pdf');assert.match(doc.body.textContent,/533.33/);assert.equal(revisionIsFinancial(d.invoiceRevisionContext.account,d.invoiceRevisionDraft),false);
+});
+test('meeting unit price recalculates course price and amount before save',()=>{
+ const d=data();
+ const {root,dom}=mount(d,{});
+ const unit=root.querySelector('[data-invoice-revision-field="meeting_unit_price"]');
+ unit.value='700';unit.dispatchEvent(new dom.window.Event('change',{bubbles:true}));
+ assert.equal(d.invoiceRevisionDraft.lines[0].activity_price_snapshot,7000);
+ assert.equal(d.invoiceRevisionDraft.lines[0].amount,2100);
+ assert.match(root.querySelector('[data-invoice-revision-recalc]').textContent,/2,100/);
+ assert.equal(revisionIsFinancial(d.invoiceRevisionContext.account,d.invoiceRevisionDraft),true);
+ root._invoiceRevisionUnbind();dom.window.close();
 });
 test('financial field changes calculate hours and amount without rebuilding the open editor; they request approval rather than PDF',async()=>{
  const d=data(),calls=[];const {root,dom}=mount(d,{requestFinanceInvoiceRevision:async p=>{calls.push(p);return {id:'r',status:'pending_admin',financial:true};},previewFinanceInvoiceRevision:async()=>{throw Error('must not preview before approval');}});
@@ -24,7 +39,7 @@ test('financial field changes calculate hours and amount without rebuilding the 
 test('text-only correction follows existing PDF review and requires an explicit confirmation before applying',async()=>{
  const d=data(),calls=[];const {root,dom}=mount(d,{requestFinanceInvoiceRevision:async p=>{calls.push('request');return {id:'r',status:'approved',financial:false};},previewFinanceInvoiceRevision:async()=>{calls.push('preview');return {quote:{revision:'q',total_amount:2400},pdfBase64:'JVBERg=='};}});
  const name=root.querySelector('[data-invoice-revision-field="customer_name_snapshot"]');name.value='שם מתוקן';name.dispatchEvent(new dom.window.Event('change',{bubbles:true}));root.querySelector('[data-invoice-revision-preview]').click();await tick();
- assert.deepEqual(calls,['request','preview']);assert.ok(root.querySelector('[data-invoice-revision-confirm]'));assert.ok(root.querySelector('[data-invoice-revision-pdf-open]'));assert.equal(d.invoiceRevisionContext.account.customer_name_snapshot,'בית ספר');root._invoiceRevisionUnbind();dom.window.close();
+ assert.deepEqual(calls,['request','preview']);assert.ok(root.querySelector('[data-invoice-revision-confirm]'));assert.ok(root.querySelector('[data-invoice-revision-pdf-download]'));assert.equal(d.invoiceRevisionContext.account.customer_name_snapshot,'בית ספר');root._invoiceRevisionUnbind();dom.window.close();
 });
 test('admin queue displays before and after values and separate explicit approve/reject buttons',()=>{
  const d={financeAdmin:true,invoiceRevisionAdminRequests:[{id:'r',account_id:'account',status:'pending_admin',requested_name:'טוני',before_snapshot:account(),changes:[{line:'line',field:'amount',before:2400,after:1600}]}]};const doc=new JSDOM(invoiceRevisionAdminHtml(d)).window.document;

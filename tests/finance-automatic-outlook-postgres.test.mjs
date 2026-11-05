@@ -32,7 +32,7 @@ before(async()=>{
   for(const name of ['20261029222210_finance_funder_billing','20261029224142_finance_receipts_manual_accounts',
     '20261030210000_finance_consolidated_funder_accounts','20261030044100_finance_single_funder_price_fallback','20261030051500_finance_optional_customer_identifier',
     '20261101192545_finance_service_quantity_snapshots','20261102191847_finance_gefen_course_monthly_minimum',
-    '20261102202405_finance_automatic_outlook_drafts','20261103191835_finance_original_issuer_outlook_mailbox','20261103211803_finance_delegated_invoice_drafts','20261103221311_finance_manual_payer_first','20261103231056_finance_course_performance_hours','20261104000410_finance_invoice_history_revisions'])await db.query(await read(`../supabase/migrations/${name}.sql`));
+    '20261102202405_finance_automatic_outlook_drafts','20261103191835_finance_original_issuer_outlook_mailbox','20261103211803_finance_delegated_invoice_drafts','20261103221311_finance_manual_payer_first','20261103231056_finance_course_performance_hours','20261104000410_finance_invoice_history_revisions','20261105012836_finance_invoice_revision_ux_upgrade'])await db.query(await read(`../supabase/migrations/${name}.sql`));
 });
 after(async()=>{if(db)await db.end();});
 beforeEach(async()=>{
@@ -342,10 +342,13 @@ check('financial revision needs explicit admin approval even for its admin reque
  const q=await quoteRevision(r.id),{stage,lease}=await beginRevision(r.id,q);
  assert.equal((await db.query('select document_status from finance_transaction_accounts where id=$1',[account.id])).rows[0].document_status,'issued');
  assert.equal((await db.query('select count(*)::int n from finance_billing_claims where account_id=$1',[account.id])).rows[0].n,3,'upload failure leaves original claims intact');
- assert.notEqual(stage.quote.transaction_account_number,c.account.transaction_account_number);
+ assert.equal(stage.quote.transaction_account_number,c.account.transaction_account_number);
+ assert.equal(stage.quote.revision_keeps_account_number,true);
  const result=(await finishRevision(r.id,q,lease)).rows[0].r;
  const old=(await db.query('select * from finance_transaction_accounts where id=$1',[account.id])).rows[0],replacement=(await db.query('select * from finance_transaction_accounts where id=$1',[result.accountId])).rows[0];
  assert.equal(old.document_status,'cancelled');assert.equal(old.replaced_by_account_id,replacement.id);assert.equal(replacement.replaces_account_id,old.id);assert.equal(replacement.document_status,'issued');assert.equal(Number(replacement.total_amount),2000);
+ assert.equal(replacement.transaction_account_number,c.account.transaction_account_number);
+ assert.match(String(old.transaction_account_number),/-בוטל-/);
  assert.equal(replacement.outlook_owner_id,old.outlook_owner_id);assert.equal((await db.query('select count(*)::int n from finance_billing_claims where account_id=$1',[old.id])).rows[0].n,0);
  assert.equal((await db.query('select count(*)::int n from finance_billing_claims where account_id=$1',[replacement.id])).rows[0].n,2);
  assert.equal((await revisionContext(old.id)).versions[0].snapshot.total_amount,c.account.total_amount);
@@ -356,14 +359,18 @@ check('admin rejection leaves the original invoice and financial claims unchange
  const after=await revisionContext();assert.equal(after.account.total_amount,c.account.total_amount);assert.equal(after.account.document_status,'issued');assert.equal(after.requests[0].status,'rejected');
 });
 
-check('approved price correction reduces a sole uncommitted funding contract and preserves the cancelled invoice history',async()=>{
+check('approved price correction stays on the account only and preserves the cancelled invoice history',async()=>{
  const c=await issuedRevisionBase(),draft=revisionDraft(c);Object.assign(draft.lines[0],{activity_price_snapshot:2500,amount:2500});
  const r=await requestRevision(draft,c);assert.equal(r.status,'pending_admin');
  assert.equal(Number((await db.query("select price from activities where row_id='a'")).rows[0].price),3000);
- await db.query('select finance_decide_invoice_revision($1,true)',[r.id]);const q=await quoteRevision(r.id);if(process.env.FINANCE_REVISION_PRICE_QUOTE)await writeFile(process.env.FINANCE_REVISION_PRICE_QUOTE,JSON.stringify(q));const {lease}=await beginRevision(r.id,q);await finishRevision(r.id,q,lease);
- assert.equal(Number((await db.query("select price from activities where row_id='a'")).rows[0].price),2500);
- assert.equal(Number((await db.query('select amount from activity_funding_sources where activity_id=1')).rows[0].amount),2500);
+ await db.query('select finance_decide_invoice_revision($1,true)',[r.id]);const q=await quoteRevision(r.id);if(process.env.FINANCE_REVISION_PRICE_QUOTE)await writeFile(process.env.FINANCE_REVISION_PRICE_QUOTE,JSON.stringify(q));
+ assert.deepEqual(q.revision_price_changes,[]);assert.equal(String(q.transaction_account_number),String(c.account.transaction_account_number));
+ const {lease}=await beginRevision(r.id,q);const finished=(await finishRevision(r.id,q,lease)).rows[0].r;
+ assert.equal(Number((await db.query("select price from activities where row_id='a'")).rows[0].price),3000,'תשפ״ז source price stays unchanged');
+ assert.equal(Number((await db.query('select amount from activity_funding_sources where activity_id=1')).rows[0].amount),3000);
  assert.equal((await revisionContext(account.id)).versions[0].snapshot.finance_transaction_account_lines[0].activity_price_snapshot,3000);
+ assert.equal(Number((await db.query('select activity_price_snapshot from finance_transaction_account_lines where account_id=$1',[finished.accountId])).rows[0].activity_price_snapshot),2500);
+ assert.equal((await db.query('select transaction_account_number from finance_transaction_accounts where id=$1',[finished.accountId])).rows[0].transaction_account_number,c.account.transaction_account_number);
 });
 check('paid or sent financial corrections wait for a separate finance decision even after admin approval',async()=>{
  const c=await issuedRevisionBase();await db.query("update finance_transaction_accounts set collection_status='paid' where id=$1",[account.id]);

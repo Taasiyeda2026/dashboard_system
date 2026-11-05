@@ -382,7 +382,7 @@ test('approved document revision uses the real shared PDF renderer and preserves
   assert.ok(!r.calls.some(c=>c.method==='PUT'||c.name==='finalize_finance_billing'||c.url?.includes('/messages')));
 });
 test('approved replacement PDF reflects the server-approved changed price and recalculated hourly rate',async()=>{
-  const quote=process.env.FINANCE_REVISION_PRICE_QUOTE?JSON.parse(await readFile(process.env.FINANCE_REVISION_PRICE_QUOTE,'utf8')):{...fixture(),transaction_account_number:'טיוטה חלופית',total_amount:2500,finance_transaction_account_lines:[{activity_row_id:'a',activity_price_snapshot:2500,billing_rule:'monthly',funding_snapshot:'גפ״ן',billed_hours:4.5,quantity_snapshot:3,hourly_rate_snapshot:2500/4.5,amount:2500}]};
+  const quote=process.env.FINANCE_REVISION_PRICE_QUOTE?JSON.parse(await readFile(process.env.FINANCE_REVISION_PRICE_QUOTE,'utf8')):{...fixture(),transaction_account_number:fixture().transaction_account_number,total_amount:2500,revision_keeps_account_number:true,finance_transaction_account_lines:[{activity_row_id:'a',activity_price_snapshot:2500,billing_rule:'monthly',funding_snapshot:'גפ״ן',billed_hours:4.5,quantity_snapshot:3,hourly_rate_snapshot:2500/4.5,amount:2500}]};
   const r=await harness({revisionPreview:true,quote});assert.equal(r.response.status,200,JSON.stringify(r.body));const pdf=await getDocument({data:new Uint8Array(Buffer.from(r.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
   const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');assert.match(text,/2,500\.00/);assert.match(text,/555\.56/);
 });
