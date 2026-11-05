@@ -120,15 +120,20 @@ export function automaticMixedFundingProgramReview(data, month) {
     if (!hasOtherFunding) continue;
     seen.add(activityId);
     const activity = activities.find(row => String(row.row_id) === activityId);
-    const code = String(line.gefenNumber || '').trim();
+    // The preflight must use the same customer-facing Gefen program number
+    // as the invoice preview. Keep source codes untouched for accounting.
+    const code = displayGefenProgramNumber(line);
     const sourceCode = String(activity?.gefen_number || activity?.activity_no || '').trim();
+    const displayedSourceCode = sourceCode
+      ? displayGefenProgramNumber({ activityName: activity?.activity_name || line.activityName, gefenNumber: sourceCode, activityNo: sourceCode })
+      : '';
     result.push({
       activityId,
       school: String(activity?.school || line.customerName || account.schoolName || ''),
       course: String(line.activityName || ''),
       code,
       sourceCode,
-      valid: /^\d+$/.test(code) && (!sourceCode || sourceCode === code)
+      valid: /^\d+$/.test(code) && (!displayedSourceCode || displayedSourceCode === code)
     });
   }
   return result;
