@@ -49,7 +49,7 @@ test('manual wizard selects existing activity/funder and edits document fields w
   assert.equal(d.manualDraft.amount,7000);assert.equal(d.manualDraft.quantity,2);assert.equal(d.manualFundingKey,'r|2026-09-01');
   updateManualDraft(d,'description','תיאור למסמך');assert.equal(updateManualDraft(d,'amount',6000),false);
   assert.equal(d.manualDraft.unit_price,3500);assert.equal(JSON.stringify(d.collectionActivities),source);
-  const html=manualAccountViewHtml(d);assert.match(html,/הפקה לפי גורם מימון/);assert.match(html,/תיאור למסמך/);assert.doesNotMatch(html,/data-finance-manual-confirm/);
+  const html=manualAccountViewHtml(d);assert.match(html,/הפקה עם עריכה/);assert.match(html,/תיאור למסמך/);assert.doesNotMatch(html,/data-finance-manual-confirm/);
   assert.match(html,/data-finance-manual-select-activity[^>]*value="a"[^>]*checked/);
   assert.doesNotMatch(html,/בית ספר · קורס · a/);
   assert.match(html,/ds-fin-manual__activity-grid|ds-fin-manual__grid/);
@@ -705,7 +705,7 @@ test('manual account detail editing looks like a compact action without expandin
  assert.ok(extra);
  assert.equal(extra.open,false);
  assert.match(extra.querySelector('summary').className,/ds-btn/);
- assert.equal(extra.querySelector('summary').textContent,'עריכת פרטי חשבון');
+ assert.equal(extra.querySelector('summary').textContent,'עריכת נמען ופרטי חשבון');
  assert.equal(doc.querySelector('[data-finance-manual-preview]').textContent,'בדיקת החשבון');
 });
 test('after generating PDF only draft download and explicit issuance are shown',()=>{
@@ -714,7 +714,7 @@ test('after generating PDF only draft download and explicit issuance are shown',
  assert.equal(doc.querySelectorAll('[data-finance-manual-confirm]').length,1);
  assert.equal(doc.querySelector('[data-finance-manual-confirm]').textContent,'אישור והפקה');
  assert.equal(doc.querySelectorAll('[data-finance-manual-pdf-download]').length,1);
- assert.equal(doc.querySelector('[data-finance-manual-pdf-download]').textContent,'טיוטה (PDF)');
+ assert.equal(doc.querySelector('[data-finance-manual-pdf-download]').textContent,'מסמך PDF');
  assert.equal(doc.querySelector('.ds-fin-manual__review-more'),null);
  assert.equal(doc.querySelectorAll('.ds-fin-manual__review-file').length,0);
  assert.doesNotMatch(doc.body.textContent,/טרם הופק חשבון עסקה|טיוטה לבדיקה בלבד/);

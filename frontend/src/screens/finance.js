@@ -28,6 +28,7 @@ import {
   handleTransactionGroupSelection,
   syncTransactionSelectionUi,
   runTransactionIssuance,
+  previewTransactionAccountGroup,
   automaticMixedFundingProgramReview,
   transactionIssuanceResultMessage,
   transactionAccountsViewHtml
@@ -723,6 +724,37 @@ export const financeScreen = {
         visit.transactionActionMessage = '';
         if(visit.transactionTab==='history'&&visit.financeAdmin&&api.financeInvoiceRevisionContext){const result=await api.financeInvoiceRevisionContext(null);visit.invoiceRevisionAdminRequests=result.requests||[];visit.invoiceRevisionAdminLoaded=true;}
         refresh();
+        return;
+      }
+
+      const issuancePdf = ev.target.closest('[data-finance-transaction-issuance-pdf-open],[data-finance-transaction-issuance-pdf-download]');
+      if (issuancePdf) {
+        activateManualPdfPreview(root, 'single', issuancePdf.hasAttribute('data-finance-transaction-issuance-pdf-open') ? 'open' : 'download');
+        return;
+      }
+
+      const transactionPreview = ev.target.closest('[data-finance-transaction-preview]');
+      if (transactionPreview) {
+        if (visit.financeBusy || visit.transactionRunning) return;
+        visit.financeBusy = true;
+        visit.transactionActionMessage = 'מכין תצוגת PDF…';
+        refresh();
+        try {
+          await previewTransactionAccountGroup(visit, api, transactionPreview.dataset.financeTransactionPreview, transactionPreview.dataset.financeTransactionPreviewKey);
+          visit.transactionActionMessage = 'תצוגת PDF מוכנה לבדיקה לפני הפקה.';
+        } catch (error) {
+          visit.transactionIssuancePreview = null;
+          visit.transactionActionMessage = financeError(error);
+        } finally {
+          visit.financeBusy = false;
+          refresh();
+          if (visit.transactionIssuancePreview) {
+            syncManualPdfPreviewDom(root, {
+              manualPdf: visit.transactionIssuancePreview.pdfBase64,
+              manualQuote: visit.transactionIssuancePreview.quote
+            });
+          }
+        }
         return;
       }
 

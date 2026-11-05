@@ -62,7 +62,7 @@ test('stale and duplicate-claim client errors ask to refresh before reissue', ()
   assert.match(errors, /finance_billing_claims_settled_slot_unique/);
 });
 
-test('history keeps טיוטה and עריכה without duplicate צפייה', () => {
+test('history keeps מסמך PDF and עריכת חשבון without duplicate צפייה', () => {
   const data = {
     transactionTab: 'history',
     transactionContext: {
@@ -77,8 +77,8 @@ test('history keeps טיוטה and עריכה without duplicate צפייה', () 
     }
   };
   const view = transactionAccountsViewHtml(data, (title) => `<h1>${title}</h1>`);
-  assert.match(view, />טיוטה</);
-  assert.match(view, />עריכה</);
+  assert.match(view, />מסמך PDF</);
+  assert.match(view, />עריכת חשבון</);
   assert.doesNotMatch(view, /פתח PDF|עריכה והפקה מחדש|צפייה/);
 });
 
@@ -108,8 +108,9 @@ test('workshop PDF rows expose quantity without hourly columns', () => {
 });
 
 test('deployable frontend cache markers were bumped for this stabilize release', () => {
-  assert.match(sw, /const CACHE_VERSION = 2091;/);
+  assert.match(sw, /const CACHE_VERSION = 2092;/);
   assert.match(config, /finance-transaction-accounts-stabilize-20261104-v1/);
+  assert.match(config, /finance-transaction-accounts-ux-upgrade-20261105-v1/);
   assert.match(config, /finance-rokhim-olam-gefen-46091-20261104-v1/);
   assert.match(config, /finance-invoice-hourly-pdf-align-20261105-v1/);
 });

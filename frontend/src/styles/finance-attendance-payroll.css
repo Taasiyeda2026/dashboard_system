@@ -914,3 +914,64 @@
 .ds-fin-manual__batch-preview-list { border: 1px solid var(--ds-border); border-radius: 10px; padding: 10px 12px; }
 .ds-fin-manual__batch-preview-list > summary { cursor: pointer; font-size: .84rem; font-weight: 600; }
 .ds-fin-manual__batch-preview-list[open] > .ds-fin-manual__review { margin-top: 8px; }
+
+/* Issued-account edit + issuance PDF preview: compact mobile stack. */
+.ds-fin-manual__recalc {
+  margin: 6px 0 0;
+  font-size: .86rem;
+  color: var(--ds-text-secondary, #475569);
+}
+.ds-fin-transaction-preview-pane {
+  margin-top: 14px;
+  min-width: 0;
+}
+.ds-fin-gefen-group-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 4px 0 8px;
+}
+.ds-fin-history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  margin: 8px 0 10px;
+  font-size: .86rem;
+}
+.ds-fin-transaction-nav .ds-fin-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+@media (max-width: 720px) {
+  .ds-fin-transaction-nav {
+    gap: 8px;
+  }
+  .ds-fin-transaction-nav .ds-fin-tabs {
+    width: 100%;
+  }
+  .ds-fin-transaction-nav .ds-fin-tab {
+    flex: 1 1 calc(50% - 6px);
+    min-width: 0;
+    text-align: center;
+    font-size: .82rem;
+    padding-inline: 8px;
+  }
+  .ds-fin-history-meta {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ds-fin-history-meta .ds-btn,
+  .ds-fin-gefen-group-actions .ds-btn {
+    width: 100%;
+  }
+  .ds-fin-transaction-preview-pane,
+  [data-invoice-revision-editor] {
+    min-width: 0;
+  }
+  .ds-fin-collect-shell .ds-table {
+    font-size: .78rem;
+  }
+}

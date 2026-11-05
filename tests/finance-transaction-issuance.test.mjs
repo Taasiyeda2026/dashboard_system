@@ -31,6 +31,10 @@ test('unified Gefen layout orders month summary current backlog single action an
   assert.deepEqual(ordered.map(x=>view.indexOf(x)),ordered.map(x=>view.indexOf(x)).sort((a,b)=>a-b));
   assert.equal(doc.querySelectorAll('[data-finance-transaction-run]').length,1);
   assert.equal(doc.querySelector('[data-finance-transaction-run]').textContent,'הפקת כל חשבונות העסקה');
+  assert.match(view,/הפקה אוטומטית · גפ״ן/);
+  assert.match(view,/הפקה לפי מממן/);
+  assert.match(view,/הפקה עם עריכה/);
+  assert.equal(doc.querySelectorAll('[data-finance-transaction-preview]').length,2);
   assert.ok([...doc.querySelectorAll('details')].every(x=>!x.open));
   assert.equal(doc.querySelectorAll('[data-finance-transaction-group]').length,2);
   assert.equal(doc.querySelectorAll('[data-finance-transaction-group] .ds-fin-gefen-arrow[aria-hidden=true]').length,2);
@@ -87,7 +91,7 @@ test('history displays original issuer mailbox and a clear authorization error w
 test('Gefen groups schools and original months while including eligible previous months',()=>{
   const d=data([row(),row({activityRowId:'b',activityName:'קורס ב'}),row({activityRowId:'old',period:'2026-09-01'}),row({activityRowId:'other',fundingSourceId:'r',gefenFunding:false,funding:'רשות'})]);
   const p=transactionPreviewForVisit(d);assert.equal(p.accounts.length,2);assert.equal(p.accounts.find(a=>a.period==='2026-10-01').lines.length,2);assert.equal(p.totals.amount,7500);
-  const view=html(d);assert.match(view,/חשבונות עסקה - גפן/);assert.match(view,/חשבונות עסקה - פתוח/);assert.match(view,/type="month"/);
+  const view=html(d);assert.match(view,/הפקה אוטומטית · גפ״ן/);assert.match(view,/הפקה לפי מממן/);assert.match(view,/type="month"/);
   assert.match(view,/קורס ב/);assert.match(view,/בית ספר א · 123/);assert.match(view,/פירוט מפגשים/);assert.match(view,/חיובים זכאים מחודשים קודמים/);assert.match(view,/2026-09/);
   assert.equal(transactionBacklog(d,'automatic').length,1);
   d.transactionMonths.automatic='2026-09';assert.equal(transactionPreviewForVisit(d).totals.amount,2500);
@@ -147,7 +151,7 @@ test('issuance sends funder, exact month, slots and displayed amount to server a
 });
 test('history retains existing document statuses and URLs independently of month selector',()=>{
   const d=data([],{transactionTab:'history'});d.transactionContext.accounts=[{transaction_account_number:8525,issue_date:'2026-07-01',total_amount:500,document_status:'issued',sharepoint_web_url:'https://example.test/pdf',finance_transaction_account_lines:[]}];
-  const view=html(d);assert.match(view,/8525/);assert.match(view,/>טיוטה</);assert.doesNotMatch(view,/פתח PDF|צפייה/);assert.doesNotMatch(view,/type="month"/);
+  const view=html(d);assert.match(view,/8525/);assert.match(view,/>מסמך PDF</);assert.doesNotMatch(view,/פתח PDF|צפייה/);assert.doesNotMatch(view,/type="month"/);
 });
 test('backlog includes only the selected school year and can issue original closed months',async t=>{
   t.mock.timers.enable({apis:['Date'],now:new Date('2027-01-10T10:00:00Z')});
