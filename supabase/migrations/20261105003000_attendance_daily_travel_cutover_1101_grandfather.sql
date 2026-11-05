@@ -47,7 +47,7 @@ language sql
 stable
 security definer
 set search_path = public
-as $
+as $grandfather$
   select case p_kind
     when 'travel' then exists (
       select 1 from public.attendance_daily_travel_cutover_grandfather g where g.record_id = p_record_id
@@ -57,7 +57,7 @@ as $
     )
     else false
   end;
-$;
+$grandfather$;
 revoke all on function public.av2_cutover_grandfathered(uuid, text) from public, anon;
 grant execute on function public.av2_cutover_grandfathered(uuid, text) to authenticated, service_role;
 
