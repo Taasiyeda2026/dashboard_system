@@ -816,15 +816,17 @@ function activeTeamStripHtml(team, activityCount) {
 }
 
 function workspaceShellHtml(activeTeamHtml) {
-  if (!hasPermission(state?.user, 'view_attendance_control')) return activeTeamHtml;
+  if (!hasPermission(state?.user, 'view_attendance_control')
+    && !hasPermission(state?.user, 'view_manager_tracking')
+    && !hasPermission(state?.user, 'view_manager_gantt')) return activeTeamHtml;
   // Tab id `payroll-attendance` is kept for backward compatibility; the UI label is "בקרת נוכחות אדמין".
   const adminTab = currentRole() === 'admin'
     ? '<button type="button" class="manager-workspace-tab" data-manager-workspace-tab="payroll-attendance" aria-selected="false">בקרת נוכחות אדמין</button>'
     : '';
   return `<nav class="manager-workspace-tabs" data-manager-workspace-tabs aria-label="לשוניות לוח מנהל">
     <button type="button" class="manager-workspace-tab is-active" data-manager-workspace-tab="management" aria-selected="true">ניהול</button>
-    <button type="button" class="manager-workspace-tab" data-manager-workspace-tab="attendance" aria-selected="false">בקרת נוכחות</button>
-    <button type="button" class="manager-workspace-tab" data-manager-workspace-tab="tracking" aria-selected="false">מעקב</button>
+    ${hasPermission(state?.user, 'view_attendance_control') ? '<button type="button" class="manager-workspace-tab" data-manager-workspace-tab="attendance" aria-selected="false">בקרת נוכחות</button>' : ''}
+    ${hasPermission(state?.user, 'view_attendance_control') || hasPermission(state?.user, 'view_manager_tracking') ? '<button type="button" class="manager-workspace-tab" data-manager-workspace-tab="tracking" aria-selected="false">מעקב</button>' : ''}
     ${adminTab}
   </nav>
   ${activeTeamHtml}
