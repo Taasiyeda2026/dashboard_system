@@ -22,9 +22,19 @@ test('mixed funded Gefen activity is shown with its program before automatic iss
  const html=transactionAccountsViewHtml(data(),()=>'<h1>Test</h1>');
  assert.match(html,/מספר גפ״ן: 52279/);
 });
-test('code divergence from All Activities blocks preflight',()=>{
- const results=automaticMixedFundingProgramReview(data('3604'),'2026-10');
- assert.equal(results.length,1);assert.equal(results[0].valid,false);
+test('legacy 3604 source for Poratzot shows 52279 in preflight without false conflict',()=>{
+ const legacy={...g,gefenNumber:'3604'};
+ const other={...sponsor,gefenNumber:'3604'};
+ const results=automaticMixedFundingProgramReview(data('3604',[legacy,other]),'2026-10');
+ assert.equal(results.length,1);
+ assert.equal(results[0].code,'52279');
+ assert.equal(results[0].sourceCode,'3604');
+ assert.equal(results[0].valid,true);
+});
+test('genuine code divergence from All Activities still blocks preflight',()=>{
+ const results=automaticMixedFundingProgramReview(data('9999'),'2026-10');
+ assert.equal(results.length,1);
+ assert.equal(results[0].valid,false);
 });
 test('ordinary single-funded activity does not trigger mixed-funding confirmation',()=>{
  assert.deepEqual(automaticMixedFundingProgramReview(data('52279',[g]),'2026-10'),[]);
