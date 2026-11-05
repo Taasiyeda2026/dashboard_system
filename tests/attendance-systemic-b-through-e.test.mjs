@@ -99,9 +99,9 @@ test('systemic B–E migration does not rewrite historical attendance or payroll
 });
 
 test('deployable cache markers bumped for systemic attendance B–E', () => {
-  assert.match(frontendSw, /const CACHE_VERSION = 2090;/);
-  assert.match(attendanceSw, /const CACHE_VERSION = 148;/);
-  assert.match(attendanceIndex, /\?v=148/);
-  assert.doesNotMatch(attendanceIndex, /\?v=147/);
+  assert.match(frontendSw, /const CACHE_VERSION = 2091;/);
+  assert.match(attendanceSw, /const CACHE_VERSION = 149;/);
+  assert.match(attendanceIndex, /\?v=149/);
+  assert.doesNotMatch(attendanceIndex, /\?v=148/);
   assert.match(config, /attendance-systemic-b-e-20261105-v1/);
 });

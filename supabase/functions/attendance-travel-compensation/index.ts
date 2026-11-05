@@ -141,6 +141,20 @@ Deno.serve(async (req) => {
     return response({ error: 'invalid_source_request' }, 400);
   }
   const metrics = createRouteMetrics('attendance_travel');
+  // Hard stop for November+ before prepare/reconcile: daily travel owns that path.
+  const { data: sourceMeta, error: sourceMetaError } = await db.from('attendance_records')
+    .select('report_date')
+    .eq('id', sourceId)
+    .maybeSingle();
+  if (sourceMetaError) return response({ error: 'attendance_context_invalid' }, 403);
+  if (text(sourceMeta?.report_date).slice(0, 10) >= '2026-11-01') {
+    return response({
+      eligible: false,
+      status: 'not_applicable',
+      reason: 'daily_travel_cutover',
+      route_metrics: metrics
+    });
+  }
   const { data: context, error: contextError } = await db.rpc('av2_prepare_attendance_travel', {
     p_source_id: sourceId, p_actor_id: userId
   });
