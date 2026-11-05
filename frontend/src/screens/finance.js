@@ -786,8 +786,9 @@ export const financeScreen = {
         visit.transactionActionMessage = 'מפיק חשבונות עסקה…';
         refresh();
         try {
-          const { delegatedMailToken } = await import('../microsoft/graph-mail.js');
-          await delegatedMailToken(state?.user?.auth_email || state?.user?.email || '', { interactive: true });
+          // Invoice issuance must not be interrupted by an interactive Microsoft
+          // consent/popup. Outlook connection and draft completion are handled
+          // independently by the finance dispatcher.
           const results = await runTransactionIssuance(visit, api, mode, transactionRun.dataset.financeTransactionPeriod);
           visit.transactionActionMessage = transactionIssuanceResultMessage(results);
           if (mode === 'manual') visit.transactionManualSelected = {};
