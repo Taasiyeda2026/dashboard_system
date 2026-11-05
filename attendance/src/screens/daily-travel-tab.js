@@ -743,4 +743,3 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   });
   return {panel,load,setDate,dateInput:dateField.input};
 }
-

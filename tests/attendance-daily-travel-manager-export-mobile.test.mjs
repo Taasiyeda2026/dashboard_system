@@ -34,7 +34,7 @@ test('mobile and desktop offer same independent tabs and accessible navigation',
  assert.ok(screen.includes('dailyTravel.setDate(dateField.input.value||defaultDate)'));
   assert.match(screen,/tabs\.addEventListener\('keydown'/);
   assert.ok(travel.includes('loadedDate===requestedDay'));
-  assert.match(travel,/saveDailyTravel\(loadedDate,legs,noTravel.checked\)/);
+  assert.match(travel,/saveDailyTravel\(saveDate,saveLegs,saveNoTravel\)/);
   assert.match(css,/@media\(max-width:639px\)/);
   assert.match(css,/min-height:44px/);
   assert.match(css,/safe-area-inset-bottom/);
