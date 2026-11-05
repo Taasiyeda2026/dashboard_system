@@ -38,6 +38,29 @@ where r.report_date >= date '2026-11-01'
   )
 on conflict (record_id) do nothing;
 
+-- CHECK constraints cannot contain subqueries. Resolve historical exceptions via
+-- a read-only, narrowly scoped lookup function; grandfather rows are snapshotted
+-- once before the constraints are installed.
+create or replace function public.av2_cutover_grandfathered(p_record_id uuid, p_kind text)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $grandfather$
+  select case p_kind
+    when 'travel' then exists (
+      select 1 from public.attendance_daily_travel_cutover_grandfather g where g.record_id = p_record_id
+    )
+    when 'expense' then exists (
+      select 1 from public.attendance_independent_expense_cutover_grandfather g where g.record_id = p_record_id
+    )
+    else false
+  end;
+$grandfather$;
+revoke all on function public.av2_cutover_grandfathered(uuid, text) from public, anon;
+grant execute on function public.av2_cutover_grandfathered(uuid, text) to authenticated, service_role;
+
 alter table public.attendance_records
   drop constraint if exists attendance_daily_travel_cutover_no_legacy_km;
 
@@ -52,7 +75,7 @@ alter table public.attendance_records
       and cancellation_before_minutes is null
       and cancellation_after_minutes is null
     )
-    or id in (select record_id from public.attendance_daily_travel_cutover_grandfather)
+    or public.av2_cutover_grandfathered(id, 'travel')
   );
 
 alter table public.attendance_records
@@ -67,7 +90,7 @@ alter table public.attendance_records
       coalesce(expenses, 0) = 0
       and expense_details is null
     )
-    or id in (select record_id from public.attendance_independent_expense_cutover_grandfather)
+    or public.av2_cutover_grandfathered(id, 'expense')
   );
 
 revoke all on table public.attendance_daily_travel_cutover_grandfather from public, anon, authenticated;
