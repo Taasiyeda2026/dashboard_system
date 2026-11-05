@@ -98,6 +98,10 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   let legs=[];
   let loadedDate='';
   let loading=false;
+  let loadingDay='';
+  let loadingMonth='';
+  let reloadRequested=false;
+  let saving=false;
   let locked=false;
   let dayOptions=[];
   let requestedDay=initialDate;
@@ -611,8 +615,14 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     return true;
   }
   async function load({force=false}={}){
-    if(loading)return;
+    // A date chosen while a request is in flight must be loaded next.
+    if(loading){
+      if(force || requestedDay!==loadingDay || selectedMonth!==loadingMonth)reloadRequested=true;
+      return;
+    }
     if(!force && loadedDate===requestedDay && loadedDate!=='')return;
+    loadingDay=requestedDay;
+    loadingMonth=selectedMonth;
     loading=true;save.disabled=true;reload.disabled=true;
     historicalEdit.hidden=true;
     historicalEditing=false;
@@ -626,6 +636,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         if(!hasDays)return;
       }
       const date=dateField.input.value;
+      loadingDay=date;
       if(isHistoricTravelMonth(selectedMonth) || isLegacyDay(date)){
         renderHistoricalDay(historicalDays.find(day=>day.date===date));
         return;
@@ -659,11 +670,13 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         :stored?.review_status==='approved'||stored?.review_status==='corrected'
           ? 'הנסיעות אושרו'
           :stored?'דיווח נסיעות נשמר':'';
-      const monthApproval=await getMonthApproval(empId,selectedMonth,{force:true});
-      const [reportYear,reportMonth]=selectedMonth.split('-').map(Number);
+      const monthKey=date.slice(0,7);
+      const monthApproval=await getMonthApproval(empId,monthKey,{force:true});
+      if(token!==requestSequence || date!==dateField.input.value || monthKey!==selectedMonth)return;
+      const [reportYear,reportMonth]=monthKey.split('-').map(Number);
       const monthEditable=canEditMonth(reportYear,reportMonth,monthApproval);
       locked=!monthEditable || ((stored?.review_status==='approved'||stored?.review_status==='corrected') && monthApproval?.status!=='reopened');
-      save.disabled=locked;
+      save.disabled=locked || saving;
       if(!monthEditable)status.textContent='החודש אינו פתוח לעריכה';
       renderLegs();
     }catch(err){
@@ -671,7 +684,11 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       loadedDate='';
     }finally{
       loading=false;reload.disabled=false;
-      if(loadedDate===dateField.input.value && !save.hidden && !locked)save.disabled=false;
+      if(loadedDate===dateField.input.value && !save.hidden && !locked && !saving)save.disabled=false;
+      if(reloadRequested){
+        reloadRequested=false;
+        await load({force:true});
+      }
     }
   }
   noTravel.addEventListener('change',showSummary);
@@ -688,32 +705,42 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   });
   reload.addEventListener('click',()=>load({force:true}));
   save.addEventListener('click',async()=>{
-    if(loading || locked || loadedDate!==dateField.input.value)return;
-    const monthKey=loadedDate.slice(0,7);
-    const [year,month]=monthKey.split('-').map(Number);
-    const approval=await getMonthApproval(empId,monthKey,{force:true});
-    if(!canEditMonth(year,month,approval)){
-      status.textContent='החודש נעול לדיווח. נדרש לפתוח אותו מחדש לעריכה.';
-      return;
-    }
+    if(loading || saving || locked || loadedDate!==dateField.input.value)return;
     showSummary();
     if(!noTravel.checked && legs.some(leg=>leg.kind!=='between' && !Number.isInteger(leg.minutes))){
       status.textContent='יש להזין את זמן הנסיעה בפורמט שעות:דקות (לדוגמה 01:30)';
       return;
     }
-    save.disabled=true;
+    // Keep the clicked date and its values together across every await.
+    const saveDate=loadedDate;
+    const saveLegs=legs.map(leg=>({...leg}));
+    const saveNoTravel=noTravel.checked;
+    const showingSavedDate=()=>loadedDate===saveDate && dateField.input.value===saveDate;
+    saving=true;save.disabled=true;
     try{
-      await saveDailyTravel(loadedDate,legs,noTravel.checked);
-      status.textContent='הנסיעות נשמרו';
-      const day=dayOptions.find(item=>item.date===loadedDate);
+      const monthKey=saveDate.slice(0,7);
+      const [year,month]=monthKey.split('-').map(Number);
+      const approval=await getMonthApproval(empId,monthKey,{force:true});
+      if(!canEditMonth(year,month,approval)){
+        if(showingSavedDate())status.textContent='החודש נעול לדיווח. נדרש לפתוח אותו מחדש לעריכה.';
+        return;
+      }
+      await saveDailyTravel(saveDate,saveLegs,saveNoTravel);
+      if(showingSavedDate())status.textContent='הנסיעות נשמרו';
+      const day=dayOptions.find(item=>item.date===saveDate);
       if(day){
         day.review_status='pending_review';
-        const option=[...daySelect.options].find(item=>item.value===loadedDate);
+        const option=[...daySelect.options].find(item=>item.value===saveDate);
         if(option)option.textContent=displayDay(day);
+        syncDayPicker();
       }
     }catch(error){
-      status.textContent=error.message||'שמירת הנסיעות נכשלה';
-    }finally{save.disabled=locked;}
+      if(showingSavedDate())status.textContent=error.message||'שמירת הנסיעות נכשלה';
+    }finally{
+      saving=false;
+      save.disabled=loading || locked || loadedDate!==dateField.input.value;
+    }
   });
   return {panel,load,setDate,dateInput:dateField.input};
 }
+

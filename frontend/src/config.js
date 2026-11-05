@@ -626,3 +626,5 @@ config.HOTFIX_VERSION = `manager-board-explicit-view-access-20261105-v1-${config
 config.HOTFIX_VERSION = `manager-board-tracking-gantt-view-20261105-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `israa-instructor-observations-20261105-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `attendance-save-date-update-safety-20261105-v1-${config.HOTFIX_VERSION}`;
