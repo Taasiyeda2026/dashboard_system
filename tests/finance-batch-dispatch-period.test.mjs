@@ -7,7 +7,7 @@ const original = await readFile(
   'utf8'
 );
 const restored = await readFile(
-  new URL('../supabase/migrations/20261105095042_finance_consolidated_full_funding_period_lookup.sql', import.meta.url),
+  new URL('../supabase/migrations/20261105095155_finance_consolidated_full_funding_period_lookup.sql', import.meta.url),
   'utf8'
 );
 
