@@ -57,6 +57,7 @@ test('deploy workflow uses official CLI, secrets, and never runs migrations', ()
   assert.match(workflow, /secrets\.SUPABASE_ACCESS_TOKEN/);
   assert.match(workflow, /--use-api/);
   assert.match(workflow, /supabase functions download finance-transaction-accounts/);
+  assert.match(workflow, /supabase\/templates\/recovery\.html/);
   assert.match(workflow, /verify-finance-transaction-accounts-deploy\.mjs/);
   assert.doesNotMatch(workflow, /^\s*supabase\s+db\b/m);
   assert.doesNotMatch(workflow, /^\s*supabase\s+migration\b/m);

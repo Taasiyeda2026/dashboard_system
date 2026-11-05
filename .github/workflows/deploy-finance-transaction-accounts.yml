@@ -82,9 +82,12 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
+          # Isolated workdir keeps the checkout pristine, but must mirror every
+          # path remotes.main validates when the CLI loads config.toml.
           rm -rf /tmp/fta-verify
-          mkdir -p /tmp/fta-verify/supabase/functions
+          mkdir -p /tmp/fta-verify/supabase/functions /tmp/fta-verify/supabase/templates
           cp supabase/config.toml /tmp/fta-verify/supabase/config.toml
+          cp supabase/templates/recovery.html /tmp/fta-verify/supabase/templates/recovery.html
           supabase functions download finance-transaction-accounts \
             --project-ref "$SUPABASE_PROJECT_REF" \
             --workdir /tmp/fta-verify
