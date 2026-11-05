@@ -554,7 +554,9 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
 
   const compensation = record.travel_compensation;
   const instructorMinutes = instructorReportedCancellationMinutes(record);
-  if (compensation || instructorMinutes !== null) {
+  // Legacy per-activity travel compensation UI stays for pre-cutover months only.
+  // From 2026-11-01 the daily-travel tab is the single instructor travel path.
+  if (record.report_date < '2026-11-01' && (compensation || instructorMinutes !== null)) {
     const detail = document.createElement('div');
     detail.className = 'av2-rr__travel-compensation';
     const text = document.createElement('span');

@@ -618,3 +618,4 @@ config.HOTFIX_VERSION = `finance-rokhim-olam-gefen-46091-20261104-v1-${config.HO
 
 config.HOTFIX_VERSION = `finance-invoice-hourly-pdf-align-20261105-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `attendance-systemic-b-e-20261105-v1-${config.HOTFIX_VERSION}`;
+config.HOTFIX_VERSION = `attendance-nov-cutover-ui-20261105-v1-${config.HOTFIX_VERSION}`;

@@ -186,8 +186,12 @@ function legacyRecordsFromSnapshotParts(records = [], travelRows = [], locationR
 
   return (Array.isArray(records) ? records : []).map((row) => {
     const recordId = text(row.record_id);
-    const generatedTravel = travelByGenerated.get(recordId) || null;
-    const sourceTravel = travelBySource.get(recordId) || null;
+    const attendanceDate = text(row.attendance_date || row.date || row.report_date).slice(0, 10);
+    // Manager/admin Nov+ control uses daily-travel reports; do not surface legacy
+    // compensation rows in the review model (DB rows remain untouched).
+    const useLegacyTravel = !attendanceDate || attendanceDate < '2026-11-01';
+    const generatedTravel = useLegacyTravel ? (travelByGenerated.get(recordId) || null) : null;
+    const sourceTravel = useLegacyTravel ? (travelBySource.get(recordId) || null) : null;
     return legacyRecord(row, generatedTravel || sourceTravel, {
       generated: Boolean(generatedTravel),
       location: locationByRecord.get(recordId) || null

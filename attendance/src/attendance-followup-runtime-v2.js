@@ -186,12 +186,26 @@ function updateTimeCancelCell(row) {
   return cell;
 }
 
+function reportDateOf(rowOrForm) {
+  if (!(rowOrForm instanceof Element)) return '';
+  const fromDataset = text(rowOrForm.dataset?.reportDate);
+  if (fromDataset) return fromDataset.slice(0, 10);
+  const input = rowOrForm.querySelector?.('#edit-report-date');
+  return text(input?.value).slice(0, 10);
+}
+
+function usesDailyTravelPath(rowOrForm) {
+  const date = reportDateOf(rowOrForm);
+  return Boolean(date) && date >= '2026-11-01';
+}
+
 function showTimeCancelEditField(row, preferredForm = null) {
   window.setTimeout(() => {
     const form = preferredForm
       || document.querySelector('.av2-modal-overlay .av2-modal--form form')
       || document.querySelector('.av2-report__form[data-av2-edit-record-id]');
     if (!form || form.querySelector('[data-av2-time-cancel-edit]') || form.querySelector('#edit-has-cancellation') || form.querySelector('#av2-has-cancellation')) return;
+    if (usesDailyTravelPath(row) || usesDailyTravelPath(form)) return;
     const hoursDisplay = form.querySelector('.av2-report__hours-display')
       || form.querySelector('.av2-report__time-cancellation');
     if (!hoursDisplay) return;
@@ -302,6 +316,8 @@ async function applyTravelReport(row, recordId, outbound, returning) {
 
 function enhanceReportRow(row) {
   if (!(row instanceof HTMLElement)) return;
+  // November+ travel/time-cancellation lives in the daily-travel tab only.
+  if (usesDailyTravelPath(row)) return;
   updateTimeCancelCell(row);
   if (row.dataset[ENHANCED_ROW] === '1') return;
 
