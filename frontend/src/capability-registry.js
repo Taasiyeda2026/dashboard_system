@@ -68,7 +68,7 @@ export const CAPABILITY_REGISTRY = Object.freeze([
   { id: 'admin.settings', parent: 'admin.home', label: 'הגדרות מערכת', type: 'page', adminOnly: true, route: 'admin-settings' },
   { id: 'admin.lists', parent: 'admin.home', label: 'ניהול רשימות', type: 'page', adminOnly: true, route: 'admin-lists' },
   { id: 'admin.attendance', parent: 'admin.home', label: 'בקרת נוכחות אדמין ושכר', type: 'tool', adminOnly: true },
-  { id: 'admin.team_board', parent: 'admin.home', label: 'לוח מנהל צוות', type: 'tool', adminOnly: true },
+  { id: 'admin.team_board', label: 'לוח מנהל צוות', type: 'tool', permission: 'view_manager_board' },
   { id: 'admin.messages', parent: 'admin.home', label: 'הודעות לעובדים', type: 'tool', adminOnly: true },
   { id: 'admin.data', parent: 'admin.home', label: 'כלי נתונים', type: 'tool', adminOnly: true },
   { id: 'admin.summer_feedback', parent: 'admin.home', label: 'משוב קיץ', type: 'external_app', adminOnly: true },
