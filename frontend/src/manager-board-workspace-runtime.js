@@ -87,9 +87,8 @@ function role() {
 }
 
 function canUseWorkspace() {
-  // Attendance control (and related manager-board workspace tabs) require the
-  // business capability — not an admin-only role check.
-  return hasPermission(state?.user, 'view_attendance_control');
+  return hasPermission(state?.user, 'view_attendance_control')
+    || hasPermission(state?.user, 'view_manager_tracking');
 }
 
 function canUsePayrollAttendanceAdminTab() {
@@ -99,9 +98,11 @@ function canUsePayrollAttendanceAdminTab() {
 function workspaceTabs() {
   // Tab id `payroll-attendance` is kept for backward compatibility (localStorage).
   // The UI label is "בקרת נוכחות אדמין".
-  return canUsePayrollAttendanceAdminTab()
-    ? ['management', 'attendance', 'tracking', 'payroll-attendance']
-    : ['management', 'attendance', 'tracking'];
+  const tabs = ['management'];
+  if (hasPermission(state?.user, 'view_attendance_control')) tabs.push('attendance');
+  if (hasPermission(state?.user, 'view_attendance_control') || hasPermission(state?.user, 'view_manager_tracking')) tabs.push('tracking');
+  if (canUsePayrollAttendanceAdminTab()) tabs.push('payroll-attendance');
+  return tabs;
 }
 
 function restoreTab() {
@@ -857,7 +858,8 @@ function trackingSyncStatus(message, isError = false) {
  */
 async function syncTrackingDocuments(onlyEmpIds = null) {
   const boardRoot = validBoardRoot();
-  if (!boardRoot || activeTab !== 'tracking' || trackingSyncInProgress) return;
+  if (!boardRoot || activeTab !== 'tracking' || trackingSyncInProgress
+    || !hasPermission(state?.user, 'view_attendance_control')) return;
   const context = contextFromBoard(boardRoot);
   trackingSyncInProgress = true;
   const syncButton = boardRoot.querySelector('[data-manager-tracking-sync]');
@@ -934,7 +936,7 @@ function renderTracking(boardRoot, context, roster) {
   const view = boardRoot.querySelector('[data-manager-workspace-view]');
   if (!view) return;
   view.innerHTML = `<section class="manager-workspace-panel manager-workspace-tracking" dir="rtl">
-    <header class="manager-workspace-panel__head"><div><h2>מעקב צוות</h2><p>${escapeHtml(context.manager)} · שנת ${escapeHtml(context.schoolYear)}</p></div>${sharePointRootButton(context.schoolYear)}<button type="button" class="manager-workspace-run-team" data-manager-tracking-sync>רענון מסמכים</button></header>
+    <header class="manager-workspace-panel__head"><div><h2>מעקב צוות</h2><p>${escapeHtml(context.manager)} · שנת ${escapeHtml(context.schoolYear)}</p></div>${sharePointRootButton(context.schoolYear)}${hasPermission(state?.user, 'view_attendance_control') ? '<button type="button" class="manager-workspace-run-team" data-manager-tracking-sync>רענון מסמכים</button>' : ''}</header>
     <p class="manager-workspace-tracking-sync-status" data-manager-tracking-sync-status role="status" aria-live="polite"></p>
     ${trackingTableHtml(roster, { schoolYear: context.schoolYear })}
   </section>`;
@@ -1195,6 +1197,7 @@ function syncWorkspace() {
     embeddedAttendanceSignature = '';
     return;
   }
+  if (!workspaceTabs().includes(activeTab)) setActiveTab('management');
   if (activeTab === 'attendance') syncAttendanceMonthNav(boardRoot);
   if (resetBoardMonthIfNeeded(boardRoot)) return;
   void renderWorkspace(false);
