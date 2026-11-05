@@ -5,14 +5,30 @@ export function registerServiceWorker() {
     const hadController = !!navigator.serviceWorker.controller;
     let reloadingForUpdate = false;
     let lastUpdateCheckAt = 0;
+    let updatePending = false;
+    let updateObserver = null;
+
+    function reloadWhenSafe() {
+      if (!updatePending || reloadingForUpdate) return;
+      // Keep the whole reporting screen alive, including drafts in hidden tabs
+      // and requests still saving. Apply the update after leaving that screen.
+      if (document.querySelector('form, .av2-daily-travel, .av2-expenses-tab')) return;
+      reloadingForUpdate = true;
+      updateObserver?.disconnect();
+      window.location.reload();
+    }
 
     // A newly activated worker must replace the JavaScript already running in
     // an installed PWA. Without this, an Android home-screen app can keep an
     // old Attendance UI alive even after the new worker has taken control.
     navigator.serviceWorker.addEventListener('controllerchange', () => {
       if (!hadController || reloadingForUpdate) return;
-      reloadingForUpdate = true;
-      window.location.reload();
+      updatePending = true;
+      if (!updateObserver) {
+        updateObserver = new MutationObserver(reloadWhenSafe);
+        updateObserver.observe(document.documentElement, { childList: true, subtree: true });
+      }
+      reloadWhenSafe();
     });
 
     navigator.serviceWorker
