@@ -26,6 +26,11 @@ content_path = "./supabase/templates/recovery.html"
 
 # Cron authenticates with its dedicated server-only secret, never a user JWT.
 # Deployment and live delivery still require separate approval.
+# finance-transaction-accounts keeps JWT verification on (CLI deploy default).
+# Explicit entry documents the production posture for the GitHub Actions deployer.
+[functions.finance-transaction-accounts]
+verify_jwt = true
+
 [functions.feedback-staff-automation]
 verify_jwt = false
 
