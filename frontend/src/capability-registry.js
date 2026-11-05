@@ -70,6 +70,7 @@ export const CAPABILITY_REGISTRY = Object.freeze([
   { id: 'admin.attendance', parent: 'admin.home', label: 'בקרת נוכחות אדמין ושכר', type: 'tool', adminOnly: true },
   { id: 'admin.team_board', label: 'לוח מנהל צוות', type: 'tool', permission: 'view_manager_board' },
   { id: 'manager_board.tracking', parent: 'admin.team_board', label: 'מעקב צוות', type: 'tab', permission: 'view_manager_tracking' },
+  { id: 'manager_board.observations', parent: 'manager_board.tracking', label: 'ביצוע תצפיות למדריכים', type: 'action', permission: 'manage_instructor_observations' },
   { id: 'manager_board.gantt', parent: 'admin.team_board', label: 'גאנט מנהל צוות', type: 'tab', permission: 'view_manager_gantt' },
   { id: 'admin.messages', parent: 'admin.home', label: 'הודעות לעובדים', type: 'tool', adminOnly: true },
   { id: 'admin.data', parent: 'admin.home', label: 'כלי נתונים', type: 'tool', adminOnly: true },
