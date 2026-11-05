@@ -1,4 +1,5 @@
 import { state } from './state.js';
+import { hasPermission } from './permission-policy.js';
 import { ensureFeature } from './feature-loaders.js';
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 import { activitySeasonQueryValues, normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
@@ -24,7 +25,8 @@ function text(value) {
 const MANAGER_BOARD_DAY_DRAWER_ROLES = new Set(['admin', 'activities_manager']);
 
 export function canUseManagerBoardInteractions(role = state?.user?.role) {
-  return MANAGER_BOARD_DAY_DRAWER_ROLES.has(text(role));
+  return MANAGER_BOARD_DAY_DRAWER_ROLES.has(text(role))
+    || (text(role) === text(state?.user?.role) && hasPermission(state?.user, 'view_manager_board'));
 }
 
 function managerName(boardRoot) {
