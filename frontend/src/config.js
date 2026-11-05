@@ -620,3 +620,5 @@ config.HOTFIX_VERSION = `finance-invoice-hourly-pdf-align-20261105-v1-${config.H
 config.HOTFIX_VERSION = `finance-transaction-accounts-ux-upgrade-20261105-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `attendance-systemic-b-e-20261105-v1-${config.HOTFIX_VERSION}`;
 config.HOTFIX_VERSION = `attendance-nov-cutover-ui-20261105-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `manager-board-explicit-view-access-20261105-v1-${config.HOTFIX_VERSION}`;

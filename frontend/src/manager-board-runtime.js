@@ -1,4 +1,5 @@
 import { state } from './state.js';
+import { hasPermission } from './permission-policy.js';
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 import {
   activitySeasonQueryValues,
@@ -87,7 +88,8 @@ function currentRole() {
 }
 
 function canUseManagerBoard() {
-  return MANAGER_BOARD_ACCESS_ROLES.has(currentRole());
+  return MANAGER_BOARD_ACCESS_ROLES.has(currentRole())
+    || hasPermission(state?.user, 'view_manager_board');
 }
 
 function isSelfManager() {
@@ -814,6 +816,7 @@ function activeTeamStripHtml(team, activityCount) {
 }
 
 function workspaceShellHtml(activeTeamHtml) {
+  if (!hasPermission(state?.user, 'view_attendance_control')) return activeTeamHtml;
   // Tab id `payroll-attendance` is kept for backward compatibility; the UI label is "בקרת נוכחות אדמין".
   const adminTab = currentRole() === 'admin'
     ? '<button type="button" class="manager-workspace-tab" data-manager-workspace-tab="payroll-attendance" aria-selected="false">בקרת נוכחות אדמין</button>'
