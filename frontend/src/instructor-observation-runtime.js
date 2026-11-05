@@ -3,6 +3,7 @@
  * One observation = one immutable completed report, with editable drafts.
  */
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
+import { hasPermission } from './permission-policy.js';
 import './styles/instructor-observation.css';
 import { OBSERVATION_FORM_V2 } from './instructor-observation-questionnaire.js';
 
@@ -53,7 +54,10 @@ const responseLabel = (value,choices) => {
 };
 const e = (value) => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const localDate = () => { const d = new Date(); return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-'); };
-const allowed = user => ['admin','activities_manager','operation_manager'].includes(String(user?.role || '').trim()) && user?.is_active !== false;
+const allowed = user => user?.is_active !== false && (
+  ['admin','activities_manager','operation_manager'].includes(String(user?.role || '').trim())
+  || hasPermission(user, 'manage_instructor_observations')
+);
 let root, userGetter = () => ({}), selected = null, list = [], stage = -1, empId = '', name = '', saveQueue = Promise.resolve(), debounce, activityOptions = [], lastFocus = null;
 let isOpen = false, viewerAuthId = '', observationSlot = 1, reviewReached = false;
 let sharepointReceipt=null, sharepointBusy=false, sharepointChecking=false, sharepointError='';
