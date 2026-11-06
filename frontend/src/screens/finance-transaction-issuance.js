@@ -209,12 +209,18 @@ function billingLineHtml(line, data, mode) {
   const slots = Array.isArray(line.unbilledSlots) ? line.unbilledSlots : [];
   const school = mode === TRANSACTION_MODE_MANUAL && line.customerName
     ? `<small class="ds-fin-transaction-school" style="display:block;color:var(--ds-text-muted,#64748b)">${escapeHtml(line.customerName)}</small>` : '';
+  // Internal billing-basis marker: invoice amounts continue to be calculated from
+  // the activity's authoritative billing preview until order reconciliation is approved.
+  // Never add this marker to the customer-facing PDF or Outlook draft.
+  const internalBillingBasis = mode === TRANSACTION_MODE_AUTOMATIC && line.gefenFunding
+    ? '<small class="ds-fin-internal-billing-basis" style="display:block;color:var(--ds-text-muted,#64748b)">בקרה פנימית: חיוב לפי נתוני הפעילות · התאמת הזמנת גפ״ן טרם עודכנה</small>'
+    : '';
   const meetingDetails = slots.length
     ? `<details class="ds-fin-transaction-meetings"><summary>${serviceActivity(line) ? 'פירוט מועדי פעילות' : 'פירוט מפגשים'}</summary>
       <div>${slots.map(slot => `<div>${serviceActivity(line) ? 'מועד פעילות' : `מפגש ${escapeHtml(slot.slot)}`} · ${escapeHtml(formatDate(slot.date))}${serviceActivity(line) ? '' : ` · ${compactNumber(slot.remainingHours ?? TRANSACTION_MEETING_HOURS)} שעות`}</div>`).join('')}</div>
     </details>` : '';
   return `<tr>
-    <td><strong>${escapeHtml(line.activityName || line.activityRowId)}</strong>${line.gefenFunding ? `<small class="ds-fin-transaction-program" style="display:block;color:var(--ds-text-muted,#64748b)">מספר גפ״ן: ${escapeHtml(displayGefenProgramNumber(line))}</small>` : ''}${school}${meetingDetails}</td>
+    <td><strong>${escapeHtml(line.activityName || line.activityRowId)}</strong>${line.gefenFunding ? `<small class="ds-fin-transaction-program" style="display:block;color:var(--ds-text-muted,#64748b)">מספר גפ״ן: ${escapeHtml(displayGefenProgramNumber(line))}</small>` : ''}${internalBillingBasis}${school}${meetingDetails}</td>
     <td>${escapeHtml(formatAmount(line.activityPrice ?? line.fundingAmount))}</td>
     <td>${escapeHtml(activityMeetings(line))}</td>
     <td>${escapeHtml(activityHours(line))}</td>
