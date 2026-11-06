@@ -209,11 +209,12 @@ function billingLineHtml(line, data, mode) {
   const slots = Array.isArray(line.unbilledSlots) ? line.unbilledSlots : [];
   const school = mode === TRANSACTION_MODE_MANUAL && line.customerName
     ? `<small class="ds-fin-transaction-school" style="display:block;color:var(--ds-text-muted,#64748b)">${escapeHtml(line.customerName)}</small>` : '';
-  // Internal billing-basis marker: invoice amounts continue to be calculated from
-  // the activity's authoritative billing preview until order reconciliation is approved.
-  // Never add this marker to the customer-facing PDF or Outlook draft.
+  // Internal-only billing provenance. Customer-facing PDF/email never receives this marker.
+  const billingBasisLabel = line.billingBasis === 'gefen_matched_order'
+    ? `חיוב לפי הזמנת גפ״ן מאומתת ${text(line.matchedGefenOrderNumber)} · תעריף ${formatAmount(line.matchedGefenOrderHourlyRate)} לשעה`
+    : 'חיוב לפי נתוני הפעילות · התאמת הזמנת גפ״ן טרם הושלמה';
   const internalBillingBasis = mode === TRANSACTION_MODE_AUTOMATIC && line.gefenFunding
-    ? '<small class="ds-fin-internal-billing-basis" style="display:block;color:var(--ds-text-muted,#64748b)">בקרה פנימית: חיוב לפי נתוני הפעילות · התאמת הזמנת גפ״ן טרם עודכנה</small>'
+    ? `<small class="ds-fin-internal-billing-basis" style="display:block;color:var(--ds-text-muted,#64748b)">בקרה פנימית: ${escapeHtml(billingBasisLabel)}</small>`
     : '';
   const meetingDetails = slots.length
     ? `<details class="ds-fin-transaction-meetings"><summary>${serviceActivity(line) ? 'פירוט מועדי פעילות' : 'פירוט מפגשים'}</summary>
