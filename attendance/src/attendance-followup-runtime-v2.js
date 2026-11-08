@@ -147,14 +147,26 @@ function cancellationState(row) {
 }
 
 function enhanceReportHeader(head) {
-  if (!(head instanceof HTMLElement) || head.dataset[ENHANCED_HEADER] === '1') return;
-  const hours = [...head.children].find((cell) => ['שעות', 'סה״כ שעות'].includes(text(cell.textContent)));
-  if (!hours) return;
-
-  const cancel = document.createElement('span');
-  cancel.className = 'av2-rr__time-cancel-head';
-  cancel.textContent = 'ביטול זמן';
-  hours.insertAdjacentElement('afterend', cancel);
+  if (!(head instanceof HTMLElement)) return;
+  const list = head.closest('.av2-report-list');
+  const rows = [...(list?.querySelectorAll('.av2-report-row[data-report-date]') || [])];
+  // New daily travel reports (Nov 2026 onward) belong to the separate travel tab.
+  // Those rows have 12 cells. A time-cancellation header would create a
+  // thirteenth track and squeeze the action buttons into the expenses column.
+  if (!rows.length) return;
+  const hasLegacyCancellation = rows.some((row) => !usesDailyTravelPath(row));
+  const existing = head.querySelector('.av2-rr__time-cancel-head');
+  if (hasLegacyCancellation && !existing) {
+    const hours = [...head.children].find((cell) => ['שעות', 'סה״כ שעות'].includes(text(cell.textContent)));
+    if (!hours) return;
+    const cancel = document.createElement('span');
+    cancel.className = 'av2-rr__time-cancel-head';
+    cancel.textContent = 'ביטול זמן';
+    hours.insertAdjacentElement('afterend', cancel);
+  } else if (!hasLegacyCancellation && existing) {
+    existing.remove();
+  }
+  list.classList.toggle('av2-report-list--legacy-cancellation', hasLegacyCancellation);
   head.dataset[ENHANCED_HEADER] = '1';
 }
 
@@ -316,6 +328,9 @@ async function applyTravelReport(row, recordId, outbound, returning) {
 
 function enhanceReportRow(row) {
   if (!(row instanceof HTMLElement)) return;
+  // Synchronize the header after the row exists (the header is rendered first).
+  const header = row.closest('.av2-report-list')?.querySelector('.av2-report-list__head');
+  if (header) enhanceReportHeader(header);
   // November+ travel/time-cancellation lives in the daily-travel tab only.
   if (usesDailyTravelPath(row)) return;
   updateTimeCancelCell(row);
