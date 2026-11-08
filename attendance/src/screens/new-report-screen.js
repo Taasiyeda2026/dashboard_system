@@ -1696,7 +1696,7 @@ export function renderNewReportScreen(container, {
       window.setTimeout(() => {
         onSaved?.(record);
         buildForm(null, reportDate);
-        successBanner.textContent = 'דיווח הנוכחות נשמר בהצלחה. כעת יש להשלים דיווח נסיעות בלשונית ״נסיעות וביטולים״, אם היו נסיעות.';
+        successBanner.textContent = 'דיווח הנוכחות נשמר בהצלחה';
         successBanner.hidden = false;
         successBanner.setAttribute('role','status');
         successBanner.scrollIntoView({block:'nearest',behavior:'smooth'});

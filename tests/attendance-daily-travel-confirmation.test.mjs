@@ -72,3 +72,18 @@ test('transport choice precedes and reveals only relevant fields',async()=>{
   assert.match(css,/av2-daily-travel__saved-header/);
   assert.match(css,/av2-daily-travel__saved-edit/);
 });
+
+test('saved travel report is compact without surplus form gaps or timestamp text',async()=>{
+  const ui=await readFile(new URL('../attendance/src/screens/daily-travel-tab.js',import.meta.url),'utf8');
+  const css=await readFile(new URL('../attendance/src/styles/new-report-final-alignment.css',import.meta.url),'utf8');
+  const form=await readFile(new URL('../attendance/src/screens/new-report-screen.js',import.meta.url),'utf8');
+  assert.match(ui,/reportCard\.classList\.add\('av2-daily-travel__report-card--saved'\)/);
+  assert.match(ui,/reportCard\.classList\.remove\('av2-daily-travel__report-card--saved'\)/);
+  assert.match(ui,/dayLabel\.textContent='יום פעילות'/);
+  assert.match(css,/report-card--saved>\.av2-report__actions\{\s*display:none!important/);
+  assert.match(css,/report-card--saved \.av2-daily-travel__saved-metric\{\s*display:inline-flex/);
+  assert.match(css,/report-card--saved>\.av2-daily-travel__month-wrap\{/);
+  assert.match(css,/\.av2-report__success\{\s*width:min\(100%,700px\)/);
+  assert.match(form,/successBanner\.textContent = 'דיווח הנוכחות נשמר בהצלחה'/);
+  assert.doesNotMatch(ui,/דיווח ליום /);
+});
