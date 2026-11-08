@@ -1,0 +1,37 @@
+name: Activity edit request funding regression
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/src/api.js'
+      - 'frontend/src/activity-edit-funding-request.js'
+      - 'frontend/src/screens/edit-requests.js'
+      - 'frontend/src/screens/shared/ui-hebrew.js'
+      - 'tests/activity-edit-funding-request.test.mjs'
+      - '.github/workflows/activity-edit-request-funding-regression.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'frontend/src/api.js'
+      - 'frontend/src/activity-edit-funding-request.js'
+      - 'frontend/src/screens/edit-requests.js'
+      - 'tests/activity-edit-funding-request.test.mjs'
+      - '.github/workflows/activity-edit-request-funding-regression.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  funding-approval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - name: Validate request and approval regression
+        run: |
+          node --check frontend/src/api.js
+          node --check frontend/src/activity-edit-funding-request.js
+          node --test tests/activity-edit-funding-request.test.mjs tests/api-mutations.test.mjs tests/activity-request-permissions.test.mjs
