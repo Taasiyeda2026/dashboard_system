@@ -40,8 +40,8 @@ test('travel time is selected as hours and minutes, with public transit hiding b
   assert.match(ui,/select\.dataset\['duration'/);
   assert.match(ui,/const hour=legsArea\.querySelector/);
   assert.match(ui,/const minute=legsArea\.querySelector/);
-  assert.match(ui,/if\(durationWrap\)durationWrap\.hidden=transit/);
-  assert.match(ui,/if\(kmWrap\)kmWrap\.hidden=transit/);
+  assert.match(ui,/if\(durationWrap\)durationWrap\.hidden=!selected\|\|transit/);
+  assert.match(ui,/if\(kmWrap\)kmWrap\.hidden=!selected\|\|transit/);
   assert.match(ui,/leg\.minutes=leg\.kind==='between'\?leg\.gapMinutes:0/);
   assert.match(ui,/carDraft=\{minutes:leg\.minutes,kilometers:leg\.kilometers\}/);
 });
