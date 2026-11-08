@@ -110,3 +110,52 @@
     text-align: right;
   }
 }
+
+/* Match rendered table rows: 12 columns in the new travel workflow,
+   13 only in legacy months where the cancellation column is actually injected.
+   Keep all report actions inside the last column rather than a clipped ghost cell. */
+@media (min-width: 768px) {
+  .av2-reports .av2-report-list {
+    overflow-x: auto !important;
+    overflow-y: hidden;
+  }
+  .av2-reports .av2-report-list__head,
+  .av2-reports .av2-report-row {
+    width: 918px !important;
+    min-width: 918px !important;
+    max-width: none !important;
+    grid-template-columns:
+      61px 60px 60px 60px 61px 60px
+      100px 95px 90px 55px 55px 161px !important;
+    gap: 0 !important;
+  }
+  .av2-reports .av2-report-list--legacy-cancellation .av2-report-list__head,
+  .av2-reports .av2-report-list--legacy-cancellation .av2-report-row {
+    grid-template-columns:
+      61px 60px 60px 60px 61px 61px 60px
+      100px 95px 90px 55px 55px 100px !important;
+  }
+  .av2-reports .av2-report-list:not(.av2-report-list--legacy-cancellation)
+    .av2-report-list__head > :nth-child(n+6):nth-child(-n+9) {
+    justify-content: flex-start !important;
+    text-align: right !important;
+    direction: rtl;
+  }
+  .av2-reports .av2-report-list:not(.av2-report-list--legacy-cancellation)
+    .av2-report-list__head > :nth-child(n+10):nth-child(-n+12) {
+    justify-content: center !important;
+    text-align: center !important;
+  }
+  .av2-reports .av2-report-row .av2-rr__actions {
+    min-width: 0;
+    overflow: visible !important;
+    flex-wrap: nowrap;
+    justify-content: center !important;
+    gap: 3px !important;
+    white-space: nowrap;
+  }
+  .av2-reports .av2-report-row .av2-rr__travel-shortcut {
+    flex: 0 0 auto;
+    margin: 0;
+  }
+}
