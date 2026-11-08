@@ -6,8 +6,8 @@ test('travel preview shows routes but does not prepopulate reported kilometres',
  const api=await readFile(new URL('../attendance/src/services/daily-travel.service.js',import.meta.url),'utf8');
  const ui=await readFile(new URL('../attendance/src/screens/daily-travel-tab.js',import.meta.url),'utf8');
  assert.match(api,/kilometers:leg.kind==='between' && leg.sameLocation===true \? 0 : null/);
- assert.match(ui,/leg.kind==='between' && key==='minutes'/);
- assert.match(ui,/leg.kind==='between' && leg.sameLocation===true && key==='kilometers'/);
+ assert.match(ui,/if\(leg.kind==='between'\)/);
+ assert.match(ui,/leg.kind==='between' && leg.sameLocation===true/);
  assert.match(ui,/leg.kind==='between'\?leg.gapMinutes:/);
  assert.match(ui,/noTravelLabel.hidden=!legs.length \|\| legs.some\(leg=>leg.kind==='between'\)/);
 });
