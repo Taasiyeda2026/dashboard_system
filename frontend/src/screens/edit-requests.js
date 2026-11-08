@@ -56,7 +56,8 @@ const LOCAL_FIELD_LABELS = {
   activity_no: 'מספר פעילות',
   gefen_number: 'מספר גפ״ן',
   exists_in_gefen: 'קיים בגפ״ן',
-  funding: 'מימון'
+  funding: 'מימון',
+  funding_sources: 'גורמי מימון וסכומים'
 };
 
 function statusLabel(status) {
