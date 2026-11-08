@@ -351,27 +351,36 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     return Number.isInteger(minutes)&&minutes>=0
       ? String(Math.floor(minutes/60)).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0'):'';
   };
-  const savedDateTime=value=>{
-    if(!value)return '';
-    const date=new Date(value);
-    if(Number.isNaN(date.getTime()))return '';
-    return new Intl.DateTimeFormat('he-IL',{
-      timeZone:'Asia/Jerusalem',day:'2-digit',month:'2-digit',year:'numeric',
-      hour:'2-digit',minute:'2-digit',hour12:false
-    }).format(date);
-  };
   function showSavedReport(report){
     editingSavedReport=false;
     savedCard.replaceChildren();
+    const header=document.createElement('div');
+    header.className='av2-daily-travel__saved-header';
     const heading=document.createElement('strong');
     heading.className='av2-daily-travel__saved-title';
-    heading.textContent='✓ הדיווח נשמר בהצלחה';
-    const when=document.createElement('p');
-    when.textContent='דיווח ליום '+formatDate(loadedDate)+(savedDateTime(report?.reported_at)?' · נשמר ב־'+savedDateTime(report.reported_at):'');
+    heading.textContent='✓ דיווח נשמר';
+    header.append(heading);
+    if(!locked){
+      const edit=document.createElement('button');
+      edit.type='button';edit.className='av2-daily-travel__saved-edit';
+      edit.textContent='עריכת דיווח';
+      edit.addEventListener('click',()=>{
+        if(locked || loading || saving)return;
+        editingSavedReport=true;
+        savedCard.hidden=true;
+        noTravelLabel.hidden=!legs.length || legs.some(leg=>leg.kind==='between');
+        summary.hidden=false;
+        actions.replaceChildren(save);
+        renderLegs();
+        save.disabled=false;
+      });
+      header.append(edit);
+    }
     const details=document.createElement('div');
     details.className='av2-daily-travel__saved-details';
     const addDetail=(label,value)=>{
       const block=document.createElement('div');
+      block.className='av2-daily-travel__saved-metric';
       const small=document.createElement('span');small.textContent=label;
       const strong=document.createElement('strong');strong.textContent=value;
       block.append(small,strong);details.append(block);
@@ -385,40 +394,21 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       const minutes=report?.cancellation_minutes??result.cancellationMinutes;
       const hasCarTravel=reportLegs.some(leg=>leg.mode!=='public_transport'
         && !(leg.kind==='between' && leg.sameLocation===true));
-      if(hasCarTravel){
-        addDetail('קילומטרים',Number(km||0).toLocaleString('he-IL')+' ק״מ');
-        addDetail('ביטול זמן מחושב',formatTripDuration(minutes??0)+' שעות');
-      }else if(Number(minutes||0)>0){
-        addDetail('ביטול זמן בין פעילויות',formatTripDuration(minutes)+' שעות');
-      }
+      if(hasCarTravel)addDetail('קילומטרים',Number(km||0).toLocaleString('he-IL')+' ק״מ');
+      if(hasCarTravel || Number(minutes||0)>0)
+        addDetail('ביטול זמן',formatTripDuration(minutes??0));
       const cost=Number(report?.public_transport_cost??reportLegs.reduce((sum,leg)=>
         sum+(leg.mode==='public_transport'?Number(leg.transportCost||0):0),0));
       if(reportLegs.some(leg=>leg.mode==='public_transport'))
         addDetail('תחבורה ציבורית',cost.toLocaleString('he-IL',{style:'currency',currency:'ILS'}));
     }
-    savedCard.append(heading,when,details);
+    savedCard.append(header,details);
     savedCard.hidden=false;
     status.textContent='';
     legsArea.hidden=true;
     noTravelLabel.hidden=true;
     summary.hidden=true;
     actions.replaceChildren();
-    if(!locked){
-      const edit=document.createElement('button');
-      edit.type='button';edit.className='av2-btn av2-btn--secondary';
-      edit.textContent='עריכת דיווח';
-      edit.addEventListener('click',()=>{
-        if(locked || loading || saving)return;
-        editingSavedReport=true;
-        savedCard.hidden=true;
-        noTravelLabel.hidden=!legs.length || legs.some(leg=>leg.kind==='between');
-        summary.hidden=false;
-        actions.replaceChildren(save);
-        renderLegs();
-        save.disabled=false;
-      });
-      actions.append(edit);
-    }
   }
   function showSummary(){
     legsArea.hidden=noTravel.checked;
@@ -531,7 +521,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       const modeWrap=document.createElement('label');
       modeWrap.className='av2-daily-travel__mode';
       const modeText=document.createElement('span');
-      modeText.textContent='אמצעי נסיעה – בחרו תחילה';
+      modeText.textContent='אמצעי נסיעה';
       const mode=document.createElement('select');
       mode.className='av2-field__select';
       const chooseMode=document.createElement('option');
