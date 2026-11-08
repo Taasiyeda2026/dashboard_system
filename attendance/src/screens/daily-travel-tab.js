@@ -288,8 +288,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       summaryCard.append(heading);
       appendDetail(summaryCard,'קילומטרים',report.total_km==null?null:report.total_km+' ק״מ');
       appendDetail(summaryCard,'ביטול זמן מאושר / מדווח',report.cancellation_minutes==null?null:durationValue(report.cancellation_minutes)+' שעות');
-      appendDetail(summaryCard,'סטטוס נסיעה',report.review_status==='approved'||report.review_status==='corrected'?'אושר':
-        report.review_status==='rejected'?'נדחה':report.review_status==='pending_review'?'ממתין לאישור':null);
+      appendDetail(summaryCard,'סטטוס דיווח',report.review_status==='rejected'?'נדרש תיקון':'נשמר');
       for(const leg of Array.isArray(report.legs)?report.legs:[]){
         const part=document.createElement('div');part.className='av2-daily-travel__legacy-detail';
         const label=document.createElement('span');label.textContent=[leg.from,leg.to].filter(Boolean).join(' ← ');
