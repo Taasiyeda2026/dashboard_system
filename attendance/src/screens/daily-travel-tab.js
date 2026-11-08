@@ -437,6 +437,12 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       if(!hour || !minute)continue;
       leg.minutes=hour.value!=='' && minute.value!=='' ? Number(hour.value)*60+Number(minute.value) : null;
     }
+    if(!noTravel.checked && legs.some(leg=>
+      !(leg.kind==='between' && leg.sameLocation===true)
+      && !['car','public_transport'].includes(leg.mode))){
+      summary.textContent='תחילה יש לבחור אמצעי נסיעה בכל מקטע';
+      return;
+    }
     const totals=summarizeDailyTravel(legs);
     const publicTransportFare=legs.reduce((sum,leg)=>
       sum+(leg.mode==='public_transport'?Number(leg.transportCost||0):0),0);
@@ -525,14 +531,17 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       const modeWrap=document.createElement('label');
       modeWrap.className='av2-daily-travel__mode';
       const modeText=document.createElement('span');
-      modeText.textContent='אמצעי נסיעה';
+      modeText.textContent='אמצעי נסיעה – בחרו תחילה';
       const mode=document.createElement('select');
       mode.className='av2-field__select';
+      const chooseMode=document.createElement('option');
+      chooseMode.value='';chooseMode.textContent='בחרו אמצעי נסיעה';
+      mode.append(chooseMode);
       for(const [value,label] of [['car','רכב'],['public_transport','תחבורה ציבורית']]){
         const opt=document.createElement('option');
         opt.value=value;opt.textContent=label;mode.append(opt);
       }
-      mode.value=leg.mode||'car';
+      mode.value=leg.mode||'';
       leg.mode=mode.value;
       modeWrap.append(modeText,mode);
       if(leg.kind==='between' && leg.sameLocation===true)modeWrap.hidden=true;
@@ -570,10 +579,15 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         }
         leg.mode=nextMode;
         const transit=nextMode==='public_transport';
+        const selected=nextMode==='car'||transit;
         fare.wrap.hidden=!transit;fare.input.disabled=!transit;
-        if(kmInput)kmInput.disabled=transit;
-        if(kmWrap)kmWrap.hidden=transit;
-        if(durationWrap)durationWrap.hidden=transit;
+        if(kmInput)kmInput.disabled=!selected||transit;
+        if(kmWrap)kmWrap.hidden=!selected||transit;
+        if(durationWrap)durationWrap.hidden=!selected||transit;
+        for(const field of fields.children){
+          if(field!==modeWrap && field!==fare.wrap && field!==kmWrap && field!==durationWrap)
+            field.hidden=!selected;
+        }
         if(transit){
           if(previousMode==='car')fare.input.value=transitDraft?String(transitDraft):'';
           leg.minutes=leg.kind==='between'?leg.gapMinutes:0;
@@ -592,7 +606,8 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         leg.transportCost=fare.input.value===''?0:Number(fare.input.value);
         showSummary();
       });
-      fields.append(modeWrap,fare.wrap);
+      fields.prepend(modeWrap);
+      fields.append(fare.wrap);
       block.append(fields);
       legsArea.append(block);
       syncMode();
@@ -790,7 +805,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         return {...leg,
           minutes:leg.kind==='between'?leg.gapMinutes:(same?old.minutes:null),
           kilometers:leg.kind==='between' && leg.sameLocation===true?0:(same?old.kilometers:null),
-          mode:same?(old.mode||'car'):'car',transportCost:same?Number(old.transportCost||0):0};
+          mode:same?(old.mode||'car'):(leg.kind==='between' && leg.sameLocation===true?'car':''),transportCost:same?Number(old.transportCost||0):0};
       });
       noTravel.checked=stored?.no_travel===true;
       noTravelLabel.hidden=!legs.length || legs.some(leg=>leg.kind==='between');
@@ -836,6 +851,12 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   save.addEventListener('click',async()=>{
     if(loading || saving || locked || loadedDate!==dateField.input.value)return;
     showSummary();
+    if(!noTravel.checked && legs.some(leg=>
+      !(leg.kind==='between' && leg.sameLocation===true)
+      && !['car','public_transport'].includes(leg.mode))){
+      status.textContent='יש לבחור אמצעי נסיעה בכל מקטע לפני מילוי ושמירה';
+      return;
+    }
     if(!noTravel.checked && legs.some(leg=>leg.kind!=='between' && leg.mode!=='public_transport' && !Number.isInteger(leg.minutes))){
       status.textContent='יש לבחור שעות ודקות לכל נסיעה ברכב';
       return;
