@@ -41,12 +41,13 @@ export async function getDailyTravelActivityLegs(empId, date) {
 
 export async function saveDailyTravel(date, legs, noTravel = false) {
   if (!noTravel && !summarizeDailyTravel(legs).complete) {
-    throw new Error('יש להשלים דקות וקילומטרים לכל מקטע נסיעה');
+    throw new Error('יש להשלים שעות ודקות בנסיעה ברכב, קילומטרים או עלות בתחבורה ציבורית');
   }
   const { data,error } = await supabase.rpc('av2_save_daily_travel', {
     p_date:date,p_legs:noTravel?[]:legs,p_no_travel:Boolean(noTravel)
   });
   if(error) throw new Error(instructorAttendanceError(error, 'שמירת הנסיעות נכשלה. נסו שוב.'));
+  if (!data || String(data.travel_date)!==date) throw new Error('לא התקבל אישור שמירה מהשרת');
   return data;
 }
 

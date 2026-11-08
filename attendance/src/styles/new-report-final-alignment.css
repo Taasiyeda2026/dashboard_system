@@ -352,3 +352,24 @@
     min-height:44px!important;
   }
 }
+
+/* Instructor travel: readable duration selectors and a persistent saved-state card. */
+.av2-report .av2-daily-travel__duration{display:grid;gap:6px;min-width:0}
+.av2-report .av2-daily-travel__duration[hidden]{display:none!important}
+.av2-report .av2-daily-travel__duration-selects{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.av2-report .av2-daily-travel__duration-selects label{display:grid;gap:5px;min-width:0;font-size:.8rem;color:var(--av2-color-text,#243b59)}
+.av2-report .av2-daily-travel__duration-selects select{width:100%;min-height:44px;font-size:.95rem}
+.av2-report .av2-daily-travel__leg-fields>[hidden],
+.av2-report .av2-daily-travel__leg-fields .av2-field[hidden]{display:none!important}
+.av2-report .av2-daily-travel__saved{display:grid;gap:12px;padding:16px;border-radius:12px;border:1px solid #b8dcc5;background:#f6fcf8;min-width:0}
+.av2-report .av2-daily-travel__saved[hidden]{display:none!important}
+.av2-report .av2-daily-travel__saved-title{font-size:1rem;color:#17653c}
+.av2-report .av2-daily-travel__saved>p{font-size:.82rem;color:#365a49;margin:0;line-height:1.5}
+.av2-report .av2-daily-travel__saved-details{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.av2-report .av2-daily-travel__saved-details>div{display:grid;gap:4px;min-width:0}
+.av2-report .av2-daily-travel__saved-details span{font-size:.75rem;color:#526b5e}
+.av2-report .av2-daily-travel__saved-details strong{font-size:.92rem;color:#1c4631}
+.av2-report .av2-daily-travel__report-card>.av2-report__actions>.av2-btn{flex:0 1 220px!important;width:auto!important;max-width:220px!important;min-width:160px!important;min-height:44px!important;padding:9px 14px!important}
+@media(max-width:480px){
+ .av2-report .av2-daily-travel__report-card>.av2-report__actions>.av2-btn{width:100%!important;max-width:100%!important;flex:1 1 auto!important}
+}
