@@ -30,8 +30,12 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
+      - name: Install test and build dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Validate request and approval regression
         run: |
           node --check frontend/src/api.js
           node --check frontend/src/activity-edit-funding-request.js
-          node --test tests/activity-edit-funding-request.test.mjs tests/api-mutations.test.mjs tests/activity-request-permissions.test.mjs
+          node --test tests/activity-edit-funding-request.test.mjs tests/activity-request-permissions.test.mjs tests/edit-requests-screen.test.mjs
+      - name: Build the dashboard
+        run: npm run build
