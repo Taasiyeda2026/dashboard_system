@@ -34,7 +34,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   dateField.wrap.hidden=true;
   const dayLabel=document.createElement('label');
   dayLabel.className='av2-daily-travel__day-label';
-  dayLabel.textContent='יום פעילות – תאריך ומיקום';
+  dayLabel.textContent='יום פעילות';
   dayLabel.setAttribute('for','av2-travel-day-selector-trigger');
   const daySelect=document.createElement('select');
   daySelect.id='av2-travel-day-selector';
@@ -353,6 +353,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   };
   function showSavedReport(report){
     editingSavedReport=false;
+    reportCard.classList.add('av2-daily-travel__report-card--saved');
     savedCard.replaceChildren();
     const header=document.createElement('div');
     header.className='av2-daily-travel__saved-header';
@@ -367,6 +368,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       edit.addEventListener('click',()=>{
         if(locked || loading || saving)return;
         editingSavedReport=true;
+        reportCard.classList.remove('av2-daily-travel__report-card--saved');
         savedCard.hidden=true;
         noTravelLabel.hidden=!legs.length || legs.some(leg=>leg.kind==='between');
         summary.hidden=false;
@@ -758,6 +760,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     loadingDay=requestedDay;
     loadingMonth=selectedMonth;
     loading=true;save.disabled=true;reload.disabled=true;
+    reportCard.classList.remove('av2-daily-travel__report-card--saved');
     savedCard.hidden=true;summary.hidden=false;legsArea.hidden=true;
     historicalEdit.hidden=true;
     historicalEditing=false;
