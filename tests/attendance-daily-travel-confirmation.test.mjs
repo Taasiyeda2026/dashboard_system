@@ -23,7 +23,10 @@ test('instructor sees saved confirmation and independent manager review state',a
   assert.match(ui,/savedCard\.className='av2-daily-travel__saved'/);
   assert.match(ui,/showSavedReport\(stored\)/);
   assert.match(ui,/showSavedReport\(\{\.\.\.saved,reported_at:/);
-  assert.match(ui,/דיווח נסיעות נשמר בהצלחה|הדיווח נשמר בהצלחה/);
+  assert.match(ui,/heading\.textContent='✓ דיווח נשמר'/);
+  assert.match(ui,/savedCard\.append\(header,details\)/);
+  assert.doesNotMatch(ui,/דיווח ליום /);
+  assert.doesNotMatch(ui,/נשמר ב־/);
   assert.match(ui,/edit\.textContent='עריכת דיווח'/);
   assert.match(ui,/locked=!monthEditable;/);
   assert.doesNotMatch(ui,/\?'ממתין לאישור'/);
@@ -37,8 +40,8 @@ test('travel time is selected as hours and minutes, with public transit hiding b
   assert.match(ui,/select\.dataset\['duration'/);
   assert.match(ui,/const hour=legsArea\.querySelector/);
   assert.match(ui,/const minute=legsArea\.querySelector/);
-  assert.match(ui,/if\(durationWrap\)durationWrap\.hidden=transit/);
-  assert.match(ui,/if\(kmWrap\)kmWrap\.hidden=transit/);
+  assert.match(ui,/if\(durationWrap\)durationWrap\.hidden=!selected\|\|transit/);
+  assert.match(ui,/if\(kmWrap\)kmWrap\.hidden=!selected\|\|transit/);
   assert.match(ui,/leg\.minutes=leg\.kind==='between'\?leg\.gapMinutes:0/);
   assert.match(ui,/carDraft=\{minutes:leg\.minutes,kilometers:leg\.kilometers\}/);
 });
@@ -52,4 +55,20 @@ test('server preserves payroll review separation and records timestamp',async()=
   assert.match(sql,/'reported_at',d.reported_at/);
   assert.match(sql,/v_kind in \('outbound','return'\) and v_minutes<>0/);
   assert.match(sql,/av2_can_write_month/);
+});
+
+test('transport choice precedes and reveals only relevant fields',async()=>{
+  const ui=await readFile(new URL('../attendance/src/screens/daily-travel-tab.js',import.meta.url),'utf8');
+  const css=await readFile(new URL('../attendance/src/styles/new-report-final-alignment.css',import.meta.url),'utf8');
+  assert.match(ui,/fields\.prepend\(modeWrap\)/);
+  assert.match(ui,/chooseMode\.value=''/);
+  assert.match(ui,/mode\.value=leg\.mode\|\|''/);
+  assert.match(ui,/mode:same\?\(old\.mode\|\|'car'\):\(leg\.kind==='between'/);
+  assert.match(ui,/const selected=nextMode==='car'\|\|transit/);
+  assert.match(ui,/if\(durationWrap\)durationWrap\.hidden=!selected\|\|transit/);
+  assert.match(ui,/if\(kmWrap\)kmWrap\.hidden=!selected\|\|transit/);
+  assert.match(ui,/status\.textContent='יש לבחור אמצעי נסיעה בכל מקטע לפני מילוי ושמירה'/);
+  assert.match(css,/av2-daily-travel__leg-fields>\.av2-daily-travel__mode/);
+  assert.match(css,/av2-daily-travel__saved-header/);
+  assert.match(css,/av2-daily-travel__saved-edit/);
 });
