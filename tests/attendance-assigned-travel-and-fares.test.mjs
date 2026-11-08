@@ -18,7 +18,7 @@ test('travel day can only be chosen from assigned activities; no free calendar',
 test('public transit fare is captured for each travel leg, never on attendance',async()=>{
  const travel=await readFile(new URL('../attendance/src/screens/daily-travel-tab.js',import.meta.url),'utf8');
  const attendance=await readFile(new URL('../attendance/src/screens/new-report-screen.js',import.meta.url),'utf8');
- assert.ok(travel.includes("mode.value==='public_transport'"));
+ assert.ok(travel.includes("nextMode==='public_transport'"));
  assert.ok(travel.includes("leg.transportCost="));
  assert.ok(attendance.includes("publicTransportToggleEl.hidden = online || isDailyTravelDate()"));
  assert.ok(attendance.includes("payload.public_transport_cost = 0"));
