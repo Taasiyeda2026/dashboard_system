@@ -789,7 +789,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       if(token!==requestSequence || date!==dateField.input.value || monthKey!==selectedMonth)return;
       const [reportYear,reportMonth]=monthKey.split('-').map(Number);
       const monthEditable=canEditMonth(reportYear,reportMonth,monthApproval);
-      locked=!monthEditable || ((stored?.review_status==='approved'||stored?.review_status==='corrected') && monthApproval?.status!=='reopened');
+      locked=!monthEditable; // Manager review is separate from instructor edits while the month is open.
       save.disabled=locked || saving;
       if(!monthEditable)status.textContent='החודש אינו פתוח לעריכה';
       renderLegs();
