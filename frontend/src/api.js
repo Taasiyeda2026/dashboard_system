@@ -26,6 +26,7 @@ import { permissionFlagYes, canEditDirect, canAddActivityDirect, canRequestEdit,
 import { mapWithConcurrency } from './bounded-concurrency.js';
 import { config } from './config.js';
 import { catalogActivityChangesFromRows, catalogText } from './activity-catalog-identity.js';
+import { separateFundingSourceChange, displayFundingSourcesForApproval } from './activity-edit-funding-request.js';
 import { enforceManagedRoutes, hasPermission } from './permission-policy.js';
 import { ALL_PERMISSION_KEYS, ROLE_PERMISSION_TEMPLATES } from './capability-registry.js';
 import { endDateExceptionThresholdForPeriod } from './exception-end-date-threshold-by-period.js';
@@ -6477,7 +6478,7 @@ function normalizeEditRequestType(value) {
   return type === 'create_activity' ? 'create_activity' : 'edit_activity';
 }
 
-function buildEditRequestGroups(rows = [], canReview = false, activityByRowId = {}) {
+function buildEditRequestGroups(rows = [], canReview = false, activityByRowId = {}, fundingNamesById = {}) {
   const groups = rows.map((row) => {
     const requestType = normalizeEditRequestType(row?.request_type);
     const sourceRowId = String(row?.source_row_id || '').trim();
@@ -6501,10 +6502,13 @@ function buildEditRequestGroups(rows = [], canReview = false, activityByRowId = 
           const fn = String(fieldName || '');
           if (!fn) return null;
           const hasOriginalKey = Object.prototype.hasOwnProperty.call(originalValues, fn);
-          const oldFromSnapshot = hasOriginalKey
-            ? String(originalValues[fn] ?? '').trim()
-            : (activityRow ? String(activityRow[fn] ?? '').trim() : '');
-          const newVal = String(requestedValues?.[fn] ?? '').trim();
+          const originalValue = hasOriginalKey ? originalValues[fn] : activityRow?.[fn];
+          const oldFromSnapshot = fn === 'funding_sources'
+            ? displayFundingSourcesForApproval(originalValue, fundingNamesById)
+            : String(originalValue ?? '').trim();
+          const newVal = fn === 'funding_sources'
+            ? displayFundingSourcesForApproval(requestedValues?.[fn], fundingNamesById)
+            : String(requestedValues?.[fn] ?? '').trim();
           return {
             field_name: fn,
             old_value: oldFromSnapshot,
@@ -8042,7 +8046,16 @@ export const api = {
         activityByRowId[id] = null;
       }
     }));
-    return buildEditRequestGroups(rows, canReview, activityByRowId);
+    let fundingNamesById = {};
+    if (rows.some((row) => parseJsonishArray(row?.changed_fields).includes('funding_sources'))) {
+      const { data: sources, error: fundingNamesError } = await supabase.from('funding_sources').select('id,name');
+      if (fundingNamesError) {
+        console.warn('[edit-requests] funding source labels unavailable', fundingNamesError.message);
+      } else {
+        fundingNamesById = Object.fromEntries((sources || []).map((item) => [String(item.id), String(item.name || '')]));
+      }
+    }
+    return buildEditRequestGroups(rows, canReview, activityByRowId, fundingNamesById);
   },
   editRequestsBadgeCounts: async () => {
     const currentUserId = String(state?.user?.user_id || '').trim();
@@ -9110,9 +9123,11 @@ export const api = {
       .eq('row_id', rowId)
       .maybeSingle();
     if (existingInstructorError) throw buildSupabaseMutationError('submitEditRequest', existingInstructorError, 'submit_edit_request_failed');
+    if (!existingInstructorRow) throw new Error('activity_not_found_or_forbidden');
     assertActivityPeriodEditable({ activity: existingInstructorRow, changes: syncedChanges });
-    await validateActivityInstructorBindingsOrThrow({ ...(existingInstructorRow || {}), ...syncedChanges });
-    const reducedChanges = Object.entries(syncedChanges).reduce((acc, [key, value]) => {
+    await validateActivityInstructorBindingsOrThrow({ ...existingInstructorRow, ...syncedChanges });
+    const { activityChanges, fundingSources: requestFundingSources } = separateFundingSourceChange(syncedChanges);
+    const reducedChanges = Object.entries(activityChanges).reduce((acc, [key, value]) => {
       if (value === undefined) return acc;
       if (key === 'exists_in_gefen' && typeof value === 'boolean') {
         acc[key] = value;
@@ -9137,13 +9152,16 @@ export const api = {
       synchronizeStartDateAndFirstMeeting(mapMeetingDateFieldNamesToSupabase(reducedChanges)),
       { includeRowId: false }
     );
-    const debugPayload = { source_sheet: sourceSheet, source_row_id: rowId, changes: normalizedChanges };
+    const requestedValuesForApproval = requestFundingSources === undefined
+      ? normalizedChanges
+      : { ...normalizedChanges, funding_sources: requestFundingSources };
+    const debugPayload = { source_sheet: sourceSheet, source_row_id: rowId, changes: requestedValuesForApproval };
     logActivityMutationDebug('request', 'submitEditRequest', debugPayload, { table: 'edit_requests' });
-    if (!rowId || !Object.keys(normalizedChanges).length) {
-      throw new Error('No changes to submit');
+    if (!rowId || !Object.keys(requestedValuesForApproval).length) {
+      throw new Error('no_activity_changes_to_request');
     }
     const currentUser = state?.user || {};
-    const changedKeys = Object.keys(normalizedChanges);
+    const changedKeys = Object.keys(requestedValuesForApproval);
     let originalValuesMap = {};
     let snapshotName = '';
     let snapshotSchool = '';
@@ -9156,7 +9174,20 @@ export const api = {
     snapshotSchool = String(liveRow.school || '').trim();
     snapshotAuthority = String(liveRow.authority || '').trim();
     for (const key of changedKeys) {
+      if (key === 'funding_sources') continue;
       originalValuesMap[key] = String(liveRow[key] ?? '').trim();
+    }
+    if (requestFundingSources !== undefined) {
+      const { data: currentFunding, error: currentFundingError } = await supabase
+        .from('activity_funding_sources')
+        .select('funding_source_id,amount')
+        .eq('activity_id', liveRow.id);
+      if (currentFundingError) {
+        throw buildSupabaseMutationError('submitEditRequest', currentFundingError, 'activity_funding_read_failed');
+      }
+      originalValuesMap.funding_sources = (currentFunding || []).map(({ funding_source_id, amount }) => ({
+        funding_source_id: String(funding_source_id), amount
+      }));
     }
     const row = {
       request_id: `REQ-${Date.now()}`,
@@ -9167,7 +9198,7 @@ export const api = {
       authority: snapshotAuthority,
       changed_fields: JSON.stringify(changedKeys),
       original_values: JSON.stringify(originalValuesMap),
-      requested_values: JSON.stringify(normalizedChanges),
+      requested_values: JSON.stringify(requestedValuesForApproval),
       request_type: 'edit_activity',
       status: 'pending',
       active: 'yes',
@@ -9260,40 +9291,54 @@ export const api = {
           Object.assign(requestedValues, await resolveCatalogActivityChanges(requestedValues));
         }
         const syncedRequestedValues = applyInstructorEmpSync(requestedValues);
-        if (sourceRowId && syncedRequestedValues && Object.keys(syncedRequestedValues).length) {
+        const { activityChanges, fundingSources } = separateFundingSourceChange(syncedRequestedValues);
+        if (!sourceRowId) throw new Error('missing_row_id');
+        if (Object.keys(activityChanges).length || fundingSources !== undefined) {
           const sanitizedRequestedValues = sanitizeActivityPayloadForSupabase(
-            mapMeetingDateFieldNamesToSupabase(syncedRequestedValues),
+            mapMeetingDateFieldNamesToSupabase(activityChanges),
             { includeRowId: false }
           );
-          const { data: appliedRow, error: applyErr } = await supabase
-            .from('activities')
-            .update(sanitizedRequestedValues)
-            .eq('row_id', sourceRowId)
-            .select('row_id')
-            .maybeSingle();
-          if (applyErr || !appliedRow) {
-          const authContext = await buildActivityMutationAuthContext();
-          // eslint-disable-next-line no-console
-          console.error('[activity-save-error]', {
-            action: 'reviewEditRequest',
-            table: 'activities',
-            row_id: sourceRowId,
-            auth_uid: authContext.auth_uid,
-            user_id: authContext.user_id,
-            role: authContext.role,
-            can_edit_direct: authContext.can_edit_direct,
-            can_add_activity: authContext.can_add_activity,
-            supabase_error_code: applyErr?.code || applyErr?.status || '',
-            supabase_error_message: String(applyErr?.message || (!appliedRow ? 'activity_not_found_or_forbidden' : 'review_edit_request_apply_failed')),
-            supabase_error_details: String(applyErr?.details || ''),
-            payload: {
-              request_id: requestId,
-              source_row_id: sourceRowId,
-              requested_values: sanitizedRequestedValues
-            },
-            error: applyErr
-          });
-          throw buildSupabaseMutationError('reviewEditRequest', applyErr || new Error('activity_not_found_or_forbidden'), 'review_edit_request_apply_failed');
+          let appliedRow = null;
+          if (Object.keys(sanitizedRequestedValues).length) {
+            const { data, error: applyErr } = await supabase
+              .from('activities')
+              .update(sanitizedRequestedValues)
+              .eq('row_id', sourceRowId)
+              .select('id,row_id')
+              .maybeSingle();
+            if (applyErr || !data) {
+              const authContext = await buildActivityMutationAuthContext();
+              console.error('[activity-save-error]', {
+                action: 'reviewEditRequest',
+                table: 'activities',
+                row_id: sourceRowId,
+                auth_uid: authContext.auth_uid,
+                user_id: authContext.user_id,
+                role: authContext.role,
+                can_edit_direct: authContext.can_edit_direct,
+                can_add_activity: authContext.can_add_activity,
+                supabase_error_code: applyErr?.code || applyErr?.status || '',
+                supabase_error_message: String(applyErr?.message || 'activity_not_found_or_forbidden'),
+                supabase_error_details: String(applyErr?.details || ''),
+                payload: { request_id: requestId, source_row_id: sourceRowId, requested_values: sanitizedRequestedValues },
+                error: applyErr
+              });
+              throw buildSupabaseMutationError('reviewEditRequest', applyErr || new Error('activity_not_found_or_forbidden'), 'review_edit_request_apply_failed');
+            }
+            appliedRow = data;
+          }
+          if (fundingSources !== undefined) {
+            if (!appliedRow) {
+              const { data, error: lookupErr } = await supabase
+                .from('activities')
+                .select('id,row_id')
+                .eq('row_id', sourceRowId)
+                .maybeSingle();
+              if (lookupErr) throw buildSupabaseMutationError('reviewEditRequest', lookupErr, 'activity_not_found_or_forbidden');
+              if (!data) throw new Error('activity_not_found_or_forbidden');
+              appliedRow = data;
+            }
+            await saveActivityFundingSources(appliedRow, { funding_sources: fundingSources });
           }
         }
       }
