@@ -379,14 +379,22 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     if(report?.no_travel){
       addDetail('נסיעות','לא בוצעה נסיעה');
     }else{
-      const result=summarizeDailyTravel(report?.legs||[]);
+      const reportLegs=report?.legs||[];
+      const result=summarizeDailyTravel(reportLegs);
       const km=report?.total_km??result.kilometers;
       const minutes=report?.cancellation_minutes??result.cancellationMinutes;
-      addDetail('קילומטרים',Number(km||0).toLocaleString('he-IL')+' ק״מ');
-      addDetail('ביטול זמן מחושב',formatTripDuration(minutes??0)+' שעות');
-      const cost=Number(report?.public_transport_cost??(report?.legs||[]).reduce((sum,leg)=>
+      const hasCarTravel=reportLegs.some(leg=>leg.mode!=='public_transport'
+        && !(leg.kind==='between' && leg.sameLocation===true));
+      if(hasCarTravel){
+        addDetail('קילומטרים',Number(km||0).toLocaleString('he-IL')+' ק״מ');
+        addDetail('ביטול זמן מחושב',formatTripDuration(minutes??0)+' שעות');
+      }else if(Number(minutes||0)>0){
+        addDetail('ביטול זמן בין פעילויות',formatTripDuration(minutes)+' שעות');
+      }
+      const cost=Number(report?.public_transport_cost??reportLegs.reduce((sum,leg)=>
         sum+(leg.mode==='public_transport'?Number(leg.transportCost||0):0),0));
-      if(cost>0)addDetail('תחבורה ציבורית',cost.toLocaleString('he-IL',{style:'currency',currency:'ILS'}));
+      if(reportLegs.some(leg=>leg.mode==='public_transport'))
+        addDetail('תחבורה ציבורית',cost.toLocaleString('he-IL',{style:'currency',currency:'ILS'}));
     }
     savedCard.append(heading,when,details);
     savedCard.hidden=false;
@@ -432,12 +440,18 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     const totals=summarizeDailyTravel(legs);
     const publicTransportFare=legs.reduce((sum,leg)=>
       sum+(leg.mode==='public_transport'?Number(leg.transportCost||0):0),0);
+    const hasCarTravel=legs.some(leg=>leg.mode!=='public_transport'
+      && !(leg.kind==='between' && leg.sameLocation===true));
+    const hasTransit=legs.some(leg=>leg.mode==='public_transport');
+    const travelDetails=hasCarTravel
+      ? 'ביטול זמן מחושב: '+formatTripDuration(totals.cancellationMinutes)+' שעות'
+        +(totals.kilometers===null?'':' · '+totals.kilometers+' ק״מ')
+      : (totals.cancellationMinutes>0
+        ? 'ביטול זמן בין פעילויות: '+formatTripDuration(totals.cancellationMinutes)+' שעות'
+        : '');
     summary.textContent=noTravel.checked ? 'ללא נסיעה'
-      : totals.cancellationMinutes===null
-        ? 'יש להשלים את נתוני הנסיעה'
-        : 'ביטול זמן מחושב: '+formatTripDuration(totals.cancellationMinutes)+' שעות'
-          +(totals.kilometers===null?'':' · '+totals.kilometers+' ק״מ')
-          +(publicTransportFare>0?' · תחבורה ציבורית: ₪'+publicTransportFare.toFixed(2):'');
+      : !totals.complete ? 'יש להשלים את נתוני הנסיעה'
+      : [travelDetails,hasTransit?'תחבורה ציבורית: ₪'+publicTransportFare.toFixed(2):''].filter(Boolean).join(' · ');
   }
   function renderLegs(){
     legsArea.replaceChildren();
