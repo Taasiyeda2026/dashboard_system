@@ -430,7 +430,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     if(!noTravel.checked && legs.some(leg=>
       !(leg.kind==='between' && leg.sameLocation===true)
       && !['car','public_transport'].includes(leg.mode))){
-      summary.textContent='תחילה יש לבחור אמצעי נסיעה בכל מקטע';
+      summary.textContent='';
       return;
     }
     const totals=summarizeDailyTravel(legs);
