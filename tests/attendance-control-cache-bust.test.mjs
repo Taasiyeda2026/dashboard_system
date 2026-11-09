@@ -7,8 +7,8 @@ const admin = await readFile(new URL('../frontend/src/admin-attendance-standalon
 const launcher = await readFile(new URL('../frontend/src/screens/shared/payroll-control-launcher.js', import.meta.url), 'utf8');
 const index = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 
-const version = '20261105-systemic-b-e-v1';
-const adminVersion = '20261105-systemic-b-e-v1';
+const version = '20261110-orphan-travel-delete-v1';
+const adminVersion = '20261110-orphan-travel-delete-v1';
 
 test('manager workspace imports the attendance control with the current cache-busting version', () => {
   assert.match(workspace, new RegExp(`attendance-control\\.js\\?v=${version}`));
