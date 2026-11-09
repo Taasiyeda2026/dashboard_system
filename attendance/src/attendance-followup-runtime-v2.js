@@ -149,6 +149,8 @@ function cancellationState(row) {
 function enhanceReportHeader(head) {
   if (!(head instanceof HTMLElement)) return;
   const list = head.closest('.av2-report-list');
+  // The unified table already has exactly ten columns and presents travel in a daily subrow.
+  if(list?.classList.contains('av2-report-list--unified'))return;
   const rows = [...(list?.querySelectorAll('.av2-report-row[data-report-date]') || [])];
   // New daily travel reports (Nov 2026 onward) belong to the separate travel tab.
   // Those rows have 12 cells. A time-cancellation header would create a
@@ -327,7 +329,7 @@ async function applyTravelReport(row, recordId, outbound, returning) {
 }
 
 function enhanceReportRow(row) {
-  if (!(row instanceof HTMLElement)) return;
+  if (!(row instanceof HTMLElement) || row.closest('.av2-report-list--unified')) return;
   // Synchronize the header after the row exists (the header is rendered first).
   const header = row.closest('.av2-report-list')?.querySelector('.av2-report-list__head');
   if (header) enhanceReportHeader(header);
