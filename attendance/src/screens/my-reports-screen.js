@@ -649,7 +649,9 @@ async function handleCopy(record, btn) {
 
 async function handleDelete({ record, instructor, row, onRefresh }) {
   const dateStr = formatDateHeb(record.report_date);
-  if (!confirm(`למחוק את הדיווח מתאריך ${dateStr}?\nפעולה זו אינה הפיכה.`)) return;
+  const travelWarning=record.report_date>='2026-11-01'
+    ? '\nאם נשמרו נסיעות ליום זה, יהיה צורך לעדכן אותן.' : '';
+  if (!confirm(`למחוק את הדיווח מתאריך ${dateStr}?${travelWarning}\nפעולה זו אינה הפיכה.`)) return;
 
   row.style.opacity = '0.5';
   try {
