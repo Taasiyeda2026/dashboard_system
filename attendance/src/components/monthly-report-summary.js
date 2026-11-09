@@ -1,4 +1,5 @@
 import { instructorReportedCancellationMinutes, isSuspectCancellationRequest, roundCancellationMinutesUp } from '../services/cancellation-segments.js';
+import { sumReportedDailyTravel } from './reported-daily-travel.js';
 
 function numberValue(value) {
   const parsed = Number(value);
@@ -99,11 +100,13 @@ const TYPE_PRIORITY = new Map([
   ['ביטול זמן', 80]
 ]);
 
-export function buildMonthlySummaryItems(records = []) {
+export function buildMonthlySummaryItems(records = [], travelReports = null) {
   const hoursByType = new Map();
   let totalKm = 0;
   let totalExpenses = 0;
   const rows = Array.isArray(records) ? records : [];
+  const modernTravel = Array.isArray(travelReports);
+  const travelTotals = modernTravel ? sumReportedDailyTravel(travelReports) : null;
   const reportedSourceIds = new Set(rows
     .filter((row) => !row?.generation_kind && instructorReportedCancellationMinutes(row) !== null)
     .map((row) => String(row?.id ?? '')));
@@ -114,19 +117,23 @@ export function buildMonthlySummaryItems(records = []) {
     const hours = instructorReportHours(record);
     let activityType = String(record?.activity_type || '').trim();
     if (!activityType && record?.generation_kind === 'travel_time_cancellation') activityType = 'ביטול זמן';
-    if (!generatedLinked && activityType && hours > 0) {
+    if (!generatedLinked && activityType && hours > 0 && !(modernTravel && isCancellationRecord(record))) {
       hoursByType.set(activityType, (hoursByType.get(activityType) || 0) + hours);
     }
-    if (!isCancellationRecord(record)) {
+    if (!modernTravel && !isCancellationRecord(record)) {
       const requested = instructorReportedCancellationMinutes(record);
       if (requested !== null && requested > 0) {
         hoursByType.set('ביטול זמן', (hoursByType.get('ביטול זמן') || 0) + requested / 60);
       }
     }
-    totalKm += numberValue(record?.roundtrip_km);
+    if (!modernTravel) totalKm += numberValue(record?.roundtrip_km);
     totalExpenses += numberValue(record?.expenses);
   }
 
+  if (modernTravel) {
+    totalKm=travelTotals.kilometers;
+    if(travelTotals.cancellationMinutes>0) hoursByType.set('ביטול זמן',travelTotals.cancellationMinutes/60);
+  }
   const items = [...hoursByType.entries()]
     .sort(([left], [right]) => {
       const leftPriority = TYPE_PRIORITY.get(left) ?? 500;
@@ -162,5 +169,10 @@ export function buildMonthlySummaryItems(records = []) {
     });
   }
 
+  if(modernTravel && travelTotals.publicTransportCost>0) items.push({
+    key:'public-transport',kind:'expenses',label:'סה״כ תחבורה ציבורית',
+    value:'₪'+travelTotals.publicTransportCost.toLocaleString('he-IL',{maximumFractionDigits:2}),
+    numericValue:travelTotals.publicTransportCost
+  });
   return items;
 }
