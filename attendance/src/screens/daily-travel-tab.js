@@ -346,9 +346,10 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     header.className='av2-daily-travel__saved-header';
     const heading=document.createElement('strong');
     heading.className='av2-daily-travel__saved-title';
-    heading.textContent='✓';
-    heading.title='דיווח נשמר';
-    heading.setAttribute('aria-label','דיווח נשמר');
+    const needsCorrection=report?.review_status==='rejected';
+    heading.textContent=needsCorrection?'נדרש תיקון':'✓';
+    heading.title=needsCorrection?'יש לעדכן את נסיעות היום':'דיווח נשמר';
+    heading.setAttribute('aria-label',heading.title);
     header.append(heading);
     if(!locked){
       const edit=document.createElement('button');
@@ -413,6 +414,12 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       void load();
     });
     savedCard.append(header,details,dayChoice);
+    if(needsCorrection){
+      const instruction=document.createElement('p');
+      instruction.className='av2-daily-travel__correction-instruction';
+      instruction.textContent='יש להתאים את הנסיעות לפעילויות היום ולשמור מחדש.';
+      savedCard.append(instruction);
+    }
     savedCard.hidden=false;
     status.textContent='';
     legsArea.hidden=true;
@@ -708,8 +715,18 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       syncDayPicker();
       return true;
     }
-    const fetched=await getAssignedTravelDays({fromDate,toDate});
+    const [fetched,savedReports]=await Promise.all([
+      getAssignedTravelDays({fromDate,toDate}),getDailyTravelReports(empId,selectedMonth)
+    ]);
     dayOptions=fetched.filter(item=>item.date>='2026-11-01' && item.date?.slice(0,7)===selectedMonth);
+    for(const saved of savedReports){
+      if(!saved?.travel_date || saved.travel_date.slice(0,7)!==selectedMonth)continue;
+      if(dayOptions.some(day=>day.date===saved.travel_date))continue;
+      dayOptions.push({
+        date:saved.travel_date,activities:'נסיעות שמורות',
+        ready:false,review_status:saved.review_status,no_travel:saved.no_travel
+      });
+    }
     if(selectedMonth==='2026-11'){
       const historical=await readHistoricalAttendance(empId,selectedMonth);
       historicalMonthApproval=historical.approval;
@@ -731,6 +748,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       }
       dayOptions.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
     }
+    dayOptions.sort((a,b)=>String(b.date).localeCompare(String(a.date)));
     daySelect.replaceChildren();
     if(!dayOptions.length){
       dateField.input.value='';
@@ -792,7 +810,9 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       }
       const day=dayOptions.find(item=>item.date===date);
       if(!day || !day.ready){
-        status.textContent='יש להשלים תחילה דיווח נוכחות ליום זה';
+        status.textContent=day?.review_status==='rejected'
+          ? 'דיווח הנסיעות נשמר, אך אין פעילות נוכחות תואמת. יש להשלים נוכחות לפני תיקון הנסיעות.'
+          : 'יש להשלים תחילה דיווח נוכחות ליום זה';
         legsArea.replaceChildren();save.hidden=true;noTravelLabel.hidden=true;
         summary.textContent='';loadedDate='';
         return;
