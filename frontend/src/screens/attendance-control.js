@@ -3252,12 +3252,28 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         expenseRows.map(row=>({...row,employeeId:txt(row.emp_id),team:txt(row.team)})),
         { selectedTeam, selectedInstructor }
       );
-      if (!attendanceRows.length && !filteredExpenses.length)
-        throw new Error(`לא נמצאו דיווחי נוכחות או הוצאות עבור ${monthLabel}`);
+      const orphanReports=await api.attendanceControlOrphanDailyTravelReports({fromDate,toDate});
+      const rosterByEmployee=new Map((Array.isArray(employees)?employees:[])
+        .map(row=>[txt(row.employeeId||row.EmployeeId||row.ID),row]));
+      const filteredOrphans=filterAttendanceControlScopeRows(
+        orphanReports.map(row=>{
+          const roster=rosterByEmployee.get(txt(row.emp_id))||{};
+          return {...row,employeeId:txt(row.emp_id),team:txt(roster.team||roster.Team)};
+        }),
+        {selectedTeam,selectedInstructor}
+      );
+      if (!attendanceRows.length && !filteredExpenses.length && !filteredOrphans.length){
+        result=null;
+        title.textContent=`בקרת נוכחות – ${monthLabel}`;
+        results.innerHTML='<p class="attendance-control__manual-note">אין דיווחים להצגה בחודש זה.</p>';
+        status.textContent=successMessage||'';
+        return;
+      }
       const dashboardRows = attendanceRows.length
         ? await loadAttendanceDashboardDataset(attendanceRows, api, month) : [];
       result = compareAttendanceRows(attendanceRows, dashboardRows); result.month = month;
       result.expenseReports=filteredExpenses;
+      result.orphanDailyTravelReports=filteredOrphans;
       const employeeIds = [...new Set([
         ...attendanceRows.map(row=>txt(row.employeeId)),
         ...filteredExpenses.map(row=>txt(row.emp_id))
@@ -3381,9 +3397,40 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     return { valid: true, value: raw };
   };
 
+  results.addEventListener('change',(event)=>{
+    const target=eventTargetElement(event);
+    if(!target?.matches?.('[data-orphan-travel-select]'))return;
+    const action=results.querySelector('[data-orphan-travel-delete-selected]');
+    if(action)action.disabled=!results.querySelector('[data-orphan-travel-select]:checked');
+  });
   results.addEventListener('click', async (event) => {
     const clickEl = eventTargetElement(event);
     if (!clickEl) return;
+    const deleteOrphans=clickEl.closest('[data-orphan-travel-delete-selected]');
+    if(deleteOrphans){
+      const selected=[...results.querySelectorAll('[data-orphan-travel-select]:checked')]
+        .filter(input=>!input.disabled)
+        .map(input=>({employeeId:input.dataset.orphanEmp,date:input.dataset.orphanDate}));
+      if(!selected.length)return;
+      const question=selected.length===1
+        ? 'למחוק את דיווח הנסיעות וביטול הזמן שנבחר? פעולה זו אינה הפיכה.'
+        : `למחוק ${selected.length} דיווחי נסיעות וביטול זמן שנבחרו? פעולה זו אינה הפיכה.`;
+      if(!root.ownerDocument.defaultView.confirm(question))return;
+      deleteOrphans.disabled=true;
+      let deleted=0;
+      try{
+        for(const item of selected){
+          await api.attendanceControlDeleteOrphanDailyTravel(item);
+          deleted++;
+        }
+        await loadAttendanceReview({successMessage:`נמחקו ${deleted} דיווחי נסיעות וביטול זמן.`});
+      }catch(error){
+        await loadAttendanceReview().catch(()=>{});
+        setStatusMessage((deleted?`נמחקו ${deleted} דיווחים. `:'')
+          +(error.message||'לא ניתן למחוק את דיווחי הנסיעות שנבחרו'),{error:true});
+      }
+      return;
+    }
     const findEntry = (entryId) => (
       [...(result?.comparisons || []), ...(result?.notCompared || [])].find((entry) => entry.id === entryId) || null
     );
