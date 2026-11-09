@@ -420,7 +420,7 @@ api.attendanceControlOrphanDailyTravelReports = async function ({fromDate='',toD
 api.attendanceControlDeleteOrphanDailyTravel = async function ({employeeId,date}={}) {
   await waitForSupabaseAuthSession({timeoutMs:7000}).catch(()=>null);
   const id=Number(employeeId);
-  if(!Number.isSafeInteger(id)||id<=0||!/^20\\d{2}-\\d{2}-\\d{2}$/.test(String(date||'')))
+  if(!Number.isSafeInteger(id)||id<=0||!/^20\d{2}-\d{2}-\d{2}$/.test(String(date||'')))
     throw new Error('יש לבחור דיווח נסיעות תקין למחיקה');
   const {data,error}=await supabase.rpc('av2_delete_orphan_daily_travel',{
     p_emp_id:id,p_date:date
