@@ -8,7 +8,7 @@ import { attendanceControlHtml, attendanceControlStylesHtml, bindAttendanceContr
 import {
   resolveAdminAttendanceDefaultMonth,
   attendanceMonthDateRange
-} from './screens/attendance-control.js?v=20261105-systemic-b-e-v1';
+} from './screens/attendance-control.js?v=20261110-orphan-travel-delete-v1';
 
 const ADMIN_ROLE = 'admin';
 const LEGACY_MANAGER_TAB = 'payroll-attendance';
@@ -1114,7 +1114,7 @@ async function openControlMode(root) {
   setMessage(root, '', false);
   host.innerHTML = '<div class="admin-attendance-loading">טוען את ממשק הבקרה הקיים…</div>';
   try {
-    const attendance = await import('./screens/attendance-control.js?v=20261105-systemic-b-e-v1');
+    const attendance = await import('./screens/attendance-control.js?v=20261110-orphan-travel-delete-v1');
     host.innerHTML = `${attendance.attendanceControlStylesHtml()}${attendance.attendanceControlHtml()}`;
     const panel = host.querySelector('[data-attendance-control]');
     if (panel) panel.hidden = false;
