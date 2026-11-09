@@ -5,6 +5,11 @@ const amount=value=>Number.isFinite(Number(value))?Number(value):0;
 const money=value=>'₪'+amount(value).toLocaleString('he-IL',{maximumFractionDigits:2});
 
 /** Per-activity time remains HH:MM; daily and monthly totals use decimal hours. */
+export function formatActivityHours(value){
+  const minutes=Math.max(0,Math.round(amount(value)*60));
+  return String(Math.floor(minutes/60)).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0');
+}
+
 export function formatDecimalHours(value){
   return Math.max(0,amount(value)).toLocaleString('he-IL',{
     minimumFractionDigits:2,maximumFractionDigits:2
