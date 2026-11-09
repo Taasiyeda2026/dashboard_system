@@ -5,7 +5,7 @@ import { monthRange } from './historical-display-model.js';
 
 export {
   monthRange,isHistoricTravelMonth,groupHistoricalActivityDays,
-  historicalTravelDays,historicalExpenses,monthStatusLabel
+  historicalTravelDays,historicalTravelReports,historicalExpenses,monthStatusLabel
 } from './historical-display-model.js';
 
 export const HISTORICAL_TRAVEL_CUTOFF = '2026-11-01';
