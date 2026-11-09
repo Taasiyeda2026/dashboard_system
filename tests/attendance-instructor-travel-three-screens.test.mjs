@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {JSDOM} from 'jsdom';
+import {runInNewContext} from 'node:vm';
 import {sumReportedDailyTravel,formatTravelMinutes,dailyTravelDetails,createReportedTravelTable}
   from '../attendance/src/components/reported-daily-travel.js';
-import {buildHomeSummaryStats} from '../attendance/src/screens/home-screen.js';
 import {buildMonthlySummaryItems} from '../attendance/src/components/monthly-report-summary.js';
 
 const car={travel_date:'2026-11-03',total_km:'440.00',cancellation_minutes:90,
@@ -29,11 +29,28 @@ test('saved daily reports are the authoritative instructor totals, each day coun
   assert.equal(dailyTravelDetails(noTravel),'נסיעות: ללא נסיעה');
 });
 
-test('home and My Reports use reported values rather than obsolete per-activity km',()=>{
+test('home and My Reports use reported values rather than obsolete per-activity km',async()=>{
   const attendance=[
     {id:'a',report_date:'2026-11-03',activity_type:'קורס',total_hours:2,roundtrip_km:8},
     {id:'b',report_date:'2026-11-03',activity_type:'קורס',total_hours:2,roundtrip_km:8}
   ];
+  // Test the real pure home-stat builder without importing its browser-only auth client.
+  const homeSource=await readFile(new URL('../attendance/src/screens/home-screen.js',import.meta.url),'utf8');
+  const start=homeSource.indexOf('export function buildHomeSummaryStats(');
+  const end=homeSource.indexOf('\nfunction buildStat(',start);
+  assert.ok(start>0 && end>start);
+  const context={
+    sourceAttendanceRecords:rows=>rows.filter(row=>!row.generation_kind),
+    sumReportedDailyTravel,
+    hoursForType:(rows,label)=>rows.filter(row=>row.activity_type===label)
+      .reduce((sum,row)=>sum+Number(row.total_hours||0),0),
+    cancellationHours:()=>0,
+    distinctAttendanceWorkDays:rows=>new Set(rows.map(row=>row.report_date)).size,
+    formatDurationHours:value=>formatTravelMinutes(Number(value||0)*60)
+  };
+  runInNewContext(homeSource.slice(start,end).replace('export function','function')
+    +'\nthis.buildHomeSummaryStats=buildHomeSummaryStats;',context);
+  const buildHomeSummaryStats=context.buildHomeSummaryStats;
   const home=buildHomeSummaryStats(attendance,[],[car,transit]);
   assert.equal(home.find(x=>x.key==='kilometers').numericValue,440);
   assert.equal(home.find(x=>x.key==='cancellation').value,'1:30');
