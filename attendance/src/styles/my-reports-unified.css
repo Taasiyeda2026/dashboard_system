@@ -1,0 +1,158 @@
+/* My Reports — one consistent, ten-column activity header and a day summary.
+   Scoped to the new markup; older layout rules elsewhere remain untouched. */
+.av2-reports .av2-report-list--unified {
+  box-sizing:border-box;
+  width:min(100%,1100px)!important;
+  max-width:1100px!important;
+  margin-inline:auto;
+  overflow-x:auto!important;
+  overflow-y:visible!important;
+  border-radius:12px;
+}
+@media(min-width:768px){
+  .av2-reports .av2-report-list--unified>.av2-report-list__head,
+  .av2-reports .av2-report-list--unified>.av2-report-row {
+    box-sizing:border-box;
+    width:100%!important;
+    min-width:916px!important;
+    max-width:none!important;
+    display:grid!important;
+    grid-template-columns:
+      79px 67px 64px 64px 65px minmax(124px,1.25fr)
+      56px minmax(152px,1.35fr) minmax(100px,1fr) 140px!important;
+    gap:0!important;
+    align-items:center;
+    padding:8px 10px!important;
+  }
+  .av2-reports .av2-report-list--unified>.av2-report-list__head{
+    background:#f5f8fc;
+    font-size:.74rem!important;
+  }
+  .av2-reports .av2-report-list--unified>.av2-report-list__head>span{
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    font-size:.72rem!important;
+    text-align:center;
+  }
+  .av2-reports .av2-report-list--unified>.av2-report-list__head>span::after{
+    display:none!important;content:none!important;
+  }
+  .av2-reports .av2-report-list--unified>.av2-report-row>.av2-rr__date,
+  .av2-reports .av2-report-list--unified>.av2-report-row>.av2-rr__type,
+  .av2-reports .av2-report-list--unified>.av2-report-row>.av2-rr__start,
+  .av2-reports .av2-report-list--unified>.av2-report-row>.av2-rr__end,
+  .av2-reports .av2-report-list--unified>.av2-report-row>.av2-rr__hours,
+  .av2-reports .av2-report-list--unified>.av2-report-row>.av2-rr__name,
+  .av2-reports .av2-report-list--unified>.av2-report-row>.av2-rr__meeting,
+  .av2-reports .av2-report-list--unified>.av2-report-row>.av2-rr__school,
+  .av2-reports .av2-report-list--unified>.av2-report-row>.av2-rr__authority {
+    min-width:0;max-width:100%;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    text-align:center;font-size:.73rem!important;
+    padding-inline:4px!important;
+  }
+  .av2-reports .av2-report-list--unified>.av2-report-row>.av2-rr__name,
+  .av2-reports .av2-report-list--unified>.av2-report-row>.av2-rr__school {
+    text-align:right;
+  }
+}
+.av2-reports .av2-report-list--unified .av2-rr__actions{
+  display:flex!important;align-items:center!important;
+  justify-content:center!important;gap:6px!important;
+  flex-wrap:nowrap!important;overflow:visible!important;
+  white-space:nowrap;
+}
+.av2-reports .av2-report-list--unified .av2-rr__actions .av2-btn--icon{
+  display:inline-flex!important;
+  flex:0 0 28px!important;
+  width:28px!important;height:28px!important;min-width:28px!important;
+  padding:0!important;border-radius:7px!important;
+  align-items:center;justify-content:center;
+}
+.av2-reports .av2-report-list--unified .av2-rr__action-edit{color:#2563eb!important;}
+.av2-reports .av2-report-list--unified .av2-rr__action-dup{color:#7655b9!important;}
+.av2-reports .av2-report-list--unified .av2-rr__action-delete{color:#d13e42!important;}
+.av2-reports .av2-report-list--unified .av2-rr__travel-shortcut{color:#147e83!important;}
+.av2-reports .av2-report-list--unified .av2-rr__meeting{
+  font-variant-numeric:tabular-nums;
+}
+.av2-reports .av2-report-list--unified>.av2-report-day-detail{
+  box-sizing:border-box;
+  width:100%;min-width:916px;
+  border-top:1px solid #dce6f2;
+  border-bottom:2px solid #dce6f2;
+  background:#f7fafc;
+  padding:7px 14px;
+  color:#39536e;
+  font-size:.75rem;
+}
+.av2-reports .av2-report-list--unified .av2-report-day-detail__strip{
+  display:flex;align-items:center;justify-content:flex-start;
+  flex-wrap:wrap;gap:8px 22px;min-width:0;
+}
+.av2-reports .av2-report-list--unified .av2-day-detail__metric{
+  display:inline-flex;align-items:center;gap:6px;min-width:0;
+}
+.av2-reports .av2-report-list--unified .av2-day-detail__label{
+  color:#657a90;font-size:.72rem;font-weight:600;white-space:nowrap;
+}
+.av2-reports .av2-report-list--unified .av2-day-detail__value{
+  font-size:.79rem;color:#244765;font-weight:700;
+  font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+.av2-reports .av2-report-list--unified .av2-day-detail__route-toggle{
+  border:0;background:transparent;padding:3px 3px;
+  border-radius:5px;color:#215d96;cursor:pointer;
+  text-decoration:underline;text-underline-offset:3px;
+  font:inherit;font-size:.78rem;font-weight:700;
+  font-variant-numeric:tabular-nums;text-align:right;
+}
+.av2-reports .av2-report-list--unified .av2-day-detail__route-toggle:focus-visible{
+  outline:2px solid #2563eb;outline-offset:2px;
+}
+.av2-reports .av2-report-list--unified .av2-day-detail__route-breakdown{
+  display:grid;gap:4px;
+  margin-top:7px;padding:8px 10px;
+  background:#fff;border:1px solid #e0e9f3;border-radius:8px;
+  color:#526b83;font-size:.72rem;
+}
+.av2-reports .av2-report-list--unified .av2-day-detail__route-breakdown[hidden]{
+  display:none!important;
+}
+.av2-reports .av2-report-list--unified .av2-day-detail__expense{
+  color:#a37a22;gap:4px;
+}
+.av2-reports .av2-report-list--unified .av2-day-detail__expense svg{
+  color:#a37a22;flex-shrink:0;
+}
+.av2-reports .av2-report-list--unified .av2-day-detail__expense strong{
+  font-size:.79rem;white-space:nowrap;
+}
+@media(max-width:767px){
+  .av2-reports .av2-report-list--unified{
+    overflow-x:hidden!important;width:100%!important;
+  }
+  .av2-reports .av2-report-list--unified>.av2-report-day-detail{
+    width:100%;min-width:0;padding:9px 10px;
+    border-bottom:2px solid #dce6f2;
+  }
+  .av2-reports .av2-report-list--unified .av2-report-day-detail__strip{
+    gap:7px 14px;
+  }
+  .av2-reports .av2-report-list--unified>.av2-report-row>.av2-rr__meeting{
+    display:none!important;
+  }
+  .av2-reports .av2-report-list--unified>.av2-report-row.is-mobile-expanded>.av2-rr__meeting{
+    display:grid!important;grid-template-columns:86px minmax(0,1fr);
+    gap:8px;padding:8px 12px;
+    border-top:1px solid #edf1f5;
+    font-size:.73rem;
+  }
+  .av2-reports .av2-report-list--unified>.av2-report-row.is-mobile-expanded>.av2-rr__meeting:before{
+    content:attr(data-mobile-label);
+    color:#687b91;font-size:.68rem;font-weight:700;
+  }
+  .av2-reports .av2-report-list--unified .av2-rr__actions .av2-btn--icon{
+    flex:0 0 42px!important;width:42px!important;height:42px!important;
+    min-width:42px!important;
+  }
+}
