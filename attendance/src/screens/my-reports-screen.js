@@ -12,6 +12,7 @@
 
 import { createIcon } from '../components/icon.js';
 import { getDailyTravelReports } from '../services/daily-travel.service.js';
+import { dailyTravelDetails, formatTravelDistance, sumReportedDailyTravel } from '../components/reported-daily-travel.js';
 import { listExpenseReports } from '../services/expense-reports.service.js';
 import { reportedKilometers } from '../services/reported-kilometers.js';
 import { createInputField, createSelectField } from '../components/field.js';
@@ -137,6 +138,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     );
     const editable = canEditMonth(year, month, approval);
     const summary  = calcMonthSummary(records);
+    const savedTravelTotals=sumReportedDailyTravel(dailyTravelReports);
 
     contentArea.innerHTML = '';
 
@@ -235,7 +237,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     calContainer.append(calWrap);
     contentArea.append(calContainer);
 
-    const monthlySummary = buildMonthlySummaryGrid(records);
+    const monthlySummary = buildMonthlySummaryGrid(records,monthKey>='2026-11'?dailyTravelReports:null);
     if (monthlySummary) contentArea.append(monthlySummary);
     if(expenseReports.length){
       const expenseStatus=document.createElement('p');
@@ -287,8 +289,12 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     }
     listWrap.append(listHead);
 
+    const shownTravelDates=new Set();
     for (const record of sorted) {
       const reportDate = String(record.report_date || '').slice(0, 10);
+      const reportTravel=dailyTravelByDate.get(reportDate)||null;
+      const showDailyTravel=!!reportTravel&&!shownTravelDates.has(reportDate);
+      if(showDailyTravel) shownTravelDates.add(reportDate);
       const row = buildRecordRow({
         record,
         generated: generatedCancellationFor(records, record.id),
@@ -299,6 +305,8 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
         onTravelReport,
         onRefresh,
         dayTotalHours: dailyTotalHoursByRecord.get(record),
+        dailyTravelReport:reportTravel,
+        showDailyTravel,
         dashboardValidation: dashboardValidationByRecord.get(String(record.id)) || null,
       });
       row.dataset.reportDate = record.report_date;
@@ -316,9 +324,10 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
       totalsHours.textContent = `${formatDurationHours(summary.totalHours)} שעות`;
       totalMetrics.push(totalsHours);
     }
-    if (Number(summary.totalKm || 0) > 0) {
+    const displayTotalKm=monthKey>='2026-11'?savedTravelTotals.kilometers:Number(summary.totalKm||0);
+    if (displayTotalKm > 0) {
       const totalsKm = document.createElement('strong');
-      totalsKm.textContent = `${summary.totalKm.toFixed(0)} ק"מ`;
+      totalsKm.textContent = formatTravelDistance(displayTotalKm);
       totalMetrics.push(totalsKm);
     }
     if (Number(summary.totalExpenses || 0) > 0) {
@@ -344,8 +353,8 @@ export function formatCancellationMinutes(value) {
   return formatCancellationDuration(value);
 }
 
-function buildMonthlySummaryGrid(records) {
-  const items = buildMonthlySummaryItems(records);
+function buildMonthlySummaryGrid(records,travelReports=null) {
+  const items = buildMonthlySummaryItems(records,travelReports);
   if (!items.length) return null;
   const grid = document.createElement('div');
   grid.className = 'av2-reports__summary-grid';
@@ -390,7 +399,7 @@ function locationOrSchoolForRecord(record, baseTraining) {
   return school || '—';
 }
 
-function buildRecordRow({ record, generated, editable, instructor, activityTypes, onDuplicate, onTravelReport, onRefresh, dayTotalHours = null, dashboardValidation = null }) {
+function buildRecordRow({ record, generated, editable, instructor, activityTypes, onDuplicate, onTravelReport, onRefresh, dayTotalHours = null, dailyTravelReport=null, showDailyTravel=false, dashboardValidation = null }) {
   const row = document.createElement('div');
   row.className = 'av2-report-row';
   row.dataset.recordId = record.id;
@@ -448,7 +457,9 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
   // ── 9. KM ────────────────────────────────────────────────────────────────
   const kmCell = document.createElement('div');
   kmCell.className = 'av2-rr__km';
-  kmCell.textContent = Number(record.roundtrip_km || 0).toFixed(0);
+  kmCell.textContent = record.report_date >= '2026-11-01'
+    ? (showDailyTravel && !dailyTravelReport.no_travel ? Number(dailyTravelReport.total_km||0).toLocaleString('he-IL',{maximumFractionDigits:2}) : '—')
+    : Number(record.roundtrip_km || 0).toFixed(0);
 
   // ── 10. Expenses ─────────────────────────────────────────────────────────
   const expCell = document.createElement('div');
@@ -541,6 +552,13 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
   }
 
   row.append(dateCell, startCell, endCell, hoursCell, dayTotalCell, typeCell, nameCell, schoolCell, authCell, kmCell, expCell, actionsCell);
+  if(showDailyTravel){
+    const trip=document.createElement('div');
+    trip.className='av2-rr__saved-trip';
+    trip.textContent=dailyTravelDetails(dailyTravelReport);
+    trip.setAttribute('aria-label','דיווח נסיעות שמור: '+trip.textContent);
+    row.append(trip);
+  }
 
   if (dashboardValidation?.mismatch) {
     row.classList.add('has-dashboard-mismatch');

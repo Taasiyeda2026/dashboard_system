@@ -675,3 +675,66 @@
     margin-inline-start:auto!important;
   }
 }
+
+/* Instructor travel history — short, factual, and consistent with saved reports. */
+.av2-reported-travel{
+  width:100%;min-width:0;margin:10px auto 0;max-width:700px;
+  border:1px solid #dce6f2;border-radius:10px;background:#fff;
+  padding:10px 12px;box-sizing:border-box;
+}
+.av2-reported-travel__heading{
+  margin:0 0 8px;color:#193d60;font-size:.87rem;font-weight:700;
+}
+.av2-reported-travel__empty,
+.av2-daily-travel__history-error{
+  padding:5px 0;margin:0;color:#718198;font-size:.78rem;
+}
+.av2-reported-travel__scroll{overflow-x:auto;max-width:100%;}
+.av2-reported-travel__table{
+  width:100%;border-collapse:collapse;table-layout:auto;
+  color:#254361;font-size:.78rem;text-align:right;
+  font-variant-numeric:tabular-nums;
+}
+.av2-reported-travel__table thead{background:#f5f8fc;}
+.av2-reported-travel__table th{
+  padding:8px 9px;color:#5e728d;font-size:.71rem;font-weight:650;
+  white-space:nowrap;border-bottom:1px solid #e2eaf4;
+}
+.av2-reported-travel__table td{
+  padding:8px 9px;border-bottom:1px solid #edf2f8;
+  white-space:nowrap;
+}
+.av2-reported-travel__table tbody tr:last-child td{border-bottom:0;}
+.av2-reported-travel__table .av2-reported-travel__needs-fix{
+  color:#a24a12;font-weight:650;
+}
+.av2-daily-travel__history{
+  width:100%;max-width:700px;margin:0 auto;min-width:0;
+}
+.av2-reports .av2-report-row > .av2-rr__saved-trip{
+  grid-column:1/-1;
+  display:block;
+  min-width:0;
+  padding:5px 10px!important;
+  margin:0!important;
+  border-top:1px solid #edf2f7;
+  background:#f8fbff;
+  color:#426283;
+  font-size:.75rem;
+  font-weight:600;
+  line-height:1.5;
+  white-space:normal;
+}
+@media(max-width:767px){
+  .av2-reports .av2-report-row > .av2-rr__saved-trip{
+    display:block!important;
+    padding:6px 12px!important;
+    font-size:.7rem;
+  }
+  .av2-reported-travel{
+    padding:8px 7px;margin-top:8px;
+  }
+  .av2-reported-travel__table{font-size:.72rem;}
+  .av2-reported-travel__table th,
+  .av2-reported-travel__table td{padding:7px 5px;}
+}

@@ -2,6 +2,7 @@ import { createInputField } from '../components/field.js';
 import { createCompactSelect } from '../components/compact-select.js';
 import { createBoundedMonthPicker } from '../components/bounded-month-picker.js';
 import { summarizeDailyTravel } from '../services/daily-travel.js';
+import { createReportedTravelTable } from '../components/reported-daily-travel.js';
 import { getMonthApproval, invalidateAttendanceCache } from '../services/attendance.service.js';
 import { supabase } from '../api/client.js';
 import { canEditMonth, formatMonthLabel } from '../services/month-gate.service.js';
@@ -97,8 +98,27 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   const reportCard=document.createElement('div');
   reportCard.className='av2-daily-travel__report-card';
   reportCard.append(monthWrap,daysWrap,dateField.wrap,status,historicalEdit,legsArea,noTravelLabel,summary,savedCard,actions);
-  panel.append(title,reportCard);
+  const travelHistory=document.createElement('div');
+  travelHistory.className='av2-daily-travel__history';
+  panel.append(title,reportCard,travelHistory);
 
+  let travelHistoryToken=0;
+  async function refreshTravelHistory(){
+    const monthKey=selectedMonth;
+    const token=++travelHistoryToken;
+    if(!monthKey){travelHistory.replaceChildren();return;}
+    try{
+      const saved=await getDailyTravelReports(empId,monthKey);
+      if(monthKey!==selectedMonth||token!==travelHistoryToken)return;
+      travelHistory.replaceChildren(createReportedTravelTable(saved));
+    }catch(error){
+      if(monthKey!==selectedMonth||token!==travelHistoryToken)return;
+      const message=document.createElement('p');
+      message.className='av2-daily-travel__history-error';
+      message.textContent='לא ניתן לטעון את דיווחי הנסיעות';
+      travelHistory.replaceChildren(message);
+    }
+  }
   let legs=[];
   let loadedDate='';
   let loading=false;
@@ -790,6 +810,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     const token=++requestSequence;
     try{
       if(!monthsLoaded)await refreshMonths();
+      void refreshTravelHistory();
       if(force || !dayOptions.length){
         const hasDays=await refreshDays();
         if(!hasDays)return;
@@ -897,6 +918,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         legs=saved?.legs?.length?saved.legs:saveLegs;
         showSavedReport({...saved,reported_at:saved.reported_at||new Date().toISOString()});
       }
+      void refreshTravelHistory();
       const day=dayOptions.find(item=>item.date===saveDate);
       if(day){
         day.review_status='pending_review';

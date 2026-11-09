@@ -11,6 +11,7 @@ import { getMonthRecords, getMonthApproval, submitMonth, sourceAttendanceRecords
 import { canEditMonth, resolveMonthDisplayStatus, getMonthKey, formatMonthLabel } from '../services/month-gate.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
 import { distinctAttendanceWorkDays } from '../components/report-summary-row.js';
+import { sumReportedDailyTravel } from '../components/reported-daily-travel.js';
 import { formatDurationHours, isCancellationRecord, reportedCancellationHours } from '../components/monthly-report-summary.js';
 import { openSubmitConfirmationDialog } from '../submit-confirmation-dialog.js';
 
@@ -118,11 +119,12 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
       toDate:monthKey+'-'+String(new Date(year,month,0).getDate()).padStart(2,'0'),
       employeeIds:[instructor.empId]
     }) : [];
+    const travelReports = monthKey>='2026-11' ? await getDailyTravelReports(instructor.empId,monthKey) : null;
     const editable = canEditMonth(year, month, approval);
 
     // Instructor-only monthly totals. No individual records are shown on Home.
     statsEl.innerHTML = '';
-    const homeStats = buildHomeSummaryStats(records,expenseReports);
+    const homeStats = buildHomeSummaryStats(records,expenseReports,travelReports);
     statsEl.hidden = homeStats.length === 0;
     homeStats.forEach((item) => {
       statsEl.append(buildStat(item.value, item.label, item.icon));
@@ -319,10 +321,12 @@ function cancellationHours(records) {
   return reportedCancellationHours(records);
 }
 
-export function buildHomeSummaryStats(records = [], expenseReports = []) {
+export function buildHomeSummaryStats(records = [], expenseReports = [], travelReports = null) {
   const rows = Array.isArray(records) ? records : [];
   const sourceRows = sourceAttendanceRecords(rows);
-  const km = sourceRows.reduce((sum, record) => sum + Number(record?.roundtrip_km || 0), 0);
+  const modernTravel=Array.isArray(travelReports);
+  const travelTotals=modernTravel?sumReportedDailyTravel(travelReports):null;
+  const km=modernTravel?travelTotals.kilometers:sourceRows.reduce((sum, record) => sum + Number(record?.roundtrip_km || 0), 0);
   const expenses = sourceRows.reduce((sum, record) => sum + Number(record?.expenses || 0), 0)
     + (expenseReports||[]).reduce((sum,report)=>sum+Number(report?.amount||0),0);
 
@@ -331,9 +335,10 @@ export function buildHomeSummaryStats(records = [], expenseReports = []) {
     { key: 'workshop',     label: 'סה״כ סדנה',       numericValue: hoursForType(sourceRows, 'סדנה'),   icon: 'clock-3', valueType: 'hours' },
     { key: 'training',     label: 'סה״כ הכשרות',     numericValue: hoursForType(sourceRows, 'הכשרה'), icon: 'clock-3', valueType: 'hours' },
     { key: 'operations',   label: 'סה״כ תפעול',      numericValue: hoursForType(sourceRows, 'תפעול'), icon: 'clock-3', valueType: 'hours' },
-    { key: 'cancellation', label: 'סה״כ ביטול זמן',  numericValue: cancellationHours(rows),          icon: 'clock-3', valueType: 'hours' },
+    { key: 'cancellation', label: 'סה״כ ביטול זמן',  numericValue: modernTravel?travelTotals.cancellationMinutes/60:cancellationHours(rows),          icon: 'clock-3', valueType: 'hours' },
     { key: 'kilometers',   label: 'סה״כ קילומטר',    numericValue: km,                               icon: 'map-pin', valueType: 'kilometers' },
     { key: 'expenses',     label: 'סה״כ הוצאות',     numericValue: expenses,                         icon: 'wallet-cards', valueType: 'expenses' },
+    { key: 'transit',      label: 'תחבורה ציבורית',   numericValue: modernTravel?travelTotals.publicTransportCost:0, icon: 'wallet-cards', valueType: 'expenses' },
     { key: 'tour',         label: 'סה״כ סיור',       numericValue: hoursForType(sourceRows, 'סיור'), icon: 'clock-3', valueType: 'hours' },
     { key: 'workdays',     label: 'סה״כ ימי עבודה',  numericValue: distinctAttendanceWorkDays(sourceRows), icon: 'calendar-days', valueType: 'days' },
   ];

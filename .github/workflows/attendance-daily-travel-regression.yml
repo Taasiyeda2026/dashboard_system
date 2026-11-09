@@ -8,6 +8,8 @@ on:
       - 'frontend/src/payroll-attendance-v2-bridge.js'
       - 'supabase/migrations/20261104*'
       - 'tests/attendance-daily-*.test.mjs'
+      - 'tests/attendance-instructor-travel-three-screens.test.mjs'
+      - 'tests/attendance-monthly-report-summary.test.mjs'
       - 'tests/attendance-my-reports-column-sync.test.mjs'
       - 'tests/attendance-report-column-widths.test.mjs'
       - 'tests/attendance-standalone-expenses.test.mjs'
@@ -31,6 +33,6 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run daily travel, export and attendance regressions
         run: |
-          node --test tests/attendance-my-reports-column-sync.test.mjs tests/attendance-report-column-widths.test.mjs tests/attendance-daily-travel-confirmation.test.mjs tests/attendance-travel-approved-rules-20261104.test.mjs tests/attendance-travel-import-compact.test.mjs tests/attendance-daily-travel-policy-20261103.test.mjs tests/attendance-daily-travel-manager-export-mobile.test.mjs tests/attendance-daily-payroll-once.test.mjs tests/attendance-employee-export.test.mjs tests/attendance-tiny-travel-shortcut.test.mjs tests/attendance-assigned-travel-and-fares.test.mjs tests/attendance-standalone-expenses.test.mjs tests/attendance-historical-months-readonly.test.mjs tests/attendance-new-report-visual-polish.test.mjs
+          node --test tests/attendance-instructor-travel-three-screens.test.mjs tests/attendance-monthly-report-summary.test.mjs tests/attendance-my-reports-column-sync.test.mjs tests/attendance-report-column-widths.test.mjs tests/attendance-daily-travel-confirmation.test.mjs tests/attendance-travel-approved-rules-20261104.test.mjs tests/attendance-travel-import-compact.test.mjs tests/attendance-daily-travel-policy-20261103.test.mjs tests/attendance-daily-travel-manager-export-mobile.test.mjs tests/attendance-daily-payroll-once.test.mjs tests/attendance-employee-export.test.mjs tests/attendance-tiny-travel-shortcut.test.mjs tests/attendance-assigned-travel-and-fares.test.mjs tests/attendance-standalone-expenses.test.mjs tests/attendance-historical-months-readonly.test.mjs tests/attendance-new-report-visual-polish.test.mjs
       - name: Build production bundle
         run: npm run build
