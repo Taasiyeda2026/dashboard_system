@@ -2446,6 +2446,14 @@ async function render() {
             setSession({ token: data.token, user: data.user });
             state.authSessionReady = true;
             state.permissionsReady = true;
+            // A classroom activity opened this login in a popup. Complete its
+            // secure SSO return before rendering the ordinary dashboard or
+            // allowing a post-login service-worker refresh to race navigation.
+            if (await resumeInspirationBridge({
+              client: supabase, location: window.location, storage: window.sessionStorage
+            })) {
+              return 'inspiration-redirect';
+            }
             clearFinancePrefsIfUserChanged(data.user?.user_id);
             // Restore this user's persisted screen cache so the first navigation
             // (e.g. activities) can show stale-while-revalidate data immediately
