@@ -65,22 +65,18 @@ test('Attendance My Reports owns the calendar above the report list', () => {
   assert.ok(calendarIndex < reportListIndex, 'calendar must render before the reports table');
 });
 
-test('Attendance My Reports table has all required columns', () => {
-  // All 11 column cells present as class names
-  for (const cls of ['av2-rr__date','av2-rr__start','av2-rr__end','av2-rr__hours',
-                      'av2-rr__type','av2-rr__name','av2-rr__school','av2-rr__authority',
-                      'av2-rr__km','av2-rr__expenses','av2-rr__actions']) {
+test('Attendance My Reports activity row has ten columns and a separate daily summary', () => {
+  for (const cls of ['av2-rr__date','av2-rr__type','av2-rr__start','av2-rr__end',
+                      'av2-rr__hours','av2-rr__name','av2-rr__meeting',
+                      'av2-rr__school','av2-rr__authority','av2-rr__actions']) {
     assert.match(reportsSource, new RegExp(cls), `missing column class ${cls}`);
   }
-  // Records sorted date DESC
-  assert.match(reportsSource, /report_date.*localeCompare|localeCompare.*report_date/);
-  // Action colour classes
-  assert.match(reportsSource, /av2-rr__action-copy/);
-  assert.match(reportsSource, /av2-rr__action-dup/);
-  assert.match(reportsSource, /av2-rr__action-delete/);
-  assert.match(reportsSource, /'מיקום \/ בית ספר'/);
-  assert.match(reportsSource, /schoolCell\.textContent = locationOrSchoolForRecord\(record, baseTraining\)/);
-  assert.match(reportsSource, /return authority \|\| school \|\| 'Greenwork, יקום'/);
+  assert.match(reportsSource,/const colLabels = \['תאריך', 'סוג', 'התחלה', 'סיום', 'שעות', 'שם פעילות', 'מפגש', 'מיקום \/ בית ספר', 'רשות', 'פעולות'\]/);
+  assert.match(reportsSource,/listWrap\.append\(createDayDetailRow/);
+  assert.match(reportsSource,/report_date.*localeCompare|localeCompare.*report_date/);
+  for(const cls of ['av2-rr__action-edit','av2-rr__action-dup','av2-rr__action-delete','av2-rr__travel-shortcut'])
+    assert.match(reportsSource,new RegExp(cls));
+  assert.match(reportsSource,/schoolCell\.textContent = locationOrSchoolForRecord\(record, baseTraining\)/);
 });
 
 test('Attendance calendar day click opens the unified day drawer instead of filtering report rows', () => {
@@ -90,23 +86,18 @@ test('Attendance calendar day click opens the unified day drawer instead of filt
   assert.doesNotMatch(reportsSource, /rowEntries\.push|row\.hidden = selectedDate/);
 });
 
-test('Attendance report actions and expenses use distinct accessible indicators', () => {
-  assert.match(reportsSource, /aria-label', 'העתק פרטי דיווח'/);
-  assert.match(reportsSource, /aria-label', 'שכפל דיווח'/);
-  assert.match(reportsSource, /createIcon\('copy'/);
-  assert.match(reportsSource, /createIcon\('duplicate'/);
-  assert.match(reportsSource, /createIcon\('receipt'/);
-  assert.match(reportsSource, /פירוט: \$\{expenseDetails\}/);
-  assert.match(reportsSource, /void viewExpense\(record\)/);
-  assert.match(reportsSource, /mt\.textContent = 'הוצאות'/);
-  assert.match(reportsSource, /av2-modal av2-modal--expense/);
-  assert.match(reportsSource, /av2-expense-modal__summary/);
-  assert.match(reportsSource, /av2-expense-modal__document/);
-  assert.doesNotMatch(reportsSource, /const attachBtn = document\.createElement\('button'\)/);
-  assert.match(reportsStyles, /\.av2-rr__expense-indicator:hover::after/);
-  assert.match(reportsStyles, /content:\s*attr\(data-tooltip\)/);
-  assert.match(reportsStyles, /\.av2-modal--expense\s*\{[^}]*max-width:\s*420px/);
-  assert.match(reportsStyles, /\.av2-expense-modal__field\s*\{[^}]*grid-template-columns:\s*58px\s+minmax\(0,\s*1fr\)/);
+test('Attendance record actions are four accessible icons; daily expenses show only when reported',async()=>{
+  assert.match(reportsSource,/aria-label', 'שכפל דיווח'/);
+  assert.match(reportsSource,/aria-label', 'עריכה'/);
+  assert.match(reportsSource,/aria-label', 'מחק'/);
+  assert.match(reportsSource,/createIcon\('map-pin'/);
+  assert.match(reportsSource,/createIcon\('duplicate'/);
+  assert.match(reportsSource,/createIcon\('edit'/);
+  assert.match(reportsSource,/createIcon\('trash'/);
+  const supplement=await readFile(new URL('../attendance/src/components/my-reports-day-detail.js',import.meta.url),'utf8');
+  assert.match(supplement,/if\(model\.expenses>0\)/);
+  assert.match(supplement,/createIcon\('receipt'/);
+  assert.match(reportsStyles,/\.av2-modal--expense\s*\{[^}]*max-width:\s*420px/);
 });
 
 test('shared Attendance time picker uses compact numeric placeholders and supports automatic values', () => {
@@ -250,21 +241,14 @@ test('Attendance New Report enforces dependent location choices and course-only 
   assert.match(reportsSource, /meeting_no:\s+isCourse && meetField\.input\.value/);
 });
 
-test('Attendance reports table keeps the required no-scroll 13-column grid including time cancellation', () => {
-  const widths = ['61px','60px','60px','60px','61px','61px','60px','100px','95px','90px','55px','55px','100px'];
-  for (const width of widths) {
-    assert.match(attendanceFollowupStyles, new RegExp(width.replace('.', '\\.')));
-    assert.match(reportTableFitStyles, new RegExp(width.replace('.', '\\.')));
-  }
-  assert.match(reportTableFitStyles, /918px/);
-  assert.match(reportTableFitStyles, /overflow-x:\s*hidden/);
-  assert.doesNotMatch(reportTableFitStyles, /overflow-x:\s*auto/);
-  assert.match(attendanceFollowupRuntime, /cancel\.textContent = 'ביטול זמן'/);
-  assert.match(attendanceFollowupRuntime, /hours\.insertAdjacentElement\('afterend', cancel\)/);
-  assert.match(attendanceFollowupRuntime, /cell\.className = 'av2-rr__time-cancel'/);
-  assert.match(attendanceFollowupRuntime, /hours\.insertAdjacentElement\('afterend', cell\)/);
+test('Attendance My Reports uses the scoped ten-column grid and mobile day summary',async()=>{
+  const unifiedCss=await readFile(new URL('../attendance/src/styles/my-reports-unified.css',import.meta.url),'utf8');
+  assert.match(unifiedCss,/\.av2-report-list--unified/);
+  assert.match(unifiedCss,/grid-template-columns:/);
+  assert.match(unifiedCss,/\.av2-report-day-detail/);
+  assert.match(unifiedCss,/@media\(max-width:767px\)/);
+  assert.match(attendanceIndexSource,/my-reports-unified\.css/);
 });
-
 
 test('Attendance Home desktop summary cards are exactly half width and centered', () => {
   assert.match(desktopAppThemeStyles, /display:\s*flex\s*!important/);

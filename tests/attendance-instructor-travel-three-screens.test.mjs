@@ -96,9 +96,9 @@ test('three screens are wired to the same reports and do not change payroll rule
   ]);
   assert.match(home,/getDailyTravelReports\(instructor\.empId,monthKey\)/);
   assert.match(home,/buildHomeSummaryStats\(records,expenseReports,travelReports\)/);
-  assert.match(myReports,/const reportTravel=dailyTravelByDate\.get\(reportDate\)\|\|null/);
-  assert.match(myReports,/if\(showDailyTravel\) shownTravelDates\.add\(reportDate\)/);
-  assert.match(myReports,/dailyTravelDetails\(dailyTravelReport\)/);
+  assert.match(myReports,/travelReport:dailyTravelByDate\.get\(reportDate\)\|\|null/);
+  assert.match(myReports,/listWrap\.append\(createDayDetailRow\(\{/);
+  assert.match(myReports,/av2-report-list--unified/);
   assert.match(myReports,/buildMonthlySummaryGrid\(records,monthKey>='2026-11'\?dailyTravelReports:null\)/);
   assert.match(tab,/createReportedTravelTable\(saved\)/);
   assert.match(tab,/void refreshTravelHistory\(\)/);

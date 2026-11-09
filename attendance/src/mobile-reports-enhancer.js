@@ -84,6 +84,7 @@ function enhanceRow(row) {
   const dayTotalCell = row.querySelector('.av2-rr__day-total');
   const typeCell = row.querySelector('.av2-rr__type');
   const nameCell = row.querySelector('.av2-rr__name');
+  const meetingCell = row.querySelector('.av2-rr__meeting');
   const schoolCell = row.querySelector('.av2-rr__school');
   const authorityCell = row.querySelector('.av2-rr__authority');
   const kmCell = row.querySelector('.av2-rr__km');
@@ -96,6 +97,7 @@ function enhanceRow(row) {
   setMobileLabel(dayTotalCell, 'סה״כ יומי');
   setMobileLabel(typeCell, 'סוג פעילות');
   setMobileLabel(nameCell, 'שם הפעילות');
+  setMobileLabel(meetingCell, 'מפגש');
   setMobileLabel(schoolCell, 'מיקום / בית ספר');
   setMobileLabel(authorityCell, 'רשות');
   setMobileLabel(kmCell, 'ק״מ');

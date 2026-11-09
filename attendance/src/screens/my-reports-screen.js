@@ -12,7 +12,8 @@
 
 import { createIcon } from '../components/icon.js';
 import { getDailyTravelReports } from '../services/daily-travel.service.js';
-import { dailyTravelDetails, formatTravelDistance, sumReportedDailyTravel } from '../components/reported-daily-travel.js';
+import {formatTravelDistance,sumReportedDailyTravel} from '../components/reported-daily-travel.js';
+import {createDayDetailRow,formatDecimalHours,formatActivityHours} from '../components/my-reports-day-detail.js';
 import { listExpenseReports } from '../services/expense-reports.service.js';
 import { reportedKilometers } from '../services/reported-kilometers.js';
 import { createInputField, createSelectField } from '../components/field.js';
@@ -276,12 +277,12 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
 
     // ── Table ─────────────────────────────────────────────────────────────
     const listWrap = document.createElement('div');
-    listWrap.className = 'av2-report-list';
+    listWrap.className = 'av2-report-list av2-report-list--unified';
 
     // Table header
     const listHead = document.createElement('div');
     listHead.className = 'av2-report-list__head';
-    const colLabels = ['תאריך', 'התחלה', 'סיום', 'שעות', 'סה״כ יומי', 'סוג', 'שם פעילות', 'מיקום / בית ספר', 'רשות', 'ק״מ', 'הוצאות', 'פעולות'];
+    const colLabels = ['תאריך', 'סוג', 'התחלה', 'סיום', 'שעות', 'שם פעילות', 'מפגש', 'מיקום / בית ספר', 'רשות', 'פעולות'];
     for (const label of colLabels) {
       const cell = document.createElement('span');
       cell.textContent = label;
@@ -289,28 +290,26 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     }
     listWrap.append(listHead);
 
-    const shownTravelDates=new Set();
-    for (const record of sorted) {
-      const reportDate = String(record.report_date || '').slice(0, 10);
-      const reportTravel=dailyTravelByDate.get(reportDate)||null;
-      const showDailyTravel=!!reportTravel&&!shownTravelDates.has(reportDate);
-      if(showDailyTravel) shownTravelDates.add(reportDate);
-      const row = buildRecordRow({
+    for(const [index,record] of sorted.entries()){
+      const reportDate=String(record.report_date||'').slice(0,10);
+      const row=buildRecordRow({
         record,
-        generated: generatedCancellationFor(records, record.id),
-        editable,
-        instructor,
-        activityTypes,
-        onDuplicate,
-        onTravelReport,
-        onRefresh,
-        dayTotalHours: dailyTotalHoursByRecord.get(record),
-        dailyTravelReport:reportTravel,
-        showDailyTravel,
-        dashboardValidation: dashboardValidationByRecord.get(String(record.id)) || null,
+        generated:generatedCancellationFor(records,record.id),
+        editable,instructor,activityTypes,onDuplicate,onTravelReport,onRefresh,
+        dashboardValidation:dashboardValidationByRecord.get(String(record.id))||null
       });
-      row.dataset.reportDate = record.report_date;
+      row.dataset.reportDate=reportDate;
       listWrap.append(row);
+      if(index===sorted.length-1 || String(sorted[index+1].report_date||'').slice(0,10)!==reportDate){
+        const dayRecords=sorted.filter(item=>String(item.report_date||'').slice(0,10)===reportDate);
+        const dayExpenses=expenseReports.filter(item=>String(item.expense_date||'').slice(0,10)===reportDate);
+        listWrap.append(createDayDetailRow({
+          date:reportDate,records:dayRecords,
+          travelReport:dailyTravelByDate.get(reportDate)||null,
+          expenseReports:dayExpenses,
+          modern:reportDate>='2026-11-01',onTravelReport
+        }));
+      }
     }
 
     // ── Totals row ────────────────────────────────────────────────────────
@@ -364,7 +363,7 @@ function buildMonthlySummaryGrid(records,travelReports=null) {
     card.className = `av2-reports__summary-card av2-reports__summary-card--${item.kind}`;
     const value = document.createElement('strong');
     value.className = 'av2-reports__summary-value';
-    value.textContent = item.value;
+    value.textContent = item.kind==='hours' ? formatDecimalHours(item.numericValue)+' שעות' : item.value;
     const label = document.createElement('span');
     label.className = 'av2-reports__summary-label';
     label.textContent = item.label;
@@ -399,7 +398,7 @@ function locationOrSchoolForRecord(record, baseTraining) {
   return school || '—';
 }
 
-function buildRecordRow({ record, generated, editable, instructor, activityTypes, onDuplicate, onTravelReport, onRefresh, dayTotalHours = null, dailyTravelReport=null, showDailyTravel=false, dashboardValidation = null }) {
+function buildRecordRow({ record, generated, editable, instructor, activityTypes, onDuplicate, onTravelReport, onRefresh, dashboardValidation = null }) {
   const row = document.createElement('div');
   row.className = 'av2-report-row';
   row.dataset.recordId = record.id;
@@ -425,12 +424,7 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
   // ── 4. Total hours ────────────────────────────────────────────────────────
   const hoursCell = document.createElement('div');
   hoursCell.className = 'av2-rr__hours';
-  hoursCell.textContent = formatDurationHours(record.total_hours);
-
-  // ── 5. Daily total (first row for each date only) ───────────────────────
-  const dayTotalCell = document.createElement('div');
-  dayTotalCell.className = 'av2-rr__day-total';
-  dayTotalCell.textContent = dayTotalHours == null ? '' : formatDurationHours(dayTotalHours);
+  hoursCell.textContent = formatActivityHours(record.total_hours);
 
   // ── 5. Activity type ─────────────────────────────────────────────────────
   const typeCell = document.createElement('div');
@@ -444,7 +438,12 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
   nameCell.textContent = presentation.activity || '—';
   nameCell.title = presentation.activity || '';
 
-  // ── 7. Location / school ─────────────────────────────────────────────────
+  // ── 7. Course meeting number ────────────────────────────────────────────
+  const meetingCell=document.createElement('div');
+  meetingCell.className='av2-rr__meeting';
+  meetingCell.textContent=record.meeting_no==null||record.meeting_no===''?'—':String(record.meeting_no);
+
+  // ── 8. Location / school ─────────────────────────────────────────────────
   const schoolCell = document.createElement('div');
   schoolCell.className = 'av2-rr__school';
   schoolCell.textContent = locationOrSchoolForRecord(record, baseTraining);
@@ -454,49 +453,9 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
   authCell.className = 'av2-rr__authority';
   authCell.textContent = baseTraining ? '—' : (record.authority_name_snapshot || '—');
 
-  // ── 9. KM ────────────────────────────────────────────────────────────────
-  const kmCell = document.createElement('div');
-  kmCell.className = 'av2-rr__km';
-  kmCell.textContent = record.report_date >= '2026-11-01'
-    ? (showDailyTravel && !dailyTravelReport.no_travel ? Number(dailyTravelReport.total_km||0).toLocaleString('he-IL',{maximumFractionDigits:2}) : '—')
-    : Number(record.roundtrip_km || 0).toFixed(0);
-
-  // ── 10. Expenses ─────────────────────────────────────────────────────────
-  const expCell = document.createElement('div');
-  expCell.className = 'av2-rr__expenses';
-  const expenseAmount = Number(record.expenses || 0);
-  const expenseDetails = String(record.expense_details || '').trim();
-  const expenseAttachments = record.attendance_record_attachments || [];
-  if (expenseAmount > 0 || expenseAttachments.length) {
-    const expenseParts = [`הוצאות: ${expenseAmount.toLocaleString('he-IL', { maximumFractionDigits: 2 })} ₪`];
-    if (expenseDetails) expenseParts.push(`פירוט: ${expenseDetails}`);
-    const expenseLabel = expenseParts.join(' · ');
-    const expenseBtn = document.createElement('button');
-    expenseBtn.type = 'button';
-    expenseBtn.className = 'av2-rr__expense-indicator';
-    expenseBtn.setAttribute('aria-label', expenseLabel);
-    expenseBtn.dataset.tooltip = expenseLabel;
-    expenseBtn.append(createIcon('receipt', { size: 15 }));
-    expenseBtn.addEventListener('click', (event) => {
-      event.stopPropagation();
-      void viewExpense(record);
-    });
-    expCell.append(expenseBtn);
-  }
-
   // ── 11. Actions ───────────────────────────────────────────────────────────
   const actionsCell = document.createElement('div');
   actionsCell.className = 'av2-rr__actions';
-
-  // Copy to clipboard (blue)
-  const copyBtn = document.createElement('button');
-  copyBtn.type = 'button';
-  copyBtn.className = 'av2-btn av2-btn--icon av2-rr__action-copy';
-  copyBtn.setAttribute('aria-label', 'העתק פרטי דיווח');
-  copyBtn.title = 'העתק פרטי דיווח';
-  copyBtn.append(createIcon('copy', { size: 14 }));
-  copyBtn.addEventListener('click', (e) => { e.stopPropagation(); handleCopy(record, copyBtn); });
-  actionsCell.append(copyBtn);
 
   // Duplicate (purple) — always available
   if (onDuplicate) {
@@ -519,8 +478,8 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
       }) && record.activity_type !== 'ביטול זמן') {
     const travelBtn = document.createElement('button');
     travelBtn.type = 'button';
-    travelBtn.className = 'av2-report__tiny-travel-btn av2-rr__travel-shortcut';
-    travelBtn.textContent = 'נסיעות';
+    travelBtn.className = 'av2-btn av2-btn--icon av2-rr__travel-shortcut';
+    travelBtn.append(createIcon('map-pin',{size:14}));
     travelBtn.title = 'מילוי נסיעות ליום הפעילות';
     travelBtn.setAttribute('aria-label', 'מילוי נסיעות ליום ' + record.report_date);
     travelBtn.addEventListener('click',event=>{
@@ -534,7 +493,7 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
   if (editable) {
     const editBtn = document.createElement('button');
     editBtn.type = 'button';
-    editBtn.className = 'av2-btn av2-btn--icon';
+    editBtn.className = 'av2-btn av2-btn--icon av2-rr__action-edit';
     editBtn.setAttribute('aria-label', 'עריכה');
     editBtn.title = 'עריכה';
     editBtn.append(createIcon('edit', { size: 14 }));
@@ -551,14 +510,13 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
     actionsCell.append(editBtn, deleteBtn);
   }
 
-  row.append(dateCell, startCell, endCell, hoursCell, dayTotalCell, typeCell, nameCell, schoolCell, authCell, kmCell, expCell, actionsCell);
-  if(showDailyTravel){
-    const trip=document.createElement('div');
-    trip.className='av2-rr__saved-trip';
-    trip.textContent=dailyTravelDetails(dailyTravelReport);
-    trip.setAttribute('aria-label','דיווח נסיעות שמור: '+trip.textContent);
-    row.append(trip);
-  }
+  // Stable action sequence: edit, delete, duplicate, daily travel.
+  const priority=(button)=>button.classList.contains('av2-rr__action-edit')?0
+    :button.classList.contains('av2-rr__action-delete')?1
+    :button.classList.contains('av2-rr__action-dup')?2:3;
+  actionsCell.replaceChildren(...[...actionsCell.children].sort((a,b)=>priority(a)-priority(b)));
+
+  row.append(dateCell,typeCell,startCell,endCell,hoursCell,nameCell,meetingCell,schoolCell,authCell,actionsCell);
 
   if (dashboardValidation?.mismatch) {
     row.classList.add('has-dashboard-mismatch');
