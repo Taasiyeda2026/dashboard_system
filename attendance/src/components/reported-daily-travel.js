@@ -29,10 +29,15 @@ export function sumReportedDailyTravel(reports=[]) {
 export function dailyTravelDetails(row) {
   if(!row)return '';
   if(row.no_travel)return 'נסיעות: ללא נסיעה';
-  const parts=['נסיעות: '+formatTravelDistance(row.total_km),
-    'ביטול זמן: '+formatTravelMinutes(row.cancellation_minutes)];
+  const legs=Array.isArray(row.legs)?row.legs:[];
+  const hasCar=legs.some(leg=>leg.mode!=='public_transport' && !(leg.kind==='between' && leg.sameLocation));
   const transit=number(row.public_transport_cost);
-  if(transit>0 || (row.legs||[]).some(leg=>leg.mode==='public_transport'))
+  const hasTransit=transit>0||legs.some(leg=>leg.mode==='public_transport');
+  const parts=[];
+  if(hasCar) parts.push('נסיעות: '+formatTravelDistance(row.total_km));
+  if(hasCar || number(row.cancellation_minutes)>0)
+    parts.push('ביטול זמן: '+formatTravelMinutes(row.cancellation_minutes));
+  if(hasTransit)
     parts.push('תחבורה ציבורית: ₪'+transit.toLocaleString('he-IL',{maximumFractionDigits:2}));
   return parts.join(' · ');
 }
@@ -69,11 +74,13 @@ export function createReportedTravelTable(reports=[],{title='נסיעות שדו
     const tr=document.createElement('tr');
     const date=String(report.travel_date).slice(0,10).split('-').reverse().join('.');
     const transit=number(report.public_transport_cost);
-    const hasTransit=transit>0||(report.legs||[]).some(leg=>leg.mode==='public_transport');
+    const legs=Array.isArray(report.legs)?report.legs:[];
+    const hasTransit=transit>0||legs.some(leg=>leg.mode==='public_transport');
+    const hasCar=legs.some(leg=>leg.mode!=='public_transport' && !(leg.kind==='between' && leg.sameLocation));
     const values=[
       date,
-      report.no_travel?'ללא נסיעה':formatTravelDistance(report.total_km),
-      report.no_travel?'—':formatTravelMinutes(report.cancellation_minutes),
+      report.no_travel?'ללא נסיעה':hasCar?formatTravelDistance(report.total_km):'—',
+      report.no_travel?'—':(hasCar||number(report.cancellation_minutes)>0?formatTravelMinutes(report.cancellation_minutes):'—'),
       hasTransit?'₪'+transit.toLocaleString('he-IL',{maximumFractionDigits:2}):'—',
       report.review_status==='rejected'?'נדרש תיקון':'נשמר'
     ];
