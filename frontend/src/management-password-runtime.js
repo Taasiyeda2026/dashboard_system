@@ -8,7 +8,8 @@ const MANAGEMENT_ROLES = new Set([
   'activities_manager',
   'domain_manager',
   'business_development_manager',
-  'instructor_manager'
+  'instructor_manager',
+  'authorized_user'
 ]);
 const MIN_PASSWORD_LENGTH = 8;
 

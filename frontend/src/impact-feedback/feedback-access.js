@@ -1,10 +1,14 @@
 /**
  * Feedback permissions: admin (full), Israa (existing wording pilot),
- * activity managers and Eden (results-only), instructors (personal portal).
+ * activity managers and Eden (results-only), association chair (results/tracking),
+ * instructors (personal portal).
  * The server independently checks auth.uid() against public.users.
  * Frontend checks only control navigation; they are not an authorization boundary.
  */
+import { ASSOCIATION_CHAIR_USER_ID, isAssociationChairViewer } from '../association-chair-access.js';
+
 export const FEEDBACK_ISRAA_USER_ID = '3030';
+export { ASSOCIATION_CHAIR_USER_ID };
 
 export function isFeedbackInstructor(user) {
   return String(user?.role || '').trim().toLowerCase() === 'instructor' && user?.is_active !== false;
@@ -17,6 +21,7 @@ export function isFeedbackAdmin(user) {
 export function canViewImpactFeedback(user) {
   if (isFeedbackAdmin(user)) return true;
   if (user?.is_active === false) return false;
+  if (isAssociationChairViewer(user)) return true;
   const role = String(user?.role || '').trim().toLowerCase();
   const userId = String(user?.user_id || '').trim();
   return (userId === FEEDBACK_ISRAA_USER_ID && role === 'business_development_manager')

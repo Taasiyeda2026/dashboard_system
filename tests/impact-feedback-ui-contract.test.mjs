@@ -620,13 +620,13 @@ test('survey language change preserves draft and equal bilingual styling on mobi
 });
 
 
-test('educational staff list deduplicates only by course, named contact and school', () => {
+test('educational staff list keeps one overview row per activity row_id', () => {
   const section = screen.slice(screen.indexOf('function groupsTableHtml('), screen.indexOf('// Per-question results'));
   assert.match(section, /scope === 'staff'/);
-  assert.match(section, /JSON\.stringify\(\[course, contact, school\]\)/);
-  assert.match(section, /JSON\.stringify\(\['unidentified', group\.row_id\]\)/);
-  assert.match(section, /groupHasFeedback\(group\)/);
-  assert.doesNotMatch(section, /JSON\.stringify\(\[course, contact, school,.*feedbackHalf/);
+  assert.match(section, /const key = String\(group\.row_id\)/);
+  assert.match(section, /An activity row is the source of truth/);
+  assert.match(section, /staff_activities: activitiesByGroup\.get\(key\) \|\| \[group\]/);
+  assert.doesNotMatch(section, /JSON\.stringify\(\[course, contact, school\]\)/);
 });
 
 
@@ -777,6 +777,9 @@ test('impact-feedback preserves admin/Israa access and adds read-only operationa
   assert.equal(canViewImpactFeedback({ user_id: '6000', role: 'operation_manager', is_active: true }), true);
   assert.equal(canEditImpactFeedbackWording({ user_id: '6000', role: 'operation_manager' }), false);
   assert.equal(canViewImpactFeedback({ user_id: '6001', role: 'operation_manager', is_active: true }), false);
+  assert.equal(canViewImpactFeedback({ user_id: '3090', role: 'authorized_user', is_active: true }), true);
+  assert.equal(canEditImpactFeedbackWording({ user_id: '3090', role: 'authorized_user' }), false);
+  assert.equal(canViewImpactFeedback({ user_id: '3091', role: 'authorized_user', is_active: true }), false);
   assert.equal(canViewImpactFeedback({ role: 'finance', is_active: true }), false);
   assert.match(screen, /const LIMITED_VIEWER_TABS = new Set\(\['overview', 'students', 'instructors', 'staff', 'analysis'\]\)/);
   assert.match(screen, /host\.classList\.toggle\('is-feedback-limited-viewer', isLimitedFeedbackViewer\(\)\)/);

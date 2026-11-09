@@ -129,10 +129,17 @@ test('the approval header route is visible to Gil, Hila, Eden and all activity-e
  const end=source.indexOf(';',start);
  assert.ok(start>0 && end>start,'Canonical bootstrap contains edit-requests route eligibility');
  const expression=source.slice(start,end+1)+'; return canViewEditRequests;';
- const eligible=(user)=>new Function('role','flat','canReviewRequests','canRequestEdit',
-   'canRequestCreateActivity','permissionFlagYes','effectivePersonalReportsAccess','profileRow',expression)(
-     user.role,user.permissions,!!user.review,!!user.canRequest,()=>!!user.canCreate,
-     value=>value==='yes' || value===true,()=>false,null);
+ const eligible=(user)=>new Function(
+   'role','flat','canReviewRequests','canRequestEdit',
+   'canRequestCreateActivity','permissionFlagYes','effectivePersonalReportsAccess','profileRow',
+   'isAssociationChairViewer',expression
+ )(
+     user.role,
+     { ...user.permissions, user_id: user.user_id, role: user.role },
+     !!user.review,!!user.canRequest,()=>!!user.canCreate,
+     value=>value==='yes' || value===true,()=>false,null,
+     (flat)=>String(flat?.user_id || '') === '3090'
+ );
  for(const [name,user] of Object.entries({
    'גיל נאמן':{role:'activities_manager',permissions:{view_activities:'yes'},canRequest:true},
    'הילה רוזן':{role:'activities_manager',permissions:{view_activities:'yes'},review:true},
@@ -143,6 +150,8 @@ test('the approval header route is visible to Gil, Hila, Eden and all activity-e
  }
  assert.equal(eligible({role:'instructor',permissions:{view_activities:'no'}}),false,
    'Instructor routes do not receive the staff approval status workspace');
+ assert.equal(eligible({role:'authorized_user',permissions:{view_activities:'yes'},user_id:'3090'}),false,
+   'Association chair does not receive the approvals workspace');
 });
 test('each manager sees only their own pending sent requests and actual reviewer work',async()=>{
  const source=await readFile(API_FILE,'utf8');

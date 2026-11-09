@@ -24,6 +24,7 @@ import { resumeInspirationBridge } from './inspiration-session-bridge.js';
 import { permissionFlagYes as permissionEnabled } from './permissions.js';
 import { hasPermission } from './permission-policy.js';
 import { canViewImpactFeedback, isFeedbackInstructor } from './impact-feedback/feedback-access.js';
+import { ASSOCIATION_CHAIR_ROUTES, isAssociationChairViewer } from './association-chair-access.js';
 import { countPendingApprovedProposals } from './screens/shared/proposals-pending-count.js';
 import { bootstrapLocalBaselineMonitor } from './local-baseline-monitor.js';
 import { installInstructorObservationRuntime } from './instructor-observation-runtime.js';
@@ -857,6 +858,11 @@ function redirectIfDisabledRoute() {
 function isAllowedRoute(route) {
   if (PERMANENTLY_DISABLED_ROUTES.has(route)) return false;
   if (!routeAllowedByRole(route)) return false;
+  if (isAssociationChairViewer(state?.user)) {
+    if (!ASSOCIATION_CHAIR_ROUTES.includes(route)) return false;
+    if (route === 'impact-feedback') return canViewImpactFeedback(state.user);
+    return effectiveRoutes().includes(route) || (route === 'activities' && hasActivitiesRouteAccess());
+  }
   if (route === 'activities' && hasActivitiesRouteAccess()) return true;
   return !!route && effectiveRoutes().includes(route);
 }

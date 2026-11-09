@@ -29,6 +29,7 @@ import { catalogActivityChangesFromRows, catalogText } from './activity-catalog-
 import { separateFundingSourceChange, displayFundingSourcesForApproval } from './activity-edit-funding-request.js';
 import { enforceManagedRoutes, hasPermission } from './permission-policy.js';
 import { ALL_PERMISSION_KEYS, ROLE_PERMISSION_TEMPLATES } from './capability-registry.js';
+import { isAssociationChairViewer, restrictRoutesForAssociationChair } from './association-chair-access.js';
 import { endDateExceptionThresholdForPeriod } from './exception-end-date-threshold-by-period.js';
 import { activityBelongsToCourseSchedulingPeriod, resolveCourseSchedulingPeriod } from './screens/course-scheduling-periods.js';
 import {
@@ -4917,14 +4918,17 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
   // Every active staff member with activity access needs the Approvals status
   // workspace, even if they cannot submit or approve edits themselves.
   // Viewing one's own requests never grants permission to approve others.
-  const canViewEditRequests = canReviewRequests || canRequestEdit || canRequestCreateActivity(flat)
+  // Association chair remains outside this workspace entirely.
+  const canViewEditRequests = !isAssociationChairViewer(flat) && (
+    canReviewRequests || canRequestEdit || canRequestCreateActivity(flat)
     || permissionFlagYes(flat.view_edit_requests)
     || (role !== 'instructor' && permissionFlagYes(flat.view_activities))
     || effectivePersonalReportsAccess(flat, profileRow)
     || permissionFlagYes(flat.view_attendance_control)
     || permissionFlagYes(flat.view_finance_payroll)
     || permissionFlagYes(flat.view_proposals_agreements)
-    || flat.is_active === true;
+    || flat.is_active === true
+  );
   if (canViewEditRequests && !allowedRoutes.includes('edit-requests')) {
     allowedRoutes.push('edit-requests');
   }
@@ -4956,6 +4960,7 @@ function buildBootstrapFromUser(userRow, profileRow = null) {
     }
   }
   allowedRoutes = enforceManagedRoutes(allowedRoutes, flat);
+  allowedRoutes = restrictRoutesForAssociationChair(allowedRoutes, flat);
   return {
     routes: [...allowedRoutes],
     default_route: (() => {
