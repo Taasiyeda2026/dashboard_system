@@ -777,6 +777,9 @@ test('impact-feedback preserves admin/Israa access and adds read-only operationa
   assert.equal(canViewImpactFeedback({ user_id: '6000', role: 'operation_manager', is_active: true }), true);
   assert.equal(canEditImpactFeedbackWording({ user_id: '6000', role: 'operation_manager' }), false);
   assert.equal(canViewImpactFeedback({ user_id: '6001', role: 'operation_manager', is_active: true }), false);
+  assert.equal(canViewImpactFeedback({ user_id: '3090', role: 'authorized_user', is_active: true }), true);
+  assert.equal(canEditImpactFeedbackWording({ user_id: '3090', role: 'authorized_user' }), false);
+  assert.equal(canViewImpactFeedback({ user_id: '3091', role: 'authorized_user', is_active: true }), false);
   assert.equal(canViewImpactFeedback({ role: 'finance', is_active: true }), false);
   assert.match(screen, /const LIMITED_VIEWER_TABS = new Set\(\['overview', 'students', 'instructors', 'staff', 'analysis'\]\)/);
   assert.match(screen, /host\.classList\.toggle\('is-feedback-limited-viewer', isLimitedFeedbackViewer\(\)\)/);

@@ -8,12 +8,15 @@ const MANAGEMENT_ROLES = [
   'activities_manager',
   'domain_manager',
   'business_development_manager',
-  'instructor_manager'
+  'instructor_manager',
+  // Limited management viewers (e.g. association chair) use the same recovery path.
+  'authorized_user'
 ];
 const MANAGEMENT_ROLE_SET = new Set(MANAGEMENT_ROLES);
 const INSTRUCTOR_ROLE = 'instructor';
 const RECOVERY_PERMISSION = 'access_password_recovery';
 const BLOCKED_INSTRUCTOR_EMP_ID = '1519';
+const ASSOCIATION_CHAIR_USER_ID = '3090';
 const MIN_PASSWORD_LENGTH = 8;
 const MAX_CODE_ATTEMPTS = 5;
 const CHALLENGE_MINUTES = 10;
@@ -58,6 +61,9 @@ function permissionEnabled(row: Record<string, unknown>, key: string) {
 function isAllowedRecoveryUser(row: Record<string, unknown> | null | undefined) {
   if (!row || row.is_active !== true) return false;
   const role = String(row.role || '').trim();
+  const userId = String(row.user_id || '').trim();
+  // authorized_user recovery is limited to the association-chair identity only.
+  if (role === 'authorized_user') return userId === ASSOCIATION_CHAIR_USER_ID;
   if (MANAGEMENT_ROLE_SET.has(role)) return true;
   return role === INSTRUCTOR_ROLE
     && String(row.emp_id || '').trim() !== BLOCKED_INSTRUCTOR_EMP_ID

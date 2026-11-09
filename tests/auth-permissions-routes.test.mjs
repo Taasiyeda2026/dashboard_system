@@ -29,7 +29,9 @@ test('create activity requests require their dedicated permission', async () => 
 test('edit-requests route includes reviewers, edit requesters, create requesters, and explicit viewers', async () => {
   const source = await readFile(API_FILE, 'utf8');
   assert.match(source, /const canReviewRequests = canReviewEditRequestsUser\(flat\);/);
-  assert.match(source, /const canViewEditRequests = canReviewRequests \|\| canRequestEdit \|\| canRequestCreateActivity\(flat\) \|\| permissionFlagYes\(flat\.view_edit_requests\);/);
+  assert.match(source, /const canViewEditRequests = !isAssociationChairViewer\(flat\) && \(/);
+  assert.match(source, /canReviewRequests \|\| canRequestEdit \|\| canRequestCreateActivity\(flat\)/);
+  assert.match(source, /permissionFlagYes\(flat\.view_edit_requests\)/);
   assert.match(source, /if \(canViewEditRequests && !allowedRoutes\.includes\('edit-requests'\)\) \{[\s\S]*?allowedRoutes\.push\('edit-requests'\);/);
 });
 
