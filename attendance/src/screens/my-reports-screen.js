@@ -13,7 +13,7 @@
 import { createIcon } from '../components/icon.js';
 import { getDailyTravelReports } from '../services/daily-travel.service.js';
 import {formatTravelDistance,sumReportedDailyTravel} from '../components/reported-daily-travel.js';
-import {createDayDetailRow,formatDecimalHours} from '../components/my-reports-day-detail.js';
+import {createDayDetailRow,formatDecimalHours,formatActivityHours} from '../components/my-reports-day-detail.js';
 import { listExpenseReports } from '../services/expense-reports.service.js';
 import { reportedKilometers } from '../services/reported-kilometers.js';
 import { createInputField, createSelectField } from '../components/field.js';
@@ -424,7 +424,7 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
   // ── 4. Total hours ────────────────────────────────────────────────────────
   const hoursCell = document.createElement('div');
   hoursCell.className = 'av2-rr__hours';
-  hoursCell.textContent = formatDurationHours(record.total_hours);
+  hoursCell.textContent = formatActivityHours(record.total_hours);
 
   // ── 5. Activity type ─────────────────────────────────────────────────────
   const typeCell = document.createElement('div');
