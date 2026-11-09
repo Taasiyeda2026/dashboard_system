@@ -516,14 +516,14 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       }else{
         durationWrap=document.createElement('div');
         durationWrap.className='av2-daily-travel__duration';
-        const label=document.createElement('span');
-        label.className='av2-field__label';label.textContent='זמן נסיעה בפועל';
         const selects=document.createElement('div');
         selects.className='av2-daily-travel__duration-selects';
+        selects.setAttribute('role','group');
+        selects.setAttribute('aria-label','זמן נסיעה בפועל');
         for(const [unit,limit] of [['hours',24],['minutes',59]]){
           const wrap=document.createElement('label');
           const caption=document.createElement('span');
-          caption.textContent=unit==='hours'?'שעות':'דקות';
+          caption.textContent=unit==='hours'?'שעות נסיעה':'דקות נסיעה';
           const select=document.createElement('select');
           select.className='av2-field__select';
           select.dataset['duration'+(unit==='hours'?'Hours':'Minutes')]=String(index);
@@ -539,7 +539,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
           select.addEventListener('change',showSummary);
           wrap.append(caption,select);selects.append(wrap);
         }
-        durationWrap.append(label,selects);
+        durationWrap.append(selects);
         fields.append(durationWrap);
       }
       if(leg.kind==='between' && leg.sameLocation===true){
@@ -556,6 +556,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
           value:leg.kilometers==null?'':String(leg.kilometers),
           attrs:{min:'0',max:'2000',step:'0.01'}
         });
+        km.wrap.classList.add('av2-daily-travel__km');
         km.input.dataset.dailyTravelLeg=String(index);
         km.input.dataset.field='kilometers';
         km.input.addEventListener('input',showSummary);
@@ -583,6 +584,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         value:leg.transportCost==null?'':String(leg.transportCost),
         attrs:{min:'0',max:'10000',step:'0.01'}
       });
+      fare.wrap.classList.add('av2-daily-travel__fare');
       const kmInput=fields.querySelector('[data-field="kilometers"]');
       const kmWrap=kmInput?.closest('.av2-field')||kmInput?.parentElement;
       let previousMode=leg.mode;
