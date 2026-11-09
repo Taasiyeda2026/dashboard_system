@@ -289,8 +289,8 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     const travelRecords=day.records.filter(record=>record.generation_kind==null
       && (Number(record.roundtrip_km)>0 || Number(record.public_transport_cost)>0
         || record.cancellation_before_minutes!=null || record.cancellation_after_minutes!=null
-        || record.travel_compensation?.reportedOutboundMinutes!=null
-        || record.travel_compensation?.reportedReturnMinutes!=null));
+        || record.travel_compensation?.reported_outbound_minutes!=null
+        || record.travel_compensation?.reported_return_minutes!=null));
     for(const record of travelRecords){
       const block=document.createElement('article');
       block.className='av2-daily-travel__leg av2-daily-travel__legacy-card';
@@ -311,8 +311,8 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       appendDetail(block,'תחבורה ציבורית',record.public_transport_cost>0?'₪'+record.public_transport_cost:null);
       const travel=record.travel_compensation;
       if(travel){
-        appendDetail(block,'זמן נסיעה מדווח',travel.reportedOutboundMinutes==null && travel.reportedReturnMinutes==null?null:
-          [travel.reportedOutboundMinutes,travel.reportedReturnMinutes].filter(v=>v!=null).map(formatTripDuration).join(' / ')+' שעות');
+        appendDetail(block,'זמן נסיעה מדווח',travel.reported_outbound_minutes==null && travel.reported_return_minutes==null?null:
+          [travel.reported_outbound_minutes,travel.reported_return_minutes].filter(v=>v!=null).map(formatTripDuration).join(' / ')+' שעות');
       }
       legsArea.append(block);
     }
