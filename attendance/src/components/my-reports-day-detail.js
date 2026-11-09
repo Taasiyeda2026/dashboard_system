@@ -35,10 +35,11 @@ export function buildDayDetailModel({records=[],travelReport=null,expenseReports
   }
   const kilometers=rows.reduce((sum,row)=>sum+amount(row?.roundtrip_km),0);
   const publicTransportCost=rows.reduce((sum,row)=>sum+amount(row?.public_transport_cost),0);
-  const minutes=rows.reduce((sum,row)=>sum+Math.max(0,amount(instructorReportedCancellationMinutes(row))),0);
+  const reportedMinutes=rows.map(row=>instructorReportedCancellationMinutes(row));
+  const minutes=reportedMinutes.reduce((sum,value)=>sum+Math.max(0,amount(value)),0);
   return {
     hasReport:true,noTravel:false,kilometers,publicTransportCost,
-    cancellationHours:minutes/60,expenses,legs:[],
+    cancellationHours:reportedMinutes.some(value=>value!==null)?minutes/60:null,expenses,legs:[],
     hasCar:kilometers>0,hasTransit:publicTransportCost>0
   };
 }
@@ -68,7 +69,7 @@ export function createDayDetailRow({date,records,travelReport,expenseReports,mod
   route.className='av2-day-detail__metric av2-day-detail__route';
   const routeLabel=document.createElement('span');
   routeLabel.className='av2-day-detail__label';
-  routeLabel.textContent='סה״כ נסיעות';
+  routeLabel.textContent=model.hasTransit&&!model.hasCar?'תחבורה ציבורית':model.hasCar&&!model.hasTransit?'סה״כ קילומטר':'נסיעות';
   route.append(routeLabel);
 
   const parts=[];
