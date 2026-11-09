@@ -6,7 +6,7 @@ import { createReportedTravelTable } from '../components/reported-daily-travel.j
 import { getMonthApproval, invalidateAttendanceCache } from '../services/attendance.service.js';
 import { supabase } from '../api/client.js';
 import { canEditMonth, formatMonthLabel } from '../services/month-gate.service.js';
-import { listInstructorDisplayMonths, readHistoricalAttendance, historicalTravelDays, isHistoricTravelMonth, monthStatusLabel } from '../services/historical-display.service.js';
+import { listInstructorDisplayMonths, readHistoricalAttendance, historicalTravelDays, historicalTravelReports, isHistoricTravelMonth, monthStatusLabel } from '../services/historical-display.service.js';
 import {
   getDailyTravelActivityLegs, getDailyTravelReport, getDailyTravelReports, getAssignedTravelDays, saveDailyTravel
 } from '../services/daily-travel.service.js';
@@ -109,8 +109,11 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     if(!monthKey){travelHistory.replaceChildren();return;}
     try{
       const saved=await getDailyTravelReports(empId,monthKey);
+      const rows=isHistoricTravelMonth(monthKey)
+        ? historicalTravelReports((await readHistoricalAttendance(empId,monthKey)).rows,saved)
+        : saved;
       if(monthKey!==selectedMonth||token!==travelHistoryToken)return;
-      travelHistory.replaceChildren(createReportedTravelTable(saved));
+      travelHistory.replaceChildren(createReportedTravelTable(rows));
     }catch(error){
       if(monthKey!==selectedMonth||token!==travelHistoryToken)return;
       const message=document.createElement('p');
@@ -259,48 +262,12 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     dayHeading.textContent='סיכום יום עבודה · '+formatDate(day.date);
     daySummary.append(dayHeading);
     const historicKm=day.records.reduce((sum,row)=>sum+(Number(row.roundtrip_km)||0),0);
-    const historicCancellation=day.records.reduce((sum,row)=>
-      sum+(Number(row.cancellation_before_minutes)||0)+(Number(row.cancellation_after_minutes)||0),0);
-    appendDetail(daySummary,'קילומטרים בדיווחי הנוכחות',historicKm+' ק״מ');
-    appendDetail(daySummary,'ביטול זמן בדיווחי הנוכחות',durationValue(historicCancellation)+' שעות');
-    if(!report)appendDetail(daySummary,'מקור הנתונים','רשומות נוכחות היסטוריות – לא קיים פירוט מסלול נסיעה מאומת');
+    const historicCancellation=historicalTravelReports(day.records,report?[report]:[])[0]?.cancellation_minutes
+      ?? day.records.reduce((sum,row)=>sum+(Number(row.cancellation_before_minutes)||0)
+        +(Number(row.cancellation_after_minutes)||0),0);
+    if(historicKm>0)appendDetail(daySummary,'קילומטרים',historicKm+' ק״מ');
+    if(historicCancellation>0)appendDetail(daySummary,'ביטול זמן',durationValue(historicCancellation)+' שעות');
     legsArea.append(daySummary);
-    if(!report){
-      const activities=day.records
-        .filter(row=>row.generation_kind==null && row.start_time && row.end_time
-          && row.activity_type!=='ביטול זמן' && row.activity_type!=='זום'
-          && row.training_mode!=='online' && row.operation_meeting_mode!=='online')
-        .slice().sort((a,b)=>String(a.start_time).localeCompare(String(b.start_time))
-          || String(a.id).localeCompare(String(b.id)));
-      if(activities.length){
-        const route=document.createElement('article');
-        route.className='av2-daily-travel__leg av2-daily-travel__legacy-card';
-        const routeTitle=document.createElement('strong');
-        routeTitle.textContent='מסלול יום העבודה · תצוגת נתוני עבר';
-        route.append(routeTitle);
-        const destination=row=>row.school_name_snapshot||row.destination_address_snapshot
-          ||row.authority_name_snapshot||'מיקום הפעילות';
-        const segment=(from,to,minutes)=>{
-          const item=document.createElement('div');
-          item.className='av2-daily-travel__legacy-detail';
-          const label=document.createElement('span');
-          label.textContent=from+' ← '+to;
-          const value=document.createElement('strong');
-          value.textContent=minutes==null?'זמן נסיעה לא דווח':formatTripDuration(minutes)+' שעות נסיעה מדווחות';
-          item.append(label,value);route.append(item);
-        };
-        segment('בית',destination(activities[0]),
-          activities[0].travel_compensation?.reportedOutboundMinutes);
-        for(let i=1;i<activities.length;i++)
-          segment(destination(activities[i-1]),destination(activities[i]),null);
-        segment(destination(activities.at(-1)),'בית',
-          activities.at(-1).travel_compensation?.reportedReturnMinutes);
-        const note=document.createElement('small');
-        note.textContent='סדר התחנות לפי שעות הפעילות. כתובות ומקטעי מעבר אינם מאומתים; לא בוצע חישוב או שינוי שכר.';
-        route.append(note);
-        legsArea.append(route);
-      }
-    }
     if(report){
       const summaryCard=document.createElement('article');
       summaryCard.className='av2-daily-travel__leg av2-daily-travel__legacy-card';
@@ -319,7 +286,12 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       }
       legsArea.append(summaryCard);
     }
-    for(const record of day.records){
+    const travelRecords=day.records.filter(record=>record.generation_kind==null
+      && (Number(record.roundtrip_km)>0 || Number(record.public_transport_cost)>0
+        || record.cancellation_before_minutes!=null || record.cancellation_after_minutes!=null
+        || record.travel_compensation?.reportedOutboundMinutes!=null
+        || record.travel_compensation?.reportedReturnMinutes!=null));
+    for(const record of travelRecords){
       const block=document.createElement('article');
       block.className='av2-daily-travel__leg av2-daily-travel__legacy-card';
       const header=document.createElement('strong');
@@ -329,15 +301,12 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       appendDetail(block,'שעות פעילות',record.start_time&&record.end_time
         ? String(record.start_time).slice(0,5)+'–'+String(record.end_time).slice(0,5):null);
       if(historicalEditing){
-        const note=document.createElement('small');
-        note.textContent='עריכת נתוני עבר: אלו שדות ביטול זמן מקוריים, ולא דיווחי זמן נסיעה בפועל.';
-        block.append(note);
         addHistoricalEditor(block,record);
       }else{
-        appendDetail(block,'קילומטרים בדיווח המקורי',record.roundtrip_km==null?null:record.roundtrip_km+' ק״מ');
+        appendDetail(block,'קילומטרים',record.roundtrip_km>0?record.roundtrip_km+' ק״מ':null);
         const cancelMinutes=(Number(record.cancellation_before_minutes)||0)+(Number(record.cancellation_after_minutes)||0);
         if(record.cancellation_before_minutes!=null || record.cancellation_after_minutes!=null)
-          appendDetail(block,'ביטול זמן היסטורי',durationValue(cancelMinutes)+' שעות');
+          appendDetail(block,'ביטול זמן',durationValue(cancelMinutes)+' שעות');
       }
       appendDetail(block,'תחבורה ציבורית',record.public_transport_cost>0?'₪'+record.public_transport_cost:null);
       const travel=record.travel_compensation;
@@ -351,8 +320,6 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     legsArea.hidden=false;
     actions.replaceChildren();
     if(historicalEditing){
-      const hint=document.createElement('small');
-      hint.textContent='עריכת נתוני עבר בלבד: הזינו שעות:דקות (למשל 01:30). הערכים אינם זמני נסיעה מאומתים.';
       const confirm=document.createElement('button');
       confirm.type='button';confirm.className='av2-btn av2-btn--primary av2-daily-travel__action-sm';
       confirm.dataset.historicalAction='save';confirm.textContent='שמירה';
@@ -361,7 +328,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       cancel.type='button';cancel.className='av2-btn av2-btn--secondary av2-daily-travel__action-sm';
       cancel.dataset.historicalAction='cancel';cancel.textContent='ביטול';
       cancel.addEventListener('click',()=>{historicalEditing=false;renderHistoricalDay(day);});
-      actions.append(hint,confirm,cancel);
+      actions.append(confirm,cancel);
     }
   }
   // Employee-facing durations are HH:MM; the API continues to store minutes.
