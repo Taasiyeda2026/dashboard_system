@@ -408,6 +408,28 @@ api.attendanceControlDailyTravelReports = async function ({employeeIds=[],fromDa
   return Array.isArray(data)?data:[];
 };
 
+api.attendanceControlOrphanDailyTravelReports = async function ({fromDate='',toDate=''}={}) {
+  await waitForSupabaseAuthSession({timeoutMs:7000}).catch(()=>null);
+  const {data,error}=await supabase.rpc('av2_list_orphan_daily_travel_for_review',{
+    p_from_date:fromDate,p_to_date:toDate
+  });
+  if(error)throw new Error(error.message||'טעינת נסיעות ללא נוכחות נכשלה');
+  return Array.isArray(data)?data:[];
+};
+
+api.attendanceControlDeleteOrphanDailyTravel = async function ({employeeId,date}={}) {
+  await waitForSupabaseAuthSession({timeoutMs:7000}).catch(()=>null);
+  const id=Number(employeeId);
+  if(!Number.isSafeInteger(id)||id<=0||!/^20\\d{2}-\\d{2}-\\d{2}$/.test(String(date||'')))
+    throw new Error('יש לבחור דיווח נסיעות תקין למחיקה');
+  const {data,error}=await supabase.rpc('av2_delete_orphan_daily_travel',{
+    p_emp_id:id,p_date:date
+  });
+  if(error)throw new Error(error.message||'מחיקת דיווח הנסיעות נכשלה');
+  if(!data?.deleted)throw new Error('לא התקבל אישור מחיקה');
+  return data;
+};
+
 api.attendanceControlReviewDailyTravel = async function ({employeeId,date,decision,km=null,minutes=null}={}) {
   await waitForSupabaseAuthSession({timeoutMs:7000}).catch(()=>null);
   const {data,error}=await supabase.rpc('av2_review_daily_travel',{
