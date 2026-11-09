@@ -738,3 +738,70 @@
   .av2-reported-travel__table th,
   .av2-reported-travel__table td{padding:7px 5px;}
 }
+
+/* Travel entry: after transport selection, show equally aligned hours, minutes
+   and kilometres in one compact RTL row. Keep existing duration value logic. */
+.av2-report .av2-report__travel-tab .av2-daily-travel__leg-fields{
+  grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.2fr)!important;
+  align-items:end!important;
+  column-gap:9px!important;
+  row-gap:10px!important;
+}
+.av2-report .av2-report__travel-tab .av2-daily-travel__leg-fields>.av2-daily-travel__mode{
+  grid-column:1/-1!important;
+}
+.av2-report .av2-report__travel-tab .av2-daily-travel__duration:not([hidden]),
+.av2-report .av2-report__travel-tab .av2-daily-travel__duration-selects{
+  display:contents;
+}
+.av2-report .av2-report__travel-tab .av2-daily-travel__duration[hidden]{
+  display:none!important;
+}
+.av2-report .av2-report__travel-tab .av2-daily-travel__duration-selects>label,
+.av2-report .av2-report__travel-tab .av2-daily-travel__leg-fields>.av2-daily-travel__km{
+  display:grid;
+  grid-template-rows:18px 44px;
+  align-items:stretch;
+  gap:5px;
+  min-width:0;
+}
+.av2-report .av2-report__travel-tab .av2-daily-travel__duration-selects>label>span,
+.av2-report .av2-report__travel-tab .av2-daily-travel__km>.av2-field__label{
+  display:flex;
+  align-items:end;
+  min-width:0;
+  margin:0;
+  line-height:18px;
+  font-size:.76rem;
+  font-weight:600;
+  color:#566c87;
+  white-space:nowrap;
+}
+.av2-report .av2-report__travel-tab .av2-daily-travel__duration-selects select,
+.av2-report .av2-report__travel-tab .av2-daily-travel__km .av2-field__input{
+  box-sizing:border-box;
+  width:100%;
+  min-width:0;
+  height:44px;
+  min-height:44px;
+  margin:0;
+  padding-inline:9px;
+  border-radius:9px;
+  font-size:.9rem;
+  font-variant-numeric:tabular-nums;
+  text-align:center;
+}
+.av2-report .av2-report__travel-tab .av2-daily-travel__leg-fields>.av2-daily-travel__fare{
+  grid-column:1/-1;
+}
+.av2-report .av2-report__travel-tab .av2-daily-travel__leg-fields>.av2-daily-travel__calculated-field{
+  grid-column:1/-1;
+}
+@media(max-width:370px){
+  .av2-report .av2-report__travel-tab .av2-daily-travel__leg-fields{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+  .av2-report .av2-report__travel-tab .av2-daily-travel__leg-fields>.av2-daily-travel__km{
+    grid-column:1/-1;
+  }
+}
