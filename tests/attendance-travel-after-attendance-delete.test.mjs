@@ -40,3 +40,15 @@ test('existing server-side manager guard checks the actual route',async()=>{
   const migration=await read('supabase/migrations/20261104061000_manager_only_daily_travel_review.sql');
   assert.match(migration,/av2_daily_travel_route_matches/i);
 });
+
+test('saved travel remains selectable after its last attendance entry is deleted',async()=>{
+  const months=await read('attendance/src/services/historical-display.service.js');
+  const sql=await read('supabase/migrations/20261109213026_include_saved_travel_months_after_last_attendance_deleted.sql');
+  assert.match(months,/supabase\.rpc\('av2_list_instructor_saved_travel_months'\)/);
+  assert.match(months,/Array\.isArray\(travelMonths\.data\)/);
+  assert.match(sql,/u\.auth_user_id=auth\.uid\(\)/);
+  assert.match(sql,/u\.role IN \('instructor','מדריך'\)/);
+  assert.match(sql,/WHERE d\.emp_id=v_emp/);
+  assert.match(sql,/GRANT EXECUTE ON FUNCTION public\.av2_list_instructor_saved_travel_months\(\) TO authenticated/i);
+  assert.doesNotMatch(sql,/GRANT EXECUTE ON FUNCTION .* TO anon/i);
+});
