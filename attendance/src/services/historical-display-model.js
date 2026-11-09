@@ -42,6 +42,40 @@ export function historicalTravelDays(rows=[], dailyReports=[]) {
   }));
 }
 
+
+/** Display documented historical values without modifying saved payroll data. */
+export function historicalTravelReports(rows = [], dailyReports = []) {
+  const byDate = new Map();
+  for (const report of dailyReports) {
+    const date=String(report?.travel_date||'');
+    if(date&&!byDate.has(date))byDate.set(date,report);
+  }
+  for (const day of groupHistoricalActivityDays(rows)) {
+    if(byDate.has(day.date))continue;
+    const originals=sourceAttendanceRecords(day.records);
+    const sum=(field)=>originals.reduce((total,row)=>total+(Number(row?.[field])||0),0);
+    const km=sum('roundtrip_km');
+    const fare=sum('public_transport_cost');
+    const generatedMinutes=day.records
+      .filter(row=>row.generation_kind==='travel_time_cancellation')
+      .reduce((total,row)=>total+Math.round((Number(row.total_hours)||0)*60),0);
+    const hasOriginalCancellation=originals.some(row=>
+      row.cancellation_before_minutes!=null||row.cancellation_after_minutes!=null);
+    const originalMinutes=originals.reduce((total,row)=>total+
+      (Number(row.cancellation_before_minutes)||0)+(Number(row.cancellation_after_minutes)||0),0);
+    const cancellationMinutes=generatedMinutes>0?generatedMinutes:
+      hasOriginalCancellation?originalMinutes:null;
+    if(km<=0 && fare<=0 && !(cancellationMinutes>0))continue;
+    byDate.set(day.date,{
+      travel_date:day.date,legs:[],no_travel:false,total_km:km,
+      cancellation_minutes:cancellationMinutes,public_transport_cost:fare,
+      historical:true
+    });
+  }
+  return [...byDate.values()].sort((a,b)=>
+    String(b.travel_date).localeCompare(String(a.travel_date)));
+}
+
 /** A legacy expense is identified by its attendance record id, not by amount. */
 export function historicalExpenses(rows = [], independent = []) {
   const items = new Map();
