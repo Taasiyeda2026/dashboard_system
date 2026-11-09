@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {
-  historicalExpenses,historicalTravelDays,groupHistoricalActivityDays,
+  historicalExpenses,historicalTravelDays,historicalTravelReports,groupHistoricalActivityDays,
   isHistoricTravelMonth,monthRange,monthStatusLabel
 } from '../attendance/src/services/historical-display-model.js';
 
@@ -20,6 +20,29 @@ test('historical travel displays only stored fields and existing activity dates'
  assert.equal(result[1].records[0].cancellation_before_minutes,undefined);
  assert.equal(result[1].dailyReport,null);
  assert.equal(groupHistoricalActivityDays([...source,source[0]]).length,2);
+});
+
+
+test('saved historical travel totals appear once with actual distance and recorded cancellation',()=>{
+ const old=[
+  {id:'a',report_date:'2026-10-19',activity_type:'הכשרה',roundtrip_km:14},
+  {id:'b',report_date:'2026-10-25',activity_type:'קורס',roundtrip_km:60},
+  {id:'c',report_date:'2026-10-25',activity_type:'ביטול זמן',
+   generation_kind:'travel_time_cancellation',source_attendance_record_id:'b',total_hours:0.5},
+  {id:'d',report_date:'2026-10-29',activity_type:'הכשרה',roundtrip_km:0},
+ ];
+ const actual=historicalTravelReports(old,[]);
+ assert.deepEqual(actual.map(row=>row.travel_date),['2026-10-25','2026-10-19']);
+ assert.equal(actual[0].total_km,60);
+ assert.equal(actual[0].cancellation_minutes,30);
+ assert.deepEqual(actual[0].legs,[]);
+ assert.equal(actual[1].total_km,14);
+ assert.equal(actual[1].cancellation_minutes,null);
+ const saved={travel_date:'2026-10-25',total_km:61,legs:[{kind:'outbound'}]};
+ const notDuplicated=historicalTravelReports([...old,old[1]],[saved]);
+ assert.equal(notDuplicated.length,2);
+ assert.equal(notDuplicated[0],saved);
+ assert.equal(notDuplicated[1].total_km,14);
 });
 
 test('historical expense includes original attendance amount/receipt exactly once, not duplicated by identical amounts',()=>{
