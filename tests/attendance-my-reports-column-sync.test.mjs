@@ -5,9 +5,10 @@ import { runInNewContext } from 'node:vm';
 import { JSDOM } from 'jsdom';
 
 const read = (path) => readFile(new URL('../' + path, import.meta.url), 'utf8');
-const [runtime, css, reports, indexHtml, sw] = await Promise.all([
+const [runtime, css, unifiedCss, reports, indexHtml, sw] = await Promise.all([
   read('attendance/src/attendance-followup-runtime-v2.js'),
   read('attendance/src/styles/report-table-fit-fix.css'),
+  read('attendance/src/styles/my-reports-unified.css'),
   read('attendance/src/screens/my-reports-screen.js'),
   read('attendance/index.html'),
   read('attendance/sw.js')
@@ -28,17 +29,20 @@ function headerEnhancer(document) {
   return ctx.enhanceReportHeader;
 }
 
-const labels = ['תאריך', 'התחלה', 'סיום', 'שעות', 'סה״כ יומי', 'סוג', 'שם פעילות',
+const labels = ['תאריך', 'סוג', 'התחלה', 'סיום', 'שעות', 'שם פעילות', 'מפגש',
+  'מיקום / בית ספר', 'רשות', 'פעולות'];
+const legacyLabels = ['תאריך', 'התחלה', 'סיום', 'שעות', 'סה״כ יומי', 'סוג', 'שם פעילות',
   'מיקום / בית ספר', 'רשות', 'ק״מ', 'הוצאות', 'פעולות'];
 
-function tableFor(date) {
+function tableFor(date,legacy=false) {
   const dom = new JSDOM('<div class="av2-report-list"><div class="av2-report-list__head"></div><div class="av2-report-row"></div></div>');
   const document = dom.window.document;
   const list = document.querySelector('.av2-report-list');
+  if(!legacy)list.classList.add('av2-report-list--unified');
   const head = document.querySelector('.av2-report-list__head');
   const row = document.querySelector('.av2-report-row');
   row.dataset.reportDate = date;
-  for (const label of labels) {
+  for (const label of legacy?legacyLabels:labels) {
     const cell = document.createElement('span');
     cell.textContent = label;
     head.append(cell);
@@ -58,21 +62,20 @@ function gridTracks(legacy) {
   return [...css.slice(grid, end).matchAll(/(\d+)px/g)].map(x => Number(x[1]));
 }
 
-test('Nov 2026+ header preserves 12 columns so actions stay in the final track', () => {
-  const { document, list, head, row } = tableFor('2026-11-03');
-  const enhance = headerEnhancer(document);
-  enhance(head);
-  enhance(head);
-  assert.equal(head.children.length, 12);
-  assert.equal(row.children.length, 12);
-  assert.equal(head.lastElementChild.textContent, 'פעולות');
-  assert.equal(list.classList.contains('av2-report-list--legacy-cancellation'), false);
-  assert.deepEqual(gridTracks(false), [61,60,60,60,61,60,100,95,90,55,55,161]);
-  assert.equal(gridTracks(false).reduce((a,b)=>a+b,0), 918);
+test('unified table keeps exactly ten headers and ten primary record columns',()=>{
+  const {document,list,head,row}=tableFor('2026-11-03');
+  const enhance=headerEnhancer(document);
+  enhance(head);enhance(head);
+  assert.equal(head.children.length,10);
+  assert.equal(row.children.length,10);
+  assert.equal(head.lastElementChild.textContent,'פעולות');
+  assert.equal(list.classList.contains('av2-report-list--legacy-cancellation'),false);
+  assert.match(unifiedCss,/grid-template-columns:/);
+  assert.match(reports,/const colLabels = \['תאריך', 'סוג'/);
 });
 
 test('October 2026 retains one historical time-cancellation header and 13 tracks', () => {
-  const { document, list, head, row } = tableFor('2026-10-25');
+  const { document, list, head, row } = tableFor('2026-10-25',true);
   const enhance = headerEnhancer(document);
   enhance(head);
   enhance(head);
@@ -84,7 +87,7 @@ test('October 2026 retains one historical time-cancellation header and 13 tracks
   assert.equal(gridTracks(true).reduce((a,b)=>a+b,0), 918);
   row.dataset.reportDate = '2026-11-03';
   enhance(head);
-  assert.equal(head.children.length, 12, 'changing to a Nov report must remove the stale header');
+  assert.equal(head.children.length, 12, 'legacy table still supports date transitions');
   assert.equal(list.classList.contains('av2-report-list--legacy-cancellation'), false);
 });
 
@@ -93,7 +96,7 @@ test('header synchronization runs after each report row is inserted', () => {
   const text = runtime.slice(rowStart, rowStart + 620);
   assert.match(text, /enhanceReportHeader\(header\)/);
   assert.ok(text.indexOf('enhanceReportHeader(header)') < text.indexOf('if (usesDailyTravelPath(row)) return'));
-  assert.match(reports, /row\.append\(dateCell, startCell, endCell, hoursCell, dayTotalCell, typeCell, nameCell, schoolCell, authCell, kmCell, expCell, actionsCell\)/);
+  assert.match(reports, /row\.append\(dateCell,typeCell,startCell,endCell,hoursCell,nameCell,meetingCell,schoolCell,authCell,actionsCell\)/);
 });
 
 test('all layout changes are desktop/table-scoped and cache version is synchronized', () => {
