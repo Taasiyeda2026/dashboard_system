@@ -359,12 +359,16 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     header.className='av2-daily-travel__saved-header';
     const heading=document.createElement('strong');
     heading.className='av2-daily-travel__saved-title';
-    heading.textContent='✓ דיווח נשמר';
+    heading.textContent='✓';
+    heading.title='דיווח נשמר';
+    heading.setAttribute('aria-label','דיווח נשמר');
     header.append(heading);
     if(!locked){
       const edit=document.createElement('button');
       edit.type='button';edit.className='av2-daily-travel__saved-edit';
-      edit.textContent='עריכת דיווח';
+      edit.textContent='✎';
+      edit.setAttribute('aria-label','עריכת דיווח');
+      edit.title='עריכת דיווח';
       edit.addEventListener('click',()=>{
         if(locked || loading || saving)return;
         editingSavedReport=true;
@@ -404,7 +408,24 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       if(reportLegs.some(leg=>leg.mode==='public_transport'))
         addDetail('תחבורה ציבורית',cost.toLocaleString('he-IL',{style:'currency',currency:'ILS'}));
     }
-    savedCard.append(header,details);
+    const dayChoice=document.createElement('select');
+    dayChoice.className='av2-daily-travel__saved-day';
+    dayChoice.setAttribute('aria-label','בחירת יום פעילות');
+    dayChoice.title='מעבר ליום פעילות אחר';
+    for(const day of dayOptions){
+      const choice=document.createElement('option');
+      choice.value=day.date;
+      choice.textContent=formatDate(day.date);
+      dayChoice.append(choice);
+    }
+    dayChoice.value=loadedDate;
+    dayChoice.disabled=loading || !dayOptions.length;
+    dayChoice.addEventListener('change',()=>{
+      if(loading || saving)return;
+      setDate(dayChoice.value);
+      void load();
+    });
+    savedCard.append(header,details,dayChoice);
     savedCard.hidden=false;
     status.textContent='';
     legsArea.hidden=true;
