@@ -82,7 +82,13 @@ export const loginScreen = {
       const serviceWorkerUpdate = beginLoginServiceWorkerUpdate();
       setBusy(true, 'מתחבר...');
       try {
-        await onLogin(userId, code, errorNode);
+        const outcome = await onLogin(userId, code, errorNode);
+        if (outcome === 'inspiration-redirect') {
+          // Navigation to the game bridge is already in progress. Do not reload
+          // this popup, which would lose the one-time return request.
+          serviceWorkerUpdate.dispose();
+          return;
+        }
         await serviceWorkerUpdate.reloadIfUpdated();
       } catch (error) {
         // If a newer worker activated during a failed attempt, refresh the still-safe
