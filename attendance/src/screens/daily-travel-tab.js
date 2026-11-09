@@ -419,7 +419,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       dayChoice.append(choice);
     }
     dayChoice.value=loadedDate;
-    dayChoice.disabled=loading || !dayOptions.length;
+    dayChoice.disabled=dayOptions.length<2;
     dayChoice.addEventListener('change',()=>{
       if(loading || saving)return;
       setDate(dayChoice.value);
