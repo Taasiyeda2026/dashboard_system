@@ -620,13 +620,13 @@ test('survey language change preserves draft and equal bilingual styling on mobi
 });
 
 
-test('educational staff list deduplicates only by course, named contact and school', () => {
+test('educational staff list keeps one overview row per activity row_id', () => {
   const section = screen.slice(screen.indexOf('function groupsTableHtml('), screen.indexOf('// Per-question results'));
   assert.match(section, /scope === 'staff'/);
-  assert.match(section, /JSON\.stringify\(\[course, contact, school\]\)/);
-  assert.match(section, /JSON\.stringify\(\['unidentified', group\.row_id\]\)/);
-  assert.match(section, /groupHasFeedback\(group\)/);
-  assert.doesNotMatch(section, /JSON\.stringify\(\[course, contact, school,.*feedbackHalf/);
+  assert.match(section, /const key = String\(group\.row_id\)/);
+  assert.match(section, /An activity row is the source of truth/);
+  assert.match(section, /staff_activities: activitiesByGroup\.get\(key\) \|\| \[group\]/);
+  assert.doesNotMatch(section, /JSON\.stringify\(\[course, contact, school\]\)/);
 });
 
 
