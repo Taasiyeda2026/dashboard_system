@@ -649,8 +649,15 @@ async function handleCopy(record, btn) {
 
 async function handleDelete({ record, instructor, row, onRefresh }) {
   const dateStr = formatDateHeb(record.report_date);
-  const travelWarning=record.report_date>='2026-11-01'
-    ? '\nאם נשמרו נסיעות ליום זה, יהיה צורך לעדכן אותן.' : '';
+  const physicalTravel=record.generation_kind==null
+    && !['זום','ביטול זמן'].includes(record.activity_type)
+    && record.training_mode!=='online'
+    && record.operation_meeting_mode!=='online';
+  const travelWarning=physicalTravel
+    ? record.report_date>='2026-11-01'
+      ? '\nגם הנסיעות וביטול הזמן של יום זה יימחקו.'
+      : '\nגם נתוני הנסיעה המשויכים לדיווח יימחקו.'
+    : '';
   if (!confirm(`למחוק את הדיווח מתאריך ${dateStr}?${travelWarning}\nפעולה זו אינה הפיכה.`)) return;
 
   row.style.opacity = '0.5';
