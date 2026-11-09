@@ -30,7 +30,7 @@ export function dailyTravelDetails(row) {
   if(!row)return '';
   if(row.no_travel)return 'נסיעות: ללא נסיעה';
   const legs=Array.isArray(row.legs)?row.legs:[];
-  const hasCar=legs.some(leg=>leg.mode!=='public_transport' && !(leg.kind==='between' && leg.sameLocation));
+  const hasCar=(row.historical===true && number(row.total_km)>0)||legs.some(leg=>leg.mode!=='public_transport' && !(leg.kind==='between' && leg.sameLocation));
   const transit=number(row.public_transport_cost);
   const hasTransit=transit>0||legs.some(leg=>leg.mode==='public_transport');
   const parts=[];
@@ -76,11 +76,11 @@ export function createReportedTravelTable(reports=[],{title='נסיעות שדו
     const transit=number(report.public_transport_cost);
     const legs=Array.isArray(report.legs)?report.legs:[];
     const hasTransit=transit>0||legs.some(leg=>leg.mode==='public_transport');
-    const hasCar=legs.some(leg=>leg.mode!=='public_transport' && !(leg.kind==='between' && leg.sameLocation));
+    const hasCar=(report.historical===true && number(report.total_km)>0)||legs.some(leg=>leg.mode!=='public_transport' && !(leg.kind==='between' && leg.sameLocation));
     const values=[
       date,
       report.no_travel?'ללא נסיעה':hasCar?formatTravelDistance(report.total_km):'—',
-      report.no_travel?'—':(hasCar||number(report.cancellation_minutes)>0?formatTravelMinutes(report.cancellation_minutes):'—'),
+      report.no_travel?'—':(report.cancellation_minutes==null?'—':hasCar||number(report.cancellation_minutes)>0?formatTravelMinutes(report.cancellation_minutes):'—'),
       hasTransit?'₪'+transit.toLocaleString('he-IL',{maximumFractionDigits:2}):'—',
       report.review_status==='rejected'?'נדרש תיקון':'נשמר'
     ];
