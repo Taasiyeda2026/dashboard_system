@@ -56,15 +56,30 @@ test('access token handoff verifies matching identity and never exports dashboar
   assert.deepEqual(await bridge.verifiedSession(client({ id: 'user-a' })), { access_token: 'test-access' });
 });
 
-test('instructor shortcut is a visibility hint and bridge uses exact postMessage target', () => {
+test('every active dashboard staff role may reach the game, and bridge uses an exact postMessage target', () => {
   assert.equal(bridge.canShowInspirationLink({ role: 'instructor' }), true);
   assert.equal(bridge.canShowInspirationLink({ role: 'admin' }), true);
-  assert.equal(bridge.canShowInspirationLink({ role: 'manager', permissions: { inspiration_manage: true } }), true);
-  assert.equal(bridge.canShowInspirationLink({ role: 'manager', permissions: { inspiration_manage: 'true' } }), false);
-  assert.equal(bridge.canShowInspirationLink({ role: 'manager' }), false);
+  assert.equal(bridge.canShowInspirationLink({ role: 'manager' }), true);
+  assert.equal(bridge.canShowInspirationLink({ role: 'business_development_manager' }), true);
+  assert.equal(bridge.canShowInspirationLink({ role: 'finance' }), true);
+  assert.equal(bridge.canShowInspirationLink({ role: 'instructor', is_active: false }), false);
+  assert.equal(bridge.canShowInspirationLink({ role: 'manager', active: 'no' }), false);
+  assert.equal(bridge.canShowInspirationLink({}), false);
   const page = readFileSync(new URL('../frontend/src/inspiration-bridge-page.js', import.meta.url), 'utf8');
   assert.match(page, /window\.opener\.postMessage\([\s\S]*request\.origin\)/);
   assert.doesNotMatch(page, /postMessage\([^\n]*['"]\*['"]/);
   const sw = readFileSync(new URL('../frontend/sw.js', import.meta.url), 'utf8');
   assert.match(sw, /p\.endsWith\('\/inspiration-bridge\.html'\)/);
+});
+
+test('first dashboard login returns to pending game before rendering or reloading the dashboard', () => {
+  const main = readFileSync(new URL('../frontend/src/main.js', import.meta.url), 'utf8');
+  const login = readFileSync(new URL('../frontend/src/screens/login.js', import.meta.url), 'utf8');
+  const afterLogin = main.slice(main.indexOf('onLogin: async (userId, code, errorNode)'));
+  const earlyReturn = afterLogin.indexOf('if (await resumeInspirationBridge({');
+  const shell = afterLogin.indexOf('renderShellLoadingImmediately();');
+  assert.ok(earlyReturn >= 0 && shell > earlyReturn, 'game return must happen before the normal dashboard shell');
+  assert.match(afterLogin.slice(earlyReturn, shell), /return 'inspiration-redirect';/);
+  assert.match(login, /const outcome = await onLogin\(userId, code, errorNode\);/);
+  assert.match(login, /if \(outcome === 'inspiration-redirect'\)\s*\{\s*[\s\S]*?serviceWorkerUpdate\.dispose\(\);\s*return;/);
 });
