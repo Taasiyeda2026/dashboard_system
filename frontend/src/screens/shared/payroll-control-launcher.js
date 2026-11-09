@@ -27,7 +27,7 @@ export function openPayrollControlWindow(state = {}, target = null) {
 
   void Promise.all([
     import('../../api.js'),
-    import('../attendance-control.js?v=20261105-systemic-b-e-v1')
+    import('../attendance-control.js?v=20261110-orphan-travel-delete-v1')
   ]).then(([apiModule, attendanceModule]) => {
     const { api } = apiModule;
     const {
