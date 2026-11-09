@@ -104,3 +104,20 @@ test('saved report uses one compact row with accessible edit and day switching',
   assert.match(css,/report-card--saved \.av2-daily-travel__saved-day\{/);
   assert.match(css,/@media\(max-width:420px\)/);
 });
+
+test('travel hours, minutes and kilometres align on one row, with transport choice above',async()=>{
+  const ui=await readFile(new URL('../attendance/src/screens/daily-travel-tab.js',import.meta.url),'utf8');
+  const css=await readFile(new URL('../attendance/src/styles/new-report-final-alignment.css',import.meta.url),'utf8');
+  assert.match(ui,/fields\.prepend\(modeWrap\)/);
+  assert.match(ui,/selects\.setAttribute\('aria-label','זמן נסיעה בפועל'\)/);
+  assert.match(ui,/caption\.textContent=unit==='hours'\?'שעות נסיעה':'דקות נסיעה'/);
+  assert.match(ui,/durationWrap\.append\(selects\)/);
+  assert.match(ui,/km\.wrap\.classList\.add\('av2-daily-travel__km'\)/);
+  assert.match(ui,/fare\.wrap\.classList\.add\('av2-daily-travel__fare'\)/);
+  assert.match(css,/grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\) minmax\(0,1\.2fr\)!important/);
+  assert.match(css,/\.av2-daily-travel__duration:not\(\[hidden\]\)/);
+  assert.match(css,/\.av2-daily-travel__duration\[hidden\]\{\s*display:none!important/);
+  assert.match(css,/\.av2-daily-travel__duration-selects>label,/);
+  assert.match(css,/grid-template-rows:18px 44px/);
+  assert.match(css,/@media\(max-width:370px\)/);
+});
