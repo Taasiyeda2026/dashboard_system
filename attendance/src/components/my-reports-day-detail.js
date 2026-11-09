@@ -31,6 +31,7 @@ export function buildDayDetailModel({records=[],travelReport=null,expenseReports
   if(modern){
     return {
       hasReport:!!travelReport,
+      needsCorrection:travelReport?.review_status==='rejected',
       noTravel:travelReport?.no_travel===true,
       kilometers:travelReport?amount(travelReport.total_km):null,
       publicTransportCost:travelReport?amount(travelReport.public_transport_cost):null,
@@ -85,7 +86,8 @@ export function createDayDetailRow({date,records,travelReport,expenseReports,mod
     if(model.hasTransit)parts.push(money(model.publicTransportCost)+' תחבורה ציבורית');
     if(!parts.length)parts.push('0 ק״מ');
   }
-  const routeText=parts.join(' · ');
+  const routeText=[parts.join(' · '),model.needsCorrection?'נדרש תיקון':null]
+    .filter(Boolean).join(' · ');
   if(model.legs.length){
     const btn=document.createElement('button');
     btn.type='button';btn.className='av2-day-detail__route-toggle';
