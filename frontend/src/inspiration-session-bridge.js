@@ -18,7 +18,10 @@ export function validBridgeRequest(origin, state, dashboardOrigin) {
 }
 
 export function canShowInspirationLink(user = {}) {
-  return ['admin', 'instructor'].includes(user.role) || user.permissions?.inspiration_manage === true;
+  // Visibility hint only: the game server independently verifies an active
+  // dashboard user and still restricts admin-only catalog operations.
+  return Boolean(user?.role && user.is_active !== false &&
+    user.active !== false && user.active !== 'no');
 }
 
 export function rememberBridgeRequest(storage, request, now = Date.now()) {
