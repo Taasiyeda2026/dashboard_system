@@ -34,6 +34,9 @@ jobs:
       - name: Verify staff feedback stage statuses
         run: node --test tests/feedback-staff-final-readiness.test.mjs tests/feedback-staff-weekly-display.test.mjs
 
+      - name: Verify orphaned travel selection and deletion safeguards
+        run: node --test tests/attendance-orphan-daily-travel-control.test.mjs
+
       - name: Build
         env:
           VITE_BASE: /dashboard_system/
