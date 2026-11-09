@@ -523,3 +523,155 @@
    gap:6px 12px;
  }
 }
+
+/* Saved travel: one compact information row below the month picker.
+   The day can still be changed from the small date control in the same row. */
+.av2-report .av2-daily-travel__report-card--saved{
+  width:100%!important;
+  max-width:480px!important;
+  padding:0!important;
+  gap:7px!important;
+  background:transparent!important;
+  border:0!important;
+  box-shadow:none!important;
+}
+.av2-report .av2-daily-travel__report-card--saved>.av2-daily-travel__day-wrap{
+  display:none!important;
+}
+.av2-report .av2-daily-travel__report-card--saved>.av2-daily-travel__month-wrap{
+  display:flex!important;
+  width:100%!important;
+  justify-content:center!important;
+  align-items:center!important;
+  gap:9px!important;
+  padding:0!important;
+  margin:0!important;
+}
+.av2-report .av2-daily-travel__report-card--saved>.av2-daily-travel__month-wrap>.av2-daily-travel__month-select{
+  display:none!important;
+}
+.av2-report .av2-daily-travel__report-card--saved>.av2-daily-travel__saved{
+  display:flex!important;
+  flex-direction:row!important;
+  flex-wrap:nowrap!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  width:100%!important;
+  min-width:0!important;
+  min-height:42px!important;
+  box-sizing:border-box!important;
+  padding:5px 9px!important;
+  gap:8px!important;
+  background:#fff!important;
+  border:1px solid #dce6f2!important;
+  border-radius:9px!important;
+  box-shadow:none!important;
+}
+.av2-report .av2-daily-travel__report-card--saved>.av2-daily-travel__saved[hidden]{
+  display:none!important;
+}
+.av2-report .av2-daily-travel__report-card--saved .av2-daily-travel__saved-header{
+  flex:0 0 auto!important;
+  display:flex!important;
+  flex-direction:row!important;
+  align-items:center!important;
+  gap:5px!important;
+  min-width:0!important;
+  padding:0!important;
+}
+.av2-report .av2-daily-travel__report-card--saved .av2-daily-travel__saved-title{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  flex:0 0 22px!important;
+  width:22px!important;
+  height:26px!important;
+  color:#245d42!important;
+  font-size:1rem!important;
+  line-height:1!important;
+}
+.av2-report .av2-daily-travel__report-card--saved .av2-daily-travel__saved-edit{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  min-width:29px!important;
+  width:29px!important;
+  height:29px!important;
+  min-height:29px!important;
+  padding:0!important;
+  margin:0!important;
+  border:1px solid #d8e3f0!important;
+  border-radius:7px!important;
+  background:#f7faff!important;
+  color:#365b85!important;
+  font-size:1.1rem!important;
+  line-height:1!important;
+  font-family:inherit!important;
+  cursor:pointer;
+}
+.av2-report .av2-daily-travel__report-card--saved .av2-daily-travel__saved-details{
+  display:flex!important;
+  flex:1 1 auto!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  flex-wrap:wrap!important;
+  gap:3px 11px!important;
+  min-width:0!important;
+  padding:0!important;
+  margin:0!important;
+  border:0!important;
+}
+.av2-report .av2-daily-travel__report-card--saved .av2-daily-travel__saved-metric{
+  display:inline-flex!important;
+  flex-direction:row!important;
+  align-items:baseline!important;
+  gap:4px!important;
+  min-width:0!important;
+}
+.av2-report .av2-daily-travel__report-card--saved .av2-daily-travel__saved-details span{
+  font-size:.73rem!important;
+  line-height:1.25!important;
+  white-space:nowrap;
+  color:#718198!important;
+}
+.av2-report .av2-daily-travel__report-card--saved .av2-daily-travel__saved-details strong{
+  font-size:.82rem!important;
+  line-height:1.25!important;
+  font-weight:700!important;
+  color:#193d60!important;
+  white-space:nowrap;
+}
+.av2-report .av2-daily-travel__report-card--saved .av2-daily-travel__saved-day{
+  flex:0 0 73px!important;
+  min-width:0!important;
+  width:73px!important;
+  max-width:73px!important;
+  height:29px!important;
+  min-height:29px!important;
+  margin:0!important;
+  padding:3px 5px!important;
+  border:1px solid #d8e3f0!important;
+  border-radius:7px!important;
+  background:#f8fbff!important;
+  color:#405b7b!important;
+  font:inherit!important;
+  font-size:.74rem!important;
+  cursor:pointer;
+}
+.av2-report .av2-daily-travel__report-card--saved .av2-daily-travel__saved-day:focus-visible{
+  outline:2px solid #2563eb;
+  outline-offset:2px;
+}
+@media(max-width:420px){
+  .av2-report .av2-daily-travel__report-card--saved>.av2-daily-travel__saved{
+    flex-wrap:wrap!important;
+    gap:6px 9px!important;
+    padding:6px 8px!important;
+  }
+  .av2-report .av2-daily-travel__report-card--saved .av2-daily-travel__saved-details{
+    gap:3px 8px!important;
+  }
+  .av2-report .av2-daily-travel__report-card--saved .av2-daily-travel__saved-day{
+    margin-inline-start:auto!important;
+  }
+}
