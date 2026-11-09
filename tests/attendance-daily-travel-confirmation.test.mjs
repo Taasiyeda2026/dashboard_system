@@ -23,11 +23,13 @@ test('instructor sees saved confirmation and independent manager review state',a
   assert.match(ui,/savedCard\.className='av2-daily-travel__saved'/);
   assert.match(ui,/showSavedReport\(stored\)/);
   assert.match(ui,/showSavedReport\(\{\.\.\.saved,reported_at:/);
-  assert.match(ui,/heading\.textContent='✓ דיווח נשמר'/);
-  assert.match(ui,/savedCard\.append\(header,details\)/);
+  assert.match(ui,/heading\.textContent='✓'/);
+  assert.match(ui,/heading\.setAttribute\('aria-label','דיווח נשמר'\)/);
+  assert.match(ui,/savedCard\.append\(header,details,dayChoice\)/);
   assert.doesNotMatch(ui,/דיווח ליום /);
   assert.doesNotMatch(ui,/נשמר ב־/);
-  assert.match(ui,/edit\.textContent='עריכת דיווח'/);
+  assert.match(ui,/edit\.textContent='✎'/);
+  assert.match(ui,/edit\.setAttribute\('aria-label','עריכת דיווח'\)/);
   assert.match(ui,/locked=!monthEditable;/);
   assert.doesNotMatch(ui,/\?'ממתין לאישור'/);
   assert.match(service,/לא התקבל אישור שמירה מהשרת/);
@@ -86,4 +88,19 @@ test('saved travel report is compact without surplus form gaps or timestamp text
   assert.match(css,/\.av2-report__success\{\s*width:min\(100%,700px\)/);
   assert.match(form,/successBanner\.textContent = 'דיווח הנוכחות נשמר בהצלחה'/);
   assert.doesNotMatch(ui,/דיווח ליום /);
+});
+
+test('saved report uses one compact row with accessible edit and day switching',async()=>{
+  const ui=await readFile(new URL('../attendance/src/screens/daily-travel-tab.js',import.meta.url),'utf8');
+  const css=await readFile(new URL('../attendance/src/styles/new-report-final-alignment.css',import.meta.url),'utf8');
+  assert.match(ui,/dayChoice\.className='av2-daily-travel__saved-day'/);
+  assert.match(ui,/dayChoice\.setAttribute\('aria-label','בחירת יום פעילות'\)/);
+  assert.match(ui,/dayChoice\.addEventListener\('change',\(\)=>\{/);
+  assert.match(ui,/setDate\(dayChoice\.value\)/);
+  assert.match(ui,/dayChoice\.disabled=dayOptions\.length<2/);
+  assert.match(css,/report-card--saved>\.av2-daily-travel__day-wrap\{\s*display:none!important/);
+  assert.match(css,/report-card--saved>\.av2-daily-travel__saved\{[\s\S]*?flex-wrap:nowrap!important/);
+  assert.match(css,/report-card--saved \.av2-daily-travel__saved-details\{[\s\S]*?border:0!important/);
+  assert.match(css,/report-card--saved \.av2-daily-travel__saved-day\{/);
+  assert.match(css,/@media\(max-width:420px\)/);
 });
