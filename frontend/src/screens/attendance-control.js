@@ -2145,6 +2145,13 @@ export function attendanceControlStylesHtml() {
 .attendance-control{margin:16px auto;padding:20px;max-width:1220px;border:1px solid #d8e2ee;border-radius:18px;background:#fff;box-shadow:0 10px 30px rgba(15,23,42,.06);color:#183153}
 .attendance-control__head,.attendance-control__uploads,.attendance-control__metrics,.attendance-control__employee-summary{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.attendance-control__head{justify-content:space-between}.attendance-control__head h2{margin:0;font-size:1.45rem}.attendance-control__head p{margin:4px 0;color:#64748b}
 .attendance-control__uploads{margin:16px 0;padding:14px;background:#f7fafc;border:1px solid #e4ebf3;border-radius:12px}.attendance-control__uploads label{display:grid;gap:6px;min-width:210px;flex:1}.attendance-control__uploads .ds-input{min-height:40px}.attendance-control__status{color:#64748b;font-weight:700}.attendance-control__status.is-error{color:#b91c1c}
+.attendance-control__orphan-travel{margin:14px 0;padding:14px;border:1px solid #d7e2ed;border-radius:12px;background:#fbfdff}
+.attendance-control__orphan-travel h3{margin:0 0 6px;font-size:1.05rem}
+.attendance-control__orphan-travel p{margin:0 0 10px;color:#53657a}
+.attendance-control__orphan-scroll{overflow-x:auto}
+.attendance-control__orphan-scroll table{width:100%;border-collapse:collapse}
+.attendance-control__orphan-scroll th,.attendance-control__orphan-scroll td{padding:9px;border-bottom:1px solid #e5ebf3;text-align:right;white-space:nowrap}
+.attendance-control__orphan-delete{margin-top:12px}
 .attendance-control__overview{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0 16px}.attendance-control__overview-card{min-height:82px;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:12px;border:1px solid #dfe8f2;border-radius:14px;background:linear-gradient(180deg,#fff,#f8fbff);box-shadow:0 4px 12px rgba(15,23,42,.035)}.attendance-control__overview-card span{font-size:.82rem;color:#64748b;font-weight:700}.attendance-control__overview-card strong{margin-top:5px;font-size:1.32rem;color:#183153}
 .attendance-control__summary-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 12px}.attendance-control__summary-bar span{padding:7px 11px;border:1px solid #dbe5ef;border-radius:999px;background:#fff;font-size:.88rem}.attendance-control__metrics-details{margin:6px 0 12px}.attendance-control__metrics-details>summary{cursor:pointer;color:#64748b;font-size:.9em;padding:4px 2px}.attendance-control__metrics{margin:6px 0;display:flex;flex-wrap:wrap;gap:8px}.attendance-control__metrics>span,.attendance-control__employee-summary>span{padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc}
 .attendance-control__employee{margin:12px 0;border:1px solid #dbe5ef;border-radius:14px;background:#fff;overflow:hidden}.attendance-control__employee>summary{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;padding:13px 15px;cursor:pointer;font-size:1.02em;background:#fbfdff}.attendance-control__employee-record-progress{font-size:.86rem;color:#64748b;font-weight:700}.attendance-control__employee-days{padding:0 14px 14px}.attendance-control__employee-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:4px 14px 10px}.attendance-control__approved{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 14px 10px;padding:8px 10px;border:1px solid #bbf7d0;background:#f0fdf4;border-radius:9px;color:#166534;font-weight:700}.attendance-control__approve-dialog{border:0;border-radius:12px;padding:20px;max-width:480px;color:#1f2a37}.attendance-control__approve-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
@@ -2828,7 +2835,31 @@ export function resultsHtml(result, month = '', options = {}) {
   if (overviewExpenses > 0) overviewCards.push(['הוצאות', `${Math.round(overviewExpenses).toLocaleString('he-IL')} ₪`]);
   const overviewHtml = overviewCards.length ? `<div class="attendance-control__overview">${overviewCards.map(([label, value]) => `<div class="attendance-control__overview-card"><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(value))}</strong></div>`).join('')}</div>` : '';
   const summaryBar = `<div class="attendance-control__summary-bar"><span>מדריכים <b>${employees.size}</b></span><span>תקינים <b>${Math.max(0, employees.size - reviewEmployees)}</b></span><span>לבדיקה <b>${reviewEmployees}</b></span></div>`;
-  return `${overviewHtml}${summaryBar}${metricsHtml}${employeeHtml}<button type="button" class="ds-btn ds-btn--primary attendance-control__export" data-attendance-export>ייצוא דוח נוכחות מתוקן</button>`;
+  const orphanRows=Array.isArray(result.orphanDailyTravelReports)?result.orphanDailyTravelReports:[];
+  const orphanHtml=orphanRows.length ? `
+    <section class="attendance-control__orphan-travel" data-orphan-travel-list>
+      <h3>דיווחי נסיעות ללא נוכחות</h3>
+      <p>ניתן לבחור ולמחוק דיווחים שאינם משויכים לפעילות נוכחות.</p>
+      <div class="attendance-control__orphan-scroll"><table>
+        <thead><tr><th>בחירה</th><th>עובד</th><th>תאריך</th><th>קילומטרים</th><th>ביטול זמן</th><th>סטטוס</th></tr></thead>
+        <tbody>${orphanRows.map(row=>`
+          <tr>
+            <td><input type="checkbox" data-orphan-travel-select
+              data-orphan-emp="${escapeHtml(String(row.emp_id))}"
+              data-orphan-date="${escapeHtml(String(row.travel_date))}"
+              aria-label="בחירת נסיעות של ${escapeHtml(String(row.employee_name||row.emp_id))} מתאריך ${shown(dateLabel(row.travel_date))}"
+              ${row.can_delete===false?'disabled':''}></td>
+            <td>${shown(row.employee_name||row.emp_id)}</td>
+            <td>${shown(dateLabel(row.travel_date))}</td>
+            <td>${shown(row.total_km??0)} ק״מ</td>
+            <td>${shown(formatTravelMinutesClock(row.cancellation_minutes))}</td>
+            <td>${row.can_delete===false?'חודש נעול':'ללא נוכחות'}</td>
+          </tr>`).join('')}</tbody>
+      </table></div>
+      <button type="button" class="ds-btn attendance-control__orphan-delete"
+        data-orphan-travel-delete-selected disabled>מחק דיווחים שנבחרו</button>
+    </section>` : '';
+  return `${overviewHtml}${summaryBar}${orphanHtml}${metricsHtml}${employeeHtml}<button type="button" class="ds-btn ds-btn--primary attendance-control__export" data-attendance-export>ייצוא דוח נוכחות מתוקן</button>`;
 }
 
 function openAttendanceControlWindow(api, state) {
