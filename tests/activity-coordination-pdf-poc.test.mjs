@@ -17,7 +17,7 @@ test('coordination PDF keeps the original five-column A4 RTL table and prevents 
   assert.match(renderer, /tableHeader\(\)/);
   assert.match(renderer, /wrap: false/);
   assert.match(renderer, /direction: 'rtl'/);
-  assert.match(renderer, /width: '88%'/);
+  assert.match(renderer, /width: '100%'/);
   assert.match(renderer, /alignSelf: 'flex-end'/);
   assert.match(renderer, /'מפגש'.*'תאריך'.*'יום'.*'שעות'.*'היערכות'/s);
   assert.doesNotMatch(renderer, /meetingWithoutPreparation|dateWithoutPreparation|dayWithoutPreparation|hoursWithoutPreparation/);
@@ -59,4 +59,26 @@ test('fifteen meetings without preparation stay together instead of creating a t
   assert.equal(result.hasPreparation, false);
   assert.equal(result.chunks.length, 1);
   assert.equal(result.chunks[0].length, 15);
+});
+
+test('ten coordination meetings with the actual biomimicry preparation lengths fit on a single A4 page', () => {
+  const lengths = [47, 47, 47, 47, 47, 47, 73, 47, 73, 73];
+  const meetings = lengths.map((length, index) => ({
+    meeting_number: index + 1, school_preparation: 'א'.repeat(length)
+  }));
+  const result = chunkCoordinationMeetings(meetings);
+  assert.equal(result.hasPreparation, true);
+  assert.equal(result.chunks.length, 1);
+  assert.equal(result.chunks[0].length, 10);
+});
+
+test('long preparations still paginate without missing or reordering meetings', () => {
+  const meetings = Array.from({ length: 25 }, (_, index) => ({
+    meeting_number: index + 1,
+    school_preparation: 'היערכות למפגש '.repeat(18)
+  }));
+  const result = chunkCoordinationMeetings(meetings);
+  assert.ok(result.chunks.length > 1);
+  assert.deepEqual(result.chunks.flat().map((row) => row.meeting_number), meetings.map((row) => row.meeting_number));
+  assert.ok(result.chunks.every((chunk) => chunk.length > 0));
 });
