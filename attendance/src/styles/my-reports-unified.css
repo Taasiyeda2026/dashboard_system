@@ -2,8 +2,8 @@
    Scoped to the new markup; older layout rules elsewhere remain untouched. */
 .av2-reports .av2-report-list--unified {
   box-sizing:border-box;
-  width:min(100%,1100px)!important;
-  max-width:1100px!important;
+  width:min(100%,1040px)!important;
+  max-width:1040px!important;
   margin-inline:auto;
   overflow-x:auto!important;
   overflow-y:visible!important;
@@ -14,12 +14,12 @@
   .av2-reports .av2-report-list--unified>.av2-report-row {
     box-sizing:border-box;
     width:100%!important;
-    min-width:916px!important;
+    min-width:892px!important;
     max-width:none!important;
     display:grid!important;
     grid-template-columns:
-      79px 67px 64px 64px 65px minmax(124px,1.25fr)
-      56px minmax(152px,1.35fr) minmax(100px,1fr) 140px!important;
+      79px 67px 64px 64px 65px minmax(110px,1.22fr)
+      56px minmax(136px,1.28fr) minmax(88px,.92fr) 140px!important;
     gap:0!important;
     align-items:center;
     padding:8px 10px!important;
@@ -35,6 +35,17 @@
   }
   .av2-reports .av2-report-list--unified>.av2-report-list__head>span::after{
     display:none!important;content:none!important;
+  }
+  /* Type and meeting numbers stay centered even when older table rules align columns right. */
+  .av2-reports .av2-report-list--unified>.av2-report-list__head>span:nth-child(2),
+  .av2-reports .av2-report-list--unified>.av2-report-list__head>span:nth-child(7){
+    text-align:center!important;
+    justify-content:center!important;
+  }
+  .av2-reports .av2-report-list--unified>.av2-report-row>.av2-rr__type,
+  .av2-reports .av2-report-list--unified>.av2-report-row>.av2-rr__meeting{
+    text-align:center!important;
+    justify-content:center!important;
   }
   .av2-reports .av2-report-list--unified>.av2-report-row>.av2-rr__date,
   .av2-reports .av2-report-list--unified>.av2-report-row>.av2-rr__type,
@@ -77,7 +88,7 @@
 }
 .av2-reports .av2-report-list--unified>.av2-report-day-detail{
   box-sizing:border-box;
-  width:100%;min-width:916px;
+  width:100%;min-width:892px;
   border-top:1px solid #dce6f2;
   border-bottom:2px solid #dce6f2;
   background:#f7fafc;
@@ -150,6 +161,22 @@
   .av2-reports .av2-report-list--unified>.av2-report-row.is-mobile-expanded>.av2-rr__meeting:before{
     content:attr(data-mobile-label);
     color:#687b91;font-size:.68rem;font-weight:700;
+  }
+  /* Phones use stacked details instead of the desktop grid; no clipped long place names. */
+  .av2-reports .av2-report-list--unified>.av2-report-row.is-mobile-expanded>.av2-rr__name,
+  .av2-reports .av2-report-list--unified>.av2-report-row.is-mobile-expanded>.av2-rr__school,
+  .av2-reports .av2-report-list--unified>.av2-report-row.is-mobile-expanded>.av2-rr__authority{
+    min-width:0;
+    white-space:normal!important;
+    overflow-wrap:anywhere;
+  }
+  .av2-reports .av2-report-list--unified>.av2-report-row.is-mobile-expanded>.av2-rr__type,
+  .av2-reports .av2-report-list--unified>.av2-report-row.is-mobile-expanded>.av2-rr__meeting{
+    text-align:center!important;
+  }
+  .av2-reports .av2-report-list--unified>.av2-report-row.is-mobile-expanded>.av2-rr__type::before,
+  .av2-reports .av2-report-list--unified>.av2-report-row.is-mobile-expanded>.av2-rr__meeting::before{
+    text-align:right;
   }
   .av2-reports .av2-report-list--unified .av2-rr__actions .av2-btn--icon{
     flex:0 0 42px!important;width:42px!important;height:42px!important;
