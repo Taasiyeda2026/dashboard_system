@@ -46,7 +46,7 @@ async function bootstrap(){
  "create table public.course_meeting_instructor_history(activity_id uuid,meeting_date date,emp_id text);",
  "create table public.course_meeting_cancellations(activity_id uuid,meeting_date date);",
  "create table public.instructor_training_schedule(emp_id bigint,training_date date,course_name text,is_online boolean);",
- "create or replace function public.scheduling_cached_travel_route(origin text,destination text) returns table(duration_minutes integer) language sql stable as $$select null::integer as duration_minutes$$;"
+ "create or replace function public.scheduling_cached_travel_route(origin text,destination text) returns table(duration_minutes integer,distance_km numeric) language sql stable as $select null::integer as duration_minutes,null::numeric as distance_km$;"
  ].join('\n'));
  const funcs=[
  ['supabase/migrations/20260629120100_sync_auth_email_and_login_lookup_ids.sql','lookup_login_user_by_username'],
