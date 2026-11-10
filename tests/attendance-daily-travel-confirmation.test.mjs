@@ -38,7 +38,7 @@ test('instructor sees saved confirmation and independent manager review state',a
 
 test('travel time is selected as hours and minutes, with public transit hiding both',async()=>{
   const ui=await readFile(new URL('../attendance/src/screens/daily-travel-tab.js',import.meta.url),'utf8');
-  assert.match(ui,/\['hours',24\],\['minutes',59\]/);
+  assert.match(ui,/\['hours',6\],\['minutes',59\]/);
   assert.match(ui,/select\.dataset\['duration'/);
   assert.match(ui,/const hour=legsArea\.querySelector/);
   assert.match(ui,/const minute=legsArea\.querySelector/);
