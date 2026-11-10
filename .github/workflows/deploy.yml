@@ -37,6 +37,9 @@ jobs:
       - name: Verify orphaned travel selection and deletion safeguards
         run: node --test tests/attendance-orphan-daily-travel-control.test.mjs
 
+      - name: Verify journey duration layout
+        run: node --test tests/attendance-travel-duration-layout.test.mjs
+
       - name: Build
         env:
           VITE_BASE: /dashboard_system/
