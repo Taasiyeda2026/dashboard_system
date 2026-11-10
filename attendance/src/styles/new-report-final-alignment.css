@@ -830,3 +830,9 @@
     padding-inline:2px;
   }
 }
+
+/* Stalled-request recovery remains compact and outside the saved-report actions. */
+.av2-report .av2-daily-travel__report-card>.av2-daily-travel__retry:not([hidden]){
+  justify-self:center;align-self:center;width:auto;max-width:100%;min-width:130px;
+  min-height:40px;padding:8px 14px;
+}
