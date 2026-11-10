@@ -184,7 +184,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
         action.type='button';
         action.className='av2-btn av2-btn--secondary';
         action.textContent='השלמת נסיעות';
-        action.addEventListener('click',()=>onNewReport?.());
+        action.addEventListener('click',()=>onTravelReport?.(missingTravel[0]));
         travelStatus.append(action);
       }
       contentArea.append(travelStatus);
