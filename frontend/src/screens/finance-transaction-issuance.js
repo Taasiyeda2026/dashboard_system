@@ -343,6 +343,35 @@ function historyView(data) {
   }).join('');
 }
 
+
+function transactionApprovalDialogHtml(data) {
+  const pending = data.pendingTransactionApproval;
+  if (!pending) return '';
+  const format = (value) => formatAmount(value);
+  const mixed = Array.isArray(pending.mixed) ? pending.mixed : [];
+  const mixedHtml = mixed.length ? `<div style="margin-top:14px;text-align:right">
+    <strong>פעילויות במימון משותף (חלק הגפ״ן בלבד)</strong>
+    <ul style="margin:8px 0;padding-inline-start:22px;line-height:1.7">
+      ${mixed.map(row => `<li>${escapeHtml(row.school)} · ${escapeHtml(row.course)} · מספר גפ״ן ${escapeHtml(row.code)}</li>`).join('')}
+    </ul></div>` : '';
+  return `<div data-finance-transaction-approval-overlay style="position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(12,30,43,.58)" dir="rtl">
+    <section role="dialog" aria-modal="true" aria-labelledby="finance-transaction-approval-title"
+      style="box-sizing:border-box;width:min(100%,620px);max-height:85vh;overflow:auto;background:var(--ds-bg,#fff);color:var(--ds-text,#142b3c);padding:24px;border-radius:16px;box-shadow:0 12px 50px rgba(0,0,0,.22)">
+      <h2 id="finance-transaction-approval-title" style="margin:0 0 10px;font-size:22px">אישור הפקת חשבונות גפ״ן</h2>
+      <p style="margin:0 0 8px">חודש ביצוע: <strong>${escapeHtml(pending.month)}</strong></p>
+      <p style="margin:0 0 8px">חשבונות להפקה: <strong>${Number(pending.accountCount)}</strong></p>
+      <p style="margin:0 0 8px">סכום כולל להפקה: <strong>${escapeHtml(format(pending.amount))}</strong></p>
+      ${mixedHtml}
+      <p style="margin:12px 0 0">החיוב כולל רק את חלק הגפ״ן ולא את חלקו של המממן השותף. יש לוודא התאמה להזמנות לפני ההפקה.</p>
+      <p style="margin:8px 0 18px;color:var(--ds-text-muted,#64748b)">לאחר ההפקה מספרי החשבונות והמפגשים יחויבו ולא ישתנו אוטומטית.</p>
+      <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-start">
+        <button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-approve>אישור והפקת החשבונות</button>
+        <button type="button" class="ds-btn ds-btn--ghost" data-finance-transaction-cancel>ביטול</button>
+      </div>
+    </section>
+  </div>`;
+}
+
 export const FINANCE_TRANSACTION_SHAREPOINT_FOLDER_URL = 'https://think365orgil.sharepoint.com/Site9/Shared%20Documents/%D7%A2%D7%99%D7%93%D7%9F%20-%20%D7%98%D7%95%D7%A0%D7%99/%D7%97%D7%A9%D7%91%D7%95%D7%A0%D7%95%D7%AA%20%D7%A2%D7%A1%D7%A7%D7%94%20-%20%D7%AA%D7%A9%D7%A4%D7%96';
 
 export function transactionAccountsViewHtml(data, backBarHtml) {
@@ -370,6 +399,7 @@ export function transactionAccountsViewHtml(data, backBarHtml) {
         </a>
       </div>
       ${body}
+      ${transactionApprovalDialogHtml(data)}
     </div>
   `);
 }
@@ -441,7 +471,7 @@ export async function runTransactionIssuance(data, api, mode, month = transactio
         try { await api.cancelFinanceTransactionReservation(reserved.id); delete data.transactionRequestIds[requestKey]; }
         catch { /* an issued account or active worker must remain intact */ }
       }
-      results.push({reserved,error:String(error?.message || 'ההפקה לא הושלמה')});
+      results.push({reserved,accountLabel: account.customerName || account.schoolName || account.institutionSymbol || 'חשבון עסקה',error:String(error?.message || 'ההפקה לא הושלמה')});
     }
   }
   return results;
@@ -453,7 +483,9 @@ export function transactionIssuanceResultMessage(results) {
   const missing=results.filter(r=>r.dispatched?.outlookStatus==='missing_recipient').length;
   const waiting=results.filter(r=>r.dispatched?.outlookStatus==='waiting_connection').length;
   const failed=results.filter(r=>r.error || ['failed','needs_review'].includes(r.dispatched?.outlookStatus)).length;
-  return `נשמרו ${issued} חשבונות עסקה. נוצרו ${ready} טיוטות דוא״ל.${waiting ? ` ${waiting} טיוטות ממתינות לחיבור Microsoft של המפיק המקורי ויושלמו אוטומטית לאחר החיבור.` : ''}${missing ? ` חסרים נמענים ל-${missing} חשבונות.` : ''}${failed ? ` ${failed} פעולות לא הושלמו; הפרטים בהיסטוריה.` : ''}`;
+  const errors = results.filter(result => result.error).slice(0, 5)
+    .map(result => `${result.accountLabel || 'חשבון עסקה'}: ${financeError(new Error(result.error))}`);
+  return `נשמרו ${issued} חשבונות עסקה. נוצרו ${ready} טיוטות דוא״ל.${waiting ? ` ${waiting} טיוטות ממתינות לחיבור Microsoft של המפיק המקורי ויושלמו אוטומטית לאחר החיבור.` : ''}${missing ? ` חסרים נמענים ל-${missing} חשבונות.` : ''}${failed ? ` ${failed} פעולות לא הושלמו. ${errors.join(' | ') || 'יש לבדוק את הפרטים בהיסטוריה.'}` : ''}`;
 }
 
 export function handleTransactionSelection(data, rowId, checked) {
