@@ -36,6 +36,6 @@ test('travel calculation and saving still use total minutes and kilometers for e
   const service=await read('attendance/src/services/daily-travel.service.js');
   assert.match(ui,/leg\.minutes=hour\.value!=='' && minute\.value!=='' \? Number\(hour\.value\)\*60\+Number\(minute\.value\) : null/);
   assert.match(ui,/summarizeDailyTravel\(legs\)/);
-  assert.match(ui,/saveDailyTravel\(saveDate,saveLegs,saveNoTravel\)/);
+  assert.match(ui,/saveDailyTravel\(saveDate,saveLegs,saveNoTravel,\{signal\}\)/);
   assert.match(service,/supabase\.rpc\('av2_save_daily_travel'/);
 });

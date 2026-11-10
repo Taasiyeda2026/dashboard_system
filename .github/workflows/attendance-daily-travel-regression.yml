@@ -18,6 +18,8 @@ on:
       - 'tests/attendance-standalone-expenses.test.mjs'
       - 'tests/attendance-historical-months-readonly.test.mjs'
       - 'tests/attendance-new-report-visual-polish.test.mjs'
+      - 'tests/attendance-travel-duration-layout.test.mjs'
+      - 'tests/attendance-missing-travel-direct-navigation.test.mjs'
       - 'attendance/src/new-report-three-column-layout.js'
       - '.github/workflows/attendance-daily-travel-regression.yml'
   workflow_dispatch:
@@ -41,5 +43,12 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Browser recovery scenarios
         run: node --test tests/attendance-travel-browser-recovery.test.mjs
+      - name: Run GitHub Pages deployment gate before merging
+        run: |
+          node --test tests/feedback-staff-final-readiness.test.mjs tests/feedback-staff-weekly-display.test.mjs
+          node --test tests/attendance-orphan-daily-travel-control.test.mjs
+          node --test tests/attendance-travel-duration-layout.test.mjs tests/attendance-missing-travel-direct-navigation.test.mjs
+          node --test tests/finance-mixed-funding-program-preflight.test.mjs tests/finance-transaction-issuance.test.mjs
+          node --test tests/activity-coordination-pdf-poc.test.mjs
       - name: Build production bundle
         run: npm run build
