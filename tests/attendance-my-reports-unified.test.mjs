@@ -25,7 +25,7 @@ test('ten activity columns with meeting, without duplicate km/expenses columns',
   const source=await load('attendance/src/screens/my-reports-screen.js');
   assert.match(source,/const colLabels = \['תאריך', 'סוג', 'התחלה', 'סיום', 'שעות', 'שם פעילות', 'מפגש', 'מיקום \/ בית ספר', 'רשות', 'פעולות'\]/);
   assert.match(source,/row\.append\(dateCell,typeCell,startCell,endCell,hoursCell,nameCell,meetingCell,schoolCell,authCell,actionsCell\)/);
-  assert.match(source,/meetingCell\.textContent=record\.meeting_no/);
+  assert.match(source,/meetingCell\.textContent=formatReportMeetingNumbers\(record\)/);
   assert.doesNotMatch(source,/row\.append\(dateCell, startCell, endCell, hoursCell, dayTotalCell/);
   assert.match(source,/listWrap\.append\(createDayDetailRow\(\{/);
   assert.match(source,/index===sorted\.length-1/);
