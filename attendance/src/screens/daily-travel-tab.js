@@ -468,6 +468,12 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   }
   function renderLegs(){
     legsArea.replaceChildren();
+    // A single activity has one shared travel mode for its outbound and return legs.
+    // Keep a separate return selector for older reports containing mixed travel modes.
+    const sharedReturnMode=legs.length===2
+      && legs[0]?.kind==='outbound' && legs[1]?.kind==='return'
+      && (!legs[1]?.mode || legs[1].mode===legs[0]?.mode);
+    let syncReturnMode=null;
     for(const [index,leg] of legs.entries()){
       const block=document.createElement('div');
       block.className='av2-daily-travel__leg';
@@ -494,15 +500,21 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         selects.className='av2-daily-travel__duration-selects';
         selects.setAttribute('role','group');
         selects.setAttribute('aria-label','זמן נסיעה בפועל');
+        const durationLabel=document.createElement('span');
+        durationLabel.className='av2-field__label av2-daily-travel__duration-label';
+        durationLabel.textContent='משך הנסיעה';
         for(const [unit,limit] of [['hours',24],['minutes',59]]){
           const wrap=document.createElement('label');
           const caption=document.createElement('span');
+          caption.className='av2-daily-travel__unit-label';
           caption.textContent=unit==='hours'?'שעות נסיעה':'דקות נסיעה';
           const select=document.createElement('select');
           select.className='av2-field__select';
           select.dataset['duration'+(unit==='hours'?'Hours':'Minutes')]=String(index);
           const placeholder=document.createElement('option');
-          placeholder.value='';placeholder.textContent='בחרי';select.append(placeholder);
+          placeholder.value='';
+          placeholder.textContent=unit==='hours'?'שעות':'דקות';
+          select.append(placeholder);
           for(let value=0;value<=limit;value++){
             const option=document.createElement('option');
             option.value=String(value);option.textContent=String(value).padStart(2,'0');
@@ -512,8 +524,15 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
           select.value=hasValue?String(unit==='hours'?Math.floor(leg.minutes/60):leg.minutes%60):'';
           select.addEventListener('change',showSummary);
           wrap.append(caption,select);selects.append(wrap);
+          if(unit==='hours'){
+            const separator=document.createElement('span');
+            separator.className='av2-daily-travel__duration-separator';
+            separator.textContent=':';
+            separator.setAttribute('aria-hidden','true');
+            selects.append(separator);
+          }
         }
-        durationWrap.append(selects);
+        durationWrap.append(durationLabel,selects);
         fields.append(durationWrap);
       }
       if(leg.kind==='between' && leg.sameLocation===true){
@@ -549,10 +568,11 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         const opt=document.createElement('option');
         opt.value=value;opt.textContent=label;mode.append(opt);
       }
-      mode.value=leg.mode||'';
+      mode.value=(leg.kind==='return' && sharedReturnMode ? legs[0].mode : leg.mode)||'';
       leg.mode=mode.value;
       modeWrap.append(modeText,mode);
-      if(leg.kind==='between' && leg.sameLocation===true)modeWrap.hidden=true;
+      if((leg.kind==='between' && leg.sameLocation===true)
+        || (leg.kind==='return' && sharedReturnMode))modeWrap.hidden=true;
       const fare=createInputField({
         id:'av2-leg-'+index+'-fare',label:'עלות נסיעה (₪)',type:'number',
         value:leg.transportCost==null?'':String(leg.transportCost),
@@ -609,6 +629,14 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         }
         previousMode=nextMode;
         showSummary();
+        if(leg.kind==='outbound' && sharedReturnMode && syncReturnMode)
+          syncReturnMode(nextMode);
+      }
+      if(leg.kind==='return' && sharedReturnMode){
+        syncReturnMode=nextMode=>{
+          mode.value=nextMode;
+          syncMode();
+        };
       }
       mode.addEventListener('change',syncMode);
       fare.input.addEventListener('input',()=>{
