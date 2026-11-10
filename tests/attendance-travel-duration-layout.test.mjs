@@ -7,9 +7,10 @@ const read=relative=>readFile(new URL('../'+relative,import.meta.url),'utf8');
 test('both outbound and return display one HH:MM duration beside kilometers',async()=>{
   const ui=await read('attendance/src/screens/daily-travel-tab.js');
   const css=await read('attendance/src/styles/new-report-final-alignment.css');
-  assert.match(ui,/durationLabel\.textContent='משך הנסיעה'/);
+  assert.match(ui,/durationLabel\.textContent='משך זמן הנסיעה'/);
   assert.match(ui,/durationWrap\.append\(durationLabel,selects\)/);
-  assert.match(ui,/\['hours',24\],\['minutes',59\]/);
+  assert.match(ui,/\['hours',6\],\['minutes',59\]/);
+  assert.match(ui,/if\(savedHours>limit\)/);
   assert.match(ui,/separator\.textContent=':'/);
   assert.match(ui,/placeholder\.textContent=unit==='hours'\?'שעות':'דקות'/);
   assert.match(ui,/km\.wrap\.classList\.add\('av2-daily-travel__km'\)/);

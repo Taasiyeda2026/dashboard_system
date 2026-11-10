@@ -515,8 +515,8 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         selects.setAttribute('aria-label','זמן נסיעה בפועל');
         const durationLabel=document.createElement('span');
         durationLabel.className='av2-field__label av2-daily-travel__duration-label';
-        durationLabel.textContent='משך הנסיעה';
-        for(const [unit,limit] of [['hours',24],['minutes',59]]){
+        durationLabel.textContent='משך זמן הנסיעה';
+        for(const [unit,limit] of [['hours',6],['minutes',59]]){
           const wrap=document.createElement('label');
           const caption=document.createElement('span');
           caption.className='av2-daily-travel__unit-label';
@@ -534,6 +534,14 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
             select.append(option);
           }
           const hasValue=Number.isInteger(leg.minutes)&&leg.minutes>=0;
+          // Preserve older reports above six hours without offering new values above six.
+          const savedHours=hasValue&&unit==='hours'?Math.floor(leg.minutes/60):null;
+          if(savedHours>limit){
+            const savedOption=document.createElement('option');
+            savedOption.value=String(savedHours);
+            savedOption.textContent=String(savedHours).padStart(2,'0');
+            select.append(savedOption);
+          }
           select.value=hasValue?String(unit==='hours'?Math.floor(leg.minutes/60):leg.minutes%60):'';
           select.addEventListener('change',showSummary);
           wrap.append(caption,select);selects.append(wrap);
