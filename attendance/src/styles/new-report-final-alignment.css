@@ -739,43 +739,66 @@
   .av2-reported-travel__table td{padding:7px 5px;}
 }
 
-/* Travel entry: after transport selection, show equally aligned hours, minutes
-   and kilometres in one compact RTL row. Keep existing duration value logic. */
+/* Compact journey inputs: one HH:MM field next to kilometres, for both directions.
+   The transport selector remains above the fields (once on a single-activity day). */
 .av2-report .av2-report__travel-tab .av2-daily-travel__leg-fields{
-  grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,1.2fr)!important;
+  grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)!important;
   align-items:end!important;
-  column-gap:9px!important;
+  column-gap:12px!important;
   row-gap:10px!important;
 }
 .av2-report .av2-report__travel-tab .av2-daily-travel__leg-fields>.av2-daily-travel__mode{
   grid-column:1/-1!important;
 }
 .av2-report .av2-report__travel-tab .av2-daily-travel__duration:not([hidden]),
-.av2-report .av2-report__travel-tab .av2-daily-travel__duration-selects{
-  display:contents;
-}
-.av2-report .av2-report__travel-tab .av2-daily-travel__duration[hidden]{
-  display:none!important;
-}
-.av2-report .av2-report__travel-tab .av2-daily-travel__duration-selects>label,
 .av2-report .av2-report__travel-tab .av2-daily-travel__leg-fields>.av2-daily-travel__km{
-  display:grid;
+  display:grid!important;
   grid-template-rows:18px 44px;
-  align-items:stretch;
   gap:5px;
+  align-items:stretch;
   min-width:0;
 }
-.av2-report .av2-report__travel-tab .av2-daily-travel__duration-selects>label>span,
+.av2-report .av2-report__travel-tab .av2-daily-travel__duration[hidden]{display:none!important}
+.av2-report .av2-report__travel-tab .av2-daily-travel__duration-label,
 .av2-report .av2-report__travel-tab .av2-daily-travel__km>.av2-field__label{
   display:flex;
   align-items:end;
-  min-width:0;
-  margin:0;
   line-height:18px;
-  font-size:.76rem;
+  min-width:0;
+  font-size:.8rem;
   font-weight:600;
   color:#566c87;
   white-space:nowrap;
+  margin:0;
+}
+.av2-report .av2-report__travel-tab .av2-daily-travel__duration-selects{
+  display:grid!important;
+  grid-template-columns:minmax(0,1fr) 10px minmax(0,1fr);
+  align-items:center;
+  gap:3px;
+  min-width:0;
+}
+.av2-report .av2-report__travel-tab .av2-daily-travel__duration-selects>label{
+  display:block;
+  min-width:0;
+}
+.av2-report .av2-report__travel-tab .av2-daily-travel__unit-label{
+  position:absolute;
+  width:1px;
+  height:1px;
+  padding:0;
+  margin:-1px;
+  overflow:hidden;
+  clip:rect(0,0,0,0);
+  white-space:nowrap;
+  border:0;
+}
+.av2-report .av2-report__travel-tab .av2-daily-travel__duration-separator{
+  text-align:center;
+  font-weight:700;
+  font-size:1.05rem;
+  line-height:44px;
+  color:#566c87;
 }
 .av2-report .av2-report__travel-tab .av2-daily-travel__duration-selects select,
 .av2-report .av2-report__travel-tab .av2-daily-travel__km .av2-field__input{
@@ -785,23 +808,25 @@
   height:44px;
   min-height:44px;
   margin:0;
-  padding-inline:9px;
+  padding-inline:4px;
   border-radius:9px;
-  font-size:.9rem;
+  font-size:.86rem;
   font-variant-numeric:tabular-nums;
   text-align:center;
 }
-.av2-report .av2-report__travel-tab .av2-daily-travel__leg-fields>.av2-daily-travel__fare{
-  grid-column:1/-1;
-}
+.av2-report .av2-report__travel-tab .av2-daily-travel__leg-fields>.av2-daily-travel__fare,
 .av2-report .av2-report__travel-tab .av2-daily-travel__leg-fields>.av2-daily-travel__calculated-field{
   grid-column:1/-1;
 }
 @media(max-width:370px){
   .av2-report .av2-report__travel-tab .av2-daily-travel__leg-fields{
-    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    grid-template-columns:minmax(0,1.45fr) minmax(0,1fr)!important;
+    column-gap:7px!important;
   }
-  .av2-report .av2-report__travel-tab .av2-daily-travel__leg-fields>.av2-daily-travel__km{
-    grid-column:1/-1;
+  .av2-report .av2-report__travel-tab .av2-daily-travel__duration-selects{gap:1px}
+  .av2-report .av2-report__travel-tab .av2-daily-travel__duration-selects select,
+  .av2-report .av2-report__travel-tab .av2-daily-travel__km .av2-field__input{
+    font-size:.8rem;
+    padding-inline:2px;
   }
 }
