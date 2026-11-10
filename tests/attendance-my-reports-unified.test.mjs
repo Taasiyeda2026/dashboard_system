@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {JSDOM} from 'jsdom';
+import {formatReportMeetingNumbers} from '../attendance/src/components/report-summary-row.js';
 import {buildDayDetailModel,createDayDetailRow,formatActivityHours,formatDecimalHours}
   from '../attendance/src/components/my-reports-day-detail.js';
 
@@ -109,4 +110,33 @@ test('compact report columns stay centered on desktop while mobile details wrap'
   assert.match(css,/@media\(max-width:767px\)/);
   assert.match(css,/white-space:normal!important/);
   assert.match(css,/overflow-wrap:anywhere/);
+});
+
+test('linked courses show both meeting numbers only in display, including missing and duplicate sources',async()=>{
+  const reportSource=await load('attendance/src/screens/my-reports-screen.js');
+  assert.match(reportSource,/meetingCell\\.textContent=formatReportMeetingNumbers\\(record\\)/);
+  assert.equal(formatReportMeetingNumbers({
+    activity_type:'קורס',meeting_no:null,
+    course_dashboard_sources:[{row_id:'c1',meeting_no:3},{row_id:'c2',meeting_no:2}]
+  }),'2, 3');
+  assert.equal(formatReportMeetingNumbers({
+    activity_type:'קורס',meeting_no:null,
+    course_dashboard_sources:[{meeting_no:12},{meeting_no:13}]
+  }),'12, 13');
+  assert.equal(formatReportMeetingNumbers({
+    activity_type:'קורס',meeting_no:5,
+    course_dashboard_sources:[{meeting_no:4},{meeting_no:4}]
+  }),'4');
+  assert.equal(formatReportMeetingNumbers({
+    activity_type:'קורס',meeting_no:null,
+    course_dashboard_sources:[{meeting_no:null},{meeting_no:'bad'}]
+  }),'—');
+  assert.equal(formatReportMeetingNumbers({
+    activity_type:'קורס',meeting_no:6,
+    course_dashboard_sources:[{meeting_no:6}]
+  }),'6');
+  assert.equal(formatReportMeetingNumbers({
+    activity_type:'סדנה',meeting_no:3,
+    course_dashboard_sources:[{meeting_no:3},{meeting_no:2}]
+  }),'3');
 });
