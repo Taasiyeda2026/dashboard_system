@@ -534,6 +534,14 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
             select.append(option);
           }
           const hasValue=Number.isInteger(leg.minutes)&&leg.minutes>=0;
+          // Preserve older reports above six hours without offering new values above six.
+          const savedHours=hasValue&&unit==='hours'?Math.floor(leg.minutes/60):null;
+          if(savedHours>limit){
+            const savedOption=document.createElement('option');
+            savedOption.value=String(savedHours);
+            savedOption.textContent=String(savedHours).padStart(2,'0');
+            select.append(savedOption);
+          }
           select.value=hasValue?String(unit==='hours'?Math.floor(leg.minutes/60):leg.minutes%60):'';
           select.addEventListener('change',showSummary);
           wrap.append(caption,select);selects.append(wrap);
