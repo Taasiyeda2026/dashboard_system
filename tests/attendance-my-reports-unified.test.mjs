@@ -114,7 +114,7 @@ test('compact report columns stay centered on desktop while mobile details wrap'
 
 test('linked courses show both meeting numbers only in display, including missing and duplicate sources',async()=>{
   const reportSource=await load('attendance/src/screens/my-reports-screen.js');
-  assert.match(reportSource,/meetingCell\\.textContent=formatReportMeetingNumbers\\(record\\)/);
+  assert.match(reportSource,/meetingCell\.textContent=formatReportMeetingNumbers\(record\)/);
   assert.equal(formatReportMeetingNumbers({
     activity_type:'קורס',meeting_no:null,
     course_dashboard_sources:[{row_id:'c1',meeting_no:3},{row_id:'c2',meeting_no:2}]
