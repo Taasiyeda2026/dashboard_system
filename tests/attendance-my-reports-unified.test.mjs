@@ -126,7 +126,7 @@ test('linked courses show both meeting numbers only in display, including missin
   assert.equal(formatReportMeetingNumbers({
     activity_type:'קורס',meeting_no:5,
     course_dashboard_sources:[{meeting_no:4},{meeting_no:4}]
-  }),'4');
+  }),'4, 4');
   assert.equal(formatReportMeetingNumbers({
     activity_type:'קורס',meeting_no:null,
     course_dashboard_sources:[{meeting_no:null},{meeting_no:'bad'}]

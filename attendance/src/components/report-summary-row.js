@@ -10,8 +10,9 @@ export function formatReportMeetingNumbers(record = {}) {
   const sources = record.activity_type === 'קורס' && Array.isArray(record.course_dashboard_sources)
     ? record.course_dashboard_sources : [];
   if (sources.length < 2) return fallback;
-  const numbers = [...new Set(sources.map(source => Number(source?.meeting_no))
-    .filter(number => Number.isInteger(number) && number > 0))]
+  // Each linked course group has its own meeting; equal numbers must remain visible.
+  const numbers = sources.map(source => Number(source?.meeting_no))
+    .filter(number => Number.isInteger(number) && number > 0)
     .sort((a, b) => a - b);
   return numbers.length ? numbers.join(', ') : fallback;
 }
