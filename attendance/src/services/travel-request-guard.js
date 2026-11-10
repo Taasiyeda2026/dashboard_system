@@ -37,6 +37,9 @@ export function savedTravelMatchesDraft(saved, draftLegs, noTravel = false) {
   return draftLegs.every((draft, index) => {
     const actual = saved.legs[index];
     return actual && actual.kind === draft.kind
+      && (actual.fromRecordId ?? null) === (draft.fromRecordId ?? null)
+      && (actual.toRecordId ?? null) === (draft.toRecordId ?? null)
+      && (!draft.contextFingerprint || actual.contextFingerprint === draft.contextFingerprint)
       && actual.from === draft.from && actual.to === draft.to
       && (actual.mode || 'car') === (draft.mode || 'car')
       && close(actual.minutes, draft.minutes)

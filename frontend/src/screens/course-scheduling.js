@@ -6579,7 +6579,7 @@ export const courseSchedulingScreen = {
           p_origin_key: keys.origin_key, p_destination_key: keys.destination_key
         });
         if (closeError || completed !== true) throw new Error('החישוב נשמר אך סגירת בדיקת המסלול נכשלה. נדרש רענון.');
-        await reloadManualRouteQueue();
+        await Promise.all([reloadManualRouteQueue(), reloadDistanceCoverage()]);
         state.courseSchedulingRouteReviewSelected = null;
         state.courseSchedulingRouteReview = null;
         state.courseSchedulingManualRouteMessage = 'המסלול המאומת חושב ונשמר: ' +
@@ -6602,11 +6602,17 @@ export const courseSchedulingScreen = {
             origin_school_name:selected.origin_school_name||'', destination_school_name:selected.destination_school_name||'',
             origin_authority_name:selected.origin_authority||'', destination_authority_name:selected.destination_authority||''
           });
-          if(error || !route?.calculated || !Number.isFinite(Number(route.distance_km)) || !Number.isFinite(Number(route.duration_minutes)))
+          if(error || !route?.calculated || route.distance_km==null || route.duration_minutes==null
+            || !Number.isFinite(Number(route.distance_km)) || !Number.isFinite(Number(route.duration_minutes))
+            || Number(route.distance_km)<0 || Number(route.duration_minutes)<0)
             throw new Error(translateSchedulingRouteError(route?.error||error?.message||'route_not_found'));
-          await reloadManualRouteQueue();
+          await Promise.all([reloadManualRouteQueue(), reloadDistanceCoverage()]);
           state.courseSchedulingRouteQueueError='';
-          state.courseSchedulingManualRouteMessage='המסלול נשמר: '+Number(route.distance_km).toFixed(2)+' ק״מ, '+Number(route.duration_minutes)+' דקות.';
+          const stillPending=(state.courseSchedulingRouteQueue||[]).some(item =>
+            item.origin_key===selected.origin_key && item.destination_key===selected.destination_key);
+          state.courseSchedulingManualRouteMessage=stillPending
+            ? 'תוצאת המסלול נשמרה, אך המסלול עדיין דורש בדיקת מיקום ואינו מאושר לשימוש.'
+            : 'המסלול נשמר: '+Number(route.distance_km).toFixed(2)+' ק״מ, '+Number(route.duration_minutes)+' דקות.';
         } catch(error) {
           state.courseSchedulingManualRouteMessage='חישוב המסלול נכשל: '+text(error.message);
         } finally { state.courseSchedulingManualRouteBusy=false; rerender(); }

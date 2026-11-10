@@ -445,13 +445,17 @@ export async function deleteRecord(recordId, empId) {
     return;
   }
 
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('attendance_records')
     .delete()
     .eq('id', recordId)
-    .eq('emp_id', empId);
+    .eq('emp_id', empId)
+    .select('id');
 
   if (error) throw new Error(instructorAttendanceError(error, 'מחיקת הרשומה נכשלה. נסו שוב.'));
+  if (!data?.some(record => String(record.id) === String(recordId))) {
+    throw new Error('לא התקבל אישור למחיקת הרשומה. יש לרענן את הדיווחים ולבדוק את הרשאות העריכה.');
+  }
   invalidateAttendanceCache(empId);
 }
 
