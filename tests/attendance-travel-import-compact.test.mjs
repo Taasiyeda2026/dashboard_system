@@ -7,7 +7,7 @@ test('historical travel report loader is imported and compact layout is constrai
  const service=await readFile(new URL('../attendance/src/services/daily-travel.service.js',import.meta.url),'utf8');
  const css=await readFile(new URL('../attendance/src/styles/new-report-final-alignment.css',import.meta.url),'utf8');
  assert.match(ui,/getDailyTravelActivityLegs, getDailyTravelReport, getDailyTravelReports, getAssignedTravelDays, saveDailyTravel/);
- assert.match(ui,/getDailyTravelReports\(empId,selectedMonth\)/);
+ assert.match(ui,/withTravelDeadline\(signal=>getDailyTravelReports\(empId,selectedMonth,\{signal\}\)/);
  assert.match(service,/export async function getDailyTravelReports\(/);
  assert.match(css,/\.av2-report__travel-tab\{[\s\S]*?max-width:480px/);
  assert.match(css,/\.av2-report__travel-tab>\.av2-report__actions>\.av2-btn\{[\s\S]*?width:118px/);
