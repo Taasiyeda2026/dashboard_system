@@ -43,15 +43,14 @@ test('update confirmation matches every supplied field including nested values',
  assert.equal(recordMatchesPayload({start_time:'08:30:00',end_time:'10:00:00'},{start_time:'08:30',end_time:'10:00'}),true);
 });
 
-test('file transfer gets a longer but finite deadline while control calls stay short',async t=>{
- t.mock.timers.enable({apis:['setTimeout']});
- let signal;
- const fetch=createDeadlineFetch((_url,init)=>{signal=init.signal;return new Promise(()=>{});},20,{storageTimeoutMs:180});
- const pending=fetch('https://local.test/storage/v1/object/attendance-attachments/file.pdf',{method:'POST'});
- const rejected=assert.rejects(pending,{name:'AttendanceTimeoutError'});
- t.mock.timers.tick(21);assert.equal(signal.aborted,false);
- t.mock.timers.tick(160);await rejected;assert.equal(signal.aborted,true);
- const control=fetch('https://local.test/storage/v1/object/list/attendance-attachments',{method:'POST'});
- const short=assert.rejects(control,{name:'AttendanceTimeoutError'});
- t.mock.timers.tick(21);await short;
+test('Storage uses its original transport while attendance requests remain bounded',async()=>{
+ const response=new Response('original file');let seen;
+ const controller=new AbortController();
+ const options={method:'POST',signal:controller.signal,body:'file'};
+ const fetch=createDeadlineFetch(async(input,init)=>{seen={input,init};return response;},15);
+ const url='https://local.test/storage/v1/object/attendance-attachments/file.pdf';
+ assert.equal(await fetch(url,options),response);
+ assert.equal(seen.init,options);assert.equal(seen.init.signal,controller.signal);
+ const bounded=createDeadlineFetch(()=>new Promise(()=>{}),15);
+ await assert.rejects(bounded('https://local.test/rest/v1/attendance_records'),{name:'AttendanceTimeoutError'});
 });

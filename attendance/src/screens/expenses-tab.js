@@ -1,4 +1,3 @@
-import { createUnsavedChangesGuard } from '../services/unsaved-changes.js';
 import { createInputField } from '../components/field.js';
 import {listExpenseReports,saveExpenseReport,attachExpenseReceipt,expenseReceiptSignedUrl} from '../services/expense-reports.service.js';
 import {readHistoricalAttendance,historicalExpenses,monthRange,monthLabel,monthStatusLabel} from '../services/historical-display.service.js';
@@ -28,8 +27,6 @@ export function createExpensesTab({instructor,initialDate}={}){
   const fieldsRow=document.createElement('div');
   fieldsRow.className='av2-expenses-tab__fields-row';
   form.noValidate=true;
-  const draftGuard=createUnsavedChangesGuard(form);
-  let pendingReceipts=[],savedForReceipts=null;
   const date=createInputField({id:'av2-expense-date',label:'תאריך הוצאה',
     type:'date',value:initialDate||todayLocal()});
   const amount=createInputField({id:'av2-expense-amount',label:'סכום (₪)',type:'number',
@@ -54,7 +51,6 @@ export function createExpensesTab({instructor,initialDate}={}){
   fileInput.setAttribute('aria-label','צירוף מסמכים להוצאה');
   filesWrap.append(fileLabel,uploadText,fileInput,fileHint);
   fileInput.addEventListener('change',()=>{
-    pendingReceipts.push(...Array.from(fileInput.files||[]));
     uploadText.textContent=fileInput.files?.length
       ?(fileInput.files.length===1?fileInput.files[0].name:fileInput.files.length+' קבצים נבחרו')
       :'צירוף קובץ';
@@ -84,8 +80,7 @@ export function createExpensesTab({instructor,initialDate}={}){
   let historicalView=false;
 
   function resetForm({resetDate=false}={}){
-    editing=null;pendingReceipts=[];savedForReceipts=null;draftGuard.markClean();
-    date.input.disabled=false;amount.input.disabled=false;details.input.disabled=false;
+    editing=null;
     if(resetDate)date.input.value=todayLocal();
     amount.input.value='';
     details.input.value='';
@@ -96,10 +91,10 @@ export function createExpensesTab({instructor,initialDate}={}){
   }
   reset.addEventListener('click',()=>{
     const hasChanges=Boolean(
-      pendingReceipts.length || editing || amount.input.value.trim() || details.input.value.trim()
+      editing || amount.input.value.trim() || details.input.value.trim()
       || fileInput.files?.length
     );
-    if(hasChanges && !window.confirm(savedForReceipts?'ההוצאה כבר נשמרה. לבטל את צירוף הקבצים שנותרו?':'לבטל את מילוי ההוצאה ללא שמירה?'))return;
+    if(hasChanges && !window.confirm('לבטל את מילוי ההוצאה ללא שמירה?'))return;
     resetForm({resetDate:true});
     void refresh();
   });
@@ -176,8 +171,6 @@ export function createExpensesTab({instructor,initialDate}={}){
         edit.className='av2-btn av2-btn--secondary av2-expenses-tab__edit';
         edit.textContent='עריכה';
         edit.addEventListener('click',()=>{
-          if(!draftGuard.confirmLeave())return;
-          resetForm();
           editing=row.id;
           date.input.value=row.expense_date;
           amount.input.value=String(row.amount);
@@ -203,42 +196,31 @@ export function createExpensesTab({instructor,initialDate}={}){
       status.textContent='חודש קודם מוצג לצפייה בלבד';
       return;
     }
-    if(draftGuard.busy)return;
-    const chosen=pendingReceipts.slice();
+    const chosen=Array.from(fileInput.files||[]);
     const invalid=chosen.find(file=>file.size<=0 || file.size>10*1024*1024
       || !['application/pdf','image/jpeg','image/png','image/webp'].includes(file.type));
     if(invalid){status.textContent='ניתן לצרף PDF או תמונה עד 10MB';return;}
-    draftGuard.busy=true;save.disabled=true;
-    status.textContent=savedForReceipts?'ההוצאה נשמרה; מנסה לצרף קבצים…':'שומר הוצאה…';
+    save.disabled=true;
+    status.textContent='שומר הוצאה…';
     try{
-      const saved=savedForReceipts || await saveExpenseReport({
+      const saved=await saveExpenseReport({
         date:date.input.value,amount:amount.input.value,
         details:details.input.value,id:editing
       });
-      savedForReceipts=saved;editing=saved.id;
-      if(chosen.length)status.textContent='ההוצאה נשמרה; מעלה קבצים…';
       const failed=[];
       for(const file of chosen){
         try{
           await attachExpenseReceipt({file,expenseId:saved.id,
-            employeeId:instructor.empId,email:instructor.email||'',date:saved.expense_date});
-        }catch{failed.push(file);}
-      }
-      pendingReceipts=failed;
-      if(failed.length){
-        status.textContent='ההוצאה נשמרה, אך צירוף הקבצים לא הושלם: '+failed.map(file=>file.name).join(', ');
-        uploadText.textContent=failed.map(file=>file.name).join(', ');
-        save.textContent='נסה שוב צירוף קבצים';
-        return;
+            employeeId:instructor.empId,email:instructor.email||''});
+        }catch{failed.push(file.name);}
       }
       resetForm({resetDate:true});
-      status.textContent='ההוצאה נשמרה';
+      status.textContent=failed.length
+        ? 'ההוצאה נשמרה, אך לא ניתן היה לצרף: '+failed.join(', ')
+        : 'ההוצאה נשמרה';
       await refresh();
     }catch(error){status.textContent=error.message||'שמירת ההוצאה נכשלה';}
-    finally{
-      draftGuard.busy=false;save.disabled=false;
-      if(savedForReceipts){date.input.disabled=true;amount.input.disabled=true;details.input.disabled=true;}
-    }
+    finally{save.disabled=false;}
   });
   return {panel,load:refresh};
 }

@@ -72,7 +72,7 @@ export async function bootstrap(){
  await db.query(await readFile(new URL('../../supabase/migrations/20261109224947_delete_linked_travel_cancellation_with_attendance.sql',import.meta.url),'utf8'));
  await db.query('create trigger av2_guard_attendance_record_lifecycle before insert or update or delete on attendance_records for each row execute function av2_guard_attendance_record_lifecycle();create trigger av2_mark_daily_travel_after_attendance_delete after delete on attendance_records for each row execute function av2_mark_daily_travel_after_attendance_delete()');
  await db.query(`
- create table public.attendance_record_attachments(id uuid primary key default gen_random_uuid(),record_id uuid references public.attendance_records(id) on delete cascade,emp_id bigint,storage_path text,file_name text,file_type text,file_size bigint);
+ create table public.attendance_record_attachments(id uuid primary key default gen_random_uuid(),record_id uuid references public.attendance_records(id) on delete cascade,storage_path text,file_name text,file_type text,file_size bigint);
  create policy own_user on public.users for select to authenticated using(auth_user_id=auth.uid());
  create policy own_attendance on public.attendance_records to authenticated
  using(emp_id=(select emp_id::bigint from public.users where auth_user_id=auth.uid()))
@@ -92,11 +92,6 @@ export async function bootstrap(){
  alter table public.instructor_training_schedule add column id uuid default gen_random_uuid(),add column course_id bigint,add column start_time time,add column end_time time,add column location_name text,add column location_address text,add column participant_scope text,add column is_active boolean default true;
  `);
  await db.query('grant select,insert,update,delete on all tables in schema public to authenticated,service_role;grant usage,select on all sequences in schema public to authenticated,service_role');
- const expenses=await readFile(new URL('../../supabase/migrations/20261104010000_independent_instructor_expenses.sql',import.meta.url),'utf8');
- await db.query(expenses.slice(0,expenses.indexOf('create or replace function public.av2_expense_instructor_id')));
- for(const name of ['av2_expense_instructor_id','av2_save_expense','av2_list_expenses','av2_expense_attachment_add'])await db.query(extract(expenses,name));
- await db.query(await readFile(new URL('../../supabase/migrations/20261110210149_expense_receipt_retry_integrity.sql',import.meta.url),'utf8'));
- await db.query(await readFile(new URL('../../supabase/migrations/20261110210149_expense_receipt_retry_integrity.sql',import.meta.url),'utf8'));
  await db.query("notify pgrst, 'reload schema'");
 }
 export async function instructor(emp,day){
