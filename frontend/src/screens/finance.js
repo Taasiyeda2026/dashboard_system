@@ -763,6 +763,7 @@ export const financeScreen = {
         if (visit.transactionRunning || visit.financeBusy) return;
         const mode = String(transactionRun.dataset.financeTransactionRun || 'automatic');
         const label = mode === 'manual' ? 'החשבונות המסומנים' : 'סבב גפן';
+        let confirmationMessage = `להפיק עכשיו את ${label}? לאחר ההפקה מספרי החשבונות והמפגשים יחויבו ולא ישתנו אוטומטית.`;
         if (mode === 'automatic') {
           const month = transactionRun.dataset.financeTransactionPeriod
             || visit.transactionMonths?.automatic || financeCycleCutoff().slice(0, 7);
@@ -775,13 +776,23 @@ export const financeScreen = {
           }
           if (mixed.length) {
             const review = mixed.map(row => `${row.school} | ${row.course} | מספר גפ״ן ${row.code}`).join('\n');
-            const response = window.prompt(
-              `בקרה לפני הפקת גפ״ן: נמצאו ${mixed.length} פעילויות במימון משולב.\n\n${review}\n\nההפקה תחייב רק את חלק הגפ״ן, ולא את מימון השותף. בדוק את מספרי הגפ״ן מול ההזמנות והקלד ״מאשר״ כדי להמשיך.`
-            );
-            if (response?.trim() !== 'מאשר') return;
+            confirmationMessage = `בקרה לפני הפקת גפ״ן: נמצאו ${mixed.length} פעילויות במימון משולב.
+
+${review}
+
+ההפקה תחייב רק את חלק הגפ״ן, ולא את מימון השותף.
+יש לוודא שמספרי הגפ״ן תואמים להזמנות.
+
+להפיק כעת את סבב הגפ״ן? לאחר ההפקה מספרי החשבונות והמפגשים יחויבו ולא ישתנו אוטומטית.`;
           }
         }
-        if (!window.confirm(`להפיק עכשיו את ${label}? לאחר ההפקה מספרי החשבונות והמפגשים יחויבו ולא ישתנו אוטומטית.`)) return;
+        // One explicit approval for the reviewed batch. The old text prompt
+        // silently aborted when the user clicked OK without typing "מאשר".
+        if (!window.confirm(confirmationMessage)) {
+          visit.transactionActionMessage = 'ההפקה בוטלה. לא נוצרו חשבונות עסקה.';
+          refresh();
+          return;
+        }
         visit.transactionRunning = true;
         visit.transactionActionMessage = 'מפיק חשבונות עסקה…';
         refresh();
