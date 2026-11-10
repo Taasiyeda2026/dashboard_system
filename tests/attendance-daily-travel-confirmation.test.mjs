@@ -114,10 +114,10 @@ test('travel hours, minutes and kilometres align on one row, with transport choi
   assert.match(ui,/durationWrap\.append\(durationLabel,selects\)/);
   assert.match(ui,/km\.wrap\.classList\.add\('av2-daily-travel__km'\)/);
   assert.match(ui,/fare\.wrap\.classList\.add\('av2-daily-travel__fare'\)/);
-  assert.match(css,/grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\) minmax\(0,1\.2fr\)!important/);
+  assert.match(css,/grid-template-columns:minmax\(0,1\.4fr\) minmax\(0,1fr\)!important/);
   assert.match(css,/\.av2-daily-travel__duration:not\(\[hidden\]\)/);
   assert.match(css,/\.av2-daily-travel__duration\[hidden\]\{\s*display:none!important/);
-  assert.match(css,/\.av2-daily-travel__duration-selects>label,/);
+  assert.match(css,/\.av2-daily-travel__duration-selects>label\{/);
   assert.match(css,/grid-template-rows:18px 44px/);
   assert.match(css,/@media\(max-width:370px\)/);
 });
