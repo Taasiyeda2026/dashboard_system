@@ -42,5 +42,7 @@ test('ordinary single-funded activity does not trigger mixed-funding confirmatio
 test('no invoice number is allocated by preview check',()=>{
  const src=readFileSync(new URL('../frontend/src/screens/finance.js',import.meta.url),'utf8');
  assert.match(src,/automaticMixedFundingProgramReview\(visit, month\)/);
- assert.match(src,/response\?\.trim\(\) !== 'מאשר'/);
+ assert.match(src,/window\.confirm\(confirmationMessage\)/);
+ assert.match(src,/ההפקה בוטלה\. לא נוצרו חשבונות עסקה/);
+ assert.doesNotMatch(src,/response\?\.trim\(\) !== 'מאשר'/);
 });
