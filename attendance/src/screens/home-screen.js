@@ -212,7 +212,7 @@ function buildActionStrip({ approval, year, month, instructor, records, sourceRe
   return strip;
 }
 
-async function handleSubmit({ submitBtn, instructor, year, month, sourceRecords, strip }) {
+async function handleSubmit({ submitBtn, instructor, year, month, sourceRecords, strip, onNewReport }) {
   if (!sourceRecords.length) return;
   if (getMonthKey(year,month)>='2026-11') {
     try {
@@ -228,7 +228,7 @@ async function handleSubmit({ submitBtn, instructor, year, month, sourceRecords,
       ).map(row=>row.report_date))];
       const reports=await getDailyTravelReports(instructor.empId,getMonthKey(year,month));
       const reported=new Set(reports.map(row=>row.travel_date));
-      const missing=physicalDays.filter(date=>!reported.has(date));
+      const missing=physicalDays.filter(date=>!reported.has(date)).sort();
       const old=strip.querySelector('[data-travel-submit-warning]');
       if(old)old.remove();
       if(missing.length){
@@ -240,7 +240,7 @@ async function handleSubmit({ submitBtn, instructor, year, month, sourceRecords,
         const action=document.createElement('button');
         action.type='button';action.className='av2-btn av2-btn--secondary';
         action.textContent='השלמת נסיעות';
-        action.addEventListener('click',()=>onNewReport?.());
+        action.addEventListener('click',()=>onNewReport?.(missing[0],'travel'));
         warning.append(msg,action);strip.append(warning);
         return;
       }
