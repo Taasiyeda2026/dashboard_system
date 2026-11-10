@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {JSDOM} from 'jsdom';
+import {formatReportMeetingNumbers} from '../attendance/src/components/report-summary-row.js';
 import {buildDayDetailModel,createDayDetailRow,formatActivityHours,formatDecimalHours}
   from '../attendance/src/components/my-reports-day-detail.js';
 
@@ -24,7 +25,7 @@ test('ten activity columns with meeting, without duplicate km/expenses columns',
   const source=await load('attendance/src/screens/my-reports-screen.js');
   assert.match(source,/const colLabels = \['תאריך', 'סוג', 'התחלה', 'סיום', 'שעות', 'שם פעילות', 'מפגש', 'מיקום \/ בית ספר', 'רשות', 'פעולות'\]/);
   assert.match(source,/row\.append\(dateCell,typeCell,startCell,endCell,hoursCell,nameCell,meetingCell,schoolCell,authCell,actionsCell\)/);
-  assert.match(source,/meetingCell\.textContent=record\.meeting_no/);
+  assert.match(source,/meetingCell\.textContent=formatReportMeetingNumbers\(record\)/);
   assert.doesNotMatch(source,/row\.append\(dateCell, startCell, endCell, hoursCell, dayTotalCell/);
   assert.match(source,/listWrap\.append\(createDayDetailRow\(\{/);
   assert.match(source,/index===sorted\.length-1/);
@@ -97,7 +98,7 @@ test('all travel and action icons share one scoped ten-column design, including 
 
 test('compact report columns stay centered on desktop while mobile details wrap',async()=>{
   const css=await load('attendance/src/styles/my-reports-unified.css');
-  assert.match(css,/width:min\(100%,1040px\)!important/);
+  assert.match(css,/width:min\(100%,940px\)!important/);
   assert.match(css,/min-width:892px!important/);
   assert.match(css,/minmax\(110px,1\.22fr\)/);
   assert.match(css,/minmax\(136px,1\.28fr\)/);
@@ -109,4 +110,33 @@ test('compact report columns stay centered on desktop while mobile details wrap'
   assert.match(css,/@media\(max-width:767px\)/);
   assert.match(css,/white-space:normal!important/);
   assert.match(css,/overflow-wrap:anywhere/);
+});
+
+test('linked courses show both meeting numbers only in display, including missing and duplicate sources',async()=>{
+  const reportSource=await load('attendance/src/screens/my-reports-screen.js');
+  assert.match(reportSource,/meetingCell\.textContent=formatReportMeetingNumbers\(record\)/);
+  assert.equal(formatReportMeetingNumbers({
+    activity_type:'קורס',meeting_no:null,
+    course_dashboard_sources:[{row_id:'c1',meeting_no:3},{row_id:'c2',meeting_no:2}]
+  }),'2, 3');
+  assert.equal(formatReportMeetingNumbers({
+    activity_type:'קורס',meeting_no:null,
+    course_dashboard_sources:[{meeting_no:12},{meeting_no:13}]
+  }),'12, 13');
+  assert.equal(formatReportMeetingNumbers({
+    activity_type:'קורס',meeting_no:5,
+    course_dashboard_sources:[{meeting_no:4},{meeting_no:4}]
+  }),'4');
+  assert.equal(formatReportMeetingNumbers({
+    activity_type:'קורס',meeting_no:null,
+    course_dashboard_sources:[{meeting_no:null},{meeting_no:'bad'}]
+  }),'—');
+  assert.equal(formatReportMeetingNumbers({
+    activity_type:'קורס',meeting_no:6,
+    course_dashboard_sources:[{meeting_no:6}]
+  }),'6');
+  assert.equal(formatReportMeetingNumbers({
+    activity_type:'סדנה',meeting_no:3,
+    course_dashboard_sources:[{meeting_no:3},{meeting_no:2}]
+  }),'3');
 });

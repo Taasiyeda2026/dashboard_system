@@ -3,6 +3,19 @@ import { formatDurationHours } from './monthly-report-summary.js';
 import { isZoomLocationReport } from '../services/attendance-location-policy.js';
 import { instructorReportedCancellationMinutes } from '../services/cancellation-segments.js';
 
+/** Display linked course session numbers without altering the stored meeting number. */
+export function formatReportMeetingNumbers(record = {}) {
+  const fallback = record.meeting_no == null || record.meeting_no === ''
+    ? '—' : String(record.meeting_no);
+  const sources = record.activity_type === 'קורס' && Array.isArray(record.course_dashboard_sources)
+    ? record.course_dashboard_sources : [];
+  if (sources.length < 2) return fallback;
+  const numbers = [...new Set(sources.map(source => Number(source?.meeting_no))
+    .filter(number => Number.isInteger(number) && number > 0))]
+    .sort((a, b) => a - b);
+  return numbers.length ? numbers.join(', ') : fallback;
+}
+
 export function formatTravelMinutes(value) {
   const minutes = Math.max(0, Math.round(Number(value) || 0));
   return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')}`;
