@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {automaticMixedFundingProgramReview,transactionAccountsViewHtml} from '../frontend/src/screens/finance-transaction-issuance.js';
+import {automaticMixedFundingProgramReview,transactionAccountsViewHtml,transactionIssuanceResultMessage} from '../frontend/src/screens/finance-transaction-issuance.js';
 
 const activity='PAI-mixed';
 const g={activityRowId:activity,activityName:'פורצות דרך',gefenNumber:'52279',gefenFunding:true,
@@ -42,7 +42,29 @@ test('ordinary single-funded activity does not trigger mixed-funding confirmatio
 test('no invoice number is allocated by preview check',()=>{
  const src=readFileSync(new URL('../frontend/src/screens/finance.js',import.meta.url),'utf8');
  assert.match(src,/automaticMixedFundingProgramReview\(visit, month\)/);
- assert.match(src,/window\.confirm\(confirmationMessage\)/);
- assert.match(src,/ההפקה בוטלה\. לא נוצרו חשבונות עסקה/);
+ assert.match(src,/pendingTransactionApproval/);
+ assert.match(src,/data-finance-transaction-approve/);
+ assert.match(src,/executeTransactionRun\('automatic', approved\.month\)/);
+ assert.doesNotMatch(src,/window\.confirm\(confirmationMessage\)/);
  assert.doesNotMatch(src,/response\?\.trim\(\) !== 'מאשר'/);
+});
+
+test('automatic billing confirmation is rendered within the app and requires explicit approval',()=>{
+ const preview=data();
+ preview.pendingTransactionApproval={
+   mode:'automatic',month:'2026-10',accountCount:1,amount:1285.71,
+   mixed:[{school:'מקיף דתי אמי"ת קנדי',course:'פורצות דרך',code:'52279'}]
+ };
+ const html=transactionAccountsViewHtml(preview,()=>'<h1>Finance</h1>');
+ assert.match(html,/role="dialog" aria-modal="true"/);
+ assert.match(html,/data-finance-transaction-approve/);
+ assert.match(html,/data-finance-transaction-cancel/);
+ assert.match(html,/1,285\.71/);
+ assert.match(html,/52279/);
+});
+test('failed invoice generation reports the account name and reason instead of appearing successful',()=>{
+ const message=transactionIssuanceResultMessage([{accountLabel:'בית ספר לדוגמה',error:'stale_billing_preview'}]);
+ assert.match(message,/נשמרו 0 חשבונות/);
+ assert.match(message,/בית ספר לדוגמה/);
+ assert.match(message,/נתוני החיוב השתנו/);
 });
