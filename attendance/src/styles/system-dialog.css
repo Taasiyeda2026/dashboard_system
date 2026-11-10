@@ -48,7 +48,10 @@
   border-radius:9px;
   background:#fff;
   color:#334e68;
-  font:700 .92rem/1.4 inherit;
+  font-family:inherit;
+  font-size:.92rem;
+  font-weight:700;
+  line-height:1.4;
   cursor:pointer;
 }
 .av2-system-dialog__button--confirm {
