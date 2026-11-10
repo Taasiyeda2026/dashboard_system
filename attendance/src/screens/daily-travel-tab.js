@@ -516,7 +516,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         const durationLabel=document.createElement('span');
         durationLabel.className='av2-field__label av2-daily-travel__duration-label';
         durationLabel.textContent='משך זמן הנסיעה';
-        for(const [unit,limit] of [['hours',24],['minutes',59]]){
+        for(const [unit,limit] of [['hours',6],['minutes',59]]){
           const wrap=document.createElement('label');
           const caption=document.createElement('span');
           caption.className='av2-daily-travel__unit-label';
