@@ -40,6 +40,9 @@ jobs:
       - name: Verify journey duration layout and missing-travel navigation
         run: node --test tests/attendance-travel-duration-layout.test.mjs tests/attendance-missing-travel-direct-navigation.test.mjs
 
+      - name: Verify automatic Gefen invoice issuance approval and error feedback
+        run: node --test tests/finance-mixed-funding-program-preflight.test.mjs tests/finance-transaction-issuance.test.mjs
+
       - name: Build
         env:
           VITE_BASE: /dashboard_system/
