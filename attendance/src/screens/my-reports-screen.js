@@ -31,7 +31,7 @@ import { canEditMonth, editBlockReason, getMonthKey, formatMonthLabel, latestRep
 import { calcHours, ONLINE_REPORT_TYPE, OPERATIONS_REPORT_TYPE } from '../services/activities.service.js';
 import { deleteAttachment, getSignedUrl } from '../services/storage.service.js';
 import { exportMonthToExcel } from '../services/excel.service.js';
-import { isBaseTrainingRecord, reportPresentation } from '../components/report-summary-row.js';
+import { isBaseTrainingRecord, reportPresentation, formatReportMeetingNumbers } from '../components/report-summary-row.js';
 import { isZoomLocationReport } from '../services/attendance-location-policy.js';
 import {
   canReportInlineCancellation,
@@ -450,7 +450,7 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
   // ── 7. Course meeting number ────────────────────────────────────────────
   const meetingCell=document.createElement('div');
   meetingCell.className='av2-rr__meeting';
-  meetingCell.textContent=record.meeting_no==null||record.meeting_no===''?'—':String(record.meeting_no);
+  meetingCell.textContent=formatReportMeetingNumbers(record);
 
   // ── 8. Location / school ─────────────────────────────────────────────────
   const schoolCell = document.createElement('div');
