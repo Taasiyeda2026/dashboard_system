@@ -46,19 +46,19 @@ const setup=async page=>{
  await page.goto('about:blank');
  await page.evaluate(()=>{
    window.__travelMock={
-     previewHangs:false,saveHangs:false,persistOnHangingSave:false,
+     previewHangs:false,reportHangs:false,saveHangs:false,persistOnHangingSave:false,
      previewCalls:0,saveCalls:[],reports:[],
      days:[{date:'2026-11-05',ready:true,activities:'הדרכה',review_status:'missing'},
        {date:'2026-11-06',ready:true,activities:'הדרכה',review_status:'missing'}],
      preview(date,signal){
        this.previewCalls++;
-       if(this.previewHangs)return new Promise(()=>{});
+       if(this.previewHangs===true || this.previewHangs===date)return new Promise(()=>{});
        return Promise.resolve([
          {kind:'outbound',from:'בית',to:'בית ספר',minutes:null,kilometers:null},
          {kind:'return',from:'בית ספר',to:'בית',minutes:null,kilometers:null}
        ]);
      },
-     report(date){return Promise.resolve(this.reports.find(r=>r.travel_date===date)||null);},
+     report(date){if(this.reportHangs)return new Promise(()=>{});return Promise.resolve(this.reports.find(r=>r.travel_date===date)||null);},
      save(date,legs,noTravel,signal){
        this.saveCalls.push({date,legs,noTravel});
        const stored={travel_date:date,no_travel:noTravel,
@@ -134,6 +134,71 @@ test('real Chromium: failed save does not erase the entered no-travel selection'
   await page.waitForFunction(()=>document.querySelector('.av2-daily-travel__status')?.textContent.includes('לא נמצא דיווח'));
   assert.equal(await checkbox.isChecked(),true);
   assert.equal(await page.locator('button:has-text("שמירת נסיעות")').isEnabled(),true);
+  assert.equal(await page.evaluate(()=>window.__travelMock.saveCalls.length),1);
+ });
+});
+
+
+test('real Chromium: switching days during a stalled preview loads the newly chosen day',async()=>{
+ await withPage(async page=>{
+  await page.evaluate(()=>{
+   window.__travelMock.previewHangs='2026-11-05';
+   window.pendingLoad=window.travelComponent.load();
+  });
+  await page.waitForFunction(()=>window.__travelMock.previewCalls===1);
+  await page.evaluate(()=>{
+   window.travelComponent.setDate('2026-11-06');
+   void window.travelComponent.load();
+  });
+  await page.clock.fastForward(12500);
+  await page.waitForFunction(()=>{
+   const save=[...document.querySelectorAll('button')].find(b=>b.textContent==='שמירת נסיעות');
+   return document.querySelector('#av2-travel-date')?.value==='2026-11-06'
+      && window.__travelMock.previewCalls>=2 && save && !save.disabled;
+  });
+  assert.equal(await page.locator('#av2-travel-date').inputValue(),'2026-11-06');
+ });
+});
+
+test('real Chromium: unverified save stays blocked until server status can be checked',async()=>{
+ await withPage(async page=>{
+  await page.evaluate(()=>{window.__travelMock.saveHangs=true;});
+  await page.evaluate(()=>window.travelComponent.load());
+  await page.locator('.av2-daily-travel input[type="checkbox"]').check();
+  await page.locator('button:has-text("שמירת נסיעות")').click();
+  await page.waitForFunction(()=>window.__travelMock.saveCalls.length===1);
+  await page.evaluate(()=>{window.__travelMock.reportHangs=true;});
+  await page.clock.fastForward(15500);
+  await page.clock.fastForward(12500);
+  await page.waitForFunction(()=>document.querySelector('.av2-daily-travel__status')?.textContent.includes('לא ניתן לאמת'));
+  assert.equal(await page.locator('button:has-text("שמירת נסיעות")').isDisabled(),true);
+  assert.equal(await page.locator('.av2-daily-travel__retry').isVisible(),true);
+  await page.evaluate(()=>{window.__travelMock.reportHangs=false;});
+  await page.locator('.av2-daily-travel__retry').click();
+  await page.waitForFunction(()=>document.querySelector('.av2-daily-travel__status')?.textContent.includes('לא נמצא דיווח'));
+  assert.equal(await page.locator('button:has-text("שמירת נסיעות")').isEnabled(),true);
+  assert.equal(await page.evaluate(()=>window.__travelMock.saveCalls.length),1);
+ });
+});
+
+test('real Chromium: mismatched server report blocks overwrite until reviewed',async()=>{
+ await withPage(async page=>{
+  await page.evaluate(()=>{window.__travelMock.saveHangs=true;});
+  await page.evaluate(()=>window.travelComponent.load());
+  await page.locator('.av2-daily-travel input[type="checkbox"]').check();
+  await page.locator('button:has-text("שמירת נסיעות")').click();
+  await page.waitForFunction(()=>window.__travelMock.saveCalls.length===1);
+  await page.evaluate(()=>{
+   window.__travelMock.reports=[{
+     travel_date:'2026-11-05',no_travel:false,review_status:'pending_review',
+     legs:[{kind:'outbound',from:'בית',to:'בית ספר',mode:'car',minutes:70,kilometers:25},
+           {kind:'return',from:'בית ספר',to:'בית',mode:'car',minutes:70,kilometers:25}]
+   }];
+  });
+  await page.clock.fastForward(15500);
+  await page.waitForFunction(()=>document.querySelector('.av2-daily-travel__status')?.textContent.includes('נתונים אחרים'));
+  assert.equal(await page.locator('button:has-text("שמירת נסיעות")').isDisabled(),true);
+  assert.match(await page.locator('.av2-daily-travel__retry').innerText(),/רענון מהשרת/);
   assert.equal(await page.evaluate(()=>window.__travelMock.saveCalls.length),1);
  });
 });
