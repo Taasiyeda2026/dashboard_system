@@ -810,7 +810,7 @@
   margin:0;
   padding-inline:4px;
   border-radius:9px;
-  font-size:.86rem;
+  font-size:16px;
   font-variant-numeric:tabular-nums;
   text-align:center;
 }
@@ -826,7 +826,7 @@
   .av2-report .av2-report__travel-tab .av2-daily-travel__duration-selects{gap:1px}
   .av2-report .av2-report__travel-tab .av2-daily-travel__duration-selects select,
   .av2-report .av2-report__travel-tab .av2-daily-travel__km .av2-field__input{
-    font-size:.8rem;
+    font-size:16px;
     padding-inline:2px;
   }
 }
