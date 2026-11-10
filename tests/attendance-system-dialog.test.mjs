@@ -74,6 +74,8 @@ test('only targeted attendance prompts are changed; data and payroll paths are u
   assert.match(reports, /void showSystemMessage\(/);
   assert.match(expenses, /await confirmSystemMessage\(/);
   assert.doesNotMatch(reports, /if \(!confirm\(`למחוק את הדיווח/);
-  assert.match(index, /styles\/system-dialog\.css\?v=170/);
-  assert.match(sw, /const CACHE_VERSION = 170;/);
+  const cssVersion=index.match(/system-dialog\.css\?v=(\d+)/)?.[1];
+  const swVersion=sw.match(/const CACHE_VERSION = (\d+);/)?.[1];
+  assert.ok(cssVersion && swVersion);
+  assert.equal(cssVersion,swVersion);
 });
