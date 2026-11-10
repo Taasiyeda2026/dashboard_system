@@ -97,7 +97,7 @@ test('all travel and action icons share one scoped ten-column design, including 
 
 test('compact report columns stay centered on desktop while mobile details wrap',async()=>{
   const css=await load('attendance/src/styles/my-reports-unified.css');
-  assert.match(css,/width:min\(100%,1040px\)!important/);
+  assert.match(css,/width:min\(100%,940px\)!important/);
   assert.match(css,/min-width:892px!important/);
   assert.match(css,/minmax\(110px,1\.22fr\)/);
   assert.match(css,/minmax\(136px,1\.28fr\)/);
