@@ -89,6 +89,8 @@ test('all travel and action icons share one scoped ten-column design, including 
   assert.match(css,/@media\(max-width:767px\)/);
   assert.match(runtime,/if\(list\?\.classList\.contains\('av2-report-list--unified'\)\)return/);
   assert.match(mobile,/setMobileLabel\(meetingCell, 'מפגש'\)/);
-  assert.match(index,/my-reports-unified\.css\?v=161/);
-  assert.match(sw,/const CACHE_VERSION = 161;/);
+  const attendanceAssetVersion=index.match(/my-reports-unified\.css\?v=(\d+)/);
+  const attendanceSwVersion=sw.match(/const CACHE_VERSION = (\d+);/);
+  assert.ok(attendanceAssetVersion && attendanceSwVersion);
+  assert.equal(attendanceAssetVersion[1],attendanceSwVersion[1]);
 });
