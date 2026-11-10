@@ -10,6 +10,7 @@ test('both outbound and return display one HH:MM duration beside kilometers',asy
   assert.match(ui,/durationLabel\.textContent='משך זמן הנסיעה'/);
   assert.match(ui,/durationWrap\.append\(durationLabel,selects\)/);
   assert.match(ui,/\['hours',6\],\['minutes',59\]/);
+  assert.match(ui,/if\(savedHours>limit\)/);
   assert.match(ui,/separator\.textContent=':'/);
   assert.match(ui,/placeholder\.textContent=unit==='hours'\?'שעות':'דקות'/);
   assert.match(ui,/km\.wrap\.classList\.add\('av2-daily-travel__km'\)/);
