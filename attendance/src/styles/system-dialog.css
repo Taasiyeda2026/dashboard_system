@@ -1,0 +1,74 @@
+/* Instructor attendance — in-app confirmations and system messages. */
+.av2-system-dialog {
+  box-sizing:border-box;
+  width:min(430px,calc(100vw - 32px));
+  max-height:min(80dvh,580px);
+  max-width:calc(100vw - 32px);
+  margin:auto;
+  padding:20px;
+  overflow-y:auto;
+  border:1px solid #dbe5f0;
+  border-radius:16px;
+  background:#fff;
+  box-shadow:0 24px 70px rgba(18,38,61,.28);
+  color:#1c3551;
+  font-family:inherit;
+  text-align:right;
+}
+.av2-system-dialog::backdrop {
+  background:rgba(18,35,55,.52);
+  backdrop-filter:blur(2px);
+}
+.av2-system-dialog__title {
+  margin:0 0 12px;
+  font-size:1.12rem;
+  font-weight:800;
+  line-height:1.5;
+}
+.av2-system-dialog__message {
+  margin:0 0 20px;
+  font-size:1rem;
+  line-height:1.65;
+  white-space:pre-line;
+  overflow-wrap:anywhere;
+  color:#344f6b;
+}
+.av2-system-dialog__actions {
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  flex-wrap:wrap;
+  gap:10px;
+}
+.av2-system-dialog__button {
+  min-width:100px;
+  min-height:44px;
+  padding:9px 16px;
+  border:1px solid #d9e5f3;
+  border-radius:9px;
+  background:#fff;
+  color:#334e68;
+  font-family:inherit;
+  font-size:.92rem;
+  font-weight:700;
+  line-height:1.4;
+  cursor:pointer;
+}
+.av2-system-dialog__button--confirm {
+  background:#2466e8;
+  border-color:#2466e8;
+  color:#fff;
+}
+.av2-system-dialog__button--danger {
+  background:#d53148;
+  border-color:#d53148;
+}
+.av2-system-dialog__button:focus-visible {
+  outline:3px solid #9ac1ff;
+  outline-offset:2px;
+}
+@media(max-width:480px) {
+  .av2-system-dialog {padding:18px 16px;}
+  .av2-system-dialog__actions {gap:8px;}
+  .av2-system-dialog__button {flex:1;}
+}

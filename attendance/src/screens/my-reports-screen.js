@@ -12,6 +12,7 @@
 
 import { createUnsavedChangesGuard, confirmLeavingReports } from '../services/unsaved-changes.js';
 import { createIcon } from '../components/icon.js';
+import { confirmSystemMessage, showSystemMessage } from '../components/system-dialog.js';
 import { getDailyTravelReports } from '../services/daily-travel.service.js';
 import {formatTravelDistance,sumReportedDailyTravel} from '../components/reported-daily-travel.js';
 import {createDayDetailRow,formatDecimalHours,formatActivityHours} from '../components/my-reports-day-detail.js';
@@ -694,7 +695,7 @@ async function handleDelete({ record, instructor, row, onRefresh, hasDailyTravel
       ? '\nגם הנסיעות וביטול הזמן של יום זה יימחקו, לרבות האישור והזכאות לתשלום הקשורים לדיווח.\nדיווחי הנוכחות האחרים יישארו ללא שינוי. אם נותרו פעילויות, יהיה צורך למלא מחדש את נסיעות היום.'
       : '\nגם נתוני הנסיעה המשויכים לדיווח יימחקו.'
     : '';
-  if (!confirm(`למחוק את הדיווח מתאריך ${dateStr}?${travelWarning}\nפעולה זו אינה הפיכה.`)) return;
+  if (!(await confirmSystemMessage(`למחוק את הדיווח מתאריך ${dateStr}?${travelWarning}\nפעולה זו אינה הפיכה.`, {destructive:true}))) return;
 
   row.dataset.deleting = 'true';
   row.style.opacity = '0.5';
@@ -714,7 +715,7 @@ async function handleDelete({ record, instructor, row, onRefresh, hasDailyTravel
   } catch (err) {
     delete row.dataset.deleting;
     row.style.opacity = '1';
-    alert(`שגיאה במחיקה: ${err.message}`);
+    void showSystemMessage(`שגיאה במחיקה: ${err.message}`);
   }
 }
 

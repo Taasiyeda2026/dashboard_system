@@ -1,4 +1,5 @@
 import { createInputField } from '../components/field.js';
+import { confirmSystemMessage } from '../components/system-dialog.js';
 import {listExpenseReports,saveExpenseReport,attachExpenseReceipt,expenseReceiptSignedUrl} from '../services/expense-reports.service.js';
 import {readHistoricalAttendance,historicalExpenses,monthRange,monthLabel,monthStatusLabel} from '../services/historical-display.service.js';
 
@@ -89,12 +90,12 @@ export function createExpensesTab({instructor,initialDate}={}){
     save.textContent='שמירה';
     status.textContent='';
   }
-  reset.addEventListener('click',()=>{
+  reset.addEventListener('click',async()=>{
     const hasChanges=Boolean(
       editing || amount.input.value.trim() || details.input.value.trim()
       || fileInput.files?.length
     );
-    if(hasChanges && !window.confirm('לבטל את מילוי ההוצאה ללא שמירה?'))return;
+    if(hasChanges && !(await confirmSystemMessage('לבטל את מילוי ההוצאה ללא שמירה?')))return;
     resetForm({resetDate:true});
     void refresh();
   });
