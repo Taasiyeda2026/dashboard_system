@@ -23,8 +23,8 @@ test('instructor sees saved confirmation and independent manager review state',a
   assert.match(ui,/savedCard\.className='av2-daily-travel__saved'/);
   assert.match(ui,/showSavedReport\(stored\)/);
   assert.match(ui,/showSavedReport\(\{\.\.\.saved,reported_at:/);
-  assert.match(ui,/heading\.textContent='✓'/);
-  assert.match(ui,/heading\.setAttribute\('aria-label','דיווח נשמר'\)/);
+  assert.match(ui,/heading\.textContent=needsCorrection\?'נדרש תיקון':'✓'/);
+  assert.match(ui,/heading\.setAttribute\('aria-label',heading\.title\)/);
   assert.match(ui,/savedCard\.append\(header,details,dayChoice\)/);
   assert.doesNotMatch(ui,/דיווח ליום /);
   assert.doesNotMatch(ui,/נשמר ב־/);
@@ -64,7 +64,7 @@ test('transport choice precedes and reveals only relevant fields',async()=>{
   const css=await readFile(new URL('../attendance/src/styles/new-report-final-alignment.css',import.meta.url),'utf8');
   assert.match(ui,/fields\.prepend\(modeWrap\)/);
   assert.match(ui,/chooseMode\.value=''/);
-  assert.match(ui,/mode\.value=leg\.mode\|\|''/);
+  assert.match(ui,/mode\.value=\(leg\.kind==='return' && sharedReturnMode \? legs\[0\]\.mode : leg\.mode\)\|\|''/);
   assert.match(ui,/mode:same\?\(old\.mode\|\|'car'\):\(leg\.kind==='between'/);
   assert.match(ui,/const selected=nextMode==='car'\|\|transit/);
   assert.match(ui,/if\(durationWrap\)durationWrap\.hidden=!selected\|\|transit/);
@@ -111,7 +111,7 @@ test('travel hours, minutes and kilometres align on one row, with transport choi
   assert.match(ui,/fields\.prepend\(modeWrap\)/);
   assert.match(ui,/selects\.setAttribute\('aria-label','זמן נסיעה בפועל'\)/);
   assert.match(ui,/caption\.textContent=unit==='hours'\?'שעות נסיעה':'דקות נסיעה'/);
-  assert.match(ui,/durationWrap\.append\(selects\)/);
+  assert.match(ui,/durationWrap\.append\(durationLabel,selects\)/);
   assert.match(ui,/km\.wrap\.classList\.add\('av2-daily-travel__km'\)/);
   assert.match(ui,/fare\.wrap\.classList\.add\('av2-daily-travel__fare'\)/);
   assert.match(css,/grid-template-columns:minmax\(0,1fr\) minmax\(0,1fr\) minmax\(0,1\.2fr\)!important/);
