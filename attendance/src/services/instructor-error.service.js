@@ -27,6 +27,12 @@ export function instructorAttendanceError(error, fallback = 'הפעולה נכש
   if (/attendance_between_activities_requires_report/.test(haystack)) {
     return 'יש להשלים את דיווח הנסיעה בין הפעילויות לפני השמירה.';
   }
+  if (/attendance_travel_route_changed/.test(haystack)) {
+    return 'פרטי הפעילויות השתנו מאז טעינת הנסיעות. רעננו את היום ובדקו את המקטעים לפני שמירה מחדש.';
+  }
+  if (/attendance_travel_leg_(?:incomplete|value_invalid|transport_invalid|location_required|sequence_invalid)/.test(haystack)) {
+    return 'חסרים או לא תקינים פרטים באחד ממקטעי הנסיעה. בדקו את הזמן, המרחק ואמצעי הנסיעה.';
+  }
   if (/daily_travel|attendance_travel_report_required|travel_report/.test(haystack)) {
     return 'יש להשלים את דיווח הנסיעות ליום זה לפני ההמשך.';
   }

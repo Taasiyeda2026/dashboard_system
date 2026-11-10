@@ -436,7 +436,13 @@ api.attendanceControlReviewDailyTravel = async function ({employeeId,date,decisi
     p_emp_id:Number(employeeId),p_date:date,p_decision:decision,
     p_km:km,p_minutes:minutes
   });
-  if(error)throw new Error(error.message||'בקרת הנסיעות נכשלה');
+  if(error){
+    if(/attendance_travel_route_changed/.test(error.message||''))
+      throw new Error('פרטי הנוכחות השתנו מאז דיווח הנסיעות. יש לתקן את נסיעות היום בממשק הקיים לפני האישור.');
+    if(/attendance_month_locked/.test(error.message||''))
+      throw new Error('החודש נעול. לא ניתן לשנות את אישור הנסיעות.');
+    throw new Error(error.message||'בקרת הנסיעות נכשלה');
+  }
   return data;
 };
 

@@ -476,7 +476,7 @@ export async function deleteRecord(recordId, empId) {
   await confirmedMutation(async signal => {
     const result = await supabase.from('attendance_records').delete().eq('id',recordId).eq('emp_id',empId).select('id').abortSignal(signal);
     if (result.error) throw new Error(instructorAttendanceError(result.error, 'מחיקת הרשומה נכשלה. נסו שוב.'));
-    if (!result.data?.length) throw new Error('לא התקבל אישור מחיקה. יש לבדוק את הרשומה וההרשאות.');
+    if (!result.data?.some(record => String(record.id) === String(recordId))) throw new Error('לא התקבל אישור מחיקה. יש לבדוק את הרשומה וההרשאות.');
     return true;
   }, async signal => {
     const result = await supabase.from('attendance_records').select('id').eq('id',recordId).eq('emp_id',empId).maybeSingle().abortSignal(signal);

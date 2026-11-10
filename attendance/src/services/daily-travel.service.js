@@ -60,6 +60,6 @@ export async function reviewDailyTravel(empId,date,decision,km=null,minutes=null
     p_emp_id:Number(empId),p_date:date,p_decision:decision,
     p_km:km,p_minutes:minutes
   });
-  if(error) throw new Error(error.message || 'אישור הנסיעות נכשל');
+  if(error) throw new Error(instructorAttendanceError(error, 'אישור הנסיעות נכשל'));
   return data;
 }

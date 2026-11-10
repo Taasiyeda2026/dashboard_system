@@ -54,8 +54,8 @@ const setup=async page=>{
        this.previewCalls++;
        if(this.previewHangs===true || this.previewHangs===date)return new Promise(()=>{});
        return Promise.resolve([
-         {kind:'outbound',from:'בית',to:'בית ספר',minutes:null,kilometers:null},
-         {kind:'return',from:'בית ספר',to:'בית',minutes:null,kilometers:null}
+         {kind:'outbound',from:'בית',to:'בית ספר',minutes:null,kilometers:null,contextFingerprint:this.context},
+         {kind:'return',from:'בית ספר',to:'בית',minutes:null,kilometers:null,contextFingerprint:this.context}
        ]);
      },
      report(date){if(this.reportHangs)return new Promise(()=>{});return Promise.resolve(this.reports.find(r=>r.travel_date===date)||null);},
@@ -83,7 +83,7 @@ const setup=async page=>{
 };
 
 const withPage=async fn=>{
- const browser=await chromium.launch({headless:true,executablePath:process.env.ATTENDANCE_CHROMIUM_EXECUTABLE_PATH||undefined,args:['--no-sandbox']});
+ const browser=await chromium.launch({headless:true,executablePath:process.env.ATTENDANCE_TEST_CHROMIUM_PATH||undefined,args:['--no-sandbox']});
  const page=await browser.newPage({locale:'he-IL'});
  try{await setup(page);await fn(page);}
  finally{await browser.close();}
@@ -244,5 +244,21 @@ test('real Chromium: in-flight save keeps its day and blocks duplicate submissio
   await page.evaluate(()=>document.querySelector('.av2-daily-travel__actions button')?.click());
   assert.equal(await page.locator('#av2-travel-date').inputValue(),'2026-11-05');
   assert.equal(await page.evaluate(()=>window.__travelMock.saveCalls.length),1);
+ });
+});
+
+test('real Chromium: changed context clears old values even when activity labels are unchanged',async()=>{
+ await withPage(async page=>{
+  await page.evaluate(()=>{
+   window.__travelMock.context='new-context';
+   window.__travelMock.reports=[{travel_date:'2026-11-05',no_travel:false,review_status:'pending_review',
+    legs:[{kind:'outbound',from:'בית',to:'בית ספר',mode:'car',minutes:60,kilometers:20,contextFingerprint:'old-context'},
+     {kind:'return',from:'בית ספר',to:'בית',mode:'car',minutes:60,kilometers:20,contextFingerprint:'old-context'}]}];
+  });
+  await page.evaluate(()=>window.travelComponent.load());
+  await page.getByRole('button',{name:'עריכת דיווח',exact:true}).click();
+  assert.equal(await page.locator('#av2-leg-0-kilometers').inputValue(),'');
+  assert.equal(await page.locator('[data-duration-hours="0"]').inputValue(),'');
+  assert.equal(await page.evaluate(()=>window.__travelMock.saveCalls.length),0);
  });
 });

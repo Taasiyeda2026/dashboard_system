@@ -632,4 +632,6 @@ config.HOTFIX_VERSION = `association-chair-viewer-3090-20261109-v1-${config.HOTF
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-attendance-home-travel-completion-20261110-v1`;
 
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-attendance-travel-integrity-bundle-20261110-v1`;
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-attendance-focused-stability-20261110-v3`;
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-attendance-merge-resolution-20261110-v1`;

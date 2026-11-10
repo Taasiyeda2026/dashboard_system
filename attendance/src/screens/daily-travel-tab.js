@@ -349,7 +349,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     return Number.isInteger(minutes)&&minutes>=0
       ? String(Math.floor(minutes/60)).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0'):'';
   };
-  function showSavedReport(report){
+  function showSavedReport(report,{contextChanged=false}={}){
     draftGuard.markClean();
     reload.hidden=true;
     editingSavedReport=false;
@@ -359,7 +359,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     header.className='av2-daily-travel__saved-header';
     const heading=document.createElement('strong');
     heading.className='av2-daily-travel__saved-title';
-    const needsCorrection=report?.review_status==='rejected';
+    const needsCorrection=report?.review_status==='rejected' || contextChanged;
     heading.textContent=needsCorrection?'נדרש תיקון':'✓';
     heading.title=needsCorrection?'יש לעדכן את נסיעות היום':'דיווח נשמר';
     heading.setAttribute('aria-label',heading.title);
@@ -916,7 +916,8 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       loadedDate=date;
       legs=available.map((leg,index)=>{
         const old=stored?.legs?.[index];
-        const same=old && old.kind===leg.kind && old.from===leg.from && old.to===leg.to;
+        const same=old && old.kind===leg.kind && old.from===leg.from && old.to===leg.to
+          && (!leg.contextFingerprint || old.contextFingerprint===leg.contextFingerprint);
         return {...leg,
           minutes:leg.kind==='between'?leg.gapMinutes:(same?old.minutes:null),
           kilometers:leg.kind==='between' && leg.sameLocation===true?0:(same?old.kilometers:null),
@@ -940,7 +941,10 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       renderLegs();
       if(stored){
         if(uncertainSave?.date===date)uncertainSave=null;
-        showSavedReport(stored);
+        const contextChanged=stored.legs?.some((old,index)=>old.contextFingerprint
+          && available[index]?.contextFingerprint
+          && old.contextFingerprint!==available[index].contextFingerprint);
+        showSavedReport(stored,{contextChanged});
       }else {savedCard.hidden=true;legsArea.hidden=noTravel.checked;summary.hidden=false;actions.replaceChildren(save);}
     }catch(err){
       // A timed-out read may still finish later: invalidate it before unlocking the screen.
