@@ -31,6 +31,7 @@ import {
   previewTransactionAccountGroup,
   automaticMixedFundingProgramReview,
   transactionIssuanceResultMessage,
+  transactionPreviewForVisit,
   transactionAccountsViewHtml
 } from './finance-transaction-issuance.js';
 
@@ -133,7 +134,8 @@ export function createFinanceVisitState(now = new Date()) {
     manualSelectionExpanded: false,
     transactionManualSelected: {},
     transactionActionMessage: '',
-    transactionRunning: false
+    transactionRunning: false,
+    pendingTransactionApproval: null
   };
 }
 
@@ -575,6 +577,28 @@ export const financeScreen = {
       catch (error) { await ensureCollectionLoaded(visit, api, { force: true }).catch(() => {}); visit.paymentMessage = financeError(error); visit.transactionActionMessage = visit.paymentMessage; }
       finally { visit.financeBusy = false; button.disabled = false; refresh(); }
     };
+    const executeTransactionRun = async (mode, month) => {
+      if (visit.financeBusy || visit.transactionRunning) return;
+      visit.transactionRunning = true;
+      visit.transactionActionMessage = 'מפיק חשבונות עסקה…';
+      refresh();
+      try {
+        const results = await runTransactionIssuance(visit, api, mode, month);
+        const issued = results.some(result => !result.error || result.dispatched?.documentPreserved);
+        visit.transactionActionMessage = transactionIssuanceResultMessage(results);
+        if (mode === 'manual' && issued) visit.transactionManualSelected = {};
+        try { await ensureCollectionLoaded(visit, api, { force: true }); }
+        catch (loadError) { visit.transactionActionMessage += ' רענון רשימת החשבונות נכשל; יש לבדוק בהיסטוריה לפני ניסיון נוסף.'; }
+        // Do not hide errors by navigating to an empty history when every account failed.
+        if (issued) visit.transactionTab = 'history';
+      } catch (error) {
+        await ensureCollectionLoaded(visit, api, { force: true }).catch(() => {});
+        visit.transactionActionMessage = financeError(error);
+      } finally {
+        visit.transactionRunning = false;
+        refresh();
+      }
+    };
     const onClick = async (ev) => {
       if (ev.target.closest('[data-finance-microsoft-connect]')) {
         try {
@@ -716,6 +740,7 @@ export const financeScreen = {
           visit.manualBulkEditingActivityId = '';
           visit.manualScope = 'full';
         }
+        visit.pendingTransactionApproval = null;
         visit.transactionTab = nextTransactionTab;
         if (visit.transactionTab === 'automatic' || visit.transactionTab === 'manual') {
           visit.transactionMonths = { ...visit.transactionMonths, [visit.transactionTab]: financeCycleCutoff().slice(0, 7) };
@@ -758,15 +783,37 @@ export const financeScreen = {
         return;
       }
 
+      const cancelTransactionApproval = ev.target.closest('[data-finance-transaction-cancel]');
+      if (cancelTransactionApproval) {
+        visit.pendingTransactionApproval = null;
+        visit.transactionActionMessage = 'ההפקה בוטלה לבקשת המשתמש. לא נוצרו חשבונות עסקה.';
+        refresh();
+        return;
+      }
+      const approveTransaction = ev.target.closest('[data-finance-transaction-approve]');
+      if (approveTransaction) {
+        if (visit.financeBusy || visit.transactionRunning || !visit.pendingTransactionApproval) return;
+        const approved = visit.pendingTransactionApproval;
+        const scoped = { ...visit, transactionMonths: { ...visit.transactionMonths, automatic: approved.month } };
+        const currentPreview = transactionPreviewForVisit(scoped, 'automatic');
+        visit.pendingTransactionApproval = null;
+        if (currentPreview.accounts.length !== approved.accountCount
+          || Math.abs(currentPreview.totals.amount - approved.amount) > 0.005) {
+          visit.transactionActionMessage = 'נתוני החיוב השתנו מאז האישור. יש לרענן את הרשימה ולבדוק מחדש לפני הפקה.';
+          refresh();
+          return;
+        }
+        await executeTransactionRun('automatic', approved.month);
+        return;
+      }
+
       const transactionRun = ev.target.closest('[data-finance-transaction-run]');
       if (transactionRun) {
-        if (visit.transactionRunning || visit.financeBusy) return;
+        if (visit.transactionRunning || visit.financeBusy || visit.pendingTransactionApproval) return;
         const mode = String(transactionRun.dataset.financeTransactionRun || 'automatic');
-        const label = mode === 'manual' ? 'החשבונות המסומנים' : 'סבב גפן';
-        let confirmationMessage = `להפיק עכשיו את ${label}? לאחר ההפקה מספרי החשבונות והמפגשים יחויבו ולא ישתנו אוטומטית.`;
+        const month = transactionRun.dataset.financeTransactionPeriod
+          || visit.transactionMonths?.[mode] || financeCycleCutoff().slice(0, 7);
         if (mode === 'automatic') {
-          const month = transactionRun.dataset.financeTransactionPeriod
-            || visit.transactionMonths?.automatic || financeCycleCutoff().slice(0, 7);
           const mixed = automaticMixedFundingProgramReview(visit, month);
           const invalid = mixed.filter(row => !row.valid);
           if (invalid.length) {
@@ -774,44 +821,27 @@ export const financeScreen = {
             refresh();
             return;
           }
-          if (mixed.length) {
-            const review = mixed.map(row => `${row.school} | ${row.course} | מספר גפ״ן ${row.code}`).join('\n');
-            confirmationMessage = `בקרה לפני הפקת גפ״ן: נמצאו ${mixed.length} פעילויות במימון משולב.
-
-${review}
-
-ההפקה תחייב רק את חלק הגפ״ן, ולא את מימון השותף.
-יש לוודא שמספרי הגפ״ן תואמים להזמנות.
-
-להפיק כעת את סבב הגפ״ן? לאחר ההפקה מספרי החשבונות והמפגשים יחויבו ולא ישתנו אוטומטית.`;
+          const scoped = { ...visit, transactionMonths: { ...visit.transactionMonths, automatic: month } };
+          const preview = transactionPreviewForVisit(scoped, 'automatic');
+          if (!preview.accounts.length) {
+            visit.transactionActionMessage = 'אין חשבונות גפ״ן מוכנים להפקה לחודש זה.';
+            refresh();
+            return;
           }
-        }
-        // One explicit approval for the reviewed batch. The old text prompt
-        // silently aborted when the user clicked OK without typing "מאשר".
-        if (!window.confirm(confirmationMessage)) {
-          visit.transactionActionMessage = 'ההפקה בוטלה. לא נוצרו חשבונות עסקה.';
+          visit.pendingTransactionApproval = {
+            mode: 'automatic',
+            month,
+            accountCount: preview.accounts.length,
+            amount: preview.totals.amount,
+            mixed: mixed.map(({school,course,code}) => ({school,course,code}))
+          };
+          visit.transactionActionMessage = '';
           refresh();
+          root.querySelector('[data-finance-transaction-approve]')?.focus();
           return;
         }
-        visit.transactionRunning = true;
-        visit.transactionActionMessage = 'מפיק חשבונות עסקה…';
-        refresh();
-        try {
-          // Invoice issuance must not be interrupted by an interactive Microsoft
-          // consent/popup. Outlook connection and draft completion are handled
-          // independently by the finance dispatcher.
-          const results = await runTransactionIssuance(visit, api, mode, transactionRun.dataset.financeTransactionPeriod);
-          visit.transactionActionMessage = transactionIssuanceResultMessage(results);
-          if (mode === 'manual') visit.transactionManualSelected = {};
-          await ensureCollectionLoaded(visit, api, { force: true });
-          visit.transactionTab = 'history';
-        } catch (error) {
-          await ensureCollectionLoaded(visit, api, { force: true }).catch(() => {});
-          visit.transactionActionMessage = financeError(error);
-        } finally {
-          visit.transactionRunning = false;
-          refresh();
-        }
+        if (!window.confirm('להפיק עכשיו את החשבונות המסומנים? לאחר ההפקה מספרי החשבונות והמפגשים יחויבו ולא ישתנו אוטומטית.')) return;
+        await executeTransactionRun(mode, transactionRun.dataset.financeTransactionPeriod);
         return;
       }
 
