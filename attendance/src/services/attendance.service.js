@@ -7,6 +7,10 @@
  */
 
 import { supabase } from '../api/client.js';
+import { confirmedMutation, recordMatchesPayload } from './confirmed-mutation.js';
+import { withTravelDeadline } from './travel-request-guard.js';
+
+const pendingCreateIds = new Map();
 import {
   createPreviewAttachment,
   createPreviewRecord,
@@ -252,7 +256,7 @@ export function calcMonthSummary(records) {
  * edit mode, the same payload updates the existing record instead of inserting
  * a second row. This keeps new/edit forms functionally identical.
  */
-export async function createRecord(empId, payload) {
+export async function createRecord(empId, payload, {requestId=null}={}) {
   const normalizedPayload = normalizeRecordPayload(payload);
   const editRecordId = activeEditRecordId();
 
@@ -301,14 +305,23 @@ export async function createRecord(empId, payload) {
     emp_id: empId,
     updated_at: new Date().toISOString()
   };
-
-  const { data, error } = await supabase
-    .from('attendance_records')
-    .insert([row])
-    .select()
-    .single();
-
-  if (error) throw new Error(instructorAttendanceError(error, 'שמירת הרשומה נכשלה. נסו שוב.'));
+  const draftKey = JSON.stringify([empId, normalizedPayload]);
+  if (!pendingCreateIds.has(draftKey)) pendingCreateIds.set(draftKey, crypto.randomUUID());
+  row.id = requestId || pendingCreateIds.get(draftKey);
+  const data = await confirmedMutation(async signal => {
+    const result = await supabase.from('attendance_records').insert([row]).select().single().abortSignal(signal);
+    if (result.error) throw new Error(instructorAttendanceError(result.error, 'שמירת הרשומה נכשלה. נסו שוב.'));
+    if (!result.data?.id) throw new Error('לא התקבל אישור שמירה מהשרת');
+    return result.data;
+  }, async signal => {
+    const result = await supabase.from('attendance_records').select().eq('id',row.id).eq('emp_id',empId).maybeSingle().abortSignal(signal);
+    if (result.error) throw result.error;
+    if (result.data && !recordMatchesPayload(result.data,normalizedPayload)) {
+      throw new Error('הדיווח כבר נשמר עם נתונים אחרים. יש לבדוק אותו לפני עריכה נוספת.');
+    }
+    return result.data || null;
+  });
+  pendingCreateIds.delete(draftKey);
   invalidateAttendanceCache(empId);
   return normalizeAttendanceRecord(data);
 }
@@ -422,15 +435,30 @@ export async function updateRecord(recordId, empId, payload) {
   const normalizedPayload = normalizeRecordPayload(payload);
   if (isAdminPreviewRequested()) return updatePreviewRecord(recordId, normalizedPayload);
 
-  const { data, error } = await supabase
-    .from('attendance_records')
-    .update({ ...normalizedPayload, updated_at: new Date().toISOString() })
-    .eq('id', recordId)
-    .eq('emp_id', empId)
-    .select()
-    .single();
+  // Check before writing, including after a failed confirmation. An already
+  // committed update must not run approval/cancellation triggers a second time.
+  const current=await withTravelDeadline(async signal=>{
+    const result=await supabase.from('attendance_records').select().eq('id',recordId).eq('emp_id',empId).single().abortSignal(signal);
+    if(result.error)throw new Error('לא ניתן לבדוק את מצב הדיווח. השינויים נשארו בטופס; בדקו חיבור ונסו שוב.');
+    return result.data;
+  },{action:'בדיקת מצב הדיווח לפני עדכון'});
+  if(recordMatchesPayload(current,normalizedPayload)){
+    invalidateAttendanceCache(empId);
+    return normalizeAttendanceRecord(current);
+  }
+  if(!current?.updated_at)throw new Error('לא התקבלה גרסת הדיווח מהשרת. השינויים נשארו בטופס.');
 
-  if (error) throw new Error(instructorAttendanceError(error, 'עדכון הרשומה נכשל. נסו שוב.'));
+  const data = await confirmedMutation(async signal => {
+    const result = await supabase.from('attendance_records')
+      .update({...normalizedPayload,updated_at:new Date().toISOString()})
+      .eq('id',recordId).eq('emp_id',empId).eq('updated_at',current.updated_at).select().single().abortSignal(signal);
+    if (result.error) throw new Error(instructorAttendanceError(result.error, 'עדכון הרשומה נכשל. נסו שוב.'));
+    return result.data;
+  }, async signal => {
+    const result = await supabase.from('attendance_records').select().eq('id',recordId).eq('emp_id',empId).maybeSingle().abortSignal(signal);
+    if (result.error) throw result.error;
+    return recordMatchesPayload(result.data,normalizedPayload) ? result.data : null;
+  });
   invalidateAttendanceCache(empId);
   return normalizeAttendanceRecord(data);
 }
@@ -445,17 +473,16 @@ export async function deleteRecord(recordId, empId) {
     return;
   }
 
-  const { data, error } = await supabase
-    .from('attendance_records')
-    .delete()
-    .eq('id', recordId)
-    .eq('emp_id', empId)
-    .select('id');
-
-  if (error) throw new Error(instructorAttendanceError(error, 'מחיקת הרשומה נכשלה. נסו שוב.'));
-  if (!data?.some(record => String(record.id) === String(recordId))) {
-    throw new Error('לא התקבל אישור למחיקת הרשומה. יש לרענן את הדיווחים ולבדוק את הרשאות העריכה.');
-  }
+  await confirmedMutation(async signal => {
+    const result = await supabase.from('attendance_records').delete().eq('id',recordId).eq('emp_id',empId).select('id').abortSignal(signal);
+    if (result.error) throw new Error(instructorAttendanceError(result.error, 'מחיקת הרשומה נכשלה. נסו שוב.'));
+    if (!result.data?.some(record => String(record.id) === String(recordId))) throw new Error('לא התקבל אישור מחיקה. יש לבדוק את הרשומה וההרשאות.');
+    return true;
+  }, async signal => {
+    const result = await supabase.from('attendance_records').select('id').eq('id',recordId).eq('emp_id',empId).maybeSingle().abortSignal(signal);
+    if (result.error) throw result.error;
+    return result.data ? null : true;
+  });
   invalidateAttendanceCache(empId);
 }
 

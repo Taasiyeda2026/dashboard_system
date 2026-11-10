@@ -1,3 +1,5 @@
+import { createUnsavedChangesGuard } from '../services/unsaved-changes.js';
+import { saveHistoricalTravel } from '../services/historical-travel-save.js';
 import { createInputField } from '../components/field.js';
 import { createCompactSelect } from '../components/compact-select.js';
 import { createBoundedMonthPicker } from '../components/bounded-month-picker.js';
@@ -5,7 +7,6 @@ import { summarizeDailyTravel } from '../services/daily-travel.js';
 import { withTravelDeadline, savedTravelMatchesDraft } from '../services/travel-request-guard.js';
 import { createReportedTravelTable } from '../components/reported-daily-travel.js';
 import { getMonthApproval, invalidateAttendanceCache } from '../services/attendance.service.js';
-import { supabase } from '../api/client.js';
 import { canEditMonth, formatMonthLabel } from '../services/month-gate.service.js';
 import { listInstructorDisplayMonths, readHistoricalAttendance, historicalTravelDays, historicalTravelReports, isHistoricTravelMonth, monthStatusLabel } from '../services/historical-display.service.js';
 import {
@@ -72,6 +73,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   historicalEdit.hidden=true;
   historicalEdit.addEventListener('click',()=>{
     if(!historicalEditable() || !loadedDate)return;
+    if (!draftGuard.confirmLeave()) return;
     historicalEditing=!historicalEditing;
     renderHistoricalDay(historicalDays.find(day=>day.date===loadedDate));
   });
@@ -144,6 +146,8 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   let historicalMonthApproval=null;
   let historicalEditing=false;
   let historicalSaving=false;
+  const draftGuard=createUnsavedChangesGuard(panel,{ignore:target=>
+    !legsArea.contains(target) && target!==noTravel});
   let editingSavedReport=false;
   let uncertainSave=null;
   let refreshRequired=false;
@@ -201,11 +205,12 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     if(historicalSaving || !historicalEditable())return;
     const date=loadedDate;
     const [year,month]=selectedMonth.split('-').map(Number);
-    historicalSaving=true;
+    historicalSaving=true;draftGuard.busy=true;
     const editorButtons=[...reportCard.querySelectorAll('[data-historical-action]')];
     editorButtons.forEach(button=>button.disabled=true);
+    let committed=false;
     try{
-      const approval=await getMonthApproval(empId,selectedMonth,{force:true});
+      const approval=await withTravelDeadline(()=>getMonthApproval(empId,selectedMonth,{force:true}),{action:'בדיקת הרשאת החודש'});
       if(!canEditMonth(year,month,approval) || (selectedMonth<'2026-11' && approval?.status!=='reopened'))
         throw new Error('החודש אינו פתוח עוד לעריכה');
       const forms=[...legsArea.querySelectorAll('[data-record-id]')];
@@ -222,30 +227,29 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         const afterMinutes=after===''?null:parseDuration(after);
         if((before!=='' && beforeMinutes===null)||(after!=='' && afterMinutes===null))
           throw new Error('משך ביטול זמן חייב להיות בשעות:דקות ובטווח של פחות מ־6 שעות לכל כיוון');
-        return {id:form.dataset.recordId,payload:{
+        const original=historicalDays.find(day=>day.date===date)?.records.find(row=>String(row.id)===form.dataset.recordId);
+        return {id:form.dataset.recordId,expected_updated_at:original?.updated_at,payload:{
           roundtrip_km:kmNumber,
           cancellation_before_minutes:beforeMinutes,
           cancellation_after_minutes:afterMinutes
         }};
       });
-      for(const change of changes){
-        const {data,error}=await supabase.from('attendance_records')
-          .update({...change.payload,updated_at:new Date().toISOString()})
-          .eq('id',change.id).eq('emp_id',Number(empId)).select('id').single();
-        if(error || !data)throw new Error(error?.message||'שמירת הנסיעות נכשלה');
-      }
+      await saveHistoricalTravel(empId,date,changes);
+      committed=true;
+      draftGuard.markClean();
       invalidateAttendanceCache(empId);
-      const historical=await readHistoricalAttendance(empId,selectedMonth);
-      const reports=await getDailyTravelReports(empId,selectedMonth);
+      const historical=await withTravelDeadline(()=>readHistoricalAttendance(empId,selectedMonth),{action:'טעינת הנוכחות לאחר שמירה'});
+      const reports=await withTravelDeadline(signal=>getDailyTravelReports(empId,selectedMonth,{signal}),{action:'טעינת הנסיעות לאחר שמירה'});
       historicalDays=historicalTravelDays(historical.rows,reports);
       historicalMonthApproval=historical.approval;
       historicalEditing=false;
       renderHistoricalDay(historicalDays.find(day=>day.date===date));
       status.textContent='השינויים נשמרו';
     }catch(error){
-      status.textContent=error.message||'שמירת השינויים נכשלה';
+      status.textContent=committed?'הנסיעות נשמרו בשרת, אך רענון התצוגה נכשל. ניתן לרענן את הנתונים.':error.message||'שמירת השינויים נכשלה';
+      if(committed){reload.textContent='רענון הנתונים';reload.hidden=false;}
     }finally{
-      historicalSaving=false;
+      historicalSaving=false;draftGuard.busy=false;
       editorButtons.forEach(button=>button.disabled=false);
     }
   }
@@ -334,7 +338,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       const cancel=document.createElement('button');
       cancel.type='button';cancel.className='av2-btn av2-btn--secondary av2-daily-travel__action-sm';
       cancel.dataset.historicalAction='cancel';cancel.textContent='ביטול';
-      cancel.addEventListener('click',()=>{historicalEditing=false;renderHistoricalDay(day);});
+      cancel.addEventListener('click',()=>{if(!draftGuard.confirmLeave())return;historicalEditing=false;renderHistoricalDay(day);});
       actions.append(confirm,cancel);
     }
   }
@@ -346,6 +350,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       ? String(Math.floor(minutes/60)).padStart(2,'0')+':'+String(minutes%60).padStart(2,'0'):'';
   };
   function showSavedReport(report,{contextChanged=false}={}){
+    draftGuard.markClean();
     reload.hidden=true;
     editingSavedReport=false;
     reportCard.classList.add('av2-daily-travel__report-card--saved');
@@ -660,6 +665,8 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     showSummary();
   }
   function setDate(date) {
+    if (String(date||'').slice(0,10)===requestedDay && loadedDate===requestedDay) return true;
+    if (!draftGuard.confirmLeave()) {daySelect.value=requestedDay;syncDayPicker();return false;}
     historicalEditing=false;
     requestedDay=String(date||'').slice(0,10);
     const targetMonth=requestedDay.slice(0,7);
@@ -675,6 +682,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       dayPicker.select.value=requestedDay;
     }
     loadedDate='';
+    return true;
   }
   function displayDay(day){
     const formatDate=day.date.slice(8,10)+'.'+day.date.slice(5,7)+'.'+day.date.slice(0,4);
@@ -959,6 +967,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   }
   noTravel.addEventListener('change',showSummary);
   monthSelect.addEventListener('change',()=>{
+    if(!draftGuard.confirmLeave()){monthSelect.value=selectedMonth;monthPicker.sync();return;}
     historicalEditing=false;
     selectedMonth=monthSelect.value;
     requestedDay='';loadedDate='';dayOptions=[];
@@ -971,6 +980,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   });
   reload.addEventListener('click',async()=>{
     if(loading || saving)return;
+    if(!uncertainSave && !draftGuard.confirmLeave())return;
     if(uncertainSave?.date===loadedDate){
       saving=true;
       try{await checkUncertainSave();}
@@ -997,7 +1007,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     const saveLegs=legs.map(leg=>({...leg}));
     const saveNoTravel=noTravel.checked;
     const showingSavedDate=()=>loadedDate===saveDate && dateField.input.value===saveDate;
-    saving=true;save.disabled=true;
+    saving=true;draftGuard.busy=true;save.disabled=true;
     reload.hidden=true;
     status.textContent='שומר את הדיווח…';
     let saveAttempted=false;
@@ -1039,7 +1049,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         status.textContent=error.message||'שמירת הנסיעות נכשלה';
       }
     }finally{
-      saving=false;
+      saving=false;draftGuard.busy=false;
       save.disabled=loading || locked || loadedDate!==dateField.input.value
         || (uncertainSave?.date===loadedDate) || refreshRequired;
     }

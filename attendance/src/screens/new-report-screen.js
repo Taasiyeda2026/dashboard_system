@@ -5,6 +5,7 @@
  * Courses use date-specific dashboard choices; other assignments load once.
  */
 
+import { createUnsavedChangesGuard } from '../services/unsaved-changes.js';
 import { createIcon } from '../components/icon.js';
 import { reportedKilometers } from '../services/reported-kilometers.js';
 import { createInputField, createSelectField } from '../components/field.js';
@@ -1124,6 +1125,8 @@ export function renderNewReportScreen(container, {
     }
 
     const form = document.createElement('form');
+    const draftGuard = createUnsavedChangesGuard(form);
+    const creationRequestId = crypto.randomUUID();
     form.className = 'av2-report__form';
     form.noValidate = true;
 
@@ -1544,6 +1547,7 @@ export function renderNewReportScreen(container, {
     cancelLbl.textContent = 'ביטול';
     cancelBtn.append(createIcon('x'), cancelLbl);
     cancelBtn.addEventListener('click', () => {
+      if (!draftGuard.confirmLeave()) return;
       successBanner.hidden = true;
       lockBanner.hidden = true;
       buildForm(null, defaultDate);
@@ -1554,6 +1558,7 @@ export function renderNewReportScreen(container, {
 
     errorEl = document.createElement('p');
     errorEl.className = 'av2-report__error';
+    errorEl.setAttribute('role','alert');
     errorEl.hidden = true;
     form.append(errorEl);
     dateWarningEl = document.createElement('p');
@@ -1567,7 +1572,14 @@ export function renderNewReportScreen(container, {
     actionsRow.before(dateWarningEl, dashboardMismatchEl);
 
     typeField.input.addEventListener('change', () => { onActivityTypeChange(); });
-    dateField.input.addEventListener('change', () => { void onReportDateChange(); });
+    let acceptedReportDate=dateField.input.value;
+    dateField.input.addEventListener('change', event => {
+      if(dateField.input.value!==acceptedReportDate && !draftGuard.confirmLeave()){
+        dateField.input.value=acceptedReportDate;event.stopImmediatePropagation();return;
+      }
+      acceptedReportDate=dateField.input.value;
+      void onReportDateChange();
+    });
     form.addEventListener('av2:dashboard-duplicate-meeting', (event) => {
       const detail = event.detail || {};
       const priorRowId = activityRowId(selectedActivity) || prefill?.activity_row_id;
@@ -1691,16 +1703,18 @@ export function renderNewReportScreen(container, {
     let savedRecordForAttachmentRetry = null;
 
     function finishSuccessfulSave(record, reportDate) {
+      draftGuard.markClean();
+      draftGuard.busy = false;
       saveBtn.disabled = true;
       saveBtn.querySelector('span').textContent = 'הדיווח נשמר בהצלחה';
-      window.setTimeout(() => {
-        onSaved?.(record);
-        buildForm(null, reportDate);
-        successBanner.textContent = 'דיווח הנוכחות נשמר בהצלחה';
-        successBanner.hidden = false;
-        successBanner.setAttribute('role','status');
-        successBanner.scrollIntoView({block:'nearest',behavior:'smooth'});
-      }, 500);
+      // Reset in the same task: a delayed reset could erase input entered
+      // during the success animation after the previous save completed.
+      onSaved?.(record);
+      buildForm(null, reportDate);
+      successBanner.textContent = 'דיווח הנוכחות נשמר בהצלחה';
+      successBanner.hidden = false;
+      successBanner.setAttribute('role','status');
+      successBanner.scrollIntoView({block:'nearest',behavior:'smooth'});
     }
 
     async function uploadPendingFiles(recordId) {
@@ -1730,7 +1744,10 @@ export function renderNewReportScreen(container, {
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+      if (draftGuard.busy) return;
       if (formLocked) return;
+      draftGuard.busy=true;
+      try {
       syncDateWarning();
 
       if (savedRecordForAttachmentRetry) {
@@ -1789,12 +1806,14 @@ export function renderNewReportScreen(container, {
       if (dateStr && dateStr > latestReportDate()) {
         errorEl.textContent = 'לא ניתן לדווח נוכחות עבור תאריך עתידי.';
         errorEl.hidden = false;
+        draftGuard.busy=false;
         dateField.input.focus();
         return;
       }
       if (isBaseTraining && !isBaseTrainingDate(dateStr)) {
         errorEl.textContent = 'הכשרת בסיס ניתנת לדיווח רק בתאריכים 15–17.09.2026.';
         errorEl.hidden = false;
+        draftGuard.busy=false;
         dateField.input.focus();
         return;
       }
@@ -1838,6 +1857,7 @@ export function renderNewReportScreen(container, {
       if (missing.length) {
         errorEl.textContent = `שדות חובה חסרים: ${[...new Set(missing)].join(' · ')}`;
         errorEl.hidden = false;
+        draftGuard.busy=false;
         firstInvalid?.querySelector('input,select,button,.av2-csel__trigger,.av2-ssel__trigger')?.focus();
         return;
       }
@@ -1876,6 +1896,7 @@ export function renderNewReportScreen(container, {
 
       saveBtn.disabled = true;
       saveBtn.querySelector('span').textContent = 'שומר…';
+      draftGuard.busy = true;
 
       try {
         let originalCancellationRecord = null;
@@ -1927,7 +1948,7 @@ export function renderNewReportScreen(container, {
           payload.public_transport = false;
           payload.public_transport_cost = 0;
         }
-        const record = await createRecord(instructor.empId, payload);
+        const record = await createRecord(instructor.empId, payload, {requestId:creationRequestId});
         // Travel compensation is back-office processing. Never block or warn the
         // instructor: unresolved calculations remain visible to the team manager/admin.
         if (!isDailyTravelDate()) void reconcileTravelCompensation(record.id).catch(() => null);
@@ -1947,7 +1968,14 @@ export function renderNewReportScreen(container, {
         errorEl.hidden = false;
         saveBtn.disabled = false;
         saveBtn.querySelector('span').textContent = 'שמור';
+      } finally {
+        draftGuard.busy = false;
       }
+      } catch (error) {
+        errorEl.textContent=error.message||'הפעולה נכשלה. הנתונים נשארו בטופס.';
+        errorEl.hidden=false;
+        saveBtn.disabled=false;
+      } finally {draftGuard.busy=false;}
     });
 
     const tabs = document.createElement('div');

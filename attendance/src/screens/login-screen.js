@@ -67,6 +67,7 @@ export function renderLoginScreen(container, { onLogin } = {}) {
   errorEl.hidden = true;
 
   function setBusy(busy) {
+    form.dataset.busy = String(busy);
     userField.input.disabled = busy;
     codeField.input.disabled = busy;
     submit.disabled = busy;
@@ -82,6 +83,7 @@ export function renderLoginScreen(container, { onLogin } = {}) {
   form.append(userField.wrap, codeField.wrap, submit, forgot, errorEl);
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
+    if (form.dataset.busy === 'true') return;
     showError('');
     setBusy(true);
     try {

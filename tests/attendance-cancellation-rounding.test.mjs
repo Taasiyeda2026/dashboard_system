@@ -57,10 +57,11 @@ test('cancellation summaries and Excel share rounded durations without rounding 
   assert.deepEqual(records, before);
 });
 
-test('instructor form rounds entered cancellation and saves five-minute values', async () => {
+test('current daily-travel form omits retired cancellation fields and standalone cancellation still rounds', async () => {
   const dom = new JSDOM('<main id="app"></main>', { url: 'https://example.test/attendance/?adminPreview=1' });
   for (const name of ['window', 'document', 'HTMLElement', 'HTMLInputElement', 'HTMLSelectElement', 'MutationObserver', 'Event', 'CustomEvent', 'sessionStorage']) globalThis[name] = dom.window[name];
   globalThis.requestAnimationFrame = callback => callback();
+  window.fetch = async () => { throw new Error('Unexpected network call in preview'); };
   window.supabase = { createClient: () => ({ rpc: async () => { throw new Error('Unexpected production call'); } }) };
   const { renderNewReportScreen } = await import('../attendance/src/screens/new-report-screen.js');
   const { createRecord, getMonthRecords } = await import('../attendance/src/services/attendance.service.js');
@@ -73,19 +74,15 @@ test('instructor form rounds entered cancellation and saves five-minute values',
     prefillRecord: { id: 'duplicated-reviewed-source', report_date: date, activity_type: 'תפעול', activity_name_snapshot: 'הרמת כוסית', start_time: '08:00', end_time: '10:00', cancellation_before_minutes: 87, cancellation_after_minutes: 102, travel_compensation: { review_status: 'approved' }, notes: 'rounding-audit' },
   });
   await flush();
-  for (const [id, entered, expected] of [['av2-cancellation-before', '1:27', '1:30'], ['av2-cancellation-after', '1:42', '1:45']]) {
-    const input = document.getElementById(id);
-    input.value = entered;
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-    assert.equal(input.value, expected);
-  }
+  assert.equal(document.getElementById('av2-cancellation-before'),null);
+  assert.equal(document.getElementById('av2-cancellation-after'),null);
   document.querySelector('form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
   await flush();
   const records = await getMonthRecords(PREVIEW_EMP_ID, now.getFullYear(), now.getMonth() + 1);
   const saved = records.find(record => record.notes === 'rounding-audit');
   assert.ok(saved, document.querySelector('.av2-report__error')?.textContent);
-  assert.equal(saved.cancellation_before_minutes, 90);
-  assert.equal(saved.cancellation_after_minutes, 105);
+  assert.equal(saved.cancellation_before_minutes, null);
+  assert.equal(saved.cancellation_after_minutes, null);
   assert.equal(saved.total_hours, 2);
   const standalone = await createRecord(PREVIEW_EMP_ID, { report_date: date, activity_type: 'ביטול זמן', total_hours: 1.45 });
   assert.equal(standalone.total_hours, 1.5);

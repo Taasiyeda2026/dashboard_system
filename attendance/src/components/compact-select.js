@@ -66,6 +66,7 @@ export function createCompactSelect({
 
   function emitChange() {
     for (const fn of changeListeners) fn();
+    wrap.dispatchEvent(new Event('change', {bubbles:true}));
   }
 
   function renderOptions() {

@@ -203,6 +203,50 @@ test('real Chromium: mismatched server report blocks overwrite until reviewed',a
  });
 });
 
+test('real Chromium: cancelling day departure preserves unsaved travel and permits saving',async()=>{
+ await withPage(async page=>{
+  await page.evaluate(()=>window.travelComponent.load());
+  const checkbox=page.locator('.av2-daily-travel input[type="checkbox"]');
+  await checkbox.check();
+  let prompts=0;
+  page.on('dialog',async dialog=>{prompts++;assert.match(dialog.message(),/שינויים שטרם נשמרו/);await dialog.dismiss();});
+  const moved=await page.evaluate(()=>window.travelComponent.setDate('2026-11-06'));
+  assert.equal(moved,false);assert.equal(prompts,1);
+  assert.equal(await checkbox.isChecked(),true);
+  assert.equal(await page.locator('#av2-travel-date').inputValue(),'2026-11-05');
+  await page.locator('button:has-text("שמירת נסיעות")').click();
+  await page.waitForFunction(()=>document.querySelector('.av2-daily-travel__saved')?.hidden===false);
+  assert.equal(await page.evaluate(()=>window.__travelMock.saveCalls.length),1);
+ });
+});
+
+test('real Chromium: confirmed departure discards only after explicit warning',async()=>{
+ await withPage(async page=>{
+  await page.evaluate(()=>window.travelComponent.load());
+  await page.locator('.av2-daily-travel input[type="checkbox"]').check();
+  page.once('dialog',dialog=>dialog.accept());
+  await page.evaluate(async()=>{window.travelComponent.setDate('2026-11-06');await window.travelComponent.load();});
+  assert.equal(await page.locator('#av2-travel-date').inputValue(),'2026-11-06');
+  assert.equal(await page.locator('.av2-daily-travel input[type="checkbox"]').isChecked(),false);
+  assert.equal(await page.evaluate(()=>window.__travelMock.saveCalls.length),0);
+ });
+});
+
+test('real Chromium: in-flight save keeps its day and blocks duplicate submission',async()=>{
+ await withPage(async page=>{
+  await page.evaluate(()=>{window.__travelMock.saveHangs=true;});
+  await page.evaluate(()=>window.travelComponent.load());
+  await page.locator('.av2-daily-travel input[type="checkbox"]').check();
+  await page.locator('button:has-text("שמירת נסיעות")').click();
+  await page.waitForFunction(()=>window.__travelMock.saveCalls.length===1);
+  page.once('dialog',dialog=>dialog.accept());
+  assert.equal(await page.evaluate(()=>window.travelComponent.setDate('2026-11-06')),false);
+  await page.evaluate(()=>document.querySelector('.av2-daily-travel__actions button')?.click());
+  assert.equal(await page.locator('#av2-travel-date').inputValue(),'2026-11-05');
+  assert.equal(await page.evaluate(()=>window.__travelMock.saveCalls.length),1);
+ });
+});
+
 test('real Chromium: changed context clears old values even when activity labels are unchanged',async()=>{
  await withPage(async page=>{
   await page.evaluate(()=>{

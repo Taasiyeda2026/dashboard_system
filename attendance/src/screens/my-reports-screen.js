@@ -10,6 +10,7 @@
  * amount/detail and click opens the expense details and supporting documents.
  */
 
+import { createUnsavedChangesGuard, confirmLeavingReports } from '../services/unsaved-changes.js';
 import { createIcon } from '../components/icon.js';
 import { getDailyTravelReports } from '../services/daily-travel.service.js';
 import {formatTravelDistance,sumReportedDailyTravel} from '../components/reported-daily-travel.js';
@@ -720,6 +721,7 @@ async function handleDelete({ record, instructor, row, onRefresh, hasDailyTravel
 // ── Edit modal ─────────────────────────────────────────────────────────────────
 
 function showEditModal({ record, instructor, activityTypes, onRefresh }) {
+  if (!confirmLeavingReports()) return;
   document.querySelector('.av2-modal-overlay')?.remove();
 
   const overlay = document.createElement('div');
@@ -740,13 +742,14 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
   closeBtn.className = 'av2-btn av2-btn--icon';
   closeBtn.setAttribute('aria-label', 'סגירה');
   closeBtn.append(createIcon('x'));
-  closeBtn.addEventListener('click', () => overlay.remove());
+  closeBtn.addEventListener('click', () => {if(draftGuard.confirmLeave())overlay.remove();});
   modalHeader.append(modalTitle, closeBtn);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  overlay.addEventListener('click', (e) => { if (e.target === overlay && draftGuard.confirmLeave()) overlay.remove(); });
 
   const typeOptions = activityTypes.length ? activityTypes : ['ביטול זמן','הכשרה','חדר בריחה','זום','סדנה','סיור','קורס','תפעול'];
 
   const form = document.createElement('form');
+  const draftGuard=createUnsavedChangesGuard(form);
   form.className = 'av2-report__form';
   form.noValidate = true;
 
@@ -1003,6 +1006,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if(draftGuard.busy)return;
     errorEl.hidden = true;
 
     if (reportDateField.input.value > latestReportDate()) {
@@ -1059,6 +1063,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
       return;
     }
 
+    draftGuard.busy=true;
     saveBtn.disabled = true;
     saveBtnLabel.textContent = 'שומר…';
 
@@ -1098,6 +1103,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
         expense_details:         reportDateField.input.value >= '2026-11-01' ? null : (expDField.input.value.trim() || null),
         notes:                   notesField.input.value.trim() || null
       });
+      draftGuard.markClean();
       overlay.remove();
       onRefresh();
       if(reportDateField.input.value < '2026-11-01') void reconcileTravelCompensation(record.id).then(() => onRefresh()).catch(() => null);
@@ -1106,7 +1112,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
       errorEl.hidden = false;
       saveBtn.disabled = false;
       saveBtnLabel.textContent = 'שמירת שינויים';
-    }
+    }finally{draftGuard.busy=false;}
   });
 
   modal.append(modalHeader, form);

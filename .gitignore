@@ -28,3 +28,6 @@ e2e/test-results/
 playwright-report/
 test-results/
 blob-report/
+
+# Disposable attendance QA runtime (contains local-only generated credentials)
+work/attendance-stability-qa/

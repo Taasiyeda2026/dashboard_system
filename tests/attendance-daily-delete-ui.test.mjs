@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {JSDOM} from 'jsdom';
+import {confirmedMutation} from '../attendance/src/services/confirmed-mutation.js';
 import {isZoomLocationReport} from '../attendance/src/services/attendance-location-policy.js';
 
 const source=readFileSync(new URL('../attendance/src/screens/my-reports-screen.js',import.meta.url),'utf8');
@@ -81,10 +82,11 @@ const deleteSource=service.slice(service.indexOf('export async function deleteRe
  .replace('export async function','async function');
 test('delete service requires server confirmation, rejects zero-row and server-error deletions',async()=>{
  for(const [response,success] of [[{data:[{id:'deleted'}],error:null},true],
+  [{data:[{id:'other'}],error:null},false],
   [{data:[],error:null},false],[{data:null,error:{message:'denied'}},false]]){
   let invalidations=0;
-  const query={delete(){return this;},eq(){return this;},select(){return Promise.resolve(response);}};
-  const context={isAdminPreviewRequested:()=>false,supabase:{from:()=>query},
+  const query={delete(){return this;},eq(){return this;},select(){return this;},abortSignal(){return Promise.resolve(response);},maybeSingle(){return this;}};
+  const context={confirmedMutation,isAdminPreviewRequested:()=>false,supabase:{from:()=>query},
    instructorAttendanceError:error=>error.message,invalidateAttendanceCache:()=>invalidations++};
   runInNewContext(deleteSource+'\nthis.remove=deleteRecord;',context);
   if(success){await context.remove('deleted',1);assert.equal(invalidations,1);}
