@@ -37,8 +37,8 @@ jobs:
       - name: Verify orphaned travel selection and deletion safeguards
         run: node --test tests/attendance-orphan-daily-travel-control.test.mjs
 
-      - name: Verify journey duration layout
-        run: node --test tests/attendance-travel-duration-layout.test.mjs
+      - name: Verify journey duration layout and missing-travel navigation
+        run: node --test tests/attendance-travel-duration-layout.test.mjs tests/attendance-missing-travel-direct-navigation.test.mjs
 
       - name: Build
         env:
