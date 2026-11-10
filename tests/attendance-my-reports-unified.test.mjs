@@ -94,3 +94,19 @@ test('all travel and action icons share one scoped ten-column design, including 
   assert.ok(attendanceAssetVersion && attendanceSwVersion);
   assert.equal(attendanceAssetVersion[1],attendanceSwVersion[1]);
 });
+
+test('compact report columns stay centered on desktop while mobile details wrap',async()=>{
+  const css=await load('attendance/src/styles/my-reports-unified.css');
+  assert.match(css,/width:min\(100%,1040px\)!important/);
+  assert.match(css,/min-width:892px!important/);
+  assert.match(css,/minmax\(110px,1\.22fr\)/);
+  assert.match(css,/minmax\(136px,1\.28fr\)/);
+  assert.match(css,/minmax\(88px,\.92fr\)/);
+  assert.match(css,/span:nth-child\(2\)/);
+  assert.match(css,/span:nth-child\(7\)/);
+  assert.match(css,/\.av2-rr__type,/);
+  assert.match(css,/\.av2-rr__meeting\{/);
+  assert.match(css,/@media\(max-width:767px\)/);
+  assert.match(css,/white-space:normal!important/);
+  assert.match(css,/overflow-wrap:anywhere/);
+});
