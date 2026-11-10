@@ -63,7 +63,7 @@ const styles = StyleSheet.create({
     marginBottom: 4
   },
   table: {
-    width: '88%',
+    width: '100%',
     alignSelf: 'flex-end',
     borderTopWidth: 0.55,
     borderRightWidth: 0.55,
@@ -146,38 +146,61 @@ function meetingRow(meeting) {
   );
 }
 
-function estimatedMeetingCost(meeting, hasPreparation) {
-  if (!hasPreparation) return 1;
-  const preparationLength = clean(meeting?.school_preparation).length;
-  if (!preparationLength) return 1;
-  return 1 + Math.min(1.8, preparationLength / 95);
+// Estimate printed row height in points, not character-weighted "meeting costs".
+// The old 13.5-unit first-page limit split ten short rows across two mostly empty pages.
+const A4_CONTENT_HEIGHT_PT = 841.89 - 24 - 30;
+const FIRST_PAGE_FIXED_HEIGHT_PT = 210; // recipient, logo, title, activity details and table header
+const CONTINUATION_FIXED_HEIGHT_PT = 55; // continuation title and table header
+const FINAL_NOTES_HEIGHT_PT = 115; // manager contact and activity guidance
+const PAGE_SAFETY_MARGIN_PT = 45;
+const PREPARATION_CHARS_PER_LINE = 42;
+const PREPARATION_LINE_HEIGHT_PT = 10.5;
+const MIN_ROW_HEIGHT_PT = 21;
+
+function estimatedMeetingHeight(meeting) {
+  const preparation = clean(meeting?.school_preparation);
+  if (!preparation) return MIN_ROW_HEIGHT_PT;
+  const lines = preparation.split(/\r?\n/).reduce(
+    (total, paragraph) => total + Math.max(1, Math.ceil(paragraph.length / PREPARATION_CHARS_PER_LINE)),
+    0
+  );
+  return Math.max(MIN_ROW_HEIGHT_PT, 6 + lines * PREPARATION_LINE_HEIGHT_PT);
 }
 
 export function chunkCoordinationMeetings(meetings = []) {
   const rows = Array.isArray(meetings) ? meetings : [];
   const hasPreparation = rows.some((row) => clean(row?.school_preparation));
+  const firstPageBudget = A4_CONTENT_HEIGHT_PT - FIRST_PAGE_FIXED_HEIGHT_PT - FINAL_NOTES_HEIGHT_PT - PAGE_SAFETY_MARGIN_PT;
+  const continuationBudget = A4_CONTENT_HEIGHT_PT - CONTINUATION_FIXED_HEIGHT_PT - FINAL_NOTES_HEIGHT_PT - PAGE_SAFETY_MARGIN_PT;
   const chunks = [];
   let current = [];
-  let cost = 0;
-  let capacity = hasPreparation ? 13.5 : 18;
+  let usedHeight = 0;
 
   for (const row of rows) {
-    const rowCost = estimatedMeetingCost(row, hasPreparation);
-    if (current.length && cost + rowCost > capacity) {
+    const rowHeight = estimatedMeetingHeight(row);
+    const budget = chunks.length ? continuationBudget : firstPageBudget;
+    if (current.length && usedHeight + rowHeight > budget) {
       chunks.push(current);
       current = [];
-      cost = 0;
-      capacity = hasPreparation ? 16 : 20;
+      usedHeight = 0;
     }
     current.push(row);
-    cost += rowCost;
+    usedHeight += rowHeight;
   }
   if (current.length) chunks.push(current);
 
+  // Avoid a very short final page, but never exceed its height budget.
   if (chunks.length > 1) {
     const last = chunks[chunks.length - 1];
     const previous = chunks[chunks.length - 2];
-    while (last.length < 4 && previous.length > 6) last.unshift(previous.pop());
+    let lastHeight = last.reduce((total, row) => total + estimatedMeetingHeight(row), 0);
+    while (last.length < 4 && previous.length > 6) {
+      const candidate = previous[previous.length - 1];
+      const candidateHeight = estimatedMeetingHeight(candidate);
+      if (lastHeight + candidateHeight > continuationBudget) break;
+      last.unshift(previous.pop());
+      lastHeight += candidateHeight;
+    }
   }
   return { chunks: chunks.length ? chunks : [[]], hasPreparation };
 }
