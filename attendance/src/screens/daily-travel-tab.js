@@ -93,6 +93,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   const reload = document.createElement('button');
   reload.type='button';reload.className='av2-btn av2-btn--secondary';
   reload.textContent='רענון';
+  reload.classList.add('av2-daily-travel__retry');
   reload.hidden=true;
   const actions=document.createElement('div');
   actions.className='av2-report__actions';
