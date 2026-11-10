@@ -19,7 +19,7 @@ test('travel has one distinct heading and uses expenses-style compact report car
  assert.match(ui,/title\.textContent = 'דיווח נסיעות'/);
  assert.doesNotMatch(ui,/title\.textContent = 'נסיעות וביטולים'/);
  assert.match(ui,/reportCard\.className='av2-daily-travel__report-card'/);
- assert.match(ui,/reportCard\.append\(monthWrap,daysWrap,dateField\.wrap,status,historicalEdit,legsArea,noTravelLabel,summary,savedCard,actions\)/);
+ assert.match(ui,/reportCard\.append\(monthWrap,daysWrap,dateField\.wrap,status,reload,historicalEdit,legsArea,noTravelLabel,summary,savedCard,actions\)/);
  assert.match(css,/\.av2-daily-travel__report-card\{[\s\S]*?max-width:480px/);
  assert.match(css,/\.av2-daily-travel__report-card>\.av2-report__actions>\.av2-btn\{[\s\S]*?width:110px/);
  assert.match(css,/\.av2-daily-travel__saved\{/);

@@ -78,8 +78,8 @@ test('history changes affect UI and read-only adapters, never saving or payroll 
  const helper=await readFile(new URL('../attendance/src/services/historical-display.service.js',import.meta.url),'utf8');
  assert.ok(travel.includes('if(isHistoricTravelMonth(selectedMonth)){'));
  assert.ok(travel.includes('renderHistoricalDay('));
- assert.ok(travel.includes('getAssignedTravelDays({fromDate,toDate})'));
- assert.ok(travel.includes('await saveDailyTravel(saveDate,saveLegs,saveNoTravel)'));
+ assert.ok(travel.includes('getAssignedTravelDays({fromDate,toDate,signal})'));
+ assert.ok(travel.includes('signal=>saveDailyTravel(saveDate,saveLegs,saveNoTravel,{signal})'));
  assert.ok(expenses.includes('historicalExpenses(history.rows,independent)'));
  assert.ok(expenses.includes('form.hidden=false'));
  assert.ok(expenses.includes("if(historicalView){"));
