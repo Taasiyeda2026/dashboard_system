@@ -6,6 +6,7 @@
  */
 
 import { createUnsavedChangesGuard } from '../services/unsaved-changes.js';
+import { confirmSystemMessage, showSystemMessage } from '../components/system-dialog.js';
 import { createIcon } from '../components/icon.js';
 import { reportedKilometers } from '../services/reported-kilometers.js';
 import { createInputField, createSelectField } from '../components/field.js';
@@ -1125,7 +1126,8 @@ export function renderNewReportScreen(container, {
     }
 
     const form = document.createElement('form');
-    const draftGuard = createUnsavedChangesGuard(form);
+    // The reporting date selects the day; it is not itself unsaved report content.
+    const draftGuard = createUnsavedChangesGuard(form, {ignore: target => target?.id === 'av2-report-date'});
     const creationRequestId = crypto.randomUUID();
     form.className = 'av2-report__form';
     form.noValidate = true;
@@ -1546,8 +1548,13 @@ export function renderNewReportScreen(container, {
     const cancelLbl = document.createElement('span');
     cancelLbl.textContent = 'ביטול';
     cancelBtn.append(createIcon('x'), cancelLbl);
-    cancelBtn.addEventListener('click', () => {
-      if (!draftGuard.confirmLeave()) return;
+    cancelBtn.addEventListener('click', async () => {
+      if (draftGuard.busy) {
+        await showSystemMessage('הפעולה עדיין מתבצעת. לא ניתן לבטל את הטופס כעת.');
+        return;
+      }
+      if (draftGuard.dirty && !(await confirmSystemMessage('לבטל את הדיווח ולמחוק את הפרטים שטרם נשמרו?'))) return;
+      draftGuard.markClean();
       successBanner.hidden = true;
       lockBanner.hidden = true;
       buildForm(null, defaultDate);
@@ -1573,12 +1580,30 @@ export function renderNewReportScreen(container, {
 
     typeField.input.addEventListener('change', () => { onActivityTypeChange(); });
     let acceptedReportDate=dateField.input.value;
-    dateField.input.addEventListener('change', event => {
-      if(dateField.input.value!==acceptedReportDate && !draftGuard.confirmLeave()){
-        dateField.input.value=acceptedReportDate;event.stopImmediatePropagation();return;
+    let changingReportDate=false;
+    dateField.input.addEventListener('change', async () => {
+      const requestedDate=dateField.input.value;
+      if (requestedDate===acceptedReportDate || changingReportDate) return;
+      changingReportDate=true;
+      try {
+        if (draftGuard.busy) {
+          dateField.input.value=acceptedReportDate;
+          await showSystemMessage('השמירה עדיין מתבצעת. לא ניתן לשנות את התאריך כעת.');
+          return;
+        }
+        // A date-only change needs no confirmation. Protect actual filled-in details.
+        if (draftGuard.dirty && !(await confirmSystemMessage(
+          'כבר מולאו פרטים בדיווח. שינוי התאריך עשוי לעדכן את פרטי הפעילות. להמשיך?'
+        ))) {
+          dateField.input.value=acceptedReportDate;
+          return;
+        }
+        // Preserve the unsaved-data guard: changing dates does not save or discard entered fields.
+        acceptedReportDate=requestedDate;
+        void onReportDateChange();
+      } finally {
+        changingReportDate=false;
       }
-      acceptedReportDate=dateField.input.value;
-      void onReportDateChange();
     });
     form.addEventListener('av2:dashboard-duplicate-meeting', (event) => {
       const detail = event.detail || {};
