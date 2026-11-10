@@ -1,5 +1,6 @@
 import { supabase } from '../api/client.js';
-import { uploadAttachment,deleteAttachment,getSignedUrl } from './storage.service.js';
+import { uploadAttachment,getSignedUrl } from './storage.service.js';
+import { confirmedMutation } from './confirmed-mutation.js';
 import { instructorAttendanceError } from './instructor-error.service.js';
 
 export async function listExpenseReports({fromDate,toDate,employeeIds=null}={}) {
@@ -24,20 +25,25 @@ export async function saveExpenseReport({date,amount,details,id=null}={}) {
   return data;
 }
 
-export async function attachExpenseReceipt({file,employeeId,expenseId,email=''}={}) {
+export async function attachExpenseReceipt({file,employeeId,expenseId,date,email=''}={}) {
   if(!file || file.size<=0 || file.size>10*1024*1024
     || !['application/pdf','image/jpeg','image/png','image/webp'].includes(file.type)){
     throw new Error('ניתן לצרף PDF או תמונה עד 10MB');
   }
   const path=await uploadAttachment(file,employeeId,expenseId,{employeeEmail:email});
-  const {error}=await supabase.rpc('av2_expense_attachment_add',{
+  return confirmedMutation(async signal=>{
+   const {data,error}=await supabase.rpc('av2_expense_attachment_add',{
     p_expense_id:expenseId,p_storage_path:path,p_file_name:file.name,
     p_file_type:file.type,p_file_size:file.size
+   }).abortSignal(signal);
+   if(error)throw new Error('שמירת פרטי המסמך לא אומתה. הקובץ נשאר בתור.');
+   return data;
+  },async()=>{
+   if(!date)throw new Error('נדרשת בדיקת מצב המסמך לפני ניסיון חוזר');
+   const rows=await listExpenseReports({fromDate:date,toDate:date,employeeIds:[employeeId]});
+   return rows.find(row=>row.id===expenseId)?.attachments?.find(item=>item.storage_path===path
+     && item.file_name===file.name && Number(item.file_size)===file.size) || null;
   });
-  if(error){
-    await deleteAttachment(path).catch(()=>null);
-    throw new Error('שמירת המסמך נכשלה');
-  }
 }
 
 export async function reviewExpenseReport({id,decision,approvedAmount=null}={}){

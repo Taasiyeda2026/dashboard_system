@@ -1558,6 +1558,7 @@ export function renderNewReportScreen(container, {
 
     errorEl = document.createElement('p');
     errorEl.className = 'av2-report__error';
+    errorEl.setAttribute('role','alert');
     errorEl.hidden = true;
     form.append(errorEl);
     dateWarningEl = document.createElement('p');
@@ -1805,12 +1806,14 @@ export function renderNewReportScreen(container, {
       if (dateStr && dateStr > latestReportDate()) {
         errorEl.textContent = 'לא ניתן לדווח נוכחות עבור תאריך עתידי.';
         errorEl.hidden = false;
+        draftGuard.busy=false;
         dateField.input.focus();
         return;
       }
       if (isBaseTraining && !isBaseTrainingDate(dateStr)) {
         errorEl.textContent = 'הכשרת בסיס ניתנת לדיווח רק בתאריכים 15–17.09.2026.';
         errorEl.hidden = false;
+        draftGuard.busy=false;
         dateField.input.focus();
         return;
       }
@@ -1854,6 +1857,7 @@ export function renderNewReportScreen(container, {
       if (missing.length) {
         errorEl.textContent = `שדות חובה חסרים: ${[...new Set(missing)].join(' · ')}`;
         errorEl.hidden = false;
+        draftGuard.busy=false;
         firstInvalid?.querySelector('input,select,button,.av2-csel__trigger,.av2-ssel__trigger')?.focus();
         return;
       }

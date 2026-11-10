@@ -42,3 +42,16 @@ test('update confirmation matches every supplied field including nested values',
  assert.equal(recordMatchesPayload(null,{a:1}),false);
  assert.equal(recordMatchesPayload({start_time:'08:30:00',end_time:'10:00:00'},{start_time:'08:30',end_time:'10:00'}),true);
 });
+
+test('file transfer gets a longer but finite deadline while control calls stay short',async t=>{
+ t.mock.timers.enable({apis:['setTimeout']});
+ let signal;
+ const fetch=createDeadlineFetch((_url,init)=>{signal=init.signal;return new Promise(()=>{});},20,{storageTimeoutMs:180});
+ const pending=fetch('https://local.test/storage/v1/object/attendance-attachments/file.pdf',{method:'POST'});
+ const rejected=assert.rejects(pending,{name:'AttendanceTimeoutError'});
+ t.mock.timers.tick(21);assert.equal(signal.aborted,false);
+ t.mock.timers.tick(160);await rejected;assert.equal(signal.aborted,true);
+ const control=fetch('https://local.test/storage/v1/object/list/attendance-attachments',{method:'POST'});
+ const short=assert.rejects(control,{name:'AttendanceTimeoutError'});
+ t.mock.timers.tick(21);await short;
+});

@@ -9,6 +9,23 @@ import { supabase } from '../api/client.js';
 import { isAdminPreviewRequested } from '../preview/preview-mode.js';
 
 const BUCKET = 'attendance-attachments';
+// Keep one destination for the same queued File across failed responses and
+// metadata retries. Never overwrite an existing object to recover a timeout.
+const uploadAttempts = new WeakMap();
+
+async function verifyUploadedFile(path,file) {
+  const {data,error}=await supabase.storage.from(BUCKET).download(path);
+  if(error){
+    if(Number(error.status||error.statusCode)===404 || /not found|does not exist/i.test(error.message||''))return false;
+    throw new Error('לא ניתן לבדוק אם הקובץ כבר עלה. הקובץ נשאר בתור; בדקו חיבור ונסו שוב.');
+  }
+  const [stored,draft]=await Promise.all([data.arrayBuffer(),file.arrayBuffer()]);
+  const a=new Uint8Array(stored),b=new Uint8Array(draft);
+  if(a.length!==b.length || !a.every((value,index)=>value===b[index])){
+    throw new Error('קיים בשרת קובץ אחר בנתיב הזה. לא בוצעה דריסה; יש להסיר את הקובץ מהתור ולצרף אותו מחדש.');
+  }
+  return true;
+}
 
 const MIME_EXTENSION = {
   'image/jpeg': 'jpeg',
@@ -95,13 +112,23 @@ export async function uploadAttachment(file, empId, recordId, { employeeEmail = 
     return `preview/${folder}/${previewName}`;
   }
 
-  const sequence = await nextAttachmentSequence(folder, employeeLabel, dateLabel);
-  const storageName = buildAttachmentStorageFileName(file, {
+  let attempts=uploadAttempts.get(file);
+  if(!attempts){attempts=new Map();uploadAttempts.set(file,attempts);}
+  let attempt=attempts.get(folder);
+  if(attempt?.complete)return attempt.path;
+  if(attempt && await verifyUploadedFile(attempt.path,file)){
+    attempt.complete=true;return attempt.path;
+  }
+  if(!attempt){
+    const sequence = await nextAttachmentSequence(folder, employeeLabel, dateLabel);
+    const storageName = buildAttachmentStorageFileName(file, {
     employeeEmail,
     empId,
     sequence
-  });
-  const path = `${folder}/${storageName}`;
+    });
+    attempt={path:`${folder}/${storageName}`,complete:false};attempts.set(folder,attempt);
+  }
+  const path=attempt.path;
 
   const { error } = await supabase.storage
     .from(BUCKET)
@@ -110,7 +137,11 @@ export async function uploadAttachment(file, empId, recordId, { employeeEmail = 
       upsert: false
     });
 
-  if (error) throw new Error(`שגיאה בהעלאת קובץ: ${error.message}`);
+  if(error){
+    if(await verifyUploadedFile(path,file)){attempt.complete=true;return path;}
+    throw new Error('העלאת הקובץ לא הושלמה. הקובץ נשאר בתור וניתן לנסות שוב.');
+  }
+  attempt.complete=true;
   return path;
 }
 

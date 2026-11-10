@@ -208,6 +208,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     historicalSaving=true;draftGuard.busy=true;
     const editorButtons=[...reportCard.querySelectorAll('[data-historical-action]')];
     editorButtons.forEach(button=>button.disabled=true);
+    let committed=false;
     try{
       const approval=await withTravelDeadline(()=>getMonthApproval(empId,selectedMonth,{force:true}),{action:'בדיקת הרשאת החודש'});
       if(!canEditMonth(year,month,approval) || (selectedMonth<'2026-11' && approval?.status!=='reopened'))
@@ -234,6 +235,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         }};
       });
       await saveHistoricalTravel(empId,date,changes);
+      committed=true;
       draftGuard.markClean();
       invalidateAttendanceCache(empId);
       const historical=await withTravelDeadline(()=>readHistoricalAttendance(empId,selectedMonth),{action:'טעינת הנוכחות לאחר שמירה'});
@@ -244,7 +246,8 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       renderHistoricalDay(historicalDays.find(day=>day.date===date));
       status.textContent='השינויים נשמרו';
     }catch(error){
-      status.textContent=error.message||'שמירת השינויים נכשלה';
+      status.textContent=committed?'הנסיעות נשמרו בשרת, אך רענון התצוגה נכשל. ניתן לרענן את הנתונים.':error.message||'שמירת השינויים נכשלה';
+      if(committed){reload.textContent='רענון הנתונים';reload.hidden=false;}
     }finally{
       historicalSaving=false;draftGuard.busy=false;
       editorButtons.forEach(button=>button.disabled=false);

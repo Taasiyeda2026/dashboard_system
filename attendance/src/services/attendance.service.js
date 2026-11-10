@@ -8,6 +8,7 @@
 
 import { supabase } from '../api/client.js';
 import { confirmedMutation, recordMatchesPayload } from './confirmed-mutation.js';
+import { withTravelDeadline } from './travel-request-guard.js';
 
 const pendingCreateIds = new Map();
 import {
@@ -434,10 +435,23 @@ export async function updateRecord(recordId, empId, payload) {
   const normalizedPayload = normalizeRecordPayload(payload);
   if (isAdminPreviewRequested()) return updatePreviewRecord(recordId, normalizedPayload);
 
+  // Check before writing, including after a failed confirmation. An already
+  // committed update must not run approval/cancellation triggers a second time.
+  const current=await withTravelDeadline(async signal=>{
+    const result=await supabase.from('attendance_records').select().eq('id',recordId).eq('emp_id',empId).single().abortSignal(signal);
+    if(result.error)throw new Error('לא ניתן לבדוק את מצב הדיווח. השינויים נשארו בטופס; בדקו חיבור ונסו שוב.');
+    return result.data;
+  },{action:'בדיקת מצב הדיווח לפני עדכון'});
+  if(recordMatchesPayload(current,normalizedPayload)){
+    invalidateAttendanceCache(empId);
+    return normalizeAttendanceRecord(current);
+  }
+  if(!current?.updated_at)throw new Error('לא התקבלה גרסת הדיווח מהשרת. השינויים נשארו בטופס.');
+
   const data = await confirmedMutation(async signal => {
     const result = await supabase.from('attendance_records')
       .update({...normalizedPayload,updated_at:new Date().toISOString()})
-      .eq('id',recordId).eq('emp_id',empId).select().single().abortSignal(signal);
+      .eq('id',recordId).eq('emp_id',empId).eq('updated_at',current.updated_at).select().single().abortSignal(signal);
     if (result.error) throw new Error(instructorAttendanceError(result.error, 'עדכון הרשומה נכשל. נסו שוב.'));
     return result.data;
   }, async signal => {
