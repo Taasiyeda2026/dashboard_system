@@ -104,7 +104,7 @@ test('compact report columns stay centered on desktop while mobile details wrap'
   assert.match(css,/minmax\(88px,\.92fr\)/);
   assert.match(css,/span:nth-child\(2\)/);
   assert.match(css,/span:nth-child\(7\)/);
-  assert.match(css,/\.av2-rr__type\{/);
+  assert.match(css,/\.av2-rr__type,/);
   assert.match(css,/\.av2-rr__meeting\{/);
   assert.match(css,/@media\(max-width:767px\)/);
   assert.match(css,/white-space:normal!important/);
