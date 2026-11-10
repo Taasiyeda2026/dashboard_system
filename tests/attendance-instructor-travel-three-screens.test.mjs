@@ -100,7 +100,7 @@ test('three screens are wired to the same reports and do not change payroll rule
   assert.match(myReports,/listWrap\.append\(createDayDetailRow\(\{/);
   assert.match(myReports,/av2-report-list--unified/);
   assert.match(myReports,/buildMonthlySummaryGrid\(records,monthKey>='2026-11'\?dailyTravelReports:null\)/);
-  assert.match(tab,/createReportedTravelTable\(saved\)/);
+  assert.match(tab,/createReportedTravelTable\(rows\)/);
   assert.match(tab,/void refreshTravelHistory\(\)/);
   assert.match(css,/\.av2-reported-travel__table/);
   assert.match(css,/\.av2-reports \.av2-report-row > \.av2-rr__saved-trip/);
