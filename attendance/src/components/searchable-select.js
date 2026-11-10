@@ -198,6 +198,7 @@ export function createSearchableSelect({
     triggerText.dataset.empty = opt.label ? 'false' : 'true';
     closePanel();
     onChange?.(opt.value, opt.label, opt);
+    wrap.dispatchEvent(new Event('change', {bubbles:true}));
   }
 
   function openPanel() {

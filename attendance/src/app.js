@@ -1,3 +1,4 @@
+import { confirmLeavingReports } from './services/unsaved-changes.js';
 import { renderLoginScreen } from './screens/login-screen.js';
 import { renderHomeScreen } from './screens/home-screen.js';
 import { renderNewReportScreen } from './screens/new-report-screen.js';
@@ -32,6 +33,7 @@ let navRoot = null;
 // ── Navigation ───────────────────────────────────────────────────────────────
 
 function navigate(screen) {
+  if (!confirmLeavingReports()) return;
   state.screen = screen;
   renderScreen();
 }
@@ -129,6 +131,7 @@ async function handleLoginSubmit({ username, code }) {
 }
 
 async function handleLogout() {
+  if (!confirmLeavingReports()) return;
   if (state.previewMode) {
     window.location.assign('/dashboard_system/');
     return;

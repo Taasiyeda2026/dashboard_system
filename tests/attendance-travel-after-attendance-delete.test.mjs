@@ -42,5 +42,5 @@ test('remaining attendance allows a fresh daily travel report',async()=>{
  const screen=await read('attendance/src/screens/daily-travel-tab.js');
  assert.match(src,/getDailyTravelActivityLegs/);
  assert.match(src,/export async function saveDailyTravel/);
- assert.match(screen,/saveDailyTravel\(saveDate,saveLegs,saveNoTravel\)/);
+ assert.match(screen,/saveDailyTravel\(saveDate,saveLegs,saveNoTravel,\{signal\}\)/);
 });
