@@ -50,7 +50,7 @@ acceptance. Live SQL definitions and RLS predicates were read from Dashboard
 ## Release files
 
 The single CLI-generated release migration is:
-`supabase/migrations/20261110202214_attendance_travel_integrity_bundle.sql`.
+`supabase/migrations/20261110212300_attendance_travel_integrity_bundle.sql`.
 It includes the review sources in `supabase/patches/attendance-daily-travel-delete.sql`
 and `supabase/patches/attendance-travel-integrity.sql`. Apply the SINGLE migration
 through the normal approved release, not each review patch as a separate change.

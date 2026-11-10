@@ -29,7 +29,7 @@ before(()=>{
  sql(fixture.slice(0,triggers));
  sql(read('supabase/patches/attendance-daily-travel-delete.sql'));
  sql(fixture.slice(triggers));
- sql(read('supabase/migrations/20261110202214_attendance_travel_integrity_bundle.sql'));
+ sql(read('supabase/migrations/20261110212300_attendance_travel_integrity_bundle.sql'));
 });
 beforeEach(()=>{
  if(!container)return;
@@ -287,7 +287,7 @@ test('read/review permissions separate instructor ownership, finance read-only a
 test('applying the release definitions does not backfill or rewrite an existing approved report or payroll',t=>{
  if(!enabled(t))return;setup(false);sql('update attendance_daily_travel_reports set context_fingerprint=null');approve();
  const snapshot=()=>sql("select jsonb_build_object('daily',(select jsonb_agg(d) from attendance_daily_travel_reports d),'attendance',(select jsonb_agg(a order by id) from attendance_records a),'audit',(select jsonb_agg(a) from attendance_daily_travel_audit a))");
- const before=snapshot();sql(read('supabase/migrations/20261110202214_attendance_travel_integrity_bundle.sql'));
+ const before=snapshot();sql(read('supabase/migrations/20261110212300_attendance_travel_integrity_bundle.sql'));
  assert.equal(snapshot(),before);
 });
 
