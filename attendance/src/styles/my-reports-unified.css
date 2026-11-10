@@ -2,8 +2,8 @@
    Scoped to the new markup; older layout rules elsewhere remain untouched. */
 .av2-reports .av2-report-list--unified {
   box-sizing:border-box;
-  width:min(100%,1040px)!important;
-  max-width:1040px!important;
+  width:min(100%,940px)!important;
+  max-width:940px!important;
   margin-inline:auto;
   overflow-x:auto!important;
   overflow-y:visible!important;
