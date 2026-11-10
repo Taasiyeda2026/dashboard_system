@@ -43,6 +43,9 @@ jobs:
       - name: Verify automatic Gefen invoice issuance approval and error feedback
         run: node --test tests/finance-mixed-funding-program-preflight.test.mjs tests/finance-transaction-issuance.test.mjs
 
+      - name: Verify coordination PDF layout and pagination
+        run: node --test tests/activity-coordination-pdf-poc.test.mjs
+
       - name: Build
         env:
           VITE_BASE: /dashboard_system/
