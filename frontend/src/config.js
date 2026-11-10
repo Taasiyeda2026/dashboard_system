@@ -631,3 +631,5 @@ config.HOTFIX_VERSION = `attendance-save-date-update-safety-20261105-v1-${config
 config.HOTFIX_VERSION = `association-chair-viewer-3090-20261109-v1-${config.HOTFIX_VERSION}`;
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-attendance-home-travel-completion-20261110-v1`;
+
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-attendance-travel-integrity-bundle-20261110-v1`;

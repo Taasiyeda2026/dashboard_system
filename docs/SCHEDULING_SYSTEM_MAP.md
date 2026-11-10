@@ -255,6 +255,17 @@ Stage-2 date adjustment (`course-scheduling-date-adjustments.js`): when weekly a
 
 ## 7. Travel logic
 
+### Travel integrity bundle (staged 2026-11-10, not deployed)
+
+See `ATTENDANCE_TRAVEL_INTEGRITY_BUNDLE.md`. The shared cache validator now
+rejects a `google_verified_zero` between different places, matching the deployed
+SQL reader; same-place normalization and verified shared campuses retain their
+existing meaning. Maintenance reloads both coverage and queue after a manual
+calculation and does not present a still-pending pair as repaired. This starts no
+automatic Google calculation and changes no distance caps, buffers or scoring.
+Attendance save/review/deletion changes are staged together in the single bundle
+migration, with no historical backfill and no production execution.
+
 | Concept | Implementation |
 |---------|----------------|
 | Route cache | Table `scheduling_travel_cache`; client `createRouteClient` / `loadSchedulingTravelCacheRows` in `course-scheduling-travel.js` |

@@ -11,6 +11,16 @@ export function cacheKey(value) {
   return text(value).toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
+// Same canonicalization as scheduling_locations_same_place in PostgreSQL.
+export function sameTravelLocation(origin, destination) {
+  const normalize = value => {
+    const key = cacheKey(value).replace(/[-־‐‑‒–—]+/g, ' ').replace(/\s+/g, ' ').trim();
+    return key === 'דלית אל כרמל' ? 'דאלית אל כרמל' : key;
+  };
+  const a = normalize(origin), b = normalize(destination);
+  return !!a && !!b && a === b;
+}
+
 export function routeFlightKey(originKey, destinationKey) {
   return `${cacheKey(originKey)}=>${cacheKey(destinationKey)}`;
 }
@@ -64,8 +74,8 @@ export function isUsableCachedRoute(cached, origin = '', destination = '', optio
   if (wantDestination && cachedDestination && cachedDestination !== wantDestination) return false;
 
   const sameLocation = options.sameLocation === true
-    || (!!wantOrigin && !!wantDestination && cacheKey(wantOrigin) === cacheKey(wantDestination))
-    || (!!cachedOrigin && !!cachedDestination && cacheKey(cachedOrigin) === cacheKey(cachedDestination));
+    || sameTravelLocation(wantOrigin, wantDestination)
+    || (!wantOrigin && !wantDestination && sameTravelLocation(cachedOrigin, cachedDestination));
 
   const sharedCampusZero = distance === 0 && duration === 0
     && cached.provider === 'manager_verified_shared_campus'
@@ -75,10 +85,11 @@ export function isUsableCachedRoute(cached, origin = '', destination = '', optio
     && Number(cached.origin_school_id) !== Number(cached.destination_school_id);
 
   if ((distance === 0 || duration === 0) && !sameLocation
-    && !(distance === 0 && duration === 0 && cached.provider === 'google_verified_zero')
     && !sharedCampusZero) {
     return false;
   }
+  if (sameLocation && cached.origin_school_id != null && cached.destination_school_id != null
+    && Number(cached.origin_school_id) !== Number(cached.destination_school_id) && !sharedCampusZero) return false;
   return true;
 }
 

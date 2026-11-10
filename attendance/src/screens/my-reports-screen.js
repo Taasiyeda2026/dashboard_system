@@ -102,7 +102,7 @@ export function renderMyReportsScreen(container, {
   loadAndRender({ instructor, year, month, contentArea, toolbar, onNewReport, onTravelReport, onDuplicate });
 }
 
-async function loadAndRender({ instructor, year, month, contentArea, toolbar, onNewReport, onTravelReport, onDuplicate }) {
+async function loadAndRender({ instructor, year, month, contentArea, toolbar, onNewReport, onTravelReport, onDuplicate, deletedTravelDate = null }) {
   const monthKey = getMonthKey(year, month);
 
   try {
@@ -143,7 +143,13 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
 
     contentArea.innerHTML = '';
 
-    const onRefresh = () => loadAndRender({ instructor, year, month, contentArea, toolbar, onNewReport, onTravelReport, onDuplicate });
+    const onRefresh = (notice = {}) => loadAndRender({ instructor, year, month, contentArea, toolbar, onNewReport, onTravelReport, onDuplicate, ...notice });
+
+    if (deletedTravelDate && !dailyTravelByDate.has(deletedTravelDate)) {
+      contentArea.append(buildDeletedTravelNotice({
+        date: deletedTravelDate, records: sourceRecords, editable, onTravelReport,
+      }));
+    }
 
     // Status badge
     toolbar.innerHTML = '';
@@ -296,6 +302,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
         record,
         generated:generatedCancellationFor(records,record.id),
         editable,instructor,activityTypes,onDuplicate,onTravelReport,onRefresh,
+        hasDailyTravel: dailyTravelByDate.has(reportDate),
         dashboardValidation:dashboardValidationByRecord.get(String(record.id))||null
       });
       row.dataset.reportDate=reportDate;
@@ -398,7 +405,7 @@ function locationOrSchoolForRecord(record, baseTraining) {
   return school || '—';
 }
 
-function buildRecordRow({ record, generated, editable, instructor, activityTypes, onDuplicate, onTravelReport, onRefresh, dashboardValidation = null }) {
+function buildRecordRow({ record, generated, editable, instructor, activityTypes, onDuplicate, onTravelReport, onRefresh, hasDailyTravel = false, dashboardValidation = null }) {
   const row = document.createElement('div');
   row.className = 'av2-report-row';
   row.dataset.recordId = record.id;
@@ -505,7 +512,7 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
     deleteBtn.setAttribute('aria-label', 'מחק');
     deleteBtn.title = 'מחק';
     deleteBtn.append(createIcon('trash', { size: 14 }));
-    deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); handleDelete({ record, instructor, row, onRefresh }); });
+    deleteBtn.addEventListener('click', (e) => { e.stopPropagation(); handleDelete({ record, instructor, row, onRefresh, hasDailyTravel }); });
 
     actionsCell.append(editBtn, deleteBtn);
   }
@@ -647,7 +654,35 @@ async function handleCopy(record, btn) {
 
 // ── Delete ─────────────────────────────────────────────────────────────────────
 
-async function handleDelete({ record, instructor, row, onRefresh }) {
+function buildDeletedTravelNotice({ date, records, editable, onTravelReport }) {
+  const remainingPhysical = records.some(record => record.report_date === date
+    && record.generation_kind == null && record.activity_type !== 'ביטול זמן'
+    && !isZoomLocationReport({
+      activityType: record.activity_type, trainingMode: record.training_mode,
+      operationMeetingMode: record.operation_meeting_mode,
+      operationName: record.activity_name_snapshot,
+    }));
+  const notice = document.createElement('section');
+  notice.className = 'av2-reports__travel-status';
+  notice.setAttribute('role', 'status');
+  notice.dataset.deletedTravelDate = date;
+  const message = document.createElement('p');
+  message.textContent = 'בעקבות מחיקת רשומת הנוכחות, גם דיווח הנסיעות של יום זה נמחק.'
+    + (remainingPhysical ? ' יש למלא מחדש את נסיעות היום.' : '');
+  notice.append(message);
+  if (remainingPhysical && editable && onTravelReport) {
+    const action = document.createElement('button');
+    action.type = 'button';
+    action.className = 'av2-btn av2-btn--secondary';
+    action.textContent = 'מילוי נסיעות היום';
+    action.addEventListener('click', () => onTravelReport(date));
+    notice.append(action);
+  }
+  return notice;
+}
+
+async function handleDelete({ record, instructor, row, onRefresh, hasDailyTravel = false }) {
+  if (row.dataset.deleting === 'true') return;
   const dateStr = formatDateHeb(record.report_date);
   const physicalTravel=record.generation_kind==null
     && !['זום','ביטול זמן'].includes(record.activity_type)
@@ -655,11 +690,12 @@ async function handleDelete({ record, instructor, row, onRefresh }) {
     && record.operation_meeting_mode!=='online';
   const travelWarning=physicalTravel
     ? record.report_date>='2026-11-01'
-      ? '\nגם הנסיעות וביטול הזמן של יום זה יימחקו.'
+      ? '\nגם הנסיעות וביטול הזמן של יום זה יימחקו, לרבות האישור והזכאות לתשלום הקשורים לדיווח.\nדיווחי הנוכחות האחרים יישארו ללא שינוי. אם נותרו פעילויות, יהיה צורך למלא מחדש את נסיעות היום.'
       : '\nגם נתוני הנסיעה המשויכים לדיווח יימחקו.'
     : '';
   if (!confirm(`למחוק את הדיווח מתאריך ${dateStr}?${travelWarning}\nפעולה זו אינה הפיכה.`)) return;
 
+  row.dataset.deleting = 'true';
   row.style.opacity = '0.5';
   try {
     const attachments = record.attendance_record_attachments || [];
@@ -672,8 +708,10 @@ async function handleDelete({ record, instructor, row, onRefresh }) {
       }
     }
     await deleteRecord(record.id, instructor.empId);
-    onRefresh();
+    await onRefresh({ deletedTravelDate: physicalTravel && hasDailyTravel
+      && record.report_date >= '2026-11-01' ? record.report_date : null });
   } catch (err) {
+    delete row.dataset.deleting;
     row.style.opacity = '1';
     alert(`שגיאה במחיקה: ${err.message}`);
   }
