@@ -177,7 +177,6 @@ export function createReportSummaryRow(record, options = {}) {
   if (publicTransportCost > 0) addDetail(details, 'עלות תחבורה ציבורית', `₪${publicTransportCost.toFixed(2)}`);
   if (expenses > 0) addDetail(details, 'הוצאות', `₪${expenses.toFixed(2)}`);
   if (record.expense_details) addDetail(details, 'פירוט הוצאות', record.expense_details, { wide: true });
-  if (record.notes) addDetail(details, 'הערות', record.notes, { wide: true });
   if (record.attachments?.length || record.attachment_names) addDetail(details, 'קבצים', record.attachment_names || `${record.attachments.length} קבצים`, { wide: true });
 
   if (options.editable && typeof options.onEdit === 'function') {
