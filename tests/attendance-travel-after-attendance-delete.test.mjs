@@ -32,8 +32,8 @@ test('deletion also removes approved travel without deleting unrelated attendanc
 test('employee receives accurate warning before a linked attendance deletion',async()=>{
  const src=await read('attendance/src/screens/my-reports-screen.js');
  assert.match(src,/const physicalTravel=record\.generation_kind==null/);
- assert.match(src,/גם הנסיעות וביטול הזמן של יום זה יימחקו/);
- assert.match(src,/גם נתוני הנסיעה המשויכים לדיווח יימחקו/);
+ assert.match(src,/גם הנסיעות, ביטול הזמן ואישור התשלום של יום זה יימחקו/);
+ assert.match(src,/גם נתוני הנסיעה של דיווח זה יימחקו/);
  assert.doesNotMatch(src,/אם נשמרו נסיעות ליום זה, יהיה צורך לעדכן אותן/);
 });
 
