@@ -42,7 +42,7 @@ async function fillReport(page){
   await trigger.click();
   await trigger.locator('..').getByRole('option',{name:value.padStart(2,'0'),exact:true}).click();
  }
- await page.locator('#av2-notes').fill('נוכחות בדיקה מבוקרת');
+ await page.locator('#av2-team-location').fill('כתובת בדיקה 2, קומה 1');
 }
 
 test('real services and browser: complete reporting with lost responses, offline recovery and repeat save',async t=>{
@@ -78,7 +78,7 @@ test('real services and browser: complete reporting with lost responses, offline
     await context.setOffline(true);
     await page.locator('.av2-report__save').click();
     await page.waitForFunction(()=>document.querySelector('.av2-report__save')?.disabled===false);
-    assert.equal(await page.locator('#av2-notes').inputValue(),'נוכחות בדיקה מבוקרת');
+    assert.equal(await page.locator('#av2-team-location').inputValue(),'כתובת בדיקה 2, קומה 1');
     await page.locator('.av2-report__error').waitFor({state:'visible'});
     await context.setOffline(false);
     // Commit on the real server, then lose only the response. The application
@@ -95,7 +95,7 @@ test('real services and browser: complete reporting with lost responses, offline
     const rows=await page.evaluate(emp=>window.qa.getMonthRecords(emp,2026,11,{force:true}),emp.emp);
     assert.equal(rows.length,1);assert.equal(Number(rows[0].total_hours),2);
     // Wait for the form's normal successful-save reset before entering travel.
-    await page.waitForFunction(()=>!document.querySelector('#av2-notes')?.value);
+    await page.waitForFunction(()=>!document.querySelector('#av2-activity-type')?.value);
     await page.locator('#av2-travel-tab-trigger').click();
     await page.locator('.av2-daily-travel__leg').first().waitFor();
     await page.locator('.av2-daily-travel__mode select').first().selectOption('car');
@@ -169,19 +169,19 @@ test('real services and browser: complete reporting with lost responses, offline
     await page.locator('#av2-username').fill(String(emp.emp));await page.locator('#av2-code').fill(emp.password);await page.locator('.av2-login__submit').click();
     await page.locator('#av2-activity-type').waitFor();
     await page.evaluate(async emp=>{const record=(await window.qa.getMonthRecords(emp,2026,11,{force:true}))[0];window.qa.showEditModal({record,instructor:{empId:emp},activityTypes:['תפעול'],onRefresh:()=>{window.qa.edited=true;}});},emp.emp);
-    await page.locator('#edit-notes').fill('עריכה ללא אובדן קלט');
+    await page.locator('#edit-team-location').fill('כתובת חדשה לבדיקת עריכה');
     page.once('dialog',dialog=>dialog.dismiss());await page.locator('.av2-modal__header [aria-label="סגירה"]').click();
-    assert.equal(await page.locator('#edit-notes').inputValue(),'עריכה ללא אובדן קלט');
+    assert.equal(await page.locator('#edit-team-location').inputValue(),'כתובת חדשה לבדיקת עריכה');
     await context.setOffline(true);
     await page.locator('.av2-modal form button[type="submit"]').click();
     await page.locator('.av2-modal .av2-report__error').waitFor({state:'visible'});
-    assert.equal(await page.locator('#edit-notes').inputValue(),'עריכה ללא אובדן קלט');
+    assert.equal(await page.locator('#edit-team-location').inputValue(),'כתובת חדשה לבדיקת עריכה');
     await context.setOffline(false);
     assert.match(await page.locator('.av2-modal .av2-report__error').innerText(),/לא ניתן לאמת|תקשורת|חיבור/);
     await page.locator('.av2-modal form button[type="submit"]').click();
     await page.waitForFunction(()=>window.qa.edited===true);
     const rows=await page.evaluate(emp=>window.qa.getMonthRecords(emp,2026,11,{force:true}),emp.emp);
-    assert.equal(rows[0].notes,'עריכה ללא אובדן קלט');
+    assert.equal(rows[0].destination_address_snapshot,'כתובת חדשה לבדיקת עריכה');
    }finally{await context.close();}
   });
  }finally{await browser?.close();await new Promise(resolve=>server.close(resolve));await db.end();}
