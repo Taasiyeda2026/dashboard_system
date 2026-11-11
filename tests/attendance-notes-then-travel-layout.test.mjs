@@ -2,10 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 
-test('attendance notes remain after hours; travel entry belongs solely to separate tab',async()=>{
+test('internal notes are not shown alongside working hours; travel remains a separate tab',async()=>{
  const src=await readFile(new URL('../attendance/src/screens/new-report-screen.js',import.meta.url),'utf8');
  assert.match(src,/timesGrid\.append\(startPicker\.wrap, endPicker\.wrap, hoursDisplay, hoursFollowup\)/);
- assert.match(src,/hoursFollowup\.append\(notesField\.wrap\)/);
+ assert.doesNotMatch(src,/hoursFollowup\.append\(notesField\.wrap\)/);
+ assert.match(src,/notes: notesField\.input\.value\.trim\(\) \|\| null/);
  assert.match(src,/hoursFollowup\.append\(travelShortcut\)/);
  assert.match(src,/travelShortcut\.addEventListener\('click'/);
  assert.doesNotMatch(src,/timesGrid\.append\(baseTrainingRouteRow\)/);
