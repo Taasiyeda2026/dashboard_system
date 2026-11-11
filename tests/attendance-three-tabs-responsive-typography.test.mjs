@@ -82,11 +82,10 @@ test('unselected dropdown hints are subtle, while selected values retain their a
  assert.match(select,/triggerText\.dataset\.empty = selectedLabel \? 'false' : 'true'/);
  assert.match(compact,/triggerText\.dataset\.empty = lbl \? 'false' : 'true'/);
 });
-test('notes field is labeled הערות, without altering its storage identifier',async()=>{
+test('internal attendance notes are not visible but storage fields remain intact',async()=>{
  const screen=await file('attendance/src/screens/new-report-screen.js');
- assert.match(screen,/id: 'av2-notes',[\s\S]*?label: 'הערות'/);
- assert.match(screen,/placeholder: 'הערות \(אופציונלי\)'/);
- assert.doesNotMatch(screen,/label: 'הערות נוספות'/);
+ assert.doesNotMatch(screen,/hoursFollowup\.append\(notesField\.wrap\)/);
+ assert.match(screen,/notes: notesField\.input\.value\.trim\(\) \|\| null/);
 });
 
 test('attendance heading is accessible but not duplicated visually, and month chooser is compact',async()=>{
