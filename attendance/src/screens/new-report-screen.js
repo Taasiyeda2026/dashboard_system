@@ -1572,30 +1572,16 @@ export function renderNewReportScreen(container, {
 
     typeField.input.addEventListener('change', () => { onActivityTypeChange(); });
     let acceptedReportDate=dateField.input.value;
-    let changingReportDate=false;
-    dateField.input.addEventListener('change', async () => {
+    dateField.input.addEventListener('change', () => {
       const requestedDate=dateField.input.value;
-      if (requestedDate===acceptedReportDate || changingReportDate) return;
-      changingReportDate=true;
-      try {
-        if (draftGuard.busy) {
-          dateField.input.value=acceptedReportDate;
-          await showSystemMessage('השמירה עדיין מתבצעת. לא ניתן לשנות את התאריך כעת.');
-          return;
-        }
-        // A date-only change needs no confirmation. Protect actual filled-in details.
-        if (draftGuard.dirty && !(await confirmSystemMessage(
-          'כבר מולאו פרטים בדיווח. שינוי התאריך עשוי לעדכן את פרטי הפעילות. להמשיך?'
-        ))) {
-          dateField.input.value=acceptedReportDate;
-          return;
-        }
-        // Preserve the unsaved-data guard: changing dates does not save or discard entered fields.
-        acceptedReportDate=requestedDate;
-        void onReportDateChange();
-      } finally {
-        changingReportDate=false;
+      if (requestedDate===acceptedReportDate) return;
+      // Changing the date is not leaving the report: keep entered values and revalidate the activity.
+      if (draftGuard.busy) {
+        dateField.input.value=acceptedReportDate;
+        return;
       }
+      acceptedReportDate=requestedDate;
+      void onReportDateChange();
     });
     form.addEventListener('av2:dashboard-duplicate-meeting', (event) => {
       const detail = event.detail || {};
