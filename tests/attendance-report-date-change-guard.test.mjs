@@ -50,10 +50,11 @@ test('changing date with filled draft asks an in-app system confirmation without
   }
 });
 
-test('new report date change has no native confirm and protects filled details',async()=>{
+test('new report date change is free of confirmations and preserves draft guard',async()=>{
   const source=await read('attendance/src/screens/new-report-screen.js');
   assert.match(source,/createUnsavedChangesGuard\(form, \{ignore: target => target\?\.id === 'av2-report-date'\}\)/);
-  assert.match(source,/if \(draftGuard\.dirty && !\(await confirmSystemMessage\(/);
+  assert.doesNotMatch(source,/if \(draftGuard\.dirty && !\(await confirmSystemMessage\(/);
+  assert.match(source,/Changing the date is not leaving the report/);
   assert.match(source,/dateField\.input\.value=acceptedReportDate/);
   assert.match(source,/void onReportDateChange\(\)/);
   assert.doesNotMatch(source,/dateField\.input\.value!==acceptedReportDate && !draftGuard\.confirmLeave/);

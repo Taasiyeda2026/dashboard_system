@@ -41,8 +41,8 @@ test('physical operational meetings and actual site work still require location 
 });
 
 test('Zoom hides place inputs and zeroes travel instead of omitting the activity or its hours', () => {
-  assert.match(newReport, /zoomLocationInfo\.textContent = 'מיקום: זום/);
-  assert.match(myReports, /virtualLocationInfo\.textContent = 'מיקום: זום/);
+  assert.doesNotMatch(newReport, /מיקום: זום — אין צורך/);
+  assert.doesNotMatch(myReports, /מיקום: זום — אין צורך/);
   assert.match(newReport, /const showsLocation = !isOpenFieldType\(\) && !isOnlineActivity\(\)/);
   assert.match(newReport, /getReportType\(\) !== TRAINING_REPORT_TYPE/);
   assert.match(service, /usesPublicTransport = !onlineLocation/);

@@ -598,34 +598,6 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
     row.dataset.generatedCompensation = generated.id;
   }
 
-  // Notes expandable (notes only, not shown in main grid)
-  if (record.notes) {
-    const notesRow = document.createElement('div');
-    notesRow.className = 'av2-rr__notes-row';
-    notesRow.hidden = true;
-    const notesLabel = document.createElement('span');
-    notesLabel.textContent = 'הערות:';
-    const notesText = document.createElement('span');
-    notesText.textContent = record.notes;
-    notesRow.append(notesLabel, notesText);
-    row.append(notesRow);
-    row.classList.add('av2-report-row--has-notes');
-    row.style.cursor = 'pointer';
-    row.setAttribute('role', 'button');
-    row.setAttribute('aria-expanded', 'false');
-    row.tabIndex = 0;
-    const toggle = () => {
-      const expanded = notesRow.hidden;
-      notesRow.hidden = !expanded;
-      row.setAttribute('aria-expanded', String(expanded));
-      row.classList.toggle('is-expanded', expanded);
-    };
-    row.addEventListener('click', (e) => { if (!e.target.closest('button,a')) toggle(); });
-    row.addEventListener('keydown', (e) => {
-      if ((e.key === 'Enter' || e.key === ' ') && !e.target.closest('button,a')) { e.preventDefault(); toggle(); }
-    });
-  }
-
   return row;
 }
 
@@ -807,11 +779,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
 
   const authField   = createInputField({ id: 'edit-authority', label: 'רשות',    value: record.authority_name_snapshot || '' });
   const schoolField = createInputField({ id: 'edit-school',    label: 'בית ספר', value: record.school_name_snapshot || '' });
-  const virtualLocationInfo = document.createElement('div');
-  virtualLocationInfo.className = 'av2-field av2-report__virtual-location';
-  virtualLocationInfo.textContent = 'מיקום: זום — אין צורך בכתובת, רשות או בית ספר';
-  virtualLocationInfo.hidden = true;
-  form.append(authField.wrap, schoolField.wrap, virtualLocationInfo);
+  form.append(authField.wrap, schoolField.wrap);
 
   form.append(sectionTitle('זמן ונסיעות'));
 
@@ -928,7 +896,6 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
       operationMeetingMode: isTeam ? teamModeField.input.value : '',
       operationName: isOperations ? actNameField.input.value.trim() : '',
     });
-    virtualLocationInfo.hidden = !isZoom;
     const isCourse = reportType === COURSE_REPORT_TYPE;
     const isBaseTraining = reportType === 'הכשרה' && actNameField.input.value.trim() === 'הכשרת בסיס';
     const isOnlineTraining = reportType === 'הכשרה' && trainingModeField.input.value === 'online';
@@ -988,9 +955,8 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
   const expDField  = createInputField({ id: 'edit-exp-detail', label: 'פירוט הוצאות', value: record.expense_details || '' });
   const notesField = createInputField({ id: 'edit-notes',      label: 'הערות',        value: record.notes || '' });
   expDField.wrap.classList.add('av2-field--full');
-  notesField.wrap.classList.add('av2-field--full');
   if(record.report_date<'2026-11-01')form.append(expDField.wrap);
-  form.append(notesField.wrap);
+  // Existing notes remain unchanged on edit, without showing an internal field.
 
   const errorEl = document.createElement('p');
   errorEl.className = 'av2-report__error av2-field--full';

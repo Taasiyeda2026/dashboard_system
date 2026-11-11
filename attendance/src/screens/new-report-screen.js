@@ -224,7 +224,6 @@ export function renderNewReportScreen(container, {
   let operationChoiceField = null;
   let teamModeField = null;
   let teamLocationField = null;
-  let zoomLocationInfo = null;
   let trainingModeField = null;
   let trainingLocationField = null;
   let publicTransportToggleEl = null;
@@ -393,7 +392,6 @@ export function renderNewReportScreen(container, {
     trainingDescField.wrap.hidden = !chosen?.is_other;
     if (teamModeField?.wrap) teamModeField.wrap.hidden = !isTeam;
     if (teamLocationField?.wrap) teamLocationField.wrap.hidden = !isTeam || teamModeField.input.value !== 'physical';
-    if (zoomLocationInfo) zoomLocationInfo.hidden = !isOnlineActivity();
     syncTravelMode();
   }
 
@@ -409,7 +407,6 @@ export function renderNewReportScreen(container, {
     if (authSel?.wrap) authSel.wrap.hidden = !showSchoolLocation;
     if (schoolMount) schoolMount.hidden = !showSchoolLocation;
     if (trainingLocationField?.wrap) trainingLocationField.wrap.hidden = !physicalTraining;
-    if (zoomLocationInfo) zoomLocationInfo.hidden = !isOnlineActivity();
   }
 
   function setActivityNameEnabled(enabled) {
@@ -1304,10 +1301,6 @@ export function renderNewReportScreen(container, {
     schoolMount = document.createElement('div');
     schoolMount.className = 'av2-report__school-mount';
     mountManualSchoolSelect();
-    zoomLocationInfo = document.createElement('div');
-    zoomLocationInfo.className = 'av2-field av2-report__virtual-location';
-    zoomLocationInfo.textContent = 'מיקום: זום — אין צורך בכתובת, רשות או בית ספר';
-    zoomLocationInfo.hidden = true;
 
     trainingLocationField = createInputField({
       id: 'av2-training-location',
@@ -1362,7 +1355,6 @@ export function renderNewReportScreen(container, {
         trainingDescWrap,
         authSel.wrap,
         schoolMount,
-        zoomLocationInfo,
         meetingWrap,
       ],
     );
@@ -1515,7 +1507,7 @@ export function renderNewReportScreen(container, {
     const expensesInner = document.createElement('div');
     expensesInner.className = 'av2-report__expenses';
     expensesInner.append(expensesHeading, expenseFields, attachmentUi.section);
-    hoursFollowup.append(notesField.wrap);
+    // Internal notes are retained as stored data, but not displayed to instructors.
     const travelShortcut = document.createElement('button');
     travelShortcut.type = 'button';
     travelShortcut.className = 'av2-report__tiny-travel-btn';
@@ -1580,30 +1572,16 @@ export function renderNewReportScreen(container, {
 
     typeField.input.addEventListener('change', () => { onActivityTypeChange(); });
     let acceptedReportDate=dateField.input.value;
-    let changingReportDate=false;
-    dateField.input.addEventListener('change', async () => {
+    dateField.input.addEventListener('change', () => {
       const requestedDate=dateField.input.value;
-      if (requestedDate===acceptedReportDate || changingReportDate) return;
-      changingReportDate=true;
-      try {
-        if (draftGuard.busy) {
-          dateField.input.value=acceptedReportDate;
-          await showSystemMessage('השמירה עדיין מתבצעת. לא ניתן לשנות את התאריך כעת.');
-          return;
-        }
-        // A date-only change needs no confirmation. Protect actual filled-in details.
-        if (draftGuard.dirty && !(await confirmSystemMessage(
-          'כבר מולאו פרטים בדיווח. שינוי התאריך עשוי לעדכן את פרטי הפעילות. להמשיך?'
-        ))) {
-          dateField.input.value=acceptedReportDate;
-          return;
-        }
-        // Preserve the unsaved-data guard: changing dates does not save or discard entered fields.
-        acceptedReportDate=requestedDate;
-        void onReportDateChange();
-      } finally {
-        changingReportDate=false;
+      if (requestedDate===acceptedReportDate) return;
+      // Changing the date is not leaving the report: keep entered values and revalidate the activity.
+      if (draftGuard.busy) {
+        dateField.input.value=acceptedReportDate;
+        return;
       }
+      acceptedReportDate=requestedDate;
+      void onReportDateChange();
     });
     form.addEventListener('av2:dashboard-duplicate-meeting', (event) => {
       const detail = event.detail || {};

@@ -90,7 +90,6 @@ function enhanceRow(row) {
   const kmCell = row.querySelector('.av2-rr__km');
   const expensesCell = row.querySelector('.av2-rr__expenses');
   const actionsCell = row.querySelector('.av2-rr__actions');
-  const notesCell = row.querySelector('.av2-rr__notes-row');
 
   setMobileLabel(startCell, 'שעת התחלה');
   setMobileLabel(endCell, 'שעת סיום');
@@ -103,7 +102,6 @@ function enhanceRow(row) {
   setMobileLabel(kmCell, 'ק״מ');
   setMobileLabel(expensesCell, 'הוצאות');
   setMobileLabel(actionsCell, 'פעולות');
-  setMobileLabel(notesCell, 'הערות');
 
   if (expensesCell) {
     const indicator = expensesCell.querySelector('.av2-rr__expense-indicator');
