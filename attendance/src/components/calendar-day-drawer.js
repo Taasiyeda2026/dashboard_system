@@ -160,13 +160,6 @@ function renderAttendance(record) {
   if (timeStrip.children.length) card.append(timeStrip);
   if (extras.children.length) card.append(extras);
 
-  const notes = text(record.notes);
-  if (notes) {
-    const note = document.createElement('p');
-    note.className = 'av2-calendar-day__notes';
-    note.textContent = notes;
-    card.append(note);
-  }
   return card;
 }
 
