@@ -117,10 +117,22 @@ function tileButton({ title, description, icon, route = '', url = '', managerTab
     </button>`;
 }
 
+function canViewBudgetControl() {
+  return ['admin', 'system_admin'].includes(String(state?.user?.role || '').trim()) &&
+    String(state?.user?.user_id ?? state?.user?.id ?? '') === '8000' &&
+    state?.user?.is_active !== false;
+}
+
 function managementTilesHtml() {
   const routes = effectiveRoutes();
   const isAdmin = canViewAdminOnlyTools();
   const tiles = [
+    canViewBudgetControl() && tileButton({
+      title: 'בקרה תקציבית',
+      description: 'תקציב מאושר, ביצוע, תחזית ותזרים',
+      icon: 'finance',
+      url: 'https://taasiyeda2026.github.io/budget-control/'
+    }),
     routes.has('israa-management') && tileButton({
       title: 'איסראא',
       description: 'מעקב וניהול פעילות איסראא',
@@ -392,7 +404,10 @@ export const adminHomeScreen = {
     root?.querySelectorAll?.('[data-admin-hub-url]').forEach((button) => {
       button.addEventListener('click', () => {
         const url = String(button.getAttribute('data-admin-hub-url') || '').trim();
-        if (url) window.location.assign(url);
+        if (url === 'https://taasiyeda2026.github.io/budget-control/') {
+          if (!canViewBudgetControl()) return;
+          window.open(url, '_blank', 'noopener,noreferrer');
+        } else if (url) window.location.assign(url);
       });
     });
 
