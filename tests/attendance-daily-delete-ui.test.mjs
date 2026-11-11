@@ -28,13 +28,14 @@ function setup({confirmResult=true,deleteImpl=async()=>{}}={}){
   notice:options=>context.api.buildDeletedTravelNotice({date,records:[],editable:true,
     onTravelReport:day=>navigation.push(day),...options})};
 }
-test('deleting attendance asks only yes or no; no means nothing is deleted',async()=>{
+test('dated attendance deletion confirmation remains concise and no cancels safely',async()=>{
  const s=setup({confirmResult:false});try{
   await s.remove();assert.equal(s.deletions.length,0);assert.equal(s.refreshes.length,0);
   assert.equal(s.warnings.length,1);
-  assert.equal(s.warnings[0].message,'האם אתה בטוח?');
+  assert.equal(s.warnings[0].message,'האם הינך בטוח/ה שברצונך למחוק את רשומת הנוכחות מתאריך 05.11.2026?');
   assert.equal(s.warnings[0].options.confirmLabel,'כן');
   assert.equal(s.warnings[0].options.cancelLabel,'לא');
+  assert.equal(s.warnings[0].options.compact,true);
  }finally{s.dom.window.close();}
 });
 test('successful deletion carries relevant date to refreshed reports and prevents duplicate clicks',async()=>{
