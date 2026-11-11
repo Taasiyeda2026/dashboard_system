@@ -664,10 +664,10 @@ async function handleDelete({ record, instructor, row, onRefresh, hasDailyTravel
     && record.operation_meeting_mode!=='online';
   const travelWarning=physicalTravel
     ? record.report_date>='2026-11-01'
-      ? '\nגם הנסיעות וביטול הזמן של יום זה יימחקו, לרבות האישור והזכאות לתשלום הקשורים לדיווח.\nדיווחי הנוכחות האחרים יישארו ללא שינוי. אם נותרו פעילויות, יהיה צורך למלא מחדש את נסיעות היום.'
-      : '\nגם נתוני הנסיעה המשויכים לדיווח יימחקו.'
+      ? '\nגם הנסיעות, ביטול הזמן ואישור התשלום של יום זה יימחקו. דיווחי נוכחות אחרים יישארו.\nאם נותרו פעילויות, יש לדווח שוב על הנסיעות.'
+      : '\nגם נתוני הנסיעה של דיווח זה יימחקו.'
     : '';
-  if (!(await confirmSystemMessage(`למחוק את הדיווח מתאריך ${dateStr}?${travelWarning}\nפעולה זו אינה הפיכה.`, {destructive:true}))) return;
+  if (!(await confirmSystemMessage(`למחוק את הדיווח מ־${dateStr}?${travelWarning}\nלא ניתן לבטל את המחיקה.`, {destructive:true}))) return;
 
   row.dataset.deleting = 'true';
   row.style.opacity = '0.5';
