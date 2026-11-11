@@ -657,17 +657,13 @@ function buildDeletedTravelNotice({ date, records, editable, onTravelReport }) {
 
 async function handleDelete({ record, instructor, row, onRefresh, hasDailyTravel = false }) {
   if (row.dataset.deleting === 'true') return;
-  const dateStr = formatDateHeb(record.report_date);
   const physicalTravel=record.generation_kind==null
     && !['זום','ביטול זמן'].includes(record.activity_type)
     && record.training_mode!=='online'
     && record.operation_meeting_mode!=='online';
-  const travelWarning=physicalTravel
-    ? record.report_date>='2026-11-01'
-      ? '\nגם הנסיעות, ביטול הזמן ואישור התשלום של יום זה יימחקו. דיווחי נוכחות אחרים יישארו.\nאם נותרו פעילויות, יש לדווח שוב על הנסיעות.'
-      : '\nגם נתוני הנסיעה של דיווח זה יימחקו.'
-    : '';
-  if (!(await confirmSystemMessage(`למחוק את הדיווח מ־${dateStr}?${travelWarning}\nלא ניתן לבטל את המחיקה.`, {destructive:true}))) return;
+  if (!(await confirmSystemMessage('האם אתה בטוח?', {
+    destructive:true, confirmLabel:'כן', cancelLabel:'לא'
+  }))) return;
 
   row.dataset.deleting = 'true';
   row.style.opacity = '0.5';

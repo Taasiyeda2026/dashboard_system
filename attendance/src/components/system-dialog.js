@@ -6,7 +6,7 @@
 let activeDialog = false;
 let sequence = 0;
 
-function openSystemDialog(message, { confirmation = false, destructive = false } = {}) {
+function openSystemDialog(message, { confirmation = false, destructive = false, confirmLabel = null, cancelLabel = null } = {}) {
   if (activeDialog) return Promise.resolve(false);
   activeDialog = true;
   const previousFocus = document.activeElement;
@@ -31,12 +31,12 @@ function openSystemDialog(message, { confirmation = false, destructive = false }
     const cancel = document.createElement('button');
     cancel.type = 'button';
     cancel.className = 'av2-system-dialog__button av2-system-dialog__button--cancel';
-    cancel.textContent = 'ביטול';
+    cancel.textContent = cancelLabel ?? 'ביטול';
     const confirm = document.createElement('button');
     confirm.type = 'button';
     confirm.className = 'av2-system-dialog__button av2-system-dialog__button--confirm';
     if (destructive) confirm.classList.add('av2-system-dialog__button--danger');
-    confirm.textContent = confirmation ? (destructive ? 'מחיקה' : 'אישור') : 'סגירה';
+    confirm.textContent = confirmLabel ?? (confirmation ? (destructive ? 'מחיקה' : 'אישור') : 'סגירה');
     if (confirmation) actions.append(cancel);
     actions.append(confirm);
     dialog.append(actions);

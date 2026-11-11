@@ -15,7 +15,7 @@ function setup({confirmResult=true,deleteImpl=async()=>{}}={}){
  const warnings=[],alerts=[],refreshes=[],deletions=[],navigation=[];
  const context={document:dom.window.document,isZoomLocationReport,
   formatDateHeb:()=> '05.11.2026',console,
-  confirmSystemMessage:async message=>{warnings.push(message);return confirmResult;},
+  confirmSystemMessage:async (message,options)=>{warnings.push({message,options});return confirmResult;},
   showSystemMessage:async message=>{alerts.push(message);},
   deleteRecord:async(...args)=>{deletions.push(args);return deleteImpl();},
   deleteAttachment:async()=>{},deleteAttachmentRecord:async()=>{},
@@ -28,13 +28,13 @@ function setup({confirmResult=true,deleteImpl=async()=>{}}={}){
   notice:options=>context.api.buildDeletedTravelNotice({date,records:[],editable:true,
     onTravelReport:day=>navigation.push(day),...options})};
 }
-test('deletion warning explains whole-day trip, approval and payroll removal before confirmation',async()=>{
+test('deleting attendance asks only yes or no; no means nothing is deleted',async()=>{
  const s=setup({confirmResult:false});try{
   await s.remove();assert.equal(s.deletions.length,0);assert.equal(s.refreshes.length,0);
-  assert.match(s.warnings[0],/גם הנסיעות, ביטול הזמן ואישור התשלום של יום זה יימחקו/);
-  assert.match(s.warnings[0],/דיווחי נוכחות אחרים יישארו/);
-  assert.match(s.warnings[0],/אם נותרו פעילויות, יש לדווח שוב על הנסיעות/);
-  assert.match(s.warnings[0],/לא ניתן לבטל את המחיקה/);
+  assert.equal(s.warnings.length,1);
+  assert.equal(s.warnings[0].message,'האם אתה בטוח?');
+  assert.equal(s.warnings[0].options.confirmLabel,'כן');
+  assert.equal(s.warnings[0].options.cancelLabel,'לא');
  }finally{s.dom.window.close();}
 });
 test('successful deletion carries relevant date to refreshed reports and prevents duplicate clicks',async()=>{
