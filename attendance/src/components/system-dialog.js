@@ -6,13 +6,13 @@
 let activeDialog = false;
 let sequence = 0;
 
-function openSystemDialog(message, { confirmation = false, destructive = false, confirmLabel = null, cancelLabel = null } = {}) {
+function openSystemDialog(message, { confirmation = false, destructive = false, confirmLabel = null, cancelLabel = null, compact = false } = {}) {
   if (activeDialog) return Promise.resolve(false);
   activeDialog = true;
   const previousFocus = document.activeElement;
   return new Promise(resolve => {
     const dialog = document.createElement('dialog');
-    dialog.className = 'av2-system-dialog';
+    dialog.className = compact ? 'av2-system-dialog av2-system-dialog--compact' : 'av2-system-dialog';
     dialog.dir = 'rtl';
 
     const title = document.createElement('h2');
