@@ -70,10 +70,11 @@ test('real services and browser: complete reporting with lost responses, offline
     page.once('dialog',dialog=>dialog.dismiss());
     assert.equal(await page.evaluate(()=>window.qa.confirmLeavingReports()),false);
     await page.locator('#av2-report-date').fill('2026-11-09');
-    await page.locator('.av2-system-dialog').waitFor({state:'visible'});
-    assert.equal(await page.locator('.av2-system-dialog__title').textContent(),'הודעות מערכת');
-    await page.locator('.av2-system-dialog__button--cancel').click();
-    assert.equal(await page.locator('#av2-report-date').inputValue(),'2026-11-10');
+    await page.locator('#av2-report-date').dispatchEvent('change');
+    assert.equal(await page.locator('#av2-report-date').inputValue(),'2026-11-09');
+    assert.equal(await page.locator('.av2-system-dialog').count(),0);
+    await page.locator('#av2-report-date').fill('2026-11-10');
+    await page.locator('#av2-report-date').dispatchEvent('change');
     // A disconnected save must retain all fields and return control.
     await context.setOffline(true);
     await page.locator('.av2-report__save').click();
