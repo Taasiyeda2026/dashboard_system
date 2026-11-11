@@ -15,6 +15,29 @@
   font-family:inherit;
   text-align:right;
 }
+/* The delete confirmation alone uses a compact, centered box. */
+.av2-system-dialog.av2-system-dialog--compact {
+  width:min(390px,calc(100vw - 32px));
+  max-width:calc(100vw - 32px);
+  margin:auto;
+  padding:22px 20px 20px;
+}
+.av2-system-dialog--compact .av2-system-dialog__title {
+  text-align:center;
+  margin-bottom:10px;
+}
+.av2-system-dialog--compact .av2-system-dialog__message {
+  text-align:center;
+  margin-bottom:22px;
+  font-size:1rem;
+  line-height:1.65;
+}
+.av2-system-dialog--compact .av2-system-dialog__actions {
+  justify-content:center;
+}
+.av2-system-dialog--compact .av2-system-dialog__button {
+  min-width:96px;
+}
 .av2-system-dialog::backdrop {
   background:rgba(18,35,55,.52);
   backdrop-filter:blur(2px);

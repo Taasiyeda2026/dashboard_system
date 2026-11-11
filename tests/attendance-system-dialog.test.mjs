@@ -27,14 +27,15 @@ test('delete confirmation is an in-app system message with cancellation and conf
   try {
     const before = document.getElementById('before');
     before.focus();
-    const pending = confirmSystemMessage('האם אתה בטוח?', {destructive:true,confirmLabel:'כן',cancelLabel:'לא'});
+    const pending = confirmSystemMessage('האם הינך בטוח/ה שברצונך למחוק את רשומת הנוכחות מתאריך 03.11.2026?', {destructive:true,confirmLabel:'כן',cancelLabel:'לא',compact:true});
     const dialog = document.querySelector('.av2-system-dialog');
     assert.ok(dialog);
     assert.equal(dialog.querySelector('h2').textContent, 'הודעות מערכת');
     assert.equal(dialog.querySelector('.av2-system-dialog__message').textContent,
-      'האם אתה בטוח?');
+      'האם הינך בטוח/ה שברצונך למחוק את רשומת הנוכחות מתאריך 03.11.2026?');
     assert.equal(dialog.querySelectorAll('button').length, 2);
     assert.ok(dialog.querySelector('.av2-system-dialog__button--danger'));
+    assert.ok(dialog.classList.contains('av2-system-dialog--compact'));
     assert.equal(dialog.querySelector('.av2-system-dialog__button--cancel').textContent,'לא');
     assert.equal(dialog.querySelector('.av2-system-dialog__button--confirm').textContent,'כן');
     dialog.querySelector('.av2-system-dialog__button--cancel').click();

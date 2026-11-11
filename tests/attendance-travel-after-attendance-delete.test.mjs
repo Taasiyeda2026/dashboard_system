@@ -32,8 +32,8 @@ test('deletion also removes approved travel without deleting unrelated attendanc
 test('employee receives concise yes-no confirmation before linked attendance deletion',async()=>{
  const src=await read('attendance/src/screens/my-reports-screen.js');
  assert.match(src,/const physicalTravel=record\.generation_kind==null/);
- assert.match(src,/confirmSystemMessage\('האם אתה בטוח\?'/);
- assert.match(src,/confirmLabel:'כן', cancelLabel:'לא'/);
+ assert.match(src,/האם הינך בטוח\/ה שברצונך למחוק את רשומת הנוכחות מתאריך/);
+ assert.match(src,/confirmLabel:'כן', cancelLabel:'לא', compact:true/);
  assert.doesNotMatch(src,/travelWarning/);
 });
 

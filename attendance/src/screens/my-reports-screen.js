@@ -661,9 +661,12 @@ async function handleDelete({ record, instructor, row, onRefresh, hasDailyTravel
     && !['זום','ביטול זמן'].includes(record.activity_type)
     && record.training_mode!=='online'
     && record.operation_meeting_mode!=='online';
-  if (!(await confirmSystemMessage('האם אתה בטוח?', {
-    destructive:true, confirmLabel:'כן', cancelLabel:'לא'
-  }))) return;
+  const [year, month, day] = String(record.report_date || '').slice(0,10).split('-');
+  const reportDate = year && month && day ? `${day}.${month}.${year}` : formatDateHeb(record.report_date);
+  if (!(await confirmSystemMessage(
+    `האם הינך בטוח/ה שברצונך למחוק את רשומת הנוכחות מתאריך ${reportDate}?`,
+    { destructive:true, confirmLabel:'כן', cancelLabel:'לא', compact:true }
+  ))) return;
 
   row.dataset.deleting = 'true';
   row.style.opacity = '0.5';
