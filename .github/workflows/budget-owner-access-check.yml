@@ -4,6 +4,11 @@ on:
     branches: [feat/protected-budget-supabase-20261112]
     paths: ['.github/workflows/budget-owner-access-check.yml', 'scripts/verify-protected-budget-live.mjs', 'scripts/protected-budget-browser.mjs']
   workflow_dispatch:
+    inputs:
+      production_dashboard:
+        description: Verify the published dashboard management screen rather than the branch launcher harness
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -34,7 +39,7 @@ jobs:
       - name: Verify owner SSO and denial against the deployed protected functions
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          PRODUCTION_DASHBOARD: ${{ github.event.head_commit.message == 'Verify published dashboard budget integration' && 'true' || 'false' }}
+          PRODUCTION_DASHBOARD: ${{ github.event_name == 'workflow_dispatch' && inputs.production_dashboard && 'true' || 'false' }}
         run: |
           export PLAYWRIGHT_MODULE="$RUNNER_TEMP/budget-browser/node_modules/playwright"
           node scripts/verify-protected-budget-live.mjs
