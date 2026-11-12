@@ -1,3 +1,5 @@
+import { launchBudget } from '../budget-launcher.js';
+import { canAccessBudget } from '../budget-access.js';
 import { state } from '../state.js';
 import { supabase, waitForSupabaseAuthSession } from '../supabase-client.js';
 import { dsPageHeader, dsScreenStack } from './shared/layout.js';
@@ -90,8 +92,9 @@ function canViewCourseResults() {
   return canViewAdminOnlyTools() && String(state?.user?.user_id ?? state?.user?.id ?? '') === '8000';
 }
 
-function tileButton({ title, description, icon, route = '', url = '', managerTab = '', capabilityId = '', dateSimulator = false, pricingSimulator = false, keyboardConverter = false, courseResults = false }) {
+function tileButton({ title, description, icon, route = '', url = '', managerTab = '', capabilityId = '', dateSimulator = false, pricingSimulator = false, keyboardConverter = false, courseResults = false, budget = false }) {
   const attrs = [];
+  if (budget) attrs.push('data-budget-open="true"');
   if (courseResults) attrs.push('data-course-results-open="true"');
   if (capabilityId) attrs.push(`data-capability-id="${capabilityId}"`);
   if (route) attrs.push(`data-route="${route}"`);
@@ -121,6 +124,12 @@ function managementTilesHtml() {
   const routes = effectiveRoutes();
   const isAdmin = canViewAdminOnlyTools();
   const tiles = [
+    canAccessBudget(state.user) && tileButton({
+      title: 'בקרה תקציבית',
+      description: 'תקציב, ביצוע ותחזית',
+      icon: 'finance',
+      budget: true
+    }),
     routes.has('israa-management') && tileButton({
       title: 'איסראא',
       description: 'מעקב וניהול פעילות איסראא',
@@ -345,6 +354,10 @@ export const adminHomeScreen = {
     `);
   },
   bind({ root }) {
+    root?.querySelector('[data-budget-open]')?.addEventListener('click', () => {
+      void launchBudget({ user: state.user, getSession: () => supabase.auth.getSession() })
+        .catch(error => window.alert(error.message));
+    });
     if (canViewCourseResults()) {
       const main = root?.querySelector('[data-course-results-main]');
       const section = root?.querySelector('[data-course-results-section]');

@@ -1,0 +1,45 @@
+name: Budget owner verification access
+on:
+  push:
+    branches: [feat/protected-budget-supabase-20261112]
+    paths: ['.github/workflows/budget-owner-access-check.yml', 'scripts/verify-protected-budget-live.mjs', 'scripts/protected-budget-browser.mjs']
+  workflow_dispatch:
+    inputs:
+      production_dashboard:
+        description: Verify the published dashboard management screen rather than the branch launcher harness
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  owner-access:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check existing dashboard management connection without financial writes
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          node --input-type=module <<'JS'
+          const token=process.env.SUPABASE_ACCESS_TOKEN;
+          if(!token){console.log('::error title=Dashboard verification access::No SUPABASE_ACCESS_TOKEN is configured in the dashboard repository');process.exit(1)}
+          const r=await fetch('https://api.supabase.com/v1/projects/szinlhjuwyiyszdpsdop/api-keys?reveal=true',{headers:{Authorization:'Bearer '+token}});
+          if(!r.ok){let scopes=[];try{const e=await r.json();scopes=(e.error?.missing_permissions||[]).filter(x=>/^[a-z_:]+$/.test(x))}catch{}console.log('::error title=Dashboard verification access::Dashboard Auth verification key lookup returned HTTP '+r.status+(scopes.length?' missing '+scopes.join(','):' (project access is not granted)'));process.exit(1)}
+          const keys=await r.json();
+          if(!keys.some(k=>k.name==='service_role')||!keys.some(k=>k.name==='anon')){console.log('::error title=Dashboard verification access::Required Auth verification bindings are not available');process.exit(1)}
+          console.log('::notice title=Dashboard verification access::Existing dashboard Auth verification connection is available; no key values were logged');
+          JS
+      - name: Install isolated browser verifier
+        run: |
+          npm install --prefix "$RUNNER_TEMP/budget-browser" --no-save --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          "$RUNNER_TEMP/budget-browser/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Verify owner SSO and denial against the deployed protected functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          PRODUCTION_DASHBOARD: ${{ github.event_name == 'workflow_dispatch' && inputs.production_dashboard && 'true' || 'false' }}
+        run: |
+          export PLAYWRIGHT_MODULE="$RUNNER_TEMP/budget-browser/node_modules/playwright"
+          node scripts/verify-protected-budget-live.mjs
