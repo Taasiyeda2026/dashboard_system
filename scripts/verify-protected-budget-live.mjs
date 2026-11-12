@@ -31,7 +31,7 @@ try{
  const session=await json(dashboard+'/auth/v1/verify',{method:'POST',headers:headers(anon),body:JSON.stringify({type:'magiclink',token_hash:hash})},'Owner test-session verification');
  mask(session.access_token);mask(session.refresh_token);assert.equal(session.user.id,owner);
  cleanup.push(async()=>{const r=await fetch(dashboard+'/auth/v1/logout?scope=local',{method:'POST',headers:headers(anon,session.access_token)});if(!r.ok&&r.status!==401)throw Error('Owner generated-session cleanup failed')});
- const profiles=await json(dashboard+'/rest/v1/users?select=*&auth_user_id=eq.'+owner,{headers:headers(anon,session.access_token)},'Canonical owner profile read');
+ const profiles=await json(dashboard+'/rest/v1/users?select=user_id,username,name,full_name,role,emp_id,is_active,permissions,auth_user_id&auth_user_id=eq.'+owner,{headers:headers('sb_publishable_k0IbDJlgPA9KTVuDWrCyFw_Zsa5kZIM',session.access_token)},'Canonical owner profile read');
  if(profiles.length!==1||profiles[0].is_active!==true||!['admin','system_admin'].includes(profiles[0].role))throw Error('Canonical active owner administrator profile not confirmed');
  const password=randomBytes(32).toString('hex');mask(password);
  const result=await json(dashboard+'/auth/v1/admin/users',{method:'POST',headers:headers(service),body:JSON.stringify({email:'budget-deployed-denial-'+randomUUID()+'@example.invalid',password,email_confirm:true})},'Disposable nonowner test account');
