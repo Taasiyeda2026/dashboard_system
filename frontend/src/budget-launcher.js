@@ -21,8 +21,12 @@ export async function launchBudget({ user, getSession, openWindow = () => window
       cache: 'no-store', credentials: 'omit', redirect: 'error'
     });
     if (!response.ok) throw new Error('לא ניתן לפתוח את הבקרה התקציבית. יש לבדוק את ההרשאה בדשבורד.');
-    if (!response.headers.get('Content-Type')?.includes('text/html')) throw new Error('המערכת אינה זמינה כעת.');
-    const html = await response.text();
+    if (!response.headers.get('Content-Type')?.includes('application/json')) throw new Error('המערכת אינה זמינה כעת.');
+    const payload = await response.json();
+    if (payload.document_type !== 'taasiyeda-protected-budget-v1' || typeof payload.html !== 'string') {
+      throw new Error('המערכת אינה זמינה כעת.');
+    }
+    const html = payload.html;
     // Logout/account switch during the request must not open a previously authorized app.
     const latest = await getSession();
     if (latest.error || latest.data?.session?.user?.id !== user.auth_user_id || !canAccessBudget(user)) {
