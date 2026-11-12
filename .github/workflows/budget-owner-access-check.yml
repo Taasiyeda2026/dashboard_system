@@ -9,6 +9,14 @@ on:
         description: Verify the published dashboard management screen rather than the branch launcher harness
         type: boolean
         default: false
+      legacy_session:
+        description: Verify a pre-upgrade stored dashboard profile without auth_user_id or active fields
+        type: boolean
+        default: false
+      entry_only:
+        description: Run only the focused entry and logout browser regression
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -40,6 +48,8 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           PRODUCTION_DASHBOARD: ${{ github.event_name == 'workflow_dispatch' && inputs.production_dashboard && 'true' || 'false' }}
+          LEGACY_DASHBOARD_SESSION: ${{ github.event_name == 'workflow_dispatch' && inputs.legacy_session && 'true' || 'false' }}
+          BUDGET_ENTRY_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.entry_only && 'true' || 'false' }}
         run: |
           export PLAYWRIGHT_MODULE="$RUNNER_TEMP/budget-browser/node_modules/playwright"
           node scripts/verify-protected-budget-live.mjs

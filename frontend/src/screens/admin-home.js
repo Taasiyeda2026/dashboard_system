@@ -1,5 +1,5 @@
 import { launchBudget } from '../budget-launcher.js';
-import { canAccessBudget } from '../budget-access.js';
+import { resolveBudgetUser } from '../budget-access.js';
 import { state } from '../state.js';
 import { supabase, waitForSupabaseAuthSession } from '../supabase-client.js';
 import { dsPageHeader, dsScreenStack } from './shared/layout.js';
@@ -124,12 +124,7 @@ function managementTilesHtml() {
   const routes = effectiveRoutes();
   const isAdmin = canViewAdminOnlyTools();
   const tiles = [
-    canAccessBudget(state.user) && tileButton({
-      title: 'בקרה תקציבית',
-      description: 'תקציב, ביצוע ותחזית',
-      icon: 'finance',
-      budget: true
-    }),
+    '<div data-budget-entry hidden></div>',
     routes.has('israa-management') && tileButton({
       title: 'איסראא',
       description: 'מעקב וניהול פעילות איסראא',
@@ -354,10 +349,22 @@ export const adminHomeScreen = {
     `);
   },
   bind({ root }) {
-    root?.querySelector('[data-budget-open]')?.addEventListener('click', () => {
-      void launchBudget({ user: state.user, getSession: () => supabase.auth.getSession() })
-        .catch(error => window.alert(error.message));
-    });
+    const budgetEntry = root?.querySelector('[data-budget-entry]');
+    if (budgetEntry) {
+      void resolveBudgetUser(supabase).then(user => {
+        if (!user || !budgetEntry.isConnected) return;
+        const template = document.createElement('template');
+        template.innerHTML = tileButton({
+          title: 'בקרה תקציבית', description: 'תקציב, ביצוע ותחזית', icon: 'finance', budget: true
+        });
+        const button = template.content.firstElementChild;
+        button.addEventListener('click', () => {
+          void launchBudget({ user, getSession: () => supabase.auth.getSession() })
+            .catch(error => window.alert(error.message));
+        });
+        budgetEntry.replaceWith(button);
+      });
+    }
     if (canViewCourseResults()) {
       const main = root?.querySelector('[data-course-results-main]');
       const section = root?.querySelector('[data-course-results-section]');
