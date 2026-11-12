@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {launchBudget,BUDGET_APP_ENDPOINT} from '../frontend/src/budget-launcher.js';
 import {BUDGET_OWNER_UID} from '../frontend/src/budget-access.js';
-const user={auth_user_id:BUDGET_OWNER_UID,role:'admin',active:'yes'};
+const user={auth_user_id:BUDGET_OWNER_UID,role:'admin',profile_is_active:true};
 const session={data:{session:{access_token:'test-only',user:{id:BUDGET_OWNER_UID}}}};
 function setup(){const writes=[];const popup={opener:{},document:{body:{},open(){},write(html){writes.push(html)},close(){}},location:{replace(url){assert.equal(url,'blob:private-document')}},closed:false,close(){this.closed=true}};return {popup,writes,openWindow:()=>popup,createDocumentUrl:html=>{writes.push(html);return 'blob:private-document'},releaseDocumentUrl:()=>{}};}
 test('authorized launch uses header token, authenticated HTML and no URL credentials',async()=>{
