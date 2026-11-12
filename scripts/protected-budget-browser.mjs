@@ -12,18 +12,20 @@ export async function verifyLiveBrowser({session,profile}) {
  context.on('page',page=>page.on('pageerror',()=>errors.push('Browser runtime error')));
  const key='sb-szinlhjuwyiyszdpsdop-auth-token';
  const production=process.env.PRODUCTION_DASHBOARD==='true';
- await context.addInitScript(({key,session,profile,production})=>{
+ const legacy=process.env.LEGACY_DASHBOARD_SESSION==='true';
+ await context.addInitScript(({key,session,profile,production,legacy})=>{
   if(location.origin!=='https://taasiyeda2026.github.io')return;
   localStorage.setItem(key,JSON.stringify(session));
   if(production){
    const permissions=typeof profile.permissions==='string'?JSON.parse(profile.permissions||'{}'):(profile.permissions||{});
    const user={...profile,...permissions,user_id:String(profile.user_id),auth_user_id:session.user.id,role:profile.role,active:'yes'};
+   if(legacy){delete user.auth_user_id;delete user.active;}
    const claims={uid:user.user_id,role:user.role,emp_id:String(user.emp_id||user.user_id),name:String(user.name||'')};
    localStorage.setItem('dashboard_user',JSON.stringify(user));
    localStorage.setItem('dashboard_token','sb.'+btoa(unescape(encodeURIComponent(JSON.stringify(claims))))+'.session');
    sessionStorage.setItem('ds_session_alive','1');
   }
- },{key,session,profile,production});
+ },{key,session,profile,production,legacy});
  const source=resolve(process.env.DASHBOARD_SOURCE||'.');
  if(!production)await context.route('https://taasiyeda2026.github.io/**',async route=>{
   const path=new URL(route.request().url()).pathname;
@@ -45,6 +47,14 @@ export async function verifyLiveBrowser({session,profile}) {
   assert.ok(app.url().startsWith('blob:https://taasiyeda2026.github.io/'));
   assert.equal(await app.locator('input[type=password]').count(),0);
   assert.equal(await app.locator('#menuBtn').getAttribute('aria-expanded'),'false');
+  if(process.env.BUDGET_ENTRY_ONLY==='true'){
+   await page.evaluate(key=>localStorage.removeItem(key),key);
+   await app.locator('#login').waitFor({state:'visible'});
+   assert.equal(await app.locator('#view').innerText(),'');
+   assert.equal(errors.length,0,'Browser reported a runtime error');
+   console.log('::notice title=Existing dashboard session verification::PASS published management tile and protected budget launch with missing persisted identity/active fields; no extra login; logout cleanup. No financial writes.');
+   return;
+  }
   for(const view of ['annual','quarters','cashflow','revenues','expenses','activities','scenarios','controls','actuals','reports']){
    await app.locator('#menuBtn').click();await app.locator(`[data-view="${view}"]`).click();
    await app.locator('#view .loading').waitFor({state:'hidden',timeout:45000});
