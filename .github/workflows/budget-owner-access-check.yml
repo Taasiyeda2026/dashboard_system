@@ -1,0 +1,28 @@
+name: Budget owner verification access
+on:
+  push:
+    branches: [feat/protected-budget-supabase-20261112]
+    paths: ['.github/workflows/budget-owner-access-check.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  owner-access:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check existing dashboard management connection without financial writes
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          node --input-type=module <<'JS'
+          const token=process.env.SUPABASE_ACCESS_TOKEN;
+          if(!token){console.log('::error title=Dashboard verification access::No SUPABASE_ACCESS_TOKEN is configured in the dashboard repository');process.exit(1)}
+          const r=await fetch('https://api.supabase.com/v1/projects/szinlhjuwyiyszdpsdop/database/query',{method:'POST',headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({read_only:true,query:"select count(*)::int as eligible from public.users where auth_user_id='e9ca304a-4e66-4774-830e-14f1318c4908'::uuid and is_active is true and role in ('admin','system_admin')"})});
+          if(!r.ok){console.log('::error title=Dashboard verification access::Existing connection returned HTTP '+r.status);process.exit(1)}
+          const rows=await r.json();
+          if(rows.length!==1||rows[0].eligible!==1){console.log('::error title=Dashboard verification access::Owner eligibility check failed');process.exit(1)}
+          console.log('::notice title=Dashboard verification access::Existing dashboard management connection is available and owner eligibility is confirmed');
+          JS
