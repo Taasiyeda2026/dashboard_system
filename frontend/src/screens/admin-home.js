@@ -394,7 +394,7 @@ export const adminHomeScreen = {
         if(!canViewCourseResults())return;
         catalog.hidden=true;premiumSection.hidden=true;portzotSection.hidden=false;
         unbindFrame?.();unbindFrame=bindPairingDashboardFrame(frame,canViewCourseResults);
-        frame.src='https://portzot-derech.org/pairing/admin.html?view=groups&embed=dashboard';
+        frame.src='https://portzot-derech.org/pairing/admin.html?view=groups&embed=dashboard&v=20261113-admin-2';
       });
       root.querySelector('[data-portzot-results-back]')?.addEventListener('click',()=>{
         unbindFrame?.();portzotSection.hidden=true;catalog.hidden=false;
