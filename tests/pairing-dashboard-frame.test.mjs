@@ -37,7 +37,7 @@ test('owner dashboard tile opens the embedded manager and returns to the course 
   const {adminHomeScreen}=await import(data(s));const root=document.querySelector('#app');root.innerHTML=adminHomeScreen.render();adminHomeScreen.bind({root});
   root.querySelector('[data-course-results-open]').click();root.querySelector('[data-portzot-course-results]').click();
   assert.equal(root.querySelector('[data-portzot-results-section]').hidden,false);assert.equal(root.querySelector('[data-course-results-catalog]').hidden,true);
-  assert.equal(root.querySelector('iframe').src,'https://portzot-derech.org/pairing/admin.html?view=groups&embed=dashboard');
+  assert.equal(root.querySelector('iframe').src,'https://portzot-derech.org/pairing/admin.html?view=groups&embed=dashboard&v=20261113-admin-2');
   assert(!root.querySelector('[data-portzot-course-results]').hasAttribute('data-manager-board-open'));
   root.querySelector('[data-portzot-results-back]').click();assert.equal(root.querySelector('[data-course-results-catalog]').hidden,false);
   globalThis.pairingTestState.user.user_id='1234';assert(!adminHomeScreen.render().includes('data-portzot-frame'));
