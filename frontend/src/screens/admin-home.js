@@ -1,3 +1,4 @@
+import { bindPairingDashboardFrame } from '../pairing-dashboard-frame.js';
 import { launchBudget } from '../budget-launcher.js';
 import { resolveBudgetUser } from '../budget-access.js';
 import { state } from '../state.js';
@@ -330,11 +331,14 @@ export const adminHomeScreen = {
               <h2>תוצאות קורסים</h2>
               <div class="admin-management-grid">
               ${tileButton({title: 'פרימיום', description: 'תוצאות שאלון הצוות וחלוקת קבוצות', icon: 'reports', courseResults: false}) .replace('class="admin-management-tile"', 'class="admin-management-tile" data-premium-course-results="true"')}
-              <div class="admin-management-tile admin-course-results-disabled" aria-label="פורצות דרך – בקרוב">
-                <span class="admin-management-tile__icon">${iconSvg('reports')}</span>
-                <span class="admin-management-tile__content"><strong>פורצות דרך</strong><small>יתחבר לתוצאות הקורס בהמשך</small></span>
+              ${tileButton({title:'פורצות דרך',description:'תשובות מציאת שותפה, פעילויות וניהול קבוצות',icon:'team'}).replace('data-manager-board-open="true"','data-portzot-course-results="true"')}
+
               </div>
-              </div>
+            </div>
+            <div data-portzot-results-section hidden>
+              <button type="button" class="admin-course-results-back" data-portzot-results-back>חזרה לקורסים</button>
+              <h2>פורצות דרך – מציאת שותפה</h2>
+              <iframe data-portzot-frame title="ניהול מציאת שותפה ותשובות המשתתפות" style="width:100%;height:78vh;min-height:540px;border:1px solid #dbe3ec;border-radius:12px" allow="fullscreen; clipboard-write" referrerpolicy="no-referrer"></iframe>
             </div>
             <div data-premium-results-section hidden>
               <button type="button" class="admin-course-results-back" data-premium-results-back>חזרה לקורסים</button>
@@ -383,6 +387,21 @@ export const adminHomeScreen = {
       });
       const catalog = root?.querySelector('[data-course-results-catalog]');
       const premiumSection = root?.querySelector('[data-premium-results-section]');
+      const portzotSection=root.querySelector('[data-portzot-results-section]');
+      const frame=root.querySelector('[data-portzot-frame]');
+      let unbindFrame;
+      root.querySelector('[data-portzot-course-results]')?.addEventListener('click',()=>{
+        if(!canViewCourseResults())return;
+        catalog.hidden=true;premiumSection.hidden=true;portzotSection.hidden=false;
+        unbindFrame?.();unbindFrame=bindPairingDashboardFrame(frame,canViewCourseResults);
+        frame.src='https://portzot-derech.org/pairing/admin.html?view=groups&embed=dashboard';
+      });
+      root.querySelector('[data-portzot-results-back]')?.addEventListener('click',()=>{
+        unbindFrame?.();portzotSection.hidden=true;catalog.hidden=false;
+      });
+      const observer=new MutationObserver(()=>{if(!frame.isConnected){unbindFrame?.();observer.disconnect();}});
+      observer.observe(root.ownerDocument.documentElement,{childList:true,subtree:true});
+
       const premiumStatus = root?.querySelector('[data-premium-load-status]');
       const premiumData = root?.querySelector('[data-premium-results-data]');
       root?.querySelector('[data-premium-results-back]')?.addEventListener('click', () => {
