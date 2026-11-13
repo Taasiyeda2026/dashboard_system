@@ -639,3 +639,5 @@ config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-attendance-merge-resolution-20
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-budget-protected-launch-20261112-v2`;
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-budget-existing-session-entry-20261112-v1`;
+
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-portzot-pairing-admin-20261113-v1`;
