@@ -1,0 +1,335 @@
+{
+  "real-login-ui-results": [
+    {
+      "role": "admin",
+      "shell": true,
+      "error": "",
+      "title": "Dashboard Taasiyeda",
+      "route": "",
+      "denied": [],
+      "errors": []
+    },
+    {
+      "role": "activities_manager",
+      "shell": true,
+      "error": "",
+      "title": "Dashboard-Taasiyeda",
+      "route": "",
+      "denied": [],
+      "errors": []
+    },
+    {
+      "role": "instructor",
+      "shell": true,
+      "error": "",
+      "title": "Dashboard-Taasiyeda",
+      "route": "",
+      "denied": [],
+      "errors": []
+    }
+  ],
+  "full-app-mobile-results": [
+    {
+      "role": "admin",
+      "authenticatedShell": true,
+      "cardRows": 2,
+      "query": "פורצות",
+      "innerWidth": 390,
+      "scrollWidth": 390,
+      "verifiedShown": true,
+      "cancelledUnknown": false,
+      "denied": [],
+      "errors": []
+    },
+    {
+      "role": "activities_manager",
+      "authenticatedShell": true,
+      "cardRows": 2,
+      "query": "פורצות",
+      "innerWidth": 390,
+      "scrollWidth": 390,
+      "verifiedShown": true,
+      "cancelledUnknown": true,
+      "denied": [],
+      "errors": []
+    },
+    {
+      "role": "instructor",
+      "authenticatedShell": true,
+      "activitiesShortcutVisible": false
+    }
+  ],
+  "real-auth-role-contracts-results": [
+    {
+      "role": "admin",
+      "realAuth": true,
+      "lookupMatched": true,
+      "serverRoleMatched": true,
+      "feedbackRead": "allowed",
+      "isolatedFeedbackWrite": "allowed",
+      "cancellationRows": 1
+    },
+    {
+      "role": "activities_manager",
+      "realAuth": true,
+      "lookupMatched": true,
+      "serverRoleMatched": true,
+      "feedbackRead": "allowed",
+      "isolatedFeedbackWrite": "denied",
+      "cancellationRows": 0
+    },
+    {
+      "role": "instructor",
+      "realAuth": true,
+      "lookupMatched": true,
+      "serverRoleMatched": true,
+      "feedbackRead": "denied",
+      "isolatedFeedbackWrite": "denied",
+      "cancellationRows": 0
+    }
+  ],
+  "real-auth-feedback-results": {
+    "results": [
+      {
+        "tab": "overview",
+        "width": 390,
+        "scrollWidth": 390,
+        "error": "",
+        "rows": 6
+      },
+      {
+        "tab": "students",
+        "width": 390,
+        "scrollWidth": 390,
+        "error": "",
+        "rows": 9
+      },
+      {
+        "tab": "instructors",
+        "width": 390,
+        "scrollWidth": 390,
+        "error": "",
+        "rows": 2
+      },
+      {
+        "tab": "staff",
+        "width": 390,
+        "scrollWidth": 390,
+        "error": "",
+        "rows": 9
+      },
+      {
+        "tab": "analysis",
+        "width": 390,
+        "scrollWidth": 390,
+        "error": "",
+        "rows": 0
+      },
+      {
+        "tab": "templates",
+        "width": 390,
+        "scrollWidth": 390,
+        "error": "",
+        "rows": 0
+      }
+    ],
+    "blocked": [
+      "/rest/v1/rpc/finance_pending_delegated_accounts"
+    ],
+    "failures": []
+  },
+  "real-activity-flow-results": {
+    "result": {
+      "viewport": 390,
+      "layout": 390,
+      "scroll": 390,
+      "query": "פורצות",
+      "wide": [
+        {
+          "c": "ds-drawer__header",
+          "w": 357.796875
+        },
+        {
+          "c": "ds-icon-btn",
+          "w": 40
+        },
+        {
+          "c": "ds-secondary-drawer__content",
+          "w": 357.796875
+        }
+      ],
+      "errors": 0
+    },
+    "blocked": [],
+    "errors": []
+  },
+  "mobile-pwa-update-results": {
+    "oldVersion": 2109,
+    "newVersion": 2110,
+    "oldCacheRemoved": true,
+    "currentAssetLoaded": true,
+    "apiNotCached": true
+  },
+  "critical-screens-local-results": {
+    "results": [
+      {
+        "route": "dashboard",
+        "width": 390,
+        "scroll": 390,
+        "title": "",
+        "text": "לוח בקרה\n▶\nנובמבר 2026\n◀\nסיכום\n\nקורסים\n\n6\n\nסדנאות\n\n0\n\nחדר בריחה\n\n0\n\nסיורים\n\n0\n\nאפטרסקול\n\n0\n\nסיומי קורסים\n\n0\n\nמדריכים משובצים\n\n0\n\nחריגות\n\n9\n\nפעילויות לפי מחוזות\n\nאין נתונים להצגה",
+        "wide": []
+      },
+      {
+        "route": "end-dates",
+        "width": 390,
+        "scroll": 390,
+        "title": "",
+        "text": "תאריכי סיום פעילויות\nמנהל פעילויות\nכל מנהלי הפעילויות\nגיל נאמן\nהילה רוזן\nינואר 2027 (2)\nשם פעילות\tבית ספר\tרשות\tמנהל פעילות\tתאריך סיום\nביומימיקרי\tחטיבת השקד\tחולון\t—\t30/01/2027\nביומימיקרי\tיסודי השקד\tחולון\t—\t30/01/2027\nפברואר 2027 (5)\nשם פעילות\tבית ספר\tרשות\tמנהל פעילות\tתאריך סיום\nקו",
+        "wide": [
+          {
+            "tag": "TABLE",
+            "class": "ds-table",
+            "width": 760
+          },
+          {
+            "tag": "THEAD",
+            "class": "",
+            "width": 760
+          },
+          {
+            "tag": "TR",
+            "class": "",
+            "width": 760
+          },
+          {
+            "tag": "TBODY",
+            "class": "",
+            "width": 760
+          },
+          {
+            "tag": "TR",
+            "class": "",
+            "width": 760
+          },
+          {
+            "tag": "TR",
+            "class": "",
+            "width": 760
+          },
+          {
+            "tag": "TABLE",
+            "class": "ds-table",
+            "width": 760
+          },
+          {
+            "tag": "THEAD",
+            "class": "",
+            "width": 760
+          }
+        ]
+      },
+      {
+        "route": "exceptions",
+        "width": 390,
+        "scroll": 390,
+        "title": "",
+        "text": "מחוז/אזור\nללא מחוז / לא משויך\nמנהל פעילות\nגיל נאמן\nהילה רוזן\nללא\nרשות\nחולון\nחיפה\nעפולה\nרמת גן\nתל אביב\nמימון\nבית ספר\nבית ספר אלון\nבית ספר הגפן\nבית ספר הדר\nחטיבת ביאליק\nחטיבת השקד\nחטיבת רמות\nיסודי הדר\nיסודי השקד\nתיכון אורט\nסוג חריגה\nללא שיוך מחוזי\nללא מדריך\nחריגות\nמחוזות\nפרטי אנשי ",
+        "wide": []
+      },
+      {
+        "route": "instructors",
+        "width": 390,
+        "scroll": 390,
+        "title": "",
+        "text": "רשימת מדריכים ▾\nרשימת מדריכים\nשיבוצים\nסידור עבודה\nבקרת נוכחות\nתחזוקה\n2 מדריכים פעילים עם פרטים חסרים\n2\nסטטוס:\nפעילים\nהכול\nלא פעילים\n＋\nקליטת מדריך\nאורי מזרחי\n1502\n1\nדנה לוי\n1501\n2",
+        "wide": []
+      },
+      {
+        "route": "operations-management",
+        "width": 390,
+        "scroll": 390,
+        "title": "",
+        "text": "תפעול\nכלי התפעול\nמלאי סדנאות\nניהול מלאי, ציוד ופריטי סדנאות\n‹\nהזמנות לאירועים\nהזמנות לאירועים ומעקב תפעולי\n‹\nקטלוג\nניהול קטלוג הפעילויות והתכנים\n‹\nתעודות\nהפקה וניהול של תעודות\n‹\nהכשרות סדנאות\nניהול הכשרות והיערכות לסדנאות\n‹\nהכשרות קורסים\nניהול הכשרות והיערכות לקורסים\n‹\nערכות דפוס",
+        "wide": []
+      },
+      {
+        "route": "edit-requests",
+        "width": 390,
+        "scroll": 390,
+        "title": "",
+        "text": "⚠ שגיאה בטעינת הדף\n\nשגיאת שרת — נסו שוב מאוחר יותר\n\n[Could not find the table 'public.edit_requests' in the schema cache]\n\nנסה שוב",
+        "wide": []
+      },
+      {
+        "route": "archive",
+        "width": 390,
+        "scroll": 390,
+        "title": "",
+        "text": "ארכיון פעילויות · 0 פעילויות סגורות\n0\nקורסים\n0\nסדנאות\n0\nחדרי בריחה\n0\nסיורים\n0\nאפטרסקול\nהכל\n2026\n2025\nסינון\n\nאין פעילויות סגורות בארכיון",
+        "wide": []
+      }
+    ],
+    "denied": [],
+    "errors": []
+  },
+  "end-dates-updated-results": {
+    "results": [
+      {
+        "route": "end-dates",
+        "width": 390,
+        "scroll": 390,
+        "title": "",
+        "text": "תאריכי סיום פעילויות\nמנהל פעילויות\nכל מנהלי הפעילויות\nגיל נאמן\nהילה רוזן\nינואר 2027 (2)\nביומימיקרי\nחטיבת השקד\nחולון\n—\n30/01/2027\nביומימיקרי\nיסודי השקד\nחולון\n—\n30/01/2027\nפברואר 2027 (5)\nקורס יזמות מיוחד\nבית ספר הדר\nעפולה\n—\n01/02/2027\nסודות ויסודות הבינה המלאכותית\nחטיבת ביאליק\nרמת",
+        "wide": []
+      }
+    ],
+    "denied": [],
+    "errors": []
+  },
+  "manager-tabs": [
+    {
+      "tab": "management",
+      "text": "לוח מנהל פעילות\n\nגיל נאמן · נובמבר 2026\n\nמנהל פעילות\nגיל נאמן\nהילה רוזן\n›\nנובמבר 2026\n‹\nניהול ▾\nצוות המדריכים הפעיל\nסה\"כ פעילויות\n1\nתצוגת שבוע\nלוח חודשי\n\nגיל נאמן · נובמבר 2026\n\nאמצע קורס\nסיום קורס\nא׳\nב׳\nג׳\nד׳\nה׳\nו׳\nש׳\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10\n11\n12\n13\n14\n15\n16\n17\n18\n19\n20\n21\n22\n23\n24\n25\n26\n27\n28\n29\n30\nנקודות בקרה\nאין נקודות בקרה בחודש זה.\nתאריכים חשובים\nאין תאריכים חשובים להצגה בחודש זה.\nנקודות בקרה – חודש הבא\nאין נקודות בקרה בחודש זה.",
+      "scroll": 390
+    },
+    {
+      "tab": "attendance",
+      "text": "לוח מנהל פעילות\n\nגיל נאמן · נובמבר 2026\n\nמנהל פעילות\nגיל נאמן\nהילה רוזן\n‹\nנובמבר 2026\n›\nבקרת נוכחות ▾\nצוות המדריכים הפעיל\nסה\"כ פעילויות\n1\nלא ניתן לטעון את צוות המנהל\nCould not find the function public.get_payroll_attendance_team_roster_for_month(p_month_key) in the schema cache\nנסה שוב",
+      "scroll": 390
+    },
+    {
+      "tab": "tracking",
+      "text": "לוח מנהל פעילות\n\nגיל נאמן · נובמבר 2026\n\nמנהל פעילות\nגיל נאמן\nהילה רוזן\n‹\nנובמבר 2026\n›\nמעקב ▾\nצוות המדריכים הפעיל\nסה\"כ פעילויות\n1\nלא ניתן לטעון את צוות המנהל\nCould not find the function public.get_manager_team_roster(p_manager_name, p_school_year) in the schema cache\nנסה שוב",
+      "scroll": 390
+    }
+  ],
+  "final-manager-flow": [
+    {
+      "role": "activities_manager",
+      "authenticatedShell": true,
+      "cardRows": 2,
+      "query": "פורצות",
+      "innerWidth": 390,
+      "scrollWidth": 390,
+      "verifiedShown": true,
+      "cancelledUnknown": true,
+      "denied": [],
+      "errors": []
+    }
+  ],
+  "final-admin-treatment-and-desktop-filter": [
+    {
+      "role": "admin",
+      "authenticatedShell": true,
+      "cardRows": 6,
+      "query": "",
+      "innerWidth": 1440,
+      "scrollWidth": 1440,
+      "verifiedShown": true,
+      "cancelledUnknown": false,
+      "denied": [],
+      "errors": []
+    }
+  ]
+}

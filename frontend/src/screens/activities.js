@@ -1,9 +1,12 @@
+import { ensureActivityManagement, cachedManagement, managementFilterMatches } from './shared/activity-management-data.js';
+import { activityManagementPanelHtml, activityManagementIndicatorsHtml, activityPlanningFactsHtml } from './shared/activity-management-summary.js';
+import { activityMobileSummaryHtml } from './shared/activity-management-summary.js';
 import { escapeHtml } from './shared/html.js';
 import { exportActivitiesToExcel } from './shared/excel-export.js';
 import { ensureSchoolAuthorityCatalogInState } from '../school-catalog-bootstrap-hotfix.js';
 import { formatDateHe, formatActivityDateColumnsHe } from './shared/format-date.js';
 import {
-  visibleActivityCategoryLabel
+  visibleActivityCategoryLabel, hebrewExceptionType
 } from './shared/ui-hebrew.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
 import {
@@ -49,7 +52,7 @@ import { filterSchoolCalendarRowsBySector } from './shared/school-calendar-logic
 import { readActivitiesGapFromQuery, syncActivitiesGapQuery, isActivitiesGapQueryValue } from './shared/route-query.js';
 import { rowMatchesActivityGapFilter } from './shared/activity-gap-filter.js';
 import { activityInstructorAssignmentState, activityMatchesInstructorStatusFilter } from './shared/activity-instructor-filter.js';
-import { applyActivitiesAdvancedFilters, activitiesAdvancedFiltersHtml, activitiesAdvancedFilterToggleHtml, bindActivitiesAdvancedFilters } from './shared/activities-advanced-filters.js';
+import { activityQuickFiltersHtml, applyActivitiesAdvancedFilters, activitiesAdvancedFiltersHtml, activitiesAdvancedFilterToggleHtml, bindActivitiesAdvancedFilters } from './shared/activities-advanced-filters.js';
 import {
   applyMissingScheduleFilter,
   MISSING_SCHEDULE_FILTER_STORAGE_KEY
@@ -1262,7 +1265,7 @@ function prepareActivitiesFilterBaseRows(rows, state, settings) {
 function applyActivitiesLocalFilters(rows, state, settings) {
   const filters = ensureActivityListFilters(state, ACTIVITIES_SCOPE);
   const baseRows = prepareActivitiesFilterBaseRows(rows, state, settings);
-  return applyActivitiesAdvancedFilters(applyLocalFilters(baseRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS }), filters).sort(compareActivityDefaultOrder);
+  return applyActivitiesAdvancedFilters(applyLocalFilters(baseRows, filters, { filterFields: ACTIVITY_FILTER_FIELDS }), filters).filter((row) => managementFilterMatches(row, filters.managementFilter, state.activitiesMonthYm)).sort(compareActivityDefaultOrder);
 }
 
 function buildActivitiesDiagnostics(allRows, state, finalRows) {
@@ -1916,7 +1919,7 @@ export const activitiesScreen = {
       return dsScreenStack(dsEmptyState('אין הרשאה לצפייה בעמוד פעילויות.'));
     }
 
-    const allRows       = Array.isArray(data?.rows) ? data.rows : [];
+    const allRows       = (Array.isArray(data?.rows) ? data.rows : []).map((row) => ({ ...row, management: cachedManagement(row, state) }));
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
     state.activitiesInnerTab = normalizeActivitiesInnerTab(state.activitiesInnerTab, state.activityPeriodTab, state);
     ensureActivityPeriodMonth(state, allRows);
@@ -1950,7 +1953,7 @@ export const activitiesScreen = {
     });
     const filteredRows = applyActivitiesAdvancedFilters(
       applyLocalFilters(filterOptionRows, listFilters, { filterFields: ACTIVITY_FILTER_FIELDS }), listFilters
-    ).sort(compareActivityDefaultOrder);
+    ).filter((row) => managementFilterMatches(row, listFilters.managementFilter, state.activitiesMonthYm)).sort(compareActivityDefaultOrder);
     const { visible: safeRows, hasMore, total, nextCount } = splitVisibleRows(filteredRows, listFilters);
     const canSeePrivateNotes = String(state?.user?.role || '').trim() === 'operation_manager';
     const hideEmpIds    = !!state?.clientSettings?.hide_emp_id_on_screens;
@@ -2002,6 +2005,7 @@ export const activitiesScreen = {
           ? `<span class="ds-chip ds-chip--status ds-chip--warn" title="${escapeHtml(editStatus)}">${escapeHtml(editStatus)}</span>`
           : '';
         const managerLabel = activityManagerDisplayName(row.activity_manager);
+        const mobileSummary = activityMobileSummaryHtml(row, { manager: managerLabel, classGroup: activityLayoutClassGroup(row), latest: latestUpdateDisplay(state?.latest2027ActivityNotes?.[String(row.RowID || row.row_id || '').trim()]) });
         const rowSearch = [
           hideRowId ? '' : row.RowID,
           visibleActivityCategoryLabel(row.activity_type),
@@ -2039,7 +2043,7 @@ export const activitiesScreen = {
           const safeNoteOrInfo = escapeHtml(noteOrInfo);
           return `
       <tr class="ds-data-row ds-activities-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
-        <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name" title="${activityName}">${activityName}</strong><span class="ds-activities-program-type" title="${activityTypeLabel}">${activityTypeLabel}</span>${editStatusBadge}</div></td>
+        <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name" title="${activityName}">${activityName}</strong><span class="ds-activities-program-type" title="${activityTypeLabel}">${activityTypeLabel}</span>${editStatusBadge}</div>${mobileSummary}</td>
         <td class="ds-activities-col ds-activities-col--authority"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(row.authority || '—')}">${escapeHtml(row.authority || '—')}</span></td>
         <td class="ds-activities-col ds-activities-col--school"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(getActivitySchoolDisplayName(row) || '—')}">${escapeHtml(getActivitySchoolDisplayName(row) || '—')}</span></td>
         ${is2027AllTab ? `<td class="ds-activities-col ds-activities-col--contact-name">${contactCell2027}</td>` : ''}
@@ -2061,7 +2065,7 @@ export const activitiesScreen = {
           const hoursDisplay = (startTime && endTime) ? `${escapeHtml(startTime)}–${escapeHtml(endTime)}` : (startTime || endTime ? escapeHtml(startTime || endTime) : '—');
           return `
       <tr class="ds-data-row ds-activities-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
-        <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name" title="${activityName}">${activityName}</strong><span class="ds-activities-program-type" title="${activityTypeLabel}">${activityTypeLabel}</span>${editStatusBadge}</div></td>
+        <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name" title="${activityName}">${activityName}</strong><span class="ds-activities-program-type" title="${activityTypeLabel}">${activityTypeLabel}</span>${editStatusBadge}</div>${mobileSummary}</td>
         <td class="ds-activities-col ds-activities-col--authority"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(row.authority || '—')}">${escapeHtml(row.authority || '—')}</span></td>
         <td class="ds-activities-col ds-activities-col--school"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(getActivitySchoolDisplayName(row) || '—')}">${escapeHtml(getActivitySchoolDisplayName(row) || '—')}</span></td>
         <td class="ds-activities-col ds-activities-col--grade" style="text-align:center">${gradeDisplay}</td>
@@ -2078,7 +2082,7 @@ export const activitiesScreen = {
         const endHe = endRaw ? formatDateHe(endRaw) || '—' : '—';
         return `
       <tr class="ds-data-row ds-activities-row" data-list-item data-search="${escapeHtml(rowSearch)}" data-filter="" data-row-id="${escapeHtml(row.RowID)}">
-        <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name" title="${activityName}">${activityName}</strong><span class="ds-activities-program-type" title="${activityTypeLabel}">${activityTypeLabel}</span>${editStatusBadge}</div></td>
+        <td class="ds-activities-col ds-activities-col--program"><div class="ds-activities-program-cell"><strong class="ds-activities-program-name" title="${activityName}">${activityName}</strong><span class="ds-activities-program-type" title="${activityTypeLabel}">${activityTypeLabel}</span>${editStatusBadge}</div>${mobileSummary}</td>
         <td class="ds-activities-col ds-activities-col--authority"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(row.authority || '—')}">${escapeHtml(row.authority || '—')}</span></td>
         <td class="ds-activities-col ds-activities-col--school"><span class="ds-activities-cell-ellipsis" title="${escapeHtml(getActivitySchoolDisplayName(row) || '—')}">${escapeHtml(getActivitySchoolDisplayName(row) || '—')}</span></td>
         <td class="ds-activities-col ds-activities-col--instructor"><div class="ds-activities-instructor-wrap">${instructorDisplay}<span class="ds-activities-manager-line" title="${escapeHtml(managerLabel || '—')}">מנהל: ${escapeHtml(managerLabel || '—')}</span></div></td>
@@ -2218,6 +2222,8 @@ export const activitiesScreen = {
       ${periodTabs}
       ${showDiag ? activitiesDiagnosticsHtml(diagnostics) : ''}
       ${mainToolbar}
+      ${activityQuickFiltersHtml()}
+      <div class="activity-management-status" data-management-load-status role="status">${listFilters.managementFilter ? 'הסינון מציג התאמות מאומתות מהמידע הזמין; מקורות שאינם נגישים אינם נחשבים כאפס.' : ''}</div>
       ${state.activityPeriodTab === ACTIVITY_SEASON_SCHOOL_2027 ? `<section class="ds-card ds-activities-table-card"><div class="ds-card__body">${tableSection}</div></section>` : dsCard({ body: tableSection, padded: false })}
     </section>`);
     return html;
@@ -2419,7 +2425,7 @@ export const activitiesScreen = {
       root.appendChild(el);
     })();
 
-    const activitiesRows = Array.isArray(data?.rows) ? data.rows : [];
+    const activitiesRows = (Array.isArray(data?.rows) ? data.rows : []).map((row) => ({ ...row, management: cachedManagement(row, state) }));
     state.activityPeriodTab = normalizeActivityPeriodTab(state.activityPeriodTab);
     state.allActivitiesStatusFilter = normalizeAllActivitiesStatusFilter(state.allActivitiesStatusFilter);
     const periodRows = activityRowsForPeriodAndMonth(activitiesRows, state);
@@ -2522,6 +2528,47 @@ export const activitiesScreen = {
       else rerender();
     };
 
+    const refreshOpenManagement = () => {
+      const form = document.querySelector('[data-drawer-form]');
+      if (!form || form.dataset.editing === 'yes') return;
+      const source = activitiesRows.find((row) => String(row.RowID || row.row_id) === form.dataset.rowId);
+      const management = source && cachedManagement(source, state);
+      if (!management) return;
+      form._managementSnapshot = management;
+      const panel = form.querySelector('[data-management-panel]');
+      if (panel) panel.outerHTML = activityManagementPanelHtml({ ...source, management });
+      else form.querySelector('.activity-drawer-inline__body')?.insertAdjacentHTML('afterbegin', activityManagementPanelHtml({ ...source, management }));
+    };
+    const managementFilter = ensureActivityListFilters(state, ACTIVITIES_SCOPE).managementFilter;
+    const visibleIds = new Set([...root.querySelectorAll('.ds-activities-row[data-row-id]')].map((node) => node.dataset.rowId));
+    const managementRows = (managementFilter ? periodRows : activitiesRows.filter((row) => visibleIds.has(String(row.RowID || row.row_id))));
+    if ((managementFilter || (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 820px)').matches)) && managementRows.some((row) => !cachedManagement(row, state))) {
+      void ensureActivityManagement(managementRows, { user: state.user, api, state }).then((changed) => {
+        if (changed && root.isConnected && state.route === 'activities') { refreshOpenManagement(); rerenderLocal(); }
+      }).catch(() => { const status = root.querySelector('[data-management-load-status]'); if (status) status.textContent = 'טעינת תמונת המצב נכשלה; יש לרענן.'; });
+    }
+    document._activityManagementAbort?.abort();
+    document._activityManagementAbort = new AbortController();
+    document.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-management-action]');
+      if (!button || state.route !== 'activities') return;
+      event.preventDefault(); event.stopPropagation();
+      const row = activitiesRows.find((item) => String(item.RowID || item.row_id) === button.dataset.managementRow);
+      if (!row) return;
+      if (button.dataset.managementAction === 'activity') { ui.closeModal?.(); void openActivityDetail(row).catch(() => showToast('לא ניתן לפתוח את הפעילות', 'error')); return; }
+      if (button.dataset.managementAction === 'coordination') {
+        void openActivityDetail(row).then(() => { const form = document.querySelector('[data-drawer-form]'); if (form?.dataset.rowId === String(row.RowID || row.row_id)) form.querySelector('[data-coordination-approval]')?.click(); }).catch(() => showToast('לא ניתן לפתוח את פרטי התיאום', 'error'));
+        return;
+      }
+      if (button.dataset.managementAction === 'feedback') {
+        state.impactFeedback = { groupRowId: String(row.RowID || row.row_id), academicYear: row.activity_season || 'regular' };
+        document.dispatchEvent(new CustomEvent('app:navigate', { detail: { route: 'impact-feedback', force: true } }));
+        return;
+      }
+      const exceptionDetails = (row.management?.exceptions || []).map((type) => `<li>${escapeHtml(hebrewExceptionType(type))}</li>`).join('');
+      const reports = (row.management?.attendance || []).map((record) => `<li>מפגש ${escapeHtml(record.meetingNo || 'לא צוין')} · <bdi>${escapeHtml(record.date)}</bdi></li>`).join('');
+      ui.openModal({ title: 'בקרת הפעילות', content: `${activityPlanningFactsHtml(row)}${activityManagementIndicatorsHtml(row, { interactive: false })}<ul>${exceptionDetails}${reports}</ul><button type="button" class="ds-btn" data-management-action="activity" data-management-row="${escapeHtml(row.RowID || row.row_id)}">פרטי הפעילות ופעולות הטיפול</button>`, actions: '<button type="button" class="ds-btn" data-ui-close-modal>סגירה</button>' });
+    }, { signal: document._activityManagementAbort.signal });
     bindActivitiesViewSwitcher(root, state, rerender);
 
     const runMonthShift = (delta) => {
@@ -2963,6 +3010,7 @@ export const activitiesScreen = {
       );
 
       const buildDrawerContent = (row, datesLoading) => {
+        row = { ...row, management: cachedManagement(row, state) };
         const base = activityDrawerContent(
           row, canSeePrivateNotes, canEditActivity, canDirectEdit, canRequestEdit,
           canDeleteActivity, hideEmpIds, hideRowId, hideActivityNo, settings, {
@@ -2981,6 +3029,13 @@ export const activitiesScreen = {
 
       const makeOnOpenWithReopen = (row) => (contentRoot) => {
         makeOnOpen(contentRoot);
+        const form = contentRoot.querySelector('[data-drawer-form]');
+        if (form) form._managementSnapshot = cachedManagement(row, state);
+        if (!cachedManagement(row, state)) {
+          const inflight = [...(state._managementInflight?.values() || [])];
+          const pending = inflight.length ? Promise.all(inflight) : ensureActivityManagement([row], { user: state.user, api, state });
+          void Promise.resolve(pending).then(refreshOpenManagement).catch(() => {});
+        }
         if (canReopenActivity) bindActivitiesReopenBtn(contentRoot, row);
       };
 
@@ -3020,12 +3075,17 @@ export const activitiesScreen = {
         api.activityDates(srcRowId, srcSheet)
           .then((datesData) => {
             putCachedActivityDates(summaryRow, datesData, state);
-            const sectionEl = document.querySelector('[data-dates-section]');
-            if (sectionEl) patchDrawerDatesSection(sectionEl, datesData);
+            const form = document.querySelector('[data-drawer-form]');
+            const sectionEl = form?.querySelector('[data-dates-section]');
+            if (sectionEl && form.dataset.rowId === String(summaryRow.RowID) && form.dataset.editing !== 'yes') patchDrawerDatesSection(sectionEl, datesData);
           })
           .catch(() => {
-            const sectionEl = document.querySelector('[data-dates-section]');
-            if (sectionEl) sectionEl.removeAttribute('data-dates-loading');
+            const form = document.querySelector('[data-drawer-form]');
+            if (form?.dataset.rowId !== String(summaryRow.RowID)) return;
+            const sectionEl = form.querySelector('[data-dates-section]');
+            sectionEl?.removeAttribute('data-dates-loading');
+            const summary = sectionEl?.querySelector('[data-dates-management-summary]');
+            if (summary) summary.textContent = 'לא ניתן לטעון את לוח המפגשים. יש לסגור ולפתוח שוב את הפעילות.';
           });
       }
 
@@ -3771,7 +3831,7 @@ export const activitiesScreen = {
       }
       const rowNode = ev.target.closest('.ds-data-row');
       if (!rowNode) return;
-      if (ev.target.closest('[data-contact-popover]')) return;
+      if (ev.target.closest('button, a, input, select, textarea')) return;
       ev.stopPropagation();
       const rowId = rowNode.dataset.rowId;
       const hit = filteredRows.find((row) => row.RowID === rowId);
@@ -3780,6 +3840,7 @@ export const activitiesScreen = {
     }, rowSig);
     root.addEventListener('keydown', (ev) => {
       if (ev.key !== 'Enter' && ev.key !== ' ') return;
+      if (ev.target.closest('button, a, input, select, textarea')) return;
       if (ev.target.matches?.('[data-activities-restore-header]')) {
         ev.preventDefault();
         ev.target.click();

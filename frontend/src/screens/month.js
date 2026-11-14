@@ -260,6 +260,7 @@ export const monthScreen = {
           title: String(dayNum),
           subtitle,
           meta,
+          mobileMeta: n > 0 ? n : null,
           extraClass: extra.trim()
         })}
       </div>`

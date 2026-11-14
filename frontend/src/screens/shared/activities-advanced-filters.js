@@ -1,8 +1,9 @@
+import { managementToday } from './activity-management-summary.js';
 import { escapeHtml } from './html.js';
 import { ensureActivityListFilters } from './activity-list-filters.js';
 
 export const ADVANCED_ACTIVITY_FILTER_KEYS = [
-  'advStartPresence', 'advMeetingFrom', 'advMeetingTo', 'advPricePresence'
+  'advStartPresence', 'advMeetingFrom', 'advMeetingTo', 'advPricePresence', 'managementFilter'
 ];
 
 const PRESENCE_OPTIONS = [
@@ -105,7 +106,7 @@ export function activitiesAdvancedFilterToggleHtml(filters = {}, assignment = 'a
     + (open ? 'true' : 'false')
     + '" aria-label="אפשרויות סינון נוספות" title="אפשרויות סינון נוספות">'
     + '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M4 6h16M7 12h10M10 18h4"/></svg>'
-    + (count ? '<span class="ds-act-advanced__indicator" aria-hidden="true"></span>' : '')
+    + (count ? '<span class="ds-act-advanced__count">' + count + '</span>' : '')
     + '</button>';
 }
 
@@ -114,6 +115,7 @@ export function activitiesAdvancedFiltersHtml(filters = {}, assignment = 'all', 
   return '<section id="activities-advanced-filters-panel" class="ds-act-advanced__panel" data-activities-advanced-panel dir="rtl" role="group" aria-label="אפשרויות סינון נוספות"'
     + (open ? '' : ' hidden') + '>'
     + '<div class="ds-act-advanced__grid">'
+    + selectField('managementFilter', 'בקרה ניהולית', [['', 'ללא סינון בקרה'], ['exceptions', 'חריגות'], ['feedback', 'משובים לטיפול'], ['ending', 'סיום בחודש המוצג'], ['coordination', 'תיאום שטרם נשלח']], filters.managementFilter)
     + selectField('advStartPresence', 'תאריך התחלה', PRESENCE_OPTIONS, filters.advStartPresence)
     + dateField('advMeetingFrom', 'מפגש מתאריך', filters.advMeetingFrom)
     + dateField('advMeetingTo', 'מפגש עד תאריך', filters.advMeetingTo, filters.advMeetingFrom)
@@ -126,11 +128,49 @@ export function activitiesAdvancedFiltersHtml(filters = {}, assignment = 'all', 
     + '</section>';
 }
 
+/** Shortcuts set the same existing filters, preserving the selected season/tab. */
+export function applyActivityQuickFilter(filters, state, key, today = managementToday()) {
+  if (key === 'today' || key === 'week') {
+    let from = today;
+    let to = today;
+    if (key === 'week') {
+      const start = new Date(`${today}T12:00:00Z`);
+      start.setUTCDate(start.getUTCDate() - start.getUTCDay());
+      from = start.toISOString().slice(0, 10);
+      start.setUTCDate(start.getUTCDate() + 6);
+      to = start.toISOString().slice(0, 10);
+    }
+    filters.advMeetingFrom = from;
+    filters.advMeetingTo = to;
+  } else if (key === 'unassigned') {
+    state.activitiesInstructorStatusFilter = 'unassigned';
+    state.allActivitiesStatusFilter = 'all';
+  } else if (['exceptions', 'missing-reports', 'feedback', 'ending', 'coordination'].includes(key)) {
+    filters.managementFilter = key;
+  } else if (key === 'missing-start') {
+    filters.advStartPresence = 'missing';
+  }
+  filters.visibleCount = 200;
+}
+
+export function activityQuickFiltersHtml() {
+  return '<nav class="activity-mobile-quick-filters" aria-label="סינונים ניהוליים מהירים">'
+    + [['today', 'היום'], ['week', 'השבוע'], ['unassigned', 'ללא מדריך'], ['missing-start', 'ללא תאריך התחלה'], ['exceptions', 'חריגות'], ['missing-reports', 'דיווחים חסרים — מקור חלקי'], ['feedback', 'משובים לטיפול'], ['ending', 'סיומים החודש'], ['coordination', 'ממתינות לתיאום']]
+      .map(([key, label]) => `<button type="button" class="ds-btn ds-btn--sm" data-activity-quick-filter="${key}"${key === 'missing-reports' ? ' disabled aria-label="סינון דיווחים חסרים אינו זמין: חסר שיוך מלא של דיווחים מאוגדים"' : ''}>${label}</button>`).join('')
+    + '</nav>';
+}
+
 /** Inline filters remain open during selection and close only on user action. */
 export function bindActivitiesAdvancedFilters(root, state, scope, rerender) {
   const button = root.querySelector('[data-activities-advanced-toggle]');
   const panel = root.querySelector('[data-activities-advanced-panel]');
   if (!button || !panel) return;
+  root.querySelectorAll('[data-activity-quick-filter]').forEach((node) => {
+    node.addEventListener('click', () => {
+      applyActivityQuickFilter(ensureActivityListFilters(state, scope), state, node.dataset.activityQuickFilter);
+      rerender();
+    });
+  });
   const toggle = (next) => {
     state.activitiesAdvancedFiltersOpen = !!next;
     panel.hidden = !next;

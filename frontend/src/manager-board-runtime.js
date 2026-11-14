@@ -1,3 +1,4 @@
+import { midpointMeetingNumbers } from './screens/shared/activity-meeting-checkpoints.js';
 import { state } from './state.js';
 import { hasPermission } from './permission-policy.js';
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
@@ -364,15 +365,7 @@ function buildMeetingRows(activities, ym) {
     const totalMeetings = Number.isFinite(configuredMeetings) && configuredMeetings > 0
       ? configuredMeetings
       : dates.length;
-    const midpointNumbers = new Set();
-    if (totalMeetings > 1) {
-      if (totalMeetings % 2 === 0) {
-        midpointNumbers.add(totalMeetings / 2);
-        midpointNumbers.add((totalMeetings / 2) + 1);
-      } else {
-        midpointNumbers.add(Math.ceil(totalMeetings / 2));
-      }
-    }
+    const midpointNumbers = midpointMeetingNumbers(totalMeetings);
     const durationHours = activityDurationHours(activity);
 
     dates.forEach(({ iso, meetingNo }) => {

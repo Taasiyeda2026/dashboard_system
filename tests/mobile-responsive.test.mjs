@@ -63,7 +63,7 @@ test('dynamic table rows receive semantic labels and exactly one disclosure', ()
   assert.equal(originalRow.querySelectorAll('[data-mobile-row-toggle]').length, 1);
   assert.equal(newRow.querySelectorAll('[data-mobile-row-toggle]').length, 1);
   assert.equal(newRow.children[1].dataset.mobileField, 'primary');
-  assert.equal(newRow.children[2].dataset.mobileField, 'detail');
+  assert.equal(newRow.children[2].dataset.mobileField, 'primary');
   assert.equal(newRow.children[2].dataset.mobileLabel, 'תאריך סיום');
 });
 
@@ -177,4 +177,57 @@ test('required mobile widths activate one disclosure layer', () => {
     bindMobileResponsive(page.window.document, page.window);
     assert.equal(page.window.document.querySelectorAll('[data-mobile-row-toggle]').length, 1, `${width}px`);
   }
+});
+
+test('week day and full-week controls preserve columns and restore desktop visibility', () => {
+  const page = new JSDOM(`<body><div class="ds-week-board">${['2026-11-14', '2026-11-15'].map((date, i) => `<section class="ds-week-col" aria-label="${date}"><span class="ds-week-col__dow">יום ${i}</span><span class="ds-week-col__count">${i}</span><button data-existing>פתיחה</button></section>`).join('')}</div></body>`);
+  const media = controllableMedia(true);
+  page.window.matchMedia = () => media;
+  bindMobileResponsive(page.window.document, page.window);
+  const doc = page.window.document;
+  const action = doc.querySelector('[data-existing]');
+  doc.querySelector('[data-mobile-week-day="2026-11-15"]').click();
+  assert.equal(doc.querySelector('[aria-label="2026-11-14"]').dataset.mobileWeekHidden, 'true');
+  doc.querySelector('[data-mobile-week-day="all"]').click();
+  assert.equal(doc.querySelectorAll('[data-mobile-week-hidden="true"]').length, 0);
+  media.set(false);
+  assert.equal(doc.querySelector('[data-mobile-week-controls]'), null);
+  assert.equal(doc.querySelector('[data-mobile-week-hidden]'), null);
+  assert.equal(doc.querySelector('[data-existing]'), action);
+});
+
+test('feedback and manager compact navigation preserve original allowed actions', () => {
+  const doc = dom('<nav class="ifb-tabs"><button class="is-active" aria-selected="true">סקירה</button><button>משובים</button></nav><nav data-manager-workspace-tabs><button class="is-active">ניהול</button></nav>');
+  const buttons = [...doc.querySelectorAll('nav button')];
+  enhanceMobileRoot(doc);
+  enhanceMobileRoot(doc);
+  assert.equal(doc.querySelectorAll('[data-mobile-section-nav-toggle]').length, 2);
+  cleanupMobileRoot(doc);
+  assert.deepEqual([...doc.querySelectorAll('nav button')], buttons);
+});
+
+test('feedback cards label stages without replacing buttons, zero values, or unavailable labels', () => {
+  const doc = dom('<table class="ifb-table ifb-groups-table"><thead><tr><th>קבוצה</th><th>פתיחה</th><th>סיום</th></tr></thead><tbody><tr><td>א׳</td><td><button>0 תשובות</button></td><td>טרם נפתח</td></tr></tbody></table>');
+  const button = doc.querySelector('button');
+  enhanceMobileRoot(doc);
+  assert.equal(doc.querySelector('table').dataset.mobileTableKind, 'feedback');
+  assert.equal(button.closest('td').dataset.mobileLabel, 'פתיחה');
+  assert.equal(button.textContent, '0 תשובות');
+  assert.equal(doc.querySelector('td:last-child').textContent, 'טרם נפתח');
+  cleanupMobileRoot(doc);
+  assert.equal(doc.querySelector('[data-mobile-label]'), null);
+  assert.equal(doc.querySelector('button'), button);
+});
+
+test('end-date cards preserve native row expansion and restore desktop table metadata', () => {
+  const doc = dom('<table class="ds-end-table"><thead><tr><th>פעילות</th><th>סיום</th></tr></thead><tbody><tr><td><button>פרטים</button></td><td>1/1/2027</td></tr><tr hidden><td colspan="2">כל המפגשים</td></tr></tbody></table>');
+  const button = doc.querySelector('button');
+  enhanceMobileRoot(doc);
+  assert.equal(doc.querySelector('table').dataset.mobileTableKind, 'record');
+  assert.equal(doc.querySelector('tbody tr:last-child').hidden, true);
+  assert.equal(doc.querySelector('tbody tr:first-child td:last-child').dataset.mobileLabel, 'סיום');
+  cleanupMobileRoot(doc);
+  assert.equal(doc.querySelector('button'), button);
+  assert.equal(doc.querySelector('tbody tr:last-child').hidden, true);
+  assert.equal(doc.querySelector('[data-mobile-label]'), null);
 });

@@ -89,6 +89,7 @@ export function dsInteractiveCard({
   value = '',
   subtitle = '',
   meta = '',
+  mobileMeta = null,
   variant = 'mini',
   selected = false,
   disabled = false,
@@ -101,9 +102,11 @@ export function dsInteractiveCard({
   const disabledAttr = disabled ? ' disabled aria-disabled="true"' : '';
   const moreClass = extraClass && /^[a-zA-Z0-9_\s-]+$/.test(extraClass) ? ` ${extraClass}` : '';
 
+  const metaContent = mobileMeta === null ? escapeHtml(meta)
+    : `<span class="month-count-desktop">${escapeHtml(meta)}</span><span class="month-count-mobile" aria-label="${escapeHtml(meta)}">${escapeHtml(String(mobileMeta))}</span>`;
   let innerHtml;
   if (variant === 'kpi' && value !== '') {
-    const metaHtml = meta ? `<p class="ds-interactive-card__meta">${escapeHtml(meta)}</p>` : '';
+    const metaHtml = meta ? `<p class="ds-interactive-card__meta">${metaContent}</p>` : '';
     innerHtml = `
       <p class="ds-interactive-card__label">${escapeHtml(title)}</p>
       <p class="ds-interactive-card__value">${escapeHtml(String(value))}</p>
@@ -111,7 +114,7 @@ export function dsInteractiveCard({
     `;
   } else {
     const subtitleHtml = subtitle ? `<p class="ds-interactive-card__subtitle">${escapeHtml(subtitle)}</p>` : '';
-    const metaHtml = meta ? `<p class="ds-interactive-card__meta">${escapeHtml(meta)}</p>` : '';
+    const metaHtml = meta ? `<p class="ds-interactive-card__meta">${metaContent}</p>` : '';
     innerHtml = `
       <p class="ds-interactive-card__title">${escapeHtml(title)}</p>
       ${subtitleHtml}
