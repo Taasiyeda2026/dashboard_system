@@ -52,11 +52,11 @@ $;
 
 create or replace function scheduling_manual_private.canonical_instructor_name(p_emp_id bigint)
 returns text language sql stable security definer set search_path=public,pg_temp as $
- select coalesce(
-  (select coalesce(nullif(btrim(u.full_name),''),nullif(btrim(u.name),'')) from public.users u
-   where u.emp_id=p_emp_id::text and u.is_active
-   and u.role in ('admin','operation_manager','activities_manager','domain_manager','business_development_manager','instructor_manager') limit 1),
-  (select c.full_name from public.contacts_instructors c where c.emp_id=p_emp_id))
+ select case when scheduling_manual_private.is_management_employee(p_emp_id)
+   then (select coalesce(nullif(btrim(u.full_name),''),nullif(btrim(u.name),'')) from public.users u
+     where u.emp_id=p_emp_id::text and u.is_active limit 1)
+   else (select c.full_name from public.contacts_instructors c where c.emp_id=p_emp_id)
+ end
 $;
 
 create or replace function scheduling_manual_private.resolve_instructor(p_emp_id bigint)
