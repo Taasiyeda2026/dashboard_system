@@ -1,4 +1,5 @@
 import { escapeHtml } from './shared/html.js';
+import { supabase } from '../supabase-client.js';
 import { dsScreenStack, dsEmptyState } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
 import { canManageInstructorOnboarding, canViewEmployeeFiles } from '../permissions.js';
@@ -421,8 +422,17 @@ export function bindInstructorConstraintsModal(modalRoot, {
 
 export const instructorsScreen = {
   async load({ api }) {
-    const [base, contacts, seniorityRows, scheduling] = await Promise.all([api.instructors(), api.instructorContacts(), loadInstructorSeniorityData(), loadInstructorSchedulingData()]);
-    return { ...base, rows: mergeRows(base, contacts, scheduling, seniorityRows), scheduling, _schedulingLoaded: !!scheduling?.loaded };
+    const [base, contacts, seniorityRows, scheduling, managementDirectory] = await Promise.all([
+      api.instructors(), api.instructorContacts(), loadInstructorSeniorityData(),
+      loadInstructorSchedulingData(),
+      supabase.rpc('scheduling_management_employee_directory').catch(() => ({ data: [] }))
+    ]);
+    const managementIds = new Set((managementDirectory?.data || []).map(row => String(row.emp_id)));
+    // A person with a management role can teach a course manually, but they never
+    // become an instructor profile or appear in the ordinary instructor directory.
+    return { ...base, rows: mergeRows(base, contacts, scheduling, seniorityRows)
+      .filter(row => !managementIds.has(String(row.emp_id))),
+      scheduling, _schedulingLoaded: !!scheduling?.loaded };
   },
 
   render(data, { state } = {}) {
