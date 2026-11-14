@@ -155,7 +155,7 @@ export function applyActivityQuickFilter(filters, state, key, today = management
 
 export function activityQuickFiltersHtml() {
   return '<nav class="activity-mobile-quick-filters" aria-label="סינונים ניהוליים מהירים">'
-    + [['today', 'היום'], ['week', 'השבוע'], ['unassigned', 'ללא מדריך'], ['missing-start', 'ללא תאריך התחלה'], ['exceptions', 'חריגות'], ['missing-reports', 'דיווחים חסרים — מקור חלקי'], ['feedback', 'משובים לטיפול'], ['ending', 'סיומים החודש'], ['coordination', 'ממתינות לתיאום']]
+    + [['today', 'היום'], ['week', 'השבוע'], ['unassigned', 'ללא מדריך'], ['missing-start', 'ללא תאריך התחלה'], ['exceptions', 'חריגות'], ['missing-reports', 'דיווחים חסרים'], ['feedback', 'משובים לטיפול'], ['ending', 'סיומים החודש'], ['coordination', 'ממתינות לתיאום']]
       .map(([key, label]) => `<button type="button" class="ds-btn ds-btn--sm" data-activity-quick-filter="${key}"${key === 'missing-reports' ? ' disabled aria-label="סינון דיווחים חסרים אינו זמין: חסר שיוך מלא של דיווחים מאוגדים"' : ''}>${label}</button>`).join('')
     + '</nav>';
 }

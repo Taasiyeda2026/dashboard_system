@@ -1,7 +1,7 @@
 const MOBILE_QUERY = '(max-width: 820px)';
 const ownedAttributes = new WeakMap();
 const filterHandlers = new WeakMap();
-const COMPACT_NAV = '.instructors-workspace-tabs, .ds-ops-mgmt-tabs, .ifb-tabs, [data-manager-workspace-tabs]';
+const COMPACT_NAV = '.shell-header-nav, .instructors-workspace-tabs, .ds-ops-mgmt-tabs, .ifb-tabs, [data-manager-workspace-tabs]';
 let expandedActivityCards = false;
 let selectedWeekDate = '';
 let fullWeek = false;
@@ -53,6 +53,20 @@ function updateFilterButton(toolbar) {
 
 export function syncFilterToolbar(toolbar) {
   if (!toolbar) return;
+  // Activities already owns an advanced disclosure. Reuse that exact control
+  // for all mobile filters; do not create a second competing button.
+  const originalToggle = toolbar.matches('.ds-activities-main-toolbar')
+    ? toolbar.querySelector('[data-activities-advanced-toggle]') : null;
+  if (originalToggle) {
+    toolbar.querySelector(':scope > [data-mobile-filter-toggle]')?.remove();
+    toolbar.dataset.mobileFiltersReady = '1';
+    const open = originalToggle.getAttribute('aria-expanded') === 'true';
+    if (toolbar.classList.contains('is-mobile-expanded') !== open) toolbar.classList.toggle('is-mobile-expanded', open);
+    Array.from(toolbar.children).forEach((child) => {
+      if (child !== originalToggle && !child.matches('input[type="search"], .ds-pa-search, .ds-filter-field--search')) child.classList.add('mobile-filter-detail');
+    });
+    return;
+  }
   let button = toolbar.querySelector(':scope > [data-mobile-filter-toggle]');
   if (!button) {
     button = toolbar.ownerDocument.createElement('button');
@@ -98,7 +112,7 @@ export function syncCompactNavigation(nav) {
   }
   nav.dataset.mobileNavReady = '1';
   const active = nav.querySelector('.is-active, [aria-selected="true"], [aria-pressed="true"]');
-  const label = `${active?.textContent?.trim() || nav.getAttribute('aria-label') || 'בחירת אזור'} ▾`;
+  const label = nav.matches('.shell-header-nav') ? 'ניווט מהיר ▾' : `${active?.textContent?.trim() || nav.getAttribute('aria-label') || 'בחירת אזור'} ▾`;
   if (toggle.textContent !== label) toggle.textContent = label;
 }
 
@@ -132,17 +146,23 @@ export function enhanceExpandableTable(table, kind = 'generic') {
     directCells(row).forEach((cell, index) => {
       if (labels[index]) cell.dataset.mobileLabel = labels[index];
       cell.dataset.mobileField = mobileFieldKind(kind, labels[index], index);
+      if (kind === 'activities' && !cell.matches('.ds-activities-col--program')) {
+        const value = cell.textContent.replace(/\s+/g, ' ').trim();
+        const empty = /^(?:איש קשר\s*)?(?:[-—–]|לא משויך)?$/.test(value) && !cell.querySelector('button, a, input, select, textarea');
+        setIfChanged(cell, 'data-mobile-empty', empty);
+      }
     });
     const firstCell = directCells(row)[0];
-    if (!firstCell || firstCell.querySelector(':scope > [data-mobile-row-toggle]')) return;
+    const disclosureHost = firstCell?.querySelector('.activity-mobile-summary__actions') || firstCell;
+    if (!disclosureHost || disclosureHost.querySelector(':scope > [data-mobile-row-toggle]')) return;
     const toggle = table.ownerDocument.createElement('button');
     toggle.type = 'button';
     toggle.className = 'mobile-row-toggle';
     toggle.dataset.mobileRowToggle = '1';
     toggle.setAttribute('aria-expanded', 'false');
     toggle.setAttribute('aria-label', 'הצגת פרטים נוספים');
-    toggle.textContent = 'פרטים ▾';
-    firstCell.append(toggle);
+    toggle.textContent = kind === 'activities' ? 'עוד מידע ▾' : 'פרטים ▾';
+    disclosureHost.append(toggle);
   });
 }
 
@@ -194,7 +214,7 @@ export function syncActivityViewMode(table) {
     button.dataset.mobileActivityView = '1';
     table.before(button);
   }
-  const label = expandedActivityCards ? 'תצוגה מורחבת · מעבר לקומפקטית' : 'תצוגה קומפקטית · הרחבת כל הכרטיסים';
+  const label = expandedActivityCards ? 'תצוגה קומפקטית' : 'תצוגה מורחבת';
   if (button.textContent !== label) button.textContent = label;
   setIfChanged(button, 'aria-pressed', expandedActivityCards);
   table.classList.toggle('is-mobile-all-expanded', expandedActivityCards);
@@ -245,6 +265,21 @@ export function enhanceFeedbackTables(root) {
   });
 }
 
+export function enhanceFeedbackSlots(root) {
+  root.querySelectorAll('.ifb-group-detail .ifb-slot').forEach((slot) => {
+    const head = slot.querySelector(':scope > .ifb-slot__head');
+    if (!head || head.querySelector('[data-mobile-feedback-slot-toggle]')) return;
+    const button = slot.ownerDocument.createElement('button');
+    button.type = 'button';
+    button.className = 'mobile-feedback-slot-toggle';
+    button.dataset.mobileFeedbackSlotToggle = '1';
+    button.setAttribute('aria-expanded', 'false');
+    button.textContent = 'פרטים ▾';
+    slot.dataset.mobileFeedbackSlotReady = '1';
+    head.append(button);
+  });
+}
+
 export function enhanceRecordTables(root) {
   root.querySelectorAll('.ds-end-table, .ds-end-dates-screen .ds-table').forEach((table) => {
     table.dataset.mobileTableReady = '1';
@@ -265,13 +300,15 @@ export function enhanceMobileRoot(root = document) {
   root.querySelectorAll('.ds-pa-table').forEach((table) => enhanceExpandableTable(table, 'proposals'));
   root.querySelectorAll(MATRIX_SELECTOR).forEach((table) => enhanceExpandableTable(table, 'matrix'));
   enhanceFeedbackTables(root);
+  enhanceFeedbackSlots(root);
   enhanceRecordTables(root);
   enhanceClientQueues(root);
   enhanceDrawerSections(root);
 }
 
 export function cleanupMobileRoot(root = document) {
-  root.querySelectorAll('[data-mobile-week-controls], [data-mobile-activity-view]').forEach((node) => node.remove());
+  root.querySelectorAll('[data-mobile-week-controls], [data-mobile-activity-view], [data-mobile-feedback-slot-toggle]').forEach((node) => node.remove());
+  root.querySelectorAll('[data-mobile-feedback-slot-ready]').forEach((slot) => { slot.removeAttribute('data-mobile-feedback-slot-ready'); slot.classList.remove('is-mobile-expanded'); });
   root.querySelectorAll('[data-mobile-week-hidden]').forEach((col) => col.removeAttribute('data-mobile-week-hidden'));
   root.querySelectorAll('.ds-table--activities-list').forEach((table) => table.classList.remove('is-mobile-all-expanded'));
   root.querySelectorAll('[data-mobile-filter-toggle], [data-mobile-section-nav-toggle], [data-mobile-row-toggle]').forEach((element) => element.remove());
@@ -297,9 +334,10 @@ export function cleanupMobileRoot(root = document) {
     row.classList.remove('is-mobile-expanded');
     restoreAttributes(row);
   });
-  root.querySelectorAll('[data-mobile-label], [data-mobile-field]').forEach((cell) => {
+  root.querySelectorAll('[data-mobile-label], [data-mobile-field], [data-mobile-empty]').forEach((cell) => {
     cell.removeAttribute('data-mobile-label');
     cell.removeAttribute('data-mobile-field');
+    cell.removeAttribute('data-mobile-empty');
   });
   root.querySelectorAll('[data-mobile-queue-ready]').forEach((queue) => {
     const header = queue.querySelector(':scope > header');
@@ -360,6 +398,14 @@ export function bindMobileResponsive(doc = document, win = window) {
       setIfChanged(navToggle, 'aria-expanded', open);
       return;
     }
+    const feedbackSlotToggle = event.target.closest?.('[data-mobile-feedback-slot-toggle]');
+    if (feedbackSlotToggle) {
+      const slot = feedbackSlotToggle.closest('[data-mobile-feedback-slot-ready]');
+      const open = slot?.classList.toggle('is-mobile-expanded') || false;
+      setIfChanged(feedbackSlotToggle, 'aria-expanded', open);
+      feedbackSlotToggle.textContent = open ? 'סגירה ▴' : 'פרטים ▾';
+      return;
+    }
     const queueHeader = event.target.closest?.('[data-mobile-queue-toggle]');
     if (queueHeader) {
       const queue = queueHeader.closest('.ds-client-queue');
@@ -374,7 +420,7 @@ export function bindMobileResponsive(doc = document, win = window) {
       const open = row?.classList.toggle('is-mobile-expanded') || false;
       if (row) setIfChanged(row, 'aria-expanded', open);
       setIfChanged(toggle, 'aria-expanded', open);
-      toggle.textContent = open ? 'סגירה ▴' : 'פרטים ▾';
+      toggle.textContent = open ? 'סגירה ▴' : (row?.closest('[data-mobile-table-kind="activities"]') ? 'עוד מידע ▾' : 'פרטים ▾');
       toggle.setAttribute('aria-label', open ? 'הסתרת פרטים נוספים' : 'הצגת פרטים נוספים');
       event.stopPropagation();
       return;
@@ -395,14 +441,14 @@ export function bindMobileResponsive(doc = document, win = window) {
   });
   const observer = new win.MutationObserver((mutations) => {
     const relevant = mutations.some((mutation) => mutation.type === 'childList'
-      || mutation.target.matches?.(`${COMPACT_NAV}, .instructors-workspace-tab, .ds-ops-mgmt-tab, .ifb-tab, [data-manager-workspace-tab]`));
+      || mutation.target.matches?.(`${COMPACT_NAV}, .shell-header-nav [data-route], .instructors-workspace-tab, .ds-ops-mgmt-tab, .ifb-tab, [data-manager-workspace-tab], [data-activities-advanced-toggle]`));
     if (relevant) apply();
   });
   observer.observe(doc.body, {
     childList: true,
     subtree: true,
     attributes: true,
-    attributeFilter: ['class', 'aria-selected', 'aria-pressed']
+    attributeFilter: ['class', 'aria-selected', 'aria-pressed', 'aria-expanded']
   });
   media.addEventListener?.('change', apply);
   apply();

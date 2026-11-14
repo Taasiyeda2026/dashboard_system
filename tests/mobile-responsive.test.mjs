@@ -231,3 +231,16 @@ test('end-date cards preserve native row expansion and restore desktop table met
   assert.equal(doc.querySelector('tbody tr:last-child').hidden, true);
   assert.equal(doc.querySelector('[data-mobile-label]'), null);
 });
+
+ test('mobile quick navigation preserves all permitted header tabs and restores desktop', () => {
+  const doc = new JSDOM('<header class="shell-top"><nav class="shell-header-nav"><button data-route="activities">פעילויות</button><button data-route="instructors">מדריכים</button><button data-route="edit-requests">אישורים</button></nav></header>').window.document;
+  const nav = doc.querySelector('nav');
+  const originalButtons = [...nav.querySelectorAll('button')];
+  enhanceMobileRoot(doc);
+  assert.equal(nav.dataset.mobileNavReady, '1');
+  assert.equal(nav.previousElementSibling.textContent, 'ניווט מהיר ▾');
+  assert.deepEqual([...nav.querySelectorAll('button')], originalButtons);
+  cleanupMobileRoot(doc);
+  assert.equal(doc.querySelector('[data-mobile-section-nav-toggle]'), null);
+  assert.deepEqual([...nav.querySelectorAll('button')], originalButtons);
+});
