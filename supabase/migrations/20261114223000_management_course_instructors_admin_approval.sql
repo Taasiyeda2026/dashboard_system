@@ -381,7 +381,7 @@ begin
     end if;
   end if;
   return new;
-end $function$
+end $function$;
 
 
 -- Central guard: all write paths including legacy RPCs and direct activity edits.
