@@ -35,7 +35,11 @@ test('management users appear only in manual course instructor choices', () => {
   const managers = [
     { emp_id: 1500, full_name: 'הילה רוזן', role: 'activities_manager', is_active: true },
     { emp_id: 5000, full_name: 'גיל נאמן', role: 'activities_manager', is_active: true },
-    { emp_id: 6000, full_name: 'מנהלת לא פעילה', role: 'operation_manager', is_active: false },
+    { emp_id: 6000, full_name: 'מנהלת תפעול פעילה', role: 'operation_manager', is_active: true },
+    { emp_id: 3000, full_name: 'מנהלת תחום פעילה', role: 'domain_manager', is_active: true },
+    { emp_id: 3030, full_name: 'מנהלת פיתוח עסקי', role: 'business_development_manager', is_active: true },
+    { emp_id: 8000, full_name: 'אדמין פעיל', role: 'admin', is_active: true },
+    { emp_id: 7000, full_name: 'מנהל פעילויות אחר', role: 'activities_manager', is_active: true },
     { emp_id: 4444, full_name: 'מישהו ללא תפקיד ניהולי', role: 'instructor', is_active: true }
   ];
   const options = manualCourseInstructorOptions(contacts, managers);
@@ -43,6 +47,6 @@ test('management users appear only in manual course instructor choices', () => {
   assert.equal(options.find(x => x.emp_id === 1500).isManagementEmployee, true);
   assert.equal(options.find(x => x.emp_id === 1500).active, 'yes');
   assert.equal(options.find(x => x.emp_id === 5000).isManagementEmployee, true);
-  assert.equal(options.some(x => x.emp_id === 6000 || x.emp_id === 4444), false);
+  assert.equal(options.some(x => [6000, 3000, 3030, 8000, 7000, 4444].includes(x.emp_id)), false);
   assert.deepEqual(activeSchedulingInstructors(contacts).map(x => x.emp_id), [1507]);
 });
