@@ -425,7 +425,7 @@ export const instructorsScreen = {
     const [base, contacts, seniorityRows, scheduling, managementDirectory] = await Promise.all([
       api.instructors(), api.instructorContacts(), loadInstructorSeniorityData(),
       loadInstructorSchedulingData(),
-      Promise.resolve(supabase.rpc('scheduling_management_employee_directory')).catch(() => ({ data: [] }))
+      supabase ? Promise.resolve(supabase.rpc('scheduling_management_employee_directory')).catch(() => ({ data: [] })) : Promise.resolve({ data: [] })
     ]);
     const managementIds = new Set((managementDirectory?.data || []).map(row => String(row.emp_id)));
     // A person with a management role can teach a course manually, but they never
