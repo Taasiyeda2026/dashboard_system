@@ -2400,8 +2400,12 @@ export const courseSchedulingScreen = {
       externalPlanningBlockersError: externalBlockersResult?.error || historyResult?.error || null,
       meetingInstructorHistory: historyResult?.data || [],
       activities: attachCancelledMeetingsToActivities(enriched.activities, meetingState),
-      instructors: activeSchedulingInstructors(contacts?.rows || []),
-      // Operators may acknowledge inactive status; automatic planning keeps its active-only pool.
+      // Management employees never enter the ordinary automatic candidate pool,
+      // even when a historical instructor contact happens to be active.
+      instructors: activeSchedulingInstructors(contacts?.rows || [])
+        .filter(instructor => !(managers?.data || []).some(manager =>
+          String(manager.emp_id) === String(instructor.emp_id))),
+      // Only the manual picker includes management employees.
       manualInstructors: manualCourseInstructorOptions(contacts?.rows || [], managers?.data || []),
       scheduling,
       meetingState,
