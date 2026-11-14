@@ -1941,6 +1941,55 @@
   #app .ifb-table[data-mobile-table-kind="feedback"] td[colspan] { grid-column: 1 / -1; }
   #app .ifb-table[data-mobile-table-kind="feedback"] button { min-block-size: 44px; max-inline-size: 100%; white-space: normal; }
 
+  .activity-management-indicators { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin-block: 8px; }
+  .activity-management-indicator { display: block; min-inline-size: 0; min-block-size: 44px; padding: 6px 8px; border: 1px solid #cbd5e1; border-radius: 8px; background: #f5f9fb; color: #153451; font: inherit; font-size: .75rem; text-align: start; white-space: normal; overflow-wrap: anywhere; }
+  .activity-management-indicator small { display: block; font-size: .68rem; color: #526378; }
+  .activity-management-panel { padding: 10px; }
+  .activity-management-panel .activity-planning-facts { margin-block-end: 6px; }
+  .activity-management-status { font-size: .75rem; line-height: 1.4; color: #526378; }
+  #app .instructor-card__name { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+  #app .instructor-card__stats { flex-wrap: wrap; white-space: normal; }
+  #app .manager-board-hero__controls, #app .manager-board-panel__head { flex-wrap: wrap; min-inline-size: 0; gap: 6px; }
+  #app .manager-board-hero { padding: 10px; }
+  #app .manager-board-hero h1 { font-size: 1.1rem; }
+  #app .manager-board-manager-select, #app .manager-board-month-nav { min-inline-size: 0; max-inline-size: 100%; }
+  #app .manager-board-month-nav { flex-wrap: wrap; }
+  #app .ds-exceptions-grid { grid-template-columns: minmax(0, 1fr); }
+  #app .ds-exception-card { min-inline-size: 0; overflow-wrap: anywhere; }
+  #app .ds-exception-group__head, #app .ds-exceptions-summary { flex-wrap: wrap; }
+  .ds-modal { max-inline-size: calc(100dvw - 16px); max-block-size: calc(100dvh - 16px); }
+  .ds-modal[aria-hidden="true"] { visibility: hidden; }
+  .ds-modal__content { min-block-size: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .ds-modal :is(input, select, textarea) { max-inline-size: 100%; min-inline-size: 0; font-size: 16px; }
+  .ds-modal :is(.ds-modal__actions, .ds-modal__footer) { flex-wrap: wrap; padding-block-end: max(8px, env(safe-area-inset-bottom)); }
+  .ds-modal :is(.ds-modal__actions, .ds-modal__footer) button { min-block-size: 44px; white-space: normal; }
+  #app .ifb-template-card__slots { min-inline-size: 0; }
+  #app .ifb-template-card__slot { flex-wrap: wrap; min-inline-size: 0; }
+  #app .ifb-template-card__title { white-space: normal; overflow-wrap: anywhere; }
+  #app .ifb-analysis-filters, #app .ifb-cross-filters { flex-wrap: wrap; min-inline-size: 0; }
+
+  .activity-meeting-control summary { min-block-size: 44px; padding: 10px 0; font-weight: 700; cursor: pointer; }
+  .activity-meeting-control ol { display: grid; gap: 6px; margin: 0; padding-inline-start: 20px; }
+  .activity-meeting-control li { padding: 8px; border: 1px solid #dbe3ee; border-radius: 8px; font-size: .76rem; }
+  .activity-meeting-control li > :is(span, strong) { display: block; overflow-wrap: anywhere; }
+  .activity-management-checkpoint { padding: 6px; color: #153451; font-size: .75rem; }
+  .activity-management-checkpoint small { display: block; }
+  #app .mw-tracker { min-inline-size: 0; max-inline-size: 100%; padding: 10px; }
+  #app .mw-tracker :is(.mw-fields, .mw-opening, .mw-program-grid, .mw-task-form, .mw-textareas) { grid-template-columns: minmax(0, 1fr); min-inline-size: 0; }
+  #app .mw-table-wrap { max-inline-size: 100%; overflow-x: auto; }
+  #app .ds-end-dates__head-tools { display: flex; flex-wrap: wrap; gap: 6px; }
+  #app :is(.ds-end-table, .ds-end-dates-screen .ds-table)[data-mobile-table-kind="record"] { display: block; inline-size: 100%; min-inline-size: 0; }
+  #app :is(.ds-end-table, .ds-end-dates-screen .ds-table)[data-mobile-table-kind="record"] :is(colgroup, thead) { display: none; }
+  #app :is(.ds-end-table, .ds-end-dates-screen .ds-table)[data-mobile-table-kind="record"] tbody { display: grid; gap: 6px; }
+  #app :is(.ds-end-table, .ds-end-dates-screen .ds-table)[data-mobile-table-kind="record"] tr:not([hidden]) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 8px; border: 1px solid #dbe3ee; border-radius: 10px; }
+  #app :is(.ds-end-table, .ds-end-dates-screen .ds-table)[data-mobile-table-kind="record"] [hidden] { display: none !important; }
+  #app :is(.ds-end-table, .ds-end-dates-screen .ds-table)[data-mobile-table-kind="record"] td { display: block; inline-size: auto; min-inline-size: 0; padding: 5px; white-space: normal; overflow-wrap: anywhere; }
+  #app :is(.ds-end-table, .ds-end-dates-screen .ds-table)[data-mobile-table-kind="record"] td::before { content: attr(data-mobile-label); display: block; color: #526378; font-size: .68rem; }
+  #app :is(.ds-end-table, .ds-end-dates-screen .ds-table)[data-mobile-table-kind="record"] :is(td:first-child, td[colspan]) { grid-column: 1 / -1; }
+  #app :is(.ds-end-table, .ds-end-dates-screen .ds-table)[data-mobile-table-kind="record"] button { min-block-size: 44px; min-inline-size: 44px; max-inline-size: 100%; white-space: normal; }
+  #app .employee-file { max-inline-size: 100%; min-inline-size: 0; }
+  #app .employee-file__payroll-grid { max-inline-size: 100%; overflow-x: auto; }
+
   img,
   svg,
   canvas {

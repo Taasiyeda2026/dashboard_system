@@ -7,7 +7,7 @@ import { activityWorkDrawerHtml, patchDrawerDatesSection } from '../frontend/src
 
 test('planning retains double meetings and never equates elapsed dates or attendance with verified execution', () => {
   const summary = activityManagementSummary({ sessions: 6, meeting_schedule: [{ date: '2026-11-01', performed: 'yes' }, { date: '2026-11-01' }, { date: '2026-11-20' }], attendance_records: [{}] }, '2026-11-14');
-  assert.deepEqual(summary, { total: 6, elapsed: 2, future: 1, missingDates: 3, next: '2026-11-20', end: '2026-11-20', verified: null, cancelled: null });
+  assert.deepEqual(summary, { total: 6, elapsed: 2, future: 1, missingDates: 3, next: '2026-11-20', end: '2026-11-20', verified: null, cancelled: null, elapsedUnverified: null, missingReports: null });
   assert.equal(activityManagementSummary({}).total, null);
   assert.equal(managementToday(new Date('2026-11-14T23:00:00Z')), '2026-11-15');
 });
@@ -18,7 +18,7 @@ test('mobile summary escapes projected data and never renders private or financi
   assert.ok(!html.includes('PRIVATE'));
   assert.ok(!html.includes('SECRET'));
   assert.ok(html.includes('חסר תאריך התחלה'));
-  assert.ok(html.includes('ביצוע מאומת: לא זמין'));
+  assert.ok(html.includes('ביצוע מאומת באישור ביצוע: לא זמין'));
 });
 
 test('quick filters reuse date and assignment filters without changing season or other selections', () => {
@@ -43,7 +43,7 @@ test('async drawer dates update the same management summary and keep performance
   const section = document.querySelector('[data-dates-section]');
   patchDrawerDatesSection(section, { meeting_schedule: [{ date: '2020-01-01', performed: 'no' }] });
   assert.match(section.querySelector('[data-dates-management-summary]').textContent, /1 שמועדם חלף מתוך 4/);
-  assert.match(section.querySelector('[data-dates-management-summary]').textContent, /ביצוע מאומת: לא זמין/);
+  assert.match(section.querySelector('[data-dates-management-summary]').textContent, /ביצוע מאומת באישור ביצוע: לא זמין/);
   assert.equal(section.querySelector('.is-done'), null);
   assert.match(section.querySelector('[data-dates-progress-meta]').textContent, /לפי לוח מתוכנן/);
 });

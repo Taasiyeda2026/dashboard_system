@@ -174,7 +174,7 @@ export function enhanceDrawerSections(root) {
     title.dataset.mobileDrawerSectionToggle = '1';
     title.tabIndex = 0;
     title.setAttribute('role', 'button');
-    const keepOpen = index === 0 || section.matches('[data-central-info-section], [data-pa-proposal-info-card], [data-dates-section]');
+    const keepOpen = index === 0 || section.matches('[data-central-info-section], [data-pa-proposal-info-card], [data-dates-section], [data-management-panel]');
     section.classList.toggle('is-mobile-collapsed', !keepOpen);
     setIfChanged(title, 'aria-expanded', keepOpen);
   });
@@ -245,6 +245,17 @@ export function enhanceFeedbackTables(root) {
   });
 }
 
+export function enhanceRecordTables(root) {
+  root.querySelectorAll('.ds-end-table, .ds-end-dates-screen .ds-table').forEach((table) => {
+    table.dataset.mobileTableReady = '1';
+    table.dataset.mobileTableKind = 'record';
+    const labels = [...table.querySelectorAll('thead th')].map((th) => th.textContent.trim());
+    table.querySelectorAll('tbody > tr').forEach((row) => directCells(row).forEach((cell, index) => {
+      if (!cell.hasAttribute('colspan')) setIfChanged(cell, 'data-mobile-label', labels[index] || '');
+    }));
+  });
+}
+
 export function enhanceMobileRoot(root = document) {
   root.querySelectorAll(COMPACT_NAV).forEach(syncCompactNavigation);
   root.querySelectorAll('.ds-week-board').forEach(syncWeekDays);
@@ -254,6 +265,7 @@ export function enhanceMobileRoot(root = document) {
   root.querySelectorAll('.ds-pa-table').forEach((table) => enhanceExpandableTable(table, 'proposals'));
   root.querySelectorAll(MATRIX_SELECTOR).forEach((table) => enhanceExpandableTable(table, 'matrix'));
   enhanceFeedbackTables(root);
+  enhanceRecordTables(root);
   enhanceClientQueues(root);
   enhanceDrawerSections(root);
 }

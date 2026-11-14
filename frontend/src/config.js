@@ -643,3 +643,5 @@ config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-budget-existing-session-entry-
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-portzot-pairing-admin-20261113-v1`;
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-mobile-management-2027-20261114-v1`;
+
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-mobile-management-data-20261114-v2`;

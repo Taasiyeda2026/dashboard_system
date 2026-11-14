@@ -1,4 +1,4 @@
-import { activityPlanningFactsHtml } from './activity-management-summary.js';
+import { activityManagementPanelHtml, activityPlanningFactsHtml } from './activity-management-summary.js';
 import { escapeHtml } from './html.js';
 import { formatDateHe, formatDateHeWithWeekday, formatTimeShort, formatTimeRangeShort, formatActivityDateColumnsHe } from './format-date.js';
 import { activityManagerDisplayName, activityTypeDisplayLabel, activityTypeMatches, cleanActivityManagerName, getActivityCatalog, getManagerUsers, getContactsInstructorUsers, getRosterUsers, getValidInstructorUsers, humanDisplayText, INVALID_ACTIVITY_INSTRUCTOR_STATUS, validateInstructorBinding, NO_ACTIVITY_MANAGER_LABEL, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveActivityInstructorName, resolveGradeOptions } from './activity-options.js';
@@ -1203,8 +1203,10 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
     progressMeta.innerHTML = `<span>${done} מתוך ${total} מפגשים · לפי לוח מתוכנן</span><span>${progressPct}%</span>`;
   }
 
+  const form = sectionEl.closest('[data-drawer-form]');
+  const management = form?._managementSnapshot || datesData?.management;
   const summary = sectionEl.querySelector('[data-dates-management-summary]');
-  if (summary) summary.innerHTML = activityPlanningFactsHtml({ ...datesData, sessions: total, meeting_schedule: schedule });
+  if (summary) summary.innerHTML = activityPlanningFactsHtml({ ...datesData, management, sessions: total, meeting_schedule: schedule });
 
   const progressFill = sectionEl.querySelector('.activity-drawer__progress-fill');
   if (progressFill) progressFill.style.width = `${progressPct}%`;
@@ -1379,9 +1381,10 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
   const editReqBadge = editReqLabel
     ? `<div class="ds-chip ds-chip--status ds-chip--warn" data-edit-request-status="${escapeHtml(editReqStatus)}">בקשת עריכה: ${escapeHtml(editReqLabel)}</div>`
     : '';
+  const { management: managementSnapshot, ...sourceRow } = row;
   const exportRow = instructorLimited
-    ? Object.fromEntries(Object.entries(row).filter(([key]) => !['price', 'funding', 'funding_sources', 'instructor_name', 'instructor_name_2', 'instructor', 'instructor_2'].includes(key)))
-    : row;
+    ? Object.fromEntries(Object.entries(sourceRow).filter(([key]) => !['price', 'funding', 'funding_sources', 'instructor_name', 'instructor_name_2', 'instructor', 'instructor_2'].includes(key)))
+    : sourceRow;
   return `
     <form class="activity-drawer__form" data-drawer-form data-editing="no"
       data-export-row="${jsonAttr(exportRow)}"
@@ -1404,6 +1407,7 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
       ${isOnce
         ? blockViewOnce(row, { settings, hideFunding: hideFundingInView || instructorLimited, hideInstructors: instructorLimited })
         : blockViewCourse(row, { settings, hideInstructors: instructorLimited })}
+      ${!instructorLimited && row.management ? activityManagementPanelHtml(row) : ''}
       ${blockViewRecordDetails(row, { instructorLimited, showFunding: false, showParticipants: !isCourse })}
       ${isOnce && showDates
         ? `<div class="activity-drawer__once-dates-row" data-once-dates-row>${blockDates(row, { canEdit, canDirectEdit, datesLoading, is2027, viewOnly: instructorLimited })}</div>`

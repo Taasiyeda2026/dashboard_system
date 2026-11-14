@@ -218,3 +218,16 @@ test('feedback cards label stages without replacing buttons, zero values, or una
   assert.equal(doc.querySelector('[data-mobile-label]'), null);
   assert.equal(doc.querySelector('button'), button);
 });
+
+test('end-date cards preserve native row expansion and restore desktop table metadata', () => {
+  const doc = dom('<table class="ds-end-table"><thead><tr><th>פעילות</th><th>סיום</th></tr></thead><tbody><tr><td><button>פרטים</button></td><td>1/1/2027</td></tr><tr hidden><td colspan="2">כל המפגשים</td></tr></tbody></table>');
+  const button = doc.querySelector('button');
+  enhanceMobileRoot(doc);
+  assert.equal(doc.querySelector('table').dataset.mobileTableKind, 'record');
+  assert.equal(doc.querySelector('tbody tr:last-child').hidden, true);
+  assert.equal(doc.querySelector('tbody tr:first-child td:last-child').dataset.mobileLabel, 'סיום');
+  cleanupMobileRoot(doc);
+  assert.equal(doc.querySelector('button'), button);
+  assert.equal(doc.querySelector('tbody tr:last-child').hidden, true);
+  assert.equal(doc.querySelector('[data-mobile-label]'), null);
+});

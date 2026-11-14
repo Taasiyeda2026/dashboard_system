@@ -3,7 +3,7 @@ import { escapeHtml } from './html.js';
 import { ensureActivityListFilters } from './activity-list-filters.js';
 
 export const ADVANCED_ACTIVITY_FILTER_KEYS = [
-  'advStartPresence', 'advMeetingFrom', 'advMeetingTo', 'advPricePresence'
+  'advStartPresence', 'advMeetingFrom', 'advMeetingTo', 'advPricePresence', 'managementFilter'
 ];
 
 const PRESENCE_OPTIONS = [
@@ -115,6 +115,7 @@ export function activitiesAdvancedFiltersHtml(filters = {}, assignment = 'all', 
   return '<section id="activities-advanced-filters-panel" class="ds-act-advanced__panel" data-activities-advanced-panel dir="rtl" role="group" aria-label="אפשרויות סינון נוספות"'
     + (open ? '' : ' hidden') + '>'
     + '<div class="ds-act-advanced__grid">'
+    + selectField('managementFilter', 'בקרה ניהולית', [['', 'ללא סינון בקרה'], ['exceptions', 'חריגות'], ['feedback', 'משובים לטיפול'], ['ending', 'סיום בחודש המוצג'], ['coordination', 'תיאום שטרם נשלח']], filters.managementFilter)
     + selectField('advStartPresence', 'תאריך התחלה', PRESENCE_OPTIONS, filters.advStartPresence)
     + dateField('advMeetingFrom', 'מפגש מתאריך', filters.advMeetingFrom)
     + dateField('advMeetingTo', 'מפגש עד תאריך', filters.advMeetingTo, filters.advMeetingFrom)
@@ -144,6 +145,8 @@ export function applyActivityQuickFilter(filters, state, key, today = management
   } else if (key === 'unassigned') {
     state.activitiesInstructorStatusFilter = 'unassigned';
     state.allActivitiesStatusFilter = 'all';
+  } else if (['exceptions', 'missing-reports', 'feedback', 'ending', 'coordination'].includes(key)) {
+    filters.managementFilter = key;
   } else if (key === 'missing-start') {
     filters.advStartPresence = 'missing';
   }
@@ -152,8 +155,8 @@ export function applyActivityQuickFilter(filters, state, key, today = management
 
 export function activityQuickFiltersHtml() {
   return '<nav class="activity-mobile-quick-filters" aria-label="סינונים ניהוליים מהירים">'
-    + [['today', 'היום'], ['week', 'השבוע'], ['unassigned', 'ללא מדריך'], ['missing-start', 'ללא תאריך התחלה']]
-      .map(([key, label]) => `<button type="button" class="ds-btn ds-btn--sm" data-activity-quick-filter="${key}">${label}</button>`).join('')
+    + [['today', 'היום'], ['week', 'השבוע'], ['unassigned', 'ללא מדריך'], ['missing-start', 'ללא תאריך התחלה'], ['exceptions', 'חריגות'], ['missing-reports', 'דיווחים חסרים — מקור חלקי'], ['feedback', 'משובים לטיפול'], ['ending', 'סיומים החודש'], ['coordination', 'ממתינות לתיאום']]
+      .map(([key, label]) => `<button type="button" class="ds-btn ds-btn--sm" data-activity-quick-filter="${key}"${key === 'missing-reports' ? ' disabled aria-label="סינון דיווחים חסרים אינו זמין: חסר שיוך מלא של דיווחים מאוגדים"' : ''}>${label}</button>`).join('')
     + '</nav>';
 }
 
