@@ -8,8 +8,8 @@ export function activeSchedulingInstructors(rows = []) {
   return (Array.isArray(rows) ? rows : []).filter(isActiveSchedulingInstructor);
 }
 
-const MANAGEMENT_ROLES = new Set(['admin','operation_manager','activities_manager',
-  'domain_manager','business_development_manager','instructor_manager']);
+// Explicitly approved activity managers only, by immutable employee ID.
+const MANUAL_ACTIVITY_MANAGER_IDS = new Set(['1500','5000']);
 
 /** Managers are a manual picker option, never members of the automatic candidate pool. */
 export function manualCourseInstructorOptions(instructorContacts = [], managementUsers = []) {
@@ -19,7 +19,7 @@ export function manualCourseInstructorOptions(instructorContacts = [], managemen
   for (const user of (Array.isArray(managementUsers) ? managementUsers : [])) {
     const id = String(user?.emp_id ?? '').trim();
     const name = String(user?.full_name ?? '').trim();
-    if (!/^\d+$/.test(id) || !name || !MANAGEMENT_ROLES.has(String(user.role)) || user.is_active !== true) continue;
+    if (!/^\d+$/.test(id) || !name || user.role !== 'activities_manager' || !MANUAL_ACTIVITY_MANAGER_IDS.has(id) || user.is_active !== true) continue;
     entries.set(id, { ...(entries.get(id) || {}), emp_id: Number(id), full_name: name,
       active: 'yes', isManagementEmployee: true, managementRole: user.role });
   }
