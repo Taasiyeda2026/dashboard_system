@@ -1,3 +1,4 @@
+import { managementToday } from './activity-management-summary.js';
 import { escapeHtml } from './html.js';
 import { ensureActivityListFilters } from './activity-list-filters.js';
 
@@ -105,7 +106,7 @@ export function activitiesAdvancedFilterToggleHtml(filters = {}, assignment = 'a
     + (open ? 'true' : 'false')
     + '" aria-label="אפשרויות סינון נוספות" title="אפשרויות סינון נוספות">'
     + '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M4 6h16M7 12h10M10 18h4"/></svg>'
-    + (count ? '<span class="ds-act-advanced__indicator" aria-hidden="true"></span>' : '')
+    + (count ? '<span class="ds-act-advanced__count">' + count + '</span>' : '')
     + '</button>';
 }
 
@@ -126,11 +127,47 @@ export function activitiesAdvancedFiltersHtml(filters = {}, assignment = 'all', 
     + '</section>';
 }
 
+/** Shortcuts set the same existing filters, preserving the selected season/tab. */
+export function applyActivityQuickFilter(filters, state, key, today = managementToday()) {
+  if (key === 'today' || key === 'week') {
+    let from = today;
+    let to = today;
+    if (key === 'week') {
+      const start = new Date(`${today}T12:00:00Z`);
+      start.setUTCDate(start.getUTCDate() - start.getUTCDay());
+      from = start.toISOString().slice(0, 10);
+      start.setUTCDate(start.getUTCDate() + 6);
+      to = start.toISOString().slice(0, 10);
+    }
+    filters.advMeetingFrom = from;
+    filters.advMeetingTo = to;
+  } else if (key === 'unassigned') {
+    state.activitiesInstructorStatusFilter = 'unassigned';
+    state.allActivitiesStatusFilter = 'all';
+  } else if (key === 'missing-start') {
+    filters.advStartPresence = 'missing';
+  }
+  filters.visibleCount = 200;
+}
+
+export function activityQuickFiltersHtml() {
+  return '<nav class="activity-mobile-quick-filters" aria-label="סינונים ניהוליים מהירים">'
+    + [['today', 'היום'], ['week', 'השבוע'], ['unassigned', 'ללא מדריך'], ['missing-start', 'ללא תאריך התחלה']]
+      .map(([key, label]) => `<button type="button" class="ds-btn ds-btn--sm" data-activity-quick-filter="${key}">${label}</button>`).join('')
+    + '</nav>';
+}
+
 /** Inline filters remain open during selection and close only on user action. */
 export function bindActivitiesAdvancedFilters(root, state, scope, rerender) {
   const button = root.querySelector('[data-activities-advanced-toggle]');
   const panel = root.querySelector('[data-activities-advanced-panel]');
   if (!button || !panel) return;
+  root.querySelectorAll('[data-activity-quick-filter]').forEach((node) => {
+    node.addEventListener('click', () => {
+      applyActivityQuickFilter(ensureActivityListFilters(state, scope), state, node.dataset.activityQuickFilter);
+      rerender();
+    });
+  });
   const toggle = (next) => {
     state.activitiesAdvancedFiltersOpen = !!next;
     panel.hidden = !next;

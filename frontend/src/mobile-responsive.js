@@ -1,6 +1,10 @@
 const MOBILE_QUERY = '(max-width: 820px)';
 const ownedAttributes = new WeakMap();
 const filterHandlers = new WeakMap();
+const COMPACT_NAV = '.instructors-workspace-tabs, .ds-ops-mgmt-tabs, .ifb-tabs, [data-manager-workspace-tabs]';
+let expandedActivityCards = false;
+let selectedWeekDate = '';
+let fullWeek = false;
 
 function rememberAttributes(element, names) {
   if (!ownedAttributes.has(element)) {
@@ -40,7 +44,8 @@ export function activeFilterCount(toolbar) {
 function updateFilterButton(toolbar) {
   const button = toolbar.querySelector(':scope > [data-mobile-filter-toggle]');
   if (!button) return;
-  const count = activeFilterCount(toolbar);
+  const panel = toolbar.closest('.ds-activities-screen')?.querySelector('[data-activities-advanced-panel]');
+  const count = activeFilterCount(toolbar) + activeFilterCount(panel);
   const label = count ? `סינון (${count})` : 'סינון';
   if (button.textContent !== label) button.textContent = label;
   setIfChanged(button, 'aria-expanded', toolbar.classList.contains('is-mobile-expanded'));
@@ -102,7 +107,7 @@ export const enhanceCompactNavigation = syncCompactNavigation;
 function mobileFieldKind(kind, label, index) {
   const text = String(label || '').replace(/\s+/g, ' ').trim();
   if (kind === 'activities') {
-    if (/תוכנית|סוג|רשות|בית ספר|מדריך|מנהל/.test(text)) return 'primary';
+    if (/תוכנית|סוג|רשות|בית ספר|מדריך|מנהל|סטטוס|כיתה|המפגש הבא|תאריך סיום/.test(text)) return 'primary';
     if (/תאריך פעילות|תאריך התחלה/.test(text)) return 'primary';
     return 'detail';
   }
@@ -169,7 +174,7 @@ export function enhanceDrawerSections(root) {
     title.dataset.mobileDrawerSectionToggle = '1';
     title.tabIndex = 0;
     title.setAttribute('role', 'button');
-    const keepOpen = index === 0 || section.matches('[data-central-info-section], [data-pa-proposal-info-card]');
+    const keepOpen = index === 0 || section.matches('[data-central-info-section], [data-pa-proposal-info-card], [data-dates-section]');
     section.classList.toggle('is-mobile-collapsed', !keepOpen);
     setIfChanged(title, 'aria-expanded', keepOpen);
   });
@@ -180,17 +185,83 @@ const MATRIX_SELECTOR = [
   '[data-ops-controller-tab="course_training_matrix"] .ops2027-table'
 ].join(', ');
 
+export function syncActivityViewMode(table) {
+  let button = table.previousElementSibling;
+  if (!button?.matches('[data-mobile-activity-view]')) {
+    button = table.ownerDocument.createElement('button');
+    button.type = 'button';
+    button.className = 'mobile-activity-view ds-btn ds-btn--sm';
+    button.dataset.mobileActivityView = '1';
+    table.before(button);
+  }
+  const label = expandedActivityCards ? 'תצוגה מורחבת · מעבר לקומפקטית' : 'תצוגה קומפקטית · הרחבת כל הכרטיסים';
+  if (button.textContent !== label) button.textContent = label;
+  setIfChanged(button, 'aria-pressed', expandedActivityCards);
+  table.classList.toggle('is-mobile-all-expanded', expandedActivityCards);
+}
+
+export function syncWeekDays(board) {
+  const columns = [...board.querySelectorAll(':scope > .ds-week-col')];
+  if (!columns.length) return;
+  if (!columns.some((col) => col.getAttribute('aria-label') === selectedWeekDate)) {
+    selectedWeekDate = (columns.find((col) => col.classList.contains('is-today')) || columns[0]).getAttribute('aria-label');
+  }
+  let controls = board.previousElementSibling;
+  if (!controls?.matches('[data-mobile-week-controls]')) {
+    controls = board.ownerDocument.createElement('nav');
+    controls.dataset.mobileWeekControls = '1';
+    controls.className = 'mobile-week-days';
+    controls.setAttribute('aria-label', 'בחירת יום או שבוע מלא');
+    board.before(controls);
+  }
+  const options = columns.map((col) => ({ key: col.getAttribute('aria-label'), label: `${col.querySelector('.ds-week-col__dow')?.textContent || ''} · ${col.querySelector('.ds-week-col__count')?.textContent || '0'}` }));
+  options.push({ key: 'all', label: 'שבוע מלא' });
+  if (controls.childElementCount !== options.length) {
+    controls.replaceChildren(...options.map(() => {
+      const button = board.ownerDocument.createElement('button');
+      button.type = 'button';
+      return button;
+    }));
+  }
+  options.forEach((option, index) => {
+    const button = controls.children[index];
+    setIfChanged(button, 'data-mobile-week-day', option.key);
+    if (button.textContent !== option.label) button.textContent = option.label;
+    setIfChanged(button, 'aria-pressed', option.key === (fullWeek ? 'all' : selectedWeekDate));
+  });
+  columns.forEach((col) => setIfChanged(col, 'data-mobile-week-hidden', !fullWeek && col.getAttribute('aria-label') !== selectedWeekDate));
+}
+
+export function enhanceFeedbackTables(root) {
+  root.querySelectorAll('.ifb-groups-table, .ifb-staff-table, .ifb-courses-table, .ifb-instructor-table').forEach((table) => {
+    // Complex comparison matrices retain their own component scroll.
+    if (table.querySelector('tbody [rowspan], thead [colspan]')) return;
+    table.dataset.mobileTableReady = '1';
+    table.dataset.mobileTableKind = 'feedback';
+    const labels = [...table.querySelectorAll('thead tr:last-child th')].map((th) => th.textContent.trim());
+    table.querySelectorAll('tbody > tr').forEach((row) => directCells(row).forEach((cell, index) => {
+      if (!cell.hasAttribute('colspan')) setIfChanged(cell, 'data-mobile-label', labels[index] || '');
+    }));
+  });
+}
+
 export function enhanceMobileRoot(root = document) {
-  root.querySelectorAll('.instructors-workspace-tabs, .ds-ops-mgmt-tabs').forEach(syncCompactNavigation);
-  root.querySelectorAll('.ds-activities-main-toolbar, .ds-pa-toolbar').forEach(syncFilterToolbar);
+  root.querySelectorAll(COMPACT_NAV).forEach(syncCompactNavigation);
+  root.querySelectorAll('.ds-week-board').forEach(syncWeekDays);
+  root.querySelectorAll('.ds-table--activities-list').forEach(syncActivityViewMode);
+  root.querySelectorAll('.ds-activities-main-toolbar, .ds-pa-toolbar, .route-week .ds-toolbar--filters-inline, .route-month .ds-toolbar--filters-inline').forEach(syncFilterToolbar);
   root.querySelectorAll('.ds-table--activities-list').forEach((table) => enhanceExpandableTable(table, 'activities'));
   root.querySelectorAll('.ds-pa-table').forEach((table) => enhanceExpandableTable(table, 'proposals'));
   root.querySelectorAll(MATRIX_SELECTOR).forEach((table) => enhanceExpandableTable(table, 'matrix'));
+  enhanceFeedbackTables(root);
   enhanceClientQueues(root);
   enhanceDrawerSections(root);
 }
 
 export function cleanupMobileRoot(root = document) {
+  root.querySelectorAll('[data-mobile-week-controls], [data-mobile-activity-view]').forEach((node) => node.remove());
+  root.querySelectorAll('[data-mobile-week-hidden]').forEach((col) => col.removeAttribute('data-mobile-week-hidden'));
+  root.querySelectorAll('.ds-table--activities-list').forEach((table) => table.classList.remove('is-mobile-all-expanded'));
   root.querySelectorAll('[data-mobile-filter-toggle], [data-mobile-section-nav-toggle], [data-mobile-row-toggle]').forEach((element) => element.remove());
   root.querySelectorAll('[data-mobile-filters-ready]').forEach((toolbar) => {
     const handler = filterHandlers.get(toolbar);
@@ -244,6 +315,25 @@ export function bindMobileResponsive(doc = document, win = window) {
   const media = win.matchMedia(MOBILE_QUERY);
   const apply = () => media.matches ? enhanceMobileRoot(doc) : cleanupMobileRoot(doc);
   doc.addEventListener('click', (event) => {
+    const viewToggle = event.target.closest?.('[data-mobile-activity-view]');
+    if (viewToggle) {
+      expandedActivityCards = !expandedActivityCards;
+      apply();
+      return;
+    }
+    const dayToggle = event.target.closest?.('[data-mobile-week-day]');
+    if (dayToggle) {
+      fullWeek = dayToggle.dataset.mobileWeekDay === 'all';
+      if (!fullWeek) selectedWeekDate = dayToggle.dataset.mobileWeekDay;
+      apply();
+      return;
+    }
+    const activeNav = event.target.closest?.(COMPACT_NAV);
+    if (activeNav && event.target.closest('button, a')) {
+      activeNav.classList.remove('is-mobile-expanded');
+      const navButton = activeNav.previousElementSibling;
+      if (navButton?.matches('[data-mobile-section-nav-toggle]')) setIfChanged(navButton, 'aria-expanded', false);
+    }
     const filterToggle = event.target.closest?.('[data-mobile-filter-toggle]');
     if (filterToggle) {
       const toolbar = filterToggle.parentElement;
@@ -278,7 +368,7 @@ export function bindMobileResponsive(doc = document, win = window) {
       return;
     }
     const sectionTitle = event.target.closest?.('[data-mobile-drawer-section-toggle]');
-    if (sectionTitle) {
+    if (sectionTitle && !event.target.closest('button, a, input, select, textarea')) {
       const section = sectionTitle.closest('[data-mobile-section-ready]');
       const collapsed = section?.classList.toggle('is-mobile-collapsed') || false;
       setIfChanged(sectionTitle, 'aria-expanded', !collapsed);
@@ -287,13 +377,13 @@ export function bindMobileResponsive(doc = document, win = window) {
   doc.addEventListener('keydown', (event) => {
     if (!['Enter', ' '].includes(event.key)) return;
     const control = event.target.closest?.('[data-mobile-queue-toggle], [data-mobile-drawer-section-toggle]');
-    if (!control) return;
+    if (!control || event.target !== control) return;
     event.preventDefault();
     control.click();
   });
   const observer = new win.MutationObserver((mutations) => {
     const relevant = mutations.some((mutation) => mutation.type === 'childList'
-      || mutation.target.matches?.('.instructors-workspace-tabs, .ds-ops-mgmt-tabs, .instructors-workspace-tab, .ds-ops-mgmt-tab'));
+      || mutation.target.matches?.(`${COMPACT_NAV}, .instructors-workspace-tab, .ds-ops-mgmt-tab, .ifb-tab, [data-manager-workspace-tab]`));
     if (relevant) apply();
   });
   observer.observe(doc.body, {

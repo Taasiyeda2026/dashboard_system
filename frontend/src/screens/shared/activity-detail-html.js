@@ -1,3 +1,4 @@
+import { activityPlanningFactsHtml } from './activity-management-summary.js';
 import { escapeHtml } from './html.js';
 import { formatDateHe, formatDateHeWithWeekday, formatTimeShort, formatTimeRangeShort, formatActivityDateColumnsHe } from './format-date.js';
 import { activityManagerDisplayName, activityTypeDisplayLabel, activityTypeMatches, cleanActivityManagerName, getActivityCatalog, getManagerUsers, getContactsInstructorUsers, getRosterUsers, getValidInstructorUsers, humanDisplayText, INVALID_ACTIVITY_INSTRUCTOR_STATUS, validateInstructorBinding, NO_ACTIVITY_MANAGER_LABEL, normalizeActivityTypeKey, normalizeOneDayActivityType, resolveActivityInstructorName, resolveGradeOptions } from './activity-options.js';
@@ -923,6 +924,7 @@ function blockAdditionalSupplemental(row, { hideSeason = false } = {}) {
 
 function buildDateChipsHtml(schedule, isOnce) {
   const source = isOnce ? schedule.slice(0, 1) : schedule;
+  const nextDate = source.map((item) => String(item?.date || '').trim()).filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date) && date >= todayStr()).sort()[0] || '';
   const grouped = source.reduce((acc, item) => {
     const date = String(item?.date || '').trim();
     if (!date) return acc;
@@ -950,8 +952,9 @@ function buildDateChipsHtml(schedule, isOnce) {
         ? `<span class="activity-drawer__date-note-icon" role="img" tabindex="0" title="${escapeHtml(noteText)}" aria-label="הערה למפגש: ${escapeHtml(noteText)}">💬</span>`
         : '';
       return `
-        <div class="activity-drawer__date-chip ${isDone ? 'is-done' : ''}" data-date-card>
+        <div class="activity-drawer__date-chip${date === nextDate ? ' is-planned-next' : ''}" title="${isDone ? 'מועד שחלף או סומן בלוח; אינו אימות ביצוע' : 'מועד מתוכנן'}" data-date-card>
           <span class="activity-drawer__date-line">${escapeHtml(formatDateHe(date))}<span aria-hidden="true"> · </span><span class="activity-drawer__weekday">${escapeHtml(fmtWeekdayShort(item?.date || ''))}</span>${escapeHtml(countLabel)}</span>
+          ${date === nextDate ? '<span class="activity-mobile-meeting-label">המפגש הבא לפי לוח</span>' : ''}
           ${noteIcon}
         </div>
       `;
@@ -1092,7 +1095,7 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
       <div class="activity-drawer__missing-dates-warning" data-dates-missing-warning hidden></div>`
     : `${dateSummaryHtml}<div class="activity-drawer__progress-row" data-mode="view"><div class="activity-drawer__progress" data-dates-progress>
         <div class="activity-drawer__progress-meta" data-dates-progress-meta>
-          <span>${done} מתוך ${total} מפגשים</span>
+          <span>${done} מתוך ${total} מפגשים · לפי לוח מתוכנן</span>
           <span>${progressPct}%</span>
         </div>
         <div class="activity-drawer__progress-track">
@@ -1105,13 +1108,14 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
       </div>
       ${missingDatesWarningHtml(total, schedule)}`;
 
-  const progressTitle = isCourse ? 'התקדמות הקורס' : 'מפגשים ותאריכים';
+  const progressTitle = isCourse ? 'התקדמות לפי לוח מתוכנן' : 'מפגשים ותאריכים';
   return `
     <section class="activity-drawer__section activity-drawer__section--course-dates" data-dates-section data-session-total="${total}"${loadingAttr}>
       <div class="activity-drawer__section-head">
         <h3 class="activity-drawer__section-title">${escapeHtml(progressTitle)}</h3>
       </div>
       ${progressHtml}
+      <div data-dates-management-summary data-mode="view">${datesLoading ? 'טוען תמונת מצב לפי לוח…' : activityPlanningFactsHtml({ ...row, sessions: total, meeting_schedule: schedule })}</div>
       ${viewOnly ? '' : `<div class="activity-drawer__dates activity-drawer__dates--edit" data-mode="edit" data-meeting-dates-edit hidden>
         ${datePickers}
       </div>
@@ -1196,8 +1200,11 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
 
   const progressMeta = sectionEl.querySelector('[data-dates-progress-meta]');
   if (progressMeta) {
-    progressMeta.innerHTML = `<span>${done} מתוך ${total} מפגשים</span><span>${progressPct}%</span>`;
+    progressMeta.innerHTML = `<span>${done} מתוך ${total} מפגשים · לפי לוח מתוכנן</span><span>${progressPct}%</span>`;
   }
+
+  const summary = sectionEl.querySelector('[data-dates-management-summary]');
+  if (summary) summary.innerHTML = activityPlanningFactsHtml({ ...datesData, sessions: total, meeting_schedule: schedule });
 
   const progressFill = sectionEl.querySelector('.activity-drawer__progress-fill');
   if (progressFill) progressFill.style.width = `${progressPct}%`;
