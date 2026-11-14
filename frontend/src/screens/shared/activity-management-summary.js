@@ -51,11 +51,11 @@ export function activityPlanningFactsHtml(row, today) {
   const s = activityManagementSummary(row, today);
   const historical = row.activity_season === 'summer_2026';
   return `<div class="activity-planning-facts" data-planning-facts>
-    <span>התקדמות לפי לוח: <bdi>${s.elapsed}${s.total === null ? '' : '/' + s.total}</bdi> מפגשים</span>
+    <span class="activity-planning-progress">התקדמות לפי לוח: <bdi>${s.elapsed}${s.total === null ? '' : '/' + s.total}</bdi> מפגשים</span>
     ${s.missingDates ? `<span>${s.missingDates} ללא תאריך</span>` : ''}
     ${historical && s.verified !== null ? `<span>אישורי ביצוע: ${s.verified}</span>` : ''}
     ${s.cancelled > 0 ? `<span>ביטולים: ${s.cancelled}</span>` : ''}
-    ${s.next ? `<span>המפגש הבא: <bdi>${escapeHtml(formatDateHe(s.next))}</bdi></span>` : ''}
+    ${s.next ? `<span class="activity-planning-next">המפגש הבא: <bdi>${escapeHtml(formatDateHe(s.next))}</bdi></span>` : ''}
   </div>`;
 }
 
@@ -72,7 +72,7 @@ export function activityManagementIndicatorsHtml(row, { interactive = true, comp
   return `<div class="activity-management-indicators">
     ${!compact ? action('activity', 'שיבוץ', status || 'ללא מדריך') : ''}
     ${m.coordination?.available ? action('coordination', 'תיאום', coordinationLabels[m.coordination.status] || m.coordination.status) : ''}
-    ${s.missingReports !== null ? action('attendance', 'נוכחות', `${s.missingReports} דיווחים חסרים`, m.attendanceAvailable) : linked > 0 && m.attendanceAvailable ? action('attendance', 'נוכחות', `${linked} דיווחים`) : ''}
+    ${s.missingReports !== null ? action('attendance', 'נוכחות', `${s.missingReports} דיווחים חסרים`, m.attendanceAvailable) : m.attendanceAvailable && (linked > 0 || s.elapsed > 0) ? action('attendance', 'נוכחות', linked > 0 ? `${linked} דיווחים` : 'צפייה בדיווחים') : ''}
     ${m.exceptionsAvailable ? action('exceptions', 'חריגות', String(m.exceptions.length)) : ''}
     ${s.cancelled > 0 ? action('activity', 'ביטולים', String(s.cancelled)) : ''}
     ${compact && slots.length ? action('feedback', 'משובים', m.feedback.needsAttention ? 'דורש טיפול' : 'לצפייה') : !compact ? slots.map((slot) => action('feedback', slot.label, `${slot.statusLabel}${slot.responses === null ? '' : ` · ${slot.responses} תשובות`}`)).join('') : ''}
@@ -95,7 +95,7 @@ export function activityMobileSummaryHtml(row, { manager = '', classGroup = '', 
     <div class="activity-mobile-summary__team">${field('מנהל', clean(manager) || 'ללא מנהל')}${instructorHtml ? `<span><small>מדריך/ה</small> ${instructorHtml}</span>` : ''}</div>
     <div class="activity-mobile-summary__progress"><span>התקדמות לפי לוח</span><strong><bdi>${s.elapsed}${s.total === null ? '' : '/' + s.total}</bdi></strong></div>
     ${s.total ? `<div class="activity-mobile-progress-track" role="progressbar" aria-label="התקדמות לפי לוח" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100"><span style="width:${percent}%"></span></div>` : ''}
-    <div class="activity-mobile-summary__schedule">${field('המפגש הבא', s.next ? formatDateHe(s.next) : '')}${field('סיום', s.end ? formatDateHe(s.end) : '')}</div>
+    <div class="activity-mobile-summary__schedule">${s.next && s.next === s.end ? field('המפגש הבא / סיום', formatDateHe(s.next)) : field('המפגש הבא', s.next ? formatDateHe(s.next) : '') + field('סיום', s.end ? formatDateHe(s.end) : '')}</div>
     ${!dateKey(row.start_date || row.date_start) ? '<span class="activity-mobile-summary__warning">חסר תאריך התחלה</span>' : ''}
     <div class="activity-mobile-summary__expanded">${activityManagementIndicatorsHtml(row, { compact: true })}</div>
     <div class="activity-mobile-summary__actions">${rowId ? `<button type="button" class="activity-mobile-open" data-management-action="activity" data-management-row="${escapeHtml(rowId)}">פרטי פעילות</button>` : ''}</div>

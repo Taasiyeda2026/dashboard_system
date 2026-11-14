@@ -2129,3 +2129,9 @@
   .mobile-feedback-slot-toggle { min-height: 44px; padding: 4px 8px; background: #f3f8fa; color: #153451; border: 1px solid #cbd5e1; border-radius: 7px; font: inherit; font-size: .75rem; }
   #app .ifb-group-detail .ifb-meta dd { overflow-wrap: anywhere; }
 }
+
+@media (max-width: 820px) {
+  /* The original drawer already contains the progress bar and next-date chip. */
+  #app .ds-drawer--activity-inline [data-dates-management-summary] :is(.activity-planning-progress, .activity-planning-next) { display: none; }
+  #app .ds-drawer--activity-inline [data-dates-management-summary] .activity-planning-facts:not(:has(> span:not(.activity-planning-progress):not(.activity-planning-next))) { display: none; }
+}
