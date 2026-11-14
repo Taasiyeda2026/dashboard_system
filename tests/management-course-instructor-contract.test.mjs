@@ -28,3 +28,10 @@ test('manual scheduling source includes the same management safeguards without d
   assert.equal((source.match(/create or replace function scheduling_manual_private\.checks\(/gi)||[]).length, 1);
   assert.equal((source.match(/create or replace function scheduling_manual_private\.prepare\(/gi)||[]).length, 1);
 });
+
+test('activity-manager exception is restricted to the specifically approved employee IDs', () => {
+  const correction = readFileSync(new URL('../supabase/migrations/20261115003000_limit_course_manager_instructors_to_activity_managers.sql', import.meta.url), 'utf8');
+  assert.match(correction, /u\.role = 'activities_manager' and u\.emp_id in \('1500','5000'\)/);
+  assert.equal((correction.match(/u\.role = 'activities_manager' and u\.emp_id in \('1500','5000'\)/g) || []).length, 2);
+  assert.doesNotMatch(correction, /u\.role in \('admin','operation_manager'/);
+});
