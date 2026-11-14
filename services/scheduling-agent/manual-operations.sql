@@ -47,7 +47,7 @@ $$;
 create or replace function scheduling_manual_private.is_management_employee(p_emp_id bigint)
 returns boolean language sql stable security definer set search_path=public,pg_temp as $$
  select exists(select 1 from public.users u where u.emp_id=p_emp_id::text and
- u.role in ('admin','operation_manager','activities_manager','domain_manager','business_development_manager','instructor_manager'))
+ u.role = 'activities_manager' and u.emp_id in ('1500','5000'))
 $$;
 
 create or replace function scheduling_manual_private.canonical_instructor_name(p_emp_id bigint)
@@ -84,7 +84,7 @@ begin
  return query select u.emp_id::bigint,coalesce(nullif(btrim(u.full_name),''),nullif(btrim(u.name),'')),u.is_active,u.role
  from public.users u where u.emp_id ~ '^[0-9]+$'
    and coalesce(nullif(btrim(u.full_name),''),nullif(btrim(u.name),'')) is not null
-   and u.role in ('admin','operation_manager','activities_manager','domain_manager','business_development_manager','instructor_manager')
+   and u.role = 'activities_manager' and u.emp_id in ('1500','5000')
  order by u.full_name,u.emp_id;
 end $$;
 revoke all on function public.scheduling_management_employee_directory() from public,anon;
