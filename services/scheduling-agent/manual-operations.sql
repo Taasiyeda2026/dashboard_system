@@ -43,6 +43,57 @@ returns jsonb language sql stable security definer set search_path = public, pg_
     'secondaryHomeAddress',(select address from public.contacts_instructors where emp_id::text=nullif(a.emp_id_2,'')))
 $$;
 
+-- Managers are selected by their existing employee ID; never create a new instructor identity.
+create or replace function scheduling_manual_private.is_management_employee(p_emp_id bigint)
+returns boolean language sql stable security definer set search_path=public,pg_temp as $$
+ select exists(select 1 from public.users u where u.emp_id=p_emp_id::text and
+ u.role in ('admin','operation_manager','activities_manager','domain_manager','business_development_manager','instructor_manager'))
+$$;
+
+create or replace function scheduling_manual_private.canonical_instructor_name(p_emp_id bigint)
+returns text language sql stable security definer set search_path=public,pg_temp as $$
+ select case when scheduling_manual_private.is_management_employee(p_emp_id)
+   then (select coalesce(nullif(btrim(u.full_name),''),nullif(btrim(u.name),'')) from public.users u
+     where u.emp_id=p_emp_id::text and u.is_active limit 1)
+   else (select c.full_name from public.contacts_instructors c where c.emp_id=p_emp_id)
+ end
+$$;
+
+create or replace function scheduling_manual_private.resolve_instructor(p_emp_id bigint)
+returns public.contacts_instructors language plpgsql stable security definer set search_path=public,pg_temp as $$
+declare r public.contacts_instructors; manager_name text;
+begin
+ select * into r from public.contacts_instructors where emp_id=p_emp_id;
+ if scheduling_manual_private.is_management_employee(p_emp_id) then
+   select coalesce(nullif(btrim(u.full_name),''),nullif(btrim(u.name),'')) into manager_name
+     from public.users u where u.emp_id=p_emp_id::text and u.is_active limit 1;
+   if manager_name is null then return null; end if;
+   r.emp_id:=p_emp_id; r.full_name:=manager_name; r.active:='yes';
+ end if;
+ return r;
+end $$;
+
+-- All signed-in active staff can see management names and employee IDs, never credentials.
+create or replace function public.scheduling_management_employee_directory()
+returns table(emp_id bigint,full_name text,is_active boolean,role text)
+language plpgsql stable security definer set search_path=public,pg_temp as $$
+begin
+ if auth.uid() is null or not exists(select 1 from public.users actor
+     where actor.auth_user_id=auth.uid() and actor.is_active)
+ then raise exception 'scheduling_permission_denied' using errcode='42501'; end if;
+ return query select u.emp_id::bigint,coalesce(nullif(btrim(u.full_name),''),nullif(btrim(u.name),'')),u.is_active,u.role
+ from public.users u where u.emp_id ~ '^[0-9]+$'
+   and coalesce(nullif(btrim(u.full_name),''),nullif(btrim(u.name),'')) is not null
+   and u.role in ('admin','operation_manager','activities_manager','domain_manager','business_development_manager','instructor_manager')
+ order by u.full_name,u.emp_id;
+end $$;
+revoke all on function public.scheduling_management_employee_directory() from public,anon;
+grant execute on function public.scheduling_management_employee_directory() to authenticated;
+revoke all on function scheduling_manual_private.is_management_employee(bigint) from public,anon,authenticated;
+revoke all on function scheduling_manual_private.canonical_instructor_name(bigint) from public,anon,authenticated;
+revoke all on function scheduling_manual_private.resolve_instructor(bigint) from public,anon,authenticated;
+
+
 -- Shared read-only check for preview, locked revalidation and commit. No route requests.
 create or replace function scheduling_manual_private.checks(
   a public.activities, p_emp_id bigint, p_meetings jsonb, p_effective_from date default null)
@@ -54,8 +105,8 @@ declare
   origin text; destination text; route_from text; route_to text;
   blockers text[] := '{}'; warnings jsonb := '[]'; neighbour record; sector text; shortened time;
 begin
-  select * into i from public.contacts_instructors where emp_id=p_emp_id;
-  if not found then return jsonb_build_object('blockers',array['instructor_not_found'],'warnings',warnings); end if;
+  select * into i from scheduling_manual_private.resolve_instructor(p_emp_id);
+  if i.emp_id is null then return jsonb_build_object('blockers',array['instructor_not_found'],'warnings',warnings); end if;
   if lower(coalesce(i.active::text,'yes')) in ('no','false','0','לא פעיל') then
     warnings:=warnings||jsonb_build_array(jsonb_build_object('code','instructor_inactive','empId',p_emp_id)); end if;
   select * into profile from public.instructor_scheduling_profiles where emp_id=p_emp_id;
@@ -213,8 +264,8 @@ begin
   if p_action not in ('draft','confirm') or p_action is null then raise exception 'scheduling_action_not_allowed'; end if;
   if p_action='draft' and (a.emp_id is not null or nullif(a.emp_id_2,'') is not null or a.instructor_assignment_locked)
     then raise exception 'scheduling_assignment_locked'; end if;
-  select * into i from public.contacts_instructors where emp_id=p_emp_id;
-  if not found then raise exception 'instructor_not_found'; end if;
+  select * into i from scheduling_manual_private.resolve_instructor(p_emp_id);
+  if i.emp_id is null then raise exception 'instructor_not_found'; end if;
   if p_emp_id::text=nullif(a.emp_id_2,'') then raise exception 'scheduling_duplicate_instructor'; end if;
   select jsonb_build_object('empId',x.emp_id,'version',x.version,'reason',x.reason) into intent
     from public.scheduling_instructor_intents x where x.activity_id=a.row_id and x.status='active';
@@ -307,14 +358,24 @@ begin
     result:=jsonb_set(result,'{warnings}',(result->'warnings')||jsonb_build_array(jsonb_build_object(
       'code','manual_intended_instructor_changed','previousEmpId',intent->>'empId','empId',p_emp_id)));
   end if;
+  -- A manager may be staged by operations but can only be finally approved by an active admin.
+  if p_action='confirm' and scheduling_manual_private.is_management_employee(p_emp_id)
+    and not exists(select 1 from public.users u where u.auth_user_id=auth.uid()
+      and u.is_active and u.role='admin')
+  then result:=jsonb_set(result,'{blockers}',(result->'blockers')||
+    jsonb_build_array('scheduling_manager_instructor_admin_approval_required')); end if;
   select jsonb_set(result,'{warnings}',coalesce(jsonb_agg(w order by w),'[]'::jsonb)) into result
     from (select distinct value w from jsonb_array_elements(result->'warnings')) unique_warnings;
   return result||jsonb_build_object('pendingHistory',pending_history,'intent',intent,'activity',to_jsonb(proposed),'meetings',canonical,'patch',patch,
     'expectedUpdatedAt',a.updated_at,'previousEmpId',a.emp_id,'previousInstructorName',a.instructor_name,
     'instructorName',i.full_name,'effectiveFrom',effective,'action',p_action,
-    'reasonRequired',jsonb_array_length(result->'warnings')>0 or a.emp_id is not null
+    'managementInstructor',scheduling_manual_private.is_management_employee(p_emp_id),
+    'managerApprovalRequired',scheduling_manual_private.is_management_employee(p_emp_id) and p_action='draft',
+    'reasonRequired',scheduling_manual_private.is_management_employee(p_emp_id)
+      or jsonb_array_length(result->'warnings')>0 or a.emp_id is not null
       or patch is distinct from (select jsonb_object_agg(key,value) from jsonb_each(to_jsonb(a)) where key ~ '^date_[0-9]+$'));
 end $$;
+
 
 create or replace function public.scheduling_manual_capabilities()
 returns jsonb language plpgsql stable security definer set search_path = public, pg_temp as $$
@@ -854,3 +915,32 @@ begin
 end $function$;
 
 revoke all on all functions in schema scheduling_manual_private from public,anon,authenticated;
+
+-- Central management-instructor guard, included in the migration.
+-- Central guard: all write paths including legacy RPCs and direct activity edits.
+create or replace function scheduling_manual_private.guard_management_instructor_approval()
+returns trigger language plpgsql security definer set search_path=public,pg_temp as $$
+declare changed boolean:=false;
+begin
+ if tg_op='INSERT' then
+   changed:=(new.emp_id is not null and scheduling_manual_private.is_management_employee(new.emp_id))
+     or (coalesce(new.emp_id_2,'') ~ '^[0-9]+$' and
+       scheduling_manual_private.is_management_employee(new.emp_id_2::bigint));
+ else
+   changed:=(new.emp_id is distinct from old.emp_id and new.emp_id is not null and
+       scheduling_manual_private.is_management_employee(new.emp_id))
+     or (new.emp_id_2 is distinct from old.emp_id_2 and coalesce(new.emp_id_2,'') ~ '^[0-9]+$'
+       and scheduling_manual_private.is_management_employee(new.emp_id_2::bigint))
+     or (old.instructor_assignment_locked is distinct from true and new.instructor_assignment_locked is true
+       and new.emp_id is not null and scheduling_manual_private.is_management_employee(new.emp_id));
+ end if;
+ if changed and not exists(select 1 from public.users u
+   where u.auth_user_id=auth.uid() and u.is_active and u.role='admin')
+ then raise exception 'scheduling_manager_instructor_admin_approval_required' using errcode='42501'; end if;
+ return new;
+end $$;
+drop trigger if exists trg_scheduling_management_instructor_admin_only on public.activities;
+create trigger trg_scheduling_management_instructor_admin_only
+ before insert or update of emp_id,emp_id_2,instructor_assignment_locked on public.activities
+ for each row execute function scheduling_manual_private.guard_management_instructor_approval();
+revoke all on function scheduling_manual_private.guard_management_instructor_approval() from public,anon,authenticated;

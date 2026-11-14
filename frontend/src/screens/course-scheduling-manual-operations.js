@@ -8,6 +8,7 @@ const editorKey = 'courseSchedulingManualOperation';
 export function manualOperationError(code) {
   const labels = {
     scheduling_permission_denied: 'אין הרשאה לשיבוץ ידני.',
+    scheduling_manager_instructor_admin_approval_required: 'שיבוץ מנהל/ת מחייב אישור אדמין. שמרו טיוטה והעבירו לאדמין לאישור סופי.',
     scheduling_activity_revision_conflict: 'הפעילות השתנתה. יש לרענן ולפתוח את העריכה מחדש.',
     scheduling_manual_preview_changed: 'הנתונים השתנו מאז הבדיקה. יש לבדוק שוב לפני שמירה.',
     scheduling_manual_acknowledgement_required: 'יש לאשר את האזהרות לפני השמירה.',
@@ -232,14 +233,14 @@ export function manualOperationsDialogHtml(state) {
   const disabled = saving ? ' disabled' : '';
   const changingInstructor = !!activity.emp_id && text(activity.emp_id) !== text(editor.empId);
   const options = editor.instructors.map(instructor => {
-    const inactive = ['no', 'false', '0', 'לא פעיל'].includes(text(instructor.active).toLowerCase());
-    return '<option value="' + escapeHtml(instructor.emp_id) + '"' + (text(instructor.emp_id) === editor.empId ? ' selected' : '') + '>' + escapeHtml(instructor.full_name) + (inactive ? ' · לא פעיל' : '') + '</option>';
+    const inactive = !instructor.isManagementEmployee && ['no', 'false', '0', 'לא פעיל'].includes(text(instructor.active).toLowerCase());
+    return '<option value="' + escapeHtml(instructor.emp_id) + '"' + (text(instructor.emp_id) === editor.empId ? ' selected' : '') + '>' + escapeHtml(instructor.full_name) + (instructor.isManagementEmployee ? ' · מנהל/ת — אישור אדמין' : inactive ? ' · לא פעיל' : '') + '</option>';
   }).join('');
   return `<div class="course-scheduling-overlay" data-manual-operations-overlay>
     <section class="course-scheduling-modal" role="${reviewing ? 'alertdialog' : 'dialog'}" aria-modal="true" aria-labelledby="manual-operations-title" style="max-height:90dvh;overflow:auto;width:min(720px,calc(100vw - 24px))">
       <h2 id="manual-operations-title">${reviewing ? 'התראה: קיימות מגבלות בשיבוץ' : 'מדריך ומועדים — עריכה ידנית'}</h2>
       <p>${escapeHtml(activity.activity_name)} · ${escapeHtml(activity.school)} · ${escapeHtml(activity.authority)}</p>
-      <p>הבחירה נשמרת על ידכם. אין צורך להריץ את תכנון הסוכן.</p>
+      <p>הבחירה נשמרת על ידכם. אין צורך להריץ את תכנון הסוכן. שיבוץ מנהל/ת יאושר סופית בידי אדמין בלבד.</p>
       <div data-manual-operation-fields${reviewing ? ' hidden' : ''}>
       <label>מדריך<select class="course-scheduling-input" data-manual-operation-field="empId"${disabled}><option value="">בחרו מדריך</option>${options}</select></label>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-block:12px">
@@ -264,6 +265,7 @@ export function manualOperationsDialogHtml(state) {
       <div data-manual-operation-preview${preview ? '' : ' hidden'}>
         ${preview ? `
           <p>מדריך קודם: ${escapeHtml(preview.previousInstructorName || 'ללא שיבוץ')} ← מדריך נבחר: ${escapeHtml(preview.instructorName)}</p>
+          ${preview.managementInstructor ? '<p><b>מדריך/ה בתפקיד ניהולי:</b> אישור סופי מותר לאדמין בלבד. בחירה של מנהל/ת אינה משנה את תפקיד העובד.</p>' : ''}
           ${preview.blockers.length ? '<ul role="alert">' + preview.blockers.map(code => '<li>' + escapeHtml(manualOperationError(code)) + '</li>').join('') + '</ul>' : preview.warnings.length ? '' : '<p>הבדיקה הושלמה. השמירה תבדוק שוב את הנתונים העדכניים.</p>'}
           ${preview.warnings.length ? '<ul>' + preview.warnings.map(warning => '<li>' + escapeHtml(manualWarningLabel(warning)) + '</li>').join('') + '</ul><label><input type="checkbox" data-manual-operation-field="acknowledged"' + (editor.acknowledged ? ' checked' : '') + disabled + '> בדקתי את האזהרות ואני מאשר/ת לשמור את הבחירה.</label>' : ''}
           ${preview.reasonRequired ? '<p>יש להזין סיבה לפני השמירה.</p>' : ''}

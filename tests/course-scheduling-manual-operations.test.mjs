@@ -149,3 +149,12 @@ test('every scheduling business warning is shown in the explicit confirmation po
   f.controller.edit('reason', 'החלטה תפעולית');f.controller.edit('acknowledged',true);
   assert.equal(canCommitManualOperation(f.editor()), true);
 });
+
+test('manager instructor selection is visibly marked and admin-only error is clear', () => {
+  const state = { courseSchedulingManualOperation: createManualOperation(activity, [
+    { emp_id: 1500, full_name: 'הילה רוזן', isManagementEmployee: true, active: 'yes' }
+  ]) };
+  const html = manualOperationsDialogHtml(state);
+  assert.match(html, /הילה רוזן · מנהל\/ת — אישור אדמין/);
+  assert.match(html, /אדמין בלבד/);
+});

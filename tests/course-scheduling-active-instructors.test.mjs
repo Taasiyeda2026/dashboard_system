@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   activeSchedulingInstructors,
-  isActiveSchedulingInstructor
+  isActiveSchedulingInstructor,
+  manualCourseInstructorOptions
 } from '../frontend/src/screens/shared/course-scheduling-instructors.js';
 
 test('scheduling accepts only explicitly active instructors', () => {
@@ -24,4 +25,24 @@ test('inactive instructors never enter the scheduling candidate pool', () => {
     activeSchedulingInstructors(rows).map((row) => row.emp_id),
     [1600]
   );
+});
+
+test('management users appear only in manual course instructor choices', () => {
+  const contacts = [
+    { emp_id: 1507, full_name: 'מדריך רגיל', active: 'yes' },
+    { emp_id: 1500, full_name: 'הילה רוזן', active: 'no' }
+  ];
+  const managers = [
+    { emp_id: 1500, full_name: 'הילה רוזן', role: 'activities_manager', is_active: true },
+    { emp_id: 5000, full_name: 'גיל נאמן', role: 'activities_manager', is_active: true },
+    { emp_id: 6000, full_name: 'מנהלת לא פעילה', role: 'operation_manager', is_active: false },
+    { emp_id: 4444, full_name: 'מישהו ללא תפקיד ניהולי', role: 'instructor', is_active: true }
+  ];
+  const options = manualCourseInstructorOptions(contacts, managers);
+  assert.equal(options.filter(x => x.emp_id === 1500).length, 1);
+  assert.equal(options.find(x => x.emp_id === 1500).isManagementEmployee, true);
+  assert.equal(options.find(x => x.emp_id === 1500).active, 'yes');
+  assert.equal(options.find(x => x.emp_id === 5000).isManagementEmployee, true);
+  assert.equal(options.some(x => x.emp_id === 6000 || x.emp_id === 4444), false);
+  assert.deepEqual(activeSchedulingInstructors(contacts).map(x => x.emp_id), [1507]);
 });

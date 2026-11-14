@@ -55,7 +55,7 @@ import {
   manualCandidateBlocked,
   manualCandidateWarnings
 } from './shared/course-scheduling-manual-picker-access.js';
-import { activeSchedulingInstructors } from './shared/course-scheduling-instructors.js';
+import { activeSchedulingInstructors, manualCourseInstructorOptions } from './shared/course-scheduling-instructors.js';
 import {
   submitCourseMeetingSubstituteRequest,
   substituteRequestErrorMessage
@@ -2367,9 +2367,12 @@ export const courseSchedulingScreen = {
       manualCapabilityAvailable = !error && capability?.apiVersion === 'manual-operations-v1'
         && capability.enabled === true;
     } catch { /* Legacy/manual fallback remains available without private notes. */ }
-    const [activities, contacts, scheduling, meetingState, schoolLocations, schoolCalendar, planningCatalogResult, externalBlockersResult, historyResult] = await Promise.all([
+    const [activities, contacts, managers, scheduling, meetingState, schoolLocations, schoolCalendar, planningCatalogResult, externalBlockersResult, historyResult] = await Promise.all([
       api.activities({ activity_period: 'school_2027', activity_type: 'all', include_inactive: true, select: `row_id,district,authority_id,authority,school,school_id,activity_name,catalog_slug,activity_no,proposal_item_id,activity_type,item_type,activity_season,grade,education_level,class_group,sessions,start_time,end_time,instruction_language,required_instructor_gender,notes,scheduling_note,${manualCapabilityAvailable ? 'operations_private_notes,' : ''}instructor_assignment_status,instructor_assignment_locked,draft_emp_id,draft_instructor_name,draft_created_at,draft_proposed_meetings,emp_id,instructor_name,emp_id_2,instructor_name_2,start_date,end_date,status,date_1,date_2,date_3,date_4,date_5,date_6,date_7,date_8,date_9,date_10,date_11,date_12,date_13,date_14,date_15,date_16,date_17,date_18,date_19,date_20,date_21,date_22,date_23,date_24,date_25,date_26,date_27,date_28,date_29,date_30,date_31,date_32,date_33,date_34,date_35,updated_at` }),
       api.instructorContacts(),
+      // Manager directory is an authenticated names-only endpoint; when the migration
+      // has not been deployed, regular instructor selection continues unchanged.
+      manualCapabilityAvailable ? supabase.rpc('scheduling_management_employee_directory') : Promise.resolve({ data: [] }),
       loadInstructorSchedulingData(),
       loadCourseMeetingState(),
       supabase.rpc('scheduling_authority_school_locations'),
@@ -2397,9 +2400,13 @@ export const courseSchedulingScreen = {
       externalPlanningBlockersError: externalBlockersResult?.error || historyResult?.error || null,
       meetingInstructorHistory: historyResult?.data || [],
       activities: attachCancelledMeetingsToActivities(enriched.activities, meetingState),
-      instructors: activeSchedulingInstructors(contacts?.rows || []),
-      // Operators may acknowledge inactive status; automatic planning keeps its active-only pool.
-      manualInstructors: (contacts?.rows || []).filter(instructor => text(instructor.emp_id)),
+      // Management employees never enter the ordinary automatic candidate pool,
+      // even when a historical instructor contact happens to be active.
+      instructors: activeSchedulingInstructors(contacts?.rows || [])
+        .filter(instructor => !(managers?.data || []).some(manager =>
+          String(manager.emp_id) === String(instructor.emp_id))),
+      // Only the manual picker includes management employees.
+      manualInstructors: manualCourseInstructorOptions(contacts?.rows || [], managers?.data || []),
       scheduling,
       meetingState,
       schoolLocations: schoolRows,
