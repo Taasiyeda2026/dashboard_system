@@ -231,3 +231,50 @@ test('end-date cards preserve native row expansion and restore desktop table met
   assert.equal(doc.querySelector('tbody tr:last-child').hidden, true);
   assert.equal(doc.querySelector('[data-mobile-label]'), null);
 });
+
+ test('mobile quick navigation preserves all permitted header tabs and restores desktop', () => {
+  const doc = new JSDOM('<header class="shell-top"><nav class="shell-header-nav"><button data-route="activities">פעילויות</button><button data-route="instructors">מדריכים</button><button data-route="edit-requests">אישורים</button></nav></header>').window.document;
+  const nav = doc.querySelector('nav');
+  const originalButtons = [...nav.querySelectorAll('button')];
+  enhanceMobileRoot(doc);
+  assert.equal(nav.dataset.mobileNavReady, '1');
+  assert.equal(nav.previousElementSibling.textContent, 'ניווט מהיר ▾');
+  assert.deepEqual([...nav.querySelectorAll('button')], originalButtons);
+  cleanupMobileRoot(doc);
+  assert.equal(doc.querySelector('[data-mobile-section-nav-toggle]'), null);
+  assert.deepEqual([...nav.querySelectorAll('button')], originalButtons);
+});
+
+test('activities reuse the existing filter button and preserve all original controls', () => {
+  const doc = dom('<section class="ds-activities-screen"><div class="ds-activities-main-toolbar"><input type="search"><button data-activities-advanced-toggle aria-expanded="false">סינון</button><select><option>רשות</option></select><button data-existing-action>ייצוא</button></div><section data-activities-advanced-panel hidden></section></section>');
+  const toolbar = doc.querySelector('.ds-activities-main-toolbar');
+  const toggle = doc.querySelector('[data-activities-advanced-toggle]');
+  const original = [...toolbar.children];
+  enhanceMobileRoot(doc);
+  assert.equal(toolbar.querySelector('[data-mobile-filter-toggle]'), null);
+  assert.equal(toolbar.classList.contains('is-mobile-expanded'), false);
+  assert.equal(toolbar.querySelector('select').classList.contains('mobile-filter-detail'), true);
+  toggle.setAttribute('aria-expanded', 'true');
+  enhanceMobileRoot(doc);
+  assert.equal(toolbar.classList.contains('is-mobile-expanded'), true);
+  cleanupMobileRoot(doc);
+  assert.deepEqual([...toolbar.children], original);
+  assert.equal(toolbar.querySelector('.mobile-filter-detail'), null);
+});
+
+test('feedback detail disclosure leaves original stage actions intact', () => {
+  const page = new JSDOM('<div class="ifb-group-detail"><article class="ifb-slot"><div class="ifb-slot__head"><h3>פתיחה</h3><span>נשלח</span></div><div><button data-ifb-copy="test">העתקת קישור</button></div></article></div>');
+  const doc = page.window.document;
+  const media = controllableMedia(true);
+  page.window.matchMedia = () => media;
+  const action = doc.querySelector('[data-ifb-copy]');
+  bindMobileResponsive(doc, page.window);
+  const toggle = doc.querySelector('[data-mobile-feedback-slot-toggle]');
+  assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+  toggle.click();
+  assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+  assert.equal(action, doc.querySelector('[data-ifb-copy]'));
+  media.set(false);
+  assert.equal(doc.querySelector('[data-mobile-feedback-slot-toggle]'), null);
+  assert.equal(action, doc.querySelector('[data-ifb-copy]'));
+});

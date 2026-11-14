@@ -29,7 +29,8 @@ for(const account of accounts.filter(a=>!process.env.MOBILE_QA_ROLES || process.
   await p.waitForTimeout(900);
   const card=p.locator('.ds-activities-row[data-row-id="ACT-1"]');
   const cardText=await card.innerText();
-  assert.ok(cardText.includes('באישור ביצוע: 1'));
+  assert.ok(cardText.includes('התקדמות לפי לוח'));
+  assert.ok(!cardText.includes('ביצוע מאומת באישור ביצוע'));
   assert.equal(await p.locator('[data-activity-quick-filter="missing-reports"]').isDisabled(),true);
   assert.equal(await p.locator('.ds-modal[aria-hidden="true"]').isVisible(),false);
   await p.screenshot({path:`work/real-screen-captures/full-app-${account.role}-activities.png`,fullPage:true});
@@ -50,7 +51,7 @@ for(const account of accounts.filter(a=>!process.env.MOBILE_QA_ROLES || process.
    await p.locator('[data-activity-advanced-field="managementFilter"]').selectOption('exceptions');
    await p.waitForFunction(()=>document.querySelectorAll('.ds-activities-row').length>2,{},{timeout:10000});
   }
-  results.push({role:account.role,authenticatedShell:true,cardRows:await p.locator('.ds-activities-row').count(),query:await p.locator('input[data-filter-search]').inputValue(),innerWidth:await p.evaluate(()=>innerWidth),scrollWidth:await p.evaluate(()=>document.documentElement.scrollWidth),verifiedShown:cardText.includes('באישור ביצוע: 1'),cancelledUnknown:cardText.includes('ביטולים: לא זמינים'),denied,errors});
+  results.push({role:account.role,authenticatedShell:true,cardRows:await p.locator('.ds-activities-row').count(),query:await p.locator('input[data-filter-search]').inputValue(),innerWidth:await p.evaluate(()=>innerWidth),scrollWidth:await p.evaluate(()=>document.documentElement.scrollWidth),planningShown:cardText.includes('התקדמות לפי לוח'),technicalTextHidden:!cardText.includes('ביצוע מאומת באישור ביצוע'),denied,errors});
  }
  assert.deepEqual(errors,[]);assert.deepEqual(denied,[]);
  await p.close();

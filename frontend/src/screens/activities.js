@@ -2005,7 +2005,7 @@ export const activitiesScreen = {
           ? `<span class="ds-chip ds-chip--status ds-chip--warn" title="${escapeHtml(editStatus)}">${escapeHtml(editStatus)}</span>`
           : '';
         const managerLabel = activityManagerDisplayName(row.activity_manager);
-        const mobileSummary = activityMobileSummaryHtml(row, { manager: managerLabel, classGroup: activityLayoutClassGroup(row), latest: latestUpdateDisplay(state?.latest2027ActivityNotes?.[String(row.RowID || row.row_id || '').trim()]) });
+        const mobileSummary = activityMobileSummaryHtml(row, { manager: managerLabel, classGroup: activityLayoutClassGroup(row), school: getActivitySchoolDisplayName(row), authority: row.authority, instructorHtml: instructorDisplay });
         const rowSearch = [
           hideRowId ? '' : row.RowID,
           visibleActivityCategoryLabel(row.activity_type),
@@ -2223,7 +2223,7 @@ export const activitiesScreen = {
       ${showDiag ? activitiesDiagnosticsHtml(diagnostics) : ''}
       ${mainToolbar}
       ${activityQuickFiltersHtml()}
-      <div class="activity-management-status" data-management-load-status role="status">${listFilters.managementFilter ? 'הסינון מציג התאמות מאומתות מהמידע הזמין; מקורות שאינם נגישים אינם נחשבים כאפס.' : ''}</div>
+      <div class="activity-management-status" data-management-load-status role="status"></div>
       ${state.activityPeriodTab === ACTIVITY_SEASON_SCHOOL_2027 ? `<section class="ds-card ds-activities-table-card"><div class="ds-card__body">${tableSection}</div></section>` : dsCard({ body: tableSection, padded: false })}
     </section>`);
     return html;
@@ -2545,7 +2545,7 @@ export const activitiesScreen = {
     if ((managementFilter || (typeof window !== 'undefined' && window.matchMedia?.('(max-width: 820px)').matches)) && managementRows.some((row) => !cachedManagement(row, state))) {
       void ensureActivityManagement(managementRows, { user: state.user, api, state }).then((changed) => {
         if (changed && root.isConnected && state.route === 'activities') { refreshOpenManagement(); rerenderLocal(); }
-      }).catch(() => { const status = root.querySelector('[data-management-load-status]'); if (status) status.textContent = 'טעינת תמונת המצב נכשלה; יש לרענן.'; });
+      }).catch(() => { const status = root.querySelector('[data-management-load-status]'); if (status) status.textContent = 'לא ניתן לטעון את נתוני הבקרה. נסו לרענן.'; });
     }
     document._activityManagementAbort?.abort();
     document._activityManagementAbort = new AbortController();

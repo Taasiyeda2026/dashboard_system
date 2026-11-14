@@ -18,7 +18,8 @@ test('mobile summary escapes projected data and never renders private or financi
   assert.ok(!html.includes('PRIVATE'));
   assert.ok(!html.includes('SECRET'));
   assert.ok(html.includes('חסר תאריך התחלה'));
-  assert.ok(html.includes('ביצוע מאומת באישור ביצוע: לא זמין'));
+  assert.ok(!html.includes('ביצוע מאומת באישור ביצוע'));
+  assert.ok(!html.includes('לא זמין'));
 });
 
 test('quick filters reuse date and assignment filters without changing season or other selections', () => {
@@ -42,8 +43,8 @@ test('async drawer dates update the same management summary and keep performance
   const document = new JSDOM(activityWorkDrawerHtml({ activity_type: 'course', sessions: 4 }, { datesLoading: true })).window.document;
   const section = document.querySelector('[data-dates-section]');
   patchDrawerDatesSection(section, { meeting_schedule: [{ date: '2020-01-01', performed: 'no' }] });
-  assert.match(section.querySelector('[data-dates-management-summary]').textContent, /1 שמועדם חלף מתוך 4/);
-  assert.match(section.querySelector('[data-dates-management-summary]').textContent, /ביצוע מאומת באישור ביצוע: לא זמין/);
+  assert.match(section.querySelector('[data-dates-management-summary]').textContent, /1\/4/);
+  assert.doesNotMatch(section.querySelector('[data-dates-management-summary]').textContent, /ביצוע מאומת|לא זמין|ללא אימות/);
   assert.equal(section.querySelector('.is-done'), null);
   assert.match(section.querySelector('[data-dates-progress-meta]').textContent, /לפי לוח מתוכנן/);
 });
@@ -63,4 +64,15 @@ test('partial dated projection cannot invent a planned total; next meeting stays
   assert.equal(document.querySelectorAll('.is-planned-next').length, 1);
   assert.match(document.querySelector('.is-planned-next').textContent, /01\/01\/2099/);
   assert.equal(document.querySelector('.is-done'), null);
+});
+
+ test('school 2027 compact summary preserves useful facts without technical diagnostics or duplicated schedule', () => {
+  const row = { row_id: 'ACT-1', activity_season: 'school_2027', status: 'פתוח', sessions: 10, start_date: '2099-01-01', date_1: '2099-01-01', end_date: '2099-03-01', management: { approvalsAvailable: true, approvedDates: [], cancellationsAvailable: true, cancelledDates: [], attendanceAvailable: true, attendance: [], exceptionsAvailable: true, exceptions: ['x'], feedback: { available: true, applicable: false, slots: [] }, coordination: { available: true, status: 'not_sent' }, errors: ['staff-feedback'] } };
+  const doc = new JSDOM(activityMobileSummaryHtml(row, { school: 'בית ספר', authority: 'רשות', manager: 'מנהל', classGroup: 'קבוצה 1', instructorHtml: '<span>מדריך</span>' })).window.document;
+  assert.match(doc.body.textContent, /בית ספר · רשות · קבוצה 1/);
+  assert.match(doc.body.textContent, /התקדמות לפי לוח/);
+  assert.equal(doc.body.textContent.match(/המפגש הבא/g).length, 1);
+  assert.equal(doc.body.textContent.match(/01\/01\/2099/g).length, 1);
+  assert.equal(doc.querySelector('[data-management-action="activity"]').dataset.managementRow, 'ACT-1');
+  assert.doesNotMatch(doc.body.textContent, /אישור ביצוע|אוכלוסיית|התמונה חלקית|לא זמין|לא נטענו/);
 });

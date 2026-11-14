@@ -645,3 +645,4 @@ config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-portzot-pairing-admin-20261113
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-mobile-management-2027-20261114-v1`;
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-mobile-management-data-20261114-v2`;
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-mobile-ux-compact-20261115-v3`;

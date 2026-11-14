@@ -49,48 +49,58 @@ export function activityManagementSummary(row = {}, today = managementToday()) {
 
 export function activityPlanningFactsHtml(row, today) {
   const s = activityManagementSummary(row, today);
+  const historical = row.activity_season === 'summer_2026';
   return `<div class="activity-planning-facts" data-planning-facts>
-    <span>לפי לוח: ${s.elapsed} שמועדם חלף${s.total === null ? ' · סה״כ לא זמין' : ` מתוך ${s.total} מתוכננים`}</span>
-    <span>${s.future} מהיום והלאה${s.missingDates ? ` · ${s.missingDates} ללא תאריך` : ''}</span>
-    <span>ביצוע מאומת באישור ביצוע: ${s.verified ?? 'לא זמין'} · ביטולים: ${s.cancelled ?? 'לא זמינים'}</span>
-    <span>מועדים שחלפו ללא אימות: ${s.elapsedUnverified ?? 'לא ניתן לאמת'}</span>
-    <span>מועד שחלף או דיווח נוכחות אינם אישור ביצוע.</span>
-    ${s.next ? `<span>המפגש הבא: <bdi>${escapeHtml(formatDateHe(s.next))}</bdi></span>` : '<span>לא קיים מפגש עתידי בלוח הזמין</span>'}
+    <span class="activity-planning-progress">התקדמות לפי לוח: <bdi>${s.elapsed}${s.total === null ? '' : '/' + s.total}</bdi> מפגשים</span>
+    ${s.missingDates ? `<span>${s.missingDates} ללא תאריך</span>` : ''}
+    ${historical && s.verified !== null ? `<span>אישורי ביצוע: ${s.verified}</span>` : ''}
+    ${s.cancelled > 0 ? `<span>ביטולים: ${s.cancelled}</span>` : ''}
+    ${s.next ? `<span class="activity-planning-next">המפגש הבא: <bdi>${escapeHtml(formatDateHe(s.next))}</bdi></span>` : ''}
   </div>`;
 }
 
-/** Uses only the permitted list projection; no private notes or extra requests. */
-export function activityManagementIndicatorsHtml(row, { interactive = true } = {}) {
+/** Present existing evidence only; unknown sources are not counted as zero. */
+export function activityManagementIndicatorsHtml(row, { interactive = true, compact = false } = {}) {
   const m = row.management;
-  if (!m) return '<div class="activity-management-indicators" aria-live="polite">תמונת מצב ניהולית בטעינה</div>';
+  if (!m) return '';
   const s = activityManagementSummary(row);
   const status = { assigned: 'משובץ', draft: 'ממתין לאישור שיבוץ', unassigned: 'ללא מדריך' }[activityInstructorAssignmentState(row)];
   const action = (key, label, value, enabled = true) => `<${enabled && interactive ? 'button type="button"' : 'span'} class="activity-management-indicator" ${enabled && interactive ? `data-management-action="${key}" data-management-row="${escapeHtml(row.RowID || row.row_id)}"` : ''}><small>${escapeHtml(label)}</small> ${escapeHtml(value)}</${enabled && interactive ? 'button' : 'span'}>`;
-  const coordinationLabels = { not_sent: 'טרם נשלח', ready: 'מוכן לשליחה', draft: 'טיוטה', sent: 'נשלח — אינו אישור מוסד', changed_since_sent: 'השתנה מאז שליחה', missing_details: 'חסרים פרטים' };
+  const coordinationLabels = { not_sent: 'טרם נשלח', ready: 'מוכן לשליחה', draft: 'טיוטה', sent: 'נשלח', changed_since_sent: 'נדרש עדכון', missing_details: 'חסרים פרטים' };
+  const slots = m.feedback?.available ? (m.feedback.slots || []) : [];
+  const linked = (m.attendance || []).length;
   return `<div class="activity-management-indicators">
-    ${action('activity', 'שיבוץ', status)}
-    ${action('coordination', 'תיאום', m.coordination?.available ? (coordinationLabels[m.coordination.status] || m.coordination.status) : 'לא זמין בהרשאות הנוכחיות', m.coordination?.available)}
-    ${action('attendance', 'נוכחות', s.missingReports === null ? (m.attendanceAvailable ? `${(m.attendance || []).length} דיווחים מקושרים; התמונה חלקית` : 'דיווחים אינם זמינים בהרשאות הנוכחיות') : `${s.missingReports} מועדים ללא דיווח; ${(m.attendance || []).length} דיווחים זמינים`, m.attendanceAvailable)}
-    ${action('exceptions', 'חריגות', m.exceptionsAvailable ? `${m.exceptions.length} חריגות לפי הכללים הקיימים` : 'לא זמין', m.exceptionsAvailable)}
-    ${m.feedback?.available ? m.feedback.slots.map((slot) => action('feedback', slot.label, `${slot.statusLabel}${slot.responses === null ? '' : ` · ${slot.responses} תשובות`}`)).join('') : action('feedback', 'משובים', 'לא זמין בהרשאות הנוכחיות', false)}
-    ${m.feedback?.available && !m.feedback.applicable ? '<span>הפעילות אינה באוכלוסיית משובי הקבוצות הקיימת</span>' : ''}
-    ${activityMeetingCheckpoints(row).map((point) => `<span class="activity-management-checkpoint"><small>${escapeHtml(point.label)}</small> <bdi>${escapeHtml(formatDateHe(point.date))}</bdi></span>`).join('')}
-    ${m.errors?.length ? '<span role="status">חלק ממקורות הבקרה לא נטענו; אין להסיק שאין חוסרים.</span>' : ''}
+    ${!compact ? action('activity', 'שיבוץ', status || 'ללא מדריך') : ''}
+    ${m.coordination?.available ? action('coordination', 'תיאום', coordinationLabels[m.coordination.status] || m.coordination.status) : ''}
+    ${s.missingReports !== null ? action('attendance', 'נוכחות', `${s.missingReports} דיווחים חסרים`, m.attendanceAvailable) : m.attendanceAvailable && (linked > 0 || s.elapsed > 0) ? action('attendance', 'נוכחות', linked > 0 ? `${linked} דיווחים` : 'צפייה בדיווחים') : ''}
+    ${m.exceptionsAvailable ? action('exceptions', 'חריגות', String(m.exceptions.length)) : ''}
+    ${s.cancelled > 0 ? action('activity', 'ביטולים', String(s.cancelled)) : ''}
+    ${compact && slots.length ? action('feedback', 'משובים', m.feedback.needsAttention ? 'דורש טיפול' : 'לצפייה') : !compact ? slots.map((slot) => action('feedback', slot.label, `${slot.statusLabel}${slot.responses === null ? '' : ` · ${slot.responses} תשובות`}`)).join('') : ''}
+    ${!compact ? activityMeetingCheckpoints(row).map((point) => `<span class="activity-management-checkpoint"><small>${escapeHtml(point.label)}</small> <bdi>${escapeHtml(formatDateHe(point.date))}</bdi></span>`).join('') : ''}
   </div>`;
 }
 
-export function activityMobileSummaryHtml(row, { manager = '', classGroup = '', latest = '' } = {}) {
+export function activityMobileSummaryHtml(row, { manager = '', classGroup = '', school = '', authority = '', instructorHtml = '' } = {}) {
   const s = activityManagementSummary(row);
+  const clean = (value) => {
+    const text = String(value || '').trim();
+    return /^(?:[-—–]|לא משויך|ללא)?$/.test(text) ? '' : text;
+  };
   const field = (label, value) => value ? `<span><small>${escapeHtml(label)}</small> <bdi>${escapeHtml(value)}</bdi></span>` : '';
-  return `<div class="activity-mobile-summary">
-    <div class="activity-mobile-summary__identity">${field('סטטוס', row.status || 'לא צוין')}${field('כיתה / קבוצה', classGroup)}${field('מנהל', manager || 'חסר מנהל פעילות')}</div>
-    <span>לפי לוח: ${s.elapsed}${s.total === null ? '' : ` מתוך ${s.total}`} מפגשים שמועדם חלף</span>
-    <div class="activity-mobile-summary__schedule">${field('המפגש הבא', s.next ? formatDateHe(s.next) : 'אין מועד עתידי בלוח')}${field('סיום', s.end ? formatDateHe(s.end) : 'חסר תאריך סיום')}</div>
+  const identity = [clean(school), clean(authority), clean(classGroup)].filter(Boolean).join(' · ');
+  const percent = s.total ? Math.max(0, Math.min(100, Math.round(s.elapsed / s.total * 100))) : 0;
+  const rowId = String(row.RowID || row.row_id || '');
+  return `<div class="activity-mobile-summary" data-mobile-card-identity="${instructorHtml ? '1' : '0'}">
+    <div class="activity-mobile-summary__identity"><span class="activity-mobile-status">${escapeHtml(row.status || 'ללא סטטוס')}</span>${identity ? `<span>${escapeHtml(identity)}</span>` : ''}</div>
+    <div class="activity-mobile-summary__team">${field('מנהל', clean(manager) || 'ללא מנהל')}${instructorHtml ? `<span><small>מדריך/ה</small> ${instructorHtml}</span>` : ''}</div>
+    <div class="activity-mobile-summary__progress"><span>התקדמות לפי לוח</span><strong><bdi>${s.elapsed}${s.total === null ? '' : '/' + s.total}</bdi></strong></div>
+    ${s.total ? `<div class="activity-mobile-progress-track" role="progressbar" aria-label="התקדמות לפי לוח" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100"><span style="width:${percent}%"></span></div>` : ''}
+    <div class="activity-mobile-summary__schedule">${s.next && s.next === s.end ? field('המפגש הבא / סיום', formatDateHe(s.next)) : field('המפגש הבא', s.next ? formatDateHe(s.next) : '') + field('סיום', s.end ? formatDateHe(s.end) : '')}</div>
     ${!dateKey(row.start_date || row.date_start) ? '<span class="activity-mobile-summary__warning">חסר תאריך התחלה</span>' : ''}
-    <div class="activity-mobile-summary__expanded">${field('התחלה', formatDateHe(row.start_date || row.date_start))}${activityPlanningFactsHtml(row)}${field('עדכון אחרון', latest)}${activityManagementIndicatorsHtml(row)}</div>
+    <div class="activity-mobile-summary__expanded">${activityManagementIndicatorsHtml(row, { compact: true })}</div>
+    <div class="activity-mobile-summary__actions">${rowId ? `<button type="button" class="activity-mobile-open" data-management-action="activity" data-management-row="${escapeHtml(rowId)}">פרטי פעילות</button>` : ''}</div>
   </div>`;
 }
-
 
 export function activityMeetingManagementHtml(row) {
   const m = row.management || {};
@@ -101,14 +111,14 @@ export function activityMeetingManagementHtml(row) {
   return `<details class="activity-meeting-control"><summary>בקרת מפגשים לפי הלוח (${slots.filter(Boolean).length})</summary><ol>${slots.map((date, index) => {
     if (!date) return '';
     const cancelled = m.cancellationsAvailable && m.cancelledDates.includes(date);
-    const approved = m.approvalsAvailable && m.approvedDates.includes(date);
-    const status = cancelled ? 'בוטל' : approved ? 'קיים אישור ביצוע מאושר' : date >= today ? 'מתוכנן' : 'המועד חלף — אין אימות זמין';
+    const approved = row.activity_season === 'summer_2026' && m.approvalsAvailable && m.approvedDates.includes(date);
+    const status = cancelled ? 'בוטל' : approved ? 'קיים אישור ביצוע מאושר' : date >= today ? 'מתוכנן' : 'מועד שחלף';
     const reports = (m.attendance || []).filter((record) => record.date === date && (String(record.meetingNo) === String(index + 1) || (!record.meetingNo && slots.filter((d) => d === date).length === 1)));
     const history = (m.history || []).filter((event) => event.date === date);
-    return `<li><strong>מפגש ${index + 1} · <bdi>${escapeHtml(formatDateHe(date))}</bdi></strong>${date === next ? '<span>המפגש הבא לפי לוח</span>' : ''}<span>${status}</span><span>נוכחות: ${m.attendanceAvailable ? reports.length + ' דיווחים זמינים' : 'לא זמין'}</span>${history.map((event) => `<span>אירוע שיבוץ: ${escapeHtml(event.instructor || 'שם לא צוין')} · <bdi>${escapeHtml(formatDateHe(String(event.recordedAt || '').slice(0, 10)))}</bdi></span>`).join('')}${!m.historyAvailable ? '<span>היסטוריית שיבוץ אינה זמינה בהרשאות הנוכחיות</span>' : ''}</li>`;
+    return `<li><strong>מפגש ${index + 1} · <bdi>${escapeHtml(formatDateHe(date))}</bdi></strong>${date === next ? '<span>המפגש הבא לפי לוח</span>' : ''}<span>${status}</span>${m.attendanceAvailable && reports.length ? `<span>נוכחות: ${reports.length} דיווחים</span>` : ''}${history.map((event) => `<span>אירוע שיבוץ: ${escapeHtml(event.instructor || 'שם לא צוין')} · <bdi>${escapeHtml(formatDateHe(String(event.recordedAt || '').slice(0, 10)))}</bdi></span>`).join('')}</li>`;
   }).join('')}</ol></details>`;
 }
 
 export function activityManagementPanelHtml(row) {
-  return `<section class="activity-drawer__section activity-management-panel" data-management-panel data-mode="view"><h3 class="activity-drawer__section-title">תמונת מצב ניהולית</h3>${activityPlanningFactsHtml(row)}${activityManagementIndicatorsHtml(row)}${activityMeetingManagementHtml(row)}</section>`;
+  return `<section class="activity-drawer__section activity-management-panel" data-management-panel data-mode="view"><h3 class="activity-drawer__section-title">תמונת מצב ניהולית</h3>${activityManagementIndicatorsHtml(row)}${activityMeetingManagementHtml(row)}</section>`;
 }
