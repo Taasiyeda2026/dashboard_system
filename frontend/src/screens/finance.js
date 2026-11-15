@@ -32,6 +32,7 @@ import {
   automaticMixedFundingProgramReview,
   transactionIssuanceResultMessage,
   transactionPreviewForVisit,
+  transactionMaxMonth,
   transactionAccountsViewHtml
 } from './finance-transaction-issuance.js';
 
@@ -700,7 +701,7 @@ export const financeScreen = {
         visit.view = nextView;
         if (nextView === 'transactions') {
           const currentMonth = financeCycleCutoff().slice(0, 7);
-          visit.transactionMonths = { automatic: currentMonth, manual: currentMonth };
+          visit.transactionMonths = { automatic: transactionMaxMonth(visit, 'automatic'), manual: currentMonth };
           visit.transactionManualSelected = {};
         }
         if (nextView === 'attendance') {
@@ -712,7 +713,10 @@ export const financeScreen = {
         }
         if (nextView === 'collection' || nextView === 'transactions') {
           refresh();
-          try { await ensureCollectionLoaded(visit, api, { force: true }); }
+          try {
+            await ensureCollectionLoaded(visit, api, { force: true });
+            if (nextView === 'transactions') visit.transactionMonths.automatic = transactionMaxMonth(visit, 'automatic');
+          }
           catch { /* shown via visit.collectionError */ }
           refresh();
           return;
@@ -743,7 +747,7 @@ export const financeScreen = {
         visit.pendingTransactionApproval = null;
         visit.transactionTab = nextTransactionTab;
         if (visit.transactionTab === 'automatic' || visit.transactionTab === 'manual') {
-          visit.transactionMonths = { ...visit.transactionMonths, [visit.transactionTab]: financeCycleCutoff().slice(0, 7) };
+          visit.transactionMonths = { ...visit.transactionMonths, [visit.transactionTab]: transactionMaxMonth(visit, visit.transactionTab) };
           visit.transactionManualSelected = {};
         }
         visit.transactionActionMessage = '';
@@ -812,7 +816,7 @@ export const financeScreen = {
         if (visit.transactionRunning || visit.financeBusy || visit.pendingTransactionApproval) return;
         const mode = String(transactionRun.dataset.financeTransactionRun || 'automatic');
         const month = transactionRun.dataset.financeTransactionPeriod
-          || visit.transactionMonths?.[mode] || financeCycleCutoff().slice(0, 7);
+          || visit.transactionMonths?.[mode] || transactionMaxMonth(visit, mode);
         if (mode === 'automatic') {
           const mixed = automaticMixedFundingProgramReview(visit, month);
           const invalid = mixed.filter(row => !row.valid);
@@ -1045,7 +1049,7 @@ export const financeScreen = {
       if (monthPicker) {
         const mode = monthPicker.dataset.financeTransactionMonth;
         const month = String(monthPicker.value || '');
-        if (/^\d{4}-\d{2}$/.test(month) && month <= financeCycleCutoff().slice(0, 7)) {
+        if (/^\d{4}-\d{2}$/.test(month) && month <= transactionMaxMonth(visit, mode)) {
           visit.transactionMonths = { ...visit.transactionMonths, [mode]: month };
           visit.transactionManualSelected = {};
         }
