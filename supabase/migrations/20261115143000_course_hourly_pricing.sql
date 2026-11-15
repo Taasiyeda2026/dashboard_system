@@ -8,7 +8,7 @@ alter table public.activities add column if not exists course_proposal_hours num
 -- handoff. No historical rows are touched. A later intentional price/rate/session
 -- edit switches to the ordinary course formula instead of rewriting the proposal.
 create or replace function public.activity_course_rate_from_proposal()
-returns trigger language plpgsql set search_path='' as $
+returns trigger language plpgsql set search_path='' as $course_rate$
 declare item public.proposal_agreement_items%rowtype;
 begin
   if tg_op='INSERT' then
@@ -36,7 +36,8 @@ begin
     end if;
   end if;
   return new;
-end $;
+end;
+$course_rate$;
 revoke all on function public.activity_course_rate_from_proposal() from public,anon,authenticated;
 create trigger zz_activity_course_rate_from_proposal
 before insert or update of course_hourly_rate,course_hourly_rate_source,course_proposal_hours,sessions,price
