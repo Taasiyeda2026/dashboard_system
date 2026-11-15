@@ -648,3 +648,5 @@ config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-mobile-management-data-2026111
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-mobile-ux-compact-20261115-v3`;
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-mobile-activities-density-20261115-v4`;
+
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-desktop-activity-drawer-restore-20261115-v1`;

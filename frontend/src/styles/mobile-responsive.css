@@ -2204,3 +2204,20 @@
   #app .route-activities [data-mobile-2027-card] .activity-mobile-open { min-block-size: 44px; min-height: 44px; padding: 0 2px; }
   #app .route-activities [data-mobile-2027-card] .activity-mobile-summary__warning { font-size: .73rem; }
 }
+
+/* Restore pre-mobile drawer presentation on desktop, without changing data or mobile. */
+.activity-mobile-progress-title, .activity-mobile-progress-suffix { display: none; }
+@media (width > 820px) {
+  /* Shared interaction host is mounted directly under body, outside #app. */
+  [data-drawer-form] [data-management-panel],
+  [data-drawer-form] [data-dates-management-summary] { display: none !important; }
+  [data-drawer-form] .activity-drawer__date-chip[data-desktop-date-done] {
+    background: #f0fdf4 !important;
+    border-color: #86efac !important;
+    color: #15803d !important;
+  }
+}
+@media (max-width: 820px) {
+  .activity-desktop-progress-title { display: none; }
+  .activity-mobile-progress-title, .activity-mobile-progress-suffix { display: inline; }
+}

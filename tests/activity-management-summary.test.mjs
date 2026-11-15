@@ -89,3 +89,16 @@ test('2027 list card omits empty staff and management indicators without removin
   assert.doesNotMatch(doc.body.textContent, /שיבוץ|תיאום|נוכחות|חריגות|ללא מדריך/);
   assert.equal(row.management.exceptions.length, 1);
 });
+
+test('desktop drawer retains original progress title and date styling marker alongside mobile-only summary', () => {
+  const document = new JSDOM(activityWorkDrawerHtml({ activity_type: 'course', sessions: 4, meeting_schedule: [{ date: '2020-01-01', performed: 'no' }], management: { exceptionsAvailable: true, exceptions: [] } })).window.document;
+  assert.equal(document.querySelector('.activity-desktop-progress-title').textContent, 'התקדמות הקורס');
+  assert.equal(document.querySelector('.activity-mobile-progress-title').textContent, 'התקדמות לפי לוח מתוכנן');
+  assert.equal(document.querySelector('.activity-mobile-progress-suffix').textContent, ' · לפי לוח מתוכנן');
+  assert.ok(document.querySelector('[data-desktop-date-done]'));
+  assert.ok(document.querySelector('[data-management-panel]'));
+  const section = document.querySelector('[data-dates-section]');
+  patchDrawerDatesSection(section, { meeting_schedule: [{ date: '2020-02-01', performed: 'no' }] });
+  assert.ok(section.querySelector('[data-desktop-date-done]'));
+  assert.ok(section.querySelector('.activity-mobile-progress-suffix'));
+});

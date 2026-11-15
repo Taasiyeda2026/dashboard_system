@@ -17,7 +17,16 @@ for(const width of [320,375,390,430,1440]) {
   await page.waitForTimeout(120);
   const result = await page.evaluate(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,overflows:[...document.querySelectorAll('body *')].filter(el=>{const r=el.getBoundingClientRect();return r.width>0&&(r.left < -1||r.right>innerWidth+1)&&getComputedStyle(el).position!=='fixed'}).slice(0,8).map(el=>`${el.tagName}.${el.className}`)}));
   assert.ok(result.scrollWidth <= width + 1, `${screen} at ${width}: page overflow`);
+  if(screen === 'drawer' && width > 820) {
+    assert.equal(await page.locator('[data-dates-management-summary]').isVisible(),false);
+    assert.equal(await page.locator('.activity-desktop-progress-title').isVisible(),true);
+    assert.equal(await page.locator('.activity-mobile-progress-title').isVisible(),false);
+    assert.equal(await page.locator('.activity-mobile-progress-suffix').isVisible(),false);
+    if(await page.locator('[data-management-panel]').count()) assert.equal(await page.locator('[data-management-panel]').isVisible(),false);
+  }
   if(screen === 'drawer' && width <= 820) {
+    assert.equal(await page.locator('.activity-desktop-progress-title').isVisible(),false);
+    assert.equal(await page.locator('.activity-mobile-progress-title').isVisible(),true);
     const rect = await page.locator('.ds-drawer').boundingBox();
     assert.ok(Math.abs(rect.width - width) < 2 && rect.x < 2, 'drawer fills viewport');
     for(const button of await page.locator('.activity-drawer__header-actions button').all()) {
