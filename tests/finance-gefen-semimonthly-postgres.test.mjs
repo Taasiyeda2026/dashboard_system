@@ -16,7 +16,7 @@ const check = (name, fn) => test(name, {skip:!db}, fn);
 const read = p => readFile(new URL(p, import.meta.url), 'utf8');
 const gefen = '11111111-1111-4111-8111-111111111111';
 const authority = '22222222-2222-4222-8222-222222222222';
-const migration = '../supabase/migrations/20261115074632_finance_gefen_semimonthly_cutoff.sql';
+const migration = '../supabase/migrations/20261115080018_finance_gefen_semimonthly_cutoff.sql';
 async function at(value) { await db.query("select set_config('test.clock',$1,false)",[value]); }
 async function rows() { return (await db.query("select finance_billing_preview(array['a']) r")).rows[0].r; }
 const row = (rows, period, funder=gefen) => rows.find(r => r.period===period && r.fundingSourceId===funder);
