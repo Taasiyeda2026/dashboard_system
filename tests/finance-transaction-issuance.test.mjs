@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
 import { transactionAccountsViewHtml, FINANCE_TRANSACTION_SHAREPOINT_FOLDER_URL, transactionPreviewForVisit, transactionSelectionKey, runTransactionIssuance, transactionIssuanceResultMessage, transactionMonth, transactionBacklog } from '../frontend/src/screens/finance-transaction-issuance.js';
-import { financeCycleCutoff, financeToday } from '../frontend/src/screens/finance-transaction-accounts.js';
+import { financeCycleCutoff, financeGefenCycle, financeToday } from '../frontend/src/screens/finance-transaction-accounts.js';
 const row=(extra={})=>({activityRowId:'a',activityName:'קורס א',fundingSourceId:'g',funding:'גפ״ן',gefenFunding:true,
   period:'2026-10-01',customerName:'בית ספר א',institutionSymbol:'123',payerName:'בית ספר א',customerEmail:'school@example.test',
   plannedCount:4,completedCount:2,billedCount:0,unbilledCount:2,unbilledHours:3,unbilledSlots:[{slot:1,date:'2026-10-01'},{slot:2,date:'2026-10-02'}],
@@ -103,9 +103,9 @@ test('open accounts uses completion month and funder grouping; mixed shares rema
   const view=html(d);assert.match(view,/חודש ביצוע/);assert.match(view,/בית ספר א/);assert.doesNotMatch(view,/future/);
   assert.equal(transactionPreviewForVisit(d,'automatic').totals.amount,2500);
 });
-test('default is previous closed month; future month is rejected and blocked rows cannot issue',()=>{
-  assert.equal(transactionMonth({},'automatic'),financeCycleCutoff().slice(0,7));
-  assert.equal(transactionMonth({transactionMonths:{automatic:'2099-01'}},'automatic'),financeCycleCutoff().slice(0,7));
+test('default follows the funding cutoff; future month is rejected and blocked rows cannot issue',()=>{
+  assert.equal(transactionMonth({},'automatic'),financeGefenCycle().cutoff.slice(0,7));
+  assert.equal(transactionMonth({transactionMonths:{automatic:'2099-01'}},'automatic'),financeGefenCycle().cutoff.slice(0,7));
   assert.equal(transactionMonth({},'manual'),financeCycleCutoff().slice(0,7));
   const d=data([row({blockedReason:'חסרה חלוקת מימון תקינה',eligible:false})]);
   assert.equal(transactionPreviewForVisit(d).accounts.length,0);

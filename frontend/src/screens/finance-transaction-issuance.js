@@ -9,6 +9,7 @@ import {
   TRANSACTION_MEETING_HOURS,
   TRANSACTION_MODE_MANUAL,
   financeCycleCutoff,
+  financeGefenCycle,
   financeToday
 } from './finance-transaction-accounts.js';
 
@@ -37,13 +38,21 @@ export function transactionYearStart(data) {
   return `${year-1}-09`;
 }
 export function transactionMonth(data, mode, now = new Date()) {
-  const lastClosed=financeCycleCutoff(now).slice(0,7);
+  const lastClosed=transactionMaxMonth(data, mode, now);
   const month=data.transactionMonths?.[mode];
   return /^\d{4}-\d{2}$/.test(month||'') && month<=lastClosed && month>=transactionYearStart(data) ? month : lastClosed;
 }
+export function transactionGefenCycle(data, now = new Date()) {
+  // The loaded server preview is authoritative, including when a tab crosses a cycle boundary.
+  const row = data.transactionContext?.billingRows?.find(row => row.gefenFunding && row.billingCutoff && row.nextBillingUpdate);
+  return row ? { cutoff: row.billingCutoff, nextUpdate: row.nextBillingUpdate } : financeGefenCycle(now);
+}
+export function transactionMaxMonth(data, mode, now = new Date()) {
+  return (mode === TRANSACTION_MODE_AUTOMATIC ? transactionGefenCycle(data, now).cutoff : financeCycleCutoff(now)).slice(0,7);
+}
 function monthPicker(data, mode) {
   return `<label class="ds-fin-collect-search"><span>חודש ביצוע</span>
-    <input class="ds-input" type="month" data-finance-transaction-month="${mode}" value="${transactionMonth(data,mode)}" min="${transactionYearStart(data)}" max="${financeCycleCutoff().slice(0,7)}"></label>`;
+    <input class="ds-input" type="month" data-finance-transaction-month="${mode}" value="${transactionMonth(data,mode)}" min="${transactionYearStart(data)}" max="${transactionMaxMonth(data,mode)}"></label>`;
 }
 
 export const transactionSelectionKey = (row) => [row.activityRowId, row.fundingSourceId, row.period || 'completion'].join(':');
@@ -167,7 +176,7 @@ export function transactionPreviewForVisit(data, mode = TRANSACTION_MODE_AUTOMAT
       .map(email => email.trim()).filter(Boolean)
       .map(email => [email.toLowerCase(), email])).values()];
   }
-  return { mode, cutoff: mode === TRANSACTION_MODE_MANUAL ? financeToday() : financeCycleCutoff(), accounts: result,
+  return { mode, cutoff: mode === TRANSACTION_MODE_MANUAL ? financeToday() : transactionGefenCycle(data).cutoff, accounts: result,
     blocked: rows.filter((row) => row.blockedReason), deferred: rows.filter((row) => !row.eligible && !row.blockedReason),
     totals: { schools: new Set(result.map((row) => row.institutionSymbol)).size,
       activities: new Set(result.flatMap((account) => account.lines.map((line) => line.activityRowId))).size,
@@ -291,6 +300,7 @@ function billingView(data, mode) {
         <button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-transaction-preview="${mode}" data-finance-transaction-preview-key="${escapeHtml(accountPreviewKey(account))}">תצוגת PDF</button>
       </div></details>`).join('');
     return `<div class="ds-fin-gefen" dir="rtl">
+      ${mode === TRANSACTION_MODE_AUTOMATIC ? `<p data-finance-gefen-cycle>תאריך חתך נוכחי: <strong>${escapeHtml(formatDate(transactionGefenCycle(data).cutoff))}</strong> · העדכון הבא: <strong>${escapeHtml(formatDate(transactionGefenCycle(data).nextUpdate))}</strong> · המועדים לפי שעון ישראל</p>` : ''}
       ${monthPicker(data,mode)}
       ${preview.accounts.length ? summaryCards(preview) : ''}
       <section data-finance-gefen-current><h3>חשבונות החודש הנבחר</h3>

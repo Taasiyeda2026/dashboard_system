@@ -27,6 +27,18 @@ export function financeCycleCutoff(now = new Date()) {
   return previousDay.toISOString().slice(0, 10);
 }
 
+// Gefen opens on the 1st (previous month end) and the 15th (current month 14th).
+// Keep the monthly cutoff above for the other funding sources.
+export function financeGefenCycle(now = new Date()) {
+  const p = israelParts(now);
+  const midmonth = Number(p.day) >= 15;
+  const cutoff = midmonth ? `${p.year}-${p.month}-14` : financeCycleCutoff(now);
+  const nextUpdate = midmonth
+    ? new Date(Date.UTC(Number(p.year), Number(p.month), 1)).toISOString().slice(0, 10)
+    : `${p.year}-${p.month}-15`;
+  return { cutoff, nextUpdate };
+}
+
 export function financePaymentDueDate(issueDate = financeToday(), days = 30) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(text(issueDate));
   if (!match) return '';
