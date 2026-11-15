@@ -58,6 +58,19 @@ export function courseFormPricing(form,{fresh=false,applyDefault=false}={}) {
   const name=clean(form.querySelector('[name="activity_name"]')?.value);
   const originalName=clean(rate.dataset.originalName);
   const useOriginal=name===originalName;
+  const fromProposal=rate.dataset.rateSource==='proposal';
+  if(fromProposal && Number(rate.value)===Number(rate.dataset.originalRate) && Number(sessions.value)===Number(rate.dataset.originalSessions)) {
+    // The quotation is an agreed price snapshot, not a catalog suggestion.
+    // Its stored rate can be rounded or use a different hours count.
+    price.value=rate.dataset.originalPrice||'';
+    price.readOnly=true;
+    rate.setCustomValidity('');
+    const hours=host?.querySelector('[data-course-hours]');
+    if(hours) hours.textContent=rate.dataset.proposalHours||String(Number(sessions.value)*COURSE_MEETING_HOURS||'—');
+    return {active:true,valid:true,rate:rate.value,total:price.value===''?null:Number(price.value),hasGefen,preserved:true};
+  }
+  // Never replace a transferred quotation rate with a catalog default.
+  if(fromProposal) applyDefault=false;
   const suggested=hasGefen ? defaultGefenCourseRate({
     activity_no:form.querySelector('[name="activity_no"]')?.value,
     gefen_number:form.querySelector('[name="gefen_number"]')?.value,
@@ -95,5 +108,5 @@ export function bindCourseFormPricing(form,{fresh=false,signal}={}) {
     courseFormPricing(form,{fresh,applyDefault:true});
   },{signal});
   // An existing record must not change simply because its drawer is opened.
-  if(fresh) sync();
+  if(fresh || rate.dataset.rateSource==='proposal') sync();
 }
