@@ -4,7 +4,7 @@ import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import { monthDayCardsHtml } from './shared/day-session-cards.js';
 import { applyActivityDrawerLayoutPipeline } from '../activity-drawer-layout-pipeline.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
-import { formatDateHe } from './shared/format-date.js';
+import { formatDateHe, formatTimeRangeShort } from './shared/format-date.js';
 import { getHolidayLabel } from './shared/holidays.js';
 import {
   ensureActivityListFilters,
@@ -134,6 +134,27 @@ function dayNeedsAttention(items) {
   });
 }
 
+function mobileMonthSelectedDay(spec, state, hideSaturday, today = localYmd()) {
+  const ym = padDayKey(spec.y, spec.mo, 1).slice(0, 7);
+  const dim = daysInMonth1Based(spec.y, spec.mo);
+  const valid = date => typeof date === 'string' && date.startsWith(ym + '-') && /^\d{4}-\d{2}-\d{2}$/.test(date)
+    && Number(date.slice(-2)) >= 1 && Number(date.slice(-2)) <= dim
+    && (!hideSaturday || new Date(spec.y, spec.mo - 1, Number(date.slice(-2))).getDay() !== 6);
+  if (valid(state.mobileMonthSelectedDate)) return Number(state.mobileMonthSelectedDate.slice(-2));
+  if (valid(today)) return Number(today.slice(-2));
+  return hideSaturday && new Date(spec.y, spec.mo - 1, 1).getDay() === 6 ? 2 : 1;
+}
+
+function mobileMonthDayHtml(items, date) {
+  const count = items.length;
+  const cards = count ? monthDayCardsHtml(items, date, { subtitleText: item => {
+    const location = [item.school, item.authority].map(v => String(v || '').trim()).filter(v => v && !/^(?:—|-|לא משויך)$/.test(v)).join(' · ');
+    const hours = formatTimeRangeShort(item.start_time || item.StartTime, item.end_time || item.EndTime);
+    return [location, hours === '—' ? '' : hours].filter(Boolean).join(' · ');
+  } }) : '<p class="ds-muted">אין פעילויות ביום זה</p>';
+  return `<div class="mobile-month-day-content"><h2>פעילויות ליום ${escapeHtml(formatDateHe(date))}</h2><p class="mobile-month-day-count">${count} פעילויות</p>${cards}</div>`;
+}
+
 function activityDotsMeta(n) {
   if (n <= 0) return '';
   if (n <= 5) return '●'.repeat(n);
@@ -195,6 +216,7 @@ export const monthScreen = {
     const byDay = cellMapFromCells(safeCells);
     const todayIso = localYmd();
     const hideSaturday = !!data?.hide_saturday;
+    const selectedDay = mobileMonthSelectedDay(spec, state, hideSaturday, todayIso);
 
     const weekdayRow = HEBREW_WEEKDAY_SHORT.map(
       (label) => `<div class="ds-cal-wd" role="columnheader">${escapeHtml(label)}</div>`
@@ -253,7 +275,7 @@ export const monthScreen = {
         )
         .join(' ');
       slots.push(
-        `<div class="ds-cal-slot-hit" data-list-item data-search="${escapeHtml(hay)}" data-filter="">
+        `<div class="ds-cal-slot-hit" data-list-item data-search="${escapeHtml(hay)}" data-filter=""${dayNum === selectedDay ? ' data-mobile-month-selected="true"' : ''}>
         ${dsInteractiveCard({
           variant: 'day-cell',
           action: `monthcell|${dayNum}`,
@@ -285,6 +307,8 @@ export const monthScreen = {
         ? `<div class="ds-empty" role="status" dir="rtl"><p class="ds-empty__msg">לא נמצאו פעילויות התואמות לסינון</p></div>`
         : '';
 
+    const selectedCell = { ...(byDay[selectedDay] || { item_ids: [] }), date: padDayKey(y, mo, selectedDay) };
+    const selectedItems = applyLocalFilters(monthCellItems(selectedCell, itemsById), filterState, { filterFields: CALENDAR_FILTER_FIELDS });
     const viewSwitcher = renderActivitiesViewSwitcher(state, 'month');
     const html = dsScreenStack(`
       ${viewSwitcher}
@@ -296,10 +320,12 @@ export const monthScreen = {
       </nav>
       ${toolbarHtml}
       ${emptyNotice}
+      <p class="mobile-month-hint">לחצו על יום בלוח להצגת הפעילויות שלו</p>
       ${dsCard({
         body: gridHtml,
         padded: false
       })}
+      <section class="mobile-month-day" data-mobile-month-day aria-label="פעילויות ביום הנבחר">${mobileMonthDayHtml(selectedItems, selectedCell.date)}</section>
     `);
     return html;
   },
@@ -489,6 +515,8 @@ export const monthScreen = {
       rerender?.();
     });
 
+    const mobileDay = root.querySelector('[data-mobile-month-day]');
+    if (ui?.bindInteractiveCards && mobileDay?.firstElementChild) bindDayDrawer(mobileDay.firstElementChild);
     ui?.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('monthcell|')) return;
       const dayNum = action.split('|')[1];
@@ -507,6 +535,16 @@ export const monthScreen = {
       };
       const filterState = ensureActivityListFilters(state, MONTH_SCOPE);
       const cellItems = applyLocalFilters(monthCellItems(cell, itemsById), filterState, { filterFields: CALENDAR_FILTER_FIELDS });
+      if (root.ownerDocument.defaultView?.matchMedia?.('(max-width: 820px)')?.matches && mobileDay) {
+        const selectedDate = padDayKey(spec.y, spec.mo, d);
+        state.mobileMonthSelectedDate = selectedDate;
+        root.querySelectorAll('[data-mobile-month-selected]').forEach(slot => slot.removeAttribute('data-mobile-month-selected'));
+        root.querySelector(`[data-card-action="monthcell|${d}"]`)?.closest('.ds-cal-slot-hit')?.setAttribute('data-mobile-month-selected', 'true');
+        mobileDay.innerHTML = mobileMonthDayHtml(cellItems, selectedDate);
+        bindDayDrawer(mobileDay.firstElementChild);
+        mobileDay.scrollIntoView?.({ block: 'start', behavior: 'auto' });
+        return;
+      }
       if (!cellItems.length) return;
 
       ui.openDrawer({

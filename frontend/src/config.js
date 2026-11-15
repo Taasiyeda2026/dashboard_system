@@ -656,3 +656,5 @@ config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-personal-education-activities-
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-course-progress-label-20261115-v1`;
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-mobile-activity-card-fields-20261115-v1`;
+
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-mobile-calendar-columns-20261115-v1`;

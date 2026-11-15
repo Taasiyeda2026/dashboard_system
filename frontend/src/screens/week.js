@@ -3,7 +3,7 @@ import { dsScreenStack, dsInteractiveCard } from './shared/layout.js';
 import { activityWorkDrawerHtml } from './shared/activity-detail-html.js';
 import { applyActivityDrawerLayoutPipeline } from '../activity-drawer-layout-pipeline.js';
 import { bindActivityEditForm as bindActivityEditFormShared } from './shared/bind-activity-edit-form.js';
-import { formatDateHe } from './shared/format-date.js';
+import { formatDateHe, formatTimeRangeShort } from './shared/format-date.js';
 import { getHolidayLabel } from './shared/holidays.js';
 import {
   ensureActivityListFilters,
@@ -64,6 +64,12 @@ function localYmd() {
 function weekItemMeta(item) {
   const names = [item.instructor_name, item.instructor_name_2].filter((x) => x && String(x).trim()).join(' · ');
   return names || 'ללא מדריך';
+}
+
+function weekMobileDetails(item) {
+  const location = [item.school, item.authority].map(v => String(v || '').trim()).filter(v => v && !/^(?:—|-|לא משויך)$/.test(v)).join(' · ');
+  const hours = formatTimeRangeShort(item.start_time || item.StartTime, item.end_time || item.EndTime);
+  return [location, hours === '—' ? '' : hours].filter(Boolean).join(' · ');
 }
 
 function weekDrawerHtml(itemOrItems, date, hideEmpIds, hideRowId, hideActivityNo, canEdit, canDirectEdit, canRequestEdit, showPrivateNote, settings, instructorLimited = false, mode = 'single') {
@@ -171,7 +177,8 @@ function renderWeekGroup(group, date, dow) {
     variant: 'session',
     action: `weeksession|${encodeURIComponent(date)}|${encodeURIComponent(main.RowID)}`,
     title: main.activity_name || 'ללא שם',
-    meta: weekItemMeta(main)
+    meta: weekItemMeta(main),
+    mobileDetails: weekMobileDetails(main)
   });
 
   if (extras.length === 0) {
@@ -185,7 +192,8 @@ function renderWeekGroup(group, date, dow) {
         variant: 'session',
         action: `weeksession|${encodeURIComponent(date)}|${encodeURIComponent(item.RowID)}`,
         title: item.activity_name || 'ללא שם',
-        meta: weekItemMeta(item)
+        meta: weekItemMeta(item),
+        mobileDetails: weekMobileDetails(item)
       })
     )
     .join('');

@@ -4,7 +4,7 @@ const filterHandlers = new WeakMap();
 const COMPACT_NAV = '.shell-header-nav, .instructors-workspace-tabs, .ds-ops-mgmt-tabs, .ifb-tabs, [data-manager-workspace-tabs]';
 let expandedActivityCards = false;
 let selectedWeekDate = '';
-let fullWeek = false;
+let fullWeek = true;
 
 function rememberAttributes(element, names) {
   if (!ownedAttributes.has(element)) {
@@ -263,11 +263,18 @@ export function syncWeekDays(board) {
     controls = board.ownerDocument.createElement('nav');
     controls.dataset.mobileWeekControls = '1';
     controls.className = 'mobile-week-days';
-    controls.setAttribute('aria-label', 'בחירת יום או שבוע מלא');
+    controls.setAttribute('aria-label', 'בחירת זוג ימים או שבוע מלא');
     board.before(controls);
   }
-  const options = columns.map((col) => ({ key: col.getAttribute('aria-label'), label: `${col.querySelector('.ds-week-col__dow')?.textContent || ''} · ${col.querySelector('.ds-week-col__count')?.textContent || '0'}` }));
-  options.push({ key: 'all', label: 'שבוע מלא' });
+  const pairs = [];
+  for (let i = 0; i < columns.length; i += 2) {
+    const pair = columns.slice(i, i + 2);
+    const key = pair[0].getAttribute('aria-label');
+    const label = pair.map(col => col.querySelector('.ds-week-col__dow')?.textContent || '').join('–');
+    pairs.push({ key, label, dates: pair.map(col => col.getAttribute('aria-label')) });
+  }
+  const selectedPair = pairs.find(pair => pair.dates.includes(selectedWeekDate)) || pairs[0];
+  const options = [{ key: 'all', label: 'שבוע מלא' }, ...pairs];
   if (controls.childElementCount !== options.length) {
     controls.replaceChildren(...options.map(() => {
       const button = board.ownerDocument.createElement('button');
@@ -279,9 +286,9 @@ export function syncWeekDays(board) {
     const button = controls.children[index];
     setIfChanged(button, 'data-mobile-week-day', option.key);
     if (button.textContent !== option.label) button.textContent = option.label;
-    setIfChanged(button, 'aria-pressed', option.key === (fullWeek ? 'all' : selectedWeekDate));
+    setIfChanged(button, 'aria-pressed', option.key === (fullWeek ? 'all' : selectedPair.key));
   });
-  columns.forEach((col) => setIfChanged(col, 'data-mobile-week-hidden', !fullWeek && col.getAttribute('aria-label') !== selectedWeekDate));
+  columns.forEach((col) => setIfChanged(col, 'data-mobile-week-hidden', !fullWeek && !selectedPair.dates.includes(col.getAttribute('aria-label'))));
 }
 
 export function enhanceFeedbackTables(root) {
