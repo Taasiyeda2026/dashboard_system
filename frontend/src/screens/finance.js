@@ -1,4 +1,4 @@
-import { completionPayload, syncCompletionForm } from './finance-billing-completion.js';
+import { completionPayload, syncCompletionForm, syncCompletionSearch } from './finance-billing-completion.js';
 import {bindInvoiceRevisions} from './finance-invoice-revisions.js';
 import { hubIcon } from './shared/process-icons.js';
 import { consumeNotificationTarget } from '../notifications/target.js';
@@ -126,6 +126,7 @@ export function createFinanceVisitState(now = new Date()) {
     collectionError: '',
     collectionSaveState: {},
     transactionTab: 'automatic',
+    billingCompletionSearch: '',
     manualFunderFilter: '',
     manualSelectedActivityIds: [],
     manualActivityDrafts: {},
@@ -563,7 +564,7 @@ export const financeScreen = {
     if (typeof root._financeUnbind === 'function') root._financeUnbind();
 
     const target = consumeNotificationTarget(state, 'finance');
-    const refresh = () => { rerender?.(); syncManualPdfPreviewDom(root, visit); syncCompletionForm(root.querySelector('[data-finance-completion-form]')); };
+    const refresh = () => { rerender?.(); syncManualPdfPreviewDom(root, visit); syncCompletionForm(root.querySelector('[data-finance-completion-form]')); syncCompletionSearch(root, visit.billingCompletionSearch); };
     if (target && canOpenFinanceView(state?.user, 'attendance')) {
       visit.view = 'attendance'; visit.attendanceMonth = target.monthKey;
       visit.notificationEmployeeId = target.employeeId;
@@ -607,7 +608,7 @@ export const financeScreen = {
       if(completionOpen){
         if(visit.financeBusy||visit.transactionRunning||!visit.financeCanComplete)return;
         visit.financeBusy=true;
-        try{visit.billingCompletion=await api.financeBillingCompletionContext(completionOpen.dataset.financeCompleteOpen);visit.transactionActionMessage='';}
+        try{visit.billingCompletion=await api.financeBillingCompletionContext(completionOpen.dataset.financeCompleteOpen);if(visit.transactionTab!=='completion')visit.billingCompletionSearch='';visit.transactionTab='completion';visit.pendingTransactionApproval=null;visit.transactionActionMessage='';}
         catch(error){visit.transactionActionMessage=financeError(error);}
         finally{visit.financeBusy=false;refresh();root.querySelector('[data-finance-completion-editor]')?.scrollIntoView?.({block:'nearest'});}
         return;
@@ -754,6 +755,7 @@ export const financeScreen = {
       const transactionTab = ev.target.closest('[data-finance-transaction-tab]');
       if (transactionTab) {
         const nextTransactionTab = String(transactionTab.dataset.financeTransactionTab || 'automatic');
+        if(nextTransactionTab==='completion'&&!visit.financeCanComplete)return;
         if (nextTransactionTab === 'editable' && visit.transactionTab !== 'editable') {
           // A new manual issuing session starts without any preselected activity.
           // Keep the selected funding category but never carry stale invoice details.
@@ -1121,6 +1123,7 @@ export const financeScreen = {
     };
 
     const onInput = (ev) => {
+      if(ev.target.matches('[data-finance-completion-search]')){visit.billingCompletionSearch=ev.target.value||'';syncCompletionSearch(root,visit.billingCompletionSearch);return;}
       const completionForm=ev.target.closest('[data-finance-completion-form]');if(completionForm){syncCompletionForm(completionForm);return;}
       if (ev.target.matches('[data-finance-manual-search]')) {
         clearTimeout(root._financeManualSearchTimer);
@@ -1147,6 +1150,7 @@ export const financeScreen = {
     syncTransactionSelectionUi(root, visit);
     syncManualPdfPreviewDom(root, visit);
     syncCompletionForm(root.querySelector('[data-finance-completion-form]'));
+    syncCompletionSearch(root, visit.billingCompletionSearch);
     bindInvoiceRevisions({root,data:visit,api,refresh,reload:()=>ensureCollectionLoaded(visit,api,{force:true})});
     root.addEventListener('click', onClick);
     root.addEventListener('change', onChange);
