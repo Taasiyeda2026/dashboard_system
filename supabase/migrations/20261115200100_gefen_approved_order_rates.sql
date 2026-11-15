@@ -301,7 +301,7 @@ begin
       'billingCutoff',case when monthly then gefen_cutoff else today end,
       'nextBillingUpdate',case when monthly then case when extract(day from gefen_cutoff)=14 then (date_trunc('month',gefen_cutoff)+interval '1 month')::date else gefen_cutoff+15 end else null end,
       'financialAdjustment',adjustment,'fullFundingAmount',greatest(0,case when monthly and approved.hourly_rate is not null then least(f.amount,round(approved.hourly_rate*planned*1.5,2)) else f.amount end-billed),
-      'fullFundingBlockedReason',case when source_reason not in ('','חסרים מועדי מפגשים מתוכננים') then source_reason when billed>=f.amount then 'חלק המממן חויב במלואו' when cancelled_count>0 then 'קיימים מפגשים שבוטלו; יש לעדכן את מסגרת המימון' else '' end,
+      'fullFundingBlockedReason',case when source_reason not in ('','חסרים מועדי מפגשים מתוכננים') then source_reason when monthly and approved.hourly_rate is not null and round(approved.hourly_rate*planned*1.5,2)<f.amount then 'פער בין מסגרת גפ״ן לתעריף ושעות — אין להפיק חיוב מלא' when billed>=f.amount then 'חלק המממן חויב במלואו' when cancelled_count>0 then 'קיימים מפגשים שבוטלו; יש לעדכן את מסגרת המימון' else '' end,
       'manualMonth',coalesce(completion_month,date_trunc('month',today)::date),
       'institutionSymbol',case when monthly and approved.hourly_rate is not null then approved.order_school_symbol::text else (select s.semel_mosad::text from public.schools s where s.id=p_activity.school_id) end,
       'authorityId',case when authority_funding then p_activity.authority_id else null end,
