@@ -30,6 +30,11 @@ test('inactive instructors never enter the scheduling candidate pool', () => {
 test('management users appear only in manual course instructor choices', () => {
   const contacts = [
     { emp_id: 1507, full_name: 'מדריך רגיל', active: 'yes' },
+    { emp_id: 1547, full_name: 'מדריך לא פעיל', active: 'no' },
+    { emp_id: 1548, full_name: 'מדריכה לא פעילה', active: false },
+    { emp_id: 1549, full_name: 'מדריך ללא סטטוס', active: null },
+    // Existing management employee's old instructor contact is inactive,
+    // yet they remain selectable when their management user is active.
     { emp_id: 1500, full_name: 'הילה רוזן', active: 'no' }
   ];
   const managers = [
@@ -47,6 +52,22 @@ test('management users appear only in manual course instructor choices', () => {
   assert.equal(options.find(x => x.emp_id === 1500).isManagementEmployee, true);
   assert.equal(options.find(x => x.emp_id === 1500).active, 'yes');
   assert.equal(options.find(x => x.emp_id === 5000).isManagementEmployee, true);
-  assert.equal(options.some(x => [6000, 3000, 3030, 8000, 7000, 4444].includes(x.emp_id)), false);
+  assert.equal(options.some(x => [1547, 1548, 1549, 6000, 3000, 3030, 8000, 7000, 4444].includes(x.emp_id)), false);
+  assert.deepEqual(options.map(x => x.emp_id).sort((a,b) => a-b), [1500, 1507, 5000]);
   assert.deepEqual(activeSchedulingInstructors(contacts).map(x => x.emp_id), [1507]);
+});
+
+test('manual instructor choices require an active instructor contact unless approved manager user exists', () => {
+  const options = manualCourseInstructorOptions([
+    { emp_id: 10, full_name: 'פעיל', active: 'yes' },
+    { emp_id: 11, full_name: 'לא פעיל', active: 'no' },
+    { emp_id: 12, full_name: 'חסר סטטוס' },
+    { emp_id: 13, full_name: 'פעיל בוליאני', active: true },
+    { emp_id: 1500, full_name: 'הילה רוזן', active: 'no' }
+  ], [
+    { emp_id: 1500, full_name: 'הילה רוזן', role: 'activities_manager', is_active: true },
+    { emp_id: 5000, full_name: 'גיל נאמן', role: 'activities_manager', is_active: false }
+  ]);
+  assert.deepEqual(options.map(row => row.emp_id).sort((a,b) => a-b), [10, 13, 1500]);
+  assert.equal(options.find(row => row.emp_id === 1500).isManagementEmployee, true);
 });
