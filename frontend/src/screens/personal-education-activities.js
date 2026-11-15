@@ -62,28 +62,28 @@ export function filterEducationActivities(rows, filters = {}) {
 }
 
 function fields(label, value) {
-  return value ? `<div><small>${{esc(label)}</small><span>${{esc(value)}</span></div>` : '';
+  return value ? `<div><small>${esc(label)}</small><span>${esc(value)}</span></div>` : '';
 }
 
 function card(row) {
   const location = [row.school,row.authority,row.group].filter(Boolean).join(' · ');
   const staff = [fields('מדריך/ה', row.instructors.join(' · ')),fields('מנהל פעילות',row.manager)].join('');
   const pct = row.total ? Math.min(100, Math.max(0, Math.round(row.elapsed/row.total*100))) : 0;
-  const progress = row.total ? `<div class="edu-progress"><div><small>התקדמות לפי לוח</small><strong><bdi>${{row.elapsed}/${{row.total}</bdi></strong></div><div class="edu-track" role="progressbar" aria-label="התקדמות לפי לוח" aria-valuenow="${{pct}" aria-valuemin="0" aria-valuemax="100"><span style="width:${{pct}%"></span></div></div>` : '';
+  const progress = row.total ? `<div class="edu-progress"><div><small>התקדמות לפי לוח</small><strong><bdi>${row.elapsed}/${row.total}</bdi></strong></div><div class="edu-track" role="progressbar" aria-label="התקדמות לפי לוח" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pct}%"></span></div></div>` : '';
   const dates = [fields('התחלה', row.start ? formatDateHe(row.start) : ''), fields('סיום', row.end ? formatDateHe(row.end) : ''), row.next && row.next !== row.start ? fields('מפגש הבא',formatDateHe(row.next)) : ''].join('');
   return `<article class="edu-card">
-    <header><h3>${{esc(row.name)}</h3>${{row.status ? `<span class="edu-status">${{esc(row.status)}</span>` : ''}</header>
-    ${{location ? `<p class="edu-location">${{esc(location)}</p>` : ''}
-    ${{staff ? `<div class="edu-fields">${{staff}</div>` : ''}
-    ${{progress}
-    ${{dates ? `<div class="edu-fields edu-dates">${{dates}</div>` : ''}
-    ${{row.type || row.hours || row.dates ? `<details class="edu-details"><summary>פרטי פעילות</summary>${{row.type ? fields('סוג פעילות',row.type) : ''}${{fields('שעות',row.hours)}${{row.dates ? `<p><small>תאריכי מפגשים</small><span>${{esc(row.dates)}</span></p>` : ''}</details>` : ''}
+    <header><h3>${esc(row.name)}</h3>${row.status ? `<span class="edu-status">${esc(row.status)}</span>` : ''}</header>
+    ${location ? `<p class="edu-location">${esc(location)}</p>` : ''}
+    ${staff ? `<div class="edu-fields">${staff}</div>` : ''}
+    ${progress}
+    ${dates ? `<div class="edu-fields edu-dates">${dates}</div>` : ''}
+    ${row.type || row.hours || row.dates ? `<details class="edu-details"><summary>פרטי פעילות</summary>${row.type ? fields('סוג פעילות',row.type) : ''}${fields('שעות',row.hours)}${row.dates ? `<p><small>תאריכי מפגשים</small><span>${esc(row.dates)}</span></p>` : ''}</details>` : ''}
   </article>`;
 }
 
 export function educationListHtml(rows, group = 'all') {
   if (!rows.length) return '<p class="edu-empty" role="status">לא נמצאו פעילויות בהתאם לסינון.</p>';
-  if (group === 'all') return `<div class="edu-grid">${{rows.map(card).join('')}</div>`;
+  if (group === 'all') return `<div class="edu-grid">${rows.map(card).join('')}</div>`;
   const groups = new Map();
   for (const row of rows) {
     // Team teaching: place the activity once, under the displayed team name.
@@ -91,11 +91,11 @@ export function educationListHtml(rows, group = 'all') {
     if (!groups.has(key)) groups.set(key,[]);
     groups.get(key).push(row);
   }
-  return [...groups.entries()].sort(([a],[b])=>cmp(a,b)).map(([label,items])=>`<section class="edu-group"><h2>${{esc(label)} <span>${{items.length}</span></h2><div class="edu-grid">${{items.map(card).join('')}</div></section>`).join('');
+  return [...groups.entries()].sort(([a],[b])=>cmp(a,b)).map(([label,items])=>`<section class="edu-group"><h2>${esc(label)} <span>${items.length}</span></h2><div class="edu-grid">${items.map(card).join('')}</div></section>`).join('');
 }
 
 function options(label, key, values) {
-  return `<label><span>${{esc(label)}</span><select data-edu-filter="${{key}"><option value="">הכל</option>${{unique(values).map(value=>`<option value="${{esc(value)}">${{esc(value)}</option>`).join('')}</select></label>`;
+  return `<label><span>${esc(label)}</span><select data-edu-filter="${key}"><option value="">הכל</option>${unique(values).map(value=>`<option value="${esc(value)}">${esc(value)}</option>`).join('')}</select></label>`;
 }
 
 function renderEducation(data, user, routes) {
@@ -104,14 +104,14 @@ function renderEducation(data, user, routes) {
   const allowed = new Set(routes || []);
   return `<section class="edu-screen" dir="rtl" aria-label="מבט חינוכי – פעילויות תשפ״ז">
     <header class="edu-head"><div><h1>פעילויות תשפ״ז</h1><p>תמונת מצב חינוכית</p></div><div class="edu-nav">
-      ${{allowed.has('dashboard') ? '<button type="button" data-route="dashboard">לדשבורד הרגיל</button>' : ''}
-      ${{allowed.has('activities') ? '<button type="button" data-route="activities">ניהול פעילויות</button>' : ''}
+      ${allowed.has('dashboard') ? '<button type="button" data-route="dashboard">לדשבורד הרגיל</button>' : ''}
+      ${allowed.has('activities') ? '<button type="button" data-route="activities">ניהול פעילויות</button>' : ''}
       <button type="button" data-edu-logout>יציאה</button>
     </div></header>
     <div class="edu-stats">
-      <div><strong>${{rows.length}</strong><span>כל הפעילויות</span></div>
-      <div><strong>${{unique(rows.map(row=>row.name)).length}</strong><span>תוכניות</span></div>
-      <div><strong>${{unique(rows.flatMap(row=>row.instructors)).length}</strong><span>מדריכים ברשימה</span></div>
+      <div><strong>${rows.length}</strong><span>כל הפעילויות</span></div>
+      <div><strong>${unique(rows.map(row=>row.name)).length}</strong><span>תוכניות</span></div>
+      <div><strong>${unique(rows.flatMap(row=>row.instructors)).length}</strong><span>מדריכים ברשימה</span></div>
     </div>
     <div class="edu-tools">
       <label class="edu-search"><span>חיפוש</span><input type="search" data-edu-query placeholder="תוכנית, מוסד, רשות או מדריך"></label>
@@ -121,15 +121,15 @@ function renderEducation(data, user, routes) {
         <button type="button" data-edu-group="instructor" aria-pressed="false">לפי מדריך</button>
       </div>
       <details class="edu-filters"><summary>סינון</summary><div>
-        ${{options('תוכנית','program',rows.map(row=>row.name))}
-        ${{options('מדריך','instructor',rows.flatMap(row=>row.instructors))}
-        ${{options('מנהל פעילות','manager',rows.map(row=>row.manager))}
-        ${{options('סטטוס','status',rows.map(row=>row.status))}
+        ${options('תוכנית','program',rows.map(row=>row.name))}
+        ${options('מדריך','instructor',rows.flatMap(row=>row.instructors))}
+        ${options('מנהל פעילות','manager',rows.map(row=>row.manager))}
+        ${options('סטטוס','status',rows.map(row=>row.status))}
         <button type="button" data-edu-reset>ניקוי סינון</button>
       </div></details>
     </div>
-    <p class="edu-result" data-edu-count aria-live="polite">${{rows.length} פעילויות</p>
-    <div data-edu-list>${{educationListHtml(rows)}</div>
+    <p class="edu-result" data-edu-count aria-live="polite">${rows.length} פעילויות</p>
+    <div data-edu-list>${educationListHtml(rows)}</div>
   </section>`;
 }
 
@@ -151,7 +151,7 @@ export const personalEducationActivitiesScreen = {
     let group = 'all';
     const refresh = () => {
       const filtered = filterEducationActivities(rows, filters);
-      screen.querySelector('[data-edu-count]').textContent = `${{filtered.length} פעילויות`;
+      screen.querySelector('[data-edu-count]').textContent = `${filtered.length} פעילויות`;
       screen.querySelector('[data-edu-list]').innerHTML = educationListHtml(filtered, group);
     };
     screen.querySelector('[data-edu-query]').addEventListener('input',event=>{filters.q=event.target.value;refresh();});
