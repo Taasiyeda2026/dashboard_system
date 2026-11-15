@@ -761,7 +761,7 @@ export function bindActivityEditForm(contentRoot, {
         setStatus(statusEl,'is-error','יש להזין תעריף שעתי תקין; המחיר הכולל חייב להיות בשקלים שלמים');
         return;
       }
-      if (pricing.rate && (pricing.rate!==String(initialValues.course_hourly_rate||'') || String(sessionField?.value)!==String(initialValues.sessions||'') || String(pricing.total)!==String(initialValues.price||''))) {
+      if (!pricing.preserved && pricing.rate && (pricing.rate!==String(initialValues.course_hourly_rate||'') || String(sessionField?.value)!==String(initialValues.sessions||'') || String(pricing.total)!==String(initialValues.price||''))) {
         changes.course_hourly_rate=pricing.rate;
         changes.sessions=String(sessionField.value);
         changes.price=String(pricing.total);
