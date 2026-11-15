@@ -25,5 +25,7 @@ test('personal view filters existing projections and groups without duplicates o
   assert.equal((html.match(/class="edu-card"/g)||[]).length,2);
   assert.doesNotMatch(html,/SECRET|אישור ביצוע|תיאום|נוכחות|חריגות/);
   assert.match(html,/4\/10/);
+  assert.match(html,/התקדמות הקורס/);
+  assert.doesNotMatch(html,/התקדמות לפי לוח/);
   assert.match(educationListHtml([{...rows[0],name:'<script>test</script>'}]),/&lt;script&gt;/);
 });

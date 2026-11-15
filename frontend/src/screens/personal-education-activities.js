@@ -68,7 +68,7 @@ function card(row) {
   const location = [row.school,row.authority,row.group].filter(Boolean).join(' · ');
   const staff = [fields('מדריך/ה', row.instructors.join(' · ')),fields('מנהל פעילות',row.manager)].join('');
   const pct = row.total ? Math.min(100, Math.max(0, Math.round(row.elapsed/row.total*100))) : 0;
-  const progress = row.total ? `<div class="edu-progress"><div><small>התקדמות לפי לוח</small><strong><bdi>${row.elapsed}/${row.total}</bdi></strong></div><div class="edu-track" role="progressbar" aria-label="התקדמות לפי לוח" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pct}%"></span></div></div>` : '';
+  const progress = row.total ? `<div class="edu-progress"><div><small>התקדמות הקורס</small><strong><bdi>${row.elapsed}/${row.total}</bdi></strong></div><div class="edu-track" role="progressbar" aria-label="התקדמות הקורס" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pct}%"></span></div></div>` : '';
   const schedule = new Map();
   for (const [label, value] of [['התחלה',row.start],['מפגש הבא',row.next],['סיום',row.end]]) {
     if (value) schedule.set(value, schedule.has(value) ? schedule.get(value) + ' / ' + label : label);
