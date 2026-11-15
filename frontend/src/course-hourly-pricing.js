@@ -7,9 +7,11 @@ export function isGefenFundingName(value) {
 }
 export function defaultGefenCourseRate({activity_no,gefen_number,activity_name,program_name,catalog_slug} = {}) {
   const code = clean(gefen_number) || clean(activity_no);
-  if (code !== '52279') return RATES[code] ?? null;
   const name = clean(activity_name);
   const program = clean(program_name);
+  // Existing finance order matching treats catalog 3604 as Gefen order 52279.
+  if (code === '3604' && (name === 'פורצות דרך' || program === 'פורצות דרך')) return 575;
+  if (code !== '52279') return RATES[code] ?? null;
   if (/פורצות דרך/.test(name) || /פורצות דרך/.test(program) || clean(catalog_slug) === '3604') return 575;
   if (/יזמות.*תעשיי[הת]|יזמות.*בתעשייה/.test(name) || /יזמות.*תעשיי[הת]|יזמות.*בתעשייה/.test(program)) return 640;
   // The catalog identifies this exact short label as industry entrepreneurship.
