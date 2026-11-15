@@ -126,7 +126,7 @@ export function syncCompactNavigation(nav) {
         shortcut.className = 'mobile-primary-activities';
         shortcut.dataset.mobilePrimaryActivities = '1';
         shortcut.textContent = 'פעילויות';
-        shortcut.addEventListener('click', () => nav.querySelector('[data-route="activities"]')?.click());
+        shortcut.addEventListener('click', () => shortcut.parentElement?.querySelector('.shell-header-nav [data-route="activities"]')?.click());
         toggle.before(shortcut);
       }
       const active = original.classList.contains('is-active');
