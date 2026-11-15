@@ -55,3 +55,16 @@ test('editor opens in the selected list row without repeating the list',()=>{
   assert.equal((html.match(/data-finance-completion-form /g)||[]).length,1);
   assert.match(html,/data-finance-complete-save/);
 });
+
+test('approved order rate is independent of the course contract and other payers',()=>{
+  const a={row_id:'approved',activity_type:'course',activity_name:'פורצות דרך',funding:'גפן',sessions:14,price:10500,course_hourly_rate:null};
+  const gefen={activityRowId:'approved',gefenFunding:true,fundingSourceId:'g',approvedGefenRate:500,fundingAmount:10500,plannedHours:21,eligible:true};
+  const view={financeCanComplete:true,collectionActivities:[a],transactionContext:{billingRows:[gefen]}};
+  assert.deepEqual(financeIncompleteBillingActivities(view,'editable'),[]);
+  assert.deepEqual(financeBillingMissingReasons(a,[gefen]),[]);
+  const gap={...gefen,fundingAmount:12000};
+  assert.match(financeBillingCompletionHtml({...view,transactionContext:{billingRows:[gap]}}),/פער בין מסגרת גפ״ן/);
+  const other={activityRowId:'approved',gefenFunding:false,fundingSourceId:'r',blockedReason:'חסר מחיר שעתי'};
+  assert.deepEqual(financeIncompleteBillingActivities({...view,transactionContext:{billingRows:[gefen,other]}},'automatic'),[]);
+  assert.deepEqual(financeIncompleteBillingActivities({...view,transactionContext:{billingRows:[gefen,other]}},'editable').map(x=>x.row_id),['approved']);
+});
