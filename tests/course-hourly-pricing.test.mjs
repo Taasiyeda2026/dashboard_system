@@ -8,6 +8,7 @@ test('approved catalog defaults and distinct Ofek identities',()=>{
   assert.equal(defaultGefenCourseRate({activity_no:'52279'}),null);
   assert.equal(defaultGefenCourseRate({activity_no:'52279',activity_name:'אופק פרימיום',program_name:'בינה מלאכותית'}),null);
   assert.equal(defaultGefenCourseRate({activity_no:'3604'}),null);
+  assert.equal(defaultGefenCourseRate({activity_no:'3604',activity_name:'פורצות דרך'}),575);
 });
 test('funding detection is independent from catalog/order presence',()=>{
   assert.equal(isGefenFundingName('גפ״ן'),true);
