@@ -704,7 +704,7 @@ function blockExtraEditInfo(row, { settings = {} } = {}) {
           <div data-course-pricing>
             ${fieldEditOnly('מחיר לשעה (₪)',inputHtml({name:'course_hourly_rate',value:row.course_hourly_rate,type:'number',attrs:`min="0.01" step="any" data-rate-source="${escapeHtml(String(row.course_hourly_rate_source||''))}" data-original-rate="${escapeHtml(String(row.course_hourly_rate??''))}" data-original-sessions="${escapeHtml(String(row.sessions??''))}" data-original-price="${escapeHtml(String(row.price??''))}" data-proposal-hours="${escapeHtml(String(row.course_proposal_hours??''))}" data-original-name="${escapeHtml(String(row.activity_name||''))}" data-program-name="${escapeHtml(String(row.program_name||''))}" data-catalog-slug="${escapeHtml(String(row.catalog_slug||''))}"`}))}
             <small>סה״כ שעות: <span data-course-hours>${escapeHtml(String(Number(row.sessions)>0?Number(row.sessions)*1.5:'—'))}</span></small>
-            ${row.course_hourly_rate_source==='proposal' ? '<small>תעריף שהועבר מהצעת המחיר</small>' : '<button type="button" class="ds-btn ds-btn--sm" data-use-course-rate>השלמת תעריף</button>'}
+            ${['proposal','finance_contract'].includes(row.course_hourly_rate_source) ? '<small>תעריף ומחיר מוסכמים שמורים</small>' : '<button type="button" class="ds-btn ds-btn--sm" data-use-course-rate>השלמת תעריף</button>'}
           </div></div>` : ''}
         <div data-mode="edit" hidden>${fieldEditOnly('מחיר', inputHtml({ name: 'price', value: row.price }))}</div>
       </div>
