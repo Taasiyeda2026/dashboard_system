@@ -699,6 +699,13 @@ function blockExtraEditInfo(row, { settings = {} } = {}) {
           <input type="checkbox" name="exists_in_gefen" data-gefen-exists-checkbox value="true"${row.exists_in_gefen === true ? ' checked' : ''} disabled>
           <span>מופיע בגפ״ן</span>
         </label>
+        ${normalizeActivityTypeKey(row.activity_type || row.item_type)==='course' ? `<div data-mode="edit" hidden>
+          ${fieldEditOnly('מספר מפגשים',inputHtml({name:'sessions',value:row.sessions,type:'number',attrs:'min="1" max="35" step="1"'}))}
+          <div data-course-pricing>
+            ${fieldEditOnly('מחיר לשעה (₪)',inputHtml({name:'course_hourly_rate',value:row.course_hourly_rate,type:'number',attrs:`min="0.01" step="any" data-original-name="${escapeHtml(String(row.activity_name||''))}" data-program-name="${escapeHtml(String(row.program_name||''))}" data-catalog-slug="${escapeHtml(String(row.catalog_slug||''))}"`}))}
+            <small>סה״כ שעות: <span data-course-hours>${escapeHtml(String(Number(row.sessions)>0?Number(row.sessions)*1.5:'—'))}</span></small>
+            <button type="button" class="ds-btn ds-btn--sm" data-use-course-rate>השלמת תעריף</button>
+          </div></div>` : ''}
         <div data-mode="edit" hidden>${fieldEditOnly('מחיר', inputHtml({ name: 'price', value: row.price }))}</div>
       </div>
     </section>
@@ -1383,7 +1390,7 @@ function singleForm(row, { settings = {}, privateNote = null, canEdit = false, c
     : '';
   const { management: managementSnapshot, ...sourceRow } = row;
   const exportRow = instructorLimited
-    ? Object.fromEntries(Object.entries(sourceRow).filter(([key]) => !['price', 'funding', 'funding_sources', 'instructor_name', 'instructor_name_2', 'instructor', 'instructor_2'].includes(key)))
+    ? Object.fromEntries(Object.entries(sourceRow).filter(([key]) => !['price', 'course_hourly_rate', 'funding', 'funding_sources', 'instructor_name', 'instructor_name_2', 'instructor', 'instructor_2'].includes(key)))
     : sourceRow;
   return `
     <form class="activity-drawer__form" data-drawer-form data-editing="no"
