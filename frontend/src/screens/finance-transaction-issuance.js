@@ -1,3 +1,4 @@
+import { financeBillingCompletionHtml } from './finance-billing-completion.js';
 import {invoiceRevisionEditorHtml,invoiceRevisionAdminHtml} from './finance-invoice-revisions.js';
 import '../finance-transaction-page-data-hotfix.js';
 import { manualAccountViewHtml, manualPdfReviewHtml, syncManualPdfPreviewDom, activateManualPdfPreview } from './finance-manual-account.js';
@@ -408,6 +409,7 @@ export function transactionAccountsViewHtml(data, backBarHtml) {
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3.5 6.75A1.75 1.75 0 0 1 5.25 5h4.1c.46 0 .9.18 1.22.5l1.18 1.18c.33.33.77.52 1.24.52h5.76a1.75 1.75 0 0 1 1.75 1.75v7.8a2.25 2.25 0 0 1-2.25 2.25H5.75a2.25 2.25 0 0 1-2.25-2.25v-10Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M3.75 10h16.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         </a>
       </div>
+      ${tab !== 'history' ? financeBillingCompletionHtml(data,tab) : ''}
       ${body}
       ${transactionApprovalDialogHtml(data)}
     </div>
