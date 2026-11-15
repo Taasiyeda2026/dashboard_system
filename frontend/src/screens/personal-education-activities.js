@@ -12,7 +12,6 @@ const clean = value => {
 };
 const normalize = value => String(value ?? '').trim().toLocaleLowerCase('he');
 const cmp = (a,b) => a.localeCompare(b, 'he', { numeric: true });
-const date = value => value ? escapeHtml(formatDateHe(value)) : '';
 const esc = value => escapeHtml(String(value ?? ''));
 const unique = values => [...new Set(values.filter(Boolean))].sort(cmp);
 
@@ -70,7 +69,11 @@ function card(row) {
   const staff = [fields('מדריך/ה', row.instructors.join(' · ')),fields('מנהל פעילות',row.manager)].join('');
   const pct = row.total ? Math.min(100, Math.max(0, Math.round(row.elapsed/row.total*100))) : 0;
   const progress = row.total ? `<div class="edu-progress"><div><small>התקדמות לפי לוח</small><strong><bdi>${row.elapsed}/${row.total}</bdi></strong></div><div class="edu-track" role="progressbar" aria-label="התקדמות לפי לוח" aria-valuenow="${pct}" aria-valuemin="0" aria-valuemax="100"><span style="width:${pct}%"></span></div></div>` : '';
-  const dates = [fields('התחלה', row.start ? formatDateHe(row.start) : ''), fields('סיום', row.end ? formatDateHe(row.end) : ''), row.next && row.next !== row.start ? fields('מפגש הבא',formatDateHe(row.next)) : ''].join('');
+  const schedule = new Map();
+  for (const [label, value] of [['התחלה',row.start],['מפגש הבא',row.next],['סיום',row.end]]) {
+    if (value) schedule.set(value, schedule.has(value) ? schedule.get(value) + ' / ' + label : label);
+  }
+  const dates = [...schedule].map(([value,label])=>fields(label,formatDateHe(value))).join('');
   return `<article class="edu-card">
     <header><h3>${esc(row.name)}</h3>${row.status ? `<span class="edu-status">${esc(row.status)}</span>` : ''}</header>
     ${location ? `<p class="edu-location">${esc(location)}</p>` : ''}
@@ -136,7 +139,7 @@ function renderEducation(data, user, routes) {
 export const personalEducationActivitiesScreen = {
   async load({api,state}) {
     if (!isPersonalEducationViewer(state?.user)) return {rows:[]};
-    const result = await api.activities({activity_type:'all',include_inactive:true});
+    const result = await api.activities({activity_type:'all',include_inactive:true,activity_period:ACTIVITY_SEASON_SCHOOL_2027});
     return { rows: projectEducationActivities(result?.rows,state.user) };
   },
   render(data,{state}) {

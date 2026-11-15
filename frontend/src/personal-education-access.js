@@ -22,7 +22,9 @@ export function isPersonalEducationViewer(user = {}) {
 }
 
 export function withPersonalEducationRoute(routes = [], user = {}) {
-  const current = (Array.isArray(routes) ? routes : []).filter(route => route !== PERSONAL_EDUCATION_ROUTE);
-  if (current.includes('activities') && isPersonalEducationViewer(user)) return [PERSONAL_EDUCATION_ROUTE, ...current];
-  return current;
+  const current = Array.isArray(routes) ? routes : [];
+  const eligible = current.includes('activities') && isPersonalEducationViewer(user);
+  if (!eligible && !current.includes(PERSONAL_EDUCATION_ROUTE)) return current;
+  const regular = current.filter(route => route !== PERSONAL_EDUCATION_ROUTE);
+  return eligible ? [PERSONAL_EDUCATION_ROUTE, ...regular] : regular;
 }
