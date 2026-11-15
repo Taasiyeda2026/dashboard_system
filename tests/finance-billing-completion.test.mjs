@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { financeIncompleteBillingActivities, financeBillingCompletionHtml } from '../frontend/src/screens/finance-billing-completion.js';
+import { financeIncompleteBillingActivities, financeBillingCompletionHtml, financeBillingMissingReasons } from '../frontend/src/screens/finance-billing-completion.js';
 const rows=[
   {row_id:'a',activity_type:'course',activity_name:'ביומימיקרי',funding:'גפן',price:9000,sessions:10,course_hourly_rate:null},
   {row_id:'b',activity_type:'course',activity_name:'קורס אחר',funding:'רשות',price:9000,sessions:10,course_hourly_rate:null},
@@ -23,7 +23,7 @@ test('missing billing fields stay visible in the relevant tab, independent of el
 test('completion can be opened directly without granting view-only users write access',()=>{
   const html=financeBillingCompletionHtml(data,'automatic');
   assert.match(html,/data-finance-complete-open="a"/);
-  assert.match(html,/חסר מחיר שעתי/);
+  assert.match(html,/מחיר שעתי/);
   assert.equal(financeBillingCompletionHtml({...data,financeCanComplete:false},'automatic'),'');
 });
 test('quoted price is preserved, catalog default applies only to Gefen funding',()=>{
@@ -35,4 +35,23 @@ test('quoted price is preserved, catalog default applies only to Gefen funding',
   assert.match(catalog,/name="rate" type="number" value="600"/);
   const nonGefen=financeBillingCompletionHtml({...data,billingCompletion:{...editor,proposal_rate:null,allocations:[{id:'r',name:'רשות',amount:9000}]}},'manual');
   assert.match(nonGefen,/name="rate" type="number" value=""/);
+});
+test('completion list uses one row per activity with existing values and separate missing fields',()=>{
+  const html=financeBillingCompletionHtml(data);
+  assert.equal((html.match(/data-finance-completion-row /g)||[]).length,4);
+  assert.match(html,/מה חסר \/ נדרש בירור/);
+  assert.match(html,/מחיר לשעה/);
+  assert.match(html,/data-finance-completion-search/);
+  assert.match(html,/9,000/);
+  assert.doesNotMatch(html,/data-finance-complete-open="c"/);
+  assert.deepEqual(financeBillingMissingReasons(rows[0],data.transactionContext.billingRows),['מחיר שעתי']);
+  assert.deepEqual(financeBillingMissingReasons({...rows[0],sessions:null,price:null},data.transactionContext.billingRows),['מחיר שעתי','מספר מפגשים','מחיר כולל']);
+});
+test('editor opens in the selected list row without repeating the list',()=>{
+  const editor={...rows[0],name:rows[0].activity_name,rate:600,allocations:[],funding_options:[]};
+  const html=financeBillingCompletionHtml({...data,billingCompletion:editor});
+  assert.match(html,/data-finance-completion-inline/);
+  assert.match(html,/data-completion-selected="true"/);
+  assert.equal((html.match(/data-finance-completion-form /g)||[]).length,1);
+  assert.match(html,/data-finance-complete-save/);
 });

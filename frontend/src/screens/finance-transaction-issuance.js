@@ -386,11 +386,11 @@ function transactionApprovalDialogHtml(data) {
 export const FINANCE_TRANSACTION_SHAREPOINT_FOLDER_URL = 'https://think365orgil.sharepoint.com/Site9/Shared%20Documents/%D7%A2%D7%99%D7%93%D7%9F%20-%20%D7%98%D7%95%D7%A0%D7%99/%D7%97%D7%A9%D7%91%D7%95%D7%A0%D7%95%D7%AA%20%D7%A2%D7%A1%D7%A7%D7%94%20-%20%D7%AA%D7%A9%D7%A4%D7%96';
 
 export function transactionAccountsViewHtml(data, backBarHtml) {
-  const tab = ['manual', 'history', 'editable'].includes(data.transactionTab) ? data.transactionTab : 'automatic';
+  const tab = data.transactionTab === 'completion' && data.financeCanComplete ? 'completion' : ['manual', 'history', 'editable'].includes(data.transactionTab) ? data.transactionTab : 'automatic';
   const action = data.transactionActionMessage
     ? `<div class="ds-empty-state" style="margin-bottom:12px">${escapeHtml(data.transactionActionMessage)}</div>`
     : '';
-  const body = data.collectionError ? dsEmptyState(data.collectionError) : tab === 'history' ? historyView(data) : tab === 'editable' ? manualAccountViewHtml(data) : billingView(data, tab);
+  const body = data.collectionError ? dsEmptyState(data.collectionError) : tab === 'history' ? historyView(data) : tab === 'editable' ? manualAccountViewHtml(data) : tab === 'completion' ? financeBillingCompletionHtml(data, 'editable') : billingView(data, tab);
   return dsScreenStack(`
     ${backBarHtml('חשבונות עסקה')}
     <div class="ds-fin-collect-shell" dir="rtl">
@@ -399,6 +399,7 @@ export function transactionAccountsViewHtml(data, backBarHtml) {
         <div class="ds-fin-tabs" role="tablist">
           <button type="button" class="ds-fin-tab${tab === 'automatic' ? ' is-active' : ''}" data-finance-transaction-tab="automatic">הפקה אוטומטית · גפ״ן</button>
           <button type="button" class="ds-fin-tab${tab === 'manual' ? ' is-active' : ''}" data-finance-transaction-tab="manual">הפקה לפי מממן</button>
+${data.financeCanComplete ? `          <button type="button" class="ds-fin-tab${tab === 'completion' ? ' is-active' : ''}" data-finance-transaction-tab="completion">השלמת פרטים</button>` : ''}
           <button type="button" class="ds-fin-tab${tab === 'history' ? ' is-active' : ''}" data-finance-transaction-tab="history">היסטוריה</button>
           <button type="button" class="ds-fin-tab${tab === 'editable' ? ' is-active' : ''}" data-finance-transaction-tab="editable">הפקה עם עריכה</button>
         </div>
@@ -409,7 +410,6 @@ export function transactionAccountsViewHtml(data, backBarHtml) {
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3.5 6.75A1.75 1.75 0 0 1 5.25 5h4.1c.46 0 .9.18 1.22.5l1.18 1.18c.33.33.77.52 1.24.52h5.76a1.75 1.75 0 0 1 1.75 1.75v7.8a2.25 2.25 0 0 1-2.25 2.25H5.75a2.25 2.25 0 0 1-2.25-2.25v-10Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M3.75 10h16.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         </a>
       </div>
-      ${tab !== 'history' ? financeBillingCompletionHtml(data,tab) : ''}
       ${body}
       ${transactionApprovalDialogHtml(data)}
     </div>
