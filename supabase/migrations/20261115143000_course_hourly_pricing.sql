@@ -869,7 +869,7 @@ begin
   select * into v_row from public.activities where id = v_row.id;
   return jsonb_build_object('row', to_jsonb(v_row));
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.save_israa_activity_draft(p_tracking_id uuid, p_proposal_item_id uuid, p_draft jsonb)
  RETURNS jsonb
@@ -981,7 +981,7 @@ begin
 
   return v_draft;
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.save_israa_activity_group_draft(p_tracking_id uuid, p_proposal_item_id uuid, p_group_number integer, p_draft jsonb)
  RETURNS jsonb
@@ -1083,7 +1083,7 @@ begin
 
   return v_updated_draft;
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.share_israa_activity(p_tracking_id uuid, p_proposal_item_id uuid)
  RETURNS jsonb
@@ -1256,7 +1256,7 @@ begin
 
   return jsonb_build_object('activities', v_rows, 'created_count', v_quantity);
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.share_israa_activity_group(p_tracking_id uuid, p_proposal_item_id uuid, p_group_number integer)
  RETURNS jsonb
@@ -1429,7 +1429,7 @@ begin
     'group_number', p_group_number
   );
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.update_israa_manual_activity(p_row_id text, p_changes jsonb)
  RETURNS jsonb
@@ -1509,7 +1509,7 @@ begin
 
   return jsonb_build_object('row', to_jsonb(v_row));
 end;
-$function$
+$function$;
 
 CREATE OR REPLACE FUNCTION public.update_israa_shared_activity(p_row_id text, p_changes jsonb)
  RETURNS jsonb
@@ -1555,5 +1555,5 @@ begin
   where row_id = p_row_id returning * into v_row;
   return to_jsonb(v_row);
 end;
-$function$
+$function$;
 commit;
