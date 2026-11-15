@@ -1,3 +1,4 @@
+import { completionPayload, syncCompletionForm } from './finance-billing-completion.js';
 import {bindInvoiceRevisions} from './finance-invoice-revisions.js';
 import { hubIcon } from './shared/process-icons.js';
 import { consumeNotificationTarget } from '../notifications/target.js';
@@ -96,7 +97,7 @@ const FINANCE_COLLECTION_MEETING_DATE_COLUMNS = Array.from({ length: 35 }, (_, i
 export const FINANCE_COLLECTION_ACTIVITY_COLUMNS = [
   'id', 'row_id', 'activity_name', 'activity_type', 'authority', 'school',
   'school_id', 'authority_id', 'funding', 'price', 'status', 'activity_season', 'activity_no', 'sessions',
-  'contact_email', 'end_time', 'start_date', 'end_date', ...FINANCE_COLLECTION_MEETING_DATE_COLUMNS
+  'contact_email', 'end_time', 'start_date', 'end_date', 'course_hourly_rate', ...FINANCE_COLLECTION_MEETING_DATE_COLUMNS
 ].join(',');
 
 function permissionYes(value) {
@@ -546,6 +547,7 @@ export const financeScreen = {
       return dsScreenStack(`${dsPageHeader('כספים', 'גישה מוגבלת')} ${dsEmptyState('אין הרשאה לצפייה בעמוד כספים.')}`);
     }
     data.financeAdmin = state?.user?.role === 'admin';
+    data.financeCanComplete = data.financeAdmin || hasPermission(state?.user,'manage_finance_transactions');
     data.financeAuthUserId = state?.user?.auth_user_id || '';
     const requestedView = data?.view || 'hub';
     const view = canOpenFinanceView(state?.user, requestedView) ? requestedView : 'hub';
@@ -561,7 +563,7 @@ export const financeScreen = {
     if (typeof root._financeUnbind === 'function') root._financeUnbind();
 
     const target = consumeNotificationTarget(state, 'finance');
-    const refresh = () => { rerender?.(); syncManualPdfPreviewDom(root, visit); };
+    const refresh = () => { rerender?.(); syncManualPdfPreviewDom(root, visit); syncCompletionForm(root.querySelector('[data-finance-completion-form]')); };
     if (target && canOpenFinanceView(state?.user, 'attendance')) {
       visit.view = 'attendance'; visit.attendanceMonth = target.monthKey;
       visit.notificationEmployeeId = target.employeeId;
@@ -601,6 +603,30 @@ export const financeScreen = {
       }
     };
     const onClick = async (ev) => {
+      const completionOpen=ev.target.closest('[data-finance-complete-open]');
+      if(completionOpen){
+        if(visit.financeBusy||visit.transactionRunning||!visit.financeCanComplete)return;
+        visit.financeBusy=true;
+        try{visit.billingCompletion=await api.financeBillingCompletionContext(completionOpen.dataset.financeCompleteOpen);visit.transactionActionMessage='';}
+        catch(error){visit.transactionActionMessage=financeError(error);}
+        finally{visit.financeBusy=false;refresh();root.querySelector('[data-finance-completion-editor]')?.scrollIntoView?.({block:'nearest'});}
+        return;
+      }
+      if(ev.target.closest('[data-finance-complete-cancel]')){visit.billingCompletion=null;refresh();return;}
+      if(ev.target.closest('[data-finance-completion-calculate]')){syncCompletionForm(ev.target.closest('form'),true);return;}
+      const completionSave=ev.target.closest('[data-finance-complete-save]');
+      if(completionSave){
+        if(visit.financeBusy||visit.transactionRunning||!visit.financeCanComplete||!visit.billingCompletion)return;
+        const form=completionSave.closest('form');if(!form.reportValidity())return;
+        const editor=visit.billingCompletion,payload=completionPayload(form,editor);
+        const sum=payload.allocations.reduce((n,f)=>n+Number(f.amount||0),0);
+        if(!payload.allocations.length||payload.allocations.some(f=>!(Number(f.amount)>0))||Math.abs(sum-Number(payload.price))>0.001){visit.transactionActionMessage='יש להשלים סכומי מימון חיוביים שסכומם שווה למחיר הכולל.';const alertEl=root.querySelector('[data-finance-completion-editor]');if(alertEl){let msg=alertEl.querySelector('[data-completion-error]');if(!msg){msg=document.createElement('p');msg.dataset.completionError='';msg.setAttribute('role','alert');alertEl.append(msg);}msg.textContent=visit.transactionActionMessage;}return;}
+        visit.financeBusy=true;completionSave.disabled=true;
+        try{await api.financeCompleteBillingData(editor.row_id,payload);visit.billingCompletion=null;visit.manualQuote=null;visit.manualBatchPreviews=null;visit.manualConsolidatedPreview=null;visit.transactionIssuancePreview=null;visit.transactionManualSelected={};visit.pendingTransactionApproval=null;await ensureCollectionLoaded(visit,api,{force:true});visit.transactionActionMessage='נתוני הפעילות נשמרו והזכאות חושבה מחדש.';refresh();}
+        catch(error){const msg=document.createElement('p');msg.setAttribute('role','alert');msg.textContent=financeError(error);form.append(msg);}
+        finally{visit.financeBusy=false;completionSave.disabled=false;}
+        return;
+      }
       if (ev.target.closest('[data-finance-microsoft-connect]')) {
         try {
           const { delegatedMailToken } = await import('../microsoft/graph-mail.js');
@@ -745,6 +771,7 @@ export const financeScreen = {
           visit.manualScope = 'full';
         }
         visit.pendingTransactionApproval = null;
+        visit.billingCompletion = null;
         visit.transactionTab = nextTransactionTab;
         if (visit.transactionTab === 'automatic' || visit.transactionTab === 'manual') {
           visit.transactionMonths = { ...visit.transactionMonths, [visit.transactionTab]: transactionMaxMonth(visit, visit.transactionTab) };
@@ -932,6 +959,7 @@ export const financeScreen = {
     };
 
     const onChange = async (ev) => {
+      const completionForm=ev.target.closest('[data-finance-completion-form]');if(completionForm){syncCompletionForm(completionForm);return;}
       const fundingCategory = ev.target.closest('[data-finance-manual-funding-category]');
       if (fundingCategory) {
         // Switching routes resets the payer and any edited draft from another payer.
@@ -1093,6 +1121,7 @@ export const financeScreen = {
     };
 
     const onInput = (ev) => {
+      const completionForm=ev.target.closest('[data-finance-completion-form]');if(completionForm){syncCompletionForm(completionForm);return;}
       if (ev.target.matches('[data-finance-manual-search]')) {
         clearTimeout(root._financeManualSearchTimer);
         const searchValue = ev.target.value;
@@ -1117,6 +1146,7 @@ export const financeScreen = {
 
     syncTransactionSelectionUi(root, visit);
     syncManualPdfPreviewDom(root, visit);
+    syncCompletionForm(root.querySelector('[data-finance-completion-form]'));
     bindInvoiceRevisions({root,data:visit,api,refresh,reload:()=>ensureCollectionLoaded(visit,api,{force:true})});
     root.addEventListener('click', onClick);
     root.addEventListener('change', onChange);
