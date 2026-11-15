@@ -231,8 +231,8 @@ function billingLineHtml(line, data, mode) {
       <div>${slots.map(slot => `<div>${serviceActivity(line) ? 'מועד פעילות' : `מפגש ${escapeHtml(slot.slot)}`} · ${escapeHtml(formatDate(slot.date))}${serviceActivity(line) ? '' : ` · ${compactNumber(slot.remainingHours ?? TRANSACTION_MEETING_HOURS)} שעות`}</div>`).join('')}</div>
     </details>` : '';
   return `<tr>
-    <td><strong>${escapeHtml(line.activityName || line.activityRowId)}</strong>${line.gefenFunding ? `<small class="ds-fin-transaction-program" style="display:block;color:var(--ds-text-muted,#64748b)">מספר גפ״ן: ${escapeHtml(displayGefenProgramNumber(line))}</small>` : ''}${internalBillingBasis}${school}${meetingDetails}</td>
-    <td>${escapeHtml(formatAmount(line.activityPrice ?? line.fundingAmount))}</td>
+    <td><strong>${escapeHtml(line.activityName || line.activityRowId)}</strong>${line.gefenFunding ? `<small class="ds-fin-transaction-program" style="display:block;color:var(--ds-text-muted,#64748b)">מספר גפ״ן: ${escapeHtml(displayGefenProgramNumber(line))}</small>` : ''}${internalBillingBasis}${school}${meetingDetails}${data.financeCanComplete?`<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-complete-open="${escapeHtml(line.activityRowId)}">עריכת נתוני חיוב</button>`:''}</td>
+    <td>${escapeHtml(formatAmount(line.activityPrice ?? line.fundingAmount))}${!serviceActivity(line)&&Number(line.hourlyRate)>0?`<small style="display:block;color:var(--ds-text-muted,#64748b)">${escapeHtml(formatAmount(line.hourlyRate))} לשעה</small>`:''}</td>
     <td>${escapeHtml(activityMeetings(line))}</td>
     <td>${escapeHtml(activityHours(line))}</td>
     <td><strong>${escapeHtml(formatAmount(line.issuableAmount))}</strong></td>
@@ -287,7 +287,7 @@ function billingView(data, mode) {
   const blockedHtml = blocked.length ? `<details class="ds-fin-payer" data-finance-blocked-rows>
     <summary>${mode === TRANSACTION_MODE_AUTOMATIC ? '<span class="ds-fin-gefen-arrow" aria-hidden="true">▸</span>' : ''}<span>פעילויות חסומות להפקה (${blocked.length})</span></summary>
     ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>מוסד</th><th>פעילות</th><th>סיבת החסימה</th></tr></thead>
-    <tbody>${blocked.map(row=>`<tr><td>${escapeHtml(row.customerName || row.payerName || '—')}</td><td>${escapeHtml(row.activityName || row.activityRowId || '—')}</td><td>${escapeHtml(String(row.blockedReason).replace(/^billing_blocked:/,''))}</td></tr>`).join('')}</tbody></table>`)}
+    <tbody>${blocked.map(row=>`<tr><td>${escapeHtml(row.customerName || row.payerName || '—')}</td><td>${escapeHtml(row.activityName || row.activityRowId || '—')}</td><td>${escapeHtml(String(row.blockedReason).replace(/^billing_blocked:/,''))}${data.financeCanComplete?` <button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-complete-open="${escapeHtml(row.activityRowId)}">השלמת נתונים</button>`:''}</td></tr>`).join('')}</tbody></table>`)}
   </details>` : '';
   {
     const selectedMonth = transactionMonth(data, mode);
