@@ -2208,9 +2208,10 @@
 /* Restore pre-mobile drawer presentation on desktop, without changing data or mobile. */
 .activity-mobile-progress-title, .activity-mobile-progress-suffix { display: none; }
 @media (width > 820px) {
-  #app [data-drawer-form] [data-management-panel],
-  #app [data-dates-section] [data-dates-management-summary] { display: none !important; }
-  #app .activity-drawer__date-chip[data-desktop-date-done] {
+  /* Shared interaction host is mounted directly under body, outside #app. */
+  [data-drawer-form] [data-management-panel],
+  [data-drawer-form] [data-dates-management-summary] { display: none !important; }
+  [data-drawer-form] .activity-drawer__date-chip[data-desktop-date-done] {
     background: #f0fdf4 !important;
     border-color: #86efac !important;
     color: #15803d !important;
