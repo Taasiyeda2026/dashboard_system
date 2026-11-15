@@ -1,3 +1,4 @@
+import { financeBillingCompletionHtml } from './finance-billing-completion.js';
 import {invoiceRevisionEditorHtml,invoiceRevisionAdminHtml} from './finance-invoice-revisions.js';
 import '../finance-transaction-page-data-hotfix.js';
 import { manualAccountViewHtml, manualPdfReviewHtml, syncManualPdfPreviewDom, activateManualPdfPreview } from './finance-manual-account.js';
@@ -230,8 +231,8 @@ function billingLineHtml(line, data, mode) {
       <div>${slots.map(slot => `<div>${serviceActivity(line) ? 'מועד פעילות' : `מפגש ${escapeHtml(slot.slot)}`} · ${escapeHtml(formatDate(slot.date))}${serviceActivity(line) ? '' : ` · ${compactNumber(slot.remainingHours ?? TRANSACTION_MEETING_HOURS)} שעות`}</div>`).join('')}</div>
     </details>` : '';
   return `<tr>
-    <td><strong>${escapeHtml(line.activityName || line.activityRowId)}</strong>${line.gefenFunding ? `<small class="ds-fin-transaction-program" style="display:block;color:var(--ds-text-muted,#64748b)">מספר גפ״ן: ${escapeHtml(displayGefenProgramNumber(line))}</small>` : ''}${internalBillingBasis}${school}${meetingDetails}</td>
-    <td>${escapeHtml(formatAmount(line.activityPrice ?? line.fundingAmount))}</td>
+    <td><strong>${escapeHtml(line.activityName || line.activityRowId)}</strong>${line.gefenFunding ? `<small class="ds-fin-transaction-program" style="display:block;color:var(--ds-text-muted,#64748b)">מספר גפ״ן: ${escapeHtml(displayGefenProgramNumber(line))}</small>` : ''}${internalBillingBasis}${school}${meetingDetails}${data.financeCanComplete?`<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-complete-open="${escapeHtml(line.activityRowId)}">עריכת נתוני חיוב</button>`:''}</td>
+    <td>${escapeHtml(formatAmount(line.activityPrice ?? line.fundingAmount))}${!serviceActivity(line)&&Number(line.hourlyRate)>0?`<small style="display:block;color:var(--ds-text-muted,#64748b)">${escapeHtml(formatAmount(line.hourlyRate))} לשעה</small>`:''}</td>
     <td>${escapeHtml(activityMeetings(line))}</td>
     <td>${escapeHtml(activityHours(line))}</td>
     <td><strong>${escapeHtml(formatAmount(line.issuableAmount))}</strong></td>
@@ -286,7 +287,7 @@ function billingView(data, mode) {
   const blockedHtml = blocked.length ? `<details class="ds-fin-payer" data-finance-blocked-rows>
     <summary>${mode === TRANSACTION_MODE_AUTOMATIC ? '<span class="ds-fin-gefen-arrow" aria-hidden="true">▸</span>' : ''}<span>פעילויות חסומות להפקה (${blocked.length})</span></summary>
     ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>מוסד</th><th>פעילות</th><th>סיבת החסימה</th></tr></thead>
-    <tbody>${blocked.map(row=>`<tr><td>${escapeHtml(row.customerName || row.payerName || '—')}</td><td>${escapeHtml(row.activityName || row.activityRowId || '—')}</td><td>${escapeHtml(String(row.blockedReason).replace(/^billing_blocked:/,''))}</td></tr>`).join('')}</tbody></table>`)}
+    <tbody>${blocked.map(row=>`<tr><td>${escapeHtml(row.customerName || row.payerName || '—')}</td><td>${escapeHtml(row.activityName || row.activityRowId || '—')}</td><td>${escapeHtml(String(row.blockedReason).replace(/^billing_blocked:/,''))}${data.financeCanComplete?` <button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-complete-open="${escapeHtml(row.activityRowId)}">השלמת נתונים</button>`:''}</td></tr>`).join('')}</tbody></table>`)}
   </details>` : '';
   {
     const selectedMonth = transactionMonth(data, mode);
@@ -408,6 +409,7 @@ export function transactionAccountsViewHtml(data, backBarHtml) {
           <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false"><path d="M3.5 6.75A1.75 1.75 0 0 1 5.25 5h4.1c.46 0 .9.18 1.22.5l1.18 1.18c.33.33.77.52 1.24.52h5.76a1.75 1.75 0 0 1 1.75 1.75v7.8a2.25 2.25 0 0 1-2.25 2.25H5.75a2.25 2.25 0 0 1-2.25-2.25v-10Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M3.75 10h16.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
         </a>
       </div>
+      ${tab !== 'history' ? financeBillingCompletionHtml(data,tab) : ''}
       ${body}
       ${transactionApprovalDialogHtml(data)}
     </div>

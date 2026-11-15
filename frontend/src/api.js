@@ -7254,6 +7254,18 @@ export const api = {
     if (failed) throw new Error(failed.error.message || 'finance_transaction_context_failed');
     return { cancelled: cancelled.data || [], accounts: accounts.data || [], schools: schools.data || [] };
   },
+  financeBillingCompletionContext: async (activityId) => {
+    assertPermission('manage_finance_transactions','finance_transactions_forbidden');
+    const {data,error}=await supabase.rpc('finance_billing_completion_context',{p_activity_id:String(activityId)});
+    if(error)throw new Error(error.message||'finance_billing_completion_failed');
+    return data;
+  },
+  financeCompleteBillingData: async (activityId,payload) => {
+    assertPermission('manage_finance_transactions','finance_transactions_forbidden');
+    const {data,error}=await supabase.rpc('finance_complete_billing_data',{p_activity_id:String(activityId),p_data:payload});
+    if(error)throw new Error(error.message||'finance_billing_completion_failed');
+    return data;
+  },
   financeBillingPreview: async (activityIds = []) => {
     assertAnyPermission(['view_finance_collection', 'manage_finance_transactions'], 'finance_tools_forbidden');
     const rows = [];

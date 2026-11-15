@@ -58,7 +58,7 @@ export function courseFormPricing(form,{fresh=false,applyDefault=false}={}) {
   const name=clean(form.querySelector('[name="activity_name"]')?.value);
   const originalName=clean(rate.dataset.originalName);
   const useOriginal=name===originalName;
-  const fromProposal=rate.dataset.rateSource==='proposal';
+  const fromProposal=['proposal','finance_contract'].includes(rate.dataset.rateSource);
   if(fromProposal && Number(rate.value)===Number(rate.dataset.originalRate) && Number(sessions.value)===Number(rate.dataset.originalSessions)) {
     // The quotation is an agreed price snapshot, not a catalog suggestion.
     // Its stored rate can be rounded or use a different hours count.

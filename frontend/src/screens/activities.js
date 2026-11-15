@@ -3475,7 +3475,7 @@ export const activitiesScreen = {
         return;
       }
       const coursePricing = courseFormPricing(form,{fresh:true});
-      if (coursePricing.active && (!coursePricing.valid || !coursePricing.rate)) {
+      if (coursePricing.active && !coursePricing.valid) {
         setAddActivityStatus(statusEl, 'יש להזין תעריף שעתי ומספר מפגשים תקינים לקורס', {isError:true});
         resetAddActivitySavingState(form, submitBtn);
         return;
@@ -3508,7 +3508,7 @@ export const activitiesScreen = {
         activity_no: String(hit?.activity_no || get('activity_no') || ''),
         sessions: isOneDay ? '1' : sessionsValue,
         price: get('price'),
-        ...(coursePricing.active ? { course_hourly_rate: coursePricing.rate } : {}),
+        ...(coursePricing.active && coursePricing.rate ? { course_hourly_rate: coursePricing.rate } : {}),
         funding_sources: Array.from(form.querySelectorAll('[data-funding-source-id]:checked')).map((checkbox) => ({ funding_source_id: checkbox.dataset.fundingSourceId, amount: checkbox.closest('label')?.querySelector('[data-funding-amount]')?.value || null })),
         exists_in_gefen: activityCreateGefenValue(form),
         start_time: get('start_time'),
@@ -3518,8 +3518,8 @@ export const activitiesScreen = {
         status: get('status') || 'פתוח',
         notes: get('notes')
       };
-      if (coursePricing.active && payload.funding_sources.length===1) payload.funding_sources[0].amount=coursePricing.total;
-      if (coursePricing.active && payload.funding_sources.length>1 && Math.round(payload.funding_sources.reduce((sum,row)=>sum+Number(row.amount||0),0)*100)!==Math.round(coursePricing.total*100)) {
+      if (coursePricing.active && coursePricing.rate && payload.funding_sources.length===1) payload.funding_sources[0].amount=coursePricing.total;
+      if (coursePricing.active && coursePricing.rate && payload.funding_sources.length>1 && Math.round(payload.funding_sources.reduce((sum,row)=>sum+Number(row.amount||0),0)*100)!==Math.round(coursePricing.total*100)) {
         setAddActivityStatus(statusEl,'סכומי גורמי המימון חייבים להיות שווים למחיר הקורס',{isError:true});
         resetAddActivitySavingState(form,submitBtn);
         return;
