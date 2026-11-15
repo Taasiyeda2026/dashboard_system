@@ -110,7 +110,7 @@ begin
     sessions=case when a.activity_type='course' then n::text else a.sessions end,
     course_hourly_rate=case when a.activity_type='course' then rate_value else null end,
     course_hourly_rate_source=case when a.activity_type='course' then 'finance_contract' else null end,
-    funding=funding_text,is_gefen_funded=has_gefen,
+    funding=case when has_prior then a.funding else funding_text end,is_gefen_funded=case when has_prior then a.is_gefen_funded else has_gefen end,
     school_id=coalesce(a.school_id,school_row.id),
     school=case when a.school_id is null and school_row.id is not null then school_row.school_name else a.school end,
     authority_id=coalesce(a.authority_id,school_row.authority_id),
@@ -386,5 +386,34 @@ begin
   end loop;
   return result;
 end $function$;
+
+-- Complete known rates only where the existing price and every funding allocation stay unchanged.
+with candidate as (
+  select a.id,a.row_id,a.price,a.sessions,
+    case when q.hourly_price>0 then q.hourly_price
+      when coalesce(nullif(a.gefen_number,''),a.activity_no)='6089' then 600
+      when coalesce(nullif(a.gefen_number,''),a.activity_no)='57651' then 630
+      when coalesce(nullif(a.gefen_number,''),a.activity_no)='9545' then 640
+      when coalesce(nullif(a.gefen_number,''),a.activity_no)='53819' then 630
+      when coalesce(nullif(a.gefen_number,''),a.activity_no)='27342' then 550
+      when coalesce(nullif(a.gefen_number,''),a.activity_no)='57646' then 640
+      when coalesce(nullif(a.gefen_number,''),a.activity_no)='67867' then 640
+      when coalesce(nullif(a.gefen_number,''),a.activity_no)='3604' and (a.activity_name='פורצות דרך' or a.program_name='פורצות דרך') then 575
+      when coalesce(nullif(a.gefen_number,''),a.activity_no)='52279' and (coalesce(a.activity_name,'') like '%פורצות דרך%' or coalesce(a.program_name,'') like '%פורצות דרך%' or a.catalog_slug='3604') then 575
+      when coalesce(nullif(a.gefen_number,''),a.activity_no)='52279' and (coalesce(a.activity_name,'') ~ 'יזמות.*תעשיי[הת]|יזמות.*בתעשייה' or coalesce(a.program_name,'') ~ 'יזמות.*תעשיי[הת]|יזמות.*בתעשייה' or (a.activity_name='אופק פרימיום' and coalesce(a.program_name,'') in ('','אופק פרימיום') and coalesce(a.catalog_slug,'')='')) then 640
+    end as rate
+  from public.activities a left join public.proposal_agreement_items q on q.id=coalesce(a.proposal_item_id,a.israa_source_item_id)
+  where a.activity_season='school_2027' and a.activity_type='course' and a.course_hourly_rate is null and a.price>0
+    and coalesce(a.sessions,'') ~ '^[1-9][0-9]?$'
+    and exists(select 1 from finance_private.resolved_funding_rows(a) f where public.finance_is_gefen_funding(f.name))
+    and (select coalesce(sum(f.amount),0) from finance_private.resolved_funding_rows(a) f)=a.price
+    and not exists(select 1 from finance_private.resolved_funding_rows(a) f where f.funding_source_id is null or f.amount is null or f.amount<=0)
+    and not exists(select 1 from public.finance_transaction_account_lines l join public.finance_transaction_accounts h on h.id=l.account_id where l.activity_row_id=a.row_id and h.document_status<>'cancelled')
+), safe as (
+  select c.id,c.rate from candidate c where c.rate>0 and c.sessions::int between 1 and 35
+  and abs(c.rate*c.sessions::int*1.5-c.price)<=0.01
+  and not exists(select 1 from finance_private.gefen_order_billing_matches m where m.activity_row_id=c.row_id and m.order_hourly_rate is distinct from c.rate)
+)
+update public.activities a set course_hourly_rate=safe.rate,course_hourly_rate_source='finance_contract' from safe where a.id=safe.id;
 
 commit;
