@@ -36,3 +36,62 @@ export function gefenSlotGross(rate, cap, ordinal) {
   const cumulative=i=>Math.round(Math.min(c,r*COURSE_MEETING_HOURS*i)*100)/100;
   return Math.round((cumulative(n)-cumulative(n-1))*100)/100;
 }
+
+export function courseFundingHasGefen(form) {
+  const select=form.querySelector('select[name="funding_sources"]');
+  if (select) return [...select.selectedOptions].some(o=>isGefenFundingName(o.textContent));
+  return [...form.querySelectorAll('[data-funding-source-id]:checked')].some(o=>isGefenFundingName(o.dataset.fundingName));
+}
+export function courseFormPricing(form,{fresh=false,applyDefault=false}={}) {
+  const rate=form.querySelector('[name="course_hourly_rate"]');
+  const price=form.querySelector('[name="price"]');
+  const sessions=form.querySelector('[name="sessions"]');
+  const type=clean(form.querySelector('[name="activity_type"]')?.value);
+  if (!rate||!price||!sessions) return {active:false,valid:true};
+  const active=type==='course'||type==='קורס';
+  const host=rate.closest('[data-course-pricing]');
+  if(host) host.hidden=!active;
+  if(!active) {price.readOnly=false;return {active:false,valid:true};}
+  const hasGefen=courseFundingHasGefen(form);
+  const name=clean(form.querySelector('[name="activity_name"]')?.value);
+  const originalName=clean(rate.dataset.originalName);
+  const useOriginal=name===originalName;
+  const suggested=hasGefen ? defaultGefenCourseRate({
+    activity_no:form.querySelector('[name="activity_no"]')?.value,
+    gefen_number:form.querySelector('[name="gefen_number"]')?.value,
+    activity_name:name,
+    program_name:useOriginal?rate.dataset.programName:undefined,
+    catalog_slug:useOriginal?rate.dataset.catalogSlug:undefined
+  }) : null;
+  if(applyDefault||(fresh&&(!rate.value||rate.dataset.autoRate==='yes'))) {
+    if(suggested!=null) {rate.value=String(suggested);rate.dataset.autoRate='yes';}
+    else if(rate.dataset.autoRate==='yes') {rate.value='';price.value='';delete rate.dataset.autoRate;}
+    else if(applyDefault&&!hasGefen) {
+      const agreed=agreedCourseRate(price.value,sessions.value);
+      if(agreed!=null) rate.value=String(agreed);
+    }
+  }
+  const hours=host?.querySelector('[data-course-hours]');
+  if(hours) hours.textContent=Number(sessions.value)>0?String(Number(sessions.value)*COURSE_MEETING_HOURS):'—';
+  const total=rate.value?coursePriceFromRate(rate.value,sessions.value):null;
+  const valid=!rate.value||total!==null;
+  rate.setCustomValidity(valid?'':'יש להזין מחיר ומספר מפגשים תקינים; המחיר הכולל חייב להיות בשקלים שלמים');
+  price.readOnly=Boolean(rate.value);
+  if(total!==null) price.value=String(total);
+  return {active,valid,rate:rate.value,total,hasGefen,suggested};
+}
+export function bindCourseFormPricing(form,{fresh=false,signal}={}) {
+  const rate=form.querySelector('[name="course_hourly_rate"]');
+  if(!rate||rate.dataset.hourlyBound==='yes') return;
+  rate.dataset.hourlyBound='yes';
+  const sync=()=>courseFormPricing(form,{fresh});
+  for(const event of ['input','change']) form.addEventListener(event,e=>{
+    if(e.target===rate) delete rate.dataset.autoRate;
+    if(e.target.matches?.('[name="course_hourly_rate"],[name="sessions"],[name="activity_type"],[name="activity_name"],[name="funding_sources"],[data-funding-source-id]')) sync();
+  },{signal});
+  form.querySelector('[data-use-course-rate]')?.addEventListener('click',()=>{
+    courseFormPricing(form,{fresh,applyDefault:true});
+  },{signal});
+  // An existing record must not change simply because its drawer is opened.
+  if(fresh) sync();
+}
