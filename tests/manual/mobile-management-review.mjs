@@ -23,6 +23,7 @@ for(const width of [320,375,390,430,1440]) {
   }
   if(screen === 'month') {
     assert.equal(await page.locator('[data-mobile-month-day]').isVisible(),width<=820);
+    assert.equal(await page.locator('[data-mobile-month-day] [data-card-action^="monthsession|"]').count(),1);
   }
   if(screen === 'activities') {
     const row = page.locator('.ds-activities-row[data-row-id="synthetic-mobile-review"]');

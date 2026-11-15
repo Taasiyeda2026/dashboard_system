@@ -2286,8 +2286,7 @@
   #app .route-week .ds-week-group__badge::after { content: attr(data-group-count) " פעילויות למדריך ▾"; font-size: .69rem; line-height: 1.2; }
   #app .route-week .ds-week-group__badge[aria-expanded="true"]::after { content: "סגירה ▴"; }
   #app .route-week .ds-week-group__extra { padding-inline-start: 3px; margin-inline-start: 0; }
-  #app .route-week .mobile-week-days { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 4px; margin: 3px 0; }
-  #app .route-week .mobile-week-days button:first-child { grid-column: 1/-1; }
+  #app .route-week .mobile-week-days { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 4px; margin: 3px 0; }
   #app .route-week .mobile-week-days button { padding: 4px; font-size: .75rem; min-width: 0; }
   #app .route-month .mobile-month-hint { display: block; color: #526378; font-size: .78rem; margin: 0; text-align: center; }
   #app .route-month .ds-cal-grid [data-mobile-month-selected] .ds-interactive-card--day-cell { outline: 2px solid #087e98; outline-offset: -2px; background: #d6f0f4; }

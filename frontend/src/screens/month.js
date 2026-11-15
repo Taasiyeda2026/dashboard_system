@@ -307,7 +307,7 @@ export const monthScreen = {
         ? `<div class="ds-empty" role="status" dir="rtl"><p class="ds-empty__msg">לא נמצאו פעילויות התואמות לסינון</p></div>`
         : '';
 
-    const selectedCell = byDay[selectedDay] || { date: padDayKey(y, mo, selectedDay), item_ids: [] };
+    const selectedCell = { ...(byDay[selectedDay] || { item_ids: [] }), date: padDayKey(y, mo, selectedDay) };
     const selectedItems = applyLocalFilters(monthCellItems(selectedCell, itemsById), filterState, { filterFields: CALENDAR_FILTER_FIELDS });
     const viewSwitcher = renderActivitiesViewSwitcher(state, 'month');
     const html = dsScreenStack(`
@@ -516,7 +516,7 @@ export const monthScreen = {
     });
 
     const mobileDay = root.querySelector('[data-mobile-month-day]');
-    if (mobileDay?.firstElementChild) bindDayDrawer(mobileDay.firstElementChild);
+    if (ui?.bindInteractiveCards && mobileDay?.firstElementChild) bindDayDrawer(mobileDay.firstElementChild);
     ui?.bindInteractiveCards(root, (action) => {
       if (!action.startsWith('monthcell|')) return;
       const dayNum = action.split('|')[1];
@@ -535,11 +535,12 @@ export const monthScreen = {
       };
       const filterState = ensureActivityListFilters(state, MONTH_SCOPE);
       const cellItems = applyLocalFilters(monthCellItems(cell, itemsById), filterState, { filterFields: CALENDAR_FILTER_FIELDS });
-      if (root.ownerDocument.defaultView?.matchMedia('(max-width: 820px)').matches && mobileDay) {
-        state.mobileMonthSelectedDate = cell.date;
+      if (root.ownerDocument.defaultView?.matchMedia?.('(max-width: 820px)')?.matches && mobileDay) {
+        const selectedDate = padDayKey(spec.y, spec.mo, d);
+        state.mobileMonthSelectedDate = selectedDate;
         root.querySelectorAll('[data-mobile-month-selected]').forEach(slot => slot.removeAttribute('data-mobile-month-selected'));
         root.querySelector(`[data-card-action="monthcell|${d}"]`)?.closest('.ds-cal-slot-hit')?.setAttribute('data-mobile-month-selected', 'true');
-        mobileDay.innerHTML = mobileMonthDayHtml(cellItems, cell.date);
+        mobileDay.innerHTML = mobileMonthDayHtml(cellItems, selectedDate);
         bindDayDrawer(mobileDay.firstElementChild);
         mobileDay.scrollIntoView?.({ block: 'start', behavior: 'auto' });
         return;
