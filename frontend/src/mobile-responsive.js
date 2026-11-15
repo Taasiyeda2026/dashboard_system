@@ -114,6 +114,28 @@ export function syncCompactNavigation(nav) {
   const active = nav.querySelector('.is-active, [aria-selected="true"], [aria-pressed="true"]');
   const label = nav.matches('.shell-header-nav') ? 'ניווט מהיר ▾' : `${active?.textContent?.trim() || nav.getAttribute('aria-label') || 'בחירת אזור'} ▾`;
   if (toggle.textContent !== label) toggle.textContent = label;
+  if (nav.matches('.shell-header-nav')) {
+    // The permitted original route button remains the only navigation source.
+    // A mobile shortcut forwards to that button, including its existing handlers.
+    const original = nav.querySelector('[data-route="activities"]');
+    let shortcut = toggle.previousElementSibling?.matches('[data-mobile-primary-activities]') ? toggle.previousElementSibling : null;
+    if (original) {
+      if (!shortcut) {
+        shortcut = nav.ownerDocument.createElement('button');
+        shortcut.type = 'button';
+        shortcut.className = 'mobile-primary-activities';
+        shortcut.dataset.mobilePrimaryActivities = '1';
+        shortcut.textContent = 'פעילויות';
+        shortcut.addEventListener('click', () => shortcut.parentElement?.querySelector('.shell-header-nav [data-route="activities"]')?.click());
+        toggle.before(shortcut);
+      }
+      const active = original.classList.contains('is-active');
+      if (shortcut.classList.contains('is-active') !== active) shortcut.classList.toggle('is-active', active);
+      if (active) setIfChanged(shortcut, 'aria-current', 'page');
+      else if (shortcut.hasAttribute('aria-current')) shortcut.removeAttribute('aria-current');
+      if (shortcut.disabled !== original.disabled) shortcut.disabled = original.disabled;
+    } else shortcut?.remove();
+  }
 }
 
 export const enhanceCompactNavigation = syncCompactNavigation;
@@ -153,6 +175,11 @@ export function enhanceExpandableTable(table, kind = 'generic') {
       }
     });
     const firstCell = directCells(row)[0];
+    // The 2027 compact card has a direct details action; no duplicate disclosure.
+    if (kind === 'activities' && firstCell?.querySelector('[data-mobile-2027-card]')) {
+      firstCell.querySelector('[data-mobile-row-toggle]')?.remove();
+      return;
+    }
     const disclosureHost = firstCell?.querySelector('.activity-mobile-summary__actions') || firstCell;
     if (!disclosureHost || disclosureHost.querySelector(':scope > [data-mobile-row-toggle]')) return;
     const toggle = table.ownerDocument.createElement('button');
@@ -207,6 +234,11 @@ const MATRIX_SELECTOR = [
 
 export function syncActivityViewMode(table) {
   let button = table.previousElementSibling;
+  if (table.matches('.ds-table--activities-2027-all, .ds-table--activities-2027-active')) {
+    if (button?.matches('[data-mobile-activity-view]')) button.remove();
+    if (table.classList.contains('is-mobile-all-expanded')) table.classList.remove('is-mobile-all-expanded');
+    return;
+  }
   if (!button?.matches('[data-mobile-activity-view]')) {
     button = table.ownerDocument.createElement('button');
     button.type = 'button';
@@ -311,7 +343,7 @@ export function cleanupMobileRoot(root = document) {
   root.querySelectorAll('[data-mobile-feedback-slot-ready]').forEach((slot) => { slot.removeAttribute('data-mobile-feedback-slot-ready'); slot.classList.remove('is-mobile-expanded'); });
   root.querySelectorAll('[data-mobile-week-hidden]').forEach((col) => col.removeAttribute('data-mobile-week-hidden'));
   root.querySelectorAll('.ds-table--activities-list').forEach((table) => table.classList.remove('is-mobile-all-expanded'));
-  root.querySelectorAll('[data-mobile-filter-toggle], [data-mobile-section-nav-toggle], [data-mobile-row-toggle]').forEach((element) => element.remove());
+  root.querySelectorAll('[data-mobile-filter-toggle], [data-mobile-section-nav-toggle], [data-mobile-primary-activities], [data-mobile-row-toggle]').forEach((element) => element.remove());
   root.querySelectorAll('[data-mobile-filters-ready]').forEach((toolbar) => {
     const handler = filterHandlers.get(toolbar);
     if (handler) toolbar.removeEventListener('change', handler);

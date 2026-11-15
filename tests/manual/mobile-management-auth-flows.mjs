@@ -18,19 +18,20 @@ for(const account of accounts.filter(a=>!process.env.MOBILE_QA_ROLES || process.
   const visible=await p.locator('.shell-header-nav [data-route="activities"]').count();
   assert.equal(visible,0);results.push({role:account.role,authenticatedShell:true,activitiesShortcutVisible:visible>0});
  } else {
-  const quick=p.locator('.shell-header-nav [data-route="activities"]');
+  const quick=p.locator('[data-mobile-primary-activities]');
   if(await quick.count())await quick.click();else {await p.locator('#mobileMenuBtn').click();await p.locator('.shell-sidebar [data-route="activities"]').click();}
   await p.locator('.ds-activities-screen').waitFor({timeout:18000});
   await p.locator('[data-activity-period-tab="year_all"]').click();
   await p.locator('.ds-activities-row').first().waitFor({timeout:10000});
   await p.locator('input[data-filter-search]').fill('פורצות');
   await p.waitForTimeout(300);
-  await p.locator('[data-mobile-activity-view]').click();
+  assert.equal(await p.locator('[data-mobile-activity-view]').count(),0);
   await p.waitForTimeout(900);
   const card=p.locator('.ds-activities-row[data-row-id="ACT-1"]');
   const cardText=await card.innerText();
   assert.ok(cardText.includes('התקדמות לפי לוח'));
   assert.ok(!cardText.includes('ביצוע מאומת באישור ביצוע'));
+  assert.equal(await card.locator('.activity-management-indicators').count(),0);
   assert.equal(await p.locator('[data-activity-quick-filter="missing-reports"]').isDisabled(),true);
   assert.equal(await p.locator('.ds-modal[aria-hidden="true"]').isVisible(),false);
   await p.screenshot({path:`work/real-screen-captures/full-app-${account.role}-activities.png`,fullPage:true});
@@ -39,9 +40,11 @@ for(const account of accounts.filter(a=>!process.env.MOBILE_QA_ROLES || process.
   await p.screenshot({path:`work/real-screen-captures/full-app-${account.role}-drawer.png`});
   await p.locator('[data-drawer-form] [data-ui-close-drawer]').click();
   if(account.role==='admin' && process.env.MOBILE_QA_MANAGEMENT_ACTIONS==='1'){
-   await p.locator('.ds-activities-row[data-row-id="ACT-1"] [data-management-action="feedback"]').first().click();
+   await card.locator('[data-management-action="activity"]').click();
+   await p.locator('[data-drawer-form]').waitFor({state:'visible'});
+   await p.locator('[data-drawer-form] [data-management-action="feedback"]').first().click();
    await p.locator('[data-ifb-admin]').waitFor();
-   await p.locator('.shell-header-nav [data-route="activities"]').click();
+   await p.locator('[data-mobile-primary-activities]').click();
    await p.locator('.ds-activities-screen').waitFor();
    assert.equal(await p.locator('input[data-filter-search]').inputValue(),'פורצות');
    await p.setViewportSize({width:1440,height:900});

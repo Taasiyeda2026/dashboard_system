@@ -31,9 +31,10 @@ for(const width of [320,375,390,430,1440]) {
 }
 await page.setViewportSize({width:390,height:844});
 await page.evaluate(()=>window.review('activities'));
-await page.locator('[data-mobile-activity-view]').click();
-assert.equal(await page.locator('.activity-mobile-summary__expanded').first().isVisible(),true);
-await page.screenshot({path:'work/screenshots/activities-expanded-390.png',fullPage:true});
+assert.equal(await page.locator('[data-mobile-activity-view]').count(),0);
+assert.equal(await page.locator('[data-mobile-2027-card] .activity-management-indicators').count(),0);
+assert.equal(await page.locator('[data-mobile-2027-card] [data-management-action="activity"]').count(),2);
+await page.screenshot({path:'work/screenshots/activities-compact-390.png',fullPage:true});
 await page.evaluate(()=>window.review('week'));
 await page.locator('[data-mobile-week-day="2026-11-15"]').click();
 assert.equal(await page.locator('[data-mobile-week-hidden="false"]').count(),1);

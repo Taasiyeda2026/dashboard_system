@@ -488,7 +488,7 @@ function activityPeriodTabsHtml(rows, activeYearKey, state = {}) {
     }
     return activityRowsForInnerTab(rows, { ...state, activityPeriodTab: yearKey, activitiesInnerTab: tabKey }).length;
   };
-  return `<div class="ds-activities-period-tabs" role="tablist" aria-label="חלוקה פנימית לפעילויות ${escapeHtml(globalActivityPeriodLabel(yearKey))}" dir="rtl">
+  return `<div class="ds-activities-period-tabs" data-mobile-activity-period="${escapeHtml(yearKey)}" role="tablist" aria-label="חלוקה פנימית לפעילויות ${escapeHtml(globalActivityPeriodLabel(yearKey))}" dir="rtl">
     ${activityInnerTabsForYear(yearKey, state).map((tab) => `<button type="button" class="ds-chip ds-chip--tab ds-activities-period-tab${tab.key === activeTab ? ' is-active' : ''}" role="tab" aria-selected="${tab.key === activeTab ? 'true' : 'false'}" data-activity-period-tab="${escapeHtml(tab.key)}">
       <span>${escapeHtml(tab.label)}</span><strong>${escapeHtml(String(countFor(tab.key)))}</strong>
     </button>`).join('')}
@@ -2005,7 +2005,7 @@ export const activitiesScreen = {
           ? `<span class="ds-chip ds-chip--status ds-chip--warn" title="${escapeHtml(editStatus)}">${escapeHtml(editStatus)}</span>`
           : '';
         const managerLabel = activityManagerDisplayName(row.activity_manager);
-        const mobileSummary = activityMobileSummaryHtml(row, { manager: managerLabel, classGroup: activityLayoutClassGroup(row), school: getActivitySchoolDisplayName(row), authority: row.authority, instructorHtml: instructorDisplay });
+        const mobileSummary = activityMobileSummaryHtml(row, { manager: managerLabel, classGroup: activityLayoutClassGroup(row), school: getActivitySchoolDisplayName(row), authority: row.authority, instructorHtml: instructorDisplay, compact2027: is2027AllTab || is2027ActivitiesTab, showStart: is2027AllTab });
         const rowSearch = [
           hideRowId ? '' : row.RowID,
           visibleActivityCategoryLabel(row.activity_type),

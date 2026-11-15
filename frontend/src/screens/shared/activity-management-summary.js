@@ -80,7 +80,7 @@ export function activityManagementIndicatorsHtml(row, { interactive = true, comp
   </div>`;
 }
 
-export function activityMobileSummaryHtml(row, { manager = '', classGroup = '', school = '', authority = '', instructorHtml = '' } = {}) {
+export function activityMobileSummaryHtml(row, { manager = '', classGroup = '', school = '', authority = '', instructorHtml = '', compact2027 = row.activity_season === 'school_2027', showStart = false } = {}) {
   const s = activityManagementSummary(row);
   const clean = (value) => {
     const text = String(value || '').trim();
@@ -90,14 +90,22 @@ export function activityMobileSummaryHtml(row, { manager = '', classGroup = '', 
   const identity = [clean(school), clean(authority), clean(classGroup)].filter(Boolean).join(' · ');
   const percent = s.total ? Math.max(0, Math.min(100, Math.round(s.elapsed / s.total * 100))) : 0;
   const rowId = String(row.RowID || row.row_id || '');
-  return `<div class="activity-mobile-summary" data-mobile-card-identity="${instructorHtml ? '1' : '0'}">
+  const managerField = field('מנהל', clean(manager) || (compact2027 ? '' : 'ללא מנהל'));
+  const validInstructor = instructorHtml && (!compact2027 || !/data-assignment-state=["']unassigned["']|ללא מדריך/.test(instructorHtml));
+  const start = showStart ? dateKey(row.start_date || row.date_start) : '';
+  const schedule = new Map();
+  for (const [label, date] of [['התחלה', start], ['המפגש הבא', s.next], ['סיום', s.end]]) {
+    if (date) schedule.set(date, schedule.has(date) ? schedule.get(date) + ' / ' + label : label);
+  }
+  const dateFields = [...schedule].map(([date, label]) => field(label, formatDateHe(date))).join('');
+  return `<div class="activity-mobile-summary" data-mobile-card-identity="${compact2027 || instructorHtml ? '1' : '0'}"${compact2027 ? ' data-mobile-2027-card' : ''}>
     <div class="activity-mobile-summary__identity"><span class="activity-mobile-status">${escapeHtml(row.status || 'ללא סטטוס')}</span>${identity ? `<span>${escapeHtml(identity)}</span>` : ''}</div>
-    <div class="activity-mobile-summary__team">${field('מנהל', clean(manager) || 'ללא מנהל')}${instructorHtml ? `<span><small>מדריך/ה</small> ${instructorHtml}</span>` : ''}</div>
+    ${managerField || validInstructor ? `<div class="activity-mobile-summary__team">${managerField}${validInstructor ? `<span><small>מדריך/ה</small> ${instructorHtml}</span>` : ''}</div>` : ''}
     <div class="activity-mobile-summary__progress"><span>התקדמות לפי לוח</span><strong><bdi>${s.elapsed}${s.total === null ? '' : '/' + s.total}</bdi></strong></div>
     ${s.total ? `<div class="activity-mobile-progress-track" role="progressbar" aria-label="התקדמות לפי לוח" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100"><span style="width:${percent}%"></span></div>` : ''}
-    <div class="activity-mobile-summary__schedule">${s.next && s.next === s.end ? field('המפגש הבא / סיום', formatDateHe(s.next)) : field('המפגש הבא', s.next ? formatDateHe(s.next) : '') + field('סיום', s.end ? formatDateHe(s.end) : '')}</div>
+    ${dateFields ? `<div class="activity-mobile-summary__schedule">${dateFields}</div>` : ''}
     ${!dateKey(row.start_date || row.date_start) ? '<span class="activity-mobile-summary__warning">חסר תאריך התחלה</span>' : ''}
-    <div class="activity-mobile-summary__expanded">${activityManagementIndicatorsHtml(row, { compact: true })}</div>
+    ${compact2027 ? '' : `<div class="activity-mobile-summary__expanded">${activityManagementIndicatorsHtml(row, { compact: true })}</div>`}
     <div class="activity-mobile-summary__actions">${rowId ? `<button type="button" class="activity-mobile-open" data-management-action="activity" data-management-row="${escapeHtml(rowId)}">פרטי פעילות</button>` : ''}</div>
   </div>`;
 }

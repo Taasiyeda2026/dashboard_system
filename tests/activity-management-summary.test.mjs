@@ -76,3 +76,16 @@ test('partial dated projection cannot invent a planned total; next meeting stays
   assert.equal(doc.querySelector('[data-management-action="activity"]').dataset.managementRow, 'ACT-1');
   assert.doesNotMatch(doc.body.textContent, /אישור ביצוע|אוכלוסיית|התמונה חלקית|לא זמין|לא נטענו/);
 });
+
+test('2027 list card omits empty staff and management indicators without removing drawer data', () => {
+  const row = { row_id: 'A-27', activity_season: 'school_2027', sessions: 10, start_date: '2099-01-01', date_1: '2099-01-01', end_date: '2099-02-01', management: { exceptionsAvailable: true, exceptions: ['x'], coordination: { available: true, status: 'not_sent' }, attendanceAvailable: true, attendance: [], feedback: { available: true, slots: [] } } };
+  const html = activityMobileSummaryHtml(row, { manager: 'ללא', instructorHtml: '<span data-assignment-state="unassigned">ללא מדריך</span>', showStart: true });
+  const doc = new JSDOM(html).window.document;
+  assert.equal(doc.querySelector('.activity-mobile-summary__team'), null);
+  assert.equal(doc.querySelector('.activity-management-indicators'), null);
+  assert.equal(doc.querySelector('[data-management-action="activity"]').dataset.managementRow, 'A-27');
+  assert.equal(doc.body.textContent.match(/01\/01\/2099/g).length, 1);
+  assert.match(doc.body.textContent, /התקדמות לפי לוח/);
+  assert.doesNotMatch(doc.body.textContent, /שיבוץ|תיאום|נוכחות|חריגות|ללא מדריך/);
+  assert.equal(row.management.exceptions.length, 1);
+});
