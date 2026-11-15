@@ -17,6 +17,13 @@ for(const width of [320,375,390,430,1440]) {
   await page.waitForTimeout(120);
   const result = await page.evaluate(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,overflows:[...document.querySelectorAll('body *')].filter(el=>{const r=el.getBoundingClientRect();return r.width>0&&(r.left < -1||r.right>innerWidth+1)&&getComputedStyle(el).position!=='fixed'}).slice(0,8).map(el=>`${el.tagName}.${el.className}`)}));
   assert.ok(result.scrollWidth <= width + 1, `${screen} at ${width}: page overflow`);
+  if(screen === 'week' && width <= 820) {
+    assert.equal(await page.locator('.ds-week-board').evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length),2);
+    assert.equal(await page.locator('.week-mobile-session-details').first().isVisible(),true);
+  }
+  if(screen === 'month') {
+    assert.equal(await page.locator('[data-mobile-month-day]').isVisible(),width<=820);
+  }
   if(screen === 'activities') {
     const row = page.locator('.ds-activities-row[data-row-id="synthetic-mobile-review"]');
     if(width <= 820) {
@@ -64,8 +71,8 @@ assert.equal(await page.locator('[data-mobile-2027-card] .activity-management-in
 assert.equal(await page.locator('[data-mobile-2027-card] [data-management-action="activity"]').count(),2);
 await page.screenshot({path:'work/screenshots/activities-compact-390.png',fullPage:true});
 await page.evaluate(()=>window.review('week'));
-await page.locator('[data-mobile-week-day="2026-11-15"]').click();
-assert.equal(await page.locator('[data-mobile-week-hidden="false"]').count(),1);
+await page.locator('[data-mobile-week-day="2026-11-14"]').click();
+assert.equal(await page.locator('[data-mobile-week-hidden="false"]').count(),2);
 await page.locator('[data-mobile-week-day="all"]').click();
 assert.equal(await page.locator('[data-mobile-week-hidden="false"]').count(),2);
 await page.evaluate(()=>window.review('feedback'));

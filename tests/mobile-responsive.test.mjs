@@ -179,15 +179,18 @@ test('required mobile widths activate one disclosure layer', () => {
   }
 });
 
-test('week day and full-week controls preserve columns and restore desktop visibility', () => {
-  const page = new JSDOM(`<body><div class="ds-week-board">${['2026-11-14', '2026-11-15'].map((date, i) => `<section class="ds-week-col" aria-label="${date}"><span class="ds-week-col__dow">יום ${i}</span><span class="ds-week-col__count">${i}</span><button data-existing>פתיחה</button></section>`).join('')}</div></body>`);
+test('week pairs and full-week controls preserve columns and restore desktop visibility', () => {
+  const page = new JSDOM(`<body><div class="ds-week-board">${['2026-11-14', '2026-11-15', '2026-11-16', '2026-11-17'].map((date, i) => `<section class="ds-week-col" aria-label="${date}"><span class="ds-week-col__dow">יום ${i}</span><span class="ds-week-col__count">${i}</span><button data-existing>פתיחה</button></section>`).join('')}</div></body>`);
   const media = controllableMedia(true);
   page.window.matchMedia = () => media;
   bindMobileResponsive(page.window.document, page.window);
   const doc = page.window.document;
   const action = doc.querySelector('[data-existing]');
-  doc.querySelector('[data-mobile-week-day="2026-11-15"]').click();
+  assert.equal(doc.querySelectorAll('[data-mobile-week-hidden="false"]').length, 4);
+  doc.querySelector('[data-mobile-week-day="2026-11-16"]').click();
   assert.equal(doc.querySelector('[aria-label="2026-11-14"]').dataset.mobileWeekHidden, 'true');
+  assert.equal(doc.querySelector('[aria-label="2026-11-16"]').dataset.mobileWeekHidden, 'false');
+  assert.equal(doc.querySelector('[aria-label="2026-11-17"]').dataset.mobileWeekHidden, 'false');
   doc.querySelector('[data-mobile-week-day="all"]').click();
   assert.equal(doc.querySelectorAll('[data-mobile-week-hidden="true"]').length, 0);
   media.set(false);

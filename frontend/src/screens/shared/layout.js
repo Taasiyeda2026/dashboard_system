@@ -90,6 +90,7 @@ export function dsInteractiveCard({
   subtitle = '',
   meta = '',
   mobileMeta = null,
+  mobileDetails = '',
   variant = 'mini',
   selected = false,
   disabled = false,
@@ -119,6 +120,7 @@ export function dsInteractiveCard({
       <p class="ds-interactive-card__title">${escapeHtml(title)}</p>
       ${subtitleHtml}
       ${metaHtml}
+      ${mobileDetails ? `<p class="week-mobile-session-details">${escapeHtml(mobileDetails)}</p>` : ''}
     `;
   }
 

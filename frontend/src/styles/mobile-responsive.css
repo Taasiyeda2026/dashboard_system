@@ -2256,3 +2256,47 @@
     flex-shrink: 0;
   }
 }
+
+/* Mobile calendar only. Desktop cards, columns and drawers retain their original layout. */
+.week-mobile-session-details, .mobile-month-hint, .mobile-month-day { display: none; }
+@media (max-width: 820px) {
+  #app .route-week .ds-week-board {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 6px; align-items: start; direction: rtl;
+  }
+  #app .route-week .ds-week-col { min-height: 0; min-width: 0; }
+  #app .route-week .ds-week-col__head { padding: 5px 3px; gap: 3px; }
+  #app .route-week .ds-week-col__head-top { flex-wrap: wrap; gap: 3px; }
+  #app .route-week .ds-week-col__count { height: auto; min-height: 18px; font-size: .68rem; padding: 2px 5px; }
+  #app .route-week .ds-week-col__count::after { content: " פעילויות"; white-space: pre; }
+  #app .route-week .ds-week-col__body { padding: 4px; gap: 4px; }
+  #app .route-week .ds-week-col__body:empty::before { content: "אין פעילויות"; display: block; color: #64748b; text-align: center; font-size: .72rem; padding: 8px 2px; }
+  #app .route-week .ds-week-session-wrap, #app .route-week .ds-week-group__main-wrap { min-width: 0; }
+  #app .route-week .ds-week-col .ds-interactive-card--session {
+    width: 100%; min-width: 0; min-height: 44px; padding: 5px 6px;
+    text-align: start; white-space: normal; overflow-wrap: anywhere;
+  }
+  #app .route-week .ds-week-col .ds-interactive-card__title { white-space: normal; overflow: visible; text-overflow: clip; font-size: .76rem; line-height: 1.25; }
+  #app .route-week .ds-week-col .ds-interactive-card__meta { white-space: normal; overflow: visible; font-size: .71rem; line-height: 1.2; }
+  #app .route-week .week-mobile-session-details { display: block; font-size: .68rem; color: #64748b; line-height: 1.2; margin: 2px 0 0; white-space: normal; }
+  #app .route-week .ds-week-group__badge {
+    position: static; display: block; width: 100%; min-height: 44px; margin: 2px 0 0;
+    border-radius: 6px; background: #eaf4f8; color: #075f73; box-shadow: none; font-size: 0;
+  }
+  #app .route-week .ds-week-group__badge::after { content: attr(data-group-count) " פעילויות למדריך ▾"; font-size: .69rem; line-height: 1.2; }
+  #app .route-week .ds-week-group__badge[aria-expanded="true"]::after { content: "סגירה ▴"; }
+  #app .route-week .ds-week-group__extra { padding-inline-start: 3px; margin-inline-start: 0; }
+  #app .route-week .mobile-week-days { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 4px; margin: 3px 0; }
+  #app .route-week .mobile-week-days button:first-child { grid-column: 1/-1; }
+  #app .route-week .mobile-week-days button { padding: 4px; font-size: .75rem; min-width: 0; }
+  #app .route-month .mobile-month-hint { display: block; color: #526378; font-size: .78rem; margin: 0; text-align: center; }
+  #app .route-month .ds-cal-grid [data-mobile-month-selected] .ds-interactive-card--day-cell { outline: 2px solid #087e98; outline-offset: -2px; background: #d6f0f4; }
+  #app .route-month .month-count-mobile { display: block; font-size: .68rem; line-height: 1.1; }
+  #app .route-month .month-count-mobile::after { content: " פעילויות"; display: block; font-size: .56rem; }
+  #app .route-month .mobile-month-day { display: block; min-width: 0; padding: 8px; border: 1px solid #cbdbe7; border-radius: 10px; background: #fff; scroll-margin-top: 12px; }
+  #app .route-month .mobile-month-day h2 { font-size: 1rem; margin: 0 0 3px; color: #153451; }
+  #app .route-month .mobile-month-day-count { color: #526378; margin: 0 0 8px; font-size: .77rem; }
+  #app .route-month .mobile-month-day .ds-month-day-cards { display: grid; grid-template-columns: minmax(0,1fr); gap: 5px; }
+  #app .route-month .mobile-month-day .ds-interactive-card--session { width: 100%; text-align: start; min-height: 44px; padding: 7px 9px; }
+  #app .route-month .mobile-month-day :is(.ds-interactive-card__title,.ds-interactive-card__subtitle,.ds-interactive-card__meta) { white-space: normal; overflow-wrap: anywhere; }
+}
