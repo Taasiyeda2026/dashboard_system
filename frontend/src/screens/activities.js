@@ -226,7 +226,7 @@ function normalizeActivitiesInstructorStatusFilter(value) {
   return ACTIVITIES_INSTRUCTOR_STATUS_FILTERS.some((filter) => filter.key === key) ? key : 'all';
 }
 
-function normalizedActivityStartDate(row = {}) {
+export function normalizedActivityStartDate(row = {}) {
   const value = String(row?.start_date ?? row?.date_start ?? '').trim().slice(0, 10);
   return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : '';
 }
@@ -235,7 +235,7 @@ function isInactiveActivityStatus(row = {}) {
   return INACTIVE_ACTIVITY_STATUSES.has(String(row?.status || '').trim().toLowerCase()) || INACTIVE_ACTIVITY_STATUSES.has(String(row?.status || '').trim());
 }
 
-function normalizedActivityStatus(row = {}) {
+export function normalizedActivityStatus(row = {}) {
   const status = String(row?.status || '').trim();
   if (status === 'פעיל' || status.toLowerCase() === 'active' || status.toLowerCase() === 'open') return 'פתוח';
   if (status.toLowerCase() === 'closed') return 'סגור';
@@ -606,7 +606,7 @@ function createAdminSummaryBucket(label) {
   };
 }
 
-function displayActivityName(row = {}) {
+export function displayActivityName(row = {}) {
   const storedName = normalizeAdminSummaryText(row.activity_name || row.title || row.name || row.program_name) || 'ללא שם פעילות';
   return displayedActivityProgramName(row, storedName);
 }
@@ -715,7 +715,7 @@ function getActivitySchoolNames(row) {
  * עדיפות: linked_school_names > single_school_name > school/legacy_school > 'לא משויך'
  * אין לסנן לפי school_id — פעילות עם school טקסטואלי בלבד תוצג כרגיל.
  */
-function getActivitySchoolDisplayName(row) {
+export function getActivitySchoolDisplayName(row) {
   const lsn = humanDisplayText(row?.linked_school_names);
   if (lsn) return lsn;
   const ssn = humanDisplayText(row?.single_school_name);
@@ -1525,7 +1525,7 @@ function activityLayoutInstructors(row = {}) {
     .join(', ');
 }
 
-function activityLayoutClassGroup(row = {}) {
+export function activityLayoutClassGroup(row = {}) {
   const grade = cleanText(row.grade || row.Grade || row.school_grade || row.class_grade || row.layer || row.class_layer);
   const classGroup = cleanText(row.class_group || row.classGroup || row.group || row.group_name || row.class_name || row.class);
   const formatGrade = (value) => {
