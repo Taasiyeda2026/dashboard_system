@@ -17,6 +17,25 @@ for(const width of [320,375,390,430,1440]) {
   await page.waitForTimeout(120);
   const result = await page.evaluate(()=>({width:innerWidth,scrollWidth:document.documentElement.scrollWidth,overflows:[...document.querySelectorAll('body *')].filter(el=>{const r=el.getBoundingClientRect();return r.width>0&&(r.left < -1||r.right>innerWidth+1)&&getComputedStyle(el).position!=='fixed'}).slice(0,8).map(el=>`${el.tagName}.${el.className}`)}));
   assert.ok(result.scrollWidth <= width + 1, `${screen} at ${width}: page overflow`);
+  if(screen === 'activities') {
+    const row = page.locator('.ds-activities-row[data-row-id="synthetic-mobile-review"]');
+    if(width <= 820) {
+      for(const selector of ['.ds-activities-col--contact-name','.ds-activities-program-type','.activity-mobile-status','.activity-mobile-summary__team > span:not(.activity-mobile-instructor-line)']) {
+        assert.equal(await row.locator(selector).isVisible(),false,selector);
+      }
+      const instructor = row.locator('.activity-mobile-instructor-line');
+      assert.equal(await instructor.isVisible(),true);
+      assert.equal(await instructor.locator('small').textContent(),'מדריך:');
+      assert.equal(await instructor.locator('small').evaluate(el=>getComputedStyle(el).display),'inline');
+      assert.equal(await row.locator('[data-management-action="activity"]').isVisible(),true);
+      assert.equal(await page.locator('.ds-activities-row[data-row-id="synthetic-2"]').locator('.activity-mobile-summary__team').isVisible(),false);
+    } else {
+      assert.equal(await row.locator('.ds-activities-program-type').isVisible(),true);
+      assert.equal(await row.locator('.ds-activities-col--contact-name').isVisible(),true);
+      assert.equal(await row.locator('.ds-activities-col--instructor').isVisible(),true);
+      assert.equal(await row.locator('.activity-mobile-summary').isVisible(),false);
+    }
+  }
   if(screen === 'drawer' && width > 820) {
     assert.equal(await page.locator('[data-dates-management-summary]').isVisible(),false);
     assert.equal(await page.locator('.activity-desktop-progress-title').isVisible(),true);
