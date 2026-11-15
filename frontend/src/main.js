@@ -26,6 +26,8 @@ import { permissionFlagYes as permissionEnabled } from './permissions.js';
 import { hasPermission } from './permission-policy.js';
 import { canViewImpactFeedback, isFeedbackInstructor } from './impact-feedback/feedback-access.js';
 import { ASSOCIATION_CHAIR_ROUTES, isAssociationChairViewer } from './association-chair-access.js';
+import { PERSONAL_EDUCATION_ROUTE, isPersonalEducationViewer, withPersonalEducationRoute } from './personal-education-access.js';
+import './styles/personal-education-activities.css';
 import { countPendingApprovedProposals } from './screens/shared/proposals-pending-count.js';
 import { bootstrapLocalBaselineMonitor } from './local-baseline-monitor.js';
 import { installInstructorObservationRuntime } from './instructor-observation-runtime.js';
@@ -507,6 +509,7 @@ function applyBootstrapFromLoginData(data) {
 }
 
 const screenLabels = {
+  [PERSONAL_EDUCATION_ROUTE]: 'מבט חינוכי',
   dashboard: 'לוח בקרה',
   activities: 'פעילויות',
   week: 'שבוע',
@@ -674,6 +677,7 @@ function bindOpsSubRouteWrapper(screenRoot) {
 }
 
 const screenLoaders = {
+  [PERSONAL_EDUCATION_ROUTE]: () => import('./screens/personal-education-activities.js').then(m => m.personalEducationActivitiesScreen),
   dashboard: () => import('./screens/dashboard.js').then((m) => m.dashboardScreen),
   activities: () => import('./screens/activities.js').then((m) => m.activitiesScreen),
   week: () => import('./screens/week.js').then((m) => m.weekScreen),
@@ -784,6 +788,7 @@ function isAdminRole(user = state?.user || {}) {
 }
 
 function routeAllowedByRole(route, user = state?.user || {}) {
+  if (route === PERSONAL_EDUCATION_ROUTE) return isPersonalEducationViewer(user);
   // The legacy reports route is not part of the instructor experience, on either viewport.
   if (route === 'instructor-reports' && String(user?.role || '').trim() === 'instructor') return false;
   if (route === 'impact-feedback') return canViewImpactFeedback(user) || isFeedbackInstructor(user);
@@ -816,8 +821,8 @@ function applySettingsToRoutes(routes, settings = state.clientSettings) {
 }
 
 function effectiveRoutes() {
-  if (Array.isArray(state.effectiveRoutes) && state.effectiveRoutes.length) return state.effectiveRoutes;
-  return Array.isArray(state.routes) ? state.routes : [];
+  const routes = Array.isArray(state.effectiveRoutes) && state.effectiveRoutes.length ? state.effectiveRoutes : (Array.isArray(state.routes) ? state.routes : []);
+  return withPersonalEducationRoute(routes, state.user);
 }
 
 function currentUserRoutesForAccess() {
@@ -927,6 +932,7 @@ function resolveAllowedDefaultRoute(preferred, routes) {
 }
 
 function resolveInitialAuthenticatedRoute(preferred, routes) {
+  if (!SUPABASE_READONLY_CUTOVER && withPersonalEducationRoute(routes, state.user).includes(PERSONAL_EDUCATION_ROUTE)) return PERSONAL_EDUCATION_ROUTE;
   if (String(state?.user?.role || '').trim() === 'instructor' && routes?.includes?.('instructor-dashboard')) {
     setGlobalActivityPeriod(ACTIVE_ACTIVITY_SEASON);
     return 'instructor-dashboard';
@@ -935,8 +941,9 @@ function resolveInitialAuthenticatedRoute(preferred, routes) {
 }
 
 function resolveAuthenticatedRoute(preferred, routes = effectiveRoutes()) {
-  const knownRoutes = Array.isArray(routes)
-    ? routes.filter((r) => !!screenLoaders[r] && !PERMANENTLY_DISABLED_ROUTES.has(r) && routeAllowedByRole(r))
+  const available = withPersonalEducationRoute(routes, state.user);
+  const knownRoutes = Array.isArray(available)
+    ? available.filter((r) => !!screenLoaders[r] && !PERMANENTLY_DISABLED_ROUTES.has(r) && routeAllowedByRole(r))
     : [];
   if (preferred && preferred !== 'login' && knownRoutes.includes(preferred)) return preferred;
   if (knownRoutes.includes('dashboard')) return 'dashboard';
@@ -1154,7 +1161,7 @@ function shell(content) {
   const regularNav = effectiveRoutes()
     .filter((route) =>
       routeAllowedByRole(route) && (
-        route === 'impact-feedback' || (
+        route === 'impact-feedback' || route === PERSONAL_EDUCATION_ROUTE || (
           !hiddenSet.has(route) &&
           !contextualSet.has(route) &&
           !ACTIVITIES_CHILD_ROUTES.has(route) &&
@@ -1381,6 +1388,7 @@ function screenDataCacheKey() {
  * שאר המסכים מקבלים TTL של 15 דקות.
  */
 const SCREEN_CACHE_TTL_MS = {
+  [PERSONAL_EDUCATION_ROUTE]: 60 * 1000,
   dashboard: 5 * 60 * 1000,
   activities: 5 * 60 * 1000,
   week: 8 * 60 * 1000,
@@ -1394,6 +1402,7 @@ function screenCacheTtl() {
   return SCREEN_CACHE_TTL_MS[state.route] ?? DEFAULT_CACHE_TTL_MS;
 }
 const MEMORY_ONLY_CACHE_PREFIXES = [
+  'education-activities:',
   'activityDetail:',
   'operations:',
   'proposals-agreements',
