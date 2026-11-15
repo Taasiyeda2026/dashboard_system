@@ -2186,11 +2186,11 @@
     grid-template-columns: minmax(0, 1fr); gap: 3px; padding: 8px 10px; min-height: 0 !important; min-block-size: 0 !important;
   }
   #app .route-activities :is(.ds-table--activities-2027-all, .ds-table--activities-2027-active) .ds-activities-row > td:not(.ds-activities-col--program) { display: none !important; }
-  #app .route-activities .ds-table--activities-2027-all .ds-activities-row > td:is(.ds-activities-col--contact-name, .ds-activities-col--notes):not([data-mobile-empty="true"]) {
+  #app .route-activities .ds-table--activities-2027-all .ds-activities-row > td.ds-activities-col--notes:not([data-mobile-empty="true"]) {
     display: flex !important; grid-column: 1 / -1; gap: 5px; align-items: baseline;
     min-height: 0; min-block-size: 0; padding: 2px 0; font-size: .73rem; overflow-wrap: anywhere;
   }
-  #app .route-activities .ds-table--activities-2027-all .ds-activities-row > td:is(.ds-activities-col--contact-name, .ds-activities-col--notes):not([data-mobile-empty="true"])::before {
+  #app .route-activities .ds-table--activities-2027-all .ds-activities-row > td.ds-activities-col--notes:not([data-mobile-empty="true"])::before {
     content: attr(data-mobile-label); display: inline; min-inline-size: 0; margin-inline-end: 3px; font-size: .67rem; font-weight: 600; color: #64748b;
   }
   #app .route-activities [data-mobile-2027-card] { gap: 4px; margin-block-start: 3px; line-height: 1.2; }
@@ -2220,4 +2220,39 @@
 @media (max-width: 820px) {
   .activity-desktop-progress-title { display: none; }
   .activity-mobile-progress-title, .activity-mobile-progress-suffix { display: inline; }
+}
+
+/* Keep only scan-essential fields on the Activities list on phones.
+   Original table and drawer remain intact at every desktop width. */
+@media (max-width: 820px) {
+  #app .route-activities .ds-table--activities-list .ds-activities-row > td.ds-activities-col--contact-name,
+  #app .route-activities .ds-table--activities-list .ds-activities-program-type,
+  #app .route-activities .ds-table--activities-list .ds-activities-manager-line,
+  #app .route-activities .ds-table--activities-list .activity-mobile-status,
+  #app .route-activities .ds-table--activities-list .activity-mobile-summary__team > span:not(.activity-mobile-instructor-line) {
+    display: none !important;
+  }
+  #app .route-activities .ds-table--activities-list .activity-mobile-summary__identity:not(:has(> span:not(.activity-mobile-status))),
+  #app .route-activities .ds-table--activities-list .activity-mobile-summary__team:not(:has(> .activity-mobile-instructor-line)) {
+    display: none !important;
+  }
+  #app .route-activities .ds-table--activities-list .ds-activities-row > td.ds-activities-col--program {
+    min-block-size: 0;
+  }
+  #app .route-activities .ds-table--activities-list .activity-mobile-summary__team {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+  #app .route-activities .ds-table--activities-list .activity-mobile-instructor-line {
+    display: flex;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 3px 5px;
+    min-width: 0;
+  }
+  #app .route-activities .ds-table--activities-list .activity-mobile-instructor-line > small {
+    display: inline;
+    font-size: inherit;
+    flex-shrink: 0;
+  }
 }
