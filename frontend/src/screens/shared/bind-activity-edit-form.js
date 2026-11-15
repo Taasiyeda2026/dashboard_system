@@ -1,3 +1,4 @@
+import { bindCourseFormPricing, courseFormPricing } from '../../course-hourly-pricing.js';
 import { translateApiErrorForUser } from './ui-hebrew.js';
 import { showToast } from './toast.js';
 import { formatDateHe } from './format-date.js';
@@ -752,6 +753,20 @@ export function bindActivityEditForm(contentRoot, {
     const saveType = normalizeActivityTypeKey(
       changes.activity_type || initialValues.activity_type || form.querySelector('[name="activity_type"]')?.value || ''
     );
+    if (saveType === 'course' && form.querySelector('[name="course_hourly_rate"]')) {
+      const sessionField=form.querySelector('[name="sessions"]');
+      if (catalogSelectionChanged && Number.isFinite(Number(catalogSelection.meetings_count)) && sessionField) sessionField.value=String(catalogSelection.meetings_count);
+      const pricing=courseFormPricing(form);
+      if (!pricing.valid || (!pricing.rate && initialValues.course_hourly_rate)) {
+        setStatus(statusEl,'is-error','יש להזין תעריף שעתי תקין; המחיר הכולל חייב להיות בשקלים שלמים');
+        return;
+      }
+      if (pricing.rate && (pricing.rate!==String(initialValues.course_hourly_rate||'') || String(sessionField?.value)!==String(initialValues.sessions||'') || String(pricing.total)!==String(initialValues.price||''))) {
+        changes.course_hourly_rate=pricing.rate;
+        changes.sessions=String(sessionField.value);
+        changes.price=String(pricing.total);
+      }
+    }
     if (saveType === 'course' && Object.prototype.hasOwnProperty.call(changes, 'price') && !Object.prototype.hasOwnProperty.call(changes, 'funding_sources')) {
       const fundingSelect = form.querySelector('select[name="funding_sources"][multiple]');
       changes.funding_sources = [...(fundingSelect?.selectedOptions || [])].map((option) => ({
@@ -1136,6 +1151,7 @@ export function bindActivityEditForm(contentRoot, {
     form._initialLocationValues = captureActivityEditLocationValues(form);
     activityEditLocationForSave(form);
     captureFormInitialValues(form);
+    bindCourseFormPricing(form,{signal});
     form._refreshInitialValues = () => {
       form._initialLocationValues = captureActivityEditLocationValues(form);
       return captureFormInitialValues(form);
@@ -1157,6 +1173,8 @@ export function bindActivityEditForm(contentRoot, {
             const requestKey = `${catalogIdentity.activity_no || catalogIdentity.gefen_number || catalogIdentity.activity_name}:${catalogIdentity.meetings_count}`;
             form.dataset.catalogDateSyncRequest = requestKey;
             resizeMeetingDateCardsToSessionCount(form, catalogIdentity.meetings_count);
+            const pricingSessions=form.querySelector('[name="sessions"]');
+            if(pricingSessions){pricingSessions.value=String(catalogIdentity.meetings_count);courseFormPricing(form);}
             const season = String(form.getAttribute('data-activity-season') || form.dataset.activitySeason || '').trim();
             void loadSchoolCalendarRows().then((rows) => {
               if (form.dataset.catalogDateSyncRequest !== requestKey) return;
