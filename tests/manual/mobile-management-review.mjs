@@ -21,7 +21,7 @@ for(const width of [320,375,390,430,1440]) {
     assert.equal(await page.locator('[data-dates-management-summary]').isVisible(),false);
     assert.equal(await page.locator('.activity-desktop-progress-title').isVisible(),true);
     assert.equal(await page.locator('.activity-mobile-progress-title').isVisible(),false);
-    assert.equal(await page.locator('.activity-mobile-progress-suffix').isVisible(),false);
+    assert.equal(await page.locator('.activity-mobile-progress-suffix').count(),0);
     if(await page.locator('[data-management-panel]').count()) assert.equal(await page.locator('[data-management-panel]').isVisible(),false);
   }
   if(screen === 'drawer' && width <= 820) {

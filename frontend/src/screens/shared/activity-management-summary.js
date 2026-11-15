@@ -51,7 +51,7 @@ export function activityPlanningFactsHtml(row, today) {
   const s = activityManagementSummary(row, today);
   const historical = row.activity_season === 'summer_2026';
   return `<div class="activity-planning-facts" data-planning-facts>
-    <span class="activity-planning-progress">התקדמות לפי לוח: <bdi>${s.elapsed}${s.total === null ? '' : '/' + s.total}</bdi> מפגשים</span>
+    <span class="activity-planning-progress">התקדמות הקורס: <bdi>${s.elapsed}${s.total === null ? '' : '/' + s.total}</bdi> מפגשים</span>
     ${s.missingDates ? `<span>${s.missingDates} ללא תאריך</span>` : ''}
     ${historical && s.verified !== null ? `<span>אישורי ביצוע: ${s.verified}</span>` : ''}
     ${s.cancelled > 0 ? `<span>ביטולים: ${s.cancelled}</span>` : ''}
@@ -101,8 +101,8 @@ export function activityMobileSummaryHtml(row, { manager = '', classGroup = '', 
   return `<div class="activity-mobile-summary" data-mobile-card-identity="${compact2027 || instructorHtml ? '1' : '0'}"${compact2027 ? ' data-mobile-2027-card' : ''}>
     <div class="activity-mobile-summary__identity"><span class="activity-mobile-status">${escapeHtml(row.status || 'ללא סטטוס')}</span>${identity ? `<span>${escapeHtml(identity)}</span>` : ''}</div>
     ${managerField || validInstructor ? `<div class="activity-mobile-summary__team">${managerField}${validInstructor ? `<span><small>מדריך/ה</small> ${instructorHtml}</span>` : ''}</div>` : ''}
-    <div class="activity-mobile-summary__progress"><span>התקדמות לפי לוח</span><strong><bdi>${s.elapsed}${s.total === null ? '' : '/' + s.total}</bdi></strong></div>
-    ${s.total ? `<div class="activity-mobile-progress-track" role="progressbar" aria-label="התקדמות לפי לוח" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100"><span style="width:${percent}%"></span></div>` : ''}
+    <div class="activity-mobile-summary__progress"><span>התקדמות הקורס</span><strong><bdi>${s.elapsed}${s.total === null ? '' : '/' + s.total}</bdi></strong></div>
+    ${s.total ? `<div class="activity-mobile-progress-track" role="progressbar" aria-label="התקדמות הקורס" aria-valuenow="${percent}" aria-valuemin="0" aria-valuemax="100"><span style="width:${percent}%"></span></div>` : ''}
     ${dateFields ? `<div class="activity-mobile-summary__schedule">${dateFields}</div>` : ''}
     ${!dateKey(row.start_date || row.date_start) ? '<span class="activity-mobile-summary__warning">חסר תאריך התחלה</span>' : ''}
     ${compact2027 ? '' : `<div class="activity-mobile-summary__expanded">${activityManagementIndicatorsHtml(row, { compact: true })}</div>`}

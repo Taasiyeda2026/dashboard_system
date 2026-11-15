@@ -1095,7 +1095,7 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
       <div class="activity-drawer__missing-dates-warning" data-dates-missing-warning hidden></div>`
     : `${dateSummaryHtml}<div class="activity-drawer__progress-row" data-mode="view"><div class="activity-drawer__progress" data-dates-progress>
         <div class="activity-drawer__progress-meta" data-dates-progress-meta>
-          <span>${done} מתוך ${total} מפגשים<span class="activity-mobile-progress-suffix"> · לפי לוח מתוכנן</span></span>
+          <span>${done} מתוך ${total} מפגשים</span>
           <span>${progressPct}%</span>
         </div>
         <div class="activity-drawer__progress-track">
@@ -1112,7 +1112,7 @@ function blockDates(row, { canEdit = false, canDirectEdit = false, datesLoading 
   return `
     <section class="activity-drawer__section activity-drawer__section--course-dates" data-dates-section data-session-total="${total}"${loadingAttr}>
       <div class="activity-drawer__section-head">
-        <h3 class="activity-drawer__section-title">${isCourse ? '<span class="activity-desktop-progress-title">התקדמות הקורס</span><span class="activity-mobile-progress-title">התקדמות לפי לוח מתוכנן</span>' : escapeHtml(progressTitle)}</h3>
+        <h3 class="activity-drawer__section-title">${isCourse ? '<span class="activity-desktop-progress-title">התקדמות הקורס</span><span class="activity-mobile-progress-title">התקדמות הקורס</span>' : escapeHtml(progressTitle)}</h3>
       </div>
       ${progressHtml}
       <div data-dates-management-summary data-mode="view">${datesLoading ? 'טוען תמונת מצב לפי לוח…' : activityPlanningFactsHtml({ ...row, sessions: total, meeting_schedule: schedule })}</div>
@@ -1200,7 +1200,7 @@ export function patchDrawerDatesSection(sectionEl, datesData) {
 
   const progressMeta = sectionEl.querySelector('[data-dates-progress-meta]');
   if (progressMeta) {
-    progressMeta.innerHTML = `<span>${done} מתוך ${total} מפגשים<span class="activity-mobile-progress-suffix"> · לפי לוח מתוכנן</span></span><span>${progressPct}%</span>`;
+    progressMeta.innerHTML = `<span>${done} מתוך ${total} מפגשים</span><span>${progressPct}%</span>`;
   }
 
   const form = sectionEl.closest('[data-drawer-form]');

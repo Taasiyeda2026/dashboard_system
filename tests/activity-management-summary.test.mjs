@@ -46,7 +46,8 @@ test('async drawer dates update the same management summary and keep performance
   assert.match(section.querySelector('[data-dates-management-summary]').textContent, /1\/4/);
   assert.doesNotMatch(section.querySelector('[data-dates-management-summary]').textContent, /ביצוע מאומת|לא זמין|ללא אימות/);
   assert.equal(section.querySelector('.is-done'), null);
-  assert.match(section.querySelector('[data-dates-progress-meta]').textContent, /לפי לוח מתוכנן/);
+  assert.match(section.querySelector('[data-dates-progress-meta]').textContent, /1 מתוך 4 מפגשים/);
+  assert.doesNotMatch(section.querySelector('[data-dates-progress-meta]').textContent, /לפי לוח/);
 });
 
 test('month count offers a numeric mobile label while retaining escaped desktop metadata', async () => {
@@ -70,7 +71,7 @@ test('partial dated projection cannot invent a planned total; next meeting stays
   const row = { row_id: 'ACT-1', activity_season: 'school_2027', status: 'פתוח', sessions: 10, start_date: '2099-01-01', date_1: '2099-01-01', end_date: '2099-03-01', management: { approvalsAvailable: true, approvedDates: [], cancellationsAvailable: true, cancelledDates: [], attendanceAvailable: true, attendance: [], exceptionsAvailable: true, exceptions: ['x'], feedback: { available: true, applicable: false, slots: [] }, coordination: { available: true, status: 'not_sent' }, errors: ['staff-feedback'] } };
   const doc = new JSDOM(activityMobileSummaryHtml(row, { school: 'בית ספר', authority: 'רשות', manager: 'מנהל', classGroup: 'קבוצה 1', instructorHtml: '<span>מדריך</span>' })).window.document;
   assert.match(doc.body.textContent, /בית ספר · רשות · קבוצה 1/);
-  assert.match(doc.body.textContent, /התקדמות לפי לוח/);
+  assert.match(doc.body.textContent, /התקדמות הקורס/);
   assert.equal(doc.body.textContent.match(/המפגש הבא/g).length, 1);
   assert.equal(doc.body.textContent.match(/01\/01\/2099/g).length, 1);
   assert.equal(doc.querySelector('[data-management-action="activity"]').dataset.managementRow, 'ACT-1');
@@ -85,7 +86,7 @@ test('2027 list card omits empty staff and management indicators without removin
   assert.equal(doc.querySelector('.activity-management-indicators'), null);
   assert.equal(doc.querySelector('[data-management-action="activity"]').dataset.managementRow, 'A-27');
   assert.equal(doc.body.textContent.match(/01\/01\/2099/g).length, 1);
-  assert.match(doc.body.textContent, /התקדמות לפי לוח/);
+  assert.match(doc.body.textContent, /התקדמות הקורס/);
   assert.doesNotMatch(doc.body.textContent, /שיבוץ|תיאום|נוכחות|חריגות|ללא מדריך/);
   assert.equal(row.management.exceptions.length, 1);
 });
@@ -93,12 +94,12 @@ test('2027 list card omits empty staff and management indicators without removin
 test('desktop drawer retains original progress title and date styling marker alongside mobile-only summary', () => {
   const document = new JSDOM(activityWorkDrawerHtml({ activity_type: 'course', sessions: 4, meeting_schedule: [{ date: '2020-01-01', performed: 'no' }], management: { exceptionsAvailable: true, exceptions: [] } })).window.document;
   assert.equal(document.querySelector('.activity-desktop-progress-title').textContent, 'התקדמות הקורס');
-  assert.equal(document.querySelector('.activity-mobile-progress-title').textContent, 'התקדמות לפי לוח מתוכנן');
-  assert.equal(document.querySelector('.activity-mobile-progress-suffix').textContent, ' · לפי לוח מתוכנן');
+  assert.equal(document.querySelector('.activity-mobile-progress-title').textContent, 'התקדמות הקורס');
+  assert.equal(document.querySelector('.activity-mobile-progress-suffix'), null);
   assert.ok(document.querySelector('[data-desktop-date-done]'));
   assert.ok(document.querySelector('[data-management-panel]'));
   const section = document.querySelector('[data-dates-section]');
   patchDrawerDatesSection(section, { meeting_schedule: [{ date: '2020-02-01', performed: 'no' }] });
   assert.ok(section.querySelector('[data-desktop-date-done]'));
-  assert.ok(section.querySelector('.activity-mobile-progress-suffix'));
+  assert.equal(section.querySelector('.activity-mobile-progress-suffix'), null);
 });

@@ -652,3 +652,5 @@ config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-mobile-activities-density-2026
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-desktop-activity-drawer-restore-20261115-v1`;
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-personal-education-activities-20261115-v1`;
+
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-course-progress-label-20261115-v1`;
