@@ -646,3 +646,5 @@ config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-mobile-management-2027-2026111
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-mobile-management-data-20261114-v2`;
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-mobile-ux-compact-20261115-v3`;
+
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-mobile-activities-density-20261115-v4`;

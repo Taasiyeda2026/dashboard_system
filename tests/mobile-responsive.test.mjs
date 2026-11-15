@@ -278,3 +278,35 @@ test('feedback detail disclosure leaves original stage actions intact', () => {
   assert.equal(doc.querySelector('[data-mobile-feedback-slot-toggle]'), null);
   assert.equal(action, doc.querySelector('[data-ifb-copy]'));
 });
+
+test('activities stays outside quick navigation and uses the existing permitted route action', () => {
+  const doc = dom('<header class="shell-top"><nav class="shell-header-nav"><button class="is-active" data-route="activities">כל הפעילויות</button><button data-route="instructors">מדריכים</button></nav></header>');
+  const original = doc.querySelector('[data-route="activities"]');
+  let clicks = 0;
+  original.addEventListener('click', () => clicks++);
+  enhanceMobileRoot(doc);
+  enhanceMobileRoot(doc);
+  const shortcut = doc.querySelector('[data-mobile-primary-activities]');
+  assert.equal(doc.querySelectorAll('[data-mobile-primary-activities]').length, 1);
+  assert.equal(shortcut.textContent, 'פעילויות');
+  assert.equal(shortcut.getAttribute('aria-current'), 'page');
+  shortcut.click();
+  assert.equal(clicks, 1);
+  cleanupMobileRoot(doc);
+  assert.equal(doc.querySelector('[data-mobile-primary-activities]'), null);
+  assert.equal(doc.querySelector('[data-route="activities"]'), original);
+  const denied = dom('<header class="shell-top"><nav class="shell-header-nav"><button data-route="instructors">מדריכים</button></nav></header>');
+  enhanceMobileRoot(denied);
+  assert.equal(denied.querySelector('[data-mobile-primary-activities]'), null);
+});
+
+test('2027 cards retain their direct details action without redundant expand controls', () => {
+  const doc = dom('<table class="ds-table--activities-list ds-table--activities-2027-active"><tbody><tr><td><div data-mobile-2027-card><div class="activity-mobile-summary__actions"><button data-management-action="activity">פרטי פעילות</button></div></div></td><td>—</td></tr></tbody></table>');
+  const action = doc.querySelector('[data-management-action]');
+  enhanceMobileRoot(doc);
+  assert.equal(doc.querySelector('[data-mobile-row-toggle]'), null);
+  assert.equal(doc.querySelector('[data-mobile-activity-view]'), null);
+  assert.equal(doc.querySelector('[data-management-action]'), action);
+  cleanupMobileRoot(doc);
+  assert.equal(doc.querySelector('[data-management-action]'), action);
+});
