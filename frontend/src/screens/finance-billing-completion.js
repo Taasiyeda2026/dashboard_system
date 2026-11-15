@@ -11,7 +11,7 @@ export function financeIncompleteBillingActivities(data,mode) {
     const relevant=mode==='editable'||matches.some(r=>r.gefenFunding===(mode==='automatic')||!r.fundingSourceId)
       || (!matches.length && (mode==='automatic'?isGefenFundingName(a.funding):!isGefenFundingName(a.funding)));
     if(!relevant)return false;
-    return (course(a)&&(!Number(a.course_hourly_rate)||!Number(a.sessions)))
+    return (course(a)&&(!Number(a.course_hourly_rate)||!Number.isInteger(Number(a.sessions))||Number(a.sessions)<1||Number(a.sessions)>35))
       || !Number(a.price)
       || matches.some(r=>r.blockedReason&&r.eligibilityStatus!=='waiting_three_meetings'
         && (mode==='editable'||r.gefenFunding===(mode==='automatic')||!r.fundingSourceId)
