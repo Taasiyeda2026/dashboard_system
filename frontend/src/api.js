@@ -5362,6 +5362,7 @@ const ALLOWED_ACTIVITY_COLUMNS = new Set([
   'activity_name_override',
   'sessions',
   'price',
+  'course_hourly_rate',
   'funding',
   'exists_in_gefen',
   'start_time',
@@ -5529,6 +5530,9 @@ function sanitizeActivityPayloadForSupabase(payload = {}, { includeRowId = true 
         const n = Number(rawValue);
         nextValue = Number.isInteger(n) && n > 0 ? n : null;
       }
+    } else if (key === 'course_hourly_rate') {
+      nextValue=rawValue==null||String(rawValue).trim()===''?null:Number(rawValue);
+      if(nextValue!==null&&(!Number.isFinite(nextValue)||nextValue<=0||nextValue>1000000)) throw new Error('invalid_course_hourly_rate');
     } else if (bigintFields.has(key)) {
       nextValue = normalizeBigintFieldForSupabase(rawValue);
     } else if (timeFields.has(key)) {
@@ -6229,7 +6233,7 @@ async function updateActivityInSupabase(payload = {}) {
   }
   const { data: freshDbRow, error: freshDbError } = await supabase
     .from('activities')
-    .select(`${activityDateSelectColumns()},activity_name,activity_no,gefen_number,sessions,price,instruction_language,required_instructor_gender,tour_location`)
+    .select(`${activityDateSelectColumns()},activity_name,activity_no,gefen_number,sessions,price,course_hourly_rate,instruction_language,required_instructor_gender,tour_location`)
     .eq('row_id', rowId)
     .maybeSingle();
   if (freshDbError) throw buildSupabaseMutationError('saveActivity', freshDbError, 'save_failed');
