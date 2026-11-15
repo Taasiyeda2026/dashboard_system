@@ -233,8 +233,8 @@ export function manualOperationsDialogHtml(state) {
   const disabled = saving ? ' disabled' : '';
   const changingInstructor = !!activity.emp_id && text(activity.emp_id) !== text(editor.empId);
   const options = editor.instructors.map(instructor => {
-    const inactive = !instructor.isManagementEmployee && ['no', 'false', '0', 'לא פעיל'].includes(text(instructor.active).toLowerCase());
-    return '<option value="' + escapeHtml(instructor.emp_id) + '"' + (text(instructor.emp_id) === editor.empId ? ' selected' : '') + '>' + escapeHtml(instructor.full_name) + (instructor.isManagementEmployee ? ' · מנהל/ת — אישור אדמין' : inactive ? ' · לא פעיל' : '') + '</option>';
+    // The approval rule is explained separately, never appended to a person's name.
+    return '<option value="' + escapeHtml(instructor.emp_id) + '"' + (text(instructor.emp_id) === editor.empId ? ' selected' : '') + '>' + escapeHtml(instructor.full_name) + (instructor.isManagementEmployee ? ' · מנהל/ת' : '') + '</option>';
   }).join('');
   return `<div class="course-scheduling-overlay" data-manual-operations-overlay>
     <section class="course-scheduling-modal" role="${reviewing ? 'alertdialog' : 'dialog'}" aria-modal="true" aria-labelledby="manual-operations-title" style="max-height:90dvh;overflow:auto;width:min(720px,calc(100vw - 24px))">
