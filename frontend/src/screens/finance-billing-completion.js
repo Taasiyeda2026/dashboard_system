@@ -4,6 +4,9 @@ const esc=value=>escapeHtml(String(value??''));
 const key=value=>String(value??'');
 const money=value=>Number(value||0).toLocaleString('he-IL',{maximumFractionDigits:2});
 const course=row=>String(row?.activity_type||'').toLowerCase()==='course';
+const approvedGefenRate=rows=>rows.find(r=>r.gefenFunding&&Number(r.approvedGefenRate)>0)?.approvedGefenRate;
+const missingCourseRate=(a,rows,mode='editable')=>!Number(a.course_hourly_rate)&&!(approvedGefenRate(rows)&&(mode==='automatic'||(rows.length&&rows.every(r=>r.gefenFunding))));
+const gefenRateGap=rows=>rows.some(r=>r.gefenFunding&&Number(r.approvedGefenRate)>0&&Number(r.fundingAmount)>Math.round(Number(r.approvedGefenRate)*Number(r.plannedHours)*100)/100+0.02);
 export function financeIncompleteBillingActivities(data,mode) {
   const rows=data.transactionContext?.billingRows||[];
   return (data.collectionActivities||[]).filter(a=>{
@@ -11,8 +14,9 @@ export function financeIncompleteBillingActivities(data,mode) {
     const relevant=mode==='editable'||matches.some(r=>r.gefenFunding===(mode==='automatic')||!r.fundingSourceId)
       || (!matches.length && (mode==='automatic'?isGefenFundingName(a.funding):!isGefenFundingName(a.funding)));
     if(!relevant)return false;
-    return (course(a)&&(!Number(a.course_hourly_rate)||!Number.isInteger(Number(a.sessions))||Number(a.sessions)<1||Number(a.sessions)>35))
+    return (course(a)&&(missingCourseRate(a,matches,mode)||!Number.isInteger(Number(a.sessions))||Number(a.sessions)<1||Number(a.sessions)>35))
       || !Number(a.price)
+      || (mode!=='manual'&&gefenRateGap(matches))
       || matches.some(r=>r.blockedReason&&r.eligibilityStatus!=='waiting_three_meetings'
         && (mode==='editable'||r.gefenFunding===(mode==='automatic')||!r.fundingSourceId)
         && !['הפקה בתהליך','חלק המממן חויב במלואו'].includes(r.blockedReason));
@@ -23,11 +27,12 @@ export function financeBillingMissingReasons(activity, billingRows=[]) {
   const reasons=new Set();
   const add=reason=>{if(reason)reasons.add(reason);};
   if(course(activity)){
-    if(!Number(activity.course_hourly_rate))add('מחיר שעתי');
+    if(missingCourseRate(activity,matches))add(approvedGefenRate(matches)?'מחיר שעתי מוסכם (ליתר המממנים)':'מחיר שעתי');
     const sessions=Number(activity.sessions);
     if(!Number.isInteger(sessions)||sessions<1||sessions>35)add('מספר מפגשים');
   }
   if(!Number(activity.price))add('מחיר כולל');
+  if(gefenRateGap(matches))add('פער בין מסגרת גפ״ן לתעריף × שעות — נדרש בירור');
   for(const row of matches){
     const reason=String(row.blockedReason||'').replace(/^billing_blocked:/,'').trim();
     if(!reason||row.eligibilityStatus==='waiting_three_meetings'||['הפקה בתהליך','חלק המממן חויב במלואו'].includes(reason))continue;
@@ -54,9 +59,10 @@ export function financeBillingCompletionHtml(data,mode='editable') {
   const list=incomplete.map(a=>{
     const reasons=financeBillingMissingReasons(a,rows);
     const active=key(editor?.row_id)===key(a.row_id);
+    const orderRate=approvedGefenRate(rows.filter(r=>key(r.activityRowId)===key(a.row_id)));
     const funding=a.funding||[...new Set(rows.filter(r=>key(r.activityRowId)===key(a.row_id)&&r.fundingSourceId).map(r=>r.funding).filter(Boolean))].join(' + ');
     const searchText=[a.school,a.authority,a.activity_name,a.activity_no,funding,...reasons].join(' ').toLowerCase();
-    return '<tr data-finance-completion-row data-completion-search-text="'+esc(searchText)+'"'+(active?' data-completion-selected="true"':'')+'><td><strong>'+esc(a.school||'—')+'</strong>'+(a.authority?'<small style="display:block;color:var(--ds-text-muted,#64748b)">'+esc(a.authority)+'</small>':'')+'</td><td><strong>'+esc(a.activity_name||'—')+'</strong>'+(a.activity_no?'<small style="display:block;color:var(--ds-text-muted,#64748b)">'+esc(a.activity_no)+'</small>':'')+'</td><td>'+esc(funding||'חסר')+'</td><td>'+ (course(a)?value(a.sessions):'—')+'</td><td>'+(course(a)?price(a.course_hourly_rate):'—')+'</td><td>'+price(a.price)+'</td><td style="white-space:normal"><div style="display:grid;gap:3px">'+(reasons.length?reasons:['נדרשת השלמת נתוני חיוב']).map(reason=>'<span>'+esc(reason)+'</span>').join('')+'</div></td><td><button type="button" class="ds-btn ds-btn--sm '+(active?'ds-btn--ghost':'ds-btn--primary')+'" data-finance-complete-open="'+esc(a.row_id)+'">'+(active?'פתוח':'השלמה')+'</button></td></tr>'+(active?'<tr data-finance-completion-inline><td colspan="8" style="white-space:normal;padding:8px 0">'+financeBillingCompletionEditorHtml(editor)+'</td></tr>':'');
+    return '<tr data-finance-completion-row data-completion-search-text="'+esc(searchText)+'"'+(active?' data-completion-selected="true"':'')+'><td><strong>'+esc(a.school||'—')+'</strong>'+(a.authority?'<small style="display:block;color:var(--ds-text-muted,#64748b)">'+esc(a.authority)+'</small>':'')+'</td><td><strong>'+esc(a.activity_name||'—')+'</strong>'+(a.activity_no?'<small style="display:block;color:var(--ds-text-muted,#64748b)">'+esc(a.activity_no)+'</small>':'')+'</td><td>'+esc(funding||'חסר')+'</td><td>'+ (course(a)?value(a.sessions):'—')+'</td><td>'+(course(a)?(orderRate?'<span>גפ״ן: '+price(orderRate)+'</span>'+(Number(a.course_hourly_rate)?'<small style="display:block;color:var(--ds-text-muted,#64748b)">מוסכם: '+price(a.course_hourly_rate)+'</small>':''):price(a.course_hourly_rate)):'—')+'</td><td>'+price(a.price)+'</td><td style="white-space:normal"><div style="display:grid;gap:3px">'+(reasons.length?reasons:['נדרשת השלמת נתוני חיוב']).map(reason=>'<span>'+esc(reason)+'</span>').join('')+'</div></td><td><button type="button" class="ds-btn ds-btn--sm '+(active?'ds-btn--ghost':'ds-btn--primary')+'" data-finance-complete-open="'+esc(a.row_id)+'">'+(active?'פתוח':'השלמה')+'</button></td></tr>'+(active?'<tr data-finance-completion-inline><td colspan="8" style="white-space:normal;padding:8px 0">'+financeBillingCompletionEditorHtml(editor)+'</td></tr>':'');
   }).join('');
   const outsideEditor=editor&&!visibleIds.has(key(editor.row_id))?financeBillingCompletionEditorHtml(editor):'';
   return '<section data-finance-completion-section dir="rtl"><div class="ds-fin-collect-toolbar" style="align-items:end;justify-content:space-between"><div><h3 style="margin:0">פעילויות להשלמת פרטים</h3><small style="color:var(--ds-text-muted,#64748b)" data-finance-completion-count>'+incomplete.length+' פעילויות</small></div><label>חיפוש<input class="ds-input" type="search" data-finance-completion-search value="'+esc(data.billingCompletionSearch||'')+'" placeholder="מוסד, פעילות, מממן או חוסר"></label></div>'+outsideEditor+(incomplete.length?'<div class="ds-table-wrap"><table class="ds-table" dir="rtl"><thead><tr><th>מוסד / רשות</th><th>פעילות</th><th>מימון</th><th>מפגשים</th><th>מחיר לשעה</th><th>מחיר כולל</th><th>מה חסר / נדרש בירור</th><th></th></tr></thead><tbody>'+list+'</tbody></table></div><p class="ds-empty-state" data-finance-completion-no-results hidden>לא נמצאו פעילויות מתאימות.</p>':'<p class="ds-empty-state">אין פעילויות עם פרטים חסרים להשלמה.</p>')+'</section>';
