@@ -155,6 +155,7 @@ test('manager instructor selection is visibly marked and admin-only error is cle
     { emp_id: 1500, full_name: 'הילה רוזן', isManagementEmployee: true, active: 'yes' }
   ]) };
   const html = manualOperationsDialogHtml(state);
-  assert.match(html, /הילה רוזן · מנהל\/ת — אישור אדמין/);
+  assert.match(html, /הילה רוזן · מנהל\/ת<\/option>/);
+  assert.doesNotMatch(html, /הילה רוזן[^<]*אישור אדמין/);
   assert.match(html, /אדמין בלבד/);
 });
