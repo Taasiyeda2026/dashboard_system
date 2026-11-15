@@ -1,3 +1,4 @@
+import { bindCourseFormPricing, courseFormPricing } from '../course-hourly-pricing.js';
 import { ensureActivityManagement, cachedManagement, managementFilterMatches } from './shared/activity-management-data.js';
 import { activityManagementPanelHtml, activityManagementIndicatorsHtml, activityPlanningFactsHtml } from './shared/activity-management-summary.js';
 import { activityMobileSummaryHtml } from './shared/activity-management-summary.js';
@@ -1066,6 +1067,7 @@ function addActivityModalHtml(settings, activityPeriodTab = '') {
         <div class="ds-activity-add-field ds-activity-add-field--span2" data-add-gefen-order-host hidden>
           <input type="checkbox" name="exists_in_gefen" value="true" data-gefen-exists-checkbox hidden>
         </div>
+        <div class="ds-activity-add-field ds-activity-add-field--compact" data-course-pricing hidden><label><span>מחיר לשעה (₪)</span><input class="ds-input" name="course_hourly_rate" type="number" min="0.01" step="any"></label><small>סה״כ שעות: <span data-course-hours>—</span></small></div>
         <label class="ds-activity-add-field ds-activity-add-field--compact"><span>מחיר</span><input class="ds-input" name="price" type="number" min="0" step="1"></label>
         <label class="ds-activity-add-field"><span>קבוצה / כיתה</span><input class="ds-input" name="class_group" type="text"></label>
         <label class="ds-activity-add-field"><span>כיתה / שכבה</span><select class="ds-input" name="grade">${optionsHtml(gradeOptions, '', '— בחרו כיתה —')}</select></label>
@@ -3328,6 +3330,7 @@ export const activitiesScreen = {
       form.querySelector('[name="activity_season"]')?.addEventListener('change', () => syncAddTourLocation(form), addActivitySig);
       bindAddActivitySessionCountSync(form, addActivitySig);
       enhanceAddActivityGefenOrderUi(form);
+      bindCourseFormPricing(form,{fresh:true,signal:addActivitySig?.signal});
       const rebuildSessions = async () => {
         syncSessionDateRows(form);
         await regenerateAddActivitySessionDates(form);
@@ -3471,6 +3474,12 @@ export const activitiesScreen = {
         resetAddActivitySavingState(form, submitBtn);
         return;
       }
+      const coursePricing = courseFormPricing(form,{fresh:true});
+      if (coursePricing.active && (!coursePricing.valid || !coursePricing.rate)) {
+        setAddActivityStatus(statusEl, 'יש להזין תעריף שעתי ומספר מפגשים תקינים לקורס', {isError:true});
+        resetAddActivitySavingState(form, submitBtn);
+        return;
+      }
       const sessionsValue = get('sessions') || '1';
       const isOneDay = isOneDayActivityTypeValue(get('activity_type'));
       const oneDayDate = String(get('one_day_date') || get('start_date') || get('end_date') || '').trim();
@@ -3499,6 +3508,7 @@ export const activitiesScreen = {
         activity_no: String(hit?.activity_no || get('activity_no') || ''),
         sessions: isOneDay ? '1' : sessionsValue,
         price: get('price'),
+        ...(coursePricing.active ? { course_hourly_rate: coursePricing.rate } : {}),
         funding_sources: Array.from(form.querySelectorAll('[data-funding-source-id]:checked')).map((checkbox) => ({ funding_source_id: checkbox.dataset.fundingSourceId, amount: checkbox.closest('label')?.querySelector('[data-funding-amount]')?.value || null })),
         exists_in_gefen: activityCreateGefenValue(form),
         start_time: get('start_time'),
@@ -3508,6 +3518,12 @@ export const activitiesScreen = {
         status: get('status') || 'פתוח',
         notes: get('notes')
       };
+      if (coursePricing.active && payload.funding_sources.length===1) payload.funding_sources[0].amount=coursePricing.total;
+      if (coursePricing.active && payload.funding_sources.length>1 && Math.round(payload.funding_sources.reduce((sum,row)=>sum+Number(row.amount||0),0)*100)!==Math.round(coursePricing.total*100)) {
+        setAddActivityStatus(statusEl,'סכומי גורמי המימון חייבים להיות שווים למחיר הקורס',{isError:true});
+        resetAddActivitySavingState(form,submitBtn);
+        return;
+      }
       if (isOneDay) {
         const selectedDate = String(oneDayDate || payload.start_date || payload.end_date || '').trim();
         if (selectedDate) {
