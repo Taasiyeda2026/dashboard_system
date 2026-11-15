@@ -17,7 +17,8 @@ begin
       end if;
     end if;
   else
-    if new.course_hourly_rate_source='finance_contract' and current_user='postgres' then
+    if new.course_hourly_rate_source='finance_contract' and current_user='postgres'
+      and (old.course_hourly_rate_source is distinct from 'finance_contract' or current_setting('finance.billing_completion',true)='on') then
       new.course_proposal_hours := null;
     elsif new.course_hourly_rate is distinct from old.course_hourly_rate
       or new.sessions is distinct from old.sessions
@@ -103,9 +104,14 @@ begin
     if has_prior then raise exception 'לא ניתן לשנות מוסד לאחר הפקת חשבון'; end if;
   end if;
   program_code:=nullif(btrim(p_data->>'program_code'),'');
-  if has_gefen and coalesce(nullif(btrim(a.activity_no),''),program_code,'') !~ '^[0-9]+$' then raise exception 'יש להשלים מספר תוכנית גפ״ן תקין'; end if;
-  if has_prior and nullif(btrim(a.activity_no),'') is null and program_code is not null then raise exception 'לא ניתן לשנות מספר תוכנית לאחר הפקת חשבון'; end if;
+  if has_gefen and coalesce(case when coalesce(a.activity_no,'') ~ '^[0-9]+$' then a.activity_no else program_code end,'') !~ '^[0-9]+$' then raise exception 'יש להשלים מספר תוכנית גפ״ן תקין'; end if;
+  if has_prior and coalesce(a.activity_no,'') !~ '^[0-9]+$' and program_code is not null then raise exception 'לא ניתן לשנות מספר תוכנית לאחר הפקת חשבון'; end if;
   email:=nullif(btrim(p_data->>'contact_email'),'');
+  if a.activity_type='course' then
+    if (select count(*) from generate_series(1,35) s where nullif(to_jsonb(a)->>('date_'||s),'') is not null)>n then raise exception 'מספר המפגשים קטן ממספר המועדים הקיימים'; end if;
+    if exists(select 1 from generate_series(n+1,35) s where nullif(p_data->'dates'->>('date_'||s),'') is not null) then raise exception 'אין להזין מועדים מעבר למספר המפגשים'; end if;
+  end if;
+  perform set_config('finance.billing_completion','on',true);
   update public.activities set price=price_value,
     sessions=case when a.activity_type='course' then n::text else a.sessions end,
     course_hourly_rate=case when a.activity_type='course' then rate_value else null end,
@@ -115,7 +121,7 @@ begin
     school=case when a.school_id is null and school_row.id is not null then school_row.school_name else a.school end,
     authority_id=coalesce(a.authority_id,school_row.authority_id),
     authority=case when a.authority_id is null and school_row.authority_id is not null then (select au.authority_name from public.authorities au where au.id=school_row.authority_id) else a.authority end,
-    activity_no=coalesce(nullif(btrim(a.activity_no),''),program_code),
+    activity_no=case when has_gefen and coalesce(a.activity_no,'') !~ '^[0-9]+$' then program_code else coalesce(nullif(btrim(a.activity_no),''),program_code) end,
     gefen_number=case when has_gefen then coalesce(nullif(btrim(a.gefen_number),''),program_code,a.activity_no) else a.gefen_number end,
     start_time=coalesce(a.start_time,nullif(p_data->>'start_time','')::time),
     end_time=coalesce(a.end_time,nullif(p_data->>'end_time','')::time),
@@ -156,6 +162,7 @@ begin
     date_34=coalesce(a.date_34,nullif(p_data->'dates'->>'date_34','')::date),
     date_35=coalesce(a.date_35,nullif(p_data->'dates'->>'date_35','')::date)
   where id=a.id;
+  perform set_config('finance.billing_completion','off',true);
   if not has_prior then
     delete from public.activity_funding_sources where activity_id=a.id and funding_source_id not in (select (j->>'id')::uuid from jsonb_array_elements(p_data->'allocations') j);
     insert into public.activity_funding_sources(activity_id,funding_source_id,amount) select a.id,(j->>'id')::uuid,(j->>'amount')::numeric from jsonb_array_elements(p_data->'allocations') j
