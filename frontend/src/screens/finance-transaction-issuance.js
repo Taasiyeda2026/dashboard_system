@@ -91,7 +91,7 @@ function groupProgress(lines) {
   return [
     `${new Set(lines.map(row => row.activityRowId)).size} פעילויות`,
     ...(courses.length ? [`${courses.reduce((sum,row)=>sum+Number(row.unbilledCount||0),0)} מפגשים`,
-      `${courses.reduce((sum,row)=>sum+Number(row.unbilledHours||0),0)} שעות`] : []),
+      `${courses.reduce((sum,row)=>sum+Number(row.unbilledHours||0),0).toLocaleString('he-IL', { maximumFractionDigits: 2 })} שעות`] : []),
     ...(services.length ? [`${services.reduce((sum,row)=>sum+invoiceQuantity(row),0)} סדנאות/סיורים`] : [])
   ].join(' · ');
 }
@@ -194,7 +194,7 @@ function summaryCards(preview) {
     ['חשבונות עסקה',preview.accounts.length],
     ['בתי ספר', preview.totals.schools],
     ['פעילויות', preview.totals.activities],
-    ...(preview.totals.containsCourses !== false ? [['מפגשים לחיוב', preview.totals.meetings], ['שעות לחיוב', preview.totals.hours]] : []),
+    ...(preview.totals.containsCourses !== false ? [['מפגשים לחיוב', preview.totals.meetings], ['שעות לחיוב', Number(preview.totals.hours || 0).toLocaleString('he-IL', { maximumFractionDigits: 2 })]] : []),
     ...(preview.totals.containsUnits ? [['כמות סדנאות/סיורים', preview.totals.units]] : []),
     ['סכום להפקה', formatAmount(preview.totals.amount)]
   ];
