@@ -18,7 +18,7 @@ export function financeIncompleteBillingActivities(data,mode) {
     return (course(a)&&(missingCourseRate(a,matches,mode)||!Number.isInteger(Number(a.sessions))||Number(a.sessions)<1||Number(a.sessions)>35))
       || !Number(a.price)
       || (mode!=='manual'&&gefenRateGap(matches))
-      || matches.some(r=>r.blockedReason&&r.eligibilityStatus!=='waiting_three_meetings'
+      || matches.some(r=>r.blockedReason&&(r.gefenFunding||!/חסר מחיר שעתי/.test(r.blockedReason))&&r.eligibilityStatus!=='waiting_three_meetings'
         && (mode==='editable'||r.gefenFunding===(mode==='automatic')||!r.fundingSourceId)
         && !['הפקה בתהליך','חלק המממן חויב במלואו'].includes(r.blockedReason));
   });
