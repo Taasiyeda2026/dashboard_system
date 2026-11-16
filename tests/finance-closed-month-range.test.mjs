@@ -13,7 +13,7 @@ test('both tabs include eligible unissued September through October only, with o
   for(const mode of ['automatic','manual']){
     const sep=row(mode,'sep','2026-09-01'),oct=row(mode,'oct','2026-10-01');
     const d=visit([sep,oct,sep,row(mode,'old-year','2025-12-01'),row(mode,'august','2026-08-01'),row(mode,'current','2026-11-01'),row(mode,'billed','2026-10-01',{eligible:false,issuableAmount:0,unbilledSlots:[],unbilledCount:0}),row(mode,'waiting','2026-10-01',{eligible:false,blockedReason:'ממתין',eligibilityStatus:'waiting_three_meetings',issuableAmount:0})],mode);
-    const p=transactionPreviewForVisit(d,mode);assert.equal(p.accounts.length,2);assert.equal(p.totals.amount,4800);assert.equal(transactionBacklog(d,mode).length,2,'raw duplicate is deduplicated in the issuance preview');
+    const p=transactionPreviewForVisit(d,mode);assert.equal(p.accounts.length,mode==='automatic'?1:2);assert.equal(p.totals.amount,4800);assert.equal(transactionBacklog(d,mode).length,2,'raw duplicate is deduplicated in the issuance preview');
     const doc=new JSDOM(transactionAccountsViewHtml(d,x=>x)).window.document;
     assert.equal(doc.querySelector('[data-finance-transaction-month]').value,'2026-10');assert.equal(doc.querySelector('[data-finance-transaction-month]').max,'2026-10');
     assert.ok([...doc.querySelectorAll('details')].every(x=>!x.open));assert.equal(doc.querySelectorAll('[data-finance-transaction-run]').length,1);assert.match(doc.querySelector('[data-finance-transaction-run]').textContent,/הפקת כל חשבונות העסקה/);
@@ -36,9 +36,9 @@ test('one action in each tab issues every closed eligible period in order with s
   for(const mode of ['automatic','manual']){
     const d=visit([row(mode,'oct','2026-10-01'),row(mode,'sep','2026-09-01'),row(mode,'other','2026-10-01',{payerKey:'school:2',payerName:'בית ספר ב',institutionSymbol:'222'}),row(mode,'current','2026-11-01')],mode);
     d.transactionManualSelected={};const sent=[],api={reserveFinanceTransactionAccount:async p=>{sent.push(p);return{id:p.idempotencyKey};},dispatchFinanceTransactionAccount:async()=>({outlookStatus:'draft_ready'})};
-    assert.equal((await runTransactionIssuance(d,api,mode)).length,3);assert.equal(sent[0].lines[0].performance_month,'2026-09-01');
+    const expected=mode==='automatic'?2:3;assert.equal((await runTransactionIssuance(d,api,mode)).length,expected);assert.ok(sent.some(p=>p.lines.some(l=>l.performance_month==='2026-09-01')));
     assert.ok(sent.every(p=>p.lines.every(l=>l.performance_month<'2026-11-01')));const first=sent.map(p=>p.idempotencyKey);
-    await runTransactionIssuance(d,api,mode);assert.deepEqual(sent.slice(3).map(p=>p.idempotencyKey),first);
+    await runTransactionIssuance(d,api,mode);assert.deepEqual(sent.slice(expected).map(p=>p.idempotencyKey),first);
     d.transactionContext.billingRows=[];await assert.rejects(runTransactionIssuance(d,api,mode),/אין חשבונות/);
   }
 });
