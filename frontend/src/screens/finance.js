@@ -604,6 +604,8 @@ export const financeScreen = {
       }
     };
     const onClick = async (ev) => {
+      const selectAllButton=ev.target.closest('[data-finance-manual-select-all-button]');
+      if(selectAllButton){ev.preventDefault();const master=root.querySelector('[data-finance-manual-select-all]');toggleAllVisibleManualActivities(visit,!master?.checked);syncManualActivitySelectionUi(root,visit);return;}
       const completionOpen=ev.target.closest('[data-finance-complete-open]');
       if(completionOpen){
         if(visit.financeBusy||visit.transactionRunning||!visit.financeCanComplete)return;
