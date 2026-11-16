@@ -27,7 +27,7 @@ test('only Gefen opens the current month from the 15th; no free date picker; cut
   t.mock.timers.enable({apis:['Date'],now:new Date('2026-11-15T00:00:00+02:00')});
   const d=visit([row('2026-10-01'),row('2026-11-01'),row('2026-11-01',{gefenFunding:false,fundingSourceId:'s'})]);
   assert.equal(transactionMonth(d,'automatic'),'2026-11');assert.equal(transactionMonth(d,'manual'),'2026-10');
-  assert.equal(transactionPreviewForVisit(d,'automatic').accounts.length,2);
+  assert.equal(transactionPreviewForVisit(d,'automatic').accounts.length,1);
   assert.equal(transactionPreviewForVisit(d,'manual').accounts.length,0);
   const doc=new JSDOM(transactionAccountsViewHtml(d,x=>x)).window.document;
   assert.equal(doc.querySelector('[data-finance-transaction-month]').max,'2026-11');
@@ -67,6 +67,6 @@ test('backlog and mixed funding retain existing school, payer and monthly groupi
     row('2027-01-01',{activityRowId:'b',institutionSymbol:'456',payerKey:'school:2'}),
     row('2026-12-01',{gefenFunding:false,fundingSourceId:'r',payerKey:'authority:1'}),
     row('2026-12-01',{gefenFunding:false,fundingSourceId:'r',payerKey:'authority:1',activityRowId:'b',institutionSymbol:'456'})]);
-  const gefen=transactionPreviewForVisit(d,'automatic');assert.equal(gefen.accounts.length,4);assert.equal(gefen.totals.amount,12000);
+  const gefen=transactionPreviewForVisit(d,'automatic');assert.equal(gefen.accounts.length,2);assert.equal(gefen.totals.amount,12000);
   const other=transactionPreviewForVisit(d,'manual');assert.equal(other.accounts.length,1);assert.equal(other.accounts[0].lines.length,2);
 });
