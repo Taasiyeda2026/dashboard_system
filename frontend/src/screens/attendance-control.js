@@ -2688,9 +2688,9 @@ export function resultsHtml(result, month = '', options = {}) {
   const dailyTravelHtml = (employeeId,date,dayRows=[]) => {
     if (!needsDailyTravel(date,dayRows)) return '';
     const record = dailyTravelByDay.get(employeeId+'|'+date);
-    if (!record) return '<div class="attendance-control__daily-travel attendance-control__daily-travel--missing">'+
-      '<strong>נסיעות וביטולים · '+shown(dateLabel(date))+'</strong><span>דיווח נסיעות חסר</span></div>';
-    const status = record.review_status === 'approved' || record.review_status === 'corrected'
+    if (!record) return '<div class="attendance-control__day attendance-control__daily-travel attendance-control__daily-travel--missing"><div class="attendance-control__report-line">'+
+      '<strong>נסיעות · '+shown(dateLabel(date))+'</strong><span class="attendance-control__status-pill attendance-control__status-pill--issue">דיווח נסיעות חסר</span></div></div>';
+    const status = record.review_status === 'corrected' ? 'תוקן ואושר' : record.review_status === 'approved'
       ? 'אושר' : record.review_status === 'rejected' ? 'נדחה' : 'ממתין לאישור';
     const km = record.no_travel ? 0 : optionalNumber(record.total_km);
     const minutes = record.no_travel ? 0 : optionalNumber(record.cancellation_minutes);
@@ -2704,9 +2704,18 @@ export function resultsHtml(result, month = '', options = {}) {
       : '';
     const legRows = Array.isArray(record.legs) ? record.legs.map(leg =>
       '<tr><td>'+shown(leg.from)+' ← '+shown(leg.to)+'</td><td>'+shown(leg.minutes)+' דקות</td><td>'+shown(leg.kilometers)+' ק״מ</td><td>'+(leg.mode==='public_transport'?'תחבורה ציבורית · ₪'+shown(leg.transportCost||0):'רכב')+'</td></tr>').join('') : '';
-    return '<div class="attendance-control__daily-travel"><strong>נסיעות וביטולים · '+shown(dateLabel(date))+'</strong>'+
-      '<span>ק״מ: '+shown(km??'—')+' · ביטול זמן: '+shown(minutes??'—')+' דקות'+(fare>0?' · תחבורה ציבורית: ₪'+shown(fare):'')+' · '+shown(status)+'</span>'+
-      (legRows?'<table><tbody>'+legRows+'</tbody></table>':'')+actions+'</div>';
+    const resolved = ['approved','corrected'].includes(record.review_status);
+    const summaryKm = resolved ? optionalNumber(record.approved_km) : km;
+    const summaryMinutes = resolved ? optionalNumber(record.approved_cancellation_minutes) : minutes;
+    const summaryFare = resolved ? optionalNumber(record.approved_public_transport_cost) : fare;
+    const reported = 'דווח: '+shown(km??'—')+' ק״מ · '+shown(minutes??'—')+' דקות'+(fare>0?' · תחבורה ציבורית: ₪'+shown(fare):'');
+    const totals = record.review_status === 'rejected' ? 'נדחה לתשלום' :
+      (resolved?'מאושר: ':'מדווח: ')+shown(summaryKm??'—')+' ק״מ · '+shown(summaryMinutes??'—')+' דקות ביטול זמן'+(summaryFare>0?' · ₪'+shown(summaryFare):'');
+    return '<details class="attendance-control__day attendance-control__daily-travel"><summary><strong>נסיעות · '+shown(dateLabel(date))+'</strong><span>'+totals+'</span><span class="attendance-control__row-status">'+shown(status)+'</span></summary>'+
+      '<div class="attendance-control__reports"><p>'+reported+'</p>'+
+      (record.no_travel?'<p>העובד דיווח שלא נסע ביום זה.</p>':'')+
+      (legRows?'<table class="attendance-control__comparison-table"><thead><tr><th>מסלול מדווח</th><th>משך</th><th>מרחק</th><th>אמצעי נסיעה</th></tr></thead><tbody>'+legRows+'</tbody></table>':'')+
+      '<div class="attendance-control__employee-actions">'+actions+'</div></div></details>';
   };
   const employeeHtml = [...employees.values()].sort((a, b) => a.name.localeCompare(b.name, 'he')).map((employee) => {
     const hasWorkflowRow = Object.prototype.hasOwnProperty.call(workflowByEmployee, employee.id);
@@ -2717,7 +2726,7 @@ export function resultsHtml(result, month = '', options = {}) {
     );
     const days = [...employee.days.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([date, rows]) => {
       rows.sort((left, right) => left.time.localeCompare(right.time));
-      return rows.map((row) => {
+      return dailyTravelHtml(employee.id,date,rows) + rows.map((row) => {
         const item = row.item;
         const attached = generatedCancellationBySource.get(entryRecordId(item));
         const current = item.final || item.attendance || item.dashboard || {};
@@ -2732,12 +2741,10 @@ export function resultsHtml(result, month = '', options = {}) {
     const expenseHtml=expenseReviewHtml(employee.id,true);
     const pendingExpenses=(expenseReportsByEmployee.get(employee.id)||[])
       .filter(item=>item.review_status==='pending_review').length;
-    const dailyTravelDays = [...employee.days.entries()].sort(([a],[b])=>a.localeCompare(b))
-      .map(([date,dayRows])=>dailyTravelHtml(employee.id,date,dayRows)).filter(Boolean).join('');
     const pendingTravelDays = [...employee.days.entries()].filter(([date,dayRows])=>{
       if(!needsDailyTravel(date,dayRows))return false;
       const r=dailyTravelByDay.get(employee.id+'|'+date);
-      return !r || !['approved','corrected'].includes(r.review_status);
+      return !r || !['approved','corrected','rejected'].includes(r.review_status);
     }).length;
     const employeeEntries = allAttendanceEntries.filter((entry) => txt(entry.attendance?.employeeId) === employee.id);
     const totalRecordCount = employeeEntries.length;
@@ -2788,7 +2795,7 @@ export function resultsHtml(result, month = '', options = {}) {
       }
     }
     const readonlyAttr = currentEmployeeCanMutate ? '' : ' data-payroll-employee-readonly="1"';
-    return `<details class="attendance-control__employee" data-payroll-employee="${escapeHtml(employee.id)}"${readonlyAttr}><summary><strong>${shown(employee.name)}</strong>${recordProgressHtml}</summary>${workflowHtml}${managerApprovedHtml}${approvedHtml}${finishControls}${expenseHtml}${dailyTravelDays}<div class="attendance-control__employee-days">${days}</div></details>`;
+    return `<details class="attendance-control__employee" data-payroll-employee="${escapeHtml(employee.id)}"${readonlyAttr}><summary><strong>${shown(employee.name)}</strong>${recordProgressHtml}</summary>${workflowHtml}${managerApprovedHtml}${approvedHtml}${finishControls}${expenseHtml}<div class="attendance-control__employee-days">${days}</div></details>`;
   }).join('');
   const reviewEmployees = [...employees.values()].filter((employee) => {
     const hasWorkflowRow = Object.prototype.hasOwnProperty.call(workflowByEmployee, employee.id);
