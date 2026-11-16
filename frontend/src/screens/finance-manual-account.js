@@ -14,6 +14,7 @@ function manualService(data) {
   return ['workshop','tour'].includes(text(row?.activityType||source?.activity_type).toLowerCase());
 }
 export function manualHourlyRate(draft={}) {
+  if(draft.gefen_funding && Number(draft.hourly_rate)>0)return Number(draft.hourly_rate);
   const hours=Number(draft.planned_hours ?? draft.hours);
   if (!(hours > 0)) return null;
   // Prefer this funder's share so mixed Gefen invoices show the funder hourly rate.
@@ -135,6 +136,7 @@ export function manualFundingFilterOptions(data) {
 function matchesManualSelection(row, activity, data) {
   const key=text(data.manualFunderFilter);
   if (!key) return false;
+  if(data.manualFundingCategory && manualFundingRoute(row).key!==data.manualFundingCategory)return false;
   if (key.startsWith('route:')) return manualFundingRoute(row).key === key.slice(6);
   return manualRowPayer(row,activity).key===key;
 }
@@ -168,6 +170,7 @@ export function prepareManualAccount(data,activityId,fundingKey,basis) {
     description:source.activity_name||'',quantity,hours:manualService(data)?0:Number(full?(row?.plannedHours ?? quantity*TRANSACTION_MEETING_HOURS):(row?.unbilledHours ?? quantity*TRANSACTION_MEETING_HOURS)),unit_price:quantity?amount/quantity:0,amount,
     activity_price:Number(row?.activityPrice ?? source.price ?? row?.fundingAmount ?? amount),
     funding_amount:Number(row?.fundingAmount ?? (full?row?.fullFundingAmount:amount) ?? 0),
+    gefen_funding:row?.gefenFunding===true,hourly_rate:row?.gefenFunding?Number(row.hourlyRate||row.approvedGefenRate||0):null,
     planned_count:Number(row?.plannedCount || quantity),planned_hours:Number(row?.plannedHours ?? (row?.plannedCount || quantity)*TRANSACTION_MEETING_HOURS),
     issue_date:financeToday(),payment_due_date:financePaymentDueDate(financeToday(),days),customer_email:normalizeManualRecipientEmails(data.manualFunderRecipientEmail || row?.customerEmail),override_reason:''};
   data.manualQuote=null;data.manualPdf='';data.manualConsolidatedPreview=null;
@@ -225,9 +228,16 @@ export function focusManualActivity(data, activityId) {
 export function toggleAllVisibleManualActivities(data, checked) {
   if (!data.manualFunderFilter) return;
   const ids = manualFilteredActivities(data).filter(activity=>manualActivityBillable(data,activity.row_id)).map(activity => activity.row_id);
-  for (const id of ids) {
-    if (selectedManualActivityIds(data).includes(id) !== checked) toggleManualActivity(data, id, checked);
+  saveActiveManualDraft(data);
+  const selected=new Set(selectedManualActivityIds(data));
+  for(const id of ids){
+    if(checked){if(!selected.has(id)||!data.manualActivityDrafts?.[id]){prepareManualAccount(data,id);saveActiveManualDraft(data);}selected.add(id);}
+    else{selected.delete(id);if(data.manualActivityDrafts)delete data.manualActivityDrafts[id];}
   }
+  data.manualSelectedActivityIds=[...selected];
+  if(selected.size){focusManualActivity(data,selected.has(data.manualActivityId)?data.manualActivityId:[...selected][0]);}
+  else{data.manualActivityId='';data.manualDraft=null;data.manualFundingKey='';data.manualActivityDrafts={};data.manualQuote=null;data.manualPdf='';data.manualBatchPreviews=null;data.manualConsolidatedPreview=null;}
+  data.manualSelectionExpanded=true;
   // Bulk selection must not focus and display an arbitrary school.
   data.manualBulkEditingActivityId = '';
 }
@@ -402,7 +412,7 @@ export function updateManualDraft(data,key,value) {
     : key === 'customer_email' ? normalizeManualRecipientEmails(value) : value;
   if ((key === 'amount' || key === 'unit_price') && !Number.isFinite(safeValue)) return false;
   const service=manualService(data);
-  if(!service && (['unit_price','hours','amount'].includes(key) || (key==='quantity'&&data.manualDraft.billing_basis==='full_funding')))return false;
+  if(!service && (['unit_price','hours','amount'].includes(key) || (key==='quantity'&&(data.manualDraft.billing_basis==='full_funding'||data.manualDraft.gefen_funding===false))))return false;
   data.manualDraft={...data.manualDraft,[key]:safeValue};const d=data.manualDraft;
   if (key === 'customer_email' && data.manualFunderFilter) {
     const fundingId = text(data.manualFundingKey).split('|')[0];
@@ -454,16 +464,18 @@ export function syncManualActivitySelectionUi(root, data) {
     input.checked = selected.has(input.value);
   });
   const summary = head.querySelector('[data-finance-manual-selection-summary]');
-  if (summary) summary.textContent = nextHead.querySelector('[data-finance-manual-selection-summary]').textContent;
+  if (summary && nextHead.querySelector('[data-finance-manual-selection-summary]')) summary.textContent = nextHead.querySelector('[data-finance-manual-selection-summary]').textContent;
   const master = head.querySelector('[data-finance-manual-select-all]');
   if (master) {
     const inputs = [...head.querySelectorAll('[data-finance-manual-select-activity]')].filter(input=>!input.disabled);
     const checkedCount = inputs.filter(input => input.checked).length;
     master.checked = inputs.length > 0 && checkedCount === inputs.length;
     master.indeterminate = checkedCount > 0 && checkedCount < inputs.length;
+    master.disabled=inputs.length===0;
+    const button=head.querySelector('[data-finance-manual-select-all-button]');if(button){button.disabled=!inputs.length;button.textContent=master.checked?'בטל סימון הכול':'סמן הכול';}
   }
   const count = head.querySelector('[data-finance-manual-selection-count]');
-  if (count) count.textContent = nextHead.querySelector('[data-finance-manual-selection-count]').textContent;
+  if (count && nextHead.querySelector('[data-finance-manual-selection-count]')) count.textContent = nextHead.querySelector('[data-finance-manual-selection-count]').textContent;
   // Replace only the editor (which may change its active activity), not its disclosure.
   [...manual.children].slice(1).forEach(element => element.remove());
   [...next.children].slice(1).forEach(element => manual.appendChild(element));
@@ -602,6 +614,8 @@ export function manualAccountViewHtml(data) {
   const reviewed=Boolean(data.manualConsolidatedPreview||data.manualBatchPreviews?.length||data.manualPdf);
   const field=(label,key,type='text')=>`<label class="ds-fin-manual__field">${label}<input class="ds-input" type="${type}"${type==='email'?' multiple dir="ltr"':type==='number'?` min="${key==='quantity'?1:0}" step="${key==='quantity'?1:'0.01'}"`:''} data-finance-manual-field="${key}" value="${e(key==='customer_email'?normalizeManualRecipientEmails(d[key]):['amount','unit_price'].includes(key)?formatManualMoney(d[key],{unitPrice:key==='unit_price'}):d[key]??'')}"></label>`;
   const partial= data.manualScope==='partial';
+  const selectable=activities.filter(a=>manualActivityBillable(data,a.row_id));
+  const allSelected=selectable.length>0&&selectable.every(a=>ids.includes(a.row_id));
   return `<div class="ds-fin-manual" dir="rtl">
     <section class="ds-fin-manual__section">
       <h3 data-finance-manual-heading>הפקה עם עריכה</h3>
@@ -614,9 +628,9 @@ export function manualAccountViewHtml(data) {
       </select></label>`:''}
       </div>
       ${payer && data.manualFunderFilter?`<label class="ds-fin-manual__search-picker">חיפוש פעילות<input class="ds-input" data-finance-manual-search value="${e(data.manualSearch)}" placeholder="שם פעילות, בית ספר או רשות"></label>
-      <details class="ds-fin-manual__selection ds-fin-payer" data-finance-manual-selection>
-        <summary data-finance-manual-selection-summary>${e(payer.displayLabel)} · ${activities.length} פעילויות זמינות · ${ids.length} נבחרו</summary>
-        <div class="ds-fin-manual__selection-toolbar"><label class="ds-fin-manual__select-all"><input type="checkbox" data-finance-manual-select-all> סמן הכל</label>
+      <details class="ds-fin-manual__selection ds-fin-payer" data-finance-manual-selection${data.manualSelectionExpanded?' open':''}>
+        <summary data-finance-manual-selection-summary>${e(payer.displayLabel)} · ${selectable.length} פעילויות זמינות · ${ids.length} נבחרו</summary>
+        <div class="ds-fin-manual__selection-toolbar"><div class="ds-fin-manual__select-all" style="display:flex;gap:8px;align-items:center"><input type="checkbox" aria-label="סמן הכול" data-finance-manual-select-all${allSelected?' checked':''}${selectable.length?'':' disabled'}><button type="button" class="ds-btn ds-btn--sm ds-btn--secondary" data-finance-manual-select-all-button${selectable.length?'':' disabled'}>${allSelected?'בטל סימון הכול':'סמן הכול'}</button></div>
           <span data-finance-manual-selection-count>${ids.length} פעילויות נבחרו</span></div>
         <div class="ds-fin-manual__activity-list" role="region" aria-label="פעילויות לבחירה" tabindex="0">
           <table class="ds-fin-manual__activity-table">
@@ -647,13 +661,13 @@ export function manualAccountViewHtml(data) {
         ${editingOne?`<fieldset class="ds-fin-manual__billing"><legend>פרטי חיוב</legend><div class="ds-fin-manual__billing-row${showHourly?' ds-fin-manual__billing-row--with-hourly':''}">
           ${manualService(data)?`${field('כמות','quantity','number')}${field('מחיר ליחידה','unit_price')}${field('סכום לחיוב','amount')}`:`
           <label class="ds-fin-manual__field">מפגשים לחיוב | סה״כ מפגשים
-            <span class="ds-fin-manual__ratio" dir="ltr"><input class="ds-input" aria-label="מפגשים לחיוב" type="number" min="1" max="${Number(rows.find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===data.manualFundingKey)?.unbilledCount||d.planned_count)}" step="1" data-finance-manual-field="quantity"${d.billing_basis==='full_funding'?' readonly':''} value="${e(d.quantity)}"><span aria-hidden="true" class="ds-fin-manual__ratio-divider">|</span><output aria-label="סה״כ מפגשים">${e(d.planned_count)}</output></span>
+            <span class="ds-fin-manual__ratio" dir="ltr"><input class="ds-input" aria-label="מפגשים לחיוב" type="number" min="1" max="${Number(rows.find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===data.manualFundingKey)?.unbilledCount||d.planned_count)}" step="1" data-finance-manual-field="quantity"${d.billing_basis==='full_funding'||!showHourly?' readonly':''} value="${e(d.quantity)}"><span aria-hidden="true" class="ds-fin-manual__ratio-divider">|</span><output aria-label="סה״כ מפגשים">${e(d.planned_count)}</output></span>
           </label>
           <label class="ds-fin-manual__field">שעות לחיוב | סה״כ שעות
             <span class="ds-fin-manual__ratio" dir="ltr"><input class="ds-input" aria-label="שעות לחיוב" readonly value="${e(Number(Number(d.hours).toFixed(6)))}"><span aria-hidden="true" class="ds-fin-manual__ratio-divider">|</span><output aria-label="סה״כ שעות">${e(d.planned_hours)}</output></span>
           </label>
           <label class="ds-fin-manual__field">מחיר הפעילות<input class="ds-input" readonly value="${e(formatManualMoney(d.activity_price))}"></label>
-          ${showHourly?`<label class="ds-fin-manual__field">מחיר שעתי מחושב<input class="ds-input" data-finance-manual-hourly-rate readonly value="${e(manualHourlyRate(d)===null?'—':formatManualMoney(manualHourlyRate(d)))}"></label>`:''}
+          ${showHourly?`<label class="ds-fin-manual__field">מחיר שעתי לגפ״ן<input class="ds-input" data-finance-manual-hourly-rate readonly value="${e(manualHourlyRate(d)===null?'—':formatManualMoney(manualHourlyRate(d)))}"></label>`:''}
           <label class="ds-fin-manual__field">סכום לחיוב<input class="ds-input" readonly value="${e(formatManualMoney(d.amount))}"></label>`}
         </div></fieldset>`:''}
         ${ids.length>1?`<details class="ds-fin-manual__selected-schools ds-fin-payer" open><summary>פירוט הפעילויות שנבחרו (${ids.length})</summary>
