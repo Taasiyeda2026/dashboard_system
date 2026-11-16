@@ -235,7 +235,7 @@ function billingLineHtml(line, data, mode) {
     </details>` : '';
   return `<tr>
     <td><strong>${escapeHtml(line.activityName || line.activityRowId)}</strong>${line.gefenFunding ? `<small class="ds-fin-transaction-program" style="display:block;color:var(--ds-text-muted,#64748b)">מספר גפ״ן: ${escapeHtml(displayGefenProgramNumber(line))}</small>` : ''}${internalBillingBasis}${school}${line.periods?.length>0?`<small style="display:block;color:var(--ds-text-muted,#64748b)">חודשי ביצוע: ${escapeHtml(line.periods.map(p=>p.slice(0,7)).join(' · '))}</small>`:''}${meetingDetails}${data.financeCanComplete?`<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-complete-open="${escapeHtml(line.activityRowId)}">עריכת נתוני חיוב</button>`:''}</td>
-    <td>${escapeHtml(formatAmount(line.activityPrice ?? line.fundingAmount))}${!serviceActivity(line)&&Number(line.hourlyRate)>0?`<small style="display:block;color:var(--ds-text-muted,#64748b)">${escapeHtml(formatAmount(line.hourlyRate))} לשעה</small>`:''}</td>
+    <td>${escapeHtml(formatAmount(line.activityPrice ?? line.fundingAmount))}${line.gefenFunding&&!serviceActivity(line)&&Number(line.hourlyRate)>0?`<small style="display:block;color:var(--ds-text-muted,#64748b)">${escapeHtml(formatAmount(line.hourlyRate))} לשעה</small>`:''}</td>
     <td>${escapeHtml(activityMeetings(line))}</td>
     <td>${escapeHtml(activityHours(line))}</td>
     <td><strong>${escapeHtml(formatAmount(line.issuableAmount))}</strong></td>
