@@ -395,4 +395,27 @@ begin
   return jsonb_build_object('ok',true,'row_id',a.row_id);
 end;
 $function$;
+CREATE OR REPLACE FUNCTION public.finance_billing_completion_context(p_activity_id text)
+ RETURNS jsonb
+ LANGUAGE plpgsql
+ STABLE SECURITY DEFINER
+ SET search_path TO ''
+AS $function$
+declare a public.activities%rowtype; q public.proposal_agreement_items%rowtype; order_rate numeric; fs jsonb; alloc jsonb; school_symbol bigint; prior boolean;
+begin
+  if auth.uid() is null or not coalesce(public.app_current_role()='admin' or public.app_has_permission('manage_finance_transactions'),false)
+    then raise exception 'finance_permission_denied' using errcode='42501'; end if;
+  select * into a from public.activities where row_id=p_activity_id and activity_season='school_2027';
+  if not found then raise exception 'activity_not_found'; end if;
+  select * into q from public.proposal_agreement_items where id=coalesce(a.proposal_item_id,a.israa_source_item_id);
+  select coalesce(
+    (select r.hourly_rate from finance_private.gefen_approved_order_rates r where r.activity_row_id=a.row_id and r.activity_school_id=a.school_id and r.activity_no=a.activity_no),
+    (select m.order_hourly_rate from finance_private.gefen_order_billing_matches m where m.activity_row_id=a.row_id limit 1)) into order_rate;
+  select s.semel_mosad into school_symbol from public.schools s where s.id=a.school_id;
+  select coalesce(jsonb_agg(jsonb_build_object('id',f.id,'name',f.name) order by f.sort_order nulls last,f.name),'[]') into fs from public.funding_sources f where f.is_active or exists(select 1 from public.activity_funding_sources af where af.activity_id=a.id and af.funding_source_id=f.id);
+  select coalesce(jsonb_agg(jsonb_build_object('id',f.funding_source_id,'amount',f.amount,'name',f.name)) filter(where f.funding_source_id is not null),'[]') into alloc from finance_private.resolved_funding_rows(a) f;
+  select exists(select 1 from public.finance_transaction_account_lines l join public.finance_transaction_accounts h on h.id=l.account_id where l.activity_row_id=a.row_id and h.document_status<>'cancelled') into prior;
+  return jsonb_build_object('row_id',a.row_id,'name',a.activity_name,'school',a.school,'school_symbol',school_symbol,'activity_type',a.activity_type,'activity_no',a.activity_no,'gefen_number',a.gefen_number,'program_name',a.program_name,'catalog_slug',a.catalog_slug,'sessions',a.sessions,'price',a.price,'rate',a.course_hourly_rate,'proposal_rate',q.hourly_price,'order_rate',order_rate,'approved_order_rate',(select r.hourly_rate from finance_private.gefen_approved_order_rates r where r.activity_row_id=a.row_id and r.activity_school_id=a.school_id and r.activity_no=a.activity_no),'proposal_hours',q.hours_count,'funding',a.funding,'funding_options',fs,'allocations',alloc,'has_prior',prior,'updated_at',a.updated_at,'start_time',a.start_time,'end_time',a.end_time,'contact_email',a.contact_email,'dates',(select jsonb_object_agg('date_'||n,to_jsonb(a)->('date_'||n)) from generate_series(1,35) n));
+end;
+$function$;
 commit;
