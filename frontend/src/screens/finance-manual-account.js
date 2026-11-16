@@ -160,7 +160,7 @@ export function prepareManualAccount(data,activityId,fundingKey,basis) {
   data.manualActivityId=activityId;const rows=manualFundingRows(data);
   const source=(data.collectionActivities||[]).find(a=>a.row_id===activityId)||{};
   const filteredRows=manualFundingRowsForSelection(data);
-  const row=filteredRows.find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===fundingKey)||filteredRows.find(r=>fullAllowed(r)||performanceAllowed(r))||filteredRows[0];
+  const row=filteredRows.find(r=>`${r.fundingSourceId}|${r.period||r.manualMonth}`===fundingKey)||(data.manualScope==='partial'?filteredRows.find(performanceAllowed):filteredRows.find(fullAllowed))||filteredRows.find(r=>fullAllowed(r)||performanceAllowed(r))||filteredRows[0];
   data.manualFundingKey=row?`${row.fundingSourceId}|${row.period||row.manualMonth}`:'';
   const full=(basis||(data.manualScope==='partial'&&performanceAllowed(row||{})?'performance':fullAllowed(row||{})?'full_funding':'performance'))==='full_funding';
   const quantity=Number((full?row?.plannedCount:row?.unbilledCount)||0),amount=Number((full?row?.fullFundingAmount:row?.issuableAmount)||0);
@@ -235,7 +235,7 @@ export function toggleAllVisibleManualActivities(data, checked) {
     else{selected.delete(id);if(data.manualActivityDrafts)delete data.manualActivityDrafts[id];}
   }
   data.manualSelectedActivityIds=[...selected];
-  if(selected.size){focusManualActivity(data,selected.has(data.manualActivityId)?data.manualActivityId:[...selected][0]);}
+  if(selected.size){if(!selected.has(data.manualActivityId)){data.manualActivityId='';data.manualDraft=null;data.manualFundingKey='';}focusManualActivity(data,selected.has(data.manualActivityId)?data.manualActivityId:[...selected][0]);}
   else{data.manualActivityId='';data.manualDraft=null;data.manualFundingKey='';data.manualActivityDrafts={};data.manualQuote=null;data.manualPdf='';data.manualBatchPreviews=null;data.manualConsolidatedPreview=null;}
   data.manualSelectionExpanded=true;
   // Bulk selection must not focus and display an arbitrary school.
