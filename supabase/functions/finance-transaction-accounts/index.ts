@@ -252,10 +252,13 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
     const statedQty = Number(line.quantity_snapshot);
     const quantity = Number.isFinite(statedQty) && statedQty > 0 ? statedQty
       : (line.finance_transaction_account_meetings?.length || 1);
-    // Every course session is 90 minutes. Gefen course hours follow quantity×1.5.
-    // Hourly rate must use THIS FUNDER'S share of the activity price, never the
-    // full course price beside a partial amount on mixed-funding invoices.
-    const hours = gefenFunding && !service ? quantity * 1.5
+    // Performance billing uses the reserved hours and approved hourly snapshot,
+    // including fractional hours when the funding ceiling caps the final slot.
+    // Preserve the legacy full-funding presentation.
+    const gefenPerformance = gefenFunding && !service && line.billing_coverage !== 'full_funding'
+      && Number(line.hourly_rate_snapshot) > 0 && Number(line.billed_hours) > 0;
+    const hours = gefenPerformance ? Number(line.billed_hours)
+      : gefenFunding && !service ? quantity * 1.5
       : Math.max(0, Number(line.billed_hours || 0));
     // Billing coverage belongs to the accounting record, never to the customer-facing course name.
     // Legacy snapshots may already include internal coverage text. Strip it
@@ -270,6 +273,7 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
     const plannedMeetings = Number(line.planned_sessions_from_source ?? line.planned_meeting_count_snapshot);
     const funderAmount = Number(line.funding_amount_snapshot);
     const gefenHourly = (() => {
+      if (gefenPerformance) return Number(line.hourly_rate_snapshot);
       if (funderAmount > 0 && Number.isInteger(plannedMeetings) && plannedMeetings > 0) {
         return funderAmount / (plannedMeetings * 1.5);
       }
@@ -284,7 +288,7 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
       ? (keepDistinctActivities && clean(line.activity_row_id)
         ? JSON.stringify(['activity', clean(line.activity_row_id), authority, gefenFunding, clean(line.funding_source_id) || clean(line.funding_snapshot)])
         : JSON.stringify([category, name, school, authority, gefenFunding, Number(unitPrice.toFixed(6))]))
-      : JSON.stringify([clean(line.activity_row_id), name, school, authority, gefenFunding, clean(line.funding_source_id) || clean(line.funding_snapshot)]);
+      : JSON.stringify([clean(line.activity_row_id), name, school, authority, gefenFunding, clean(line.funding_source_id) || clean(line.funding_snapshot), gefenPerformance ? gefenHourly : null]);
     const dates = (line.finance_transaction_account_meetings || []).map((m: any)=>clean(m.meeting_date)).filter((d: string)=>/^\d{4}-\d{2}-\d{2}$/.test(d));
     const existing = group.get(key);
     if (existing) {
