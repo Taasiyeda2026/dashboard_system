@@ -24,8 +24,9 @@ test('manual PDF addresses courses to school, workshops to payer',()=>{
  assert.match(pdf,/\['workshop', 'tour', 'סדנה', 'סיור'\]/);
 });
 
-test('Gefen PDF hourly uses this funder share divided by planned meetings and 1.5 hours',()=>{
- assert.match(pdf,/const hours = gefenFunding && !service \? quantity \* 1\.5/);
+test('Gefen performance PDF uses reserved hourly rate and hours; full funding keeps legacy fallback',()=>{
+ assert.match(pdf,/const hours = gefenPerformance \? Number\(line\.billed_hours\)/);
+ assert.match(pdf,/if \(gefenPerformance\) return Number\(line\.hourly_rate_snapshot\)/);
  assert.match(pdf,/planned_sessions_from_source \?\? line\.planned_meeting_count_snapshot/);
  assert.match(pdf,/const funderAmount = Number\(line\.funding_amount_snapshot\)/);
  assert.match(pdf,/funderAmount \/ \(plannedMeetings \* 1\.5\)/);

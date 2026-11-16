@@ -157,17 +157,20 @@ export function transactionPreviewForVisit(data, mode = TRANSACTION_MODE_AUTOMAT
   if (!data.collectionError) for (const row of rows.filter((row) => row.eligible && !row.blockedReason)) {
     // Gefen remains per school. Every other payer gets one account across schools.
     const key = mode === TRANSACTION_MODE_AUTOMATIC
-      ? [row.institutionSymbol, row.fundingSourceId, row.payerKey || row.payerName, row.period || 'completion'].join(':')
+      ? [row.institutionSymbol, row.fundingSourceId, row.payerKey || row.payerName].join(':')
       : [row.fundingSourceId, row.payerKey || row.payerName, row.period || 'completion'].join(':');
     if (!accounts.has(key)) accounts.set(key, { institutionSymbol: mode === TRANSACTION_MODE_AUTOMATIC ? row.institutionSymbol : '', customerName: row.payerName,
       schoolName: row.customerName, funding: row.funding, period: row.period, customerEmails: [], lines: [], totalAmount: 0 });
     const account = accounts.get(key);
     account.lines.push(row);
+    if (mode === TRANSACTION_MODE_AUTOMATIC && row.period > account.period) account.period = row.period;
     account.totalAmount += Number(row.issuableAmount);
     if (row.customerEmail && !account.customerEmails.includes(row.customerEmail)) account.customerEmails.push(row.customerEmail);
   }
   const result = [...accounts.values()];
   for (const account of result) {
+    account.lines.sort((a,b)=>String(a.activityRowId).localeCompare(String(b.activityRowId))||String(a.period).localeCompare(String(b.period)));
+    account.periods=[...new Set(account.lines.map(row=>row.period))].filter(Boolean).sort();
     const schools = new Set(account.lines.map(row => String(row.financeSchoolId || row.institutionSymbol || row.customerName || '')).filter(Boolean));
     // A consolidated sponsor/authority invoice covering different schools
     // must not be addressed to contacts of the other schools.
@@ -231,14 +234,24 @@ function billingLineHtml(line, data, mode) {
       <div>${slots.map(slot => `<div>${serviceActivity(line) ? 'מועד פעילות' : `מפגש ${escapeHtml(slot.slot)}`} · ${escapeHtml(formatDate(slot.date))}${serviceActivity(line) ? '' : ` · ${compactNumber(slot.remainingHours ?? TRANSACTION_MEETING_HOURS)} שעות`}</div>`).join('')}</div>
     </details>` : '';
   return `<tr>
-    <td><strong>${escapeHtml(line.activityName || line.activityRowId)}</strong>${line.gefenFunding ? `<small class="ds-fin-transaction-program" style="display:block;color:var(--ds-text-muted,#64748b)">מספר גפ״ן: ${escapeHtml(displayGefenProgramNumber(line))}</small>` : ''}${internalBillingBasis}${school}${meetingDetails}${data.financeCanComplete?`<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-complete-open="${escapeHtml(line.activityRowId)}">עריכת נתוני חיוב</button>`:''}</td>
+    <td><strong>${escapeHtml(line.activityName || line.activityRowId)}</strong>${line.gefenFunding ? `<small class="ds-fin-transaction-program" style="display:block;color:var(--ds-text-muted,#64748b)">מספר גפ״ן: ${escapeHtml(displayGefenProgramNumber(line))}</small>` : ''}${internalBillingBasis}${school}${line.periods?.length>0?`<small style="display:block;color:var(--ds-text-muted,#64748b)">חודשי ביצוע: ${escapeHtml(line.periods.map(p=>p.slice(0,7)).join(' · '))}</small>`:''}${meetingDetails}${data.financeCanComplete?`<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-complete-open="${escapeHtml(line.activityRowId)}">עריכת נתוני חיוב</button>`:''}</td>
     <td>${escapeHtml(formatAmount(line.activityPrice ?? line.fundingAmount))}${!serviceActivity(line)&&Number(line.hourlyRate)>0?`<small style="display:block;color:var(--ds-text-muted,#64748b)">${escapeHtml(formatAmount(line.hourlyRate))} לשעה</small>`:''}</td>
     <td>${escapeHtml(activityMeetings(line))}</td>
     <td>${escapeHtml(activityHours(line))}</td>
     <td><strong>${escapeHtml(formatAmount(line.issuableAmount))}</strong></td>
   </tr>`;
 }
+export function consolidatedGefenDisplayLines(lines) {
+  const grouped=new Map();
+  for(const row of lines){
+    const k=JSON.stringify([row.activityRowId,row.fundingSourceId,row.hourlyRate]);
+    if(!grouped.has(k))grouped.set(k,{...row,periods:[],unbilledSlots:[],unbilledCount:0,unbilledHours:0,issuableAmount:0});
+    const line=grouped.get(k);line.periods.push(row.period);line.unbilledSlots.push(...(row.unbilledSlots||[]));line.unbilledCount+=Number(row.unbilledCount||0);line.unbilledHours+=Number(row.unbilledHours||0);line.issuableAmount+=Number(row.issuableAmount||0);
+  }
+  return [...grouped.values()].map(line=>({...line,periods:[...new Set(line.periods)].sort(),unbilledSlots:line.unbilledSlots.sort((a,b)=>Number(a.slot)-Number(b.slot)),issuableAmount:Number(line.issuableAmount.toFixed(2))}));
+}
 function billingTableHtml(lines, data, mode) {
+  if(mode===TRANSACTION_MODE_AUTOMATIC)lines=consolidatedGefenDisplayLines(lines);
   return dsTableWrap(`<table class="ds-table ds-fin-transaction-table" dir="rtl"><thead><tr>
     <th>פעילות ${groupSelectAllHtml(lines,data,mode)}</th><th>מחיר הפעילות</th><th>${escapeHtml(progressHeading(lines))}</th><th>שעות</th><th>סכום לחיוב</th>
   </tr></thead><tbody>${lines.map(line => billingLineHtml(line,data,mode)).join('')}</tbody></table>`);
@@ -291,11 +304,11 @@ function billingView(data, mode) {
   </details>` : '';
   {
     const selectedMonth = transactionMonth(data, mode);
-    const current = preview.accounts.filter(account => account.period?.slice(0,7) === selectedMonth);
-    const previous = preview.accounts.filter(account => account.period?.slice(0,7) < selectedMonth);
+    const current = mode===TRANSACTION_MODE_AUTOMATIC ? preview.accounts : preview.accounts.filter(account => account.period?.slice(0,7) === selectedMonth);
+    const previous = mode===TRANSACTION_MODE_AUTOMATIC ? [] : preview.accounts.filter(account => account.period?.slice(0,7) < selectedMonth);
     const groupsHtml = (accounts, older = false) => accounts.map(account => `<details class="ds-fin-payer" data-finance-transaction-group>
       <summary><span class="ds-fin-gefen-arrow" aria-hidden="true">▸</span><span class="ds-fin-payer__title">${escapeHtml(mode===TRANSACTION_MODE_AUTOMATIC ? `${account.schoolName} · ${account.institutionSymbol}` : account.customerName)}${older ? ` · ${escapeHtml(account.period.slice(0,7))}` : ''}</span>
-      <span class="ds-fin-payer__meta">${account.lines.length} חיובים · ${escapeHtml(formatAmount(account.totalAmount))}</span></summary>
+      <span class="ds-fin-payer__meta">${mode===TRANSACTION_MODE_AUTOMATIC?new Set(account.lines.map(line=>line.activityRowId)).size:account.lines.length} ${mode===TRANSACTION_MODE_AUTOMATIC?'פעילויות':'חיובים'} · ${escapeHtml(formatAmount(account.totalAmount))}</span></summary>
       ${billingTableHtml(account.lines,data,mode)}
       <div class="ds-fin-gefen-group-actions">
         <button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-transaction-preview="${mode}" data-finance-transaction-preview-key="${escapeHtml(accountPreviewKey(account))}">תצוגת PDF</button>
@@ -304,7 +317,7 @@ function billingView(data, mode) {
       ${mode === TRANSACTION_MODE_AUTOMATIC ? `<p data-finance-gefen-cycle>תאריך חתך נוכחי: <strong>${escapeHtml(formatDate(transactionGefenCycle(data).cutoff))}</strong> · העדכון הבא: <strong>${escapeHtml(formatDate(transactionGefenCycle(data).nextUpdate))}</strong> · המועדים לפי שעון ישראל</p>` : ''}
       ${monthPicker(data,mode)}
       ${preview.accounts.length ? summaryCards(preview) : ''}
-      <section data-finance-gefen-current><h3>חשבונות החודש הנבחר</h3>
+      <section data-finance-gefen-current><h3>${mode===TRANSACTION_MODE_AUTOMATIC?'חשבונות להפקה עד החודש הנבחר (כולל חובות קודמים)':'חשבונות החודש הנבחר'}</h3>
         ${groupsHtml(current) || dsEmptyState('אין חשבונות להפקה בחודש שנבחר.')}</section>
       ${previous.length ? `<section class="ds-fin-gefen-backlog" data-finance-gefen-backlog><h3>חיובים זכאים מחודשים קודמים</h3>${groupsHtml(previous,true)}</section>` : ''}
       ${preview.accounts.length ? `<div class="ds-fin-gefen-issue"><button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="${mode}" data-finance-transaction-main-run>${escapeHtml(issueButtonLabel(mode, data))}</button></div>` : ''}
@@ -433,6 +446,7 @@ export async function previewTransactionAccountGroup(data, api, mode, previewKey
     funder: line.fundingSourceId,
     month: line.period || `${transactionMonth(data, mode)}-01`,
     draft: {
+      ...(mode===TRANSACTION_MODE_AUTOMATIC?{automatic_cumulative_preview:true}:{}),
       customer_name: account.customerName,
       customer_email: (account.customerEmails || []).join(';'),
       institution_symbol: account.institutionSymbol || ''
@@ -452,8 +466,8 @@ export async function runTransactionIssuance(data, api, mode, month = transactio
   if (!preview.accounts.length) throw new Error('אין חשבונות מוכנים להפקה.');
   const results = [];
   data.transactionRequestIds ||= {};
-  // The server caps each period against cumulative billing. Complete older
-  // periods first so a later charge cannot make an earlier snapshot stale.
+  // Automatic Gefen combines unissued periods in a single school account.
+  // Keep month-specific source lines/claims for server validation and audit.
   const accounts=[...preview.accounts].sort((a,b)=>String(a.period||'').localeCompare(String(b.period||'')));
   for (const account of accounts) {
     const requestKey=JSON.stringify([mode,account.period?.slice(0,7) || month,account.institutionSymbol,account.lines.map(line=>[line.activityRowId,line.fundingSourceId,line.period,line.issuableAmount,line.unbilledSlots])]);
