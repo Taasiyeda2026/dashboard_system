@@ -16,9 +16,9 @@ const data={financeCanComplete:true,collectionActivities:rows,transactionContext
   {activityRowId:'e',gefenFunding:true,fundingSourceId:'g',blockedReason:'חסרים מועדי מפגשים מתוכננים'}
 ]}};
 test('missing billing fields stay visible in the relevant tab, independent of eligibility',()=>{
-  assert.deepEqual(financeIncompleteBillingActivities(data,'automatic').map(a=>a.row_id),['a','d','e']);
+  assert.deepEqual(financeIncompleteBillingActivities(data,'automatic').map(a=>a.row_id),['a','d']);
   assert.deepEqual(financeIncompleteBillingActivities(data,'manual').map(a=>a.row_id),['d']);
-  assert.deepEqual(financeIncompleteBillingActivities(data,'editable').map(a=>a.row_id),['a','d','e']);
+  assert.deepEqual(financeIncompleteBillingActivities(data,'editable').map(a=>a.row_id),['a','d']);
 });
 test('completion can be opened directly without granting view-only users write access',()=>{
   const html=financeBillingCompletionHtml(data,'automatic');
@@ -38,7 +38,7 @@ test('quoted price is preserved, catalog default applies only to Gefen funding',
 });
 test('completion list uses one row per activity with existing values and separate missing fields',()=>{
   const html=financeBillingCompletionHtml(data);
-  assert.equal((html.match(/data-finance-completion-row /g)||[]).length,3);
+  assert.equal((html.match(/data-finance-completion-row /g)||[]).length,2);
   assert.match(html,/מה חסר \/ נדרש בירור/);
   assert.match(html,/מחיר לשעה/);
   assert.match(html,/data-finance-completion-search/);
@@ -63,7 +63,7 @@ test('approved order rate is independent of the course contract and other payers
   assert.deepEqual(financeIncompleteBillingActivities(view,'editable'),[]);
   assert.deepEqual(financeBillingMissingReasons(a,[gefen]),[]);
   const gap={...gefen,fundingAmount:12000};
-  assert.match(financeBillingCompletionHtml({...view,transactionContext:{billingRows:[gap]}}),/פער בין מסגרת גפ״ן/);
+  assert.deepEqual(financeIncompleteBillingActivities({...view,transactionContext:{billingRows:[gap]}},'editable'),[]);
   const other={activityRowId:'approved',gefenFunding:false,fundingSourceId:'r',blockedReason:'חסר מחיר שעתי'};
   assert.deepEqual(financeIncompleteBillingActivities({...view,transactionContext:{billingRows:[gefen,other]}},'automatic'),[]);
   assert.deepEqual(financeIncompleteBillingActivities({...view,transactionContext:{billingRows:[gefen,other]}},'editable').map(x=>x.row_id),[]);
@@ -79,4 +79,18 @@ test('completion shows school symbol and authority as separate columns and inclu
  assert.match(result,/<th>מוסד<\/th><th>סמל מוסד<\/th><th>רשות<\/th>/);
  assert.match(result,/<td>214098<\/td><td>נהרייה<\/td>/);
  assert.match(result,/data-completion-search-text="[^"]*214098 נהרייה/);
+});
+
+test('operational dates, deleted records, fully billed payers and internal price gaps do not create finance tasks',()=>{
+ const base={row_id:'a',activity_type:'course',funding:'גפן + רמי שני',price:10000,sessions:10,course_hourly_rate:null};
+ const paid={activityRowId:'a',gefenFunding:false,fundingSourceId:'r',fundingAmount:5000,billedAmount:5000,blockedReason:'חסרים מועדי מפגשים מתוכננים'};
+ const gefen={activityRowId:'a',gefenFunding:true,fundingSourceId:'g',fundingAmount:5000,billedAmount:0,blockedReason:'חסר מחיר שעתי'};
+ assert.deepEqual(financeBillingMissingReasons(base,[paid,gefen]),['מחיר שעתי לגפ״ן']);
+ assert.deepEqual(financeBillingMissingReasons(base,[paid,gefen],'manual'),[]);
+ assert.deepEqual(financeBillingMissingReasons({...base,status:'נמחק'},[gefen]),[]);
+ assert.deepEqual(financeBillingMissingReasons(base,[paid,{...gefen,billedAmount:5000}]),[]);
+ assert.deepEqual(financeBillingMissingReasons(base,[paid,{...gefen,approvedGefenRate:300,blockedReason:'',plannedHours:15}]),[]);
+ assert.deepEqual(financeBillingMissingReasons({...base,course_hourly_rate:400},[{...gefen,blockedReason:'חסרים מועדי מפגשים מתוכננים'}]),[]);
+ assert.deepEqual(financeBillingMissingReasons(base,[{...paid,blockedReason:'הפרש לאחר חיוב מלא — נדרשת בדיקת כספים',financialAdjustment:200}]),['הפרש לאחר חיוב מלא — נדרשת בדיקת כספים']);
+ assert.deepEqual(financeBillingMissingReasons({row_id:'tour',activity_type:'tour',price:null},[]),[]);
 });
