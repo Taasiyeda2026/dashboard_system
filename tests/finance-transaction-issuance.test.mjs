@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
-import { transactionAccountsViewHtml, FINANCE_TRANSACTION_SHAREPOINT_FOLDER_URL, transactionPreviewForVisit, transactionSelectionKey, runTransactionIssuance, transactionIssuanceResultMessage, transactionMonth, transactionBacklog } from '../frontend/src/screens/finance-transaction-issuance.js';
+import { transactionAccountsViewHtml, FINANCE_TRANSACTION_SHAREPOINT_FOLDER_URL, transactionPreviewForVisit, transactionSelectionKey, runTransactionIssuance, transactionIssuanceResultMessage, transactionMonth, transactionBacklog, transactionBlockedDueRows } from '../frontend/src/screens/finance-transaction-issuance.js';
 import { financeCycleCutoff, financeGefenCycle, financeToday } from '../frontend/src/screens/finance-transaction-accounts.js';
 const row=(extra={})=>({activityRowId:'a',activityName:'קורס א',fundingSourceId:'g',funding:'גפ״ן',gefenFunding:true,
   period:'2026-10-01',customerName:'בית ספר א',institutionSymbol:'123',payerName:'בית ספר א',customerEmail:'school@example.test',
@@ -108,7 +108,7 @@ test('default follows the funding cutoff; future month is rejected and blocked r
   assert.equal(transactionMonth({},'automatic'),financeGefenCycle().cutoff.slice(0,7));
   assert.equal(transactionMonth({transactionMonths:{automatic:'2099-01'}},'automatic'),financeGefenCycle().cutoff.slice(0,7));
   assert.equal(transactionMonth({},'manual'),financeCycleCutoff().slice(0,7));
-  const d=data([row({blockedReason:'חסרה חלוקת מימון תקינה',eligible:false})]);
+  const d=data([row({blockedReason:'חסרה חלוקת מימון תקינה',eligible:false,completedCount:3})]);
   assert.equal(transactionPreviewForVisit(d).accounts.length,0);
   assert.match(html(d),/פעילויות חסומות להפקה/);
   assert.match(html(d),/חסרה חלוקת מימון תקינה/);
@@ -201,7 +201,7 @@ test('empty months show only a concise empty state without internal diagnostics 
   assert.doesNotMatch(view,/ds-fin-transaction-summary|data-finance-transaction-run=/);
 });
 test('blocked rows show a clear reason while valid backlog stays visible',()=>{
-  const d=data([row({activityRowId:'aug',period:'2026-09-01'}),row({activityRowId:'blocked',blockedReason:'חסר מימון',eligible:false})]);
+  const d=data([row({activityRowId:'aug',period:'2026-09-01'}),row({activityRowId:'blocked',blockedReason:'חסר מימון',eligible:false,completedCount:3})]);
   const view=html(d);
   assert.match(view,/כולל חובות קודמים/);
   assert.match(view,/2026-09/);
@@ -337,9 +337,30 @@ test('same course appears once in the cumulative invoice table with all unissued
 });
 
 test('blocked table shows school identity rather than sponsor customer details',()=>{
- const d=data([row({activityRowId:'a',eligible:false,blockedReason:'חסר מחיר שעתי',customerName:'מממן',institutionSymbol:'999999'})],{collectionActivities:[{row_id:'a',school_id:42,school:'מוסד א',authority:'נהרייה'}]});
+ const d=data([row({activityRowId:'a',eligible:false,completedCount:3,blockedReason:'חסר מחיר שעתי',customerName:'מממן',institutionSymbol:'999999'})],{collectionActivities:[{row_id:'a',school_id:42,school:'מוסד א',authority:'נהרייה'}]});
  d.transactionContext.schools=[{id:42,semel_mosad:214098}];
  const result=html(d);
  assert.match(result,/<th>מוסד<\/th><th>סמל מוסד<\/th><th>רשות<\/th>/);
  assert.match(result,/<td>מוסד א<\/td><td>214098<\/td><td>נהרייה<\/td>/);
+});
+
+test('blocked invoices require a due period, remaining unbilled balance and actual billing maturity',()=>{
+ const blocked=(extra={})=>row({eligible:false,completedCount:3,blockedReason:'חסר מחיר שעתי',issuableAmount:0,...extra});
+ const d=data([
+   blocked({activityRowId:'due'}),blocked({activityRowId:'previous',period:'2026-09-01'}),
+   blocked({activityRowId:'early',completedCount:2}),blocked({activityRowId:'paid',unbilledCount:0,unbilledAmount:0}),
+   blocked({activityRowId:'future',period:'2026-11-01'}),blocked({activityRowId:'unknown',period:null}),
+   blocked({activityRowId:'generating',blockedReason:'הפקה בתהליך'}),
+   blocked({activityRowId:'service',activityType:'workshop',completedCount:1}),
+   blocked({activityRowId:'manual-open',gefenFunding:false,finished:false}),
+   blocked({activityRowId:'manual-due',gefenFunding:false,finished:true})
+ ]);
+ assert.deepEqual(transactionBlockedDueRows(d).map(r=>r.activityRowId),['due','previous','service']);
+ assert.deepEqual(transactionBlockedDueRows(d,'manual').map(r=>r.activityRowId),['manual-due']);
+ assert.deepEqual(transactionPreviewForVisit(d).blocked.map(r=>r.activityRowId),['due','previous','service']);
+ const dom=new JSDOM(html(d));const table=dom.window.document.querySelector('[data-finance-blocked-rows]');
+ assert.equal(table.querySelectorAll('tbody tr').length,3);
+ assert.match(table.textContent,/2026-09/);
+ assert.doesNotMatch(table.textContent,/הפקה בתהליך/);
+ dom.window.close();
 });
