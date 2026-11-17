@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
-import { transactionAccountsViewHtml, FINANCE_TRANSACTION_SHAREPOINT_FOLDER_URL, transactionPreviewForVisit, transactionSelectionKey, runTransactionIssuance, transactionIssuanceResultMessage, transactionMonth, transactionBacklog, transactionBlockedDueRows } from '../frontend/src/screens/finance-transaction-issuance.js';
+import { transactionAccountsViewHtml, FINANCE_TRANSACTION_SHAREPOINT_FOLDER_URL, transactionPreviewForVisit, transactionSelectionKey, runTransactionIssuance, transactionIssuanceResultMessage, transactionMonth, transactionBacklog, transactionBlockedDueRows, consolidateBlockedActivities } from '../frontend/src/screens/finance-transaction-issuance.js';
 import { financeCycleCutoff, financeGefenCycle, financeToday } from '../frontend/src/screens/finance-transaction-accounts.js';
 const row=(extra={})=>({activityRowId:'a',activityName:'קורס א',fundingSourceId:'g',funding:'גפ״ן',gefenFunding:true,
   period:'2026-10-01',customerName:'בית ספר א',institutionSymbol:'123',payerName:'בית ספר א',customerEmail:'school@example.test',
@@ -362,5 +362,20 @@ test('blocked invoices require a due period, remaining unbilled balance and actu
  assert.equal(table.querySelectorAll('tbody tr').length,3);
  assert.match(table.textContent,/2026-09/);
  assert.doesNotMatch(table.textContent,/הפקה בתהליך/);
+ dom.window.close();
+});
+
+test('blocked display consolidates months and reasons but preserves different course IDs at the same school',()=>{
+ const blocked=(extra={})=>row({eligible:false,completedCount:3,blockedReason:'חסר מחיר שעתי',issuableAmount:0,...extra});
+ const d=data([blocked({activityRowId:'a',period:'2026-09-01'}),blocked({activityRowId:'a'}),blocked({activityRowId:'b'}),blocked({activityRowId:'a',fundingSourceId:'g2',blockedReason:'חסר סמל מוסד'})],{financeCanComplete:true});
+ const raw=transactionBlockedDueRows(d);assert.equal(raw.length,4);
+ const groups=consolidateBlockedActivities(raw);assert.equal(groups.length,2);
+ assert.deepEqual(groups[0].periods,['2026-09','2026-10']);
+ assert.deepEqual(groups[0].reasons,['חסר מחיר שעתי','חסר סמל מוסד']);
+ const dom=new JSDOM(html(d));const table=dom.window.document.querySelector('[data-finance-blocked-rows]');
+ assert.equal(table.querySelectorAll('tbody tr').length,2);
+ assert.equal(table.querySelectorAll('[data-finance-complete-open="a"]').length,1);
+ assert.match(table.textContent,/2026-09 · 2026-10/);
+ assert.match(table.textContent,/חסר מחיר שעתי · חסר סמל מוסד/);
  dom.window.close();
 });
