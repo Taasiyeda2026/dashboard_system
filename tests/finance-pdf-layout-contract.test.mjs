@@ -4,12 +4,12 @@ import { readFileSync } from 'node:fs';
 
 const pdf = readFileSync(new URL('../supabase/functions/finance-transaction-accounts/index.ts', import.meta.url), 'utf8');
 
-test('Gefen courses alone use the detailed seven-column invoice', () => {
-  assert.match(pdf, /const courseWidths = \[100, 125, 58, 42, 46, 74, 90\]/);
-  assert.match(pdf, /\['שם בית הספר', 'תוכנית \/ קורס', 'מספר גפ״ן', 'שעות', 'מפגשים', 'מחיר לשעה', 'סה״כ'\]/);
+test('Gefen courses alone use the detailed eight-column invoice', () => {
+  assert.match(pdf, /const courseWidths = \[83, 65, 101, 54, 38, 43, 68, 83\]/);
+  assert.match(pdf, /\['שם בית הספר', 'רשות', 'תוכנית \/ קורס', 'מספר גפ״ן', 'שעות', 'מפגשים', 'מחיר לשעה', 'סה״כ'\]/);
   assert.match(pdf, /drawSection\('',[\s\S]*?courseWidths, gefenCourses/);
-  assert.match(pdf, /\(row\) => \[row\.school \|\| '—', row\.name, row\.gefen \|\| '—',[\s\S]*?count\(row\.hours\), count\(row\.quantity\), money\(row\.hourlyPrice\), money\(row\.amount\)\]/);
-  assert.equal([100, 125, 58, 42, 46, 74, 90].reduce((sum, w) => sum + w, 0), 535);
+  assert.match(pdf, /\(row\) => \[row\.school \|\| '—', row\.authority \|\| '—', row\.name, row\.gefen \|\| '—',[\s\S]*?count\(row\.hours\), count\(row\.quantity\), money\(row\.hourlyPrice\), money\(row\.amount\)\]/);
+  assert.equal([83, 65, 101, 54, 38, 43, 68, 83].reduce((sum, w) => sum + w, 0), 535);
 });
 
 test('non-Gefen courses use school, authority, course and total; workshops show quantity without hourly', () => {
@@ -44,7 +44,7 @@ test('long school and course names wrap without overlapping adjoining columns', 
   assert.match(pdf, /logicalTextWidth\(font, candidate, size\) > maxWidth/);
   assert.match(pdf, /const mainHeight = invoiceRowHeight\(regular, cellValues, widths\)/);
   assert.match(pdf, /const rowHeight = mainHeight \+ detailHeight/);
-  assert.match(pdf, /const headerHeight = columns\.length === 7 \? 30 : 25/);
+  assert.match(pdf, /const headerHeight = columns\.length === 8 \? 30 : 25/);
   assert.match(pdf, /return 25 \+ \(mostLines - 1\) \* 9/);
   assert.match(pdf, /function invoiceCellLines\(/);
   assert.match(pdf, /drawLogicalRight\(page, font, line, firstBaseline/);
@@ -88,4 +88,8 @@ test('only Gefen courses use hour columns; workshops and tours use service quant
   assert.match(pdf, /serviceWidths, serviceRows/);
   assert.match(pdf, /\['שם בית הספר', 'סדנה \/ סיור', 'רשות', 'כמות', 'סה״כ'\]/);
   assert.doesNotMatch(pdf, /compactWidths, otherFunding/);
+});
+
+test('authority enrichment falls back to the activity authority text', () => {
+  assert.match(pdf, /authorities\.get\(clean\(activity\.authority_id\)\)\s*\|\| clean\(activity\.authority\)/);
 });
