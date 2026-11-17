@@ -72,3 +72,11 @@ test('non-Gefen missing hourly price is not a completion task even with stale se
  assert.deepEqual(financeBillingMissingReasons(rows[1],data.transactionContext.billingRows),[]);
  assert.ok(!financeIncompleteBillingActivities(data,'editable').some(a=>a.row_id==='b'));
 });
+
+test('completion shows school symbol and authority as separate columns and includes both in search',()=>{
+ const view={...data,collectionActivities:[{...rows[0],school_id:42,school:'מוסד א',authority:'נהרייה'}],transactionContext:{...data.transactionContext,schools:[{id:42,semel_mosad:214098}]}};
+ const result=financeBillingCompletionHtml(view);
+ assert.match(result,/<th>מוסד<\/th><th>סמל מוסד<\/th><th>רשות<\/th>/);
+ assert.match(result,/<td>214098<\/td><td>נהרייה<\/td>/);
+ assert.match(result,/data-completion-search-text="[^"]*214098 נהרייה/);
+});

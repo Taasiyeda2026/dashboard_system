@@ -335,3 +335,11 @@ test('same course appears once in the cumulative invoice table with all unissued
  const p=transactionPreviewForVisit(d);assert.equal(p.accounts.length,1);assert.equal(p.accounts[0].lines.length,2);assert.equal(p.accounts[0].totalAmount,5000);
  const doc=new JSDOM(html(d)).window.document;assert.equal(doc.querySelectorAll('[data-finance-transaction-group] tbody tr').length,1);assert.match(doc.body.textContent,/2026-09 · 2026-10/);assert.match(doc.body.textContent,/4\/4/);
 });
+
+test('blocked table shows school identity rather than sponsor customer details',()=>{
+ const d=data([row({activityRowId:'a',eligible:false,blockedReason:'חסר מחיר שעתי',customerName:'מממן',institutionSymbol:'999999'})],{collectionActivities:[{row_id:'a',school_id:42,school:'מוסד א',authority:'נהרייה'}]});
+ d.transactionContext.schools=[{id:42,semel_mosad:214098}];
+ const result=html(d);
+ assert.match(result,/<th>מוסד<\/th><th>סמל מוסד<\/th><th>רשות<\/th>/);
+ assert.match(result,/<td>מוסד א<\/td><td>214098<\/td><td>נהרייה<\/td>/);
+});

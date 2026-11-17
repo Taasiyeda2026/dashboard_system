@@ -34,7 +34,7 @@ async function readAllFinanceSchools() {
     await waitForSupabaseAuthSession();
     const rows = await readAllPages((from, to) => supabase
       .from('schools')
-      .select('id,semel_mosad,school_name')
+      .select('id,semel_mosad,school_name,authority')
       .order('id', { ascending: true })
       .range(from, to));
     schoolsCache = rows;

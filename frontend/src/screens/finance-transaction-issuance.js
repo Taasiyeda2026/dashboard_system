@@ -1,4 +1,4 @@
-import { financeBillingCompletionHtml } from './finance-billing-completion.js';
+import { financeBillingCompletionHtml, financeActivitySchoolIdentity } from './finance-billing-completion.js';
 import {invoiceRevisionEditorHtml,invoiceRevisionAdminHtml} from './finance-invoice-revisions.js';
 import '../finance-transaction-page-data-hotfix.js';
 import { manualAccountViewHtml, manualPdfReviewHtml, syncManualPdfPreviewDom, activateManualPdfPreview } from './finance-manual-account.js';
@@ -299,8 +299,8 @@ function billingView(data, mode) {
     .map((row) => [`${row.activityRowId}:${row.fundingSourceId || ''}:${row.period || ''}`, row])).values()];
   const blockedHtml = blocked.length ? `<details class="ds-fin-payer" data-finance-blocked-rows>
     <summary>${mode === TRANSACTION_MODE_AUTOMATIC ? '<span class="ds-fin-gefen-arrow" aria-hidden="true">▸</span>' : ''}<span>פעילויות חסומות להפקה (${blocked.length})</span></summary>
-    ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>מוסד</th><th>פעילות</th><th>סיבת החסימה</th></tr></thead>
-    <tbody>${blocked.map(row=>`<tr><td>${escapeHtml(row.customerName || row.payerName || '—')}</td><td>${escapeHtml(row.activityName || row.activityRowId || '—')}</td><td>${escapeHtml(String(row.blockedReason).replace(/^billing_blocked:/,''))}${data.financeCanComplete?` <button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-complete-open="${escapeHtml(row.activityRowId)}">השלמת נתונים</button>`:''}</td></tr>`).join('')}</tbody></table>`)}
+    ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>מוסד</th><th>סמל מוסד</th><th>רשות</th><th>פעילות</th><th>סיבת החסימה</th></tr></thead>
+    <tbody>${blocked.map(row=>{const identity=financeActivitySchoolIdentity(data,row);return `<tr><td>${escapeHtml(identity.name)}</td><td>${escapeHtml(identity.symbol)}</td><td>${escapeHtml(identity.authority)}</td><td>${escapeHtml(row.activityName || row.activityRowId || '—')}</td><td>${escapeHtml(String(row.blockedReason).replace(/^billing_blocked:/,''))}${data.financeCanComplete?` <button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-complete-open="${escapeHtml(row.activityRowId)}">השלמת נתונים</button>`:''}</td></tr>`;}).join('')}</tbody></table>`)}
   </details>` : '';
   {
     const selectedMonth = transactionMonth(data, mode);
