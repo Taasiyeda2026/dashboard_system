@@ -306,7 +306,7 @@ function billingView(data, mode) {
   const backlog = transactionBacklog(data, mode);
   const rows = transactionIssuanceActivities(data, { mode }).map((row) => row.transaction_summary);
   const ready = rows.filter((row) => row.eligible && !row.blockedReason);
-  const waiting = [...new Map(rows.filter((row) => row.eligibilityStatus === 'waiting_three_meetings' || (mode === TRANSACTION_MODE_AUTOMATIC && row.gefenFunding === true && !serviceActivity(row) && Number(row.completedCount) < 3))
+  const waiting = [...new Map(rows.filter((row) => row.eligibilityStatus === 'waiting_three_meetings' || (mode === TRANSACTION_MODE_AUTOMATIC && row.gefenFunding === true && !row.eligible && !serviceActivity(row) && Number(row.completedCount) < 3))
     .map(row=>[row.activityRowId,row])).values()];
   const waitingHtml = waiting.length ? `<details class="ds-fin-payer" data-finance-waiting-courses>
     <summary>${mode === TRANSACTION_MODE_AUTOMATIC ? '<span class="ds-fin-gefen-arrow" aria-hidden="true">▸</span>' : ''}<span>קורסים הממתינים להשלמת שלושה מפגשים (${waiting.length})</span></summary>
