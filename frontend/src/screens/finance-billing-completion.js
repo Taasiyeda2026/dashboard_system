@@ -7,7 +7,6 @@ const course=row=>String(row?.activity_type||'').toLowerCase()==='course';
 const approvedGefenRate=rows=>rows.find(r=>r.gefenFunding&&Number(r.approvedGefenRate)>0)?.approvedGefenRate;
 const hasGefenFunding=(a,rows)=>rows.some(r=>r.gefenFunding)||(!rows.length&&String(a.funding||'').split('+').some(isGefenFundingName));
 const missingCourseRate=(a,rows,mode='editable')=>mode!=='manual'&&hasGefenFunding(a,rows)&&!Number(a.course_hourly_rate)&&!approvedGefenRate(rows);
-const gefenRateGap=rows=>rows.some(r=>r.gefenFunding&&Number(r.approvedGefenRate)>0&&Number(r.fundingAmount)>Math.round(Number(r.approvedGefenRate)*Number(r.plannedHours)*100)/100+0.02);
 // School identity is independent of the paying entity and its customer number.
 export function financeActivitySchoolIdentity(data, row = {}, activity = null) {
   const a=activity || (data.collectionActivities||[]).find(a=>key(a.row_id)===key(row.activityRowId));
@@ -19,37 +18,39 @@ export function financeActivitySchoolIdentity(data, row = {}, activity = null) {
     authority:a?.authority || school?.authority || row.authorityName || row.authority || '—'
   };
 }
-export function financeIncompleteBillingActivities(data,mode) {
+// Completion is a finance task list, not the scheduling or collection queue.
+const cancelledActivity=a=>['נמחק','בוטל','מבוטל','deleted','cancelled','canceled'].includes(String(a.status||'').trim().toLowerCase());
+const financialAdjustment=r=>Number(r.financialAdjustment||0)!==0 || /חיוב הקיים חורג|הפרש לאחר חיוב מלא/.test(String(r.blockedReason||''));
+const fullyBilled=r=>r.fundingAmount!=null&&r.billedAmount!=null&&Number(r.fundingAmount)>0&&Number(r.billedAmount)>=Number(r.fundingAmount)&&!financialAdjustment(r);
+const financeRelevantRow=(r,mode)=>mode==='editable'||r.gefenFunding===(mode==='automatic')||!r.fundingSourceId;
+export function financeIncompleteBillingActivities(data,mode='editable') {
   const rows=data.transactionContext?.billingRows||[];
-  return (data.collectionActivities||[]).filter(a=>{
-    const matches=rows.filter(r=>key(r.activityRowId)===key(a.row_id));
-    const relevant=mode==='editable'||matches.some(r=>r.gefenFunding===(mode==='automatic')||!r.fundingSourceId)
-      || (!matches.length && (mode==='automatic'?isGefenFundingName(a.funding):!isGefenFundingName(a.funding)));
-    if(!relevant)return false;
-    return (course(a)&&(missingCourseRate(a,matches,mode)||!Number.isInteger(Number(a.sessions))||Number(a.sessions)<1||Number(a.sessions)>35))
-      || !Number(a.price)
-      || (mode!=='manual'&&gefenRateGap(matches))
-      || matches.some(r=>r.blockedReason&&(r.gefenFunding||!/חסר מחיר שעתי/.test(r.blockedReason))&&r.eligibilityStatus!=='waiting_three_meetings'
-        && (mode==='editable'||r.gefenFunding===(mode==='automatic')||!r.fundingSourceId)
-        && !['הפקה בתהליך','חלק המממן חויב במלואו'].includes(r.blockedReason));
-  });
+  return (data.collectionActivities||[]).filter(a=>financeBillingMissingReasons(a,rows,mode).length>0);
 }
-export function financeBillingMissingReasons(activity, billingRows=[]) {
-  const matches=billingRows.filter(r=>key(r.activityRowId)===key(activity.row_id));
+export function financeBillingMissingReasons(activity, billingRows=[], mode='editable') {
+  if(cancelledActivity(activity))return [];
+  const all=billingRows.filter(r=>key(r.activityRowId)===key(activity.row_id));
+  const matches=all.filter(r=>financeRelevantRow(r,mode)&&!fullyBilled(r));
+  if(all.length&&!matches.length)return [];
+  if(!all.length&&mode!=='editable'&&(mode==='automatic')!==isGefenFundingName(activity.funding))return [];
+  // An unpriced tour has no billing rows until its price is agreed.
+  if(!all.length&&String(activity.activity_type||'').toLowerCase()==='tour'&&!(Number(activity.price)>0))return [];
   const reasons=new Set();
   const add=reason=>{if(reason)reasons.add(reason);};
   if(course(activity)){
-    if(missingCourseRate(activity,matches))add('מחיר שעתי לגפ״ן');
+    if(missingCourseRate(activity,matches,mode))add('מחיר שעתי לגפ״ן');
     const sessions=Number(activity.sessions);
-    if(!Number.isInteger(sessions)||sessions<1||sessions>35)add('מספר מפגשים');
+    if(mode!=='manual'&&hasGefenFunding(activity,matches)&&(!Number.isInteger(sessions)||sessions<1||sessions>35))add('מספר מפגשים');
   }
-  if(!Number(activity.price))add('מחיר כולל');
-  if(gefenRateGap(matches))add('פער בין מסגרת גפ״ן לתעריף × שעות — נדרש בירור');
+  if(!(Number(activity.price)>0))add('מחיר כולל');
   for(const row of matches){
     const reason=String(row.blockedReason||'').replace(/^billing_blocked:/,'').trim();
-    if(!reason||row.eligibilityStatus==='waiting_three_meetings'||['הפקה בתהליך','חלק המממן חויב במלואו'].includes(reason))continue;
-    if(/חסר מחיר שעתי/.test(reason)){if(row.gefenFunding)add('מחיר שעתי לגפ״ן');continue;}
-    if(/חסר מספר מפגשים|מספר מפגשים לא תקין/.test(reason)){add('מספר מפגשים');continue;}
+    if(!reason||row.eligibilityStatus==='waiting_three_meetings'||['הפקה בתהליך','חלק המממן חויב במלואו','חסרים מועדי מפגשים מתוכננים','ממתין להשלמת שלושה מפגשים'].includes(reason))continue;
+    if(/חסר מחיר שעתי/.test(reason)){if(row.gefenFunding&&!Number(row.approvedGefenRate)&&!Number(activity.course_hourly_rate))add('מחיר שעתי לגפ״ן');continue;}
+    if(/חסר מספר מפגשים|מספר מפגשים לא תקין|מספר המפגשים אינו תואם לתכנון/.test(reason)){
+      if(row.gefenFunding&&(!Number.isInteger(Number(activity.sessions))||Number(activity.sessions)<1||Number(activity.sessions)>35))add('מספר מפגשים');
+      continue;
+    }
     if(/חסר מחיר כולל/.test(reason)){add('מחיר כולל');continue;}
     add(reason);
   }
@@ -69,7 +70,7 @@ export function financeBillingCompletionHtml(data,mode='editable') {
   const value=v=>v==null||v===''||Number(v)===0?missing:esc(v);
   const price=v=>Number(v)>0?esc(money(v))+' ₪':missing;
   const list=incomplete.map(a=>{
-    const reasons=financeBillingMissingReasons(a,rows);
+    const reasons=financeBillingMissingReasons(a,rows,mode);
     const active=key(editor?.row_id)===key(a.row_id);
     const activityRows=rows.filter(r=>key(r.activityRowId)===key(a.row_id));
     const orderRate=approvedGefenRate(activityRows);
