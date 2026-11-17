@@ -205,7 +205,7 @@ function managementTilesHtml() {
       title: 'ניהול סדנאות',
       description: 'ניהול קטלוג STEM, תוצרים ופניות לקוחות',
       icon: 'workshops',
-      url: 'https://taasiyeda.work/workshops/admin/'
+      url: 'https://taasiyeda.work/workshops/admin/?embed=dashboard'
     }),
     isAdmin && tileButton({
       title: 'ממיר מקלדת',
@@ -435,9 +435,46 @@ export const adminHomeScreen = {
         }
       });
     }
+    let closeWorkshopFrame;
     root?.querySelectorAll?.('[data-admin-hub-url]').forEach((button) => {
       button.addEventListener('click', () => {
         const url = String(button.getAttribute('data-admin-hub-url') || '').trim();
+        if (url === 'https://taasiyeda.work/workshops/admin/?embed=dashboard') {
+          if (!canViewAdminOnlyTools()) return;
+          closeWorkshopFrame?.();
+          const section = document.createElement('section');
+          const back = document.createElement('button');
+          back.type='button'; back.className='admin-course-results-back'; back.textContent='חזרה לניהול';
+          const frame = document.createElement('iframe');
+          frame.title='ניהול קטלוג הסדנאות'; frame.style.cssText='display:block;width:100%;height:82vh;min-height:480px;border:0;border-radius:12px';
+          frame.referrerPolicy='no-referrer'; frame.allow='clipboard-write; fullscreen';
+          const main=root.querySelector('[data-course-results-main]');
+          if (!main) return;
+          let disposed=false;
+          async function receive(event) {
+            if(disposed || !frame.isConnected || !canViewAdminOnlyTools() || event.origin!=='https://taasiyeda.work' || event.source!==frame.contentWindow || event.data?.type!=='workshops:dashboard-session-request' || !/^[a-f0-9]{48}$/.test(event.data?.nonce||''))return;
+            const nonce=event.data.nonce;
+            let token=null;
+            try {
+              const {data,error}=await supabase.auth.getSession();
+              const session=data?.session;
+              if(!error&&session?.access_token){
+                const verified=await supabase.auth.getUser(session.access_token);
+                if(!verified.error&&verified.data?.user?.id===session.user?.id)token=session.access_token;
+              }
+            } catch {}
+            if(!disposed&&frame.isConnected&&canViewAdminOnlyTools())event.source.postMessage({type:'workshops:dashboard-session',nonce,access_token:token},'https://taasiyeda.work');
+          }
+          window.addEventListener('message',receive);
+          const observer=new MutationObserver(()=>{if(!frame.isConnected)closeWorkshopFrame?.()});
+          const {data:authListener}=supabase.auth.onAuthStateChange(event=>{if(event==='SIGNED_OUT')queueMicrotask(()=>closeWorkshopFrame?.())});
+          closeWorkshopFrame=()=>{if(disposed)return;disposed=true;window.removeEventListener('message',receive);observer.disconnect();authListener?.subscription?.unsubscribe();section.remove();main.hidden=false;};
+          back.addEventListener('click',closeWorkshopFrame);
+          section.append(back,frame);main.after(section);main.hidden=true;
+          observer.observe(document.documentElement,{childList:true,subtree:true});
+          frame.src=url;
+          return;
+        }
         if (url) window.location.assign(url);
       });
     });
