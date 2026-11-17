@@ -97,7 +97,7 @@ export function syncCompletionSearch(root,query='') {
   const empty=section.querySelector('[data-finance-completion-no-results]');
   if(empty)empty.hidden=visible!==0;
 }
-function financeBillingCompletionEditorHtml(editor) {
+export function financeBillingCompletionEditorHtml(editor) {
   const e=editor;
   const field=(label,name,value,type='text',attrs='')=>'<label class="ds-fin-collect-search"><span>'+esc(label)+'</span><input class="ds-input" name="'+name+'" type="'+type+'" value="'+esc(value)+'" '+attrs+'></label>';
   const allocations=new Map((e.allocations||[]).map(x=>[key(x.id),x.amount]));

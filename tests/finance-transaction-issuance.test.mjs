@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
-import { transactionAccountsViewHtml, FINANCE_TRANSACTION_SHAREPOINT_FOLDER_URL, transactionPreviewForVisit, transactionSelectionKey, runTransactionIssuance, transactionIssuanceResultMessage, transactionMonth, transactionBacklog, transactionBlockedDueRows } from '../frontend/src/screens/finance-transaction-issuance.js';
+import { transactionAccountsViewHtml, FINANCE_TRANSACTION_SHAREPOINT_FOLDER_URL, transactionPreviewForVisit, transactionSelectionKey, runTransactionIssuance, transactionIssuanceResultMessage, transactionMonth, transactionBacklog, transactionBlockedDueRows, consolidateBlockedActivities } from '../frontend/src/screens/finance-transaction-issuance.js';
 import { financeCycleCutoff, financeGefenCycle, financeToday } from '../frontend/src/screens/finance-transaction-accounts.js';
 const row=(extra={})=>({activityRowId:'a',activityName:'קורס א',fundingSourceId:'g',funding:'גפ״ן',gefenFunding:true,
   period:'2026-10-01',customerName:'בית ספר א',institutionSymbol:'123',payerName:'בית ספר א',customerEmail:'school@example.test',
@@ -363,4 +363,35 @@ test('blocked invoices require a due period, remaining unbilled balance and actu
  assert.match(table.textContent,/2026-09/);
  assert.doesNotMatch(table.textContent,/הפקה בתהליך/);
  dom.window.close();
+});
+
+test('blocked display consolidates months and reasons but preserves different course IDs at the same school',()=>{
+ const blocked=(extra={})=>row({eligible:false,completedCount:3,blockedReason:'חסר מחיר שעתי',issuableAmount:0,...extra});
+ const d=data([blocked({activityRowId:'a',period:'2026-09-01'}),blocked({activityRowId:'a'}),blocked({activityRowId:'b'}),blocked({activityRowId:'a',fundingSourceId:'g2',blockedReason:'חסר סמל מוסד'})],{financeCanComplete:true});
+ const raw=transactionBlockedDueRows(d);assert.equal(raw.length,4);
+ const groups=consolidateBlockedActivities(raw);assert.equal(groups.length,2);
+ assert.deepEqual(groups[0].periods,['2026-09','2026-10']);
+ assert.deepEqual(groups[0].reasons,['חסר מחיר שעתי','חסר סמל מוסד']);
+ const dom=new JSDOM(html(d));const table=dom.window.document.querySelector('[data-finance-blocked-rows]');
+ assert.equal(table.querySelectorAll('tbody tr').length,2);
+ assert.equal(table.querySelectorAll('[data-finance-complete-open="a"]').length,1);
+ assert.match(table.textContent,/2026-09 · 2026-10/);
+ assert.match(table.textContent,/חסר מחיר שעתי · חסר סמל מוסד/);
+ dom.window.close();
+});
+
+test('blocked activity opens the shared completion editor inline without showing the full completion inventory',()=>{
+ const d=data([row({activityRowId:'a',eligible:false,completedCount:3,blockedReason:'חסר מחיר שעתי'}),row({activityRowId:'b',eligible:false,completedCount:3,blockedReason:'חסר מחיר שעתי'})],{financeCanComplete:true,transactionTab:'automatic',billingCompletion:{row_id:'a',name:'קורס א',school:'בית ספר א',activity_type:'course',sessions:10,price:9000,allocations:[],funding_options:[]}});
+ const dom=new JSDOM(html(d));const doc=dom.window.document;
+ const table=doc.querySelector('[data-finance-blocked-rows]');
+ assert.equal(table.open,true);
+ assert.equal(table.querySelectorAll('[data-finance-completion-form]').length,1);
+ assert.equal(table.querySelector('[data-finance-completion-form]').dataset.activityId,'a');
+ assert.equal(table.querySelector('[data-finance-blocked-editor] td').colSpan,6);
+ assert.equal(doc.querySelector('[data-finance-completion-section]'),null);
+ dom.window.close();
+ const finance=readFileSync(new URL('../frontend/src/screens/finance.js',import.meta.url),'utf8');
+ const handler=finance.slice(finance.indexOf('const completionOpen='),finance.indexOf("if(ev.target.closest('[data-finance-complete-cancel]'))"));
+ assert.doesNotMatch(handler,/visit\.transactionTab\s*=/);
+ assert.match(finance,/financeCompleteBillingData\(editor\.row_id,payload\)[\s\S]*?ensureCollectionLoaded\(visit,api,\{force:true\}\)/);
 });

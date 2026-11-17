@@ -1,4 +1,4 @@
-import { financeBillingCompletionHtml, financeActivitySchoolIdentity } from './finance-billing-completion.js';
+import { financeBillingCompletionHtml, financeActivitySchoolIdentity, financeBillingCompletionEditorHtml } from './finance-billing-completion.js';
 import {invoiceRevisionEditorHtml,invoiceRevisionAdminHtml} from './finance-invoice-revisions.js';
 import '../finance-transaction-page-data-hotfix.js';
 import { manualAccountViewHtml, manualPdfReviewHtml, syncManualPdfPreviewDom, activateManualPdfPreview } from './finance-manual-account.js';
@@ -128,6 +128,20 @@ export function transactionBlockedDueRows(data, mode = TRANSACTION_MODE_AUTOMATI
     } else if (row.finished !== true) return false;
     return true;
   }).map(row => [transactionSelectionKey(row),row])).values()];
+}
+
+// Display one row per activity, not one per billing month. Keep underlying
+// period rows untouched for eligibility and financial processing.
+export function consolidateBlockedActivities(rows) {
+  const groups = new Map();
+  for (const row of rows) {
+    const id = row.activityRowId;
+    if (!groups.has(id)) groups.set(id, {...row, periods: new Set(), reasons: new Set()});
+    const group = groups.get(id);
+    if (row.period) group.periods.add(row.period.slice(0,7));
+    if (row.blockedReason) group.reasons.add(text(row.blockedReason).replace(/^billing_blocked:/,'').trim());
+  }
+  return [...groups.values()].map(group => ({...group, periods: [...group.periods].sort(), reasons: [...group.reasons]}));
 }
 
 // An automatic Gefen batch must expose every mixed-funded activity and its
@@ -313,11 +327,13 @@ function billingView(data, mode) {
     ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>מוסד</th><th>קורס</th><th>מפגשים</th></tr></thead>
     <tbody>${waiting.map(row=>`<tr><td>${escapeHtml(row.customerName || '—')}</td><td>${escapeHtml(row.activityName)}</td><td>${Number(row.completedCount || 0)} מתוך 3</td></tr>`).join('')}</tbody></table>`)}
   </details>` : '';
-  const blocked = preview.blocked;
-  const blockedHtml = blocked.length ? `<details class="ds-fin-payer" data-finance-blocked-rows>
+  const blocked = consolidateBlockedActivities(preview.blocked);
+  const blockedEditorId = data.billingCompletion?.row_id;
+  const blockedEditorVisible = blocked.some(row=>String(row.activityRowId)===String(blockedEditorId));
+  const blockedHtml = blocked.length ? `<details class="ds-fin-payer" data-finance-blocked-rows${blockedEditorVisible?' open':''}>
     <summary>${mode === TRANSACTION_MODE_AUTOMATIC ? '<span class="ds-fin-gefen-arrow" aria-hidden="true">▸</span>' : ''}<span>פעילויות חסומות להפקה (${blocked.length})</span></summary>
-    ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>מוסד</th><th>סמל מוסד</th><th>רשות</th><th>פעילות</th><th>חודש חיוב</th><th>סיבת החסימה</th></tr></thead>
-    <tbody>${blocked.map(row=>{const identity=financeActivitySchoolIdentity(data,row);return `<tr><td>${escapeHtml(identity.name)}</td><td>${escapeHtml(identity.symbol)}</td><td>${escapeHtml(identity.authority)}</td><td>${escapeHtml(row.activityName || row.activityRowId || '—')}</td><td>${escapeHtml(row.period.slice(0,7))}</td><td>${escapeHtml(String(row.blockedReason).replace(/^billing_blocked:/,''))}${data.financeCanComplete?` <button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-complete-open="${escapeHtml(row.activityRowId)}">השלמת נתונים</button>`:''}</td></tr>`;}).join('')}</tbody></table>`)}
+    ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>מוסד</th><th>סמל מוסד</th><th>רשות</th><th>פעילות</th><th>חודשי חיוב</th><th>סיבת החסימה</th></tr></thead>
+    <tbody>${blocked.map(row=>{const identity=financeActivitySchoolIdentity(data,row);const activity=(data.collectionActivities||[]).find(a=>String(a.row_id)===String(row.activityRowId));const group=[activity?.grade,activity?.class_group].filter(Boolean).join(' · ');return `<tr><td>${escapeHtml(identity.name)}</td><td>${escapeHtml(identity.symbol)}</td><td>${escapeHtml(identity.authority)}</td><td>${escapeHtml(row.activityName || row.activityRowId || '—')}${group?`<small style="display:block;color:var(--ds-text-muted,#64748b)">${escapeHtml(group)}</small>`:''}<small style="display:block;color:var(--ds-text-muted,#64748b)" title="${escapeHtml(row.activityRowId)}">${escapeHtml(String(row.activityRowId).slice(-8))}</small></td><td>${escapeHtml(row.periods.join(' · '))}</td><td>${escapeHtml(row.reasons.join(' · '))}${data.financeCanComplete?` <button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-complete-open="${escapeHtml(row.activityRowId)}">השלמת נתונים</button>`:''}</td></tr>${blockedEditorVisible&&String(row.activityRowId)===String(blockedEditorId)?`<tr data-finance-blocked-editor><td colspan="6" style="white-space:normal;padding:8px 0">${financeBillingCompletionEditorHtml(data.billingCompletion)}</td></tr>`:''}`;}).join('')}</tbody></table>`)}
   </details>` : '';
   {
     const selectedMonth = transactionMonth(data, mode);
@@ -339,6 +355,7 @@ function billingView(data, mode) {
       ${previous.length ? `<section class="ds-fin-gefen-backlog" data-finance-gefen-backlog><h3>חיובים זכאים מחודשים קודמים</h3>${groupsHtml(previous,true)}</section>` : ''}
       ${preview.accounts.length ? `<div class="ds-fin-gefen-issue"><button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="${mode}" data-finance-transaction-main-run>${escapeHtml(issueButtonLabel(mode, data))}</button></div>` : ''}
       ${data.transactionIssuancePreview ? `<div class="ds-fin-transaction-preview-pane">${manualPdfReviewHtml({key:'single',title:'תצוגה מקדימה לפני הפקה',detail:`${data.transactionIssuancePreview.quote?.customer_name_snapshot || ''} · ${formatAmount(data.transactionIssuancePreview.quote?.total_amount)}`}).replaceAll('data-finance-manual-','data-finance-transaction-issuance-')}</div>` : ''}
+      ${data.billingCompletion&&!blockedEditorVisible?financeBillingCompletionEditorHtml(data.billingCompletion):''}
       ${waitingHtml}
       ${blockedHtml}
     </div>`;
