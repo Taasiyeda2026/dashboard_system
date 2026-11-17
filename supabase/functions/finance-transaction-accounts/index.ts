@@ -317,7 +317,7 @@ async function attachActivityTypes(account: any, client: ReturnType<typeof creat
   const ids = [...new Set(lines.map((line: any) => clean(line.activity_row_id)).filter(Boolean))];
   if (!ids.length) return account;
   const { data, error } = await client.from('activities')
-    .select('row_id,activity_type,activity_season,authority_id,price,sessions,activity_no').in('row_id', ids);
+    .select('row_id,activity_type,activity_season,authority_id,authority,price,sessions,activity_no').in('row_id', ids);
   if (error) throw new Error('invoice_activity_types_unavailable');
   const validActivities = (data || []).filter((a: any) => a.activity_season === 'school_2027');
   const byId = new Map(validActivities.map((a: any) => [clean(a.row_id), a]));
@@ -339,7 +339,7 @@ async function attachActivityTypes(account: any, client: ReturnType<typeof creat
     line.planned_sessions_from_source = activity.sessions;
     // Enrichment for rendering only, with no financial snapshot/database mutation.
     line.authority_name_snapshot = authorities.get(clean(activity.authority_id))
-      || clean(line.authority_name_snapshot) || '';
+      || clean(activity.authority) || clean(line.authority_name_snapshot) || '';
   }
   return account;
 }
@@ -431,7 +431,7 @@ async function buildPdf(account: any) {
   const drawSection = (title: string, columns: string[], widths: number[],
     rows: InvoiceRenderRow[], values: (row: InvoiceRenderRow) => string[], showDates = true) => {
     if (!rows.length) return;
-    const headerHeight = columns.length === 7 ? 30 : 25;
+    const headerHeight = columns.length === 8 ? 30 : 25;
     const detailLines = (row: InvoiceRenderRow) => showDates && row.dates.length ? invoiceCellLines(regular, `מועדי ביצוע: ${row.dates.map(date).join(', ')}`, 535, 8) : [];
     const firstDetails = detailLines(rows[0]);
     const firstRowHeight = invoiceRowHeight(regular, values(rows[0]), widths) + (firstDetails.length ? 8 + firstDetails.length * 10 : 0);
@@ -474,13 +474,13 @@ async function buildPdf(account: any) {
   const gefenCourses = allRows.filter(row => row.gefenFunding && row.category === 'course');
   const otherCourses = allRows.filter(row => !row.gefenFunding && row.category === 'course');
   const serviceRows = allRows.filter(row => row.category === 'service');
-  const courseWidths = [100, 125, 58, 42, 46, 74, 90]; // 535 points — tighter totals column
+  const courseWidths = [83, 65, 101, 54, 38, 43, 68, 83]; // 535 points — tighter totals column
   const compactWidths = [130, 175, 110, 120]; // 535 points — non-Gefen: no hours/meetings
   const serviceWidths = [118, 150, 100, 62, 105]; // 535 points: school, name, authority, qty, total
   drawSection('',
-    ['שם בית הספר', 'תוכנית / קורס', 'מספר גפ״ן', 'שעות', 'מפגשים', 'מחיר לשעה', 'סה״כ'],
+    ['שם בית הספר', 'רשות', 'תוכנית / קורס', 'מספר גפ״ן', 'שעות', 'מפגשים', 'מחיר לשעה', 'סה״כ'],
     courseWidths, gefenCourses,
-    (row) => [row.school || '—', row.name, row.gefen || '—',
+    (row) => [row.school || '—', row.authority || '—', row.name, row.gefen || '—',
       count(row.hours), count(row.quantity), money(row.hourlyPrice), money(row.amount)]);
   drawSection('',
     ['שם בית הספר', 'תוכנית / קורס', 'רשות', 'סה״כ'],
