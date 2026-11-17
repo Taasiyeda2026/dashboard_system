@@ -379,3 +379,19 @@ test('blocked display consolidates months and reasons but preserves different co
  assert.match(table.textContent,/חסר מחיר שעתי · חסר סמל מוסד/);
  dom.window.close();
 });
+
+test('blocked activity opens the shared completion editor inline without showing the full completion inventory',()=>{
+ const d=data([row({activityRowId:'a',eligible:false,completedCount:3,blockedReason:'חסר מחיר שעתי'}),row({activityRowId:'b',eligible:false,completedCount:3,blockedReason:'חסר מחיר שעתי'})],{financeCanComplete:true,transactionTab:'automatic',billingCompletion:{row_id:'a',name:'קורס א',school:'בית ספר א',activity_type:'course',sessions:10,price:9000,allocations:[],funding_options:[]}});
+ const dom=new JSDOM(html(d));const doc=dom.window.document;
+ const table=doc.querySelector('[data-finance-blocked-rows]');
+ assert.equal(table.open,true);
+ assert.equal(table.querySelectorAll('[data-finance-completion-form]').length,1);
+ assert.equal(table.querySelector('[data-finance-completion-form]').dataset.activityId,'a');
+ assert.equal(table.querySelector('[data-finance-blocked-editor] td').colSpan,6);
+ assert.equal(doc.querySelector('[data-finance-completion-section]'),null);
+ dom.window.close();
+ const finance=readFileSync(new URL('../frontend/src/screens/finance.js',import.meta.url),'utf8');
+ const handler=finance.slice(finance.indexOf('const completionOpen='),finance.indexOf("if(ev.target.closest('[data-finance-complete-cancel]'))"));
+ assert.doesNotMatch(handler,/visit\.transactionTab\s*=/);
+ assert.match(finance,/financeCompleteBillingData\(editor\.row_id,payload\)[\s\S]*?ensureCollectionLoaded\(visit,api,\{force:true\}\)/);
+});
