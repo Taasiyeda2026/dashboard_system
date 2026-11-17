@@ -610,7 +610,8 @@ export const financeScreen = {
       if(completionOpen){
         if(visit.financeBusy||visit.transactionRunning||!visit.financeCanComplete)return;
         visit.financeBusy=true;
-        try{visit.billingCompletion=await api.financeBillingCompletionContext(completionOpen.dataset.financeCompleteOpen);if(visit.transactionTab!=='completion')visit.billingCompletionSearch='';visit.transactionTab='completion';visit.pendingTransactionApproval=null;visit.transactionActionMessage='';}
+        try{visit.billingCompletion=await api.financeBillingCompletionContext(completionOpen.dataset.financeCompleteOpen);// Keep the originating tab and selected billing month; render the same editor in place.
+          visit.pendingTransactionApproval=null;visit.transactionActionMessage='';}
         catch(error){visit.transactionActionMessage=financeError(error);}
         finally{visit.financeBusy=false;refresh();root.querySelector('[data-finance-completion-editor]')?.scrollIntoView?.({block:'nearest'});}
         return;
