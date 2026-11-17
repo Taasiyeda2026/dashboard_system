@@ -130,6 +130,20 @@ export function transactionBlockedDueRows(data, mode = TRANSACTION_MODE_AUTOMATI
   }).map(row => [transactionSelectionKey(row),row])).values()];
 }
 
+// Display one row per activity, not one per billing month. Keep underlying
+// period rows untouched for eligibility and financial processing.
+export function consolidateBlockedActivities(rows) {
+  const groups = new Map();
+  for (const row of rows) {
+    const id = row.activityRowId;
+    if (!groups.has(id)) groups.set(id, {...row, periods: new Set(), reasons: new Set()});
+    const group = groups.get(id);
+    if (row.period) group.periods.add(row.period.slice(0,7));
+    if (row.blockedReason) group.reasons.add(text(row.blockedReason).replace(/^billing_blocked:/,'').trim());
+  }
+  return [...groups.values()].map(group => ({...group, periods: [...group.periods].sort(), reasons: [...group.reasons]}));
+}
+
 // An automatic Gefen batch must expose every mixed-funded activity and its
 // actual program number before it can reserve invoice numbers. The review is
 // drawn from the same billing snapshot as the invoice, not a course-name map.
@@ -313,11 +327,11 @@ function billingView(data, mode) {
     ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>מוסד</th><th>קורס</th><th>מפגשים</th></tr></thead>
     <tbody>${waiting.map(row=>`<tr><td>${escapeHtml(row.customerName || '—')}</td><td>${escapeHtml(row.activityName)}</td><td>${Number(row.completedCount || 0)} מתוך 3</td></tr>`).join('')}</tbody></table>`)}
   </details>` : '';
-  const blocked = preview.blocked;
+  const blocked = consolidateBlockedActivities(preview.blocked);
   const blockedHtml = blocked.length ? `<details class="ds-fin-payer" data-finance-blocked-rows>
     <summary>${mode === TRANSACTION_MODE_AUTOMATIC ? '<span class="ds-fin-gefen-arrow" aria-hidden="true">▸</span>' : ''}<span>פעילויות חסומות להפקה (${blocked.length})</span></summary>
-    ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>מוסד</th><th>סמל מוסד</th><th>רשות</th><th>פעילות</th><th>חודש חיוב</th><th>סיבת החסימה</th></tr></thead>
-    <tbody>${blocked.map(row=>{const identity=financeActivitySchoolIdentity(data,row);return `<tr><td>${escapeHtml(identity.name)}</td><td>${escapeHtml(identity.symbol)}</td><td>${escapeHtml(identity.authority)}</td><td>${escapeHtml(row.activityName || row.activityRowId || '—')}</td><td>${escapeHtml(row.period.slice(0,7))}</td><td>${escapeHtml(String(row.blockedReason).replace(/^billing_blocked:/,''))}${data.financeCanComplete?` <button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-complete-open="${escapeHtml(row.activityRowId)}">השלמת נתונים</button>`:''}</td></tr>`;}).join('')}</tbody></table>`)}
+    ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>מוסד</th><th>סמל מוסד</th><th>רשות</th><th>פעילות</th><th>חודשי חיוב</th><th>סיבת החסימה</th></tr></thead>
+    <tbody>${blocked.map(row=>{const identity=financeActivitySchoolIdentity(data,row);const activity=(data.collectionActivities||[]).find(a=>String(a.row_id)===String(row.activityRowId));const group=[activity?.grade,activity?.class_group].filter(Boolean).join(' · ');return `<tr><td>${escapeHtml(identity.name)}</td><td>${escapeHtml(identity.symbol)}</td><td>${escapeHtml(identity.authority)}</td><td>${escapeHtml(row.activityName || row.activityRowId || '—')}${group?`<small style="display:block;color:var(--ds-text-muted,#64748b)">${escapeHtml(group)}</small>`:''}<small style="display:block;color:var(--ds-text-muted,#64748b)" title="${escapeHtml(row.activityRowId)}">${escapeHtml(String(row.activityRowId).slice(-8))}</small></td><td>${escapeHtml(row.periods.join(' · '))}</td><td>${escapeHtml(row.reasons.join(' · '))}${data.financeCanComplete?` <button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-complete-open="${escapeHtml(row.activityRowId)}">השלמת נתונים</button>`:''}</td></tr>`;}).join('')}</tbody></table>`)}
   </details>` : '';
   {
     const selectedMonth = transactionMonth(data, mode);
