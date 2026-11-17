@@ -111,6 +111,25 @@ export function transactionIssuanceActivities(data, { mode = TRANSACTION_MODE_AU
     .map((row) => ({ row_id: row.activityRowId, transaction_summary: row }));
 }
 
+// A missing billing field is not itself evidence of an overdue invoice.
+export function transactionBlockedDueRows(data, mode = TRANSACTION_MODE_AUTOMATIC) {
+  const selected = transactionMonth(data, mode);
+  const start = transactionYearStart(data);
+  return [...new Map((data.transactionContext?.billingRows || []).filter(row => {
+    const period = text(row.period).slice(0,7);
+    const reason = text(row.blockedReason).replace(/^billing_blocked:/,'').trim();
+    if (!reason || row.eligible || ['הפקה בתהליך','חלק המממן חויב במלואו','ממתין להשלמת שלושה מפגשים'].includes(reason)) return false;
+    if (row.gefenFunding !== (mode === TRANSACTION_MODE_AUTOMATIC) || !row.fundingSourceId) return false;
+    if (!/^\d{4}-\d{2}$/.test(period) || period < start || period > selected) return false;
+    if (Number(row.unbilledCount) <= 0 || !(Number(row.unbilledAmount) > 0)) return false;
+    if (mode === TRANSACTION_MODE_AUTOMATIC) {
+      if (row.eligibilityStatus === 'waiting_three_meetings') return false;
+      if (!serviceActivity(row) && !(Number(row.completedCount) >= 3)) return false;
+    } else if (row.finished !== true) return false;
+    return true;
+  }).map(row => [transactionSelectionKey(row),row])).values()];
+}
+
 // An automatic Gefen batch must expose every mixed-funded activity and its
 // actual program number before it can reserve invoice numbers. The review is
 // drawn from the same billing snapshot as the invoice, not a course-name map.
@@ -181,7 +200,7 @@ export function transactionPreviewForVisit(data, mode = TRANSACTION_MODE_AUTOMAT
       .map(email => [email.toLowerCase(), email])).values()];
   }
   return { mode, cutoff: mode === TRANSACTION_MODE_MANUAL ? financeToday() : transactionGefenCycle(data).cutoff, accounts: result,
-    blocked: rows.filter((row) => row.blockedReason), deferred: rows.filter((row) => !row.eligible && !row.blockedReason),
+    blocked: transactionBlockedDueRows(data, mode), deferred: rows.filter((row) => !row.eligible && !row.blockedReason),
     totals: { schools: new Set(result.map((row) => row.institutionSymbol)).size,
       activities: new Set(result.flatMap((account) => account.lines.map((line) => line.activityRowId))).size,
       meetings: result.reduce((sum, a) => sum + a.lines.filter(l => !serviceActivity(l)).reduce((n, l) => n + Number(l.unbilledCount || 0), 0), 0),
@@ -287,20 +306,18 @@ function billingView(data, mode) {
   const backlog = transactionBacklog(data, mode);
   const rows = transactionIssuanceActivities(data, { mode }).map((row) => row.transaction_summary);
   const ready = rows.filter((row) => row.eligible && !row.blockedReason);
-  const waiting = [...new Map(rows.filter((row) => row.eligibilityStatus === 'waiting_three_meetings')
+  const waiting = [...new Map(rows.filter((row) => row.eligibilityStatus === 'waiting_three_meetings' || (mode === TRANSACTION_MODE_AUTOMATIC && row.gefenFunding === true && !serviceActivity(row) && Number(row.completedCount) < 3))
     .map(row=>[row.activityRowId,row])).values()];
   const waitingHtml = waiting.length ? `<details class="ds-fin-payer" data-finance-waiting-courses>
     <summary>${mode === TRANSACTION_MODE_AUTOMATIC ? '<span class="ds-fin-gefen-arrow" aria-hidden="true">▸</span>' : ''}<span>קורסים הממתינים להשלמת שלושה מפגשים (${waiting.length})</span></summary>
     ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>מוסד</th><th>קורס</th><th>מפגשים</th></tr></thead>
     <tbody>${waiting.map(row=>`<tr><td>${escapeHtml(row.customerName || '—')}</td><td>${escapeHtml(row.activityName)}</td><td>${Number(row.completedCount || 0)} מתוך 3</td></tr>`).join('')}</tbody></table>`)}
   </details>` : '';
-  const blocked = [...new Map(rows
-    .filter((row) => row.blockedReason && row.eligibilityStatus !== 'waiting_three_meetings')
-    .map((row) => [`${row.activityRowId}:${row.fundingSourceId || ''}:${row.period || ''}`, row])).values()];
+  const blocked = preview.blocked;
   const blockedHtml = blocked.length ? `<details class="ds-fin-payer" data-finance-blocked-rows>
     <summary>${mode === TRANSACTION_MODE_AUTOMATIC ? '<span class="ds-fin-gefen-arrow" aria-hidden="true">▸</span>' : ''}<span>פעילויות חסומות להפקה (${blocked.length})</span></summary>
-    ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>מוסד</th><th>סמל מוסד</th><th>רשות</th><th>פעילות</th><th>סיבת החסימה</th></tr></thead>
-    <tbody>${blocked.map(row=>{const identity=financeActivitySchoolIdentity(data,row);return `<tr><td>${escapeHtml(identity.name)}</td><td>${escapeHtml(identity.symbol)}</td><td>${escapeHtml(identity.authority)}</td><td>${escapeHtml(row.activityName || row.activityRowId || '—')}</td><td>${escapeHtml(String(row.blockedReason).replace(/^billing_blocked:/,''))}${data.financeCanComplete?` <button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-complete-open="${escapeHtml(row.activityRowId)}">השלמת נתונים</button>`:''}</td></tr>`;}).join('')}</tbody></table>`)}
+    ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>מוסד</th><th>סמל מוסד</th><th>רשות</th><th>פעילות</th><th>חודש חיוב</th><th>סיבת החסימה</th></tr></thead>
+    <tbody>${blocked.map(row=>{const identity=financeActivitySchoolIdentity(data,row);return `<tr><td>${escapeHtml(identity.name)}</td><td>${escapeHtml(identity.symbol)}</td><td>${escapeHtml(identity.authority)}</td><td>${escapeHtml(row.activityName || row.activityRowId || '—')}</td><td>${escapeHtml(row.period.slice(0,7))}</td><td>${escapeHtml(String(row.blockedReason).replace(/^billing_blocked:/,''))}${data.financeCanComplete?` <button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-complete-open="${escapeHtml(row.activityRowId)}">השלמת נתונים</button>`:''}</td></tr>`;}).join('')}</tbody></table>`)}
   </details>` : '';
   {
     const selectedMonth = transactionMonth(data, mode);
