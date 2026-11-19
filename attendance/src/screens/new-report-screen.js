@@ -1704,6 +1704,14 @@ export function renderNewReportScreen(container, {
     }
 
     let savedRecordForAttachmentRetry = null;
+    let dailyTravel = null;
+
+    function notifyTravelAttendanceChanged() {
+      // Travel dayOptions.ready can go stale after attendance create/update.
+      // Invalidate even when the travel panel is hidden so the next visit
+      // refreshes from the database instead of reusing the cached list.
+      dailyTravel?.invalidateAttendanceContext?.();
+    }
 
     function finishSuccessfulSave(record, reportDate) {
       draftGuard.markClean();
@@ -1713,6 +1721,7 @@ export function renderNewReportScreen(container, {
       // Reset in the same task: a delayed reset could erase input entered
       // during the success animation after the previous save completed.
       onSaved?.(record);
+      notifyTravelAttendanceChanged();
       buildForm(null, reportDate);
       successBanner.textContent = 'דיווח הנוכחות נשמר בהצלחה';
       successBanner.hidden = false;
@@ -1952,6 +1961,9 @@ export function renderNewReportScreen(container, {
           payload.public_transport_cost = 0;
         }
         const record = await createRecord(instructor.empId, payload, {requestId:creationRequestId});
+        // Attendance is committed: drop stale travel readiness even if attachment
+        // upload fails and finishSuccessfulSave (which rebuilds the form) is skipped.
+        notifyTravelAttendanceChanged();
         // Travel compensation is back-office processing. Never block or warn the
         // instructor: unresolved calculations remain visible to the team manager/admin.
         if (!isDailyTravelDate()) void reconcileTravelCompensation(record.id).catch(() => null);
@@ -2009,7 +2021,7 @@ export function renderNewReportScreen(container, {
     form.setAttribute('role','tabpanel');
     form.setAttribute('aria-labelledby',attendanceTab.id);
     tabs.append(attendanceTab, travelTab, expenseTab);
-    const dailyTravel = createDailyTravelTab({
+    dailyTravel = createDailyTravelTab({
       empId: instructor.empId,
       initialDate: dateField.input.value || defaultDate,
       onEditHistorical: (date) => onOpenMyReports?.(date)

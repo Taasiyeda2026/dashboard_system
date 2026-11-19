@@ -12,6 +12,10 @@ import { listInstructorDisplayMonths, readHistoricalAttendance, historicalTravel
 import {
   getDailyTravelActivityLegs, getDailyTravelReport, getDailyTravelReports, getAssignedTravelDays, saveDailyTravel
 } from '../services/daily-travel.service.js';
+import {
+  canReloadTravelAfterAttendanceChange,
+  shouldRefreshTravelDays,
+} from '../services/travel-readiness-sync.js';
 
 const LEG_LABELS = {outbound:'יציאה לפעילות הראשונה',between:'מעבר בין פעילויות',return:'חזרה מהפעילות האחרונה'};
 
@@ -138,6 +142,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   let saving=false;
   let locked=false;
   let dayOptions=[];
+  let attendanceContextStale=false;
   let requestedDay=initialDate;
   let selectedMonth=String(initialDate||'').slice(0,7);
   let monthsLoaded=false;
@@ -874,13 +879,83 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         || (uncertainSave?.date===loadedDate) || refreshRequired;
     }
   }
+  function invalidateAttendanceContext(){
+    // Attendance create/update/delete can flip ready for assigned days already
+    // cached in this tab. Mark the list stale; only auto-reload when idle so an
+    // unsaved travel draft is never wiped by a background attendance save.
+    attendanceContextStale=true;
+    const reloadNow=canReloadTravelAfterAttendanceChange({
+      draftDirty:draftGuard.dirty,
+      saving,
+      loading,
+      uncertainSave:Boolean(uncertainSave),
+      panelHidden:panel.hidden,
+    });
+    if(!reloadNow)return {reloaded:false,stale:true};
+    loadedDate='';
+    void load({force:true});
+    return {reloaded:true,stale:true};
+  }
+
   async function load({force=false}={}){
     // A date chosen while a request is in flight must be loaded next.
     if(loading){
-      if(force || requestedDay!==loadingDay || selectedMonth!==loadingMonth)reloadRequested=true;
+      if(force || attendanceContextStale || requestedDay!==loadingDay || selectedMonth!==loadingMonth){
+        reloadRequested=true;
+      }
       return;
     }
-    if(!force && loadedDate===requestedDay && loadedDate!=='')return;
+    const refreshDaysNeeded=shouldRefreshTravelDays({
+      force,
+      dayOptionsLength:dayOptions.length,
+      attendanceContextStale,
+    });
+    if(!force && !refreshDaysNeeded && loadedDate===requestedDay && loadedDate!=='')return;
+
+    // Attendance changed while a travel draft is open: refresh ready flags only.
+    // Never tear down unsaved leg inputs because of a background attendance save.
+    if(!force && attendanceContextStale && draftGuard.dirty){
+      loadingDay=requestedDay;
+      loadingMonth=selectedMonth;
+      loading=true;
+      const token=++requestSequence;
+      let continueFullLoad=false;
+      try{
+        const hasDays=await withTravelDeadline(signal=>refreshDays(token,signal),{action:'טעינת ימי הפעילות'});
+        if(token!==requestSequence)return;
+        attendanceContextStale=false;
+        if(!hasDays)return;
+        const date=dateField.input.value;
+        const day=dayOptions.find(item=>item.date===date);
+        if(day?.ready && loadedDate===date){
+          return;
+        }
+        if(!day?.ready){
+          status.textContent=day?.review_status==='rejected'
+            ? 'דיווח הנסיעות נשמר, אך אין פעילות נוכחות תואמת. יש להשלים נוכחות לפני תיקון הנסיעות.'
+            : 'יש להשלים תחילה דיווח נוכחות ליום זה';
+          return;
+        }
+        // Day just became ready and no travel form is loaded yet — safe full load.
+        if(day?.ready && loadedDate==='')continueFullLoad=true;
+        else return;
+      }catch(err){
+        ++requestSequence;
+        status.textContent=(err.message||'טעינת הנסיעות נכשלה')+' ניתן לנסות שוב.';
+        reload.textContent='ניסיון חוזר';
+        reload.hidden=false;
+        return;
+      }finally{
+        loading=false;reload.disabled=false;
+      }
+      if(reloadRequested){
+        reloadRequested=false;
+        await load({force:!draftGuard.dirty});
+        return;
+      }
+      if(!continueFullLoad)return;
+    }
+
     loadingDay=requestedDay;
     loadingMonth=selectedMonth;
     loading=true;save.disabled=true;reload.disabled=true;
@@ -897,9 +972,11 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       if(!monthsLoaded)await withTravelDeadline(()=>refreshMonths(token),{action:'טעינת חודשי הדיווח'});
       if(token!==requestSequence)return;
       void refreshTravelHistory();
-      if(force || !dayOptions.length){
+      if(refreshDaysNeeded || attendanceContextStale){
         const hasDays=await withTravelDeadline(signal=>refreshDays(token,signal),{action:'טעינת ימי הפעילות'});
-        if(token!==requestSequence || !hasDays)return;
+        if(token!==requestSequence)return;
+        attendanceContextStale=false;
+        if(!hasDays)return;
       }
       const date=dateField.input.value;
       loadingDay=date;
@@ -969,7 +1046,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         && uncertainSave?.date!==loadedDate && !refreshRequired)save.disabled=false;
       if(reloadRequested){
         reloadRequested=false;
-        await load({force:true});
+        await load({force:!draftGuard.dirty});
       }
     }
   }
@@ -1062,5 +1139,5 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         || (uncertainSave?.date===loadedDate) || refreshRequired;
     }
   });
-  return {panel,load,setDate,dateInput:dateField.input};
+  return {panel,load,setDate,dateInput:dateField.input,invalidateAttendanceContext};
 }
