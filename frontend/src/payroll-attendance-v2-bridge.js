@@ -99,8 +99,8 @@ function legacyRecord(row = {}, travel = null, { generated = false, location = n
     destinationEntityKey: text(location?.destination_entity_key),
     destinationType: text(location?.destination_type),
     isRemoteDestination: location?.is_remote === true,
-    sourceAttendanceRecordId: text(travel?.source_record_id),
-    generationKind: generated ? 'travel_time_cancellation' : '',
+    sourceAttendanceRecordId: text(travel?.source_record_id || row.source_attendance_record_id),
+    generationKind: text(row.generation_kind) || (generated ? 'travel_time_cancellation' : ''),
     travelCalculationStatus: text(travel?.calculation_status),
     travelFailureCode: text(travel?.failure_code),
     outboundTravelMinutes: travel?.outbound_travel_minutes ?? null,
@@ -441,7 +441,41 @@ api.attendanceControlReviewDailyTravel = async function ({employeeId,date,decisi
       throw new Error('פרטי הנוכחות השתנו מאז דיווח הנסיעות. יש לתקן את נסיעות היום בממשק הקיים לפני האישור.');
     if(/attendance_month_locked/.test(error.message||''))
       throw new Error('החודש נעול. לא ניתן לשנות את אישור הנסיעות.');
+    if(/attendance_travel_overlap_unresolved/.test(error.message||''))
+      throw new Error('קיימת חפיפה בין נסיעות ישנות לדיווח היומי. יש להכריע בחריגה לפני האישור.');
+    if(/attendance_existing_legacy_approved_travel_conflict/.test(error.message||''))
+      throw new Error('קיים תשלום נסיעות ישן מאושר לאותו יום. לא ניתן לאשר את הדיווח היומי לפני הכרעה.');
     throw new Error(error.message||'בקרת הנסיעות נכשלה');
+  }
+  return data;
+};
+
+api.attendanceControlTravelPayrollOverlaps = async function ({employeeIds=[],fromDate='',toDate=''}={}) {
+  await waitForSupabaseAuthSession({timeoutMs:7000}).catch(()=>null);
+  const ids=[...new Set((employeeIds||[]).map(id=>Number(text(id))).filter(Number.isSafeInteger))];
+  const {data,error}=await supabase.rpc('av2_list_travel_payroll_overlaps',{
+    p_employee_ids:ids.length?ids:null,p_from_date:fromDate||null,p_to_date:toDate||null
+  });
+  if(error) throw new Error(error.message||'טעינת חריגות נסיעות נכשלה');
+  return Array.isArray(data)?data:[];
+};
+
+api.attendanceControlResolveTravelPayrollOverlap = async function ({
+  employeeId,date,component,chosenSource,approvedAmount,reason
+}={}) {
+  await waitForSupabaseAuthSession({timeoutMs:7000}).catch(()=>null);
+  const {data,error}=await supabase.rpc('av2_resolve_travel_payroll_component',{
+    p_emp_id:Number(employeeId),
+    p_date:date,
+    p_component:component,
+    p_chosen_source:chosenSource,
+    p_approved_amount:approvedAmount,
+    p_reason:reason
+  });
+  if(error){
+    if(/attendance_month_locked/.test(error.message||''))
+      throw new Error('החודש נעול. לא ניתן להכריע חריגת נסיעות.');
+    throw new Error(error.message||'שמירת הכרעת החריגה נכשלה');
   }
   return data;
 };
