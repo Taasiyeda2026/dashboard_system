@@ -117,14 +117,31 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     ]);
 
     const sourceRecords = sourceAttendanceRecords(records);
-    const expenseReports=monthKey>='2026-11'
-      ? await listExpenseReports({
+    // Travel/expense loads must not blank the attendance list when they fail.
+    let expenseReports=[];
+    let expenseLoadError=null;
+    if(monthKey>='2026-11'){
+      try{
+        expenseReports=await listExpenseReports({
           fromDate:monthKey+'-01',
           toDate:monthKey+'-'+String(new Date(year,month,0).getDate()).padStart(2,'0'),
           employeeIds:[instructor.empId]
-        }) : [];
-    const dailyTravelReports = monthKey >= '2026-11'
-      ? await getDailyTravelReports(instructor.empId,monthKey) : [];
+        });
+      }catch(error){
+        expenseLoadError=error;
+        expenseReports=[];
+      }
+    }
+    let dailyTravelReports=[];
+    let travelLoadError=null;
+    if(monthKey >= '2026-11'){
+      try{
+        dailyTravelReports=await getDailyTravelReports(instructor.empId,monthKey);
+      }catch(error){
+        travelLoadError=error;
+        dailyTravelReports=[];
+      }
+    }
     const dailyTravelByDate = new Map(dailyTravelReports.map(row=>[row.travel_date,row]));
     const travelDays = [...new Set(sourceRecords.filter(row=>
       row.report_date >= '2026-11-01'
@@ -146,6 +163,16 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     contentArea.innerHTML = '';
 
     const onRefresh = (notice = {}) => loadAndRender({ instructor, year, month, contentArea, toolbar, onNewReport, onTravelReport, onDuplicate, ...notice });
+
+    if (travelLoadError || expenseLoadError) {
+      const sideLoadWarning = document.createElement('p');
+      sideLoadWarning.className = 'av2-reports__lock-msg';
+      sideLoadWarning.setAttribute('role', 'status');
+      sideLoadWarning.textContent = travelLoadError
+        ? 'דיווחי הנוכחות מוצגים, אך לא ניתן לטעון כעת את סיכום הנסיעות. אפשר לרענן מאוחר יותר.'
+        : 'דיווחי הנוכחות מוצגים, אך לא ניתן לטעון כעת את סיכום ההוצאות. אפשר לרענן מאוחר יותר.';
+      contentArea.append(sideLoadWarning);
+    }
 
     if (deletedTravelDate && !dailyTravelByDate.has(deletedTravelDate)) {
       contentArea.append(buildDeletedTravelNotice({

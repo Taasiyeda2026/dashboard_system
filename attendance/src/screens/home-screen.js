@@ -114,12 +114,26 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
     ]);
 
     const sourceRecords = sourceAttendanceRecords(records);
-    const expenseReports=monthKey>='2026-11' ? await listExpenseReports({
-      fromDate:monthKey+'-01',
-      toDate:monthKey+'-'+String(new Date(year,month,0).getDate()).padStart(2,'0'),
-      employeeIds:[instructor.empId]
-    }) : [];
-    const travelReports = monthKey>='2026-11' ? await getDailyTravelReports(instructor.empId,monthKey) : null;
+    let expenseReports=[];
+    if(monthKey>='2026-11'){
+      try{
+        expenseReports=await listExpenseReports({
+          fromDate:monthKey+'-01',
+          toDate:monthKey+'-'+String(new Date(year,month,0).getDate()).padStart(2,'0'),
+          employeeIds:[instructor.empId]
+        });
+      }catch{
+        expenseReports=[];
+      }
+    }
+    let travelReports=null;
+    if(monthKey>='2026-11'){
+      try{
+        travelReports=await getDailyTravelReports(instructor.empId,monthKey);
+      }catch{
+        travelReports=[];
+      }
+    }
     const editable = canEditMonth(year, month, approval);
 
     // Instructor-only monthly totals. No individual records are shown on Home.
