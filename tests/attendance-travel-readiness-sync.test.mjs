@@ -83,3 +83,31 @@ test('attendance PWA cache bumped to 178 and SW defers reload while forms are op
   assert.doesNotMatch(index, /\?v=177/);
   assert.match(registration, /document\.querySelector\('form, \.av2-daily-travel, \.av2-expenses-tab'\)/);
 });
+
+test('create/update/delete attendance always invalidate the month records cache', async () => {
+  const service = await read('attendance/src/services/attendance.service.js');
+  assert.match(service, /export async function createRecord[\s\S]*invalidateAttendanceCache\(empId\)/);
+  assert.match(service, /export async function updateRecord[\s\S]*invalidateAttendanceCache\(empId\)/);
+  assert.match(service, /export async function deleteRecord[\s\S]*invalidateAttendanceCache\(empId\)/);
+  assert.match(service, /editRecordId[\s\S]*updateRecord\(editRecordId/);
+});
+
+test('my-reports renders attendance rows from getMonthRecords even when travel side-load fails', async () => {
+  const screen = await read('attendance/src/screens/my-reports-screen.js');
+  const load = screen.slice(screen.indexOf('async function loadAndRender'), screen.indexOf('function buildDeletedTravelNotice'));
+  assert.match(load, /getMonthRecords\(instructor\.empId, year, month\)/);
+  assert.match(load, /travelLoadError=error/);
+  assert.match(load, /const sorted = \[\.\.\.sourceRecords\]\.sort/);
+  assert.match(load, /contentArea\.append\(listWrap/);
+  assert.match(load, /if \(travelLoadError \|\| expenseLoadError\)/);
+});
+
+test('mobile and desktop attendance shells stay wired for the travel tab', async () => {
+  const index = await read('attendance/index.html');
+  const tab = await read('attendance/src/screens/daily-travel-tab.js');
+  assert.match(index, /mobile-app-theme\.css\?v=178/);
+  assert.match(index, /desktop-app-theme\.css\?v=178/);
+  assert.match(index, /report-tabs-responsive-typography\.css\?v=178/);
+  assert.match(tab, /av2-report__travel-tab/);
+  assert.match(tab, /role', 'tabpanel'/);
+});

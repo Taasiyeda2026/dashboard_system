@@ -167,7 +167,21 @@ function setupMohammedScenario() {
         ? { ...day, ready: true, review_status: 'missing' }
         : day));
     },
+    markAttendanceRemoved(date) {
+      assigned = assigned.map((day) => (day.date === date
+        ? { ...day, ready: false, review_status: 'missing' }
+        : day));
+    },
+    failNextAssignedDays: false,
   });
+  const originalAssigned = ctx.getAssignedTravelDays;
+  ctx.getAssignedTravelDays = async (...args) => {
+    if (ctx.failNextAssignedDays) {
+      ctx.failNextAssignedDays = false;
+      throw new Error('timeout');
+    }
+    return originalAssigned(...args);
+  };
 
   const source = fs.readFileSync(`${__dirname}/../attendance/src/screens/daily-travel-tab.js`, 'utf8')
     .replace(/^import[\s\S]*?from ['"][^'"]+['"];\n/gm, '')
@@ -259,4 +273,65 @@ test('success message path in new-report only follows createRecord success', () 
   assert.match(finish, /successBanner\.textContent = 'דיווח הנוכחות נשמר בהצלחה'/);
   assert.match(createBlock, /notifyTravelAttendanceChanged\(\)/);
   assert.doesNotMatch(createBlock, /successBanner\.textContent/);
+});
+
+test('deleting attendance makes a previously ready day blocked again after invalidate', async () => {
+  const a = setupMohammedScenario();
+  a.tab.panel.hidden = false;
+  await a.tab.load();
+  assert.match(a.dayLabel(), /נשמר/);
+  a.ctx.markAttendanceRemoved('2026-11-04');
+  a.tab.panel.hidden = true;
+  a.tab.invalidateAttendanceContext();
+  a.tab.panel.hidden = false;
+  await a.tab.load();
+  assert.match(a.status(), /יש להשלים תחילה דיווח נוכחות/);
+  assert.equal(a.save().hidden, true);
+});
+
+test('attendance update on a day that already has travel keeps the day editable', async () => {
+  const a = setupMohammedScenario();
+  a.tab.panel.hidden = false;
+  await a.tab.load();
+  a.ctx.markAttendanceSaved('2026-11-04');
+  a.tab.panel.hidden = true;
+  a.tab.invalidateAttendanceContext();
+  a.tab.panel.hidden = false;
+  await a.tab.load();
+  assert.match(a.dayLabel(), /נשמר|ממתין|טרם/);
+  assert.doesNotMatch(a.status(), /יש להשלים תחילה דיווח נוכחות/);
+  const edit = a.tab.panel.querySelector('.av2-daily-travel__saved-edit');
+  assert.ok(edit);
+  assert.equal(edit.hidden, false);
+});
+
+test('day and month switches clear stale day selection safely', async () => {
+  const a = setupMohammedScenario();
+  a.tab.panel.hidden = false;
+  await a.tab.load();
+  a.tab.setDate('2026-11-09');
+  await a.tab.load();
+  assert.match(a.status(), /יש להשלים תחילה דיווח נוכחות/);
+  const month = a.tab.panel.querySelector('#av2-travel-month-selector');
+  assert.ok(month);
+  month.value = '2026-11';
+  await month.fire('change');
+  await new Promise(setImmediate);
+  assert.equal(a.tab.dateInput.value === '' || a.tab.dateInput.value.startsWith('2026-11'), true);
+});
+
+test('assigned-days timeout shows retry and does not unlock save with stale ready', async () => {
+  const a = setupMohammedScenario();
+  a.tab.panel.hidden = false;
+  await a.tab.load();
+  a.tab.setDate('2026-11-09');
+  await a.tab.load();
+  assert.equal(a.save().hidden, true);
+  a.ctx.failNextAssignedDays = true;
+  a.tab.panel.hidden = true;
+  a.tab.invalidateAttendanceContext();
+  a.tab.panel.hidden = false;
+  await a.tab.load();
+  assert.match(a.status(), /timeout|ניתן לנסות שוב/);
+  assert.equal(a.save().hidden, true);
 });
