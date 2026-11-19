@@ -2,6 +2,10 @@ import { activityTypeDisplayLabel } from './screens/shared/activity-options.js';
 import { escapeHtml } from './screens/shared/html.js';
 import { reportedCancellationHours } from '../../attendance/src/components/monthly-report-summary.js';
 import { isSuspectCancellationRequest, roundCancellationMinutesUp } from '../../attendance/src/services/cancellation-segments.js';
+import {
+  buildDailyCanonicalDaySet,
+  projectedPayrollKilometers
+} from './attendance-travel-payroll-exclusivity.js';
 
 const text = value => String(value ?? '').trim();
 const number = value => Number.isFinite(Number(value)) ? Math.max(0, Number(value)) : 0;
@@ -48,13 +52,28 @@ export function buildAdminAttendanceTotals(records = [], { monthKey, employeeIds
         ? 0 : number(first(row, ['kilometers', 'Kilometers', 'roundtrip_km']))
     });
   }
+  const dailyCanonicalDays = buildDailyCanonicalDaySet(rows.map((row) => ({
+    employeeId: row.employeeId,
+    attendanceDate: row.date,
+    generationKind: row.generation_kind
+  })));
   const hoursByType = new Map(['קורס', 'סדנה', 'הכשרה', 'תפעול', 'ביטול זמן'].map(type => [type, 0]));
   let unclassifiedOnlineHours = 0;
   let unclassifiedOnlineCount = 0;
   let totalKilometers = 0;
   for (const row of rows) {
+    const projectedKm = projectedPayrollKilometers({
+      employeeId: row.employeeId,
+      attendanceDate: row.date,
+      generationKind: row.generation_kind,
+      kilometers: row.kilometers
+    }, { dailyCanonicalDays });
+    if (row.generation_kind === 'daily_travel_cancellation') {
+      totalKilometers += projectedKm;
+      continue;
+    }
     if (row.generation_kind === 'travel_time_cancellation' || row.activity_type === 'ביטול זמן') continue;
-    totalKilometers += row.kilometers;
+    totalKilometers += projectedKm;
     if (!row.activity_type) {
       unclassifiedOnlineHours += row.total_hours;
       unclassifiedOnlineCount += 1;
@@ -65,7 +84,8 @@ export function buildAdminAttendanceTotals(records = [], { monthKey, employeeIds
   hoursByType.set('ביטול זמן', reportedCancellationHours(rows));
   const suspectCancellationRecords = rows.filter(isSuspectCancellationRequest);
   const unclassifiedOnlineRecords = rows.filter(row =>
-    !row.activity_type && row.generation_kind !== 'travel_time_cancellation');
+    !row.activity_type && row.generation_kind !== 'travel_time_cancellation'
+      && row.generation_kind !== 'daily_travel_cancellation');
   const suspectCancellationCount = suspectCancellationRecords.length;
   return { totalKilometers, totalHours: [...hoursByType.values()].reduce((sum, hours) => sum + hours, 0) + unclassifiedOnlineHours,
     hoursByType, suspectCancellationCount, suspectCancellationRecords, unclassifiedOnlineHours, unclassifiedOnlineCount, unclassifiedOnlineRecords };

@@ -2685,23 +2685,74 @@ export function resultsHtml(result, month = '', options = {}) {
       && activity !== normalizeAttendanceName('ביטול זמן')
       && txt(row.trainingMode) !== 'online';
   });
+  const overlapByDay = new Map();
+  for (const overlap of (result.travelPayrollOverlaps || [])) {
+    const key = txt(overlap.emp_id) + '|' + txt(overlap.travel_date);
+    if (!overlapByDay.has(key)) overlapByDay.set(key, []);
+    overlapByDay.get(key).push(overlap);
+  }
+  const componentLabel = (component) => ({
+    kilometers: 'קילומטרים',
+    public_transport: 'תחבורה ציבורית',
+    cancellation: 'ביטול זמן'
+  }[component] || component);
+  const overlapHtml = (employeeId, date) => {
+    const rows = (overlapByDay.get(employeeId + '|' + date) || [])
+      .filter((row) => ['conflict', 'no_travel_vs_legacy', 'legacy_only_with_daily_zero', 'resolved'].includes(txt(row.status)));
+    if (!rows.length) return '';
+    const open = rows.filter((row) => row.status !== 'resolved');
+    const body = rows.map((row) => {
+      const openConflict = row.status !== 'resolved';
+      const resolveControls = openConflict && currentEmployeeCanMutate
+        ? `<div class="attendance-control__employee-actions" data-travel-overlap-resolve
+            data-emp="${escapeHtml(employeeId)}" data-date="${escapeHtml(date)}" data-component="${escapeHtml(txt(row.component))}">
+            <button type="button" class="ds-btn ds-btn--sm" data-travel-overlap-source="legacy">הכרע לפי ישן (${shown(row.legacy_value)})</button>
+            <button type="button" class="ds-btn ds-btn--sm" data-travel-overlap-source="daily">הכרע לפי יומי (${shown(row.daily_value)})</button>
+            <label>סכום ידני <input class="ds-input ds-input--sm" data-travel-overlap-manual type="number" min="0" step="0.01"></label>
+            <button type="button" class="ds-btn ds-btn--sm" data-travel-overlap-source="manual">הכרע ידני</button>
+            <label>נימוק <input class="ds-input ds-input--sm" data-travel-overlap-reason required placeholder="חובה"></label>
+          </div>`
+        : (row.status === 'resolved'
+          ? `<p class="attendance-control__manual-note">הוכרע: ${shown(row.chosen_source)} · ${shown(row.approved_amount)} · ${shown(row.resolved_by_name)} · ${shown(row.resolved_at ? new Date(row.resolved_at).toLocaleString('he-IL') : '')}<br>${shown(row.reason || '')}</p>`
+          : '');
+      return `<tr class="${openConflict ? 'attendance-control__comparison-row--issue' : ''}">
+        <td>${shown(componentLabel(row.component))}</td>
+        <td>${shown(row.legacy_value)}</td>
+        <td>${shown(row.daily_value)}</td>
+        <td>${shown(row.delta)}</td>
+        <td>${shown(row.status)}</td>
+        <td>${resolveControls}</td>
+      </tr>`;
+    }).join('');
+    return `<div class="attendance-control__comparison-wrap">
+      <p class="attendance-control__comparison-title">${open.length ? 'חריגת חפיפת נסיעות — נדרשת הכרעה לפני אישור/העברה לשכר' : 'חריגות נסיעות שהוכרעו'}</p>
+      <table class="attendance-control__comparison-table"><thead><tr>
+        <th>רכיב</th><th>Legacy</th><th>יומי</th><th>הפרש</th><th>סטטוס</th><th>הכרעה</th>
+      </tr></thead><tbody>${body}</tbody></table></div>`;
+  };
   const dailyTravelHtml = (employeeId,date,dayRows=[]) => {
     if (!needsDailyTravel(date,dayRows)) return '';
     const record = dailyTravelByDay.get(employeeId+'|'+date);
     if (!record) return '<div class="attendance-control__day attendance-control__daily-travel attendance-control__daily-travel--missing"><div class="attendance-control__report-line">'+
       '<strong>נסיעות · '+shown(dateLabel(date))+'</strong><span class="attendance-control__status-pill attendance-control__status-pill--issue">דיווח נסיעות חסר</span></div></div>';
+    const dayOverlaps = (overlapByDay.get(employeeId + '|' + date) || [])
+      .filter((row) => ['conflict', 'no_travel_vs_legacy', 'legacy_only_with_daily_zero'].includes(txt(row.status)));
+    const hasOpenOverlap = dayOverlaps.length > 0;
     const status = record.review_status === 'corrected' ? 'תוקן ואושר' : record.review_status === 'approved'
-      ? 'אושר' : record.review_status === 'rejected' ? 'נדחה' : 'ממתין לאישור';
+      ? 'אושר' : record.review_status === 'rejected' ? 'נדחה' : (hasOpenOverlap ? 'ממתין להכרעת חריגה' : 'ממתין לאישור');
     const km = record.no_travel ? 0 : optionalNumber(record.total_km);
     const minutes = record.no_travel ? 0 : optionalNumber(record.cancellation_minutes);
     const fare=record.no_travel ? 0 : optionalNumber(record.public_transport_cost);
-    const actions = record.review_status === 'pending_review' && currentEmployeeCanMutate
+    const actions = record.review_status === 'pending_review' && currentEmployeeCanMutate && !hasOpenOverlap
       ? '<button type="button" class="ds-btn ds-btn--sm" data-daily-travel-review="approve" data-daily-travel-employee="'+escapeHtml(employeeId)+'" data-daily-travel-date="'+escapeHtml(date)+'">אישור נסיעות</button>'+
         '<button type="button" class="ds-btn ds-btn--sm" data-daily-travel-review="reject" data-daily-travel-employee="'+escapeHtml(employeeId)+'" data-daily-travel-date="'+escapeHtml(date)+'">דחייה</button>'+
         '<label>ק״מ מאושר <input class="ds-input ds-input--sm" data-daily-travel-correct-km type="number" min="0" max="10000" step="0.01" value="'+escapeHtml(String(km??0))+'"></label>'+
         '<label>ביטול זמן מאושר (דקות) <input class="ds-input ds-input--sm" data-daily-travel-correct-minutes type="number" min="0" max="1440" step="1" value="'+escapeHtml(String(minutes??0))+'"></label>'+
         '<button type="button" class="ds-btn ds-btn--sm" data-daily-travel-review="correct" data-daily-travel-employee="'+escapeHtml(employeeId)+'" data-daily-travel-date="'+escapeHtml(date)+'">תיקון ואישור</button>'
-      : '';
+      : (hasOpenOverlap && record.review_status === 'pending_review'
+        ? '<p class="attendance-control__manual-note">אישור נסיעות נחסם עד להכרעת החריגה.</p>'
+          + '<button type="button" class="ds-btn ds-btn--sm" data-daily-travel-review="reject" data-daily-travel-employee="'+escapeHtml(employeeId)+'" data-daily-travel-date="'+escapeHtml(date)+'">דחייה</button>'
+        : '');
     const legRows = Array.isArray(record.legs) ? record.legs.map(leg =>
       '<tr><td>'+shown(leg.from)+' ← '+shown(leg.to)+'</td><td>'+shown(leg.minutes)+' דקות</td><td>'+shown(leg.kilometers)+' ק״מ</td><td>'+(leg.mode==='public_transport'?'תחבורה ציבורית · ₪'+shown(leg.transportCost||0):'רכב')+'</td></tr>').join('') : '';
     const resolved = ['approved','corrected'].includes(record.review_status);
@@ -2711,9 +2762,10 @@ export function resultsHtml(result, month = '', options = {}) {
     const reported = 'דווח: '+shown(km??'—')+' ק״מ · '+shown(minutes??'—')+' דקות'+(fare>0?' · תחבורה ציבורית: ₪'+shown(fare):'');
     const totals = record.review_status === 'rejected' ? 'נדחה לתשלום' :
       (resolved?'מאושר: ':'מדווח: ')+shown(summaryKm??'—')+' ק״מ · '+shown(summaryMinutes??'—')+' דקות ביטול זמן'+(summaryFare>0?' · ₪'+shown(summaryFare):'');
-    return '<details class="attendance-control__day attendance-control__daily-travel"><summary><strong>נסיעות · '+shown(dateLabel(date))+'</strong><span>'+totals+'</span><span class="attendance-control__row-status">'+shown(status)+'</span></summary>'+
+    return '<details class="attendance-control__day attendance-control__daily-travel'+(hasOpenOverlap?' attendance-control__daily-travel--overlap':'')+'"'+(hasOpenOverlap?' open':'')+'><summary><strong>נסיעות · '+shown(dateLabel(date))+'</strong><span>'+totals+'</span><span class="attendance-control__row-status'+(hasOpenOverlap?' attendance-control__row-status--issue':'')+'">'+shown(status)+'</span></summary>'+
       '<div class="attendance-control__reports"><p>'+reported+'</p>'+
       (record.no_travel?'<p>העובד דיווח שלא נסע ביום זה.</p>':'')+
+      overlapHtml(employeeId, date)+
       (legRows?'<table class="attendance-control__comparison-table"><thead><tr><th>מסלול מדווח</th><th>משך</th><th>מרחק</th><th>אמצעי נסיעה</th></tr></thead><tbody>'+legRows+'</tbody></table>':'')+
       '<div class="attendance-control__employee-actions">'+actions+'</div></div></details>';
   };
@@ -3285,11 +3337,17 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         ...attendanceRows.map(row=>txt(row.employeeId)),
         ...filteredExpenses.map(row=>txt(row.emp_id))
       ].filter(Boolean))];
+      const travelEmployeeIds=attendanceRows.map(row=>Number(row.employeeId))
+        .filter(Number.isSafeInteger);
       result.dailyTravelReports = attendanceRows.length
         ? await api.attendanceControlDailyTravelReports({
-            employeeIds:attendanceRows.map(row=>Number(row.employeeId))
-              .filter(Number.isSafeInteger),fromDate,toDate
+            employeeIds:travelEmployeeIds,fromDate,toDate
           }) : [];
+      result.travelPayrollOverlaps = (attendanceRows.length && api.attendanceControlTravelPayrollOverlaps)
+        ? await api.attendanceControlTravelPayrollOverlaps({
+            employeeIds:travelEmployeeIds,fromDate,toDate
+          }).catch(()=>[])
+        : [];
       title.textContent = `בקרת נוכחות – ${monthLabel}`;
       await Promise.all([loadApprovals(), loadWorkflowStatuses(month, employeeIds), loadRecordReviews()]);
       paintResults();
@@ -3464,6 +3522,43 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       }catch(error){
         setStatusMessage(error.message||'אישור ההוצאה נכשל',{error:true});
       }finally{expenseReview.disabled=false;}
+      return;
+    }
+    const overlapResolve = clickEl.closest('[data-travel-overlap-source]');
+    if (overlapResolve) {
+      const wrap = overlapResolve.closest('[data-travel-overlap-resolve]');
+      const employeeId = txt(wrap?.dataset?.emp);
+      const date = txt(wrap?.dataset?.date);
+      const component = txt(wrap?.dataset?.component);
+      const chosenSource = txt(overlapResolve.dataset.travelOverlapSource);
+      const reason = txt(wrap?.querySelector('[data-travel-overlap-reason]')?.value);
+      const manualRaw = txt(wrap?.querySelector('[data-travel-overlap-manual]')?.value);
+      if (!employeeId || !date || !component || !['legacy', 'daily', 'manual'].includes(chosenSource)) return;
+      if (!reason) {
+        setStatusMessage('יש להזין נימוק להכרעת החריגה.', { error: true });
+        return;
+      }
+      let approvedAmount = 0;
+      if (chosenSource === 'manual') {
+        approvedAmount = Number(manualRaw);
+        if (!manualRaw || !Number.isFinite(approvedAmount) || approvedAmount < 0) {
+          setStatusMessage('יש להזין סכום ידני תקין.', { error: true });
+          return;
+        }
+      }
+      overlapResolve.disabled = true;
+      try {
+        await api.attendanceControlResolveTravelPayrollOverlap({
+          employeeId, date, component, chosenSource,
+          approvedAmount: Number.isFinite(approvedAmount) ? approvedAmount : 0,
+          reason
+        });
+        await loadAttendanceReview({ successMessage: 'הכרעת חריגת הנסיעות נשמרה' });
+      } catch (error) {
+        setStatusMessage(error.message || 'שמירת הכרעת החריגה נכשלה', { error: true });
+      } finally {
+        overlapResolve.disabled = false;
+      }
       return;
     }
     const dailyReview = clickEl.closest('[data-daily-travel-review]');
