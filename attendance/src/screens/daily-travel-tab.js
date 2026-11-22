@@ -14,6 +14,7 @@ import {
 } from '../services/daily-travel.service.js';
 import {
   canReloadTravelAfterAttendanceChange,
+  pickDefaultTravelDay,
   shouldRefreshTravelDays,
 } from '../services/travel-readiness-sync.js';
 
@@ -828,10 +829,18 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       option.textContent=displayDay(day);
       daySelect.append(option);
     }
-    const requested=dayOptions.find(day=>day.date===requestedDay);
-    const chosen=requested || dayOptions.find(day=>day.ready && day.review_status==='missing')
-      || dayOptions.find(day=>day.ready && day.review_status==='rejected')
-      || dayOptions[0];
+    const chosen=pickDefaultTravelDay(dayOptions,requestedDay);
+    if(!chosen?.date){
+      dateField.input.value='';
+      requestedDay='';
+      status.textContent='אין ימי פעילות לדיווח נסיעות';
+      legsArea.replaceChildren();
+      save.hidden=true;
+      noTravelLabel.hidden=true;
+      summary.textContent='';
+      syncDayPicker();
+      return false;
+    }
     daySelect.value=chosen.date;
     dateField.input.value=chosen.date;
     requestedDay=chosen.date;

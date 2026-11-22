@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import {
   canReloadTravelAfterAttendanceChange,
+  pickDefaultTravelDay,
   shouldRefreshTravelDays,
 } from '../attendance/src/services/travel-readiness-sync.js';
 
@@ -74,13 +75,34 @@ test('home keeps attendance summary when daily travel load fails', async () => {
   assert.match(home, /getMonthRecords\(instructor\.empId, year, month\)/);
 });
 
-test('attendance PWA cache bumped to 178 and SW defers reload while forms are open', async () => {
+test('pickDefaultTravelDay prefers ready missing over not-ready requested/today', () => {
+  const days = [
+    { date: '2026-11-30', ready: false, review_status: 'missing' },
+    { date: '2026-11-22', ready: false, review_status: 'missing' },
+    { date: '2026-11-19', ready: true, review_status: 'missing' },
+    { date: '2026-11-05', ready: true, review_status: 'pending_review' },
+    { date: '2026-11-04', ready: true, review_status: 'pending_review' },
+  ];
+  assert.equal(pickDefaultTravelDay(days, '2026-11-22')?.date, '2026-11-19');
+  assert.equal(pickDefaultTravelDay(days, '2026-11-05')?.date, '2026-11-05');
+  assert.equal(pickDefaultTravelDay(days, '2026-11-01')?.date, '2026-11-19');
+  assert.equal(pickDefaultTravelDay([
+    { date: '2026-11-22', ready: false, review_status: 'missing' },
+    { date: '2026-11-10', ready: true, review_status: 'rejected' },
+  ], '2026-11-22')?.date, '2026-11-10');
+  assert.equal(pickDefaultTravelDay([
+    { date: '2026-11-22', ready: false, review_status: 'missing' },
+  ], '2026-11-22')?.date, '2026-11-22');
+  assert.equal(pickDefaultTravelDay([], '2026-11-22'), null);
+});
+
+test('attendance PWA cache bumped to 179 and SW defers reload while forms are open', async () => {
   const sw = await read('attendance/sw.js');
   const index = await read('attendance/index.html');
   const registration = await read('attendance/src/services/sw-registration.service.js');
-  assert.match(sw, /const CACHE_VERSION = 178/);
-  assert.match(index, /\?v=178/);
-  assert.doesNotMatch(index, /\?v=177/);
+  assert.match(sw, /const CACHE_VERSION = 179/);
+  assert.match(index, /\?v=179/);
+  assert.doesNotMatch(index, /\?v=178/);
   assert.match(registration, /document\.querySelector\('form, \.av2-daily-travel, \.av2-expenses-tab'\)/);
 });
 
@@ -105,9 +127,10 @@ test('my-reports renders attendance rows from getMonthRecords even when travel s
 test('mobile and desktop attendance shells stay wired for the travel tab', async () => {
   const index = await read('attendance/index.html');
   const tab = await read('attendance/src/screens/daily-travel-tab.js');
-  assert.match(index, /mobile-app-theme\.css\?v=178/);
-  assert.match(index, /desktop-app-theme\.css\?v=178/);
-  assert.match(index, /report-tabs-responsive-typography\.css\?v=178/);
+  assert.match(index, /mobile-app-theme\.css\?v=179/);
+  assert.match(index, /desktop-app-theme\.css\?v=179/);
+  assert.match(index, /report-tabs-responsive-typography\.css\?v=179/);
+  assert.match(tab, /pickDefaultTravelDay\(/);
   assert.match(tab, /av2-report__travel-tab/);
   assert.match(tab, /role', 'tabpanel'/);
 });

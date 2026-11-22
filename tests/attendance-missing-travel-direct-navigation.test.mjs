@@ -24,6 +24,10 @@ test('travel deep link preserves the chosen date and opens travel tab automatica
   assert.match(app,/initialTab: requestedTab/);
   assert.match(report,/initialDate: dateField\.input\.value \|\| defaultDate/);
   assert.match(report,/showTab\(initialTab === 'travel' \? 'travel' : 'attendance'\)/);
-  assert.match(travel,/const requested=dayOptions\.find\(day=>day\.date===requestedDay\)/);
+  assert.match(travel,/pickDefaultTravelDay\(dayOptions,requestedDay\)/);
   assert.match(travel,/daySelect\.value=chosen\.date/);
+  // A ready deep-linked day stays selected; not-ready requested dates yield to ready missing work.
+  const sync = await read('attendance/src/services/travel-readiness-sync.js');
+  assert.match(sync,/export function pickDefaultTravelDay/);
+  assert.match(sync,/requested\?\.ready \? requested : null/);
 });

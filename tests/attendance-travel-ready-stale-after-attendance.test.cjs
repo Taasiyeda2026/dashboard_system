@@ -94,6 +94,8 @@ function setupMohammedScenario() {
   }
 
   let assigned = [
+    { date: '2026-11-22', ready: false, review_status: 'missing', activities: 'פעילות עתידית' },
+    { date: '2026-11-19', ready: true, review_status: 'missing', activities: 'פעילות' },
     { date: '2026-11-04', ready: true, review_status: 'pending_review', activities: 'פעילות' },
     { date: '2026-11-09', ready: false, review_status: 'missing', activities: 'פעילות' },
     { date: '2026-11-10', ready: false, review_status: 'missing', activities: 'פעילות א · פעילות ב' },
@@ -187,17 +189,76 @@ function setupMohammedScenario() {
     .replace(/^import[\s\S]*?from ['"][^'"]+['"];\n/gm, '')
     .replace(/export /g, '');
   vm.runInContext(source, ctx);
-  const tab = ctx.createDailyTravelTab({ empId: 1538, initialDate: '2026-11-04' });
+  const tab = ctx.createDailyTravelTab({ empId: 1538, initialDate: '2026-11-22' });
   const status = () => tab.panel.querySelector('.av2-daily-travel__status').textContent;
   const save = () => [...tab.panel.querySelectorAll('button')]
     .find((button) => String(button.textContent || '').includes('שמירת נסיעות'));
   const dayLabel = () => tab.panel.querySelector('#av2-travel-day-selector-trigger')?.textContent || '';
-  return { ctx, tab, status, save, dayLabel };
+  const daySelect = () => tab.panel.querySelector('#av2-travel-day-selector');
+  return { ctx, tab, status, save, dayLabel, daySelect };
 }
+
+test('Mohammed: opening travel on today without attendance picks a ready missing day instead', async () => {
+  const a = setupMohammedScenario();
+  a.tab.panel.hidden = false;
+  await a.tab.load();
+  assert.equal(a.daySelect().value, '2026-11-19');
+  assert.match(a.dayLabel(), /טרם דווח/);
+  assert.doesNotMatch(a.status(), /יש להשלים תחילה דיווח נוכחות/);
+  assert.equal(a.save().hidden, false);
+  assert.equal(a.save().disabled, false);
+});
+
+test('Mohammed: manual not-ready day still shows attendance-required block', async () => {
+  const a = setupMohammedScenario();
+  a.tab.panel.hidden = false;
+  await a.tab.load();
+  a.tab.setDate('2026-11-22');
+  await a.tab.load();
+  assert.equal(a.daySelect().value, '2026-11-22');
+  assert.match(a.status(), /יש להשלים תחילה דיווח נוכחות/);
+  assert.equal(a.save().hidden, true);
+});
+
+test('Mohammed: existing travel report remains loadable and editable', async () => {
+  const a = setupMohammedScenario();
+  a.tab.panel.hidden = false;
+  await a.tab.load();
+  a.tab.setDate('2026-11-04');
+  await a.tab.load();
+  assert.match(a.dayLabel(), /נשמר/);
+  const edit = a.tab.panel.querySelector('.av2-daily-travel__saved-edit');
+  assert.ok(edit);
+  await edit.fire('click');
+  assert.equal(a.save().hidden, false);
+  assert.equal(a.save().disabled, false);
+});
+
+test('Mohammed: isolated save on ready missing day persists and reloads', async () => {
+  const a = setupMohammedScenario();
+  a.tab.panel.hidden = false;
+  await a.tab.load();
+  assert.equal(a.daySelect().value, '2026-11-19');
+  assert.equal(a.save().hidden, false);
+  const legs = [
+    { kind: 'outbound', from: 'בית', to: 'ס1', minutes: 60, kilometers: 12, mode: 'car', transportCost: 0 },
+    { kind: 'return', from: 'ס1', to: 'בית', minutes: 60, kilometers: 12, mode: 'car', transportCost: 0 },
+  ];
+  const saved = await a.ctx.saveDailyTravel('2026-11-19', legs, false);
+  assert.equal(saved.travel_date, '2026-11-19');
+  assert.equal(saved.review_status, 'pending_review');
+  a.tab.setDate('2026-11-19');
+  await a.tab.load({ force: true });
+  assert.match(a.dayLabel(), /נשמר/);
+  const edit = a.tab.panel.querySelector('.av2-daily-travel__saved-edit');
+  assert.ok(edit);
+});
 
 test('Mohammed repro: visit travel before attendance, save attendance, return — day becomes ready without remount', async () => {
   const a = setupMohammedScenario();
   a.tab.panel.hidden = false;
+  await a.tab.load();
+  a.tab.setDate('2026-11-04');
   await a.tab.load();
   assert.match(a.dayLabel(), /נשמר/);
 
@@ -244,6 +305,8 @@ test('unsaved travel draft is not wiped when attendance context goes stale', asy
   const a = setupMohammedScenario();
   a.tab.panel.hidden = false;
   await a.tab.load();
+  a.tab.setDate('2026-11-04');
+  await a.tab.load();
   // Edit the already-saved day so legs are visible, then mark dirty.
   const edit = a.tab.panel.querySelector('.av2-daily-travel__saved-edit');
   assert.ok(edit);
@@ -279,11 +342,16 @@ test('deleting attendance makes a previously ready day blocked again after inval
   const a = setupMohammedScenario();
   a.tab.panel.hidden = false;
   await a.tab.load();
+  a.tab.setDate('2026-11-04');
+  await a.tab.load();
   assert.match(a.dayLabel(), /נשמר/);
   a.ctx.markAttendanceRemoved('2026-11-04');
   a.tab.panel.hidden = true;
   a.tab.invalidateAttendanceContext();
   a.tab.panel.hidden = false;
+  await a.tab.load();
+  // Default picker may move to another ready missing day; the deleted day itself stays blocked.
+  a.tab.setDate('2026-11-04');
   await a.tab.load();
   assert.match(a.status(), /יש להשלים תחילה דיווח נוכחות/);
   assert.equal(a.save().hidden, true);
@@ -292,6 +360,8 @@ test('deleting attendance makes a previously ready day blocked again after inval
 test('attendance update on a day that already has travel keeps the day editable', async () => {
   const a = setupMohammedScenario();
   a.tab.panel.hidden = false;
+  await a.tab.load();
+  a.tab.setDate('2026-11-04');
   await a.tab.load();
   a.ctx.markAttendanceSaved('2026-11-04');
   a.tab.panel.hidden = true;
