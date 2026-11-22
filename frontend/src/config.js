@@ -667,3 +667,5 @@ config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-mobile-activity-card-fields-20
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-mobile-calendar-columns-20261115-v1`;
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-nov-travel-double-pay-guard-20261119-v1`;
+
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-instructor-save-manager-separation-20261122-v1`;

@@ -29,15 +29,20 @@ const attendanceSw = await readFile(new URL('../attendance/sw.js', import.meta.u
 const attendanceIndex = await readFile(new URL('../attendance/index.html', import.meta.url), 'utf8');
 const config = await readFile(new URL('../frontend/src/config.js', import.meta.url), 'utf8');
 
-test('B: manual ביטול זמן blocked when system travel path exists (DB + instructor client)', () => {
+test('B: system travel path helpers remain; instructor save is no longer blocked by them', async () => {
+  const separation = await readFile(
+    new URL('../supabase/migrations/20261122180000_allow_manual_cancellation_save_manager_review.sql', import.meta.url),
+    'utf8'
+  );
   assert.match(migration, /av2_day_has_system_travel_path/);
   assert.match(migration, /av2_block_manual_cancellation_when_system_path/);
   assert.match(migration, /attendance_manual_cancellation_blocked_system_travel_path/);
-  assert.match(attendanceService, /ביטול זמן/);
-  assert.match(attendanceService, /attendance_manual_cancellation_blocked_system_travel_path/);
+  assert.match(separation, /return new;/);
+  assert.doesNotMatch(separation, /raise exception 'attendance_manual_cancellation_blocked_system_travel_path'/);
+  assert.doesNotMatch(attendanceService, /attendance_manual_cancellation_blocked_system_travel_path/);
   assert.match(
     instructorAttendanceError({ message: 'attendance_manual_cancellation_blocked_system_travel_path' }),
-    /ביטול זמן ידני|מסלול נסיעות/
+    /גרסת שרת ישנה|רעננו/
   );
 });
 
@@ -98,10 +103,10 @@ test('systemic B–E migration does not rewrite historical attendance or payroll
   assert.doesNotMatch(migration, /update public\.payroll_attendance_dispatches\s+set/i);
 });
 
-test('deployable cache markers bumped for systemic attendance B–E', () => {
-  assert.match(frontendSw, /const CACHE_VERSION = 2091;/);
-  assert.match(attendanceSw, /const CACHE_VERSION = 149;/);
-  assert.match(attendanceIndex, /\?v=149/);
-  assert.doesNotMatch(attendanceIndex, /\?v=148/);
-  assert.match(config, /attendance-systemic-b-e-20261105-v1/);
+test('deployable cache markers include instructor-save separation release', () => {
+  assert.match(frontendSw, /const CACHE_VERSION = 2126;/);
+  assert.match(attendanceSw, /const CACHE_VERSION = 180;/);
+  assert.match(attendanceIndex, /\?v=180/);
+  assert.doesNotMatch(attendanceIndex, /\?v=179/);
+  assert.match(config, /instructor-save-manager-separation-20261122-v1/);
 });
