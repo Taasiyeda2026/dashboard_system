@@ -19,3 +19,22 @@ export function canReloadTravelAfterAttendanceChange({
   if (draftDirty || saving || loading || uncertainSave) return false;
   return panelHidden !== true;
 }
+
+/**
+ * Default travel-day selection for the instructor tab.
+ * Prefer a ready requested day; otherwise the first ready day that still needs
+ * a travel report (or a rejected one). Never lock the initial view on a
+ * not-ready assigned day when ready work remains.
+ */
+export function pickDefaultTravelDay(dayOptions = [], requestedDay = '') {
+  const days = Array.isArray(dayOptions) ? dayOptions : [];
+  if (!days.length) return null;
+  const requested = days.find((day) => day?.date === requestedDay) || null;
+  return (requested?.ready ? requested : null)
+    || days.find((day) => day?.ready && (day.review_status === 'missing' || !day.review_status))
+    || days.find((day) => day?.ready && day.review_status === 'rejected')
+    || days.find((day) => day?.ready)
+    || requested
+    || days[0]
+    || null;
+}
