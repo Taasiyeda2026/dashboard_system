@@ -40,7 +40,9 @@ export function instructorAttendanceError(error, fallback = 'הפעולה נכש
     return 'לא ניתן לשמור הוצאה לחודש שנעול. פנו למנהל אם נדרשת פתיחה מחדש.';
   }
   if (/attendance_manual_cancellation_blocked_system_travel_path/.test(haystack)) {
-    return 'לא ניתן לדווח ביטול זמן ידני ליום שיש בו פעילות עם מסלול נסיעות במערכת. השתמשו בדיווח הנסיעות, או פנו למנהל לחריג.';
+    // Legacy server code only — current clients allow the save; manager review
+    // handles eligibility. Prefer a retry/support message over a save gate.
+    return 'שמירת ביטול הזמן נחסמה בגרסת שרת ישנה. רעננו את האפליקציה ונסו שוב.';
   }
   if (/attendance_double_cancellation_same_day/.test(haystack)) {
     return 'קיים כפל ביטול זמן באותו יום. יש להשאיר מסלול תשלום אחד בלבד לפני העברה לשכר.';

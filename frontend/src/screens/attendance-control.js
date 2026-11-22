@@ -12,6 +12,37 @@ export const DETAIL_HEADERS = ['מספר עובד', 'שם עובד', 'תאריך
 export const MONTHLY_HEADERS = ['שם מדריך', 'מספר עובד', 'שעות ביטול זמן', 'שעות הכשרה', 'שעות חדר בריחה', 'שעות סדנה', 'שעות סדנאות קיץ', 'שעות סיור', 'שעות קורס', 'שעות תפעול', 'סה"כ קילומטרים', 'הוצאות', 'פירוט הוצאות', 'שעות זום', 'שעות לא מסווגות – לבדיקה', 'סה"כ שעות', 'תחבורה ציבורית (₪)'];
 export const DAILY_HEADERS = ['תאריך', 'שם מדריך', 'מספר עובד', 'סוג פעילות', 'רשות', 'שעת התחלה', 'שעת סיום', 'שעות עבודה', 'ביטול זמן', 'קילומטרים', 'הוצאות', 'פירוט הוצאות', 'תחבורה ציבורית (₪)'];
 
+/**
+ * Days where the instructor saved manual ביטול זמן and a system travel path
+ * (generated cancellation and/or daily travel report) also exists. Surfaced for
+ * manager review only — never used to block instructor save.
+ */
+export function listManualCancellationTravelConflictDays(entries = [], dailyTravelReports = []) {
+  const travelDays = new Set(
+    (dailyTravelReports || [])
+      .map((row) => `${String(row?.emp_id ?? row?.employeeId ?? '').trim()}|${String(row?.travel_date ?? row?.travelDate ?? '').slice(0, 10)}`)
+      .filter((key) => key.includes('|') && !key.startsWith('|') && !key.endsWith('|'))
+  );
+  const manualDays = new Set();
+  const generatedDays = new Set();
+  for (const entry of entries || []) {
+    const row = entry?.attendance || entry?.final || entry || {};
+    const source = row?._source || entry?._source || {};
+    const empId = String(row.employeeId || row.emp_id || source.emp_id || '').trim();
+    const date = String(row.date || row.report_date || source.report_date || '').slice(0, 10);
+    if (!empId || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    const key = `${empId}|${date}`;
+    const generationKind = String(source.generationKind || source.generation_kind || row.generationKind || row.generation_kind || '');
+    const activityType = String(row.activityType || row.activity_type || source.activityType || source.activity_type || '').trim();
+    if (generationKind === 'travel_time_cancellation' || generationKind === 'daily_travel_cancellation') {
+      generatedDays.add(key);
+      continue;
+    }
+    if (!generationKind && activityType === 'ביטול זמן') manualDays.add(key);
+  }
+  return [...manualDays].filter((key) => generatedDays.has(key) || travelDays.has(key)).sort();
+}
+
 const FIELD_DEFS = [
   ['startTime', 'שעת התחלה', 'time'], ['endTime', 'שעת סיום', 'time'],
   ['school', 'בית ספר', 'text'], ['authority', 'רשות', 'text'],
@@ -2799,11 +2830,15 @@ export function resultsHtml(result, month = '', options = {}) {
       return !r || !['approved','corrected','rejected'].includes(r.review_status);
     }).length;
     const employeeEntries = allAttendanceEntries.filter((entry) => txt(entry.attendance?.employeeId) === employee.id);
+    const doubleCancellationDays = listManualCancellationTravelConflictDays(
+      employeeEntries,
+      (result.dailyTravelReports || []).filter((row) => txt(row?.emp_id ?? row?.employeeId) === employee.id)
+    ).length;
     const totalRecordCount = employeeEntries.length;
     const approvedRecordCount = employeeEntries.filter(attendanceEntryIsResolved).length;
     const pendingRecordCount = Math.max(0, totalRecordCount - approvedRecordCount);
     const recordProgressHtml = totalRecordCount
-      ? `<span class="attendance-control__employee-record-progress">אושרו ${approvedRecordCount} מתוך ${totalRecordCount} רשומות${pendingRecordCount ? ` · ${pendingRecordCount} ממתינות לאישור` : ''}${pendingTravelDays ? ` · ${pendingTravelDays} ימי נסיעות לבדיקה` : ''}${pendingExpenses ? ` · ${pendingExpenses} הוצאות לבדיקה` : ''}</span>`
+      ? `<span class="attendance-control__employee-record-progress">אושרו ${approvedRecordCount} מתוך ${totalRecordCount} רשומות${pendingRecordCount ? ` · ${pendingRecordCount} ממתינות לאישור` : ''}${pendingTravelDays ? ` · ${pendingTravelDays} ימי נסיעות לבדיקה` : ''}${doubleCancellationDays ? ` · ${doubleCancellationDays} ימי חשד לכפל ביטול זמן` : ''}${pendingExpenses ? ` · ${pendingExpenses} הוצאות לבדיקה` : ''}</span>`
       : (pendingExpenses ? `<span class="attendance-control__employee-record-progress">${pendingExpenses} הוצאות לבדיקה</span>` : '');
     const approval = options.approvalsByEmployee?.[employee.id];
     const workflowHtml = `<p class="attendance-control__manual-note">סטטוס חודש: <strong>${escapeHtml(workflow.label)}</strong></p>`;
@@ -2839,6 +2874,7 @@ export function resultsHtml(result, month = '', options = {}) {
         const blockerParts = [];
         if (pendingRecordCount) blockerParts.push(`${pendingRecordCount} רשומות לאישור`);
         if (pendingTravelDays) blockerParts.push(`${pendingTravelDays} ימי נסיעות יומיות`);
+        if (doubleCancellationDays) blockerParts.push(`${doubleCancellationDays} ימי חשד לכפל ביטול זמן/נסיעות`);
         if (pendingExpenses) blockerParts.push(`${pendingExpenses} הוצאות`);
         const pendingNotice = finalizeAllowed && blockerParts.length
           ? `<span class="attendance-control__manual-note" data-attendance-month-blockers>חוסם סגירת חודש: ${blockerParts.join(' · ')}. השלימו אישור/תיקון/דחייה לפני אישור מנהל.</span>`
