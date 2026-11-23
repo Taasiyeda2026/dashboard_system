@@ -42,7 +42,7 @@ test('expanded mobile row hides closed-card duplicates and keeps secondary detai
 });
 
 test('mobile report assets are loaded with the current cache version', () => {
-  assert.match(sw, /const CACHE_VERSION = 188/);
-  assert.match(index, /mobile-reports\.css\?v=188/);
-  assert.match(index, /mobile-reports-enhancer\.js\?v=188/);
+  assert.match(sw, /const CACHE_VERSION = 189/);
+  assert.match(index, /mobile-reports\.css\?v=189/);
+  assert.match(index, /mobile-reports-enhancer\.js\?v=189/);
 });

@@ -186,6 +186,7 @@ export function renderNewReportScreen(container, {
   const extendedActivityByRowId = new Map();
   /** @type {object[]} */
   let monthAttendanceRecords = [];
+  let monthAttendanceRecordsReliable = false;
   let assignmentAuthoritySchoolData = [];
   let allAuthoritySchoolData = [];
   let pendingFiles = [];
@@ -430,6 +431,8 @@ export function renderNewReportScreen(container, {
   function optionIsAlreadyReported(option, reportType = getReportType()) {
     const date = getReportDate();
     if (!date || !option) return false;
+    // When month load failed, do not pretend activities are free or taken.
+    if (!monthAttendanceRecordsReliable) return false;
     const ignoreId = editingRecordId();
     if (reportType === COURSE_REPORT_TYPE) {
       const rows = Array.isArray(option.candidateRows) ? option.candidateRows : [];
@@ -491,17 +494,26 @@ export function renderNewReportScreen(container, {
     const day = String(date || '').slice(0, 10);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !instructor?.empId) {
       monthAttendanceRecords = [];
-      return [];
+      monthAttendanceRecordsReliable = false;
+      return { ok: false, records: [], reason: 'invalid-context' };
     }
     const year = Number(day.slice(0, 4));
     const month = Number(day.slice(5, 7));
     try {
       monthAttendanceRecords = await getMonthRecords(instructor.empId, year, month, { force });
+      monthAttendanceRecordsReliable = true;
+      return { ok: true, records: monthAttendanceRecords };
     } catch (error) {
       console.warn('month attendance load failed:', error?.message || error);
-      monthAttendanceRecords = [];
+      // Fail closed: do not treat a fetch error as an empty month.
+      monthAttendanceRecordsReliable = false;
+      return {
+        ok: false,
+        records: monthAttendanceRecords,
+        error,
+        reason: 'fetch-failed',
+      };
     }
-    return monthAttendanceRecords;
   }
 
   function flatSchoolOptions(sourceData, authorityId = null) {
@@ -1992,7 +2004,12 @@ export function renderNewReportScreen(container, {
       const totalHours = selectedActivity?.__dashboardCourseWork?.totalHours ?? calcHours(startTime, endTime);
       const activity = selectedActivity;
       if (!editingExisting && activity) {
-        await refreshMonthAttendanceRecords(dateStr, { force: true });
+        const monthRefresh = await refreshMonthAttendanceRecords(dateStr, { force: true });
+        if (!monthRefresh.ok) {
+          errorEl.textContent = 'לא ניתן לוודא שאין דיווח כפול כרגע. בדקו את החיבור ונסו לשמור שוב — הטופס נשמר אצלכם.';
+          errorEl.hidden = false;
+          return;
+        }
         const existing = findExistingOccurrence({
           activity,
           date: dateStr,

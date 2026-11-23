@@ -33,6 +33,43 @@ test('occurrence keys prefer activity id and meeting over activity name', () => 
   );
 });
 
+test('occurrence keys never treat attendance record.id as activity identity', () => {
+  const attendancePkOnly = attendanceOccurrenceKey({
+    id: 'attendance-pk-uuid',
+    report_date: '2026-11-23',
+    meeting_no: 1,
+    activity_name_snapshot: 'קורס',
+  });
+  assert.equal(attendancePkOnly, '');
+
+  const withActivityRow = attendanceOccurrenceKey({
+    id: 'attendance-pk-uuid',
+    activity_row_id: 'dash-row-9',
+    report_date: '2026-11-23',
+    meeting_no: 1,
+  });
+  assert.equal(withActivityRow, 'row:2026-11-23:dash-row-9:m:1');
+
+  const legacyBusiness = attendanceOccurrenceKey({
+    id: 'attendance-pk-uuid',
+    report_date: '2026-11-23',
+    meeting_no: 2,
+    course_business_identity: { course: 'physics', school_id: 12 },
+    start_time: '08:00',
+    end_time: '10:00',
+  });
+  assert.match(legacyBusiness, /^course:2026-11-23:/);
+  assert.match(legacyBusiness, /:m:2:t:08:00-10:00$/);
+
+  const byActivityId = attendanceOccurrenceKey({
+    id: 'attendance-pk-uuid',
+    activity_id: 'act-77',
+    report_date: '2026-11-23',
+    meeting_no: 1,
+  });
+  assert.equal(byActivityId, 'activity:2026-11-23:act-77:m:1');
+});
+
 test('reported travel table hides public-transport column when unused', () => {
   const dom = new JSDOM('<!doctype html><html><body></body></html>');
   globalThis.document = dom.window.document;
@@ -75,6 +112,19 @@ test('new-report keeps success near save and clears it on tab changes', async ()
   assert.match(source, /optionIsAlreadyReported/);
 });
 
+test('new-report fails closed when month attendance fetch fails before create', async () => {
+  const source = await read('attendance/src/screens/new-report-screen.js');
+  assert.match(source, /monthAttendanceRecordsReliable/);
+  assert.match(source, /reason:\s*'fetch-failed'/);
+  assert.match(source, /Fail closed: do not treat a fetch error as an empty month/);
+  assert.match(source, /if\s*\(\s*!monthRefresh\.ok\s*\)/);
+  assert.match(source, /לא ניתן לוודא שאין דיווח כפול כרגע/);
+  // Must not clear the month cache to [] inside the catch (that would look like "no duplicates").
+  const catchBlock = source.match(/month attendance load failed:[\s\S]*?return\s*\{[\s\S]*?reason:\s*'fetch-failed'/);
+  assert.ok(catchBlock, 'expected fetch-failed return in catch');
+  assert.doesNotMatch(catchBlock[0], /monthAttendanceRecords\s*=\s*\[\s*\]/);
+});
+
 test('mobile report cards keep balanced padding without forced school ellipsis', async () => {
   const css = await read('attendance/src/styles/mobile-reports.css');
   const contract = await read('attendance/src/styles/mobile-final-contract.css');
@@ -107,6 +157,6 @@ test('distinct course schedules become separate picker options', () => {
 test('attendance cache markers move with the mobile report fixes', async () => {
   const sw = await read('attendance/sw.js');
   const index = await read('attendance/index.html');
-  assert.match(sw, /const CACHE_VERSION = 188/);
-  assert.match(index, /\?v=188/);
+  assert.match(sw, /const CACHE_VERSION = 189/);
+  assert.match(index, /\?v=189/);
 });

@@ -241,7 +241,8 @@ export function parseDashboardCourseOptionValue(value = '') {
 
 /**
  * Occurrence identity for duplicate attendance prevention.
- * Prefer activity row/id + meeting number; never block on activity name alone.
+ * Prefer activity_row_id / dashboard row_id + meeting; never use attendance
+ * record.id (that is the attendance PK) and never block on activity name alone.
  */
 export function attendanceOccurrenceKey(record = {}) {
   const date = courseText(record.report_date || record.date).slice(0, 10);
@@ -249,13 +250,20 @@ export function attendanceOccurrenceKey(record = {}) {
   const meeting = record.meeting_no == null || record.meeting_no === ''
     ? ''
     : String(Number(record.meeting_no));
-  const rowId = courseText(record.activity_row_id || record.row_id || record.id);
   // Saved attendance rows use activity_row_id; live dashboard rows use row_id.
+  // Do not fall back to record.id — that is the attendance row primary key.
+  const activityRowId = courseText(record.activity_row_id);
+  const dashboardRowId = courseText(record.row_id);
+  const rowId = activityRowId
+    || (dashboardRowId && !String(dashboardRowId).startsWith('dashboard-course:')
+      ? dashboardRowId
+      : '');
   const activityId = courseText(record.activity_id);
-  if (rowId && !String(rowId).startsWith('dashboard-course:')) {
+  if (rowId) {
     return `row:${date}:${rowId}:m:${meeting}`;
   }
   if (activityId) return `activity:${date}:${activityId}:m:${meeting}`;
+  // Legacy rows may only retain business identity + clock window.
   const identity = record.course_business_identity || record.__dashboardCourseIdentity;
   if (identity) {
     const start = courseText(record.start_time).slice(0, 5);

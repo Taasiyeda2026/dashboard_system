@@ -19,7 +19,7 @@ test('new-report mobile hours stay on one row: start | end | total', async () =>
 test('attendance cache markers moved with the compact mobile UI', async () => {
   const sw = await read('attendance/sw.js');
   const index = await read('attendance/index.html');
-  assert.match(sw, /const CACHE_VERSION = 188/);
-  assert.match(index, /\?v=188/);
+  assert.match(sw, /const CACHE_VERSION = 189/);
+  assert.match(index, /\?v=189/);
   assert.doesNotMatch(index, /\?v=186/);
 });
