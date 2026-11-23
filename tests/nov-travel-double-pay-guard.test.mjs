@@ -156,5 +156,5 @@ test('bridge and control surfaces wire overlap RPCs and Hebrew gate errors', asy
   assert.match(control, /data-travel-overlap-resolve/);
   assert.match(control, /חריגת חפיפת נסיעות/);
   assert.match(config, /nov-travel-double-pay-guard-20261119-v1/);
-  assert.match(sw, /CACHE_VERSION = 2129/);
+  assert.match(sw, /CACHE_VERSION = 2130/);
 });

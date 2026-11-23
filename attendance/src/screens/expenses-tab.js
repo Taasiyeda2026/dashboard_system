@@ -223,5 +223,14 @@ export function createExpensesTab({instructor,initialDate}={}){
     }catch(error){status.textContent=error.message||'שמירת ההוצאה נכשלה';}
     finally{save.disabled=false;}
   });
-  return {panel,load:refresh};
+  function setDate(nextDate){
+    const value=String(nextDate||'').trim();
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return false;
+    if(date.input.value===value)return true;
+    date.input.value=value;
+    selectedMonth=value.slice(0,7);
+    return true;
+  }
+
+  return {panel,load:refresh,setDate,dateInput:date.input};
 }

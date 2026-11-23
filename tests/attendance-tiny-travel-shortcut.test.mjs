@@ -7,9 +7,10 @@ test('instructor travel entry opens from attendance shortcut or my-reports link'
  const screen=await readFile(new URL('../attendance/src/screens/new-report-screen.js',import.meta.url),'utf8');
  assert.match(app,/onTravelReport: \(date\) => openNewReport\(date,'travel'\)/);
  assert.match(app,/initialTab: requestedTab/);
- assert.match(screen,/travelShortcut\.append\(createIcon\('map-pin'\), document\.createTextNode\('מילוי נסיעות'\)\)/);
- assert.ok(screen.includes('dailyTravel.setDate(dateField.input.value||defaultDate)'));
- assert.match(screen,/travelShortcut\.addEventListener\('click',[\s\S]*?showTab\('travel'\)/);
+ assert.match(screen,/travelShortcut\.append\(createIcon\('map-pin'\), document\.createTextNode\('השלם נסיעות'\)\)/);
+ assert.match(screen,/השלם נסיעות ליום זה/);
+ assert.match(screen,/openTravelForDate\(/);
+ assert.match(screen,/travelShortcut\.addEventListener\('click',[\s\S]*?openTravelForDate\(/);
 });
 
 test('my reports offers a tiny travel shortcut on physical attendance rows',async()=>{
