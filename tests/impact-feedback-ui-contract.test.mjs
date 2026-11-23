@@ -796,7 +796,7 @@ test('impact-feedback preserves admin/Israa access and adds read-only operationa
   assert.match(policy, /feedback_results_write_guard_expanded/);
 
   const main = readFileSync(new URL('../frontend/src/main.js', import.meta.url), 'utf8');
-  assert.match(main, /route === 'impact-feedback' \|\| \(/);
+  assert.match(main, /route === 'impact-feedback' \|\| route === PERSONAL_EDUCATION_ROUTE \|\| \(/);
   assert.match(main, /if \(route === 'impact-feedback'\) return canViewImpactFeedback\(user\)/);
   assert.match(main, /!state\.token \|\| !\(canViewImpactFeedback\(state\.user\) \|\| isFeedbackInstructor\(state\.user\)\)/);
   assert.match(screen, /if \(isFeedbackInstructor\(state\?\.user\)\)/);

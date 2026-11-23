@@ -7,6 +7,9 @@ import { filterGroups, hasCourseStartDate, studentFeedbackPeriodForGroup,
   sortEducationalStaffFeedbackGroups, slotCampaign, groupHasFeedback } from '../frontend/src/impact-feedback/feedback-domain.js';
 
 // This suite creates its own disposable database, never accepts a remote URL.
+// Business time is frozen at morning/dispatch below. Campaign opens must pass that
+// frozen opens_at: wall-clock now() drifts past 2026-11-20 and makes
+// private.feedback_staff_auto_link return campaign_not_live under synthetic p_now.
 const url=process.env.STAFF_DELIVERY_TEST_DATABASE_URL;
 const ADMIN='11111111-1111-1111-1111-111111111111';
 const morning='2026-11-20T03:00:00Z'; // 05:00 Israel (standard time)
@@ -51,6 +54,17 @@ test('staff delivery PostgreSQL end-to-end, fake Graph only',async(t)=>{
       date_1:'2026-10-12',date_2:'2026-10-13',sessions:'2',end_time:'12:00',school_contact_id:7,...extra};
     const entries=Object.entries(data);
     await q(`insert into activities(${entries.map(([k])=>k).join(',')}) values(${entries.map((_,i)=>`$${i+1}`).join(',')})`,entries.map(([,v])=>v));
+  };
+  // Keep manual opens on the frozen worker timeline (never wall-clock now()).
+  const openStaffCampaign=async(activityId,stage='pre',opensAt=morning)=>{
+    const opened=(await q(
+      'select feedback_admin_open_campaign($1,$2,$3,$4::timestamptz) c',
+      [activityId,'educational_staff',stage,opensAt]
+    ))[0].c;
+    assert.ok(opened?.id,`expected ${stage} campaign for ${activityId}`);
+    assert.ok(new Date(opened.opens_at).getTime()<=new Date(dispatch).getTime(),
+      `campaign opens_at ${opened.opens_at} must be <= dispatch ${dispatch}`);
+    return opened;
   };
   try {
     await q('drop schema if exists public cascade;drop schema if exists private cascade;drop schema if exists auth cascade;create schema public');
@@ -315,14 +329,19 @@ test('staff delivery PostgreSQL end-to-end, fake Graph only',async(t)=>{
     await t.test('stale manual personal link rotates only unanswered tokens; source change immediately before Graph blocks',async()=>{
       await reset();await activity('A');
       await q("select set_config('test.uid',$1,false)",[ADMIN]);
-      const old=(await q("select feedback_admin_open_campaign('A','educational_staff','pre') c"))[0].c;
+      const old=await openStaffCampaign('A','pre',morning);
+      const staleToken=old.recipient.token;
       await q('update feedback_recipients set contact_id=8 where campaign_id=$1',[old.id]);
       await rpc('feedback_staff_auto_prepare',{p_now:morning});
       const first=await rpc('feedback_staff_auto_claim');
       const second=await rpc('feedback_staff_auto_claim');
       const pre=[first,second].find(c=>c.stage==='pre');
-      assert.notEqual(pre.token,old.recipient.token);
-      assert.equal((await q('select feedback_public_get($1) form',[old.recipient.token]))[0].form.state,'invalid');
+      if(!pre?.token){
+        const outbox=await q('select stage,status,last_error from feedback_staff_auto_outbox order by stage');
+        assert.fail(`expected a claimed pre stage; claims=${JSON.stringify([first,second])} outbox=${JSON.stringify(outbox)}`);
+      }
+      assert.notEqual(pre.token,staleToken);
+      assert.equal((await q('select feedback_public_get($1) form',[staleToken]))[0].form.state,'invalid');
       assert.equal((await q('select contact_id::int from feedback_recipients where token=$1',[pre.token]))[0].contact_id,7);
       await q("update activities set school_contact_id=8 where row_id='A'");
       let sent=0;
@@ -352,8 +371,14 @@ test('staff delivery PostgreSQL end-to-end, fake Graph only',async(t)=>{
       await reset();await activity('UNCHANGED',{emp_id:'1501',instructor_name:'דנה',instructor_assignment_locked:true,instructor_assignment_status:'שובץ'});
       await q("insert into contacts_instructors(emp_id,full_name,mobile,email,active) values(1501,'דנה','0500000000','instructor@example.test','פעיל') on conflict do nothing");
       await q("select set_config('test.uid',$1,false)",[ADMIN]);
-      const student=(await q("select feedback_admin_open_campaign('UNCHANGED','student','pre') c"))[0].c;
-      const instructor=(await q("select feedback_admin_open_instructor_campaign('1501','trailblazers','school_2027','pre') c"))[0].c;
+      const student=(await q(
+        'select feedback_admin_open_campaign($1,$2,$3,$4::timestamptz) c',
+        ['UNCHANGED','student','pre',morning]
+      ))[0].c;
+      const instructor=(await q(
+        'select feedback_admin_open_instructor_campaign($1,$2,$3,$4,$5::timestamptz) c',
+        ['1501','trailblazers','school_2027','pre',morning]
+      ))[0].c;
       assert.equal(student.audience,'student');assert.equal(instructor.audience,'instructor');
       await q('set role anon');
       const studentForm=(await q('select feedback_public_get($1) form',[student.public_token]))[0].form;
