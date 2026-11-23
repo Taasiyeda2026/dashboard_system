@@ -40,13 +40,17 @@ test('school_id takes precedence and school names are a fallback only without id
 });
 test('all meetings resolve automatically, preserving each source metadata and paid work', () => {
   const rows = fourRows.map((row, i) => ({ ...row, meeting_no: i + 1, start_time: `${8 + i * 2}:00`, end_time: `${10 + i * 2}:00` }));
-  const resolved = resolveDashboardCourseChoice(buildDashboardCourseOptions(rows)[0], rows);
+  const options = buildDashboardCourseOptions(rows);
+  assert.equal(options.length, 4, 'each distinct schedule is its own selectable meeting');
+  const resolved = resolveDashboardCourseChoice(options[0], rows);
   assert.equal(resolved.status, 'resolved');
-  assert.equal(resolved.activity.row_id, null);
-  assert.equal(resolved.activity.meeting_no, null);
-  assert.deepEqual(resolved.activity.__dashboardCourseSources, rows);
-  assert.equal(resolved.activity.__dashboardCourseWork.totalHours, 8);
+  assert.equal(resolved.candidateRows.length, 1);
+  assert.equal(resolved.activity.__dashboardCourseWork.totalHours, 2);
   assert.equal(resolved.activity.authority_id, 5);
+  assert.equal(
+    options.reduce((sum, option) => sum + resolveDashboardCourseChoice(option, rows).activity.__dashboardCourseWork.totalHours, 0),
+    8,
+  );
 });
 test('legacy row hints locate a whole business activity, never discard other authorized sources', () => {
   const choice = buildDashboardCourseOptions(fourRows)[0];
@@ -76,10 +80,16 @@ test('course clock times are never padded, while 45/90-minute paid hours remain 
   }
   const adjacent = [{ ...base, row_id: 'first', start_time: '10:00', end_time: '11:30' },
     { ...base, row_id: 'second', start_time: '11:30', end_time: '13:00' }];
-  const grouped = resolveDashboardCourseChoice(buildDashboardCourseOptions(adjacent)[0], adjacent).activity.__dashboardCourseWork;
-  assert.equal(grouped.startTime, '10:00');
-  assert.equal(grouped.endTime, '13:00');
-  assert.equal(grouped.totalHours, 4);
+  const adjacentOptions = buildDashboardCourseOptions(adjacent);
+  assert.equal(adjacentOptions.length, 2, 'distinct schedules stay separate selectable meetings');
+  const first = resolveDashboardCourseChoice(adjacentOptions[0], adjacent).activity.__dashboardCourseWork;
+  const second = resolveDashboardCourseChoice(adjacentOptions[1], adjacent).activity.__dashboardCourseWork;
+  assert.equal(first.startTime, '10:00');
+  assert.equal(first.endTime, '11:30');
+  assert.equal(first.totalHours, 2);
+  assert.equal(second.startTime, '11:30');
+  assert.equal(second.endTime, '13:00');
+  assert.equal(second.totalHours, 2);
 });
 test('resolution uses the fresh snapshot, including one-time substitute ownership', () => {
   const original = { ...base, resolved_emp_id: 1 };
@@ -96,6 +106,9 @@ test('missing schedule data is a source-data error, rather than multi-row ambigu
 const dom = new JSDOM('<main id="app"></main>', { url: 'https://example.test/attendance/' });
 for (const name of ['window', 'document', 'HTMLElement', 'HTMLSelectElement', 'HTMLInputElement', 'MutationObserver', 'CustomEvent', 'Event', 'sessionStorage']) {
   globalThis[name] = dom.window[name];
+}
+if (typeof dom.window.fetch !== 'function') {
+  dom.window.fetch = (...args) => globalThis.fetch(...args);
 }
 globalThis.requestAnimationFrame = callback => callback();
 const today = new Date().toISOString().slice(0, 10);
@@ -119,11 +132,12 @@ const client = {
   from(table) {
     let payload;
     const query = {
-      select() { return query; }, eq() { return query; }, or() { return query; }, order() { return query; },
+      select() { return query; }, eq() { return query; }, or() { return query; },
+      gte() { return query; }, lte() { return query; }, order() { return query; },
       insert(rows) { payload = rows[0]; return query; },
       maybeSingle() { return Promise.resolve({ data: table === 'attendance_month_approvals' ? { status: 'reopened' } : null }); },
       single() { saved.push(payload); return Promise.resolve({ data: { ...payload, id: 'saved' } }); },
-      then(resolve) { resolve({ data: [] }); },
+      then(resolve, reject) { Promise.resolve({ data: [] }).then(resolve, reject); },
     };
     return query;
   },
@@ -224,16 +238,20 @@ test('duplicated legacy course selects its entire business group without exposin
   assert.ok(saved[0]?.course_business_identity);
 });
 
-test('Alex-shaped three adjacent meetings save all work without ambiguity or padding-overlap loss', async () => {
+test('Alex-shaped three adjacent meetings stay selectable separately with per-meeting hours', async () => {
   const rows = [8,10,12].map((start,i) => ({...base,row_id:`school_2027_0${59-i}`,id:59-i,
     single_school_id:2648,meeting_no:i+2,start_time:`${String(start).padStart(2,'0')}:00`,end_time:`${start+2}:00`}));
-  await render(rows); assert.equal(options().length,1); options()[0].click(); await flush();
-  assert.equal(document.querySelector('.av2-report__hours-value').textContent,'6:00');
+  await render(rows);
+  const buttons = options();
+  assert.equal(buttons.length, 3);
+  buttons[0].click(); await flush();
+  assert.equal(document.querySelector('.av2-report__hours-value').textContent,'2:00');
   document.querySelector('form').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true})); await flush();
   assert.equal(saved.length,1);
-  assert.equal(saved[0].total_hours,6);
-  assert.equal(saved[0].start_time,'08:00'); assert.equal(saved[0].end_time,'14:00');
-  assert.equal(saved[0].activity_row_id,null); assert.equal(saved[0].meeting_no,null);
+  assert.equal(saved[0].total_hours,2);
+  assert.equal(saved[0].start_time,'08:00'); assert.equal(saved[0].end_time,'10:00');
+  assert.equal(saved[0].activity_row_id,'school_2027_059');
+  assert.equal(saved[0].meeting_no,2);
   assert.deepEqual(saved[0].course_business_identity,['ביומימיקרי',['id','2648']]);
 });
 test('editing a saved business activity restores the group by business identity', async () => {

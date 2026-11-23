@@ -39,6 +39,7 @@ import {
 } from '../services/activities.service.js';
 import {
   createRecord,
+  getMonthRecords,
   getMonthApproval,
   createAttachmentRecord,
   getOperationOptions,
@@ -62,7 +63,11 @@ import {
   loadDashboardCourseRows,
   resolveDashboardCourseChoice,
 } from '../course-dashboard-choice-runtime.js';
-import { dashboardCourseChoiceKey } from '../services/activities-report.helpers.js';
+import {
+  attendanceOccurrenceKey,
+  dashboardCourseChoiceKey,
+  parseDashboardCourseOptionValue,
+} from '../services/activities-report.helpers.js';
 
 const TIME_MINUTE_STEP = 5;
 const DAILY_TRAVEL_START_DATE = '2026-11-01';
@@ -163,7 +168,8 @@ export function renderNewReportScreen(container, {
   const formArea = document.createElement('div');
   formArea.className = 'av2-report__form-area';
 
-  inner.append(header, lockBanner, successBanner, formArea);
+  // Success banner stays near Save inside the attendance form, not above the tabs.
+  inner.append(header, lockBanner, formArea);
   wrap.append(inner);
   container.append(wrap);
 
@@ -178,6 +184,9 @@ export function renderNewReportScreen(container, {
   let instructorActivities = [];
   /** @type {Map<string, object>} */
   const extendedActivityByRowId = new Map();
+  /** @type {object[]} */
+  let monthAttendanceRecords = [];
+  let monthAttendanceRecordsReliable = false;
   let assignmentAuthoritySchoolData = [];
   let allAuthoritySchoolData = [];
   let pendingFiles = [];
@@ -335,23 +344,176 @@ export function renderNewReportScreen(container, {
     }
   }
 
+  function editingRecordId() {
+    try {
+      return String(sessionStorage.getItem('av2_edit_record_id') || '').trim();
+    } catch {
+      return '';
+    }
+  }
+
+  function clearSuccessBanner() {
+    successBanner.hidden = true;
+    successBanner.replaceChildren();
+    successBanner.removeAttribute('role');
+  }
+
+  function recordsForReportDate(date = getReportDate()) {
+    const day = String(date || '').slice(0, 10);
+    return monthAttendanceRecords.filter((row) => String(row?.report_date || '').slice(0, 10) === day);
+  }
+
+  function occurrenceMatchesRecord(record, activity, {
+    date = getReportDate(),
+    meetingNo = null,
+    startTime = '',
+    endTime = '',
+  } = {}) {
+    if (!record || !activity) return false;
+    if (String(record.report_date || '').slice(0, 10) !== String(date || '').slice(0, 10)) return false;
+    const recordRow = String(record.activity_row_id || '').trim();
+    const activityRow = activityRowId(activity);
+    const recordMeeting = record.meeting_no == null || record.meeting_no === ''
+      ? ''
+      : String(Number(record.meeting_no));
+    const activityMeeting = meetingNo == null || meetingNo === ''
+      ? (activity.meeting_no == null || activity.meeting_no === '' ? '' : String(Number(activity.meeting_no)))
+      : String(Number(meetingNo));
+    if (recordRow && activityRow && recordRow === activityRow) {
+      return !recordMeeting || !activityMeeting || recordMeeting === activityMeeting;
+    }
+    const recordIdentity = record.course_business_identity;
+    const activityIdentity = activity.__dashboardCourseIdentity;
+    if (recordIdentity && activityIdentity
+      && JSON.stringify(recordIdentity) === JSON.stringify(activityIdentity)) {
+      if (recordMeeting && activityMeeting && recordMeeting !== activityMeeting) return false;
+      const recordStart = String(record.start_time || '').slice(0, 5);
+      const recordEnd = String(record.end_time || '').slice(0, 5);
+      const activityStart = String(
+        startTime || activity.__dashboardCourseWork?.startTime || activity.start_time || '',
+      ).slice(0, 5);
+      const activityEnd = String(
+        endTime || activity.__dashboardCourseWork?.endTime || activity.end_time || '',
+      ).slice(0, 5);
+      if (recordStart && recordEnd && activityStart && activityEnd) {
+        return recordStart === activityStart && recordEnd === activityEnd;
+      }
+      return true;
+    }
+    const recordKey = attendanceOccurrenceKey(record);
+    const activityKey = attendanceOccurrenceKey({
+      report_date: date,
+      activity_row_id: activityRow,
+      activity_id: activity.id,
+      meeting_no: activityMeeting || activity.meeting_no,
+      course_business_identity: activityIdentity,
+      start_time: startTime || activity.__dashboardCourseWork?.startTime || activity.start_time,
+      end_time: endTime || activity.__dashboardCourseWork?.endTime || activity.end_time,
+    });
+    return Boolean(recordKey && activityKey && recordKey === activityKey);
+  }
+
+  function findExistingOccurrence({
+    activity = selectedActivity,
+    date = getReportDate(),
+    meetingNo = meetingField?.getValue?.() || activity?.meeting_no,
+    startTime = startPicker?.getValue?.() || '',
+    endTime = endPicker?.getValue?.() || '',
+    ignoreRecordId = editingRecordId(),
+  } = {}) {
+    if (!activity) return null;
+    return recordsForReportDate(date).find((record) => {
+      if (ignoreRecordId && String(record.id) === String(ignoreRecordId)) return false;
+      return occurrenceMatchesRecord(record, activity, { date, meetingNo, startTime, endTime });
+    }) || null;
+  }
+
+  function optionIsAlreadyReported(option, reportType = getReportType()) {
+    const date = getReportDate();
+    if (!date || !option) return false;
+    // When month load failed, do not pretend activities are free or taken.
+    if (!monthAttendanceRecordsReliable) return false;
+    const ignoreId = editingRecordId();
+    if (reportType === COURSE_REPORT_TYPE) {
+      const rows = Array.isArray(option.candidateRows) ? option.candidateRows : [];
+      if (!rows.length) return false;
+      return rows.every((row) => recordsForReportDate(date).some((record) => {
+        if (ignoreId && String(record.id) === String(ignoreId)) return false;
+        return occurrenceMatchesRecord(record, {
+          ...row,
+          __dashboardCourseIdentity: (() => {
+            try {
+              const { businessValue } = parseDashboardCourseOptionValue(option.value);
+              return JSON.parse(businessValue.slice('dashboard-course:'.length));
+            } catch {
+              return null;
+            }
+          })(),
+          __dashboardCourseWork: {
+            startTime: String(row.start_time || '').slice(0, 5),
+            endTime: String(row.end_time || '').slice(0, 5),
+          },
+        }, {
+          date,
+          meetingNo: row.meeting_no,
+          startTime: row.start_time,
+          endTime: row.end_time,
+        });
+      }));
+    }
+    const activity = option.activity || findActivityByRowId(option.value);
+    if (!activity) return false;
+    return Boolean(findExistingOccurrence({ activity, date, meetingNo: activity.meeting_no }));
+  }
+
   function activityOptionsForReportType(activities = [], reportType = getReportType(), query = '') {
-    if (reportType === COURSE_REPORT_TYPE) return dashboardCourses.options;
-    let source = Array.isArray(activities) ? [...activities] : [];
-    if (reportType === TRAINING_REPORT_TYPE) {
-      if (!isBaseTrainingDate()) {
-        source = source.filter((activity) => !isBaseTrainingActivity(activity));
-      } else {
-        const q = String(query || '').trim().toLowerCase();
-        if (
-          (!q || activitySearchHaystack(BASE_TRAINING_ACTIVITY).includes(q))
-          && !source.some((activity) => isBaseTrainingActivity(activity))
-        ) {
-          source.unshift(BASE_TRAINING_ACTIVITY);
+    let options;
+    if (reportType === COURSE_REPORT_TYPE) {
+      options = dashboardCourses.options;
+    } else {
+      let source = Array.isArray(activities) ? [...activities] : [];
+      if (reportType === TRAINING_REPORT_TYPE) {
+        if (!isBaseTrainingDate()) {
+          source = source.filter((activity) => !isBaseTrainingActivity(activity));
+        } else {
+          const q = String(query || '').trim().toLowerCase();
+          if (
+            (!q || activitySearchHaystack(BASE_TRAINING_ACTIVITY).includes(q))
+            && !source.some((activity) => isBaseTrainingActivity(activity))
+          ) {
+            source.unshift(BASE_TRAINING_ACTIVITY);
+          }
         }
       }
+      options = instructorActivitySelectOptions(source, { reportType });
     }
-    return instructorActivitySelectOptions(source, { reportType });
+    return options.filter((option) => !optionIsAlreadyReported(option, reportType));
+  }
+
+  async function refreshMonthAttendanceRecords(date = getReportDate(), { force = false } = {}) {
+    const day = String(date || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !instructor?.empId) {
+      monthAttendanceRecords = [];
+      monthAttendanceRecordsReliable = false;
+      return { ok: false, records: [], reason: 'invalid-context' };
+    }
+    const year = Number(day.slice(0, 4));
+    const month = Number(day.slice(5, 7));
+    try {
+      monthAttendanceRecords = await getMonthRecords(instructor.empId, year, month, { force });
+      monthAttendanceRecordsReliable = true;
+      return { ok: true, records: monthAttendanceRecords };
+    } catch (error) {
+      console.warn('month attendance load failed:', error?.message || error);
+      // Fail closed: do not treat a fetch error as an empty month.
+      monthAttendanceRecordsReliable = false;
+      return {
+        ok: false,
+        records: monthAttendanceRecords,
+        error,
+        reason: 'fetch-failed',
+      };
+    }
   }
 
   function flatSchoolOptions(sourceData, authorityId = null) {
@@ -717,12 +879,16 @@ export function renderNewReportScreen(container, {
     activityNameSel.setOptions([]);
     setActivityNameEnabled(false);
     try {
+      await refreshMonthAttendanceRecords(date);
+      if (token !== courseLoadToken || !isCourseReportType() || getReportDate() !== date) return;
       const options = await dashboardCourses.load(date);
       if (!options || token !== courseLoadToken || !isCourseReportType() || getReportDate() !== date) return;
-      activityNameSel.setOptions(options);
+      const available = options.filter((option) => !optionIsAlreadyReported(option, COURSE_REPORT_TYPE));
+      activityNameSel.setOptions(available);
       if (hints.activityRowId || hints.businessIdentity) {
-        const choice = options.find((option) => hints.businessIdentity
-          ? option.value === `dashboard-course:${JSON.stringify(hints.businessIdentity)}`
+        const choice = available.find((option) => hints.businessIdentity
+          ? parseDashboardCourseOptionValue(option.value).businessValue
+            === `dashboard-course:${JSON.stringify(hints.businessIdentity)}`
           : option.candidateRows.some((row) => activityRowId(row) === String(hints.activityRowId)));
         if (choice) await applyDashboardCourseChoice(choice.value, hints);
       }
@@ -1023,6 +1189,8 @@ export function renderNewReportScreen(container, {
     const dateToken = ++reportDateToken;
     const dateStr = getReportDate();
     syncTravelMode();
+    if (dateStr) await refreshMonthAttendanceRecords(dateStr);
+    if (dateToken !== reportDateToken || getReportDate() !== dateStr) return;
     if (isCourseReportType()) {
       void refreshDashboardCourseOptions(coursePrefill || {});
       coursePrefill = null;
@@ -1555,7 +1723,7 @@ export function renderNewReportScreen(container, {
       }
       if (draftGuard.dirty && !(await confirmSystemMessage('לבטל את הדיווח ולמחוק את הפרטים שטרם נשמרו?'))) return;
       draftGuard.markClean();
-      successBanner.hidden = true;
+      clearSuccessBanner();
       lockBanner.hidden = true;
       try { sessionStorage.removeItem('av2_edit_record_id'); } catch {}
       buildForm(null, defaultDate);
@@ -1563,6 +1731,9 @@ export function renderNewReportScreen(container, {
 
     actionsRow.append(saveBtn, cancelBtn);
     form.append(actionsRow);
+    // Place success feedback next to Save so it is visible without scrolling up.
+    clearSuccessBanner();
+    actionsRow.after(successBanner);
 
     errorEl = document.createElement('p');
     errorEl.className = 'av2-report__error';
@@ -1744,8 +1915,9 @@ export function renderNewReportScreen(container, {
       // during the success animation after the previous save completed.
       onSaved?.(record);
       notifyTravelAttendanceChanged();
+      void refreshMonthAttendanceRecords(reportDate || getReportDate(), { force: true });
       buildForm(null, reportDate);
-      successBanner.replaceChildren();
+      clearSuccessBanner();
       const savedMsg = document.createElement('span');
       savedMsg.textContent = 'הנוכחות נשמרה.';
       const travelCta = document.createElement('button');
@@ -1753,11 +1925,15 @@ export function renderNewReportScreen(container, {
       travelCta.className = 'av2-report__success-cta';
       travelCta.textContent = 'השלם נסיעות ליום זה';
       travelCta.addEventListener('click', () => {
+        clearSuccessBanner();
         openTravelForDate?.(reportDate || defaultDate);
       });
       successBanner.append(savedMsg, travelCta);
       successBanner.hidden = false;
       successBanner.setAttribute('role','status');
+      const actions = formArea.querySelector('.av2-report__actions');
+      if (actions) actions.after(successBanner);
+      else formArea.querySelector('form')?.append(successBanner);
       successBanner.scrollIntoView({block:'nearest',behavior:'smooth'});
     }
 
@@ -1827,6 +2003,47 @@ export function renderNewReportScreen(container, {
       const endTime = endPicker.getValue();
       const totalHours = selectedActivity?.__dashboardCourseWork?.totalHours ?? calcHours(startTime, endTime);
       const activity = selectedActivity;
+      if (!editingExisting && activity) {
+        const monthRefresh = await refreshMonthAttendanceRecords(dateStr, { force: true });
+        if (!monthRefresh.ok) {
+          const msg = document.createElement('span');
+          msg.textContent = 'לא ניתן לוודא שאין דיווח כפול כרגע. הטופס נשמר אצלכם. ';
+          const retry = document.createElement('button');
+          retry.type = 'button';
+          retry.className = 'av2-report__error-retry';
+          retry.textContent = 'נסה שוב';
+          retry.addEventListener('click', () => {
+            errorEl.hidden = true;
+            errorEl.replaceChildren();
+            if (!draftGuard.busy) form.requestSubmit();
+          });
+          errorEl.replaceChildren(msg, retry);
+          errorEl.hidden = false;
+          return;
+        }
+        const existing = findExistingOccurrence({
+          activity,
+          date: dateStr,
+          meetingNo: meetingField?.getValue?.() || activity.meeting_no,
+          startTime,
+          endTime,
+        });
+        if (existing) {
+          const openExisting = await confirmSystemMessage(
+            'פעילות זו כבר דווחה בתאריך זה. לפתוח את הדיווח הקיים לעריכה?',
+          );
+          draftGuard.busy = false;
+          if (openExisting) {
+            try { sessionStorage.setItem('av2_edit_record_id', String(existing.id)); } catch {}
+            clearSuccessBanner();
+            buildForm(existing, existing.report_date || dateStr);
+            return;
+          }
+          errorEl.textContent = 'לא ניתן ליצור דיווח כפול לאותה פעילות ומפגש.';
+          errorEl.hidden = false;
+          return;
+        }
+      }
       const reportType = getReportType();
       const isNoActivity = isNoActivityNameType(reportType);
       const isOpen = isOpenFieldType(reportType);
@@ -2199,6 +2416,8 @@ export function renderNewReportScreen(container, {
       const isAttendance = kind === 'attendance';
       const isTravel = kind === 'travel';
       const isExpenses = kind === 'expenses';
+      // Attendance success must not linger on travel/expenses.
+      clearSuccessBanner();
       form.hidden = !isAttendance || attendanceSelectedMonth!==attendanceCurrentMonth;
       historyPanel.hidden = !isAttendance || attendanceSelectedMonth===attendanceCurrentMonth;
       attendanceMonthWrap.hidden=!isAttendance;

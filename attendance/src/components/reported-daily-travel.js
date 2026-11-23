@@ -26,13 +26,20 @@ export function sumReportedDailyTravel(reports=[]) {
   },{count:0,kilometers:0,cancellationMinutes:0,publicTransportCost:0});
 }
 
+export function reportHasPublicTransport(row) {
+  if(!row || row.no_travel) return false;
+  if(number(row.public_transport_cost)>0) return true;
+  const legs=Array.isArray(row.legs)?row.legs:[];
+  return legs.some(leg=>leg.mode==='public_transport');
+}
+
 export function dailyTravelDetails(row) {
   if(!row)return '';
   if(row.no_travel)return 'נסיעות: ללא נסיעה';
   const legs=Array.isArray(row.legs)?row.legs:[];
   const hasCar=(row.historical===true && number(row.total_km)>0)||legs.some(leg=>leg.mode!=='public_transport' && !(leg.kind==='between' && leg.sameLocation));
   const transit=number(row.public_transport_cost);
-  const hasTransit=transit>0||legs.some(leg=>leg.mode==='public_transport');
+  const hasTransit=reportHasPublicTransport(row);
   const parts=[];
   if(hasCar) parts.push('נסיעות: '+formatTravelDistance(row.total_km));
   if(hasCar || number(row.cancellation_minutes)>0)
@@ -58,13 +65,18 @@ export function createReportedTravelTable(reports=[],{title='נסיעות שדו
     section.append(empty);
     return section;
   }
+  const showTransit=rows.some(reportHasPublicTransport);
   const scroll=document.createElement('div');
   scroll.className='av2-reported-travel__scroll';
   const table=document.createElement('table');
   table.className='av2-reported-travel__table';
+  if(!showTransit) table.classList.add('av2-reported-travel__table--no-transit');
   const head=document.createElement('thead');
   const headerRow=document.createElement('tr');
-  for(const label of ['תאריך','קילומטרים','ביטול זמן','תחבורה ציבורית','דיווח']){
+  const labels=showTransit
+    ?['תאריך','קילומטרים','ביטול זמן','תחבורה ציבורית','דיווח']
+    :['תאריך','קילומטרים','ביטול זמן','דיווח'];
+  for(const label of labels){
     const th=document.createElement('th');
     th.scope='col';th.textContent=label;headerRow.append(th);
   }
@@ -75,19 +87,20 @@ export function createReportedTravelTable(reports=[],{title='נסיעות שדו
     const date=String(report.travel_date).slice(0,10).split('-').reverse().join('.');
     const transit=number(report.public_transport_cost);
     const legs=Array.isArray(report.legs)?report.legs:[];
-    const hasTransit=transit>0||legs.some(leg=>leg.mode==='public_transport');
+    const hasTransit=reportHasPublicTransport(report);
     const hasCar=(report.historical===true && number(report.total_km)>0)||legs.some(leg=>leg.mode!=='public_transport' && !(leg.kind==='between' && leg.sameLocation));
     const values=[
       date,
       report.no_travel?'ללא נסיעה':hasCar?formatTravelDistance(report.total_km):'—',
       report.no_travel?'—':(report.cancellation_minutes==null?'—':hasCar||number(report.cancellation_minutes)>0?formatTravelMinutes(report.cancellation_minutes):'—'),
-      hasTransit?'₪'+transit.toLocaleString('he-IL',{maximumFractionDigits:2}):'—',
-      report.review_status==='rejected'?'נדרש תיקון':'נשמר'
     ];
+    if(showTransit) values.push(hasTransit?'₪'+transit.toLocaleString('he-IL',{maximumFractionDigits:2}):'—');
+    values.push(report.review_status==='rejected'?'נדרש תיקון':'נשמר');
     values.forEach((value,index)=>{
       const td=document.createElement('td');
       td.textContent=value;
-      if(index===4 && report.review_status==='rejected')
+      const statusIndex=showTransit?4:3;
+      if(index===statusIndex && report.review_status==='rejected')
         td.className='av2-reported-travel__needs-fix';
       tr.append(td);
     });

@@ -219,27 +219,99 @@ export function dashboardCourseChoiceKey(row = {}) {
   ])}`;
 }
 
+/** Clock window for one course meeting; parallel class groups share this key. */
+export function dashboardCourseScheduleKey(row = {}) {
+  return [
+    courseText(row.start_time).slice(0, 5),
+    courseText(row.end_time).slice(0, 5),
+  ].join('|');
+}
+
+export function parseDashboardCourseOptionValue(value = '') {
+  const raw = courseText(value);
+  const separator = raw.lastIndexOf('@');
+  if (separator > 0 && raw.startsWith('dashboard-course:')) {
+    return {
+      businessValue: raw.slice(0, separator),
+      scheduleKey: raw.slice(separator + 1),
+    };
+  }
+  return { businessValue: raw, scheduleKey: '' };
+}
+
+/**
+ * Occurrence identity for duplicate attendance prevention.
+ * Prefer activity_row_id / dashboard row_id + meeting; never use attendance
+ * record.id (that is the attendance PK) and never block on activity name alone.
+ */
+export function attendanceOccurrenceKey(record = {}) {
+  const date = courseText(record.report_date || record.date).slice(0, 10);
+  if (!date) return '';
+  const meeting = record.meeting_no == null || record.meeting_no === ''
+    ? ''
+    : String(Number(record.meeting_no));
+  // Saved attendance rows use activity_row_id; live dashboard rows use row_id.
+  // Do not fall back to record.id — that is the attendance row primary key.
+  const activityRowId = courseText(record.activity_row_id);
+  const dashboardRowId = courseText(record.row_id);
+  const rowId = activityRowId
+    || (dashboardRowId && !String(dashboardRowId).startsWith('dashboard-course:')
+      ? dashboardRowId
+      : '');
+  const activityId = courseText(record.activity_id);
+  if (rowId) {
+    return `row:${date}:${rowId}:m:${meeting}`;
+  }
+  if (activityId) return `activity:${date}:${activityId}:m:${meeting}`;
+  // Legacy rows may only retain business identity + clock window.
+  const identity = record.course_business_identity || record.__dashboardCourseIdentity;
+  if (identity) {
+    const start = courseText(record.start_time).slice(0, 5);
+    const end = courseText(record.end_time).slice(0, 5);
+    return `course:${date}:${JSON.stringify(identity)}:m:${meeting}:t:${start}-${end}`;
+  }
+  return '';
+}
+
 export function buildDashboardCourseOptions(rows = []) {
-  const groups = new Map();
+  const byBusiness = new Map();
   for (const row of Array.isArray(rows) ? rows : []) {
     if (normalizeDbActivityType(row?.activity_type) !== 'course') continue;
     const name = courseText(row.activity_name || row.program_name);
     if (!name || !courseText(row.row_id || row.id)) continue;
-    const value = dashboardCourseChoiceKey(row);
-    if (!groups.has(value)) {
-      const school = courseText(row.single_school_name || row.school_name || row.school);
-      const authority = courseText(row.authority_name || row.authority);
-      groups.set(value, {
-        value,
-        label: [name, school].filter(Boolean).join(' — '),
+    const businessValue = dashboardCourseChoiceKey(row);
+    if (!byBusiness.has(businessValue)) byBusiness.set(businessValue, []);
+    byBusiness.get(businessValue).push(row);
+  }
+
+  const options = [];
+  for (const [businessValue, businessRows] of byBusiness) {
+    const bySchedule = new Map();
+    for (const row of businessRows) {
+      const scheduleKey = dashboardCourseScheduleKey(row);
+      if (!bySchedule.has(scheduleKey)) bySchedule.set(scheduleKey, []);
+      bySchedule.get(scheduleKey).push(row);
+    }
+    const splitBySchedule = bySchedule.size > 1;
+    for (const [scheduleKey, candidateRows] of bySchedule) {
+      const sample = candidateRows[0];
+      const name = courseText(sample.activity_name || sample.program_name);
+      const school = courseText(sample.single_school_name || sample.school_name || sample.school);
+      const authority = courseText(sample.authority_name || sample.authority);
+      const start = courseText(sample.start_time).slice(0, 5);
+      const end = courseText(sample.end_time).slice(0, 5);
+      const timeLabel = splitBySchedule && start && end ? `${start}–${end}` : '';
+      options.push({
+        value: splitBySchedule ? `${businessValue}@${scheduleKey}` : businessValue,
+        label: [name, school, timeLabel].filter(Boolean).join(' — '),
         meta: authority,
-        searchText: [name, school, authority].filter(Boolean).join(' ').toLowerCase(),
-        candidateRows: [],
+        searchText: [name, school, authority, timeLabel].filter(Boolean).join(' ').toLowerCase(),
+        scheduleKey: splitBySchedule ? scheduleKey : '',
+        candidateRows,
       });
     }
-    groups.get(value).candidateRows.push(row);
   }
-  return [...groups.values()].sort((a, b) => a.label.localeCompare(b.label, 'he'));
+  return options.sort((a, b) => a.label.localeCompare(b.label, 'he'));
 }
 
 /**
@@ -276,8 +348,11 @@ export function dashboardCourseWork(rows = []) {
  * A legacy row hint locates the business choice; it never truncates its sources.
  */
 export function resolveDashboardCourseChoice(choice, rows = [], hints = {}) {
+  const { businessValue, scheduleKey } = parseDashboardCourseOptionValue(choice?.value);
   const candidates = (Array.isArray(rows) ? rows : []).filter(row =>
-    normalizeDbActivityType(row?.activity_type) === 'course' && dashboardCourseChoiceKey(row) === choice?.value);
+    normalizeDbActivityType(row?.activity_type) === 'course'
+    && dashboardCourseChoiceKey(row) === businessValue
+    && (!scheduleKey || dashboardCourseScheduleKey(row) === scheduleKey));
   const unique = [...new Map(candidates.map(row => [courseText(row.row_id || row.id), row])).values()]
     .sort((a, b) => courseText(a.row_id).localeCompare(courseText(b.row_id)));
   if (!unique.length || hints.activityRowId && !unique.some(row => courseText(row.row_id) === courseText(hints.activityRowId))) {
@@ -290,7 +365,7 @@ export function resolveDashboardCourseChoice(choice, rows = [], hints = {}) {
   if (unique.length > 1) {
     for (const key of ['id', 'row_id', 'activity_no', 'meeting_no', 'grade', 'class_group']) activity[key] = null;
   }
-  const identity = JSON.parse(choice.value.slice('dashboard-course:'.length));
+  const identity = JSON.parse(businessValue.slice('dashboard-course:'.length));
   activity.school_id = identity[1][0] === 'id' ? Number(identity[1][1]) : null;
   activity.single_school_id = activity.school_id;
   activity.single_school_name = unique.map(row => courseText(row.single_school_name || row.school_name || row.school)).sort()[0];

@@ -407,9 +407,10 @@
   .av2-rr-mobile__summary {
     width: 100%;
     min-width: 0;
-    grid-template-columns: 64px minmax(0, 1fr) 48px 16px !important;
-    gap: 6px !important;
-    padding: 11px 10px !important;
+    grid-template-columns: minmax(0, 1fr) auto 16px !important;
+    column-gap: 10px !important;
+    row-gap: 4px !important;
+    padding: 10px 14px !important;
   }
 
   .av2-report-row.is-mobile-expanded > .av2-rr__start,
@@ -518,10 +519,15 @@
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
-  .av2-report-summary-row__toggle,
-  .av2-rr-mobile__summary {
+  .av2-report-summary-row__toggle {
     grid-template-columns: 58px minmax(0, 1fr) 44px 14px !important;
     gap: 5px !important;
+  }
+
+  .av2-rr-mobile__summary {
+    grid-template-columns: minmax(0, 1fr) auto 16px !important;
+    column-gap: 8px !important;
+    padding: 10px 14px !important;
   }
 
   .av2-calendar-day__time-strip {
