@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <link rel="stylesheet" href="/attendance/src/styles/base.css" />
+  <link rel="stylesheet" href="/attendance/src/styles/home-screen.css" />
+  <link rel="stylesheet" href="/attendance/src/styles/new-report-screen.css" />
+  <link rel="stylesheet" href="/attendance/src/styles/my-reports-screen.css" />
+  <link rel="stylesheet" href="/attendance/src/styles/bottom-nav.css" />
+  <link rel="stylesheet" href="/attendance/src/styles/mobile-app-theme.css" />
+  <link rel="stylesheet" href="/attendance/src/styles/mobile-final-contract.css" />
+  <link rel="stylesheet" href="/attendance/src/styles/new-report-final-alignment.css" />
+  <link rel="stylesheet" href="/attendance/src/styles/report-tabs-responsive-typography.css" />
+  <title>Scroll repro</title>
+</head>
+<body>
+  <div id="app-frame">
+    <main id="app" class="app-shell app-shell--with-nav">
+      <section class="av2-report av2-container">
+        <div class="av2-report__inner">
+          <h1>דיווח נוכחות</h1>
+          <form class="av2-report__form">
+            <section class="av2-form-section">
+              <h2 class="av2-form-section__title">פרטי פעילות</h2>
+              <div class="av2-form-section__body">
+                <label class="av2-field"><span class="av2-field__label">סוג פעילות</span><select class="av2-field__select"><option>קורס</option></select></label>
+                <label class="av2-field"><span class="av2-field__label">שם פעילות</span><input class="av2-field__input" value="פעילות בדיקה" /></label>
+                <label class="av2-field"><span class="av2-field__label">התחלה</span><input class="av2-field__input" value="09:00" /></label>
+                <label class="av2-field"><span class="av2-field__label">סיום</span><input class="av2-field__input" value="12:00" /></label>
+              </div>
+            </section>
+            <div id="tall"></div>
+            <div class="av2-report__actions">
+              <button type="button" class="av2-btn av2-btn--primary" id="save">שמור</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </main>
+    <nav id="bottom-nav" class="av2-bottom-nav" style="display:block"></nav>
+  </div>
+  <script>
+    const tall = document.getElementById('tall');
+    for (let i = 0; i < 40; i++) {
+      const p = document.createElement('p');
+      p.textContent = 'שורה ' + (i + 1) + ' — תוכן ארוך לבדיקת גלילה';
+      p.style.padding = '14px 0';
+      tall.append(p);
+    }
+  </script>
+</body>
+</html>
