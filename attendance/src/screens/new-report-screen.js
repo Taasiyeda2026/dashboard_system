@@ -2006,7 +2006,18 @@ export function renderNewReportScreen(container, {
       if (!editingExisting && activity) {
         const monthRefresh = await refreshMonthAttendanceRecords(dateStr, { force: true });
         if (!monthRefresh.ok) {
-          errorEl.textContent = 'לא ניתן לוודא שאין דיווח כפול כרגע. בדקו את החיבור ונסו לשמור שוב — הטופס נשמר אצלכם.';
+          const msg = document.createElement('span');
+          msg.textContent = 'לא ניתן לוודא שאין דיווח כפול כרגע. הטופס נשמר אצלכם. ';
+          const retry = document.createElement('button');
+          retry.type = 'button';
+          retry.className = 'av2-report__error-retry';
+          retry.textContent = 'נסה שוב';
+          retry.addEventListener('click', () => {
+            errorEl.hidden = true;
+            errorEl.replaceChildren();
+            if (!draftGuard.busy) form.requestSubmit();
+          });
+          errorEl.replaceChildren(msg, retry);
           errorEl.hidden = false;
           return;
         }

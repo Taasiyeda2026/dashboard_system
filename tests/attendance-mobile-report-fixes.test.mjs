@@ -119,10 +119,59 @@ test('new-report fails closed when month attendance fetch fails before create', 
   assert.match(source, /Fail closed: do not treat a fetch error as an empty month/);
   assert.match(source, /if\s*\(\s*!monthRefresh\.ok\s*\)/);
   assert.match(source, /לא ניתן לוודא שאין דיווח כפול כרגע/);
+  assert.match(source, /av2-report__error-retry/);
+  assert.match(source, /נסה שוב/);
+  assert.match(source, /form\.requestSubmit\(\)/);
   // Must not clear the month cache to [] inside the catch (that would look like "no duplicates").
   const catchBlock = source.match(/month attendance load failed:[\s\S]*?return\s*\{[\s\S]*?reason:\s*'fetch-failed'/);
   assert.ok(catchBlock, 'expected fetch-failed return in catch');
   assert.doesNotMatch(catchBlock[0], /monthAttendanceRecords\s*=\s*\[\s*\]/);
+});
+
+test('occurrence keys keep distinct activities and adjacent meetings separate', () => {
+  const morning = attendanceOccurrenceKey({
+    report_date: '2026-11-23',
+    activity_row_id: 'course-a',
+    meeting_no: 1,
+  });
+  const afternoon = attendanceOccurrenceKey({
+    report_date: '2026-11-23',
+    activity_row_id: 'course-a',
+    meeting_no: 2,
+  });
+  const otherCourse = attendanceOccurrenceKey({
+    report_date: '2026-11-23',
+    activity_row_id: 'course-b',
+    meeting_no: 1,
+  });
+  assert.notEqual(morning, afternoon);
+  assert.notEqual(morning, otherCourse);
+  assert.equal(morning, 'row:2026-11-23:course-a:m:1');
+  assert.equal(afternoon, 'row:2026-11-23:course-a:m:2');
+});
+
+test('editing an existing report ignores its own attendance id in duplicate scans', async () => {
+  const source = await read('attendance/src/screens/new-report-screen.js');
+  assert.match(source, /ignoreRecordId\s*=\s*editingRecordId\(\)/);
+  assert.match(
+    source,
+    /if\s*\(\s*ignoreRecordId\s*&&\s*String\(record\.id\)\s*===\s*String\(ignoreRecordId\)\s*\)\s*return\s*false/,
+  );
+  assert.match(source, /if\s*\(\s*!editingExisting\s*&&\s*activity\s*\)/);
+});
+
+test('four mobile UX fixes remain wired in #2795', async () => {
+  const reportsCss = await read('attendance/src/styles/mobile-reports.css');
+  const travel = await read('attendance/src/components/reported-daily-travel.js');
+  const screen = await read('attendance/src/screens/new-report-screen.js');
+  const helpers = await read('attendance/src/services/activities-report.helpers.js');
+  assert.match(reportsCss, /padding:\s*10px 14px/);
+  assert.match(travel, /showTransit/);
+  assert.match(travel, /reportHasPublicTransport/);
+  assert.match(screen, /actionsRow\.after\(successBanner\)/);
+  assert.match(screen, /Attendance success must not linger on travel\/expenses/);
+  assert.match(helpers, /splitBySchedule/);
+  assert.match(helpers, /Do not fall back to record\.id/);
 });
 
 test('mobile report cards keep balanced padding without forced school ellipsis', async () => {
@@ -157,6 +206,6 @@ test('distinct course schedules become separate picker options', () => {
 test('attendance cache markers move with the mobile report fixes', async () => {
   const sw = await read('attendance/sw.js');
   const index = await read('attendance/index.html');
-  assert.match(sw, /const CACHE_VERSION = 189/);
-  assert.match(index, /\?v=189/);
+  assert.match(sw, /const CACHE_VERSION = 190/);
+  assert.match(index, /\?v=190/);
 });
