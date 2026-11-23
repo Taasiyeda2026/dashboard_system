@@ -3,20 +3,48 @@
  * compressed desktop page. Desktop rules remain untouched.
  */
 @media (max-width: 767px) {
-  html,
-  body,
+  /* Root cause of mobile scroll lock:
+     base.css sets html/body height:100%, and this contract previously set
+     overflow-x:hidden on html+body+#app-frame+#app+.app-shell.
+     Per CSS overflow rules, overflow-x:hidden + overflow-y:visible computes
+     overflow-y to auto on every ancestor, so only body scrolls while
+     document.scrollingElement (html) cannot — iOS/Android touch scroll fails.
+     Use overflow-x:clip (does not force the other axis to auto) and height:auto
+     so the document itself remains the scrollport. */
+  html {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    height: auto !important;
+    min-height: 100%;
+    overflow-x: clip;
+    overflow-y: visible;
+    box-sizing: border-box;
+  }
+
+  body {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    height: auto !important;
+    min-height: 100dvh;
+    overflow-x: clip;
+    overflow-y: visible;
+    box-sizing: border-box;
+    /* fixed backgrounds create a separate iOS scroll layer that can trap touch. */
+    background-attachment: scroll !important;
+  }
+
   #app-frame,
   #app,
   .app-shell {
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    overflow-x: hidden;
+    height: auto !important;
+    overflow-x: clip;
+    overflow-y: visible;
     box-sizing: border-box;
-  }
-
-  body {
-    min-height: 100dvh;
   }
 
   .app-shell--with-nav {

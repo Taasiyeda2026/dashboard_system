@@ -38,7 +38,8 @@
       radial-gradient(circle at 94% 5%, rgba(34, 211, 238, .27), transparent 29%),
       radial-gradient(circle at 50% 18%, rgba(96, 165, 250, .16), transparent 30%),
       linear-gradient(180deg, #f8fcff 0%, #edf7ff 24%, #f5f8fc 68%, #f8fafc 100%);
-    background-attachment: fixed;
+    /* scroll (not fixed): fixed attachment traps touch scrolling on iOS. */
+    background-attachment: scroll;
     color: var(--av2-mobile-ink);
   }
 

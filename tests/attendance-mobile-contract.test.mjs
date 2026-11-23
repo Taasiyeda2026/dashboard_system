@@ -32,12 +32,27 @@ test('Attendance attachments use ASCII employee/date/sequence storage keys and k
 
 test('Attendance mobile contract prevents squeezed desktop layouts', () => {
   assert.match(css, /@media \(max-width: 767px\)/);
-  assert.match(css, /#app-frame,[\s\S]*\.app-shell[\s\S]*overflow-x:\s*hidden/);
+  assert.match(css, /#app-frame,[\s\S]*\.app-shell[\s\S]*overflow-x:\s*clip/);
   assert.match(css, /\.av2-report__form[\s\S]*flex-direction:\s*column\s*!important/);
   assert.match(css, /\.av2-form-section[\s\S]*width:\s*100%\s*!important/);
   assert.match(css, /\.av2-reports__toolbar[\s\S]*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
   assert.match(css, /\.av2-modal[\s\S]*width:\s*100vw\s*!important/);
   assert.match(css, /\.av2-calendar-day[\s\S]*width:\s*100vw\s*!important/);
+});
+
+test('Attendance mobile contract restores document scrolling instead of nested body scrollports', () => {
+  assert.match(css, /Root cause of mobile scroll lock/);
+  assert.match(css, /html\s*\{[\s\S]*height:\s*auto\s*!important;[\s\S]*overflow-x:\s*clip;[\s\S]*overflow-y:\s*visible/);
+  assert.match(css, /body\s*\{[\s\S]*height:\s*auto\s*!important;[\s\S]*overflow-x:\s*clip;[\s\S]*overflow-y:\s*visible/);
+  assert.match(css, /#app-frame,[\s\S]*\.app-shell\s*\{[\s\S]*overflow-x:\s*clip;[\s\S]*overflow-y:\s*visible/);
+  assert.match(css, /background-attachment:\s*scroll\s*!important/);
+  assert.match(mobileTheme, /background-attachment:\s*scroll/);
+  assert.doesNotMatch(mobileTheme, /background-attachment:\s*fixed/);
+});
+
+test('Attendance mobile contract still clips horizontal overflow without nested overflow-x:hidden on roots', () => {
+  assert.match(css, /#app-frame,[\s\S]*\.app-shell[\s\S]*overflow-x:\s*clip/);
+  assert.doesNotMatch(css, /html,\s*body,\s*#app-frame,\s*#app,\s*\.app-shell\s*\{[^}]*overflow-x:\s*hidden/);
 });
 
 test('Attendance mobile contract is iPhone-safe and touch-first', () => {
