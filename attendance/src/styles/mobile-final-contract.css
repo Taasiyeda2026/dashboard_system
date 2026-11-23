@@ -242,6 +242,24 @@
     grid-template-columns: minmax(0, 1fr) !important;
   }
 
+  /* Keep date | type on one compact row; later full-width fields override via nth-child. */
+  .av2-form-section__body--activity {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 6px 8px !important;
+  }
+
+  .av2-form-section__body--activity > :nth-child(n + 3) {
+    grid-column: 1 / -1;
+  }
+
+  .av2-form-section__body--activity > .av2-ssel,
+  .av2-form-section__body--activity > .av2-report__school-mount {
+    grid-column: auto;
+    min-width: 0;
+    max-width: 100%;
+  }
+
   .av2-report__times-grid {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.9fr) !important;
   }
