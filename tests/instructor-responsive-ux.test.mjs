@@ -72,11 +72,13 @@ test('dashboard monthly summary is unboxed and uses the current accent divider',
   assert.match(css, /instructor-portal-summary-divider[\s\S]*background:\s*var\(--ds-accent\)/);
 });
 
-test('persistent instructor navigation excludes reports and retains main destinations with vector icons', () => {
+test('mobile instructor navigation exposes attendance and presentations and gives every tab a vector icon', () => {
   assert.match(runtime, /shell-sidebar--instructor \.shell-nav__btn\[data-external-url\]/);
-  assert.match(runtime, /instructor-bottom-nav__btn\[data-external-url\]/);
+  assert.doesNotMatch(runtime, /\.instructor-bottom-nav__btn\[data-external-url/);
   assert.match(runtime, /NAV_ICONS/);
-  for (const label of ['בית', 'פעילויות', 'לוח שנה', 'משובים']) assert.match(runtime, new RegExp(`'${label}'`));
+  for (const label of ['בית', 'פעילויות', 'לוח שנה', 'משובים', 'אישורים', 'נוכחות', 'מצגות']) {
+    assert.match(runtime, new RegExp(`'${label}': '<svg`));
+  }
 });
 
 test('completion approvals keep the shared print/status mechanism and render as a compact checklist', () => {
