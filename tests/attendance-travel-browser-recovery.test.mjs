@@ -256,7 +256,7 @@ test('real Chromium: changed context clears old values even when activity labels
      {kind:'return',from:'בית ספר',to:'בית',mode:'car',minutes:60,kilometers:20,contextFingerprint:'old-context'}]}];
   });
   await page.evaluate(()=>window.travelComponent.load());
-  await page.getByRole('button',{name:'עריכת דיווח',exact:true}).click();
+  await page.getByRole('button',{name:'עריכה',exact:true}).click();
   assert.equal(await page.locator('#av2-leg-0-kilometers').inputValue(),'');
   assert.equal(await page.locator('[data-duration-hours="0"]').inputValue(),'');
   assert.equal(await page.evaluate(()=>window.__travelMock.saveCalls.length),0);

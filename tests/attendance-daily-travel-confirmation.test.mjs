@@ -29,7 +29,7 @@ test('instructor sees saved confirmation and independent manager review state',a
   assert.doesNotMatch(ui,/דיווח ליום /);
   assert.doesNotMatch(ui,/נשמר ב־/);
   assert.match(ui,/edit\.textContent='✎'/);
-  assert.match(ui,/edit\.setAttribute\('aria-label','עריכת דיווח'\)/);
+  assert.match(ui,/edit\.setAttribute\('aria-label','עריכה'\)/);
   assert.match(ui,/locked=!monthEditable;/);
   assert.doesNotMatch(ui,/\?'ממתין לאישור'/);
   assert.match(service,/לא התקבל אישור שמירה מהשרת/);
