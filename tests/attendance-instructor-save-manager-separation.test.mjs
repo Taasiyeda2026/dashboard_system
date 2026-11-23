@@ -91,13 +91,16 @@ test('manager control flags manual cancellation + travel path conflicts without 
   assert.match(control, /listManualCancellationTravelConflictDays/);
   assert.match(control, /ימי חשד לכפל ביטול זמן/);
   assert.match(control, /data-attendance-month-blockers/);
+  assert.match(control, /data-double-cancellation-day/);
+  assert.match(control, /חשד לכפל ביטול זמן עם נסיעות/);
+  assert.match(control, /doubleCancellationIssue/);
 });
 
-test('cache markers bumped for attendance 184 and dashboard 2130', () => {
+test('cache markers bumped for attendance 184 and dashboard 2131', () => {
   assert.match(attendanceSw, /const CACHE_VERSION = 184/);
   assert.match(attendanceIndex, /\?v=184/);
   assert.doesNotMatch(attendanceIndex, /\?v=180/);
-  assert.match(frontendSw, /const CACHE_VERSION = 2130/);
+  assert.match(frontendSw, /const CACHE_VERSION = 2131/);
   assert.match(config, /instructor-save-manager-separation-20261122-v1/);
-  assert.match(config, /attendance-workday-chrome-20261123-v1/);
+  assert.match(config, /manager-conflict-day-visibility-20261123-v1/);
 });

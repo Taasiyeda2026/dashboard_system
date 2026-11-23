@@ -40,6 +40,6 @@ test('work-day cache markers bumped above previous release', async () => {
   assert.match(sw, /const CACHE_VERSION = 184/);
   assert.match(index, /\?v=184/);
   assert.doesNotMatch(index, /\?v=183/);
-  assert.match(frontendSw, /const CACHE_VERSION = 2130/);
+  assert.match(frontendSw, /const CACHE_VERSION = 2131/);
   assert.match(config, /attendance-workday-chrome-20261123-v1/);
 });
