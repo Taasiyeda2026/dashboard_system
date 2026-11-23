@@ -86,7 +86,8 @@ test('saved travel report is compact without surplus form gaps or timestamp text
   assert.match(css,/report-card--saved \.av2-daily-travel__saved-metric\{\s*display:inline-flex/);
   assert.match(css,/report-card--saved>\.av2-daily-travel__month-wrap\{/);
   assert.match(css,/\.av2-report__success\{\s*width:min\(100%,700px\)/);
-  assert.match(form,/successBanner\.textContent = 'דיווח הנוכחות נשמר בהצלחה'/);
+  assert.match(form,/הנוכחות נשמרה/);
+  assert.match(form,/השלם נסיעות ליום זה/);
   assert.doesNotMatch(ui,/דיווח ליום /);
 });
 
