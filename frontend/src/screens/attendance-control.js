@@ -2807,18 +2807,32 @@ export function resultsHtml(result, month = '', options = {}) {
       hasWorkflowRow ? workflowByEmployee[employee.id] : { workflow_status: 'not_submitted' },
       { bypassMonthSubmissionGate }
     );
+    const employeeEntries = allAttendanceEntries.filter((entry) => txt(entry.attendance?.employeeId) === employee.id);
+    const doubleCancellationKeys = listManualCancellationTravelConflictDays(
+      employeeEntries,
+      (result.dailyTravelReports || []).filter((row) => txt(row?.emp_id ?? row?.employeeId) === employee.id)
+    );
+    const doubleCancellationDates = new Set(
+      doubleCancellationKeys.map((key) => String(key).split('|')[1]).filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date))
+    );
+    const doubleCancellationDays = doubleCancellationKeys.length;
     const days = [...employee.days.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([date, rows]) => {
       rows.sort((left, right) => left.time.localeCompare(right.time));
+      const hasDoubleCancellation = doubleCancellationDates.has(date);
+      const conflictNote = hasDoubleCancellation
+        ? '<p class="attendance-control__manual-note" data-double-cancellation-day="1">חשד לכפל ביטול זמן עם נסיעות — בדקו לפני אישור.</p>'
+        : '';
       return dailyTravelHtml(employee.id,date,rows) + rows.map((row) => {
         const item = row.item;
         const attached = generatedCancellationBySource.get(entryRecordId(item));
         const current = item.final || item.attendance || item.dashboard || {};
         const hours = rowWorkHours(current);
         const needsApproval = !attendanceEntryIsResolved(item) || (attached ? !attendanceEntryIsResolved(attached) : false);
-        const dataIssue = !attendanceEntryIsResolved(item) && ((row.kind === 'comparison' && comparisonHasIssue(item)) || trainingDetailsForRow(current)?.issue);
-        const rowStatus = !needsApproval ? '✓ אושר' : (dataIssue ? 'לבדיקה' : 'ממתין לאישור');
+        const dataIssue = hasDoubleCancellation
+          || (!attendanceEntryIsResolved(item) && ((row.kind === 'comparison' && comparisonHasIssue(item)) || trainingDetailsForRow(current)?.issue));
+        const rowStatus = !needsApproval && !hasDoubleCancellation ? '✓ אושר' : (dataIssue ? 'לבדיקה' : 'ממתין לאישור');
         const label = activityTypeDisplayLabel(current.activityType) || 'דיווח';
-        return `<details class="attendance-control__day${needsApproval ? '' : ' attendance-control__day--ok'}" data-payroll-date="${escapeHtml(date)}" data-attendance-row-id="${escapeHtml(entryRecordId(item))}"><summary><span>${shown(dateLabel(date))} · ${shown(label)}</span><span>${formatDurationHours(hours)} שעות</span><span class="attendance-control__row-status ${dataIssue ? 'attendance-control__row-status--issue' : needsApproval ? '' : 'attendance-control__row-status--ok'}">${rowStatus}</span></summary><div class="attendance-control__reports">${reportHtml({ ...row, employeeId: employee.id, date })}</div></details>`;
+        return `<details class="attendance-control__day${needsApproval || hasDoubleCancellation ? '' : ' attendance-control__day--ok'}"${hasDoubleCancellation ? ' open' : ''} data-payroll-date="${escapeHtml(date)}" data-attendance-row-id="${escapeHtml(entryRecordId(item))}"${hasDoubleCancellation ? ' data-double-cancellation-day="1"' : ''}><summary><span>${shown(dateLabel(date))} · ${shown(label)}</span><span>${formatDurationHours(hours)} שעות</span><span class="attendance-control__row-status ${dataIssue ? 'attendance-control__row-status--issue' : needsApproval ? '' : 'attendance-control__row-status--ok'}">${rowStatus}</span></summary><div class="attendance-control__reports">${conflictNote}${reportHtml({ ...row, employeeId: employee.id, date })}</div></details>`;
       }).join('');
     }).join('');
     const expenseHtml=expenseReviewHtml(employee.id,true);
@@ -2829,11 +2843,6 @@ export function resultsHtml(result, month = '', options = {}) {
       const r=dailyTravelByDay.get(employee.id+'|'+date);
       return !r || !['approved','corrected','rejected'].includes(r.review_status);
     }).length;
-    const employeeEntries = allAttendanceEntries.filter((entry) => txt(entry.attendance?.employeeId) === employee.id);
-    const doubleCancellationDays = listManualCancellationTravelConflictDays(
-      employeeEntries,
-      (result.dailyTravelReports || []).filter((row) => txt(row?.emp_id ?? row?.employeeId) === employee.id)
-    ).length;
     const totalRecordCount = employeeEntries.length;
     const approvedRecordCount = employeeEntries.filter(attendanceEntryIsResolved).length;
     const pendingRecordCount = Math.max(0, totalRecordCount - approvedRecordCount);
@@ -2908,7 +2917,11 @@ export function resultsHtml(result, month = '', options = {}) {
     });
     const expensesNeedReview=(expenseReportsByEmployee.get(employee.id)||[])
       .some(expense=>expense.review_status==='pending_review');
-    return hasDataIssue || dailyTravelIssue || expensesNeedReview
+    const doubleCancellationIssue = listManualCancellationTravelConflictDays(
+      entries,
+      (result.dailyTravelReports || []).filter((row) => txt(row?.emp_id ?? row?.employeeId) === employee.id)
+    ).length > 0;
+    return hasDataIssue || dailyTravelIssue || expensesNeedReview || doubleCancellationIssue
       || (hasWorkflowRow && workflow.status === 'not_submitted');
   }).length;
   const metricsHtml = `<details class="attendance-control__metrics-details" data-payroll-metrics><summary>פרטים</summary><div class="attendance-control__metrics"><span>שורות נוכחות ${totals.attendanceRows}</span><span>התאמות ${totals.fullMatches}</span><span>פערים ${totals.fieldMismatches}</span><span>ללא התאמה ${totals.unmatchedAttendance}</span></div></details>`;

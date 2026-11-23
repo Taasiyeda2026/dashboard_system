@@ -674,3 +674,5 @@ config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-attendance-instructor-ux-simpl
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-attendance-instructor-ux-simplify-20261123-v3`;
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-attendance-workday-chrome-20261123-v1`;
+
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-manager-conflict-day-visibility-20261123-v1`;
