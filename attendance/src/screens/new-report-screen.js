@@ -1115,10 +1115,17 @@ export function renderNewReportScreen(container, {
     activityTimesAutoFilled = false;
     previousReportType = prefill?.activity_type || '';
 
+    let editingExisting = false;
+    try {
+      const editId = String(sessionStorage.getItem('av2_edit_record_id') || '').trim();
+      editingExisting = Boolean(editId && prefill?.id && String(prefill.id) === editId);
+    } catch {}
     if (prefill) {
       const dupNote = document.createElement('p');
       dupNote.className = 'av2-report__dup-note';
-      dupNote.textContent = `שכפול מדיווח מ-${prefill.report_date || ''} — ניתן לערוך לפני השמירה`;
+      dupNote.textContent = editingExisting
+        ? `עריכת דיווח מ-${prefill.report_date || ''} — הערכים השמורים מוצגים וניתנים לעדכון`
+        : `שכפול מדיווח מ-${prefill.report_date || ''} — ניתן לערוך לפני השמירה`;
       formArea.append(dupNote);
     }
 
@@ -1549,6 +1556,7 @@ export function renderNewReportScreen(container, {
       draftGuard.markClean();
       successBanner.hidden = true;
       lockBanner.hidden = true;
+      try { sessionStorage.removeItem('av2_edit_record_id'); } catch {}
       buildForm(null, defaultDate);
     });
 
@@ -1698,7 +1706,18 @@ export function renderNewReportScreen(container, {
             if (isCourseReportType() && meetingVal) meetingField.setValue(meetingVal);
             syncLocationDependencies();
           })();
+        } else if (prefill.activity_name_snapshot) {
+          // Keep the saved activity name visible even when the catalog match is gone.
+          activityNameSel.setValue?.(
+            String(prefill.activity_row_id),
+            String(prefill.activity_name_snapshot)
+          );
         }
+      } else if (prefill.activity_name_snapshot && !isCourseReportType()) {
+        activityNameSel.setValue?.(
+          String(prefill.activity_row_id || ''),
+          String(prefill.activity_name_snapshot)
+        );
       }
       syncLocationDependencies();
     }
@@ -1949,8 +1968,9 @@ export function renderNewReportScreen(container, {
           roundtrip_km: kmValue,
           public_transport: usesPublicTransport,
           public_transport_cost: publicTransportCost,
-          expenses: 0,
-          expense_details: null,
+          // Preserve existing expense fields on edit — expenses are edited in their own tab.
+          expenses: editingExisting && prefill?.expenses != null ? Number(prefill.expenses) || 0 : 0,
+          expense_details: editingExisting ? (prefill?.expense_details ?? null) : null,
           notes: notesField.input.value.trim() || null,
           ...scheduledTrainingFields,
         };

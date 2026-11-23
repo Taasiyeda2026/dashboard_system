@@ -12,6 +12,7 @@ import { listInstructorDisplayMonths, readHistoricalAttendance, historicalTravel
 import {
   getDailyTravelActivityLegs, getDailyTravelReport, getDailyTravelReports, getAssignedTravelDays, saveDailyTravel
 } from '../services/daily-travel.service.js';
+import { mergeDailyTravelLegValues } from '../services/daily-travel-leg-merge.js';
 import {
   canReloadTravelAfterAttendanceChange,
   pickDefaultTravelDay,
@@ -405,9 +406,8 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       const result=summarizeDailyTravel(reportLegs);
       const km=report?.total_km??result.kilometers;
       const minutes=report?.cancellation_minutes??result.cancellationMinutes;
-      const hasCarTravel=reportLegs.some(leg=>leg.mode!=='public_transport'
-        && !(leg.kind==='between' && leg.sameLocation===true));
-      if(hasCarTravel)addDetail('קילומטרים',Number(km||0).toLocaleString('he-IL')+' ק״מ');
+      const hasCarTravel=reportLegs.some(leg=>leg.mode!=='public_transport');
+      if(hasCarTravel || Number(km||0)>0)addDetail('קילומטרים',Number(km||0).toLocaleString('he-IL')+' ק״מ');
       if(hasCarTravel || Number(minutes||0)>0)
         addDetail('ביטול זמן',formatTripDuration(minutes??0));
       const cost=Number(report?.public_transport_cost??reportLegs.reduce((sum,leg)=>
@@ -463,17 +463,14 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       if(!hour || !minute)continue;
       leg.minutes=hour.value!=='' && minute.value!=='' ? Number(hour.value)*60+Number(minute.value) : null;
     }
-    if(!noTravel.checked && legs.some(leg=>
-      !(leg.kind==='between' && leg.sameLocation===true)
-      && !['car','public_transport'].includes(leg.mode))){
+    if(!noTravel.checked && legs.some(leg=>!['car','public_transport'].includes(leg.mode))){
       summary.textContent='';
       return;
     }
     const totals=summarizeDailyTravel(legs);
     const publicTransportFare=legs.reduce((sum,leg)=>
       sum+(leg.mode==='public_transport'?Number(leg.transportCost||0):0),0);
-    const hasCarTravel=legs.some(leg=>leg.mode!=='public_transport'
-      && !(leg.kind==='between' && leg.sameLocation===true));
+    const hasCarTravel=legs.some(leg=>leg.mode!=='public_transport');
     const hasTransit=legs.some(leg=>leg.mode==='public_transport');
     const travelDetails=hasCarTravel
       ? 'ביטול זמן מחושב: '+formatTripDuration(totals.cancellationMinutes)+' שעות'
@@ -482,7 +479,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         ? 'ביטול זמן בין פעילויות: '+formatTripDuration(totals.cancellationMinutes)+' שעות'
         : '');
     summary.textContent=noTravel.checked ? 'ללא נסיעה'
-      : !totals.complete ? 'יש להשלים את נתוני הנסיעה'
+      : !totals.complete ? 'יש להשלים קילומטרים'
       : [travelDetails,hasTransit?'תחבורה ציבורית: ₪'+publicTransportFare.toFixed(2):''].filter(Boolean).join(' · ');
   }
   function renderLegs(){
@@ -507,7 +504,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         fixed.className='av2-daily-travel__calculated-field';
         const fieldLabel=document.createElement('span');
         fieldLabel.className='av2-field__label';
-        fieldLabel.textContent='ביטול זמן בין פעילויות';
+        fieldLabel.textContent='פער שעות בין פעילויות (לא מרחק נסיעה)';
         const value=document.createElement('strong');
         value.textContent=formatTripDuration(leg.gapMinutes)+' שעות · מחושב משעות הפעילויות';
         fixed.append(fieldLabel,value);
@@ -562,17 +559,12 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         durationWrap.append(durationLabel,selects);
         fields.append(durationWrap);
       }
-      if(leg.kind==='between' && leg.sameLocation===true){
-        const fixed=document.createElement('div');
-        fixed.className='av2-daily-travel__calculated-field';
-        const label=document.createElement('span');
-        label.className='av2-field__label';label.textContent='קילומטרים';
-        const value=document.createElement('strong');
-        value.textContent='0 ק״מ · אותו מיקום';
-        fixed.append(label,value);fields.append(fixed);
-      }else{
+      {
+        const kmLabel=leg.kind==='between' && leg.sameLocation===true
+          ? 'קילומטרים בפועל (ברירת מחדל 0 · אותו מיקום)'
+          : 'קילומטרים בפועל';
         const km=createInputField({
-          id:'av2-leg-'+index+'-kilometers',label:'קילומטרים',type:'number',
+          id:'av2-leg-'+index+'-kilometers',label:kmLabel,type:'number',
           value:leg.kilometers==null?'':String(leg.kilometers),
           attrs:{min:'0',max:'2000',step:'0.01'}
         });
@@ -615,7 +607,11 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       function syncMode(){
         const nextMode=mode.value;
         if(leg.kind==='between' && leg.sameLocation===true){
-          leg.mode='car';leg.kilometers=0;leg.transportCost=0;
+          leg.mode='car';
+          if(leg.kilometers==null || leg.kilometers==='')leg.kilometers=0;
+          leg.transportCost=0;
+          if(kmInput){kmInput.disabled=false;kmInput.value=String(leg.kilometers);}
+          if(kmWrap)kmWrap.hidden=false;
           fare.wrap.hidden=true;fare.input.disabled=true;showSummary();return;
         }
         if(previousMode==='car' && nextMode==='public_transport'){
@@ -1008,15 +1004,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       ]),{action:'טעינת מסלול הנסיעה'});
       if(token!==requestSequence || date!==dateField.input.value)return;
       loadedDate=date;
-      legs=available.map((leg,index)=>{
-        const old=stored?.legs?.[index];
-        const same=old && old.kind===leg.kind && old.from===leg.from && old.to===leg.to
-          && (!leg.contextFingerprint || old.contextFingerprint===leg.contextFingerprint);
-        return {...leg,
-          minutes:leg.kind==='between'?leg.gapMinutes:(same?old.minutes:null),
-          kilometers:leg.kind==='between' && leg.sameLocation===true?0:(same?old.kilometers:null),
-          mode:same?(old.mode||'car'):(leg.kind==='between' && leg.sameLocation===true?'car':''),transportCost:same?Number(old.transportCost||0):0};
-      });
+      legs=available.map((leg,index)=>mergeDailyTravelLegValues(leg, stored?.legs?.[index]));
       noTravel.checked=stored?.no_travel===true;
       noTravelLabel.hidden=!legs.length || legs.some(leg=>leg.kind==='between');
       if(noTravelLabel.hidden)noTravel.checked=false;
@@ -1086,10 +1074,8 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   save.addEventListener('click',async()=>{
     if(loading || saving || locked || uncertainSave?.date===loadedDate || refreshRequired || loadedDate!==dateField.input.value)return;
     showSummary();
-    if(!noTravel.checked && legs.some(leg=>
-      !(leg.kind==='between' && leg.sameLocation===true)
-      && !['car','public_transport'].includes(leg.mode))){
-      status.textContent='יש לבחור אמצעי נסיעה בכל מקטע לפני מילוי ושמירה';
+    if(!noTravel.checked && legs.some(leg=>!['car','public_transport'].includes(leg.mode))){
+      status.textContent='יש לבחור אמצעי נסיעה בכל מקטע';
       return;
     }
     if(!noTravel.checked && legs.some(leg=>leg.kind!=='between' && leg.mode!=='public_transport' && !Number.isInteger(leg.minutes))){

@@ -669,3 +669,5 @@ config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-mobile-calendar-columns-202611
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-nov-travel-double-pay-guard-20261119-v1`;
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-instructor-save-manager-separation-20261122-v1`;
+
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-attendance-instructor-ux-upgrade-20261123-v1`;

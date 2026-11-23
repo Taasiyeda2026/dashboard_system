@@ -104,9 +104,9 @@ test('systemic B–E migration does not rewrite historical attendance or payroll
 });
 
 test('deployable cache markers include instructor-save separation release', () => {
-  assert.match(frontendSw, /const CACHE_VERSION = 2126;/);
-  assert.match(attendanceSw, /const CACHE_VERSION = 180;/);
-  assert.match(attendanceIndex, /\?v=180/);
-  assert.doesNotMatch(attendanceIndex, /\?v=179/);
+  assert.match(frontendSw, /const CACHE_VERSION = 2127;/);
+  assert.match(attendanceSw, /const CACHE_VERSION = 181;/);
+  assert.match(attendanceIndex, /\?v=181/);
+  assert.doesNotMatch(attendanceIndex, /\?v=180/);
   assert.match(config, /instructor-save-manager-separation-20261122-v1/);
 });
