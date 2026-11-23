@@ -74,8 +74,9 @@ test('Attendance My Reports activity row has ten columns and a separate daily su
   assert.match(reportsSource,/const colLabels = \['תאריך', 'סוג', 'התחלה', 'סיום', 'שעות', 'שם פעילות', 'מפגש', 'מיקום \/ בית ספר', 'רשות', 'פעולות'\]/);
   assert.match(reportsSource,/listWrap\.append\(createDayDetailRow/);
   assert.match(reportsSource,/report_date.*localeCompare|localeCompare.*report_date/);
-  for(const cls of ['av2-rr__action-edit','av2-rr__action-dup','av2-rr__action-delete','av2-rr__travel-shortcut'])
+  for(const cls of ['av2-rr__action-edit','av2-rr__action-dup','av2-rr__action-delete'])
     assert.match(reportsSource,new RegExp(cls));
+  assert.doesNotMatch(reportsSource,/av2-rr__travel-shortcut/);
   assert.match(reportsSource,/schoolCell\.textContent = locationOrSchoolForRecord\(record, baseTraining\)/);
 });
 
@@ -86,17 +87,19 @@ test('Attendance calendar day click opens the unified day drawer instead of filt
   assert.doesNotMatch(reportsSource, /rowEntries\.push|row\.hidden = selectedDate/);
 });
 
-test('Attendance record actions are four accessible icons; daily expenses show only when reported',async()=>{
+test('Attendance record actions are three accessible icons; day strip owns travel CTA',async()=>{
   assert.match(reportsSource,/aria-label', 'שכפל דיווח'/);
   assert.match(reportsSource,/aria-label', 'עריכה'/);
   assert.match(reportsSource,/aria-label', 'מחק'/);
-  assert.match(reportsSource,/createIcon\('map-pin'/);
+  assert.doesNotMatch(reportsSource,/createIcon\('map-pin'/);
   assert.match(reportsSource,/createIcon\('duplicate'/);
   assert.match(reportsSource,/createIcon\('edit'/);
   assert.match(reportsSource,/createIcon\('trash'/);
   const supplement=await readFile(new URL('../attendance/src/components/my-reports-day-detail.js',import.meta.url),'utf8');
   assert.match(supplement,/if\(model\.expenses>0\)/);
   assert.match(supplement,/createIcon\('receipt'/);
+  assert.match(supplement,/av2-day-detail__travel-cta/);
+  assert.match(supplement,/הוסף פעילות/);
   assert.match(reportsStyles,/\.av2-modal--expense\s*\{[^}]*max-width:\s*420px/);
 });
 

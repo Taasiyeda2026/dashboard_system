@@ -13,9 +13,13 @@ test('instructor travel entry opens from attendance shortcut or my-reports link'
  assert.match(screen,/travelShortcut\.addEventListener\('click',[\s\S]*?openTravelForDate\(/);
 });
 
-test('my reports offers a tiny travel shortcut on physical attendance rows',async()=>{
+test('my reports offers day-level travel and activity actions instead of per-row travel pins',async()=>{
  const s=await readFile(new URL('../attendance/src/screens/my-reports-screen.js',import.meta.url),'utf8');
- assert.match(s,/av2-rr__travel-shortcut/);
- assert.match(s,/onTravelReport\(record\.report_date\)/);
- assert.match(s,/record\.activity_type !== 'ביטול זמן'/);
+ const detail=await readFile(new URL('../attendance/src/components/my-reports-day-detail.js',import.meta.url),'utf8');
+ assert.doesNotMatch(s,/av2-rr__travel-shortcut/);
+ assert.match(s,/onNewReport,\s*\n\s*onTravelReport/);
+ assert.match(detail,/הוסף פעילות/);
+ assert.match(detail,/av2-day-detail__day-cta/);
+ assert.match(detail,/av2-day-detail__travel-cta/);
+ assert.match(detail,/onTravelReport\(date\)/);
 });

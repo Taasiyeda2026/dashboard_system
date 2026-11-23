@@ -82,7 +82,6 @@
 .av2-reports .av2-report-list--unified .av2-rr__action-edit{color:#2563eb!important;}
 .av2-reports .av2-report-list--unified .av2-rr__action-dup{color:#7655b9!important;}
 .av2-reports .av2-report-list--unified .av2-rr__action-delete{color:#d13e42!important;}
-.av2-reports .av2-report-list--unified .av2-rr__travel-shortcut{color:#147e83!important;}
 .av2-reports .av2-report-list--unified .av2-rr__meeting{
   font-variant-numeric:tabular-nums;
 }
@@ -120,13 +119,22 @@
 .av2-reports .av2-report-list--unified .av2-day-detail__route-toggle:focus-visible{
   outline:2px solid #2563eb;outline-offset:2px;
 }
+.av2-reports .av2-report-list--unified .av2-day-detail__actions{
+  display:inline-flex;align-items:center;flex-wrap:wrap;gap:8px;
+  margin-inline-start:auto;
+}
+.av2-reports .av2-report-list--unified .av2-day-detail__day-cta,
 .av2-reports .av2-report-list--unified .av2-day-detail__travel-cta{
   border:1px solid #215d96;background:#eef5ff;color:#215d96;
   border-radius:8px;padding:6px 10px;min-height:36px;
   font:inherit;font-size:.78rem;font-weight:700;cursor:pointer;
 }
+.av2-reports .av2-report-list--unified .av2-day-detail__day-cta:focus-visible,
 .av2-reports .av2-report-list--unified .av2-day-detail__travel-cta:focus-visible{
   outline:2px solid #2563eb;outline-offset:2px;
+}
+.av2-reports .av2-report-list--unified .av2-day-detail__day-cta{
+  border-color:#147e83;background:#eefaf8;color:#0f6b6f;
 }
 .av2-reports .av2-report-list--unified .av2-day-detail__route-breakdown{
   display:grid;gap:4px;

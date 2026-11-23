@@ -24,6 +24,8 @@ export function buildDayDetailModel({records=[],travelReport=null,expenseReports
   const expenses=modern
     ?sourceExpenses.reduce((sum,row)=>sum+amount(row?.amount),0)
     :rows.reduce((sum,row)=>sum+amount(row?.expenses),0);
+  const activityHours=rows.reduce((sum,row)=>sum+amount(row?.total_hours),0);
+  const activityCount=rows.length;
   const legs=Array.isArray(travelReport?.legs)?travelReport.legs:[];
   const hasCar=legs.some(leg=>leg.mode==='car' && !(leg.kind==='between' && leg.sameLocation));
   const hasTransit=legs.some(leg=>leg.mode==='public_transport')
@@ -36,7 +38,7 @@ export function buildDayDetailModel({records=[],travelReport=null,expenseReports
       kilometers:travelReport?amount(travelReport.total_km):null,
       publicTransportCost:travelReport?amount(travelReport.public_transport_cost):null,
       cancellationHours:travelReport?amount(travelReport.cancellation_minutes)/60:null,
-      expenses,legs,hasCar,hasTransit,
+      expenses,legs,hasCar,hasTransit,activityHours,activityCount,
     };
   }
   const kilometers=rows.reduce((sum,row)=>sum+amount(row?.roundtrip_km),0);
@@ -46,7 +48,7 @@ export function buildDayDetailModel({records=[],travelReport=null,expenseReports
   return {
     hasReport:true,noTravel:false,kilometers,publicTransportCost,
     cancellationHours:reportedMinutes.some(value=>value!==null)?minutes/60:null,expenses,legs:[],
-    hasCar:kilometers>0,hasTransit:publicTransportCost>0
+    hasCar:kilometers>0,hasTransit:publicTransportCost>0,activityHours,activityCount,
   };
 }
 
@@ -62,20 +64,49 @@ function metric(label, value, extraClass=''){
   return {container,display};
 }
 
-export function createDayDetailRow({date,records,travelReport,expenseReports,modern,onTravelReport}={}){
+function dayAction(label, className, onClick){
+  const button=document.createElement('button');
+  button.type='button';
+  button.className=className;
+  button.textContent=label;
+  button.addEventListener('click',event=>{
+    event.stopPropagation();
+    onClick?.();
+  });
+  return button;
+}
+
+export function createDayDetailRow({
+  date,records,travelReport,expenseReports,modern,editable=false,
+  onTravelReport,onNewReport
+}={}){
   const model=buildDayDetailModel({records,travelReport,expenseReports,modern});
   const row=document.createElement('section');
   row.className='av2-report-day-detail';
   row.dataset.reportDate=date||'';
-  row.setAttribute('aria-label','סיכום נסיעות והוצאות ליום '+(date||''));
+  row.setAttribute('aria-label','סיכום יום עבודה '+(date||''));
   const strip=document.createElement('div');
   strip.className='av2-report-day-detail__strip';
+
+  const activities=metric(
+    'פעילויות',
+    String(model.activityCount||0),
+    'av2-day-detail__activities'
+  );
+  strip.append(activities.container);
+
+  const hours=metric(
+    'שעות',
+    model.activityHours>0?formatDecimalHours(model.activityHours):'—',
+    'av2-day-detail__hours'
+  );
+  strip.append(hours.container);
 
   const route=document.createElement('div');
   route.className='av2-day-detail__metric av2-day-detail__route';
   const routeLabel=document.createElement('span');
   routeLabel.className='av2-day-detail__label';
-  routeLabel.textContent=model.hasTransit&&!model.hasCar?'תחבורה ציבורית':model.hasCar&&!model.hasTransit?'סה״כ קילומטר':'נסיעות';
+  routeLabel.textContent=model.hasTransit&&!model.hasCar?'תחבורה ציבורית':model.hasCar&&!model.hasTransit?'קילומטרים':'נסיעות';
   route.append(routeLabel);
 
   const parts=[];
@@ -93,13 +124,13 @@ export function createDayDetailRow({date,records,travelReport,expenseReports,mod
     btn.type='button';btn.className='av2-day-detail__route-toggle';
     btn.textContent=routeText;
     btn.setAttribute('aria-expanded','false');
-    btn.title='פירוט מסלול הנסיעה';
+    btn.title='פירוט מסלול';
     const detail=document.createElement('div');
     detail.id='av2-day-route-'+String(date||'').replace(/[^0-9-]/g,'');
     detail.className='av2-day-detail__route-breakdown';
     detail.hidden=true;
     btn.setAttribute('aria-controls',detail.id);
-    const kinds={outbound:'הלוך',between:'בין פעילויות',return:'חזור'};
+    const kinds={outbound:'יציאה',between:'מעבר',return:'חזרה'};
     for(const leg of model.legs){
       const line=document.createElement('div');
       const items=[kinds[leg.kind]||'נסיעה',
@@ -120,33 +151,43 @@ export function createDayDetailRow({date,records,travelReport,expenseReports,mod
     });
     route.append(btn);
     row.append(detail);
-  }else if(modern && !model.hasReport && typeof onTravelReport==='function'){
-    const missing=document.createElement('button');
-    missing.type='button';
-    missing.className='av2-day-detail__travel-cta';
-    missing.textContent='השלם נסיעות';
-    missing.setAttribute('aria-label','השלם נסיעות ליום '+String(date||''));
-    missing.addEventListener('click',event=>{
-      event.stopPropagation();
-      onTravelReport(date);
-    });
-    route.append(missing);
   }else{
     const value=document.createElement('strong');
     value.className='av2-day-detail__value';value.textContent=routeText;
     route.append(value);
   }
   strip.append(route);
-  const cancellation=metric('ביטול זמן',
-    model.cancellationHours===null?'—':formatDecimalHours(model.cancellationHours)+' שעות');
-  strip.append(cancellation.container);
+
+  if(model.cancellationHours!=null){
+    strip.append(metric('ביטול זמן',
+      formatDecimalHours(model.cancellationHours)+' שעות').container);
+  }
   if(model.expenses>0){
     const expense=metric('',money(model.expenses),'av2-day-detail__expense');
     expense.container.querySelector('.av2-day-detail__label')?.remove();
     expense.container.prepend(createIcon('receipt',{size:15}));
-    expense.container.title='הוצאות שדווחו';
+    expense.container.title='הוצאות';
     strip.append(expense.container);
   }
+
+  if(modern){
+    const actions=document.createElement('div');
+    actions.className='av2-day-detail__actions';
+    if(editable && typeof onNewReport==='function'){
+      const add=dayAction('הוסף פעילות','av2-day-detail__day-cta',()=>onNewReport(date));
+      add.setAttribute('aria-label','הוסף פעילות ליום '+String(date||''));
+      actions.append(add);
+    }
+    if(typeof onTravelReport==='function'){
+      const travelLabel=!model.hasReport?'השלם נסיעות'
+        :model.needsCorrection?'תקן נסיעות':'נסיעות';
+      const travel=dayAction(travelLabel,'av2-day-detail__travel-cta',()=>onTravelReport(date));
+      travel.setAttribute('aria-label',travelLabel+' ליום '+String(date||''));
+      actions.append(travel);
+    }
+    if(actions.childNodes.length)strip.append(actions);
+  }
+
   row.prepend(strip);
   return row;
 }
