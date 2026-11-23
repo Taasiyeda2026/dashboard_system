@@ -7,7 +7,10 @@ const NAV_ICONS = {
   'בית': '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M3 10.8 12 3l9 7.8v9.2a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   'פעילויות': '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M8 5h11M8 12h11M8 19h11M4.5 5h.01M4.5 12h.01M4.5 19h.01" stroke-width="1.9" stroke-linecap="round"/></svg>',
   'לוח שנה': '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2" stroke-width="1.8"/><path d="M7 3v4M17 3v4M3 9h18" stroke-width="1.8" stroke-linecap="round"/></svg>',
-  'משובים': '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM15 3v5h4M9 12h7M9 16h7" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>'
+  'משובים': '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M6 3h9l4 4v14H6zM15 3v5h4M9 12h7M9 16h7" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>',
+  'נוכחות': '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2" stroke-width="1.8"/><path d="M9 3h6M9 10l1.5 1.5L14 8M9 16h6" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  'אישורים': '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2" stroke-width="1.8"/><path d="M9 3h6M8.5 13l2.5 2.5 4.5-5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  'מצגות': '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2" stroke-width="1.8"/><path d="M12 17v4M8 21h8M10 8l5 2.5-5 2.5z" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>'
 };
 
 function localIsoDate(date = new Date()) {
@@ -21,9 +24,9 @@ function enhanceInstructorNavigation(root = document) {
   const shell = root.querySelector?.('.app-shell--instructor') || (root.matches?.('.app-shell--instructor') ? root : null);
   if (!shell) return;
 
-  // Attendance and presentations stay available as dashboard shortcuts; the
-  // persistent navigation carries only the four core portal destinations.
-  shell.querySelectorAll('.instructor-bottom-nav__btn[data-external-url], .instructor-bottom-nav__btn[data-external-url-blank], .shell-sidebar--instructor .shell-nav__btn[data-external-url], .shell-sidebar--instructor .shell-nav__btn[data-external-url-blank]')
+  // Desktop sidebar external shortcuts stay hidden; mobile attendance and
+  // presentations must remain reachable in the bottom navigation.
+  shell.querySelectorAll('.shell-sidebar--instructor .shell-nav__btn[data-external-url], .shell-sidebar--instructor .shell-nav__btn[data-external-url-blank]')
     .forEach((node) => { node.hidden = true; node.setAttribute('aria-hidden', 'true'); });
 
   shell.querySelectorAll('.instructor-bottom-nav__btn').forEach((button) => {
