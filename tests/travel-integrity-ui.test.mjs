@@ -46,6 +46,6 @@ test('uncertain save confirmation requires the same activity IDs and context, no
  for(const change of [{contextFingerprint:'old'},{toRecordId:'other'}]){
   assert.equal(savedTravelMatchesDraft({...saved,legs:[{...leg,...change}]},[leg]),false);
  }
- assert.match(instructorAttendanceError({message:'attendance_travel_route_changed'}),/פרטי הפעילויות השתנו/);
- assert.match(instructorAttendanceError({message:'attendance_travel_leg_incomplete'}),/לא תקינים/);
+ assert.match(instructorAttendanceError({message:'attendance_travel_route_changed'}),/הפעילויות השתנו/);
+ assert.match(instructorAttendanceError({message:'attendance_travel_leg_incomplete'}),/חסרים פרטים במקטע נסיעה/);
 });

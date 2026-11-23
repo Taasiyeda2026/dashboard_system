@@ -93,11 +93,11 @@ test('manager control flags manual cancellation + travel path conflicts without 
   assert.match(control, /data-attendance-month-blockers/);
 });
 
-test('cache markers bumped for attendance 182 and dashboard 2128', () => {
-  assert.match(attendanceSw, /const CACHE_VERSION = 182/);
-  assert.match(attendanceIndex, /\?v=182/);
+test('cache markers bumped for attendance 183 and dashboard 2129', () => {
+  assert.match(attendanceSw, /const CACHE_VERSION = 183/);
+  assert.match(attendanceIndex, /\?v=183/);
   assert.doesNotMatch(attendanceIndex, /\?v=180/);
-  assert.match(frontendSw, /const CACHE_VERSION = 2128/);
+  assert.match(frontendSw, /const CACHE_VERSION = 2129/);
   assert.match(config, /instructor-save-manager-separation-20261122-v1/);
-  assert.match(config, /attendance-instructor-ux-simplify-20261123-v2/);
+  assert.match(config, /attendance-instructor-ux-simplify-20261123-v3/);
 });

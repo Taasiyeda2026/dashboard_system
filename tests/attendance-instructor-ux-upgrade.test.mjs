@@ -39,12 +39,16 @@ test('summarize includes corrected same-location kilometers', () => {
 
 test('edit form paints edit note and preserves expenses on re-save', async () => {
   const screen = await read('attendance/src/screens/new-report-screen.js');
+  const editRuntime = await read('attendance/src/edit-report-runtime.js');
   assert.match(screen, /עריכת פעילות/);
   assert.match(screen, /sessionStorage\.removeItem\('av2_edit_record_id'\)/);
   assert.match(screen, /expenses: editingExisting && prefill\?\.expenses/);
   assert.match(screen, /activity_name_snapshot/);
   assert.match(screen, /createTimePicker\('av2-start-time', 'התחלה'/);
   assert.match(screen, /createTimePicker\('av2-end-time', 'סיום'/);
+  assert.match(editRuntime, /title\.textContent = 'עריכת פעילות'/);
+  assert.match(editRuntime, /note\.textContent = 'עריכת פעילות'/);
+  assert.doesNotMatch(editRuntime, /ניתן לעדכן את הנתונים הקיימים/);
 });
 
 test('travel tab uses merge helper with short labels and no gap-hours UI', async () => {
@@ -73,9 +77,9 @@ test('staged migration preserves same-location km and caches bumped', async () =
   const config = await read('frontend/src/config.js');
   assert.match(migration, /jsonb_typeof\(v_item->'kilometers'\) is distinct from 'number'/);
   assert.match(migration, /do not apply to production without explicit approval/i);
-  assert.match(sw, /const CACHE_VERSION = 182/);
-  assert.match(index, /\?v=182/);
-  assert.doesNotMatch(index, /\?v=181/);
-  assert.match(frontendSw, /const CACHE_VERSION = 2128/);
-  assert.match(config, /attendance-instructor-ux-simplify-20261123-v2/);
+  assert.match(sw, /const CACHE_VERSION = 183/);
+  assert.match(index, /\?v=183/);
+  assert.doesNotMatch(index, /\?v=18[12]/);
+  assert.match(frontendSw, /const CACHE_VERSION = 2129/);
+  assert.match(config, /attendance-instructor-ux-simplify-20261123-v3/);
 });

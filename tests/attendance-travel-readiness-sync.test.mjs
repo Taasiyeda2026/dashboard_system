@@ -100,8 +100,8 @@ test('attendance PWA cache bumped to 179 and SW defers reload while forms are op
   const sw = await read('attendance/sw.js');
   const index = await read('attendance/index.html');
   const registration = await read('attendance/src/services/sw-registration.service.js');
-  assert.match(sw, /const CACHE_VERSION = 182/);
-  assert.match(index, /\?v=182/);
+  assert.match(sw, /const CACHE_VERSION = 183/);
+  assert.match(index, /\?v=183/);
   assert.doesNotMatch(index, /\?v=178/);
   assert.match(registration, /document\.querySelector\('form, \.av2-daily-travel, \.av2-expenses-tab'\)/);
 });
@@ -127,9 +127,9 @@ test('my-reports renders attendance rows from getMonthRecords even when travel s
 test('mobile and desktop attendance shells stay wired for the travel tab', async () => {
   const index = await read('attendance/index.html');
   const tab = await read('attendance/src/screens/daily-travel-tab.js');
-  assert.match(index, /mobile-app-theme\.css\?v=182/);
-  assert.match(index, /desktop-app-theme\.css\?v=182/);
-  assert.match(index, /report-tabs-responsive-typography\.css\?v=182/);
+  assert.match(index, /mobile-app-theme\.css\?v=183/);
+  assert.match(index, /desktop-app-theme\.css\?v=183/);
+  assert.match(index, /report-tabs-responsive-typography\.css\?v=183/);
   assert.match(tab, /pickDefaultTravelDay\(/);
   assert.match(tab, /av2-report__travel-tab/);
   assert.match(tab, /role', 'tabpanel'/);

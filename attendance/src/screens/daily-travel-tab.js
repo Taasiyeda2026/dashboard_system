@@ -375,8 +375,8 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       const edit=document.createElement('button');
       edit.type='button';edit.className='av2-daily-travel__saved-edit';
       edit.textContent='✎';
-      edit.setAttribute('aria-label','עריכת דיווח');
-      edit.title='עריכת דיווח';
+      edit.setAttribute('aria-label','עריכה');
+      edit.title='עריכה';
       edit.addEventListener('click',()=>{
         if(locked || loading || saving)return;
         editingSavedReport=true;
@@ -436,7 +436,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     if(needsCorrection){
       const instruction=document.createElement('p');
       instruction.className='av2-daily-travel__correction-instruction';
-      instruction.textContent='יש להתאים את הנסיעות לפעילויות היום ולשמור מחדש.';
+      instruction.textContent='נדרש עדכון נסיעות ליום זה.';
       savedCard.append(instruction);
     }
     savedCard.hidden=false;
@@ -857,16 +857,16 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         uncertainSave=null;
         refreshRequired=true;
         reload.textContent='רענון מהשרת';
-        status.textContent='קיים דיווח שמור ליום הזה עם נתונים אחרים. יש לרענן ולבדוק אותו לפני עריכה נוספת.';
+        status.textContent='נמצא דיווח אחר ליום זה — רעננו לפני עריכה.';
       }else{
         uncertainSave=null;
         reload.hidden=true;
-        status.textContent='לא נמצא דיווח שמור ליום זה. אפשר לנסות לשמור שוב.';
+        status.textContent='לא נמצא דיווח שמור. אפשר לשמור שוב.';
       }
     }catch(error){
       if(attempt!==uncertainSave)return;
       reload.textContent='בדיקת מצב השמירה';
-      status.textContent='לא ניתן לאמת אם הדיווח נשמר. הנתונים נשארו בטופס; בדקו שוב לפני ניסיון שמירה נוסף.';
+      status.textContent='לא אומתה השמירה. הנתונים נשארו בטופס.';
     }finally{
       reload.disabled=false;
       save.disabled=loading || locked || loadedDate!==dateField.input.value
@@ -926,7 +926,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         }
         if(!day?.ready){
           status.textContent=day?.review_status==='rejected'
-            ? 'דיווח הנסיעות נשמר, אך אין פעילות נוכחות תואמת. יש להשלים נוכחות לפני תיקון הנסיעות.'
+            ? 'חסרה נוכחות תואמת ליום זה.'
             : 'יש להשלים תחילה דיווח נוכחות ליום זה';
           return;
         }
@@ -981,7 +981,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       const day=dayOptions.find(item=>item.date===date);
       if(!day || !day.ready){
         status.textContent=day?.review_status==='rejected'
-          ? 'דיווח הנסיעות נשמר, אך אין פעילות נוכחות תואמת. יש להשלים נוכחות לפני תיקון הנסיעות.'
+          ? 'חסרה נוכחות תואמת ליום זה.'
           : 'יש להשלים תחילה דיווח נוכחות ליום זה';
         legsArea.replaceChildren();save.hidden=true;noTravelLabel.hidden=true;
         summary.textContent='';loadedDate='';
