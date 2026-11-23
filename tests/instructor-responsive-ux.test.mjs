@@ -19,7 +19,7 @@ test('instructor responsive layer is scoped and loaded after shared dashboard st
   const instructorIndex = index.indexOf('instructor-portal-responsive.css?v=20261013-instructor-feedback-reports-v1');
   assert.notEqual(instructorIndex, -1);
   assert.ok(instructorIndex > sharedIndex);
-  assert.match(index, /instructor-portal-ux-runtime\.js\?v=20261013-instructor-feedback-reports-v1/);
+  assert.match(index, /instructor-portal-ux-runtime\.js\?v=20261123-instructor-mobile-nav-order-icons-v1/);
 });
 
 test('instructor activities are a compact summary and keep full details in the shared drawer', () => {
