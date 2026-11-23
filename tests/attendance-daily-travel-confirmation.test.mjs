@@ -65,7 +65,7 @@ test('transport choice precedes and reveals only relevant fields',async()=>{
   assert.match(ui,/fields\.prepend\(modeWrap\)/);
   assert.match(ui,/chooseMode\.value=''/);
   assert.match(ui,/mode\.value=\(leg\.kind==='return' && sharedReturnMode \? legs\[0\]\.mode : leg\.mode\)\|\|''/);
-  assert.match(ui,/mergeDailyTravelLegValues/);
+  assert.match(ui,/mergeDailyTravelLegsList/);
   assert.match(ui,/const selected=nextMode==='car'\|\|transit/);
   assert.match(ui,/if\(durationWrap\)durationWrap\.hidden=!selected\|\|transit/);
   assert.match(ui,/if\(kmWrap\)kmWrap\.hidden=!selected\|\|transit/);

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
-import { mergeDailyTravelLegValues } from '../attendance/src/services/daily-travel-leg-merge.js';
+import { mergeDailyTravelLegValues, mergeDailyTravelLegsList } from '../attendance/src/services/daily-travel-leg-merge.js';
 import { summarizeDailyTravel } from '../attendance/src/services/daily-travel.js';
 import { instructorAttendanceError } from '../attendance/src/services/instructor-error.service.js';
 
@@ -24,6 +24,22 @@ test('merge preserves saved km on same-location between legs instead of forcing 
     ).kilometers,
     31,
   );
+});
+
+test('list merge rematches saved legs by route when preview order changes', () => {
+  const preview = [
+    { kind: 'return', from: 'א', to: 'בית', contextFingerprint: 'r1' },
+    { kind: 'outbound', from: 'בית', to: 'א', contextFingerprint: 'o1' },
+  ];
+  const saved = [
+    { kind: 'outbound', from: 'בית', to: 'א', kilometers: 31, minutes: 50, mode: 'car', contextFingerprint: 'o1' },
+    { kind: 'return', from: 'א', to: 'בית', kilometers: 28, minutes: 45, mode: 'car', contextFingerprint: 'r1' },
+  ];
+  const merged = mergeDailyTravelLegsList(preview, saved);
+  assert.equal(merged[0].kilometers, 28);
+  assert.equal(merged[0].minutes, 45);
+  assert.equal(merged[1].kilometers, 31);
+  assert.equal(merged[1].minutes, 50);
 });
 
 test('summarize includes corrected same-location kilometers', () => {
@@ -53,7 +69,9 @@ test('edit form paints edit note and preserves expenses on re-save', async () =>
 
 test('travel tab uses merge helper with short labels and no gap-hours UI', async () => {
   const tab = await read('attendance/src/screens/daily-travel-tab.js');
-  assert.match(tab, /mergeDailyTravelLegValues/);
+  assert.match(tab, /mergeDailyTravelLegsList/);
+  assert.match(tab, /enterSavedEditMode/);
+  assert.match(tab, /openInEdit/);
   assert.match(tab, /label:'קילומטרים'/);
   assert.match(tab, /save\.textContent='שמור'/);
   assert.match(tab, /between:'מעבר בין פעילויות'/);
@@ -77,9 +95,9 @@ test('staged migration preserves same-location km and caches bumped', async () =
   const config = await read('frontend/src/config.js');
   assert.match(migration, /jsonb_typeof\(v_item->'kilometers'\) is distinct from 'number'/);
   assert.match(migration, /do not apply to production without explicit approval/i);
-  assert.match(sw, /const CACHE_VERSION = 184/);
-  assert.match(index, /\?v=184/);
-  assert.doesNotMatch(index, /\?v=18[123]/);
+  assert.match(sw, /const CACHE_VERSION = 186/);
+  assert.match(index, /\?v=186/);
+  assert.doesNotMatch(index, /\?v=18[345]/);
   assert.match(frontendSw, /const CACHE_VERSION = 2131/);
   assert.match(config, /attendance-workday-chrome-20261123-v1/);
 });

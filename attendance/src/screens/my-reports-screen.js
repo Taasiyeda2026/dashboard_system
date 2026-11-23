@@ -790,7 +790,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
   const schoolField = createInputField({ id: 'edit-school',    label: 'בית ספר', value: record.school_name_snapshot || '' });
   form.append(authField.wrap, schoolField.wrap);
 
-  form.append(sectionTitle('זמן ונסיעות'));
+  form.append(sectionTitle('זמן'));
 
   const startTimeField = createTimePicker('edit-start-time', 'שעת התחלה', record.start_time || '', 1);
   const endTimeField   = createTimePicker('edit-end-time',   'שעת סיום',  record.end_time   || '', 1);
@@ -856,9 +856,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
   }
   const cancellationFields = document.createElement('div');
   cancellationFields.className = 'av2-report__time-cancellation av2-report__inline-cancellation';
-  const cancellationNote = document.createElement('small');
-  cancellationNote.textContent = 'ביטול הזמן נבדק בנפרד ואינו משנה את שעות הפעילות.';
-  cancellationFields.append(beforeCancellationField.wrap, afterCancellationField.wrap, cancellationNote);
+  cancellationFields.append(beforeCancellationField.wrap, afterCancellationField.wrap);
   form.append(cancellationWrap, cancellationFields);
 
   const trainingModeField = createSelectField({

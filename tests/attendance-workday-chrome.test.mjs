@@ -19,7 +19,7 @@ test('report screen exposes work-day chrome and post-save travel CTA', async () 
   assert.match(screen, /travelTab\.textContent = 'נסיעות'/);
   assert.doesNotMatch(screen, /travelTab\.textContent = 'נסיעות וביטולים'/);
   assert.match(screen, /השלם נסיעות/);
-  assert.match(screen, /dailyTravel\.setDate\(workDate\)/);
+  assert.match(screen, /dailyTravel\.setDate\(workDate, \{openInEdit: true\}\)/);
   assert.match(expenses, /function setDate\(/);
   assert.match(expenses, /return \{panel,load:refresh,setDate,dateInput:date\.input\}/);
 });
@@ -40,7 +40,7 @@ test('My Reports day strip summarizes activities and offers day CTAs', async () 
 test('work-day day-surface cache markers bumped above previous release', async () => {
   const sw = await read('attendance/sw.js');
   const index = await read('attendance/index.html');
-  assert.match(sw, /const CACHE_VERSION = 185/);
-  assert.match(index, /\?v=185/);
-  assert.doesNotMatch(index, /\?v=184/);
+  assert.match(sw, /const CACHE_VERSION = 186/);
+  assert.match(index, /\?v=186/);
+  assert.doesNotMatch(index, /\?v=185/);
 });
