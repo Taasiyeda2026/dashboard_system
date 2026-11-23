@@ -77,9 +77,9 @@ test('staged migration preserves same-location km and caches bumped', async () =
   const config = await read('frontend/src/config.js');
   assert.match(migration, /jsonb_typeof\(v_item->'kilometers'\) is distinct from 'number'/);
   assert.match(migration, /do not apply to production without explicit approval/i);
-  assert.match(sw, /const CACHE_VERSION = 183/);
-  assert.match(index, /\?v=183/);
-  assert.doesNotMatch(index, /\?v=18[12]/);
-  assert.match(frontendSw, /const CACHE_VERSION = 2129/);
-  assert.match(config, /attendance-instructor-ux-simplify-20261123-v3/);
+  assert.match(sw, /const CACHE_VERSION = 184/);
+  assert.match(index, /\?v=184/);
+  assert.doesNotMatch(index, /\?v=18[123]/);
+  assert.match(frontendSw, /const CACHE_VERSION = 2130/);
+  assert.match(config, /attendance-workday-chrome-20261123-v1/);
 });

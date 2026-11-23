@@ -120,6 +120,17 @@ export function createDayDetailRow({date,records,travelReport,expenseReports,mod
     });
     route.append(btn);
     row.append(detail);
+  }else if(modern && !model.hasReport && typeof onTravelReport==='function'){
+    const missing=document.createElement('button');
+    missing.type='button';
+    missing.className='av2-day-detail__travel-cta';
+    missing.textContent='השלם נסיעות';
+    missing.setAttribute('aria-label','השלם נסיעות ליום '+String(date||''));
+    missing.addEventListener('click',event=>{
+      event.stopPropagation();
+      onTravelReport(date);
+    });
+    route.append(missing);
   }else{
     const value=document.createElement('strong');
     value.className='av2-day-detail__value';value.textContent=routeText;

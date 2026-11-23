@@ -120,6 +120,14 @@
 .av2-reports .av2-report-list--unified .av2-day-detail__route-toggle:focus-visible{
   outline:2px solid #2563eb;outline-offset:2px;
 }
+.av2-reports .av2-report-list--unified .av2-day-detail__travel-cta{
+  border:1px solid #215d96;background:#eef5ff;color:#215d96;
+  border-radius:8px;padding:6px 10px;min-height:36px;
+  font:inherit;font-size:.78rem;font-weight:700;cursor:pointer;
+}
+.av2-reports .av2-report-list--unified .av2-day-detail__travel-cta:focus-visible{
+  outline:2px solid #2563eb;outline-offset:2px;
+}
 .av2-reports .av2-report-list--unified .av2-day-detail__route-breakdown{
   display:grid;gap:4px;
   margin-top:7px;padding:8px 10px;

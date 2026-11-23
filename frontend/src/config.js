@@ -672,3 +672,5 @@ config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-instructor-save-manager-separa
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-attendance-instructor-ux-simplify-20261123-v2`;
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-attendance-instructor-ux-simplify-20261123-v3`;
+
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-attendance-workday-chrome-20261123-v1`;

@@ -167,6 +167,9 @@ export function renderNewReportScreen(container, {
   wrap.append(inner);
   container.append(wrap);
 
+  // Rebuilt forms rebind this so success CTA / shortcuts always hit the live tab API.
+  let openTravelForDate = null;
+
   let selectedActivity = null;
   const dashboardCourses = createDashboardCourseChoiceState();
   let courseLoadToken = 0;
@@ -1516,8 +1519,8 @@ export function renderNewReportScreen(container, {
     const travelShortcut = document.createElement('button');
     travelShortcut.type = 'button';
     travelShortcut.className = 'av2-report__tiny-travel-btn';
-    travelShortcut.setAttribute('aria-label', 'מילוי נסיעות – מעבר ללשונית נסיעות וביטולים');
-    travelShortcut.append(createIcon('map-pin'), document.createTextNode('מילוי נסיעות'));
+    travelShortcut.setAttribute('aria-label', 'השלם נסיעות ליום זה');
+    travelShortcut.append(createIcon('map-pin'), document.createTextNode('השלם נסיעות'));
     hoursFollowup.append(travelShortcut);
 
     const timesSection = makeFormSection(
@@ -1578,6 +1581,7 @@ export function renderNewReportScreen(container, {
 
     typeField.input.addEventListener('change', () => { onActivityTypeChange(); });
     let acceptedReportDate=dateField.input.value;
+    let syncWorkDayTabs = () => {};
     dateField.input.addEventListener('change', () => {
       const requestedDate=dateField.input.value;
       if (requestedDate===acceptedReportDate) return;
@@ -1587,6 +1591,7 @@ export function renderNewReportScreen(container, {
         return;
       }
       acceptedReportDate=requestedDate;
+      syncWorkDayTabs(requestedDate);
       void onReportDateChange();
     });
     form.addEventListener('av2:dashboard-duplicate-meeting', (event) => {
@@ -1740,7 +1745,17 @@ export function renderNewReportScreen(container, {
       onSaved?.(record);
       notifyTravelAttendanceChanged();
       buildForm(null, reportDate);
-      successBanner.textContent = 'דיווח הנוכחות נשמר בהצלחה';
+      successBanner.replaceChildren();
+      const savedMsg = document.createElement('span');
+      savedMsg.textContent = 'הנוכחות נשמרה.';
+      const travelCta = document.createElement('button');
+      travelCta.type = 'button';
+      travelCta.className = 'av2-report__success-cta';
+      travelCta.textContent = 'השלם נסיעות ליום זה';
+      travelCta.addEventListener('click', () => {
+        openTravelForDate?.(reportDate || defaultDate);
+      });
+      successBanner.append(savedMsg, travelCta);
       successBanner.hidden = false;
       successBanner.setAttribute('role','status');
       successBanner.scrollIntoView({block:'nearest',behavior:'smooth'});
@@ -1911,7 +1926,7 @@ export function renderNewReportScreen(container, {
       const programName = activity?.program_name || activityNameSnapshot || null;
 
       const usesPublicTransport = !isOnline && !isTeamOnline && publicTransportInput.checked;
-      // Kilometres are reported separately in נסיעות וביטולים. Never block
+      // Kilometres are reported separately in the travel tab. Never block
       // saving attendance because its kilometres input is no longer displayed.
       const legacyKm = reportedKilometers(kmField.input.value, {
         online: isOnline || isTeamOnline, publicTransport: usesPublicTransport, activityType: reportType,
@@ -2011,6 +2026,23 @@ export function renderNewReportScreen(container, {
       } finally {draftGuard.busy=false;}
     });
 
+    const workdayBar = document.createElement('div');
+    workdayBar.className = 'av2-workday';
+    const workdayLabel = document.createElement('strong');
+    workdayLabel.className = 'av2-workday__label';
+    workdayLabel.textContent = 'יום עבודה';
+    const workdayDate = document.createElement('span');
+    workdayDate.className = 'av2-workday__date';
+    workdayBar.append(workdayLabel, workdayDate);
+    function paintWorkDay(dateValue) {
+      const raw = String(dateValue || dateField.input.value || defaultDate || '').slice(0, 10);
+      workdayDate.textContent = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+        ? raw.split('-').reverse().join('.')
+        : raw;
+      workdayBar.dataset.workDate = raw;
+    }
+    paintWorkDay(dateField.input.value || defaultDate);
+
     const tabs = document.createElement('div');
     tabs.className = 'av2-report__tabs';
     tabs.setAttribute('role', 'tablist');
@@ -2022,7 +2054,7 @@ export function renderNewReportScreen(container, {
     const travelTab = document.createElement('button');
     travelTab.type = 'button';
     travelTab.className = 'av2-btn av2-btn--secondary';
-    travelTab.textContent = 'נסיעות וביטולים';
+    travelTab.textContent = 'נסיעות';
     travelTab.setAttribute('role','tab');
     const expenseTab = document.createElement('button');
     expenseTab.type = 'button';
@@ -2045,8 +2077,14 @@ export function renderNewReportScreen(container, {
       onEditHistorical: (date) => onOpenMyReports?.(date)
     });
     const expensesPanel = createExpensesTab({
-      instructor,initialDate:localIsoDate()
+      instructor,initialDate: dateField.input.value || defaultDate || localIsoDate()
     });
+    syncWorkDayTabs = (nextDate) => {
+      const dateValue = String(nextDate || dateField.input.value || defaultDate || '').slice(0, 10);
+      paintWorkDay(dateValue);
+      dailyTravel?.setDate?.(dateValue);
+      expensesPanel?.setDate?.(dateValue);
+    };
     const attendanceMonthWrap=document.createElement('div');
     attendanceMonthWrap.className='av2-daily-travel__month-wrap av2-report__attendance-month';
     const attendanceMonthLabel=document.createElement('label');
@@ -2152,24 +2190,34 @@ export function renderNewReportScreen(container, {
         tab.tabIndex=active?0:-1;
         tab.classList.toggle('av2-report__tab--active',active);
       }
+      const workDate = dateField.input.value || defaultDate;
+      paintWorkDay(workDate);
       if(isTravel){
-        if(dailyTravel.panel.dataset.av2Visited!=='1'){
-          dailyTravel.setDate(dateField.input.value||defaultDate);
-          dailyTravel.panel.dataset.av2Visited='1';
-        }
+        dailyTravel.setDate(workDate);
+        dailyTravel.panel.dataset.av2Visited='1';
         void dailyTravel.load();
       }
-      if(isExpenses && expensesPanel.panel.dataset.av2Visited!=='1'){
-        expensesPanel.panel.dataset.av2Visited='1';
-        void expensesPanel.load();
+      if(isExpenses){
+        expensesPanel.setDate?.(workDate);
+        if(expensesPanel.panel.dataset.av2Visited!=='1'){
+          expensesPanel.panel.dataset.av2Visited='1';
+          void expensesPanel.load();
+        }
       }
     }
-    travelShortcut.addEventListener('click',()=>{
-      // Navigation only: retain all unsaved Attendance inputs without saving them.
-      // Always honor the currently selected activity date, including repeat visits.
-      dailyTravel.setDate(dateField.input.value||defaultDate);
+    openTravelForDate = (dateValue) => {
+      const workDate = String(dateValue || dateField.input.value || defaultDate || '').slice(0, 10);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(workDate) && dateField.input.value !== workDate) {
+        dateField.input.value = workDate;
+        acceptedReportDate = workDate;
+      }
+      syncWorkDayTabs(workDate);
       showTab('travel');
       travelTab.focus();
+    };
+    travelShortcut.addEventListener('click',()=>{
+      // Navigation only: retain all unsaved Attendance inputs without saving them.
+      openTravelForDate(dateField.input.value || defaultDate);
     });
     attendanceTab.addEventListener('click',()=>showTab('attendance'));
     travelTab.addEventListener('click',()=>showTab('travel'));
@@ -2185,7 +2233,7 @@ export function renderNewReportScreen(container, {
       showTab(['attendance','travel','expenses'][nextIndex]);
       tabsList[nextIndex].focus();
     });
-    formArea.append(tabs,attendanceMonthWrap,form,historyPanel,dailyTravel.panel,expensesPanel.panel);
+    formArea.append(workdayBar,tabs,attendanceMonthWrap,form,historyPanel,dailyTravel.panel,expensesPanel.panel);
     showTab(initialTab === 'travel' ? 'travel' : 'attendance');
     void onReportDateChange();
   }

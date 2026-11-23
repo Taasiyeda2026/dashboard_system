@@ -10,7 +10,7 @@ test('new report has three independent tabs; expenses do not attach to attendanc
  assert.ok(src.includes('tabs.append(attendanceTab, travelTab, expenseTab)'));
  assert.ok(src.includes('expensesPanel.panel.hidden = !isExpenses'));
  assert.ok(src.includes('expensesPanel.load()'));
- assert.ok(src.includes('formArea.append(tabs,attendanceMonthWrap,form,historyPanel,dailyTravel.panel,expensesPanel.panel)'));
+ assert.ok(src.includes('formArea.append(workdayBar,tabs,attendanceMonthWrap,form,historyPanel,dailyTravel.panel,expensesPanel.panel)'));
  assert.ok(src.includes('[timesGrid]'));
  assert.ok(!src.includes('[timesGrid, expensesInner]'));
  assert.ok(src.includes('expenses: editingExisting && prefill?.expenses != null ? Number(prefill.expenses) || 0 : 0'));

@@ -29,9 +29,9 @@ test('mobile and desktop offer same independent tabs and accessible navigation',
   const css=await readFile(new URL('../attendance/src/styles/new-report-screen.css',import.meta.url),'utf8');
   const travel=await readFile(new URL('../attendance/src/screens/daily-travel-tab.js',import.meta.url),'utf8');
   assert.match(screen,/attendanceTab\.textContent = 'נוכחות'/);
-  assert.match(screen,/travelTab\.textContent = 'נסיעות וביטולים'/);
+  assert.match(screen,/travelTab\.textContent = 'נסיעות'/);
   assert.match(screen,/form\.hidden = !isAttendance/);
- assert.ok(screen.includes('dailyTravel.setDate(dateField.input.value||defaultDate)'));
+ assert.match(screen,/dailyTravel\.setDate\(workDate\)/);
   assert.match(screen,/tabs\.addEventListener\('keydown'/);
   assert.ok(travel.includes('loadedDate===requestedDay'));
   assert.match(travel,/saveDailyTravel\(saveDate,saveLegs,saveNoTravel,\{signal\}\)/);
