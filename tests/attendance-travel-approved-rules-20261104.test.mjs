@@ -8,7 +8,7 @@ test('travel preview defaults same-location km to 0 and preserves saved values v
  const merge=await readFile(new URL('../attendance/src/services/daily-travel-leg-merge.js',import.meta.url),'utf8');
  assert.match(api,/leg\.kind==='between' && leg\.sameLocation===true/);
  assert.match(api,/leg\.kilometers==null \|\| leg\.kilometers==='' \? 0/);
- assert.match(ui,/mergeDailyTravelLegValues\(leg, stored\?\.legs\?\.\[index\]\)/);
+ assert.match(ui,/mergeDailyTravelLegsList\(available, stored\?\.legs \|\| \[\]\)/);
  assert.match(ui,/if\(leg\.kind==='between'\)/);
  assert.match(ui,/leg\.kind==='between' && leg\.sameLocation===true/);
  assert.match(ui,/noTravelLabel.hidden=!legs.length \|\| legs.some\(leg=>leg.kind==='between'\)/);

@@ -1501,7 +1501,7 @@ export function renderNewReportScreen(container, {
     notesField = createInputField({
       id: 'av2-notes',
       label: 'הערות',
-      placeholder: 'הערות (אופציונלי)',
+      placeholder: 'הערות',
       value: prefill?.notes || '',
     });
 
@@ -1908,7 +1908,10 @@ export function renderNewReportScreen(container, {
 
       const isTraining = reportType === TRAINING_REPORT_TYPE;
       const hasNoLocation = isOpen || isOnline;
-      const location = isTraining && !isOnline ? trainingLocationField.input.value.trim() : '';
+      const location = isTraining && !isOnline
+        ? (trainingLocationField.input.value.trim()
+          || (editingExisting ? String(prefill?.destination_address_snapshot || '').trim() : ''))
+        : '';
       const finalAuthorityId = hasNoLocation || isTraining ? null : (activity?.authority_id ?? manualAuthId ?? null);
       const finalAuthorityName = hasNoLocation ? null : (isTraining ? location : (activity?.authority_name ?? activity?.authority ?? manualAuthName ?? null));
       const finalSchoolId = hasNoLocation || isTraining ? null : (activity ? (schoolId || null) : (manualSchoolId || null));
@@ -1918,12 +1921,21 @@ export function renderNewReportScreen(container, {
       if (isOpen) {
         activityNameSnapshot = operationSnapshot();
       } else if (requiresActivityName(reportType)) {
-        activityNameSnapshot = String(activity?.activity_name || activity?.program_name || '').trim() || null;
+        activityNameSnapshot = String(
+          activity?.activity_name
+          || activity?.program_name
+          || activityNameSel?.getLabel?.()
+          || (editingExisting ? prefill?.activity_name_snapshot : '')
+          || ''
+        ).trim() || null;
       } else if (isNoActivity) {
         activityNameSnapshot = reportType;
       }
 
-      const programName = activity?.program_name || activityNameSnapshot || null;
+      const programName = activity?.program_name
+        || activityNameSnapshot
+        || (editingExisting ? prefill?.program_name_snapshot : null)
+        || null;
 
       const usesPublicTransport = !isOnline && !isTeamOnline && publicTransportInput.checked;
       // Kilometres are reported separately in the travel tab. Never block
@@ -1961,16 +1973,26 @@ export function renderNewReportScreen(container, {
           training_mode: reportType === TRAINING_REPORT_TYPE
             ? (isOnlineTraining() ? 'online' : 'physical')
             : null,
-          activity_id: isOpen || isBaseTraining || activity?.__attendanceTrainingSchedule ? null : (activity?.id ?? null),
-          activity_row_id: isOpen || isBaseTraining || activity?.__attendanceTrainingSchedule ? null : (activityRowId(activity) || null),
-          activity_no: isOpen || isBaseTraining ? null : (activity?.activity_no ?? null),
-          activity_season: isOpen || isBaseTraining ? null : (activity?.activity_season ?? null),
+          activity_id: isOpen || isBaseTraining || activity?.__attendanceTrainingSchedule
+            ? null
+            : (activity?.id ?? (editingExisting ? prefill?.activity_id ?? null : null)),
+          activity_row_id: isOpen || isBaseTraining || activity?.__attendanceTrainingSchedule
+            ? null
+            : (activityRowId(activity) || (editingExisting ? prefill?.activity_row_id || null : null)),
+          activity_no: isOpen || isBaseTraining
+            ? null
+            : (activity?.activity_no ?? (editingExisting ? prefill?.activity_no ?? null : null)),
+          activity_season: isOpen || isBaseTraining
+            ? null
+            : (activity?.activity_season ?? (editingExisting ? prefill?.activity_season ?? null : null)),
           activity_name_snapshot: activityNameSnapshot,
           meeting_no: isCourseReportType(reportType) && meetingField.getValue() ? Number(meetingField.getValue()) : null,
-          authority_id: finalAuthorityId,
-          authority_name_snapshot: finalAuthorityName,
-          school_id: finalSchoolId,
-          school_name_snapshot: finalSchoolName,
+          authority_id: finalAuthorityId ?? (editingExisting && !hasNoLocation && !isTraining ? prefill?.authority_id ?? null : null),
+          authority_name_snapshot: finalAuthorityName
+            ?? (editingExisting && !hasNoLocation && !isTraining ? prefill?.authority_name_snapshot ?? null : null),
+          school_id: finalSchoolId ?? (editingExisting && !hasNoLocation && !isTraining ? prefill?.school_id ?? null : null),
+          school_name_snapshot: finalSchoolName
+            ?? (editingExisting && !hasNoLocation && !isTraining ? prefill?.school_name_snapshot ?? null : null),
           semel_mosad: hasNoLocation || isTraining ? null : (semelMosad || null),
           program_name: isOpen || isBaseTraining ? null : (activity?.program_name ?? null),
           program_name_snapshot: programName,
@@ -2079,10 +2101,10 @@ export function renderNewReportScreen(container, {
     const expensesPanel = createExpensesTab({
       instructor,initialDate: dateField.input.value || defaultDate || localIsoDate()
     });
-    syncWorkDayTabs = (nextDate) => {
+    syncWorkDayTabs = (nextDate, options = {}) => {
       const dateValue = String(nextDate || dateField.input.value || defaultDate || '').slice(0, 10);
       paintWorkDay(dateValue);
-      dailyTravel?.setDate?.(dateValue);
+      dailyTravel?.setDate?.(dateValue, options);
       expensesPanel?.setDate?.(dateValue);
     };
     const attendanceMonthWrap=document.createElement('div');
@@ -2193,7 +2215,7 @@ export function renderNewReportScreen(container, {
       const workDate = dateField.input.value || defaultDate;
       paintWorkDay(workDate);
       if(isTravel){
-        dailyTravel.setDate(workDate);
+        dailyTravel.setDate(workDate, {openInEdit: true});
         dailyTravel.panel.dataset.av2Visited='1';
         void dailyTravel.load();
       }
@@ -2211,7 +2233,7 @@ export function renderNewReportScreen(container, {
         dateField.input.value = workDate;
         acceptedReportDate = workDate;
       }
-      syncWorkDayTabs(workDate);
+      syncWorkDayTabs(workDate, {openInEdit: true});
       showTab('travel');
       travelTab.focus();
     };
@@ -2264,7 +2286,7 @@ function buildAttachmentSection(pendingFiles) {
 
   const label = document.createElement('p');
   label.className = 'av2-field__label';
-  label.textContent = 'מסמכים מצורפים (אופציונלי)';
+  label.textContent = 'מסמכים מצורפים';
 
   const fileList = document.createElement('div');
   fileList.className = 'av2-attach-list';

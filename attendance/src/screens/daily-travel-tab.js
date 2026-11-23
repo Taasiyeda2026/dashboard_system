@@ -12,7 +12,7 @@ import { listInstructorDisplayMonths, readHistoricalAttendance, historicalTravel
 import {
   getDailyTravelActivityLegs, getDailyTravelReport, getDailyTravelReports, getAssignedTravelDays, saveDailyTravel
 } from '../services/daily-travel.service.js';
-import { mergeDailyTravelLegValues } from '../services/daily-travel-leg-merge.js';
+import { mergeDailyTravelLegsList } from '../services/daily-travel-leg-merge.js';
 import {
   canReloadTravelAfterAttendanceChange,
   pickDefaultTravelDay,
@@ -156,8 +156,21 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   const draftGuard=createUnsavedChangesGuard(panel,{ignore:target=>
     !legsArea.contains(target) && target!==noTravel});
   let editingSavedReport=false;
+  let preferEditOnLoad=false;
   let uncertainSave=null;
   let refreshRequired=false;
+  function enterSavedEditMode(){
+    if(locked || loading || saving)return false;
+    editingSavedReport=true;
+    reportCard.classList.remove('av2-daily-travel__report-card--saved');
+    savedCard.hidden=true;
+    noTravelLabel.hidden=!legs.length || legs.some(leg=>leg.kind==='between');
+    summary.hidden=false;
+    actions.replaceChildren(save);
+    renderLegs();
+    save.disabled=false;
+    return true;
+  }
   const formatDate=value=>String(value||'').split('-').reverse().join('.');
   const isLegacyDay=date=>String(date||'')<'2026-11-01';
   const historicalEditable=()=>{
@@ -190,9 +203,9 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     fields.className='av2-daily-travel__inline-fields';
     fields.dataset.recordId=record.id;
     const data=[
-      ['roundtrip_km','קילומטרים (הלוך וחזור)',record.roundtrip_km,'number'],
-      ['cancellation_before_minutes','ביטול זמן היסטורי – מקטע יציאה (שעות:דקות)',durationValue(record.cancellation_before_minutes),'text'],
-      ['cancellation_after_minutes','ביטול זמן היסטורי – מקטע חזרה (שעות:דקות)',durationValue(record.cancellation_after_minutes),'text']
+      ['roundtrip_km','קילומטרים הלוך־חזור',record.roundtrip_km,'number'],
+      ['cancellation_before_minutes','ביטול זמן יציאה',durationValue(record.cancellation_before_minutes),'text'],
+      ['cancellation_after_minutes','ביטול זמן חזרה',durationValue(record.cancellation_after_minutes),'text']
     ];
     for(const [field,label,value,type] of data){
       const wrapper=document.createElement('label');
@@ -292,7 +305,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       const heading=document.createElement('strong');heading.textContent='נסיעות · '+formatDate(day.date);
       summaryCard.append(heading);
       appendDetail(summaryCard,'קילומטרים',report.total_km==null?null:report.total_km+' ק״מ');
-      appendDetail(summaryCard,'ביטול זמן מאושר / מדווח',report.cancellation_minutes==null?null:durationValue(report.cancellation_minutes)+' שעות');
+      appendDetail(summaryCard,'ביטול זמן',report.cancellation_minutes==null?null:durationValue(report.cancellation_minutes)+' שעות');
       appendDetail(summaryCard,'סטטוס דיווח',report.review_status==='rejected'?'נדרש תיקון':'נשמר');
       for(const leg of Array.isArray(report.legs)?report.legs:[]){
         const part=document.createElement('div');part.className='av2-daily-travel__legacy-detail';
@@ -377,17 +390,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       edit.textContent='✎';
       edit.setAttribute('aria-label','עריכה');
       edit.title='עריכה';
-      edit.addEventListener('click',()=>{
-        if(locked || loading || saving)return;
-        editingSavedReport=true;
-        reportCard.classList.remove('av2-daily-travel__report-card--saved');
-        savedCard.hidden=true;
-        noTravelLabel.hidden=!legs.length || legs.some(leg=>leg.kind==='between');
-        summary.hidden=false;
-        actions.replaceChildren(save);
-        renderLegs();
-        save.disabled=false;
-      });
+      edit.addEventListener('click',()=>{enterSavedEditMode();});
       header.append(edit);
     }
     const details=document.createElement('div');
@@ -436,7 +439,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     if(needsCorrection){
       const instruction=document.createElement('p');
       instruction.className='av2-daily-travel__correction-instruction';
-      instruction.textContent='נדרש עדכון נסיעות ליום זה.';
+      instruction.textContent='יש לעדכן את הנסיעות.';
       savedCard.append(instruction);
     }
     savedCard.hidden=false;
@@ -663,8 +666,12 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     }
     showSummary();
   }
-  function setDate(date) {
-    if (String(date||'').slice(0,10)===requestedDay && loadedDate===requestedDay) return true;
+  function setDate(date, options = {}) {
+    if (options.openInEdit) preferEditOnLoad = true;
+    if (String(date||'').slice(0,10)===requestedDay && loadedDate===requestedDay) {
+      if (preferEditOnLoad && !locked && !savedCard.hidden) enterSavedEditMode();
+      return true;
+    }
     if (!draftGuard.confirmLeave()) {daySelect.value=requestedDay;syncDayPicker();return false;}
     historicalEditing=false;
     requestedDay=String(date||'').slice(0,10);
@@ -993,7 +1000,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       ]),{action:'טעינת מסלול הנסיעה'});
       if(token!==requestSequence || date!==dateField.input.value)return;
       loadedDate=date;
-      legs=available.map((leg,index)=>mergeDailyTravelLegValues(leg, stored?.legs?.[index]));
+      legs=mergeDailyTravelLegsList(available, stored?.legs || []);
       noTravel.checked=stored?.no_travel===true;
       noTravelLabel.hidden=!legs.length || legs.some(leg=>leg.kind==='between');
       if(noTravelLabel.hidden)noTravel.checked=false;
@@ -1015,8 +1022,14 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         const contextChanged=stored.legs?.some((old,index)=>old.contextFingerprint
           && available[index]?.contextFingerprint
           && old.contextFingerprint!==available[index].contextFingerprint);
+        const openInEdit=preferEditOnLoad || contextChanged || stored.review_status==='rejected';
+        preferEditOnLoad=false;
         showSavedReport(stored,{contextChanged});
-      }else {savedCard.hidden=true;legsArea.hidden=noTravel.checked;summary.hidden=false;actions.replaceChildren(save);}
+        if(openInEdit && !locked)enterSavedEditMode();
+      }else {
+        preferEditOnLoad=false;
+        savedCard.hidden=true;legsArea.hidden=noTravel.checked;summary.hidden=false;actions.replaceChildren(save);
+      }
     }catch(err){
       // A timed-out read may still finish later: invalidate it before unlocking the screen.
       ++requestSequence;

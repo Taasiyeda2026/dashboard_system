@@ -33,3 +33,22 @@ export function mergeDailyTravelLegValues(previewLeg = {}, savedLeg = null) {
     transportCost: same ? Number(savedLeg.transportCost || 0) : 0,
   };
 }
+
+/** Prefer route match over index so reordered previews keep saved km/minutes/mode. */
+export function mergeDailyTravelLegsList(previewLegs = [], savedLegs = []) {
+  const preview = Array.isArray(previewLegs) ? previewLegs : [];
+  const saved = Array.isArray(savedLegs) ? savedLegs : [];
+  const unused = new Set(saved.map((_, index) => index));
+  return preview.map((leg, index) => {
+    let matchIndex = -1;
+    for (const candidate of unused) {
+      if (legsShareRoute(leg, saved[candidate])) {
+        matchIndex = candidate;
+        break;
+      }
+    }
+    if (matchIndex < 0 && unused.has(index)) matchIndex = index;
+    if (matchIndex >= 0) unused.delete(matchIndex);
+    return mergeDailyTravelLegValues(leg, matchIndex >= 0 ? saved[matchIndex] : null);
+  });
+}
