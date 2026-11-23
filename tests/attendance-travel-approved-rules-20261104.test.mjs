@@ -2,14 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 
-test('travel preview shows routes but does not prepopulate reported kilometres',async()=>{
+test('travel preview defaults same-location km to 0 and preserves saved values via merge',async()=>{
  const api=await readFile(new URL('../attendance/src/services/daily-travel.service.js',import.meta.url),'utf8');
  const ui=await readFile(new URL('../attendance/src/screens/daily-travel-tab.js',import.meta.url),'utf8');
- assert.match(api,/kilometers:leg.kind==='between' && leg.sameLocation===true \? 0 : null/);
- assert.match(ui,/if\(leg.kind==='between'\)/);
- assert.match(ui,/leg.kind==='between' && leg.sameLocation===true/);
- assert.match(ui,/leg.kind==='between'\?leg.gapMinutes:/);
+ const merge=await readFile(new URL('../attendance/src/services/daily-travel-leg-merge.js',import.meta.url),'utf8');
+ assert.match(api,/leg\.kind==='between' && leg\.sameLocation===true/);
+ assert.match(api,/leg\.kilometers==null \|\| leg\.kilometers==='' \? 0/);
+ assert.match(ui,/mergeDailyTravelLegValues\(leg, stored\?\.legs\?\.\[index\]\)/);
+ assert.match(ui,/if\(leg\.kind==='between'\)/);
+ assert.match(ui,/leg\.kind==='between' && leg\.sameLocation===true/);
  assert.match(ui,/noTravelLabel.hidden=!legs.length \|\| legs.some\(leg=>leg.kind==='between'\)/);
+ assert.match(merge,/sameLocation defaults to 0 km only when nothing was saved/);
 });
 
 test('database RPC derives middle-gap minutes from attendance and applies 45-minute outer deductible',async()=>{

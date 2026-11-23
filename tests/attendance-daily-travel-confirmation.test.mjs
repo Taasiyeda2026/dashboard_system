@@ -65,11 +65,11 @@ test('transport choice precedes and reveals only relevant fields',async()=>{
   assert.match(ui,/fields\.prepend\(modeWrap\)/);
   assert.match(ui,/chooseMode\.value=''/);
   assert.match(ui,/mode\.value=\(leg\.kind==='return' && sharedReturnMode \? legs\[0\]\.mode : leg\.mode\)\|\|''/);
-  assert.match(ui,/mode:same\?\(old\.mode\|\|'car'\):\(leg\.kind==='between'/);
+  assert.match(ui,/mergeDailyTravelLegValues/);
   assert.match(ui,/const selected=nextMode==='car'\|\|transit/);
   assert.match(ui,/if\(durationWrap\)durationWrap\.hidden=!selected\|\|transit/);
   assert.match(ui,/if\(kmWrap\)kmWrap\.hidden=!selected\|\|transit/);
-  assert.match(ui,/status\.textContent='יש לבחור אמצעי נסיעה בכל מקטע לפני מילוי ושמירה'/);
+  assert.match(ui,/status\.textContent='יש לבחור אמצעי נסיעה בכל מקטע'/);
   assert.match(css,/av2-daily-travel__leg-fields>\.av2-daily-travel__mode/);
   assert.match(css,/av2-daily-travel__saved-header/);
   assert.match(css,/av2-daily-travel__saved-edit/);

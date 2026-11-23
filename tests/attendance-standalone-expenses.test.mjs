@@ -13,8 +13,9 @@ test('new report has three independent tabs; expenses do not attach to attendanc
  assert.ok(src.includes('formArea.append(tabs,attendanceMonthWrap,form,historyPanel,dailyTravel.panel,expensesPanel.panel)'));
  assert.ok(src.includes('[timesGrid]'));
  assert.ok(!src.includes('[timesGrid, expensesInner]'));
- assert.ok(src.includes('expenses: 0'));
- assert.ok(src.includes('expense_details: null'));
+ assert.ok(src.includes('expenses: editingExisting && prefill?.expenses != null ? Number(prefill.expenses) || 0 : 0'));
+ assert.ok(src.includes('expense_details: editingExisting ? (prefill?.expense_details ?? null) : null'));
+ assert.ok(src.includes('Preserve existing expense fields on edit'));
 });
 
 test('standalone expenses have separate save, date, details, receipts, edits and no activity dependency',async()=>{
