@@ -45,6 +45,8 @@ test('daily trip data displays once and reflects stored report regardless of app
   assert.equal(model.kilometers,440);
   assert.equal(model.cancellationHours,17.5);
   assert.equal(model.expenses,0);
+  assert.equal(model.activityCount,2);
+  assert.equal(model.activityHours,4);
   const approved=buildDayDetailModel({records:twoActivities,travelReport:{...saved,review_status:'approved'},modern:true});
   assert.deepEqual(approved,model);
 });
@@ -73,6 +75,20 @@ test('daily route expands to only the saved segments and expenses appear only ab
     assert.match(withExpenses.querySelector('.av2-day-detail__expense').textContent,/24.5/);
     const noTravel=createDayDetailRow({date,records:twoActivities,modern:true});
     assert.match(noTravel.textContent,/טרם דווח/);
+    assert.match(noTravel.textContent,/פעילויות/);
+    assert.match(noTravel.textContent,/שעות/);
+    const withActions=createDayDetailRow({
+      date,records:twoActivities,modern:true,editable:true,
+      onNewReport:()=>{},onTravelReport:()=>{}
+    });
+    assert.ok(withActions.querySelector('.av2-day-detail__day-cta'));
+    assert.ok(withActions.querySelector('.av2-day-detail__travel-cta'));
+    assert.match(withActions.querySelector('.av2-day-detail__travel-cta').textContent,/השלם נסיעות/);
+    const withTravel=createDayDetailRow({
+      date,records:twoActivities,travelReport:saved,modern:true,editable:true,
+      onNewReport:()=>{},onTravelReport:()=>{}
+    });
+    assert.match(withTravel.querySelector('.av2-day-detail__travel-cta').textContent,/^נסיעות$/);
   }finally{delete globalThis.document;dom.window.close();}
 });
 
@@ -86,7 +102,8 @@ test('all travel and action icons share one scoped ten-column design, including 
   ]);
   assert.match(css,/av2-report-list--unified/);
   assert.match(css,/\.av2-rr__action-edit/);
-  assert.match(css,/\.av2-rr__travel-shortcut/);
+  assert.match(css,/\.av2-day-detail__day-cta/);
+  assert.match(css,/\.av2-day-detail__travel-cta/);
   assert.match(css,/@media\(max-width:767px\)/);
   assert.match(runtime,/if\(list\?\.classList\.contains\('av2-report-list--unified'\)\)return/);
   assert.match(mobile,/setMobileLabel\(meetingCell, 'מפגש'\)/);

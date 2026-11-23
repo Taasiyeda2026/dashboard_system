@@ -1,6 +1,6 @@
 /**
  * Work-day chrome: shared day header, date sync across tabs, post-save travel CTA,
- * and My Reports missing-travel shortcut. Frontend-only; no migration/payroll.
+ * and My Reports day-surface actions. Frontend-only; no migration/payroll.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -24,22 +24,23 @@ test('report screen exposes work-day chrome and post-save travel CTA', async () 
   assert.match(expenses, /return \{panel,load:refresh,setDate,dateInput:date\.input\}/);
 });
 
-test('My Reports day strip offers travel CTA when modern travel is missing', async () => {
+test('My Reports day strip summarizes activities and offers day CTAs', async () => {
   const detail = await read('attendance/src/components/my-reports-day-detail.js');
+  assert.match(detail, /activityHours/);
+  assert.match(detail, /activityCount/);
   assert.match(detail, /av2-day-detail__travel-cta/);
-  assert.match(detail, /modern && !model\.hasReport && typeof onTravelReport==='function'/);
-  assert.match(detail, /onTravelReport\(date\)/);
+  assert.match(detail, /av2-day-detail__day-cta/);
+  assert.match(detail, /הוסף פעילות/);
   assert.match(detail, /השלם נסיעות/);
+  assert.match(detail, /onTravelReport\(date\)/);
+  assert.match(detail, /onNewReport\(date\)/);
+  assert.match(detail, /modern\)\{/);
 });
 
-test('work-day cache markers bumped above previous release', async () => {
+test('work-day day-surface cache markers bumped above previous release', async () => {
   const sw = await read('attendance/sw.js');
   const index = await read('attendance/index.html');
-  const frontendSw = await read('frontend/sw.js');
-  const config = await read('frontend/src/config.js');
-  assert.match(sw, /const CACHE_VERSION = 184/);
-  assert.match(index, /\?v=184/);
-  assert.doesNotMatch(index, /\?v=183/);
-  assert.match(frontendSw, /const CACHE_VERSION = 2131/);
-  assert.match(config, /attendance-workday-chrome-20261123-v1/);
+  assert.match(sw, /const CACHE_VERSION = 185/);
+  assert.match(index, /\?v=185/);
+  assert.doesNotMatch(index, /\?v=184/);
 });

@@ -3,7 +3,7 @@ import { confirmSystemMessage } from '../components/system-dialog.js';
 import {listExpenseReports,saveExpenseReport,attachExpenseReceipt,expenseReceiptSignedUrl} from '../services/expense-reports.service.js';
 import {readHistoricalAttendance,historicalExpenses,monthRange,monthLabel,monthStatusLabel} from '../services/historical-display.service.js';
 
-const STATUS={pending_review:'ממתין לאישור',approved:'אושר',rejected:'נדרש תיקון'};
+const STATUS={pending_review:'ממתין',approved:'אושר',rejected:'נדרש תיקון'};
 const todayLocal=()=>{
   const d=new Date();
   return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),
@@ -30,7 +30,7 @@ export function createExpensesTab({instructor,initialDate}={}){
   form.noValidate=true;
   const date=createInputField({id:'av2-expense-date',label:'תאריך הוצאה',
     type:'date',value:initialDate||todayLocal()});
-  const amount=createInputField({id:'av2-expense-amount',label:'סכום (₪)',type:'number',
+  const amount=createInputField({id:'av2-expense-amount',label:'סכום',type:'number',
     attrs:{min:'0.01',max:'100000',step:'0.01',placeholder:'0.00'}});
   const details=createInputField({id:'av2-expense-details',label:'פירוט הוצאה',
     placeholder:'על מה ההוצאה?'});
@@ -145,7 +145,7 @@ export function createExpensesTab({instructor,initialDate}={}){
       const info=document.createElement('strong');
       info.textContent=row.expense_date+' · '+fmtAmount(row.amount);
       const badge=document.createElement('span');
-      badge.textContent=row.source==='legacy'?'דיווח קודם':(STATUS[row.review_status]||'ממתין לאישור');
+      badge.textContent=row.source==='legacy'?'דיווח קודם':(STATUS[row.review_status]||'ממתין');
       badge.className='av2-expenses-tab__review-status';
       top.append(info,badge);
       const description=document.createElement('p');

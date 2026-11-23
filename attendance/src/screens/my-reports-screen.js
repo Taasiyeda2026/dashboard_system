@@ -283,7 +283,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
       const pending=expenseReports.filter(row=>row.review_status==='pending_review').length;
       expenseStatus.textContent='הוצאות החודש: '+expenseReports.length
         +' · אושרו ₪'+approved.toFixed(2)
-        +(pending?' · '+pending+' ממתינות לאישור':'');
+        +(pending?' · '+pending+' ממתינות':'');
       contentArea.append(expenseStatus);
     }
 
@@ -330,7 +330,7 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
       const row=buildRecordRow({
         record,
         generated:generatedCancellationFor(records,record.id),
-        editable,instructor,activityTypes,onDuplicate,onTravelReport,onRefresh,
+        editable,instructor,activityTypes,onDuplicate,onRefresh,
         hasDailyTravel: dailyTravelByDate.has(reportDate),
         dashboardValidation:dashboardValidationByRecord.get(String(record.id))||null
       });
@@ -343,7 +343,10 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
           date:reportDate,records:dayRecords,
           travelReport:dailyTravelByDate.get(reportDate)||null,
           expenseReports:dayExpenses,
-          modern:reportDate>='2026-11-01',onTravelReport
+          modern:reportDate>='2026-11-01',
+          editable,
+          onNewReport,
+          onTravelReport
         }));
       }
     }
@@ -434,7 +437,7 @@ function locationOrSchoolForRecord(record, baseTraining) {
   return school || '—';
 }
 
-function buildRecordRow({ record, generated, editable, instructor, activityTypes, onDuplicate, onTravelReport, onRefresh, hasDailyTravel = false, dashboardValidation = null }) {
+function buildRecordRow({ record, generated, editable, instructor, activityTypes, onDuplicate, onRefresh, hasDailyTravel = false, dashboardValidation = null }) {
   const row = document.createElement('div');
   row.className = 'av2-report-row';
   row.dataset.recordId = record.id;
@@ -505,26 +508,6 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
     actionsCell.append(dupBtn);
   }
 
-  if (onTravelReport && record.report_date >= '2026-11-01'
-      && !isZoomLocationReport({
-        activityType:record.activity_type,
-        trainingMode:record.training_mode,
-        operationMeetingMode:record.operation_meeting_mode,
-        operationName:record.activity_name_snapshot
-      }) && record.activity_type !== 'ביטול זמן') {
-    const travelBtn = document.createElement('button');
-    travelBtn.type = 'button';
-    travelBtn.className = 'av2-btn av2-btn--icon av2-rr__travel-shortcut';
-    travelBtn.append(createIcon('map-pin',{size:14}));
-    travelBtn.title = 'מילוי נסיעות ליום הפעילות';
-    travelBtn.setAttribute('aria-label', 'מילוי נסיעות ליום ' + record.report_date);
-    travelBtn.addEventListener('click',event=>{
-      event.stopPropagation();
-      onTravelReport(record.report_date);
-    });
-    actionsCell.append(travelBtn);
-  }
-
   // Edit + Delete (only when editable)
   if (editable) {
     const editBtn = document.createElement('button');
@@ -546,7 +529,7 @@ function buildRecordRow({ record, generated, editable, instructor, activityTypes
     actionsCell.append(editBtn, deleteBtn);
   }
 
-  // Stable action sequence: edit, delete, duplicate, daily travel.
+  // Stable action sequence: edit, delete, duplicate.
   const priority=(button)=>button.classList.contains('av2-rr__action-edit')?0
     :button.classList.contains('av2-rr__action-delete')?1
     :button.classList.contains('av2-rr__action-dup')?2:3;
@@ -735,7 +718,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
   modalHeader.className = 'av2-modal__header';
   const modalTitle = document.createElement('h2');
   modalTitle.className = 'av2-modal__title';
-  modalTitle.textContent = `עריכת דיווח — ${formatDateHeb(record.report_date)}`;
+  modalTitle.textContent = `עריכה — ${formatDateHeb(record.report_date)}`;
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.className = 'av2-btn av2-btn--icon';
@@ -831,8 +814,8 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
   hoursDisplay.append(hoursLabel, hoursValue);
   form.append(startTimeField.wrap, endTimeField.wrap, hoursDisplay);
 
-  const kmField  = createInputField({ id: 'edit-km', label: 'ק״מ הלוך־חזור (יש להזין 0 אם אין)', type: 'number', value: record.roundtrip_km != null ? String(record.roundtrip_km) : '', attrs: { min: '0', step: '1', placeholder: 'יש להזין מספר' } });
-  const expField = createInputField({ id: 'edit-expenses', label: 'הוצאות (₪)', type: 'number', value: String(record.expenses || 0), attrs: { min: '0', step: '0.01' } });
+  const kmField  = createInputField({ id: 'edit-km', label: 'ק״מ הלוך־חזור', type: 'number', value: record.roundtrip_km != null ? String(record.roundtrip_km) : '', attrs: { min: '0', step: '1', placeholder: '0' } });
+  const expField = createInputField({ id: 'edit-expenses', label: 'הוצאות', type: 'number', value: String(record.expenses || 0), attrs: { min: '0', step: '0.01' } });
   const publicTransportWrap = document.createElement('label');
   publicTransportWrap.className = 'av2-report__transport-toggle';
   const publicTransportToggle = document.createElement('input');
@@ -841,7 +824,7 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
   publicTransportToggle.checked = record.public_transport === true;
   publicTransportWrap.append(publicTransportToggle, document.createTextNode('תחבורה ציבורית'));
   const publicTransportCostField = createInputField({
-    id: 'edit-public-transport-cost', label: 'עלות תחבורה ציבורית (₪)',
+    id: 'edit-public-transport-cost', label: 'עלות תחבורה ציבורית',
     type: 'number', value: String(record.public_transport_cost || 0),
     attrs: { min: '0', step: '0.01' },
   });
@@ -856,12 +839,12 @@ function showEditModal({ record, instructor, activityTypes, onRefresh }) {
     && record.cancellation_after_minutes != null;
   cancellationWrap.append(cancellationToggle, document.createTextNode('הוספת ביטול זמן'));
   const beforeCancellationField = createInputField({
-    id: 'edit-cancellation-before', label: 'ביטול זמן לפני הפעילות (שעות:דקות)',
+    id: 'edit-cancellation-before', label: 'ביטול זמן לפני הפעילות',
     value: formatCancellationDuration(record.cancellation_before_minutes),
     placeholder: '0:00',
   });
   const afterCancellationField = createInputField({
-    id: 'edit-cancellation-after', label: 'ביטול זמן אחרי הפעילות (שעות:דקות)',
+    id: 'edit-cancellation-after', label: 'ביטול זמן אחרי הפעילות',
     value: formatCancellationDuration(record.cancellation_after_minutes),
     placeholder: '0:00',
   });

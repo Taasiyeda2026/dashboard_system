@@ -330,7 +330,7 @@ export function renderNewReportScreen(container, {
       baseTrainingRouteRow.hidden = false;
       const reminder = result.show_travel_report_reminder
         ? 'הנסיעה ארוכה מ־40 ק״מ בכיוון אחד — מומלץ לדווח את זמני הנסיעה בפועל לאחר השמירה.'
-        : 'לאחר השמירה ניתן לדווח זמני נסיעה בפועל (הלוך וחזור) לצורך ביטול זמן.';
+        : 'לאחר השמירה ניתן לדווח זמני נסיעה בפועל לצורך ביטול זמן.';
       baseTrainingRouteRow.innerHTML = `<strong>מסלול נסיעה</strong><span>הבית שלך → Greenwork, יקום</span><small>${reminder}</small>`;
     }
   }
@@ -1381,7 +1381,7 @@ export function renderNewReportScreen(container, {
 
     kmField = createInputField({
       id: 'av2-km',
-      label: 'ק״מ הלוך־חזור (יש להזין 0 אם אין)',
+      label: 'ק״מ הלוך־חזור',
       type: 'number',
       value: prefill?.roundtrip_km != null ? String(prefill.roundtrip_km) : '',
       attrs: { min: '0', step: '1', placeholder: 'יש להזין מספר' },
@@ -1400,7 +1400,7 @@ export function renderNewReportScreen(container, {
 
     publicTransportCostField = createInputField({
       id: 'av2-public-transport-cost',
-      label: 'עלות תחבורה ציבורית (₪)',
+      label: 'עלות תחבורה ציבורית',
       type: 'number',
       value: prefill?.public_transport_cost ? String(prefill.public_transport_cost) : '',
       attrs: { min: '0', step: '0.01', placeholder: '0.00' },
@@ -1467,7 +1467,7 @@ export function renderNewReportScreen(container, {
         && existingCompensation.reported_return_minutes != null);
       const approved = Number(existingCompensation.approved_cancellation_minutes || 0);
       const status = existingCompensation.review_status || 'none';
-      let detail = 'ניתן לדווח זמני נסיעה בפועל (הלוך וחזור) לאחר השמירה.';
+      let detail = 'ניתן לדווח זמני נסיעה בפועל לאחר השמירה.';
       if (inlineReported) {
         detail = `ביטול זמן לפני: ${formatCancellationDuration(existingCompensation.reported_before_cancellation_minutes)} · אחרי: ${formatCancellationDuration(existingCompensation.reported_after_cancellation_minutes)} · סטטוס: ${status}`;
       } else if (reported) {
@@ -1485,7 +1485,7 @@ export function renderNewReportScreen(container, {
 
     expField = createInputField({
       id: 'av2-expenses',
-      label: 'סה"כ הוצאות (₪)',
+      label: 'סה"כ הוצאות',
       type: 'number',
       value: prefill?.expenses ? String(prefill.expenses) : '',
       attrs: { min: '0', step: '0.01', placeholder: '0.00' },
