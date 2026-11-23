@@ -170,7 +170,7 @@ test('real Chromium: unverified save stays blocked until server status can be ch
   await page.evaluate(()=>{window.__travelMock.reportHangs=true;});
   await page.clock.fastForward(15500);
   await page.clock.fastForward(12500);
-  await page.waitForFunction(()=>document.querySelector('.av2-daily-travel__status')?.textContent.includes('לא ניתן לאמת'));
+  await page.waitForFunction(()=>document.querySelector('.av2-daily-travel__status')?.textContent.includes('לא אומתה השמירה'));
   assert.equal(await page.locator('.av2-daily-travel button:has-text("שמור")').isDisabled(),true);
   assert.equal(await page.locator('.av2-daily-travel__retry').isVisible(),true);
   await page.evaluate(()=>{window.__travelMock.reportHangs=false;});
@@ -196,7 +196,7 @@ test('real Chromium: mismatched server report blocks overwrite until reviewed',a
    }];
   });
   await page.clock.fastForward(15500);
-  await page.waitForFunction(()=>document.querySelector('.av2-daily-travel__status')?.textContent.includes('נתונים אחרים'));
+  await page.waitForFunction(()=>document.querySelector('.av2-daily-travel__status')?.textContent.includes('נמצא דיווח אחר'));
   assert.equal(await page.locator('.av2-daily-travel button:has-text("שמור")').isDisabled(),true);
   assert.match(await page.locator('.av2-daily-travel__retry').innerText(),/רענון מהשרת/);
   assert.equal(await page.evaluate(()=>window.__travelMock.saveCalls.length),1);
