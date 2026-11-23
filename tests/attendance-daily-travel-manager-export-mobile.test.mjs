@@ -31,7 +31,7 @@ test('mobile and desktop offer same independent tabs and accessible navigation',
   assert.match(screen,/attendanceTab\.textContent = 'נוכחות'/);
   assert.match(screen,/travelTab\.textContent = 'נסיעות'/);
   assert.match(screen,/form\.hidden = !isAttendance/);
- assert.match(screen,/dailyTravel\.setDate\(workDate\)/);
+ assert.match(screen,/dailyTravel\.setDate\(workDate, \{openInEdit: true\}\)/);
   assert.match(screen,/tabs\.addEventListener\('keydown'/);
   assert.ok(travel.includes('loadedDate===requestedDay'));
   assert.match(travel,/saveDailyTravel\(saveDate,saveLegs,saveNoTravel,\{signal\}\)/);
