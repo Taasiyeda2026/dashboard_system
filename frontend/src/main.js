@@ -761,13 +761,14 @@ function instructorOnlyRoutes() {
 }
 
 const INSTRUCTOR_MOBILE_NAV = [
-  { route: 'instructor-dashboard', short: 'בית', icon: '🏠' },
-  { route: 'my-data', short: 'פעילויות', icon: '📋' },
+  // Keep the instructor's three daily destinations visible without horizontal scrolling.
   { route: 'instructor-calendar', short: 'לוח שנה', icon: '📅' },
-  { route: 'impact-feedback', short: 'משובים', icon: '📝' },
-  { route: 'edit-requests', short: 'אישורים', icon: '✅' },
   { route: null, short: 'נוכחות', icon: '✅', externalUrl: config.instructorAttendanceUrl },
-  { route: null, short: 'מצגות', icon: '📂', externalUrlBlank: config.instructorPresentationsUrl }
+  { route: 'impact-feedback', short: 'משובים', icon: '📝' },
+  { route: 'my-data', short: 'פעילויות', icon: '📋' },
+  { route: 'edit-requests', short: 'אישורים', icon: '✅' },
+  { route: null, short: 'מצגות', icon: '📂', externalUrlBlank: config.instructorPresentationsUrl },
+  { route: 'instructor-dashboard', short: 'בית', icon: '🏠' }
 ];
 
 function instructorBottomNavHtml(currentRoute) {
