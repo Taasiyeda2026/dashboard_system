@@ -1123,9 +1123,7 @@ export function renderNewReportScreen(container, {
     if (prefill) {
       const dupNote = document.createElement('p');
       dupNote.className = 'av2-report__dup-note';
-      dupNote.textContent = editingExisting
-        ? `עריכת דיווח מ-${prefill.report_date || ''} — הערכים השמורים מוצגים וניתנים לעדכון`
-        : `שכפול מדיווח מ-${prefill.report_date || ''} — ניתן לערוך לפני השמירה`;
+      dupNote.textContent = editingExisting ? 'עריכת פעילות' : 'שכפול פעילות';
       formArea.append(dupNote);
     }
 
@@ -1140,7 +1138,7 @@ export function renderNewReportScreen(container, {
 
     dateField = createInputField({
       id: 'av2-report-date',
-      label: 'תאריך *',
+      label: 'תאריך',
       type: 'date',
       value: prefill?.report_date || preservedDate || defaultDate,
       attrs: { max: latestReportDate() },
@@ -1155,7 +1153,7 @@ export function renderNewReportScreen(container, {
     }
     typeField = createSelectField({
       id: 'av2-activity-type',
-      label: 'סוג פעילות *',
+      label: 'סוג פעילות',
       options: typeOptions,
       value: initialReportType,
     });
@@ -1163,7 +1161,7 @@ export function renderNewReportScreen(container, {
     activityNameWrap = document.createElement('div');
     activityNameSel = createSearchableSelect({
       id: 'av2-activity-name',
-      label: 'שם פעילות *',
+      label: 'שם פעילות',
       options: activityOptionsForReportType(instructorActivities, initialReportType),
       placeholder: 'בחר פעילות',
       searchPlaceholder: 'חיפוש פעילות…',
@@ -1366,8 +1364,8 @@ export function renderNewReportScreen(container, {
       ],
     );
 
-    startPicker = createTimePicker('av2-start-time', 'שעת התחלה', prefill?.start_time || '', TIME_MINUTE_STEP);
-    endPicker = createTimePicker('av2-end-time', 'שעת סיום', prefill?.end_time || '', TIME_MINUTE_STEP);
+    startPicker = createTimePicker('av2-start-time', 'התחלה', prefill?.start_time || '', TIME_MINUTE_STEP);
+    endPicker = createTimePicker('av2-end-time', 'סיום', prefill?.end_time || '', TIME_MINUTE_STEP);
 
     const hoursDisplay = document.createElement('div');
     hoursDisplay.className = 'av2-report__hours-display av2-field';
@@ -1432,13 +1430,13 @@ export function renderNewReportScreen(container, {
     cancellationRow.append(cancellationToggle, cancellationText);
     cancellationBeforeField = createInputField({
       id: 'av2-cancellation-before',
-      label: 'ביטול זמן לפני הפעילות (שעות:דקות)',
+      label: 'ביטול זמן לפני',
       value: formatCancellationDuration(prefill?.cancellation_before_minutes),
       placeholder: '0:00',
     });
     cancellationAfterField = createInputField({
       id: 'av2-cancellation-after',
-      label: 'ביטול זמן אחרי הפעילות (שעות:דקות)',
+      label: 'ביטול זמן אחרי',
       value: formatCancellationDuration(prefill?.cancellation_after_minutes),
       placeholder: '0:00',
     });
@@ -1865,10 +1863,10 @@ export function renderNewReportScreen(container, {
         markInvalid(teamLocationField.wrap, 'מיקום פיזי');
       }
       if (!dateStr) markInvalid(dateField.wrap, 'תאריך');
-      if (!startTime) markInvalid(startPicker.wrap, 'שעת התחלה');
-      if (!endTime) markInvalid(endPicker.wrap, 'שעת סיום');
+      if (!startTime) markInvalid(startPicker.wrap, 'התחלה');
+      if (!endTime) markInvalid(endPicker.wrap, 'סיום');
       if (startTime && endTime && totalHours <= 0) {
-        markInvalid(endPicker.wrap, 'שעת סיום חייבת להיות מאוחרת מהתחלה');
+        markInvalid(endPicker.wrap, 'סיום חייב להיות מאוחר מהתחלה');
       }
       if (reportType === TRAINING_REPORT_TYPE && !isOnline
         && !trainingLocationField.input.value.trim()) {

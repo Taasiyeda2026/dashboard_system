@@ -192,7 +192,7 @@ function setupMohammedScenario() {
   const tab = ctx.createDailyTravelTab({ empId: 1538, initialDate: '2026-11-22' });
   const status = () => tab.panel.querySelector('.av2-daily-travel__status').textContent;
   const save = () => [...tab.panel.querySelectorAll('button')]
-    .find((button) => String(button.textContent || '').includes('שמירת נסיעות'));
+    .find((button) => String(button.textContent || '').includes('שמור') && button.closest('.av2-daily-travel'));
   const dayLabel = () => tab.panel.querySelector('#av2-travel-day-selector-trigger')?.textContent || '';
   const daySelect = () => tab.panel.querySelector('#av2-travel-day-selector');
   return { ctx, tab, status, save, dayLabel, daySelect };

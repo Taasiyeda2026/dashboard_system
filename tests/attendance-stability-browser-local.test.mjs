@@ -106,13 +106,13 @@ test('real services and browser: complete reporting with lost responses, offline
      await page.locator('[data-daily-travel-leg="'+index+'"][data-field="kilometers"]').fill('20');
     }
     await page.route('**/rest/v1/rpc/**',async route=>{await new Promise(resolve=>setTimeout(resolve,100));await route.continue();});
-    await page.locator('button:has-text("שמירת נסיעות")').click();
+    await page.locator('.av2-daily-travel button:has-text("שמור")').click();
     await page.locator('.av2-daily-travel__saved').waitFor({state:'visible'});
     const saved=await page.evaluate(emp=>window.qa.getDailyTravelReports(emp,'2026-11'),emp.emp);
     assert.equal(saved.length,1);assert.equal(Number(saved[0].total_km),40);
     await page.locator('.av2-daily-travel__saved-edit').click();
     await page.locator('[data-daily-travel-leg="0"][data-field="kilometers"]').fill('25');
-    await page.locator('button:has-text("שמירת נסיעות")').click();
+    await page.locator('.av2-daily-travel button:has-text("שמור")').click();
     await page.locator('.av2-daily-travel__saved').waitFor({state:'visible'});
     await page.reload();
     await page.locator('#av2-travel-tab-trigger').click();

@@ -69,7 +69,7 @@ test('transport choice precedes and reveals only relevant fields',async()=>{
   assert.match(ui,/const selected=nextMode==='car'\|\|transit/);
   assert.match(ui,/if\(durationWrap\)durationWrap\.hidden=!selected\|\|transit/);
   assert.match(ui,/if\(kmWrap\)kmWrap\.hidden=!selected\|\|transit/);
-  assert.match(ui,/status\.textContent='יש לבחור אמצעי נסיעה בכל מקטע'/);
+  assert.match(ui,/status\.textContent='יש לבחור אמצעי נסיעה'/);
   assert.match(css,/av2-daily-travel__leg-fields>\.av2-daily-travel__mode/);
   assert.match(css,/av2-daily-travel__saved-header/);
   assert.match(css,/av2-daily-travel__saved-edit/);
@@ -109,8 +109,8 @@ test('travel hours, minutes and kilometres align on one row, with transport choi
   const ui=await readFile(new URL('../attendance/src/screens/daily-travel-tab.js',import.meta.url),'utf8');
   const css=await readFile(new URL('../attendance/src/styles/new-report-final-alignment.css',import.meta.url),'utf8');
   assert.match(ui,/fields\.prepend\(modeWrap\)/);
-  assert.match(ui,/selects\.setAttribute\('aria-label','זמן נסיעה בפועל'\)/);
-  assert.match(ui,/caption\.textContent=unit==='hours'\?'שעות נסיעה':'דקות נסיעה'/);
+  assert.match(ui,/selects\.setAttribute\('aria-label','זמן'\)/);
+  assert.match(ui,/caption\.textContent=unit==='hours'\?'שעות':'דקות'/);
   assert.match(ui,/durationWrap\.append\(durationLabel,selects\)/);
   assert.match(ui,/km\.wrap\.classList\.add\('av2-daily-travel__km'\)/);
   assert.match(ui,/fare\.wrap\.classList\.add\('av2-daily-travel__fare'\)/);

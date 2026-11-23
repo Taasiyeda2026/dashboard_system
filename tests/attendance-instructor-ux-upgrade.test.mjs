@@ -39,17 +39,22 @@ test('summarize includes corrected same-location kilometers', () => {
 
 test('edit form paints edit note and preserves expenses on re-save', async () => {
   const screen = await read('attendance/src/screens/new-report-screen.js');
-  assert.match(screen, /עריכת דיווח מ-\$\{prefill\.report_date/);
+  assert.match(screen, /עריכת פעילות/);
   assert.match(screen, /sessionStorage\.removeItem\('av2_edit_record_id'\)/);
   assert.match(screen, /expenses: editingExisting && prefill\?\.expenses/);
   assert.match(screen, /activity_name_snapshot/);
+  assert.match(screen, /createTimePicker\('av2-start-time', 'התחלה'/);
+  assert.match(screen, /createTimePicker\('av2-end-time', 'סיום'/);
 });
 
-test('travel tab uses merge helper and clarifies gap vs distance', async () => {
+test('travel tab uses merge helper with short labels and no gap-hours UI', async () => {
   const tab = await read('attendance/src/screens/daily-travel-tab.js');
   assert.match(tab, /mergeDailyTravelLegValues/);
-  assert.match(tab, /פער שעות בין פעילויות \(לא מרחק נסיעה\)/);
-  assert.match(tab, /קילומטרים בפועל/);
+  assert.match(tab, /label:'קילומטרים'/);
+  assert.match(tab, /save\.textContent='שמור'/);
+  assert.match(tab, /between:'מעבר בין פעילויות'/);
+  assert.match(tab, /Between-activity gap minutes stay on the leg/);
+  assert.doesNotMatch(tab, /פער שעות בין פעילויות/);
   assert.match(tab, /יש להשלים קילומטרים/);
 });
 
@@ -68,9 +73,9 @@ test('staged migration preserves same-location km and caches bumped', async () =
   const config = await read('frontend/src/config.js');
   assert.match(migration, /jsonb_typeof\(v_item->'kilometers'\) is distinct from 'number'/);
   assert.match(migration, /do not apply to production without explicit approval/i);
-  assert.match(sw, /const CACHE_VERSION = 181/);
-  assert.match(index, /\?v=181/);
-  assert.doesNotMatch(index, /\?v=180/);
-  assert.match(frontendSw, /const CACHE_VERSION = 2127/);
-  assert.match(config, /attendance-instructor-ux-upgrade-20261123-v1/);
+  assert.match(sw, /const CACHE_VERSION = 182/);
+  assert.match(index, /\?v=182/);
+  assert.doesNotMatch(index, /\?v=181/);
+  assert.match(frontendSw, /const CACHE_VERSION = 2128/);
+  assert.match(config, /attendance-instructor-ux-simplify-20261123-v2/);
 });
