@@ -643,7 +643,9 @@
     justify-content: center;
     width: 22px;
     height: 22px;
-    font-size: 0;
+    /* Emoji fallback must remain visible if vector enhancement is delayed. */
+    font-size: 18px;
+    line-height: 1;
   }
 
   .app-shell--instructor .instructor-bottom-nav__icon svg {
