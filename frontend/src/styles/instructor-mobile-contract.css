@@ -74,7 +74,7 @@
   .app-shell--instructor .instructor-portal-dashboard {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
   }
 
   .app-shell--instructor .instructor-portal-dashboard__toolbar,
@@ -106,11 +106,28 @@
   .app-shell--instructor .instructor-portal-focus {
     width: 100%;
     min-width: 0;
-    padding: 13px 14px;
+    padding: 8px 10px;
     border: 1px solid var(--instr-border);
-    border-radius: 16px;
+    border-radius: 12px;
     background: rgba(255,255,255,.96);
-    box-shadow: var(--instr-shadow-soft);
+    box-shadow: none;
+  }
+
+  .app-shell--instructor .instructor-portal-focus + .instructor-portal-focus {
+    margin-top: 0;
+  }
+
+  .app-shell--instructor .instructor-portal-dashboard .instructor-portal-focus {
+    margin: 0;
+  }
+
+  .app-shell--instructor .instructor-portal-dashboard > .instructor-portal-monthly-summary + .instructor-portal-focus,
+  .app-shell--instructor .instructor-portal-dashboard > .instructor-portal-focus {
+    margin-block: 0;
+  }
+
+  .app-shell--instructor .instructor-portal-focus[role='button'] {
+    cursor: pointer;
   }
 
   .app-shell--instructor .instructor-portal-focus > span,
@@ -123,21 +140,22 @@
 
   .app-shell--instructor .instructor-portal-focus > span {
     color: var(--instr-muted);
-    font-size: .69rem;
+    font-size: .64rem;
+    line-height: 1.25;
   }
 
   .app-shell--instructor .instructor-portal-focus > strong {
-    margin-top: 3px;
+    margin-top: 2px;
     color: var(--instr-ink);
-    font-size: .92rem;
-    line-height: 1.35;
+    font-size: .84rem;
+    line-height: 1.3;
   }
 
   .app-shell--instructor .instructor-portal-focus > small {
-    margin-top: 4px;
+    margin-top: 2px;
     color: #61758b;
-    font-size: .72rem;
-    line-height: 1.4;
+    font-size: .68rem;
+    line-height: 1.3;
   }
 
   .app-shell--instructor .instructor-portal-shortcuts {
@@ -191,16 +209,24 @@
   }
 
   .app-shell--instructor .portal-activity-card {
-    padding: 13px 14px;
+    padding: 8px 10px;
+  }
+
+  .app-shell--instructor .portal-activities-mobile,
+  .app-shell--instructor .instr-approvals-mobile {
+    gap: 7px;
   }
 
   .app-shell--instructor .portal-activity-card h3,
   .app-shell--instructor .course-schedule-mobile-card h3 {
     overflow-wrap: anywhere;
+    margin: 0 0 4px;
+    font-size: .84rem;
   }
 
   .app-shell--instructor .portal-activity-card__summary {
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 4px 8px;
   }
 
   .app-shell--instructor .portal-activity-card__summary strong {

@@ -170,32 +170,28 @@
   }
   .av2-reports .av2-report-list--unified>.av2-report-row.is-mobile-expanded>.av2-rr__meeting{
     display:grid!important;grid-template-columns:86px minmax(0,1fr);
-    gap:8px;padding:8px 12px;
+    gap:8px;padding:6px 10px;
     border-top:1px solid #edf1f5;
-    font-size:.73rem;
+    font-size:.72rem;
+    text-align:right!important;
+    direction:rtl;
   }
   .av2-reports .av2-report-list--unified>.av2-report-row.is-mobile-expanded>.av2-rr__meeting:before{
     content:attr(data-mobile-label);
-    color:#687b91;font-size:.68rem;font-weight:700;
+    color:#687b91;font-size:.66rem;font-weight:700;
+    text-align:right;
   }
-  /* Phones use stacked details instead of the desktop grid; no clipped long place names. */
-  .av2-reports .av2-report-list--unified>.av2-report-row.is-mobile-expanded>.av2-rr__name,
-  .av2-reports .av2-report-list--unified>.av2-report-row.is-mobile-expanded>.av2-rr__school,
   .av2-reports .av2-report-list--unified>.av2-report-row.is-mobile-expanded>.av2-rr__authority{
     min-width:0;
     white-space:normal!important;
     overflow-wrap:anywhere;
+    text-align:right!important;
   }
-  .av2-reports .av2-report-list--unified>.av2-report-row.is-mobile-expanded>.av2-rr__type,
-  .av2-reports .av2-report-list--unified>.av2-report-row.is-mobile-expanded>.av2-rr__meeting{
-    text-align:center!important;
-  }
-  .av2-reports .av2-report-list--unified>.av2-report-row.is-mobile-expanded>.av2-rr__type::before,
-  .av2-reports .av2-report-list--unified>.av2-report-row.is-mobile-expanded>.av2-rr__meeting::before{
-    text-align:right;
+  .av2-reports .av2-report-list--unified>.av2-report-row.is-mobile-expanded>.av2-rr__type{
+    text-align:right!important;
   }
   .av2-reports .av2-report-list--unified .av2-rr__actions .av2-btn--icon{
-    flex:0 0 42px!important;width:42px!important;height:42px!important;
-    min-width:42px!important;
+    flex:0 0 36px!important;width:36px!important;height:36px!important;
+    min-width:36px!important;
   }
 }

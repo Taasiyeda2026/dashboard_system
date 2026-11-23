@@ -236,12 +236,32 @@
   }
 
   .av2-form-section__body,
-  .av2-form-section__body--activity,
   .av2-form-section__body--times,
   .av2-form-section__body--bottom,
-  .av2-report__times-grid,
   .av2-report__expense-fields {
     grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  /* Keep date | type on one compact row; later full-width fields override via nth-child. */
+  .av2-form-section__body--activity {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
+    gap: 6px 8px !important;
+  }
+
+  .av2-form-section__body--activity > :nth-child(n + 3) {
+    grid-column: 1 / -1;
+  }
+
+  .av2-form-section__body--activity > .av2-ssel,
+  .av2-form-section__body--activity > .av2-report__school-mount {
+    grid-column: auto;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .av2-report__times-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.9fr) !important;
   }
 
   .av2-field,
@@ -254,6 +274,15 @@
     width: 100% !important;
     max-width: 100% !important;
     min-width: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .av2-report #av2-report-date,
+  .av2-report .av2-field__input[type='date'] {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
   }
 
   .av2-time-picker {
