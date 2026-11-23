@@ -40,7 +40,7 @@ test('My Reports day strip summarizes activities and offers day CTAs', async () 
 test('work-day day-surface cache markers bumped above previous release', async () => {
   const sw = await read('attendance/sw.js');
   const index = await read('attendance/index.html');
-  assert.match(sw, /const CACHE_VERSION = 187/);
-  assert.match(index, /\?v=187/);
+  assert.match(sw, /const CACHE_VERSION = 188/);
+  assert.match(index, /\?v=188/);
   assert.doesNotMatch(index, /\?v=185/);
 });

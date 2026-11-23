@@ -697,8 +697,15 @@
   padding:5px 0;margin:0;color:#718198;font-size:.78rem;
 }
 .av2-reported-travel__scroll{overflow-x:auto;max-width:100%;}
-.av2-reported-travel__table{
-  width:100%;border-collapse:collapse;table-layout:auto;
+.av2-reported-travel__table--no-transit th:nth-child(1),
+.av2-reported-travel__table--no-transit td:nth-child(1){width:22%;}
+.av2-reported-travel__table--no-transit th:nth-child(2),
+.av2-reported-travel__table--no-transit td:nth-child(2){width:28%;}
+.av2-reported-travel__table--no-transit th:nth-child(3),
+.av2-reported-travel__table--no-transit td:nth-child(3){width:25%;}
+.av2-reported-travel__table--no-transit th:nth-child(4),
+.av2-reported-travel__table--no-transit td:nth-child(4){width:25%;}
+.av2-reported-travel__table{  width:100%;border-collapse:collapse;table-layout:auto;
   color:#254361;font-size:.78rem;text-align:right;
   font-variant-numeric:tabular-nums;
 }
