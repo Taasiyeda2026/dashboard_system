@@ -12,13 +12,14 @@ import { listInstructorDisplayMonths, readHistoricalAttendance, historicalTravel
 import {
   getDailyTravelActivityLegs, getDailyTravelReport, getDailyTravelReports, getAssignedTravelDays, saveDailyTravel
 } from '../services/daily-travel.service.js';
+import { mergeDailyTravelLegValues } from '../services/daily-travel-leg-merge.js';
 import {
   canReloadTravelAfterAttendanceChange,
   pickDefaultTravelDay,
   shouldRefreshTravelDays,
 } from '../services/travel-readiness-sync.js';
 
-const LEG_LABELS = {outbound:'יציאה לפעילות הראשונה',between:'מעבר בין פעילויות',return:'חזרה מהפעילות האחרונה'};
+const LEG_LABELS = {outbound:'יציאה',between:'מעבר בין פעילויות',return:'חזרה'};
 
 export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   const panel = document.createElement('section');
@@ -27,7 +28,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   panel.setAttribute('aria-labelledby', 'av2-travel-tab-trigger');
   panel.className = 'av2-daily-travel av2-report__travel-tab';
   const title = document.createElement('h2');
-  title.textContent = 'דיווח נסיעות';
+  title.textContent = 'נסיעות';
   const monthLabel=document.createElement('label');
   monthLabel.textContent='חודש דיווח';
   monthLabel.setAttribute('for','av2-travel-month-selector');
@@ -96,7 +97,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   savedCard.hidden=true;
   const save = document.createElement('button');
   save.type='button';save.className='av2-btn av2-btn--primary';
-  save.textContent='שמירת נסיעות';
+  save.textContent='שמור';
   const reload = document.createElement('button');
   reload.type='button';reload.className='av2-btn av2-btn--secondary';
   reload.textContent='רענון';
@@ -374,8 +375,8 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       const edit=document.createElement('button');
       edit.type='button';edit.className='av2-daily-travel__saved-edit';
       edit.textContent='✎';
-      edit.setAttribute('aria-label','עריכת דיווח');
-      edit.title='עריכת דיווח';
+      edit.setAttribute('aria-label','עריכה');
+      edit.title='עריכה';
       edit.addEventListener('click',()=>{
         if(locked || loading || saving)return;
         editingSavedReport=true;
@@ -405,9 +406,8 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       const result=summarizeDailyTravel(reportLegs);
       const km=report?.total_km??result.kilometers;
       const minutes=report?.cancellation_minutes??result.cancellationMinutes;
-      const hasCarTravel=reportLegs.some(leg=>leg.mode!=='public_transport'
-        && !(leg.kind==='between' && leg.sameLocation===true));
-      if(hasCarTravel)addDetail('קילומטרים',Number(km||0).toLocaleString('he-IL')+' ק״מ');
+      const hasCarTravel=reportLegs.some(leg=>leg.mode!=='public_transport');
+      if(hasCarTravel || Number(km||0)>0)addDetail('קילומטרים',Number(km||0).toLocaleString('he-IL')+' ק״מ');
       if(hasCarTravel || Number(minutes||0)>0)
         addDetail('ביטול זמן',formatTripDuration(minutes??0));
       const cost=Number(report?.public_transport_cost??reportLegs.reduce((sum,leg)=>
@@ -436,7 +436,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     if(needsCorrection){
       const instruction=document.createElement('p');
       instruction.className='av2-daily-travel__correction-instruction';
-      instruction.textContent='יש להתאים את הנסיעות לפעילויות היום ולשמור מחדש.';
+      instruction.textContent='נדרש עדכון נסיעות ליום זה.';
       savedCard.append(instruction);
     }
     savedCard.hidden=false;
@@ -456,34 +456,32 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       legs[index][input.dataset.field]=raw===''?null:Number(raw);
     }
     for(const [index,leg] of legs.entries()){
-      if(leg.kind==='between')continue;
+      if(leg.kind==='between'){
+        // Keep server-side gap minutes without exposing them in the instructor UI.
+        if(leg.gapMinutes!=null)leg.minutes=Number(leg.gapMinutes);
+        continue;
+      }
       if(leg.mode==='public_transport'){leg.minutes=0;continue;}
       const hour=legsArea.querySelector('[data-duration-hours="'+index+'"]');
       const minute=legsArea.querySelector('[data-duration-minutes="'+index+'"]');
       if(!hour || !minute)continue;
       leg.minutes=hour.value!=='' && minute.value!=='' ? Number(hour.value)*60+Number(minute.value) : null;
     }
-    if(!noTravel.checked && legs.some(leg=>
-      !(leg.kind==='between' && leg.sameLocation===true)
-      && !['car','public_transport'].includes(leg.mode))){
+    if(!noTravel.checked && legs.some(leg=>!['car','public_transport'].includes(leg.mode))){
       summary.textContent='';
       return;
     }
     const totals=summarizeDailyTravel(legs);
     const publicTransportFare=legs.reduce((sum,leg)=>
       sum+(leg.mode==='public_transport'?Number(leg.transportCost||0):0),0);
-    const hasCarTravel=legs.some(leg=>leg.mode!=='public_transport'
-      && !(leg.kind==='between' && leg.sameLocation===true));
+    const hasCarTravel=legs.some(leg=>leg.mode!=='public_transport');
     const hasTransit=legs.some(leg=>leg.mode==='public_transport');
-    const travelDetails=hasCarTravel
-      ? 'ביטול זמן מחושב: '+formatTripDuration(totals.cancellationMinutes)+' שעות'
-        +(totals.kilometers===null?'':' · '+totals.kilometers+' ק״מ')
-      : (totals.cancellationMinutes>0
-        ? 'ביטול זמן בין פעילויות: '+formatTripDuration(totals.cancellationMinutes)+' שעות'
-        : '');
+    const travelDetails=hasCarTravel && totals.kilometers!=null
+      ? totals.kilometers+' ק״מ'
+      : '';
     summary.textContent=noTravel.checked ? 'ללא נסיעה'
-      : !totals.complete ? 'יש להשלים את נתוני הנסיעה'
-      : [travelDetails,hasTransit?'תחבורה ציבורית: ₪'+publicTransportFare.toFixed(2):''].filter(Boolean).join(' · ');
+      : !totals.complete ? 'יש להשלים קילומטרים'
+      : [travelDetails,hasTransit?'עלות: ₪'+publicTransportFare.toFixed(2):''].filter(Boolean).join(' · ');
   }
   function renderLegs(){
     legsArea.replaceChildren();
@@ -497,36 +495,27 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       const block=document.createElement('div');
       block.className='av2-daily-travel__leg';
       const heading=document.createElement('strong');
-      heading.textContent=LEG_LABELS[leg.kind]+' · '+leg.from+' ← '+leg.to;
+      heading.textContent=LEG_LABELS[leg.kind]||'';
       block.append(heading);
       const fields=document.createElement('div');
       fields.className='av2-daily-travel__leg-fields';
       let durationWrap=null;
-      if(leg.kind==='between'){
-        const fixed=document.createElement('div');
-        fixed.className='av2-daily-travel__calculated-field';
-        const fieldLabel=document.createElement('span');
-        fieldLabel.className='av2-field__label';
-        fieldLabel.textContent='ביטול זמן בין פעילויות';
-        const value=document.createElement('strong');
-        value.textContent=formatTripDuration(leg.gapMinutes)+' שעות · מחושב משעות הפעילויות';
-        fixed.append(fieldLabel,value);
-        fields.append(fixed);
-      }else{
+      // Between-activity gap minutes stay on the leg for payroll math, but are not shown to instructors.
+      if(leg.kind!=='between'){
         durationWrap=document.createElement('div');
         durationWrap.className='av2-daily-travel__duration';
         const selects=document.createElement('div');
         selects.className='av2-daily-travel__duration-selects';
         selects.setAttribute('role','group');
-        selects.setAttribute('aria-label','זמן נסיעה בפועל');
+        selects.setAttribute('aria-label','זמן');
         const durationLabel=document.createElement('span');
         durationLabel.className='av2-field__label av2-daily-travel__duration-label';
-        durationLabel.textContent='משך זמן הנסיעה';
+        durationLabel.textContent='זמן';
         for(const [unit,limit] of [['hours',6],['minutes',59]]){
           const wrap=document.createElement('label');
           const caption=document.createElement('span');
           caption.className='av2-daily-travel__unit-label';
-          caption.textContent=unit==='hours'?'שעות נסיעה':'דקות נסיעה';
+          caption.textContent=unit==='hours'?'שעות':'דקות';
           const select=document.createElement('select');
           select.className='av2-field__select';
           select.dataset['duration'+(unit==='hours'?'Hours':'Minutes')]=String(index);
@@ -562,15 +551,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         durationWrap.append(durationLabel,selects);
         fields.append(durationWrap);
       }
-      if(leg.kind==='between' && leg.sameLocation===true){
-        const fixed=document.createElement('div');
-        fixed.className='av2-daily-travel__calculated-field';
-        const label=document.createElement('span');
-        label.className='av2-field__label';label.textContent='קילומטרים';
-        const value=document.createElement('strong');
-        value.textContent='0 ק״מ · אותו מיקום';
-        fixed.append(label,value);fields.append(fixed);
-      }else{
+      {
         const km=createInputField({
           id:'av2-leg-'+index+'-kilometers',label:'קילומטרים',type:'number',
           value:leg.kilometers==null?'':String(leg.kilometers),
@@ -589,7 +570,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       const mode=document.createElement('select');
       mode.className='av2-field__select';
       const chooseMode=document.createElement('option');
-      chooseMode.value='';chooseMode.textContent='בחרו אמצעי נסיעה';
+      chooseMode.value='';chooseMode.textContent='בחרו';
       mode.append(chooseMode);
       for(const [value,label] of [['car','רכב'],['public_transport','תחבורה ציבורית']]){
         const opt=document.createElement('option');
@@ -601,7 +582,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       if((leg.kind==='between' && leg.sameLocation===true)
         || (leg.kind==='return' && sharedReturnMode))modeWrap.hidden=true;
       const fare=createInputField({
-        id:'av2-leg-'+index+'-fare',label:'עלות נסיעה (₪)',type:'number',
+        id:'av2-leg-'+index+'-fare',label:'עלות',type:'number',
         value:leg.transportCost==null?'':String(leg.transportCost),
         attrs:{min:'0',max:'10000',step:'0.01'}
       });
@@ -615,7 +596,11 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       function syncMode(){
         const nextMode=mode.value;
         if(leg.kind==='between' && leg.sameLocation===true){
-          leg.mode='car';leg.kilometers=0;leg.transportCost=0;
+          leg.mode='car';
+          if(leg.kilometers==null || leg.kilometers==='')leg.kilometers=0;
+          leg.transportCost=0;
+          if(kmInput){kmInput.disabled=false;kmInput.value=String(leg.kilometers);}
+          if(kmWrap)kmWrap.hidden=false;
           fare.wrap.hidden=true;fare.input.disabled=true;showSummary();return;
         }
         if(previousMode==='car' && nextMode==='public_transport'){
@@ -872,16 +857,16 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         uncertainSave=null;
         refreshRequired=true;
         reload.textContent='רענון מהשרת';
-        status.textContent='קיים דיווח שמור ליום הזה עם נתונים אחרים. יש לרענן ולבדוק אותו לפני עריכה נוספת.';
+        status.textContent='נמצא דיווח אחר ליום זה — רעננו לפני עריכה.';
       }else{
         uncertainSave=null;
         reload.hidden=true;
-        status.textContent='לא נמצא דיווח שמור ליום זה. אפשר לנסות לשמור שוב.';
+        status.textContent='לא נמצא דיווח שמור. אפשר לשמור שוב.';
       }
     }catch(error){
       if(attempt!==uncertainSave)return;
       reload.textContent='בדיקת מצב השמירה';
-      status.textContent='לא ניתן לאמת אם הדיווח נשמר. הנתונים נשארו בטופס; בדקו שוב לפני ניסיון שמירה נוסף.';
+      status.textContent='לא אומתה השמירה. הנתונים נשארו בטופס.';
     }finally{
       reload.disabled=false;
       save.disabled=loading || locked || loadedDate!==dateField.input.value
@@ -941,7 +926,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         }
         if(!day?.ready){
           status.textContent=day?.review_status==='rejected'
-            ? 'דיווח הנסיעות נשמר, אך אין פעילות נוכחות תואמת. יש להשלים נוכחות לפני תיקון הנסיעות.'
+            ? 'חסרה נוכחות תואמת ליום זה.'
             : 'יש להשלים תחילה דיווח נוכחות ליום זה';
           return;
         }
@@ -996,7 +981,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       const day=dayOptions.find(item=>item.date===date);
       if(!day || !day.ready){
         status.textContent=day?.review_status==='rejected'
-          ? 'דיווח הנסיעות נשמר, אך אין פעילות נוכחות תואמת. יש להשלים נוכחות לפני תיקון הנסיעות.'
+          ? 'חסרה נוכחות תואמת ליום זה.'
           : 'יש להשלים תחילה דיווח נוכחות ליום זה';
         legsArea.replaceChildren();save.hidden=true;noTravelLabel.hidden=true;
         summary.textContent='';loadedDate='';
@@ -1008,15 +993,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
       ]),{action:'טעינת מסלול הנסיעה'});
       if(token!==requestSequence || date!==dateField.input.value)return;
       loadedDate=date;
-      legs=available.map((leg,index)=>{
-        const old=stored?.legs?.[index];
-        const same=old && old.kind===leg.kind && old.from===leg.from && old.to===leg.to
-          && (!leg.contextFingerprint || old.contextFingerprint===leg.contextFingerprint);
-        return {...leg,
-          minutes:leg.kind==='between'?leg.gapMinutes:(same?old.minutes:null),
-          kilometers:leg.kind==='between' && leg.sameLocation===true?0:(same?old.kilometers:null),
-          mode:same?(old.mode||'car'):(leg.kind==='between' && leg.sameLocation===true?'car':''),transportCost:same?Number(old.transportCost||0):0};
-      });
+      legs=available.map((leg,index)=>mergeDailyTravelLegValues(leg, stored?.legs?.[index]));
       noTravel.checked=stored?.no_travel===true;
       noTravelLabel.hidden=!legs.length || legs.some(leg=>leg.kind==='between');
       if(noTravelLabel.hidden)noTravel.checked=false;
@@ -1086,14 +1063,12 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
   save.addEventListener('click',async()=>{
     if(loading || saving || locked || uncertainSave?.date===loadedDate || refreshRequired || loadedDate!==dateField.input.value)return;
     showSummary();
-    if(!noTravel.checked && legs.some(leg=>
-      !(leg.kind==='between' && leg.sameLocation===true)
-      && !['car','public_transport'].includes(leg.mode))){
-      status.textContent='יש לבחור אמצעי נסיעה בכל מקטע לפני מילוי ושמירה';
+    if(!noTravel.checked && legs.some(leg=>!['car','public_transport'].includes(leg.mode))){
+      status.textContent='יש לבחור אמצעי נסיעה';
       return;
     }
     if(!noTravel.checked && legs.some(leg=>leg.kind!=='between' && leg.mode!=='public_transport' && !Number.isInteger(leg.minutes))){
-      status.textContent='יש לבחור שעות ודקות לכל נסיעה ברכב';
+      status.textContent='יש להשלים זמן נסיעה';
       return;
     }
     // Keep the clicked date and its values together across every await.
@@ -1103,7 +1078,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
     const showingSavedDate=()=>loadedDate===saveDate && dateField.input.value===saveDate;
     saving=true;draftGuard.busy=true;save.disabled=true;
     reload.hidden=true;
-    status.textContent='שומר את הדיווח…';
+    status.textContent='שומר…';
     let saveAttempted=false;
     try{
       const monthKey=saveDate.slice(0,7);
@@ -1140,7 +1115,7 @@ export function createDailyTravelTab({empId, initialDate, onEditHistorical}) {
         uncertainSave={date:saveDate,legs:saveLegs,noTravel:saveNoTravel};
         await checkUncertainSave();
       }else if(showingSavedDate()){
-        status.textContent=error.message||'שמירת הנסיעות נכשלה';
+        status.textContent=error.message||'השמירה נכשלה';
       }
     }finally{
       saving=false;draftGuard.busy=false;

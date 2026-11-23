@@ -65,11 +65,11 @@ function decorateEditForm() {
   form.dataset.av2EditRecordId = recordId;
 
   const title = document.querySelector('.av2-report__title');
-  if (title) title.textContent = 'עריכת דיווח';
+  if (title) title.textContent = 'עריכת פעילות';
 
   const note = document.querySelector('.av2-report__dup-note');
   if (note) {
-    note.textContent = 'עריכת דיווח — ניתן לעדכן את הנתונים הקיימים ולשמור את השינויים.';
+    note.textContent = 'עריכת פעילות';
   }
 
   const saveLabel = form.querySelector('button[type="submit"] span');

@@ -219,8 +219,8 @@
 }
 .av2-report .av2-daily-travel__report-card{
   width:100%;max-width:480px;min-width:0;
-  box-sizing:border-box;display:grid;gap:12px;
-  padding:16px;
+  box-sizing:border-box;display:grid;gap:10px;
+  padding:14px;
   background:var(--av2-color-surface,#fff);
   border:1px solid var(--av2-color-border,#dce6f2);
   border-radius:12px;
@@ -241,7 +241,7 @@
 }
 .av2-report .av2-daily-travel__report-card>.av2-daily-travel__legs{
   width:100%;max-width:100%;min-width:0;
-  display:grid;gap:10px;
+  display:grid;gap:8px;
 }
 .av2-report .av2-daily-travel__report-card>.av2-daily-travel__status,
 .av2-report .av2-daily-travel__report-card>.av2-daily-travel__summary{
@@ -260,9 +260,16 @@
 .av2-report .av2-daily-travel__report-card>.av2-report__actions>.av2-btn[hidden],
 .av2-report .av2-daily-travel__report-card>[hidden]{display:none!important}
 @media(max-width:480px){
-  .av2-report .av2-daily-travel__report-card{padding:12px}
+  .av2-report .av2-daily-travel__report-card{padding:10px;gap:8px}
   .av2-report .av2-daily-travel__report-card>.av2-report__actions>.av2-btn{
     min-height:44px!important;
+  }
+  .av2-report .av2-report__travel-tab .av2-daily-travel__leg{
+    padding:10px!important;
+  }
+  .av2-report .av2-report__travel-tab .av2-daily-travel__leg-fields{
+    row-gap:8px!important;
+    column-gap:8px!important;
   }
 }
 

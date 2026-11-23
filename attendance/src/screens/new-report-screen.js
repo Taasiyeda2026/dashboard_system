@@ -1115,10 +1115,15 @@ export function renderNewReportScreen(container, {
     activityTimesAutoFilled = false;
     previousReportType = prefill?.activity_type || '';
 
+    let editingExisting = false;
+    try {
+      const editId = String(sessionStorage.getItem('av2_edit_record_id') || '').trim();
+      editingExisting = Boolean(editId && prefill?.id && String(prefill.id) === editId);
+    } catch {}
     if (prefill) {
       const dupNote = document.createElement('p');
       dupNote.className = 'av2-report__dup-note';
-      dupNote.textContent = `שכפול מדיווח מ-${prefill.report_date || ''} — ניתן לערוך לפני השמירה`;
+      dupNote.textContent = editingExisting ? 'עריכת פעילות' : 'שכפול פעילות';
       formArea.append(dupNote);
     }
 
@@ -1133,7 +1138,7 @@ export function renderNewReportScreen(container, {
 
     dateField = createInputField({
       id: 'av2-report-date',
-      label: 'תאריך *',
+      label: 'תאריך',
       type: 'date',
       value: prefill?.report_date || preservedDate || defaultDate,
       attrs: { max: latestReportDate() },
@@ -1148,7 +1153,7 @@ export function renderNewReportScreen(container, {
     }
     typeField = createSelectField({
       id: 'av2-activity-type',
-      label: 'סוג פעילות *',
+      label: 'סוג פעילות',
       options: typeOptions,
       value: initialReportType,
     });
@@ -1156,7 +1161,7 @@ export function renderNewReportScreen(container, {
     activityNameWrap = document.createElement('div');
     activityNameSel = createSearchableSelect({
       id: 'av2-activity-name',
-      label: 'שם פעילות *',
+      label: 'שם פעילות',
       options: activityOptionsForReportType(instructorActivities, initialReportType),
       placeholder: 'בחר פעילות',
       searchPlaceholder: 'חיפוש פעילות…',
@@ -1359,8 +1364,8 @@ export function renderNewReportScreen(container, {
       ],
     );
 
-    startPicker = createTimePicker('av2-start-time', 'שעת התחלה', prefill?.start_time || '', TIME_MINUTE_STEP);
-    endPicker = createTimePicker('av2-end-time', 'שעת סיום', prefill?.end_time || '', TIME_MINUTE_STEP);
+    startPicker = createTimePicker('av2-start-time', 'התחלה', prefill?.start_time || '', TIME_MINUTE_STEP);
+    endPicker = createTimePicker('av2-end-time', 'סיום', prefill?.end_time || '', TIME_MINUTE_STEP);
 
     const hoursDisplay = document.createElement('div');
     hoursDisplay.className = 'av2-report__hours-display av2-field';
@@ -1425,13 +1430,13 @@ export function renderNewReportScreen(container, {
     cancellationRow.append(cancellationToggle, cancellationText);
     cancellationBeforeField = createInputField({
       id: 'av2-cancellation-before',
-      label: 'ביטול זמן לפני הפעילות (שעות:דקות)',
+      label: 'ביטול זמן לפני',
       value: formatCancellationDuration(prefill?.cancellation_before_minutes),
       placeholder: '0:00',
     });
     cancellationAfterField = createInputField({
       id: 'av2-cancellation-after',
-      label: 'ביטול זמן אחרי הפעילות (שעות:דקות)',
+      label: 'ביטול זמן אחרי',
       value: formatCancellationDuration(prefill?.cancellation_after_minutes),
       placeholder: '0:00',
     });
@@ -1549,6 +1554,7 @@ export function renderNewReportScreen(container, {
       draftGuard.markClean();
       successBanner.hidden = true;
       lockBanner.hidden = true;
+      try { sessionStorage.removeItem('av2_edit_record_id'); } catch {}
       buildForm(null, defaultDate);
     });
 
@@ -1698,7 +1704,18 @@ export function renderNewReportScreen(container, {
             if (isCourseReportType() && meetingVal) meetingField.setValue(meetingVal);
             syncLocationDependencies();
           })();
+        } else if (prefill.activity_name_snapshot) {
+          // Keep the saved activity name visible even when the catalog match is gone.
+          activityNameSel.setValue?.(
+            String(prefill.activity_row_id),
+            String(prefill.activity_name_snapshot)
+          );
         }
+      } else if (prefill.activity_name_snapshot && !isCourseReportType()) {
+        activityNameSel.setValue?.(
+          String(prefill.activity_row_id || ''),
+          String(prefill.activity_name_snapshot)
+        );
       }
       syncLocationDependencies();
     }
@@ -1846,10 +1863,10 @@ export function renderNewReportScreen(container, {
         markInvalid(teamLocationField.wrap, 'מיקום פיזי');
       }
       if (!dateStr) markInvalid(dateField.wrap, 'תאריך');
-      if (!startTime) markInvalid(startPicker.wrap, 'שעת התחלה');
-      if (!endTime) markInvalid(endPicker.wrap, 'שעת סיום');
+      if (!startTime) markInvalid(startPicker.wrap, 'התחלה');
+      if (!endTime) markInvalid(endPicker.wrap, 'סיום');
       if (startTime && endTime && totalHours <= 0) {
-        markInvalid(endPicker.wrap, 'שעת סיום חייבת להיות מאוחרת מהתחלה');
+        markInvalid(endPicker.wrap, 'סיום חייב להיות מאוחר מהתחלה');
       }
       if (reportType === TRAINING_REPORT_TYPE && !isOnline
         && !trainingLocationField.input.value.trim()) {
@@ -1949,8 +1966,9 @@ export function renderNewReportScreen(container, {
           roundtrip_km: kmValue,
           public_transport: usesPublicTransport,
           public_transport_cost: publicTransportCost,
-          expenses: 0,
-          expense_details: null,
+          // Preserve existing expense fields on edit — expenses are edited in their own tab.
+          expenses: editingExisting && prefill?.expenses != null ? Number(prefill.expenses) || 0 : 0,
+          expense_details: editingExisting ? (prefill?.expense_details ?? null) : null,
           notes: notesField.input.value.trim() || null,
           ...scheduledTrainingFields,
         };

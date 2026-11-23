@@ -240,7 +240,7 @@ test('E2E Chromium: Mohammed flow travel→attendance→travel unlocks ready and
       return window.travel.load();
     });
     await page.waitForFunction(() => (document.querySelector('.av2-daily-travel__status')?.textContent || '').includes('יש להשלים תחילה דיווח נוכחות'));
-    assert.equal(await page.locator('button:has-text("שמירת נסיעות")').isHidden(), true);
+    assert.equal(await page.locator('.av2-daily-travel button:has-text("שמור")').isHidden(), true);
     evidence.push(await shot(page, `${viewport.name}-02-blocked-before-attendance`));
 
     await page.locator('#tab-attendance').click();
@@ -252,7 +252,7 @@ test('E2E Chromium: Mohammed flow travel→attendance→travel unlocks ready and
     await page.locator('#tab-travel').click();
     await page.waitForFunction(() => {
       const status = document.querySelector('.av2-daily-travel__status')?.textContent || '';
-      const save = [...document.querySelectorAll('button')].find((b) => b.textContent.includes('שמירת נסיעות'));
+      const save = [...document.querySelectorAll('button')].find((b) => b.closest('.av2-daily-travel')&&b.textContent.trim()==='שמור');
       return !status.includes('יש להשלים תחילה דיווח נוכחות') && save && save.hidden === false;
     });
     evidence.push(await shot(page, `${viewport.name}-04-ready-after-attendance`));
@@ -263,7 +263,7 @@ test('E2E Chromium: Mohammed flow travel→attendance→travel unlocks ready and
       await page.locator(`[data-duration-minutes="${index}"]`).selectOption('30');
       await page.locator(`[data-daily-travel-leg="${index}"][data-field="kilometers"]`).fill('12');
     }
-    await page.locator('button:has-text("שמירת נסיעות")').click();
+    await page.locator('.av2-daily-travel button:has-text("שמור")').click();
     await page.waitForFunction(() => window.__db.travel.has('2026-11-09'));
     const saved = await page.evaluate(() => window.__store.report('2026-11-09'));
     assert.equal(saved.travel_date, '2026-11-09');
@@ -272,7 +272,7 @@ test('E2E Chromium: Mohammed flow travel→attendance→travel unlocks ready and
 
     await page.locator('.av2-daily-travel__saved-edit').click();
     await page.locator('[data-daily-travel-leg="0"][data-field="kilometers"]').fill('15');
-    await page.locator('button:has-text("שמירת נסיעות")').click();
+    await page.locator('.av2-daily-travel button:has-text("שמור")').click();
     await page.waitForFunction(() => Number(window.__store.report('2026-11-09').total_km) === 27);
     evidence.push(await shot(page, `${viewport.name}-06-travel-edited`));
 
@@ -305,7 +305,7 @@ test('E2E Chromium: multi-activity day, delete attendance, timeout, draft preser
     await page.locator('#save-attendance').click();
     await page.locator('#tab-travel').click();
     await page.waitForFunction(() => {
-      const save = [...document.querySelectorAll('button')].find((b) => b.textContent.includes('שמירת נסיעות'));
+      const save = [...document.querySelectorAll('button')].find((b) => b.closest('.av2-daily-travel')&&b.textContent.trim()==='שמור');
       return save && save.hidden === false;
     });
     await shot(page, 'desktop-08-multi-activity-ready');

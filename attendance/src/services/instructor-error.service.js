@@ -16,25 +16,28 @@ export function instructorAttendanceError(error, fallback = 'הפעולה נכש
 
   if (/attendance_month_locked|av2_can_write_month|month_locked/.test(haystack)
     || /42501/.test(haystack) && /month|attendance|policy|rls/.test(haystack)) {
-    return 'החודש נעול לעריכה (כולל נסיעות והוצאות). אם כבר הגשתם אותו — פנו למנהל לפתיחה מחדש. אחרת עברו לחודש הפתוח לדיווח.';
+    return 'החודש נעול לעריכה. פנו למנהל לפתיחה מחדש או עברו לחודש הפתוח.';
   }
   if (/attendance_month_submission_required|not_submitted/.test(haystack)) {
     return 'יש להגיש את החודש לפני המשך הבקרה.';
   }
   if (/attendance_existing_legacy_approved_travel_conflict/.test(haystack)) {
-    return 'לחישוב זה כבר קיים אישור נסיעה קודם. פנו למנהל לבדיקה.';
+    return 'קיים אישור נסיעה קודם לחישוב זה. פנו למנהל.';
   }
   if (/attendance_between_activities_requires_report/.test(haystack)) {
-    return 'יש להשלים את דיווח הנסיעה בין הפעילויות לפני השמירה.';
+    return 'יש להשלים נסיעה בין הפעילויות לפני שמירה.';
   }
   if (/attendance_travel_route_changed/.test(haystack)) {
-    return 'פרטי הפעילויות השתנו מאז טעינת הנסיעות. רעננו את היום ובדקו את המקטעים לפני שמירה מחדש.';
+    return 'הפעילויות השתנו. רעננו את היום לפני שמירה.';
   }
   if (/attendance_travel_leg_(?:incomplete|value_invalid|transport_invalid|location_required|sequence_invalid)/.test(haystack)) {
-    return 'חסרים או לא תקינים פרטים באחד ממקטעי הנסיעה. בדקו את הזמן, המרחק ואמצעי הנסיעה.';
+    return 'חסרים פרטים במקטע נסיעה. בדקו זמן, מרחק ואמצעי נסיעה.';
+  }
+  if (/attendance_daily_travel_reports_missing/.test(haystack)) {
+    return 'יש להשלים נסיעות לפני הגשת החודש.';
   }
   if (/daily_travel|attendance_travel_report_required|travel_report/.test(haystack)) {
-    return 'יש להשלים את דיווח הנסיעות ליום זה לפני ההמשך.';
+    return 'יש להשלים את דיווח הנסיעות ליום זה.';
   }
   if (/expense/.test(haystack) && /locked|denied|42501/.test(haystack)) {
     return 'לא ניתן לשמור הוצאה לחודש שנעול. פנו למנהל אם נדרשת פתיחה מחדש.';

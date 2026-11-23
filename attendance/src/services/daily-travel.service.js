@@ -35,10 +35,15 @@ export async function getDailyTravelActivityLegs(empId, date, {signal=null}={}) 
   const request=supabase.rpc('av2_preview_daily_travel',{p_date:date});
   const {data,error}=await (signal?request.abortSignal(signal):request);
   if(error)throw new Error('לא ניתן לטעון את מסלול הנסיעה');
+  // Preview may suggest 0 km for same-location between legs. Do not treat that as
+  // a hard overwrite of a previously saved instructor value — merge happens in the tab.
   return Array.isArray(data) ? data.map(leg=>({
     ...leg,
     minutes:leg.kind==='between' && leg.gapMinutes!=null?Number(leg.gapMinutes):null,
-    kilometers:leg.kind==='between' && leg.sameLocation===true ? 0 : null
+    kilometers:leg.kind==='between' && leg.sameLocation===true
+      ? (leg.kilometers==null || leg.kilometers==='' ? 0 : Number(leg.kilometers))
+      : (leg.kilometers==null || leg.kilometers==='' ? null : Number(leg.kilometers)),
+    cachedMinutes:leg.cachedMinutes==null?null:Number(leg.cachedMinutes),
   })) : [];
 }
 

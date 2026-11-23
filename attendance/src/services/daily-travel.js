@@ -32,12 +32,19 @@ export function summarizeDailyTravel(legs = []) {
   }
   const minutes = dailyTravelCancellationMinutes(legs);
   const kilometersValid = legs.every(leg => {
-    if (leg.kind === 'between' && leg.sameLocation === true) return true;
-    return leg.kilometers != null && leg.kilometers !== ''
-      && Number.isFinite(Number(leg.kilometers)) && Number(leg.kilometers) >= 0;
+    const raw = leg.kilometers;
+    if ((raw == null || raw === '') && leg.kind === 'between' && leg.sameLocation === true) return true;
+    return raw != null && raw !== ''
+      && Number.isFinite(Number(raw)) && Number(raw) >= 0;
   });
   const kilometers = kilometersValid
-    ? Math.round(legs.reduce((sum, leg) => sum + (leg.kind === 'between' && leg.sameLocation === true ? 0 : Number(leg.kilometers)), 0) * 100) / 100
+    ? Math.round(legs.reduce((sum, leg) => {
+      const raw = leg.kilometers;
+      const value = (raw == null || raw === '') && leg.kind === 'between' && leg.sameLocation === true
+        ? 0
+        : Number(raw);
+      return sum + value;
+    }, 0) * 100) / 100
     : null;
   return { complete: minutes !== null && kilometers !== null, kilometers,
     cancellationMinutes: minutes };

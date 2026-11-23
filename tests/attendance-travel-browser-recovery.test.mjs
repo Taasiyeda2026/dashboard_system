@@ -103,7 +103,7 @@ test('real Chromium: hanging travel preview exposes retry and no longer freezes 
   await page.evaluate(()=>{window.__travelMock.previewHangs=false;});
   await page.locator('.av2-daily-travel__retry').click();
   await page.waitForFunction(()=>!document.querySelector('.av2-daily-travel__status')?.textContent.includes('טוען'));
-  assert.equal(await page.locator('button:has-text("שמירת נסיעות")').isEnabled(),true);
+  assert.equal(await page.locator('.av2-daily-travel button:has-text("שמור")').isEnabled(),true);
   assert.ok(await page.evaluate(()=>window.__travelMock.previewCalls)>=2);
  });
 });
@@ -113,7 +113,7 @@ test('real Chromium: timed-out save with existing server report is confirmed wit
   await page.evaluate(()=>{window.__travelMock.saveHangs=true;window.__travelMock.persistOnHangingSave=true;});
   await page.evaluate(()=>window.travelComponent.load());
   await page.locator('.av2-daily-travel input[type="checkbox"]').check();
-  await page.locator('button:has-text("שמירת נסיעות")').click();
+  await page.locator('.av2-daily-travel button:has-text("שמור")').click();
   await page.waitForFunction(()=>window.__travelMock.saveCalls.length===1);
   await page.clock.fastForward(15500);
   await page.waitForFunction(()=>document.querySelector('.av2-daily-travel__status')?.textContent.includes('נמצא שמור'));
@@ -128,12 +128,12 @@ test('real Chromium: failed save does not erase the entered no-travel selection'
   await page.evaluate(()=>window.travelComponent.load());
   const checkbox=page.locator('.av2-daily-travel input[type="checkbox"]');
   await checkbox.check();
-  await page.locator('button:has-text("שמירת נסיעות")').click();
+  await page.locator('.av2-daily-travel button:has-text("שמור")').click();
   await page.waitForFunction(()=>window.__travelMock.saveCalls.length===1);
   await page.clock.fastForward(15500);
   await page.waitForFunction(()=>document.querySelector('.av2-daily-travel__status')?.textContent.includes('לא נמצא דיווח'));
   assert.equal(await checkbox.isChecked(),true);
-  assert.equal(await page.locator('button:has-text("שמירת נסיעות")').isEnabled(),true);
+  assert.equal(await page.locator('.av2-daily-travel button:has-text("שמור")').isEnabled(),true);
   assert.equal(await page.evaluate(()=>window.__travelMock.saveCalls.length),1);
  });
 });
@@ -152,7 +152,7 @@ test('real Chromium: switching days during a stalled preview loads the newly cho
   });
   await page.clock.fastForward(12500);
   await page.waitForFunction(()=>{
-   const save=[...document.querySelectorAll('button')].find(b=>b.textContent==='שמירת נסיעות');
+   const save=[...document.querySelectorAll('button')].find(b=>b.closest('.av2-daily-travel')&&b.textContent==='שמור');
    return document.querySelector('#av2-travel-date')?.value==='2026-11-06'
       && window.__travelMock.previewCalls>=2 && save && !save.disabled;
   });
@@ -165,18 +165,18 @@ test('real Chromium: unverified save stays blocked until server status can be ch
   await page.evaluate(()=>{window.__travelMock.saveHangs=true;});
   await page.evaluate(()=>window.travelComponent.load());
   await page.locator('.av2-daily-travel input[type="checkbox"]').check();
-  await page.locator('button:has-text("שמירת נסיעות")').click();
+  await page.locator('.av2-daily-travel button:has-text("שמור")').click();
   await page.waitForFunction(()=>window.__travelMock.saveCalls.length===1);
   await page.evaluate(()=>{window.__travelMock.reportHangs=true;});
   await page.clock.fastForward(15500);
   await page.clock.fastForward(12500);
-  await page.waitForFunction(()=>document.querySelector('.av2-daily-travel__status')?.textContent.includes('לא ניתן לאמת'));
-  assert.equal(await page.locator('button:has-text("שמירת נסיעות")').isDisabled(),true);
+  await page.waitForFunction(()=>document.querySelector('.av2-daily-travel__status')?.textContent.includes('לא אומתה השמירה'));
+  assert.equal(await page.locator('.av2-daily-travel button:has-text("שמור")').isDisabled(),true);
   assert.equal(await page.locator('.av2-daily-travel__retry').isVisible(),true);
   await page.evaluate(()=>{window.__travelMock.reportHangs=false;});
   await page.locator('.av2-daily-travel__retry').click();
   await page.waitForFunction(()=>document.querySelector('.av2-daily-travel__status')?.textContent.includes('לא נמצא דיווח'));
-  assert.equal(await page.locator('button:has-text("שמירת נסיעות")').isEnabled(),true);
+  assert.equal(await page.locator('.av2-daily-travel button:has-text("שמור")').isEnabled(),true);
   assert.equal(await page.evaluate(()=>window.__travelMock.saveCalls.length),1);
  });
 });
@@ -186,7 +186,7 @@ test('real Chromium: mismatched server report blocks overwrite until reviewed',a
   await page.evaluate(()=>{window.__travelMock.saveHangs=true;});
   await page.evaluate(()=>window.travelComponent.load());
   await page.locator('.av2-daily-travel input[type="checkbox"]').check();
-  await page.locator('button:has-text("שמירת נסיעות")').click();
+  await page.locator('.av2-daily-travel button:has-text("שמור")').click();
   await page.waitForFunction(()=>window.__travelMock.saveCalls.length===1);
   await page.evaluate(()=>{
    window.__travelMock.reports=[{
@@ -196,8 +196,8 @@ test('real Chromium: mismatched server report blocks overwrite until reviewed',a
    }];
   });
   await page.clock.fastForward(15500);
-  await page.waitForFunction(()=>document.querySelector('.av2-daily-travel__status')?.textContent.includes('נתונים אחרים'));
-  assert.equal(await page.locator('button:has-text("שמירת נסיעות")').isDisabled(),true);
+  await page.waitForFunction(()=>document.querySelector('.av2-daily-travel__status')?.textContent.includes('נמצא דיווח אחר'));
+  assert.equal(await page.locator('.av2-daily-travel button:has-text("שמור")').isDisabled(),true);
   assert.match(await page.locator('.av2-daily-travel__retry').innerText(),/רענון מהשרת/);
   assert.equal(await page.evaluate(()=>window.__travelMock.saveCalls.length),1);
  });
@@ -214,7 +214,7 @@ test('real Chromium: cancelling day departure preserves unsaved travel and permi
   assert.equal(moved,false);assert.equal(prompts,1);
   assert.equal(await checkbox.isChecked(),true);
   assert.equal(await page.locator('#av2-travel-date').inputValue(),'2026-11-05');
-  await page.locator('button:has-text("שמירת נסיעות")').click();
+  await page.locator('.av2-daily-travel button:has-text("שמור")').click();
   await page.waitForFunction(()=>document.querySelector('.av2-daily-travel__saved')?.hidden===false);
   assert.equal(await page.evaluate(()=>window.__travelMock.saveCalls.length),1);
  });
@@ -237,7 +237,7 @@ test('real Chromium: in-flight save keeps its day and blocks duplicate submissio
   await page.evaluate(()=>{window.__travelMock.saveHangs=true;});
   await page.evaluate(()=>window.travelComponent.load());
   await page.locator('.av2-daily-travel input[type="checkbox"]').check();
-  await page.locator('button:has-text("שמירת נסיעות")').click();
+  await page.locator('.av2-daily-travel button:has-text("שמור")').click();
   await page.waitForFunction(()=>window.__travelMock.saveCalls.length===1);
   page.once('dialog',dialog=>dialog.accept());
   assert.equal(await page.evaluate(()=>window.travelComponent.setDate('2026-11-06')),false);
@@ -256,7 +256,7 @@ test('real Chromium: changed context clears old values even when activity labels
      {kind:'return',from:'בית ספר',to:'בית',mode:'car',minutes:60,kilometers:20,contextFingerprint:'old-context'}]}];
   });
   await page.evaluate(()=>window.travelComponent.load());
-  await page.getByRole('button',{name:'עריכת דיווח',exact:true}).click();
+  await page.getByRole('button',{name:'עריכה',exact:true}).click();
   assert.equal(await page.locator('#av2-leg-0-kilometers').inputValue(),'');
   assert.equal(await page.locator('[data-duration-hours="0"]').inputValue(),'');
   assert.equal(await page.evaluate(()=>window.__travelMock.saveCalls.length),0);

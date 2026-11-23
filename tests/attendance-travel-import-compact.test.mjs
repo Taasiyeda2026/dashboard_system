@@ -16,7 +16,7 @@ test('historical travel report loader is imported and compact layout is constrai
 test('travel has one distinct heading and uses expenses-style compact report card',async()=>{
  const ui=await readFile(new URL('../attendance/src/screens/daily-travel-tab.js',import.meta.url),'utf8');
  const css=await readFile(new URL('../attendance/src/styles/new-report-final-alignment.css',import.meta.url),'utf8');
- assert.match(ui,/title\.textContent = 'דיווח נסיעות'/);
+ assert.match(ui,/title\.textContent = 'נסיעות'/);
  assert.doesNotMatch(ui,/title\.textContent = 'נסיעות וביטולים'/);
  assert.match(ui,/reportCard\.className='av2-daily-travel__report-card'/);
  assert.match(ui,/reportCard\.append\(monthWrap,daysWrap,dateField\.wrap,status,reload,historicalEdit,legsArea,noTravelLabel,summary,savedCard,actions\)/);
