@@ -207,7 +207,9 @@ test('instructor navigation keeps portal areas and omits approvals and guideline
   assert.doesNotMatch(sidebar, /instructor-work-schedule/);
   assert.ok(sidebar.indexOf('instructor-dashboard') < sidebar.indexOf('my-data'));
   const mobile = source.slice(source.indexOf('const INSTRUCTOR_MOBILE_NAV'), source.indexOf('function instructorBottomNavHtml'));
-  assert.ok(mobile.indexOf('instructor-dashboard') < mobile.indexOf('my-data'));
+  // Mobile RTL order: calendar → attendance → feedback → activities → … → home.
+  assert.ok(mobile.indexOf('instructor-calendar') < mobile.indexOf('my-data'));
+  assert.ok(mobile.indexOf('my-data') < mobile.indexOf("route: 'instructor-dashboard'"));
   assert.doesNotMatch(mobile, /instructor-work-schedule/);
   assert.match(mobile, /instructor-calendar/);
   assert.doesNotMatch(mobile, /instructor-reports/);

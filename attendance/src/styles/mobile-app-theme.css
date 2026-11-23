@@ -501,47 +501,36 @@
   }
 
   .av2-rr-mobile__summary {
-    min-height: 78px;
-    grid-template-columns: 72px minmax(0,1fr) 50px 16px;
-    gap: 8px;
-    padding: 12px 13px;
-    border-radius: 16px;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr) 48px 16px;
+    gap: 6px 8px;
+    padding: 8px 10px;
+    border-radius: 14px;
   }
 
-  .av2-rr-mobile__date strong,
-  .av2-rr-mobile__activity strong,
+  .av2-rr-mobile__name,
   .av2-rr-mobile__hours strong {
     color: #153456;
   }
 
-  .av2-rr-mobile__activity small {
-    align-self: flex-start;
-    margin: 0 0 5px;
-    padding: 3px 8px;
-    border-radius: 999px;
-    background: color-mix(in srgb, var(--av2-row-tone) 13%, white);
-    color: color-mix(in srgb, var(--av2-row-tone) 78%, #18324d);
-    font-size: .59rem;
-    font-weight: 800;
+  .av2-rr-mobile__meta {
+    color: #61758b;
   }
 
-  .av2-report-row.is-mobile-expanded > .av2-rr__start,
-  .av2-report-row.is-mobile-expanded > .av2-rr__end,
+  .av2-report-row.is-mobile-expanded > .av2-rr__type,
   .av2-report-row.is-mobile-expanded > .av2-rr__time-cancel,
-  .av2-report-row.is-mobile-expanded > .av2-rr__name,
-  .av2-report-row.is-mobile-expanded > .av2-rr__school,
   .av2-report-row.is-mobile-expanded > .av2-rr__authority,
   .av2-report-row.is-mobile-expanded > .av2-rr__km,
   .av2-report-row.is-mobile-expanded > .av2-rr__expenses,
   .av2-report-row.is-mobile-expanded > .av2-rr__notes-row {
-    margin-inline: 10px;
-    padding: 9px 5px !important;
+    margin-inline: 8px;
+    padding: 6px 4px !important;
     border-top-color: #e6eef7 !important;
   }
 
   .av2-report-row.is-mobile-expanded > .av2-rr__actions {
-    margin: 0 10px 9px;
-    padding: 10px 4px 3px !important;
+    margin: 0 8px 8px;
+    padding: 8px 4px 2px !important;
     border-top-color: #e6eef7 !important;
   }
 

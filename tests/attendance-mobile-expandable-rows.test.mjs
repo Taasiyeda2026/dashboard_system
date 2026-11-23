@@ -5,13 +5,19 @@ import { readFile } from 'node:fs/promises';
 const enhancer = await readFile(new URL('../attendance/src/mobile-reports-enhancer.js', import.meta.url), 'utf8');
 const styles = await readFile(new URL('../attendance/src/styles/mobile-reports.css', import.meta.url), 'utf8');
 const index = await readFile(new URL('../attendance/index.html', import.meta.url), 'utf8');
+const sw = await readFile(new URL('../attendance/sw.js', import.meta.url), 'utf8');
 
 test('mobile reports use a compact expandable summary instead of horizontal table scrolling', () => {
   assert.match(enhancer, /av2-rr-mobile__summary/);
+  assert.match(enhancer, /av2-rr-mobile__main/);
+  assert.match(enhancer, /av2-rr-mobile__meta/);
+  assert.match(enhancer, /av2-rr-mobile__range/);
+  assert.match(enhancer, /av2-rr-mobile__school/);
   assert.match(enhancer, /is-mobile-expanded/);
   assert.match(enhancer, /aria-expanded/);
   assert.match(enhancer, /av2-rr__date/);
-  assert.match(enhancer, /av2-rr__type/);
+  assert.match(enhancer, /av2-rr__start/);
+  assert.match(enhancer, /av2-rr__end/);
   assert.match(enhancer, /av2-rr__name/);
   assert.match(enhancer, /av2-rr__hours/);
 
@@ -22,16 +28,21 @@ test('mobile reports use a compact expandable summary instead of horizontal tabl
   assert.match(styles, /\.av2-report-row\.is-mobile-expanded/);
 });
 
-test('expanded mobile row exposes the secondary details and actions', () => {
+test('expanded mobile row hides closed-card duplicates and keeps secondary details', () => {
   for (const label of ['שעת התחלה', 'שעת סיום', 'שם הפעילות', 'מיקום / בית ספר', 'רשות', 'ק״מ', 'הוצאות', 'פעולות']) {
     assert.match(enhancer, new RegExp(label));
   }
+  assert.match(styles, /is-mobile-expanded > \.av2-rr__name[\s\S]*display:\s*none\s*!important/);
+  assert.match(styles, /is-mobile-expanded > \.av2-rr__school[\s\S]*display:\s*none\s*!important/);
+  assert.match(styles, /is-mobile-expanded > \.av2-rr__start[\s\S]*display:\s*none\s*!important/);
   assert.match(styles, /is-mobile-expanded > \.av2-rr__actions/);
+  assert.match(styles, /text-align:\s*right/);
   assert.doesNotMatch(enhancer, /setMobileLabel\(notesCell, 'הערות'\)/);
   assert.match(styles, /is-mobile-expanded > \.av2-rr__actions \.av2-rr__action-copy\s*\{\s*display:\s*none\s*!important/);
 });
 
 test('mobile report assets are loaded with the current cache version', () => {
-  assert.match(index, /mobile-reports\.css\?v=155/);
-  assert.match(index, /mobile-reports-enhancer\.js\?v=155/);
+  assert.match(sw, /const CACHE_VERSION = 187/);
+  assert.match(index, /mobile-reports\.css\?v=187/);
+  assert.match(index, /mobile-reports-enhancer\.js\?v=187/);
 });

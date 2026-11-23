@@ -93,7 +93,7 @@ test('completion approvals keep the shared print/status mechanism and render as 
 
 
 test('final instructor mobile contract enforces touch-first full-width layouts', () => {
-  assert.match(index, /instructor-mobile-contract\.css\?v=20260922-mobile-contract-v1/);
+  assert.match(index, /instructor-mobile-contract\.css\?v=20261123-instructor-mobile-compact-v1/);
   assert.ok(index.indexOf('instructor-mobile-contract.css') > index.indexOf('instructor-portal-drawer-hotfix.css'));
   assert.match(mobileContract, /@media \(max-width: 959px\)/);
   assert.match(mobileContract, /overflow-x:\s*hidden/);

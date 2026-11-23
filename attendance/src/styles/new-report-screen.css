@@ -292,7 +292,14 @@
 }
 
 @media (max-width: 639px) {
-  .av2-report__times-grid,
+  .av2-report__times-grid {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.9fr);
+    gap: 6px;
+    align-items: end;
+  }
+  .av2-report__times-grid > .av2-report__hours-followup {
+    grid-column: 1 / -1;
+  }
   .av2-report__expense-fields { grid-template-columns: 1fr; }
 }
 

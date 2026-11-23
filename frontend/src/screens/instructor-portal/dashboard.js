@@ -5,9 +5,11 @@ import {
   instructorUpcomingFromResolvedMeetings,
   loadInstructorPortalSchedule,
   monthlyInstructorSummary,
-  nextMeetingFromResolvedMeetings
+  nextMeetingFromResolvedMeetings,
+  portalActivityForDrawer
 } from './portal-data.js';
 import { formatDateHe } from '../shared/format-date.js';
+import { openInstructorActivityDrawer } from './activity-drawer.js';
 
 const localMonthKey = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 let selectedMonth = localMonthKey();
@@ -46,7 +48,8 @@ function upcomingMeetingCardHtml(meeting, label = '') {
   if (!meeting) return '';
   const date = formatDateHe(meeting.date);
   const meta = meetingMetaHtml(meeting);
-  return `<section class="instructor-portal-focus" data-upcoming-activity="${escapeHtml(meeting?.row?.RowID || meeting?.row?.row_id || '')}">
+  const activityId = escapeHtml(meeting?.row?.RowID || meeting?.row?.row_id || '');
+  return `<section class="instructor-portal-focus" role="button" tabindex="0" data-upcoming-activity="${activityId}">
     <span>${label ? `${escapeHtml(label)} · ` : ''}${escapeHtml(date)}</span>
     <strong>${escapeHtml(meeting.activity_name || 'פעילות')}</strong>
     ${meta ? `<small>${meta}</small>` : ''}
@@ -78,7 +81,7 @@ export const instructorDashboardScreen = {
       <div class="instructor-portal-shortcuts">${PORTAL_SHORTCUTS.map((item) => dsInteractiveCard({ action: item.action, title: item.title, variant: 'mini', extraClass: 'instructor-portal-shortcut' })).join('')}</div>
     </section>`);
   },
-  bind({ root, rerender }) {
+  bind({ root, rerender, data, state, ui }) {
     root.querySelector('[data-portal-month]')?.addEventListener('change', (event) => { selectedMonth = event.target.value; rerender?.(); });
     root.querySelectorAll('[data-card-action]').forEach((button) => button.addEventListener('click', () => {
       const action = button.dataset.cardAction || '';
@@ -86,5 +89,26 @@ export const instructorDashboardScreen = {
       if (action === 'external:attendance') window.location.assign(config.instructorAttendanceUrl);
       if (action === 'external:presentations') window.open(config.instructorPresentationsUrl, '_blank', 'noopener,noreferrer');
     }));
+    const scheduleState = {
+      ...state,
+      resolvedMeetings: data?.resolvedMeetings || [],
+      resolvedActivities: data?.resolvedActivities || []
+    };
+    const openUpcoming = (id) => {
+      const row = portalActivityForDrawer(id, data, scheduleState);
+      if (!row) return;
+      openInstructorActivityDrawer({ row, state, ui });
+    };
+    root.querySelectorAll('[data-upcoming-activity]').forEach((node) => {
+      const id = node.dataset.upcomingActivity || '';
+      if (!id) return;
+      node.addEventListener('click', () => openUpcoming(id));
+      node.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openUpcoming(id);
+        }
+      });
+    });
   }
 };

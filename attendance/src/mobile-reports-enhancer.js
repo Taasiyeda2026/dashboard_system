@@ -20,8 +20,11 @@ function mobileToneForActivityType(value) {
 
 function createSummary(row) {
   const dateCell = row.querySelector('.av2-rr__date');
+  const startCell = row.querySelector('.av2-rr__start');
+  const endCell = row.querySelector('.av2-rr__end');
   const typeCell = row.querySelector('.av2-rr__type');
   const nameCell = row.querySelector('.av2-rr__name');
+  const schoolCell = row.querySelector('.av2-rr__school');
   const hoursCell = row.querySelector('.av2-rr__hours');
 
   if (!dateCell || !typeCell || !nameCell || !hoursCell) return null;
@@ -33,21 +36,32 @@ function createSummary(row) {
   summary.setAttribute('aria-expanded', 'false');
   summary.setAttribute('aria-label', `פתיחת פרטי דיווח ${valueText(dateCell, '')}`.trim());
 
+  const main = document.createElement('span');
+  main.className = 'av2-rr-mobile__main';
+
+  const name = document.createElement('strong');
+  name.className = 'av2-rr-mobile__name';
+  name.textContent = valueText(nameCell);
+
+  const meta = document.createElement('span');
+  meta.className = 'av2-rr-mobile__meta';
+
   const date = document.createElement('span');
   date.className = 'av2-rr-mobile__date';
-  const dateMain = document.createElement('strong');
-  dateMain.textContent = valueText(dateCell.querySelector('strong'));
-  const dateDay = document.createElement('small');
-  dateDay.textContent = valueText(dateCell.querySelector('span'), '');
-  date.append(dateMain, dateDay);
+  date.textContent = valueText(dateCell.querySelector('strong') || dateCell);
 
-  const activity = document.createElement('span');
-  activity.className = 'av2-rr-mobile__activity';
-  const type = document.createElement('small');
-  type.textContent = valueText(typeCell);
-  const name = document.createElement('strong');
-  name.textContent = valueText(nameCell);
-  activity.append(type, name);
+  const range = document.createElement('span');
+  range.className = 'av2-rr-mobile__range';
+  const start = valueText(startCell, '');
+  const end = valueText(endCell, '');
+  range.textContent = start && end ? `${start}–${end}` : (start || end || '—');
+
+  const school = document.createElement('span');
+  school.className = 'av2-rr-mobile__school';
+  school.textContent = valueText(schoolCell);
+
+  meta.append(date, range, school);
+  main.append(name, meta);
 
   const hours = document.createElement('span');
   hours.className = 'av2-rr-mobile__hours';
@@ -61,7 +75,7 @@ function createSummary(row) {
   chevron.className = 'av2-rr-mobile__chevron';
   chevron.setAttribute('aria-hidden', 'true');
 
-  summary.append(date, activity, hours, chevron);
+  summary.append(main, hours, chevron);
   summary.addEventListener('click', (event) => {
     event.stopPropagation();
     const expanded = !row.classList.contains('is-mobile-expanded');

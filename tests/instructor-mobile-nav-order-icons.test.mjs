@@ -29,5 +29,5 @@ test('dashboard service worker and instructor nav script updated together', asyn
   const index = await file('index.html');
   const sw = await file('frontend/sw.js');
   assert.match(index, /instructor-portal-ux-runtime\.js\?v=20261123-instructor-mobile-nav-order-icons-v1/);
-  assert.match(sw, /const CACHE_VERSION = 2132/);
+  assert.match(sw, /const CACHE_VERSION = 2133/);
 });
