@@ -317,7 +317,7 @@ export function buildDashboardCourseOptions(rows = []) {
 /**
  * Preserve the dashboard's scheduled course times as reported start/end.
  * Work/payroll hours are separate: an exact 45-minute lesson earns 60 minutes,
- * an 80–120-minute lesson earns 120 minutes; other scheduled durations
+ * a 75–120-minute lesson earns 120 minutes; other scheduled durations
  * are not lengthened. Overlapping classes are counted once, while distinct
  * adjacent sessions each retain their own eligible paid duration.
  */
@@ -334,7 +334,7 @@ export function dashboardCourseWork(rows = []) {
   }
   const paidMinutes = sessions.reduce((sum, [start, end]) => {
     const scheduledMinutes = end - start;
-    return sum + (scheduledMinutes === 45 ? 60 : scheduledMinutes >= 80 && scheduledMinutes <= 120 ? 120 : scheduledMinutes);
+    return sum + (scheduledMinutes === 45 ? 60 : scheduledMinutes >= 75 && scheduledMinutes <= 120 ? 120 : scheduledMinutes);
   }, 0);
   return {
     startTime: formatClockMinutes(Math.min(...sessions.map(row => row[0]))),
