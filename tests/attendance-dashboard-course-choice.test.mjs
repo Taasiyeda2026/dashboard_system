@@ -63,14 +63,19 @@ test('simultaneous classes share instructional work without losing any source li
   assert.equal(resolved.candidateRows.length, 4);
   assert.equal(resolved.activity.__dashboardCourseWork.totalHours, 2);
 });
-test('course clock times are never padded, while 45/90-minute paid hours remain distinct', () => {
+test('course clock times remain exact while 75–120 minutes earn two paid hours', () => {
   const cases = [
     ['10:00', '10:45', 1],
-    ['10:00', '11:30', 2],
-    ['10:00', '12:00', 2],
+    ['10:00', '11:00', 1],
+    ['10:00', '11:14', 1.23], // 74 minutes: below the new threshold
+    ['10:00', '11:15', 2],    // 75 minutes: exact lower boundary
+    ['10:00', '11:20', 2],    // 80 minutes: existing behavior preserved
     ['10:00', '11:25', 2],
+    ['10:00', '11:30', 2],
     ['10:00', '11:40', 2],
     ['10:00', '11:45', 2],
+    ['10:00', '12:00', 2],    // 120 minutes: inclusive upper boundary
+    ['10:00', '12:01', 2.02],// 121 minutes: outside the capped interval
   ];
   for (const [start_time, end_time, paidHours] of cases) {
     const resolved = resolveDashboardCourseChoice(buildDashboardCourseOptions([{ ...base, start_time, end_time }])[0], [{ ...base, start_time, end_time }]);
