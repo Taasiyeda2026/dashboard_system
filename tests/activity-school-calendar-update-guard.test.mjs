@@ -39,3 +39,10 @@ test('technical holiday constraint is translated into a clear Hebrew message', (
     'לא ניתן לשמור פעילות בתאריך 27.10.2026 – יום הבחירות לכנסת ה-26.',
   );
 });
+
+test('holiday errors with spaced database details hide the technical code', () => {
+  assert.equal(
+    translateApiErrorForUser('23514 | activity_date_on_school_holiday | 2026-12-07 | חנוכה'),
+    'לא ניתן לשמור פעילות בתאריך 07.12.2026 – חנוכה.',
+  );
+});

@@ -106,3 +106,53 @@ test('save click with an unchanged historical conflict saves once and shows succ
   assert.equal(status.classList.contains('is-success'), true);
   assert.equal(status.classList.contains('is-error'), false);
 });
+
+async function attemptRequest({ rows, loadRows, blocked = true }) {
+  const originalDocument = globalThis.document;
+  const dom = new JSDOM('<!doctype html><body></body>');
+  globalThis.document = dom.window.document;
+  try {
+    const form = formFixture({ oldDates: ['2026-10-20'], newDates: [blocked ? blockedDate : '2026-10-21'] });
+    document.body.append(form);
+    form.setAttribute('data-drawer-form', '');
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.dataset.action = 'save-edit';
+    form.append(button);
+    let submissions = 0;
+    // A direct listener must also be blocked, even if it ignores data-action.
+    button.addEventListener('click', () => { submissions += 1; });
+    startSchoolCalendarFormGuard({ getRows: () => rows, loadRows });
+    button.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    return { submissions, message: form.querySelector('.ds-activity-edit-status').textContent };
+  } finally {
+    globalThis.document = originalDocument;
+    dom.window.close();
+  }
+}
+
+test('blocked date prevents the request handler from running', async () => {
+  const result = await attemptRequest({ rows: [generalHoliday] });
+  assert.equal(result.submissions, 0);
+  assert.match(result.message, /יום הבחירות/);
+});
+
+test('empty cached fallback reloads and blocks the holiday request', async () => {
+  const result = await attemptRequest({ rows: [], loadRows: async () => [generalHoliday] });
+  assert.equal(result.submissions, 0);
+  assert.match(result.message, /יום הבחירות/);
+});
+
+test('calendar load failure preserves the form and does not submit', async () => {
+  for (const loadRows of [async () => [], async () => { throw new Error('offline'); }]) {
+    const result = await attemptRequest({ rows: null, loadRows });
+    assert.equal(result.submissions, 0);
+    assert.match(result.message, /לא ניתן לבדוק את לוח החופשות/);
+  }
+});
+
+test('cold calendar load resumes an allowed request exactly once', async () => {
+  const result = await attemptRequest({ rows: null, loadRows: async () => [generalHoliday], blocked: false });
+  assert.equal(result.submissions, 1);
+});
