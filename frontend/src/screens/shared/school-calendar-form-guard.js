@@ -265,14 +265,19 @@ function suppressCurrentSave(button) {
 }
 
 async function validateThenResume(button, form, loadRows = loadSchoolCalendarRows) {
-  const rows = await loadRows();
-  const message = schoolCalendarValidationMessage(form, rows);
-  if (message) {
-    showValidationError(form, message);
-    return;
+  try {
+    const rows = await loadRows();
+    if (!rows?.length) throw new Error('school_calendar_unavailable');
+    const message = schoolCalendarValidationMessage(form, rows);
+    if (message) {
+      showValidationError(form, message);
+      return;
+    }
+    saveBypass.add(form);
+    button.click();
+  } catch {
+    showValidationError(form, 'לא ניתן לבדוק את לוח החופשות כרגע. נסו שוב לפני שליחת הבקשה.');
   }
-  saveBypass.add(form);
-  button.click();
 }
 
 export function startSchoolCalendarFormGuard({
@@ -330,8 +335,9 @@ export function startSchoolCalendarFormGuard({
     }
 
     const rows = getRows();
-    if (!rows) {
+    if (!rows?.length && !isSummerActivitySeason(activitySeason(form))) {
       event.preventDefault();
+      event.stopImmediatePropagation();
       suppressCurrentSave(saveButton);
       void validateThenResume(saveButton, form, loadRows);
       return;
@@ -340,6 +346,7 @@ export function startSchoolCalendarFormGuard({
     const message = schoolCalendarValidationMessage(form, rows);
     if (!message) return;
     event.preventDefault();
+    event.stopImmediatePropagation();
     suppressCurrentSave(saveButton);
     showValidationError(form, message);
   }, true);

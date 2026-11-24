@@ -3,7 +3,7 @@ import { bindNotificationInbox } from '../notifications/view.js';
 import { supabase } from '../supabase-client.js';
 import { openPayrollControlWindow } from './shared/payroll-control-launcher.js';
 import { escapeHtml } from './shared/html.js';
-import { hebrewColumn, hebrewActivityType } from './shared/ui-hebrew.js';
+import { hebrewColumn, hebrewActivityType, translateApiErrorForUser } from './shared/ui-hebrew.js';
 import {
   dsPageHeader,
   dsCard,
@@ -553,7 +553,7 @@ export const editRequestsScreen = {
           rerender?.();
         } catch (err) {
           btn.disabled = false;
-          showToast(err.message || 'שגיאה בעיבוד הבקשה', 'error');
+          showToast(translateApiErrorForUser(err.message), 'error');
         }
       });
     });
