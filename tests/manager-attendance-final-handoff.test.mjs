@@ -102,5 +102,6 @@ test('signoff SQL ignores spoofable p_manager_name for the manager identity and 
   assert.match(migration, /attendance_expense_reviews_pending/);
   assert.match(migration, /status = 'locked'/);
   assert.match(migration, /manager_approved_snapshot =/);
+  assert.match(migration, /end\s*\$function\$;\s*REVOKE ALL ON FUNCTION/);
   assert.match(migration, /REVOKE ALL ON FUNCTION public\.manager_finalize_attendance_month_review/);
 });
