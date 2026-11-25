@@ -3074,28 +3074,34 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       ].map((entry) => txt(entry?.attendance?.employeeId)).filter(Boolean))];
       const rows = await api.listPayrollControlApprovals({ monthKey: result.month, employeeIds });
       approvalsByEmployee = Object.fromEntries((rows || []).map((row) => [txt(row.employee_id), row]));
-    } catch { approvalsByEmployee = {}; }
+    } catch (error) {
+      approvalsByEmployee = {};
+      throw new Error('טעינת נתוני האישור הסופי נכשלה. יש לנסות שוב לפני ביצוע בקרה.', { cause: error });
+    }
   };
   const loadWorkflowStatuses = async (monthKey, employeeIds = []) => {
     workflowByEmployee = {};
     if (!monthKey || !employeeIds.length) return;
     if (!api?.attendanceControlMonthWorkflowStatuses) {
-      workflowByEmployee = Object.fromEntries(employeeIds.map((employeeId) => [txt(employeeId), { workflow_status: 'not_submitted' }]));
-      return;
+      throw new Error('סטטוס הגשת החודש אינו זמין. לא ניתן לאשר את הדיווחים עד לטעינה תקינה.');
     }
     try {
       const rows = await api.attendanceControlMonthWorkflowStatuses({ monthKey, employeeIds });
       workflowByEmployee = Object.fromEntries((rows || []).map((row) => [txt(row.employee_id || row.employeeId), row]));
-    } catch {
-      workflowByEmployee = Object.fromEntries(employeeIds.map((employeeId) => [txt(employeeId), { workflow_status: 'not_submitted' }]));
+    } catch (error) {
+      workflowByEmployee = {};
+      throw new Error('טעינת סטטוסי החודש נכשלה. לא ניתן לבצע בקרה או אישור לפני ניסיון חוזר.', { cause: error });
     }
   };
   const loadRecordReviews = async () => {
     const entries = [...(result?.comparisons || []), ...(result?.notCompared || [])];
     for (const entry of entries) entry.managerRecordApproved = false;
-    if (!entries.length || !api?.attendanceControlRecordReviews) return;
+    if (!entries.length) return;
     const recordIds = [...new Set(entries.map(attendanceEntryRecordId).filter(Boolean))];
     if (!recordIds.length) return;
+    if (!api?.attendanceControlRecordReviews) {
+      throw new Error('שירות בדיקת אישורי הרשומות אינו זמין. לא ניתן לאשר את החודש.');
+    }
     try {
       const rows = await api.attendanceControlRecordReviews({ recordIds });
       const approved = new Set((rows || []).map((row) => txt(row.record_id || row.recordId)).filter(Boolean));
@@ -3113,6 +3119,7 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       }
     } catch (error) {
       console.warn('[attendance-control] record reviews load failed', error);
+      throw new Error('טעינת אישורי הרשומות נכשלה. יש לנסות שוב לפני אישור החודש.', { cause: error });
     }
   };
   const syncEntryAfterPersistentWrite = (entry) => {
@@ -3342,7 +3349,9 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     }
   });
   const loadAttendanceReview = async ({ successMessage = '' } = {}) => {
-    run.disabled = true; status.textContent = 'טוען את נתוני הנוכחות והדשבורד ומבצע בקרת נוכחות…';
+    run.disabled = true;
+    status.classList.remove('is-error');
+    status.textContent = 'טוען את נתוני הנוכחות והדשבורד ומבצע בקרת נוכחות…';
     try {
       const month = monthInput.value; const monthLabel = attendanceMonthLabel(month);
       if (!monthLabel) throw new Error('יש לבחור חודש לבדיקה לפני ביצוע הבדיקה.');
@@ -3398,12 +3407,19 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
           }).catch(()=>[])
         : [];
       title.textContent = `בקרת נוכחות – ${monthLabel}`;
-      await Promise.all([loadApprovals(), loadWorkflowStatuses(month, employeeIds), loadRecordReviews()]);
+      // Review sources are mandatory: never show a partly loaded manager approval screen.
+      await loadApprovals();
+      await loadWorkflowStatuses(month, employeeIds);
+      await loadRecordReviews();
       paintResults();
       status.textContent = successMessage;
     } catch (error) {
+      // Fail closed: stale detail and approval buttons must not survive a load error.
+      result = null;
+      approvalsByEmployee = {};
       workflowByEmployee = {};
-      status.textContent = error?.message || 'טעינת נתוני בקרת הנוכחות נכשלה.';
+      status.textContent = error?.message || 'טעינת נתוני בקרת הנוכחות נכשלה. יש לנסות שוב.';
+      status.classList.add('is-error');
       results.innerHTML = '';
     }
     finally { update(); }
@@ -4134,9 +4150,17 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
     finishBtn.disabled = true;
     try {
       const finishMod = await import('./payroll-control-finish.js?v=20261005-manager-pdf-decouple-v1');
-      // Revalidate against the database immediately before final approval. A correction
-      // (or another session) can bump attendance_records.updated_at and invalidate a
-      // review after the screen was loaded.
+      // Revalidate every required source before signing. A previously loaded
+      // submission, review or final-approval state may be stale or unavailable.
+      await loadApprovals();
+      const reviewEmployeeIds = [...new Set(
+        [...(result.comparisons || []), ...(result.notCompared || [])]
+          .map((entry) => txt(entry?.attendance?.employeeId)).filter(Boolean)
+      )];
+      await loadWorkflowStatuses(result.month, reviewEmployeeIds);
+      if (!canManagerFinalizeEmployeeMonth(workflowByEmployee[employeeId] || {}, { bypassMonthSubmissionGate })) {
+        throw new Error('מצב הגשת החודש השתנה. יש לרענן את הבקרה לפני אישור מנהל.');
+      }
       await loadRecordReviews();
       paintResults();
       if (finishMod.payrollEmployeeHasUnresolvedEntries(result, employeeId)) {

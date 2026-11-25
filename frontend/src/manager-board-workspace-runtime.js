@@ -4,7 +4,7 @@ import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 import { hasPermission } from './permission-policy.js';
 import { normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 import { escapeHtml } from './screens/shared/html.js';
-import { attendanceMonthDateRange, resolveManagerAttendanceOverviewState } from './screens/attendance-control.js?v=20261110-orphan-travel-delete-v1';
+import { attendanceMonthDateRange, resolveManagerAttendanceOverviewState } from './screens/attendance-control.js?v=20261125-manager-attendance-failclosed-v1';
 import { tableHtml as trackingTableHtml } from './manager-board-employee-file-tracking.js?v=20261004-overdue-date-red-v1';
 
 const MANAGER_WORKSPACE_TAB_KEY = 'manager_board_workspace_tab';
@@ -317,7 +317,8 @@ async function loadAttendanceSummary(roster, ym, force = false) {
     records = ids.length
       ? await api.attendanceControlRecords({ employeeIds: ids, fromDate, toDate })
       : [];
-    for (const row of Array.isArray(records) ? records : []) {
+    if (!Array.isArray(records)) throw new Error('תגובת דיווחי הנוכחות אינה תקינה.');
+    for (const row of records) {
       const empId = rawEmployeeId(row);
       if (!recordCounts.has(empId) || rawRecordMonth(row) !== ym) continue;
       const generationKind = text(row?.generationKind || row?.generation_kind);
@@ -329,9 +330,13 @@ async function loadAttendanceSummary(roster, ym, force = false) {
   }
 
   try {
-    if (ids.length && typeof api.attendanceControlMonthWorkflowStatuses === 'function') {
+    if (ids.length) {
+      if (typeof api.attendanceControlMonthWorkflowStatuses !== 'function') {
+        throw new Error('שירות סטטוסי החודש אינו זמין.');
+      }
       const workflowRows = await api.attendanceControlMonthWorkflowStatuses({ monthKey: ym, employeeIds: ids });
-      for (const row of Array.isArray(workflowRows) ? workflowRows : []) {
+      if (!Array.isArray(workflowRows)) throw new Error('תגובת סטטוסי החודש אינה תקינה.');
+      for (const row of workflowRows) {
         const empId = text(row?.employee_id || row?.employeeId);
         if (empId) workflowByEmployee.set(empId, row);
       }
@@ -343,9 +348,13 @@ async function loadAttendanceSummary(roster, ym, force = false) {
   const approvals = new Map();
   let approvalsError = '';
   try {
-    if (typeof api.listPayrollControlApprovals === 'function') {
+    if (ids.length) {
+      if (typeof api.listPayrollControlApprovals !== 'function') {
+        throw new Error('שירות האישורים הסופיים אינו זמין.');
+      }
       const rows = await api.listPayrollControlApprovals({ monthKey: ym, employeeIds: ids });
-      for (const row of Array.isArray(rows) ? rows : []) {
+      if (!Array.isArray(rows)) throw new Error('תגובת האישורים הסופיים אינה תקינה.');
+      for (const row of rows) {
         const empId = text(row?.employee_id || row?.employeeId);
         if (recordCounts.has(empId)) approvals.set(empId, row);
       }
@@ -354,7 +363,32 @@ async function loadAttendanceSummary(roster, ym, force = false) {
     approvalsError = error?.message || 'טעינת אישורי הבקרה נכשלה.';
   }
 
+  // Audit is read-only and team-authorized in the database. Never infer that a
+  // signed PDF still matches live records when the audit could not be loaded.
+  const auditByEmployee = new Map();
+  let auditError = '';
+  try {
+    if (ids.length) {
+      if (typeof api.managerAttendancePostApprovalAudit !== 'function') {
+        throw new Error('שירות בדיקת שינויים לאחר אישור אינו זמין.');
+      }
+      const rows = await api.managerAttendancePostApprovalAudit({ employeeIds: ids, monthKey: ym });
+      if (!Array.isArray(rows)) throw new Error('תגובת בדיקת השינויים אינה תקינה.');
+      for (const row of rows) {
+        const empId = text(row?.employee_id);
+        const count = Number(row?.changed_records);
+        if (recordCounts.has(empId) && Number.isSafeInteger(count) && count > 0) {
+          auditByEmployee.set(empId, count);
+        }
+      }
+    }
+  } catch (error) {
+    auditError = error?.message || 'בדיקת שינויים לאחר אישור מנהל נכשלה.';
+  }
+
   const value = { recordCounts, workflowByEmployee, approvals, records, recordsError, approvalsError, workflowError };
+  value.auditByEmployee = auditByEmployee;
+  value.auditError = auditError;
   attendanceSummaryCache.set(key, { value, loadedAt: Date.now() });
   return value;
 }
@@ -483,6 +517,15 @@ function handleWorkspaceClick(event) {
 }
 
 function managementAlertsHtml(roster, summary) {
+  const loadingError = [summary.recordsError, summary.workflowError, summary.approvalsError, summary.auditError]
+    .map(text).filter(Boolean).join(' · ');
+  if (loadingError) {
+    return `<div class="manager-workspace-alert-strip" dir="rtl" role="alert">
+      <div class="manager-workspace-alert-strip__title"><strong>נתוני בקרת הנוכחות לא נטענו במלואם</strong><span>לא ניתן להציג סטטוסים או ספירות מהימנים.</span></div>
+      <p class="manager-workspace-inline-error">${escapeHtml(loadingError)}</p>
+      <button type="button" class="manager-workspace-link-button" data-manager-attendance-retry>נסה שוב</button>
+    </div>`;
+  }
   let reportMissing = 0;
   let awaitingApproval = 0;
   let employeeApproved = 0;
@@ -504,6 +547,9 @@ function managementAlertsHtml(roster, summary) {
     <article class="${reportMissing ? 'is-warning' : ''}"><span>ללא דיווח נוכחות</span><strong>${reportMissing}</strong></article>
     <article class="${awaitingApproval ? 'is-warning' : ''}"><span>טרם אושר ע״י העובד</span><strong>${awaitingApproval}</strong></article>
     <article class="is-ok"><span>אושר ע״י העובד</span><strong>${employeeApproved}</strong></article>
+    ${[...(summary.auditByEmployee?.values() || [])].reduce((total, count) => total + count, 0) > 0
+      ? `<article class="is-warning"><span>דיווחים שהשתנו לאחר אישור מנהל</span><strong>${[...summary.auditByEmployee.values()].reduce((total, count) => total + count, 0)}</strong></article>`
+      : ''}
     ${error ? `<p class="manager-workspace-inline-error">${escapeHtml(error)}</p>` : ''}
   </div>`;
 }
@@ -522,6 +568,9 @@ function attendanceReopenActionHtml(empId, overview) {
 }
 
 function attendanceSummaryTableHtml(roster, summary, ym) {
+  if (summary.recordsError || summary.workflowError || summary.approvalsError || summary.auditError) {
+    return '<p class="manager-workspace-inline-error">דיווחי הנוכחות, סטטוסי ההגשה והאישורים לא אומתו. הטבלה מוסתרת עד לטעינה תקינה.</p>';
+  }
   if (!roster.length) return '<div class="manager-workspace-empty">אין מדריכים להצגה בחודש שנבחר.</div>';
   const rows = roster.map((row) => {
     const empId = text(row.emp_id);
@@ -533,11 +582,15 @@ function attendanceSummaryTableHtml(roster, summary, ym) {
     const reportCell = overview.status === 'no_report'
       ? '<span class="manager-workspace-report-count is-missing">לא נמצא דיווח</span>'
       : `<span class="manager-workspace-report-count">קיים · ${count} דיווחים</span>`;
+    const postApprovalChanges = Number(summary.auditByEmployee?.get(empId) || 0);
+    const postApprovalWarning = postApprovalChanges > 0
+      ? `<p class="manager-workspace-inline-error" role="alert">⚠ ${postApprovalChanges} דיווחים עודכנו לאחר אישור המנהל — נדרש בירור.</p>`
+      : '';
     return `<tr data-manager-attendance-status="${escapeHtml(overview.status)}">
       <td class="manager-workspace-attendance-person" data-label="מדריך"><strong>${escapeHtml(text(row.full_name) || empId)}</strong></td>
       <td class="manager-workspace-attendance-employee-id" data-label="מס׳ עובד">${escapeHtml(empId)}</td>
       <td data-label="דיווח">${reportCell}</td>
-      <td data-label="סטטוס אישור"><span class="manager-workspace-status ${escapeHtml(overview.statusClass)}">${escapeHtml(overview.statusLabel)}</span></td>
+      <td data-label="סטטוס אישור"><span class="manager-workspace-status ${escapeHtml(overview.statusClass)}">${escapeHtml(overview.statusLabel)}</span>${postApprovalWarning}</td>
       <td class="manager-workspace-attendance-action" data-label="פעולות"><div class="manager-workspace-attendance-actions">${attendanceOverviewActionHtml(empId, overview)}${attendanceReopenActionHtml(empId, overview)}</div></td>
     </tr>`;
   }).join('');
@@ -771,9 +824,14 @@ async function renderAttendance(boardRoot, context, roster, renderToken) {
     <section class="manager-workspace-panel manager-workspace-attendance" dir="rtl">
     <header class="manager-workspace-panel__head"><div><h2>בקרת נוכחות</h2><p>${escapeHtml(context.manager)} · ${escapeHtml(context.ym)} · ${escapeHtml(attendanceMonthMode(context.ym).label)}</p></div></header>
     ${attendanceSummaryTableHtml(roster, summary, context.ym)}
-    ${(summary.recordsError || summary.approvalsError) ? `<p class="manager-workspace-inline-error">${escapeHtml(summary.recordsError || summary.approvalsError)}</p>` : ''}
     <div class="manager-workspace-attendance-host" data-manager-attendance-host hidden></div>
   </section>`;
+
+  view.querySelector('[data-manager-attendance-retry]')?.addEventListener('click', () => {
+    attendanceSummaryCache.clear();
+    attendanceReviewSnapshotCache.clear();
+    void renderWorkspace(true);
+  });
 
   view.querySelector('[data-manager-attendance-host]')?.addEventListener('attendance-manager-month-approved', (event) => {
     const employeeId = text(event.detail?.employeeId);
