@@ -147,6 +147,53 @@
 .manager-workspace-attendance-table th:nth-child(3){width:20%}
 .manager-workspace-attendance-table th:nth-child(4){width:28%}
 .manager-workspace-attendance-table th:nth-child(5){width:18%}
+.manager-workspace-attendance-filter{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  padding:10px 14px;
+  border-bottom:1px solid #e2e8f0;
+  background:#fbfdff;
+}
+.manager-workspace-attendance-filter button{
+  font:inherit;
+  font-size:.83rem;
+  font-weight:700;
+  padding:7px 12px;
+  border:1px solid #cbd5e1;
+  border-radius:9px;
+  color:#334155;
+  background:#fff;
+  cursor:pointer;
+}
+.manager-workspace-attendance-filter button.is-active,
+.manager-workspace-attendance-filter button[aria-pressed="true"]{
+  background:#e8eef6;
+  border-color:#8da9cb;
+  color:#17395f;
+}
+.manager-workspace-attendance-list [data-manager-attendance-attention][hidden]{display:none!important}
+.manager-workspace-attendance-filter-empty{margin:0;padding:20px 14px;text-align:center;color:#64748b}
+.manager-workspace-attendance-filter-empty[hidden]{display:none}
+.manager-workspace-attention-notes{
+  display:flex;
+  gap:5px;
+  flex-wrap:wrap;
+  margin-top:6px;
+}
+.manager-workspace-attention-notes span{
+  display:inline-block;
+  border-radius:6px;
+  background:#fff3e0;
+  color:#854d0e;
+  padding:3px 7px;
+  font-size:.74rem;
+  font-weight:700;
+  white-space:normal;
+}
+.manager-workspace-attendance-table tbody tr[data-manager-attendance-priority="0"] td{
+  background:#fffaf0;
+}
 .manager-workspace-attendance-employee-id{white-space:nowrap;font-variant-numeric:tabular-nums}
 .manager-workspace-attendance-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .manager-workspace-run-team{
