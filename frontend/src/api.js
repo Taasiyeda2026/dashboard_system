@@ -7052,6 +7052,25 @@ export const api = {
     notifyWorkflowChanged();
     return data || {};
   },
+  managerAttendanceHandoffStatuses: async ({ monthKey = '', employeeIds = [] } = {}) => {
+    assertPermission('view_attendance_control', 'attendance_control_forbidden');
+    const month = String(monthKey || '').trim();
+    if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(month)) {
+      throw new Error('חודש הבקרה אינו תקין.');
+    }
+    const ids = [...new Set((Array.isArray(employeeIds) ? employeeIds : [])
+      .map((id) => Number(String(id ?? '').trim()))
+      .filter((id) => Number.isSafeInteger(id) && id > 0))];
+    if (ids.length > 500) throw new Error('לא ניתן לבקש סטטוס ליותר מ־500 עובדים.');
+    if (!ids.length) return [];
+    const { data, error } = await supabase.rpc('get_manager_attendance_handoff_statuses', {
+      p_employee_ids: ids,
+      p_month_key: month
+    });
+    if (error) throw new Error(error.message || 'טעינת מצב הבקרה הסופית נכשלה.');
+    if (!Array.isArray(data)) throw new Error('תגובת סטטוס השכר אינה תקינה.');
+    return data;
+  },
   managerReturnAttendanceMonthForCorrection: async ({
     employee_id,
     month_key,
