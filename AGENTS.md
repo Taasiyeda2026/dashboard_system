@@ -91,3 +91,10 @@ Reporting:
   Passing this check is NOT live verification and cannot prevent a manual
   out-of-band Dashboard/API or CLI change.
 - Do not deploy or merge Auth-config changes without separate owner approval.
+
+## Supabase resource and logging budget
+
+- Start diagnostics with narrow SQL statistics and metadata; do not scan logs broadly or repeatedly. Use the smallest relevant time window and service filter; no continuous log API polling.
+- Do not introduce per-minute cron jobs or idle frontend network polling by default. Document frequency, business need, estimated daily requests, and timezone; require explicit owner approval for high-frequency jobs.
+- Prefer event-driven refresh, single-flight requests, bounded retries, and visibility-aware fallback polling. Preserve authentication, lease heartbeats and delivery idempotency; do not disable necessary security or reliability checks to save requests.
+- Keep expired campaigns accessible for historical reporting without automatic polling. Verify production cron schedules and cache releases after deployment.
