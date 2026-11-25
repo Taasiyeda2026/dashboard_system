@@ -22,6 +22,7 @@ import { applyGlobalAccent, accentNameFromStorage, bindAccentPickerOnce as bindA
 import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 import { resumeInspirationBridge } from './inspiration-session-bridge.js';
 import { resumeSpinOffBridge } from './spin-off-session-bridge.js';
+import { POSTER_MANAGEMENT_URL, posterNavigationPlacement } from './poster-navigation.js';
 import { permissionFlagYes as permissionEnabled } from './permissions.js';
 import { hasPermission } from './permission-policy.js';
 import { canViewImpactFeedback, isFeedbackInstructor } from './impact-feedback/feedback-access.js';
@@ -1185,6 +1186,9 @@ function shell(content) {
     return `<button type="button" class="shell-nav__btn ${item.route === state.route ? 'is-active' : ''}" ${target}>${escapeHtml(item.label)}</button>`;
   }).join('');
   const nav = isInstructorUser ? instructorNav : regularNav;
+  const posterNavBtn = posterNavigationPlacement(state.user) === 'manager-sidebar'
+    ? '<button type="button" class="shell-nav__btn" data-poster-manager-nav="true">פוסטרים</button>'
+    : '';
   const attendanceNavBtn = isAdminUser
       ? `<button type="button" class="shell-nav__btn" data-external-url="/dashboard_system/attendance/">👥 נוכחות</button>`
       : '';
@@ -1230,7 +1234,7 @@ function shell(content) {
           </div>
         </div>
         <hr class="shell-sidebar__divider" />
-        <nav class="shell-nav">${nav}${attendanceNavBtn}</nav>
+        <nav class="shell-nav">${nav}${posterNavBtn}${attendanceNavBtn}</nav>
         <div class="shell-sidebar__footer" dir="rtl">
           ${isInstructorUser ? '' : `<div class="shell-period-wrap" data-global-period-wrap>
             <button type="button" class="shell-period-btn" data-global-period-toggle aria-haspopup="listbox" aria-expanded="false" aria-label="תקופת פעילות גלובלית" title="${escapeHtml(globalActivityPeriodFullLabel(state.activityPeriodTab))}">${escapeHtml(globalActivityPeriodLabel(state.activityPeriodTab))}</button>
@@ -2299,6 +2303,14 @@ function bindShell() {
   // delegation instead of attaching handlers only to the buttons from the
   // initial render. This keeps newly rendered header tabs clickable as well.
   document.addEventListener('click', (event) => {
+    const posterButton = event.target?.closest?.('[data-poster-manager-nav]');
+    if (posterButton) {
+      if (posterNavigationPlacement(state.user) === 'manager-sidebar') {
+        closeMobileNav();
+        window.open(POSTER_MANAGEMENT_URL, '_blank', 'noopener,noreferrer');
+      }
+      return;
+    }
     const button = event.target?.closest?.('[data-route]');
     if (button) navigateToRoute(button.dataset.route);
   });
