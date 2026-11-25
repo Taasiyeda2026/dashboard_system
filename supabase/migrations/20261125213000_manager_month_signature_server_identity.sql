@@ -174,8 +174,7 @@ begin
     'manager_pdf_version', v_row.manager_pdf_version
   );
 end
-$function$
-
+$function$;
 
 REVOKE ALL ON FUNCTION public.manager_finalize_attendance_month_review(text,text,text,text,text,text,integer,jsonb) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.manager_finalize_attendance_month_review(text,text,text,text,text,text,integer,jsonb) TO authenticated;
