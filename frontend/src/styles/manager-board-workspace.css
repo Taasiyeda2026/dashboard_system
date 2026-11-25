@@ -296,3 +296,31 @@
   .manager-attendance-return-dialog{padding:16px}
   .manager-attendance-return-dialog__actions>*{flex:1}
 }
+
+/* Read-only manager handoff: signoff, admin review and explicit payroll dispatch. */
+.manager-workspace-handoff-strip{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:10px 14px;margin:0 0 14px;
+  border:1px solid #dbe3ee;border-radius:12px;background:#f8fafc;
+  color:#334155;
+}
+.manager-workspace-handoff-strip__title{flex:1 1 240px;display:flex;flex-direction:column;gap:3px}
+.manager-workspace-handoff-strip__title strong{font-size:.9rem;color:#172033}
+.manager-workspace-handoff-strip__title span{font-size:.76rem;color:#64748b;line-height:1.5}
+.manager-workspace-handoff-strip>div:not(:first-child){
+  display:flex;align-items:center;gap:6px;padding:5px 8px;
+  background:white;border-radius:8px;border:1px solid #e2e8f0;
+}
+.manager-workspace-handoff-strip>div:not(:first-child) strong{font-size:.95rem;color:#1a3358;font-variant-numeric:tabular-nums}
+.manager-workspace-handoff-strip>div:not(:first-child) span{font-size:.76rem;color:#475569}
+.manager-workspace-handoff-note{
+  margin:6px 0 0;font-size:.75rem;font-weight:700;
+  color:#1e4f72;line-height:1.5;white-space:normal;
+}
+.manager-workspace-handoff-note.is-warning{color:#9a3412}
+@media(max-width:720px){
+  .manager-workspace-handoff-strip{gap:7px;padding:9px}
+  .manager-workspace-handoff-strip__title{flex-basis:100%}
+  .manager-workspace-handoff-strip>div:not(:first-child){flex:1 1 calc(50% - 7px);min-width:0;box-sizing:border-box}
+  .manager-workspace-handoff-strip>div:not(:first-child) span{overflow-wrap:anywhere}
+}
