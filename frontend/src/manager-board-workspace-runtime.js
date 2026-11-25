@@ -9,6 +9,10 @@ import {
   managerAttendancePriorityRows,
   managerAttendanceAttentionTotals
 } from './manager-attendance-priority.js?v=20261125-manager-attendance-priority-v1';
+import {
+  managerAttendanceHandoffState,
+  managerAttendanceHandoffTotals
+} from './manager-attendance-handoff.js?v=20261125-manager-attendance-handoff-v1';
 import { attendanceMonthDateRange, resolveManagerAttendanceOverviewState } from './screens/attendance-control.js?v=20261125-manager-attendance-failclosed-v1';
 import { tableHtml as trackingTableHtml } from './manager-board-employee-file-tracking.js?v=20261004-overdue-date-red-v1';
 
@@ -357,7 +361,10 @@ async function loadAttendanceSummary(roster, ym, force = false) {
       if (typeof api.listPayrollControlApprovals !== 'function') {
         throw new Error('שירות האישורים הסופיים אינו זמין.');
       }
-      const rows = await api.listPayrollControlApprovals({ monthKey: ym, employeeIds: ids });
+      const rows = await api.listPayrollControlApprovals({
+        monthKey: ym, employeeIds: ids,
+        statuses: ['admin_approved', 'approved_for_payroll']
+      });
       if (!Array.isArray(rows)) throw new Error('תגובת האישורים הסופיים אינה תקינה.');
       for (const row of rows) {
         const empId = text(row?.employee_id || row?.employeeId);
@@ -615,6 +622,26 @@ function managementAlertsHtml(roster, summary) {
   </div>`;
 }
 
+function managerAttendanceHandoffSummaryHtml(roster, summary) {
+  if (managerAttendanceSummaryError(summary) || !roster.length) return '';
+  const phases = roster.map((row) => {
+    const employeeId = text(row.emp_id);
+    return managerAttendanceHandoffState({
+      workflow: summary.workflowByEmployee?.get(employeeId) || {},
+      finalApproval: summary.approvals?.get(employeeId) || null,
+      auditCount: summary.auditByEmployee?.get(employeeId) || 0
+    });
+  });
+  const totals = managerAttendanceHandoffTotals(phases);
+  return `<section class="manager-workspace-handoff-strip" dir="rtl" aria-label="התקדמות הבקרה עד השכר">
+    <div class="manager-workspace-handoff-strip__title"><strong>לאחר אישור המנהל</strong><span>אישור מנהל ← בקרה סופית ← העברה לשכר. השלבים האחרונים מבוצעים בנפרד על ידי מנהל המערכת.</span></div>
+    <div><strong>${totals.awaitingAdmin}</strong><span>ממתינים לבקרה סופית</span></div>
+    <div><strong>${totals.pdfPending}</strong><span>PDF חסר אחרי חתימה</span></div>
+    <div><strong>${totals.adminApproved}</strong><span>אושרו סופית</span></div>
+    <div><strong>${totals.sentToPayroll}</strong><span>הועברו לשכר</span></div>
+  </section>`;
+}
+
 function attendanceOverviewActionHtml(empId, overview) {
   if (overview.actionKind === 'none' || !overview.actionLabel) return '';
   if (overview.actionKind === 'pdf') {
@@ -644,6 +671,14 @@ function attendanceSummaryTableHtml(roster, summary, ym) {
     const postApprovalWarning = auditCount > 0
       ? `<p class="manager-workspace-inline-error" role="alert">⚠ ${auditCount} דיווחים עודכנו לאחר אישור המנהל — נדרש בירור.</p>`
       : '';
+    const handoff = managerAttendanceHandoffState({
+      workflow: summary.workflowByEmployee?.get(empId) || {},
+      finalApproval: summary.approvals?.get(empId) || null,
+      auditCount
+    });
+    const handoffNote = ['awaiting_admin', 'pdf_pending', 'admin_approved', 'sent_to_payroll'].includes(handoff.step)
+      ? `<p class="manager-workspace-handoff-note${handoff.pdfPending ? ' is-warning' : ''}" data-manager-handoff-phase="${handoff.step}">${escapeHtml(handoff.label)}</p>`
+      : '';
     const reviewNotes = overview.status === 'submitted'
       ? `<div class="manager-workspace-attention-notes">${recordsToReview ? `<span>${recordsToReview} רשומות לאישור</span>` : ''}
            ${travelToReview ? `<span>${travelToReview} נסיעות לבדיקה</span>` : ''}
@@ -653,7 +688,7 @@ function attendanceSummaryTableHtml(roster, summary, ym) {
       <td class="manager-workspace-attendance-person" data-label="מדריך"><strong>${escapeHtml(text(row.full_name) || empId)}</strong></td>
       <td class="manager-workspace-attendance-employee-id" data-label="מס׳ עובד">${escapeHtml(empId)}</td>
       <td data-label="דיווח">${reportCell}</td>
-      <td data-label="סטטוס אישור"><span class="manager-workspace-status ${escapeHtml(overview.statusClass)}">${escapeHtml(overview.statusLabel)}</span>${reviewNotes}${postApprovalWarning}</td>
+      <td data-label="סטטוס אישור"><span class="manager-workspace-status ${escapeHtml(overview.statusClass)}">${escapeHtml(overview.statusLabel)}</span>${reviewNotes}${handoffNote}${postApprovalWarning}</td>
       <td class="manager-workspace-attendance-action" data-label="פעולות"><div class="manager-workspace-attendance-actions">${attendanceOverviewActionHtml(empId, overview)}${attendanceReopenActionHtml(empId, overview)}</div></td>
     </tr>`;
   }).join('');
@@ -891,6 +926,7 @@ async function renderAttendance(boardRoot, context, roster, renderToken) {
   if (renderToken !== currentRenderToken || activeTab !== 'attendance' || !boardRoot.isConnected) return;
 
   view.innerHTML = `${managementAlertsHtml(roster, summary)}
+    ${managerAttendanceHandoffSummaryHtml(roster, summary)}
     <section class="manager-workspace-panel manager-workspace-attendance" dir="rtl">
     <header class="manager-workspace-panel__head"><div><h2>בקרת נוכחות</h2><p>${escapeHtml(context.manager)} · ${escapeHtml(context.ym)} · ${escapeHtml(attendanceMonthMode(context.ym).label)}</p></div><button type="button" class="manager-workspace-link-button" data-manager-attendance-refresh>רענון נתונים</button></header>
     ${attendanceSummaryTableHtml(roster, summary, context.ym)}
