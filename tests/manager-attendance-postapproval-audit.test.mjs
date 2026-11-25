@@ -29,6 +29,7 @@ test('manager board is fail-closed on audit errors and flags changed signed reco
   assert.match(workspace, /const auditByEmployee = new Map\(\)/);
   assert.match(workspace, /api\.managerAttendancePostApprovalAudit\(\{ employeeIds: ids, monthKey: ym \}\)/);
   assert.match(workspace, /summary\.auditError/);
-  assert.match(workspace, /postApprovalChanges > 0/);
+  assert.match(workspace, /auditCount > 0/);
+  assert.match(workspace, /totals\.postApprovalChanges/);
   assert.match(workspace, /דיווחים עודכנו לאחר אישור המנהל — נדרש בירור/);
 });
