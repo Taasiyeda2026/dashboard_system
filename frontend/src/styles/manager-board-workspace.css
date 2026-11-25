@@ -263,3 +263,36 @@
   .manager-workspace-alert-strip{grid-template-columns:1fr}
   .manager-workspace-alert-strip__title{grid-column:auto}
 }
+
+/* Manager return-for-correction modal; only appears on explicit manager action. */
+.manager-attendance-return-dialog{
+  box-sizing:border-box;
+  width:min(460px,calc(100vw - 28px));
+  max-height:min(85vh,740px);
+  margin:auto;
+  padding:22px;
+  border:1px solid #cbd5e1;
+  border-radius:14px;
+  background:#fff;
+  color:#172033;
+  box-shadow:0 20px 65px rgba(15,23,42,.28);
+  font:inherit;
+}
+.manager-attendance-return-dialog::backdrop{background:rgba(15,23,42,.52)}
+.manager-attendance-return-dialog form{display:flex;flex-direction:column;gap:12px}
+.manager-attendance-return-dialog h3{margin:0;font-size:1.12rem}
+.manager-attendance-return-dialog p{margin:0;font-size:.85rem;line-height:1.55}
+.manager-attendance-return-dialog label{font-size:.85rem;font-weight:750}
+.manager-attendance-return-dialog textarea{
+  box-sizing:border-box;width:100%;min-height:110px;resize:vertical;
+  border:1px solid #94a3b8;border-radius:9px;padding:10px;
+  background:#fff;color:#172033;font:inherit;font-size:.92rem;line-height:1.5;
+}
+.manager-attendance-return-dialog textarea:focus{outline:2px solid #3b82f6;outline-offset:1px}
+.manager-attendance-return-dialog__error{color:#b91c1c;font-weight:700}
+.manager-attendance-return-dialog__error[hidden]{display:none}
+.manager-attendance-return-dialog__actions{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px}
+@media(max-width:600px){
+  .manager-attendance-return-dialog{padding:16px}
+  .manager-attendance-return-dialog__actions>*{flex:1}
+}
