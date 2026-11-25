@@ -4153,8 +4153,12 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
       // Revalidate every required source before signing. A previously loaded
       // submission, review or final-approval state may be stale or unavailable.
       await loadApprovals();
-      await loadWorkflowStatuses(result.month, [employeeId]);
-      if (!canManagerFinalizeEmployeeMonth(workflowByEmployee[employeeId] || {})) {
+      const reviewEmployeeIds = [...new Set(
+        [...(result.comparisons || []), ...(result.notCompared || [])]
+          .map((entry) => txt(entry?.attendance?.employeeId)).filter(Boolean)
+      )];
+      await loadWorkflowStatuses(result.month, reviewEmployeeIds);
+      if (!canManagerFinalizeEmployeeMonth(workflowByEmployee[employeeId] || {}, { bypassMonthSubmissionGate })) {
         throw new Error('מצב הגשת החודש השתנה. יש לרענן את הבקרה לפני אישור מנהל.');
       }
       await loadRecordReviews();
