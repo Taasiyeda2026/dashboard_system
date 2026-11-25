@@ -12,6 +12,7 @@
 
 import { createUnsavedChangesGuard, confirmLeavingReports } from '../services/unsaved-changes.js';
 import { createIcon } from '../components/icon.js';
+import { buildMonthReturnNotice } from '../components/month-return-notice.js';
 import { confirmSystemMessage, showSystemMessage } from '../components/system-dialog.js';
 import { getDailyTravelReports } from '../services/daily-travel.service.js';
 import {formatTravelDistance,sumReportedDailyTravel} from '../components/reported-daily-travel.js';
@@ -161,6 +162,9 @@ async function loadAndRender({ instructor, year, month, contentArea, toolbar, on
     const savedTravelTotals=sumReportedDailyTravel(dailyTravelReports);
 
     contentArea.innerHTML = '';
+    // Keep the manager's original request visible throughout correction.
+    const returnNotice = buildMonthReturnNotice(approval);
+    if (returnNotice) contentArea.append(returnNotice);
 
     const onRefresh = (notice = {}) => loadAndRender({ instructor, year, month, contentArea, toolbar, onNewReport, onTravelReport, onDuplicate, ...notice });
 

@@ -4,6 +4,7 @@ import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 import { hasPermission } from './permission-policy.js';
 import { normalizeGlobalActivityPeriod } from './screens/shared/summer-activity.js';
 import { escapeHtml } from './screens/shared/html.js';
+import { requestAttendanceCorrectionReason } from './manager-attendance-return-dialog.js?v=20261125-attendance-return-v1';
 import {
   managerAttendancePriorityRows,
   managerAttendanceAttentionTotals
@@ -624,7 +625,7 @@ function attendanceOverviewActionHtml(empId, overview) {
 
 function attendanceReopenActionHtml(empId, overview) {
   if (overview.status !== 'submitted') return '';
-  return `<button type="button" class="manager-workspace-link-button is-reopen" data-manager-attendance-reopen-employee="${escapeHtml(empId)}">פתח חודש לעובד</button>`;
+  return `<button type="button" class="manager-workspace-link-button is-reopen" data-manager-attendance-reopen-employee="${escapeHtml(empId)}">${role() === 'admin' ? 'פתח חודש לעובד' : 'החזר לתיקון'}</button>`;
 }
 
 function attendanceSummaryTableHtml(roster, summary, ym) {
@@ -950,25 +951,37 @@ async function renderAttendance(boardRoot, context, roster, renderToken) {
     button.addEventListener('click', async () => {
       const empId = text(button.dataset.managerAttendanceReopenEmployee);
       const employeeName = text(roster.find((row) => text(row.emp_id) === empId)?.full_name) || empId;
-      const confirmed = window.confirm(
-        `פתיחת ${context.ym} עבור ${employeeName} תחזיר את החודש לעובד לעריכה. העובד יצטרך לבצע שוב "סיום ואישור חודש". להמשיך?`
-      );
-      if (!confirmed) return;
+      const isAdminReopen = role() === 'admin';
+      const correctionReason = isAdminReopen
+        ? null
+        : await requestAttendanceCorrectionReason({
+          documentRef: button.ownerDocument,
+          employeeName,
+          monthKey: context.ym
+        });
+      if (isAdminReopen) {
+        if (!window.confirm(
+          `פתיחת ${context.ym} עבור ${employeeName} תחזיר את החודש לעובד לעריכה. העובד יצטרך לבצע שוב "סיום ואישור חודש". להמשיך?`
+        )) return;
+      } else if (correctionReason === null) {
+        return;
+      }
 
       const previousText = button.textContent;
       button.disabled = true;
-      button.textContent = 'פותח חודש…';
+      button.textContent = isAdminReopen ? 'פותח חודש…' : 'מחזיר לתיקון…';
       try {
-        if (role() === 'admin') {
+        if (isAdminReopen) {
           await api.adminReopenAttendanceMonthForCorrection({
             employee_id: empId,
             month_key: context.ym,
             reason: ''
           });
         } else {
-          await api.managerReopenAttendanceMonthForEmployee({
+          await api.managerReturnAttendanceMonthForCorrection({
             employee_id: empId,
-            month_key: context.ym
+            month_key: context.ym,
+            reason: correctionReason
           });
         }
         attendanceSummaryCache.clear();
@@ -977,7 +990,7 @@ async function renderAttendance(boardRoot, context, roster, renderToken) {
         lastContextSignature = '';
         await renderWorkspace(true);
       } catch (error) {
-        window.alert(error?.message || 'פתיחת החודש לעובד נכשלה.');
+        window.alert(error?.message || 'החזרת הדוח לתיקון נכשלה.');
         button.disabled = false;
         button.textContent = previousText;
       }

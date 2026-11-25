@@ -7052,6 +7052,26 @@ export const api = {
     notifyWorkflowChanged();
     return data || {};
   },
+  managerReturnAttendanceMonthForCorrection: async ({
+    employee_id,
+    month_key,
+    reason
+  } = {}) => {
+    assertPermission('view_attendance_control', 'attendance_control_forbidden');
+    const note = String(reason || '').trim();
+    if (note.length < 8 || note.length > 1000) {
+      throw new Error('יש להזין הערה ברורה לתיקון (8–1000 תווים).');
+    }
+    const { data, error } = await supabase.rpc('manager_return_attendance_month_for_correction', {
+      p_employee_id: String(employee_id || '').trim(),
+      p_month_key: String(month_key || '').trim(),
+      p_reason: note
+    });
+    if (error) throw new Error(error.message || 'החזרת דוח המדריך לתיקון נכשלה.');
+    if (data?.status !== 'reopened') throw new Error('השרת לא אישר את החזרת הדוח לתיקון.');
+    notifyWorkflowChanged();
+    return data;
+  },
   managerReopenAttendanceMonthForEmployee: async ({
     employee_id,
     month_key
