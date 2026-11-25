@@ -1,0 +1,33 @@
+/* A focused, readable correction request on phone and desktop. */
+.av2-month-return-notice {
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:6px;
+  width:100%;
+  box-sizing:border-box;
+  padding:12px 14px;
+  border:1px solid #e9bc70;
+  border-inline-start:4px solid #b7791f;
+  border-radius:10px;
+  background:#fffaf0;
+  color:#4b3618;
+  font-size:.82rem;
+  line-height:1.55;
+}
+.av2-month-return-notice__title { font-size:.92rem;color:#74430c; }
+.av2-month-return-notice p { margin:0; }
+.av2-month-return-notice__reason {
+  width:100%;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  font-weight:700;
+  color:#3d2b16;
+}
+.av2-month-return-notice__footer { color:#855d2d;font-size:.73rem; }
+.av2-month-return-notice__instructions { color:#6a4219; }
+.av2-month-return-notice .av2-btn{min-height:38px;margin-top:5px}
+@media (max-width:600px) {
+  .av2-month-return-notice{padding:12px;gap:6px}
+  .av2-month-return-notice .av2-btn{width:100%}
+}
