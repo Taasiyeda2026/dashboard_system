@@ -2855,10 +2855,10 @@ export function resultsHtml(result, month = '', options = {}) {
     const managerApprovedBy = workflowByEmployee[employee.id]?.manager_approved_by_name;
     const managerPdfUrl = workflowByEmployee[employee.id]?.manager_pdf_sharepoint_url;
     const managerApprovedHtml = workflow.status === 'manager_approved'
-      ? `<div class="attendance-control__approved"><span>אושר על ידי המנהל</span><span>${shown(managerApprovedBy)}</span><span>${shown(managerApprovedAt ? new Date(managerApprovedAt).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '')}</span>${managerPdfUrl ? `<button type="button" class="ds-btn ds-btn--sm" data-payroll-open-sharepoint="${escapeHtml(String(managerPdfUrl))}">צפייה בדוח</button>` : '<span class="attendance-control__manual-note">PDF בהפקה / ממתין ל־retry</span>'}</div>`
+      ? `<div class="attendance-control__approved"><span>אושר על ידי המנהל · ממתין לבקרה סופית</span><span>${shown(managerApprovedBy)}</span><span>${shown(managerApprovedAt ? new Date(managerApprovedAt).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '')}</span>${managerPdfUrl ? `<button type="button" class="ds-btn ds-btn--sm" data-payroll-open-sharepoint="${escapeHtml(String(managerPdfUrl))}">צפייה בדוח</button>` : '<span class="attendance-control__manual-note">PDF בהפקה / ממתין ל־retry</span>'}</div>`
       : '';
     const approvedHtml = approval
-      ? `<div class="attendance-control__approved"><span>אושר סופית</span><span>${shown(approval.approved_by_name)}</span><span>${shown(approval.approved_at ? new Date(approval.approved_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '')}</span><button type="button" class="ds-btn ds-btn--sm" data-payroll-view-pdf="${escapeHtml(String(approval.id || ''))}">צפייה בדוח</button></div>`
+      ? `<div class="attendance-control__approved"><span>${approval.status === 'approved_for_payroll' ? 'הועבר לשכר' : 'אושר סופית · ממתין להעברה לשכר'}</span><span>${shown(approval.approved_by_name)}</span><span>${shown(approval.approved_at ? new Date(approval.approved_at).toLocaleString('he-IL', { dateStyle: 'short', timeStyle: 'short' }) : '')}</span><button type="button" class="ds-btn ds-btn--sm" data-payroll-view-pdf="${escapeHtml(String(approval.id || ''))}">צפייה בדוח</button></div>`
       : '';
     let finishControls = '';
     if (!approval) {
@@ -3072,7 +3072,11 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         ...(result.comparisons || []),
         ...(result.notCompared || [])
       ].map((entry) => txt(entry?.attendance?.employeeId)).filter(Boolean))];
-      const rows = await api.listPayrollControlApprovals({ monthKey: result.month, employeeIds });
+      const rows = await api.listPayrollControlApprovals({
+        monthKey: result.month,
+        employeeIds,
+        statuses: ['admin_approved', 'approved_for_payroll']
+      });
       approvalsByEmployee = Object.fromEntries((rows || []).map((row) => [txt(row.employee_id), row]));
     } catch (error) {
       approvalsByEmployee = {};
@@ -4198,11 +4202,11 @@ export function bindAttendanceControl(root, { api, state = {}, standalone = fals
         detail: { employeeId, monthKey: result.month }
       }));
       if (saved?.pdf_pending) {
-        setStatusMessage('אישור המנהל נשמר והחודש ננעל. הפקת/שמירת ה-PDF נכשלה ותושלם אוטומטית ב־retry.', { error: true });
+        setStatusMessage('אישור המנהל נשמר והחודש ננעל. ה־PDF עדיין חסר; מנהל המערכת יוכל להשלים אותו לפני האישור הסופי. החודש טרם הועבר לשכר.', { error: true });
       } else if (saved?.mail_sent === false) {
-        setStatusMessage('אישור המנהל נשמר והחודש ננעל. ה-PDF נשמר ב-SharePoint, אך שליחת המייל לעובד נכשלה.', { error: true });
+        setStatusMessage('אישור המנהל נשמר והחודש זמין לבקרה סופית. ה־PDF נשמר ב־SharePoint, אך ההודעה למדריך לא נשלחה. החודש טרם הועבר לשכר.', { error: true });
       } else {
-        setStatusMessage('אישור המנהל נשמר בהצלחה, החודש ננעל והדוח נשלח לעובד.');
+        setStatusMessage('אישור המנהל נשמר, החודש ננעל והדוח הועבר לתור הבקרה הסופית. ההעברה לשכר תתבצע בנפרד לאחר אישור מנהל המערכת.');
       }
     } catch (error) {
       if (txt(error?.message).includes('attendance_travel_reviews_pending')) {
