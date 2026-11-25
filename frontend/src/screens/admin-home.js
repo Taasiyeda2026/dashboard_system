@@ -252,18 +252,18 @@ function stylesHtml() {
       .admin-management-grid {
         display: grid;
         grid-template-columns: repeat(4, minmax(0, 1fr));
-        gap: 14px;
+        gap: 10px;
         margin-top: 4px;
       }
       .admin-management-tile {
         appearance: none;
         min-width: 0;
-        min-height: 132px;
+        min-height: 96px;
         display: grid;
-        grid-template-columns: 42px minmax(0, 1fr) 18px;
+        grid-template-columns: 36px minmax(0, 1fr) 16px;
         align-items: center;
-        gap: 12px;
-        padding: 18px;
+        gap: 10px;
+        padding: 12px 14px;
         border: 1px solid var(--color-border, #dbe3ec);
         border-radius: 16px;
         background: var(--color-surface, #fff);
@@ -283,8 +283,8 @@ function stylesHtml() {
         outline-offset: 2px;
       }
       .admin-management-tile__icon {
-        width: 42px;
-        height: 42px;
+        width: 36px;
+        height: 36px;
         display: grid;
         place-items: center;
         border: 1px solid var(--color-border, #dbe3ec);
@@ -293,14 +293,14 @@ function stylesHtml() {
         color: var(--color-primary, #334155);
       }
       .admin-management-tile__icon svg {
-        width: 23px;
-        height: 23px;
+        width: 21px;
+        height: 21px;
       }
       .admin-management-tile__content {
         min-width: 0;
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        gap: 4px;
       }
       .admin-management-tile__content strong {
         font-size: 16px;
@@ -310,19 +310,22 @@ function stylesHtml() {
       .admin-management-tile__content small {
         color: var(--color-text-secondary, #64748b);
         font-size: 12.5px;
-        line-height: 1.45;
+        line-height: 1.35;
       }
       .admin-management-tile__arrow {
         color: var(--color-text-secondary, #94a3b8);
         font-size: 24px;
         line-height: 1;
       }
+      @media (min-width: 1051px) and (max-height: 720px) {
+        .admin-management-tile { min-height: 84px; padding-block: 10px; }
+      }
       @media (max-width: 1050px) {
         .admin-management-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       }
       @media (max-width: 620px) {
         .admin-management-grid { grid-template-columns: 1fr; gap: 10px; }
-        .admin-management-tile { min-height: 112px; padding: 15px; }
+        .admin-management-tile { min-height: 88px; padding: 12px; }
       }
     </style>`;
 }
