@@ -358,17 +358,22 @@ async function loadAttendanceSummary(roster, ym, force = false) {
   let approvalsError = '';
   try {
     if (ids.length) {
-      if (typeof api.listPayrollControlApprovals !== 'function') {
-        throw new Error('שירות האישורים הסופיים אינו זמין.');
+      // This RPC reveals only the final stage for employees the logged-in
+      // manager may review; payroll records and salaries remain protected by RLS.
+      if (typeof api.managerAttendanceHandoffStatuses !== 'function') {
+        throw new Error('שירות סטטוס הבקרה הסופית אינו זמין.');
       }
-      const rows = await api.listPayrollControlApprovals({
-        monthKey: ym, employeeIds: ids,
-        statuses: ['admin_approved', 'approved_for_payroll']
-      });
-      if (!Array.isArray(rows)) throw new Error('תגובת האישורים הסופיים אינה תקינה.');
+      const rows = await api.managerAttendanceHandoffStatuses({ monthKey: ym, employeeIds: ids });
+      if (!Array.isArray(rows)) throw new Error('תגובת סטטוס הבקרה הסופית אינה תקינה.');
       for (const row of rows) {
         const empId = text(row?.employee_id || row?.employeeId);
-        if (recordCounts.has(empId)) approvals.set(empId, row);
+        const finalStatus = text(row?.final_status);
+        if (finalStatus && !['admin_approved', 'approved_for_payroll'].includes(finalStatus)) {
+          throw new Error('התקבל סטטוס אישור סופי שאינו מוכר.');
+        }
+        if (recordCounts.has(empId) && finalStatus) {
+          approvals.set(empId, { employee_id: empId, status: finalStatus });
+        }
       }
     }
   } catch (error) {
