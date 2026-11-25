@@ -501,4 +501,23 @@ api.attendanceControlReviewExpense = async function ({id,decision,amount=null}={
   return data;
 };
 
+// Read-only manager audit. The RPC checks team authorization for each employee.
+api.managerAttendancePostApprovalAudit = async function ({ employeeIds = [], monthKey = '' } = {}) {
+  const ids = [...new Set((employeeIds || []).map(id => Number(text(id)))
+    .filter(id => Number.isSafeInteger(id) && id > 0))];
+  const month = text(monthKey);
+  if (!/^20\d{2}-(0[1-9]|1[0-2])$/.test(month)) {
+    throw new Error('חודש הבקרה אינו תקין.');
+  }
+  if (!ids.length) return [];
+  await waitForSupabaseAuthSession({ timeoutMs: 7000 }).catch(() => null);
+  const { data, error } = await supabase.rpc('get_manager_attendance_postapproval_changes', {
+    p_employee_ids: ids,
+    p_month_key: month
+  });
+  if (error) throw new Error(error.message || 'בדיקת שינויים לאחר אישור מנהל נכשלה.');
+  if (!Array.isArray(data)) throw new Error('תגובת בדיקת שינויים לאחר אישור אינה תקינה.');
+  return data;
+};
+
 export { legacyRecord, normalizeAttachments };
