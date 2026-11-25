@@ -121,7 +121,7 @@ test('manager summary hides all counts and actions on incomplete reads and offer
   assert.match(workspace, /if \(loadingError\)\s*\{/);
   assert.match(workspace, /data-manager-attendance-retry/);
   assert.match(workspace, /attendanceSummaryCache\.clear\(\)/);
-  assert.match(workspace, /if \(summary\.recordsError \|\| summary\.workflowError \|\| summary\.approvalsError \|\| summary\.auditError\)/);
+  assert.match(workspace, /if \(managerAttendanceSummaryError\(summary\)\)/);
   assert.match(workspace, /הטבלה מוסתרת עד לטעינה תקינה/);
   assert.match(workspace, /תגובת דיווחי הנוכחות אינה תקינה/);
   assert.match(workspace, /תגובת סטטוסי החודש אינה תקינה/);

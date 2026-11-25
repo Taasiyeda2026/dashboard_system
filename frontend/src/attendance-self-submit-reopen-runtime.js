@@ -175,7 +175,17 @@ async function patchManagerAttendanceTable(table) {
     } else {
       nextHtml = '<span class="manager-workspace-status is-muted">אין דיווח</span>';
     }
-    if (statusCell.innerHTML !== nextHtml) statusCell.innerHTML = nextHtml;
+    // Refresh the workflow badge without wiping independent review progress and
+    // post-signoff warnings rendered by the manager attendance overview.
+    const template = document.createElement('template');
+    template.innerHTML = nextHtml;
+    const nextBadge = template.content.querySelector('.manager-workspace-status');
+    const currentBadge = statusCell.querySelector('.manager-workspace-status');
+    if (nextBadge && currentBadge && currentBadge.outerHTML !== nextBadge.outerHTML) {
+      currentBadge.replaceWith(nextBadge);
+    } else if (nextBadge && !currentBadge) {
+      statusCell.prepend(nextBadge);
+    }
   }
 
   const strip = table.closest('[data-manager-workspace-view]')?.querySelector('.manager-workspace-alert-strip');
