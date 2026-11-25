@@ -335,4 +335,5 @@ function initializeSummerFeedbackInstructorNav() {
   scheduleEnhancement();
 }
 
-if (globalThis[TEST_MODE_FLAG] !== true) initializeSummerFeedbackInstructorNav();
+// Summer 2026 campaign is archived; keep historical pages but do not poll or inject navigation.
+// Explicit reactivation requires a new campaign and an intentional runtime change.
