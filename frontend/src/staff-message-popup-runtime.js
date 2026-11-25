@@ -4,8 +4,8 @@ import { supabase, waitForSupabaseAuthSession } from './supabase-client.js';
 const MESSAGE_TABLE = 'staff_messages';
 const ACK_TABLE = 'staff_message_acknowledgements';
 const JERUSALEM_TIME_ZONE = 'Asia/Jerusalem';
-const POLL_INTERVAL_MS = 15_000;
-const CHECK_THROTTLE_MS = 10_000;
+const POLL_INTERVAL_MS = 300_000;
+const CHECK_THROTTLE_MS = 60_000;
 const POPUP_STYLE_ID = 'staff-message-popup-styles';
 
 const IMPORTANCE_RANK = {
