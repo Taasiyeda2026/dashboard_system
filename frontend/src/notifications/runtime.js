@@ -50,7 +50,7 @@ export function createNotificationRuntime({ client, service, onCounts, onChange 
     connect(); void refresh();
   };
   const visible = () => { if (doc?.visibilityState !== 'hidden') void refresh(); };
-  const interval = timers.setInterval(visible, 60000);
+  const interval = timers.setInterval(visible, 300000);
   doc?.addEventListener('visibilitychange', visible);
   return { switchUser, refresh, dispose() {
     switchUser(''); timers.clearInterval(interval); timers.clearTimeout(retryTimer);
