@@ -4,6 +4,7 @@
  */
 
 import { createIcon } from '../components/icon.js';
+import { buildMonthReturnNotice } from '../components/month-return-notice.js';
 import { getDailyTravelReports } from '../services/daily-travel.service.js';
 import { listExpenseReports } from '../services/expense-reports.service.js';
 import { isZoomLocationReport } from '../services/attendance-location-policy.js';
@@ -144,8 +145,12 @@ async function loadAndRender({ instructor, year, month, statsEl, actionStripEl, 
       statsEl.append(buildStat(item.value, item.label, item.icon));
     });
 
-    // Action strip
+    // An explicitly reopened month shows the manager's correction request first.
     actionStripEl.innerHTML = '';
+    const returnNotice = buildMonthReturnNotice(approval, { onMyReports });
+    if (returnNotice) actionStripEl.append(returnNotice);
+
+    // Action strip
     actionStripEl.append(
       buildActionStrip({ approval, year, month, instructor, records, sourceRecords, expenseReports, editable, onMyReports, onNewReport })
     );
