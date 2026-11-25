@@ -16,6 +16,9 @@ const [workspace,control,finish,admin,migration] = await Promise.all([
 ]);
 const locked = { workflow_status:'manager_approved', attendance_submission_status:'locked', manager_approved_at:'2026-11-25T18:00:00Z' };
 
+const api = await read('frontend/src/api.js');
+const handoffMigration = await read('supabase/migrations/20261125214500_manager_handoff_scoped_status.sql');
+
 test('handoff displays PDF blocking, final admin approval and actual payroll dispatch distinctly', () => {
   const missingPdf = managerAttendanceHandoffState({ workflow:locked });
   assert.equal(missingPdf.step,'pdf_pending');
@@ -56,7 +59,8 @@ test('counts distinguish each stage; post-signature edits are flagged separately
 });
 
 test('manager overview reads admin-approved and sent payroll separately, without dispatch mutations', () => {
-  assert.match(workspace, /statuses: \['admin_approved', 'approved_for_payroll'\]/);
+  assert.match(workspace, /api\.managerAttendanceHandoffStatuses\(\{ monthKey: ym, employeeIds: ids \}\)/);
+  assert.doesNotMatch(workspace, /api\.listPayrollControlApprovals\(\{\s*monthKey: ym, employeeIds: ids/);
   assert.match(workspace, /managerAttendanceHandoffSummaryHtml\(roster, summary\)/);
   assert.match(workspace, /summary\.approvals\?\.get\(empId\)/);
   assert.match(workspace, /data-manager-handoff-phase/);
@@ -75,6 +79,16 @@ test('manager signoff remains separate from admin final approval and payroll dis
   assert.match(admin, /adminSendAttendanceMonthToPayroll\(/);
   assert.match(admin, /status\.raw === 'manager_approved'/);
   assert.match(admin, /text\(finalApproval\?\.status\) === 'admin_approved'/);
+});
+
+test('team-scoped read-only RPC exposes no payroll data or staff outside direct manager team', () => {
+  assert.match(api, /get_manager_attendance_handoff_statuses/);
+  assert.match(handoffMigration, /auth\.uid\(\) IS NULL/);
+  assert.match(handoffMigration, /public\.attendance_manager_can_review_employee\(requested\.id\)/);
+  assert.match(handoffMigration, /RETURNS TABLE\(employee_id bigint, final_status text\)/);
+  assert.match(handoffMigration, /IN \('admin_approved', 'approved_for_payroll'\)/);
+  assert.match(handoffMigration, /REVOKE ALL ON FUNCTION public\.get_manager_attendance_handoff_statuses/);
+  assert.doesNotMatch(handoffMigration, /approved_snapshot|approved_amount|total_hours|update public\.|delete from public\./i);
 });
 
 test('signoff SQL ignores spoofable p_manager_name for the manager identity and retains review guards', () => {
