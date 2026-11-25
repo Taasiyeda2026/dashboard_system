@@ -317,7 +317,8 @@ async function loadAttendanceSummary(roster, ym, force = false) {
     records = ids.length
       ? await api.attendanceControlRecords({ employeeIds: ids, fromDate, toDate })
       : [];
-    for (const row of Array.isArray(records) ? records : []) {
+    if (!Array.isArray(records)) throw new Error('תגובת דיווחי הנוכחות אינה תקינה.');
+    for (const row of records) {
       const empId = rawEmployeeId(row);
       if (!recordCounts.has(empId) || rawRecordMonth(row) !== ym) continue;
       const generationKind = text(row?.generationKind || row?.generation_kind);
@@ -329,9 +330,13 @@ async function loadAttendanceSummary(roster, ym, force = false) {
   }
 
   try {
-    if (ids.length && typeof api.attendanceControlMonthWorkflowStatuses === 'function') {
+    if (ids.length) {
+      if (typeof api.attendanceControlMonthWorkflowStatuses !== 'function') {
+        throw new Error('שירות סטטוסי החודש אינו זמין.');
+      }
       const workflowRows = await api.attendanceControlMonthWorkflowStatuses({ monthKey: ym, employeeIds: ids });
-      for (const row of Array.isArray(workflowRows) ? workflowRows : []) {
+      if (!Array.isArray(workflowRows)) throw new Error('תגובת סטטוסי החודש אינה תקינה.');
+      for (const row of workflowRows) {
         const empId = text(row?.employee_id || row?.employeeId);
         if (empId) workflowByEmployee.set(empId, row);
       }
@@ -343,9 +348,13 @@ async function loadAttendanceSummary(roster, ym, force = false) {
   const approvals = new Map();
   let approvalsError = '';
   try {
-    if (typeof api.listPayrollControlApprovals === 'function') {
+    if (ids.length) {
+      if (typeof api.listPayrollControlApprovals !== 'function') {
+        throw new Error('שירות האישורים הסופיים אינו זמין.');
+      }
       const rows = await api.listPayrollControlApprovals({ monthKey: ym, employeeIds: ids });
-      for (const row of Array.isArray(rows) ? rows : []) {
+      if (!Array.isArray(rows)) throw new Error('תגובת האישורים הסופיים אינה תקינה.');
+      for (const row of rows) {
         const empId = text(row?.employee_id || row?.employeeId);
         if (recordCounts.has(empId)) approvals.set(empId, row);
       }
@@ -483,6 +492,15 @@ function handleWorkspaceClick(event) {
 }
 
 function managementAlertsHtml(roster, summary) {
+  const loadingError = [summary.recordsError, summary.workflowError, summary.approvalsError]
+    .map(text).filter(Boolean).join(' · ');
+  if (loadingError) {
+    return `<div class="manager-workspace-alert-strip" dir="rtl" role="alert">
+      <div class="manager-workspace-alert-strip__title"><strong>נתוני בקרת הנוכחות לא נטענו במלואם</strong><span>לא ניתן להציג סטטוסים או ספירות מהימנים.</span></div>
+      <p class="manager-workspace-inline-error">${escapeHtml(loadingError)}</p>
+      <button type="button" class="manager-workspace-link-button" data-manager-attendance-retry>נסה שוב</button>
+    </div>`;
+  }
   let reportMissing = 0;
   let awaitingApproval = 0;
   let employeeApproved = 0;
@@ -522,6 +540,9 @@ function attendanceReopenActionHtml(empId, overview) {
 }
 
 function attendanceSummaryTableHtml(roster, summary, ym) {
+  if (summary.recordsError || summary.workflowError || summary.approvalsError) {
+    return '<p class="manager-workspace-inline-error">דיווחי הנוכחות, סטטוסי ההגשה והאישורים לא אומתו. הטבלה מוסתרת עד לטעינה תקינה.</p>';
+  }
   if (!roster.length) return '<div class="manager-workspace-empty">אין מדריכים להצגה בחודש שנבחר.</div>';
   const rows = roster.map((row) => {
     const empId = text(row.emp_id);
@@ -771,9 +792,14 @@ async function renderAttendance(boardRoot, context, roster, renderToken) {
     <section class="manager-workspace-panel manager-workspace-attendance" dir="rtl">
     <header class="manager-workspace-panel__head"><div><h2>בקרת נוכחות</h2><p>${escapeHtml(context.manager)} · ${escapeHtml(context.ym)} · ${escapeHtml(attendanceMonthMode(context.ym).label)}</p></div></header>
     ${attendanceSummaryTableHtml(roster, summary, context.ym)}
-    ${(summary.recordsError || summary.approvalsError) ? `<p class="manager-workspace-inline-error">${escapeHtml(summary.recordsError || summary.approvalsError)}</p>` : ''}
     <div class="manager-workspace-attendance-host" data-manager-attendance-host hidden></div>
   </section>`;
+
+  view.querySelector('[data-manager-attendance-retry]')?.addEventListener('click', () => {
+    attendanceSummaryCache.clear();
+    attendanceReviewSnapshotCache.clear();
+    void renderWorkspace(true);
+  });
 
   view.querySelector('[data-manager-attendance-host]')?.addEventListener('attendance-manager-month-approved', (event) => {
     const employeeId = text(event.detail?.employeeId);
