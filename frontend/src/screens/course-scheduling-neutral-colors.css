@@ -22,3 +22,33 @@
   background: #edf2f6;
   color: #43586a;
 }
+
+/* Official activity data is read-only in the compact manual assignment dialog. */
+.course-scheduling-manual-dialog {
+  --cs-surface: #fff;
+  --cs-border: #d6e0ec;
+  --cs-border-strong: #bacbdd;
+  --cs-text: #20364d;
+  overscroll-behavior: contain;
+  box-sizing: border-box;
+  color: var(--cs-text);
+  font-family: Assistant, Arial, sans-serif;
+  gap: 8px;
+}
+.course-scheduling-manual-dialog h2 { margin-block: 0 4px; font-size: 1.25rem; }
+.course-scheduling-manual-dialog p { margin-block: 4px; }
+.course-scheduling-manual-dialog label { display: grid; gap: 5px; margin-block: 6px; }
+.course-scheduling-manual-dialog label:has(input[type="checkbox"]) { display: flex; align-items: flex-start; }
+.course-scheduling-manual-dialog .course-scheduling-input { width: 100%; min-width: 0; box-sizing: border-box; background: #fff; color: var(--cs-text); }
+.course-scheduling-manual-dialog textarea { min-height: 64px; resize: vertical; }
+.course-scheduling-manual-dialog .course-scheduling-detail-actions { margin-top: 0; }
+.course-scheduling-manual-dialog dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.course-scheduling-manual-dialog dt { font-size: .85rem; opacity: .8; }
+.course-scheduling-manual-dialog details { margin-block: 12px; }
+.course-scheduling-manual-dialog details ol { max-height: 180px; overflow: auto; }
+.course-scheduling-manual-dialog summary { cursor: pointer; font-weight: 600; }
+.course-scheduling-manual-dialog__actions { position: sticky; bottom: -1px; background: var(--cs-surface, #fff); padding-block: 12px; flex-wrap: wrap; z-index: 1; }
+@media (max-width: 480px) {
+  .course-scheduling-manual-dialog { padding: 14px; }
+  .course-scheduling-manual-dialog__actions > button { flex: 1; }
+}
