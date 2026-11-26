@@ -694,3 +694,5 @@ config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-login-auth-recovery-harden-202
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-stale-entry-code-login-guidance-20261126-v1`;
 config.HOTFIX_VERSION = `gefen-invoice-billing-overrides-20261126-v1-${config.HOTFIX_VERSION}`;
+
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-entry-code-policy-4-6-20261126-v1`;

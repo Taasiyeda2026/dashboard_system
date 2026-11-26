@@ -17,7 +17,8 @@ const INSTRUCTOR_ROLE = 'instructor';
 const RECOVERY_PERMISSION = 'access_password_recovery';
 const BLOCKED_INSTRUCTOR_EMP_ID = '1519';
 const ASSOCIATION_CHAIR_USER_ID = '3090';
-const MIN_PASSWORD_LENGTH = 8;
+// Supabase Auth rejects new passwords shorter than 6 characters. Short numeric
+// entry codes (4–5 digits) arrive already encoded by the client as `c:` + digits.
 const MAX_CODE_ATTEMPTS = 5;
 const CHALLENGE_MINUTES = 10;
 const MAX_REQUESTS_PER_TEN_MINUTES = 3;
@@ -87,6 +88,11 @@ function fakeChallengeId() {
   return crypto.randomUUID();
 }
 
+function isValidEncodedNewEntryCode(value: unknown) {
+  const password = String(value ?? '').trim();
+  return /^c:\d{4,5}$/.test(password) || /^\d{6}$/.test(password);
+}
+
 async function sha256(value: string) {
   const bytes = new TextEncoder().encode(value);
   const digest = await crypto.subtle.digest('SHA-256', bytes);
@@ -129,9 +135,9 @@ Deno.serve(async (req: Request) => {
   if (action === 'complete') {
     const challengeId = String(payload?.challenge_id || '').trim();
     const code = String(payload?.code || '').trim();
-    // Keep the same password normalization as dashboard/SpaceTech login (trim).
+    // Client encodes 4–5 digit entry codes as `c:` + digits; 6-digit codes stay raw.
     const newPassword = String(payload?.new_password || '').trim();
-    if (!/^[0-9a-f-]{36}$/i.test(challengeId) || !/^\d{6}$/.test(code) || newPassword.length < MIN_PASSWORD_LENGTH || newPassword.length > 128) {
+    if (!/^[0-9a-f-]{36}$/i.test(challengeId) || !/^\d{6}$/.test(code) || !isValidEncodedNewEntryCode(newPassword)) {
       return json(origin, { ok: false, error: 'invalid_or_expired' });
     }
 

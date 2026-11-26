@@ -1,6 +1,10 @@
 import { supabase } from './supabase-client.js';
-
-const MIN_PASSWORD_LENGTH = 8;
+import {
+  describeNewEntryCodeRule,
+  encodeNewEntryCodeForAuth,
+  isValidNewEntryCode,
+  trimEntryCode
+} from './entry-code-policy.js';
 
 function closeModal(modal) {
   modal?.remove();
@@ -31,9 +35,9 @@ function shell() {
   const card = document.createElement('section');
   card.className = 'instructor-password-card';
   const title = document.createElement('h2');
-  title.textContent = 'שכחתי סיסמה';
+  title.textContent = 'שכחתי קוד כניסה';
   const note = document.createElement('p');
-  note.textContent = 'הזינו את המייל הרשום במערכת. אם החשבון מורשה, יישלח אליו קוד אימות בן 6 ספרות להגדרת סיסמת התחברות חדשה.';
+  note.textContent = 'הזינו את המייל הרשום במערכת. אם החשבון מורשה, יישלח אליו קוד אימות בן 6 ספרות להגדרת קוד כניסה חדש.';
   card.append(title, note);
   modal.append(card);
   modal.addEventListener('click', (event) => {
@@ -121,13 +125,19 @@ function openRecoveryModal() {
       codeField.input.addEventListener('input', () => {
         codeField.input.value = codeField.input.value.replace(/\D/g, '').slice(0, 6);
       });
-      const first = field('סיסמת התחברות חדשה', { type: 'password', autocomplete: 'new-password' });
-      const second = field('אימות סיסמת ההתחברות החדשה', { type: 'password', autocomplete: 'new-password' });
+      const first = field('קוד כניסה חדש', { type: 'password', autocomplete: 'new-password', inputMode: 'numeric', placeholder: '4–6 ספרות' });
+      const second = field('אימות קוד הכניסה החדש', { type: 'password', autocomplete: 'new-password', inputMode: 'numeric' });
+      first.input.addEventListener('input', () => {
+        first.input.value = first.input.value.replace(/\D/g, '').slice(0, 6);
+      });
+      second.input.addEventListener('input', () => {
+        second.input.value = second.input.value.replace(/\D/g, '').slice(0, 6);
+      });
 
-      const completeActions = actions('שמירת סיסמה חדשה', async () => {
+      const completeActions = actions('שמירת קוד חדש', async () => {
         const code = String(codeField.input.value || '').trim();
-        const password = String(first.input.value || '').trim();
-        const confirmation = String(second.input.value || '').trim();
+        const password = trimEntryCode(first.input.value);
+        const confirmation = trimEntryCode(second.input.value);
         status.className = 'instructor-password-status';
         status.textContent = '';
         if (!/^\d{6}$/.test(code)) {
@@ -135,19 +145,14 @@ function openRecoveryModal() {
           status.textContent = 'יש להזין את קוד האימות בן 6 הספרות שנשלח למייל.';
           return;
         }
-        if (password.length < MIN_PASSWORD_LENGTH) {
+        if (!isValidNewEntryCode(password)) {
           status.classList.add('is-error');
-          status.textContent = `סיסמת ההתחברות החדשה חייבת להכיל לפחות ${MIN_PASSWORD_LENGTH} תווים.`;
-          return;
-        }
-        if (/^\d{4}$/.test(password)) {
-          status.classList.add('is-error');
-          status.textContent = 'אין להשתמש בקוד ישן בן 4 ספרות. בחרו סיסמה חדשה באורך 8 תווים לפחות.';
+          status.textContent = describeNewEntryCodeRule();
           return;
         }
         if (password !== confirmation) {
           status.classList.add('is-error');
-          status.textContent = 'סיסמאות ההתחברות החדשות אינן זהות.';
+          status.textContent = 'קודי הכניסה החדשים אינם זהים.';
           return;
         }
 
@@ -155,11 +160,16 @@ function openRecoveryModal() {
         completeActions.primary.textContent = 'שומר...';
         try {
           const { data, error } = await supabase.functions.invoke('management-password-reset', {
-            body: { action: 'complete', challenge_id: challengeId, code, new_password: password }
+            body: {
+              action: 'complete',
+              challenge_id: challengeId,
+              code,
+              new_password: encodeNewEntryCodeForAuth(password)
+            }
           });
           if (error || !data?.ok) throw error || new Error(String(data?.error || 'invalid_or_expired'));
           status.classList.add('is-success');
-          status.textContent = 'סיסמת ההתחברות עודכנה בהצלחה. ניתן להתחבר עם שם המשתמש והסיסמה החדשה.';
+          status.textContent = 'קוד הכניסה עודכן בהצלחה. ניתן להתחבר עם שם המשתמש וקוד הכניסה החדש.';
           codeField.input.disabled = true;
           first.input.disabled = true;
           second.input.disabled = true;
@@ -168,10 +178,10 @@ function openRecoveryModal() {
         } catch (error) {
           status.classList.add('is-error');
           status.textContent = String(error?.message || '').includes('update_failed')
-            ? 'עדכון סיסמת ההתחברות נכשל. נסו שוב.'
+            ? 'עדכון קוד הכניסה נכשל. נסו שוב.'
             : 'קוד האימות שגוי או שפג תוקפו. ניתן לבטל ולבקש קוד חדש.';
           completeActions.primary.disabled = false;
-          completeActions.primary.textContent = 'שמירת סיסמה חדשה';
+          completeActions.primary.textContent = 'שמירת קוד חדש';
         }
       }, () => closeModal(modal));
 

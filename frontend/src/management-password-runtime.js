@@ -1,5 +1,11 @@
 import { supabase } from './supabase-client.js';
 import { state } from './state.js';
+import {
+  describeNewEntryCodeRule,
+  encodeNewEntryCodeForAuth,
+  isValidNewEntryCode,
+  trimEntryCode
+} from './entry-code-policy.js';
 
 const MANAGEMENT_ROLES = new Set([
   'admin',
@@ -11,7 +17,6 @@ const MANAGEMENT_ROLES = new Set([
   'instructor_manager',
   'authorized_user'
 ]);
-const MIN_PASSWORD_LENGTH = 8;
 
 let observerTimer = null;
 
@@ -111,8 +116,8 @@ function labeledInput(labelText, { type = 'text', autocomplete = '', placeholder
 function openForgotPasswordModal() {
   if (document.querySelector('.management-password-modal')) return;
   const { modal, card } = modalShell(
-    'שכחתי סיסמה',
-    'הזינו את המייל הארגוני שלכם. אם החשבון מורשה, יישלח אליו קוד אימות בן 6 ספרות להגדרת סיסמת התחברות חדשה.'
+    'שכחתי קוד כניסה',
+    'הזינו את המייל הארגוני שלכם. אם החשבון מורשה, יישלח אליו קוד אימות בן 6 ספרות להגדרת קוד כניסה חדש.'
   );
   const emailField = labeledInput('מייל ארגוני', {
     type: 'email',
@@ -156,13 +161,28 @@ function openForgotPasswordModal() {
       codeField.input.addEventListener('input', () => {
         codeField.input.value = codeField.input.value.replace(/\D/g, '').slice(0, 6);
       });
-      const first = labeledInput('סיסמת התחברות חדשה', { type: 'password', autocomplete: 'new-password' });
-      const second = labeledInput('אימות סיסמת ההתחברות החדשה', { type: 'password', autocomplete: 'new-password' });
+      const first = labeledInput('קוד כניסה חדש', {
+        type: 'password',
+        autocomplete: 'new-password',
+        inputMode: 'numeric',
+        placeholder: '4–6 ספרות'
+      });
+      const second = labeledInput('אימות קוד הכניסה החדש', {
+        type: 'password',
+        autocomplete: 'new-password',
+        inputMode: 'numeric'
+      });
+      first.input.addEventListener('input', () => {
+        first.input.value = first.input.value.replace(/\D/g, '').slice(0, 6);
+      });
+      second.input.addEventListener('input', () => {
+        second.input.value = second.input.value.replace(/\D/g, '').slice(0, 6);
+      });
 
-      const completeActions = actionsRow('שמירת סיסמה חדשה', async () => {
+      const completeActions = actionsRow('שמירת קוד חדש', async () => {
         const code = String(codeField.input.value || '').trim();
-        const password = String(first.input.value || '').trim();
-        const confirmation = String(second.input.value || '').trim();
+        const password = trimEntryCode(first.input.value);
+        const confirmation = trimEntryCode(second.input.value);
         status.className = 'management-password-status';
         status.textContent = '';
 
@@ -171,14 +191,14 @@ function openForgotPasswordModal() {
           status.textContent = 'יש להזין את קוד האימות בן 6 הספרות שנשלח למייל.';
           return;
         }
-        if (password.length < MIN_PASSWORD_LENGTH) {
+        if (!isValidNewEntryCode(password)) {
           status.classList.add('is-error');
-          status.textContent = `סיסמת ההתחברות החדשה חייבת להכיל לפחות ${MIN_PASSWORD_LENGTH} תווים.`;
+          status.textContent = describeNewEntryCodeRule();
           return;
         }
         if (password !== confirmation) {
           status.classList.add('is-error');
-          status.textContent = 'סיסמאות ההתחברות החדשות אינן זהות.';
+          status.textContent = 'קודי הכניסה החדשים אינם זהים.';
           return;
         }
 
@@ -190,12 +210,12 @@ function openForgotPasswordModal() {
               action: 'complete',
               challenge_id: challengeId,
               code,
-              new_password: password
+              new_password: encodeNewEntryCodeForAuth(password)
             }
           });
           if (completeError || !completeData?.ok) throw completeError || new Error(String(completeData?.error || 'invalid_or_expired'));
           status.classList.add('is-success');
-          status.textContent = 'סיסמת ההתחברות עודכנה בהצלחה. ניתן להתחבר עם שם המשתמש והסיסמה החדשה.';
+          status.textContent = 'קוד הכניסה עודכן בהצלחה. ניתן להתחבר עם שם המשתמש וקוד הכניסה החדש.';
           codeField.input.disabled = true;
           first.input.disabled = true;
           second.input.disabled = true;
@@ -204,10 +224,10 @@ function openForgotPasswordModal() {
         } catch (error) {
           status.classList.add('is-error');
           status.textContent = String(error?.message || '').includes('update_failed')
-            ? 'עדכון סיסמת ההתחברות נכשל. נסו שוב.'
+            ? 'עדכון קוד הכניסה נכשל. נסו שוב.'
             : 'קוד האימות שגוי או שפג תוקפו. ניתן לבטל ולבקש קוד חדש.';
           completeActions.primary.disabled = false;
-          completeActions.primary.textContent = 'שמירת סיסמה חדשה';
+          completeActions.primary.textContent = 'שמירת קוד חדש';
         }
       }, () => closeModal(modal));
 
@@ -226,7 +246,7 @@ function openForgotPasswordModal() {
 }
 
 async function saveNewPassword(password) {
-  const { error } = await supabase.auth.updateUser({ password });
+  const { error } = await supabase.auth.updateUser({ password: encodeNewEntryCodeForAuth(password) });
   if (error) throw error;
 }
 
@@ -234,19 +254,34 @@ function openPasswordChangeModal() {
   if (document.querySelector('.management-password-modal')) return;
   const { modal, card } = modalShell(
     'החלפת קוד כניסה',
-    `הקוד החדש חייב להכיל לפחות ${MIN_PASSWORD_LENGTH} תווים.`
+    describeNewEntryCodeRule()
   );
-  const first = labeledInput('קוד חדש', { type: 'password', autocomplete: 'new-password' });
-  const second = labeledInput('אימות קוד חדש', { type: 'password', autocomplete: 'new-password' });
+  const first = labeledInput('קוד כניסה חדש', {
+    type: 'password',
+    autocomplete: 'new-password',
+    inputMode: 'numeric',
+    placeholder: '4–6 ספרות'
+  });
+  const second = labeledInput('אימות קוד הכניסה החדש', {
+    type: 'password',
+    autocomplete: 'new-password',
+    inputMode: 'numeric'
+  });
+  first.input.addEventListener('input', () => {
+    first.input.value = first.input.value.replace(/\D/g, '').slice(0, 6);
+  });
+  second.input.addEventListener('input', () => {
+    second.input.value = second.input.value.replace(/\D/g, '').slice(0, 6);
+  });
   const status = statusNode();
   const { actions, primary } = actionsRow('שמירה', async () => {
-    const password = String(first.input.value || '').trim();
-    const confirmation = String(second.input.value || '').trim();
+    const password = trimEntryCode(first.input.value);
+    const confirmation = trimEntryCode(second.input.value);
     status.className = 'management-password-status';
     status.textContent = '';
-    if (password.length < MIN_PASSWORD_LENGTH) {
+    if (!isValidNewEntryCode(password)) {
       status.classList.add('is-error');
-      status.textContent = `הקוד חייב להכיל לפחות ${MIN_PASSWORD_LENGTH} תווים.`;
+      status.textContent = describeNewEntryCodeRule();
       return;
     }
     if (password !== confirmation) {
@@ -279,7 +314,7 @@ function injectForgotPasswordLink() {
   button.type = 'button';
   button.className = 'management-password-link';
   button.dataset.managementForgotPassword = '';
-  button.textContent = 'שכחתי סיסמה';
+  button.textContent = 'שכחתי קוד כניסה';
   button.addEventListener('click', openForgotPasswordModal);
   form.appendChild(button);
 }

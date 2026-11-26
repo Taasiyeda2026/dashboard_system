@@ -36,6 +36,7 @@ import {
   activitySchedulingFieldsChanged,
   invalidatePlanningAfterActivitySchedulingSave
 } from './screens/course-scheduling-planning-store.js';
+import { authPasswordCandidatesForLogin } from './entry-code-policy.js';
 
 /**
  * Actions that modify server-side data.
@@ -5079,20 +5080,19 @@ async function loginWithSupabaseAuth(username, password) {
     throwLoginError('auth_ok_user_row_not_found', { username: loginUsername, reason: 'missing_auth_email' });
   }
 
-  const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-    email: loginAuthEmail,
-    password: submittedPassword
-  });
+  let authData = null;
+  let authError = null;
+  for (const passwordCandidate of authPasswordCandidatesForLogin(submittedPassword)) {
+    const attempt = await supabase.auth.signInWithPassword({
+      email: loginAuthEmail,
+      password: passwordCandidate
+    });
+    authData = attempt.data;
+    authError = attempt.error;
+    if (!authError && authData?.user) break;
+  }
 
   if (authError || !authData?.user) {
-    // Legacy instructor codes were 4 digits. Auth passwords are longer; guide
-    // users who still type the old code toward recovery instead of a generic failure.
-    if (/^\d{4}$/.test(submittedPassword)) {
-      throwLoginError('legacy_entry_code_rejected', {
-        login: submittedUsername,
-        message: String(authError?.message || '')
-      });
-    }
     throwLoginError('invalid_credentials', { login: submittedUsername, message: String(authError?.message || '') });
   }
 
@@ -9534,7 +9534,8 @@ export const api = {
       default_view: String(row?.default_view || '').trim(),
       emp_id: String(row?.user_id || '').trim(),
       is_active: true,
-      entry_code: String(row?.entry_code || '').trim(),
+      // Never persist plaintext entry codes. Auth remains the login secret store.
+      entry_code: null,
       permissions
     };
     const { error } = await supabase.from('users').insert(insert);
