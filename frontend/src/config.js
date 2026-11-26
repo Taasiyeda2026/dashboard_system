@@ -691,3 +691,5 @@ config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-finance-payer-email-dispatch-2
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-finance-saved-drafts-20261126-v1`;
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-login-auth-recovery-harden-20261126-v1`;
+
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-stale-entry-code-login-guidance-20261126-v1`;

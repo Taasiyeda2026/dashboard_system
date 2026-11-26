@@ -111,8 +111,8 @@ function labeledInput(labelText, { type = 'text', autocomplete = '', placeholder
 function openForgotPasswordModal() {
   if (document.querySelector('.management-password-modal')) return;
   const { modal, card } = modalShell(
-    'שכחתי קוד כניסה',
-    'הזינו את המייל הארגוני שלכם. אם החשבון מורשה, יישלח אליו קוד אימות בן 6 ספרות.'
+    'שכחתי סיסמה',
+    'הזינו את המייל הארגוני שלכם. אם החשבון מורשה, יישלח אליו קוד אימות בן 6 ספרות להגדרת סיסמת התחברות חדשה.'
   );
   const emailField = labeledInput('מייל ארגוני', {
     type: 'email',
@@ -156,10 +156,10 @@ function openForgotPasswordModal() {
       codeField.input.addEventListener('input', () => {
         codeField.input.value = codeField.input.value.replace(/\D/g, '').slice(0, 6);
       });
-      const first = labeledInput('קוד כניסה חדש', { type: 'password', autocomplete: 'new-password' });
-      const second = labeledInput('אימות קוד הכניסה החדש', { type: 'password', autocomplete: 'new-password' });
+      const first = labeledInput('סיסמת התחברות חדשה', { type: 'password', autocomplete: 'new-password' });
+      const second = labeledInput('אימות סיסמת ההתחברות החדשה', { type: 'password', autocomplete: 'new-password' });
 
-      const completeActions = actionsRow('שמירת קוד חדש', async () => {
+      const completeActions = actionsRow('שמירת סיסמה חדשה', async () => {
         const code = String(codeField.input.value || '').trim();
         const password = String(first.input.value || '').trim();
         const confirmation = String(second.input.value || '').trim();
@@ -173,12 +173,12 @@ function openForgotPasswordModal() {
         }
         if (password.length < MIN_PASSWORD_LENGTH) {
           status.classList.add('is-error');
-          status.textContent = `קוד הכניסה החדש חייב להכיל לפחות ${MIN_PASSWORD_LENGTH} תווים.`;
+          status.textContent = `סיסמת ההתחברות החדשה חייבת להכיל לפחות ${MIN_PASSWORD_LENGTH} תווים.`;
           return;
         }
         if (password !== confirmation) {
           status.classList.add('is-error');
-          status.textContent = 'קודי הכניסה החדשים אינם זהים.';
+          status.textContent = 'סיסמאות ההתחברות החדשות אינן זהות.';
           return;
         }
 
@@ -195,7 +195,7 @@ function openForgotPasswordModal() {
           });
           if (completeError || !completeData?.ok) throw completeError || new Error(String(completeData?.error || 'invalid_or_expired'));
           status.classList.add('is-success');
-          status.textContent = 'קוד הכניסה עודכן בהצלחה. ניתן להתחבר עם מספר העובד והקוד החדש.';
+          status.textContent = 'סיסמת ההתחברות עודכנה בהצלחה. ניתן להתחבר עם שם המשתמש והסיסמה החדשה.';
           codeField.input.disabled = true;
           first.input.disabled = true;
           second.input.disabled = true;
@@ -204,10 +204,10 @@ function openForgotPasswordModal() {
         } catch (error) {
           status.classList.add('is-error');
           status.textContent = String(error?.message || '').includes('update_failed')
-            ? 'עדכון קוד הכניסה נכשל. נסו שוב.'
+            ? 'עדכון סיסמת ההתחברות נכשל. נסו שוב.'
             : 'קוד האימות שגוי או שפג תוקפו. ניתן לבטל ולבקש קוד חדש.';
           completeActions.primary.disabled = false;
-          completeActions.primary.textContent = 'שמירת קוד חדש';
+          completeActions.primary.textContent = 'שמירת סיסמה חדשה';
         }
       }, () => closeModal(modal));
 
@@ -279,7 +279,7 @@ function injectForgotPasswordLink() {
   button.type = 'button';
   button.className = 'management-password-link';
   button.dataset.managementForgotPassword = '';
-  button.textContent = 'שכחתי קוד כניסה';
+  button.textContent = 'שכחתי סיסמה';
   button.addEventListener('click', openForgotPasswordModal);
   form.appendChild(button);
 }

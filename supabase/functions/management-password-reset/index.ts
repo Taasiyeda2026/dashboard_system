@@ -178,6 +178,17 @@ Deno.serve(async (req: Request) => {
       return json(origin, { ok: false, error: 'update_failed' });
     }
 
+    // Auth password is now the only login secret. Clear legacy entry_code so it
+    // cannot be mistaken for the current password by users or admins.
+    const { error: clearLegacyError } = await admin
+      .from('users')
+      .update({ entry_code: null, updated_at: now.toISOString() })
+      .eq('user_id', String(challenge.user_id))
+      .eq('auth_user_id', String(challenge.auth_user_id));
+    if (clearLegacyError) {
+      console.error('password_recovery_clear_entry_code_failed', clearLegacyError.message);
+    }
+
     await admin
       .from('password_recovery_challenges')
       .update({ consumed_at: now.toISOString() })

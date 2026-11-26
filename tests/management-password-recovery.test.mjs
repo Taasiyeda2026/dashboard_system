@@ -12,12 +12,14 @@ const index = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const sw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
 
 test('password recovery uses an emailed one-time code instead of a clickable recovery link', () => {
-  assert.match(runtime, /שכחתי קוד כניסה/);
+  assert.match(runtime, /שכחתי סיסמה/);
+  assert.match(instructorRecovery, /שכחתי סיסמה/);
   assert.match(instructorRecovery, /קוד אימות בן 6 ספרות/);
   assert.match(instructorRecovery, /action: 'request'/);
   assert.match(instructorRecovery, /action: 'complete'/);
   assert.match(instructorRecovery, /challenge_id: challengeId/);
   assert.match(instructorRecovery, /new_password: password/);
+  assert.match(instructorRecovery, /\^\\d\{4\}\$/);
   assert.doesNotMatch(instructorRecovery, /PASSWORD_RECOVERY/);
   assert.doesNotMatch(instructorRecovery, /type=recovery/);
 });
@@ -46,6 +48,7 @@ test('reset edge function sends and verifies recovery OTP through Supabase Auth'
   assert.match(edge, /new_password \|\| ''\)\.trim\(\)/);
   assert.match(edge, /recoveryEmailsFor/);
   assert.match(edge, /@taasiyeda\.local/);
+  assert.match(edge, /entry_code:\s*null/);
   assert.doesNotMatch(edge, /graph\.microsoft\.com/);
   assert.doesNotMatch(edge, /sendMail/);
   assert.doesNotMatch(edge, /MS_CLIENT_SECRET/);
@@ -91,7 +94,16 @@ test('recovery challenge table is server-only and RLS protected', () => {
 });
 
 test('dashboard deploy markers include instructor recovery and current cache', () => {
-  assert.match(index, /instructor-password-recovery-runtime\.js\?v=20261126-login-auth-recovery-v1/);
-  assert.match(index, /management-password-runtime\.js\?v=20261126-login-auth-recovery-v1/);
-  assert.match(sw, /const CACHE_VERSION = 2145;/);
+  assert.match(index, /instructor-password-recovery-runtime\.js\?v=20261126-stale-entry-code-v1/);
+  assert.match(index, /management-password-runtime\.js\?v=20261126-stale-entry-code-v1/);
+  assert.match(sw, /const CACHE_VERSION = 2146;/);
+});
+
+test('login rejects legacy four-digit codes with recovery guidance', async () => {
+  const api = await readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
+  const hebrew = await readFile(new URL('../frontend/src/screens/shared/ui-hebrew.js', import.meta.url), 'utf8');
+  assert.match(api, /legacy_entry_code_rejected/);
+  assert.match(api, /\^\\d\{4\}\$/);
+  assert.match(hebrew, /legacy_entry_code_rejected/);
+  assert.match(hebrew, /סיסמת ההתחברות אינה הקוד הישן בן 4 הספרות/);
 });
