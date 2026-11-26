@@ -1,5 +1,20 @@
 # Scheduling System Map
 
+## Manual-only operational workboard (2026-11-26)
+
+The workboard uses saved activity assignments and drafts for status and the
+instructor report. An authorized operator opens the existing independent manual
+editor or the validated legacy manual picker. Existing previews, warnings,
+permissions, activity revision fences, approvals, replacement, cancellation,
+substitutions and meeting history still apply.
+
+The cutover migration pauses the scheduling supervisor, retires open optimization
+jobs, closes old planning write APIs and keeps saved planning records for history.
+The gateway retains authorized explicit manual actions and operational reads.
+The historical automatic engine described below remains available for offline
+tests. The production workflow no longer starts it.
+
+
 ## Manual operator decisions / fixed agent anchors (staged 2026-10-21)
 
 See [SCHEDULING_MANUAL_CONTROL_CONTRACT.md](SCHEDULING_MANUAL_CONTROL_CONTRACT.md)

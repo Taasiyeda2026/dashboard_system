@@ -101,7 +101,7 @@ test('local planning invalidation marks only the provided activity ids as pendin
   assert.notEqual(affected.length, 248);
 });
 
-test('planning status distinguishes pending work from an active auto-refresh run', async () => {
+test('historical planning status information is retained without live auto-refresh', async () => {
   const screen = await readFile(screenUrl, 'utf8');
   assert.match(screen, /מעדכן \$\{count\} פעילויות שהושפעו|מעדכן \$\{countLabel\} פעילויות שהושפעו/);
   assert.match(screen, /מעדכן פעילות אחת/);
@@ -114,10 +114,7 @@ test('planning status distinguishes pending work from an active auto-refresh run
   const incomplete = schedulingPlanningStatusHtml({ ...ready, courseSchedulingPlanningRows: [{ diagnostics: { softOptimizationIncomplete: true } }] });
   assert.match(incomplete, /בסיס התכנון נבדק; השיפור הנוסף לא הושלם/);
   assert.doesNotMatch(incomplete, /הכול מעודכן/);
-  assert.match(screen, /app:planning-needs-recalc/);
-  assert.match(screen, /applyLocalPlanningNeedsRecalc/);
-  assert.match(screen, /autoRefresh !== true/);
-  assert.match(screen, /scheduleBackgroundPlanning\(\{ forceFull: false, reuseSnapshot: true \}\)/);
+  assert.doesNotMatch(screen, /app:planning-needs-recalc/);
   assert.match(screen, /data-run-full-course-planning/);
   assert.doesNotMatch(
     screen.slice(screen.indexOf('function schedulingPlanningStatusHtml'), screen.indexOf('function genderRequirementLabel')),

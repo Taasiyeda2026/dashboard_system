@@ -71,7 +71,7 @@ for (const user of [eden, {role:'admin'}]) test(user.role+' keeps the instructor
   f.state.courseSchedulingPlanningRows=[{courseId:course.row_id,kind:'proposal',needsRecalc:true,_detailsDeferred:true,instructorEmpId:'7',instructorName:instructor.full_name,meetings:[{date:'2026-11-01',start_time:'10:00',end_time:'11:00'}]}];
   f.render();
   assert.ok(f.root.querySelector('.course-planning-completion-table'));
-  assert.match(f.root.querySelector('[data-planning-overview-currency]').textContent,/אינן מעודכנות ולכן אינן מוצגות בדוח/);
+  assert.equal(f.root.querySelector('[data-planning-report]').dataset.planningReportMode,'operational-only');
   f.root.querySelector('[data-open-manual-course]').click();await settle();
   assert.ok(f.root.querySelector('[data-manual-candidate="8"]'));
   f.root.querySelector('[data-manual-candidate="8"]').click();
@@ -111,21 +111,16 @@ for(const activity_type of ['סדנה','סיור'])test('manual '+activity_type+
   assert.ok(!f.calls.some(c=>c.name==='get_scheduling_dashboard_candidates'));
  }finally{f.close();}
 });
-test('late recommendation response cannot overwrite a manual selection or its activity revision',async()=>{
- let finish;
- const pending=new Promise(resolve=>{finish=resolve});
- const f=ui({rpcImpl:async name=>name==='get_scheduling_dashboard_candidates'?pending:{data:[]}});
- try{
-  f.root.querySelector('[data-find-instructors]').click();
-  f.root.querySelector('[data-open-manual-assignment]').click();await settle();
-  assert.equal(f.state.courseSchedulingResults[0].manualOnly,true);
-  f.data.activities[0].updated_at='2026-10-20T10:00:00Z';
-  finish({data:snapshot});await settle();
-  assert.equal(f.state.courseSchedulingResults[0].manualOnly,true);
-  assert.equal(f.data.activities[0].updated_at,'2026-10-20T10:00:00Z');
-  assert.equal(f.data._agentAssignmentSnapshots.size,0);
-  assert.ok(f.root.querySelector('[data-manual-candidate="8"]'));
- }finally{finish({data:snapshot});f.close();}
+test('cached recommendations cannot appear in the manual workboard or trigger a planning read',async()=>{
+ const f=ui();try{
+  f.state.courseSchedulingResults=[agentCandidateResult(snapshot)];
+  f.data._planningShared={rows:[{activityId:course.row_id,row:{kind:'proposal',planningLocked:true,instructorEmpId:'7'}}]};
+  f.render();await settle();
+  assert.deepEqual(f.state.courseSchedulingResults,[]);
+  assert.equal(f.root.querySelector('[data-find-instructors]'),null);
+  assert.equal(f.root.querySelector('[data-confirm-actual-draft]'),null);
+  assert.ok(!f.calls.some(({name})=>/planning_(workspace|preflight|row_details)|dashboard_candidates/.test(name)));
+ }finally{f.close();}
 });
 test('read-only scheduling role has no direct manual assignment entry',()=>{
  const f=ui({user:{...eden,role:'activities_manager'}});try{
@@ -133,15 +128,7 @@ test('read-only scheduling role has no direct manual assignment entry',()=>{
   assert.equal(f.root.querySelector('[data-open-manual-assignment]'),null);
  }finally{f.close();}
 });
-test('Eden operation_manager loads agent candidates and saves a draft without browser matching',async()=>{
- const f=ui();try{
-  const find=f.root.querySelector('[data-find-instructors]');assert.ok(find);assert.equal(find.disabled,false);find.click();await settle();
-  assert.equal(f.state.courseSchedulingResults[0].recommended.instructor.emp_id,'7');
-  const save=f.root.querySelector('[data-save-draft]');assert.ok(save);assert.equal(save.disabled,false);save.click();await settle();
-  assert.ok(f.calls.some(c=>c.name==='scheduling_dashboard_assignment'&&c.args.p_rpc==='save_course_assignment_draft_with_dates'));
-  assert.equal(f.data.activities[0].draft_emp_id,'7');
- }finally{f.close();}
-});
+
 test('manual candidates do not require agent options or pretend to be eligible',()=>{
  const r=manualInstructorResult(course,[instructor,{emp_id:'8',full_name:'בחירה ידנית'}]);
  assert.equal(r.manualOnly,true);assert.equal(r.agentSnapshot,undefined);
@@ -169,7 +156,7 @@ test('Eden saves a manual draft without calling the agent or planner',async()=>{
 });
 test('manual action ignores earlier agent workspace revision',async()=>{
  const f=ui();try{
-  f.root.querySelector('[data-find-instructors]').click();await settle();
+  f.data._agentAssignmentSnapshots = new Map([[course.row_id,snapshot]]);
   f.root.querySelector('[data-open-manual-assignment]').click();await settle();
   f.root.querySelector('[data-manual-candidate="8"]').click();
   f.root.querySelector('[data-confirm-manual-candidate]').click();await settle();
@@ -203,20 +190,7 @@ test('planning-only lock does not force a global plan run before manual selectio
   assert.ok(!f.calls.some(c=>c.name==='get_scheduling_dashboard_candidates'));
  }finally{f.close();}
 });
-test('opening saved recommendations closes the direct manual picker exactly once',async()=>{
- const f=ui({assigned:true});try{
-  f.root.querySelector('[data-change-assignment]').click();await settle();
-  assert.equal(f.state.courseSchedulingManualPickerOpen,true);
-  assert.ok(f.root.querySelector('[data-manual-candidate="8"]'));
-  f.root.querySelector('[data-find-instructors]').click();await settle();
-  assert.equal(f.state.courseSchedulingManualPickerOpen,false);
-  assert.equal(f.root.querySelector('[data-manual-candidate="8"]'),null);
-  f.root.querySelector('[data-toggle-manual-picker]').click();
-  assert.equal(f.state.courseSchedulingManualPickerOpen,true);
-  assert.ok(f.root.querySelector('[data-manual-candidate="8"]'));
-  assert.equal(f.calls.filter(c=>c.name==='get_scheduling_dashboard_candidates').length,1);
- }finally{f.close();}
-});
+
 test('existing assignment replacement opens manual picker without calling the agent',async()=>{
  const f=ui({assigned:true});try{
   f.root.querySelector('[data-change-assignment]').click();await settle();
@@ -229,8 +203,8 @@ test('existing assignment replacement opens manual picker without calling the ag
 test('cached UI offers explicit refresh and keeps write controls disabled',async()=>{
  const f=ui({stale:true});try{
   assert.ok(f.root.querySelector('[data-refresh-assignment-data]'));
-  f.root.querySelector('[data-find-instructors]').click();await settle();
-  assert.equal(f.root.querySelector('[data-save-draft]').disabled,true);
+  assert.equal(f.root.querySelector('[data-open-manual-assignment]').disabled,true);
+  assert.ok(!f.calls.some(({name})=>name==='scheduling_dashboard_assignment'));
  }finally{f.close();}
 });
 test('missing operation_manager permission cannot enter scheduling controls',()=>{
@@ -247,21 +221,14 @@ test('Eden confirms a stored draft through the guarded server assignment RPC',as
 test('Eden confirms replacement without changing course dates',async()=>{
  const f=ui({assigned:true});try{
   f.root.querySelector('[data-change-assignment]').click();await settle();
-  f.root.querySelector('[data-find-instructors]').click();await settle();
+  f.root.querySelector('[data-manual-candidate="7"]').click();
+  f.root.querySelector('[data-confirm-manual-candidate]').click();await settle();
   f.root.querySelector('[data-assign-course]').click();await settle();
   assert.ok(f.calls.some(c=>c.name==='scheduling_dashboard_assignment'&&c.args.p_rpc==='reassign_locked_course_instructor'));
   assert.equal(f.data.activities[0].emp_id,7);assert.equal(f.data.activities[0].date_1,course.date_1);
  }finally{f.close();}
 });
-test('Eden chooses an uncomputed manual instructor and server stages the draft',async()=>{
- const f=ui();try{
-  f.root.querySelector('[data-find-instructors]').click();await settle();
-  f.root.querySelector('[data-toggle-manual-picker]').click();
-  f.root.querySelector('[data-manual-candidate="8"]').click();
-  f.root.querySelector('[data-confirm-manual-candidate]').click();await settle();
-  assert.ok(f.calls.some(c=>c.name==='scheduling_dashboard_assignment'&&c.args.p_rpc==='save_course_assignment_manual_draft'&&c.args.p_args.p_emp_id===8));
- }finally{f.close();}
-});
+
 test('Eden cancellation stays in the existing audited cancellation RPC',async()=>{
  const f=ui({assigned:true});try{
   f.root.querySelector('[data-open-cancel-assignment]').click();f.state.courseSchedulingCancelReason='בדיקת ביטול';f.root.querySelector('[data-cancel-assignment-reason]').value='בדיקת ביטול';
@@ -297,15 +264,12 @@ test('cancel permission conflict restores UI without using expired event.current
  }finally{f.close();}
 });
 
-for(const {failure,completed} of [{failure:null,completed:0},{failure:'scheduling_conflict_detected',completed:0},{failure:'scheduling_manager_approval_required',completed:0},{failure:null,completed:2}])test('manual replacement from recommended agent choice reaches server: '+(failure||'success')+' after '+completed+' meetings',async()=>{
+for(const {failure,completed} of [{failure:null,completed:0},{failure:'scheduling_conflict_detected',completed:0},{failure:'scheduling_manager_approval_required',completed:0},{failure:null,completed:2}])test('manual replacement reaches server: '+(failure||'success')+' after '+completed+' meetings',async()=>{
  let resolveWrite;const pending=new Promise(resolve=>{resolveWrite=resolve;});
  const f=ui({assigned:true,mutateImpl:()=>pending,completed});
  try{
   f.root.querySelector('[data-change-assignment]').click();await settle();
-  f.root.querySelector('[data-find-instructors]').click();await settle();
-  assert.equal(f.state.courseSchedulingResults[0].recommended.instructor.emp_id,'7');
   assert.equal(f.root.querySelectorAll('[data-manual-picker]').length,1);
-  f.root.querySelector('[data-toggle-manual-picker]').click();
   f.root.querySelector('[data-manual-candidate="8"]').click();
   f.root.querySelector('[data-confirm-manual-candidate]').click();await settle();
   assert.equal(f.state.courseSchedulingSelectedCandidateId,'8');
@@ -342,11 +306,9 @@ for(const kind of ['recommended','bestAvailable'])test('direct result HTML inclu
  const dom=new JSDOM(instructorsResultsHtml(result,{}));
  assert.equal(dom.window.document.querySelectorAll('[data-manual-picker]').length,1);dom.window.close();
 });
-test('choosing the recommended instructor through manual picker still awaits server verification',async()=>{
+test('choosing an instructor through the manual picker still awaits server verification',async()=>{
  const f=ui({assigned:true});try{
   f.root.querySelector('[data-change-assignment]').click();await settle();
-  f.root.querySelector('[data-find-instructors]').click();await settle();
-  f.root.querySelector('[data-toggle-manual-picker]').click();
   f.root.querySelector('[data-manual-candidate="7"]').click();
   f.root.querySelector('[data-confirm-manual-candidate]').click();await settle();
   assert.ok(f.root.querySelector('[data-manual-validation-pending]'));
@@ -449,19 +411,15 @@ test('manual editor includes inactive instructors from the full directory and re
  } finally {f.close();}
 });
 
-test('operator workboard prioritizes manual assignment above deferred agent planning', () => {
+test('operator workboard precedes the operational instructor report',()=>{
  const f=ui();try{
   const list=f.root.querySelector('[data-course-list]');
   const summary=f.root.querySelector('.course-scheduling-summary');
-  const plan=f.root.querySelector('[data-planning-disclosure]');
-  assert.ok(summary&&list&&plan);
-  assert.ok(summary.compareDocumentPosition(list)&4,'summary appears before workboard');
-  assert.ok(list.compareDocumentPosition(plan)&4,'agent planning appears below workboard');
-  assert.equal(plan.open,false,'agent planning is collapsed by default');
-  assert.ok(plan.querySelector('.course-planning-completion-table'),'planning information remains available');
-  plan.open=true;plan.dispatchEvent(new window.Event('toggle'));
-  f.render();
-  assert.equal(f.root.querySelector('[data-planning-disclosure]').open,true,'disclosure survives rerender');
+  const report=f.root.querySelector('[data-planning-report]');
+  assert.ok(summary&&list&&report);
+  assert.ok(summary.compareDocumentPosition(list)&4);
+  assert.ok(list.compareDocumentPosition(report)&4);
+  assert.equal(f.root.querySelector('[data-planning-disclosure]'),null);
  }finally{f.close();}
 });
 
@@ -483,15 +441,12 @@ test('refresh is part of filters and the daily workboard uses understandable sta
  }finally{f.close();}
 });
 
-test('planning is optional and the long annual instructor report stays folded until requested',()=>{
+test('the operational instructor report stays folded until requested',()=>{
  const f=ui();try{
-  const plan=f.root.querySelector('[data-planning-disclosure]');
   const report=f.root.querySelector('[data-planning-report]');
-  assert.ok(plan&&report);
-  assert.equal(plan.open,false);
+  assert.ok(report);
   assert.equal(report.open,false);
-  assert.match(plan.querySelector('summary').textContent,/המלצות תכנון וצרכי גיוס/);
-  assert.match(plan.querySelector('summary').textContent,/אינו משנה שיבוצים שמורים/);
+  assert.match(report.querySelector('summary').textContent,/שיבוצים קיימים לפי מדריכים/);
   assert.ok(report.querySelector('.course-planning-completion-table'));
   report.open=true;
   report.dispatchEvent(new window.Event('toggle'));

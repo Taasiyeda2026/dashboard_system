@@ -33,9 +33,9 @@ test('workboard row actions explain single-course workflows clearly', () => {
   assert.match(screen, /'בחר מדריך אחר'/);
 });
 
-test('stale planning keeps the instructor summary visible with a currency notice', () => {
-  assert.match(screen, /data-planning-overview-currency/);
-  assert.match(screen, /המלצות התכנון אינן מעודכנות ולכן אינן מוצגות בדוח/);
+test('manual scheduling keeps the operational instructor summary visible', () => {
+  assert.match(screen, /data-planning-report-mode="operational-only"/);
+  assert.match(screen, /הצג שיבוצים קיימים לפי מדריכים/);
   assert.doesNotMatch(screen, /טבלת תכנון המדריכים תוצג לאחר/);
   assert.match(screen, /\$\{completionCache\.html\}/);
 });

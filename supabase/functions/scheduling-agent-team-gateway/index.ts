@@ -45,11 +45,6 @@ const TOOLS = [
     inputSchema: {type:'object',properties:{activityId:{type:'string',minLength:1,maxLength:200},requestId:{type:'string',minLength:1,maxLength:200},decision:{type:'string',enum:['approved','rejected']}},required:['activityId','requestId','decision'],additionalProperties:false}
   },
   {
-    name: 'request_optimization',
-    description: 'Request a fresh operational scheduling optimization of the current-year plan. Incremental can be requested by Idan/Eden/Esraa, full rebuild by Idan only. Queued requests are processed by the private authenticated GitHub Actions scheduling agent worker; the dashboard is display-only. Execution may be delayed until a workflow runner starts. NEVER claim it has run until status says completed. No existing confirmed assignments are changed.',
-    inputSchema: {type:'object',properties:{mode:{type:'string',enum:['incremental','full']}},required:['mode'],additionalProperties:false}
-  },
-  {
     name: 'optimization_status',
     annotations: {readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false},
     description: 'Read the actual state of a previously submitted optimization job: queued, running, completed or failed.',
@@ -150,15 +145,6 @@ const TOOLS = [
     description:'Finalize permanent instructor ONLY after confirming matching manager approval, current revision, and obtaining explicit final consent. Blocked lessons are persisted without an effective teaching instructor.',
     inputSchema:{type:'object',properties:{activityId:{type:'string'},instructorId:{type:'integer',minimum:1},activityUpdatedAt:{type:'string',minLength:10,maxLength:60}},required:['activityId','instructorId','activityUpdatedAt'],additionalProperties:false}
   },
-  {
-    name: 'confirm_planning_option',
-    description: 'Confirm a fresh verified existing plan option, including proposed dates. Requires explicit confirmation. Changing agreed future dates requires separate explicit consent. Never change past sessions or approve exceptions.',
-    inputSchema: {type:'object',properties:{
-      activityId:{type:'string'},optionIndex:{type:'integer',minimum:0,maximum:50},
-      workspaceRevision:{type:'string',pattern:'^[0-9]+$'},sourceRevision:{type:'string',pattern:'^[0-9]+$'},
-      allowDateChange:{type:'boolean'}},
-      required:['activityId','optionIndex','workspaceRevision','sourceRevision','allowDateChange'],additionalProperties:false}
-  }
 ];
 
 function respond(payload:unknown,status=200,headers:Record<string,string>={}){
@@ -214,7 +200,6 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
     review_manager_approval:['activityId','requestId','decision'],
     read_snapshot:[],
     planning_status:[],
-    request_optimization:['mode'],
     optimization_status:['jobId'],
     manager_approval_state:['activityId'],
     read_staged_schedule:['activityId'],
@@ -227,7 +212,6 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
     read_permanent_unavailability:['activityId','instructorId'],
     approve_permanent_unavailability:['activityId','instructorId','scopeStart','scopeEnd','reason'],
     confirm_permanent_unavailability:['activityId','instructorId','activityUpdatedAt'],
-    confirm_planning_option:['activityId','optionIndex','workspaceRevision','sourceRevision','allowDateChange']
   };
   if(!allowed[name]||Object.keys(args).some(k=>!allowed[name].includes(k)))return false;
   if(['read_planning_intents','save_planning_baseline','save_intended_instructor'].includes(name)){
@@ -284,7 +268,6 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
       && typeof args.scopeEnd==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(args.scopeEnd)
       && args.scopeStart<=args.scopeEnd;
   }
-  if(name==='request_optimization')return args.mode==='incremental'||args.mode==='full';
   if(name==='optimization_status')return typeof args.jobId==='string'&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(args.jobId);
   if(!activityId(args.activityId))return false;
   if(name==='append_activity_note')return typeof args.note==='string'&&args.note.trim().length>0&&args.note.length<=2000&&typeof args.expectedNotesVersion==='string'&&/^[a-f0-9]{32}$/.test(args.expectedNotesVersion)&&typeof args.requestId==='string'&&/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(args.requestId);
@@ -293,12 +276,7 @@ function validate(name:string,args:unknown):args is Record<string,unknown> {
     if(typeof args.instructorId!=='number'||!Number.isSafeInteger(args.instructorId)||args.instructorId<=0)return false;
     if(args.reason!==undefined&&(typeof args.reason!=='string'||args.reason.length>500))return false;
   }
-  if(name==='confirm_planning_option'){
-    if(typeof args.optionIndex!=='number'||!Number.isInteger(args.optionIndex)||args.optionIndex<0||args.optionIndex>50)return false;
-    if(typeof args.workspaceRevision!=='string'||!/^\d+$/.test(args.workspaceRevision))return false;
-    if(typeof args.sourceRevision!=='string'||!/^\d+$/.test(args.sourceRevision))return false;
-    if(typeof args.allowDateChange!=='boolean')return false;
-  }
+
   return true;
 }
 Deno.serve(async request=>{
@@ -450,7 +428,6 @@ Deno.serve(async request=>{
     review_manager_approval:'review_course_assignment_manager_approval',
     read_snapshot:'scheduling_agent_team_read_snapshot',
     planning_status:'scheduling_agent_team_planning_status',
-    request_optimization:'scheduling_agent_team_request_optimization',
     optimization_status:'scheduling_agent_team_optimization_status',
     read_staged_schedule:'scheduling_agent_team_read_staged_schedule',
     manager_approval_state:'scheduling_agent_team_manager_approval_state',
@@ -462,7 +439,6 @@ Deno.serve(async request=>{
     read_permanent_unavailability:'scheduling_permanent_unavailability_state',
     approve_permanent_unavailability:'scheduling_approve_permanent_unavailability',
     confirm_permanent_unavailability:'scheduling_confirm_permanent_unavailability',
-    confirm_planning_option:'scheduling_agent_team_confirm_planning_option'
   };
   const input:Record<string,unknown>=(name==='read_snapshot'||name==='planning_status')?{}:
     name==='append_activity_note'?{p_activity_id:args.activityId,p_note:args.note,p_expected_notes_version:args.expectedNotesVersion,p_request_id:args.requestId}:
@@ -470,20 +446,13 @@ Deno.serve(async request=>{
     name==='save_planning_baseline'?{p_emp_id:args.instructorId,p_plan_text:args.planText,p_expected_version:args.expectedVersion}:
     name==='save_intended_instructor'?{p_activity_id:args.activityId,p_emp_id:args.instructorId,p_reason:args.reason,p_status:args.status,p_expected_version:args.expectedVersion}:
     name==='review_manager_approval'?{p_request_id:args.requestId,p_status:args.decision}:
-    name==='request_optimization'?{p_mode:args.mode}:
     name==='optimization_status'?{p_job_id:args.jobId}:
     name==='stage_manual_draft'?{p_activity_id:args.activityId,p_emp_id:args.instructorId,p_reason:args.reason??null}:
     (name==='stage_schedule_batch'||name==='confirm_schedule_batch')?{p_items:args.items}:
     name==='read_permanent_unavailability'?{p_activity_id:args.activityId,p_emp_id:args.instructorId}:
     name==='approve_permanent_unavailability'?{p_activity_id:args.activityId,p_emp_id:args.instructorId,p_from:args.scopeStart,p_to:args.scopeEnd,p_reason:args.reason}:
     name==='confirm_permanent_unavailability'?{p_activity_id:args.activityId,p_emp_id:args.instructorId,p_expected_updated_at:args.activityUpdatedAt}:
-    name==='confirm_planning_option'?{
-      p_activity_id:args.activityId,
-      p_option_index:args.optionIndex,
-      p_workspace_revision:args.workspaceRevision,
-      p_source_revision:args.sourceRevision,
-      p_allow_date_change:args.allowDateChange
-    }:{p_activity_id:args.activityId};
+    {p_activity_id:args.activityId};
   if(name==='review_manager_approval'){
     // Bind approval consent to the exact activity and current pending request.
     // The existing reviewer independently locks/revalidates request and draft and checks admin identity.

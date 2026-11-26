@@ -1,37 +1,11 @@
 name: Taasiyeda Scheduling Agent Engine
-on:
-  schedule:
-    # GitHub may delay a scheduled invocation. This is an eventually consistent queue poll.
-    - cron: '*/5 * * * *'
-  workflow_dispatch:
-    inputs:
-      readonly_canary:
-        description: 'Read-only three-course canary, no persistence'
-        required: false
-        type: boolean
-        default: false
+on: workflow_dispatch
 
-permissions:
-  contents: read
-  id-token: write
-
-concurrency:
-  group: scheduling-agent-production
-  cancel-in-progress: false
+permissions: {}
 
 jobs:
-  run:
-    if: github.repository == 'Taasiyeda2026/dashboard_system' && github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
+  retired:
+    if: github.repository == 'Taasiyeda2026/dashboard_system' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 12
     steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: npm
-      - run: npm ci --ignore-scripts --no-audit --no-fund
-      - name: Run authorized agent engine (no GitHub secrets)
-        run: ${{ inputs.readonly_canary && 'node services/scheduling-agent/github-readonly-canary.mjs' || 'node services/scheduling-agent/github-worker.mjs' }}
+      - run: echo 'Scheduling is manual only.'
