@@ -552,6 +552,10 @@ export function syncManualPdfPreviewDom(root, data, scope = globalThis) {
     previews.set('single', { base64: data.manualPdf,
       name: manualPdfPreviewFilename(data.manualQuote || data.manualDraft) });
   }
+  if (data.transactionIssuancePreview?.pdfBase64) {
+    previews.set('issuance', {base64:data.transactionIssuancePreview.pdfBase64,
+      name:manualPdfPreviewFilename(data.transactionIssuancePreview.quote)});
+  }
   root._financeManualPdfPreviewUrls ||= new Map();
   const cache = root._financeManualPdfPreviewUrls;
   for (const [key, previous] of cache) {
