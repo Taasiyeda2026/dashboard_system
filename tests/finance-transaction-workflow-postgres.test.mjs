@@ -17,6 +17,7 @@ const read = p => readFile(new URL(p, import.meta.url), 'utf8');
 const gefen = '11111111-1111-4111-8111-111111111111';
 const authority = '22222222-2222-4222-8222-222222222222';
 let baselinePreview;
+let historicalMigrationSnapshot;
 const migration = '../supabase/migrations/20261115080018_finance_gefen_semimonthly_cutoff.sql';
 async function at(value) { await db.query("select set_config('test.clock',$1,false)",[value]); }
 async function rows() { return (await db.query("select finance_billing_preview(array['a']) r")).rows[0].r; }
@@ -88,9 +89,19 @@ before(async()=>{
     '20261126133511_finance_uncertain_pdf_dispatch_recovery'
   ]) {
     const path = `../supabase/migrations/${name}.sql`;
-    if (name.includes('pl_numbering')) await db.query('begin;'+await read(path)+'commit;');
-    else await load(path);
+    if (name.includes('pl_numbering')) {
+      await db.query('begin;'+await read(path)+'commit;');
+      await db.query(`insert into public.finance_transaction_accounts(
+        id,idempotency_key,cutoff_date,institution_symbol,customer_name_snapshot,
+        total_amount,document_status,issue_mode,payment_due_date,generated_filename,sharepoint_item_id
+      ) values('99999999-9999-4999-8999-999999999999','99999999-9999-4999-8999-999999999999',
+        '2026-10-01','123','מממן היסטורי',850,'issued','manual','2026-11-30','original.pdf','original-item');`);
+      historicalMigrationSnapshot = (await db.query("select to_jsonb(a) snapshot from finance_transaction_accounts a where generated_filename='original.pdf'")).rows[0].snapshot;
+    } else await load(path);
   }
+  const after = (await db.query(`select to_jsonb(a)-'deleted_at'-'dispatch_number_reserved'-'dispatch_upload_hash' snapshot
+    from finance_transaction_accounts a where generated_filename='original.pdf'`)).rows[0].snapshot;
+  assert.deepEqual(after,historicalMigrationSnapshot);
 });
 after(async()=>{if(db)await db.end();});
 beforeEach(async()=>{

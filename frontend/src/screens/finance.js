@@ -494,7 +494,8 @@ async function ensureCollectionLoaded(data, api, { force = false } = {}) {
     });
     const visibleAccountIds = new Set(visibleAccounts.map((account) => account.id));
     const allocatedReceiptIds = new Set(paymentContext.allocations
-      .filter((allocation) => visibleAccountIds.has(allocation.account_id))
+      .filter((allocation) => visibleAccountIds.has(allocation.account_id)
+        || (allocation.released_at && visibleActivityIds.has(String(allocation.activity_row_id))))
       .map((allocation) => allocation.receipt_id));
     const visibleReceipts = paymentContext.receipts.filter((receipt) =>
       visibleActivityIds.has(String(receipt.activity_row_id)) || allocatedReceiptIds.has(receipt.id));
@@ -707,7 +708,15 @@ export const financeScreen = {
         const allocations = (visit.paymentContext?.allocations || []).filter(item => item.account_id === id && !item.released_at);
         const allocated = allocations.reduce((sum,item) => sum + Number(item.amount),0);
         const warning = `למחוק את חשבון ${account?.transaction_account_number || ''} ואת ה־PDF המשויך מ־SharePoint? יתרת החיוב תשוחרר. עותקים שכבר הועברו ללקוח יישארו אצלו.`;
-        const receiptDetails = allocations.length ? `\nתקבולים משויכים: ${allocations.length} הקצאות בסך ${allocated.toLocaleString('he-IL')} ₪. התקבולים יישמרו והשיוך לחשבון יוסר.` : '';
+        const receipts = new Map((visit.paymentContext?.receipts || []).map(item => [item.id,item]));
+        const receiptLines = allocations.map(item => {
+          const receipt = receipts.get(item.receipt_id);
+          const label = [receipt?.reference,receipt?.received_date].filter(Boolean).join(' · ');
+          return `${label || 'תקבול'} · ${Number(item.amount).toLocaleString('he-IL')} ₪`;
+        });
+        const receiptDetails = allocations.length
+          ? `\nתקבולים משויכים בסך ${allocated.toLocaleString('he-IL')} ₪:\n${receiptLines.join('\n')}\nהתקבולים יישמרו והשיוך לחשבון יוסר.`
+          : '';
         if (window.confirm(warning + receiptDetails)) await financeAction(deleteAccount, async () => {
           await api.deleteFinanceTransactionAccount(id);
           visit.invoiceRevisionContext = null;

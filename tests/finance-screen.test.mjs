@@ -1189,3 +1189,32 @@ test('manual select-all is unavailable until a payer has been selected', () => {
   assert.equal(master,null);
   assert.equal(d.manualSelectedActivityIds.length,0);
 });
+
+test('administrator sees itemized allocations and can still access the released receipt after account deletion', async () => {
+  const account = { id:'account',transaction_account_number:'Pl180',document_status:'issued',issue_date:'2026-11-01',
+    finance_transaction_account_lines:[{activity_row_id:'ACT-1',school_name_snapshot:'בית ספר הרצל',amount:1200}] };
+  const receipt = {id:'receipt',reference:'R-42',received_date:'2026-11-15',amount:450,activity_row_id:null};
+  const allocation = {receipt_id:'receipt',account_id:'account',activity_row_id:'ACT-1',amount:450,released_at:null};
+  const accounts = [account];
+  const api = mockApi({activities:[activity()],accounts});
+  api.financePaymentContext = async () => ({balances:[],receipts:[receipt],allocations:[allocation]});
+  api.deleteFinanceTransactionAccount = async id => {
+    assert.equal(id,'account');
+    accounts.length = 0;
+    allocation.released_at = '2026-11-26';
+    return {deleted:true};
+  };
+  const data = {...createFinanceVisitState(),view:'transactions',transactionTab:'history',
+    transactionContext:{accounts:[account]},paymentContext:{balances:[],receipts:[receipt],allocations:[allocation]}};
+  const {host,window} = mount(data,{api,user:{...financeUser,role:'admin'}});
+  let message;
+  window.confirm = value => { message = value; return true; };
+  host.querySelector('[data-finance-account-delete]').click();
+  await flush();
+  assert.match(message,/R-42 · 2026-11-15 · 450 ₪/);
+  assert.match(host.textContent,/החשבון נמחק/);
+  assert.equal(data.transactionContext.accounts.length,0);
+  assert.equal(data.paymentContext.receipts[0].id,'receipt');
+  host._financeUnbind?.();
+  window.close();
+});
