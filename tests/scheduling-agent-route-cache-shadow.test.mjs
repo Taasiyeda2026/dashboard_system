@@ -1,12 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {readFileSync} from 'node:fs';
-const edge=readFileSync(new URL('../supabase/functions/scheduling-agent-worker-api/index.ts',import.meta.url),'utf8');
-test('nationwide route cache loader permits 13k+ routes, deterministic, bounded',()=>{
- assert.match(edge,/scheduling_travel_cache/);
- assert.match(edge,/order\('origin_key'/);
- assert.match(edge,/order\('destination_key'/);
- assert.match(edge,/,50000\)/);
- assert.match(edge,/for\(let offset=0;offset<max;offset\+=500\)/);
- assert.match(edge,/worker_snapshot_.*_overflow/);
+import {planningRouteEndpoints} from '../supabase/functions/scheduling-agent-worker-api/planning-scope.mjs';
+
+test('route scope keeps canonical addresses for planned activities, external blockers and all instructors',()=>{
+ const scope=planningRouteEndpoints({
+  activities:[{school_id:1},{school_id:1},{school_id:2,school_address:'unverified address'}],
+  externalBlockers:[{school_address:'External School'}],
+  instructors:[{address:'  A  Street ',active:true},{address:'Another home',active:false}],
+  schoolLocations:[{school_id:1,address:'Main School'},{school_id:3,address:'Unrelated School'}]
+ });
+ assert.deepEqual(scope,{
+  p_schools:['main school','external school'],
+  p_homes:['a street','another home']
+ });
 });

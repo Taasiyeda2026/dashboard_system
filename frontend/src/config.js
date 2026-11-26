@@ -681,3 +681,5 @@ config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-manager-conflict-day-visibilit
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-instructor-mobile-compact-20261123-v1`;
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-admin-hub-compact-cards-20261125-v1`;
+
+config.HOTFIX_VERSION = `planning-runtime-hot-paths-20261126-v1-${config.HOTFIX_VERSION}`;

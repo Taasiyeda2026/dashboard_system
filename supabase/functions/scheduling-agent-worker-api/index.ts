@@ -2,7 +2,7 @@
 // Each call MUST carry a signed GitHub JWT from our main-branch workflow.
 // Supabase service-role credential exists only in the protected Edge runtime.
 import {createClient} from 'npm:@supabase/supabase-js@2.57.4';
-import {planningRefreshTargets} from './planning-scope.mjs';
+import {planningRefreshTargets, planningRouteEndpoints} from './planning-scope.mjs';
 
 const BASE='https://szinlhjuwyiyszdpsdop.supabase.co';
 const AUD='taasiyeda-scheduling-agent-worker';
@@ -12,7 +12,7 @@ const EXPECTED_REPO='Taasiyeda2026/dashboard_system';
 const EXPECTED_REPO_ID='1212938814';
 const EXPECTED_WORKFLOW=EXPECTED_REPO+'/.github/workflows/scheduling-agent-worker.yml@refs/heads/main';
 const ALLOWED_ACTIONS=new Set([
-  'probe','claim','lease','heartbeat','preflight','snapshot','canary_snapshot','persist','finish','release'
+  'probe','claim','lease','heartbeat','preflight','snapshot','canary_snapshot','load_checkpoint','save_checkpoint','persist','finish','release'
 ]);
 
 const encoder=new TextEncoder();
@@ -83,13 +83,17 @@ Deno.serve(async(req:Request)=>{
   catch{return output({code:'invalid_worker_request'},400);}
   const action=String(body.action||'');
   if(!ALLOWED_ACTIONS.has(action))return output({code:'unknown_worker_command'},400);
+  const dbFailure = (error: {code?: string}, fallback: string) =>
+    ['40001','40P01','57014'].includes(error.code || '') ? 'worker_database_retry' : fallback;
+  let dbRequests = 0;
   const command=async(name:string,payload:Record<string,unknown>={})=>{
+    dbRequests++;
     const {data,error}=await client.rpc('scheduling_agent_worker_command',{p_action:name,p_payload:payload});
     if(error){
       const retryable=new Set(['planning_source_revision_conflict','planning_revision_conflict',
         'worker_snapshot_revision_changed','worker_run_lease_invalid']);
       const code=retryable.has(error.message)?error.message:
-        ['40001','40P01'].includes(error.code)?'worker_database_retry':error.code||'worker_command_failed';
+        dbFailure(error,error.code||'worker_command_failed');
       throw Error(code);
     }
     return data;
@@ -102,8 +106,9 @@ Deno.serve(async(req:Request)=>{
     const all:any[]=[];
     for(let offset=0;offset<max;offset+=500){
       const q=filters(client.from(table).select(cols).range(offset,offset+499));
+      dbRequests++;
       const {data,error}=await q;
-      if(error)throw Error('worker_snapshot_'+table+'_failed');
+      if(error)throw Error(dbFailure(error,'worker_snapshot_'+table+'_failed'));
       if(!Array.isArray(data))throw Error('worker_snapshot_'+table+'_invalid');
       all.push(...data);
       if(data.length<500)return all;
@@ -114,7 +119,7 @@ Deno.serve(async(req:Request)=>{
     const args:Record<string,unknown>={};
     for(const key of ['jobId','runId','mode','ttlSeconds','success','failureCode',
       'sourceRevision','workspaceRevision','dataFingerprint','contextFingerprint',
-      'engineVersion','rows','validationOnly']){
+      'engineVersion','rows','validationOnly','total','planningDate']){
       if(Object.hasOwn(body,key))args[key]=body[key];
     }
     if(action!=='snapshot' && action!=='canary_snapshot')return output(await command(action,args));
@@ -122,10 +127,12 @@ Deno.serve(async(req:Request)=>{
 
     // Full snapshot uses multiple DB requests but protects against mixed
     // versions by comparing authoritative preflight both BEFORE and AFTER.
-    const start=await (canary ? command('probe',{}).then(p=>({sourceRevision:p.sourceRevision,workspace:{revision:p.workspaceRevision}})) : command('preflight',args));
+    const start=await (canary ? command('probe',{}).then(p=>({sourceRevision:p.sourceRevision,workspace:{revision:p.workspaceRevision},serverTime:null})) : command('preflight',args));
+    dbRequests++;
     const {data:workspace,error:workspaceError}=await client.from('scheduling_agent_worker_workspaces')
       .select('id,revision').eq('period_key','year').eq('district','').single();
-    if(workspaceError||!workspace?.id||String(workspace.revision)!==String(start?.workspace?.revision)){
+    if(workspaceError) throw Error(dbFailure(workspaceError,'worker_workspace_identity_conflict'));
+    if(!workspace?.id||String(workspace.revision)!==String(start?.workspace?.revision)){
       throw Error('worker_workspace_identity_conflict');
     }
     const selectAct=[
@@ -140,7 +147,7 @@ Deno.serve(async(req:Request)=>{
     ].join(',');
     const [
       activities,instructors,schoolLocations,externalBlockers,meetingInstructorHistory,
-      profiles,rules,exceptions,schoolCalendar,catalog,routes,stored,cancellations,planningIntents
+      profiles,rules,exceptions,schoolCalendar,catalog,stored,cancellations,planningIntents
     ]=await Promise.all([
       paged('activities',selectAct,q=>q.eq('activity_season','school_2027'),10000),
       paged('contacts_instructors','emp_id,full_name,address,active,seniority_years',q=>q.order('emp_id'),5000),
@@ -154,15 +161,37 @@ Deno.serve(async(req:Request)=>{
       paged('scheduling_agent_worker_calendar','external_key,title,category,calendar_sector,start_date,end_date,resume_date,day_status,school_day_end_time,blocks_scheduling,enforce_end_time,show_on_main_calendar,is_active',
         q=>q.eq('is_active',true).eq('show_on_main_calendar',true).order('start_date'),5000),
       paged('scheduling_agent_worker_catalog','activity_name,activity_no,gefen_number,pricing_key,program_name,name,title,meetings_count,hours_count,unit_duration,is_active_for_proposals',q=>q.order('activity_name'),5000),
-      paged('scheduling_travel_cache','origin_key,destination_key,distance_km,duration_minutes,provider,calculated_at,expires_at,origin_address,destination_address,origin_entity_key,destination_entity_key',
-        q=>q.eq('location_suspect',false).gt('expires_at',new Date().toISOString())
-            .order('origin_key',{ascending:true}).order('destination_key',{ascending:true}),50000),
       paged('scheduling_agent_worker_rows','activity_id,row_data,activity_updated_at,locked_option,needs_recalc',
         q=>q.eq('workspace_id',String(workspace.id)),10000),
       paged('course_meeting_cancellations','activity_id,meeting_date',q=>q.order('meeting_date'),10000),
       paged('scheduling_agent_worker_intents','activity_id,emp_id,status,version',q=>q.eq('status','active').order('activity_id'),10000)
     ]);
-    const end=await (canary ? command('probe',{}).then(p=>({sourceRevision:p.sourceRevision,workspace:{revision:p.workspaceRevision}})) : command('preflight',args));
+    if (!Array.isArray(schoolLocations) || !Array.isArray(externalBlockers)) {
+      throw Error('worker_snapshot_dependencies_incomplete');
+    }
+    const endpoints = planningRouteEndpoints({activities, externalBlockers, instructors, schoolLocations});
+    const routes: any[] = [];
+    let routeCacheReads = 0;
+    if (endpoints.p_schools.length) {
+      const routeCutoff = start.serverTime || new Date().toISOString();
+      let afterOrigin: string | null = null;
+      let afterDestination: string | null = null;
+      while (routes.length<50000) {
+        dbRequests++;
+        routeCacheReads++;
+        const {data,error} = await client.rpc('get_scheduling_worker_routes', {
+          ...endpoints,p_valid_at:routeCutoff,p_after_origin:afterOrigin,p_after_destination:afterDestination
+        });
+        if (error) throw Error(dbFailure(error,'worker_snapshot_routes_failed'));
+        if (!Array.isArray(data)) throw Error('worker_snapshot_routes_failed');
+        routes.push(...data);
+        if (data.length<1000) break;
+        if (routes.length>=50000) throw Error('worker_snapshot_routes_overflow');
+        afterOrigin = data.at(-1).origin_key;
+        afterDestination = data.at(-1).destination_key;
+      }
+    }
+    const end=await (canary ? command('probe',{}).then(p=>({sourceRevision:p.sourceRevision,workspace:{revision:p.workspaceRevision},serverTime:null})) : command('preflight',args));
     if(String(start?.sourceRevision)!==String(end?.sourceRevision)
         ||String(start?.workspace?.revision)!==String(end?.workspace?.revision)) {
       throw Error('worker_snapshot_revision_changed');
@@ -184,6 +213,8 @@ Deno.serve(async(req:Request)=>{
       profiles,rules,exceptions,schoolCalendar,catalog,routes,
       existingRows:planningRows,cancellations,planningIntents,
       targetCourseIds:canary ? ['school_2027_096','ACT-6fb4456b-5d05-401d-904f-411c1d9562fb','ACT-9c40feb7-e990-4aa3-a59e-29cc111f496c'] : [...targets],
+      preflight:canary ? null : end,
+      snapshotMetrics:{dbRequests,routeCacheReads,routeRows:routes.length},
       sourceComplete:true,routesComplete:true,
       schoolCalendarComplete:true,catalogComplete:true
     });

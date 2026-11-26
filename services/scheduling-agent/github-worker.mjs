@@ -1,3 +1,4 @@
+import {monitorEventLoopDelay} from 'node:perf_hooks';
 /**
  * Server dispatch or scheduled polling starts one queue attempt without a browser.
  * v38 trusted database transition gate now matches the approved 30km automatic limit.
@@ -10,14 +11,29 @@ import {
 
 async function main(){
   const transport=createGithubWorkerTransport();
-  const probe=await transport.call('probe');
-  if(probe?.ready!==true)throw Error('worker_oidc_probe_failed');
-  if(probe.enabled!==true || probe.atomicCompletion!==true) {
-    return {status:'idle',reason:'worker_cutover_disabled'};
+  let edgeCalls=0;
+  const backend=createGithubAgentBackend({call(...args){
+    edgeCalls++;
+    return transport.call(...args);
+  }});
+  const started=performance.now();
+  const delay = monitorEventLoopDelay({resolution:20});
+  delay.enable();
+  let recentPhase = '', nextProgressAt = 0;
+  try {
+    const result = await runOneSchedulingAgentJob({backend, onProgress:({phase, completed, total})=>{
+      const now = performance.now();
+      if (phase === recentPhase && now < nextProgressAt) return;
+      recentPhase = phase;
+      nextProgressAt = now + 15_000;
+      process.stdout.write(JSON.stringify({phase,completed,total})+'\n');
+    }});
+    return {...result,performance:{...result.performance,edgeCalls,
+      eventLoopMaxMs:Math.round(delay.max/1e6),wallMs:Math.round(performance.now()-started)}};
+  } finally {
+    delay.disable();
   }
 
-  const backend=createGithubAgentBackend(transport);
-  return runOneSchedulingAgentJob({backend});
 }
 
 try{
@@ -28,7 +44,7 @@ try{
   process.stdout.write(JSON.stringify({
     status:result.status,jobId:result.jobId||null,
     failureCode:failureCode||null,engineVersion:result.engineVersion||null,
-    rowCount:result.rowCount??null,
+    rowCount:result.rowCount??null,noOp:result.noOp===true,performance:result.performance||null,
     sourceRevision:result.sourceRevision??null,
     workspaceRevision:result.workspaceRevision??null
   })+'\n');

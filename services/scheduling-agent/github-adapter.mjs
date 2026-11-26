@@ -5,6 +5,7 @@
 import {
   planningDataFingerprint, serializePlanningContextFingerprint, applyPlanningLockToRow, planningWorkspaceCourses
 } from '../../frontend/src/screens/course-scheduling-planning.js';
+import {expandPlanningAffectedIdsBySchool} from '../../frontend/src/screens/course-scheduling-planning-store.js';
 import {createRouteClient} from '../../frontend/src/screens/course-scheduling-travel.js';
 import {enrichActivitiesWithSchoolAddresses} from '../../frontend/src/screens/course-scheduling-distance-build.js';
 import {activeSchedulingInstructors} from '../../frontend/src/screens/shared/course-scheduling-instructors.js';
@@ -56,7 +57,8 @@ export function prepareServerPlanningSnapshot(payload, {now = new Date()} = {}) 
   // Keep incomplete open course records visible to the authoritative planner
   // as unresolved scheduling cases. Never invent an address or route for them.
   // The compute boundary rejects any actual assignment on such a course.
-  const missingSchoolCourseIds=planningWorkspaceCourses(enriched.activities,'','year')
+  const courses=planningWorkspaceCourses(enriched.activities,'','year');
+  const missingSchoolCourseIds=courses
     .filter(x=>x.school_address_missing===true).map(x=>trim(x.row_id));
   const cancelled=new Map();
   for(const row of requiredList(payload,'cancellations')){
@@ -65,8 +67,14 @@ export function prepareServerPlanningSnapshot(payload, {now = new Date()} = {}) 
   }
   const withCancellations=rows=>rows.map(row=>cancelled.has(trim(row.row_id))
     ? {...row,cancelled_meeting_dates:[...cancelled.get(trim(row.row_id))]}:row);
+  const historyByActivity = new Map();
+  for (const entry of history) {
+    const entries = historyByActivity.get(entry.activity_id) || [];
+    entries.push(entry);
+    historyByActivity.set(entry.activity_id, entries);
+  }
   const baseActivities=[...withCancellations(enriched.activities),...withCancellations(externalBlockers)]
-    .map(a=>({...a,meeting_instructor_overrides:history.filter(h=>h.activity_id===a.row_id)}));
+    .map(a=>({...a,meeting_instructor_overrides:historyByActivity.get(a.row_id) || []}));
   const fingerprintInput={
     activities:baseActivities,instructors:activeSchedulingInstructors(contacts),
     profiles,rules,exceptions,schoolCalendar:calendar,catalog,periodKey:'year'
@@ -83,6 +91,19 @@ export function prepareServerPlanningSnapshot(payload, {now = new Date()} = {}) 
     new Set(stored.map(x=>x.activityId)).size!==stored.length) {
     throw new WorkerTransportError('workspace_rows_invalid');
   }
+  const targetCourseIds = new Set(targets.map(trim).filter(Boolean));
+  if (payload.preflight) {
+    // New active courses have no workspace row to carry needs_recalc.
+    const savedIds = new Set(stored.map(row => trim(row.activityId)));
+    for (const course of courses) {
+      const id = trim(course.row_id);
+      if (!savedIds.has(id)) targetCourseIds.add(id);
+    }
+    for (const id of expandPlanningAffectedIdsBySchool({
+      affectedIds:[...targetCourseIds], shared:{rows:stored}, activities:enriched.activities,
+      currentCourseIds:courses.map(course => trim(course.row_id))
+    })) targetCourseIds.add(id);
+  }
   // A locked row must be supplied in the canonical form, not silently dropped.
   const routeClient=createRouteClient({
     preloadedRows:cachedRoutes,
@@ -93,14 +114,16 @@ export function prepareServerPlanningSnapshot(payload, {now = new Date()} = {}) 
   return {
     sourceRevision:trim(payload.sourceRevision),
     workspaceRevision:trim(payload.workspace.revision),
+    preflight:payload.preflight,
+    snapshotMetrics:payload.snapshotMetrics,
     dataFingerprint:planningDataFingerprint(fingerprintInput),
     contextFingerprint:serializePlanningContextFingerprint(fingerprintInput),
-    targetCourseIds:targets.map(trim).filter(Boolean),
+    targetCourseIds:[...targetCourseIds],
     routeClient,
     snapshot:{
       ...fingerprintInput,planningIntents,
       // Match the dashboard's date-sensitive guards even when the runner uses UTC.
-      today:israelTodayIso(now),
+      today:israelTodayIso(payload.preflight?.serverTime ? new Date(payload.preflight.serverTime) : now),
       profiles:Object.fromEntries(profiles.map(p=>[trim(p.emp_id),p])),
       rules:groupByEmp(rules),exceptions:groupByEmp(exceptions),
       existingRows:trustedRows,committedRows:trustedRows,
@@ -141,7 +164,7 @@ export function createGithubWorkerTransport({
     try {response=await fetchImpl(baseUrl,{
       method:'POST',
       headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-      body:JSON.stringify({action,...payload}),signal:AbortSignal.timeout(120000)
+      body:JSON.stringify({action,...payload}),signal:AbortSignal.timeout(action === 'heartbeat' ? 10_000 : 120_000)
     });}catch{throw new WorkerTransportError('worker_transport_failed');}
     if(!response.ok) {
       let code='worker_api_unavailable';
@@ -162,14 +185,19 @@ export function createGithubAgentBackend(transport) {
     heartbeatLease:({jobId,runId,ttlSeconds})=>call('heartbeat',{jobId,runId,ttlSeconds}),
     loadSnapshot:async({jobId,runId,mode})=>prepareServerPlanningSnapshot(await call('snapshot',{jobId,runId,mode})),
     readPreflight:({jobId,runId})=>call('preflight',{jobId,runId}),
+    loadCheckpoint:details=>call('load_checkpoint',details),
+    saveCheckpoint:details=>call('save_checkpoint',details),
     persistProposals:({jobId,runId,mode,validationOnly=false,sourceRevision,workspaceRevision,dataFingerprint,
-      contextFingerprint,engineVersion,rows,activities})=>call('persist',{
+      contextFingerprint,engineVersion,rows,activities})=>{
+      const updatedAtById = new Map(activities.map(a => [trim(a.row_id), a.updated_at]));
+      return call('persist',{
        jobId,runId,mode,validationOnly,sourceRevision,workspaceRevision,dataFingerprint,contextFingerprint,
        engineVersion, rows:rows.map(row=>({
           activityId:trim(row.courseId),row,
-          activityUpdatedAt:activities.find(a=>trim(a.row_id)===trim(row.courseId))?.updated_at||null
+          activityUpdatedAt:updatedAtById.get(trim(row.courseId)) || null
        }))
-     }),
+      });
+    },
     finishJob:({jobId,runId,success,failureCode})=>call('finish',{jobId,runId,success,failureCode}),
     releaseLease:({jobId,runId})=>call('release',{jobId,runId})
   };
