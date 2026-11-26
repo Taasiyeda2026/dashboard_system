@@ -20,7 +20,7 @@ test('mixed funded Gefen activity is shown with its program before automatic iss
  assert.equal(results[0].code,'52279');
  assert.equal(results[0].valid,true);
  const html=transactionAccountsViewHtml(data(),()=>'<h1>Test</h1>');
- assert.match(html,/מספר גפ״ן: 52279/);
+ assert.match(html,/data-gefen-billing-field/); // The compact table keeps only billing inputs; program is verified above and in confirmation.
 });
 test('legacy 3604 source for Poratzot shows 52279 in preflight without false conflict',()=>{
  const legacy={...g,gefenNumber:'3604'};
@@ -41,10 +41,10 @@ test('ordinary single-funded activity does not trigger mixed-funding confirmatio
 });
 test('no invoice number is allocated by preview check',()=>{
  const src=readFileSync(new URL('../frontend/src/screens/finance.js',import.meta.url),'utf8');
- assert.match(src,/automaticMixedFundingProgramReview\(visit, month\)/);
+ assert.match(src,/automaticMixedFundingProgramReview\(visit, month, accountKey\)/);
  assert.match(src,/pendingTransactionApproval/);
  assert.match(src,/data-finance-transaction-approve/);
- assert.match(src,/executeTransactionRun\('automatic', approved\.month\)/);
+ assert.match(src,/executeTransactionRun\('automatic', approved\.month, approved\.accountKey\)/);
  assert.doesNotMatch(src,/window\.confirm\(confirmationMessage\)/);
  assert.doesNotMatch(src,/response\?\.trim\(\) !== 'מאשר'/);
 });
