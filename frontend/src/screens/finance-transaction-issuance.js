@@ -231,6 +231,9 @@ export function transactionPreviewForVisit(data, mode = TRANSACTION_MODE_AUTOMAT
 }
 
 function summaryCards(preview) {
+  if(preview.mode===TRANSACTION_MODE_AUTOMATIC)return `<dl class="ds-fin-transaction-summary ds-fin-issuance-totals" data-gefen-billing-summary dir="rtl">
+    ${[['פעילויות',preview.totals.activities],['מפגשים',preview.totals.meetings],['שעות',compactNumber(preview.totals.hours)],['סה״כ להפקה',formatAmount(preview.totals.amount)]].map(([label,value])=>`<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(String(value))}</dd></div>`).join('')}
+  </dl>`;
   const cards = [
     ['חשבונות עסקה',preview.accounts.length],
     ['בתי ספר', preview.totals.schools],
@@ -325,7 +328,7 @@ function pendingGroupHtml(rows, data, mode) {
   }
   return [...groups.values()].sort((a,b) => a[0].period.localeCompare(b[0].period)).map((lines) => {
     const row = lines[0];
-    return `<details class="ds-fin-payer" data-finance-transaction-group><summary>${escapeHtml(row.period.slice(0,7))} · ${escapeHtml(mode === TRANSACTION_MODE_AUTOMATIC ? `${row.customerName} · ${row.institutionSymbol}` : row.payerName)} · ${lines.length} חיובים · ${escapeHtml(formatAmount(lines.reduce((sum,line) => sum + Number(line.issuableAmount),0)))}</summary>
+    return `<details class="ds-fin-payer" data-finance-transaction-group${mode===TRANSACTION_MODE_AUTOMATIC&&preview.accounts.length===1?' open':''}><summary>${escapeHtml(row.period.slice(0,7))} · ${escapeHtml(mode === TRANSACTION_MODE_AUTOMATIC ? `${row.customerName} · ${row.institutionSymbol}` : row.payerName)} · ${lines.length} חיובים · ${escapeHtml(formatAmount(lines.reduce((sum,line) => sum + Number(line.issuableAmount),0)))}</summary>
       ${billingTableHtml(lines,data,mode)}
       <button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="${mode}" data-finance-transaction-period="${row.period.slice(0,7)}"${mode === TRANSACTION_MODE_MANUAL && !transactionBacklog(data, mode).some((line) => line.period.slice(0,7) === row.period.slice(0,7) && data.transactionManualSelected?.[transactionSelectionKey(line)]) ? ' disabled' : ''}>${mode === TRANSACTION_MODE_AUTOMATIC ? 'הפק חשבונות לחודש זה' : 'הפק חשבונות מסומנים לחודש זה'}</button></details>`;
   }).join('');
@@ -339,7 +342,7 @@ function billingView(data, mode) {
   const waiting = [...new Map(rows.filter((row) => row.eligibilityStatus === 'waiting_three_meetings' || (mode === TRANSACTION_MODE_AUTOMATIC && row.gefenFunding === true && !row.eligible && !serviceActivity(row) && Number(row.completedCount) < 3))
     .map(row=>[row.activityRowId,row])).values()];
   const waitingHtml = waiting.length ? `<details class="ds-fin-payer" data-finance-waiting-courses>
-    <summary>${mode === TRANSACTION_MODE_AUTOMATIC ? '<span class="ds-fin-gefen-arrow" aria-hidden="true">▸</span>' : ''}<span>קורסים הממתינים להשלמת שלושה מפגשים (${waiting.length})</span></summary>
+    <summary>${mode === TRANSACTION_MODE_AUTOMATIC ? '<span class="ds-fin-gefen-arrow" aria-hidden="true">▸</span>' : ''}<span>בהמתנה (${waiting.length})</span></summary>
     ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>מוסד</th><th>קורס</th><th>מפגשים</th></tr></thead>
     <tbody>${waiting.map(row=>`<tr><td>${escapeHtml(row.customerName || '—')}</td><td>${escapeHtml(row.activityName)}</td><td>${Number(row.completedCount || 0)} מתוך 3</td></tr>`).join('')}</tbody></table>`)}
   </details>` : '';
@@ -347,7 +350,7 @@ function billingView(data, mode) {
   const blockedEditorId = data.billingCompletion?.row_id;
   const blockedEditorVisible = mode!==TRANSACTION_MODE_AUTOMATIC && blocked.some(row=>String(row.activityRowId)===String(blockedEditorId));
   const blockedHtml = blocked.length ? `<details class="ds-fin-payer" data-finance-blocked-rows${blockedEditorVisible?' open':''}>
-    <summary>${mode === TRANSACTION_MODE_AUTOMATIC ? '<span class="ds-fin-gefen-arrow" aria-hidden="true">▸</span>' : ''}<span>פעילויות חסומות להפקה (${blocked.length})</span></summary>
+    <summary>${mode === TRANSACTION_MODE_AUTOMATIC ? '<span class="ds-fin-gefen-arrow" aria-hidden="true">▸</span>' : ''}<span>חסומים להפקה (${blocked.length})</span></summary>
     ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>מוסד</th><th>סמל מוסד</th><th>רשות</th><th>פעילות</th><th>חודשי חיוב</th><th>סיבת החסימה</th></tr></thead>
     <tbody>${blocked.map(row=>{const identity=financeActivitySchoolIdentity(data,row);const activity=(data.collectionActivities||[]).find(a=>String(a.row_id)===String(row.activityRowId));const group=[activity?.grade,activity?.class_group].filter(Boolean).join(' · ');return `<tr><td>${escapeHtml(identity.name)}</td><td>${escapeHtml(identity.symbol)}</td><td>${escapeHtml(identity.authority)}</td><td>${escapeHtml(row.activityName || row.activityRowId || '—')}${group?`<small style="display:block;color:var(--ds-text-muted,#64748b)">${escapeHtml(group)}</small>`:''}<small style="display:block;color:var(--ds-text-muted,#64748b)" title="${escapeHtml(row.activityRowId)}">${escapeHtml(String(row.activityRowId).slice(-8))}</small></td><td>${escapeHtml(row.periods.join(' · '))}</td><td>${escapeHtml(row.reasons.join(' · '))}${data.financeCanComplete&&mode!==TRANSACTION_MODE_AUTOMATIC?` <button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-complete-open="${escapeHtml(row.activityRowId)}">השלמת נתונים</button>`:''}</td></tr>${blockedEditorVisible&&String(row.activityRowId)===String(blockedEditorId)?`<tr data-finance-blocked-editor><td colspan="6" style="white-space:normal;padding:8px 0">${financeBillingCompletionEditorHtml(data.billingCompletion)}</td></tr>`:''}`;}).join('')}</tbody></table>`)}
   </details>` : '';
@@ -355,22 +358,21 @@ function billingView(data, mode) {
     const selectedMonth = transactionMonth(data, mode);
     const current = mode===TRANSACTION_MODE_AUTOMATIC ? preview.accounts : preview.accounts.filter(account => account.period?.slice(0,7) === selectedMonth);
     const previous = mode===TRANSACTION_MODE_AUTOMATIC ? [] : preview.accounts.filter(account => account.period?.slice(0,7) < selectedMonth);
-    const groupsHtml = (accounts, older = false) => accounts.map(account => `<details class="ds-fin-payer" data-finance-transaction-group>
+    const groupsHtml = (accounts, older = false) => accounts.map(account => `<details class="ds-fin-payer" data-finance-transaction-group${mode===TRANSACTION_MODE_AUTOMATIC&&preview.accounts.length===1?' open':''}>
       <summary><span class="ds-fin-gefen-arrow" aria-hidden="true">▸</span><span class="ds-fin-payer__title">${escapeHtml(mode===TRANSACTION_MODE_AUTOMATIC ? `${account.schoolName} · ${account.institutionSymbol}` : account.customerName)}${older ? ` · ${escapeHtml(account.period.slice(0,7))}` : ''}</span>
       <span class="ds-fin-payer__meta" data-gefen-account-key="${escapeHtml(accountPreviewKey(account))}">${mode===TRANSACTION_MODE_AUTOMATIC?new Set(account.lines.map(line=>line.activityRowId)).size:account.lines.length} ${mode===TRANSACTION_MODE_AUTOMATIC?'פעילויות':'חיובים'} · ${escapeHtml(formatAmount(account.totalAmount))}</span></summary>
       ${billingTableHtml(account.lines,data,mode)}
       <div class="ds-fin-gefen-group-actions">
-        ${mode===TRANSACTION_MODE_AUTOMATIC?`<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-finance-transaction-run="automatic" data-finance-transaction-account="${escapeHtml(accountPreviewKey(account))}">הפקת חשבון בית הספר</button>`:''}
+        ${mode===TRANSACTION_MODE_AUTOMATIC?`<button type="button" class="ds-btn ds-btn--primary ds-btn--sm" data-finance-transaction-run="automatic" data-finance-transaction-account="${escapeHtml(accountPreviewKey(account))}">הפקת חשבון</button>`:''}
         <button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-transaction-preview="${mode}" data-finance-transaction-preview-key="${escapeHtml(accountPreviewKey(account))}">תצוגת PDF</button>
       </div></details>`).join('');
     return `<div class="ds-fin-gefen" dir="rtl">
-      ${mode === TRANSACTION_MODE_AUTOMATIC ? `<p data-finance-gefen-cycle>תאריך חתך נוכחי: <strong>${escapeHtml(formatDate(transactionGefenCycle(data).cutoff))}</strong> · העדכון הבא: <strong>${escapeHtml(formatDate(transactionGefenCycle(data).nextUpdate))}</strong> · המועדים לפי שעון ישראל</p>` : ''}
-      ${monthPicker(data,mode)}
+      ${mode === TRANSACTION_MODE_AUTOMATIC ? `<header class="ds-fin-issuance-toolbar"><div><h2>חשבונות להפקה${preview.accounts.length?` <span>(${preview.accounts.length})</span>`:''}</h2><span class="ds-fin-issuance-cutoff" data-finance-gefen-cycle data-finance-transaction-period-readonly>עד ${escapeHtml(formatDate(transactionGefenCycle(data).cutoff))}</span></div>${preview.accounts.length>1?`<button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="automatic" data-finance-transaction-main-run>הפקה מרוכזת</button>`:''}</header>` : monthPicker(data,mode)}
       ${preview.accounts.length ? summaryCards(preview) : ''}
-      <section data-finance-gefen-current><h3>${mode===TRANSACTION_MODE_AUTOMATIC?'חשבונות להפקה עד החודש הנבחר (כולל חובות קודמים)':'חשבונות החודש הנבחר'}</h3>
+      <section data-finance-gefen-current>${mode!==TRANSACTION_MODE_AUTOMATIC?'<h3>חשבונות החודש הנבחר</h3>':''}
         ${groupsHtml(current) || dsEmptyState('אין חשבונות להפקה בחודש שנבחר.')}</section>
       ${previous.length ? `<section class="ds-fin-gefen-backlog" data-finance-gefen-backlog><h3>חיובים זכאים מחודשים קודמים</h3>${groupsHtml(previous,true)}</section>` : ''}
-      ${preview.accounts.length ? `<div class="ds-fin-gefen-issue"><button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="${mode}" data-finance-transaction-main-run>${escapeHtml(issueButtonLabel(mode, data))}</button></div>` : ''}
+      ${mode!==TRANSACTION_MODE_AUTOMATIC&&preview.accounts.length ? `<div class="ds-fin-gefen-issue"><button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="${mode}" data-finance-transaction-main-run>${escapeHtml(issueButtonLabel(mode, data))}</button></div>` : ''}
       ${data.transactionIssuancePreview ? `<section class="ds-fin-transaction-preview-pane" tabindex="-1" aria-label="תצוגת PDF לפני הפקה"><strong>תצוגת PDF לפני הפקה</strong><p>${escapeHtml(data.transactionIssuancePreview.quote?.customer_name_snapshot || '')} · ${escapeHtml(formatAmount(data.transactionIssuancePreview.quote?.total_amount))}</p><div class="ds-fin-gefen-group-actions"><button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-issuance-pdf-open>פתיחת PDF</button><button type="button" class="ds-btn" data-finance-transaction-issuance-pdf-download>הורדת PDF</button></div></section>` : ''}
       ${mode!==TRANSACTION_MODE_AUTOMATIC&&data.billingCompletion&&!blockedEditorVisible?financeBillingCompletionEditorHtml(data.billingCompletion):''}
       ${waitingHtml}
@@ -485,15 +487,15 @@ export function transactionAccountsViewHtml(data, backBarHtml) {
   const body = data.collectionError ? dsEmptyState(data.collectionError) : tab === 'history' ? historyView(data) : tab === 'editable' ? manualAccountViewHtml(data) : tab === 'completion' ? financeBillingCompletionHtml(data, 'editable') : billingView(data, tab);
   return dsScreenStack(`
     ${backBarHtml('חשבונות עסקה')}
-    <div class="ds-fin-collect-shell" dir="rtl">
+    <div class="ds-fin-collect-shell${tab==='automatic'?' ds-fin-issuance-shell':''}" dir="rtl">
       ${action}
       <div class="ds-fin-transaction-nav">
         ${data.financeTransactionsReadOnly ? '' : `<div class="ds-fin-tabs" role="tablist">
-          <button type="button" class="ds-fin-tab${tab === 'automatic' ? ' is-active' : ''}" data-finance-transaction-tab="automatic">הפקה אוטומטית · גפ״ן</button>
-          <button type="button" class="ds-fin-tab${tab === 'manual' ? ' is-active' : ''}" data-finance-transaction-tab="manual">הפקה לפי מממן</button>
-${data.financeCanComplete ? `          <button type="button" class="ds-fin-tab${tab === 'completion' ? ' is-active' : ''}" data-finance-transaction-tab="completion">השלמת פרטים</button>` : ''}
-          <button type="button" class="ds-fin-tab${tab === 'history' ? ' is-active' : ''}" data-finance-transaction-tab="history">היסטוריה</button>
-          <button type="button" class="ds-fin-tab${tab === 'editable' ? ' is-active' : ''}" data-finance-transaction-tab="editable">הפקה עם עריכה</button>
+          <button type="button" class="ds-fin-tab${tab === 'automatic' ? ' is-active' : ''}" data-finance-transaction-tab="automatic">גפ״ן</button>
+          <button type="button" class="ds-fin-tab${tab === 'manual' ? ' is-active' : ''}" data-finance-transaction-tab="manual">לפי מממן</button>
+${data.financeCanComplete ? `          <button type="button" class="ds-fin-tab${tab === 'completion' ? ' is-active' : ''}" data-finance-transaction-tab="completion">עדכון פרטים</button>` : ''}
+          <button type="button" class="ds-fin-tab${tab === 'history' ? ' is-active' : ''}" data-finance-transaction-tab="history">חשבונות שהופקו</button>
+          <button type="button" class="ds-fin-tab${tab === 'editable' ? ' is-active' : ''}" data-finance-transaction-tab="editable">בהתאמה אישית</button>
         </div>`}
         <a class="ds-fin-transaction-folder-link"
            href="${FINANCE_TRANSACTION_SHAREPOINT_FOLDER_URL}" target="_blank" rel="noopener noreferrer"

@@ -982,3 +982,48 @@
 .ds-fin-gefen-billing-table td:last-child { white-space:nowrap;color:var(--ds-primary,#176b83); }
 .ds-fin-gefen-billing-table th:first-child { min-width:170px; }
 @media(max-width:640px){.ds-fin-gefen-billing-input {width:88px;} .ds-fin-gefen-billing-table th:first-child {min-width:130px;}}
+
+/* Automatic Gefen issuance: compact operational layout, scoped to this tab. */
+.ds-fin-issuance-shell { padding:0 4px 16px;max-width:1180px; }
+.ds-fin-issuance-shell .ds-fin-transaction-nav { margin:0 0 14px;gap:8px; }
+.ds-fin-issuance-shell .ds-fin-tab { border-radius:7px;padding:6px 12px;font-size:13px;line-height:1.4;min-height:34px; }
+.ds-fin-issuance-shell .ds-fin-transaction-folder-link { width:34px;height:34px;flex-basis:34px;box-shadow:none; }
+.ds-fin-issuance-shell .ds-fin-gefen { display:flex;flex-direction:column;gap:12px;align-items:stretch; }
+.ds-fin-issuance-shell .ds-fin-issuance-toolbar { display:flex;align-items:center;justify-content:space-between;gap:12px; }
+.ds-fin-issuance-toolbar > div { display:flex;align-items:baseline;gap:12px;flex-wrap:wrap; }
+.ds-fin-issuance-shell .ds-fin-issuance-toolbar h2 { margin:0;font-size:18px;font-weight:750;line-height:1.4; }
+.ds-fin-issuance-toolbar h2 span,.ds-fin-issuance-cutoff { color:var(--ds-text-muted,#64748b);font-size:12px;font-weight:400; }
+.ds-fin-issuance-shell .ds-fin-issuance-totals { display:flex;flex-wrap:wrap;align-items:center;gap:12px 28px;margin:0;padding:12px 16px;background:#fff;border:1px solid var(--ds-border,#dce4ec);border-radius:10px; }
+.ds-fin-issuance-totals > div { display:flex;align-items:baseline;gap:8px; }
+.ds-fin-issuance-totals > div:last-child { margin-inline-start:auto; }
+.ds-fin-issuance-totals dt { color:var(--ds-text-muted,#64748b);font-size:12px; }
+.ds-fin-issuance-totals dd { margin:0;font-size:17px;font-weight:750;font-variant-numeric:tabular-nums; }
+.ds-fin-issuance-totals > div:last-child dd { font-size:21px;color:var(--ds-text,#172c3a); }
+.ds-fin-issuance-shell [data-finance-gefen-current] { display:flex;flex-direction:column;gap:10px; }
+.ds-fin-issuance-shell .ds-fin-payer { border-radius:10px; }
+.ds-fin-issuance-shell .ds-fin-payer > summary { padding:12px 14px;gap:10px;font-size:14px; }
+.ds-fin-issuance-shell [data-finance-transaction-group][open] > summary { background:#f8fafc;border-bottom:1px solid var(--ds-border,#dce4ec); }
+.ds-fin-issuance-shell .ds-fin-payer__meta { font-size:12px; }
+.ds-fin-issuance-shell .ds-fin-gefen-billing-table { font-size:13px; }
+.ds-fin-issuance-shell .ds-fin-gefen-billing-table th { padding:9px 12px;background:#fff;color:var(--ds-text-muted,#64748b);font-size:12px;font-weight:500; }
+.ds-fin-issuance-shell .ds-fin-gefen-billing-table td { padding:10px 12px; }
+.ds-fin-issuance-shell .ds-fin-gefen-billing-input { width:100px;min-height:34px;height:34px;font-size:14px; }
+.ds-fin-issuance-shell .ds-fin-transaction-meetings { margin-top:3px;font-size:11px;color:var(--ds-text-muted,#64748b); }
+.ds-fin-issuance-shell .ds-fin-transaction-meetings summary { cursor:pointer; }
+.ds-fin-issuance-shell .ds-fin-gefen-group-actions { padding:10px 14px;margin:0;border-top:1px solid var(--ds-border,#dce4ec);justify-content:flex-end;gap:8px; }
+.ds-fin-issuance-shell .ds-btn { min-height:34px;padding:6px 12px;font-size:13px;line-height:1.4; }
+.ds-fin-issuance-shell [data-finance-waiting-courses],.ds-fin-issuance-shell [data-finance-blocked-rows] { background:transparent; }
+.ds-fin-issuance-shell [data-finance-waiting-courses] > summary,.ds-fin-issuance-shell [data-finance-blocked-rows] > summary { padding:10px 14px;color:var(--ds-text-secondary,#475569);font-size:13px; }
+.ds-fin-issuance-shell .ds-fin-transaction-preview-pane { margin:0;padding:12px 14px;background:#fff;border:1px solid var(--ds-border,#dce4ec);border-radius:10px; }
+.ds-fin-issuance-shell .ds-fin-transaction-preview-pane p { margin:4px 0;font-size:13px; }
+@media(max-width:640px){
+ .ds-fin-issuance-shell {padding-inline:0;}
+ .ds-fin-issuance-shell .ds-fin-transaction-nav .ds-fin-tab {flex:0 0 auto;font-size:12px;}
+ .ds-fin-issuance-shell .ds-fin-issuance-toolbar {align-items:flex-start;}
+ .ds-fin-issuance-shell .ds-fin-issuance-toolbar h2 {font-size:16px;}
+ .ds-fin-issuance-shell .ds-fin-issuance-totals {gap:10px 20px;padding:10px 12px;}
+ .ds-fin-issuance-totals > div:last-child {flex-basis:100%;margin:0;padding-top:8px;border-top:1px solid var(--ds-border,#dce4ec);justify-content:space-between;}
+ .ds-fin-issuance-shell .ds-fin-payer > summary {flex-wrap:wrap;gap:6px;}
+ .ds-fin-issuance-shell .ds-fin-payer__meta {margin-inline-start:auto;}
+ .ds-fin-issuance-shell .ds-fin-gefen-group-actions .ds-btn {width:auto;flex:1;}
+}
