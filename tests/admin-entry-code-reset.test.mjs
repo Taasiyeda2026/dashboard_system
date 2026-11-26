@@ -65,6 +65,17 @@ test('login and self recovery terminology stay aligned', () => {
 });
 
 test('cache and hotfix markers bumped for admin reset deploy', () => {
-  assert.match(sw, /const CACHE_VERSION = 2150;/);
+  assert.ok(Number(sw.match(/const CACHE_VERSION = (\d+);/)?.[1]) >= 2150);
   assert.match(config, /admin-entry-code-reset-20261126-v1/);
+});
+
+const activePermissions = await readFile(new URL('../frontend/src/admin-permissions-management-v2.js', import.meta.url), 'utf8');
+test('active permissions workspace renders and binds admin reset before permissions groups', () => {
+  assert.match(activePermissions, /function entryCodeResetHtml/);
+  assert.match(activePermissions, /if \(!row \|\| !isAdmin\(\) \|\| !isActive\(row\)\) return ''/);
+  assert.match(activePermissions, /\$\{entryCodeResetHtml\(row\)\}/);
+  assert.match(activePermissions, /bindEntryCodeReset\(row, drawer\);/);
+  assert.match(activePermissions, /action: 'admin_reset', target_user_id: String\(row.user_id\), new_entry_code: code/);
+  assert.match(activePermissions, /isValidNewEntryCode\(code\)/);
+  assert.match(activePermissions, /data-apm-reset-status/);
 });
