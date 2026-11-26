@@ -54,12 +54,8 @@ test('one instructor reassignment refreshes only true date/resource dependents',
   assert.ok(!shouldAutoRefreshPlanning(Array.from({ length: AUTO_PLANNING_REFRESH_MAX_IDS + 1 }, (_, i) => String(i))));
 });
 
-test('point planning invalidation queues automatic scoped refresh without a manual update button', async () => {
+test('point planning invalidation does not trigger a manual workboard computation', async () => {
   const source = await readFile(new URL('../frontend/src/screens/course-scheduling.js', import.meta.url), 'utf8');
-  const handler = source.slice(source.indexOf('const onPlanningNeedsRecalc'), source.indexOf('const attachActivePlanningRunUi'));
-  assert.match(handler, /autoRefresh !== true/);
-  assert.match(handler, /scheduleBackgroundPlanning\(\{ forceFull: false, reuseSnapshot: true \}\)/);
-  assert.match(source, /data-run-full-course-planning/);
-  assert.match(source, /const endFacts = await loadSchedulingPlanningPreflight\(scope\)/);
-  assert.equal(AUTO_PLANNING_REFRESH_MAX_IDS >= 1, true);
+  assert.doesNotMatch(source, /addEventListener\('app:planning-needs-recalc'/);
+  assert.match(source, /data-open-manual-assignment/);
 });

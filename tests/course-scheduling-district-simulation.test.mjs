@@ -390,7 +390,7 @@ test('10. single-course manual controls remain available while district simulati
       courseSchedulingSimulationView: false
     }
   });
-  assert.match(html, /data-find-instructors/);
+  assert.doesNotMatch(html, /data-find-instructors/);
   assert.match(html, /data-open-manual-assignment/);
   assert.match(html, /שבץ מדריך ידנית/);
   assert.doesNotMatch(html, /data-run-district-simulation/);

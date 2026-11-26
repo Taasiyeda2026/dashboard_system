@@ -272,6 +272,7 @@ test('durable queue on isolated PostgreSQL', {skip:!url},async t=>{
     create function public.scheduling_agent_team_confirm_planning_option(text,integer,bigint,bigint,boolean) returns void language sql as $$select$$;
     create function public.save_scheduling_planning_checkpoint(text,text,text,text,text,integer,integer,jsonb,jsonb,uuid,bigint) returns void language sql as $$select$$;
     create function public.commit_scheduling_planning_checkpoint(text,text,text,text,text,bigint,uuid,bigint) returns void language sql as $$select$$;
+    create function public.confirm_scheduling_planning_draft(text,text,text,bigint) returns void language sql as $$select$$;
     create function public.set_scheduling_planning_lock(text,text,text,jsonb,bigint) returns void language sql as $$select$$;
     create function public.get_scheduling_dashboard_candidates(text) returns void language sql as $$select$$;
     create function public.scheduling_agent_team_read_snapshot() returns boolean language plpgsql as $$
@@ -297,6 +298,7 @@ test('durable queue on isolated PostgreSQL', {skip:!url},async t=>{
    assert.equal((await query('select active from cron.job')).rows[0].active,false);
    assert.equal((await query('select count(*)::integer n from scheduling_planning_rows')).rows[0].n,1);
    assert.equal((await query("select has_function_privilege('authenticated','public.scheduling_agent_team_request_optimization(text)','execute') allowed")).rows[0].allowed,false);
+   assert.equal((await query("select has_function_privilege('authenticated','public.confirm_scheduling_planning_draft(text,text,text,bigint)','execute') allowed")).rows[0].allowed,false);
    assert.equal((await query("select has_function_privilege('authenticated','public.scheduling_agent_team_optimization_status(uuid)','execute') allowed")).rows[0].allowed,true);
    assert.equal((await query("select public.scheduling_agent_team_read_snapshot() can_recommend")).rows[0].can_recommend,false);
    await assert.rejects(query("select public.scheduling_dashboard_assignment('test','{}',now(),7,null)"),/scheduling_manual_only/);

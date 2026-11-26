@@ -144,6 +144,8 @@ test('main scheduling workboard exposes only open, draft and assigned business s
     {
       ...baseCourse,
       row_id: 'draft-plan',
+      draft_emp_id: '2',
+      draft_instructor_name: 'מדריך בטיוטה',
       school: 'ברושים',
       start_date: '2026-10-12',
       date_1: '2026-10-12',
@@ -245,19 +247,17 @@ test('main scheduling workboard exposes only open, draft and assigned business s
   assert.match(html, /<span>משובץ<\/span>/);
   assert.doesNotMatch(html, /הצעות מוכנות/);
   assert.doesNotMatch(html, /data-instructors-workspace-tab="planning"/);
-  assert.match(html, /בחר הצעה/);
-  assert.match(html, /data-confirm-planning-draft/);
-  assert.match(html, /אשר שיבוץ/);
-  assert.match(html, /הכול מעודכן/);
+  assert.doesNotMatch(html, /בחר הצעה|data-confirm-planning-draft|הכול מעודכן/);
+  assert.match(html, /data-confirm-actual-draft/);
   assert.match(html, /data-course-card="undated-plan"/);
   assert.doesNotMatch(html, /data-course-card="second-half-plan"/);
   assert.match(html, /data-planning-completion-overview/);
-  assert.match(html, /תוכנית עבודה מלאה — מחצית א׳/);
+  assert.match(html, /שיבוצים שמורים — מחצית א׳/);
   assert.match(html, /4 פעילויות ·/);
   assert.match(html, /01\.09\.2026/);
 });
 
-test('stale shared planning stays labeled while the instructor table and manual entry remain visible', () => {
+test('archived planning does not affect the instructor table or manual entry', () => {
   const activities = [{
     ...baseCourse,
     row_id: 'stale-undated',
@@ -284,13 +284,10 @@ test('stale shared planning stays labeled while the instructor table and manual 
     meetingState: { loaded: true, approvedDates: new Map(), cancelledDates: new Map(), error: '' }
   }, { state });
 
-  assert.match(html, /התכנון השמור אינו עדכני/);
-  assert.match(html, /גרסת מנוע התכנון השתנתה מאז החישוב האחרון/);
-  assert.match(html, /עדכון ההמלצות מנוהל בנפרד/);
+  assert.doesNotMatch(html, /התכנון השמור אינו עדכני|גרסת מנוע התכנון השתנתה מאז החישוב האחרון|עדכון ההמלצות מנוהל בנפרד/);
   assert.match(html, /data-planning-completion-overview/);
-  assert.match(html, /data-planning-overview-currency/);
+  assert.match(html, /data-planning-report-mode="operational-only"/);
   assert.match(html, /data-open-manual-course="stale-undated"/);
-  assert.match(html, /אין מועד קבוע — הפעילות שייכת למחצית א׳ ונדרשת לתכנון/);
 });
 
 test('unresolved planning rows stay collapsed and compact with an explicit reason column', () => {
@@ -2884,7 +2881,7 @@ test('dynamic Planning emits only the completed row during progress', async () =
   assert.equal(snapshots.at(-1).status, 'חסר מידע');
 });
 
-test('Planning runs behind the single scheduling workboard instead of a separate user tab', async () => {
+test('the manual workboard keeps the operational report on a single scheduling tab', async () => {
   const [nav, capabilities, screen, planning] = await Promise.all([
     readFile(new URL('../frontend/src/screens/shared/instructors-workspace-nav.js', import.meta.url), 'utf8'),
     readFile(new URL('../frontend/src/capability-registry.js', import.meta.url), 'utf8'),
@@ -2895,11 +2892,8 @@ test('Planning runs behind the single scheduling workboard instead of a separate
   assert.doesNotMatch(nav, /courseSchedulingTab = 'planning'/);
   assert.match(capabilities, /id: 'instructors\.planning'[\s\S]*permission: 'view_operations_scheduling'/);
   assert.match(screen, /data-business-status-filter/);
-  assert.match(screen, /data-confirm-planning-draft/);
-  assert.match(screen, /activeTab\(state\) !== 'maintenance'/);
-  assert.match(screen, /data-run-course-planning/);
-  assert.match(screen, /reloadSharedPlanningState\(\{ refreshData: false \}\)/);
-  assert.match(screen, /courseSchedulingPlanningLocks/);
+  assert.match(screen, /data-planning-report-mode="operational-only"/);
+  assert.match(screen, /data-open-manual-assignment/);
   assert.match(screen, /proposal_activity_pricing/);
   assert.doesNotMatch(planning, /supabase\.rpc|save_course_assignment|assign_activity_instructor|update\s+public\.activities/i);
 });

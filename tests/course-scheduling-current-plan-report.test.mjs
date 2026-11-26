@@ -50,7 +50,6 @@ test('stale proposals never inflate the instructor work plan or become recruitme
   assert.match(plan.textContent, /1 טרם שובצו/);
   assert.match(plan.textContent, /מדריכה שמורה/);
   assert.doesNotMatch(plan.textContent, /מדריך מוצע ישן|תקני גיוס מוצעים|תוכנית עבודה מלאה/);
-  assert.match(plan.textContent, /המלצות התכנון אינן מעודכנות ולכן אינן מוצגות בדוח/);
   assert.equal(activities[1].emp_id, undefined, 'display rendering cannot create assignments');
   dom.window.close();
 });
@@ -64,12 +63,11 @@ test('a single dirty planning row or affected activity makes the report operatio
   }
 });
 
-test('current, validated planning can still display its proposals distinctly from saved assignments', () => {
+test('current planning proposals are excluded from the operational report', () => {
   const { doc, dom } = renderPlanning();
   const plan = doc.querySelector('[data-planning-report]');
-  assert.equal(plan.dataset.planningReportMode, 'current');
-  assert.match(plan.textContent, /תוכנית עבודה מלאה — מחצית א׳/);
-  assert.match(plan.textContent, /מדריך מוצע ישן/);
-  assert.doesNotMatch(plan.textContent, /המלצות התכנון אינן מעודכנות ולכן אינן מוצגות בדוח/);
+  assert.equal(plan.dataset.planningReportMode, 'operational-only');
+  assert.match(plan.textContent, /שיבוצים שמורים — מחצית א׳/);
+  assert.doesNotMatch(plan.textContent, /מדריך מוצע ישן/);
   dom.window.close();
 });

@@ -36,6 +36,7 @@ revoke execute on function public.scheduling_agent_team_request_optimization(tex
   public.save_scheduling_planning_incremental_snapshot(text,text,text,text,text,jsonb,jsonb,bigint,uuid,bigint),
   public.save_scheduling_planning_checkpoint(text,text,text,text,text,integer,integer,jsonb,jsonb,uuid,bigint),
   public.commit_scheduling_planning_checkpoint(text,text,text,text,text,bigint,uuid,bigint),
+  public.confirm_scheduling_planning_draft(text,text,text,bigint),
   public.set_scheduling_planning_lock(text,text,text,jsonb,bigint)
 from public, anon, authenticated, service_role;
 
