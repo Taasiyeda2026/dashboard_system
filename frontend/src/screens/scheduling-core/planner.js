@@ -326,6 +326,7 @@ export async function buildPlan(input = {}) {
   // without ordering allowed flexible courses to consume scarce instructors.
   // Prepare one regional batch at a time; never precompute the entire country.
   async function* orderedRegionalBlocks() {
+    let scanned = 0;
     for (const stage of [0, 1, 2]) {
       const stageBlocks = stagedBlocks.filter(entry => entry.stage === stage);
       if (!stageBlocks.length) continue;
@@ -336,6 +337,10 @@ export async function buildPlan(input = {}) {
         if (baselineOptions.has(id)) continue;
         const result = await candidates(activity, occupancy, true);
         baselineOptions.set(id, result.options);
+        scanned++;
+        if (scanned % 5 === 0 || scanned === queue.length) {
+          await report('סריקת חלופות — מנוע חדש', scanned, queue.length);
+        }
         const byInstructor = new Map();
         for (const option of result.options) {
           const alternatives = byInstructor.get(option.instructorEmpId) || [];
