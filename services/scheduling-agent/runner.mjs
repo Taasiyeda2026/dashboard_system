@@ -158,7 +158,9 @@ export async function runOneSchedulingAgentJob({
     const pending = new Map();
     let checkpointSaves = 0;
     let lastSave = performance.now();
+    let retryCheckpointAt = 0;
     const saveProgress = async total => {
+      if (performance.now() < retryCheckpointAt) return false;
       const chunk = [];
       let bytes = 0;
       for (const row of pending.values()) {
@@ -178,6 +180,7 @@ export async function runOneSchedulingAgentJob({
         await backend.saveCheckpoint({...checkpointIdentity,total,rows:chunk});
       } catch (error) {
         if (!TRANSIENT_ERRORS.has(error?.code)) throw error;
+        retryCheckpointAt = performance.now()+5_000;
         return false;
       }
       for (const row of chunk) pending.delete(row.courseId);

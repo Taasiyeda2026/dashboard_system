@@ -12,9 +12,17 @@ import {
 async function main(){
   const transport=createGithubWorkerTransport();
   let edgeCalls=0;
-  const backend=createGithubAgentBackend({call(...args){
+  const edgeTimings = {};
+  const backend=createGithubAgentBackend({async call(action, payload){
     edgeCalls++;
-    return transport.call(...args);
+    const started = performance.now();
+    try {
+      return await transport.call(action, payload);
+    } finally {
+      const timing = edgeTimings[action] ||= {calls:0,totalMs:0};
+      timing.calls++;
+      timing.totalMs += Math.round(performance.now()-started);
+    }
   }});
   const started=performance.now();
   const delay = monitorEventLoopDelay({resolution:20});
@@ -28,7 +36,7 @@ async function main(){
       nextProgressAt = now + 15_000;
       process.stdout.write(JSON.stringify({phase,completed,total})+'\n');
     }});
-    return {...result,performance:{...result.performance,edgeCalls,
+    return {...result,performance:{...result.performance,edgeCalls,edgeTimings,
       eventLoopMaxMs:Math.round(delay.max/1e6),wallMs:Math.round(performance.now()-started)}};
   } finally {
     delay.disable();
