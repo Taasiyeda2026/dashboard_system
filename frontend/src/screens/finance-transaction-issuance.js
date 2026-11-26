@@ -117,6 +117,7 @@ export function transactionBlockedDueRows(data, mode = TRANSACTION_MODE_AUTOMATI
   const start = transactionYearStart(data);
   return [...new Map((data.transactionContext?.billingRows || []).filter(row => {
     const period = text(row.period).slice(0,7);
+    if (row.eligible && row.payerEmailMissing) return row.gefenFunding === (mode === TRANSACTION_MODE_AUTOMATIC) && period >= start && period <= selected;
     const reason = text(row.blockedReason).replace(/^billing_blocked:/,'').trim();
     if (!reason || row.eligible || ['הפקה בתהליך','חלק המממן חויב במלואו','ממתין להשלמת שלושה מפגשים'].includes(reason)) return false;
     if (row.gefenFunding !== (mode === TRANSACTION_MODE_AUTOMATIC) || !row.fundingSourceId) return false;
@@ -127,7 +128,8 @@ export function transactionBlockedDueRows(data, mode = TRANSACTION_MODE_AUTOMATI
       if (!serviceActivity(row) && !(Number(row.completedCount) >= 3)) return false;
     } else if (row.finished !== true) return false;
     return true;
-  }).map(row => [transactionSelectionKey(row),row])).values()];
+  }).map(row => [transactionSelectionKey(row),row.eligible && row.payerEmailMissing
+    ? {...row, eligible:false, blockedReason:'חסרה כתובת דוא״ל של הגורם המשלם'} : row])).values()];
 }
 
 // Display one row per activity, not one per billing month. Keep underlying
@@ -187,7 +189,7 @@ export function transactionPreviewForVisit(data, mode = TRANSACTION_MODE_AUTOMAT
   const candidates=[...selected,...transactionBacklog(data,mode)];
   const rows=[...new Map(candidates.map(row=>[JSON.stringify([transactionSelectionKey(row),row.institutionSymbol,row.payerKey || row.payerName]),row])).values()];
   const accounts = new Map();
-  if (!data.collectionError) for (const row of rows.filter((row) => row.eligible && !row.blockedReason)) {
+  if (!data.collectionError) for (const row of rows.filter((row) => row.eligible && !row.blockedReason && !row.payerEmailMissing)) {
     // Gefen remains per school. Every other payer gets one account across schools.
     const key = mode === TRANSACTION_MODE_AUTOMATIC
       ? [row.institutionSymbol, row.fundingSourceId, row.payerKey || row.payerName].join(':')
@@ -271,7 +273,10 @@ function billingLineHtml(line, data, mode) {
     <td>${escapeHtml(formatAmount(line.activityPrice ?? line.fundingAmount))}${line.gefenFunding&&!serviceActivity(line)&&Number(line.hourlyRate)>0?`<small style="display:block;color:var(--ds-text-muted,#64748b)">${escapeHtml(formatAmount(line.hourlyRate))} לשעה</small>`:''}</td>
     <td>${escapeHtml(activityMeetings(line))}</td>
     <td>${escapeHtml(activityHours(line))}</td>
-    <td><strong>${escapeHtml(formatAmount(line.issuableAmount))}</strong></td>
+    <td><strong>${escapeHtml(formatAmount(line.issuableAmount))}</strong>
+      ${line.billedAmount != null ? `<small style="display:block">חויב: ${escapeHtml(formatAmount(line.billedAmount))}</small>` : ''}
+      ${line.fullFundingAmount != null ? `<small style="display:block">יתרת מממן: ${escapeHtml(formatAmount(line.fullFundingAmount))}</small>` : ''}
+    </td>
   </tr>`;
 }
 export function consolidatedGefenDisplayLines(lines) {
@@ -363,11 +368,39 @@ function billingView(data, mode) {
 }
 
 function historyView(data) {
-  const accounts = (data.transactionContext?.accounts || []).slice().sort((a, b) => String(b.transaction_account_number || '').localeCompare(String(a.transaction_account_number || ''), 'en', { numeric: true }));
-  if (!accounts.length) return invoiceRevisionAdminHtml(data)+dsEmptyState('טרם הופקו חשבונות עסקה.');
-  return invoiceRevisionAdminHtml(data)+invoiceRevisionEditorHtml(data)+accounts.map((account) => {
-    const balance = data.paymentContext?.balances?.find(row => row.accountId === account.id);
-    const actualCollectionStatus = balance ? Number(balance.balance) <= 0 ? 'paid' : Number(balance.paidAmount) > 0 ? 'partially_paid' : 'awaiting_payment' : account.collection_status;
+  const search = text(data.transactionHistorySearch).toLocaleLowerCase('he');
+  const month = text(data.transactionHistoryMonth);
+  const status = text(data.transactionHistoryStatus);
+  const balances = new Map((data.paymentContext?.balances || []).map(balance => [balance.accountId,balance]));
+  const collectionStatus = account => {
+    const balance = balances.get(account.id);
+    if (!balance) return account.collection_status;
+    if (Number(balance.balance) <= 0) return 'paid';
+    return Number(balance.paidAmount) > 0 ? 'partially_paid' : 'awaiting_payment';
+  };
+  const accounts = (data.transactionContext?.accounts || []).filter(account => {
+    if (account.deleted_at || (month && !text(account.issue_date).startsWith(month))) return false;
+    if (status && account.document_status !== status && collectionStatus(account) !== status) return false;
+    const names = (account.finance_transaction_account_lines || []).flatMap(line => [line.school_name_snapshot,line.funding_snapshot]);
+    return !search || [account.transaction_account_number,account.customer_name_snapshot,account.payer_identity_snapshot,...names]
+      .some(value => text(value).toLocaleLowerCase('he').includes(search));
+  }).sort((a,b) => text(b.transaction_account_number).localeCompare(text(a.transaction_account_number),'en',{numeric:true}));
+  const filters = `<div class="ds-fin-manual__selectors">
+    <label>חיפוש חשבון<input class="ds-input" type="search" data-finance-history-search value="${escapeHtml(search)}" placeholder="מספר חשבון, בית ספר או מממן"></label>
+    <label>חודש הפקה<input class="ds-input" type="month" data-finance-history-month value="${escapeHtml(month)}"></label>
+    <label>סטטוס<select class="ds-input" data-finance-history-status><option value="">כל הסטטוסים</option>
+      ${['issued','mail_draft_ready','sent','cancelled','awaiting_payment','partially_paid','paid'].map(value =>
+        `<option value="${value}"${status===value?' selected':''}>${escapeHtml(statusLabel(value))}</option>`).join('')}
+    </select></label>
+  </div>`;
+  const recovery = !data.financeTransactionsReadOnly && data.pendingPdfUploads?.length
+    ? `<section class="ds-fin-manual__section"><h3>חשבונות שהפקתם טרם אומתה</h3>
+      ${data.pendingPdfUploads.map(account=>`<p>${escapeHtml(account.customerName)} · ${escapeHtml(formatAmount(account.total))}
+        <button type="button" class="ds-btn ds-btn--secondary" data-finance-resume-pdf="${escapeHtml(account.id)}">השלמת הפקה</button></p>`).join('')}</section>` : '';
+  if (!accounts.length) return filters+recovery+invoiceRevisionAdminHtml(data)+invoiceRevisionEditorHtml(data)+dsEmptyState('אין חשבונות עסקה התואמים לסינון.');
+  return filters+recovery+invoiceRevisionAdminHtml(data)+invoiceRevisionEditorHtml(data)+accounts.map((account) => {
+    const balance = balances.get(account.id);
+    const actualCollectionStatus = collectionStatus(account);
     const lines = (account.finance_transaction_account_lines || []).map((line) => `<tr>
       <td>${escapeHtml(line.activity_name_snapshot || '—')}</td>
       <td>${escapeHtml(line.funding_snapshot || '—')} · ${escapeHtml(line.school_name_snapshot || '')}</td>
@@ -385,15 +418,15 @@ function historyView(data) {
         <span>Outlook: <strong>${escapeHtml(statusLabel(account.outlook_status))}</strong></span>
         ${account.outlook_owner_mailbox ? `<span>תיבת המפיק: ${escapeHtml(account.outlook_owner_mailbox)}</span>` : ''}
         ${account.outlook_error ? `<span role="status">${escapeHtml(financeError(new Error(account.outlook_error)))}</span>` : ''}
-        ${(account.outlook_status==='waiting_connection' || account.outlook_error==='invoice_microsoft_account_mismatch') && account.outlook_owner_id===data.financeAuthUserId ? '<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-microsoft-connect>חיבור Microsoft</button>' : ''}
+        ${!data.financeTransactionsReadOnly && (account.outlook_status==='waiting_connection' || account.outlook_error==='invoice_microsoft_account_mismatch') && account.outlook_owner_id===data.financeAuthUserId ? '<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-microsoft-connect>חיבור Microsoft</button>' : ''}
         <span>גבייה: <strong>${escapeHtml(statusLabel(actualCollectionStatus))}</strong></span>
         ${balance ? `<span>שולם: ${escapeHtml(formatAmount(balance.paidAmount))} · יתרה: ${escapeHtml(formatAmount(balance.balance))}</span>` : ''}
         ${pdf}
-        <button class="ds-btn ds-btn--ghost" data-invoice-revision-open="${escapeHtml(account.id)}">${['issued','mail_draft_ready','sent'].includes(account.document_status)?'עריכת חשבון':'גרסאות ופרטי התיקון'}</button>
-        ${account.replaces_account_id?`<button class="ds-btn ds-btn--ghost" data-invoice-revision-open="${escapeHtml(account.replaces_account_id)}">חשבון מקורי שבוטל</button>`:''}
-        ${account.replaced_by_account_id?`<button class="ds-btn ds-btn--ghost" data-invoice-revision-open="${escapeHtml(account.replaced_by_account_id)}">חשבון חלופי</button>`:''}
-        ${['issued','mail_draft_ready'].includes(account.document_status) && ['pending','failed','missing_recipient','needs_review'].includes(account.outlook_status) ? `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-account-draft="${escapeHtml(account.id)}"${data.financeBusy ? ' disabled' : ''}>נסה להשלים את טיוטת הדוא״ל</button>` : ''}
-        ${data.financeAdmin && account.document_status !== 'cancelled' ? `<button class="ds-btn ds-btn--ghost" data-finance-account-cancel="${escapeHtml(account.id)}">ביטול חשבון</button>` : ''}
+        ${data.financeTransactionsReadOnly ? '' : `<button class="ds-btn ds-btn--ghost" data-invoice-revision-open="${escapeHtml(account.id)}">${['issued','mail_draft_ready','sent'].includes(account.document_status)?'עריכת חשבון':'גרסאות ופרטי התיקון'}</button>`}
+        ${!data.financeTransactionsReadOnly && account.replaces_account_id?`<button class="ds-btn ds-btn--ghost" data-invoice-revision-open="${escapeHtml(account.replaces_account_id)}">חשבון מקורי שבוטל</button>`:''}
+        ${!data.financeTransactionsReadOnly && account.replaced_by_account_id?`<button class="ds-btn ds-btn--ghost" data-invoice-revision-open="${escapeHtml(account.replaced_by_account_id)}">חשבון חלופי</button>`:''}
+        ${!data.financeTransactionsReadOnly && ['issued','mail_draft_ready'].includes(account.document_status) && ['pending','failed','missing_recipient','needs_review'].includes(account.outlook_status) ? `<button type="button" class="ds-btn ds-btn--ghost ds-btn--sm" data-finance-account-draft="${escapeHtml(account.id)}"${data.financeBusy ? ' disabled' : ''}>נסה להשלים את טיוטת הדוא״ל</button>` : ''}
+        ${data.financeAdmin ? `<button class="ds-btn ds-btn--ghost" data-finance-account-delete="${escapeHtml(account.id)}">מחיקת חשבון</button>` : ''}
         ${account.cancellation_reason ? `<span>${escapeHtml(account.cancellation_reason)}</span>` : ''}
       </div>
       ${dsTableWrap(`<table class="ds-table" dir="rtl"><thead><tr><th>פעילות</th><th>גורם מימון</th><th>שעות</th><th>סכום</th></tr></thead><tbody>${lines}</tbody></table>`)}
@@ -433,7 +466,7 @@ function transactionApprovalDialogHtml(data) {
 export const FINANCE_TRANSACTION_SHAREPOINT_FOLDER_URL = 'https://think365orgil.sharepoint.com/Site9/Shared%20Documents/%D7%A2%D7%99%D7%93%D7%9F%20-%20%D7%98%D7%95%D7%A0%D7%99/%D7%97%D7%A9%D7%91%D7%95%D7%A0%D7%95%D7%AA%20%D7%A2%D7%A1%D7%A7%D7%94%20-%20%D7%AA%D7%A9%D7%A4%D7%96';
 
 export function transactionAccountsViewHtml(data, backBarHtml) {
-  const tab = data.transactionTab === 'completion' && data.financeCanComplete ? 'completion' : ['manual', 'history', 'editable'].includes(data.transactionTab) ? data.transactionTab : 'automatic';
+  const tab = data.financeTransactionsReadOnly ? 'history' : data.transactionTab === 'completion' && data.financeCanComplete ? 'completion' : ['manual', 'history', 'editable'].includes(data.transactionTab) ? data.transactionTab : 'automatic';
   const action = data.transactionActionMessage
     ? `<div class="ds-empty-state" style="margin-bottom:12px">${escapeHtml(data.transactionActionMessage)}</div>`
     : '';
@@ -443,13 +476,13 @@ export function transactionAccountsViewHtml(data, backBarHtml) {
     <div class="ds-fin-collect-shell" dir="rtl">
       ${action}
       <div class="ds-fin-transaction-nav">
-        <div class="ds-fin-tabs" role="tablist">
+        ${data.financeTransactionsReadOnly ? '' : `<div class="ds-fin-tabs" role="tablist">
           <button type="button" class="ds-fin-tab${tab === 'automatic' ? ' is-active' : ''}" data-finance-transaction-tab="automatic">הפקה אוטומטית · גפ״ן</button>
           <button type="button" class="ds-fin-tab${tab === 'manual' ? ' is-active' : ''}" data-finance-transaction-tab="manual">הפקה לפי מממן</button>
 ${data.financeCanComplete ? `          <button type="button" class="ds-fin-tab${tab === 'completion' ? ' is-active' : ''}" data-finance-transaction-tab="completion">השלמת פרטים</button>` : ''}
           <button type="button" class="ds-fin-tab${tab === 'history' ? ' is-active' : ''}" data-finance-transaction-tab="history">היסטוריה</button>
           <button type="button" class="ds-fin-tab${tab === 'editable' ? ' is-active' : ''}" data-finance-transaction-tab="editable">הפקה עם עריכה</button>
-        </div>
+        </div>`}
         <a class="ds-fin-transaction-folder-link"
            href="${FINANCE_TRANSACTION_SHAREPOINT_FOLDER_URL}" target="_blank" rel="noopener noreferrer"
            title="תיקיית חשבונות עסקה ב-SharePoint"
@@ -527,7 +560,7 @@ export async function runTransactionIssuance(data, api, mode, month = transactio
     const dispatched = await api.dispatchFinanceTransactionAccount({ accountId: reserved.id });
     results.push({ reserved, dispatched });
     } catch (error) {
-      if (reserved && api.cancelFinanceTransactionReservation) {
+      if (reserved && api.cancelFinanceTransactionReservation && !['finance_pdf_upload_outcome_unknown','finance_pdf_connection_failed'].includes(error.message)) {
         try { await api.cancelFinanceTransactionReservation(reserved.id); delete data.transactionRequestIds[requestKey]; }
         catch { /* an issued account or active worker must remain intact */ }
       }

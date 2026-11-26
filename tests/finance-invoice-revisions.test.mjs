@@ -28,13 +28,24 @@ test('meeting unit price recalculates course price and amount before save',()=>{
  assert.equal(revisionIsFinancial(d.invoiceRevisionContext.account,d.invoiceRevisionDraft),true);
  root._invoiceRevisionUnbind();dom.window.close();
 });
-test('financial field changes calculate hours and amount without rebuilding the open editor; they request approval rather than PDF',async()=>{
- const d=data(),calls=[];const {root,dom}=mount(d,{requestFinanceInvoiceRevision:async p=>{calls.push(p);return {id:'r',status:'pending_admin',financial:true};},previewFinanceInvoiceRevision:async()=>{throw Error('must not preview before approval');}});
- const details=root.querySelector('details');details.open=true;const quantity=root.querySelector('[data-invoice-revision-field="quantity_snapshot"]');quantity.value='2';quantity.dispatchEvent(new dom.window.Event('change',{bubbles:true}));
- assert.strictEqual(root.querySelector('details'),details);assert.equal(details.open,true);assert.strictEqual(root.querySelector('[data-invoice-revision-field="quantity_snapshot"]'),quantity);
- assert.equal(d.invoiceRevisionDraft.lines[0].billed_hours,3);assert.equal(d.invoiceRevisionDraft.lines[0].amount,1600);assert.equal(root.querySelector('[data-invoice-revision-preview]').textContent,'בקשת אישור אדמין');
- root.querySelector('[data-invoice-revision-preview]').click();await tick();assert.equal(calls.length,1);assert.equal(calls[0].accountId,'account');assert.match(root.textContent,/ממתין לאישור אדמין/);assert.equal(d.invoiceRevisionPreview,null);
- assert.equal(d.invoiceRevisionContext.account.total_amount,2400);root._invoiceRevisionUnbind();dom.window.close();
+test('authorized finance user previews a financial correction without admin approval',async()=>{
+ const d=data(),calls=[];
+ const {root,dom}=mount(d,{
+   requestFinanceInvoiceRevision:async p=>{calls.push(p);return {id:'r',status:'approved',financial:true};},
+   previewFinanceInvoiceRevision:async()=>({quote:{revision:'q',total_amount:1600,revision_financial:true},pdfBase64:'JVBERg=='})
+ });
+ const details=root.querySelector('details');details.open=true;
+ const quantity=root.querySelector('[data-invoice-revision-field="quantity_snapshot"]');
+ quantity.value='2';quantity.dispatchEvent(new dom.window.Event('change',{bubbles:true}));
+ assert.strictEqual(root.querySelector('details'),details);
+ assert.equal(d.invoiceRevisionDraft.lines[0].billed_hours,3);
+ assert.equal(d.invoiceRevisionDraft.lines[0].amount,1600);
+ root.querySelector('[data-invoice-revision-preview]').click();await tick();
+ assert.equal(calls[0].accountId,'account');
+ assert.equal(calls[0].adminApproveFinancial,false);
+ assert.ok(root.querySelector('[data-invoice-revision-confirm]'));
+ assert.equal(d.invoiceRevisionContext.account.total_amount,2400);
+ root._invoiceRevisionUnbind();dom.window.close();
 });
 test('text-only correction follows existing PDF review and requires an explicit confirmation before applying',async()=>{
  const d=data(),calls=[];const {root,dom}=mount(d,{requestFinanceInvoiceRevision:async p=>{calls.push('request');return {id:'r',status:'approved',financial:false};},previewFinanceInvoiceRevision:async()=>{calls.push('preview');return {quote:{revision:'q',total_amount:2400},pdfBase64:'JVBERg=='};}});
@@ -51,11 +62,11 @@ test('finance review states cannot generate a replacement and cancelled history 
  d.invoiceRevisionRequest=null;d.invoiceRevisionContext.account.document_status='cancelled';doc=new JSDOM(invoiceRevisionEditorHtml(d)).window.document;assert.equal(doc.querySelector('[data-invoice-revision-preview]'),null);assert.ok([...doc.querySelectorAll('[data-invoice-revision-field]')].every(x=>x.readOnly));
 });
 
-test('admin approves their financial edit explicitly and goes straight to PDF review, without a self-approval waiting step',async()=>{
+test('administrator follows the same financial correction preview as other authorized users',async()=>{
  const d=data();d.financeAdmin=true;d.invoiceRevisionAdminLoaded=true;const calls=[];
- const {root,dom}=mount(d,{requestFinanceInvoiceRevision:async p=>{calls.push(p);assert.equal(p.adminApproveFinancial,true);return {id:'r',status:'approved',financial:true};},previewFinanceInvoiceRevision:async()=>({quote:{revision:'q',total_amount:1600,revision_financial:true},pdfBase64:'JVBERg=='})});
+ const {root,dom}=mount(d,{requestFinanceInvoiceRevision:async p=>{calls.push(p);assert.equal(p.adminApproveFinancial,false);return {id:'r',status:'approved',financial:true};},previewFinanceInvoiceRevision:async()=>({quote:{revision:'q',total_amount:1600,revision_financial:true},pdfBase64:'JVBERg=='})});
  const quantity=root.querySelector('[data-invoice-revision-field="quantity_snapshot"]');quantity.value='2';quantity.dispatchEvent(new dom.window.Event('change',{bubbles:true}));
- assert.equal(root.querySelector('[data-invoice-revision-preview]').textContent,'אישור השינוי הכספי ותצוגה מקדימה');assert.match(root.querySelector('[data-invoice-revision-approval-summary]').textContent,/לפני.*אחרי/);
+ assert.equal(root.querySelector('[data-invoice-revision-preview]').textContent,'תצוגה מקדימה');assert.match(root.querySelector('[data-invoice-revision-approval-summary]').textContent,/לפני.*אחרי/);
  root.querySelector('[data-invoice-revision-preview]').click();await tick();assert.equal(calls.length,1);assert.ok(root.querySelector('[data-invoice-revision-confirm]'));assert.doesNotMatch(root.textContent,/ממתין לאישור אדמין/);assert.equal(d.invoiceRevisionContext.account.total_amount,2400);
  root._invoiceRevisionUnbind();dom.window.close();
 });

@@ -152,7 +152,7 @@ test('issuance sends funder, exact month, slots and displayed amount to server a
 });
 test('history retains existing document statuses and URLs independently of month selector',()=>{
   const d=data([],{transactionTab:'history'});d.transactionContext.accounts=[{transaction_account_number:8525,issue_date:'2026-07-01',total_amount:500,document_status:'issued',sharepoint_web_url:'https://example.test/pdf',finance_transaction_account_lines:[]}];
-  const view=html(d);assert.match(view,/8525/);assert.match(view,/>מסמך PDF</);assert.doesNotMatch(view,/פתח PDF|צפייה/);assert.doesNotMatch(view,/type="month"/);
+  const view=html(d);assert.match(view,/8525/);assert.match(view,/>מסמך PDF</);assert.doesNotMatch(view,/פתח PDF|צפייה/);assert.match(view,/data-finance-history-month/);
 });
 test('backlog includes only the selected school year and can issue original closed months',async t=>{
   t.mock.timers.enable({apis:['Date'],now:new Date('2027-01-10T10:00:00Z')});
@@ -394,4 +394,27 @@ test('blocked activity opens the shared completion editor inline without showing
  const handler=finance.slice(finance.indexOf('const completionOpen='),finance.indexOf("if(ev.target.closest('[data-finance-complete-cancel]'))"));
  assert.doesNotMatch(handler,/visit\.transactionTab\s*=/);
  assert.match(finance,/financeCompleteBillingData\(editor\.row_id,payload\)[\s\S]*?ensureCollectionLoaded\(visit,api,\{force:true\}\)/);
+});
+
+test('payer email preflight excludes only the affected invoice and renders the blocker',()=>{
+  const d=data([row({payerEmailMissing:true}),row({activityRowId:'other',institutionSymbol:'999',payerEmailMissing:false})]);
+  const preview=transactionPreviewForVisit(d);
+  assert.equal(preview.accounts.length,1);
+  assert.equal(preview.accounts[0].lines[0].activityRowId,'other');
+  assert.match(html(d),/חסרה כתובת דוא״ל של הגורם המשלם/);
+});
+
+test('read-only history filters by school, payer, number, period and status without mutation actions',()=>{
+  const d=data([],{transactionTab:'automatic',financeTransactionsReadOnly:true,transactionHistoryMonth:'2026-11',transactionHistoryStatus:'issued'});
+  d.transactionContext.accounts=[
+    {id:'visible',transaction_account_number:'Pl180',issue_date:'2026-11-01',customer_name_snapshot:'מממן בדיקה',document_status:'issued',finance_transaction_account_lines:[{school_name_snapshot:'בית ספר אלון'}]},
+    {id:'hidden',transaction_account_number:'Pl181',issue_date:'2026-10-01',document_status:'issued',finance_transaction_account_lines:[{school_name_snapshot:'בית ספר אלון'}]},
+    {id:'filtered',transaction_account_number:'Pl182',issue_date:'2026-11-01',document_status:'cancelled',finance_transaction_account_lines:[{school_name_snapshot:'בית ספר אלון'}]}
+  ];
+  for(const text of ['אלון','180','מממן בדיקה']) {
+    d.transactionHistorySearch=text;
+    const view=html(d);
+    assert.match(view,/Pl180/);
+    assert.doesNotMatch(view,/Pl181|Pl182|data-invoice-revision-open|data-finance-account-delete|data-finance-transaction-run/);
+  }
 });

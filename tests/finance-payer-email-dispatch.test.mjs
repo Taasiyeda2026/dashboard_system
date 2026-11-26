@@ -25,6 +25,11 @@ async function dispatch({ status = 'generating', recipients = [] } = {}) {
     rpc: async (name) => {
       calls.push(name);
       if (name === 'finance_transaction_can_issue') return { data: true };
+      if (name === 'prepare_finance_dispatch') {
+        return recipients.some(email => email.includes('@'))
+          ? { data: { recipients, accountNumber: 'Pl26000170' } }
+          : { error: new Error('no_valid_payer_email') };
+      }
       if (name === 'finance_transaction_recipients') return { data: { recipients } };
       return {};
     },
@@ -54,8 +59,7 @@ test('invalid payer email cancels new issuance before any Graph or finalization 
   assert.deepEqual(result.calls, [
     'finance_transaction_can_issue',
     'acquire_finance_dispatch',
-    'validate_finance_dispatch',
-    'finance_transaction_recipients',
+    'prepare_finance_dispatch',
     'cancel_finance_dispatch',
     'release_finance_dispatch',
   ]);
@@ -64,7 +68,7 @@ test('invalid payer email cancels new issuance before any Graph or finalization 
 test('a valid payer email lets issuance proceed to Graph', async () => {
   const result = await dispatch({ recipients: ['billing@example.test'] });
   assert.equal(result.body.error, 'graph_not_configured');
-  assert.ok(result.calls.indexOf('finance_transaction_recipients') < result.calls.indexOf('graphToken'));
+  assert.ok(result.calls.indexOf('prepare_finance_dispatch') < result.calls.indexOf('graphToken'));
 });
 
 test('an issued account retry does not cancel its existing document when Graph fails', async () => {
