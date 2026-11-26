@@ -617,6 +617,17 @@ Deno.serve(async (req) => {
     knownMessageId = clean(account.outlook_message_id);
     const { error: validationError } = await admin.rpc("validate_finance_dispatch", { p_account_id: accountId, p_token: dispatchToken });
     if (validationError) throw validationError;
+    const resolveRecipients = async () => {
+      const result = await admin!.rpc('finance_transaction_recipients', { p_account_id: accountId });
+      if (result.error) throw result.error;
+      recipients = recipientAddresses((result.data?.recipients || []).join(';'));
+      return result.data?.invalidCount || 0;
+    };
+    let invalidRecipientCount = 0;
+    if (!finalized) {
+      invalidRecipientCount = await resolveRecipients();
+      if (!recipients.length) throw new Error('no_valid_payer_email');
+    }
     graphAccessToken = await graphToken();
 
     let bytes: Uint8Array;
@@ -685,12 +696,10 @@ Deno.serve(async (req) => {
     const ownFolder = await graph(delegatedAccessToken,'/me/mailFolders/drafts?$select=id');
     const expectedFolder = await graph(delegatedAccessToken,`/users/${encodeURIComponent(mailbox)}/mailFolders/drafts?$select=id`);
     if (!clean(ownFolder.id) || ownFolder.id!==expectedFolder.id) throw new Error('invoice_microsoft_account_mismatch');
-    const recipientResult = await admin.rpc('finance_transaction_recipients',{p_account_id:accountId});
-    if (recipientResult.error) throw recipientResult.error;
-    recipients = recipientAddresses((recipientResult.data?.recipients || []).join(';'));
+    if (!recipients.length) invalidRecipientCount = await resolveRecipients();
     if (!recipients.length) {
       await markOutlook('missing_recipient','no_valid_payer_email');
-      return Response.json({accountId,filename,outlookStatus:'missing_recipient',invalidRecipientCount:recipientResult.data?.invalidCount || 0},{headers:cors});
+      return Response.json({accountId,filename,outlookStatus:'missing_recipient',invalidRecipientCount},{headers:cors});
     }
     const propertyId = 'String {fe840b5e-3427-421b-a522-224fbb1c2c65} Name FinanceAccountId';
     const mailboxPath = '/me/messages';
@@ -738,7 +747,7 @@ Deno.serve(async (req) => {
     const outlookStatus = verified.isDraft ? 'draft_ready' : 'already_sent';
     await markOutlook(outlookStatus);
     return Response.json({accountId,filename,outlookStatus,messageId:knownMessageId,recipientCount:recipients.length,
-      invalidRecipientCount:recipientResult.data?.invalidCount || 0},{headers:cors});
+      invalidRecipientCount},{headers:cors});
   } catch (error) {
     const message = mailbox && error instanceof GraphRequestError && [401,403,404].includes(error.status)
       ? 'invoice_mailbox_access_denied' : clean((error as Error).message) || "transaction_dispatch_failed";

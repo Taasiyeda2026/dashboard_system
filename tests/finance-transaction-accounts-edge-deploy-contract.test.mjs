@@ -39,7 +39,7 @@ test('sources are full implementations without CDN or temporary deploy wrappers'
 test('PDF issuance, revision edit path and SharePoint storage markers stay wired', () => {
   assert.match(index, /async function buildPdf/);
   assert.match(index, /Always address the paying party/);
-  assert.match(index, /courseWidths = \[100, 125, 58, 42, 46, 74, 90\]/);
+  assert.match(index, /courseWidths = \[83, 65, 101, 54, 38, 43, 68, 83\]/);
   assert.match(index, /sharepoint_upload_failed/);
   assert.match(index, /validateTransactionFolder/);
   assert.match(index, /handleInvoiceRevision/);
@@ -81,7 +81,7 @@ test('post-download verifier rejects a CDN shim payload', () => {
       '// Always address the paying party',
       'async function buildPdf(){}',
       "import { handleInvoiceRevision, updateInvoiceDraft } from './revision-dispatch.ts';",
-      'courseWidths = [100, 125, 58, 42, 46, 74, 90]',
+      'courseWidths = [83, 65, 101, 54, 38, 43, 68, 83]',
       'sharepoint_upload_failed',
       'validateTransactionFolder',
       'import "https://cdn.jsdelivr.net/gh/example/index.ts";',
