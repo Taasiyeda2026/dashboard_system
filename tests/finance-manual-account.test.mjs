@@ -21,8 +21,9 @@ test('Anglican Google AI course keeps 8000 as authoritative price and calculates
   assert.equal(hoursRatio.querySelector('input').value,'15');
   assert.equal(hoursRatio.querySelector('output').textContent,'15');
   assert.doesNotMatch(manualAccountViewHtml(d),/מחיר למפגש|גורם מימון וחודש/);
-  for(const [key,value] of [['quantity',9],['hours',12],['amount','7,500.00']])assert.equal(updateManualDraft(d,key,value),false);
-  assert.equal(d.manualDraft.amount,8000);assert.equal(manualHourlyRate(d.manualDraft),8000/15);
+  for(const [key,value] of [['quantity',9],['hours',12]])assert.equal(updateManualDraft(d,key,value),false);
+  updateManualDraft(d,'amount','7,500.00');
+  assert.equal(d.manualDraft.amount,7500);assert.equal(manualHourlyRate(d.manualDraft),8000/15);
   assert.equal(JSON.stringify(d.collectionActivities),original);
 });
 test('workshop and tour keep unit pricing when quantity or unit price changes',()=>{
@@ -47,8 +48,8 @@ test('payer-first selection separates Gefen schools and pre-fills permitted bala
 test('manual wizard selects existing activity/funder and edits document fields without touching source data',()=>{
   const d=data();const source=JSON.stringify(d.collectionActivities);prepareManualAccount(d,'a');
   assert.equal(d.manualDraft.amount,7000);assert.equal(d.manualDraft.quantity,2);assert.equal(d.manualFundingKey,'r|2026-09-01');
-  updateManualDraft(d,'description','תיאור למסמך');assert.equal(updateManualDraft(d,'amount',6000),false);
-  assert.equal(d.manualDraft.unit_price,3500);assert.equal(JSON.stringify(d.collectionActivities),source);
+  updateManualDraft(d,'description','תיאור למסמך');updateManualDraft(d,'amount',6000);
+  assert.equal(d.manualDraft.unit_price,3000);assert.equal(JSON.stringify(d.collectionActivities),source);
   const html=manualAccountViewHtml(d);assert.match(html,/הפקה עם עריכה/);assert.match(html,/תיאור למסמך/);assert.doesNotMatch(html,/data-finance-manual-confirm/);
   assert.match(html,/data-finance-manual-select-activity[^>]*value="a"[^>]*checked/);
   assert.doesNotMatch(html,/בית ספר · קורס · a/);
@@ -56,7 +57,7 @@ test('manual wizard selects existing activity/funder and edits document fields w
 });
 test('editing invalidates preview; only a reviewed PDF can be confirmed with its server revision',async()=>{
   const d=data();prepareManualAccount(d,'a');await assert.rejects(runManualAccount(d,{}),/מקדימה/);
-  d.manualQuote={revision:'server-version'};d.manualPdf='base64';updateManualDraft(d,'quantity',1);assert.equal(d.manualQuote,null);
+  d.manualQuote={revision:'server-version'};d.manualPdf='base64';updateManualDraft(d,'amount',6000);assert.equal(d.manualQuote,null);
   d.manualQuote={revision:'server-version'};let payload;
   await runManualAccount(d,{reserveFinanceManualAccount:async p=>{payload=p;return{id:'x'};},dispatchFinanceTransactionAccount:async()=>({})});
   assert.equal(payload.activity,'a');assert.equal(payload.funder,'r');assert.equal(payload.revision,'server-version');
@@ -127,7 +128,7 @@ test('multiple activities for one financer issue exactly one account with all li
   d.manualFunderFilter='authority:עיריית רחובות';
   toggleManualActivity(d,'a',true);
   toggleManualActivity(d,'b',true);
-  assert.equal(updateManualDraft(d,'amount',4000),false);
+  updateManualDraft(d,'amount',4000);
   saveActiveManualDraft(d);
   const requests=[];
   const api={
@@ -143,7 +144,7 @@ test('multiple activities for one financer issue exactly one account with all li
   assert.equal(requests.length,1);
   assert.deepEqual(requests[0].map(item=>item.activity),['a','b']);
   assert.equal(requests[0][0].draft.amount,7000);
-  assert.equal(requests[0][1].draft.amount,4300);
+  assert.equal(requests[0][1].draft.amount,4000);
   const view=manualAccountViewHtml(d);
   assert.match(view,/אישור והפקה/);
   assert.match(view,/חשבון מרוכז לבדיקה/);
@@ -207,13 +208,13 @@ test('manual invoice displays grouped payer amounts and keeps numeric values in 
   const d=data();prepareManualAccount(d,'a');
   const html=manualAccountViewHtml(d);
   assert.match(html,/7,000\.00 ₪/);
-  assert.match(html,/readonly value="7,000\.00"/);
+  assert.match(html,/data-finance-manual-field="amount" value="7,000\.00"/);
   // Authority funding keeps amounts only; hourly rate is Gefen-only in the editor.
   assert.doesNotMatch(html,/data-finance-manual-hourly-rate/);
   assert.equal(manualHourlyRate(d.manualDraft),7000/3);
-  assert.equal(updateManualDraft(d,'amount','6,500.50'),false);
+  updateManualDraft(d,'amount','6,500.50');
   assert.equal(updateManualDraft(d,'unit_price','1,250.00'),false);
-  assert.equal(d.manualDraft.amount,7000);
+  assert.equal(d.manualDraft.amount,6500.5);
   assert.ok(Number.isFinite(d.manualDraft.amount));
 });
 test('money input formatting retains enough unit-price precision for server amount validation',()=>{

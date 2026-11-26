@@ -200,6 +200,40 @@ export function saveActiveManualDraft(data) {
     draft: { ...data.manualDraft }, fundingKey: data.manualFundingKey
   };
 }
+const savedDraftFields = [
+  'manualFundingCategory', 'manualFunderFilter', 'manualScope', 'manualFunderRecipientEmail',
+  'manualSelectedActivityIds', 'manualActivityDrafts', 'manualActivityId', 'manualFundingKey', 'manualDraft'
+];
+
+export function manualDraftPayload(data) {
+  saveActiveManualDraft(data);
+  return Object.fromEntries(savedDraftFields.map(key => [key, data[key] ?? null]));
+}
+
+export function openSavedManualDraft(data, saved) {
+  for (const key of savedDraftFields) data[key] = structuredClone(saved.payload[key]);
+  data.manualSavedDraft = saved.id ? saved : null;
+  data.manualDraftKey = saved.id;
+  data.manualQuote = null;
+  data.manualPdf = '';
+  data.manualConsolidatedPreview = null;
+  data.manualBatchPreviews = null;
+  data.manualBatchIssued = {};
+  data.manualRequestId = '';
+  data.manualBulkEditingActivityId = data.manualActivityId;
+  data.manualSearch = '';
+}
+
+async function manualIssuanceKey(data, requests) {
+  if (!data.manualSavedDraft) return crypto.randomUUID();
+  const input = new TextEncoder().encode(JSON.stringify([data.manualSavedDraft.id, requests]));
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', input));
+  digest[6] = (digest[6] & 15) | 128;
+  digest[8] = (digest[8] & 63) | 128;
+  const hex = Array.from(digest.slice(0,16), byte => byte.toString(16).padStart(2,'0')).join('');
+  return [hex.slice(0,8),hex.slice(8,12),hex.slice(12,16),hex.slice(16,20),hex.slice(20)].join('-');
+}
+
 export function focusManualActivity(data, activityId) {
   saveActiveManualDraft(data);
   if (!activityId) {
@@ -344,7 +378,7 @@ export async function previewSelectedManualAccounts(data, api) {
     const output=await api.previewFinanceFunderBatchAccount(items);
     if(!output?.quote?.revision || !output?.pdfBase64)throw new Error('לא התקבלה תצוגה מקדימה תקינה לחשבון המרוכז');
     const group=[...groups.values()][0];
-    data.manualConsolidatedPreview={items,quote:output.quote,pdfBase64:output.pdfBase64,idempotencyKey:crypto.randomUUID(),splitReason:group.gefen?group.splitReason:'חשבון מרוכז לפי גורם מממן זהה'};
+    data.manualConsolidatedPreview={items,quote:output.quote,pdfBase64:output.pdfBase64,idempotencyKey:await manualIssuanceKey(data, items),splitReason:group.gefen?group.splitReason:'חשבון מרוכז לפי גורם מממן זהה'};
     data.manualBatchPreviews=null;data.manualQuote=null;data.manualPdf='';
     return [data.manualConsolidatedPreview];
   }
@@ -356,7 +390,7 @@ export async function previewSelectedManualAccounts(data, api) {
     const request=items[0];
     const output=items.length>1?await api.previewFinanceFunderBatchAccount(items):await api.previewFinanceManualAccount(request);
     if(!output?.quote?.revision || !output?.pdfBase64)throw new Error('לא התקבלה תצוגה מקדימה תקינה');
-    previews.push({activityId:entries[0].id,request,...(items.length>1?{items}:{}),quote:output.quote,pdfBase64:output.pdfBase64,idempotencyKey:crypto.randomUUID(),splitReason:group.splitReason});
+    previews.push({activityId:entries[0].id,request,...(items.length>1?{items}:{}),quote:output.quote,pdfBase64:output.pdfBase64,idempotencyKey:await manualIssuanceKey(data, items),splitReason:group.splitReason});
   }
   data.manualBatchPreviews = previews.length > 1 ? previews : null;
   if (previews.length === 1) {
@@ -379,7 +413,7 @@ export async function runSelectedManualAccounts(data, api) {
     try {
       sent = await api.dispatchFinanceTransactionAccount({ accountId: reserved.id });
     } catch (error) {
-      await api.cancelFinanceTransactionReservation?.(reserved.id).catch(() => {});
+      if (!['finance_pdf_upload_outcome_unknown','finance_pdf_connection_failed'].includes(error.message)) await api.cancelFinanceTransactionReservation?.(reserved.id).catch(() => {});
       throw error;
     }
     return [{ reserved, sent }];
@@ -396,7 +430,7 @@ export async function runSelectedManualAccounts(data, api) {
         : await api.reserveFinanceManualAccount({...p.request, revision:p.quote.revision,idempotencyKey:p.idempotencyKey});
       let sent;
       try { sent = await api.dispatchFinanceTransactionAccount({ accountId:reserved.id }); }
-      catch(error) { await api.cancelFinanceTransactionReservation?.(reserved.id).catch(()=>{});throw error; }
+      catch(error) { if (!['finance_pdf_upload_outcome_unknown','finance_pdf_connection_failed'].includes(error.message)) await api.cancelFinanceTransactionReservation?.(reserved.id).catch(()=>{});throw error; }
       const result = { reserved, sent };
       data.manualBatchIssued[p.idempotencyKey] = result;
       issued.push(result);
@@ -412,7 +446,7 @@ export function updateManualDraft(data,key,value) {
     : key === 'customer_email' ? normalizeManualRecipientEmails(value) : value;
   if ((key === 'amount' || key === 'unit_price') && !Number.isFinite(safeValue)) return false;
   const service=manualService(data);
-  if(!service && (['unit_price','hours','amount'].includes(key) || (key==='quantity'&&(data.manualDraft.billing_basis==='full_funding'||data.manualDraft.gefen_funding===false))))return false;
+  if(!service && (['unit_price','hours'].includes(key) || (key==='amount'&&data.manualDraft.gefen_funding!==false) || (key==='quantity'&&(data.manualDraft.billing_basis==='full_funding'||data.manualDraft.gefen_funding===false))))return false;
   data.manualDraft={...data.manualDraft,[key]:safeValue};const d=data.manualDraft;
   if (key === 'customer_email' && data.manualFunderFilter) {
     const fundingId = text(data.manualFundingKey).split('|')[0];
@@ -452,6 +486,8 @@ export function syncManualActivitySelectionUi(root, data) {
   const next = frame.firstElementChild;
   const head = manual.firstElementChild;
   const nextHead = next.firstElementChild;
+  const saveDraft = head.querySelector('[data-finance-manual-save-draft]');
+  if (saveDraft) saveDraft.disabled = nextHead.querySelector('[data-finance-manual-save-draft]').disabled;
   const heading = head.querySelector('[data-finance-manual-heading]');
   if (heading) heading.textContent = nextHead.querySelector('[data-finance-manual-heading]').textContent;
   const currentActivity = head.querySelector('[data-finance-manual-activity]');
@@ -619,6 +655,16 @@ export function manualAccountViewHtml(data) {
   return `<div class="ds-fin-manual" dir="rtl">
     <section class="ds-fin-manual__section">
       <h3 data-finance-manual-heading>הפקה עם עריכה</h3>
+      <div class="ds-fin-manual__actions">
+        <button type="button" class="ds-btn ds-btn--secondary" data-finance-manual-save-draft${ids.length ? '' : ' disabled'}>שמירת טיוטה</button>
+        ${data.manualSavedDraft ? '<button type="button" class="ds-btn ds-btn--secondary" data-finance-manual-new-draft>טיוטה חדשה</button>' : ''}
+      </div>
+      ${data.manualSavedDrafts?.length ? `<details><summary>טיוטות שמורות</summary><ul>
+        ${data.manualSavedDrafts.map(saved => `<li>
+          <button type="button" class="ds-btn ds-btn--secondary" data-finance-manual-open-draft="${e(saved.id)}">${e(saved.payload?.manualDraft?.customer_name || 'טיוטת חשבון')} · ${e(saved.updated_at?.slice(0,10))}</button>
+          ${data.financeAdmin ? `<button type="button" class="ds-btn ds-btn--ghost" data-finance-manual-delete-draft="${e(saved.id)}">מחיקת טיוטה</button>` : ''}
+        </li>`).join('')}
+      </ul></details>` : ''}
       <div class="ds-fin-manual__selectors">
       <label class="ds-fin-manual__payer-picker">גורם מימון<select class="ds-input" data-finance-manual-funding-category><option value="">בחירת גורם מימון</option>
         ${routes.map(r=>`<option value="${e(r.key)}"${r.key===routeKey?' selected':''}>${e(r.label)}</option>`).join('')}
@@ -668,7 +714,7 @@ export function manualAccountViewHtml(data) {
           </label>
           <label class="ds-fin-manual__field">מחיר הפעילות<input class="ds-input" readonly value="${e(formatManualMoney(d.activity_price))}"></label>
           ${showHourly?`<label class="ds-fin-manual__field">מחיר שעתי לגפ״ן<input class="ds-input" data-finance-manual-hourly-rate readonly value="${e(manualHourlyRate(d)===null?'—':formatManualMoney(manualHourlyRate(d)))}"></label>`:''}
-          <label class="ds-fin-manual__field">סכום לחיוב<input class="ds-input" readonly value="${e(formatManualMoney(d.amount))}"></label>`}
+          ${d.gefen_funding===false ? field('סכום לחיוב','amount') : `<label class="ds-fin-manual__field">סכום לחיוב<input class="ds-input" readonly value="${e(formatManualMoney(d.amount))}"></label>`}`}
         </div></fieldset>`:''}
         ${ids.length>1?`<details class="ds-fin-manual__selected-schools ds-fin-payer" open><summary>פירוט הפעילויות שנבחרו (${ids.length})</summary>
           <table class="ds-table"><thead><tr><th>פעילות</th><th>בית ספר</th><th>רשות</th><th>סכום לחיוב</th></tr></thead><tbody>
@@ -733,7 +779,7 @@ export async function runManualAccount(data,api) {
   const account=await api.reserveFinanceManualAccount({...manualRequest(data),revision:data.manualQuote.revision,idempotencyKey:data.manualRequestId});
   try{return await api.dispatchFinanceTransactionAccount({accountId:account.id});}
   catch(error){
-    if(api.cancelFinanceTransactionReservation) {
+    if(api.cancelFinanceTransactionReservation && !['finance_pdf_upload_outcome_unknown','finance_pdf_connection_failed'].includes(error.message)) {
       try { await api.cancelFinanceTransactionReservation(account.id);data.manualRequestId=crypto.randomUUID(); }
       catch { /* keep the original identity if issuance succeeded or is still running */ }
     }

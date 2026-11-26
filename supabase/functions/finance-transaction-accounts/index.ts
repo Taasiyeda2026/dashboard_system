@@ -117,13 +117,27 @@ async function verifyDraft(token: string, mailbox: string, id: string, filename:
   return {id:message.id,isDraft:true};
 }
 
-async function validateTransactionFolder(token: string) {
+function transactionTarget(supabaseUrl: string) {
+  if (new URL(supabaseUrl).hostname === 'szinlhjuwyiyszdpsdop.supabase.co') {
+    if (Deno.env.get('FINANCE_TEST_MODE') === 'true') throw new Error('finance_test_target_invalid');
+    return { drive: TRANSACTION_DRIVE_ID, folder: TRANSACTION_FOLDER_ID, mailbox: '' };
+  }
+  const drive = clean(Deno.env.get('FINANCE_TEST_DRIVE_ID'));
+  const folder = clean(Deno.env.get('FINANCE_TEST_FOLDER_ID'));
+  const mailbox = clean(Deno.env.get('FINANCE_TEST_MAILBOX')).toLowerCase();
+  if (Deno.env.get('FINANCE_TEST_MODE') !== 'true' || !drive || !folder || !mailbox || folder === TRANSACTION_FOLDER_ID) {
+    throw new Error('finance_test_target_invalid');
+  }
+  return { drive, folder, mailbox };
+}
+
+async function validateTransactionFolder(token: string, drive: string, folder: string) {
   const item = await graph(
     token,
-    `/drives/${encodeURIComponent(TRANSACTION_DRIVE_ID)}/items/${encodeURIComponent(TRANSACTION_FOLDER_ID)}?$select=id,name,folder,parentReference`
+    `/drives/${encodeURIComponent(drive)}/items/${encodeURIComponent(folder)}?$select=id,name,folder,parentReference`
   );
-  if (!item?.id || item.id !== TRANSACTION_FOLDER_ID || !item?.folder) throw new Error("transaction_sharepoint_folder_invalid");
-  if (clean(item?.parentReference?.driveId) && clean(item.parentReference.driveId) !== TRANSACTION_DRIVE_ID) {
+  if (!item?.id || item.id !== folder || !item?.folder) throw new Error("transaction_sharepoint_folder_invalid");
+  if (clean(item?.parentReference?.driveId) && clean(item.parentReference.driveId) !== drive) {
     throw new Error("transaction_sharepoint_folder_invalid");
   }
 }
@@ -183,7 +197,7 @@ function invoiceCellLines(font: PDFFont, value: string, width: number, size: num
 function invoiceRowHeight(font: PDFFont, values: string[], widths: number[], size = 8.5): number {
   const mostLines = Math.max(1, ...values.map((value, index) =>
     invoiceCellLines(font, value, widths[index], size).length));
-  return 25 + (mostLines - 1) * 9; // 25 / 34 / 43 pt, never 43 for every course
+  return 25 + (mostLines - 1) * 10.5;
 }
 function drawCell(page: PDFPage, font: PDFFont, value: string, x: number, y: number, width: number, size = 8.5, height = 25) {
   const parts = invoiceCellLines(font, value, width, size);
@@ -312,6 +326,32 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
   }
   return { courses: [...courses.values()], services: [...services.values()] };
 }
+function sponsorInvoiceRows(lines: any[]) {
+  const groups = new Map<string, { name: string; schools: Set<string>; activities: Map<string, number>; price: number }>();
+  for (const [index, line] of lines.entries()) {
+    if (isGefenInvoiceLine(line)) continue;
+    const name = clean(line.activity_name_snapshot) || clean(line.service_description_snapshot);
+    const payer = clean(line.funding_source_id) || clean(line.funding_snapshot);
+    const key = JSON.stringify([payer, name]);
+    const price = Number(line.funding_amount_snapshot ?? line.activity_price_snapshot ?? line.amount);
+    if (!groups.has(key)) groups.set(key, { name: clean(line.service_description_snapshot) || name, schools: new Set(), activities: new Map(), price });
+    const group = groups.get(key)!;
+    if (Math.round(group.price * 100) !== Math.round(price * 100)) throw new Error('different_prices_for_same_activity');
+    const school = clean(line.school_name_snapshot);
+    if (school) group.schools.add(school);
+    const activity = clean(line.activity_row_id) || String(index);
+    group.activities.set(activity, (group.activities.get(activity) || 0) + Number(line.amount));
+  }
+  return [...groups.values()].map(group => {
+    const amounts = [...group.activities.values()];
+    return {
+      category: 'sponsor', name: group.name, school: [...group.schools].join(', '),
+      authority: '', gefen: '', gefenFunding: false, dates: [], hours: 0, hourlyPrice: 0,
+      quantity: amounts.length, amount: amounts.reduce((total, amount) => total + amount, 0),
+      unitPrice: amounts.every(amount => Math.round(amount * 100) === Math.round(group.price * 100)) ? group.price : 0
+    };
+  });
+}
 async function attachActivityTypes(account: any, client: ReturnType<typeof createClient>) {
   const lines = account?.finance_transaction_account_lines || [];
   const ids = [...new Set(lines.map((line: any) => clean(line.activity_row_id)).filter(Boolean))];
@@ -366,7 +406,11 @@ async function buildPdf(account: any) {
     })
   ]);
   const doc = await PDFDocument.create();
-  if(account.revision_created_at){doc.setCreationDate(new Date(account.revision_created_at));doc.setModificationDate(new Date(account.revision_created_at));}
+  const snapshotTime = account.revision_created_at || account.created_at;
+  if (snapshotTime) {
+    doc.setCreationDate(new Date(snapshotTime));
+    doc.setModificationDate(new Date(snapshotTime));
+  }
   doc.registerFontkit(fontkit);
   // Full embedding (not merely a CSS font-family hint): the PDF contains both
   // Assistant font files and remains portable across Windows, Mac and mobile.
@@ -422,10 +466,9 @@ async function buildPdf(account: any) {
   let page = doc.addPage([595, 842]);
   let y = drawInvoiceHeader(page);
 
-  const consolidatedFunder = (account.billing_basis === 'consolidated' || account.issue_mode === 'manual')
-    && (account.finance_transaction_account_lines || []).length > 1
-    && (account.finance_transaction_account_lines || []).every((line: { billing_rule?: string }) => line.billing_rule === 'completion');
-  const { courses, services } = invoiceRenderRows(account.finance_transaction_account_lines || [], consolidatedFunder);
+  const lines = account.finance_transaction_account_lines || [];
+  const { courses, services } = invoiceRenderRows(lines.filter(isGefenInvoiceLine), true);
+  const sponsors = sponsorInvoiceRows(lines);
   // Each section uses the appropriate, minimal accounting columns. Both
   // sections may appear on one invoice for the same payer.
   const drawSection = (title: string, columns: string[], widths: number[],
@@ -447,6 +490,25 @@ async function buildPdf(account: any) {
     y -= headerHeight;
     for (const row of rows) {
       const cellValues = values(row);
+      const wrapped = cellValues.map((value,index) => invoiceCellLines(regular,value,widths[index],8.5));
+      const lineCount = Math.max(...wrapped.map(lines => lines.length));
+      // Keep grouped rows readable across continuation pages. Amounts appear on
+      // the first segment only, so a continued school list cannot imply a duplicate charge.
+      if (!showDates && lineCount > 40) {
+        for (let start = 0; start < lineCount; start += 40) {
+          const cells = wrapped.map(parts => parts.slice(start,start+40).join('\n'));
+          const height = invoiceRowHeight(regular,cells,widths);
+          if (y < 55 + height) {
+            page = doc.addPage([595,842]);
+            y = drawInvoiceHeader(page,true);
+            drawTableRow(page,bold,columns,widths,y-headerHeight,headerHeight,true);
+            y -= headerHeight;
+          }
+          drawTableRow(page,regular,cells,widths,y-height,height);
+          y -= height;
+        }
+        continue;
+      }
       const mainHeight = invoiceRowHeight(regular, cellValues, widths);
       const detail = detailLines(row);
       const detailHeight = detail.length ? 8 + detail.length * 10 : 0;
@@ -472,10 +534,9 @@ async function buildPdf(account: any) {
   // tours — even when funded by Gefen — use the compact layout without hour price.
   const allRows = [...courses, ...services];
   const gefenCourses = allRows.filter(row => row.gefenFunding && row.category === 'course');
-  const otherCourses = allRows.filter(row => !row.gefenFunding && row.category === 'course');
   const serviceRows = allRows.filter(row => row.category === 'service');
   const courseWidths = [83, 65, 101, 54, 38, 43, 68, 83]; // 535 points — tighter totals column
-  const compactWidths = [130, 175, 110, 120]; // 535 points — non-Gefen: no hours/meetings
+  const sponsorWidths = [195, 126, 47, 84, 83];
   const serviceWidths = [118, 150, 100, 62, 105]; // 535 points: school, name, authority, qty, total
   drawSection('',
     ['שם בית הספר', 'רשות', 'תוכנית / קורס', 'מספר גפ״ן', 'שעות', 'מפגשים', 'מחיר לשעה', 'סה״כ'],
@@ -483,9 +544,9 @@ async function buildPdf(account: any) {
     (row) => [row.school || '—', row.authority || '—', row.name, row.gefen || '—',
       count(row.hours), count(row.quantity), money(row.hourlyPrice), money(row.amount)]);
   drawSection('',
-    ['שם בית הספר', 'תוכנית / קורס', 'רשות', 'סה״כ'],
-    compactWidths, otherCourses,
-    (row) => [row.school || '—', row.name, row.authority || '—', money(row.amount)], false);
+    ['בתי ספר', 'פעילות', 'כמות', 'מחיר לפעילות', 'סה״כ'],
+    sponsorWidths, sponsors,
+    (row) => [row.school || '—', row.name, count(row.quantity), row.unitPrice ? money(row.unitPrice) : 'חיוב חלקי', money(row.amount)], false);
   // Workshops/tours: school, authority, name, total quantity, amount. Never hourly.
   drawSection('',
     ['שם בית הספר', 'סדנה / סיור', 'רשות', 'כמות', 'סה״כ'],
@@ -537,8 +598,8 @@ Deno.serve(async (req) => {
   let accountId = "";
   let userClient: ReturnType<typeof createClient> | null = null;
   let graphAccessToken = "";
-  let uploadedItemId = "";
   let finalized = false;
+  let uploadOutcomeUnknown = false;
   let admin: ReturnType<typeof createClient> | null = null;
   const dispatchToken = crypto.randomUUID();
   let leaseAcquired = false;
@@ -564,17 +625,46 @@ Deno.serve(async (req) => {
     const service = clean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
     if (!url || !anon || !service) throw new Error("supabase_function_not_configured");
 
+    const target = transactionTarget(url);
     const body = await req.json();
     admin = createClient(url, service);
     userClient = createClient(url, anon, { global: { headers: { Authorization: auth } } });
     // Retired server jobs have no delegated user grant and must not reach Graph.
     if (body.outlookJobToken) throw new Error('not_authorized');
+    if (body.deleteAccount === true) {
+      const deletionId = clean(body.accountId);
+      const started = await userClient.rpc('begin_finance_account_deletion', { p_account_id: deletionId });
+      if (started.error) throw started.error;
+      const deletion = started.data;
+      if (deletion.completed) return Response.json({ deleted: true }, { headers: cors });
+      if (deletion.itemId) {
+        const token = await graphToken();
+        const path = `/drives/${encodeURIComponent(deletion.driveId)}/items/${encodeURIComponent(deletion.itemId)}`;
+        if (target.mailbox) {
+          if (deletion.driveId !== target.drive) throw new Error('finance_test_target_invalid');
+          const item = await graph(token, `${path}?$select=parentReference`).catch(error => {
+            if (error instanceof GraphRequestError && error.status === 404) return null;
+            throw error;
+          });
+          if (item && item.parentReference?.id !== target.folder) throw new Error('finance_test_target_invalid');
+        }
+        try { await graph(token, path, { method: 'DELETE' }); }
+        catch (error) {
+          if (!(error instanceof GraphRequestError) || error.status !== 404) throw new Error('finance_pdf_deletion_failed');
+        }
+      }
+      const finished = await admin.rpc('finish_finance_account_deletion', {
+        p_account_id: deletionId, p_operation_id: deletion.operationId
+      });
+      if (finished.error) throw finished.error;
+      return Response.json(finished.data, { headers: cors });
+    }
     const { data: allowed, error: allowError } = await userClient.rpc("finance_transaction_can_issue");
     if (allowError || !allowed) throw new Error("not_authorized");
 
     if(body.revisionId){
       try {
-        const result=await handleInvoiceRevision({buildPdf,attachActivityTypes,pdfHash,base64,graph,graphToken,validateTransactionFolder,fetch,drive:TRANSACTION_DRIVE_ID,folder:TRANSACTION_FOLDER_ID},userClient,admin,body,req.headers);
+        const result=await handleInvoiceRevision({buildPdf,attachActivityTypes,pdfHash,base64,graph,graphToken,validateTransactionFolder:(token: string)=>validateTransactionFolder(token,target.drive,target.folder),fetch,drive:target.drive,folder:target.folder},userClient,admin,body);
         return Response.json(result,{headers:cors});
       }catch(error){return Response.json({error:String((error as any)?.message||error),documentPreserved:true},{status:400,headers:cors});}
     }
@@ -614,47 +704,95 @@ Deno.serve(async (req) => {
     if (fresh.error) throw fresh.error;
     Object.assign(account,fresh.data);
     finalized = account.document_status!=='generating';
+    uploadOutcomeUnknown = !finalized && Boolean(account.dispatch_upload_hash);
     knownMessageId = clean(account.outlook_message_id);
-    const { error: validationError } = await admin.rpc("validate_finance_dispatch", { p_account_id: accountId, p_token: dispatchToken });
-    if (validationError) throw validationError;
+    const resolveRecipients = async () => {
+      const result = await admin!.rpc('finance_transaction_recipients', { p_account_id: accountId });
+      if (result.error) throw result.error;
+      recipients = recipientAddresses((result.data?.recipients || []).join(';'));
+      return result.data?.invalidCount || 0;
+    };
+    let invalidRecipientCount = 0;
+    if (!finalized) {
+      const prepared = await admin.rpc('prepare_finance_dispatch', { p_account_id: accountId, p_token: dispatchToken });
+      if (prepared.error) throw prepared.error;
+      recipients = recipientAddresses((prepared.data?.recipients || []).join(';'));
+      invalidRecipientCount = prepared.data?.invalidCount || 0;
+      account.transaction_account_number = prepared.data?.accountNumber;
+      if (!recipients.length) throw new Error('no_valid_payer_email');
+      if (!account.transaction_account_number) throw new Error('account_not_dispatchable');
+    } else {
+      const validation = await admin.rpc('validate_finance_dispatch', { p_account_id: accountId, p_token: dispatchToken });
+      if (validation.error) throw validation.error;
+    }
     graphAccessToken = await graphToken();
 
     let bytes: Uint8Array;
     let filename = account.generated_filename;
     if (account.document_status === "generating") {
-      await validateTransactionFolder(graphAccessToken);
+      await validateTransactionFolder(graphAccessToken,target.drive,target.folder);
       await attachActivityTypes(account, admin);
       bytes = await buildPdf(account);
       filename = `חשבון עסקה ${account.transaction_account_number} - ${clean(account.customer_name_snapshot).replace(/[\\/:*?\"<>|]/g, " ")} - ${date(account.issue_date)}.pdf`;
-      const upload = await fetch(
-        `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(TRANSACTION_DRIVE_ID)}/items/${encodeURIComponent(TRANSACTION_FOLDER_ID)}:/${encodeURIComponent(filename)}:/content?@microsoft.graph.conflictBehavior=fail`,
-        {
-          method: "PUT",
-          headers: { Authorization: `Bearer ${graphAccessToken}`, "Content-Type": "application/pdf" },
-          body: bytes
+      // Historical corrected PDFs can retain the same customer-facing number.
+      // Use the immutable account ID for the stored name so a recycled number
+      // cannot collide with a prior version. Outlook still uses the display name.
+      const storageFilename = filename.replace(/\.pdf$/, ` - ${accountId}.pdf`);
+      const filePath = `/drives/${encodeURIComponent(target.drive)}/items/${encodeURIComponent(target.folder)}:/${encodeURIComponent(storageFilename)}`;
+      const hash = await pdfHash(bytes);
+      const staged = await admin.rpc('finance_stage_pdf_upload', {
+        p_account_id: accountId, p_token: dispatchToken, p_hash: hash
+      });
+      if (staged.error) throw staged.error;
+      uploadOutcomeUnknown = true;
+      const upload = await fetch(`https://graph.microsoft.com/v1.0${filePath}:/content?@microsoft.graph.conflictBehavior=fail`, {
+        method: "PUT",
+        headers: { Authorization: `Bearer ${graphAccessToken}`, "Content-Type": "application/pdf" },
+        body: bytes
+      });
+      let item;
+      if (upload.ok) {
+        item = await upload.json();
+      } else if (upload.status === 409) {
+        item = await graph(graphAccessToken, filePath);
+        const existing = await fetch(
+          `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(target.drive)}/items/${encodeURIComponent(item.id)}/content`,
+          { headers: { Authorization: `Bearer ${graphAccessToken}` } }
+        );
+        if (!existing.ok || await pdfHash(new Uint8Array(await existing.arrayBuffer())) !== hash) {
+          throw new Error('finance_pdf_upload_outcome_unknown');
         }
-      );
-      if (!upload.ok) throw new Error(`sharepoint_upload_failed:${upload.status}:${(await upload.text()).slice(0, 180)}`);
-      const item = await upload.json();
-      uploadedItemId = clean(item.id);
-      const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)))
-        .map((x) => x.toString(16).padStart(2, "0"))
-        .join("");
+      } else {
+        // A 5xx can follow a successful remote write. Keep the reservation so
+        // a retry can reconcile the same immutable upload by file hash.
+        if ([400, 401, 403, 404, 413, 415].includes(upload.status) && !account.dispatch_upload_hash) {
+          const cleared = await admin.rpc('finance_clear_failed_pdf_upload', {
+            p_account_id: accountId, p_token: dispatchToken, p_hash: hash
+          });
+          if (!cleared.error) uploadOutcomeUnknown = false;
+        }
+        throw new Error(`sharepoint_upload_failed:${upload.status}`);
+      }
+      if (!clean(item.id)) throw new Error('finance_pdf_upload_outcome_unknown');
       const { data: finalizedAccount, error: finalizeError } = await admin.rpc("finalize_finance_billing", {
         p_token: dispatchToken,
         p_account_id: accountId,
         p_filename: filename,
         p_pdf_sha256: hash,
-        p_drive_id: TRANSACTION_DRIVE_ID,
-        p_folder_item_id: TRANSACTION_FOLDER_ID,
+        p_drive_id: target.drive,
+        p_folder_item_id: target.folder,
         p_item_id: item.id,
         p_web_url: item.webUrl
       });
       if (finalizeError) throw finalizeError;
       Object.assign(account, finalizedAccount);
       finalized = true;
+      uploadOutcomeUnknown = false;
     } else {
       finalized = true;
+      if (target.mailbox && (account.sharepoint_drive_id !== target.drive || account.sharepoint_folder_item_id !== target.folder)) {
+        throw new Error('finance_test_target_invalid');
+      }
       const stored = await fetch(`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(account.sharepoint_drive_id)}/items/${encodeURIComponent(account.sharepoint_item_id)}/content`, { headers: { Authorization: `Bearer ${graphAccessToken}` } });
       if (!stored.ok) throw new Error("issued_pdf_download_failed");
       bytes = new Uint8Array(await stored.arrayBuffer());
@@ -671,6 +809,7 @@ Deno.serve(async (req) => {
     });
     if (mailboxResult.error) throw mailboxResult.error;
     mailbox = clean(mailboxResult.data);
+    if (target.mailbox && target.mailbox !== mailbox.toLowerCase()) throw new Error('finance_test_target_invalid');
     if (!/^[^\s@]+@think\.org\.il$/.test(mailbox)) throw new Error('invoice_mailbox_not_authorized');
     const owner = await userClient.rpc('finance_delegated_account_owner',{p_account_id:accountId});
     if (owner.error) throw owner.error;
@@ -685,13 +824,12 @@ Deno.serve(async (req) => {
     const ownFolder = await graph(delegatedAccessToken,'/me/mailFolders/drafts?$select=id');
     const expectedFolder = await graph(delegatedAccessToken,`/users/${encodeURIComponent(mailbox)}/mailFolders/drafts?$select=id`);
     if (!clean(ownFolder.id) || ownFolder.id!==expectedFolder.id) throw new Error('invoice_microsoft_account_mismatch');
-    const recipientResult = await admin.rpc('finance_transaction_recipients',{p_account_id:accountId});
-    if (recipientResult.error) throw recipientResult.error;
-    recipients = recipientAddresses((recipientResult.data?.recipients || []).join(';'));
+    if (!recipients.length) invalidRecipientCount = await resolveRecipients();
     if (!recipients.length) {
       await markOutlook('missing_recipient','no_valid_payer_email');
-      return Response.json({accountId,filename,outlookStatus:'missing_recipient',invalidRecipientCount:recipientResult.data?.invalidCount || 0},{headers:cors});
+      return Response.json({accountId,filename,outlookStatus:'missing_recipient',invalidRecipientCount},{headers:cors});
     }
+    if (target.mailbox && recipients.some(address => address.toLowerCase() !== target.mailbox)) throw new Error('finance_test_target_invalid');
     const propertyId = 'String {fe840b5e-3427-421b-a522-224fbb1c2c65} Name FinanceAccountId';
     const mailboxPath = '/me/messages';
     if (!knownMessageId) {
@@ -738,9 +876,10 @@ Deno.serve(async (req) => {
     const outlookStatus = verified.isDraft ? 'draft_ready' : 'already_sent';
     await markOutlook(outlookStatus);
     return Response.json({accountId,filename,outlookStatus,messageId:knownMessageId,recipientCount:recipients.length,
-      invalidRecipientCount:recipientResult.data?.invalidCount || 0},{headers:cors});
+      invalidRecipientCount},{headers:cors});
   } catch (error) {
-    const message = mailbox && error instanceof GraphRequestError && [401,403,404].includes(error.status)
+    const message = uploadOutcomeUnknown ? 'finance_pdf_upload_outcome_unknown'
+      : mailbox && error instanceof GraphRequestError && [401,403,404].includes(error.status)
       ? 'invoice_mailbox_access_denied' : clean((error as Error).message) || "transaction_dispatch_failed";
     if (leaseAcquired && finalized && accountId && admin) {
       const review = message==='draft_creation_uncertain' || message==='multiple_account_messages_require_review'
@@ -754,19 +893,13 @@ Deno.serve(async (req) => {
           ? 'החשבון נשמר. לא ניתן ליצור טיוטה בתיבת המשתמש המקורי. יש לבדוק את כתובתו הארגונית ואת הרשאות Microsoft 365; לא נעשה שימוש בתיבה חלופית.'
           : 'החשבון נשמר. יצירת טיוטת הדוא״ל לא הושלמה; ניתן לראות את המצב בהיסטוריה.'},{headers:cors});
     }
-    if (leaseAcquired && !finalized && accountId && admin) {
+    if (leaseAcquired && !finalized && !uploadOutcomeUnknown && accountId && admin) {
       try {
-        const { error: cancelError } = await admin.rpc("cancel_finance_dispatch", {
+        await admin.rpc("cancel_finance_dispatch", {
           p_token: dispatchToken,
           p_account_id: accountId,
           p_reason: `dispatch_failed:${message.slice(0, 240)}`
         });
-        // Only remove the upload after the server confirms this dispatch still
-        // owns a generating reservation. A lost finalize response must never
-        // delete an already-issued document, or another worker's upload.
-        if (!cancelError && uploadedItemId && graphAccessToken) {
-          await graph(graphAccessToken, `/drives/${encodeURIComponent(TRANSACTION_DRIVE_ID)}/items/${encodeURIComponent(uploadedItemId)}`, { method: "DELETE" });
-        }
       } catch { /* preserve any document whose cancellation was not confirmed */ }
     }
     return new Response(JSON.stringify({ error: message }), {

@@ -685,3 +685,7 @@ config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-admin-hub-compact-cards-202611
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-manual-only-scheduling-20261126-v1`;
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-manual-scheduling-official-workflow-20261126-v1`;
+
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-finance-payer-email-dispatch-20261126-v1`;
+
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-finance-saved-drafts-20261126-v1`;

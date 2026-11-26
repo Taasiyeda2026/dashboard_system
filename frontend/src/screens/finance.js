@@ -22,7 +22,7 @@ import {
 import { activityRowId, normalizeFinanceCollectionTab } from './finance-collection.js';
 import { financeError } from './finance-errors.js';
 import { financeAccountBalances, paymentsBodyHtml, receiptsHtml, accountPaymentAllocation } from './finance-payments.js';
-import { setManualBillingScope, prepareManualAccount, updateManualDraft, manualFilteredActivities, selectedManualActivityIds, toggleManualActivity, toggleAllVisibleManualActivities, syncManualActivitySelectionUi, normalizeManualRecipientEmails, updateManualConsolidatedField, focusManualActivity, saveActiveManualDraft, previewSelectedManualAccounts, runSelectedManualAccounts, syncManualPdfPreviewDom, clearManualPdfPreviewUrls, activateManualPdfPreview } from './finance-manual-account.js';
+import { setManualBillingScope, prepareManualAccount, updateManualDraft, manualFilteredActivities, selectedManualActivityIds, toggleManualActivity, toggleAllVisibleManualActivities, syncManualActivitySelectionUi, normalizeManualRecipientEmails, updateManualConsolidatedField, focusManualActivity, saveActiveManualDraft, manualDraftPayload, openSavedManualDraft, previewSelectedManualAccounts, runSelectedManualAccounts, syncManualPdfPreviewDom, clearManualPdfPreviewUrls, activateManualPdfPreview } from './finance-manual-account.js';
 import { financeToday, financeCycleCutoff } from './finance-transaction-accounts.js';
 import {
   handleTransactionSelection,
@@ -150,7 +150,8 @@ const FINANCE_VIEW_PERMISSIONS = Object.freeze({
 });
 
 function canOpenFinanceView(user, view) {
-  return view === 'hub' || hasPermission(user, FINANCE_VIEW_PERMISSIONS[view]);
+  return view === 'hub' || hasPermission(user, FINANCE_VIEW_PERMISSIONS[view])
+    || (view === 'transactions' && hasPermission(user, 'view_finance_collection'));
 }
 
 function hubCardsHtml(user) {
@@ -493,7 +494,8 @@ async function ensureCollectionLoaded(data, api, { force = false } = {}) {
     });
     const visibleAccountIds = new Set(visibleAccounts.map((account) => account.id));
     const allocatedReceiptIds = new Set(paymentContext.allocations
-      .filter((allocation) => visibleAccountIds.has(allocation.account_id))
+      .filter((allocation) => visibleAccountIds.has(allocation.account_id)
+        || (allocation.released_at && visibleActivityIds.has(String(allocation.activity_row_id))))
       .map((allocation) => allocation.receipt_id));
     const visibleReceipts = paymentContext.receipts.filter((receipt) =>
       visibleActivityIds.has(String(receipt.activity_row_id)) || allocatedReceiptIds.has(receipt.id));
@@ -549,6 +551,7 @@ export const financeScreen = {
     }
     data.financeAdmin = state?.user?.role === 'admin';
     data.financeCanComplete = data.financeAdmin || hasPermission(state?.user,'manage_finance_transactions');
+    data.financeTransactionsReadOnly = !data.financeCanComplete;
     data.financeAuthUserId = state?.user?.auth_user_id || '';
     const requestedView = data?.view || 'hub';
     const view = canOpenFinanceView(state?.user, requestedView) ? requestedView : 'hub';
@@ -581,6 +584,11 @@ export const financeScreen = {
       catch (error) { await ensureCollectionLoaded(visit, api, { force: true }).catch(() => {}); visit.paymentMessage = financeError(error); visit.transactionActionMessage = visit.paymentMessage; }
       finally { visit.financeBusy = false; button.disabled = false; refresh(); }
     };
+    const loadPendingPdfUploads = async () => {
+      if (!visit.financeTransactionsReadOnly && api.financePendingPdfUploads) {
+        visit.pendingPdfUploads = await api.financePendingPdfUploads();
+      }
+    };
     const executeTransactionRun = async (mode, month) => {
       if (visit.financeBusy || visit.transactionRunning) return;
       visit.transactionRunning = true;
@@ -595,6 +603,7 @@ export const financeScreen = {
         catch (loadError) { visit.transactionActionMessage += ' רענון רשימת החשבונות נכשל; יש לבדוק בהיסטוריה לפני ניסיון נוסף.'; }
         // Do not hide errors by navigating to an empty history when every account failed.
         if (issued) visit.transactionTab = 'history';
+        if (visit.transactionTab === 'history') await loadPendingPdfUploads().catch(() => {});
       } catch (error) {
         await ensureCollectionLoaded(visit, api, { force: true }).catch(() => {});
         visit.transactionActionMessage = financeError(error);
@@ -639,6 +648,17 @@ export const financeScreen = {
         } catch { visit.transactionActionMessage = 'החיבור ל־Microsoft לא הושלם. החשבונות והמסמכים נשמרו.'; }
         refresh(); return;
       }
+      const resumePdf = ev.target.closest('[data-finance-resume-pdf]');
+      if (resumePdf) {
+        const accountId = resumePdf.dataset.financeResumePdf;
+        if (!visit.pendingPdfUploads?.some(account => account.id === accountId)) return;
+        await financeAction(resumePdf, async () => {
+          await api.dispatchFinanceTransactionAccount({ accountId });
+          await loadPendingPdfUploads();
+          visit.transactionActionMessage = 'הפקת חשבון העסקה הושלמה.';
+        });
+        return;
+      }
       const accountDraft = ev.target.closest('[data-finance-account-draft]');
       if (accountDraft) {
         if (visit.financeBusy || visit.transactionRunning) return;
@@ -680,6 +700,31 @@ export const financeScreen = {
       }
       const correction = ev.target.closest('[data-finance-receipt-correct]');
       if (correction) { const reason = window.prompt('סיבת תיקון התקבול'); if (reason?.trim()) await financeAction(correction, () => api.voidFinanceReceipt(correction.dataset.financeReceiptCorrect, reason)); return; }
+      const deleteAccount = ev.target.closest('[data-finance-account-delete]');
+      if (deleteAccount) {
+        if (!visit.financeAdmin || visit.financeBusy) return;
+        const id = deleteAccount.dataset.financeAccountDelete;
+        const account = visit.transactionContext?.accounts?.find(item => item.id === id);
+        const allocations = (visit.paymentContext?.allocations || []).filter(item => item.account_id === id && !item.released_at);
+        const allocated = allocations.reduce((sum,item) => sum + Number(item.amount),0);
+        const warning = `למחוק את חשבון ${account?.transaction_account_number || ''} ואת ה־PDF המשויך מ־SharePoint? יתרת החיוב תשוחרר. עותקים שכבר הועברו ללקוח יישארו אצלו.`;
+        const receipts = new Map((visit.paymentContext?.receipts || []).map(item => [item.id,item]));
+        const receiptLines = allocations.map(item => {
+          const receipt = receipts.get(item.receipt_id);
+          const label = [receipt?.reference,receipt?.received_date].filter(Boolean).join(' · ');
+          return `${label || 'תקבול'} · ${Number(item.amount).toLocaleString('he-IL')} ₪`;
+        });
+        const receiptDetails = allocations.length
+          ? `\nתקבולים משויכים בסך ${allocated.toLocaleString('he-IL')} ₪:\n${receiptLines.join('\n')}\nהתקבולים יישמרו והשיוך לחשבון יוסר.`
+          : '';
+        if (window.confirm(warning + receiptDetails)) await financeAction(deleteAccount, async () => {
+          await api.deleteFinanceTransactionAccount(id);
+          visit.invoiceRevisionContext = null;
+          visit.invoiceRevisionDraft = null;
+          visit.transactionActionMessage = 'החשבון נמחק.';
+        });
+        return;
+      }
       const cancelAccount = ev.target.closest('[data-finance-account-cancel]');
       if (cancelAccount) { const reason = window.prompt('סיבת ביטול החשבון'); if (reason?.trim()) await financeAction(cancelAccount, () => api.cancelIssuedFinanceAccount(cancelAccount.dataset.financeAccountCancel, reason)); return; }
       const pdfOpen = ev.target.closest('[data-finance-manual-pdf-open]');
@@ -694,6 +739,56 @@ export const financeScreen = {
         if (!activateManualPdfPreview(root, pdfDownload.dataset.financeManualPdfDownload, 'download', window)) {
           window.alert('ההורדה אינה זמינה. יש להציג את הטיוטה מחדש.');
         }
+        return;
+      }
+      const saveDraft = ev.target.closest('[data-finance-manual-save-draft]');
+      if (saveDraft) {
+        if (visit.financeBusy) return;
+        visit.financeBusy = true;
+        try {
+          visit.manualDraftKey ||= crypto.randomUUID();
+          const saved = await api.saveFinanceTransactionDraft(
+            visit.manualDraftKey, visit.manualSavedDraft?.version || 0, manualDraftPayload(visit)
+          );
+          visit.manualSavedDraft = saved;
+          visit.manualSavedDrafts = [saved, ...(visit.manualSavedDrafts || []).filter(item => item.id !== saved.id)];
+          visit.transactionActionMessage = 'הטיוטה נשמרה.';
+        } catch (error) { visit.transactionActionMessage = financeError(error); }
+        finally { visit.financeBusy = false; refresh(); }
+        return;
+      }
+      const openDraft = ev.target.closest('[data-finance-manual-open-draft]');
+      if (openDraft) {
+        if (visit.financeBusy) return;
+        const saved = visit.manualSavedDrafts?.find(item => item.id === openDraft.dataset.financeManualOpenDraft);
+        if (saved) openSavedManualDraft(visit, saved);
+        visit.transactionActionMessage = '';
+        refresh();
+        return;
+      }
+      if (ev.target.closest('[data-finance-manual-new-draft]')) {
+        if (visit.financeBusy) return;
+        openSavedManualDraft(visit, { payload: { manualSelectedActivityIds: [], manualActivityDrafts: {}, manualScope: 'full' } });
+        visit.manualSavedDraft = null;
+        visit.transactionActionMessage = '';
+        refresh();
+        return;
+      }
+      const deleteDraft = ev.target.closest('[data-finance-manual-delete-draft]');
+      if (deleteDraft) {
+        const saved = visit.manualSavedDrafts?.find(item => item.id === deleteDraft.dataset.financeManualDeleteDraft);
+        if (!saved || !visit.financeAdmin || visit.financeBusy || !window.confirm('למחוק את טיוטת חשבון העסקה?')) return;
+        visit.financeBusy = true;
+        try {
+          await api.deleteFinanceTransactionDraft(saved.id, saved.version);
+          visit.manualSavedDrafts = visit.manualSavedDrafts.filter(item => item.id !== saved.id);
+          if (visit.manualSavedDraft?.id === saved.id) {
+            visit.manualSavedDraft = null;
+            visit.manualDraftKey = '';
+          }
+          visit.transactionActionMessage = 'הטיוטה נמחקה.';
+        } catch (error) { visit.transactionActionMessage = financeError(error); }
+        finally { visit.financeBusy = false; refresh(); }
         return;
       }
       const manualPreview = ev.target.closest('[data-finance-manual-preview]');
@@ -718,6 +813,7 @@ export const financeScreen = {
           visit.manualBulkEditingActivityId = '';
           visit.manualActivityId = ''; visit.manualFundingKey = ''; visit.manualDraft = null;
           visit.transactionTab = 'history';
+          await loadPendingPdfUploads().catch(() => {});
         }); return;
       }
 
@@ -758,10 +854,13 @@ export const financeScreen = {
       const transactionTab = ev.target.closest('[data-finance-transaction-tab]');
       if (transactionTab) {
         const nextTransactionTab = String(transactionTab.dataset.financeTransactionTab || 'automatic');
+        if (visit.financeTransactionsReadOnly && nextTransactionTab !== 'history') return;
         if(nextTransactionTab==='completion'&&!visit.financeCanComplete)return;
         if (nextTransactionTab === 'editable' && visit.transactionTab !== 'editable') {
           // A new manual issuing session starts without any preselected activity.
           // Keep the selected funding category but never carry stale invoice details.
+          visit.manualSavedDraft = null;
+          visit.manualDraftKey = '';
           visit.manualSelectedActivityIds = [];
           visit.manualActivityId = '';
           visit.manualDraft = null;
@@ -778,12 +877,29 @@ export const financeScreen = {
         visit.pendingTransactionApproval = null;
         visit.billingCompletion = null;
         visit.transactionTab = nextTransactionTab;
+        if (nextTransactionTab === 'editable') {
+          visit.transactionActionMessage = '';
+          refresh();
+          try { visit.manualSavedDrafts = await api.financeTransactionDrafts(); }
+          catch (error) { visit.transactionActionMessage = financeError(error); }
+          refresh();
+          return;
+        }
         if (visit.transactionTab === 'automatic' || visit.transactionTab === 'manual') {
           visit.transactionMonths = { ...visit.transactionMonths, [visit.transactionTab]: transactionMaxMonth(visit, visit.transactionTab) };
           visit.transactionManualSelected = {};
         }
         visit.transactionActionMessage = '';
-        if(visit.transactionTab==='history'&&visit.financeAdmin&&api.financeInvoiceRevisionContext){const result=await api.financeInvoiceRevisionContext(null);visit.invoiceRevisionAdminRequests=result.requests||[];visit.invoiceRevisionAdminLoaded=true;}
+        if (visit.transactionTab === 'history') {
+          try {
+            await loadPendingPdfUploads();
+            if (visit.financeAdmin && api.financeInvoiceRevisionContext) {
+              const result = await api.financeInvoiceRevisionContext(null);
+              visit.invoiceRevisionAdminRequests = result.requests || [];
+              visit.invoiceRevisionAdminLoaded = true;
+            }
+          } catch (error) { visit.transactionActionMessage = financeError(error); }
+        }
         refresh();
         return;
       }
@@ -964,6 +1080,12 @@ export const financeScreen = {
     };
 
     const onChange = async (ev) => {
+      if (ev.target.matches('[data-finance-history-month], [data-finance-history-status]')) {
+        const key = ev.target.matches('[data-finance-history-month]') ? 'transactionHistoryMonth' : 'transactionHistoryStatus';
+        visit[key] = ev.target.value;
+        refresh();
+        return;
+      }
       const completionForm=ev.target.closest('[data-finance-completion-form]');if(completionForm){syncCompletionForm(completionForm);return;}
       const fundingCategory = ev.target.closest('[data-finance-manual-funding-category]');
       if (fundingCategory) {
@@ -1126,6 +1248,20 @@ export const financeScreen = {
     };
 
     const onInput = (ev) => {
+      if (ev.target.matches('[data-finance-history-search]')) {
+        clearTimeout(root._financeHistorySearchTimer);
+        const value = ev.target.value;
+        const caret = ev.target.selectionStart;
+        root._financeHistorySearchTimer = setTimeout(() => {
+          visit.transactionHistorySearch = value;
+          if (visit.transactionTab !== 'history' && !visit.financeTransactionsReadOnly) return;
+          refresh();
+          const search = root.querySelector('[data-finance-history-search]');
+          search?.focus();
+          search?.setSelectionRange(caret, caret);
+        }, 180);
+        return;
+      }
       if(ev.target.matches('[data-finance-completion-search]')){visit.billingCompletionSearch=ev.target.value||'';syncCompletionSearch(root,visit.billingCompletionSearch);return;}
       const completionForm=ev.target.closest('[data-finance-completion-form]');if(completionForm){syncCompletionForm(completionForm);return;}
       if (ev.target.matches('[data-finance-manual-search]')) {
@@ -1170,6 +1306,7 @@ export const financeScreen = {
       window.removeEventListener('finance-invoice-drafts-changed', onDraftsChanged);
       root._invoiceRevisionUnbind?.();
       clearTimeout(root._financeCollectionSearchTimer);
+      clearTimeout(root._financeHistorySearchTimer);
       clearTimeout(root._financeManualSearchTimer);
       clearManualPdfPreviewUrls(root);
     };

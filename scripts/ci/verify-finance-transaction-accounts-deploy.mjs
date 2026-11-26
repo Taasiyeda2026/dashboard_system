@@ -31,7 +31,7 @@ const requiredMarkers = {
   'index.ts': [
     'async function buildPdf',
     'Always address the paying party',
-    'courseWidths = [100, 125, 58, 42, 46, 74, 90]',
+    'courseWidths = [83, 65, 101, 54, 38, 43, 68, 83]',
     'sharepoint_upload_failed',
     'validateTransactionFolder',
     'handleInvoiceRevision',

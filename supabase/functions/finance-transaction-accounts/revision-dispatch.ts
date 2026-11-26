@@ -30,7 +30,7 @@ export async function updateInvoiceDraft(d:any,token:string,account:any,bytes:Ui
  return verified;
 }
 
-export async function handleInvoiceRevision(d:any,user:any,admin:any,body:any,headers:Headers) {
+export async function handleInvoiceRevision(d:any,user:any,admin:any,body:any) {
  const id=clean(body.revisionId),token=crypto.randomUUID();let oldId='';
  try {
   const {data:quote,error}=await user.rpc('finance_invoice_revision_quote',{p_id:id});
@@ -44,17 +44,7 @@ export async function handleInvoiceRevision(d:any,user:any,admin:any,body:any,he
   if(begun.error)throw begun.error;
   const stage=begun.data;if(stage.applied)return stage;
   oldId=stage.originalAccountId;
-  const q=stage.quote,mailToken=clean(headers.get('x-microsoft-mail-token'));
-  let mailState='unknown';
-  if(stage.financial&&stage.originalMessageId){
-   if(!mailToken||!stage.originalMailbox||quote.revision_actor!==stage.originalOwnerId)throw Error('invoice_original_issuer_required');
-   const own=await d.graph(mailToken,'/me/mailFolders/drafts?$select=id');
-   const expected=await d.graph(mailToken,`/users/${encodeURIComponent(stage.originalMailbox)}/mailFolders/drafts?$select=id`);
-   if(!own.id||own.id!==expected.id)throw Error('invoice_microsoft_account_mismatch');
-   const message=await d.graph(mailToken,`/me/messages/${encodeURIComponent(stage.originalMessageId)}?$select=isDraft`);
-   if(message.isDraft!==true){await admin.rpc('mark_finance_revision_sent',{p_id:id,p_token:token});throw Error('finance_decision_required');}
-   mailState='draft';
-  }
+  const q=stage.quote;
   const graphToken=await d.graphToken();await d.validateTransactionFolder(graphToken);
   await d.attachActivityTypes(q,admin);const bytes=await d.buildPdf(q),hash=await d.pdfHash(bytes);
   const filename=`חשבון עסקה ${q.transaction_account_number} - תיקון ${id}-${clean(body.revision).slice(0,12)}.pdf`;
@@ -67,11 +57,7 @@ export async function handleInvoiceRevision(d:any,user:any,admin:any,body:any,he
    const stored=await d.fetch(`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(d.drive)}/items/${encodeURIComponent(item.id)}/content`,{headers:{Authorization:`Bearer ${graphToken}`}});
    if(!stored.ok||await d.pdfHash(new Uint8Array(await stored.arrayBuffer()))!==hash)throw Error('revision_pdf_conflict');
   }else throw Error(`sharepoint_upload_failed:${upload.status}`);
-  if(stage.financial&&stage.originalMessageId){
-   const latest=await d.graph(mailToken,`/me/messages/${encodeURIComponent(stage.originalMessageId)}?$select=isDraft`);
-   if(latest.isDraft!==true){await admin.rpc('mark_finance_revision_sent',{p_id:id,p_token:token});throw Error('finance_decision_required');}
-  }
-  const result=await admin.rpc('finish_finance_invoice_revision',{p_id:id,p_token:token,p_expected_revision:body.revision,p_filename:filename,p_hash:hash,p_drive:d.drive,p_folder:d.folder,p_item:item.id,p_url:item.webUrl,p_mail_state:mailState});
+  const result=await admin.rpc('finish_finance_invoice_revision',{p_id:id,p_token:token,p_expected_revision:body.revision,p_filename:filename,p_hash:hash,p_drive:d.drive,p_folder:d.folder,p_item:item.id,p_url:item.webUrl,p_mail_state:null});
   if(result.error)throw result.error;
   return {...result.data,documentPreserved:true};
  }catch(error){

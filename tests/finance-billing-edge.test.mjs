@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+import { readFile, writeFile } from 'node:fs/promises';
 import { stripTypeScriptTypes } from 'node:module';
 import { PDFDocument, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
@@ -10,7 +11,7 @@ const source=await readFile(new URL('../supabase/functions/finance-transaction-a
 const script=stripTypeScriptTypes(source.replace(/^import .*;\n/gm,''),{mode:'transform'});
 const revisionScript=stripTypeScriptTypes(await readFile(new URL('../supabase/functions/finance-transaction-accounts/revision-dispatch.ts',import.meta.url),'utf8'),{mode:'transform'});
 const {handleInvoiceRevision,updateInvoiceDraft}=new Function(revisionScript.replace(/export /g,'')+';return {handleInvoiceRevision,updateInvoiceDraft};')();
-const fixture=()=>({id:'account',document_status:'generating',outlook_status:'pending',transaction_account_number:8525,
+const fixture=()=>({id:'account',created_at:'2026-11-01T09:00:00Z',document_status:'generating',outlook_status:'pending',transaction_account_number:8525,
   customer_name_snapshot:'בית ספר א',institution_symbol:'123',customer_email_snapshot:'test@example.test',issue_date:'2026-10-01',payment_due_date:'2026-11-30',total_amount:2500,
   finance_transaction_account_lines:[{activity_name_snapshot:'תוכנית חלל',funding_snapshot:'גפ״ן',performance_month:'2026-09-01',billed_hours:3,hourly_rate_snapshot:833.333,amount:2500,
     finance_transaction_account_meetings:[{meeting_date:'2026-09-01'},{meeting_date:'2026-09-02'}]}]});
@@ -25,18 +26,24 @@ test('Google AI course PDF preserves the 8000 activity price and derives 533.33 
   assert.ok(!r.calls.some(c=>c.name==='finalize_finance_billing'||c.method==='PUT'));
 });
 async function harness(options={}) {
+  const recipient=options.recipient || 'test@example.test';
   const account=fixture();Object.assign(account,options.account);const calls=[];let handler;let pdf;let draftPayload;
   const rpc=async(name,args)=>{
     calls.push({type:'rpc',name,args});
+    if(name===options.rpcError)return{error:{message:'test_'+name}};
+    if(name==='prepare_finance_dispatch')return{data:{accountNumber:account.transaction_account_number,recipients:[recipient],invalidCount:0}};
+    if(name==='begin_finance_account_deletion')return options.allowed===false
+      ? {error:Error('finance_transactions_permission_denied')}
+      : {data:{operationId:'operation',driveId:'drive',itemId:'item'}};
+    if(name==='finish_finance_account_deletion')return{data:{deleted:true}};
     if(name==='finance_manual_account_quote')return{data:options.quote||fixture()};
     if(name==='finance_invoice_revision_quote')return options.revisionNotApproved?{error:Error('revision_not_approved')}:{data:options.quote||fixture()};
     if(name==='finance_delegated_account_owner')return {data:options.ownerAllowed!==false};
     if(name==='finance_transaction_can_issue')return{data:options.allowed!==false};
     if(name==='resolve_finance_outlook_mailbox')return{data:'idann@think.org.il'};
-    if(name==='finance_transaction_recipients')return{data:{recipients:['test@example.test'],invalidCount:0}};
+    if(name==='finance_transaction_recipients')return{data:{recipients:[recipient],invalidCount:0}};
     if(name==='begin_finance_outlook_creation')return{data:true};
     if(name==='cancel_finance_dispatch'&&options.cancelFails)return{error:{message:'not_owned'}};
-    if(name===options.rpcError)return{error:{message:'test_'+name}};
     if(name==='finalize_finance_billing') {Object.assign(account,{document_status:'issued',pdf_sha256:args.p_pdf_sha256});return{data:{...account}};}
     return{data:null};
   };
@@ -66,16 +73,22 @@ async function harness(options={}) {
       return new Response(await readFile(new URL('../'+asset,import.meta.url)));
     }
     if(url.includes('login.microsoftonline.com'))return Response.json({access_token:'mock'});
-    if(url.includes('?$select=id,name,folder'))return Response.json({id:'01LT7GPE6FW7O7REM6WJBIXX6II2IDYTXM',folder:{}});
-    if(opts.method==='PUT') {pdf=opts.body;if(options.uploadFails)return new Response('test',{status:500});return Response.json({id:'item',webUrl:'https://example.test/pdf'});}
-    if(opts.method==='DELETE')return new Response(null,{status:204});
-    if(url.endsWith('/content'))return new Response(options.storedPdf);
+    if(url.includes('?$select=id,name,folder'))return Response.json({id:options.env?.FINANCE_TEST_FOLDER_ID || '01LT7GPE6FW7O7REM6WJBIXX6II2IDYTXM',folder:{}});
+    if(opts.method==='PUT') {
+      pdf=opts.body;
+      if(options.uploadFails)return new Response('test',{status:options.uploadFails === true ? 500 : options.uploadFails});
+      if(options.existingUpload)return new Response('already exists',{status:409});
+      return Response.json({id:'item',webUrl:'https://example.test/pdf'});
+    }
+    if(options.existingUpload && /\/items\/[^/]+:\//.test(new URL(url).pathname))return Response.json({id:'item',webUrl:'https://example.test/pdf'});
+    if(opts.method==='DELETE')return new Response(null,{status:options.deleteStatus || 204});
+    if(url.endsWith('/content'))return new Response(options.storedPdf || options.existingUpload);
     if(url.includes('/messages?$filter='))return Response.json({value:options.previousDraft?[{id:'old-draft'}]:[]});
     if(url.includes('/messages/')&&url.endsWith('/attachments'))return Response.json({value:draftPayload?.attachments||[{
       '@odata.type':'#microsoft.graph.fileAttachment',name:account.generated_filename||calls.find(c=>c.name==='finalize_finance_billing')?.args.p_filename,
       contentType:'application/pdf',contentBytes:Buffer.from(pdf||options.storedPdf).toString('base64')
     }]});
-    if(url.includes('/messages/'))return Response.json({id:options.previousDraft?'old-draft':'draft',isDraft:true,toRecipients:[{emailAddress:{address:'test@example.test'}}]});
+    if(url.includes('/messages/'))return Response.json({id:options.previousDraft?'old-draft':'draft',isDraft:true,toRecipients:[{emailAddress:{address:recipient}}]});
     if(url.endsWith('/messages') && opts.method==='POST') {
       if(options.mailFails)return new Response('test',{status:500});
       const payload=JSON.parse(opts.body);draftPayload=payload;assert.equal(payload.attachments.length,1);assert.ok(payload.singleValueExtendedProperties[0].value);
@@ -86,8 +99,8 @@ async function harness(options={}) {
     throw new Error('Unexpected outbound call: '+url);
   };
   globalThis.__financeTestDeps = {PDFDocument,rgb,fontkit,bidiFactory,createClient:()=>client,fetch,Response,Request,URLSearchParams,Uint8Array,crypto,TextEncoder,btoa,console,
-    handleInvoiceRevision,updateInvoiceDraft,Deno:{env:{get:k=>({SUPABASE_URL:'https://supabase.test',SUPABASE_ANON_KEY:'test',SUPABASE_SERVICE_ROLE_KEY:'test',MS_TENANT_ID:'test',MS_CLIENT_ID:'test',MS_CLIENT_SECRET:'test',MS_MAIL_SENDER:'test@example.test'})[k]},serve:fn=>{handler=fn;}}};
-  const injected = 'const { PDFDocument, rgb, fontkit, bidiFactory, createClient, fetch, Deno, handleInvoiceRevision, updateInvoiceDraft } = globalThis.__financeTestDeps;\n' + script;
+    handleInvoiceRevision,updateInvoiceDraft,Deno:{env:{get:k=>({SUPABASE_URL:'https://szinlhjuwyiyszdpsdop.supabase.co',SUPABASE_ANON_KEY:'test',SUPABASE_SERVICE_ROLE_KEY:'test',MS_TENANT_ID:'test',MS_CLIENT_ID:'test',MS_CLIENT_SECRET:'test',MS_MAIL_SENDER:'test@example.test',...options.env})[k]},serve:fn=>{handler=fn;}}};
+  const injected = 'const { PDFDocument, rgb, fontkit, bidiFactory, createClient, fetch, Deno, handleInvoiceRevision, updateInvoiceDraft } = globalThis.__financeTestDeps;\n' + (options.script || script);
   await import('data:text/javascript;base64,'+Buffer.from(injected).toString('base64')+'#'+crypto.randomUUID());
   delete globalThis.__financeTestDeps;
   const request = options.preflight
@@ -96,7 +109,7 @@ async function harness(options={}) {
       'access-control-request-method':'POST',
       'access-control-request-headers':'authorization, x-client-info, apikey, content-type'
     } })
-    : new Request('https://function.test',{method:'POST',headers:{authorization:'Bearer mock','x-microsoft-mail-token':'delegated-token'},body:JSON.stringify(options.revisionPreview?{revisionId:'revision',revisionPreview:true}:options.preview?{preview:true,manual:{activity:'a',funder:'g',month:'2026-09-01',draft:{}}} :{accountId:'account',createDraft:true})});
+    : new Request('https://function.test',{method:'POST',headers:{authorization:'Bearer mock','x-microsoft-mail-token':'delegated-token'},body:JSON.stringify(options.revisionPreview?{revisionId:'revision',revisionPreview:true}:options.preview?{preview:true,manual:{activity:'a',funder:'g',month:'2026-09-01',draft:{}}} :{accountId:'account',createDraft:true,deleteAccount:options.deleteAccount})});
   const response=await handler(request);
   return{response,body:options.preflight?await response.text():await response.json(),calls,pdf,account};
 }
@@ -104,7 +117,7 @@ test('full mocked pipeline renders actual PDF, validates SharePoint, finalizes a
   const r=await harness();assert.equal(r.response.status,200,JSON.stringify(r.body));assert.equal(r.body.outlookStatus,'draft_ready');
   const doc=await PDFDocument.load(r.pdf);assert.ok(doc.getPageCount()>0);
   const names=r.calls.filter(c=>c.type==='rpc').map(c=>c.name);
-  assert.ok(names.indexOf('validate_finance_dispatch')<names.indexOf('finalize_finance_billing'));
+  assert.ok(names.indexOf('prepare_finance_dispatch')<names.indexOf('finalize_finance_billing'));
   assert.equal(names.at(-1),'release_finance_dispatch');
   assert.ok(r.calls.filter(c=>c.type==='fetch').every(c=>!c.url.includes('/send')));
 });
@@ -120,7 +133,7 @@ test('workshop and course issuance both finish with a real PDF attached to a ver
   }
 });
 test('server rejects stale reservation before any PDF, SharePoint or Outlook request',async()=>{
-  const r=await harness({rpcError:'validate_finance_dispatch'});assert.equal(r.response.status,400);
+  const r=await harness({rpcError:'prepare_finance_dispatch'});assert.equal(r.response.status,400);
   assert.equal(r.calls.filter(c=>c.type==='fetch').length,0);
   assert.ok(r.calls.some(c=>c.name==='cancel_finance_dispatch'));
 });
@@ -132,12 +145,23 @@ test('unauthorized caller cannot trigger document or Graph access',async()=>{
   const r=await harness({allowed:false});assert.equal(r.response.status,400);
   assert.equal(r.calls.filter(c=>c.type==='fetch').length,0);
 });
-test('upload failure cancels temporary claims; finalization failure removes uploaded orphan',async()=>{
-  const upload=await harness({uploadFails:true});assert.equal(upload.response.status,400);
-  assert.ok(!upload.calls.some(c=>c.name==='finalize_finance_billing'));
-  const final=await harness({rpcError:'finalize_finance_billing'});assert.equal(final.response.status,400);
-  assert.ok(final.calls.some(c=>c.method==='DELETE'));
+test('a confirmed upload rejection releases the reservation, while ambiguous writes preserve it for recovery',async()=>{
+  const rejected=await harness({uploadFails:403});
+  assert.equal(rejected.response.status,400);
+  assert.ok(rejected.calls.some(c=>c.name==='finance_clear_failed_pdf_upload'));
+  assert.ok(rejected.calls.some(c=>c.name==='cancel_finance_dispatch'));
+  const upload=await harness({uploadFails:true});
+  assert.equal(upload.body.error,'finance_pdf_upload_outcome_unknown');
+  assert.ok(!upload.calls.some(c=>c.name==='finalize_finance_billing'||c.name==='cancel_finance_dispatch'));
+  const final=await harness({rpcError:'finalize_finance_billing'});
+  assert.equal(final.body.error,'finance_pdf_upload_outcome_unknown');
+  assert.ok(!final.calls.some(c=>c.method==='DELETE'||c.name==='cancel_finance_dispatch'));
+  const first=await harness();
+  const recovered=await harness({existingUpload:first.pdf});
+  assert.equal(recovered.body.outlookStatus,'draft_ready');
+  assert.ok(recovered.calls.some(c=>c.name==='finalize_finance_billing'));
 });
+
 test('Outlook failure preserves issued document; crash retry recovers existing draft',async()=>{
   const failed=await harness({mailFails:true});assert.equal(failed.body.outlookStatus,'needs_review');
   assert.ok(!failed.calls.some(c=>c.name==='cancel_finance_dispatch'));
@@ -276,7 +300,7 @@ test('the PDF source never prints billing internals and bank details are exact',
   assert.doesNotMatch(rendering,/03-5370368|סניף 611|בנק הפועלים 12, סניף/);
   assert.doesNotMatch(rendering,/\(ע"ר\)/);
   assert.match(rendering,/מחיר לשעה/);
-  assert.match(rendering,/\['שם בית הספר', 'תוכנית \/ קורס', 'רשות', 'סה״כ'\]/);
+  assert.match(rendering,/\['בתי ספר', 'פעילות', 'כמות', 'מחיר לפעילות', 'סה״כ'\]/);
 });
 
 test('generated PDF contains updated invoice contact and both bank separators',async()=>{
@@ -294,7 +318,7 @@ test('generated PDF contains updated invoice contact and both bank separators',a
 test('multi-page course invoice keeps payment section together without repeating addressee',async()=>{
   const lines=Array.from({length:29},(_,i)=>({
     activity_row_id:'COURSE-29-'+i,
-    activity_name_snapshot:'בינה מלאכותית וחדשנות',
+    activity_name_snapshot:'בינה מלאכותית וחדשנות '+i,
     school_name_snapshot:'בית ספר '+(i+1),
     gefen_number_snapshot:'9545',
     billing_rule:'completion',quantity_snapshot:8,billed_hours:12,
@@ -397,7 +421,7 @@ test('revision PDF output is deterministic for safe reconciliation after an unce
   const first=await harness({preview:true,quote:structuredClone(quote)}),second=await harness({preview:true,quote:structuredClone(quote)});assert.equal(first.response.status,200);assert.equal(second.response.status,200);assert.equal(Buffer.compare(Buffer.from(first.body.pdfBase64,'base64'),Buffer.from(second.body.pdfBase64,'base64')),0);
 });
 
-test('non-Gefen sponsor PDF shows school authority course and total only',async()=>{
+test('non-Gefen sponsor PDF shows schools, activities, quantity, unit price and total',async()=>{
   const account={...fixture(),customer_name_snapshot:'רמי שני',total_amount:18000,
     finance_transaction_account_lines:[
       {activity_row_id:'SCHOOL-A',activity_name_snapshot:'ביומימיקרי',school_name_snapshot:'אבן שמואל',
@@ -416,7 +440,7 @@ test('non-Gefen sponsor PDF shows school authority course and total only',async(
   const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');
   // Hebrew glyph runs may be returned one character at a time by pdfjs.
   const normalizedText=text.replace(/\s+/g,'');
-  for(const word of ['אבן שמואל','שפיר','ביומימיקרי','הרצל','רחובות','יישומי AI','10,000.00','8,000.00'])
+  for(const word of ['אבן שמואל','ביומימיקרי','הרצל','יישומי AI','כמות','מחיר לפעילות','10,000.00','8,000.00'])
     assert.ok(normalizedText.includes(word.replace(/\s+/g,'')),word);
   for(const value of ['606.06','533.33','16.5','6089','53819','17.10.2026'])
     assert.ok(!text.includes(value),'non-Gefen invoice must not expose hourly/meeting detail: '+value);
@@ -542,4 +566,101 @@ test('רוקחים עולם PDF shows Gefen 46091 even when the snapshot was mis
   assert.match(compact,/46091/);
   assert.doesNotMatch(compact,/52279/);
   assert.match(compact,/רוקחיםעולם/);
+});
+
+test('deletion stops on SharePoint error and a missing item can complete a retried deletion',async()=>{
+  const fail=await harness({deleteAccount:true,deleteStatus:503});
+  assert.equal(fail.body.error,'finance_pdf_deletion_failed');
+  assert.ok(!fail.calls.some(c=>c.name==='finish_finance_account_deletion'));
+  const retried=await harness({deleteAccount:true,deleteStatus:404});
+  assert.equal(retried.body.deleted,true);
+  assert.ok(retried.calls.findIndex(c=>c.method==='DELETE')<retried.calls.findIndex(c=>c.name==='finish_finance_account_deletion'));
+  const forbidden=await harness({deleteAccount:true,allowed:false});
+  assert.equal(forbidden.body.error,'finance_transactions_permission_denied');
+  assert.ok(!forbidden.calls.some(c=>c.type==='fetch'));
+});
+
+test('sponsor PDF groups schools, keeps partial totals exact and rejects differing contract prices',async()=>{
+  const base={activity_name_snapshot:'סדנת בדיקה',funding_source_id:'sponsor',billing_rule:'completion',funding_amount_snapshot:9000};
+  const lines=[
+    {...base,activity_row_id:'a',school_name_snapshot:'בית ספר אלון',amount:9000},
+    {...base,activity_row_id:'b',school_name_snapshot:'בית ספר רבין',amount:5000}
+  ];
+  const r=await harness({preview:true,quote:{...fixture(),total_amount:14000,finance_transaction_account_lines:lines}});
+  assert.equal(r.response.status,200,JSON.stringify(r.body));
+  const bytes=new Uint8Array(Buffer.from(r.body.pdfBase64,'base64'));
+  const pdf=await getDocument({data:bytes,useSystemFonts:false}).promise;
+  const glyphs=(await(await pdf.getPage(1)).getTextContent()).items.map(item=>item.str||'').join(' ');
+  assert.match(glyphs,/14,000\.00/);
+  assert.doesNotMatch(glyphs,/7,000\.00|9,000\.00/);
+  const different=await harness({preview:true,quote:{...fixture(),total_amount:14000,
+    finance_transaction_account_lines:[lines[0],{...lines[1],funding_amount_snapshot:8000}]}});
+  assert.equal(different.body.error,'different_prices_for_same_activity');
+});
+
+test('long grouped school names continue on a second page and keep totals exact',async()=>{
+  const count=85;
+  const lines=Array.from({length:count},(_,i)=>({
+    activity_row_id:'a'+i,activity_name_snapshot:'סדנת בדיקה',
+    school_name_snapshot:`בית ספר לדוגמה, קמפוס חינוכי ארוך מספר ${100+i}`,
+    funding_source_id:'sponsor',billing_rule:'completion',funding_amount_snapshot:9000,
+    amount:i===0?4500:9000
+  }));
+  const total=lines.reduce((sum,line)=>sum+line.amount,0);
+  const r=await harness({preview:true,quote:{...fixture(),transaction_account_number:'טיוטה',
+    customer_name_snapshot:'מממן לדוגמה',total_amount:total,finance_transaction_account_lines:lines}});
+  assert.equal(r.response.status,200,JSON.stringify(r.body));
+  const bytes=new Uint8Array(Buffer.from(r.body.pdfBase64,'base64'));
+  const pdf=await getDocument({data:bytes,useSystemFonts:false}).promise;
+  assert.ok(pdf.numPages>1);
+  const pages=await Promise.all(Array.from({length:pdf.numPages},async(_,i)=>
+    (await (await pdf.getPage(i+1)).getTextContent()).items.map(item=>item.str||'').join(' ')));
+  assert.ok(pages.some(page=>page.includes('184')));
+  assert.equal(pages.join(' ').match(/760,500\.00/g)?.length,2);
+  if(process.env.FINANCE_EVIDENCE_PDF)await writeFile(process.env.FINANCE_EVIDENCE_PDF,Buffer.from(r.body.pdfBase64,'base64'));
+});
+
+test('measure local PDF preview and mocked dispatch before and after', {
+  skip: process.env.FINANCE_TEST_BENCHMARK !== '1'
+}, async t => {
+  const baseline = stripTypeScriptTypes(execFileSync('git',['show','7a441ca7:supabase/functions/finance-transaction-accounts/index.ts'],{encoding:'utf8'})
+    .replace(/^import .*;\n/gm,''),{mode:'transform'});
+  for (const preview of [true,false]) {
+    const times={before:[],after:[]};
+    for (let i=0;i<6;i++) {
+      for (const [name,version] of [['before',baseline],['after',script]]) {
+        const start=performance.now();
+        const r=await harness({preview,script:version});
+        const duration=performance.now()-start;
+        assert.equal(r.response.status,200,JSON.stringify(r.body));
+        if(i>0)times[name].push(duration);
+        if(i===0) t.diagnostic(`${preview?'Preview':'Dispatch'} ${name}: ${r.calls.filter(c=>c.type==='rpc').length} RPC, ${r.calls.filter(c=>c.url?.startsWith('https://graph.microsoft.com')).length} mocked Graph calls`);
+      }
+    }
+    const summary=Object.entries(times).map(([name,values])=>`${name} ${values.sort((a,b)=>a-b)[2].toFixed(1)} ms median`);
+    t.diagnostic(`${preview?'Preview':'Dispatch with Outlook draft'}: ${summary.join(', ')} (5 samples, isolated runtime)`);
+  }
+});
+
+test('isolated runtime cannot fall through to the production SharePoint folder', async () => {
+  for (const env of [
+    {SUPABASE_URL:'http://127.0.0.1:54321'},
+    {FINANCE_TEST_MODE:'true'},
+    {SUPABASE_URL:'http://127.0.0.1:54321',FINANCE_TEST_MODE:'true',FINANCE_TEST_DRIVE_ID:'test-drive',
+      FINANCE_TEST_FOLDER_ID:'01LT7GPE6FW7O7REM6WJBIXX6II2IDYTXM',FINANCE_TEST_MAILBOX:'finance-test@think.org.il'},
+  ]) {
+    const result = await harness({env});
+    assert.equal(result.body.error,'finance_test_target_invalid');
+    assert.deepEqual(result.calls,[]);
+  }
+});
+
+test('isolated issuance uses only the configured folder and designated Outlook mailbox',async()=>{
+  const env={SUPABASE_URL:'http://127.0.0.1:54321',FINANCE_TEST_MODE:'true',FINANCE_TEST_DRIVE_ID:'test-drive',
+    FINANCE_TEST_FOLDER_ID:'test-folder',FINANCE_TEST_MAILBOX:'idann@think.org.il'};
+  const result=await harness({env,recipient:env.FINANCE_TEST_MAILBOX});
+  assert.equal(result.body.outlookStatus,'draft_ready');
+  assert.ok(result.calls.some(call=>call.method==='PUT' && call.url.includes('/drives/test-drive/items/test-folder:/')));
+  assert.ok(result.calls.some(call=>call.method==='POST' && call.url.endsWith('/me/messages')));
+  assert.ok(!result.calls.some(call=>call.url?.includes('01LT7GPE6FW7O7REM6WJBIXX6II2IDYTXM')));
 });

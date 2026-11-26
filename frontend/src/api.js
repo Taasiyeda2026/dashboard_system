@@ -7417,13 +7417,57 @@ export const api = {
     const {data,error}=await supabase.functions.invoke('finance-transaction-accounts',{body:{revisionId:id,revision},headers});if(error){const server=await error.context?.json?.().catch(()=>null);throw Error(server?.error||error.message);}if(data?.error)throw Error(data.error);
     try{const mail=await api.dispatchFinanceTransactionAccount({accountId:data.accountId},{mailHeaders:headers});return {...data,...mail};}catch{return {...data,outlookStatus:'waiting_connection',documentPreserved:true};}
   },
+  financePendingPdfUploads: async () => {
+    assertPermission('manage_finance_transactions', 'finance_transactions_forbidden');
+    const { data,error } = await supabase.rpc('finance_pending_pdf_uploads');
+    if (error) throw error;
+    return data || [];
+  },
+  deleteFinanceTransactionAccount: async accountId => {
+    const { data, error } = await supabase.functions.invoke('finance-transaction-accounts', {
+      body: { accountId, deleteAccount: true }
+    });
+    if (error) {
+      const server = await error.context?.json?.().catch(() => null);
+      throw new Error(server?.error || 'finance_account_deletion_failed');
+    }
+    if (!data?.deleted) throw new Error('finance_account_deletion_failed');
+    return data;
+  },
+  financeTransactionDrafts: async () => {
+    assertPermission('manage_finance_transactions', 'finance_transactions_forbidden');
+    const { data, error } = await supabase.rpc('finance_transaction_drafts');
+    if (error) throw error;
+    return data || [];
+  },
+  saveFinanceTransactionDraft: async (id, version, payload) => {
+    assertPermission('manage_finance_transactions', 'finance_transactions_forbidden');
+    const { data, error } = await supabase.rpc('finance_save_transaction_draft', {
+      p_id: id, p_version: version, p_payload: payload
+    });
+    if (error) throw error;
+    return data;
+  },
+  deleteFinanceTransactionDraft: async (id, version) => {
+    const { error } = await supabase.rpc('finance_delete_transaction_draft', { p_id: id, p_version: version });
+    if (error) throw error;
+  },
   dispatchFinanceTransactionAccount: async (body = {}, options = {}) => {
     assertPermission('manage_finance_transactions', 'finance_transactions_forbidden');
     // Rolling deployments can briefly serve the preceding Edge version, which
     // requires this flag. The new version always creates drafts automatically.
     const { financeDelegatedHeaders } = await import('./microsoft/finance-invoice-mail.js');
     const headers = options.mailHeaders || await financeDelegatedHeaders(state.user);
-    const { data, error } = await supabase.functions.invoke('finance-transaction-accounts', { body: { ...body, createDraft: true }, headers });
+    const invoke = () => supabase.functions.invoke('finance-transaction-accounts', { body: { ...body, createDraft: true }, headers });
+    let { data, error } = await invoke();
+    if (body.accountId && error) {
+      // Try the identical account once when the transport or the storage
+      // operation did not confirm the result of the first dispatch.
+      const response = await error.context?.clone?.().json().catch(() => null);
+      if (error.name === 'FunctionsFetchError' || response?.error === 'finance_pdf_upload_outcome_unknown') {
+        ({ data, error } = await invoke());
+      }
+    }
     if (error) {
       // FunctionsHttpError otherwise hides the JSON error returned by our Edge function.
       const server = typeof error.context?.json === 'function'
