@@ -53,6 +53,7 @@ export function transactionMaxMonth(data, mode, now = new Date()) {
   return (mode === TRANSACTION_MODE_AUTOMATIC ? transactionGefenCycle(data, now).cutoff : financeCycleCutoff(now)).slice(0,7);
 }
 function monthPicker(data, mode) {
+  if(mode===TRANSACTION_MODE_AUTOMATIC)return `<p data-finance-transaction-period-readonly>תקופת החיוב נקבעת לפי מועדי הפעילות עד ${escapeHtml(formatDate(transactionGefenCycle(data).cutoff))}</p>`;
   return `<label class="ds-fin-collect-search"><span>חודש ביצוע</span>
     <input class="ds-input" type="month" data-finance-transaction-month="${mode}" value="${transactionMonth(data,mode)}" min="${transactionYearStart(data)}" max="${transactionMaxMonth(data,mode)}"></label>`;
 }
@@ -296,7 +297,9 @@ function billingTableHtml(lines, data, mode) {
     const activity=(data.collectionActivities||[]).find(a=>String(a.row_id)===String(group.activityRowId));
     const label=[group.activityName,activity?.grade,activity?.class_group].filter(Boolean).join(' · ');
     const input=(field,title,step)=>`<input class="ds-input ds-fin-gefen-billing-input" type="number" inputmode="decimal" min="${field==='meetings'?'1':'0.000001'}" step="${step}" aria-label="${escapeHtml(title+' · '+label)}" data-gefen-billing-key="${escapeHtml(group.key)}" data-gefen-billing-field="${field}" value="${escapeHtml(String(values[field]))}"${data.financeBusy||data.transactionRunning?' disabled':''}>`;
-    return `<tr data-gefen-billing-row="${escapeHtml(group.key)}"><td><strong>${escapeHtml(label)}</strong></td><td>${input('meetings','מספר מפגשים','1')}</td><td>${input('hours','סה״כ שעות','0.000001')}</td><td>${input('rate','מחיר לשעה','0.000001')}</td><td><strong data-gefen-billing-amount>${escapeHtml(formatAmount(gefenBillingAmount(values)))}</strong></td></tr>`;
+    const dates=group.rows.flatMap(row=>row.unbilledSlots||[]).map(slot=>slot.date).filter(date=>/^\d{4}-\d{2}-\d{2}$/.test(date||'')).sort();
+    const period=dates.length?`<details class="ds-fin-transaction-meetings"><summary>תקופת ביצוע: ${escapeHtml(formatDate(dates[0]))}–${escapeHtml(formatDate(dates.at(-1)))}</summary><div>${dates.map(date=>`<div>${escapeHtml(formatDate(date))}</div>`).join('')}</div></details>`:'';
+    return `<tr data-gefen-billing-row="${escapeHtml(group.key)}"><td><strong>${escapeHtml(label)}</strong>${period}</td><td><span data-gefen-billing-meetings aria-label="מספר מפגשים לפי מועדי הפעילות">${escapeHtml(String(values.meetings))}</span></td><td>${input('hours','סה״כ שעות','0.000001')}</td><td>${input('rate','מחיר לשעה','0.000001')}</td><td><strong data-gefen-billing-amount>${escapeHtml(formatAmount(gefenBillingAmount(values)))}</strong></td></tr>`;
   }).join('')}</tbody></table>`);
   return dsTableWrap(`<table class="ds-table ds-fin-transaction-table" dir="rtl"><thead><tr>
     <th>פעילות ${groupSelectAllHtml(lines,data,mode)}</th><th>מחיר הפעילות</th><th>${escapeHtml(progressHeading(lines))}</th><th>שעות</th><th>סכום לחיוב</th>
