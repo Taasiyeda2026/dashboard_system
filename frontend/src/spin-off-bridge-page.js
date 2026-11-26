@@ -19,7 +19,7 @@ function validOpener() {
   if (location.origin === SPIN_OFF_ORIGIN) {
     try {
       const path = window.opener.location.pathname;
-      return /^\/spin-off\/challenge\/(?:groupchallenge\.html|challenges\.html|ar\/challenges\.html)$/.test(path);
+      return path === '/spin-off/poster.html' || /^\/spin-off\/challenge\/(?:groupchallenge\.html|challenges\.html|ar\/challenges\.html)$/.test(path);
     } catch { return false; }
   }
   return true; // Both origins must be loopback to reach this branch.
@@ -28,7 +28,7 @@ function validOpener() {
 async function connect() {
   retry.hidden = true;
   if (!validOpener()) {
-    status.textContent = 'יש לפתוח את ההתחברות באמצעות כפתור חברי הצוות באתר SPIN-OFF.';
+    status.textContent = 'יש לפתוח את ההתחברות מתוך ממשק SPIN-OFF.';
     return;
   }
   try {

@@ -46,3 +46,8 @@ test('bridge only postMessages access token to exact origin, no refresh tokens',
   const sw=readFileSync(new URL('../frontend/sw.js',import.meta.url),'utf8');
   assert.match(sw,/spin-off-bridge\.html/);
 });
+test('poster page is explicitly allowed without widening the challenge path allowlist', () => {
+  const page=readFileSync(new URL('../frontend/src/spin-off-bridge-page.js',import.meta.url),'utf8');
+  assert.ok(page.includes("path === '/spin-off/poster.html'"));
+  assert.ok(page.includes('groupchallenge'));
+});
