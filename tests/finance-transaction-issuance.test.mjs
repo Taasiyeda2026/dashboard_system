@@ -395,3 +395,10 @@ test('read-only history filters by school, payer, number, period and status with
     assert.doesNotMatch(view,/Pl181|Pl182|data-invoice-revision-open|data-finance-account-delete|data-finance-transaction-run/);
   }
 });
+
+test('Gefen account heading includes authority, school and institution symbol',()=>{
+  const d=data([row({schoolName:'בכור לוי',customerName:'בכור לוי',institutionSymbol:'413351'})],{collectionActivities:[{row_id:'a',school:'בכור לוי',authority:'רחובות'}]});
+  const dom=new JSDOM(html(d));
+  assert.equal(dom.window.document.querySelector('.ds-fin-payer__title').textContent,'רחובות · בכור לוי · 413351');
+  dom.window.close();
+});
