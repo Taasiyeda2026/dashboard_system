@@ -134,6 +134,7 @@ export async function computeAgentSchedulingPlan({
   routeClient,
   signal,
   checkpoint,
+  resumeRows = [],
   onProgress
 } = {}) {
   const metadata = verifyAgentPlanningInput({
@@ -151,15 +152,24 @@ export async function computeAgentSchedulingPlan({
   // or unknown targets (the engine must continue to reject those).
   const heldCourseIds = new Set(intents.rows.map(row => String(row.courseId)));
   const runnableTargetCourseIds = metadata.targetCourseIds.filter(id => !heldCourseIds.has(id));
+  const activityIds = new Set(intents.snapshot.activities.map(activity => String(activity.row_id)));
+  const resumed = mode === 'full' ? resumeRows.filter(row =>
+    activityIds.has(row.courseId) && row.instructorEmpId && ['proposal','fixed-proposal'].includes(row.kind)
+  ) : [];
+  const resumedIds = new Set(resumed.map(row => row.courseId));
+  const existingRows = [...(intents.snapshot.existingRows || []).filter(row => !resumedIds.has(row.courseId)), ...resumed];
   const result = await buildDynamicCoursePlan({
     ...intents.snapshot,
     periodKey: 'year',
     district: '',
     routeClient,
     signal,
-    checkpoint: checkpoint || createPlanningCheckpoint({signal}),
+    checkpoint: checkpoint || createPlanningCheckpoint({signal, yieldControl: () => new Promise(resolve => setImmediate(resolve))}),
     onProgress,
     _nationalRun: mode === 'full',
+    existingRows,
+    resumeFromCheckpoint: resumed.length > 0,
+    resumeActivityIds: [...resumedIds],
     targetCourseIds: mode === 'full' ? null : runnableTargetCourseIds,
     allowGlobalRepair: mode === 'full'
   });
@@ -182,7 +192,8 @@ export async function computeAgentSchedulingPlan({
       finalPlanValid: true,
       rowCount: result.rows.length,
       optimization: result.optimization ?? null,
-      recruitment: result.recruitment ?? null
+      recruitment: result.recruitment ?? null,
+      metrics: result.newEngineMetrics
     }
   };
 }

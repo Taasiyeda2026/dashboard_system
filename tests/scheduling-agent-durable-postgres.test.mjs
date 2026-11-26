@@ -260,5 +260,83 @@ test('durable queue on isolated PostgreSQL', {skip:!url},async t=>{
    const grants=await query("select has_function_privilege('authenticated','scheduling_agent_wakeup_command(text,jsonb)','execute') allowed");
    assert.equal(grants.rows[0].allowed,false);
   });
+  await t.test('current incremental job receives an atomic no-op receipt before taking a lease',async()=>{
+   await reset();
+   await query("create table public.scheduling_travel_cache(origin_key text,destination_key text,location_suspect boolean,expires_at timestamptz,distance_km numeric,duration_minutes numeric)");
+   await query(read('../supabase/migrations/20261126111844_scheduling_worker_current_plan_fast_path.sql'));
+   const id=await enqueue(), runId=randomUUID();
+   const lock=await pool.connect();
+   try {
+    await lock.query('begin');
+    await lock.query("select pg_advisory_xact_lock(hashtext('scheduling_planning_run'),hashtext('year|'))");
+    const blocked=await Promise.race([
+     command('claim',{runId}),new Promise(resolve=>setTimeout(resolve,500,'claim_waited').unref())
+    ]);
+    assert.deepEqual(blocked,{claimed:false,busy:true});
+   } finally {
+    await lock.query('rollback');
+    lock.release();
+   }
+   const concurrent=await Promise.all([command('claim',{runId}),command('claim',{runId})]);
+   const receipt=concurrent.find(result=>result.noOp);
+   assert.equal(concurrent.filter(result=>result.noOp).length,1);
+   assert.equal(receipt.status,'completed');
+   assert.equal(receipt.jobId,id);
+   assert.equal(receipt.revision,1);
+   assert.equal((await query('select count(*)::int n from scheduling_planning_run_leases')).rows[0].n,0);
+   assert.equal((await query('select count(*)::int n from fixture_saves')).rows[0].n,0);
+   assert.deepEqual((await query('select result_receipt from scheduling_agent_team_optimization_jobs where id=$1',[id])).rows[0].result_receipt,receipt);
+   await assert.rejects(command('claim',{},'authenticated'),/worker_machine_identity_required/);
+   await query(`insert into public.scheduling_travel_cache(origin_key,destination_key,location_suspect,expires_at) values
+    ('home','school',false,now()+interval '1 hour'),('school','home',false,now()+interval '1 hour'),
+    ('school','other school',false,now()+interval '1 hour'),('school','unused',false,now()+interval '1 hour'),
+    ('home','other school',true,now()+interval '1 hour'),('other school','home',false,now()-interval '1 hour')`);
+   const routes=await query("select public.get_scheduling_worker_routes(array['school','other school'],array['home'],now()) rows");
+   assert.deepEqual(routes.rows[0].rows.map(r=>[r.origin_key,r.destination_key]),
+     [['home','school'],['school','home'],['school','other school']]);
+   assert.equal((await query("select has_function_privilege('authenticated','public.get_scheduling_worker_routes(text[],text[],timestamptz,text,text)','execute') allowed")).rows[0].allowed,false);
+   const retryId=await enqueue();
+   await query("update fixture_validation set dirty_count=1");
+   const running=await claimed();
+   assert.equal(running.jobId,retryId);
+   await query("update scheduling_agent_team_optimization_jobs set worker_heartbeat_at=clock_timestamp()-interval '3 minutes' where id=$1",[retryId]);
+   await query("update scheduling_planning_run_leases set expires_at=clock_timestamp()-interval '1 second' where run_id=$1",[running.runId]);
+   await query("select scheduling_agent_recover_jobs()");
+   assert.equal((await query("select status from scheduling_agent_team_optimization_jobs where id=$1",[retryId])).rows[0].status,'queued');
+  });
+
+  await t.test('worker checkpoint actions fence writes and scope resume to the durable job and planning day',async()=>{
+   await reset();
+   await query(`
+    create table fixture_checkpoints (fingerprint text primary key, rows jsonb);
+    create function public.assert_scheduling_planning_run_ownership(text,text,uuid,bigint,bigint)
+    returns void language plpgsql as $$begin
+     if not exists(select 1 from scheduling_planning_run_leases where run_id=$3
+       and owner_id=auth.uid() and expires_at>clock_timestamp()) then raise exception 'planning_run_ownership_lost'; end if;
+     if $4<>(select revision from scheduling_planning_workspaces) then raise exception 'planning_revision_conflict'; end if;
+     if $5<>(select revision from scheduling_planning_source_state) then raise exception 'planning_source_revision_conflict'; end if;
+    end$$;
+    create function public.get_scheduling_planning_checkpoint(text,text,text,text,text) returns jsonb
+    language sql as $$select jsonb_build_object('rows',rows) from fixture_checkpoints where fingerprint=$4$$;
+    create function public.save_scheduling_planning_checkpoint(text,text,text,text,text,integer,integer,jsonb,jsonb,uuid,bigint)
+    returns jsonb language sql as $$insert into fixture_checkpoints values($4,$9) returning jsonb_build_object('saved',true)$$;
+   `);
+   const insertFull=()=>query("insert into scheduling_agent_team_optimization_jobs(created_by,mode) values($1,'full')",[owner]);
+   await insertFull();
+   const running=await claimed();
+   const identity={...running,sourceRevision:'7',workspaceRevision:'1',
+    dataFingerprint:'data',contextFingerprint:'context',planningDate:'2026-11-26'};
+   const rows=[{courseId:'synthetic',kind:'proposal',instructorEmpId:'synthetic-instructor'}];
+   assert.equal(await command('load_checkpoint',identity),null);
+   assert.equal((await command('save_checkpoint',{...identity,total:175,rows})).saved,true);
+   assert.deepEqual(await command('load_checkpoint',identity),rows);
+   assert.equal(await command('load_checkpoint',{...identity,planningDate:'2026-11-27'}),null);
+   await assert.rejects(command('load_checkpoint',{...identity,sourceRevision:'8'}),/planning_source_revision_conflict/);
+   await command('finish',{...running,failureCode:'terminal'});
+   await command('release',running);
+   await insertFull();
+   assert.equal(await command('load_checkpoint',{...identity,...await claimed()}),null);
+  });
+
  }finally{await pool.end();await admin.query('drop database '+db);await admin.end();}
 });

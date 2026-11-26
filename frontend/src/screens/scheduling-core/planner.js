@@ -79,7 +79,7 @@ function scoring(context, occupancy, a, option) {
   return { ...option, ...scored, idleGapMinutes, eligible: true, instructor: context.byInstructor.get(empId), routeVerified: true,
     instructorName: context.byInstructor.get(empId)?.full_name || '', operationalMetrics: { ...scored } };
 }
-function* schedules(context, a, empId, spec, input, previous, occupancy) {
+async function* schedules(context, a, empId, spec, input, previous, occupancy, checkpoint, generatedSchedules) {
   const official = officialMeetings(a);
   if (official.length) { yield official; return; }
   // A source start date/time is a fixed school anchor even if date_1 is absent.
@@ -99,13 +99,14 @@ function* schedules(context, a, empId, spec, input, previous, occupancy) {
     yield previous.meetings;
     if(previous.instructorEmpId===empId){const blocks=classifyMeetingAvailabilityBlocks({meetings:previous.meetings,rules:input.rules?.[empId]||[],exceptions:input.exceptions?.[empId]||[]});
       if(blocks.instructorExceptionCount>0&&blocks.recoverable){const shifted=[];let nextAllowed=previous.meetings[0].date,changed=false;
-        for(const m of previous.meetings){let date=m.date<nextAllowed?nextAllowed:m.date;while(date<=end&&meetingFailures(context,a,empId,{...m,date}).length)date=addDays(date,7);
+        for(const m of previous.meetings){await checkpoint();let date=m.date<nextAllowed?nextAllowed:m.date;while(date<=end&&meetingFailures(context,a,empId,{...m,date}).length)date=addDays(date,7);
           if(date>end){shifted.length=0;break;}changed ||= date!==m.date;shifted.push({...m,date});nextAllowed=addDays(date,7);
         }if(changed&&shifted.length===spec.sessions&&(!a.start_date||shifted[0].date===text(a.start_date).slice(0,10)))yield shifted;
       }
     }
   }
   for (let date = start; date <= latestStart; date = addDays(date, 1)) {
+    await checkpoint();
     const day = weekday(date), dayRules = context.exceptions.get(empId)?.get(date) || context.rules.get(empId)?.get(day) || [];
     if (day === 5 && context.profiles[empId]?.friday_allowed !== true) continue;
     if (day === 6 && !['arab', 'druze'].includes(a.calendar_sector)) continue;
@@ -116,29 +117,42 @@ function* schedules(context, a, empId, spec, input, previous, occupancy) {
       const adjacency = nearby.flatMap(m=>{const route=m.schoolId===text(a.school_id)?{distance_km:0,duration_minutes:0}:knownRoute(context,a.school_address,m.address);if(!route)return[];const buffer=m.schoolId===text(a.school_id)?0:(+route.distance_km<=5?5:15);return [Math.floor((m.start-spec.durationMinutes-(+route.duration_minutes)-buffer)/30)*30,Math.ceil((m.end+(+route.duration_minutes)+buffer)/30)*30];});
       const times=[...new Set([...adjacency.filter(t=>t>=from&&t<=to),...Array.from({length:Number.isFinite(from)&&Number.isFinite(to)&&to>=from?Math.floor((to-from)/30)+1:0},(_,i)=>from+i*30)])];
       for (const time of times) {
+        await checkpoint();
+        const startTime = stamp(time), endTime = stamp(time + spec.durationMinutes);
         const meetings = []; let next = date;
         while (meetings.length < spec.sessions && next <= end) {
-          const meeting = { date: next, meeting_no: meetings.length + 1, start_time: stamp(time), end_time: stamp(time + spec.durationMinutes) };
+          const meeting = { date: next, meeting_no: meetings.length + 1, start_time: startTime, end_time: endTime };
           // Flexible dates may skip school holidays and unavailable days, but
           // no official date is ever shifted by this generation path.
           if (!meetingFailures(context, a, empId, meeting).length) meetings.push(meeting);
           next = addDays(next, 7);
         }
-        if (meetings.length === spec.sessions && (!a.start_date || meetings[0].date === text(a.start_date).slice(0,10))) yield meetings;
+        if (meetings.length !== spec.sessions || (a.start_date && meetings[0].date !== text(a.start_date).slice(0,10))) continue;
+        // Generated series are immutable and often identical across instructors
+        // and schools. Retain one array per series in this frozen run.
+        const key = `${startTime}|${endTime}|${meetings.map(meeting => meeting.date).join('|')}`;
+        const existing = generatedSchedules.get(key);
+        if (existing) yield existing;
+        else {
+          if (generatedSchedules.size < 32_768) generatedSchedules.set(key, meetings);
+          yield meetings;
+        }
       }
     }
   }
 }
 export async function buildPlan(input = {}) {
   planningPerfCount("scheduleCalls");
-  const started = performance.now(), metrics = { candidateChecks: 0, generatedSchedules: 0, activitiesComputed: 0, protectedRows: 0, contextMs: 0, validationMs: 0, optimizationMs: 0 };
+  const started = performance.now(), metrics = { candidateChecks: 0, generatedSchedules: 0, activitiesComputed: 0, protectedRows: 0, contextRebuilds: 0, contextMs: 0, validationMs: 0, optimizationMs: 0 };
   const checkpoint = async () => { if (input.signal?.aborted) throw schedulingError('planning_cancelled'); await input.checkpoint?.(); };
   const report = async (phase, completed = 0, total = 0, courseId = '', row = null, snapshotRows = null) => { await checkpoint(); await input.onProgress?.({ phase, completed, total, courseId, row, snapshotRows }); };
   await report('הכנת הקשר מנוע חדש');
+  if (!input.constraintContext) { metrics.contextRebuilds++; planningPerfCount("contextRebuilds"); }
   const context = input.constraintContext || compileConstraints(input), targets = input.requiredActivities || planningActivities(input), ids = new Set(targets.map(activityId));
   const affected = input.targetCourseIds == null ? ids : new Set([...input.targetCourseIds,...(input.upgradeOptimizationScopes?.recruitmentRecoveryCourseIds || [])].map(text));
   if ([...affected].some(id => !ids.has(id))) throw schedulingError('planning_scope_conflict');
   if (input.targetCourseIds != null && input.allowGlobalRepair === true && !(input._nationalRun === true && input.resumeFromCheckpoint === true)) throw schedulingError('planning_scope_conflict');
+  const resumeIds = new Set(input.resumeActivityIds || []);
   const previous = new Map((input.existingRows || []).map(r => [r.courseId, r])), rows = new Map(), anchors = [];
   for (const a of input.activities || []) {
     const id = activityId(a);
@@ -154,7 +168,7 @@ export async function buildPlan(input = {}) {
       const row = { ...rowFor(a, lock.meetings), ...lock, kind: 'planning-locked', status: 'נקבע בתכנון', planningLocked: true };
       rows.set(id, row); anchors.push(row); continue;
     }
-    if (!affected.has(id) && previous.has(id)) {
+    if ((!affected.has(id) || resumeIds.has(id)) && previous.has(id)) {
       const row = previous.get(id);
       // Keep the stored proposal visible for identity/incremental save, but never
       // treat a dirty unprotected proposal as a lawful occupancy or certified assignment.
@@ -165,7 +179,11 @@ export async function buildPlan(input = {}) {
   }
   const occupancy = createOccupancy(context, anchors), queue = targets.filter(a => affected.has(activityId(a)) && !rows.has(activityId(a)));
   metrics.contextMs = performance.now() - started;
-  const baselineOptions = new Map(), baselineInfo = new Map(), candidatePools = new Map();
+  const baselineOptions = new Map(), scarceAlternatives = new Map(), candidatePools = new Map();
+  const anchorOccupancy = createOccupancy(context, anchors);
+  const generatedSchedules = new Map();
+  const officialById = new Map(queue.map(a => [activityId(a), officialMeetings(a)]));
+  const activeInstructors = [...context.byInstructor].filter(([, instructor]) => activeInstructor(instructor));
   const availability = availabilityByInstructor(context,input.periodKey || 'year');
   const quality = values => operationalQuality(values,input,context,availability);
   const incumbentExceptionInstructor=new Map(), incumbentExceptionIneligible=new Map();
@@ -174,29 +192,26 @@ export async function buildPlan(input = {}) {
   async function generatePool(a,scheduleState=null,occupancyRows=null) {
     // occupancyRows lets augmenting search build raw schedules against immovable
     // barriers only; movable flexible proposals stay displacement candidates.
-    const state = createOccupancy(context,occupancyRows||anchors);
+    const state = occupancyRows ? createOccupancy(context, occupancyRows) : anchorOccupancy;
     const id = activityId(a), spec = courseSpec(a, input), found = [], failures = new Set(); let incomplete = false;
+    const official = officialById.get(id) || officialMeetings(a);
     const missingData=staticFailures(context,a,'').filter(r=>['missing_school_data','missing_language'].includes(r));
     if(missingData.length)return {options:[],incomplete:false,missing:true,failures:missingData};
-    if (officialMeetings(a).some(m => !Number.isFinite(minute(m.start_time)) || !Number.isFinite(minute(m.end_time)) || minute(m.end_time)<=minute(m.start_time))) return {options:[],incomplete:false,missing:true,failures:['source_time_conflict']};
-    if (officialMeetings(a).some(m => meetingFailures(context,a,'',m).some(reason => ['calendar_block','calendar_end_time','saturday_sector'].includes(reason)))) return { options: [], incomplete: false, missing: true, failures: ['source_date_conflict'] };
-    if (a.start_time && a.end_time && minute(a.end_time)-minute(a.start_time) !== spec.durationMinutes && !officialMeetings(a).length) return {options:[],incomplete:false,missing:true,failures:['source_duration_conflict']};
+    if (official.some(m => !Number.isFinite(minute(m.start_time)) || !Number.isFinite(minute(m.end_time)) || minute(m.end_time)<=minute(m.start_time))) return {options:[],incomplete:false,missing:true,failures:['source_time_conflict']};
+    if (official.some(m => meetingFailures(context,a,'',m).some(reason => ['calendar_block','calendar_end_time','saturday_sector'].includes(reason)))) return { options: [], incomplete: false, missing: true, failures: ['source_date_conflict'] };
+    if (a.start_time && a.end_time && minute(a.end_time)-minute(a.start_time) !== spec.durationMinutes && !official.length) return {options:[],incomplete:false,missing:true,failures:['source_duration_conflict']};
     if (!spec.complete) return { options: [], incomplete: false, missing: true, failures: ['missing_course_spec'] };
     // Only active instructors can receive new proposals. Keep inactive people
     // in the context for historical/protected assignments and validation.
     // Home-to-school verified road distance is a proximity ranking, not a hard
     // geographic partition: unknown routes remain eligible for route lookup.
-    const nearbyInstructors = [...context.byInstructor]
-      .filter(([, instructor]) => activeInstructor(instructor))
-      .sort(([leftId, left], [rightId, right]) => {
-        const leftRoute = knownRoute(context, left.address, a.school_address);
-        const rightRoute = knownRoute(context, right.address, a.school_address);
-        const leftDistance = leftRoute ? Number(leftRoute.distance_km) : Infinity;
-        const rightDistance = rightRoute ? Number(rightRoute.distance_km) : Infinity;
-        return leftDistance - rightDistance || leftId.localeCompare(rightId);
-      });
+    const nearbyInstructors = activeInstructors
+      .map(([id, instructor]) => ({
+        id, instructor, distance: Number(knownRoute(context, instructor.address, a.school_address)?.distance_km ?? Infinity)
+      }))
+      .sort((left, right) => left.distance - right.distance || left.id.localeCompare(right.id));
     if (!nearbyInstructors.length && context.byInstructor.size) failures.add('inactive_instructor');
-    for (const [empId, instructor] of nearbyInstructors) {
+    for (const {id: empId, instructor} of nearbyInstructors) {
       if(incumbentExceptionInstructor.has(id)&&incumbentExceptionInstructor.get(id)!==empId)continue;
       if(incumbentExceptionIneligible.get(id)===empId)continue;
       if ((input.optimizationOnlyCourseIds || []).includes(id) && previous.get(id)?.instructorEmpId !== empId) continue;
@@ -206,9 +221,9 @@ export async function buildPlan(input = {}) {
       if (!knownRoute(context, instructor.address, a.school_address)) await ensureRoute(context, instructor.address, a.school_address);
       const rejected = staticFailures(context, a, empId); if (rejected.length) { planningPerfCount('staticCandidatePruned'); rejected.forEach(r => failures.add(r)); continue; }
       let attempted = 0;
-      for (const meetings of schedules(context, a, empId, spec, input, previous.get(id), scheduleState||state)) {
+      for await (const meetings of schedules(context, a, empId, spec, input, previous.get(id), scheduleState||state, checkpoint, generatedSchedules)) {
         if (++attempted > limit) { incomplete = true; break; }
-        if(!officialMeetings(a).length && meetings.length!==spec.sessions)continue;
+        if(!official.length && meetings.length!==spec.sessions)continue;
         metrics.generatedSchedules++; planningPerfCount("scenarioCount"); await checkpoint();
         if ((input.optimizationOnlyCourseIds || []).includes(id) && JSON.stringify(meetings.map(m=>m.date))!==JSON.stringify((previous.get(id)?.meetings || []).map(m=>m.date))) continue;
         const option = { instructorEmpId: empId, meetings, startDate: meetings[0].date, endDate: meetings.at(-1).date, startTime: meetings[0].start_time, endTime: meetings[0].end_time };
@@ -231,9 +246,20 @@ export async function buildPlan(input = {}) {
     }return {newDays,waiting,sameSchool};
   }
   const overlapOptions=(a,b)=>a.instructorEmpId===b.instructorEmpId&&a.meetings.some(m=>b.meetings.some(n=>m.date===n.date&&minute(m.start_time)<minute(n.end_time)&&minute(m.end_time)>minute(n.start_time)));
-  function opportunityCost(a,option){let cost=0;for(const [id,alternatives] of baselineOptions){if(id===activityId(a)||rows.has(id)||!alternatives.length)continue;const count=new Set(alternatives.map(o=>o.instructorEmpId)).size;if(count>2)continue;
-      cost+=alternatives.filter(other=>overlapOptions(option,other)).length/alternatives.length;
-    }return cost;}
+  async function opportunityCost(a, option) {
+    let cost = 0;
+    const ownId = activityId(a);
+    for (const entry of scarceAlternatives.get(option.instructorEmpId) || []) {
+      if (entry.id === ownId || rows.has(entry.id)) continue;
+      let overlapping = 0;
+      for (const other of entry.alternatives) {
+        await checkpoint();
+        if (overlapOptions(option, other)) overlapping++;
+      }
+      cost += overlapping / entry.total;
+    }
+    return cost;
+  }
   const comparePlacement=(a,b)=>a.blockers-b.blockers||a.placement.newDays-b.placement.newDays||a.placement.waiting-b.placement.waiting||b.placement.sameSchool-a.placement.sameSchool||a.option.startDate.localeCompare(b.option.startDate)||a.option.startTime.localeCompare(b.option.startTime)||a.option.instructorEmpId.localeCompare(b.option.instructorEmpId);
   function shortlist(a,options,state,count=4){const ranked=options.map(option=>({option,blockers:0,placement:placement(a,option,state)})).sort(comparePlacement),counts=new Map(),kept=[];
     for(const {option} of ranked){const n=counts.get(option.instructorEmpId)||0;if(n<count){kept.push(option);counts.set(option.instructorEmpId,n+1);}}return kept;
@@ -244,8 +270,10 @@ export async function buildPlan(input = {}) {
     const collect=async raws=>{for(const raw of raws){await checkpoint();await ensureCandidateRoutes(context,state,a,raw);const issues=candidateFailures(context,state,a,raw);
       if(issues.length){issues.forEach(f=>failures.add(f.reason));continue;}options.push(raw);
     }};
-    await collect(pool.options);
-    if(!baseOnly&&!officialMeetings(a).length&&(!options.length||!options.some(o=>placement(a,o,state).sameSchool>0))){
+    // The pool already passed all hard constraints against the same anchors.
+    if (baseOnly && completed === 0) for (const option of pool.options) options.push(option);
+    else await collect(pool.options);
+    if(!baseOnly&&!officialById.get(id)?.length&&(!options.length||!options.some(o=>placement(a,o,state).sameSchool>0))){
       // Temporal adjacency changes when another course is accepted. Cached
       // constraints remain valid, but cached time choices are not exhaustive.
       // Refresh only this flexible activity, never the national snapshot.
@@ -253,7 +281,7 @@ export async function buildPlan(input = {}) {
       pool={...pool,options:[...pool.options,...fresh],incomplete:pool.incomplete||extra.incomplete};candidatePools.set(id,pool);await collect(fresh);
     }
     const finalists=baseOnly?options:shortlist(a,options,state,8).map(raw=>scoring(context,state,a,raw));
-    if(!baseOnly)for(const option of finalists)option.opportunityCost=opportunityCost(a,option);
+    if(!baseOnly)for(const option of finalists)option.opportunityCost=await opportunityCost(a,option);
     finalists.sort(baseOnly?(a,b)=>a.instructorEmpId.localeCompare(b.instructorEmpId):(a,b)=>a.opportunityCost-b.opportunityCost||compareCandidatesStable(a,b));
     return {...pool,options:finalists,failures:[...failures]};
   }
@@ -269,9 +297,9 @@ export async function buildPlan(input = {}) {
       diagnostics: { searchIncomplete: result.incomplete, recruitmentCertified: !result.missing && !result.incomplete, rejectionReasons: result.failures } };
     if (row.kind === 'recruitment' && !row.meetings.length) {
       const profile = {gender: ['male','female'].includes(a.required_instructor_gender) ? a.required_instructor_gender : 'female', instruction_languages:[a.instruction_language],friday_allowed:false};
-      const hypothetical = {...context,profiles:{...context.profiles,__recruitment:profile},rules:new Map(context.rules),exceptions:new Map(context.exceptions)};
+      const hypothetical = {...context,meetingPolicyCache:new Map(),profiles:{...context.profiles,__recruitment:profile},rules:new Map(context.rules),exceptions:new Map(context.exceptions)};
       hypothetical.rules.set('__recruitment',new Map(Array.from({length:5},(_,day)=>[day,[{weekday:day,available:true,start_time:'08:00',end_time:'16:00'}]])));
-      const choices=[];for(const meetings of schedules(hypothetical,a,'__recruitment',courseSpec(a,input),input,null)){choices.push({meetings,startDate:meetings[0].date,endDate:meetings.at(-1).date,startTime:meetings[0].start_time,endTime:meetings[0].end_time});if(choices.length>=16)break;}
+      const choices=[];for await(const meetings of schedules(hypothetical,a,'__recruitment',courseSpec(a,input),input,null,null,checkpoint,generatedSchedules)){choices.push({meetings,startDate:meetings[0].date,endDate:meetings.at(-1).date,startTime:meetings[0].start_time,endTime:meetings[0].end_time});if(choices.length>=16)break;}
       if(choices.length){Object.assign(row,choices[0],{scheduleOptions:choices,diagnostics:{...row.diagnostics,hypotheticalRecruitmentSchedule:true}});}
       else {row.kind='missing';row.status='נדרש בירור מועדים';row.diagnostics.recruitmentCertified=false;}
     }
@@ -298,27 +326,40 @@ export async function buildPlan(input = {}) {
   // without ordering allowed flexible courses to consume scarce instructors.
   // Prepare one regional batch at a time; never precompute the entire country.
   async function* orderedRegionalBlocks() {
+    let scanned = 0;
     for (const stage of [0, 1, 2]) {
       const stageBlocks = stagedBlocks.filter(entry => entry.stage === stage);
       if (!stageBlocks.length) continue;
       await report(['תכנון צפון — אילוצים ארציים', 'תכנון דרום — אילוצים ארציים', 'תכנון מרכז וגבולות — אילוצים ארציים'][stage], completed, queue.length);
+      const instructorCountByActivity = new Map();
       for (const { block } of stageBlocks) for (const { course: activity } of block.results) {
         const id = activityId(activity);
         if (baselineOptions.has(id)) continue;
         const result = await candidates(activity, occupancy, true);
         baselineOptions.set(id, result.options);
-        baselineInfo.set(id, result);
+        scanned++;
+        if (scanned % 5 === 0 || scanned === queue.length) {
+          await report('סריקת חלופות — מנוע חדש', scanned, queue.length);
+        }
+        const byInstructor = new Map();
+        for (const option of result.options) {
+          const alternatives = byInstructor.get(option.instructorEmpId) || [];
+          alternatives.push(option);
+          byInstructor.set(option.instructorEmpId, alternatives);
+        }
+        instructorCountByActivity.set(id, byInstructor.size);
+        if (byInstructor.size <= 2) for (const [empId, alternatives] of byInstructor) {
+          const entries = scarceAlternatives.get(empId) || [];
+          entries.push({id, alternatives, total: result.options.length});
+          scarceAlternatives.set(empId, entries);
+        }
       }
-      const priority = ({ block }) => {
-        const activities = block.results.map(item => item.course);
-        const scarcity = Math.min(...activities.map(activity => new Set((baselineOptions.get(activityId(activity)) || []).map(option => option.instructorEmpId)).size));
-        const urgent = Math.min(...activities.map(activity => urgencyOrder[urgency.get(activityId(activity)).urgencyBand] ?? 3));
-        return { scarcity, urgent };
-      };
-      stageBlocks.sort((left, right) => {
-        const a = priority(left), b = priority(right);
-        return a.urgent - b.urgent || a.scarcity - b.scarcity || left.index - right.index;
-      });
+      for (const entry of stageBlocks) {
+        const ids = entry.block.results.map(item => activityId(item.course));
+        entry.scarcity = Math.min(...ids.map(id => instructorCountByActivity.get(id)));
+        entry.urgent = Math.min(...ids.map(id => urgencyOrder[urgency.get(id).urgencyBand] ?? 3));
+      }
+      stageBlocks.sort((a,b) => a.urgent - b.urgent || a.scarcity - b.scarcity || a.index - b.index);
       for (const entry of stageBlocks) yield entry;
     }
   }
@@ -329,6 +370,7 @@ export async function buildPlan(input = {}) {
       const common = activities.map(a => new Set(baselineOptions.get(activityId(a)).map(o => o.instructorEmpId))).reduce((a, b) => new Set([...a].filter(id => b.has(id))));
       const choices = [];
       for (const empId of common) {
+        await checkpoint();
         const state = createOccupancy(context, [...anchors, ...rows.values()]), simulation = []; let valid = true;
         for (const a of activities) {
           const option = baselineOptions.get(activityId(a)).find(o => o.instructorEmpId === empId);
@@ -337,7 +379,10 @@ export async function buildPlan(input = {}) {
         }
         if (valid) choices.push({ simulation, representative: simulation.reduce((best, item) => best || item.scored, null), score: simulation.reduce((sum, item) => sum + item.scored.score, 0) });
       }
-      for(const choice of choices)choice.opportunityCost=choice.simulation.reduce((sum,item)=>sum+opportunityCost(item.a,item.scored),0);
+      for (const choice of choices) {
+        choice.opportunityCost = 0;
+        for (const {a, scored} of choice.simulation) choice.opportunityCost += await opportunityCost(a, scored);
+      }
       choices.sort((a, b) => a.opportunityCost-b.opportunityCost || compareCandidatesStable(a.representative, b.representative) || b.score - a.score);
       if (choices.length) { for (const { a, scored } of choices[0].simulation) await accept(a, { options: [scored] }, scored); acceptedBlock = true; }
     }
@@ -483,9 +528,11 @@ export async function buildPlan(input = {}) {
   // re-scored against final occupancy so the UI never shows a stale score.
   {
     const finalState=createOccupancy(context,base);
-    base=base.map(row=>{
-      if(!['proposal','fixed-proposal'].includes(row.kind)||!row.instructorEmpId)return row;
-      const a=context.byActivity.get(row.courseId);if(!a)return row;
+    const rescored = [];
+    for (const row of base) {
+      await checkpoint();
+      if (!['proposal','fixed-proposal'].includes(row.kind) || !row.instructorEmpId) { rescored.push(row); continue; }
+      const a=context.byActivity.get(row.courseId);if (!a) { rescored.push(row); continue; }
       finalState.remove(row.courseId);
       const chosenRaw={instructorEmpId:row.instructorEmpId,meetings:row.meetings||[],instructorName:row.instructorName||''};
       const chosen=scoring(context,finalState,a,chosenRaw);
@@ -493,9 +540,10 @@ export async function buildPlan(input = {}) {
         .map(option=>scoring(context,finalState,a,{instructorEmpId:option.instructorEmpId,meetings:option.meetings||[],instructorName:option.instructorName||''}));
       const options=[chosen,...legalOthers].slice(0,12);
       finalState.add(optionRow(a,chosen,options));
-      return {...row,...chosen,kind:row.kind,status:chosen.score>=60?'הצעה מוכנה':'מתאים טכנית ונדרש טיפול',options,
-        diagnostics:{...row.diagnostics,chosenScore:chosen.score,chosenInOptions:true,candidateAlternatives:options.length,optionsAlignedWithFinalPlan:true,optionsRescoredAgainstFinalPlan:true}};
-    });
+      rescored.push({...row,...chosen,kind:row.kind,status:chosen.score>=60?'הצעה מוכנה':'מתאים טכנית ונדרש טיפול',options,
+        diagnostics:{...row.diagnostics,chosenScore:chosen.score,chosenInOptions:true,candidateAlternatives:options.length,optionsAlignedWithFinalPlan:true,optionsRescoredAgainstFinalPlan:true}});
+    }
+    base = rescored;
     bestVerified=base;bestQuality=quality(base);
   }
   await report('אימות סופי — מנוע חדש', base.length, base.length, '', null, base);

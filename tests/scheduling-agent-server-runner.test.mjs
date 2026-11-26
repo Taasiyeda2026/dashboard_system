@@ -134,3 +134,43 @@ for(const variant of ['dirty','old-engine'])test('empty incremental scope refuse
  const r=await runOneSchedulingAgentJob({backend:f.backend,computePlan:()=>assert.fail('no compute')});
  assert.equal(r.failureCode,'incremental_scope_unavailable');assert.ok(!f.events.includes('persist'));
 });
+
+test('a current-plan claim receipt completes with one backend call', async () => {
+ const f=fixture();
+ f.backend.claimJob=async()=>{
+   f.events.push('claim');
+   return {status:'completed',noOp:true,jobId:ID,engineVersion:'current',sourceRevision:'649',revision:'12200'};
+ };
+ const result=await runOneSchedulingAgentJob({backend:f.backend,computePlan:()=>assert.fail('no compute')});
+ assert.deepEqual(result,{status:'completed',jobId:ID,engineVersion:'current',
+   sourceRevision:'649',workspaceRevision:'12200',rowCount:0,noOp:true});
+ assert.deepEqual(f.events,['claim']);
+});
+
+test('a full retry loads its checkpoint and saves at most ten rows per fenced chunk',async()=>{
+ const f=fixture({mode:'full'}), saves=[];
+ f.data.preflight={...f.pre,checkpoint:{completedCount:1}};
+ f.data.snapshot.today='2026-11-26';
+ const resumed=[{courseId:'already',kind:'proposal',instructorEmpId:'2'}];
+ f.backend.loadCheckpoint=async identity=>{
+   assert.equal(identity.sourceRevision,'649');
+   assert.equal(identity.workspaceRevision,'12200');
+   assert.equal(identity.planningDate,'2026-11-26');
+   return resumed;
+ };
+ f.backend.saveCheckpoint=async chunk=>saves.push(chunk);
+ const result=await runOneSchedulingAgentJob({
+   backend:f.backend,createRunId:()=> '11111111-1111-4111-8111-111111111111',
+   computePlan:async input=>{
+     assert.deepEqual(input.resumeRows,resumed);
+     for(let i=0;i<11;i++){
+       await input.onProgress({row:{courseId:String(i),instructorEmpId:'2'},completed:i+1,total:11});
+     }
+     return {engineVersion:'current',diagnostics:{finalPlanValid:true},rows:[{courseId:'a'}]};
+   }
+ });
+ assert.equal(result.status,'completed');
+ assert.deepEqual(saves.map(chunk=>chunk.rows.length),[10,1]);
+ assert.ok(saves.every(chunk=>chunk.jobId===ID&&chunk.workspaceRevision==='12200'));
+ assert.equal(result.performance.checkpointSaves,2);
+});

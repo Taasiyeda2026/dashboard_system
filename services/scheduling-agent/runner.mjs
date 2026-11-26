@@ -10,6 +10,8 @@ import {randomUUID} from 'node:crypto';
 import {computeAgentSchedulingPlan} from './compute-plan.mjs';
 import {PLANNING_ENGINE_VERSION} from '../../frontend/src/screens/course-scheduling-planning.js';
 
+const TRANSIENT_ERRORS = new Set(['worker_transport_failed','worker_api_unavailable','worker_database_retry']);
+
 const REQUIRED_BACKEND = Object.freeze([
   'claimJob','acquireLease','loadSnapshot','readPreflight','heartbeatLease',
   'persistProposals','finishJob','releaseLease'
@@ -83,25 +85,39 @@ function assertInput(snapshot, job) {
  * server-side gates with ownership fencing. Client-supplied snapshots are forbidden.
  */
 export async function runOneSchedulingAgentJob({
-  backend, computePlan=computeAgentSchedulingPlan, heartbeatIntervalMs=30000,
+  backend, computePlan=computeAgentSchedulingPlan, heartbeatIntervalMs=15000,
   createRunId=randomUUID, onProgress=()=>{}
 }={}) {
   requireBackend(backend);
   if (typeof computePlan!=='function') throw new SchedulingAgentRunError('engine_required');
   const runId=createRunId();
   const job=await backend.claimJob({runId});
+  if (job?.status === 'completed' && job.noOp === true) {
+    return {status:'completed', jobId:job.jobId, engineVersion:job.engineVersion,
+      sourceRevision:job.sourceRevision, workspaceRevision:job.revision, rowCount:0, noOp:true};
+  }
   if (!job || job.claimed!==true) return {status:'idle'};
   const jobId=String(job.jobId||'');
   let lease=false, timer=null, heartbeatFailure=null;
   const controller=new AbortController();
+  let heartbeatInFlight = false;
+  let lastHeartbeat = 0;
+  let leaseHeartbeats = 0;
   const heartbeat=async()=>{
+    if (heartbeatInFlight || controller.signal.aborted) return;
+    heartbeatInFlight = true;
     try {
       const response=await backend.heartbeatLease({jobId,runId,ttlSeconds:120});
       if (!response || response.ok!==true)
         throw new SchedulingAgentRunError('planning_lease_lost');
+      lastHeartbeat = performance.now();
+      leaseHeartbeats++;
     } catch (error) {
+      if (TRANSIENT_ERRORS.has(error?.code) && performance.now() - lastHeartbeat < 60_000) return;
       heartbeatFailure=error;
       controller.abort();
+    } finally {
+      heartbeatInFlight = false;
     }
   };
   try {
@@ -114,6 +130,7 @@ export async function runOneSchedulingAgentJob({
       throw new SchedulingAgentRunError('planning_lease_unavailable');
     }
     lease=true;
+    lastHeartbeat = performance.now();
     timer=setInterval(()=>{void heartbeat()},heartbeatIntervalMs);
     timer.unref?.();
 
@@ -121,20 +138,71 @@ export async function runOneSchedulingAgentJob({
     // the ChatGPT tool must never supply activity rows or precomputed options.
     const input=await backend.loadSnapshot({jobId,runId,mode:job.mode});
     assertInput(input,job);
-    const initial=validatedPreflight(await backend.readPreflight({jobId,runId}));
+    const initial=validatedPreflight(input.preflight || await backend.readPreflight({jobId,runId}));
     assertRevision(input,initial,'snapshot_stale_before_computation');
-    if (initial.engineVersion===undefined) {
-      throw new SchedulingAgentRunError('planning_engine_version_missing');
-    }
+    if (controller.signal.aborted) throw new SchedulingAgentRunError('planning_lease_lost');
     const validationOnly=job.mode==='incremental'&&input.targetCourseIds.length===0;
     if(validationOnly&&(initial.dirtyCount!==0||initial.engineVersion!==PLANNING_ENGINE_VERSION))
       throw new SchedulingAgentRunError('incremental_scope_unavailable');
     // The existing incremental SQL saver validates the entire stored workspace,
     // even with an empty patch. It alone may advance the validated source stamp.
+    const checkpointIdentity = {
+      jobId,runId,sourceRevision:input.sourceRevision,workspaceRevision:input.workspaceRevision,
+      dataFingerprint:input.dataFingerprint,contextFingerprint:input.contextFingerprint,
+      planningDate:input.snapshot.today
+    };
+    const canCheckpoint = job.mode === 'full' && typeof backend.saveCheckpoint === 'function'
+      && typeof backend.loadCheckpoint === 'function';
+    const resumeRows = canCheckpoint && input.preflight?.checkpoint
+      ? await backend.loadCheckpoint(checkpointIdentity) : null;
+    const pending = new Map();
+    let checkpointSaves = 0;
+    let lastSave = performance.now();
+    let retryCheckpointAt = 0;
+    const saveProgress = async total => {
+      if (performance.now() < retryCheckpointAt) return false;
+      const chunk = [];
+      let bytes = 0;
+      for (const row of pending.values()) {
+        const rowBytes = Buffer.byteLength(JSON.stringify(row));
+        if (rowBytes > 900_000) {
+          // An oversized row can be recomputed on resume.
+          pending.delete(row.courseId);
+          continue;
+        }
+        if (chunk.length >= 10 || (chunk.length && bytes + rowBytes > 256_000)) break;
+        chunk.push(row);
+        bytes += rowBytes;
+      }
+      if (!chunk.length) return false;
+      lastSave = performance.now();
+      try {
+        await backend.saveCheckpoint({...checkpointIdentity,total,rows:chunk});
+      } catch (error) {
+        if (!TRANSIENT_ERRORS.has(error?.code)) throw error;
+        retryCheckpointAt = performance.now()+5_000;
+        return false;
+      }
+      for (const row of chunk) pending.delete(row.courseId);
+      checkpointSaves++;
+      return true;
+    };
+    const progress = async update => {
+      await onProgress({jobId,phase:update?.phase||'computing',completed:update?.completed,total:update?.total});
+      if (!canCheckpoint) return;
+      const row = update?.row;
+      if (row?.instructorEmpId) pending.set(row.courseId, row);
+      if (!pending.size) return;
+      if (update.total > 0 && update.completed === update.total) {
+        while (pending.size && await saveProgress(update.total)) { /* flush bounded chunks */ }
+      } else if (row && (pending.size >= 10 || performance.now() - lastSave >= 15_000)) {
+        await saveProgress(update.total);
+      }
+    };
     const output=validationOnly?{engineVersion:PLANNING_ENGINE_VERSION,
       diagnostics:{finalPlanValid:true},rows:[]}:await computePlan({
       ...input, mode:job.mode, signal:controller.signal,
-      onProgress:progress=>onProgress({jobId,phase:progress?.phase||'computing'})
+      resumeRows:Array.isArray(resumeRows) ? resumeRows : [], onProgress:progress
     });
     if (controller.signal.aborted||heartbeatFailure) {
       throw new SchedulingAgentRunError('planning_lease_lost');
@@ -144,6 +212,7 @@ export async function runOneSchedulingAgentJob({
       throw new SchedulingAgentRunError('planning_engine_result_invalid');
     }
     const current=validatedPreflight(await backend.readPreflight({jobId,runId}));
+    if (controller.signal.aborted) throw new SchedulingAgentRunError('planning_lease_lost');
     assertRevision(input,current,'snapshot_stale_before_commit');
     // The persistence adapter MUST assert the same revisions, current engine,
     // and lease owner *inside the database transaction*. This read is only an
@@ -165,7 +234,9 @@ export async function runOneSchedulingAgentJob({
       throw new SchedulingAgentRunError('worker_receipt_required');
     return {status:'completed',jobId,engineVersion:output.engineVersion,rowCount:output.rows.length,
       sourceRevision:String(persisted.sourceRevision??input.sourceRevision),
-      workspaceRevision:String(persisted.revision??''),validationOnly};
+      workspaceRevision:String(persisted.revision??''),validationOnly,
+      performance:{...input.snapshotMetrics,...output.diagnostics.metrics,checkpointSaves,leaseHeartbeats,
+        cacheHits:input.routeClient.cacheHits,googleCalls:input.routeClient.googleCalls}};
   } catch (error) {
     const errorCode=String(error?.code||'planning_server_run_failed').slice(0,120);
     // Never report success. If owner fencing has expired, the backend must

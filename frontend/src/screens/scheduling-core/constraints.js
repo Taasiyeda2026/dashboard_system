@@ -45,7 +45,7 @@ export function compileConstraints(input) {
     const days = new Map(); for (const r of rows) { const key = text(r.exception_date).slice(0, 10); if (!days.has(key)) days.set(key, []); days.get(key).push(r); }
     exceptions.set(id, days);
   }
-  return { byActivity, byInstructor, profiles, rules, exceptions, calendar: input.schoolCalendar || [], verifiedRoutes: new Map(), routeClient: input.routeClient };
+  return { byActivity, byInstructor, profiles, rules, exceptions, meetingPolicyCache: new Map(), calendar: input.schoolCalendar || [], verifiedRoutes: new Map(), routeClient: input.routeClient };
 }
 // Cache only actual route responses; absence/failure never becomes a guessed route.
 export async function ensureRoute(context, from, to) {
@@ -60,15 +60,27 @@ export async function ensureRoute(context, from, to) {
   return knownRoute(context, from, to);
 }
 export async function ensureCandidateRoutes(context, occupancy, activity, option) {
-  await ensureRoute(context, context.byInstructor.get(text(option.instructorEmpId))?.address, activity.school_address);
+  const pending = new Map();
+  const needRoute = (from, to) => {
+    if (knownRoute(context, from, to) || !address(from) || !address(to)) return;
+    const key = `${address(from)}→${address(to)}`;
+    if (!pending.has(key)) pending.set(key, ensureRoute(context, from, to));
+  };
+  needRoute(context.byInstructor.get(text(option.instructorEmpId))?.address, activity.school_address);
   for (const meeting of option.meetings || []) {
     const empId = meetingEmpId(meeting, option.instructorEmpId);
-    await ensureRoute(context, context.byInstructor.get(empId)?.address, activity.school_address);
-    const list = (occupancy.days.get(`${empId}|${meeting.date}`) || []).filter(m => m.courseId !== activityId(activity));
-    const before = list.filter(m => m.end <= minute(meeting.start_time)).at(-1), after = list.find(m => m.start >= minute(meeting.end_time));
-    if (before && before.schoolId !== text(activity.school_id)) await ensureRoute(context, before.address, activity.school_address);
-    if (after && after.schoolId !== text(activity.school_id)) await ensureRoute(context, activity.school_address, after.address);
+    if (empId !== text(option.instructorEmpId)) {
+      needRoute(context.byInstructor.get(empId)?.address, activity.school_address);
+    }
+    const list = occupancy.days.get(`${empId}|${meeting.date}`);
+    if (!list?.length) continue;
+    const start = minute(meeting.start_time), end = minute(meeting.end_time);
+    const before = list.findLast(m => m.courseId !== activityId(activity) && m.end <= start);
+    const after = list.find(m => m.courseId !== activityId(activity) && m.start >= end);
+    if (before && before.schoolId !== text(activity.school_id)) needRoute(before.address, activity.school_address);
+    if (after && after.schoolId !== text(activity.school_id)) needRoute(activity.school_address, after.address);
   }
+  if (pending.size) await Promise.all(pending.values());
 }
 export async function validatePlanWithRoutes(input, checkpoint = async () => {}) {
   const context = input.constraintContext || compileConstraints(input), occupancy = createOccupancy(context, input.rows || []);
@@ -95,6 +107,20 @@ export function staticFailures(context, activity, empId) {
   return failures;
 }
 export function meetingFailures(context, activity, empId, meeting) {
+  const cache = context.meetingPolicyCache;
+  if (!cache) return computeMeetingFailures(context, activity, empId, meeting);
+  // Availability and calendar rules are fixed for a snapshot. Occupancy and
+  // travel are checked separately on every candidate and are never memoized here.
+  const key = JSON.stringify([empId, activity.calendar_sector, meeting.date, meeting.start_time, meeting.end_time]);
+  let failures = cache.get(key);
+  if (!failures) {
+    failures = computeMeetingFailures(context, activity, empId, meeting);
+    if (cache.size >= 65_536) cache.clear();
+    cache.set(key, failures);
+  }
+  return failures;
+}
+function computeMeetingFailures(context, activity, empId, meeting) {
   const day = weekday(meeting.date), p = context.profiles[empId], failures = [];
   const override = context.exceptions.get(empId)?.get(meeting.date);
   const rules = override || context.rules.get(empId)?.get(day) || [];

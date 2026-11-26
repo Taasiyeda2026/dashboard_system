@@ -72,8 +72,8 @@ test('adapter provides only the narrow runner interface',()=>{
  const stub={call:async()=>({})};
  const backend=createGithubAgentBackend(stub);
  assert.deepEqual(Object.keys(backend).sort(),[
-  'claimJob','acquireLease','heartbeatLease','loadSnapshot','readPreflight',
-  'persistProposals','finishJob','releaseLease'].sort());
+  'claimJob','acquireLease','heartbeatLease','loadCheckpoint','loadSnapshot','readPreflight',
+  'persistProposals','finishJob','releaseLease','saveCheckpoint'].sort());
 });
 
 test('long-lived OIDC tokens refresh before the Edge iat window expires',async()=>{
@@ -95,4 +95,17 @@ test('lost worker connection has a safe retryable error code',async()=>{
   fetchImpl:async(url)=>{if(String(url).includes('audience='))return {ok:true,json:async()=>({value:TOKEN})};
    throw Error('private provider detail');}});
  await assert.rejects(transport.call('persist'),e=>e.code==='worker_transport_failed'&&!e.message.includes('private'));
+});
+
+test('incremental scope includes new courses and school peers without widening to unrelated schools',()=>{
+ const course=(row_id,school_id)=>({row_id,school_id,activity_type:'course',
+  activity_season:'school_2027',activity_name:'Synthetic',status:'פתוח'});
+ const activities=[course('dirty',1),course('school-peer',1),course('unrelated',2),course('new',3)];
+ const payload={workspace:{revision:'5'},sourceRevision:'7',preflight:{},
+  activities,instructors:[],schoolLocations:[],externalBlockers:[],meetingInstructorHistory:[],
+  profiles:[],rules:[],exceptions:[],schoolCalendar:[],catalog:[],routes:[],cancellations:[],planningIntents:[],
+  existingRows:activities.slice(0,3).map(({row_id})=>({activityId:row_id,row:{courseId:row_id}})),
+  targetCourseIds:['dirty'],sourceComplete:true,routesComplete:true,catalogComplete:true,schoolCalendarComplete:true};
+ const input=prepareServerPlanningSnapshot(payload);
+ assert.deepEqual(input.targetCourseIds.sort(),['dirty','new','school-peer']);
 });
