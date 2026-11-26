@@ -7313,6 +7313,12 @@ export const api = {
     if(error)throw new Error(error.message||'finance_billing_completion_failed');
     return data;
   },
+  financeCompleteBillingBatch: async (items = []) => {
+    assertPermission('manage_finance_transactions','finance_transactions_forbidden');
+    const {data,error}=await supabase.rpc('finance_complete_billing_batch',{p_items:items});
+    if(error)throw new Error(error.message||'finance_billing_completion_failed');
+    return data;
+  },
   financeBillingPreview: async (activityIds = []) => {
     assertAnyPermission(['view_finance_collection', 'manage_finance_transactions'], 'finance_tools_forbidden');
     const rows = [];

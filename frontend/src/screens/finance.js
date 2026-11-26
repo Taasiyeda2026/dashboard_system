@@ -1,5 +1,5 @@
 import {gefenBillingRequest} from './finance-gefen-billing-overrides.js';
-import { completionPayload, syncCompletionForm, syncCompletionSearch } from './finance-billing-completion.js';
+import { completionPayload, accountEditPayloads, syncCompletionForm, syncCompletionSearch, financeActivitySchoolIdentity } from './finance-billing-completion.js';
 import {bindInvoiceRevisions} from './finance-invoice-revisions.js';
 import { hubIcon } from './shared/process-icons.js';
 import { consumeNotificationTarget } from '../notifications/target.js';
@@ -618,9 +618,58 @@ export const financeScreen = {
     const onClick = async (ev) => {
       const selectAllButton=ev.target.closest('[data-finance-manual-select-all-button]');
       if(selectAllButton){ev.preventDefault();const master=root.querySelector('[data-finance-manual-select-all]');toggleAllVisibleManualActivities(visit,!master?.checked);syncManualActivitySelectionUi(root,visit);return;}
+      const accountEditOpen=ev.target.closest('[data-finance-account-edit-open]');
+      if(accountEditOpen){
+        if(visit.financeBusy||visit.transactionRunning||!visit.financeCanComplete||visit.billingAccountEdit||visit.billingCompletion)return;
+        const accountKey=accountEditOpen.dataset.financeAccountEditOpen;
+        const account=transactionPreviewForVisit(visit,'automatic').accounts.find(a=>transactionAccountPreviewKey(a)===accountKey);
+        if(!account?.lines?.length){visit.transactionActionMessage='לא נמצא חשבון לעריכה.';refresh();return;}
+        const activityIds=[...new Set(account.lines.map(line=>String(line.activityRowId)))];
+        visit.financeBusy=true;
+        try{
+          const activities=await Promise.all(activityIds.map(id=>api.financeBillingCompletionContext(id)));
+          const title=[account.lines.map(line=>financeActivitySchoolIdentity(visit,line).authority).find(authority=>authority&&authority!=='—'),account.schoolName,account.institutionSymbol].filter(Boolean).join(' · ');
+          visit.billingAccountEdit={accountKey,title,activities};
+          visit.pendingTransactionApproval=null;visit.transactionIssuancePreview=null;visit.transactionActionMessage='';
+        }catch(error){visit.transactionActionMessage=financeError(error);}
+        finally{visit.financeBusy=false;refresh();}
+        return;
+      }
+      if(ev.target.closest('[data-finance-account-edit-cancel]')){visit.billingAccountEdit=null;refresh();return;}
+      const accountEditSave=ev.target.closest('[data-finance-account-edit-save]');
+      if(accountEditSave){
+        if(visit.financeBusy||visit.transactionRunning||!visit.financeCanComplete||!visit.billingAccountEdit)return;
+        const form=root.querySelector('[data-finance-account-edit-form]');
+        if(!form?.reportValidity())return;
+        const errorEl=form.querySelector('[data-account-edit-error]');
+        let items;
+        try{
+          items=accountEditPayloads(form,visit.billingAccountEdit.activities);
+          for(const item of items){
+            const sum=item.data.allocations.reduce((n,f)=>n+Number(f.amount||0),0);
+            if(!item.data.allocations.length||item.data.allocations.some(f=>!(Number(f.amount)>0))||Math.abs(sum-Number(item.data.price))>0.001)throw Error('יש להשלים סכומי מימון חיוביים שסכומם שווה למחיר הכולל.');
+          }
+        }catch(error){
+          if(errorEl){errorEl.hidden=false;errorEl.textContent=financeError(error);}
+          return;
+        }
+        visit.financeBusy=true;accountEditSave.disabled=true;
+        try{
+          await api.financeCompleteBillingBatch(items);
+          visit.billingAccountEdit=null;visit.billingCompletion=null;visit.gefenBillingOverrides=null;
+          visit.manualQuote=null;visit.manualBatchPreviews=null;visit.manualConsolidatedPreview=null;
+          visit.transactionIssuancePreview=null;visit.transactionManualSelected={};visit.pendingTransactionApproval=null;
+          await ensureCollectionLoaded(visit,api,{force:true});
+          visit.transactionActionMessage='נתוני הפעילויות נשמרו והזכאות חושבה מחדש.';
+        }catch(error){
+          if(visit.billingAccountEdit)visit.billingAccountEdit={...visit.billingAccountEdit,error:financeError(error)};
+          if(errorEl){errorEl.hidden=false;errorEl.textContent=financeError(error);}
+        }finally{visit.financeBusy=false;accountEditSave.disabled=false;if(!visit.billingAccountEdit)refresh();else refresh();}
+        return;
+      }
       const completionOpen=ev.target.closest('[data-finance-complete-open]');
       if(completionOpen){
-        if(visit.financeBusy||visit.transactionRunning||!visit.financeCanComplete||visit.billingCompletion)return;
+        if(visit.financeBusy||visit.transactionRunning||!visit.financeCanComplete||visit.billingCompletion||visit.billingAccountEdit)return;
         visit.financeBusy=true;
         try{visit.billingCompletion=await api.financeBillingCompletionContext(completionOpen.dataset.financeCompleteOpen);// Keep the originating tab and selected billing month; render the same editor in place.
           visit.pendingTransactionApproval=null;visit.transactionIssuancePreview=null;visit.transactionActionMessage='';}
@@ -638,7 +687,7 @@ export const financeScreen = {
         const sum=payload.allocations.reduce((n,f)=>n+Number(f.amount||0),0);
         if(!payload.allocations.length||payload.allocations.some(f=>!(Number(f.amount)>0))||Math.abs(sum-Number(payload.price))>0.001){visit.transactionActionMessage='יש להשלים סכומי מימון חיוביים שסכומם שווה למחיר הכולל.';const alertEl=root.querySelector('[data-finance-completion-editor]');if(alertEl){let msg=alertEl.querySelector('[data-completion-error]');if(!msg){msg=document.createElement('p');msg.dataset.completionError='';msg.setAttribute('role','alert');alertEl.append(msg);}msg.textContent=visit.transactionActionMessage;}return;}
         visit.financeBusy=true;completionSave.disabled=true;
-        try{await api.financeCompleteBillingData(editor.row_id,payload);visit.billingCompletion=null;visit.manualQuote=null;visit.manualBatchPreviews=null;visit.manualConsolidatedPreview=null;visit.transactionIssuancePreview=null;visit.transactionManualSelected={};visit.pendingTransactionApproval=null;await ensureCollectionLoaded(visit,api,{force:true});visit.transactionActionMessage='נתוני הפעילות נשמרו והזכאות חושבה מחדש.';}
+        try{await api.financeCompleteBillingData(editor.row_id,payload);visit.billingCompletion=null;visit.gefenBillingOverrides=null;visit.manualQuote=null;visit.manualBatchPreviews=null;visit.manualConsolidatedPreview=null;visit.transactionIssuancePreview=null;visit.transactionManualSelected={};visit.pendingTransactionApproval=null;await ensureCollectionLoaded(visit,api,{force:true});visit.transactionActionMessage='נתוני הפעילות נשמרו והזכאות חושבה מחדש.';}
         catch(error){const msg=document.createElement('p');msg.setAttribute('role','alert');msg.textContent=financeError(error);form.append(msg);}
         finally{visit.financeBusy=false;completionSave.disabled=false;if(!visit.billingCompletion)refresh();}
         return;
@@ -879,6 +928,7 @@ export const financeScreen = {
         }
         visit.pendingTransactionApproval = null;
         visit.billingCompletion = null;
+        visit.billingAccountEdit = null;
         visit.transactionTab = nextTransactionTab;
         if (nextTransactionTab === 'editable') {
           visit.transactionActionMessage = '';
@@ -919,7 +969,7 @@ export const financeScreen = {
 
       const transactionPreview = ev.target.closest('[data-finance-transaction-preview]');
       if (transactionPreview) {
-        if (visit.financeBusy || visit.transactionRunning || visit.billingCompletion) return;
+        if (visit.financeBusy || visit.transactionRunning || visit.billingCompletion || visit.billingAccountEdit) return;
         // Reserve a tab during the explicit click, before the async RPC. This
         // preserves the browser's user gesture without issuing any account.
         let previewWindow=null;
@@ -981,7 +1031,7 @@ export const financeScreen = {
 
       const transactionRun = ev.target.closest('[data-finance-transaction-run]');
       if (transactionRun) {
-        if (visit.transactionRunning || visit.financeBusy || visit.pendingTransactionApproval || visit.billingCompletion) return;
+        if (visit.transactionRunning || visit.financeBusy || visit.pendingTransactionApproval || visit.billingCompletion || visit.billingAccountEdit) return;
         const mode = String(transactionRun.dataset.financeTransactionRun || 'automatic');
         const month = transactionRun.dataset.financeTransactionPeriod
           || visit.transactionMonths?.[mode] || transactionMaxMonth(visit, mode);

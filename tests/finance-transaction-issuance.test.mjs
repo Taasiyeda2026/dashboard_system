@@ -358,18 +358,39 @@ test('blocked display consolidates months and reasons but preserves different co
  dom.window.close();
 });
 
-test('automatic Gefen hides the completion editor while preserving the dedicated completion handler',()=>{
- const d=data([row({activityRowId:'a',eligible:false,completedCount:3,blockedReason:'חסר מחיר שעתי'}),row({activityRowId:'b',eligible:false,completedCount:3,blockedReason:'חסר מחיר שעתי'})],{financeCanComplete:true,transactionTab:'automatic',billingCompletion:{row_id:'a',name:'קורס א',school:'בית ספר א',activity_type:'course',sessions:10,price:9000,allocations:[],funding_options:[]}});
+test('automatic Gefen shows one account edit button and opens a compact modal for all activities',()=>{
+ const d=data([
+  row({activityRowId:'a',activityName:'קורס א',schoolName:'בכור לוי',customerName:'בכור לוי',institutionSymbol:'413351'}),
+  row({activityRowId:'b',activityName:'קורס ב',schoolName:'בכור לוי',customerName:'בכור לוי',institutionSymbol:'413351'})
+ ],{financeCanComplete:true,collectionActivities:[
+  {row_id:'a',activity_name:'קורס א',grade:'ז',class_group:'1',authority:'רחובות',school:'בכור לוי'},
+  {row_id:'b',activity_name:'קורס ב',grade:'ח',class_group:'2',authority:'רחובות',school:'בכור לוי'}
+ ]});
  const dom=new JSDOM(html(d));const doc=dom.window.document;
- const table=doc.querySelector('[data-finance-blocked-rows]');
- assert.equal(table.open,false);
- assert.equal(table.querySelectorAll('[data-finance-completion-form]').length,0);
- assert.equal(table.querySelector('[data-finance-complete-open]'),null);
- assert.equal(doc.querySelector('[data-finance-completion-section]'),null);
- dom.window.close();
+ assert.equal(doc.querySelectorAll('[data-finance-account-edit-open]').length,1);
+ assert.equal(doc.querySelectorAll('[data-finance-complete-open]').length,0);
+ assert.equal(doc.querySelector('[data-finance-account-edit-overlay]'),null);
+ assert.equal(doc.querySelector('[data-finance-transaction-run="automatic"]').disabled,false);
+ const edit={accountKey:doc.querySelector('[data-finance-account-edit-open]').dataset.financeAccountEditOpen,title:'רחובות · בכור לוי · 413351',activities:[
+  {row_id:'a',name:'קורס א',grade:'ז',class_group:'1',activity_type:'course',sessions:10,price:9000,rate:500,approved_order_rate:575,allocations:[{id:'g',name:'גפן',amount:9000}],funding_options:[{id:'g',name:'גפן'}],updated_at:'2026-11-26T00:00:00Z'},
+  {row_id:'b',name:'קורס ב',grade:'ח',class_group:'2',activity_type:'course',sessions:12,price:10800,rate:600,allocations:[{id:'g',name:'גפן',amount:10800}],funding_options:[{id:'g',name:'גפן'}],updated_at:'2026-11-26T00:00:00Z'}
+ ]};
+ const open=new JSDOM(html({...d,billingAccountEdit:edit}));const openDoc=open.window.document;
+ assert.equal(openDoc.querySelectorAll('[data-finance-account-edit-open]').length,1);
+ assert.equal(openDoc.querySelector('[data-finance-account-edit-open]').disabled,true);
+ assert.equal(openDoc.querySelector('[data-finance-transaction-run="automatic"]').disabled,true);
+ assert.equal(openDoc.querySelector('[data-finance-transaction-preview]').disabled,true);
+ assert.match(openDoc.querySelector('#finance-account-edit-title').textContent,/עריכת פרטים – רחובות · בכור לוי · 413351/);
+ assert.equal(openDoc.querySelectorAll('[data-account-edit-row]').length,2);
+ assert.match(openDoc.body.textContent,/קורס א · ז · 1/);
+ assert.match(openDoc.body.textContent,/קורס ב · ח · 2/);
+ assert.match(openDoc.body.textContent,/מקור הזמנה: 575/);
+ assert.equal(openDoc.querySelector('[data-account-edit-row="a"] [name="rate"]').readOnly,false);
+ assert.equal(openDoc.querySelectorAll('[data-finance-account-edit-save],[data-finance-account-edit-cancel]').length>=2,true);
+ assert.equal(openDoc.querySelector('[data-finance-completion-form]'),null);
+ open.window.close();dom.window.close();
  const finance=readFileSync(new URL('../frontend/src/screens/finance.js',import.meta.url),'utf8');
- const handler=finance.slice(finance.indexOf('const completionOpen='),finance.indexOf("if(ev.target.closest('[data-finance-complete-cancel]'))"));
- assert.doesNotMatch(handler,/visit\.transactionTab\s*=/);
+ assert.match(finance,/financeCompleteBillingBatch\(items\)/);
  assert.match(finance,/financeCompleteBillingData\(editor\.row_id,payload\)[\s\S]*?ensureCollectionLoaded\(visit,api,\{force:true\}\)/);
 });
 
