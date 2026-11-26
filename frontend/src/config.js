@@ -689,3 +689,5 @@ config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-manual-scheduling-official-wor
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-finance-payer-email-dispatch-20261126-v1`;
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-finance-saved-drafts-20261126-v1`;
+
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-login-auth-recovery-harden-20261126-v1`;

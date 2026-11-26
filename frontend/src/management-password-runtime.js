@@ -161,8 +161,8 @@ function openForgotPasswordModal() {
 
       const completeActions = actionsRow('שמירת קוד חדש', async () => {
         const code = String(codeField.input.value || '').trim();
-        const password = String(first.input.value || '');
-        const confirmation = String(second.input.value || '');
+        const password = String(first.input.value || '').trim();
+        const confirmation = String(second.input.value || '').trim();
         status.className = 'management-password-status';
         status.textContent = '';
 
@@ -240,8 +240,8 @@ function openPasswordChangeModal() {
   const second = labeledInput('אימות קוד חדש', { type: 'password', autocomplete: 'new-password' });
   const status = statusNode();
   const { actions, primary } = actionsRow('שמירה', async () => {
-    const password = String(first.input.value || '');
-    const confirmation = String(second.input.value || '');
+    const password = String(first.input.value || '').trim();
+    const confirmation = String(second.input.value || '').trim();
     status.className = 'management-password-status';
     status.textContent = '';
     if (password.length < MIN_PASSWORD_LENGTH) {

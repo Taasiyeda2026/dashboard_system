@@ -126,8 +126,8 @@ function openRecoveryModal() {
 
       const completeActions = actions('שמירת קוד חדש', async () => {
         const code = String(codeField.input.value || '').trim();
-        const password = String(first.input.value || '');
-        const confirmation = String(second.input.value || '');
+        const password = String(first.input.value || '').trim();
+        const confirmation = String(second.input.value || '').trim();
         status.className = 'instructor-password-status';
         status.textContent = '';
         if (!/^\d{6}$/.test(code)) {
