@@ -5085,6 +5085,14 @@ async function loginWithSupabaseAuth(username, password) {
   });
 
   if (authError || !authData?.user) {
+    // Legacy instructor codes were 4 digits. Auth passwords are longer; guide
+    // users who still type the old code toward recovery instead of a generic failure.
+    if (/^\d{4}$/.test(submittedPassword)) {
+      throwLoginError('legacy_entry_code_rejected', {
+        login: submittedUsername,
+        message: String(authError?.message || '')
+      });
+    }
     throwLoginError('invalid_credentials', { login: submittedUsername, message: String(authError?.message || '') });
   }
 
