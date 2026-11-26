@@ -26,7 +26,7 @@ end $$;
 create or replace function auth.uid() returns uuid language sql stable as $$
   select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid
 $$;
-create table public.users(auth_user_id uuid primary key,is_active boolean,role text);
+create table public.users(auth_user_id uuid primary key,is_active boolean,role text,emp_id text,full_name text,name text);
 create table public.contacts_instructors(emp_id bigint primary key,full_name text,address text,active text);
 create table public.activities(
   row_id text primary key,activity_season text,activity_type text,activity_no text,status text,
@@ -150,7 +150,7 @@ test('manual operations gateway on isolated local PostgreSQL', { skip: !connecti
           public.activity_completion_approval_uploads,public.scheduling_instructor_intents,
           public.instructor_assignment_audit,public.fixture_routes,public.users,public.school_calendar,
           scheduling_manual_private.decisions,public.scheduling_planning_rows,public.scheduling_planning_workspaces;
-        insert into public.users values('${actor}',true,'operation_manager');
+        insert into public.users(auth_user_id,is_active,role) values('${actor}',true,'operation_manager');
         insert into public.contacts_instructors values(1507,'מדריך א','home-a','yes'),(1508,'מדריך ב','home-b','yes');
         insert into public.instructor_scheduling_profiles values
           (1507,'male',array['he'],'all','{}','{}',true),(1508,'male',array['he'],'all','{}','{}',true);

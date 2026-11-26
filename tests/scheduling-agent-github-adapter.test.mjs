@@ -58,14 +58,11 @@ test('incomplete and non-authoritative snapshots are rejected before the engine'
   e=>e.code==='authoritative_planning_source_incomplete');
 });
 
-test('workflow only runs on main schedule or explicit dispatch with exact OIDC permission',()=>{
+test('the retired production workflow can acknowledge dispatch without running or obtaining OIDC',()=>{
  const yaml=readFileSync(new URL('../.github/workflows/scheduling-agent-worker.yml',import.meta.url),'utf8');
- assert.match(yaml,/id-token: write/);
+ assert.match(yaml,/on: workflow_dispatch/);
  assert.match(yaml,/github\.ref == 'refs\/heads\/main'/);
- assert.match(yaml,/github\.repository == 'Taasiyeda2026\/dashboard_system'/);
- assert.match(yaml,/persist-credentials: false/);
- assert.doesNotMatch(yaml,/pull_request:/);
- assert.doesNotMatch(yaml,/secrets\.|SUPABASE_SERVICE_ROLE_KEY/);
+ assert.doesNotMatch(yaml,/schedule:|id-token: write|github-worker\.mjs|github-readonly-canary\.mjs/);
 });
 
 test('adapter provides only the narrow runner interface',()=>{

@@ -25,7 +25,7 @@ test('team snapshot is whitelisted and excludes private source data', () => {
 });
 
 test('team tools isolate owner-only review from ordinary employee actions and arbitrary RPCs', () => {
-  for (const tool of ['planning_status','read_snapshot','manager_approval_state','stage_manual_draft','submit_manager_approval','confirm_own_draft','confirm_planning_option','review_manager_approval']) {
+  for (const tool of ['planning_status','read_snapshot','manager_approval_state','stage_manual_draft','submit_manager_approval','confirm_own_draft','review_manager_approval']) {
     assert.ok(edge.includes("name: '"+tool+"'"));
   }
   assert.doesNotMatch(edge, /name: '(?:commit_approved_changes|update_settings|execute_sql)'/);
@@ -104,8 +104,8 @@ test('a planned assignment must be from the current authorized planning snapshot
   assert.match(plan,/scheduling_agent_date_change_requires_explicit_consent/);
   assert.match(plan,/public.assign_activity_instructor_with_dates/);
   assert.doesNotMatch(plan,/review_course_assignment_manager_approval\(/);
-  assert.match(edge,/name: 'confirm_planning_option'/);
-  assert.match(edge,/scheduling_agent_team_confirm_planning_option/);
+  assert.doesNotMatch(edge,/name: 'confirm_planning_option'/);
+  assert.doesNotMatch(edge,/scheduling_agent_team_confirm_planning_option/);
 });
 
 test('an outdated countrywide plan cannot be offered as a freshly calculated recommendation', () => {
@@ -123,12 +123,12 @@ test('an outdated countrywide plan cannot be offered as a freshly calculated rec
   assert.match(edge,/scheduling_agent_team_planning_status/);
 });
 
-test('chat optimizer requests are queued and run only through the existing authorized v38 dashboard planner', () => {
+test('the gateway exposes historical job status and retires optimization requests', () => {
   const queue=readFileSync(new URL('../supabase/migrations/20261015121500_scheduling_agent_team_optimization_queue.sql',import.meta.url),'utf8');
   const dashboard=readFileSync(new URL('../frontend/src/screens/course-scheduling.js',import.meta.url),'utf8');
-  assert.match(edge,/name: 'request_optimization'/);
+  assert.doesNotMatch(edge,/name: 'request_optimization'/);
   assert.match(edge,/name: 'optimization_status'/);
-  assert.match(edge,/scheduling_agent_team_request_optimization/);
+  assert.doesNotMatch(edge,/scheduling_agent_team_request_optimization/);
   assert.match(edge,/scheduling_agent_team_optimization_status/);
   assert.match(queue,/scheduling_agent_team_assert_member/);
   assert.match(queue,/full_optimization_requires_admin/);

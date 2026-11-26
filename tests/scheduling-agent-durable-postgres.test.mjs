@@ -260,5 +260,49 @@ test('durable queue on isolated PostgreSQL', {skip:!url},async t=>{
    const grants=await query("select has_function_privilege('authenticated','scheduling_agent_wakeup_command(text,jsonb)','execute') allowed");
    assert.equal(grants.rows[0].allowed,false);
   });
+  await t.test('manual-only cutover closes worker admission and preserves operational and historical data',async()=>{
+   await reset();
+   await query("alter table cron.job add column jobname text default 'scheduling-agent-supervisor'");
+   await query("update cron.job set active=true");
+   const existing=await enqueue();
+   const running=await claimed();
+   const queued=await enqueue();
+   await query("insert into scheduling_planning_rows values ((select id from scheduling_planning_workspaces),'synthetic','{}',null,false)");
+   await query(`
+    create function public.scheduling_agent_team_confirm_planning_option(text,integer,bigint,bigint,boolean) returns void language sql as $$select$$;
+    create function public.save_scheduling_planning_checkpoint(text,text,text,text,text,integer,integer,jsonb,jsonb,uuid,bigint) returns void language sql as $$select$$;
+    create function public.commit_scheduling_planning_checkpoint(text,text,text,text,text,bigint,uuid,bigint) returns void language sql as $$select$$;
+    create function public.set_scheduling_planning_lock(text,text,text,jsonb,bigint) returns void language sql as $$select$$;
+    create function public.get_scheduling_dashboard_candidates(text) returns void language sql as $$select$$;
+    create function public.scheduling_agent_team_read_snapshot() returns boolean language plpgsql as $$
+      declare preflight jsonb := '{"planningCurrent":true}'; can_recommend boolean;
+      begin
+        can_recommend := (preflight->>'planningCurrent')::boolean;
+        return can_recommend;
+      end $$;
+    create function public.scheduling_dashboard_assignment(text,jsonb,p_expected_updated_at timestamptz,p_expected_source_revision bigint,p_expected_workspace_revision bigint)
+    returns text language plpgsql as $$
+    begin
+     if p_expected_updated_at is null then raise exception 'scheduling_activity_revision_conflict'; end if;
+     return 'manual_action_reached';
+    end $$;
+   `);
+   await query(read('../supabase/migrations/20261126121317_manual_only_scheduling.sql'));
+   assert.equal(running.jobId,existing);
+   const jobs=await query("select status,failure_code from scheduling_agent_team_optimization_jobs where id=any($1::uuid[])",[[existing,queued]]);
+   assert.deepEqual(jobs.rows,Array.from({length:2},()=>({status:'failed',failure_code:'scheduling_manual_only'})));
+   assert.deepEqual(await command('claim'),{claimed:false,disabled:true});
+   await assert.rejects(command('persist',payload(running)),/worker_live_cutover_not_enabled/);
+   await assert.rejects(query('update scheduling_agent_worker_settings set enabled=true'),/scheduling_agent_manual_only/);
+   assert.equal((await query('select active from cron.job')).rows[0].active,false);
+   assert.equal((await query('select count(*)::integer n from scheduling_planning_rows')).rows[0].n,1);
+   assert.equal((await query("select has_function_privilege('authenticated','public.scheduling_agent_team_request_optimization(text)','execute') allowed")).rows[0].allowed,false);
+   assert.equal((await query("select has_function_privilege('authenticated','public.scheduling_agent_team_optimization_status(uuid)','execute') allowed")).rows[0].allowed,true);
+   assert.equal((await query("select public.scheduling_agent_team_read_snapshot() can_recommend")).rows[0].can_recommend,false);
+   await assert.rejects(query("select public.scheduling_dashboard_assignment('test','{}',now(),7,null)"),/scheduling_manual_only/);
+   await assert.rejects(query("select public.scheduling_dashboard_assignment('test','{}',null,null,null)"),/scheduling_activity_revision_conflict/);
+   assert.equal((await query("select public.scheduling_dashboard_assignment('test','{}',now(),null,null) result")).rows[0].result,'manual_action_reached');
+  });
+
  }finally{await pool.end();await admin.query('drop database '+db);await admin.end();}
 });
