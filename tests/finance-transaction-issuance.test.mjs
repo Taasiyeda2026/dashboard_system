@@ -32,32 +32,20 @@ test('unified issuance processes original periods chronologically under cumulati
   },'automatic');
   assert.equal(results.length,1);assert.ok(results.every(r=>!r.error));assert.equal(billed,5000);assert.deepEqual(periods,['2026-09-01','2026-10-01']);
 });
-test('unified Gefen layout orders month summary current backlog single action and waiting; every group starts closed',()=>{
-  const d=data([row(),row({activityRowId:'older',period:'2026-09-01'}),
-    row({activityRowId:'waiting',eligible:false,blockedReason:'minimum',eligibilityStatus:'waiting_three_meetings',issuableAmount:0})]);
-  const view=html(d);const dom=new JSDOM(view);const doc=dom.window.document;
-  const ordered=['data-finance-transaction-period-readonly','ds-fin-transaction-summary','data-finance-gefen-current','data-finance-transaction-main-run','data-finance-waiting-courses'];
-  assert.deepEqual(ordered.map(x=>view.indexOf(x)),ordered.map(x=>view.indexOf(x)).sort((a,b)=>a-b));
-  assert.equal(doc.querySelectorAll('[data-finance-transaction-main-run]').length,1);
-  assert.equal(doc.querySelector('[data-finance-transaction-main-run]').textContent,'הפקת כל חשבונות העסקה');
-  assert.match(view,/הפקה אוטומטית · גפ״ן/);
-  assert.match(view,/הפקה לפי מממן/);
-  assert.match(view,/הפקה עם עריכה/);
-  assert.equal(doc.querySelectorAll('[data-finance-transaction-preview]').length,1);
-  assert.ok([...doc.querySelectorAll('details')].every(x=>!x.open));
-  assert.equal(doc.querySelectorAll('[data-finance-transaction-group]').length,1);
-  assert.equal(doc.querySelectorAll('[data-finance-transaction-group] .ds-fin-gefen-arrow[aria-hidden=true]').length,1);assert.equal(doc.querySelectorAll('[data-finance-gefen-backlog]').length,0);
-  const cards=[...doc.querySelectorAll('.ds-fin-collect-summary-card')];
-  assert.match(cards.find(x=>x.textContent.includes('חשבונות עסקה')).textContent,/1/);
-  assert.match(cards.find(x=>x.textContent.includes('סכום להפקה')).textContent,/5,000/);
-  const group=doc.querySelector('[data-finance-transaction-group]');group.querySelector('summary').click();assert.equal(group.open,true);
-  group.querySelector('summary').click();assert.equal(group.open,false);
-  group.open=true;
-  for(const month of ['2026-09','2026-10']) {
-    d.transactionMonths.automatic=month;doc.body.innerHTML=html(d);assert.ok([...doc.querySelectorAll('details')].every(x=>!x.open));
-  }
-  doc.body.innerHTML=html(d);assert.ok([...doc.querySelectorAll('details')].every(x=>!x.open),'data refresh rerenders collapsed groups');
-  dom.window.close();
+test('compact Gefen layout shows the single account expanded with one summary and local actions',()=>{
+ const d=data([row(),row({activityRowId:'older',period:'2026-09-01'}),row({activityRowId:'waiting',eligible:false,blockedReason:'minimum',eligibilityStatus:'waiting_three_meetings',issuableAmount:0})],{financeCanComplete:true});
+ const dom=new JSDOM(html(d)),doc=dom.window.document;
+ assert.equal(doc.querySelectorAll('[data-gefen-billing-summary]').length,1);
+ assert.equal(doc.querySelectorAll('.ds-fin-collect-summary-card').length,0);
+ assert.equal(doc.querySelectorAll('[data-finance-transaction-main-run]').length,0,'no duplicate bulk action for a single account');
+ assert.equal(doc.querySelector('[data-finance-transaction-group]').open,true);
+ assert.equal(doc.querySelector('[data-finance-waiting-courses]').open,false);
+ assert.equal(doc.querySelectorAll('[data-finance-transaction-preview]').length,1);
+ assert.match(doc.querySelector('[data-gefen-billing-summary]').textContent,/5,000/);
+ assert.deepEqual([...doc.querySelectorAll('[data-finance-transaction-tab]')].map(x=>x.textContent),['גפ״ן','לפי מממן','עדכון פרטים','חשבונות שהופקו','בהתאמה אישית']);
+ assert.doesNotMatch(doc.body.textContent,/תקופת החיוב נקבעת|המועדים לפי שעון ישראל|כולל חובות קודמים/);
+ const group=doc.querySelector('[data-finance-transaction-group]');group.querySelector('summary').click();assert.equal(group.open,false);group.querySelector('summary').click();assert.equal(group.open,true);
+ dom.window.close();
 });
 test('one click issues all collapsed eligible groups exactly once with separate schools funders and periods',async()=>{
   const lines=[row(),row({activityRowId:'older',period:'2026-09-01'}),row({activityRowId:'school2',institutionSymbol:'222',payerKey:'school:2'}),
@@ -65,6 +53,8 @@ test('one click issues all collapsed eligible groups exactly once with separate 
     row({activityRowId:'waiting',eligible:false,blockedReason:'minimum',eligibilityStatus:'waiting_three_meetings',issuableAmount:0})];
   const d=data([...lines,lines[1]]);const dom=new JSDOM(html(d));
   assert.ok([...dom.window.document.querySelectorAll('details')].every(x=>!x.open));
+  assert.equal(dom.window.document.querySelectorAll('[data-finance-transaction-main-run]').length,1);
+  assert.equal(dom.window.document.querySelector('[data-finance-transaction-main-run]').textContent,'הפקה מרוכזת');
   const requests=[],dispatches=[];
   const api={reserveFinanceTransactionAccount:async p=>{requests.push(p);return{id:p.idempotencyKey};},dispatchFinanceTransactionAccount:async p=>{dispatches.push(p);return{outlookStatus:'draft_ready'};}};
   const result=await runTransactionIssuance(d,api,'automatic');
@@ -100,8 +90,8 @@ test('history displays original issuer mailbox and a clear authorization error w
 test('Gefen groups schools and original months while including eligible previous months',()=>{
   const d=data([row(),row({activityRowId:'b',activityName:'קורס ב'}),row({activityRowId:'old',period:'2026-09-01'}),row({activityRowId:'other',fundingSourceId:'r',gefenFunding:false,funding:'רשות'})]);
   const p=transactionPreviewForVisit(d);assert.equal(p.accounts.length,1);assert.equal(p.accounts.find(a=>a.period==='2026-10-01').lines.length,3);assert.equal(p.totals.amount,7500);
-  const view=html(d);assert.match(view,/הפקה אוטומטית · גפ״ן/);assert.match(view,/הפקה לפי מממן/);assert.match(view,/data-finance-transaction-period-readonly/);
-  assert.match(view,/קורס ב/);assert.match(view,/בית ספר א · 123/);assert.match(view,/data-gefen-billing-field/);assert.match(view,/כולל חובות קודמים/);
+  const view=html(d);assert.match(view,/>גפ״ן<\/button>/);assert.match(view,/>לפי מממן<\/button>/);assert.match(view,/data-finance-transaction-period-readonly/);
+  assert.match(view,/קורס ב/);assert.match(view,/בית ספר א · 123/);assert.match(view,/data-gefen-billing-field/);assert.match(view,/חשבונות להפקה/);
   assert.equal(transactionBacklog(d,'automatic').length,1);
   d.transactionMonths.automatic='2026-09';assert.equal(transactionPreviewForVisit(d).totals.amount,2500);
 });
@@ -118,7 +108,7 @@ test('default follows the funding cutoff; future month is rejected and blocked r
   assert.equal(transactionMonth({},'manual'),financeCycleCutoff().slice(0,7));
   const d=data([row({blockedReason:'חסרה חלוקת מימון תקינה',eligible:false,completedCount:3})]);
   assert.equal(transactionPreviewForVisit(d).accounts.length,0);
-  assert.match(html(d),/פעילויות חסומות להפקה/);
+  assert.match(html(d),/חסומים להפקה/);
   assert.match(html(d),/חסרה חלוקת מימון תקינה/);
   assert.equal(transactionPreviewForVisit(data([row()],{collectionError:'לא נטען'})).accounts.length,0);
 });
@@ -128,7 +118,7 @@ test('calendar minimum shows waiting courses with selected-month cumulative coun
     eligible:false,issuableAmount:0,blockedReason:'ממתין להשלמת שלושה מפגשים',eligibilityStatus:'waiting_three_meetings'});
   const d=data([waiting],{transactionMonths:{automatic:'2026-10'}});
   const view=html(d);
-  assert.match(view,/קורסים הממתינים להשלמת שלושה מפגשים/);
+  assert.match(view,/בהמתנה/);
   assert.match(view,/2 מתוך 3/);
   const dom=new JSDOM(view);
   const details=dom.window.document.querySelector('[data-finance-waiting-courses]');
@@ -211,9 +201,9 @@ test('empty months show only a concise empty state without internal diagnostics 
 test('blocked rows show a clear reason while valid backlog stays visible',()=>{
   const d=data([row({activityRowId:'aug',period:'2026-09-01'}),row({activityRowId:'blocked',blockedReason:'חסר מימון',eligible:false,completedCount:3})]);
   const view=html(d);
-  assert.match(view,/כולל חובות קודמים/);
+  assert.match(view,/חשבונות להפקה/);
   assert.match(view,/2026-09/);
-  assert.match(view,/פעילויות חסומות להפקה/);
+  assert.match(view,/חסומים להפקה/);
   assert.match(view,/חסר מימון/);
   assert.doesNotMatch(view,/אין יתרות מחודשים אחרים/);
 });

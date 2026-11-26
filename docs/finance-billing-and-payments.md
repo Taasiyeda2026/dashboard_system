@@ -99,3 +99,15 @@ Acceptance uses disposable PostgreSQL, synthetic local UI fixtures and mocked
 Microsoft calls with real PDF generation. Never issue fictitious production
 accounts or send test messages. A zero source-hour service stays zero until the
 user supplies billable hours; no activity hours are fabricated.
+
+
+### Compact Gefen issuance layout
+
+The transaction tabs are labeled `גפ״ן`, `לפי מממן`, `עדכון פרטים`,
+`חשבונות שהופקו`, and `בהתאמה אישית`; their routing keys and permissions are unchanged.
+The Gefen tab uses one compact totals row and a short cutoff date, without
+repeated explanatory paragraphs. A single eligible school account opens directly
+with its activity rows and local PDF/issue actions. Multiple accounts start
+collapsed and expose one bulk action in the toolbar. Waiting/blocked groups stay
+collapsed. Meeting counts and dates remain read-only; only hours and hourly rate
+are editable. This is a frontend layout change with no migration or Edge changes.

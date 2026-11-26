@@ -701,3 +701,5 @@ config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-finance-pdf-preview-open-20261
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-admin-entry-code-reset-20261126-v1`;
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-gefen-fixed-meetings-periods-20261126-v1`;
+
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-gefen-compact-issuance-layout-20261126-v1`;
