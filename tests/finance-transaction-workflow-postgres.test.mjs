@@ -92,7 +92,8 @@ before(async()=>{
     '20261126132351_finance_admin_transaction_deletion',
     '20261126132525_finance_non_gefen_partial_amount',
     '20261126133511_finance_uncertain_pdf_dispatch_recovery',
-    '20261126164927_finance_gefen_invoice_billing_overrides'
+    '20261126164927_finance_gefen_invoice_billing_overrides',
+    '20261126183715_finance_gefen_fixed_meetings_and_periods'
   ]) {
     const path = `../supabase/migrations/${name}.sql`;
     if (name.includes('pl_numbering')) {
@@ -400,7 +401,7 @@ check('a source price change flags a funding difference and retains the issued a
 async function gefenQuote(values={}){
   await addPayerEmail();
   const source=(await rows()).filter(r=>r.gefenFunding&&r.eligible);
-  const groups=[{activity:'a',funder:gefen,meetings:11,hours:4.25,rate:475,periods:source.map(r=>({month:r.period,revision:r.billingSourceRevision})),...values}];
+  const groups=[{activity:'a',funder:gefen,meetings:source.reduce((n,r)=>n+r.unbilledCount,0),hours:4.25,rate:475,periods:source.map(r=>({month:r.period,revision:r.billingSourceRevision})),...values}];
   const q=(await db.query('select finance_gefen_billing_quote($1,$2) q',[source[0].billingCutoff,JSON.stringify(groups)])).rows[0].q;
   return {q,groups,cutoff:source[0].billingCutoff};
 }
@@ -414,25 +415,26 @@ check('Gefen independent billing values survive reserve dispatch claims and bala
   assert.equal(Number(account.total_amount),2018.75);
   assert.equal((await gefenReserve(request,key)).id,account.id,'idempotent retry');
   const lines=(await db.query('select * from finance_transaction_account_lines where account_id=$1 order by performance_month',[account.id])).rows;
-  assert.equal(lines.reduce((n,l)=>n+Number(l.quantity_snapshot),0),11);
+  assert.equal(lines.reduce((n,l)=>n+Number(l.quantity_snapshot),0),5);
   assert.equal(lines.reduce((n,l)=>n+Number(l.billed_hours),0),4.25);
-  assert.ok(lines.every(l=>Number(l.hourly_rate_snapshot)===475&&l.billing_override_snapshot.source&&l.billing_override_snapshot.chosen.meetings===11));
+  for(const line of lines){const count=(await db.query('select count(*) n from finance_transaction_account_meetings where account_line_id=$1',[line.id])).rows[0].n;assert.equal(Number(line.quantity_snapshot),Number(count));}
+  assert.ok(lines.every(l=>Number(l.hourly_rate_snapshot)===475&&l.billing_override_snapshot.source&&l.billing_override_snapshot.chosen.meetings===5));
   assert.equal(Number((await db.query('select sum(claimed_amount) n from finance_billing_claims where account_id=$1',[account.id])).rows[0].n),2018.75);
-  assert.equal(Number((await db.query('select count(*) n from finance_transaction_account_meetings m join finance_transaction_account_lines l on l.id=m.account_line_id where l.account_id=$1',[account.id])).rows[0].n),5,'five real eligible meetings; no eleven fictitious meetings');
+  assert.equal(Number((await db.query('select count(*) n from finance_transaction_account_meetings m join finance_transaction_account_lines l on l.id=m.account_line_id where l.account_id=$1',[account.id])).rows[0].n),5,'five invoice meetings match the five real eligible dates');
   await finish(account.id);
   assert.deepEqual((await db.query("select to_jsonb(a) r from activities a where row_id='a'")).rows[0].r,original);
   const balance=(await db.query('select finance_payment_context() p')).rows[0].p.balances.find(b=>b.accountId===account.id);
   assert.equal(balance.balance,2018.75);
-  await assert.rejects(gefenReserve(request),/billing_blocked|stale_billing_preview/);
+  await assert.rejects(gefenReserve(request),/billing_blocked|stale_billing_preview|gefen_billing_periods_read_only/);
 });
 check('Gefen higher than performance amount allowed within funding but funding ceiling is enforced',async()=>{
-  const request=await gefenQuote({hours:11,rate:500,meetings:1});
+  const request=await gefenQuote({hours:11,rate:500});
   assert.equal(request.q.total_amount,5500);const a=await gefenReserve(request);await finish(a.id);
 });
 check('Gefen excessive funding amount and invalid inputs fail before any account is created',async()=>{
   await assert.rejects(gefenQuote({hours:13,rate:500}),/billing_funding_cap_exceeded/);
   await db.query('delete from contacts_schools');
-  await assert.rejects(gefenQuote({meetings:1.5}),/invalid_gefen_billing_values/);
+  await assert.rejects(gefenQuote({meetings:1.5}),/gefen_billing_meetings_read_only/);
   assert.equal((await db.query('select count(*) n from finance_transaction_accounts')).rows[0].n,'0');
 });
 check('Gefen source changes after quote or reservation fail closed',async()=>{
@@ -456,9 +458,29 @@ check('Gefen quote and reservation retain permission and payer isolation',async(
   await assert.rejects(gefenReserve(request),/finance_transactions_permission_denied/);
   await assert.rejects(db.query('select finance_gefen_billing_quote($1,$2)',[request.cutoff,JSON.stringify(request.groups)]),/finance_transactions_permission_denied/);
 });
-check('Gefen split periods preserve tiny hours and an invoice count below real slot count',async()=>{
- const request=await gefenQuote({meetings:1,hours:0.000001,rate:100000});
+check('Gefen split periods preserve tiny billable hours and the real slot count',async()=>{
+ const request=await gefenQuote({hours:0.000001,rate:100000});
  const a=await gefenReserve(request);
  const lines=(await db.query('select sum(quantity_snapshot) q,sum(billed_hours) h,sum(amount) a from finance_transaction_account_lines where account_id=$1',[a.id])).rows[0];
- assert.equal(Number(lines.q),1);assert.equal(Number(lines.h),0.000001);assert.equal(Number(lines.a),0.10);await finish(a.id);
+ assert.equal(Number(lines.q),5);assert.equal(Number(lines.h),0.000001);assert.equal(Number(lines.a),0.10);await finish(a.id);
+});
+
+check('Gefen rejects edited counts and periods from old clients and cached reservations',async()=>{
+ const request=await gefenQuote();
+ const edited=structuredClone(request.groups);edited[0].meetings=11;
+ await assert.rejects(db.query('select finance_gefen_billing_quote($1,$2)',[request.cutoff,JSON.stringify(edited)]),/gefen_billing_meetings_read_only/);
+ await assert.rejects(db.query('select reserve_finance_gefen_billing_account($1,$2,$3,$4)',[crypto.randomUUID(),request.cutoff,JSON.stringify(edited),request.q.revision]),/gefen_billing_meetings_read_only/);
+ const partial=structuredClone(request.groups);partial[0].periods.pop();
+ await assert.rejects(db.query('select finance_gefen_billing_quote($1,$2)',[request.cutoff,JSON.stringify(partial)]),/gefen_billing_periods_read_only/);
+ const a=await gefenReserve(request);
+ await db.query('update finance_transaction_account_lines set quantity_snapshot=99 where account_id=$1',[a.id]);
+ await assert.rejects(db.query('select finance_private.assert_current($1)',[a.id]),/מספר המפגשים חייב להתאים למועדים/);
+});
+
+check('Gefen server derives quantity and dates even when an API payload omits count or includes alternate dates',async()=>{
+ const request=await gefenQuote();const groups=structuredClone(request.groups);delete groups[0].meetings;groups[0].dates=['2099-01-01'];
+ const q=(await db.query('select finance_gefen_billing_quote($1,$2) q',[request.cutoff,JSON.stringify(groups)])).rows[0].q;
+ assert.equal(q.finance_transaction_account_lines.reduce((n,l)=>n+l.quantity_snapshot,0),5);
+ assert.ok(q.finance_transaction_account_lines.flatMap(l=>l.finance_transaction_account_meetings).every(m=>m.meeting_date<='2026-11-14'));
+ assert.ok(q.finance_transaction_account_lines.every(l=>l.billing_override_snapshot.chosen.dates===undefined));
 });

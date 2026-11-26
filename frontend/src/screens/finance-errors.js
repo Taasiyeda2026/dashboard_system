@@ -7,7 +7,9 @@ export function financeError(error) {
     return 'נתוני החיוב השתנו (מחיר, מפגשים, מממן או סכום). יש לרענן את התצוגה המקדימה ולחשב מחדש לפני ההפקה.';
   const labels={payment_payer_or_activity_mismatch:'התקבול אינו תואם לגורם המשלם או לפעילות.',receipt_already_allocated:'התקבול כבר שויך.',payment_exceeds_account_balance:'הסכום חורג מיתרת החשבון.',receipt_already_voided:'התקבול כבר בוטל.',dispatch_in_progress:'הפקת החשבון כבר מתבצעת.',stale_billing_reservation:'נתוני החיוב השתנו (מחיר, מפגשים, מממן או סכום). יש לרענן את התצוגה המקדימה ולחשב מחדש לפני ההפקה.',stale_billing_preview:'נתוני החיוב השתנו (מחיר, מפגשים, מממן או סכום). יש לרענן את התצוגה ולחשב מחדש לפני ההפקה.',advance_payment_changed:'נתוני התקבולים השתנו. יש לעדכן את התצוגה המקדימה.',finance_collection_permission_denied:'אין הרשאה לביצוע הפעולה.',finance_transactions_permission_denied:'אין הרשאה לביצוע הפעולה.',cancellation_requires_admin_and_reason:'ביטול חשבון דורש הרשאת מנהל וסיבה.',payment_correction_permission_denied:'תיקון התקבול דורש את רושם התקבול או מנהל.'};
   Object.assign(labels, {
-    invalid_gefen_billing_values:'יש להזין מספר מפגשים שלם וחיובי, שעות ותעריף חיוביים, עם עד שש ספרות אחרי הנקודה.',
+    gefen_billing_meetings_read_only:'מספר המפגשים נקבע לפי מועדי הפעילות ואינו ניתן לעריכה. יש לרענן את תצוגת החשבון.',
+    gefen_billing_periods_read_only:'תקופת הביצוע ומועדי הפעילות אינם ניתנים לעריכה בהפקה. יש לרענן את תצוגת החשבון.',
+    invalid_gefen_billing_values:'יש להזין שעות ותעריף חיוביים, עם עד שש ספרות אחרי הנקודה.',
     billing_funding_cap_exceeded:'סכום החשבון חורג מיתרת המימון הזמינה לפעילות.',
     different_prices_for_same_activity:'נמצאו מחירים שונים לאותה פעילות אצל אותו מממן. יש להעביר לבירור כספים.',
     finance_pdf_upload_outcome_unknown:'שמירת המסמך טרם אומתה. יש לבדוק בהיסטוריה לפני ניסיון נוסף.',

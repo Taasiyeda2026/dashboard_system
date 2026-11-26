@@ -1227,6 +1227,7 @@ export const financeScreen = {
       const monthPicker = ev.target.closest('[data-finance-transaction-month]');
       if (monthPicker) {
         const mode = monthPicker.dataset.financeTransactionMonth;
+        if(mode==='automatic')return;
         const month = String(monthPicker.value || '');
         if (/^\d{4}-\d{2}$/.test(month) && month <= transactionMaxMonth(visit, mode)) {
           visit.transactionMonths = { ...visit.transactionMonths, [mode]: month };

@@ -670,19 +670,19 @@ test('edited Gefen billing PDF and Outlook attachment retain independent quantit
   const quote={...fixture(),total_amount:2018.75,finance_transaction_account_lines:[0,1].map(i=>({
     activity_row_id:'edited',activity_name_snapshot:'ביומימיקרי',school_name_snapshot:'ביאליק',gefen_number_snapshot:'6089',
     billing_rule:'monthly',billing_coverage:'performance',funding_snapshot:'גפ״ן',
-    quantity_snapshot:i?7:4,billed_hours:i?2.55:1.7,hourly_rate_snapshot:475,amount:i?1211.25:807.5,
-    billing_override_snapshot:{chosen:{meetings:11,hours:4.25,rate:475}},
-    finance_transaction_account_meetings:[{meeting_date:i?'2026-11-05':'2026-10-01'}]
+    quantity_snapshot:i?2:3,billed_hours:i?2.55:1.7,hourly_rate_snapshot:475,amount:i?1211.25:807.5,
+    billing_override_snapshot:{chosen:{meetings:5,hours:4.25,rate:475}},
+    finance_transaction_account_meetings:(i?['2026-11-05','2026-11-12']:['2026-10-01','2026-10-08','2026-10-15']).map(meeting_date=>({meeting_date}))
   }))};
-  const preview=await harness({gefenBilling:{cutoffDate:'2026-11-14',groups:[{meetings:11,hours:4.25,rate:475}]},quote});
+  const preview=await harness({gefenBilling:{cutoffDate:'2026-11-14',groups:[{meetings:5,hours:4.25,rate:475}]},quote});
   assert.equal(preview.response.status,200,JSON.stringify(preview.body));
   assert.ok(preview.calls.some(c=>c.name==='finance_gefen_billing_quote'));
   const pdf=await getDocument({data:new Uint8Array(Buffer.from(preview.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
   const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');
-  for(const value of ['11','4.25','475.00','2,018.75'])assert.ok(text.includes(value),value);
+  for(const value of ['5','4.25','475.00','2,018.75'])assert.ok(text.includes(value),value);
   const issued=await harness({account:quote});assert.equal(issued.response.status,200,JSON.stringify(issued.body));
   assert.equal(issued.account.total_amount,2018.75);
   const attached=await getDocument({data:new Uint8Array(Buffer.from(issued.draftPayload.attachments[0].contentBytes,'base64')),useSystemFonts:false}).promise;
   const attachedText=(await(await attached.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');
-  for(const value of ['11','4.25','475.00','2,018.75'])assert.ok(attachedText.includes(value),value);
+  for(const value of ['5','4.25','475.00','2,018.75'])assert.ok(attachedText.includes(value),value);
 });

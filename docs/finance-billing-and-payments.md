@@ -59,9 +59,9 @@
 ### Account-only automatic Gefen billing (26 November 2026)
 
 The automatic Gefen school account has one compact row per activity/funding group.
-Meeting count, total billable hours and hourly rate are independently editable.
-The line total is `round(hours × hourly rate, 2)`; count edits do not change hours.
-Source activity values are defaults only. The extended completion form remains
+Meeting count, execution dates and execution period are read-only from the eligible source meetings. Only total billable hours and hourly rate are independently editable.
+The line total is `round(hours × hourly rate, 2)`; editable hours do not change the fixed meeting count or dates.
+Source hours and rates are defaults only. The extended completion form remains
 available in its dedicated tab and is not embedded in automatic issuance.
 
 `finance_billing_preview` returns `billingSourceRevision` for each untouched
@@ -72,15 +72,12 @@ reservation/numbering machinery before atomically applying the account values.
 Single-school and bulk issuance use these same APIs. Lost-response retries keep
 the same request identity and quote; issued reservations are never repriced.
 
-Monthly accounting lines split aggregate count (integer), hours (six decimals)
-and amount (cents) deterministically, with sums equal to the user's group values.
+Monthly accounting lines retain each period's actual source meeting count; hours (six decimals) and amount (cents) split deterministically with sums equal to the user's group values.
 `billing_override_snapshot` retains the untouched source row and the chosen group
 values. Actual meeting rows and claims cover only the original eligible slots,
-regardless of the invoice count. Those slots are settled to prevent duplicate
+with an identical invoice meeting count. Those slots are settled to prevent duplicate
 billing; claim amounts sum to the edited invoice amount. The funding ceiling
-still applies across current and previous accounts. This does not create more
-billable activity slots when invoice count increases or reduce their number when
-it decreases. Existing activity/funding/order records are never updated.
+still applies across current and previous accounts. Meeting count cannot be edited, including through old clients or direct RPCs. Existing activity/funding/order records are never updated.
 
 Dispatch revalidates the original source revision and funding balance while
 retaining the chosen account values. A changed source requires a refresh.
@@ -89,7 +86,7 @@ Historical explicit account rate edits are excluded only from the prior-rate
 mismatch rule; the other source/order eligibility checks remain active.
 
 Deploy migration `20261126164927_finance_gefen_invoice_billing_overrides.sql`
-first, then the full finance Edge sources, then the frontend (cache 2147).
+first, then the full finance Edge sources, then the frontend. The follow-up migration `20261126183715_finance_gefen_fixed_meetings_and_periods.sql` locks counts and complete eligible source periods for quotes, reservations and dispatch; deploy it before frontend cache 2151. It does not require an Edge deployment.
 The migration is backward compatible with existing clients; both new RPCs enforce
 existing issue permissions and are not callable by anonymous clients. Do not run
 `supabase config push` or unrelated migrations. Capture a fresh scoped financial
