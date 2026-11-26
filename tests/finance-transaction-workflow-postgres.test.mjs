@@ -18,6 +18,11 @@ const gefen = '11111111-1111-4111-8111-111111111111';
 const authority = '22222222-2222-4222-8222-222222222222';
 let baselinePreview;
 let historicalMigrationSnapshot;
+const historySnapshotSql = `select jsonb_build_object(
+  'account',(select to_jsonb(a)-'deleted_at'-'dispatch_number_reserved'-'dispatch_upload_hash'
+    from finance_transaction_accounts a where generated_filename='original.pdf'),
+  'payments',finance_payment_context()
+) snapshot`;
 const migration = '../supabase/migrations/20261115080018_finance_gefen_semimonthly_cutoff.sql';
 async function at(value) { await db.query("select set_config('test.clock',$1,false)",[value]); }
 async function rows() { return (await db.query("select finance_billing_preview(array['a']) r")).rows[0].r; }
@@ -96,11 +101,20 @@ before(async()=>{
         total_amount,document_status,issue_mode,payment_due_date,generated_filename,sharepoint_item_id
       ) values('99999999-9999-4999-8999-999999999999','99999999-9999-4999-8999-999999999999',
         '2026-10-01','123','מממן היסטורי',850,'issued','manual','2026-11-30','original.pdf','original-item');`);
-      historicalMigrationSnapshot = (await db.query("select to_jsonb(a) snapshot from finance_transaction_accounts a where generated_filename='original.pdf'")).rows[0].snapshot;
+      await db.query(`select set_config('test.app_role','admin',false),set_config('test.uid','44444444-4444-4444-8444-444444444444',false);
+        insert into activities(id,row_id) values(99,'historical-activity');
+        insert into funding_sources values('${authority}','רשות');
+        insert into finance_receipts(id,idempotency_key,payer_name,amount,received_date,created_by)
+          values('99999999-9999-4999-8999-999999999998','99999999-9999-4999-8999-999999999998',
+            'מממן היסטורי',425,'2026-10-20','99999999-9999-4999-8999-999999999997');
+        insert into finance_receipt_allocations(receipt_id,account_id,activity_row_id,funding_source_id,amount)
+          values('99999999-9999-4999-8999-999999999998','99999999-9999-4999-8999-999999999999',
+            'historical-activity','${authority}',300);`);
+      historicalMigrationSnapshot = (await db.query(historySnapshotSql)).rows[0].snapshot;
+      assert.equal(historicalMigrationSnapshot.payments.balances[0].balance,550);
     } else await load(path);
   }
-  const after = (await db.query(`select to_jsonb(a)-'deleted_at'-'dispatch_number_reserved'-'dispatch_upload_hash' snapshot
-    from finance_transaction_accounts a where generated_filename='original.pdf'`)).rows[0].snapshot;
+  const after = (await db.query(historySnapshotSql)).rows[0].snapshot;
   assert.deepEqual(after,historicalMigrationSnapshot);
 });
 after(async()=>{if(db)await db.end();});
@@ -269,6 +283,7 @@ check('correction below allocated receipts is blocked and deletion releases allo
   await db.query('select finish_finance_account_deletion($1,$2)',[account.id,operationId]);
   assert.equal((await db.query('select amount,voided_at from finance_receipts where id=$1',[receipt])).rows[0].voided_at,null);
   assert.ok((await db.query('select released_at from finance_receipt_allocations where receipt_id=$1',[receipt])).rows[0].released_at);
+  assert.ok(!(await db.query('select finance_payment_context() payment')).rows[0].payment.balances.some(row=>row.accountId===account.id));
   assert.equal((await db.query("select set_config('test.role','authenticated',false)")).rowCount,1);
   await assert.rejects(db.query('select finance_invoice_revision_context($1)',[account.id]),/invoice_not_editable/);
 });

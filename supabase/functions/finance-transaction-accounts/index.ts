@@ -117,13 +117,27 @@ async function verifyDraft(token: string, mailbox: string, id: string, filename:
   return {id:message.id,isDraft:true};
 }
 
-async function validateTransactionFolder(token: string) {
+function transactionTarget(supabaseUrl: string) {
+  if (new URL(supabaseUrl).hostname === 'szinlhjuwyiyszdpsdop.supabase.co') {
+    if (Deno.env.get('FINANCE_TEST_MODE') === 'true') throw new Error('finance_test_target_invalid');
+    return { drive: TRANSACTION_DRIVE_ID, folder: TRANSACTION_FOLDER_ID, mailbox: '' };
+  }
+  const drive = clean(Deno.env.get('FINANCE_TEST_DRIVE_ID'));
+  const folder = clean(Deno.env.get('FINANCE_TEST_FOLDER_ID'));
+  const mailbox = clean(Deno.env.get('FINANCE_TEST_MAILBOX')).toLowerCase();
+  if (Deno.env.get('FINANCE_TEST_MODE') !== 'true' || !drive || !folder || !mailbox || folder === TRANSACTION_FOLDER_ID) {
+    throw new Error('finance_test_target_invalid');
+  }
+  return { drive, folder, mailbox };
+}
+
+async function validateTransactionFolder(token: string, drive: string, folder: string) {
   const item = await graph(
     token,
-    `/drives/${encodeURIComponent(TRANSACTION_DRIVE_ID)}/items/${encodeURIComponent(TRANSACTION_FOLDER_ID)}?$select=id,name,folder,parentReference`
+    `/drives/${encodeURIComponent(drive)}/items/${encodeURIComponent(folder)}?$select=id,name,folder,parentReference`
   );
-  if (!item?.id || item.id !== TRANSACTION_FOLDER_ID || !item?.folder) throw new Error("transaction_sharepoint_folder_invalid");
-  if (clean(item?.parentReference?.driveId) && clean(item.parentReference.driveId) !== TRANSACTION_DRIVE_ID) {
+  if (!item?.id || item.id !== folder || !item?.folder) throw new Error("transaction_sharepoint_folder_invalid");
+  if (clean(item?.parentReference?.driveId) && clean(item.parentReference.driveId) !== drive) {
     throw new Error("transaction_sharepoint_folder_invalid");
   }
 }
@@ -611,6 +625,7 @@ Deno.serve(async (req) => {
     const service = clean(Deno.env.get("SUPABASE_SERVICE_ROLE_KEY"));
     if (!url || !anon || !service) throw new Error("supabase_function_not_configured");
 
+    const target = transactionTarget(url);
     const body = await req.json();
     admin = createClient(url, service);
     userClient = createClient(url, anon, { global: { headers: { Authorization: auth } } });
@@ -625,6 +640,14 @@ Deno.serve(async (req) => {
       if (deletion.itemId) {
         const token = await graphToken();
         const path = `/drives/${encodeURIComponent(deletion.driveId)}/items/${encodeURIComponent(deletion.itemId)}`;
+        if (target.mailbox) {
+          if (deletion.driveId !== target.drive) throw new Error('finance_test_target_invalid');
+          const item = await graph(token, `${path}?$select=parentReference`).catch(error => {
+            if (error instanceof GraphRequestError && error.status === 404) return null;
+            throw error;
+          });
+          if (item && item.parentReference?.id !== target.folder) throw new Error('finance_test_target_invalid');
+        }
         try { await graph(token, path, { method: 'DELETE' }); }
         catch (error) {
           if (!(error instanceof GraphRequestError) || error.status !== 404) throw new Error('finance_pdf_deletion_failed');
@@ -641,7 +664,7 @@ Deno.serve(async (req) => {
 
     if(body.revisionId){
       try {
-        const result=await handleInvoiceRevision({buildPdf,attachActivityTypes,pdfHash,base64,graph,graphToken,validateTransactionFolder,fetch,drive:TRANSACTION_DRIVE_ID,folder:TRANSACTION_FOLDER_ID},userClient,admin,body);
+        const result=await handleInvoiceRevision({buildPdf,attachActivityTypes,pdfHash,base64,graph,graphToken,validateTransactionFolder:(token: string)=>validateTransactionFolder(token,target.drive,target.folder),fetch,drive:target.drive,folder:target.folder},userClient,admin,body);
         return Response.json(result,{headers:cors});
       }catch(error){return Response.json({error:String((error as any)?.message||error),documentPreserved:true},{status:400,headers:cors});}
     }
@@ -707,7 +730,7 @@ Deno.serve(async (req) => {
     let bytes: Uint8Array;
     let filename = account.generated_filename;
     if (account.document_status === "generating") {
-      await validateTransactionFolder(graphAccessToken);
+      await validateTransactionFolder(graphAccessToken,target.drive,target.folder);
       await attachActivityTypes(account, admin);
       bytes = await buildPdf(account);
       filename = `חשבון עסקה ${account.transaction_account_number} - ${clean(account.customer_name_snapshot).replace(/[\\/:*?\"<>|]/g, " ")} - ${date(account.issue_date)}.pdf`;
@@ -715,7 +738,7 @@ Deno.serve(async (req) => {
       // Use the immutable account ID for the stored name so a recycled number
       // cannot collide with a prior version. Outlook still uses the display name.
       const storageFilename = filename.replace(/\.pdf$/, ` - ${accountId}.pdf`);
-      const filePath = `/drives/${encodeURIComponent(TRANSACTION_DRIVE_ID)}/items/${encodeURIComponent(TRANSACTION_FOLDER_ID)}:/${encodeURIComponent(storageFilename)}`;
+      const filePath = `/drives/${encodeURIComponent(target.drive)}/items/${encodeURIComponent(target.folder)}:/${encodeURIComponent(storageFilename)}`;
       const hash = await pdfHash(bytes);
       const staged = await admin.rpc('finance_stage_pdf_upload', {
         p_account_id: accountId, p_token: dispatchToken, p_hash: hash
@@ -733,7 +756,7 @@ Deno.serve(async (req) => {
       } else if (upload.status === 409) {
         item = await graph(graphAccessToken, filePath);
         const existing = await fetch(
-          `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(TRANSACTION_DRIVE_ID)}/items/${encodeURIComponent(item.id)}/content`,
+          `https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(target.drive)}/items/${encodeURIComponent(item.id)}/content`,
           { headers: { Authorization: `Bearer ${graphAccessToken}` } }
         );
         if (!existing.ok || await pdfHash(new Uint8Array(await existing.arrayBuffer())) !== hash) {
@@ -756,8 +779,8 @@ Deno.serve(async (req) => {
         p_account_id: accountId,
         p_filename: filename,
         p_pdf_sha256: hash,
-        p_drive_id: TRANSACTION_DRIVE_ID,
-        p_folder_item_id: TRANSACTION_FOLDER_ID,
+        p_drive_id: target.drive,
+        p_folder_item_id: target.folder,
         p_item_id: item.id,
         p_web_url: item.webUrl
       });
@@ -767,6 +790,9 @@ Deno.serve(async (req) => {
       uploadOutcomeUnknown = false;
     } else {
       finalized = true;
+      if (target.mailbox && (account.sharepoint_drive_id !== target.drive || account.sharepoint_folder_item_id !== target.folder)) {
+        throw new Error('finance_test_target_invalid');
+      }
       const stored = await fetch(`https://graph.microsoft.com/v1.0/drives/${encodeURIComponent(account.sharepoint_drive_id)}/items/${encodeURIComponent(account.sharepoint_item_id)}/content`, { headers: { Authorization: `Bearer ${graphAccessToken}` } });
       if (!stored.ok) throw new Error("issued_pdf_download_failed");
       bytes = new Uint8Array(await stored.arrayBuffer());
@@ -783,6 +809,7 @@ Deno.serve(async (req) => {
     });
     if (mailboxResult.error) throw mailboxResult.error;
     mailbox = clean(mailboxResult.data);
+    if (target.mailbox && target.mailbox !== mailbox.toLowerCase()) throw new Error('finance_test_target_invalid');
     if (!/^[^\s@]+@think\.org\.il$/.test(mailbox)) throw new Error('invoice_mailbox_not_authorized');
     const owner = await userClient.rpc('finance_delegated_account_owner',{p_account_id:accountId});
     if (owner.error) throw owner.error;
@@ -802,6 +829,7 @@ Deno.serve(async (req) => {
       await markOutlook('missing_recipient','no_valid_payer_email');
       return Response.json({accountId,filename,outlookStatus:'missing_recipient',invalidRecipientCount},{headers:cors});
     }
+    if (target.mailbox && recipients.some(address => address.toLowerCase() !== target.mailbox)) throw new Error('finance_test_target_invalid');
     const propertyId = 'String {fe840b5e-3427-421b-a522-224fbb1c2c65} Name FinanceAccountId';
     const mailboxPath = '/me/messages';
     if (!knownMessageId) {

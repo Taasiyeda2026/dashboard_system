@@ -15,6 +15,13 @@ begin
  if not exists(select 1 from public.finance_transaction_accounts a where a.id=p_id and a.deleted_at is null and (a.document_status in ('issued','mail_draft_ready','sent') or (p_readonly and a.document_status='cancelled')) and exists(select 1 from public.finance_transaction_account_lines l where l.account_id=a.id)
    and not exists(select 1 from public.finance_transaction_account_lines l left join public.activities activity on activity.row_id=l.activity_row_id where l.account_id=a.id and coalesce(activity.activity_season,'')<>'school_2027')) then raise exception 'invoice_not_editable'; end if;
 end $$;
+create or replace function public.finance_payment_context() returns jsonb language plpgsql stable security definer set search_path='' as $$
+begin
+  if not finance_private.can_collect() and not public.finance_transaction_can_issue() then raise exception 'finance_collection_permission_denied' using errcode='42501'; end if;
+  return jsonb_build_object('receipts',(select coalesce(jsonb_agg(to_jsonb(r) order by r.received_date desc,r.id),'[]') from public.finance_receipts r),
+    'allocations',(select coalesce(jsonb_agg(to_jsonb(x)),'[]') from public.finance_receipt_allocations x),
+    'balances',(select coalesce(jsonb_agg(jsonb_build_object('accountId',a.id,'paidAmount',finance_private.account_paid(a.id),'balance',greatest(0,a.total_amount-finance_private.account_paid(a.id)))),'[]') from public.finance_transaction_accounts a where a.document_status<>'generating' and a.deleted_at is null));
+end $$;
 create table finance_private.account_numbering (
   singleton boolean primary key default true check(singleton),
   next_number bigint not null check(next_number>0)

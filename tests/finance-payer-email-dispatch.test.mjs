@@ -37,6 +37,7 @@ async function dispatch({ status = 'generating', recipients = [] } = {}) {
   runInNewContext(source, {
     Deno: { serve: callback => { handler = callback; }, env: { get: () => 'test' } },
     createClient: () => db,
+    transactionTarget: () => ({ drive:'drive',folder:'folder',mailbox:'' }),
     graphToken: async () => {
       calls.push('graphToken');
       throw new Error('graph_not_configured');
