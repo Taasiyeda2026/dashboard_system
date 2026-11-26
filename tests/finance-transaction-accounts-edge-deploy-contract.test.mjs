@@ -106,3 +106,25 @@ test('post-download verifier rejects a CDN shim payload', () => {
     rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+
+test('post-download verifier accepts CLI-formatted arrays and module quotes', () => {
+  const tmp = join('/tmp', `fta-formatted-${process.pid}`);
+  mkdirSync(tmp, { recursive: true });
+  const formatted = index
+    .replace('courseWidths = [83, 65, 101, 54, 38, 43, 68, 83]', 'courseWidths = [\n  83,\n 65,\n101, 54, 38, 43, 68, 83,\n]')
+    .replace("from './revision-dispatch.ts'", 'from "./revision-dispatch.ts"');
+  writeFileSync(join(tmp, 'index.ts'), formatted);
+  writeFileSync(join(tmp, 'revision-dispatch.ts'), revision);
+  try {
+    const result = spawnSync(process.execPath, [verifyScript, tmp], { encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    // Tolerating formatting must not accept a changed PDF column layout.
+    writeFileSync(join(tmp, 'index.ts'), formatted.replace('101, 54', '102, 54'));
+    const changed = spawnSync(process.execPath, [verifyScript, tmp], { encoding: 'utf8' });
+    assert.notEqual(changed.status, 0);
+    assert.match(changed.stderr, /course column widths/);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
