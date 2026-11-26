@@ -260,17 +260,17 @@ function invoiceRenderRows(lines: any[], keepDistinctActivities = false): { cour
     const category = clean(line.activity_type_snapshot || line.activity_type).toLowerCase();
     // Unknown legacy snapshots use the course layout; live issuance and
     // previews resolve every activity's actual type before calling buildPdf.
-    const service = ['workshop', 'tour', 'סדנה', 'סיור'].includes(category);
+    const service = !line.billing_override_snapshot && ['workshop', 'tour', 'סדנה', 'סיור'].includes(category);
     const gefenFunding = isGefenInvoiceLine(line);
     const amount = Number(line.amount || 0);
     const statedQty = Number(line.quantity_snapshot);
-    const quantity = Number.isFinite(statedQty) && statedQty > 0 ? statedQty
+    const quantity = Number.isFinite(statedQty) && (statedQty > 0 || (line.billing_override_snapshot && statedQty === 0)) ? statedQty
       : (line.finance_transaction_account_meetings?.length || 1);
     // Performance billing uses the reserved hours and approved hourly snapshot,
     // including fractional hours when the funding ceiling caps the final slot.
     // Preserve the legacy full-funding presentation.
     const gefenPerformance = gefenFunding && !service && line.billing_coverage !== 'full_funding'
-      && Number(line.hourly_rate_snapshot) > 0 && Number(line.billed_hours) > 0;
+      && Number(line.hourly_rate_snapshot) > 0 && (Number(line.billed_hours) > 0 || !!line.billing_override_snapshot);
     const hours = gefenPerformance ? Number(line.billed_hours)
       : gefenFunding && !service ? quantity * 1.5
       : Math.max(0, Number(line.billed_hours || 0));
@@ -672,7 +672,9 @@ Deno.serve(async (req) => {
       if (body.outlookJobToken) throw new Error('not_authorized');
       const consolidated = Array.isArray(body.funderBatch);
       const manual = body.manual || {};
-      const { data: quote, error: quoteError } = consolidated
+      const { data: quote, error: quoteError } = body.gefenBilling
+        ? await userClient.rpc("finance_gefen_billing_quote", {p_cutoff_date:body.gefenBilling.cutoffDate,p_groups:body.gefenBilling.groups})
+        : consolidated
         ? await userClient.rpc("finance_funder_batch_quote", { p_items: body.funderBatch })
         : await userClient.rpc("finance_manual_account_quote", {
           p_activity: manual.activity, p_funder: manual.funder, p_month: manual.month, p_draft: manual.draft || {}

@@ -975,3 +975,10 @@
     font-size: .78rem;
   }
 }
+
+/* Account-only Gefen billing: equal inline controls, no operational editor. */
+.ds-fin-gefen-billing-table th,.ds-fin-gefen-billing-table td { text-align:right;vertical-align:middle; }
+.ds-fin-gefen-billing-input { box-sizing:border-box;width:112px;max-width:100%;min-height:36px;text-align:right; }
+.ds-fin-gefen-billing-table td:last-child { white-space:nowrap;color:var(--ds-primary,#176b83); }
+.ds-fin-gefen-billing-table th:first-child { min-width:170px; }
+@media(max-width:640px){.ds-fin-gefen-billing-input {width:88px;} .ds-fin-gefen-billing-table th:first-child {min-width:130px;}}

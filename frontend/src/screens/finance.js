@@ -1,3 +1,4 @@
+import {gefenBillingRequest} from './finance-gefen-billing-overrides.js';
 import { completionPayload, syncCompletionForm, syncCompletionSearch } from './finance-billing-completion.js';
 import {bindInvoiceRevisions} from './finance-invoice-revisions.js';
 import { hubIcon } from './shared/process-icons.js';
@@ -28,12 +29,14 @@ import {
   handleTransactionSelection,
   handleTransactionGroupSelection,
   syncTransactionSelectionUi,
+  syncGefenBillingInput,
   runTransactionIssuance,
   previewTransactionAccountGroup,
   automaticMixedFundingProgramReview,
   transactionIssuanceResultMessage,
   transactionPreviewForVisit,
   transactionMaxMonth,
+  transactionAccountPreviewKey,
   transactionAccountsViewHtml
 } from './finance-transaction-issuance.js';
 
@@ -589,13 +592,13 @@ export const financeScreen = {
         visit.pendingPdfUploads = await api.financePendingPdfUploads();
       }
     };
-    const executeTransactionRun = async (mode, month) => {
+    const executeTransactionRun = async (mode, month, accountKey = null) => {
       if (visit.financeBusy || visit.transactionRunning) return;
       visit.transactionRunning = true;
       visit.transactionActionMessage = 'מפיק חשבונות עסקה…';
       refresh();
       try {
-        const results = await runTransactionIssuance(visit, api, mode, month);
+        const results = await runTransactionIssuance(visit, api, mode, month, accountKey);
         const issued = results.some(result => !result.error || result.dispatched?.documentPreserved);
         visit.transactionActionMessage = transactionIssuanceResultMessage(results);
         if (mode === 'manual' && issued) visit.transactionManualSelected = {};
@@ -948,14 +951,15 @@ export const financeScreen = {
         const approved = visit.pendingTransactionApproval;
         const scoped = { ...visit, transactionMonths: { ...visit.transactionMonths, automatic: approved.month } };
         const currentPreview = transactionPreviewForVisit(scoped, 'automatic');
+        if(approved.accountKey)currentPreview.accounts=currentPreview.accounts.filter(a=>transactionAccountPreviewKey(a)===approved.accountKey);
         visit.pendingTransactionApproval = null;
-        if (currentPreview.accounts.length !== approved.accountCount
-          || Math.abs(currentPreview.totals.amount - approved.amount) > 0.005) {
+        if (JSON.stringify(currentPreview.accounts.map(a=>gefenBillingRequest(visit,a,currentPreview.cutoff)))!==approved.billingSnapshot || JSON.stringify(currentPreview.accounts)!==approved.snapshot || currentPreview.accounts.length !== approved.accountCount
+          || Math.abs(currentPreview.accounts.reduce((n,a)=>n+a.totalAmount,0) - approved.amount) > 0.005) {
           visit.transactionActionMessage = 'נתוני החיוב השתנו מאז האישור. יש לרענן את הרשימה ולבדוק מחדש לפני הפקה.';
           refresh();
           return;
         }
-        await executeTransactionRun('automatic', approved.month);
+        await executeTransactionRun('automatic', approved.month, approved.accountKey);
         return;
       }
 
@@ -966,7 +970,8 @@ export const financeScreen = {
         const month = transactionRun.dataset.financeTransactionPeriod
           || visit.transactionMonths?.[mode] || transactionMaxMonth(visit, mode);
         if (mode === 'automatic') {
-          const mixed = automaticMixedFundingProgramReview(visit, month);
+          const accountKey=transactionRun.dataset.financeTransactionAccount||null;
+          const mixed = automaticMixedFundingProgramReview(visit, month, accountKey);
           const invalid = mixed.filter(row => !row.valid);
           if (invalid.length) {
             visit.transactionActionMessage = 'הפקת גפ״ן נחסמה: מספר גפ״ן חסר או אינו תואם לרשומת הפעילות. יש לתקן את כל הפעילויות לפני ההפקה.';
@@ -975,6 +980,8 @@ export const financeScreen = {
           }
           const scoped = { ...visit, transactionMonths: { ...visit.transactionMonths, automatic: month } };
           const preview = transactionPreviewForVisit(scoped, 'automatic');
+          if(accountKey)preview.accounts=preview.accounts.filter(a=>transactionAccountPreviewKey(a)===accountKey);
+          try{for(const a of preview.accounts)gefenBillingRequest(visit,a,preview.cutoff);}catch(error){visit.transactionActionMessage=error.message;refresh();return;}
           if (!preview.accounts.length) {
             visit.transactionActionMessage = 'אין חשבונות גפ״ן מוכנים להפקה לחודש זה.';
             refresh();
@@ -982,9 +989,10 @@ export const financeScreen = {
           }
           visit.pendingTransactionApproval = {
             mode: 'automatic',
+            accountKey, snapshot:JSON.stringify(preview.accounts), billingSnapshot:JSON.stringify(preview.accounts.map(a=>gefenBillingRequest(visit,a,preview.cutoff))),
             month,
             accountCount: preview.accounts.length,
-            amount: preview.totals.amount,
+            amount: preview.accounts.reduce((n,a)=>n+a.totalAmount,0),
             mixed: mixed.map(({school,course,code}) => ({school,course,code}))
           };
           visit.transactionActionMessage = '';
@@ -1248,6 +1256,7 @@ export const financeScreen = {
     };
 
     const onInput = (ev) => {
+      if(ev.target.matches('[data-gefen-billing-field]')){if(visit.financeBusy||visit.transactionRunning)return;syncGefenBillingInput(root,visit,ev.target);return;}
       if (ev.target.matches('[data-finance-history-search]')) {
         clearTimeout(root._financeHistorySearchTimer);
         const value = ev.target.value;

@@ -55,3 +55,50 @@
 שתי המיגרציות החדשות משלימות זו את זו ויש להחיל את שתיהן לפני הפעלת הקוד החדש. לאחר אישור בלבד: מיגרציות, Edge Function ואז Frontend. מסמכים ישנים ללא שיוך מממן/תקבולים מפורטים מחייבים בירור נתונים לפני חיוב נוסף או הצגתם כמשולמים מאומתים. rollback לאחר יצירת מסמכים חדשים צריך לשמר snapshots, שיוכים והיסטוריית ביקורת; אין למחוק טבלאות כספיות לשם חזרה לגרסה קודמת.
 
 הענף `fix/finance-collection-activity-source-20261030` נבדק מול בסיס `b64678ea`; אומצו ממנו העדפת תאריכי מפגשים עדכניים וחישובי מעקב רלוונטיים בלבד.
+
+### Account-only automatic Gefen billing (26 November 2026)
+
+The automatic Gefen school account has one compact row per activity/funding group.
+Meeting count, total billable hours and hourly rate are independently editable.
+The line total is `round(hours × hourly rate, 2)`; count edits do not change hours.
+Source activity values are defaults only. The extended completion form remains
+available in its dedicated tab and is not embedded in automatic issuance.
+
+`finance_billing_preview` returns `billingSourceRevision` for each untouched
+monthly row. `finance_gefen_billing_quote(date,jsonb)` is the canonical PDF and
+reservation quote. `reserve_finance_gefen_billing_account(uuid,date,jsonb,text)`
+locks the source activities, verifies that quote and reuses the original slot
+reservation/numbering machinery before atomically applying the account values.
+Single-school and bulk issuance use these same APIs. Lost-response retries keep
+the same request identity and quote; issued reservations are never repriced.
+
+Monthly accounting lines split aggregate count (integer), hours (six decimals)
+and amount (cents) deterministically, with sums equal to the user's group values.
+`billing_override_snapshot` retains the untouched source row and the chosen group
+values. Actual meeting rows and claims cover only the original eligible slots,
+regardless of the invoice count. Those slots are settled to prevent duplicate
+billing; claim amounts sum to the edited invoice amount. The funding ceiling
+still applies across current and previous accounts. This does not create more
+billable activity slots when invoice count increases or reduce their number when
+it decreases. Existing activity/funding/order records are never updated.
+
+Dispatch revalidates the original source revision and funding balance while
+retaining the chosen account values. A changed source requires a refresh.
+Previously issued accounts and non-Gefen paths retain their existing behavior.
+Historical explicit account rate edits are excluded only from the prior-rate
+mismatch rule; the other source/order eligibility checks remain active.
+
+Deploy migration `20261126164927_finance_gefen_invoice_billing_overrides.sql`
+first, then the full finance Edge sources, then the frontend (cache 2147).
+The migration is backward compatible with existing clients; both new RPCs enforce
+existing issue permissions and are not callable by anonymous clients. Do not run
+`supabase config push` or unrelated migrations. Capture a fresh scoped financial
+snapshot and the three replaced function definitions before application.
+For recovery prefer a forward fix; do not remove account provenance or restore
+financial rows over business activity recorded after the checkpoint. Once edited
+accounts exist, preserve the new PDF renderer and dispatch validation on rollback.
+
+Acceptance uses disposable PostgreSQL, synthetic local UI fixtures and mocked
+Microsoft calls with real PDF generation. Never issue fictitious production
+accounts or send test messages. A zero source-hour service stays zero until the
+user supplies billable hours; no activity hours are fabricated.
