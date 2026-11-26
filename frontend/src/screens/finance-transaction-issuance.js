@@ -2,7 +2,7 @@ import { gefenBillingGroups, gefenBillingValues, gefenBillingAmount, gefenBillin
 import { financeBillingCompletionHtml, financeActivitySchoolIdentity, financeBillingCompletionEditorHtml } from './finance-billing-completion.js';
 import {invoiceRevisionEditorHtml,invoiceRevisionAdminHtml} from './finance-invoice-revisions.js';
 import '../finance-transaction-page-data-hotfix.js';
-import { manualAccountViewHtml, manualPdfReviewHtml, syncManualPdfPreviewDom, activateManualPdfPreview } from './finance-manual-account.js';
+import { manualAccountViewHtml } from './finance-manual-account.js';
 import { financeError } from './finance-errors.js';
 import { escapeHtml } from './shared/html.js';
 import { dsEmptyState, dsScreenStack, dsTableWrap } from './shared/layout.js';
@@ -368,7 +368,7 @@ function billingView(data, mode) {
         ${groupsHtml(current) || dsEmptyState('אין חשבונות להפקה בחודש שנבחר.')}</section>
       ${previous.length ? `<section class="ds-fin-gefen-backlog" data-finance-gefen-backlog><h3>חיובים זכאים מחודשים קודמים</h3>${groupsHtml(previous,true)}</section>` : ''}
       ${preview.accounts.length ? `<div class="ds-fin-gefen-issue"><button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-run="${mode}" data-finance-transaction-main-run>${escapeHtml(issueButtonLabel(mode, data))}</button></div>` : ''}
-      ${data.transactionIssuancePreview ? `<div class="ds-fin-transaction-preview-pane">${manualPdfReviewHtml({key:'single',title:'תצוגה מקדימה לפני הפקה',detail:`${data.transactionIssuancePreview.quote?.customer_name_snapshot || ''} · ${formatAmount(data.transactionIssuancePreview.quote?.total_amount)}`}).replaceAll('data-finance-manual-','data-finance-transaction-issuance-')}</div>` : ''}
+      ${data.transactionIssuancePreview ? `<section class="ds-fin-transaction-preview-pane" tabindex="-1" aria-label="תצוגת PDF לפני הפקה"><strong>תצוגת PDF לפני הפקה</strong><p>${escapeHtml(data.transactionIssuancePreview.quote?.customer_name_snapshot || '')} · ${escapeHtml(formatAmount(data.transactionIssuancePreview.quote?.total_amount))}</p><div class="ds-fin-gefen-group-actions"><button type="button" class="ds-btn ds-btn--primary" data-finance-transaction-issuance-pdf-open>פתיחת PDF</button><button type="button" class="ds-btn" data-finance-transaction-issuance-pdf-download>הורדת PDF</button></div></section>` : ''}
       ${mode!==TRANSACTION_MODE_AUTOMATIC&&data.billingCompletion&&!blockedEditorVisible?financeBillingCompletionEditorHtml(data.billingCompletion):''}
       ${waitingHtml}
       ${blockedHtml}

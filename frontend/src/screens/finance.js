@@ -909,30 +909,46 @@ export const financeScreen = {
 
       const issuancePdf = ev.target.closest('[data-finance-transaction-issuance-pdf-open],[data-finance-transaction-issuance-pdf-download]');
       if (issuancePdf) {
-        activateManualPdfPreview(root, 'single', issuancePdf.hasAttribute('data-finance-transaction-issuance-pdf-open') ? 'open' : 'download');
+        syncManualPdfPreviewDom(root, visit);
+        if(!activateManualPdfPreview(root, 'issuance', issuancePdf.hasAttribute('data-finance-transaction-issuance-pdf-open') ? 'open' : 'download',window)){
+          visit.transactionActionMessage='קובץ ה־PDF אינו זמין. יש ללחוץ שוב על תצוגת PDF.';
+          refresh();
+        }
         return;
       }
 
       const transactionPreview = ev.target.closest('[data-finance-transaction-preview]');
       if (transactionPreview) {
         if (visit.financeBusy || visit.transactionRunning) return;
+        // Reserve a tab during the explicit click, before the async RPC. This
+        // preserves the browser's user gesture without issuing any account.
+        let previewWindow=null;
+        try { previewWindow=window.open('about:blank','_blank');
+          if(previewWindow){previewWindow.opener=null;previewWindow.document.title='מכין תצוגת PDF';previewWindow.document.body.textContent='מכין תצוגת PDF…';}
+        }catch{previewWindow?.close?.();previewWindow=null;}
+        visit.transactionIssuancePreview=null;
         visit.financeBusy = true;
         visit.transactionActionMessage = 'מכין תצוגת PDF…';
         refresh();
         try {
           await previewTransactionAccountGroup(visit, api, transactionPreview.dataset.financeTransactionPreview, transactionPreview.dataset.financeTransactionPreviewKey);
-          visit.transactionActionMessage = 'תצוגת PDF מוכנה לבדיקה לפני הפקה.';
+          visit.transactionActionMessage = previewWindow&&!previewWindow.closed ? 'תצוגת PDF מוכנה ונפתחה בחלון נפרד.' : 'תצוגת PDF מוכנה. אם הדפדפן חסם חלון חדש, לחצו על פתיחת PDF או הורדת PDF.';
         } catch (error) {
+          previewWindow?.close?.();
           visit.transactionIssuancePreview = null;
           visit.transactionActionMessage = financeError(error);
         } finally {
           visit.financeBusy = false;
           refresh();
           if (visit.transactionIssuancePreview) {
-            syncManualPdfPreviewDom(root, {
-              manualPdf: visit.transactionIssuancePreview.pdfBase64,
-              manualQuote: visit.transactionIssuancePreview.quote
-            });
+            syncManualPdfPreviewDom(root, visit);
+            const previewUrl=root._financeManualPdfPreviewUrls?.get('issuance')?.url;
+            if(previewWindow&&!previewWindow.closed&&previewUrl){
+              try{previewWindow.location.replace(previewUrl);}catch{previewWindow.close?.();}
+            }
+            const pane=root.querySelector('.ds-fin-transaction-preview-pane');
+            pane?.scrollIntoView?.({block:'nearest',behavior:'smooth'});
+            pane?.focus?.({preventScroll:true});
           }
         }
         return;
