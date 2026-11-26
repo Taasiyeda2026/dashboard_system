@@ -23,7 +23,7 @@ import {
 import { activityRowId, normalizeFinanceCollectionTab } from './finance-collection.js';
 import { financeError } from './finance-errors.js';
 import { financeAccountBalances, paymentsBodyHtml, receiptsHtml, accountPaymentAllocation } from './finance-payments.js';
-import { setManualBillingScope, prepareManualAccount, updateManualDraft, manualFilteredActivities, selectedManualActivityIds, toggleManualActivity, toggleAllVisibleManualActivities, syncManualActivitySelectionUi, normalizeManualRecipientEmails, updateManualConsolidatedField, focusManualActivity, saveActiveManualDraft, manualDraftPayload, openSavedManualDraft, previewSelectedManualAccounts, runSelectedManualAccounts, syncManualPdfPreviewDom, clearManualPdfPreviewUrls, activateManualPdfPreview } from './finance-manual-account.js';
+import { setManualBillingScope, prepareManualAccount, updateManualDraft, manualFilteredActivities, selectedManualActivityIds, toggleManualActivity, toggleAllVisibleManualActivities, syncManualActivitySelectionUi, normalizeManualRecipientEmails, updateManualConsolidatedField, focusManualActivity, saveActiveManualDraft, manualDraftPayload, openSavedManualDraft, previewSelectedManualAccounts, runSelectedManualAccounts, syncManualPdfPreviewDom, activateManualPdfPreview } from './finance-manual-account.js';
 import { financeToday, financeCycleCutoff } from './finance-transaction-accounts.js';
 import {
   handleTransactionSelection,
@@ -982,7 +982,19 @@ export const financeScreen = {
         refresh();
         try {
           await previewTransactionAccountGroup(visit, api, transactionPreview.dataset.financeTransactionPreview, transactionPreview.dataset.financeTransactionPreviewKey);
-          visit.transactionActionMessage = previewWindow&&!previewWindow.closed ? 'תצוגת PDF מוכנה ונפתחה בחלון נפרד.' : 'תצוגת PDF מוכנה. אם הדפדפן חסם חלון חדש, לחצו על פתיחת PDF או הורדת PDF.';
+          // Build the blob URL on this root before any later async rebind can run.
+          // Do not claim success until the reserved tab actually receives the document.
+          syncManualPdfPreviewDom(root, visit);
+          const previewUrl=root._financeManualPdfPreviewUrls?.get('issuance')?.url;
+          if(!previewUrl)throw Error('לא התקבלה תצוגת PDF');
+          let opened=false;
+          if(previewWindow&&!previewWindow.closed){
+            try{previewWindow.location.replace(previewUrl);opened=true;}
+            catch{previewWindow.close?.();previewWindow=null;}
+          }
+          visit.transactionActionMessage = opened
+            ? 'תצוגת PDF מוכנה ונפתחה בחלון נפרד.'
+            : 'תצוגת PDF מוכנה. אם הדפדפן חסם חלון חדש, לחצו על פתיחת PDF או הורדת PDF.';
         } catch (error) {
           previewWindow?.close?.();
           visit.transactionIssuancePreview = null;
@@ -992,10 +1004,6 @@ export const financeScreen = {
           refresh();
           if (visit.transactionIssuancePreview) {
             syncManualPdfPreviewDom(root, visit);
-            const previewUrl=root._financeManualPdfPreviewUrls?.get('issuance')?.url;
-            if(previewWindow&&!previewWindow.closed&&previewUrl){
-              try{previewWindow.location.replace(previewUrl);}catch{previewWindow.close?.();}
-            }
             const pane=root.querySelector('.ds-fin-transaction-preview-pane');
             pane?.scrollIntoView?.({block:'nearest',behavior:'smooth'});
             pane?.focus?.({preventScroll:true});
@@ -1384,7 +1392,9 @@ export const financeScreen = {
       clearTimeout(root._financeCollectionSearchTimer);
       clearTimeout(root._financeHistorySearchTimer);
       clearTimeout(root._financeManualSearchTimer);
-      clearManualPdfPreviewUrls(root);
+      // Keep blob URLs across same-screen rebinds. refresh()/fastRerenderScreen is
+      // async and would otherwise revoke the reserved PDF tab mid-navigation.
+      // syncManualPdfPreviewDom already drops stale base64 entries.
     };
   }
 };
