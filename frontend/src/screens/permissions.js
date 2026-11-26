@@ -3,6 +3,14 @@ import { hebrewPermissionField, hebrewRole, translateApiErrorForUser, hebrewColu
 import { dsPageHeader, dsScreenStack, dsEmptyState, dsStatusChip } from './shared/layout.js';
 import { showToast } from './shared/toast.js';
 import { showConfirmModal } from './shared/interactions.js';
+import { supabase } from '../supabase-client.js';
+import {
+  describeNewEntryCodeRule,
+  isValidNewEntryCode,
+  trimEntryCode
+} from '../entry-code-policy.js';
+
+const EYE_ICON = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
 
 const KEY_PERM_FLAGS = [
   'can_add_activity',
@@ -157,7 +165,45 @@ function buildAddUserDrawerHtml(roleDefaults) {
   </div>`;
 }
 
-function buildEditDrawerHtml(row) {
+function buildEntryCodeResetSectionHtml(row) {
+  const uid = escapeHtml(row.user_id);
+  const username = escapeHtml(String(row.username_display || row.username || row.user_id || '').trim() || 'לא הוגדר');
+  return `<div class="ds-perm-edit-section" data-entry-code-reset-section data-user-id="${uid}">
+      <p class="ds-perm-section-label">איפוס קוד כניסה</p>
+      <p class="ds-muted" style="margin:0 0 8px;">שם משתמש: <strong dir="ltr">${username}</strong></p>
+      <div class="ds-perm-field">
+        <span class="ds-muted">קוד כניסה חדש</span>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <input
+            type="password"
+            class="ds-input ds-input--sm"
+            data-admin-entry-code
+            data-user-id="${uid}"
+            inputmode="numeric"
+            autocomplete="new-password"
+            placeholder="4–6 ספרות"
+            style="flex:1;direction:ltr;text-align:left;letter-spacing:2px;"
+          />
+          <button
+            type="button"
+            class="ds-btn ds-btn--ghost ds-btn--sm"
+            data-toggle-entry-code-visibility
+            data-user-id="${uid}"
+            title="הצגת או הסתרת קוד הכניסה"
+            aria-label="הצגת או הסתרת קוד הכניסה"
+            style="min-width:36px;padding:6px;"
+          >${EYE_ICON}</button>
+        </div>
+        <span class="ds-muted" style="font-size:.78rem;">4–6 ספרות</span>
+      </div>
+      <div class="ds-perm-actions" style="margin-top:8px;">
+        <button type="button" class="ds-btn ds-btn--sm" data-admin-reset-entry-code data-user-id="${uid}">איפוס קוד כניסה</button>
+        <p class="ds-perm-reset-status ds-muted" data-admin-reset-status role="status" aria-live="polite"></p>
+      </div>
+    </div>`;
+}
+
+function buildEditDrawerHtml(row, { showEntryCodeReset = false } = {}) {
   // Ensure new key permission flags are always visible in the form even if not yet stored
   row = { view_proposals: 'no', view_israa_management: 'no', ...row };
   const uid = escapeHtml(row.user_id);
@@ -216,6 +262,7 @@ function buildEditDrawerHtml(row) {
       ${renderBoolGroup(viewFlags, 'צפייה במסכים')}
       ${renderBoolGroup(canFlags, 'פעולות מותרות')}
     </div>
+    ${showEntryCodeReset ? buildEntryCodeResetSectionHtml(row) : ''}
     <div class="ds-perm-actions">
       <button type="button" class="ds-btn ds-btn--primary" data-save-permission data-user-id="${uid}">שמירה</button>
       <p class="ds-perm-save-status ds-muted" role="status" aria-live="polite"></p>
@@ -341,8 +388,9 @@ export const permissionsScreen = {
       </section>
     `);
   },
-  bind({ root, data, api, ui, rerender, clearScreenDataCache }) {
+  bind({ root, data, api, ui, state, rerender, clearScreenDataCache }) {
     const safeRows = Array.isArray(data?.rows) ? data.rows : [];
+    const isAdmin = String(state?.user?.display_role || state?.user?.role || '').trim() === 'admin';
 
     root.querySelectorAll('[data-deactivate-user]').forEach((btn) => {
       btn.addEventListener('click', (e) => {
@@ -435,7 +483,10 @@ export const permissionsScreen = {
     function openEditModal(row) {
       if (!row || !ui) return;
       const userId = String(row.user_id);
-      const contentHtml = buildEditDrawerHtml(row);
+      const isActive = String(row.active || '').toLowerCase() === 'yes';
+      const contentHtml = buildEditDrawerHtml(row, {
+        showEntryCodeReset: isAdmin && isActive
+      });
       ui.openModal({
         title: `עריכת הרשאות — ${row.full_name || userId}`,
         content: contentHtml,
@@ -475,6 +526,66 @@ export const permissionsScreen = {
           } finally {
             saveBtn.classList.remove('is-loading');
           }
+        });
+
+        const codeInput = modalContent.querySelector('[data-admin-entry-code]');
+        const toggleVisibilityBtn = modalContent.querySelector('[data-toggle-entry-code-visibility]');
+        const resetBtn = modalContent.querySelector('[data-admin-reset-entry-code]');
+        const resetStatusEl = modalContent.querySelector('[data-admin-reset-status]');
+
+        toggleVisibilityBtn?.addEventListener('click', () => {
+          if (!codeInput) return;
+          const showing = codeInput.type === 'text';
+          codeInput.type = showing ? 'password' : 'text';
+          toggleVisibilityBtn.setAttribute(
+            'aria-label',
+            showing ? 'הצגת או הסתרת קוד הכניסה' : 'הסתרת קוד הכניסה'
+          );
+        });
+
+        resetBtn?.addEventListener('click', () => {
+          const newCode = trimEntryCode(codeInput?.value);
+          if (!isValidNewEntryCode(newCode)) {
+            if (resetStatusEl) resetStatusEl.textContent = describeNewEntryCodeRule();
+            return;
+          }
+          showConfirmModal(ui, {
+            title: 'איפוס קוד כניסה',
+            message: 'האם לאפס את קוד הכניסה של המשתמש? לאחר האיפוס, קוד הכניסה הקודם לא יהיה תקף.',
+            confirmLabel: 'איפוס קוד כניסה',
+            confirmClass: 'ds-btn--danger',
+            onConfirm: async () => {
+              resetBtn.classList.add('is-loading');
+              resetBtn.disabled = true;
+              if (resetStatusEl) resetStatusEl.textContent = '';
+              try {
+                const { data, error } = await supabase.functions.invoke('management-password-reset', {
+                  body: {
+                    action: 'admin_reset',
+                    target_user_id: userId,
+                    new_entry_code: newCode
+                  }
+                });
+                if (error || !data?.ok) {
+                  const code = String(data?.error || error?.message || 'update_failed');
+                  if (resetStatusEl) {
+                    resetStatusEl.textContent = translateApiErrorForUser(
+                      code === 'invalid_new_entry_code' ? 'invalid_new_entry_code' : code
+                    );
+                  }
+                  return;
+                }
+                if (codeInput) codeInput.value = '';
+                if (resetStatusEl) resetStatusEl.textContent = 'קוד הכניסה עודכן בהצלחה';
+                showToast('קוד הכניסה עודכן בהצלחה', 'success');
+              } catch (error) {
+                if (resetStatusEl) resetStatusEl.textContent = translateApiErrorForUser(error?.message);
+              } finally {
+                resetBtn.classList.remove('is-loading');
+                resetBtn.disabled = false;
+              }
+            }
+          });
         });
       });
     }

@@ -698,3 +698,4 @@ config.HOTFIX_VERSION = `gefen-invoice-billing-overrides-20261126-v1-${config.HO
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-entry-code-policy-4-6-20261126-v1`;
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-finance-pdf-preview-open-20261126-v1`;
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-admin-entry-code-reset-20261126-v1`;

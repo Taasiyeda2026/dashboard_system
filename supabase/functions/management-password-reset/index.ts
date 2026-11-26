@@ -18,10 +18,11 @@ const RECOVERY_PERMISSION = 'access_password_recovery';
 const BLOCKED_INSTRUCTOR_EMP_ID = '1519';
 const ASSOCIATION_CHAIR_USER_ID = '3090';
 // Supabase Auth rejects new passwords shorter than 6 characters. Short numeric
-// entry codes (4–5 digits) arrive already encoded by the client as `c:` + digits.
+// entry codes (4–5 digits) are stored as `c:` + digits.
 const MAX_CODE_ATTEMPTS = 5;
 const CHALLENGE_MINUTES = 10;
 const MAX_REQUESTS_PER_TEN_MINUTES = 3;
+const MAX_ADMIN_RESETS_PER_TEN_MINUTES = 10;
 
 const PROD_ORIGIN = 'https://taasiyeda2026.github.io';
 const DEV_ORIGINS = new Set(['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:3000', 'http://127.0.0.1:3000']);
@@ -93,6 +94,14 @@ function isValidEncodedNewEntryCode(value: unknown) {
   return /^c:\d{4,5}$/.test(password) || /^\d{6}$/.test(password);
 }
 
+/** Digits-only new entry code → Auth password material (server-side). */
+function encodeDigitsEntryCodeForAuth(value: unknown) {
+  const code = String(value ?? '').trim();
+  if (!/^\d{4,6}$/.test(code)) return null;
+  if (code.length < 6) return `c:${code}`;
+  return code;
+}
+
 async function sha256(value: string) {
   const bytes = new TextEncoder().encode(value);
   const digest = await crypto.subtle.digest('SHA-256', bytes);
@@ -107,17 +116,69 @@ async function incrementAttempt(admin: ReturnType<typeof createClient>, challeng
     .is('consumed_at', null);
 }
 
+async function writeResetAudit(
+  admin: ReturnType<typeof createClient>,
+  row: {
+    target_user_id: string;
+    actor_user_id?: string | null;
+    channel: 'self_recovery' | 'admin_reset';
+    outcome: 'success' | 'failure';
+    error_code?: string | null;
+  }
+) {
+  const { error } = await admin.from('entry_code_reset_audit').insert({
+    target_user_id: row.target_user_id,
+    actor_user_id: row.actor_user_id || null,
+    channel: row.channel,
+    outcome: row.outcome,
+    error_code: row.error_code || null
+  });
+  if (error) {
+    console.error('entry_code_reset_audit_failed', error.message);
+  }
+}
+
+async function invalidateOpenRecoveryChallenges(
+  admin: ReturnType<typeof createClient>,
+  userId: string,
+  nowIso: string
+) {
+  await admin
+    .from('password_recovery_challenges')
+    .update({ consumed_at: nowIso })
+    .eq('user_id', userId)
+    .is('consumed_at', null);
+}
+
+async function resolveCallerAppUser(req: Request, supabaseUrl: string, anonKey: string) {
+  const authorization = String(req.headers.get('authorization') || '').trim();
+  if (!authorization.toLowerCase().startsWith('bearer ')) return null;
+  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/get_current_app_user`, {
+    method: 'POST',
+    headers: {
+      apikey: anonKey,
+      Authorization: authorization,
+      'Content-Type': 'application/json'
+    },
+    body: '{}'
+  });
+  if (!response.ok) return null;
+  const payload = await response.json().catch(() => null);
+  const row = Array.isArray(payload) ? payload[0] : payload;
+  if (!row || typeof row !== 'object') return null;
+  return row as Record<string, unknown>;
+}
+
 Deno.serve(async (req: Request) => {
   const origin = req.headers.get('origin') || '';
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: responseHeaders(origin) });
   if (req.method !== 'POST') return json(origin, { ok: false }, 405);
-  if (origin && origin !== PROD_ORIGIN && !DEV_ORIGINS.has(origin)) return json(origin, { ok: true, challenge_id: fakeChallengeId() });
 
   let payload: Record<string, unknown> = {};
   try {
     payload = await req.json();
   } catch {
-    return json(origin, { ok: true, challenge_id: fakeChallengeId() });
+    payload = {};
   }
 
   const action = String(payload?.action || 'request').trim().toLowerCase();
@@ -125,12 +186,156 @@ Deno.serve(async (req: Request) => {
   const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || '';
   const anonKey = Deno.env.get('SUPABASE_ANON_KEY') || '';
   if (!supabaseUrl || !serviceRoleKey || !anonKey) {
+    if (action === 'admin_reset') return json(origin, { ok: false, error: 'service_not_configured' }, 503);
     return json(origin, { ok: action === 'request', challenge_id: fakeChallengeId() });
   }
 
   const admin = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false, autoRefreshToken: false }
   });
+
+  if (action === 'admin_reset') {
+    if (origin && origin !== PROD_ORIGIN && !DEV_ORIGINS.has(origin)) {
+      return json(origin, { ok: false, error: 'forbidden_origin' }, 403);
+    }
+
+    const caller = await resolveCallerAppUser(req, supabaseUrl, anonKey);
+    const actorUserId = String(caller?.user_id || '').trim();
+    const actorRole = String(caller?.role || '').trim();
+    const actorActive = caller?.is_active === true;
+    if (!actorUserId || !actorActive || actorRole !== 'admin') {
+      await writeResetAudit(admin, {
+        target_user_id: String(payload?.target_user_id || '').trim() || 'unknown',
+        actor_user_id: actorUserId || null,
+        channel: 'admin_reset',
+        outcome: 'failure',
+        error_code: 'not_authorized'
+      });
+      return json(origin, { ok: false, error: 'not_authorized' }, 403);
+    }
+
+    const targetUserId = String(payload?.target_user_id || '').trim();
+    const encodedPassword = encodeDigitsEntryCodeForAuth(payload?.new_entry_code);
+    if (!targetUserId || !encodedPassword) {
+      await writeResetAudit(admin, {
+        target_user_id: targetUserId || 'unknown',
+        actor_user_id: actorUserId,
+        channel: 'admin_reset',
+        outcome: 'failure',
+        error_code: 'invalid_new_entry_code'
+      });
+      return json(origin, { ok: false, error: 'invalid_new_entry_code' }, 400);
+    }
+
+    const tenMinutesAgo = new Date(Date.now() - 10 * 60_000).toISOString();
+    const { count: recentAdminResets } = await admin
+      .from('entry_code_reset_audit')
+      .select('id', { head: true, count: 'exact' })
+      .eq('actor_user_id', actorUserId)
+      .eq('channel', 'admin_reset')
+      .gte('created_at', tenMinutesAgo);
+    if (Number(recentAdminResets || 0) >= MAX_ADMIN_RESETS_PER_TEN_MINUTES) {
+      await writeResetAudit(admin, {
+        target_user_id: targetUserId,
+        actor_user_id: actorUserId,
+        channel: 'admin_reset',
+        outcome: 'failure',
+        error_code: 'rate_limited'
+      });
+      return json(origin, { ok: false, error: 'rate_limited' }, 429);
+    }
+
+    const { data: targetUser, error: targetError } = await admin
+      .from('users')
+      .select('user_id,auth_user_id,is_active,username,role')
+      .eq('user_id', targetUserId)
+      .maybeSingle();
+    if (targetError || !targetUser) {
+      await writeResetAudit(admin, {
+        target_user_id: targetUserId,
+        actor_user_id: actorUserId,
+        channel: 'admin_reset',
+        outcome: 'failure',
+        error_code: 'user_not_found'
+      });
+      return json(origin, { ok: false, error: 'user_not_found' }, 404);
+    }
+    if (targetUser.is_active !== true) {
+      await writeResetAudit(admin, {
+        target_user_id: targetUserId,
+        actor_user_id: actorUserId,
+        channel: 'admin_reset',
+        outcome: 'failure',
+        error_code: 'user_inactive'
+      });
+      return json(origin, { ok: false, error: 'user_inactive' }, 400);
+    }
+
+    const authUserId = String(targetUser.auth_user_id || '').trim();
+    if (!authUserId) {
+      await writeResetAudit(admin, {
+        target_user_id: targetUserId,
+        actor_user_id: actorUserId,
+        channel: 'admin_reset',
+        outcome: 'failure',
+        error_code: 'auth_not_linked'
+      });
+      return json(origin, { ok: false, error: 'auth_not_linked' }, 400);
+    }
+
+    const { data: authResult, error: authLookupError } = await admin.auth.admin.getUserById(authUserId);
+    if (authLookupError || !authResult?.user) {
+      await writeResetAudit(admin, {
+        target_user_id: targetUserId,
+        actor_user_id: actorUserId,
+        channel: 'admin_reset',
+        outcome: 'failure',
+        error_code: 'auth_user_missing'
+      });
+      return json(origin, { ok: false, error: 'auth_user_missing' }, 400);
+    }
+
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const { error: passwordError } = await admin.auth.admin.updateUserById(authUserId, {
+      password: encodedPassword
+    });
+    if (passwordError) {
+      console.error('admin_entry_code_reset_failed', passwordError.message);
+      await writeResetAudit(admin, {
+        target_user_id: targetUserId,
+        actor_user_id: actorUserId,
+        channel: 'admin_reset',
+        outcome: 'failure',
+        error_code: 'update_failed'
+      });
+      return json(origin, { ok: false, error: 'update_failed' }, 500);
+    }
+
+    const { error: clearLegacyError } = await admin
+      .from('users')
+      .update({ entry_code: null, updated_at: nowIso })
+      .eq('user_id', targetUserId)
+      .eq('auth_user_id', authUserId);
+    if (clearLegacyError) {
+      console.error('admin_entry_code_clear_legacy_failed', clearLegacyError.message);
+    }
+
+    await invalidateOpenRecoveryChallenges(admin, targetUserId, nowIso);
+    await writeResetAudit(admin, {
+      target_user_id: targetUserId,
+      actor_user_id: actorUserId,
+      channel: 'admin_reset',
+      outcome: 'success'
+    });
+
+    return json(origin, { ok: true });
+  }
+
+  // Self-service recovery paths intentionally avoid revealing account existence.
+  if (origin && origin !== PROD_ORIGIN && !DEV_ORIGINS.has(origin)) {
+    return json(origin, { ok: true, challenge_id: fakeChallengeId() });
+  }
 
   if (action === 'complete') {
     const challengeId = String(payload?.challenge_id || '').trim();
@@ -148,6 +353,7 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     const now = new Date();
+    const nowIso = now.toISOString();
     if (!challenge || challenge.consumed_at || Number(challenge.attempts || 0) >= MAX_CODE_ATTEMPTS || new Date(challenge.expires_at).getTime() <= now.getTime()) {
       return json(origin, { ok: false, error: 'invalid_or_expired' });
     }
@@ -181,6 +387,13 @@ Deno.serve(async (req: Request) => {
     await verifier.auth.signOut().catch(() => {});
     if (passwordError) {
       console.error('password_recovery_password_update_failed', passwordError.message);
+      await writeResetAudit(admin, {
+        target_user_id: String(challenge.user_id),
+        actor_user_id: String(challenge.user_id),
+        channel: 'self_recovery',
+        outcome: 'failure',
+        error_code: 'update_failed'
+      });
       return json(origin, { ok: false, error: 'update_failed' });
     }
 
@@ -188,7 +401,7 @@ Deno.serve(async (req: Request) => {
     // cannot be mistaken for the current password by users or admins.
     const { error: clearLegacyError } = await admin
       .from('users')
-      .update({ entry_code: null, updated_at: now.toISOString() })
+      .update({ entry_code: null, updated_at: nowIso })
       .eq('user_id', String(challenge.user_id))
       .eq('auth_user_id', String(challenge.auth_user_id));
     if (clearLegacyError) {
@@ -197,9 +410,19 @@ Deno.serve(async (req: Request) => {
 
     await admin
       .from('password_recovery_challenges')
-      .update({ consumed_at: now.toISOString() })
+      .update({ consumed_at: nowIso })
       .eq('id', challengeId)
       .is('consumed_at', null);
+
+    // Invalidate any other open recovery challenges for this user.
+    await invalidateOpenRecoveryChallenges(admin, String(challenge.user_id), nowIso);
+
+    await writeResetAudit(admin, {
+      target_user_id: String(challenge.user_id),
+      actor_user_id: String(challenge.user_id),
+      channel: 'self_recovery',
+      outcome: 'success'
+    });
 
     return json(origin, { ok: true });
   }

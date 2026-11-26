@@ -98,7 +98,7 @@ test('recovery challenge table is server-only and RLS protected', () => {
 test('dashboard deploy markers include entry-code policy assets and current cache', () => {
   assert.match(index, /instructor-password-recovery-runtime\.js\?v=20261126-entry-code-4-6-v1/);
   assert.match(index, /management-password-runtime\.js\?v=20261126-entry-code-4-6-v1/);
-  assert.match(sw, /const CACHE_VERSION = 2148;/);
+  assert.match(sw, /const CACHE_VERSION = 2150;/);
 });
 
 test('login keeps existing credentials and uses קוד כניסה terminology', () => {
