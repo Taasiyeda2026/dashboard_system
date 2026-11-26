@@ -36,6 +36,7 @@ async function harness(options={}) {
       ? {error:Error('finance_transactions_permission_denied')}
       : {data:{operationId:'operation',driveId:'drive',itemId:'item'}};
     if(name==='finish_finance_account_deletion')return{data:{deleted:true}};
+    if(name==='finance_gefen_billing_quote')return{data:options.quote||fixture()};
     if(name==='finance_manual_account_quote')return{data:options.quote||fixture()};
     if(name==='finance_invoice_revision_quote')return options.revisionNotApproved?{error:Error('revision_not_approved')}:{data:options.quote||fixture()};
     if(name==='finance_delegated_account_owner')return {data:options.ownerAllowed!==false};
@@ -109,9 +110,9 @@ async function harness(options={}) {
       'access-control-request-method':'POST',
       'access-control-request-headers':'authorization, x-client-info, apikey, content-type'
     } })
-    : new Request('https://function.test',{method:'POST',headers:{authorization:'Bearer mock','x-microsoft-mail-token':'delegated-token'},body:JSON.stringify(options.revisionPreview?{revisionId:'revision',revisionPreview:true}:options.preview?{preview:true,manual:{activity:'a',funder:'g',month:'2026-09-01',draft:{}}} :{accountId:'account',createDraft:true,deleteAccount:options.deleteAccount})});
+    : new Request('https://function.test',{method:'POST',headers:{authorization:'Bearer mock','x-microsoft-mail-token':'delegated-token'},body:JSON.stringify(options.revisionPreview?{revisionId:'revision',revisionPreview:true}:options.gefenBilling?{preview:true,gefenBilling:options.gefenBilling}:options.preview?{preview:true,manual:{activity:'a',funder:'g',month:'2026-09-01',draft:{}}} :{accountId:'account',createDraft:true,deleteAccount:options.deleteAccount})});
   const response=await handler(request);
-  return{response,body:options.preflight?await response.text():await response.json(),calls,pdf,account};
+  return{response,body:options.preflight?await response.text():await response.json(),calls,pdf,account,draftPayload};
 }
 test('full mocked pipeline renders actual PDF, validates SharePoint, finalizes and creates draft only',async()=>{
   const r=await harness();assert.equal(r.response.status,200,JSON.stringify(r.body));assert.equal(r.body.outlookStatus,'draft_ready');
@@ -663,4 +664,25 @@ test('isolated issuance uses only the configured folder and designated Outlook m
   assert.ok(result.calls.some(call=>call.method==='PUT' && call.url.includes('/drives/test-drive/items/test-folder:/')));
   assert.ok(result.calls.some(call=>call.method==='POST' && call.url.endsWith('/me/messages')));
   assert.ok(!result.calls.some(call=>call.url?.includes('01LT7GPE6FW7O7REM6WJBIXX6II2IDYTXM')));
+});
+
+test('edited Gefen billing PDF and Outlook attachment retain independent quantities hours and rate',async()=>{
+  const quote={...fixture(),total_amount:2018.75,finance_transaction_account_lines:[0,1].map(i=>({
+    activity_row_id:'edited',activity_name_snapshot:'ביומימיקרי',school_name_snapshot:'ביאליק',gefen_number_snapshot:'6089',
+    billing_rule:'monthly',billing_coverage:'performance',funding_snapshot:'גפ״ן',
+    quantity_snapshot:i?7:4,billed_hours:i?2.55:1.7,hourly_rate_snapshot:475,amount:i?1211.25:807.5,
+    billing_override_snapshot:{chosen:{meetings:11,hours:4.25,rate:475}},
+    finance_transaction_account_meetings:[{meeting_date:i?'2026-11-05':'2026-10-01'}]
+  }))};
+  const preview=await harness({gefenBilling:{cutoffDate:'2026-11-14',groups:[{meetings:11,hours:4.25,rate:475}]},quote});
+  assert.equal(preview.response.status,200,JSON.stringify(preview.body));
+  assert.ok(preview.calls.some(c=>c.name==='finance_gefen_billing_quote'));
+  const pdf=await getDocument({data:new Uint8Array(Buffer.from(preview.body.pdfBase64,'base64')),useSystemFonts:false}).promise;
+  const text=(await(await pdf.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');
+  for(const value of ['11','4.25','475.00','2,018.75'])assert.ok(text.includes(value),value);
+  const issued=await harness({account:quote});assert.equal(issued.response.status,200,JSON.stringify(issued.body));
+  assert.equal(issued.account.total_amount,2018.75);
+  const attached=await getDocument({data:new Uint8Array(Buffer.from(issued.draftPayload.attachments[0].contentBytes,'base64')),useSystemFonts:false}).promise;
+  const attachedText=(await(await attached.getPage(1)).getTextContent()).items.map(x=>x.str||'').join(' ');
+  for(const value of ['11','4.25','475.00','2,018.75'])assert.ok(attachedText.includes(value),value);
 });

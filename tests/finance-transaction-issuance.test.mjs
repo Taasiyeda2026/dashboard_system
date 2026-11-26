@@ -2,8 +2,16 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { readFileSync } from 'node:fs';
-import { transactionAccountsViewHtml, FINANCE_TRANSACTION_SHAREPOINT_FOLDER_URL, transactionPreviewForVisit, transactionSelectionKey, runTransactionIssuance, transactionIssuanceResultMessage, transactionMonth, transactionBacklog, transactionBlockedDueRows, consolidateBlockedActivities } from '../frontend/src/screens/finance-transaction-issuance.js';
+import { transactionAccountsViewHtml, FINANCE_TRANSACTION_SHAREPOINT_FOLDER_URL, transactionPreviewForVisit, transactionSelectionKey, runTransactionIssuance as issueTransactions, transactionIssuanceResultMessage, transactionMonth, transactionBacklog, transactionBlockedDueRows, consolidateBlockedActivities } from '../frontend/src/screens/finance-transaction-issuance.js';
 import { financeCycleCutoff, financeGefenCycle, financeToday } from '../frontend/src/screens/finance-transaction-accounts.js';
+// Existing scenarios now exercise the account-only Gefen reservation route.
+const runTransactionIssuance=(data,api,...args)=>issueTransactions(data,{
+  quoteFinanceGefenBillingAccount:async()=>({revision:'quote'}),
+  reserveFinanceGefenBillingAccount:api.reserveFinanceTransactionAccount?async p=>api.reserveFinanceTransactionAccount({...p,
+    lines:p.groups.flatMap(g=>g.periods.map(period=>{
+      const source=data.transactionContext.billingRows.find(r=>r.activityRowId===g.activity&&r.fundingSourceId===g.funder&&r.period===period.month);
+      return {activity_row_id:g.activity,funding_source_id:g.funder,performance_month:period.month,billing_range_end:g.periods.at(-1).month,expected_amount:source.issuableAmount,meeting_slots:source.unbilledSlots.map(s=>s.slot),issue_mode:'automatic'};
+    }))}):undefined,...api},...args);
 const row=(extra={})=>({activityRowId:'a',activityName:'קורס א',fundingSourceId:'g',funding:'גפ״ן',gefenFunding:true,
   period:'2026-10-01',customerName:'בית ספר א',institutionSymbol:'123',payerName:'בית ספר א',customerEmail:'school@example.test',
   plannedCount:4,completedCount:2,billedCount:0,unbilledCount:2,unbilledHours:3,unbilledSlots:[{slot:1,date:'2026-10-01'},{slot:2,date:'2026-10-02'}],
@@ -28,10 +36,10 @@ test('unified Gefen layout orders month summary current backlog single action an
   const d=data([row(),row({activityRowId:'older',period:'2026-09-01'}),
     row({activityRowId:'waiting',eligible:false,blockedReason:'minimum',eligibilityStatus:'waiting_three_meetings',issuableAmount:0})]);
   const view=html(d);const dom=new JSDOM(view);const doc=dom.window.document;
-  const ordered=['data-finance-transaction-month','ds-fin-transaction-summary','data-finance-gefen-current','data-finance-transaction-run="automatic"','data-finance-waiting-courses'];
+  const ordered=['data-finance-transaction-month','ds-fin-transaction-summary','data-finance-gefen-current','data-finance-transaction-main-run','data-finance-waiting-courses'];
   assert.deepEqual(ordered.map(x=>view.indexOf(x)),ordered.map(x=>view.indexOf(x)).sort((a,b)=>a-b));
-  assert.equal(doc.querySelectorAll('[data-finance-transaction-run]').length,1);
-  assert.equal(doc.querySelector('[data-finance-transaction-run]').textContent,'הפקת כל חשבונות העסקה');
+  assert.equal(doc.querySelectorAll('[data-finance-transaction-main-run]').length,1);
+  assert.equal(doc.querySelector('[data-finance-transaction-main-run]').textContent,'הפקת כל חשבונות העסקה');
   assert.match(view,/הפקה אוטומטית · גפ״ן/);
   assert.match(view,/הפקה לפי מממן/);
   assert.match(view,/הפקה עם עריכה/);
@@ -93,7 +101,7 @@ test('Gefen groups schools and original months while including eligible previous
   const d=data([row(),row({activityRowId:'b',activityName:'קורס ב'}),row({activityRowId:'old',period:'2026-09-01'}),row({activityRowId:'other',fundingSourceId:'r',gefenFunding:false,funding:'רשות'})]);
   const p=transactionPreviewForVisit(d);assert.equal(p.accounts.length,1);assert.equal(p.accounts.find(a=>a.period==='2026-10-01').lines.length,3);assert.equal(p.totals.amount,7500);
   const view=html(d);assert.match(view,/הפקה אוטומטית · גפ״ן/);assert.match(view,/הפקה לפי מממן/);assert.match(view,/type="month"/);
-  assert.match(view,/קורס ב/);assert.match(view,/בית ספר א · 123/);assert.match(view,/פירוט מפגשים/);assert.match(view,/כולל חובות קודמים/);assert.match(view,/2026-09/);
+  assert.match(view,/קורס ב/);assert.match(view,/בית ספר א · 123/);assert.match(view,/data-gefen-billing-field/);assert.match(view,/כולל חובות קודמים/);
   assert.equal(transactionBacklog(d,'automatic').length,1);
   d.transactionMonths.automatic='2026-09';assert.equal(transactionPreviewForVisit(d).totals.amount,2500);
 });
@@ -286,38 +294,18 @@ test('one sponsor with two completed activities across different schools creates
   assert.equal(requests[0].institutionSymbol,'');
 });
 
-test('a tour is one quantity, not a course meeting or 1.5 billing hours',()=>{
-  const trip=row({activityRowId:'trip',activityName:'התנסות בתעשייה',activityType:'tour',
-    plannedCount:1,scheduledCount:1,completedCount:1,unbilledCount:1,unbilledHours:0,
-    unbilledSlots:[{slot:1,date:'2026-10-10'}],issuableAmount:3000,fundingAmount:3000});
-  const d=data([trip]);
-  const preview=transactionPreviewForVisit(d);
-  assert.equal(preview.totals.units,1);
-  assert.equal(preview.totals.meetings,0);
-  assert.equal(preview.totals.hours,0);
-  assert.equal(preview.totals.amount,3000);
-  const view=html(d);
-  assert.match(view,/כמות סדנאות\/סיורים/);
-  assert.match(view,/כמות 1/);
-  assert.match(view,/<th>כמות<\/th>/);
-  assert.match(view,/פירוט מועדי פעילות/);
-  assert.doesNotMatch(view,/פירוט מפגשים|1\.5 שעות|שעות לחיוב|מפגשים לחיוב/);
+test('Gefen tour offers the same three independent account inputs without inventing activity hours',()=>{
+ const trip=row({activityRowId:'trip',activityType:'tour',unbilledCount:1,unbilledHours:0,issuableAmount:3000});
+ const doc=new JSDOM(html(data([trip]))).window.document;
+ assert.equal(doc.querySelectorAll('[data-gefen-billing-field]').length,3);
+ assert.equal(doc.querySelector('[data-gefen-billing-field="hours"]').value,'0');
+ assert.equal(doc.querySelector('[data-gefen-billing-field="meetings"]').value,'1');
 });
-
-test('course and tour on the same invoice retain separate quantity and hours',()=>{
-  const trip=row({activityRowId:'trip',activityName:'סיור',activityType:'tour',
-    unbilledCount:1,unbilledHours:0,unbilledSlots:[{slot:1,date:'2026-10-12'}],
-    fundingAmount:3000,issuableAmount:3000});
-  const d=data([row(),trip]);
-  const p=transactionPreviewForVisit(d);
-  assert.equal(p.totals.meetings,2);
-  assert.equal(p.totals.hours,3);
-  assert.equal(p.totals.units,1);
-  assert.equal(p.totals.amount,5500);
-  const view=html(d);
-  assert.match(view,/<th>מפגשים \/ כמות<\/th>/);
-  assert.match(view,/פירוט מפגשים/);
-  assert.match(view,/פירוט מועדי פעילות/);
+test('non-Gefen course and tour retain separate quantity and hours',()=>{
+ const trip=row({activityRowId:'trip',gefenFunding:false,activityName:'סיור',activityType:'tour',unbilledCount:1,unbilledHours:0,unbilledSlots:[{slot:1,date:'2026-10-12'}],fundingAmount:3000,issuableAmount:3000});
+ const d=data([row({gefenFunding:false}),trip],{transactionTab:'manual'});
+ const p=transactionPreviewForVisit(d,'manual');assert.equal(p.totals.meetings,2);assert.equal(p.totals.hours,3);assert.equal(p.totals.units,1);assert.equal(p.totals.amount,5500);
+ assert.match(html(d),/<th>מפגשים \/ כמות<\/th>/);
 });
 
 test('tour database billing migration derives a single unit independent of sessions',()=>{
@@ -333,7 +321,7 @@ test('tour database billing migration derives a single unit independent of sessi
 test('same course appears once in the cumulative invoice table with all unissued slots',()=>{
  const d=data([row({period:'2026-09-01',unbilledSlots:[{slot:1,date:'2026-09-01'},{slot:2,date:'2026-09-02'}]}),row({unbilledSlots:[{slot:3,date:'2026-10-01'},{slot:4,date:'2026-10-02'}]})]);
  const p=transactionPreviewForVisit(d);assert.equal(p.accounts.length,1);assert.equal(p.accounts[0].lines.length,2);assert.equal(p.accounts[0].totalAmount,5000);
- const doc=new JSDOM(html(d)).window.document;assert.equal(doc.querySelectorAll('[data-finance-transaction-group] tbody tr').length,1);assert.match(doc.body.textContent,/2026-09 · 2026-10/);assert.match(doc.body.textContent,/4\/4/);
+ const doc=new JSDOM(html(d)).window.document;assert.equal(doc.querySelectorAll('[data-finance-transaction-group] tbody tr').length,1);assert.equal(doc.querySelectorAll('[data-gefen-billing-row]').length,1);assert.equal(doc.querySelector('[data-gefen-billing-field="meetings"]').value,'4');
 });
 
 test('blocked table shows school identity rather than sponsor customer details',()=>{
@@ -374,20 +362,19 @@ test('blocked display consolidates months and reasons but preserves different co
  assert.deepEqual(groups[0].reasons,['חסר מחיר שעתי','חסר סמל מוסד']);
  const dom=new JSDOM(html(d));const table=dom.window.document.querySelector('[data-finance-blocked-rows]');
  assert.equal(table.querySelectorAll('tbody tr').length,2);
- assert.equal(table.querySelectorAll('[data-finance-complete-open="a"]').length,1);
+ assert.equal(table.querySelectorAll('[data-finance-complete-open="a"]').length,0);
  assert.match(table.textContent,/2026-09 · 2026-10/);
  assert.match(table.textContent,/חסר מחיר שעתי · חסר סמל מוסד/);
  dom.window.close();
 });
 
-test('blocked activity opens the shared completion editor inline without showing the full completion inventory',()=>{
+test('automatic Gefen hides the completion editor while preserving the dedicated completion handler',()=>{
  const d=data([row({activityRowId:'a',eligible:false,completedCount:3,blockedReason:'חסר מחיר שעתי'}),row({activityRowId:'b',eligible:false,completedCount:3,blockedReason:'חסר מחיר שעתי'})],{financeCanComplete:true,transactionTab:'automatic',billingCompletion:{row_id:'a',name:'קורס א',school:'בית ספר א',activity_type:'course',sessions:10,price:9000,allocations:[],funding_options:[]}});
  const dom=new JSDOM(html(d));const doc=dom.window.document;
  const table=doc.querySelector('[data-finance-blocked-rows]');
- assert.equal(table.open,true);
- assert.equal(table.querySelectorAll('[data-finance-completion-form]').length,1);
- assert.equal(table.querySelector('[data-finance-completion-form]').dataset.activityId,'a');
- assert.equal(table.querySelector('[data-finance-blocked-editor] td').colSpan,6);
+ assert.equal(table.open,false);
+ assert.equal(table.querySelectorAll('[data-finance-completion-form]').length,0);
+ assert.equal(table.querySelector('[data-finance-complete-open]'),null);
  assert.equal(doc.querySelector('[data-finance-completion-section]'),null);
  dom.window.close();
  const finance=readFileSync(new URL('../frontend/src/screens/finance.js',import.meta.url),'utf8');
