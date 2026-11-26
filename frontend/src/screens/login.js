@@ -34,7 +34,7 @@ export const loginScreen = {
               id="entryCode"
               type="password"
               required
-              placeholder="סיסמת התחברות"
+              placeholder="קוד כניסה"
               autocomplete="current-password"
             />
 
@@ -73,7 +73,7 @@ export const loginScreen = {
       const code = codeInput?.value.trim() ?? '';
 
       if (!userId || !code) {
-        if (errorNode) errorNode.textContent = 'נא למלא מספר עובד / שם משתמש וסיסמת התחברות';
+        if (errorNode) errorNode.textContent = 'נא למלא מספר עובד / שם משתמש וקוד כניסה';
         return;
       }
 

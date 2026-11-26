@@ -534,12 +534,22 @@ export const permissionsScreen = {
               if (statusEl) statusEl.textContent = 'יש להזין מזהה משתמש';
               return;
             }
+            if (entryCode && !/^\d{4,6}$/.test(entryCode)) {
+              if (statusEl) statusEl.textContent = 'קוד כניסה חדש חייב להכיל 4 עד 6 ספרות בלבד (מותר להתחיל ב-0).';
+              return;
+            }
             submitBtn.classList.add('is-loading');
             submitBtn.disabled = true;
             if (statusEl) statusEl.textContent = '';
             try {
-              await api.addUser({ user_id: userId, full_name: fullName, entry_code: entryCode, role });
-              if (statusEl) statusEl.textContent = 'המשתמש נוסף בהצלחה';
+              // Never persist plaintext entry codes. Auth is the only secret store;
+              // initial קוד כניסה is set via recovery / onboarding access provisioning.
+              await api.addUser({ user_id: userId, full_name: fullName, entry_code: '', role });
+              if (statusEl) {
+                statusEl.textContent = entryCode
+                  ? 'המשתמש נוסף. קוד הכניסה לא נשמר בטקסט גלוי — יש להגדיר אותו דרך שחזור מאובטח או פתיחת גישה.'
+                  : 'המשתמש נוסף בהצלחה';
+              }
               submitBtn.disabled = false;
               submitBtn.classList.remove('is-loading');
               clearScreenDataCache?.();

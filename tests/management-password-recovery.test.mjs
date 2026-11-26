@@ -10,22 +10,24 @@ const recoveryTemplate = await readFile(new URL('../supabase/templates/recovery.
 const supabaseConfig = await readFile(new URL('../supabase/config.toml', import.meta.url), 'utf8');
 const index = await readFile(new URL('../index.html', import.meta.url), 'utf8');
 const sw = await readFile(new URL('../frontend/sw.js', import.meta.url), 'utf8');
+const login = await readFile(new URL('../frontend/src/screens/login.js', import.meta.url), 'utf8');
+const api = await readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
+const hebrew = await readFile(new URL('../frontend/src/screens/shared/ui-hebrew.js', import.meta.url), 'utf8');
 
 test('password recovery uses an emailed one-time code instead of a clickable recovery link', () => {
-  assert.match(runtime, /שכחתי סיסמה/);
-  assert.match(instructorRecovery, /שכחתי סיסמה/);
+  assert.match(runtime, /שכחתי קוד כניסה/);
+  assert.match(instructorRecovery, /שכחתי קוד כניסה/);
   assert.match(instructorRecovery, /קוד אימות בן 6 ספרות/);
   assert.match(instructorRecovery, /action: 'request'/);
   assert.match(instructorRecovery, /action: 'complete'/);
   assert.match(instructorRecovery, /challenge_id: challengeId/);
-  assert.match(instructorRecovery, /new_password: password/);
-  assert.match(instructorRecovery, /\^\\d\{4\}\$/);
+  assert.match(instructorRecovery, /encodeNewEntryCodeForAuth\(password\)/);
   assert.doesNotMatch(instructorRecovery, /PASSWORD_RECOVERY/);
   assert.doesNotMatch(instructorRecovery, /type=recovery/);
 });
 
 test('authenticated password change remains limited to management roles', () => {
-  assert.match(runtime, /auth\.updateUser\(\{ password \}\)/);
+  assert.match(runtime, /auth\.updateUser\(\{ password: encodeNewEntryCodeForAuth\(password\) \}\)/);
   for (const role of [
     'admin', 'operation_manager', 'finance', 'activities_manager',
     'domain_manager', 'business_development_manager', 'instructor_manager'
@@ -45,7 +47,7 @@ test('reset edge function sends and verifies recovery OTP through Supabase Auth'
   assert.match(edge, /CHALLENGE_MINUTES = 10/);
   assert.match(edge, /admin\.auth\.admin\.updateUserById/);
   assert.match(edge, /email_confirm:\s*true/);
-  assert.match(edge, /new_password \|\| ''\)\.trim\(\)/);
+  assert.match(edge, /isValidEncodedNewEntryCode/);
   assert.match(edge, /recoveryEmailsFor/);
   assert.match(edge, /@taasiyeda\.local/);
   assert.match(edge, /entry_code:\s*null/);
@@ -78,8 +80,8 @@ test('instructor recovery accepts the registered email instead of requiring a th
   assert.match(instructorRecovery, /הזינו את המייל הרשום במערכת/);
   assert.match(instructorRecovery, /name@example\.com/);
   assert.match(instructorRecovery, /\[\^\\s@\]\+@\[\^\\s@\]\+\\\.\[\^\\s@\]\+/);
-  assert.match(instructorRecovery, /new_password: password/);
-  assert.match(instructorRecovery, /String\(first\.input\.value \|\| ''\)\.trim\(\)/);
+  assert.match(instructorRecovery, /encodeNewEntryCodeForAuth\(password\)/);
+  assert.match(instructorRecovery, /isValidNewEntryCode\(password\)/);
   assert.doesNotMatch(instructorRecovery, /endsWith\('@think\.org\.il'\)/);
   assert.match(edge, /isValidEmail\(email\)/);
   assert.match(edge, /recoveryEmailsFor\(row\)\.has\(email\)/);
@@ -93,17 +95,17 @@ test('recovery challenge table is server-only and RLS protected', () => {
   assert.match(migration, /grant all on table public\.password_recovery_challenges to service_role/);
 });
 
-test('dashboard deploy markers include instructor recovery and current cache', () => {
-  assert.match(index, /instructor-password-recovery-runtime\.js\?v=20261126-stale-entry-code-v1/);
-  assert.match(index, /management-password-runtime\.js\?v=20261126-stale-entry-code-v1/);
-  assert.match(sw, /const CACHE_VERSION = 2146;/);
+test('dashboard deploy markers include entry-code policy assets and current cache', () => {
+  assert.match(index, /instructor-password-recovery-runtime\.js\?v=20261126-entry-code-4-6-v1/);
+  assert.match(index, /management-password-runtime\.js\?v=20261126-entry-code-4-6-v1/);
+  assert.match(sw, /const CACHE_VERSION = 2148;/);
 });
 
-test('login rejects legacy four-digit codes with recovery guidance', async () => {
-  const api = await readFile(new URL('../frontend/src/api.js', import.meta.url), 'utf8');
-  const hebrew = await readFile(new URL('../frontend/src/screens/shared/ui-hebrew.js', import.meta.url), 'utf8');
-  assert.match(api, /legacy_entry_code_rejected/);
-  assert.match(api, /\^\\d\{4\}\$/);
-  assert.match(hebrew, /legacy_entry_code_rejected/);
-  assert.match(hebrew, /סיסמת ההתחברות אינה הקוד הישן בן 4 הספרות/);
+test('login keeps existing credentials and uses קוד כניסה terminology', () => {
+  assert.match(login, /placeholder="קוד כניסה"/);
+  assert.match(api, /authPasswordCandidatesForLogin/);
+  assert.doesNotMatch(api, /legacy_entry_code_rejected/);
+  assert.doesNotMatch(hebrew, /legacy_entry_code_rejected/);
+  assert.match(hebrew, /שכחתי קוד כניסה/);
+  assert.match(runtime, /שכחתי קוד כניסה/);
 });
