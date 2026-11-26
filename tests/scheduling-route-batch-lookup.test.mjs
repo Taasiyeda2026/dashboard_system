@@ -42,6 +42,21 @@ test('route client batches uncached pairs into one edge invoke', async () => {
   );
 });
 
+test('draining an in-flight route batch allows asynchronous I/O to finish', async () => {
+  const client = createRouteClient({
+    invoke: async ({ pairs }) => {
+      await new Promise(resolve => setTimeout(resolve, 5));
+      return { data: { batch_lookup: true, results: Object.fromEntries(pairs.map(({ route_key }) => [
+        route_key, { calculated: true, cached: true, distance_km: 2, duration_minutes: 3 }
+      ])) } };
+    }
+  });
+  const request = client.request('School A', 'School B');
+  await client.flush();
+  assert.equal((await request).duration_minutes, 3);
+  assert.equal(client.batchInvokes, 1);
+});
+
 test('route client batch uses stable matrix keys', async () => {
   const seenKeys = [];
   const client = createRouteClient({

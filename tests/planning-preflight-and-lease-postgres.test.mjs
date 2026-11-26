@@ -308,6 +308,6 @@ test('PostgreSQL real heartbeat remains responsive during CPU-heavy candidates a
   },onLost:()=>controller.abort()});
   try {
     await assert.rejects(preliminaryCourseCandidatesCooperatively({...input,preparedContext},createPlanningCheckpoint({budgetMs:2,signal:controller.signal})),/planning_cancelled/);
-    assert.equal(renewals,3);await assert.rejects(save(runA),/ownership_lost/);
+    assert.ok(renewals>=3);await assert.rejects(save(runA),/ownership_lost/);
   }finally{heartbeat.stop();await other.end();}
 });

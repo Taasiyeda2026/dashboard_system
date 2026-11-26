@@ -38,7 +38,11 @@ test('durable queue on isolated PostgreSQL', {skip:!url},async t=>{
   await query("update fixture_validation set dirty_count=0,engine_version='planning-v38-20261015-transition-30-45',reject_save=false");
  }
  async function enqueue(){return (await query("insert into scheduling_agent_team_optimization_jobs(created_by,mode) values($1,'incremental') returning id",[owner])).rows[0].id;}
- async function claimed(){const runId=randomUUID();const j=await command('claim',{runId});assert.equal(j.claimed,true);await command('lease',{jobId:j.jobId,runId});return {jobId:j.jobId,runId};}
+ async function claimForWork(){
+  await query('update scheduling_planning_workspaces set validated_source_revision=6');
+  return command('claim',{runId:randomUUID()});
+ }
+ async function claimed(){const j=await claimForWork();assert.equal(j.claimed,true);assert.equal(j.leaseAcquired,true);return {jobId:j.jobId,runId:j.runId};}
  const payload=j=>({...j,mode:'incremental',sourceRevision:'7',workspaceRevision:'1',engineVersion:'planning-v38-20261015-transition-30-45',
   dataFingerprint:'synthetic',contextFingerprint:'synthetic',rows:[{activityId:'synthetic-course',row:{courseId:'synthetic-course'}}]});
  try{
@@ -51,6 +55,7 @@ test('durable queue on isolated PostgreSQL', {skip:!url},async t=>{
   await query(read('../supabase/migrations/20261015170000_scheduling_agent_worker_oidc_control.sql'));
   await query(read('../supabase/migrations/20261016000000_scheduling_agent_durable_wakeup.sql'));
   await query(read('../supabase/migrations/20261030172000_scheduling_agent_guarded_auto_enqueue.sql'));
+  await query(read('../supabase/migrations/20261126120000_scheduling_agent_claim_fast_path.sql'));
   await query('insert into users(auth_user_id,is_active,role) values($1,true,\'admin\');',[owner]);
   await query('insert into scheduling_agent_control values(true,$1)',[owner]);
   await query("insert into scheduling_planning_workspaces values(gen_random_uuid(),'year','',1)");
@@ -61,12 +66,31 @@ test('durable queue on isolated PostgreSQL', {skip:!url},async t=>{
    assert.equal((await command('probe')).atomicCompletion,true);
    assert.equal((await command('claim')).claimed,false);
   });
+  async function requestOptimization(){
+   const c=await pool.connect();try{await c.query('begin');await c.query("select set_config('request.jwt.claim.sub',$1,true)",[owner]);
+    const r=await c.query("select scheduling_agent_team_request_optimization('incremental') result");await c.query('commit');return r.rows[0].result;
+   }catch(e){await c.query('rollback');throw e;}finally{c.release();}
+  }
+  await t.test('current interactive request returns without inserting or waking a job',async t=>{
+   await reset();
+   const start=performance.now(), result=await requestOptimization();
+   t.diagnostic(`current request round trip: ${(performance.now()-start).toFixed(2)} ms`);
+   assert.equal(result.noOp,true);
+   assert.equal((await query('select count(*)::int n from scheduling_agent_team_optimization_jobs')).rows[0].n,0);
+   assert.equal((await query('select count(*)::int n from net.fixture_requests')).rows[0].n,0);
+  });
+  await t.test('interactive run is blocked with the actual active lease expiry',async()=>{
+   await reset();await enqueue();await claimForWork();
+   const result=await requestOptimization();
+   const lease=(await query('select expires_at from scheduling_planning_run_leases')).rows[0];
+   assert.equal(result.status,'blocked');
+   assert.equal(Date.parse(result.retryAt),lease.expires_at.getTime());
+  });
   await t.test('concurrent authenticated requests reuse one durable job',async()=>{
-   await reset();const ids=await Promise.all(Array.from({length:8},async()=>{
-    const c=await pool.connect();try{await c.query('begin');await c.query("select set_config('request.jwt.claim.sub',$1,true)",[owner]);
-     const r=await c.query("select scheduling_agent_team_request_optimization('incremental') result");await c.query('commit');return r.rows[0].result.jobId;
-    }catch(e){await c.query('rollback');throw e;}finally{c.release();}
-   }));assert.equal(new Set(ids).size,1);
+   await reset();await query('update fixture_validation set dirty_count=1');
+   const results=await Promise.all(Array.from({length:8},()=>requestOptimization()));
+   assert.ok(results.every(result=>result.jobId));
+   assert.equal(new Set(results.map(result=>result.jobId)).size,1);
   });
   await t.test('immediate wake is transactional and rolls back with enqueue',async()=>{
    await reset();await query("insert into vault.decrypted_secrets values('scheduling_agent_wakeup_secret',repeat('x',32))");
@@ -89,13 +113,44 @@ test('durable queue on isolated PostgreSQL', {skip:!url},async t=>{
    assert.equal((await wake('reserve')).reserved,false);
    assert.equal((await query('select status from scheduling_agent_team_optimization_jobs')).rows[0].status,'failed');
   });
+  await t.test('current incremental request completes without a lease or planning save',async()=>{
+   await reset();const id=await enqueue();const runId=randomUUID();
+   const p=await command('claim',{runId});
+   assert.equal(p.noOp,true);assert.equal(p.jobId,id);assert.equal(p.runId,runId);
+   assert.equal(p.workspaceRevision,'1');
+   assert.deepEqual(await command('finish',{jobId:id,runId}),p);
+   assert.equal((await query('select count(*)::int n from fixture_saves')).rows[0].n,0);
+   assert.equal((await query('select count(*)::int n from scheduling_planning_run_leases')).rows[0].n,0);
+   assert.equal((await query('select revision from scheduling_planning_workspaces')).rows[0].revision,'1');
+  });
+  await t.test('dirty rows, old engine, or explicit full request still require work',async()=>{
+   for (const reason of ['dirty','engine','full']){
+    await reset();await enqueue();
+    if(reason==='dirty')await query('update fixture_validation set dirty_count=1');
+    if(reason==='engine')await query("update fixture_validation set engine_version='old'");
+    if(reason==='full')await query("update scheduling_agent_team_optimization_jobs set mode='full'");
+    assert.equal((await command('claim',{runId:randomUUID()})).claimed,true);
+   }
+  });
+  await t.test('claim returns while the planning transaction lock is held',async()=>{
+   await reset();await enqueue();const c=await pool.connect();
+   try{
+    await c.query('begin');
+    await c.query("select pg_advisory_xact_lock(hashtext('scheduling_planning_run'),hashtext('year|'))");
+    const result=await Promise.race([Promise.all([command('claim',{runId:randomUUID()}),command('probe')]),
+     new Promise((_,reject)=>{setTimeout(()=>reject(Error('claim blocked')),500).unref();})]);
+    assert.equal(result[0].claimed,false);assert.equal(result[1].ready,true);
+   }finally{await c.query('rollback');c.release();}
+  });
   await t.test('concurrent workers cannot claim the same or parallel national job',async()=>{
-   await reset();await enqueue();const r=await Promise.all([command('claim',{runId:randomUUID()}),command('claim',{runId:randomUUID()})]);
+   await reset();await enqueue();await query('update scheduling_planning_workspaces set validated_source_revision=6');
+   const r=await Promise.all([command('claim',{runId:randomUUID()}),command('claim',{runId:randomUUID()})]);
    assert.equal(r.filter(x=>x.claimed).length,1);assert.ok(r.find(x=>x.claimed).runId);
   });
-  await t.test('crash before lease recovers the same job and fences old attempt',async()=>{
-   await reset();const id=await enqueue();const first=await command('claim',{runId:randomUUID()});
-   await query("update scheduling_agent_team_optimization_jobs set worker_heartbeat_at=now()-interval '16 minutes'");
+  await t.test('expired worker recovers the same job after two minutes and fences old attempt',async()=>{
+   await reset();const id=await enqueue();const first=await claimForWork();
+   await query("update scheduling_planning_run_leases set expires_at=now()-interval '1 second'");
+   await query("update scheduling_agent_team_optimization_jobs set worker_heartbeat_at=now()-interval '121 seconds'");
    await query('select scheduling_agent_recover_jobs()');
    await query("update scheduling_agent_team_optimization_jobs set next_attempt_at=now()-interval '1 second'");
    const next=await command('claim',{runId:randomUUID()});assert.equal(next.jobId,id);
@@ -103,7 +158,7 @@ test('durable queue on isolated PostgreSQL', {skip:!url},async t=>{
   });
   await t.test('active lease prevents stale heartbeat recovery',async()=>{
    await reset();await enqueue();await claimed();
-   await query("update scheduling_agent_team_optimization_jobs set worker_heartbeat_at=now()-interval '16 minutes'");
+   await query("update scheduling_agent_team_optimization_jobs set worker_heartbeat_at=now()-interval '121 seconds'");
    await query('select scheduling_agent_recover_jobs()');
    assert.equal((await query('select status from scheduling_agent_team_optimization_jobs')).rows[0].status,'running');
   });
@@ -114,7 +169,8 @@ test('durable queue on isolated PostgreSQL', {skip:!url},async t=>{
    const next=await claimed();assert.equal((await command('finish',{...next,success:false,failureCode:'P0001'})).status,'failed');
   });
   await t.test('third interrupted attempt exhausts retries',async()=>{
-   await reset();await enqueue();await command('claim',{runId:randomUUID()});
+   await reset();await enqueue();await claimForWork();
+   await query("update scheduling_planning_run_leases set expires_at=now()-interval '1 second'");
    await query("update scheduling_agent_team_optimization_jobs set attempt_count=3,worker_heartbeat_at=now()-interval '16 minutes'");
    await query('select scheduling_agent_recover_jobs()');assert.equal((await query('select status from scheduling_agent_team_optimization_jobs')).rows[0].status,'failed');
   });

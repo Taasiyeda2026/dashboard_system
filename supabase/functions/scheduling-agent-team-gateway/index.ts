@@ -46,7 +46,7 @@ const TOOLS = [
   },
   {
     name: 'request_optimization',
-    description: 'Request a fresh operational scheduling optimization of the current-year plan. Incremental can be requested by Idan/Eden/Esraa, full rebuild by Idan only. Queued requests are processed by the private authenticated GitHub Actions scheduling agent worker; the dashboard is display-only. Execution may be delayed until a workflow runner starts. NEVER claim it has run until status says completed. No existing confirmed assignments are changed.',
+    description: 'Request a fresh operational scheduling optimization of the current-year plan. Incremental can be requested by Idan/Eden/Esraa, full rebuild by Idan only. Queued requests are processed by the private authenticated GitHub Actions scheduling agent worker; the dashboard is display-only. An incremental response with noOp=true means the saved plan is current and no job was created. A blocked response includes retryAt, the active lease expiry; report the actual remaining time. Only queued jobs wait for a workflow runner. NEVER claim a queued optimization has run until its job status says completed. No existing confirmed assignments are changed.',
     inputSchema: {type:'object',properties:{mode:{type:'string',enum:['incremental','full']}},required:['mode'],additionalProperties:false}
   },
   {

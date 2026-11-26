@@ -105,7 +105,9 @@ function* schedules(context, a, empId, spec, input, previous, occupancy) {
       }
     }
   }
+  const validByTime = new Map();
   for (let date = start; date <= latestStart; date = addDays(date, 1)) {
+    yield null; // Also yields when every schedule on this date is rejected.
     const day = weekday(date), dayRules = context.exceptions.get(empId)?.get(date) || context.rules.get(empId)?.get(day) || [];
     if (day === 5 && context.profiles[empId]?.friday_allowed !== true) continue;
     if (day === 6 && !['arab', 'druze'].includes(a.calendar_sector)) continue;
@@ -116,13 +118,17 @@ function* schedules(context, a, empId, spec, input, previous, occupancy) {
       const adjacency = nearby.flatMap(m=>{const route=m.schoolId===text(a.school_id)?{distance_km:0,duration_minutes:0}:knownRoute(context,a.school_address,m.address);if(!route)return[];const buffer=m.schoolId===text(a.school_id)?0:(+route.distance_km<=5?5:15);return [Math.floor((m.start-spec.durationMinutes-(+route.duration_minutes)-buffer)/30)*30,Math.ceil((m.end+(+route.duration_minutes)+buffer)/30)*30];});
       const times=[...new Set([...adjacency.filter(t=>t>=from&&t<=to),...Array.from({length:Number.isFinite(from)&&Number.isFinite(to)&&to>=from?Math.floor((to-from)/30)+1:0},(_,i)=>from+i*30)])];
       for (const time of times) {
-        const meetings = []; let next = date;
-        while (meetings.length < spec.sessions && next <= end) {
-          const meeting = { date: next, meeting_no: meetings.length + 1, start_time: stamp(time), end_time: stamp(time + spec.durationMinutes) };
-          // Flexible dates may skip school holidays and unavailable days, but
-          // no official date is ever shifted by this generation path.
-          if (!meetingFailures(context, a, empId, meeting).length) meetings.push(meeting);
-          next = addDays(next, 7);
+        yield null;
+        const meetings = [];
+        const startTime = stamp(time), endTime = stamp(time + spec.durationMinutes);
+        if (!validByTime.has(time)) validByTime.set(time, new Map());
+        const validDates = validByTime.get(time);
+        for (let next = date; meetings.length < spec.sessions && next <= end; next = addDays(next, 7)) {
+          const meeting = { date: next, meeting_no: meetings.length + 1, start_time: startTime, end_time: endTime };
+          // The availability and calendar gates depend on date/time, not the
+          // ordinal within a proposed series. Reuse them for adjacent starts.
+          if (!validDates.has(next)) validDates.set(next, !meetingFailures(context, a, empId, meeting).length);
+          if (validDates.get(next)) meetings.push(meeting);
         }
         if (meetings.length === spec.sessions && (!a.start_date || meetings[0].date === text(a.start_date).slice(0,10))) yield meetings;
       }
@@ -165,7 +171,7 @@ export async function buildPlan(input = {}) {
   }
   const occupancy = createOccupancy(context, anchors), queue = targets.filter(a => affected.has(activityId(a)) && !rows.has(activityId(a)));
   metrics.contextMs = performance.now() - started;
-  const baselineOptions = new Map(), baselineInfo = new Map(), candidatePools = new Map();
+  const baselineOptions = new Map(), baselineInstructorCount = new Map(), candidatePools = new Map();
   const availability = availabilityByInstructor(context,input.periodKey || 'year');
   const quality = values => operationalQuality(values,input,context,availability);
   const incumbentExceptionInstructor=new Map(), incumbentExceptionIneligible=new Map();
@@ -188,15 +194,12 @@ export async function buildPlan(input = {}) {
     // geographic partition: unknown routes remain eligible for route lookup.
     const nearbyInstructors = [...context.byInstructor]
       .filter(([, instructor]) => activeInstructor(instructor))
-      .sort(([leftId, left], [rightId, right]) => {
-        const leftRoute = knownRoute(context, left.address, a.school_address);
-        const rightRoute = knownRoute(context, right.address, a.school_address);
-        const leftDistance = leftRoute ? Number(leftRoute.distance_km) : Infinity;
-        const rightDistance = rightRoute ? Number(rightRoute.distance_km) : Infinity;
-        return leftDistance - rightDistance || leftId.localeCompare(rightId);
-      });
+      .map(([id, instructor]) => ({
+        id, instructor, distance: Number(knownRoute(context, instructor.address, a.school_address)?.distance_km ?? Infinity)
+      }))
+      .sort((left, right) => left.distance - right.distance || left.id.localeCompare(right.id));
     if (!nearbyInstructors.length && context.byInstructor.size) failures.add('inactive_instructor');
-    for (const [empId, instructor] of nearbyInstructors) {
+    for (const {id: empId, instructor} of nearbyInstructors) {
       if(incumbentExceptionInstructor.has(id)&&incumbentExceptionInstructor.get(id)!==empId)continue;
       if(incumbentExceptionIneligible.get(id)===empId)continue;
       if ((input.optimizationOnlyCourseIds || []).includes(id) && previous.get(id)?.instructorEmpId !== empId) continue;
@@ -207,9 +210,11 @@ export async function buildPlan(input = {}) {
       const rejected = staticFailures(context, a, empId); if (rejected.length) { planningPerfCount('staticCandidatePruned'); rejected.forEach(r => failures.add(r)); continue; }
       let attempted = 0;
       for (const meetings of schedules(context, a, empId, spec, input, previous.get(id), scheduleState||state)) {
+        await checkpoint();
+        if (!meetings) continue;
         if (++attempted > limit) { incomplete = true; break; }
         if(!officialMeetings(a).length && meetings.length!==spec.sessions)continue;
-        metrics.generatedSchedules++; planningPerfCount("scenarioCount"); await checkpoint();
+        metrics.generatedSchedules++; planningPerfCount("scenarioCount");
         if ((input.optimizationOnlyCourseIds || []).includes(id) && JSON.stringify(meetings.map(m=>m.date))!==JSON.stringify((previous.get(id)?.meetings || []).map(m=>m.date))) continue;
         const option = { instructorEmpId: empId, meetings, startDate: meetings[0].date, endDate: meetings.at(-1).date, startTime: meetings[0].start_time, endTime: meetings[0].end_time };
         await ensureCandidateRoutes(context, state, a, option);
@@ -231,7 +236,7 @@ export async function buildPlan(input = {}) {
     }return {newDays,waiting,sameSchool};
   }
   const overlapOptions=(a,b)=>a.instructorEmpId===b.instructorEmpId&&a.meetings.some(m=>b.meetings.some(n=>m.date===n.date&&minute(m.start_time)<minute(n.end_time)&&minute(m.end_time)>minute(n.start_time)));
-  function opportunityCost(a,option){let cost=0;for(const [id,alternatives] of baselineOptions){if(id===activityId(a)||rows.has(id)||!alternatives.length)continue;const count=new Set(alternatives.map(o=>o.instructorEmpId)).size;if(count>2)continue;
+  function opportunityCost(a,option){let cost=0;for(const [id,alternatives] of baselineOptions){if(id===activityId(a)||rows.has(id)||!alternatives.length)continue;if(baselineInstructorCount.get(id)>2)continue;
       cost+=alternatives.filter(other=>overlapOptions(option,other)).length/alternatives.length;
     }return cost;}
   const comparePlacement=(a,b)=>a.blockers-b.blockers||a.placement.newDays-b.placement.newDays||a.placement.waiting-b.placement.waiting||b.placement.sameSchool-a.placement.sameSchool||a.option.startDate.localeCompare(b.option.startDate)||a.option.startTime.localeCompare(b.option.startTime)||a.option.instructorEmpId.localeCompare(b.option.instructorEmpId);
@@ -244,7 +249,9 @@ export async function buildPlan(input = {}) {
     const collect=async raws=>{for(const raw of raws){await checkpoint();await ensureCandidateRoutes(context,state,a,raw);const issues=candidateFailures(context,state,a,raw);
       if(issues.length){issues.forEach(f=>failures.add(f.reason));continue;}options.push(raw);
     }};
-    await collect(pool.options);
+    // Before the first accepted course both occupancies contain the same anchors.
+    if (baseOnly && completed === 0) options.push(...pool.options);
+    else await collect(pool.options);
     if(!baseOnly&&!officialMeetings(a).length&&(!options.length||!options.some(o=>placement(a,o,state).sameSchool>0))){
       // Temporal adjacency changes when another course is accepted. Cached
       // constraints remain valid, but cached time choices are not exhaustive.
@@ -271,7 +278,7 @@ export async function buildPlan(input = {}) {
       const profile = {gender: ['male','female'].includes(a.required_instructor_gender) ? a.required_instructor_gender : 'female', instruction_languages:[a.instruction_language],friday_allowed:false};
       const hypothetical = {...context,profiles:{...context.profiles,__recruitment:profile},rules:new Map(context.rules),exceptions:new Map(context.exceptions)};
       hypothetical.rules.set('__recruitment',new Map(Array.from({length:5},(_,day)=>[day,[{weekday:day,available:true,start_time:'08:00',end_time:'16:00'}]])));
-      const choices=[];for(const meetings of schedules(hypothetical,a,'__recruitment',courseSpec(a,input),input,null)){choices.push({meetings,startDate:meetings[0].date,endDate:meetings.at(-1).date,startTime:meetings[0].start_time,endTime:meetings[0].end_time});if(choices.length>=16)break;}
+      const choices=[];for(const meetings of schedules(hypothetical,a,'__recruitment',courseSpec(a,input),input,null)){await checkpoint();if(!meetings)continue;choices.push({meetings,startDate:meetings[0].date,endDate:meetings.at(-1).date,startTime:meetings[0].start_time,endTime:meetings[0].end_time});if(choices.length>=16)break;}
       if(choices.length){Object.assign(row,choices[0],{scheduleOptions:choices,diagnostics:{...row.diagnostics,hypotheticalRecruitmentSchedule:true}});}
       else {row.kind='missing';row.status='נדרש בירור מועדים';row.diagnostics.recruitmentCertified=false;}
     }
@@ -307,7 +314,7 @@ export async function buildPlan(input = {}) {
         if (baselineOptions.has(id)) continue;
         const result = await candidates(activity, occupancy, true);
         baselineOptions.set(id, result.options);
-        baselineInfo.set(id, result);
+        baselineInstructorCount.set(id, new Set(result.options.map(option => option.instructorEmpId)).size);
       }
       const priority = ({ block }) => {
         const activities = block.results.map(item => item.course);
@@ -315,10 +322,12 @@ export async function buildPlan(input = {}) {
         const urgent = Math.min(...activities.map(activity => urgencyOrder[urgency.get(activityId(activity)).urgencyBand] ?? 3));
         return { scarcity, urgent };
       };
-      stageBlocks.sort((left, right) => {
-        const a = priority(left), b = priority(right);
-        return a.urgent - b.urgent || a.scarcity - b.scarcity || left.index - right.index;
-      });
+      for (const entry of stageBlocks) {
+        await checkpoint();
+        entry.priority = priority(entry);
+      }
+      stageBlocks.sort((left, right) => left.priority.urgent - right.priority.urgent
+        || left.priority.scarcity - right.priority.scarcity || left.index - right.index);
       for (const entry of stageBlocks) yield entry;
     }
   }
@@ -329,8 +338,10 @@ export async function buildPlan(input = {}) {
       const common = activities.map(a => new Set(baselineOptions.get(activityId(a)).map(o => o.instructorEmpId))).reduce((a, b) => new Set([...a].filter(id => b.has(id))));
       const choices = [];
       for (const empId of common) {
+        await checkpoint();
         const state = createOccupancy(context, [...anchors, ...rows.values()]), simulation = []; let valid = true;
         for (const a of activities) {
+          await checkpoint();
           const option = baselineOptions.get(activityId(a)).find(o => o.instructorEmpId === empId);
           if (!option || candidateFailures(context, state, a, option).length) { valid = false; break; }
           const scored = scoring(context, state, a, option); simulation.push({ a, scored }); state.add(optionRow(a, scored, []));
@@ -390,7 +401,7 @@ export async function buildPlan(input = {}) {
       // Rank legal against immutable anchors first, then global opportunity cost:
       // prefer fewer conflicts before testing multi-activity displacement.
       const ranked=[];
-      for(const option of pool.options){const issues=candidateFailures(context,state,a,option),blockers=new Set();let barrier=false;
+      for(const option of pool.options){await checkpoint();const issues=candidateFailures(context,state,a,option),blockers=new Set();let barrier=false;
         for(const issue of issues){if(issue.reason==='overlap'){for(const m of option.meetings)for(const other of state.days.get(`${option.instructorEmpId}|${m.date}`)||[])if(other.courseId!==id&&(other.fullDay||isFullDaySchedulingActivity(a)||(minute(m.start_time)<other.end&&minute(m.end_time)>other.start)))blockers.add(other.courseId);}
           else if(issue.otherCourseId)blockers.add(issue.otherCourseId);else barrier=true;}
         if(barrier||[...blockers].some(b=>!canMove(b,current.get(b))))continue;
