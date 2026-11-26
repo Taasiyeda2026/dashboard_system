@@ -1,3 +1,4 @@
+import { isActiveSchedulingInstructor } from './shared/course-scheduling-instructors.js';
 import { escapeHtml } from './shared/html.js';
 
 const text = value => String(value ?? '').trim();
@@ -7,9 +8,10 @@ const editorKey = 'courseSchedulingManualOperation';
 
 export function manualOperationError(code) {
   const labels = {
+    scheduling_official_schedule_read_only: 'נתוני המפגשים נקבעים בכל הפעילויות בלבד. יש לפתוח את השיבוץ מחדש.',
     scheduling_permission_denied: 'אין הרשאה לשיבוץ ידני.',
     scheduling_manager_instructor_admin_approval_required: 'שיבוץ מנהל/ת מחייב אישור אדמין. שמרו טיוטה והעבירו לאדמין לאישור סופי.',
-    scheduling_activity_revision_conflict: 'הפעילות השתנתה. יש לרענן ולפתוח את העריכה מחדש.',
+    scheduling_activity_revision_conflict: 'הפעילות השתנתה. יש לעיין בנתונים העדכניים ולבדוק שוב לפני שמירה.',
     scheduling_manual_preview_changed: 'הנתונים השתנו מאז הבדיקה. יש לבדוק שוב לפני שמירה.',
     scheduling_manual_acknowledgement_required: 'יש לאשר את האזהרות לפני השמירה.',
     scheduling_reason_required: 'יש להזין סיבה לשינוי או לאישור האזהרות.',
@@ -20,11 +22,11 @@ export function manualOperationError(code) {
     scheduling_new_past_date_forbidden: 'אי אפשר להוסיף מועד חדש בעבר.',
     scheduling_no_future_meetings: 'אין מפגשים מתאריך התחולה שנבחר.',
     scheduling_effective_date_required: 'יש לבחור תאריך תחולה מהיום והלאה.',
-    scheduling_activity_hours_missing: 'יש להזין שעת התחלה וסיום תקינות.',
+    scheduling_activity_hours_missing: 'חסרות שעות תקינות. יש לתקן את הפעילות בכל הפעילויות.',
     scheduling_activity_sessions_invalid: 'יש להשלים בפעילות מספר מפגשים תקין.',
     scheduling_proposed_meeting_count_mismatch: 'מספר המועדים חייב להתאים למספר המפגשים בפעילות.',
     scheduling_existing_official_meeting_count_conflict: 'מספר המועדים הקיימים אינו תואם. יש לתקן את נתוני הפעילות.',
-    scheduling_proposed_dates_invalid: 'יש להזין את כל המועדים בסדר עולה, ללא כפילויות ובטווח תשפ״ז.',
+    scheduling_proposed_dates_invalid: 'מועדי הפעילות חסרים או אינם תקינים. יש לתקן אותם בכל הפעילויות.',
     scheduling_school_calendar_blocked: 'אחד המועדים חסום בלוח החופשות.',
     scheduling_saturday_blocked: 'שבת חסומה לפעילות במגזר זה.',
     scheduling_school_sector_missing: 'יש להשלים את שיוך בית הספר למגזר.',
@@ -50,6 +52,7 @@ export function manualOperationError(code) {
 export function manualWarningLabel(warning) {
   const km = Number(warning.km);
   const labels = {
+    manual_draft_schedule_changed: 'מועדי הטיוטה שונים מנתוני הפעילות העדכניים. נבדקו הנתונים הרשמיים; המשך השמירה דורש אישור מחודש.',
     manual_intended_instructor_changed: 'קיים מדריך מיועד שמור אחר. השמירה תחליף את הבחירה השמורה ותתעד את השינוי.',
     manual_home_route_unknown: 'אין מסלול בית–בית ספר מאומת. אפשר לאשר ידנית באחריותכם.',
     manual_home_distance: 'מרחק הנסיעה לבית הספר הוא ' + (Number.isFinite(km) ? km.toFixed(1) : '—') + ' ק״מ.',
@@ -81,28 +84,30 @@ export function manualWarningLabel(warning) {
   const label = labels[warning.code] || business[warning.code] || 'נדרשת בדיקה של מגבלת השיבוץ.';
   return label + (warning.date && !labels[warning.code] ? ' תאריך: ' + warning.date + '.' : '')
     + (warning.school ? ' בית ספר: ' + warning.school + '.' : '')
-    + (warning.otherActivity ? ' פעילות: ' + warning.otherActivity + '.' : '');
+    + (warning.otherActivity ? ' פעילות: ' + warning.otherActivity + '.' : '')
+    + (warning.startTime || warning.endTime ? ' שעות: ' + (warning.startTime || '—') + '–' + (warning.endTime || '—') + '.' : '');
 }
 
 
-export function weeklyManualDates(first, count) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(first) || !Number.isInteger(count) || count < 1 || count > 35) throw Error('scheduling_proposed_dates_invalid');
-  const date = new Date(first + 'T12:00:00Z');
-  if (!Number.isFinite(date.getTime()) || date.toISOString().slice(0, 10) !== first) throw Error('scheduling_proposed_dates_invalid');
-  return Array.from({ length: count }, (_, index) => {
-    const next = new Date(date);
-    next.setUTCDate(next.getUTCDate() + index * 7);
-    return next.toISOString().slice(0, 10);
-  });
+export function manualActivityIssues(activity) {
+  const issues = [];
+  const count = Number(activity.sessions);
+  if (!/^[0-9]{1,2}$/.test(text(activity.sessions)) || count < 1 || count > 35) issues.push('scheduling_activity_sessions_invalid');
+  const dates = Array.from({ length: 35 }, (_, index) => iso(activity['date_' + (index + 1)]));
+  if (!dates.some(Boolean) || (count > 0 && count <= 35 && dates.slice(0, count).some(date => !date))) issues.push('scheduling_proposed_dates_invalid');
+  if (count > 0 && count <= 35 && dates.filter(Boolean).length !== count) issues.push('scheduling_existing_official_meeting_count_conflict');
+  const official = dates.filter(Boolean);
+  if (official.some((date, index) => !/^\d{4}-\d{2}-\d{2}$/.test(date) || date < '2026-09-01' || date > '2027-08-31' || (index > 0 && date <= official[index - 1]))) issues.push('scheduling_proposed_dates_invalid');
+  if (!time(activity.start_time) || !time(activity.end_time) || time(activity.start_time) >= time(activity.end_time)) issues.push('scheduling_activity_hours_missing');
+  return [...new Set(issues)];
 }
 
 export function createManualOperation(activity, instructors = []) {
-  const proposed = Array.isArray(activity.draft_proposed_meetings) ? activity.draft_proposed_meetings : [];
-  const count = Math.max(1, Math.min(35, Number(activity.sessions) || proposed.length || 1));
+  const count = /^[0-9]+$/.test(text(activity.sessions)) && Number(activity.sessions) <= 35 ? Number(activity.sessions) : 0;
   return {
     activity: { ...activity }, instructors, empId: text(activity.draft_emp_id || activity.emp_id),
-    dates: Array.from({ length: count }, (_, index) => iso(proposed[index]?.date || activity['date_' + (index + 1)] || (count === 1 ? activity.start_date : ''))),
-    startTime: time(proposed[0]?.start_time || activity.start_time), endTime: time(proposed[0]?.end_time || activity.end_time),
+    dates: Array.from({ length: count }, (_, index) => iso(activity['date_' + (index + 1)])),
+    startTime: time(activity.start_time), endTime: time(activity.end_time),
     effectiveFrom: '', action: activity.emp_id || activity.draft_emp_id ? 'confirm' : 'draft', reason: '',
     acknowledged: false, preview: null, revision: 0, busy: '', error: ''
   };
@@ -110,15 +115,18 @@ export function createManualOperation(activity, instructors = []) {
 
 export function manualOperationPayload(editor) {
   if (!editor?.activity?.row_id || !editor.activity.updated_at) throw Error('scheduling_activity_revision_conflict');
+  const issue = manualActivityIssues(editor.activity)[0];
+  if (issue) throw Error(issue);
   if (!/^[0-9]+$/.test(text(editor.empId))) throw Error('instructor_not_found');
+  if (!editor.dates.length) throw Error('scheduling_activity_sessions_invalid');
   if (!editor.startTime || !editor.endTime || editor.startTime >= editor.endTime) throw Error('scheduling_activity_hours_missing');
   if (editor.dates.some((date, index) => !/^\d{4}-\d{2}-\d{2}$/.test(date) || (index > 0 && date <= editor.dates[index - 1]))) {
     throw Error('scheduling_proposed_dates_invalid');
   }
   return {
     p_activity_id: editor.activity.row_id, p_emp_id: Number(editor.empId),
-    p_meetings: editor.dates.map(date => ({ date })),
-    p_start_time: editor.startTime, p_end_time: editor.endTime, p_action: editor.action,
+    p_meetings: null,
+    p_start_time: null, p_end_time: null, p_action: editor.action,
     p_effective_from: editor.effectiveFrom || null, p_expected_updated_at: editor.activity.updated_at
   };
 }
@@ -130,51 +138,44 @@ export function canCommitManualOperation(editor) {
     && (!editor.preview.reasonRequired || !!text(editor.reason));
 }
 
-export function createManualOperationsController({ state, rpc, onChange = () => {}, onSaved = () => {} }) {
+export function createManualOperationsController({ state, rpc, onChange = () => {}, onSaved = () => {}, onEditActivity = () => {}, reloadActivity = null }) {
   return {
     refresh() { onChange(); },
+    editActivity() { const editor = state[editorKey]; if (editor && !editor.busy) { this.close(); onEditActivity(editor.activity.row_id); } },
     back() { const editor = state[editorKey]; if (editor && !editor.busy) { editor.preview = null; editor.acknowledged = false; onChange(); } },
     open(activity, instructors, initial = {}) {
       const editor = createManualOperation(activity, instructors);
-      for (const field of ['empId','dates','startTime','endTime','action','effectiveFrom']) {
+      for (const field of ['empId','action','effectiveFrom']) {
         if (initial[field] != null) editor[field] = initial[field];
       }
       state[editorKey] = editor;
       onChange();
     },
     close() {
-      if (state[editorKey]?.busy === 'saving') return;
+      if (state[editorKey]?.busy) return;
       state[editorKey] = null;
       onChange();
     },
     edit(field, value, index = null) {
       const editor = state[editorKey];
-      if (!editor || editor.busy === 'saving') return false;
-      if (field === 'dates') editor.dates[index] = value;
-      else if (['empId', 'startTime', 'endTime', 'effectiveFrom', 'action'].includes(field)) editor[field] = value;
+      if (!editor || editor.busy) return false;
+      if (['empId', 'effectiveFrom', 'action'].includes(field)) editor[field] = value;
       else if (field === 'reason' || field === 'acknowledged') {
         editor[field] = value;
         return true;
       } else return false;
       editor.revision++;
+      editor.reason = '';
       editor.preview = null;
       editor.acknowledged = false;
       editor.error = '';
       return true;
     },
-    fillWeekly() {
-      const editor = state[editorKey];
-      if (!editor || editor.busy) return;
-      try {
-        const dates = weeklyManualDates(editor.dates[0], editor.dates.length);
-        editor.dates = dates; editor.revision++; editor.preview = null; editor.acknowledged = false; editor.error = '';
-      } catch (error) { editor.error = manualOperationError(error.message); }
-      onChange();
-    },
-    async preview() {
+    async preview(retryRevision = true) {
       const editor = state[editorKey];
       if (!editor || editor.busy) return;
       const revision = editor.revision;
+      let stale = false;
       try {
         const args = manualOperationPayload(editor);
         editor.busy = 'checking'; editor.error = ''; editor.preview = null; editor.acknowledged = false;
@@ -185,15 +186,54 @@ export function createManualOperationsController({ state, rpc, onChange = () => 
         if (!data?.previewHash || !Array.isArray(data.blockers) || !Array.isArray(data.warnings)) throw Error('invalid_manual_preview');
         editor.preview = data;
       } catch (error) {
-        if (state[editorKey] === editor && editor.revision === revision) editor.error = manualOperationError(error.message);
+        if (state[editorKey] === editor && editor.revision === revision) {
+          editor.error = manualOperationError(error.message);
+          stale = error.message === 'scheduling_activity_revision_conflict';
+        }
       } finally {
         if (state[editorKey] === editor) { editor.busy = ''; onChange(); }
       }
+      if (stale && reloadActivity && retryRevision && state[editorKey] === editor) {
+        await this.recheck('scheduling_activity_revision_conflict');
+      }
+    },
+    async recheck(code) {
+      const editor = state[editorKey];
+      if (!editor || editor.busy) return;
+      editor.preview = null; editor.acknowledged = false; editor.reason = '';
+      if (code === 'scheduling_activity_revision_conflict') {
+        if (!reloadActivity) return;
+        editor.busy = 'checking'; onChange();
+        try {
+          const activity = await reloadActivity(editor.activity.row_id);
+          if (state[editorKey] !== editor) return;
+          if (!activity?.updated_at || text(activity.row_id) !== text(editor.activity.row_id)) throw Error('invalid_activity');
+          const current = createManualOperation(activity, editor.instructors);
+          for (const field of ['activity', 'dates', 'startTime', 'endTime']) editor[field] = current[field];
+          editor.revision++;
+        } catch {
+          editor.error = 'טעינת נתוני הפעילות העדכניים נכשלה. יש לרענן לפני שמירה.';
+          return;
+        } finally { editor.busy = ''; onChange(); }
+      }
+      await this.preview(false);
+      // A fresh result always needs an explicit click; old consent is never reused.
+      if (state[editorKey] === editor) {
+        editor.error = manualOperationError(code); onChange();
+      }
+    },
+    async submit() {
+      const editor = state[editorKey];
+      if (!editor || editor.busy) return;
+      const revision = editor.revision;
+      if (!editor.preview) await this.preview();
+      if (editor.revision !== revision) return;
+      if (state[editorKey] === editor && canCommitManualOperation(editor)) return this.commit();
     },
     async commit() {
       const editor = state[editorKey];
       if (!canCommitManualOperation(editor)) return;
-      let row;
+      let row, staleCode;
       try {
         const args = {
           ...manualOperationPayload(editor), p_preview_hash: editor.preview.previewHash,
@@ -206,11 +246,15 @@ export function createManualOperationsController({ state, rpc, onChange = () => 
         if (text(saved?.row_id) !== text(editor.activity.row_id) || !saved?.updated_at) throw Error('invalid_saved_activity');
         row = saved;
       } catch (error) {
+        staleCode = ['scheduling_manual_preview_changed', 'scheduling_activity_revision_conflict'].includes(error.message) ? error.message : null;
         editor.error = manualOperationError(error.message);
         editor.preview = null; editor.acknowledged = false;
       } finally {
         editor.busy = '';
         if (!row) onChange();
+      }
+      if (staleCode && state[editorKey] === editor) {
+        await this.recheck(staleCode);
       }
       if (row) {
         state[editorKey] = null;
@@ -228,39 +272,43 @@ export function manualOperationsDialogHtml(state) {
   const editor = state?.[editorKey];
   if (!editor) return '';
   const activity = editor.activity, preview = editor.preview;
+  const activityIssues = manualActivityIssues(activity);
+  const officialDates = Array.from({ length: 35 }, (_, index) => iso(activity['date_' + (index + 1)])).filter(Boolean);
   const saving = editor.busy === 'saving';
   const reviewing = !!preview?.warnings?.length && !(preview.blockers || []).length;
-  const disabled = saving ? ' disabled' : '';
+  const disabled = editor.busy ? ' disabled' : '';
   const changingInstructor = !!activity.emp_id && text(activity.emp_id) !== text(editor.empId);
   const options = editor.instructors.map(instructor => {
     // The approval rule is explained separately, never appended to a person's name.
-    return '<option value="' + escapeHtml(instructor.emp_id) + '"' + (text(instructor.emp_id) === editor.empId ? ' selected' : '') + '>' + escapeHtml(instructor.full_name) + (instructor.isManagementEmployee ? ' · מנהל/ת' : '') + '</option>';
+    return '<option value="' + escapeHtml(instructor.emp_id) + '"' + (text(instructor.emp_id) === editor.empId ? ' selected' : '') + '>' + escapeHtml(instructor.full_name) + (instructor.isManagementEmployee ? ' · מנהל/ת' : '') + (!isActiveSchedulingInstructor(instructor) ? ' · לא פעיל/ה' : '') + '</option>';
   }).join('');
   return `<div class="course-scheduling-overlay" data-manual-operations-overlay>
-    <section class="course-scheduling-modal" role="${reviewing ? 'alertdialog' : 'dialog'}" aria-modal="true" aria-labelledby="manual-operations-title" style="max-height:90dvh;overflow:auto;width:min(720px,calc(100vw - 24px))">
-      <h2 id="manual-operations-title">${reviewing ? 'התראה: קיימות מגבלות בשיבוץ' : 'מדריך ומועדים — עריכה ידנית'}</h2>
+    <section class="course-scheduling-modal course-scheduling-manual-dialog" role="${reviewing ? 'alertdialog' : 'dialog'}" aria-modal="true" aria-labelledby="manual-operations-title" dir="rtl" style="text-align:right;max-height:90dvh;overflow:auto;width:min(720px,calc(100vw - 24px))">
+      <h2 id="manual-operations-title">${reviewing ? 'התראה: קיימות מגבלות בשיבוץ' : 'שיבוץ מדריך'}</h2>
       <p>${escapeHtml(activity.activity_name)} · ${escapeHtml(activity.school)} · ${escapeHtml(activity.authority)}</p>
-      <p>הבחירה נשמרת על ידכם. אין צורך להריץ את תכנון הסוכן. שיבוץ מנהל/ת יאושר סופית בידי אדמין בלבד.</p>
+      <p>שיבוץ מנהל/ת יאושר סופית בידי אדמין בלבד.</p>
+      <dl style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0">
+        <div><dt>יום הפעילות</dt><dd>${escapeHtml([...new Set(officialDates.filter(date => Number.isFinite(Date.parse(date))).map(date => new Date(date + 'T12:00:00Z').toLocaleDateString('he-IL', { weekday: 'long', timeZone: 'UTC' })))].join(' · ') || 'חסרים מועדים')}</dd></div>
+        <div><dt>שעות</dt><dd><bdi dir="ltr">${escapeHtml(editor.startTime || 'חסר')}–${escapeHtml(editor.endTime || 'חסר')}</bdi></dd></div>
+        <div><dt>תחילת הפעילות</dt><dd>${escapeHtml(iso(activity.start_date) || 'חסר')}</dd></div>
+        <div><dt>מספר מפגשים</dt><dd>${escapeHtml(activity.sessions || 'חסר')}</dd></div>
+      </dl>
+      <details><summary>פירוט מועדי המפגשים</summary><ol>${officialDates.map(date => `<li>${escapeHtml(date || 'חסר מועד')}${activity.cancelled_meeting_dates?.includes(date) ? ' · בוטל' : ''} · <bdi dir="ltr">${escapeHtml(editor.startTime)}–${escapeHtml(editor.endTime)}</bdi></li>`).join('') || '<li>לא הוגדרו מועדים</li>'}</ol></details>
+      ${activityIssues.length ? '<ul role="alert">' + activityIssues.map(code => '<li>' + escapeHtml(manualOperationError(code)) + '</li>').join('') + '</ul>' : ''}
+      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-manual-operation-activities>לתיקון נתוני הפעילות בכל הפעילויות</button>
       <div data-manual-operation-fields${reviewing ? ' hidden' : ''}>
+      <label>חיפוש מדריך<input class="course-scheduling-input" type="search" data-manual-instructor-search placeholder="חיפוש לפי שם"${disabled}></label>
       <label>מדריך<select class="course-scheduling-input" data-manual-operation-field="empId"${disabled}><option value="">בחרו מדריך</option>${options}</select></label>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-block:12px">
-        <label>התחלה<input class="course-scheduling-input" type="time" value="${escapeHtml(editor.startTime)}" data-manual-operation-field="startTime"${disabled}></label>
-        <label>סיום<input class="course-scheduling-input" type="time" value="${escapeHtml(editor.endTime)}" data-manual-operation-field="endTime"${disabled}></label>
         <label>שמירה<select class="course-scheduling-input" data-manual-operation-field="action"${disabled}>
           ${activity.emp_id ? '' : '<option value="draft"' + (editor.action === 'draft' ? ' selected' : '') + '>טיוטה</option>'}
           <option value="confirm"${editor.action === 'confirm' ? ' selected' : ''}>שיבוץ סופי</option>
         </select></label>
       </div>
       ${changingInstructor ? `<label>תחולת החלפת מדריך<input class="course-scheduling-input" type="date" value="${escapeHtml(editor.effectiveFrom)}" data-manual-operation-field="effectiveFrom"${disabled}><small>מפגשים קודמים יישארו משויכים למדריך הקודם.</small></label>` : ''}
-      <p>מועדי המפגשים (${editor.dates.length}). מפגשים היסטוריים או מתועדים מוגנים בשמירה.</p>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px">
-        ${editor.dates.map((date, index) => `<label>מפגש ${index + 1}<input class="course-scheduling-input" type="date" min="2026-09-01" max="2027-08-31" value="${escapeHtml(date)}" data-manual-operation-date="${index}"${disabled}></label>`).join('')}
-      </div>
-      <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-manual-operation-weekly${editor.busy ? ' disabled' : ''}>מלא רצף שבועי מהמפגש הראשון</button>
-      <small>אפשר לערוך כל מועד בנפרד. לוח החופשות ייבדק לפני השמירה.</small>
       </div>
       ${reviewing ? '<p>קראו את כל החריגות. אפשר להמשיך בהתאם להחלטה העסקית או לאישור שקיבלתם מראש; ההחלטה תתועד.</p>' : ''}
-      <label>סיבה להחלטה / אישור שניתן מראש<textarea class="course-scheduling-input" data-manual-operation-field="reason"${disabled}>${escapeHtml(editor.reason)}</textarea></label>
+      ${preview?.reasonRequired ? `<label>סיבה להחלטה / אישור שניתן מראש<textarea class="course-scheduling-input" data-manual-operation-field="reason"${disabled}>${escapeHtml(editor.reason)}</textarea></label>` : ''}
       <p role="alert" data-manual-operation-error>${escapeHtml(editor.error)}</p>
       <div data-manual-operation-preview${preview ? '' : ' hidden'}>
         ${preview ? `
@@ -271,10 +319,9 @@ export function manualOperationsDialogHtml(state) {
           ${preview.reasonRequired ? '<p>יש להזין סיבה לפני השמירה.</p>' : ''}
         ` : ''}
       </div>
-      <div class="course-scheduling-detail-actions">
+      <div class="course-scheduling-detail-actions course-scheduling-manual-dialog__actions">
         <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" ${reviewing ? 'data-manual-operation-back' : 'data-manual-operation-close'}${disabled}>חזרה</button>
-        <button type="button" class="course-scheduling-btn course-scheduling-btn--secondary" data-manual-operation-check${reviewing ? ' hidden' : ''}${editor.busy ? ' disabled' : ''}>${editor.busy === 'checking' ? 'בודק…' : 'בדוק את הבחירה'}</button>
-        <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-manual-operation-save${canCommitManualOperation(editor) ? '' : ' disabled'}>${saving ? 'שומר…' : reviewing ? 'מאשר/ת את החריגות ושומר/ת' : editor.action === 'draft' ? 'שמור טיוטה ידנית' : 'אשר ושמור שיבוץ'}</button>
+        <button type="button" class="course-scheduling-btn course-scheduling-btn--primary" data-manual-operation-save${editor.busy || activityIssues.length || (preview && !canCommitManualOperation(editor)) ? ' disabled' : ''}>${saving ? 'שומר…' : editor.busy ? 'בודק…' : reviewing ? 'מאשר/ת את החריגות ושומר/ת' : editor.action === 'draft' ? 'בדיקה ושמירת טיוטה' : 'בדיקה ושמירת שיבוץ'}</button>
       </div>
     </section>
   </div>`;
@@ -288,8 +335,9 @@ export function bindManualOperationsEditor(root, state, controller) {
     if (!editor) return;
     const preview = host.querySelector('[data-manual-operation-preview]');
     if (preview && !editor.preview) preview.hidden = true;
+    host.querySelector('[data-manual-operation-field="reason"]')?.closest('label')?.toggleAttribute('hidden', !editor.preview?.reasonRequired);
     const save = host.querySelector('[data-manual-operation-save]');
-    if (save) save.disabled = !canCommitManualOperation(editor);
+    if (save) save.disabled = !!editor.busy || !!manualActivityIssues(editor.activity).length || (!!editor.preview && !canCommitManualOperation(editor));
     const error = host.querySelector('[data-manual-operation-error]');
     if (error) error.textContent = editor.error;
   };
@@ -297,6 +345,7 @@ export function bindManualOperationsEditor(root, state, controller) {
     input.tagName === 'SELECT' || input.type === 'checkbox' ? 'change' : 'input', () => {
       controller.edit(input.dataset.manualOperationField, input.type === 'checkbox' ? input.checked : input.value);
       sync();
+      if (input.dataset.manualOperationField === 'action') controller.refresh();
       // The replacement date control depends on the selected instructor.
       if (input.dataset.manualOperationField === 'empId') {
         const editor = state[editorKey];
@@ -308,13 +357,27 @@ export function bindManualOperationsEditor(root, state, controller) {
         }
       }
     }));
-  host.querySelectorAll('[data-manual-operation-date]').forEach(input => input.addEventListener('input', () => {
-    controller.edit('dates', input.value, Number(input.dataset.manualOperationDate)); sync();
-  }));
+  host.querySelector('[data-manual-instructor-search]')?.addEventListener('input', event => {
+    const query = event.target.value.trim();
+    host.querySelectorAll('select[data-manual-operation-field="empId"] option').forEach(option => {
+      option.hidden = !!option.value && !option.textContent.includes(query);
+    });
+  });
+  host.querySelector('[data-manual-operation-activities]')?.addEventListener('click', () => {
+    controller.editActivity();
+  });
   host.querySelector('[data-manual-operation-back]')?.addEventListener('click', () => controller.back());
   host.querySelector('[data-manual-operation-close]')?.addEventListener('click', () => controller.close());
-  host.querySelector('[data-manual-operation-weekly]')?.addEventListener('click', () => controller.fillWeekly());
-  host.querySelector('[data-manual-operation-check]')?.addEventListener('click', () => { void controller.preview(); });
-  host.querySelector('[data-manual-operation-save]')?.addEventListener('click', () => { void controller.commit(); });
-  host.addEventListener('keydown', event => { if (event.key === 'Escape') { event.preventDefault(); controller.close(); } });
+  host.querySelector('[data-manual-operation-save]')?.addEventListener('click', () => { void controller.submit(); });
+  host.querySelector('[data-manual-instructor-search]')?.focus();
+  host.addEventListener('keydown', event => {
+    if (event.key === 'Escape') { event.preventDefault(); controller.close(); }
+    if (event.key === 'Tab') {
+      const fields = [...host.querySelectorAll('button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary')]
+        .filter(field => !field.closest('[hidden]') && field.getClientRects().length);
+      const first = fields[0], last = fields.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    }
+  });
 }

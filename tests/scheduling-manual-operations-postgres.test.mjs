@@ -124,6 +124,8 @@ test('manual operations gateway on isolated local PostgreSQL', { skip: !connecti
     await client.query(bootstrap);
     const source = await readFile(new URL('../services/scheduling-agent/manual-operations.sql', import.meta.url), 'utf8');
     await client.query(source);
+    const migration = await readFile(new URL('../supabase/migrations/20261126142551_manual_scheduling_official_schedule.sql', import.meta.url), 'utf8');
+    await client.query(migration);
     // Exercise the actual promotion guard and actual locked revalidation function.
     await client.query(`
       create trigger calendar_guard before update of date_1,date_2,start_date,end_time on public.activities
@@ -241,7 +243,7 @@ test('manual operations gateway on isolated local PostgreSQL', { skip: !connecti
       await reset();
       await client.query("insert into public.course_meeting_instructor_history(activity_id,meeting_date,emp_id,instructor_name,assignment_kind) values('manual-a','2027-05-05','1507','מדריך א','history')");
       const args=await params({p_start_time:'08:30'});
-      await assert.rejects(preview(args),/scheduling_historical_meetings_protected/);
+      await assert.rejects(preview(args),/scheduling_official_schedule_read_only/);
     });
 
     await t.test('a different intended instructor requires acknowledgement and is explicitly released', async () => {
@@ -266,17 +268,58 @@ test('manual operations gateway on isolated local PostgreSQL', { skip: !connecti
       assert.equal((await client.query("select instructor_assignment_status from public.activities where row_id='manual-a'")).rows[0].instructor_assignment_status,'שובץ');
     });
 
-    await t.test('draft reserves chosen hours without changing official hours', async () => {
-      await reset();let args=await params({p_start_time:'10:00',p_end_time:'11:30',p_action:'draft'});
+    await t.test('draft and confirmation use official dates and hours only', async () => {
+      await reset(); let args=await params({p_action:'draft',p_meetings:null,p_start_time:null,p_end_time:null});
       await commit(args,await preview(args));
       let a=(await client.query("select * from public.activities where row_id='manual-a'")).rows[0];
-      assert.equal(a.start_time,'08:15:00');assert.equal(a.draft_proposed_meetings[0].start_time,'10:00:00');
-      const effective=(await client.query("select public.scheduling_effective_meetings(a,1507) as m from public.activities a where row_id='manual-a'")).rows[0].m;
-      assert.equal(effective[0].start_time,'10:00:00');
-      args=await params({p_start_time:'10:00',p_end_time:'11:30',p_action:'confirm'});
+      assert.equal(a.start_time,'08:15:00'); assert.equal(a.draft_proposed_meetings[0].start_time,'08:15:00');
+      args=await params({p_action:'confirm',p_meetings:null,p_start_time:null,p_end_time:null});
       await commit(args,await preview(args));
       a=(await client.query("select * from public.activities where row_id='manual-a'")).rows[0];
-      assert.equal(a.start_time,'10:00:00');assert.equal(a.draft_emp_id,null);
+      assert.equal(a.start_time,'08:15:00'); assert.equal(a.draft_emp_id,null);
+      assert.equal((await client.query("select date_1::text d from public.activities where row_id='manual-a'")).rows[0].d,'2027-05-05');
+    });
+
+    await t.test('legacy clients cannot change official times or dates through either RPC', async () => {
+      for (const changes of [{p_start_time:'10:00'}, {p_end_time:'11:30'},
+        {p_meetings:[{date:'2027-05-06'},{date:'2027-05-13'}]}]) {
+        await reset(); const original=await params(); const p=await preview(original); const args={...original,...changes};
+        await assert.rejects(preview(args),/scheduling_official_schedule_read_only/);
+        await assert.rejects(commit(args,p),/scheduling_official_schedule_read_only/);
+        assert.equal((await client.query('select count(*)::int n from public.instructor_assignment_audit')).rows[0].n,0);
+      }
+    });
+
+    await t.test('stale draft is retained until explicit fresh warning acknowledgement and archived on save', async () => {
+      await reset();
+      const old=[{date:'2027-06-02',start_time:'10:00',end_time:'11:00'},{date:'2027-06-09',start_time:'10:00',end_time:'11:00'}];
+      await client.query("update public.activities set draft_emp_id='1507',draft_proposed_meetings=$1",[JSON.stringify(old)]);
+      const args=await params({p_meetings:null,p_start_time:null,p_end_time:null}); const p=await preview(args);
+      assert.ok(p.warnings.some(w=>w.code==='manual_draft_schedule_changed'));
+      assert.equal(p.meetings[0].date,'2027-05-05');
+      const before=(await client.query('select draft_proposed_meetings from public.activities')).rows[0].draft_proposed_meetings;
+      assert.deepEqual(before,old);
+      const occupancy=(await client.query('select public.scheduling_effective_meetings(a,1507) m from public.activities a')).rows[0].m;
+      assert.equal(occupancy[0].date,'2027-05-05'); assert.equal(occupancy[0].start_time,'08:15:00');
+      await assert.rejects(commit(args,p,{p_acknowledge_warnings:false}),/scheduling_manual_acknowledgement_required/);
+      await commit(args,p);
+      const audit=(await client.query('select decision_context from public.instructor_assignment_audit')).rows[0].decision_context;
+      assert.deepEqual(audit.previousDraft,old);
+    });
+
+    await t.test('legacy calendar setter cannot create or move dates while normal activity editing stays available', async () => {
+      await reset();
+      await assert.rejects(client.query("select public.scheduling_set_activity_meetings('manual-a','[{\"date\":\"2027-06-01\"}]')"),/scheduling_official_schedule_read_only/);
+      await client.query("update public.activities set date_2='2027-05-19',end_date='2027-05-19' where row_id='manual-a'");
+      const args=await params({p_meetings:null,p_start_time:null,p_end_time:null});
+      assert.equal((await preview(args)).meetings[1].date,'2027-05-19');
+    });
+
+    await t.test('missing dates hours sessions and positional gaps fail closed', async () => {
+      for (const patch of ["date_1=null", "start_time=null", "sessions=null", "date_3=date_2,date_2=null"]) {
+        await reset(); await client.query("update public.activities set "+patch);
+        await assert.rejects(preview(await params({p_meetings:null,p_start_time:null,p_end_time:null})),/scheduling_/);
+      }
     });
 
     await t.test('short school day can be explicitly acknowledged without silently shortening the chosen time', async () => {
@@ -298,6 +341,32 @@ test('manual operations gateway on isolated local PostgreSQL', { skip: !connecti
       assert.equal(rows[0].locked_option,null);assert.equal(rows[0].needs_recalc,true);
       assert.deepEqual(rows[1].locked_option,{});assert.equal(rows[1].needs_recalc,false);
       assert.equal((await client.query('select revision from public.scheduling_planning_workspaces')).rows[0].revision,'11');
+    });
+
+    await t.test('parallel saves serialize and create exactly one assignment decision', async () => {
+      await reset(); const args=await params(); const p=await preview(args);
+      const other=new Client({connectionString}); await other.connect();
+      try {
+        await other.query("select set_config('request.jwt.claim.sub',$1,false)",[actor]);
+        const entries=Object.entries({...args,p_preview_hash:p.previewHash,p_acknowledge_warnings:true,p_reason:'parallel'});
+        const query='select public.commit_scheduling_manual_assignment('+entries.map(([key],index)=>key+' => $'+(index+1)).join(',')+')';
+        const results=await Promise.allSettled([commit(args,p), other.query(query,entries.map(([,value])=>Array.isArray(value)?JSON.stringify(value):value))]);
+        assert.equal(results.filter(r=>r.status==='fulfilled').length,1);
+        assert.match(results.find(r=>r.status==='rejected').reason.message,/scheduling_activity_revision_conflict/);
+        assert.equal((await client.query('select count(*)::int n from public.instructor_assignment_audit')).rows[0].n,1);
+      } finally { await other.end(); }
+    });
+
+    await t.test('manager instructor draft remains allowed and final approval remains admin-only', async () => {
+      await reset();
+      await client.query("insert into public.contacts_instructors values(1500,'מנהלת','home-manager','no'); insert into public.users(auth_user_id,is_active,role,emp_id,full_name) values('00000000-0000-4000-8000-000000000002',true,'activities_manager','1500','מנהלת')");
+      let args=await params({p_emp_id:1500,p_action:'draft'}); let p=await preview(args);
+      assert.equal(p.blockers.length,0); assert.equal(p.reasonRequired,true); await commit(args,p);
+      args=await params({p_emp_id:1500}); p=await preview(args);
+      assert.ok(p.blockers.includes('scheduling_manager_instructor_admin_approval_required'));
+      await assert.rejects(commit(args,p),/scheduling_manager_instructor_admin_approval_required/);
+      await client.query("update public.users set role='admin' where auth_user_id=$1",[actor]);
+      p=await preview(args); assert.equal(p.blockers.length,0); await commit(args,p);
     });
 
     await t.test('private decision receipts are inaccessible to client roles', async () => {

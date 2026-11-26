@@ -13,11 +13,10 @@ const MANUAL_ACTIVITY_MANAGER_IDS = new Set(['1500','5000']);
 
 /** Managers are a manual picker option, never members of the automatic candidate pool. */
 export function manualCourseInstructorOptions(instructorContacts = [], managementUsers = []) {
-  // Only active regular instructors belong in the manual picker. An approved
-  // activities manager is added separately from the active users directory,
-  // even if a historical instructor contact (such as Hila's) is inactive.
-  const entries = new Map(activeSchedulingInstructors(instructorContacts)
-    .filter(row => String(row?.emp_id ?? '').trim())
+  // Manual validation allows inactive contacts with an explicit warning.
+  // The automatic candidate pool remains active-only.
+  const entries = new Map((Array.isArray(instructorContacts) ? instructorContacts : [])
+    .filter(row => String(row?.emp_id ?? '').trim() && !MANUAL_ACTIVITY_MANAGER_IDS.has(String(row.emp_id)))
     .map(row => [String(row.emp_id), { ...row }]));
   for (const user of (Array.isArray(managementUsers) ? managementUsers : [])) {
     const id = String(user?.emp_id ?? '').trim();

@@ -52,22 +52,23 @@ test('management users appear only in manual course instructor choices', () => {
   assert.equal(options.find(x => x.emp_id === 1500).isManagementEmployee, true);
   assert.equal(options.find(x => x.emp_id === 1500).active, 'yes');
   assert.equal(options.find(x => x.emp_id === 5000).isManagementEmployee, true);
-  assert.equal(options.some(x => [1547, 1548, 1549, 6000, 3000, 3030, 8000, 7000, 4444].includes(x.emp_id)), false);
-  assert.deepEqual(options.map(x => x.emp_id).sort((a,b) => a-b), [1500, 1507, 5000]);
+  assert.equal(options.some(x => [6000, 3000, 3030, 8000, 7000, 4444].includes(x.emp_id)), false);
+  assert.deepEqual(options.map(x => x.emp_id).sort((a,b) => a-b), [1500, 1507, 1547, 1548, 1549, 5000]);
   assert.deepEqual(activeSchedulingInstructors(contacts).map(x => x.emp_id), [1507]);
 });
 
-test('manual instructor choices require an active instructor contact unless approved manager user exists', () => {
+test('manual instructor choices retain inactive contacts and require active approved management users', () => {
   const options = manualCourseInstructorOptions([
     { emp_id: 10, full_name: 'פעיל', active: 'yes' },
     { emp_id: 11, full_name: 'לא פעיל', active: 'no' },
     { emp_id: 12, full_name: 'חסר סטטוס' },
+    { emp_id: 5000, full_name: 'מנהל לא פעיל', active: 'no' },
     { emp_id: 13, full_name: 'פעיל בוליאני', active: true },
     { emp_id: 1500, full_name: 'הילה רוזן', active: 'no' }
   ], [
     { emp_id: 1500, full_name: 'הילה רוזן', role: 'activities_manager', is_active: true },
     { emp_id: 5000, full_name: 'גיל נאמן', role: 'activities_manager', is_active: false }
   ]);
-  assert.deepEqual(options.map(row => row.emp_id).sort((a,b) => a-b), [10, 13, 1500]);
+  assert.deepEqual(options.map(row => row.emp_id).sort((a,b) => a-b), [10, 11, 12, 13, 1500]);
   assert.equal(options.find(row => row.emp_id === 1500).isManagementEmployee, true);
 });

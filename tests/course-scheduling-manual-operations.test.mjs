@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   createManualOperation, manualOperationPayload, canCommitManualOperation,
-  createManualOperationsController, manualOperationsDialogHtml, weeklyManualDates
+  createManualOperationsController, manualOperationsDialogHtml
 } from '../frontend/src/screens/course-scheduling-manual-operations.js';
 
 const activity = { row_id: 'manual-a', updated_at: '2026-10-20T10:00:00Z', sessions: '2',
@@ -25,16 +25,16 @@ test('manual editor retains all dates and times and uses the activity revision o
   const editor = createManualOperation({ ...activity, emp_id: 1507 }, []);
   const payload = manualOperationPayload(editor);
   assert.equal(payload.p_action, 'confirm');
-  assert.deepEqual(payload.p_meetings, [{ date: '2026-11-04' }, { date: '2026-11-11' }]);
-  assert.equal(payload.p_start_time, '08:15');
+  assert.equal(payload.p_meetings, null);
+  assert.equal(payload.p_start_time, null);
   assert.equal(payload.p_expected_updated_at, activity.updated_at);
   assert.equal('p_expected_workspace_revision' in payload, false);
 });
 
-test('saved draft dates take precedence in the manual editor', () => {
+test('official dates take precedence over saved legacy draft dates', () => {
   const editor = createManualOperation({ ...activity, draft_emp_id: '1507',
     draft_proposed_meetings: [{ date: '2026-11-18' }, { date: '2026-11-25' }] });
-  assert.deepEqual(editor.dates, ['2026-11-18', '2026-11-25']);
+  assert.deepEqual(editor.dates, ['2026-11-04', '2026-11-11']);
   assert.equal(editor.empId, '1507');
 });
 
@@ -74,26 +74,23 @@ test('overlap is a warning the operator can acknowledge before saving', async ()
   assert.equal(f.saved.length, 1);
 });
 
-test('changing the instructor or dates invalidates the preview and acknowledgement', async () => {
+test('changing the instructor invalidates the preview and acknowledgement', async () => {
   const f = setup();
   await f.controller.preview();
   f.controller.edit('acknowledged', true);
-  f.controller.edit('dates', '2026-11-05', 0);
+  f.controller.edit('empId', '1508');
   assert.equal(f.editor().preview, null);
   assert.equal(f.editor().acknowledged, false);
   assert.equal(canCommitManualOperation(f.editor()), false);
 });
 
-test('late preview cannot certify edited dates or a newly opened activity', async () => {
+test('late preview cannot certify a newly opened activity and busy edits are rejected', async () => {
   let finish;
   const f = setup(() => new Promise(resolve => { finish = resolve; }));
   const pending = f.controller.preview();
-  f.controller.edit('dates', '2026-11-05', 0);
-  finish({ data: ready }); await pending;
-  assert.equal(f.editor().preview, null);
-  const second = f.controller.preview();
+  assert.equal(f.controller.edit('empId', '1508'), false);
   f.controller.open({ ...activity, row_id: 'manual-b' }, []);
-  finish({ data: ready }); await second;
+  finish({ data: ready }); await pending;
   assert.equal(f.editor().activity.row_id, 'manual-b');
   assert.equal(f.editor().preview, null);
 });
@@ -115,20 +112,21 @@ test('malformed save response never closes the dialog or reports success', async
   assert.equal(f.editor().preview, null);
 });
 
-test('manual weekly fill is explicit and does not calculate holidays or routes', () => {
-  assert.deepEqual(weeklyManualDates('2026-11-04', 3), ['2026-11-04', '2026-11-11', '2026-11-18']);
-  assert.throws(() => weeklyManualDates('2026-02-30', 3), /scheduling_proposed_dates_invalid/);
-  const f = setup(); f.controller.edit('dates', '2026-11-18', 0); f.controller.fillWeekly();
-  assert.deepEqual(f.editor().dates, ['2026-11-18', '2026-11-25']);
+test('schedule edits are rejected and official schedule controls are read-only', () => {
+  const f = setup();
+  assert.equal(f.controller.edit('dates', '2026-11-18', 0), false);
+  assert.equal(f.controller.edit('startTime', '10:00'), false);
   assert.equal(f.calls.length, 0);
 });
 
-test('manual editor escapes source data and includes mobile sized date inputs', () => {
+test('manual editor escapes source data and has collapsed meeting details without schedule inputs', () => {
   const state = { courseSchedulingManualOperation: createManualOperation({ ...activity, activity_name: '<script>alert(1)</script>' }) };
   const html = manualOperationsDialogHtml(state);
   assert.equal(html.includes('<script>'), false);
   assert.match(html, /&lt;script&gt;/);
-  assert.equal((html.match(/data-manual-operation-date=/g) || []).length, 2);
+  assert.equal((html.match(/data-manual-operation-date=/g) || []).length, 0);
+  assert.match(html, /<details><summary>/);
+  assert.doesNotMatch(html, /type="time"|data-manual-operation-check|<textarea/);
   assert.match(html, /aria-modal="true"/);
   assert.match(html, /100vw/);
 });
@@ -144,7 +142,7 @@ test('every scheduling business warning is shown in the explicit confirmation po
   const html = manualOperationsDialogHtml(f.state);
   assert.match(html, /התראה: קיימות מגבלות/);
   assert.match(html, /מאשר\/ת את החריגות/);
-  assert.equal((html.match(/<li>/g) || []).length, codes.length);
+  assert.equal((html.match(/<ul>[\s\S]*?<\/ul>/)?.[0].match(/<li>/g) || []).length, codes.length);
   assert.equal(canCommitManualOperation(f.editor()), false);
   f.controller.edit('reason', 'החלטה תפעולית');f.controller.edit('acknowledged',true);
   assert.equal(canCommitManualOperation(f.editor()), true);
@@ -158,4 +156,74 @@ test('manager instructor selection is visibly marked and admin-only error is cle
   assert.match(html, /הילה רוזן · מנהל\/ת<\/option>/);
   assert.doesNotMatch(html, /הילה רוזן[^<]*אישור אדמין/);
   assert.match(html, /אדמין בלבד/);
+});
+
+test('one click previews and saves a valid assignment with single-flight double click protection', async () => {
+  let finish;
+  const f = setup(async name => name === 'get_scheduling_manual_assignment_preview'
+    ? new Promise(resolve => { finish = resolve; })
+    : { data: { ...activity, updated_at: '2026-10-20T10:01:00Z' } });
+  const pending = f.controller.submit();
+  await f.controller.submit();
+  assert.equal(f.calls.length, 1);
+  finish({ data: ready }); await pending;
+  assert.equal(f.calls.length, 2); assert.equal(f.saved.length, 1);
+});
+
+test('one click stops for blockers, warnings and reason-only requirements', async () => {
+  for (const data of [
+    { ...ready, blockers: ['scheduling_permission_denied'] },
+    { ...ready, warnings: [{ code: 'manual_home_route_unknown' }] },
+    { ...ready, reasonRequired: true }
+  ]) {
+    const f = setup(async () => ({ data })); await f.controller.submit();
+    assert.equal(f.calls.length, 1); assert.equal(f.saved.length, 0);
+    assert.equal(canCommitManualOperation(f.editor()), false);
+    assert.equal(manualOperationsDialogHtml(f.state).includes('<textarea'), !!data.reasonRequired);
+  }
+});
+
+test('changed warning set is rechecked and previous consent is cleared without automatic retry', async () => {
+  let previews = 0;
+  const f = setup(async name => name === 'get_scheduling_manual_assignment_preview'
+    ? { data: { ...ready, previewHash: 'v' + ++previews, warnings: [{ code: previews === 1 ? 'manual_home_route_unknown' : 'manual_transition_unknown' }], reasonRequired: true } }
+    : { error: { message: 'scheduling_manual_preview_changed' } });
+  await f.controller.submit(); f.controller.edit('reason', 'נבדק'); f.controller.edit('acknowledged', true);
+  await f.controller.submit();
+  assert.equal(previews, 2); assert.equal(f.editor().acknowledged, false);
+  assert.equal(f.editor().reason, ''); assert.equal(f.saved.length, 0);
+  assert.equal(f.calls.filter(c => c.name === 'commit_scheduling_manual_assignment').length, 1);
+});
+
+test('missing official dates or hours prevent all RPC calls', async () => {
+  for (const changes of [{ date_1: null }, { start_time: null }, { sessions: null }]) {
+    const f = setup(); f.controller.open({ ...activity, ...changes }, []); f.controller.edit('empId', '1507');
+    await f.controller.submit(); assert.equal(f.calls.length, 0); assert.ok(f.editor().error);
+  }
+});
+
+test('activity revision conflict reloads official data and checks again without saving or retaining consent', async () => {
+  const state = {}; let checks = 0, reloads = 0, saves = 0;
+  const controller = createManualOperationsController({ state,
+    reloadActivity: async () => { reloads++; return { ...activity, date_2: '2026-11-18', updated_at: '2026-11-01T12:00:00Z' }; },
+    rpc: async name => {
+      if (name === 'commit_scheduling_manual_assignment') { saves++; return { error: { message: 'scheduling_activity_revision_conflict' } }; }
+      checks++; return { data: ready };
+    }
+  });
+  controller.open(activity, []); controller.edit('empId', '1507');
+  await controller.submit();
+  assert.equal(saves, 1); assert.equal(reloads, 1); assert.equal(checks, 2);
+  assert.equal(state.courseSchedulingManualOperation.dates[1], '2026-11-18');
+  assert.equal(state.courseSchedulingManualOperation.acknowledged, false);
+  assert.match(state.courseSchedulingManualOperation.error, /הפעילות השתנתה/);
+});
+
+test('network errors leave the editor open and never invoke saved callback', async () => {
+  const f = setup(async name => {
+    if (name === 'get_scheduling_manual_assignment_preview') return { data: ready };
+    throw Error('offline');
+  });
+  await f.controller.submit();
+  assert.equal(f.saved.length, 0); assert.ok(f.editor().error); assert.equal(f.editor().busy, '');
 });
