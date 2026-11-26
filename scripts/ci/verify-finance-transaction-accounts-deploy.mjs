@@ -31,12 +31,12 @@ const requiredMarkers = {
   'index.ts': [
     'async function buildPdf',
     'Always address the paying party',
-    'courseWidths = [83, 65, 101, 54, 38, 43, 68, 83]',
+    { name: 'course column widths', re: /\bcourseWidths\s*=\s*\[\s*83\s*,\s*65\s*,\s*101\s*,\s*54\s*,\s*38\s*,\s*43\s*,\s*68\s*,\s*83\s*,?\s*\]/ },
     'sharepoint_upload_failed',
     'validateTransactionFolder',
     'handleInvoiceRevision',
     'updateInvoiceDraft',
-    "from './revision-dispatch.ts'",
+    { name: 'local revision module import', re: /from\s*(['"])\.\/revision-dispatch\.ts\1/ },
   ],
   'revision-dispatch.ts': [
     'export async function handleInvoiceRevision',
@@ -80,7 +80,10 @@ for (const name of requiredFiles) {
   }
 
   for (const marker of requiredMarkers[name]) {
-    if (!source.includes(marker)) fail(`${name} missing required marker: ${marker}`);
+    // CLI download reformats the extracted sources. Check the same layout and
+    // local module without depending on spaces, line breaks or quote style.
+    const present = typeof marker === 'string' ? source.includes(marker) : marker.re.test(source);
+    if (!present) fail(`${name} missing required marker: ${typeof marker === 'string' ? marker : marker.name}`);
   }
 }
 
