@@ -51,6 +51,19 @@ function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 }
 
+function isDeliverableRecoveryEmail(value: string) {
+  return isValidEmail(value) && !value.endsWith('@taasiyeda.local');
+}
+
+function recoveryEmailsFor(row: Record<string, unknown> | null | undefined) {
+  const emails = new Set<string>();
+  const primary = normalizeEmail(row?.email);
+  const authEmail = normalizeEmail(row?.auth_email);
+  if (isDeliverableRecoveryEmail(primary)) emails.add(primary);
+  if (isDeliverableRecoveryEmail(authEmail)) emails.add(authEmail);
+  return emails;
+}
+
 function permissionEnabled(row: Record<string, unknown>, key: string) {
   const permissions = row?.permissions;
   if (!permissions || typeof permissions !== 'object' || Array.isArray(permissions)) return false;
@@ -116,7 +129,8 @@ Deno.serve(async (req: Request) => {
   if (action === 'complete') {
     const challengeId = String(payload?.challenge_id || '').trim();
     const code = String(payload?.code || '').trim();
-    const newPassword = String(payload?.new_password || '');
+    // Keep the same password normalization as dashboard/SpaceTech login (trim).
+    const newPassword = String(payload?.new_password || '').trim();
     if (!/^[0-9a-f-]{36}$/i.test(challengeId) || !/^\d{6}$/.test(code) || newPassword.length < MIN_PASSWORD_LENGTH || newPassword.length > 128) {
       return json(origin, { ok: false, error: 'invalid_or_expired' });
     }
@@ -193,7 +207,7 @@ Deno.serve(async (req: Request) => {
       .in('role', [...MANAGEMENT_ROLES, INSTRUCTOR_ROLE]);
 
     const candidates = Array.isArray(candidateRows) ? candidateRows : [];
-    const userRow = candidates.find((row) => isAllowedRecoveryUser(row) && normalizeEmail(row?.email) === email);
+    const userRow = candidates.find((row) => isAllowedRecoveryUser(row) && recoveryEmailsFor(row).has(email));
     if (!userRow) return json(origin, { ok: true, challenge_id: fakeId });
 
     const authUserId = String(userRow.auth_user_id || '').trim();
@@ -204,7 +218,10 @@ Deno.serve(async (req: Request) => {
 
     const currentAuthEmail = normalizeEmail(authResult.user.email);
     if (currentAuthEmail !== email) {
-      const { error: authUpdateError } = await admin.auth.admin.updateUserById(authUserId, { email });
+      const { error: authUpdateError } = await admin.auth.admin.updateUserById(authUserId, {
+        email,
+        email_confirm: true
+      });
       if (authUpdateError) return json(origin, { ok: true, challenge_id: fakeId });
       await admin.from('users').update({ auth_email: email }).eq('user_id', userRow.user_id);
     }

@@ -42,6 +42,10 @@ test('reset edge function sends and verifies recovery OTP through Supabase Auth'
   assert.match(edge, /MAX_CODE_ATTEMPTS = 5/);
   assert.match(edge, /CHALLENGE_MINUTES = 10/);
   assert.match(edge, /admin\.auth\.admin\.updateUserById/);
+  assert.match(edge, /email_confirm:\s*true/);
+  assert.match(edge, /new_password \|\| ''\)\.trim\(\)/);
+  assert.match(edge, /recoveryEmailsFor/);
+  assert.match(edge, /@taasiyeda\.local/);
   assert.doesNotMatch(edge, /graph\.microsoft\.com/);
   assert.doesNotMatch(edge, /sendMail/);
   assert.doesNotMatch(edge, /MS_CLIENT_SECRET/);
@@ -71,8 +75,11 @@ test('instructor recovery accepts the registered email instead of requiring a th
   assert.match(instructorRecovery, /הזינו את המייל הרשום במערכת/);
   assert.match(instructorRecovery, /name@example\.com/);
   assert.match(instructorRecovery, /\[\^\\s@\]\+@\[\^\\s@\]\+\\\.\[\^\\s@\]\+/);
+  assert.match(instructorRecovery, /new_password: password/);
+  assert.match(instructorRecovery, /String\(first\.input\.value \|\| ''\)\.trim\(\)/);
   assert.doesNotMatch(instructorRecovery, /endsWith\('@think\.org\.il'\)/);
   assert.match(edge, /isValidEmail\(email\)/);
+  assert.match(edge, /recoveryEmailsFor\(row\)\.has\(email\)/);
   assert.doesNotMatch(edge, /endsWith\('@think\.org\.il'\)/);
 });
 
@@ -84,6 +91,7 @@ test('recovery challenge table is server-only and RLS protected', () => {
 });
 
 test('dashboard deploy markers include instructor recovery and current cache', () => {
-  assert.match(index, /instructor-password-recovery-runtime\.js\?v=20260901-instructor-recovery-v1/);
-  assert.match(sw, /const CACHE_VERSION = 1641;/);
+  assert.match(index, /instructor-password-recovery-runtime\.js\?v=20261126-login-auth-recovery-v1/);
+  assert.match(index, /management-password-runtime\.js\?v=20261126-login-auth-recovery-v1/);
+  assert.match(sw, /const CACHE_VERSION = 2145;/);
 });
