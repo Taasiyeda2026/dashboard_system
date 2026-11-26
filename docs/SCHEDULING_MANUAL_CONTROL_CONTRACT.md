@@ -1,118 +1,104 @@
-# Manual scheduling with explicit operator decisions
+# Manual scheduling contract — official activity schedules
 
-Accepted requirement: 2026-10-21. Isolated PostgreSQL, UI, build and cache checks
-passed in GitHub Actions; production readiness is verified during rollout.
+Updated 2026-11-26, after PR #2807. Scheduling is manual only.
 
-## Product behavior
+## Ownership and operator workflow
 
-The agent organizes proposals for unassigned courses only. Confirmed instructor,
-dates, times, secondary instructor and meeting substitutions remain fixed anchors.
-Only an explicit human action changes them. Workshops/tours stay manual and remain
-calendar occupancy.
+All Activities owns dates, start/end dates, hours, session count, school,
+authority and activity requirements. Scheduling selects an instructor, validates
+that choice and saves a draft or final assignment. The manual dialog cannot edit
+activity dates or times. Replacement effective date remains an assignment field.
 
-Active admin and operation_manager with scheduling permission can select an
-instructor and individual meeting dates/times independently of the agent, save a
-draft, confirm or replace an instructor. Existing cancellation actions remain.
+Every assignment entry opens the compact manual dialog directly. The activity
+summary is read-only; the complete official meeting list is collapsed initially.
+Name search filters the existing manual directory locally, without RPC calls,
+ranking or recommendations. Inactive instructor contacts remain selectable and
+visibly marked because the existing manual server policy treats inactivity as an
+acknowledgeable warning. Only explicitly approved active management users are
+added as management choices; their final assignment still requires an admin.
 
-ALL scheduling business constraints become warnings in this new manual path:
-overlap, full-day tours, missing/explicit unavailability, inactive instructor,
-missing profile, language, gender, blocked authority/program, Friday/Saturday,
-holidays, shortened school day, missing routes, distance and insufficient travel
-time. Automatic recommendations still use their existing strict constraints.
+One **בדיקה ושמירת שיבוץ** (or draft) click performs the existing preview and,
+when it returns no blockers, warnings or reason requirement, commits immediately.
+Warnings stop the workflow for explicit acknowledgement. The reason field is
+shown only when `reasonRequired` is true. There is no separate check button.
+Blockers prevent saving and preserve the operator's selection.
 
-The warning popup lists dates/other activities when applicable. The operator must
-explicitly acknowledge every presented set and enter the business reason or
-describe an advance admin approval. The same operator can save immediately.
-No second-person approval or agent calculation is required.
+Missing/invalid official dates, hours or session count prevent assignment. The
+activity correction action uses the existing All Activities navigation and edit
+permissions. No dates, hours or weekly sequence are generated.
 
-Canonical IDs, active operator authorization, valid date/time format, season
-bounds, count/order, activity revision and historical record integrity remain
-enforced. Past/recorded/cancelled meeting positions/times are preserved. A stale
-activity or changed warning set requires another preview, never a blind save.
+## Preserved business policy
+
+The existing manual classifications remain unchanged. Overlap, full-day tours,
+availability, inactive instructors, profile/language/gender, program/authority,
+Friday/Saturday, holidays, shortened school days, cached routes, distance and
+travel time remain explicit warnings under the existing operator policy.
+Authorization, canonical IDs, season/date/time/count/order validity, duplicate
+secondary instructor, locks, historical integrity and activity revisions remain
+hard checks. Management final approval remains admin-only.
+
+Cancellation, additional instructors, substitutions, individual meetings and
+other approval/notification interfaces are not redesigned by this change.
+Replacement preserves earlier meeting attribution and its effective date.
 
 ## Server boundary
 
-services/scheduling-agent/manual-operations.sql is the implementation source.
-The pinned Supabase CLI generated supabase/migrations/20261020213712_operator_manual_scheduling.sql.
-The generated migration contains this exact tested source. Never run assignment
-tests on production records.
+Implementation: `services/scheduling-agent/manual-operations.sql`.
+Migration: `supabase/migrations/20261126142551_manual_scheduling_official_schedule.sql`.
 
-- scheduling_manual_capabilities: permission-gated API availability.
-- get_scheduling_manual_assignment_preview: read-only canonical preview, warnings,
-  activity revision and hash of the exact checked result.
-- commit_scheduling_manual_assignment: repeats authorization/checks under the
-  shared planning/source lock plus instructor/activity locks. Rechecks the hash,
-  acknowledgement and reason, writes once and audits the decision.
-- scheduling_manual_private.decisions: private, RLS-enabled receipts with no
-  client schema/table/function privileges. Scope includes exact instructor,
-  school/location, all official/draft dates/times and home addresses. Clients
-  cannot manufacture an exception by sending a flag or an audit entry.
-- Existing calendar/tour/manual-approval/pending-reservation triggers recognize
-  only a matching private receipt. Their ordinary paths retain their bodies.
-- Locked revalidation honors the scoped decision, rechecks current limitations,
-  and flags newly changed warnings without deleting/moving the assignment.
-- Confirming a replacement preserves prior meeting attribution. Resolved pending
-  reservations retain their original records in decision_context. Changing an
-  intended instructor is itself acknowledged and audited before release.
-- Draft dates/times reserve the calendar through draft_proposed_meetings, without
-  altering official hours. Final schedule updates are atomic, not 35 partial edits.
-- A scoped shortened-day acknowledgement preserves the explicitly chosen end.
+- `scheduling_manual_capabilities` retains v1 compatibility and advertises
+  `officialScheduleReadOnly: true`. The new frontend requires this capability and
+  fails closed when the paired migration is missing. No legacy picker fallback.
+- `get_scheduling_manual_assignment_preview` calls `scheduling_manual_private.prepare`.
+  `prepare` reads all dates and hours from the current activity. New clients send
+  null legacy schedule arguments. Legacy clients supplying different dates/hours
+  receive `scheduling_official_schedule_read_only`.
+- `commit_scheduling_manual_assignment` retains shared/instructor/activity locks,
+  authorization, timestamp, preview hash, warning acknowledgement and reason
+  checks. It repeats validation and writes instructor/draft fields only. It does
+  not UPDATE date fields, start/end date or hours.
+- `scheduling_set_activity_meetings`, used by legacy scheduling finalizers, now
+  asserts exact official dates/hours and returns the existing activity without
+  writing its schedule. It cannot establish dates for an undated activity.
+  All Activities uses its independent activity-edit API.
+- `scheduling_effective_meetings` uses official dates/hours for both confirmed and
+  draft occupancy, preserving cancellation/pending-history exclusions and the
+  existing effective end-time function. Old draft dates never take precedence.
+- `draft_matches_official` compares legacy draft values semantically. A mismatch
+  adds `manual_draft_schedule_changed` to the fresh preview and requires explicit
+  acknowledgement/reason. Preview never edits or deletes a draft. An authorized
+  subsequent save records its original contents in audit `previousDraft`.
+- Existing private decision receipts, audit context, history and trigger guards
+  remain in place. No data backfill, deletion, automatic scheduling, new cron,
+  polling or Edge Function is introduced.
 
-No route/network calculation occurs on this path; it reads existing cached facts.
-A missing fact is an acknowledgeable warning. There is no invented distance or
-long-gap shortcut.
+## Stale results, failures and resource use
 
-## Live rule drift found during preparation
+Editing selection/action/effective date invalidates preview and consent. While
+checking/saving, controls are disabled and duplicate clicks are ignored. A changed
+warning hash causes a fresh preview without automatic retry/consent. An activity
+revision conflict reloads that activity once and checks again; the operator must
+review and click again. Refresh failures leave the editor open without success.
+Only a validated server save response closes the dialog and updates the screen.
 
-The older map describes a 120-minute separate-trip boundary and a 5/15-minute
-buffer. Live SQL on 2026-10-21 instead defines
-scheduling_transition_distance_cap_applies(gap) as every nonnegative gap and
-scheduling_transition_buffer_minutes(km) as 10 minutes through 10km, otherwise 15.
-This change reports that contradiction and does not silently alter those automatic
-rules. The manual path makes their business constraints explicit warnings.
+Opening the dialog does not request candidates, routes or planning snapshots.
+Search does not perform server validation. Preview and commit each perform the
+necessary server checks using existing cached route facts.
 
-## UI and agent boundary
+## Verification and deployment
 
-The frontend probes the paired API once; until available it retains the existing
-interface. Eden/admin manual entry then opens the independent editor. A changed
-instructor/date/time invalidates the preview. Late responses cannot certify new
-inputs. The warning state is an alertdialog with a reason, acknowledgement and
-explicit save. Failure never reports success or clears the user's editor.
+Use focused Node controller/bound UI tests, the isolated PostgreSQL gateway suite,
+the synthetic desktop/mobile browser harness, frontend build, cache checks and
+Basic PR Check. Never run assignment tests against production records.
 
-Operational commands omit unrelated plan source/workspace revisions but keep the
-activity timestamp. Accepting a stored proposal retains its plan revision checks.
-The agent snapshots protected source rows before compute and rejects changes to
-their instructor, schedule, substitutions or secondary instructor. Fixed anchors
-do not request routes again during final validation. Unlocated existing anchors
-remain visible, while unassigned proposals still need verified locations/routes.
+The PostgreSQL suite accepts only localhost databases with names ending `_test`.
+It rebuilds synthetic fixtures and executes implementation SQL and the migration.
+Run with `SCHEDULING_MANUAL_TEST_DATABASE_URL`. The browser harness is
+`node tests/manual/manual-scheduling-browser.mjs`; it starts local Vite, mocks
+RPC responses and blocks all external requests. `CHROMIUM_PATH` is optional.
 
-## Verification and rollout
-
-The manual workflow_dispatch job in the existing Scheduling Local Engine Cutover
-workflow runs the disposable PostgreSQL test, application build, cache checks and
-Supabase CLI migration generation. It has read-only contents permission, no
-production credentials and no automatic PR build/browser job.
-
-Run tests/scheduling-dashboard-agent-controls.test.mjs for the actual bound UI,
-manual controller, revision fencing and fixed-agent regression cases. Run
-tests/scheduling-manual-operations-postgres.test.mjs only with
-SCHEDULING_MANUAL_TEST_DATABASE_URL pointing to a named local *_test database.
-The fixture deliberately rebuilds it and rejects remote/production URLs. Fixture
-dependencies are synthetic; the new API, scoped trigger bodies and revalidation
-are actual implementation SQL.
-
-Deploy the generated migration before the paired frontend and verify read-only
-readiness under the intended role. Do not test by assigning a real instructor or
-sending messages. Worker reactivation/optimization is separate from manual
-operation; keep the production pause until the completed release is verified.
-
-Verified 2026-10-20 UTC: isolated run 39501709430 passed 14 PostgreSQL tests,
-the application build and six PWA/cache checks. Focused UI CI passed 63 tests,
-including bound warning acknowledgement/save behavior and protected anchors.
-
-Release verified: PR 2420 merged and Pages run 39502049081 succeeded. The API
-was read-only previewed under authenticated admin and operation_manager for
-Alex/Gedera: no blockers, missing-transition warnings, no assignment writes.
-Planning worker/supervisor resumed; the external assignment gateway stays disabled.
-The manual directory also retains inactive instructors with a visible inactive
-label and warning acknowledgement; the automatic planning pool stays active-only.
+After independent review: apply the migration before releasing the paired
+frontend; confirm `officialScheduleReadOnly` under an authorized identity, then
+release the frontend with both cache layers refreshed. This change does not
+require a gateway or Edge Function deployment. Keep automatic scheduling off.
+No production migration, assignment, merge or deployment is part of preparation.

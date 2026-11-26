@@ -240,6 +240,42 @@ begin
   return jsonb_build_object('blockers',blockers,'warnings',warnings);
 end $$;
 
+-- Compare legacy draft values semantically, including clients that stored HH:MM.
+create or replace function scheduling_manual_private.draft_matches_official(a public.activities)
+returns boolean language plpgsql immutable set search_path = public, pg_temp as $$
+declare official jsonb; draft jsonb;
+begin
+  select coalesce(jsonb_agg(jsonb_build_object('date',x->>'date','start_time',a.start_time,'end_time',a.end_time) order by ord),'[]'::jsonb)
+    into official from jsonb_array_elements(public.scheduling_activity_official_meetings(a)) with ordinality e(x,ord);
+  select coalesce(jsonb_agg(jsonb_build_object('date',(x->>'date')::date,
+    'start_time',coalesce(nullif(x->>'start_time','')::time,a.start_time),
+    'end_time',coalesce(nullif(x->>'end_time','')::time,a.end_time)) order by ord),'[]'::jsonb)
+    into draft from jsonb_array_elements(a.draft_proposed_meetings) with ordinality e(x,ord);
+  return draft = official;
+exception when others then return false;
+end $$;
+revoke all on function scheduling_manual_private.draft_matches_official(public.activities) from public,anon,authenticated;
+
+-- All legacy scheduling finalizers use this setter. It is now an official-data
+-- assertion only. The All Activities editor writes activities through its own API.
+create or replace function public.scheduling_set_activity_meetings(p_activity_id text,p_meetings jsonb)
+returns public.activities language plpgsql security definer set search_path = public, pg_temp as $$
+declare a public.activities; incoming jsonb;
+begin
+  select * into a from public.activities where row_id=p_activity_id for update;
+  if not found then raise exception 'activity_not_found'; end if;
+  if jsonb_typeof(p_meetings) is distinct from 'array' then raise exception 'scheduling_official_schedule_read_only'; end if;
+  select coalesce(jsonb_agg(jsonb_build_object('date',x->>'date') order by ord),'[]'::jsonb)
+    into incoming from jsonb_array_elements(p_meetings) with ordinality e(x,ord);
+  if incoming is distinct from public.scheduling_activity_official_meetings(a) or incoming='[]'::jsonb
+    or exists(select 1 from jsonb_array_elements(p_meetings) e where
+      (e ? 'start_time' and (e->>'start_time')::time is distinct from a.start_time)
+      or (e ? 'end_time' and (e->>'end_time')::time is distinct from a.end_time)) then
+    raise exception 'scheduling_official_schedule_read_only'; end if;
+  return a;
+end $$;
+revoke all on function public.scheduling_set_activity_meetings(text,jsonb) from public,anon,authenticated;
+
 create or replace function scheduling_manual_private.prepare(
   p_activity_id text,p_emp_id bigint,p_meetings jsonb,p_start_time time,p_end_time time,
   p_action text,p_effective_from date,p_expected_updated_at timestamptz)
@@ -269,6 +305,21 @@ begin
   if p_emp_id::text=nullif(a.emp_id_2,'') then raise exception 'scheduling_duplicate_instructor'; end if;
   select jsonb_build_object('empId',x.emp_id,'version',x.version,'reason',x.reason) into intent
     from public.scheduling_instructor_intents x where x.activity_id=a.row_id and x.status='active';
+  -- Legacy arguments are accepted only when they exactly match official data.
+  if (p_start_time is not null and p_start_time is distinct from a.start_time)
+    or (p_end_time is not null and p_end_time is distinct from a.end_time)
+    or (p_meetings is not null and p_meetings is distinct from 'null'::jsonb and (
+      jsonb_typeof(p_meetings) is distinct from 'array' or
+      p_meetings is distinct from (select coalesce(jsonb_agg(jsonb_build_object('date',x->>'date') order by ord),'[]'::jsonb)
+        from jsonb_array_elements(public.scheduling_activity_official_meetings(a)) with ordinality e(x,ord))
+      and p_meetings is distinct from public.scheduling_activity_official_meetings(a)))
+    then raise exception 'scheduling_official_schedule_read_only'; end if;
+  p_meetings:=public.scheduling_activity_official_meetings(a);
+  p_start_time:=a.start_time; p_end_time:=a.end_time;
+  if a.draft_emp_id is not null and a.draft_proposed_meetings is not null
+    and not scheduling_manual_private.draft_matches_official(a) then
+    policy_warnings:=policy_warnings||jsonb_build_array(jsonb_build_object('code','manual_draft_schedule_changed'));
+  end if;
   if p_start_time is null or p_end_time is null or p_start_time>=p_end_time then raise exception 'scheduling_activity_hours_missing'; end if;
   if jsonb_typeof(p_meetings) is distinct from 'array' or jsonb_array_length(p_meetings) not between 1 and 35
     then raise exception 'scheduling_proposed_dates_invalid'; end if;
@@ -292,6 +343,7 @@ begin
     if d<date '2026-09-01' or d>date '2027-08-31' or (prior is not null and d<=prior)
       then raise exception 'scheduling_proposed_dates_invalid'; end if;
     old_date:=nullif(to_jsonb(a)->>('date_'||n),'')::date;
+    if d is distinct from old_date then raise exception 'scheduling_existing_official_meeting_count_conflict'; end if;
     protected:=old_date<today or exists(select 1 from public.course_meeting_instructor_history h
       where h.activity_id=a.row_id and h.meeting_date=old_date)
       or exists(select 1 from public.activity_completion_approval_uploads u where u.status='approved'
@@ -372,8 +424,7 @@ begin
     'managementInstructor',scheduling_manual_private.is_management_employee(p_emp_id),
     'managerApprovalRequired',scheduling_manual_private.is_management_employee(p_emp_id) and p_action='draft',
     'reasonRequired',scheduling_manual_private.is_management_employee(p_emp_id)
-      or jsonb_array_length(result->'warnings')>0 or a.emp_id is not null
-      or patch is distinct from (select jsonb_object_agg(key,value) from jsonb_each(to_jsonb(a)) where key ~ '^date_[0-9]+$'));
+      or jsonb_array_length(result->'warnings')>0 or a.emp_id is not null);
 end $$;
 
 
@@ -381,7 +432,7 @@ create or replace function public.scheduling_manual_capabilities()
 returns jsonb language plpgsql stable security definer set search_path = public, pg_temp as $$
 begin
   perform scheduling_manual_private.assert_operator();
-  return jsonb_build_object('apiVersion','manual-operations-v1','enabled',true);
+  return jsonb_build_object('apiVersion','manual-operations-v1','enabled',true,'officialScheduleReadOnly',true);
 end $$;
 
 create or replace function public.get_scheduling_manual_assignment_preview(
@@ -461,14 +512,11 @@ begin
     insert into scheduling_manual_private.decisions(activity_id,emp_id,scope,warnings,actor_id,reason)
       values(a.row_id,p_emp_id,scheduling_manual_private.scope(proposed),preview->'warnings',auth.uid(),p_reason)
       returning id into decision_id;
-    -- Update the complete schedule once, never 35 intermediate row updates.
-    select string_agg(format('%I = ($1).%I',key,key),', ' order by key) into set_clause
-      from jsonb_each(preview->'patch');
-    execute 'update public.activities set '||set_clause||',
-      emp_id=($1).emp_id,instructor_name=($1).instructor_name,start_time=($1).start_time,end_time=($1).end_time,
-      start_date=($1).start_date,end_date=($1).end_date,instructor_assignment_locked=true,instructor_assignment_status=''שובץ'',
+    -- Assignment owns instructor fields only. Official schedule is never written here.
+    update public.activities set emp_id=proposed.emp_id,instructor_name=proposed.instructor_name,
+      instructor_assignment_locked=true,instructor_assignment_status='שובץ',
       draft_emp_id=null,draft_instructor_name=null,draft_created_at=null,draft_created_by=null,draft_proposed_meetings=null
-      where row_id=$2 returning *' into result using proposed,p_activity_id;
+      where row_id=p_activity_id returning * into result;
   end if;
   -- The operational record supersedes any old proposal lock for this activity.
   -- Release that derived choice only; never recalculate or touch other activities.
@@ -480,7 +528,7 @@ begin
   update public.scheduling_planning_workspaces w set revision=w.revision+1,updated_at=clock_timestamp()
     where w.id in (select workspace_id from released);
   audit_context:=jsonb_build_object('releasedPlanningLocks',released_locks,'manualOperatorPolicy','manual-operations-v1','decisionId',decision_id,
-    'previousPendingHistory',preview->'pendingHistory','previousIntent',preview->'intent','warnings',preview->'warnings','acknowledged',p_acknowledge_warnings,'meetings',preview->'meetings',
+    'previousDraft',a.draft_proposed_meetings,'previousPendingHistory',preview->'pendingHistory','previousIntent',preview->'intent','warnings',preview->'warnings','acknowledged',p_acknowledge_warnings,'meetings',preview->'meetings',
     'previousSchedule',scheduling_manual_private.scope(a),'newSchedule',scheduling_manual_private.scope(result));
   insert into public.instructor_assignment_audit(activity_id,selected_emp_id,selected_instructor_name,
     decision_type,reason,selected_by,previous_status,new_status,previous_emp_id,previous_instructor_name,
@@ -619,7 +667,7 @@ $function$;
 
 revoke all on all functions in schema scheduling_manual_private from public,anon,authenticated;
 
--- Draft dates and times reserve the calendar without changing official hours.
+-- Calendar occupancy always follows official activity dates and hours, including legacy drafts.
 CREATE OR REPLACE FUNCTION public.scheduling_effective_meetings(p_activity activities, p_emp_id bigint)
  RETURNS jsonb
  LANGUAGE sql
@@ -630,19 +678,10 @@ AS $function$
   from (
     select jsonb_build_object(
       'date',(value->>'date')::date,
-      'start_time',case when p_activity.draft_emp_id=p_emp_id::text and p_activity.draft_proposed_meetings is not null
-        then coalesce(nullif(value->>'start_time','')::time,p_activity.start_time) else p_activity.start_time end,
-      'end_time',public.scheduling_effective_end_time(
-        p_activity.row_id,(value->>'date')::date,
-        case when p_activity.draft_emp_id=p_emp_id::text and p_activity.draft_proposed_meetings is not null
-          then coalesce(nullif(value->>'end_time','')::time,p_activity.end_time) else p_activity.end_time end)
+      'start_time',p_activity.start_time,
+      'end_time',public.scheduling_effective_end_time(p_activity.row_id,(value->>'date')::date,p_activity.end_time)
     ) item
-    from jsonb_array_elements(
-      case when p_activity.draft_emp_id=p_emp_id::text and p_activity.draft_proposed_meetings is not null
-        then p_activity.draft_proposed_meetings
-        else public.scheduling_activity_official_meetings(p_activity)
-      end
-    ) proposed(value)
+    from jsonb_array_elements(public.scheduling_activity_official_meetings(p_activity)) proposed(value)
     where nullif(value->>'date','') is not null
       and not exists(select 1 from public.course_meeting_cancellations c
         where c.activity_id=p_activity.row_id and c.meeting_date=(value->>'date')::date)

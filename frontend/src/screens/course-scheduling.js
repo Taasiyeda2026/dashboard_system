@@ -2360,8 +2360,8 @@ export const courseSchedulingScreen = {
     try {
       const { data: capability, error } = await supabase.rpc('scheduling_manual_capabilities');
       manualCapabilityAvailable = !error && capability?.apiVersion === 'manual-operations-v1'
-        && capability.enabled === true;
-    } catch { /* Legacy/manual fallback remains available without private notes. */ }
+        && capability.enabled === true && capability.officialScheduleReadOnly === true;
+    } catch { /* Keep reads available; manual entry requires the paired server capability. */ }
     const [activities, contacts, managers, scheduling, meetingState, schoolLocations, schoolCalendar, planningCatalogResult] = await Promise.all([
       api.activities({ activity_period: 'school_2027', activity_type: 'all', include_inactive: true, select: `row_id,district,authority_id,authority,school,school_id,activity_name,catalog_slug,activity_no,proposal_item_id,activity_type,item_type,activity_season,grade,education_level,class_group,sessions,start_time,end_time,instruction_language,required_instructor_gender,notes,scheduling_note,${manualCapabilityAvailable ? 'operations_private_notes,' : ''}instructor_assignment_status,instructor_assignment_locked,draft_emp_id,draft_instructor_name,draft_created_at,draft_proposed_meetings,emp_id,instructor_name,emp_id_2,instructor_name_2,start_date,end_date,status,date_1,date_2,date_3,date_4,date_5,date_6,date_7,date_8,date_9,date_10,date_11,date_12,date_13,date_14,date_15,date_16,date_17,date_18,date_19,date_20,date_21,date_22,date_23,date_24,date_25,date_26,date_27,date_28,date_29,date_30,date_31,date_32,date_33,date_34,date_35,updated_at` }),
       api.instructorContacts(),
@@ -2567,7 +2567,7 @@ export const courseSchedulingScreen = {
       data._manualOperationsCapabilityChecked = true;
       void supabase.rpc('scheduling_manual_capabilities').then(({ data: capabilities, error }) => {
         data._manualOperationsAvailable = !error && capabilities?.apiVersion === 'manual-operations-v1'
-          && capabilities.enabled === true;
+          && capabilities.enabled === true && capabilities.officialScheduleReadOnly === true;
         state.courseSchedulingManualOperationsAvailable = data._manualOperationsAvailable;
         if (root.isConnected) rerender();
       }).catch(() => {
@@ -2577,6 +2577,13 @@ export const courseSchedulingScreen = {
     }
     const manualOperations = createManualOperationsController({
       state, rpc: (name, args) => supabase.rpc(name, args), onChange: rerender,
+      onEditActivity: activityId => openMissingCourse(activityId),
+      reloadActivity: async activityId => {
+        const { data: row, error } = await supabase.from('activities').select('row_id,updated_at,activity_name,school,authority,sessions,start_date,end_date,start_time,end_time,emp_id,instructor_name,emp_id_2,draft_emp_id,draft_proposed_meetings,activity_type,activity_season,status,' + Array.from({ length: 35 }, (_, index) => 'date_' + (index + 1)).join(',')).eq('row_id', activityId).single();
+        if (error) throw error;
+        applyReturnedSchedulingActivity(data.activities, row);
+        return row;
+      },
       onSaved: row => {
         applyReturnedSchedulingActivity(data.activities, row);
         state.courseSchedulingResults = (state.courseSchedulingResults || []).filter(item => idOf(item.course) !== idOf(row));
@@ -2593,7 +2600,11 @@ export const courseSchedulingScreen = {
       state.courseSchedulingPlanningReportOpen = event.currentTarget.open;
     });
     const openManualOperations = (course, initial = {}) => {
-      if (!canEdit || !canManuallySchedule(state.user) || !data._manualOperationsAvailable || !course) return false;
+      if (!canEdit || !canManuallySchedule(state.user) || !course) return false;
+      if (!data._manualOperationsAvailable) {
+        showToast('ממשק השיבוץ אינו זמין. יש לרענן לאחר השלמת עדכון השרת.', 'error');
+        return true;
+      }
       state.courseSchedulingCandidateRequestId = (state.courseSchedulingCandidateRequestId || 0) + 1;
       state.courseSchedulingSelectedId = idOf(course);
       state.courseSchedulingLoading = false;
@@ -5068,13 +5079,7 @@ export const courseSchedulingScreen = {
       const courseId = text(button.dataset.openManualCourse);
       if (!courseById.has(courseId)) return;
       if (openManualOperations(courseById.get(courseId))) return;
-      state.courseSchedulingSelectedId = courseId;
-      state.courseSchedulingSelectedCandidateId = '';
-      renderOpenedCourse(courseId);
-      const detail = root.querySelector('[data-course-detail]');
-      // Existing drafts retain their explicit confirm/cancel workflow. Existing
-      // assignments enter the audited replacement flow, preserving past lessons.
-      detail?.querySelector('[data-change-assignment], [data-open-manual-assignment]')?.click();
+      showToast('ממשק השיבוץ אינו זמין. יש לרענן לאחר השלמת עדכון השרת.', 'error');
     });
 
     root.querySelectorAll('[data-switch-tab]').forEach((button) => {

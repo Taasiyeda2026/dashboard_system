@@ -683,3 +683,5 @@ config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-instructor-mobile-compact-2026
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-admin-hub-compact-cards-20261125-v1`;
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-manual-only-scheduling-20261126-v1`;
+
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-manual-scheduling-official-workflow-20261126-v1`;

@@ -628,3 +628,23 @@ Every snapshot/checkpoint/clear write requires a current run UUID, its authentic
 CPU checkpoints use the timer queue: Chromium scheduler.yield continuations were observed starving heartbeat and cancellation timers. Prepared contexts yield within history/meeting and candidate loops; projections reuse instructor load; per-school contexts isolate provisional rows; consolidation/compaction update only changed instructor buckets. Recruitment rescue/profile assignment and final coherence checks also yield within loops. Routing retains PR #2114 batch lookup and uses no bulk planning preload.
 
 Checkpoint proposals are stored separately in scheduling_planning_checkpoint_rows. Progress writes send deltas, with at most 10 activities and a 256 KiB target request size (single large activity allowed up to 1 MiB). Only the last complete chunk can expose validated phase; resume requires matching source cursor, revision, engine, fingerprints, phase and complete scope. Full-stage snapshots are split into these bounded chunks. See [measured evidence and rollout limitations](PLANNING_RUNTIME_PERFORMANCE_20261006.md).
+
+## 2026-11-26: simplified manual assignment and official schedule ownership
+
+After manual-only PR #2807, all assignment entries open the compact manual
+instructor dialog directly. All Activities remains the only editor of activity
+dates, hours and session data. One action previews then commits a clean selection;
+warnings/reasons stop for explicit consent. The server repeats validation under
+existing locks and writes assignment fields only. Stale warning hashes and
+activity revisions invalidate prior consent and trigger a fresh check.
+
+Migration `20261126142551_manual_scheduling_official_schedule.sql` also fences the
+legacy scheduling calendar setter. Official activity dates/hours drive draft
+occupancy; mismatched legacy drafts remain intact until explicit revalidation and
+are archived in the assignment audit on save. The new UI requires the read-only
+schedule capability before allowing manual entry. No automatic engine, polling,
+route calculation or additional deployment service is introduced.
+
+See `SCHEDULING_MANUAL_CONTROL_CONTRACT.md` for the updated contract, isolated
+checks and migration-first rollout procedure. Independent review is required
+before production migration, merge or deployment.
