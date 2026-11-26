@@ -179,16 +179,22 @@ Deno.serve(async(req:Request)=>{
       while (routes.length<50000) {
         dbRequests++;
         routeCacheReads++;
-        const {data,error} = await client.rpc('get_scheduling_worker_routes', {
+        const response: {data:unknown,error:{code?:string}|null} = await client.rpc('get_scheduling_worker_routes', {
           ...endpoints,p_valid_at:routeCutoff,p_after_origin:afterOrigin,p_after_destination:afterDestination
         });
+        const {data,error} = response;
         if (error) throw Error(dbFailure(error,'worker_snapshot_routes_failed'));
         if (!Array.isArray(data)) throw Error('worker_snapshot_routes_failed');
         routes.push(...data);
         if (data.length<1000) break;
         if (routes.length>=50000) throw Error('worker_snapshot_routes_overflow');
-        afterOrigin = data.at(-1).origin_key;
-        afterDestination = data.at(-1).destination_key;
+        const last = data.at(-1);
+        if (typeof last?.origin_key !== 'string' || typeof last?.destination_key !== 'string'
+            || (last.origin_key === afterOrigin && last.destination_key === afterDestination)) {
+          throw Error('worker_snapshot_routes_cursor_invalid');
+        }
+        afterOrigin = last.origin_key;
+        afterDestination = last.destination_key;
       }
     }
     const end=await (canary ? command('probe',{}).then(p=>({sourceRevision:p.sourceRevision,workspace:{revision:p.workspaceRevision},serverTime:null})) : command('preflight',args));
