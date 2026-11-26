@@ -707,3 +707,5 @@ config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-gefen-fixed-meetings-periods-2
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-gefen-compact-issuance-layout-20261126-v1`;
 
 config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-admin-reset-active-permissions-v2-20261126`;
+
+config.HOTFIX_VERSION = `${config.HOTFIX_VERSION}-spin-off-poster-sso-v1`;
