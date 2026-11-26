@@ -83,7 +83,9 @@ Deno.serve(async(req:Request)=>{
   catch{return output({code:'invalid_worker_request'},400);}
   const action=String(body.action||'');
   if(!ALLOWED_ACTIONS.has(action))return output({code:'unknown_worker_command'},400);
+  const metrics={dbCalls:0,routeCacheReads:0,routeRows:0};
   const command=async(name:string,payload:Record<string,unknown>={})=>{
+    metrics.dbCalls++;
     const {data,error}=await client.rpc('scheduling_agent_worker_command',{p_action:name,p_payload:payload});
     if(error){
       const retryable=new Set(['planning_source_revision_conflict','planning_revision_conflict',
@@ -102,6 +104,8 @@ Deno.serve(async(req:Request)=>{
     const all:any[]=[];
     for(let offset=0;offset<max;offset+=500){
       const q=filters(client.from(table).select(cols).range(offset,offset+499));
+      metrics.dbCalls++;
+      if(table==='scheduling_travel_cache') metrics.routeCacheReads++;
       const {data,error}=await q;
       if(error)throw Error('worker_snapshot_'+table+'_failed');
       if(!Array.isArray(data))throw Error('worker_snapshot_'+table+'_invalid');
@@ -123,6 +127,7 @@ Deno.serve(async(req:Request)=>{
     // Full snapshot uses multiple DB requests but protects against mixed
     // versions by comparing authoritative preflight both BEFORE and AFTER.
     const start=await (canary ? command('probe',{}).then(p=>({sourceRevision:p.sourceRevision,workspace:{revision:p.workspaceRevision}})) : command('preflight',args));
+    metrics.dbCalls++;
     const {data:workspace,error:workspaceError}=await client.from('scheduling_agent_worker_workspaces')
       .select('id,revision').eq('period_key','year').eq('district','').single();
     if(workspaceError||!workspace?.id||String(workspace.revision)!==String(start?.workspace?.revision)){
@@ -177,8 +182,9 @@ Deno.serve(async(req:Request)=>{
       needsRecalc:x.needs_recalc
     }));
     const targets=canary ? [] : planningRefreshTargets({stored,activities,serverTime:end.serverTime});
+    metrics.routeRows=routes.length;
     return output({
-      sourceRevision:String(start.sourceRevision),
+      metrics,sourceRevision:String(start.sourceRevision),
       workspace:{...start.workspace,id:workspace.id},
       activities,instructors,schoolLocations,externalBlockers,meetingInstructorHistory,
       profiles,rules,exceptions,schoolCalendar,catalog,routes,

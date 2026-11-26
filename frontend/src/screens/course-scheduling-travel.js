@@ -166,6 +166,12 @@ export function createRouteClient({
   const boundedBatchSize = Math.max(1, Math.min(MAX_ROUTE_BATCH_SIZE, Number(batchSize) || DEFAULT_ROUTE_BATCH_SIZE));
   const maxConcurrentBatches = Math.max(1, Number(concurrency) || 4);
   let activeBatches = 0;
+  const drainWaiters = new Set();
+  const resolveDrains = () => {
+    if (activeBatches || pendingByMatrixKey.size) return;
+    for (const resolve of drainWaiters) resolve();
+    drainWaiters.clear();
+  };
   let flushScheduled = false;
   /** @type {Map<string, { matrixKey: string, payload: Record<string, string>, waiters: Array<{ resolve: Function, reject: Function }> }>} */
   const pendingByMatrixKey = new Map();
@@ -184,6 +190,7 @@ export function createRouteClient({
       for (const waiter of entry.waiters) waiter.reject(cancelledError());
     }
     pendingByMatrixKey.clear();
+    resolveDrains();
   };
   signal?.addEventListener?.('abort', rejectPending, { once: true });
 
@@ -256,6 +263,7 @@ export function createRouteClient({
         } finally {
           activeBatches -= 1;
           pumpBatches();
+          resolveDrains();
         }
       })();
     }
@@ -355,15 +363,9 @@ export function createRouteClient({
   };
 
   const flush = () => new Promise((resolve) => {
-    const wait = () => {
-      if (pendingByMatrixKey.size === 0 && activeBatches === 0) {
-        resolve(undefined);
-        return;
-      }
-      queueMicrotask(wait);
-    };
+    drainWaiters.add(resolve);
     pumpBatches();
-    wait();
+    resolveDrains();
   });
 
   return {

@@ -17,7 +17,18 @@ async function main(){
   }
 
   const backend=createGithubAgentBackend(transport);
-  return runOneSchedulingAgentJob({backend});
+  let metrics=null, lastProgress=-Infinity;
+  const result=await runOneSchedulingAgentJob({
+    backend,
+    onProgress:({phase,completed,total})=>{
+      const now=performance.now();
+      if (now-lastProgress<15000) return;
+      lastProgress=now;
+      process.stdout.write(JSON.stringify({phase,completed,total})+'\n');
+    },
+    onMetrics:value=>{metrics=value;}
+  });
+  return {...result,metrics};
 }
 
 try{
@@ -29,6 +40,8 @@ try{
     status:result.status,jobId:result.jobId||null,
     failureCode:failureCode||null,engineVersion:result.engineVersion||null,
     rowCount:result.rowCount??null,
+    noOp:result.noOp===true,
+    metrics:result.metrics??null,
     sourceRevision:result.sourceRevision??null,
     workspaceRevision:result.workspaceRevision??null
   })+'\n');

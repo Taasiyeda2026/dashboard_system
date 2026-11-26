@@ -65,8 +65,9 @@ export function prepareServerPlanningSnapshot(payload, {now = new Date()} = {}) 
   }
   const withCancellations=rows=>rows.map(row=>cancelled.has(trim(row.row_id))
     ? {...row,cancelled_meeting_dates:[...cancelled.get(trim(row.row_id))]}:row);
+  const historyByActivity = Map.groupBy(history, row => row.activity_id);
   const baseActivities=[...withCancellations(enriched.activities),...withCancellations(externalBlockers)]
-    .map(a=>({...a,meeting_instructor_overrides:history.filter(h=>h.activity_id===a.row_id)}));
+    .map(a=>({...a,meeting_instructor_overrides:historyByActivity.get(a.row_id) || []}));
   const fingerprintInput={
     activities:baseActivities,instructors:activeSchedulingInstructors(contacts),
     profiles,rules,exceptions,schoolCalendar:calendar,catalog,periodKey:'year'
@@ -91,6 +92,7 @@ export function prepareServerPlanningSnapshot(payload, {now = new Date()} = {}) 
     invoke:async ()=>({data:{calculated:false},error:{code:'travel_unverified'}})
   });
   return {
+    metrics:payload.metrics??null,
     sourceRevision:trim(payload.sourceRevision),
     workspaceRevision:trim(payload.workspace.revision),
     dataFingerprint:planningDataFingerprint(fingerprintInput),
@@ -135,13 +137,13 @@ export function createGithubWorkerTransport({
     tokenExpiresAt=Math.min(Number(claims.exp)*1000||0,now()+240_000);
     return cachedToken;
   }
-  async function call(action,payload={}){
+  async function call(action,payload={}, {timeoutMs=120000}={}){
     const token=await oidc();
     let response;
     try {response=await fetchImpl(baseUrl,{
       method:'POST',
       headers:{Authorization:'Bearer '+token,'Content-Type':'application/json'},
-      body:JSON.stringify({action,...payload}),signal:AbortSignal.timeout(120000)
+      body:JSON.stringify({action,...payload}),signal:AbortSignal.timeout(timeoutMs)
     });}catch{throw new WorkerTransportError('worker_transport_failed');}
     if(!response.ok) {
       let code='worker_api_unavailable';
@@ -155,21 +157,28 @@ export function createGithubWorkerTransport({
 
 export function createGithubAgentBackend(transport) {
   if(!transport || typeof transport.call!=='function')throw new WorkerTransportError('worker_transport_required');
-  const call=(action,details={})=>transport.call(action,details);
+  const call=(action,details={},options)=>transport.call(action,details,options);
   return {
     claimJob:({runId}={})=>call('claim',runId?{runId}:{}),
     acquireLease:({jobId,runId,ttlSeconds})=>call('lease',{jobId,runId,ttlSeconds}),
-    heartbeatLease:({jobId,runId,ttlSeconds})=>call('heartbeat',{jobId,runId,ttlSeconds}),
+    heartbeatLease:({jobId,runId,ttlSeconds})=>call('heartbeat',{jobId,runId,ttlSeconds},{timeoutMs:10000}),
     loadSnapshot:async({jobId,runId,mode})=>prepareServerPlanningSnapshot(await call('snapshot',{jobId,runId,mode})),
     readPreflight:({jobId,runId})=>call('preflight',{jobId,runId}),
     persistProposals:({jobId,runId,mode,validationOnly=false,sourceRevision,workspaceRevision,dataFingerprint,
-      contextFingerprint,engineVersion,rows,activities})=>call('persist',{
-       jobId,runId,mode,validationOnly,sourceRevision,workspaceRevision,dataFingerprint,contextFingerprint,
-       engineVersion, rows:rows.map(row=>({
+      contextFingerprint,engineVersion,rows,activities})=>{
+      const activitiesById=new Map();
+      for (const activity of activities) {
+        const id=trim(activity.row_id);
+        if (!activitiesById.has(id)) activitiesById.set(id,activity);
+      }
+      return call('persist',{
+        jobId,runId,mode,validationOnly,sourceRevision,workspaceRevision,dataFingerprint,contextFingerprint,
+        engineVersion, rows:rows.map(row=>({
           activityId:trim(row.courseId),row,
-          activityUpdatedAt:activities.find(a=>trim(a.row_id)===trim(row.courseId))?.updated_at||null
-       }))
-     }),
+          activityUpdatedAt:activitiesById.get(trim(row.courseId))?.updated_at||null
+        }))
+      });
+    },
     finishJob:({jobId,runId,success,failureCode})=>call('finish',{jobId,runId,success,failureCode}),
     releaseLease:({jobId,runId})=>call('release',{jobId,runId})
   };

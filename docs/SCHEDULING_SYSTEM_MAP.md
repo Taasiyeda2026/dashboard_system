@@ -613,3 +613,21 @@ Every snapshot/checkpoint/clear write requires a current run UUID, its authentic
 CPU checkpoints use the timer queue: Chromium scheduler.yield continuations were observed starving heartbeat and cancellation timers. Prepared contexts yield within history/meeting and candidate loops; projections reuse instructor load; per-school contexts isolate provisional rows; consolidation/compaction update only changed instructor buckets. Recruitment rescue/profile assignment and final coherence checks also yield within loops. Routing retains PR #2114 batch lookup and uses no bulk planning preload.
 
 Checkpoint proposals are stored separately in scheduling_planning_checkpoint_rows. Progress writes send deltas, with at most 10 activities and a 256 KiB target request size (single large activity allowed up to 1 MiB). Only the last complete chunk can expose validated phase; resume requires matching source cursor, revision, engine, fingerprints, phase and complete scope. Full-stage snapshots are split into these bounded chunks. See [measured evidence and rollout limitations](PLANNING_RUNTIME_PERFORMANCE_20261006.md).
+
+### Server worker performance review (2026-11-26)
+
+Dashboard calculation is disabled by `SCHEDULING_AGENT_OWNS_COMPUTE`. The active
+path is the interactive team RPC, the durable worker queue, and
+`services/scheduling-agent/runner.mjs`. Migration
+`20261126120000_scheduling_agent_claim_fast_path.sql` lets an interactive current
+incremental request return immediately and a queued current request complete
+without a lease or snapshot. A dirty job claims its lease in the same transaction.
+The worker renews every 15 seconds. The supervisor can recover an interrupted
+attempt after two minutes if the lease has expired. The browser checkpoint
+implementation described above is historical; the server worker does not yet
+persist or resume intermediate results.
+
+The server snapshot target predicate and engine use the same 14-day local-calendar
+lead time. The current core reuses meeting checks, baseline candidates, and
+scarcity counts and batches unique candidate route legs. See
+[performance results and remaining checks](PLANNING_WORKER_PERFORMANCE_20261126.md).

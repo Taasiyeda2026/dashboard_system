@@ -21,8 +21,9 @@ create table public.fixture_saves(id bigint generated always as identity,run_id 
 create table fixture_validation(dirty_count integer,engine_version text,reject_save boolean);
 insert into fixture_validation values(0,'planning-v38-20261015-transition-30-45',false);
 create function public.get_scheduling_planning_preflight(text,text) returns jsonb language sql as $$
- select jsonb_build_object('sourceRevision',revision,'dirtyCount',(select dirty_count from fixture_validation),'workspace',jsonb_build_object(
- 'revision',(select revision from scheduling_planning_workspaces limit 1),'validatedSourceRevision',revision,
+ select jsonb_build_object('schemaVersion',1,'serverTime',clock_timestamp(),'sourceRevision',revision,
+ 'activeLease',(select jsonb_build_object('expires_at',expires_at) from scheduling_planning_run_leases where expires_at>now() limit 1),'dirtyCount',(select dirty_count from fixture_validation),'workspace',jsonb_build_object(
+ 'revision',(select revision from scheduling_planning_workspaces limit 1),'validatedSourceRevision',(select (to_jsonb(w)->>'validated_source_revision')::bigint from scheduling_planning_workspaces w limit 1),
  'engineVersion',(select engine_version from fixture_validation))) from scheduling_planning_source_state limit 1
 $$;
 create function public.acquire_scheduling_planning_run_lease(text,text,uuid,integer) returns jsonb language plpgsql as $$begin
@@ -40,7 +41,8 @@ create function public.get_scheduling_planning_external_blockers() returns jsonb
 create function public.save_scheduling_planning_snapshot(text,text,text,text,text,jsonb,bigint,uuid,bigint)
  returns jsonb language plpgsql as $$begin
  insert into fixture_saves(run_id) values($8);
- update scheduling_planning_workspaces set revision=revision+1;
+ update scheduling_planning_workspaces set revision=revision+1,
+  validated_source_revision=(select revision from scheduling_planning_source_state where singleton);
  if (select reject_save from fixture_validation) or $6->0->'row'->>'invalid'='true' then raise exception 'fixture_domain_rejected';end if;
  return jsonb_build_object('revision',(select revision from scheduling_planning_workspaces limit 1));
 end$$;

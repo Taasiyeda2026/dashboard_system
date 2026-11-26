@@ -60,15 +60,22 @@ export async function ensureRoute(context, from, to) {
   return knownRoute(context, from, to);
 }
 export async function ensureCandidateRoutes(context, occupancy, activity, option) {
-  await ensureRoute(context, context.byInstructor.get(text(option.instructorEmpId))?.address, activity.school_address);
+  const pairs = new Map();
+  const include = (from, to) => {
+    if (from && to) pairs.set(JSON.stringify([from, to]), [from, to]);
+  };
+  const schoolAddress = activity.school_address, schoolId = text(activity.school_id), courseId = activityId(activity);
+  include(context.byInstructor.get(text(option.instructorEmpId))?.address, schoolAddress);
   for (const meeting of option.meetings || []) {
     const empId = meetingEmpId(meeting, option.instructorEmpId);
-    await ensureRoute(context, context.byInstructor.get(empId)?.address, activity.school_address);
-    const list = (occupancy.days.get(`${empId}|${meeting.date}`) || []).filter(m => m.courseId !== activityId(activity));
-    const before = list.filter(m => m.end <= minute(meeting.start_time)).at(-1), after = list.find(m => m.start >= minute(meeting.end_time));
-    if (before && before.schoolId !== text(activity.school_id)) await ensureRoute(context, before.address, activity.school_address);
-    if (after && after.schoolId !== text(activity.school_id)) await ensureRoute(context, activity.school_address, after.address);
+    include(context.byInstructor.get(empId)?.address, schoolAddress);
+    const start = minute(meeting.start_time), end = minute(meeting.end_time);
+    const list = (occupancy.days.get(`${empId}|${meeting.date}`) || []).filter(m => m.courseId !== courseId);
+    const before = list.filter(m => m.end <= start).at(-1), after = list.find(m => m.start >= end);
+    if (before && before.schoolId !== schoolId) include(before.address, schoolAddress);
+    if (after && after.schoolId !== schoolId) include(schoolAddress, after.address);
   }
+  await Promise.all([...pairs.values()].map(([from, to]) => ensureRoute(context, from, to)));
 }
 export async function validatePlanWithRoutes(input, checkpoint = async () => {}) {
   const context = input.constraintContext || compileConstraints(input), occupancy = createOccupancy(context, input.rows || []);

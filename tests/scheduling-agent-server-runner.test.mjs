@@ -46,6 +46,41 @@ test('does nothing without queue work',async()=>{
  assert.deepEqual(await runOneSchedulingAgentJob({backend}),{status:'idle'});
 });
 
+test('claim receipt for an already-current workspace skips all worker side effects',async()=>{
+ const f=fixture();
+ f.backend.claimJob=async({runId})=>({status:'completed',noOp:true,jobId:ID,runId});
+ const result=await runOneSchedulingAgentJob({backend:f.backend,computePlan:()=>assert.fail('no engine')});
+ assert.equal(result.noOp,true);
+ assert.deepEqual(f.events,[]);
+});
+
+test('a worker claim with an atomic lease skips the separate acquisition call',async()=>{
+ const f=fixture();
+ f.backend.claimJob=async()=>({claimed:true,jobId:ID,mode:'incremental',leaseAcquired:true});
+ f.backend.acquireLease=()=>assert.fail('lease already held');
+ const result=await runOneSchedulingAgentJob({backend:f.backend,computePlan:f.computePlan,
+   createRunId:()=> '11111111-1111-4111-8111-111111111111'});
+ assert.equal(result.status,'completed');
+ assert.equal(f.events.at(-1),'release');
+});
+
+test('slow heartbeats are serialized and ownership loss cancels before persistence',async()=>{
+ const f=fixture();let requests=0;let release;
+ const renewal=new Promise(resolve=>{release=resolve;});
+ f.backend.heartbeatLease=async()=>{requests++;return renewal;};
+ const result=await runOneSchedulingAgentJob({backend:f.backend,heartbeatIntervalMs:2,
+   computePlan:async({signal})=>{
+    await new Promise(resolve=>setTimeout(resolve,25));
+    assert.equal(requests,1);
+    const cancelled=new Promise(resolve=>signal.addEventListener('abort',resolve,{once:true}));
+    release({ok:false});await cancelled;
+   }
+ });
+ assert.equal(result.failureCode,'planning_lease_lost');
+ assert.equal(f.events.includes('persist'),false);
+ assert.equal(f.events.at(-1),'release');
+});
+
 test('requires trusted backend adapter, never falls back to local/browser',async()=>{
  await assert.rejects(runOneSchedulingAgentJob(),e=>e instanceof SchedulingAgentRunError&&e.code==='secure_backend_adapter_required');
 });

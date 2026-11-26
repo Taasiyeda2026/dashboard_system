@@ -83,25 +83,48 @@ function assertInput(snapshot, job) {
  * server-side gates with ownership fencing. Client-supplied snapshots are forbidden.
  */
 export async function runOneSchedulingAgentJob({
-  backend, computePlan=computeAgentSchedulingPlan, heartbeatIntervalMs=30000,
-  createRunId=randomUUID, onProgress=()=>{}
+  backend, computePlan=computeAgentSchedulingPlan, heartbeatIntervalMs=15000,
+  createRunId=randomUUID, onProgress=()=>{}, onMetrics=()=>{}
 }={}) {
   requireBackend(backend);
   if (typeof computePlan!=='function') throw new SchedulingAgentRunError('engine_required');
   const runId=createRunId();
-  const job=await backend.claimJob({runId});
+  const phasesMs={}, calls={};
+  const measure=async (phase, operation)=>{
+    calls[phase]=(calls[phase]||0)+1;
+    const start=performance.now();
+    try { return await operation(); }
+    finally { phasesMs[phase]=(phasesMs[phase]||0)+performance.now()-start; }
+  };
+  const job=await measure('claim',()=>backend.claimJob({runId}));
+  if (job?.status==='completed' && job.noOp===true && job.runId===runId) {
+    onMetrics({phasesMs,calls});
+    return job;
+  }
   if (!job || job.claimed!==true) return {status:'idle'};
   const jobId=String(job.jobId||'');
-  let lease=false, timer=null, heartbeatFailure=null;
+  let lease=job.leaseAcquired===true, timer=null, heartbeatFailure=null, heartbeatInFlight=false;
   const controller=new AbortController();
+  let snapshotMetrics=null, engineMetrics=null, maxTimerDelayMs=0;
+  let lastTick=performance.now();
+  const timerProbe=setInterval(()=>{
+    const now=performance.now();
+    maxTimerDelayMs=Math.max(maxTimerDelayMs,now-lastTick-100);
+    lastTick=now;
+  },100);
+  timerProbe.unref?.();
   const heartbeat=async()=>{
+    if (heartbeatInFlight || controller.signal.aborted) return;
+    heartbeatInFlight=true;
     try {
-      const response=await backend.heartbeatLease({jobId,runId,ttlSeconds:120});
+      const response=await measure('heartbeat',()=>backend.heartbeatLease({jobId,runId,ttlSeconds:120}));
       if (!response || response.ok!==true)
         throw new SchedulingAgentRunError('planning_lease_lost');
     } catch (error) {
       heartbeatFailure=error;
       controller.abort();
+    } finally {
+      heartbeatInFlight=false;
     }
   };
   try {
@@ -109,19 +132,20 @@ export async function runOneSchedulingAgentJob({
         ||(job.runId&&job.runId!==runId)) {
       throw new SchedulingAgentRunError('invalid_claimed_job');
     }
-    const acquired=await backend.acquireLease({jobId,runId,ttlSeconds:120});
-    if (acquired?.acquired!==true) {
-      throw new SchedulingAgentRunError('planning_lease_unavailable');
+    if (!lease) {
+      const acquired=await measure('lease',()=>backend.acquireLease({jobId,runId,ttlSeconds:120}));
+      if (acquired?.acquired!==true) throw new SchedulingAgentRunError('planning_lease_unavailable');
+      lease=true;
     }
-    lease=true;
     timer=setInterval(()=>{void heartbeat()},heartbeatIntervalMs);
     timer.unref?.();
 
     // The machine adapter must authenticate and load a consistent frozen input;
     // the ChatGPT tool must never supply activity rows or precomputed options.
-    const input=await backend.loadSnapshot({jobId,runId,mode:job.mode});
+    const input=await measure('snapshot',()=>backend.loadSnapshot({jobId,runId,mode:job.mode}));
+    snapshotMetrics=input?.metrics??null;
     assertInput(input,job);
-    const initial=validatedPreflight(await backend.readPreflight({jobId,runId}));
+    const initial=validatedPreflight(await measure('preflight',()=>backend.readPreflight({jobId,runId})));
     assertRevision(input,initial,'snapshot_stale_before_computation');
     if (initial.engineVersion===undefined) {
       throw new SchedulingAgentRunError('planning_engine_version_missing');
@@ -132,10 +156,11 @@ export async function runOneSchedulingAgentJob({
     // The existing incremental SQL saver validates the entire stored workspace,
     // even with an empty patch. It alone may advance the validated source stamp.
     const output=validationOnly?{engineVersion:PLANNING_ENGINE_VERSION,
-      diagnostics:{finalPlanValid:true},rows:[]}:await computePlan({
+      diagnostics:{finalPlanValid:true},rows:[]}:await measure('compute',()=>computePlan({
       ...input, mode:job.mode, signal:controller.signal,
-      onProgress:progress=>onProgress({jobId,phase:progress?.phase||'computing'})
-    });
+      onProgress:({phase='computing',completed,total})=>onProgress({jobId,phase,completed,total})
+    }));
+    engineMetrics=output?.diagnostics?.performance??null;
     if (controller.signal.aborted||heartbeatFailure) {
       throw new SchedulingAgentRunError('planning_lease_lost');
     }
@@ -143,12 +168,13 @@ export async function runOneSchedulingAgentJob({
         !Array.isArray(output.rows) || !output.engineVersion) {
       throw new SchedulingAgentRunError('planning_engine_result_invalid');
     }
-    const current=validatedPreflight(await backend.readPreflight({jobId,runId}));
+    const current=validatedPreflight(await measure('preflight',()=>backend.readPreflight({jobId,runId})));
     assertRevision(input,current,'snapshot_stale_before_commit');
+    if (controller.signal.aborted) throw new SchedulingAgentRunError('planning_lease_lost');
     // The persistence adapter MUST assert the same revisions, current engine,
     // and lease owner *inside the database transaction*. This read is only an
     // early fail-fast check, never a substitute for DB fencing.
-    const persisted=await backend.persistProposals({
+    const persisted=await measure('persist',()=>backend.persistProposals({
       jobId,runId,mode:job.mode,
       validationOnly,
       sourceRevision:input.sourceRevision,
@@ -158,7 +184,7 @@ export async function runOneSchedulingAgentJob({
       engineVersion:output.engineVersion,
       rows:output.rows,
       activities:input.snapshot.activities
-    });
+    }));
     // New server contract: validation, receipt and completion commit together.
     // Later source changes are a new invalidation, not a failed committed job.
     if(persisted?.status!=='completed'||persisted.jobId!==jobId||persisted.runId!==runId)
@@ -170,7 +196,8 @@ export async function runOneSchedulingAgentJob({
     const errorCode=String(error?.code||'planning_server_run_failed').slice(0,120);
     // Never report success. If owner fencing has expired, the backend must
     // reject this finish too; leave the job for lease-expiry recovery.
-    const finished=await backend.finishJob({jobId,runId,success:false,failureCode:errorCode});
+    if (!lease) return {status:'failed',jobId,failureCode:errorCode};
+    const finished=await measure('finish',()=>backend.finishJob({jobId,runId,success:false,failureCode:errorCode}));
     // A lost persist response must not turn an already committed receipt into failure.
     if(finished?.status==='completed'&&finished.jobId===jobId&&finished.runId===runId)
       return {status:'completed',jobId,recoveredReceipt:true};
@@ -178,6 +205,8 @@ export async function runOneSchedulingAgentJob({
   } finally {
     if (timer) clearInterval(timer);
     controller.abort();
-    if (lease) await backend.releaseLease({jobId,runId}).catch(()=>{});
+    clearInterval(timerProbe);
+    if (lease) await measure('release',()=>backend.releaseLease({jobId,runId})).catch(()=>{});
+    onMetrics({phasesMs,calls,snapshot:snapshotMetrics,engine:engineMetrics,maxTimerDelayMs});
   }
 }

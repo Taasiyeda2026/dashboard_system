@@ -180,6 +180,11 @@ export async function computeAgentSchedulingPlan({
     rows: result.rows,
     diagnostics: {
       finalPlanValid: true,
+      performance: {
+        ...(result.newEngineMetrics ?? {}),
+        routeBatchInvokes: routeClient.batchInvokes ?? null,
+        googleCalls: routeClient.googleCalls ?? null
+      },
       rowCount: result.rows.length,
       optimization: result.optimization ?? null,
       recruitment: result.recruitment ?? null
