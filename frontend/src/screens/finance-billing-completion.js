@@ -98,6 +98,9 @@ export function syncCompletionSearch(root,query='') {
   const empty=section.querySelector('[data-finance-completion-no-results]');
   if(empty)empty.hidden=visible!==0;
 }
+export function activityBillingLabel(editor, activity = null) {
+  return [editor?.name || activity?.activity_name, editor?.grade || activity?.grade, editor?.class_group || activity?.class_group].filter(Boolean).join(' · ') || editor?.row_id || '—';
+}
 export function financeBillingCompletionEditorHtml(editor) {
   const e=editor;
   const field=(label,name,value,type='text',attrs='')=>'<label class="ds-fin-collect-search"><span>'+esc(label)+'</span><input class="ds-input" name="'+name+'" type="'+type+'" value="'+esc(value)+'" '+attrs+'></label>';
@@ -105,7 +108,61 @@ export function financeBillingCompletionEditorHtml(editor) {
   const hasGefen=(e.allocations||[]).some(a=>isGefenFundingName(a.name))||isGefenFundingName(e.funding);
   const defaultRate=e.rate??e.proposal_rate??(hasGefen?defaultGefenCourseRate({...e,activity_name:e.name}):null)??'';
   const dates=Array.from({length:Math.min(35,Math.max(1,Number(e.sessions)||1))},(_,i)=>'date_'+(i+1));
-  return '<section class="ds-fin-payer" style="padding:16px" data-finance-completion-editor><h3>השלמת נתוני חיוב — '+esc(e.name)+' · '+esc(e.school)+'</h3><p>יש להשלים את הפרטים החסרים ולשמור. אין הפקה או שליחה בעת השמירה.</p><form data-finance-completion-form data-activity-id="'+esc(e.row_id)+'"><div style="display:flex;flex-wrap:wrap;gap:12px">'+(course(e)?field('מספר מפגשים','sessions',e.sessions,'number','min="1" max="35" step="1" required')+ '<span data-completion-gefen-rate>'+field('מחיר לשעה בגפ״ן (₪)','rate',e.order_rate??defaultRate,'number','min="0.01" max="1000000" step="any"'+(e.approved_order_rate?' readonly':''))+'</span>':'')+field('מחיר כולל מוסכם (₪)','price',e.price,'number','min="1" step="1" required')+field('סמל מוסד (אם חסר)','school_symbol',e.school_symbol,'number',e.school_symbol?'readonly':'min="1" step="1"')+field('מספר תוכנית גפ״ן (אם חסר)','program_code',e.activity_no||e.gefen_number,'text',/^\d+$/.test(String(e.activity_no||''))?'readonly':'')+field('שעת התחלה (אם חסרה)','start_time',e.start_time,'time',e.start_time?'readonly':'')+field('שעת סיום (אם חסרה)','end_time',e.end_time,'time',e.end_time?'readonly':'')+field('מייל איש קשר (אם חסר)','contact_email',e.contact_email,'email',e.contact_email?'readonly':'')+'</div>'+(course(e)?'<p data-completion-gefen-calculation>מחיר לפי 1.5 שעות למפגש: <strong data-finance-completion-calculated>—</strong> · <button type="button" class="ds-btn ds-btn--sm" data-finance-completion-calculate>השתמש במחיר המחושב</button></p>'+(e.proposal_rate?'<p>תעריף בהצעה: '+esc(e.proposal_rate)+' ₪ לשעה'+(e.proposal_hours?' · '+esc(e.proposal_hours)+' שעות בהצעה':'')+'</p>':'')+(e.order_rate?'<p>תעריף בהזמנת גפ״ן מאומתת: '+esc(e.order_rate)+' ₪ לשעה</p>':''):'')+'<h4>חלוקת מימון (סכום כולל לכל מממן)</h4><div style="display:grid;gap:6px;max-height:280px;overflow:auto">'+(e.funding_options||[]).map(f=>'<label style="display:grid;grid-template-columns:auto 1fr minmax(100px,140px);gap:8px;align-items:center"><input type="checkbox" data-completion-funder="'+esc(f.id)+'" data-completion-gefen="'+String(isGefenFundingName(f.name))+'" '+(allocations.has(key(f.id))?'checked':'')+'><span>'+esc(f.name)+'</span><input type="number" min="0.01" step="0.01" class="ds-input" data-completion-amount="'+esc(f.id)+'" value="'+esc(allocations.get(key(f.id))??'')+'" placeholder="₪"></label>').join('')+'</div><p>סכום המימון: <strong data-finance-completion-funding-total>—</strong></p><details><summary>השלמת מועדי מפגשים חסרים</summary><div data-finance-completion-dates style="display:flex;flex-wrap:wrap;gap:8px">'+Array.from({length:35},(_,i)=>{const name='date_'+(i+1);const value=e.dates?.[name]||'';return '<div data-completion-date-index="'+(i+1)+'" '+(i+1>dates.length?'hidden':'')+'>'+field('מפגש '+(i+1),name,value,'date',value?'readonly':'')+'</div>';}).join('')+'</div></details>'+(e.has_prior?'<p>קיימים חשבונות קודמים; שינוי מחיר, חלוקת מימון או תעריף שאינו תואם לחשבון קודם ייחסם.</p>':'')+'<div style="display:flex;gap:8px;margin-top:12px"><button type="button" class="ds-btn ds-btn--primary" data-finance-complete-save>שמור ורענן זכאות</button><button type="button" class="ds-btn" data-finance-complete-cancel>ביטול</button></div></form></section>';
+  return '<section class="ds-fin-payer" style="padding:16px" data-finance-completion-editor><h3>השלמת נתוני חיוב — '+esc(e.name)+' · '+esc(e.school)+'</h3><p>יש להשלים את הפרטים החסרים ולשמור. אין הפקה או שליחה בעת השמירה.</p><form data-finance-completion-form data-activity-id="'+esc(e.row_id)+'"><div style="display:flex;flex-wrap:wrap;gap:12px">'+(course(e)?field('מספר מפגשים','sessions',e.sessions,'number','min="1" max="35" step="1" required')+ '<span data-completion-gefen-rate>'+field('מחיר לשעה בגפ״ן (₪)','rate',defaultRate,'number','min="0.01" max="1000000" step="any"')+'</span>':'')+field('מחיר כולל מוסכם (₪)','price',e.price,'number','min="1" step="1" required')+field('סמל מוסד (אם חסר)','school_symbol',e.school_symbol,'number',e.school_symbol?'readonly':'min="1" step="1"')+field('מספר תוכנית גפ״ן (אם חסר)','program_code',e.activity_no||e.gefen_number,'text',/^\d+$/.test(String(e.activity_no||''))?'readonly':'')+field('שעת התחלה (אם חסרה)','start_time',e.start_time,'time',e.start_time?'readonly':'')+field('שעת סיום (אם חסרה)','end_time',e.end_time,'time',e.end_time?'readonly':'')+field('מייל איש קשר (אם חסר)','contact_email',e.contact_email,'email',e.contact_email?'readonly':'')+'</div>'+(course(e)?'<p data-completion-gefen-calculation>מחיר לפי 1.5 שעות למפגש: <strong data-finance-completion-calculated>—</strong> · <button type="button" class="ds-btn ds-btn--sm" data-finance-completion-calculate>השתמש במחיר המחושב</button></p>'+(e.proposal_rate?'<p>תעריף בהצעה: '+esc(e.proposal_rate)+' ₪ לשעה'+(e.proposal_hours?' · '+esc(e.proposal_hours)+' שעות בהצעה':'')+'</p>':'')+(e.approved_order_rate!=null?'<p>תעריף מקורי בהזמנת גפ״ן: '+esc(e.approved_order_rate)+' ₪ לשעה (לתיעוד בלבד)</p>':(e.order_rate?'<p>תעריף בהזמנת גפ״ן: '+esc(e.order_rate)+' ₪ לשעה</p>':'')):'')+'<h4>חלוקת מימון (סכום כולל לכל מממן)</h4><div style="display:grid;gap:6px;max-height:280px;overflow:auto">'+(e.funding_options||[]).map(f=>'<label style="display:grid;grid-template-columns:auto 1fr minmax(100px,140px);gap:8px;align-items:center"><input type="checkbox" data-completion-funder="'+esc(f.id)+'" data-completion-gefen="'+String(isGefenFundingName(f.name))+'" '+(allocations.has(key(f.id))?'checked':'')+'><span>'+esc(f.name)+'</span><input type="number" min="0.01" step="0.01" class="ds-input" data-completion-amount="'+esc(f.id)+'" value="'+esc(allocations.get(key(f.id))??'')+'" placeholder="₪"></label>').join('')+'</div><p>סכום המימון: <strong data-finance-completion-funding-total>—</strong></p><details><summary>השלמת מועדי מפגשים חסרים</summary><div data-finance-completion-dates style="display:flex;flex-wrap:wrap;gap:8px">'+Array.from({length:35},(_,i)=>{const name='date_'+(i+1);const value=e.dates?.[name]||'';return '<div data-completion-date-index="'+(i+1)+'" '+(i+1>dates.length?'hidden':'')+'>'+field('מפגש '+(i+1),name,value,'date',value?'readonly':'')+'</div>';}).join('')+'</div></details>'+(e.has_prior?'<p>קיימים חשבונות קודמים; שינוי מחיר כולל או חלוקת מימון ייחסם. תעריף שעתי קבוע מעודכן ישמש בחשבונות הבאים בלבד.</p>':'')+'<div style="display:flex;gap:8px;margin-top:12px"><button type="button" class="ds-btn ds-btn--primary" data-finance-complete-save>שמור ורענן זכאות</button><button type="button" class="ds-btn" data-finance-complete-cancel>ביטול</button></div></form></section>';
+}
+export function financeGefenAccountEditModalHtml(edit, data = {}) {
+  if(!edit?.activities?.length)return '';
+  const title=edit.title||'עריכת פרטים';
+  const rows=edit.activities.map(editor=>{
+    const activity=(data.collectionActivities||[]).find(a=>key(a.row_id)===key(editor.row_id));
+    const label=activityBillingLabel(editor,activity);
+    const hasGefen=(editor.allocations||[]).some(a=>isGefenFundingName(a.name))||isGefenFundingName(editor.funding);
+    const rate=editor.rate??editor.proposal_rate??(hasGefen&&course(editor)?defaultGefenCourseRate({...editor,activity_name:editor.name}):null)??'';
+    const priceLocked=Boolean(editor.has_prior);
+    const allocations=(editor.allocations||[]).filter(a=>a.id);
+    const fundingHtml=allocations.length?`<div class="ds-fin-account-edit__funding" data-account-edit-funding="${esc(editor.row_id)}">${allocations.map(a=>`<label><span>${esc(a.name||'מממן')}</span><input class="ds-input" type="number" min="0.01" step="0.01" data-account-edit-amount="${esc(a.id)}" value="${esc(a.amount??'')}"${priceLocked?' readonly':''}></label>`).join('')}</div>`:'';
+    return `<tr data-account-edit-row="${esc(editor.row_id)}"><td><strong>${esc(label)}</strong>${editor.approved_order_rate!=null?`<small>מקור הזמנה: ${esc(money(editor.approved_order_rate))} ₪</small>`:''}${fundingHtml}<input type="hidden" name="sessions" value="${esc(editor.sessions||'')}"><input type="hidden" name="updated_at" value="${esc(editor.updated_at||'')}"></td><td>${course(editor)?`<input class="ds-input" name="rate" type="number" min="0.01" max="1000000" step="any" value="${esc(rate)}" required aria-label="מחיר לשעה · ${esc(label)}">`:'—'}</td><td><input class="ds-input" name="price" type="number" min="1" step="1" value="${esc(editor.price??'')}" required${priceLocked?' readonly':''} aria-label="מחיר כולל · ${esc(label)}"></td></tr>`;
+  }).join('');
+  return `<div data-finance-account-edit-overlay class="ds-fin-account-edit-overlay" dir="rtl">
+    <section role="dialog" aria-modal="true" aria-labelledby="finance-account-edit-title" class="ds-fin-account-edit-dialog" data-finance-account-edit-dialog data-account-key="${esc(edit.accountKey||'')}">
+      <header class="ds-fin-account-edit__head"><h2 id="finance-account-edit-title">עריכת פרטים – ${esc(title)}</h2><button type="button" class="ds-fin-account-edit__close" data-finance-account-edit-cancel aria-label="סגירה">×</button></header>
+      <form data-finance-account-edit-form>
+        <div class="ds-table-wrap"><table class="ds-table ds-fin-account-edit-table" dir="rtl"><thead><tr><th>פעילות / קבוצה</th><th>מחיר לשעה</th><th>מחיר כולל מוסכם</th></tr></thead><tbody>${rows}</tbody></table></div>
+        ${edit.error?`<p class="ds-fin-account-edit__error" role="alert" data-account-edit-error>${esc(edit.error)}</p>`:'<p class="ds-fin-account-edit__error" role="alert" data-account-edit-error hidden></p>'}
+        <div class="ds-fin-account-edit__actions"><button type="button" class="ds-btn" data-finance-account-edit-cancel>ביטול</button><button type="button" class="ds-btn ds-btn--primary" data-finance-account-edit-save${data.financeBusy?' disabled':''}>שמירת שינויים</button></div>
+      </form>
+    </section>
+  </div>`;
+}
+export function accountEditPayloads(form, editors = []) {
+  const rows=[...form.querySelectorAll('[data-account-edit-row]')];
+  return editors.map(editor=>{
+    const row=rows.find(el=>key(el.dataset.accountEditRow)===key(editor.row_id));
+    if(!row)throw Error('חסרים נתוני פעילות בטופס');
+    const get=name=>row.querySelector(`[name="${name}"]`)?.value??'';
+    const amounts=[...row.querySelectorAll('[data-account-edit-amount]')];
+    const allocations=(editor.allocations||[]).filter(a=>a.id).map(a=>{
+      const amountInput=amounts.find(el=>key(el.dataset.accountEditAmount)===key(a.id));
+      return {id:a.id,amount:amountInput?.value??a.amount??''};
+    });
+    if(!allocations.length)throw Error('חסרה חלוקת מימון לפעילות '+activityBillingLabel(editor));
+    return {
+      activity_id:editor.row_id,
+      data:{
+        updated_at:get('updated_at')||editor.updated_at,
+        price:get('price'),
+        sessions:get('sessions')||editor.sessions,
+        rate:course(editor)?get('rate'):'',
+        school_symbol:editor.school_symbol??'',
+        program_code:editor.activity_no||editor.gefen_number||'',
+        start_time:editor.start_time||'',
+        end_time:editor.end_time||'',
+        contact_email:editor.contact_email||'',
+        allocations,
+        dates:{}
+      }
+    };
+  });
 }
 export function completionPayload(form,editor) {
   const get=name=>form.elements.namedItem(name)?.value??'';
@@ -114,15 +171,15 @@ export function completionPayload(form,editor) {
     return {id,amount:[...form.querySelectorAll('[data-completion-amount]')].find(x=>x.dataset.completionAmount===id)?.value||''};
   });
   const dates={};for(let i=1;i<=35;i++){const name='date_'+i;if(get(name)&&!editor.dates?.[name])dates[name]=get(name);}
-  return {updated_at:editor.updated_at,price:get('price'),sessions:get('sessions'),rate:editor.approved_order_rate!=null?'':get('rate'),school_symbol:get('school_symbol'),program_code:get('program_code'),start_time:get('start_time'),end_time:get('end_time'),contact_email:get('contact_email'),allocations,dates};
+  return {updated_at:editor.updated_at,price:get('price'),sessions:get('sessions'),rate:get('rate'),school_symbol:get('school_symbol'),program_code:get('program_code'),start_time:get('start_time'),end_time:get('end_time'),contact_email:get('contact_email'),allocations,dates};
 }
 export function syncCompletionForm(form,calculate=false) {
   if(!form)return;
   const get=name=>form.elements.namedItem(name);
   const gefenSelected=Boolean(form.querySelector('[data-completion-funder][data-completion-gefen="true"]:checked'));
-  const rateField=get('rate');if(rateField){rateField.required=gefenSelected&&!rateField.readOnly;rateField.disabled=!gefenSelected;}
+  const rateField=get('rate');if(rateField){rateField.required=gefenSelected;rateField.disabled=!gefenSelected;}
   const rateWrapper=form.querySelector('[data-completion-gefen-rate]');if(rateWrapper)rateWrapper.hidden=!gefenSelected;
-  const calculation=form.querySelector('[data-completion-gefen-calculation]');if(calculation)calculation.hidden=!gefenSelected||Boolean(rateField?.readOnly)||form.querySelectorAll('[data-completion-funder]:checked').length!==1;
+  const calculation=form.querySelector('[data-completion-gefen-calculation]');if(calculation)calculation.hidden=!gefenSelected||form.querySelectorAll('[data-completion-funder]:checked').length!==1;
   const sessions=Number(get('sessions')?.value||0),rate=Number(rateField?.value||0);
   const total=sessions*1.5*rate;
   const calc=form.querySelector('[data-finance-completion-calculated]');

@@ -1027,3 +1027,100 @@
  .ds-fin-issuance-shell .ds-fin-payer__meta {margin-inline-start:auto;}
  .ds-fin-issuance-shell .ds-fin-gefen-group-actions .ds-btn {width:auto;flex:1;}
 }
+
+/* Compact Gefen account billing-edit modal before issuance. */
+.ds-fin-account-edit-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(12, 30, 43, .58);
+}
+.ds-fin-account-edit-dialog {
+  box-sizing: border-box;
+  width: min(100%, 720px);
+  max-height: 85vh;
+  overflow: auto;
+  background: var(--ds-bg, #fff);
+  color: var(--ds-text, #142b3c);
+  padding: 20px 22px 18px;
+  border-radius: 16px;
+  box-shadow: 0 12px 50px rgba(0, 0, 0, .22);
+}
+.ds-fin-account-edit__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.ds-fin-account-edit__head h2 {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.4;
+  font-weight: 750;
+}
+.ds-fin-account-edit__close {
+  border: 0;
+  background: transparent;
+  color: var(--ds-text-muted, #64748b);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.ds-fin-account-edit-table th,
+.ds-fin-account-edit-table td {
+  text-align: right;
+  vertical-align: top;
+}
+.ds-fin-account-edit-table td strong {
+  display: block;
+}
+.ds-fin-account-edit-table td small {
+  display: block;
+  margin-top: 2px;
+  color: var(--ds-text-muted, #64748b);
+  font-size: 11px;
+}
+.ds-fin-account-edit-table .ds-input {
+  width: 112px;
+  max-width: 100%;
+  min-height: 34px;
+}
+.ds-fin-account-edit__funding {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+.ds-fin-account-edit__funding label {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  color: var(--ds-text-secondary, #475569);
+}
+.ds-fin-account-edit__error {
+  margin: 10px 0 0;
+  color: #b42318;
+  font-size: 13px;
+}
+.ds-fin-account-edit__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-start;
+  margin-top: 16px;
+}
+@media (max-width: 640px) {
+  .ds-fin-account-edit-dialog { width: 100%; padding: 16px; border-radius: 12px; }
+  .ds-fin-account-edit-table .ds-input,
+  .ds-fin-account-edit__funding label { grid-template-columns: 1fr; }
+  .ds-fin-account-edit__funding .ds-input,
+  .ds-fin-account-edit-table .ds-input { width: 100%; }
+  .ds-fin-account-edit__actions .ds-btn { flex: 1; }
+}

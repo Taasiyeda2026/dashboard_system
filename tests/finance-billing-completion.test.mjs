@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { financeIncompleteBillingActivities, financeBillingCompletionHtml, financeBillingMissingReasons } from '../frontend/src/screens/finance-billing-completion.js';
+import { financeIncompleteBillingActivities, financeBillingCompletionHtml, financeBillingMissingReasons, financeBillingCompletionEditorHtml, accountEditPayloads, financeGefenAccountEditModalHtml } from '../frontend/src/screens/finance-billing-completion.js';
+import { JSDOM } from 'jsdom';
 const rows=[
   {row_id:'a',activity_type:'course',activity_name:'ביומימיקרי',funding:'גפן',price:9000,sessions:10,course_hourly_rate:null},
   {row_id:'b',activity_type:'course',activity_name:'קורס אחר',funding:'רשות',price:9000,sessions:10,course_hourly_rate:null},
@@ -79,6 +80,24 @@ test('completion shows school symbol and authority as separate columns and inclu
  assert.match(result,/<th>מוסד<\/th><th>סמל מוסד<\/th><th>רשות<\/th>/);
  assert.match(result,/<td>214098<\/td><td>נהרייה<\/td>/);
  assert.match(result,/data-completion-search-text="[^"]*214098 נהרייה/);
+});
+
+test('approved order rate stays documentary while the contract rate remains editable',()=>{
+  const editor={row_id:'a',activity_type:'course',name:'ביומימיקרי',school:'בית ספר',sessions:10,price:9000,rate:520,approved_order_rate:575,order_rate:575,allocations:[{id:'g',name:'גפן',amount:9000}],funding_options:[{id:'g',name:'גפן'}],updated_at:'2026-11-26T00:00:00Z'};
+  const html=financeBillingCompletionEditorHtml(editor);
+  assert.match(html,/name="rate" type="number" value="520"/);
+  assert.doesNotMatch(html,/name="rate"[^>]*readonly/);
+  assert.match(html,/תעריף מקורי בהזמנת גפ״ן: 575/);
+  const modal=financeGefenAccountEditModalHtml({accountKey:'k',title:'רחובות · בכור לוי · 413351',activities:[editor,{...editor,row_id:'b',name:'קבוצה ב',grade:'ח',class_group:'2',rate:600,approved_order_rate:null}]});
+  const dom=new JSDOM(modal);const form=dom.window.document.querySelector('[data-finance-account-edit-form]');
+  form.querySelector('[data-account-edit-row="a"] [name="rate"]').value='610';
+  form.querySelector('[data-account-edit-row="b"] [name="rate"]').value='620';
+  const payloads=accountEditPayloads(form,[{...editor},{...editor,row_id:'b',name:'קבוצה ב',grade:'ח',class_group:'2',rate:600,approved_order_rate:null}]);
+  assert.equal(payloads.length,2);
+  assert.equal(payloads[0].data.rate,'610');
+  assert.equal(payloads[1].data.rate,'620');
+  assert.equal(payloads[0].data.allocations[0].amount,'9000');
+  dom.window.close();
 });
 
 test('operational dates, deleted records, fully billed payers and internal price gaps do not create finance tasks',()=>{
